@@ -1,5 +1,6 @@
 use js_sys::Array;
-use wasm_bindgen::{prelude::Closure, JsCast};
+use wasm_bindgen::prelude::Closure;
+use wasm_bindgen::JsCast;
 use web_sys::{Element, IntersectionObserver, IntersectionObserverEntry};
 
 pub(super) struct IntersectionObserverHandle {
@@ -21,10 +22,7 @@ impl IntersectionObserverHandle {
             .expect("Invalid `options`");
         observer.observe(element);
 
-        Self {
-            observer,
-            _closure: closure,
-        }
+        Self { observer, _closure: closure }
     }
 }
 

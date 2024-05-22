@@ -1,12 +1,13 @@
 use std::time::Duration;
 
 use crate::application::ApplicationHandler;
-use crate::event::Event;
-use crate::event_loop::{self, ActiveEventLoop, EventLoop};
+use crate::event_loop::EventLoop;
 
 /// Additional methods on [`EventLoop`] for pumping events within an external event loop
 pub trait EventLoopExtPumpEvents {
     /// A type provided by the user that can be passed through [`Event::UserEvent`].
+    ///
+    /// [`Event::UserEvent`]: crate::event::Event::UserEvent
     type UserEvent: 'static;
 
     /// Pump the `EventLoop` to check for and dispatch pending events.
@@ -84,12 +85,11 @@ pub trait EventLoopExtPumpEvents {
     ///
     /// ## Platform-specific
     ///
-    /// - **Windows**: The implementation will use `PeekMessage` when checking for
-    ///   window messages to avoid blocking your external event loop.
+    /// - **Windows**: The implementation will use `PeekMessage` when checking for window messages
+    ///   to avoid blocking your external event loop.
     ///
-    /// - **MacOS**: The implementation works in terms of stopping the global application
-    ///   whenever the application `RunLoop` indicates that it is preparing to block
-    ///   and wait for new events.
+    /// - **MacOS**: The implementation works in terms of stopping the global application whenever
+    ///   the application `RunLoop` indicates that it is preparing to block and wait for new events.
     ///
     ///   This is very different to the polling APIs that are available on other
     ///   platforms (the lower level polling primitives on MacOS are private
@@ -108,30 +108,18 @@ pub trait EventLoopExtPumpEvents {
         &mut self,
         timeout: Option<Duration>,
         app: &mut A,
-    ) -> PumpStatus {
-        #[allow(deprecated)]
-        self.pump_events(timeout, |event, event_loop| {
-            event_loop::dispatch_event_for_app(app, event_loop, event)
-        })
-    }
-
-    /// See [`pump_app_events`].
-    ///
-    /// [`pump_app_events`]: Self::pump_app_events
-    #[deprecated = "use EventLoopExtPumpEvents::pump_app_events"]
-    fn pump_events<F>(&mut self, timeout: Option<Duration>, event_handler: F) -> PumpStatus
-    where
-        F: FnMut(Event<Self::UserEvent>, &ActiveEventLoop);
+    ) -> PumpStatus;
 }
 
 impl<T> EventLoopExtPumpEvents for EventLoop<T> {
     type UserEvent = T;
 
-    fn pump_events<F>(&mut self, timeout: Option<Duration>, event_handler: F) -> PumpStatus
-    where
-        F: FnMut(Event<Self::UserEvent>, &ActiveEventLoop),
-    {
-        self.event_loop.pump_events(timeout, event_handler)
+    fn pump_app_events<A: ApplicationHandler<Self::UserEvent>>(
+        &mut self,
+        timeout: Option<Duration>,
+        app: &mut A,
+    ) -> PumpStatus {
+        self.event_loop.pump_app_events(timeout, app)
     }
 }
 

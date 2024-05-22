@@ -36,9 +36,7 @@ impl TouchHandler for WinitState {
         let seat_state = self.seats.get_mut(&touch.seat().id()).unwrap();
 
         // Update the state of the point.
-        seat_state
-            .touch_map
-            .insert(id, TouchPoint { surface, location });
+        seat_state.touch_map.insert(id, TouchPoint { surface, location });
 
         self.events_sink.push_window_event(
             WindowEvent::Touch(Touch {
@@ -190,9 +188,7 @@ pub trait TouchDataExt {
 
 impl TouchDataExt for WlTouch {
     fn seat(&self) -> &WlSeat {
-        self.data::<TouchData>()
-            .expect("failed to get touch data.")
-            .seat()
+        self.data::<TouchData>().expect("failed to get touch data.").seat()
     }
 }
 

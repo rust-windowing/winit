@@ -58,7 +58,7 @@ pub fn is_fullscreen(document: &Document, canvas: &HtmlCanvasElement) -> bool {
         Some(element) => {
             let canvas: &Element = canvas;
             canvas == &element
-        }
+        },
         None => false,
     }
 }

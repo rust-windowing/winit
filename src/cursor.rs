@@ -1,7 +1,7 @@
 use core::fmt;
-use std::hash::Hasher;
+use std::error::Error;
+use std::hash::{Hash, Hasher};
 use std::sync::Arc;
-use std::{error::Error, hash::Hash};
 
 use cursor_icon::CursorIcon;
 
@@ -88,14 +88,9 @@ impl CustomCursor {
         hotspot_x: u16,
         hotspot_y: u16,
     ) -> Result<CustomCursorSource, BadImage> {
-        let _span = tracing::debug_span!(
-            "winit::Cursor::from_rgba",
-            width,
-            height,
-            hotspot_x,
-            hotspot_y
-        )
-        .entered();
+        let _span =
+            tracing::debug_span!("winit::Cursor::from_rgba", width, height, hotspot_x, hotspot_y)
+                .entered();
 
         Ok(CustomCursorSource {
             inner: PlatformCustomCursorSource::from_rgba(
@@ -129,45 +124,36 @@ pub enum BadImage {
     ByteCountNotDivisibleBy4 { byte_count: usize },
     /// Produced when the number of pixels (`rgba.len() / 4`) isn't equal to `width * height`.
     /// At least one of your arguments is incorrect.
-    DimensionsVsPixelCount {
-        width: u16,
-        height: u16,
-        width_x_height: u64,
-        pixel_count: u64,
-    },
+    DimensionsVsPixelCount { width: u16, height: u16, width_x_height: u64, pixel_count: u64 },
     /// Produced when the hotspot is outside the image bounds
-    HotspotOutOfBounds {
-        width: u16,
-        height: u16,
-        hotspot_x: u16,
-        hotspot_y: u16,
-    },
+    HotspotOutOfBounds { width: u16, height: u16, hotspot_x: u16, hotspot_y: u16 },
 }
 
 impl fmt::Display for BadImage {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            BadImage::TooLarge { width, height } => write!(f,
-                "The specified dimensions ({width:?}x{height:?}) are too large. The maximum is {MAX_CURSOR_SIZE:?}x{MAX_CURSOR_SIZE:?}.",
+            BadImage::TooLarge { width, height } => write!(
+                f,
+                "The specified dimensions ({width:?}x{height:?}) are too large. The maximum is \
+                 {MAX_CURSOR_SIZE:?}x{MAX_CURSOR_SIZE:?}.",
             ),
-            BadImage::ByteCountNotDivisibleBy4 { byte_count } => write!(f,
-                "The length of the `rgba` argument ({byte_count:?}) isn't divisible by 4, making it impossible to interpret as 32bpp RGBA pixels.",
+            BadImage::ByteCountNotDivisibleBy4 { byte_count } => write!(
+                f,
+                "The length of the `rgba` argument ({byte_count:?}) isn't divisible by 4, making \
+                 it impossible to interpret as 32bpp RGBA pixels.",
             ),
-            BadImage::DimensionsVsPixelCount {
-                width,
-                height,
-                width_x_height,
-                pixel_count,
-            } => write!(f,
-                "The specified dimensions ({width:?}x{height:?}) don't match the number of pixels supplied by the `rgba` argument ({pixel_count:?}). For those dimensions, the expected pixel count is {width_x_height:?}.",
-            ),
-            BadImage::HotspotOutOfBounds {
-                width,
-                height,
-                hotspot_x,
-                hotspot_y,
-            } => write!(f,
-                "The specified hotspot ({hotspot_x:?}, {hotspot_y:?}) is outside the image bounds ({width:?}x{height:?}).",
+            BadImage::DimensionsVsPixelCount { width, height, width_x_height, pixel_count } => {
+                write!(
+                    f,
+                    "The specified dimensions ({width:?}x{height:?}) don't match the number of \
+                     pixels supplied by the `rgba` argument ({pixel_count:?}). For those \
+                     dimensions, the expected pixel count is {width_x_height:?}.",
+                )
+            },
+            BadImage::HotspotOutOfBounds { width, height, hotspot_x, hotspot_y } => write!(
+                f,
+                "The specified hotspot ({hotspot_x:?}, {hotspot_y:?}) is outside the image bounds \
+                 ({width:?}x{height:?}).",
             ),
         }
     }
@@ -236,9 +222,7 @@ impl CursorImage {
         }
 
         if rgba.len() % PIXEL_SIZE != 0 {
-            return Err(BadImage::ByteCountNotDivisibleBy4 {
-                byte_count: rgba.len(),
-            });
+            return Err(BadImage::ByteCountNotDivisibleBy4 { byte_count: rgba.len() });
         }
 
         let pixel_count = (rgba.len() / PIXEL_SIZE) as u64;
@@ -253,21 +237,10 @@ impl CursorImage {
         }
 
         if hotspot_x >= width || hotspot_y >= height {
-            return Err(BadImage::HotspotOutOfBounds {
-                width,
-                height,
-                hotspot_x,
-                hotspot_y,
-            });
+            return Err(BadImage::HotspotOutOfBounds { width, height, hotspot_x, hotspot_y });
         }
 
-        Ok(CursorImage {
-            rgba,
-            width,
-            height,
-            hotspot_x,
-            hotspot_y,
-        })
+        Ok(CursorImage { rgba, width, height, hotspot_x, hotspot_y })
     }
 }
 

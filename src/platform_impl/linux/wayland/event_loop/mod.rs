@@ -12,9 +12,9 @@ use std::time::{Duration, Instant};
 
 use sctk::reexports::calloop::Error as CalloopError;
 use sctk::reexports::calloop_wayland_source::WaylandSource;
-use sctk::reexports::client::globals;
-use sctk::reexports::client::{Connection, QueueHandle};
+use sctk::reexports::client::{globals, Connection, QueueHandle};
 
+use crate::application::ApplicationHandler;
 use crate::cursor::OnlyCursorImage;
 use crate::dpi::LogicalSize;
 use crate::error::{EventLoopError, OsError as RootOsError};
@@ -81,26 +81,19 @@ impl<T: 'static> EventLoop<T> {
 
         let connection = map_err!(Connection::connect_to_env(), WaylandError::Connection)?;
 
-        let (globals, mut event_queue) = map_err!(
-            globals::registry_queue_init(&connection),
-            WaylandError::Global
-        )?;
+        let (globals, mut event_queue) =
+            map_err!(globals::registry_queue_init(&connection), WaylandError::Global)?;
         let queue_handle = event_queue.handle();
 
-        let event_loop = map_err!(
-            calloop::EventLoop::<WinitState>::try_new(),
-            WaylandError::Calloop
-        )?;
+        let event_loop =
+            map_err!(calloop::EventLoop::<WinitState>::try_new(), WaylandError::Calloop)?;
 
         let mut winit_state = WinitState::new(&globals, &queue_handle, event_loop.handle())
             .map_err(|error| os_error!(error))?;
 
         // NOTE: do a roundtrip after binding the globals to prevent potential
         // races with the server.
-        map_err!(
-            event_queue.roundtrip(&mut winit_state),
-            WaylandError::Dispatch
-        )?;
+        map_err!(event_queue.roundtrip(&mut winit_state), WaylandError::Dispatch)?;
 
         // Register Wayland source.
         let wayland_source = WaylandSource::new(connection.clone(), event_queue);
@@ -117,9 +110,7 @@ impl<T: 'static> EventLoop<T> {
             });
 
         map_err!(
-            event_loop
-                .handle()
-                .register_dispatcher(wayland_dispatcher.clone()),
+            event_loop.handle().register_dispatcher(wayland_dispatcher.clone()),
             WaylandError::Calloop
         )?;
 
@@ -129,15 +120,12 @@ impl<T: 'static> EventLoop<T> {
         let (user_events_sender, user_events_channel) = calloop::channel::channel();
         let result = event_loop
             .handle()
-            .insert_source(
-                user_events_channel,
-                move |event, _, winit_state: &mut WinitState| {
-                    if let calloop::channel::Event::Msg(msg) = event {
-                        winit_state.dispatched_events = true;
-                        pending_user_events_clone.borrow_mut().push(msg);
-                    }
-                },
-            )
+            .insert_source(user_events_channel, move |event, _, winit_state: &mut WinitState| {
+                if let calloop::channel::Event::Msg(msg) = event {
+                    winit_state.dispatched_events = true;
+                    pending_user_events_clone.borrow_mut().push(msg);
+                }
+            })
             .map_err(|error| error.error);
         map_err!(result, WaylandError::Calloop)?;
 
@@ -150,13 +138,10 @@ impl<T: 'static> EventLoop<T> {
 
         let result = event_loop
             .handle()
-            .insert_source(
-                event_loop_awakener_source,
-                move |_, _, winit_state: &mut WinitState| {
-                    // Mark that we have something to dispatch.
-                    winit_state.dispatched_events = true;
-                },
-            )
+            .insert_source(event_loop_awakener_source, move |_, _, winit_state: &mut WinitState| {
+                // Mark that we have something to dispatch.
+                winit_state.dispatched_events = true;
+            })
             .map_err(|error| error.error);
         map_err!(result, WaylandError::Calloop)?;
 
@@ -189,21 +174,25 @@ impl<T: 'static> EventLoop<T> {
         Ok(event_loop)
     }
 
-    pub fn run_on_demand<F>(&mut self, mut event_handler: F) -> Result<(), EventLoopError>
-    where
-        F: FnMut(Event<T>, &RootActiveEventLoop),
-    {
+    pub fn run_app<A: ApplicationHandler<T>>(mut self, app: &mut A) -> Result<(), EventLoopError> {
+        self.run_app_on_demand(app)
+    }
+
+    pub fn run_app_on_demand<A: ApplicationHandler<T>>(
+        &mut self,
+        app: &mut A,
+    ) -> Result<(), EventLoopError> {
         let exit = loop {
-            match self.pump_events(None, &mut event_handler) {
+            match self.pump_app_events(None, app) {
                 PumpStatus::Exit(0) => {
                     break Ok(());
-                }
+                },
                 PumpStatus::Exit(code) => {
                     break Err(EventLoopError::ExitFailure(code));
-                }
+                },
                 _ => {
                     continue;
-                }
+                },
             }
         };
 
@@ -216,26 +205,27 @@ impl<T: 'static> EventLoop<T> {
         exit
     }
 
-    pub fn pump_events<F>(&mut self, timeout: Option<Duration>, mut callback: F) -> PumpStatus
-    where
-        F: FnMut(Event<T>, &RootActiveEventLoop),
-    {
+    pub fn pump_app_events<A: ApplicationHandler<T>>(
+        &mut self,
+        timeout: Option<Duration>,
+        app: &mut A,
+    ) -> PumpStatus {
         if !self.loop_running {
             self.loop_running = true;
 
             // Run the initial loop iteration.
-            self.single_iteration(&mut callback, StartCause::Init);
+            self.single_iteration(app, StartCause::Init);
         }
 
         // Consider the possibility that the `StartCause::Init` iteration could
         // request to Exit.
         if !self.exiting() {
-            self.poll_events_with_timeout(timeout, &mut callback);
+            self.poll_events_with_timeout(timeout, app);
         }
         if let Some(code) = self.exit_code() {
             self.loop_running = false;
 
-            callback(Event::LoopExiting, self.window_target());
+            app.exiting(&self.window_target);
 
             PumpStatus::Exit(code)
         } else {
@@ -243,10 +233,11 @@ impl<T: 'static> EventLoop<T> {
         }
     }
 
-    pub fn poll_events_with_timeout<F>(&mut self, mut timeout: Option<Duration>, mut callback: F)
-    where
-        F: FnMut(Event<T>, &RootActiveEventLoop),
-    {
+    pub fn poll_events_with_timeout<A: ApplicationHandler<T>>(
+        &mut self,
+        mut timeout: Option<Duration>,
+        app: &mut A,
+    ) {
         let cause = loop {
             let start = Instant::now();
 
@@ -256,7 +247,7 @@ impl<T: 'static> EventLoop<T> {
                     ControlFlow::Poll => Some(Duration::ZERO),
                     ControlFlow::WaitUntil(wait_deadline) => {
                         Some(wait_deadline.saturating_duration_since(start))
-                    }
+                    },
                 };
                 min_timeout(control_flow_timeout, timeout)
             };
@@ -274,11 +265,12 @@ impl<T: 'static> EventLoop<T> {
 
             if let Err(error) = self.loop_dispatch(timeout) {
                 // NOTE We exit on errors from dispatches, since if we've got protocol error
-                // libwayland-client/wayland-rs will inform us anyway, but crashing downstream is not
-                // really an option. Instead we inform that the event loop got destroyed. We may
-                // communicate an error that something was terminated, but winit doesn't provide us
-                // with an API to do that via some event.
-                // Still, we set the exit code to the error's OS error code, or to 1 if not possible.
+                // libwayland-client/wayland-rs will inform us anyway, but crashing downstream is
+                // not really an option. Instead we inform that the event loop got
+                // destroyed. We may communicate an error that something was
+                // terminated, but winit doesn't provide us with an API to do that
+                // via some event. Still, we set the exit code to the error's OS
+                // error code, or to 1 if not possible.
                 let exit_code = error.raw_os_error().unwrap_or(1);
                 self.set_exit_code(exit_code);
                 return;
@@ -288,23 +280,14 @@ impl<T: 'static> EventLoop<T> {
             // to be considered here
             let cause = match self.control_flow() {
                 ControlFlow::Poll => StartCause::Poll,
-                ControlFlow::Wait => StartCause::WaitCancelled {
-                    start,
-                    requested_resume: None,
-                },
+                ControlFlow::Wait => StartCause::WaitCancelled { start, requested_resume: None },
                 ControlFlow::WaitUntil(deadline) => {
                     if Instant::now() < deadline {
-                        StartCause::WaitCancelled {
-                            start,
-                            requested_resume: Some(deadline),
-                        }
+                        StartCause::WaitCancelled { start, requested_resume: Some(deadline) }
                     } else {
-                        StartCause::ResumeTimeReached {
-                            start,
-                            requested_resume: deadline,
-                        }
+                        StartCause::ResumeTimeReached { start, requested_resume: deadline }
                     }
-                }
+                },
             };
 
             // Reduce spurious wake-ups.
@@ -316,13 +299,10 @@ impl<T: 'static> EventLoop<T> {
             break cause;
         };
 
-        self.single_iteration(&mut callback, cause);
+        self.single_iteration(app, cause);
     }
 
-    fn single_iteration<F>(&mut self, callback: &mut F, cause: StartCause)
-    where
-        F: FnMut(Event<T>, &RootActiveEventLoop),
-    {
+    fn single_iteration<A: ApplicationHandler<T>>(&mut self, app: &mut A, cause: StartCause) {
         // NOTE currently just indented to simplify the diff
 
         // We retain these grow-only scratch buffers as part of the EventLoop
@@ -333,18 +313,18 @@ impl<T: 'static> EventLoop<T> {
         let mut buffer_sink = std::mem::take(&mut self.buffer_sink);
         let mut window_ids = std::mem::take(&mut self.window_ids);
 
-        callback(Event::NewEvents(cause), &self.window_target);
+        app.new_events(&self.window_target, cause);
 
         // NB: For consistency all platforms must emit a 'resumed' event even though Wayland
         // applications don't themselves have a formal suspend/resume lifecycle.
         if cause == StartCause::Init {
-            callback(Event::Resumed, &self.window_target);
+            app.resumed(&self.window_target);
         }
 
         // Handle pending user events. We don't need back buffer, since we can't dispatch
         // user events indirectly via callback to the user.
         for user_event in self.pending_user_events.borrow_mut().drain(..) {
-            callback(Event::UserEvent(user_event), &self.window_target);
+            app.user_event(&self.window_target, user_event);
         }
 
         // Drain the pending compositor updates.
@@ -365,18 +345,13 @@ impl<T: 'static> EventLoop<T> {
                 let old_physical_size = physical_size;
 
                 let new_inner_size = Arc::new(Mutex::new(physical_size));
-                callback(
-                    Event::WindowEvent {
-                        window_id: crate::window::WindowId(window_id),
-                        event: WindowEvent::ScaleFactorChanged {
-                            scale_factor,
-                            inner_size_writer: InnerSizeWriter::new(Arc::downgrade(
-                                &new_inner_size,
-                            )),
-                        },
-                    },
-                    &self.window_target,
-                );
+                let root_window_id = crate::window::WindowId(window_id);
+                let event = WindowEvent::ScaleFactorChanged {
+                    scale_factor,
+                    inner_size_writer: InnerSizeWriter::new(Arc::downgrade(&new_inner_size)),
+                };
+
+                app.window_event(&self.window_target, root_window_id, event);
 
                 let physical_size = *new_inner_size.lock().unwrap();
                 drop(new_inner_size);
@@ -419,23 +394,14 @@ impl<T: 'static> EventLoop<T> {
                     size
                 });
 
-                callback(
-                    Event::WindowEvent {
-                        window_id: crate::window::WindowId(window_id),
-                        event: WindowEvent::Resized(physical_size),
-                    },
-                    &self.window_target,
-                );
+                let window_id = crate::window::WindowId(window_id);
+                let event = WindowEvent::Resized(physical_size);
+                app.window_event(&self.window_target, window_id, event);
             }
 
             if compositor_update.close_window {
-                callback(
-                    Event::WindowEvent {
-                        window_id: crate::window::WindowId(window_id),
-                        event: WindowEvent::CloseRequested,
-                    },
-                    &self.window_target,
-                );
+                let window_id = crate::window::WindowId(window_id);
+                app.window_event(&self.window_target, window_id, WindowEvent::CloseRequested);
             }
         }
 
@@ -444,8 +410,15 @@ impl<T: 'static> EventLoop<T> {
             buffer_sink.append(&mut state.window_events_sink.lock().unwrap());
         });
         for event in buffer_sink.drain() {
-            let event = event.map_nonuser_event().unwrap();
-            callback(event, &self.window_target);
+            match event {
+                Event::WindowEvent { window_id, event } => {
+                    app.window_event(&self.window_target, window_id, event)
+                },
+                Event::DeviceEvent { device_id, event } => {
+                    app.device_event(&self.window_target, device_id, event)
+                },
+                _ => unreachable!("event which is neither device nor window event."),
+            }
         }
 
         // Handle non-synthetic events.
@@ -453,8 +426,15 @@ impl<T: 'static> EventLoop<T> {
             buffer_sink.append(&mut state.events_sink);
         });
         for event in buffer_sink.drain() {
-            let event = event.map_nonuser_event().unwrap();
-            callback(event, &self.window_target);
+            match event {
+                Event::WindowEvent { window_id, event } => {
+                    app.window_event(&self.window_target, window_id, event)
+                },
+                Event::DeviceEvent { device_id, event } => {
+                    app.device_event(&self.window_target, device_id, event)
+                },
+                _ => unreachable!("event which is neither device nor window event."),
+            }
         }
 
         // Collect the window ids
@@ -471,13 +451,8 @@ impl<T: 'static> EventLoop<T> {
                     return Some(WindowEvent::Destroyed);
                 }
 
-                let mut window = state
-                    .windows
-                    .get_mut()
-                    .get_mut(window_id)
-                    .unwrap()
-                    .lock()
-                    .unwrap();
+                let mut window =
+                    state.windows.get_mut().get_mut(window_id).unwrap().lock().unwrap();
 
                 if window.frame_callback_state() == FrameCallbackState::Requested {
                     return None;
@@ -485,10 +460,8 @@ impl<T: 'static> EventLoop<T> {
 
                 // Reset the frame callbacks state.
                 window.frame_callback_reset();
-                let mut redraw_requested = window_requests
-                    .get(window_id)
-                    .unwrap()
-                    .take_redraw_requested();
+                let mut redraw_requested =
+                    window_requests.get(window_id).unwrap().take_redraw_requested();
 
                 // Redraw the frame while at it.
                 redraw_requested |= window.refresh_frame();
@@ -497,13 +470,8 @@ impl<T: 'static> EventLoop<T> {
             });
 
             if let Some(event) = event {
-                callback(
-                    Event::WindowEvent {
-                        window_id: crate::window::WindowId(*window_id),
-                        event,
-                    },
-                    &self.window_target,
-                );
+                let window_id = crate::window::WindowId(*window_id);
+                app.window_event(&self.window_target, window_id, event);
             }
         }
 
@@ -513,7 +481,7 @@ impl<T: 'static> EventLoop<T> {
         });
 
         // This is always the last event we dispatch before poll again
-        callback(Event::AboutToWait, &self.window_target);
+        app.about_to_wait(&self.window_target);
 
         // Update the window frames and schedule redraws.
         let mut wake_up = false;
@@ -532,7 +500,7 @@ impl<T: 'static> EventLoop<T> {
                     }
 
                     refresh
-                }
+                },
                 None => false,
             });
         }
@@ -545,7 +513,7 @@ impl<T: 'static> EventLoop<T> {
             match &self.window_target.p {
                 PlatformActiveEventLoop::Wayland(window_target) => {
                     window_target.event_loop_awakener.ping();
-                }
+                },
                 #[cfg(x11_platform)]
                 PlatformActiveEventLoop::X(_) => unreachable!(),
             }
@@ -599,9 +567,7 @@ impl<T: 'static> EventLoop<T> {
         let mut wayland_source = self.wayland_dispatcher.as_source_mut();
         let event_queue = wayland_source.queue();
         event_queue.roundtrip(state).map_err(|error| {
-            os_error!(OsError::WaylandError(Arc::new(WaylandError::Dispatch(
-                error
-            ))))
+            os_error!(OsError::WaylandError(Arc::new(WaylandError::Dispatch(error))))
         })
     }
 

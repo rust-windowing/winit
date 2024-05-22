@@ -15,8 +15,7 @@ use xkbcommon_dl::{
 #[cfg(x11_platform)]
 use {x11_dl::xlib_xcb::xcb_connection_t, xkbcommon_dl::x11::xkbcommon_x11_handle};
 
-use crate::event::ElementState;
-use crate::event::KeyEvent;
+use crate::event::{ElementState, KeyEvent};
 use crate::keyboard::{Key, KeyLocation};
 use crate::platform_impl::KeyEventExtra;
 
@@ -143,9 +142,7 @@ impl Context {
     #[cfg(x11_platform)]
     pub fn set_keymap_from_x11(&mut self, xcb: *mut xcb_connection_t) {
         let keymap = XkbKeymap::from_x11_keymap(&self.context, xcb, self.core_keyboard_id);
-        let state = keymap
-            .as_ref()
-            .and_then(|keymap| XkbState::new_x11(xcb, keymap));
+        let state = keymap.as_ref().and_then(|keymap| XkbState::new_x11(xcb, keymap));
         if keymap.is_none() || state.is_none() {
             warn!("failed to update xkb keymap");
         }
@@ -160,13 +157,7 @@ impl Context {
         let compose_state1 = self.compose_state1.as_mut();
         let compose_state2 = self.compose_state2.as_mut();
         let scratch_buffer = &mut self.scratch_buffer;
-        Some(KeyContext {
-            state,
-            keymap,
-            compose_state1,
-            compose_state2,
-            scratch_buffer,
-        })
+        Some(KeyContext { state, keymap, compose_state1, compose_state2, scratch_buffer })
     }
 
     /// Key builder context with the user provided xkb state.
@@ -181,13 +172,7 @@ impl Context {
         let compose_state1 = self.compose_state1.as_mut();
         let compose_state2 = self.compose_state2.as_mut();
         let scratch_buffer = &mut self.scratch_buffer;
-        Some(KeyContext {
-            state,
-            keymap,
-            compose_state1,
-            compose_state2,
-            scratch_buffer,
-        })
+        Some(KeyContext { state, keymap, compose_state1, compose_state2, scratch_buffer })
     }
 }
 
@@ -214,20 +199,9 @@ impl<'a> KeyContext<'a> {
         let (key_without_modifiers, _) = event.key_without_modifiers();
         let text_with_all_modifiers = event.text_with_all_modifiers();
 
-        let platform_specific = KeyEventExtra {
-            text_with_all_modifiers,
-            key_without_modifiers,
-        };
+        let platform_specific = KeyEventExtra { text_with_all_modifiers, key_without_modifiers };
 
-        KeyEvent {
-            physical_key,
-            logical_key,
-            text,
-            location,
-            state,
-            repeat,
-            platform_specific,
-        }
+        KeyEvent { physical_key, logical_key, text, location, state, repeat, platform_specific }
     }
 
     fn keysym_to_utf8_raw(&mut self, keysym: u32) -> Option<SmolStr> {
@@ -246,10 +220,7 @@ impl<'a> KeyContext<'a> {
             } else if bytes_written == -1 {
                 self.scratch_buffer.reserve(8);
             } else {
-                unsafe {
-                    self.scratch_buffer
-                        .set_len(bytes_written.try_into().unwrap())
-                };
+                unsafe { self.scratch_buffer.set_len(bytes_written.try_into().unwrap()) };
                 break;
             }
         }
@@ -281,12 +252,7 @@ impl<'a, 'b> KeyEventResults<'a, 'b> {
             ComposeStatus::None
         };
 
-        KeyEventResults {
-            context,
-            keycode,
-            keysym,
-            compose,
-        }
+        KeyEventResults { context, keycode, keysym, compose }
     }
 
     pub fn key(&mut self) -> (Key, KeyLocation) {
@@ -323,23 +289,18 @@ impl<'a, 'b> KeyEventResults<'a, 'b> {
     }
 
     pub fn key_without_modifiers(&mut self) -> (Key, KeyLocation) {
-        // This will become a pointer to an array which libxkbcommon owns, so we don't need to deallocate it.
+        // This will become a pointer to an array which libxkbcommon owns, so we don't need to
+        // deallocate it.
         let layout = self.context.state.layout(self.keycode);
-        let keysym = self
-            .context
-            .keymap
-            .first_keysym_by_level(layout, self.keycode);
+        let keysym = self.context.keymap.first_keysym_by_level(layout, self.keycode);
 
         match self.keysym_to_key(keysym) {
             Ok((key, location)) => (key, location),
             Err((key, location)) => {
-                let key = self
-                    .context
-                    .keysym_to_utf8_raw(keysym)
-                    .map(Key::Character)
-                    .unwrap_or(key);
+                let key =
+                    self.context.keysym_to_utf8_raw(keysym).map(Key::Character).unwrap_or(key);
                 (key, location)
-            }
+            },
         }
     }
 
@@ -354,8 +315,7 @@ impl<'a, 'b> KeyEventResults<'a, 'b> {
     }
 
     pub fn text(&mut self) -> Option<SmolStr> {
-        self.composed_text()
-            .unwrap_or_else(|_| self.context.keysym_to_utf8_raw(self.keysym))
+        self.composed_text().unwrap_or_else(|_| self.context.keysym_to_utf8_raw(self.keysym))
     }
 
     // The current behaviour makes it so composing a character overrides attempts to input a
@@ -364,10 +324,7 @@ impl<'a, 'b> KeyEventResults<'a, 'b> {
     pub fn text_with_all_modifiers(&mut self) -> Option<SmolStr> {
         match self.composed_text() {
             Ok(text) => text,
-            Err(_) => self
-                .context
-                .state
-                .get_utf8_raw(self.keycode, self.context.scratch_buffer),
+            Err(_) => self.context.state.get_utf8_raw(self.keycode, self.context.scratch_buffer),
         }
     }
 
@@ -377,7 +334,7 @@ impl<'a, 'b> KeyEventResults<'a, 'b> {
                 xkb_compose_status::XKB_COMPOSE_COMPOSED => {
                     let state = self.context.compose_state1.as_mut().unwrap();
                     Ok(state.get_string(self.context.scratch_buffer))
-                }
+                },
                 xkb_compose_status::XKB_COMPOSE_COMPOSING
                 | xkb_compose_status::XKB_COMPOSE_CANCELLED => Ok(None),
                 xkb_compose_status::XKB_COMPOSE_NOTHING => Err(()),
@@ -436,10 +393,7 @@ where
     // The allocated buffer must include space for the null-terminator.
     scratch_buffer.reserve(size + 1);
     unsafe {
-        let written = f(
-            scratch_buffer.as_mut_ptr().cast(),
-            scratch_buffer.capacity(),
-        );
+        let written = f(scratch_buffer.as_mut_ptr().cast(), scratch_buffer.capacity());
         if usize::try_from(written).unwrap() != size {
             // This will likely never happen.
             return None;
@@ -456,10 +410,7 @@ fn byte_slice_to_smol_str(bytes: &[u8]) -> Option<SmolStr> {
     std::str::from_utf8(bytes)
         .map(SmolStr::new)
         .map_err(|e| {
-            tracing::warn!(
-                "UTF-8 received from libxkbcommon ({:?}) was invalid: {e}",
-                bytes
-            )
+            tracing::warn!("UTF-8 received from libxkbcommon ({:?}) was invalid: {e}", bytes)
         })
         .ok()
 }

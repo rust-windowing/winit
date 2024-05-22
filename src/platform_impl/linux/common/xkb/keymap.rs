@@ -296,7 +296,7 @@ pub fn physicalkey_to_scancode(key: PhysicalKey) -> Option<u32> {
                 NativeKeyCode::Xkb(raw) => Some(raw),
                 _ => None,
             };
-        }
+        },
     };
 
     match code {
@@ -627,7 +627,6 @@ pub fn keysym_to_key(keysym: u32) -> Key {
         // keysyms::ISO_First_Group_Lock => NamedKey::GroupFirstLock,
         keysyms::ISO_Last_Group => NamedKey::GroupLast,
         // keysyms::ISO_Last_Group_Lock => NamedKey::GroupLastLock,
-        //
         keysyms::ISO_Left_Tab => NamedKey::Tab,
         // keysyms::ISO_Move_Line_Up => NamedKey::IsoMoveLineUp,
         // keysyms::ISO_Move_Line_Down => NamedKey::IsoMoveLineDown,
@@ -809,18 +808,15 @@ pub fn keysym_to_key(keysym: u32) -> Key {
         keysyms::XF86_Music => NamedKey::LaunchMusicPlayer,
 
         // XF86_Battery..XF86_UWB
-        //
         keysyms::XF86_AudioForward => NamedKey::MediaFastForward,
         // XF86_AudioRepeat
         keysyms::XF86_AudioRandomPlay => NamedKey::RandomToggle,
         keysyms::XF86_Subtitle => NamedKey::Subtitle,
         keysyms::XF86_AudioCycleTrack => NamedKey::MediaAudioTrack,
         // XF86_CycleAngle..XF86_Blue
-        //
         keysyms::XF86_Suspend => NamedKey::Standby,
         keysyms::XF86_Hibernate => NamedKey::Hibernate,
         // XF86_TouchpadToggle..XF86_TouchpadOff
-        //
         keysyms::XF86_AudioMute => NamedKey::AudioVolumeMute,
 
         // XF86_Switch_VT_1..XF86_Switch_VT_12
@@ -853,7 +849,6 @@ pub fn keysym_to_key(keysym: u32) -> Key {
         keysyms::SUN_VideoLowerBrightness => NamedKey::BrightnessDown,
         keysyms::SUN_VideoRaiseBrightness => NamedKey::BrightnessUp,
         // SunPowerSwitchShift
-        //
         0 => return Key::Unidentified(NativeKey::Unidentified),
         _ => return Key::Unidentified(NativeKey::Xkb(keysym)),
     })
@@ -968,11 +963,7 @@ impl XkbKeymap {
             mod5: mod_index_for_name(keymap, b"Mod5\0"),
         };
 
-        Self {
-            keymap,
-            _mods_indices: mods_indices,
-            _core_keyboard_id,
-        }
+        Self { keymap, _mods_indices: mods_indices, _core_keyboard_id }
     }
 
     #[cfg(x11_platform)]
@@ -1020,12 +1011,14 @@ impl Drop for XkbKeymap {
 
 impl Deref for XkbKeymap {
     type Target = NonNull<xkb_keymap>;
+
     fn deref(&self) -> &Self::Target {
         &self.keymap
     }
 }
 
 /// Modifier index in the keymap.
+#[cfg_attr(not(x11_platform), allow(dead_code))]
 #[derive(Default, Debug, Clone, Copy)]
 pub struct ModsIndices {
     pub shift: Option<xkb_mod_index_t>,

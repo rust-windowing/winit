@@ -3,20 +3,17 @@ use std::cell::{Cell, RefCell};
 use std::collections::{HashMap, VecDeque};
 use std::ptr;
 
-use icrate::AppKit::{
-    NSApplication, NSCursor, NSEvent, NSEventPhaseBegan, NSEventPhaseCancelled,
-    NSEventPhaseChanged, NSEventPhaseEnded, NSEventPhaseMayBegin, NSResponder, NSTextInputClient,
-    NSTrackingRectTag, NSView,
-};
-use icrate::Foundation::{
-    MainThreadMarker, NSArray, NSAttributedString, NSAttributedStringKey, NSCopying,
-    NSMutableAttributedString, NSObject, NSObjectProtocol, NSPoint, NSRange, NSRect, NSSize,
-    NSString, NSUInteger,
-};
 use objc2::rc::{Id, WeakId};
 use objc2::runtime::{AnyObject, Sel};
-use objc2::{
-    class, declare_class, msg_send, msg_send_id, mutability, sel, ClassType, DeclaredClass,
+use objc2::{declare_class, msg_send_id, mutability, sel, ClassType, DeclaredClass};
+use objc2_app_kit::{
+    NSApplication, NSCursor, NSEvent, NSEventPhase, NSResponder, NSTextInputClient,
+    NSTrackingRectTag, NSView, NSViewFrameDidChangeNotification,
+};
+use objc2_foundation::{
+    MainThreadMarker, NSArray, NSAttributedString, NSAttributedStringKey, NSCopying,
+    NSMutableAttributedString, NSNotFound, NSNotificationCenter, NSObject, NSObjectProtocol,
+    NSPoint, NSRange, NSRect, NSSize, NSString, NSUInteger,
 };
 
 use super::app_delegate::ApplicationDelegate;
@@ -26,16 +23,14 @@ use super::event::{
     scancode_to_physicalkey,
 };
 use super::window::WinitWindow;
-use super::{util, DEVICE_ID};
-use crate::{
-    dpi::{LogicalPosition, LogicalSize},
-    event::{
-        DeviceEvent, ElementState, Ime, Modifiers, MouseButton, MouseScrollDelta, TouchPhase,
-        WindowEvent,
-    },
-    keyboard::{Key, KeyCode, KeyLocation, ModifiersState, NamedKey},
-    platform::macos::OptionAsAlt,
+use super::DEVICE_ID;
+use crate::dpi::{LogicalPosition, LogicalSize};
+use crate::event::{
+    DeviceEvent, ElementState, Ime, Modifiers, MouseButton, MouseScrollDelta, TouchPhase,
+    WindowEvent,
 };
+use crate::keyboard::{Key, KeyCode, KeyLocation, ModifiersState, NamedKey};
+use crate::platform::macos::OptionAsAlt;
 
 #[derive(Debug)]
 struct CursorState {
@@ -45,10 +40,7 @@ struct CursorState {
 
 impl Default for CursorState {
     fn default() -> Self {
-        Self {
-            visible: true,
-            cursor: default_cursor(),
-        }
+        Self { visible: true, cursor: default_cursor() }
     }
 }
 
@@ -116,8 +108,11 @@ fn get_left_modifier_code(key: &Key) -> KeyCode {
     }
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct ViewState {
+    /// Strong reference to the global application state.
+    app_delegate: Id<ApplicationDelegate>,
+
     cursor_state: RefCell<CursorState>,
     ime_position: Cell<NSPoint>,
     ime_size: Cell<NSSize>,
@@ -175,7 +170,9 @@ declare_class!(
             }
 
             let rect = self.frame();
-            let tracking_rect = unsafe { self.addTrackingRect_owner_userData_assumeInside(rect, self, ptr::null_mut(), false) };
+            let tracking_rect = unsafe {
+                self.addTrackingRect_owner_userData_assumeInside(rect, self, ptr::null_mut(), false)
+            };
             assert_ne!(tracking_rect, 0, "failed adding tracking rect");
             self.ivars().tracking_rect.set(Some(tracking_rect));
         }
@@ -188,7 +185,9 @@ declare_class!(
             }
 
             let rect = self.frame();
-            let tracking_rect = unsafe { self.addTrackingRect_owner_userData_assumeInside(rect, self, ptr::null_mut(), false) };
+            let tracking_rect = unsafe {
+                self.addTrackingRect_owner_userData_assumeInside(rect, self, ptr::null_mut(), false)
+            };
             assert_ne!(tracking_rect, 0, "failed adding tracking rect");
             self.ivars().tracking_rect.set(Some(tracking_rect));
 
@@ -201,19 +200,15 @@ declare_class!(
         }
 
         #[method(drawRect:)]
-        fn draw_rect(&self, rect: NSRect) {
+        fn draw_rect(&self, _rect: NSRect) {
             trace_scope!("drawRect:");
 
             // It's a workaround for https://github.com/rust-windowing/winit/issues/2640, don't replace with `self.window_id()`.
             if let Some(window) = self.ivars()._ns_window.load() {
-                let app_delegate = ApplicationDelegate::get(MainThreadMarker::from(self));
-                app_delegate.handle_redraw(window.id());
+                self.ivars().app_delegate.handle_redraw(window.id());
             }
 
-            #[allow(clippy::let_unit_value)]
-            unsafe {
-                let _: () = msg_send![super(self), drawRect: rect];
-            }
+            // This is a direct subclass of NSView, no need to call superclass' drawRect:
         }
 
         #[method(acceptsFirstResponder)]
@@ -259,14 +254,16 @@ declare_class!(
             if length > 0 {
                 NSRange::new(0, length)
             } else {
-                util::EMPTY_RANGE
+                // Documented to return `{NSNotFound, 0}` if there is no marked range.
+                NSRange::new(NSNotFound as NSUInteger, 0)
             }
         }
 
         #[method(selectedRange)]
         fn selected_range(&self) -> NSRange {
             trace_scope!("selectedRange");
-            util::EMPTY_RANGE
+            // Documented to return `{NSNotFound, 0}` if there is no selection.
+            NSRange::new(NSNotFound as NSUInteger, 0)
         }
 
         #[method(setMarkedText:selectedRange:replacementRange:)]
@@ -371,9 +368,13 @@ declare_class!(
             _actual_range: *mut NSRange,
         ) -> NSRect {
             trace_scope!("firstRectForCharacterRange:actualRange:");
-            let rect = dbg!(NSRect::new(self.ivars().ime_position.get(), self.ivars().ime_size.get()));
+            let rect = NSRect::new(
+                self.ivars().ime_position.get(),
+                self.ivars().ime_size.get()
+            );
             // Return value is expected to be in screen coordinates, so we need a conversion here
-            unsafe { self.window().convertRectToScreen(self.convertRect_toView(rect, None)) }
+            self.window()
+                .convertRectToScreen(self.convertRect_toView(rect, None))
         }
 
         #[method(insertText:replacementRange:)]
@@ -415,7 +416,8 @@ declare_class!(
 
             self.ivars().forward_key_to_app.set(true);
 
-            if unsafe { self.hasMarkedText() } && self.ivars().ime_state.get() == ImeState::Preedit {
+            if unsafe { self.hasMarkedText() } && self.ivars().ime_state.get() == ImeState::Preedit
+            {
                 // Leave preedit so that we also report the key-up for this key.
                 self.ivars().ime_state.set(ImeState::Ground);
             }
@@ -552,6 +554,17 @@ declare_class!(
             });
         }
 
+        // In the past (?), `mouseMoved:` events were not generated when the
+        // user hovered over a window from a separate window, and as such the
+        // application might not know the location of the mouse in the event.
+        //
+        // To fix this, we emit `mouse_motion` inside of mouse click, mouse
+        // scroll, magnify and other gesture event handlers, to ensure that
+        // the application's state of where the mouse click was located is up
+        // to date.
+        //
+        // See https://github.com/rust-windowing/winit/pull/1490 for history.
+
         #[method(mouseDown:)]
         fn mouse_down(&self, event: &NSEvent) {
             trace_scope!("mouseDown:");
@@ -655,19 +668,11 @@ declare_class!(
             // report the touch phase.
             #[allow(non_upper_case_globals)]
             let phase = match unsafe { event.momentumPhase() } {
-                NSEventPhaseMayBegin | NSEventPhaseBegan => {
-                    TouchPhase::Started
-                }
-                NSEventPhaseEnded | NSEventPhaseCancelled => {
-                    TouchPhase::Ended
-                }
+                NSEventPhase::MayBegin | NSEventPhase::Began => TouchPhase::Started,
+                NSEventPhase::Ended | NSEventPhase::Cancelled => TouchPhase::Ended,
                 _ => match unsafe { event.phase() } {
-                    NSEventPhaseMayBegin | NSEventPhaseBegan => {
-                        TouchPhase::Started
-                    }
-                    NSEventPhaseEnded | NSEventPhaseCancelled => {
-                        TouchPhase::Ended
-                    }
+                    NSEventPhase::MayBegin | NSEventPhase::Began => TouchPhase::Started,
+                    NSEventPhase::Ended | NSEventPhase::Cancelled => TouchPhase::Ended,
                     _ => TouchPhase::Moved,
                 },
             };
@@ -686,12 +691,14 @@ declare_class!(
         fn magnify_with_event(&self, event: &NSEvent) {
             trace_scope!("magnifyWithEvent:");
 
+            self.mouse_motion(event);
+
             #[allow(non_upper_case_globals)]
             let phase = match unsafe { event.phase() } {
-                NSEventPhaseBegan => TouchPhase::Started,
-                NSEventPhaseChanged => TouchPhase::Moved,
-                NSEventPhaseCancelled => TouchPhase::Cancelled,
-                NSEventPhaseEnded => TouchPhase::Ended,
+                NSEventPhase::Began => TouchPhase::Started,
+                NSEventPhase::Changed => TouchPhase::Moved,
+                NSEventPhase::Cancelled => TouchPhase::Cancelled,
+                NSEventPhase::Ended => TouchPhase::Ended,
                 _ => return,
             };
 
@@ -703,8 +710,10 @@ declare_class!(
         }
 
         #[method(smartMagnifyWithEvent:)]
-        fn smart_magnify_with_event(&self, _event: &NSEvent) {
+        fn smart_magnify_with_event(&self, event: &NSEvent) {
             trace_scope!("smartMagnifyWithEvent:");
+
+            self.mouse_motion(event);
 
             self.queue_event(WindowEvent::DoubleTapGesture {
                 device_id: DEVICE_ID,
@@ -715,12 +724,14 @@ declare_class!(
         fn rotate_with_event(&self, event: &NSEvent) {
             trace_scope!("rotateWithEvent:");
 
+            self.mouse_motion(event);
+
             #[allow(non_upper_case_globals)]
             let phase = match unsafe { event.phase() } {
-                NSEventPhaseBegan => TouchPhase::Started,
-                NSEventPhaseChanged => TouchPhase::Moved,
-                NSEventPhaseCancelled => TouchPhase::Cancelled,
-                NSEventPhaseEnded => TouchPhase::Ended,
+                NSEventPhase::Began => TouchPhase::Started,
+                NSEventPhase::Changed => TouchPhase::Moved,
+                NSEventPhase::Cancelled => TouchPhase::Cancelled,
+                NSEventPhase::Ended => TouchPhase::Ended,
                 _ => return,
             };
 
@@ -734,8 +745,6 @@ declare_class!(
         #[method(pressureChangeWithEvent:)]
         fn pressure_change_with_event(&self, event: &NSEvent) {
             trace_scope!("pressureChangeWithEvent:");
-
-            self.mouse_motion(event);
 
             self.queue_event(WindowEvent::TouchpadPressure {
                 device_id: DEVICE_ID,
@@ -763,34 +772,40 @@ declare_class!(
 
 impl WinitView {
     pub(super) fn new(
+        app_delegate: &ApplicationDelegate,
         window: &WinitWindow,
         accepts_first_mouse: bool,
         option_as_alt: OptionAsAlt,
     ) -> Id<Self> {
         let mtm = MainThreadMarker::from(window);
         let this = mtm.alloc().set_ivars(ViewState {
+            app_delegate: app_delegate.retain(),
+            cursor_state: Default::default(),
+            ime_position: Default::default(),
+            ime_size: Default::default(),
+            modifiers: Default::default(),
+            phys_modifiers: Default::default(),
+            tracking_rect: Default::default(),
+            ime_state: Default::default(),
+            input_source: Default::default(),
+            ime_allowed: Default::default(),
+            forward_key_to_app: Default::default(),
+            marked_text: Default::default(),
             accepts_first_mouse,
             _ns_window: WeakId::new(&window.retain()),
             option_as_alt: Cell::new(option_as_alt),
-            ..Default::default()
         });
         let this: Id<Self> = unsafe { msg_send_id![super(this), init] };
 
         this.setPostsFrameChangedNotifications(true);
-        let notification_center: &AnyObject =
-            unsafe { msg_send![class!(NSNotificationCenter), defaultCenter] };
-        // About frame change
-        let frame_did_change_notification_name =
-            NSString::from_str("NSViewFrameDidChangeNotification");
-        #[allow(clippy::let_unit_value)]
+        let notification_center = unsafe { NSNotificationCenter::defaultCenter() };
         unsafe {
-            let _: () = msg_send![
-                notification_center,
-                addObserver: &*this,
-                selector: sel!(frameDidChange:),
-                name: &*frame_did_change_notification_name,
-                object: &*this,
-            ];
+            notification_center.addObserver_selector_name_object(
+                &this,
+                sel!(frameDidChange:),
+                Some(NSViewFrameDidChangeNotification),
+                Some(&this),
+            )
         }
 
         *this.ivars().input_source.borrow_mut() = this.current_input_source();
@@ -804,20 +819,15 @@ impl WinitView {
         // (which is incompatible with `frameDidChange:`)
         //
         // unsafe { msg_send_id![self, window] }
-        self.ivars()
-            ._ns_window
-            .load()
-            .expect("view to have a window")
+        self.ivars()._ns_window.load().expect("view to have a window")
     }
 
     fn queue_event(&self, event: WindowEvent) {
-        let app_delegate = ApplicationDelegate::get(MainThreadMarker::from(self));
-        app_delegate.queue_window_event(self.window().id(), event);
+        self.ivars().app_delegate.queue_window_event(self.window().id(), event);
     }
 
     fn queue_device_event(&self, event: DeviceEvent) {
-        let app_delegate = ApplicationDelegate::get(MainThreadMarker::from(self));
-        app_delegate.queue_device_event(event);
+        self.ivars().app_delegate.queue_device_event(event);
     }
 
     fn scale_factor(&self) -> f64 {
@@ -935,9 +945,7 @@ impl WinitView {
                 let location_mask = ModLocationMask::from_location(event.location);
 
                 let mut phys_mod_state = self.ivars().phys_modifiers.borrow_mut();
-                let phys_mod = phys_mod_state
-                    .entry(key)
-                    .or_insert(ModLocationMask::empty());
+                let phys_mod = phys_mod_state.entry(key).or_insert(ModLocationMask::empty());
 
                 let is_active = current_modifiers.state().contains(event_modifier);
                 let mut events = VecDeque::with_capacity(2);
@@ -1087,9 +1095,7 @@ fn replace_event(event: &NSEvent, option_as_alt: OptionAsAlt) -> Id<NSEvent> {
 
     if ignore_alt_characters {
         let ns_chars = unsafe {
-            event
-                .charactersIgnoringModifiers()
-                .expect("expected characters to be non-null")
+            event.charactersIgnoringModifiers().expect("expected characters to be non-null")
         };
 
         unsafe {

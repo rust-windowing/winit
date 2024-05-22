@@ -1,6 +1,7 @@
 use super::super::main_thread::MainThreadMarker;
 use super::super::DeviceId;
-use super::{backend, state::State};
+use super::backend;
+use super::state::State;
 use crate::dpi::PhysicalSize;
 use crate::event::{
     DeviceEvent, DeviceId as RootDeviceId, ElementState, Event, RawKeyEvent, StartCause,
@@ -13,13 +14,11 @@ use crate::platform_impl::platform::r#async::{DispatchRunner, Waker, WakerSpawne
 use crate::platform_impl::platform::window::Inner;
 use crate::window::WindowId;
 
-use std::{
-    cell::{Cell, RefCell},
-    collections::{HashSet, VecDeque},
-    iter,
-    ops::Deref,
-    rc::{Rc, Weak},
-};
+use std::cell::{Cell, RefCell};
+use std::collections::{HashSet, VecDeque};
+use std::iter;
+use std::ops::Deref;
+use std::rc::{Rc, Weak};
 use wasm_bindgen::prelude::Closure;
 use web_sys::{Document, KeyboardEvent, PageTransitionEvent, PointerEvent, WheelEvent};
 use web_time::{Duration, Instant};
@@ -50,13 +49,7 @@ pub struct Execution {
     window: web_sys::Window,
     document: Document,
     #[allow(clippy::type_complexity)]
-    all_canvases: RefCell<
-        Vec<(
-            WindowId,
-            Weak<RefCell<backend::Canvas>>,
-            DispatchRunner<Inner>,
-        )>,
-    >,
+    all_canvases: RefCell<Vec<(WindowId, Weak<RefCell<backend::Canvas>>, DispatchRunner<Inner>)>>,
     redraw_pending: RefCell<HashSet<WindowId>>,
     destroy_pending: RefCell<VecDeque<WindowId>>,
     page_transition_event_handle: RefCell<Option<backend::PageTransitionEventHandle>>,
@@ -97,10 +90,7 @@ struct Runner {
 
 impl Runner {
     pub fn new(event_handler: Box<EventHandler>) -> Self {
-        Runner {
-            state: State::Init,
-            event_handler,
-        }
+        Runner { state: State::Init, event_handler }
     }
 
     /// Returns the corresponding `StartCause` for the current `state`, or `None`
@@ -109,13 +99,9 @@ impl Runner {
         Some(match self.state {
             State::Init => StartCause::Init,
             State::Poll { .. } => StartCause::Poll,
-            State::Wait { start } => StartCause::WaitCancelled {
-                start,
-                requested_resume: None,
-            },
-            State::WaitUntil { start, end, .. } => StartCause::WaitCancelled {
-                start,
-                requested_resume: Some(end),
+            State::Wait { start } => StartCause::WaitCancelled { start, requested_resume: None },
+            State::WaitUntil { start, end, .. } => {
+                StartCause::WaitCancelled { start, requested_resume: Some(end) }
             },
             State::Exit => return None,
         })
@@ -124,11 +110,7 @@ impl Runner {
     fn handle_single_event(&mut self, runner: &Shared, event: impl Into<EventWrapper>) {
         match event.into() {
             EventWrapper::Event(event) => (self.event_handler)(event),
-            EventWrapper::ScaleChange {
-                canvas,
-                size,
-                scale,
-            } => {
+            EventWrapper::ScaleChange { canvas, size, scale } => {
                 if let Some(canvas) = canvas.upgrade() {
                     canvas.borrow().handle_scale_change(
                         runner,
@@ -137,7 +119,7 @@ impl Runner {
                         scale,
                     )
                 }
-            }
+            },
         }
     }
 }
@@ -280,10 +262,7 @@ impl Shared {
 
                     runner.send_event(Event::DeviceEvent {
                         device_id,
-                        event: DeviceEvent::Button {
-                            button: button.to_id(),
-                            state,
-                        },
+                        event: DeviceEvent::Button { button: button.to_id(), state },
                     });
 
                     return;
@@ -292,35 +271,22 @@ impl Shared {
                 // pointer move event
                 let mut delta = backend::event::MouseDelta::init(&window, &event);
                 runner.send_events(backend::event::pointer_move_event(event).flat_map(|event| {
-                    let delta = delta
-                        .delta(&event)
-                        .to_physical(backend::scale_factor(&window));
+                    let delta = delta.delta(&event).to_physical(backend::scale_factor(&window));
 
                     let x_motion = (delta.x != 0.0).then_some(Event::DeviceEvent {
                         device_id,
-                        event: DeviceEvent::Motion {
-                            axis: 0,
-                            value: delta.x,
-                        },
+                        event: DeviceEvent::Motion { axis: 0, value: delta.x },
                     });
 
                     let y_motion = (delta.y != 0.0).then_some(Event::DeviceEvent {
                         device_id,
-                        event: DeviceEvent::Motion {
-                            axis: 1,
-                            value: delta.y,
-                        },
+                        event: DeviceEvent::Motion { axis: 1, value: delta.y },
                     });
 
-                    x_motion
-                        .into_iter()
-                        .chain(y_motion)
-                        .chain(iter::once(Event::DeviceEvent {
-                            device_id,
-                            event: DeviceEvent::MouseMotion {
-                                delta: (delta.x, delta.y),
-                            },
-                        }))
+                    x_motion.into_iter().chain(y_motion).chain(iter::once(Event::DeviceEvent {
+                        device_id,
+                        event: DeviceEvent::MouseMotion { delta: (delta.x, delta.y) },
+                    }))
                 }));
             }),
         ));
@@ -482,10 +448,8 @@ impl Shared {
     // Run the logic for waking from a WaitUntil, which involves clearing the queue
     // Generally there shouldn't be events built up when this is called
     pub fn resume_time_reached(&self, start: Instant, requested_resume: Instant) {
-        let start_cause = Event::NewEvents(StartCause::ResumeTimeReached {
-            start,
-            requested_resume,
-        });
+        let start_cause =
+            Event::NewEvents(StartCause::ResumeTimeReached { start, requested_resume });
         self.run_until_cleared(iter::once(start_cause));
     }
 
@@ -508,30 +472,28 @@ impl Shared {
         let mut process_immediately = true;
         match self.0.runner.try_borrow().as_ref().map(Deref::deref) {
             Ok(RunnerEnum::Running(ref runner)) => {
-                // If we're currently polling, queue this and wait for the poll() method to be called
+                // If we're currently polling, queue this and wait for the poll() method to be
+                // called
                 if let State::Poll { .. } = runner.state {
                     process_immediately = false;
                 }
-            }
+            },
             Ok(RunnerEnum::Pending) => {
                 // The runner still hasn't been attached: queue this event and wait for it to be
                 process_immediately = false;
-            }
+            },
             // Some other code is mutating the runner, which most likely means
             // the event loop is running and busy. So we queue this event for
             // it to be processed later.
             Err(_) => {
                 process_immediately = false;
-            }
+            },
             // This is unreachable since `self.is_closed() == true`.
             Ok(RunnerEnum::Destroyed) => unreachable!(),
         }
         if !process_immediately {
             // Queue these events to look at later
-            self.0
-                .events
-                .borrow_mut()
-                .extend(events.into_iter().map(Into::into));
+            self.0.events.borrow_mut().extend(events.into_iter().map(Into::into));
             return;
         }
         // At this point, we know this is a fresh set of events
@@ -558,10 +520,7 @@ impl Shared {
     // `run_until_cleared`, somewhere between emitting `NewEvents` and `AboutToWait`.
     fn process_destroy_pending_windows(&self) {
         while let Some(id) = self.0.destroy_pending.borrow_mut().pop_front() {
-            self.0
-                .all_canvases
-                .borrow_mut()
-                .retain(|&(item_id, _, _)| item_id != id);
+            self.0.all_canvases.borrow_mut().retain(|&(item_id, ..)| item_id != id);
             self.handle_event(Event::WindowEvent {
                 window_id: id,
                 event: crate::event::WindowEvent::Destroyed,
@@ -617,7 +576,7 @@ impl Shared {
         match *self.0.runner.borrow_mut() {
             RunnerEnum::Running(ref mut runner) => {
                 runner.handle_single_event(self, event);
-            }
+            },
             // If an event is being handled without a runner somehow, add it to the event queue so
             // it will eventually be processed
             RunnerEnum::Pending => self.0.events.borrow_mut().push_back(event.into()),
@@ -669,37 +628,31 @@ impl Shared {
                 ControlFlow::Poll => {
                     let cloned = self.clone();
                     State::Poll {
-                        request: backend::Schedule::new(
+                        _request: backend::Schedule::new(
                             self.poll_strategy(),
                             self.window(),
                             move || cloned.poll(),
                         ),
                     }
-                }
-                ControlFlow::Wait => State::Wait {
-                    start: Instant::now(),
                 },
+                ControlFlow::Wait => State::Wait { start: Instant::now() },
                 ControlFlow::WaitUntil(end) => {
                     let start = Instant::now();
 
-                    let delay = if end <= start {
-                        Duration::from_millis(0)
-                    } else {
-                        end - start
-                    };
+                    let delay = if end <= start { Duration::from_millis(0) } else { end - start };
 
                     let cloned = self.clone();
 
                     State::WaitUntil {
                         start,
                         end,
-                        timeout: backend::Schedule::new_with_duration(
+                        _timeout: backend::Schedule::new_with_duration(
                             self.window(),
                             move || cloned.resume_time_reached(start, end),
                             delay,
                         ),
                     }
-                }
+                },
             }
         };
 
@@ -732,11 +685,10 @@ impl Shared {
         }
         // At this point, the `self.0` `Rc` should only be strongly referenced
         // by the following:
-        // * `self`, i.e. the item which triggered this event loop wakeup, which
-        //   is usually a `wasm-bindgen` `Closure`, which will be dropped after
-        //   returning to the JS glue code.
-        // * The `ActiveEventLoop` leaked inside `EventLoop::run_app` due to the
-        //   JS exception thrown at the end.
+        // * `self`, i.e. the item which triggered this event loop wakeup, which is usually a
+        //   `wasm-bindgen` `Closure`, which will be dropped after returning to the JS glue code.
+        // * The `ActiveEventLoop` leaked inside `EventLoop::run_app` due to the JS exception thrown
+        //   at the end.
         // * For each undropped `Window`:
         //     * The `register_redraw_request` closure.
         //     * The `destroy_fn` closure.
@@ -774,7 +726,7 @@ impl Shared {
                         false
                     }
                 })
-            }
+            },
             DeviceEvents::Never => false,
         }
     }
@@ -814,11 +766,7 @@ impl Shared {
 
 pub(crate) enum EventWrapper {
     Event(Event<()>),
-    ScaleChange {
-        canvas: Weak<RefCell<backend::Canvas>>,
-        size: PhysicalSize<u32>,
-        scale: f64,
-    },
+    ScaleChange { canvas: Weak<RefCell<backend::Canvas>>, size: PhysicalSize<u32>, scale: f64 },
 }
 
 impl From<Event<()>> for EventWrapper {

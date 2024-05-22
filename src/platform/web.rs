@@ -30,8 +30,8 @@
 //! The following APIs can't take them into account and will therefore provide inaccurate results:
 //! - [`WindowEvent::Resized`] and [`Window::(set_)inner_size()`]
 //! - [`WindowEvent::Occluded`]
-//! - [`WindowEvent::CursorMoved`], [`WindowEvent::CursorEntered`], [`WindowEvent::CursorLeft`],
-//!   and [`WindowEvent::Touch`].
+//! - [`WindowEvent::CursorMoved`], [`WindowEvent::CursorEntered`], [`WindowEvent::CursorLeft`], and
+//!   [`WindowEvent::Touch`].
 //! - [`Window::set_outer_position()`]
 //!
 //! [`WindowEvent::Resized`]: crate::event::WindowEvent::Resized
@@ -55,8 +55,7 @@ use web_sys::HtmlCanvasElement;
 
 use crate::application::ApplicationHandler;
 use crate::cursor::CustomCursorSource;
-use crate::event::Event;
-use crate::event_loop::{self, ActiveEventLoop, EventLoop};
+use crate::event_loop::{ActiveEventLoop, EventLoop};
 #[cfg(web_platform)]
 use crate::platform_impl::CustomCursorFuture as PlatformCustomCursorFuture;
 use crate::platform_impl::PlatformCustomCursorSource;
@@ -109,11 +108,7 @@ pub trait WindowAttributesExtWebSys {
     /// In any case, the canvas won't be automatically inserted into the web page.
     ///
     /// [`None`] by default.
-    #[cfg_attr(
-        not(web_platform),
-        doc = "",
-        doc = "[`HtmlCanvasElement`]: #only-available-on-wasm"
-    )]
+    #[cfg_attr(not(web_platform), doc = "", doc = "[`HtmlCanvasElement`]: #only-available-on-wasm")]
     fn with_canvas(self, canvas: Option<HtmlCanvasElement>) -> Self;
 
     /// Sets whether `event.preventDefault()` should be called on events on the
@@ -160,16 +155,15 @@ impl WindowAttributesExtWebSys for WindowAttributes {
 
 /// Additional methods on `EventLoop` that are specific to the web.
 pub trait EventLoopExtWebSys {
-    /// A type provided by the user that can be passed through `Event::UserEvent`.
+    /// A type provided by the user that can be passed through [`Event::UserEvent`].
+    ///
+    /// [`Event::UserEvent`]: crate::event::Event::UserEvent
     type UserEvent: 'static;
 
     /// Initializes the winit event loop.
     ///
     /// Unlike
-    #[cfg_attr(
-        all(web_platform, target_feature = "exception-handling"),
-        doc = "`run_app()`"
-    )]
+    #[cfg_attr(all(web_platform, target_feature = "exception-handling"), doc = "`run_app()`")]
     #[cfg_attr(
         not(all(web_platform, target_feature = "exception-handling")),
         doc = "[`run_app()`]"
@@ -181,6 +175,7 @@ pub trait EventLoopExtWebSys {
     /// by calling this function again. This can be useful if you want to recreate the event loop
     /// while the WebAssembly module is still loaded. For example, this can be used to recreate the
     /// event loop when switching between tabs on a single page application.
+    #[rustfmt::skip]
     ///
     #[cfg_attr(
         not(all(web_platform, target_feature = "exception-handling")),
@@ -188,30 +183,13 @@ pub trait EventLoopExtWebSys {
     )]
     /// [^1]: `run_app()` is _not_ available on WASM when the target supports `exception-handling`.
     fn spawn_app<A: ApplicationHandler<Self::UserEvent> + 'static>(self, app: A);
-
-    /// See [`spawn_app`].
-    ///
-    /// [`spawn_app`]: Self::spawn_app
-    #[deprecated = "use EventLoopExtWebSys::spawn_app"]
-    fn spawn<F>(self, event_handler: F)
-    where
-        F: 'static + FnMut(Event<Self::UserEvent>, &ActiveEventLoop);
 }
 
 impl<T> EventLoopExtWebSys for EventLoop<T> {
     type UserEvent = T;
 
-    fn spawn_app<A: ApplicationHandler<Self::UserEvent> + 'static>(self, mut app: A) {
-        self.event_loop.spawn(move |event, event_loop| {
-            event_loop::dispatch_event_for_app(&mut app, event_loop, event)
-        });
-    }
-
-    fn spawn<F>(self, event_handler: F)
-    where
-        F: 'static + FnMut(Event<Self::UserEvent>, &ActiveEventLoop),
-    {
-        self.event_loop.spawn(event_handler)
+    fn spawn_app<A: ApplicationHandler<Self::UserEvent> + 'static>(self, app: A) {
+        self.event_loop.spawn_app(app);
     }
 }
 
@@ -303,13 +281,7 @@ impl CustomCursorExtWebSys for CustomCursor {
     }
 
     fn from_url(url: String, hotspot_x: u16, hotspot_y: u16) -> CustomCursorSource {
-        CustomCursorSource {
-            inner: PlatformCustomCursorSource::Url {
-                url,
-                hotspot_x,
-                hotspot_y,
-            },
-        }
+        CustomCursorSource { inner: PlatformCustomCursorSource::Url { url, hotspot_x, hotspot_y } }
     }
 
     fn from_animation(
@@ -360,9 +332,7 @@ impl Future for CustomCursorFuture {
     type Output = Result<CustomCursor, CustomCursorError>;
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        Pin::new(&mut self.0)
-            .poll(cx)
-            .map_ok(|cursor| CustomCursor { inner: cursor })
+        Pin::new(&mut self.0).poll(cx).map_ok(|cursor| CustomCursor { inner: cursor })
     }
 }
 
@@ -378,10 +348,9 @@ impl Display for CustomCursorError {
         match self {
             Self::Blob => write!(f, "failed to create `Blob`"),
             Self::Decode(error) => write!(f, "failed to decode image: {error}"),
-            Self::Animation => write!(
-                f,
-                "found `CustomCursor` that is an animation when building an animation"
-            ),
+            Self::Animation => {
+                write!(f, "found `CustomCursor` that is an animation when building an animation")
+            },
         }
     }
 }

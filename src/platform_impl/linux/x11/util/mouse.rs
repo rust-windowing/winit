@@ -8,10 +8,7 @@ pub struct Delta<T> {
 
 impl<T: Default> Default for Delta<T> {
     fn default() -> Self {
-        Self {
-            x: Default::default(),
-            y: Default::default(),
-        }
+        Self { x: Default::default(), y: Default::default() }
     }
 }
 

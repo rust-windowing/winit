@@ -3,7 +3,7 @@
 
 use std::os::raw::{c_char, c_int};
 
-use icrate::Foundation::NSString;
+use objc2_foundation::NSString;
 
 mod application;
 mod coordinate_space;
@@ -27,8 +27,9 @@ pub(crate) use self::device::{UIDevice, UIUserInterfaceIdiom};
 pub(crate) use self::event::UIEvent;
 pub(crate) use self::geometry::UIRectEdge;
 pub(crate) use self::gesture_recognizer::{
-    UIGestureRecognizer, UIGestureRecognizerState, UIPinchGestureRecognizer,
-    UIRotationGestureRecognizer, UITapGestureRecognizer,
+    UIGestureRecognizer, UIGestureRecognizerDelegate, UIGestureRecognizerState,
+    UIPanGestureRecognizer, UIPinchGestureRecognizer, UIRotationGestureRecognizer,
+    UITapGestureRecognizer,
 };
 pub(crate) use self::responder::UIResponder;
 pub(crate) use self::screen::{UIScreen, UIScreenOverscanCompensation};

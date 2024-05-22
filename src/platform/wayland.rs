@@ -13,11 +13,9 @@
 //! * `wayland-csd-adwaita` (default).
 //! * `wayland-csd-adwaita-crossfont`.
 //! * `wayland-csd-adwaita-notitle`.
-use crate::{
-    event_loop::{ActiveEventLoop, EventLoopBuilder},
-    monitor::MonitorHandle,
-    window::{Window, WindowAttributes},
-};
+use crate::event_loop::{ActiveEventLoop, EventLoopBuilder};
+use crate::monitor::MonitorHandle;
+use crate::window::{Window, WindowAttributes};
 
 pub use crate::window::Theme;
 
@@ -80,10 +78,8 @@ pub trait WindowAttributesExtWayland {
 impl WindowAttributesExtWayland for WindowAttributes {
     #[inline]
     fn with_name(mut self, general: impl Into<String>, instance: impl Into<String>) -> Self {
-        self.platform_specific.name = Some(crate::platform_impl::ApplicationName::new(
-            general.into(),
-            instance.into(),
-        ));
+        self.platform_specific.name =
+            Some(crate::platform_impl::ApplicationName::new(general.into(), instance.into()));
         self
     }
 }

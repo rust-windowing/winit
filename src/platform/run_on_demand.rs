@@ -1,7 +1,6 @@
 use crate::application::ApplicationHandler;
 use crate::error::EventLoopError;
-use crate::event::Event;
-use crate::event_loop::{self, ActiveEventLoop, EventLoop};
+use crate::event_loop::{ActiveEventLoop, EventLoop};
 
 #[cfg(doc)]
 use crate::{platform::pump_events::EventLoopExtPumpEvents, window::Window};
@@ -9,20 +8,14 @@ use crate::{platform::pump_events::EventLoopExtPumpEvents, window::Window};
 /// Additional methods on [`EventLoop`] to return control flow to the caller.
 pub trait EventLoopExtRunOnDemand {
     /// A type provided by the user that can be passed through [`Event::UserEvent`].
-    type UserEvent: 'static;
-
-    /// See [`run_app_on_demand`].
     ///
-    /// [`run_app_on_demand`]: Self::run_app_on_demand
-    #[deprecated = "use EventLoopExtRunOnDemand::run_app_on_demand"]
-    fn run_on_demand<F>(&mut self, event_handler: F) -> Result<(), EventLoopError>
-    where
-        F: FnMut(Event<Self::UserEvent>, &ActiveEventLoop);
+    /// [`Event::UserEvent`]: crate::event::Event::UserEvent
+    type UserEvent: 'static;
 
     /// Run the application with the event loop on the calling thread.
     ///
-    /// Unlike [`EventLoop::run_app`], this function accepts non-`'static` (i.e. non-`move`) closures
-    /// and it is possible to return control back to the caller without
+    /// Unlike [`EventLoop::run_app`], this function accepts non-`'static` (i.e. non-`move`)
+    /// closures and it is possible to return control back to the caller without
     /// consuming the `EventLoop` (by using [`exit()`]) and
     /// so the event loop can be re-run after it has exit.
     ///
@@ -55,40 +48,31 @@ pub trait EventLoopExtRunOnDemand {
     /// - Android
     ///
     /// # Unsupported Platforms
-    /// - **Web:**  This API is fundamentally incompatible with the event-based way in which
-    ///   Web browsers work because it's not possible to have a long-running external
-    ///   loop that would block the browser and there is nothing that can be
-    ///   polled to ask for new events. Events are delivered via callbacks based
-    ///   on an event loop that is internal to the browser itself.
+    /// - **Web:**  This API is fundamentally incompatible with the event-based way in which Web
+    ///   browsers work because it's not possible to have a long-running external loop that would
+    ///   block the browser and there is nothing that can be polled to ask for new events. Events
+    ///   are delivered via callbacks based on an event loop that is internal to the browser itself.
     /// - **iOS:** It's not possible to stop and start an `UIApplication` repeatedly on iOS.
-    ///
-    #[cfg_attr(
-        not(web_platform),
-        doc = "[^1]: `spawn()` is only available on `wasm` platforms."
-    )]
+    #[cfg_attr(not(web_platform), doc = "[^1]: `spawn()` is only available on `wasm` platforms.")]
+    #[rustfmt::skip]
     ///
     /// [`exit()`]: ActiveEventLoop::exit()
     /// [`set_control_flow()`]: ActiveEventLoop::set_control_flow()
     fn run_app_on_demand<A: ApplicationHandler<Self::UserEvent>>(
         &mut self,
         app: &mut A,
-    ) -> Result<(), EventLoopError> {
-        #[allow(deprecated)]
-        self.run_on_demand(|event, event_loop| {
-            event_loop::dispatch_event_for_app(app, event_loop, event)
-        })
-    }
+    ) -> Result<(), EventLoopError>;
 }
 
 impl<T> EventLoopExtRunOnDemand for EventLoop<T> {
     type UserEvent = T;
 
-    fn run_on_demand<F>(&mut self, event_handler: F) -> Result<(), EventLoopError>
-    where
-        F: FnMut(Event<Self::UserEvent>, &ActiveEventLoop),
-    {
+    fn run_app_on_demand<A: ApplicationHandler<Self::UserEvent>>(
+        &mut self,
+        app: &mut A,
+    ) -> Result<(), EventLoopError> {
         self.event_loop.window_target().clear_exit();
-        self.event_loop.run_on_demand(event_handler)
+        self.event_loop.run_app_on_demand(app)
     }
 }
 

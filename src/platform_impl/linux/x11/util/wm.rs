@@ -38,12 +38,8 @@ impl XConnection {
     fn get_supported_hints(&self, root: xproto::Window) -> Vec<xproto::Atom> {
         let atoms = self.atoms();
         let supported_atom = atoms[_NET_SUPPORTED];
-        self.get_property(
-            root,
-            supported_atom,
-            xproto::Atom::from(xproto::AtomEnum::ATOM),
-        )
-        .unwrap_or_else(|_| Vec::with_capacity(0))
+        self.get_property(root, supported_atom, xproto::Atom::from(xproto::AtomEnum::ATOM))
+            .unwrap_or_else(|_| Vec::with_capacity(0))
     }
 
     #[allow(clippy::useless_conversion)]
@@ -57,22 +53,22 @@ impl XConnection {
         // inavailability of time machines, we'll just try to get _NET_SUPPORTING_WM_CHECK
         // regardless of whether or not the WM claims to support it.
         //
-        // Blackbox 0.70 also incorrectly reports not supporting this, though that appears to be fixed
-        // in 0.72.
-        /*if !supported_hints.contains(&check_atom) {
-            return None;
-        }*/
+        // Blackbox 0.70 also incorrectly reports not supporting this, though that appears to be
+        // fixed in 0.72.
+        // if !supported_hints.contains(&check_atom) {
+        // return None;
+        // }
 
         // IceWM (1.3.x and earlier) doesn't report supporting _NET_WM_NAME, but will nonetheless
         // provide us with a value for it. Note that the unofficial 1.4 fork of IceWM works fine.
-        /*if !supported_hints.contains(&wm_name_atom) {
-            return None;
-        }*/
+        // if !supported_hints.contains(&wm_name_atom) {
+        // return None;
+        // }
 
         // Of the WMs tested, only xmonad and dwm fail to provide a WM name.
 
-        // Querying this property on the root window will give us the ID of a child window created by
-        // the WM.
+        // Querying this property on the root window will give us the ID of a child window created
+        // by the WM.
         let root_window_wm_check = {
             let result = self.get_property::<xproto::Window>(
                 root,

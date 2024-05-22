@@ -4,7 +4,8 @@ use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 
 use smol_str::SmolStr;
-use wasm_bindgen::{closure::Closure, JsCast};
+use wasm_bindgen::closure::Closure;
+use wasm_bindgen::JsCast;
 use web_sys::{
     CssStyleDeclaration, Document, Event, FocusEvent, HtmlCanvasElement, KeyboardEvent,
     PointerEvent, WheelEvent,
@@ -53,8 +54,9 @@ pub struct Canvas {
 pub struct Common {
     pub window: web_sys::Window,
     pub document: Document,
-    /// Note: resizing the HTMLCanvasElement should go through `backend::set_canvas_size` to ensure the DPI factor is maintained.
-    /// Note: this is read-only because we use a pointer to this for [`WindowHandle`][rwh_06::WindowHandle].
+    /// Note: resizing the HTMLCanvasElement should go through `backend::set_canvas_size` to ensure
+    /// the DPI factor is maintained. Note: this is read-only because we use a pointer to this
+    /// for [`WindowHandle`][rwh_06::WindowHandle].
     raw: Rc<HtmlCanvasElement>,
     style: Style,
     old_size: Rc<Cell<PhysicalSize<u32>>>,
@@ -188,10 +190,7 @@ impl Canvas {
 
     pub fn position(&self) -> LogicalPosition<f64> {
         let bounds = self.common.raw.get_bounding_client_rect();
-        let mut position = LogicalPosition {
-            x: bounds.x(),
-            y: bounds.y(),
-        };
+        let mut position = LogicalPosition { x: bounds.x(), y: bounds.y() };
 
         if self.document().contains(Some(self.raw())) && self.style().get("display") != "none" {
             position.x += super::style_size_property(self.style(), "border-left-width")
@@ -298,9 +297,8 @@ impl Canvas {
         F: 'static + FnMut(PhysicalKey, Key, Option<SmolStr>, KeyLocation, bool, ModifiersState),
     {
         let prevent_default = Rc::clone(&self.prevent_default);
-        self.on_keyboard_press = Some(self.common.add_event(
-            "keydown",
-            move |event: KeyboardEvent| {
+        self.on_keyboard_press =
+            Some(self.common.add_event("keydown", move |event: KeyboardEvent| {
                 if prevent_default.get() {
                     event.prevent_default();
                 }
@@ -314,8 +312,7 @@ impl Canvas {
                     event.repeat(),
                     modifiers,
                 );
-            },
-        ));
+            }));
     }
 
     pub fn on_cursor_leave<F>(&mut self, handler: F)
@@ -459,14 +456,12 @@ impl Canvas {
 
     pub(crate) fn on_context_menu(&mut self) {
         let prevent_default = Rc::clone(&self.prevent_default);
-        self.on_context_menu = Some(self.common.add_event(
-            "contextmenu",
-            move |event: PointerEvent| {
+        self.on_context_menu =
+            Some(self.common.add_event("contextmenu", move |event: PointerEvent| {
                 if prevent_default.get() {
                     event.prevent_default();
                 }
-            },
-        ));
+            }));
     }
 
     pub fn request_fullscreen(&self) {
@@ -580,20 +575,14 @@ impl Style {
     }
 
     pub(crate) fn get(&self, property: &str) -> String {
-        self.read
-            .get_property_value(property)
-            .expect("Invalid property")
+        self.read.get_property_value(property).expect("Invalid property")
     }
 
     pub(crate) fn remove(&self, property: &str) {
-        self.write
-            .remove_property(property)
-            .expect("Property is read only");
+        self.write.remove_property(property).expect("Property is read only");
     }
 
     pub(crate) fn set(&self, property: &str, value: &str) {
-        self.write
-            .set_property(property, value)
-            .expect("Property is read only");
+        self.write.set_property(property, value).expect("Property is read only");
     }
 }

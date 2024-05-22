@@ -2,8 +2,8 @@ use crate::keyboard::{KeyCode, PhysicalKey};
 
 // TODO: Describe what this value contains for each platform
 
-/// Additional methods for the [`PhysicalKey`] type that allow the user to access the platform-specific
-/// scancode.
+/// Additional methods for the [`PhysicalKey`] type that allow the user to access the
+/// platform-specific scancode.
 ///
 /// [`PhysicalKey`]: crate::keyboard::PhysicalKey
 pub trait PhysicalKeyExtScancode {
@@ -23,7 +23,7 @@ pub trait PhysicalKeyExtScancode {
     ///
     /// ## Platform-specific
     /// - **Wayland/X11**: A 32-bit linux scancode. When building from X11/Wayland keycode subtract
-    ///                    `8` to get the value you wanted.
+    ///   `8` to get the value you wanted.
     fn from_scancode(scancode: u32) -> PhysicalKey;
 }
 

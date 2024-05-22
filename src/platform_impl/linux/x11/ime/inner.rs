@@ -1,11 +1,11 @@
-use std::{collections::HashMap, mem, sync::Arc};
+use std::collections::HashMap;
+use std::mem;
+use std::sync::Arc;
 
 use super::{ffi, XConnection, XError};
 
-use super::{
-    context::ImeContext,
-    input_method::{InputMethod, PotentialInputMethods},
-};
+use super::context::ImeContext;
+use super::input_method::{InputMethod, PotentialInputMethods};
 use crate::platform_impl::platform::x11::ime::ImeEventSender;
 
 pub(crate) unsafe fn close_im(xconn: &Arc<XConnection>, im: ffi::XIM) -> Result<(), XError> {
@@ -26,7 +26,7 @@ pub(crate) struct ImeInner {
     // WARNING: this is initially zeroed!
     pub destroy_callback: ffi::XIMCallback,
     pub event_sender: ImeEventSender,
-    // Indicates whether or not the the input method was destroyed on the server end
+    // Indicates whether or not the input method was destroyed on the server end
     // (i.e. if ibus/fcitx/etc. was terminated/restarted)
     pub is_destroyed: bool,
     pub is_fallback: bool,
