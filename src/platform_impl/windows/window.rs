@@ -1372,7 +1372,7 @@ unsafe fn init(
 
     // Best effort: try to create the window with the requested inner size
     let adjusted_size = {
-        let [w, h] = clamped_size.to_physical::<u32>(default_scale_factor).into();
+        let [w, h]: [i32; 2] = clamped_size.to_physical::<u32>(default_scale_factor).into();
         let mut rect = RECT { left: 0, top: 0, right: w, bottom: h };
         unsafe {
             AdjustWindowRectEx(&mut rect, style, menu.is_some().into(), ex_style);
