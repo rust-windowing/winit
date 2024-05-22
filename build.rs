@@ -1,10 +1,10 @@
 use cfg_aliases::cfg_aliases;
 
 fn main() {
-    // The script doesn't depend on our code
+    // The script doesn't depend on our code.
     println!("cargo:rerun-if-changed=build.rs");
 
-    // Setup cfg aliases
+    // Setup cfg aliases.
     cfg_aliases! {
         // Systems.
         android_platform: { target_os = "android" },
@@ -22,18 +22,6 @@ fn main() {
         orbital_platform: { redox },
     }
 
-    println!("cargo:rustc-check-cfg=cfg(android_platform)");
-    println!("cargo:rustc-check-cfg=cfg(web_platform)");
-    println!("cargo:rustc-check-cfg=cfg(macos_platform)");
-    println!("cargo:rustc-check-cfg=cfg(ios_platform)");
-    println!("cargo:rustc-check-cfg=cfg(windows_platform)");
-    println!("cargo:rustc-check-cfg=cfg(apple)");
-    println!("cargo:rustc-check-cfg=cfg(free_unix)");
-    println!("cargo:rustc-check-cfg=cfg(redox)");
-
-    println!("cargo:rustc-check-cfg=cfg(x11_platform)");
-    println!("cargo:rustc-check-cfg=cfg(wayland_platform)");
-    println!("cargo:rustc-check-cfg=cfg(orbital_platform)");
-
+    // Winit defined cfgs.
     println!("cargo:rustc-check-cfg=cfg(unreleased_changelogs)");
 }
