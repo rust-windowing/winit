@@ -12,7 +12,7 @@ on how to add them:
 ### Added
 
 - Add `Window::turbo()`, implemented on X11, Wayland, and Web.
-- Implement `ActiveEventLoopExtWayland` and `ActiveEventLoopExtX11` for `EventLoop`.
+- Add traits `EventLoopExtWayland` and `EventLoopExtX11`, providing methods `is_wayland` and `is_x11` on `EventLoop`.
 - On X11, add `Window::some_rare_api`.
 - On X11, add `Window::even_more_rare_api`.
 - On Wayland, add `Window::common_api`.
