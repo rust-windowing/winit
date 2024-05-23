@@ -14,6 +14,7 @@ use core_foundation::runloop::{
 use objc2::ClassType;
 use objc2_foundation::{MainThreadMarker, NSString};
 
+use crate::application::ApplicationHandler;
 use crate::error::EventLoopError;
 use crate::event::Event;
 use crate::event_loop::{
@@ -106,17 +107,28 @@ impl OwnedDisplayHandle {
     }
 }
 
-fn map_user_event<T: 'static>(
-    mut handler: impl FnMut(Event<T>, &RootActiveEventLoop),
+fn map_user_event<T: 'static, A: ApplicationHandler<T>>(
+    app: &mut A,
     receiver: mpsc::Receiver<T>,
-) -> impl FnMut(Event<HandlePendingUserEvents>, &RootActiveEventLoop) {
-    move |event, window_target| match event.map_nonuser_event() {
-        Ok(event) => (handler)(event, window_target),
-        Err(_) => {
+) -> impl FnMut(Event<HandlePendingUserEvents>, &RootActiveEventLoop) + '_ {
+    move |event, window_target| match event {
+        Event::NewEvents(cause) => app.new_events(window_target, cause),
+        Event::WindowEvent { window_id, event } => {
+            app.window_event(window_target, window_id, event)
+        },
+        Event::DeviceEvent { device_id, event } => {
+            app.device_event(window_target, device_id, event)
+        },
+        Event::UserEvent(_) => {
             for event in receiver.try_iter() {
-                (handler)(Event::UserEvent(event), window_target);
+                app.user_event(window_target, event);
             }
         },
+        Event::Suspended => app.suspended(window_target),
+        Event::Resumed => app.resumed(window_target),
+        Event::AboutToWait => app.about_to_wait(window_target),
+        Event::LoopExiting => app.exiting(window_target),
+        Event::MemoryWarning => app.memory_warning(window_target),
     }
 }
 
@@ -159,10 +171,7 @@ impl<T: 'static> EventLoop<T> {
         })
     }
 
-    pub fn run<F>(self, handler: F) -> !
-    where
-        F: FnMut(Event<T>, &RootActiveEventLoop),
-    {
+    pub fn run_app<A: ApplicationHandler<T>>(self, app: &mut A) -> ! {
         let application = UIApplication::shared(self.mtm);
         assert!(
             application.is_none(),
@@ -171,7 +180,7 @@ impl<T: 'static> EventLoop<T> {
              `EventLoop::run_app` calls `UIApplicationMain` on iOS",
         );
 
-        let handler = map_user_event(handler, self.receiver);
+        let handler = map_user_event(app, self.receiver);
 
         let handler = unsafe {
             std::mem::transmute::<

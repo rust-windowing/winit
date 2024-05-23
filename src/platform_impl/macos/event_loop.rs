@@ -25,6 +25,7 @@ use super::app_delegate::{ApplicationDelegate, HandlePendingUserEvents};
 use super::event::dummy_event;
 use super::monitor::{self, MonitorHandle};
 use super::observer::setup_control_flow_observers;
+use crate::application::ApplicationHandler;
 use crate::error::EventLoopError;
 use crate::event::Event;
 use crate::event_loop::{
@@ -155,17 +156,28 @@ impl ActiveEventLoop {
     }
 }
 
-fn map_user_event<T: 'static>(
-    mut handler: impl FnMut(Event<T>, &RootWindowTarget),
+fn map_user_event<T: 'static, A: ApplicationHandler<T>>(
+    app: &mut A,
     receiver: Rc<mpsc::Receiver<T>>,
-) -> impl FnMut(Event<HandlePendingUserEvents>, &RootWindowTarget) {
-    move |event, window_target| match event.map_nonuser_event() {
-        Ok(event) => (handler)(event, window_target),
-        Err(_) => {
+) -> impl FnMut(Event<HandlePendingUserEvents>, &RootWindowTarget) + '_ {
+    move |event, window_target| match event {
+        Event::NewEvents(cause) => app.new_events(window_target, cause),
+        Event::WindowEvent { window_id, event } => {
+            app.window_event(window_target, window_id, event)
+        },
+        Event::DeviceEvent { device_id, event } => {
+            app.device_event(window_target, device_id, event)
+        },
+        Event::UserEvent(_) => {
             for event in receiver.try_iter() {
-                (handler)(Event::UserEvent(event), window_target);
+                app.user_event(window_target, event);
             }
         },
+        Event::Suspended => app.suspended(window_target),
+        Event::Resumed => app.resumed(window_target),
+        Event::AboutToWait => app.about_to_wait(window_target),
+        Event::LoopExiting => app.exiting(window_target),
+        Event::MemoryWarning => app.memory_warning(window_target),
     }
 }
 
@@ -260,22 +272,19 @@ impl<T> EventLoop<T> {
         &self.window_target
     }
 
-    pub fn run<F>(mut self, handler: F) -> Result<(), EventLoopError>
-    where
-        F: FnMut(Event<T>, &RootWindowTarget),
-    {
-        self.run_on_demand(handler)
+    pub fn run_app<A: ApplicationHandler<T>>(mut self, app: &mut A) -> Result<(), EventLoopError> {
+        self.run_app_on_demand(app)
     }
 
     // NB: we don't base this on `pump_events` because for `MacOs` we can't support
     // `pump_events` elegantly (we just ask to run the loop for a "short" amount of
     // time and so a layered implementation would end up using a lot of CPU due to
     // redundant wake ups.
-    pub fn run_on_demand<F>(&mut self, handler: F) -> Result<(), EventLoopError>
-    where
-        F: FnMut(Event<T>, &RootWindowTarget),
-    {
-        let handler = map_user_event(handler, self.receiver.clone());
+    pub fn run_app_on_demand<A: ApplicationHandler<T>>(
+        &mut self,
+        app: &mut A,
+    ) -> Result<(), EventLoopError> {
+        let handler = map_user_event(app, self.receiver.clone());
 
         self.delegate.set_event_handler(handler, || {
             autoreleasepool(|_| {
@@ -310,11 +319,12 @@ impl<T> EventLoop<T> {
         Ok(())
     }
 
-    pub fn pump_events<F>(&mut self, timeout: Option<Duration>, handler: F) -> PumpStatus
-    where
-        F: FnMut(Event<T>, &RootWindowTarget),
-    {
-        let handler = map_user_event(handler, self.receiver.clone());
+    pub fn pump_app_events<A: ApplicationHandler<T>>(
+        &mut self,
+        timeout: Option<Duration>,
+        app: &mut A,
+    ) -> PumpStatus {
+        let handler = map_user_event(app, self.receiver.clone());
 
         self.delegate.set_event_handler(handler, || {
             autoreleasepool(|_| {

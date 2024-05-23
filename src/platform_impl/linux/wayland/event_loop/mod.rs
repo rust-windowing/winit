@@ -14,6 +14,7 @@ use sctk::reexports::calloop::Error as CalloopError;
 use sctk::reexports::calloop_wayland_source::WaylandSource;
 use sctk::reexports::client::{globals, Connection, QueueHandle};
 
+use crate::application::ApplicationHandler;
 use crate::cursor::OnlyCursorImage;
 use crate::dpi::LogicalSize;
 use crate::error::{EventLoopError, OsError as RootOsError};
@@ -173,12 +174,16 @@ impl<T: 'static> EventLoop<T> {
         Ok(event_loop)
     }
 
-    pub fn run_on_demand<F>(&mut self, mut event_handler: F) -> Result<(), EventLoopError>
-    where
-        F: FnMut(Event<T>, &RootActiveEventLoop),
-    {
+    pub fn run_app<A: ApplicationHandler<T>>(mut self, app: &mut A) -> Result<(), EventLoopError> {
+        self.run_app_on_demand(app)
+    }
+
+    pub fn run_app_on_demand<A: ApplicationHandler<T>>(
+        &mut self,
+        app: &mut A,
+    ) -> Result<(), EventLoopError> {
         let exit = loop {
-            match self.pump_events(None, &mut event_handler) {
+            match self.pump_app_events(None, app) {
                 PumpStatus::Exit(0) => {
                     break Ok(());
                 },
@@ -200,26 +205,27 @@ impl<T: 'static> EventLoop<T> {
         exit
     }
 
-    pub fn pump_events<F>(&mut self, timeout: Option<Duration>, mut callback: F) -> PumpStatus
-    where
-        F: FnMut(Event<T>, &RootActiveEventLoop),
-    {
+    pub fn pump_app_events<A: ApplicationHandler<T>>(
+        &mut self,
+        timeout: Option<Duration>,
+        app: &mut A,
+    ) -> PumpStatus {
         if !self.loop_running {
             self.loop_running = true;
 
             // Run the initial loop iteration.
-            self.single_iteration(&mut callback, StartCause::Init);
+            self.single_iteration(app, StartCause::Init);
         }
 
         // Consider the possibility that the `StartCause::Init` iteration could
         // request to Exit.
         if !self.exiting() {
-            self.poll_events_with_timeout(timeout, &mut callback);
+            self.poll_events_with_timeout(timeout, app);
         }
         if let Some(code) = self.exit_code() {
             self.loop_running = false;
 
-            callback(Event::LoopExiting, self.window_target());
+            app.exiting(&self.window_target);
 
             PumpStatus::Exit(code)
         } else {
@@ -227,10 +233,11 @@ impl<T: 'static> EventLoop<T> {
         }
     }
 
-    pub fn poll_events_with_timeout<F>(&mut self, mut timeout: Option<Duration>, mut callback: F)
-    where
-        F: FnMut(Event<T>, &RootActiveEventLoop),
-    {
+    pub fn poll_events_with_timeout<A: ApplicationHandler<T>>(
+        &mut self,
+        mut timeout: Option<Duration>,
+        app: &mut A,
+    ) {
         let cause = loop {
             let start = Instant::now();
 
@@ -292,13 +299,10 @@ impl<T: 'static> EventLoop<T> {
             break cause;
         };
 
-        self.single_iteration(&mut callback, cause);
+        self.single_iteration(app, cause);
     }
 
-    fn single_iteration<F>(&mut self, callback: &mut F, cause: StartCause)
-    where
-        F: FnMut(Event<T>, &RootActiveEventLoop),
-    {
+    fn single_iteration<A: ApplicationHandler<T>>(&mut self, app: &mut A, cause: StartCause) {
         // NOTE currently just indented to simplify the diff
 
         // We retain these grow-only scratch buffers as part of the EventLoop
@@ -309,18 +313,18 @@ impl<T: 'static> EventLoop<T> {
         let mut buffer_sink = std::mem::take(&mut self.buffer_sink);
         let mut window_ids = std::mem::take(&mut self.window_ids);
 
-        callback(Event::NewEvents(cause), &self.window_target);
+        app.new_events(&self.window_target, cause);
 
         // NB: For consistency all platforms must emit a 'resumed' event even though Wayland
         // applications don't themselves have a formal suspend/resume lifecycle.
         if cause == StartCause::Init {
-            callback(Event::Resumed, &self.window_target);
+            app.resumed(&self.window_target);
         }
 
         // Handle pending user events. We don't need back buffer, since we can't dispatch
         // user events indirectly via callback to the user.
         for user_event in self.pending_user_events.borrow_mut().drain(..) {
-            callback(Event::UserEvent(user_event), &self.window_target);
+            app.user_event(&self.window_target, user_event);
         }
 
         // Drain the pending compositor updates.
@@ -341,18 +345,13 @@ impl<T: 'static> EventLoop<T> {
                 let old_physical_size = physical_size;
 
                 let new_inner_size = Arc::new(Mutex::new(physical_size));
-                callback(
-                    Event::WindowEvent {
-                        window_id: crate::window::WindowId(window_id),
-                        event: WindowEvent::ScaleFactorChanged {
-                            scale_factor,
-                            inner_size_writer: InnerSizeWriter::new(Arc::downgrade(
-                                &new_inner_size,
-                            )),
-                        },
-                    },
-                    &self.window_target,
-                );
+                let root_window_id = crate::window::WindowId(window_id);
+                let event = WindowEvent::ScaleFactorChanged {
+                    scale_factor,
+                    inner_size_writer: InnerSizeWriter::new(Arc::downgrade(&new_inner_size)),
+                };
+
+                app.window_event(&self.window_target, root_window_id, event);
 
                 let physical_size = *new_inner_size.lock().unwrap();
                 drop(new_inner_size);
@@ -395,23 +394,14 @@ impl<T: 'static> EventLoop<T> {
                     size
                 });
 
-                callback(
-                    Event::WindowEvent {
-                        window_id: crate::window::WindowId(window_id),
-                        event: WindowEvent::Resized(physical_size),
-                    },
-                    &self.window_target,
-                );
+                let window_id = crate::window::WindowId(window_id);
+                let event = WindowEvent::Resized(physical_size);
+                app.window_event(&self.window_target, window_id, event);
             }
 
             if compositor_update.close_window {
-                callback(
-                    Event::WindowEvent {
-                        window_id: crate::window::WindowId(window_id),
-                        event: WindowEvent::CloseRequested,
-                    },
-                    &self.window_target,
-                );
+                let window_id = crate::window::WindowId(window_id);
+                app.window_event(&self.window_target, window_id, WindowEvent::CloseRequested);
             }
         }
 
@@ -420,8 +410,15 @@ impl<T: 'static> EventLoop<T> {
             buffer_sink.append(&mut state.window_events_sink.lock().unwrap());
         });
         for event in buffer_sink.drain() {
-            let event = event.map_nonuser_event().unwrap();
-            callback(event, &self.window_target);
+            match event {
+                Event::WindowEvent { window_id, event } => {
+                    app.window_event(&self.window_target, window_id, event)
+                },
+                Event::DeviceEvent { device_id, event } => {
+                    app.device_event(&self.window_target, device_id, event)
+                },
+                _ => unreachable!("event which is neither device nor window event."),
+            }
         }
 
         // Handle non-synthetic events.
@@ -429,8 +426,15 @@ impl<T: 'static> EventLoop<T> {
             buffer_sink.append(&mut state.events_sink);
         });
         for event in buffer_sink.drain() {
-            let event = event.map_nonuser_event().unwrap();
-            callback(event, &self.window_target);
+            match event {
+                Event::WindowEvent { window_id, event } => {
+                    app.window_event(&self.window_target, window_id, event)
+                },
+                Event::DeviceEvent { device_id, event } => {
+                    app.device_event(&self.window_target, device_id, event)
+                },
+                _ => unreachable!("event which is neither device nor window event."),
+            }
         }
 
         // Collect the window ids
@@ -466,10 +470,8 @@ impl<T: 'static> EventLoop<T> {
             });
 
             if let Some(event) = event {
-                callback(
-                    Event::WindowEvent { window_id: crate::window::WindowId(*window_id), event },
-                    &self.window_target,
-                );
+                let window_id = crate::window::WindowId(*window_id);
+                app.window_event(&self.window_target, window_id, event);
             }
         }
 
@@ -479,7 +481,7 @@ impl<T: 'static> EventLoop<T> {
         });
 
         // This is always the last event we dispatch before poll again
-        callback(Event::AboutToWait, &self.window_target);
+        app.about_to_wait(&self.window_target);
 
         // Update the window frames and schedule redraws.
         let mut wake_up = false;

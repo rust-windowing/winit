@@ -57,6 +57,7 @@ use windows_sys::Win32::UI::WindowsAndMessaging::{
     WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW, WS_EX_TRANSPARENT, WS_OVERLAPPED, WS_POPUP, WS_VISIBLE,
 };
 
+use crate::application::ApplicationHandler;
 use crate::dpi::{PhysicalPosition, PhysicalSize};
 use crate::error::EventLoopError;
 use crate::event::{
@@ -215,17 +216,14 @@ impl<T: 'static> EventLoop<T> {
         &self.window_target
     }
 
-    pub fn run<F>(mut self, event_handler: F) -> Result<(), EventLoopError>
-    where
-        F: FnMut(Event<T>, &RootAEL),
-    {
-        self.run_on_demand(event_handler)
+    pub fn run_app<A: ApplicationHandler<T>>(mut self, app: &mut A) -> Result<(), EventLoopError> {
+        self.run_app_on_demand(app)
     }
 
-    pub fn run_on_demand<F>(&mut self, mut event_handler: F) -> Result<(), EventLoopError>
-    where
-        F: FnMut(Event<T>, &RootAEL),
-    {
+    pub fn run_app_on_demand<A: ApplicationHandler<T>>(
+        &mut self,
+        app: &mut A,
+    ) -> Result<(), EventLoopError> {
         {
             let runner = &self.window_target.p.runner_shared;
 
@@ -236,21 +234,32 @@ impl<T: 'static> EventLoop<T> {
             // returning
             unsafe {
                 runner.set_event_handler(move |event| {
-                    // the shared `EventLoopRunner` is not parameterized
-                    // `EventLoopProxy::send_event()` calls `PostMessage`
-                    // to wakeup and dispatch a placeholder `UserEvent`,
-                    // when we received the placeholder event here, the
-                    // real UserEvent(T) should already be put in the
-                    // mpsc channel and ready to be pulled
-                    let event = match event.map_nonuser_event() {
-                        Ok(non_user_event) => non_user_event,
-                        Err(_user_event_placeholder) => Event::UserEvent(
-                            user_event_receiver
+                    match event {
+                        Event::NewEvents(cause) => app.new_events(event_loop_windows_ref, cause),
+                        Event::WindowEvent { window_id, event } => {
+                            app.window_event(event_loop_windows_ref, window_id, event)
+                        },
+                        Event::DeviceEvent { device_id, event } => {
+                            app.device_event(event_loop_windows_ref, device_id, event)
+                        },
+                        // The shared `EventLoopRunner` is not parameterized
+                        // `EventLoopProxy::send_event()` calls `PostMessage`
+                        // to wakeup and dispatch a placeholder `UserEvent`,
+                        // when we received the placeholder event here, the
+                        // real UserEvent(T) should already be put in the
+                        // mpsc channel and ready to be pulled
+                        Event::UserEvent(_) => {
+                            let event = user_event_receiver
                                 .try_recv()
-                                .expect("user event signaled but not received"),
-                        ),
-                    };
-                    event_handler(event, event_loop_windows_ref)
+                                .expect("user event signaled but not received");
+                            app.user_event(event_loop_windows_ref, event);
+                        },
+                        Event::Suspended => app.suspended(event_loop_windows_ref),
+                        Event::Resumed => app.resumed(event_loop_windows_ref),
+                        Event::AboutToWait => app.about_to_wait(event_loop_windows_ref),
+                        Event::LoopExiting => app.exiting(event_loop_windows_ref),
+                        Event::MemoryWarning => app.memory_warning(event_loop_windows_ref),
+                    }
                 });
             }
         }
@@ -284,10 +293,11 @@ impl<T: 'static> EventLoop<T> {
         }
     }
 
-    pub fn pump_events<F>(&mut self, timeout: Option<Duration>, mut event_handler: F) -> PumpStatus
-    where
-        F: FnMut(Event<T>, &RootAEL),
-    {
+    pub fn pump_app_events<A: ApplicationHandler<T>>(
+        &mut self,
+        timeout: Option<Duration>,
+        app: &mut A,
+    ) -> PumpStatus {
         {
             let runner = &self.window_target.p.runner_shared;
             let event_loop_windows_ref = &self.window_target;
@@ -302,16 +312,34 @@ impl<T: 'static> EventLoop<T> {
             // event handler.
             unsafe {
                 runner.set_event_handler(move |event| {
-                    let event = match event.map_nonuser_event() {
-                        Ok(non_user_event) => non_user_event,
-                        Err(_user_event_placeholder) => Event::UserEvent(
-                            user_event_receiver
-                                .recv()
-                                .expect("user event signaled but not received"),
-                        ),
-                    };
-                    event_handler(event, event_loop_windows_ref)
+                    match event {
+                        Event::NewEvents(cause) => app.new_events(event_loop_windows_ref, cause),
+                        Event::WindowEvent { window_id, event } => {
+                            app.window_event(event_loop_windows_ref, window_id, event)
+                        },
+                        Event::DeviceEvent { device_id, event } => {
+                            app.device_event(event_loop_windows_ref, device_id, event)
+                        },
+                        // The shared `EventLoopRunner` is not parameterized
+                        // `EventLoopProxy::send_event()` calls `PostMessage`
+                        // to wakeup and dispatch a placeholder `UserEvent`,
+                        // when we received the placeholder event here, the
+                        // real UserEvent(T) should already be put in the
+                        // mpsc channel and ready to be pulled
+                        Event::UserEvent(_) => {
+                            let event = user_event_receiver
+                                .try_recv()
+                                .expect("user event signaled but not received");
+                            app.user_event(event_loop_windows_ref, event);
+                        },
+                        Event::Suspended => app.suspended(event_loop_windows_ref),
+                        Event::Resumed => app.resumed(event_loop_windows_ref),
+                        Event::AboutToWait => app.about_to_wait(event_loop_windows_ref),
+                        Event::LoopExiting => app.exiting(event_loop_windows_ref),
+                        Event::MemoryWarning => app.memory_warning(event_loop_windows_ref),
+                    }
                 });
+
                 runner.wakeup();
             }
         }
