@@ -2,7 +2,7 @@
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
-use crate::event_loop::{ActiveEventLoop, EventLoopBuilder};
+use crate::event_loop::{ActiveEventLoop, EventLoop, EventLoopBuilder};
 use crate::monitor::MonitorHandle;
 use crate::window::{Window, WindowAttributes};
 
@@ -96,6 +96,19 @@ impl ActiveEventLoopExtX11 for ActiveEventLoop {
     #[inline]
     fn is_x11(&self) -> bool {
         !self.p.is_wayland()
+    }
+}
+
+/// Additional methods on [`EventLoop`] that are specific to X11.
+pub trait EventLoopExtX11 {
+    /// True if the [`EventLoop`] uses X11.
+    fn is_x11(&self) -> bool;
+}
+
+impl<T: 'static> EventLoopExtX11 for EventLoop<T> {
+    #[inline]
+    fn is_x11(&self) -> bool {
+        !self.event_loop.is_wayland()
     }
 }
 
