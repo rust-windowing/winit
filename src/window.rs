@@ -632,7 +632,8 @@ impl Window {
     ///
     /// ## Platform-specific
     ///
-    /// **Wayland:** - schedules a frame callback to throttle [`WindowEvent::RedrawRequested`].
+    /// - **Android / iOS / X11 / Web / Windows / macOS / Orbital:** Unsupported.
+    /// - **Wayland:** Schedules a frame callback to throttle [`WindowEvent::RedrawRequested`].
     ///
     /// [`WindowEvent::RedrawRequested`]: crate::event::WindowEvent::RedrawRequested
     #[inline]
