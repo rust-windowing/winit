@@ -5,17 +5,15 @@ use std::ptr;
 
 use objc2::rc::{Id, WeakId};
 use objc2::runtime::{AnyObject, Sel};
-use objc2::{
-    class, declare_class, msg_send, msg_send_id, mutability, sel, ClassType, DeclaredClass,
-};
+use objc2::{declare_class, msg_send_id, mutability, sel, ClassType, DeclaredClass};
 use objc2_app_kit::{
     NSApplication, NSCursor, NSEvent, NSEventPhase, NSResponder, NSTextInputClient,
-    NSTrackingRectTag, NSView,
+    NSTrackingRectTag, NSView, NSViewFrameDidChangeNotification,
 };
 use objc2_foundation::{
     MainThreadMarker, NSArray, NSAttributedString, NSAttributedStringKey, NSCopying,
-    NSMutableAttributedString, NSObject, NSObjectProtocol, NSPoint, NSRange, NSRect, NSSize,
-    NSString, NSUInteger,
+    NSMutableAttributedString, NSNotFound, NSNotificationCenter, NSObject, NSObjectProtocol,
+    NSPoint, NSRange, NSRect, NSSize, NSString, NSUInteger,
 };
 
 use super::app_delegate::ApplicationDelegate;
@@ -25,7 +23,7 @@ use super::event::{
     scancode_to_physicalkey,
 };
 use super::window::WinitWindow;
-use super::{util, DEVICE_ID};
+use super::DEVICE_ID;
 use crate::dpi::{LogicalPosition, LogicalSize};
 use crate::event::{
     DeviceEvent, ElementState, Ime, Modifiers, MouseButton, MouseScrollDelta, TouchPhase,
@@ -110,8 +108,11 @@ fn get_left_modifier_code(key: &Key) -> KeyCode {
     }
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct ViewState {
+    /// Strong reference to the global application state.
+    app_delegate: Id<ApplicationDelegate>,
+
     cursor_state: RefCell<CursorState>,
     ime_position: Cell<NSPoint>,
     ime_size: Cell<NSSize>,
@@ -199,19 +200,15 @@ declare_class!(
         }
 
         #[method(drawRect:)]
-        fn draw_rect(&self, rect: NSRect) {
+        fn draw_rect(&self, _rect: NSRect) {
             trace_scope!("drawRect:");
 
             // It's a workaround for https://github.com/rust-windowing/winit/issues/2640, don't replace with `self.window_id()`.
             if let Some(window) = self.ivars()._ns_window.load() {
-                let app_delegate = ApplicationDelegate::get(MainThreadMarker::from(self));
-                app_delegate.handle_redraw(window.id());
+                self.ivars().app_delegate.handle_redraw(window.id());
             }
 
-            #[allow(clippy::let_unit_value)]
-            unsafe {
-                let _: () = msg_send![super(self), drawRect: rect];
-            }
+            // This is a direct subclass of NSView, no need to call superclass' drawRect:
         }
 
         #[method(acceptsFirstResponder)]
@@ -257,14 +254,16 @@ declare_class!(
             if length > 0 {
                 NSRange::new(0, length)
             } else {
-                util::EMPTY_RANGE
+                // Documented to return `{NSNotFound, 0}` if there is no marked range.
+                NSRange::new(NSNotFound as NSUInteger, 0)
             }
         }
 
         #[method(selectedRange)]
         fn selected_range(&self) -> NSRange {
             trace_scope!("selectedRange");
-            util::EMPTY_RANGE
+            // Documented to return `{NSNotFound, 0}` if there is no selection.
+            NSRange::new(NSNotFound as NSUInteger, 0)
         }
 
         #[method(setMarkedText:selectedRange:replacementRange:)]
@@ -773,34 +772,40 @@ declare_class!(
 
 impl WinitView {
     pub(super) fn new(
+        app_delegate: &ApplicationDelegate,
         window: &WinitWindow,
         accepts_first_mouse: bool,
         option_as_alt: OptionAsAlt,
     ) -> Id<Self> {
         let mtm = MainThreadMarker::from(window);
         let this = mtm.alloc().set_ivars(ViewState {
+            app_delegate: app_delegate.retain(),
+            cursor_state: Default::default(),
+            ime_position: Default::default(),
+            ime_size: Default::default(),
+            modifiers: Default::default(),
+            phys_modifiers: Default::default(),
+            tracking_rect: Default::default(),
+            ime_state: Default::default(),
+            input_source: Default::default(),
+            ime_allowed: Default::default(),
+            forward_key_to_app: Default::default(),
+            marked_text: Default::default(),
             accepts_first_mouse,
             _ns_window: WeakId::new(&window.retain()),
             option_as_alt: Cell::new(option_as_alt),
-            ..Default::default()
         });
         let this: Id<Self> = unsafe { msg_send_id![super(this), init] };
 
         this.setPostsFrameChangedNotifications(true);
-        let notification_center: &AnyObject =
-            unsafe { msg_send![class!(NSNotificationCenter), defaultCenter] };
-        // About frame change
-        let frame_did_change_notification_name =
-            NSString::from_str("NSViewFrameDidChangeNotification");
-        #[allow(clippy::let_unit_value)]
+        let notification_center = unsafe { NSNotificationCenter::defaultCenter() };
         unsafe {
-            let _: () = msg_send![
-                notification_center,
-                addObserver: &*this,
-                selector: sel!(frameDidChange:),
-                name: &*frame_did_change_notification_name,
-                object: &*this,
-            ];
+            notification_center.addObserver_selector_name_object(
+                &this,
+                sel!(frameDidChange:),
+                Some(NSViewFrameDidChangeNotification),
+                Some(&this),
+            )
         }
 
         *this.ivars().input_source.borrow_mut() = this.current_input_source();
@@ -818,13 +823,11 @@ impl WinitView {
     }
 
     fn queue_event(&self, event: WindowEvent) {
-        let app_delegate = ApplicationDelegate::get(MainThreadMarker::from(self));
-        app_delegate.queue_window_event(self.window().id(), event);
+        self.ivars().app_delegate.queue_window_event(self.window().id(), event);
     }
 
     fn queue_device_event(&self, event: DeviceEvent) {
-        let app_delegate = ApplicationDelegate::get(MainThreadMarker::from(self));
-        app_delegate.queue_device_event(event);
+        self.ivars().app_delegate.queue_device_event(event);
     }
 
     fn scale_factor(&self) -> f64 {

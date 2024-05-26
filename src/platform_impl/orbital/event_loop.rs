@@ -12,6 +12,7 @@ use orbclient::{
 };
 use smol_str::SmolStr;
 
+use crate::application::ApplicationHandler;
 use crate::error::EventLoopError;
 use crate::event::{self, Ime, Modifiers, StartCause};
 use crate::event_loop::{self, ControlFlow, DeviceEvents};
@@ -322,14 +323,13 @@ impl<T: 'static> EventLoop<T> {
         })
     }
 
-    fn process_event<F>(
+    fn process_event<A: ApplicationHandler<T>>(
         window_id: WindowId,
         event_option: EventOption,
         event_state: &mut EventState,
-        mut event_handler: F,
-    ) where
-        F: FnMut(event::Event<T>),
-    {
+        window_target: &event_loop::ActiveEventLoop,
+        app: &mut A,
+    ) {
         match event_option {
             EventOption::Key(KeyEvent { character, scancode, pressed }) => {
                 // Convert scancode
@@ -371,125 +371,128 @@ impl<T: 'static> EventLoop<T> {
                     key_without_modifiers = logical_key.clone();
                 }
 
-                event_handler(event::Event::WindowEvent {
-                    window_id: RootWindowId(window_id),
-                    event: event::WindowEvent::KeyboardInput {
-                        device_id: event::DeviceId(DeviceId),
-                        event: event::KeyEvent {
-                            logical_key,
-                            physical_key,
-                            location: KeyLocation::Standard,
-                            state: element_state(pressed),
-                            repeat: false,
-                            text,
-                            platform_specific: KeyEventExtra {
-                                key_without_modifiers,
-                                text_with_all_modifiers,
-                            },
+                let window_id = RootWindowId(window_id);
+                let event = event::WindowEvent::KeyboardInput {
+                    device_id: event::DeviceId(DeviceId),
+                    event: event::KeyEvent {
+                        logical_key,
+                        physical_key,
+                        location: KeyLocation::Standard,
+                        state: element_state(pressed),
+                        repeat: false,
+                        text,
+                        platform_specific: KeyEventExtra {
+                            key_without_modifiers,
+                            text_with_all_modifiers,
                         },
-                        is_synthetic: false,
                     },
-                });
+                    is_synthetic: false,
+                };
+
+                app.window_event(window_target, window_id, event);
 
                 // If the state of the modifiers has changed, send the event.
                 if modifiers_before != event_state.keyboard {
-                    event_handler(event::Event::WindowEvent {
-                        window_id: RootWindowId(window_id),
-                        event: event::WindowEvent::ModifiersChanged(event_state.modifiers()),
-                    })
+                    app.window_event(
+                        window_target,
+                        window_id,
+                        event::WindowEvent::ModifiersChanged(event_state.modifiers()),
+                    );
                 }
             },
             EventOption::TextInput(TextInputEvent { character }) => {
-                event_handler(event::Event::WindowEvent {
-                    window_id: RootWindowId(window_id),
-                    event: event::WindowEvent::Ime(Ime::Preedit("".into(), None)),
-                });
-                event_handler(event::Event::WindowEvent {
-                    window_id: RootWindowId(window_id),
-                    event: event::WindowEvent::Ime(Ime::Commit(character.into())),
-                });
+                app.window_event(
+                    window_target,
+                    RootWindowId(window_id),
+                    event::WindowEvent::Ime(Ime::Preedit("".into(), None)),
+                );
+                app.window_event(
+                    window_target,
+                    RootWindowId(window_id),
+                    event::WindowEvent::Ime(Ime::Commit(character.into())),
+                );
             },
             EventOption::Mouse(MouseEvent { x, y }) => {
-                event_handler(event::Event::WindowEvent {
-                    window_id: RootWindowId(window_id),
-                    event: event::WindowEvent::CursorMoved {
+                app.window_event(
+                    window_target,
+                    RootWindowId(window_id),
+                    event::WindowEvent::CursorMoved {
                         device_id: event::DeviceId(DeviceId),
                         position: (x, y).into(),
                     },
-                });
+                );
             },
             EventOption::MouseRelative(MouseRelativeEvent { dx, dy }) => {
-                event_handler(event::Event::DeviceEvent {
-                    device_id: event::DeviceId(DeviceId),
-                    event: event::DeviceEvent::MouseMotion { delta: (dx as f64, dy as f64) },
-                });
+                app.device_event(
+                    window_target,
+                    event::DeviceId(DeviceId),
+                    event::DeviceEvent::MouseMotion { delta: (dx as f64, dy as f64) },
+                );
             },
             EventOption::Button(ButtonEvent { left, middle, right }) => {
                 while let Some((button, state)) = event_state.mouse(left, middle, right) {
-                    event_handler(event::Event::WindowEvent {
-                        window_id: RootWindowId(window_id),
-                        event: event::WindowEvent::MouseInput {
+                    app.window_event(
+                        window_target,
+                        RootWindowId(window_id),
+                        event::WindowEvent::MouseInput {
                             device_id: event::DeviceId(DeviceId),
                             state,
                             button,
                         },
-                    });
+                    );
                 }
             },
             EventOption::Scroll(ScrollEvent { x, y }) => {
-                event_handler(event::Event::WindowEvent {
-                    window_id: RootWindowId(window_id),
-                    event: event::WindowEvent::MouseWheel {
+                app.window_event(
+                    window_target,
+                    RootWindowId(window_id),
+                    event::WindowEvent::MouseWheel {
                         device_id: event::DeviceId(DeviceId),
                         delta: event::MouseScrollDelta::LineDelta(x as f32, y as f32),
                         phase: event::TouchPhase::Moved,
                     },
-                });
+                );
             },
             EventOption::Quit(QuitEvent {}) => {
-                event_handler(event::Event::WindowEvent {
-                    window_id: RootWindowId(window_id),
-                    event: event::WindowEvent::CloseRequested,
-                });
+                app.window_event(
+                    window_target,
+                    RootWindowId(window_id),
+                    event::WindowEvent::CloseRequested,
+                );
             },
             EventOption::Focus(FocusEvent { focused }) => {
-                event_handler(event::Event::WindowEvent {
-                    window_id: RootWindowId(window_id),
-                    event: event::WindowEvent::Focused(focused),
-                });
+                app.window_event(
+                    window_target,
+                    RootWindowId(window_id),
+                    event::WindowEvent::Focused(focused),
+                );
             },
             EventOption::Move(MoveEvent { x, y }) => {
-                event_handler(event::Event::WindowEvent {
-                    window_id: RootWindowId(window_id),
-                    event: event::WindowEvent::Moved((x, y).into()),
-                });
+                app.window_event(
+                    window_target,
+                    RootWindowId(window_id),
+                    event::WindowEvent::Moved((x, y).into()),
+                );
             },
             EventOption::Resize(ResizeEvent { width, height }) => {
-                event_handler(event::Event::WindowEvent {
-                    window_id: RootWindowId(window_id),
-                    event: event::WindowEvent::Resized((width, height).into()),
-                });
+                app.window_event(
+                    window_target,
+                    RootWindowId(window_id),
+                    event::WindowEvent::Resized((width, height).into()),
+                );
 
                 // Acknowledge resize after event loop.
                 event_state.resize_opt = Some((width, height));
             },
             // TODO: Screen, Clipboard, Drop
             EventOption::Hover(HoverEvent { entered }) => {
-                if entered {
-                    event_handler(event::Event::WindowEvent {
-                        window_id: RootWindowId(window_id),
-                        event: event::WindowEvent::CursorEntered {
-                            device_id: event::DeviceId(DeviceId),
-                        },
-                    });
+                let event = if entered {
+                    event::WindowEvent::CursorEntered { device_id: event::DeviceId(DeviceId) }
                 } else {
-                    event_handler(event::Event::WindowEvent {
-                        window_id: RootWindowId(window_id),
-                        event: event::WindowEvent::CursorLeft {
-                            device_id: event::DeviceId(DeviceId),
-                        },
-                    });
-                }
+                    event::WindowEvent::CursorLeft { device_id: event::DeviceId(DeviceId) }
+                };
+
+                app.window_event(window_target, RootWindowId(window_id), event);
             },
             other => {
                 tracing::warn!("unhandled event: {:?}", other);
@@ -497,22 +500,13 @@ impl<T: 'static> EventLoop<T> {
         }
     }
 
-    pub fn run<F>(mut self, mut event_handler_inner: F) -> Result<(), EventLoopError>
-    where
-        F: FnMut(event::Event<T>, &event_loop::ActiveEventLoop),
-    {
-        let mut event_handler =
-            move |event: event::Event<T>, window_target: &event_loop::ActiveEventLoop| {
-                event_handler_inner(event, window_target);
-            };
-
+    pub fn run_app<A: ApplicationHandler<T>>(mut self, app: &mut A) -> Result<(), EventLoopError> {
         let mut start_cause = StartCause::Init;
-
         loop {
-            event_handler(event::Event::NewEvents(start_cause), &self.window_target);
+            app.new_events(&self.window_target, start_cause);
 
             if start_cause == StartCause::Init {
-                event_handler(event::Event::Resumed, &self.window_target);
+                app.resumed(&self.window_target);
             }
 
             // Handle window creates.
@@ -528,23 +522,15 @@ impl<T: 'static> EventLoop<T> {
 
                 self.windows.push((window, EventState::default()));
 
-                // Send resize event on create to indicate first size.
-                event_handler(
-                    event::Event::WindowEvent {
-                        window_id: RootWindowId(window_id),
-                        event: event::WindowEvent::Resized((properties.w, properties.h).into()),
-                    },
-                    &self.window_target,
-                );
+                let window_id = RootWindowId(window_id);
 
-                // Send resize event on create to indicate first position.
-                event_handler(
-                    event::Event::WindowEvent {
-                        window_id: RootWindowId(window_id),
-                        event: event::WindowEvent::Moved((properties.x, properties.y).into()),
-                    },
-                    &self.window_target,
-                );
+                // Send resize event on create to indicate first size.
+                let event = event::WindowEvent::Resized((properties.w, properties.h).into());
+                app.window_event(&self.window_target, window_id, event);
+
+                // Send moved event on create to indicate first position.
+                let event = event::WindowEvent::Moved((properties.x, properties.y).into());
+                app.window_event(&self.window_target, window_id, event);
             }
 
             // Handle window destroys.
@@ -552,14 +538,8 @@ impl<T: 'static> EventLoop<T> {
                 let mut destroys = self.window_target.p.destroys.lock().unwrap();
                 destroys.pop_front()
             } {
-                event_handler(
-                    event::Event::WindowEvent {
-                        window_id: RootWindowId(destroy_id),
-                        event: event::WindowEvent::Destroyed,
-                    },
-                    &self.window_target,
-                );
-
+                let window_id = RootWindowId(destroy_id);
+                app.window_event(&self.window_target, window_id, event::WindowEvent::Destroyed);
                 self.windows.retain(|(window, _event_state)| window.fd as u64 != destroy_id.fd);
             }
 
@@ -586,7 +566,8 @@ impl<T: 'static> EventLoop<T> {
                         window_id,
                         orbital_event.to_option(),
                         event_state,
-                        |event| event_handler(event, &self.window_target),
+                        &self.window_target,
+                        app,
                     );
                 }
 
@@ -614,7 +595,7 @@ impl<T: 'static> EventLoop<T> {
             }
 
             while let Ok(event) = self.user_events_receiver.try_recv() {
-                event_handler(event::Event::UserEvent(event), &self.window_target);
+                app.user_event(&self.window_target, event);
             }
 
             // To avoid deadlocks the redraws lock is not held during event processing.
@@ -622,16 +603,14 @@ impl<T: 'static> EventLoop<T> {
                 let mut redraws = self.window_target.p.redraws.lock().unwrap();
                 redraws.pop_front()
             } {
-                event_handler(
-                    event::Event::WindowEvent {
-                        window_id: RootWindowId(window_id),
-                        event: event::WindowEvent::RedrawRequested,
-                    },
+                app.window_event(
                     &self.window_target,
+                    RootWindowId(window_id),
+                    event::WindowEvent::RedrawRequested,
                 );
             }
 
-            event_handler(event::Event::AboutToWait, &self.window_target);
+            app.about_to_wait(&self.window_target);
 
             if self.window_target.p.exiting() {
                 break;
@@ -695,7 +674,7 @@ impl<T: 'static> EventLoop<T> {
             }
         }
 
-        event_handler(event::Event::LoopExiting, &self.window_target);
+        app.exiting(&self.window_target);
 
         Ok(())
     }

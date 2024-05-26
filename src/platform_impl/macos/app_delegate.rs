@@ -52,6 +52,8 @@ pub(super) struct State {
     wait_timeout: Cell<Option<Instant>>,
     pending_events: RefCell<VecDeque<QueuedEvent>>,
     pending_redraw: RefCell<Vec<WindowId>>,
+    // NOTE: This is strongly referenced by our `NSWindowDelegate` and our `NSView` subclass, and
+    // as such should be careful to not add fields that, in turn, strongly reference those.
 }
 
 declare_class!(
@@ -71,7 +73,7 @@ declare_class!(
     unsafe impl NSObjectProtocol for ApplicationDelegate {}
 
     unsafe impl NSApplicationDelegate for ApplicationDelegate {
-        // Note: This will, globally, only be run once, no matter how many
+        // NOTE: This will, globally, only be run once, no matter how many
         // `EventLoop`s the user creates.
         #[method(applicationDidFinishLaunching:)]
         fn did_finish_launching(&self, _sender: Option<&AnyObject>) {
@@ -106,7 +108,7 @@ declare_class!(
             // In this case we still want to consider Winit's `EventLoop` to be "running",
             // so we call `start_running()` above.
             if self.ivars().stop_on_launch.get() {
-                // Note: the original idea had been to only stop the underlying `RunLoop`
+                // NOTE: the original idea had been to only stop the underlying `RunLoop`
                 // for the app but that didn't work as expected (`-[NSApplication run]`
                 // effectively ignored the attempt to stop the RunLoop and re-started it).
                 //
@@ -188,7 +190,7 @@ impl ApplicationDelegate {
 
     /// Clears the `running` state and resets the `control_flow` state when an `EventLoop` exits.
     ///
-    /// Note: that if the `NSApplication` has been launched then that state is preserved,
+    /// NOTE: that if the `NSApplication` has been launched then that state is preserved,
     /// and we won't need to re-launch the app if subsequent EventLoops are run.
     pub fn internal_exit(&self) {
         self.handle_event(Event::LoopExiting);
@@ -373,9 +375,11 @@ impl ApplicationDelegate {
 
                     let physical_size = *new_inner_size.lock().unwrap();
                     drop(new_inner_size);
-                    let logical_size = physical_size.to_logical(scale_factor);
-                    let size = NSSize::new(logical_size.width, logical_size.height);
-                    window.setContentSize(size);
+                    if physical_size != suggested_size {
+                        let logical_size = physical_size.to_logical(scale_factor);
+                        let size = NSSize::new(logical_size.width, logical_size.height);
+                        window.setContentSize(size);
+                    }
 
                     let resized_event = Event::WindowEvent {
                         window_id: RootWindowId(window.id()),

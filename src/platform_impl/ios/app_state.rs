@@ -17,7 +17,8 @@ use objc2::rc::Id;
 use objc2::runtime::AnyObject;
 use objc2::{msg_send, sel};
 use objc2_foundation::{
-    CGRect, CGSize, MainThreadMarker, NSInteger, NSOperatingSystemVersion, NSProcessInfo,
+    CGRect, CGSize, MainThreadMarker, NSInteger, NSObjectProtocol, NSOperatingSystemVersion,
+    NSProcessInfo,
 };
 
 use super::uikit::UIView;
@@ -857,23 +858,17 @@ fn meets_requirements(
 }
 
 fn get_version() -> NSOperatingSystemVersion {
-    unsafe {
-        let process_info = NSProcessInfo::processInfo();
-        let atleast_ios_8: bool = msg_send![
-            &process_info,
-            respondsToSelector: sel!(operatingSystemVersion)
-        ];
-        // winit requires atleast iOS 8 because no one has put the time into supporting earlier os
-        // versions. Older iOS versions are increasingly difficult to test. For example,
-        // Xcode 11 does not support debugging on devices with an iOS version of less than
-        // 8. Another example, in order to use an iOS simulator older than iOS 8, you must
-        // download an older version of Xcode (<9), and at least Xcode 7 has been tested to
-        // not even run on macOS 10.15 - Xcode 8 might?
-        //
-        // The minimum required iOS version is likely to grow in the future.
-        assert!(atleast_ios_8, "`winit` requires iOS version 8 or greater");
-        process_info.operatingSystemVersion()
-    }
+    let process_info = NSProcessInfo::processInfo();
+    let atleast_ios_8 = process_info.respondsToSelector(sel!(operatingSystemVersion));
+    // Winit requires atleast iOS 8 because no one has put the time into supporting earlier os
+    // versions. Older iOS versions are increasingly difficult to test. For example, Xcode 11 does
+    // not support debugging on devices with an iOS version of less than 8. Another example, in
+    // order to use an iOS simulator older than iOS 8, you must download an older version of Xcode
+    // (<9), and at least Xcode 7 has been tested to not even run on macOS 10.15 - Xcode 8 might?
+    //
+    // The minimum required iOS version is likely to grow in the future.
+    assert!(atleast_ios_8, "`winit` requires iOS version 8 or greater");
+    process_info.operatingSystemVersion()
 }
 
 pub fn os_capabilities() -> OSCapabilities {

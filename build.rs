@@ -1,10 +1,10 @@
 use cfg_aliases::cfg_aliases;
 
 fn main() {
-    // The script doesn't depend on our code
+    // The script doesn't depend on our code.
     println!("cargo:rerun-if-changed=build.rs");
 
-    // Setup cfg aliases
+    // Setup cfg aliases.
     cfg_aliases! {
         // Systems.
         android_platform: { target_os = "android" },
@@ -21,4 +21,7 @@ fn main() {
         wayland_platform: { all(feature = "wayland", free_unix, not(redox)) },
         orbital_platform: { redox },
     }
+
+    // Winit defined cfgs.
+    println!("cargo:rustc-check-cfg=cfg(unreleased_changelogs)");
 }
