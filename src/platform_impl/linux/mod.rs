@@ -785,6 +785,16 @@ impl<T: 'static> EventLoop<T> {
         Ok(EventLoop::X(x11::EventLoop::new(xconn)))
     }
 
+    #[inline]
+    pub fn is_wayland(&self) -> bool {
+        match *self {
+            #[cfg(wayland_platform)]
+            EventLoop::Wayland(_) => true,
+            #[cfg(x11_platform)]
+            _ => false,
+        }
+    }
+
     pub fn create_proxy(&self) -> EventLoopProxy<T> {
         x11_or_wayland!(match self; EventLoop(evlp) => evlp.create_proxy(); as EventLoopProxy)
     }
