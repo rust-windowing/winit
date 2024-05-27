@@ -428,14 +428,6 @@ impl Window {
 
     #[inline]
     pub fn set_cursor_grab(&self, mode: CursorGrabMode) -> Result<(), ExternalError> {
-        let confine = match mode {
-            CursorGrabMode::None => false,
-            CursorGrabMode::Confined => true,
-            CursorGrabMode::Locked => {
-                return Err(ExternalError::NotSupported(NotSupportedError::new()))
-            },
-        };
-
         let window = self.window;
         let window_state = Arc::clone(&self.window_state);
         let (tx, rx) = channel();
@@ -446,7 +438,22 @@ impl Window {
                 .lock()
                 .unwrap()
                 .mouse
-                .set_cursor_flags(window, |f| f.set(CursorFlags::GRABBED, confine))
+                .set_cursor_flags(window, |f| {
+                    match mode {
+                        CursorGrabMode::None => {
+                            f.set(CursorFlags::GRABBED, false);
+                            f.set(CursorFlags::GRABBED_LOCKED, false);
+                        },
+                        CursorGrabMode::Confined => {
+                            f.set(CursorFlags::GRABBED, true);
+                            f.set(CursorFlags::GRABBED_LOCKED, false);
+                        },
+                        CursorGrabMode::Locked => {
+                            f.set(CursorFlags::GRABBED, true);
+                            f.set(CursorFlags::GRABBED_LOCKED, true);
+                        },
+                    };
+                })
                 .map_err(|e| ExternalError::Os(os_error!(e)));
             let _ = tx.send(result);
         });

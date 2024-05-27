@@ -6,18 +6,19 @@ use crate::window::{Theme, WindowAttributes};
 use bitflags::bitflags;
 use std::io;
 use std::sync::MutexGuard;
-use windows_sys::Win32::Foundation::{HWND, RECT};
+use windows_sys::Win32::Foundation::{HWND, POINT, RECT};
 use windows_sys::Win32::Graphics::Gdi::InvalidateRgn;
 use windows_sys::Win32::UI::WindowsAndMessaging::{
-    AdjustWindowRectEx, EnableMenuItem, GetMenu, GetSystemMenu, GetWindowLongW, SendMessageW,
-    SetWindowLongW, SetWindowPos, ShowWindow, GWL_EXSTYLE, GWL_STYLE, HWND_BOTTOM, HWND_NOTOPMOST,
-    HWND_TOPMOST, MF_BYCOMMAND, MF_DISABLED, MF_ENABLED, SC_CLOSE, SWP_ASYNCWINDOWPOS,
-    SWP_FRAMECHANGED, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOREPOSITION, SWP_NOSIZE, SWP_NOZORDER,
-    SW_HIDE, SW_MAXIMIZE, SW_MINIMIZE, SW_RESTORE, SW_SHOW, SW_SHOWNOACTIVATE, WINDOWPLACEMENT,
-    WINDOW_EX_STYLE, WINDOW_STYLE, WS_BORDER, WS_CAPTION, WS_CHILD, WS_CLIPCHILDREN,
-    WS_CLIPSIBLINGS, WS_EX_ACCEPTFILES, WS_EX_APPWINDOW, WS_EX_LAYERED, WS_EX_NOREDIRECTIONBITMAP,
-    WS_EX_TOPMOST, WS_EX_TRANSPARENT, WS_EX_WINDOWEDGE, WS_MAXIMIZE, WS_MAXIMIZEBOX, WS_MINIMIZE,
-    WS_MINIMIZEBOX, WS_OVERLAPPEDWINDOW, WS_POPUP, WS_SIZEBOX, WS_SYSMENU, WS_VISIBLE,
+    AdjustWindowRectEx, EnableMenuItem, GetCursorPos, GetMenu, GetSystemMenu, GetWindowLongW,
+    SendMessageW, SetWindowLongW, SetWindowPos, ShowWindow, GWL_EXSTYLE, GWL_STYLE, HWND_BOTTOM,
+    HWND_NOTOPMOST, HWND_TOPMOST, MF_BYCOMMAND, MF_DISABLED, MF_ENABLED, SC_CLOSE,
+    SWP_ASYNCWINDOWPOS, SWP_FRAMECHANGED, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOREPOSITION, SWP_NOSIZE,
+    SWP_NOZORDER, SW_HIDE, SW_MAXIMIZE, SW_MINIMIZE, SW_RESTORE, SW_SHOW, SW_SHOWNOACTIVATE,
+    WINDOWPLACEMENT, WINDOW_EX_STYLE, WINDOW_STYLE, WS_BORDER, WS_CAPTION, WS_CHILD,
+    WS_CLIPCHILDREN, WS_CLIPSIBLINGS, WS_EX_ACCEPTFILES, WS_EX_APPWINDOW, WS_EX_LAYERED,
+    WS_EX_NOREDIRECTIONBITMAP, WS_EX_TOPMOST, WS_EX_TRANSPARENT, WS_EX_WINDOWEDGE, WS_MAXIMIZE,
+    WS_MAXIMIZEBOX, WS_MINIMIZE, WS_MINIMIZEBOX, WS_OVERLAPPEDWINDOW, WS_POPUP, WS_SIZEBOX,
+    WS_SYSMENU, WS_VISIBLE,
 };
 
 /// Contains information about states and the window that the callback is going to use.
@@ -74,9 +75,10 @@ pub struct MouseProperties {
 bitflags! {
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
     pub struct CursorFlags: u8 {
-        const GRABBED   = 1 << 0;
-        const HIDDEN    = 1 << 1;
-        const IN_WINDOW = 1 << 2;
+        const GRABBED          = 1 << 0;
+        const HIDDEN           = 1 << 1;
+        const IN_WINDOW        = 1 << 2;
+        const GRABBED_LOCKED   = 1 << 3;
     }
 }
 bitflags! {
@@ -485,7 +487,12 @@ impl CursorFlags {
         if util::is_focused(window) {
             let cursor_clip = match self.contains(CursorFlags::GRABBED) {
                 true => {
-                    if self.contains(CursorFlags::HIDDEN) {
+                    if self.contains(CursorFlags::GRABBED_LOCKED) {
+                        let mut pos = POINT { x: 0, y: 0 };
+                        unsafe { GetCursorPos(&mut pos) };
+
+                        Some(RECT { left: pos.x, right: pos.x + 1, top: pos.y, bottom: pos.y + 1 })
+                    } else if self.contains(CursorFlags::HIDDEN) {
                         // Confine the cursor to the center of the window if the cursor is hidden.
                         // This avoids problems with the cursor activating
                         // the taskbar if the window borders or overlaps that.
