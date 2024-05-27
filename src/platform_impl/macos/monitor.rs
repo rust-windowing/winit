@@ -9,7 +9,7 @@ use core_foundation::string::CFString;
 use core_graphics::display::{
     CGDirectDisplayID, CGDisplay, CGDisplayBounds, CGDisplayCopyDisplayMode,
 };
-use objc2::rc::Id;
+use objc2::rc::Retained;
 use objc2::runtime::AnyObject;
 use objc2_app_kit::NSScreen;
 use objc2_foundation::{ns_string, run_on_main, MainThreadMarker, NSNumber, NSPoint, NSRect};
@@ -295,7 +295,7 @@ impl MonitorHandle {
         }
     }
 
-    pub(crate) fn ns_screen(&self, mtm: MainThreadMarker) -> Option<Id<NSScreen>> {
+    pub(crate) fn ns_screen(&self, mtm: MainThreadMarker) -> Option<Retained<NSScreen>> {
         let uuid = unsafe { ffi::CGDisplayCreateUUIDFromDisplayID(self.0) };
         NSScreen::screens(mtm).into_iter().find(|screen| {
             let other_native_id = get_display_id(screen);

@@ -2,7 +2,7 @@ use std::ffi::c_uchar;
 use std::slice;
 use std::sync::OnceLock;
 
-use objc2::rc::Id;
+use objc2::rc::Retained;
 use objc2::runtime::Sel;
 use objc2::{msg_send_id, sel, ClassType};
 use objc2_app_kit::{NSBitmapImageRep, NSCursor, NSDeviceRGBColorSpace, NSImage};
@@ -15,7 +15,7 @@ use crate::cursor::{CursorImage, OnlyCursorImageSource};
 use crate::window::CursorIcon;
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub struct CustomCursor(pub(crate) Id<NSCursor>);
+pub struct CustomCursor(pub(crate) Retained<NSCursor>);
 
 // SAFETY: NSCursor is immutable and thread-safe
 // TODO(madsmtm): Put this logic in objc2-app-kit itself
@@ -28,7 +28,7 @@ impl CustomCursor {
     }
 }
 
-pub(crate) fn cursor_from_image(cursor: &CursorImage) -> Id<NSCursor> {
+pub(crate) fn cursor_from_image(cursor: &CursorImage) -> Retained<NSCursor> {
     let width = cursor.width;
     let height = cursor.height;
 
@@ -60,14 +60,14 @@ pub(crate) fn cursor_from_image(cursor: &CursorImage) -> Id<NSCursor> {
     NSCursor::initWithImage_hotSpot(NSCursor::alloc(), &image, hotspot)
 }
 
-pub(crate) fn default_cursor() -> Id<NSCursor> {
+pub(crate) fn default_cursor() -> Retained<NSCursor> {
     NSCursor::arrowCursor()
 }
 
-unsafe fn try_cursor_from_selector(sel: Sel) -> Option<Id<NSCursor>> {
+unsafe fn try_cursor_from_selector(sel: Sel) -> Option<Retained<NSCursor>> {
     let cls = NSCursor::class();
     if cls.responds_to(sel) {
-        let cursor: Id<NSCursor> = unsafe { msg_send_id![cls, performSelector: sel] };
+        let cursor: Retained<NSCursor> = unsafe { msg_send_id![cls, performSelector: sel] };
         Some(cursor)
     } else {
         tracing::warn!("cursor `{sel}` appears to be invalid");
@@ -82,7 +82,7 @@ macro_rules! def_undocumented_cursor {
     )*} => {$(
         $(#[$($m)*])*
         #[allow(non_snake_case)]
-        fn $name() -> Id<NSCursor> {
+        fn $name() -> Retained<NSCursor> {
             unsafe { try_cursor_from_selector(sel!($name)).unwrap_or_else(|| default_cursor()) }
         }
     )*};
@@ -112,7 +112,7 @@ def_undocumented_cursor!(
 
 // Note that loading `busybutclickable` with this code won't animate
 // the frames; instead you'll just get them all in a column.
-unsafe fn load_webkit_cursor(name: &NSString) -> Id<NSCursor> {
+unsafe fn load_webkit_cursor(name: &NSString) -> Retained<NSCursor> {
     // Snatch a cursor from WebKit; They fit the style of the native
     // cursors, and will seem completely standard to macOS users.
     //
@@ -128,7 +128,7 @@ unsafe fn load_webkit_cursor(name: &NSString) -> Id<NSCursor> {
 
     // TODO: Handle PLists better
     let info_path = cursor_path.stringByAppendingPathComponent(ns_string!("info.plist"));
-    let info: Id<NSDictionary<NSObject, NSObject>> = unsafe {
+    let info: Retained<NSDictionary<NSObject, NSObject>> = unsafe {
         msg_send_id![
             <NSDictionary<NSObject, NSObject>>::class(),
             dictionaryWithContentsOfFile: &*info_path,
@@ -155,15 +155,15 @@ unsafe fn load_webkit_cursor(name: &NSString) -> Id<NSCursor> {
     NSCursor::initWithImage_hotSpot(NSCursor::alloc(), &image, hotspot)
 }
 
-fn webkit_move() -> Id<NSCursor> {
+fn webkit_move() -> Retained<NSCursor> {
     unsafe { load_webkit_cursor(ns_string!("move")) }
 }
 
-fn webkit_cell() -> Id<NSCursor> {
+fn webkit_cell() -> Retained<NSCursor> {
     unsafe { load_webkit_cursor(ns_string!("cell")) }
 }
 
-pub(crate) fn invisible_cursor() -> Id<NSCursor> {
+pub(crate) fn invisible_cursor() -> Retained<NSCursor> {
     // 16x16 GIF data for invisible cursor
     // You can reproduce this via ImageMagick.
     // $ convert -size 16x16 xc:none cursor.gif
@@ -174,7 +174,7 @@ pub(crate) fn invisible_cursor() -> Id<NSCursor> {
         0xa3, 0x9c, 0xb4, 0xda, 0x8b, 0xb3, 0x3e, 0x05, 0x00, 0x3b,
     ];
 
-    fn new_invisible() -> Id<NSCursor> {
+    fn new_invisible() -> Retained<NSCursor> {
         // TODO: Consider using `dataWithBytesNoCopy:`
         let data = NSData::with_bytes(CURSOR_BYTES);
         let image = NSImage::initWithData(NSImage::alloc(), &data).unwrap();
@@ -187,7 +187,7 @@ pub(crate) fn invisible_cursor() -> Id<NSCursor> {
     CURSOR.get_or_init(|| CustomCursor(new_invisible())).0.clone()
 }
 
-pub(crate) fn cursor_from_icon(icon: CursorIcon) -> Id<NSCursor> {
+pub(crate) fn cursor_from_icon(icon: CursorIcon) -> Retained<NSCursor> {
     match icon {
         CursorIcon::Default => default_cursor(),
         CursorIcon::Pointer => NSCursor::pointingHandCursor(),
