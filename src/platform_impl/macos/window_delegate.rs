@@ -1,6 +1,7 @@
 #![allow(clippy::unnecessary_cast)]
 use std::cell::{Cell, RefCell};
 use std::collections::VecDeque;
+use std::sync::{Arc, Mutex};
 
 use core_graphics::display::{CGDisplay, CGPoint};
 use monitor::VideoModeHandle;
@@ -24,12 +25,13 @@ use objc2_foundation::{
 use super::app_delegate::ApplicationDelegate;
 use super::cursor::cursor_from_icon;
 use super::monitor::{self, flip_window_screen_coordinates, get_display_id};
+use super::observer::RunLoop;
 use super::view::WinitView;
 use super::window::WinitWindow;
 use super::{ffi, Fullscreen, MonitorHandle, OsError, WindowId};
 use crate::dpi::{LogicalPosition, LogicalSize, PhysicalPosition, PhysicalSize, Position, Size};
 use crate::error::{ExternalError, NotSupportedError, OsError as RootOsError};
-use crate::event::WindowEvent;
+use crate::event::{InnerSizeWriter, WindowEvent};
 use crate::platform::macos::{OptionAsAlt, WindowExtMacOS};
 use crate::window::{
     Cursor, CursorGrabMode, Icon, ImePurpose, ResizeDirection, Theme, UserAttentionType,
@@ -184,7 +186,17 @@ declare_class!(
         #[method(windowDidChangeBackingProperties:)]
         fn window_did_change_backing_properties(&self, _: Option<&AnyObject>) {
             trace_scope!("windowDidChangeBackingProperties:");
-            self.queue_static_scale_factor_changed_event();
+            let scale_factor = self.scale_factor();
+            if scale_factor == self.ivars().previous_scale_factor.get() {
+                return;
+            };
+            self.ivars().previous_scale_factor.set(scale_factor);
+
+            let mtm = MainThreadMarker::from(self);
+            let this = self.retain();
+            RunLoop::main(mtm).queue_closure(move || {
+                this.handle_scale_factor_changed(scale_factor);
+            });
         }
 
         #[method(windowDidBecomeKey:)]
@@ -688,7 +700,10 @@ impl WindowDelegate {
         let delegate: Id<WindowDelegate> = unsafe { msg_send_id![super(delegate), init] };
 
         if scale_factor != 1.0 {
-            delegate.queue_static_scale_factor_changed_event();
+            let delegate = delegate.clone();
+            RunLoop::main(mtm).queue_closure(move || {
+                delegate.handle_scale_factor_changed(scale_factor);
+            });
         }
         window.setDelegate(Some(ProtocolObject::from_ref(&*delegate)));
 
@@ -764,21 +779,30 @@ impl WindowDelegate {
         self.ivars().app_delegate.queue_window_event(self.window().id(), event);
     }
 
-    fn queue_static_scale_factor_changed_event(&self) {
-        let scale_factor = self.scale_factor();
-        if scale_factor == self.ivars().previous_scale_factor.get() {
-            return;
-        };
+    fn handle_event(&self, event: WindowEvent) {
+        self.ivars().app_delegate.handle_window_event(self.window().id(), event);
+    }
 
-        self.ivars().previous_scale_factor.set(scale_factor);
+    fn handle_scale_factor_changed(&self, scale_factor: CGFloat) {
         let content_size = self.window().contentRectForFrameRect(self.window().frame()).size;
         let content_size = LogicalSize::new(content_size.width, content_size.height);
 
-        self.ivars().app_delegate.queue_static_scale_factor_changed_event(
-            self.window().retain(),
-            content_size.to_physical(scale_factor),
+        let suggested_size = content_size.to_physical(scale_factor);
+        let new_inner_size = Arc::new(Mutex::new(suggested_size));
+        self.handle_event(WindowEvent::ScaleFactorChanged {
             scale_factor,
-        );
+            inner_size_writer: InnerSizeWriter::new(Arc::downgrade(&new_inner_size)),
+        });
+        let physical_size = *new_inner_size.lock().unwrap();
+        drop(new_inner_size);
+
+        if physical_size != suggested_size {
+            let logical_size = physical_size.to_logical(scale_factor);
+            let size = NSSize::new(logical_size.width, logical_size.height);
+            self.window().setContentSize(size);
+        }
+
+        self.handle_event(WindowEvent::Resized(physical_size));
     }
 
     fn emit_move_event(&self) {

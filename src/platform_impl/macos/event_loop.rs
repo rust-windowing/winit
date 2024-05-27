@@ -252,7 +252,7 @@ impl<T> EventLoop<T> {
         });
 
         let panic_info: Rc<PanicInfo> = Default::default();
-        setup_control_flow_observers(Rc::downgrade(&panic_info));
+        setup_control_flow_observers(mtm, Rc::downgrade(&panic_info));
 
         let (sender, receiver) = mpsc::channel();
         Ok(EventLoop {
