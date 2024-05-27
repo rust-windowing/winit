@@ -375,9 +375,11 @@ impl ApplicationDelegate {
 
                     let physical_size = *new_inner_size.lock().unwrap();
                     drop(new_inner_size);
-                    let logical_size = physical_size.to_logical(scale_factor);
-                    let size = NSSize::new(logical_size.width, logical_size.height);
-                    window.setContentSize(size);
+                    if physical_size != suggested_size {
+                        let logical_size = physical_size.to_logical(scale_factor);
+                        let size = NSSize::new(logical_size.width, logical_size.height);
+                        window.setContentSize(size);
+                    }
 
                     let resized_event = Event::WindowEvent {
                         window_id: RootWindowId(window.id()),
