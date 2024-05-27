@@ -104,10 +104,6 @@ impl EventHandler {
         self.inner.try_borrow().is_err()
     }
 
-    pub(crate) fn ready(&self) -> bool {
-        matches!(self.inner.try_borrow().as_deref(), Ok(Some(_)))
-    }
-
     pub(crate) fn handle(
         &self,
         callback: impl FnOnce(&mut dyn ApplicationHandler, &RootActiveEventLoop),

@@ -12,7 +12,7 @@ use std::time::{Duration, Instant};
 
 use core_foundation::base::{CFIndex, CFRelease};
 use core_foundation::runloop::{
-    kCFRunLoopCommonModes, CFRunLoopAddSource, CFRunLoopGetMain, CFRunLoopSourceContext,
+    kCFRunLoopDefaultMode, CFRunLoopAddSource, CFRunLoopGetMain, CFRunLoopSourceContext,
     CFRunLoopSourceCreate, CFRunLoopSourceRef, CFRunLoopSourceSignal, CFRunLoopWakeUp,
 };
 use objc2::rc::{autoreleasepool, Retained};
@@ -462,7 +462,7 @@ impl EventLoopProxy {
                 perform: event_loop_proxy_handler,
             };
             let source = CFRunLoopSourceCreate(ptr::null_mut(), CFIndex::MAX - 1, &mut context);
-            CFRunLoopAddSource(rl, source, kCFRunLoopCommonModes);
+            CFRunLoopAddSource(rl, source, kCFRunLoopDefaultMode);
             CFRunLoopWakeUp(rl);
 
             EventLoopProxy { proxy_wake_up, source }

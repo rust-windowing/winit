@@ -323,8 +323,7 @@ impl ApplicationDelegate {
             .upgrade()
             .expect("The panic info must exist here. This failure indicates a developer error.");
 
-        // Return when in event handler due to https://github.com/rust-windowing/winit/issues/1779
-        if panic_info.is_panicking() || !self.ivars().event_handler.ready() || !self.is_running() {
+        if panic_info.is_panicking() || !self.is_running() {
             return;
         }
 
@@ -356,10 +355,7 @@ impl ApplicationDelegate {
             .upgrade()
             .expect("The panic info must exist here. This failure indicates a developer error.");
 
-        // Return when in event handler due to https://github.com/rust-windowing/winit/issues/1779
-        // XXX: how does it make sense that `event_handler.ready()` can ever return `false` here if
-        // we're about to return to the `CFRunLoop` to poll for new events?
-        if panic_info.is_panicking() || !self.ivars().event_handler.ready() || !self.is_running() {
+        if panic_info.is_panicking() || !self.is_running() {
             return;
         }
 
