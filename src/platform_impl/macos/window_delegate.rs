@@ -776,20 +776,19 @@ impl WindowDelegate {
     }
 
     pub(crate) fn queue_event(&self, event: WindowEvent) {
-        self.ivars().app_delegate.queue_window_event(self.window().id(), event);
-    }
-
-    fn handle_event(&self, event: WindowEvent) {
-        self.ivars().app_delegate.handle_window_event(self.window().id(), event);
+        self.ivars().app_delegate.maybe_queue_window_event(self.window().id(), event);
     }
 
     fn handle_scale_factor_changed(&self, scale_factor: CGFloat) {
-        let content_size = self.window().contentRectForFrameRect(self.window().frame()).size;
+        let app_delegate = &self.ivars().app_delegate;
+        let window = self.window();
+
+        let content_size = window.contentRectForFrameRect(window.frame()).size;
         let content_size = LogicalSize::new(content_size.width, content_size.height);
 
         let suggested_size = content_size.to_physical(scale_factor);
         let new_inner_size = Arc::new(Mutex::new(suggested_size));
-        self.handle_event(WindowEvent::ScaleFactorChanged {
+        app_delegate.handle_window_event(window.id(), WindowEvent::ScaleFactorChanged {
             scale_factor,
             inner_size_writer: InnerSizeWriter::new(Arc::downgrade(&new_inner_size)),
         });
@@ -799,10 +798,9 @@ impl WindowDelegate {
         if physical_size != suggested_size {
             let logical_size = physical_size.to_logical(scale_factor);
             let size = NSSize::new(logical_size.width, logical_size.height);
-            self.window().setContentSize(size);
+            window.setContentSize(size);
         }
-
-        self.handle_event(WindowEvent::Resized(physical_size));
+        app_delegate.handle_window_event(window.id(), WindowEvent::Resized(physical_size));
     }
 
     fn emit_move_event(&self) {

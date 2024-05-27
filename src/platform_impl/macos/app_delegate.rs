@@ -231,22 +231,16 @@ impl ApplicationDelegate {
         self.ivars().control_flow.get()
     }
 
-    pub fn queue_window_event(&self, window_id: WindowId, event: WindowEvent) {
-        let this = self.retain();
-        self.ivars().run_loop.queue_closure(move || this.handle_window_event(window_id, event));
+    pub fn maybe_queue_window_event(&self, window_id: WindowId, event: WindowEvent) {
+        self.maybe_queue_event(Event::WindowEvent { window_id: RootWindowId(window_id), event });
     }
 
     pub fn handle_window_event(&self, window_id: WindowId, event: WindowEvent) {
         self.handle_event(Event::WindowEvent { window_id: RootWindowId(window_id), event });
     }
 
-    pub fn queue_device_event(&self, event: DeviceEvent) {
-        let this = self.retain();
-        self.ivars().run_loop.queue_closure(move || this.handle_device_event(event));
-    }
-
-    pub fn handle_device_event(&self, event: DeviceEvent) {
-        self.handle_event(Event::DeviceEvent { device_id: DEVICE_ID, event });
+    pub fn maybe_queue_device_event(&self, event: DeviceEvent) {
+        self.maybe_queue_event(Event::DeviceEvent { device_id: DEVICE_ID, event });
     }
 
     pub fn handle_redraw(&self, window_id: WindowId) {
@@ -275,6 +269,23 @@ impl ApplicationDelegate {
             pending_redraw.push(window_id);
         }
         self.ivars().run_loop.wakeup();
+    }
+
+    #[track_caller]
+    fn maybe_queue_event(&self, event: Event<HandlePendingUserEvents>) {
+        // Most programmer actions in AppKit (e.g. change window fullscreen, set focused, etc.)
+        // result in an event being queued, and applied at a later point.
+        //
+        // However, it is not documented which actions do this, and which ones are done immediately,
+        // so to make sure that we don't encounter re-entrancy issues, we first check if we're
+        // currently handling another event, and if we are, we queue the event instead.
+        if !self.ivars().event_handler.in_use() {
+            self.handle_event(event);
+        } else {
+            tracing::debug!(?event, "had to queue event since another is currently being handled");
+            let this = self.retain();
+            self.ivars().run_loop.queue_closure(move || this.handle_event(event));
+        }
     }
 
     #[track_caller]
