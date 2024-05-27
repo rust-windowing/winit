@@ -5,7 +5,7 @@ use std::rc::Weak;
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
 
-use objc2::rc::Id;
+use objc2::rc::Retained;
 use objc2::runtime::AnyObject;
 use objc2::{declare_class, msg_send_id, mutability, ClassType, DeclaredClass};
 use objc2_app_kit::{NSApplication, NSApplicationActivationPolicy, NSApplicationDelegate};
@@ -133,7 +133,7 @@ impl ApplicationDelegate {
         activation_policy: NSApplicationActivationPolicy,
         default_menu: bool,
         activate_ignoring_other_apps: bool,
-    ) -> Id<Self> {
+    ) -> Retained<Self> {
         let this = mtm.alloc().set_ivars(State {
             activation_policy: Policy(activation_policy),
             default_menu,
@@ -143,13 +143,13 @@ impl ApplicationDelegate {
         unsafe { msg_send_id![super(this), init] }
     }
 
-    pub fn get(mtm: MainThreadMarker) -> Id<Self> {
+    pub fn get(mtm: MainThreadMarker) -> Retained<Self> {
         let app = NSApplication::sharedApplication(mtm);
         let delegate =
             unsafe { app.delegate() }.expect("a delegate was not configured on the application");
         if delegate.is_kind_of::<Self>() {
             // SAFETY: Just checked that the delegate is an instance of `ApplicationDelegate`
-            unsafe { Id::cast(delegate) }
+            unsafe { Retained::cast(delegate) }
         } else {
             panic!("tried to get a delegate that was not the one Winit has registered")
         }
@@ -247,7 +247,7 @@ impl ApplicationDelegate {
 
     pub fn queue_static_scale_factor_changed_event(
         &self,
-        window: Id<WinitWindow>,
+        window: Retained<WinitWindow>,
         suggested_size: PhysicalSize<u32>,
         scale_factor: f64,
     ) {
@@ -425,7 +425,7 @@ pub(crate) enum QueuedEvent {
     WindowEvent(WindowId, WindowEvent),
     DeviceEvent(DeviceEvent),
     ScaleFactorChanged {
-        window: Id<WinitWindow>,
+        window: Retained<WinitWindow>,
         suggested_size: PhysicalSize<u32>,
         scale_factor: f64,
     },

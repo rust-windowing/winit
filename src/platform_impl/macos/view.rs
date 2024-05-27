@@ -3,7 +3,7 @@ use std::cell::{Cell, RefCell};
 use std::collections::{HashMap, VecDeque};
 use std::ptr;
 
-use objc2::rc::{Id, WeakId};
+use objc2::rc::{Retained, WeakId};
 use objc2::runtime::{AnyObject, Sel};
 use objc2::{declare_class, msg_send_id, mutability, sel, ClassType, DeclaredClass};
 use objc2_app_kit::{
@@ -35,7 +35,7 @@ use crate::platform::macos::OptionAsAlt;
 #[derive(Debug)]
 struct CursorState {
     visible: bool,
-    cursor: Id<NSCursor>,
+    cursor: Retained<NSCursor>,
 }
 
 impl Default for CursorState {
@@ -111,7 +111,7 @@ fn get_left_modifier_code(key: &Key) -> KeyCode {
 #[derive(Debug)]
 pub struct ViewState {
     /// Strong reference to the global application state.
-    app_delegate: Id<ApplicationDelegate>,
+    app_delegate: Retained<ApplicationDelegate>,
 
     cursor_state: RefCell<CursorState>,
     ime_position: Cell<NSPoint>,
@@ -131,7 +131,7 @@ pub struct ViewState {
     /// to the application, even during IME
     forward_key_to_app: Cell<bool>,
 
-    marked_text: RefCell<Id<NSMutableAttributedString>>,
+    marked_text: RefCell<Retained<NSMutableAttributedString>>,
     accepts_first_mouse: bool,
 
     // Weak reference because the window keeps a strong reference to the view
@@ -221,7 +221,7 @@ declare_class!(
         // IMKInputSession [0x7fc573576ff0 presentFunctionRowItemTextInputViewWithEndpoint:completionHandler:] : [self textInputContext]=0x7fc573558e10 *NO* NSRemoteViewController to client, NSError=Error Domain=NSCocoaErrorDomain Code=4099 "The connection from pid 0 was invalidated from this process." UserInfo={NSDebugDescription=The connection from pid 0 was invalidated from this process.}, com.apple.inputmethod.EmojiFunctionRowItem
         // TODO: Add an API extension for using `NSTouchBar`
         #[method_id(touchBar)]
-        fn touch_bar(&self) -> Option<Id<NSObject>> {
+        fn touch_bar(&self) -> Option<Retained<NSObject>> {
             trace_scope!("touchBar");
             None
         }
@@ -340,7 +340,7 @@ declare_class!(
         }
 
         #[method_id(validAttributesForMarkedText)]
-        fn valid_attributes_for_marked_text(&self) -> Id<NSArray<NSAttributedStringKey>> {
+        fn valid_attributes_for_marked_text(&self) -> Retained<NSArray<NSAttributedStringKey>> {
             trace_scope!("validAttributesForMarkedText");
             NSArray::new()
         }
@@ -350,7 +350,7 @@ declare_class!(
             &self,
             _range: NSRange,
             _actual_range: *mut NSRange,
-        ) -> Option<Id<NSAttributedString>> {
+        ) -> Option<Retained<NSAttributedString>> {
             trace_scope!("attributedSubstringForProposedRange:actualRange:");
             None
         }
@@ -776,7 +776,7 @@ impl WinitView {
         window: &WinitWindow,
         accepts_first_mouse: bool,
         option_as_alt: OptionAsAlt,
-    ) -> Id<Self> {
+    ) -> Retained<Self> {
         let mtm = MainThreadMarker::from(window);
         let this = mtm.alloc().set_ivars(ViewState {
             app_delegate: app_delegate.retain(),
@@ -795,7 +795,7 @@ impl WinitView {
             _ns_window: WeakId::new(&window.retain()),
             option_as_alt: Cell::new(option_as_alt),
         });
-        let this: Id<Self> = unsafe { msg_send_id![super(this), init] };
+        let this: Retained<Self> = unsafe { msg_send_id![super(this), init] };
 
         this.setPostsFrameChangedNotifications(true);
         let notification_center = unsafe { NSNotificationCenter::defaultCenter() };
@@ -813,7 +813,7 @@ impl WinitView {
         this
     }
 
-    fn window(&self) -> Id<WinitWindow> {
+    fn window(&self) -> Retained<WinitWindow> {
         // TODO: Simply use `window` property on `NSView`.
         // That only returns a window _after_ the view has been attached though!
         // (which is incompatible with `frameDidChange:`)
@@ -846,11 +846,11 @@ impl WinitView {
             .unwrap_or_default()
     }
 
-    pub(super) fn cursor_icon(&self) -> Id<NSCursor> {
+    pub(super) fn cursor_icon(&self) -> Retained<NSCursor> {
         self.ivars().cursor_state.borrow().cursor.clone()
     }
 
-    pub(super) fn set_cursor_icon(&self, icon: Id<NSCursor>) {
+    pub(super) fn set_cursor_icon(&self, icon: Retained<NSCursor>) {
         let mut cursor_state = self.ivars().cursor_state.borrow_mut();
         cursor_state.cursor = icon;
     }
@@ -1083,7 +1083,7 @@ fn mouse_button(event: &NSEvent) -> MouseButton {
 // NOTE: to get option as alt working we need to rewrite events
 // we're getting from the operating system, which makes it
 // impossible to provide such events as extra in `KeyEvent`.
-fn replace_event(event: &NSEvent, option_as_alt: OptionAsAlt) -> Id<NSEvent> {
+fn replace_event(event: &NSEvent, option_as_alt: OptionAsAlt) -> Retained<NSEvent> {
     let ev_mods = event_mods(event).state;
     let ignore_alt_characters = match option_as_alt {
         OptionAsAlt::OnlyLeft if lalt_pressed(event) => true,

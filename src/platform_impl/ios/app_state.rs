@@ -13,15 +13,15 @@ use core_foundation::runloop::{
     kCFRunLoopCommonModes, CFRunLoopAddTimer, CFRunLoopGetMain, CFRunLoopRef, CFRunLoopTimerCreate,
     CFRunLoopTimerInvalidate, CFRunLoopTimerRef, CFRunLoopTimerSetNextFireDate,
 };
-use objc2::rc::Id;
+use objc2::rc::Retained;
 use objc2::runtime::AnyObject;
 use objc2::{msg_send, sel};
 use objc2_foundation::{
     CGRect, CGSize, MainThreadMarker, NSInteger, NSObjectProtocol, NSOperatingSystemVersion,
     NSProcessInfo,
 };
+use objc2_ui_kit::{UICoordinateSpace, UIView};
 
-use super::uikit::UIView;
 use super::window::WinitUIWindow;
 use crate::dpi::PhysicalSize;
 use crate::event::{Event, InnerSizeWriter, StartCause, WindowEvent};
@@ -72,7 +72,7 @@ pub(crate) enum EventWrapper {
 
 #[derive(Debug)]
 pub struct ScaleFactorChanged {
-    pub(super) window: Id<WinitUIWindow>,
+    pub(super) window: Retained<WinitUIWindow>,
     pub(super) suggested_size: PhysicalSize<u32>,
     pub(super) scale_factor: f64,
 }
@@ -99,25 +99,25 @@ impl Event<HandlePendingUserEvents> {
 #[must_use = "dropping `AppStateImpl` without inspecting it is probably a bug"]
 enum AppStateImpl {
     NotLaunched {
-        queued_windows: Vec<Id<WinitUIWindow>>,
+        queued_windows: Vec<Retained<WinitUIWindow>>,
         queued_events: Vec<EventWrapper>,
-        queued_gpu_redraws: HashSet<Id<WinitUIWindow>>,
+        queued_gpu_redraws: HashSet<Retained<WinitUIWindow>>,
     },
     Launching {
-        queued_windows: Vec<Id<WinitUIWindow>>,
+        queued_windows: Vec<Retained<WinitUIWindow>>,
         queued_events: Vec<EventWrapper>,
         queued_handler: EventLoopHandler,
-        queued_gpu_redraws: HashSet<Id<WinitUIWindow>>,
+        queued_gpu_redraws: HashSet<Retained<WinitUIWindow>>,
     },
     ProcessingEvents {
         handler: EventLoopHandler,
-        queued_gpu_redraws: HashSet<Id<WinitUIWindow>>,
+        queued_gpu_redraws: HashSet<Retained<WinitUIWindow>>,
         active_control_flow: ControlFlow,
     },
     // special state to deal with reentrancy and prevent mutable aliasing.
     InUserCallback {
         queued_events: Vec<EventWrapper>,
-        queued_gpu_redraws: HashSet<Id<WinitUIWindow>>,
+        queued_gpu_redraws: HashSet<Retained<WinitUIWindow>>,
     },
     ProcessingRedraws {
         handler: EventLoopHandler,
@@ -228,7 +228,9 @@ impl AppState {
         });
     }
 
-    fn did_finish_launching_transition(&mut self) -> (Vec<Id<WinitUIWindow>>, Vec<EventWrapper>) {
+    fn did_finish_launching_transition(
+        &mut self,
+    ) -> (Vec<Retained<WinitUIWindow>>, Vec<EventWrapper>) {
         let (windows, events, handler, queued_gpu_redraws) = match self.take_state() {
             AppStateImpl::Launching {
                 queued_windows,
@@ -344,7 +346,7 @@ impl AppState {
         UserCallbackTransitionResult::Success { handler, active_control_flow, processing_redraws }
     }
 
-    fn main_events_cleared_transition(&mut self) -> HashSet<Id<WinitUIWindow>> {
+    fn main_events_cleared_transition(&mut self) -> HashSet<Retained<WinitUIWindow>> {
         let (handler, queued_gpu_redraws, active_control_flow) = match self.take_state() {
             AppStateImpl::ProcessingEvents { handler, queued_gpu_redraws, active_control_flow } => {
                 (handler, queued_gpu_redraws, active_control_flow)
@@ -412,7 +414,7 @@ impl AppState {
     }
 }
 
-pub(crate) fn set_key_window(mtm: MainThreadMarker, window: &Id<WinitUIWindow>) {
+pub(crate) fn set_key_window(mtm: MainThreadMarker, window: &Retained<WinitUIWindow>) {
     let mut this = AppState::get_mut(mtm);
     match this.state_mut() {
         &mut AppStateImpl::NotLaunched { ref mut queued_windows, .. } => {
@@ -432,7 +434,7 @@ pub(crate) fn set_key_window(mtm: MainThreadMarker, window: &Id<WinitUIWindow>) 
     window.makeKeyAndVisible();
 }
 
-pub(crate) fn queue_gl_or_metal_redraw(mtm: MainThreadMarker, window: Id<WinitUIWindow>) {
+pub(crate) fn queue_gl_or_metal_redraw(mtm: MainThreadMarker, window: Retained<WinitUIWindow>) {
     let mut this = AppState::get_mut(mtm);
     match this.state_mut() {
         &mut AppStateImpl::NotLaunched { ref mut queued_gpu_redraws, .. }
@@ -722,7 +724,7 @@ fn handle_hidpi_proxy(handler: &mut EventLoopHandler, event: ScaleFactorChanged)
     view.setFrame(new_frame);
 }
 
-fn get_view_and_screen_frame(window: &WinitUIWindow) -> (Id<UIView>, CGRect) {
+fn get_view_and_screen_frame(window: &WinitUIWindow) -> (Retained<UIView>, CGRect) {
     let view_controller = window.rootViewController().unwrap();
     let view = view_controller.view().unwrap();
     let bounds = window.bounds();
