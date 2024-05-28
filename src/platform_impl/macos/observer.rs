@@ -22,7 +22,7 @@ use core_foundation::runloop::{
 use objc2_foundation::MainThreadMarker;
 use tracing::error;
 
-use super::app_delegate::ApplicationDelegate;
+use super::app_state::ApplicationDelegate;
 use super::event_loop::{stop_app_on_panic, PanicInfo};
 use super::ffi;
 

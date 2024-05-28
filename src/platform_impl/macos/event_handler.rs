@@ -1,7 +1,7 @@
 use std::cell::RefCell;
 use std::{fmt, mem};
 
-use super::app_delegate::HandlePendingUserEvents;
+use super::app_state::HandlePendingUserEvents;
 use crate::event::Event;
 use crate::event_loop::ActiveEventLoop as RootActiveEventLoop;
 

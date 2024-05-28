@@ -27,7 +27,7 @@ impl Default for Policy {
 }
 
 #[derive(Debug, Default)]
-pub(super) struct State {
+pub(super) struct AppState {
     activation_policy: Policy,
     default_menu: bool,
     activate_ignoring_other_apps: bool,
@@ -63,7 +63,7 @@ declare_class!(
     }
 
     impl DeclaredClass for ApplicationDelegate {
-        type Ivars = State;
+        type Ivars = AppState;
     }
 
     unsafe impl NSObjectProtocol for ApplicationDelegate {}
@@ -130,7 +130,7 @@ impl ApplicationDelegate {
         default_menu: bool,
         activate_ignoring_other_apps: bool,
     ) -> Retained<Self> {
-        let this = mtm.alloc().set_ivars(State {
+        let this = mtm.alloc().set_ivars(AppState {
             activation_policy: Policy(activation_policy),
             default_menu,
             activate_ignoring_other_apps,
