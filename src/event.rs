@@ -67,12 +67,18 @@ pub enum Event<T: 'static> {
     /// See [`ApplicationHandler::window_event`] for details.
     ///
     /// [`ApplicationHandler::window_event`]: crate::application::ApplicationHandler::window_event
-    WindowEvent { window_id: WindowId, event: WindowEvent },
+    WindowEvent {
+        window_id: WindowId,
+        event: WindowEvent,
+    },
 
     /// See [`ApplicationHandler::device_event`] for details.
     ///
     /// [`ApplicationHandler::device_event`]: crate::application::ApplicationHandler::device_event
-    DeviceEvent { device_id: DeviceId, event: DeviceEvent },
+    DeviceEvent {
+        device_id: DeviceId,
+        event: DeviceEvent,
+    },
 
     /// See [`ApplicationHandler::user_event`] for details.
     ///
@@ -103,6 +109,8 @@ pub enum Event<T: 'static> {
     ///
     /// [`ApplicationHandler::memory_warning`]: crate::application::ApplicationHandler::memory_warning
     MemoryWarning,
+
+    OpenFiles(Vec<PathBuf>),
 }
 
 impl<T> Event<T> {
@@ -119,6 +127,7 @@ impl<T> Event<T> {
             Suspended => Ok(Suspended),
             Resumed => Ok(Resumed),
             MemoryWarning => Ok(MemoryWarning),
+            OpenFiles(path) => Ok(OpenFiles(path)),
         }
     }
 }

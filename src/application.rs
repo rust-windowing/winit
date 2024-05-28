@@ -1,5 +1,7 @@
 //! End user application handling.
 
+use std::path::PathBuf;
+
 use crate::event::{DeviceEvent, DeviceId, StartCause, WindowEvent};
 use crate::event_loop::ActiveEventLoop;
 use crate::window::WindowId;
@@ -221,5 +223,9 @@ pub trait ApplicationHandler<T: 'static = ()> {
     /// - **macOS / Orbital / Wayland / Web / Windows:** Unsupported.
     fn memory_warning(&mut self, event_loop: &ActiveEventLoop) {
         let _ = event_loop;
+    }
+
+    fn open_files(&mut self, files: Vec<PathBuf>) {
+        let _ = files;
     }
 }

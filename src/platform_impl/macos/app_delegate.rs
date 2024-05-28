@@ -1,6 +1,7 @@
 use std::cell::{Cell, RefCell};
 use std::collections::VecDeque;
 use std::mem;
+use std::path::PathBuf;
 use std::rc::Weak;
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
@@ -9,7 +10,7 @@ use objc2::rc::Retained;
 use objc2::runtime::AnyObject;
 use objc2::{declare_class, msg_send_id, mutability, ClassType, DeclaredClass};
 use objc2_app_kit::{NSApplication, NSApplicationActivationPolicy, NSApplicationDelegate};
-use objc2_foundation::{MainThreadMarker, NSObject, NSObjectProtocol, NSSize};
+use objc2_foundation::{MainThreadMarker, NSArray, NSObject, NSObjectProtocol, NSSize, NSString};
 
 use super::event_handler::EventHandler;
 use super::event_loop::{stop_app_immediately, ActiveEventLoop, PanicInfo};
@@ -123,6 +124,22 @@ declare_class!(
             trace_scope!("applicationWillTerminate:");
             // TODO: Notify every window that it will be destroyed, like done in iOS?
             self.internal_exit();
+        }
+
+        #[method(application:openFile:)]
+        unsafe fn application_open_file(&self, _: &NSApplication, filename: &NSString) -> bool {
+            trace_scope!("applicationOpenFile:");
+            self.handle_event(Event::OpenFiles(vec![PathBuf::from(format!("{filename}"))]));
+            true
+        }
+
+        #[method(application:openFiles:)]
+        unsafe fn application_open_files(&self, _: &NSApplication, filenames: &NSArray<NSString>,) -> bool {
+            trace_scope!("applicationOpenFiles:");
+            self.handle_event(Event::OpenFiles(
+                filenames.iter().map(|filename| format!("{filename}")).map(PathBuf::from).collect()
+            ));
+            true
         }
     }
 );
