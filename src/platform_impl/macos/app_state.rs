@@ -17,17 +17,8 @@ use crate::event_loop::{ActiveEventLoop as RootActiveEventLoop, ControlFlow};
 use crate::window::WindowId as RootWindowId;
 
 #[derive(Debug)]
-struct Policy(NSApplicationActivationPolicy);
-
-impl Default for Policy {
-    fn default() -> Self {
-        Self(NSApplicationActivationPolicy::Regular)
-    }
-}
-
-#[derive(Debug, Default)]
 pub(super) struct AppState {
-    activation_policy: Policy,
+    activation_policy: NSApplicationActivationPolicy,
     default_menu: bool,
     activate_ignoring_other_apps: bool,
     run_loop: RunLoop,
@@ -88,11 +79,23 @@ impl ApplicationDelegate {
         activate_ignoring_other_apps: bool,
     ) -> Retained<Self> {
         let this = mtm.alloc().set_ivars(AppState {
-            activation_policy: Policy(activation_policy),
+            activation_policy,
             default_menu,
             activate_ignoring_other_apps,
             run_loop: RunLoop::main(mtm),
-            ..Default::default()
+            event_handler: EventHandler::new(),
+            stop_on_launch: Cell::new(false),
+            stop_before_wait: Cell::new(false),
+            stop_after_wait: Cell::new(false),
+            stop_on_redraw: Cell::new(false),
+            is_launched: Cell::new(false),
+            is_running: Cell::new(false),
+            exit: Cell::new(false),
+            control_flow: Cell::new(ControlFlow::default()),
+            waker: RefCell::new(EventLoopWaker::new()),
+            start_time: Cell::new(None),
+            wait_timeout: Cell::new(None),
+            pending_redraw: RefCell::new(vec![]),
         });
         unsafe { msg_send_id![super(this), init] }
     }
@@ -108,7 +111,7 @@ impl ApplicationDelegate {
         // We need to delay setting the activation policy and activating the app
         // until `applicationDidFinishLaunching` has been called. Otherwise the
         // menu bar is initially unresponsive on macOS 10.15.
-        app.setActivationPolicy(self.ivars().activation_policy.0);
+        app.setActivationPolicy(self.ivars().activation_policy);
 
         window_activation_hack(&app);
         #[allow(deprecated)]
