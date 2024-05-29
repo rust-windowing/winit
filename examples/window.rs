@@ -17,7 +17,9 @@ use softbuffer::{Context, Surface};
 
 use winit::application::ApplicationHandler;
 use winit::dpi::{LogicalSize, PhysicalPosition, PhysicalSize};
-use winit::event::{DeviceEvent, DeviceId, Ime, MouseButton, MouseScrollDelta, WindowEvent};
+use winit::event::{
+    DeviceEvent, DeviceId, Ime, MouseButton, MouseScrollDelta, StartCause, WindowEvent,
+};
 use winit::event_loop::{ActiveEventLoop, EventLoop};
 use winit::keyboard::{Key, ModifiersState};
 use winit::window::{
@@ -303,6 +305,12 @@ impl Application {
 }
 
 impl ApplicationHandler<UserEvent> for Application {
+    fn new_events(&mut self, _event_loop: &ActiveEventLoop, start_cause: StartCause) {
+        if let StartCause::Init = start_cause {
+            info!("Started the event loop");
+        }
+    }
+
     fn user_event(&mut self, _event_loop: &ActiveEventLoop, event: UserEvent) {
         info!("User event: {event:?}");
     }
@@ -320,6 +328,7 @@ impl ApplicationHandler<UserEvent> for Application {
 
         match event {
             WindowEvent::Resized(size) => {
+                info!("Resized({size:?})");
                 window.resize(size);
             },
             WindowEvent::Focused(focused) => {

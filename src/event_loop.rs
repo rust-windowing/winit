@@ -209,6 +209,110 @@ impl EventLoop<()> {
     }
 }
 
+#[cfg(debug_assertions)]
+pub(crate) fn ensure_event_order<'a, T: 'static>(
+    handler: impl ApplicationHandler<T> + 'a,
+) -> impl ApplicationHandler<T> + 'a {
+    use crate::event::{DeviceEvent, DeviceId, StartCause, WindowEvent};
+    use crate::window::WindowId;
+
+    #[derive(Default, Debug, PartialEq, Eq, Clone)]
+    enum State {
+        #[default]
+        NotRunning,
+        Suspended,
+        Running,
+        Waiting,
+    }
+
+    impl State {
+        #[track_caller]
+        fn expect(&self, expected: State) {
+            if *self != expected {
+                tracing::error!("expected state to be {expected:?}, found {self:?}");
+            }
+        }
+
+        #[track_caller]
+        fn transition(&mut self, from: State, to: State) {
+            if *self != from {
+                tracing::error!(
+                    "invalid state transition to {to:?}. Expected {from:?}, found {self:?}"
+                );
+            }
+            *self = to;
+        }
+    }
+
+    struct EnsureEventOrder<A> {
+        inner: A,
+        state: State,
+    }
+
+    impl<A: ApplicationHandler<T>, T: 'static> ApplicationHandler<T> for EnsureEventOrder<A> {
+        fn new_events(&mut self, event_loop: &ActiveEventLoop, cause: StartCause) {
+            match cause {
+                StartCause::Init => self.state.transition(State::NotRunning, State::Suspended),
+                _ => self.state.transition(State::Waiting, State::Running),
+            }
+
+            self.inner.new_events(event_loop, cause);
+        }
+
+        fn resumed(&mut self, event_loop: &ActiveEventLoop) {
+            self.state.transition(State::Suspended, State::Running);
+            self.inner.resumed(event_loop);
+        }
+
+        fn suspended(&mut self, event_loop: &ActiveEventLoop) {
+            self.state.transition(State::Running, State::Suspended);
+            self.inner.suspended(event_loop);
+        }
+
+        fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
+            self.state.transition(State::Running, State::Waiting);
+            self.inner.about_to_wait(event_loop);
+        }
+
+        fn exiting(&mut self, event_loop: &ActiveEventLoop) {
+            self.state.transition(State::Suspended, State::NotRunning);
+            self.inner.exiting(event_loop);
+        }
+
+        fn user_event(&mut self, event_loop: &ActiveEventLoop, event: T) {
+            self.state.expect(State::Running);
+            self.inner.user_event(event_loop, event);
+        }
+
+        fn window_event(
+            &mut self,
+            event_loop: &ActiveEventLoop,
+            window_id: WindowId,
+            event: WindowEvent,
+        ) {
+            self.state.expect(State::Running);
+            self.inner.window_event(event_loop, window_id, event);
+        }
+
+        fn device_event(
+            &mut self,
+            event_loop: &ActiveEventLoop,
+            device_id: DeviceId,
+            event: DeviceEvent,
+        ) {
+            self.state.expect(State::Running);
+            self.inner.device_event(event_loop, device_id, event);
+        }
+
+        fn memory_warning(&mut self, event_loop: &ActiveEventLoop) {
+            // TODO: What states are allowed when receiving this?
+            self.inner.memory_warning(event_loop);
+        }
+    }
+
+    EnsureEventOrder { inner: handler, state: State::NotRunning }
+}
+
 impl<T> EventLoop<T> {
     /// Start building a new event loop, with the given type as the user event
     /// type.
@@ -247,6 +351,8 @@ impl<T> EventLoop<T> {
     #[inline]
     #[cfg(not(all(web_platform, target_feature = "exception-handling")))]
     pub fn run_app<A: ApplicationHandler<T>>(self, app: &mut A) -> Result<(), EventLoopError> {
+        #[cfg(debug_assertions)]
+        let app = &mut ensure_event_order(app);
         self.event_loop.run_app(app)
     }
 
