@@ -44,6 +44,7 @@ changelog entry.
 ### Added
 
 - Reexport `raw-window-handle` versions 0.4 and 0.5 as `raw_window_handle_04` and `raw_window_handle_05`.
+- Implement `ApplicationHandler` for `&mut` references and heap allocations to something that implements `ApplicationHandler`.
 
 ### Removed
 
