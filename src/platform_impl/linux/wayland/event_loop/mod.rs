@@ -182,6 +182,7 @@ impl<T: 'static> EventLoop<T> {
         &mut self,
         app: &mut A,
     ) -> Result<(), EventLoopError> {
+        self.window_target.p.clear_exit();
         let exit = loop {
             match self.pump_app_events(None, app) {
                 PumpStatus::Exit(0) => {

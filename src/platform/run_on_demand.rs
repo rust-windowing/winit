@@ -1,6 +1,6 @@
 use crate::application::ApplicationHandler;
 use crate::error::EventLoopError;
-use crate::event_loop::{ActiveEventLoop, EventLoop};
+use crate::event_loop::EventLoop;
 
 #[cfg(doc)]
 use crate::{platform::pump_events::EventLoopExtPumpEvents, window::Window};
@@ -56,8 +56,8 @@ pub trait EventLoopExtRunOnDemand {
     #[cfg_attr(not(web_platform), doc = "[^1]: `spawn()` is only available on `wasm` platforms.")]
     #[rustfmt::skip]
     ///
-    /// [`exit()`]: ActiveEventLoop::exit()
-    /// [`set_control_flow()`]: ActiveEventLoop::set_control_flow()
+    /// [`exit()`]: crate::event_loop::ActiveEventLoop::exit()
+    /// [`set_control_flow()`]: crate::event_loop::ActiveEventLoop::set_control_flow()
     fn run_app_on_demand<A: ApplicationHandler<Self::UserEvent>>(
         &mut self,
         app: &mut A,
@@ -71,15 +71,7 @@ impl<T> EventLoopExtRunOnDemand for EventLoop<T> {
         &mut self,
         app: &mut A,
     ) -> Result<(), EventLoopError> {
-        self.event_loop.window_target().clear_exit();
         self.event_loop.run_app_on_demand(app)
-    }
-}
-
-impl ActiveEventLoop {
-    /// Clear exit status.
-    pub(crate) fn clear_exit(&self) {
-        self.p.clear_exit()
     }
 }
 

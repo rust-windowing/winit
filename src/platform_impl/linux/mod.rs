@@ -910,7 +910,8 @@ impl ActiveEventLoop {
         x11_or_wayland!(match self; Self(evlp) => evlp.control_flow())
     }
 
-    pub(crate) fn clear_exit(&self) {
+    #[allow(dead_code)]
+    fn clear_exit(&self) {
         x11_or_wayland!(match self; Self(evlp) => evlp.clear_exit())
     }
 
