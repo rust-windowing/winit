@@ -439,20 +439,13 @@ impl Window {
                 .unwrap()
                 .mouse
                 .set_cursor_flags(window, |f| {
-                    match mode {
-                        CursorGrabMode::None => {
-                            f.set(CursorFlags::GRABBED, false);
-                            f.set(CursorFlags::GRABBED_LOCKED, false);
-                        },
-                        CursorGrabMode::Confined => {
-                            f.set(CursorFlags::GRABBED, true);
-                            f.set(CursorFlags::GRABBED_LOCKED, false);
-                        },
-                        CursorGrabMode::Locked => {
-                            f.set(CursorFlags::GRABBED, true);
-                            f.set(CursorFlags::GRABBED_LOCKED, true);
-                        },
+                    let (grabbed, locked) = match mode {
+                        CursorGrabMode::None => (false, false),
+                        CursorGrabMode::Confined => (true, false),
+                        CursorGrabMode::Locked => (true, true),
                     };
+                    f.set(CursorFlags::GRABBED, grabbed);
+                    f.set(CursorFlags::GRABBED_LOCKED, locked);
                 })
                 .map_err(|e| ExternalError::Os(os_error!(e)));
             let _ = tx.send(result);
