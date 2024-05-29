@@ -129,10 +129,6 @@ impl ActiveEventLoop {
         self.delegate.exit()
     }
 
-    pub(crate) fn clear_exit(&self) {
-        self.delegate.clear_exit()
-    }
-
     pub(crate) fn exiting(&self) -> bool {
         self.delegate.exiting()
     }
@@ -255,6 +251,7 @@ impl EventLoop {
         &mut self,
         mut app: A,
     ) -> Result<(), EventLoopError> {
+        self.delegate.clear_exit();
         self.delegate.set_event_handler(&mut app, || {
             autoreleasepool(|_| {
                 // clear / normalize pump_events state

@@ -375,6 +375,7 @@ impl EventLoop {
         &mut self,
         mut app: A,
     ) -> Result<(), EventLoopError> {
+        self.event_processor.target.p.clear_exit();
         let exit = loop {
             match self.pump_app_events(None, &mut app) {
                 PumpStatus::Exit(0) => {
@@ -600,13 +601,11 @@ impl EventLoop {
     }
 
     fn set_exit_code(&self, code: i32) {
-        let window_target = EventProcessor::window_target(&self.event_processor.target);
-        window_target.set_exit_code(code);
+        self.window_target().p.set_exit_code(code);
     }
 
     fn exit_code(&self) -> Option<i32> {
-        let window_target = EventProcessor::window_target(&self.event_processor.target);
-        window_target.exit_code()
+        self.window_target().p.exit_code()
     }
 }
 

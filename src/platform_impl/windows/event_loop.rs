@@ -195,6 +195,7 @@ impl EventLoop {
         &mut self,
         mut app: A,
     ) -> Result<(), EventLoopError> {
+        self.window_target.p.clear_exit();
         {
             let runner = &self.window_target.p.runner_shared;
 

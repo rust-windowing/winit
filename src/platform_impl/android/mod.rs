@@ -425,6 +425,7 @@ impl EventLoop {
         &mut self,
         mut app: A,
     ) -> Result<(), EventLoopError> {
+        self.window_target.p.clear_exit();
         loop {
             match self.pump_app_events(None, &mut app) {
                 PumpStatus::Exit(0) => {
