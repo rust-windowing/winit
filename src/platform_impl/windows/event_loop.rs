@@ -1136,6 +1136,8 @@ unsafe fn public_window_callback_inner(
                 // with the Windows API.
                 params.rgrc[0].top += 1;
                 params.rgrc[0].bottom += 1;
+                params.rgrc[0].left += 1;
+                params.rgrc[0].right += 1;
             }
 
             result = ProcResult::Value(0);
