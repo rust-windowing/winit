@@ -1,7 +1,7 @@
 use std::collections::VecDeque;
-use std::ffi::c_void;
+use std::ffi::{c_char, c_int, c_void};
 use std::marker::PhantomData;
-use std::ptr;
+use std::ptr::{self, NonNull};
 use std::sync::mpsc::{self, Receiver, Sender};
 
 use core_foundation::base::{CFIndex, CFRelease};
@@ -11,9 +11,12 @@ use core_foundation::runloop::{
     CFRunLoopObserverCreate, CFRunLoopObserverRef, CFRunLoopSourceContext, CFRunLoopSourceCreate,
     CFRunLoopSourceInvalidate, CFRunLoopSourceRef, CFRunLoopSourceSignal, CFRunLoopWakeUp,
 };
-use objc2::ClassType;
+use objc2::rc::Retained;
+use objc2::{msg_send_id, ClassType};
 use objc2_foundation::{MainThreadMarker, NSString};
+use objc2_ui_kit::{UIApplication, UIApplicationMain, UIDevice, UIScreen, UIUserInterfaceIdiom};
 
+use crate::application::ApplicationHandler;
 use crate::error::EventLoopError;
 use crate::event::Event;
 use crate::event_loop::{
@@ -25,7 +28,6 @@ use crate::window::{CustomCursor, CustomCursorSource};
 
 use super::app_delegate::AppDelegate;
 use super::app_state::AppState;
-use super::uikit::{UIApplication, UIApplicationMain, UIDevice, UIScreen, UIUserInterfaceIdiom};
 use super::{app_state, monitor, MonitorHandle};
 
 #[derive(Debug)]
@@ -44,7 +46,8 @@ impl ActiveEventLoop {
     }
 
     pub fn primary_monitor(&self) -> Option<MonitorHandle> {
-        Some(MonitorHandle::new(UIScreen::main(self.mtm)))
+        #[allow(deprecated)]
+        Some(MonitorHandle::new(UIScreen::mainScreen(self.mtm)))
     }
 
     #[inline]
@@ -106,17 +109,28 @@ impl OwnedDisplayHandle {
     }
 }
 
-fn map_user_event<T: 'static>(
-    mut handler: impl FnMut(Event<T>, &RootActiveEventLoop),
+fn map_user_event<T: 'static, A: ApplicationHandler<T>>(
+    app: &mut A,
     receiver: mpsc::Receiver<T>,
-) -> impl FnMut(Event<HandlePendingUserEvents>, &RootActiveEventLoop) {
-    move |event, window_target| match event.map_nonuser_event() {
-        Ok(event) => (handler)(event, window_target),
-        Err(_) => {
+) -> impl FnMut(Event<HandlePendingUserEvents>, &RootActiveEventLoop) + '_ {
+    move |event, window_target| match event {
+        Event::NewEvents(cause) => app.new_events(window_target, cause),
+        Event::WindowEvent { window_id, event } => {
+            app.window_event(window_target, window_id, event)
+        },
+        Event::DeviceEvent { device_id, event } => {
+            app.device_event(window_target, device_id, event)
+        },
+        Event::UserEvent(_) => {
             for event in receiver.try_iter() {
-                (handler)(Event::UserEvent(event), window_target);
+                app.user_event(window_target, event);
             }
         },
+        Event::Suspended => app.suspended(window_target),
+        Event::Resumed => app.resumed(window_target),
+        Event::AboutToWait => app.about_to_wait(window_target),
+        Event::LoopExiting => app.exiting(window_target),
+        Event::MemoryWarning => app.memory_warning(window_target),
     }
 }
 
@@ -159,11 +173,9 @@ impl<T: 'static> EventLoop<T> {
         })
     }
 
-    pub fn run<F>(self, handler: F) -> !
-    where
-        F: FnMut(Event<T>, &RootActiveEventLoop),
-    {
-        let application = UIApplication::shared(self.mtm);
+    pub fn run_app<A: ApplicationHandler<T>>(self, app: &mut A) -> ! {
+        let application: Option<Retained<UIApplication>> =
+            unsafe { msg_send_id![UIApplication::class(), sharedApplication] };
         assert!(
             application.is_none(),
             "\
@@ -171,7 +183,7 @@ impl<T: 'static> EventLoop<T> {
              `EventLoop::run_app` calls `UIApplicationMain` on iOS",
         );
 
-        let handler = map_user_event(handler, self.receiver);
+        let handler = map_user_event(app, self.receiver);
 
         let handler = unsafe {
             std::mem::transmute::<
@@ -187,8 +199,19 @@ impl<T: 'static> EventLoop<T> {
         // Ensure application delegate is initialized
         let _ = AppDelegate::class();
 
+        extern "C" {
+            // These functions are in crt_externs.h.
+            fn _NSGetArgc() -> *mut c_int;
+            fn _NSGetArgv() -> *mut *mut *mut c_char;
+        }
+
         unsafe {
-            UIApplicationMain(0, ptr::null(), None, Some(&NSString::from_str(AppDelegate::NAME)))
+            UIApplicationMain(
+                *_NSGetArgc(),
+                NonNull::new(*_NSGetArgv()).unwrap(),
+                None,
+                Some(&NSString::from_str(AppDelegate::NAME)),
+            )
         };
         unreachable!()
     }
@@ -205,7 +228,7 @@ impl<T: 'static> EventLoop<T> {
 // EventLoopExtIOS
 impl<T: 'static> EventLoop<T> {
     pub fn idiom(&self) -> Idiom {
-        match UIDevice::current(self.mtm).userInterfaceIdiom() {
+        match UIDevice::currentDevice(self.mtm).userInterfaceIdiom() {
             UIUserInterfaceIdiom::Unspecified => Idiom::Unspecified,
             UIUserInterfaceIdiom::Phone => Idiom::Phone,
             UIUserInterfaceIdiom::Pad => Idiom::Pad,

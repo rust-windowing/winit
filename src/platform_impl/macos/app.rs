@@ -5,7 +5,6 @@ use objc2_app_kit::{NSApplication, NSEvent, NSEventModifierFlags, NSEventType, N
 use objc2_foundation::{MainThreadMarker, NSObject};
 
 use super::app_delegate::ApplicationDelegate;
-use super::event::flags_contains;
 use crate::event::{DeviceEvent, ElementState};
 
 declare_class!(
@@ -32,7 +31,7 @@ declare_class!(
             let event_type = unsafe { event.r#type() };
             let modifier_flags = unsafe { event.modifierFlags() };
             if event_type == NSEventType::KeyUp
-                && flags_contains(modifier_flags, NSEventModifierFlags::NSEventModifierFlagCommand)
+                && modifier_flags.contains(NSEventModifierFlags::NSEventModifierFlagCommand)
             {
                 if let Some(key_window) = self.keyWindow() {
                     key_window.sendEvent(event);

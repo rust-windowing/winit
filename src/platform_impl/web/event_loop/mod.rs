@@ -1,6 +1,7 @@
 use std::marker::PhantomData;
 use std::sync::mpsc::{self, Receiver, Sender};
 
+use crate::application::ApplicationHandler;
 use crate::error::EventLoopError;
 use crate::event::Event;
 use crate::event_loop::ActiveEventLoop as RootActiveEventLoop;
@@ -31,25 +32,13 @@ impl<T> EventLoop<T> {
         Ok(EventLoop { elw, user_event_sender, user_event_receiver })
     }
 
-    pub fn run<F>(self, mut event_handler: F) -> !
-    where
-        F: FnMut(Event<T>, &RootActiveEventLoop),
-    {
+    pub fn run_app<A: ApplicationHandler<T>>(self, app: &mut A) -> ! {
         let target = RootActiveEventLoop { p: self.elw.p.clone(), _marker: PhantomData };
 
         // SAFETY: Don't use `move` to make sure we leak the `event_handler` and `target`.
-        let handler: Box<dyn FnMut(Event<()>)> = Box::new(|event| {
-            let event = match event.map_nonuser_event() {
-                Ok(event) => event,
-                Err(Event::UserEvent(())) => Event::UserEvent(
-                    self.user_event_receiver
-                        .try_recv()
-                        .expect("handler woken up without user event"),
-                ),
-                Err(_) => unreachable!(),
-            };
-            event_handler(event, &target)
-        });
+        let handler: Box<dyn FnMut(Event<()>)> =
+            Box::new(|event| handle_event(app, &target, &self.user_event_receiver, event));
+
         // SAFETY: The `transmute` is necessary because `run()` requires `'static`. This is safe
         // because this function will never return and all resources not cleaned up by the point we
         // `throw` will leak, making this actually `'static`.
@@ -65,24 +54,12 @@ impl<T> EventLoop<T> {
         unreachable!();
     }
 
-    pub fn spawn<F>(self, mut event_handler: F)
-    where
-        F: 'static + FnMut(Event<T>, &RootActiveEventLoop),
-    {
+    pub fn spawn_app<A: ApplicationHandler<T> + 'static>(self, mut app: A) {
         let target = RootActiveEventLoop { p: self.elw.p.clone(), _marker: PhantomData };
 
         self.elw.p.run(
             Box::new(move |event| {
-                let event = match event.map_nonuser_event() {
-                    Ok(event) => event,
-                    Err(Event::UserEvent(())) => Event::UserEvent(
-                        self.user_event_receiver
-                            .try_recv()
-                            .expect("handler woken up without user event"),
-                    ),
-                    Err(_) => unreachable!(),
-                };
-                event_handler(event, &target)
+                handle_event(&mut app, &target, &self.user_event_receiver, event)
             }),
             true,
         );
@@ -94,5 +71,28 @@ impl<T> EventLoop<T> {
 
     pub fn window_target(&self) -> &RootActiveEventLoop {
         &self.elw
+    }
+}
+
+fn handle_event<T: 'static, A: ApplicationHandler<T>>(
+    app: &mut A,
+    target: &RootActiveEventLoop,
+    user_event_receiver: &Receiver<T>,
+    event: Event<()>,
+) {
+    match event {
+        Event::NewEvents(cause) => app.new_events(target, cause),
+        Event::WindowEvent { window_id, event } => app.window_event(target, window_id, event),
+        Event::DeviceEvent { device_id, event } => app.device_event(target, device_id, event),
+        Event::UserEvent(_) => {
+            let event =
+                user_event_receiver.try_recv().expect("user event signaled but not received");
+            app.user_event(target, event);
+        },
+        Event::Suspended => app.suspended(target),
+        Event::Resumed => app.resumed(target),
+        Event::AboutToWait => app.about_to_wait(target),
+        Event::LoopExiting => app.exiting(target),
+        Event::MemoryWarning => app.memory_warning(target),
     }
 }

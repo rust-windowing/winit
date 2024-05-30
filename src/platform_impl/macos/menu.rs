@@ -1,4 +1,4 @@
-use objc2::rc::Id;
+use objc2::rc::Retained;
 use objc2::runtime::Sel;
 use objc2::sel;
 use objc2_app_kit::{NSApplication, NSEventModifierFlags, NSMenu, NSMenuItem};
@@ -48,10 +48,10 @@ pub fn initialize(app: &NSApplication) {
         Some(sel!(hideOtherApplications:)),
         Some(KeyEquivalent {
             key: ns_string!("h"),
-            masks: Some(NSEventModifierFlags(
-                NSEventModifierFlags::NSEventModifierFlagOption.0
-                    | NSEventModifierFlags::NSEventModifierFlagCommand.0,
-            )),
+            masks: Some(
+                NSEventModifierFlags::NSEventModifierFlagOption
+                    | NSEventModifierFlags::NSEventModifierFlagCommand,
+            ),
         }),
     );
 
@@ -91,7 +91,7 @@ fn menu_item(
     title: &NSString,
     selector: Option<Sel>,
     key_equivalent: Option<KeyEquivalent<'_>>,
-) -> Id<NSMenuItem> {
+) -> Retained<NSMenuItem> {
     let (key, masks) = match key_equivalent {
         Some(ke) => (ke.key, ke.masks),
         None => (ns_string!(""), None),

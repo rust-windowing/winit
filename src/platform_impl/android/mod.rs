@@ -14,12 +14,13 @@ use android_activity::{
 };
 use tracing::{debug, trace, warn};
 
+use crate::application::ApplicationHandler;
 use crate::cursor::Cursor;
 use crate::dpi::{PhysicalPosition, PhysicalSize, Position, Size};
 use crate::error;
 use crate::error::EventLoopError;
 use crate::event::{self, Force, InnerSizeWriter, StartCause};
-use crate::event_loop::{self, ActiveEventLoop as RootAEL, ControlFlow, DeviceEvents};
+use crate::event_loop::{self, ControlFlow, DeviceEvents};
 use crate::platform::pump_events::PumpStatus;
 use crate::platform_impl::Fullscreen;
 use crate::window::{
@@ -197,27 +198,28 @@ impl<T: 'static> EventLoop<T> {
         })
     }
 
-    fn single_iteration<F>(&mut self, main_event: Option<MainEvent<'_>>, callback: &mut F)
-    where
-        F: FnMut(event::Event<T>, &RootAEL),
-    {
+    fn single_iteration<A: ApplicationHandler<T>>(
+        &mut self,
+        main_event: Option<MainEvent<'_>>,
+        app: &mut A,
+    ) {
         trace!("Mainloop iteration");
 
         let cause = self.cause;
         let mut pending_redraw = self.pending_redraw;
         let mut resized = false;
 
-        callback(event::Event::NewEvents(cause), self.window_target());
+        app.new_events(self.window_target(), cause);
 
         if let Some(event) = main_event {
             trace!("Handling main event {:?}", event);
 
             match event {
                 MainEvent::InitWindow { .. } => {
-                    callback(event::Event::Resumed, self.window_target());
+                    app.resumed(self.window_target());
                 },
                 MainEvent::TerminateWindow { .. } => {
-                    callback(event::Event::Suspended, self.window_target());
+                    app.suspended(self.window_target());
                 },
                 MainEvent::WindowResized { .. } => resized = true,
                 MainEvent::RedrawNeeded { .. } => pending_redraw = true,
@@ -226,23 +228,15 @@ impl<T: 'static> EventLoop<T> {
                 },
                 MainEvent::GainedFocus => {
                     HAS_FOCUS.store(true, Ordering::Relaxed);
-                    callback(
-                        event::Event::WindowEvent {
-                            window_id: window::WindowId(WindowId),
-                            event: event::WindowEvent::Focused(true),
-                        },
-                        self.window_target(),
-                    );
+                    let window_id = window::WindowId(WindowId);
+                    let event = event::WindowEvent::Focused(true);
+                    app.window_event(self.window_target(), window_id, event);
                 },
                 MainEvent::LostFocus => {
                     HAS_FOCUS.store(false, Ordering::Relaxed);
-                    callback(
-                        event::Event::WindowEvent {
-                            window_id: window::WindowId(WindowId),
-                            event: event::WindowEvent::Focused(false),
-                        },
-                        self.window_target(),
-                    );
+                    let window_id = window::WindowId(WindowId);
+                    let event = event::WindowEvent::Focused(false);
+                    app.window_event(self.window_target(), window_id, event);
                 },
                 MainEvent::ConfigChanged { .. } => {
                     let monitor = MonitorHandle::new(self.android_app.clone());
@@ -252,20 +246,19 @@ impl<T: 'static> EventLoop<T> {
                         let new_inner_size = Arc::new(Mutex::new(
                             MonitorHandle::new(self.android_app.clone()).size(),
                         ));
-                        let event = event::Event::WindowEvent {
-                            window_id: window::WindowId(WindowId),
-                            event: event::WindowEvent::ScaleFactorChanged {
-                                inner_size_writer: InnerSizeWriter::new(Arc::downgrade(
-                                    &new_inner_size,
-                                )),
-                                scale_factor,
-                            },
+                        let window_id = window::WindowId(WindowId);
+                        let event = event::WindowEvent::ScaleFactorChanged {
+                            inner_size_writer: InnerSizeWriter::new(Arc::downgrade(
+                                &new_inner_size,
+                            )),
+                            scale_factor,
                         };
-                        callback(event, self.window_target());
+
+                        app.window_event(self.window_target(), window_id, event);
                     }
                 },
                 MainEvent::LowMemory => {
-                    callback(event::Event::MemoryWarning, self.window_target());
+                    app.memory_warning(self.window_target());
                 },
                 MainEvent::Start => {
                     // XXX: how to forward this state to applications?
@@ -313,7 +306,7 @@ impl<T: 'static> EventLoop<T> {
         match android_app.input_events_iter() {
             Ok(mut input_iter) => loop {
                 let read_event =
-                    input_iter.next(|event| self.handle_input_event(&android_app, event, callback));
+                    input_iter.next(|event| self.handle_input_event(&android_app, event, app));
 
                 if !read_event {
                     break;
@@ -327,7 +320,7 @@ impl<T: 'static> EventLoop<T> {
         // Empty the user event buffer
         {
             while let Ok(event) = self.user_events_receiver.try_recv() {
-                callback(crate::event::Event::UserEvent(event), self.window_target());
+                app.user_event(self.window_target(), event);
             }
         }
 
@@ -340,39 +333,32 @@ impl<T: 'static> EventLoop<T> {
                 } else {
                     PhysicalSize::new(0, 0)
                 };
-                let event = event::Event::WindowEvent {
-                    window_id: window::WindowId(WindowId),
-                    event: event::WindowEvent::Resized(size),
-                };
-                callback(event, self.window_target());
+                let window_id = window::WindowId(WindowId);
+                let event = event::WindowEvent::Resized(size);
+                app.window_event(self.window_target(), window_id, event);
             }
 
             pending_redraw |= self.redraw_flag.get_and_reset();
             if pending_redraw {
                 pending_redraw = false;
-                let event = event::Event::WindowEvent {
-                    window_id: window::WindowId(WindowId),
-                    event: event::WindowEvent::RedrawRequested,
-                };
-                callback(event, self.window_target());
+                let window_id = window::WindowId(WindowId);
+                let event = event::WindowEvent::RedrawRequested;
+                app.window_event(self.window_target(), window_id, event);
             }
         }
 
         // This is always the last event we dispatch before poll again
-        callback(event::Event::AboutToWait, self.window_target());
+        app.about_to_wait(self.window_target());
 
         self.pending_redraw = pending_redraw;
     }
 
-    fn handle_input_event<F>(
+    fn handle_input_event<A: ApplicationHandler<T>>(
         &mut self,
         android_app: &AndroidApp,
         event: &InputEvent<'_>,
-        callback: &mut F,
-    ) -> InputStatus
-    where
-        F: FnMut(event::Event<T>, &RootAEL),
-    {
+        app: &mut A,
+    ) -> InputStatus {
         let mut input_status = InputStatus::Handled;
         match event {
             InputEvent::MotionEvent(motion_event) => {
@@ -410,17 +396,16 @@ impl<T: 'static> EventLoop<T> {
                             "Input event {device_id:?}, {phase:?}, loc={location:?}, \
                              pointer={pointer:?}"
                         );
-                        let event = event::Event::WindowEvent {
-                            window_id,
-                            event: event::WindowEvent::Touch(event::Touch {
-                                device_id,
-                                phase,
-                                location,
-                                id: pointer.pointer_id() as u64,
-                                force: Some(Force::Normalized(pointer.pressure() as f64)),
-                            }),
-                        };
-                        callback(event, self.window_target());
+
+                        let event = event::WindowEvent::Touch(event::Touch {
+                            device_id,
+                            phase,
+                            location,
+                            id: pointer.pointer_id() as u64,
+                            force: Some(Force::Normalized(pointer.pressure() as f64)),
+                        });
+
+                        app.window_event(self.window_target(), window_id, event);
                     }
                 }
             },
@@ -448,23 +433,22 @@ impl<T: 'static> EventLoop<T> {
                             &mut self.combining_accent,
                         );
 
-                        let event = event::Event::WindowEvent {
-                            window_id: window::WindowId(WindowId),
-                            event: event::WindowEvent::KeyboardInput {
-                                device_id: event::DeviceId(DeviceId(key.device_id())),
-                                event: event::KeyEvent {
-                                    state,
-                                    physical_key: keycodes::to_physical_key(keycode),
-                                    logical_key: keycodes::to_logical(key_char, keycode),
-                                    location: keycodes::to_location(keycode),
-                                    repeat: key.repeat_count() > 0,
-                                    text: None,
-                                    platform_specific: KeyEventExtra {},
-                                },
-                                is_synthetic: false,
+                        let window_id = window::WindowId(WindowId);
+                        let event = event::WindowEvent::KeyboardInput {
+                            device_id: event::DeviceId(DeviceId(key.device_id())),
+                            event: event::KeyEvent {
+                                state,
+                                physical_key: keycodes::to_physical_key(keycode),
+                                logical_key: keycodes::to_logical(key_char, keycode),
+                                location: keycodes::to_location(keycode),
+                                repeat: key.repeat_count() > 0,
+                                text: None,
+                                platform_specific: KeyEventExtra {},
                             },
+                            is_synthetic: false,
                         };
-                        callback(event, self.window_target());
+
+                        app.window_event(self.window_target(), window_id, event);
                     },
                 }
             },
@@ -476,19 +460,16 @@ impl<T: 'static> EventLoop<T> {
         input_status
     }
 
-    pub fn run<F>(mut self, event_handler: F) -> Result<(), EventLoopError>
-    where
-        F: FnMut(event::Event<T>, &event_loop::ActiveEventLoop),
-    {
-        self.run_on_demand(event_handler)
+    pub fn run_app<A: ApplicationHandler<T>>(mut self, app: &mut A) -> Result<(), EventLoopError> {
+        self.run_app_on_demand(app)
     }
 
-    pub fn run_on_demand<F>(&mut self, mut event_handler: F) -> Result<(), EventLoopError>
-    where
-        F: FnMut(event::Event<T>, &event_loop::ActiveEventLoop),
-    {
+    pub fn run_app_on_demand<A: ApplicationHandler<T>>(
+        &mut self,
+        app: &mut A,
+    ) -> Result<(), EventLoopError> {
         loop {
-            match self.pump_events(None, &mut event_handler) {
+            match self.pump_app_events(None, app) {
                 PumpStatus::Exit(0) => {
                     break Ok(());
                 },
@@ -502,10 +483,11 @@ impl<T: 'static> EventLoop<T> {
         }
     }
 
-    pub fn pump_events<F>(&mut self, timeout: Option<Duration>, mut callback: F) -> PumpStatus
-    where
-        F: FnMut(event::Event<T>, &RootAEL),
-    {
+    pub fn pump_app_events<A: ApplicationHandler<T>>(
+        &mut self,
+        timeout: Option<Duration>,
+        app: &mut A,
+    ) -> PumpStatus {
         if !self.loop_running {
             self.loop_running = true;
 
@@ -516,18 +498,18 @@ impl<T: 'static> EventLoop<T> {
             self.cause = StartCause::Init;
 
             // run the initial loop iteration
-            self.single_iteration(None, &mut callback);
+            self.single_iteration(None, app);
         }
 
         // Consider the possibility that the `StartCause::Init` iteration could
         // request to Exit
         if !self.exiting() {
-            self.poll_events_with_timeout(timeout, &mut callback);
+            self.poll_events_with_timeout(timeout, app);
         }
         if self.exiting() {
             self.loop_running = false;
 
-            callback(event::Event::LoopExiting, self.window_target());
+            app.exiting(self.window_target());
 
             PumpStatus::Exit(0)
         } else {
@@ -535,10 +517,11 @@ impl<T: 'static> EventLoop<T> {
         }
     }
 
-    fn poll_events_with_timeout<F>(&mut self, mut timeout: Option<Duration>, mut callback: F)
-    where
-        F: FnMut(event::Event<T>, &RootAEL),
-    {
+    fn poll_events_with_timeout<A: ApplicationHandler<T>>(
+        &mut self,
+        mut timeout: Option<Duration>,
+        app: &mut A,
+    ) {
         let start = Instant::now();
 
         self.pending_redraw |= self.redraw_flag.get_and_reset();
@@ -559,8 +542,8 @@ impl<T: 'static> EventLoop<T> {
                 min_timeout(control_flow_timeout, timeout)
             };
 
-        let app = self.android_app.clone(); // Don't borrow self as part of poll expression
-        app.poll_events(timeout, |poll_event| {
+        let android_app = self.android_app.clone(); // Don't borrow self as part of poll expression
+        android_app.poll_events(timeout, |poll_event| {
             let mut main_event = None;
 
             match poll_event {
@@ -601,7 +584,7 @@ impl<T: 'static> EventLoop<T> {
                 },
             };
 
-            self.single_iteration(main_event, &mut callback);
+            self.single_iteration(main_event, app);
         });
     }
 
