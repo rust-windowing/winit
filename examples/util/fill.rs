@@ -135,7 +135,7 @@ mod platform {
         // No-op on mobile platforms.
     }
 
-    pub fn fill_window_with_border(window: &Window) {
+    pub fn fill_window_with_border(_window: &winit::window::Window) {
         // No-op on mobile platforms.
     }
 
