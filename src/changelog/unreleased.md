@@ -12,7 +12,6 @@ on how to add them:
 ### Added
 
 - Add `Window::turbo()`, implemented on X11, Wayland, and Web.
-- Add traits `EventLoopExtWayland` and `EventLoopExtX11`, providing methods `is_wayland` and `is_x11` on `EventLoop`.
 - On X11, add `Window::some_rare_api`.
 - On X11, add `Window::even_more_rare_api`.
 - On Wayland, add `Window::common_api`.
@@ -40,16 +39,3 @@ The migration guide could reference other migration examples in the current
 changelog entry.
 
 ## Unreleased
-
-### Added
-
-- Reexport `raw-window-handle` versions 0.4 and 0.5 as `raw_window_handle_04` and `raw_window_handle_05`.
-- Implement `ApplicationHandler` for `&mut` references and heap allocations to something that implements `ApplicationHandler`.
-
-### Fixed
-
-- On macOS, fix panic on exit when dropping windows outside the event loop.
-- On macOS, fix window dragging glitches when dragging across a monitor boundary with different scale factor.
-- On macOS, fix the range in `Ime::Preedit`.
-- On macOS, use the system's internal mechanisms for queuing events.
-- On macOS, handle events directly instead of queuing when possible.
