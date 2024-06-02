@@ -1,14 +1,14 @@
 use std::cell::Cell;
 
-use objc2::rc::Id;
+use objc2::rc::Retained;
 use objc2::{declare_class, msg_send_id, mutability, ClassType, DeclaredClass};
 use objc2_foundation::{MainThreadMarker, NSObject};
-
-use super::app_state::{self};
-use super::uikit::{
+use objc2_ui_kit::{
     UIDevice, UIInterfaceOrientationMask, UIRectEdge, UIResponder, UIStatusBarStyle,
     UIUserInterfaceIdiom, UIView, UIViewController,
 };
+
+use super::app_state::{self};
 use crate::platform::ios::{ScreenEdge, StatusBarStyle, ValidOrientations};
 use crate::window::WindowAttributes;
 
@@ -26,7 +26,7 @@ declare_class!(
     unsafe impl ClassType for WinitViewController {
         #[inherits(UIResponder, NSObject)]
         type Super = UIViewController;
-        type Mutability = mutability::InteriorMutable;
+        type Mutability = mutability::MainThreadOnly;
         const NAME: &'static str = "WinitUIViewController";
     }
 
@@ -114,7 +114,7 @@ impl WinitViewController {
         mtm: MainThreadMarker,
         valid_orientations: ValidOrientations,
     ) {
-        let mask = match (valid_orientations, UIDevice::current(mtm).userInterfaceIdiom()) {
+        let mask = match (valid_orientations, UIDevice::currentDevice(mtm).userInterfaceIdiom()) {
             (ValidOrientations::LandscapeAndPortrait, UIUserInterfaceIdiom::Phone) => {
                 UIInterfaceOrientationMask::AllButUpsideDown
             },
@@ -129,23 +129,24 @@ impl WinitViewController {
             },
         };
         self.ivars().supported_orientations.set(mask);
-        UIViewController::attemptRotationToDeviceOrientation();
+        #[allow(deprecated)]
+        UIViewController::attemptRotationToDeviceOrientation(mtm);
     }
 
     pub(crate) fn new(
         mtm: MainThreadMarker,
         window_attributes: &WindowAttributes,
         view: &UIView,
-    ) -> Id<Self> {
+    ) -> Retained<Self> {
         // These are set properly below, we just to set them to something in the meantime.
-        let this = Self::alloc().set_ivars(ViewControllerState {
+        let this = mtm.alloc().set_ivars(ViewControllerState {
             prefers_status_bar_hidden: Cell::new(false),
             preferred_status_bar_style: Cell::new(UIStatusBarStyle::Default),
             prefers_home_indicator_auto_hidden: Cell::new(false),
             supported_orientations: Cell::new(UIInterfaceOrientationMask::All),
-            preferred_screen_edges_deferring_system_gestures: Cell::new(UIRectEdge::NONE),
+            preferred_screen_edges_deferring_system_gestures: Cell::new(UIRectEdge::empty()),
         });
-        let this: Id<Self> = unsafe { msg_send_id![super(this), init] };
+        let this: Retained<Self> = unsafe { msg_send_id![super(this), init] };
 
         this.set_prefers_status_bar_hidden(
             window_attributes.platform_specific.prefers_status_bar_hidden,

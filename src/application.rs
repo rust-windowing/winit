@@ -223,3 +223,117 @@ pub trait ApplicationHandler<T: 'static = ()> {
         let _ = event_loop;
     }
 }
+
+impl<A: ?Sized + ApplicationHandler<T>, T: 'static> ApplicationHandler<T> for &mut A {
+    #[inline]
+    fn new_events(&mut self, event_loop: &ActiveEventLoop, cause: StartCause) {
+        (**self).new_events(event_loop, cause);
+    }
+
+    #[inline]
+    fn resumed(&mut self, event_loop: &ActiveEventLoop) {
+        (**self).resumed(event_loop);
+    }
+
+    #[inline]
+    fn user_event(&mut self, event_loop: &ActiveEventLoop, event: T) {
+        (**self).user_event(event_loop, event);
+    }
+
+    #[inline]
+    fn window_event(
+        &mut self,
+        event_loop: &ActiveEventLoop,
+        window_id: WindowId,
+        event: WindowEvent,
+    ) {
+        (**self).window_event(event_loop, window_id, event);
+    }
+
+    #[inline]
+    fn device_event(
+        &mut self,
+        event_loop: &ActiveEventLoop,
+        device_id: DeviceId,
+        event: DeviceEvent,
+    ) {
+        (**self).device_event(event_loop, device_id, event);
+    }
+
+    #[inline]
+    fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
+        (**self).about_to_wait(event_loop);
+    }
+
+    #[inline]
+    fn suspended(&mut self, event_loop: &ActiveEventLoop) {
+        (**self).suspended(event_loop);
+    }
+
+    #[inline]
+    fn exiting(&mut self, event_loop: &ActiveEventLoop) {
+        (**self).exiting(event_loop);
+    }
+
+    #[inline]
+    fn memory_warning(&mut self, event_loop: &ActiveEventLoop) {
+        (**self).memory_warning(event_loop);
+    }
+}
+
+impl<A: ?Sized + ApplicationHandler<T>, T: 'static> ApplicationHandler<T> for Box<A> {
+    #[inline]
+    fn new_events(&mut self, event_loop: &ActiveEventLoop, cause: StartCause) {
+        (**self).new_events(event_loop, cause);
+    }
+
+    #[inline]
+    fn resumed(&mut self, event_loop: &ActiveEventLoop) {
+        (**self).resumed(event_loop);
+    }
+
+    #[inline]
+    fn user_event(&mut self, event_loop: &ActiveEventLoop, event: T) {
+        (**self).user_event(event_loop, event);
+    }
+
+    #[inline]
+    fn window_event(
+        &mut self,
+        event_loop: &ActiveEventLoop,
+        window_id: WindowId,
+        event: WindowEvent,
+    ) {
+        (**self).window_event(event_loop, window_id, event);
+    }
+
+    #[inline]
+    fn device_event(
+        &mut self,
+        event_loop: &ActiveEventLoop,
+        device_id: DeviceId,
+        event: DeviceEvent,
+    ) {
+        (**self).device_event(event_loop, device_id, event);
+    }
+
+    #[inline]
+    fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
+        (**self).about_to_wait(event_loop);
+    }
+
+    #[inline]
+    fn suspended(&mut self, event_loop: &ActiveEventLoop) {
+        (**self).suspended(event_loop);
+    }
+
+    #[inline]
+    fn exiting(&mut self, event_loop: &ActiveEventLoop) {
+        (**self).exiting(event_loop);
+    }
+
+    #[inline]
+    fn memory_warning(&mut self, event_loop: &ActiveEventLoop) {
+        (**self).memory_warning(event_loop);
+    }
+}

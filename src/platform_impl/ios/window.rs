@@ -2,18 +2,19 @@
 
 use std::collections::VecDeque;
 
-use objc2::rc::Id;
+use objc2::rc::Retained;
 use objc2::runtime::{AnyObject, NSObject};
 use objc2::{class, declare_class, msg_send, msg_send_id, mutability, ClassType, DeclaredClass};
 use objc2_foundation::{
     CGFloat, CGPoint, CGRect, CGSize, MainThreadBound, MainThreadMarker, NSObjectProtocol,
 };
+use objc2_ui_kit::{
+    UIApplication, UICoordinateSpace, UIResponder, UIScreen, UIScreenOverscanCompensation,
+    UIViewController, UIWindow,
+};
 use tracing::{debug, warn};
 
 use super::app_state::EventWrapper;
-use super::uikit::{
-    UIApplication, UIResponder, UIScreen, UIScreenOverscanCompensation, UIViewController, UIWindow,
-};
 use super::view::WinitView;
 use super::view_controller::WinitViewController;
 use crate::cursor::Cursor;
@@ -37,7 +38,7 @@ declare_class!(
     unsafe impl ClassType for WinitUIWindow {
         #[inherits(UIResponder, NSObject)]
         type Super = UIWindow;
-        type Mutability = mutability::InteriorMutable;
+        type Mutability = mutability::MainThreadOnly;
         const NAME: &'static str = "WinitUIWindow";
     }
 
@@ -78,8 +79,8 @@ impl WinitUIWindow {
         window_attributes: &WindowAttributes,
         frame: CGRect,
         view_controller: &UIViewController,
-    ) -> Id<Self> {
-        let this: Id<Self> = unsafe { msg_send_id![Self::alloc(), initWithFrame: frame] };
+    ) -> Retained<Self> {
+        let this: Retained<Self> = unsafe { msg_send_id![mtm.alloc(), initWithFrame: frame] };
 
         this.setRootViewController(Some(view_controller));
 
@@ -106,9 +107,9 @@ impl WinitUIWindow {
 }
 
 pub struct Inner {
-    window: Id<WinitUIWindow>,
-    view_controller: Id<WinitViewController>,
-    view: Id<WinitView>,
+    window: Retained<WinitUIWindow>,
+    view_controller: Retained<WinitViewController>,
+    view: Retained<WinitView>,
     gl_or_metal_backed: bool,
 }
 
@@ -396,7 +397,8 @@ impl Inner {
     }
 
     pub fn primary_monitor(&self) -> Option<MonitorHandle> {
-        Some(MonitorHandle::new(UIScreen::main(MainThreadMarker::new().unwrap())))
+        #[allow(deprecated)]
+        Some(MonitorHandle::new(UIScreen::mainScreen(MainThreadMarker::new().unwrap())))
     }
 
     pub fn id(&self) -> WindowId {
@@ -406,18 +408,18 @@ impl Inner {
     #[cfg(feature = "rwh_04")]
     pub fn raw_window_handle_rwh_04(&self) -> rwh_04::RawWindowHandle {
         let mut window_handle = rwh_04::UiKitHandle::empty();
-        window_handle.ui_window = Id::as_ptr(&self.window) as _;
-        window_handle.ui_view = Id::as_ptr(&self.view) as _;
-        window_handle.ui_view_controller = Id::as_ptr(&self.view_controller) as _;
+        window_handle.ui_window = Retained::as_ptr(&self.window) as _;
+        window_handle.ui_view = Retained::as_ptr(&self.view) as _;
+        window_handle.ui_view_controller = Retained::as_ptr(&self.view_controller) as _;
         rwh_04::RawWindowHandle::UiKit(window_handle)
     }
 
     #[cfg(feature = "rwh_05")]
     pub fn raw_window_handle_rwh_05(&self) -> rwh_05::RawWindowHandle {
         let mut window_handle = rwh_05::UiKitWindowHandle::empty();
-        window_handle.ui_window = Id::as_ptr(&self.window) as _;
-        window_handle.ui_view = Id::as_ptr(&self.view) as _;
-        window_handle.ui_view_controller = Id::as_ptr(&self.view_controller) as _;
+        window_handle.ui_window = Retained::as_ptr(&self.window) as _;
+        window_handle.ui_view = Retained::as_ptr(&self.view) as _;
+        window_handle.ui_view_controller = Retained::as_ptr(&self.view_controller) as _;
         rwh_05::RawWindowHandle::UiKit(window_handle)
     }
 
@@ -429,11 +431,11 @@ impl Inner {
     #[cfg(feature = "rwh_06")]
     pub fn raw_window_handle_rwh_06(&self) -> rwh_06::RawWindowHandle {
         let mut window_handle = rwh_06::UiKitWindowHandle::new({
-            let ui_view = Id::as_ptr(&self.view) as _;
-            std::ptr::NonNull::new(ui_view).expect("Id<T> should never be null")
+            let ui_view = Retained::as_ptr(&self.view) as _;
+            std::ptr::NonNull::new(ui_view).expect("Retained<T> should never be null")
         });
         window_handle.ui_view_controller =
-            std::ptr::NonNull::new(Id::as_ptr(&self.view_controller) as _);
+            std::ptr::NonNull::new(Retained::as_ptr(&self.view_controller) as _);
         rwh_06::RawWindowHandle::UiKit(window_handle)
     }
 
@@ -483,7 +485,8 @@ impl Window {
 
         // TODO: transparency, visible
 
-        let main_screen = UIScreen::main(mtm);
+        #[allow(deprecated)]
+        let main_screen = UIScreen::mainScreen(mtm);
         let fullscreen = window_attributes.fullscreen.clone().map(Into::into);
         let screen = match fullscreen {
             Some(Fullscreen::Exclusive(ref video_mode)) => video_mode.monitor.ui_screen(mtm),
@@ -672,10 +675,8 @@ impl Inner {
         } else {
             let screen_frame = self.rect_to_screen_space(bounds);
             let status_bar_frame = {
-                let app = UIApplication::shared(MainThreadMarker::new().unwrap()).expect(
-                    "`Window::get_inner_position` cannot be called before `EventLoop::run_app` on \
-                     iOS",
-                );
+                let app = UIApplication::sharedApplication(MainThreadMarker::new().unwrap());
+                #[allow(deprecated)]
                 app.statusBarFrame()
             };
             let (y, height) = if screen_frame.origin.y > status_bar_frame.size.height {
