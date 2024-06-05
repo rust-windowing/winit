@@ -215,6 +215,11 @@ pub enum WindowEvent {
         ///   Windows***
         ///
         /// Otherwise, this value is always `false`.
+        ///
+        /// # Warning
+        ///
+        /// Synthetic key presses (but not releases) should be ignored by default in your application.
+        /// These are produced by the OS, and do not reflect real user inputs.
         is_synthetic: bool,
     },
 
