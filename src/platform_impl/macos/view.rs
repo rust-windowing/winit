@@ -16,7 +16,7 @@ use objc2_foundation::{
     NSPoint, NSRange, NSRect, NSSize, NSString, NSUInteger,
 };
 
-use super::app_delegate::ApplicationDelegate;
+use super::app_state::ApplicationDelegate;
 use super::cursor::{default_cursor, invisible_cursor};
 use super::event::{
     code_to_key, code_to_location, create_key_event, event_mods, lalt_pressed, ralt_pressed,
