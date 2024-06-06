@@ -220,6 +220,7 @@ pub enum WindowEvent {
         ///
         /// Synthetic key presses (but not releases) should be ignored by default in your application.
         /// These are produced by the OS, and do not reflect real user inputs.
+        /// See the associated [winit issue](https://github.com/rust-windowing/winit/issues/3543) for more context.
         is_synthetic: bool,
     },
 
