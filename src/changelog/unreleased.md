@@ -44,6 +44,7 @@ changelog entry.
 ### Added
 
 - Reexport `raw-window-handle` versions 0.4 and 0.5 as `raw_window_handle_04` and `raw_window_handle_05`.
+- Implement `ApplicationHandler` for `&mut` references and heap allocations to something that implements `ApplicationHandler`.
 
 ### Removed
 
@@ -55,5 +56,6 @@ changelog entry.
 
 - On macOS, fix panic on exit when dropping windows outside the event loop.
 - On macOS, fix window dragging glitches when dragging across a monitor boundary with different scale factor.
+- On macOS, fix the range in `Ime::Preedit`.
 - On macOS, use the system's internal mechanisms for queuing events.
 - On macOS, handle events directly instead of queuing when possible.
