@@ -1,23 +1,19 @@
 use std::cell::{Cell, RefCell};
-use std::collections::VecDeque;
 use std::mem;
 use std::rc::Weak;
-use std::sync::{Arc, Mutex};
 use std::time::Instant;
 
 use objc2::rc::Retained;
 use objc2::runtime::AnyObject;
 use objc2::{declare_class, msg_send_id, mutability, ClassType, DeclaredClass};
 use objc2_app_kit::{NSApplication, NSApplicationActivationPolicy, NSApplicationDelegate};
-use objc2_foundation::{MainThreadMarker, NSObject, NSObjectProtocol, NSSize};
+use objc2_foundation::{MainThreadMarker, NSObject, NSObjectProtocol};
 
 use super::event_handler::EventHandler;
 use super::event_loop::{stop_app_immediately, ActiveEventLoop, PanicInfo};
 use super::observer::{EventLoopWaker, RunLoop};
-use super::window::WinitWindow;
 use super::{menu, WindowId, DEVICE_ID};
-use crate::dpi::PhysicalSize;
-use crate::event::{DeviceEvent, Event, InnerSizeWriter, StartCause, WindowEvent};
+use crate::event::{DeviceEvent, Event, StartCause, WindowEvent};
 use crate::event_loop::{ActiveEventLoop as RootActiveEventLoop, ControlFlow};
 use crate::window::WindowId as RootWindowId;
 
@@ -35,6 +31,7 @@ pub(super) struct State {
     activation_policy: Policy,
     default_menu: bool,
     activate_ignoring_other_apps: bool,
+    run_loop: RunLoop,
     event_handler: EventHandler,
     stop_on_launch: Cell<bool>,
     stop_before_wait: Cell<bool>,
@@ -50,7 +47,6 @@ pub(super) struct State {
     waker: RefCell<EventLoopWaker>,
     start_time: Cell<Option<Instant>>,
     wait_timeout: Cell<Option<Instant>>,
-    pending_events: RefCell<VecDeque<QueuedEvent>>,
     pending_redraw: RefCell<Vec<WindowId>>,
     // NOTE: This is strongly referenced by our `NSWindowDelegate` and our `NSView` subclass, and
     // as such should be careful to not add fields that, in turn, strongly reference those.
@@ -138,6 +134,7 @@ impl ApplicationDelegate {
             activation_policy: Policy(activation_policy),
             default_menu,
             activate_ignoring_other_apps,
+            run_loop: RunLoop::main(mtm),
             ..Default::default()
         });
         unsafe { msg_send_id![super(this), init] }
@@ -234,28 +231,16 @@ impl ApplicationDelegate {
         self.ivars().control_flow.get()
     }
 
-    pub fn queue_window_event(&self, window_id: WindowId, event: WindowEvent) {
-        self.ivars()
-            .pending_events
-            .borrow_mut()
-            .push_back(QueuedEvent::WindowEvent(window_id, event));
+    pub fn maybe_queue_window_event(&self, window_id: WindowId, event: WindowEvent) {
+        self.maybe_queue_event(Event::WindowEvent { window_id: RootWindowId(window_id), event });
     }
 
-    pub fn queue_device_event(&self, event: DeviceEvent) {
-        self.ivars().pending_events.borrow_mut().push_back(QueuedEvent::DeviceEvent(event));
+    pub fn handle_window_event(&self, window_id: WindowId, event: WindowEvent) {
+        self.handle_event(Event::WindowEvent { window_id: RootWindowId(window_id), event });
     }
 
-    pub fn queue_static_scale_factor_changed_event(
-        &self,
-        window: Retained<WinitWindow>,
-        suggested_size: PhysicalSize<u32>,
-        scale_factor: f64,
-    ) {
-        self.ivars().pending_events.borrow_mut().push_back(QueuedEvent::ScaleFactorChanged {
-            window,
-            suggested_size,
-            scale_factor,
-        });
+    pub fn maybe_queue_device_event(&self, event: DeviceEvent) {
+        self.maybe_queue_event(Event::DeviceEvent { device_id: DEVICE_ID, event });
     }
 
     pub fn handle_redraw(&self, window_id: WindowId) {
@@ -283,9 +268,27 @@ impl ApplicationDelegate {
         if !pending_redraw.contains(&window_id) {
             pending_redraw.push(window_id);
         }
-        unsafe { RunLoop::get() }.wakeup();
+        self.ivars().run_loop.wakeup();
     }
 
+    #[track_caller]
+    fn maybe_queue_event(&self, event: Event<HandlePendingUserEvents>) {
+        // Most programmer actions in AppKit (e.g. change window fullscreen, set focused, etc.)
+        // result in an event being queued, and applied at a later point.
+        //
+        // However, it is not documented which actions do this, and which ones are done immediately,
+        // so to make sure that we don't encounter re-entrancy issues, we first check if we're
+        // currently handling another event, and if we are, we queue the event instead.
+        if !self.ivars().event_handler.in_use() {
+            self.handle_event(event);
+        } else {
+            tracing::debug!(?event, "had to queue event since another is currently being handled");
+            let this = self.retain();
+            self.ivars().run_loop.queue_closure(move || this.handle_event(event));
+        }
+    }
+
+    #[track_caller]
     fn handle_event(&self, event: Event<HandlePendingUserEvents>) {
         self.ivars().event_handler.handle_event(event, &ActiveEventLoop::new_root(self.retain()))
     }
@@ -347,49 +350,6 @@ impl ApplicationDelegate {
 
         self.handle_event(Event::UserEvent(HandlePendingUserEvents));
 
-        let events = mem::take(&mut *self.ivars().pending_events.borrow_mut());
-        for event in events {
-            match event {
-                QueuedEvent::WindowEvent(window_id, event) => {
-                    self.handle_event(Event::WindowEvent {
-                        window_id: RootWindowId(window_id),
-                        event,
-                    });
-                },
-                QueuedEvent::DeviceEvent(event) => {
-                    self.handle_event(Event::DeviceEvent { device_id: DEVICE_ID, event });
-                },
-                QueuedEvent::ScaleFactorChanged { window, suggested_size, scale_factor } => {
-                    let new_inner_size = Arc::new(Mutex::new(suggested_size));
-                    let scale_factor_changed_event = Event::WindowEvent {
-                        window_id: RootWindowId(window.id()),
-                        event: WindowEvent::ScaleFactorChanged {
-                            scale_factor,
-                            inner_size_writer: InnerSizeWriter::new(Arc::downgrade(
-                                &new_inner_size,
-                            )),
-                        },
-                    };
-
-                    self.handle_event(scale_factor_changed_event);
-
-                    let physical_size = *new_inner_size.lock().unwrap();
-                    drop(new_inner_size);
-                    if physical_size != suggested_size {
-                        let logical_size = physical_size.to_logical(scale_factor);
-                        let size = NSSize::new(logical_size.width, logical_size.height);
-                        window.setContentSize(size);
-                    }
-
-                    let resized_event = Event::WindowEvent {
-                        window_id: RootWindowId(window.id()),
-                        event: WindowEvent::Resized(physical_size),
-                    };
-                    self.handle_event(resized_event);
-                },
-            }
-        }
-
         let redraw = mem::take(&mut *self.ivars().pending_redraw.borrow_mut());
         for window_id in redraw {
             self.handle_event(Event::WindowEvent {
@@ -418,17 +378,6 @@ impl ApplicationDelegate {
         };
         self.ivars().waker.borrow_mut().start_at(min_timeout(wait_timeout, app_timeout));
     }
-}
-
-#[derive(Debug)]
-pub(crate) enum QueuedEvent {
-    WindowEvent(WindowId, WindowEvent),
-    DeviceEvent(DeviceEvent),
-    ScaleFactorChanged {
-        window: Retained<WinitWindow>,
-        suggested_size: PhysicalSize<u32>,
-        scale_factor: f64,
-    },
 }
 
 #[derive(Debug)]
