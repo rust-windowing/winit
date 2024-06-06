@@ -57,3 +57,5 @@ changelog entry.
 - On macOS, fix panic on exit when dropping windows outside the event loop.
 - On macOS, fix window dragging glitches when dragging across a monitor boundary with different scale factor.
 - On macOS, fix the range in `Ime::Preedit`.
+- On macOS, use the system's internal mechanisms for queuing events.
+- On macOS, handle events directly instead of queuing when possible.
