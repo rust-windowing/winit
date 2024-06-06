@@ -686,7 +686,7 @@ declare_class!(
 
             self.update_modifiers(event, false);
 
-            self.queue_device_event(DeviceEvent::MouseWheel { delta });
+            self.ivars().app_delegate.maybe_queue_device_event(DeviceEvent::MouseWheel { delta });
             self.queue_event(WindowEvent::MouseWheel {
                 device_id: DEVICE_ID,
                 delta,
@@ -830,11 +830,7 @@ impl WinitView {
     }
 
     fn queue_event(&self, event: WindowEvent) {
-        self.ivars().app_delegate.queue_window_event(self.window().id(), event);
-    }
-
-    fn queue_device_event(&self, event: DeviceEvent) {
-        self.ivars().app_delegate.queue_device_event(event);
+        self.ivars().app_delegate.maybe_queue_window_event(self.window().id(), event);
     }
 
     fn scale_factor(&self) -> f64 {
