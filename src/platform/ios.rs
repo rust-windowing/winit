@@ -357,7 +357,7 @@ impl MonitorHandleExtIOS for MonitorHandle {
     fn ui_screen(&self) -> *mut c_void {
         // SAFETY: The marker is only used to get the pointer of the screen
         let mtm = unsafe { objc2_foundation::MainThreadMarker::new_unchecked() };
-        objc2::rc::Id::as_ptr(self.inner.ui_screen(mtm)) as *mut c_void
+        objc2::rc::Retained::as_ptr(self.inner.ui_screen(mtm)) as *mut c_void
     }
 
     #[inline]
