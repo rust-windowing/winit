@@ -21,7 +21,7 @@ use objc2_app_kit::{NSApplication, NSApplicationActivationPolicy, NSWindow};
 use objc2_foundation::{MainThreadMarker, NSObjectProtocol};
 
 use super::app::WinitApplication;
-use super::app_delegate::{ApplicationDelegate, HandlePendingUserEvents};
+use super::app_state::{ApplicationDelegate, HandlePendingUserEvents};
 use super::event::dummy_event;
 use super::monitor::{self, MonitorHandle};
 use super::observer::setup_control_flow_observers;

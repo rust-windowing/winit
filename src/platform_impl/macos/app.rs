@@ -4,7 +4,7 @@ use objc2::{declare_class, msg_send, mutability, ClassType, DeclaredClass};
 use objc2_app_kit::{NSApplication, NSEvent, NSEventModifierFlags, NSEventType, NSResponder};
 use objc2_foundation::{MainThreadMarker, NSObject};
 
-use super::app_delegate::ApplicationDelegate;
+use super::app_state::ApplicationDelegate;
 use crate::event::{DeviceEvent, ElementState};
 
 declare_class!(

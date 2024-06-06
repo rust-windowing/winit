@@ -22,7 +22,7 @@ use core_foundation::runloop::{
 use objc2_foundation::MainThreadMarker;
 use tracing::error;
 
-use super::app_delegate::ApplicationDelegate;
+use super::app_state::ApplicationDelegate;
 use super::event_loop::{stop_app_on_panic, PanicInfo};
 use super::ffi;
 
@@ -251,8 +251,8 @@ impl Drop for EventLoopWaker {
     }
 }
 
-impl Default for EventLoopWaker {
-    fn default() -> EventLoopWaker {
+impl EventLoopWaker {
+    pub(crate) fn new() -> Self {
         extern "C" fn wakeup_main_loop(_timer: CFRunLoopTimerRef, _info: *mut c_void) {}
         unsafe {
             // Create a timer with a 0.1µs interval (1ns does not work) to mimic polling.
@@ -268,12 +268,10 @@ impl Default for EventLoopWaker {
                 ptr::null_mut(),
             );
             CFRunLoopAddTimer(CFRunLoopGetMain(), timer, kCFRunLoopCommonModes);
-            EventLoopWaker { timer, start_instant: Instant::now(), next_fire_date: None }
+            Self { timer, start_instant: Instant::now(), next_fire_date: None }
         }
     }
-}
 
-impl EventLoopWaker {
     pub fn stop(&mut self) {
         if self.next_fire_date.is_some() {
             self.next_fire_date = None;
