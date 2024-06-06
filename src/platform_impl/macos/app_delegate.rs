@@ -190,6 +190,7 @@ impl ApplicationDelegate {
     /// NOTE: that if the `NSApplication` has been launched then that state is preserved,
     /// and we won't need to re-launch the app if subsequent EventLoops are run.
     pub fn internal_exit(&self) {
+        self.handle_event(Event::Suspended);
         self.handle_event(Event::LoopExiting);
 
         self.set_is_running(false);
