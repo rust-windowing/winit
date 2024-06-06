@@ -4,10 +4,9 @@ use std::rc::Weak;
 use std::time::Instant;
 
 use objc2::rc::Retained;
-use objc2::runtime::AnyObject;
 use objc2::{declare_class, msg_send_id, mutability, ClassType, DeclaredClass};
 use objc2_app_kit::{NSApplication, NSApplicationActivationPolicy, NSApplicationDelegate};
-use objc2_foundation::{MainThreadMarker, NSObject, NSObjectProtocol};
+use objc2_foundation::{MainThreadMarker, NSNotification, NSObject, NSObjectProtocol};
 
 use super::event_handler::EventHandler;
 use super::event_loop::{stop_app_immediately, ActiveEventLoop, PanicInfo};
@@ -18,17 +17,8 @@ use crate::event_loop::{ActiveEventLoop as RootActiveEventLoop, ControlFlow};
 use crate::window::WindowId as RootWindowId;
 
 #[derive(Debug)]
-struct Policy(NSApplicationActivationPolicy);
-
-impl Default for Policy {
-    fn default() -> Self {
-        Self(NSApplicationActivationPolicy::Regular)
-    }
-}
-
-#[derive(Debug, Default)]
-pub(super) struct State {
-    activation_policy: Policy,
+pub(super) struct AppState {
+    activation_policy: NSApplicationActivationPolicy,
     default_menu: bool,
     activate_ignoring_other_apps: bool,
     run_loop: RunLoop,
@@ -63,62 +53,20 @@ declare_class!(
     }
 
     impl DeclaredClass for ApplicationDelegate {
-        type Ivars = State;
+        type Ivars = AppState;
     }
 
     unsafe impl NSObjectProtocol for ApplicationDelegate {}
 
     unsafe impl NSApplicationDelegate for ApplicationDelegate {
-        // NOTE: This will, globally, only be run once, no matter how many
-        // `EventLoop`s the user creates.
         #[method(applicationDidFinishLaunching:)]
-        fn did_finish_launching(&self, _sender: Option<&AnyObject>) {
-            trace_scope!("applicationDidFinishLaunching:");
-            self.ivars().is_launched.set(true);
-
-            let mtm = MainThreadMarker::from(self);
-            let app = NSApplication::sharedApplication(mtm);
-            // We need to delay setting the activation policy and activating the app
-            // until `applicationDidFinishLaunching` has been called. Otherwise the
-            // menu bar is initially unresponsive on macOS 10.15.
-            app.setActivationPolicy(self.ivars().activation_policy.0);
-
-            window_activation_hack(&app);
-            #[allow(deprecated)]
-            app.activateIgnoringOtherApps(self.ivars().activate_ignoring_other_apps);
-
-            if self.ivars().default_menu {
-                // The menubar initialization should be before the `NewEvents` event, to allow
-                // overriding of the default menu even if it's created
-                menu::initialize(&app);
-            }
-
-            self.ivars().waker.borrow_mut().start();
-
-            self.set_is_running(true);
-            self.dispatch_init_events();
-
-            // If the application is being launched via `EventLoop::pump_app_events()` then we'll
-            // want to stop the app once it is launched (and return to the external loop)
-            //
-            // In this case we still want to consider Winit's `EventLoop` to be "running",
-            // so we call `start_running()` above.
-            if self.ivars().stop_on_launch.get() {
-                // NOTE: the original idea had been to only stop the underlying `RunLoop`
-                // for the app but that didn't work as expected (`-[NSApplication run]`
-                // effectively ignored the attempt to stop the RunLoop and re-started it).
-                //
-                // So we return from `pump_events` by stopping the application.
-                let app = NSApplication::sharedApplication(mtm);
-                stop_app_immediately(&app);
-            }
+        fn app_did_finish_launching(&self, notification: &NSNotification) {
+            self.did_finish_launching(notification)
         }
 
         #[method(applicationWillTerminate:)]
-        fn will_terminate(&self, _sender: Option<&AnyObject>) {
-            trace_scope!("applicationWillTerminate:");
-            // TODO: Notify every window that it will be destroyed, like done in iOS?
-            self.internal_exit();
+        fn app_will_terminate(&self, notification: &NSNotification) {
+            self.will_terminate(notification)
         }
     }
 );
@@ -130,14 +78,76 @@ impl ApplicationDelegate {
         default_menu: bool,
         activate_ignoring_other_apps: bool,
     ) -> Retained<Self> {
-        let this = mtm.alloc().set_ivars(State {
-            activation_policy: Policy(activation_policy),
+        let this = mtm.alloc().set_ivars(AppState {
+            activation_policy,
             default_menu,
             activate_ignoring_other_apps,
             run_loop: RunLoop::main(mtm),
-            ..Default::default()
+            event_handler: EventHandler::new(),
+            stop_on_launch: Cell::new(false),
+            stop_before_wait: Cell::new(false),
+            stop_after_wait: Cell::new(false),
+            stop_on_redraw: Cell::new(false),
+            is_launched: Cell::new(false),
+            is_running: Cell::new(false),
+            exit: Cell::new(false),
+            control_flow: Cell::new(ControlFlow::default()),
+            waker: RefCell::new(EventLoopWaker::new()),
+            start_time: Cell::new(None),
+            wait_timeout: Cell::new(None),
+            pending_redraw: RefCell::new(vec![]),
         });
         unsafe { msg_send_id![super(this), init] }
+    }
+
+    // NOTE: This will, globally, only be run once, no matter how many
+    // `EventLoop`s the user creates.
+    fn did_finish_launching(&self, _notification: &NSNotification) {
+        trace_scope!("applicationDidFinishLaunching:");
+        self.ivars().is_launched.set(true);
+
+        let mtm = MainThreadMarker::from(self);
+        let app = NSApplication::sharedApplication(mtm);
+        // We need to delay setting the activation policy and activating the app
+        // until `applicationDidFinishLaunching` has been called. Otherwise the
+        // menu bar is initially unresponsive on macOS 10.15.
+        app.setActivationPolicy(self.ivars().activation_policy);
+
+        window_activation_hack(&app);
+        #[allow(deprecated)]
+        app.activateIgnoringOtherApps(self.ivars().activate_ignoring_other_apps);
+
+        if self.ivars().default_menu {
+            // The menubar initialization should be before the `NewEvents` event, to allow
+            // overriding of the default menu even if it's created
+            menu::initialize(&app);
+        }
+
+        self.ivars().waker.borrow_mut().start();
+
+        self.set_is_running(true);
+        self.dispatch_init_events();
+
+        // If the application is being launched via `EventLoop::pump_app_events()` then we'll
+        // want to stop the app once it is launched (and return to the external loop)
+        //
+        // In this case we still want to consider Winit's `EventLoop` to be "running",
+        // so we call `start_running()` above.
+        if self.ivars().stop_on_launch.get() {
+            // NOTE: the original idea had been to only stop the underlying `RunLoop`
+            // for the app but that didn't work as expected (`-[NSApplication run]`
+            // effectively ignored the attempt to stop the RunLoop and re-started it).
+            //
+            // So we return from `pump_events` by stopping the application.
+            let app = NSApplication::sharedApplication(mtm);
+            stop_app_immediately(&app);
+        }
+    }
+
+    fn will_terminate(&self, _notification: &NSNotification) {
+        trace_scope!("applicationWillTerminate:");
+        // TODO: Notify every window that it will be destroyed, like done in iOS?
+        self.internal_exit();
     }
 
     pub fn get(mtm: MainThreadMarker) -> Retained<Self> {

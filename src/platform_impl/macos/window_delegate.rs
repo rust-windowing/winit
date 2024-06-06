@@ -22,7 +22,7 @@ use objc2_foundation::{
     NSPoint, NSRect, NSSize, NSString,
 };
 
-use super::app_delegate::ApplicationDelegate;
+use super::app_state::ApplicationDelegate;
 use super::cursor::cursor_from_icon;
 use super::monitor::{self, flip_window_screen_coordinates, get_display_id};
 use super::observer::RunLoop;
