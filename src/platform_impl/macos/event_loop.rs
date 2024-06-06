@@ -178,6 +178,7 @@ fn map_user_event<T: 'static, A: ApplicationHandler<T>>(
         Event::AboutToWait => app.about_to_wait(window_target),
         Event::LoopExiting => app.exiting(window_target),
         Event::MemoryWarning => app.memory_warning(window_target),
+        Event::OpenFiles(files) => app.open_files(files),
     }
 }
 
