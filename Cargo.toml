@@ -1,6 +1,6 @@
 [package]
 name = "winit"
-version = "0.30.0"
+version = "0.30.1"
 authors = [
     "The winit contributors",
     "Pierre Krieger <pierre.krieger1708@gmail.com>",
