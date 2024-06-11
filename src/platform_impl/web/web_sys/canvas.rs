@@ -427,8 +427,8 @@ impl Canvas {
 
     pub(crate) fn on_resize_scale<S, R>(&mut self, scale_handler: S, size_handler: R)
     where
-        S: 'static + FnMut(PhysicalSize<u32>, f64),
-        R: 'static + FnMut(PhysicalSize<u32>),
+        S: 'static + Fn(PhysicalSize<u32>, f64),
+        R: 'static + Fn(PhysicalSize<u32>),
     {
         self.on_resize_scale = Some(ResizeScaleHandle::new(
             self.window().clone(),
