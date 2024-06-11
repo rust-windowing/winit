@@ -40,6 +40,11 @@ changelog entry.
 
 ## Unreleased
 
+### Fixed
+
+- On Web, fix `EventLoopProxy::send_event()` triggering event loop immediately
+  when not called from inside the event loop. Now queues a microtask instead.
+
 ### Removed
 
 - Remove `EventLoop::run`.

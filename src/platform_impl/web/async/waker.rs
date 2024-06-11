@@ -1,4 +1,5 @@
 use std::future;
+use std::num::NonZeroUsize;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::task::Poll;
@@ -6,13 +7,13 @@ use std::task::Poll;
 use super::super::main_thread::MainThreadMarker;
 use super::{AtomicWaker, Wrapper};
 
-pub struct WakerSpawner<T: 'static>(Wrapper<Handler<T>, Sender, usize>);
+pub struct WakerSpawner<T: 'static>(Wrapper<Handler<T>, Sender, NonZeroUsize>);
 
-pub struct Waker<T: 'static>(Wrapper<Handler<T>, Sender, usize>);
+pub struct Waker<T: 'static>(Wrapper<Handler<T>, Sender, NonZeroUsize>);
 
 struct Handler<T> {
     value: T,
-    handler: fn(&T, usize),
+    handler: fn(&T, NonZeroUsize, bool),
 }
 
 #[derive(Clone)]
@@ -20,7 +21,11 @@ struct Sender(Arc<Inner>);
 
 impl<T> WakerSpawner<T> {
     #[track_caller]
-    pub fn new(main_thread: MainThreadMarker, value: T, handler: fn(&T, usize)) -> Option<Self> {
+    pub fn new(
+        main_thread: MainThreadMarker,
+        value: T,
+        handler: fn(&T, NonZeroUsize, bool),
+    ) -> Option<Self> {
         let inner = Arc::new(Inner {
             counter: AtomicUsize::new(0),
             waker: AtomicWaker::new(),
@@ -37,7 +42,7 @@ impl<T> WakerSpawner<T> {
             |handler, count| {
                 let handler = handler.borrow();
                 let handler = handler.as_ref().unwrap();
-                (handler.handler)(&handler.value, count);
+                (handler.handler)(&handler.value, count, true);
             },
             {
                 let inner = Arc::clone(&inner);
@@ -46,29 +51,31 @@ impl<T> WakerSpawner<T> {
                     while let Some(count) = future::poll_fn(|cx| {
                         let count = inner.counter.swap(0, Ordering::Relaxed);
 
-                        if count > 0 {
-                            Poll::Ready(Some(count))
-                        } else {
-                            inner.waker.register(cx.waker());
+                        match NonZeroUsize::new(count) {
+                            Some(count) => Poll::Ready(Some(count)),
+                            None => {
+                                inner.waker.register(cx.waker());
 
-                            let count = inner.counter.swap(0, Ordering::Relaxed);
+                                let count = inner.counter.swap(0, Ordering::Relaxed);
 
-                            if count > 0 {
-                                Poll::Ready(Some(count))
-                            } else {
-                                if inner.closed.load(Ordering::Relaxed) {
-                                    return Poll::Ready(None);
+                                match NonZeroUsize::new(count) {
+                                    Some(count) => Poll::Ready(Some(count)),
+                                    None => {
+                                        if inner.closed.load(Ordering::Relaxed) {
+                                            return Poll::Ready(None);
+                                        }
+
+                                        Poll::Pending
+                                    },
                                 }
-
-                                Poll::Pending
-                            }
+                            },
                         }
                     })
                     .await
                     {
                         let handler = handler.borrow();
                         let handler = handler.as_ref().unwrap();
-                        (handler.handler)(&handler.value, count);
+                        (handler.handler)(&handler.value, count, false);
                     }
                 }
             },
@@ -107,7 +114,7 @@ impl<T> Drop for WakerSpawner<T> {
 
 impl<T> Waker<T> {
     pub fn wake(&self) {
-        self.0.send(1)
+        self.0.send(NonZeroUsize::MIN)
     }
 }
 
