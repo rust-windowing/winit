@@ -39,3 +39,19 @@ The migration guide could reference other migration examples in the current
 changelog entry.
 
 ## Unreleased
+
+### Changed
+
+- On Web, let events wake up event loop immediately when using
+  `ControlFlow::Poll`.
+
+### Fixed
+
+- On Web, fix `EventLoopProxy::send_event()` triggering event loop immediately
+  when not called from inside the event loop. Now queues a microtask instead.
+
+### Removed
+
+- Remove `EventLoop::run`.
+- Remove `EventLoopExtRunOnDemand::run_on_demand`.
+- Remove `EventLoopExtPumpEvents::pump_events`.

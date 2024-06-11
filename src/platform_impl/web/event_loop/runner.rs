@@ -14,12 +14,15 @@ use crate::platform_impl::platform::r#async::{DispatchRunner, Waker, WakerSpawne
 use crate::platform_impl::platform::window::Inner;
 use crate::window::WindowId;
 
+use js_sys::Function;
 use std::cell::{Cell, RefCell};
 use std::collections::{HashSet, VecDeque};
 use std::iter;
+use std::num::NonZeroUsize;
 use std::ops::Deref;
 use std::rc::{Rc, Weak};
-use wasm_bindgen::prelude::Closure;
+use wasm_bindgen::prelude::{wasm_bindgen, Closure};
+use wasm_bindgen::JsCast;
 use web_sys::{Document, KeyboardEvent, PageTransitionEvent, PointerEvent, WheelEvent};
 use web_time::{Duration, Instant};
 
@@ -133,12 +136,13 @@ impl Shared {
         let document = window.document().expect("Failed to obtain document");
 
         Shared(Rc::<Execution>::new_cyclic(|weak| {
-            let proxy_spawner = WakerSpawner::new(main_thread, weak.clone(), |runner, count| {
-                if let Some(runner) = runner.upgrade() {
-                    Shared(runner).send_events(iter::repeat(Event::UserEvent(())).take(count))
-                }
-            })
-            .expect("`EventLoop` has to be created in the main thread");
+            let proxy_spawner =
+                WakerSpawner::new(main_thread, weak.clone(), |runner, count, local| {
+                    if let Some(runner) = runner.upgrade() {
+                        Shared(runner).send_user_events(count, local)
+                    }
+                })
+                .expect("`EventLoop` has to be created in the main thread");
 
             Execution {
                 main_thread,
@@ -460,6 +464,48 @@ impl Shared {
         self.send_events(iter::once(event));
     }
 
+    // Add a series of user events to the event loop runner
+    //
+    // This will schedule the event loop to wake up instead of waking it up immediately if its not
+    // running.
+    pub(crate) fn send_user_events(&self, count: NonZeroUsize, local: bool) {
+        // If the event loop is closed, it should discard any new events
+        if self.is_closed() {
+            return;
+        }
+
+        if local {
+            // If the loop is not running and triggered locally, queue on next microtick.
+            if let Ok(RunnerEnum::Running(_)) =
+                self.0.runner.try_borrow().as_ref().map(Deref::deref)
+            {
+                #[wasm_bindgen]
+                extern "C" {
+                    #[wasm_bindgen(js_name = queueMicrotask)]
+                    fn queue_microtask(task: Function);
+                }
+
+                queue_microtask(
+                    Closure::once_into_js({
+                        let this = Rc::downgrade(&self.0);
+                        move || {
+                            if let Some(shared) = this.upgrade() {
+                                Shared(shared).send_events(
+                                    iter::repeat(Event::UserEvent(())).take(count.get()),
+                                )
+                            }
+                        }
+                    })
+                    .unchecked_into(),
+                );
+
+                return;
+            }
+        }
+
+        self.send_events(iter::repeat(Event::UserEvent(())).take(count.get()))
+    }
+
     // Add a series of events to the event loop runner
     //
     // It will determine if the event should be immediately sent to the user or buffered for later
@@ -471,13 +517,8 @@ impl Shared {
         // If we can run the event processing right now, or need to queue this and wait for later
         let mut process_immediately = true;
         match self.0.runner.try_borrow().as_ref().map(Deref::deref) {
-            Ok(RunnerEnum::Running(ref runner)) => {
-                // If we're currently polling, queue this and wait for the poll() method to be
-                // called
-                if let State::Poll { .. } = runner.state {
-                    process_immediately = false;
-                }
-            },
+            // If the runner is attached but not running, we always wake it up.
+            Ok(RunnerEnum::Running(_)) => (),
             Ok(RunnerEnum::Pending) => {
                 // The runner still hasn't been attached: queue this event and wait for it to be
                 process_immediately = false;
