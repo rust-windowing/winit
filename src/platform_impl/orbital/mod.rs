@@ -103,7 +103,7 @@ pub struct WindowId {
 
 impl WindowId {
     pub const fn dummy() -> Self {
-        WindowId { fd: u64::max_value() }
+        WindowId { fd: u64::MAX }
     }
 }
 
