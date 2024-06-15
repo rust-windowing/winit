@@ -68,7 +68,12 @@ impl<T> Dispatcher<T> {
             // SAFETY: The `transmute` is necessary because `Closure` requires `'static`. This is
             // safe because this function won't return until `f` has finished executing. See
             // `Self::new()`.
-            let closure = Closure(unsafe { std::mem::transmute(closure) });
+            let closure = Closure(unsafe {
+                std::mem::transmute::<
+                    Box<dyn FnOnce(&T) + Send>,
+                    Box<dyn FnOnce(&T) + Send + 'static>,
+                >(closure)
+            });
 
             self.0.send(closure);
 
