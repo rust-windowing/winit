@@ -476,30 +476,33 @@ impl Shared {
 
         if local {
             // If the loop is not running and triggered locally, queue on next microtick.
-            if let Ok(RunnerEnum::Running(_)) =
+            if let Ok(RunnerEnum::Running(ref runner)) =
                 self.0.runner.try_borrow().as_ref().map(Deref::deref)
             {
-                #[wasm_bindgen]
-                extern "C" {
-                    #[wasm_bindgen(js_name = queueMicrotask)]
-                    fn queue_microtask(task: Function);
-                }
+                // If we're currently polling let `send_events` do its job.
+                if !matches!(runner.state, State::Poll { .. }) {
+                    #[wasm_bindgen]
+                    extern "C" {
+                        #[wasm_bindgen(js_name = queueMicrotask)]
+                        fn queue_microtask(task: Function);
+                    }
 
-                queue_microtask(
-                    Closure::once_into_js({
-                        let this = Rc::downgrade(&self.0);
-                        move || {
-                            if let Some(shared) = this.upgrade() {
-                                Shared(shared).send_events(
-                                    iter::repeat(Event::UserEvent(())).take(count.get()),
-                                )
+                    queue_microtask(
+                        Closure::once_into_js({
+                            let this = Rc::downgrade(&self.0);
+                            move || {
+                                if let Some(shared) = this.upgrade() {
+                                    Shared(shared).send_events(
+                                        iter::repeat(Event::UserEvent(())).take(count.get()),
+                                    )
+                                }
                             }
-                        }
-                    })
-                    .unchecked_into(),
-                );
+                        })
+                        .unchecked_into(),
+                    );
 
-                return;
+                    return;
+                }
             }
         }
 
@@ -517,8 +520,13 @@ impl Shared {
         // If we can run the event processing right now, or need to queue this and wait for later
         let mut process_immediately = true;
         match self.0.runner.try_borrow().as_ref().map(Deref::deref) {
-            // If the runner is attached but not running, we always wake it up.
-            Ok(RunnerEnum::Running(_)) => (),
+            Ok(RunnerEnum::Running(ref runner)) => {
+                // If we're currently polling, queue this and wait for the poll() method to be
+                // called.
+                if let State::Poll { .. } = runner.state {
+                    process_immediately = false;
+                }
+            },
             Ok(RunnerEnum::Pending) => {
                 // The runner still hasn't been attached: queue this event and wait for it to be
                 process_immediately = false;
