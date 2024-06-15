@@ -45,13 +45,6 @@ changelog entry.
 - On Web, let events wake up event loop immediately when using
   `ControlFlow::Poll`.
 
-### Fixed
-
-- On Web, fix `EventLoopProxy::send_event()` triggering event loop immediately
-  when not called from inside the event loop. Now queues a microtask instead.
-- On Web, stop overwriting default cursor with `CursorIcon::Default`.
-- On Web, prevent crash when using `InnerSizeWriter::request_inner_size()`.
-
 ### Removed
 
 - Remove `EventLoop::run`.
