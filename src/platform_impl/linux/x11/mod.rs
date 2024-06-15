@@ -1,5 +1,3 @@
-#![cfg(x11_platform)]
-
 use std::cell::{Cell, RefCell};
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::ffi::CStr;

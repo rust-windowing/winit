@@ -42,7 +42,11 @@ impl<T> EventLoop<T> {
         // SAFETY: The `transmute` is necessary because `run()` requires `'static`. This is safe
         // because this function will never return and all resources not cleaned up by the point we
         // `throw` will leak, making this actually `'static`.
-        let handler = unsafe { std::mem::transmute(handler) };
+        let handler = unsafe {
+            std::mem::transmute::<Box<dyn FnMut(Event<()>)>, Box<dyn FnMut(Event<()>) + 'static>>(
+                handler,
+            )
+        };
         self.elw.p.run(handler, false);
 
         // Throw an exception to break out of Rust execution and use unreachable to tell the

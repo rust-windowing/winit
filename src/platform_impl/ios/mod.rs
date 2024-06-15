@@ -1,4 +1,3 @@
-#![cfg(ios_platform)]
 #![allow(clippy::let_unit_value)]
 
 mod app_delegate;
