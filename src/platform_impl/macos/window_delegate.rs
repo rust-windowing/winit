@@ -10,7 +10,7 @@ use objc2::runtime::{AnyObject, ProtocolObject};
 use objc2::{declare_class, msg_send_id, mutability, sel, ClassType, DeclaredClass};
 use objc2_app_kit::{
     NSAppKitVersionNumber, NSAppKitVersionNumber10_12, NSAppearance, NSApplication,
-    NSApplicationPresentationOptions, NSBackingStoreType, NSDraggingDestination,
+    NSApplicationPresentationOptions, NSBackingStoreType, NSColor, NSDraggingDestination,
     NSFilenamesPboardType, NSPasteboard, NSRequestUserAttentionType, NSScreen, NSView,
     NSWindowButton, NSWindowDelegate, NSWindowFullScreenButton, NSWindowLevel,
     NSWindowOcclusionState, NSWindowOrderingMode, NSWindowSharingType, NSWindowStyleMask,
@@ -613,6 +613,8 @@ fn new_window(
 
         if attrs.transparent {
             window.setOpaque(false);
+            // See `set_transparent` for details on why we do this.
+            window.setBackgroundColor(unsafe { Some(&NSColor::clearColor()) });
         }
 
         // register for drag and drop operations.
@@ -821,7 +823,23 @@ impl WindowDelegate {
     }
 
     pub fn set_transparent(&self, transparent: bool) {
-        self.window().setOpaque(!transparent)
+        // This is just a hint for Quartz, it doesn't actually speculate with window alpha.
+        // Providing a wrong value here could result in visual artifacts, when the window is
+        // transparent.
+        self.window().setOpaque(!transparent);
+
+        // AppKit draws the window with a background color by default, which is usually really
+        // nice, but gets in the way when we want to allow the contents of the window to be
+        // transparent, as in that case, the transparent contents will just be drawn on top of
+        // the background color. As such, to allow the window to be transparent, we must also set
+        // the background color to one with an empty alpha channel.
+        let color = if transparent {
+            unsafe { NSColor::clearColor() }
+        } else {
+            unsafe { NSColor::windowBackgroundColor() }
+        };
+
+        self.window().setBackgroundColor(Some(&color));
     }
 
     pub fn set_blur(&self, blur: bool) {
