@@ -39,16 +39,3 @@ The migration guide could reference other migration examples in the current
 changelog entry.
 
 ## Unreleased
-
-### Fixed
-
-- On Web, fix `EventLoopProxy::send_event()` triggering event loop immediately
-  when not called from inside the event loop. Now queues a microtask instead.
-- On Web, stop overwriting default cursor with `CursorIcon::Default`.
-- On Web, prevent crash when using `InnerSizeWriter::request_inner_size()`.
-
-### Removed
-
-- Remove `EventLoop::run`.
-- Remove `EventLoopExtRunOnDemand::run_on_demand`.
-- Remove `EventLoopExtPumpEvents::pump_events`.
