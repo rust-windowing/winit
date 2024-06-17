@@ -50,3 +50,7 @@ changelog entry.
 - Remove `EventLoop::run`.
 - Remove `EventLoopExtRunOnDemand::run_on_demand`.
 - Remove `EventLoopExtPumpEvents::pump_events`.
+
+### Fixed
+
+- On X11, build on arm platforms.
