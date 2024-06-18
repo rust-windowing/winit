@@ -174,7 +174,7 @@ impl Schedule {
         F: 'static + FnMut(),
     {
         thread_local! {
-            static URL: ScriptUrl = ScriptUrl::new(include_str!("worker.js"));
+            static URL: ScriptUrl = ScriptUrl::new(include_str!("worker.min.js"));
             static WORKER: Worker = URL.with(|url| Worker::new(&url.0)).expect("`new Worker()` is not expected to fail with a local script");
         }
 
