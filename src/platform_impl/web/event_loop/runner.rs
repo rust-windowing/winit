@@ -8,7 +8,7 @@ use crate::event::{
     WindowEvent,
 };
 use crate::event_loop::{ControlFlow, DeviceEvents};
-use crate::platform::web::PollStrategy;
+use crate::platform::web::{PollStrategy, WaitUntilStrategy};
 use crate::platform_impl::platform::backend::EventListenerHandle;
 use crate::platform_impl::platform::r#async::{DispatchRunner, Waker, WakerSpawner};
 use crate::platform_impl::platform::window::Inner;
@@ -43,6 +43,7 @@ pub struct Execution {
     proxy_spawner: WakerSpawner<Weak<Self>>,
     control_flow: Cell<ControlFlow>,
     poll_strategy: Cell<PollStrategy>,
+    wait_until_strategy: Cell<WaitUntilStrategy>,
     exit: Cell<bool>,
     runner: RefCell<RunnerEnum>,
     suspended: Cell<bool>,
@@ -149,6 +150,7 @@ impl Shared {
                 proxy_spawner,
                 control_flow: Cell::new(ControlFlow::default()),
                 poll_strategy: Cell::new(PollStrategy::default()),
+                wait_until_strategy: Cell::new(WaitUntilStrategy::default()),
                 exit: Cell::new(false),
                 runner: RefCell::new(RunnerEnum::Pending),
                 suspended: Cell::new(false),
@@ -688,6 +690,7 @@ impl Shared {
                         start,
                         end,
                         _timeout: backend::Schedule::new_with_duration(
+                            self.wait_until_strategy(),
                             self.window(),
                             move || cloned.resume_time_reached(start, end),
                             delay,
@@ -798,6 +801,14 @@ impl Shared {
 
     pub(crate) fn poll_strategy(&self) -> PollStrategy {
         self.0.poll_strategy.get()
+    }
+
+    pub(crate) fn set_wait_until_strategy(&self, strategy: WaitUntilStrategy) {
+        self.0.wait_until_strategy.set(strategy)
+    }
+
+    pub(crate) fn wait_until_strategy(&self) -> WaitUntilStrategy {
+        self.0.wait_until_strategy.get()
     }
 
     pub(crate) fn waker(&self) -> Waker<Weak<Execution>> {
