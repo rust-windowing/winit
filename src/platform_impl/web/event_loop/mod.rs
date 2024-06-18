@@ -5,6 +5,7 @@ use crate::application::ApplicationHandler;
 use crate::error::EventLoopError;
 use crate::event::Event;
 use crate::event_loop::ActiveEventLoop as RootActiveEventLoop;
+use crate::platform::web::{ActiveEventLoopExtWebSys, PollStrategy};
 
 use super::{backend, device, window};
 
@@ -75,6 +76,14 @@ impl<T> EventLoop<T> {
 
     pub fn window_target(&self) -> &RootActiveEventLoop {
         &self.elw
+    }
+
+    pub fn set_poll_strategy(&self, strategy: PollStrategy) {
+        self.elw.set_poll_strategy(strategy);
+    }
+
+    pub fn poll_strategy(&self) -> PollStrategy {
+        self.elw.poll_strategy()
     }
 }
 
