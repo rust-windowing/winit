@@ -125,6 +125,7 @@ features = [
     "NSDictionary",
     "NSDistributedNotificationCenter",
     "NSEnumerator",
+    "NSKeyValueObserving",
     "NSNotification",
     "NSObjCRuntime",
     "NSPathUtilities",

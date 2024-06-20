@@ -45,6 +45,7 @@ changelog entry.
 - On Web, let events wake up event loop immediately when using
   `ControlFlow::Poll`.
 - Bump MSRV from `1.70` to `1.73`.
+- On macOS, set the window theme on the `NSWindow` instead of application-wide.
 
 ### Removed
 
@@ -55,3 +56,4 @@ changelog entry.
 ### Fixed
 
 - On X11, build on arm platforms.
+- On macOS, fixed `WindowBuilder::with_theme` not having any effect on the window.
