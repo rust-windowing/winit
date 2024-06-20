@@ -18,7 +18,7 @@ use crate::event::{
 };
 use crate::event_loop::{ControlFlow, DeviceEvents};
 use crate::keyboard::ModifiersState;
-use crate::platform::web::{CustomCursorFuture, PollStrategy};
+use crate::platform::web::{CustomCursorFuture, PollStrategy, WaitUntilStrategy};
 use crate::platform_impl::platform::cursor::CustomCursor;
 use crate::platform_impl::platform::r#async::Waker;
 use crate::window::{
@@ -680,6 +680,14 @@ impl ActiveEventLoop {
 
     pub(crate) fn poll_strategy(&self) -> PollStrategy {
         self.runner.poll_strategy()
+    }
+
+    pub(crate) fn set_wait_until_strategy(&self, strategy: WaitUntilStrategy) {
+        self.runner.set_wait_until_strategy(strategy)
+    }
+
+    pub(crate) fn wait_until_strategy(&self) -> WaitUntilStrategy {
+        self.runner.wait_until_strategy()
     }
 
     pub(crate) fn waker(&self) -> Waker<Weak<Execution>> {

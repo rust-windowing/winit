@@ -226,3 +226,19 @@ jobs:
         command: check
         log-level: error
         arguments: --all-features --target ${{ matrix.platform.target }}
+
+  swc:
+    name: Minimize JavaScript
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Install SWC
+        run: sudo npm i -g @swc/cli
+      - name: Run SWC
+        run: |
+          swc src/platform_impl/web/web_sys/worker.js -o src/platform_impl/web/web_sys/worker.min.js
+      - name: Check for diff
+        run: |
+          [[ -z $(git status -s) ]]
