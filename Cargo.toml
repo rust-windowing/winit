@@ -346,7 +346,7 @@ resolver = "2"
 members = ["dpi"]
 
 [workspace.package]
-rust-version = "1.70.0"
+rust-version = "1.73"
 repository = "https://github.com/rust-windowing/winit"
 license = "Apache-2.0"
 edition = "2021"

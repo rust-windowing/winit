@@ -1,8 +1,7 @@
 use std::future;
-use std::rc::Rc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{self, RecvError, SendError, TryRecvError};
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use std::task::Poll;
 
 use super::AtomicWaker;
@@ -11,54 +10,35 @@ pub fn channel<T>() -> (Sender<T>, Receiver<T>) {
     let (sender, receiver) = mpsc::channel();
     let shared = Arc::new(Shared { closed: AtomicBool::new(false), waker: AtomicWaker::new() });
 
-    let sender =
-        Sender(Arc::new(SenderInner { sender: Mutex::new(sender), shared: Arc::clone(&shared) }));
-    let receiver = Receiver { receiver: Rc::new(receiver), shared };
+    let sender = Sender { sender, shared: Arc::clone(&shared) };
+    let receiver = Receiver { receiver, shared };
 
     (sender, receiver)
 }
 
-pub struct Sender<T>(Arc<SenderInner<T>>);
-
-struct SenderInner<T> {
-    // We need to wrap it into a `Mutex` to make it `Sync`. So the sender can't
-    // be accessed on the main thread, as it could block. Additionally we need
-    // to wrap `Sender` in an `Arc` to make it clonable on the main thread without
-    // having to block.
-    sender: Mutex<mpsc::Sender<T>>,
+pub struct Sender<T> {
+    sender: mpsc::Sender<T>,
     shared: Arc<Shared>,
 }
 
 impl<T> Sender<T> {
     pub fn send(&self, event: T) -> Result<(), SendError<T>> {
-        self.0.sender.lock().unwrap().send(event)?;
-        self.0.shared.waker.wake();
+        self.sender.send(event)?;
+        self.shared.waker.wake();
 
         Ok(())
     }
 }
 
-impl<T> SenderInner<T> {
-    fn close(&self) {
+impl<T> Drop for Sender<T> {
+    fn drop(&mut self) {
         self.shared.closed.store(true, Ordering::Relaxed);
         self.shared.waker.wake();
     }
 }
 
-impl<T> Clone for Sender<T> {
-    fn clone(&self) -> Self {
-        Self(Arc::clone(&self.0))
-    }
-}
-
-impl<T> Drop for SenderInner<T> {
-    fn drop(&mut self) {
-        self.close();
-    }
-}
-
 pub struct Receiver<T> {
-    receiver: Rc<mpsc::Receiver<T>>,
+    receiver: mpsc::Receiver<T>,
     shared: Arc<Shared>,
 }
 
@@ -92,18 +72,6 @@ impl<T> Receiver<T> {
             Err(TryRecvError::Empty) => Ok(None),
             Err(TryRecvError::Disconnected) => Err(RecvError),
         }
-    }
-}
-
-impl<T> Clone for Receiver<T> {
-    fn clone(&self) -> Self {
-        Self { receiver: Rc::clone(&self.receiver), shared: Arc::clone(&self.shared) }
-    }
-}
-
-impl<T> Drop for Receiver<T> {
-    fn drop(&mut self) {
-        self.shared.closed.store(true, Ordering::Relaxed);
     }
 }
 

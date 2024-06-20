@@ -35,7 +35,7 @@ another library.
 
 ## MSRV Policy
 
-This crate's Minimum Supported Rust Version (MSRV) is **1.70**. Changes to
+This crate's Minimum Supported Rust Version (MSRV) is **1.73**. Changes to
 the MSRV will be accompanied by a minor version bump.
 
 As a **tentative** policy, the upper bound of the MSRV is given by the following

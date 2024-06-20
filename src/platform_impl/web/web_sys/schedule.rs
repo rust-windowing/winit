@@ -74,7 +74,7 @@ impl Schedule {
             let duration = duration
                 .as_secs()
                 .checked_mul(1000)
-                .and_then(|secs| secs.checked_add(duration_millis_ceil(duration).into()))
+                .and_then(|secs| secs.checked_add(duration.subsec_micros().div_ceil(1000).into()))
                 .unwrap_or(u64::MAX);
 
             options.delay(duration as f64);
@@ -127,7 +127,9 @@ impl Schedule {
                 .ok()
                 .and_then(|secs: i32| secs.checked_mul(1000))
                 .and_then(|secs: i32| {
-                    let millis: i32 = duration_millis_ceil(duration)
+                    let millis: i32 = duration
+                        .subsec_micros()
+                        .div_ceil(1000)
                         .try_into()
                         .expect("millis are somehow bigger then 1K");
                     secs.checked_add(millis)
@@ -166,20 +168,6 @@ impl Drop for Schedule {
                 port.set_onmessage(None);
             },
         }
-    }
-}
-
-// TODO: Replace with `u32::div_ceil()` when we hit Rust v1.73.
-fn duration_millis_ceil(duration: Duration) -> u32 {
-    let micros = duration.subsec_micros();
-
-    // From <https://doc.rust-lang.org/1.73.0/src/core/num/uint_macros.rs.html#2086-2094>.
-    let d = micros / 1000;
-    let r = micros % 1000;
-    if r > 0 && 1000 > 0 {
-        d + 1
-    } else {
-        d
     }
 }
 
