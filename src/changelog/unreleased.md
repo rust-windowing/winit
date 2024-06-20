@@ -40,6 +40,11 @@ changelog entry.
 
 ## Unreleased
 
+### Added
+
+- On Web, add `EventLoopExtWebSys::(set_)poll_strategy()` to allow setting
+  control flow strategies before starting the event loop.
+
 ### Changed
 
 - On Web, let events wake up event loop immediately when using

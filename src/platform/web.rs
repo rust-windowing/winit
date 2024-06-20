@@ -183,6 +183,20 @@ pub trait EventLoopExtWebSys {
     )]
     /// [^1]: `run_app()` is _not_ available on WASM when the target supports `exception-handling`.
     fn spawn_app<A: ApplicationHandler<Self::UserEvent> + 'static>(self, app: A);
+
+    /// Sets the strategy for [`ControlFlow::Poll`].
+    ///
+    /// See [`PollStrategy`].
+    ///
+    /// [`ControlFlow::Poll`]: crate::event_loop::ControlFlow::Poll
+    fn set_poll_strategy(&self, strategy: PollStrategy);
+
+    /// Gets the strategy for [`ControlFlow::Poll`].
+    ///
+    /// See [`PollStrategy`].
+    ///
+    /// [`ControlFlow::Poll`]: crate::event_loop::ControlFlow::Poll
+    fn poll_strategy(&self) -> PollStrategy;
 }
 
 impl<T> EventLoopExtWebSys for EventLoop<T> {
@@ -190,6 +204,14 @@ impl<T> EventLoopExtWebSys for EventLoop<T> {
 
     fn spawn_app<A: ApplicationHandler<Self::UserEvent> + 'static>(self, app: A) {
         self.event_loop.spawn_app(app);
+    }
+
+    fn set_poll_strategy(&self, strategy: PollStrategy) {
+        self.event_loop.set_poll_strategy(strategy);
+    }
+
+    fn poll_strategy(&self) -> PollStrategy {
+        self.event_loop.poll_strategy()
     }
 }
 
