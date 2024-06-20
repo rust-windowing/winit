@@ -393,7 +393,6 @@ impl WindowAttributes {
     ///
     /// ## Platform-specific
     ///
-    /// - **macOS:** This is an app-wide setting.
     /// - **Wayland:** This controls only CSD. When using `None` it'll try to use dbus to get the
     ///   system preference. When explicit theme is used, this will avoid dbus all together.
     /// - **x11:** Build window with `_GTK_THEME_VARIANT` hint set to `dark` or `light`.
@@ -1354,11 +1353,12 @@ impl Window {
         self.window.maybe_queue_on_main(move |w| w.request_user_attention(request_type))
     }
 
-    /// Sets the current window theme. Use `None` to fallback to system default.
+    /// Set or override the window theme.
+    ///
+    /// Specify `None` to reset the theme to the system default.
     ///
     /// ## Platform-specific
     ///
-    /// - **macOS:** This is an app-wide setting.
     /// - **Wayland:** Sets the theme for the client side decorations. Using `None` will use dbus to
     ///   get the system preference.
     /// - **X11:** Sets `_GTK_THEME_VARIANT` hint to `dark` or `light` and if `None` is used, it
@@ -1374,12 +1374,14 @@ impl Window {
         self.window.maybe_queue_on_main(move |w| w.set_theme(theme))
     }
 
-    /// Returns the current window theme.
+    /// Returns the current window theme override.
+    ///
+    /// Returns `None` if the current theme is set as the system default, or if it cannot be
+    /// determined on the current platform.
     ///
     /// ## Platform-specific
     ///
-    /// - **macOS:** This is an app-wide setting.
-    /// - **iOS / Android / Wayland / x11 / Orbital:** Unsupported.
+    /// - **iOS / Android / Wayland / x11 / Orbital:** Unsupported, returns `None`.
     #[inline]
     pub fn theme(&self) -> Option<Theme> {
         let _span = tracing::debug_span!("winit::Window::theme",).entered();

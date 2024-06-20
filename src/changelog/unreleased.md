@@ -40,6 +40,11 @@ changelog entry.
 
 ## Unreleased
 
+### Changed
+
+- On macOS, set the window theme on the `NSWindow` instead of application-wide.
+
 ### Fixed
 
 - On X11, build on arm platforms.
+- On macOS, fixed `WindowBuilder::with_theme` not having any effect on the window.
