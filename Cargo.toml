@@ -285,6 +285,7 @@ features = [
     'AbortController',
     'AbortSignal',
     'Blob',
+    'BlobPropertyBag',
     'console',
     'CssStyleDeclaration',
     'Document',
@@ -320,6 +321,7 @@ features = [
     'VisibilityState',
     'Window',
     'WheelEvent',
+    'Worker',
     'Url',
 ]
 

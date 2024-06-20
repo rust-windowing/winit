@@ -44,6 +44,11 @@ changelog entry.
 
 - On Web, add `EventLoopExtWebSys::(set_)poll_strategy()` to allow setting
   control flow strategies before starting the event loop.
+- On Web, add `WaitUntilStrategy`, which allows to set different strategies for
+  `ControlFlow::WaitUntil`. By default the Prioritized Task Scheduling API is
+  used, with a fallback to `setTimeout()` with a trick to circumvent throttling
+  to 4ms. But an option to use a Web worker to schedule the timer is available
+  as well, which commonly prevents any throttling when the window is not focused.
 
 ### Changed
 
