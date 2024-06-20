@@ -4,7 +4,7 @@ use std::sync::mpsc::{self, Receiver, Sender};
 use crate::error::EventLoopError;
 use crate::event::Event;
 use crate::event_loop::ActiveEventLoop as RootActiveEventLoop;
-use crate::platform::web::{ActiveEventLoopExtWebSys, PollStrategy};
+use crate::platform::web::{ActiveEventLoopExtWebSys, PollStrategy, WaitUntilStrategy};
 
 use super::{backend, device, window};
 
@@ -107,5 +107,13 @@ impl<T> EventLoop<T> {
 
     pub fn poll_strategy(&self) -> PollStrategy {
         self.elw.poll_strategy()
+    }
+
+    pub fn set_wait_until_strategy(&self, strategy: WaitUntilStrategy) {
+        self.elw.set_wait_until_strategy(strategy);
+    }
+
+    pub fn wait_until_strategy(&self) -> WaitUntilStrategy {
+        self.elw.wait_until_strategy()
     }
 }
