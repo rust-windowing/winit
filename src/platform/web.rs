@@ -190,6 +190,20 @@ pub trait EventLoopExtWebSys {
     fn spawn<F>(self, event_handler: F)
     where
         F: 'static + FnMut(Event<Self::UserEvent>, &ActiveEventLoop);
+
+    /// Sets the strategy for [`ControlFlow::Poll`].
+    ///
+    /// See [`PollStrategy`].
+    ///
+    /// [`ControlFlow::Poll`]: crate::event_loop::ControlFlow::Poll
+    fn set_poll_strategy(&self, strategy: PollStrategy);
+
+    /// Gets the strategy for [`ControlFlow::Poll`].
+    ///
+    /// See [`PollStrategy`].
+    ///
+    /// [`ControlFlow::Poll`]: crate::event_loop::ControlFlow::Poll
+    fn poll_strategy(&self) -> PollStrategy;
 }
 
 impl<T> EventLoopExtWebSys for EventLoop<T> {
@@ -206,6 +220,14 @@ impl<T> EventLoopExtWebSys for EventLoop<T> {
         F: 'static + FnMut(Event<Self::UserEvent>, &ActiveEventLoop),
     {
         self.event_loop.spawn(event_handler)
+    }
+
+    fn set_poll_strategy(&self, strategy: PollStrategy) {
+        self.event_loop.set_poll_strategy(strategy);
+    }
+
+    fn poll_strategy(&self) -> PollStrategy {
+        self.event_loop.poll_strategy()
     }
 }
 
