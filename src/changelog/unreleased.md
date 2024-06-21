@@ -40,30 +40,13 @@ changelog entry.
 
 ## Unreleased
 
-### Added
-
-- On Web, add `EventLoopExtWebSys::(set_)poll_strategy()` to allow setting
-  control flow strategies before starting the event loop.
-- On Web, add `WaitUntilStrategy`, which allows to set different strategies for
-  `ControlFlow::WaitUntil`. By default the Prioritized Task Scheduling API is
-  used, with a fallback to `setTimeout()` with a trick to circumvent throttling
-  to 4ms. But an option to use a Web worker to schedule the timer is available
-  as well, which commonly prevents any throttling when the window is not focused.
-
 ### Changed
 
-- On Web, let events wake up event loop immediately when using
-  `ControlFlow::Poll`.
+- On Web, let events wake up event loop immediately when using `ControlFlow::Poll`.
 - Bump MSRV from `1.70` to `1.73`.
-- On macOS, set the window theme on the `NSWindow` instead of application-wide.
 
 ### Removed
 
 - Remove `EventLoop::run`.
 - Remove `EventLoopExtRunOnDemand::run_on_demand`.
 - Remove `EventLoopExtPumpEvents::pump_events`.
-
-### Fixed
-
-- On X11, build on arm platforms.
-- On macOS, fixed `WindowBuilder::with_theme` not having any effect on the window.
