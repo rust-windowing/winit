@@ -26,8 +26,8 @@
 /src/platform_impl/web              @daxpedda
 
 # Windows
-# /src/platform/windows.rs            
-# /src/platform_impl/windows          
+/src/platform/windows.rs            @notgull
+/src/platform_impl/windows          @notgull
 
 # Orbital (Redox OS)
 /src/platform/orbital.rs            @jackpot51
