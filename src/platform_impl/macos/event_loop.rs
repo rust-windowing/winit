@@ -21,7 +21,7 @@ use objc2_app_kit::{NSApplication, NSApplicationActivationPolicy, NSWindow};
 use objc2_foundation::{MainThreadMarker, NSObjectProtocol};
 
 use super::app::WinitApplication;
-use super::app_delegate::{ApplicationDelegate, HandlePendingUserEvents};
+use super::app_state::{ApplicationDelegate, HandlePendingUserEvents};
 use super::event::dummy_event;
 use super::monitor::{self, MonitorHandle};
 use super::observer::setup_control_flow_observers;
@@ -252,7 +252,7 @@ impl<T> EventLoop<T> {
         });
 
         let panic_info: Rc<PanicInfo> = Default::default();
-        setup_control_flow_observers(Rc::downgrade(&panic_info));
+        setup_control_flow_observers(mtm, Rc::downgrade(&panic_info));
 
         let (sender, receiver) = mpsc::channel();
         Ok(EventLoop {
@@ -492,8 +492,7 @@ impl<T> EventLoopProxy<T> {
                 cancel: None,
                 perform: event_loop_proxy_handler,
             };
-            let source =
-                CFRunLoopSourceCreate(ptr::null_mut(), CFIndex::max_value() - 1, &mut context);
+            let source = CFRunLoopSourceCreate(ptr::null_mut(), CFIndex::MAX - 1, &mut context);
             CFRunLoopAddSource(rl, source, kCFRunLoopCommonModes);
             CFRunLoopWakeUp(rl);
 

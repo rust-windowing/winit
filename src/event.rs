@@ -389,6 +389,8 @@ pub enum WindowEvent {
     /// Applications might wish to react to this to change the theme of the content of the window
     /// when the system changes the window theme.
     ///
+    /// This only reports a change if the window theme was not overridden by [`Window::set_theme`].
+    ///
     /// ## Platform-specific
     ///
     /// - **iOS / Android / X11 / Wayland / Orbital:** Unsupported.

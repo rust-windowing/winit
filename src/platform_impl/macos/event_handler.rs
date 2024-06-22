@@ -1,7 +1,7 @@
 use std::cell::RefCell;
 use std::{fmt, mem};
 
-use super::app_delegate::HandlePendingUserEvents;
+use super::app_state::HandlePendingUserEvents;
 use crate::event::Event;
 use crate::event_loop::ActiveEventLoop as RootActiveEventLoop;
 
@@ -16,7 +16,7 @@ impl fmt::Debug for EventHandlerData {
     }
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub(crate) struct EventHandler {
     /// This can be in the following states:
     /// - Not registered by the event loop (None).
@@ -26,6 +26,10 @@ pub(crate) struct EventHandler {
 }
 
 impl EventHandler {
+    pub(crate) const fn new() -> Self {
+        Self { inner: RefCell::new(None) }
+    }
+
     /// Set the event loop handler for the duration of the given closure.
     ///
     /// This is similar to using the `scoped-tls` or `scoped-tls-hkt` crates

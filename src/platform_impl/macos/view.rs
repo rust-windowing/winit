@@ -16,7 +16,7 @@ use objc2_foundation::{
     NSPoint, NSRange, NSRect, NSSize, NSString, NSUInteger,
 };
 
-use super::app_delegate::ApplicationDelegate;
+use super::app_state::ApplicationDelegate;
 use super::cursor::{default_cursor, invisible_cursor};
 use super::event::{
     code_to_key, code_to_location, create_key_event, event_mods, lalt_pressed, ralt_pressed,
@@ -270,19 +270,20 @@ declare_class!(
         fn set_marked_text(
             &self,
             string: &NSObject,
-            _selected_range: NSRange,
+            selected_range: NSRange,
             _replacement_range: NSRange,
         ) {
+            // TODO: Use _replacement_range, requires changing the event to report surrounding text.
             trace_scope!("setMarkedText:selectedRange:replacementRange:");
 
             // SAFETY: This method is guaranteed to get either a `NSString` or a `NSAttributedString`.
-            let (marked_text, preedit_string) = if string.is_kind_of::<NSAttributedString>() {
+            let (marked_text, string) = if string.is_kind_of::<NSAttributedString>() {
                 let string: *const NSObject = string;
                 let string: *const NSAttributedString = string.cast();
                 let string = unsafe { &*string };
                 (
                     NSMutableAttributedString::from_attributed_nsstring(string),
-                    string.string().to_string(),
+                    string.string(),
                 )
             } else {
                 let string: *const NSObject = string;
@@ -290,7 +291,7 @@ declare_class!(
                 let string = unsafe { &*string };
                 (
                     NSMutableAttributedString::from_nsstring(string),
-                    string.to_string(),
+                    string.copy(),
                 )
             };
 
@@ -310,16 +311,21 @@ declare_class!(
                 self.ivars().ime_state.set(ImeState::Ground);
             }
 
-            // Empty string basically means that there's no preedit, so indicate that by sending
-            // `None` cursor range.
-            let cursor_range = if preedit_string.is_empty() {
+            let cursor_range = if string.is_empty() {
+                // An empty string basically means that there's no preedit, so indicate that by
+                // sending a `None` cursor range.
                 None
             } else {
-                Some((preedit_string.len(), preedit_string.len()))
+                // Convert the selected range from UTF-16 indices to UTF-8 indices.
+                let sub_string_a = unsafe { string.substringToIndex(selected_range.location) };
+                let sub_string_b = unsafe { string.substringToIndex(selected_range.end()) };
+                let lowerbound_utf8 = sub_string_a.len();
+                let upperbound_utf8 = sub_string_b.len();
+                Some((lowerbound_utf8, upperbound_utf8))
             };
 
             // Send WindowEvent for updating marked text
-            self.queue_event(WindowEvent::Ime(Ime::Preedit(preedit_string, cursor_range)));
+            self.queue_event(WindowEvent::Ime(Ime::Preedit(string.to_string(), cursor_range)));
         }
 
         #[method(unmarkText)]
@@ -379,6 +385,7 @@ declare_class!(
 
         #[method(insertText:replacementRange:)]
         fn insert_text(&self, string: &NSObject, _replacement_range: NSRange) {
+            // TODO: Use _replacement_range, requires changing the event to report surrounding text.
             trace_scope!("insertText:replacementRange:");
 
             // SAFETY: This method is guaranteed to get either a `NSString` or a `NSAttributedString`.
@@ -679,7 +686,7 @@ declare_class!(
 
             self.update_modifiers(event, false);
 
-            self.queue_device_event(DeviceEvent::MouseWheel { delta });
+            self.ivars().app_delegate.maybe_queue_device_event(DeviceEvent::MouseWheel { delta });
             self.queue_event(WindowEvent::MouseWheel {
                 device_id: DEVICE_ID,
                 delta,
@@ -823,11 +830,7 @@ impl WinitView {
     }
 
     fn queue_event(&self, event: WindowEvent) {
-        self.ivars().app_delegate.queue_window_event(self.window().id(), event);
-    }
-
-    fn queue_device_event(&self, event: DeviceEvent) {
-        self.ivars().app_delegate.queue_device_event(event);
+        self.ivars().app_delegate.maybe_queue_window_event(self.window().id(), event);
     }
 
     fn scale_factor(&self) -> f64 {

@@ -183,6 +183,34 @@ pub trait EventLoopExtWebSys {
     )]
     /// [^1]: `run_app()` is _not_ available on WASM when the target supports `exception-handling`.
     fn spawn_app<A: ApplicationHandler<Self::UserEvent> + 'static>(self, app: A);
+
+    /// Sets the strategy for [`ControlFlow::Poll`].
+    ///
+    /// See [`PollStrategy`].
+    ///
+    /// [`ControlFlow::Poll`]: crate::event_loop::ControlFlow::Poll
+    fn set_poll_strategy(&self, strategy: PollStrategy);
+
+    /// Gets the strategy for [`ControlFlow::Poll`].
+    ///
+    /// See [`PollStrategy`].
+    ///
+    /// [`ControlFlow::Poll`]: crate::event_loop::ControlFlow::Poll
+    fn poll_strategy(&self) -> PollStrategy;
+
+    /// Sets the strategy for [`ControlFlow::WaitUntil`].
+    ///
+    /// See [`WaitUntilStrategy`].
+    ///
+    /// [`ControlFlow::WaitUntil`]: crate::event_loop::ControlFlow::WaitUntil
+    fn set_wait_until_strategy(&self, strategy: WaitUntilStrategy);
+
+    /// Gets the strategy for [`ControlFlow::WaitUntil`].
+    ///
+    /// See [`WaitUntilStrategy`].
+    ///
+    /// [`ControlFlow::WaitUntil`]: crate::event_loop::ControlFlow::WaitUntil
+    fn wait_until_strategy(&self) -> WaitUntilStrategy;
 }
 
 impl<T> EventLoopExtWebSys for EventLoop<T> {
@@ -190,6 +218,22 @@ impl<T> EventLoopExtWebSys for EventLoop<T> {
 
     fn spawn_app<A: ApplicationHandler<Self::UserEvent> + 'static>(self, app: A) {
         self.event_loop.spawn_app(app);
+    }
+
+    fn set_poll_strategy(&self, strategy: PollStrategy) {
+        self.event_loop.set_poll_strategy(strategy);
+    }
+
+    fn poll_strategy(&self) -> PollStrategy {
+        self.event_loop.poll_strategy()
+    }
+
+    fn set_wait_until_strategy(&self, strategy: WaitUntilStrategy) {
+        self.event_loop.set_wait_until_strategy(strategy);
+    }
+
+    fn wait_until_strategy(&self) -> WaitUntilStrategy {
+        self.event_loop.wait_until_strategy()
     }
 }
 
@@ -207,6 +251,20 @@ pub trait ActiveEventLoopExtWebSys {
     ///
     /// [`ControlFlow::Poll`]: crate::event_loop::ControlFlow::Poll
     fn poll_strategy(&self) -> PollStrategy;
+
+    /// Sets the strategy for [`ControlFlow::WaitUntil`].
+    ///
+    /// See [`WaitUntilStrategy`].
+    ///
+    /// [`ControlFlow::WaitUntil`]: crate::event_loop::ControlFlow::WaitUntil
+    fn set_wait_until_strategy(&self, strategy: WaitUntilStrategy);
+
+    /// Gets the strategy for [`ControlFlow::WaitUntil`].
+    ///
+    /// See [`WaitUntilStrategy`].
+    ///
+    /// [`ControlFlow::WaitUntil`]: crate::event_loop::ControlFlow::WaitUntil
+    fn wait_until_strategy(&self) -> WaitUntilStrategy;
 
     /// Async version of [`ActiveEventLoop::create_custom_cursor()`] which waits until the
     /// cursor has completely finished loading.
@@ -227,6 +285,16 @@ impl ActiveEventLoopExtWebSys for ActiveEventLoop {
     #[inline]
     fn poll_strategy(&self) -> PollStrategy {
         self.p.poll_strategy()
+    }
+
+    #[inline]
+    fn set_wait_until_strategy(&self, strategy: WaitUntilStrategy) {
+        self.p.set_wait_until_strategy(strategy);
+    }
+
+    #[inline]
+    fn wait_until_strategy(&self) -> WaitUntilStrategy {
+        self.p.wait_until_strategy()
     }
 }
 
@@ -254,6 +322,29 @@ pub enum PollStrategy {
     /// [`setTimeout()`]: https://developer.mozilla.org/en-US/docs/Web/API/setTimeout
     #[default]
     Scheduler,
+}
+
+/// Strategy used for [`ControlFlow::WaitUntil`][crate::event_loop::ControlFlow::WaitUntil].
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum WaitUntilStrategy {
+    /// Uses the [Prioritized Task Scheduling API] to queue the next event loop. If not available
+    /// this will fallback to [`setTimeout()`].
+    ///
+    /// This strategy is commonly not affected by browser throttling unless the window is not
+    /// focused.
+    ///
+    /// This is the default strategy.
+    ///
+    /// [Prioritized Task Scheduling API]: https://developer.mozilla.org/en-US/docs/Web/API/Prioritized_Task_Scheduling_API
+    /// [`setTimeout()`]: https://developer.mozilla.org/en-US/docs/Web/API/setTimeout
+    #[default]
+    Scheduler,
+    /// Equal to [`Scheduler`][Self::Scheduler] but wakes up the event loop from a [worker].
+    ///
+    /// This strategy is commonly not affected by browser throttling regardless of window focus.
+    ///
+    /// [worker]: https://developer.mozilla.org/en-US/docs/Web/API/Web_Workers_API
+    Worker,
 }
 
 pub trait CustomCursorExtWebSys {

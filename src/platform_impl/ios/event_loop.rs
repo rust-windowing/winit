@@ -283,8 +283,7 @@ impl<T> EventLoopProxy<T> {
                 cancel: None,
                 perform: event_loop_proxy_handler,
             };
-            let source =
-                CFRunLoopSourceCreate(ptr::null_mut(), CFIndex::max_value() - 1, &mut context);
+            let source = CFRunLoopSourceCreate(ptr::null_mut(), CFIndex::MAX - 1, &mut context);
             CFRunLoopAddSource(rl, source, kCFRunLoopCommonModes);
             CFRunLoopWakeUp(rl);
 
@@ -367,7 +366,7 @@ fn setup_control_flow_observers() {
             ptr::null_mut(),
             kCFRunLoopAfterWaiting,
             1, // repeat = true
-            CFIndex::min_value(),
+            CFIndex::MIN,
             control_flow_begin_handler,
             ptr::null_mut(),
         );
@@ -387,7 +386,7 @@ fn setup_control_flow_observers() {
             ptr::null_mut(),
             kCFRunLoopExit | kCFRunLoopBeforeWaiting,
             1, // repeat = true
-            CFIndex::max_value(),
+            CFIndex::MAX,
             control_flow_end_handler,
             ptr::null_mut(),
         );

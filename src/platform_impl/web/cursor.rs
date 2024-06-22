@@ -324,7 +324,11 @@ impl Inner {
             match &self.cursor {
                 SelectedCursor::Icon(icon)
                 | SelectedCursor::Loading { previous: Previous::Icon(icon), .. } => {
-                    self.style.set("cursor", icon.name())
+                    if let CursorIcon::Default = icon {
+                        self.style.remove("cursor")
+                    } else {
+                        self.style.set("cursor", icon.name())
+                    }
                 },
                 SelectedCursor::Loading { previous: Previous::Image(cursor), .. }
                 | SelectedCursor::Image(cursor) => {

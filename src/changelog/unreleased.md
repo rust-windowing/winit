@@ -12,7 +12,6 @@ on how to add them:
 ### Added
 
 - Add `Window::turbo()`, implemented on X11, Wayland, and Web.
-- Add traits `EventLoopExtWayland` and `EventLoopExtX11`, providing methods `is_wayland` and `is_x11` on `EventLoop`.
 - On X11, add `Window::some_rare_api`.
 - On X11, add `Window::even_more_rare_api`.
 - On Wayland, add `Window::common_api`.
@@ -33,6 +32,7 @@ with it, the migration guide should be added below the entry, like:
   To migrate it we should do X, Y, and then Z, for example:
 
   // Code snippet.
+
 ```
 
 The migration guide could reference other migration examples in the current
@@ -40,9 +40,10 @@ changelog entry.
 
 ## Unreleased
 
-### Added
+### Changed
 
-- Reexport `raw-window-handle` versions 0.4 and 0.5 as `raw_window_handle_04` and `raw_window_handle_05`.
+- On Web, let events wake up event loop immediately when using `ControlFlow::Poll`.
+- Bump MSRV from `1.70` to `1.73`.
 
 ### Removed
 
@@ -52,6 +53,4 @@ changelog entry.
 
 ### Fixed
 
-- On macOS, fix panic on exit when dropping windows outside the event loop.
-- On macOS, fix window dragging glitches when dragging across a monitor boundary with different scale factor.
 - On Windows, fix `Window::inner_size` of undecorated window with shadows, reporting a size bigger than what's visible.

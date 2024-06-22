@@ -1,40 +1,27 @@
 use std::cell::{Cell, RefCell};
-use std::collections::VecDeque;
 use std::mem;
 use std::rc::Weak;
-use std::sync::{Arc, Mutex};
 use std::time::Instant;
 
 use objc2::rc::Retained;
-use objc2::runtime::AnyObject;
 use objc2::{declare_class, msg_send_id, mutability, ClassType, DeclaredClass};
 use objc2_app_kit::{NSApplication, NSApplicationActivationPolicy, NSApplicationDelegate};
-use objc2_foundation::{MainThreadMarker, NSObject, NSObjectProtocol, NSSize};
+use objc2_foundation::{MainThreadMarker, NSNotification, NSObject, NSObjectProtocol};
 
 use super::event_handler::EventHandler;
 use super::event_loop::{stop_app_immediately, ActiveEventLoop, PanicInfo};
 use super::observer::{EventLoopWaker, RunLoop};
-use super::window::WinitWindow;
 use super::{menu, WindowId, DEVICE_ID};
-use crate::dpi::PhysicalSize;
-use crate::event::{DeviceEvent, Event, InnerSizeWriter, StartCause, WindowEvent};
+use crate::event::{DeviceEvent, Event, StartCause, WindowEvent};
 use crate::event_loop::{ActiveEventLoop as RootActiveEventLoop, ControlFlow};
 use crate::window::WindowId as RootWindowId;
 
 #[derive(Debug)]
-struct Policy(NSApplicationActivationPolicy);
-
-impl Default for Policy {
-    fn default() -> Self {
-        Self(NSApplicationActivationPolicy::Regular)
-    }
-}
-
-#[derive(Debug, Default)]
-pub(super) struct State {
-    activation_policy: Policy,
+pub(super) struct AppState {
+    activation_policy: NSApplicationActivationPolicy,
     default_menu: bool,
     activate_ignoring_other_apps: bool,
+    run_loop: RunLoop,
     event_handler: EventHandler,
     stop_on_launch: Cell<bool>,
     stop_before_wait: Cell<bool>,
@@ -50,7 +37,6 @@ pub(super) struct State {
     waker: RefCell<EventLoopWaker>,
     start_time: Cell<Option<Instant>>,
     wait_timeout: Cell<Option<Instant>>,
-    pending_events: RefCell<VecDeque<QueuedEvent>>,
     pending_redraw: RefCell<Vec<WindowId>>,
     // NOTE: This is strongly referenced by our `NSWindowDelegate` and our `NSView` subclass, and
     // as such should be careful to not add fields that, in turn, strongly reference those.
@@ -67,62 +53,20 @@ declare_class!(
     }
 
     impl DeclaredClass for ApplicationDelegate {
-        type Ivars = State;
+        type Ivars = AppState;
     }
 
     unsafe impl NSObjectProtocol for ApplicationDelegate {}
 
     unsafe impl NSApplicationDelegate for ApplicationDelegate {
-        // NOTE: This will, globally, only be run once, no matter how many
-        // `EventLoop`s the user creates.
         #[method(applicationDidFinishLaunching:)]
-        fn did_finish_launching(&self, _sender: Option<&AnyObject>) {
-            trace_scope!("applicationDidFinishLaunching:");
-            self.ivars().is_launched.set(true);
-
-            let mtm = MainThreadMarker::from(self);
-            let app = NSApplication::sharedApplication(mtm);
-            // We need to delay setting the activation policy and activating the app
-            // until `applicationDidFinishLaunching` has been called. Otherwise the
-            // menu bar is initially unresponsive on macOS 10.15.
-            app.setActivationPolicy(self.ivars().activation_policy.0);
-
-            window_activation_hack(&app);
-            #[allow(deprecated)]
-            app.activateIgnoringOtherApps(self.ivars().activate_ignoring_other_apps);
-
-            if self.ivars().default_menu {
-                // The menubar initialization should be before the `NewEvents` event, to allow
-                // overriding of the default menu even if it's created
-                menu::initialize(&app);
-            }
-
-            self.ivars().waker.borrow_mut().start();
-
-            self.set_is_running(true);
-            self.dispatch_init_events();
-
-            // If the application is being launched via `EventLoop::pump_app_events()` then we'll
-            // want to stop the app once it is launched (and return to the external loop)
-            //
-            // In this case we still want to consider Winit's `EventLoop` to be "running",
-            // so we call `start_running()` above.
-            if self.ivars().stop_on_launch.get() {
-                // NOTE: the original idea had been to only stop the underlying `RunLoop`
-                // for the app but that didn't work as expected (`-[NSApplication run]`
-                // effectively ignored the attempt to stop the RunLoop and re-started it).
-                //
-                // So we return from `pump_events` by stopping the application.
-                let app = NSApplication::sharedApplication(mtm);
-                stop_app_immediately(&app);
-            }
+        fn app_did_finish_launching(&self, notification: &NSNotification) {
+            self.did_finish_launching(notification)
         }
 
         #[method(applicationWillTerminate:)]
-        fn will_terminate(&self, _sender: Option<&AnyObject>) {
-            trace_scope!("applicationWillTerminate:");
-            // TODO: Notify every window that it will be destroyed, like done in iOS?
-            self.internal_exit();
+        fn app_will_terminate(&self, notification: &NSNotification) {
+            self.will_terminate(notification)
         }
     }
 );
@@ -134,13 +78,76 @@ impl ApplicationDelegate {
         default_menu: bool,
         activate_ignoring_other_apps: bool,
     ) -> Retained<Self> {
-        let this = mtm.alloc().set_ivars(State {
-            activation_policy: Policy(activation_policy),
+        let this = mtm.alloc().set_ivars(AppState {
+            activation_policy,
             default_menu,
             activate_ignoring_other_apps,
-            ..Default::default()
+            run_loop: RunLoop::main(mtm),
+            event_handler: EventHandler::new(),
+            stop_on_launch: Cell::new(false),
+            stop_before_wait: Cell::new(false),
+            stop_after_wait: Cell::new(false),
+            stop_on_redraw: Cell::new(false),
+            is_launched: Cell::new(false),
+            is_running: Cell::new(false),
+            exit: Cell::new(false),
+            control_flow: Cell::new(ControlFlow::default()),
+            waker: RefCell::new(EventLoopWaker::new()),
+            start_time: Cell::new(None),
+            wait_timeout: Cell::new(None),
+            pending_redraw: RefCell::new(vec![]),
         });
         unsafe { msg_send_id![super(this), init] }
+    }
+
+    // NOTE: This will, globally, only be run once, no matter how many
+    // `EventLoop`s the user creates.
+    fn did_finish_launching(&self, _notification: &NSNotification) {
+        trace_scope!("applicationDidFinishLaunching:");
+        self.ivars().is_launched.set(true);
+
+        let mtm = MainThreadMarker::from(self);
+        let app = NSApplication::sharedApplication(mtm);
+        // We need to delay setting the activation policy and activating the app
+        // until `applicationDidFinishLaunching` has been called. Otherwise the
+        // menu bar is initially unresponsive on macOS 10.15.
+        app.setActivationPolicy(self.ivars().activation_policy);
+
+        window_activation_hack(&app);
+        #[allow(deprecated)]
+        app.activateIgnoringOtherApps(self.ivars().activate_ignoring_other_apps);
+
+        if self.ivars().default_menu {
+            // The menubar initialization should be before the `NewEvents` event, to allow
+            // overriding of the default menu even if it's created
+            menu::initialize(&app);
+        }
+
+        self.ivars().waker.borrow_mut().start();
+
+        self.set_is_running(true);
+        self.dispatch_init_events();
+
+        // If the application is being launched via `EventLoop::pump_app_events()` then we'll
+        // want to stop the app once it is launched (and return to the external loop)
+        //
+        // In this case we still want to consider Winit's `EventLoop` to be "running",
+        // so we call `start_running()` above.
+        if self.ivars().stop_on_launch.get() {
+            // NOTE: the original idea had been to only stop the underlying `RunLoop`
+            // for the app but that didn't work as expected (`-[NSApplication run]`
+            // effectively ignored the attempt to stop the RunLoop and re-started it).
+            //
+            // So we return from `pump_events` by stopping the application.
+            let app = NSApplication::sharedApplication(mtm);
+            stop_app_immediately(&app);
+        }
+    }
+
+    fn will_terminate(&self, _notification: &NSNotification) {
+        trace_scope!("applicationWillTerminate:");
+        // TODO: Notify every window that it will be destroyed, like done in iOS?
+        self.internal_exit();
     }
 
     pub fn get(mtm: MainThreadMarker) -> Retained<Self> {
@@ -234,28 +241,16 @@ impl ApplicationDelegate {
         self.ivars().control_flow.get()
     }
 
-    pub fn queue_window_event(&self, window_id: WindowId, event: WindowEvent) {
-        self.ivars()
-            .pending_events
-            .borrow_mut()
-            .push_back(QueuedEvent::WindowEvent(window_id, event));
+    pub fn maybe_queue_window_event(&self, window_id: WindowId, event: WindowEvent) {
+        self.maybe_queue_event(Event::WindowEvent { window_id: RootWindowId(window_id), event });
     }
 
-    pub fn queue_device_event(&self, event: DeviceEvent) {
-        self.ivars().pending_events.borrow_mut().push_back(QueuedEvent::DeviceEvent(event));
+    pub fn handle_window_event(&self, window_id: WindowId, event: WindowEvent) {
+        self.handle_event(Event::WindowEvent { window_id: RootWindowId(window_id), event });
     }
 
-    pub fn queue_static_scale_factor_changed_event(
-        &self,
-        window: Retained<WinitWindow>,
-        suggested_size: PhysicalSize<u32>,
-        scale_factor: f64,
-    ) {
-        self.ivars().pending_events.borrow_mut().push_back(QueuedEvent::ScaleFactorChanged {
-            window,
-            suggested_size,
-            scale_factor,
-        });
+    pub fn maybe_queue_device_event(&self, event: DeviceEvent) {
+        self.maybe_queue_event(Event::DeviceEvent { device_id: DEVICE_ID, event });
     }
 
     pub fn handle_redraw(&self, window_id: WindowId) {
@@ -283,9 +278,27 @@ impl ApplicationDelegate {
         if !pending_redraw.contains(&window_id) {
             pending_redraw.push(window_id);
         }
-        unsafe { RunLoop::get() }.wakeup();
+        self.ivars().run_loop.wakeup();
     }
 
+    #[track_caller]
+    fn maybe_queue_event(&self, event: Event<HandlePendingUserEvents>) {
+        // Most programmer actions in AppKit (e.g. change window fullscreen, set focused, etc.)
+        // result in an event being queued, and applied at a later point.
+        //
+        // However, it is not documented which actions do this, and which ones are done immediately,
+        // so to make sure that we don't encounter re-entrancy issues, we first check if we're
+        // currently handling another event, and if we are, we queue the event instead.
+        if !self.ivars().event_handler.in_use() {
+            self.handle_event(event);
+        } else {
+            tracing::debug!(?event, "had to queue event since another is currently being handled");
+            let this = self.retain();
+            self.ivars().run_loop.queue_closure(move || this.handle_event(event));
+        }
+    }
+
+    #[track_caller]
     fn handle_event(&self, event: Event<HandlePendingUserEvents>) {
         self.ivars().event_handler.handle_event(event, &ActiveEventLoop::new_root(self.retain()))
     }
@@ -347,49 +360,6 @@ impl ApplicationDelegate {
 
         self.handle_event(Event::UserEvent(HandlePendingUserEvents));
 
-        let events = mem::take(&mut *self.ivars().pending_events.borrow_mut());
-        for event in events {
-            match event {
-                QueuedEvent::WindowEvent(window_id, event) => {
-                    self.handle_event(Event::WindowEvent {
-                        window_id: RootWindowId(window_id),
-                        event,
-                    });
-                },
-                QueuedEvent::DeviceEvent(event) => {
-                    self.handle_event(Event::DeviceEvent { device_id: DEVICE_ID, event });
-                },
-                QueuedEvent::ScaleFactorChanged { window, suggested_size, scale_factor } => {
-                    let new_inner_size = Arc::new(Mutex::new(suggested_size));
-                    let scale_factor_changed_event = Event::WindowEvent {
-                        window_id: RootWindowId(window.id()),
-                        event: WindowEvent::ScaleFactorChanged {
-                            scale_factor,
-                            inner_size_writer: InnerSizeWriter::new(Arc::downgrade(
-                                &new_inner_size,
-                            )),
-                        },
-                    };
-
-                    self.handle_event(scale_factor_changed_event);
-
-                    let physical_size = *new_inner_size.lock().unwrap();
-                    drop(new_inner_size);
-                    if physical_size != suggested_size {
-                        let logical_size = physical_size.to_logical(scale_factor);
-                        let size = NSSize::new(logical_size.width, logical_size.height);
-                        window.setContentSize(size);
-                    }
-
-                    let resized_event = Event::WindowEvent {
-                        window_id: RootWindowId(window.id()),
-                        event: WindowEvent::Resized(physical_size),
-                    };
-                    self.handle_event(resized_event);
-                },
-            }
-        }
-
         let redraw = mem::take(&mut *self.ivars().pending_redraw.borrow_mut());
         for window_id in redraw {
             self.handle_event(Event::WindowEvent {
@@ -418,17 +388,6 @@ impl ApplicationDelegate {
         };
         self.ivars().waker.borrow_mut().start_at(min_timeout(wait_timeout, app_timeout));
     }
-}
-
-#[derive(Debug)]
-pub(crate) enum QueuedEvent {
-    WindowEvent(WindowId, WindowEvent),
-    DeviceEvent(DeviceEvent),
-    ScaleFactorChanged {
-        window: Retained<WinitWindow>,
-        suggested_size: PhysicalSize<u32>,
-        scale_factor: f64,
-    },
 }
 
 #[derive(Debug)]

@@ -212,6 +212,12 @@ impl Application {
             Action::PrintHelp => self.print_help(),
             #[cfg(macos_platform)]
             Action::CycleOptionAsAlt => window.cycle_option_as_alt(),
+            Action::SetTheme(theme) => {
+                window.window.set_theme(theme);
+                // Get the resulting current theme to draw with
+                let actual_theme = theme.or_else(|| window.window.theme()).unwrap_or(Theme::Dark);
+                window.set_draw_theme(actual_theme);
+            },
             #[cfg(macos_platform)]
             Action::CreateNewTab => {
                 let tab_id = window.window.tabbing_identifier();
@@ -334,7 +340,7 @@ impl ApplicationHandler<UserEvent> for Application {
             },
             WindowEvent::ThemeChanged(theme) => {
                 info!("Theme changed to {theme:?}");
-                window.set_theme(theme);
+                window.set_draw_theme(theme);
             },
             WindowEvent::RedrawRequested => {
                 if let Err(err) = window.draw() {
@@ -733,8 +739,8 @@ impl WindowState {
         self.window.request_redraw();
     }
 
-    /// Change the theme.
-    fn set_theme(&mut self, theme: Theme) {
+    /// Change the theme that things are drawn in.
+    fn set_draw_theme(&mut self, theme: Theme) {
         self.theme = theme;
         self.window.request_redraw();
     }
@@ -884,6 +890,7 @@ enum Action {
     ShowWindowMenu,
     #[cfg(macos_platform)]
     CycleOptionAsAlt,
+    SetTheme(Option<Theme>),
     #[cfg(macos_platform)]
     CreateNewTab,
     RequestResize,
@@ -915,6 +922,9 @@ impl Action {
             Action::ShowWindowMenu => "Show window menu",
             #[cfg(macos_platform)]
             Action::CycleOptionAsAlt => "Cycle option as alt mode",
+            Action::SetTheme(None) => "Change to the system theme",
+            Action::SetTheme(Some(Theme::Light)) => "Change to a light theme",
+            Action::SetTheme(Some(Theme::Dark)) => "Change to a dark theme",
             #[cfg(macos_platform)]
             Action::CreateNewTab => "Create new tab",
             Action::RequestResize => "Request a resize",
@@ -1059,6 +1069,10 @@ const KEY_BINDINGS: &[Binding<&'static str>] = &[
         Action::AnimationCustomCursor,
     ),
     Binding::new("Z", ModifiersState::CONTROL, Action::ToggleCursorVisibility),
+    // K.
+    Binding::new("K", ModifiersState::empty(), Action::SetTheme(None)),
+    Binding::new("K", ModifiersState::SUPER, Action::SetTheme(Some(Theme::Light))),
+    Binding::new("K", ModifiersState::CONTROL, Action::SetTheme(Some(Theme::Dark))),
     #[cfg(macos_platform)]
     Binding::new("T", ModifiersState::SUPER, Action::CreateNewTab),
     #[cfg(macos_platform)]

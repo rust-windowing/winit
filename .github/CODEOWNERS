@@ -1,6 +1,6 @@
 # Android
-/src/platform/android.rs            @msiglreith @MarijnS95
-/src/platform_impl/android          @msiglreith @MarijnS95
+/src/platform/android.rs            @MarijnS95
+/src/platform_impl/android          @MarijnS95
 
 # iOS
 /src/platform/ios.rs                @madsmtm
@@ -26,8 +26,8 @@
 /src/platform_impl/web              @daxpedda
 
 # Windows
-/src/platform/windows.rs            @msiglreith
-/src/platform_impl/windows          @msiglreith
+/src/platform/windows.rs            @notgull
+/src/platform_impl/windows          @notgull
 
 # Orbital (Redox OS)
 /src/platform/orbital.rs            @jackpot51

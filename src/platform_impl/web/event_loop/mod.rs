@@ -5,6 +5,7 @@ use crate::application::ApplicationHandler;
 use crate::error::EventLoopError;
 use crate::event::Event;
 use crate::event_loop::ActiveEventLoop as RootActiveEventLoop;
+use crate::platform::web::{ActiveEventLoopExtWebSys, PollStrategy, WaitUntilStrategy};
 
 use super::{backend, device, window};
 
@@ -42,7 +43,11 @@ impl<T> EventLoop<T> {
         // SAFETY: The `transmute` is necessary because `run()` requires `'static`. This is safe
         // because this function will never return and all resources not cleaned up by the point we
         // `throw` will leak, making this actually `'static`.
-        let handler = unsafe { std::mem::transmute(handler) };
+        let handler = unsafe {
+            std::mem::transmute::<Box<dyn FnMut(Event<()>)>, Box<dyn FnMut(Event<()>) + 'static>>(
+                handler,
+            )
+        };
         self.elw.p.run(handler, false);
 
         // Throw an exception to break out of Rust execution and use unreachable to tell the
@@ -71,6 +76,22 @@ impl<T> EventLoop<T> {
 
     pub fn window_target(&self) -> &RootActiveEventLoop {
         &self.elw
+    }
+
+    pub fn set_poll_strategy(&self, strategy: PollStrategy) {
+        self.elw.set_poll_strategy(strategy);
+    }
+
+    pub fn poll_strategy(&self) -> PollStrategy {
+        self.elw.poll_strategy()
+    }
+
+    pub fn set_wait_until_strategy(&self, strategy: WaitUntilStrategy) {
+        self.elw.set_wait_until_strategy(strategy);
+    }
+
+    pub fn wait_until_strategy(&self) -> WaitUntilStrategy {
+        self.elw.wait_until_strategy()
     }
 }
 

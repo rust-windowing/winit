@@ -42,7 +42,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        toolchain: [stable, nightly, '1.70.0']
+        toolchain: [stable, nightly, '1.73']
         platform:
           # Note: Make sure that we test all the `docs.rs` targets defined in Cargo.toml!
           - { name: 'Windows 64bit MSVC', target: x86_64-pc-windows-msvc,   os: windows-latest,  }
@@ -61,10 +61,10 @@ jobs:
           - { name: 'web',                target: wasm32-unknown-unknown,   os: ubuntu-latest,   }
         exclude:
           # Android is tested on stable-3
-          - toolchain: '1.70.0'
+          - toolchain: '1.73'
             platform: { name: 'Android', target: aarch64-linux-android, os: ubuntu-latest, options: '--package=winit --features=android-native-activity', cmd: 'apk --' }
         include:
-          - toolchain: '1.70.0'
+          - toolchain: '1.73'
             platform: { name: 'Android', target: aarch64-linux-android, os: ubuntu-latest, options: '--package=winit --features=android-native-activity', cmd: 'apk --' }
           - toolchain: 'nightly'
             platform: {
@@ -149,13 +149,13 @@ jobs:
     - name: Test dpi crate
       if: >
         contains(matrix.platform.name, 'Linux 64bit') &&
-        matrix.toolchain != '1.70.0'
+        matrix.toolchain != '1.73'
       run: cargo test -p dpi
 
     - name: Build tests
       if: >
         !contains(matrix.platform.target, 'redox') &&
-        matrix.toolchain != '1.70.0'
+        matrix.toolchain != '1.73'
       run: cargo $CMD test --no-run $OPTIONS
 
     - name: Run tests
@@ -164,7 +164,7 @@ jobs:
         !contains(matrix.platform.target, 'ios') &&
         !contains(matrix.platform.target, 'wasm32') &&
         !contains(matrix.platform.target, 'redox') &&
-        matrix.toolchain != '1.70.0'
+        matrix.toolchain != '1.73'
       run: cargo $CMD test $OPTIONS
 
     - name: Lint with clippy
@@ -174,7 +174,7 @@ jobs:
     - name: Build tests with serde enabled
       if: >
         !contains(matrix.platform.target, 'redox') &&
-        matrix.toolchain != '1.70.0'
+        matrix.toolchain != '1.73'
       run: cargo $CMD test --no-run $OPTIONS --features serde
 
     - name: Run tests with serde enabled
@@ -183,7 +183,7 @@ jobs:
         !contains(matrix.platform.target, 'ios') &&
         !contains(matrix.platform.target, 'wasm32') &&
         !contains(matrix.platform.target, 'redox') &&
-        matrix.toolchain != '1.70.0'
+        matrix.toolchain != '1.73'
       run: cargo $CMD test $OPTIONS --features serde
 
     - name: Check docs.rs documentation
@@ -226,3 +226,19 @@ jobs:
         command: check
         log-level: error
         arguments: --all-features --target ${{ matrix.platform.target }}
+
+  swc:
+    name: Minimize JavaScript
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Install SWC
+        run: sudo npm i -g @swc/cli
+      - name: Run SWC
+        run: |
+          swc src/platform_impl/web/web_sys/worker.js -o src/platform_impl/web/web_sys/worker.min.js
+      - name: Check for diff
+        run: |
+          [[ -z $(git status -s) ]]

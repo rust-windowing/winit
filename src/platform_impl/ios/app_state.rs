@@ -20,7 +20,7 @@ use objc2_foundation::{
     CGRect, CGSize, MainThreadMarker, NSInteger, NSObjectProtocol, NSOperatingSystemVersion,
     NSProcessInfo,
 };
-use objc2_ui_kit::{UICoordinateSpace, UIView};
+use objc2_ui_kit::{UIApplication, UICoordinateSpace, UIView, UIWindow};
 
 use super::window::WinitUIWindow;
 use crate::dpi::PhysicalSize;
@@ -662,6 +662,28 @@ fn handle_user_events(mtm: MainThreadMarker) {
     }
 }
 
+pub(crate) fn send_occluded_event_for_all_windows(application: &UIApplication, occluded: bool) {
+    let mtm = MainThreadMarker::from(application);
+
+    let mut events = Vec::new();
+    #[allow(deprecated)]
+    for window in application.windows().iter() {
+        if window.is_kind_of::<WinitUIWindow>() {
+            // SAFETY: We just checked that the window is a `winit` window
+            let window = unsafe {
+                let ptr: *const UIWindow = window;
+                let ptr: *const WinitUIWindow = ptr.cast();
+                &*ptr
+            };
+            events.push(EventWrapper::StaticEvent(Event::WindowEvent {
+                window_id: RootWindowId(window.id()),
+                event: WindowEvent::Occluded(occluded),
+            }));
+        }
+    }
+    handle_nonuser_events(mtm, events);
+}
+
 pub fn handle_main_events_cleared(mtm: MainThreadMarker) {
     let mut this = AppState::get_mut(mtm);
     if !this.has_launched() || this.has_terminated() {
@@ -696,7 +718,27 @@ pub fn handle_events_cleared(mtm: MainThreadMarker) {
     AppState::get_mut(mtm).events_cleared_transition();
 }
 
-pub fn terminated(mtm: MainThreadMarker) {
+pub(crate) fn terminated(application: &UIApplication) {
+    let mtm = MainThreadMarker::from(application);
+
+    let mut events = Vec::new();
+    #[allow(deprecated)]
+    for window in application.windows().iter() {
+        if window.is_kind_of::<WinitUIWindow>() {
+            // SAFETY: We just checked that the window is a `winit` window
+            let window = unsafe {
+                let ptr: *const UIWindow = window;
+                let ptr: *const WinitUIWindow = ptr.cast();
+                &*ptr
+            };
+            events.push(EventWrapper::StaticEvent(Event::WindowEvent {
+                window_id: RootWindowId(window.id()),
+                event: WindowEvent::Destroyed,
+            }));
+        }
+    }
+    handle_nonuser_events(mtm, events);
+
     let mut this = AppState::get_mut(mtm);
     let mut handler = this.terminated_transition();
     drop(this);
@@ -756,7 +798,7 @@ impl EventLoopWaker {
             // future, but that gets changed to fire immediately in did_finish_launching
             let timer = CFRunLoopTimerCreate(
                 ptr::null_mut(),
-                std::f64::MAX,
+                f64::MAX,
                 0.000_000_1,
                 0,
                 0,
@@ -770,11 +812,11 @@ impl EventLoopWaker {
     }
 
     fn stop(&mut self) {
-        unsafe { CFRunLoopTimerSetNextFireDate(self.timer, std::f64::MAX) }
+        unsafe { CFRunLoopTimerSetNextFireDate(self.timer, f64::MAX) }
     }
 
     fn start(&mut self) {
-        unsafe { CFRunLoopTimerSetNextFireDate(self.timer, std::f64::MIN) }
+        unsafe { CFRunLoopTimerSetNextFireDate(self.timer, f64::MIN) }
     }
 
     fn start_at(&mut self, instant: Instant) {

@@ -1,6 +1,9 @@
 #![allow(clippy::unnecessary_cast)]
 use std::cell::{Cell, RefCell};
 use std::collections::VecDeque;
+use std::ffi::c_void;
+use std::ptr;
+use std::sync::{Arc, Mutex};
 
 use core_graphics::display::{CGDisplay, CGPoint};
 use monitor::VideoModeHandle;
@@ -8,28 +11,31 @@ use objc2::rc::{autoreleasepool, Retained};
 use objc2::runtime::{AnyObject, ProtocolObject};
 use objc2::{declare_class, msg_send_id, mutability, sel, ClassType, DeclaredClass};
 use objc2_app_kit::{
-    NSAppKitVersionNumber, NSAppKitVersionNumber10_12, NSAppearance, NSApplication,
-    NSApplicationPresentationOptions, NSBackingStoreType, NSDraggingDestination,
-    NSFilenamesPboardType, NSPasteboard, NSRequestUserAttentionType, NSScreen, NSView,
-    NSWindowButton, NSWindowDelegate, NSWindowFullScreenButton, NSWindowLevel,
-    NSWindowOcclusionState, NSWindowOrderingMode, NSWindowSharingType, NSWindowStyleMask,
-    NSWindowTabbingMode, NSWindowTitleVisibility,
+    NSAppKitVersionNumber, NSAppKitVersionNumber10_12, NSAppearance, NSAppearanceCustomization,
+    NSAppearanceNameAqua, NSApplication, NSApplicationPresentationOptions, NSBackingStoreType,
+    NSColor, NSDraggingDestination, NSFilenamesPboardType, NSPasteboard,
+    NSRequestUserAttentionType, NSScreen, NSView, NSWindowButton, NSWindowDelegate,
+    NSWindowFullScreenButton, NSWindowLevel, NSWindowOcclusionState, NSWindowOrderingMode,
+    NSWindowSharingType, NSWindowStyleMask, NSWindowTabbingMode, NSWindowTitleVisibility,
 };
 use objc2_foundation::{
-    ns_string, CGFloat, MainThreadMarker, NSArray, NSCopying, NSDistributedNotificationCenter,
-    NSObject, NSObjectNSDelayedPerforming, NSObjectNSThreadPerformAdditions, NSObjectProtocol,
-    NSPoint, NSRect, NSSize, NSString,
+    ns_string, CGFloat, MainThreadMarker, NSArray, NSCopying, NSDictionary, NSKeyValueChangeKey,
+    NSKeyValueChangeNewKey, NSKeyValueChangeOldKey, NSKeyValueObservingOptions, NSObject,
+    NSObjectNSDelayedPerforming, NSObjectNSKeyValueObserverRegistration, NSObjectProtocol, NSPoint,
+    NSRect, NSSize, NSString,
 };
+use tracing::{trace, warn};
 
-use super::app_delegate::ApplicationDelegate;
+use super::app_state::ApplicationDelegate;
 use super::cursor::cursor_from_icon;
 use super::monitor::{self, flip_window_screen_coordinates, get_display_id};
+use super::observer::RunLoop;
 use super::view::WinitView;
 use super::window::WinitWindow;
 use super::{ffi, Fullscreen, MonitorHandle, OsError, WindowId};
 use crate::dpi::{LogicalPosition, LogicalSize, PhysicalPosition, PhysicalSize, Position, Size};
 use crate::error::{ExternalError, NotSupportedError, OsError as RootOsError};
-use crate::event::WindowEvent;
+use crate::event::{InnerSizeWriter, WindowEvent};
 use crate::platform::macos::{OptionAsAlt, WindowExtMacOS};
 use crate::window::{
     Cursor, CursorGrabMode, Icon, ImePurpose, ResizeDirection, Theme, UserAttentionType,
@@ -76,8 +82,6 @@ pub(crate) struct State {
     app_delegate: Retained<ApplicationDelegate>,
 
     window: Retained<WinitWindow>,
-
-    current_theme: Cell<Option<Theme>>,
 
     // During `windowDidResize`, we use this to only send Moved if the position changed.
     //
@@ -184,7 +188,17 @@ declare_class!(
         #[method(windowDidChangeBackingProperties:)]
         fn window_did_change_backing_properties(&self, _: Option<&AnyObject>) {
             trace_scope!("windowDidChangeBackingProperties:");
-            self.queue_static_scale_factor_changed_event();
+            let scale_factor = self.scale_factor();
+            if scale_factor == self.ivars().previous_scale_factor.get() {
+                return;
+            };
+            self.ivars().previous_scale_factor.set(scale_factor);
+
+            let mtm = MainThreadMarker::from(self);
+            let this = self.retain();
+            RunLoop::main(mtm).queue_closure(move || {
+                this.handle_scale_factor_changed(scale_factor);
+            });
         }
 
         #[method(windowDidBecomeKey:)]
@@ -407,31 +421,65 @@ declare_class!(
         }
     }
 
+    // Key-Value Observing
     unsafe impl WindowDelegate {
-        // Observe theme change
-        #[method(effectiveAppearanceDidChange:)]
-        fn effective_appearance_did_change(&self, sender: Option<&AnyObject>) {
-            trace_scope!("effectiveAppearanceDidChange:");
-            unsafe {
-                self.performSelectorOnMainThread_withObject_waitUntilDone(
-                    sel!(effectiveAppearanceDidChangedOnMainThread:),
-                    sender,
-                    false,
-                )
-            };
-        }
+        #[method(observeValueForKeyPath:ofObject:change:context:)]
+        fn observe_value(
+            &self,
+            key_path: Option<&NSString>,
+            _object: Option<&AnyObject>,
+            change: Option<&NSDictionary<NSKeyValueChangeKey, AnyObject>>,
+            _context: *mut c_void,
+        ) {
+            trace_scope!("observeValueForKeyPath:ofObject:change:context:");
+            // NOTE: We don't _really_ need to check the key path, as there should only be one, but
+            // in the future we might want to observe other key paths.
+            if key_path == Some(ns_string!("effectiveAppearance")) {
+                let change = change.expect("requested a change dictionary in `addObserver`, but none was provided");
+                let old = change.get(unsafe { NSKeyValueChangeOldKey }).expect("requested change dictionary did not contain `NSKeyValueChangeOldKey`");
+                let new = change.get(unsafe { NSKeyValueChangeNewKey }).expect("requested change dictionary did not contain `NSKeyValueChangeNewKey`");
 
-        #[method(effectiveAppearanceDidChangedOnMainThread:)]
-        fn effective_appearance_did_changed_on_main_thread(&self, _: Option<&AnyObject>) {
-            let mtm = MainThreadMarker::from(self);
-            let theme = get_ns_theme(mtm);
-            let old_theme = self.ivars().current_theme.replace(Some(theme));
-            if old_theme != Some(theme) {
-                self.queue_event(WindowEvent::ThemeChanged(theme));
+                // SAFETY: The value of `effectiveAppearance` is `NSAppearance`
+                let old: *const AnyObject = old;
+                let old: *const NSAppearance = old.cast();
+                let old: &NSAppearance = unsafe { &*old };
+                let new: *const AnyObject = new;
+                let new: *const NSAppearance = new.cast();
+                let new: &NSAppearance = unsafe { &*new };
+
+                trace!(old = %unsafe { old.name() }, new = %unsafe { new.name() }, "effectiveAppearance changed");
+
+                // Ignore the change if the window's theme is customized by the user (since in that
+                // case the `effectiveAppearance` is only emitted upon said customization, and then
+                // it's triggered directly by a user action, and we don't want to emit the event).
+                if unsafe { self.window().appearance() }.is_some() {
+                    return;
+                }
+
+                let old = appearance_to_theme(old);
+                let new = appearance_to_theme(new);
+                // Check that the theme changed in Winit's terms (the theme might have changed on
+                // other parameters, such as level of contrast, but the event should not be emitted
+                // in those cases).
+                if old == new {
+                    return;
+                }
+
+                self.queue_event(WindowEvent::ThemeChanged(new));
+            } else {
+                panic!("unknown observed keypath {key_path:?}");
             }
         }
     }
 );
+
+impl Drop for WindowDelegate {
+    fn drop(&mut self) {
+        unsafe {
+            self.window().removeObserver_forKeyPath(self, ns_string!("effectiveAppearance"));
+        }
+    }
+}
 
 fn new_window(
     app_delegate: &ApplicationDelegate,
@@ -601,6 +649,8 @@ fn new_window(
 
         if attrs.transparent {
             window.setOpaque(false);
+            // See `set_transparent` for details on why we do this.
+            window.setBackgroundColor(unsafe { Some(&NSColor::clearColor()) });
         }
 
         // register for drag and drop operations.
@@ -654,15 +704,13 @@ impl WindowDelegate {
 
         let scale_factor = window.backingScaleFactor() as _;
 
-        let current_theme = match attrs.preferred_theme {
-            Some(theme) => Some(theme),
-            None => Some(get_ns_theme(mtm)),
-        };
+        if let Some(appearance) = theme_to_appearance(attrs.preferred_theme) {
+            unsafe { window.setAppearance(Some(&appearance)) };
+        }
 
         let delegate = mtm.alloc().set_ivars(State {
             app_delegate: app_delegate.retain(),
             window: window.retain(),
-            current_theme: Cell::new(current_theme),
             previous_position: Cell::new(None),
             previous_scale_factor: Cell::new(scale_factor),
             resize_increments: Cell::new(resize_increments),
@@ -681,18 +729,23 @@ impl WindowDelegate {
         let delegate: Retained<WindowDelegate> = unsafe { msg_send_id![super(delegate), init] };
 
         if scale_factor != 1.0 {
-            delegate.queue_static_scale_factor_changed_event();
+            let delegate = delegate.clone();
+            RunLoop::main(mtm).queue_closure(move || {
+                delegate.handle_scale_factor_changed(scale_factor);
+            });
         }
         window.setDelegate(Some(ProtocolObject::from_ref(&*delegate)));
 
-        // Enable theme change event
-        let notification_center = unsafe { NSDistributedNotificationCenter::defaultCenter() };
+        // Listen for theme change event.
+        //
+        // SAFETY: The observer is un-registered in the `Drop` of the delegate.
         unsafe {
-            notification_center.addObserver_selector_name_object(
+            window.addObserver_forKeyPath_options_context(
                 &delegate,
-                sel!(effectiveAppearanceDidChange:),
-                Some(ns_string!("AppleInterfaceThemeChangedNotification")),
-                None,
+                ns_string!("effectiveAppearance"),
+                NSKeyValueObservingOptions::NSKeyValueObservingOptionNew
+                    | NSKeyValueObservingOptions::NSKeyValueObservingOptionOld,
+                ptr::null_mut(),
             )
         };
 
@@ -754,24 +807,31 @@ impl WindowDelegate {
     }
 
     pub(crate) fn queue_event(&self, event: WindowEvent) {
-        self.ivars().app_delegate.queue_window_event(self.window().id(), event);
+        self.ivars().app_delegate.maybe_queue_window_event(self.window().id(), event);
     }
 
-    fn queue_static_scale_factor_changed_event(&self) {
-        let scale_factor = self.scale_factor();
-        if scale_factor == self.ivars().previous_scale_factor.get() {
-            return;
-        };
+    fn handle_scale_factor_changed(&self, scale_factor: CGFloat) {
+        let app_delegate = &self.ivars().app_delegate;
+        let window = self.window();
 
-        self.ivars().previous_scale_factor.set(scale_factor);
-        let content_size = self.window().contentRectForFrameRect(self.window().frame()).size;
+        let content_size = window.contentRectForFrameRect(window.frame()).size;
         let content_size = LogicalSize::new(content_size.width, content_size.height);
 
-        self.ivars().app_delegate.queue_static_scale_factor_changed_event(
-            self.window().retain(),
-            content_size.to_physical(scale_factor),
+        let suggested_size = content_size.to_physical(scale_factor);
+        let new_inner_size = Arc::new(Mutex::new(suggested_size));
+        app_delegate.handle_window_event(window.id(), WindowEvent::ScaleFactorChanged {
             scale_factor,
-        );
+            inner_size_writer: InnerSizeWriter::new(Arc::downgrade(&new_inner_size)),
+        });
+        let physical_size = *new_inner_size.lock().unwrap();
+        drop(new_inner_size);
+
+        if physical_size != suggested_size {
+            let logical_size = physical_size.to_logical(scale_factor);
+            let size = NSSize::new(logical_size.width, logical_size.height);
+            window.setContentSize(size);
+        }
+        app_delegate.handle_window_event(window.id(), WindowEvent::Resized(physical_size));
     }
 
     fn emit_move_event(&self) {
@@ -799,7 +859,23 @@ impl WindowDelegate {
     }
 
     pub fn set_transparent(&self, transparent: bool) {
-        self.window().setOpaque(!transparent)
+        // This is just a hint for Quartz, it doesn't actually speculate with window alpha.
+        // Providing a wrong value here could result in visual artifacts, when the window is
+        // transparent.
+        self.window().setOpaque(!transparent);
+
+        // AppKit draws the window with a background color by default, which is usually really
+        // nice, but gets in the way when we want to allow the contents of the window to be
+        // transparent, as in that case, the transparent contents will just be drawn on top of
+        // the background color. As such, to allow the window to be transparent, we must also set
+        // the background color to one with an empty alpha channel.
+        let color = if transparent {
+            unsafe { NSColor::clearColor() }
+        } else {
+            unsafe { NSColor::windowBackgroundColor() }
+        };
+
+        self.window().setBackgroundColor(Some(&color));
     }
 
     pub fn set_blur(&self, blur: bool) {
@@ -898,8 +974,8 @@ impl WindowDelegate {
 
     pub fn set_max_inner_size(&self, dimensions: Option<Size>) {
         let dimensions = dimensions.unwrap_or(Size::Logical(LogicalSize {
-            width: std::f32::MAX as f64,
-            height: std::f32::MAX as f64,
+            width: f32::MAX as f64,
+            height: f32::MAX as f64,
         }));
         let scale_factor = self.scale_factor();
         let max_size = dimensions.to_logical::<CGFloat>(scale_factor);
@@ -1576,19 +1652,23 @@ impl WindowDelegate {
     }
 
     #[inline]
-    pub fn theme(&self) -> Option<Theme> {
-        self.ivars().current_theme.get()
-    }
-
-    #[inline]
     pub fn has_focus(&self) -> bool {
         self.window().isKeyWindow()
     }
 
+    pub fn theme(&self) -> Option<Theme> {
+        // Note: We could choose between returning the value of `effectiveAppearance` or
+        // `appearance`, depending on what the user is asking about:
+        // - "how should I render on this particular frame".
+        // - "what is the configuration for this window".
+        //
+        // We choose the latter for consistency with the `set_theme` call, though it might also be
+        // useful to expose the former.
+        Some(appearance_to_theme(unsafe { &*self.window().appearance()? }))
+    }
+
     pub fn set_theme(&self, theme: Option<Theme>) {
-        let mtm = MainThreadMarker::from(self);
-        set_ns_theme(theme, mtm);
-        self.ivars().current_theme.set(theme.or_else(|| Some(get_ns_theme(mtm))));
+        unsafe { self.window().setAppearance(theme_to_appearance(theme).as_deref()) };
     }
 
     #[inline]
@@ -1747,34 +1827,39 @@ impl WindowExtMacOS for WindowDelegate {
 const DEFAULT_STANDARD_FRAME: NSRect =
     NSRect::new(NSPoint::new(50.0, 50.0), NSSize::new(800.0, 600.0));
 
-pub(super) fn get_ns_theme(mtm: MainThreadMarker) -> Theme {
-    let app = NSApplication::sharedApplication(mtm);
-    if !app.respondsToSelector(sel!(effectiveAppearance)) {
-        return Theme::Light;
-    }
-    let appearance = app.effectiveAppearance();
-    let name = appearance
-        .bestMatchFromAppearancesWithNames(&NSArray::from_id_slice(&[
-            NSString::from_str("NSAppearanceNameAqua"),
-            NSString::from_str("NSAppearanceNameDarkAqua"),
-        ]))
-        .unwrap();
-    match &*name.to_string() {
-        "NSAppearanceNameDarkAqua" => Theme::Dark,
-        _ => Theme::Light,
+fn dark_appearance_name() -> &'static NSString {
+    // Don't use the static `NSAppearanceNameDarkAqua` to allow linking on macOS < 10.14
+    ns_string!("NSAppearanceNameDarkAqua")
+}
+
+fn appearance_to_theme(appearance: &NSAppearance) -> Theme {
+    let best_match = appearance.bestMatchFromAppearancesWithNames(&NSArray::from_id_slice(&[
+        unsafe { NSAppearanceNameAqua.copy() },
+        dark_appearance_name().copy(),
+    ]));
+    if let Some(best_match) = best_match {
+        if *best_match == *dark_appearance_name() {
+            Theme::Dark
+        } else {
+            Theme::Light
+        }
+    } else {
+        warn!(?appearance, "failed to determine the theme of the appearance");
+        // Default to light in this case
+        Theme::Light
     }
 }
 
-fn set_ns_theme(theme: Option<Theme>, mtm: MainThreadMarker) {
-    let app = NSApplication::sharedApplication(mtm);
-    if app.respondsToSelector(sel!(effectiveAppearance)) {
-        let appearance = theme.map(|t| {
-            let name = match t {
-                Theme::Dark => NSString::from_str("NSAppearanceNameDarkAqua"),
-                Theme::Light => NSString::from_str("NSAppearanceNameAqua"),
-            };
-            NSAppearance::appearanceNamed(&name).unwrap()
-        });
-        app.setAppearance(appearance.as_ref().map(|a| a.as_ref()));
+fn theme_to_appearance(theme: Option<Theme>) -> Option<Retained<NSAppearance>> {
+    let appearance = match theme? {
+        Theme::Light => unsafe { NSAppearance::appearanceNamed(NSAppearanceNameAqua) },
+        Theme::Dark => NSAppearance::appearanceNamed(dark_appearance_name()),
+    };
+    if let Some(appearance) = appearance {
+        Some(appearance)
+    } else {
+        warn!(?theme, "could not find appearance for theme");
+        // Assume system appearance in this case
+        None
     }
 }
