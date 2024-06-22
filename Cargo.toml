@@ -86,11 +86,11 @@ rwh_06 = { package = "raw-window-handle", version = "0.6", features = [
 ], optional = true }
 serde = { workspace = true, optional = true }
 smol_str = "0.2.0"
-tracing = { version = "0.1.40", default_features = false }
+tracing = { version = "0.1.40", default-features = false }
 
 [dev-dependencies]
 image = { version = "0.25.0", default-features = false, features = ["png"] }
-tracing = { version = "0.1.40", default_features = false, features = ["log"] }
+tracing = { version = "0.1.40", default-features = false, features = ["log"] }
 tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
 winit = { path = ".", features = ["rwh_05"] }
 
@@ -252,8 +252,8 @@ rustix = { version = "0.38.4", default-features = false, features = [
 sctk = { package = "smithay-client-toolkit", version = "0.18.0", default-features = false, features = [
     "calloop",
 ], optional = true }
-sctk-adwaita = { version = "0.9.0", default_features = false, optional = true }
-wayland-backend = { version = "0.3.0", default_features = false, features = [
+sctk-adwaita = { version = "0.9.0", default-features = false, optional = true }
+wayland-backend = { version = "0.3.0", default-features = false, features = [
     "client_system",
 ], optional = true }
 wayland-client = { version = "0.31.1", optional = true }
