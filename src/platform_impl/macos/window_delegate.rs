@@ -39,7 +39,7 @@ use crate::event::{InnerSizeWriter, WindowEvent};
 use crate::platform::macos::{OptionAsAlt, WindowExtMacOS};
 use crate::window::{
     Cursor, CursorGrabMode, Icon, ImePurpose, ResizeDirection, Theme, UserAttentionType,
-    WindowAttributes, WindowButtons, WindowLevel,
+    WindowAttributes, WindowButtons, WindowId as RootWindowId, WindowLevel,
 };
 
 #[derive(Clone, Debug)]
@@ -807,7 +807,10 @@ impl WindowDelegate {
     }
 
     pub(crate) fn queue_event(&self, event: WindowEvent) {
-        self.ivars().app_delegate.maybe_queue_window_event(self.window().id(), event);
+        let window_id = RootWindowId(self.window().id());
+        self.ivars().app_delegate.maybe_queue_with_handler(move |app, event_loop| {
+            app.window_event(event_loop, window_id, event);
+        });
     }
 
     fn handle_scale_factor_changed(&self, scale_factor: CGFloat) {
