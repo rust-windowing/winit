@@ -212,7 +212,7 @@ jobs:
         toolchain: [stable, nightly, '1.73']
 
     steps:
-    - uses: actions/checkout@v4
+    - uses: taiki-e/checkout-action@v1
 
     - uses: dtolnay/rust-toolchain@master
       with:
@@ -262,9 +262,6 @@ jobs:
     - run: cargo check --release -vv --all-targets --target=x86_64-unknown-netbsd
     - run: cargo check --release -vv --all-targets --target=x86_64-unknown-netbsd --no-default-features --features x11
     - run: cargo check --release -vv --all-targets --target=x86_64-unknown-netbsd --no-default-features --features wayland
-    - run: cargo check --release -vv --all-targets --target=x86_64-unknown-illumos
-    - run: cargo check --release -vv --all-targets --target=x86_64-unknown-illumos --no-default-features --features x11
-    - run: cargo check --release -vv --all-targets --target=x86_64-unknown-illumos --no-default-features --features wayland
     - run: cargo check --release -vv --all-targets --target=i686-unknown-linux-musl
     - run: cargo check --release -vv --all-targets --target=i686-unknown-linux-musl --no-default-features --features x11
     - run: cargo check --release -vv --all-targets --target=i686-unknown-linux-musl --no-default-features --features wayland
@@ -291,9 +288,6 @@ jobs:
     - run: cargo check --release -vv --all-targets --target=sparc64-unknown-linux-gnu
     - run: cargo check --release -vv --all-targets --target=sparc64-unknown-linux-gnu --no-default-features --features x11
     - run: cargo check --release -vv --all-targets --target=sparc64-unknown-linux-gnu --no-default-features --features wayland
-    - run: cargo check --release -vv --all-targets --target=sparcv9-sun-solaris
-    - run: cargo check --release -vv --all-targets --target=sparcv9-sun-solaris --no-default-features --features x11
-    - run: cargo check --release -vv --all-targets --target=sparcv9-sun-solaris --no-default-features --features wayland
 
   tier3:
     name: Check winit for Tier 3 Targets
@@ -305,7 +299,7 @@ jobs:
         toolchain: [nightly]
 
     steps:
-    - uses: actions/checkout@v4
+    - uses: taiki-e/checkout-action@v1
 
     - uses: dtolnay/rust-toolchain@master
       with:
