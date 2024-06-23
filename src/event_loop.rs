@@ -513,20 +513,28 @@ unsafe impl rwh_05::HasRawDisplayHandle for OwnedDisplayHandle {
     }
 }
 
-/// Used to send custom events to [`EventLoop`].
+/// Control the [`EventLoop`], possibly from a different thread, without referencing it directly.
 #[derive(Clone)]
 pub struct EventLoopProxy {
     event_loop_proxy: platform_impl::EventLoopProxy,
 }
 
 impl EventLoopProxy {
-    /// Wake up the [`EventLoop`] resulting in [`proxy_wake_up`] being called.
+    /// Wake up the [`EventLoop`], resulting in [`ApplicationHandler::proxy_wake_up`] being called.
     ///
-    /// When multiple wake ups are sent they'll result only in a single [`proxy_wake_up`] call.
+    /// Multiple calls to this method may result in only a single call to [`proxy_wake_up`], see the
+    /// documentation on that for details.
     ///
-    /// If the event loop has is no longer running, this is effectively a no-op.
+    /// If the event loop is no longer running, this is a no-op.
     ///
-    /// [`proxy_wake_up`]: crate::application::ApplicationHandler::proxy_wake_up
+    /// [`proxy_wake_up`]: ApplicationHandler::proxy_wake_up
+    ///
+    /// # Platform-specific
+    ///
+    /// - **Windows**: The wake-up may be ignored under high contention, though this will hopefully
+    ///   be fixed in [#3687].
+    ///
+    /// [#3687]: https://github.com/rust-windowing/winit/pull/3687
     pub fn wake_up(&self) {
         self.event_loop_proxy.wake_up();
     }

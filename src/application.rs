@@ -82,9 +82,90 @@ pub trait ApplicationHandler {
     /// [`Suspended`]: Self::suspended
     fn resumed(&mut self, event_loop: &ActiveEventLoop);
 
-    /// Called when user requested wake up via [`wake_up`] occurs.
+    /// Called after a wake up is requested using [`EventLoopProxy::wake_up`].
     ///
-    /// [`wake_up`]: crate::event_loop::EventLoopProxy::wake_up
+    /// Multiple calls to the aforementioned method may result in only a single `proxy_wake_up` call
+    /// for performance reasons. Furthermore, this callback may be emitted spuriously. For these
+    /// reasons, you should probably use some other tool like [`std::sync::mspc`] if you want to
+    /// know the number of times that your application was _actually_ awoken, see the below example.
+    ///
+    /// The order in which this is emitted in relation to other events is not guaranteed. The time
+    /// at which this will be emitted is not guaranteed, only that it will happen "soon". That is,
+    /// there may be several executions of the event loop, including multiple redraws to windows,
+    /// between [`EventLoopProxy::wake_up`] being called and the event being delivered.
+    ///
+    /// [`EventLoopProxy::wake_up`]: crate::event_loop::EventLoopProxy::wake_up
+    ///
+    /// # Example
+    ///
+    /// Use a [`std::sync::mpsc`] channel to handle events from a different thread.
+    ///
+    /// ```no_run
+    /// use std::sync::mpsc;
+    /// use std::thread;
+    /// use std::time::Duration;
+    ///
+    /// use winit::application::ApplicationHandler;
+    /// use winit::event_loop::{ActiveEventLoop, EventLoop};
+    ///
+    /// struct MyApp {
+    ///     receiver: mpsc::Receiver<u64>,
+    /// }
+    ///
+    /// impl ApplicationHandler for MyApp {
+    ///     # fn window_event(
+    ///     #     &mut self,
+    ///     #     _event_loop: &ActiveEventLoop,
+    ///     #     _window_id: winit::window::WindowId,
+    ///     #     _event: winit::event::WindowEvent,
+    ///     # ) {
+    ///     # }
+    ///     #
+    ///     # fn resumed(&mut self, _event_loop: &ActiveEventLoop) {}
+    ///     #
+    ///     fn proxy_wake_up(&mut self, _event_loop: &ActiveEventLoop) {
+    ///         // Iterate current events, since wake-ups may have been merged.
+    ///         //
+    ///         // Note: We take care not to use `recv` or `iter` here, as those are blocking,
+    ///         // and that would be bad for performance and might lead to a deadlock.
+    ///         for i in self.receiver.try_iter() {
+    ///             println!("handling: {i}");
+    ///         }
+    ///     }
+    ///
+    ///     // Rest of `ApplicationHandler`
+    /// }
+    ///
+    /// fn main() -> Result<(), Box<dyn std::error::Error>> {
+    ///     let event_loop = EventLoop::new()?;
+    ///     let proxy = event_loop.create_proxy();
+    ///
+    ///     let (sender, receiver) = mpsc::channel();
+    ///
+    ///     let mut app = MyApp { receiver };
+    ///
+    ///     thread::scope(|s| {
+    ///         // Send an event in a loop
+    ///         s.spawn(|| {
+    ///             let mut i = 0;
+    ///             loop {
+    ///                 println!("sending: {i}");
+    ///                 if sender.send(i).is_err() {
+    ///                     // Stop sending once `MyApp` is dropped
+    ///                     break;
+    ///                 }
+    ///                 // Trigger the wake-up _after_ we placed the event in the channel.
+    ///                 // Otherwise, `proxy_wake_up` might be triggered prematurely.
+    ///                 proxy.wake_up();
+    ///                 i += 1;
+    ///                 thread::sleep(Duration::from_millis(i));
+    ///             }
+    ///         });
+    ///
+    ///         Ok(event_loop.run_app(&mut app)?)
+    ///     })
+    /// }
+    /// ```
     fn proxy_wake_up(&mut self, event_loop: &ActiveEventLoop) {
         let _ = event_loop;
     }
