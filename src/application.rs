@@ -129,7 +129,7 @@ pub trait ApplicationHandler {
     ///         // Note: We take care not to use `recv` or `iter` here, as those are blocking,
     ///         // and that would be bad for performance and might lead to a deadlock.
     ///         for i in self.receiver.try_iter() {
-    ///             println!("handling: {i}");
+    ///             println!("received: {i}");
     ///         }
     ///     }
     ///
