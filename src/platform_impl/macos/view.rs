@@ -687,7 +687,7 @@ declare_class!(
 
             self.update_modifiers(event, false);
 
-            self.ivars().app_delegate.maybe_queue_with_user_app(move |app, event_loop|
+            self.ivars().app_delegate.maybe_queue_with_handler(move |app, event_loop|
                 app.device_event(event_loop, DEVICE_ID, DeviceEvent::MouseWheel { delta })
             );
             self.queue_event(WindowEvent::MouseWheel {
@@ -834,8 +834,8 @@ impl WinitView {
 
     fn queue_event(&self, event: WindowEvent) {
         let window_id = RootWindowId(self.window().id());
-        self.ivars().app_delegate.maybe_queue_with_user_app(move |app, event_loop| {
-            app.window_event(event_loop, window_id, event)
+        self.ivars().app_delegate.maybe_queue_with_handler(move |app, event_loop| {
+            app.window_event(event_loop, window_id, event);
         });
     }
 

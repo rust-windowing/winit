@@ -108,9 +108,9 @@ impl EventHandler {
         matches!(self.inner.try_borrow().as_deref(), Ok(Some(_)))
     }
 
-    pub(crate) fn with_user_app<F: FnOnce(&mut dyn ApplicationHandler, &RootActiveEventLoop)>(
+    pub(crate) fn handle(
         &self,
-        callback: F,
+        callback: impl FnOnce(&mut dyn ApplicationHandler, &RootActiveEventLoop),
         event_loop: &RootActiveEventLoop,
     ) {
         match self.inner.try_borrow_mut().as_deref_mut() {
