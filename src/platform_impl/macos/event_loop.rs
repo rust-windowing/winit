@@ -27,7 +27,6 @@ use super::monitor::{self, MonitorHandle};
 use super::observer::setup_control_flow_observers;
 use crate::application::ApplicationHandler;
 use crate::error::EventLoopError;
-use crate::event::Event;
 use crate::event_loop::{
     ActiveEventLoop as RootWindowTarget, ControlFlow, DeviceEvents, EventLoopClosed,
 };
@@ -156,28 +155,78 @@ impl ActiveEventLoop {
     }
 }
 
-fn map_user_event<T: 'static, A: ApplicationHandler<T>>(
-    app: &mut A,
+// Temporary helper, will be removed in https://github.com/rust-windowing/winit/pull/3694
+struct MapUserEvent<T, A> {
+    app: A,
     receiver: Rc<mpsc::Receiver<T>>,
-) -> impl FnMut(Event<HandlePendingUserEvents>, &RootWindowTarget) + '_ {
-    move |event, window_target| match event {
-        Event::NewEvents(cause) => app.new_events(window_target, cause),
-        Event::WindowEvent { window_id, event } => {
-            app.window_event(window_target, window_id, event)
-        },
-        Event::DeviceEvent { device_id, event } => {
-            app.device_event(window_target, device_id, event)
-        },
-        Event::UserEvent(_) => {
-            for event in receiver.try_iter() {
-                app.user_event(window_target, event);
-            }
-        },
-        Event::Suspended => app.suspended(window_target),
-        Event::Resumed => app.resumed(window_target),
-        Event::AboutToWait => app.about_to_wait(window_target),
-        Event::LoopExiting => app.exiting(window_target),
-        Event::MemoryWarning => app.memory_warning(window_target),
+}
+
+impl<A: ApplicationHandler<T>, T: 'static> ApplicationHandler<HandlePendingUserEvents>
+    for MapUserEvent<T, A>
+{
+    #[inline]
+    fn new_events(
+        &mut self,
+        event_loop: &crate::event_loop::ActiveEventLoop,
+        cause: crate::event::StartCause,
+    ) {
+        self.app.new_events(event_loop, cause);
+    }
+
+    #[inline]
+    fn resumed(&mut self, event_loop: &crate::event_loop::ActiveEventLoop) {
+        self.app.resumed(event_loop);
+    }
+
+    #[inline]
+    fn user_event(
+        &mut self,
+        event_loop: &crate::event_loop::ActiveEventLoop,
+        _event: HandlePendingUserEvents,
+    ) {
+        for event in self.receiver.try_iter() {
+            self.app.user_event(event_loop, event);
+        }
+    }
+
+    #[inline]
+    fn window_event(
+        &mut self,
+        event_loop: &crate::event_loop::ActiveEventLoop,
+        window_id: crate::window::WindowId,
+        event: crate::event::WindowEvent,
+    ) {
+        self.app.window_event(event_loop, window_id, event);
+    }
+
+    #[inline]
+    fn device_event(
+        &mut self,
+        event_loop: &crate::event_loop::ActiveEventLoop,
+        device_id: crate::event::DeviceId,
+        event: crate::event::DeviceEvent,
+    ) {
+        self.app.device_event(event_loop, device_id, event);
+    }
+
+    #[inline]
+    fn about_to_wait(&mut self, event_loop: &crate::event_loop::ActiveEventLoop) {
+        self.app.about_to_wait(event_loop);
+    }
+
+    #[inline]
+    fn suspended(&mut self, event_loop: &crate::event_loop::ActiveEventLoop) {
+        self.app.suspended(event_loop);
+    }
+
+    #[inline]
+    fn exiting(&mut self, event_loop: &crate::event_loop::ActiveEventLoop) {
+        self.app.exiting(event_loop);
+    }
+
+    #[inline]
+    fn memory_warning(&mut self, event_loop: &crate::event_loop::ActiveEventLoop) {
+        self.app.memory_warning(event_loop);
     }
 }
 
@@ -284,9 +333,9 @@ impl<T> EventLoop<T> {
         &mut self,
         app: &mut A,
     ) -> Result<(), EventLoopError> {
-        let handler = map_user_event(app, self.receiver.clone());
+        let mut handler = MapUserEvent { app, receiver: self.receiver.clone() };
 
-        self.delegate.set_event_handler(handler, || {
+        self.delegate.set_event_handler(&mut handler, || {
             autoreleasepool(|_| {
                 // clear / normalize pump_events state
                 self.delegate.set_wait_timeout(None);
@@ -324,9 +373,9 @@ impl<T> EventLoop<T> {
         timeout: Option<Duration>,
         app: &mut A,
     ) -> PumpStatus {
-        let handler = map_user_event(app, self.receiver.clone());
+        let mut handler = MapUserEvent { app, receiver: self.receiver.clone() };
 
-        self.delegate.set_event_handler(handler, || {
+        self.delegate.set_event_handler(&mut handler, || {
             autoreleasepool(|_| {
                 // As a special case, if the application hasn't been launched yet then we at least
                 // run the loop until it has fully launched.
