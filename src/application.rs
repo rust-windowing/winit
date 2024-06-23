@@ -137,32 +137,32 @@ pub trait ApplicationHandler {
     ///
     /// fn main() -> Result<(), Box<dyn std::error::Error>> {
     ///     let event_loop = EventLoop::new()?;
-    ///     let proxy = event_loop.create_proxy();
     ///
     ///     let (sender, receiver) = mpsc::channel();
     ///
     ///     let mut app = MyApp { receiver };
     ///
-    ///     thread::scope(|s| {
-    ///         // Send an event in a loop
-    ///         s.spawn(|| {
-    ///             let mut i = 0;
-    ///             loop {
-    ///                 println!("sending: {i}");
-    ///                 if sender.send(i).is_err() {
-    ///                     // Stop sending once `MyApp` is dropped
-    ///                     break;
-    ///                 }
-    ///                 // Trigger the wake-up _after_ we placed the event in the channel.
-    ///                 // Otherwise, `proxy_wake_up` might be triggered prematurely.
-    ///                 proxy.wake_up();
-    ///                 i += 1;
-    ///                 thread::sleep(Duration::from_secs(1));
+    ///     // Send an event in a loop
+    ///     let proxy = event_loop.create_proxy();
+    ///     thread::spawn(move || {
+    ///         let mut i = 0;
+    ///         loop {
+    ///             println!("sending: {i}");
+    ///             if sender.send(i).is_err() {
+    ///                 // Stop sending once `MyApp` is dropped
+    ///                 break;
     ///             }
-    ///         });
+    ///             // Trigger the wake-up _after_ we placed the event in the channel.
+    ///             // Otherwise, `proxy_wake_up` might be triggered prematurely.
+    ///             proxy.wake_up();
+    ///             i += 1;
+    ///             thread::sleep(Duration::from_secs(1));
+    ///         }
+    ///     });
     ///
-    ///         Ok(event_loop.run_app(&mut app)?)
-    ///     })
+    ///     event_loop.run_app(&mut app)?;
+    ///
+    ///     Ok(())
     /// }
     /// ```
     fn proxy_wake_up(&mut self, event_loop: &ActiveEventLoop) {
