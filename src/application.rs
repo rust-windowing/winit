@@ -144,7 +144,7 @@ pub trait ApplicationHandler {
     ///
     ///     // Send an event in a loop
     ///     let proxy = event_loop.create_proxy();
-    ///     thread::spawn(move || {
+    ///     let background_thread = thread::spawn(move || {
     ///         let mut i = 0;
     ///         loop {
     ///             println!("sending: {i}");
@@ -161,6 +161,9 @@ pub trait ApplicationHandler {
     ///     });
     ///
     ///     event_loop.run_app(&mut app)?;
+    ///
+    ///     drop(app);
+    ///     background_thread.join().unwrap();
     ///
     ///     Ok(())
     /// }
