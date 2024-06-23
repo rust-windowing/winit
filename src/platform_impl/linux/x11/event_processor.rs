@@ -121,7 +121,7 @@ impl EventProcessor {
                 _ => continue,
             };
 
-            callback(&self.target, Event::Window { window_id, event });
+            callback(&self.target, Event::WindowEvent { window_id, event });
         }
     }
 
@@ -398,7 +398,7 @@ impl EventProcessor {
         let window_id = mkwid(window);
 
         if xev.data.get_long(0) as xproto::Atom == wt.wm_delete_window {
-            let event = Event::Window { window_id, event: WindowEvent::CloseRequested };
+            let event = Event::WindowEvent { window_id, event: WindowEvent::CloseRequested };
             callback(&self.target, event);
             return;
         }
@@ -520,7 +520,7 @@ impl EventProcessor {
             let (source_window, state) = if let Some(source_window) = self.dnd.source_window {
                 if let Some(Ok(ref path_list)) = self.dnd.result {
                     for path in path_list {
-                        let event = Event::Window {
+                        let event = Event::WindowEvent {
                             window_id,
                             event: WindowEvent::DroppedFile(path.clone()),
                         };
@@ -547,7 +547,7 @@ impl EventProcessor {
 
         if xev.message_type == atoms[XdndLeave] as c_ulong {
             self.dnd.reset();
-            let event = Event::Window { window_id, event: WindowEvent::HoveredFileCancelled };
+            let event = Event::WindowEvent { window_id, event: WindowEvent::HoveredFileCancelled };
             callback(&self.target, event);
         }
     }
@@ -575,8 +575,10 @@ impl EventProcessor {
             let parse_result = self.dnd.parse_data(&mut data);
             if let Ok(ref path_list) = parse_result {
                 for path in path_list {
-                    let event =
-                        Event::Window { window_id, event: WindowEvent::HoveredFile(path.clone()) };
+                    let event = Event::WindowEvent {
+                        window_id,
+                        event: WindowEvent::HoveredFile(path.clone()),
+                    };
                     callback(&self.target, event);
                 }
             }
@@ -656,7 +658,7 @@ impl EventProcessor {
             drop(shared_state_lock);
 
             if moved {
-                callback(&self.target, Event::Window {
+                callback(&self.target, Event::WindowEvent {
                     window_id,
                     event: WindowEvent::Moved(outer.into()),
                 });
@@ -704,7 +706,7 @@ impl EventProcessor {
                 drop(shared_state_lock);
 
                 let inner_size = Arc::new(Mutex::new(new_inner_size));
-                callback(&self.target, Event::Window {
+                callback(&self.target, Event::WindowEvent {
                     window_id,
                     event: WindowEvent::ScaleFactorChanged {
                         scale_factor: new_scale_factor,
@@ -757,7 +759,7 @@ impl EventProcessor {
         }
 
         if resized {
-            callback(&self.target, Event::Window {
+            callback(&self.target, Event::WindowEvent {
                 window_id,
                 event: WindowEvent::Resized(new_inner_size.into()),
             });
@@ -792,7 +794,7 @@ impl EventProcessor {
         // window, given that we can't rely on `CreateNotify`, due to it being not
         // sent.
         let focus = self.with_window(window, |window| window.has_focus()).unwrap_or_default();
-        let event = Event::Window { window_id, event: WindowEvent::Focused(focus) };
+        let event = Event::WindowEvent { window_id, event: WindowEvent::Focused(focus) };
 
         callback(&self.target, event);
     }
@@ -818,7 +820,7 @@ impl EventProcessor {
                 .expect("Failed to destroy input context");
         }
 
-        callback(&self.target, Event::Window { window_id, event: WindowEvent::Destroyed });
+        callback(&self.target, Event::WindowEvent { window_id, event: WindowEvent::Destroyed });
     }
 
     fn property_notify<F>(&mut self, xev: &XPropertyEvent, mut callback: F)
@@ -842,7 +844,7 @@ impl EventProcessor {
     {
         let xwindow = xev.window as xproto::Window;
 
-        let event = Event::Window {
+        let event = Event::WindowEvent {
             window_id: mkwid(xwindow),
             event: WindowEvent::Occluded(xev.state == xlib::VisibilityFullyObscured),
         };
@@ -863,7 +865,7 @@ impl EventProcessor {
             let window = xev.window as xproto::Window;
             let window_id = mkwid(window);
 
-            let event = Event::Window { window_id, event: WindowEvent::RedrawRequested };
+            let event = Event::WindowEvent { window_id, event: WindowEvent::RedrawRequested };
 
             callback(&self.target, event);
         }
@@ -946,7 +948,7 @@ impl EventProcessor {
 
             if let Some(mut key_processor) = self.xkb_context.key_context() {
                 let event = key_processor.process_key_event(keycode, state, repeat);
-                let event = Event::Window {
+                let event = Event::WindowEvent {
                     window_id,
                     event: WindowEvent::KeyboardInput { device_id, event, is_synthetic: false },
                 };
@@ -968,14 +970,14 @@ impl EventProcessor {
         {
             let written = wt.xconn.lookup_utf8(ic, xev);
             if !written.is_empty() {
-                let event = Event::Window {
+                let event = Event::WindowEvent {
                     window_id,
                     event: WindowEvent::Ime(Ime::Preedit(String::new(), None)),
                 };
                 callback(&self.target, event);
 
                 let event =
-                    Event::Window { window_id, event: WindowEvent::Ime(Ime::Commit(written)) };
+                    Event::WindowEvent { window_id, event: WindowEvent::Ime(Ime::Commit(written)) };
 
                 self.is_composing = false;
                 callback(&self.target, event);
@@ -1010,7 +1012,8 @@ impl EventProcessor {
         xkb_state.update_modifiers(mask, 0, 0, 0, 0, Self::core_keyboard_group(state));
         let mods: ModifiersState = xkb_state.modifiers().into();
 
-        let event = Event::Window { window_id, event: WindowEvent::ModifiersChanged(mods.into()) };
+        let event =
+            Event::WindowEvent { window_id, event: WindowEvent::ModifiersChanged(mods.into()) };
 
         callback(&self.target, event);
     }
@@ -1064,7 +1067,7 @@ impl EventProcessor {
             x => WindowEvent::MouseInput { device_id, state, button: MouseButton::Other(x as u16) },
         };
 
-        let event = Event::Window { window_id, event };
+        let event = Event::WindowEvent { window_id, event };
         callback(&self.target, event);
     }
 
@@ -1090,7 +1093,7 @@ impl EventProcessor {
         if cursor_moved == Some(true) {
             let position = PhysicalPosition::new(event.event_x, event.event_y);
 
-            let event = Event::Window {
+            let event = Event::WindowEvent {
                 window_id,
                 event: WindowEvent::CursorMoved { device_id, position },
             };
@@ -1136,7 +1139,7 @@ impl EventProcessor {
                 WindowEvent::AxisMotion { device_id, axis: i as u32, value: unsafe { *value } }
             };
 
-            events.push(Event::Window { window_id, event });
+            events.push(Event::WindowEvent { window_id, event });
 
             value = unsafe { value.offset(1) };
         }
@@ -1180,10 +1183,10 @@ impl EventProcessor {
             let position = PhysicalPosition::new(event.event_x, event.event_y);
 
             let event =
-                Event::Window { window_id, event: WindowEvent::CursorEntered { device_id } };
+                Event::WindowEvent { window_id, event: WindowEvent::CursorEntered { device_id } };
             callback(&self.target, event);
 
-            let event = Event::Window {
+            let event = Event::WindowEvent {
                 window_id,
                 event: WindowEvent::CursorMoved { device_id, position },
             };
@@ -1204,7 +1207,7 @@ impl EventProcessor {
         // Leave, FocusIn, and FocusOut can be received by a window that's already
         // been destroyed, which the user presumably doesn't want to deal with.
         if self.window_exists(window) {
-            let event = Event::Window {
+            let event = Event::WindowEvent {
                 window_id: mkwid(window),
                 event: WindowEvent::CursorLeft {
                     device_id: mkdid(event.deviceid as xinput::DeviceId),
@@ -1243,7 +1246,7 @@ impl EventProcessor {
             window.shared_state_lock().has_focus = true;
         }
 
-        let event = Event::Window { window_id, event: WindowEvent::Focused(true) };
+        let event = Event::WindowEvent { window_id, event: WindowEvent::Focused(true) };
         callback(&self.target, event);
 
         // Issue key press events for all pressed keys
@@ -1266,7 +1269,7 @@ impl EventProcessor {
             .map(|device| device.attachment)
             .unwrap_or(2);
 
-        let event = Event::Window {
+        let event = Event::WindowEvent {
             window_id,
             event: WindowEvent::CursorMoved { device_id: mkdid(pointer_id as _), position },
         };
@@ -1320,7 +1323,7 @@ impl EventProcessor {
                 window.shared_state_lock().has_focus = false;
             }
 
-            let event = Event::Window { window_id, event: WindowEvent::Focused(false) };
+            let event = Event::WindowEvent { window_id, event: WindowEvent::Focused(false) };
             callback(&self.target, event)
         }
     }
@@ -1343,7 +1346,7 @@ impl EventProcessor {
             // Mouse cursor position changes when touch events are received.
             // Only the first concurrently active touch ID moves the mouse cursor.
             if is_first_touch(&mut self.first_touch, &mut self.num_touch, id, phase) {
-                let event = Event::Window {
+                let event = Event::WindowEvent {
                     window_id,
                     event: WindowEvent::CursorMoved {
                         device_id: mkdid(util::VIRTUAL_CORE_POINTER),
@@ -1353,7 +1356,7 @@ impl EventProcessor {
                 callback(&self.target, event);
             }
 
-            let event = Event::Window {
+            let event = Event::WindowEvent {
                 window_id,
                 event: WindowEvent::Touch(Touch {
                     device_id: mkdid(xev.deviceid as xinput::DeviceId),
@@ -1377,7 +1380,7 @@ impl EventProcessor {
         wt.xconn.set_timestamp(xev.time as xproto::Timestamp);
 
         if xev.flags & xinput2::XIPointerEmulated == 0 {
-            let event = Event::Device {
+            let event = Event::DeviceEvent {
                 device_id: mkdid(xev.deviceid as xinput::DeviceId),
                 event: DeviceEvent::Button { state, button: xev.detail as u32 },
             };
@@ -1417,7 +1420,7 @@ impl EventProcessor {
                 _ => {},
             }
 
-            let event = Event::Device {
+            let event = Event::DeviceEvent {
                 device_id: did,
                 event: DeviceEvent::Motion { axis: i as u32, value: x },
             };
@@ -1427,7 +1430,7 @@ impl EventProcessor {
         }
 
         if let Some(mouse_delta) = mouse_delta.consume() {
-            let event = Event::Device {
+            let event = Event::DeviceEvent {
                 device_id: did,
                 event: DeviceEvent::MouseMotion { delta: mouse_delta },
             };
@@ -1435,7 +1438,7 @@ impl EventProcessor {
         }
 
         if let Some(scroll_delta) = scroll_delta.consume() {
-            let event = Event::Device {
+            let event = Event::DeviceEvent {
                 device_id: did,
                 event: DeviceEvent::MouseWheel {
                     delta: MouseScrollDelta::LineDelta(scroll_delta.0, scroll_delta.1),
@@ -1461,7 +1464,7 @@ impl EventProcessor {
         }
         let physical_key = xkb::raw_keycode_to_physicalkey(keycode);
 
-        callback(&self.target, Event::Device {
+        callback(&self.target, Event::DeviceEvent {
             device_id,
             event: DeviceEvent::Key(RawKeyEvent { physical_key, state }),
         });
@@ -1479,12 +1482,12 @@ impl EventProcessor {
         for info in infos {
             if 0 != info.flags & (xinput2::XISlaveAdded | xinput2::XIMasterAdded) {
                 self.init_device(info.deviceid as xinput::DeviceId);
-                callback(&self.target, Event::Device {
+                callback(&self.target, Event::DeviceEvent {
                     device_id: mkdid(info.deviceid as xinput::DeviceId),
                     event: DeviceEvent::Added,
                 });
             } else if 0 != info.flags & (xinput2::XISlaveRemoved | xinput2::XIMasterRemoved) {
-                callback(&self.target, Event::Device {
+                callback(&self.target, Event::DeviceEvent {
                     device_id: mkdid(info.deviceid as xinput::DeviceId),
                     event: DeviceEvent::Removed,
                 });
@@ -1724,7 +1727,7 @@ impl EventProcessor {
         // NOTE: Always update the modifiers to account for case when they've changed
         // and forced was `true`.
         if self.modifiers.replace(modifiers) != modifiers || force {
-            let event = Event::Window {
+            let event = Event::WindowEvent {
                 window_id,
                 event: WindowEvent::ModifiersChanged(self.modifiers.get().into()),
             };
@@ -1766,7 +1769,7 @@ impl EventProcessor {
             window_target.xconn.query_keymap().into_iter().filter(|k| *k >= KEYCODE_OFFSET)
         {
             let event = key_processor.process_key_event(keycode as u32, state, false);
-            let event = Event::Window {
+            let event = Event::WindowEvent {
                 window_id,
                 event: WindowEvent::KeyboardInput { device_id, event, is_synthetic: true },
             };

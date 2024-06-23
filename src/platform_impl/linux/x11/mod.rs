@@ -573,7 +573,7 @@ impl EventLoop {
         while unsafe { self.event_processor.poll_one_event(xev.as_mut_ptr()) } {
             let mut xev = unsafe { xev.assume_init() };
             self.event_processor.process_event(&mut xev, |window_target, event: Event| {
-                if let Event::Window {
+                if let Event::WindowEvent {
                     window_id: crate::window::WindowId(wid),
                     event: WindowEvent::RedrawRequested,
                 } = event
@@ -582,10 +582,10 @@ impl EventLoop {
                     window_target.redraw_sender.send(wid);
                 } else {
                     match event {
-                        Event::Window { window_id, event } => {
+                        Event::WindowEvent { window_id, event } => {
                             app.window_event(window_target, window_id, event)
                         },
-                        Event::Device { device_id, event } => {
+                        Event::DeviceEvent { device_id, event } => {
                             app.device_event(window_target, device_id, event)
                         },
                         _ => unreachable!("event which is neither device nor window event."),

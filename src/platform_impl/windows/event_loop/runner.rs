@@ -202,7 +202,7 @@ impl EventLoopRunner {
     }
 
     pub(crate) fn send_event(&self, event: Event) {
-        if let Event::Window { event: WindowEvent::RedrawRequested, .. } = event {
+        if let Event::WindowEvent { event: WindowEvent::RedrawRequested, .. } = event {
             self.call_event_handler(event);
             // As a rule, to ensure that `pump_events` can't block an external event loop
             // for too long, we always guarantee that `pump_events` will return control to
@@ -357,7 +357,7 @@ impl EventLoopRunner {
 impl BufferedEvent {
     pub fn from_event(event: Event) -> BufferedEvent {
         match event {
-            Event::Window {
+            Event::WindowEvent {
                 event: WindowEvent::ScaleFactorChanged { scale_factor, inner_size_writer },
                 window_id,
             } => BufferedEvent::ScaleFactorChanged(
@@ -374,7 +374,7 @@ impl BufferedEvent {
             Self::Event(event) => dispatch(event),
             Self::ScaleFactorChanged(window_id, scale_factor, new_inner_size) => {
                 let user_new_innner_size = Arc::new(Mutex::new(new_inner_size));
-                dispatch(Event::Window {
+                dispatch(Event::WindowEvent {
                     window_id,
                     event: WindowEvent::ScaleFactorChanged {
                         scale_factor,

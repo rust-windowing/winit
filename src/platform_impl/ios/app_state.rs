@@ -87,7 +87,7 @@ enum UserCallbackTransitionResult<'a> {
 
 impl Event {
     fn is_redraw(&self) -> bool {
-        matches!(self, Event::Window { event: WindowEvent::RedrawRequested, .. })
+        matches!(self, Event::WindowEvent { event: WindowEvent::RedrawRequested, .. })
     }
 }
 
@@ -672,7 +672,7 @@ pub(crate) fn send_occluded_event_for_all_windows(application: &UIApplication, o
                 let ptr: *const WinitUIWindow = ptr.cast();
                 &*ptr
             };
-            events.push(EventWrapper::StaticEvent(Event::Window {
+            events.push(EventWrapper::StaticEvent(Event::WindowEvent {
                 window_id: RootWindowId(window.id()),
                 event: WindowEvent::Occluded(occluded),
             }));
@@ -699,7 +699,7 @@ pub fn handle_main_events_cleared(mtm: MainThreadMarker) {
         .main_events_cleared_transition()
         .into_iter()
         .map(|window| {
-            EventWrapper::StaticEvent(Event::Window {
+            EventWrapper::StaticEvent(Event::WindowEvent {
                 window_id: RootWindowId(window.id()),
                 event: WindowEvent::RedrawRequested,
             })
@@ -728,7 +728,7 @@ pub(crate) fn terminated(application: &UIApplication) {
                 let ptr: *const WinitUIWindow = ptr.cast();
                 &*ptr
             };
-            events.push(EventWrapper::StaticEvent(Event::Window {
+            events.push(EventWrapper::StaticEvent(Event::WindowEvent {
                 window_id: RootWindowId(window.id()),
                 event: WindowEvent::Destroyed,
             }));
@@ -746,7 +746,7 @@ pub(crate) fn terminated(application: &UIApplication) {
 fn handle_hidpi_proxy(handler: &mut EventLoopHandler, event: ScaleFactorChanged) {
     let ScaleFactorChanged { suggested_size, scale_factor, window } = event;
     let new_inner_size = Arc::new(Mutex::new(suggested_size));
-    let event = Event::Window {
+    let event = Event::WindowEvent {
         window_id: RootWindowId(window.id()),
         event: WindowEvent::ScaleFactorChanged {
             scale_factor,

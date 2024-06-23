@@ -71,12 +71,14 @@ pub(crate) enum Event {
     /// See [`ApplicationHandler::window_event`] for details.
     ///
     /// [`ApplicationHandler::window_event`]: crate::application::ApplicationHandler::window_event
-    Window { window_id: WindowId, event: WindowEvent },
+    #[allow(clippy::enum_variant_names)]
+    WindowEvent { window_id: WindowId, event: WindowEvent },
 
     /// See [`ApplicationHandler::device_event`] for details.
     ///
     /// [`ApplicationHandler::device_event`]: crate::application::ApplicationHandler::device_event
-    Device { device_id: DeviceId, event: DeviceEvent },
+    #[allow(clippy::enum_variant_names)]
+    DeviceEvent { device_id: DeviceId, event: DeviceEvent },
 
     /// See [`ApplicationHandler::suspended`] for details.
     ///
@@ -1023,7 +1025,7 @@ mod tests {
                 x(Resumed);
 
                 // Window events.
-                let with_window_event = |wev| x(Window { window_id: wid, event: wev });
+                let with_window_event = |wev| x(WindowEvent { window_id: wid, event: wev });
 
                 with_window_event(CloseRequested);
                 with_window_event(Destroyed);
@@ -1082,7 +1084,7 @@ mod tests {
                 use event::DeviceEvent::*;
 
                 let with_device_event =
-                    |dev_ev| x(event::Event::Device { device_id: did, event: dev_ev });
+                    |dev_ev| x(event::Event::DeviceEvent { device_id: did, event: dev_ev });
 
                 with_device_event(Added);
                 with_device_event(Removed);

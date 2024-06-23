@@ -491,7 +491,7 @@ impl Canvas {
         self.set_current_size(current_size);
         let new_size = {
             let new_size = Arc::new(Mutex::new(current_size));
-            event_handler(crate::event::Event::Window {
+            event_handler(crate::event::Event::WindowEvent {
                 window_id: RootWindowId(self.id),
                 event: crate::event::WindowEvent::ScaleFactorChanged {
                     scale_factor: scale,
@@ -517,7 +517,7 @@ impl Canvas {
         } else if self.old_size() != new_size {
             // Then we at least send a resized event.
             self.set_old_size(new_size);
-            runner.send_event(crate::event::Event::Window {
+            runner.send_event(crate::event::Event::WindowEvent {
                 window_id: RootWindowId(self.id),
                 event: crate::event::WindowEvent::Resized(new_size),
             })

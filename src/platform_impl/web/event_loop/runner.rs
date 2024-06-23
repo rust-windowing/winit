@@ -264,7 +264,7 @@ impl Shared {
                         ElementState::Released
                     };
 
-                    runner.send_event(Event::Device {
+                    runner.send_event(Event::DeviceEvent {
                         device_id,
                         event: DeviceEvent::Button { button: button.to_id(), state },
                     });
@@ -277,17 +277,17 @@ impl Shared {
                 runner.send_events(backend::event::pointer_move_event(event).flat_map(|event| {
                     let delta = delta.delta(&event).to_physical(backend::scale_factor(&window));
 
-                    let x_motion = (delta.x != 0.0).then_some(Event::Device {
+                    let x_motion = (delta.x != 0.0).then_some(Event::DeviceEvent {
                         device_id,
                         event: DeviceEvent::Motion { axis: 0, value: delta.x },
                     });
 
-                    let y_motion = (delta.y != 0.0).then_some(Event::Device {
+                    let y_motion = (delta.y != 0.0).then_some(Event::DeviceEvent {
                         device_id,
                         event: DeviceEvent::Motion { axis: 1, value: delta.y },
                     });
 
-                    x_motion.into_iter().chain(y_motion).chain(iter::once(Event::Device {
+                    x_motion.into_iter().chain(y_motion).chain(iter::once(Event::DeviceEvent {
                         device_id,
                         event: DeviceEvent::MouseMotion { delta: (delta.x, delta.y) },
                     }))
@@ -305,7 +305,7 @@ impl Shared {
                 }
 
                 if let Some(delta) = backend::event::mouse_scroll_delta(&window, &event) {
-                    runner.send_event(Event::Device {
+                    runner.send_event(Event::DeviceEvent {
                         device_id: RootDeviceId(DeviceId(0)),
                         event: DeviceEvent::MouseWheel { delta },
                     });
@@ -326,7 +326,7 @@ impl Shared {
                 }
 
                 let button = backend::event::mouse_button(&event).expect("no mouse button pressed");
-                runner.send_event(Event::Device {
+                runner.send_event(Event::DeviceEvent {
                     device_id: RootDeviceId(DeviceId(event.pointer_id())),
                     event: DeviceEvent::Button {
                         button: button.to_id(),
@@ -349,7 +349,7 @@ impl Shared {
                 }
 
                 let button = backend::event::mouse_button(&event).expect("no mouse button pressed");
-                runner.send_event(Event::Device {
+                runner.send_event(Event::DeviceEvent {
                     device_id: RootDeviceId(DeviceId(event.pointer_id())),
                     event: DeviceEvent::Button {
                         button: button.to_id(),
@@ -367,7 +367,7 @@ impl Shared {
                     return;
                 }
 
-                runner.send_event(Event::Device {
+                runner.send_event(Event::DeviceEvent {
                     device_id: RootDeviceId(unsafe { DeviceId::dummy() }),
                     event: DeviceEvent::Key(RawKeyEvent {
                         physical_key: backend::event::key_code(&event),
@@ -385,7 +385,7 @@ impl Shared {
                     return;
                 }
 
-                runner.send_event(Event::Device {
+                runner.send_event(Event::DeviceEvent {
                     device_id: RootDeviceId(unsafe { DeviceId::dummy() }),
                     event: DeviceEvent::Key(RawKeyEvent {
                         physical_key: backend::event::key_code(&event),
@@ -411,7 +411,7 @@ impl Shared {
                             if let (false, Some(true) | None) | (true, Some(true)) =
                                 (is_visible, canvas.borrow().is_intersecting)
                             {
-                                runner.send_event(Event::Window {
+                                runner.send_event(Event::WindowEvent {
                                     window_id: *id,
                                     event: WindowEvent::Occluded(!is_visible),
                                 });
@@ -560,7 +560,7 @@ impl Shared {
     fn process_destroy_pending_windows(&self) {
         while let Some(id) = self.0.destroy_pending.borrow_mut().pop_front() {
             self.0.all_canvases.borrow_mut().retain(|&(item_id, ..)| item_id != id);
-            self.handle_event(Event::Window {
+            self.handle_event(Event::WindowEvent {
                 window_id: id,
                 event: crate::event::WindowEvent::Destroyed,
             });
@@ -581,7 +581,10 @@ impl Shared {
         // Collect all of the redraw events to avoid double-locking the RefCell
         let redraw_events: Vec<WindowId> = self.0.redraw_pending.borrow_mut().drain().collect();
         for window_id in redraw_events {
-            self.handle_event(Event::Window { window_id, event: WindowEvent::RedrawRequested });
+            self.handle_event(Event::WindowEvent {
+                window_id,
+                event: WindowEvent::RedrawRequested,
+            });
         }
 
         self.handle_event(Event::AboutToWait);

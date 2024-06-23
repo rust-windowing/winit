@@ -901,7 +901,7 @@ impl UnownedWindow {
             let window_id = crate::window::WindowId(self.id());
             let old_inner_size = PhysicalSize::new(width, height);
             let inner_size = Arc::new(Mutex::new(PhysicalSize::new(new_width, new_height)));
-            callback(Event::Window {
+            callback(Event::WindowEvent {
                 window_id,
                 event: WindowEvent::ScaleFactorChanged {
                     scale_factor: new_monitor.scale_factor,

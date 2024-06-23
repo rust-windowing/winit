@@ -399,10 +399,10 @@ impl EventLoop {
         });
         for event in buffer_sink.drain() {
             match event {
-                Event::Window { window_id, event } => {
+                Event::WindowEvent { window_id, event } => {
                     app.window_event(&self.window_target, window_id, event)
                 },
-                Event::Device { device_id, event } => {
+                Event::DeviceEvent { device_id, event } => {
                     app.device_event(&self.window_target, device_id, event)
                 },
                 _ => unreachable!("event which is neither device nor window event."),
@@ -415,10 +415,10 @@ impl EventLoop {
         });
         for event in buffer_sink.drain() {
             match event {
-                Event::Window { window_id, event } => {
+                Event::WindowEvent { window_id, event } => {
                     app.window_event(&self.window_target, window_id, event)
                 },
-                Event::Device { device_id, event } => {
+                Event::DeviceEvent { device_id, event } => {
                     app.device_event(&self.window_target, device_id, event)
                 },
                 _ => unreachable!("event which is neither device nor window event."),

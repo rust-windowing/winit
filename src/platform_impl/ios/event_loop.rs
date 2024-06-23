@@ -114,8 +114,12 @@ fn map_user_event<A: ApplicationHandler>(
 ) -> impl FnMut(Event, &RootActiveEventLoop) + '_ {
     move |event, window_target| match event {
         Event::NewEvents(cause) => app.new_events(window_target, cause),
-        Event::Window { window_id, event } => app.window_event(window_target, window_id, event),
-        Event::Device { device_id, event } => app.device_event(window_target, device_id, event),
+        Event::WindowEvent { window_id, event } => {
+            app.window_event(window_target, window_id, event)
+        },
+        Event::DeviceEvent { device_id, event } => {
+            app.device_event(window_target, device_id, event)
+        },
         Event::UserWakeUp => {
             if proxy_wake_up.swap(false, AtomicOrdering::Relaxed) {
                 app.proxy_wake_up(window_target);

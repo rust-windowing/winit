@@ -87,7 +87,7 @@ impl FileDropHandler {
         let drop_handler = unsafe { Self::from_interface(this) };
         let hdrop = unsafe {
             Self::iterate_filenames(pDataObj, |filename| {
-                drop_handler.send_event(Event::Window {
+                drop_handler.send_event(Event::WindowEvent {
                     window_id: RootWindowId(WindowId(drop_handler.window)),
                     event: HoveredFile(filename),
                 });
@@ -121,7 +121,7 @@ impl FileDropHandler {
         use crate::event::WindowEvent::HoveredFileCancelled;
         let drop_handler = unsafe { Self::from_interface(this) };
         if drop_handler.hovered_is_valid {
-            drop_handler.send_event(Event::Window {
+            drop_handler.send_event(Event::WindowEvent {
                 window_id: RootWindowId(WindowId(drop_handler.window)),
                 event: HoveredFileCancelled,
             });
@@ -141,7 +141,7 @@ impl FileDropHandler {
         let drop_handler = unsafe { Self::from_interface(this) };
         let hdrop = unsafe {
             Self::iterate_filenames(pDataObj, |filename| {
-                drop_handler.send_event(Event::Window {
+                drop_handler.send_event(Event::WindowEvent {
                     window_id: RootWindowId(WindowId(drop_handler.window)),
                     event: DroppedFile(filename),
                 });
