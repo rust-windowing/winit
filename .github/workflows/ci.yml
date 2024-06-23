@@ -202,6 +202,130 @@ jobs:
           ~/.cargo/git/db/
         key: cargo-${{ matrix.toolchain }}-${{ matrix.platform.name }}-${{ hashFiles('Cargo.lock') }}
 
+  tier2:
+    name: Check winit for Tier 2 Targets
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        toolchain: [stable, nightly, '1.73']
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - uses: dtolnay/rust-toolchain@master
+      with:
+        toolchain: ${{ matrix.toolchain }}
+
+    - name: Use specific dependency versions for Rust 1.63 compatibility.
+      if: matrix.rust == '1.63'
+      run: |
+        cargo update --package=dashmap --precise 5.4.0
+        cargo update --package=regex --precise=1.9.0
+        cargo update --package=half --precise=2.2.1
+
+    - run: >
+        rustup target add
+        x86_64-unknown-linux-musl
+        x86_64-unknown-linux-gnux32
+        x86_64-linux-android
+        i686-linux-android
+        x86_64-unknown-freebsd
+        x86_64-unknown-netbsd
+        x86_64-unknown-illumos
+        i686-unknown-linux-musl
+        riscv64gc-unknown-linux-gnu
+        aarch64-unknown-linux-gnu
+        aarch64-unknown-linux-musl
+        powerpc64le-unknown-linux-gnu
+        armv5te-unknown-linux-gnueabi
+        s390x-unknown-linux-gnu
+        arm-linux-androideabi
+        sparc64-unknown-linux-gnu
+        sparcv9-sun-solaris
+
+    - run: cargo check --release -vv --all-targets --target=x86_64-unknown-linux-musl
+    - run: cargo check --release -vv --all-targets --target=x86_64-unknown-linux-musl --no-default-features --features x11
+    - run: cargo check --release -vv --all-targets --target=x86_64-unknown-linux-musl --no-default-features --features wayland
+    - run: cargo check --release -vv --all-targets --target=x86_64-unknown-linux-gnux32
+    - run: cargo check --release -vv --all-targets --target=x86_64-unknown-linux-gnux32 --no-default-features --features x11
+    - run: cargo check --release -vv --all-targets --target=x86_64-unknown-linux-gnux32 --no-default-features --features wayland
+    # TODO: Figure out best way to check Android targets.
+    # - run: cargo check --release -vv --all-targets --target=x86_64-linux-android --features android-native-activity
+    # - run: cargo check --release -vv --all-targets --target=x86_64-linux-android --features android-game-activity
+    # - run: cargo check --release -vv --all-targets --target=i686-linux-android --features android-native-activity
+    # - run: cargo check --release -vv --all-targets --target=i686-linux-android --features android-game-activity
+    - run: cargo check --release -vv --all-targets --target=x86_64-unknown-freebsd
+    - run: cargo check --release -vv --all-targets --target=x86_64-unknown-freebsd --no-default-features --features x11
+    - run: cargo check --release -vv --all-targets --target=x86_64-unknown-freebsd --no-default-features --features wayland
+    - run: cargo check --release -vv --all-targets --target=x86_64-unknown-netbsd
+    - run: cargo check --release -vv --all-targets --target=x86_64-unknown-netbsd --no-default-features --features x11
+    - run: cargo check --release -vv --all-targets --target=x86_64-unknown-netbsd --no-default-features --features wayland
+    - run: cargo check --release -vv --all-targets --target=x86_64-unknown-illumos
+    - run: cargo check --release -vv --all-targets --target=x86_64-unknown-illumos --no-default-features --features x11
+    - run: cargo check --release -vv --all-targets --target=x86_64-unknown-illumos --no-default-features --features wayland
+    - run: cargo check --release -vv --all-targets --target=i686-unknown-linux-musl
+    - run: cargo check --release -vv --all-targets --target=i686-unknown-linux-musl --no-default-features --features x11
+    - run: cargo check --release -vv --all-targets --target=i686-unknown-linux-musl --no-default-features --features wayland
+    - run: cargo check --release -vv --all-targets --target=riscv64gc-unknown-linux-gnu
+    - run: cargo check --release -vv --all-targets --target=riscv64gc-unknown-linux-gnu --no-default-features --features x11
+    - run: cargo check --release -vv --all-targets --target=riscv64gc-unknown-linux-gnu --no-default-features --features wayland
+    - run: cargo check --release -vv --all-targets --target=aarch64-unknown-linux-gnu
+    - run: cargo check --release -vv --all-targets --target=aarch64-unknown-linux-gnu --no-default-features --features x11
+    - run: cargo check --release -vv --all-targets --target=aarch64-unknown-linux-gnu --no-default-features --features wayland
+    - run: cargo check --release -vv --all-targets --target=aarch64-unknown-linux-musl
+    - run: cargo check --release -vv --all-targets --target=aarch64-unknown-linux-musl --no-default-features --features x11
+    - run: cargo check --release -vv --all-targets --target=aarch64-unknown-linux-musl --no-default-features --features wayland
+    - run: cargo check --release -vv --all-targets --target=powerpc64le-unknown-linux-gnu
+    - run: cargo check --release -vv --all-targets --target=powerpc64le-unknown-linux-gnu --no-default-features --features x11
+    - run: cargo check --release -vv --all-targets --target=powerpc64le-unknown-linux-gnu --no-default-features --features wayland
+    - run: cargo check --release -vv --all-targets --target=armv5te-unknown-linux-gnueabi
+    - run: cargo check --release -vv --all-targets --target=armv5te-unknown-linux-gnueabi --no-default-features --features x11
+    - run: cargo check --release -vv --all-targets --target=armv5te-unknown-linux-gnueabi --no-default-features --features wayland
+    - run: cargo check --release -vv --all-targets --target=s390x-unknown-linux-gnu
+    - run: cargo check --release -vv --all-targets --target=s390x-unknown-linux-gnu --no-default-features --features x11
+    - run: cargo check --release -vv --all-targets --target=s390x-unknown-linux-gnu --no-default-features --features wayland
+    # - run: cargo check --release -vv --all-targets --target=arm-linux-androideabi --features android-native-activity
+    # - run: cargo check --release -vv --all-targets --target=arm-linux-androideabi --features android-game-activity
+    - run: cargo check --release -vv --all-targets --target=sparc64-unknown-linux-gnu
+    - run: cargo check --release -vv --all-targets --target=sparc64-unknown-linux-gnu --no-default-features --features x11
+    - run: cargo check --release -vv --all-targets --target=sparc64-unknown-linux-gnu --no-default-features --features wayland
+    - run: cargo check --release -vv --all-targets --target=sparcv9-sun-solaris
+    - run: cargo check --release -vv --all-targets --target=sparcv9-sun-solaris --no-default-features --features x11
+    - run: cargo check --release -vv --all-targets --target=sparcv9-sun-solaris --no-default-features --features wayland
+
+  tier3:
+    name: Check winit for Tier 3 Targets
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        toolchain: [nightly]
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - uses: dtolnay/rust-toolchain@master
+      with:
+        toolchain: ${{ matrix.toolchain }}
+
+    - run: rustup component add rust-src
+    - run: cargo check -Z build-std -vv --target x86_64-unknown-openbsd --all-targets
+    - run: cargo check -Z build-std -vv --target x86_64-unknown-openbsd --all-targets --no-default-features --features x11
+    - run: cargo check -Z build-std -vv --target x86_64-unknown-openbsd --all-targets --no-default-features --features wayland
+    - run: cargo check -Z build-std -vv --target mips64-openwrt-linux-musl --all-targets
+    - run: cargo check -Z build-std -vv --target mips64-openwrt-linux-musl --all-targets --no-default-features --features x11
+    - run: cargo check -Z build-std -vv --target mips64-openwrt-linux-musl --all-targets --no-default-features --features wayland
+    - run: cargo check -Z build-std -vv --target sparc-unknown-linux-gnu --all-targets
+    - run: cargo check -Z build-std -vv --target sparc-unknown-linux-gnu --all-targets --no-default-features --features x11
+    - run: cargo check -Z build-std -vv --target sparc-unknown-linux-gnu --all-targets --no-default-features --features wayland
+    - run: cargo check -Z build-std -vv --target aarch64-unknown-linux-gnu_ilp32 --all-targets
+    - run: cargo check -Z build-std -vv --target aarch64-unknown-linux-gnu_ilp32 --all-targets --no-default-features --features x11
+    - run: cargo check -Z build-std -vv --target aarch64-unknown-linux-gnu_ilp32 --all-targets --no-default-features --features wayland
+    - run: cargo check -Z build-std -vv --target x86_64-uwp-windows-msvc --all-targets
+
   cargo-deny:
     name: Run cargo-deny on ${{ matrix.platform.name }}
     runs-on: ubuntu-latest
