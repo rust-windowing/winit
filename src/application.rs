@@ -86,7 +86,7 @@ pub trait ApplicationHandler {
     ///
     /// Multiple calls to the aforementioned method may result in only a single `proxy_wake_up` call
     /// for performance reasons. Furthermore, this callback may be emitted spuriously. For these
-    /// reasons, you should probably use some other tool like [`std::sync::mspc`] if you want to
+    /// reasons, you should probably use some other tool like [`std::sync::mpsc`] if you want to
     /// know the number of times that your application was _actually_ awoken, see the below example.
     ///
     /// The order in which this is emitted in relation to other events is not guaranteed. The time
