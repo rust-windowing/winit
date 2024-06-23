@@ -158,7 +158,7 @@ pub trait ApplicationHandler {
     ///                 // Otherwise, `proxy_wake_up` might be triggered prematurely.
     ///                 proxy.wake_up();
     ///                 i += 1;
-    ///                 thread::sleep(Duration::from_millis(i));
+    ///                 thread::sleep(Duration::from_secs(1));
     ///             }
     ///         });
     ///
