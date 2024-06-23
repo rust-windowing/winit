@@ -82,7 +82,7 @@ pub trait ApplicationHandler {
     /// [`Suspended`]: Self::suspended
     fn resumed(&mut self, event_loop: &ActiveEventLoop);
 
-    /// Called after a wake up is requested using [`EventLoopProxy::wake_up`].
+    /// Called after a wake up is requested using [`EventLoopProxy::wake_up()`].
     ///
     /// Multiple calls to the aforementioned method may result in only a single `proxy_wake_up`
     /// call. Furthermore, this callback may be emitted spuriously. For these reasons, you should
@@ -92,9 +92,9 @@ pub trait ApplicationHandler {
     /// The order in which this is emitted in relation to other events is not guaranteed. The time
     /// at which this will be emitted is not guaranteed, only that it will happen "soon". That is,
     /// there may be several executions of the event loop, including multiple redraws to windows,
-    /// between [`EventLoopProxy::wake_up`] being called and the event being delivered.
+    /// between [`EventLoopProxy::wake_up()`] being called and the event being delivered.
     ///
-    /// [`EventLoopProxy::wake_up`]: crate::event_loop::EventLoopProxy::wake_up
+    /// [`EventLoopProxy::wake_up()`]: crate::event_loop::EventLoopProxy::wake_up
     ///
     /// # Example
     ///

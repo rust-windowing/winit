@@ -520,7 +520,8 @@ pub struct EventLoopProxy {
 }
 
 impl EventLoopProxy {
-    /// Wake up the [`EventLoop`], resulting in [`ApplicationHandler::proxy_wake_up`] being called.
+    /// Wake up the [`EventLoop`], resulting in [`ApplicationHandler::proxy_wake_up()`] being
+    /// called.
     ///
     /// Multiple calls to this method may result in only a single call to [`proxy_wake_up`], see the
     /// documentation on that for details.
