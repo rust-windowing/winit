@@ -523,7 +523,7 @@ impl EventLoopProxy {
     /// Wake up the [`EventLoop`], resulting in [`ApplicationHandler::proxy_wake_up()`] being
     /// called.
     ///
-    /// Multiple calls to this method may result in only a single call to [`proxy_wake_up`], see the
+    /// Calls to this method are coalesced into a single call to [`proxy_wake_up`], see the
     /// documentation on that for details.
     ///
     /// If the event loop is no longer running, this is a no-op.

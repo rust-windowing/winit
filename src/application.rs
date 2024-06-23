@@ -84,9 +84,10 @@ pub trait ApplicationHandler {
 
     /// Called after a wake up is requested using [`EventLoopProxy::wake_up()`].
     ///
-    /// Multiple calls to the aforementioned method may result in only a single `proxy_wake_up`
-    /// call. Furthermore, this callback may be emitted spuriously. For these reasons, you should
-    /// not rely on the number of times that this was called.
+    /// Multiple calls to the aforementioned method will be merged, and will only wake the event
+    /// loop once; however, due to the nature of multi-threading some wake ups may appear
+    /// spuriously. For these reasons, you should not rely on the number of times that this was
+    /// called.
     ///
     /// The order in which this is emitted in relation to other events is not guaranteed. The time
     /// at which this will be emitted is not guaranteed, only that it will happen "soon". That is,
