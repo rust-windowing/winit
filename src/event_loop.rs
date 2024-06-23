@@ -532,8 +532,7 @@ impl EventLoopProxy {
     ///
     /// # Platform-specific
     ///
-    /// - **Windows**: The wake-up may be ignored under high contention, though this will hopefully
-    ///   be fixed in [#3687].
+    /// - **Windows**: The wake-up may be ignored under high contention, see [#3687].
     ///
     /// [#3687]: https://github.com/rust-windowing/winit/pull/3687
     pub fn wake_up(&self) {
