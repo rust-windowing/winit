@@ -50,3 +50,7 @@ changelog entry.
 - Remove `EventLoop::run`.
 - Remove `EventLoopExtRunOnDemand::run_on_demand`.
 - Remove `EventLoopExtPumpEvents::pump_events`.
+
+### Fixed
+
+- On Windows, fix `Window::inner_size` of undecorated window with shadows, reporting a size bigger than what's visible.
