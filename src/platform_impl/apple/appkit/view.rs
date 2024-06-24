@@ -2,6 +2,7 @@
 use std::cell::{Cell, RefCell};
 use std::collections::{HashMap, VecDeque};
 use std::ptr;
+use std::rc::Rc;
 
 use objc2::rc::{Retained, WeakId};
 use objc2::runtime::{AnyObject, Sel};
@@ -16,7 +17,7 @@ use objc2_foundation::{
     NSPoint, NSRange, NSRect, NSSize, NSString, NSUInteger,
 };
 
-use super::app_state::ApplicationDelegate;
+use super::app_state::AppState;
 use super::cursor::{default_cursor, invisible_cursor};
 use super::event::{
     code_to_key, code_to_location, create_key_event, event_mods, lalt_pressed, ralt_pressed,
@@ -112,7 +113,7 @@ fn get_left_modifier_code(key: &Key) -> KeyCode {
 #[derive(Debug)]
 pub struct ViewState {
     /// Strong reference to the global application state.
-    app_delegate: Retained<ApplicationDelegate>,
+    app_state: Rc<AppState>,
 
     cursor_state: RefCell<CursorState>,
     ime_position: Cell<NSPoint>,
@@ -206,7 +207,7 @@ declare_class!(
 
             // It's a workaround for https://github.com/rust-windowing/winit/issues/2640, don't replace with `self.window_id()`.
             if let Some(window) = self.ivars()._ns_window.load() {
-                self.ivars().app_delegate.handle_redraw(window.id());
+                self.ivars().app_state.handle_redraw(window.id());
             }
 
             // This is a direct subclass of NSView, no need to call superclass' drawRect:
@@ -687,7 +688,7 @@ declare_class!(
 
             self.update_modifiers(event, false);
 
-            self.ivars().app_delegate.maybe_queue_with_handler(move |app, event_loop|
+            self.ivars().app_state.maybe_queue_with_handler(move |app, event_loop|
                 app.device_event(event_loop, DEVICE_ID, DeviceEvent::MouseWheel { delta })
             );
             self.queue_event(WindowEvent::MouseWheel {
@@ -782,14 +783,14 @@ declare_class!(
 
 impl WinitView {
     pub(super) fn new(
-        app_delegate: &ApplicationDelegate,
+        app_state: &Rc<AppState>,
         window: &WinitWindow,
         accepts_first_mouse: bool,
         option_as_alt: OptionAsAlt,
     ) -> Retained<Self> {
         let mtm = MainThreadMarker::from(window);
         let this = mtm.alloc().set_ivars(ViewState {
-            app_delegate: app_delegate.retain(),
+            app_state: Rc::clone(app_state),
             cursor_state: Default::default(),
             ime_position: Default::default(),
             ime_size: Default::default(),
@@ -834,7 +835,7 @@ impl WinitView {
 
     fn queue_event(&self, event: WindowEvent) {
         let window_id = RootWindowId(self.window().id());
-        self.ivars().app_delegate.maybe_queue_with_handler(move |app, event_loop| {
+        self.ivars().app_state.maybe_queue_with_handler(move |app, event_loop| {
             app.window_event(event_loop, window_id, event);
         });
     }

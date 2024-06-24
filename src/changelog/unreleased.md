@@ -52,7 +52,10 @@ changelog entry.
   to send specific data to be processed on the main thread.
 - Changed `EventLoopProxy::send_event` to `EventLoopProxy::wake_up`, it now
   only wakes up the loop.
-- On iOS, no longer act as-if the application successfully open all URLs.
+- On iOS and macOS, remove custom application delegates. You are now allowed to override the
+  application delegate yourself.
+- On iOS, no longer act as-if the application successfully open all URLs. Override
+  `application:didFinishLaunchingWithOptions:` and provide the desired behaviour yourself.
 
 ### Removed
 

@@ -4,31 +4,28 @@ use std::collections::VecDeque;
 use std::marker::PhantomData;
 use std::os::raw::c_void;
 use std::panic::{catch_unwind, resume_unwind, RefUnwindSafe, UnwindSafe};
-use std::ptr::{self, NonNull};
+use std::ptr;
 use std::rc::{Rc, Weak};
 use std::sync::atomic::{AtomicBool, Ordering as AtomicOrdering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use block2::RcBlock;
 use core_foundation::base::{CFIndex, CFRelease};
 use core_foundation::runloop::{
     kCFRunLoopCommonModes, CFRunLoopAddSource, CFRunLoopGetMain, CFRunLoopSourceContext,
     CFRunLoopSourceCreate, CFRunLoopSourceRef, CFRunLoopSourceSignal, CFRunLoopWakeUp,
 };
 use objc2::rc::{autoreleasepool, Retained};
-use objc2::runtime::ProtocolObject;
 use objc2::{msg_send_id, ClassType};
 use objc2_app_kit::{
     NSApplication, NSApplicationActivationPolicy, NSApplicationDidFinishLaunchingNotification,
     NSApplicationWillTerminateNotification, NSWindow,
 };
-use objc2_foundation::{
-    MainThreadMarker, NSNotification, NSNotificationCenter, NSObject, NSObjectProtocol,
-};
+use objc2_foundation::{MainThreadMarker, NSNotificationCenter, NSObject, NSObjectProtocol};
 
+use super::super::notification_center::create_observer;
 use super::app::WinitApplication;
-use super::app_state::ApplicationDelegate;
+use super::app_state::AppState;
 use super::cursor::CustomCursor;
 use super::event::dummy_event;
 use super::monitor::{self, MonitorHandle};
@@ -72,19 +69,19 @@ impl PanicInfo {
 
 #[derive(Debug)]
 pub struct ActiveEventLoop {
-    delegate: Retained<ApplicationDelegate>,
+    app_state: Rc<AppState>,
     pub(super) mtm: MainThreadMarker,
 }
 
 impl ActiveEventLoop {
-    pub(super) fn new_root(delegate: Retained<ApplicationDelegate>) -> RootWindowTarget {
-        let mtm = MainThreadMarker::from(&*delegate);
-        let p = Self { delegate, mtm };
+    pub(super) fn new_root(app_state: Rc<AppState>) -> RootWindowTarget {
+        let mtm = app_state.mtm();
+        let p = Self { app_state, mtm };
         RootWindowTarget { p, _marker: PhantomData }
     }
 
-    pub(super) fn app_delegate(&self) -> &ApplicationDelegate {
-        &self.delegate
+    pub(super) fn app_state(&self) -> &Rc<AppState> {
+        &self.app_state
     }
 
     pub fn create_custom_cursor(&self, source: CustomCursorSource) -> RootCustomCursor {
@@ -120,23 +117,23 @@ impl ActiveEventLoop {
     }
 
     pub(crate) fn set_control_flow(&self, control_flow: ControlFlow) {
-        self.delegate.set_control_flow(control_flow)
+        self.app_state.set_control_flow(control_flow)
     }
 
     pub(crate) fn control_flow(&self) -> ControlFlow {
-        self.delegate.control_flow()
+        self.app_state.control_flow()
     }
 
     pub(crate) fn exit(&self) {
-        self.delegate.exit()
+        self.app_state.exit()
     }
 
     pub(crate) fn clear_exit(&self) {
-        self.delegate.clear_exit()
+        self.app_state.clear_exit()
     }
 
     pub(crate) fn exiting(&self) -> bool {
-        self.delegate.exiting()
+        self.app_state.exiting()
     }
 
     pub(crate) fn owned_display_handle(&self) -> OwnedDisplayHandle {
@@ -166,11 +163,7 @@ pub struct EventLoop {
     /// We intentionally don't store `WinitApplication` since we want to have
     /// the possibility of swapping that out at some point.
     app: Retained<NSApplication>,
-    /// The application delegate that we've registered.
-    ///
-    /// The delegate is only weakly referenced by NSApplication, so we must
-    /// keep it around here as well.
-    delegate: Retained<ApplicationDelegate>,
+    app_state: Rc<AppState>,
 
     proxy_wake_up: Arc<AtomicBool>,
 
@@ -227,7 +220,7 @@ impl EventLoop {
 
         let proxy_wake_up = Arc::new(AtomicBool::new(false));
 
-        let delegate = ApplicationDelegate::new(
+        let app_state = AppState::setup_global(
             mtm,
             activation_policy,
             proxy_wake_up.clone(),
@@ -237,52 +230,40 @@ impl EventLoop {
 
         let center = unsafe { NSNotificationCenter::defaultCenter() };
 
-        let block = {
-            let delegate = objc2::rc::Weak::new(&*delegate);
-            RcBlock::new(move |notification: NonNull<NSNotification>| {
-                if let Some(delegate) = delegate.load() {
-                    delegate.did_finish_launching(unsafe { notification.as_ref() });
-                }
-            })
-        };
-        let _did_finish_launching_observer = unsafe {
-            center.addObserverForName_object_queue_usingBlock(
-                Some(NSApplicationDidFinishLaunchingNotification),
-                None, // No object filter
-                None, // No queue, run on posting thread (i.e. main thread)
-                &block,
+        let weak_app_state = Rc::downgrade(&app_state);
+        let _did_finish_launching_observer = {
+            create_observer(
+                &center,
+                unsafe { NSApplicationDidFinishLaunchingNotification },
+                move |notification| {
+                    if let Some(app_state) = weak_app_state.upgrade() {
+                        app_state.did_finish_launching(notification);
+                    }
+                },
             )
         };
 
-        let block = {
-            let delegate = objc2::rc::Weak::new(&*delegate);
-            RcBlock::new(move |notification: NonNull<NSNotification>| {
-                if let Some(delegate) = delegate.load() {
-                    delegate.will_terminate(unsafe { notification.as_ref() });
-                }
-            })
-        };
-        let _will_terminate_observer = unsafe {
-            center.addObserverForName_object_queue_usingBlock(
-                Some(NSApplicationWillTerminateNotification),
-                None, // No object filter
-                None, // No queue, run on posting thread (i.e. main thread)
-                &block,
+        let weak_app_state = Rc::downgrade(&app_state);
+        let _will_terminate_observer = {
+            create_observer(
+                &center,
+                unsafe { NSApplicationWillTerminateNotification },
+                move |notification| {
+                    if let Some(app_state) = weak_app_state.upgrade() {
+                        app_state.will_terminate(notification);
+                    }
+                },
             )
         };
-
-        autoreleasepool(|_| {
-            app.setDelegate(Some(ProtocolObject::from_ref(&*delegate)));
-        });
 
         let panic_info: Rc<PanicInfo> = Default::default();
         setup_control_flow_observers(mtm, Rc::downgrade(&panic_info));
 
         Ok(EventLoop {
             app,
-            delegate: delegate.clone(),
+            app_state: app_state.clone(),
             window_target: RootWindowTarget {
-                p: ActiveEventLoop { delegate, mtm },
+                p: ActiveEventLoop { app_state, mtm },
                 _marker: PhantomData,
             },
             proxy_wake_up,
@@ -308,18 +289,18 @@ impl EventLoop {
         &mut self,
         app: &mut A,
     ) -> Result<(), EventLoopError> {
-        self.delegate.set_event_handler(app, || {
+        self.app_state.set_event_handler(app, || {
             autoreleasepool(|_| {
                 // clear / normalize pump_events state
-                self.delegate.set_wait_timeout(None);
-                self.delegate.set_stop_before_wait(false);
-                self.delegate.set_stop_after_wait(false);
-                self.delegate.set_stop_on_redraw(false);
+                self.app_state.set_wait_timeout(None);
+                self.app_state.set_stop_before_wait(false);
+                self.app_state.set_stop_after_wait(false);
+                self.app_state.set_stop_on_redraw(false);
 
-                if self.delegate.is_launched() {
-                    debug_assert!(!self.delegate.is_running());
-                    self.delegate.set_is_running(true);
-                    self.delegate.dispatch_init_events();
+                if self.app_state.is_launched() {
+                    debug_assert!(!self.app_state.is_running());
+                    self.app_state.set_is_running(true);
+                    self.app_state.dispatch_init_events();
                 }
 
                 // SAFETY: We do not run the application re-entrantly
@@ -334,7 +315,7 @@ impl EventLoop {
                     resume_unwind(panic);
                 }
 
-                self.delegate.internal_exit()
+                self.app_state.internal_exit()
             })
         });
 
@@ -346,47 +327,47 @@ impl EventLoop {
         timeout: Option<Duration>,
         app: &mut A,
     ) -> PumpStatus {
-        self.delegate.set_event_handler(app, || {
+        self.app_state.set_event_handler(app, || {
             autoreleasepool(|_| {
                 // As a special case, if the application hasn't been launched yet then we at least
                 // run the loop until it has fully launched.
-                if !self.delegate.is_launched() {
-                    debug_assert!(!self.delegate.is_running());
+                if !self.app_state.is_launched() {
+                    debug_assert!(!self.app_state.is_running());
 
-                    self.delegate.set_stop_on_launch();
+                    self.app_state.set_stop_on_launch();
                     // SAFETY: We do not run the application re-entrantly
                     unsafe { self.app.run() };
 
                     // Note: we dispatch `NewEvents(Init)` + `Resumed` events after the application
                     // has launched
-                } else if !self.delegate.is_running() {
+                } else if !self.app_state.is_running() {
                     // Even though the application may have been launched, it's possible we aren't
                     // running if the `EventLoop` was run before and has since
                     // exited. This indicates that we just starting to re-run
                     // the same `EventLoop` again.
-                    self.delegate.set_is_running(true);
-                    self.delegate.dispatch_init_events();
+                    self.app_state.set_is_running(true);
+                    self.app_state.dispatch_init_events();
                 } else {
                     // Only run for as long as the given `Duration` allows so we don't block the
                     // external loop.
                     match timeout {
                         Some(Duration::ZERO) => {
-                            self.delegate.set_wait_timeout(None);
-                            self.delegate.set_stop_before_wait(true);
+                            self.app_state.set_wait_timeout(None);
+                            self.app_state.set_stop_before_wait(true);
                         },
                         Some(duration) => {
-                            self.delegate.set_stop_before_wait(false);
+                            self.app_state.set_stop_before_wait(false);
                             let timeout = Instant::now() + duration;
-                            self.delegate.set_wait_timeout(Some(timeout));
-                            self.delegate.set_stop_after_wait(true);
+                            self.app_state.set_wait_timeout(Some(timeout));
+                            self.app_state.set_stop_after_wait(true);
                         },
                         None => {
-                            self.delegate.set_wait_timeout(None);
-                            self.delegate.set_stop_before_wait(false);
-                            self.delegate.set_stop_after_wait(true);
+                            self.app_state.set_wait_timeout(None);
+                            self.app_state.set_stop_before_wait(false);
+                            self.app_state.set_stop_after_wait(true);
                         },
                     }
-                    self.delegate.set_stop_on_redraw(true);
+                    self.app_state.set_stop_on_redraw(true);
                     // SAFETY: We do not run the application re-entrantly
                     unsafe { self.app.run() };
                 }
@@ -400,8 +381,8 @@ impl EventLoop {
                     resume_unwind(panic);
                 }
 
-                if self.delegate.exiting() {
-                    self.delegate.internal_exit();
+                if self.app_state.exiting() {
+                    self.app_state.internal_exit();
                     PumpStatus::Exit(0)
                 } else {
                     PumpStatus::Continue

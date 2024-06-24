@@ -5,7 +5,6 @@ use std::ptr::{self, NonNull};
 use std::sync::atomic::{AtomicBool, Ordering as AtomicOrdering};
 use std::sync::Arc;
 
-use block2::RcBlock;
 use core_foundation::base::{CFIndex, CFRelease};
 use core_foundation::runloop::{
     kCFRunLoopAfterWaiting, kCFRunLoopBeforeWaiting, kCFRunLoopCommonModes, kCFRunLoopDefaultMode,
@@ -15,9 +14,7 @@ use core_foundation::runloop::{
 };
 use objc2::rc::Retained;
 use objc2::{msg_send_id, ClassType};
-use objc2_foundation::{
-    MainThreadMarker, NSNotification, NSNotificationCenter, NSNotificationName, NSObject, NSString,
-};
+use objc2_foundation::{MainThreadMarker, NSNotificationCenter, NSObject};
 use objc2_ui_kit::{
     UIApplication, UIApplicationDidBecomeActiveNotification,
     UIApplicationDidEnterBackgroundNotification, UIApplicationDidFinishLaunchingNotification,
@@ -26,6 +23,7 @@ use objc2_ui_kit::{
     UIApplicationWillTerminateNotification, UIScreen,
 };
 
+use super::super::notification_center::create_observer;
 use super::app_state::{send_occluded_event_for_all_windows, EventLoopHandler, EventWrapper};
 use crate::application::ApplicationHandler;
 use crate::error::EventLoopError;
@@ -33,7 +31,6 @@ use crate::event::Event;
 use crate::event_loop::{ActiveEventLoop as RootActiveEventLoop, ControlFlow, DeviceEvents};
 use crate::window::{CustomCursor, CustomCursorSource};
 
-use super::app_delegate::AppDelegate;
 use super::app_state::AppState;
 use super::{app_state, monitor, MonitorHandle};
 
@@ -161,24 +158,6 @@ pub struct EventLoop {
 
 #[derive(Default, Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub(crate) struct PlatformSpecificEventLoopAttributes {}
-
-fn create_observer(
-    center: &NSNotificationCenter,
-    name: &NSNotificationName,
-    handler: impl Fn(&NSNotification) + 'static,
-) -> Retained<NSObject> {
-    let block = RcBlock::new(move |notification: NonNull<NSNotification>| {
-        handler(unsafe { notification.as_ref() });
-    });
-    unsafe {
-        center.addObserverForName_object_queue_usingBlock(
-            Some(name),
-            None, // No object filter
-            None, // No queue, run on posting thread (i.e. main thread)
-            &block,
-        )
-    }
-}
 
 impl EventLoop {
     pub(crate) fn new(
@@ -328,9 +307,6 @@ impl EventLoop {
 
         app_state::will_launch(self.mtm, handler);
 
-        // Ensure application delegate is initialized
-        let _ = AppDelegate::class();
-
         extern "C" {
             // These functions are in crt_externs.h.
             fn _NSGetArgc() -> *mut c_int;
@@ -341,8 +317,10 @@ impl EventLoop {
             UIApplicationMain(
                 *_NSGetArgc(),
                 NonNull::new(*_NSGetArgv()).unwrap(),
+                // We intentionally don't override neither the application nor the delegate, to
+                // allow the user to do so themselves!
                 None,
-                Some(&NSString::from_str(AppDelegate::NAME)),
+                None,
             )
         };
         unreachable!()

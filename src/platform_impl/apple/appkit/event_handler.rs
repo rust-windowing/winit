@@ -124,7 +124,7 @@ impl EventHandler {
                 callback(*user_app, event_loop);
             },
             Ok(None) => {
-                // `NSApplication`, our app delegate and this handler are all
+                // `NSApplication`, our app state and this handler are all
                 // global state and so it's not impossible that we could get
                 // an event after the application has exited the `EventLoop`.
                 tracing::error!("tried to run event handler, but no handler was set");
