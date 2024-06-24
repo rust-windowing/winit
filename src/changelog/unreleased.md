@@ -59,3 +59,7 @@ changelog entry.
 - Remove `EventLoopExtRunOnDemand::run_on_demand`.
 - Remove `EventLoopExtPumpEvents::pump_events`.
 - Remove `Event`.
+- On iOS, remove `platform::ios::EventLoopExtIOS` and related `platform::ios::Idiom` type.
+
+  This feature was incomplete, and the equivalent functionality can be trivially achieved outside
+  of `winit` using `objc2-ui-kit` and calling `UIDevice::currentDevice().userInterfaceIdiom()`.
