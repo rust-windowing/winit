@@ -17,19 +17,19 @@ mod web;
 mod windows;
 
 #[cfg(android_platform)]
-use android as platform;
+use self::android as platform;
 #[cfg(ios_platform)]
-use ios as platform;
+use self::ios as platform;
 #[cfg(any(x11_platform, wayland_platform))]
-use linux as platform;
+use self::linux as platform;
 #[cfg(macos_platform)]
-use macos as platform;
+use self::macos as platform;
 #[cfg(orbital_platform)]
-use orbital as platform;
+use self::orbital as platform;
 #[cfg(web_platform)]
-use web as platform;
+use self::web as platform;
 #[cfg(windows_platform)]
-use windows as platform;
+use self::windows as platform;
 
 pub use self::platform::*;
 
