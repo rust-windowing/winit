@@ -1,27 +1,35 @@
 use crate::monitor::{MonitorHandle as RootMonitorHandle, VideoModeHandle as RootVideoModeHandle};
 use crate::window::Fullscreen as RootFullscreen;
 
-#[cfg(windows_platform)]
-#[path = "windows/mod.rs"]
-mod platform;
-#[cfg(any(x11_platform, wayland_platform))]
-#[path = "linux/mod.rs"]
-mod platform;
-#[cfg(macos_platform)]
-#[path = "macos/mod.rs"]
-mod platform;
 #[cfg(android_platform)]
-#[path = "android/mod.rs"]
-mod platform;
+mod android;
 #[cfg(ios_platform)]
-#[path = "ios/mod.rs"]
-mod platform;
-#[cfg(web_platform)]
-#[path = "web/mod.rs"]
-mod platform;
+mod ios;
+#[cfg(any(x11_platform, wayland_platform))]
+mod linux;
+#[cfg(macos_platform)]
+mod macos;
 #[cfg(orbital_platform)]
-#[path = "orbital/mod.rs"]
-mod platform;
+mod orbital;
+#[cfg(web_platform)]
+mod web;
+#[cfg(windows_platform)]
+mod windows;
+
+#[cfg(android_platform)]
+use android as platform;
+#[cfg(ios_platform)]
+use ios as platform;
+#[cfg(any(x11_platform, wayland_platform))]
+use linux as platform;
+#[cfg(macos_platform)]
+use macos as platform;
+#[cfg(orbital_platform)]
+use orbital as platform;
+#[cfg(web_platform)]
+use web as platform;
+#[cfg(windows_platform)]
+use windows as platform;
 
 pub use self::platform::*;
 
