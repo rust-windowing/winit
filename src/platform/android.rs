@@ -78,7 +78,7 @@ use self::activity::{AndroidApp, ConfigurationRef, Rect};
 /// Additional methods on [`EventLoop`] that are specific to Android.
 pub trait EventLoopExtAndroid {}
 
-impl<T> EventLoopExtAndroid for EventLoop<T> {}
+impl EventLoopExtAndroid for EventLoop {}
 
 /// Additional methods on [`ActiveEventLoop`] that are specific to Android.
 pub trait ActiveEventLoopExtAndroid {}
@@ -119,7 +119,7 @@ pub trait EventLoopBuilderExtAndroid {
     fn handle_volume_keys(&mut self) -> &mut Self;
 }
 
-impl<T> EventLoopBuilderExtAndroid for EventLoopBuilder<T> {
+impl EventLoopBuilderExtAndroid for EventLoopBuilder {
     fn with_android_app(&mut self, app: AndroidApp) -> &mut Self {
         self.platform_specific.android_app = Some(app);
         self

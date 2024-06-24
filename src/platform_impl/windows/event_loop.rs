@@ -8,7 +8,6 @@ use std::ffi::c_void;
 use std::marker::PhantomData;
 use std::rc::Rc;
 use std::sync::atomic::{AtomicU32, Ordering};
-use std::sync::mpsc::{self, Receiver, Sender};
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::{Duration, Instant};
 use std::{mem, panic, ptr};
@@ -63,7 +62,7 @@ use crate::error::EventLoopError;
 use crate::event::{
     DeviceEvent, Event, Force, Ime, InnerSizeWriter, RawKeyEvent, Touch, TouchPhase, WindowEvent,
 };
-use crate::event_loop::{ActiveEventLoop as RootAEL, ControlFlow, DeviceEvents, EventLoopClosed};
+use crate::event_loop::{ActiveEventLoop as RootAEL, ControlFlow, DeviceEvents};
 use crate::keyboard::ModifiersState;
 use crate::platform::pump_events::PumpStatus;
 use crate::platform_impl::platform::dark_mode::try_theme;
@@ -84,35 +83,14 @@ use crate::platform_impl::platform::{
 use crate::window::{
     CustomCursor as RootCustomCursor, CustomCursorSource, WindowId as RootWindowId,
 };
-use runner::{EventLoopRunner, EventLoopRunnerShared};
+use runner::EventLoopRunner;
 
 use super::window::set_skip_taskbar;
 use super::SelectedCursor;
 
-/// some backends like macos uses an uninhabited `Never` type,
-/// on windows, `UserEvent`s are also dispatched through the
-/// WNDPROC callback, and due to the re-entrant nature of the
-/// callback, recursively delivered events must be queued in a
-/// buffer, the current implementation put this queue in
-/// `EventLoopRunner`, which is shared between the event pumping
-/// loop and the callback. because it's hard to decide from the
-/// outside whether a event needs to be buffered, I decided not
-/// use `Event<Never>` for the shared runner state, but use unit
-/// as a placeholder so user events can be buffered as usual,
-/// the real `UserEvent` is pulled from the mpsc channel directly
-/// when the placeholder event is delivered to the event handler
-pub(crate) struct UserEventPlaceholder;
-
-// here below, the generic `EventLoopRunnerShared<T>` is replaced with
-// `EventLoopRunnerShared<UserEventPlaceholder>` so we can get rid
-// of the generic parameter T in types which don't depend on T.
-// this is the approach which requires minimum changes to current
-// backend implementation. it should be considered transitional
-// and should be refactored and cleaned up eventually, I hope.
-
 pub(crate) struct WindowData {
     pub window_state: Arc<Mutex<WindowState>>,
-    pub event_loop_runner: EventLoopRunnerShared<UserEventPlaceholder>,
+    pub event_loop_runner: Rc<EventLoopRunner>,
     pub key_event_builder: KeyEventBuilder,
     pub _file_drop_handler: Option<FileDropHandler>,
     pub userdata_removed: Cell<bool>,
@@ -120,7 +98,7 @@ pub(crate) struct WindowData {
 }
 
 impl WindowData {
-    fn send_event(&self, event: Event<UserEventPlaceholder>) {
+    fn send_event(&self, event: Event) {
         self.event_loop_runner.send_event(event);
     }
 
@@ -130,11 +108,11 @@ impl WindowData {
 }
 
 struct ThreadMsgTargetData {
-    event_loop_runner: EventLoopRunnerShared<UserEventPlaceholder>,
+    event_loop_runner: Rc<EventLoopRunner>,
 }
 
 impl ThreadMsgTargetData {
-    fn send_event(&self, event: Event<UserEventPlaceholder>) {
+    fn send_event(&self, event: Event) {
         self.event_loop_runner.send_event(event);
     }
 }
@@ -146,9 +124,7 @@ pub(crate) enum ProcResult {
     Value(isize),
 }
 
-pub struct EventLoop<T: 'static> {
-    user_event_sender: Sender<T>,
-    user_event_receiver: Receiver<T>,
+pub struct EventLoop {
     window_target: RootAEL,
     msg_hook: Option<Box<dyn FnMut(*const c_void) -> bool + 'static>>,
 }
@@ -168,10 +144,10 @@ impl Default for PlatformSpecificEventLoopAttributes {
 pub struct ActiveEventLoop {
     thread_id: u32,
     thread_msg_target: HWND,
-    pub(crate) runner_shared: EventLoopRunnerShared<UserEventPlaceholder>,
+    pub(crate) runner_shared: Rc<EventLoopRunner>,
 }
 
-impl<T: 'static> EventLoop<T> {
+impl EventLoop {
     pub(crate) fn new(
         attributes: &mut PlatformSpecificEventLoopAttributes,
     ) -> Result<Self, EventLoopError> {
@@ -194,7 +170,6 @@ impl<T: 'static> EventLoop<T> {
 
         let runner_shared = Rc::new(EventLoopRunner::new(thread_msg_target));
 
-        let (user_event_sender, user_event_receiver) = mpsc::channel();
         insert_event_target_window_data(thread_msg_target, runner_shared.clone());
         raw_input::register_all_mice_and_keyboards_for_raw_input(
             thread_msg_target,
@@ -202,8 +177,6 @@ impl<T: 'static> EventLoop<T> {
         );
 
         Ok(EventLoop {
-            user_event_sender,
-            user_event_receiver,
             window_target: RootAEL {
                 p: ActiveEventLoop { thread_id, thread_msg_target, runner_shared },
                 _marker: PhantomData,
@@ -216,11 +189,11 @@ impl<T: 'static> EventLoop<T> {
         &self.window_target
     }
 
-    pub fn run_app<A: ApplicationHandler<T>>(mut self, app: &mut A) -> Result<(), EventLoopError> {
+    pub fn run_app<A: ApplicationHandler>(mut self, app: &mut A) -> Result<(), EventLoopError> {
         self.run_app_on_demand(app)
     }
 
-    pub fn run_app_on_demand<A: ApplicationHandler<T>>(
+    pub fn run_app_on_demand<A: ApplicationHandler>(
         &mut self,
         app: &mut A,
     ) -> Result<(), EventLoopError> {
@@ -228,38 +201,24 @@ impl<T: 'static> EventLoop<T> {
             let runner = &self.window_target.p.runner_shared;
 
             let event_loop_windows_ref = &self.window_target;
-            let user_event_receiver = &self.user_event_receiver;
             // # Safety
             // We make sure to call runner.clear_event_handler() before
             // returning
             unsafe {
-                runner.set_event_handler(move |event| {
-                    match event {
-                        Event::NewEvents(cause) => app.new_events(event_loop_windows_ref, cause),
-                        Event::WindowEvent { window_id, event } => {
-                            app.window_event(event_loop_windows_ref, window_id, event)
-                        },
-                        Event::DeviceEvent { device_id, event } => {
-                            app.device_event(event_loop_windows_ref, device_id, event)
-                        },
-                        // The shared `EventLoopRunner` is not parameterized
-                        // `EventLoopProxy::send_event()` calls `PostMessage`
-                        // to wakeup and dispatch a placeholder `UserEvent`,
-                        // when we received the placeholder event here, the
-                        // real UserEvent(T) should already be put in the
-                        // mpsc channel and ready to be pulled
-                        Event::UserEvent(_) => {
-                            let event = user_event_receiver
-                                .try_recv()
-                                .expect("user event signaled but not received");
-                            app.user_event(event_loop_windows_ref, event);
-                        },
-                        Event::Suspended => app.suspended(event_loop_windows_ref),
-                        Event::Resumed => app.resumed(event_loop_windows_ref),
-                        Event::AboutToWait => app.about_to_wait(event_loop_windows_ref),
-                        Event::LoopExiting => app.exiting(event_loop_windows_ref),
-                        Event::MemoryWarning => app.memory_warning(event_loop_windows_ref),
-                    }
+                runner.set_event_handler(move |event| match event {
+                    Event::NewEvents(cause) => app.new_events(event_loop_windows_ref, cause),
+                    Event::WindowEvent { window_id, event } => {
+                        app.window_event(event_loop_windows_ref, window_id, event)
+                    },
+                    Event::DeviceEvent { device_id, event } => {
+                        app.device_event(event_loop_windows_ref, device_id, event)
+                    },
+                    Event::UserWakeUp => app.proxy_wake_up(event_loop_windows_ref),
+                    Event::Suspended => app.suspended(event_loop_windows_ref),
+                    Event::Resumed => app.resumed(event_loop_windows_ref),
+                    Event::AboutToWait => app.about_to_wait(event_loop_windows_ref),
+                    Event::LoopExiting => app.exiting(event_loop_windows_ref),
+                    Event::MemoryWarning => app.memory_warning(event_loop_windows_ref),
                 });
             }
         }
@@ -293,7 +252,7 @@ impl<T: 'static> EventLoop<T> {
         }
     }
 
-    pub fn pump_app_events<A: ApplicationHandler<T>>(
+    pub fn pump_app_events<A: ApplicationHandler>(
         &mut self,
         timeout: Option<Duration>,
         app: &mut A,
@@ -301,7 +260,7 @@ impl<T: 'static> EventLoop<T> {
         {
             let runner = &self.window_target.p.runner_shared;
             let event_loop_windows_ref = &self.window_target;
-            let user_event_receiver = &self.user_event_receiver;
+            // let user_event_receiver = &self.user_event_receiver;
 
             // # Safety
             // We make sure to call runner.clear_event_handler() before
@@ -311,33 +270,20 @@ impl<T: 'static> EventLoop<T> {
             // to leave the runner in an unsound state with an associated
             // event handler.
             unsafe {
-                runner.set_event_handler(move |event| {
-                    match event {
-                        Event::NewEvents(cause) => app.new_events(event_loop_windows_ref, cause),
-                        Event::WindowEvent { window_id, event } => {
-                            app.window_event(event_loop_windows_ref, window_id, event)
-                        },
-                        Event::DeviceEvent { device_id, event } => {
-                            app.device_event(event_loop_windows_ref, device_id, event)
-                        },
-                        // The shared `EventLoopRunner` is not parameterized
-                        // `EventLoopProxy::send_event()` calls `PostMessage`
-                        // to wakeup and dispatch a placeholder `UserEvent`,
-                        // when we received the placeholder event here, the
-                        // real UserEvent(T) should already be put in the
-                        // mpsc channel and ready to be pulled
-                        Event::UserEvent(_) => {
-                            let event = user_event_receiver
-                                .try_recv()
-                                .expect("user event signaled but not received");
-                            app.user_event(event_loop_windows_ref, event);
-                        },
-                        Event::Suspended => app.suspended(event_loop_windows_ref),
-                        Event::Resumed => app.resumed(event_loop_windows_ref),
-                        Event::AboutToWait => app.about_to_wait(event_loop_windows_ref),
-                        Event::LoopExiting => app.exiting(event_loop_windows_ref),
-                        Event::MemoryWarning => app.memory_warning(event_loop_windows_ref),
-                    }
+                runner.set_event_handler(move |event| match event {
+                    Event::NewEvents(cause) => app.new_events(event_loop_windows_ref, cause),
+                    Event::WindowEvent { window_id, event } => {
+                        app.window_event(event_loop_windows_ref, window_id, event)
+                    },
+                    Event::DeviceEvent { device_id, event } => {
+                        app.device_event(event_loop_windows_ref, device_id, event)
+                    },
+                    Event::UserWakeUp => app.proxy_wake_up(event_loop_windows_ref),
+                    Event::Suspended => app.suspended(event_loop_windows_ref),
+                    Event::Resumed => app.resumed(event_loop_windows_ref),
+                    Event::AboutToWait => app.about_to_wait(event_loop_windows_ref),
+                    Event::LoopExiting => app.exiting(event_loop_windows_ref),
+                    Event::MemoryWarning => app.memory_warning(event_loop_windows_ref),
                 });
 
                 runner.wakeup();
@@ -522,11 +468,8 @@ impl<T: 'static> EventLoop<T> {
         }
     }
 
-    pub fn create_proxy(&self) -> EventLoopProxy<T> {
-        EventLoopProxy {
-            target_window: self.window_target.p.thread_msg_target,
-            event_send: self.user_event_sender.clone(),
-        }
+    pub fn create_proxy(&self) -> EventLoopProxy {
+        EventLoopProxy { target_window: self.window_target.p.thread_msg_target }
     }
 
     fn exit_code(&self) -> Option<i32> {
@@ -698,7 +641,7 @@ fn dur2timeout(dur: Duration) -> u32 {
         .unwrap_or(INFINITE)
 }
 
-impl<T> Drop for EventLoop<T> {
+impl Drop for EventLoop {
     fn drop(&mut self) {
         unsafe {
             DestroyWindow(self.window_target.p.thread_msg_target);
@@ -756,27 +699,16 @@ impl EventLoopThreadExecutor {
 
 type ThreadExecFn = Box<Box<dyn FnMut()>>;
 
-pub struct EventLoopProxy<T: 'static> {
+#[derive(Clone)]
+pub struct EventLoopProxy {
     target_window: HWND,
-    event_send: Sender<T>,
-}
-unsafe impl<T: Send + 'static> Send for EventLoopProxy<T> {}
-
-impl<T: 'static> Clone for EventLoopProxy<T> {
-    fn clone(&self) -> Self {
-        Self { target_window: self.target_window, event_send: self.event_send.clone() }
-    }
 }
 
-impl<T: 'static> EventLoopProxy<T> {
-    pub fn send_event(&self, event: T) -> Result<(), EventLoopClosed<T>> {
-        self.event_send
-            .send(event)
-            .map(|result| {
-                unsafe { PostMessageW(self.target_window, USER_EVENT_MSG_ID.get(), 0, 0) };
-                result
-            })
-            .map_err(|e| EventLoopClosed(e.0))
+unsafe impl Send for EventLoopProxy {}
+
+impl EventLoopProxy {
+    pub fn wake_up(&self) {
+        unsafe { PostMessageW(self.target_window, USER_EVENT_MSG_ID.get(), 0, 0) };
     }
 }
 
@@ -908,7 +840,7 @@ fn create_event_target_window() -> HWND {
 
 fn insert_event_target_window_data(
     thread_msg_target: HWND,
-    event_loop_runner: EventLoopRunnerShared<UserEventPlaceholder>,
+    event_loop_runner: Rc<EventLoopRunner>,
 ) {
     let userdata = ThreadMsgTargetData { event_loop_runner };
     let input_ptr = Box::into_raw(Box::new(userdata));
@@ -2454,7 +2386,7 @@ unsafe extern "system" fn thread_event_target_callback(
             // user event is still in the mpsc channel and will be pulled
             // once the placeholder event is delivered to the wrapper
             // `event_handler`
-            userdata.send_event(Event::UserEvent(UserEventPlaceholder));
+            userdata.send_event(Event::UserWakeUp);
             0
         },
         _ if msg == EXEC_MSG_ID.get() => {

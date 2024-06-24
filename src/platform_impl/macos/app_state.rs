@@ -1,6 +1,8 @@
 use std::cell::{Cell, RefCell};
 use std::mem;
 use std::rc::Weak;
+use std::sync::atomic::{AtomicBool, Ordering as AtomicOrdering};
+use std::sync::Arc;
 use std::time::Instant;
 
 use objc2::rc::Retained;
@@ -24,6 +26,7 @@ pub(super) struct AppState {
     default_menu: bool,
     activate_ignoring_other_apps: bool,
     run_loop: RunLoop,
+    proxy_wake_up: Arc<AtomicBool>,
     event_handler: EventHandler,
     stop_on_launch: Cell<bool>,
     stop_before_wait: Cell<bool>,
@@ -77,11 +80,13 @@ impl ApplicationDelegate {
     pub(super) fn new(
         mtm: MainThreadMarker,
         activation_policy: NSApplicationActivationPolicy,
+        proxy_wake_up: Arc<AtomicBool>,
         default_menu: bool,
         activate_ignoring_other_apps: bool,
     ) -> Retained<Self> {
         let this = mtm.alloc().set_ivars(AppState {
             activation_policy,
+            proxy_wake_up,
             default_menu,
             activate_ignoring_other_apps,
             run_loop: RunLoop::main(mtm),
@@ -168,7 +173,7 @@ impl ApplicationDelegate {
     /// of the given closure.
     pub fn set_event_handler<R>(
         &self,
-        handler: &mut dyn ApplicationHandler<HandlePendingUserEvents>,
+        handler: &mut dyn ApplicationHandler,
         closure: impl FnOnce() -> R,
     ) -> R {
         self.ivars().event_handler.set(handler, closure)
@@ -275,8 +280,7 @@ impl ApplicationDelegate {
     #[track_caller]
     pub fn maybe_queue_with_handler(
         &self,
-        callback: impl FnOnce(&mut dyn ApplicationHandler<HandlePendingUserEvents>, &RootActiveEventLoop)
-            + 'static,
+        callback: impl FnOnce(&mut dyn ApplicationHandler, &RootActiveEventLoop) + 'static,
     ) {
         // Most programmer actions in AppKit (e.g. change window fullscreen, set focused, etc.)
         // result in an event being queued, and applied at a later point.
@@ -296,11 +300,9 @@ impl ApplicationDelegate {
     }
 
     #[track_caller]
-    fn with_handler<
-        F: FnOnce(&mut dyn ApplicationHandler<HandlePendingUserEvents>, &RootActiveEventLoop),
-    >(
+    fn with_handler(
         &self,
-        callback: F,
+        callback: impl FnOnce(&mut dyn ApplicationHandler, &RootActiveEventLoop),
     ) {
         let event_loop = ActiveEventLoop::new_root(self.retain());
         self.ivars().event_handler.handle(callback, &event_loop);
@@ -361,7 +363,9 @@ impl ApplicationDelegate {
             return;
         }
 
-        self.with_handler(|app, event_loop| app.user_event(event_loop, HandlePendingUserEvents));
+        if self.ivars().proxy_wake_up.swap(false, AtomicOrdering::Relaxed) {
+            self.with_handler(|app, event_loop| app.proxy_wake_up(event_loop));
+        }
 
         let redraw = mem::take(&mut *self.ivars().pending_redraw.borrow_mut());
         for window_id in redraw {
@@ -392,9 +396,6 @@ impl ApplicationDelegate {
         self.ivars().waker.borrow_mut().start_at(min_timeout(wait_timeout, app_timeout));
     }
 }
-
-#[derive(Debug)]
-pub(crate) struct HandlePendingUserEvents;
 
 /// Returns the minimum `Option<Instant>`, taking into account that `None`
 /// equates to an infinite timeout, not a zero timeout (so can't just use

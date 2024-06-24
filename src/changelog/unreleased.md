@@ -44,9 +44,18 @@ changelog entry.
 
 - On Web, let events wake up event loop immediately when using `ControlFlow::Poll`.
 - Bump MSRV from `1.70` to `1.73`.
+- Changed `ApplicationHandler::user_event` to `user_wake_up`, removing the
+  generic user event.
+
+  Winit will now only indicate that wake up happened, you will have to pair
+  this with an external mechanism like `std::sync::mpsc::channel` if you want
+  to send specific data to be processed on the main thread.
+- Changed `EventLoopProxy::send_event` to `EventLoopProxy::wake_up`, it now
+  only wakes up the loop.
 
 ### Removed
 
 - Remove `EventLoop::run`.
 - Remove `EventLoopExtRunOnDemand::run_on_demand`.
 - Remove `EventLoopExtPumpEvents::pump_events`.
+- Remove `Event`.

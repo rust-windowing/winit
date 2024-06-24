@@ -7,11 +7,6 @@ use crate::{platform::pump_events::EventLoopExtPumpEvents, window::Window};
 
 /// Additional methods on [`EventLoop`] to return control flow to the caller.
 pub trait EventLoopExtRunOnDemand {
-    /// A type provided by the user that can be passed through [`Event::UserEvent`].
-    ///
-    /// [`Event::UserEvent`]: crate::event::Event::UserEvent
-    type UserEvent: 'static;
-
     /// Run the application with the event loop on the calling thread.
     ///
     /// Unlike [`EventLoop::run_app`], this function accepts non-`'static` (i.e. non-`move`)
@@ -58,16 +53,14 @@ pub trait EventLoopExtRunOnDemand {
     ///
     /// [`exit()`]: ActiveEventLoop::exit()
     /// [`set_control_flow()`]: ActiveEventLoop::set_control_flow()
-    fn run_app_on_demand<A: ApplicationHandler<Self::UserEvent>>(
+    fn run_app_on_demand<A: ApplicationHandler>(
         &mut self,
         app: &mut A,
     ) -> Result<(), EventLoopError>;
 }
 
-impl<T> EventLoopExtRunOnDemand for EventLoop<T> {
-    type UserEvent = T;
-
-    fn run_app_on_demand<A: ApplicationHandler<Self::UserEvent>>(
+impl EventLoopExtRunOnDemand for EventLoop {
+    fn run_app_on_demand<A: ApplicationHandler>(
         &mut self,
         app: &mut A,
     ) -> Result<(), EventLoopError> {

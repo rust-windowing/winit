@@ -21,7 +21,7 @@ use smol_str::SmolStr;
 use self::x11::{X11Error, XConnection, XError, XNotSupported};
 use crate::dpi::{PhysicalPosition, PhysicalSize, Position, Size};
 use crate::error::{EventLoopError, ExternalError, NotSupportedError, OsError as RootOsError};
-use crate::event_loop::{AsyncRequestSerial, ControlFlow, DeviceEvents, EventLoopClosed};
+use crate::event_loop::{AsyncRequestSerial, ControlFlow, DeviceEvents};
 use crate::icon::Icon;
 use crate::keyboard::Key;
 #[cfg(x11_platform)]
@@ -691,27 +691,22 @@ unsafe extern "C" fn x_error_callback(
     0
 }
 
-pub enum EventLoop<T: 'static> {
+pub enum EventLoop {
     #[cfg(wayland_platform)]
-    Wayland(Box<wayland::EventLoop<T>>),
+    Wayland(Box<wayland::EventLoop>),
     #[cfg(x11_platform)]
-    X(x11::EventLoop<T>),
+    X(x11::EventLoop),
 }
 
-pub enum EventLoopProxy<T: 'static> {
+#[derive(Clone)]
+pub enum EventLoopProxy {
     #[cfg(x11_platform)]
-    X(x11::EventLoopProxy<T>),
+    X(x11::EventLoopProxy),
     #[cfg(wayland_platform)]
-    Wayland(wayland::EventLoopProxy<T>),
+    Wayland(wayland::EventLoopProxy),
 }
 
-impl<T: 'static> Clone for EventLoopProxy<T> {
-    fn clone(&self) -> Self {
-        x11_or_wayland!(match self; EventLoopProxy(proxy) => proxy.clone(); as EventLoopProxy)
-    }
-}
-
-impl<T: 'static> EventLoop<T> {
+impl EventLoop {
     pub(crate) fn new(
         attributes: &PlatformSpecificEventLoopAttributes,
     ) -> Result<Self, EventLoopError> {
@@ -770,12 +765,12 @@ impl<T: 'static> EventLoop<T> {
     }
 
     #[cfg(wayland_platform)]
-    fn new_wayland_any_thread() -> Result<EventLoop<T>, EventLoopError> {
+    fn new_wayland_any_thread() -> Result<EventLoop, EventLoopError> {
         wayland::EventLoop::new().map(|evlp| EventLoop::Wayland(Box::new(evlp)))
     }
 
     #[cfg(x11_platform)]
-    fn new_x11_any_thread() -> Result<EventLoop<T>, EventLoopError> {
+    fn new_x11_any_thread() -> Result<EventLoop, EventLoopError> {
         let xconn = match X11_BACKEND.lock().unwrap().as_ref() {
             Ok(xconn) => xconn.clone(),
             Err(_) => return Err(EventLoopError::NotSupported(NotSupportedError::new())),
@@ -794,22 +789,22 @@ impl<T: 'static> EventLoop<T> {
         }
     }
 
-    pub fn create_proxy(&self) -> EventLoopProxy<T> {
+    pub fn create_proxy(&self) -> EventLoopProxy {
         x11_or_wayland!(match self; EventLoop(evlp) => evlp.create_proxy(); as EventLoopProxy)
     }
 
-    pub fn run_app<A: ApplicationHandler<T>>(self, app: &mut A) -> Result<(), EventLoopError> {
+    pub fn run_app<A: ApplicationHandler>(self, app: &mut A) -> Result<(), EventLoopError> {
         x11_or_wayland!(match self; EventLoop(evlp) => evlp.run_app(app))
     }
 
-    pub fn run_app_on_demand<A: ApplicationHandler<T>>(
+    pub fn run_app_on_demand<A: ApplicationHandler>(
         &mut self,
         app: &mut A,
     ) -> Result<(), EventLoopError> {
         x11_or_wayland!(match self; EventLoop(evlp) => evlp.run_app_on_demand(app))
     }
 
-    pub fn pump_app_events<A: ApplicationHandler<T>>(
+    pub fn pump_app_events<A: ApplicationHandler>(
         &mut self,
         timeout: Option<Duration>,
         app: &mut A,
@@ -822,21 +817,21 @@ impl<T: 'static> EventLoop<T> {
     }
 }
 
-impl<T> AsFd for EventLoop<T> {
+impl AsFd for EventLoop {
     fn as_fd(&self) -> BorrowedFd<'_> {
         x11_or_wayland!(match self; EventLoop(evlp) => evlp.as_fd())
     }
 }
 
-impl<T> AsRawFd for EventLoop<T> {
+impl AsRawFd for EventLoop {
     fn as_raw_fd(&self) -> RawFd {
         x11_or_wayland!(match self; EventLoop(evlp) => evlp.as_raw_fd())
     }
 }
 
-impl<T: 'static> EventLoopProxy<T> {
-    pub fn send_event(&self, event: T) -> Result<(), EventLoopClosed<T>> {
-        x11_or_wayland!(match self; EventLoopProxy(proxy) => proxy.send_event(event))
+impl EventLoopProxy {
+    pub fn wake_up(&self) {
+        x11_or_wayland!(match self; EventLoopProxy(proxy) => proxy.wake_up())
     }
 }
 

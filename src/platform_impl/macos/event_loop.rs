@@ -6,7 +6,8 @@ use std::os::raw::c_void;
 use std::panic::{catch_unwind, resume_unwind, RefUnwindSafe, UnwindSafe};
 use std::ptr;
 use std::rc::{Rc, Weak};
-use std::sync::mpsc;
+use std::sync::atomic::{AtomicBool, Ordering as AtomicOrdering};
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use core_foundation::base::{CFIndex, CFRelease};
@@ -21,15 +22,13 @@ use objc2_app_kit::{NSApplication, NSApplicationActivationPolicy, NSWindow};
 use objc2_foundation::{MainThreadMarker, NSObjectProtocol};
 
 use super::app::WinitApplication;
-use super::app_state::{ApplicationDelegate, HandlePendingUserEvents};
+use super::app_state::ApplicationDelegate;
 use super::event::dummy_event;
 use super::monitor::{self, MonitorHandle};
 use super::observer::setup_control_flow_observers;
 use crate::application::ApplicationHandler;
 use crate::error::EventLoopError;
-use crate::event_loop::{
-    ActiveEventLoop as RootWindowTarget, ControlFlow, DeviceEvents, EventLoopClosed,
-};
+use crate::event_loop::{ActiveEventLoop as RootWindowTarget, ControlFlow, DeviceEvents};
 use crate::platform::macos::ActivationPolicy;
 use crate::platform::pump_events::PumpStatus;
 use crate::platform_impl::platform::cursor::CustomCursor;
@@ -155,82 +154,7 @@ impl ActiveEventLoop {
     }
 }
 
-// Temporary helper, will be removed in https://github.com/rust-windowing/winit/pull/3694
-struct MapUserEvent<T, A> {
-    app: A,
-    receiver: Rc<mpsc::Receiver<T>>,
-}
-
-impl<A: ApplicationHandler<T>, T: 'static> ApplicationHandler<HandlePendingUserEvents>
-    for MapUserEvent<T, A>
-{
-    #[inline]
-    fn new_events(
-        &mut self,
-        event_loop: &crate::event_loop::ActiveEventLoop,
-        cause: crate::event::StartCause,
-    ) {
-        self.app.new_events(event_loop, cause);
-    }
-
-    #[inline]
-    fn resumed(&mut self, event_loop: &crate::event_loop::ActiveEventLoop) {
-        self.app.resumed(event_loop);
-    }
-
-    #[inline]
-    fn user_event(
-        &mut self,
-        event_loop: &crate::event_loop::ActiveEventLoop,
-        _event: HandlePendingUserEvents,
-    ) {
-        for event in self.receiver.try_iter() {
-            self.app.user_event(event_loop, event);
-        }
-    }
-
-    #[inline]
-    fn window_event(
-        &mut self,
-        event_loop: &crate::event_loop::ActiveEventLoop,
-        window_id: crate::window::WindowId,
-        event: crate::event::WindowEvent,
-    ) {
-        self.app.window_event(event_loop, window_id, event);
-    }
-
-    #[inline]
-    fn device_event(
-        &mut self,
-        event_loop: &crate::event_loop::ActiveEventLoop,
-        device_id: crate::event::DeviceId,
-        event: crate::event::DeviceEvent,
-    ) {
-        self.app.device_event(event_loop, device_id, event);
-    }
-
-    #[inline]
-    fn about_to_wait(&mut self, event_loop: &crate::event_loop::ActiveEventLoop) {
-        self.app.about_to_wait(event_loop);
-    }
-
-    #[inline]
-    fn suspended(&mut self, event_loop: &crate::event_loop::ActiveEventLoop) {
-        self.app.suspended(event_loop);
-    }
-
-    #[inline]
-    fn exiting(&mut self, event_loop: &crate::event_loop::ActiveEventLoop) {
-        self.app.exiting(event_loop);
-    }
-
-    #[inline]
-    fn memory_warning(&mut self, event_loop: &crate::event_loop::ActiveEventLoop) {
-        self.app.memory_warning(event_loop);
-    }
-}
-
-pub struct EventLoop<T: 'static> {
+pub struct EventLoop {
     /// Store a reference to the application for convenience.
     ///
     /// We intentionally don't store `WinitApplication` since we want to have
@@ -242,9 +166,7 @@ pub struct EventLoop<T: 'static> {
     /// keep it around here as well.
     delegate: Retained<ApplicationDelegate>,
 
-    // Event sender and receiver, used for EventLoopProxy.
-    sender: mpsc::Sender<T>,
-    receiver: Rc<mpsc::Receiver<T>>,
+    proxy_wake_up: Arc<AtomicBool>,
 
     window_target: RootWindowTarget,
     panic_info: Rc<PanicInfo>,
@@ -267,7 +189,7 @@ impl Default for PlatformSpecificEventLoopAttributes {
     }
 }
 
-impl<T> EventLoop<T> {
+impl EventLoop {
     pub(crate) fn new(
         attributes: &PlatformSpecificEventLoopAttributes,
     ) -> Result<Self, EventLoopError> {
@@ -289,9 +211,13 @@ impl<T> EventLoop<T> {
             ActivationPolicy::Accessory => NSApplicationActivationPolicy::Accessory,
             ActivationPolicy::Prohibited => NSApplicationActivationPolicy::Prohibited,
         };
+
+        let proxy_wake_up = Arc::new(AtomicBool::new(false));
+
         let delegate = ApplicationDelegate::new(
             mtm,
             activation_policy,
+            proxy_wake_up.clone(),
             attributes.default_menu,
             attributes.activate_ignoring_other_apps,
         );
@@ -303,16 +229,14 @@ impl<T> EventLoop<T> {
         let panic_info: Rc<PanicInfo> = Default::default();
         setup_control_flow_observers(mtm, Rc::downgrade(&panic_info));
 
-        let (sender, receiver) = mpsc::channel();
         Ok(EventLoop {
             app,
             delegate: delegate.clone(),
-            sender,
-            receiver: Rc::new(receiver),
             window_target: RootWindowTarget {
                 p: ActiveEventLoop { delegate, mtm },
                 _marker: PhantomData,
             },
+            proxy_wake_up,
             panic_info,
         })
     }
@@ -321,7 +245,7 @@ impl<T> EventLoop<T> {
         &self.window_target
     }
 
-    pub fn run_app<A: ApplicationHandler<T>>(mut self, app: &mut A) -> Result<(), EventLoopError> {
+    pub fn run_app<A: ApplicationHandler>(mut self, app: &mut A) -> Result<(), EventLoopError> {
         self.run_app_on_demand(app)
     }
 
@@ -329,13 +253,11 @@ impl<T> EventLoop<T> {
     // `pump_events` elegantly (we just ask to run the loop for a "short" amount of
     // time and so a layered implementation would end up using a lot of CPU due to
     // redundant wake ups.
-    pub fn run_app_on_demand<A: ApplicationHandler<T>>(
+    pub fn run_app_on_demand<A: ApplicationHandler>(
         &mut self,
         app: &mut A,
     ) -> Result<(), EventLoopError> {
-        let mut handler = MapUserEvent { app, receiver: self.receiver.clone() };
-
-        self.delegate.set_event_handler(&mut handler, || {
+        self.delegate.set_event_handler(app, || {
             autoreleasepool(|_| {
                 // clear / normalize pump_events state
                 self.delegate.set_wait_timeout(None);
@@ -368,14 +290,12 @@ impl<T> EventLoop<T> {
         Ok(())
     }
 
-    pub fn pump_app_events<A: ApplicationHandler<T>>(
+    pub fn pump_app_events<A: ApplicationHandler>(
         &mut self,
         timeout: Option<Duration>,
         app: &mut A,
     ) -> PumpStatus {
-        let mut handler = MapUserEvent { app, receiver: self.receiver.clone() };
-
-        self.delegate.set_event_handler(&mut handler, || {
+        self.delegate.set_event_handler(app, || {
             autoreleasepool(|_| {
                 // As a special case, if the application hasn't been launched yet then we at least
                 // run the loop until it has fully launched.
@@ -439,8 +359,8 @@ impl<T> EventLoop<T> {
         })
     }
 
-    pub fn create_proxy(&self) -> EventLoopProxy<T> {
-        EventLoopProxy::new(self.sender.clone())
+    pub fn create_proxy(&self) -> EventLoopProxy {
+        EventLoopProxy::new(self.proxy_wake_up.clone())
     }
 }
 
@@ -498,15 +418,15 @@ pub fn stop_app_on_panic<F: FnOnce() -> R + UnwindSafe, R>(
     }
 }
 
-pub struct EventLoopProxy<T> {
-    sender: mpsc::Sender<T>,
+pub struct EventLoopProxy {
+    proxy_wake_up: Arc<AtomicBool>,
     source: CFRunLoopSourceRef,
 }
 
-unsafe impl<T: Send> Send for EventLoopProxy<T> {}
-unsafe impl<T: Send> Sync for EventLoopProxy<T> {}
+unsafe impl Send for EventLoopProxy {}
+unsafe impl Sync for EventLoopProxy {}
 
-impl<T> Drop for EventLoopProxy<T> {
+impl Drop for EventLoopProxy {
     fn drop(&mut self) {
         unsafe {
             CFRelease(self.source as _);
@@ -514,14 +434,14 @@ impl<T> Drop for EventLoopProxy<T> {
     }
 }
 
-impl<T> Clone for EventLoopProxy<T> {
+impl Clone for EventLoopProxy {
     fn clone(&self) -> Self {
-        EventLoopProxy::new(self.sender.clone())
+        EventLoopProxy::new(self.proxy_wake_up.clone())
     }
 }
 
-impl<T> EventLoopProxy<T> {
-    fn new(sender: mpsc::Sender<T>) -> Self {
+impl EventLoopProxy {
+    fn new(proxy_wake_up: Arc<AtomicBool>) -> Self {
         unsafe {
             // just wake up the eventloop
             extern "C" fn event_loop_proxy_handler(_: *const c_void) {}
@@ -545,18 +465,17 @@ impl<T> EventLoopProxy<T> {
             CFRunLoopAddSource(rl, source, kCFRunLoopCommonModes);
             CFRunLoopWakeUp(rl);
 
-            EventLoopProxy { sender, source }
+            EventLoopProxy { proxy_wake_up, source }
         }
     }
 
-    pub fn send_event(&self, event: T) -> Result<(), EventLoopClosed<T>> {
-        self.sender.send(event).map_err(|mpsc::SendError(x)| EventLoopClosed(x))?;
+    pub fn wake_up(&self) {
+        self.proxy_wake_up.store(true, AtomicOrdering::Relaxed);
         unsafe {
             // let the main thread know there's a new event
             CFRunLoopSourceSignal(self.source);
             let rl = CFRunLoopGetMain();
             CFRunLoopWakeUp(rl);
         }
-        Ok(())
     }
 }

@@ -1,7 +1,6 @@
 use std::cell::RefCell;
 use std::{fmt, mem};
 
-use super::app_state::HandlePendingUserEvents;
 use crate::application::ApplicationHandler;
 use crate::event_loop::ActiveEventLoop as RootActiveEventLoop;
 
@@ -11,7 +10,7 @@ pub(crate) struct EventHandler {
     /// - Not registered by the event loop (None).
     /// - Present (Some(handler)).
     /// - Currently executing the handler / in use (RefCell borrowed).
-    inner: RefCell<Option<&'static mut dyn ApplicationHandler<HandlePendingUserEvents>>>,
+    inner: RefCell<Option<&'static mut dyn ApplicationHandler>>,
 }
 
 impl fmt::Debug for EventHandler {
@@ -37,7 +36,7 @@ impl EventHandler {
     /// from within the closure.
     pub(crate) fn set<'handler, R>(
         &self,
-        app: &'handler mut dyn ApplicationHandler<HandlePendingUserEvents>,
+        app: &'handler mut dyn ApplicationHandler,
         closure: impl FnOnce() -> R,
     ) -> R {
         // SAFETY: We extend the lifetime of the handler here so that we can
@@ -48,8 +47,8 @@ impl EventHandler {
         // extended beyond `'handler`.
         let handler = unsafe {
             mem::transmute::<
-                &'handler mut dyn ApplicationHandler<HandlePendingUserEvents>,
-                &'static mut dyn ApplicationHandler<HandlePendingUserEvents>,
+                &'handler mut dyn ApplicationHandler,
+                &'static mut dyn ApplicationHandler,
             >(app)
         };
 
@@ -109,11 +108,9 @@ impl EventHandler {
         matches!(self.inner.try_borrow().as_deref(), Ok(Some(_)))
     }
 
-    pub(crate) fn handle<
-        F: FnOnce(&mut dyn ApplicationHandler<HandlePendingUserEvents>, &RootActiveEventLoop),
-    >(
+    pub(crate) fn handle(
         &self,
-        callback: F,
+        callback: impl FnOnce(&mut dyn ApplicationHandler, &RootActiveEventLoop),
         event_loop: &RootActiveEventLoop,
     ) {
         match self.inner.try_borrow_mut().as_deref_mut() {

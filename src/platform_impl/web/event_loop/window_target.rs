@@ -55,7 +55,11 @@ impl ActiveEventLoop {
         Self { runner: runner::Shared::new(), modifiers: ModifiersShared::default() }
     }
 
-    pub fn run(&self, event_handler: Box<runner::EventHandler>, event_loop_recreation: bool) {
+    pub(crate) fn run(
+        &self,
+        event_handler: Box<runner::EventHandler>,
+        event_loop_recreation: bool,
+    ) {
         self.runner.event_loop_recreation(event_loop_recreation);
         self.runner.set_listener(event_handler);
     }

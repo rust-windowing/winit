@@ -44,7 +44,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     tracing::init();
 
-    let event_loop = EventLoop::<UserEvent>::with_user_event().build()?;
+    let event_loop = EventLoop::new()?;
     let _event_loop_proxy = event_loop.create_proxy();
 
     // Wire the user event from another thread.
@@ -54,7 +54,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         // from a different thread.
         info!("Starting to send user event every second");
         loop {
-            let _ = _event_loop_proxy.send_event(UserEvent::WakeUp);
+            _event_loop_proxy.wake_up();
             std::thread::sleep(std::time::Duration::from_secs(1));
         }
     });
@@ -62,12 +62,6 @@ fn main() -> Result<(), Box<dyn Error>> {
     let mut state = Application::new(&event_loop);
 
     event_loop.run_app(&mut state).map_err(Into::into)
-}
-
-#[allow(dead_code)]
-#[derive(Debug, Clone, Copy)]
-enum UserEvent {
-    WakeUp,
 }
 
 /// Application state and event handling.
@@ -85,7 +79,7 @@ struct Application {
 }
 
 impl Application {
-    fn new<T>(event_loop: &EventLoop<T>) -> Self {
+    fn new(event_loop: &EventLoop) -> Self {
         // SAFETY: we drop the context right before the event loop is stopped, thus making it safe.
         #[cfg(not(any(android_platform, ios_platform)))]
         let context = Some(
@@ -308,9 +302,9 @@ impl Application {
     }
 }
 
-impl ApplicationHandler<UserEvent> for Application {
-    fn user_event(&mut self, _event_loop: &ActiveEventLoop, event: UserEvent) {
-        info!("User event: {event:?}");
+impl ApplicationHandler for Application {
+    fn proxy_wake_up(&mut self, _event_loop: &ActiveEventLoop) {
+        info!("User wake up");
     }
 
     fn window_event(

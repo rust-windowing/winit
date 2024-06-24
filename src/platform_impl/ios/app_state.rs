@@ -40,12 +40,9 @@ macro_rules! bug_assert {
     };
 }
 
-#[derive(Debug)]
-pub(crate) struct HandlePendingUserEvents;
-
 pub(crate) struct EventLoopHandler {
     #[allow(clippy::type_complexity)]
-    pub(crate) handler: Box<dyn FnMut(Event<HandlePendingUserEvents>, &RootActiveEventLoop)>,
+    pub(crate) handler: Box<dyn FnMut(Event, &RootActiveEventLoop)>,
     pub(crate) event_loop: RootActiveEventLoop,
 }
 
@@ -59,14 +56,14 @@ impl fmt::Debug for EventLoopHandler {
 }
 
 impl EventLoopHandler {
-    fn handle_event(&mut self, event: Event<HandlePendingUserEvents>) {
+    fn handle_event(&mut self, event: Event) {
         (self.handler)(event, &self.event_loop)
     }
 }
 
 #[derive(Debug)]
 pub(crate) enum EventWrapper {
-    StaticEvent(Event<HandlePendingUserEvents>),
+    StaticEvent(Event),
     ScaleFactorChanged(ScaleFactorChanged),
 }
 
@@ -88,7 +85,7 @@ enum UserCallbackTransitionResult<'a> {
     },
 }
 
-impl Event<HandlePendingUserEvents> {
+impl Event {
     fn is_redraw(&self) -> bool {
         matches!(self, Event::WindowEvent { event: WindowEvent::RedrawRequested, .. })
     }
@@ -625,7 +622,7 @@ fn handle_user_events(mtm: MainThreadMarker) {
     }
     drop(this);
 
-    handler.handle_event(Event::UserEvent(HandlePendingUserEvents));
+    handler.handle_event(Event::UserWakeUp);
 
     loop {
         let mut this = AppState::get_mut(mtm);
@@ -658,7 +655,7 @@ fn handle_user_events(mtm: MainThreadMarker) {
             }
         }
 
-        handler.handle_event(Event::UserEvent(HandlePendingUserEvents));
+        handler.handle_event(Event::UserWakeUp);
     }
 }
 

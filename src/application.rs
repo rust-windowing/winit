@@ -5,7 +5,7 @@ use crate::event_loop::ActiveEventLoop;
 use crate::window::WindowId;
 
 /// The handler of the application events.
-pub trait ApplicationHandler<T: 'static = ()> {
+pub trait ApplicationHandler {
     /// Emitted when new events arrive from the OS to be processed.
     ///
     /// This is a useful place to put code that should be done before you start processing
@@ -82,11 +82,95 @@ pub trait ApplicationHandler<T: 'static = ()> {
     /// [`Suspended`]: Self::suspended
     fn resumed(&mut self, event_loop: &ActiveEventLoop);
 
-    /// Emitted when an event is sent from [`EventLoopProxy::send_event`].
+    /// Called after a wake up is requested using [`EventLoopProxy::wake_up()`].
     ///
-    /// [`EventLoopProxy::send_event`]: crate::event_loop::EventLoopProxy::send_event
-    fn user_event(&mut self, event_loop: &ActiveEventLoop, event: T) {
-        let _ = (event_loop, event);
+    /// Multiple calls to the aforementioned method will be merged, and will only wake the event
+    /// loop once; however, due to the nature of multi-threading some wake ups may appear
+    /// spuriously. For these reasons, you should not rely on the number of times that this was
+    /// called.
+    ///
+    /// The order in which this is emitted in relation to other events is not guaranteed. The time
+    /// at which this will be emitted is not guaranteed, only that it will happen "soon". That is,
+    /// there may be several executions of the event loop, including multiple redraws to windows,
+    /// between [`EventLoopProxy::wake_up()`] being called and the event being delivered.
+    ///
+    /// [`EventLoopProxy::wake_up()`]: crate::event_loop::EventLoopProxy::wake_up
+    ///
+    /// # Example
+    ///
+    /// Use a [`std::sync::mpsc`] channel to handle events from a different thread.
+    ///
+    /// ```no_run
+    /// use std::sync::mpsc;
+    /// use std::thread;
+    /// use std::time::Duration;
+    ///
+    /// use winit::application::ApplicationHandler;
+    /// use winit::event_loop::{ActiveEventLoop, EventLoop};
+    ///
+    /// struct MyApp {
+    ///     receiver: mpsc::Receiver<u64>,
+    /// }
+    ///
+    /// impl ApplicationHandler for MyApp {
+    ///     # fn window_event(
+    ///     #     &mut self,
+    ///     #     _event_loop: &ActiveEventLoop,
+    ///     #     _window_id: winit::window::WindowId,
+    ///     #     _event: winit::event::WindowEvent,
+    ///     # ) {
+    ///     # }
+    ///     #
+    ///     # fn resumed(&mut self, _event_loop: &ActiveEventLoop) {}
+    ///     #
+    ///     fn proxy_wake_up(&mut self, _event_loop: &ActiveEventLoop) {
+    ///         // Iterate current events, since wake-ups may have been merged.
+    ///         //
+    ///         // Note: We take care not to use `recv` or `iter` here, as those are blocking,
+    ///         // and that would be bad for performance and might lead to a deadlock.
+    ///         for i in self.receiver.try_iter() {
+    ///             println!("received: {i}");
+    ///         }
+    ///     }
+    ///
+    ///     // Rest of `ApplicationHandler`
+    /// }
+    ///
+    /// fn main() -> Result<(), Box<dyn std::error::Error>> {
+    ///     let event_loop = EventLoop::new()?;
+    ///
+    ///     let (sender, receiver) = mpsc::channel();
+    ///
+    ///     let mut app = MyApp { receiver };
+    ///
+    ///     // Send an event in a loop
+    ///     let proxy = event_loop.create_proxy();
+    ///     let background_thread = thread::spawn(move || {
+    ///         let mut i = 0;
+    ///         loop {
+    ///             println!("sending: {i}");
+    ///             if sender.send(i).is_err() {
+    ///                 // Stop sending once `MyApp` is dropped
+    ///                 break;
+    ///             }
+    ///             // Trigger the wake-up _after_ we placed the event in the channel.
+    ///             // Otherwise, `proxy_wake_up` might be triggered prematurely.
+    ///             proxy.wake_up();
+    ///             i += 1;
+    ///             thread::sleep(Duration::from_secs(1));
+    ///         }
+    ///     });
+    ///
+    ///     event_loop.run_app(&mut app)?;
+    ///
+    ///     drop(app);
+    ///     background_thread.join().unwrap();
+    ///
+    ///     Ok(())
+    /// }
+    /// ```
+    fn proxy_wake_up(&mut self, event_loop: &ActiveEventLoop) {
+        let _ = event_loop;
     }
 
     /// Emitted when the OS sends an event to a winit window.
@@ -224,7 +308,7 @@ pub trait ApplicationHandler<T: 'static = ()> {
     }
 }
 
-impl<A: ?Sized + ApplicationHandler<T>, T: 'static> ApplicationHandler<T> for &mut A {
+impl<A: ?Sized + ApplicationHandler> ApplicationHandler for &mut A {
     #[inline]
     fn new_events(&mut self, event_loop: &ActiveEventLoop, cause: StartCause) {
         (**self).new_events(event_loop, cause);
@@ -236,8 +320,8 @@ impl<A: ?Sized + ApplicationHandler<T>, T: 'static> ApplicationHandler<T> for &m
     }
 
     #[inline]
-    fn user_event(&mut self, event_loop: &ActiveEventLoop, event: T) {
-        (**self).user_event(event_loop, event);
+    fn proxy_wake_up(&mut self, event_loop: &ActiveEventLoop) {
+        (**self).proxy_wake_up(event_loop);
     }
 
     #[inline]
@@ -281,7 +365,7 @@ impl<A: ?Sized + ApplicationHandler<T>, T: 'static> ApplicationHandler<T> for &m
     }
 }
 
-impl<A: ?Sized + ApplicationHandler<T>, T: 'static> ApplicationHandler<T> for Box<A> {
+impl<A: ?Sized + ApplicationHandler> ApplicationHandler for Box<A> {
     #[inline]
     fn new_events(&mut self, event_loop: &ActiveEventLoop, cause: StartCause) {
         (**self).new_events(event_loop, cause);
@@ -293,8 +377,8 @@ impl<A: ?Sized + ApplicationHandler<T>, T: 'static> ApplicationHandler<T> for Bo
     }
 
     #[inline]
-    fn user_event(&mut self, event_loop: &ActiveEventLoop, event: T) {
-        (**self).user_event(event_loop, event);
+    fn proxy_wake_up(&mut self, event_loop: &ActiveEventLoop) {
+        (**self).proxy_wake_up(event_loop);
     }
 
     #[inline]

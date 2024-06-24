@@ -19,12 +19,11 @@
 //! window or a key getting pressed while the window is focused. Devices can generate
 //! [`DeviceEvent`]s, which contain unfiltered event data that isn't specific to a certain window.
 //! Some user activity, like mouse movement, can generate both a [`WindowEvent`] *and* a
-//! [`DeviceEvent`]. You can also create and handle your own custom [`Event::UserEvent`]s, if
-//! desired.
+//! [`DeviceEvent`].
 //!
 //! You can retrieve events by calling [`EventLoop::run_app()`]. This function will
 //! dispatch events for every [`Window`] that was created with that particular [`EventLoop`], and
-//! will run until [`exit()`] is used, at which point [`Event::LoopExiting`].
+//! will run until [`exit()`] is used, at which point [`exiting()`] is called.
 //!
 //! Winit no longer uses a `EventLoop::poll_events() -> impl Iterator<Event>`-based event loop
 //! model, since that can't be implemented properly on some platforms (e.g web, iOS) and works
@@ -163,7 +162,7 @@
 //! [`WindowEvent`]: event::WindowEvent
 //! [`DeviceEvent`]: event::DeviceEvent
 //! [`Event::UserEvent`]: event::Event::UserEvent
-//! [`Event::LoopExiting`]: event::Event::LoopExiting
+//! [`exiting()`]: crate::application::ApplicationHandler::exiting
 //! [`raw_window_handle`]: ./window/struct.Window.html#method.raw_window_handle
 //! [`raw_display_handle`]: ./window/struct.Window.html#method.raw_display_handle
 //! [^1]: `EventLoopExtPumpEvents::pump_app_events()` is only available on Windows, macOS, Android, X11 and Wayland.

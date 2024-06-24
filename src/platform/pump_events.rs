@@ -5,11 +5,6 @@ use crate::event_loop::EventLoop;
 
 /// Additional methods on [`EventLoop`] for pumping events within an external event loop
 pub trait EventLoopExtPumpEvents {
-    /// A type provided by the user that can be passed through [`Event::UserEvent`].
-    ///
-    /// [`Event::UserEvent`]: crate::event::Event::UserEvent
-    type UserEvent: 'static;
-
     /// Pump the `EventLoop` to check for and dispatch pending events.
     ///
     /// This API is designed to enable applications to integrate Winit into an
@@ -104,17 +99,15 @@ pub trait EventLoopExtPumpEvents {
     ///   If you render outside of Winit you are likely to see window resizing artifacts
     ///   since MacOS expects applications to render synchronously during any `drawRect`
     ///   callback.
-    fn pump_app_events<A: ApplicationHandler<Self::UserEvent>>(
+    fn pump_app_events<A: ApplicationHandler>(
         &mut self,
         timeout: Option<Duration>,
         app: &mut A,
     ) -> PumpStatus;
 }
 
-impl<T> EventLoopExtPumpEvents for EventLoop<T> {
-    type UserEvent = T;
-
-    fn pump_app_events<A: ApplicationHandler<Self::UserEvent>>(
+impl EventLoopExtPumpEvents for EventLoop {
+    fn pump_app_events<A: ApplicationHandler>(
         &mut self,
         timeout: Option<Duration>,
         app: &mut A,

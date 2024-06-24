@@ -2,7 +2,8 @@ use std::collections::VecDeque;
 use std::ffi::{c_char, c_int, c_void};
 use std::marker::PhantomData;
 use std::ptr::{self, NonNull};
-use std::sync::mpsc::{self, Receiver, Sender};
+use std::sync::atomic::{AtomicBool, Ordering as AtomicOrdering};
+use std::sync::Arc;
 
 use core_foundation::base::{CFIndex, CFRelease};
 use core_foundation::runloop::{
@@ -19,11 +20,9 @@ use objc2_ui_kit::{UIApplication, UIApplicationMain, UIDevice, UIScreen, UIUserI
 use crate::application::ApplicationHandler;
 use crate::error::EventLoopError;
 use crate::event::Event;
-use crate::event_loop::{
-    ActiveEventLoop as RootActiveEventLoop, ControlFlow, DeviceEvents, EventLoopClosed,
-};
+use crate::event_loop::{ActiveEventLoop as RootActiveEventLoop, ControlFlow, DeviceEvents};
 use crate::platform::ios::Idiom;
-use crate::platform_impl::platform::app_state::{EventLoopHandler, HandlePendingUserEvents};
+use crate::platform_impl::platform::app_state::EventLoopHandler;
 use crate::window::{CustomCursor, CustomCursorSource};
 
 use super::app_delegate::AppDelegate;
@@ -109,10 +108,10 @@ impl OwnedDisplayHandle {
     }
 }
 
-fn map_user_event<T: 'static, A: ApplicationHandler<T>>(
+fn map_user_event<A: ApplicationHandler>(
     app: &mut A,
-    receiver: mpsc::Receiver<T>,
-) -> impl FnMut(Event<HandlePendingUserEvents>, &RootActiveEventLoop) + '_ {
+    proxy_wake_up: Arc<AtomicBool>,
+) -> impl FnMut(Event, &RootActiveEventLoop) + '_ {
     move |event, window_target| match event {
         Event::NewEvents(cause) => app.new_events(window_target, cause),
         Event::WindowEvent { window_id, event } => {
@@ -121,9 +120,9 @@ fn map_user_event<T: 'static, A: ApplicationHandler<T>>(
         Event::DeviceEvent { device_id, event } => {
             app.device_event(window_target, device_id, event)
         },
-        Event::UserEvent(_) => {
-            for event in receiver.try_iter() {
-                app.user_event(window_target, event);
+        Event::UserWakeUp => {
+            if proxy_wake_up.swap(false, AtomicOrdering::Relaxed) {
+                app.proxy_wake_up(window_target);
             }
         },
         Event::Suspended => app.suspended(window_target),
@@ -134,20 +133,19 @@ fn map_user_event<T: 'static, A: ApplicationHandler<T>>(
     }
 }
 
-pub struct EventLoop<T: 'static> {
+pub struct EventLoop {
     mtm: MainThreadMarker,
-    sender: Sender<T>,
-    receiver: Receiver<T>,
+    proxy_wake_up: Arc<AtomicBool>,
     window_target: RootActiveEventLoop,
 }
 
 #[derive(Default, Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub(crate) struct PlatformSpecificEventLoopAttributes {}
 
-impl<T: 'static> EventLoop<T> {
+impl EventLoop {
     pub(crate) fn new(
         _: &PlatformSpecificEventLoopAttributes,
-    ) -> Result<EventLoop<T>, EventLoopError> {
+    ) -> Result<EventLoop, EventLoopError> {
         let mtm = MainThreadMarker::new()
             .expect("On iOS, `EventLoop` must be created on the main thread");
 
@@ -160,20 +158,19 @@ impl<T: 'static> EventLoop<T> {
             SINGLETON_INIT = true;
         }
 
-        let (sender, receiver) = mpsc::channel();
-
         // this line sets up the main run loop before `UIApplicationMain`
         setup_control_flow_observers();
 
+        let proxy_wake_up = Arc::new(AtomicBool::new(false));
+
         Ok(EventLoop {
             mtm,
-            sender,
-            receiver,
+            proxy_wake_up,
             window_target: RootActiveEventLoop { p: ActiveEventLoop { mtm }, _marker: PhantomData },
         })
     }
 
-    pub fn run_app<A: ApplicationHandler<T>>(self, app: &mut A) -> ! {
+    pub fn run_app<A: ApplicationHandler>(self, app: &mut A) -> ! {
         let application: Option<Retained<UIApplication>> =
             unsafe { msg_send_id![UIApplication::class(), sharedApplication] };
         assert!(
@@ -183,12 +180,12 @@ impl<T: 'static> EventLoop<T> {
              `EventLoop::run_app` calls `UIApplicationMain` on iOS",
         );
 
-        let handler = map_user_event(app, self.receiver);
+        let handler = map_user_event(app, self.proxy_wake_up.clone());
 
         let handler = unsafe {
             std::mem::transmute::<
-                Box<dyn FnMut(Event<HandlePendingUserEvents>, &RootActiveEventLoop)>,
-                Box<dyn FnMut(Event<HandlePendingUserEvents>, &RootActiveEventLoop)>,
+                Box<dyn FnMut(Event, &RootActiveEventLoop)>,
+                Box<dyn FnMut(Event, &RootActiveEventLoop)>,
             >(Box::new(handler))
         };
 
@@ -216,8 +213,8 @@ impl<T: 'static> EventLoop<T> {
         unreachable!()
     }
 
-    pub fn create_proxy(&self) -> EventLoopProxy<T> {
-        EventLoopProxy::new(self.sender.clone())
+    pub fn create_proxy(&self) -> EventLoopProxy {
+        EventLoopProxy::new(self.proxy_wake_up.clone())
     }
 
     pub fn window_target(&self) -> &RootActiveEventLoop {
@@ -226,7 +223,7 @@ impl<T: 'static> EventLoop<T> {
 }
 
 // EventLoopExtIOS
-impl<T: 'static> EventLoop<T> {
+impl EventLoop {
     pub fn idiom(&self) -> Idiom {
         match UIDevice::currentDevice(self.mtm).userInterfaceIdiom() {
             UIUserInterfaceIdiom::Unspecified => Idiom::Unspecified,
@@ -239,21 +236,21 @@ impl<T: 'static> EventLoop<T> {
     }
 }
 
-pub struct EventLoopProxy<T> {
-    sender: Sender<T>,
+pub struct EventLoopProxy {
+    proxy_wake_up: Arc<AtomicBool>,
     source: CFRunLoopSourceRef,
 }
 
-unsafe impl<T: Send> Send for EventLoopProxy<T> {}
-unsafe impl<T: Send> Sync for EventLoopProxy<T> {}
+unsafe impl Send for EventLoopProxy {}
+unsafe impl Sync for EventLoopProxy {}
 
-impl<T> Clone for EventLoopProxy<T> {
-    fn clone(&self) -> EventLoopProxy<T> {
-        EventLoopProxy::new(self.sender.clone())
+impl Clone for EventLoopProxy {
+    fn clone(&self) -> EventLoopProxy {
+        EventLoopProxy::new(self.proxy_wake_up.clone())
     }
 }
 
-impl<T> Drop for EventLoopProxy<T> {
+impl Drop for EventLoopProxy {
     fn drop(&mut self) {
         unsafe {
             CFRunLoopSourceInvalidate(self.source);
@@ -262,8 +259,8 @@ impl<T> Drop for EventLoopProxy<T> {
     }
 }
 
-impl<T> EventLoopProxy<T> {
-    fn new(sender: Sender<T>) -> EventLoopProxy<T> {
+impl EventLoopProxy {
+    fn new(proxy_wake_up: Arc<AtomicBool>) -> EventLoopProxy {
         unsafe {
             // just wake up the eventloop
             extern "C" fn event_loop_proxy_handler(_: *const c_void) {}
@@ -287,19 +284,18 @@ impl<T> EventLoopProxy<T> {
             CFRunLoopAddSource(rl, source, kCFRunLoopCommonModes);
             CFRunLoopWakeUp(rl);
 
-            EventLoopProxy { sender, source }
+            EventLoopProxy { proxy_wake_up, source }
         }
     }
 
-    pub fn send_event(&self, event: T) -> Result<(), EventLoopClosed<T>> {
-        self.sender.send(event).map_err(|::std::sync::mpsc::SendError(x)| EventLoopClosed(x))?;
+    pub fn wake_up(&self) {
+        self.proxy_wake_up.store(true, AtomicOrdering::Relaxed);
         unsafe {
             // let the main thread know there's a new event
             CFRunLoopSourceSignal(self.source);
             let rl = CFRunLoopGetMain();
             CFRunLoopWakeUp(rl);
         }
-        Ok(())
     }
 }
 
