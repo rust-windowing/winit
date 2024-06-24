@@ -28,10 +28,8 @@ mod event_loop;
 mod keyboard;
 mod main_thread;
 mod monitor;
+mod web_sys;
 mod window;
-
-#[path = "web_sys/mod.rs"]
-mod backend;
 
 pub use self::device::DeviceId;
 pub use self::error::OsError;
@@ -49,3 +47,4 @@ pub(crate) use cursor::{
     CustomCursor as PlatformCustomCursor, CustomCursorFuture,
     CustomCursorSource as PlatformCustomCursorSource,
 };
+use web_sys as backend;
