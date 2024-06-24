@@ -2,9 +2,10 @@
 /src/platform/android.rs            @MarijnS95
 /src/platform_impl/android          @MarijnS95
 
-# iOS
+# Apple (AppKit + UIKit)
 /src/platform/ios.rs                @madsmtm
-/src/platform_impl/ios              @madsmtm
+/src/platform/macos.rs              @madsmtm
+/src/platform_impl/apple            @madsmtm
 
 # Unix
 /src/platform_impl/linux/mod.rs     @kchibisov
@@ -16,10 +17,6 @@
 # X11
 /src/platform/x11.rs                @kchibisov @notgull
 /src/platform_impl/linux/x11        @kchibisov @notgull
-
-# macOS
-/src/platform/macos.rs              @madsmtm
-/src/platform_impl/macos            @madsmtm
 
 # Web
 /src/platform/web.rs                @daxpedda
