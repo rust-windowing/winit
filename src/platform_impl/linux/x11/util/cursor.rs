@@ -1,9 +1,10 @@
-use std::ffi::CString;
 use std::hash::{Hash, Hasher};
+use std::iter;
 use std::sync::Arc;
-use std::{iter, slice};
 
 use x11rb::connection::Connection;
+use x11rb::protocol::render::{self, ConnectionExt as _};
+use x11rb::protocol::xproto;
 
 use crate::platform_impl::PlatformCustomCursorSource;
 use crate::window::CursorIcon;
@@ -18,7 +19,7 @@ impl XConnection {
             .lock()
             .unwrap()
             .entry(cursor)
-            .or_insert_with(|| self.get_cursor(cursor));
+            .or_insert_with(|| self.get_cursor(cursor).expect("failed to create cursor"));
 
         self.update_cursor(window, cursor).expect("Failed to set cursor");
     }
@@ -27,66 +28,123 @@ impl XConnection {
         self.update_cursor(window, cursor.inner.cursor).expect("Failed to set cursor");
     }
 
-    fn create_empty_cursor(&self) -> ffi::Cursor {
-        let data = 0;
-        let pixmap = unsafe {
-            let screen = (self.xlib.XDefaultScreen)(self.display);
-            let window = (self.xlib.XRootWindow)(self.display, screen);
-            (self.xlib.XCreateBitmapFromData)(self.display, window, &data, 1, 1)
-        };
+    /// Create a cursor from an image.
+    fn create_cursor_from_image(
+        &self,
+        width: u16,
+        height: u16,
+        hotspot_x: u16,
+        hotspot_y: u16,
+        image: &[u8],
+    ) -> Result<xproto::Cursor, X11Error> {
+        // Create a pixmap for the default root window.
+        let root = self.default_root().root;
+        let pixmap =
+            xproto::PixmapWrapper::create_pixmap(self.xcb_connection(), 32, root, width, height)?;
 
-        if pixmap == 0 {
-            panic!("failed to allocate pixmap for cursor");
-        }
+        // Create a GC to draw with.
+        let gc = xproto::GcontextWrapper::create_gc(
+            self.xcb_connection(),
+            pixmap.pixmap(),
+            &Default::default(),
+        )?;
 
-        unsafe {
-            // We don't care about this color, since it only fills bytes
-            // in the pixmap which are not 0 in the mask.
-            let mut dummy_color = MaybeUninit::uninit();
-            let cursor = (self.xlib.XCreatePixmapCursor)(
-                self.display,
-                pixmap,
-                pixmap,
-                dummy_color.as_mut_ptr(),
-                dummy_color.as_mut_ptr(),
+        // Draw the data into it.
+        self.xcb_connection()
+            .put_image(
+                xproto::ImageFormat::Z_PIXMAP,
+                pixmap.pixmap(),
+                gc.gcontext(),
+                width,
+                height,
                 0,
                 0,
-            );
-            (self.xlib.XFreePixmap)(self.display, pixmap);
+                0,
+                32,
+                image,
+            )?
+            .ignore_error();
+        drop(gc);
 
-            cursor
-        }
+        // Create the XRender picture.
+        let picture = render::PictureWrapper::create_picture(
+            self.xcb_connection(),
+            pixmap.pixmap(),
+            self.find_argb32_format(),
+            &Default::default(),
+        )?;
+        drop(pixmap);
+
+        // Create the cursor.
+        let cursor = self.xcb_connection().generate_id()?;
+        self.xcb_connection()
+            .render_create_cursor(cursor, picture.picture(), hotspot_x, hotspot_y)?
+            .check()?;
+
+        Ok(cursor)
     }
 
-    fn get_cursor(&self, cursor: Option<CursorIcon>) -> ffi::Cursor {
+    /// Find the render format that corresponds to ARGB32.
+    fn find_argb32_format(&self) -> render::Pictformat {
+        macro_rules! direct {
+            ($format:expr, $shift_name:ident, $mask_name:ident, $shift:expr) => {{
+                ($format).direct.$shift_name == $shift && ($format).direct.$mask_name == 0xff
+            }};
+        }
+
+        self.render_formats()
+            .formats
+            .iter()
+            .find(|format| {
+                format.type_ == render::PictType::DIRECT
+                    && format.depth == 32
+                    && direct!(format, red_shift, red_mask, 16)
+                    && direct!(format, green_shift, green_mask, 8)
+                    && direct!(format, blue_shift, blue_mask, 0)
+                    && direct!(format, alpha_shift, alpha_mask, 24)
+            })
+            .expect("unable to find ARGB32 xrender format")
+            .id
+    }
+
+    fn create_empty_cursor(&self) -> Result<xproto::Cursor, X11Error> {
+        self.create_cursor_from_image(1, 1, 0, 0, &[0, 0, 0, 0])
+    }
+
+    fn get_cursor(&self, cursor: Option<CursorIcon>) -> Result<xproto::Cursor, X11Error> {
         let cursor = match cursor {
             Some(cursor) => cursor,
             None => return self.create_empty_cursor(),
         };
 
-        let mut xcursor = 0;
-        for &name in iter::once(&cursor.name()).chain(cursor.alt_names().iter()) {
-            let name = CString::new(name).unwrap();
-            xcursor = unsafe {
-                (self.xcursor.XcursorLibraryLoadCursor)(
-                    self.display,
-                    name.as_ptr() as *const c_char,
-                )
-            };
+        let database = self.database();
+        let handle = x11rb::cursor::Handle::new(
+            self.xcb_connection(),
+            self.default_screen_index(),
+            &database,
+        )?
+        .reply()?;
 
-            if xcursor != 0 {
-                break;
+        let mut last_error = None;
+        for &name in iter::once(&cursor.name()).chain(cursor.alt_names().iter()) {
+            match handle.load_cursor(self.xcb_connection(), name) {
+                Ok(cursor) => return Ok(cursor),
+                Err(err) => last_error = Some(err.into()),
             }
         }
 
-        xcursor
+        Err(last_error.unwrap())
     }
 
-    fn update_cursor(&self, window: xproto::Window, cursor: ffi::Cursor) -> Result<(), X11Error> {
+    fn update_cursor(
+        &self,
+        window: xproto::Window,
+        cursor: xproto::Cursor,
+    ) -> Result<(), X11Error> {
         self.xcb_connection()
             .change_window_attributes(
                 window,
-                &xproto::ChangeWindowAttributesAux::new().cursor(cursor as xproto::Cursor),
+                &xproto::ChangeWindowAttributesAux::new().cursor(cursor),
             )?
             .ignore_error();
 
@@ -123,47 +181,44 @@ impl Eq for CustomCursor {}
 impl CustomCursor {
     pub(crate) fn new(
         event_loop: &ActiveEventLoop,
-        cursor: PlatformCustomCursorSource,
+        mut cursor: PlatformCustomCursorSource,
     ) -> CustomCursor {
-        unsafe {
-            let ximage = (event_loop.xconn.xcursor.XcursorImageCreate)(
-                cursor.0.width as i32,
-                cursor.0.height as i32,
-            );
-            if ximage.is_null() {
-                panic!("failed to allocate cursor image");
-            }
-            (*ximage).xhot = cursor.0.hotspot_x as u32;
-            (*ximage).yhot = cursor.0.hotspot_y as u32;
-            (*ximage).delay = 0;
+        // Reverse RGBA order to BGRA.
+        cursor.0.rgba.chunks_mut(4).for_each(|chunk| {
+            let chunk: &mut [u8; 4] = chunk.try_into().unwrap();
+            chunk[0..3].reverse();
 
-            let dst = slice::from_raw_parts_mut((*ximage).pixels, cursor.0.rgba.len() / 4);
-            for (dst, chunk) in dst.iter_mut().zip(cursor.0.rgba.chunks_exact(4)) {
-                *dst = (chunk[0] as u32) << 16
-                    | (chunk[1] as u32) << 8
-                    | (chunk[2] as u32)
-                    | (chunk[3] as u32) << 24;
+            // Byteswap if we need to.
+            if event_loop.xconn.needs_endian_swap() {
+                let value = u32::from_ne_bytes(*chunk).swap_bytes();
+                *chunk = value.to_ne_bytes();
             }
+        });
 
-            let cursor =
-                (event_loop.xconn.xcursor.XcursorImageLoadCursor)(event_loop.xconn.display, ximage);
-            (event_loop.xconn.xcursor.XcursorImageDestroy)(ximage);
-            Self { inner: Arc::new(CustomCursorInner { xconn: event_loop.xconn.clone(), cursor }) }
-        }
+        let cursor = event_loop
+            .xconn
+            .create_cursor_from_image(
+                cursor.0.width,
+                cursor.0.height,
+                cursor.0.hotspot_x,
+                cursor.0.hotspot_y,
+                &cursor.0.rgba,
+            )
+            .expect("failed to create a custom cursor");
+
+        Self { inner: Arc::new(CustomCursorInner { xconn: event_loop.xconn.clone(), cursor }) }
     }
 }
 
 #[derive(Debug)]
 struct CustomCursorInner {
     xconn: Arc<XConnection>,
-    cursor: ffi::Cursor,
+    cursor: xproto::Cursor,
 }
 
 impl Drop for CustomCursorInner {
     fn drop(&mut self) {
-        unsafe {
-            (self.xconn.xlib.XFreeCursor)(self.xconn.display, self.cursor);
-        }
+        self.xconn.xcb_connection().free_cursor(self.cursor).map(|r| r.ignore_error()).ok();
     }
 }
 

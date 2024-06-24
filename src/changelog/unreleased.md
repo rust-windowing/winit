@@ -44,6 +44,7 @@ changelog entry.
 
 - On Web, let events wake up event loop immediately when using `ControlFlow::Poll`.
 - Bump MSRV from `1.70` to `1.73`.
+- On X11, remove our dependency on libXcursor. (#3749)
 
 ### Removed
 
