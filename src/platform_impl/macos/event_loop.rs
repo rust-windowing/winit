@@ -126,10 +126,6 @@ impl ActiveEventLoop {
         self.delegate.exit()
     }
 
-    pub(crate) fn clear_exit(&self) {
-        self.delegate.clear_exit()
-    }
-
     pub(crate) fn exiting(&self) -> bool {
         self.delegate.exiting()
     }
@@ -333,6 +329,7 @@ impl<T> EventLoop<T> {
         &mut self,
         app: &mut A,
     ) -> Result<(), EventLoopError> {
+        self.delegate.clear_exit();
         let mut handler = MapUserEvent { app, receiver: self.receiver.clone() };
 
         self.delegate.set_event_handler(&mut handler, || {

@@ -386,6 +386,8 @@ impl<T: 'static> EventLoop<T> {
         &mut self,
         app: &mut A,
     ) -> Result<(), EventLoopError> {
+        let window_target = EventProcessor::window_target(&self.event_processor.target);
+        window_target.clear_exit();
         let exit = loop {
             match self.pump_app_events(None, app) {
                 PumpStatus::Exit(0) => {
