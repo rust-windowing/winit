@@ -7,12 +7,12 @@ use objc2_app_kit::{NSEvent, NSEventModifierFlags, NSEventSubtype, NSEventType};
 use objc2_foundation::{run_on_main, NSPoint};
 use smol_str::SmolStr;
 
+use super::ffi;
 use crate::event::{ElementState, KeyEvent, Modifiers};
 use crate::keyboard::{
     Key, KeyCode, KeyLocation, ModifiersKeys, ModifiersState, NamedKey, NativeKey, NativeKeyCode,
     PhysicalKey,
 };
-use crate::platform_impl::platform::ffi;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct KeyEventExtra {

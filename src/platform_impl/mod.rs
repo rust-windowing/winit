@@ -3,12 +3,10 @@ use crate::window::Fullscreen as RootFullscreen;
 
 #[cfg(android_platform)]
 mod android;
-#[cfg(ios_platform)]
-mod ios;
+#[cfg(target_vendor = "apple")]
+mod apple;
 #[cfg(any(x11_platform, wayland_platform))]
 mod linux;
-#[cfg(macos_platform)]
-mod macos;
 #[cfg(orbital_platform)]
 mod orbital;
 #[cfg(web_platform)]
@@ -18,12 +16,10 @@ mod windows;
 
 #[cfg(android_platform)]
 use android as platform;
-#[cfg(ios_platform)]
-use ios as platform;
+#[cfg(target_vendor = "apple")]
+use apple as platform;
 #[cfg(any(x11_platform, wayland_platform))]
 use linux as platform;
-#[cfg(macos_platform)]
-use macos as platform;
 #[cfg(orbital_platform)]
 use orbital as platform;
 #[cfg(web_platform)]
