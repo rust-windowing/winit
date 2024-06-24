@@ -27,7 +27,7 @@ impl ApplicationHandler for App {
         let mut attrs = Window::default_attributes().with_decorations(false);
         #[cfg(windows)]
         {
-            attrs = attrs.with_undecorated_shadow(false);
+            attrs = attrs.with_undecorated_shadow(true);
         }
 
         self.window = Some(event_loop.create_window(attrs).unwrap());
