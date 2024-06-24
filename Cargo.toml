@@ -102,21 +102,21 @@ softbuffer = { version = "0.4.0", default-features = false, features = [
     "wayland-dlopen",
 ] }
 
+# Android
 [target.'cfg(target_os = "android")'.dependencies]
 android-activity = "0.6.0"
 ndk = { version = "0.9.0", default-features = false }
 
+# AppKit or UIKit
 [target.'cfg(target_vendor = "apple")'.dependencies]
 core-foundation = "0.9.3"
 objc2 = "0.5.2"
 
+# AppKit
 [target.'cfg(target_os = "macos")'.dependencies]
 core-graphics = "0.23.1"
 block2 = "0.5.1"
-
-[target.'cfg(target_os = "macos")'.dependencies.objc2-foundation]
-version = "0.2.2"
-features = [
+objc2-foundation = { version = "0.2.2", features = [
     "block2",
     "dispatch",
     "NSArray",
@@ -134,11 +134,8 @@ features = [
     "NSString",
     "NSThread",
     "NSValue",
-]
-
-[target.'cfg(target_os = "macos")'.dependencies.objc2-app-kit]
-version = "0.2.2"
-features = [
+] }
+objc2-app-kit = { version = "0.2.2", features = [
     "NSAppearance",
     "NSApplication",
     "NSBitmapImageRep",
@@ -165,11 +162,11 @@ features = [
     "NSWindow",
     "NSWindowScripting",
     "NSWindowTabGroup",
-]
+] }
 
-[target.'cfg(all(target_vendor = "apple", not(target_os = "macos")))'.dependencies.objc2-foundation]
-version = "0.2.2"
-features = [
+# UIKit
+[target.'cfg(all(target_vendor = "apple", not(target_os = "macos")))'.dependencies]
+objc2-foundation = { version = "0.2.2", features = [
     "dispatch",
     "NSArray",
     "NSEnumerator",
@@ -179,11 +176,8 @@ features = [
     "NSProcessInfo",
     "NSThread",
     "NSSet",
-]
-
-[target.'cfg(all(target_vendor = "apple", not(target_os = "macos")))'.dependencies.objc2-ui-kit]
-version = "0.2.2"
-features = [
+] }
+objc2-ui-kit = { version = "0.2.2", features = [
     "UIApplication",
     "UIDevice",
     "UIEvent",
@@ -202,14 +196,12 @@ features = [
     "UIView",
     "UIViewController",
     "UIWindow",
-]
+] }
 
+# Windows
 [target.'cfg(target_os = "windows")'.dependencies]
 unicode-segmentation = "1.7.1"
-
-[target.'cfg(target_os = "windows")'.dependencies.windows-sys]
-version = "0.52.0"
-features = [
+windows-sys = { version = "0.52.0", features = [
     "Win32_Devices_HumanInterfaceDevice",
     "Win32_Foundation",
     "Win32_Globalization",
@@ -234,8 +226,9 @@ features = [
     "Win32_UI_Shell",
     "Win32_UI_TextServices",
     "Win32_UI_WindowsAndMessaging",
-]
+] }
 
+# Linux
 [target.'cfg(all(unix, not(any(target_os = "redox", target_family = "wasm", target_os = "android", target_vendor = "apple"))))'.dependencies]
 ahash = { version = "0.8.7", features = ["no-rng"], optional = true }
 bytemuck = { version = "1.13.1", default-features = false, optional = true }
@@ -274,14 +267,14 @@ x11rb = { version = "0.13.0", default-features = false, features = [
 ], optional = true }
 xkbcommon-dl = "0.4.2"
 
+# Orbital
 [target.'cfg(target_os = "redox")'.dependencies]
 orbclient = { version = "0.3.47", default-features = false }
 redox_syscall = "0.4.1"
 
-[target.'cfg(target_family = "wasm")'.dependencies.web_sys]
-package = "web-sys"
-version = "0.3.64"
-features = [
+# Web
+[target.'cfg(target_family = "wasm")'.dependencies]
+web_sys = { package = "web-sys", version = "0.3.64", features = [
     'AbortController',
     'AbortSignal',
     'Blob',
@@ -323,9 +316,7 @@ features = [
     'WheelEvent',
     'Worker',
     'Url',
-]
-
-[target.'cfg(target_family = "wasm")'.dependencies]
+] }
 js-sys = "0.3.64"
 pin-project = "1"
 wasm-bindgen = "0.2"
