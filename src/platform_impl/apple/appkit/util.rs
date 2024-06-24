@@ -2,7 +2,8 @@ use tracing::trace;
 
 macro_rules! trace_scope {
     ($s:literal) => {
-        let _crate = $crate::platform_impl::platform::util::TraceGuard::new(module_path!(), $s);
+        let _crate =
+            $crate::platform_impl::platform::appkit::util::TraceGuard::new(module_path!(), $s);
     };
 }
 

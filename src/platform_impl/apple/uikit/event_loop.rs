@@ -17,12 +17,12 @@ use objc2::{msg_send_id, ClassType};
 use objc2_foundation::{MainThreadMarker, NSString};
 use objc2_ui_kit::{UIApplication, UIApplicationMain, UIDevice, UIScreen, UIUserInterfaceIdiom};
 
+use super::app_state::EventLoopHandler;
 use crate::application::ApplicationHandler;
 use crate::error::EventLoopError;
 use crate::event::Event;
 use crate::event_loop::{ActiveEventLoop as RootActiveEventLoop, ControlFlow, DeviceEvents};
 use crate::platform::ios::Idiom;
-use crate::platform_impl::platform::app_state::EventLoopHandler;
 use crate::window::{CustomCursor, CustomCursorSource};
 
 use super::app_delegate::AppDelegate;

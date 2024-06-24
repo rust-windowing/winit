@@ -14,9 +14,9 @@ use objc2_ui_kit::{
 
 use super::app_state::{self, EventWrapper};
 use super::window::WinitUIWindow;
+use super::DEVICE_ID;
 use crate::dpi::PhysicalPosition;
 use crate::event::{Event, Force, Touch, TouchPhase, WindowEvent};
-use crate::platform_impl::platform::DEVICE_ID;
 use crate::window::{WindowAttributes, WindowId as RootWindowId};
 
 pub struct WinitViewState {

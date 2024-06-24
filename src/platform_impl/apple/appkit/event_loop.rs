@@ -23,6 +23,7 @@ use objc2_foundation::{MainThreadMarker, NSObjectProtocol};
 
 use super::app::WinitApplication;
 use super::app_state::ApplicationDelegate;
+use super::cursor::CustomCursor;
 use super::event::dummy_event;
 use super::monitor::{self, MonitorHandle};
 use super::observer::setup_control_flow_observers;
@@ -31,7 +32,6 @@ use crate::error::EventLoopError;
 use crate::event_loop::{ActiveEventLoop as RootWindowTarget, ControlFlow, DeviceEvents};
 use crate::platform::macos::ActivationPolicy;
 use crate::platform::pump_events::PumpStatus;
-use crate::platform_impl::platform::cursor::CustomCursor;
 use crate::window::{CustomCursor as RootCustomCursor, CustomCursorSource};
 
 #[derive(Default)]
