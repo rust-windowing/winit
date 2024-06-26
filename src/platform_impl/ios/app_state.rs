@@ -591,9 +591,15 @@ pub(crate) fn handle_nonuser_events<I: IntoIterator<Item = EventWrapper>>(
             match wrapper {
                 EventWrapper::StaticEvent(event) => {
                     if !processing_redraws && event.is_redraw() {
-                        tracing::info!("processing `RedrawRequested` during the main event loop");
+                        #[cfg(not(winit_ignore_noisy_logs_unstable))]
+                        tracing::info!(
+                            note = "See <https://github.com/rust-windowing/winit/issues/3714>",
+                            "processing `RedrawRequested` during the main event loop"
+                        );
                     } else if processing_redraws && !event.is_redraw() {
+                        #[cfg(not(winit_ignore_noisy_logs_unstable))]
                         tracing::warn!(
+                            note = "See <https://github.com/rust-windowing/winit/issues/3714>",
                             "processing non-`RedrawRequested` event after the main event loop: \
                              {:#?}",
                             event
