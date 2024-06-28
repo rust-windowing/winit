@@ -1,13 +1,15 @@
 #![allow(clippy::unnecessary_cast)]
 use std::cell::{Cell, RefCell};
+use std::ops::Deref as _;
 
-use objc2::rc::Retained;
+use objc2::rc::{Allocated, Retained};
 use objc2::runtime::{NSObjectProtocol, ProtocolObject};
 use objc2::{declare_class, msg_send, msg_send_id, mutability, sel, ClassType, DeclaredClass};
 use objc2_foundation::{CGFloat, CGPoint, CGRect, MainThreadMarker, NSObject, NSSet};
 use objc2_ui_kit::{
     UICoordinateSpace, UIEvent, UIForceTouchCapability, UIGestureRecognizer,
-    UIGestureRecognizerDelegate, UIGestureRecognizerState, UIPanGestureRecognizer,
+    UIGestureRecognizerDelegate, UIGestureRecognizerState, UIInteraction, UIPanGestureRecognizer,
+    UIPencilInteraction, UIPencilInteractionDelegate, UIPencilInteractionTap,
     UIPinchGestureRecognizer, UIResponder, UIRotationGestureRecognizer, UITapGestureRecognizer,
     UITouch, UITouchPhase, UITouchType, UITraitEnvironment, UIView,
 };
@@ -15,7 +17,7 @@ use objc2_ui_kit::{
 use super::app_state::{self, EventWrapper};
 use super::window::WinitUIWindow;
 use crate::dpi::PhysicalPosition;
-use crate::event::{Event, Force, Touch, TouchPhase, WindowEvent};
+use crate::event::{Event, Force, PenEvent, PenPreferredAction, Touch, TouchPhase, WindowEvent};
 use crate::platform_impl::platform::DEVICE_ID;
 use crate::window::{WindowAttributes, WindowId as RootWindowId};
 
@@ -35,6 +37,8 @@ declare_class!(
     pub(crate) struct WinitView;
 
     unsafe impl ClassType for WinitView {
+        // [UIView](https://developer.apple.com/documentation/uikit/uiview)
+        // [UIResponder](https://developer.apple.com/documentation/uikit/uiresponder)
         #[inherits(UIResponder, NSObject)]
         type Super = UIView;
         type Mutability = mutability::MainThreadOnly;
@@ -324,6 +328,46 @@ declare_class!(
             true
         }
     }
+
+    // Adapted from https://developer.apple.com/documentation/applepencil/handling-double-taps-from-apple-pencil
+    unsafe impl UIPencilInteractionDelegate for WinitView {
+      #[allow(non_snake_case)]
+      #[method(pencilInteraction:didReceiveTap:)]
+      unsafe fn pencilInteraction_didReceiveTap(&self, _interaction: &UIPencilInteraction, _tap: &UIPencilInteractionTap) {
+        let mtm = MainThreadMarker::new().unwrap();
+
+        fn convert_preferred_action(action: objc2_ui_kit::UIPencilPreferredAction) -> Option<PenPreferredAction> {
+            Some(match action {
+                objc2_ui_kit::UIPencilPreferredAction::Ignore => PenPreferredAction::Ignore,
+                objc2_ui_kit::UIPencilPreferredAction::SwitchEraser => PenPreferredAction::SwitchEraser,
+                objc2_ui_kit::UIPencilPreferredAction::SwitchPrevious => PenPreferredAction::SwitchPrevious,
+                objc2_ui_kit::UIPencilPreferredAction::ShowColorPalette => PenPreferredAction::ShowColorPalette,
+                objc2_ui_kit::UIPencilPreferredAction::ShowInkAttributes => PenPreferredAction::ShowInkAttributes,
+                objc2_ui_kit::UIPencilPreferredAction::ShowContextualPalette => PenPreferredAction::ShowContextualPalette,
+                objc2_ui_kit::UIPencilPreferredAction::RunSystemShortcut => PenPreferredAction::RunSystemShortcut,
+                _ => {
+                    tracing::warn!(
+                      message = "Unknown variant of UIPencilPreferredAction",
+                      preferred_action = ?action,
+                      note = "This is likely not a bug, but requires a new variant to be added to PenPreferredAction"
+                    );
+                    return None
+                }
+            })
+        }
+
+        // retrieving this every tap rather than storing it once is the correct approach since the user
+        // can actually change their preferences at runtime
+        let preferred_action = convert_preferred_action(unsafe { UIPencilInteraction::preferredTapAction(mtm) });
+        tracing::error!(remove_me = true, message = "PENCIL TAPPED", ?preferred_action);
+
+        let pen_event = PenEvent::DoubleTap { preferred_action };
+
+        self.handle_pen_events(pen_event);
+      }
+
+      // can add squeeze handler here in the future
+    }
 );
 
 impl WinitView {
@@ -348,6 +392,29 @@ impl WinitView {
 
         if let Some(scale_factor) = window_attributes.platform_specific.scale_factor {
             this.setContentScaleFactor(scale_factor as _);
+        }
+
+        // adds apple pencil support
+        // let view: Retained<UIView> = self.view().expect("View has already loaded");
+        let interaction: Retained<UIPencilInteraction> = {
+            let allocated: Allocated<UIPencilInteraction> =
+                MainThreadMarker::new().unwrap().alloc();
+            // # Safety: UIPencilInteraction can be safely initialized from empty memory
+            let empty_initialized: Retained<UIPencilInteraction> =
+                unsafe { UIPencilInteraction::init(allocated) };
+            let type_erased_protocol_handler = ProtocolObject::from_ref(this.deref());
+            // # Safety: UIPencilInteraction is initialized (just above)
+            unsafe {
+                empty_initialized.setDelegate(Some(type_erased_protocol_handler));
+            }
+
+            empty_initialized
+        };
+        let type_erased_interaction: &ProtocolObject<dyn UIInteraction> =
+            ProtocolObject::from_ref(interaction.deref());
+        // # Safety: UIPencilInteraction is initialized (just above) and conforms to UIInteraction
+        unsafe {
+            this.addInteraction(type_erased_interaction);
         }
 
         this
@@ -445,6 +512,18 @@ impl WinitView {
         } else if let Some(recognizer) = self.ivars().rotation_gesture_recognizer.take() {
             self.removeGestureRecognizer(&recognizer);
         }
+    }
+
+    fn handle_pen_events(&self, pen_event: crate::event::PenEvent) {
+        let window = self.window().unwrap();
+        let mtm = MainThreadMarker::new().unwrap();
+        app_state::handle_nonuser_event(
+            mtm,
+            EventWrapper::StaticEvent(Event::WindowEvent {
+                window_id: RootWindowId(window.id()),
+                event: WindowEvent::PenEvent(pen_event),
+            }),
+        );
     }
 
     fn handle_touches(&self, touches: &NSSet<UITouch>) {

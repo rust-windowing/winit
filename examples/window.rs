@@ -443,6 +443,9 @@ impl ApplicationHandler<UserEvent> for Application {
             WindowEvent::DoubleTapGesture { .. } => {
                 info!("Smart zoom");
             },
+            WindowEvent::PenEvent(winit::event::PenEvent::DoubleTap { .. }) => {
+                info!("Double tapped an Apple Pencil");
+            },
             WindowEvent::TouchpadPressure { .. }
             | WindowEvent::HoveredFileCancelled
             | WindowEvent::KeyboardInput { .. }
@@ -452,6 +455,7 @@ impl ApplicationHandler<UserEvent> for Application {
             | WindowEvent::HoveredFile(_)
             | WindowEvent::Destroyed
             | WindowEvent::Touch(_)
+            | WindowEvent::PenEvent(_)
             | WindowEvent::Moved(_) => (),
         }
     }
