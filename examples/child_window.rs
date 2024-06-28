@@ -86,8 +86,7 @@ fn main() -> Result<(), impl std::error::Error> {
     }
 
     let event_loop = EventLoop::new().unwrap();
-    let mut app = Application::default();
-    event_loop.run_app(&mut app)
+    event_loop.run_app(Application::default())
 }
 
 #[cfg(all(feature = "rwh_06", not(any(x11_platform, macos_platform, windows_platform))))]

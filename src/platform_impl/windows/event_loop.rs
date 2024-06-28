@@ -187,13 +187,13 @@ impl EventLoop {
         &self.window_target
     }
 
-    pub fn run_app<A: ApplicationHandler>(mut self, app: &mut A) -> Result<(), EventLoopError> {
+    pub fn run_app<A: ApplicationHandler>(mut self, app: A) -> Result<(), EventLoopError> {
         self.run_app_on_demand(app)
     }
 
     pub fn run_app_on_demand<A: ApplicationHandler>(
         &mut self,
-        app: &mut A,
+        mut app: A,
     ) -> Result<(), EventLoopError> {
         {
             let runner = &self.window_target.p.runner_shared;
@@ -254,7 +254,7 @@ impl EventLoop {
     pub fn pump_app_events<A: ApplicationHandler>(
         &mut self,
         timeout: Option<Duration>,
-        app: &mut A,
+        mut app: A,
     ) -> PumpStatus {
         {
             let runner = &self.window_target.p.runner_shared;

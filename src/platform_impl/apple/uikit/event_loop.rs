@@ -109,10 +109,10 @@ impl OwnedDisplayHandle {
     }
 }
 
-fn map_user_event<A: ApplicationHandler>(
-    app: &mut A,
+fn map_user_event<'a, A: ApplicationHandler + 'a>(
+    mut app: A,
     proxy_wake_up: Arc<AtomicBool>,
-) -> impl FnMut(Event, &RootActiveEventLoop) + '_ {
+) -> impl FnMut(Event, &RootActiveEventLoop) + 'a {
     move |event, window_target| match event {
         Event::NewEvents(cause) => app.new_events(window_target, cause),
         Event::WindowEvent { window_id, event } => {
@@ -168,7 +168,7 @@ impl EventLoop {
         })
     }
 
-    pub fn run_app<A: ApplicationHandler>(self, app: &mut A) -> ! {
+    pub fn run_app<A: ApplicationHandler>(self, app: A) -> ! {
         let application: Option<Retained<UIApplication>> =
             unsafe { msg_send_id![UIApplication::class(), sharedApplication] };
         assert!(
