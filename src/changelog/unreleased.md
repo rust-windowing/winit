@@ -50,3 +50,4 @@ changelog entry.
 - On Web, fix `WindowEvent::Resized` not using `requestAnimationFrame` when sending
   `WindowEvent::RedrawRequested` and also potentially causing `WindowEvent::RedrawRequested`
   to not be de-duplicated.
+- Account for different browser engine implementations of pointer movement coordinate space.
