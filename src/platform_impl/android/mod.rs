@@ -176,10 +176,10 @@ impl EventLoop {
 
             match event {
                 MainEvent::InitWindow { .. } => {
-                    app.resumed(self.window_target());
+                    app.can_create_surfaces(self.window_target());
                 },
                 MainEvent::TerminateWindow { .. } => {
-                    app.suspended(self.window_target());
+                    app.destroy_surfaces(self.window_target());
                 },
                 MainEvent::WindowResized { .. } => resized = true,
                 MainEvent::RedrawNeeded { .. } => pending_redraw = true,

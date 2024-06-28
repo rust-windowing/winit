@@ -314,9 +314,9 @@ impl ApplicationDelegate {
     /// dispatch `NewEvents(Init)` + `Resumed`
     pub fn dispatch_init_events(&self) {
         self.with_handler(|app, event_loop| app.new_events(event_loop, StartCause::Init));
-        // NB: For consistency all platforms must emit a 'resumed' event even though macOS
-        // applications don't themselves have a formal suspend/resume lifecycle.
-        self.with_handler(|app, event_loop| app.resumed(event_loop));
+        // NB: For consistency all platforms must call `can_create_surfaces` even though macOS
+        // applications don't themselves have a formal surface destroy/create lifecycle.
+        self.with_handler(|app, event_loop| app.can_create_surfaces(event_loop));
     }
 
     // Called by RunLoopObserver after finishing waiting for new events

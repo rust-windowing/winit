@@ -301,10 +301,10 @@ impl EventLoop {
 
         app.new_events(&self.window_target, cause);
 
-        // NB: For consistency all platforms must emit a 'resumed' event even though Wayland
-        // applications don't themselves have a formal suspend/resume lifecycle.
+        // NB: For consistency all platforms must call `can_create_surfaces` even though Wayland
+        // applications don't themselves have a formal surface destroy/create lifecycle.
         if cause == StartCause::Init {
-            app.resumed(&self.window_target);
+            app.can_create_surfaces(&self.window_target);
         }
 
         // Indicate user wake up.

@@ -507,7 +507,7 @@ impl EventLoop {
             app.new_events(&self.window_target, start_cause);
 
             if start_cause == StartCause::Init {
-                app.resumed(&self.window_target);
+                app.can_create_surfaces(&self.window_target);
             }
 
             // Handle window creates.

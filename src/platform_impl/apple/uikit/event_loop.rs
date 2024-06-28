@@ -130,6 +130,7 @@ fn map_user_event<A: ApplicationHandler>(
         },
         Event::Suspended => app.suspended(window_target),
         Event::Resumed => app.resumed(window_target),
+        Event::CreateSurfaces => app.can_create_surfaces(window_target),
         Event::AboutToWait => app.about_to_wait(window_target),
         Event::LoopExiting => app.exiting(window_target),
         Event::MemoryWarning => app.memory_warning(window_target),

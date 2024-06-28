@@ -441,9 +441,11 @@ impl Shared {
     }
 
     pub fn init(&self) {
-        // NB: For consistency all platforms must emit a 'resumed' event even though web
-        // applications don't themselves have a formal suspend/resume lifecycle.
-        self.run_until_cleared([Event::NewEvents(StartCause::Init), Event::Resumed].into_iter());
+        // NB: For consistency all platforms must call `can_create_surfaces` even though web
+        // applications don't themselves have a formal surface destroy/create lifecycle.
+        self.run_until_cleared(
+            [Event::NewEvents(StartCause::Init), Event::CreateSurfaces].into_iter(),
+        );
     }
 
     // Run the polling logic for the Poll ControlFlow, which involves clearing the queue

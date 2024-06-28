@@ -85,6 +85,11 @@ pub(crate) enum Event {
     /// [`ApplicationHandler::suspended`]: crate::application::ApplicationHandler::suspended
     Suspended,
 
+    /// See [`ApplicationHandler::can_create_surfaces`] for details.
+    ///
+    /// [`ApplicationHandler::can_create_surfaces`]: crate::application::ApplicationHandler::can_create_surfaces
+    CreateSurfaces,
+
     /// See [`ApplicationHandler::resumed`] for details.
     ///
     /// [`ApplicationHandler::resumed`]: crate::application::ApplicationHandler::resumed

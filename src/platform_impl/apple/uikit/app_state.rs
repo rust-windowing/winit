@@ -496,8 +496,12 @@ pub fn did_finish_launching(mtm: MainThreadMarker) {
 
     let (windows, events) = AppState::get_mut(mtm).did_finish_launching_transition();
 
-    let events = std::iter::once(EventWrapper::StaticEvent(Event::NewEvents(StartCause::Init)))
-        .chain(events);
+    let events = [
+        EventWrapper::StaticEvent(Event::NewEvents(StartCause::Init)),
+        EventWrapper::StaticEvent(Event::CreateSurfaces),
+    ]
+    .into_iter()
+    .chain(events);
     handle_nonuser_events(mtm, events);
 
     // the above window dance hack, could possibly trigger new windows to be created.
