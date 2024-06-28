@@ -137,6 +137,7 @@ pub struct ActiveEventLoop {
     windows: RefCell<HashMap<WindowId, Weak<UnownedWindow>>>,
     redraw_sender: WakeSender<WindowId>,
     activation_sender: WakeSender<ActivationToken>,
+    event_loop_proxy: EventLoopProxy,
     device_events: Cell<DeviceEvents>,
 }
 
@@ -146,7 +147,6 @@ pub struct EventLoop {
     event_processor: EventProcessor,
     redraw_receiver: PeekableReceiver<WindowId>,
     activation_receiver: PeekableReceiver<ActivationToken>,
-    event_loop_proxy: EventLoopProxy,
 
     /// The current state of the event loop.
     state: EventLoopState,
@@ -302,6 +302,7 @@ impl EventLoop {
                 sender: activation_token_sender, // not used again so no clone
                 waker: waker.clone(),
             },
+            event_loop_proxy,
             device_events: Default::default(),
         };
 
@@ -360,13 +361,8 @@ impl EventLoop {
             event_processor,
             redraw_receiver: PeekableReceiver::from_recv(redraw_channel),
             activation_receiver: PeekableReceiver::from_recv(activation_token_channel),
-            event_loop_proxy,
             state: EventLoopState { x11_readiness: Readiness::EMPTY, proxy_wake_up: false },
         }
-    }
-
-    pub fn create_proxy(&self) -> EventLoopProxy {
-        self.event_loop_proxy.clone()
     }
 
     pub(crate) fn window_target(&self) -> &RootAEL {
@@ -629,6 +625,10 @@ impl AsRawFd for EventLoop {
 }
 
 impl ActiveEventLoop {
+    pub fn create_proxy(&self) -> EventLoopProxy {
+        self.event_loop_proxy.clone()
+    }
+
     /// Returns the `XConnection` of this events loop.
     #[inline]
     pub(crate) fn x_connection(&self) -> &Arc<XConnection> {

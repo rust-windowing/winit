@@ -80,13 +80,12 @@ impl ApplicationDelegate {
     pub(super) fn new(
         mtm: MainThreadMarker,
         activation_policy: NSApplicationActivationPolicy,
-        proxy_wake_up: Arc<AtomicBool>,
         default_menu: bool,
         activate_ignoring_other_apps: bool,
     ) -> Retained<Self> {
         let this = mtm.alloc().set_ivars(AppState {
             activation_policy,
-            proxy_wake_up,
+            proxy_wake_up: Arc::new(AtomicBool::new(false)),
             default_menu,
             activate_ignoring_other_apps,
             run_loop: RunLoop::main(mtm),
@@ -177,6 +176,10 @@ impl ApplicationDelegate {
         closure: impl FnOnce() -> R,
     ) -> R {
         self.ivars().event_handler.set(handler, closure)
+    }
+
+    pub fn proxy_wake_up(&self) -> Arc<AtomicBool> {
+        self.ivars().proxy_wake_up.clone()
     }
 
     /// If `pump_events` is called to progress the event loop then we

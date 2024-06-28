@@ -468,16 +468,16 @@ impl EventLoop {
         }
     }
 
-    pub fn create_proxy(&self) -> EventLoopProxy {
-        EventLoopProxy { target_window: self.window_target.p.thread_msg_target }
-    }
-
     fn exit_code(&self) -> Option<i32> {
         self.window_target.p.exit_code()
     }
 }
 
 impl ActiveEventLoop {
+    pub fn create_proxy(&self) -> EventLoopProxy {
+        EventLoopProxy { target_window: self.thread_msg_target }
+    }
+
     #[inline(always)]
     pub(crate) fn create_thread_executor(&self) -> EventLoopThreadExecutor {
         EventLoopThreadExecutor { thread_id: self.thread_id, target_window: self.thread_msg_target }

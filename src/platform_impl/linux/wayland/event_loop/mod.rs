@@ -47,9 +47,6 @@ pub struct EventLoop {
     compositor_updates: Vec<WindowCompositorUpdate>,
     window_ids: Vec<WindowId>,
 
-    /// Event loop proxy
-    event_loop_proxy: EventLoopProxy,
-
     /// The Wayland dispatcher to has raw access to the queue when needed, such as
     /// when creating a new window.
     wayland_dispatcher: WaylandDispatcher,
@@ -139,6 +136,7 @@ impl EventLoop {
             connection: connection.clone(),
             wayland_dispatcher: wayland_dispatcher.clone(),
             event_loop_awakener,
+            event_loop_proxy: EventLoopProxy::new(ping),
             queue_handle,
             control_flow: Cell::new(ControlFlow::default()),
             exit: Cell::new(None),
@@ -152,7 +150,6 @@ impl EventLoop {
             window_ids: Vec::new(),
             connection,
             wayland_dispatcher,
-            event_loop_proxy: EventLoopProxy::new(ping),
             event_loop,
             window_target: RootActiveEventLoop {
                 p: PlatformActiveEventLoop::Wayland(window_target),
@@ -513,11 +510,6 @@ impl EventLoop {
     }
 
     #[inline]
-    pub fn create_proxy(&self) -> EventLoopProxy {
-        self.event_loop_proxy.clone()
-    }
-
-    #[inline]
     pub fn window_target(&self) -> &RootActiveEventLoop {
         &self.window_target
     }
@@ -589,6 +581,9 @@ impl AsRawFd for EventLoop {
 }
 
 pub struct ActiveEventLoop {
+    /// Event loop proxy
+    event_loop_proxy: EventLoopProxy,
+
     /// The event loop wakeup source.
     pub event_loop_awakener: calloop::ping::Ping,
 
@@ -613,6 +608,10 @@ pub struct ActiveEventLoop {
 }
 
 impl ActiveEventLoop {
+    pub(crate) fn create_proxy(&self) -> EventLoopProxy {
+        self.event_loop_proxy.clone()
+    }
+
     pub(crate) fn set_control_flow(&self, control_flow: ControlFlow) {
         self.control_flow.set(control_flow)
     }

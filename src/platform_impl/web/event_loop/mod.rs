@@ -58,10 +58,6 @@ impl EventLoop {
         self.elw.p.run(Box::new(move |event| handle_event(&mut app, &target, event)), true);
     }
 
-    pub fn create_proxy(&self) -> EventLoopProxy {
-        EventLoopProxy::new(self.elw.p.waker())
-    }
-
     pub fn window_target(&self) -> &RootActiveEventLoop {
         &self.elw
     }
