@@ -3,11 +3,14 @@
 //! Winit has an OS requirement of iOS 8 or higher, and is regularly tested on
 //! iOS 9.3.
 //!
+//! ## Window initialization
+//!
 //! iOS's main `UIApplicationMain` does some init work that's required by all
 //! UI-related code (see issue [#1705]). It is best to create your windows
-//! inside `Event::Resumed`.
+//! inside [`ApplicationHandler::resumed`].
 //!
 //! [#1705]: https://github.com/rust-windowing/winit/issues/1705
+//! [`ApplicationHandler::resumed`]: crate::application::ApplicationHandler::resumed
 //!
 //! ## Building app
 //!
@@ -63,6 +66,16 @@
 //! opengl will result in segfault.
 //!
 //! Also note that app may not receive the LoopExiting event if suspended; it might be SIGKILL'ed.
+//!
+//! ## Custom `UIApplicationDelegate`
+//!
+//! Winit usually handles everything related to the lifecycle events of the application. Sometimes,
+//! though, you might want to access some of the more niche stuff that [the application
+//! delegate][app-delegate] provides. This functionality is not exposed directly in Winit, since it
+//! would increase the API surface by quite a lot. Instead, Winit guarantees that it will not
+//! register an application delegate, so you can set up a custom one in a nib file instead.
+//!
+//! [app-delegate]: https://developer.apple.com/documentation/uikit/uiapplicationdelegate?language=objc
 
 use std::os::raw::c_void;
 
