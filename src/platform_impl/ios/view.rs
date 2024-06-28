@@ -359,7 +359,6 @@ declare_class!(
         // retrieving this every tap rather than storing it once is the correct approach since the user
         // can actually change their preferences at runtime
         let preferred_action = convert_preferred_action(unsafe { UIPencilInteraction::preferredTapAction(mtm) });
-        tracing::error!(remove_me = true, message = "PENCIL TAPPED", ?preferred_action);
 
         let pen_event = PenEvent::DoubleTap { preferred_action };
 
