@@ -234,6 +234,7 @@ impl EventLoop {
         let _did_finish_launching_observer = {
             create_observer(
                 &center,
+                // `applicationDidFinishLaunching:`
                 unsafe { NSApplicationDidFinishLaunchingNotification },
                 move |notification| {
                     if let Some(app_state) = weak_app_state.upgrade() {
@@ -247,6 +248,7 @@ impl EventLoop {
         let _will_terminate_observer = {
             create_observer(
                 &center,
+                // `applicationWillTerminate:`
                 unsafe { NSApplicationWillTerminateNotification },
                 move |notification| {
                     if let Some(app_state) = weak_app_state.upgrade() {
