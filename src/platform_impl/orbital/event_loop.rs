@@ -502,7 +502,7 @@ impl EventLoop {
         }
     }
 
-    pub fn run_app<A: ApplicationHandler>(mut self, app: &mut A) -> Result<(), EventLoopError> {
+    pub fn run_app<A: ApplicationHandler>(mut self, mut app: A) -> Result<(), EventLoopError> {
         let mut start_cause = StartCause::Init;
         loop {
             app.new_events(&self.window_target, start_cause);
@@ -569,7 +569,7 @@ impl EventLoop {
                         orbital_event.to_option(),
                         event_state,
                         &self.window_target,
-                        app,
+                        &mut app,
                     );
                 }
 

@@ -44,8 +44,7 @@ fn main() -> Result<(), impl std::error::Error> {
 
     let event_loop = EventLoop::new().unwrap();
 
-    let mut app = ControlFlowDemo::default();
-    event_loop.run_app(&mut app)
+    event_loop.run_app(ControlFlowDemo::default())
 }
 
 #[derive(Default)]

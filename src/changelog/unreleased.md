@@ -53,6 +53,8 @@ changelog entry.
 - Changed `EventLoopProxy::send_event` to `EventLoopProxy::wake_up`, it now
   only wakes up the loop.
 - On Web, slightly improve accuracy of `DeviceEvent::MouseMotion`.
+- Change signature of `EventLoop::run_app` to accept a `impl ApplicationHandler` directly,
+  instead of requiring a `&mut` reference to it.
 
 ### Removed
 
