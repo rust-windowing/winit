@@ -58,8 +58,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     tracing_subscriber::fmt::init();
     let event_loop = EventLoop::new()?;
 
-    let mut app = XEmbedDemo { parent_window_id, window: None };
-    event_loop.run_app(&mut app).map_err(Into::into)
+    Ok(event_loop.run_app(XEmbedDemo { parent_window_id, window: None })?)
 }
 
 #[cfg(not(x11_platform))]
