@@ -40,6 +40,10 @@ changelog entry.
 
 ## Unreleased
 
+## Added
+
+- On iOS, add `PenSpecialEvent` and `PenPreferredTapAction` implementing Apple Pencil double-tap support (#3759, #99).
+
 ### Changed
 
 - On Web, let events wake up event loop immediately when using `ControlFlow::Poll`.
