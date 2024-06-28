@@ -309,6 +309,7 @@ features = [
     'MediaQueryList',
     'MessageChannel',
     'MessagePort',
+    'Navigator',
     'Node',
     'PageTransitionEvent',
     'PointerEvent',

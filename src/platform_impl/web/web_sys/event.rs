@@ -1,12 +1,14 @@
-use crate::dpi::LogicalPosition;
 use crate::event::{MouseButton, MouseScrollDelta};
 use crate::keyboard::{Key, KeyLocation, ModifiersState, NamedKey, PhysicalKey};
 
+use dpi::{LogicalPosition, PhysicalPosition, Position};
 use smol_str::SmolStr;
 use std::cell::OnceCell;
 use wasm_bindgen::prelude::wasm_bindgen;
 use wasm_bindgen::{JsCast, JsValue};
 use web_sys::{KeyboardEvent, MouseEvent, PointerEvent, WheelEvent};
+
+use super::Engine;
 
 bitflags::bitflags! {
     // https://www.w3.org/TR/pointerevents3/#the-buttons-property
@@ -95,42 +97,48 @@ pub fn mouse_position(event: &MouseEvent) -> LogicalPosition<f64> {
     LogicalPosition { x: event.offset_x(), y: event.offset_y() }
 }
 
-// TODO: Remove this when Firefox supports correct movement values in coalesced events.
+// TODO: Remove this when Firefox supports correct movement values in coalesced events and browsers
+// have agreed on what coordinate space `movementX/Y` is using.
 // See <https://bugzilla.mozilla.org/show_bug.cgi?id=1753724>.
-pub struct MouseDelta(Option<MouseDeltaInner>);
-
-pub struct MouseDeltaInner {
-    old_position: LogicalPosition<f64>,
-    old_delta: LogicalPosition<f64>,
+// See <https://github.com/w3c/pointerlock/issues/42>.
+pub enum MouseDelta {
+    Chromium,
+    Gecko { old_position: LogicalPosition<f64>, old_delta: LogicalPosition<f64> },
+    Other,
 }
 
 impl MouseDelta {
     pub fn init(window: &web_sys::Window, event: &PointerEvent) -> Self {
-        // Firefox has wrong movement values in coalesced events, we will detect that by checking
-        // for `pointerrawupdate` support. Presumably an implementation of `pointerrawupdate`
-        // should require correct movement values, otherwise uncoalesced events might be broken as
-        // well.
-        Self((!has_pointer_raw_support(window) && has_coalesced_events_support(event)).then(|| {
-            MouseDeltaInner {
+        match super::engine(window) {
+            Some(Engine::Chromium) => Self::Chromium,
+            // Firefox has wrong movement values in coalesced events.
+            Some(Engine::Gecko) if has_coalesced_events_support(event) => Self::Gecko {
                 old_position: mouse_position(event),
-                old_delta: LogicalPosition {
-                    x: event.movement_x() as f64,
-                    y: event.movement_y() as f64,
-                },
-            }
-        }))
+                old_delta: LogicalPosition::new(
+                    event.movement_x() as f64,
+                    event.movement_y() as f64,
+                ),
+            },
+            _ => Self::Other,
+        }
     }
 
-    pub fn delta(&mut self, event: &MouseEvent) -> LogicalPosition<f64> {
-        if let Some(inner) = &mut self.0 {
-            let new_position = mouse_position(event);
-            let x = new_position.x - inner.old_position.x + inner.old_delta.x;
-            let y = new_position.y - inner.old_position.y + inner.old_delta.y;
-            inner.old_position = new_position;
-            inner.old_delta = LogicalPosition::new(0., 0.);
-            LogicalPosition::new(x, y)
-        } else {
-            LogicalPosition { x: event.movement_x() as f64, y: event.movement_y() as f64 }
+    pub fn delta(&mut self, event: &MouseEvent) -> Position {
+        match self {
+            MouseDelta::Chromium => {
+                PhysicalPosition::new(event.movement_x(), event.movement_y()).into()
+            },
+            MouseDelta::Gecko { old_position, old_delta } => {
+                let new_position = mouse_position(event);
+                let x = new_position.x - old_position.x + old_delta.x;
+                let y = new_position.y - old_position.y + old_delta.y;
+                *old_position = new_position;
+                *old_delta = LogicalPosition::new(0., 0.);
+                LogicalPosition::new(x, y).into()
+            },
+            MouseDelta::Other => {
+                LogicalPosition::new(event.movement_x(), event.movement_y()).into()
+            },
         }
     }
 }
@@ -236,29 +244,6 @@ pub fn pointer_move_event(event: PointerEvent) -> impl Iterator<Item = PointerEv
     } else {
         Some(event).into_iter().chain(None.into_iter().flatten())
     }
-}
-
-// TODO: Remove when all browsers implement it correctly.
-// See <https://github.com/rust-windowing/winit/issues/2875>.
-pub fn has_pointer_raw_support(window: &web_sys::Window) -> bool {
-    thread_local! {
-        static POINTER_RAW_SUPPORT: OnceCell<bool> = const { OnceCell::new() };
-    }
-
-    POINTER_RAW_SUPPORT.with(|support| {
-        *support.get_or_init(|| {
-            #[wasm_bindgen]
-            extern "C" {
-                type PointerRawSupport;
-
-                #[wasm_bindgen(method, getter, js_name = onpointerrawupdate)]
-                fn has_on_pointerrawupdate(this: &PointerRawSupport) -> JsValue;
-            }
-
-            let support: &PointerRawSupport = window.unchecked_ref();
-            !support.has_on_pointerrawupdate().is_undefined()
-        })
-    })
 }
 
 // TODO: Remove when Safari supports `getCoalescedEvents`.
