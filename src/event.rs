@@ -907,7 +907,7 @@ impl Force {
 }
 
 /// Represents a pen event.
-/// 
+///
 /// Primarily wraps an [Apple Pencil](https://developer.apple.com/documentation/uikit/apple_pencil_interactions/handling_input_from_apple_pencil?language=objc)
 // non_exhaustive so that other events can be added later, e.g. Squeeze
 #[derive(Debug, Clone, Copy, PartialEq)]

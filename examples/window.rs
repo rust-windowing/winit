@@ -437,7 +437,7 @@ impl ApplicationHandler for Application {
             WindowEvent::DoubleTapGesture { .. } => {
                 info!("Smart zoom");
             },
-						WindowEvent::PenSpecialEvent(winit::event::PenSpecialEvent::DoubleTap { .. }) => {
+            WindowEvent::PenSpecialEvent(winit::event::PenSpecialEvent::DoubleTap { .. }) => {
                 info!("Double tapped an Apple Pencil");
             },
             WindowEvent::TouchpadPressure { .. }
@@ -449,7 +449,7 @@ impl ApplicationHandler for Application {
             | WindowEvent::HoveredFile(_)
             | WindowEvent::Destroyed
             | WindowEvent::Touch(_)
-						| WindowEvent::PenSpecialEvent(_)
+            | WindowEvent::PenSpecialEvent(_)
             | WindowEvent::Moved(_) => (),
         }
     }
