@@ -930,13 +930,13 @@ pub enum PenSpecialEvent {
         ///
         /// See the docs on [PenPreferredTapAction] for more information.
         // This is kept an [Option] to allow for other platforms to implement this if possible,
-        // and to allow for failures in 'deserializing' the variants of [PenPreferredAction]
+        // and to allow for failures in 'deserializing' the variants of [PenPreferredTapAction]
         // from the underlying Apple enum in case they change/add a field.
         preferred_action: Option<PenPreferredTapAction>,
     },
 }
 
-/// Represents the possible preferred actions for a [`PenEvent::DoubleTap`].
+/// Represents the possible preferred actions for a [`PenSpecialEvent::DoubleTap`].
 ///
 /// ## Platform Specific
 ///
