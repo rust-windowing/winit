@@ -275,7 +275,6 @@ impl EventState {
 pub struct EventLoop {
     windows: Vec<(Arc<RedoxSocket>, EventState)>,
     window_target: event_loop::ActiveEventLoop,
-    user_events_sender: mpsc::SyncSender<()>,
     user_events_receiver: mpsc::Receiver<()>,
 }
 
@@ -317,10 +316,10 @@ impl EventLoop {
                     destroys: Arc::new(Mutex::new(VecDeque::new())),
                     event_socket,
                     wake_socket,
+                    user_events_sender,
                 },
                 _marker: PhantomData,
             },
-            user_events_sender,
             user_events_receiver,
         })
     }
@@ -684,13 +683,6 @@ impl EventLoop {
     pub fn window_target(&self) -> &event_loop::ActiveEventLoop {
         &self.window_target
     }
-
-    pub fn create_proxy(&self) -> EventLoopProxy {
-        EventLoopProxy {
-            user_events_sender: self.user_events_sender.clone(),
-            wake_socket: self.window_target.p.wake_socket.clone(),
-        }
-    }
 }
 
 pub struct EventLoopProxy {
@@ -727,9 +719,17 @@ pub struct ActiveEventLoop {
     pub(super) destroys: Arc<Mutex<VecDeque<WindowId>>>,
     pub(super) event_socket: Arc<RedoxSocket>,
     pub(super) wake_socket: Arc<TimeSocket>,
+    user_events_sender: mpsc::SyncSender<()>,
 }
 
 impl ActiveEventLoop {
+    pub fn create_proxy(&self) -> EventLoopProxy {
+        EventLoopProxy {
+            user_events_sender: self.user_events_sender.clone(),
+            wake_socket: self.wake_socket.clone(),
+        }
+    }
+
     pub fn create_custom_cursor(&self, source: CustomCursorSource) -> RootCustomCursor {
         let _ = source.inner;
         RootCustomCursor { inner: super::PlatformCustomCursor }

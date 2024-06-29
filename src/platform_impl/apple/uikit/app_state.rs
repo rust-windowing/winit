@@ -3,6 +3,7 @@
 use std::cell::{RefCell, RefMut};
 use std::collections::HashSet;
 use std::os::raw::c_void;
+use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, Mutex, OnceLock};
 use std::time::Instant;
 use std::{fmt, mem, ptr};
@@ -135,6 +136,7 @@ pub(crate) struct AppState {
     app_state: Option<AppStateImpl>,
     control_flow: ControlFlow,
     waker: EventLoopWaker,
+    proxy_wake_up: Arc<AtomicBool>,
 }
 
 impl AppState {
@@ -158,6 +160,7 @@ impl AppState {
                     }),
                     control_flow: ControlFlow::default(),
                     waker,
+                    proxy_wake_up: Arc::new(AtomicBool::new(false)),
                 });
             }
             init_guard(&mut guard);
@@ -400,6 +403,10 @@ impl AppState {
             AppStateImpl::ProcessingEvents { handler, .. } => handler,
             s => bug!("`LoopExiting` happened while not processing events {:?}", s),
         }
+    }
+
+    pub(crate) fn proxy_wake_up(&self) -> Arc<AtomicBool> {
+        self.proxy_wake_up.clone()
     }
 
     pub(crate) fn set_control_flow(&mut self, control_flow: ControlFlow) {

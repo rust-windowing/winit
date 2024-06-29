@@ -34,6 +34,10 @@ pub struct ActiveEventLoop {
 }
 
 impl ActiveEventLoop {
+    pub fn create_proxy(&self) -> EventLoopProxy {
+        EventLoopProxy::new(AppState::get_mut(self.mtm).proxy_wake_up())
+    }
+
     pub fn create_custom_cursor(&self, source: CustomCursorSource) -> CustomCursor {
         let _ = source.inner;
         CustomCursor { inner: super::PlatformCustomCursor }
@@ -134,7 +138,6 @@ fn map_user_event<A: ApplicationHandler>(
 
 pub struct EventLoop {
     mtm: MainThreadMarker,
-    proxy_wake_up: Arc<AtomicBool>,
     window_target: RootActiveEventLoop,
 }
 
@@ -160,11 +163,8 @@ impl EventLoop {
         // this line sets up the main run loop before `UIApplicationMain`
         setup_control_flow_observers();
 
-        let proxy_wake_up = Arc::new(AtomicBool::new(false));
-
         Ok(EventLoop {
             mtm,
-            proxy_wake_up,
             window_target: RootActiveEventLoop { p: ActiveEventLoop { mtm }, _marker: PhantomData },
         })
     }
@@ -179,7 +179,7 @@ impl EventLoop {
              `EventLoop::run_app` calls `UIApplicationMain` on iOS",
         );
 
-        let handler = map_user_event(app, self.proxy_wake_up.clone());
+        let handler = map_user_event(app, AppState::get_mut(self.mtm).proxy_wake_up());
 
         let handler = unsafe {
             std::mem::transmute::<
@@ -210,10 +210,6 @@ impl EventLoop {
             )
         };
         unreachable!()
-    }
-
-    pub fn create_proxy(&self) -> EventLoopProxy {
-        EventLoopProxy::new(self.proxy_wake_up.clone())
     }
 
     pub fn window_target(&self) -> &RootActiveEventLoop {

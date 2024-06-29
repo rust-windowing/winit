@@ -40,6 +40,10 @@ changelog entry.
 
 ## Unreleased
 
+### Added
+
+- Add `ActiveEventLoop::create_proxy()`.
+
 ### Changed
 
 - On Web, let events wake up event loop immediately when using `ControlFlow::Poll`.

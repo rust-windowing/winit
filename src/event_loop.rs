@@ -247,7 +247,7 @@ impl EventLoop {
     /// Creates an [`EventLoopProxy`] that can be used to dispatch user events
     /// to the main event loop, possibly from another thread.
     pub fn create_proxy(&self) -> EventLoopProxy {
-        EventLoopProxy { event_loop_proxy: self.event_loop.create_proxy() }
+        EventLoopProxy { event_loop_proxy: self.event_loop.window_target().p.create_proxy() }
     }
 
     /// Gets a persistent reference to the underlying platform display.
@@ -345,6 +345,12 @@ impl AsRawFd for EventLoop {
 }
 
 impl ActiveEventLoop {
+    /// Creates an [`EventLoopProxy`] that can be used to dispatch user events
+    /// to the main event loop, possibly from another thread.
+    pub fn create_proxy(&self) -> EventLoopProxy {
+        EventLoopProxy { event_loop_proxy: self.p.create_proxy() }
+    }
+
     /// Create the window.
     ///
     /// Possible causes of error include denied permission, incompatible system, and lack of memory.

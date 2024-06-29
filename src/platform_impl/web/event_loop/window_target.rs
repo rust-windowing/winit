@@ -12,7 +12,7 @@ use super::super::KeyEventExtra;
 use super::device::DeviceId;
 use super::runner::{EventWrapper, Execution};
 use super::window::WindowId;
-use super::{backend, runner};
+use super::{backend, runner, EventLoopProxy};
 use crate::event::{
     DeviceId as RootDeviceId, ElementState, Event, KeyEvent, Touch, TouchPhase, WindowEvent,
 };
@@ -66,6 +66,10 @@ impl ActiveEventLoop {
 
     pub fn generate_id(&self) -> WindowId {
         WindowId(self.runner.generate_id())
+    }
+
+    pub fn create_proxy(&self) -> EventLoopProxy {
+        EventLoopProxy::new(self.waker())
     }
 
     pub fn create_custom_cursor(&self, source: CustomCursorSource) -> RootCustomCursor {

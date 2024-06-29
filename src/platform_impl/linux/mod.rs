@@ -789,10 +789,6 @@ impl EventLoop {
         }
     }
 
-    pub fn create_proxy(&self) -> EventLoopProxy {
-        x11_or_wayland!(match self; EventLoop(evlp) => evlp.create_proxy(); as EventLoopProxy)
-    }
-
     pub fn run_app<A: ApplicationHandler>(self, app: &mut A) -> Result<(), EventLoopError> {
         x11_or_wayland!(match self; EventLoop(evlp) => evlp.run_app(app))
     }
@@ -843,6 +839,10 @@ pub enum ActiveEventLoop {
 }
 
 impl ActiveEventLoop {
+    pub fn create_proxy(&self) -> EventLoopProxy {
+        x11_or_wayland!(match self; ActiveEventLoop(evlp) => evlp.create_proxy(); as EventLoopProxy)
+    }
+
     #[inline]
     pub fn is_wayland(&self) -> bool {
         match *self {

@@ -71,6 +71,10 @@ pub struct ActiveEventLoop {
 }
 
 impl ActiveEventLoop {
+    pub fn create_proxy(&self) -> EventLoopProxy {
+        EventLoopProxy::new(self.delegate.proxy_wake_up())
+    }
+
     pub(super) fn new_root(delegate: Retained<ApplicationDelegate>) -> RootWindowTarget {
         let mtm = MainThreadMarker::from(&*delegate);
         let p = Self { delegate, mtm };
@@ -166,8 +170,6 @@ pub struct EventLoop {
     /// keep it around here as well.
     delegate: Retained<ApplicationDelegate>,
 
-    proxy_wake_up: Arc<AtomicBool>,
-
     window_target: RootWindowTarget,
     panic_info: Rc<PanicInfo>,
 }
@@ -212,12 +214,9 @@ impl EventLoop {
             ActivationPolicy::Prohibited => NSApplicationActivationPolicy::Prohibited,
         };
 
-        let proxy_wake_up = Arc::new(AtomicBool::new(false));
-
         let delegate = ApplicationDelegate::new(
             mtm,
             activation_policy,
-            proxy_wake_up.clone(),
             attributes.default_menu,
             attributes.activate_ignoring_other_apps,
         );
@@ -236,7 +235,6 @@ impl EventLoop {
                 p: ActiveEventLoop { delegate, mtm },
                 _marker: PhantomData,
             },
-            proxy_wake_up,
             panic_info,
         })
     }
@@ -357,10 +355,6 @@ impl EventLoop {
                 }
             })
         })
-    }
-
-    pub fn create_proxy(&self) -> EventLoopProxy {
-        EventLoopProxy::new(self.proxy_wake_up.clone())
     }
 }
 

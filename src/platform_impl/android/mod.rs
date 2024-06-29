@@ -101,7 +101,6 @@ pub struct EventLoop {
     android_app: AndroidApp,
     window_target: event_loop::ActiveEventLoop,
     redraw_flag: SharedFlag,
-    proxy_wake_up: Arc<AtomicBool>,
     loop_running: bool, // Dispatched `NewEvents<Init>`
     running: bool,
     pending_redraw: bool,
@@ -145,11 +144,11 @@ impl EventLoop {
                         &redraw_flag,
                         android_app.create_waker(),
                     ),
+                    proxy_wake_up,
                 },
                 _marker: PhantomData,
             },
             redraw_flag,
-            proxy_wake_up,
             loop_running: false,
             running: false,
             pending_redraw: false,
@@ -278,7 +277,7 @@ impl EventLoop {
             },
         }
 
-        if self.proxy_wake_up.swap(false, Ordering::Relaxed) {
+        if self.window_target.p.proxy_wake_up.swap(false, Ordering::Relaxed) {
             app.proxy_wake_up(self.window_target());
         }
 
@@ -485,7 +484,7 @@ impl EventLoop {
         self.pending_redraw |= self.redraw_flag.get_and_reset();
 
         timeout = if self.running
-            && (self.pending_redraw || self.proxy_wake_up.load(Ordering::Relaxed))
+            && (self.pending_redraw || self.window_target.p.proxy_wake_up.load(Ordering::Relaxed))
         {
             // If we already have work to do then we don't want to block on the next poll
             Some(Duration::ZERO)
@@ -517,7 +516,8 @@ impl EventLoop {
                     // We also ignore wake ups while suspended.
                     self.pending_redraw |= self.redraw_flag.get_and_reset();
                     if !self.running
-                        || (!self.pending_redraw && !self.proxy_wake_up.load(Ordering::Relaxed))
+                        || (!self.pending_redraw
+                            && !self.window_target.p.proxy_wake_up.load(Ordering::Relaxed))
                     {
                         return;
                     }
@@ -551,13 +551,6 @@ impl EventLoop {
         &self.window_target
     }
 
-    pub fn create_proxy(&self) -> EventLoopProxy {
-        EventLoopProxy {
-            proxy_wake_up: self.proxy_wake_up.clone(),
-            waker: self.android_app.create_waker(),
-        }
-    }
-
     fn control_flow(&self) -> ControlFlow {
         self.window_target.p.control_flow()
     }
@@ -585,9 +578,14 @@ pub struct ActiveEventLoop {
     control_flow: Cell<ControlFlow>,
     exit: Cell<bool>,
     redraw_requester: RedrawRequester,
+    proxy_wake_up: Arc<AtomicBool>,
 }
 
 impl ActiveEventLoop {
+    pub fn create_proxy(&self) -> EventLoopProxy {
+        EventLoopProxy { proxy_wake_up: self.proxy_wake_up.clone(), waker: self.app.create_waker() }
+    }
+
     pub fn primary_monitor(&self) -> Option<MonitorHandle> {
         Some(MonitorHandle::new(self.app.clone()))
     }
