@@ -928,22 +928,22 @@ pub enum PenSpecialEvent {
     DoubleTap {
         /// The preferred action for the pen event.
         ///
-        /// See the docs on [PenPreferredTapAction] for more information.
+        /// See the docs on [PenPreferredAction] for more information.
         // This is kept an [Option] to allow for other platforms to implement this if possible,
-        // and to allow for failures in 'deserializing' the variants of [PenPreferredTapAction]
+        // and to allow for failures in 'deserializing' the variants of [PenPreferredAction]
         // from the underlying Apple enum in case they change/add a field.
-        preferred_action: Option<PenPreferredTapAction>,
+        preferred_action: Option<PenPreferredAction>,
     },
 }
 
-/// Represents the possible preferred actions for a [`PenSpecialEvent::DoubleTap`].
+/// Represents the possible preferred actions for a [`PenSpecialEvent`].
 ///
 /// ## Platform Specific
 ///
 /// - **iOS** only
 /// See <https://developer.apple.com/documentation/uikit/uipencilpreferredaction?language=objc>
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub enum PenPreferredTapAction {
+pub enum PenPreferredAction {
     /// An action that does nothing.
     ///
     /// ## Platform Specific

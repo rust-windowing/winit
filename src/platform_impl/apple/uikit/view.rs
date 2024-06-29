@@ -19,7 +19,7 @@ use super::window::WinitUIWindow;
 use super::DEVICE_ID;
 use crate::dpi::PhysicalPosition;
 use crate::event::{
-    Event, Force, PenPreferredTapAction, PenSpecialEvent, Touch, TouchPhase, WindowEvent,
+    Event, Force, PenPreferredAction, PenSpecialEvent, Touch, TouchPhase, WindowEvent,
 };
 use crate::window::{WindowAttributes, WindowId as RootWindowId};
 
@@ -336,20 +336,20 @@ declare_class!(
         unsafe fn pencilInteraction_didReceiveTap(&self, _interaction: &UIPencilInteraction, _tap: &UIPencilInteractionTap) {
             let mtm = MainThreadMarker::new().unwrap();
 
-            fn convert_preferred_action(action: objc2_ui_kit::UIPencilPreferredAction) -> Option<PenPreferredTapAction> {
+            fn convert_preferred_action(action: objc2_ui_kit::UIPencilPreferredAction) -> Option<PenPreferredAction> {
                 Some(match action {
-                    objc2_ui_kit::UIPencilPreferredAction::Ignore => PenPreferredTapAction::Ignore,
-                    objc2_ui_kit::UIPencilPreferredAction::SwitchEraser => PenPreferredTapAction::SwitchEraser,
-                    objc2_ui_kit::UIPencilPreferredAction::SwitchPrevious => PenPreferredTapAction::SwitchPrevious,
-                    objc2_ui_kit::UIPencilPreferredAction::ShowColorPalette => PenPreferredTapAction::ShowColorPalette,
-                    objc2_ui_kit::UIPencilPreferredAction::ShowInkAttributes => PenPreferredTapAction::ShowInkAttributes,
-                    objc2_ui_kit::UIPencilPreferredAction::ShowContextualPalette => PenPreferredTapAction::ShowContextualPalette,
-                    objc2_ui_kit::UIPencilPreferredAction::RunSystemShortcut => PenPreferredTapAction::RunSystemShortcut,
+                    objc2_ui_kit::UIPencilPreferredAction::Ignore => PenPreferredAction::Ignore,
+                    objc2_ui_kit::UIPencilPreferredAction::SwitchEraser => PenPreferredAction::SwitchEraser,
+                    objc2_ui_kit::UIPencilPreferredAction::SwitchPrevious => PenPreferredAction::SwitchPrevious,
+                    objc2_ui_kit::UIPencilPreferredAction::ShowColorPalette => PenPreferredAction::ShowColorPalette,
+                    objc2_ui_kit::UIPencilPreferredAction::ShowInkAttributes => PenPreferredAction::ShowInkAttributes,
+                    objc2_ui_kit::UIPencilPreferredAction::ShowContextualPalette => PenPreferredAction::ShowContextualPalette,
+                    objc2_ui_kit::UIPencilPreferredAction::RunSystemShortcut => PenPreferredAction::RunSystemShortcut,
                     _ => {
                         tracing::warn!(
                           message = "Unknown variant of UIPencilPreferredAction",
                           preferred_action = ?action,
-                          note = "This is likely not a bug, but requires a new variant to be added to winit::event::PenPreferredTapAction",
+                          note = "This is likely not a bug, but requires a new variant to be added to winit::event::PenPreferredAction",
                           note = "This will ignore the preferred action for this event"
                         );
                         return None

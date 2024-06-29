@@ -42,7 +42,7 @@ changelog entry.
 
 ## Added
 
-- On iOS, add `PenSpecialEvent` and `PenPreferredTapAction` implementing Apple Pencil double-tap support (#3759, #99).
+- On iOS, add `PenSpecialEvent` and `PenPreferredAction` implementing Apple Pencil double-tap support (#3759, #99).
 
 ### Changed
 
