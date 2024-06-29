@@ -393,10 +393,8 @@ impl WinitView {
         }
 
         // adds apple pencil support
-        // let view: Retained<UIView> = self.view().expect("View has already loaded");
         let interaction: Retained<UIPencilInteraction> = {
-            let allocated: Allocated<UIPencilInteraction> =
-                MainThreadMarker::new().unwrap().alloc();
+            let allocated: Allocated<UIPencilInteraction> = mtm.alloc();
             // SAFETY: UIPencilInteraction can be safely initialized from empty memory
             let empty_initialized: Retained<UIPencilInteraction> =
                 unsafe { UIPencilInteraction::init(allocated) };
