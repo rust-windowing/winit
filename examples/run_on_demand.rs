@@ -28,7 +28,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
         }
 
-        fn resumed(&mut self, event_loop: &ActiveEventLoop) {
+        fn can_create_surfaces(&mut self, event_loop: &ActiveEventLoop) {
             let window_attributes = Window::default_attributes()
                 .with_title("Fantastic window number one!")
                 .with_inner_size(winit::dpi::LogicalSize::new(128.0, 128.0));

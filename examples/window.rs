@@ -459,8 +459,8 @@ impl ApplicationHandler for Application {
         info!("Device {device_id:?} event: {event:?}");
     }
 
-    fn resumed(&mut self, event_loop: &ActiveEventLoop) {
-        info!("Resumed the event loop");
+    fn can_create_surfaces(&mut self, event_loop: &ActiveEventLoop) {
+        info!("Ready to create surfaces");
         self.dump_monitors(event_loop);
 
         // Create initial window.

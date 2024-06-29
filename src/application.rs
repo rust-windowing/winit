@@ -18,69 +18,80 @@ pub trait ApplicationHandler {
 
     /// Emitted when the application has been resumed.
     ///
-    /// For consistency, all platforms emit a `Resumed` event even if they don't themselves have a
-    /// formal suspend/resume lifecycle. For systems without a formal suspend/resume lifecycle
-    /// the `Resumed` event is always emitted after the
-    /// [`NewEvents(StartCause::Init)`][StartCause::Init] event.
+    /// See [`suspended()`][Self::suspended].
     ///
-    /// # Portability
+    /// ## Platform-specific
     ///
-    /// It's recommended that applications should only initialize their graphics context and create
-    /// a window after they have received their first `Resumed` event. Some systems
-    /// (specifically Android) won't allow applications to create a render surface until they are
-    /// resumed.
+    /// ### iOS
     ///
-    /// Considering that the implementation of [`Suspended`] and `Resumed` events may be internally
-    /// driven by multiple platform-specific events, and that there may be subtle differences across
-    /// platforms with how these internal events are delivered, it's recommended that applications
-    /// be able to gracefully handle redundant (i.e. back-to-back) [`Suspended`] or `Resumed`
-    /// events.
+    /// On iOS, the [`resumed()`] method is called in response to an [`applicationDidBecomeActive`]
+    /// callback which means the application is about to transition from the inactive to active
+    /// state (according to the [iOS application lifecycle]).
     ///
-    /// Also see [`Suspended`] notes.
+    /// [`applicationDidBecomeActive`]: https://developer.apple.com/documentation/uikit/uiapplicationdelegate/1622956-applicationdidbecomeactive
+    /// [iOS application lifecycle]: https://developer.apple.com/documentation/uikit/app_and_environment/managing_your_app_s_life_cycle
     ///
-    /// ## Android
+    /// ### Web
     ///
-    /// On Android, the `Resumed` event is sent when a new [`SurfaceView`] has been created. This is
-    /// expected to closely correlate with the [`onResume`] lifecycle event but there may
-    /// technically be a discrepancy.
+    /// On Web, the [`resumed()`] method is called in response to a [`pageshow`] event if the
+    /// page is being restored from the [`bfcache`] (back/forward cache) - an in-memory cache
+    /// that stores a complete snapshot of a page (including the JavaScript heap) as the user is
+    /// navigating away.
+    ///
+    /// [`pageshow`]: https://developer.mozilla.org/en-US/docs/Web/API/Window/pageshow_event
+    /// [`bfcache`]: https://web.dev/bfcache/
+    ///
+    /// ### Others
+    ///
+    /// **Android / macOS / Orbital / Wayland / Windows / X11:** Unsupported.
+    ///
+    /// [`resumed()`]: Self::resumed
+    fn resumed(&mut self, event_loop: &ActiveEventLoop) {
+        let _ = event_loop;
+    }
+
+    /// Emitted from the point onwards the application should create render surfaces.
+    ///
+    /// See [`destroy_surfaces()`].
+    ///
+    /// ## Portability
+    ///
+    /// It's recommended that applications should only initialize their render surfaces after the
+    /// [`can_create_surfaces()`] method is called. Some systems (specifically Android) won't allow
+    /// applications to create a render surface until that point.
+    ///
+    /// For consistency, all platforms call this method even if they don't themselves have a formal
+    /// surface destroy/create lifecycle. For systems without a surface destroy/create lifecycle the
+    /// [`can_create_surfaces()`] event is always emitted after the [`StartCause::Init`] event.
+    ///
+    /// Applications should be able to gracefully handle back-to-back [`can_create_surfaces()`] and
+    /// [`destroy_surfaces()`] calls.
+    ///
+    /// ## Platform-specific
+    ///
+    /// ### Android
+    ///
+    /// On Android, the [`can_create_surfaces()`] method is called when a new [`SurfaceView`] has
+    /// been created. This is expected to closely correlate with the [`onResume`] lifecycle
+    /// event but there may technically be a discrepancy.
     ///
     /// [`onResume`]: https://developer.android.com/reference/android/app/Activity#onResume()
     ///
-    /// Applications that need to run on Android must wait until they have been `Resumed`
-    /// before they will be able to create a render surface (such as an `EGLSurface`,
-    /// [`VkSurfaceKHR`] or [`wgpu::Surface`]) which depend on having a
-    /// [`SurfaceView`]. Applications must also assume that if they are [`Suspended`], then their
-    /// render surfaces are invalid and should be dropped.
+    /// Applications that need to run on Android must wait until they have been "resumed" before
+    /// they will be able to create a render surface (such as an `EGLSurface`, [`VkSurfaceKHR`]
+    /// or [`wgpu::Surface`]) which depend on having a [`SurfaceView`]. Applications must also
+    /// assume that if they are [suspended], then their render surfaces are invalid and should
+    /// be dropped.
     ///
-    /// Also see [`Suspended`] notes.
-    ///
+    /// [suspended]: Self::destroy_surfaces
     /// [`SurfaceView`]: https://developer.android.com/reference/android/view/SurfaceView
     /// [Activity lifecycle]: https://developer.android.com/guide/components/activities/activity-lifecycle
     /// [`VkSurfaceKHR`]: https://www.khronos.org/registry/vulkan/specs/1.3-extensions/man/html/VkSurfaceKHR.html
     /// [`wgpu::Surface`]: https://docs.rs/wgpu/latest/wgpu/struct.Surface.html
     ///
-    /// ## iOS
-    ///
-    /// On iOS, the `Resumed` event is emitted in response to an [`applicationDidBecomeActive`]
-    /// callback which means the application is "active" (according to the
-    /// [iOS application lifecycle]).
-    ///
-    /// [`applicationDidBecomeActive`]: https://developer.apple.com/documentation/uikit/uiapplicationdelegate/1622956-applicationdidbecomeactive
-    /// [iOS application lifecycle]: https://developer.apple.com/documentation/uikit/app_and_environment/managing_your_app_s_life_cycle
-    ///
-    /// ## Web
-    ///
-    /// On Web, the `Resumed` event is emitted in response to a [`pageshow`] event
-    /// with the property [`persisted`] being true, which means that the page is being
-    /// restored from the [`bfcache`] (back/forward cache) - an in-memory cache that
-    /// stores a complete snapshot of a page (including the JavaScript heap) as the
-    /// user is navigating away.
-    ///
-    /// [`pageshow`]: https://developer.mozilla.org/en-US/docs/Web/API/Window/pageshow_event
-    /// [`persisted`]: https://developer.mozilla.org/en-US/docs/Web/API/PageTransitionEvent/persisted
-    /// [`bfcache`]: https://web.dev/bfcache/
-    /// [`Suspended`]: Self::suspended
-    fn resumed(&mut self, event_loop: &ActiveEventLoop);
+    /// [`can_create_surfaces()`]: Self::can_create_surfaces
+    /// [`destroy_surfaces()`]: Self::destroy_surfaces
+    fn can_create_surfaces(&mut self, event_loop: &ActiveEventLoop);
 
     /// Called after a wake up is requested using [`EventLoopProxy::wake_up()`].
     ///
@@ -121,7 +132,7 @@ pub trait ApplicationHandler {
     ///     # ) {
     ///     # }
     ///     #
-    ///     # fn resumed(&mut self, _event_loop: &ActiveEventLoop) {}
+    ///     # fn can_create_surfaces(&mut self, _event_loop: &ActiveEventLoop) {}
     ///     #
     ///     fn proxy_wake_up(&mut self, _event_loop: &ActiveEventLoop) {
     ///         // Iterate current events, since wake-ups may have been merged.
@@ -208,25 +219,47 @@ pub trait ApplicationHandler {
 
     /// Emitted when the application has been suspended.
     ///
-    /// # Portability
+    /// See [`resumed()`][Self::resumed].
     ///
-    /// Not all platforms support the notion of suspending applications, and there may be no
-    /// technical way to guarantee being able to emit a `Suspended` event if the OS has
-    /// no formal application lifecycle (currently only Android, iOS, and Web do). For this reason,
-    /// Winit does not currently try to emit pseudo `Suspended` events before the application
-    /// quits on platforms without an application lifecycle.
+    /// ## Platform-specific
     ///
-    /// Considering that the implementation of `Suspended` and [`Resumed`] events may be internally
-    /// driven by multiple platform-specific events, and that there may be subtle differences across
-    /// platforms with how these internal events are delivered, it's recommended that applications
-    /// be able to gracefully handle redundant (i.e. back-to-back) `Suspended` or [`Resumed`]
-    /// events.
+    /// ### iOS
     ///
-    /// Also see [`Resumed`] notes.
+    /// On iOS, the [`suspended()`] method is called in response to an
+    /// [`applicationWillResignActive`] callback which means that the application is about to
+    /// transition from the active to inactive state (according to the [iOS application lifecycle]).
     ///
-    /// ## Android
+    /// [`applicationWillResignActive`]: https://developer.apple.com/documentation/uikit/uiapplicationdelegate/1622950-applicationwillresignactive
+    /// [iOS application lifecycle]: https://developer.apple.com/documentation/uikit/app_and_environment/managing_your_app_s_life_cycle
     ///
-    /// On Android, the `Suspended` event is only sent when the application's associated
+    /// ### Web
+    ///
+    /// On Web, the [`suspended()`] method is called in response to a [`pagehide`] event if the
+    /// page is being restored from the [`bfcache`] (back/forward cache) - an in-memory cache that
+    /// stores a complete snapshot of a page (including the JavaScript heap) as the user is
+    /// navigating away.
+    ///
+    /// [`pagehide`]: https://developer.mozilla.org/en-US/docs/Web/API/Window/pagehide_event
+    /// [`bfcache`]: https://web.dev/bfcache/
+    ///
+    /// ### Others
+    ///
+    /// **Android / macOS / Orbital / Wayland / Windows / X11:** Unsupported.
+    ///
+    /// [`suspended()`]: Self::suspended
+    fn suspended(&mut self, event_loop: &ActiveEventLoop) {
+        let _ = event_loop;
+    }
+
+    /// Emitted when the application must destroy its render surfaces.
+    ///
+    /// See [`can_create_surfaces()`] for more details.
+    ///
+    /// ## Platform-specific
+    ///
+    /// ### Android
+    ///
+    /// On Android, the [`destroy_surfaces()`] method is called when the application's associated
     /// [`SurfaceView`] is destroyed. This is expected to closely correlate with the [`onPause`]
     /// lifecycle event but there may technically be a discrepancy.
     ///
@@ -236,38 +269,24 @@ pub trait ApplicationHandler {
     /// destroyed, which indirectly invalidates any existing render surfaces that may have been
     /// created outside of Winit (such as an `EGLSurface`, [`VkSurfaceKHR`] or [`wgpu::Surface`]).
     ///
-    /// After being `Suspended` on Android applications must drop all render surfaces before
+    /// After being [suspended] on Android applications must drop all render surfaces before
     /// the event callback completes, which may be re-created when the application is next
-    /// [`Resumed`].
+    /// [resumed].
     ///
+    /// [suspended]: Self::destroy_surfaces
+    /// [resumed]: Self::can_create_surfaces
     /// [`SurfaceView`]: https://developer.android.com/reference/android/view/SurfaceView
     /// [Activity lifecycle]: https://developer.android.com/guide/components/activities/activity-lifecycle
     /// [`VkSurfaceKHR`]: https://www.khronos.org/registry/vulkan/specs/1.3-extensions/man/html/VkSurfaceKHR.html
     /// [`wgpu::Surface`]: https://docs.rs/wgpu/latest/wgpu/struct.Surface.html
     ///
-    /// ## iOS
+    /// ### Others
     ///
-    /// On iOS, the `Suspended` event is currently emitted in response to an
-    /// [`applicationWillResignActive`] callback which means that the application is
-    /// about to transition from the active to inactive state (according to the
-    /// [iOS application lifecycle]).
+    /// - **iOS / macOS / Orbital / Wayland / Web / Windows / X11:** Unsupported.
     ///
-    /// [`applicationWillResignActive`]: https://developer.apple.com/documentation/uikit/uiapplicationdelegate/1622950-applicationwillresignactive
-    /// [iOS application lifecycle]: https://developer.apple.com/documentation/uikit/app_and_environment/managing_your_app_s_life_cycle
-    ///
-    /// ## Web
-    ///
-    /// On Web, the `Suspended` event is emitted in response to a [`pagehide`] event
-    /// with the property [`persisted`] being true, which means that the page is being
-    /// put in the [`bfcache`] (back/forward cache) - an in-memory cache that stores a
-    /// complete snapshot of a page (including the JavaScript heap) as the user is
-    /// navigating away.
-    ///
-    /// [`pagehide`]: https://developer.mozilla.org/en-US/docs/Web/API/Window/pagehide_event
-    /// [`persisted`]: https://developer.mozilla.org/en-US/docs/Web/API/PageTransitionEvent/persisted
-    /// [`bfcache`]: https://web.dev/bfcache/
-    /// [`Resumed`]: Self::resumed
-    fn suspended(&mut self, event_loop: &ActiveEventLoop) {
+    /// [`can_create_surfaces()`]: Self::can_create_surfaces
+    /// [`destroy_surfaces()`]: Self::destroy_surfaces
+    fn destroy_surfaces(&mut self, event_loop: &ActiveEventLoop) {
         let _ = event_loop;
     }
 
@@ -308,6 +327,7 @@ pub trait ApplicationHandler {
     }
 }
 
+#[deny(clippy::missing_trait_methods)]
 impl<A: ?Sized + ApplicationHandler> ApplicationHandler for &mut A {
     #[inline]
     fn new_events(&mut self, event_loop: &ActiveEventLoop, cause: StartCause) {
@@ -317,6 +337,11 @@ impl<A: ?Sized + ApplicationHandler> ApplicationHandler for &mut A {
     #[inline]
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
         (**self).resumed(event_loop);
+    }
+
+    #[inline]
+    fn can_create_surfaces(&mut self, event_loop: &ActiveEventLoop) {
+        (**self).can_create_surfaces(event_loop);
     }
 
     #[inline]
@@ -352,6 +377,11 @@ impl<A: ?Sized + ApplicationHandler> ApplicationHandler for &mut A {
     #[inline]
     fn suspended(&mut self, event_loop: &ActiveEventLoop) {
         (**self).suspended(event_loop);
+    }
+
+    #[inline]
+    fn destroy_surfaces(&mut self, event_loop: &ActiveEventLoop) {
+        (**self).destroy_surfaces(event_loop);
     }
 
     #[inline]
@@ -365,6 +395,7 @@ impl<A: ?Sized + ApplicationHandler> ApplicationHandler for &mut A {
     }
 }
 
+#[deny(clippy::missing_trait_methods)]
 impl<A: ?Sized + ApplicationHandler> ApplicationHandler for Box<A> {
     #[inline]
     fn new_events(&mut self, event_loop: &ActiveEventLoop, cause: StartCause) {
@@ -374,6 +405,11 @@ impl<A: ?Sized + ApplicationHandler> ApplicationHandler for Box<A> {
     #[inline]
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
         (**self).resumed(event_loop);
+    }
+
+    #[inline]
+    fn can_create_surfaces(&mut self, event_loop: &ActiveEventLoop) {
+        (**self).can_create_surfaces(event_loop);
     }
 
     #[inline]
@@ -409,6 +445,11 @@ impl<A: ?Sized + ApplicationHandler> ApplicationHandler for Box<A> {
     #[inline]
     fn suspended(&mut self, event_loop: &ActiveEventLoop) {
         (**self).suspended(event_loop);
+    }
+
+    #[inline]
+    fn destroy_surfaces(&mut self, event_loop: &ActiveEventLoop) {
+        (**self).destroy_surfaces(event_loop);
     }
 
     #[inline]

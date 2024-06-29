@@ -345,10 +345,10 @@ impl EventLoopRunner {
             },
         };
         self.call_event_handler(Event::NewEvents(start_cause));
-        // NB: For consistency all platforms must emit a 'resumed' event even though Windows
-        // applications don't themselves have a formal suspend/resume lifecycle.
+        // NB: For consistency all platforms must call `can_create_surfaces` even though Windows
+        // applications don't themselves have a formal surface destroy/create lifecycle.
         if init {
-            self.call_event_handler(Event::Resumed);
+            self.call_event_handler(Event::CreateSurfaces);
         }
         self.dispatch_buffered_events();
     }

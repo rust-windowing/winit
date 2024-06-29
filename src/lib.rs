@@ -52,7 +52,7 @@
 //! }
 //!
 //! impl ApplicationHandler for App {
-//!     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
+//!     fn can_create_surfaces(&mut self, event_loop: &ActiveEventLoop) {
 //!         self.window = Some(event_loop.create_window(Window::default_attributes()).unwrap());
 //!     }
 //!

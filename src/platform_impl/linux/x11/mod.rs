@@ -505,10 +505,10 @@ impl EventLoop {
     fn single_iteration<A: ApplicationHandler>(&mut self, app: &mut A, cause: StartCause) {
         app.new_events(&self.event_processor.target, cause);
 
-        // NB: For consistency all platforms must emit a 'resumed' event even though X11
-        // applications don't themselves have a formal suspend/resume lifecycle.
+        // NB: For consistency all platforms must call `can_create_surfaces` even though X11
+        // applications don't themselves have a formal surface destroy/create lifecycle.
         if cause == StartCause::Init {
-            app.resumed(&self.event_processor.target)
+            app.can_create_surfaces(&self.event_processor.target)
         }
 
         // Process all pending events

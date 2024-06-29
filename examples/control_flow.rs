@@ -67,7 +67,7 @@ impl ApplicationHandler for ControlFlowDemo {
         }
     }
 
-    fn resumed(&mut self, event_loop: &ActiveEventLoop) {
+    fn can_create_surfaces(&mut self, event_loop: &ActiveEventLoop) {
         let window_attributes = Window::default_attributes().with_title(
             "Press 1, 2, 3 to change control flow mode. Press R to toggle redraw requests.",
         );
