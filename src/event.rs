@@ -350,6 +350,13 @@ pub enum WindowEvent {
     /// [`transform`]: https://developer.mozilla.org/en-US/docs/Web/CSS/transform
     Touch(Touch),
 
+    /// Special pen event has been received.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **iOS:** Only platform supported, see docs on [`PenSpecialEvent`]
+    PenSpecialEvent(PenSpecialEvent),
+
     /// The window's scale factor has changed.
     ///
     /// The following user actions can cause DPI changes:
@@ -897,6 +904,107 @@ impl Force {
             Force::Normalized(force) => *force,
         }
     }
+}
+
+/// Represents a pen event.
+///
+/// Primarily wraps an [Apple Pencil](https://developer.apple.com/documentation/uikit/apple_pencil_interactions/handling_input_from_apple_pencil?language=objc)
+// non_exhaustive so that other events can be added later, e.g. Squeeze
+#[derive(Debug, Clone, Copy, PartialEq)]
+#[non_exhaustive]
+pub enum PenSpecialEvent {
+    /// Double tapping the end of the Apple Pencil.
+    ///
+    /// ## Platform Specific
+    ///
+    /// - **iOS** only
+    ///
+    /// From the Apple developer documentation [here](https://developer.apple.com/documentation/applepencil/handling-double-taps-from-apple-pencil#Overview):
+    /// ```text
+    /// You can use Apple Pencil interactions to allow people to access functionality in your app quickly. Double-tapping Apple Pencil lets a person perform actions such as switching between drawing tools without moving the pencil to another location on the screen.
+    /// ```
+    // non_exhaustive so that other fields can be added later, e.g. azimuthal angle
+    #[non_exhaustive]
+    DoubleTap {
+        /// The preferred action for the pen event.
+        ///
+        /// See the docs on [PenPreferredAction] for more information.
+        // This is kept an [Option] to allow for other platforms to implement this if possible,
+        // and to allow for failures in 'deserializing' the variants of [PenPreferredAction]
+        // from the underlying Apple enum in case they change/add a field.
+        preferred_action: Option<PenPreferredAction>,
+    },
+}
+
+/// Represents the possible preferred actions for a [`PenSpecialEvent`].
+///
+/// ## Platform Specific
+///
+/// - **iOS** only
+/// See <https://developer.apple.com/documentation/uikit/uipencilpreferredaction?language=objc>
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum PenPreferredAction {
+    /// An action that does nothing.
+    ///
+    /// ## Platform Specific
+    ///
+    /// - **iOS** only
+    /// See <https://developer.apple.com/documentation/uikit/uipencilpreferredaction/uipencilpreferredactionignore?language=objc>
+    ///
+    /// ### Discussion
+    /// The system returns this action if any of the following conditions are true:
+    /// - The Apple Pencil doesn’t have a configured preferred action.
+    /// - The iPad’s accessibility settings disable Apple Pencil interactions.
+    Ignore,
+
+    /// An action that switches between the current tool and the eraser.
+    ///
+    /// ## Platform Specific
+    ///
+    /// - **iOS** only
+    /// See <https://developer.apple.com/documentation/uikit/uipencilpreferredaction/uipencilpreferredactionswitcheraser?language=objc>
+    SwitchEraser,
+
+    /// An action that switches between the current tool and the last used tool.
+    ///
+    /// ## Platform Specific
+    ///
+    /// - **iOS** only
+    /// See <https://developer.apple.com/documentation/uikit/uipencilpreferredaction/uipencilpreferredactionswitcheraser?language=objc>
+    SwitchPrevious,
+
+    /// An action that toggles the display of the color palette.
+    ///
+    /// ## Platform Specific
+    ///
+    /// - **iOS** only
+    /// See <https://developer.apple.com/documentation/uikit/uipencilpreferredaction/uipencilpreferredactionshowcolorpalette?language=objc>
+    ShowColorPalette,
+
+    /// An action that toggles the display of the selected tool’s ink attributes.
+    ///
+    /// ## Platform Specific
+    ///
+    /// - **iOS** only
+    /// See <https://developer.apple.com/documentation/uikit/uipencilpreferredaction/uipencilpreferredactionshowinkattributes?language=objc>
+    ShowInkAttributes,
+
+    /// An action that toggles shows a contextual palette of markup tools, or undo and redo options
+    /// if tools aren’t available.
+    ///
+    /// ## Platform Specific
+    ///
+    /// - **iOS** only
+    /// See <https://developer.apple.com/documentation/uikit/uipencilpreferredaction/uipencilpreferredactionshowcontextualpalette?language=objc>
+    ShowContextualPalette,
+
+    /// An action that runs a system shortcut.
+    ///
+    /// ## Platform Specific
+    ///
+    /// - **iOS** only
+    /// See <https://developer.apple.com/documentation/uikit/uipencilpreferredaction/uipencilpreferredactionrunsystemshortcut?language=objc>
+    RunSystemShortcut,
 }
 
 /// Identifier for a specific analog axis on some device.

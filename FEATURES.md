@@ -208,6 +208,7 @@ Legend:
 |Cursor hittest          |✔️       |✔️      |✔️       |✔️          |**N/A**|**N/A**|❌        |❌      |
 |Touch events            |✔️       |❌      |✔️       |✔️          |✔️    |✔️     |✔️        |**N/A** |
 |Touch pressure          |✔️       |❌      |❌       |❌          |❌    |✔️     |✔️        |**N/A** |
+|Special pen events      |❌      |**N/A**      |❌       |❌          |❌    |✔️     |❌        |**N/A** |
 |Multitouch              |✔️       |❌      |✔️       |✔️          |✔️    |✔️     |❌        |**N/A** |
 |Keyboard events         |✔️       |✔️      |✔️       |✔️          |✔️    |❌     |✔️        |✔️      |
 |Drag & Drop             |▢[#720]  |▢[#720] |▢[#720]  |▢[#720]   |**N/A**|**N/A**|❓        |**N/A** |
