@@ -13,8 +13,8 @@ use block2::Block;
 use core_foundation::base::{CFIndex, CFOptionFlags, CFRelease, CFTypeRef};
 use core_foundation::date::CFAbsoluteTimeGetCurrent;
 use core_foundation::runloop::{
-    kCFRunLoopAfterWaiting, kCFRunLoopBeforeWaiting, kCFRunLoopCommonModes, kCFRunLoopDefaultMode,
-    kCFRunLoopExit, CFRunLoopActivity, CFRunLoopAddObserver, CFRunLoopAddTimer, CFRunLoopGetMain,
+    kCFRunLoopAfterWaiting, kCFRunLoopBeforeWaiting, kCFRunLoopDefaultMode, kCFRunLoopExit,
+    CFRunLoopActivity, CFRunLoopAddObserver, CFRunLoopAddTimer, CFRunLoopGetMain,
     CFRunLoopObserverCallBack, CFRunLoopObserverContext, CFRunLoopObserverCreate,
     CFRunLoopObserverRef, CFRunLoopRef, CFRunLoopTimerCreate, CFRunLoopTimerInvalidate,
     CFRunLoopTimerRef, CFRunLoopTimerSetNextFireDate, CFRunLoopWakeUp,
@@ -129,7 +129,7 @@ impl RunLoop {
                 context,
             )
         };
-        unsafe { CFRunLoopAddObserver(self.0, observer, kCFRunLoopCommonModes) };
+        unsafe { CFRunLoopAddObserver(self.0, observer, kCFRunLoopDefaultMode) };
     }
 
     /// Submit a closure to run on the main thread as the next step in the run loop, before other
@@ -267,7 +267,7 @@ impl EventLoopWaker {
                 wakeup_main_loop,
                 ptr::null_mut(),
             );
-            CFRunLoopAddTimer(CFRunLoopGetMain(), timer, kCFRunLoopCommonModes);
+            CFRunLoopAddTimer(CFRunLoopGetMain(), timer, kCFRunLoopDefaultMode);
             Self { timer, start_instant: Instant::now(), next_fire_date: None }
         }
     }
