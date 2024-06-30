@@ -3,6 +3,11 @@
 #[cfg(all(not(x11_platform), not(wayland_platform)))]
 compile_error!("Please select a feature to build for unix: `x11`, `wayland`");
 
+#[cfg(any(target_os = "solaris", target_os = "illumos"))]
+compile_error! {
+    "winit does not support Solarish operating systems."
+}
+
 use std::collections::VecDeque;
 use std::os::unix::io::{AsFd, AsRawFd, BorrowedFd, RawFd};
 use std::sync::Arc;
