@@ -1,12 +1,14 @@
 use crate::event::{MouseButton, MouseScrollDelta};
 use crate::keyboard::{Key, KeyLocation, ModifiersState, NamedKey, PhysicalKey};
 
-use dpi::{LogicalPosition, PhysicalPosition};
+use dpi::{LogicalPosition, PhysicalPosition, Position};
 use smol_str::SmolStr;
 use std::cell::OnceCell;
 use wasm_bindgen::prelude::wasm_bindgen;
 use wasm_bindgen::{JsCast, JsValue};
 use web_sys::{KeyboardEvent, MouseEvent, PointerEvent, WheelEvent};
+
+use super::Engine;
 
 bitflags::bitflags! {
     // https://www.w3.org/TR/pointerevents3/#the-buttons-property
@@ -95,23 +97,48 @@ pub fn mouse_position(event: &MouseEvent) -> LogicalPosition<f64> {
     LogicalPosition { x: event.offset_x(), y: event.offset_y() }
 }
 
-pub struct MouseDelta(Option<PhysicalPosition<i32>>);
+// TODO: Remove this when Firefox supports correct movement values in coalesced events and browsers
+// have agreed on what coordinate space `movementX/Y` is using.
+// See <https://bugzilla.mozilla.org/show_bug.cgi?id=1753724>.
+// See <https://github.com/w3c/pointerlock/issues/42>.
+pub enum MouseDelta {
+    Chromium,
+    Gecko { old_position: LogicalPosition<f64>, old_delta: LogicalPosition<f64> },
+    Other,
+}
 
 impl MouseDelta {
-    pub fn new() -> Self {
-        Self(None)
+    pub fn init(window: &web_sys::Window, event: &PointerEvent) -> Self {
+        match super::engine(window) {
+            Some(Engine::Chromium) => Self::Chromium,
+            // Firefox has wrong movement values in coalesced events.
+            Some(Engine::Gecko) if has_coalesced_events_support(event) => Self::Gecko {
+                old_position: mouse_position(event),
+                old_delta: LogicalPosition::new(
+                    event.movement_x() as f64,
+                    event.movement_y() as f64,
+                ),
+            },
+            _ => Self::Other,
+        }
     }
 
-    pub fn delta(&mut self, event: &MouseEvent) -> PhysicalPosition<i32> {
-        let new = PhysicalPosition::new(event.screen_x(), event.screen_y());
-
-        if let Some(old) = self.0 {
-            let delta = PhysicalPosition::new(new.x - old.x, new.y - old.y);
-            self.0 = Some(new);
-            delta
-        } else {
-            self.0 = Some(new);
-            PhysicalPosition::default()
+    pub fn delta(&mut self, event: &MouseEvent) -> Position {
+        match self {
+            MouseDelta::Chromium => {
+                PhysicalPosition::new(event.movement_x(), event.movement_y()).into()
+            },
+            MouseDelta::Gecko { old_position, old_delta } => {
+                let new_position = mouse_position(event);
+                let x = new_position.x - old_position.x + old_delta.x;
+                let y = new_position.y - old_position.y + old_delta.y;
+                *old_position = new_position;
+                *old_delta = LogicalPosition::new(0., 0.);
+                LogicalPosition::new(x, y).into()
+            },
+            MouseDelta::Other => {
+                LogicalPosition::new(event.movement_x(), event.movement_y()).into()
+            },
         }
     }
 }
