@@ -438,8 +438,11 @@ impl EventProcessor {
                 None => return,
             };
 
-            let lo = (xev.data.get_long(2) & 0xffffffff) as u32;
-            let hi = (xev.data.get_long(3) & 0x0fffffff) as i32;
+            #[allow(clippy::identity_op)]
+            let lo = (bytemuck::cast::<c_long, c_ulong>(xev.data.get_long(2)) & 0xffffffff) as u32;
+            #[allow(clippy::identity_op)]
+            let hi = (bytemuck::cast::<c_long, c_ulong>(xev.data.get_long(3)) & 0xffffffff) as u32;
+            let hi = bytemuck::cast::<u32, i32>(hi);
 
             wt.xconn
                 .xcb_connection()
