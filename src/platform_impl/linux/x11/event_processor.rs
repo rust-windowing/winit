@@ -13,6 +13,7 @@ use x11_dl::xlib::{
     XDestroyWindowEvent, XEvent, XExposeEvent, XKeyEvent, XMapEvent, XPropertyEvent,
     XReparentEvent, XSelectionEvent, XVisibilityEvent, XkbAnyEvent, XkbStateRec,
 };
+use x11rb::protocol::sync::{ConnectionExt, Int64};
 use x11rb::protocol::xinput;
 use x11rb::protocol::xkb::ID as XkbId;
 use x11rb::protocol::xproto::{self, ConnectionExt as _, ModMask};
@@ -426,6 +427,24 @@ impl EventProcessor {
                     client_msg.serialize(),
                 )
                 .expect_then_ignore_error("Failed to send `ClientMessage` event.");
+            return;
+        }
+
+        if xev.data.get_long(0) as xproto::Atom == wt.net_wm_sync_request {
+            let sync_counter_id = match self
+                .with_window(xev.window as xproto::Window, |window| window.sync_counter_id())
+            {
+                Some(sync_counter_id) => sync_counter_id,
+                None => return,
+            };
+
+            let lo = (xev.data.get_long(2) & 0xffffffff) as u32;
+            let hi = (xev.data.get_long(3) & 0x0fffffff) as i32;
+
+            wt.xconn
+                .xcb_connection()
+                .sync_set_counter(sync_counter_id, Int64 { lo, hi })
+                .expect_then_ignore_error("Failed to set XSync counter.");
             return;
         }
 

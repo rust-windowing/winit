@@ -262,6 +262,7 @@ x11rb = { version = "0.13.0", default-features = false, features = [
     "dl-libxcb",
     "randr",
     "resource_manager",
+    "sync",
     "xinput",
     "xkb",
 ], optional = true }
