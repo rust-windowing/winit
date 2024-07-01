@@ -9,6 +9,8 @@ mod pointer;
 mod resize_scaling;
 mod schedule;
 
+use std::sync::OnceLock;
+
 pub use self::canvas::{Canvas, Style};
 pub use self::event::ButtonsState;
 pub use self::event_handle::EventListenerHandle;
@@ -16,8 +18,13 @@ pub use self::resize_scaling::ResizeScaleHandle;
 pub use self::schedule::Schedule;
 
 use crate::dpi::{LogicalPosition, LogicalSize};
+use js_sys::Array;
 use wasm_bindgen::closure::Closure;
-use web_sys::{Document, HtmlCanvasElement, PageTransitionEvent, VisibilityState};
+use wasm_bindgen::prelude::wasm_bindgen;
+use wasm_bindgen::JsCast;
+use web_sys::{
+    Document, HtmlCanvasElement, Navigator, PageTransitionEvent, VisibilityState, Window,
+};
 
 pub fn throw(msg: &str) {
     wasm_bindgen::throw_str(msg);
@@ -158,3 +165,69 @@ pub fn is_visible(document: &Document) -> bool {
 }
 
 pub type RawCanvasType = HtmlCanvasElement;
+
+#[derive(Clone, Copy)]
+pub enum Engine {
+    Chromium,
+    Gecko,
+    WebKit,
+}
+
+pub fn engine(window: &Window) -> Option<Engine> {
+    static ENGINE: OnceLock<Option<Engine>> = OnceLock::new();
+
+    #[wasm_bindgen]
+    extern "C" {
+        #[wasm_bindgen(extends = Navigator)]
+        type NavigatorExt;
+
+        #[wasm_bindgen(method, getter, js_name = userAgentData)]
+        fn user_agent_data(this: &NavigatorExt) -> Option<NavigatorUaData>;
+
+        type NavigatorUaData;
+
+        #[wasm_bindgen(method, getter)]
+        fn brands(this: &NavigatorUaData) -> Array;
+
+        type NavigatorUaBrandVersion;
+
+        #[wasm_bindgen(method, getter)]
+        fn brand(this: &NavigatorUaBrandVersion) -> String;
+    }
+
+    *ENGINE.get_or_init(|| {
+        let navigator: NavigatorExt = window.navigator().unchecked_into();
+
+        if let Some(data) = navigator.user_agent_data() {
+            for brand in data
+                .brands()
+                .iter()
+                .map(NavigatorUaBrandVersion::unchecked_from_js)
+                .map(|brand| brand.brand())
+            {
+                match brand.as_str() {
+                    "Chromium" => return Some(Engine::Chromium),
+                    // TODO: verify when Firefox actually implements it.
+                    "Gecko" => return Some(Engine::Gecko),
+                    // TODO: verify when Safari actually implements it.
+                    "WebKit" => return Some(Engine::WebKit),
+                    _ => (),
+                }
+            }
+
+            None
+        } else {
+            let data = navigator.user_agent().ok()?;
+
+            if data.contains("Chrome/") {
+                Some(Engine::Chromium)
+            } else if data.contains("Gecko/") {
+                Some(Engine::Gecko)
+            } else if data.contains("AppleWebKit/") {
+                Some(Engine::WebKit)
+            } else {
+                None
+            }
+        }
+    })
+}
