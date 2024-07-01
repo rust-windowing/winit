@@ -9,6 +9,7 @@ use tracing::{debug, info, warn};
 use x11rb::connection::Connection;
 use x11rb::properties::{WmHints, WmSizeHints, WmSizeHintsSpecification};
 use x11rb::protocol::shape::SK;
+use x11rb::protocol::sync::{ConnectionExt as _, Int64};
 use x11rb::protocol::xfixes::{ConnectionExt, RegionWrapper};
 use x11rb::protocol::xproto::{self, ConnectionExt as _, Rectangle};
 use x11rb::protocol::{randr, xinput};
@@ -116,6 +117,7 @@ pub struct UnownedWindow {
     root: xproto::Window,               // never changes
     #[allow(dead_code)]
     screen_id: i32, // never changes
+    sync_counter_id: u32,               // never changes
     selected_cursor: Mutex<SelectedCursor>,
     cursor_grabbed_mode: Mutex<CursorGrabMode>,
     #[allow(clippy::mutex_atomic)]
@@ -338,6 +340,7 @@ impl UnownedWindow {
             visual,
             root,
             screen_id,
+            sync_counter_id: 0,
             selected_cursor: Default::default(),
             cursor_grabbed_mode: Mutex::new(CursorGrabMode::None),
             cursor_visible: Mutex::new(true),
@@ -468,18 +471,35 @@ impl UnownedWindow {
                 leap!(window.set_icon_inner(icon.inner)).ignore_error();
             }
 
-            // Opt into handling window close
+            // Opt into handling window close and resize synchronization
             let result = xconn.xcb_connection().change_property(
                 xproto::PropMode::REPLACE,
                 window.xwindow,
                 atoms[WM_PROTOCOLS],
                 xproto::AtomEnum::ATOM,
                 32,
-                2,
+                3,
                 bytemuck::cast_slice::<xproto::Atom, u8>(&[
                     atoms[WM_DELETE_WINDOW],
                     atoms[_NET_WM_PING],
+                    atoms[_NET_WM_SYNC_REQUEST],
                 ]),
+            );
+            leap!(result).ignore_error();
+
+            // Create a sync request counter
+            window.sync_counter_id = leap!(xconn.xcb_connection().generate_id());
+            leap!(xconn.xcb_connection().sync_create_counter(window.sync_counter_id, Int64::default()))
+                .ignore_error();
+
+            let result = xconn.xcb_connection().change_property(
+                xproto::PropMode::REPLACE,
+                window.xwindow,
+                atoms[_NET_WM_SYNC_REQUEST_COUNTER],
+                xproto::AtomEnum::CARDINAL,
+                32,
+                1,
+                bytemuck::cast_slice::<u32, u8>(&[window.sync_counter_id]),
             );
             leap!(result).ignore_error();
 
@@ -1811,6 +1831,10 @@ impl UnownedWindow {
     #[inline]
     pub fn id(&self) -> WindowId {
         WindowId(self.xwindow as _)
+    }
+
+    pub(super) fn sync_counter_id(&self) -> u32 {
+        self.sync_counter_id
     }
 
     #[inline]
