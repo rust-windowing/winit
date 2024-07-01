@@ -489,8 +489,10 @@ impl UnownedWindow {
 
             // Create a sync request counter
             window.sync_counter_id = leap!(xconn.xcb_connection().generate_id());
-            leap!(xconn.xcb_connection().sync_create_counter(window.sync_counter_id, Int64::default()))
-                .ignore_error();
+            leap!(xconn
+                .xcb_connection()
+                .sync_create_counter(window.sync_counter_id, Int64::default()))
+            .ignore_error();
 
             let result = xconn.xcb_connection().change_property(
                 xproto::PropMode::REPLACE,
