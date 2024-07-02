@@ -57,6 +57,7 @@ changelog entry.
 - Changed `EventLoopProxy::send_event` to `EventLoopProxy::wake_up`, it now
   only wakes up the loop.
 - On Web, slightly improve accuracy of `DeviceEvent::MouseMotion`.
+- On X11, implement smooth resizing through the sync extension API.
 - `ApplicationHandler::create|destroy_surfaces()` was split off from
   `ApplicationHandler::resumed/suspended()`.
 
