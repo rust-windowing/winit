@@ -76,3 +76,7 @@ changelog entry.
 
   This feature was incomplete, and the equivalent functionality can be trivially achieved outside
   of `winit` using `objc2-ui-kit` and calling `UIDevice::currentDevice().userInterfaceIdiom()`.
+
+### Fixed
+
+- On Wayland, avoid crashing when compositor is misbehaving.
