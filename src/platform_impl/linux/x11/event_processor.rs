@@ -434,16 +434,13 @@ impl EventProcessor {
             let sync_counter_id = match self
                 .with_window(xev.window as xproto::Window, |window| window.sync_counter_id())
             {
-                Some(sync_counter_id) => sync_counter_id,
-                None => return,
+                Some(Some(sync_counter_id)) => sync_counter_id.get(),
+                _ => return,
             };
 
-
             #[cfg(target_pointer_width = "32")]
-            let (lo, hi) = (
-                bytemuck::cast::<c_long, u32>(xev.data.get_long(2)),
-                xev.data.get_long(3),
-            );
+            let (lo, hi) =
+                (bytemuck::cast::<c_long, u32>(xev.data.get_long(2)), xev.data.get_long(3));
 
             #[cfg(not(target_pointer_width = "32"))]
             let (lo, hi) = (
