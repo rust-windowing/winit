@@ -42,7 +42,9 @@ pub trait EventLoopExtRunOnDemand {
     /// # Caveats
     /// - This extension isn't available on all platforms, since it's not always possible to return
     ///   to the caller (specifically this is impossible on iOS and Web - though with the Web
-    ///   backend it is possible to use `EventLoopExtWebSys::spawn()`[^1] more than once instead).
+    ///   backend it is possible to use `EventLoopExtWebSys::spawn()`
+    #[cfg_attr(not(web_platform), doc = "[^1]")]
+    ///   more than once instead).
     /// - No [`Window`] state can be carried between separate runs of the event loop.
     ///
     /// You are strongly encouraged to use [`EventLoop::run_app()`] for portability, unless you
