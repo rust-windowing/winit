@@ -556,7 +556,7 @@ impl PartialKeyEventInfo {
                 // We convert dead keys into their character.
                 // The reason for this is that `key_without_modifiers` is designed for key-bindings,
                 // but the US International layout treats `'` (apostrophe) as a dead key and the
-                // reguar US layout treats it a character. In order for a single binding
+                // regular US layout treats it a character. In order for a single binding
                 // configuration to work with both layouts, we forward each dead key as a character.
                 Key::Dead(k) => {
                     if let Some(ch) = k {
