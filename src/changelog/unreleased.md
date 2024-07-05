@@ -43,6 +43,7 @@ changelog entry.
 ### Added
 
 - Add `ActiveEventLoop::create_proxy()`.
+- Add `EventLoop::available_monitors()`.
 
 ### Changed
 

@@ -299,6 +299,11 @@ impl EventLoop {
     pub fn create_custom_cursor(&self, custom_cursor: CustomCursorSource) -> CustomCursor {
         self.event_loop.window_target().p.create_custom_cursor(custom_cursor)
     }
+
+    /// Returns the list of all the monitors available on the system.
+    pub fn available_monitors(&self) -> impl Iterator<Item = MonitorHandle> {
+        self.event_loop.window_target().available_monitors()
+    }
 }
 
 #[cfg(feature = "rwh_06")]
