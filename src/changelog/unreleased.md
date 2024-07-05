@@ -56,7 +56,6 @@ changelog entry.
   to send specific data to be processed on the main thread.
 - Changed `EventLoopProxy::send_event` to `EventLoopProxy::wake_up`, it now
   only wakes up the loop.
-- On Web, slightly improve accuracy of `DeviceEvent::MouseMotion`.
 - `ApplicationHandler::create|destroy_surfaces()` was split off from
   `ApplicationHandler::resumed/suspended()`.
 
@@ -80,3 +79,4 @@ changelog entry.
 ### Fixed
 
 - On Wayland, avoid crashing when compositor is misbehaving.
+- Account for different browser engine implementations of pointer movement coordinate space.

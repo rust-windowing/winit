@@ -234,7 +234,7 @@ impl Shared {
         ));
 
         let runner = self.clone();
-        let mut delta = backend::event::MouseDelta::new();
+        let window = self.window().clone();
         *self.0.on_mouse_move.borrow_mut() = Some(EventListenerHandle::new(
             self.window().clone(),
             "pointermove",
@@ -273,26 +273,23 @@ impl Shared {
                 }
 
                 // pointer move event
+                let mut delta = backend::event::MouseDelta::init(&window, &event);
                 runner.send_events(backend::event::pointer_move_event(event).flat_map(|event| {
-                    let delta = delta.delta(&event);
+                    let delta = delta.delta(&event).to_physical(backend::scale_factor(&window));
 
-                    if delta.x == 0 && delta.y == 0 {
-                        return None.into_iter().chain(None).chain(None);
-                    }
-
-                    let x_motion = (delta.x != 0).then_some(Event::DeviceEvent {
+                    let x_motion = (delta.x != 0.0).then_some(Event::DeviceEvent {
                         device_id,
-                        event: DeviceEvent::Motion { axis: 0, value: delta.x.into() },
+                        event: DeviceEvent::Motion { axis: 0, value: delta.x },
                     });
 
-                    let y_motion = (delta.y != 0).then_some(Event::DeviceEvent {
+                    let y_motion = (delta.y != 0.0).then_some(Event::DeviceEvent {
                         device_id,
-                        event: DeviceEvent::Motion { axis: 1, value: delta.y.into() },
+                        event: DeviceEvent::Motion { axis: 1, value: delta.y },
                     });
 
-                    x_motion.into_iter().chain(y_motion).chain(Some(Event::DeviceEvent {
+                    x_motion.into_iter().chain(y_motion).chain(iter::once(Event::DeviceEvent {
                         device_id,
-                        event: DeviceEvent::MouseMotion { delta: (delta.x.into(), delta.y.into()) },
+                        event: DeviceEvent::MouseMotion { delta: (delta.x, delta.y) },
                     }))
                 }));
             }),
