@@ -19,7 +19,7 @@ use crate::platform_impl::Fullscreen;
 use crate::event::DeviceId as RootDeviceId;
 use crate::icon::Icon;
 use crate::keyboard::Key;
-use crate::platform::windows::{BackdropType, Color, CornerPreference};
+use crate::platform::windows::{BackdropType, Color, CornerPreference, MouseActivate};
 
 #[derive(Clone, Debug)]
 pub struct PlatformSpecificWindowAttributes {
@@ -37,6 +37,7 @@ pub struct PlatformSpecificWindowAttributes {
     pub title_background_color: Option<Color>,
     pub title_text_color: Option<Color>,
     pub corner_preference: Option<CornerPreference>,
+    pub mouse_activate: MouseActivate,
 }
 
 impl Default for PlatformSpecificWindowAttributes {
@@ -56,6 +57,7 @@ impl Default for PlatformSpecificWindowAttributes {
             title_background_color: None,
             title_text_color: None,
             corner_preference: None,
+            mouse_activate: MouseActivate::default(),
         }
     }
 }

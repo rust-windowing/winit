@@ -1,6 +1,7 @@
 use crate::dpi::{PhysicalPosition, PhysicalSize, Size};
 use crate::icon::Icon;
 use crate::keyboard::ModifiersState;
+use crate::platform::windows::MouseActivate;
 use crate::platform_impl::platform::{event_loop, util, Fullscreen, SelectedCursor};
 use crate::window::{Theme, WindowAttributes};
 use bitflags::bitflags;
@@ -56,6 +57,9 @@ pub(crate) struct WindowState {
     pub dragging: bool,
 
     pub skip_taskbar: bool,
+
+    // Used by WM_MOUSEACTIVATE
+    pub mouse_activate: MouseActivate,
 }
 
 #[derive(Clone)]
@@ -176,6 +180,8 @@ impl WindowState {
             dragging: false,
 
             skip_taskbar: false,
+
+            mouse_activate: attributes.platform_specific.mouse_activate,
         }
     }
 

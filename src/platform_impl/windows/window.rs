@@ -50,7 +50,7 @@ use crate::cursor::Cursor;
 use crate::dpi::{PhysicalPosition, PhysicalSize, Position, Size};
 use crate::error::{ExternalError, NotSupportedError, OsError as RootOsError};
 use crate::icon::Icon;
-use crate::platform::windows::{BackdropType, Color, CornerPreference};
+use crate::platform::windows::{BackdropType, Color, CornerPreference, MouseActivate};
 use crate::platform_impl::platform::dark_mode::try_theme;
 use crate::platform_impl::platform::definitions::{
     CLSID_TaskbarList, IID_ITaskbarList, IID_ITaskbarList2, ITaskbarList, ITaskbarList2,
@@ -1106,6 +1106,11 @@ impl Window {
                 mem::size_of::<DWM_WINDOW_CORNER_PREFERENCE>() as _,
             );
         }
+    }
+
+    #[inline]
+    pub fn set_mouse_activate(&self, mouse_activate: MouseActivate) {
+        self.window_state_lock().mouse_activate = mouse_activate;
     }
 }
 

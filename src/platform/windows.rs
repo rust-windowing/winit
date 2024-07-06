@@ -51,6 +51,20 @@ pub enum BackdropType {
     TabbedWindow = 4,
 }
 
+/// Describes if a window is activated by the mouse.
+///
+/// For a detail explanation, see[`WM_MOUSEACTIVATE docs`].
+///
+/// [`WM_MOUSEACTIVATE docs`]: https://learn.microsoft.com/en-us/windows/win32/inputdev/wm-mouseactivate
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum MouseActivate {
+    #[default]
+    Activate = 1,
+    ActivateAndEat = 2,
+    NoActivate = 3,
+    NoActivateAndEat = 4,
+}
+
 /// Describes a color used by Windows
 #[repr(transparent)]
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
@@ -356,6 +370,9 @@ pub trait WindowExtWindows {
     unsafe fn window_handle_any_thread(
         &self,
     ) -> Result<rwh_06::WindowHandle<'_>, rwh_06::HandleError>;
+
+    /// Set whether the mouse activates the window.
+    fn set_mouse_activate(&self, mouse_activate: MouseActivate);
 }
 
 impl WindowExtWindows for Window {
@@ -417,6 +434,11 @@ impl WindowExtWindows for Window {
             // SAFETY: The handle is valid in this context.
             Ok(rwh_06::WindowHandle::borrow_raw(handle))
         }
+    }
+
+    #[inline]
+    fn set_mouse_activate(&self, mouse_activate: MouseActivate) {
+        self.window.set_mouse_activate(mouse_activate);
     }
 }
 
@@ -535,6 +557,9 @@ pub trait WindowAttributesExtWindows {
     ///
     /// Supported starting with Windows 11 Build 22000.
     fn with_corner_preference(self, corners: CornerPreference) -> Self;
+
+    /// Sets whether the mouse activates the window.
+    fn with_mouse_activate(self, mouse_activate: MouseActivate) -> Self;
 }
 
 impl WindowAttributesExtWindows for WindowAttributes {
@@ -619,6 +644,12 @@ impl WindowAttributesExtWindows for WindowAttributes {
     #[inline]
     fn with_corner_preference(mut self, corners: CornerPreference) -> Self {
         self.platform_specific.corner_preference = Some(corners);
+        self
+    }
+
+    #[inline]
+    fn with_mouse_activate(mut self, mouse_activate: MouseActivate) -> Self {
+        self.platform_specific.mouse_activate = mouse_activate;
         self
     }
 }

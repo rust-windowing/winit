@@ -43,6 +43,7 @@ changelog entry.
 ### Added
 
 - Add `ActiveEventLoop::create_proxy()`.
+- On Windows, implement whether a window is focused when clicked via `WM_MOUSEACTIVATE`.
 
 ### Changed
 
