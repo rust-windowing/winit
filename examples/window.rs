@@ -320,6 +320,7 @@ impl ApplicationHandler for Application {
 
         match event {
             WindowEvent::Resized(size) => {
+                info!("Window={window_id:?} resized to {size:?}");
                 window.resize(size);
             },
             WindowEvent::Focused(focused) => {

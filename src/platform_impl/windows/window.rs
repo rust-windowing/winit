@@ -45,6 +45,7 @@ use windows_sys::Win32::UI::WindowsAndMessaging::{
 };
 
 use tracing::warn;
+use windows_sys::Win32::UI::WindowsAndMessaging::AdjustWindowRectEx;
 
 use crate::cursor::Cursor;
 use crate::dpi::{PhysicalPosition, PhysicalSize, Position, Size};
@@ -1252,6 +1253,7 @@ impl<'a> InitData<'a> {
         win.set_taskbar_icon(self.attributes.platform_specific.taskbar_icon.clone());
 
         let attributes = self.attributes.clone();
+        let clamped_size = calculate_clamped_window_size(&attributes, win.scale_factor());
 
         if attributes.content_protected {
             win.set_content_protected(true);
@@ -1265,12 +1267,6 @@ impl<'a> InitData<'a> {
 
         win.set_enabled_buttons(attributes.enabled_buttons);
 
-        let size = attributes.inner_size.unwrap_or_else(|| PhysicalSize::new(800, 600).into());
-        let max_size = attributes
-            .max_inner_size
-            .unwrap_or_else(|| PhysicalSize::new(f64::MAX, f64::MAX).into());
-        let min_size = attributes.min_inner_size.unwrap_or_else(|| PhysicalSize::new(0, 0).into());
-        let clamped_size = Size::clamp(size, min_size, max_size, win.scale_factor());
         win.request_inner_size(clamped_size);
 
         // let margins = MARGINS {
@@ -1361,9 +1357,25 @@ unsafe fn init(
     let menu = attributes.platform_specific.menu;
     let fullscreen = attributes.fullscreen.clone();
     let maximized = attributes.maximized;
+
+    let default_scale_factor =
+        event_loop.primary_monitor().map(|monitor| monitor.scale_factor()).unwrap_or(1.0);
+    let clamped_size = calculate_clamped_window_size(&attributes, default_scale_factor);
+
     let mut initdata = InitData { event_loop, attributes, window_flags, window: None };
 
     let (style, ex_style) = window_flags.to_window_styles();
+
+    // Best effort: try to create the window with the requested inner size
+    let adjusted_size = {
+        let [w, h]: [i32; 2] = clamped_size.to_physical::<u32>(default_scale_factor).into();
+        let mut rect = RECT { left: 0, top: 0, right: w, bottom: h };
+        unsafe {
+            AdjustWindowRectEx(&mut rect, style, menu.is_some().into(), ex_style);
+        }
+        (rect.right - rect.left, rect.bottom - rect.top)
+    };
+
     let handle = unsafe {
         CreateWindowExW(
             ex_style,
@@ -1372,8 +1384,8 @@ unsafe fn init(
             style,
             CW_USEDEFAULT,
             CW_USEDEFAULT,
-            CW_USEDEFAULT,
-            CW_USEDEFAULT,
+            adjusted_size.0,
+            adjusted_size.1,
             parent.unwrap_or(0),
             menu.unwrap_or(0),
             util::get_instance_handle(),
@@ -1428,6 +1440,14 @@ unsafe fn register_window_class(class_name: &[u16]) {
     // Also since there is no weird element in the struct, there is no reason for this
     //  call to fail.
     unsafe { RegisterClassExW(&class) };
+}
+
+fn calculate_clamped_window_size(attributes: &WindowAttributes, scale_factor: f64) -> Size {
+    let size = attributes.inner_size.unwrap_or_else(|| PhysicalSize::new(800, 600).into());
+    let max_size =
+        attributes.max_inner_size.unwrap_or_else(|| PhysicalSize::new(f64::MAX, f64::MAX).into());
+    let min_size = attributes.min_inner_size.unwrap_or_else(|| PhysicalSize::new(0, 0).into());
+    Size::clamp(size, min_size, max_size, scale_factor)
 }
 
 struct ComInitialized(#[allow(dead_code)] *mut ());
