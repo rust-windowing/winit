@@ -11,13 +11,6 @@ mod schedule;
 
 use std::sync::OnceLock;
 
-pub use self::canvas::{Canvas, Style};
-pub use self::event::ButtonsState;
-pub use self::event_handle::EventListenerHandle;
-pub use self::resize_scaling::ResizeScaleHandle;
-pub use self::schedule::Schedule;
-
-use crate::dpi::{LogicalPosition, LogicalSize};
 use js_sys::Array;
 use wasm_bindgen::closure::Closure;
 use wasm_bindgen::prelude::wasm_bindgen;
@@ -25,6 +18,13 @@ use wasm_bindgen::JsCast;
 use web_sys::{
     Document, HtmlCanvasElement, Navigator, PageTransitionEvent, VisibilityState, Window,
 };
+
+pub use self::canvas::{Canvas, Style};
+pub use self::event::ButtonsState;
+pub use self::event_handle::EventListenerHandle;
+pub use self::resize_scaling::ResizeScaleHandle;
+pub use self::schedule::Schedule;
+use crate::dpi::{LogicalPosition, LogicalSize};
 
 pub fn throw(msg: &str) {
     wasm_bindgen::throw_str(msg);

@@ -1,8 +1,9 @@
-use super::super::main_thread::MainThreadMarker;
 use std::cell::{Ref, RefCell};
 use std::future::Future;
 use std::marker::PhantomData;
 use std::sync::Arc;
+
+use super::super::main_thread::MainThreadMarker;
 
 // Unsafe wrapper type that allows us to use `T` when it's not `Send` from other threads.
 // `value` **must** only be accessed on the main thread.

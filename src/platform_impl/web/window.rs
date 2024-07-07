@@ -1,3 +1,14 @@
+use std::cell::RefCell;
+use std::collections::VecDeque;
+use std::rc::Rc;
+use std::sync::Arc;
+
+use web_sys::HtmlCanvasElement;
+
+use super::main_thread::{MainThreadMarker, MainThreadSafe};
+use super::monitor::MonitorHandle;
+use super::r#async::Dispatcher;
+use super::{backend, ActiveEventLoop, Fullscreen};
 use crate::dpi::{PhysicalPosition, PhysicalSize, Position, Size};
 use crate::error::{ExternalError, NotSupportedError, OsError as RootOE};
 use crate::icon::Icon;
@@ -5,17 +16,6 @@ use crate::window::{
     Cursor, CursorGrabMode, ImePurpose, ResizeDirection, Theme, UserAttentionType,
     WindowAttributes, WindowButtons, WindowId as RootWI, WindowLevel,
 };
-
-use super::main_thread::{MainThreadMarker, MainThreadSafe};
-use super::monitor::MonitorHandle;
-use super::r#async::Dispatcher;
-use super::{backend, ActiveEventLoop, Fullscreen};
-use web_sys::HtmlCanvasElement;
-
-use std::cell::RefCell;
-use std::collections::VecDeque;
-use std::rc::Rc;
-use std::sync::Arc;
 
 pub struct Window {
     inner: Dispatcher<Inner>,

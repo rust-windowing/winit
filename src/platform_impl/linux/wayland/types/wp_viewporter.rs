@@ -1,12 +1,11 @@
 //! Handling of the wp-viewporter.
 
+use sctk::globals::GlobalData;
 use sctk::reexports::client::globals::{BindError, GlobalList};
 use sctk::reexports::client::protocol::wl_surface::WlSurface;
 use sctk::reexports::client::{delegate_dispatch, Connection, Dispatch, Proxy, QueueHandle};
 use sctk::reexports::protocols::wp::viewporter::client::wp_viewport::WpViewport;
 use sctk::reexports::protocols::wp::viewporter::client::wp_viewporter::WpViewporter;
-
-use sctk::globals::GlobalData;
 
 use crate::platform_impl::wayland::state::WinitState;
 

@@ -17,16 +17,14 @@ use objc2::{msg_send_id, ClassType};
 use objc2_foundation::{MainThreadMarker, NSString};
 use objc2_ui_kit::{UIApplication, UIApplicationMain, UIScreen};
 
-use super::app_state::EventLoopHandler;
+use super::app_delegate::AppDelegate;
+use super::app_state::{AppState, EventLoopHandler};
+use super::{app_state, monitor, MonitorHandle};
 use crate::application::ApplicationHandler;
 use crate::error::EventLoopError;
 use crate::event::Event;
 use crate::event_loop::{ActiveEventLoop as RootActiveEventLoop, ControlFlow, DeviceEvents};
 use crate::window::{CustomCursor, CustomCursorSource};
-
-use super::app_delegate::AppDelegate;
-use super::app_state::AppState;
-use super::{app_state, monitor, MonitorHandle};
 
 #[derive(Debug)]
 pub struct ActiveEventLoop {

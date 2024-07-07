@@ -15,9 +15,8 @@
 //! * `wayland-csd-adwaita-notitle`.
 use crate::event_loop::{ActiveEventLoop, EventLoop, EventLoopBuilder};
 use crate::monitor::MonitorHandle;
-use crate::window::{Window, WindowAttributes};
-
 pub use crate::window::Theme;
+use crate::window::{Window, WindowAttributes};
 
 /// Additional methods on [`ActiveEventLoop`] that are specific to Wayland.
 pub trait ActiveEventLoopExtWayland {

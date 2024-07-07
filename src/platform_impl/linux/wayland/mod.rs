@@ -3,16 +3,16 @@
 use std::fmt::Display;
 use std::sync::Arc;
 
+pub use event_loop::{ActiveEventLoop, EventLoop, EventLoopProxy};
+pub use output::{MonitorHandle, VideoModeHandle};
 use sctk::reexports::client::globals::{BindError, GlobalError};
 use sctk::reexports::client::protocol::wl_surface::WlSurface;
 use sctk::reexports::client::{self, ConnectError, DispatchError, Proxy};
+pub use window::Window;
 
 pub(super) use crate::cursor::OnlyCursorImage as CustomCursor;
 use crate::dpi::{LogicalSize, PhysicalSize};
 pub use crate::platform_impl::platform::{OsError, WindowId};
-pub use event_loop::{ActiveEventLoop, EventLoop, EventLoopProxy};
-pub use output::{MonitorHandle, VideoModeHandle};
-pub use window::Window;
 
 mod event_loop;
 mod output;

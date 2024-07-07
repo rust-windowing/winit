@@ -761,8 +761,9 @@ impl<P: Pixel> From<LogicalPosition<P>> for Position {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use std::collections::HashSet;
+
+    use super::*;
 
     macro_rules! test_pixel_int_impl {
         ($($name:ident => $ty:ty),*) => {$(

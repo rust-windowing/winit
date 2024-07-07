@@ -3,11 +3,10 @@ use std::os::raw::c_char;
 use std::ptr;
 use std::sync::Arc;
 
-use super::{ffi, XConnection, XError};
-
 use super::context::{ImeContext, ImeContextCreationError};
 use super::inner::{close_im, ImeInner};
 use super::input_method::PotentialInputMethods;
+use super::{ffi, XConnection, XError};
 
 pub(crate) unsafe fn xim_set_callback(
     xconn: &Arc<XConnection>,

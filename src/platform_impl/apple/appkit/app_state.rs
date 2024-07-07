@@ -10,15 +10,14 @@ use objc2::{declare_class, msg_send_id, mutability, ClassType, DeclaredClass};
 use objc2_app_kit::{NSApplication, NSApplicationActivationPolicy, NSApplicationDelegate};
 use objc2_foundation::{MainThreadMarker, NSNotification, NSObject, NSObjectProtocol};
 
-use crate::application::ApplicationHandler;
-use crate::event::{StartCause, WindowEvent};
-use crate::event_loop::{ActiveEventLoop as RootActiveEventLoop, ControlFlow};
-use crate::window::WindowId as RootWindowId;
-
 use super::event_handler::EventHandler;
 use super::event_loop::{stop_app_immediately, ActiveEventLoop, PanicInfo};
 use super::observer::{EventLoopWaker, RunLoop};
 use super::{menu, WindowId};
+use crate::application::ApplicationHandler;
+use crate::event::{StartCause, WindowEvent};
+use crate::event_loop::{ActiveEventLoop as RootActiveEventLoop, ControlFlow};
+use crate::window::WindowId as RootWindowId;
 
 #[derive(Debug)]
 pub(super) struct AppState {

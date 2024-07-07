@@ -1,12 +1,11 @@
 use std::ops::Deref;
 use std::os::raw::c_char;
+#[cfg(wayland_platform)]
+use std::os::unix::io::OwnedFd;
 use std::ptr::{self, NonNull};
 use std::sync::atomic::{AtomicBool, Ordering};
 
-use crate::utils::Lazy;
 use smol_str::SmolStr;
-#[cfg(wayland_platform)]
-use std::os::unix::io::OwnedFd;
 use tracing::warn;
 use xkbcommon_dl::{
     self as xkb, xkb_compose_status, xkb_context, xkb_context_flags, xkbcommon_compose_handle,
@@ -18,16 +17,16 @@ use {x11_dl::xlib_xcb::xcb_connection_t, xkbcommon_dl::x11::xkbcommon_x11_handle
 use crate::event::{ElementState, KeyEvent};
 use crate::keyboard::{Key, KeyLocation};
 use crate::platform_impl::KeyEventExtra;
+use crate::utils::Lazy;
 
 mod compose;
 mod keymap;
 mod state;
 
 use compose::{ComposeStatus, XkbComposeState, XkbComposeTable};
-use keymap::XkbKeymap;
-
 #[cfg(x11_platform)]
 pub use keymap::raw_keycode_to_physicalkey;
+use keymap::XkbKeymap;
 pub use keymap::{physicalkey_to_scancode, scancode_to_physicalkey};
 pub use state::XkbState;
 

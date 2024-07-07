@@ -5,7 +5,6 @@ use std::os::windows::prelude::{OsStrExt, OsStringExt};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::{io, mem, ptr};
 
-use crate::utils::Lazy;
 use windows_sys::core::{HRESULT, PCWSTR};
 use windows_sys::Win32::Foundation::{BOOL, HANDLE, HMODULE, HWND, RECT};
 use windows_sys::Win32::Graphics::Gdi::{ClientToScreen, HMONITOR};
@@ -24,6 +23,7 @@ use windows_sys::Win32::UI::WindowsAndMessaging::{
     WINDOWPLACEMENT,
 };
 
+use crate::utils::Lazy;
 use crate::window::CursorIcon;
 
 pub fn encode_wide(string: impl AsRef<OsStr>) -> Vec<u16> {

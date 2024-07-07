@@ -6,10 +6,9 @@ use std::sync::Arc;
 
 use smol_str::SmolStr;
 
+pub(crate) use self::event_loop::{ActiveEventLoop, EventLoop, EventLoopProxy, OwnedDisplayHandle};
 use crate::dpi::{PhysicalPosition, PhysicalSize};
 use crate::keyboard::Key;
-
-pub(crate) use self::event_loop::{ActiveEventLoop, EventLoop, EventLoopProxy, OwnedDisplayHandle};
 mod event_loop;
 
 pub use self::window::Window;

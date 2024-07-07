@@ -1,12 +1,12 @@
 use std::str::FromStr;
 use std::{env, str};
 
+use tracing::warn;
+use x11rb::protocol::randr::{self, ConnectionExt as _};
+
 use super::*;
 use crate::dpi::validate_scale_factor;
 use crate::platform_impl::platform::x11::{monitor, VideoModeHandle};
-
-use tracing::warn;
-use x11rb::protocol::randr::{self, ConnectionExt as _};
 
 /// Represents values of `WINIT_HIDPI_FACTOR`.
 pub enum EnvVarDPI {

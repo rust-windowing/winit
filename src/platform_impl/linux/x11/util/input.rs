@@ -1,4 +1,5 @@
 use std::{slice, str};
+
 use x11rb::protocol::xinput::{self, ConnectionExt as _};
 use x11rb::protocol::xkb;
 

@@ -13,6 +13,10 @@ use x11rb::protocol::xfixes::{ConnectionExt, RegionWrapper};
 use x11rb::protocol::xproto::{self, ConnectionExt as _, Rectangle};
 use x11rb::protocol::{randr, xinput};
 
+use super::util::{self, SelectedCursor};
+use super::{
+    ffi, ActiveEventLoop, CookieResultExt, ImeRequest, ImeSender, VoidCookie, WindowId, XConnection,
+};
 use crate::cursor::{Cursor, CustomCursor as RootCustomCursor};
 use crate::dpi::{PhysicalPosition, PhysicalSize, Position, Size};
 use crate::error::{ExternalError, NotSupportedError, OsError as RootOsError};
@@ -30,11 +34,6 @@ use crate::platform_impl::{
 use crate::window::{
     CursorGrabMode, ImePurpose, ResizeDirection, Theme, UserAttentionType, WindowAttributes,
     WindowButtons, WindowLevel,
-};
-
-use super::util::{self, SelectedCursor};
-use super::{
-    ffi, ActiveEventLoop, CookieResultExt, ImeRequest, ImeSender, VoidCookie, WindowId, XConnection,
 };
 
 #[derive(Debug)]

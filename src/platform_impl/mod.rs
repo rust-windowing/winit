@@ -22,12 +22,11 @@ use self::apple as platform;
 use self::linux as platform;
 #[cfg(orbital_platform)]
 use self::orbital as platform;
+pub use self::platform::*;
 #[cfg(web_platform)]
 use self::web as platform;
 #[cfg(windows_platform)]
 use self::windows as platform;
-
-pub use self::platform::*;
 
 /// Helper for converting between platform-specific and generic
 /// [`VideoModeHandle`]/[`MonitorHandle`]

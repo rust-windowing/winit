@@ -3,16 +3,14 @@ use std::sync::atomic::Ordering;
 use std::sync::{Arc, Mutex};
 
 use ahash::AHashMap;
-
+use sctk::compositor::{CompositorHandler, CompositorState};
+use sctk::output::{OutputHandler, OutputState};
 use sctk::reexports::calloop::LoopHandle;
 use sctk::reexports::client::backend::ObjectId;
 use sctk::reexports::client::globals::GlobalList;
 use sctk::reexports::client::protocol::wl_output::WlOutput;
 use sctk::reexports::client::protocol::wl_surface::WlSurface;
 use sctk::reexports::client::{Connection, Proxy, QueueHandle};
-
-use sctk::compositor::{CompositorHandler, CompositorState};
-use sctk::output::{OutputHandler, OutputState};
 use sctk::registry::{ProvidesRegistryState, RegistryState};
 use sctk::seat::pointer::ThemedPointer;
 use sctk::seat::SeatState;

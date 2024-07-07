@@ -1,17 +1,14 @@
 //! Touch handling.
 
-use tracing::warn;
-
 use sctk::reexports::client::protocol::wl_seat::WlSeat;
 use sctk::reexports::client::protocol::wl_surface::WlSurface;
 use sctk::reexports::client::protocol::wl_touch::WlTouch;
 use sctk::reexports::client::{Connection, Proxy, QueueHandle};
-
 use sctk::seat::touch::{TouchData, TouchHandler};
+use tracing::warn;
 
 use crate::dpi::LogicalPosition;
 use crate::event::{Touch, TouchPhase, WindowEvent};
-
 use crate::platform_impl::wayland::state::WinitState;
 use crate::platform_impl::wayland::{self, DeviceId};
 

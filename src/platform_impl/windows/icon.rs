@@ -14,11 +14,10 @@ use windows_sys::Win32::UI::WindowsAndMessaging::{
     HICON, ICONINFO, ICON_BIG, ICON_SMALL, IMAGE_ICON, LR_DEFAULTSIZE, LR_LOADFROMFILE, WM_SETICON,
 };
 
+use super::util;
 use crate::cursor::CursorImage;
 use crate::dpi::PhysicalSize;
 use crate::icon::*;
-
-use super::util;
 
 impl Pixel {
     fn convert_to_bgra(&mut self) {

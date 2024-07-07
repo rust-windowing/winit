@@ -1,7 +1,6 @@
 use crate::application::ApplicationHandler;
 use crate::error::EventLoopError;
 use crate::event_loop::{ActiveEventLoop, EventLoop};
-
 #[cfg(doc)]
 use crate::{platform::pump_events::EventLoopExtPumpEvents, window::Window};
 

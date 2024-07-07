@@ -12,13 +12,12 @@ use std::sync::Arc;
 use serde::{Deserialize, Serialize};
 use tracing::debug;
 
-use super::{ffi, util, XConnection, XError};
-
 use self::callbacks::*;
 use self::context::ImeContext;
 pub use self::context::ImeContextCreationError;
 use self::inner::{close_im, ImeInner};
 use self::input_method::{PotentialInputMethods, Style};
+use super::{ffi, util, XConnection, XError};
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]

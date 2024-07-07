@@ -70,10 +70,9 @@
 //! 4. Pass a clone of the `AndroidApp` that your application receives to Winit when building your
 //!    event loop (as shown above).
 
+use self::activity::{AndroidApp, ConfigurationRef, Rect};
 use crate::event_loop::{ActiveEventLoop, EventLoop, EventLoopBuilder};
 use crate::window::{Window, WindowAttributes};
-
-use self::activity::{AndroidApp, ConfigurationRef, Rect};
 
 /// Additional methods on [`EventLoop`] that are specific to Android.
 pub trait EventLoopExtAndroid {}

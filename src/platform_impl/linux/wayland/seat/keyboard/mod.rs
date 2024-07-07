@@ -5,17 +5,15 @@ use std::time::Duration;
 
 use calloop::timer::{TimeoutAction, Timer};
 use calloop::{LoopHandle, RegistrationToken};
-use tracing::warn;
-
 use sctk::reexports::client::protocol::wl_keyboard::{
     Event as WlKeyboardEvent, KeyState as WlKeyState, KeymapFormat as WlKeymapFormat, WlKeyboard,
 };
 use sctk::reexports::client::protocol::wl_seat::WlSeat;
 use sctk::reexports::client::{Connection, Dispatch, Proxy, QueueHandle, WEnum};
+use tracing::warn;
 
 use crate::event::{ElementState, WindowEvent};
 use crate::keyboard::ModifiersState;
-
 use crate::platform_impl::common::xkb::Context;
 use crate::platform_impl::wayland::event_loop::sink::EventSink;
 use crate::platform_impl::wayland::state::WinitState;
