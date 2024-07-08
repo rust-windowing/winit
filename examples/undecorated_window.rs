@@ -23,7 +23,7 @@ impl Default for App {
 }
 
 impl ApplicationHandler for App {
-    fn resumed(&mut self, event_loop: &ActiveEventLoop) {
+    fn can_create_surfaces(&mut self, event_loop: &ActiveEventLoop) {
         let mut attrs = Window::default_attributes().with_decorations(false);
         #[cfg(windows)]
         {
