@@ -3,6 +3,7 @@
 use std::cell::{RefCell, RefMut};
 use std::collections::HashSet;
 use std::os::raw::c_void;
+use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, Mutex, OnceLock};
 use std::time::Instant;
 use std::{fmt, mem, ptr};
@@ -40,12 +41,9 @@ macro_rules! bug_assert {
     };
 }
 
-#[derive(Debug)]
-pub(crate) struct HandlePendingUserEvents;
-
 pub(crate) struct EventLoopHandler {
     #[allow(clippy::type_complexity)]
-    pub(crate) handler: Box<dyn FnMut(Event<HandlePendingUserEvents>, &RootActiveEventLoop)>,
+    pub(crate) handler: Box<dyn FnMut(Event, &RootActiveEventLoop)>,
     pub(crate) event_loop: RootActiveEventLoop,
 }
 
@@ -59,14 +57,14 @@ impl fmt::Debug for EventLoopHandler {
 }
 
 impl EventLoopHandler {
-    fn handle_event(&mut self, event: Event<HandlePendingUserEvents>) {
+    fn handle_event(&mut self, event: Event) {
         (self.handler)(event, &self.event_loop)
     }
 }
 
 #[derive(Debug)]
 pub(crate) enum EventWrapper {
-    StaticEvent(Event<HandlePendingUserEvents>),
+    StaticEvent(Event),
     ScaleFactorChanged(ScaleFactorChanged),
 }
 
@@ -88,7 +86,7 @@ enum UserCallbackTransitionResult<'a> {
     },
 }
 
-impl Event<HandlePendingUserEvents> {
+impl Event {
     fn is_redraw(&self) -> bool {
         matches!(self, Event::WindowEvent { event: WindowEvent::RedrawRequested, .. })
     }
@@ -138,6 +136,7 @@ pub(crate) struct AppState {
     app_state: Option<AppStateImpl>,
     control_flow: ControlFlow,
     waker: EventLoopWaker,
+    proxy_wake_up: Arc<AtomicBool>,
 }
 
 impl AppState {
@@ -161,6 +160,7 @@ impl AppState {
                     }),
                     control_flow: ControlFlow::default(),
                     waker,
+                    proxy_wake_up: Arc::new(AtomicBool::new(false)),
                 });
             }
             init_guard(&mut guard);
@@ -405,6 +405,10 @@ impl AppState {
         }
     }
 
+    pub(crate) fn proxy_wake_up(&self) -> Arc<AtomicBool> {
+        self.proxy_wake_up.clone()
+    }
+
     pub(crate) fn set_control_flow(&mut self, control_flow: ControlFlow) {
         self.control_flow = control_flow;
     }
@@ -492,8 +496,12 @@ pub fn did_finish_launching(mtm: MainThreadMarker) {
 
     let (windows, events) = AppState::get_mut(mtm).did_finish_launching_transition();
 
-    let events = std::iter::once(EventWrapper::StaticEvent(Event::NewEvents(StartCause::Init)))
-        .chain(events);
+    let events = [
+        EventWrapper::StaticEvent(Event::NewEvents(StartCause::Init)),
+        EventWrapper::StaticEvent(Event::CreateSurfaces),
+    ]
+    .into_iter()
+    .chain(events);
     handle_nonuser_events(mtm, events);
 
     // the above window dance hack, could possibly trigger new windows to be created.
@@ -625,7 +633,7 @@ fn handle_user_events(mtm: MainThreadMarker) {
     }
     drop(this);
 
-    handler.handle_event(Event::UserEvent(HandlePendingUserEvents));
+    handler.handle_event(Event::UserWakeUp);
 
     loop {
         let mut this = AppState::get_mut(mtm);
@@ -658,7 +666,7 @@ fn handle_user_events(mtm: MainThreadMarker) {
             }
         }
 
-        handler.handle_event(Event::UserEvent(HandlePendingUserEvents));
+        handler.handle_event(Event::UserWakeUp);
     }
 }
 

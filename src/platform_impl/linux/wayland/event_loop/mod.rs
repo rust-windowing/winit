@@ -5,7 +5,6 @@ use std::io::Result as IOResult;
 use std::marker::PhantomData;
 use std::mem;
 use std::os::unix::io::{AsFd, AsRawFd, BorrowedFd, RawFd};
-use std::rc::Rc;
 use std::sync::atomic::Ordering;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
@@ -40,21 +39,13 @@ use super::{logical_to_physical_rounded, DeviceId, WaylandError, WindowId};
 type WaylandDispatcher = calloop::Dispatcher<'static, WaylandSource<WinitState>, WinitState>;
 
 /// The Wayland event loop.
-pub struct EventLoop<T: 'static> {
+pub struct EventLoop {
     /// Has `run` or `run_on_demand` been called or a call to `pump_events` that starts the loop
     loop_running: bool,
 
     buffer_sink: EventSink,
     compositor_updates: Vec<WindowCompositorUpdate>,
     window_ids: Vec<WindowId>,
-
-    /// Sender of user events.
-    user_events_sender: calloop::channel::Sender<T>,
-
-    // XXX can't remove RefCell out of here, unless we can plumb generics into the `Window`, which
-    // we don't really want, since it'll break public API by a lot.
-    /// Pending events from the user.
-    pending_user_events: Rc<RefCell<Vec<T>>>,
 
     /// The Wayland dispatcher to has raw access to the queue when needed, such as
     /// when creating a new window.
@@ -71,8 +62,8 @@ pub struct EventLoop<T: 'static> {
     event_loop: calloop::EventLoop<'static, WinitState>,
 }
 
-impl<T: 'static> EventLoop<T> {
-    pub fn new() -> Result<EventLoop<T>, EventLoopError> {
+impl EventLoop {
+    pub fn new() -> Result<EventLoop, EventLoopError> {
         macro_rules! map_err {
             ($e:expr, $err:expr) => {
                 $e.map_err(|error| os_error!($err(error).into()))
@@ -115,16 +106,12 @@ impl<T: 'static> EventLoop<T> {
         )?;
 
         // Setup the user proxy.
-        let pending_user_events = Rc::new(RefCell::new(Vec::new()));
-        let pending_user_events_clone = pending_user_events.clone();
-        let (user_events_sender, user_events_channel) = calloop::channel::channel();
+        let (ping, ping_source) = calloop::ping::make_ping().unwrap();
         let result = event_loop
             .handle()
-            .insert_source(user_events_channel, move |event, _, winit_state: &mut WinitState| {
-                if let calloop::channel::Event::Msg(msg) = event {
-                    winit_state.dispatched_events = true;
-                    pending_user_events_clone.borrow_mut().push(msg);
-                }
+            .insert_source(ping_source, move |_, _, winit_state: &mut WinitState| {
+                winit_state.dispatched_events = true;
+                winit_state.proxy_wake_up = true;
             })
             .map_err(|error| error.error);
         map_err!(result, WaylandError::Calloop)?;
@@ -149,6 +136,7 @@ impl<T: 'static> EventLoop<T> {
             connection: connection.clone(),
             wayland_dispatcher: wayland_dispatcher.clone(),
             event_loop_awakener,
+            event_loop_proxy: EventLoopProxy::new(ping),
             queue_handle,
             control_flow: Cell::new(ControlFlow::default()),
             exit: Cell::new(None),
@@ -162,8 +150,6 @@ impl<T: 'static> EventLoop<T> {
             window_ids: Vec::new(),
             connection,
             wayland_dispatcher,
-            user_events_sender,
-            pending_user_events,
             event_loop,
             window_target: RootActiveEventLoop {
                 p: PlatformActiveEventLoop::Wayland(window_target),
@@ -174,11 +160,11 @@ impl<T: 'static> EventLoop<T> {
         Ok(event_loop)
     }
 
-    pub fn run_app<A: ApplicationHandler<T>>(mut self, app: &mut A) -> Result<(), EventLoopError> {
+    pub fn run_app<A: ApplicationHandler>(mut self, app: &mut A) -> Result<(), EventLoopError> {
         self.run_app_on_demand(app)
     }
 
-    pub fn run_app_on_demand<A: ApplicationHandler<T>>(
+    pub fn run_app_on_demand<A: ApplicationHandler>(
         &mut self,
         app: &mut A,
     ) -> Result<(), EventLoopError> {
@@ -205,7 +191,7 @@ impl<T: 'static> EventLoop<T> {
         exit
     }
 
-    pub fn pump_app_events<A: ApplicationHandler<T>>(
+    pub fn pump_app_events<A: ApplicationHandler>(
         &mut self,
         timeout: Option<Duration>,
         app: &mut A,
@@ -233,7 +219,7 @@ impl<T: 'static> EventLoop<T> {
         }
     }
 
-    pub fn poll_events_with_timeout<A: ApplicationHandler<T>>(
+    pub fn poll_events_with_timeout<A: ApplicationHandler>(
         &mut self,
         mut timeout: Option<Duration>,
         app: &mut A,
@@ -302,7 +288,7 @@ impl<T: 'static> EventLoop<T> {
         self.single_iteration(app, cause);
     }
 
-    fn single_iteration<A: ApplicationHandler<T>>(&mut self, app: &mut A, cause: StartCause) {
+    fn single_iteration<A: ApplicationHandler>(&mut self, app: &mut A, cause: StartCause) {
         // NOTE currently just indented to simplify the diff
 
         // We retain these grow-only scratch buffers as part of the EventLoop
@@ -315,16 +301,15 @@ impl<T: 'static> EventLoop<T> {
 
         app.new_events(&self.window_target, cause);
 
-        // NB: For consistency all platforms must emit a 'resumed' event even though Wayland
-        // applications don't themselves have a formal suspend/resume lifecycle.
+        // NB: For consistency all platforms must call `can_create_surfaces` even though Wayland
+        // applications don't themselves have a formal surface destroy/create lifecycle.
         if cause == StartCause::Init {
-            app.resumed(&self.window_target);
+            app.can_create_surfaces(&self.window_target);
         }
 
-        // Handle pending user events. We don't need back buffer, since we can't dispatch
-        // user events indirectly via callback to the user.
-        for user_event in self.pending_user_events.borrow_mut().drain(..) {
-            app.user_event(&self.window_target, user_event);
+        // Indicate user wake up.
+        if self.with_state(|state| mem::take(&mut state.proxy_wake_up)) {
+            app.proxy_wake_up(&self.window_target);
         }
 
         // Drain the pending compositor updates.
@@ -525,11 +510,6 @@ impl<T: 'static> EventLoop<T> {
     }
 
     #[inline]
-    pub fn create_proxy(&self) -> EventLoopProxy<T> {
-        EventLoopProxy::new(self.user_events_sender.clone())
-    }
-
-    #[inline]
     pub fn window_target(&self) -> &RootActiveEventLoop {
         &self.window_target
     }
@@ -588,19 +568,22 @@ impl<T: 'static> EventLoop<T> {
     }
 }
 
-impl<T> AsFd for EventLoop<T> {
+impl AsFd for EventLoop {
     fn as_fd(&self) -> BorrowedFd<'_> {
         self.event_loop.as_fd()
     }
 }
 
-impl<T> AsRawFd for EventLoop<T> {
+impl AsRawFd for EventLoop {
     fn as_raw_fd(&self) -> RawFd {
         self.event_loop.as_raw_fd()
     }
 }
 
 pub struct ActiveEventLoop {
+    /// Event loop proxy
+    event_loop_proxy: EventLoopProxy,
+
     /// The event loop wakeup source.
     pub event_loop_awakener: calloop::ping::Ping,
 
@@ -625,6 +608,10 @@ pub struct ActiveEventLoop {
 }
 
 impl ActiveEventLoop {
+    pub(crate) fn create_proxy(&self) -> EventLoopProxy {
+        self.event_loop_proxy.clone()
+    }
+
     pub(crate) fn set_control_flow(&self, control_flow: ControlFlow) {
         self.control_flow.set(control_flow)
     }

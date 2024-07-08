@@ -155,11 +155,6 @@ impl WindowAttributesExtWebSys for WindowAttributes {
 
 /// Additional methods on `EventLoop` that are specific to the web.
 pub trait EventLoopExtWebSys {
-    /// A type provided by the user that can be passed through [`Event::UserEvent`].
-    ///
-    /// [`Event::UserEvent`]: crate::event::Event::UserEvent
-    type UserEvent: 'static;
-
     /// Initializes the winit event loop.
     ///
     /// Unlike
@@ -182,7 +177,7 @@ pub trait EventLoopExtWebSys {
         doc = "[`run_app()`]: EventLoop::run_app()"
     )]
     /// [^1]: `run_app()` is _not_ available on WASM when the target supports `exception-handling`.
-    fn spawn_app<A: ApplicationHandler<Self::UserEvent> + 'static>(self, app: A);
+    fn spawn_app<A: ApplicationHandler + 'static>(self, app: A);
 
     /// Sets the strategy for [`ControlFlow::Poll`].
     ///
@@ -213,10 +208,8 @@ pub trait EventLoopExtWebSys {
     fn wait_until_strategy(&self) -> WaitUntilStrategy;
 }
 
-impl<T> EventLoopExtWebSys for EventLoop<T> {
-    type UserEvent = T;
-
-    fn spawn_app<A: ApplicationHandler<Self::UserEvent> + 'static>(self, app: A) {
+impl EventLoopExtWebSys for EventLoop {
+    fn spawn_app<A: ApplicationHandler + 'static>(self, app: A) {
         self.event_loop.spawn_app(app);
     }
 

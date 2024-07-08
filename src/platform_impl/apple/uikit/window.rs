@@ -17,15 +17,13 @@ use tracing::{debug, warn};
 use super::app_state::EventWrapper;
 use super::view::WinitView;
 use super::view_controller::WinitViewController;
+use super::{app_state, monitor, ActiveEventLoop, Fullscreen, MonitorHandle};
 use crate::cursor::Cursor;
 use crate::dpi::{LogicalPosition, LogicalSize, PhysicalPosition, PhysicalSize, Position, Size};
 use crate::error::{ExternalError, NotSupportedError, OsError as RootOsError};
 use crate::event::{Event, WindowEvent};
 use crate::icon::Icon;
 use crate::platform::ios::{ScreenEdge, StatusBarStyle, ValidOrientations};
-use crate::platform_impl::platform::{
-    app_state, monitor, ActiveEventLoop, Fullscreen, MonitorHandle,
-};
 use crate::window::{
     CursorGrabMode, ImePurpose, ResizeDirection, Theme, UserAttentionType, WindowAttributes,
     WindowButtons, WindowId as RootWindowId, WindowLevel,

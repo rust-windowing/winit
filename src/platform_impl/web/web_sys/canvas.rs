@@ -483,7 +483,7 @@ impl Canvas {
     pub(crate) fn handle_scale_change(
         &self,
         runner: &super::super::event_loop::runner::Shared,
-        event_handler: impl FnOnce(crate::event::Event<()>),
+        event_handler: impl FnOnce(crate::event::Event),
         current_size: PhysicalSize<u32>,
         scale: f64,
     ) {

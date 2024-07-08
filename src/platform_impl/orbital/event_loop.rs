@@ -272,16 +272,17 @@ impl EventState {
     }
 }
 
-pub struct EventLoop<T> {
+pub struct EventLoop {
     windows: Vec<(Arc<RedoxSocket>, EventState)>,
     window_target: event_loop::ActiveEventLoop,
-    user_events_sender: mpsc::Sender<T>,
-    user_events_receiver: mpsc::Receiver<T>,
+    user_events_receiver: mpsc::Receiver<()>,
 }
 
-impl<T: 'static> EventLoop<T> {
+impl EventLoop {
     pub(crate) fn new(_: &PlatformSpecificEventLoopAttributes) -> Result<Self, EventLoopError> {
-        let (user_events_sender, user_events_receiver) = mpsc::channel();
+        // NOTE: Create a channel which can hold only one event to automatically _squash_ user
+        // events.
+        let (user_events_sender, user_events_receiver) = mpsc::sync_channel(1);
 
         let event_socket = Arc::new(
             RedoxSocket::event()
@@ -315,15 +316,15 @@ impl<T: 'static> EventLoop<T> {
                     destroys: Arc::new(Mutex::new(VecDeque::new())),
                     event_socket,
                     wake_socket,
+                    user_events_sender,
                 },
                 _marker: PhantomData,
             },
-            user_events_sender,
             user_events_receiver,
         })
     }
 
-    fn process_event<A: ApplicationHandler<T>>(
+    fn process_event<A: ApplicationHandler>(
         window_id: WindowId,
         event_option: EventOption,
         event_state: &mut EventState,
@@ -500,13 +501,13 @@ impl<T: 'static> EventLoop<T> {
         }
     }
 
-    pub fn run_app<A: ApplicationHandler<T>>(mut self, app: &mut A) -> Result<(), EventLoopError> {
+    pub fn run_app<A: ApplicationHandler>(mut self, app: &mut A) -> Result<(), EventLoopError> {
         let mut start_cause = StartCause::Init;
         loop {
             app.new_events(&self.window_target, start_cause);
 
             if start_cause == StartCause::Init {
-                app.resumed(&self.window_target);
+                app.can_create_surfaces(&self.window_target);
             }
 
             // Handle window creates.
@@ -594,8 +595,8 @@ impl<T: 'static> EventLoop<T> {
                 i += 1;
             }
 
-            while let Ok(event) = self.user_events_receiver.try_recv() {
-                app.user_event(&self.window_target, event);
+            while self.user_events_receiver.try_recv().is_ok() {
+                app.proxy_wake_up(&self.window_target);
             }
 
             // To avoid deadlocks the redraws lock is not held during event processing.
@@ -682,33 +683,24 @@ impl<T: 'static> EventLoop<T> {
     pub fn window_target(&self) -> &event_loop::ActiveEventLoop {
         &self.window_target
     }
+}
 
-    pub fn create_proxy(&self) -> EventLoopProxy<T> {
-        EventLoopProxy {
-            user_events_sender: self.user_events_sender.clone(),
-            wake_socket: self.window_target.p.wake_socket.clone(),
+pub struct EventLoopProxy {
+    user_events_sender: mpsc::SyncSender<()>,
+    wake_socket: Arc<TimeSocket>,
+}
+
+impl EventLoopProxy {
+    pub fn wake_up(&self) {
+        // When we fail to send the event it means that we haven't woken up to read the previous
+        // event.
+        if self.user_events_sender.try_send(()).is_ok() {
+            self.wake_socket.wake().unwrap();
         }
     }
 }
 
-pub struct EventLoopProxy<T: 'static> {
-    user_events_sender: mpsc::Sender<T>,
-    wake_socket: Arc<TimeSocket>,
-}
-
-impl<T> EventLoopProxy<T> {
-    pub fn send_event(&self, event: T) -> Result<(), event_loop::EventLoopClosed<T>> {
-        self.user_events_sender
-            .send(event)
-            .map_err(|mpsc::SendError(x)| event_loop::EventLoopClosed(x))?;
-
-        self.wake_socket.wake().unwrap();
-
-        Ok(())
-    }
-}
-
-impl<T> Clone for EventLoopProxy<T> {
+impl Clone for EventLoopProxy {
     fn clone(&self) -> Self {
         Self {
             user_events_sender: self.user_events_sender.clone(),
@@ -717,7 +709,7 @@ impl<T> Clone for EventLoopProxy<T> {
     }
 }
 
-impl<T> Unpin for EventLoopProxy<T> {}
+impl Unpin for EventLoopProxy {}
 
 pub struct ActiveEventLoop {
     control_flow: Cell<ControlFlow>,
@@ -727,9 +719,17 @@ pub struct ActiveEventLoop {
     pub(super) destroys: Arc<Mutex<VecDeque<WindowId>>>,
     pub(super) event_socket: Arc<RedoxSocket>,
     pub(super) wake_socket: Arc<TimeSocket>,
+    user_events_sender: mpsc::SyncSender<()>,
 }
 
 impl ActiveEventLoop {
+    pub fn create_proxy(&self) -> EventLoopProxy {
+        EventLoopProxy {
+            user_events_sender: self.user_events_sender.clone(),
+            wake_socket: self.wake_socket.clone(),
+        }
+    }
+
     pub fn create_custom_cursor(&self, source: CustomCursorSource) -> RootCustomCursor {
         let _ = source.inner;
         RootCustomCursor { inner: super::PlatformCustomCursor }

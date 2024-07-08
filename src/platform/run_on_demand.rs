@@ -7,11 +7,6 @@ use crate::{platform::pump_events::EventLoopExtPumpEvents, window::Window};
 
 /// Additional methods on [`EventLoop`] to return control flow to the caller.
 pub trait EventLoopExtRunOnDemand {
-    /// A type provided by the user that can be passed through [`Event::UserEvent`].
-    ///
-    /// [`Event::UserEvent`]: crate::event::Event::UserEvent
-    type UserEvent: 'static;
-
     /// Run the application with the event loop on the calling thread.
     ///
     /// Unlike [`EventLoop::run_app`], this function accepts non-`'static` (i.e. non-`move`)
@@ -35,7 +30,9 @@ pub trait EventLoopExtRunOnDemand {
     /// # Caveats
     /// - This extension isn't available on all platforms, since it's not always possible to return
     ///   to the caller (specifically this is impossible on iOS and Web - though with the Web
-    ///   backend it is possible to use `EventLoopExtWebSys::spawn()`[^1] more than once instead).
+    ///   backend it is possible to use `EventLoopExtWebSys::spawn()`
+    #[cfg_attr(not(web_platform), doc = "[^1]")]
+    ///   more than once instead).
     /// - No [`Window`] state can be carried between separate runs of the event loop.
     ///
     /// You are strongly encouraged to use [`EventLoop::run_app()`] for portability, unless you
@@ -58,16 +55,14 @@ pub trait EventLoopExtRunOnDemand {
     ///
     /// [`exit()`]: ActiveEventLoop::exit()
     /// [`set_control_flow()`]: ActiveEventLoop::set_control_flow()
-    fn run_app_on_demand<A: ApplicationHandler<Self::UserEvent>>(
+    fn run_app_on_demand<A: ApplicationHandler>(
         &mut self,
         app: &mut A,
     ) -> Result<(), EventLoopError>;
 }
 
-impl<T> EventLoopExtRunOnDemand for EventLoop<T> {
-    type UserEvent = T;
-
-    fn run_app_on_demand<A: ApplicationHandler<Self::UserEvent>>(
+impl EventLoopExtRunOnDemand for EventLoop {
+    fn run_app_on_demand<A: ApplicationHandler>(
         &mut self,
         app: &mut A,
     ) -> Result<(), EventLoopError> {

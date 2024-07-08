@@ -1,5 +1,4 @@
 use std::marker::PhantomData;
-use std::sync::mpsc::{self, Receiver, Sender};
 
 use crate::application::ApplicationHandler;
 use crate::error::EventLoopError;
@@ -17,36 +16,30 @@ mod window_target;
 pub(crate) use proxy::EventLoopProxy;
 pub(crate) use window_target::{ActiveEventLoop, OwnedDisplayHandle};
 
-pub struct EventLoop<T: 'static> {
+pub struct EventLoop {
     elw: RootActiveEventLoop,
-    user_event_sender: Sender<T>,
-    user_event_receiver: Receiver<T>,
 }
 
 #[derive(Default, Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub(crate) struct PlatformSpecificEventLoopAttributes {}
 
-impl<T> EventLoop<T> {
+impl EventLoop {
     pub(crate) fn new(_: &PlatformSpecificEventLoopAttributes) -> Result<Self, EventLoopError> {
-        let (user_event_sender, user_event_receiver) = mpsc::channel();
         let elw = RootActiveEventLoop { p: ActiveEventLoop::new(), _marker: PhantomData };
-        Ok(EventLoop { elw, user_event_sender, user_event_receiver })
+        Ok(EventLoop { elw })
     }
 
-    pub fn run_app<A: ApplicationHandler<T>>(self, app: &mut A) -> ! {
+    pub fn run_app<A: ApplicationHandler>(self, app: &mut A) -> ! {
         let target = RootActiveEventLoop { p: self.elw.p.clone(), _marker: PhantomData };
 
         // SAFETY: Don't use `move` to make sure we leak the `event_handler` and `target`.
-        let handler: Box<dyn FnMut(Event<()>)> =
-            Box::new(|event| handle_event(app, &target, &self.user_event_receiver, event));
+        let handler: Box<dyn FnMut(Event)> = Box::new(|event| handle_event(app, &target, event));
 
         // SAFETY: The `transmute` is necessary because `run()` requires `'static`. This is safe
         // because this function will never return and all resources not cleaned up by the point we
         // `throw` will leak, making this actually `'static`.
         let handler = unsafe {
-            std::mem::transmute::<Box<dyn FnMut(Event<()>)>, Box<dyn FnMut(Event<()>) + 'static>>(
-                handler,
-            )
+            std::mem::transmute::<Box<dyn FnMut(Event)>, Box<dyn FnMut(Event) + 'static>>(handler)
         };
         self.elw.p.run(handler, false);
 
@@ -59,19 +52,10 @@ impl<T> EventLoop<T> {
         unreachable!();
     }
 
-    pub fn spawn_app<A: ApplicationHandler<T> + 'static>(self, mut app: A) {
+    pub fn spawn_app<A: ApplicationHandler + 'static>(self, mut app: A) {
         let target = RootActiveEventLoop { p: self.elw.p.clone(), _marker: PhantomData };
 
-        self.elw.p.run(
-            Box::new(move |event| {
-                handle_event(&mut app, &target, &self.user_event_receiver, event)
-            }),
-            true,
-        );
-    }
-
-    pub fn create_proxy(&self) -> EventLoopProxy<T> {
-        EventLoopProxy::new(self.elw.p.waker(), self.user_event_sender.clone())
+        self.elw.p.run(Box::new(move |event| handle_event(&mut app, &target, event)), true);
     }
 
     pub fn window_target(&self) -> &RootActiveEventLoop {
@@ -95,23 +79,15 @@ impl<T> EventLoop<T> {
     }
 }
 
-fn handle_event<T: 'static, A: ApplicationHandler<T>>(
-    app: &mut A,
-    target: &RootActiveEventLoop,
-    user_event_receiver: &Receiver<T>,
-    event: Event<()>,
-) {
+fn handle_event<A: ApplicationHandler>(app: &mut A, target: &RootActiveEventLoop, event: Event) {
     match event {
         Event::NewEvents(cause) => app.new_events(target, cause),
         Event::WindowEvent { window_id, event } => app.window_event(target, window_id, event),
         Event::DeviceEvent { device_id, event } => app.device_event(target, device_id, event),
-        Event::UserEvent(_) => {
-            let event =
-                user_event_receiver.try_recv().expect("user event signaled but not received");
-            app.user_event(target, event);
-        },
+        Event::UserWakeUp => app.proxy_wake_up(target),
         Event::Suspended => app.suspended(target),
         Event::Resumed => app.resumed(target),
+        Event::CreateSurfaces => app.can_create_surfaces(target),
         Event::AboutToWait => app.about_to_wait(target),
         Event::LoopExiting => app.exiting(target),
         Event::MemoryWarning => app.memory_warning(target),

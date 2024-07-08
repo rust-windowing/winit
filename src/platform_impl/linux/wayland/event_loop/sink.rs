@@ -12,7 +12,7 @@ use super::{DeviceId, WindowId};
 /// to the winit's user.
 #[derive(Default)]
 pub struct EventSink {
-    pub window_events: Vec<Event<()>>,
+    pub(crate) window_events: Vec<Event>,
 }
 
 impl EventSink {
@@ -47,7 +47,7 @@ impl EventSink {
     }
 
     #[inline]
-    pub fn drain(&mut self) -> Drain<'_, Event<()>> {
+    pub(crate) fn drain(&mut self) -> Drain<'_, Event> {
         self.window_events.drain(..)
     }
 }

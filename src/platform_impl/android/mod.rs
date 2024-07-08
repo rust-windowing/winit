@@ -3,7 +3,7 @@ use std::collections::VecDeque;
 use std::hash::Hash;
 use std::marker::PhantomData;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{mpsc, Arc, Mutex};
+use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use android_activity::input::{InputEvent, KeyAction, Keycode, MotionAction};
@@ -40,41 +40,6 @@ static HAS_FOCUS: AtomicBool = AtomicBool::new(true);
 /// `Option::min`)
 fn min_timeout(a: Option<Duration>, b: Option<Duration>) -> Option<Duration> {
     a.map_or(b, |a_timeout| b.map_or(Some(a_timeout), |b_timeout| Some(a_timeout.min(b_timeout))))
-}
-
-struct PeekableReceiver<T> {
-    recv: mpsc::Receiver<T>,
-    first: Option<T>,
-}
-
-impl<T> PeekableReceiver<T> {
-    pub fn from_recv(recv: mpsc::Receiver<T>) -> Self {
-        Self { recv, first: None }
-    }
-
-    pub fn has_incoming(&mut self) -> bool {
-        if self.first.is_some() {
-            return true;
-        }
-        match self.recv.try_recv() {
-            Ok(v) => {
-                self.first = Some(v);
-                true
-            },
-            Err(mpsc::TryRecvError::Empty) => false,
-            Err(mpsc::TryRecvError::Disconnected) => {
-                warn!("Channel was disconnected when checking incoming");
-                false
-            },
-        }
-    }
-
-    pub fn try_recv(&mut self) -> Result<T, mpsc::TryRecvError> {
-        if let Some(first) = self.first.take() {
-            return Ok(first);
-        }
-        self.recv.try_recv()
-    }
 }
 
 #[derive(Clone)]
@@ -132,13 +97,11 @@ impl RedrawRequester {
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub struct KeyEventExtra {}
 
-pub struct EventLoop<T: 'static> {
+pub struct EventLoop {
     android_app: AndroidApp,
     window_target: event_loop::ActiveEventLoop,
     redraw_flag: SharedFlag,
-    user_events_sender: mpsc::Sender<T>,
-    user_events_receiver: PeekableReceiver<T>, // must wake looper whenever something gets sent
-    loop_running: bool,                        // Dispatched `NewEvents<Init>`
+    loop_running: bool, // Dispatched `NewEvents<Init>`
     running: bool,
     pending_redraw: bool,
     cause: StartCause,
@@ -158,11 +121,11 @@ impl Default for PlatformSpecificEventLoopAttributes {
     }
 }
 
-impl<T: 'static> EventLoop<T> {
+impl EventLoop {
     pub(crate) fn new(
         attributes: &PlatformSpecificEventLoopAttributes,
     ) -> Result<Self, EventLoopError> {
-        let (user_events_sender, user_events_receiver) = mpsc::channel();
+        let proxy_wake_up = Arc::new(AtomicBool::new(false));
 
         let android_app = attributes.android_app.as_ref().expect(
             "An `AndroidApp` as passed to android_main() is required to create an `EventLoop` on \
@@ -181,12 +144,11 @@ impl<T: 'static> EventLoop<T> {
                         &redraw_flag,
                         android_app.create_waker(),
                     ),
+                    proxy_wake_up,
                 },
                 _marker: PhantomData,
             },
             redraw_flag,
-            user_events_sender,
-            user_events_receiver: PeekableReceiver::from_recv(user_events_receiver),
             loop_running: false,
             running: false,
             pending_redraw: false,
@@ -196,7 +158,7 @@ impl<T: 'static> EventLoop<T> {
         })
     }
 
-    fn single_iteration<A: ApplicationHandler<T>>(
+    fn single_iteration<A: ApplicationHandler>(
         &mut self,
         main_event: Option<MainEvent<'_>>,
         app: &mut A,
@@ -214,10 +176,10 @@ impl<T: 'static> EventLoop<T> {
 
             match event {
                 MainEvent::InitWindow { .. } => {
-                    app.resumed(self.window_target());
+                    app.can_create_surfaces(self.window_target());
                 },
                 MainEvent::TerminateWindow { .. } => {
-                    app.suspended(self.window_target());
+                    app.destroy_surfaces(self.window_target());
                 },
                 MainEvent::WindowResized { .. } => resized = true,
                 MainEvent::RedrawNeeded { .. } => pending_redraw = true,
@@ -315,11 +277,8 @@ impl<T: 'static> EventLoop<T> {
             },
         }
 
-        // Empty the user event buffer
-        {
-            while let Ok(event) = self.user_events_receiver.try_recv() {
-                app.user_event(self.window_target(), event);
-            }
+        if self.window_target.p.proxy_wake_up.swap(false, Ordering::Relaxed) {
+            app.proxy_wake_up(self.window_target());
         }
 
         if self.running {
@@ -351,7 +310,7 @@ impl<T: 'static> EventLoop<T> {
         self.pending_redraw = pending_redraw;
     }
 
-    fn handle_input_event<A: ApplicationHandler<T>>(
+    fn handle_input_event<A: ApplicationHandler>(
         &mut self,
         android_app: &AndroidApp,
         event: &InputEvent<'_>,
@@ -458,11 +417,11 @@ impl<T: 'static> EventLoop<T> {
         input_status
     }
 
-    pub fn run_app<A: ApplicationHandler<T>>(mut self, app: &mut A) -> Result<(), EventLoopError> {
+    pub fn run_app<A: ApplicationHandler>(mut self, app: &mut A) -> Result<(), EventLoopError> {
         self.run_app_on_demand(app)
     }
 
-    pub fn run_app_on_demand<A: ApplicationHandler<T>>(
+    pub fn run_app_on_demand<A: ApplicationHandler>(
         &mut self,
         app: &mut A,
     ) -> Result<(), EventLoopError> {
@@ -481,7 +440,7 @@ impl<T: 'static> EventLoop<T> {
         }
     }
 
-    pub fn pump_app_events<A: ApplicationHandler<T>>(
+    pub fn pump_app_events<A: ApplicationHandler>(
         &mut self,
         timeout: Option<Duration>,
         app: &mut A,
@@ -515,7 +474,7 @@ impl<T: 'static> EventLoop<T> {
         }
     }
 
-    fn poll_events_with_timeout<A: ApplicationHandler<T>>(
+    fn poll_events_with_timeout<A: ApplicationHandler>(
         &mut self,
         mut timeout: Option<Duration>,
         app: &mut A,
@@ -524,21 +483,22 @@ impl<T: 'static> EventLoop<T> {
 
         self.pending_redraw |= self.redraw_flag.get_and_reset();
 
-        timeout =
-            if self.running && (self.pending_redraw || self.user_events_receiver.has_incoming()) {
-                // If we already have work to do then we don't want to block on the next poll
-                Some(Duration::ZERO)
-            } else {
-                let control_flow_timeout = match self.control_flow() {
-                    ControlFlow::Wait => None,
-                    ControlFlow::Poll => Some(Duration::ZERO),
-                    ControlFlow::WaitUntil(wait_deadline) => {
-                        Some(wait_deadline.saturating_duration_since(start))
-                    },
-                };
-
-                min_timeout(control_flow_timeout, timeout)
+        timeout = if self.running
+            && (self.pending_redraw || self.window_target.p.proxy_wake_up.load(Ordering::Relaxed))
+        {
+            // If we already have work to do then we don't want to block on the next poll
+            Some(Duration::ZERO)
+        } else {
+            let control_flow_timeout = match self.control_flow() {
+                ControlFlow::Wait => None,
+                ControlFlow::Poll => Some(Duration::ZERO),
+                ControlFlow::WaitUntil(wait_deadline) => {
+                    Some(wait_deadline.saturating_duration_since(start))
+                },
             };
+
+            min_timeout(control_flow_timeout, timeout)
+        };
 
         let android_app = self.android_app.clone(); // Don't borrow self as part of poll expression
         android_app.poll_events(timeout, |poll_event| {
@@ -556,7 +516,8 @@ impl<T: 'static> EventLoop<T> {
                     // We also ignore wake ups while suspended.
                     self.pending_redraw |= self.redraw_flag.get_and_reset();
                     if !self.running
-                        || (!self.pending_redraw && !self.user_events_receiver.has_incoming())
+                        || (!self.pending_redraw
+                            && !self.window_target.p.proxy_wake_up.load(Ordering::Relaxed))
                     {
                         return;
                     }
@@ -590,13 +551,6 @@ impl<T: 'static> EventLoop<T> {
         &self.window_target
     }
 
-    pub fn create_proxy(&self) -> EventLoopProxy<T> {
-        EventLoopProxy {
-            user_events_sender: self.user_events_sender.clone(),
-            waker: self.android_app.create_waker(),
-        }
-    }
-
     fn control_flow(&self) -> ControlFlow {
         self.window_target.p.control_flow()
     }
@@ -606,25 +560,16 @@ impl<T: 'static> EventLoop<T> {
     }
 }
 
-pub struct EventLoopProxy<T: 'static> {
-    user_events_sender: mpsc::Sender<T>,
+#[derive(Clone)]
+pub struct EventLoopProxy {
+    proxy_wake_up: Arc<AtomicBool>,
     waker: AndroidAppWaker,
 }
 
-impl<T: 'static> Clone for EventLoopProxy<T> {
-    fn clone(&self) -> Self {
-        EventLoopProxy {
-            user_events_sender: self.user_events_sender.clone(),
-            waker: self.waker.clone(),
-        }
-    }
-}
-
-impl<T> EventLoopProxy<T> {
-    pub fn send_event(&self, event: T) -> Result<(), event_loop::EventLoopClosed<T>> {
-        self.user_events_sender.send(event).map_err(|err| event_loop::EventLoopClosed(err.0))?;
+impl EventLoopProxy {
+    pub fn wake_up(&self) {
+        self.proxy_wake_up.store(true, Ordering::Relaxed);
         self.waker.wake();
-        Ok(())
     }
 }
 
@@ -633,9 +578,14 @@ pub struct ActiveEventLoop {
     control_flow: Cell<ControlFlow>,
     exit: Cell<bool>,
     redraw_requester: RedrawRequester,
+    proxy_wake_up: Arc<AtomicBool>,
 }
 
 impl ActiveEventLoop {
+    pub fn create_proxy(&self) -> EventLoopProxy {
+        EventLoopProxy { proxy_wake_up: self.proxy_wake_up.clone(), waker: self.app.create_waker() }
+    }
+
     pub fn primary_monitor(&self) -> Option<MonitorHandle> {
         Some(MonitorHandle::new(self.app.clone()))
     }

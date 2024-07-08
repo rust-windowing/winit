@@ -115,6 +115,9 @@ pub struct WinitState {
     /// Whether we have dispatched events to the user thus we want to
     /// send `AboutToWait` and normally wakeup the user.
     pub dispatched_events: bool,
+
+    /// Whether the user initiated a wake up.
+    pub proxy_wake_up: bool,
 }
 
 impl WinitState {
@@ -192,6 +195,7 @@ impl WinitState {
             loop_handle,
             // Make it true by default.
             dispatched_events: true,
+            proxy_wake_up: false,
         })
     }
 

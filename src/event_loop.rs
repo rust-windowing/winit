@@ -3,15 +3,16 @@
 //!
 //! If you want to send custom events to the event loop, use
 //! [`EventLoop::create_proxy`] to acquire an [`EventLoopProxy`] and call its
-//! [`send_event`][EventLoopProxy::send_event] method.
+//! [`wake_up`][EventLoopProxy::wake_up] method. Then during handling the wake up
+//! you can poll your event sources.
 //!
 //! See the root-level documentation for information on how to create and use an event loop to
 //! handle events.
+use std::fmt;
 use std::marker::PhantomData;
 #[cfg(any(x11_platform, wayland_platform))]
 use std::os::unix::io::{AsFd, AsRawFd, BorrowedFd, RawFd};
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
-use std::{error, fmt};
 
 #[cfg(not(web_platform))]
 use std::time::{Duration, Instant};
@@ -39,8 +40,8 @@ use crate::window::{CustomCursor, CustomCursorSource, Window, WindowAttributes};
 /// [`EventLoopProxy`] allows you to wake up an `EventLoop` from another thread.
 ///
 /// [`Window`]: crate::window::Window
-pub struct EventLoop<T: 'static> {
-    pub(crate) event_loop: platform_impl::EventLoop<T>,
+pub struct EventLoop {
+    pub(crate) event_loop: platform_impl::EventLoop,
     pub(crate) _marker: PhantomData<*mut ()>, // Not Send nor Sync
 }
 
@@ -58,16 +59,15 @@ pub struct ActiveEventLoop {
 /// This is used to make specifying options that affect the whole application
 /// easier. But note that constructing multiple event loops is not supported.
 ///
-/// This can be created using [`EventLoop::new`] or [`EventLoop::with_user_event`].
+/// This can be created using [`EventLoop::builder`].
 #[derive(Default)]
-pub struct EventLoopBuilder<T: 'static> {
+pub struct EventLoopBuilder {
     pub(crate) platform_specific: platform_impl::PlatformSpecificEventLoopAttributes,
-    _p: PhantomData<T>,
 }
 
 static EVENT_LOOP_CREATED: AtomicBool = AtomicBool::new(false);
 
-impl EventLoopBuilder<()> {
+impl EventLoopBuilder {
     /// Start building a new event loop.
     #[inline]
     #[deprecated = "use `EventLoop::builder` instead"]
@@ -76,7 +76,7 @@ impl EventLoopBuilder<()> {
     }
 }
 
-impl<T> EventLoopBuilder<T> {
+impl EventLoopBuilder {
     /// Builds a new event loop.
     ///
     /// ***For cross-platform compatibility, the [`EventLoop`] must be created on the main thread,
@@ -111,7 +111,7 @@ impl<T> EventLoopBuilder<T> {
         doc = "[`.with_android_app(app)`]: #only-available-on-android"
     )]
     #[inline]
-    pub fn build(&mut self) -> Result<EventLoop<T>, EventLoopError> {
+    pub fn build(&mut self) -> Result<EventLoop, EventLoopError> {
         let _span = tracing::debug_span!("winit::EventLoopBuilder::build").entered();
 
         if EVENT_LOOP_CREATED.swap(true, Ordering::Relaxed) {
@@ -132,7 +132,7 @@ impl<T> EventLoopBuilder<T> {
     }
 }
 
-impl<T> fmt::Debug for EventLoop<T> {
+impl fmt::Debug for EventLoop {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.pad("EventLoop { .. }")
     }
@@ -146,12 +146,12 @@ impl fmt::Debug for ActiveEventLoop {
 
 /// Set through [`ActiveEventLoop::set_control_flow()`].
 ///
-/// Indicates the desired behavior of the event loop after [`Event::AboutToWait`] is emitted.
+/// Indicates the desired behavior of the event loop after [`about_to_wait`] is called.
 ///
 /// Defaults to [`Wait`].
 ///
 /// [`Wait`]: Self::Wait
-/// [`Event::AboutToWait`]: crate::event::Event::AboutToWait
+/// [`about_to_wait`]: crate::application::ApplicationHandler::about_to_wait
 #[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
 pub enum ControlFlow {
     /// When the current loop iteration finishes, immediately begin a new iteration regardless of
@@ -189,12 +189,12 @@ impl ControlFlow {
     }
 }
 
-impl EventLoop<()> {
+impl EventLoop {
     /// Create the event loop.
     ///
     /// This is an alias of `EventLoop::builder().build()`.
     #[inline]
-    pub fn new() -> Result<EventLoop<()>, EventLoopError> {
+    pub fn new() -> Result<EventLoop, EventLoopError> {
         Self::builder().build()
     }
 
@@ -204,18 +204,12 @@ impl EventLoop<()> {
     ///
     /// To get the actual event loop, call [`build`][EventLoopBuilder::build] on that.
     #[inline]
-    pub fn builder() -> EventLoopBuilder<()> {
-        Self::with_user_event()
+    pub fn builder() -> EventLoopBuilder {
+        EventLoopBuilder { platform_specific: Default::default() }
     }
 }
 
-impl<T> EventLoop<T> {
-    /// Start building a new event loop, with the given type as the user event
-    /// type.
-    pub fn with_user_event() -> EventLoopBuilder<T> {
-        EventLoopBuilder { platform_specific: Default::default(), _p: PhantomData }
-    }
-
+impl EventLoop {
     /// Run the application with the event loop on the calling thread.
     ///
     /// See the [`set_control_flow()`] docs on how to change the event loop's behavior.
@@ -246,14 +240,14 @@ impl<T> EventLoop<T> {
     /// [^1]: `EventLoopExtWebSys::spawn_app()` is only available on Web.
     #[inline]
     #[cfg(not(all(web_platform, target_feature = "exception-handling")))]
-    pub fn run_app<A: ApplicationHandler<T>>(self, app: &mut A) -> Result<(), EventLoopError> {
+    pub fn run_app<A: ApplicationHandler>(self, app: &mut A) -> Result<(), EventLoopError> {
         self.event_loop.run_app(app)
     }
 
     /// Creates an [`EventLoopProxy`] that can be used to dispatch user events
     /// to the main event loop, possibly from another thread.
-    pub fn create_proxy(&self) -> EventLoopProxy<T> {
-        EventLoopProxy { event_loop_proxy: self.event_loop.create_proxy() }
+    pub fn create_proxy(&self) -> EventLoopProxy {
+        EventLoopProxy { event_loop_proxy: self.event_loop.window_target().p.create_proxy() }
     }
 
     /// Gets a persistent reference to the underlying platform display.
@@ -308,14 +302,14 @@ impl<T> EventLoop<T> {
 }
 
 #[cfg(feature = "rwh_06")]
-impl<T> rwh_06::HasDisplayHandle for EventLoop<T> {
+impl rwh_06::HasDisplayHandle for EventLoop {
     fn display_handle(&self) -> Result<rwh_06::DisplayHandle<'_>, rwh_06::HandleError> {
         rwh_06::HasDisplayHandle::display_handle(self.event_loop.window_target())
     }
 }
 
 #[cfg(feature = "rwh_05")]
-unsafe impl<T> rwh_05::HasRawDisplayHandle for EventLoop<T> {
+unsafe impl rwh_05::HasRawDisplayHandle for EventLoop {
     /// Returns a [`rwh_05::RawDisplayHandle`] for the event loop.
     fn raw_display_handle(&self) -> rwh_05::RawDisplayHandle {
         rwh_05::HasRawDisplayHandle::raw_display_handle(self.event_loop.window_target())
@@ -323,7 +317,7 @@ unsafe impl<T> rwh_05::HasRawDisplayHandle for EventLoop<T> {
 }
 
 #[cfg(any(x11_platform, wayland_platform))]
-impl<T> AsFd for EventLoop<T> {
+impl AsFd for EventLoop {
     /// Get the underlying [EventLoop]'s `fd` which you can register
     /// into other event loop, like [`calloop`] or [`mio`]. When doing so, the
     /// loop must be polled with the [`pump_app_events`] API.
@@ -337,7 +331,7 @@ impl<T> AsFd for EventLoop<T> {
 }
 
 #[cfg(any(x11_platform, wayland_platform))]
-impl<T> AsRawFd for EventLoop<T> {
+impl AsRawFd for EventLoop {
     /// Get the underlying [EventLoop]'s raw `fd` which you can register
     /// into other event loop, like [`calloop`] or [`mio`]. When doing so, the
     /// loop must be polled with the [`pump_app_events`] API.
@@ -351,6 +345,12 @@ impl<T> AsRawFd for EventLoop<T> {
 }
 
 impl ActiveEventLoop {
+    /// Creates an [`EventLoopProxy`] that can be used to dispatch user events
+    /// to the main event loop, possibly from another thread.
+    pub fn create_proxy(&self) -> EventLoopProxy {
+        EventLoopProxy { event_loop_proxy: self.p.create_proxy() }
+    }
+
     /// Create the window.
     ///
     /// Possible causes of error include denied permission, incompatible system, and lack of memory.
@@ -434,7 +434,7 @@ impl ActiveEventLoop {
 
     /// This exits the event loop.
     ///
-    /// See [`LoopExiting`][crate::event::Event::LoopExiting].
+    /// See [`exiting`][crate::application::ApplicationHandler::exiting].
     pub fn exit(&self) {
         let _span = tracing::debug_span!("winit::ActiveEventLoop::exit",).entered();
 
@@ -519,52 +519,38 @@ unsafe impl rwh_05::HasRawDisplayHandle for OwnedDisplayHandle {
     }
 }
 
-/// Used to send custom events to [`EventLoop`].
-pub struct EventLoopProxy<T: 'static> {
-    event_loop_proxy: platform_impl::EventLoopProxy<T>,
+/// Control the [`EventLoop`], possibly from a different thread, without referencing it directly.
+#[derive(Clone)]
+pub struct EventLoopProxy {
+    event_loop_proxy: platform_impl::EventLoopProxy,
 }
 
-impl<T: 'static> Clone for EventLoopProxy<T> {
-    fn clone(&self) -> Self {
-        Self { event_loop_proxy: self.event_loop_proxy.clone() }
+impl EventLoopProxy {
+    /// Wake up the [`EventLoop`], resulting in [`ApplicationHandler::proxy_wake_up()`] being
+    /// called.
+    ///
+    /// Calls to this method are coalesced into a single call to [`proxy_wake_up`], see the
+    /// documentation on that for details.
+    ///
+    /// If the event loop is no longer running, this is a no-op.
+    ///
+    /// [`proxy_wake_up`]: ApplicationHandler::proxy_wake_up
+    ///
+    /// # Platform-specific
+    ///
+    /// - **Windows**: The wake-up may be ignored under high contention, see [#3687].
+    ///
+    /// [#3687]: https://github.com/rust-windowing/winit/pull/3687
+    pub fn wake_up(&self) {
+        self.event_loop_proxy.wake_up();
     }
 }
 
-impl<T: 'static> EventLoopProxy<T> {
-    /// Send an event to the [`EventLoop`] from which this proxy was created. This emits a
-    /// `UserEvent(event)` event in the event loop, where `event` is the value passed to this
-    /// function.
-    ///
-    /// Returns an `Err` if the associated [`EventLoop`] no longer exists.
-    ///
-    /// [`UserEvent(event)`]: Event::UserEvent
-    pub fn send_event(&self, event: T) -> Result<(), EventLoopClosed<T>> {
-        let _span = tracing::debug_span!("winit::EventLoopProxy::send_event",).entered();
-
-        self.event_loop_proxy.send_event(event)
-    }
-}
-
-impl<T: 'static> fmt::Debug for EventLoopProxy<T> {
+impl fmt::Debug for EventLoopProxy {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.pad("EventLoopProxy { .. }")
     }
 }
-
-/// The error that is returned when an [`EventLoopProxy`] attempts to wake up an [`EventLoop`] that
-/// no longer exists.
-///
-/// Contains the original event given to [`EventLoopProxy::send_event`].
-#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
-pub struct EventLoopClosed<T>(pub T);
-
-impl<T> fmt::Display for EventLoopClosed<T> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str("Tried to wake up a closed `EventLoop`")
-    }
-}
-
-impl<T: fmt::Debug> error::Error for EventLoopClosed<T> {}
 
 /// Control when device events are captured.
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug, Default)]

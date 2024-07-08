@@ -105,7 +105,7 @@ pub trait EventLoopExtX11 {
     fn is_x11(&self) -> bool;
 }
 
-impl<T: 'static> EventLoopExtX11 for EventLoop<T> {
+impl EventLoopExtX11 for EventLoop {
     #[inline]
     fn is_x11(&self) -> bool {
         !self.event_loop.is_wayland()
@@ -124,7 +124,7 @@ pub trait EventLoopBuilderExtX11 {
     fn with_any_thread(&mut self, any_thread: bool) -> &mut Self;
 }
 
-impl<T> EventLoopBuilderExtX11 for EventLoopBuilder<T> {
+impl EventLoopBuilderExtX11 for EventLoopBuilder {
     #[inline]
     fn with_x11(&mut self) -> &mut Self {
         self.platform_specific.forced_backend = Some(crate::platform_impl::Backend::X);

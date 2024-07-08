@@ -20,7 +20,7 @@ fn main() -> Result<(), impl std::error::Error> {
     }
 
     impl ApplicationHandler for Application {
-        fn resumed(&mut self, event_loop: &ActiveEventLoop) {
+        fn can_create_surfaces(&mut self, event_loop: &ActiveEventLoop) {
             let attributes = Window::default_attributes()
                 .with_title("parent window")
                 .with_position(Position::Logical(LogicalPosition::new(0.0, 0.0)))
@@ -85,7 +85,7 @@ fn main() -> Result<(), impl std::error::Error> {
         event_loop.create_window(window_attributes).unwrap()
     }
 
-    let event_loop: EventLoop<()> = EventLoop::new().unwrap();
+    let event_loop = EventLoop::new().unwrap();
     let mut app = Application::default();
     event_loop.run_app(&mut app)
 }

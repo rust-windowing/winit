@@ -40,17 +40,44 @@ changelog entry.
 
 ## Unreleased
 
+### Added
+
+- Add `ActiveEventLoop::create_proxy()`.
+
 ### Changed
 
 - On Web, let events wake up event loop immediately when using `ControlFlow::Poll`.
 - Bump MSRV from `1.70` to `1.73`.
+- Changed `ApplicationHandler::user_event` to `user_wake_up`, removing the
+  generic user event.
+
+  Winit will now only indicate that wake up happened, you will have to pair
+  this with an external mechanism like `std::sync::mpsc::channel` if you want
+  to send specific data to be processed on the main thread.
+- Changed `EventLoopProxy::send_event` to `EventLoopProxy::wake_up`, it now
+  only wakes up the loop.
+- `ApplicationHandler::create|destroy_surfaces()` was split off from
+  `ApplicationHandler::resumed/suspended()`.
+
+  `ApplicationHandler::can_create_surfaces()` should, for portability reasons
+  to Android, be the only place to create render surfaces.
+
+  `ApplicationHandler::resumed/suspended()` are now only emitted by iOS and Web
+  and now signify actually resuming/suspending the application.
 
 ### Removed
 
 - Remove `EventLoop::run`.
 - Remove `EventLoopExtRunOnDemand::run_on_demand`.
 - Remove `EventLoopExtPumpEvents::pump_events`.
+- Remove `Event`.
+- On iOS, remove `platform::ios::EventLoopExtIOS` and related `platform::ios::Idiom` type.
+
+  This feature was incomplete, and the equivalent functionality can be trivially achieved outside
+  of `winit` using `objc2-ui-kit` and calling `UIDevice::currentDevice().userInterfaceIdiom()`.
 
 ### Fixed
 
+- On Wayland, avoid crashing when compositor is misbehaving.
+- Account for different browser engine implementations of pointer movement coordinate space.
 - On Windows, fix `Window::inner_size` of undecorated window with shadows, reporting a size bigger than what's visible.

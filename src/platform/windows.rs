@@ -227,7 +227,7 @@ pub trait EventLoopBuilderExtWindows {
         F: FnMut(*const c_void) -> bool + 'static;
 }
 
-impl<T> EventLoopBuilderExtWindows for EventLoopBuilder<T> {
+impl EventLoopBuilderExtWindows for EventLoopBuilder {
     #[inline]
     fn with_any_thread(&mut self, any_thread: bool) -> &mut Self {
         self.platform_specific.any_thread = any_thread;

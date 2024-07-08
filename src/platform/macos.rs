@@ -338,7 +338,7 @@ pub trait EventLoopBuilderExtMacOS {
     fn with_activate_ignoring_other_apps(&mut self, ignore: bool) -> &mut Self;
 }
 
-impl<T> EventLoopBuilderExtMacOS for EventLoopBuilder<T> {
+impl EventLoopBuilderExtMacOS for EventLoopBuilder {
     #[inline]
     fn with_activation_policy(&mut self, activation_policy: ActivationPolicy) -> &mut Self {
         self.platform_specific.activation_policy = activation_policy;

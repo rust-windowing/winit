@@ -10,7 +10,7 @@ jobs:
     name: Check formatting
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v4
+    - uses: taiki-e/checkout-action@v1
     - uses: dtolnay/rust-toolchain@nightly
       with:
         components: rustfmt
@@ -22,7 +22,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
+      - uses: taiki-e/checkout-action@v1
       - uses: taiki-e/install-action@v2
         with:
           tool: typos-cli
@@ -88,7 +88,7 @@ jobs:
       CMD: ${{ matrix.platform.cmd }}
 
     steps:
-    - uses: actions/checkout@v4
+    - uses: taiki-e/checkout-action@v1
 
     - name: Restore cache of cargo folder
       # We use `restore` and later `save`, so that we can create the key after
@@ -220,7 +220,7 @@ jobs:
           - { name: 'Windows', target: x86_64-pc-windows-gnu }
 
     steps:
-    - uses: actions/checkout@v4
+    - uses: taiki-e/checkout-action@v1
     - uses: EmbarkStudios/cargo-deny-action@v1
       with:
         command: check
@@ -232,8 +232,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: taiki-e/checkout-action@v1
       - name: Install SWC
         run: sudo npm i -g @swc/cli
       - name: Run SWC

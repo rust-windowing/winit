@@ -38,7 +38,7 @@ pub trait EventLoopExtWayland {
     fn is_wayland(&self) -> bool;
 }
 
-impl<T: 'static> EventLoopExtWayland for EventLoop<T> {
+impl EventLoopExtWayland for EventLoop {
     #[inline]
     fn is_wayland(&self) -> bool {
         self.event_loop.is_wayland()
@@ -57,7 +57,7 @@ pub trait EventLoopBuilderExtWayland {
     fn with_any_thread(&mut self, any_thread: bool) -> &mut Self;
 }
 
-impl<T> EventLoopBuilderExtWayland for EventLoopBuilder<T> {
+impl EventLoopBuilderExtWayland for EventLoopBuilder {
     #[inline]
     fn with_wayland(&mut self) -> &mut Self {
         self.platform_specific.forced_backend = Some(crate::platform_impl::Backend::Wayland);

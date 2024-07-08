@@ -9,9 +9,9 @@ use objc2::Message;
 use objc2_foundation::{run_on_main, MainThreadBound, MainThreadMarker, NSInteger};
 use objc2_ui_kit::{UIScreen, UIScreenMode};
 
+use super::app_state;
 use crate::dpi::{PhysicalPosition, PhysicalSize};
 use crate::monitor::VideoModeHandle as RootVideoModeHandle;
-use crate::platform_impl::platform::app_state;
 
 // Workaround for `MainThreadBound` implementing almost no traits
 #[derive(Debug)]

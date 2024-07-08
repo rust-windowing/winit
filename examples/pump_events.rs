@@ -22,7 +22,7 @@ fn main() -> std::process::ExitCode {
     }
 
     impl ApplicationHandler for PumpDemo {
-        fn resumed(&mut self, event_loop: &ActiveEventLoop) {
+        fn can_create_surfaces(&mut self, event_loop: &ActiveEventLoop) {
             let window_attributes = Window::default_attributes().with_title("A fantastic window!");
             self.window = Some(event_loop.create_window(window_attributes).unwrap());
         }
