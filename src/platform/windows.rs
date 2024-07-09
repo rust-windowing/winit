@@ -358,6 +358,8 @@ pub trait WindowExtWindows {
     ) -> Result<rwh_06::WindowHandle<'_>, rwh_06::HandleError>;
 
     /// Set whether a mouse click activates the window.
+    ///
+    /// Defaults to `true`.
     fn set_mouse_activate(&self, mouse_activate: bool);
 }
 
