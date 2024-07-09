@@ -357,7 +357,7 @@ pub trait WindowExtWindows {
         &self,
     ) -> Result<rwh_06::WindowHandle<'_>, rwh_06::HandleError>;
 
-    /// Set whether a mouse click activates the window.
+    /// Sets whether a mouse click activates the window.
     ///
     /// Defaults to `true`.
     fn set_mouse_activate(&self, mouse_activate: bool);
@@ -547,6 +547,8 @@ pub trait WindowAttributesExtWindows {
     fn with_corner_preference(self, corners: CornerPreference) -> Self;
 
     /// Sets whether the mouse activates the window.
+    ///
+    /// Defaults to `true`.
     fn with_mouse_activate(self, mouse_activate: bool) -> Self;
 }
 
