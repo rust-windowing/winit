@@ -51,9 +51,9 @@ pub enum BackdropType {
     TabbedWindow = 4,
 }
 
-/// Describes if a window is activated by the mouse.
+/// Describes if a window is activated by a mouse click.
 ///
-/// For a detail explanation, see[`WM_MOUSEACTIVATE docs`].
+/// For a detailed explanation, see the [`WM_MOUSEACTIVATE` docs].
 ///
 /// [`WM_MOUSEACTIVATE docs`]: https://learn.microsoft.com/en-us/windows/win32/inputdev/wm-mouseactivate
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash)]
@@ -371,7 +371,7 @@ pub trait WindowExtWindows {
         &self,
     ) -> Result<rwh_06::WindowHandle<'_>, rwh_06::HandleError>;
 
-    /// Set whether the mouse activates the window.
+    /// Set whether a mouse click activates the window.
     fn set_mouse_activate(&self, mouse_activate: MouseActivate);
 }
 
