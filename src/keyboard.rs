@@ -1758,8 +1758,9 @@ bitflags! {
 
 #[cfg(feature = "serde")]
 mod modifiers_serde {
-    use super::ModifiersState;
     use serde::{Deserialize, Deserializer, Serialize, Serializer};
+
+    use super::ModifiersState;
 
     #[derive(Default, Serialize, Deserialize)]
     #[serde(default)]

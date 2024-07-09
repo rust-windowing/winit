@@ -1,11 +1,7 @@
-use crate::dpi::{PhysicalPosition, PhysicalSize, Size};
-use crate::icon::Icon;
-use crate::keyboard::ModifiersState;
-use crate::platform_impl::platform::{event_loop, util, Fullscreen, SelectedCursor};
-use crate::window::{Theme, WindowAttributes};
-use bitflags::bitflags;
 use std::io;
 use std::sync::MutexGuard;
+
+use bitflags::bitflags;
 use windows_sys::Win32::Foundation::{HWND, RECT};
 use windows_sys::Win32::Graphics::Gdi::InvalidateRgn;
 use windows_sys::Win32::UI::WindowsAndMessaging::{
@@ -19,6 +15,12 @@ use windows_sys::Win32::UI::WindowsAndMessaging::{
     WS_EX_TOPMOST, WS_EX_TRANSPARENT, WS_EX_WINDOWEDGE, WS_MAXIMIZE, WS_MAXIMIZEBOX, WS_MINIMIZE,
     WS_MINIMIZEBOX, WS_OVERLAPPEDWINDOW, WS_POPUP, WS_SIZEBOX, WS_SYSMENU, WS_VISIBLE,
 };
+
+use crate::dpi::{PhysicalPosition, PhysicalSize, Size};
+use crate::icon::Icon;
+use crate::keyboard::ModifiersState;
+use crate::platform_impl::platform::{event_loop, util, Fullscreen, SelectedCursor};
+use crate::window::{Theme, WindowAttributes};
 
 /// Contains information about states and the window that the callback is going to use.
 pub(crate) struct WindowState {

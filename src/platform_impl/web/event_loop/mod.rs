@@ -1,12 +1,11 @@
 use std::marker::PhantomData;
 
+use super::{backend, device, window};
 use crate::application::ApplicationHandler;
 use crate::error::EventLoopError;
 use crate::event::Event;
 use crate::event_loop::ActiveEventLoop as RootActiveEventLoop;
 use crate::platform::web::{ActiveEventLoopExtWebSys, PollStrategy, WaitUntilStrategy};
-
-use super::{backend, device, window};
 
 mod proxy;
 pub(crate) mod runner;

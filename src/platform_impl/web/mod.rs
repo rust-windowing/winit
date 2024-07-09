@@ -31,20 +31,20 @@ mod monitor;
 mod web_sys;
 mod window;
 
+pub(crate) use cursor::{
+    CustomCursor as PlatformCustomCursor, CustomCursorFuture,
+    CustomCursorSource as PlatformCustomCursorSource,
+};
+
 pub use self::device::DeviceId;
 pub use self::error::OsError;
 pub(crate) use self::event_loop::{
     ActiveEventLoop, EventLoop, EventLoopProxy, OwnedDisplayHandle,
     PlatformSpecificEventLoopAttributes,
 };
-pub use self::monitor::{MonitorHandle, VideoModeHandle};
-pub use self::window::{PlatformSpecificWindowAttributes, Window, WindowId};
-
 pub(crate) use self::keyboard::KeyEventExtra;
+pub use self::monitor::{MonitorHandle, VideoModeHandle};
 use self::web_sys as backend;
+pub use self::window::{PlatformSpecificWindowAttributes, Window, WindowId};
 pub(crate) use crate::icon::NoIcon as PlatformIcon;
 pub(crate) use crate::platform_impl::Fullscreen;
-pub(crate) use cursor::{
-    CustomCursor as PlatformCustomCursor, CustomCursorFuture,
-    CustomCursorSource as PlatformCustomCursorSource,
-};

@@ -11,13 +11,6 @@ use web_sys::{
     PointerEvent, WheelEvent,
 };
 
-use crate::dpi::{LogicalPosition, PhysicalPosition, PhysicalSize};
-use crate::error::OsError as RootOE;
-use crate::event::{Force, InnerSizeWriter, MouseButton, MouseScrollDelta};
-use crate::keyboard::{Key, KeyLocation, ModifiersState, PhysicalKey};
-use crate::platform_impl::OsError;
-use crate::window::{WindowAttributes, WindowId as RootWindowId};
-
 use super::super::cursor::CursorHandler;
 use super::super::main_thread::MainThreadMarker;
 use super::super::WindowId;
@@ -27,6 +20,12 @@ use super::intersection_handle::IntersectionObserverHandle;
 use super::media_query_handle::MediaQueryListHandle;
 use super::pointer::PointerHandler;
 use super::{event, fullscreen, ButtonsState, ResizeScaleHandle};
+use crate::dpi::{LogicalPosition, PhysicalPosition, PhysicalSize};
+use crate::error::OsError as RootOE;
+use crate::event::{Force, InnerSizeWriter, MouseButton, MouseScrollDelta};
+use crate::keyboard::{Key, KeyLocation, ModifiersState, PhysicalKey};
+use crate::platform_impl::OsError;
+use crate::window::{WindowAttributes, WindowId as RootWindowId};
 
 #[allow(dead_code)]
 pub struct Canvas {

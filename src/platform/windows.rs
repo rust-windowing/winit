@@ -337,6 +337,7 @@ pub trait WindowExtWindows {
     /// # use winit::window::Window;
     /// # fn scope(window: Window) {
     /// use std::thread;
+    ///
     /// use winit::platform::windows::WindowExtWindows;
     /// use winit::raw_window_handle::HasWindowHandle;
     ///

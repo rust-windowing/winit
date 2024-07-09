@@ -12,6 +12,10 @@ use orbclient::{
 };
 use smol_str::SmolStr;
 
+use super::{
+    DeviceId, KeyEventExtra, MonitorHandle, OsError, PlatformSpecificEventLoopAttributes,
+    RedoxSocket, TimeSocket, WindowId, WindowProperties,
+};
 use crate::application::ApplicationHandler;
 use crate::error::EventLoopError;
 use crate::event::{self, Ime, Modifiers, StartCause};
@@ -22,11 +26,6 @@ use crate::keyboard::{
 };
 use crate::window::{
     CustomCursor as RootCustomCursor, CustomCursorSource, WindowId as RootWindowId,
-};
-
-use super::{
-    DeviceId, KeyEventExtra, MonitorHandle, OsError, PlatformSpecificEventLoopAttributes,
-    RedoxSocket, TimeSocket, WindowId, WindowProperties,
 };
 
 fn convert_scancode(scancode: u8) -> (PhysicalKey, Option<NamedKey>) {

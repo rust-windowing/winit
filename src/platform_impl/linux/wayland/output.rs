@@ -1,12 +1,10 @@
+use sctk::output::OutputData;
 use sctk::reexports::client::protocol::wl_output::WlOutput;
 use sctk::reexports::client::Proxy;
 
-use sctk::output::OutputData;
-
+use super::event_loop::ActiveEventLoop;
 use crate::dpi::{LogicalPosition, PhysicalPosition, PhysicalSize};
 use crate::platform_impl::platform::VideoModeHandle as PlatformVideoModeHandle;
-
-use super::event_loop::ActiveEventLoop;
 
 impl ActiveEventLoop {
     #[inline]

@@ -1,18 +1,17 @@
 //! The [`Window`] struct and associated types.
 use std::fmt;
 
-use crate::dpi::{PhysicalPosition, PhysicalSize, Position, Size};
-use crate::error::{ExternalError, NotSupportedError};
-use crate::monitor::{MonitorHandle, VideoModeHandle};
-use crate::platform_impl::{self, PlatformSpecificWindowAttributes};
-
-pub use crate::cursor::{BadImage, Cursor, CustomCursor, CustomCursorSource, MAX_CURSOR_SIZE};
-pub use crate::icon::{BadIcon, Icon};
-
 #[doc(inline)]
 pub use cursor_icon::{CursorIcon, ParseError as CursorIconParseError};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
+
+pub use crate::cursor::{BadImage, Cursor, CustomCursor, CustomCursorSource, MAX_CURSOR_SIZE};
+use crate::dpi::{PhysicalPosition, PhysicalSize, Position, Size};
+use crate::error::{ExternalError, NotSupportedError};
+pub use crate::icon::{BadIcon, Icon};
+use crate::monitor::{MonitorHandle, VideoModeHandle};
+use crate::platform_impl::{self, PlatformSpecificWindowAttributes};
 
 /// Represents a window.
 ///

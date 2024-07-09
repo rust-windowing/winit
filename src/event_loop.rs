@@ -13,9 +13,9 @@ use std::marker::PhantomData;
 #[cfg(any(x11_platform, wayland_platform))]
 use std::os::unix::io::{AsFd, AsRawFd, BorrowedFd, RawFd};
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
-
 #[cfg(not(web_platform))]
 use std::time::{Duration, Instant};
+
 #[cfg(web_platform)]
 use web_time::{Duration, Instant};
 

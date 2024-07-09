@@ -112,6 +112,7 @@ impl Index<AtomName> for Atoms {
     }
 }
 
-pub(crate) use AtomName::*;
 // Make sure `None` is still defined.
 pub(crate) use core::option::Option::None;
+
+pub(crate) use AtomName::*;

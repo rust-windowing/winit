@@ -7,13 +7,12 @@ use std::{mem, panic};
 
 use windows_sys::Win32::Foundation::HWND;
 
+use super::ControlFlow;
 use crate::dpi::PhysicalSize;
 use crate::event::{Event, InnerSizeWriter, StartCause, WindowEvent};
 use crate::platform_impl::platform::event_loop::{WindowData, GWL_USERDATA};
 use crate::platform_impl::platform::get_window_long;
 use crate::window::WindowId;
-
-use super::ControlFlow;
 
 type EventHandler = Cell<Option<Box<dyn FnMut(Event)>>>;
 

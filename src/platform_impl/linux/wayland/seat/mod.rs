@@ -3,17 +3,15 @@
 use std::sync::Arc;
 
 use ahash::AHashMap;
-use tracing::warn;
-
 use sctk::reexports::client::backend::ObjectId;
 use sctk::reexports::client::protocol::wl_seat::WlSeat;
 use sctk::reexports::client::protocol::wl_touch::WlTouch;
 use sctk::reexports::client::{Connection, Proxy, QueueHandle};
 use sctk::reexports::protocols::wp::relative_pointer::zv1::client::zwp_relative_pointer_v1::ZwpRelativePointerV1;
 use sctk::reexports::protocols::wp::text_input::zv3::client::zwp_text_input_v3::ZwpTextInputV3;
-
 use sctk::seat::pointer::{ThemeSpec, ThemedPointer};
 use sctk::seat::{Capability as SeatCapability, SeatHandler, SeatState};
+use tracing::warn;
 
 use crate::event::WindowEvent;
 use crate::keyboard::ModifiersState;
@@ -24,12 +22,11 @@ mod pointer;
 mod text_input;
 mod touch;
 
+use keyboard::{KeyboardData, KeyboardState};
 pub use pointer::relative_pointer::RelativePointerState;
 pub use pointer::{PointerConstraintsState, WinitPointerData, WinitPointerDataExt};
-pub use text_input::{TextInputState, ZwpTextInputV3Ext};
-
-use keyboard::{KeyboardData, KeyboardState};
 use text_input::TextInputData;
+pub use text_input::{TextInputState, ZwpTextInputV3Ext};
 use touch::TouchPoint;
 
 #[derive(Debug, Default)]

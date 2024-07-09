@@ -12,8 +12,7 @@ use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::{Duration, Instant};
 use std::{mem, panic, ptr};
 
-use crate::utils::Lazy;
-
+use runner::EventLoopRunner;
 use windows_sys::Win32::Devices::HumanInterfaceDevice::MOUSE_MOVE_RELATIVE;
 use windows_sys::Win32::Foundation::{HWND, LPARAM, LRESULT, POINT, RECT, WPARAM};
 use windows_sys::Win32::Graphics::Gdi::{
@@ -57,6 +56,8 @@ use windows_sys::Win32::UI::WindowsAndMessaging::{
     WS_VISIBLE,
 };
 
+use super::window::set_skip_taskbar;
+use super::SelectedCursor;
 use crate::application::ApplicationHandler;
 use crate::dpi::{PhysicalPosition, PhysicalSize};
 use crate::error::EventLoopError;
@@ -81,13 +82,10 @@ use crate::platform_impl::platform::window_state::{
 use crate::platform_impl::platform::{
     raw_input, util, wrap_device_id, Fullscreen, WindowId, DEVICE_ID,
 };
+use crate::utils::Lazy;
 use crate::window::{
     CustomCursor as RootCustomCursor, CustomCursorSource, WindowId as RootWindowId,
 };
-use runner::EventLoopRunner;
-
-use super::window::set_skip_taskbar;
-use super::SelectedCursor;
 
 pub(crate) struct WindowData {
     pub window_state: Arc<Mutex<WindowState>>,

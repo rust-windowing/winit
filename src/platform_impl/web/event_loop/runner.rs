@@ -1,3 +1,15 @@
+use std::cell::{Cell, RefCell};
+use std::collections::{HashSet, VecDeque};
+use std::iter;
+use std::ops::Deref;
+use std::rc::{Rc, Weak};
+
+use js_sys::Function;
+use wasm_bindgen::prelude::{wasm_bindgen, Closure};
+use wasm_bindgen::JsCast;
+use web_sys::{Document, KeyboardEvent, PageTransitionEvent, PointerEvent, WheelEvent};
+use web_time::{Duration, Instant};
+
 use super::super::main_thread::MainThreadMarker;
 use super::super::DeviceId;
 use super::backend;
@@ -13,17 +25,6 @@ use crate::platform_impl::platform::backend::EventListenerHandle;
 use crate::platform_impl::platform::r#async::{DispatchRunner, Waker, WakerSpawner};
 use crate::platform_impl::platform::window::Inner;
 use crate::window::WindowId;
-
-use js_sys::Function;
-use std::cell::{Cell, RefCell};
-use std::collections::{HashSet, VecDeque};
-use std::iter;
-use std::ops::Deref;
-use std::rc::{Rc, Weak};
-use wasm_bindgen::prelude::{wasm_bindgen, Closure};
-use wasm_bindgen::JsCast;
-use web_sys::{Document, KeyboardEvent, PageTransitionEvent, PointerEvent, WheelEvent};
-use web_time::{Duration, Instant};
 
 pub struct Shared(Rc<Execution>);
 

@@ -16,7 +16,6 @@ use calloop::ping::Ping;
 use calloop::{EventLoop as Loop, Readiness};
 use libc::{setlocale, LC_CTYPE};
 use tracing::warn;
-
 use x11rb::connection::RequestConnection;
 use x11rb::errors::{ConnectError, ConnectionError, IdsExhausted, ReplyError};
 use x11rb::protocol::xinput::{self, ConnectionExt as _};
@@ -49,13 +48,12 @@ mod window;
 mod xdisplay;
 mod xsettings;
 
-pub use util::CustomCursor;
-
 use atoms::*;
 use dnd::{Dnd, DndState};
 use event_processor::{EventProcessor, MAX_MOD_REPLAY_LEN};
 use ime::{Ime, ImeCreationError, ImeReceiver, ImeRequest, ImeSender};
 pub(crate) use monitor::{MonitorHandle, VideoModeHandle};
+pub use util::CustomCursor;
 use window::UnownedWindow;
 pub(crate) use xdisplay::{XConnection, XError, XNotSupported};
 

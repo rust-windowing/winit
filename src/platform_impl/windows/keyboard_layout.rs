@@ -4,7 +4,6 @@ use std::ffi::OsString;
 use std::os::windows::ffi::OsStringExt;
 use std::sync::Mutex;
 
-use crate::utils::Lazy;
 use smol_str::SmolStr;
 use windows_sys::Win32::System::SystemServices::{LANG_JAPANESE, LANG_KOREAN};
 use windows_sys::Win32::UI::Input::KeyboardAndMouse::{
@@ -44,6 +43,7 @@ use windows_sys::Win32::UI::TextServices::HKL;
 
 use crate::keyboard::{Key, KeyCode, ModifiersState, NamedKey, NativeKey, PhysicalKey};
 use crate::platform_impl::{loword, primarylangid, scancode_to_physicalkey};
+use crate::utils::Lazy;
 
 pub(crate) static LAYOUT_CACHE: Lazy<Mutex<LayoutCache>> =
     Lazy::new(|| Mutex::new(LayoutCache::default()));

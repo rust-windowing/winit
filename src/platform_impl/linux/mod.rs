@@ -11,30 +11,29 @@ use std::{env, fmt};
 #[cfg(x11_platform)]
 use std::{ffi::CStr, mem::MaybeUninit, os::raw::*, sync::Mutex};
 
-use crate::application::ApplicationHandler;
-use crate::platform::pump_events::PumpStatus;
-#[cfg(x11_platform)]
-use crate::utils::Lazy;
 use smol_str::SmolStr;
 
+pub(crate) use self::common::xkb::{physicalkey_to_scancode, scancode_to_physicalkey};
 #[cfg(x11_platform)]
 use self::x11::{X11Error, XConnection, XError, XNotSupported};
+use crate::application::ApplicationHandler;
+pub(crate) use crate::cursor::OnlyCursorImageSource as PlatformCustomCursorSource;
 use crate::dpi::{PhysicalPosition, PhysicalSize, Position, Size};
 use crate::error::{EventLoopError, ExternalError, NotSupportedError, OsError as RootOsError};
 use crate::event_loop::{AsyncRequestSerial, ControlFlow, DeviceEvents};
 use crate::icon::Icon;
+pub(crate) use crate::icon::RgbaIcon as PlatformIcon;
 use crate::keyboard::Key;
+use crate::platform::pump_events::PumpStatus;
 #[cfg(x11_platform)]
 use crate::platform::x11::{WindowType as XWindowType, XlibErrorHook};
+pub(crate) use crate::platform_impl::Fullscreen;
+#[cfg(x11_platform)]
+use crate::utils::Lazy;
 use crate::window::{
     ActivationToken, Cursor, CursorGrabMode, CustomCursor, CustomCursorSource, ImePurpose,
     ResizeDirection, Theme, UserAttentionType, WindowAttributes, WindowButtons, WindowLevel,
 };
-
-pub(crate) use self::common::xkb::{physicalkey_to_scancode, scancode_to_physicalkey};
-pub(crate) use crate::cursor::OnlyCursorImageSource as PlatformCustomCursorSource;
-pub(crate) use crate::icon::RgbaIcon as PlatformIcon;
-pub(crate) use crate::platform_impl::Fullscreen;
 
 pub(crate) mod common;
 #[cfg(wayland_platform)]

@@ -20,6 +20,8 @@ mod window_property;
 mod wm;
 mod xmodmap;
 
+use x11rb::protocol::xproto::{self, ConnectionExt as _};
+
 pub use self::cursor::*;
 pub use self::geometry::*;
 pub use self::hint::*;
@@ -28,10 +30,8 @@ pub use self::mouse::*;
 pub use self::window_property::*;
 pub use self::wm::*;
 pub use self::xmodmap::ModifierKeymap;
-
 use super::atoms::*;
 use super::{ffi, VoidCookie, X11Error, XConnection, XError};
-use x11rb::protocol::xproto::{self, ConnectionExt as _};
 
 pub fn maybe_change<T: PartialEq>(field: &mut Option<T>, value: T) -> bool {
     let wrapped = Some(value);

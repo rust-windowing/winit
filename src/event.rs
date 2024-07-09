@@ -1004,9 +1004,10 @@ impl PartialEq for InnerSizeWriter {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::{BTreeSet, HashSet};
+
     use crate::dpi::PhysicalPosition;
     use crate::event;
-    use std::collections::{BTreeSet, HashSet};
 
     macro_rules! foreach_event {
         ($closure:expr) => {{

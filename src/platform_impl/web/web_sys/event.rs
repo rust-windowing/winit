@@ -1,14 +1,14 @@
-use crate::event::{MouseButton, MouseScrollDelta};
-use crate::keyboard::{Key, KeyLocation, ModifiersState, NamedKey, PhysicalKey};
+use std::cell::OnceCell;
 
 use dpi::{LogicalPosition, PhysicalPosition, Position};
 use smol_str::SmolStr;
-use std::cell::OnceCell;
 use wasm_bindgen::prelude::wasm_bindgen;
 use wasm_bindgen::{JsCast, JsValue};
 use web_sys::{KeyboardEvent, MouseEvent, PointerEvent, WheelEvent};
 
 use super::Engine;
+use crate::event::{MouseButton, MouseScrollDelta};
+use crate::keyboard::{Key, KeyLocation, ModifiersState, NamedKey, PhysicalKey};
 
 bitflags::bitflags! {
     // https://www.w3.org/TR/pointerevents3/#the-buttons-property

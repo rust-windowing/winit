@@ -177,16 +177,15 @@
 #![cfg_attr(docsrs, feature(doc_auto_cfg, doc_cfg_hide), doc(cfg_hide(doc, docsrs)))]
 #![allow(clippy::missing_safety_doc)]
 
+// Re-export DPI types so that users don't have to put it in Cargo.toml.
+#[doc(inline)]
+pub use dpi;
 #[cfg(feature = "rwh_04")]
 pub use rwh_04 as raw_window_handle_04;
 #[cfg(feature = "rwh_05")]
 pub use rwh_05 as raw_window_handle_05;
 #[cfg(feature = "rwh_06")]
 pub use rwh_06 as raw_window_handle;
-
-// Re-export DPI types so that users don't have to put it in Cargo.toml.
-#[doc(inline)]
-pub use dpi;
 
 pub mod application;
 #[cfg(any(doc, doctest, test))]

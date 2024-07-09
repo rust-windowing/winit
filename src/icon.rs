@@ -1,6 +1,7 @@
-use crate::platform_impl::PlatformIcon;
 use std::error::Error;
 use std::{fmt, io, mem};
+
+use crate::platform_impl::PlatformIcon;
 
 #[repr(C)]
 #[derive(Debug)]

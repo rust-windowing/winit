@@ -5,13 +5,13 @@
 //! X11 has a "startup notification" specification similar to Wayland's, see this URL:
 //! <https://specifications.freedesktop.org/startup-notification-spec/startup-notification-latest.txt>
 
-use super::atoms::*;
-use super::{VoidCookie, X11Error, XConnection};
-
 use std::ffi::CString;
 use std::fmt::Write;
 
 use x11rb::protocol::xproto::{self, ConnectionExt as _};
+
+use super::atoms::*;
+use super::{VoidCookie, X11Error, XConnection};
 
 impl XConnection {
     /// "Request" a new activation token from the server.

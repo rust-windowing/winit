@@ -5,11 +5,10 @@ use std::{iter, slice};
 
 use x11rb::connection::Connection;
 
-use crate::platform_impl::PlatformCustomCursorSource;
-use crate::window::CursorIcon;
-
 use super::super::ActiveEventLoop;
 use super::*;
+use crate::platform_impl::PlatformCustomCursorSource;
+use crate::window::CursorIcon;
 
 impl XConnection {
     pub fn set_cursor_icon(&self, window: xproto::Window, cursor: Option<CursorIcon>) {
