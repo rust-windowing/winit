@@ -39,10 +39,10 @@ use windows_sys::Win32::UI::WindowsAndMessaging::{
     CreateWindowExW, DefWindowProcW, DestroyWindow, DispatchMessageW, GetClientRect, GetCursorPos,
     GetMenu, GetMessageW, KillTimer, LoadCursorW, PeekMessageW, PostMessageW, RegisterClassExW,
     RegisterWindowMessageA, SetCursor, SetTimer, SetWindowPos, TranslateMessage, CREATESTRUCTW,
-    GIDC_ARRIVAL, GIDC_REMOVAL, GWL_STYLE, GWL_USERDATA, HTCAPTION, HTCLIENT, MINMAXINFO,
-    MNC_CLOSE, MSG, NCCALCSIZE_PARAMS, PM_REMOVE, PT_PEN, PT_TOUCH, RI_MOUSE_HWHEEL,
-    RI_MOUSE_WHEEL, SC_MINIMIZE, SC_RESTORE, SIZE_MAXIMIZED, SWP_NOACTIVATE, SWP_NOMOVE,
-    SWP_NOSIZE, SWP_NOZORDER, WHEEL_DELTA, WINDOWPOS, WMSZ_BOTTOM, WMSZ_BOTTOMLEFT,
+    GIDC_ARRIVAL, GIDC_REMOVAL, GWL_STYLE, GWL_USERDATA, HTCAPTION, HTCLIENT, MA_ACTIVATE,
+    MA_NOACTIVATE, MINMAXINFO, MNC_CLOSE, MSG, NCCALCSIZE_PARAMS, PM_REMOVE, PT_PEN, PT_TOUCH,
+    RI_MOUSE_HWHEEL, RI_MOUSE_WHEEL, SC_MINIMIZE, SC_RESTORE, SIZE_MAXIMIZED, SWP_NOACTIVATE,
+    SWP_NOMOVE, SWP_NOSIZE, SWP_NOZORDER, WHEEL_DELTA, WINDOWPOS, WMSZ_BOTTOM, WMSZ_BOTTOMLEFT,
     WMSZ_BOTTOMRIGHT, WMSZ_LEFT, WMSZ_RIGHT, WMSZ_TOP, WMSZ_TOPLEFT, WMSZ_TOPRIGHT,
     WM_CAPTURECHANGED, WM_CLOSE, WM_CREATE, WM_DESTROY, WM_DPICHANGED, WM_ENTERSIZEMOVE,
     WM_EXITSIZEMOVE, WM_GETMINMAXINFO, WM_IME_COMPOSITION, WM_IME_ENDCOMPOSITION,
@@ -2296,7 +2296,9 @@ unsafe fn public_window_callback_inner(
 
         WM_MOUSEACTIVATE => {
             let mouse_activate = userdata.window_state_lock().mouse_activate;
-            result = ProcResult::Value(mouse_activate as isize);
+            result = ProcResult::Value(
+                if mouse_activate { MA_ACTIVATE } else { MA_NOACTIVATE } as isize
+            );
         },
 
         _ => {

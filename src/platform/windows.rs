@@ -51,20 +51,6 @@ pub enum BackdropType {
     TabbedWindow = 4,
 }
 
-/// Describes if a window is activated by a mouse click.
-///
-/// For a detailed explanation, see the [`WM_MOUSEACTIVATE` docs].
-///
-/// [`WM_MOUSEACTIVATE docs`]: https://learn.microsoft.com/en-us/windows/win32/inputdev/wm-mouseactivate
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum MouseActivate {
-    #[default]
-    Activate = 1,
-    ActivateAndEat = 2,
-    NoActivate = 3,
-    NoActivateAndEat = 4,
-}
-
 /// Describes a color used by Windows
 #[repr(transparent)]
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
@@ -372,7 +358,7 @@ pub trait WindowExtWindows {
     ) -> Result<rwh_06::WindowHandle<'_>, rwh_06::HandleError>;
 
     /// Set whether a mouse click activates the window.
-    fn set_mouse_activate(&self, mouse_activate: MouseActivate);
+    fn set_mouse_activate(&self, mouse_activate: bool);
 }
 
 impl WindowExtWindows for Window {
@@ -437,7 +423,7 @@ impl WindowExtWindows for Window {
     }
 
     #[inline]
-    fn set_mouse_activate(&self, mouse_activate: MouseActivate) {
+    fn set_mouse_activate(&self, mouse_activate: bool) {
         self.window.set_mouse_activate(mouse_activate);
     }
 }
@@ -559,7 +545,7 @@ pub trait WindowAttributesExtWindows {
     fn with_corner_preference(self, corners: CornerPreference) -> Self;
 
     /// Sets whether the mouse activates the window.
-    fn with_mouse_activate(self, mouse_activate: MouseActivate) -> Self;
+    fn with_mouse_activate(self, mouse_activate: bool) -> Self;
 }
 
 impl WindowAttributesExtWindows for WindowAttributes {
@@ -648,7 +634,7 @@ impl WindowAttributesExtWindows for WindowAttributes {
     }
 
     #[inline]
-    fn with_mouse_activate(mut self, mouse_activate: MouseActivate) -> Self {
+    fn with_mouse_activate(mut self, mouse_activate: bool) -> Self {
         self.platform_specific.mouse_activate = mouse_activate;
         self
     }
