@@ -183,6 +183,7 @@ impl<T: 'static> EventLoop<T> {
                         &redraw_flag,
                         android_app.create_waker(),
                     ),
+                    show_keyboard_on_resume: Arc::new(AtomicBool::new(false)),
                 },
                 _marker: PhantomData,
             },
@@ -267,6 +268,10 @@ impl<T: 'static> EventLoop<T> {
                 MainEvent::Resume { .. } => {
                     debug!("App Resumed - is running");
                     self.running = true;
+                    show_hide_keyboard(
+                        self.window_target.p.app.clone(),
+                        self.window_target.p.show_keyboard_on_resume.load(Ordering::SeqCst),
+                    );
                 },
                 MainEvent::SaveState { .. } => {
                     // XXX: how to forward this state to applications?
@@ -635,6 +640,7 @@ pub struct ActiveEventLoop {
     control_flow: Cell<ControlFlow>,
     exit: Cell<bool>,
     redraw_requester: RedrawRequester,
+    show_keyboard_on_resume: Arc<AtomicBool>,
 }
 
 impl ActiveEventLoop {
@@ -747,9 +753,35 @@ impl DeviceId {
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub struct PlatformSpecificWindowAttributes;
 
+fn show_hide_keyboard(app: AndroidApp, show: bool) {
+    use jni::{objects::JObject, JavaVM};
+    let vm = unsafe { JavaVM::from_raw(app.vm_as_ptr() as _).unwrap() };
+    let activity = unsafe { JObject::from_raw(app.activity_as_ptr() as _) };
+    let mut env = vm.attach_current_thread().unwrap();
+    let window = env
+        .call_method(&activity, "getWindow", "()Landroid/view/Window;", &[])
+        .unwrap()
+        .l()
+        .unwrap();
+    let wic = env
+        .call_method(window, "getInsetsController", "()Landroid/view/WindowInsetsController;", &[])
+        .unwrap()
+        .l()
+        .unwrap();
+    let window_insets_types = env.find_class("android/view/WindowInsets$Type").unwrap();
+    let ime_type =
+        env.call_static_method(&window_insets_types, "ime", "()I", &[]).unwrap().i().unwrap();
+    let _ = if show {
+        env.call_method(&wic, "show", "(I)V", &[ime_type.into()])
+    } else {
+        env.call_method(&wic, "hide", "(I)V", &[ime_type.into()])
+    };
+}
+
 pub(crate) struct Window {
     app: AndroidApp,
     redraw_requester: RedrawRequester,
+    show_keyboard_on_resume: Arc<AtomicBool>,
 }
 
 impl Window {
@@ -759,7 +791,11 @@ impl Window {
     ) -> Result<Self, error::OsError> {
         // FIXME this ignores requested window attributes
 
-        Ok(Self { app: el.app.clone(), redraw_requester: el.redraw_requester.clone() })
+        Ok(Self {
+            app: el.app.clone(),
+            redraw_requester: el.redraw_requester.clone(),
+            show_keyboard_on_resume: el.show_keyboard_on_resume.clone(),
+        })
     }
 
     pub(crate) fn maybe_queue_on_main(&self, f: impl FnOnce(&Self) + Send + 'static) {
@@ -888,7 +924,10 @@ impl Window {
 
     pub fn set_ime_cursor_area(&self, _position: Position, _size: Size) {}
 
-    pub fn set_ime_allowed(&self, _allowed: bool) {}
+    pub fn set_ime_allowed(&self, allowed: bool) {
+        self.show_keyboard_on_resume.store(allowed, Ordering::SeqCst);
+        show_hide_keyboard(self.app.clone(), allowed);
+    }
 
     pub fn set_ime_purpose(&self, _purpose: ImePurpose) {}
 
