@@ -84,14 +84,14 @@ changelog entry.
 - Changed `EventLoopProxy::send_event` to `EventLoopProxy::wake_up`, it now
   only wakes up the loop.
 - On X11, implement smooth resizing through the sync extension API.
-- `ApplicationHandler::create|destroy_surfaces()` was split off from
+- `ApplicationHandler::can_create|destroy_surfaces()` was split off from
   `ApplicationHandler::resumed/suspended()`.
 
   `ApplicationHandler::can_create_surfaces()` should, for portability reasons
   to Android, be the only place to create render surfaces.
 
-  `ApplicationHandler::resumed/suspended()` are now only emitted by iOS and Web
-  and now signify actually resuming/suspending the application.
+  `ApplicationHandler::resumed/suspended()` are now only emitted by iOS, Web
+  and Android, and now signify actually resuming/suspending the application.
 - Rename `platform::web::*ExtWebSys` to `*ExtWeb`.
 - Change signature of `EventLoop::run_app`, `EventLoopExtPumpEvents::pump_app_events` and
   `EventLoopExtRunOnDemand::run_app_on_demand` to accept a `impl ApplicationHandler` directly,
