@@ -221,8 +221,7 @@ impl EventLoop {
                     app.memory_warning(self.window_target());
                 },
                 MainEvent::Start => {
-                    // XXX: how to forward this state to applications?
-                    warn!("TODO: forward onStart notification to application");
+                    app.resumed(self.window_target());
                 },
                 MainEvent::Resume { .. } => {
                     debug!("App Resumed - is running");
@@ -235,11 +234,12 @@ impl EventLoop {
                 },
                 MainEvent::Pause => {
                     debug!("App Paused - stopped running");
+                    // TODO: This doesn't seem generally true. The app can also keep rendering outside of onResume()/onPause() ??
+                    // https://developer.android.com/guide/components/activities/activity-lifecycle#onpause
                     self.running = false;
                 },
                 MainEvent::Stop => {
-                    // XXX: how to forward this state to applications?
-                    warn!("TODO: forward onStop notification to application");
+                    app.suspended(self.window_target());
                 },
                 MainEvent::Destroy => {
                     // XXX: maybe exit mainloop to drop things before being

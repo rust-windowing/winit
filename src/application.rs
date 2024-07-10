@@ -41,9 +41,12 @@ pub trait ApplicationHandler {
     /// [`pageshow`]: https://developer.mozilla.org/en-US/docs/Web/API/Window/pageshow_event
     /// [`bfcache`]: https://web.dev/bfcache/
     ///
+    /// ### Android
+    /// [`onStart`]: https://developer.android.com/reference/android/app/Activity#onStart()
+    ///
     /// ### Others
     ///
-    /// **Android / macOS / Orbital / Wayland / Windows / X11:** Unsupported.
+    /// **macOS / Orbital / Wayland / Windows / X11:** Unsupported.
     ///
     /// [`resumed()`]: Self::resumed
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
@@ -72,25 +75,22 @@ pub trait ApplicationHandler {
     /// ### Android
     ///
     /// On Android, the [`can_create_surfaces()`] method is called when a new [`SurfaceView`] has
-    /// been created. This is expected to closely correlate with the [`onResume`] lifecycle
-    /// event but there may technically be a discrepancy.
+    /// been created. This is expected to closely correlate with the [`onStart`] lifecycle event but
+    /// there may technically be a discrepancy.
     ///
-    /// [`onResume`]: https://developer.android.com/reference/android/app/Activity#onResume()
+    /// [`onStart`]: https://developer.android.com/reference/android/app/Activity#onStart()
     ///
-    /// Applications that need to run on Android must wait until they have been "resumed" before
+    /// Applications that need to run on Android must wait until they have received a surface before
     /// they will be able to create a render surface (such as an `EGLSurface`, [`VkSurfaceKHR`]
-    /// or [`wgpu::Surface`]) which depend on having a [`SurfaceView`]. Applications must also
-    /// assume that if they are [suspended], then their render surfaces are invalid and should
-    /// be dropped.
+    /// or [`wgpu::Surface`]) which depend on having a [`SurfaceView`]. Applications must handle
+    /// [`destroy_surfaces()`], where their render surfaces are invalid and should be dropped.
     ///
-    /// [suspended]: Self::destroy_surfaces
     /// [`SurfaceView`]: https://developer.android.com/reference/android/view/SurfaceView
-    /// [Activity lifecycle]: https://developer.android.com/guide/components/activities/activity-lifecycle
     /// [`VkSurfaceKHR`]: https://www.khronos.org/registry/vulkan/specs/1.3-extensions/man/html/VkSurfaceKHR.html
     /// [`wgpu::Surface`]: https://docs.rs/wgpu/latest/wgpu/struct.Surface.html
     ///
-    /// [`can_create_surfaces()`]: Self::can_create_surfaces
-    /// [`destroy_surfaces()`]: Self::destroy_surfaces
+    /// [`can_create_surfaces()`]: Self::can_create_surfaces()
+    /// [`destroy_surfaces()`]: Self::destroy_surfaces()
     fn can_create_surfaces(&mut self, event_loop: &ActiveEventLoop);
 
     /// Called after a wake up is requested using [`EventLoopProxy::wake_up()`].
@@ -235,16 +235,19 @@ pub trait ApplicationHandler {
     /// ### Web
     ///
     /// On Web, the [`suspended()`] method is called in response to a [`pagehide`] event if the
-    /// page is being restored from the [`bfcache`] (back/forward cache) - an in-memory cache that
+    /// page is being moved/stored in the [`bfcache`] (back/forward cache) - an in-memory cache that
     /// stores a complete snapshot of a page (including the JavaScript heap) as the user is
     /// navigating away.
     ///
     /// [`pagehide`]: https://developer.mozilla.org/en-US/docs/Web/API/Window/pagehide_event
     /// [`bfcache`]: https://web.dev/bfcache/
     ///
+    /// ### Android
+    /// [`onStop`]: https://developer.android.com/reference/android/app/Activity#onStop()
+    ///
     /// ### Others
     ///
-    /// **Android / macOS / Orbital / Wayland / Windows / X11:** Unsupported.
+    /// **macOS / Orbital / Wayland / Windows / X11:** Unsupported.
     ///
     /// [`suspended()`]: Self::suspended
     fn suspended(&mut self, event_loop: &ActiveEventLoop) {
@@ -260,23 +263,20 @@ pub trait ApplicationHandler {
     /// ### Android
     ///
     /// On Android, the [`destroy_surfaces()`] method is called when the application's associated
-    /// [`SurfaceView`] is destroyed. This is expected to closely correlate with the [`onPause`]
+    /// [`SurfaceView`] is destroyed. This is expected to closely correlate with the [`onStop`]
     /// lifecycle event but there may technically be a discrepancy.
     ///
-    /// [`onPause`]: https://developer.android.com/reference/android/app/Activity#onPause()
+    /// [`onStop`]: https://developer.android.com/reference/android/app/Activity#onStop()
     ///
     /// Applications that need to run on Android should assume their [`SurfaceView`] has been
     /// destroyed, which indirectly invalidates any existing render surfaces that may have been
     /// created outside of Winit (such as an `EGLSurface`, [`VkSurfaceKHR`] or [`wgpu::Surface`]).
     ///
-    /// After being [suspended] on Android applications must drop all render surfaces before
-    /// the event callback completes, which may be re-created when the application is next
-    /// [resumed].
+    /// When receiving [`destroy_surfaces()`] Android applications must drop all render surfaces
+    /// before the event callback completes, which may be re-created when the application next
+    /// receives [`can_create_surfaces()`].
     ///
-    /// [suspended]: Self::destroy_surfaces
-    /// [resumed]: Self::can_create_surfaces
     /// [`SurfaceView`]: https://developer.android.com/reference/android/view/SurfaceView
-    /// [Activity lifecycle]: https://developer.android.com/guide/components/activities/activity-lifecycle
     /// [`VkSurfaceKHR`]: https://www.khronos.org/registry/vulkan/specs/1.3-extensions/man/html/VkSurfaceKHR.html
     /// [`wgpu::Surface`]: https://docs.rs/wgpu/latest/wgpu/struct.Surface.html
     ///
@@ -284,8 +284,8 @@ pub trait ApplicationHandler {
     ///
     /// - **iOS / macOS / Orbital / Wayland / Web / Windows / X11:** Unsupported.
     ///
-    /// [`can_create_surfaces()`]: Self::can_create_surfaces
-    /// [`destroy_surfaces()`]: Self::destroy_surfaces
+    /// [`can_create_surfaces()`]: Self::can_create_surfaces()
+    /// [`destroy_surfaces()`]: Self::destroy_surfaces()
     fn destroy_surfaces(&mut self, event_loop: &ActiveEventLoop) {
         let _ = event_loop;
     }
