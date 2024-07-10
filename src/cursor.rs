@@ -62,7 +62,7 @@ impl From<CustomCursor> for Cursor {
 ///
 /// #[cfg(target_family = "wasm")]
 /// let source = {
-///     use winit::platform::web::CustomCursorExtWebSys;
+///     use winit::platform::web::CustomCursorExtWeb;
 ///     CustomCursor::from_url(String::from("http://localhost:3000/cursor.png"), 0, 0)
 /// };
 ///

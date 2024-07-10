@@ -1,24 +1,23 @@
 //! # Web
 //!
-//! The officially supported browsers are Chrome, Firefox and Safari 13.1+,
-//! though forks of these should work fine.
+//! Winit supports running in Browsers by compiling to WebAssembly with
+//! [`wasm-bindgen`][wasm_bindgen]. For information on using Rust on WebAssembly, check out the
+//! [Rust and WebAssembly book].
 //!
-//! Winit supports compiling to the `wasm32-unknown-unknown` target with
-//! `web-sys`.
+//! The officially supported browsers are Chrome, Firefox and Safari 13.1+, though forks of these
+//! should work fine.
 //!
-//! On the web platform, a Winit window is backed by a `<canvas>` element. You
-//! can either [provide Winit with a `<canvas>` element][with_canvas], or
-//! [let Winit create a `<canvas>` element which you can then retrieve][get]
-//! and insert it into the DOM yourself.
+//! On the Web platform, a Winit [`Window`] is backed by a [`HTMLCanvasElement`][canvas]. Winit will
+//! create that canvas for you or you can [provide your own][with_canvas]. Then you can either let
+//! Winit [insert it into the DOM for you][insert], or [retrieve the canvas][get] and insert it
+//! yourself.
 //!
-//! Currently, there is no example code using Winit on Web, see [#3473]. For
-//! information on using Rust on WebAssembly, check out the [Rust and
-//! WebAssembly book].
-//!
-//! [with_canvas]: WindowAttributesExtWebSys::with_canvas
-//! [get]: WindowExtWebSys::canvas
-//! [#3473]: https://github.com/rust-windowing/winit/issues/3473
-//! [Rust and WebAssembly book]: https://rustwasm.github.io/book/
+//! [canvas]: https://developer.mozilla.org/en-US/docs/Web/API/HTMLCanvasElement
+//! [with_canvas]: WindowAttributesExtWeb::with_canvas
+//! [get]: WindowExtWeb::canvas
+//! [insert]: WindowAttributesExtWeb::with_append
+#![cfg_attr(not(web_platform), doc = "[wasm_bindgen]: https://docs.rs/wasm-bindgen")]
+//! [Rust and WebAssembly book]: https://rustwasm.github.io/book
 //!
 //! ## CSS properties
 //!
@@ -65,7 +64,7 @@ use crate::window::{CustomCursor, Window, WindowAttributes};
 #[doc(hidden)]
 pub struct HtmlCanvasElement;
 
-pub trait WindowExtWebSys {
+pub trait WindowExtWeb {
     /// Only returns the canvas if called from inside the window context (the
     /// main thread).
     fn canvas(&self) -> Option<HtmlCanvasElement>;
@@ -86,7 +85,7 @@ pub trait WindowExtWebSys {
     fn set_prevent_default(&self, prevent_default: bool);
 }
 
-impl WindowExtWebSys for Window {
+impl WindowExtWeb for Window {
     #[inline]
     fn canvas(&self) -> Option<HtmlCanvasElement> {
         self.window.canvas()
@@ -101,11 +100,11 @@ impl WindowExtWebSys for Window {
     }
 }
 
-pub trait WindowAttributesExtWebSys {
+pub trait WindowAttributesExtWeb {
     /// Pass an [`HtmlCanvasElement`] to be used for this [`Window`]. If [`None`],
     /// [`WindowAttributes::default()`] will create one.
     ///
-    /// In any case, the canvas won't be automatically inserted into the web page.
+    /// In any case, the canvas won't be automatically inserted into the Web page.
     ///
     /// [`None`] by default.
     #[cfg_attr(not(web_platform), doc = "", doc = "[`HtmlCanvasElement`]: #only-available-on-wasm")]
@@ -125,13 +124,13 @@ pub trait WindowAttributesExtWebSys {
     /// Enabled by default.
     fn with_focusable(self, focusable: bool) -> Self;
 
-    /// On window creation, append the canvas element to the web page if it isn't already.
+    /// On window creation, append the canvas element to the Web page if it isn't already.
     ///
     /// Disabled by default.
     fn with_append(self, append: bool) -> Self;
 }
 
-impl WindowAttributesExtWebSys for WindowAttributes {
+impl WindowAttributesExtWeb for WindowAttributes {
     fn with_canvas(mut self, canvas: Option<HtmlCanvasElement>) -> Self {
         self.platform_specific.set_canvas(canvas);
         self
@@ -153,8 +152,8 @@ impl WindowAttributesExtWebSys for WindowAttributes {
     }
 }
 
-/// Additional methods on `EventLoop` that are specific to the web.
-pub trait EventLoopExtWebSys {
+/// Additional methods on `EventLoop` that are specific to the Web.
+pub trait EventLoopExtWeb {
     /// Initializes the winit event loop.
     ///
     /// Unlike
@@ -208,7 +207,7 @@ pub trait EventLoopExtWebSys {
     fn wait_until_strategy(&self) -> WaitUntilStrategy;
 }
 
-impl EventLoopExtWebSys for EventLoop {
+impl EventLoopExtWeb for EventLoop {
     fn spawn_app<A: ApplicationHandler + 'static>(self, app: A) {
         self.event_loop.spawn_app(app);
     }
@@ -230,7 +229,7 @@ impl EventLoopExtWebSys for EventLoop {
     }
 }
 
-pub trait ActiveEventLoopExtWebSys {
+pub trait ActiveEventLoopExtWeb {
     /// Sets the strategy for [`ControlFlow::Poll`].
     ///
     /// See [`PollStrategy`].
@@ -264,7 +263,7 @@ pub trait ActiveEventLoopExtWebSys {
     fn create_custom_cursor_async(&self, source: CustomCursorSource) -> CustomCursorFuture;
 }
 
-impl ActiveEventLoopExtWebSys for ActiveEventLoop {
+impl ActiveEventLoopExtWeb for ActiveEventLoop {
     #[inline]
     fn create_custom_cursor_async(&self, source: CustomCursorSource) -> CustomCursorFuture {
         self.p.create_custom_cursor_async(source)
@@ -340,7 +339,7 @@ pub enum WaitUntilStrategy {
     Worker,
 }
 
-pub trait CustomCursorExtWebSys {
+pub trait CustomCursorExtWeb {
     /// Returns if this cursor is an animation.
     fn is_animation(&self) -> bool;
 
@@ -359,7 +358,7 @@ pub trait CustomCursorExtWebSys {
     ) -> Result<CustomCursorSource, BadAnimation>;
 }
 
-impl CustomCursorExtWebSys for CustomCursor {
+impl CustomCursorExtWeb for CustomCursor {
     fn is_animation(&self) -> bool {
         self.inner.animation
     }

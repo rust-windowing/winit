@@ -64,6 +64,7 @@ changelog entry.
 
   `ApplicationHandler::resumed/suspended()` are now only emitted by iOS and Web
   and now signify actually resuming/suspending the application.
+- Rename `platform::web::*ExtWebSys` to `*ExtWeb`.
 
 ### Removed
 

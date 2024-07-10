@@ -1154,7 +1154,7 @@ impl Window {
     ///
     /// Enable/disable window decorations provided by the server or Winit.
     /// By default this is enabled. Note that fullscreen windows and windows on
-    /// mobile and web platforms naturally do not have decorations.
+    /// mobile and Web platforms naturally do not have decorations.
     ///
     /// ## Platform-specific
     ///
@@ -1168,7 +1168,7 @@ impl Window {
     /// Gets the window's current decorations state.
     ///
     /// Returns `true` when windows are decorated (server-side or by Winit).
-    /// Also returns `true` when no decorations are required (mobile, web).
+    /// Also returns `true` when no decorations are required (mobile, Web).
     ///
     /// ## Platform-specific
     ///

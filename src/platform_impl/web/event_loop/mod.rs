@@ -5,7 +5,7 @@ use crate::application::ApplicationHandler;
 use crate::error::EventLoopError;
 use crate::event::Event;
 use crate::event_loop::ActiveEventLoop as RootActiveEventLoop;
-use crate::platform::web::{ActiveEventLoopExtWebSys, PollStrategy, WaitUntilStrategy};
+use crate::platform::web::{ActiveEventLoopExtWeb, PollStrategy, WaitUntilStrategy};
 
 mod proxy;
 pub(crate) mod runner;

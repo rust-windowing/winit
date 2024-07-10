@@ -224,20 +224,21 @@ impl EventLoop {
     ///
     ///   Web applications are recommended to use
     #[cfg_attr(
-        web_platform,
-        doc = "[`EventLoopExtWebSys::spawn_app()`][crate::platform::web::EventLoopExtWebSys::spawn_app()]"
+        any(web_platform, docsrs),
+        doc = "  [`EventLoopExtWeb::spawn_app()`][crate::platform::web::EventLoopExtWeb::spawn_app()]"
     )]
-    #[cfg_attr(not(web_platform), doc = "`EventLoopExtWebSys::spawn()`")]
-    ///   [^1] instead of [`run_app()`] to avoid the need
-    ///   for the Javascript exception trick, and to make it clearer that the event loop runs
-    ///   asynchronously (via the browser's own, internal, event loop) and doesn't block the
-    ///   current thread of execution like it does on other platforms.
+    #[cfg_attr(not(any(web_platform, docsrs)), doc = "  `EventLoopExtWeb::spawn_app()`")]
+    ///   [^1] instead of [`run_app()`] to avoid the need for the Javascript exception trick, and to
+    ///   make   it clearer that the event loop runs asynchronously (via the browser's own,
+    ///   internal, event   loop) and doesn't block the current thread of execution like it does
+    ///   on other platforms.
     ///
     ///   This function won't be available with `target_feature = "exception-handling"`.
     ///
+    /// [^1]: `spawn_app()` is only available on the Web platform.
+    ///
     /// [`set_control_flow()`]: ActiveEventLoop::set_control_flow()
     /// [`run_app()`]: Self::run_app()
-    /// [^1]: `EventLoopExtWebSys::spawn_app()` is only available on Web.
     #[inline]
     #[cfg(not(all(web_platform, target_feature = "exception-handling")))]
     pub fn run_app<A: ApplicationHandler>(self, app: &mut A) -> Result<(), EventLoopError> {
@@ -357,8 +358,8 @@ impl ActiveEventLoop {
     ///
     /// ## Platform-specific
     ///
-    /// - **Web:** The window is created but not inserted into the web page automatically. Please
-    ///   see the web platform module for more information.
+    /// - **Web:** The window is created but not inserted into the Web page automatically. Please
+    ///   see the Web platform module for more information.
     #[inline]
     pub fn create_window(&self, window_attributes: WindowAttributes) -> Result<Window, OsError> {
         let _span = tracing::debug_span!(
