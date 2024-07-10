@@ -768,7 +768,7 @@ pub struct DeviceId(xinput::DeviceId);
 
 impl DeviceId {
     #[allow(unused)]
-    pub const unsafe fn dummy() -> Self {
+    pub const fn dummy() -> Self {
         DeviceId(0)
     }
 }

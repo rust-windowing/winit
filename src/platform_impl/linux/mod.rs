@@ -155,7 +155,7 @@ impl From<u64> for WindowId {
 }
 
 impl WindowId {
-    pub const unsafe fn dummy() -> Self {
+    pub const fn dummy() -> Self {
         Self(0)
     }
 }
@@ -169,11 +169,11 @@ pub enum DeviceId {
 }
 
 impl DeviceId {
-    pub const unsafe fn dummy() -> Self {
+    pub const fn dummy() -> Self {
         #[cfg(wayland_platform)]
-        return DeviceId::Wayland(unsafe { wayland::DeviceId::dummy() });
+        return DeviceId::Wayland(wayland::DeviceId::dummy());
         #[cfg(all(not(wayland_platform), x11_platform))]
-        return DeviceId::X(unsafe { x11::DeviceId::dummy() });
+        return DeviceId::X(x11::DeviceId::dummy());
     }
 }
 

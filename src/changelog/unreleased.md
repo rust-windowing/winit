@@ -68,6 +68,7 @@ changelog entry.
 - Change signature of `EventLoop::run_app`, `EventLoopExtPumpEvents::pump_app_events` and
   `EventLoopExtRunOnDemand::run_app_on_demand` to accept a `impl ApplicationHandler` directly,
   instead of requiring a `&mut` reference to it.
+- `DeviceId::dummy()` and `WindowId::dummy()` are no longer marked `unsafe`.
 
 ### Removed
 
