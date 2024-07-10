@@ -1,5 +1,5 @@
 name: Web bug
-description: Create a web-specific bug report
+description: Create a Web-specific bug report
 labels:
   - B - bug
   - DS - web

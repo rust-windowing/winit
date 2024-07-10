@@ -139,7 +139,7 @@ impl Application {
 
         #[cfg(web_platform)]
         {
-            use winit::platform::web::WindowAttributesExtWebSys;
+            use winit::platform::web::WindowAttributesExtWeb;
             window_attributes = window_attributes.with_append(true);
         }
 
@@ -704,7 +704,7 @@ impl WindowState {
     ) {
         use std::time::Duration;
 
-        use winit::platform::web::CustomCursorExtWebSys;
+        use winit::platform::web::CustomCursorExtWeb;
 
         let cursors = vec![
             custom_cursors[0].clone(),
@@ -943,7 +943,7 @@ fn decode_cursor(bytes: &[u8]) -> CustomCursorSource {
 fn url_custom_cursor() -> CustomCursorSource {
     use std::sync::atomic::{AtomicU64, Ordering};
 
-    use winit::platform::web::CustomCursorExtWebSys;
+    use winit::platform::web::CustomCursorExtWeb;
 
     static URL_COUNTER: AtomicU64 = AtomicU64::new(0);
 

@@ -325,7 +325,7 @@ impl Inner {
 
     #[inline]
     pub fn set_ime_cursor_area(&self, _position: Position, _size: Size) {
-        // Currently a no-op as it does not seem there is good support for this on web
+        // Currently not implemented
     }
 
     #[inline]

@@ -57,7 +57,7 @@ pub(crate) struct RgbaIcon {
     pub(crate) height: u32,
 }
 
-/// For platforms which don't have window icons (e.g. web)
+/// For platforms which don't have window icons (e.g. Web)
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct NoIcon;
 

@@ -439,7 +439,7 @@ impl Shared {
     }
 
     pub fn init(&self) {
-        // NB: For consistency all platforms must call `can_create_surfaces` even though web
+        // NB: For consistency all platforms must call `can_create_surfaces` even though Web
         // applications don't themselves have a formal surface destroy/create lifecycle.
         self.run_until_cleared(
             [Event::NewEvents(StartCause::Init), Event::CreateSurfaces].into_iter(),
@@ -604,7 +604,7 @@ impl Shared {
         self.exit();
         self.apply_control_flow();
         // We don't call `handle_loop_destroyed` here because we don't need to
-        // perform cleanup when the web browser is going to destroy the page.
+        // perform cleanup when the Web browser is going to destroy the page.
         self.handle_event(Event::LoopExiting);
     }
 
