@@ -241,7 +241,7 @@ impl EventLoop {
     /// [`run_app()`]: Self::run_app()
     #[inline]
     #[cfg(not(all(web_platform, target_feature = "exception-handling")))]
-    pub fn run_app<A: ApplicationHandler>(self, app: &mut A) -> Result<(), EventLoopError> {
+    pub fn run_app<A: ApplicationHandler>(self, app: A) -> Result<(), EventLoopError> {
         self.event_loop.run_app(app)
     }
 

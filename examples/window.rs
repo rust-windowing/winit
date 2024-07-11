@@ -57,9 +57,8 @@ fn main() -> Result<(), Box<dyn Error>> {
         }
     });
 
-    let mut state = Application::new(&event_loop);
-
-    event_loop.run_app(&mut state).map_err(Into::into)
+    let app = Application::new(&event_loop);
+    Ok(event_loop.run_app(app)?)
 }
 
 /// Application state and event handling.

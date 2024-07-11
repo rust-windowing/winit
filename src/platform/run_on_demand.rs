@@ -58,17 +58,11 @@ pub trait EventLoopExtRunOnDemand {
     ///
     /// [`exit()`]: ActiveEventLoop::exit()
     /// [`set_control_flow()`]: ActiveEventLoop::set_control_flow()
-    fn run_app_on_demand<A: ApplicationHandler>(
-        &mut self,
-        app: &mut A,
-    ) -> Result<(), EventLoopError>;
+    fn run_app_on_demand<A: ApplicationHandler>(&mut self, app: A) -> Result<(), EventLoopError>;
 }
 
 impl EventLoopExtRunOnDemand for EventLoop {
-    fn run_app_on_demand<A: ApplicationHandler>(
-        &mut self,
-        app: &mut A,
-    ) -> Result<(), EventLoopError> {
+    fn run_app_on_demand<A: ApplicationHandler>(&mut self, app: A) -> Result<(), EventLoopError> {
         self.event_loop.window_target().clear_exit();
         self.event_loop.run_app_on_demand(app)
     }
