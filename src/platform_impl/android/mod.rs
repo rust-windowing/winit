@@ -753,28 +753,23 @@ impl DeviceId {
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub struct PlatformSpecificWindowAttributes;
 
-fn show_hide_keyboard(app: AndroidApp, show: bool) {
+fn show_hide_keyboard_fallible(app: AndroidApp, show: bool) -> Result<(), jni::errors::Error> {
     use jni::{objects::JObject, JavaVM};
-    let vm = unsafe { JavaVM::from_raw(app.vm_as_ptr() as _).unwrap() };
+    let vm = unsafe { JavaVM::from_raw(app.vm_as_ptr() as _)? };
     let activity = unsafe { JObject::from_raw(app.activity_as_ptr() as _) };
-    let mut env = vm.attach_current_thread().unwrap();
-    let window = env
-        .call_method(&activity, "getWindow", "()Landroid/view/Window;", &[])
-        .unwrap()
-        .l()
-        .unwrap();
+    let mut env = vm.attach_current_thread()?;
+    let window = env.call_method(&activity, "getWindow", "()Landroid/view/Window;", &[])?.l()?;
     let wic = env
-        .call_method(window, "getInsetsController", "()Landroid/view/WindowInsetsController;", &[])
-        .unwrap()
-        .l()
-        .unwrap();
-    let window_insets_types = env.find_class("android/view/WindowInsets$Type").unwrap();
-    let ime_type =
-        env.call_static_method(&window_insets_types, "ime", "()I", &[]).unwrap().i().unwrap();
-    let _ = if show {
-        env.call_method(&wic, "show", "(I)V", &[ime_type.into()])
-    } else {
-        env.call_method(&wic, "hide", "(I)V", &[ime_type.into()])
+        .call_method(window, "getInsetsController", "()Landroid/view/WindowInsetsController;", &[])?
+        .l()?;
+    let window_insets_types = env.find_class("android/view/WindowInsets$Type")?;
+    let ime_type = env.call_static_method(&window_insets_types, "ime", "()I", &[])?.i()?;
+    env.call_method(&wic, if show { "show" } else { "hide" }, "(I)V", &[ime_type.into()])?.v()
+}
+
+fn show_hide_keyboard(app: AndroidApp, show: bool) {
+    if let Err(e) = show_hide_keyboard_fallible(app, show) {
+        tracing::error!("Showing or hiding the soft keyboard failed: {e:?}");
     };
 }
 
