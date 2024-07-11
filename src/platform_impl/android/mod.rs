@@ -754,6 +754,9 @@ impl DeviceId {
 pub struct PlatformSpecificWindowAttributes;
 
 fn show_hide_keyboard_fallible(app: AndroidApp, show: bool) -> Result<(), jni::errors::Error> {
+    // After Android R, it is no longer possible to show the soft keyboard
+    // with `showSoftInput` alone.
+    // Here we use `WindowInsetsController`, which is the other way.
     use jni::{objects::JObject, JavaVM};
     let vm = unsafe { JavaVM::from_raw(app.vm_as_ptr() as _)? };
     let activity = unsafe { JObject::from_raw(app.activity_as_ptr() as _) };
