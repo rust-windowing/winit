@@ -12,6 +12,7 @@ use android_activity::input::{InputEvent, KeyAction, Keycode, MotionAction};
 use android_activity::{
     AndroidApp, AndroidAppWaker, ConfigurationRef, InputStatus, MainEvent, Rect,
 };
+use jni::{objects::JObject, JavaVM};
 use tracing::{debug, trace, warn};
 
 use crate::application::ApplicationHandler;
@@ -757,7 +758,6 @@ fn show_hide_keyboard_fallible(app: AndroidApp, show: bool) -> Result<(), jni::e
     // After Android R, it is no longer possible to show the soft keyboard
     // with `showSoftInput` alone.
     // Here we use `WindowInsetsController`, which is the other way.
-    use jni::{objects::JObject, JavaVM};
     let vm = unsafe { JavaVM::from_raw(app.vm_as_ptr() as _)? };
     let activity = unsafe { JObject::from_raw(app.activity_as_ptr() as _) };
     let mut env = vm.attach_current_thread()?;
