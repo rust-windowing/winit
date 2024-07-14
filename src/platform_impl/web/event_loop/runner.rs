@@ -369,7 +369,7 @@ impl Shared {
                 }
 
                 runner.send_event(Event::DeviceEvent {
-                    device_id: RootDeviceId(unsafe { DeviceId::dummy() }),
+                    device_id: RootDeviceId(DeviceId::dummy()),
                     event: DeviceEvent::Key(RawKeyEvent {
                         physical_key: backend::event::key_code(&event),
                         state: ElementState::Pressed,
@@ -387,7 +387,7 @@ impl Shared {
                 }
 
                 runner.send_event(Event::DeviceEvent {
-                    device_id: RootDeviceId(unsafe { DeviceId::dummy() }),
+                    device_id: RootDeviceId(DeviceId::dummy()),
                     event: DeviceEvent::Key(RawKeyEvent {
                         physical_key: backend::event::key_code(&event),
                         state: ElementState::Released,
