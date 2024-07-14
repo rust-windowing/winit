@@ -66,7 +66,7 @@ impl From<WaylandError> for OsError {
 pub struct DeviceId;
 
 impl DeviceId {
-    pub const unsafe fn dummy() -> Self {
+    pub const fn dummy() -> Self {
         DeviceId
     }
 }

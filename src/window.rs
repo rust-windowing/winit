@@ -71,16 +71,13 @@ pub struct WindowId(pub(crate) platform_impl::WindowId);
 impl WindowId {
     /// Returns a dummy id, useful for unit testing.
     ///
-    /// # Safety
+    /// # Notes
     ///
     /// The only guarantee made about the return value of this function is that
     /// it will always be equal to itself and to future values returned by this function.
     /// No other guarantees are made. This may be equal to a real [`WindowId`].
-    ///
-    /// **Passing this into a winit function will result in undefined behavior.**
-    pub const unsafe fn dummy() -> Self {
-        #[allow(unused_unsafe)]
-        WindowId(unsafe { platform_impl::WindowId::dummy() })
+    pub const fn dummy() -> Self {
+        WindowId(platform_impl::WindowId::dummy())
     }
 }
 

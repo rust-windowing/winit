@@ -449,16 +449,13 @@ pub struct DeviceId(pub(crate) platform_impl::DeviceId);
 impl DeviceId {
     /// Returns a dummy id, useful for unit testing.
     ///
-    /// # Safety
+    /// # Notes
     ///
     /// The only guarantee made about the return value of this function is that
     /// it will always be equal to itself and to future values returned by this function.
     /// No other guarantees are made. This may be equal to a real `DeviceId`.
-    ///
-    /// **Passing this into a winit function will result in undefined behavior.**
-    pub const unsafe fn dummy() -> Self {
-        #[allow(unused_unsafe)]
-        DeviceId(unsafe { platform_impl::DeviceId::dummy() })
+    pub const fn dummy() -> Self {
+        DeviceId(platform_impl::DeviceId::dummy())
     }
 }
 
@@ -1021,7 +1018,7 @@ mod tests {
         ($closure:expr) => {{
             #[allow(unused_mut)]
             let mut x = $closure;
-            let did = unsafe { event::DeviceId::dummy() };
+            let did = event::DeviceId::dummy();
 
             #[allow(deprecated)]
             {
@@ -1031,7 +1028,7 @@ mod tests {
                 use crate::window::WindowId;
 
                 // Mainline events.
-                let wid = unsafe { WindowId::dummy() };
+                let wid = WindowId::dummy();
                 x(UserEvent(()));
                 x(NewEvents(event::StartCause::Init));
                 x(AboutToWait);
@@ -1160,7 +1157,7 @@ mod tests {
         });
         let _ = event::StartCause::Init.clone();
 
-        let did = unsafe { crate::event::DeviceId::dummy() }.clone();
+        let did = crate::event::DeviceId::dummy().clone();
         HashSet::new().insert(did);
         let mut set = [did, did, did];
         set.sort_unstable();

@@ -431,7 +431,7 @@ impl Drop for Inner {
 pub struct WindowId(pub(crate) u32);
 
 impl WindowId {
-    pub const unsafe fn dummy() -> Self {
+    pub const fn dummy() -> Self {
         Self(0)
     }
 }
