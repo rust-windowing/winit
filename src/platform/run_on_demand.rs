@@ -1,8 +1,10 @@
 use crate::application::ApplicationHandler;
 use crate::error::EventLoopError;
-use crate::event_loop::{ActiveEventLoop, EventLoop};
+use crate::event_loop::EventLoop;
 #[cfg(doc)]
-use crate::{platform::pump_events::EventLoopExtPumpEvents, window::Window};
+use crate::{
+    event_loop::ActiveEventLoop, platform::pump_events::EventLoopExtPumpEvents, window::Window,
+};
 
 /// Additional methods on [`EventLoop`] to return control flow to the caller.
 pub trait EventLoopExtRunOnDemand {
@@ -63,15 +65,7 @@ pub trait EventLoopExtRunOnDemand {
 
 impl EventLoopExtRunOnDemand for EventLoop {
     fn run_app_on_demand<A: ApplicationHandler>(&mut self, app: A) -> Result<(), EventLoopError> {
-        self.event_loop.window_target().clear_exit();
         self.event_loop.run_app_on_demand(app)
-    }
-}
-
-impl ActiveEventLoop {
-    /// Clear exit status.
-    pub(crate) fn clear_exit(&self) {
-        self.p.clear_exit()
     }
 }
 
