@@ -56,6 +56,9 @@ changelog entry.
   well.
 - On Android, add `{Active,}EventLoopExtAndroid::android_app()` to access the app used to create the loop.
 - Add `ActiveEventLoop::system_theme()`, returning the current system theme.
+- Add `Touch::finger_id` with a new type `FingerId`.
+- On Web and Windows, add `FingerIdExt*::is_primary()`, exposing a way to determine
+  the primary finger in a multi-touch interaction.
 
 ### Changed
 
@@ -110,6 +113,7 @@ changelog entry.
   v0.5 support. v0.6 remains in place and is enabled by default.
 - Remove `DeviceEvent::Added` and `DeviceEvent::Removed`.
 - Remove `DeviceEvent::Motion` and `WindowEvent::AxisMotion`.
+- Remove `Touch::id` in favor of `Touch::finger_id`.
 
 ### Fixed
 

@@ -25,11 +25,11 @@ use windows_sys::Win32::UI::Input::KeyboardAndMouse::{
     ReleaseCapture, SetCapture, TrackMouseEvent, TME_LEAVE, TRACKMOUSEEVENT,
 };
 use windows_sys::Win32::UI::Input::Pointer::{
-    POINTER_FLAG_DOWN, POINTER_FLAG_UP, POINTER_FLAG_UPDATE,
+    POINTER_FLAG_DOWN, POINTER_FLAG_PRIMARY, POINTER_FLAG_UP, POINTER_FLAG_UPDATE,
 };
 use windows_sys::Win32::UI::Input::Touch::{
-    CloseTouchInputHandle, GetTouchInputInfo, TOUCHEVENTF_DOWN, TOUCHEVENTF_MOVE, TOUCHEVENTF_UP,
-    TOUCHINPUT,
+    CloseTouchInputHandle, GetTouchInputInfo, TOUCHEVENTF_DOWN, TOUCHEVENTF_MOVE,
+    TOUCHEVENTF_PRIMARY, TOUCHEVENTF_UP, TOUCHINPUT,
 };
 use windows_sys::Win32::UI::Input::{RAWINPUT, RIM_TYPEKEYBOARD, RIM_TYPEMOUSE};
 use windows_sys::Win32::UI::WindowsAndMessaging::{
@@ -58,7 +58,8 @@ use crate::application::ApplicationHandler;
 use crate::dpi::{PhysicalPosition, PhysicalSize};
 use crate::error::{EventLoopError, ExternalError, OsError};
 use crate::event::{
-    Event, Force, Ime, InnerSizeWriter, RawKeyEvent, Touch, TouchPhase, WindowEvent,
+    Event, FingerId as RootFingerId, Force, Ime, InnerSizeWriter, RawKeyEvent, Touch, TouchPhase,
+    WindowEvent,
 };
 use crate::event_loop::{
     ActiveEventLoop as RootActiveEventLoop, ControlFlow, DeviceEvents,
@@ -80,7 +81,7 @@ use crate::platform_impl::platform::window_state::{
     CursorFlags, ImeState, WindowFlags, WindowState,
 };
 use crate::platform_impl::platform::{
-    raw_input, util, wrap_device_id, Fullscreen, WindowId, DEVICE_ID,
+    raw_input, util, wrap_device_id, FingerId, Fullscreen, WindowId, DEVICE_ID,
 };
 use crate::platform_impl::Window;
 use crate::utils::Lazy;
@@ -1830,7 +1831,10 @@ unsafe fn public_window_callback_inner(
                             },
                             location,
                             force: None, // WM_TOUCH doesn't support pressure information
-                            id: input.dwID as u64,
+                            finger_id: RootFingerId(FingerId {
+                                id: input.dwID,
+                                primary: util::has_flag(input.dwFlags, TOUCHEVENTF_PRIMARY),
+                            }),
                             device_id: DEVICE_ID,
                         }),
                     });
@@ -1976,7 +1980,13 @@ unsafe fn public_window_callback_inner(
                             },
                             location,
                             force,
-                            id: pointer_info.pointerId as u64,
+                            finger_id: RootFingerId(FingerId {
+                                id: pointer_info.pointerId,
+                                primary: util::has_flag(
+                                    pointer_info.pointerFlags,
+                                    POINTER_FLAG_PRIMARY,
+                                ),
+                            }),
                             device_id: DEVICE_ID,
                         }),
                     });

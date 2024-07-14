@@ -71,6 +71,15 @@ impl DeviceId {
     }
 }
 
+#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct FingerId(i32);
+
+impl FingerId {
+    pub const fn dummy() -> Self {
+        FingerId(0)
+    }
+}
+
 /// Get the WindowId out of the surface.
 #[inline]
 fn make_wid(surface: &WlSurface) -> WindowId {

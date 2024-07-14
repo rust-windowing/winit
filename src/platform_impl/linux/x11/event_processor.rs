@@ -33,8 +33,8 @@ use crate::platform_impl::platform::x11::ActiveEventLoop;
 use crate::platform_impl::x11::atoms::*;
 use crate::platform_impl::x11::util::cookie::GenericEventCookie;
 use crate::platform_impl::x11::{
-    mkdid, mkwid, util, CookieResultExt, Device, DeviceId, DeviceInfo, Dnd, DndState, ImeReceiver,
-    ScrollOrientation, UnownedWindow, WindowId,
+    mkdid, mkfid, mkwid, util, CookieResultExt, Device, DeviceId, DeviceInfo, Dnd, DndState,
+    ImeReceiver, ScrollOrientation, UnownedWindow, WindowId,
 };
 
 /// The maximum amount of X modifiers to replay.
@@ -60,7 +60,7 @@ pub struct EventProcessor {
     //
     // Used to detect key repeats.
     pub held_key_press: Option<u32>,
-    pub first_touch: Option<u64>,
+    pub first_touch: Option<u32>,
     // Currently focused window belonging to this process
     pub active_window: Option<xproto::Window>,
     /// Latest modifiers we've sent for the user to trigger change in event.
@@ -1313,7 +1313,7 @@ impl EventProcessor {
         let window = xev.event as xproto::Window;
         if self.window_exists(window) {
             let window_id = mkwid(window);
-            let id = xev.detail as u64;
+            let id = xev.detail as u32;
             let location = PhysicalPosition::new(xev.event_x, xev.event_y);
 
             // Mouse cursor position changes when touch events are received.
@@ -1336,7 +1336,7 @@ impl EventProcessor {
                     phase,
                     location,
                     force: None, // TODO
-                    id,
+                    finger_id: mkfid(id),
                 }),
             };
             callback(&self.target, event)
@@ -1761,7 +1761,7 @@ impl EventProcessor {
     }
 }
 
-fn is_first_touch(first: &mut Option<u64>, num: &mut u32, id: u64, phase: TouchPhase) -> bool {
+fn is_first_touch(first: &mut Option<u32>, num: &mut u32, id: u32, phase: TouchPhase) -> bool {
     match phase {
         TouchPhase::Started => {
             if *num == 0 {

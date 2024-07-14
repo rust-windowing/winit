@@ -22,8 +22,8 @@
 
 mod r#async;
 mod cursor;
-mod device;
 mod error;
+mod event;
 mod event_loop;
 mod keyboard;
 mod lock;
@@ -37,8 +37,8 @@ pub(crate) use cursor::{
     CustomCursorSource as PlatformCustomCursorSource,
 };
 
-pub use self::device::DeviceId;
 pub use self::error::OsError;
+pub use self::event::{DeviceId, FingerId};
 pub(crate) use self::event_loop::{
     ActiveEventLoop, EventLoop, EventLoopProxy, OwnedDisplayHandle,
     PlatformSpecificEventLoopAttributes,
