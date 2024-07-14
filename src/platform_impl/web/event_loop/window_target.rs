@@ -142,7 +142,7 @@ impl ActiveEventLoop {
                     }
                 });
 
-                let device_id = RootDeviceId(unsafe { DeviceId::dummy() });
+                let device_id = RootDeviceId(DeviceId::dummy());
 
                 runner.send_events(
                     iter::once(Event::WindowEvent {
@@ -178,7 +178,7 @@ impl ActiveEventLoop {
                     }
                 });
 
-                let device_id = RootDeviceId(unsafe { DeviceId::dummy() });
+                let device_id = RootDeviceId(DeviceId::dummy());
 
                 runner.send_events(
                     iter::once(Event::WindowEvent {

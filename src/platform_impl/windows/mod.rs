@@ -67,7 +67,7 @@ unsafe impl Sync for PlatformSpecificWindowAttributes {}
 pub struct DeviceId(u32);
 
 impl DeviceId {
-    pub const unsafe fn dummy() -> Self {
+    pub const fn dummy() -> Self {
         DeviceId(0)
     }
 }
@@ -103,7 +103,7 @@ unsafe impl Send for WindowId {}
 unsafe impl Sync for WindowId {}
 
 impl WindowId {
-    pub const unsafe fn dummy() -> Self {
+    pub const fn dummy() -> Self {
         WindowId(0)
     }
 }

@@ -37,7 +37,7 @@ pub(crate) use crate::platform_impl::Fullscreen;
 pub struct DeviceId;
 
 impl DeviceId {
-    pub const unsafe fn dummy() -> Self {
+    pub const fn dummy() -> Self {
         DeviceId
     }
 }

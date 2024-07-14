@@ -40,6 +40,10 @@ changelog entry.
 
 ## Unreleased
 
+### Changed
+
+- `DeviceId::dummy()` and `WindowId::dummy()` are no longer marked `unsafe`.
+
 ### Fixed
 
 - On Wayland, avoid crashing when compositor is misbehaving.
