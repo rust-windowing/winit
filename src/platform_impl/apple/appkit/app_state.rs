@@ -47,9 +47,21 @@ pub(super) struct AppState {
 }
 
 // TODO(madsmtm): Use `MainThreadBound` once that is possible in `static`s.
-thread_local! {
-    static GLOBAL: OnceCell<Rc<AppState>> = const { OnceCell::new() };
+struct StaticMainThreadBound<T>(T);
+
+impl<T> StaticMainThreadBound<T> {
+    const fn get(&self, _mtm: MainThreadMarker) -> &T {
+        &self.0
+    }
 }
+
+unsafe impl<T> Send for StaticMainThreadBound<T> {}
+unsafe impl<T> Sync for StaticMainThreadBound<T> {}
+
+// SAFETY: Creating `StaticMainThreadBound` in a `const` context, where there is no concept of the
+// main thread.
+static GLOBAL: StaticMainThreadBound<OnceCell<Rc<AppState>>> =
+    const { StaticMainThreadBound(OnceCell::new()) };
 
 impl AppState {
     pub(super) fn setup_global(
@@ -81,11 +93,16 @@ impl AppState {
             pending_redraw: RefCell::new(vec![]),
         });
 
-        GLOBAL.with(|key: &OnceCell<Rc<AppState>>| {
-            key.set(this.clone()).expect("application state can only be set once");
-        });
-
+        GLOBAL.get(mtm).set(this.clone()).expect("application state can only be set once");
         this
+    }
+
+    pub fn get(mtm: MainThreadMarker) -> Rc<Self> {
+        GLOBAL
+            .get(mtm)
+            .get()
+            .expect("tried to get application state before it was registered")
+            .clone()
     }
 
     // NOTE: This notification will, globally, only be emitted once,
@@ -135,14 +152,6 @@ impl AppState {
         trace_scope!("NSApplicationWillTerminateNotification");
         // TODO: Notify every window that it will be destroyed, like done in iOS?
         self.internal_exit();
-    }
-
-    pub fn get(mtm: MainThreadMarker) -> Rc<Self> {
-        let _ = mtm;
-        GLOBAL.with(|s| {
-            // We hold `MainThreadMarker`, so this should always be set on this thread.
-            Rc::clone(s.get().expect("tried to get application state before it was registered"))
-        })
     }
 
     pub fn mtm(&self) -> MainThreadMarker {
