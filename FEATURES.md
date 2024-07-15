@@ -128,6 +128,7 @@ If your PR makes notable changes to Winit's features, please update this section
 * Setting the title bar background color
 * Setting the title color
 * Setting the corner rounding preference
+* Setting whether to activate a window with a mouse click.
 
 ### macOS
 * Window activation policy

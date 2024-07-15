@@ -357,6 +357,11 @@ pub trait WindowExtWindows {
     unsafe fn window_handle_any_thread(
         &self,
     ) -> Result<rwh_06::WindowHandle<'_>, rwh_06::HandleError>;
+
+    /// Sets whether a mouse click activates the window.
+    ///
+    /// Defaults to `true`.
+    fn set_mouse_activate(&self, mouse_activate: bool);
 }
 
 impl WindowExtWindows for Window {
@@ -418,6 +423,11 @@ impl WindowExtWindows for Window {
             // SAFETY: The handle is valid in this context.
             Ok(rwh_06::WindowHandle::borrow_raw(handle))
         }
+    }
+
+    #[inline]
+    fn set_mouse_activate(&self, mouse_activate: bool) {
+        self.window.set_mouse_activate(mouse_activate);
     }
 }
 
@@ -536,6 +546,11 @@ pub trait WindowAttributesExtWindows {
     ///
     /// Supported starting with Windows 11 Build 22000.
     fn with_corner_preference(self, corners: CornerPreference) -> Self;
+
+    /// Sets whether the mouse activates the window.
+    ///
+    /// Defaults to `true`.
+    fn with_mouse_activate(self, mouse_activate: bool) -> Self;
 }
 
 impl WindowAttributesExtWindows for WindowAttributes {
@@ -620,6 +635,12 @@ impl WindowAttributesExtWindows for WindowAttributes {
     #[inline]
     fn with_corner_preference(mut self, corners: CornerPreference) -> Self {
         self.platform_specific.corner_preference = Some(corners);
+        self
+    }
+
+    #[inline]
+    fn with_mouse_activate(mut self, mouse_activate: bool) -> Self {
+        self.platform_specific.mouse_activate = mouse_activate;
         self
     }
 }

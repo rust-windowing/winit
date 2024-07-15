@@ -43,6 +43,7 @@ changelog entry.
 ### Added
 
 - Add `ActiveEventLoop::create_proxy()`.
+- On Windows, implement `WindowExtWindows::set_mouse_activate()`, a way to disable window activation by a mouse click.
 
 ### Changed
 

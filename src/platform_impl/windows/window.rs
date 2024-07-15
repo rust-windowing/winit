@@ -1106,6 +1106,11 @@ impl Window {
             );
         }
     }
+
+    #[inline]
+    pub fn set_mouse_activate(&self, mouse_activate: bool) {
+        self.window_state_lock().mouse_activate = mouse_activate;
+    }
 }
 
 impl Drop for Window {

@@ -58,6 +58,9 @@ pub(crate) struct WindowState {
     pub dragging: bool,
 
     pub skip_taskbar: bool,
+
+    // Used by WM_MOUSEACTIVATE
+    pub mouse_activate: bool,
 }
 
 #[derive(Clone)]
@@ -178,6 +181,8 @@ impl WindowState {
             dragging: false,
 
             skip_taskbar: false,
+
+            mouse_activate: attributes.platform_specific.mouse_activate,
         }
     }
 
