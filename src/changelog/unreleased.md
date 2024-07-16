@@ -47,3 +47,6 @@ changelog entry.
 ### Fixed
 
 - On Wayland, avoid crashing when compositor is misbehaving.
+- On Web, fix `WindowEvent::Resized` not using `requestAnimationFrame` when sending
+  `WindowEvent::RedrawRequested` and also potentially causing `WindowEvent::RedrawRequested`
+  to not be de-duplicated.
