@@ -43,6 +43,7 @@ changelog entry.
 ### Added
 
 - Add `ActiveEventLoop::create_proxy()`.
+- On Web, implement `Error` for `platform::web::CustomCursorError`.
 
 ### Changed
 
