@@ -613,7 +613,7 @@ impl ActiveEventLoop {
                             window_id: RootWindowId(id),
                             event: WindowEvent::Resized(new_size),
                         });
-                        runner.request_redraw(RootWindowId(id));
+                        canvas.request_animation_frame();
                     }
                 }
             },
