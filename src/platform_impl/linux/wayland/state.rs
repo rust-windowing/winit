@@ -339,10 +339,28 @@ impl CompositorHandler for WinitState {
         &mut self,
         _: &Connection,
         _: &QueueHandle<Self>,
-        _: &wayland_client::protocol::wl_surface::WlSurface,
+        _: &WlSurface,
         _: wayland_client::protocol::wl_output::Transform,
     ) {
         // TODO(kchibisov) we need to expose it somehow in winit.
+    }
+
+    fn surface_enter(
+        &mut self,
+        _: &Connection,
+        _: &QueueHandle<Self>,
+        _: &WlSurface,
+        _: &WlOutput,
+    ) {
+    }
+
+    fn surface_leave(
+        &mut self,
+        _: &Connection,
+        _: &QueueHandle<Self>,
+        _: &WlSurface,
+        _: &WlOutput,
+    ) {
     }
 
     fn scale_factor_changed(
