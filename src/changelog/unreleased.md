@@ -68,7 +68,6 @@ changelog entry.
 - Change signature of `EventLoop::run_app`, `EventLoopExtPumpEvents::pump_app_events` and
   `EventLoopExtRunOnDemand::run_app_on_demand` to accept a `impl ApplicationHandler` directly,
   instead of requiring a `&mut` reference to it.
-- `DeviceId::dummy()` and `WindowId::dummy()` are no longer marked `unsafe`.
 
 ### Removed
 
@@ -80,11 +79,3 @@ changelog entry.
 
   This feature was incomplete, and the equivalent functionality can be trivially achieved outside
   of `winit` using `objc2-ui-kit` and calling `UIDevice::currentDevice().userInterfaceIdiom()`.
-
-### Fixed
-
-- On Wayland, avoid crashing when compositor is misbehaving.
-- Account for different browser engine implementations of pointer movement coordinate space.
-- On Web, fix `WindowEvent::Resized` not using `requestAnimationFrame` when sending
-  `WindowEvent::RedrawRequested` and also potentially causing `WindowEvent::RedrawRequested`
-  to not be de-duplicated.
