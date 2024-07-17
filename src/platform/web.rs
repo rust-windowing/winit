@@ -423,7 +423,6 @@ impl Future for CustomCursorFuture {
 pub enum CustomCursorError {
     Blob,
     Decode(String),
-    Animation,
 }
 
 impl Display for CustomCursorError {
@@ -431,9 +430,6 @@ impl Display for CustomCursorError {
         match self {
             Self::Blob => write!(f, "failed to create `Blob`"),
             Self::Decode(error) => write!(f, "failed to decode image: {error}"),
-            Self::Animation => {
-                write!(f, "found `CustomCursor` that is an animation when building an animation")
-            },
         }
     }
 }
