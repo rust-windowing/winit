@@ -433,10 +433,6 @@ impl Drop for Inner {
 pub struct WindowId(pub(crate) u64);
 
 impl WindowId {
-    pub const fn dummy() -> Self {
-        Self(0)
-    }
-
     pub const fn into_raw(self) -> u64 {
         self.0
     }

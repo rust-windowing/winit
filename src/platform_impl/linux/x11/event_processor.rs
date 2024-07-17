@@ -878,7 +878,6 @@ impl EventProcessor {
         };
 
         let window_id = mkwid(window);
-        let device_id = mkdid(util::VIRTUAL_CORE_KEYBOARD);
 
         let keycode = xev.keycode as _;
 
@@ -942,7 +941,11 @@ impl EventProcessor {
                 let event = key_processor.process_key_event(keycode, state, repeat);
                 let event = Event::WindowEvent {
                     window_id,
-                    event: WindowEvent::KeyboardInput { device_id, event, is_synthetic: false },
+                    event: WindowEvent::KeyboardInput {
+                        device_id: None,
+                        event,
+                        is_synthetic: false,
+                    },
                 };
                 callback(&self.target, event);
             }
@@ -1012,7 +1015,7 @@ impl EventProcessor {
         F: FnMut(&ActiveEventLoop, Event),
     {
         let window_id = mkwid(event.event as xproto::Window);
-        let device_id = mkdid(event.deviceid as xinput::DeviceId);
+        let device_id = Some(mkdid(event.deviceid as xinput::DeviceId));
 
         // Set the timestamp.
         self.target.xconn.set_timestamp(event.time as xproto::Timestamp);
@@ -1066,7 +1069,7 @@ impl EventProcessor {
         // Set the timestamp.
         self.target.xconn.set_timestamp(event.time as xproto::Timestamp);
 
-        let device_id = mkdid(event.deviceid as xinput::DeviceId);
+        let device_id = Some(mkdid(event.deviceid as xinput::DeviceId));
         let window = event.event as xproto::Window;
         let window_id = mkwid(window);
         let new_cursor_pos = (event.event_x, event.event_y);
@@ -1161,6 +1164,7 @@ impl EventProcessor {
         }
 
         if self.window_exists(window) {
+            let device_id = Some(device_id);
             let position = PhysicalPosition::new(event.event_x, event.event_y);
 
             let event =
@@ -1190,7 +1194,7 @@ impl EventProcessor {
             let event = Event::WindowEvent {
                 window_id: mkwid(window),
                 event: WindowEvent::CursorLeft {
-                    device_id: mkdid(event.deviceid as xinput::DeviceId),
+                    device_id: Some(mkdid(event.deviceid as xinput::DeviceId)),
                 },
             };
             callback(&self.target, event);
@@ -1241,16 +1245,15 @@ impl EventProcessor {
 
         // The deviceid for this event is for a keyboard instead of a pointer,
         // so we have to do a little extra work.
-        let pointer_id = self
+        let device_id = self
             .devices
             .borrow()
             .get(&DeviceId(xev.deviceid as xinput::DeviceId))
-            .map(|device| device.attachment)
-            .unwrap_or(2);
+            .map(|device| mkdid(device.attachment as _));
 
         let event = Event::WindowEvent {
             window_id,
-            event: WindowEvent::CursorMoved { device_id: mkdid(pointer_id as _), position },
+            event: WindowEvent::CursorMoved { device_id, position },
         };
         callback(&self.target, event);
     }
@@ -1324,10 +1327,7 @@ impl EventProcessor {
             if is_first_touch(&mut self.first_touch, &mut self.num_touch, id, phase) {
                 let event = Event::WindowEvent {
                     window_id,
-                    event: WindowEvent::CursorMoved {
-                        device_id: mkdid(util::VIRTUAL_CORE_POINTER),
-                        position: location.cast(),
-                    },
+                    event: WindowEvent::CursorMoved { device_id: None, position: location.cast() },
                 };
                 callback(&self.target, event);
             }
@@ -1335,7 +1335,7 @@ impl EventProcessor {
             let event = Event::WindowEvent {
                 window_id,
                 event: WindowEvent::Touch(Touch {
-                    device_id: mkdid(xev.deviceid as xinput::DeviceId),
+                    device_id: Some(mkdid(xev.deviceid as xinput::DeviceId)),
                     phase,
                     location,
                     force: None, // TODO
@@ -1355,7 +1355,7 @@ impl EventProcessor {
 
         if xev.flags & xinput2::XIPointerEmulated == 0 {
             let event = Event::DeviceEvent {
-                device_id: mkdid(xev.deviceid as xinput::DeviceId),
+                device_id: Some(mkdid(xev.deviceid as xinput::DeviceId)),
                 event: DeviceEvent::Button { state, button: xev.detail as u32 },
             };
             callback(&self.target, event);
@@ -1369,7 +1369,7 @@ impl EventProcessor {
         // Set the timestamp.
         self.target.xconn.set_timestamp(xev.time as xproto::Timestamp);
 
-        let did = mkdid(xev.deviceid as xinput::DeviceId);
+        let did = Some(mkdid(xev.deviceid as xinput::DeviceId));
 
         let mask =
             unsafe { slice::from_raw_parts(xev.valuators.mask, xev.valuators.mask_len as usize) };
@@ -1421,7 +1421,7 @@ impl EventProcessor {
         // Set the timestamp.
         self.target.xconn.set_timestamp(xev.time as xproto::Timestamp);
 
-        let device_id = mkdid(xev.sourceid as xinput::DeviceId);
+        let device_id = Some(mkdid(xev.sourceid as xinput::DeviceId));
         let keycode = xev.detail as u32;
         if keycode < KEYCODE_OFFSET as u32 {
             return;
@@ -1695,8 +1695,6 @@ impl EventProcessor {
     ) where
         F: FnMut(&ActiveEventLoop, Event),
     {
-        let device_id = mkdid(util::VIRTUAL_CORE_KEYBOARD);
-
         // Update modifiers state and emit key events based on which keys are currently pressed.
         let xcb = target.xconn.xcb_connection().get_raw_xcb_connection();
 
@@ -1719,7 +1717,7 @@ impl EventProcessor {
             let event = key_processor.process_key_event(keycode as u32, state, false);
             let event = Event::WindowEvent {
                 window_id,
-                event: WindowEvent::KeyboardInput { device_id, event, is_synthetic: true },
+                event: WindowEvent::KeyboardInput { device_id: None, event, is_synthetic: true },
             };
             callback(target, event);
         }

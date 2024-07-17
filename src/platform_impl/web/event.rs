@@ -1,13 +1,16 @@
-#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct DeviceId(i32);
+#[derive(Debug, Copy, Clone, Eq, PartialEq, PartialOrd, Ord, Hash)]
+pub struct DeviceId(u32);
 
 impl DeviceId {
-    pub fn new(pointer_id: i32) -> Self {
-        Self(pointer_id)
-    }
-
-    pub const fn dummy() -> Self {
-        Self(-1)
+    pub fn new(pointer_id: i32) -> Option<Self> {
+        if let Ok(pointer_id) = u32::try_from(pointer_id) {
+            Some(Self(pointer_id))
+        } else if pointer_id == -1 {
+            None
+        } else {
+            tracing::error!("found unexpected negative `PointerEvent.pointerId`: {pointer_id}");
+            None
+        }
     }
 }
 
@@ -22,6 +25,7 @@ impl FingerId {
         Self { pointer_id, primary }
     }
 
+    #[cfg(test)]
     pub const fn dummy() -> Self {
         Self { pointer_id: -1, primary: false }
     }

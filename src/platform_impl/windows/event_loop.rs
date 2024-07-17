@@ -81,7 +81,7 @@ use crate::platform_impl::platform::window_state::{
     CursorFlags, ImeState, WindowFlags, WindowState,
 };
 use crate::platform_impl::platform::{
-    raw_input, util, wrap_device_id, FingerId, Fullscreen, WindowId, DEVICE_ID,
+    raw_input, util, wrap_device_id, FingerId, Fullscreen, WindowId,
 };
 use crate::platform_impl::Window;
 use crate::utils::Lazy;
@@ -1047,7 +1047,7 @@ unsafe fn public_window_callback_inner(
             userdata.send_event(Event::WindowEvent {
                 window_id: CoreWindowId(WindowId(window)),
                 event: KeyboardInput {
-                    device_id: DEVICE_ID,
+                    device_id: None,
                     event: event.event,
                     is_synthetic: event.is_synthetic,
                 },
@@ -1541,7 +1541,7 @@ unsafe fn public_window_callback_inner(
                         drop(w);
                         userdata.send_event(Event::WindowEvent {
                             window_id: CoreWindowId(WindowId(window)),
-                            event: CursorEntered { device_id: DEVICE_ID },
+                            event: CursorEntered { device_id: None },
                         });
 
                         // Calling TrackMouseEvent in order to receive mouse leave events.
@@ -1562,7 +1562,7 @@ unsafe fn public_window_callback_inner(
                         drop(w);
                         userdata.send_event(Event::WindowEvent {
                             window_id: CoreWindowId(WindowId(window)),
-                            event: CursorLeft { device_id: DEVICE_ID },
+                            event: CursorLeft { device_id: None },
                         });
                     },
                     PointerMoveKind::None => drop(w),
@@ -1581,7 +1581,7 @@ unsafe fn public_window_callback_inner(
 
                 userdata.send_event(Event::WindowEvent {
                     window_id: CoreWindowId(WindowId(window)),
-                    event: CursorMoved { device_id: DEVICE_ID, position },
+                    event: CursorMoved { device_id: None, position },
                 });
             }
 
@@ -1597,7 +1597,7 @@ unsafe fn public_window_callback_inner(
 
             userdata.send_event(Event::WindowEvent {
                 window_id: CoreWindowId(WindowId(window)),
-                event: CursorLeft { device_id: DEVICE_ID },
+                event: CursorLeft { device_id: None },
             });
 
             result = ProcResult::Value(0);
@@ -1614,7 +1614,7 @@ unsafe fn public_window_callback_inner(
             userdata.send_event(Event::WindowEvent {
                 window_id: CoreWindowId(WindowId(window)),
                 event: WindowEvent::MouseWheel {
-                    device_id: DEVICE_ID,
+                    device_id: None,
                     delta: LineDelta(0.0, value),
                     phase: TouchPhase::Moved,
                 },
@@ -1634,7 +1634,7 @@ unsafe fn public_window_callback_inner(
             userdata.send_event(Event::WindowEvent {
                 window_id: CoreWindowId(WindowId(window)),
                 event: WindowEvent::MouseWheel {
-                    device_id: DEVICE_ID,
+                    device_id: None,
                     delta: LineDelta(value, 0.0),
                     phase: TouchPhase::Moved,
                 },
@@ -1668,7 +1668,7 @@ unsafe fn public_window_callback_inner(
 
             userdata.send_event(Event::WindowEvent {
                 window_id: CoreWindowId(WindowId(window)),
-                event: MouseInput { device_id: DEVICE_ID, state: Pressed, button: Left },
+                event: MouseInput { device_id: None, state: Pressed, button: Left },
             });
             result = ProcResult::Value(0);
         },
@@ -1684,7 +1684,7 @@ unsafe fn public_window_callback_inner(
 
             userdata.send_event(Event::WindowEvent {
                 window_id: CoreWindowId(WindowId(window)),
-                event: MouseInput { device_id: DEVICE_ID, state: Released, button: Left },
+                event: MouseInput { device_id: None, state: Released, button: Left },
             });
             result = ProcResult::Value(0);
         },
@@ -1700,7 +1700,7 @@ unsafe fn public_window_callback_inner(
 
             userdata.send_event(Event::WindowEvent {
                 window_id: CoreWindowId(WindowId(window)),
-                event: MouseInput { device_id: DEVICE_ID, state: Pressed, button: Right },
+                event: MouseInput { device_id: None, state: Pressed, button: Right },
             });
             result = ProcResult::Value(0);
         },
@@ -1716,7 +1716,7 @@ unsafe fn public_window_callback_inner(
 
             userdata.send_event(Event::WindowEvent {
                 window_id: CoreWindowId(WindowId(window)),
-                event: MouseInput { device_id: DEVICE_ID, state: Released, button: Right },
+                event: MouseInput { device_id: None, state: Released, button: Right },
             });
             result = ProcResult::Value(0);
         },
@@ -1732,7 +1732,7 @@ unsafe fn public_window_callback_inner(
 
             userdata.send_event(Event::WindowEvent {
                 window_id: CoreWindowId(WindowId(window)),
-                event: MouseInput { device_id: DEVICE_ID, state: Pressed, button: Middle },
+                event: MouseInput { device_id: None, state: Pressed, button: Middle },
             });
             result = ProcResult::Value(0);
         },
@@ -1748,7 +1748,7 @@ unsafe fn public_window_callback_inner(
 
             userdata.send_event(Event::WindowEvent {
                 window_id: CoreWindowId(WindowId(window)),
-                event: MouseInput { device_id: DEVICE_ID, state: Released, button: Middle },
+                event: MouseInput { device_id: None, state: Released, button: Middle },
             });
             result = ProcResult::Value(0);
         },
@@ -1766,7 +1766,7 @@ unsafe fn public_window_callback_inner(
             userdata.send_event(Event::WindowEvent {
                 window_id: CoreWindowId(WindowId(window)),
                 event: MouseInput {
-                    device_id: DEVICE_ID,
+                    device_id: None,
                     state: Pressed,
                     button: match xbutton {
                         1 => Back,
@@ -1791,7 +1791,7 @@ unsafe fn public_window_callback_inner(
             userdata.send_event(Event::WindowEvent {
                 window_id: CoreWindowId(WindowId(window)),
                 event: MouseInput {
-                    device_id: DEVICE_ID,
+                    device_id: None,
                     state: Released,
                     button: match xbutton {
                         1 => Back,
@@ -1855,7 +1855,7 @@ unsafe fn public_window_callback_inner(
                                 id: input.dwID,
                                 primary: util::has_flag(input.dwFlags, TOUCHEVENTF_PRIMARY),
                             }),
-                            device_id: DEVICE_ID,
+                            device_id: None,
                         }),
                     });
                 }
@@ -2007,7 +2007,7 @@ unsafe fn public_window_callback_inner(
                                     POINTER_FLAG_PRIMARY,
                                 ),
                             }),
-                            device_id: DEVICE_ID,
+                            device_id: None,
                         }),
                     });
                 }
@@ -2435,7 +2435,7 @@ unsafe fn handle_raw_input(userdata: &ThreadMsgTargetData, data: RAWINPUT) {
     use crate::event::ElementState::{Pressed, Released};
     use crate::event::MouseScrollDelta::LineDelta;
 
-    let device_id = wrap_device_id(data.header.hDevice as _);
+    let device_id = Some(wrap_device_id(data.header.hDevice as _));
 
     if data.header.dwType == RIM_TYPEMOUSE {
         let mouse = unsafe { data.data.mouse };

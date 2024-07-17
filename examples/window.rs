@@ -522,7 +522,7 @@ impl ApplicationHandler for Application {
     fn device_event(
         &mut self,
         _event_loop: &dyn ActiveEventLoop,
-        device_id: DeviceId,
+        device_id: Option<DeviceId>,
         event: DeviceEvent,
     ) {
         info!("Device {device_id:?} event: {event:?}");

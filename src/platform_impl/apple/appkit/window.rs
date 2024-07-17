@@ -339,10 +339,6 @@ impl CoreWindow for Window {
 pub struct WindowId(pub usize);
 
 impl WindowId {
-    pub const fn dummy() -> Self {
-        Self(0)
-    }
-
     pub const fn into_raw(self) -> u64 {
         self.0 as u64
     }

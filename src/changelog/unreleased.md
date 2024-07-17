@@ -125,6 +125,8 @@ changelog entry.
   - `Window::set_max_inner_size` to `set_max_surface_size`.
 
   To migrate, you can probably just replace all instances of `inner_size` with `surface_size` in your codebase.
+- Every event carrying a `DeviceId` now uses `Option<DeviceId>` instead. A `None` value signifies that the
+  device can't be uniquely identified.
 
 ### Removed
 
@@ -153,6 +155,7 @@ changelog entry.
 - On Android, remove all `MonitorHandle` support instead of emitting false data.
 - Remove `impl From<u64> for WindowId` and `impl From<WindowId> for u64`. Replaced with
   `WindowId::into_raw()` and `from_raw()`.
+- Remove `dummy()` from `WindowId` and `DeviceId`.
 
 ### Fixed
 

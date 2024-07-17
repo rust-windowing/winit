@@ -24,17 +24,6 @@ use crate::utils::AsAny;
 pub struct WindowId(pub(crate) platform_impl::WindowId);
 
 impl WindowId {
-    /// Returns a dummy id, useful for unit testing.
-    ///
-    /// # Notes
-    ///
-    /// The only guarantee made about the return value of this function is that
-    /// it will always be equal to itself and to future values returned by this function.
-    /// No other guarantees are made. This may be equal to a real [`WindowId`].
-    pub const fn dummy() -> Self {
-        WindowId(platform_impl::WindowId::dummy())
-    }
-
     /// Convert the `WindowId` into the underlying integer.
     ///
     /// This is useful if you need to pass the ID across an FFI boundary, or store it in an atomic.

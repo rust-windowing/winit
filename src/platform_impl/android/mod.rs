@@ -316,7 +316,7 @@ impl EventLoop {
         match event {
             InputEvent::MotionEvent(motion_event) => {
                 let window_id = window::WindowId(WindowId);
-                let device_id = event::DeviceId(DeviceId(motion_event.device_id()));
+                let device_id = Some(event::DeviceId(DeviceId(motion_event.device_id())));
 
                 let phase = match motion_event.action() {
                     MotionAction::Down | MotionAction::PointerDown => {
@@ -388,7 +388,7 @@ impl EventLoop {
 
                         let window_id = window::WindowId(WindowId);
                         let event = event::WindowEvent::KeyboardInput {
-                            device_id: event::DeviceId(DeviceId(key.device_id())),
+                            device_id: Some(event::DeviceId(DeviceId(key.device_id()))),
                             event: event::KeyEvent {
                                 state,
                                 physical_key: keycodes::to_physical_key(keycode),
@@ -668,10 +668,6 @@ impl OwnedDisplayHandle {
 pub(crate) struct WindowId;
 
 impl WindowId {
-    pub const fn dummy() -> Self {
-        WindowId
-    }
-
     pub const fn into_raw(self) -> u64 {
         0
     }
@@ -684,16 +680,11 @@ impl WindowId {
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct DeviceId(i32);
 
-impl DeviceId {
-    pub const fn dummy() -> Self {
-        DeviceId(0)
-    }
-}
-
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct FingerId(i32);
 
 impl FingerId {
+    #[cfg(test)]
     pub const fn dummy() -> Self {
         FingerId(0)
     }
