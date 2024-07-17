@@ -437,3 +437,5 @@ impl Display for CustomCursorError {
         }
     }
 }
+
+impl Error for CustomCursorError {}
