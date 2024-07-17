@@ -104,17 +104,9 @@ impl WindowId {
     pub const fn dummy() -> Self {
         WindowId { fd: u64::MAX }
     }
-}
 
-impl From<WindowId> for u64 {
-    fn from(id: WindowId) -> Self {
-        id.fd
-    }
-}
-
-impl From<u64> for WindowId {
-    fn from(fd: u64) -> Self {
-        Self { fd }
+    pub const fn to_u64(self) -> u64 {
+        self.fd
     }
 }
 
