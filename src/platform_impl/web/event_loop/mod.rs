@@ -1,12 +1,11 @@
 use std::marker::PhantomData;
 
+use super::{backend, device, window};
 use crate::application::ApplicationHandler;
 use crate::error::EventLoopError;
 use crate::event::Event;
 use crate::event_loop::ActiveEventLoop as RootActiveEventLoop;
-use crate::platform::web::{ActiveEventLoopExtWebSys, PollStrategy, WaitUntilStrategy};
-
-use super::{backend, device, window};
+use crate::platform::web::{ActiveEventLoopExtWeb, PollStrategy, WaitUntilStrategy};
 
 mod proxy;
 pub(crate) mod runner;
@@ -29,11 +28,12 @@ impl EventLoop {
         Ok(EventLoop { elw })
     }
 
-    pub fn run_app<A: ApplicationHandler>(self, app: &mut A) -> ! {
+    pub fn run_app<A: ApplicationHandler>(self, mut app: A) -> ! {
         let target = RootActiveEventLoop { p: self.elw.p.clone(), _marker: PhantomData };
 
         // SAFETY: Don't use `move` to make sure we leak the `event_handler` and `target`.
-        let handler: Box<dyn FnMut(Event)> = Box::new(|event| handle_event(app, &target, event));
+        let handler: Box<dyn FnMut(Event)> =
+            Box::new(|event| handle_event(&mut app, &target, event));
 
         // SAFETY: The `transmute` is necessary because `run()` requires `'static`. This is safe
         // because this function will never return and all resources not cleaned up by the point we

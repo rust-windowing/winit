@@ -150,7 +150,7 @@ impl ActiveEventLoop {
                     }
                 });
 
-                let device_id = RootDeviceId(unsafe { DeviceId::dummy() });
+                let device_id = RootDeviceId(DeviceId::dummy());
 
                 runner.send_events(
                     iter::once(Event::WindowEvent {
@@ -186,7 +186,7 @@ impl ActiveEventLoop {
                     }
                 });
 
-                let device_id = RootDeviceId(unsafe { DeviceId::dummy() });
+                let device_id = RootDeviceId(DeviceId::dummy());
 
                 runner.send_events(
                     iter::once(Event::WindowEvent {
@@ -613,7 +613,7 @@ impl ActiveEventLoop {
                             window_id: RootWindowId(id),
                             event: WindowEvent::Resized(new_size),
                         });
-                        runner.request_redraw(RootWindowId(id));
+                        canvas.request_animation_frame();
                     }
                 }
             },

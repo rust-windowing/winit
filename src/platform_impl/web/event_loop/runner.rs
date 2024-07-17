@@ -1,3 +1,15 @@
+use std::cell::{Cell, RefCell};
+use std::collections::{HashSet, VecDeque};
+use std::iter;
+use std::ops::Deref;
+use std::rc::{Rc, Weak};
+
+use js_sys::Function;
+use wasm_bindgen::prelude::{wasm_bindgen, Closure};
+use wasm_bindgen::JsCast;
+use web_sys::{Document, KeyboardEvent, PageTransitionEvent, PointerEvent, WheelEvent};
+use web_time::{Duration, Instant};
+
 use super::super::main_thread::MainThreadMarker;
 use super::super::DeviceId;
 use super::backend;
@@ -13,17 +25,6 @@ use crate::platform_impl::platform::backend::EventListenerHandle;
 use crate::platform_impl::platform::r#async::{DispatchRunner, Waker, WakerSpawner};
 use crate::platform_impl::platform::window::Inner;
 use crate::window::WindowId;
-
-use js_sys::Function;
-use std::cell::{Cell, RefCell};
-use std::collections::{HashSet, VecDeque};
-use std::iter;
-use std::ops::Deref;
-use std::rc::{Rc, Weak};
-use wasm_bindgen::prelude::{wasm_bindgen, Closure};
-use wasm_bindgen::JsCast;
-use web_sys::{Document, KeyboardEvent, PageTransitionEvent, PointerEvent, WheelEvent};
-use web_time::{Duration, Instant};
 
 pub struct Shared(Rc<Execution>);
 
@@ -368,7 +369,7 @@ impl Shared {
                 }
 
                 runner.send_event(Event::DeviceEvent {
-                    device_id: RootDeviceId(unsafe { DeviceId::dummy() }),
+                    device_id: RootDeviceId(DeviceId::dummy()),
                     event: DeviceEvent::Key(RawKeyEvent {
                         physical_key: backend::event::key_code(&event),
                         state: ElementState::Pressed,
@@ -386,7 +387,7 @@ impl Shared {
                 }
 
                 runner.send_event(Event::DeviceEvent {
-                    device_id: RootDeviceId(unsafe { DeviceId::dummy() }),
+                    device_id: RootDeviceId(DeviceId::dummy()),
                     event: DeviceEvent::Key(RawKeyEvent {
                         physical_key: backend::event::key_code(&event),
                         state: ElementState::Released,
@@ -438,7 +439,7 @@ impl Shared {
     }
 
     pub fn init(&self) {
-        // NB: For consistency all platforms must call `can_create_surfaces` even though web
+        // NB: For consistency all platforms must call `can_create_surfaces` even though Web
         // applications don't themselves have a formal surface destroy/create lifecycle.
         self.run_until_cleared(
             [Event::NewEvents(StartCause::Init), Event::CreateSurfaces].into_iter(),
@@ -603,7 +604,7 @@ impl Shared {
         self.exit();
         self.apply_control_flow();
         // We don't call `handle_loop_destroyed` here because we don't need to
-        // perform cleanup when the web browser is going to destroy the page.
+        // perform cleanup when the Web browser is going to destroy the page.
         self.handle_event(Event::LoopExiting);
     }
 

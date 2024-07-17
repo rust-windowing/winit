@@ -1,6 +1,7 @@
-use crate::platform_impl::PlatformIcon;
 use std::error::Error;
 use std::{fmt, io, mem};
+
+use crate::platform_impl::PlatformIcon;
 
 #[repr(C)]
 #[derive(Debug)]
@@ -56,7 +57,7 @@ pub(crate) struct RgbaIcon {
     pub(crate) height: u32,
 }
 
-/// For platforms which don't have window icons (e.g. web)
+/// For platforms which don't have window icons (e.g. Web)
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct NoIcon;
 

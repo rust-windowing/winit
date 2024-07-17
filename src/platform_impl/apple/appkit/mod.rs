@@ -17,19 +17,17 @@ mod window_delegate;
 
 use std::fmt;
 
+pub(crate) use self::cursor::CustomCursor as PlatformCustomCursor;
 pub(crate) use self::event::{physicalkey_to_scancode, scancode_to_physicalkey, KeyEventExtra};
 pub(crate) use self::event_loop::{
     ActiveEventLoop, EventLoop, EventLoopProxy, OwnedDisplayHandle,
     PlatformSpecificEventLoopAttributes,
 };
 pub(crate) use self::monitor::{MonitorHandle, VideoModeHandle};
-pub(crate) use self::window::WindowId;
+pub(crate) use self::window::{Window, WindowId};
 pub(crate) use self::window_delegate::PlatformSpecificWindowAttributes;
-use crate::event::DeviceId as RootDeviceId;
-
-pub(crate) use self::cursor::CustomCursor as PlatformCustomCursor;
-pub(crate) use self::window::Window;
 pub(crate) use crate::cursor::OnlyCursorImageSource as PlatformCustomCursorSource;
+use crate::event::DeviceId as RootDeviceId;
 pub(crate) use crate::icon::NoIcon as PlatformIcon;
 pub(crate) use crate::platform_impl::Fullscreen;
 
@@ -37,7 +35,7 @@ pub(crate) use crate::platform_impl::Fullscreen;
 pub struct DeviceId;
 
 impl DeviceId {
-    pub const unsafe fn dummy() -> Self {
+    pub const fn dummy() -> Self {
         DeviceId
     }
 }

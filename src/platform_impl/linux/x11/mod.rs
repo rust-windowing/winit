@@ -16,7 +16,6 @@ use calloop::ping::Ping;
 use calloop::{EventLoop as Loop, Readiness};
 use libc::{setlocale, LC_CTYPE};
 use tracing::warn;
-
 use x11rb::connection::RequestConnection;
 use x11rb::errors::{ConnectError, ConnectionError, IdsExhausted, ReplyError};
 use x11rb::protocol::xinput::{self, ConnectionExt as _};
@@ -49,13 +48,12 @@ mod window;
 mod xdisplay;
 mod xsettings;
 
-pub use util::CustomCursor;
-
 use atoms::*;
 use dnd::{Dnd, DndState};
 use event_processor::{EventProcessor, MAX_MOD_REPLAY_LEN};
 use ime::{Ime, ImeCreationError, ImeReceiver, ImeRequest, ImeSender};
 pub(crate) use monitor::{MonitorHandle, VideoModeHandle};
+pub use util::CustomCursor;
 use window::UnownedWindow;
 pub(crate) use xdisplay::{XConnection, XError, XNotSupported};
 
@@ -369,16 +367,17 @@ impl EventLoop {
         &self.event_processor.target
     }
 
-    pub fn run_app<A: ApplicationHandler>(mut self, app: &mut A) -> Result<(), EventLoopError> {
+    pub fn run_app<A: ApplicationHandler>(mut self, app: A) -> Result<(), EventLoopError> {
         self.run_app_on_demand(app)
     }
 
     pub fn run_app_on_demand<A: ApplicationHandler>(
         &mut self,
-        app: &mut A,
+        mut app: A,
     ) -> Result<(), EventLoopError> {
+        self.event_processor.target.p.clear_exit();
         let exit = loop {
-            match self.pump_app_events(None, app) {
+            match self.pump_app_events(None, &mut app) {
                 PumpStatus::Exit(0) => {
                     break Ok(());
                 },
@@ -406,19 +405,19 @@ impl EventLoop {
     pub fn pump_app_events<A: ApplicationHandler>(
         &mut self,
         timeout: Option<Duration>,
-        app: &mut A,
+        mut app: A,
     ) -> PumpStatus {
         if !self.loop_running {
             self.loop_running = true;
 
             // run the initial loop iteration
-            self.single_iteration(app, StartCause::Init);
+            self.single_iteration(&mut app, StartCause::Init);
         }
 
         // Consider the possibility that the `StartCause::Init` iteration could
         // request to Exit.
         if !self.exiting() {
-            self.poll_events_with_timeout(timeout, app);
+            self.poll_events_with_timeout(timeout, &mut app);
         }
         if let Some(code) = self.exit_code() {
             self.loop_running = false;
@@ -437,7 +436,7 @@ impl EventLoop {
             || self.redraw_receiver.has_incoming()
     }
 
-    pub fn poll_events_with_timeout<A: ApplicationHandler>(
+    fn poll_events_with_timeout<A: ApplicationHandler>(
         &mut self,
         mut timeout: Option<Duration>,
         app: &mut A,
@@ -602,13 +601,11 @@ impl EventLoop {
     }
 
     fn set_exit_code(&self, code: i32) {
-        let window_target = EventProcessor::window_target(&self.event_processor.target);
-        window_target.set_exit_code(code);
+        self.window_target().p.set_exit_code(code);
     }
 
     fn exit_code(&self) -> Option<i32> {
-        let window_target = EventProcessor::window_target(&self.event_processor.target);
-        window_target.exit_code()
+        self.window_target().p.exit_code()
     }
 }
 
@@ -770,7 +767,7 @@ pub struct DeviceId(xinput::DeviceId);
 
 impl DeviceId {
     #[allow(unused)]
-    pub const unsafe fn dummy() -> Self {
+    pub const fn dummy() -> Self {
         DeviceId(0)
     }
 }

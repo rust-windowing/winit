@@ -6,6 +6,9 @@ use std::sync::atomic::AtomicU32;
 use std::sync::atomic::Ordering::Relaxed;
 use std::sync::{Mutex, MutexGuard};
 
+use smol_str::SmolStr;
+use tracing::{trace, warn};
+use unicode_segmentation::UnicodeSegmentation;
 use windows_sys::Win32::Foundation::{HWND, LPARAM, WPARAM};
 use windows_sys::Win32::System::SystemServices::LANG_KOREAN;
 use windows_sys::Win32::UI::Input::KeyboardAndMouse::{
@@ -22,10 +25,6 @@ use windows_sys::Win32::UI::WindowsAndMessaging::{
     PeekMessageW, MSG, PM_NOREMOVE, WM_CHAR, WM_DEADCHAR, WM_KEYDOWN, WM_KEYFIRST, WM_KEYLAST,
     WM_KEYUP, WM_KILLFOCUS, WM_SETFOCUS, WM_SYSCHAR, WM_SYSDEADCHAR, WM_SYSKEYDOWN, WM_SYSKEYUP,
 };
-
-use smol_str::SmolStr;
-use tracing::{trace, warn};
-use unicode_segmentation::UnicodeSegmentation;
 
 use crate::event::{ElementState, KeyEvent};
 use crate::keyboard::{Key, KeyCode, KeyLocation, NamedKey, NativeKey, NativeKeyCode, PhysicalKey};

@@ -3,16 +3,14 @@ use std::sync::atomic::Ordering;
 use std::sync::{Arc, Mutex};
 
 use ahash::AHashMap;
-
+use sctk::compositor::{CompositorHandler, CompositorState};
+use sctk::output::{OutputHandler, OutputState};
 use sctk::reexports::calloop::LoopHandle;
 use sctk::reexports::client::backend::ObjectId;
 use sctk::reexports::client::globals::GlobalList;
 use sctk::reexports::client::protocol::wl_output::WlOutput;
 use sctk::reexports::client::protocol::wl_surface::WlSurface;
 use sctk::reexports::client::{Connection, Proxy, QueueHandle};
-
-use sctk::compositor::{CompositorHandler, CompositorState};
-use sctk::output::{OutputHandler, OutputState};
 use sctk::registry::{ProvidesRegistryState, RegistryState};
 use sctk::seat::pointer::ThemedPointer;
 use sctk::seat::SeatState;
@@ -343,10 +341,28 @@ impl CompositorHandler for WinitState {
         &mut self,
         _: &Connection,
         _: &QueueHandle<Self>,
-        _: &wayland_client::protocol::wl_surface::WlSurface,
+        _: &WlSurface,
         _: wayland_client::protocol::wl_output::Transform,
     ) {
         // TODO(kchibisov) we need to expose it somehow in winit.
+    }
+
+    fn surface_enter(
+        &mut self,
+        _: &Connection,
+        _: &QueueHandle<Self>,
+        _: &WlSurface,
+        _: &WlOutput,
+    ) {
+    }
+
+    fn surface_leave(
+        &mut self,
+        _: &Connection,
+        _: &QueueHandle<Self>,
+        _: &WlSurface,
+        _: &WlOutput,
+    ) {
     }
 
     fn scale_factor_changed(

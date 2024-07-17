@@ -7,7 +7,6 @@ use std::time;
 use ::tracing::{info, warn};
 #[cfg(web_platform)]
 use web_time as time;
-
 use winit::application::ApplicationHandler;
 use winit::event::{ElementState, KeyEvent, StartCause, WindowEvent};
 use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
@@ -44,8 +43,7 @@ fn main() -> Result<(), impl std::error::Error> {
 
     let event_loop = EventLoop::new().unwrap();
 
-    let mut app = ControlFlowDemo::default();
-    event_loop.run_app(&mut app)
+    event_loop.run_app(ControlFlowDemo::default())
 }
 
 #[derive(Default)]

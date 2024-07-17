@@ -74,7 +74,7 @@ impl Window {
 pub struct WindowId(pub usize);
 
 impl WindowId {
-    pub const unsafe fn dummy() -> Self {
+    pub const fn dummy() -> Self {
         Self(0)
     }
 }

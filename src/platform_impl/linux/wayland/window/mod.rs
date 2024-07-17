@@ -3,17 +3,20 @@
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 
+use sctk::compositor::{CompositorState, Region, SurfaceData};
 use sctk::reexports::client::protocol::wl_display::WlDisplay;
 use sctk::reexports::client::protocol::wl_surface::WlSurface;
 use sctk::reexports::client::{Proxy, QueueHandle};
-
-use sctk::compositor::{CompositorState, Region, SurfaceData};
 use sctk::reexports::protocols::xdg::activation::v1::client::xdg_activation_v1::XdgActivationV1;
 use sctk::shell::xdg::window::{Window as SctkWindow, WindowDecorations};
 use sctk::shell::WaylandSurface;
-
 use tracing::warn;
 
+use super::event_loop::sink::EventSink;
+use super::output::MonitorHandle;
+use super::state::WinitState;
+use super::types::xdg_activation::XdgActivationTokenData;
+use super::{ActiveEventLoop, WaylandError, WindowId};
 use crate::dpi::{LogicalSize, PhysicalPosition, PhysicalSize, Position, Size};
 use crate::error::{ExternalError, NotSupportedError, OsError as RootOsError};
 use crate::event::{Ime, WindowEvent};
@@ -25,12 +28,6 @@ use crate::window::{
     Cursor, CursorGrabMode, ImePurpose, ResizeDirection, Theme, UserAttentionType,
     WindowAttributes, WindowButtons, WindowLevel,
 };
-
-use super::event_loop::sink::EventSink;
-use super::output::MonitorHandle;
-use super::state::WinitState;
-use super::types::xdg_activation::XdgActivationTokenData;
-use super::{ActiveEventLoop, WaylandError, WindowId};
 
 pub(crate) mod state;
 

@@ -1,3 +1,6 @@
+use std::cell::{Cell, RefCell};
+use std::rc::Rc;
+
 use js_sys::{Array, Object};
 use tracing::warn;
 use wasm_bindgen::prelude::{wasm_bindgen, Closure};
@@ -7,14 +10,10 @@ use web_sys::{
     ResizeObserverEntry, ResizeObserverOptions, ResizeObserverSize, Window,
 };
 
-use crate::dpi::{LogicalSize, PhysicalSize};
-
 use super::super::backend;
 use super::canvas::Style;
 use super::media_query_handle::MediaQueryListHandle;
-
-use std::cell::{Cell, RefCell};
-use std::rc::Rc;
+use crate::dpi::{LogicalSize, PhysicalSize};
 
 pub struct ResizeScaleHandle(Rc<ResizeScaleInternal>);
 

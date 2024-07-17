@@ -3,9 +3,10 @@ use std::os::raw::{c_char, c_ulong, c_ushort};
 use std::sync::{Arc, Mutex};
 use std::{env, fmt, ptr};
 
+use x11rb::protocol::xproto;
+
 use super::super::atoms::*;
 use super::{ffi, util, XConnection, XError};
-use x11rb::protocol::xproto;
 
 static GLOBAL_LOCK: Mutex<()> = Mutex::new(());
 

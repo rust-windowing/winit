@@ -1,18 +1,17 @@
 //! The [`Window`] struct and associated types.
 use std::fmt;
 
-use crate::dpi::{PhysicalPosition, PhysicalSize, Position, Size};
-use crate::error::{ExternalError, NotSupportedError};
-use crate::monitor::{MonitorHandle, VideoModeHandle};
-use crate::platform_impl::{self, PlatformSpecificWindowAttributes};
-
-pub use crate::cursor::{BadImage, Cursor, CustomCursor, CustomCursorSource, MAX_CURSOR_SIZE};
-pub use crate::icon::{BadIcon, Icon};
-
 #[doc(inline)]
 pub use cursor_icon::{CursorIcon, ParseError as CursorIconParseError};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
+
+pub use crate::cursor::{BadImage, Cursor, CustomCursor, CustomCursorSource, MAX_CURSOR_SIZE};
+use crate::dpi::{PhysicalPosition, PhysicalSize, Position, Size};
+use crate::error::{ExternalError, NotSupportedError};
+pub use crate::icon::{BadIcon, Icon};
+use crate::monitor::{MonitorHandle, VideoModeHandle};
+use crate::platform_impl::{self, PlatformSpecificWindowAttributes};
 
 /// Represents a window.
 ///
@@ -71,16 +70,13 @@ pub struct WindowId(pub(crate) platform_impl::WindowId);
 impl WindowId {
     /// Returns a dummy id, useful for unit testing.
     ///
-    /// # Safety
+    /// # Notes
     ///
     /// The only guarantee made about the return value of this function is that
     /// it will always be equal to itself and to future values returned by this function.
     /// No other guarantees are made. This may be equal to a real [`WindowId`].
-    ///
-    /// **Passing this into a winit function will result in undefined behavior.**
-    pub const unsafe fn dummy() -> Self {
-        #[allow(unused_unsafe)]
-        WindowId(unsafe { platform_impl::WindowId::dummy() })
+    pub const fn dummy() -> Self {
+        WindowId(platform_impl::WindowId::dummy())
     }
 }
 
@@ -1155,7 +1151,7 @@ impl Window {
     ///
     /// Enable/disable window decorations provided by the server or Winit.
     /// By default this is enabled. Note that fullscreen windows and windows on
-    /// mobile and web platforms naturally do not have decorations.
+    /// mobile and Web platforms naturally do not have decorations.
     ///
     /// ## Platform-specific
     ///
@@ -1169,7 +1165,7 @@ impl Window {
     /// Gets the window's current decorations state.
     ///
     /// Returns `true` when windows are decorated (server-side or by Winit).
-    /// Also returns `true` when no decorations are required (mobile, web).
+    /// Also returns `true` when no decorations are required (mobile, Web).
     ///
     /// ## Platform-specific
     ///

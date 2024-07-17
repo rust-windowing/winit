@@ -1,11 +1,9 @@
 use std::ops::Deref;
 
 use sctk::globals::GlobalData;
-use sctk::reexports::client::{Connection, Proxy, QueueHandle};
-
 use sctk::reexports::client::globals::{BindError, GlobalList};
 use sctk::reexports::client::protocol::wl_surface::WlSurface;
-use sctk::reexports::client::{delegate_dispatch, Dispatch};
+use sctk::reexports::client::{delegate_dispatch, Connection, Dispatch, Proxy, QueueHandle};
 use sctk::reexports::protocols::wp::text_input::zv3::client::zwp_text_input_manager_v3::ZwpTextInputManagerV3;
 use sctk::reexports::protocols::wp::text_input::zv3::client::zwp_text_input_v3::{
     ContentHint, ContentPurpose, Event as TextInputEvent, ZwpTextInputV3,

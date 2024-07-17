@@ -1,15 +1,14 @@
 use std::collections::VecDeque;
 use std::sync::{Arc, Mutex};
 
+use super::{
+    ActiveEventLoop, MonitorHandle, OsError, RedoxSocket, TimeSocket, WindowId, WindowProperties,
+};
 use crate::cursor::Cursor;
 use crate::dpi::{PhysicalPosition, PhysicalSize, Position, Size};
 use crate::platform_impl::Fullscreen;
 use crate::window::ImePurpose;
 use crate::{error, window};
-
-use super::{
-    ActiveEventLoop, MonitorHandle, OsError, RedoxSocket, TimeSocket, WindowId, WindowProperties,
-};
 
 // These values match the values uses in the `window_new` function in orbital:
 // https://gitlab.redox-os.org/redox-os/orbital/-/blob/master/src/scheme.rs

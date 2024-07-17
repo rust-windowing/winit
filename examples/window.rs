@@ -14,22 +14,20 @@ use cursor_icon::CursorIcon;
 use rwh_06::{DisplayHandle, HasDisplayHandle};
 #[cfg(not(any(android_platform, ios_platform)))]
 use softbuffer::{Context, Surface};
-
 use winit::application::ApplicationHandler;
 use winit::dpi::{LogicalSize, PhysicalPosition, PhysicalSize};
 use winit::event::{DeviceEvent, DeviceId, Ime, MouseButton, MouseScrollDelta, WindowEvent};
 use winit::event_loop::{ActiveEventLoop, EventLoop};
 use winit::keyboard::{Key, ModifiersState};
-use winit::window::{
-    Cursor, CursorGrabMode, CustomCursor, CustomCursorSource, Fullscreen, Icon, ResizeDirection,
-    Theme, Window, WindowId,
-};
-
 #[cfg(macos_platform)]
 use winit::platform::macos::{OptionAsAlt, WindowAttributesExtMacOS, WindowExtMacOS};
 #[cfg(any(x11_platform, wayland_platform))]
 use winit::platform::startup_notify::{
     self, EventLoopExtStartupNotify, WindowAttributesExtStartupNotify, WindowExtStartupNotify,
+};
+use winit::window::{
+    Cursor, CursorGrabMode, CustomCursor, CustomCursorSource, Fullscreen, Icon, ResizeDirection,
+    Theme, Window, WindowId,
 };
 
 #[path = "util/tracing.rs"]
@@ -59,9 +57,8 @@ fn main() -> Result<(), Box<dyn Error>> {
         }
     });
 
-    let mut state = Application::new(&event_loop);
-
-    event_loop.run_app(&mut state).map_err(Into::into)
+    let app = Application::new(&event_loop);
+    Ok(event_loop.run_app(app)?)
 }
 
 /// Application state and event handling.
@@ -141,7 +138,7 @@ impl Application {
 
         #[cfg(web_platform)]
         {
-            use winit::platform::web::WindowAttributesExtWebSys;
+            use winit::platform::web::WindowAttributesExtWeb;
             window_attributes = window_attributes.with_append(true);
         }
 
@@ -705,7 +702,8 @@ impl WindowState {
         custom_cursors: &[CustomCursor],
     ) {
         use std::time::Duration;
-        use winit::platform::web::CustomCursorExtWebSys;
+
+        use winit::platform::web::CustomCursorExtWeb;
 
         let cursors = vec![
             custom_cursors[0].clone(),
@@ -944,7 +942,7 @@ fn decode_cursor(bytes: &[u8]) -> CustomCursorSource {
 fn url_custom_cursor() -> CustomCursorSource {
     use std::sync::atomic::{AtomicU64, Ordering};
 
-    use winit::platform::web::CustomCursorExtWebSys;
+    use winit::platform::web::CustomCursorExtWeb;
 
     static URL_COUNTER: AtomicU64 = AtomicU64::new(0);
 

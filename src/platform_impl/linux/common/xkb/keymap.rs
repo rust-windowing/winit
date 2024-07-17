@@ -6,14 +6,13 @@ use std::ptr::{self, NonNull};
 
 #[cfg(x11_platform)]
 use x11_dl::xlib_xcb::xcb_connection_t;
-#[cfg(wayland_platform)]
-use {memmap2::MmapOptions, std::os::unix::io::OwnedFd};
-
 use xkb::XKB_MOD_INVALID;
 use xkbcommon_dl::{
     self as xkb, xkb_keycode_t, xkb_keymap, xkb_keymap_compile_flags, xkb_keysym_t,
     xkb_layout_index_t, xkb_mod_index_t,
 };
+#[cfg(wayland_platform)]
+use {memmap2::MmapOptions, std::os::unix::io::OwnedFd};
 
 use crate::keyboard::{Key, KeyCode, KeyLocation, NamedKey, NativeKey, NativeKeyCode, PhysicalKey};
 #[cfg(x11_platform)]

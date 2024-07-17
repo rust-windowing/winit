@@ -84,7 +84,7 @@ pub use smol_str::SmolStr;
 /// haven't mapped for you yet, this lets you use use [`KeyCode`] to:
 ///
 /// - Correctly match key press and release events.
-/// - On non-web platforms, support assigning keybinds to virtually any key through a UI.
+/// - On non-Web platforms, support assigning keybinds to virtually any key through a UI.
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum NativeKeyCode {
@@ -1758,8 +1758,9 @@ bitflags! {
 
 #[cfg(feature = "serde")]
 mod modifiers_serde {
-    use super::ModifiersState;
     use serde::{Deserialize, Deserializer, Serialize, Serializer};
+
+    use super::ModifiersState;
 
     #[derive(Default, Serialize, Deserialize)]
     #[serde(default)]

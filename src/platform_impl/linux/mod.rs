@@ -11,30 +11,29 @@ use std::{env, fmt};
 #[cfg(x11_platform)]
 use std::{ffi::CStr, mem::MaybeUninit, os::raw::*, sync::Mutex};
 
-use crate::application::ApplicationHandler;
-use crate::platform::pump_events::PumpStatus;
-#[cfg(x11_platform)]
-use crate::utils::Lazy;
 use smol_str::SmolStr;
 
+pub(crate) use self::common::xkb::{physicalkey_to_scancode, scancode_to_physicalkey};
 #[cfg(x11_platform)]
 use self::x11::{X11Error, XConnection, XError, XNotSupported};
+use crate::application::ApplicationHandler;
+pub(crate) use crate::cursor::OnlyCursorImageSource as PlatformCustomCursorSource;
 use crate::dpi::{PhysicalPosition, PhysicalSize, Position, Size};
 use crate::error::{EventLoopError, ExternalError, NotSupportedError, OsError as RootOsError};
 use crate::event_loop::{AsyncRequestSerial, ControlFlow, DeviceEvents};
 use crate::icon::Icon;
+pub(crate) use crate::icon::RgbaIcon as PlatformIcon;
 use crate::keyboard::Key;
+use crate::platform::pump_events::PumpStatus;
 #[cfg(x11_platform)]
 use crate::platform::x11::{WindowType as XWindowType, XlibErrorHook};
+pub(crate) use crate::platform_impl::Fullscreen;
+#[cfg(x11_platform)]
+use crate::utils::Lazy;
 use crate::window::{
     ActivationToken, Cursor, CursorGrabMode, CustomCursor, CustomCursorSource, ImePurpose,
     ResizeDirection, Theme, UserAttentionType, WindowAttributes, WindowButtons, WindowLevel,
 };
-
-pub(crate) use self::common::xkb::{physicalkey_to_scancode, scancode_to_physicalkey};
-pub(crate) use crate::cursor::OnlyCursorImageSource as PlatformCustomCursorSource;
-pub(crate) use crate::icon::RgbaIcon as PlatformIcon;
-pub(crate) use crate::platform_impl::Fullscreen;
 
 pub(crate) mod common;
 #[cfg(wayland_platform)]
@@ -156,7 +155,7 @@ impl From<u64> for WindowId {
 }
 
 impl WindowId {
-    pub const unsafe fn dummy() -> Self {
+    pub const fn dummy() -> Self {
         Self(0)
     }
 }
@@ -170,11 +169,11 @@ pub enum DeviceId {
 }
 
 impl DeviceId {
-    pub const unsafe fn dummy() -> Self {
+    pub const fn dummy() -> Self {
         #[cfg(wayland_platform)]
-        return DeviceId::Wayland(unsafe { wayland::DeviceId::dummy() });
+        return DeviceId::Wayland(wayland::DeviceId::dummy());
         #[cfg(all(not(wayland_platform), x11_platform))]
-        return DeviceId::X(unsafe { x11::DeviceId::dummy() });
+        return DeviceId::X(x11::DeviceId::dummy());
     }
 }
 
@@ -789,13 +788,13 @@ impl EventLoop {
         }
     }
 
-    pub fn run_app<A: ApplicationHandler>(self, app: &mut A) -> Result<(), EventLoopError> {
+    pub fn run_app<A: ApplicationHandler>(self, app: A) -> Result<(), EventLoopError> {
         x11_or_wayland!(match self; EventLoop(evlp) => evlp.run_app(app))
     }
 
     pub fn run_app_on_demand<A: ApplicationHandler>(
         &mut self,
-        app: &mut A,
+        app: A,
     ) -> Result<(), EventLoopError> {
         x11_or_wayland!(match self; EventLoop(evlp) => evlp.run_app_on_demand(app))
     }
@@ -803,7 +802,7 @@ impl EventLoop {
     pub fn pump_app_events<A: ApplicationHandler>(
         &mut self,
         timeout: Option<Duration>,
-        app: &mut A,
+        app: A,
     ) -> PumpStatus {
         x11_or_wayland!(match self; EventLoop(evlp) => evlp.pump_app_events(timeout, app))
     }
@@ -905,7 +904,7 @@ impl ActiveEventLoop {
         x11_or_wayland!(match self; Self(evlp) => evlp.control_flow())
     }
 
-    pub(crate) fn clear_exit(&self) {
+    fn clear_exit(&self) {
         x11_or_wayland!(match self; Self(evlp) => evlp.clear_exit())
     }
 
@@ -926,12 +925,10 @@ impl ActiveEventLoop {
         }
     }
 
-    #[allow(dead_code)]
     fn set_exit_code(&self, code: i32) {
         x11_or_wayland!(match self; Self(evlp) => evlp.set_exit_code(code))
     }
 
-    #[allow(dead_code)]
     fn exit_code(&self) -> Option<i32> {
         x11_or_wayland!(match self; Self(evlp) => evlp.exit_code())
     }

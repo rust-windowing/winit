@@ -1,5 +1,4 @@
 use cursor_icon::CursorIcon;
-
 use sctk::reexports::client::protocol::wl_shm::Format;
 use sctk::shm::slot::{Buffer, SlotPool};
 

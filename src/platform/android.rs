@@ -62,7 +62,7 @@
 //! If your application is currently based on `NativeActivity` via the `ndk-glue` crate and building
 //! with `cargo apk`, then the minimal changes would be:
 //! 1. Remove `ndk-glue` from your `Cargo.toml`
-//! 2. Enable the `"android-native-activity"` feature for Winit: `winit = { version = "0.30.3",
+//! 2. Enable the `"android-native-activity"` feature for Winit: `winit = { version = "0.30.4",
 //!    features = [ "android-native-activity" ] }`
 //! 3. Add an `android_main` entrypoint (as above), instead of using the '`[ndk_glue::main]` proc
 //!    macro from `ndk-macros` (optionally add a dependency on `android_logger` and initialize
@@ -70,10 +70,9 @@
 //! 4. Pass a clone of the `AndroidApp` that your application receives to Winit when building your
 //!    event loop (as shown above).
 
+use self::activity::{AndroidApp, ConfigurationRef, Rect};
 use crate::event_loop::{ActiveEventLoop, EventLoop, EventLoopBuilder};
 use crate::window::{Window, WindowAttributes};
-
-use self::activity::{AndroidApp, ConfigurationRef, Rect};
 
 /// Additional methods on [`EventLoop`] that are specific to Android.
 pub trait EventLoopExtAndroid {}

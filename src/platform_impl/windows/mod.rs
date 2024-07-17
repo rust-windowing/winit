@@ -6,20 +6,17 @@ pub(crate) use self::event_loop::{
     ActiveEventLoop, EventLoop, EventLoopProxy, OwnedDisplayHandle,
     PlatformSpecificEventLoopAttributes,
 };
-pub(crate) use self::icon::{SelectedCursor, WinIcon};
+pub use self::icon::WinIcon as PlatformIcon;
+pub(crate) use self::icon::{SelectedCursor, WinCursor as PlatformCustomCursor, WinIcon};
 pub(crate) use self::keyboard::{physicalkey_to_scancode, scancode_to_physicalkey};
 pub(crate) use self::monitor::{MonitorHandle, VideoModeHandle};
 pub(crate) use self::window::Window;
-
-pub(crate) use self::icon::WinCursor as PlatformCustomCursor;
-pub use self::icon::WinIcon as PlatformIcon;
 pub(crate) use crate::cursor::OnlyCursorImageSource as PlatformCustomCursorSource;
-use crate::platform_impl::Fullscreen;
-
 use crate::event::DeviceId as RootDeviceId;
 use crate::icon::Icon;
 use crate::keyboard::Key;
 use crate::platform::windows::{BackdropType, Color, CornerPreference};
+use crate::platform_impl::Fullscreen;
 
 #[derive(Clone, Debug)]
 pub struct PlatformSpecificWindowAttributes {
@@ -67,7 +64,7 @@ unsafe impl Sync for PlatformSpecificWindowAttributes {}
 pub struct DeviceId(u32);
 
 impl DeviceId {
-    pub const unsafe fn dummy() -> Self {
+    pub const fn dummy() -> Self {
         DeviceId(0)
     }
 }
@@ -103,7 +100,7 @@ unsafe impl Send for WindowId {}
 unsafe impl Sync for WindowId {}
 
 impl WindowId {
-    pub const unsafe fn dummy() -> Self {
+    pub const fn dummy() -> Self {
         WindowId(0)
     }
 }

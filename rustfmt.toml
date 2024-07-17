@@ -11,6 +11,7 @@ error_on_unformatted = true
 format_macro_bodies = true
 hex_literal_case = "Lower"
 normalize_comments = true
+group_imports = "StdExternalCrate"
 # Some macros break with this.
 reorder_impl_items = false
 newline_style = "Unix"

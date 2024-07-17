@@ -43,6 +43,7 @@ changelog entry.
 ### Added
 
 - Add `ActiveEventLoop::create_proxy()`.
+- On Web, implement `Error` for `platform::web::CustomCursorError`.
 
 ### Changed
 
@@ -64,6 +65,10 @@ changelog entry.
 
   `ApplicationHandler::resumed/suspended()` are now only emitted by iOS and Web
   and now signify actually resuming/suspending the application.
+- Rename `platform::web::*ExtWebSys` to `*ExtWeb`.
+- Change signature of `EventLoop::run_app`, `EventLoopExtPumpEvents::pump_app_events` and
+  `EventLoopExtRunOnDemand::run_app_on_demand` to accept a `impl ApplicationHandler` directly,
+  instead of requiring a `&mut` reference to it.
 
 ### Removed
 
@@ -78,6 +83,4 @@ changelog entry.
 
 ### Fixed
 
-- On Wayland, avoid crashing when compositor is misbehaving.
-- Account for different browser engine implementations of pointer movement coordinate space.
 - On Windows, fix `Window::inner_size` of undecorated window with shadows, reporting a size bigger than what's visible.

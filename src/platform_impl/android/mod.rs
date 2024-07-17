@@ -417,16 +417,17 @@ impl EventLoop {
         input_status
     }
 
-    pub fn run_app<A: ApplicationHandler>(mut self, app: &mut A) -> Result<(), EventLoopError> {
+    pub fn run_app<A: ApplicationHandler>(mut self, app: A) -> Result<(), EventLoopError> {
         self.run_app_on_demand(app)
     }
 
     pub fn run_app_on_demand<A: ApplicationHandler>(
         &mut self,
-        app: &mut A,
+        mut app: A,
     ) -> Result<(), EventLoopError> {
+        self.window_target.p.clear_exit();
         loop {
-            match self.pump_app_events(None, app) {
+            match self.pump_app_events(None, &mut app) {
                 PumpStatus::Exit(0) => {
                     break Ok(());
                 },
@@ -443,7 +444,7 @@ impl EventLoop {
     pub fn pump_app_events<A: ApplicationHandler>(
         &mut self,
         timeout: Option<Duration>,
-        app: &mut A,
+        mut app: A,
     ) -> PumpStatus {
         if !self.loop_running {
             self.loop_running = true;
@@ -455,13 +456,13 @@ impl EventLoop {
             self.cause = StartCause::Init;
 
             // run the initial loop iteration
-            self.single_iteration(None, app);
+            self.single_iteration(None, &mut app);
         }
 
         // Consider the possibility that the `StartCause::Init` iteration could
         // request to Exit
         if !self.exiting() {
-            self.poll_events_with_timeout(timeout, app);
+            self.poll_events_with_timeout(timeout, &mut app);
         }
         if self.exiting() {
             self.loop_running = false;

@@ -1,6 +1,6 @@
 [package]
 name = "winit"
-version = "0.30.3"
+version = "0.30.4"
 authors = [
     "The winit contributors",
     "Pierre Krieger <pierre.krieger1708@gmail.com>",
@@ -232,7 +232,7 @@ windows-sys = { version = "0.52.0", features = [
 [target.'cfg(all(unix, not(any(target_os = "redox", target_family = "wasm", target_os = "android", target_vendor = "apple"))))'.dependencies]
 ahash = { version = "0.8.7", features = ["no-rng"], optional = true }
 bytemuck = { version = "1.13.1", default-features = false, optional = true }
-calloop = "0.12.3"
+calloop = "0.13.0"
 libc = "0.2.64"
 memmap2 = { version = "0.9.0", optional = true }
 percent-encoding = { version = "2.0", optional = true }
@@ -242,18 +242,18 @@ rustix = { version = "0.38.4", default-features = false, features = [
     "thread",
     "process",
 ] }
-sctk = { package = "smithay-client-toolkit", version = "0.18.0", default-features = false, features = [
+sctk = { package = "smithay-client-toolkit", version = "0.19.2", default-features = false, features = [
     "calloop",
 ], optional = true }
-sctk-adwaita = { version = "0.9.0", default-features = false, optional = true }
-wayland-backend = { version = "0.3.0", default-features = false, features = [
+sctk-adwaita = { version = "0.10.1", default-features = false, optional = true }
+wayland-backend = { version = "0.3.5", default-features = false, features = [
     "client_system",
 ], optional = true }
-wayland-client = { version = "0.31.1", optional = true }
-wayland-protocols = { version = "0.31.0", features = [
+wayland-client = { version = "0.31.4", optional = true }
+wayland-protocols = { version = "0.32.2", features = [
     "staging",
 ], optional = true }
-wayland-protocols-plasma = { version = "0.2.0", features = [
+wayland-protocols-plasma = { version = "0.3.2", features = [
     "client",
 ], optional = true }
 x11-dl = { version = "2.19.1", optional = true }

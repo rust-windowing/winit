@@ -12,8 +12,7 @@ use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::{Duration, Instant};
 use std::{mem, panic, ptr};
 
-use crate::utils::Lazy;
-
+use runner::EventLoopRunner;
 use windows_sys::Win32::Devices::HumanInterfaceDevice::MOUSE_MOVE_RELATIVE;
 use windows_sys::Win32::Foundation::{HWND, LPARAM, LRESULT, POINT, RECT, WPARAM};
 use windows_sys::Win32::Graphics::Gdi::{
@@ -56,6 +55,8 @@ use windows_sys::Win32::UI::WindowsAndMessaging::{
     WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW, WS_EX_TRANSPARENT, WS_OVERLAPPED, WS_POPUP, WS_VISIBLE,
 };
 
+use super::window::set_skip_taskbar;
+use super::SelectedCursor;
 use crate::application::ApplicationHandler;
 use crate::dpi::{PhysicalPosition, PhysicalSize};
 use crate::error::EventLoopError;
@@ -80,13 +81,10 @@ use crate::platform_impl::platform::window_state::{
 use crate::platform_impl::platform::{
     raw_input, util, wrap_device_id, Fullscreen, WindowId, DEVICE_ID,
 };
+use crate::utils::Lazy;
 use crate::window::{
     CustomCursor as RootCustomCursor, CustomCursorSource, WindowId as RootWindowId,
 };
-use runner::EventLoopRunner;
-
-use super::window::set_skip_taskbar;
-use super::SelectedCursor;
 
 pub(crate) struct WindowData {
     pub window_state: Arc<Mutex<WindowState>>,
@@ -189,14 +187,15 @@ impl EventLoop {
         &self.window_target
     }
 
-    pub fn run_app<A: ApplicationHandler>(mut self, app: &mut A) -> Result<(), EventLoopError> {
+    pub fn run_app<A: ApplicationHandler>(mut self, app: A) -> Result<(), EventLoopError> {
         self.run_app_on_demand(app)
     }
 
     pub fn run_app_on_demand<A: ApplicationHandler>(
         &mut self,
-        app: &mut A,
+        mut app: A,
     ) -> Result<(), EventLoopError> {
+        self.window_target.p.clear_exit();
         {
             let runner = &self.window_target.p.runner_shared;
 
@@ -256,7 +255,7 @@ impl EventLoop {
     pub fn pump_app_events<A: ApplicationHandler>(
         &mut self,
         timeout: Option<Duration>,
-        app: &mut A,
+        mut app: A,
     ) -> PumpStatus {
         {
             let runner = &self.window_target.p.runner_shared;

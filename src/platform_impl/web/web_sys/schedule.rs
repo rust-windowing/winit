@@ -1,6 +1,7 @@
-use js_sys::{Array, Function, Object, Promise, Reflect};
 use std::cell::OnceCell;
 use std::time::Duration;
+
+use js_sys::{Array, Function, Object, Promise, Reflect};
 use wasm_bindgen::closure::Closure;
 use wasm_bindgen::prelude::wasm_bindgen;
 use wasm_bindgen::{JsCast, JsValue};

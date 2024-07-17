@@ -4,16 +4,16 @@ use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::{Arc, Mutex, RwLock, RwLockReadGuard};
 use std::{fmt, ptr};
 
-use crate::window::CursorIcon;
-
-use super::atoms::Atoms;
-use super::ffi;
-use super::monitor::MonitorHandle;
 use x11rb::connection::Connection;
 use x11rb::protocol::randr::ConnectionExt as _;
 use x11rb::protocol::xproto::{self, ConnectionExt};
 use x11rb::resource_manager;
 use x11rb::xcb_ffi::XCBConnection;
+
+use super::atoms::Atoms;
+use super::ffi;
+use super::monitor::MonitorHandle;
+use crate::window::CursorIcon;
 
 /// A connection to an X server.
 pub struct XConnection {

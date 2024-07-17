@@ -1,9 +1,10 @@
 use crate::application::ApplicationHandler;
 use crate::error::EventLoopError;
-use crate::event_loop::{ActiveEventLoop, EventLoop};
-
+use crate::event_loop::EventLoop;
 #[cfg(doc)]
-use crate::{platform::pump_events::EventLoopExtPumpEvents, window::Window};
+use crate::{
+    event_loop::ActiveEventLoop, platform::pump_events::EventLoopExtPumpEvents, window::Window,
+};
 
 /// Additional methods on [`EventLoop`] to return control flow to the caller.
 pub trait EventLoopExtRunOnDemand {
@@ -30,9 +31,13 @@ pub trait EventLoopExtRunOnDemand {
     /// # Caveats
     /// - This extension isn't available on all platforms, since it's not always possible to return
     ///   to the caller (specifically this is impossible on iOS and Web - though with the Web
-    ///   backend it is possible to use `EventLoopExtWebSys::spawn()`
-    #[cfg_attr(not(web_platform), doc = "[^1]")]
-    ///   more than once instead).
+    ///   backend it is possible to use
+    #[cfg_attr(
+        any(web_platform, docsrs),
+        doc = "  [`EventLoopExtWeb::spawn_app()`][crate::platform::web::EventLoopExtWeb::spawn_app()]"
+    )]
+    #[cfg_attr(not(any(web_platform, docsrs)), doc = "  `EventLoopExtWeb::spawn_app()`")]
+    ///   [^1] more than once instead).
     /// - No [`Window`] state can be carried between separate runs of the event loop.
     ///
     /// You are strongly encouraged to use [`EventLoop::run_app()`] for portability, unless you
@@ -50,31 +55,17 @@ pub trait EventLoopExtRunOnDemand {
     ///   block the browser and there is nothing that can be polled to ask for new events. Events
     ///   are delivered via callbacks based on an event loop that is internal to the browser itself.
     /// - **iOS:** It's not possible to stop and start an `UIApplication` repeatedly on iOS.
-    #[cfg_attr(not(web_platform), doc = "[^1]: `spawn()` is only available on `wasm` platforms.")]
-    #[rustfmt::skip]
+    ///
+    /// [^1]: `spawn_app()` is only available on the Web platforms.
     ///
     /// [`exit()`]: ActiveEventLoop::exit()
     /// [`set_control_flow()`]: ActiveEventLoop::set_control_flow()
-    fn run_app_on_demand<A: ApplicationHandler>(
-        &mut self,
-        app: &mut A,
-    ) -> Result<(), EventLoopError>;
+    fn run_app_on_demand<A: ApplicationHandler>(&mut self, app: A) -> Result<(), EventLoopError>;
 }
 
 impl EventLoopExtRunOnDemand for EventLoop {
-    fn run_app_on_demand<A: ApplicationHandler>(
-        &mut self,
-        app: &mut A,
-    ) -> Result<(), EventLoopError> {
-        self.event_loop.window_target().clear_exit();
+    fn run_app_on_demand<A: ApplicationHandler>(&mut self, app: A) -> Result<(), EventLoopError> {
         self.event_loop.run_app_on_demand(app)
-    }
-}
-
-impl ActiveEventLoop {
-    /// Clear exit status.
-    pub(crate) fn clear_exit(&self) {
-        self.p.clear_exit()
     }
 }
 
