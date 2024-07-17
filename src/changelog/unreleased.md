@@ -59,6 +59,8 @@ changelog entry.
 - Add `Touch::finger_id` with a new type `FingerId`.
 - On Web and Windows, add `FingerIdExt*::is_primary()`, exposing a way to determine
   the primary finger in a multi-touch interaction.
+- Implement `Clone`, `Copy`, `Debug`, `Deserialize`, `Eq`, `Hash`, `Ord`, `PartialEq`, `PartialOrd`
+  and `Serialize` on many types.
 
 ### Changed
 
@@ -91,6 +93,7 @@ changelog entry.
 - On Web, `CursorGrabMode::Locked` now lets `DeviceEvent::MouseMotion` return raw data, not OS
   accelerated, if the browser supports it.
 - `(Active)EventLoop::create_custom_cursor()` now returns a `Result<CustomCursor, ExternalError>`.
+- Changed how `ModifiersState` is serialized by Serde.
 
 ### Removed
 

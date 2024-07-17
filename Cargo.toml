@@ -57,7 +57,7 @@ android-native-activity = ["android-activity/native-activity"]
 default = ["rwh_06", "x11", "wayland", "wayland-dlopen", "wayland-csd-adwaita"]
 mint = ["dpi/mint"]
 rwh_06 = ["dep:rwh_06", "ndk/rwh_06"]
-serde = ["dep:serde", "cursor-icon/serde", "smol_str/serde", "dpi/serde"]
+serde = ["dep:serde", "cursor-icon/serde", "smol_str/serde", "dpi/serde", "bitflags/serde"]
 wayland = [
     "wayland-client",
     "wayland-backend",

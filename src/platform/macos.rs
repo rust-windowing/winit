@@ -170,6 +170,7 @@ impl WindowExtMacOS for Window {
 
 /// Corresponds to `NSApplicationActivationPolicy`.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum ActivationPolicy {
     /// Corresponds to `NSApplicationActivationPolicyRegular`.
     #[default]
@@ -432,7 +433,7 @@ impl ActiveEventLoopExtMacOS for &dyn ActiveEventLoop {
 /// Option as alt behavior.
 ///
 /// The default is `None`.
-#[derive(Default, Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Default, Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum OptionAsAlt {
     /// The left `Option` key is treated as `Alt`.

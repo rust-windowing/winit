@@ -117,6 +117,7 @@ impl EventLoopExtPumpEvents for EventLoop {
 }
 
 /// The return status for `pump_events`
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum PumpStatus {
     /// Continue running external loop.
     Continue,

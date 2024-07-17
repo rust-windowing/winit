@@ -50,6 +50,8 @@ use std::pin::Pin;
 use std::task::{Context, Poll};
 use std::time::Duration;
 
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
 #[cfg(web_platform)]
 use web_sys::HtmlCanvasElement;
 
@@ -429,7 +431,8 @@ impl ActiveEventLoopExtWeb for &dyn ActiveEventLoop {
 }
 
 /// Strategy used for [`ControlFlow::Poll`][crate::event_loop::ControlFlow::Poll].
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, Eq, Hash, PartialEq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum PollStrategy {
     /// Uses [`Window.requestIdleCallback()`] to queue the next event loop. If not available
     /// this will fallback to [`setTimeout()`].
@@ -455,7 +458,8 @@ pub enum PollStrategy {
 }
 
 /// Strategy used for [`ControlFlow::WaitUntil`][crate::event_loop::ControlFlow::WaitUntil].
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, Eq, Hash, PartialEq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum WaitUntilStrategy {
     /// Uses the [Prioritized Task Scheduling API] to queue the next event loop. If not available
     /// this will fallback to [`setTimeout()`].
@@ -524,7 +528,8 @@ impl CustomCursorExtWeb for CustomCursor {
 }
 
 /// An error produced when using [`CustomCursor::from_animation`] with invalid arguments.
-#[derive(Debug, Clone)]
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum BadAnimation {
     /// Produced when no cursors were supplied.
     Empty,
@@ -557,7 +562,8 @@ impl Future for CustomCursorFuture {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum CustomCursorError {
     Blob,
     Decode(String),

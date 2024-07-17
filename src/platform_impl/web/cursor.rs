@@ -27,7 +27,7 @@ use super::ActiveEventLoop;
 use crate::cursor::{BadImage, Cursor, CursorImage, CustomCursor as RootCustomCursor};
 use crate::platform::web::CustomCursorError;
 
-#[derive(Debug)]
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub(crate) enum CustomCursorSource {
     Image(CursorImage),
     Url { url: String, hotspot_x: u16, hotspot_y: u16 },

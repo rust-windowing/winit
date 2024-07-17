@@ -143,6 +143,28 @@ impl Default for PlatformSpecificEventLoopAttributes {
     }
 }
 
+impl PartialEq for PlatformSpecificEventLoopAttributes {
+    fn eq(&self, other: &Self) -> bool {
+        self.any_thread.eq(&other.any_thread)
+            && self.dpi_aware.eq(&other.dpi_aware)
+            && match (&self.msg_hook, &other.msg_hook) {
+                (Some(this), Some(other)) => std::ptr::eq(&this, &other),
+                (None, None) => true,
+                _ => false,
+            }
+    }
+}
+
+impl Eq for PlatformSpecificEventLoopAttributes {}
+
+impl std::hash::Hash for PlatformSpecificEventLoopAttributes {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.any_thread.hash(state);
+        self.dpi_aware.hash(state);
+        std::ptr::hash(&self.msg_hook, state);
+    }
+}
+
 pub struct ActiveEventLoop {
     thread_id: u32,
     thread_msg_target: HWND,
@@ -565,7 +587,7 @@ impl rwh_06::HasDisplayHandle for ActiveEventLoop {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq, Eq)]
 pub(crate) struct OwnedDisplayHandle;
 
 impl OwnedDisplayHandle {

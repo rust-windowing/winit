@@ -67,7 +67,7 @@ impl ApplicationName {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct PlatformSpecificWindowAttributes {
     pub name: Option<ApplicationName>,
     pub activation_token: Option<ActivationToken>,
@@ -75,7 +75,7 @@ pub struct PlatformSpecificWindowAttributes {
     pub x11: X11WindowAttributes,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 #[cfg(x11_platform)]
 pub struct X11WindowAttributes {
     pub visual_id: Option<x11rb::protocol::xproto::Visualid>,
@@ -194,7 +194,7 @@ impl FingerId {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum MonitorHandle {
     #[cfg(x11_platform)]
     X(x11::MonitorHandle),
@@ -849,6 +849,21 @@ impl OwnedDisplayHandle {
         }
     }
 }
+
+impl PartialEq for OwnedDisplayHandle {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            #[cfg(x11_platform)]
+            (Self::X(this), Self::X(other)) => Arc::as_ptr(this).eq(&Arc::as_ptr(other)),
+            #[cfg(wayland_platform)]
+            (Self::Wayland(this), Self::Wayland(other)) => this.eq(other),
+            #[cfg(all(x11_platform, wayland_platform))]
+            _ => false,
+        }
+    }
+}
+
+impl Eq for OwnedDisplayHandle {}
 
 /// Returns the minimum `Option<Duration>`, taking into account that `None`
 /// equates to an infinite timeout, not a zero timeout (so can't just use
