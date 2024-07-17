@@ -62,6 +62,7 @@ changelog entry.
 - Implement `Clone`, `Copy`, `Debug`, `Deserialize`, `Eq`, `Hash`, `Ord`, `PartialEq`, `PartialOrd`
   and `Serialize` on many types.
 - Add `MonitorHandle::current_video_mode()`.
+- Add `WindowId::into_raw()` and `from_raw()`.
 
 ### Changed
 
@@ -127,6 +128,8 @@ changelog entry.
 - Remove `MonitorHandle::size()` and `refresh_rate_millihertz()` in favor of
   `MonitorHandle::current_video_mode()`.
 - On Android, remove all `MonitorHandle` support instead of emitting false data.
+- Remove `impl From<u64> for WindowId` and `impl From<WindowId> for u64`. Replaced with
+  `WindowId::into_raw()` and `from_raw()`.
 
 ### Fixed
 

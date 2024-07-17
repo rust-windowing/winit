@@ -92,23 +92,19 @@ impl WindowId {
     pub const fn dummy() -> Self {
         WindowId(platform_impl::WindowId::dummy())
     }
+
+    pub fn into_raw(self) -> u64 {
+        self.0.into_raw()
+    }
+
+    pub const fn from_raw(id: u64) -> Self {
+        Self(platform_impl::WindowId::from_raw(id))
+    }
 }
 
 impl fmt::Debug for WindowId {
     fn fmt(&self, fmtr: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.0.fmt(fmtr)
-    }
-}
-
-impl From<WindowId> for u64 {
-    fn from(window_id: WindowId) -> Self {
-        window_id.0.into()
-    }
-}
-
-impl From<u64> for WindowId {
-    fn from(raw_id: u64) -> Self {
-        Self(raw_id.into())
     }
 }
 

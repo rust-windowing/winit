@@ -673,16 +673,12 @@ impl WindowId {
     pub const fn dummy() -> Self {
         WindowId
     }
-}
 
-impl From<WindowId> for u64 {
-    fn from(_: WindowId) -> Self {
+    pub const fn into_raw(self) -> u64 {
         0
     }
-}
 
-impl From<u64> for WindowId {
-    fn from(_: u64) -> Self {
+    pub const fn from_raw(_id: u64) -> Self {
         Self
     }
 }

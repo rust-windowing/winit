@@ -100,7 +100,7 @@ impl WinitUIWindow {
     }
 
     pub(crate) fn id(&self) -> WindowId {
-        (self as *const Self as usize as u64).into()
+        WindowId { window: (self as *const Self as usize) as _ }
     }
 }
 
@@ -679,17 +679,13 @@ impl WindowId {
     pub const fn dummy() -> Self {
         WindowId { window: std::ptr::null_mut() }
     }
-}
 
-impl From<WindowId> for u64 {
-    fn from(window_id: WindowId) -> Self {
-        window_id.window as u64
+    pub fn into_raw(self) -> u64 {
+        self.window as u64
     }
-}
 
-impl From<u64> for WindowId {
-    fn from(raw_id: u64) -> Self {
-        Self { window: raw_id as _ }
+    pub const fn from_raw(id: u64) -> Self {
+        Self { window: id as *mut WinitUIWindow }
     }
 }
 
