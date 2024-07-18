@@ -616,7 +616,7 @@ pub struct KeyEvent {
     /// In games, you often want to ignore repated key events - this can be
     /// done by ignoring events where this property is set.
     ///
-    /// ```
+    /// ```no_run
     /// use winit::event::{ElementState, KeyEvent, WindowEvent};
     /// use winit::keyboard::{KeyCode, PhysicalKey};
     /// # let window_event = WindowEvent::RedrawRequested; // To make the example compile

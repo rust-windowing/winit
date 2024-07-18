@@ -60,6 +60,9 @@ jobs:
           - { name: 'iOS Aarch64',        target: aarch64-apple-ios,        os: macos-latest,    }
           - { name: 'Web',                target: wasm32-unknown-unknown,   os: ubuntu-latest,   }
         exclude:
+          # Web on nightly needs extra arguments
+          - toolchain: nightly
+            platform: { name: 'Web', target: wasm32-unknown-unknown, os: ubuntu-latest }
           # Android is tested on stable-3
           - toolchain: '1.73'
             platform: { name: 'Android', target: aarch64-linux-android, os: ubuntu-latest, options: '--package=winit --features=android-native-activity', cmd: 'apk --' }
@@ -67,13 +70,16 @@ jobs:
           - toolchain: '1.73'
             platform: { name: 'Android', target: aarch64-linux-android, os: ubuntu-latest, options: '--package=winit --features=android-native-activity', cmd: 'apk --' }
           - toolchain: 'nightly'
+            platform: { name: 'Web', target: wasm32-unknown-unknown, os: ubuntu-latest, test-options: -Zdoctest-xcompile }
+          - toolchain: 'nightly'
             platform: {
-              name:       'Web Atomic',
-              target:     wasm32-unknown-unknown,
-              os:         ubuntu-latest,
-              options:    '-Zbuild-std=panic_abort,std',
-              rustflags:  '-Ctarget-feature=+atomics,+bulk-memory',
-              components: rust-src,
+              name:         'Web Atomic',
+              target:       wasm32-unknown-unknown,
+              os:           ubuntu-latest,
+              options:      '-Zbuild-std=panic_abort,std',
+              test-options: -Zdoctest-xcompile,
+              rustflags:    '-Ctarget-feature=+atomics,+bulk-memory',
+              components:   rust-src,
             }
 
     env:
@@ -83,8 +89,10 @@ jobs:
 
       # Faster compilation and error on warnings
       RUSTFLAGS: '--codegen=debuginfo=0 --deny=warnings ${{ matrix.platform.rustflags }}'
+      RUSTDOCFLAGS: ${{ matrix.platform.rustflags }}
 
       OPTIONS: --target=${{ matrix.platform.target }} ${{ matrix.platform.options }}
+      TEST_OPTIONS: ${{ matrix.platform.test-options }}
       CMD: ${{ matrix.platform.cmd }}
 
     steps:
@@ -131,6 +139,11 @@ jobs:
       if: contains(matrix.platform.target, 'android') && (steps.cargo-apk-cache.outputs.cache-hit != 'true')
       run: cargo install cargo-apk --version=^0.9.7 --locked
 
+    - uses: taiki-e/cache-cargo-install-action@v2
+      if: contains(matrix.platform.target, 'wasm32') && matrix.toolchain == 'nightly'
+      with:
+        tool: wasm-bindgen-cli
+
     - uses: dtolnay/rust-toolchain@master
       with:
         toolchain: ${{ matrix.toolchain }}${{ matrix.platform.host }}
@@ -162,29 +175,29 @@ jobs:
       if: >
         !contains(matrix.platform.target, 'android') &&
         !contains(matrix.platform.target, 'ios') &&
-        !contains(matrix.platform.target, 'wasm32') &&
+        (!contains(matrix.platform.target, 'wasm32') || matrix.toolchain == 'nightly') &&
         !contains(matrix.platform.target, 'redox') &&
         matrix.toolchain != '1.73'
       run: cargo $CMD test $OPTIONS
 
     - name: Lint with clippy
       if: (matrix.toolchain == 'stable') && !contains(matrix.platform.options, '--no-default-features')
-      run: cargo clippy --all-targets $OPTIONS -- -Dwarnings
+      run: cargo clippy --all-targets $OPTIONS $TEST_OPTIONS -- -Dwarnings
 
     - name: Build tests with serde enabled
       if: >
         !contains(matrix.platform.target, 'redox') &&
         matrix.toolchain != '1.73'
-      run: cargo $CMD test --no-run $OPTIONS --features serde
+      run: cargo $CMD test --no-run $OPTIONS $TEST_OPTIONS --features serde
 
     - name: Run tests with serde enabled
       if: >
         !contains(matrix.platform.target, 'android') &&
         !contains(matrix.platform.target, 'ios') &&
-        !contains(matrix.platform.target, 'wasm32') &&
+        (!contains(matrix.platform.target, 'wasm32') || matrix.toolchain == 'nightly') &&
         !contains(matrix.platform.target, 'redox') &&
         matrix.toolchain != '1.73'
-      run: cargo $CMD test $OPTIONS --features serde
+      run: cargo $CMD test $OPTIONS $TEST_OPTIONS --features serde
 
     - name: Check docs.rs documentation
       if: matrix.toolchain == 'nightly'
