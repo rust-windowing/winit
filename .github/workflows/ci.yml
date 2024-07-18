@@ -10,12 +10,30 @@ jobs:
     name: Check formatting
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v3
-    - uses: dtolnay/rust-toolchain@stable
+    - uses: taiki-e/checkout-action@v1
+    - uses: dtolnay/rust-toolchain@nightly
       with:
         components: rustfmt
     - name: Check Formatting
       run: cargo fmt -- --check
+
+  typos:
+    name: Check for typos
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: taiki-e/checkout-action@v1
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: typos-cli
+      - name: run typos
+        run: typos
+      - name: Typos info
+        if: failure()
+        run: |
+          echo 'To fix typos, please run `typos -w`'
+          echo 'To check for a diff, run `typos`'
+          echo 'You can find typos here: https://crates.io/crates/typos'
 
   tests:
     name: Test ${{ matrix.toolchain }} ${{ matrix.platform.name }}
@@ -24,7 +42,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        toolchain: [stable, nightly, '1.70.0']
+        toolchain: [stable, nightly, '1.73']
         platform:
           # Note: Make sure that we test all the `docs.rs` targets defined in Cargo.toml!
           - { name: 'Windows 64bit MSVC', target: x86_64-pc-windows-msvc,   os: windows-latest,  }
@@ -40,17 +58,17 @@ jobs:
           - { name: 'macOS',              target: x86_64-apple-darwin,      os: macos-latest,    }
           - { name: 'iOS x86_64',         target: x86_64-apple-ios,         os: macos-latest,    }
           - { name: 'iOS Aarch64',        target: aarch64-apple-ios,        os: macos-latest,    }
-          - { name: 'web',                target: wasm32-unknown-unknown,   os: ubuntu-latest,   }
+          - { name: 'Web',                target: wasm32-unknown-unknown,   os: ubuntu-latest,   }
         exclude:
           # Android is tested on stable-3
-          - toolchain: '1.70.0'
+          - toolchain: '1.73'
             platform: { name: 'Android', target: aarch64-linux-android, os: ubuntu-latest, options: '--package=winit --features=android-native-activity', cmd: 'apk --' }
         include:
-          - toolchain: '1.70.0'
+          - toolchain: '1.73'
             platform: { name: 'Android', target: aarch64-linux-android, os: ubuntu-latest, options: '--package=winit --features=android-native-activity', cmd: 'apk --' }
           - toolchain: 'nightly'
             platform: {
-              name:       'web Atomic',
+              name:       'Web Atomic',
               target:     wasm32-unknown-unknown,
               os:         ubuntu-latest,
               options:    '-Zbuild-std=panic_abort,std',
@@ -70,7 +88,7 @@ jobs:
       CMD: ${{ matrix.platform.cmd }}
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: taiki-e/checkout-action@v1
 
     - name: Restore cache of cargo folder
       # We use `restore` and later `save`, so that we can create the key after
@@ -89,7 +107,7 @@ jobs:
 
     - name: Generate lockfile
       # Also updates the crates.io index
-      run: cargo generate-lockfile
+      run: cargo generate-lockfile && cargo update -p ahash --precise 0.8.7 && cargo update -p bumpalo --precise 3.14.0
 
     - name: Install GCC Multilib
       if: (matrix.platform.os == 'ubuntu-latest') && contains(matrix.platform.target, 'i686')
@@ -127,10 +145,17 @@ jobs:
     - name: Build crate
       run: cargo $CMD build $OPTIONS
 
+    # Test only on Linux x86_64, so we avoid spending unnecessary CI hours.
+    - name: Test dpi crate
+      if: >
+        contains(matrix.platform.name, 'Linux 64bit') &&
+        matrix.toolchain != '1.73'
+      run: cargo test -p dpi
+
     - name: Build tests
       if: >
         !contains(matrix.platform.target, 'redox') &&
-        matrix.toolchain != '1.70.0'
+        matrix.toolchain != '1.73'
       run: cargo $CMD test --no-run $OPTIONS
 
     - name: Run tests
@@ -139,7 +164,7 @@ jobs:
         !contains(matrix.platform.target, 'ios') &&
         !contains(matrix.platform.target, 'wasm32') &&
         !contains(matrix.platform.target, 'redox') &&
-        matrix.toolchain != '1.70.0'
+        matrix.toolchain != '1.73'
       run: cargo $CMD test $OPTIONS
 
     - name: Lint with clippy
@@ -149,7 +174,7 @@ jobs:
     - name: Build tests with serde enabled
       if: >
         !contains(matrix.platform.target, 'redox') &&
-        matrix.toolchain != '1.70.0'
+        matrix.toolchain != '1.73'
       run: cargo $CMD test --no-run $OPTIONS --features serde
 
     - name: Run tests with serde enabled
@@ -158,14 +183,14 @@ jobs:
         !contains(matrix.platform.target, 'ios') &&
         !contains(matrix.platform.target, 'wasm32') &&
         !contains(matrix.platform.target, 'redox') &&
-        matrix.toolchain != '1.70.0'
+        matrix.toolchain != '1.73'
       run: cargo $CMD test $OPTIONS --features serde
 
     - name: Check docs.rs documentation
       if: matrix.toolchain == 'nightly'
       run: cargo doc --no-deps $OPTIONS --features=rwh_04,rwh_05,rwh_06,serde,mint,android-native-activity
       env:
-        RUSTDOCFLAGS: '--deny=warnings ${{ matrix.platform.rustflags }} --cfg=docsrs'
+        RUSTDOCFLAGS: '--deny=warnings ${{ matrix.platform.rustflags }} --cfg=docsrs --cfg=unreleased_changelogs'
 
     # See restore step above
     - name: Save cache of cargo folder
@@ -191,13 +216,28 @@ jobs:
           - { name: 'Linux', target: x86_64-unknown-linux-gnu }
           - { name: 'macOS', target: x86_64-apple-darwin }
           - { name: 'Redox OS', target: x86_64-unknown-redox }
-          - { name: 'web', target: wasm32-unknown-unknown }
+          - { name: 'Web', target: wasm32-unknown-unknown }
           - { name: 'Windows', target: x86_64-pc-windows-gnu }
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: taiki-e/checkout-action@v1
     - uses: EmbarkStudios/cargo-deny-action@v1
       with:
         command: check
         log-level: error
         arguments: --all-features --target ${{ matrix.platform.target }}
+
+  swc:
+    name: Minimize JavaScript
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: taiki-e/checkout-action@v1
+      - name: Install SWC
+        run: sudo npm i -g @swc/cli
+      - name: Run SWC
+        run: |
+          swc src/platform_impl/web/web_sys/worker.js -o src/platform_impl/web/web_sys/worker.min.js
+      - name: Check for diff
+        run: |
+          [[ -z $(git status -s) ]]

@@ -1,27 +1,19 @@
-use std::{
-    ffi::{c_void, OsString},
-    os::windows::prelude::OsStringExt,
-    ptr::null_mut,
-};
+use std::ffi::{c_void, OsString};
+use std::os::windows::prelude::OsStringExt;
+use std::ptr::null_mut;
 
-use windows_sys::Win32::{
-    Foundation::{POINT, RECT},
-    Globalization::HIMC,
-    UI::{
-        Input::Ime::{
-            ImmAssociateContextEx, ImmGetCompositionStringW, ImmGetContext, ImmReleaseContext,
-            ImmSetCandidateWindow, ImmSetCompositionWindow, ATTR_TARGET_CONVERTED,
-            ATTR_TARGET_NOTCONVERTED, CANDIDATEFORM, CFS_EXCLUDE, CFS_POINT, COMPOSITIONFORM,
-            GCS_COMPATTR, GCS_COMPSTR, GCS_CURSORPOS, GCS_RESULTSTR, IACE_CHILDREN, IACE_DEFAULT,
-        },
-        WindowsAndMessaging::{GetSystemMetrics, SM_IMMENABLED},
-    },
+use windows_sys::Win32::Foundation::{POINT, RECT};
+use windows_sys::Win32::Globalization::HIMC;
+use windows_sys::Win32::UI::Input::Ime::{
+    ImmAssociateContextEx, ImmGetCompositionStringW, ImmGetContext, ImmReleaseContext,
+    ImmSetCandidateWindow, ImmSetCompositionWindow, ATTR_TARGET_CONVERTED,
+    ATTR_TARGET_NOTCONVERTED, CANDIDATEFORM, CFS_EXCLUDE, CFS_POINT, COMPOSITIONFORM, GCS_COMPATTR,
+    GCS_COMPSTR, GCS_CURSORPOS, GCS_RESULTSTR, IACE_CHILDREN, IACE_DEFAULT,
 };
+use windows_sys::Win32::UI::WindowsAndMessaging::{GetSystemMetrics, SM_IMMENABLED};
 
-use crate::{
-    dpi::{Position, Size},
-    platform::windows::HWND,
-};
+use crate::dpi::{Position, Size};
+use crate::platform::windows::HWND;
 
 pub struct ImeContext {
     hwnd: HWND,
@@ -45,12 +37,12 @@ impl ImeContext {
         let mut boundary_before_char = 0;
 
         for (attr, chr) in attrs.into_iter().zip(text.chars()) {
-            let char_is_targetted =
+            let char_is_targeted =
                 attr as u32 == ATTR_TARGET_CONVERTED || attr as u32 == ATTR_TARGET_NOTCONVERTED;
 
-            if first.is_none() && char_is_targetted {
+            if first.is_none() && char_is_targeted {
                 first = Some(boundary_before_char);
-            } else if first.is_some() && last.is_none() && !char_is_targetted {
+            } else if first.is_some() && last.is_none() && !char_is_targeted {
                 last = Some(boundary_before_char);
             }
 
@@ -60,7 +52,8 @@ impl ImeContext {
         if first.is_some() && last.is_none() {
             last = Some(text.len());
         } else if first.is_none() {
-            // IME haven't split words and select any clause yet, so trying to retrieve normal cursor.
+            // IME haven't split words and select any clause yet, so trying to retrieve normal
+            // cursor.
             let cursor = unsafe { self.get_composition_cursor(&text) };
             first = cursor;
             last = cursor;
@@ -120,12 +113,7 @@ impl ImeContext {
 
         let (x, y) = spot.to_physical::<i32>(scale_factor).into();
         let (width, height): (i32, i32) = size.to_physical::<i32>(scale_factor).into();
-        let rc_area = RECT {
-            left: x,
-            top: y,
-            right: x + width,
-            bottom: y + height,
-        };
+        let rc_area = RECT { left: x, top: y, right: x + width, bottom: y + height };
         let candidate_form = CANDIDATEFORM {
             dwIndex: 0,
             dwStyle: CFS_EXCLUDE,

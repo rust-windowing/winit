@@ -1,60 +1,49 @@
-use std::{
-    collections::{hash_map::Entry, HashMap, HashSet},
-    ffi::OsString,
-    os::windows::ffi::OsStringExt,
-    sync::Mutex,
-};
+use std::collections::hash_map::Entry;
+use std::collections::{HashMap, HashSet};
+use std::ffi::OsString;
+use std::os::windows::ffi::OsStringExt;
+use std::sync::Mutex;
 
-use once_cell::sync::Lazy;
 use smol_str::SmolStr;
-use windows_sys::Win32::{
-    System::SystemServices::{LANG_JAPANESE, LANG_KOREAN},
-    UI::{
-        Input::KeyboardAndMouse::{
-            GetKeyState, GetKeyboardLayout, MapVirtualKeyExW, ToUnicodeEx, MAPVK_VK_TO_VSC_EX,
-            VIRTUAL_KEY, VK_ACCEPT, VK_ADD, VK_APPS, VK_ATTN, VK_BACK, VK_BROWSER_BACK,
-            VK_BROWSER_FAVORITES, VK_BROWSER_FORWARD, VK_BROWSER_HOME, VK_BROWSER_REFRESH,
-            VK_BROWSER_SEARCH, VK_BROWSER_STOP, VK_CANCEL, VK_CAPITAL, VK_CLEAR, VK_CONTROL,
-            VK_CONVERT, VK_CRSEL, VK_DECIMAL, VK_DELETE, VK_DIVIDE, VK_DOWN, VK_END, VK_EREOF,
-            VK_ESCAPE, VK_EXECUTE, VK_EXSEL, VK_F1, VK_F10, VK_F11, VK_F12, VK_F13, VK_F14, VK_F15,
-            VK_F16, VK_F17, VK_F18, VK_F19, VK_F2, VK_F20, VK_F21, VK_F22, VK_F23, VK_F24, VK_F3,
-            VK_F4, VK_F5, VK_F6, VK_F7, VK_F8, VK_F9, VK_FINAL, VK_GAMEPAD_A, VK_GAMEPAD_B,
-            VK_GAMEPAD_DPAD_DOWN, VK_GAMEPAD_DPAD_LEFT, VK_GAMEPAD_DPAD_RIGHT, VK_GAMEPAD_DPAD_UP,
-            VK_GAMEPAD_LEFT_SHOULDER, VK_GAMEPAD_LEFT_THUMBSTICK_BUTTON,
-            VK_GAMEPAD_LEFT_THUMBSTICK_DOWN, VK_GAMEPAD_LEFT_THUMBSTICK_LEFT,
-            VK_GAMEPAD_LEFT_THUMBSTICK_RIGHT, VK_GAMEPAD_LEFT_THUMBSTICK_UP,
-            VK_GAMEPAD_LEFT_TRIGGER, VK_GAMEPAD_MENU, VK_GAMEPAD_RIGHT_SHOULDER,
-            VK_GAMEPAD_RIGHT_THUMBSTICK_BUTTON, VK_GAMEPAD_RIGHT_THUMBSTICK_DOWN,
-            VK_GAMEPAD_RIGHT_THUMBSTICK_LEFT, VK_GAMEPAD_RIGHT_THUMBSTICK_RIGHT,
-            VK_GAMEPAD_RIGHT_THUMBSTICK_UP, VK_GAMEPAD_RIGHT_TRIGGER, VK_GAMEPAD_VIEW,
-            VK_GAMEPAD_X, VK_GAMEPAD_Y, VK_HANGUL, VK_HANJA, VK_HELP, VK_HOME, VK_ICO_00,
-            VK_ICO_CLEAR, VK_ICO_HELP, VK_INSERT, VK_JUNJA, VK_KANA, VK_KANJI, VK_LAUNCH_APP1,
-            VK_LAUNCH_APP2, VK_LAUNCH_MAIL, VK_LAUNCH_MEDIA_SELECT, VK_LBUTTON, VK_LCONTROL,
-            VK_LEFT, VK_LMENU, VK_LSHIFT, VK_LWIN, VK_MBUTTON, VK_MEDIA_NEXT_TRACK,
-            VK_MEDIA_PLAY_PAUSE, VK_MEDIA_PREV_TRACK, VK_MEDIA_STOP, VK_MENU, VK_MODECHANGE,
-            VK_MULTIPLY, VK_NAVIGATION_ACCEPT, VK_NAVIGATION_CANCEL, VK_NAVIGATION_DOWN,
-            VK_NAVIGATION_LEFT, VK_NAVIGATION_MENU, VK_NAVIGATION_RIGHT, VK_NAVIGATION_UP,
-            VK_NAVIGATION_VIEW, VK_NEXT, VK_NONAME, VK_NONCONVERT, VK_NUMLOCK, VK_NUMPAD0,
-            VK_NUMPAD1, VK_NUMPAD2, VK_NUMPAD3, VK_NUMPAD4, VK_NUMPAD5, VK_NUMPAD6, VK_NUMPAD7,
-            VK_NUMPAD8, VK_NUMPAD9, VK_OEM_1, VK_OEM_102, VK_OEM_2, VK_OEM_3, VK_OEM_4, VK_OEM_5,
-            VK_OEM_6, VK_OEM_7, VK_OEM_8, VK_OEM_ATTN, VK_OEM_AUTO, VK_OEM_AX, VK_OEM_BACKTAB,
-            VK_OEM_CLEAR, VK_OEM_COMMA, VK_OEM_COPY, VK_OEM_CUSEL, VK_OEM_ENLW, VK_OEM_FINISH,
-            VK_OEM_FJ_LOYA, VK_OEM_FJ_MASSHOU, VK_OEM_FJ_ROYA, VK_OEM_FJ_TOUROKU, VK_OEM_JUMP,
-            VK_OEM_MINUS, VK_OEM_NEC_EQUAL, VK_OEM_PA1, VK_OEM_PA2, VK_OEM_PA3, VK_OEM_PERIOD,
-            VK_OEM_PLUS, VK_OEM_RESET, VK_OEM_WSCTRL, VK_PA1, VK_PACKET, VK_PAUSE, VK_PLAY,
-            VK_PRINT, VK_PRIOR, VK_PROCESSKEY, VK_RBUTTON, VK_RCONTROL, VK_RETURN, VK_RIGHT,
-            VK_RMENU, VK_RSHIFT, VK_RWIN, VK_SCROLL, VK_SELECT, VK_SEPARATOR, VK_SHIFT, VK_SLEEP,
-            VK_SNAPSHOT, VK_SPACE, VK_SUBTRACT, VK_TAB, VK_UP, VK_VOLUME_DOWN, VK_VOLUME_MUTE,
-            VK_VOLUME_UP, VK_XBUTTON1, VK_XBUTTON2, VK_ZOOM,
-        },
-        TextServices::HKL,
-    },
+use windows_sys::Win32::System::SystemServices::{LANG_JAPANESE, LANG_KOREAN};
+use windows_sys::Win32::UI::Input::KeyboardAndMouse::{
+    GetKeyState, GetKeyboardLayout, MapVirtualKeyExW, ToUnicodeEx, MAPVK_VK_TO_VSC_EX, VIRTUAL_KEY,
+    VK_ACCEPT, VK_ADD, VK_APPS, VK_ATTN, VK_BACK, VK_BROWSER_BACK, VK_BROWSER_FAVORITES,
+    VK_BROWSER_FORWARD, VK_BROWSER_HOME, VK_BROWSER_REFRESH, VK_BROWSER_SEARCH, VK_BROWSER_STOP,
+    VK_CANCEL, VK_CAPITAL, VK_CLEAR, VK_CONTROL, VK_CONVERT, VK_CRSEL, VK_DECIMAL, VK_DELETE,
+    VK_DIVIDE, VK_DOWN, VK_END, VK_EREOF, VK_ESCAPE, VK_EXECUTE, VK_EXSEL, VK_F1, VK_F10, VK_F11,
+    VK_F12, VK_F13, VK_F14, VK_F15, VK_F16, VK_F17, VK_F18, VK_F19, VK_F2, VK_F20, VK_F21, VK_F22,
+    VK_F23, VK_F24, VK_F3, VK_F4, VK_F5, VK_F6, VK_F7, VK_F8, VK_F9, VK_FINAL, VK_GAMEPAD_A,
+    VK_GAMEPAD_B, VK_GAMEPAD_DPAD_DOWN, VK_GAMEPAD_DPAD_LEFT, VK_GAMEPAD_DPAD_RIGHT,
+    VK_GAMEPAD_DPAD_UP, VK_GAMEPAD_LEFT_SHOULDER, VK_GAMEPAD_LEFT_THUMBSTICK_BUTTON,
+    VK_GAMEPAD_LEFT_THUMBSTICK_DOWN, VK_GAMEPAD_LEFT_THUMBSTICK_LEFT,
+    VK_GAMEPAD_LEFT_THUMBSTICK_RIGHT, VK_GAMEPAD_LEFT_THUMBSTICK_UP, VK_GAMEPAD_LEFT_TRIGGER,
+    VK_GAMEPAD_MENU, VK_GAMEPAD_RIGHT_SHOULDER, VK_GAMEPAD_RIGHT_THUMBSTICK_BUTTON,
+    VK_GAMEPAD_RIGHT_THUMBSTICK_DOWN, VK_GAMEPAD_RIGHT_THUMBSTICK_LEFT,
+    VK_GAMEPAD_RIGHT_THUMBSTICK_RIGHT, VK_GAMEPAD_RIGHT_THUMBSTICK_UP, VK_GAMEPAD_RIGHT_TRIGGER,
+    VK_GAMEPAD_VIEW, VK_GAMEPAD_X, VK_GAMEPAD_Y, VK_HANGUL, VK_HANJA, VK_HELP, VK_HOME, VK_ICO_00,
+    VK_ICO_CLEAR, VK_ICO_HELP, VK_INSERT, VK_JUNJA, VK_KANA, VK_KANJI, VK_LAUNCH_APP1,
+    VK_LAUNCH_APP2, VK_LAUNCH_MAIL, VK_LAUNCH_MEDIA_SELECT, VK_LBUTTON, VK_LCONTROL, VK_LEFT,
+    VK_LMENU, VK_LSHIFT, VK_LWIN, VK_MBUTTON, VK_MEDIA_NEXT_TRACK, VK_MEDIA_PLAY_PAUSE,
+    VK_MEDIA_PREV_TRACK, VK_MEDIA_STOP, VK_MENU, VK_MODECHANGE, VK_MULTIPLY, VK_NAVIGATION_ACCEPT,
+    VK_NAVIGATION_CANCEL, VK_NAVIGATION_DOWN, VK_NAVIGATION_LEFT, VK_NAVIGATION_MENU,
+    VK_NAVIGATION_RIGHT, VK_NAVIGATION_UP, VK_NAVIGATION_VIEW, VK_NEXT, VK_NONAME, VK_NONCONVERT,
+    VK_NUMLOCK, VK_NUMPAD0, VK_NUMPAD1, VK_NUMPAD2, VK_NUMPAD3, VK_NUMPAD4, VK_NUMPAD5, VK_NUMPAD6,
+    VK_NUMPAD7, VK_NUMPAD8, VK_NUMPAD9, VK_OEM_1, VK_OEM_102, VK_OEM_2, VK_OEM_3, VK_OEM_4,
+    VK_OEM_5, VK_OEM_6, VK_OEM_7, VK_OEM_8, VK_OEM_ATTN, VK_OEM_AUTO, VK_OEM_AX, VK_OEM_BACKTAB,
+    VK_OEM_CLEAR, VK_OEM_COMMA, VK_OEM_COPY, VK_OEM_CUSEL, VK_OEM_ENLW, VK_OEM_FINISH,
+    VK_OEM_FJ_LOYA, VK_OEM_FJ_MASSHOU, VK_OEM_FJ_ROYA, VK_OEM_FJ_TOUROKU, VK_OEM_JUMP,
+    VK_OEM_MINUS, VK_OEM_NEC_EQUAL, VK_OEM_PA1, VK_OEM_PA2, VK_OEM_PA3, VK_OEM_PERIOD, VK_OEM_PLUS,
+    VK_OEM_RESET, VK_OEM_WSCTRL, VK_PA1, VK_PACKET, VK_PAUSE, VK_PLAY, VK_PRINT, VK_PRIOR,
+    VK_PROCESSKEY, VK_RBUTTON, VK_RCONTROL, VK_RETURN, VK_RIGHT, VK_RMENU, VK_RSHIFT, VK_RWIN,
+    VK_SCROLL, VK_SELECT, VK_SEPARATOR, VK_SHIFT, VK_SLEEP, VK_SNAPSHOT, VK_SPACE, VK_SUBTRACT,
+    VK_TAB, VK_UP, VK_VOLUME_DOWN, VK_VOLUME_MUTE, VK_VOLUME_UP, VK_XBUTTON1, VK_XBUTTON2, VK_ZOOM,
 };
+use windows_sys::Win32::UI::TextServices::HKL;
 
-use crate::{
-    keyboard::{Key, KeyCode, ModifiersState, NamedKey, NativeKey, PhysicalKey},
-    platform_impl::{loword, primarylangid, scancode_to_physicalkey},
-};
+use crate::keyboard::{Key, KeyCode, ModifiersState, NamedKey, NativeKey, PhysicalKey};
+use crate::platform_impl::{loword, primarylangid, scancode_to_physicalkey};
+use crate::utils::Lazy;
 
 pub(crate) static LAYOUT_CACHE: Lazy<Mutex<LayoutCache>> =
     Lazy::new(|| Mutex::new(LayoutCache::default()));
@@ -192,7 +181,7 @@ pub(crate) struct Layout {
 
     /// Maps numpad keys from Windows virtual key to a `Key`.
     ///
-    /// This is useful because some numpad keys generate different charcaters based on the locale.
+    /// This is useful because some numpad keys generate different characters based on the locale.
     /// For example `VK_DECIMAL` is sometimes "." and sometimes ",". Note: numpad-specific virtual
     /// keys are only produced by Windows when the NumLock is active.
     ///
@@ -279,7 +268,7 @@ impl LayoutCache {
             Entry::Vacant(entry) => {
                 let layout = Self::prepare_layout(locale_id);
                 (locale_id, entry.insert(layout))
-            }
+            },
         }
     }
 
@@ -288,18 +277,9 @@ impl LayoutCache {
         let filter_out_altgr = layout.has_alt_graph && key_pressed(VK_RMENU);
         let mut mods = ModifiersState::empty();
         mods.set(ModifiersState::SHIFT, key_pressed(VK_SHIFT));
-        mods.set(
-            ModifiersState::CONTROL,
-            key_pressed(VK_CONTROL) && !filter_out_altgr,
-        );
-        mods.set(
-            ModifiersState::ALT,
-            key_pressed(VK_MENU) && !filter_out_altgr,
-        );
-        mods.set(
-            ModifiersState::SUPER,
-            key_pressed(VK_LWIN) || key_pressed(VK_RWIN),
-        );
+        mods.set(ModifiersState::CONTROL, key_pressed(VK_CONTROL) && !filter_out_altgr);
+        mods.set(ModifiersState::ALT, key_pressed(VK_MENU) && !filter_out_altgr);
+        mods.set(ModifiersState::SUPER, key_pressed(VK_LWIN) || key_pressed(VK_RWIN));
         mods
     }
 
@@ -361,9 +341,7 @@ impl LayoutCache {
             let scancode = unsafe { MapVirtualKeyExW(vk, MAPVK_VK_TO_VSC_EX, locale_id as HKL) };
             let unicode = Self::to_unicode_string(&key_state, vk, scancode, locale_id);
             if let ToUnicodeResult::Str(s) = unicode {
-                layout
-                    .numlock_on_keys
-                    .insert(vk as VIRTUAL_KEY, Key::Character(SmolStr::new(s)));
+                layout.numlock_on_keys.insert(vk as VIRTUAL_KEY, Key::Character(SmolStr::new(s)));
             }
         }
 
@@ -403,16 +381,17 @@ impl LayoutCache {
                     _ => {
                         keys_for_this_mod.insert(key_code, preliminary_key);
                         continue;
-                    }
+                    },
                 }
 
                 let unicode = Self::to_unicode_string(&key_state, vk, scancode, locale_id);
                 let key = match unicode {
                     ToUnicodeResult::Str(str) => Key::Character(SmolStr::new(str)),
                     ToUnicodeResult::Dead(dead_char) => {
-                        //println!("{:?} - {:?} produced dead {:?}", key_code, mod_state, dead_char);
+                        // println!("{:?} - {:?} produced dead {:?}", key_code, mod_state,
+                        // dead_char);
                         Key::Dead(dead_char)
-                    }
+                    },
                     ToUnicodeResult::None => {
                         let has_alt = mod_state.contains(WindowsModifiers::ALT);
                         let has_ctrl = mod_state.contains(WindowsModifiers::CONTROL);
@@ -424,7 +403,7 @@ impl LayoutCache {
                             // Just use the unidentified key, we got earlier
                             preliminary_key
                         }
-                    }
+                    },
                 };
 
                 // Check for alt graph.
@@ -750,10 +729,11 @@ fn keycode_to_vkey(keycode: KeyCode, hkl: u64) -> VIRTUAL_KEY {
 /// a `Key`, with only the information passed in as arguments, are converted.
 ///
 /// In other words: this function does not need to "prepare" the current layout in order to do
-/// the conversion, but as such it cannot convert certain keys, like language-specific character keys.
+/// the conversion, but as such it cannot convert certain keys, like language-specific character
+/// keys.
 ///
-/// The result includes all non-character keys defined within `Key` plus characters from numpad keys.
-/// For example, backspace and tab are included.
+/// The result includes all non-character keys defined within `Key` plus characters from numpad
+/// keys. For example, backspace and tab are included.
 fn vkey_to_non_char_key(
     vkey: VIRTUAL_KEY,
     native_code: NativeKey,
@@ -787,10 +767,10 @@ fn vkey_to_non_char_key(
         VK_PAUSE => Key::Named(NamedKey::Pause),
         VK_CAPITAL => Key::Named(NamedKey::CapsLock),
 
-        //VK_HANGEUL => Key::Named(NamedKey::HangulMode), // Deprecated in favour of VK_HANGUL
+        // VK_HANGEUL => Key::Named(NamedKey::HangulMode), // Deprecated in favour of VK_HANGUL
 
         // VK_HANGUL and VK_KANA are defined as the same constant, therefore
-        // we use appropriate conditions to differentate between them
+        // we use appropriate conditions to differentiate between them
         VK_HANGUL if is_korean => Key::Named(NamedKey::HangulMode),
         VK_KANA if is_japanese => Key::Named(NamedKey::KanaMode),
 
@@ -798,7 +778,7 @@ fn vkey_to_non_char_key(
         VK_FINAL => Key::Named(NamedKey::FinalMode),
 
         // VK_HANJA and VK_KANJI are defined as the same constant, therefore
-        // we use appropriate conditions to differentate between them
+        // we use appropriate conditions to differentiate between them
         VK_HANJA if is_korean => Key::Named(NamedKey::HanjaMode),
         VK_KANJI if is_japanese => Key::Named(NamedKey::KanjiMode),
 
@@ -881,7 +861,7 @@ fn vkey_to_non_char_key(
         VK_NUMLOCK => Key::Named(NamedKey::NumLock),
         VK_SCROLL => Key::Named(NamedKey::ScrollLock),
         VK_OEM_NEC_EQUAL => Key::Unidentified(native_code),
-        //VK_OEM_FJ_JISHO => Key::Unidentified(native_code), // Conflicts with `VK_OEM_NEC_EQUAL`
+        // VK_OEM_FJ_JISHO => Key::Unidentified(native_code), // Conflicts with `VK_OEM_NEC_EQUAL`
         VK_OEM_FJ_MASSHOU => Key::Unidentified(native_code),
         VK_OEM_FJ_TOUROKU => Key::Unidentified(native_code),
         VK_OEM_FJ_LOYA => Key::Unidentified(native_code),
@@ -897,7 +877,7 @@ fn vkey_to_non_char_key(
             } else {
                 Key::Named(NamedKey::Alt)
             }
-        }
+        },
         VK_BROWSER_BACK => Key::Named(NamedKey::BrowserBack),
         VK_BROWSER_FORWARD => Key::Named(NamedKey::BrowserForward),
         VK_BROWSER_REFRESH => Key::Named(NamedKey::BrowserRefresh),
@@ -983,11 +963,11 @@ fn vkey_to_non_char_key(
                 // This matches IE and Firefox behaviour according to
                 // https://developer.mozilla.org/en-US/docs/Web/API/KeyboardEvent/key/Key_Values
                 // At the time of writing, there is no `NamedKey::Finish` variant as
-                // Finish is not mentionned at https://w3c.github.io/uievents-key/
+                // Finish is not mentioned at https://w3c.github.io/uievents-key/
                 // Also see: https://github.com/pyfisch/keyboard-types/issues/9
                 Key::Unidentified(native_code)
             }
-        }
+        },
         VK_OEM_COPY => Key::Named(NamedKey::Copy),
         VK_OEM_AUTO => Key::Named(NamedKey::Hankaku),
         VK_OEM_ENLW => Key::Named(NamedKey::Zenkaku),

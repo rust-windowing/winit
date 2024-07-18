@@ -1,40 +1,32 @@
-use std::{
-    ffi::{c_void, OsString},
-    os::windows::ffi::OsStringExt,
-    path::PathBuf,
-    ptr,
-    sync::atomic::{AtomicUsize, Ordering},
+use std::ffi::{c_void, OsString};
+use std::os::windows::ffi::OsStringExt;
+use std::path::PathBuf;
+use std::ptr;
+use std::sync::atomic::{AtomicUsize, Ordering};
+
+use tracing::debug;
+use windows_sys::core::{IUnknown, GUID, HRESULT};
+use windows_sys::Win32::Foundation::{DV_E_FORMATETC, HWND, POINTL, S_OK};
+use windows_sys::Win32::System::Com::{IDataObject, DVASPECT_CONTENT, FORMATETC, TYMED_HGLOBAL};
+use windows_sys::Win32::System::Ole::{CF_HDROP, DROPEFFECT_COPY, DROPEFFECT_NONE};
+use windows_sys::Win32::UI::Shell::{DragFinish, DragQueryFileW, HDROP};
+
+use crate::event::Event;
+use crate::platform_impl::platform::definitions::{
+    IDataObjectVtbl, IDropTarget, IDropTargetVtbl, IUnknownVtbl,
 };
-
-use windows_sys::{
-    core::{IUnknown, GUID, HRESULT},
-    Win32::{
-        Foundation::{DV_E_FORMATETC, HWND, POINTL, S_OK},
-        System::{
-            Com::{IDataObject, DVASPECT_CONTENT, FORMATETC, TYMED_HGLOBAL},
-            Ole::{CF_HDROP, DROPEFFECT_COPY, DROPEFFECT_NONE},
-        },
-        UI::Shell::{DragFinish, DragQueryFileW, HDROP},
-    },
-};
-
-use log::debug;
-
-use crate::platform_impl::platform::{
-    definitions::{IDataObjectVtbl, IDropTarget, IDropTargetVtbl, IUnknownVtbl},
-    WindowId,
-};
-
-use crate::{event::Event, window::WindowId as RootWindowId};
+use crate::platform_impl::platform::WindowId;
+use crate::window::WindowId as RootWindowId;
 
 #[repr(C)]
 pub struct FileDropHandlerData {
     pub interface: IDropTarget,
     refcount: AtomicUsize,
     window: HWND,
-    send_event: Box<dyn Fn(Event<()>)>,
+    send_event: Box<dyn Fn(Event)>,
     cursor_effect: u32,
-    hovered_is_valid: bool, /* If the currently hovered item is not valid there must not be any `HoveredFileCancelled` emitted */
+    hovered_is_valid: bool, /* If the currently hovered item is not valid there must not be any
+                             * `HoveredFileCancelled` emitted */
 }
 
 pub struct FileDropHandler {
@@ -43,20 +35,16 @@ pub struct FileDropHandler {
 
 #[allow(non_snake_case)]
 impl FileDropHandler {
-    pub fn new(window: HWND, send_event: Box<dyn Fn(Event<()>)>) -> FileDropHandler {
+    pub(crate) fn new(window: HWND, send_event: Box<dyn Fn(Event)>) -> FileDropHandler {
         let data = Box::new(FileDropHandlerData {
-            interface: IDropTarget {
-                lpVtbl: &DROP_TARGET_VTBL as *const IDropTargetVtbl,
-            },
+            interface: IDropTarget { lpVtbl: &DROP_TARGET_VTBL as *const IDropTargetVtbl },
             refcount: AtomicUsize::new(1),
             window,
             send_event,
             cursor_effect: DROPEFFECT_NONE,
             hovered_is_valid: false,
         });
-        FileDropHandler {
-            data: Box::into_raw(data),
-        }
+        FileDropHandler { data: Box::into_raw(data) }
     }
 
     // Implement IUnknown
@@ -104,11 +92,8 @@ impl FileDropHandler {
             })
         };
         drop_handler.hovered_is_valid = hdrop.is_some();
-        drop_handler.cursor_effect = if drop_handler.hovered_is_valid {
-            DROPEFFECT_COPY
-        } else {
-            DROPEFFECT_NONE
-        };
+        drop_handler.cursor_effect =
+            if drop_handler.hovered_is_valid { DROPEFFECT_COPY } else { DROPEFFECT_NONE };
         unsafe {
             *pdwEffect = drop_handler.cursor_effect;
         }
@@ -187,10 +172,10 @@ impl FileDropHandler {
         let get_data_fn = unsafe { (*(*data_obj).cast::<IDataObjectVtbl>()).GetData };
         let get_data_result = unsafe { get_data_fn(data_obj as *mut _, &drop_format, &mut medium) };
         if get_data_result >= 0 {
-            let hdrop = unsafe { medium.Anonymous.hGlobal };
+            let hdrop = unsafe { medium.u.hGlobal as HDROP };
 
             // The second parameter (0xFFFFFFFF) instructs the function to return the item count
-            let item_count = unsafe { DragQueryFileW(hdrop, 0xFFFFFFFF, ptr::null_mut(), 0) };
+            let item_count = unsafe { DragQueryFileW(hdrop, 0xffffffff, ptr::null_mut(), 0) };
 
             for i in 0..item_count {
                 // Get the length of the path string NOT including the terminating null character.
@@ -214,17 +199,17 @@ impl FileDropHandler {
         } else if get_data_result == DV_E_FORMATETC {
             // If the dropped item is not a file this error will occur.
             // In this case it is OK to return without taking further action.
-            debug!("Error occured while processing dropped/hovered item: item is not a file.");
+            debug!("Error occurred while processing dropped/hovered item: item is not a file.");
             None
         } else {
-            debug!("Unexpected error occured while processing dropped/hovered item.");
+            debug!("Unexpected error occurred while processing dropped/hovered item.");
             None
         }
     }
 }
 
 impl FileDropHandlerData {
-    fn send_event(&self, event: Event<()>) {
+    fn send_event(&self, event: Event) {
         (self.send_event)(event);
     }
 }

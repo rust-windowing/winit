@@ -1,17 +1,14 @@
-use std::{
-    env,
-    ffi::{CStr, CString, IntoStringError},
-    fmt,
-    os::raw::{c_char, c_ulong, c_ushort},
-    ptr,
-    sync::{Arc, Mutex},
-};
+use std::ffi::{CStr, CString, IntoStringError};
+use std::os::raw::{c_char, c_ulong, c_ushort};
+use std::sync::{Arc, Mutex};
+use std::{env, fmt, ptr};
 
-use super::{super::atoms::*, ffi, util, XConnection, XError};
-use once_cell::sync::Lazy;
 use x11rb::protocol::xproto;
 
-static GLOBAL_LOCK: Lazy<Mutex<()>> = Lazy::new(Default::default);
+use super::super::atoms::*;
+use super::{ffi, util, XConnection, XError};
+
+static GLOBAL_LOCK: Mutex<()> = Mutex::new(());
 
 unsafe fn open_im(xconn: &Arc<XConnection>, locale_modifiers: &CStr) -> Option<ffi::XIM> {
     let _lock = GLOBAL_LOCK.lock();
@@ -19,17 +16,12 @@ unsafe fn open_im(xconn: &Arc<XConnection>, locale_modifiers: &CStr) -> Option<f
     // XSetLocaleModifiers returns...
     // * The current locale modifiers if it's given a NULL pointer.
     // * The new locale modifiers if we succeeded in setting them.
-    // * NULL if the locale modifiers string is malformed or if the
-    //   current locale is not supported by Xlib.
+    // * NULL if the locale modifiers string is malformed or if the current locale is not supported
+    //   by Xlib.
     unsafe { (xconn.xlib.XSetLocaleModifiers)(locale_modifiers.as_ptr()) };
 
     let im = unsafe {
-        (xconn.xlib.XOpenIM)(
-            xconn.display,
-            ptr::null_mut(),
-            ptr::null_mut(),
-            ptr::null_mut(),
-        )
+        (xconn.xlib.XOpenIM)(xconn.display, ptr::null_mut(), ptr::null_mut(), ptr::null_mut())
     };
 
     if im.is_null() {
@@ -74,10 +66,10 @@ impl InputMethod {
                 .for_each(|style| match *style {
                     XIM_PREEDIT_STYLE => {
                         preedit_style = Some(Style::Preedit(*style));
-                    }
+                    },
                     XIM_NOTHING_STYLE if preedit_style.is_none() => {
                         preedit_style = Some(Style::Nothing(*style))
-                    }
+                    },
                     XIM_NONE_STYLE => none_style = Some(Style::None(*style)),
                     _ => (),
                 });
@@ -92,12 +84,7 @@ impl InputMethod {
         let preedit_style = preedit_style.unwrap_or_else(|| none_style.unwrap());
         let none_style = none_style.unwrap_or(preedit_style);
 
-        Some(InputMethod {
-            im,
-            _name: name,
-            preedit_style,
-            none_style,
-        })
+        Some(InputMethod { im, _name: name, preedit_style, none_style })
     }
 }
 
@@ -170,8 +157,8 @@ impl From<util::GetPropertyError> for GetXimServersError {
     }
 }
 
-// The root window has a property named XIM_SERVERS, which contains a list of atoms represeting
-// the availabile XIM servers. For instance, if you're using ibus, it would contain an atom named
+// The root window has a property named XIM_SERVERS, which contains a list of atoms representing
+// the available XIM servers. For instance, if you're using ibus, it would contain an atom named
 // "@server=ibus". It's possible for this property to contain multiple atoms, though presumably
 // rare. Note that we replace "@server=" with "@im=" in order to match the format of locale
 // modifiers, since we don't want a user who's looking at logs to ask "am I supposed to set
@@ -233,10 +220,7 @@ impl InputMethodName {
     pub fn from_str(string: &str) -> Self {
         let c_string =
             CString::new(string).expect("String used to construct CString contained null byte");
-        InputMethodName {
-            c_string,
-            string: string.to_owned(),
-        }
+        InputMethodName { c_string, string: string.to_owned() }
     }
 }
 
@@ -254,17 +238,11 @@ struct PotentialInputMethod {
 
 impl PotentialInputMethod {
     pub fn from_string(string: String) -> Self {
-        PotentialInputMethod {
-            name: InputMethodName::from_string(string),
-            successful: None,
-        }
+        PotentialInputMethod { name: InputMethodName::from_string(string), successful: None }
     }
 
     pub fn from_str(string: &str) -> Self {
-        PotentialInputMethod {
-            name: InputMethodName::from_str(string),
-            successful: None,
-        }
+        PotentialInputMethod { name: InputMethodName::from_str(string), successful: None }
     }
 
     pub fn reset(&mut self) {
@@ -298,9 +276,7 @@ pub(crate) struct PotentialInputMethods {
 
 impl PotentialInputMethods {
     pub fn new(xconn: &Arc<XConnection>) -> Self {
-        let xmodifiers = env::var("XMODIFIERS")
-            .ok()
-            .map(PotentialInputMethod::from_string);
+        let xmodifiers = env::var("XMODIFIERS").ok().map(PotentialInputMethod::from_string);
         PotentialInputMethods {
             // Since passing "" to XSetLocaleModifiers results in it defaulting to the value of
             // XMODIFIERS, it's worth noting what happens if XMODIFIERS is also "". If simply

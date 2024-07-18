@@ -1,0 +1,7 @@
+# documentation: https://github.com/crate-ci/typos/blob/master/docs/reference.md
+
+[default.extend-identifiers]
+ptd = "ptd"                         # From windows_sys::Win32::System::Com::FORMATETC { ptd, ..}
+TME_LEAVE = "TME_LEAVE"             # From windows_sys::Win32::UI::Input::KeyboardAndMouse::TME_LEAVE
+requestor = "requestor"             # From x11_dl::xlib::XSelectionEvent { requestor ..}
+XF86_Calculater = "XF86_Calculater" # From xkbcommon_dl::keysyms::XF86_Calculater

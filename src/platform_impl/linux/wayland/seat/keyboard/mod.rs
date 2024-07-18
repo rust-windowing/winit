@@ -5,21 +5,17 @@ use std::time::Duration;
 
 use calloop::timer::{TimeoutAction, Timer};
 use calloop::{LoopHandle, RegistrationToken};
-use log::warn;
-
-use sctk::reexports::client::protocol::wl_keyboard::WlKeyboard;
 use sctk::reexports::client::protocol::wl_keyboard::{
-    Event as WlKeyboardEvent, KeyState as WlKeyState, KeymapFormat as WlKeymapFormat,
+    Event as WlKeyboardEvent, KeyState as WlKeyState, KeymapFormat as WlKeymapFormat, WlKeyboard,
 };
 use sctk::reexports::client::protocol::wl_seat::WlSeat;
 use sctk::reexports::client::{Connection, Dispatch, Proxy, QueueHandle, WEnum};
+use tracing::warn;
 
 use crate::event::{ElementState, WindowEvent};
 use crate::keyboard::ModifiersState;
-
-use crate::platform_impl::common::xkb_state::KbdState;
+use crate::platform_impl::common::xkb::Context;
 use crate::platform_impl::wayland::event_loop::sink::EventSink;
-use crate::platform_impl::wayland::seat::WinitSeatState;
 use crate::platform_impl::wayland::state::WinitState;
 use crate::platform_impl::wayland::{self, DeviceId, WindowId};
 
@@ -34,7 +30,17 @@ impl Dispatch<WlKeyboard, KeyboardData, WinitState> for WinitState {
     ) {
         let seat_state = match state.seats.get_mut(&data.seat.id()) {
             Some(seat_state) => seat_state,
-            None => return,
+            None => {
+                warn!("Received keyboard event {event:?} without seat");
+                return;
+            },
+        };
+        let keyboard_state = match seat_state.keyboard_state.as_mut() {
+            Some(keyboard_state) => keyboard_state,
+            None => {
+                warn!("Received keyboard event {event:?} without keyboard");
+                return;
+            },
         };
 
         match event {
@@ -42,20 +48,16 @@ impl Dispatch<WlKeyboard, KeyboardData, WinitState> for WinitState {
                 WEnum::Value(format) => match format {
                     WlKeymapFormat::NoKeymap => {
                         warn!("non-xkb compatible keymap")
-                    }
-                    WlKeymapFormat::XkbV1 => unsafe {
-                        seat_state
-                            .keyboard_state
-                            .as_mut()
-                            .unwrap()
-                            .xkb_state
-                            .init_with_fd(fd, size as usize);
+                    },
+                    WlKeymapFormat::XkbV1 => {
+                        let context = &mut keyboard_state.xkb_context;
+                        context.set_keymap_from_fd(fd, size as usize);
                     },
                     _ => unreachable!(),
                 },
                 WEnum::Unknown(value) => {
                     warn!("unknown keymap format 0x{:x}", value)
-                }
+                },
             },
             WlKeyboardEvent::Enter { surface, .. } => {
                 let window_id = wayland::make_wid(&surface);
@@ -67,12 +69,11 @@ impl Dispatch<WlKeyboard, KeyboardData, WinitState> for WinitState {
                         let was_unfocused = !window.has_focus();
                         window.add_seat_focus(data.seat.id());
                         was_unfocused
-                    }
+                    },
                     None => return,
                 };
 
                 // Drop the repeat, if there were any.
-                let keyboard_state = seat_state.keyboard_state.as_mut().unwrap();
                 keyboard_state.current_repeat = None;
                 if let Some(token) = keyboard_state.repeat_token.take() {
                     keyboard_state.loop_handle.remove(token);
@@ -82,9 +83,7 @@ impl Dispatch<WlKeyboard, KeyboardData, WinitState> for WinitState {
 
                 // The keyboard focus is considered as general focus.
                 if was_unfocused {
-                    state
-                        .events_sink
-                        .push_window_event(WindowEvent::Focused(true), window_id);
+                    state.events_sink.push_window_event(WindowEvent::Focused(true), window_id);
                 }
 
                 // HACK: this is just for GNOME not fixing their ordering issue of modifiers.
@@ -94,13 +93,12 @@ impl Dispatch<WlKeyboard, KeyboardData, WinitState> for WinitState {
                         window_id,
                     );
                 }
-            }
+            },
             WlKeyboardEvent::Leave { surface, .. } => {
                 let window_id = wayland::make_wid(&surface);
 
                 // NOTE: we should drop the repeat regardless whethere it was for the present
                 // window of for the window which just went gone.
-                let keyboard_state = seat_state.keyboard_state.as_mut().unwrap();
                 keyboard_state.current_repeat = None;
                 if let Some(token) = keyboard_state.repeat_token.take() {
                     keyboard_state.loop_handle.remove(token);
@@ -113,7 +111,7 @@ impl Dispatch<WlKeyboard, KeyboardData, WinitState> for WinitState {
                         let mut window = window.lock().unwrap();
                         window.remove_seat_focus(&data.seat.id());
                         window.has_focus()
-                    }
+                    },
                     None => return,
                 };
 
@@ -128,20 +126,14 @@ impl Dispatch<WlKeyboard, KeyboardData, WinitState> for WinitState {
                         window_id,
                     );
 
-                    state
-                        .events_sink
-                        .push_window_event(WindowEvent::Focused(false), window_id);
+                    state.events_sink.push_window_event(WindowEvent::Focused(false), window_id);
                 }
-            }
-            WlKeyboardEvent::Key {
-                key,
-                state: WEnum::Value(WlKeyState::Pressed),
-                ..
-            } => {
+            },
+            WlKeyboardEvent::Key { key, state: WEnum::Value(WlKeyState::Pressed), .. } => {
                 let key = key + 8;
 
                 key_input(
-                    seat_state,
+                    keyboard_state,
                     &mut state.events_sink,
                     data,
                     key,
@@ -149,13 +141,12 @@ impl Dispatch<WlKeyboard, KeyboardData, WinitState> for WinitState {
                     false,
                 );
 
-                let keyboard_state = seat_state.keyboard_state.as_mut().unwrap();
                 let delay = match keyboard_state.repeat_info {
                     RepeatInfo::Repeat { delay, .. } => delay,
                     RepeatInfo::Disable => return,
                 };
 
-                if !keyboard_state.xkb_state.key_repeats(key) {
+                if !keyboard_state.xkb_context.keymap_mut().unwrap().key_repeats(key) {
                     return;
                 }
 
@@ -176,18 +167,25 @@ impl Dispatch<WlKeyboard, KeyboardData, WinitState> for WinitState {
                         state.dispatched_events = true;
 
                         let data = wl_keyboard.data::<KeyboardData>().unwrap();
-                        let seat_state = state.seats.get_mut(&data.seat.id()).unwrap();
+                        let seat_state = match state.seats.get_mut(&data.seat.id()) {
+                            Some(seat_state) => seat_state,
+                            None => return TimeoutAction::Drop,
+                        };
 
-                        // NOTE: The removed on event source is batched, but key change to
-                        // `None` is instant.
-                        let repeat_keycode =
-                            match seat_state.keyboard_state.as_ref().unwrap().current_repeat {
-                                Some(repeat_keycode) => repeat_keycode,
-                                None => return TimeoutAction::Drop,
-                            };
+                        let keyboard_state = match seat_state.keyboard_state.as_mut() {
+                            Some(keyboard_state) => keyboard_state,
+                            None => return TimeoutAction::Drop,
+                        };
+
+                        // NOTE: The removed on event source is batched, but key change to `None`
+                        // is instant.
+                        let repeat_keycode = match keyboard_state.current_repeat {
+                            Some(repeat_keycode) => repeat_keycode,
+                            None => return TimeoutAction::Drop,
+                        };
 
                         key_input(
-                            seat_state,
+                            keyboard_state,
                             &mut state.events_sink,
                             data,
                             repeat_keycode,
@@ -196,22 +194,18 @@ impl Dispatch<WlKeyboard, KeyboardData, WinitState> for WinitState {
                         );
 
                         // NOTE: the gap could change dynamically while repeat is going.
-                        match seat_state.keyboard_state.as_ref().unwrap().repeat_info {
+                        match keyboard_state.repeat_info {
                             RepeatInfo::Repeat { gap, .. } => TimeoutAction::ToDuration(gap),
                             RepeatInfo::Disable => TimeoutAction::Drop,
                         }
                     })
                     .ok();
-            }
-            WlKeyboardEvent::Key {
-                key,
-                state: WEnum::Value(WlKeyState::Released),
-                ..
-            } => {
+            },
+            WlKeyboardEvent::Key { key, state: WEnum::Value(WlKeyState::Released), .. } => {
                 let key = key + 8;
 
                 key_input(
-                    seat_state,
+                    keyboard_state,
                     &mut state.events_sink,
                     data,
                     key,
@@ -219,9 +213,8 @@ impl Dispatch<WlKeyboard, KeyboardData, WinitState> for WinitState {
                     false,
                 );
 
-                let keyboard_state = seat_state.keyboard_state.as_mut().unwrap();
                 if keyboard_state.repeat_info != RepeatInfo::Disable
-                    && keyboard_state.xkb_state.key_repeats(key)
+                    && keyboard_state.xkb_context.keymap_mut().unwrap().key_repeats(key)
                     && Some(key) == keyboard_state.current_repeat
                 {
                     keyboard_state.current_repeat = None;
@@ -229,17 +222,18 @@ impl Dispatch<WlKeyboard, KeyboardData, WinitState> for WinitState {
                         keyboard_state.loop_handle.remove(token);
                     }
                 }
-            }
+            },
             WlKeyboardEvent::Modifiers {
-                mods_depressed,
-                mods_latched,
-                mods_locked,
-                group,
-                ..
+                mods_depressed, mods_latched, mods_locked, group, ..
             } => {
-                let xkb_state = &mut seat_state.keyboard_state.as_mut().unwrap().xkb_state;
+                let xkb_context = &mut keyboard_state.xkb_context;
+                let xkb_state = match xkb_context.state_mut() {
+                    Some(state) => state,
+                    None => return,
+                };
+
                 xkb_state.update_modifiers(mods_depressed, mods_latched, mods_locked, 0, 0, group);
-                seat_state.modifiers = xkb_state.mods_state().into();
+                seat_state.modifiers = xkb_state.modifiers().into();
 
                 // HACK: part of the workaround from `WlKeyboardEvent::Enter`.
                 let window_id = match *data.window_id.lock().unwrap() {
@@ -247,16 +241,15 @@ impl Dispatch<WlKeyboard, KeyboardData, WinitState> for WinitState {
                     None => {
                         seat_state.modifiers_pending = true;
                         return;
-                    }
+                    },
                 };
 
                 state.events_sink.push_window_event(
                     WindowEvent::ModifiersChanged(seat_state.modifiers.into()),
                     window_id,
                 );
-            }
+            },
             WlKeyboardEvent::RepeatInfo { rate, delay } => {
-                let keyboard_state = seat_state.keyboard_state.as_mut().unwrap();
                 keyboard_state.repeat_info = if rate == 0 {
                     // Stop the repeat once we get a disable event.
                     keyboard_state.current_repeat = None;
@@ -269,7 +262,7 @@ impl Dispatch<WlKeyboard, KeyboardData, WinitState> for WinitState {
                     let delay = Duration::from_millis(delay as u64);
                     RepeatInfo::Repeat { gap, delay }
                 };
-            }
+            },
             _ => unreachable!(),
         }
     }
@@ -285,7 +278,7 @@ pub struct KeyboardState {
     pub loop_handle: LoopHandle<'static, WinitState>,
 
     /// The state of the keyboard.
-    pub xkb_state: KbdState,
+    pub xkb_context: Context,
 
     /// The information about the repeat rate obtained from the compositor.
     pub repeat_info: RepeatInfo,
@@ -302,7 +295,7 @@ impl KeyboardState {
         Self {
             keyboard,
             loop_handle,
-            xkb_state: KbdState::new().unwrap(),
+            xkb_context: Context::new().unwrap(),
             repeat_info: RepeatInfo::default(),
             repeat_token: None,
             current_repeat: None,
@@ -343,10 +336,7 @@ impl Default for RepeatInfo {
     ///
     /// The values are picked based on the default in various compositors and Xorg.
     fn default() -> Self {
-        Self::Repeat {
-            gap: Duration::from_millis(40),
-            delay: Duration::from_millis(200),
-        }
+        Self::Repeat { gap: Duration::from_millis(40), delay: Duration::from_millis(200) }
     }
 }
 
@@ -362,15 +352,12 @@ pub struct KeyboardData {
 
 impl KeyboardData {
     pub fn new(seat: WlSeat) -> Self {
-        Self {
-            window_id: Default::default(),
-            seat,
-        }
+        Self { window_id: Default::default(), seat }
     }
 }
 
 fn key_input(
-    seat_state: &mut WinitSeatState,
+    keyboard_state: &mut KeyboardState,
     event_sink: &mut EventSink,
     data: &KeyboardData,
     keycode: u32,
@@ -382,19 +369,10 @@ fn key_input(
         None => return,
     };
 
-    let keyboard_state = seat_state.keyboard_state.as_mut().unwrap();
-
     let device_id = crate::event::DeviceId(crate::platform_impl::DeviceId::Wayland(DeviceId));
-    let event = keyboard_state
-        .xkb_state
-        .process_key_event(keycode, state, repeat);
-
-    event_sink.push_window_event(
-        WindowEvent::KeyboardInput {
-            device_id,
-            event,
-            is_synthetic: false,
-        },
-        window_id,
-    );
+    if let Some(mut key_context) = keyboard_state.xkb_context.key_context() {
+        let event = key_context.process_key_event(keycode, state, repeat);
+        let event = WindowEvent::KeyboardInput { device_id, event, is_synthetic: false };
+        event_sink.push_window_event(event, window_id);
+    }
 }

@@ -1,3 +1,14 @@
+use std::cell::RefCell;
+use std::collections::VecDeque;
+use std::rc::Rc;
+use std::sync::Arc;
+
+use web_sys::HtmlCanvasElement;
+
+use super::main_thread::{MainThreadMarker, MainThreadSafe};
+use super::monitor::MonitorHandle;
+use super::r#async::Dispatcher;
+use super::{backend, ActiveEventLoop, Fullscreen};
 use crate::dpi::{PhysicalPosition, PhysicalSize, Position, Size};
 use crate::error::{ExternalError, NotSupportedError, OsError as RootOE};
 use crate::icon::Icon;
@@ -5,16 +16,6 @@ use crate::window::{
     Cursor, CursorGrabMode, ImePurpose, ResizeDirection, Theme, UserAttentionType,
     WindowAttributes, WindowButtons, WindowId as RootWI, WindowLevel,
 };
-
-use super::main_thread::{MainThreadMarker, MainThreadSafe};
-use super::r#async::Dispatcher;
-use super::{backend, monitor::MonitorHandle, EventLoopWindowTarget, Fullscreen};
-use web_sys::HtmlCanvasElement;
-
-use std::cell::RefCell;
-use std::collections::VecDeque;
-use std::rc::Rc;
-use std::sync::Arc;
 
 pub struct Window {
     inner: Dispatcher<Inner>,
@@ -29,7 +30,7 @@ pub struct Inner {
 
 impl Window {
     pub(crate) fn new(
-        target: &EventLoopWindowTarget,
+        target: &ActiveEventLoop,
         mut attr: WindowAttributes,
     ) -> Result<Self, RootOE> {
         let id = target.generate_id();
@@ -50,12 +51,7 @@ impl Window {
         let runner = target.runner.clone();
         let destroy_fn = Box::new(move || runner.notify_destroy_window(RootWI(id)));
 
-        let inner = Inner {
-            id,
-            window: window.clone(),
-            canvas,
-            destroy_fn: Some(destroy_fn),
-        };
+        let inner = Inner { id, window: window.clone(), canvas, destroy_fn: Some(destroy_fn) };
 
         inner.set_title(&attr.title);
         inner.set_maximized(attr.maximized);
@@ -79,19 +75,15 @@ impl Window {
     }
 
     pub fn canvas(&self) -> Option<HtmlCanvasElement> {
-        self.inner
-            .value()
-            .map(|inner| inner.canvas.borrow().raw().clone())
+        self.inner.value().map(|inner| inner.canvas.borrow().raw().clone())
     }
 
     pub(crate) fn prevent_default(&self) -> bool {
-        self.inner
-            .queue(|inner| inner.canvas.borrow().prevent_default.get())
+        self.inner.queue(|inner| inner.canvas.borrow().prevent_default.get())
     }
 
     pub(crate) fn set_prevent_default(&self, prevent_default: bool) {
-        self.inner
-            .dispatch(move |inner| inner.canvas.borrow().prevent_default.set(prevent_default))
+        self.inner.dispatch(move |inner| inner.canvas.borrow().prevent_default.set(prevent_default))
     }
 
     #[cfg(feature = "rwh_06")]
@@ -115,9 +107,7 @@ impl Window {
     pub(crate) fn raw_display_handle_rwh_06(
         &self,
     ) -> Result<rwh_06::RawDisplayHandle, rwh_06::HandleError> {
-        Ok(rwh_06::RawDisplayHandle::Web(
-            rwh_06::WebDisplayHandle::new(),
-        ))
+        Ok(rwh_06::RawDisplayHandle::Web(rwh_06::WebDisplayHandle::new()))
     }
 }
 
@@ -146,11 +136,7 @@ impl Inner {
     pub fn pre_present_notify(&self) {}
 
     pub fn outer_position(&self) -> Result<PhysicalPosition<i32>, NotSupportedError> {
-        Ok(self
-            .canvas
-            .borrow()
-            .position()
-            .to_physical(self.scale_factor()))
+        Ok(self.canvas.borrow().position().to_physical(self.scale_factor()))
     }
 
     pub fn inner_position(&self) -> Result<PhysicalPosition<i32>, NotSupportedError> {
@@ -247,13 +233,10 @@ impl Inner {
             CursorGrabMode::Locked => true,
             CursorGrabMode::Confined => {
                 return Err(ExternalError::NotSupported(NotSupportedError::new()))
-            }
+            },
         };
 
-        self.canvas
-            .borrow()
-            .set_cursor_lock(lock)
-            .map_err(ExternalError::Os)
+        self.canvas.borrow().set_cursor_lock(lock).map_err(ExternalError::Os)
     }
 
     #[inline]
@@ -342,7 +325,7 @@ impl Inner {
 
     #[inline]
     pub fn set_ime_cursor_area(&self, _position: Position, _size: Size) {
-        // Currently a no-op as it does not seem there is good support for this on web
+        // Currently not implemented
     }
 
     #[inline]
@@ -448,7 +431,7 @@ impl Drop for Inner {
 pub struct WindowId(pub(crate) u32);
 
 impl WindowId {
-    pub const unsafe fn dummy() -> Self {
+    pub const fn dummy() -> Self {
         Self(0)
     }
 }
@@ -466,14 +449,14 @@ impl From<u64> for WindowId {
 }
 
 #[derive(Clone, Debug)]
-pub struct PlatformSpecificWindowBuilderAttributes {
+pub struct PlatformSpecificWindowAttributes {
     pub(crate) canvas: Option<Arc<MainThreadSafe<backend::RawCanvasType>>>,
     pub(crate) prevent_default: bool,
     pub(crate) focusable: bool,
     pub(crate) append: bool,
 }
 
-impl PlatformSpecificWindowBuilderAttributes {
+impl PlatformSpecificWindowAttributes {
     pub(crate) fn set_canvas(&mut self, canvas: Option<backend::RawCanvasType>) {
         let Some(canvas) = canvas else {
             self.canvas = None;
@@ -487,13 +470,8 @@ impl PlatformSpecificWindowBuilderAttributes {
     }
 }
 
-impl Default for PlatformSpecificWindowBuilderAttributes {
+impl Default for PlatformSpecificWindowAttributes {
     fn default() -> Self {
-        Self {
-            canvas: None,
-            prevent_default: true,
-            focusable: true,
-            append: false,
-        }
+        Self { canvas: None, prevent_default: true, focusable: true, append: false }
     }
 }

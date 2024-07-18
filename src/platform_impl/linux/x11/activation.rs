@@ -5,12 +5,13 @@
 //! X11 has a "startup notification" specification similar to Wayland's, see this URL:
 //! <https://specifications.freedesktop.org/startup-notification-spec/startup-notification-latest.txt>
 
-use super::{atoms::*, VoidCookie, X11Error, XConnection};
-
 use std::ffi::CString;
 use std::fmt::Write;
 
 use x11rb::protocol::xproto::{self, ConnectionExt as _};
+
+use super::atoms::*;
+use super::{VoidCookie, X11Error, XConnection};
 
 impl XConnection {
     /// "Request" a new activation token from the server.
@@ -105,11 +106,9 @@ impl XConnection {
             0,
             xproto::WindowClass::INPUT_OUTPUT,
             screen.root_visual,
-            &xproto::CreateWindowAux::new()
-                .override_redirect(1)
-                .event_mask(
-                    xproto::EventMask::STRUCTURE_NOTIFY | xproto::EventMask::PROPERTY_CHANGE,
-                ),
+            &xproto::CreateWindowAux::new().override_redirect(1).event_mask(
+                xproto::EventMask::STRUCTURE_NOTIFY | xproto::EventMask::PROPERTY_CHANGE,
+            ),
         )?;
 
         // Serialize the messages in 20-byte chunks.
@@ -130,12 +129,7 @@ impl XConnection {
             .try_for_each(|event| {
                 // Send each event in order.
                 self.xcb_connection()
-                    .send_event(
-                        false,
-                        screen.root,
-                        xproto::EventMask::PROPERTY_CHANGE,
-                        event,
-                    )
+                    .send_event(false, screen.root, xproto::EventMask::PROPERTY_CHANGE, event)
                     .map(VoidCookie::ignore_error)
             })?;
 

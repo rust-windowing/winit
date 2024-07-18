@@ -1,0 +1,39 @@
+[package]
+name = "dpi"
+version = "0.1.1"
+description = "Types for handling UI scaling"
+keywords = ["DPI", "HiDPI", "scale-factor"]
+categories = ["gui"]
+rust-version.workspace = true
+repository.workspace = true
+license.workspace = true
+edition.workspace = true
+
+[features]
+serde = ["dep:serde"]
+mint = ["dep:mint"]
+
+[dependencies]
+serde = { workspace = true, optional = true }
+mint = { workspace = true, optional = true }
+
+[package.metadata.docs.rs]
+features = ["serde", "mint"]
+# These are all tested in CI
+targets = [
+    # Windows
+    "i686-pc-windows-msvc",
+    "x86_64-pc-windows-msvc",
+    # macOS
+    "x86_64-apple-darwin",
+    # Unix (X11 & Wayland)
+    "i686-unknown-linux-gnu",
+    "x86_64-unknown-linux-gnu",
+    # iOS
+    "x86_64-apple-ios",
+    # Android
+    "aarch64-linux-android",
+    # Web
+    "wasm32-unknown-unknown",
+]
+rustdoc-args = ["--cfg", "docsrs"]

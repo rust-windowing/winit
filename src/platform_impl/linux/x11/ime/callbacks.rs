@@ -1,12 +1,12 @@
-use std::{collections::HashMap, os::raw::c_char, ptr, sync::Arc};
+use std::collections::HashMap;
+use std::os::raw::c_char;
+use std::ptr;
+use std::sync::Arc;
 
+use super::context::{ImeContext, ImeContextCreationError};
+use super::inner::{close_im, ImeInner};
+use super::input_method::PotentialInputMethods;
 use super::{ffi, XConnection, XError};
-
-use super::{
-    context::{ImeContext, ImeContextCreationError},
-    inner::{close_im, ImeInner},
-    input_method::PotentialInputMethods,
-};
 
 pub(crate) unsafe fn xim_set_callback(
     xconn: &Arc<XConnection>,
@@ -24,8 +24,8 @@ pub(crate) unsafe fn xim_set_callback(
 // available. Note that this has nothing to do with what input methods are open or able to be
 // opened, and simply uses the modifiers that are set when the callback is set.
 // * This is called per locale modifier, not per input method opened with that locale modifier.
-// * Trying to set this for multiple locale modifiers causes problems, i.e. one of the rebuilt
-//   input contexts would always silently fail to use the input method.
+// * Trying to set this for multiple locale modifiers causes problems, i.e. one of the rebuilt input
+//   contexts would always silently fail to use the input method.
 pub(crate) unsafe fn set_instantiate_callback(
     xconn: &Arc<XConnection>,
     client_data: ffi::XPointer,
@@ -119,18 +119,12 @@ unsafe fn replace_im(inner: *mut ImeInner) -> Result<(), ReplaceImError> {
         let spot = old_context.as_ref().map(|old_context| old_context.ic_spot);
 
         // Check if the IME was allowed on that context.
-        let is_allowed = old_context
-            .as_ref()
-            .map(|old_context| old_context.is_allowed())
-            .unwrap_or_default();
+        let is_allowed =
+            old_context.as_ref().map(|old_context| old_context.is_allowed()).unwrap_or_default();
 
         // We can't use the style from the old context here, since it may change on reload, so
         // pick style from the new XIM based on the old state.
-        let style = if is_allowed {
-            new_im.preedit_style
-        } else {
-            new_im.none_style
-        };
+        let style = if is_allowed { new_im.preedit_style } else { new_im.none_style };
 
         let new_context = {
             let result = unsafe {
@@ -208,7 +202,7 @@ pub unsafe extern "C" fn xim_destroy_callback(
                 Err(err) => {
                     // We have no usable input methods!
                     panic!("Failed to open fallback input method: {err:?}");
-                }
+                },
             }
         }
     }

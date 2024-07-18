@@ -1,7 +1,5 @@
-use android_activity::{
-    input::{KeyAction, KeyEvent, KeyMapChar, Keycode},
-    AndroidApp,
-};
+use android_activity::input::{KeyAction, KeyEvent, KeyMapChar, Keycode};
+use android_activity::AndroidApp;
 
 use crate::keyboard::{Key, KeyCode, KeyLocation, NamedKey, NativeKey, NativeKeyCode, PhysicalKey};
 
@@ -105,7 +103,7 @@ pub fn to_physical_key(keycode: Keycode) -> PhysicalKey {
         Keycode::VolumeUp => KeyCode::AudioVolumeUp,
         Keycode::VolumeDown => KeyCode::AudioVolumeDown,
         Keycode::VolumeMute => KeyCode::AudioVolumeMute,
-        //Keycode::Mute => None, // Microphone mute
+        // Keycode::Mute => None, // Microphone mute
         Keycode::MediaPlayPause => KeyCode::MediaPlayPause,
         Keycode::MediaStop => KeyCode::MediaStop,
         Keycode::MediaNext => KeyCode::MediaTrackNext,
@@ -174,9 +172,9 @@ pub fn character_map_and_combine_key(
     let key_map = match app.device_key_character_map(device_id) {
         Ok(key_map) => key_map,
         Err(err) => {
-            log::warn!("Failed to look up `KeyCharacterMap` for device {device_id}: {err:?}");
+            tracing::warn!("Failed to look up `KeyCharacterMap` for device {device_id}: {err:?}");
             return None;
-        }
+        },
     };
 
     match key_map.get(key_event.key_code(), key_event.meta_state()) {
@@ -188,9 +186,12 @@ pub fn character_map_and_combine_key(
                         Ok(Some(key)) => Some(key),
                         Ok(None) => None,
                         Err(err) => {
-                            log::warn!("KeyEvent: Failed to combine 'dead key' accent '{accent}' with '{unicode}': {err:?}");
+                            tracing::warn!(
+                                "KeyEvent: Failed to combine 'dead key' accent '{accent}' with \
+                                 '{unicode}': {err:?}"
+                            );
                             None
-                        }
+                        },
                     }
                 } else {
                     Some(unicode)
@@ -200,23 +201,23 @@ pub fn character_map_and_combine_key(
             } else {
                 Some(KeyMapChar::Unicode(unicode))
             }
-        }
+        },
         Ok(KeyMapChar::CombiningAccent(accent)) => {
             if key_event.action() == KeyAction::Down {
                 *combining_accent = Some(accent);
             }
             Some(KeyMapChar::CombiningAccent(accent))
-        }
+        },
         Ok(KeyMapChar::None) => {
             // Leave any combining_accent state in tact (seems to match how other
             // Android apps work)
             None
-        }
+        },
         Err(err) => {
-            log::warn!("KeyEvent: Failed to get key map character: {err:?}");
+            tracing::warn!("KeyEvent: Failed to get key map character: {err:?}");
             *combining_accent = None;
             None
-        }
+        },
     }
 }
 

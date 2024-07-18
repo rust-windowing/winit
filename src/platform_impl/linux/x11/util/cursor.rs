@@ -1,16 +1,14 @@
-use std::{
-    ffi::CString,
-    hash::{Hash, Hasher},
-    iter, slice,
-    sync::Arc,
-};
+use std::ffi::CString;
+use std::hash::{Hash, Hasher};
+use std::sync::Arc;
+use std::{iter, slice};
 
 use x11rb::connection::Connection;
 
-use crate::{platform_impl::PlatformCustomCursorBuilder, window::CursorIcon};
-
-use super::super::EventLoopWindowTarget;
+use super::super::ActiveEventLoop;
 use super::*;
+use crate::platform_impl::PlatformCustomCursorSource;
+use crate::window::CursorIcon;
 
 impl XConnection {
     pub fn set_cursor_icon(&self, window: xproto::Window, cursor: Option<CursorIcon>) {
@@ -21,13 +19,11 @@ impl XConnection {
             .entry(cursor)
             .or_insert_with(|| self.get_cursor(cursor));
 
-        self.update_cursor(window, cursor)
-            .expect("Failed to set cursor");
+        self.update_cursor(window, cursor).expect("Failed to set cursor");
     }
 
     pub(crate) fn set_custom_cursor(&self, window: xproto::Window, cursor: &CustomCursor) {
-        self.update_cursor(window, cursor.inner.cursor)
-            .expect("Failed to set cursor");
+        self.update_cursor(window, cursor.inner.cursor).expect("Failed to set cursor");
     }
 
     fn create_empty_cursor(&self) -> ffi::Cursor {
@@ -124,38 +120,34 @@ impl PartialEq for CustomCursor {
 impl Eq for CustomCursor {}
 
 impl CustomCursor {
-    pub(crate) fn build(
-        builder: PlatformCustomCursorBuilder,
-        p: &EventLoopWindowTarget,
+    pub(crate) fn new(
+        event_loop: &ActiveEventLoop,
+        cursor: PlatformCustomCursorSource,
     ) -> CustomCursor {
         unsafe {
-            let ximage = (p.xconn.xcursor.XcursorImageCreate)(
-                builder.0.width as i32,
-                builder.0.height as i32,
+            let ximage = (event_loop.xconn.xcursor.XcursorImageCreate)(
+                cursor.0.width as i32,
+                cursor.0.height as i32,
             );
             if ximage.is_null() {
                 panic!("failed to allocate cursor image");
             }
-            (*ximage).xhot = builder.0.hotspot_x as u32;
-            (*ximage).yhot = builder.0.hotspot_y as u32;
+            (*ximage).xhot = cursor.0.hotspot_x as u32;
+            (*ximage).yhot = cursor.0.hotspot_y as u32;
             (*ximage).delay = 0;
 
-            let dst = slice::from_raw_parts_mut((*ximage).pixels, builder.0.rgba.len() / 4);
-            for (dst, chunk) in dst.iter_mut().zip(builder.0.rgba.chunks_exact(4)) {
+            let dst = slice::from_raw_parts_mut((*ximage).pixels, cursor.0.rgba.len() / 4);
+            for (dst, chunk) in dst.iter_mut().zip(cursor.0.rgba.chunks_exact(4)) {
                 *dst = (chunk[0] as u32) << 16
                     | (chunk[1] as u32) << 8
                     | (chunk[2] as u32)
                     | (chunk[3] as u32) << 24;
             }
 
-            let cursor = (p.xconn.xcursor.XcursorImageLoadCursor)(p.xconn.display, ximage);
-            (p.xconn.xcursor.XcursorImageDestroy)(ximage);
-            Self {
-                inner: Arc::new(CustomCursorInner {
-                    xconn: p.xconn.clone(),
-                    cursor,
-                }),
-            }
+            let cursor =
+                (event_loop.xconn.xcursor.XcursorImageLoadCursor)(event_loop.xconn.display, ximage);
+            (event_loop.xconn.xcursor.XcursorImageDestroy)(ximage);
+            Self { inner: Arc::new(CustomCursorInner { xconn: event_loop.xconn.clone(), cursor }) }
         }
     }
 }

@@ -1,15 +1,10 @@
+use x11rb::connection::RequestConnection;
+use x11rb::protocol::randr::{self, ConnectionExt as _};
+use x11rb::protocol::xproto;
+
 use super::{util, X11Error, XConnection};
-use crate::{
-    dpi::{PhysicalPosition, PhysicalSize},
-    platform_impl::VideoModeHandle as PlatformVideoModeHandle,
-};
-use x11rb::{
-    connection::RequestConnection,
-    protocol::{
-        randr::{self, ConnectionExt as _},
-        xproto,
-    },
-};
+use crate::dpi::{PhysicalPosition, PhysicalSize};
+use crate::platform_impl::VideoModeHandle as PlatformVideoModeHandle;
 
 // Used for testing. This should always be committed as false.
 const DISABLE_MONITOR_LIST_CACHING: bool = false;
@@ -240,18 +235,12 @@ impl XConnection {
         // Pipeline all of the get-crtc requests.
         let mut crtc_cookies = Vec::with_capacity(resources.crtcs().len());
         for &crtc in resources.crtcs() {
-            crtc_cookies.push(
-                self.xcb_connection()
-                    .randr_get_crtc_info(crtc, x11rb::CURRENT_TIME)?,
-            );
+            crtc_cookies
+                .push(self.xcb_connection().randr_get_crtc_info(crtc, x11rb::CURRENT_TIME)?);
         }
 
         // Do this here so we do all of our requests in one shot.
-        let primary = self
-            .xcb_connection()
-            .randr_get_output_primary(root.root)?
-            .reply()?
-            .output;
+        let primary = self.xcb_connection().randr_get_output_primary(root.root)?.reply()?.output;
 
         let mut crtc_infos = Vec::with_capacity(crtc_cookies.len());
         for cookie in crtc_cookies {
@@ -293,7 +282,7 @@ impl XConnection {
                     *monitors_lock = Some(monitors.clone());
                 }
                 Ok(monitors)
-            }
+            },
         }
     }
 
@@ -324,7 +313,7 @@ impl XConnection {
     }
 }
 
-pub(crate) struct ScreenResources {
+pub struct ScreenResources {
     /// List of attached modes.
     modes: Vec<randr::ModeInfo>,
 
@@ -347,9 +336,7 @@ impl ScreenResources {
         (major_version, minor_version): (u32, u32),
     ) -> Result<Self, X11Error> {
         if (major_version == 1 && minor_version >= 3) || major_version > 1 {
-            let reply = conn
-                .randr_get_screen_resources_current(root.root)?
-                .reply()?;
+            let reply = conn.randr_get_screen_resources_current(root.root)?.reply()?;
             Ok(Self::from_get_screen_resources_current_reply(reply))
         } else {
             let reply = conn.randr_get_screen_resources(root.root)?.reply()?;
@@ -358,18 +345,12 @@ impl ScreenResources {
     }
 
     pub(crate) fn from_get_screen_resources_reply(reply: randr::GetScreenResourcesReply) -> Self {
-        Self {
-            modes: reply.modes,
-            crtcs: reply.crtcs,
-        }
+        Self { modes: reply.modes, crtcs: reply.crtcs }
     }
 
     pub(crate) fn from_get_screen_resources_current_reply(
         reply: randr::GetScreenResourcesCurrentReply,
     ) -> Self {
-        Self {
-            modes: reply.modes,
-            crtcs: reply.crtcs,
-        }
+        Self { modes: reply.modes, crtcs: reply.crtcs }
     }
 }

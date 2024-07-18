@@ -1,24 +1,22 @@
-use super::*;
-use bytemuck::{NoUninit, Pod};
+use std::error::Error;
+use std::fmt;
 use std::sync::Arc;
 
+use bytemuck::{NoUninit, Pod};
 use x11rb::connection::Connection;
 use x11rb::errors::ReplyError;
 
-pub type Cardinal = u32;
+use super::*;
+
 pub const CARDINAL_SIZE: usize = mem::size_of::<u32>();
+
+pub type Cardinal = u32;
 
 #[derive(Debug, Clone)]
 pub enum GetPropertyError {
     X11rbError(Arc<ReplyError>),
     TypeMismatch(xproto::Atom),
     FormatMismatch(c_int),
-}
-
-impl<T: Into<ReplyError>> From<T> for GetPropertyError {
-    fn from(e: T) -> Self {
-        Self::X11rbError(Arc::new(e.into()))
-    }
 }
 
 impl GetPropertyError {
@@ -30,6 +28,24 @@ impl GetPropertyError {
         }
     }
 }
+
+impl<T: Into<ReplyError>> From<T> for GetPropertyError {
+    fn from(e: T) -> Self {
+        Self::X11rbError(Arc::new(e.into()))
+    }
+}
+
+impl fmt::Display for GetPropertyError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            GetPropertyError::X11rbError(err) => err.fmt(f),
+            GetPropertyError::TypeMismatch(err) => write!(f, "type mismatch: {err}"),
+            GetPropertyError::FormatMismatch(err) => write!(f, "format mismatch: {err}"),
+        }
+    }
+}
+
+impl Error for GetPropertyError {}
 
 // Number of 32-bit chunks to retrieve per iteration of get_property's inner loop.
 // To test if `get_property` works correctly, set this to 1.
@@ -70,10 +86,7 @@ impl XConnection {
                 property,
                 property_type,
                 (mem::size_of::<T>() * 8) as u8,
-                new_value
-                    .len()
-                    .try_into()
-                    .expect("too many items for propery"),
+                new_value.len().try_into().expect("too many items for property"),
                 bytemuck::cast_slice::<T, u8>(new_value),
             )
             .map_err(Into::into)

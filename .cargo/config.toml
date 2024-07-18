@@ -1,2 +1,6 @@
-[alias]
-run-wasm = ["run", "--release", "--package", "run-wasm", "--"]
+# Allow rust-analyzer and local `cargo doc` invocations to pick up unreleased changelog entries
+#
+# Note that these flags are (intentionally) not included when building from the downloaded crate.
+[build]
+rustflags = ["--cfg=unreleased_changelogs"]
+rustdocflags = ["--cfg=unreleased_changelogs"]

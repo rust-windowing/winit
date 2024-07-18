@@ -1,0 +1,32 @@
+name: X11 bug
+description: Create a X11-specific bug report
+labels:
+  - B - bug
+  - DS - x11
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to fill out this bug report!
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: Description of the problem you're having
+    validations:
+      required: true
+  - type: textarea
+    id: os-info
+    attributes:
+      label: OS and window mananger
+      description: Which operating system and window manager are you using?
+    validations:
+      required: true
+  - type: textarea
+    id: winit-version
+    attributes:
+      label: Winit version
+      description: What version of Winit are you using?
+      placeholder: 0.29.11
+    validations:
+      required: true

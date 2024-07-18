@@ -5,8 +5,7 @@ use std::sync::{Arc, Mutex, Weak};
 use std::time::Duration;
 
 use ahash::HashSet;
-use log::{info, warn};
-
+use sctk::compositor::{CompositorState, Region, SurfaceData, SurfaceDataExt};
 use sctk::reexports::client::backend::ObjectId;
 use sctk::reexports::client::protocol::wl_seat::WlSeat;
 use sctk::reexports::client::protocol::wl_shm::WlShm;
@@ -19,8 +18,6 @@ use sctk::reexports::protocols::wp::fractional_scale::v1::client::wp_fractional_
 use sctk::reexports::protocols::wp::text_input::zv3::client::zwp_text_input_v3::ZwpTextInputV3;
 use sctk::reexports::protocols::wp::viewporter::client::wp_viewport::WpViewport;
 use sctk::reexports::protocols::xdg::shell::client::xdg_toplevel::ResizeEdge as XdgResizeEdge;
-
-use sctk::compositor::{CompositorState, Region, SurfaceData, SurfaceDataExt};
 use sctk::seat::pointer::{PointerDataExt, ThemedPointer};
 use sctk::shell::xdg::window::{DecorationMode, Window, WindowConfigure};
 use sctk::shell::xdg::XdgSurface;
@@ -28,21 +25,21 @@ use sctk::shell::WaylandSurface;
 use sctk::shm::slot::SlotPool;
 use sctk::shm::Shm;
 use sctk::subcompositor::SubcompositorState;
+use tracing::{info, warn};
 use wayland_protocols_plasma::blur::client::org_kde_kwin_blur::OrgKdeKwinBlur;
 
 use crate::cursor::CustomCursor as RootCustomCursor;
 use crate::dpi::{LogicalPosition, LogicalSize, PhysicalSize, Size};
 use crate::error::{ExternalError, NotSupportedError};
 use crate::platform_impl::wayland::logical_to_physical_rounded;
-use crate::platform_impl::wayland::types::cursor::{CustomCursor, SelectedCursor};
-use crate::platform_impl::wayland::types::kwin_blur::KWinBlurManager;
-use crate::platform_impl::{PlatformCustomCursor, WindowId};
-use crate::window::{CursorGrabMode, CursorIcon, ImePurpose, ResizeDirection, Theme};
-
 use crate::platform_impl::wayland::seat::{
     PointerConstraintsState, WinitPointerData, WinitPointerDataExt, ZwpTextInputV3Ext,
 };
 use crate::platform_impl::wayland::state::{WindowCompositorUpdate, WinitState};
+use crate::platform_impl::wayland::types::cursor::{CustomCursor, SelectedCursor};
+use crate::platform_impl::wayland::types::kwin_blur::KWinBlurManager;
+use crate::platform_impl::{PlatformCustomCursor, WindowId};
+use crate::window::{CursorGrabMode, CursorIcon, ImePurpose, ResizeDirection, Theme};
 
 #[cfg(feature = "sctk-adwaita")]
 pub type WinitFrame = sctk_adwaita::AdwaitaFrame<WinitState>;
@@ -56,9 +53,6 @@ const MIN_WINDOW_SIZE: LogicalSize<u32> = LogicalSize::new(2, 1);
 pub struct WindowState {
     /// The connection to Wayland server.
     pub connection: Connection,
-
-    /// The window frame, which is created from the configure request.
-    frame: Option<WinitFrame>,
 
     /// The `Shm` to set cursor.
     pub shm: WlShm,
@@ -74,7 +68,7 @@ pub struct WindowState {
 
     selected_cursor: SelectedCursor,
 
-    /// Wether the cursor is visible.
+    /// Whether the cursor is visible.
     pub cursor_visible: bool,
 
     /// Pointer constraints to lock/confine pointer.
@@ -83,7 +77,7 @@ pub struct WindowState {
     /// Queue handle.
     pub queue_handle: QueueHandle<WinitState>,
 
-    /// Theme varaint.
+    /// Theme variant.
     theme: Option<Theme>,
 
     /// The current window title.
@@ -155,6 +149,13 @@ pub struct WindowState {
 
     /// The underlying SCTK window.
     pub window: Window,
+
+    // NOTE: The spec says that destroying parent(`window` in our case), will unmap the
+    // subsurfaces. Thus to achieve atomic unmap of the client, drop the decorations
+    // frame after the `window` is dropped. To achieve that we rely on rust's struct
+    // field drop order guarantees.
+    /// The window frame, which is created from the configure request.
+    frame: Option<WinitFrame>,
 }
 
 impl WindowState {
@@ -218,17 +219,14 @@ impl WindowState {
     }
 
     /// Apply closure on the given pointer.
-    fn apply_on_poiner<F: Fn(&ThemedPointer<WinitPointerData>, &WinitPointerData)>(
+    fn apply_on_pointer<F: Fn(&ThemedPointer<WinitPointerData>, &WinitPointerData)>(
         &self,
         callback: F,
     ) {
-        self.pointers
-            .iter()
-            .filter_map(Weak::upgrade)
-            .for_each(|pointer| {
-                let data = pointer.pointer().winit_data();
-                callback(pointer.as_ref(), data);
-            })
+        self.pointers.iter().filter_map(Weak::upgrade).for_each(|pointer| {
+            let data = pointer.pointer().winit_data();
+            callback(pointer.as_ref(), data);
+        })
     }
 
     /// Get the current state of the frame callback.
@@ -253,7 +251,7 @@ impl WindowState {
             FrameCallbackState::None | FrameCallbackState::Received => {
                 self.frame_callback_state = FrameCallbackState::Requested;
                 surface.frame(&self.queue_handle, surface.clone());
-            }
+            },
             FrameCallbackState::Requested => (),
         }
     }
@@ -293,11 +291,11 @@ impl WindowState {
                     // Hide the frame if we were asked to not decorate.
                     frame.set_hidden(!self.decorate);
                     self.frame = Some(frame);
-                }
+                },
                 Err(err) => {
                     warn!("Failed to create client side decorations frame: {err}");
                     self.csd_fails = true;
-                }
+                },
             }
         } else if configure.decoration_mode == DecorationMode::Server {
             // Drop the frame for server side decorations to save resources.
@@ -316,8 +314,8 @@ impl WindowState {
                     let width = width.map(|w| w.get()).unwrap_or(1);
                     let height = height.map(|h| h.get()).unwrap_or(1);
                     ((width, height).into(), false)
-                }
-                (_, _) if stateless => (self.stateless_size, true),
+                },
+                (..) if stateless => (self.stateless_size, true),
                 _ => (self.size, true),
             }
         } else {
@@ -331,10 +329,8 @@ impl WindowState {
         // Apply configure bounds only when compositor let the user decide what size to pick.
         if constrain {
             let bounds = self.inner_size_bounds(&configure);
-            new_size.width = bounds
-                .0
-                .map(|bound_w| new_size.width.min(bound_w.get()))
-                .unwrap_or(new_size.width);
+            new_size.width =
+                bounds.0.map(|bound_w| new_size.width.min(bound_w.get())).unwrap_or(new_size.width);
             new_size.height = bounds
                 .1
                 .map(|bound_h| new_size.height.min(bound_h.get()))
@@ -342,10 +338,7 @@ impl WindowState {
         }
 
         let new_state = configure.state;
-        let old_state = self
-            .last_configure
-            .as_ref()
-            .map(|configure| configure.state);
+        let old_state = self.last_configure.as_ref().map(|configure| configure.state);
 
         let state_change_requires_resize = old_state
             .map(|old_state| {
@@ -383,10 +376,7 @@ impl WindowState {
                 configure_bounds.0.unwrap_or(NonZeroU32::new(1).unwrap()),
                 configure_bounds.1.unwrap_or(NonZeroU32::new(1).unwrap()),
             );
-            (
-                configure_bounds.0.and(width),
-                configure_bounds.1.and(height),
-            )
+            (configure_bounds.0.and(width), configure_bounds.1.and(height))
         } else {
             configure_bounds
         }
@@ -402,7 +392,7 @@ impl WindowState {
         let xdg_toplevel = self.window.xdg_toplevel();
 
         // TODO(kchibisov) handle touch serials.
-        self.apply_on_poiner(|_, data| {
+        self.apply_on_pointer(|_, data| {
             let serial = data.latest_button_serial();
             let seat = data.seat();
             xdg_toplevel.resize(seat, serial, direction.into());
@@ -415,7 +405,7 @@ impl WindowState {
     pub fn drag_window(&self) -> Result<(), ExternalError> {
         let xdg_toplevel = self.window.xdg_toplevel();
         // TODO(kchibisov) handle touch serials.
-        self.apply_on_poiner(|_, data| {
+        self.apply_on_pointer(|_, data| {
             let serial = data.latest_button_serial();
             let seat = data.seat();
             xdg_toplevel._move(seat, serial);
@@ -456,7 +446,7 @@ impl WindowState {
                     _ => return None,
                 };
                 self.window.resize(seat, serial, edge);
-            }
+            },
             FrameAction::ShowMenu(x, y) => self.window.show_window_menu(seat, serial, (x, y)),
             _ => (),
         };
@@ -639,12 +629,7 @@ impl WindowState {
 
     /// Try to resize the window when the user can do so.
     pub fn request_inner_size(&mut self, inner_size: Size) -> PhysicalSize<u32> {
-        if self
-            .last_configure
-            .as_ref()
-            .map(Self::is_stateless)
-            .unwrap_or(true)
-        {
+        if self.last_configure.as_ref().map(Self::is_stateless).unwrap_or(true) {
             self.resize(inner_size.to_logical(self.scale_factor()))
         }
 
@@ -670,10 +655,7 @@ impl WindowState {
                 );
             }
 
-            (
-                frame.location(),
-                frame.add_borders(self.size.width, self.size.height).into(),
-            )
+            (frame.location(), frame.add_borders(self.size.width, self.size.height).into())
         } else {
             ((0, 0), self.size)
         };
@@ -710,7 +692,7 @@ impl WindowState {
             return;
         }
 
-        self.apply_on_poiner(|pointer, _| {
+        self.apply_on_pointer(|pointer, _| {
             if pointer.set_cursor(&self.connection, cursor_icon).is_err() {
                 warn!("Failed to set cursor to {:?}", cursor_icon);
             }
@@ -720,16 +702,12 @@ impl WindowState {
     /// Set the custom cursor icon.
     pub(crate) fn set_custom_cursor(&mut self, cursor: RootCustomCursor) {
         let cursor = match cursor {
-            RootCustomCursor {
-                inner: PlatformCustomCursor::Wayland(cursor),
-            } => cursor.0,
+            RootCustomCursor { inner: PlatformCustomCursor::Wayland(cursor) } => cursor.0,
             #[cfg(x11_platform)]
-            RootCustomCursor {
-                inner: PlatformCustomCursor::X(_),
-            } => {
-                log::error!("passed a X11 cursor to Wayland backend");
+            RootCustomCursor { inner: PlatformCustomCursor::X(_) } => {
+                tracing::error!("passed a X11 cursor to Wayland backend");
                 return;
-            }
+            },
         };
 
         let cursor = {
@@ -745,14 +723,10 @@ impl WindowState {
     }
 
     fn apply_custom_cursor(&self, cursor: &CustomCursor) {
-        self.apply_on_poiner(|pointer, _| {
+        self.apply_on_pointer(|pointer, _| {
             let surface = pointer.surface();
 
-            let scale = surface
-                .data::<SurfaceData>()
-                .unwrap()
-                .surface_data()
-                .scale_factor();
+            let scale = surface.data::<SurfaceData>().unwrap().surface_data().scale_factor();
 
             surface.set_buffer_scale(scale);
             surface.attach(Some(cursor.buffer.wl_buffer()), 0, 0);
@@ -826,9 +800,14 @@ impl WindowState {
 
     /// Set the cursor grabbing state on the top-level.
     pub fn set_cursor_grab(&mut self, mode: CursorGrabMode) -> Result<(), ExternalError> {
-        // Replace the user grabbing mode.
+        if self.cursor_grab_mode.user_grab_mode == mode {
+            return Ok(());
+        }
+
+        self.set_cursor_grab_inner(mode)?;
+        // Update user grab on success.
         self.cursor_grab_mode.user_grab_mode = mode;
-        self.set_cursor_grab_inner(mode)
+        Ok(())
     }
 
     /// Reload the hints for minimum and maximum sizes.
@@ -850,27 +829,27 @@ impl WindowState {
 
         match old_mode {
             CursorGrabMode::None => (),
-            CursorGrabMode::Confined => self.apply_on_poiner(|_, data| {
+            CursorGrabMode::Confined => self.apply_on_pointer(|_, data| {
                 data.unconfine_pointer();
             }),
             CursorGrabMode::Locked => {
-                self.apply_on_poiner(|_, data| data.unlock_pointer());
-            }
+                self.apply_on_pointer(|_, data| data.unlock_pointer());
+            },
         }
 
         let surface = self.window.wl_surface();
         match mode {
-            CursorGrabMode::Locked => self.apply_on_poiner(|pointer, data| {
+            CursorGrabMode::Locked => self.apply_on_pointer(|pointer, data| {
                 let pointer = pointer.pointer();
                 data.lock_pointer(pointer_constraints, surface, pointer, &self.queue_handle)
             }),
-            CursorGrabMode::Confined => self.apply_on_poiner(|pointer, data| {
+            CursorGrabMode::Confined => self.apply_on_pointer(|pointer, data| {
                 let pointer = pointer.pointer();
                 data.confine_pointer(pointer_constraints, surface, pointer, &self.queue_handle)
             }),
             CursorGrabMode::None => {
                 // Current lock/confine was already removed.
-            }
+            },
         }
 
         Ok(())
@@ -878,7 +857,7 @@ impl WindowState {
 
     pub fn show_window_menu(&self, position: LogicalPosition<u32>) {
         // TODO(kchibisov) handle touch serials.
-        self.apply_on_poiner(|_, data| {
+        self.apply_on_pointer(|_, data| {
             let serial = data.latest_button_serial();
             let seat = data.seat();
             self.window.show_window_menu(seat, serial, position.into());
@@ -891,16 +870,14 @@ impl WindowState {
             return Err(ExternalError::NotSupported(NotSupportedError::new()));
         }
 
-        // Positon can be set only for locked cursor.
+        // Position can be set only for locked cursor.
         if self.cursor_grab_mode.current_grab_mode != CursorGrabMode::Locked {
-            return Err(ExternalError::Os(os_error!(
-                crate::platform_impl::OsError::Misc(
-                    "cursor position can be set only for locked cursor."
-                )
-            )));
+            return Err(ExternalError::Os(os_error!(crate::platform_impl::OsError::Misc(
+                "cursor position can be set only for locked cursor."
+            ))));
         }
 
-        self.apply_on_poiner(|_, data| {
+        self.apply_on_pointer(|_, data| {
             data.set_locked_cursor_position(position.x, position.y);
         });
 
@@ -920,9 +897,7 @@ impl WindowState {
             for pointer in self.pointers.iter().filter_map(|pointer| pointer.upgrade()) {
                 let latest_enter_serial = pointer.pointer().winit_data().latest_enter_serial();
 
-                pointer
-                    .pointer()
-                    .set_cursor(latest_enter_serial, None, 0, 0);
+                pointer.pointer().set_cursor(latest_enter_serial, None, 0, 0);
             }
         }
     }
@@ -936,19 +911,12 @@ impl WindowState {
 
         self.decorate = decorate;
 
-        match self
-            .last_configure
-            .as_ref()
-            .map(|configure| configure.decoration_mode)
-        {
+        match self.last_configure.as_ref().map(|configure| configure.decoration_mode) {
             Some(DecorationMode::Server) if !self.decorate => {
                 // To disable decorations we should request client and hide the frame.
-                self.window
-                    .request_decoration_mode(Some(DecorationMode::Client))
-            }
-            _ if self.decorate => self
-                .window
-                .request_decoration_mode(Some(DecorationMode::Server)),
+                self.window.request_decoration_mode(Some(DecorationMode::Client))
+            },
+            _ if self.decorate => self.window.request_decoration_mode(Some(DecorationMode::Server)),
             _ => (),
         }
 
@@ -1045,17 +1013,14 @@ impl WindowState {
                 info!("Blur manager unavailable, unable to change blur")
             }
         } else if !blurred && self.blur.is_some() {
-            self.blur_manager
-                .as_ref()
-                .unwrap()
-                .unset(self.window.wl_surface());
+            self.blur_manager.as_ref().unwrap().unset(self.window.wl_surface());
             self.blur.take().unwrap().release();
         }
     }
 
     /// Set the window title to a new value.
     ///
-    /// This will autmatically truncate the title to something meaningfull.
+    /// This will automatically truncate the title to something meaningful.
     pub fn set_title(&mut self, mut title: String) {
         // Truncate the title to at most 1024 bytes, so that it does not blow up the protocol
         // messages
@@ -1137,17 +1102,14 @@ struct GrabState {
 
 impl GrabState {
     fn new() -> Self {
-        Self {
-            user_grab_mode: CursorGrabMode::None,
-            current_grab_mode: CursorGrabMode::None,
-        }
+        Self { user_grab_mode: CursorGrabMode::None, current_grab_mode: CursorGrabMode::None }
     }
 }
 
 /// The state of the frame callback.
 #[derive(Default, Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FrameCallbackState {
-    /// No frame callback was requsted.
+    /// No frame callback was requested.
     #[default]
     None,
     /// The frame callback was requested, but not yet arrived, the redraw events are throttled.

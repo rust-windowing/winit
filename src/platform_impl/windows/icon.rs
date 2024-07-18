@@ -1,28 +1,23 @@
-use std::{ffi::c_void, fmt, io, mem, path::Path, sync::Arc};
+use std::ffi::c_void;
+use std::path::Path;
+use std::sync::Arc;
+use std::{fmt, io, mem};
 
 use cursor_icon::CursorIcon;
-use windows_sys::{
-    core::PCWSTR,
-    Win32::{
-        Foundation::HWND,
-        Graphics::Gdi::{
-            CreateBitmap, CreateCompatibleBitmap, DeleteObject, GetDC, ReleaseDC, SetBitmapBits,
-        },
-        UI::WindowsAndMessaging::{
-            CreateIcon, CreateIconIndirect, DestroyCursor, DestroyIcon, LoadImageW, SendMessageW,
-            HCURSOR, HICON, ICONINFO, ICON_BIG, ICON_SMALL, IMAGE_ICON, LR_DEFAULTSIZE,
-            LR_LOADFROMFILE, WM_SETICON,
-        },
-    },
+use windows_sys::core::PCWSTR;
+use windows_sys::Win32::Foundation::HWND;
+use windows_sys::Win32::Graphics::Gdi::{
+    CreateBitmap, CreateCompatibleBitmap, DeleteObject, GetDC, ReleaseDC, SetBitmapBits,
+};
+use windows_sys::Win32::UI::WindowsAndMessaging::{
+    CreateIcon, CreateIconIndirect, DestroyCursor, DestroyIcon, LoadImageW, SendMessageW, HCURSOR,
+    HICON, ICONINFO, ICON_BIG, ICON_SMALL, IMAGE_ICON, LR_DEFAULTSIZE, LR_LOADFROMFILE, WM_SETICON,
 };
 
+use super::util;
+use crate::cursor::CursorImage;
+use crate::dpi::PhysicalSize;
 use crate::icon::*;
-use crate::{
-    cursor::{CursorImage, OnlyCursorImageBuilder},
-    dpi::PhysicalSize,
-};
-
-use super::{util, EventLoopWindowTarget};
 
 impl Pixel {
     fn convert_to_bgra(&mut self) {
@@ -38,7 +33,7 @@ impl RgbaIcon {
         let pixels =
             unsafe { std::slice::from_raw_parts_mut(rgba.as_ptr() as *mut Pixel, pixel_count) };
         for pixel in pixels {
-            and_mask.push(pixel.a.wrapping_sub(std::u8::MAX)); // invert alpha channel
+            and_mask.push(pixel.a.wrapping_sub(u8::MAX)); // invert alpha channel
             pixel.convert_to_bgra();
         }
         assert_eq!(and_mask.len(), pixel_count);
@@ -145,9 +140,7 @@ impl WinIcon {
     }
 
     fn from_handle(handle: HICON) -> Self {
-        Self {
-            inner: Arc::new(RaiiIcon { handle }),
-        }
+        Self { inner: Arc::new(RaiiIcon { handle }) }
     }
 }
 
@@ -188,7 +181,7 @@ pub enum WinCursor {
 }
 
 impl WinCursor {
-    fn new(image: &CursorImage) -> Result<Self, io::Error> {
+    pub(crate) fn new(image: &CursorImage) -> Result<Self, io::Error> {
         let mut bgra = image.rgba.clone();
         bgra.chunks_exact_mut(4).for_each(|chunk| chunk.swap(0, 2));
 
@@ -234,16 +227,6 @@ impl WinCursor {
             }
 
             Ok(Self::Cursor(Arc::new(RaiiCursor { handle })))
-        }
-    }
-
-    pub(crate) fn build(cursor: OnlyCursorImageBuilder, _: &EventLoopWindowTarget) -> Self {
-        match Self::new(&cursor.0) {
-            Ok(cursor) => cursor,
-            Err(err) => {
-                log::warn!("Failed to create custom cursor: {err}");
-                Self::Failed
-            }
         }
     }
 }

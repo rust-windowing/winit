@@ -1,7 +1,7 @@
-use crate::platform::x11::WindowType;
 use std::sync::Arc;
 
 use super::*;
+use crate::platform::x11::WindowType;
 
 #[derive(Debug)]
 #[allow(dead_code)]
@@ -76,13 +76,7 @@ mod mwm {
 impl MotifHints {
     pub fn new() -> MotifHints {
         MotifHints {
-            hints: MwmHints {
-                flags: 0,
-                functions: 0,
-                decorations: 0,
-                input_mode: 0,
-                status: 0,
-            },
+            hints: MwmHints { flags: 0, functions: 0, decorations: 0, input_mode: 0, status: 0 },
         }
     }
 

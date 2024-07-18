@@ -3,18 +3,14 @@
 use std::sync::atomic::AtomicBool;
 use std::sync::Weak;
 
-use sctk::reexports::client::delegate_dispatch;
-use sctk::reexports::client::globals::BindError;
-use sctk::reexports::client::globals::GlobalList;
+use sctk::globals::GlobalData;
+use sctk::reexports::client::globals::{BindError, GlobalList};
 use sctk::reexports::client::protocol::wl_surface::WlSurface;
-use sctk::reexports::client::Dispatch;
-use sctk::reexports::client::{Connection, Proxy, QueueHandle};
+use sctk::reexports::client::{delegate_dispatch, Connection, Dispatch, Proxy, QueueHandle};
 use sctk::reexports::protocols::xdg::activation::v1::client::xdg_activation_token_v1::{
     Event as ActivationTokenEvent, XdgActivationTokenV1,
 };
 use sctk::reexports::protocols::xdg::activation::v1::client::xdg_activation_v1::XdgActivationV1;
-
-use sctk::globals::GlobalData;
 
 use crate::event_loop::AsyncRequestSerial;
 use crate::platform_impl::wayland::state::WinitState;
@@ -78,7 +74,7 @@ impl Dispatch<XdgActivationTokenV1, XdgActivationTokenData, WinitState> for XdgA
                 if let Some(attention_requested) = fence.upgrade() {
                     attention_requested.store(false, std::sync::atomic::Ordering::Relaxed);
                 }
-            }
+            },
             XdgActivationTokenData::Obtain((window_id, serial)) => {
                 state.events_sink.push_window_event(
                     crate::event::WindowEvent::ActivationTokenDone {
@@ -87,7 +83,7 @@ impl Dispatch<XdgActivationTokenV1, XdgActivationTokenData, WinitState> for XdgA
                     },
                     *window_id,
                 );
-            }
+            },
         }
 
         proxy.destroy();

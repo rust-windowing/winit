@@ -4,11 +4,11 @@ use std::fmt::{self, Display, Formatter};
 use std::str;
 use std::sync::Arc;
 
-use crate::dpi::{PhysicalPosition, PhysicalSize};
+use smol_str::SmolStr;
 
-pub(crate) use self::event_loop::{
-    EventLoop, EventLoopProxy, EventLoopWindowTarget, OwnedDisplayHandle,
-};
+pub(crate) use self::event_loop::{ActiveEventLoop, EventLoop, EventLoopProxy, OwnedDisplayHandle};
+use crate::dpi::{PhysicalPosition, PhysicalSize};
+use crate::keyboard::Key;
 mod event_loop;
 
 pub use self::window::Window;
@@ -102,9 +102,7 @@ pub struct WindowId {
 
 impl WindowId {
     pub const fn dummy() -> Self {
-        WindowId {
-            fd: u64::max_value(),
-        }
+        WindowId { fd: u64::MAX }
     }
 }
 
@@ -130,7 +128,7 @@ impl DeviceId {
 }
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
-pub struct PlatformSpecificWindowBuilderAttributes;
+pub struct PlatformSpecificWindowAttributes;
 
 struct WindowProperties<'a> {
     flags: &'a str,
@@ -146,27 +144,12 @@ impl<'a> WindowProperties<'a> {
         // orbital:flags/x/y/w/h/t
         let mut parts = path.splitn(6, '/');
         let flags = parts.next().unwrap_or("");
-        let x = parts
-            .next()
-            .map_or(0, |part| part.parse::<i32>().unwrap_or(0));
-        let y = parts
-            .next()
-            .map_or(0, |part| part.parse::<i32>().unwrap_or(0));
-        let w = parts
-            .next()
-            .map_or(0, |part| part.parse::<u32>().unwrap_or(0));
-        let h = parts
-            .next()
-            .map_or(0, |part| part.parse::<u32>().unwrap_or(0));
+        let x = parts.next().map_or(0, |part| part.parse::<i32>().unwrap_or(0));
+        let y = parts.next().map_or(0, |part| part.parse::<i32>().unwrap_or(0));
+        let w = parts.next().map_or(0, |part| part.parse::<u32>().unwrap_or(0));
+        let h = parts.next().map_or(0, |part| part.parse::<u32>().unwrap_or(0));
         let title = parts.next().unwrap_or("");
-        Self {
-            flags,
-            x,
-            y,
-            w,
-            h,
-            title,
-        }
+        Self { flags, x, y, w, h, title }
     }
 }
 
@@ -195,8 +178,9 @@ impl Display for OsError {
     }
 }
 
-pub(crate) use crate::cursor::NoCustomCursor as PlatformCustomCursor;
-pub(crate) use crate::cursor::NoCustomCursor as PlatformCustomCursorBuilder;
+pub(crate) use crate::cursor::{
+    NoCustomCursor as PlatformCustomCursor, NoCustomCursor as PlatformCustomCursorSource,
+};
 pub(crate) use crate::icon::NoIcon as PlatformIcon;
 
 #[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
@@ -263,5 +247,8 @@ impl VideoModeHandle {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct KeyEventExtra {}
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+pub struct KeyEventExtra {
+    pub key_without_modifiers: Key,
+    pub text_with_all_modifiers: Option<SmolStr>,
+}

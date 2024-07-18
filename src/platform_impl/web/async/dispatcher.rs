@@ -1,11 +1,11 @@
+use std::cell::Ref;
+use std::rc::Rc;
+use std::sync::{Arc, Condvar, Mutex};
+
 use super::super::main_thread::MainThreadMarker;
 use super::{channel, Receiver, Sender, Wrapper};
-use std::{
-    cell::Ref,
-    sync::{Arc, Condvar, Mutex},
-};
 
-pub struct Dispatcher<T: 'static>(Wrapper<true, T, Sender<Closure<T>>, Closure<T>>);
+pub struct Dispatcher<T: 'static>(Wrapper<T, Arc<Sender<Closure<T>>>, Closure<T>>);
 
 struct Closure<T>(Box<dyn FnOnce(&T) + Send>);
 
@@ -13,29 +13,32 @@ impl<T> Dispatcher<T> {
     #[track_caller]
     pub fn new(main_thread: MainThreadMarker, value: T) -> Option<(Self, DispatchRunner<T>)> {
         let (sender, receiver) = channel::<Closure<T>>();
+        let sender = Arc::new(sender);
+        let receiver = Rc::new(receiver);
 
         Wrapper::new(
             main_thread,
             value,
             |value, Closure(closure)| {
-                // SAFETY: The given `Closure` here isn't really `'static`, so we shouldn't do anything
-                // funny with it here. See `Self::queue()`.
+                // SAFETY: The given `Closure` here isn't really `'static`, so we shouldn't do
+                // anything funny with it here. See `Self::queue()`.
                 closure(value.borrow().as_ref().unwrap())
             },
             {
-                let receiver = receiver.clone();
+                let receiver = Rc::clone(&receiver);
                 move |value| async move {
                     while let Ok(Closure(closure)) = receiver.next().await {
-                        // SAFETY: The given `Closure` here isn't really `'static`, so we shouldn't do anything
-                        // funny with it here. See `Self::queue()`.
+                        // SAFETY: The given `Closure` here isn't really `'static`, so we shouldn't
+                        // do anything funny with it here. See
+                        // `Self::queue()`.
                         closure(value.borrow().as_ref().unwrap())
                     }
                 }
             },
             sender,
             |sender, closure| {
-                // SAFETY: The given `Closure` here isn't really `'static`, so we shouldn't do anything
-                // funny with it here. See `Self::queue()`.
+                // SAFETY: The given `Closure` here isn't really `'static`, so we shouldn't do
+                // anything funny with it here. See `Self::queue()`.
                 sender.send(closure).unwrap()
             },
         )
@@ -69,7 +72,12 @@ impl<T> Dispatcher<T> {
             // SAFETY: The `transmute` is necessary because `Closure` requires `'static`. This is
             // safe because this function won't return until `f` has finished executing. See
             // `Self::new()`.
-            let closure = Closure(unsafe { std::mem::transmute(closure) });
+            let closure = Closure(unsafe {
+                std::mem::transmute::<
+                    Box<dyn FnOnce(&T) + Send>,
+                    Box<dyn FnOnce(&T) + Send + 'static>,
+                >(closure)
+            });
 
             self.0.send(closure);
 
@@ -85,25 +93,18 @@ impl<T> Dispatcher<T> {
 }
 
 pub struct DispatchRunner<T: 'static> {
-    wrapper: Wrapper<true, T, Sender<Closure<T>>, Closure<T>>,
-    receiver: Receiver<Closure<T>>,
+    wrapper: Wrapper<T, Arc<Sender<Closure<T>>>, Closure<T>>,
+    receiver: Rc<Receiver<Closure<T>>>,
 }
 
 impl<T> DispatchRunner<T> {
     pub fn run(&self) {
-        while let Some(Closure(closure)) = self
-            .receiver
-            .try_recv()
-            .expect("should only be closed when `Dispatcher` is dropped")
+        while let Some(Closure(closure)) =
+            self.receiver.try_recv().expect("should only be closed when `Dispatcher` is dropped")
         {
             // SAFETY: The given `Closure` here isn't really `'static`, so we shouldn't do anything
             // funny with it here. See `Self::queue()`.
-            closure(
-                &self
-                    .wrapper
-                    .value()
-                    .expect("don't call this outside the main thread"),
-            )
+            closure(&self.wrapper.value().expect("don't call this outside the main thread"))
         }
     }
 }

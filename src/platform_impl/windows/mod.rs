@@ -1,34 +1,25 @@
-#![cfg(windows_platform)]
-
 use smol_str::SmolStr;
-use windows_sys::Win32::{
-    Foundation::{HANDLE, HWND},
-    UI::WindowsAndMessaging::{HMENU, WINDOW_LONG_PTR_INDEX},
-};
+use windows_sys::Win32::Foundation::{HANDLE, HWND};
+use windows_sys::Win32::UI::WindowsAndMessaging::{HMENU, WINDOW_LONG_PTR_INDEX};
 
-pub(crate) use self::{
-    event_loop::{
-        EventLoop, EventLoopProxy, EventLoopWindowTarget, OwnedDisplayHandle,
-        PlatformSpecificEventLoopAttributes,
-    },
-    icon::{SelectedCursor, WinIcon},
-    keyboard::{physicalkey_to_scancode, scancode_to_physicalkey},
-    monitor::{MonitorHandle, VideoModeHandle},
-    window::Window,
+pub(crate) use self::event_loop::{
+    ActiveEventLoop, EventLoop, EventLoopProxy, OwnedDisplayHandle,
+    PlatformSpecificEventLoopAttributes,
 };
-
-pub(crate) use self::icon::WinCursor as PlatformCustomCursor;
 pub use self::icon::WinIcon as PlatformIcon;
-pub(crate) use crate::cursor::OnlyCursorImageBuilder as PlatformCustomCursorBuilder;
-use crate::platform_impl::Fullscreen;
-
+pub(crate) use self::icon::{SelectedCursor, WinCursor as PlatformCustomCursor, WinIcon};
+pub(crate) use self::keyboard::{physicalkey_to_scancode, scancode_to_physicalkey};
+pub(crate) use self::monitor::{MonitorHandle, VideoModeHandle};
+pub(crate) use self::window::Window;
+pub(crate) use crate::cursor::OnlyCursorImageSource as PlatformCustomCursorSource;
 use crate::event::DeviceId as RootDeviceId;
 use crate::icon::Icon;
 use crate::keyboard::Key;
 use crate::platform::windows::{BackdropType, Color, CornerPreference};
+use crate::platform_impl::Fullscreen;
 
 #[derive(Clone, Debug)]
-pub struct PlatformSpecificWindowBuilderAttributes {
+pub struct PlatformSpecificWindowAttributes {
     pub owner: Option<HWND>,
     pub menu: Option<HMENU>,
     pub taskbar_icon: Option<Icon>,
@@ -45,7 +36,7 @@ pub struct PlatformSpecificWindowBuilderAttributes {
     pub corner_preference: Option<CornerPreference>,
 }
 
-impl Default for PlatformSpecificWindowBuilderAttributes {
+impl Default for PlatformSpecificWindowAttributes {
     fn default() -> Self {
         Self {
             owner: None,
@@ -66,20 +57,14 @@ impl Default for PlatformSpecificWindowBuilderAttributes {
     }
 }
 
-unsafe impl Send for PlatformSpecificWindowBuilderAttributes {}
-unsafe impl Sync for PlatformSpecificWindowBuilderAttributes {}
-
-// Cursor name in UTF-16. Used to set cursor in `WM_SETCURSOR`.
-#[derive(Debug, Clone, Copy)]
-pub struct Cursor(pub *const u16);
-unsafe impl Send for Cursor {}
-unsafe impl Sync for Cursor {}
+unsafe impl Send for PlatformSpecificWindowAttributes {}
+unsafe impl Sync for PlatformSpecificWindowAttributes {}
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct DeviceId(u32);
 
 impl DeviceId {
-    pub const unsafe fn dummy() -> Self {
+    pub const fn dummy() -> Self {
         DeviceId(0)
     }
 }
@@ -115,7 +100,7 @@ unsafe impl Send for WindowId {}
 unsafe impl Sync for WindowId {}
 
 impl WindowId {
-    pub const unsafe fn dummy() -> Self {
+    pub const fn dummy() -> Self {
         WindowId(0)
     }
 }
@@ -155,17 +140,17 @@ const fn get_y_lparam(x: u32) -> i16 {
 
 #[inline(always)]
 pub(crate) const fn primarylangid(lgid: u16) -> u16 {
-    lgid & 0x3FF
+    lgid & 0x3ff
 }
 
 #[inline(always)]
 pub(crate) const fn loword(x: u32) -> u16 {
-    (x & 0xFFFF) as u16
+    (x & 0xffff) as u16
 }
 
 #[inline(always)]
 const fn hiword(x: u32) -> u16 {
-    ((x >> 16) & 0xFFFF) as u16
+    ((x >> 16) & 0xffff) as u16
 }
 
 #[inline(always)]

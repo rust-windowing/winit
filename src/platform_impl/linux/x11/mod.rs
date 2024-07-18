@@ -1,4 +1,40 @@
-#![cfg(x11_platform)]
+use std::cell::{Cell, RefCell};
+use std::collections::{HashMap, HashSet, VecDeque};
+use std::ffi::CStr;
+use std::marker::PhantomData;
+use std::mem::MaybeUninit;
+use std::ops::Deref;
+use std::os::raw::*;
+use std::os::unix::io::{AsFd, AsRawFd, BorrowedFd, RawFd};
+use std::sync::mpsc::{self, Receiver, Sender, TryRecvError};
+use std::sync::{Arc, Weak};
+use std::time::{Duration, Instant};
+use std::{fmt, mem, ptr, slice, str};
+
+use calloop::generic::Generic;
+use calloop::ping::Ping;
+use calloop::{EventLoop as Loop, Readiness};
+use libc::{setlocale, LC_CTYPE};
+use tracing::warn;
+use x11rb::connection::RequestConnection;
+use x11rb::errors::{ConnectError, ConnectionError, IdsExhausted, ReplyError};
+use x11rb::protocol::xinput::{self, ConnectionExt as _};
+use x11rb::protocol::xkb;
+use x11rb::protocol::xproto::{self, ConnectionExt as _};
+use x11rb::x11_utils::X11Error as LogicalError;
+use x11rb::xcb_ffi::ReplyOrIdError;
+
+use crate::application::ApplicationHandler;
+use crate::error::{EventLoopError, OsError as RootOsError};
+use crate::event::{Event, StartCause, WindowEvent};
+use crate::event_loop::{ActiveEventLoop as RootAEL, ControlFlow, DeviceEvents};
+use crate::platform::pump_events::PumpStatus;
+use crate::platform_impl::common::xkb::Context;
+use crate::platform_impl::platform::{min_timeout, WindowId};
+use crate::platform_impl::{
+    ActiveEventLoop as PlatformActiveEventLoop, OsError, PlatformCustomCursor,
+};
+use crate::window::{CustomCursor as RootCustomCursor, CustomCursorSource, WindowAttributes};
 
 mod activation;
 mod atoms;
@@ -7,80 +43,27 @@ mod event_processor;
 pub mod ffi;
 mod ime;
 mod monitor;
-pub mod util;
+mod util;
 mod window;
 mod xdisplay;
 mod xsettings;
 
-pub(crate) use self::{
-    monitor::{MonitorHandle, VideoModeHandle},
-    window::UnownedWindow,
-    xdisplay::{XConnection, XError, XNotSupported},
-};
-
-use calloop::generic::Generic;
-use calloop::EventLoop as Loop;
-use calloop::{ping::Ping, Readiness};
-use log::warn;
-
-use std::{
-    cell::{Cell, RefCell},
-    collections::{HashMap, HashSet},
-    ffi::CStr,
-    fmt,
-    marker::PhantomData,
-    mem::MaybeUninit,
-    ops::Deref,
-    os::{
-        raw::*,
-        unix::io::{AsFd, AsRawFd, BorrowedFd, RawFd},
-    },
-    ptr,
-    rc::Rc,
-    slice, str,
-    sync::mpsc::{Receiver, Sender, TryRecvError},
-    sync::{mpsc, Arc, Weak},
-    time::{Duration, Instant},
-};
-
-use libc::{self, setlocale, LC_CTYPE};
-
 use atoms::*;
-
-use x11rb::x11_utils::X11Error as LogicalError;
-use x11rb::{
-    connection::RequestConnection,
-    protocol::{
-        xinput::{self, ConnectionExt as _},
-        xkb,
-        xproto::{self, ConnectionExt as _},
-    },
-};
-use x11rb::{
-    errors::{ConnectError, ConnectionError, IdsExhausted, ReplyError},
-    xcb_ffi::ReplyOrIdError,
-};
-
-pub(super) use self::util::CustomCursor;
-use self::{
-    dnd::{Dnd, DndState},
-    event_processor::EventProcessor,
-    ime::{Ime, ImeCreationError, ImeReceiver, ImeRequest, ImeSender},
-};
-use super::{common::xkb_state::KbdState, ControlFlow, OsError};
-use crate::{
-    error::{EventLoopError, OsError as RootOsError},
-    event::{Event, StartCause, WindowEvent},
-    event_loop::{DeviceEvents, EventLoopClosed, EventLoopWindowTarget as RootELW},
-    platform::pump_events::PumpStatus,
-    platform_impl::platform::{min_timeout, WindowId},
-    window::WindowAttributes,
-};
+use dnd::{Dnd, DndState};
+use event_processor::{EventProcessor, MAX_MOD_REPLAY_LEN};
+use ime::{Ime, ImeCreationError, ImeReceiver, ImeRequest, ImeSender};
+pub(crate) use monitor::{MonitorHandle, VideoModeHandle};
+pub use util::CustomCursor;
+use window::UnownedWindow;
+pub(crate) use xdisplay::{XConnection, XError, XNotSupported};
 
 // Xinput constants not defined in x11rb
 const ALL_DEVICES: u16 = 0;
 const ALL_MASTER_DEVICES: u16 = 1;
 const ICONIC_STATE: u32 = 3;
+
+/// The underlying x11rb connection that we are using.
+type X11rbConnection = x11rb::xcb_ffi::XCBConnection;
 
 type X11Source = Generic<BorrowedFd<'static>>;
 
@@ -91,20 +74,16 @@ struct WakeSender<T> {
 
 impl<T> Clone for WakeSender<T> {
     fn clone(&self) -> Self {
-        Self {
-            sender: self.sender.clone(),
-            waker: self.waker.clone(),
-        }
+        Self { sender: self.sender.clone(), waker: self.waker.clone() }
     }
 }
 
 impl<T> WakeSender<T> {
-    pub fn send(&self, t: T) -> Result<(), EventLoopClosed<T>> {
-        let res = self.sender.send(t).map_err(|e| EventLoopClosed(e.0));
+    pub fn send(&self, t: T) {
+        let res = self.sender.send(t);
         if res.is_ok() {
             self.waker.ping();
         }
-        res
     }
 }
 
@@ -117,6 +96,7 @@ impl<T> PeekableReceiver<T> {
     pub fn from_recv(recv: Receiver<T>) -> Self {
         Self { recv, first: None }
     }
+
     pub fn has_incoming(&mut self) -> bool {
         if self.first.is_some() {
             return true;
@@ -126,14 +106,15 @@ impl<T> PeekableReceiver<T> {
             Ok(v) => {
                 self.first = Some(v);
                 true
-            }
+            },
             Err(TryRecvError::Empty) => false,
             Err(TryRecvError::Disconnected) => {
                 warn!("Channel was disconnected when checking incoming");
                 false
-            }
+            },
         }
     }
+
     pub fn try_recv(&mut self) -> Result<T, TryRecvError> {
         if let Some(first) = self.first.take() {
             return Ok(first);
@@ -142,7 +123,7 @@ impl<T> PeekableReceiver<T> {
     }
 }
 
-pub struct EventLoopWindowTarget {
+pub struct ActiveEventLoop {
     xconn: Arc<XConnection>,
     wm_delete_window: xproto::Atom,
     net_wm_ping: xproto::Atom,
@@ -150,23 +131,20 @@ pub struct EventLoopWindowTarget {
     control_flow: Cell<ControlFlow>,
     exit: Cell<Option<i32>>,
     root: xproto::Window,
-    ime: RefCell<Ime>,
+    ime: Option<RefCell<Ime>>,
     windows: RefCell<HashMap<WindowId, Weak<UnownedWindow>>>,
     redraw_sender: WakeSender<WindowId>,
     activation_sender: WakeSender<ActivationToken>,
+    event_loop_proxy: EventLoopProxy,
     device_events: Cell<DeviceEvents>,
 }
 
-pub struct EventLoop<T: 'static> {
+pub struct EventLoop {
     loop_running: bool,
     event_loop: Loop<'static, EventLoopState>,
-    waker: calloop::ping::Ping,
     event_processor: EventProcessor,
     redraw_receiver: PeekableReceiver<WindowId>,
-    user_receiver: PeekableReceiver<T>,
     activation_receiver: PeekableReceiver<ActivationToken>,
-    user_sender: Sender<T>,
-    target: Rc<RootELW>,
 
     /// The current state of the event loop.
     state: EventLoopState,
@@ -177,22 +155,13 @@ type ActivationToken = (WindowId, crate::event_loop::AsyncRequestSerial);
 struct EventLoopState {
     /// The latest readiness state for the x11 file descriptor
     x11_readiness: Readiness,
+
+    /// User requested a wake up.
+    proxy_wake_up: bool,
 }
 
-pub struct EventLoopProxy<T: 'static> {
-    user_sender: WakeSender<T>,
-}
-
-impl<T: 'static> Clone for EventLoopProxy<T> {
-    fn clone(&self) -> Self {
-        EventLoopProxy {
-            user_sender: self.user_sender.clone(),
-        }
-    }
-}
-
-impl<T: 'static> EventLoop<T> {
-    pub(crate) fn new(xconn: Arc<XConnection>) -> EventLoop<T> {
+impl EventLoop {
+    pub(crate) fn new(xconn: Arc<XConnection>) -> EventLoop {
         let root = xconn.default_root().root;
         let atoms = xconn.atoms();
 
@@ -227,17 +196,18 @@ impl<T: 'static> EventLoop<T> {
                 setlocale(LC_CTYPE, default_locale);
             }
         }
-        let ime = RefCell::new({
-            let result = Ime::new(Arc::clone(&xconn), ime_event_sender);
-            if let Err(ImeCreationError::OpenFailure(ref state)) = result {
-                panic!("Failed to open input method: {state:#?}");
-            }
-            result.expect("Failed to set input method destruction callback")
-        });
 
-        let randr_event_offset = xconn
-            .select_xrandr_input(root)
-            .expect("Failed to query XRandR extension");
+        let ime = Ime::new(Arc::clone(&xconn), ime_event_sender);
+        if let Err(ImeCreationError::OpenFailure(state)) = ime.as_ref() {
+            warn!("Failed to open input method: {state:#?}");
+        } else if let Err(err) = ime.as_ref() {
+            warn!("Failed to set input method destruction callback: {err:?}");
+        }
+
+        let ime = ime.ok().map(RefCell::new);
+
+        let randr_event_offset =
+            xconn.select_xrandr_input(root).expect("Failed to query XRandR extension");
 
         let xi2ext = xconn
             .xcb_connection()
@@ -295,12 +265,24 @@ impl<T: 'static> EventLoop<T> {
         let (activation_token_sender, activation_token_channel) = mpsc::channel();
 
         // Create a channel for sending user events.
-        let (user_sender, user_channel) = mpsc::channel();
+        let (user_waker, user_waker_source) =
+            calloop::ping::make_ping().expect("Failed to create user event loop waker.");
+        event_loop
+            .handle()
+            .insert_source(user_waker_source, move |_, _, state| {
+                // No extra handling is required, we just need to wake-up.
+                state.proxy_wake_up = true;
+            })
+            .expect("Failed to register the event loop waker source");
+        let event_loop_proxy = EventLoopProxy::new(user_waker);
 
-        let kb_state =
-            KbdState::from_x11_xkb(xconn.xcb_connection().get_raw_xcb_connection()).unwrap();
+        let xkb_context =
+            Context::from_x11_xkb(xconn.xcb_connection().get_raw_xcb_connection()).unwrap();
 
-        let window_target = EventLoopWindowTarget {
+        let mut xmodmap = util::ModifierKeymap::new();
+        xmodmap.reload_from_x_connection(&xconn);
+
+        let window_target = ActiveEventLoop {
             ime,
             root,
             control_flow: Cell::new(ControlFlow::default()),
@@ -318,27 +300,28 @@ impl<T: 'static> EventLoop<T> {
                 sender: activation_token_sender, // not used again so no clone
                 waker: waker.clone(),
             },
+            event_loop_proxy,
             device_events: Default::default(),
         };
 
         // Set initial device event filter.
         window_target.update_listen_device_events(true);
 
-        let target = Rc::new(RootELW {
-            p: super::EventLoopWindowTarget::X(window_target),
-            _marker: PhantomData,
-        });
+        let root_window_target =
+            RootAEL { p: PlatformActiveEventLoop::X(window_target), _marker: PhantomData };
 
         let event_processor = EventProcessor {
-            target: target.clone(),
+            target: root_window_target,
             dnd,
             devices: Default::default(),
             randr_event_offset,
             ime_receiver,
             ime_event_receiver,
             xi2ext,
+            xfiltered_modifiers: VecDeque::with_capacity(MAX_MOD_REPLAY_LEN),
+            xmodmap,
             xkbext,
-            kb_state,
+            xkb_context,
             num_touch: 0,
             held_key_press: None,
             first_touch: None,
@@ -349,8 +332,9 @@ impl<T: 'static> EventLoop<T> {
 
         // Register for device hotplug events
         // (The request buffer is flushed during `init_device`)
-        get_xtarget(&target)
-            .xconn
+        let xconn = &EventProcessor::window_target(&event_processor.target).xconn;
+
+        xconn
             .select_xinput_events(
                 root,
                 ALL_DEVICES,
@@ -358,8 +342,7 @@ impl<T: 'static> EventLoop<T> {
             )
             .expect_then_ignore_error("Failed to register for XInput2 device hotplug events");
 
-        get_xtarget(&target)
-            .xconn
+        xconn
             .select_xkb_events(
                 0x100, // Use the "core keyboard device"
                 xkb::EventType::NEW_KEYBOARD_NOTIFY
@@ -373,47 +356,37 @@ impl<T: 'static> EventLoop<T> {
         EventLoop {
             loop_running: false,
             event_loop,
-            waker,
             event_processor,
             redraw_receiver: PeekableReceiver::from_recv(redraw_channel),
             activation_receiver: PeekableReceiver::from_recv(activation_token_channel),
-            user_receiver: PeekableReceiver::from_recv(user_channel),
-            user_sender,
-            target,
-            state: EventLoopState {
-                x11_readiness: Readiness::EMPTY,
-            },
+            state: EventLoopState { x11_readiness: Readiness::EMPTY, proxy_wake_up: false },
         }
     }
 
-    pub fn create_proxy(&self) -> EventLoopProxy<T> {
-        EventLoopProxy {
-            user_sender: WakeSender {
-                sender: self.user_sender.clone(),
-                waker: self.waker.clone(),
-            },
-        }
+    pub(crate) fn window_target(&self) -> &RootAEL {
+        &self.event_processor.target
     }
 
-    pub(crate) fn window_target(&self) -> &RootELW {
-        &self.target
+    pub fn run_app<A: ApplicationHandler>(mut self, app: A) -> Result<(), EventLoopError> {
+        self.run_app_on_demand(app)
     }
 
-    pub fn run_on_demand<F>(&mut self, mut event_handler: F) -> Result<(), EventLoopError>
-    where
-        F: FnMut(Event<T>, &RootELW),
-    {
+    pub fn run_app_on_demand<A: ApplicationHandler>(
+        &mut self,
+        mut app: A,
+    ) -> Result<(), EventLoopError> {
+        self.event_processor.target.p.clear_exit();
         let exit = loop {
-            match self.pump_events(None, &mut event_handler) {
+            match self.pump_app_events(None, &mut app) {
                 PumpStatus::Exit(0) => {
                     break Ok(());
-                }
+                },
                 PumpStatus::Exit(code) => {
                     break Err(EventLoopError::ExitFailure(code));
-                }
+                },
                 _ => {
                     continue;
-                }
+                },
             }
         };
 
@@ -421,7 +394,7 @@ impl<T: 'static> EventLoop<T> {
         // `run_on_demand` calls but if they have only just dropped their
         // windows we need to make sure those last requests are sent to the
         // X Server.
-        let wt = get_xtarget(&self.target);
+        let wt = EventProcessor::window_target(&self.event_processor.target);
         wt.x_connection().sync_with_server().map_err(|x_err| {
             EventLoopError::Os(os_error!(OsError::XError(Arc::new(X11Error::Xlib(x_err)))))
         })?;
@@ -429,26 +402,27 @@ impl<T: 'static> EventLoop<T> {
         exit
     }
 
-    pub fn pump_events<F>(&mut self, timeout: Option<Duration>, mut callback: F) -> PumpStatus
-    where
-        F: FnMut(Event<T>, &RootELW),
-    {
+    pub fn pump_app_events<A: ApplicationHandler>(
+        &mut self,
+        timeout: Option<Duration>,
+        mut app: A,
+    ) -> PumpStatus {
         if !self.loop_running {
             self.loop_running = true;
 
             // run the initial loop iteration
-            self.single_iteration(&mut callback, StartCause::Init);
+            self.single_iteration(&mut app, StartCause::Init);
         }
 
         // Consider the possibility that the `StartCause::Init` iteration could
         // request to Exit.
         if !self.exiting() {
-            self.poll_events_with_timeout(timeout, &mut callback);
+            self.poll_events_with_timeout(timeout, &mut app);
         }
         if let Some(code) = self.exit_code() {
             self.loop_running = false;
 
-            callback(Event::LoopExiting, self.window_target());
+            app.exiting(self.window_target());
 
             PumpStatus::Exit(code)
         } else {
@@ -458,14 +432,15 @@ impl<T: 'static> EventLoop<T> {
 
     fn has_pending(&mut self) -> bool {
         self.event_processor.poll()
-            || self.user_receiver.has_incoming()
+            || self.state.proxy_wake_up
             || self.redraw_receiver.has_incoming()
     }
 
-    pub fn poll_events_with_timeout<F>(&mut self, mut timeout: Option<Duration>, mut callback: F)
-    where
-        F: FnMut(Event<T>, &RootELW),
-    {
+    fn poll_events_with_timeout<A: ApplicationHandler>(
+        &mut self,
+        mut timeout: Option<Duration>,
+        app: &mut A,
+    ) {
         let start = Instant::now();
 
         let has_pending = self.has_pending();
@@ -479,19 +454,17 @@ impl<T: 'static> EventLoop<T> {
                 ControlFlow::Poll => Some(Duration::ZERO),
                 ControlFlow::WaitUntil(wait_deadline) => {
                     Some(wait_deadline.saturating_duration_since(start))
-                }
+                },
             };
 
             min_timeout(control_flow_timeout, timeout)
         };
 
         self.state.x11_readiness = Readiness::EMPTY;
-        if let Err(error) = self
-            .event_loop
-            .dispatch(timeout, &mut self.state)
-            .map_err(std::io::Error::from)
+        if let Err(error) =
+            self.event_loop.dispatch(timeout, &mut self.state).map_err(std::io::Error::from)
         {
-            log::error!("Failed to poll for events: {error:?}");
+            tracing::error!("Failed to poll for events: {error:?}");
             let exit_code = error.raw_os_error().unwrap_or(1);
             self.set_exit_code(exit_code);
             return;
@@ -501,23 +474,14 @@ impl<T: 'static> EventLoop<T> {
         // to be considered here
         let cause = match self.control_flow() {
             ControlFlow::Poll => StartCause::Poll,
-            ControlFlow::Wait => StartCause::WaitCancelled {
-                start,
-                requested_resume: None,
-            },
+            ControlFlow::Wait => StartCause::WaitCancelled { start, requested_resume: None },
             ControlFlow::WaitUntil(deadline) => {
                 if Instant::now() < deadline {
-                    StartCause::WaitCancelled {
-                        start,
-                        requested_resume: Some(deadline),
-                    }
+                    StartCause::WaitCancelled { start, requested_resume: Some(deadline) }
                 } else {
-                    StartCause::ResumeTimeReached {
-                        start,
-                        requested_resume: deadline,
-                    }
+                    StartCause::ResumeTimeReached { start, requested_resume: deadline }
                 }
-            }
+            },
         };
 
         // False positive / spurious wake ups could lead to us spamming
@@ -529,63 +493,51 @@ impl<T: 'static> EventLoop<T> {
         // running a loop iteration.
         // If we don't have any pending `_receiver`
         if !self.has_pending()
-            && !matches!(
-                &cause,
-                StartCause::ResumeTimeReached { .. } | StartCause::Poll
-            )
+            && !matches!(&cause, StartCause::ResumeTimeReached { .. } | StartCause::Poll)
         {
             return;
         }
 
-        self.single_iteration(&mut callback, cause);
+        self.single_iteration(app, cause);
     }
 
-    fn single_iteration<F>(&mut self, callback: &mut F, cause: StartCause)
-    where
-        F: FnMut(Event<T>, &RootELW),
-    {
-        callback(crate::event::Event::NewEvents(cause), &self.target);
+    fn single_iteration<A: ApplicationHandler>(&mut self, app: &mut A, cause: StartCause) {
+        app.new_events(&self.event_processor.target, cause);
 
-        // NB: For consistency all platforms must emit a 'resumed' event even though X11
-        // applications don't themselves have a formal suspend/resume lifecycle.
+        // NB: For consistency all platforms must call `can_create_surfaces` even though X11
+        // applications don't themselves have a formal surface destroy/create lifecycle.
         if cause == StartCause::Init {
-            callback(crate::event::Event::Resumed, &self.target);
+            app.can_create_surfaces(&self.event_processor.target)
         }
 
         // Process all pending events
-        self.drain_events(callback);
+        self.drain_events(app);
 
         // Empty activation tokens.
         while let Ok((window_id, serial)) = self.activation_receiver.try_recv() {
-            let token = self
-                .event_processor
-                .with_window(window_id.0 as xproto::Window, |window| {
-                    window.generate_activation_token()
-                });
+            let token = self.event_processor.with_window(window_id.0 as xproto::Window, |window| {
+                window.generate_activation_token()
+            });
 
             match token {
-                Some(Ok(token)) => callback(
-                    crate::event::Event::WindowEvent {
-                        window_id: crate::window::WindowId(window_id),
-                        event: crate::event::WindowEvent::ActivationTokenDone {
-                            serial,
-                            token: crate::window::ActivationToken::_new(token),
-                        },
-                    },
-                    &self.target,
-                ),
+                Some(Ok(token)) => {
+                    let window_id = crate::window::WindowId(window_id);
+                    let event = WindowEvent::ActivationTokenDone {
+                        serial,
+                        token: crate::window::ActivationToken::_new(token),
+                    };
+                    app.window_event(&self.event_processor.target, window_id, event);
+                },
                 Some(Err(e)) => {
-                    log::error!("Failed to get activation token: {}", e);
-                }
-                None => {}
+                    tracing::error!("Failed to get activation token: {}", e);
+                },
+                None => {},
             }
         }
 
         // Empty the user event buffer
-        {
-            while let Ok(event) = self.user_receiver.try_recv() {
-                callback(crate::event::Event::UserEvent(event), &self.target);
-            }
+        if mem::take(&mut self.state.proxy_wake_up) {
+            app.proxy_wake_up(&self.event_processor.target);
         }
 
         // Empty the redraw requests
@@ -598,84 +550,82 @@ impl<T: 'static> EventLoop<T> {
 
             for window_id in windows {
                 let window_id = crate::window::WindowId(window_id);
-                callback(
-                    Event::WindowEvent {
-                        window_id,
-                        event: WindowEvent::RedrawRequested,
-                    },
-                    &self.target,
+                app.window_event(
+                    &self.event_processor.target,
+                    window_id,
+                    WindowEvent::RedrawRequested,
                 );
             }
         }
 
         // This is always the last event we dispatch before poll again
-        {
-            callback(crate::event::Event::AboutToWait, &self.target);
-        }
+        app.about_to_wait(&self.event_processor.target);
     }
 
-    fn drain_events<F>(&mut self, callback: &mut F)
-    where
-        F: FnMut(Event<T>, &RootELW),
-    {
-        let target = &self.target;
+    fn drain_events<A: ApplicationHandler>(&mut self, app: &mut A) {
         let mut xev = MaybeUninit::uninit();
-        let wt = get_xtarget(&self.target);
 
         while unsafe { self.event_processor.poll_one_event(xev.as_mut_ptr()) } {
             let mut xev = unsafe { xev.assume_init() };
-            self.event_processor.process_event(&mut xev, |event| {
+            self.event_processor.process_event(&mut xev, |window_target, event: Event| {
                 if let Event::WindowEvent {
                     window_id: crate::window::WindowId(wid),
                     event: WindowEvent::RedrawRequested,
                 } = event
                 {
-                    wt.redraw_sender.send(wid).unwrap();
+                    let window_target = EventProcessor::window_target(window_target);
+                    window_target.redraw_sender.send(wid);
                 } else {
-                    callback(event, target);
+                    match event {
+                        Event::WindowEvent { window_id, event } => {
+                            app.window_event(window_target, window_id, event)
+                        },
+                        Event::DeviceEvent { device_id, event } => {
+                            app.device_event(window_target, device_id, event)
+                        },
+                        _ => unreachable!("event which is neither device nor window event."),
+                    }
                 }
             });
         }
     }
 
     fn control_flow(&self) -> ControlFlow {
-        self.target.p.control_flow()
+        let window_target = EventProcessor::window_target(&self.event_processor.target);
+        window_target.control_flow()
     }
 
     fn exiting(&self) -> bool {
-        self.target.p.exiting()
+        let window_target = EventProcessor::window_target(&self.event_processor.target);
+        window_target.exiting()
     }
 
     fn set_exit_code(&self, code: i32) {
-        self.target.p.set_exit_code(code)
+        self.window_target().p.set_exit_code(code);
     }
 
     fn exit_code(&self) -> Option<i32> {
-        self.target.p.exit_code()
+        self.window_target().p.exit_code()
     }
 }
 
-impl<T> AsFd for EventLoop<T> {
+impl AsFd for EventLoop {
     fn as_fd(&self) -> BorrowedFd<'_> {
         self.event_loop.as_fd()
     }
 }
 
-impl<T> AsRawFd for EventLoop<T> {
+impl AsRawFd for EventLoop {
     fn as_raw_fd(&self) -> RawFd {
         self.event_loop.as_raw_fd()
     }
 }
 
-pub(crate) fn get_xtarget(target: &RootELW) -> &EventLoopWindowTarget {
-    match target.p {
-        super::EventLoopWindowTarget::X(ref target) => target,
-        #[cfg(wayland_platform)]
-        _ => unreachable!(),
+impl ActiveEventLoop {
+    pub fn create_proxy(&self) -> EventLoopProxy {
+        self.event_loop_proxy.clone()
     }
-}
 
-impl EventLoopWindowTarget {
     /// Returns the `XConnection` of this events loop.
     #[inline]
     pub(crate) fn x_connection(&self) -> &Arc<XConnection> {
@@ -688,6 +638,10 @@ impl EventLoopWindowTarget {
 
     pub fn primary_monitor(&self) -> Option<MonitorHandle> {
         self.xconn.primary_monitor().ok()
+    }
+
+    pub(crate) fn create_custom_cursor(&self, cursor: CustomCursorSource) -> RootCustomCursor {
+        RootCustomCursor { inner: PlatformCustomCursor::X(CustomCursor::new(self, cursor.inner)) }
     }
 
     pub fn listen_device_events(&self, allowed: DeviceEvents) {
@@ -765,11 +719,9 @@ impl EventLoopWindowTarget {
     }
 }
 
-impl<T: 'static> EventLoopProxy<T> {
-    pub fn send_event(&self, event: T) -> Result<(), EventLoopClosed<T>> {
-        self.user_sender
-            .send(event)
-            .map_err(|e| EventLoopClosed(e.0))
+impl EventLoopProxy {
+    pub fn wake_up(&self) {
+        self.ping.ping();
     }
 }
 
@@ -789,11 +741,7 @@ impl<'a> DeviceInfo<'a> {
             if info.is_null() || count == 0 {
                 None
             } else {
-                Some(DeviceInfo {
-                    xconn,
-                    info,
-                    count: count as usize,
-                })
+                Some(DeviceInfo { xconn, info, count: count as usize })
             }
         }
     }
@@ -808,6 +756,7 @@ impl<'a> Drop for DeviceInfo<'a> {
 
 impl<'a> Deref for DeviceInfo<'a> {
     type Target = [ffi::XIDeviceInfo];
+
     fn deref(&self) -> &Self::Target {
         unsafe { slice::from_raw_parts(self.info, self.count) }
     }
@@ -818,7 +767,7 @@ pub struct DeviceId(xinput::DeviceId);
 
 impl DeviceId {
     #[allow(unused)]
-    pub const unsafe fn dummy() -> Self {
+    pub const fn dummy() -> Self {
         DeviceId(0)
     }
 }
@@ -827,6 +776,7 @@ pub(crate) struct Window(Arc<UnownedWindow>);
 
 impl Deref for Window {
     type Target = UnownedWindow;
+
     #[inline]
     fn deref(&self) -> &UnownedWindow {
         &self.0
@@ -835,14 +785,11 @@ impl Deref for Window {
 
 impl Window {
     pub(crate) fn new(
-        event_loop: &EventLoopWindowTarget,
+        event_loop: &ActiveEventLoop,
         attribs: WindowAttributes,
     ) -> Result<Self, RootOsError> {
         let window = Arc::new(UnownedWindow::new(event_loop, attribs)?);
-        event_loop
-            .windows
-            .borrow_mut()
-            .insert(window.id(), Arc::downgrade(&window));
+        event_loop.windows.borrow_mut().insert(window.id(), Arc::downgrade(&window));
         Ok(Window(window))
     }
 }
@@ -852,12 +799,20 @@ impl Drop for Window {
         let window = self.deref();
         let xconn = &window.xconn;
 
-        if let Ok(c) = xconn
-            .xcb_connection()
-            .destroy_window(window.id().0 as xproto::Window)
-        {
+        if let Ok(c) = xconn.xcb_connection().destroy_window(window.id().0 as xproto::Window) {
             c.ignore_error();
         }
+    }
+}
+
+#[derive(Clone)]
+pub struct EventLoopProxy {
+    ping: Ping,
+}
+
+impl EventLoopProxy {
+    fn new(ping: Ping) -> Self {
+        Self { ping }
     }
 }
 
@@ -893,6 +848,9 @@ pub enum X11Error {
 
     /// Unable to parse xsettings.
     XsettingsParse(xsettings::ParserError),
+
+    /// Failed to get property.
+    GetProperty(util::GetPropertyError),
 }
 
 impl fmt::Display for X11Error {
@@ -902,6 +860,7 @@ impl fmt::Display for X11Error {
             X11Error::Connect(e) => write!(f, "X11 connection error: {}", e),
             X11Error::Connection(e) => write!(f, "X11 connection error: {}", e),
             X11Error::XidsExhausted(e) => write!(f, "XID range exhausted: {}", e),
+            X11Error::GetProperty(e) => write!(f, "Failed to get X property {}", e),
             X11Error::X11(e) => write!(f, "X11 error: {:?}", e),
             X11Error::UnexpectedNull(s) => write!(f, "Xlib function returned null: {}", s),
             X11Error::InvalidActivationToken(s) => write!(
@@ -911,15 +870,11 @@ impl fmt::Display for X11Error {
             ),
             X11Error::MissingExtension(s) => write!(f, "Missing X11 extension: {}", s),
             X11Error::NoSuchVisual(visualid) => {
-                write!(
-                    f,
-                    "Could not find a matching X11 visual for ID `{:x}`",
-                    visualid
-                )
-            }
+                write!(f, "Could not find a matching X11 visual for ID `{:x}`", visualid)
+            },
             X11Error::XsettingsParse(err) => {
                 write!(f, "Failed to parse xsettings: {:?}", err)
-            }
+            },
         }
     }
 }
@@ -994,8 +949,11 @@ impl From<xsettings::ParserError> for X11Error {
     }
 }
 
-/// The underlying x11rb connection that we are using.
-type X11rbConnection = x11rb::xcb_ffi::XCBConnection;
+impl From<util::GetPropertyError> for X11Error {
+    fn from(value: util::GetPropertyError) -> Self {
+        Self::GetProperty(value)
+    }
+}
 
 /// Type alias for a void cookie.
 type VoidCookie<'a> = x11rb::cookie::VoidCookie<'a, X11rbConnection>;
@@ -1012,34 +970,6 @@ impl<'a, E: fmt::Debug> CookieResultExt for Result<VoidCookie<'a>, E> {
     }
 }
 
-/// XEvents of type GenericEvent store their actual data in an XGenericEventCookie data structure. This is a wrapper to
-/// extract the cookie from a GenericEvent XEvent and release the cookie data once it has been processed
-struct GenericEventCookie<'a> {
-    xconn: &'a XConnection,
-    cookie: ffi::XGenericEventCookie,
-}
-
-impl<'a> GenericEventCookie<'a> {
-    fn from_event(xconn: &XConnection, event: ffi::XEvent) -> Option<GenericEventCookie<'_>> {
-        unsafe {
-            let mut cookie: ffi::XGenericEventCookie = From::from(event);
-            if (xconn.xlib.XGetEventData)(xconn.display, &mut cookie) == ffi::True {
-                Some(GenericEventCookie { xconn, cookie })
-            } else {
-                None
-            }
-        }
-    }
-}
-
-impl<'a> Drop for GenericEventCookie<'a> {
-    fn drop(&mut self) {
-        unsafe {
-            (self.xconn.xlib.XFreeEventData)(self.xconn.display, &mut self.cookie);
-        }
-    }
-}
-
 fn mkwid(w: xproto::Window) -> crate::window::WindowId {
     crate::window::WindowId(crate::platform_impl::platform::WindowId(w as _))
 }
@@ -1048,7 +978,7 @@ fn mkdid(w: xinput::DeviceId) -> crate::event::DeviceId {
 }
 
 #[derive(Debug)]
-struct Device {
+pub struct Device {
     _name: String,
     scroll_axes: Vec<(i32, ScrollAxis)>,
     // For master devices, this is the paired device (pointer <-> keyboard).
@@ -1080,27 +1010,21 @@ impl Device {
                 let ty = unsafe { (*class_ptr)._type };
                 if ty == ffi::XIScrollClass {
                     let info = unsafe { &*(class_ptr as *const ffi::XIScrollClassInfo) };
-                    scroll_axes.push((
-                        info.number,
-                        ScrollAxis {
-                            increment: info.increment,
-                            orientation: match info.scroll_type {
-                                ffi::XIScrollTypeHorizontal => ScrollOrientation::Horizontal,
-                                ffi::XIScrollTypeVertical => ScrollOrientation::Vertical,
-                                _ => unreachable!(),
-                            },
-                            position: 0.0,
+                    scroll_axes.push((info.number, ScrollAxis {
+                        increment: info.increment,
+                        orientation: match info.scroll_type {
+                            ffi::XIScrollTypeHorizontal => ScrollOrientation::Horizontal,
+                            ffi::XIScrollTypeVertical => ScrollOrientation::Vertical,
+                            _ => unreachable!(),
                         },
-                    ));
+                        position: 0.0,
+                    }));
                 }
             }
         }
 
-        let mut device = Device {
-            _name: name.into_owned(),
-            scroll_axes,
-            attachment: info.attachment,
-        };
+        let mut device =
+            Device { _name: name.into_owned(), scroll_axes, attachment: info.attachment };
         device.reset_scroll_position(info);
         device
     }
@@ -1111,10 +1035,8 @@ impl Device {
                 let ty = unsafe { (*class_ptr)._type };
                 if ty == ffi::XIValuatorClass {
                     let info = unsafe { &*(class_ptr as *const ffi::XIValuatorClassInfo) };
-                    if let Some(&mut (_, ref mut axis)) = self
-                        .scroll_axes
-                        .iter_mut()
-                        .find(|&&mut (axis, _)| axis == info.number)
+                    if let Some(&mut (_, ref mut axis)) =
+                        self.scroll_axes.iter_mut().find(|&&mut (axis, _)| axis == info.number)
                     {
                         axis.position = info.value;
                     }

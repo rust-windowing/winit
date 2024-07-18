@@ -1,31 +1,35 @@
 use crate::monitor::{MonitorHandle as RootMonitorHandle, VideoModeHandle as RootVideoModeHandle};
 use crate::window::Fullscreen as RootFullscreen;
 
-#[cfg(windows_platform)]
-#[path = "windows/mod.rs"]
-mod platform;
-#[cfg(any(x11_platform, wayland_platform))]
-#[path = "linux/mod.rs"]
-mod platform;
-#[cfg(macos_platform)]
-#[path = "macos/mod.rs"]
-mod platform;
 #[cfg(android_platform)]
-#[path = "android/mod.rs"]
-mod platform;
-#[cfg(ios_platform)]
-#[path = "ios/mod.rs"]
-mod platform;
-#[cfg(web_platform)]
-#[path = "web/mod.rs"]
-mod platform;
+mod android;
+#[cfg(target_vendor = "apple")]
+mod apple;
+#[cfg(any(x11_platform, wayland_platform))]
+mod linux;
 #[cfg(orbital_platform)]
-#[path = "orbital/mod.rs"]
-mod platform;
+mod orbital;
+#[cfg(web_platform)]
+mod web;
+#[cfg(windows_platform)]
+mod windows;
 
+#[cfg(android_platform)]
+use self::android as platform;
+#[cfg(target_vendor = "apple")]
+use self::apple as platform;
+#[cfg(any(x11_platform, wayland_platform))]
+use self::linux as platform;
+#[cfg(orbital_platform)]
+use self::orbital as platform;
 pub use self::platform::*;
+#[cfg(web_platform)]
+use self::web as platform;
+#[cfg(windows_platform)]
+use self::windows as platform;
 
-/// Helper for converting between platform-specific and generic [`VideoModeHandle`]/[`MonitorHandle`]
+/// Helper for converting between platform-specific and generic
+/// [`VideoModeHandle`]/[`MonitorHandle`]
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) enum Fullscreen {
     Exclusive(VideoModeHandle),
@@ -47,10 +51,10 @@ impl From<Fullscreen> for RootFullscreen {
         match f {
             Fullscreen::Exclusive(video_mode) => {
                 Self::Exclusive(RootVideoModeHandle { video_mode })
-            }
+            },
             Fullscreen::Borderless(Some(inner)) => {
                 Self::Borderless(Some(RootMonitorHandle { inner }))
-            }
+            },
             Fullscreen::Borderless(None) => Self::Borderless(None),
         }
     }

@@ -1,36 +1,38 @@
-//! The [`Event`] enum and assorted supporting types.
+//! The event enums and assorted supporting types.
 //!
-//! These are sent to the closure given to [`EventLoop::run(...)`], where they get
-//! processed and used to modify the program state. For more details, see the root-level documentation.
+//! These are sent to the closure given to [`EventLoop::run_app(...)`], where they get
+//! processed and used to modify the program state. For more details, see the root-level
+//! documentation.
 //!
 //! Some of these events represent different "parts" of a traditional event-handling loop. You could
-//! approximate the basic ordering loop of [`EventLoop::run(...)`] like this:
+//! approximate the basic ordering loop of [`EventLoop::run_app(...)`] like this:
 //!
 //! ```rust,ignore
 //! let mut start_cause = StartCause::Init;
 //!
 //! while !elwt.exiting() {
-//!     event_handler(NewEvents(start_cause), elwt);
+//!     app.new_events(event_loop, start_cause);
 //!
-//!     for e in (window events, user events, device events) {
-//!         event_handler(e, elwt);
+//!     for event in (window events, user events, device events) {
+//!         // This will pick the right method on the application based on the event.
+//!         app.handle_event(event_loop, event);
 //!     }
 //!
-//!     for w in (redraw windows) {
-//!         event_handler(RedrawRequested(w), elwt);
+//!     for window_id in (redraw windows) {
+//!         app.window_event(event_loop, window_id, RedrawRequested);
 //!     }
 //!
-//!     event_handler(AboutToWait, elwt);
+//!     app.about_to_wait(event_loop);
 //!     start_cause = wait_if_necessary();
 //! }
 //!
-//! event_handler(LoopExiting, elwt);
+//! app.exiting(event_loop);
 //! ```
 //!
 //! This leaves out timing details like [`ControlFlow::WaitUntil`] but hopefully
 //! describes what happens in what order.
 //!
-//! [`EventLoop::run(...)`]: crate::event_loop::EventLoop::run
+//! [`EventLoop::run_app(...)`]: crate::event_loop::EventLoop::run_app
 //! [`ControlFlow::WaitUntil`]: crate::event_loop::ControlFlow::WaitUntil
 use std::path::PathBuf;
 use std::sync::{Mutex, Weak};
@@ -43,234 +45,73 @@ use smol_str::SmolStr;
 #[cfg(web_platform)]
 use web_time::Instant;
 
+use crate::dpi::{PhysicalPosition, PhysicalSize};
 use crate::error::ExternalError;
+use crate::event_loop::AsyncRequestSerial;
+use crate::keyboard::{self, ModifiersKeyState, ModifiersKeys, ModifiersState};
+use crate::platform_impl;
 #[cfg(doc)]
 use crate::window::Window;
-use crate::{
-    dpi::{PhysicalPosition, PhysicalSize},
-    event_loop::AsyncRequestSerial,
-    keyboard::{self, ModifiersKeyState, ModifiersKeys, ModifiersState},
-    platform_impl,
-    window::{ActivationToken, Theme, WindowId},
-};
+use crate::window::{ActivationToken, Theme, WindowId};
 
+// TODO: Remove once the backends can call `ApplicationHandler` methods directly. For now backends
+// like Windows and Web require `Event` to wire user events, otherwise each backend will have to
+// wrap `Event` in some other structure.
 /// Describes a generic event.
 ///
 /// See the module-level docs for more information on the event loop manages each event.
+#[allow(dead_code)]
 #[derive(Debug, Clone, PartialEq)]
-pub enum Event<T: 'static> {
-    /// Emitted when new events arrive from the OS to be processed.
+pub(crate) enum Event {
+    /// See [`ApplicationHandler::new_events`] for details.
     ///
-    /// This event type is useful as a place to put code that should be done before you start
-    /// processing events, such as updating frame timing information for benchmarking or checking
-    /// the [`StartCause`] to see if a timer set by
-    /// [`ControlFlow::WaitUntil`](crate::event_loop::ControlFlow::WaitUntil) has elapsed.
+    /// [`ApplicationHandler::new_events`]: crate::application::ApplicationHandler::new_events
     NewEvents(StartCause),
 
-    /// Emitted when the OS sends an event to a winit window.
-    WindowEvent {
-        window_id: WindowId,
-        event: WindowEvent,
-    },
+    /// See [`ApplicationHandler::window_event`] for details.
+    ///
+    /// [`ApplicationHandler::window_event`]: crate::application::ApplicationHandler::window_event
+    #[allow(clippy::enum_variant_names)]
+    WindowEvent { window_id: WindowId, event: WindowEvent },
 
-    /// Emitted when the OS sends an event to a device.
-    DeviceEvent {
-        device_id: DeviceId,
-        event: DeviceEvent,
-    },
+    /// See [`ApplicationHandler::device_event`] for details.
+    ///
+    /// [`ApplicationHandler::device_event`]: crate::application::ApplicationHandler::device_event
+    #[allow(clippy::enum_variant_names)]
+    DeviceEvent { device_id: DeviceId, event: DeviceEvent },
 
-    /// Emitted when an event is sent from [`EventLoopProxy::send_event`](crate::event_loop::EventLoopProxy::send_event)
-    UserEvent(T),
-
-    /// Emitted when the application has been suspended.
+    /// See [`ApplicationHandler::suspended`] for details.
     ///
-    /// # Portability
-    ///
-    /// Not all platforms support the notion of suspending applications, and there may be no
-    /// technical way to guarantee being able to emit a `Suspended` event if the OS has
-    /// no formal application lifecycle (currently only Android, iOS, and Web do). For this reason,
-    /// Winit does not currently try to emit pseudo `Suspended` events before the application
-    /// quits on platforms without an application lifecycle.
-    ///
-    /// Considering that the implementation of `Suspended` and [`Resumed`] events may be internally
-    /// driven by multiple platform-specific events, and that there may be subtle differences across
-    /// platforms with how these internal events are delivered, it's recommended that applications
-    /// be able to gracefully handle redundant (i.e. back-to-back) `Suspended` or [`Resumed`] events.
-    ///
-    /// Also see [`Resumed`] notes.
-    ///
-    /// ## Android
-    ///
-    /// On Android, the `Suspended` event is only sent when the application's associated
-    /// [`SurfaceView`] is destroyed. This is expected to closely correlate with the [`onPause`]
-    /// lifecycle event but there may technically be a discrepancy.
-    ///
-    /// [`onPause`]: https://developer.android.com/reference/android/app/Activity#onPause()
-    ///
-    /// Applications that need to run on Android should assume their [`SurfaceView`] has been
-    /// destroyed, which indirectly invalidates any existing render surfaces that may have been
-    /// created outside of Winit (such as an `EGLSurface`, [`VkSurfaceKHR`] or [`wgpu::Surface`]).
-    ///
-    /// After being `Suspended` on Android applications must drop all render surfaces before
-    /// the event callback completes, which may be re-created when the application is next [`Resumed`].
-    ///
-    /// [`SurfaceView`]: https://developer.android.com/reference/android/view/SurfaceView
-    /// [Activity lifecycle]: https://developer.android.com/guide/components/activities/activity-lifecycle
-    /// [`VkSurfaceKHR`]: https://www.khronos.org/registry/vulkan/specs/1.3-extensions/man/html/VkSurfaceKHR.html
-    /// [`wgpu::Surface`]: https://docs.rs/wgpu/latest/wgpu/struct.Surface.html
-    ///
-    /// ## iOS
-    ///
-    /// On iOS, the `Suspended` event is currently emitted in response to an
-    /// [`applicationWillResignActive`] callback which means that the application is
-    /// about to transition from the active to inactive state (according to the
-    /// [iOS application lifecycle]).
-    ///
-    /// [`applicationWillResignActive`]: https://developer.apple.com/documentation/uikit/uiapplicationdelegate/1622950-applicationwillresignactive
-    /// [iOS application lifecycle]: https://developer.apple.com/documentation/uikit/app_and_environment/managing_your_app_s_life_cycle
-    ///
-    /// ## Web
-    ///
-    /// On Web, the `Suspended` event is emitted in response to a [`pagehide`] event
-    /// with the property [`persisted`] being true, which means that the page is being
-    /// put in the [`bfcache`] (back/forward cache) - an in-memory cache that stores a
-    /// complete snapshot of a page (including the JavaScript heap) as the user is
-    /// navigating away.
-    ///
-    /// [`pagehide`]: https://developer.mozilla.org/en-US/docs/Web/API/Window/pagehide_event
-    /// [`persisted`]: https://developer.mozilla.org/en-US/docs/Web/API/PageTransitionEvent/persisted
-    /// [`bfcache`]: https://web.dev/bfcache/
-    ///
-    /// [`Resumed`]: Self::Resumed
+    /// [`ApplicationHandler::suspended`]: crate::application::ApplicationHandler::suspended
     Suspended,
 
-    /// Emitted when the application has been resumed.
+    /// See [`ApplicationHandler::can_create_surfaces`] for details.
     ///
-    /// For consistency, all platforms emit a `Resumed` event even if they don't themselves have a
-    /// formal suspend/resume lifecycle. For systems without a standard suspend/resume lifecycle
-    /// the `Resumed` event is always emitted after the [`NewEvents(StartCause::Init)`][StartCause::Init]
-    /// event.
+    /// [`ApplicationHandler::can_create_surfaces`]: crate::application::ApplicationHandler::can_create_surfaces
+    CreateSurfaces,
+
+    /// See [`ApplicationHandler::resumed`] for details.
     ///
-    /// # Portability
-    ///
-    /// It's recommended that applications should only initialize their graphics context and create
-    /// a window after they have received their first `Resumed` event. Some systems
-    /// (specifically Android) won't allow applications to create a render surface until they are
-    /// resumed.
-    ///
-    /// Considering that the implementation of [`Suspended`] and `Resumed` events may be internally
-    /// driven by multiple platform-specific events, and that there may be subtle differences across
-    /// platforms with how these internal events are delivered, it's recommended that applications
-    /// be able to gracefully handle redundant (i.e. back-to-back) [`Suspended`] or `Resumed` events.
-    ///
-    /// Also see [`Suspended`] notes.
-    ///
-    /// ## Android
-    ///
-    /// On Android, the `Resumed` event is sent when a new [`SurfaceView`] has been created. This is
-    /// expected to closely correlate with the [`onResume`] lifecycle event but there may technically
-    /// be a discrepancy.
-    ///
-    /// [`onResume`]: https://developer.android.com/reference/android/app/Activity#onResume()
-    ///
-    /// Applications that need to run on Android must wait until they have been `Resumed`
-    /// before they will be able to create a render surface (such as an `EGLSurface`,
-    /// [`VkSurfaceKHR`] or [`wgpu::Surface`]) which depend on having a
-    /// [`SurfaceView`]. Applications must also assume that if they are [`Suspended`], then their
-    /// render surfaces are invalid and should be dropped.
-    ///
-    /// Also see [`Suspended`] notes.
-    ///
-    /// [`SurfaceView`]: https://developer.android.com/reference/android/view/SurfaceView
-    /// [Activity lifecycle]: https://developer.android.com/guide/components/activities/activity-lifecycle
-    /// [`VkSurfaceKHR`]: https://www.khronos.org/registry/vulkan/specs/1.3-extensions/man/html/VkSurfaceKHR.html
-    /// [`wgpu::Surface`]: https://docs.rs/wgpu/latest/wgpu/struct.Surface.html
-    ///
-    /// ## iOS
-    ///
-    /// On iOS, the `Resumed` event is emitted in response to an [`applicationDidBecomeActive`]
-    /// callback which means the application is "active" (according to the
-    /// [iOS application lifecycle]).
-    ///
-    /// [`applicationDidBecomeActive`]: https://developer.apple.com/documentation/uikit/uiapplicationdelegate/1622956-applicationdidbecomeactive
-    /// [iOS application lifecycle]: https://developer.apple.com/documentation/uikit/app_and_environment/managing_your_app_s_life_cycle
-    ///
-    /// ## Web
-    ///
-    /// On Web, the `Resumed` event is emitted in response to a [`pageshow`] event
-    /// with the property [`persisted`] being true, which means that the page is being
-    /// restored from the [`bfcache`] (back/forward cache) - an in-memory cache that
-    /// stores a complete snapshot of a page (including the JavaScript heap) as the
-    /// user is navigating away.
-    ///
-    /// [`pageshow`]: https://developer.mozilla.org/en-US/docs/Web/API/Window/pageshow_event
-    /// [`persisted`]: https://developer.mozilla.org/en-US/docs/Web/API/PageTransitionEvent/persisted
-    /// [`bfcache`]: https://web.dev/bfcache/
-    ///
-    /// [`Suspended`]: Self::Suspended
+    /// [`ApplicationHandler::resumed`]: crate::application::ApplicationHandler::resumed
     Resumed,
 
-    /// Emitted when the event loop is about to block and wait for new events.
+    /// See [`ApplicationHandler::about_to_wait`] for details.
     ///
-    /// Most applications shouldn't need to hook into this event since there is no real relationship
-    /// between how often the event loop needs to wake up and the dispatching of any specific events.
-    ///
-    /// High frequency event sources, such as input devices could potentially lead to lots of wake
-    /// ups and also lots of corresponding `AboutToWait` events.
-    ///
-    /// This is not an ideal event to drive application rendering from and instead applications
-    /// should render in response to [`WindowEvent::RedrawRequested`] events.
+    /// [`ApplicationHandler::about_to_wait`]: crate::application::ApplicationHandler::about_to_wait
     AboutToWait,
 
-    /// Emitted when the event loop is being shut down.
+    /// See [`ApplicationHandler::exiting`] for details.
     ///
-    /// This is irreversible - if this event is emitted, it is guaranteed to be the last event that
-    /// gets emitted. You generally want to treat this as a "do on quit" event.
+    /// [`ApplicationHandler::exiting`]: crate::application::ApplicationHandler::exiting
     LoopExiting,
 
-    /// Emitted when the application has received a memory warning.
+    /// See [`ApplicationHandler::memory_warning`] for details.
     ///
-    /// ## Platform-specific
-    ///
-    /// ### Android
-    ///
-    /// On Android, the `MemoryWarning` event is sent when [`onLowMemory`] was called. The application
-    /// must [release memory] or risk being killed.
-    ///
-    /// [`onLowMemory`]: https://developer.android.com/reference/android/app/Application.html#onLowMemory()
-    /// [release memory]: https://developer.android.com/topic/performance/memory#release
-    ///
-    /// ### iOS
-    ///
-    /// On iOS, the `MemoryWarning` event is emitted in response to an [`applicationDidReceiveMemoryWarning`]
-    /// callback. The application must free as much memory as possible or risk being terminated, see
-    /// [how to respond to memory warnings].
-    ///
-    /// [`applicationDidReceiveMemoryWarning`]: https://developer.apple.com/documentation/uikit/uiapplicationdelegate/1623063-applicationdidreceivememorywarni
-    /// [how to respond to memory warnings]: https://developer.apple.com/documentation/uikit/app_and_environment/managing_your_app_s_life_cycle/responding_to_memory_warnings
-    ///
-    /// ### Others
-    ///
-    /// - **macOS / Wayland / Windows / Orbital:** Unsupported.
+    /// [`ApplicationHandler::memory_warning`]: crate::application::ApplicationHandler::memory_warning
     MemoryWarning,
-}
 
-impl<T> Event<T> {
-    #[allow(clippy::result_large_err)]
-    pub fn map_nonuser_event<U>(self) -> Result<Event<U>, Event<T>> {
-        use self::Event::*;
-        match self {
-            UserEvent(_) => Err(self),
-            WindowEvent { window_id, event } => Ok(WindowEvent { window_id, event }),
-            DeviceEvent { device_id, event } => Ok(DeviceEvent { device_id, event }),
-            NewEvents(cause) => Ok(NewEvents(cause)),
-            AboutToWait => Ok(AboutToWait),
-            LoopExiting => Ok(LoopExiting),
-            Suspended => Ok(Suspended),
-            Resumed => Ok(Resumed),
-            MemoryWarning => Ok(MemoryWarning),
-        }
-    }
+    /// User requested a wake up.
+    UserWakeUp,
 }
 
 /// Describes the reason the event loop is resuming.
@@ -281,17 +122,11 @@ pub enum StartCause {
     /// guaranteed to be equal to or after the requested resume time.
     ///
     /// [`ControlFlow::WaitUntil`]: crate::event_loop::ControlFlow::WaitUntil
-    ResumeTimeReached {
-        start: Instant,
-        requested_resume: Instant,
-    },
+    ResumeTimeReached { start: Instant, requested_resume: Instant },
 
     /// Sent if the OS has new events to send to the window, after a wait was requested. Contains
     /// the moment the wait was requested and the resume time, if requested.
-    WaitCancelled {
-        start: Instant,
-        requested_resume: Option<Instant>,
-    },
+    WaitCancelled { start: Instant, requested_resume: Option<Instant> },
 
     /// Sent if the event loop is being resumed after the loop's control flow was set to
     /// [`ControlFlow::Poll`].
@@ -307,18 +142,11 @@ pub enum StartCause {
 #[derive(Debug, Clone, PartialEq)]
 pub enum WindowEvent {
     /// The activation token was delivered back and now could be used.
-    ///
-    #[cfg_attr(
-        not(any(x11_platform, wayland_platfrom)),
-        allow(rustdoc::broken_intra_doc_links)
-    )]
+    #[cfg_attr(not(any(x11_platform, wayland_platform)), allow(rustdoc::broken_intra_doc_links))]
     /// Delivered in response to [`request_activation_token`].
     ///
     /// [`request_activation_token`]: crate::platform::startup_notify::WindowExtStartupNotify::request_activation_token
-    ActivationTokenDone {
-        serial: AsyncRequestSerial,
-        token: ActivationToken,
-    },
+    ActivationTokenDone { serial: AsyncRequestSerial, token: ActivationToken },
 
     /// The size of the window has changed. Contains the client area's new dimensions.
     Resized(PhysicalSize<u32>),
@@ -372,10 +200,10 @@ pub enum WindowEvent {
         /// If `true`, the event was generated synthetically by winit
         /// in one of the following circumstances:
         ///
-        /// * Synthetic key press events are generated for all keys pressed
-        ///   when a window gains focus. Likewise, synthetic key release events
-        ///   are generated for all keys pressed when a window goes out of focus.
-        ///   ***Currently, this is only functional on X11 and Windows***
+        /// * Synthetic key press events are generated for all keys pressed when a window gains
+        ///   focus. Likewise, synthetic key release events are generated for all keys pressed when
+        ///   a window goes out of focus. ***Currently, this is only functional on X11 and
+        ///   Windows***
         ///
         /// Otherwise, this value is always `false`.
         is_synthetic: bool,
@@ -405,9 +233,10 @@ pub enum WindowEvent {
     CursorMoved {
         device_id: DeviceId,
 
-        /// (x,y) coords in pixels relative to the top-left corner of the window. Because the range of this data is
-        /// limited by the display area and it may have been transformed by the OS to implement effects such as cursor
-        /// acceleration, it should not be used to implement non-cursor-like interactions such as 3D camera control.
+        /// (x,y) coords in pixels relative to the top-left corner of the window. Because the range
+        /// of this data is limited by the display area and it may have been transformed by
+        /// the OS to implement effects such as cursor acceleration, it should not be used
+        /// to implement non-cursor-like interactions such as 3D camera control.
         position: PhysicalPosition<f64>,
     },
 
@@ -434,18 +263,10 @@ pub enum WindowEvent {
     CursorLeft { device_id: DeviceId },
 
     /// A mouse wheel movement or touchpad scroll occurred.
-    MouseWheel {
-        device_id: DeviceId,
-        delta: MouseScrollDelta,
-        phase: TouchPhase,
-    },
+    MouseWheel { device_id: DeviceId, delta: MouseScrollDelta, phase: TouchPhase },
 
     /// An mouse button press has been received.
-    MouseInput {
-        device_id: DeviceId,
-        state: ElementState,
-        button: MouseButton,
-    },
+    MouseInput { device_id: DeviceId, state: ElementState, button: MouseButton },
 
     /// Two-finger pinch gesture, often used for magnification.
     ///
@@ -463,6 +284,19 @@ pub enum WindowEvent {
         phase: TouchPhase,
     },
 
+    /// N-finger pan gesture
+    ///
+    /// ## Platform-specific
+    ///
+    /// - Only available on **iOS**.
+    /// - On iOS, not recognized by default. It must be enabled when needed.
+    PanGesture {
+        device_id: DeviceId,
+        /// Change in pixels of pan gesture from last update.
+        delta: PhysicalPosition<f32>,
+        phase: TouchPhase,
+    },
+
     /// Double tap gesture.
     ///
     /// On a Mac, smart magnification is triggered by a double tap with two fingers
@@ -473,7 +307,7 @@ pub enum WindowEvent {
     /// The event is general enough that its generating gesture is allowed to vary
     /// across platforms. It could also be generated by another device.
     ///
-    /// Unfortunatly, neither [Windows](https://support.microsoft.com/en-us/windows/touch-gestures-for-windows-a9d28305-4818-a5df-4e2b-e5590f850741)
+    /// Unfortunately, neither [Windows](https://support.microsoft.com/en-us/windows/touch-gestures-for-windows-a9d28305-4818-a5df-4e2b-e5590f850741)
     /// nor [Wayland](https://wayland.freedesktop.org/libinput/doc/latest/gestures.html)
     /// support this gesture or any other gesture with the same effect.
     ///
@@ -494,6 +328,7 @@ pub enum WindowEvent {
     /// - On iOS, not recognized by default. It must be enabled when needed.
     RotationGesture {
         device_id: DeviceId,
+        /// change in rotation in degrees
         delta: f32,
         phase: TouchPhase,
     },
@@ -501,20 +336,12 @@ pub enum WindowEvent {
     /// Touchpad pressure event.
     ///
     /// At the moment, only supported on Apple forcetouch-capable macbooks.
-    /// The parameters are: pressure level (value between 0 and 1 representing how hard the touchpad
-    /// is being pressed) and stage (integer representing the click level).
-    TouchpadPressure {
-        device_id: DeviceId,
-        pressure: f32,
-        stage: i64,
-    },
+    /// The parameters are: pressure level (value between 0 and 1 representing how hard the
+    /// touchpad is being pressed) and stage (integer representing the click level).
+    TouchpadPressure { device_id: DeviceId, pressure: f32, stage: i64 },
 
     /// Motion on some analog axis. May report data redundant to other, more specific events.
-    AxisMotion {
-        device_id: DeviceId,
-        axis: AxisId,
-        value: f64,
-    },
+    AxisMotion { device_id: DeviceId, axis: AxisId, value: f64 },
 
     /// Touch event has been received
     ///
@@ -536,11 +363,10 @@ pub enum WindowEvent {
     /// * Changing the display's scale factor (e.g. in Control Panel on Windows).
     /// * Moving the window to a display with a different scale factor.
     ///
-    /// After this event callback has been processed, the window will be resized to whatever value
-    /// is pointed to by the `new_inner_size` reference. By default, this will contain the size suggested
-    /// by the OS, but it can be changed to any value.
+    /// To update the window size, use the provided [`InnerSizeWriter`] handle. By default, the
+    /// window is resized to the value suggested by the OS, but it can be changed to any value.
     ///
-    /// For more information about DPI in general, see the [`dpi`](crate::dpi) module.
+    /// For more information about DPI in general, see the [`dpi`] crate.
     ScaleFactorChanged {
         scale_factor: f64,
         /// Handle to update inner size during scale changes.
@@ -553,6 +379,8 @@ pub enum WindowEvent {
     ///
     /// Applications might wish to react to this to change the theme of the content of the window
     /// when the system changes the window theme.
+    ///
+    /// This only reports a change if the window theme was not overridden by [`Window::set_theme`].
     ///
     /// ## Platform-specific
     ///
@@ -568,10 +396,11 @@ pub enum WindowEvent {
     ///
     /// ### iOS
     ///
-    /// On iOS, the `Occluded(false)` event is emitted in response to an [`applicationWillEnterForeground`]
-    /// callback which means the application should start preparing its data. The `Occluded(true)` event is
-    /// emitted in response to an [`applicationDidEnterBackground`] callback which means the application
-    /// should free resources (according to the [iOS application lifecycle]).
+    /// On iOS, the `Occluded(false)` event is emitted in response to an
+    /// [`applicationWillEnterForeground`] callback which means the application should start
+    /// preparing its data. The `Occluded(true)` event is emitted in response to an
+    /// [`applicationDidEnterBackground`] callback which means the application should free
+    /// resources (according to the [iOS application lifecycle]).
     ///
     /// [`applicationWillEnterForeground`]: https://developer.apple.com/documentation/uikit/uiapplicationdelegate/1623076-applicationwillenterforeground
     /// [`applicationDidEnterBackground`]: https://developer.apple.com/documentation/uikit/uiapplicationdelegate/1622997-applicationdidenterbackground
@@ -601,34 +430,32 @@ pub enum WindowEvent {
 
 /// Identifier of an input device.
 ///
-/// Whenever you receive an event arising from a particular input device, this event contains a `DeviceId` which
-/// identifies its origin. Note that devices may be virtual (representing an on-screen cursor and keyboard focus) or
-/// physical. Virtual devices typically aggregate inputs from multiple physical devices.
+/// Whenever you receive an event arising from a particular input device, this event contains a
+/// `DeviceId` which identifies its origin. Note that devices may be virtual (representing an
+/// on-screen cursor and keyboard focus) or physical. Virtual devices typically aggregate inputs
+/// from multiple physical devices.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct DeviceId(pub(crate) platform_impl::DeviceId);
 
 impl DeviceId {
     /// Returns a dummy id, useful for unit testing.
     ///
-    /// # Safety
+    /// # Notes
     ///
     /// The only guarantee made about the return value of this function is that
     /// it will always be equal to itself and to future values returned by this function.
     /// No other guarantees are made. This may be equal to a real `DeviceId`.
-    ///
-    /// **Passing this into a winit function will result in undefined behavior.**
-    pub const unsafe fn dummy() -> Self {
-        #[allow(unused_unsafe)]
-        DeviceId(unsafe { platform_impl::DeviceId::dummy() })
+    pub const fn dummy() -> Self {
+        DeviceId(platform_impl::DeviceId::dummy())
     }
 }
 
 /// Represents raw hardware events that are not associated with any particular window.
 ///
-/// Useful for interactions that diverge significantly from a conventional 2D GUI, such as 3D camera or first-person
-/// game controls. Many physical actions, such as mouse movement, can produce both device and window events. Because
-/// window events typically arise from virtual devices (corresponding to GUI cursors and keyboard focus) the device IDs
-/// may not match.
+/// Useful for interactions that diverge significantly from a conventional 2D GUI, such as 3D camera
+/// or first-person game controls. Many physical actions, such as mouse movement, can produce both
+/// device and window events. Because window events typically arise from virtual devices
+/// (corresponding to GUI cursors and keyboard focus) the device IDs may not match.
 ///
 /// Note that these events are delivered regardless of input focus.
 #[derive(Clone, Debug, PartialEq)]
@@ -638,7 +465,8 @@ pub enum DeviceEvent {
 
     /// Change in physical position of a pointing device.
     ///
-    /// This represents raw, unfiltered physical motion. Not to be confused with [`WindowEvent::CursorMoved`].
+    /// This represents raw, unfiltered physical motion. Not to be confused with
+    /// [`WindowEvent::CursorMoved`].
     MouseMotion {
         /// (x, y) change in position in unspecified units.
         ///
@@ -759,13 +587,13 @@ pub struct KeyEvent {
 
     /// Contains the location of this key on the keyboard.
     ///
-    /// Certain keys on the keyboard may appear in more than once place. For example, the "Shift" key
-    /// appears on the left side of the QWERTY keyboard as well as the right side. However, both keys
-    /// have the same symbolic value. Another example of this phenomenon is the "1" key, which appears
-    /// both above the "Q" key and as the "Keypad 1" key.
+    /// Certain keys on the keyboard may appear in more than once place. For example, the "Shift"
+    /// key appears on the left side of the QWERTY keyboard as well as the right side. However,
+    /// both keys have the same symbolic value. Another example of this phenomenon is the "1"
+    /// key, which appears both above the "Q" key and as the "Keypad 1" key.
     ///
-    /// This field allows the user to differentiate between keys like this that have the same symbolic
-    /// value but different locations on the keyboard.
+    /// This field allows the user to differentiate between keys like this that have the same
+    /// symbolic value but different locations on the keyboard.
     ///
     /// See the [`KeyLocation`] type for more details.
     ///
@@ -780,14 +608,40 @@ pub struct KeyEvent {
     /// Whether or not this key is a key repeat event.
     ///
     /// On some systems, holding down a key for some period of time causes that key to be repeated
-    /// as though it were being pressed and released repeatedly. This field is `true` if and only if
-    /// this event is the result of one of those repeats.
+    /// as though it were being pressed and released repeatedly. This field is `true` if and only
+    /// if this event is the result of one of those repeats.
+    ///
+    /// # Example
+    ///
+    /// In games, you often want to ignore repated key events - this can be
+    /// done by ignoring events where this property is set.
+    ///
+    /// ```
+    /// use winit::event::{ElementState, KeyEvent, WindowEvent};
+    /// use winit::keyboard::{KeyCode, PhysicalKey};
+    /// # let window_event = WindowEvent::RedrawRequested; // To make the example compile
+    /// match window_event {
+    ///     WindowEvent::KeyboardInput {
+    ///         event:
+    ///             KeyEvent {
+    ///                 physical_key: PhysicalKey::Code(KeyCode::KeyW),
+    ///                 state: ElementState::Pressed,
+    ///                 repeat: false,
+    ///                 ..
+    ///             },
+    ///         ..
+    ///     } => {
+    ///         // The physical key `W` was pressed, and it was not a repeat
+    ///     },
+    ///     _ => {}, // Handle other events
+    /// }
+    /// ```
     pub repeat: bool,
 
     /// Platform-specific key event information.
     ///
-    /// On Windows, Linux and macOS, this type contains the key without modifiers and the text with all
-    /// modifiers applied.
+    /// On Windows, Linux and macOS, this type contains the key without modifiers and the text with
+    /// all modifiers applied.
     ///
     /// On Android, iOS, Redox and Web, this type is a no-op.
     pub(crate) platform_specific: platform_impl::KeyEventExtra,
@@ -861,10 +715,7 @@ impl Modifiers {
 
 impl From<ModifiersState> for Modifiers {
     fn from(value: ModifiersState) -> Self {
-        Self {
-            state: value,
-            pressed_mods: Default::default(),
-        }
+        Self { state: value, pressed_mods: Default::default() }
     }
 }
 
@@ -872,12 +723,16 @@ impl From<ModifiersState> for Modifiers {
 ///
 /// This is also called a "composition event".
 ///
-/// Most keypresses using a latin-like keyboard layout simply generate a [`WindowEvent::KeyboardInput`].
-/// However, one couldn't possibly have a key for every single unicode character that the user might want to type
-/// - so the solution operating systems employ is to allow the user to type these using _a sequence of keypresses_ instead.
+/// Most keypresses using a latin-like keyboard layout simply generate a
+/// [`WindowEvent::KeyboardInput`]. However, one couldn't possibly have a key for every single
+/// unicode character that the user might want to type
+/// - so the solution operating systems employ is to allow the user to type these using _a sequence
+///   of keypresses_ instead.
 ///
-/// A prominent example of this is accents - many keyboard layouts allow you to first click the "accent key", and then
-/// the character you want to apply the accent to. In this case, some platforms will generate the following event sequence:
+/// A prominent example of this is accents - many keyboard layouts allow you to first click the
+/// "accent key", and then the character you want to apply the accent to. In this case, some
+/// platforms will generate the following event sequence:
+///
 /// ```ignore
 /// // Press "`" key
 /// Ime::Preedit("`", Some((0, 0)))
@@ -886,11 +741,13 @@ impl From<ModifiersState> for Modifiers {
 /// Ime::Commit("é")
 /// ```
 ///
-/// Additionally, certain input devices are configured to display a candidate box that allow the user to select the
-/// desired character interactively. (To properly position this box, you must use [`Window::set_ime_cursor_area`].)
+/// Additionally, certain input devices are configured to display a candidate box that allow the
+/// user to select the desired character interactively. (To properly position this box, you must use
+/// [`Window::set_ime_cursor_area`].)
 ///
-/// An example of a keyboard layout which uses candidate boxes is pinyin. On a latin keyboard the following event
-/// sequence could be obtained:
+/// An example of a keyboard layout which uses candidate boxes is pinyin. On a latin keyboard the
+/// following event sequence could be obtained:
+///
 /// ```ignore
 /// // Press "A" key
 /// Ime::Preedit("a", Some((1, 1)))
@@ -909,8 +766,8 @@ impl From<ModifiersState> for Modifiers {
 pub enum Ime {
     /// Notifies when the IME was enabled.
     ///
-    /// After getting this event you could receive [`Preedit`](Self::Preedit) and
-    /// [`Commit`](Self::Commit) events. You should also start performing IME related requests
+    /// After getting this event you could receive [`Preedit`][Self::Preedit] and
+    /// [`Commit`][Self::Commit] events. You should also start performing IME related requests
     /// like [`Window::set_ime_cursor_area`].
     Enabled,
 
@@ -930,10 +787,10 @@ pub enum Ime {
 
     /// Notifies when the IME was disabled.
     ///
-    /// After receiving this event you won't get any more [`Preedit`](Self::Preedit) or
-    /// [`Commit`](Self::Commit) events until the next [`Enabled`](Self::Enabled) event. You should
-    /// also stop issuing IME related requests like [`Window::set_ime_cursor_area`] and clear pending
-    /// preedit text.
+    /// After receiving this event you won't get any more [`Preedit`][Self::Preedit] or
+    /// [`Commit`][Self::Commit] events until the next [`Enabled`][Self::Enabled] event. You should
+    /// also stop issuing IME related requests like [`Window::set_ime_cursor_area`] and clear
+    /// pending preedit text.
     Disabled,
 }
 
@@ -1032,17 +889,13 @@ impl Force {
     /// consistent across devices.
     pub fn normalized(&self) -> f64 {
         match self {
-            Force::Calibrated {
-                force,
-                max_possible_force,
-                altitude_angle,
-            } => {
+            Force::Calibrated { force, max_possible_force, altitude_angle } => {
                 let force = match altitude_angle {
                     Some(altitude_angle) => force / altitude_angle.sin(),
                     None => *force,
                 };
                 force / max_possible_force
-            }
+            },
             Force::Normalized(force) => *force,
         }
     }
@@ -1113,7 +966,7 @@ pub enum MouseScrollDelta {
     PixelDelta(PhysicalPosition<f64>),
 }
 
-/// Handle to synchroniously change the size of the window from the
+/// Handle to synchronously change the size of the window from the
 /// [`WindowEvent`].
 #[derive(Debug, Clone)]
 pub struct InnerSizeWriter {
@@ -1126,7 +979,7 @@ impl InnerSizeWriter {
         Self { new_inner_size }
     }
 
-    /// Try to request inner size which will be set synchroniously on the window.
+    /// Try to request inner size which will be set synchronously on the window.
     pub fn request_inner_size(
         &mut self,
         new_inner_size: PhysicalSize<u32>,
@@ -1148,23 +1001,26 @@ impl PartialEq for InnerSizeWriter {
 
 #[cfg(test)]
 mod tests {
-    use crate::event;
     use std::collections::{BTreeSet, HashSet};
+
+    use crate::dpi::PhysicalPosition;
+    use crate::event;
 
     macro_rules! foreach_event {
         ($closure:expr) => {{
             #[allow(unused_mut)]
             let mut x = $closure;
-            let did = unsafe { event::DeviceId::dummy() };
+            let did = event::DeviceId::dummy();
 
             #[allow(deprecated)]
             {
-                use crate::event::{Event::*, Ime::Enabled, WindowEvent::*};
+                use crate::event::Event::*;
+                use crate::event::Ime::Enabled;
+                use crate::event::WindowEvent::*;
                 use crate::window::WindowId;
 
                 // Mainline events.
-                let wid = unsafe { WindowId::dummy() };
-                x(UserEvent(()));
+                let wid = WindowId::dummy();
                 x(NewEvents(event::StartCause::Init));
                 x(AboutToWait);
                 x(LoopExiting);
@@ -1172,12 +1028,7 @@ mod tests {
                 x(Resumed);
 
                 // Window events.
-                let with_window_event = |wev| {
-                    x(WindowEvent {
-                        window_id: wid,
-                        event: wev,
-                    })
-                };
+                let with_window_event = |wev| x(WindowEvent { window_id: wid, event: wev });
 
                 with_window_event(CloseRequested);
                 with_window_event(Destroyed);
@@ -1188,10 +1039,7 @@ mod tests {
                 with_window_event(HoveredFile("x.txt".into()));
                 with_window_event(HoveredFileCancelled);
                 with_window_event(Ime(Enabled));
-                with_window_event(CursorMoved {
-                    device_id: did,
-                    position: (0, 0).into(),
-                });
+                with_window_event(CursorMoved { device_id: did, position: (0, 0).into() });
                 with_window_event(ModifiersChanged(event::Modifiers::default()));
                 with_window_event(CursorEntered { device_id: did });
                 with_window_event(CursorLeft { device_id: did });
@@ -1216,16 +1064,13 @@ mod tests {
                     delta: 0.0,
                     phase: event::TouchPhase::Started,
                 });
-                with_window_event(TouchpadPressure {
+                with_window_event(PanGesture {
                     device_id: did,
-                    pressure: 0.0,
-                    stage: 0,
+                    delta: PhysicalPosition::<f32>::new(0.0, 0.0),
+                    phase: event::TouchPhase::Started,
                 });
-                with_window_event(AxisMotion {
-                    device_id: did,
-                    axis: 0,
-                    value: 0.0,
-                });
+                with_window_event(TouchpadPressure { device_id: did, pressure: 0.0, stage: 0 });
+                with_window_event(AxisMotion { device_id: did, axis: 0, value: 0.0 });
                 with_window_event(Touch(event::Touch {
                     device_id: did,
                     phase: event::TouchPhase::Started,
@@ -1241,29 +1086,17 @@ mod tests {
             {
                 use event::DeviceEvent::*;
 
-                let with_device_event = |dev_ev| {
-                    x(event::Event::DeviceEvent {
-                        device_id: did,
-                        event: dev_ev,
-                    })
-                };
+                let with_device_event =
+                    |dev_ev| x(event::Event::DeviceEvent { device_id: did, event: dev_ev });
 
                 with_device_event(Added);
                 with_device_event(Removed);
-                with_device_event(MouseMotion {
-                    delta: (0.0, 0.0).into(),
-                });
+                with_device_event(MouseMotion { delta: (0.0, 0.0).into() });
                 with_device_event(MouseWheel {
                     delta: event::MouseScrollDelta::LineDelta(0.0, 0.0),
                 });
-                with_device_event(Motion {
-                    axis: 0,
-                    value: 0.0,
-                });
-                with_device_event(Button {
-                    button: 0,
-                    state: event::ElementState::Pressed,
-                });
+                with_device_event(Motion { axis: 0, value: 0.0 });
+                with_device_event(Button { button: 0, state: event::ElementState::Pressed });
             }
         }};
     }
@@ -1271,22 +1104,9 @@ mod tests {
     #[allow(clippy::redundant_clone)]
     #[test]
     fn test_event_clone() {
-        foreach_event!(|event: event::Event<()>| {
+        foreach_event!(|event: event::Event| {
             let event2 = event.clone();
             assert_eq!(event, event2);
-        })
-    }
-
-    #[test]
-    fn test_map_nonuser_event() {
-        foreach_event!(|event: event::Event<()>| {
-            let is_user = matches!(event, event::Event::UserEvent(()));
-            let event2 = event.map_nonuser_event::<()>();
-            if is_user {
-                assert_eq!(event2, Err(event::Event::UserEvent(())));
-            } else {
-                assert!(event2.is_ok());
-            }
         })
     }
 
@@ -1295,11 +1115,8 @@ mod tests {
         let force = event::Force::Normalized(0.0);
         assert_eq!(force.normalized(), 0.0);
 
-        let force2 = event::Force::Calibrated {
-            force: 5.0,
-            max_possible_force: 2.5,
-            altitude_angle: None,
-        };
+        let force2 =
+            event::Force::Calibrated { force: 5.0, max_possible_force: 2.5, altitude_angle: None };
         assert_eq!(force2.normalized(), 2.0);
 
         let force3 = event::Force::Calibrated {
@@ -1313,12 +1130,12 @@ mod tests {
     #[allow(clippy::clone_on_copy)]
     #[test]
     fn ensure_attrs_do_not_panic() {
-        foreach_event!(|event: event::Event<()>| {
+        foreach_event!(|event: event::Event| {
             let _ = format!("{:?}", event);
         });
         let _ = event::StartCause::Init.clone();
 
-        let did = unsafe { crate::event::DeviceId::dummy() }.clone();
+        let did = crate::event::DeviceId::dummy().clone();
         HashSet::new().insert(did);
         let mut set = [did, did, did];
         set.sort_unstable();
@@ -1338,11 +1155,8 @@ mod tests {
             force: Some(event::Force::Normalized(0.0)),
         }
         .clone();
-        let _ = event::Force::Calibrated {
-            force: 0.0,
-            max_possible_force: 0.0,
-            altitude_angle: None,
-        }
-        .clone();
+        let _ =
+            event::Force::Calibrated { force: 0.0, max_possible_force: 0.0, altitude_angle: None }
+                .clone();
     }
 }

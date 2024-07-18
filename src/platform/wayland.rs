@@ -1,21 +1,46 @@
-use crate::{
-    event_loop::{EventLoopBuilder, EventLoopWindowTarget},
-    monitor::MonitorHandle,
-    window::{Window, WindowBuilder},
-};
-
+//! # Wayland
+//!
+//! **Note:** Windows don't appear on Wayland until you draw/present to them.
+//!
+//! By default, Winit loads system libraries using `dlopen`. This can be
+//! disabled by disabling the `"wayland-dlopen"` cargo feature.
+//!
+//! ## Client-side decorations
+//!
+//! Winit provides client-side decorations by default, but the behaviour can
+//! be controlled with the following feature flags:
+//!
+//! * `wayland-csd-adwaita` (default).
+//! * `wayland-csd-adwaita-crossfont`.
+//! * `wayland-csd-adwaita-notitle`.
+use crate::event_loop::{ActiveEventLoop, EventLoop, EventLoopBuilder};
+use crate::monitor::MonitorHandle;
 pub use crate::window::Theme;
+use crate::window::{Window, WindowAttributes};
 
-/// Additional methods on [`EventLoopWindowTarget`] that are specific to Wayland.
-pub trait EventLoopWindowTargetExtWayland {
-    /// True if the [`EventLoopWindowTarget`] uses Wayland.
+/// Additional methods on [`ActiveEventLoop`] that are specific to Wayland.
+pub trait ActiveEventLoopExtWayland {
+    /// True if the [`ActiveEventLoop`] uses Wayland.
     fn is_wayland(&self) -> bool;
 }
 
-impl EventLoopWindowTargetExtWayland for EventLoopWindowTarget {
+impl ActiveEventLoopExtWayland for ActiveEventLoop {
     #[inline]
     fn is_wayland(&self) -> bool {
         self.p.is_wayland()
+    }
+}
+
+/// Additional methods on [`EventLoop`] that are specific to Wayland.
+pub trait EventLoopExtWayland {
+    /// True if the [`EventLoop`] uses Wayland.
+    fn is_wayland(&self) -> bool;
+}
+
+impl EventLoopExtWayland for EventLoop {
+    #[inline]
+    fn is_wayland(&self) -> bool {
+        self.event_loop.is_wayland()
     }
 }
 
@@ -31,7 +56,7 @@ pub trait EventLoopBuilderExtWayland {
     fn with_any_thread(&mut self, any_thread: bool) -> &mut Self;
 }
 
-impl<T> EventLoopBuilderExtWayland for EventLoopBuilder<T> {
+impl EventLoopBuilderExtWayland for EventLoopBuilder {
     #[inline]
     fn with_wayland(&mut self) -> &mut Self {
         self.platform_specific.forced_backend = Some(crate::platform_impl::Backend::Wayland);
@@ -50,25 +75,23 @@ pub trait WindowExtWayland {}
 
 impl WindowExtWayland for Window {}
 
-/// Additional methods on [`WindowBuilder`] that are specific to Wayland.
-pub trait WindowBuilderExtWayland {
+/// Additional methods on [`WindowAttributes`] that are specific to Wayland.
+pub trait WindowAttributesExtWayland {
     /// Build window with the given name.
     ///
     /// The `general` name sets an application ID, which should match the `.desktop`
-    /// file destributed with your program. The `instance` is a `no-op`.
+    /// file distributed with your program. The `instance` is a `no-op`.
     ///
     /// For details about application ID conventions, see the
     /// [Desktop Entry Spec](https://specifications.freedesktop.org/desktop-entry-spec/desktop-entry-spec-latest.html#desktop-file-id)
     fn with_name(self, general: impl Into<String>, instance: impl Into<String>) -> Self;
 }
 
-impl WindowBuilderExtWayland for WindowBuilder {
+impl WindowAttributesExtWayland for WindowAttributes {
     #[inline]
     fn with_name(mut self, general: impl Into<String>, instance: impl Into<String>) -> Self {
-        self.window.platform_specific.name = Some(crate::platform_impl::ApplicationName::new(
-            general.into(),
-            instance.into(),
-        ));
+        self.platform_specific.name =
+            Some(crate::platform_impl::ApplicationName::new(general.into(), instance.into()));
         self
     }
 }

@@ -3,12 +3,10 @@
 //! If you want to get basic information about a monitor, you can use the
 //! [`MonitorHandle`] type. This is retrieved from one of the following
 //! methods, which return an iterator of [`MonitorHandle`]:
-//! - [`EventLoopWindowTarget::available_monitors`](crate::event_loop::EventLoopWindowTarget::available_monitors).
-//! - [`Window::available_monitors`](crate::window::Window::available_monitors).
-use crate::{
-    dpi::{PhysicalPosition, PhysicalSize},
-    platform_impl,
-};
+//! - [`ActiveEventLoop::available_monitors`][crate::event_loop::ActiveEventLoop::available_monitors].
+//! - [`Window::available_monitors`][crate::window::Window::available_monitors].
+use crate::dpi::{PhysicalPosition, PhysicalSize};
+use crate::platform_impl;
 
 /// Deprecated! Use `VideoModeHandle` instead.
 #[deprecated = "Renamed to `VideoModeHandle`"]
@@ -79,9 +77,7 @@ impl VideoModeHandle {
     /// a separate set of valid video modes.
     #[inline]
     pub fn monitor(&self) -> MonitorHandle {
-        MonitorHandle {
-            inner: self.video_mode.monitor(),
-        }
+        MonitorHandle { inner: self.video_mode.monitor() }
     }
 }
 
@@ -145,7 +141,7 @@ impl MonitorHandle {
     /// Returns the scale factor of the underlying monitor. To map logical pixels to physical
     /// pixels and vice versa, use [`Window::scale_factor`].
     ///
-    /// See the [`dpi`](crate::dpi) module for more information.
+    /// See the [`dpi`] module for more information.
     ///
     /// ## Platform-specific
     ///
@@ -166,8 +162,6 @@ impl MonitorHandle {
     /// - **Web:** Always returns an empty iterator
     #[inline]
     pub fn video_modes(&self) -> impl Iterator<Item = VideoModeHandle> {
-        self.inner
-            .video_modes()
-            .map(|video_mode| VideoModeHandle { video_mode })
+        self.inner.video_modes().map(|video_mode| VideoModeHandle { video_mode })
     }
 }

@@ -5,24 +5,19 @@ mod context;
 mod inner;
 mod input_method;
 
-use std::sync::{
-    mpsc::{Receiver, Sender},
-    Arc,
-};
+use std::sync::mpsc::{Receiver, Sender};
+use std::sync::Arc;
 
-use log::debug;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
+use tracing::debug;
 
-use super::{ffi, util, XConnection, XError};
-
+use self::callbacks::*;
+use self::context::ImeContext;
 pub use self::context::ImeContextCreationError;
-use self::{
-    callbacks::*,
-    context::ImeContext,
-    inner::{close_im, ImeInner},
-    input_method::{PotentialInputMethods, Style},
-};
+use self::inner::{close_im, ImeInner};
+use self::input_method::{PotentialInputMethods, Style};
+use super::{ffi, util, XConnection, XError};
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
@@ -73,10 +68,8 @@ impl Ime {
             let mut inner = Box::new(ImeInner::new(xconn, potential_input_methods, event_sender));
             let inner_ptr = Box::into_raw(inner);
             let client_data = inner_ptr as _;
-            let destroy_callback = ffi::XIMCallback {
-                client_data,
-                callback: Some(xim_destroy_callback),
-            };
+            let destroy_callback =
+                ffi::XIMCallback { client_data, callback: Some(xim_destroy_callback) };
             inner = unsafe { Box::from_raw(inner_ptr) };
             inner.destroy_callback = destroy_callback;
             (inner, client_data)
@@ -105,9 +98,7 @@ impl Ime {
             inner.im = Some(input_method);
             Ok(Ime { xconn, inner })
         } else {
-            Err(ImeCreationError::OpenFailure(Box::new(
-                inner.potential_input_methods,
-            )))
+            Err(ImeCreationError::OpenFailure(Box::new(inner.potential_input_methods)))
         }
     }
 
@@ -129,11 +120,7 @@ impl Ime {
             None
         } else {
             let im = self.inner.im.as_ref().unwrap();
-            let style = if with_preedit {
-                im.preedit_style
-            } else {
-                im.none_style
-            };
+            let style = if with_preedit { im.preedit_style } else { im.none_style };
 
             let context = unsafe {
                 ImeContext::new(
@@ -159,10 +146,7 @@ impl Ime {
                 ImeEvent::Enabled
             };
 
-            self.inner
-                .event_sender
-                .send((window, event))
-                .expect("Failed to send enabled event");
+            self.inner.event_sender.send((window, event)).expect("Failed to send enabled event");
 
             Some(context)
         };

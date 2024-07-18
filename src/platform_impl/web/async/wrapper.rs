@@ -1,26 +1,26 @@
-use super::super::main_thread::MainThreadMarker;
 use std::cell::{Ref, RefCell};
 use std::future::Future;
 use std::marker::PhantomData;
 use std::sync::Arc;
 
+use super::super::main_thread::MainThreadMarker;
+
 // Unsafe wrapper type that allows us to use `T` when it's not `Send` from other threads.
 // `value` **must** only be accessed on the main thread.
-pub struct Wrapper<const SYNC: bool, V: 'static, S: Clone + Send, E> {
-    value: Value<SYNC, V>,
+pub struct Wrapper<V: 'static, S: Clone + Send, E> {
+    value: Value<V>,
     handler: fn(&RefCell<Option<V>>, E),
     sender_data: S,
     sender_handler: fn(&S, E),
 }
 
-struct Value<const SYNC: bool, V> {
+struct Value<V> {
     // SAFETY:
     // This value must not be accessed if not on the main thread.
     //
-    // - We wrap this in an `Arc` to allow it to be safely cloned without
-    //   accessing the value.
-    // - The `RefCell` lets us mutably access in the main thread but is safe to
-    //   drop in any thread because it has no `Drop` behavior.
+    // - We wrap this in an `Arc` to allow it to be safely cloned without accessing the value.
+    // - The `RefCell` lets us mutably access in the main thread but is safe to drop in any thread
+    //   because it has no `Drop` behavior.
     // - The `Option` lets us safely drop `T` only in the main thread.
     value: Arc<RefCell<Option<V>>>,
     // Prevent's `Send` or `Sync` to be automatically implemented.
@@ -28,11 +28,11 @@ struct Value<const SYNC: bool, V> {
 }
 
 // SAFETY: See `Self::value`.
-unsafe impl<const SYNC: bool, V> Send for Value<SYNC, V> {}
+unsafe impl<V> Send for Value<V> {}
 // SAFETY: See `Self::value`.
-unsafe impl<V> Sync for Value<true, V> {}
+unsafe impl<V> Sync for Value<V> {}
 
-impl<const SYNC: bool, V, S: Clone + Send, E> Wrapper<SYNC, V, S, E> {
+impl<V, S: Clone + Send, E> Wrapper<V, S, E> {
     #[track_caller]
     pub fn new<R: Future<Output = ()>>(
         _: MainThreadMarker,
@@ -53,10 +53,7 @@ impl<const SYNC: bool, V, S: Clone + Send, E> Wrapper<SYNC, V, S, E> {
         });
 
         Some(Self {
-            value: Value {
-                value,
-                local: PhantomData,
-            },
+            value: Value { value, local: PhantomData },
             handler,
             sender_data,
             sender_handler,
@@ -81,13 +78,10 @@ impl<const SYNC: bool, V, S: Clone + Send, E> Wrapper<SYNC, V, S, E> {
     }
 }
 
-impl<const SYNC: bool, V, S: Clone + Send, E> Clone for Wrapper<SYNC, V, S, E> {
+impl<V, S: Clone + Send, E> Clone for Wrapper<V, S, E> {
     fn clone(&self) -> Self {
         Self {
-            value: Value {
-                value: self.value.value.clone(),
-                local: PhantomData,
-            },
+            value: Value { value: self.value.value.clone(), local: PhantomData },
             handler: self.handler,
             sender_data: self.sender_data.clone(),
             sender_handler: self.sender_handler,

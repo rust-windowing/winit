@@ -1,15 +1,15 @@
 use std::cell::Cell;
 use std::rc::Rc;
 
+use event::ButtonsState;
+use web_sys::PointerEvent;
+
 use super::canvas::Common;
 use super::event;
 use super::event_handle::EventListenerHandle;
 use crate::dpi::PhysicalPosition;
 use crate::event::{Force, MouseButton};
 use crate::keyboard::ModifiersState;
-
-use event::ButtonsState;
-use web_sys::PointerEvent;
 
 #[allow(dead_code)]
 pub(super) struct PointerHandler {
@@ -37,9 +37,8 @@ impl PointerHandler {
     where
         F: 'static + FnMut(ModifiersState, Option<i32>),
     {
-        self.on_cursor_leave = Some(canvas_common.add_event(
-            "pointerout",
-            move |event: PointerEvent| {
+        self.on_cursor_leave =
+            Some(canvas_common.add_event("pointerout", move |event: PointerEvent| {
                 let modifiers = event::mouse_modifiers(&event);
 
                 // touch events are handled separately
@@ -48,17 +47,15 @@ impl PointerHandler {
                 let pointer_id = (event.pointer_type() == "mouse").then(|| event.pointer_id());
 
                 handler(modifiers, pointer_id);
-            },
-        ));
+            }));
     }
 
     pub fn on_cursor_enter<F>(&mut self, canvas_common: &Common, mut handler: F)
     where
         F: 'static + FnMut(ModifiersState, Option<i32>),
     {
-        self.on_cursor_enter = Some(canvas_common.add_event(
-            "pointerover",
-            move |event: PointerEvent| {
+        self.on_cursor_enter =
+            Some(canvas_common.add_event("pointerover", move |event: PointerEvent| {
                 let modifiers = event::mouse_modifiers(&event);
 
                 // touch events are handled separately
@@ -67,8 +64,7 @@ impl PointerHandler {
                 let pointer_id = (event.pointer_type() == "mouse").then(|| event.pointer_id());
 
                 handler(modifiers, pointer_id);
-            },
-        ));
+            }));
     }
 
     pub fn on_mouse_release<MOD, M, T>(
@@ -83,9 +79,8 @@ impl PointerHandler {
         T: 'static + FnMut(ModifiersState, i32, PhysicalPosition<f64>, Force),
     {
         let window = canvas_common.window.clone();
-        self.on_pointer_release = Some(canvas_common.add_event(
-            "pointerup",
-            move |event: PointerEvent| {
+        self.on_pointer_release =
+            Some(canvas_common.add_event("pointerup", move |event: PointerEvent| {
                 let modifiers = event::mouse_modifiers(&event);
 
                 match event.pointer_type().as_str() {
@@ -103,8 +98,7 @@ impl PointerHandler {
                     ),
                     _ => modifier_handler(modifiers),
                 }
-            },
-        ));
+            }));
     }
 
     pub fn on_mouse_press<MOD, M, T>(
@@ -121,9 +115,8 @@ impl PointerHandler {
     {
         let window = canvas_common.window.clone();
         let canvas = canvas_common.raw().clone();
-        self.on_pointer_press = Some(canvas_common.add_event(
-            "pointerdown",
-            move |event: PointerEvent| {
+        self.on_pointer_press =
+            Some(canvas_common.add_event("pointerdown", move |event: PointerEvent| {
                 if prevent_default.get() {
                     // prevent text selection
                     event.prevent_default();
@@ -141,7 +134,7 @@ impl PointerHandler {
                             event::mouse_position(&event).to_physical(super::scale_factor(&window)),
                             Force::Normalized(event.pressure() as f64),
                         );
-                    }
+                    },
                     "mouse" => {
                         mouse_handler(
                             modifiers,
@@ -150,15 +143,15 @@ impl PointerHandler {
                             event::mouse_button(&event).expect("no mouse button pressed"),
                         );
 
-                        // Error is swallowed here since the error would occur every time the mouse is
-                        // clicked when the cursor is grabbed, and there is probably not a situation where
-                        // this could fail, that we care if it fails.
+                        // Error is swallowed here since the error would occur every time the mouse
+                        // is clicked when the cursor is grabbed, and there
+                        // is probably not a situation where this could
+                        // fail, that we care if it fails.
                         let _e = canvas.set_pointer_capture(event.pointer_id());
-                    }
+                    },
                     _ => modifier_handler(modifiers),
                 }
-            },
-        ));
+            }));
     }
 
     pub fn on_cursor_move<MOD, M, T, B>(
@@ -178,9 +171,8 @@ impl PointerHandler {
     {
         let window = canvas_common.window.clone();
         let canvas = canvas_common.raw().clone();
-        self.on_cursor_move = Some(canvas_common.add_event(
-            "pointermove",
-            move |event: PointerEvent| {
+        self.on_cursor_move =
+            Some(canvas_common.add_event("pointermove", move |event: PointerEvent| {
                 let modifiers = event::mouse_modifiers(&event);
 
                 let pointer_type = event.pointer_type();
@@ -239,8 +231,7 @@ impl PointerHandler {
                     ),
                     _ => unreachable!("didn't return early before"),
                 };
-            },
-        ));
+            }));
     }
 
     pub fn on_touch_cancel<F>(&mut self, canvas_common: &Common, mut handler: F)
@@ -248,9 +239,8 @@ impl PointerHandler {
         F: 'static + FnMut(i32, PhysicalPosition<f64>, Force),
     {
         let window = canvas_common.window.clone();
-        self.on_touch_cancel = Some(canvas_common.add_event(
-            "pointercancel",
-            move |event: PointerEvent| {
+        self.on_touch_cancel =
+            Some(canvas_common.add_event("pointercancel", move |event: PointerEvent| {
                 if event.pointer_type() == "touch" {
                     handler(
                         event.pointer_id(),
@@ -258,8 +248,7 @@ impl PointerHandler {
                         Force::Normalized(event.pressure() as f64),
                     );
                 }
-            },
-        ));
+            }));
     }
 
     pub fn remove_listeners(&mut self) {
