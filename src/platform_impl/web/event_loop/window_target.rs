@@ -1,18 +1,17 @@
 use std::cell::Cell;
 use std::clone::Clone;
-use std::collections::vec_deque::IntoIter as VecDequeIter;
-use std::collections::VecDeque;
 use std::iter;
 use std::rc::Rc;
 
 use web_sys::Element;
 
-use super::super::monitor::MonitorHandle;
+use super::super::monitor::{MonitorHandle, MonitorPermissionFuture};
 use super::super::{lock, KeyEventExtra};
 use super::device::DeviceId;
 use super::runner::{EventWrapper, WeakShared};
 use super::window::WindowId;
 use super::{backend, runner, EventLoopProxy};
+use crate::error::NotSupportedError;
 use crate::event::{
     DeviceId as RootDeviceId, ElementState, Event, KeyEvent, Touch, TouchPhase, WindowEvent,
 };
@@ -61,7 +60,7 @@ impl ActiveEventLoop {
         event_loop_recreation: bool,
     ) {
         self.runner.event_loop_recreation(event_loop_recreation);
-        self.runner.set_listener(event_handler);
+        self.runner.start(event_handler);
     }
 
     pub fn generate_id(&self) -> WindowId {
@@ -594,12 +593,12 @@ impl ActiveEventLoop {
         canvas.on_context_menu();
     }
 
-    pub fn available_monitors(&self) -> VecDequeIter<MonitorHandle> {
-        VecDeque::new().into_iter()
+    pub fn available_monitors(&self) -> Vec<MonitorHandle> {
+        self.runner.monitor().available_monitors()
     }
 
     pub fn primary_monitor(&self) -> Option<MonitorHandle> {
-        None
+        self.runner.monitor().primary_monitor()
     }
 
     #[cfg(feature = "rwh_05")]
@@ -653,7 +652,19 @@ impl ActiveEventLoop {
     }
 
     pub(crate) fn is_cursor_lock_raw(&self) -> bool {
-        lock::is_cursor_lock_raw(self.runner.window(), self.runner.document())
+        lock::is_cursor_lock_raw(self.runner.navigator(), self.runner.document())
+    }
+
+    pub(crate) fn has_multiple_screens(&self) -> Result<bool, NotSupportedError> {
+        self.runner.monitor().is_extended().ok_or(NotSupportedError::new())
+    }
+
+    pub(crate) fn request_detailed_monitor_permission(&self) -> MonitorPermissionFuture {
+        self.runner.monitor().request_detailed_monitor_permission(self.runner.weak())
+    }
+
+    pub(crate) fn has_detailed_monitor_permission(&self) -> bool {
+        self.runner.monitor().has_detailed_monitor_permission()
     }
 
     pub(crate) fn waker(&self) -> Waker<WeakShared> {

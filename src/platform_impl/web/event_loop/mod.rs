@@ -1,8 +1,8 @@
 use std::marker::PhantomData;
 
-use super::{backend, device, window};
+use super::{backend, device, window, HasMonitorPermissionFuture, MonitorPermissionFuture};
 use crate::application::ApplicationHandler;
-use crate::error::EventLoopError;
+use crate::error::{EventLoopError, NotSupportedError};
 use crate::event::Event;
 use crate::event_loop::ActiveEventLoop as RootActiveEventLoop;
 use crate::platform::web::{ActiveEventLoopExtWeb, PollStrategy, WaitUntilStrategy};
@@ -76,6 +76,18 @@ impl EventLoop {
 
     pub fn wait_until_strategy(&self) -> WaitUntilStrategy {
         self.elw.wait_until_strategy()
+    }
+
+    pub fn has_multiple_screens(&self) -> Result<bool, NotSupportedError> {
+        self.elw.has_multiple_screens()
+    }
+
+    pub(crate) fn request_detailed_monitor_permission(&self) -> MonitorPermissionFuture {
+        self.elw.request_detailed_monitor_permission().0
+    }
+
+    pub fn has_detailed_monitor_permission(&self) -> HasMonitorPermissionFuture {
+        self.elw.p.runner.monitor().has_detailed_monitor_permission_async()
     }
 }
 

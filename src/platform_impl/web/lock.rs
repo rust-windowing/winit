@@ -5,9 +5,9 @@ use tracing::error;
 use wasm_bindgen::closure::Closure;
 use wasm_bindgen::prelude::wasm_bindgen;
 use wasm_bindgen::{JsCast, JsValue};
-use web_sys::{console, Document, DomException, Element, Window};
+use web_sys::{console, Document, DomException, Element, Navigator};
 
-pub(crate) fn is_cursor_lock_raw(window: &Window, document: &Document) -> bool {
+pub(crate) fn is_cursor_lock_raw(navigator: &Navigator, document: &Document) -> bool {
     thread_local! {
         static IS_CURSOR_LOCK_RAW: OnceCell<bool> = const { OnceCell::new() };
     }
@@ -17,7 +17,7 @@ pub(crate) fn is_cursor_lock_raw(window: &Window, document: &Document) -> bool {
             // TODO: Remove when Chrome can better advertise that they don't support unaccelerated
             // movement on Linux.
             // See <https://issues.chromium.org/issues/40833850>.
-            if super::web_sys::chrome_linux(window) {
+            if super::web_sys::chrome_linux(navigator) {
                 return false;
             }
 
@@ -39,8 +39,8 @@ pub(crate) fn is_cursor_lock_raw(window: &Window, document: &Document) -> bool {
     })
 }
 
-pub(crate) fn request_pointer_lock(window: &Window, document: &Document, element: &Element) {
-    if is_cursor_lock_raw(window, document) {
+pub(crate) fn request_pointer_lock(navigator: &Navigator, document: &Document, element: &Element) {
+    if is_cursor_lock_raw(navigator, document) {
         thread_local! {
             static REJECT_HANDLER: Closure<dyn FnMut(JsValue)> = Closure::new(|error: JsValue| {
                 if let Some(error) = error.dyn_ref::<DomException>() {

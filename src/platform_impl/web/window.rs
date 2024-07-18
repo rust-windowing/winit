@@ -1,12 +1,11 @@
 use std::cell::Ref;
-use std::collections::VecDeque;
 use std::rc::Rc;
 use std::sync::Arc;
 
 use web_sys::HtmlCanvasElement;
 
 use super::main_thread::{MainThreadMarker, MainThreadSafe};
-use super::monitor::MonitorHandle;
+use super::monitor::{MonitorHandle, MonitorHandler};
 use super::r#async::Dispatcher;
 use super::{backend, lock, ActiveEventLoop, Fullscreen};
 use crate::dpi::{PhysicalPosition, PhysicalSize, Position, Size};
@@ -24,6 +23,7 @@ pub struct Window {
 pub struct Inner {
     id: WindowId,
     pub window: web_sys::Window,
+    monitor: Rc<MonitorHandler>,
     canvas: Rc<backend::Canvas>,
     destroy_fn: Option<Box<dyn FnOnce()>>,
 }
@@ -33,11 +33,13 @@ impl Window {
         let id = target.generate_id();
 
         let window = target.runner.window();
+        let navigator = target.runner.navigator();
         let document = target.runner.document();
         let canvas = backend::Canvas::create(
             target.runner.main_thread(),
             id,
             window.clone(),
+            navigator.clone(),
             document.clone(),
             attr,
         )?;
@@ -48,7 +50,13 @@ impl Window {
         let runner = target.runner.clone();
         let destroy_fn = Box::new(move || runner.notify_destroy_window(RootWI(id)));
 
-        let inner = Inner { id, window: window.clone(), canvas, destroy_fn: Some(destroy_fn) };
+        let inner = Inner {
+            id,
+            window: window.clone(),
+            monitor: Rc::clone(target.runner.monitor()),
+            canvas,
+            destroy_fn: Some(destroy_fn),
+        };
 
         let canvas = Rc::downgrade(&inner.canvas);
         let (dispatcher, runner) = Dispatcher::new(target.runner.main_thread(), inner);
@@ -80,7 +88,7 @@ impl Window {
 
     pub(crate) fn is_cursor_lock_raw(&self) -> bool {
         self.inner.queue(move |inner| {
-            lock::is_cursor_lock_raw(inner.canvas.window(), inner.canvas.document())
+            lock::is_cursor_lock_raw(inner.canvas.navigator(), inner.canvas.document())
         })
     }
 
@@ -244,7 +252,7 @@ impl Inner {
         match mode {
             CursorGrabMode::None => self.canvas.document().exit_pointer_lock(),
             CursorGrabMode::Locked => lock::request_pointer_lock(
-                self.canvas.window(),
+                self.canvas.navigator(),
                 self.canvas.document(),
                 self.canvas.raw(),
             ),
@@ -312,8 +320,8 @@ impl Inner {
 
     #[inline]
     pub(crate) fn set_fullscreen(&self, fullscreen: Option<Fullscreen>) {
-        if fullscreen.is_some() {
-            self.canvas.request_fullscreen();
+        if let Some(fullscreen) = fullscreen {
+            self.canvas.request_fullscreen(fullscreen);
         } else {
             self.canvas.exit_fullscreen()
         }
@@ -365,17 +373,17 @@ impl Inner {
 
     #[inline]
     pub fn current_monitor(&self) -> Option<MonitorHandle> {
-        None
+        Some(self.monitor.current_monitor())
     }
 
     #[inline]
-    pub fn available_monitors(&self) -> VecDeque<MonitorHandle> {
-        VecDeque::new()
+    pub fn available_monitors(&self) -> Vec<MonitorHandle> {
+        self.monitor.available_monitors()
     }
 
     #[inline]
     pub fn primary_monitor(&self) -> Option<MonitorHandle> {
-        None
+        self.monitor.primary_monitor()
     }
 
     #[inline]

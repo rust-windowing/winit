@@ -7,10 +7,11 @@ use std::rc::{Rc, Weak};
 use js_sys::Function;
 use wasm_bindgen::prelude::{wasm_bindgen, Closure};
 use wasm_bindgen::JsCast;
-use web_sys::{Document, KeyboardEvent, PageTransitionEvent, PointerEvent, WheelEvent};
+use web_sys::{Document, KeyboardEvent, Navigator, PageTransitionEvent, PointerEvent, WheelEvent};
 use web_time::{Duration, Instant};
 
 use super::super::main_thread::MainThreadMarker;
+use super::super::monitor::MonitorHandler;
 use super::super::DeviceId;
 use super::backend;
 use super::state::State;
@@ -51,11 +52,13 @@ struct Execution {
     events: RefCell<VecDeque<EventWrapper>>,
     id: RefCell<u32>,
     window: web_sys::Window,
+    navigator: Navigator,
     document: Document,
     #[allow(clippy::type_complexity)]
     all_canvases: RefCell<Vec<(WindowId, Weak<backend::Canvas>, DispatchRunner<Inner>)>>,
     redraw_pending: RefCell<HashSet<WindowId>>,
     destroy_pending: RefCell<VecDeque<WindowId>>,
+    pub(crate) monitor: Rc<MonitorHandler>,
     page_transition_event_handle: RefCell<Option<backend::PageTransitionEventHandle>>,
     device_events: Cell<DeviceEvents>,
     on_mouse_move: OnEventHandle<PointerEvent>,
@@ -70,6 +73,8 @@ struct Execution {
 enum RunnerEnum {
     /// The `EventLoop` is created but not being run.
     Pending,
+    /// The `EventLoop` is running some async initialization and is waiting to be started.
+    Initializing(Runner),
     /// The `EventLoop` is being run.
     Running(Runner),
     /// The `EventLoop` is exited after being started with `EventLoop::run_app`. Since
@@ -134,6 +139,8 @@ impl Shared {
         #[allow(clippy::disallowed_methods)]
         let window = web_sys::window().expect("only callable from inside the `Window`");
         #[allow(clippy::disallowed_methods)]
+        let navigator = window.navigator();
+        #[allow(clippy::disallowed_methods)]
         let document = window.document().expect("Failed to obtain document");
 
         Shared(Rc::<Execution>::new_cyclic(|weak| {
@@ -143,6 +150,13 @@ impl Shared {
                         runner.send_proxy_wake_up(local);
                     }
                 });
+
+            let monitor = MonitorHandler::new(
+                main_thread,
+                window.clone(),
+                &navigator,
+                WeakShared(weak.clone()),
+            );
 
             Execution {
                 main_thread,
@@ -156,11 +170,13 @@ impl Shared {
                 event_loop_recreation: Cell::new(false),
                 events: RefCell::new(VecDeque::new()),
                 window,
+                navigator,
                 document,
                 id: RefCell::new(0),
                 all_canvases: RefCell::new(Vec::new()),
                 redraw_pending: RefCell::new(HashSet::new()),
                 destroy_pending: RefCell::new(VecDeque::new()),
+                monitor: Rc::new(monitor),
                 page_transition_event_handle: RefCell::new(None),
                 device_events: Cell::default(),
                 on_mouse_move: RefCell::new(None),
@@ -182,6 +198,10 @@ impl Shared {
         &self.0.window
     }
 
+    pub fn navigator(&self) -> &Navigator {
+        &self.0.navigator
+    }
+
     pub fn document(&self) -> &Document {
         &self.0.document
     }
@@ -199,17 +219,42 @@ impl Shared {
         self.0.destroy_pending.borrow_mut().push_back(id);
     }
 
+    pub(crate) fn start(&self, event_handler: Box<EventHandler>) {
+        let start = {
+            let mut runner = self.0.runner.borrow_mut();
+            assert!(matches!(*runner, RunnerEnum::Pending));
+            if self.0.monitor.is_initializing() {
+                *runner = RunnerEnum::Initializing(Runner::new(event_handler));
+                false
+            } else {
+                *runner = RunnerEnum::Running(Runner::new(event_handler));
+                true
+            }
+        };
+
+        if start {
+            self.init();
+            self.set_listener();
+        }
+    }
+
+    pub(crate) fn start_delayed(&self) {
+        let event_handler = match self.0.runner.replace(RunnerEnum::Pending) {
+            RunnerEnum::Initializing(event_handler) => event_handler,
+            // The event loop wasn't started yet.
+            RunnerEnum::Pending => return,
+            _ => unreachable!("event loop already started before waiting for initialization"),
+        };
+        *self.0.runner.borrow_mut() = RunnerEnum::Running(event_handler);
+
+        self.init();
+        self.set_listener();
+    }
+
     // Set the event callback to use for the event loop runner
     // This the event callback is a fairly thin layer over the user-provided callback that closes
     // over a RootActiveEventLoop reference
-    pub(crate) fn set_listener(&self, event_handler: Box<EventHandler>) {
-        {
-            let mut runner = self.0.runner.borrow_mut();
-            assert!(matches!(*runner, RunnerEnum::Pending));
-            *runner = RunnerEnum::Running(Runner::new(event_handler));
-        }
-        self.init();
-
+    fn set_listener(&self) {
         *self.0.page_transition_event_handle.borrow_mut() = Some(backend::on_page_transition(
             self.window().clone(),
             {
@@ -236,6 +281,7 @@ impl Shared {
 
         let runner = self.clone();
         let window = self.window().clone();
+        let navigator = self.navigator().clone();
         *self.0.on_mouse_move.borrow_mut() = Some(EventListenerHandle::new(
             self.window().clone(),
             "pointermove",
@@ -263,7 +309,7 @@ impl Shared {
                 }
 
                 // pointer move event
-                let mut delta = backend::event::MouseDelta::init(&window, &event);
+                let mut delta = backend::event::MouseDelta::init(&navigator, &event);
                 runner.send_events(backend::event::pointer_move_event(event).flat_map(|event| {
                     let delta = delta.delta(&event).to_physical(backend::scale_factor(&window));
 
@@ -419,7 +465,7 @@ impl Shared {
         self.send_events::<EventWrapper>(iter::empty());
     }
 
-    pub fn init(&self) {
+    fn init(&self) {
         // NB: For consistency all platforms must call `can_create_surfaces` even though Web
         // applications don't themselves have a formal surface destroy/create lifecycle.
         self.run_until_cleared(
@@ -501,8 +547,8 @@ impl Shared {
         match self.0.runner.try_borrow().as_ref().map(Deref::deref) {
             // If the runner is attached but not running, we always wake it up.
             Ok(RunnerEnum::Running(_)) => (),
-            Ok(RunnerEnum::Pending) => {
-                // The runner still hasn't been attached: queue this event and wait for it to be
+            // The runner still hasn't been attached: queue this event and wait for it to be
+            Ok(RunnerEnum::Pending | RunnerEnum::Initializing(_)) => {
                 process_immediately = false;
             },
             // Some other code is mutating the runner, which most likely means
@@ -605,6 +651,8 @@ impl Shared {
             RunnerEnum::Pending => self.0.events.borrow_mut().push_back(event.into()),
             // If the Runner has been destroyed, there is nothing to do.
             RunnerEnum::Destroyed => return,
+            // This function should never be called if we are still waiting for something.
+            RunnerEnum::Initializing(_) => unreachable!(),
         }
 
         let is_closed = self.exiting();
@@ -730,6 +778,8 @@ impl Shared {
             Ok(RunnerEnum::Pending) => false,
             // The event loop is closed since it has been destroyed.
             Ok(RunnerEnum::Destroyed) => true,
+            // The event loop is not closed since its still waiting to be started.
+            Ok(RunnerEnum::Initializing(_)) => false,
             // Some other code is mutating the runner, which most likely means
             // the event loop is running and busy.
             Err(_) => false,
@@ -794,6 +844,14 @@ impl Shared {
 
     pub(crate) fn waker(&self) -> Waker<WeakShared> {
         self.0.proxy_spawner.waker()
+    }
+
+    pub(crate) fn weak(&self) -> WeakShared {
+        WeakShared(Rc::downgrade(&self.0))
+    }
+
+    pub(crate) fn monitor(&self) -> &Rc<MonitorHandler> {
+        &self.0.monitor
     }
 }
 

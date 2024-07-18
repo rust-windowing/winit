@@ -7,7 +7,7 @@ use smol_str::SmolStr;
 use wasm_bindgen::closure::Closure;
 use wasm_bindgen::JsCast;
 use web_sys::{
-    CssStyleDeclaration, Document, Event, FocusEvent, HtmlCanvasElement, KeyboardEvent,
+    CssStyleDeclaration, Document, Event, FocusEvent, HtmlCanvasElement, KeyboardEvent, Navigator,
     PointerEvent, WheelEvent,
 };
 
@@ -24,7 +24,7 @@ use crate::dpi::{LogicalPosition, PhysicalPosition, PhysicalSize};
 use crate::error::OsError as RootOE;
 use crate::event::{Force, InnerSizeWriter, MouseButton, MouseScrollDelta};
 use crate::keyboard::{Key, KeyLocation, ModifiersState, PhysicalKey};
-use crate::platform_impl::OsError;
+use crate::platform_impl::{Fullscreen, OsError};
 use crate::window::{WindowAttributes, WindowId as RootWindowId};
 
 #[allow(dead_code)]
@@ -57,6 +57,7 @@ struct Handlers {
 
 pub struct Common {
     pub window: web_sys::Window,
+    navigator: Navigator,
     pub document: Document,
     /// Note: resizing the HTMLCanvasElement should go through `backend::set_canvas_size` to ensure
     /// the DPI factor is maintained. Note: this is read-only because we use a pointer to this
@@ -78,6 +79,7 @@ impl Canvas {
         main_thread: MainThreadMarker,
         id: WindowId,
         window: web_sys::Window,
+        navigator: Navigator,
         document: Document,
         attr: WindowAttributes,
     ) -> Result<Self, RootOE> {
@@ -116,6 +118,7 @@ impl Canvas {
         let common = Common {
             window: window.clone(),
             document: document.clone(),
+            navigator,
             raw: Rc::new(canvas.clone()),
             style,
             old_size: Rc::default(),
@@ -142,8 +145,14 @@ impl Canvas {
             super::set_canvas_position(&common.document, &common.raw, &common.style, position);
         }
 
-        if attr.fullscreen.is_some() {
-            fullscreen::request_fullscreen(&document, &canvas);
+        if let Some(fullscreen) = attr.fullscreen {
+            fullscreen::request_fullscreen(
+                main_thread,
+                &window,
+                &document,
+                &canvas,
+                fullscreen.into(),
+            );
         }
 
         if attr.active {
@@ -220,6 +229,11 @@ impl Canvas {
     #[inline]
     pub fn window(&self) -> &web_sys::Window {
         &self.common.window
+    }
+
+    #[inline]
+    pub fn navigator(&self) -> &Navigator {
+        &self.common.navigator
     }
 
     #[inline]
@@ -445,8 +459,14 @@ impl Canvas {
             }));
     }
 
-    pub fn request_fullscreen(&self) {
-        fullscreen::request_fullscreen(self.document(), self.raw());
+    pub(crate) fn request_fullscreen(&self, fullscreen: Fullscreen) {
+        fullscreen::request_fullscreen(
+            self.main_thread,
+            self.window(),
+            self.document(),
+            self.raw(),
+            fullscreen,
+        );
     }
 
     pub fn exit_fullscreen(&self) {

@@ -1120,7 +1120,13 @@ impl Window {
     /// - **Wayland:** Does not support exclusive fullscreen mode and will no-op a request.
     /// - **Windows:** Screen saver is disabled in fullscreen mode.
     /// - **Android / Orbital:** Unsupported.
-    /// - **Web:** Does nothing without a [transient activation].
+    /// - **Web:** Passing a [`MonitorHandle`] or [`VideoModeHandle`] that was not created with
+    #[cfg_attr(
+        any(web_platform, docsrs),
+        doc = "  [detailed monitor permissions][crate::platform::web::ActiveEventLoopExtWeb::request_detailed_monitor_permission]"
+    )]
+    #[cfg_attr(not(any(web_platform, docsrs)), doc = "  detailed monitor permissions")]
+    ///   or calling without a [transient activation] does nothing.
     ///
     /// [transient activation]: https://developer.mozilla.org/en-US/docs/Glossary/Transient_activation
     #[inline]
@@ -1593,6 +1599,17 @@ impl Window {
     /// This is the same as [`ActiveEventLoop::available_monitors`], and is provided for
     /// convenience.
     ///
+    ///
+    /// ## Platform-specific
+    ///
+    /// **Web:** Only returns the current monitor without
+    #[cfg_attr(
+        any(web_platform, docsrs),
+        doc = "[detailed monitor permissions][crate::platform::web::ActiveEventLoopExtWeb::request_detailed_monitor_permission]."
+    )]
+    #[cfg_attr(not(any(web_platform, docsrs)), doc = "detailed monitor permissions.")]
+    ///
+    #[rustfmt::skip]
     /// [`ActiveEventLoop::available_monitors`]: crate::event_loop::ActiveEventLoop::available_monitors
     #[inline]
     pub fn available_monitors(&self) -> impl Iterator<Item = MonitorHandle> {
@@ -1610,8 +1627,15 @@ impl Window {
     ///
     /// ## Platform-specific
     ///
-    /// **Wayland / Web:** Always returns `None`.
+    /// - **Wayland:** Always returns `None`.
+    /// - **Web:** Always returns `None` without
+    #[cfg_attr(
+        any(web_platform, docsrs),
+        doc = "  [detailed monitor permissions][crate::platform::web::ActiveEventLoopExtWeb::request_detailed_monitor_permission]."
+    )]
+    #[cfg_attr(not(any(web_platform, docsrs)), doc = "  detailed monitor permissions.")]
     ///
+    #[rustfmt::skip]
     /// [`ActiveEventLoop::primary_monitor`]: crate::event_loop::ActiveEventLoop::primary_monitor
     #[inline]
     pub fn primary_monitor(&self) -> Option<MonitorHandle> {

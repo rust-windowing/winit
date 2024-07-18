@@ -55,10 +55,17 @@ use web_sys::HtmlCanvasElement;
 
 use crate::application::ApplicationHandler;
 use crate::cursor::CustomCursorSource;
+use crate::error::NotSupportedError;
 use crate::event_loop::{ActiveEventLoop, EventLoop};
-#[cfg(web_platform)]
-use crate::platform_impl::CustomCursorFuture as PlatformCustomCursorFuture;
+use crate::monitor::MonitorHandle;
 use crate::platform_impl::PlatformCustomCursorSource;
+#[cfg(web_platform)]
+use crate::platform_impl::{
+    CustomCursorFuture as PlatformCustomCursorFuture,
+    HasMonitorPermissionFuture as PlatformHasMonitorPermissionFuture,
+    MonitorPermissionFuture as PlatformMonitorPermissionFuture,
+    OrientationLockFuture as PlatformOrientationLockFuture,
+};
 use crate::window::{CustomCursor, Window, WindowAttributes};
 
 #[cfg(not(web_platform))]
@@ -218,6 +225,21 @@ pub trait EventLoopExtWeb {
     ///
     /// [`ControlFlow::WaitUntil`]: crate::event_loop::ControlFlow::WaitUntil
     fn wait_until_strategy(&self) -> WaitUntilStrategy;
+
+    /// Returns if the users device has multiple screens.
+    ///
+    /// Browsers might always return [`false`] to reduce fingerprinting.
+    fn has_multiple_screens(&self) -> Result<bool, NotSupportedError>;
+
+    /// Prompts the user for permission to query detailed information about available monitors. The
+    /// returned [`MonitorPermissionFuture`] can be dropped without aborting the request.
+    ///
+    /// [`MonitorHandle`]s don't automatically make use of this after permission is granted. New
+    /// [`MonitorHandle`]s have to be created instead.
+    fn request_detailed_monitor_permission(&self) -> MonitorPermissionFuture;
+
+    /// Returns whether the user has given permission to access detailed monitor information.
+    fn has_detailed_monitor_permission(&self) -> HasMonitorPermissionFuture;
 }
 
 impl EventLoopExtWeb for EventLoop {
@@ -239,6 +261,18 @@ impl EventLoopExtWeb for EventLoop {
 
     fn wait_until_strategy(&self) -> WaitUntilStrategy {
         self.event_loop.wait_until_strategy()
+    }
+
+    fn has_multiple_screens(&self) -> Result<bool, NotSupportedError> {
+        self.event_loop.has_multiple_screens()
+    }
+
+    fn request_detailed_monitor_permission(&self) -> MonitorPermissionFuture {
+        MonitorPermissionFuture(self.event_loop.request_detailed_monitor_permission())
+    }
+
+    fn has_detailed_monitor_permission(&self) -> HasMonitorPermissionFuture {
+        HasMonitorPermissionFuture(self.event_loop.has_detailed_monitor_permission())
     }
 }
 
@@ -279,6 +313,24 @@ pub trait ActiveEventLoopExtWeb {
     ///
     /// [`CursorGrabMode::Locked`]: crate::window::CursorGrabMode::Locked
     fn is_cursor_lock_raw(&self) -> bool;
+
+    /// Returns if the users device has multiple screens.
+    ///
+    /// Browsers might always return [`false`] to reduce fingerprinting.
+    fn has_multiple_screens(&self) -> Result<bool, NotSupportedError>;
+
+    /// Prompts the user for permission to query detailed information about available monitors. The
+    /// returned [`MonitorPermissionFuture`] can be dropped without aborting the request.
+    ///
+    /// [`MonitorHandle`]s don't automatically make use of this after permission is granted. New
+    /// [`MonitorHandle`]s have to be created instead.
+    fn request_detailed_monitor_permission(&self) -> MonitorPermissionFuture;
+
+    /// Returns whether the user has given permission to access detailed monitor information.
+    ///
+    /// [`MonitorHandle`]s don't automatically make use of this after permission is granted. New
+    /// [`MonitorHandle`]s have to be created instead.
+    fn has_detailed_monitor_permission(&self) -> bool;
 }
 
 impl ActiveEventLoopExtWeb for ActiveEventLoop {
@@ -310,6 +362,21 @@ impl ActiveEventLoopExtWeb for ActiveEventLoop {
     #[inline]
     fn is_cursor_lock_raw(&self) -> bool {
         self.p.is_cursor_lock_raw()
+    }
+
+    #[inline]
+    fn has_multiple_screens(&self) -> Result<bool, NotSupportedError> {
+        self.p.has_multiple_screens()
+    }
+
+    #[inline]
+    fn request_detailed_monitor_permission(&self) -> MonitorPermissionFuture {
+        MonitorPermissionFuture(self.p.request_detailed_monitor_permission())
+    }
+
+    #[inline]
+    fn has_detailed_monitor_permission(&self) -> bool {
+        self.p.has_detailed_monitor_permission()
     }
 }
 
@@ -458,3 +525,192 @@ impl Display for CustomCursorError {
 }
 
 impl Error for CustomCursorError {}
+
+#[cfg(not(web_platform))]
+struct PlatformMonitorPermissionFuture;
+
+/// Can be dropped without aborting the request for detailed monitor permissions.
+#[derive(Debug)]
+pub struct MonitorPermissionFuture(pub(crate) PlatformMonitorPermissionFuture);
+
+impl Future for MonitorPermissionFuture {
+    type Output = Result<(), MonitorPermissionError>;
+
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        Pin::new(&mut self.0).poll(cx)
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub enum MonitorPermissionError {
+    /// User has explicitly denied permission to query detailed monitor information.
+    Denied,
+    /// User has not decided to give permission to query detailed monitor information.
+    Prompt,
+    /// Browser does not support detailed monitor information.
+    Unsupported,
+}
+
+impl Display for MonitorPermissionError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        match self {
+            MonitorPermissionError::Denied => write!(
+                f,
+                "User has explicitly denied permission to query detailed monitor information"
+            ),
+            MonitorPermissionError::Prompt => write!(
+                f,
+                "User has not decided to give permission to query detailed monitor information"
+            ),
+            MonitorPermissionError::Unsupported => {
+                write!(f, "Browser does not support detailed monitor information")
+            },
+        }
+    }
+}
+
+impl Error for MonitorPermissionError {}
+
+#[cfg(not(web_platform))]
+struct PlatformHasMonitorPermissionFuture;
+
+#[derive(Debug)]
+pub struct HasMonitorPermissionFuture(PlatformHasMonitorPermissionFuture);
+
+impl Future for HasMonitorPermissionFuture {
+    type Output = bool;
+
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        Pin::new(&mut self.0).poll(cx)
+    }
+}
+
+/// Additional methods on [`MonitorHandle`] that are specific to the Web.
+pub trait MonitorHandleExtWeb {
+    /// Returns whether the screen is internal to the device or external.
+    ///
+    /// External devices are generally manufactured separately from the device they are attached to
+    /// and can be connected and disconnected as needed, whereas internal screens are part of
+    /// the device and not intended to be disconnected.
+    fn is_internal(&self) -> Option<bool>;
+
+    /// Returns screen orientation data for this monitor.
+    fn orientation(&self) -> OrientationData;
+
+    /// Lock the screen orientation. The returned [`OrientationLockFuture`] can be dropped without
+    /// aborting the request.
+    ///
+    /// Will fail if another locking call is in progress.
+    fn request_lock(&self, orientation: OrientationLock) -> OrientationLockFuture;
+
+    /// Unlock the screen orientation.
+    ///
+    /// Will fail if a locking call is in progress.
+    fn unlock(&self) -> Result<(), OrientationLockError>;
+
+    /// Returns whether this [`MonitorHandle`] was created using detailed monitor permissions.
+    ///
+    /// See [`ActiveEventLoop::request_detailed_monitor_permission()`].
+    fn is_detailed(&self) -> bool;
+}
+
+impl MonitorHandleExtWeb for MonitorHandle {
+    fn is_internal(&self) -> Option<bool> {
+        self.inner.is_internal()
+    }
+
+    fn orientation(&self) -> OrientationData {
+        self.inner.orientation()
+    }
+
+    fn request_lock(&self, orientation_lock: OrientationLock) -> OrientationLockFuture {
+        OrientationLockFuture(self.inner.request_lock(orientation_lock))
+    }
+
+    fn unlock(&self) -> Result<(), OrientationLockError> {
+        self.inner.unlock()
+    }
+
+    fn is_detailed(&self) -> bool {
+        self.inner.is_detailed()
+    }
+}
+
+/// Screen orientation data.
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub struct OrientationData {
+    /// The orientation.
+    pub orientation: Orientation,
+    /// [`true`] if the [`orientation`](Self::orientation) is flipped upside down.
+    pub flipped: bool,
+    /// [`true`] if the [`Orientation`] is the most natural one for the screen regardless of being
+    /// flipped. Computer monitors are commonly naturally landscape mode, while mobile phones
+    /// are commonly naturally portrait mode.
+    pub natural: bool,
+}
+
+/// Screen orientation.
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub enum Orientation {
+    /// The screen's aspect ratio has a width greater than the height.
+    Landscape,
+    /// The screen's aspect ratio has a height greater than the width.
+    Portrait,
+}
+
+/// Screen orientation lock options. Reoresents which orientations a user can use.
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub enum OrientationLock {
+    /// User is free to use any orientation.
+    Any,
+    /// User is locked to the most upright natural orientation for the screen. Computer monitors
+    /// are commonly naturally landscape mode, while mobile phones are commonly
+    /// naturally portrait mode.
+    Natural,
+    /// User is locked to landscape mode.
+    Landscape {
+        /// - [`None`]: User is locked to both upright or upside down landscape mode.
+        /// - [`false`]: User is locked to upright landscape mode.
+        /// - [`false`]: User is locked to upside down landscape mode.
+        flipped: Option<bool>,
+    },
+    /// User is locked to portrait mode.
+    Portrait {
+        /// - [`None`]: User is locked to both upright or upside down portrait mode.
+        /// - [`false`]: User is locked to upright portrait mode.
+        /// - [`false`]: User is locked to upside down portrait mode.
+        flipped: Option<bool>,
+    },
+}
+
+#[cfg(not(web_platform))]
+struct PlatformOrientationLockFuture;
+
+/// Can be dropped without aborting the request to lock the screen.
+#[derive(Debug)]
+pub struct OrientationLockFuture(PlatformOrientationLockFuture);
+
+impl Future for OrientationLockFuture {
+    type Output = Result<(), OrientationLockError>;
+
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        Pin::new(&mut self.0).poll(cx)
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub enum OrientationLockError {
+    Unsupported,
+    Busy,
+}
+
+impl Display for OrientationLockError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Unsupported => write!(f, "Locking the screen orientation is not supported"),
+            Self::Busy => write!(f, "Another locking call is in progress"),
+        }
+    }
+}
+
+impl Error for OrientationLockError {}
