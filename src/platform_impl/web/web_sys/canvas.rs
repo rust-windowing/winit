@@ -176,15 +176,6 @@ impl Canvas {
         })
     }
 
-    pub fn set_cursor_lock(&self, lock: bool) -> Result<(), RootOE> {
-        if lock {
-            self.raw().request_pointer_lock();
-        } else {
-            self.common.document.exit_pointer_lock();
-        }
-        Ok(())
-    }
-
     pub fn set_attribute(&self, attribute: &str, value: &str) {
         self.common
             .raw

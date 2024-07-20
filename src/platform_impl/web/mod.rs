@@ -26,6 +26,7 @@ mod device;
 mod error;
 mod event_loop;
 mod keyboard;
+mod lock;
 mod main_thread;
 mod monitor;
 mod web_sys;

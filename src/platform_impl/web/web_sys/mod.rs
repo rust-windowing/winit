@@ -9,7 +9,7 @@ mod pointer;
 mod resize_scaling;
 mod schedule;
 
-use std::sync::OnceLock;
+use std::cell::OnceCell;
 
 use js_sys::Array;
 use wasm_bindgen::closure::Closure;
@@ -173,9 +173,24 @@ pub enum Engine {
     WebKit,
 }
 
-pub fn engine(window: &Window) -> Option<Engine> {
-    static ENGINE: OnceLock<Option<Engine>> = OnceLock::new();
+struct UserAgentData {
+    engine: Option<Engine>,
+    chrome_linux: bool,
+}
 
+thread_local! {
+    static USER_AGENT_DATA: OnceCell<UserAgentData> = const { OnceCell::new() };
+}
+
+pub fn chrome_linux(window: &Window) -> bool {
+    USER_AGENT_DATA.with(|data| data.get_or_init(|| user_agent(window)).chrome_linux)
+}
+
+pub fn engine(window: &Window) -> Option<Engine> {
+    USER_AGENT_DATA.with(|data| data.get_or_init(|| user_agent(window)).engine)
+}
+
+fn user_agent(window: &Window) -> UserAgentData {
     #[wasm_bindgen]
     extern "C" {
         #[wasm_bindgen(extends = Navigator)]
@@ -189,16 +204,19 @@ pub fn engine(window: &Window) -> Option<Engine> {
         #[wasm_bindgen(method, getter)]
         fn brands(this: &NavigatorUaData) -> Array;
 
+        #[wasm_bindgen(method, getter)]
+        fn platform(this: &NavigatorUaData) -> String;
+
         type NavigatorUaBrandVersion;
 
         #[wasm_bindgen(method, getter)]
         fn brand(this: &NavigatorUaBrandVersion) -> String;
     }
 
-    *ENGINE.get_or_init(|| {
-        let navigator: NavigatorExt = window.navigator().unchecked_into();
+    let navigator: NavigatorExt = window.navigator().unchecked_into();
 
-        if let Some(data) = navigator.user_agent_data() {
+    if let Some(data) = navigator.user_agent_data() {
+        let engine = 'engine: {
             for brand in data
                 .brands()
                 .iter()
@@ -206,18 +224,28 @@ pub fn engine(window: &Window) -> Option<Engine> {
                 .map(|brand| brand.brand())
             {
                 match brand.as_str() {
-                    "Chromium" => return Some(Engine::Chromium),
+                    "Chromium" => break 'engine Some(Engine::Chromium),
                     // TODO: verify when Firefox actually implements it.
-                    "Gecko" => return Some(Engine::Gecko),
+                    "Gecko" => break 'engine Some(Engine::Gecko),
                     // TODO: verify when Safari actually implements it.
-                    "WebKit" => return Some(Engine::WebKit),
+                    "WebKit" => break 'engine Some(Engine::WebKit),
                     _ => (),
                 }
             }
 
             None
-        } else {
-            let data = navigator.user_agent().ok()?;
+        };
+
+        let chrome_linux = matches!(engine, Some(Engine::Chromium))
+            .then(|| data.platform() == "Linux")
+            .unwrap_or(false);
+
+        UserAgentData { engine, chrome_linux }
+    } else {
+        let engine = 'engine: {
+            let Ok(data) = navigator.user_agent() else {
+                break 'engine None;
+            };
 
             if data.contains("Chrome/") {
                 Some(Engine::Chromium)
@@ -228,6 +256,8 @@ pub fn engine(window: &Window) -> Option<Engine> {
             } else {
                 None
             }
-        }
-    })
+        };
+
+        UserAgentData { engine, chrome_linux: false }
+    }
 }

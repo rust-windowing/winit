@@ -84,6 +84,14 @@ pub trait WindowExtWeb {
     /// Some events are impossible to prevent. E.g. Firefox allows to access the native browser
     /// context menu with Shift+Rightclick.
     fn set_prevent_default(&self, prevent_default: bool);
+
+    /// Returns whether using [`CursorGrabMode::Locked`] returns raw, un-accelerated mouse input.
+    ///
+    /// This is the same as [`ActiveEventLoop::is_cursor_lock_raw()`], and is provided for
+    /// convenience.
+    ///
+    /// [`CursorGrabMode::Locked`]: crate::window::CursorGrabMode::Locked
+    fn is_cursor_lock_raw(&self) -> bool;
 }
 
 impl WindowExtWeb for Window {
@@ -98,6 +106,10 @@ impl WindowExtWeb for Window {
 
     fn set_prevent_default(&self, prevent_default: bool) {
         self.window.set_prevent_default(prevent_default)
+    }
+
+    fn is_cursor_lock_raw(&self) -> bool {
+        self.window.is_cursor_lock_raw()
     }
 }
 
@@ -262,6 +274,11 @@ pub trait ActiveEventLoopExtWeb {
     /// Async version of [`ActiveEventLoop::create_custom_cursor()`] which waits until the
     /// cursor has completely finished loading.
     fn create_custom_cursor_async(&self, source: CustomCursorSource) -> CustomCursorFuture;
+
+    /// Returns whether using [`CursorGrabMode::Locked`] returns raw, un-accelerated mouse input.
+    ///
+    /// [`CursorGrabMode::Locked`]: crate::window::CursorGrabMode::Locked
+    fn is_cursor_lock_raw(&self) -> bool;
 }
 
 impl ActiveEventLoopExtWeb for ActiveEventLoop {
@@ -288,6 +305,11 @@ impl ActiveEventLoopExtWeb for ActiveEventLoop {
     #[inline]
     fn wait_until_strategy(&self) -> WaitUntilStrategy {
         self.p.wait_until_strategy()
+    }
+
+    #[inline]
+    fn is_cursor_lock_raw(&self) -> bool {
+        self.p.is_cursor_lock_raw()
     }
 }
 

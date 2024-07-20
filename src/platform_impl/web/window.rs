@@ -8,7 +8,7 @@ use web_sys::HtmlCanvasElement;
 use super::main_thread::{MainThreadMarker, MainThreadSafe};
 use super::monitor::MonitorHandle;
 use super::r#async::Dispatcher;
-use super::{backend, ActiveEventLoop, Fullscreen};
+use super::{backend, lock, ActiveEventLoop, Fullscreen};
 use crate::dpi::{PhysicalPosition, PhysicalSize, Position, Size};
 use crate::error::{ExternalError, NotSupportedError, OsError as RootOE};
 use crate::icon::Icon;
@@ -76,6 +76,12 @@ impl Window {
 
     pub(crate) fn set_prevent_default(&self, prevent_default: bool) {
         self.inner.dispatch(move |inner| inner.canvas.prevent_default.set(prevent_default))
+    }
+
+    pub(crate) fn is_cursor_lock_raw(&self) -> bool {
+        self.inner.queue(move |inner| {
+            lock::is_cursor_lock_raw(inner.canvas.window(), inner.canvas.document())
+        })
     }
 
     #[cfg(feature = "rwh_06")]
@@ -235,15 +241,19 @@ impl Inner {
 
     #[inline]
     pub fn set_cursor_grab(&self, mode: CursorGrabMode) -> Result<(), ExternalError> {
-        let lock = match mode {
-            CursorGrabMode::None => false,
-            CursorGrabMode::Locked => true,
+        match mode {
+            CursorGrabMode::None => self.canvas.document().exit_pointer_lock(),
+            CursorGrabMode::Locked => lock::request_pointer_lock(
+                self.canvas.window(),
+                self.canvas.document(),
+                self.canvas.raw(),
+            ),
             CursorGrabMode::Confined => {
                 return Err(ExternalError::NotSupported(NotSupportedError::new()))
             },
-        };
+        }
 
-        self.canvas.set_cursor_lock(lock).map_err(ExternalError::Os)
+        Ok(())
     }
 
     #[inline]

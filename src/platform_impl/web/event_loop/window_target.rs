@@ -8,7 +8,7 @@ use std::rc::Rc;
 use web_sys::Element;
 
 use super::super::monitor::MonitorHandle;
-use super::super::KeyEventExtra;
+use super::super::{lock, KeyEventExtra};
 use super::device::DeviceId;
 use super::runner::{EventWrapper, WeakShared};
 use super::window::WindowId;
@@ -650,6 +650,10 @@ impl ActiveEventLoop {
 
     pub(crate) fn wait_until_strategy(&self) -> WaitUntilStrategy {
         self.runner.wait_until_strategy()
+    }
+
+    pub(crate) fn is_cursor_lock_raw(&self) -> bool {
+        lock::is_cursor_lock_raw(self.runner.window(), self.runner.document())
     }
 
     pub(crate) fn waker(&self) -> Waker<WeakShared> {
