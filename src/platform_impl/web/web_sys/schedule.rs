@@ -1,7 +1,7 @@
 use std::cell::OnceCell;
 use std::time::Duration;
 
-use js_sys::{Array, Function, Object, Promise, Reflect};
+use js_sys::{Array, Function, Object, Promise};
 use wasm_bindgen::closure::Closure;
 use wasm_bindgen::prelude::wasm_bindgen;
 use wasm_bindgen::{JsCast, JsValue};
@@ -78,9 +78,9 @@ impl Schedule {
         let scheduler = window.scheduler();
 
         let closure = Closure::new(f);
-        let mut options = SchedulerPostTaskOptions::new();
+        let options: SchedulerPostTaskOptions = Object::new().unchecked_into();
         let controller = AbortController::new().expect("Failed to create `AbortController`");
-        options.signal(&controller.signal());
+        options.set_signal(&controller.signal());
 
         if let Some(duration) = duration {
             // `Duration::as_millis()` always rounds down (because of truncation), we want to round
@@ -91,7 +91,7 @@ impl Schedule {
                 .and_then(|secs| secs.checked_add(duration.subsec_micros().div_ceil(1000).into()))
                 .unwrap_or(u64::MAX);
 
-            options.delay(duration as f64);
+            options.set_delay(duration as f64);
         }
 
         thread_local! {
@@ -310,22 +310,10 @@ extern "C" {
     ) -> Promise;
 
     type SchedulerPostTaskOptions;
-}
 
-impl SchedulerPostTaskOptions {
-    fn new() -> Self {
-        Object::new().unchecked_into()
-    }
+    #[wasm_bindgen(method, setter, js_name = delay)]
+    fn set_delay(this: &SchedulerPostTaskOptions, value: f64);
 
-    fn delay(&mut self, val: f64) -> &mut Self {
-        let r = Reflect::set(self, &JsValue::from("delay"), &val.into());
-        debug_assert!(r.is_ok(), "Failed to set `delay` property");
-        self
-    }
-
-    fn signal(&mut self, val: &AbortSignal) -> &mut Self {
-        let r = Reflect::set(self, &JsValue::from("signal"), &val.into());
-        debug_assert!(r.is_ok(), "Failed to set `signal` property");
-        self
-    }
+    #[wasm_bindgen(method, setter, js_name = signal)]
+    fn set_signal(this: &SchedulerPostTaskOptions, value: &AbortSignal);
 }
