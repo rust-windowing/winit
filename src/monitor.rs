@@ -155,6 +155,12 @@ impl MonitorHandle {
         self.inner.scale_factor()
     }
 
+    /// Returns the currently active video mode of this monitor.
+    #[inline]
+    pub fn current_video_mode(&self) -> Option<VideoModeHandle> {
+        self.inner.current_video_mode().map(|video_mode| VideoModeHandle { video_mode })
+    }
+
     /// Returns all fullscreen video modes supported by this monitor.
     ///
     /// ## Platform-specific

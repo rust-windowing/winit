@@ -44,6 +44,7 @@ changelog entry.
 
 - Add `ActiveEventLoop::create_proxy()`.
 - On Web, implement `Error` for `platform::web::CustomCursorError`.
+- Add `MonitorHandle::current_video_mode()`.
 
 ### Changed
 

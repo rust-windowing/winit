@@ -74,6 +74,7 @@ impl XConnection {
         let bit_depth = self.default_root().root_depth;
         let output_modes = &output_info.modes;
         let resource_modes = resources.modes();
+        let current_mode = crtc.mode;
 
         let modes = resource_modes
             .iter()
@@ -82,6 +83,7 @@ impl XConnection {
             .filter(|x| output_modes.iter().any(|id| x.id == *id))
             .map(|mode| {
                 VideoModeHandle {
+                    current: mode.id == current_mode,
                     size: (mode.width.into(), mode.height.into()),
                     refresh_rate_millihertz: monitor::mode_refresh_rate_millihertz(mode)
                         .unwrap_or(0),

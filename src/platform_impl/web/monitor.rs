@@ -26,6 +26,10 @@ impl MonitorHandle {
         unreachable!()
     }
 
+    pub fn current_video_mode(&self) -> Option<VideoModeHandle> {
+        unreachable!()
+    }
+
     pub fn video_modes(&self) -> Empty<VideoModeHandle> {
         unreachable!()
     }

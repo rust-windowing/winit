@@ -1,4 +1,4 @@
-use sctk::output::OutputData;
+use sctk::output::{Mode, OutputData};
 use sctk::reexports::client::protocol::wl_output::WlOutput;
 use sctk::reexports::client::Proxy;
 
@@ -88,6 +88,18 @@ impl MonitorHandle {
     }
 
     #[inline]
+    pub fn current_video_mode(&self) -> Option<PlatformVideoModeHandle> {
+        let output_data = self.proxy.data::<OutputData>().unwrap();
+        output_data.with_output_info(|info| {
+            let mode = info.modes.iter().find(|mode| mode.current).cloned();
+
+            mode.map(|mode| {
+                PlatformVideoModeHandle::Wayland(VideoModeHandle::new(self.clone(), mode))
+            })
+        })
+    }
+
+    #[inline]
     pub fn video_modes(&self) -> impl Iterator<Item = PlatformVideoModeHandle> {
         let output_data = self.proxy.data::<OutputData>().unwrap();
         let modes = output_data.with_output_info(|info| info.modes.clone());
@@ -95,12 +107,7 @@ impl MonitorHandle {
         let monitor = self.clone();
 
         modes.into_iter().map(move |mode| {
-            PlatformVideoModeHandle::Wayland(VideoModeHandle {
-                size: (mode.dimensions.0 as u32, mode.dimensions.1 as u32).into(),
-                refresh_rate_millihertz: mode.refresh_rate as u32,
-                bit_depth: 32,
-                monitor: monitor.clone(),
-            })
+            PlatformVideoModeHandle::Wayland(VideoModeHandle::new(monitor.clone(), mode))
         })
     }
 }
@@ -140,6 +147,15 @@ pub struct VideoModeHandle {
 }
 
 impl VideoModeHandle {
+    fn new(monitor: MonitorHandle, mode: Mode) -> Self {
+        VideoModeHandle {
+            size: (mode.dimensions.0 as u32, mode.dimensions.1 as u32).into(),
+            refresh_rate_millihertz: mode.refresh_rate as u32,
+            bit_depth: 32,
+            monitor: monitor.clone(),
+        }
+    }
+
     #[inline]
     pub fn size(&self) -> PhysicalSize<u32> {
         self.size
