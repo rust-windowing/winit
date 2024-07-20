@@ -64,12 +64,8 @@ impl VideoModeHandle {
     }
 
     /// Returns the refresh rate of this video mode in mHz.
-    ///
-    /// ## Platform-specific
-    ///
-    /// **Web:** Always returns `0`.
     #[inline]
-    pub fn refresh_rate_millihertz(&self) -> u32 {
+    pub fn refresh_rate_millihertz(&self) -> Option<u32> {
         self.video_mode.refresh_rate_millihertz()
     }
 
@@ -85,10 +81,10 @@ impl std::fmt::Display for VideoModeHandle {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "{}x{} @ {} mHz ({} bpp)",
+            "{}x{} {}({} bpp)",
             self.size().width,
             self.size().height,
-            self.refresh_rate_millihertz(),
+            self.refresh_rate_millihertz().map(|rate| format!("@ {rate} mHz ")).unwrap_or_default(),
             self.bit_depth()
         )
     }
@@ -139,12 +135,6 @@ impl MonitorHandle {
         self.inner.name()
     }
 
-    /// Returns the monitor's resolution.
-    #[inline]
-    pub fn size(&self) -> PhysicalSize<u32> {
-        self.inner.size()
-    }
-
     /// Returns the top-left corner position of the monitor relative to the larger full
     /// screen area.
     ///
@@ -159,22 +149,6 @@ impl MonitorHandle {
     #[inline]
     pub fn position(&self) -> PhysicalPosition<i32> {
         self.inner.position()
-    }
-
-    /// The monitor refresh rate used by the system.
-    ///
-    /// Return `Some` if succeed, or `None` if failed, which usually happens when the monitor
-    /// the window is on is removed.
-    ///
-    /// When using exclusive fullscreen, the refresh rate of the [`VideoModeHandle`] that was
-    /// used to enter fullscreen should be used instead.
-    ///
-    /// ## Platform-specific
-    ///
-    /// **Web:** Always returns [`None`].
-    #[inline]
-    pub fn refresh_rate_millihertz(&self) -> Option<u32> {
-        self.inner.refresh_rate_millihertz()
     }
 
     /// Returns the scale factor of the underlying monitor. To map logical pixels to physical

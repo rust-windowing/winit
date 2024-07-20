@@ -71,24 +71,6 @@ impl MonitorHandle {
         })
     }
 
-    pub fn refresh_rate_millihertz(&self) -> Option<u32> {
-        None
-    }
-
-    pub fn size(&self) -> PhysicalSize<u32> {
-        self.inner.queue(|inner| {
-            let width = inner.screen.width().unwrap();
-            let height = inner.screen.height().unwrap();
-
-            if let Some(Engine::Chromium) = inner.engine {
-                PhysicalSize::new(width, height).cast()
-            } else {
-                LogicalSize::new(width, height)
-                    .to_physical(super::web_sys::scale_factor(&inner.window))
-            }
-        })
-    }
-
     pub fn current_video_mode(&self) -> Option<VideoModeHandle> {
         Some(VideoModeHandle(self.clone()))
     }
@@ -291,15 +273,25 @@ pub struct VideoModeHandle(pub(super) MonitorHandle);
 
 impl VideoModeHandle {
     pub fn size(&self) -> PhysicalSize<u32> {
-        self.0.size()
+        self.0.inner.queue(|inner| {
+            let width = inner.screen.width().unwrap();
+            let height = inner.screen.height().unwrap();
+
+            if let Some(Engine::Chromium) = inner.engine {
+                PhysicalSize::new(width, height).cast()
+            } else {
+                LogicalSize::new(width, height)
+                    .to_physical(super::web_sys::scale_factor(&inner.window))
+            }
+        })
     }
 
     pub fn bit_depth(&self) -> u16 {
         self.0.inner.queue(|inner| inner.screen.color_depth().unwrap()).try_into().unwrap()
     }
 
-    pub fn refresh_rate_millihertz(&self) -> u32 {
-        0
+    pub fn refresh_rate_millihertz(&self) -> Option<u32> {
+        None
     }
 
     pub fn monitor(&self) -> MonitorHandle {

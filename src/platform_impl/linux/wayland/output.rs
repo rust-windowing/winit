@@ -29,20 +29,6 @@ impl MonitorHandle {
     }
 
     #[inline]
-    pub fn size(&self) -> PhysicalSize<u32> {
-        let output_data = self.proxy.data::<OutputData>().unwrap();
-        let dimensions = output_data.with_output_info(|info| {
-            info.modes.iter().find_map(|mode| mode.current.then_some(mode.dimensions))
-        });
-
-        match dimensions {
-            Some((width, height)) => (width as u32, height as u32),
-            _ => (0, 0),
-        }
-        .into()
-    }
-
-    #[inline]
     pub fn position(&self) -> PhysicalPosition<i32> {
         let output_data = self.proxy.data::<OutputData>().unwrap();
         output_data.with_output_info(|info| {
@@ -56,14 +42,6 @@ impl MonitorHandle {
                         .to_physical(info.scale_factor as f64)
                 },
             )
-        })
-    }
-
-    #[inline]
-    pub fn refresh_rate_millihertz(&self) -> Option<u32> {
-        let output_data = self.proxy.data::<OutputData>().unwrap();
-        output_data.with_output_info(|info| {
-            info.modes.iter().find_map(|mode| mode.current.then_some(mode.refresh_rate as u32))
         })
     }
 
@@ -153,8 +131,8 @@ impl VideoModeHandle {
     }
 
     #[inline]
-    pub fn refresh_rate_millihertz(&self) -> u32 {
-        self.refresh_rate_millihertz
+    pub fn refresh_rate_millihertz(&self) -> Option<u32> {
+        Some(self.refresh_rate_millihertz)
     }
 
     pub fn monitor(&self) -> MonitorHandle {

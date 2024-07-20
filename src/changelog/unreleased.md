@@ -95,6 +95,7 @@ changelog entry.
   accelerated, if the browser supports it.
 - `(Active)EventLoop::create_custom_cursor()` now returns a `Result<CustomCursor, ExternalError>`.
 - Changed how `ModifiersState` is serialized by Serde.
+- `VideoModeHandle::refresh_rate_millihertz()` now returns an `Option`.
 
 ### Removed
 
@@ -118,6 +119,8 @@ changelog entry.
 - Remove `DeviceEvent::Added` and `DeviceEvent::Removed`.
 - Remove `DeviceEvent::Motion` and `WindowEvent::AxisMotion`.
 - Remove `Touch::id` in favor of `Touch::finger_id`.
+- Remove `MonitorHandle::size()` and `refresh_rate_millihertz()` in favor of
+  `MonitorHandle::current_video_mode()`.
 
 ### Fixed
 

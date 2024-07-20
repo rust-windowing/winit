@@ -21,7 +21,7 @@ pub struct VideoModeHandle {
     pub(crate) current: bool,
     pub(crate) size: (u32, u32),
     pub(crate) bit_depth: u16,
-    pub(crate) refresh_rate_millihertz: u32,
+    pub(crate) refresh_rate_millihertz: Option<u32>,
     pub(crate) native_mode: randr::Mode,
     pub(crate) monitor: Option<MonitorHandle>,
 }
@@ -38,7 +38,7 @@ impl VideoModeHandle {
     }
 
     #[inline]
-    pub fn refresh_rate_millihertz(&self) -> u32 {
+    pub fn refresh_rate_millihertz(&self) -> Option<u32> {
         self.refresh_rate_millihertz
     }
 
@@ -54,8 +54,6 @@ pub struct MonitorHandle {
     pub(crate) id: randr::Crtc,
     /// The name of the monitor
     pub(crate) name: String,
-    /// The size of the monitor
-    dimensions: (u32, u32),
     /// The position of the monitor in the X screen
     position: (i32, i32),
     /// If the monitor is the primary one
@@ -118,16 +116,7 @@ impl MonitorHandle {
 
         let rect = util::AaRect::new(position, dimensions);
 
-        Some(MonitorHandle {
-            id,
-            name,
-            scale_factor,
-            dimensions,
-            position,
-            primary,
-            rect,
-            video_modes,
-        })
+        Some(MonitorHandle { id, name, scale_factor, position, primary, rect, video_modes })
     }
 
     pub fn dummy() -> Self {
@@ -135,7 +124,6 @@ impl MonitorHandle {
             id: 0,
             name: "<dummy monitor>".into(),
             scale_factor: 1.0,
-            dimensions: (1, 1),
             position: (0, 0),
             primary: true,
             rect: util::AaRect::new((0, 0), (1, 1)),
@@ -157,18 +145,8 @@ impl MonitorHandle {
         self.id as _
     }
 
-    pub fn size(&self) -> PhysicalSize<u32> {
-        self.dimensions.into()
-    }
-
     pub fn position(&self) -> PhysicalPosition<i32> {
         self.position.into()
-    }
-
-    pub fn refresh_rate_millihertz(&self) -> Option<u32> {
-        self.video_modes
-            .iter()
-            .find_map(|mode| mode.current.then_some(mode.refresh_rate_millihertz))
     }
 
     #[inline]
