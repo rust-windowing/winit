@@ -331,6 +331,7 @@ concurrent-queue = { version = "2", default-features = false }
 [target.'cfg(target_family = "wasm")'.dev-dependencies]
 console_error_panic_hook = "0.1"
 tracing-web = "0.1"
+wasm-bindgen-test = "0.3"
 
 [[example]]
 doc-scrape-examples = true

@@ -4,3 +4,6 @@
 [build]
 rustflags = ["--cfg=unreleased_changelogs"]
 rustdocflags = ["--cfg=unreleased_changelogs"]
+
+[target.wasm32-unknown-unknown]
+runner = "wasm-bindgen-test-runner"
