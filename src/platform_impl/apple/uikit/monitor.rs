@@ -182,6 +182,16 @@ impl MonitorHandle {
         Some(self.ui_screen.get_on_main(|ui_screen| refresh_rate_millihertz(ui_screen)))
     }
 
+    pub fn current_video_mode(&self) -> Option<VideoModeHandle> {
+        Some(run_on_main(|mtm| {
+            VideoModeHandle::new(
+                self.ui_screen(mtm).clone(),
+                self.ui_screen(mtm).currentMode().unwrap(),
+                mtm,
+            )
+        }))
+    }
+
     pub fn video_modes(&self) -> impl Iterator<Item = VideoModeHandle> {
         run_on_main(|mtm| {
             let ui_screen = self.ui_screen(mtm);

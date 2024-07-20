@@ -61,6 +61,7 @@ changelog entry.
   the primary finger in a multi-touch interaction.
 - Implement `Clone`, `Copy`, `Debug`, `Deserialize`, `Eq`, `Hash`, `Ord`, `PartialEq`, `PartialOrd`
   and `Serialize` on many types.
+- Add `MonitorHandle::current_video_mode()`.
 
 ### Changed
 

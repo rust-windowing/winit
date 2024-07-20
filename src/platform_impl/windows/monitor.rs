@@ -59,6 +59,20 @@ impl std::fmt::Debug for VideoModeHandle {
 }
 
 impl VideoModeHandle {
+    fn new(monitor: MonitorHandle, mode: DEVMODEW) -> Self {
+        const REQUIRED_FIELDS: u32 =
+            DM_BITSPERPEL | DM_PELSWIDTH | DM_PELSHEIGHT | DM_DISPLAYFREQUENCY;
+        assert!(has_flag(mode.dmFields, REQUIRED_FIELDS));
+
+        VideoModeHandle {
+            size: (mode.dmPelsWidth, mode.dmPelsHeight),
+            bit_depth: mode.dmBitsPerPel as u16,
+            refresh_rate_millihertz: mode.dmDisplayFrequency * 1000,
+            monitor,
+            native_video_mode: Box::new(mode),
+        }
+    }
+
     pub fn size(&self) -> PhysicalSize<u32> {
         self.size.into()
     }
@@ -208,6 +222,23 @@ impl MonitorHandle {
     }
 
     #[inline]
+    pub fn current_video_mode(&self) -> Option<VideoModeHandle> {
+        let monitor_info = get_monitor_info(self.0).ok()?;
+        let device_name = monitor_info.szDevice.as_ptr();
+        unsafe {
+            let mut mode: DEVMODEW = mem::zeroed();
+            mode.dmSize = mem::size_of_val(&mode) as u16;
+            if EnumDisplaySettingsExW(device_name, ENUM_CURRENT_SETTINGS, &mut mode, 0)
+                == false.into()
+            {
+                None
+            } else {
+                Some(VideoModeHandle::new(self.clone(), mode))
+            }
+        }
+    }
+
+    #[inline]
     pub fn video_modes(&self) -> impl Iterator<Item = VideoModeHandle> {
         // EnumDisplaySettingsExW can return duplicate values (or some of the
         // fields are probably changing, but we aren't looking at those fields
@@ -233,19 +264,9 @@ impl MonitorHandle {
                 break;
             }
 
-            const REQUIRED_FIELDS: u32 =
-                DM_BITSPERPEL | DM_PELSWIDTH | DM_PELSHEIGHT | DM_DISPLAYFREQUENCY;
-            assert!(has_flag(mode.dmFields, REQUIRED_FIELDS));
-
             // Use Ord impl of RootVideoModeHandle
             modes.insert(RootVideoModeHandle {
-                video_mode: VideoModeHandle {
-                    size: (mode.dmPelsWidth, mode.dmPelsHeight),
-                    bit_depth: mode.dmBitsPerPel as u16,
-                    refresh_rate_millihertz: mode.dmDisplayFrequency * 1000,
-                    monitor: self.clone(),
-                    native_video_mode: Box::new(mode),
-                },
+                video_mode: VideoModeHandle::new(self.clone(), mode),
             });
 
             i += 1;

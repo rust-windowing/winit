@@ -89,6 +89,10 @@ impl MonitorHandle {
         })
     }
 
+    pub fn current_video_mode(&self) -> Option<VideoModeHandle> {
+        Some(VideoModeHandle(self.clone()))
+    }
+
     pub fn video_modes(&self) -> Once<VideoModeHandle> {
         iter::once(VideoModeHandle(self.clone()))
     }

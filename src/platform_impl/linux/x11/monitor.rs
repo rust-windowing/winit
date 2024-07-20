@@ -18,6 +18,7 @@ impl XConnection {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct VideoModeHandle {
+    pub(crate) current: bool,
     pub(crate) size: (u32, u32),
     pub(crate) bit_depth: u16,
     pub(crate) refresh_rate_millihertz: u32,
@@ -59,8 +60,6 @@ pub struct MonitorHandle {
     position: (i32, i32),
     /// If the monitor is the primary one
     primary: bool,
-    /// The refresh rate used by monitor.
-    refresh_rate_millihertz: Option<u32>,
     /// The DPI scale factor
     pub(crate) scale_factor: f64,
     /// Used to determine which windows are on this monitor
@@ -117,20 +116,11 @@ impl MonitorHandle {
         let dimensions = (crtc.width as u32, crtc.height as u32);
         let position = (crtc.x as i32, crtc.y as i32);
 
-        // Get the refresh rate of the current video mode.
-        let current_mode = crtc.mode;
-        let screen_modes = resources.modes();
-        let refresh_rate_millihertz = screen_modes
-            .iter()
-            .find(|mode| mode.id == current_mode)
-            .and_then(mode_refresh_rate_millihertz);
-
         let rect = util::AaRect::new(position, dimensions);
 
         Some(MonitorHandle {
             id,
             name,
-            refresh_rate_millihertz,
             scale_factor,
             dimensions,
             position,
@@ -147,7 +137,6 @@ impl MonitorHandle {
             scale_factor: 1.0,
             dimensions: (1, 1),
             position: (0, 0),
-            refresh_rate_millihertz: None,
             primary: true,
             rect: util::AaRect::new((0, 0), (1, 1)),
             video_modes: Vec::new(),
@@ -177,12 +166,19 @@ impl MonitorHandle {
     }
 
     pub fn refresh_rate_millihertz(&self) -> Option<u32> {
-        self.refresh_rate_millihertz
+        self.video_modes
+            .iter()
+            .find_map(|mode| mode.current.then_some(mode.refresh_rate_millihertz))
     }
 
     #[inline]
     pub fn scale_factor(&self) -> f64 {
         self.scale_factor
+    }
+
+    #[inline]
+    pub fn current_video_mode(&self) -> Option<PlatformVideoModeHandle> {
+        self.video_modes.iter().find(|mode| mode.current).cloned().map(PlatformVideoModeHandle::X)
     }
 
     #[inline]

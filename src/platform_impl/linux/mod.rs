@@ -262,6 +262,11 @@ impl MonitorHandle {
     }
 
     #[inline]
+    pub fn current_video_mode(&self) -> Option<VideoModeHandle> {
+        x11_or_wayland!(match self; MonitorHandle(m) => m.current_video_mode())
+    }
+
+    #[inline]
     pub fn video_modes(&self) -> Box<dyn Iterator<Item = VideoModeHandle>> {
         x11_or_wayland!(match self; MonitorHandle(m) => Box::new(m.video_modes()))
     }
