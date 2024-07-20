@@ -21,7 +21,7 @@ pub struct VideoModeHandle {
     pub(crate) current: bool,
     pub(crate) size: (u32, u32),
     pub(crate) bit_depth: u16,
-    pub(crate) refresh_rate_millihertz: Option<u32>,
+    pub(crate) refresh_rate: Option<u32>,
     pub(crate) native_mode: randr::Mode,
     pub(crate) monitor: Option<MonitorHandle>,
 }
@@ -38,8 +38,8 @@ impl VideoModeHandle {
     }
 
     #[inline]
-    pub fn refresh_rate_millihertz(&self) -> Option<u32> {
-        self.refresh_rate_millihertz
+    pub fn refresh_rate(&self) -> Option<u32> {
+        self.refresh_rate
     }
 
     #[inline]
@@ -93,7 +93,7 @@ impl std::hash::Hash for MonitorHandle {
 }
 
 #[inline]
-pub fn mode_refresh_rate_millihertz(mode: &randr::ModeInfo) -> Option<u32> {
+pub fn mode_refresh_rate(mode: &randr::ModeInfo) -> Option<u32> {
     if mode.dot_clock > 0 && mode.htotal > 0 && mode.vtotal > 0 {
         #[allow(clippy::unnecessary_cast)]
         Some((mode.dot_clock as u64 * 1000 / (mode.htotal as u64 * mode.vtotal as u64)) as u32)

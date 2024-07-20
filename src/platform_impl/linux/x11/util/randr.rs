@@ -85,7 +85,7 @@ impl XConnection {
                 VideoModeHandle {
                     current: mode.id == current_mode,
                     size: (mode.width.into(), mode.height.into()),
-                    refresh_rate_millihertz: monitor::mode_refresh_rate_millihertz(mode),
+                    refresh_rate: monitor::mode_refresh_rate(mode),
                     bit_depth: bit_depth as u16,
                     native_mode: mode.id,
                     // This is populated in `MonitorHandle::video_modes` as the

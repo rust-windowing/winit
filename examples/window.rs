@@ -240,7 +240,7 @@ impl Application {
                 let PhysicalSize { width, height } = current_mode.size();
                 info!(
                     "  Current mode: {width}x{height}{}",
-                    if let Some(m_hz) = current_mode.refresh_rate_millihertz() {
+                    if let Some(m_hz) = current_mode.refresh_rate() {
                         format!(" @ {}.{} Hz", m_hz / 1000, m_hz % 1000)
                     } else {
                         String::new()
@@ -257,7 +257,7 @@ impl Application {
             for mode in monitor.video_modes() {
                 let PhysicalSize { width, height } = mode.size();
                 let bits = mode.bit_depth();
-                let m_hz = if let Some(m_hz) = mode.refresh_rate_millihertz() {
+                let m_hz = if let Some(m_hz) = mode.refresh_rate() {
                     format!(" @ {}.{} Hz", m_hz / 1000, m_hz % 1000)
                 } else {
                     String::new()

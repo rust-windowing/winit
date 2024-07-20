@@ -38,8 +38,8 @@ impl Ord for VideoModeHandle {
             self.size()
                 .cmp(&other.size())
                 .then(
-                    self.refresh_rate_millihertz()
-                        .cmp(&other.refresh_rate_millihertz())
+                    self.refresh_rate()
+                        .cmp(&other.refresh_rate())
                         .then(self.bit_depth().cmp(&other.bit_depth())),
                 )
                 .reverse(),
@@ -73,8 +73,8 @@ impl VideoModeHandle {
     ///
     /// - **Android / Orbital:** Always returns [`None`].
     #[inline]
-    pub fn refresh_rate_millihertz(&self) -> Option<u32> {
-        self.video_mode.refresh_rate_millihertz()
+    pub fn refresh_rate(&self) -> Option<u32> {
+        self.video_mode.refresh_rate()
     }
 
     /// Returns the monitor that this video mode is valid for. Each monitor has
@@ -92,7 +92,7 @@ impl std::fmt::Display for VideoModeHandle {
             "{}x{} {}({} bpp)",
             self.size().width,
             self.size().height,
-            self.refresh_rate_millihertz().map(|rate| format!("@ {rate} mHz ")).unwrap_or_default(),
+            self.refresh_rate().map(|rate| format!("@ {rate} mHz ")).unwrap_or_default(),
             self.bit_depth()
         )
     }

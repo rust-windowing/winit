@@ -70,7 +70,8 @@ changelog entry.
 - Change signature of `EventLoop::run_app`, `EventLoopExtPumpEvents::pump_app_events` and
   `EventLoopExtRunOnDemand::run_app_on_demand` to accept a `impl ApplicationHandler` directly,
   instead of requiring a `&mut` reference to it.
-- `VideoModeHandle::refresh_rate_millihertz()` now returns an `Option`.
+- Rename `VideoModeHandle::refresh_rate_millihertz()` to `refresh_rate()`.
+- `VideoModeHandle::refresh_rate()` now returns an `Option`.
 
 ### Removed
 

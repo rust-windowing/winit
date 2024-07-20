@@ -21,7 +21,7 @@ use crate::platform_impl::platform::window::Window;
 pub struct VideoModeHandle {
     pub(crate) size: (u32, u32),
     pub(crate) bit_depth: u16,
-    pub(crate) refresh_rate_millihertz: u32,
+    pub(crate) refresh_rate: u32,
     pub(crate) monitor: MonitorHandle,
     // DEVMODEW is huge so we box it to avoid blowing up the size of winit::window::Fullscreen
     pub(crate) native_video_mode: Box<DEVMODEW>,
@@ -31,7 +31,7 @@ impl PartialEq for VideoModeHandle {
     fn eq(&self, other: &Self) -> bool {
         self.size == other.size
             && self.bit_depth == other.bit_depth
-            && self.refresh_rate_millihertz == other.refresh_rate_millihertz
+            && self.refresh_rate == other.refresh_rate
             && self.monitor == other.monitor
     }
 }
@@ -42,7 +42,7 @@ impl std::hash::Hash for VideoModeHandle {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         self.size.hash(state);
         self.bit_depth.hash(state);
-        self.refresh_rate_millihertz.hash(state);
+        self.refresh_rate.hash(state);
         self.monitor.hash(state);
     }
 }
@@ -52,7 +52,7 @@ impl std::fmt::Debug for VideoModeHandle {
         f.debug_struct("VideoModeHandle")
             .field("size", &self.size)
             .field("bit_depth", &self.bit_depth)
-            .field("refresh_rate_millihertz", &self.refresh_rate_millihertz)
+            .field("refresh_rate", &self.refresh_rate)
             .field("monitor", &self.monitor)
             .finish()
     }
@@ -67,7 +67,7 @@ impl VideoModeHandle {
         VideoModeHandle {
             size: (mode.dmPelsWidth, mode.dmPelsHeight),
             bit_depth: mode.dmBitsPerPel as u16,
-            refresh_rate_millihertz: mode.dmDisplayFrequency * 1000,
+            refresh_rate: mode.dmDisplayFrequency * 1000,
             monitor,
             native_video_mode: Box::new(mode),
         }
@@ -81,8 +81,8 @@ impl VideoModeHandle {
         self.bit_depth
     }
 
-    pub fn refresh_rate_millihertz(&self) -> Option<u32> {
-        Some(self.refresh_rate_millihertz)
+    pub fn refresh_rate(&self) -> Option<u32> {
+        Some(self.refresh_rate)
     }
 
     pub fn monitor(&self) -> MonitorHandle {

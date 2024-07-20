@@ -39,7 +39,7 @@ impl VideoModeHandle {
         unreachable!();
     }
 
-    pub fn refresh_rate_millihertz(&self) -> Option<u32> {
+    pub fn refresh_rate(&self) -> Option<u32> {
         unreachable!();
     }
 

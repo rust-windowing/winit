@@ -120,7 +120,7 @@ impl std::hash::Hash for MonitorHandle {
 pub struct VideoModeHandle {
     pub(crate) size: PhysicalSize<u32>,
     pub(crate) bit_depth: u16,
-    pub(crate) refresh_rate_millihertz: u32,
+    pub(crate) refresh_rate: u32,
     pub(crate) monitor: MonitorHandle,
 }
 
@@ -128,7 +128,7 @@ impl VideoModeHandle {
     fn new(monitor: MonitorHandle, mode: Mode) -> Self {
         VideoModeHandle {
             size: (mode.dimensions.0 as u32, mode.dimensions.1 as u32).into(),
-            refresh_rate_millihertz: mode.refresh_rate as u32,
+            refresh_rate: mode.refresh_rate as u32,
             bit_depth: 32,
             monitor: monitor.clone(),
         }
@@ -145,8 +145,8 @@ impl VideoModeHandle {
     }
 
     #[inline]
-    pub fn refresh_rate_millihertz(&self) -> Option<u32> {
-        Some(self.refresh_rate_millihertz)
+    pub fn refresh_rate(&self) -> Option<u32> {
+        Some(self.refresh_rate)
     }
 
     pub fn monitor(&self) -> MonitorHandle {

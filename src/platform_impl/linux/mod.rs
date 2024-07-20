@@ -265,8 +265,8 @@ impl VideoModeHandle {
     }
 
     #[inline]
-    pub fn refresh_rate_millihertz(&self) -> Option<u32> {
-        x11_or_wayland!(match self; VideoModeHandle(m) => m.refresh_rate_millihertz())
+    pub fn refresh_rate(&self) -> Option<u32> {
+        x11_or_wayland!(match self; VideoModeHandle(m) => m.refresh_rate())
     }
 
     #[inline]

@@ -45,7 +45,7 @@ impl<T: IsRetainable + Message> Eq for MainThreadBoundDelegateImpls<T> {}
 pub struct VideoModeHandle {
     pub(crate) size: (u32, u32),
     pub(crate) bit_depth: u16,
-    pub(crate) refresh_rate_millihertz: u32,
+    pub(crate) refresh_rate: u32,
     screen_mode: MainThreadBoundDelegateImpls<UIScreenMode>,
     pub(crate) monitor: MonitorHandle,
 }
@@ -56,12 +56,12 @@ impl VideoModeHandle {
         screen_mode: Retained<UIScreenMode>,
         mtm: MainThreadMarker,
     ) -> VideoModeHandle {
-        let refresh_rate_millihertz = refresh_rate_millihertz(&uiscreen);
+        let refresh_rate = refresh_rate(&uiscreen);
         let size = screen_mode.size();
         VideoModeHandle {
             size: (size.width as u32, size.height as u32),
             bit_depth: 32,
-            refresh_rate_millihertz,
+            refresh_rate,
             screen_mode: MainThreadBoundDelegateImpls(MainThreadBound::new(screen_mode, mtm)),
             monitor: MonitorHandle::new(uiscreen),
         }
@@ -75,8 +75,8 @@ impl VideoModeHandle {
         self.bit_depth
     }
 
-    pub fn refresh_rate_millihertz(&self) -> Option<u32> {
-        Some(self.refresh_rate_millihertz)
+    pub fn refresh_rate(&self) -> Option<u32> {
+        Some(self.refresh_rate)
     }
 
     pub fn monitor(&self) -> MonitorHandle {
@@ -133,7 +133,7 @@ impl fmt::Debug for MonitorHandle {
             .field("name", &self.name())
             .field("position", &self.position())
             .field("scale_factor", &self.scale_factor())
-            .field("refresh_rate_millihertz", &self.refresh_rate_millihertz())
+            .field("refresh_rate", &self.refresh_rate())
             .finish_non_exhaustive()
     }
 }
@@ -172,8 +172,8 @@ impl MonitorHandle {
         self.ui_screen.get_on_main(|ui_screen| ui_screen.nativeScale()) as f64
     }
 
-    pub fn refresh_rate_millihertz(&self) -> Option<u32> {
-        Some(self.ui_screen.get_on_main(|ui_screen| refresh_rate_millihertz(ui_screen)))
+    pub fn refresh_rate(&self) -> Option<u32> {
+        Some(self.ui_screen.get_on_main(|ui_screen| refresh_rate(ui_screen)))
     }
 
     pub fn current_video_mode(&self) -> Option<VideoModeHandle> {
@@ -218,8 +218,8 @@ impl MonitorHandle {
     }
 }
 
-fn refresh_rate_millihertz(uiscreen: &UIScreen) -> u32 {
-    let refresh_rate_millihertz: NSInteger = {
+fn refresh_rate(uiscreen: &UIScreen) -> u32 {
+    let refresh_rate: NSInteger = {
         let os_capabilities = app_state::os_capabilities();
         if os_capabilities.maximum_frames_per_second {
             uiscreen.maximumFramesPerSecond()
@@ -239,7 +239,7 @@ fn refresh_rate_millihertz(uiscreen: &UIScreen) -> u32 {
         }
     };
 
-    refresh_rate_millihertz as u32 * 1000
+    refresh_rate as u32 * 1000
 }
 
 pub fn uiscreens(mtm: MainThreadMarker) -> VecDeque<MonitorHandle> {
