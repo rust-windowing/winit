@@ -142,21 +142,13 @@ pub(crate) enum Window {
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct WindowId(u64);
 
-impl From<WindowId> for u64 {
-    fn from(window_id: WindowId) -> Self {
-        window_id.0
-    }
-}
-
-impl From<u64> for WindowId {
-    fn from(raw_id: u64) -> Self {
-        Self(raw_id)
-    }
-}
-
 impl WindowId {
     pub const fn dummy() -> Self {
         Self(0)
+    }
+
+    pub const fn to_u64(self) -> u64 {
+        self.0
     }
 }
 

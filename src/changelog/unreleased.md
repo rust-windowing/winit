@@ -44,6 +44,7 @@ changelog entry.
 
 - Add `ActiveEventLoop::create_proxy()`.
 - On Web, implement `Error` for `platform::web::CustomCursorError`.
+- Add `WindowId::to_u64()`.
 
 ### Changed
 
@@ -81,3 +82,5 @@ changelog entry.
   This feature was incomplete, and the equivalent functionality can be trivially achieved outside
   of `winit` using `objc2-ui-kit` and calling `UIDevice::currentDevice().userInterfaceIdiom()`.
 - On Web, remove unused `platform::web::CustomCursorError::Animation`.
+- Remove `impl From<u64> for WindowId` and `impl From<WindowId> for u64`. Replaced with
+  `WindowId::to_u64()`.
