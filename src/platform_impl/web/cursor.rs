@@ -178,7 +178,7 @@ impl Future for CustomCursorFuture {
             panic!("`CustomCursorFuture` polled after completion")
         }
 
-        let result = ready!(Pin::new(&mut self.notified).poll(cx));
+        let result = ready!(Pin::new(&mut self.notified).poll(cx)).unwrap();
         let state = self.state.take().expect("`CustomCursorFuture` polled after completion");
 
         Poll::Ready(result.map(|_| CustomCursor { animation: self.animation, state }))
@@ -662,7 +662,7 @@ async fn from_animation(
             ImageState::Loading { notifier, .. } => {
                 let notified = notifier.notified();
                 drop(state);
-                notified.await?;
+                notified.await.unwrap()?;
             },
             ImageState::Failed(error) => return Err(error.clone()),
             ImageState::Image(_) => drop(state),

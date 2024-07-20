@@ -19,8 +19,7 @@ struct Handler<T> {
 struct Sender(Arc<Inner>);
 
 impl<T> WakerSpawner<T> {
-    #[track_caller]
-    pub fn new(main_thread: MainThreadMarker, value: T, handler: fn(&T, bool)) -> Option<Self> {
+    pub fn new(main_thread: MainThreadMarker, value: T, handler: fn(&T, bool)) -> Self {
         let inner = Arc::new(Inner {
             awoken: AtomicBool::new(false),
             waker: AtomicWaker::new(),
@@ -31,7 +30,7 @@ impl<T> WakerSpawner<T> {
 
         let sender = Sender(Arc::clone(&inner));
 
-        let wrapper = Wrapper::new(
+        Self(Wrapper::new(
             main_thread,
             handler,
             |handler, _| {
@@ -73,9 +72,7 @@ impl<T> WakerSpawner<T> {
                 inner.0.awoken.store(true, Ordering::Relaxed);
                 inner.0.waker.wake();
             },
-        )?;
-
-        Some(Self(wrapper))
+        ))
     }
 
     pub fn waker(&self) -> Waker<T> {

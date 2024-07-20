@@ -10,13 +10,12 @@ pub struct Dispatcher<T: 'static>(Wrapper<T, Arc<Sender<Closure<T>>>, Closure<T>
 struct Closure<T>(Box<dyn FnOnce(&T) + Send>);
 
 impl<T> Dispatcher<T> {
-    #[track_caller]
-    pub fn new(main_thread: MainThreadMarker, value: T) -> Option<(Self, DispatchRunner<T>)> {
+    pub fn new(main_thread: MainThreadMarker, value: T) -> (Self, DispatchRunner<T>) {
         let (sender, receiver) = channel::<Closure<T>>();
         let sender = Arc::new(sender);
         let receiver = Rc::new(receiver);
 
-        Wrapper::new(
+        let wrapper = Wrapper::new(
             main_thread,
             value,
             |value, Closure(closure)| {
@@ -29,8 +28,7 @@ impl<T> Dispatcher<T> {
                 move |value| async move {
                     while let Ok(Closure(closure)) = receiver.next().await {
                         // SAFETY: The given `Closure` here isn't really `'static`, so we shouldn't
-                        // do anything funny with it here. See
-                        // `Self::queue()`.
+                        // do anything funny with it here. See `Self::queue()`.
                         closure(value.borrow().as_ref().unwrap())
                     }
                 }
@@ -41,25 +39,25 @@ impl<T> Dispatcher<T> {
                 // anything funny with it here. See `Self::queue()`.
                 sender.send(closure).unwrap()
             },
-        )
-        .map(|wrapper| (Self(wrapper.clone()), DispatchRunner { wrapper, receiver }))
+        );
+        (Self(wrapper.clone()), DispatchRunner { wrapper, receiver })
     }
 
-    pub fn value(&self) -> Option<Ref<'_, T>> {
-        self.0.value()
+    pub fn value(&self, main_thread: MainThreadMarker) -> Ref<'_, T> {
+        self.0.value(main_thread)
     }
 
     pub fn dispatch(&self, f: impl 'static + FnOnce(&T) + Send) {
-        if let Some(value) = self.0.value() {
-            f(&value)
+        if let Some(main_thread) = MainThreadMarker::new() {
+            f(&self.0.value(main_thread))
         } else {
             self.0.send(Closure(Box::new(f)))
         }
     }
 
     pub fn queue<R: Send>(&self, f: impl FnOnce(&T) -> R + Send) -> R {
-        if let Some(value) = self.0.value() {
-            f(&value)
+        if let Some(main_thread) = MainThreadMarker::new() {
+            f(&self.0.value(main_thread))
         } else {
             let pair = Arc::new((Mutex::new(None), Condvar::new()));
             let closure = Box::new({
@@ -98,13 +96,13 @@ pub struct DispatchRunner<T: 'static> {
 }
 
 impl<T> DispatchRunner<T> {
-    pub fn run(&self) {
+    pub fn run(&self, main_thread: MainThreadMarker) {
         while let Some(Closure(closure)) =
             self.receiver.try_recv().expect("should only be closed when `Dispatcher` is dropped")
         {
             // SAFETY: The given `Closure` here isn't really `'static`, so we shouldn't do anything
             // funny with it here. See `Self::queue()`.
-            closure(&self.wrapper.value().expect("don't call this outside the main thread"))
+            closure(&self.wrapper.value(main_thread))
         }
     }
 }

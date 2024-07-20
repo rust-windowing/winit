@@ -1,15 +1,13 @@
-use std::rc::Weak;
-
-use super::runner::Execution;
+use super::runner::WeakShared;
 use crate::platform_impl::platform::r#async::Waker;
 
 #[derive(Clone)]
 pub struct EventLoopProxy {
-    runner: Waker<Weak<Execution>>,
+    runner: Waker<WeakShared>,
 }
 
 impl EventLoopProxy {
-    pub fn new(runner: Waker<Weak<Execution>>) -> Self {
+    pub fn new(runner: Waker<WeakShared>) -> Self {
         Self { runner }
     }
 
