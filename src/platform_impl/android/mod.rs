@@ -203,9 +203,7 @@ impl EventLoop {
                     let old_scale_factor = monitor.scale_factor();
                     let scale_factor = monitor.scale_factor();
                     if (scale_factor - old_scale_factor).abs() < f64::EPSILON {
-                        let new_inner_size = Arc::new(Mutex::new(
-                            MonitorHandle::new(self.android_app.clone()).size(),
-                        ));
+                        let new_inner_size = Arc::new(Mutex::new(screen_size(&self.android_app)));
                         let window_id = window::WindowId(WindowId);
                         let event = event::WindowEvent::ScaleFactorChanged {
                             inner_size_writer: InnerSizeWriter::new(Arc::downgrade(
@@ -768,7 +766,7 @@ impl Window {
     }
 
     pub fn outer_size(&self) -> PhysicalSize<u32> {
-        MonitorHandle::new(self.app.clone()).size()
+        screen_size(&self.app)
     }
 
     pub fn set_min_inner_size(&self, _: Option<Size>) {}
@@ -996,14 +994,6 @@ impl MonitorHandle {
         Some("Android Device".to_owned())
     }
 
-    pub fn size(&self) -> PhysicalSize<u32> {
-        if let Some(native_window) = self.app.native_window() {
-            PhysicalSize::new(native_window.width() as _, native_window.height() as _)
-        } else {
-            PhysicalSize::new(0, 0)
-        }
-    }
-
     pub fn position(&self) -> PhysicalPosition<i32> {
         (0, 0).into()
     }
@@ -1012,19 +1002,11 @@ impl MonitorHandle {
         self.app.config().density().map(|dpi| dpi as f64 / 160.0).unwrap_or(1.0)
     }
 
-    pub fn refresh_rate_millihertz(&self) -> Option<u32> {
-        // FIXME no way to get real refresh rate for now.
-        None
-    }
-
     pub fn current_video_mode(&self) -> Option<VideoModeHandle> {
-        let size = self.size().into();
-        // FIXME this is not the real refresh rate
-        // (it is guaranteed to support 32 bit color though)
         Some(VideoModeHandle {
-            size,
+            size: screen_size(&self.app),
+            // FIXME: it is guaranteed to support 32 bit color though
             bit_depth: 32,
-            refresh_rate_millihertz: 60000,
             monitor: self.clone(),
         })
     }
@@ -1036,26 +1018,33 @@ impl MonitorHandle {
 
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub struct VideoModeHandle {
-    size: (u32, u32),
+    size: PhysicalSize<u32>,
     bit_depth: u16,
-    refresh_rate_millihertz: u32,
     monitor: MonitorHandle,
 }
 
 impl VideoModeHandle {
     pub fn size(&self) -> PhysicalSize<u32> {
-        self.size.into()
+        self.size
     }
 
     pub fn bit_depth(&self) -> u16 {
         self.bit_depth
     }
 
-    pub fn refresh_rate_millihertz(&self) -> u32 {
-        self.refresh_rate_millihertz
+    pub fn refresh_rate_millihertz(&self) -> Option<u32> {
+        None
     }
 
     pub fn monitor(&self) -> MonitorHandle {
         self.monitor.clone()
+    }
+}
+
+fn screen_size(app: &AndroidApp) -> PhysicalSize<u32> {
+    if let Some(native_window) = app.native_window() {
+        PhysicalSize::new(native_window.width() as _, native_window.height() as _)
+    } else {
+        PhysicalSize::new(0, 0)
     }
 }

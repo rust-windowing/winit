@@ -191,10 +191,6 @@ impl MonitorHandle {
         Some("Redox Device".to_owned())
     }
 
-    pub fn size(&self) -> PhysicalSize<u32> {
-        PhysicalSize::new(0, 0) // TODO
-    }
-
     pub fn position(&self) -> PhysicalPosition<i32> {
         (0, 0).into()
     }
@@ -203,19 +199,11 @@ impl MonitorHandle {
         1.0 // TODO
     }
 
-    pub fn refresh_rate_millihertz(&self) -> Option<u32> {
-        // FIXME no way to get real refresh rate for now.
-        None
-    }
-
     pub fn current_video_mode(&self) -> Option<VideoModeHandle> {
-        let size = self.size().into();
-        // FIXME this is not the real refresh rate
         // (it is guaranteed to support 32 bit color though)
         Some(VideoModeHandle {
-            size,
+            size: PhysicalSize::default(), // TODO
             bit_depth: 32,
-            refresh_rate_millihertz: 60000,
             monitor: self.clone(),
         })
     }
@@ -227,23 +215,23 @@ impl MonitorHandle {
 
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub struct VideoModeHandle {
-    size: (u32, u32),
+    size: PhysicalSize<u32>,
     bit_depth: u16,
-    refresh_rate_millihertz: u32,
     monitor: MonitorHandle,
 }
 
 impl VideoModeHandle {
     pub fn size(&self) -> PhysicalSize<u32> {
-        self.size.into()
+        self.size
     }
 
     pub fn bit_depth(&self) -> u16 {
         self.bit_depth
     }
 
-    pub fn refresh_rate_millihertz(&self) -> u32 {
-        self.refresh_rate_millihertz
+    pub fn refresh_rate_millihertz(&self) -> Option<u32> {
+        // TODO
+        None
     }
 
     pub fn monitor(&self) -> MonitorHandle {

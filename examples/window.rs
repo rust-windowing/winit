@@ -236,15 +236,17 @@ impl Application {
                 info!("{intro}: [no name]");
             }
 
-            let PhysicalSize { width, height } = monitor.size();
-            info!(
-                "  Current mode: {width}x{height}{}",
-                if let Some(m_hz) = monitor.refresh_rate_millihertz() {
-                    format!(" @ {}.{} Hz", m_hz / 1000, m_hz % 1000)
-                } else {
-                    String::new()
-                }
-            );
+            if let Some(current_mode) = monitor.current_video_mode() {
+                let PhysicalSize { width, height } = current_mode.size();
+                info!(
+                    "  Current mode: {width}x{height}{}",
+                    if let Some(m_hz) = current_mode.refresh_rate_millihertz() {
+                        format!(" @ {}.{} Hz", m_hz / 1000, m_hz % 1000)
+                    } else {
+                        String::new()
+                    }
+                );
+            }
 
             let PhysicalPosition { x, y } = monitor.position();
             info!("  Position: {x},{y}");
@@ -255,8 +257,12 @@ impl Application {
             for mode in monitor.video_modes() {
                 let PhysicalSize { width, height } = mode.size();
                 let bits = mode.bit_depth();
-                let m_hz = mode.refresh_rate_millihertz();
-                info!("    {width}x{height}x{bits} @ {}.{} Hz", m_hz / 1000, m_hz % 1000);
+                let m_hz = if let Some(m_hz) = mode.refresh_rate_millihertz() {
+                    format!(" @ {}.{} Hz", m_hz / 1000, m_hz % 1000)
+                } else {
+                    String::new()
+                };
+                info!("    {width}x{height}x{bits}{m_hz}");
             }
         }
     }

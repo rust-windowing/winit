@@ -70,6 +70,7 @@ changelog entry.
 - Change signature of `EventLoop::run_app`, `EventLoopExtPumpEvents::pump_app_events` and
   `EventLoopExtRunOnDemand::run_app_on_demand` to accept a `impl ApplicationHandler` directly,
   instead of requiring a `&mut` reference to it.
+- `VideoModeHandle::refresh_rate_millihertz()` now returns an `Option`.
 
 ### Removed
 
@@ -82,3 +83,5 @@ changelog entry.
   This feature was incomplete, and the equivalent functionality can be trivially achieved outside
   of `winit` using `objc2-ui-kit` and calling `UIDevice::currentDevice().userInterfaceIdiom()`.
 - On Web, remove unused `platform::web::CustomCursorError::Animation`.
+- Remove `MonitorHandle::size()` and `refresh_rate_millihertz()` in favor of
+  `MonitorHandle::current_video_mode()`.

@@ -18,14 +18,6 @@ impl MonitorHandle {
         unreachable!()
     }
 
-    pub fn refresh_rate_millihertz(&self) -> Option<u32> {
-        unreachable!()
-    }
-
-    pub fn size(&self) -> PhysicalSize<u32> {
-        unreachable!()
-    }
-
     pub fn current_video_mode(&self) -> Option<VideoModeHandle> {
         unreachable!()
     }
@@ -47,7 +39,7 @@ impl VideoModeHandle {
         unreachable!();
     }
 
-    pub fn refresh_rate_millihertz(&self) -> u32 {
+    pub fn refresh_rate_millihertz(&self) -> Option<u32> {
         unreachable!();
     }
 

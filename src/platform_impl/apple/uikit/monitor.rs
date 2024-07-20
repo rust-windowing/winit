@@ -75,8 +75,8 @@ impl VideoModeHandle {
         self.bit_depth
     }
 
-    pub fn refresh_rate_millihertz(&self) -> u32 {
-        self.refresh_rate_millihertz
+    pub fn refresh_rate_millihertz(&self) -> Option<u32> {
+        Some(self.refresh_rate_millihertz)
     }
 
     pub fn monitor(&self) -> MonitorHandle {
@@ -131,7 +131,6 @@ impl fmt::Debug for MonitorHandle {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("MonitorHandle")
             .field("name", &self.name())
-            .field("size", &self.size())
             .field("position", &self.position())
             .field("scale_factor", &self.scale_factor())
             .field("refresh_rate_millihertz", &self.refresh_rate_millihertz())
@@ -162,11 +161,6 @@ impl MonitorHandle {
                     .map(|idx| idx.to_string())
             }
         })
-    }
-
-    pub fn size(&self) -> PhysicalSize<u32> {
-        let bounds = self.ui_screen.get_on_main(|ui_screen| ui_screen.nativeBounds());
-        PhysicalSize::new(bounds.size.width as u32, bounds.size.height as u32)
     }
 
     pub fn position(&self) -> PhysicalPosition<i32> {

@@ -225,18 +225,8 @@ impl MonitorHandle {
     }
 
     #[inline]
-    pub fn size(&self) -> PhysicalSize<u32> {
-        x11_or_wayland!(match self; MonitorHandle(m) => m.size())
-    }
-
-    #[inline]
     pub fn position(&self) -> PhysicalPosition<i32> {
         x11_or_wayland!(match self; MonitorHandle(m) => m.position())
-    }
-
-    #[inline]
-    pub fn refresh_rate_millihertz(&self) -> Option<u32> {
-        x11_or_wayland!(match self; MonitorHandle(m) => m.refresh_rate_millihertz())
     }
 
     #[inline]
@@ -275,7 +265,7 @@ impl VideoModeHandle {
     }
 
     #[inline]
-    pub fn refresh_rate_millihertz(&self) -> u32 {
+    pub fn refresh_rate_millihertz(&self) -> Option<u32> {
         x11_or_wayland!(match self; VideoModeHandle(m) => m.refresh_rate_millihertz())
     }
 

@@ -81,8 +81,8 @@ impl VideoModeHandle {
         self.bit_depth
     }
 
-    pub fn refresh_rate_millihertz(&self) -> u32 {
-        self.refresh_rate_millihertz
+    pub fn refresh_rate_millihertz(&self) -> Option<u32> {
+        Some(self.refresh_rate_millihertz)
     }
 
     pub fn monitor(&self) -> MonitorHandle {
@@ -180,29 +180,11 @@ impl MonitorHandle {
         self.0
     }
 
-    #[inline]
-    pub fn size(&self) -> PhysicalSize<u32> {
+    pub(crate) fn size(&self) -> PhysicalSize<u32> {
         let rc_monitor = get_monitor_info(self.0).unwrap().monitorInfo.rcMonitor;
         PhysicalSize {
             width: (rc_monitor.right - rc_monitor.left) as u32,
             height: (rc_monitor.bottom - rc_monitor.top) as u32,
-        }
-    }
-
-    #[inline]
-    pub fn refresh_rate_millihertz(&self) -> Option<u32> {
-        let monitor_info = get_monitor_info(self.0).ok()?;
-        let device_name = monitor_info.szDevice.as_ptr();
-        unsafe {
-            let mut mode: DEVMODEW = mem::zeroed();
-            mode.dmSize = mem::size_of_val(&mode) as u16;
-            if EnumDisplaySettingsExW(device_name, ENUM_CURRENT_SETTINGS, &mut mode, 0)
-                == false.into()
-            {
-                None
-            } else {
-                Some(mode.dmDisplayFrequency * 1000)
-            }
         }
     }
 

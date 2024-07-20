@@ -21,7 +21,7 @@ use crate::dpi::{LogicalPosition, PhysicalPosition, PhysicalSize};
 pub struct VideoModeHandle {
     size: PhysicalSize<u32>,
     bit_depth: u16,
-    refresh_rate_millihertz: u32,
+    refresh_rate_millihertz: Option<u32>,
     pub(crate) monitor: MonitorHandle,
     pub(crate) native_mode: NativeDisplayMode,
 }
@@ -80,7 +80,11 @@ impl Clone for NativeDisplayMode {
 }
 
 impl VideoModeHandle {
-    fn new(monitor: MonitorHandle, mode: NativeDisplayMode, refresh_rate_millihertz: u32) -> Self {
+    fn new(
+        monitor: MonitorHandle,
+        mode: NativeDisplayMode,
+        refresh_rate_millihertz: Option<u32>,
+    ) -> Self {
         unsafe {
             let pixel_encoding =
                 CFString::wrap_under_create_rule(ffi::CGDisplayModeCopyPixelEncoding(mode.0))
@@ -116,7 +120,7 @@ impl VideoModeHandle {
         self.bit_depth
     }
 
-    pub fn refresh_rate_millihertz(&self) -> u32 {
+    pub fn refresh_rate_millihertz(&self) -> Option<u32> {
         self.refresh_rate_millihertz
     }
 
@@ -186,7 +190,6 @@ impl fmt::Debug for MonitorHandle {
         f.debug_struct("MonitorHandle")
             .field("name", &self.name())
             .field("native_identifier", &self.native_identifier())
-            .field("size", &self.size())
             .field("position", &self.position())
             .field("scale_factor", &self.scale_factor())
             .field("refresh_rate_millihertz", &self.refresh_rate_millihertz())
@@ -210,14 +213,6 @@ impl MonitorHandle {
     #[inline]
     pub fn native_identifier(&self) -> u32 {
         self.0
-    }
-
-    pub fn size(&self) -> PhysicalSize<u32> {
-        let MonitorHandle(display_id) = *self;
-        let display = CGDisplay::new(display_id);
-        let height = display.pixels_high();
-        let width = display.pixels_wide();
-        PhysicalSize::from_logical::<_, f64>((width as f64, height as f64), self.scale_factor())
     }
 
     #[inline]
@@ -247,12 +242,12 @@ impl MonitorHandle {
 
     pub fn current_video_mode(&self) -> Option<VideoModeHandle> {
         let mode = NativeDisplayMode(unsafe { CGDisplayCopyDisplayMode(self.0) } as _);
-        let refresh_rate_millihertz = refresh_rate_millihertz(self.0, &mode).unwrap_or(0);
+        let refresh_rate_millihertz = refresh_rate_millihertz(self.0, &mode);
         Some(VideoModeHandle::new(self.clone(), mode, refresh_rate_millihertz))
     }
 
     pub fn video_modes(&self) -> impl Iterator<Item = VideoModeHandle> {
-        let refresh_rate_millihertz = self.refresh_rate_millihertz().unwrap_or(0);
+        let refresh_rate_millihertz = self.refresh_rate_millihertz();
         let monitor = self.clone();
 
         unsafe {
@@ -277,7 +272,7 @@ impl MonitorHandle {
                 // CGDisplayModeGetRefreshRate returns 0.0 for any display that
                 // isn't a CRT
                 let refresh_rate_millihertz = if cg_refresh_rate_hertz > 0 {
-                    (cg_refresh_rate_hertz * 1000) as u32
+                    Some((cg_refresh_rate_hertz * 1000) as u32)
                 } else {
                     refresh_rate_millihertz
                 };
