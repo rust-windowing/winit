@@ -7,18 +7,18 @@
 use std::ops::Deref;
 use std::sync::OnceLock;
 
-pub(crate) struct Lazy<T> {
+pub(crate) struct LazyLock<T> {
     cell: OnceLock<T>,
     init: fn() -> T,
 }
 
-impl<T> Lazy<T> {
+impl<T> LazyLock<T> {
     pub const fn new(f: fn() -> T) -> Self {
         Self { cell: OnceLock::new(), init: f }
     }
 }
 
-impl<T> Deref for Lazy<T> {
+impl<T> Deref for LazyLock<T> {
     type Target = T;
 
     #[inline]

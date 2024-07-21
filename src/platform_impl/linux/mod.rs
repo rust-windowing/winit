@@ -29,7 +29,7 @@ use crate::platform::pump_events::PumpStatus;
 use crate::platform::x11::{WindowType as XWindowType, XlibErrorHook};
 pub(crate) use crate::platform_impl::Fullscreen;
 #[cfg(x11_platform)]
-use crate::utils::Lazy;
+use crate::utils::LazyLock;
 use crate::window::{
     ActivationToken, Cursor, CursorGrabMode, CustomCursor, CustomCursorSource, ImePurpose,
     ResizeDirection, Theme, UserAttentionType, WindowAttributes, WindowButtons, WindowLevel,
@@ -108,8 +108,8 @@ impl Default for PlatformSpecificWindowAttributes {
 }
 
 #[cfg(x11_platform)]
-pub(crate) static X11_BACKEND: Lazy<Mutex<Result<Arc<XConnection>, XNotSupported>>> =
-    Lazy::new(|| Mutex::new(XConnection::new(Some(x_error_callback)).map(Arc::new)));
+pub(crate) static X11_BACKEND: LazyLock<Mutex<Result<Arc<XConnection>, XNotSupported>>> =
+    LazyLock::new(|| Mutex::new(XConnection::new(Some(x_error_callback)).map(Arc::new)));
 
 #[derive(Debug, Clone)]
 pub enum OsError {
