@@ -1,14 +1,16 @@
 use std::ffi::CString;
 use std::mem::replace;
+use std::num::NonZeroU32;
 use std::os::raw::*;
 use std::path::Path;
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::{cmp, env};
 
 use tracing::{debug, info, warn};
-use x11rb::connection::Connection;
+use x11rb::connection::{Connection, RequestConnection};
 use x11rb::properties::{WmHints, WmSizeHints, WmSizeHintsSpecification};
 use x11rb::protocol::shape::SK;
+use x11rb::protocol::sync::{ConnectionExt as _, Int64};
 use x11rb::protocol::xfixes::{ConnectionExt, RegionWrapper};
 use x11rb::protocol::xproto::{self, ConnectionExt as _, Rectangle};
 use x11rb::protocol::{randr, xinput};
@@ -116,6 +118,7 @@ pub struct UnownedWindow {
     root: xproto::Window,               // never changes
     #[allow(dead_code)]
     screen_id: i32, // never changes
+    sync_counter_id: Option<NonZeroU32>, // never changes
     selected_cursor: Mutex<SelectedCursor>,
     cursor_grabbed_mode: Mutex<CursorGrabMode>,
     #[allow(clippy::mutex_atomic)]
@@ -338,6 +341,7 @@ impl UnownedWindow {
             visual,
             root,
             screen_id,
+            sync_counter_id: None,
             selected_cursor: Default::default(),
             cursor_grabbed_mode: Mutex::new(CursorGrabMode::None),
             cursor_visible: Mutex::new(true),
@@ -468,20 +472,43 @@ impl UnownedWindow {
                 leap!(window.set_icon_inner(icon.inner)).ignore_error();
             }
 
-            // Opt into handling window close
+            // Opt into handling window close and resize synchronization
             let result = xconn.xcb_connection().change_property(
                 xproto::PropMode::REPLACE,
                 window.xwindow,
                 atoms[WM_PROTOCOLS],
                 xproto::AtomEnum::ATOM,
                 32,
-                2,
+                3,
                 bytemuck::cast_slice::<xproto::Atom, u8>(&[
                     atoms[WM_DELETE_WINDOW],
                     atoms[_NET_WM_PING],
+                    atoms[_NET_WM_SYNC_REQUEST],
                 ]),
             );
             leap!(result).ignore_error();
+
+            // Create a sync request counter
+            if leap!(xconn.xcb_connection().extension_information("SYNC")).is_some() {
+                let sync_counter_id = leap!(xconn.xcb_connection().generate_id());
+                window.sync_counter_id = NonZeroU32::new(sync_counter_id);
+
+                leap!(xconn
+                    .xcb_connection()
+                    .sync_create_counter(sync_counter_id, Int64::default()))
+                .ignore_error();
+
+                let result = xconn.xcb_connection().change_property(
+                    xproto::PropMode::REPLACE,
+                    window.xwindow,
+                    atoms[_NET_WM_SYNC_REQUEST_COUNTER],
+                    xproto::AtomEnum::CARDINAL,
+                    32,
+                    1,
+                    bytemuck::cast_slice::<u32, u8>(&[sync_counter_id]),
+                );
+                leap!(result).ignore_error();
+            }
 
             // Set visibility (map window)
             if window_attrs.visible {
@@ -1811,6 +1838,10 @@ impl UnownedWindow {
     #[inline]
     pub fn id(&self) -> WindowId {
         WindowId(self.xwindow as _)
+    }
+
+    pub(super) fn sync_counter_id(&self) -> Option<NonZeroU32> {
+        self.sync_counter_id
     }
 
     #[inline]

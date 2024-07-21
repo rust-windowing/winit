@@ -127,6 +127,7 @@ pub struct ActiveEventLoop {
     xconn: Arc<XConnection>,
     wm_delete_window: xproto::Atom,
     net_wm_ping: xproto::Atom,
+    net_wm_sync_request: xproto::Atom,
     ime_sender: ImeSender,
     control_flow: Cell<ControlFlow>,
     exit: Cell<Option<i32>>,
@@ -167,6 +168,7 @@ impl EventLoop {
 
         let wm_delete_window = atoms[WM_DELETE_WINDOW];
         let net_wm_ping = atoms[_NET_WM_PING];
+        let net_wm_sync_request = atoms[_NET_WM_SYNC_REQUEST];
 
         let dnd = Dnd::new(Arc::clone(&xconn))
             .expect("Failed to call XInternAtoms when initializing drag and drop");
@@ -292,6 +294,7 @@ impl EventLoop {
             xconn,
             wm_delete_window,
             net_wm_ping,
+            net_wm_sync_request,
             redraw_sender: WakeSender {
                 sender: redraw_sender, // not used again so no clone
                 waker: waker.clone(),
