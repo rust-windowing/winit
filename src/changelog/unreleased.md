@@ -43,3 +43,7 @@ changelog entry.
 ### Added
 
 - On Web, implement `Error` for `platform::web::CustomCursorError`.
+
+### Fixed
+
+- On MacOS, fix building with `feature = "rwh_04"`.
