@@ -18,7 +18,7 @@ use super::{
 };
 use crate::application::ApplicationHandler;
 use crate::error::EventLoopError;
-use crate::event::{self, Ime, Modifiers, StartCause};
+use crate::event::{self, CursorType, Ime, Modifiers, StartCause};
 use crate::event_loop::{self, ControlFlow, DeviceEvents};
 use crate::keyboard::{
     Key, KeyCode, KeyLocation, ModifiersKeys, ModifiersState, NamedKey, NativeKey, NativeKeyCode,
@@ -419,6 +419,7 @@ impl EventLoop {
                     event::WindowEvent::CursorMoved {
                         device_id: event::DeviceId(DeviceId),
                         position: (x, y).into(),
+                        r#type: CursorType::Mouse,
                     },
                 );
             },

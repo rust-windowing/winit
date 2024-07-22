@@ -14,7 +14,8 @@ use super::runner::{EventWrapper, Execution};
 use super::window::WindowId;
 use super::{backend, runner, EventLoopProxy};
 use crate::event::{
-    DeviceId as RootDeviceId, ElementState, Event, KeyEvent, Touch, TouchPhase, WindowEvent,
+    CursorType, DeviceId as RootDeviceId, ElementState, Event, KeyEvent, Touch, TouchPhase,
+    WindowEvent,
 };
 use crate::event_loop::{ControlFlow, DeviceEvents};
 use crate::keyboard::ModifiersState;
@@ -301,7 +302,11 @@ impl ActiveEventLoop {
 
                         iter::once(Event::WindowEvent {
                             window_id: RootWindowId(id),
-                            event: WindowEvent::CursorMoved { device_id, position },
+                            event: WindowEvent::CursorMoved {
+                                device_id,
+                                position,
+                                r#type: CursorType::Mouse,
+                            },
                         })
                     })));
                 }
@@ -368,7 +373,11 @@ impl ActiveEventLoop {
                     runner.send_events(modifiers.into_iter().chain([
                         Event::WindowEvent {
                             window_id: RootWindowId(id),
-                            event: WindowEvent::CursorMoved { device_id, position },
+                            event: WindowEvent::CursorMoved {
+                                device_id,
+                                position,
+                                r#type: CursorType::Mouse,
+                            },
                         },
                         Event::WindowEvent {
                             window_id: RootWindowId(id),
@@ -415,7 +424,11 @@ impl ActiveEventLoop {
                     runner.send_events(modifiers.into_iter().chain([
                         Event::WindowEvent {
                             window_id: RootWindowId(id),
-                            event: WindowEvent::CursorMoved { device_id, position },
+                            event: WindowEvent::CursorMoved {
+                                device_id,
+                                position,
+                                r#type: CursorType::Mouse,
+                            },
                         },
                         Event::WindowEvent {
                             window_id: RootWindowId(id),
@@ -496,7 +509,11 @@ impl ActiveEventLoop {
                     runner.send_events(modifiers.into_iter().chain([
                         Event::WindowEvent {
                             window_id: RootWindowId(id),
-                            event: WindowEvent::CursorMoved { device_id, position },
+                            event: WindowEvent::CursorMoved {
+                                device_id,
+                                position,
+                                r#type: CursorType::Mouse,
+                            },
                         },
                         Event::WindowEvent {
                             window_id: RootWindowId(id),

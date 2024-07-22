@@ -61,7 +61,8 @@ use crate::application::ApplicationHandler;
 use crate::dpi::{PhysicalPosition, PhysicalSize};
 use crate::error::EventLoopError;
 use crate::event::{
-    DeviceEvent, Event, Force, Ime, InnerSizeWriter, RawKeyEvent, Touch, TouchPhase, WindowEvent,
+    CursorType, DeviceEvent, Event, Force, Ime, InnerSizeWriter, RawKeyEvent, Touch, TouchPhase,
+    WindowEvent,
 };
 use crate::event_loop::{ActiveEventLoop as RootAEL, ControlFlow, DeviceEvents};
 use crate::keyboard::ModifiersState;
@@ -1553,7 +1554,11 @@ unsafe fn public_window_callback_inner(
 
                 userdata.send_event(Event::WindowEvent {
                     window_id: RootWindowId(WindowId(window)),
-                    event: CursorMoved { device_id: DEVICE_ID, position },
+                    event: CursorMoved {
+                        device_id: DEVICE_ID,
+                        position,
+                        r#type: CursorType::Mouse,
+                    },
                 });
             }
 

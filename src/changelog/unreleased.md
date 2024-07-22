@@ -44,6 +44,7 @@ changelog entry.
 
 - Add `ActiveEventLoop::create_proxy()`.
 - On Web, implement `Error` for `platform::web::CustomCursorError`.
+- Add `WindowEvent::CursorMoved::type` with a new type `CursorType` introducing pen/stylus support.
 
 ### Changed
 
@@ -70,6 +71,7 @@ changelog entry.
 - Change signature of `EventLoop::run_app`, `EventLoopExtPumpEvents::pump_app_events` and
   `EventLoopExtRunOnDemand::run_app_on_demand` to accept a `impl ApplicationHandler` directly,
   instead of requiring a `&mut` reference to it.
+- `Force::normalized()` now takes a `Option<ToolAngle>` to calculate the perpendicular force.
 
 ### Removed
 
@@ -82,6 +84,7 @@ changelog entry.
   This feature was incomplete, and the equivalent functionality can be trivially achieved outside
   of `winit` using `objc2-ui-kit` and calling `UIDevice::currentDevice().userInterfaceIdiom()`.
 - On Web, remove unused `platform::web::CustomCursorError::Animation`.
+- Remove `Force::Calibrated::altitude_angle` in favor of `ToolAngle::altitude`.
 
 ### Fixed
 

@@ -26,8 +26,8 @@ use super::window::WinitWindow;
 use super::DEVICE_ID;
 use crate::dpi::{LogicalPosition, LogicalSize};
 use crate::event::{
-    DeviceEvent, ElementState, Ime, Modifiers, MouseButton, MouseScrollDelta, TouchPhase,
-    WindowEvent,
+    CursorType, DeviceEvent, ElementState, Ime, Modifiers, MouseButton, MouseScrollDelta,
+    TouchPhase, WindowEvent,
 };
 use crate::keyboard::{Key, KeyCode, KeyLocation, ModifiersState, NamedKey};
 use crate::platform::macos::OptionAsAlt;
@@ -1068,6 +1068,7 @@ impl WinitView {
         self.queue_event(WindowEvent::CursorMoved {
             device_id: DEVICE_ID,
             position: view_point.to_physical(self.scale_factor()),
+            r#type: CursorType::Mouse,
         });
     }
 }

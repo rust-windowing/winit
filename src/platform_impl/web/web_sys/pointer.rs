@@ -127,14 +127,6 @@ impl PointerHandler {
                 let modifiers = event::mouse_modifiers(&event);
 
                 match event.pointer_type().as_str() {
-                    "touch" => {
-                        touch_handler(
-                            modifiers,
-                            event.pointer_id(),
-                            event::mouse_position(&event).to_physical(super::scale_factor(&window)),
-                            Force::Normalized(event.pressure() as f64),
-                        );
-                    },
                     "mouse" => {
                         mouse_handler(
                             modifiers,
@@ -148,6 +140,14 @@ impl PointerHandler {
                         // is probably not a situation where this could
                         // fail, that we care if it fails.
                         let _e = canvas.set_pointer_capture(event.pointer_id());
+                    },
+                    "touch" => {
+                        touch_handler(
+                            modifiers,
+                            event.pointer_id(),
+                            event::mouse_position(&event).to_physical(super::scale_factor(&window)),
+                            Force::Normalized(event.pressure() as f64),
+                        );
                     },
                     _ => modifier_handler(modifiers),
                 }
