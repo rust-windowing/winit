@@ -1613,7 +1613,7 @@ impl WindowDelegate {
     pub fn raw_window_handle_rwh_04(&self) -> rwh_04::RawWindowHandle {
         let mut window_handle = rwh_04::AppKitHandle::empty();
         window_handle.ns_window = self.window() as *const WinitWindow as *mut _;
-        window_handle.ns_view = Retained::as_ptr(&self.contentView().unwrap()) as *mut _;
+        window_handle.ns_view = Retained::as_ptr(&self.view()) as *mut _;
         rwh_04::RawWindowHandle::AppKit(window_handle)
     }
 
