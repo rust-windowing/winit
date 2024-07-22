@@ -72,6 +72,8 @@ changelog entry.
   `EventLoopExtRunOnDemand::run_app_on_demand` to accept a `impl ApplicationHandler` directly,
   instead of requiring a `&mut` reference to it.
 - `Force::normalized()` now takes a `Option<ToolAngle>` to calculate the perpendicular force.
+- Rename `WindowEvent::MouseButton` to `WindowEvent::CursorButton` and add `CursorButton` and
+  `ToolButton`. This is part of the new pen/stylus feature.
 
 ### Removed
 

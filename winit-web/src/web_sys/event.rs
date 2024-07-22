@@ -5,7 +5,7 @@ use smol_str::SmolStr;
 use wasm_bindgen::prelude::wasm_bindgen;
 use wasm_bindgen::{JsCast, JsValue};
 use web_sys::{KeyboardEvent, MouseEvent, Navigator, PointerEvent, WheelEvent};
-use winit_core::event::{FingerId, MouseButton, MouseScrollDelta, PointerKind};
+use winit_core::event::{ButtonSource, FingerId, MouseButton, MouseScrollDelta, PointerKind, ToolButton};
 use winit_core::keyboard::{
     Key, KeyCode, KeyLocation, ModifiersState, NamedKey, NativeKey, NativeKeyCode, PhysicalKey,
 };
@@ -37,6 +37,15 @@ impl From<ButtonsState> for MouseButton {
     }
 }
 
+impl From<ButtonSource> for ButtonsState {
+    fn from(value: ButtonSource) -> Self {
+        match value {
+            ButtonSource::Pen(tool) | ButtonSource::Eraser(tool) => tool.into(),
+            other => ButtonsState::from(other.mouse_button()),
+        }
+    }
+}
+
 impl From<MouseButton> for ButtonsState {
     fn from(value: MouseButton) -> Self {
         match value {
@@ -46,6 +55,16 @@ impl From<MouseButton> for ButtonsState {
             MouseButton::Back => ButtonsState::BACK,
             MouseButton::Forward => ButtonsState::FORWARD,
             MouseButton::Other(value) => ButtonsState::from_bits_retain(value),
+        }
+    }
+}
+
+impl From<ToolButton> for ButtonsState {
+    fn from(tool: ToolButton) -> Self {
+        match tool {
+            ToolButton::Contact => ButtonsState::LEFT,
+            ToolButton::Barrel => ButtonsState::RIGHT,
+            ToolButton::Other(value) => Self::from_bits_retain(value),
         }
     }
 }

@@ -976,6 +976,15 @@ impl EventProcessor {
         // Set the timestamp.
         self.target.xconn.set_timestamp(event.time as xproto::Timestamp);
 
+        let Some(DeviceType::Mouse) = self
+            .devices
+            .borrow()
+            .get(&DeviceId(event.sourceid as xinput::DeviceId))
+            .map(|device| device.r#type)
+        else {
+            return;
+        };
+
         // Deliver multi-touch events instead of emulated mouse events.
         if (event.flags & xinput2::XIPointerEmulated) != 0 {
             return;

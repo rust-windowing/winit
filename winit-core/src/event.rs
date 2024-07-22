@@ -523,6 +523,8 @@ pub enum ButtonSource {
         finger_id: FingerId,
         force: Option<Force>,
     },
+    Pen(ToolButton),
+    Eraser(ToolButton),
     Unknown(u16),
 }
 
@@ -534,6 +536,7 @@ impl ButtonSource {
         match self {
             ButtonSource::Mouse(mouse) => mouse,
             ButtonSource::Touch { .. } => MouseButton::Left,
+            ButtonSource::Pen(b) | ButtonSource::Eraser(b) => b.into(),
             ButtonSource::Unknown(button) => match button {
                 0 => MouseButton::Left,
                 1 => MouseButton::Middle,
@@ -1293,6 +1296,28 @@ pub enum MouseButton {
     Back,
     Forward,
     Other(u16),
+}
+
+/// Describes a button of a tool, e.g. a pen.
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
+pub enum ToolButton {
+    Contact,
+    Barrel,
+    Other(u16),
+}
+
+impl From<ToolButton> for MouseButton {
+    fn from(tool: ToolButton) -> Self {
+        match tool {
+            ToolButton::Contact => MouseButton::Left,
+            ToolButton::Barrel => MouseButton::Right,
+            ToolButton::Other(1) => MouseButton::Middle,
+            ToolButton::Other(3) => MouseButton::Back,
+            ToolButton::Other(4) => MouseButton::Forward,
+            ToolButton::Other(other) => MouseButton::Other(other),
+        }
+    }
 }
 
 /// Describes a difference in the mouse scroll wheel state.
