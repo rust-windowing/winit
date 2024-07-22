@@ -7,7 +7,7 @@ use wasm_bindgen::{JsCast, JsValue};
 use web_sys::{KeyboardEvent, MouseEvent, PointerEvent, WheelEvent};
 
 use super::Engine;
-use crate::event::{MouseButton, MouseScrollDelta};
+use crate::event::{CursorButton, MouseButton, MouseScrollDelta, ToolButton};
 use crate::keyboard::{Key, KeyLocation, ModifiersState, NamedKey, PhysicalKey};
 
 bitflags::bitflags! {
@@ -35,6 +35,15 @@ impl From<ButtonsState> for MouseButton {
     }
 }
 
+impl From<CursorButton> for ButtonsState {
+    fn from(cursor: CursorButton) -> Self {
+        match cursor {
+            CursorButton::Mouse(mouse) => mouse.into(),
+            CursorButton::Pen(tool) | CursorButton::Eraser(tool) => tool.into(),
+        }
+    }
+}
+
 impl From<MouseButton> for ButtonsState {
     fn from(value: MouseButton) -> Self {
         match value {
@@ -44,6 +53,16 @@ impl From<MouseButton> for ButtonsState {
             MouseButton::Back => ButtonsState::BACK,
             MouseButton::Forward => ButtonsState::FORWARD,
             MouseButton::Other(value) => ButtonsState::from_bits_retain(value),
+        }
+    }
+}
+
+impl From<ToolButton> for ButtonsState {
+    fn from(tool: ToolButton) -> Self {
+        match tool {
+            ToolButton::Contact => ButtonsState::LEFT,
+            ToolButton::Barrel => ButtonsState::RIGHT,
+            ToolButton::Other(value) => Self::from_bits_retain(value),
         }
     }
 }

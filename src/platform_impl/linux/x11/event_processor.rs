@@ -1058,6 +1058,15 @@ impl EventProcessor {
         // Set the timestamp.
         wt.xconn.set_timestamp(event.time as xproto::Timestamp);
 
+        let Some(DeviceType::Mouse) = self
+            .devices
+            .borrow()
+            .get(&DeviceId(event.sourceid as xinput::DeviceId))
+            .map(|device| device.r#type)
+        else {
+            return;
+        };
+
         // Deliver multi-touch events instead of emulated mouse events.
         if (event.flags & xinput2::XIPointerEmulated) != 0 {
             return;
@@ -1065,14 +1074,14 @@ impl EventProcessor {
 
         let event = match event.detail as u32 {
             xlib::Button1 => {
-                WindowEvent::MouseInput { device_id, state, button: MouseButton::Left }
+                WindowEvent::CursorInput { device_id, state, button: MouseButton::Left.into() }
             },
             xlib::Button2 => {
-                WindowEvent::MouseInput { device_id, state, button: MouseButton::Middle }
+                WindowEvent::CursorInput { device_id, state, button: MouseButton::Middle.into() }
             },
 
             xlib::Button3 => {
-                WindowEvent::MouseInput { device_id, state, button: MouseButton::Right }
+                WindowEvent::CursorInput { device_id, state, button: MouseButton::Right.into() }
             },
 
             // Suppress emulated scroll wheel clicks, since we handle the real motion events for
@@ -1090,10 +1099,14 @@ impl EventProcessor {
                 },
                 phase: TouchPhase::Moved,
             },
-            8 => WindowEvent::MouseInput { device_id, state, button: MouseButton::Back },
+            8 => WindowEvent::CursorInput { device_id, state, button: MouseButton::Back.into() },
 
-            9 => WindowEvent::MouseInput { device_id, state, button: MouseButton::Forward },
-            x => WindowEvent::MouseInput { device_id, state, button: MouseButton::Other(x as u16) },
+            9 => WindowEvent::CursorInput { device_id, state, button: MouseButton::Forward.into() },
+            x => WindowEvent::CursorInput {
+                device_id,
+                state,
+                button: MouseButton::Other(x as u16).into(),
+            },
         };
 
         let event = Event::WindowEvent { window_id, event };

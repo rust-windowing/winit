@@ -8,7 +8,7 @@ use super::canvas::Common;
 use super::event;
 use super::event_handle::EventListenerHandle;
 use crate::dpi::PhysicalPosition;
-use crate::event::{Force, MouseButton};
+use crate::event::{CursorButton, Force, MouseButton};
 use crate::keyboard::ModifiersState;
 
 #[allow(dead_code)]
@@ -167,7 +167,7 @@ impl PointerHandler {
         M: 'static + FnMut(ModifiersState, i32, &mut dyn Iterator<Item = PhysicalPosition<f64>>),
         T: 'static
             + FnMut(ModifiersState, i32, &mut dyn Iterator<Item = (PhysicalPosition<f64>, Force)>),
-        B: 'static + FnMut(ModifiersState, i32, PhysicalPosition<f64>, ButtonsState, MouseButton),
+        B: 'static + FnMut(ModifiersState, i32, PhysicalPosition<f64>, ButtonsState, CursorButton),
     {
         let window = canvas_common.window.clone();
         let canvas = canvas_common.raw().clone();
@@ -204,7 +204,7 @@ impl PointerHandler {
                         id,
                         event::mouse_position(&event).to_physical(super::scale_factor(&window)),
                         event::mouse_buttons(&event),
-                        button,
+                        button.into(),
                     );
 
                     return;

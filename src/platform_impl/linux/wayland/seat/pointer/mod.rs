@@ -164,7 +164,7 @@ impl PointerHandler for WinitState {
                         ElementState::Released
                     };
                     self.events_sink.push_window_event(
-                        WindowEvent::MouseInput { device_id, state, button },
+                        WindowEvent::CursorInput { device_id, state, button: button.into() },
                         window_id,
                     );
                 },

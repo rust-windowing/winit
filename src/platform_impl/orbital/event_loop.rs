@@ -435,10 +435,10 @@ impl EventLoop {
                     app.window_event(
                         window_target,
                         RootWindowId(window_id),
-                        event::WindowEvent::MouseInput {
+                        event::WindowEvent::CursorInput {
                             device_id: event::DeviceId(DeviceId),
                             state,
-                            button,
+                            button: button.into(),
                         },
                     );
                 }

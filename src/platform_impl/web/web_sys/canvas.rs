@@ -22,7 +22,7 @@ use super::pointer::PointerHandler;
 use super::{event, fullscreen, ButtonsState, ResizeScaleHandle};
 use crate::dpi::{LogicalPosition, PhysicalPosition, PhysicalSize};
 use crate::error::OsError as RootOE;
-use crate::event::{Force, InnerSizeWriter, MouseButton, MouseScrollDelta};
+use crate::event::{CursorButton, Force, InnerSizeWriter, MouseButton, MouseScrollDelta};
 use crate::keyboard::{Key, KeyLocation, ModifiersState, PhysicalKey};
 use crate::platform_impl::OsError;
 use crate::window::{WindowAttributes, WindowId as RootWindowId};
@@ -376,7 +376,7 @@ impl Canvas {
         M: 'static + FnMut(ModifiersState, i32, &mut dyn Iterator<Item = PhysicalPosition<f64>>),
         T: 'static
             + FnMut(ModifiersState, i32, &mut dyn Iterator<Item = (PhysicalPosition<f64>, Force)>),
-        B: 'static + FnMut(ModifiersState, i32, PhysicalPosition<f64>, ButtonsState, MouseButton),
+        B: 'static + FnMut(ModifiersState, i32, PhysicalPosition<f64>, ButtonsState, CursorButton),
     {
         self.pointer_handler.on_cursor_move(
             &self.common,

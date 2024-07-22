@@ -267,11 +267,11 @@ pub enum WindowEvent {
     /// [`transform`]: https://developer.mozilla.org/en-US/docs/Web/CSS/transform
     CursorLeft { device_id: DeviceId },
 
+    /// A cursor button press has been received.
+    CursorInput { device_id: DeviceId, state: ElementState, button: CursorButton },
+
     /// A mouse wheel movement or touchpad scroll occurred.
     MouseWheel { device_id: DeviceId, delta: MouseScrollDelta, phase: TouchPhase },
-
-    /// An mouse button press has been received.
-    MouseInput { device_id: DeviceId, state: ElementState, button: MouseButton },
 
     /// Two-finger pinch gesture, often used for magnification.
     ///
@@ -1154,6 +1154,21 @@ impl ToolAngle {
     }
 }
 
+/// Input type for vaiour cursor types.
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+#[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
+pub enum CursorButton {
+    Mouse(MouseButton),
+    Pen(ToolButton),
+    Eraser(ToolButton),
+}
+
+impl From<MouseButton> for CursorButton {
+    fn from(mouse: MouseButton) -> Self {
+        Self::Mouse(mouse)
+    }
+}
+
 /// Describes the input state of a key.
 #[derive(Debug, Hash, PartialEq, Eq, Clone, Copy)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
@@ -1184,6 +1199,28 @@ pub enum MouseButton {
     Back,
     Forward,
     Other(u16),
+}
+
+/// Describes a button of a tool, e.g. a pen.
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
+pub enum ToolButton {
+    Contact,
+    Barrel,
+    Other(u16),
+}
+
+impl From<ToolButton> for MouseButton {
+    fn from(tool: ToolButton) -> Self {
+        match tool {
+            ToolButton::Contact => MouseButton::Left,
+            ToolButton::Barrel => MouseButton::Right,
+            ToolButton::Other(1) => MouseButton::Middle,
+            ToolButton::Other(3) => MouseButton::Back,
+            ToolButton::Other(4) => MouseButton::Forward,
+            ToolButton::Other(other) => MouseButton::Other(other),
+        }
+    }
 }
 
 /// Describes a difference in the mouse scroll wheel state.
@@ -1299,10 +1336,10 @@ mod tests {
                     delta: event::MouseScrollDelta::LineDelta(0.0, 0.0),
                     phase: event::TouchPhase::Started,
                 });
-                with_window_event(MouseInput {
+                with_window_event(CursorInput {
                     device_id: did,
                     state: event::ElementState::Pressed,
-                    button: event::MouseButton::Other(0),
+                    button: event::MouseButton::Other(0).into(),
                 });
                 with_window_event(PinchGesture {
                     device_id: did,

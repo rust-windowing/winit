@@ -381,7 +381,7 @@ impl ActiveEventLoop {
                         },
                         Event::WindowEvent {
                             window_id: RootWindowId(id),
-                            event: WindowEvent::MouseInput { device_id, state, button },
+                            event: WindowEvent::CursorInput { device_id, state, button },
                         },
                     ]));
                 }
@@ -432,10 +432,10 @@ impl ActiveEventLoop {
                         },
                         Event::WindowEvent {
                             window_id: RootWindowId(id),
-                            event: WindowEvent::MouseInput {
+                            event: WindowEvent::CursorInput {
                                 device_id,
                                 state: ElementState::Pressed,
-                                button,
+                                button: button.into(),
                             },
                         },
                     ]));
@@ -517,10 +517,10 @@ impl ActiveEventLoop {
                         },
                         Event::WindowEvent {
                             window_id: RootWindowId(id),
-                            event: WindowEvent::MouseInput {
+                            event: WindowEvent::CursorInput {
                                 device_id,
                                 state: ElementState::Released,
-                                button,
+                                button: button.into(),
                             },
                         },
                     ]));
