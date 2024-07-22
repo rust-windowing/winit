@@ -1,4 +1,7 @@
 //! The event enums and assorted supporting types.
+use std::cell::LazyCell;
+use std::cmp::Ordering;
+use std::f64;
 use std::path::PathBuf;
 use std::sync::{Mutex, Weak};
 
@@ -435,6 +438,8 @@ pub enum PointerKind {
     ///
     /// **macOS:** Unsupported.
     Touch(FingerId),
+    Pen,
+    Eraser,
     Unknown,
 }
 
@@ -485,6 +490,8 @@ pub enum PointerSource {
         ///   force will be 0.5 when a button is pressed or 0.0 otherwise.
         force: Option<Force>,
     },
+    Pen(ToolState),
+    Eraser(ToolState),
     Unknown,
 }
 
@@ -493,6 +500,8 @@ impl From<PointerSource> for PointerKind {
         match source {
             PointerSource::Mouse => Self::Mouse,
             PointerSource::Touch { finger_id, .. } => Self::Touch(finger_id),
+            PointerSource::Pen(_) => Self::Pen,
+            PointerSource::Eraser(_) => Self::Eraser,
             PointerSource::Unknown => Self::Unknown,
         }
     }
@@ -975,7 +984,7 @@ pub enum Force {
         ///
         /// The force reported by Apple Pencil is measured along the axis of the
         /// pencil. If you want a force perpendicular to the device, you need to
-        /// calculate this value using the `altitude_angle` value.
+        /// calculate this value using the [`ToolAngle::altitude`] value.
         force: f64,
         /// The maximum possible force for a touch.
         ///
@@ -996,9 +1005,17 @@ impl Force {
     /// Instead of normalizing the force, you should prefer to handle
     /// [`Force::Calibrated`] so that the amount of force the user has to apply is
     /// consistent across devices.
-    pub fn normalized(&self) -> f64 {
+    ///
+    /// Passing in a [`ToolAngle`], returns the perpendicular force.
+    pub fn normalized(&self, angle: Option<ToolAngle>) -> f64 {
         match self {
-            Force::Calibrated { force, max_possible_force } => force / max_possible_force,
+            Force::Calibrated { force, max_possible_force } => {
+                let force = match angle {
+                    Some(ToolAngle { altitude, .. }) => force / altitude.sin(),
+                    None => *force,
+                };
+                force / max_possible_force
+            },
             Force::Normalized(force) => *force,
         }
     }
@@ -1009,6 +1026,242 @@ pub type AxisId = u32;
 
 /// Identifier for a specific button on some device.
 pub type ButtonId = u32;
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+#[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
+pub struct ToolState {
+    /// The force applied to the tool against the surface.
+    pub force: Force,
+    /// Represents normalized tangential pressure, also known as barrel pressure. In the range of
+    /// -1 to 1. 0 means no tangential pressure is applied. [`None`] means backend or device has no
+    /// support.
+    ///
+    /// ## Platform-specific
+    ///
+    /// **Web:** Has no mechanism to detect support, so this will always be [`Some`] with a value
+    /// of 0.
+    pub tangential_force: Option<f32>,
+    /// The clockwise rotation in degrees of a tool around its own major axis. E.g. twisting a pen
+    /// around its length. In the range of 0 to 359. [`None`] means backend or device has no
+    /// support.
+    ///
+    /// ## Platform-specific
+    ///
+    /// **Web:** Has no mechanism to detect support, so this will always be [`Some`] with a value
+    /// of 0.
+    pub twist: Option<u16>,
+    /// The plane angle in degrees. [`None`] means backend or device has no support.
+    ///
+    /// ## Platform-specific
+    ///
+    /// **Web:** Has no mechanism to detect support, so this will always be [`Some`] with default
+    /// values.
+    pub tilt: Option<ToolTilt>,
+    /// The angular position in radians. [`None`] means backend or device has no support.
+    ///
+    /// ## Platform-specific
+    ///
+    /// **Web:** Has no mechanism to detect device support, so this will always be [`Some`] with
+    /// default values unless browser support is lacking.
+    pub angle: Option<ToolAngle>,
+}
+
+impl ToolState {
+    /// Returns [`ToolTilt`] if present or calculates it from [`ToolAngle`].
+    pub fn tilt(self) -> Option<ToolTilt> {
+        if let Some(tilt) = self.tilt {
+            Some(tilt)
+        } else {
+            self.angle.map(ToolAngle::tilt)
+        }
+    }
+
+    /// Returns [`ToolAngle`] if present or calculates it from [`ToolTilt`].
+    pub fn angle(self) -> Option<ToolAngle> {
+        if let Some(angle) = self.angle {
+            Some(angle)
+        } else {
+            self.tilt.map(ToolTilt::angle)
+        }
+    }
+}
+
+/// The plane angle in degrees of a tool.
+#[derive(Clone, Copy, Debug, Default, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
+pub struct ToolTilt {
+    /// The plane angle in degrees between the surface Y-Z plane and the plane containing the tool
+    /// and the surface Y axis. Positive values are to the right. In the range of -90 to 90. 0
+    /// means the tool is perpendicular to the surface and is the default.
+    ///
+    /// ![Tilt X](https://raw.githubusercontent.com/rust-windowing/winit/master/docs/res/tool_tilt_x.webp)
+    ///
+    /// <sub>
+    ///   For image attribution, see the
+    ///   <a href="https://github.com/rust-windowing/winit/blob/master/docs/res/ATTRIBUTION.md">
+    ///     ATTRIBUTION.md
+    ///   </a>
+    ///   file.
+    /// </sub>
+    pub x: i8,
+    /// The plane angle in degrees between the surface X-Z plane and the plane containing the tool
+    /// and the surface X axis. Positive values are towards the user. In the range of -90 to
+    /// 90. 0 means the tool is perpendicular to the surface and is the default.
+    ///
+    /// ![Tilt Y](https://raw.githubusercontent.com/rust-windowing/winit/master/docs/res/tool_tilt_y.webp)
+    ///
+    /// <sub>
+    ///   For image attribution, see the
+    ///   <a href="https://github.com/rust-windowing/winit/blob/master/docs/res/ATTRIBUTION.md">
+    ///     ATTRIBUTION.md
+    ///   </a>
+    ///   file.
+    /// </sub>
+    pub y: i8,
+}
+
+impl ToolTilt {
+    pub fn angle(self) -> ToolAngle {
+        // See <https://www.w3.org/TR/2024/WD-pointerevents3-20240326/#converting-between-tiltx-tilty-and-altitudeangle-azimuthangle>.
+
+        use std::f64::consts::*;
+
+        const PI_0_5: f64 = FRAC_PI_2;
+        const PI_1_5: f64 = 3. * FRAC_PI_2;
+        const PI_2: f64 = 2. * PI;
+
+        let x = LazyCell::new(|| f64::from(self.x).to_radians());
+        let y = LazyCell::new(|| f64::from(self.y).to_radians());
+
+        let mut azimuth = 0.;
+
+        if self.x == 0 {
+            match self.y.cmp(&0) {
+                Ordering::Greater => azimuth = PI_0_5,
+                Ordering::Less => azimuth = PI_1_5,
+                Ordering::Equal => (),
+            }
+        } else if self.y == 0 {
+            if self.x < 0 {
+                azimuth = PI;
+            }
+        } else if self.x.abs() == 90 || self.y.abs() == 90 {
+            // not enough information to calculate azimuth
+            azimuth = 0.;
+        } else {
+            // Non-boundary case: neither tiltX nor tiltY is equal to 0 or +-90
+            azimuth = f64::atan2(y.tan(), x.tan());
+
+            if azimuth < 0. {
+                azimuth += PI_2;
+            }
+        }
+
+        let altitude;
+
+        if self.x.abs() == 90 || self.y.abs() == 90 {
+            altitude = 0.;
+        } else if self.x == 0 {
+            altitude = PI_0_5 - y.abs();
+        } else if self.y == 0 {
+            altitude = PI_0_5 - x.abs();
+        } else {
+            // Non-boundary case: neither tiltX nor tiltY is equal to 0 or +-90
+            altitude = f64::atan(1. / f64::sqrt(x.tan().powi(2) + y.tan().powi(2)));
+        }
+
+        ToolAngle { altitude, azimuth }
+    }
+}
+
+/// The angular position in radians of a tool.
+#[derive(Clone, Copy, Debug, PartialEq)]
+#[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
+pub struct ToolAngle {
+    /// The altitude angle in radians between the tools perpendicular position to the surface and
+    /// the surface X-Y plane. In the range of 0, parallel to the surface, to π/2, perpendicular to
+    /// the surface. π/2 means the tool is perpendicular to the surface and is the default.
+    ///
+    /// ![Altitude angle](https://raw.githubusercontent.com/rust-windowing/winit/master/docs/res/tool_altitude.webp)
+    ///
+    /// <sub>
+    ///   For image attribution, see the
+    ///   <a href="https://github.com/rust-windowing/winit/blob/master/docs/res/ATTRIBUTION.md">
+    ///     ATTRIBUTION.md
+    ///   </a>
+    ///   file.
+    /// </sub>
+    pub altitude: f64,
+    /// The azimuth angle in radiants representing the rotation between the major axis of the tool
+    /// and the surface X-Y plane. In the range of 0, 3 o'clock, progressively increasing clockwise
+    /// to 2π. 0 means the tool is at 3 o'clock or is perpendicular to the surface (`altitude` of
+    /// π/2) and is the default.
+    ///
+    /// ![Azimuth angle](https://raw.githubusercontent.com/rust-windowing/winit/master/docs/res/tool_azimuth.webp)
+    ///
+    /// <sub>
+    ///   For image attribution, see the
+    ///   <a href="https://github.com/rust-windowing/winit/blob/master/docs/res/ATTRIBUTION.md">
+    ///     ATTRIBUTION.md
+    ///   </a>
+    ///   file.
+    /// </sub>
+    pub azimuth: f64,
+}
+
+impl Default for ToolAngle {
+    fn default() -> Self {
+        Self { altitude: f64::consts::FRAC_2_PI, azimuth: 0. }
+    }
+}
+
+impl ToolAngle {
+    pub fn tilt(self) -> ToolTilt {
+        // See <https://www.w3.org/TR/2024/WD-pointerevents3-20240326/#converting-between-tiltx-tilty-and-altitudeangle-azimuthangle>.
+
+        use std::f64::consts::*;
+
+        const PI_0_5: f64 = FRAC_PI_2;
+        const PI_1_5: f64 = 3. * FRAC_PI_2;
+        const PI_2: f64 = 2. * PI;
+
+        let mut x = 0.;
+        let mut y = 0.;
+
+        if self.altitude == 0. {
+            if self.azimuth == 0. || self.azimuth == PI_2 {
+                x = FRAC_PI_2;
+            } else if self.azimuth == PI_0_5 {
+                y = FRAC_PI_2;
+            } else if self.azimuth == PI {
+                x = -FRAC_PI_2;
+            } else if self.azimuth == PI_1_5 {
+                y = -FRAC_PI_2;
+            } else if self.azimuth > 0. && self.azimuth < PI_0_5 {
+                x = FRAC_PI_2;
+                y = FRAC_PI_2;
+            } else if self.azimuth > PI_0_5 && self.azimuth < PI {
+                x = -FRAC_PI_2;
+                y = FRAC_PI_2;
+            } else if self.azimuth > PI && self.azimuth < PI_1_5 {
+                x = -FRAC_PI_2;
+                y = -FRAC_PI_2;
+            } else if self.azimuth > PI_1_5 && self.azimuth < PI_2 {
+                x = FRAC_PI_2;
+                y = -FRAC_PI_2;
+            }
+        }
+
+        if self.altitude != 0. {
+            let altitude = self.altitude.tan();
+
+            x = f64::atan(f64::cos(self.azimuth) / altitude);
+            y = f64::atan(f64::sin(self.azimuth) / altitude);
+        }
+
+        ToolTilt { x: x.to_degrees().round() as i8, y: y.to_degrees().round() as i8 }
+    }
+}
 
 /// Describes the input state of a key.
 #[derive(Debug, Hash, PartialEq, Eq, Clone, Copy)]
@@ -1226,15 +1479,66 @@ mod tests {
     }
 
     #[test]
+    fn test_tilt_angle_conversions() {
+        use std::f64::consts::*;
+
+        use event::{ToolAngle, ToolTilt};
+
+        // See <https://github.com/web-platform-tests/wpt/blob/5af3e9c2a2aba76ade00f0dbc3486e50a74a4506/pointerevents/pointerevent_tiltX_tiltY_to_azimuth_altitude.html#L11-L23>.
+        const TILT_TO_ANGLE: &[(ToolTilt, ToolAngle)] = &[
+            (ToolTilt { x: 0, y: 0 }, ToolAngle { altitude: FRAC_PI_2, azimuth: 0. }),
+            (ToolTilt { x: 0, y: 90 }, ToolAngle { altitude: 0., azimuth: FRAC_PI_2 }),
+            (ToolTilt { x: 0, y: -90 }, ToolAngle { altitude: 0., azimuth: 3. * FRAC_PI_2 }),
+            (ToolTilt { x: 90, y: 0 }, ToolAngle { altitude: 0., azimuth: 0. }),
+            (ToolTilt { x: 90, y: 90 }, ToolAngle { altitude: 0., azimuth: 0. }),
+            (ToolTilt { x: 90, y: -90 }, ToolAngle { altitude: 0., azimuth: 0. }),
+            (ToolTilt { x: -90, y: 0 }, ToolAngle { altitude: 0., azimuth: PI }),
+            (ToolTilt { x: -90, y: 90 }, ToolAngle { altitude: 0., azimuth: 0. }),
+            (ToolTilt { x: -90, y: -90 }, ToolAngle { altitude: 0., azimuth: 0. }),
+            (ToolTilt { x: 0, y: 45 }, ToolAngle { altitude: FRAC_PI_4, azimuth: FRAC_PI_2 }),
+            (ToolTilt { x: 0, y: -45 }, ToolAngle { altitude: FRAC_PI_4, azimuth: 3. * FRAC_PI_2 }),
+            (ToolTilt { x: 45, y: 0 }, ToolAngle { altitude: FRAC_PI_4, azimuth: 0. }),
+            (ToolTilt { x: -45, y: 0 }, ToolAngle { altitude: FRAC_PI_4, azimuth: PI }),
+        ];
+
+        for (tilt, angle) in TILT_TO_ANGLE {
+            assert_eq!(tilt.angle(), *angle, "{tilt:?}");
+        }
+
+        // See <https://github.com/web-platform-tests/wpt/blob/5af3e9c2a2aba76ade00f0dbc3486e50a74a4506/pointerevents/pointerevent_tiltX_tiltY_to_azimuth_altitude.html#L38-L46>.
+        const ANGLE_TO_TILT: &[(ToolAngle, ToolTilt)] = &[
+            (ToolAngle { altitude: 0., azimuth: 0. }, ToolTilt { x: 90, y: 0 }),
+            (ToolAngle { altitude: FRAC_PI_4, azimuth: 0. }, ToolTilt { x: 45, y: 0 }),
+            (ToolAngle { altitude: FRAC_PI_2, azimuth: 0. }, ToolTilt { x: 0, y: 0 }),
+            (ToolAngle { altitude: 0., azimuth: FRAC_PI_2 }, ToolTilt { x: 0, y: 90 }),
+            (ToolAngle { altitude: FRAC_PI_4, azimuth: FRAC_PI_2 }, ToolTilt { x: 0, y: 45 }),
+            (ToolAngle { altitude: 0., azimuth: PI }, ToolTilt { x: -90, y: 0 }),
+            (ToolAngle { altitude: FRAC_PI_4, azimuth: PI }, ToolTilt { x: -45, y: 0 }),
+            (ToolAngle { altitude: 0., azimuth: 3. * FRAC_PI_2 }, ToolTilt { x: 0, y: -90 }),
+            (ToolAngle { altitude: FRAC_PI_4, azimuth: 3. * FRAC_PI_2 }, ToolTilt { x: 0, y: -45 }),
+        ];
+
+        for (angle, tilt) in ANGLE_TO_TILT {
+            assert_eq!(angle.tilt(), *tilt, "{angle:?}");
+        }
+    }
+
+    #[test]
     fn test_force_normalize() {
         let force = event::Force::Normalized(0.0);
-        assert_eq!(force.normalized(), 0.0);
+        assert_eq!(force.normalized(None), 0.0);
 
         let force2 = event::Force::Calibrated { force: 5.0, max_possible_force: 2.5 };
-        assert_eq!(force2.normalized(), 2.0);
+        assert_eq!(force2.normalized(None), 2.0);
 
         let force3 = event::Force::Calibrated { force: 5.0, max_possible_force: 2.5 };
-        assert_eq!(force3.normalized(), 2.0);
+        assert_eq!(
+            force3.normalized(Some(event::ToolAngle {
+                altitude: std::f64::consts::PI / 2.0,
+                azimuth: 0.
+            })),
+            2.0
+        );
     }
 
     #[allow(clippy::clone_on_copy)]
