@@ -82,3 +82,7 @@ changelog entry.
   This feature was incomplete, and the equivalent functionality can be trivially achieved outside
   of `winit` using `objc2-ui-kit` and calling `UIDevice::currentDevice().userInterfaceIdiom()`.
 - On Web, remove unused `platform::web::CustomCursorError::Animation`.
+
+### Fixed
+
+- On MacOS, fix building with `feature = "rwh_04"`.
