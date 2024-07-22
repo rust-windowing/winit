@@ -216,7 +216,7 @@ impl CursorHandler {
             Cursor::Custom(cursor) => {
                 let cursor = match cursor.cast_ref::<CustomCursor>() {
                     Some(cursor) => cursor,
-                    None => todo!(),
+                    None => return,
                 };
 
                 if let SelectedCursor::Loading { cursor: old_cursor, .. }

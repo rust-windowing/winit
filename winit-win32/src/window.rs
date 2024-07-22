@@ -1263,6 +1263,7 @@ impl InitData<'_> {
             _file_drop_handler: file_drop_handler,
             userdata_removed: Cell::new(false),
             recurse_depth: Cell::new(0),
+            last_tablet_down_button_state: Cell::new(0),
         }
     }
 

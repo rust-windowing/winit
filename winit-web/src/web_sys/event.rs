@@ -1,11 +1,16 @@
 use std::cell::OnceCell;
+use std::f64;
 
 use dpi::{LogicalPosition, PhysicalPosition, Position};
 use smol_str::SmolStr;
+use tracing::warn;
 use wasm_bindgen::prelude::wasm_bindgen;
 use wasm_bindgen::{JsCast, JsValue};
-use web_sys::{KeyboardEvent, MouseEvent, Navigator, PointerEvent, WheelEvent};
-use winit_core::event::{FingerId, MouseButton, MouseScrollDelta, PointerKind};
+use web_sys::{Event, KeyboardEvent, MouseEvent, Navigator, PointerEvent, WheelEvent};
+use winit_core::event::{
+    ButtonSource, FingerId, Force, MouseButton, MouseScrollDelta, PointerKind, PointerSource,
+    TabletToolAngle, TabletToolButton, TabletToolData, TabletToolKind, TabletToolTilt,
+};
 use winit_core::keyboard::{
     Key, KeyCode, KeyLocation, ModifiersState, NamedKey, NativeKey, NativeKeyCode, PhysicalKey,
 };
@@ -16,11 +21,12 @@ bitflags::bitflags! {
     // https://www.w3.org/TR/pointerevents3/#the-buttons-property
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     pub struct ButtonsState: u16 {
-        const LEFT    = 0b00001;
-        const RIGHT   = 0b00010;
-        const MIDDLE  = 0b00100;
-        const BACK    = 0b01000;
-        const FORWARD = 0b10000;
+        const LEFT    = 0b000001;
+        const RIGHT   = 0b000010;
+        const MIDDLE  = 0b000100;
+        const BACK    = 0b001000;
+        const FORWARD = 0b010000;
+        const ERASER  = 0b100000;
     }
 }
 
@@ -33,6 +39,15 @@ impl From<ButtonsState> for MouseButton {
             ButtonsState::BACK => MouseButton::Back,
             ButtonsState::FORWARD => MouseButton::Forward,
             _ => MouseButton::Other(value.bits()),
+        }
+    }
+}
+
+impl From<ButtonSource> for ButtonsState {
+    fn from(value: ButtonSource) -> Self {
+        match value {
+            ButtonSource::TabletTool { button, .. } => button.into(),
+            other => ButtonsState::from(other.mouse_button()),
         }
     }
 }
@@ -50,37 +65,133 @@ impl From<MouseButton> for ButtonsState {
     }
 }
 
-pub fn mouse_buttons(event: &MouseEvent) -> ButtonsState {
+impl From<TabletToolButton> for ButtonsState {
+    fn from(tool: TabletToolButton) -> Self {
+        match tool {
+            TabletToolButton::Contact => ButtonsState::LEFT,
+            TabletToolButton::Barrel => ButtonsState::RIGHT,
+            TabletToolButton::Other(value) => Self::from_bits_retain(value),
+        }
+    }
+}
+
+pub fn pointer_buttons(event: &MouseEvent) -> ButtonsState {
+    #[allow(clippy::disallowed_methods)]
     ButtonsState::from_bits_retain(event.buttons())
 }
 
-pub fn mouse_button(event: &MouseEvent) -> Option<MouseButton> {
+pub fn raw_button(event: &MouseEvent) -> Option<u16> {
     // https://www.w3.org/TR/pointerevents3/#the-button-property
-    match event.button() {
-        -1 => None,
-        0 => Some(MouseButton::Left),
-        1 => Some(MouseButton::Middle),
-        2 => Some(MouseButton::Right),
-        3 => Some(MouseButton::Back),
-        4 => Some(MouseButton::Forward),
-        i => {
-            Some(MouseButton::Other(i.try_into().expect("unexpected negative mouse button value")))
-        },
+    #[allow(clippy::disallowed_methods)]
+    let button = event.button();
+
+    if button == -1 {
+        None
+    } else {
+        Some(button.try_into().expect("unexpected negative mouse button value"))
     }
 }
 
-pub fn mouse_button_to_id(button: MouseButton) -> u16 {
+pub fn mouse_button(button: u16) -> MouseButton {
     match button {
-        MouseButton::Left => 0,
-        MouseButton::Right => 1,
-        MouseButton::Middle => 2,
-        MouseButton::Back => 3,
-        MouseButton::Forward => 4,
-        MouseButton::Other(value) => value,
+        0 => MouseButton::Left,
+        1 => MouseButton::Middle,
+        2 => MouseButton::Right,
+        3 => MouseButton::Back,
+        4 => MouseButton::Forward,
+        other => MouseButton::Other(other),
     }
 }
 
-pub fn mouse_position(event: &MouseEvent) -> LogicalPosition<f64> {
+pub fn tool_button(button: u16) -> TabletToolButton {
+    match button {
+        0 => TabletToolButton::Contact,
+        2 => TabletToolButton::Barrel,
+        other => TabletToolButton::Other(other),
+    }
+}
+
+#[derive(Clone, Copy)]
+pub enum WebPointerType {
+    Mouse,
+    Touch,
+    Pen,
+}
+
+impl WebPointerType {
+    pub fn from_event(event: &PointerEvent) -> Option<Self> {
+        #[allow(clippy::disallowed_methods)]
+        let r#type = event.pointer_type();
+
+        match r#type.as_ref() {
+            "mouse" => Some(Self::Mouse),
+            "touch" => Some(Self::Touch),
+            "pen" => Some(Self::Pen),
+            r#type => {
+                warn!("found unknown pointer type: {type}");
+                None
+            },
+        }
+    }
+}
+
+pub fn pointer_kind(event: &PointerEvent, pointer_id: i32) -> PointerKind {
+    match WebPointerType::from_event(event) {
+        Some(WebPointerType::Mouse) => PointerKind::Mouse,
+        Some(WebPointerType::Touch) => PointerKind::Touch(FingerId::from_raw(pointer_id as usize)),
+        Some(WebPointerType::Pen) => {
+            PointerKind::TabletTool(if pointer_buttons(event).contains(ButtonsState::ERASER) {
+                TabletToolKind::Eraser
+            } else {
+                TabletToolKind::Pen
+            })
+        },
+        None => PointerKind::Unknown,
+    }
+}
+
+pub fn pointer_source(event: &PointerEvent, kind: PointerKind) -> PointerSource {
+    #[wasm_bindgen]
+    extern "C" {
+        #[wasm_bindgen(extends = PointerEvent, extends = MouseEvent, extends = Event)]
+        pub type PointerEventExt;
+
+        #[wasm_bindgen(method, getter, js_name = altitudeAngle)]
+        pub fn altitude_angle(this: &PointerEventExt) -> Option<f64>;
+
+        #[wasm_bindgen(method, getter, js_name = azimuthAngle)]
+        pub fn azimuth_angle(this: &PointerEventExt) -> f64;
+    }
+
+    let event: &PointerEventExt = event.unchecked_ref();
+
+    match kind {
+        PointerKind::Mouse => PointerSource::Mouse,
+        PointerKind::Touch(id) => PointerSource::Touch {
+            finger_id: id,
+            force: Some(Force::Normalized(event.pressure().into())),
+        },
+        PointerKind::TabletTool(tool) => {
+            let data = TabletToolData {
+                force: Some(Force::Normalized(event.pressure().into())),
+                tangential_force: Some(event.tangential_pressure()),
+                twist: Some(event.twist().try_into().expect("found invalid `twist`")),
+                tilt: Some(TabletToolTilt {
+                    x: event.tilt_x().try_into().expect("found invalid `tiltX`"),
+                    y: event.tilt_y().try_into().expect("found invalid `tiltY`"),
+                }),
+                angle: event
+                    .altitude_angle()
+                    .map(|altitude| TabletToolAngle { altitude, azimuth: event.azimuth_angle() }),
+            };
+
+            PointerSource::TabletTool { kind: tool, data }
+        },
+        PointerKind::Unknown => PointerSource::Unknown,
+    }
+}
+
+pub fn pointer_position(event: &MouseEvent) -> LogicalPosition<f64> {
     #[wasm_bindgen]
     extern "C" {
         type MouseEventExt;
@@ -113,7 +224,7 @@ impl MouseDelta {
             Some(Engine::Chromium) => Self::Chromium,
             // Firefox has wrong movement values in coalesced events.
             Some(Engine::Gecko) if has_coalesced_events_support(event) => Self::Gecko {
-                old_position: mouse_position(event),
+                old_position: pointer_position(event),
                 old_delta: LogicalPosition::new(
                     event.movement_x() as f64,
                     event.movement_y() as f64,
@@ -129,7 +240,7 @@ impl MouseDelta {
                 PhysicalPosition::new(event.movement_x(), event.movement_y()).into()
             },
             MouseDelta::Gecko { old_position, old_delta } => {
-                let new_position = mouse_position(event);
+                let new_position = pointer_position(event);
                 let x = new_position.x - old_position.x + old_delta.x;
                 let y = new_position.y - old_position.y + old_delta.y;
                 *old_position = new_position;
@@ -157,14 +268,6 @@ pub fn mouse_scroll_delta(
             Some(MouseScrollDelta::PixelDelta(delta))
         },
         _ => None,
-    }
-}
-
-pub fn pointer_type(event: &PointerEvent, pointer_id: i32) -> PointerKind {
-    match event.pointer_type().as_str() {
-        "mouse" => PointerKind::Mouse,
-        "touch" => PointerKind::Touch(FingerId::from_raw(pointer_id as usize)),
-        _ => PointerKind::Unknown,
     }
 }
 
