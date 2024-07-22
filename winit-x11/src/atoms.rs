@@ -103,7 +103,14 @@ atom_manager! {
     _NET_SUPPORTED,
     _NET_SUPPORTING_WM_CHECK,
     _XEMBED,
-    _XSETTINGS_SETTINGS
+    _XSETTINGS_SETTINGS,
+
+    // Stylus Atoms
+    ABS_X: b"Abs X",
+    ABS_Y: b"Abs Y",
+    ABS_PRESSURE: b"Abs Pressure",
+    ABS_TILT_X: b"Abs Tilt X",
+    ABS_TILT_Y: b"Abs Tilt Y"
 }
 
 impl Index<AtomName> for Atoms {
