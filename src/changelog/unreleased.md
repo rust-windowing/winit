@@ -45,6 +45,7 @@ changelog entry.
 - Add `ActiveEventLoop::create_proxy()`.
 - On Web, implement `Error` for `platform::web::CustomCursorError`.
 - Add `WindowEvent::CursorMoved::type` with a new type `CursorType` introducing pen/stylus support.
+  Currently only implemented on Web.
 
 ### Changed
 
@@ -91,3 +92,4 @@ changelog entry.
 ### Fixed
 
 - On MacOS, fix building with `feature = "rwh_04"`.
+- On Web, device events are emitted regardless of cursor type.

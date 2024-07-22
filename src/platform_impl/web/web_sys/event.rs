@@ -1,4 +1,5 @@
 use std::cell::OnceCell;
+use std::f64;
 
 use dpi::{LogicalPosition, PhysicalPosition, Position};
 use smol_str::SmolStr;
@@ -6,8 +7,12 @@ use wasm_bindgen::prelude::wasm_bindgen;
 use wasm_bindgen::{JsCast, JsValue};
 use web_sys::{KeyboardEvent, MouseEvent, PointerEvent, WheelEvent};
 
+use super::pointer::{PointerEventExt, WebPointerType};
 use super::Engine;
-use crate::event::{CursorButton, MouseButton, MouseScrollDelta, ToolButton};
+use crate::event::{
+    CursorButton, CursorType, Force, MouseButton, MouseScrollDelta, ToolAngle, ToolButton,
+    ToolState, ToolTilt,
+};
 use crate::keyboard::{Key, KeyLocation, ModifiersState, NamedKey, PhysicalKey};
 
 bitflags::bitflags! {
@@ -67,22 +72,88 @@ impl From<ToolButton> for ButtonsState {
     }
 }
 
-pub fn mouse_buttons(event: &MouseEvent) -> ButtonsState {
+pub fn cursor_buttons(event: &MouseEvent) -> ButtonsState {
+    #[allow(clippy::disallowed_methods)]
     ButtonsState::from_bits_retain(event.buttons())
 }
 
-pub fn mouse_button(event: &MouseEvent) -> Option<MouseButton> {
+pub fn raw_button(event: &MouseEvent) -> Option<u16> {
     // https://www.w3.org/TR/pointerevents3/#the-button-property
-    match event.button() {
-        -1 => None,
-        0 => Some(MouseButton::Left),
-        1 => Some(MouseButton::Middle),
-        2 => Some(MouseButton::Right),
-        3 => Some(MouseButton::Back),
-        4 => Some(MouseButton::Forward),
-        i => {
-            Some(MouseButton::Other(i.try_into().expect("unexpected negative mouse button value")))
+    #[allow(clippy::disallowed_methods)]
+    let button = event.button();
+
+    if button == -1 {
+        None
+    } else {
+        Some(button.try_into().expect("unexpected negative mouse button value"))
+    }
+}
+
+pub fn cursor_button(event: &PointerEventExt, r#type: WebPointerType) -> Option<CursorButton> {
+    // https://www.w3.org/TR/pointerevents3/#the-button-property
+
+    let button = raw_button(event)?;
+
+    let button = match r#type {
+        WebPointerType::Mouse => {
+            let button = match button {
+                0 => MouseButton::Left,
+                1 => MouseButton::Middle,
+                2 => MouseButton::Right,
+                3 => MouseButton::Back,
+                4 => MouseButton::Forward,
+                button => MouseButton::Other(button),
+            };
+
+            CursorButton::Mouse(button)
         },
+        WebPointerType::Pen => {
+            if button == 5 {
+                return Some(CursorButton::Eraser(ToolButton::Contact));
+            };
+
+            let button = match button {
+                0 => ToolButton::Contact,
+                2 => ToolButton::Barrel,
+                button => ToolButton::Other(button),
+            };
+
+            CursorButton::Pen(button)
+        },
+        WebPointerType::Touch => unreachable!(),
+    };
+
+    Some(button)
+}
+
+pub fn cursor_type(
+    event: &PointerEventExt,
+    r#type: WebPointerType,
+    button: Option<&CursorButton>,
+) -> CursorType {
+    match r#type {
+        WebPointerType::Mouse => CursorType::Mouse,
+        WebPointerType::Pen => {
+            let force = Force::Normalized(event.pressure().into());
+            let tangential_force = Some(event.tangential_pressure());
+            let twist = Some(event.twist().try_into().expect("found invalid `twist`"));
+            let tilt = Some(ToolTilt {
+                x: event.tilt_x().try_into().expect("found invalid `tiltX`"),
+                y: event.tilt_y().try_into().expect("found invalid `tiltY`"),
+            });
+            let angle = event
+                .altitude_angle()
+                .map(|altitude| ToolAngle { altitude, azimuth: event.azimuth_angle() });
+
+            let state = ToolState { force, tangential_force, twist, tilt, angle };
+
+            match button {
+                Some(CursorButton::Eraser(_)) => CursorType::Eraser(state),
+                Some(CursorButton::Pen(_)) | None => CursorType::Pen(state),
+                _ => unreachable!(),
+            }
+        },
+        WebPointerType::Touch => unreachable!(),
     }
 }
 
@@ -99,7 +170,7 @@ impl MouseButton {
     }
 }
 
-pub fn mouse_position(event: &MouseEvent) -> LogicalPosition<f64> {
+pub fn cursor_position(event: &MouseEvent) -> LogicalPosition<f64> {
     #[wasm_bindgen]
     extern "C" {
         type MouseEventExt;
@@ -132,7 +203,7 @@ impl MouseDelta {
             Some(Engine::Chromium) => Self::Chromium,
             // Firefox has wrong movement values in coalesced events.
             Some(Engine::Gecko) if has_coalesced_events_support(event) => Self::Gecko {
-                old_position: mouse_position(event),
+                old_position: cursor_position(event),
                 old_delta: LogicalPosition::new(
                     event.movement_x() as f64,
                     event.movement_y() as f64,
@@ -148,7 +219,7 @@ impl MouseDelta {
                 PhysicalPosition::new(event.movement_x(), event.movement_y()).into()
             },
             MouseDelta::Gecko { old_position, old_delta } => {
-                let new_position = mouse_position(event);
+                let new_position = cursor_position(event);
                 let x = new_position.x - old_position.x + old_delta.x;
                 let y = new_position.y - old_position.y + old_delta.y;
                 *old_position = new_position;
@@ -252,11 +323,11 @@ pub fn mouse_modifiers(event: &MouseEvent) -> ModifiersState {
     state
 }
 
-pub fn pointer_move_event(event: PointerEvent) -> impl Iterator<Item = PointerEvent> {
+pub fn pointer_move_event(event: PointerEventExt) -> impl Iterator<Item = PointerEventExt> {
     // make a single iterator depending on the availability of coalesced events
     if has_coalesced_events_support(&event) {
         None.into_iter().chain(
-            Some(event.get_coalesced_events().into_iter().map(PointerEvent::unchecked_from_js))
+            Some(event.get_coalesced_events().into_iter().map(PointerEventExt::unchecked_from_js))
                 .into_iter()
                 .flatten(),
         )

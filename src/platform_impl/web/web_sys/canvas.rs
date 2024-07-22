@@ -22,7 +22,7 @@ use super::pointer::PointerHandler;
 use super::{event, fullscreen, ButtonsState, ResizeScaleHandle};
 use crate::dpi::{LogicalPosition, PhysicalPosition, PhysicalSize};
 use crate::error::OsError as RootOE;
-use crate::event::{CursorButton, Force, InnerSizeWriter, MouseButton, MouseScrollDelta};
+use crate::event::{CursorButton, CursorType, Force, InnerSizeWriter, MouseScrollDelta};
 use crate::keyboard::{Key, KeyLocation, ModifiersState, PhysicalKey};
 use crate::platform_impl::OsError;
 use crate::window::{WindowAttributes, WindowId as RootWindowId};
@@ -328,60 +328,73 @@ impl Canvas {
         self.pointer_handler.on_cursor_enter(&self.common, handler)
     }
 
-    pub fn on_mouse_release<MOD, M, T>(
+    pub fn on_mouse_release<MOD, C, T>(
         &mut self,
         modifier_handler: MOD,
-        mouse_handler: M,
+        cursor_handler: C,
         touch_handler: T,
     ) where
         MOD: 'static + FnMut(ModifiersState),
-        M: 'static + FnMut(ModifiersState, i32, PhysicalPosition<f64>, MouseButton),
+        C: 'static + FnMut(ModifiersState, i32, PhysicalPosition<f64>, CursorType, CursorButton),
         T: 'static + FnMut(ModifiersState, i32, PhysicalPosition<f64>, Force),
     {
         self.pointer_handler.on_mouse_release(
             &self.common,
             modifier_handler,
-            mouse_handler,
+            cursor_handler,
             touch_handler,
         )
     }
 
-    pub fn on_mouse_press<MOD, M, T>(
+    pub fn on_mouse_press<MOD, C, T>(
         &mut self,
         modifier_handler: MOD,
-        mouse_handler: M,
+        cursor_handler: C,
         touch_handler: T,
     ) where
         MOD: 'static + FnMut(ModifiersState),
-        M: 'static + FnMut(ModifiersState, i32, PhysicalPosition<f64>, MouseButton),
+        C: 'static + FnMut(ModifiersState, i32, PhysicalPosition<f64>, CursorType, CursorButton),
         T: 'static + FnMut(ModifiersState, i32, PhysicalPosition<f64>, Force),
     {
         self.pointer_handler.on_mouse_press(
             &self.common,
             modifier_handler,
-            mouse_handler,
+            cursor_handler,
             touch_handler,
             Rc::clone(&self.prevent_default),
         )
     }
 
-    pub fn on_cursor_move<MOD, M, T, B>(
+    pub fn on_cursor_move<MOD, C, T, B>(
         &mut self,
         modifier_handler: MOD,
-        mouse_handler: M,
+        cursor_handler: C,
         touch_handler: T,
         button_handler: B,
     ) where
         MOD: 'static + FnMut(ModifiersState),
-        M: 'static + FnMut(ModifiersState, i32, &mut dyn Iterator<Item = PhysicalPosition<f64>>),
+        C: 'static
+            + FnMut(
+                ModifiersState,
+                i32,
+                &mut dyn Iterator<Item = (PhysicalPosition<f64>, CursorType)>,
+            ),
         T: 'static
             + FnMut(ModifiersState, i32, &mut dyn Iterator<Item = (PhysicalPosition<f64>, Force)>),
-        B: 'static + FnMut(ModifiersState, i32, PhysicalPosition<f64>, ButtonsState, CursorButton),
+        B: 'static
+            + FnMut(
+                ModifiersState,
+                i32,
+                PhysicalPosition<f64>,
+                CursorType,
+                ButtonsState,
+                CursorButton,
+            ),
     {
         self.pointer_handler.on_cursor_move(
             &self.common,
             modifier_handler,
-            mouse_handler,
+            cursor_handler,
             touch_handler,
             button_handler,
             Rc::clone(&self.prevent_default),

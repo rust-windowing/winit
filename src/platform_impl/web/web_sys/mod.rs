@@ -5,7 +5,7 @@ mod event_handle;
 mod fullscreen;
 mod intersection_handle;
 mod media_query_handle;
-mod pointer;
+pub mod pointer;
 mod resize_scaling;
 mod schedule;
 
