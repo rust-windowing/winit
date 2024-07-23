@@ -44,7 +44,7 @@ impl PointerHandler {
                 // touch events are handled separately
                 // handling them here would produce duplicate mouse events, inconsistent with
                 // other platforms.
-                let pointer_id = (event.pointer_type() == "mouse").then(|| event.pointer_id());
+                let pointer_id = (event.pointer_type() != "touch").then(|| event.pointer_id());
 
                 handler(modifiers, pointer_id);
             }));
@@ -61,20 +61,18 @@ impl PointerHandler {
                 // touch events are handled separately
                 // handling them here would produce duplicate mouse events, inconsistent with
                 // other platforms.
-                let pointer_id = (event.pointer_type() == "mouse").then(|| event.pointer_id());
+                let pointer_id = (event.pointer_type() != "touch").then(|| event.pointer_id());
 
                 handler(modifiers, pointer_id);
             }));
     }
 
-    pub fn on_mouse_release<MOD, M, T>(
+    pub fn on_mouse_release<M, T>(
         &mut self,
         canvas_common: &Common,
-        mut modifier_handler: MOD,
         mut mouse_handler: M,
         mut touch_handler: T,
     ) where
-        MOD: 'static + FnMut(ModifiersState),
         M: 'static + FnMut(ModifiersState, i32, PhysicalPosition<f64>, MouseButton),
         T: 'static + FnMut(ModifiersState, i32, PhysicalPosition<f64>, Force),
     {
@@ -90,26 +88,23 @@ impl PointerHandler {
                         event::mouse_position(&event).to_physical(super::scale_factor(&window)),
                         Force::Normalized(event.pressure() as f64),
                     ),
-                    "mouse" => mouse_handler(
+                    _ => mouse_handler(
                         modifiers,
                         event.pointer_id(),
                         event::mouse_position(&event).to_physical(super::scale_factor(&window)),
                         event::mouse_button(&event).expect("no mouse button released"),
                     ),
-                    _ => modifier_handler(modifiers),
                 }
             }));
     }
 
-    pub fn on_mouse_press<MOD, M, T>(
+    pub fn on_mouse_press<M, T>(
         &mut self,
         canvas_common: &Common,
-        mut modifier_handler: MOD,
         mut mouse_handler: M,
         mut touch_handler: T,
         prevent_default: Rc<Cell<bool>>,
     ) where
-        MOD: 'static + FnMut(ModifiersState),
         M: 'static + FnMut(ModifiersState, i32, PhysicalPosition<f64>, MouseButton),
         T: 'static + FnMut(ModifiersState, i32, PhysicalPosition<f64>, Force),
     {
@@ -125,8 +120,9 @@ impl PointerHandler {
                 }
 
                 let modifiers = event::mouse_modifiers(&event);
+                let pointer_type = &event.pointer_type();
 
-                match event.pointer_type().as_str() {
+                match pointer_type.as_str() {
                     "touch" => {
                         touch_handler(
                             modifiers,
@@ -135,7 +131,7 @@ impl PointerHandler {
                             Force::Normalized(event.pressure() as f64),
                         );
                     },
-                    "mouse" => {
+                    _ => {
                         mouse_handler(
                             modifiers,
                             event.pointer_id(),
@@ -143,27 +139,27 @@ impl PointerHandler {
                             event::mouse_button(&event).expect("no mouse button pressed"),
                         );
 
-                        // Error is swallowed here since the error would occur every time the mouse
-                        // is clicked when the cursor is grabbed, and there
-                        // is probably not a situation where this could
-                        // fail, that we care if it fails.
-                        let _e = canvas.set_pointer_capture(event.pointer_id());
+                        if pointer_type == "mouse" {
+                            // Error is swallowed here since the error would occur every time the
+                            // mouse is clicked when the cursor is
+                            // grabbed, and there is probably not a
+                            // situation where this could fail, that we
+                            // care if it fails.
+                            let _e = canvas.set_pointer_capture(event.pointer_id());
+                        }
                     },
-                    _ => modifier_handler(modifiers),
                 }
             }));
     }
 
-    pub fn on_cursor_move<MOD, M, T, B>(
+    pub fn on_cursor_move<M, T, B>(
         &mut self,
         canvas_common: &Common,
-        mut modifier_handler: MOD,
         mut mouse_handler: M,
         mut touch_handler: T,
         mut button_handler: B,
         prevent_default: Rc<Cell<bool>>,
     ) where
-        MOD: 'static + FnMut(ModifiersState),
         M: 'static + FnMut(ModifiersState, i32, &mut dyn Iterator<Item = PhysicalPosition<f64>>),
         T: 'static
             + FnMut(ModifiersState, i32, &mut dyn Iterator<Item = (PhysicalPosition<f64>, Force)>),
@@ -175,23 +171,10 @@ impl PointerHandler {
             Some(canvas_common.add_event("pointermove", move |event: PointerEvent| {
                 let modifiers = event::mouse_modifiers(&event);
 
-                let pointer_type = event.pointer_type();
-
-                if let "touch" | "mouse" = pointer_type.as_str() {
-                } else {
-                    modifier_handler(modifiers);
-                    return;
-                }
-
                 let id = event.pointer_id();
 
                 // chorded button event
                 if let Some(button) = event::mouse_button(&event) {
-                    debug_assert_eq!(
-                        pointer_type, "mouse",
-                        "expect pointer type of a chorded button event to be a mouse"
-                    );
-
                     if prevent_default.get() {
                         // prevent text selection
                         event.prevent_default();
@@ -212,13 +195,7 @@ impl PointerHandler {
 
                 // pointer move event
                 let scale = super::scale_factor(&window);
-                match pointer_type.as_str() {
-                    "mouse" => mouse_handler(
-                        modifiers,
-                        id,
-                        &mut event::pointer_move_event(event)
-                            .map(|event| event::mouse_position(&event).to_physical(scale)),
-                    ),
+                match event.pointer_type().as_str() {
                     "touch" => touch_handler(
                         modifiers,
                         id,
@@ -229,7 +206,12 @@ impl PointerHandler {
                             )
                         }),
                     ),
-                    _ => unreachable!("didn't return early before"),
+                    _ => mouse_handler(
+                        modifiers,
+                        id,
+                        &mut event::pointer_move_event(event)
+                            .map(|event| event::mouse_position(&event).to_physical(scale)),
+                    ),
                 };
             }));
     }
