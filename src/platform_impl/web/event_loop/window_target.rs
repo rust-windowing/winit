@@ -296,14 +296,16 @@ impl ActiveEventLoop {
                             }
                         });
 
-                    runner.send_events(modifiers.into_iter().chain(events.flat_map(|position| {
-                        let device_id = RootDeviceId(DeviceId(pointer_id));
+                    runner.send_events(modifiers.into_iter().chain(events.flat_map(
+                        |(position, r#type)| {
+                            let device_id = RootDeviceId(DeviceId(pointer_id));
 
-                        iter::once(Event::WindowEvent {
-                            window_id: RootWindowId(id),
-                            event: WindowEvent::CursorMoved { device_id, position },
-                        })
-                    })));
+                            iter::once(Event::WindowEvent {
+                                window_id: RootWindowId(id),
+                                event: WindowEvent::CursorMoved { device_id, position, r#type },
+                            })
+                        },
+                    )));
                 }
             },
             {
@@ -343,6 +345,7 @@ impl ActiveEventLoop {
                 move |active_modifiers,
                       pointer_id,
                       position: crate::dpi::PhysicalPosition<f64>,
+                      r#type,
                       buttons,
                       button| {
                     let modifiers =
@@ -368,11 +371,11 @@ impl ActiveEventLoop {
                     runner.send_events(modifiers.into_iter().chain([
                         Event::WindowEvent {
                             window_id: RootWindowId(id),
-                            event: WindowEvent::CursorMoved { device_id, position },
+                            event: WindowEvent::CursorMoved { device_id, position, r#type },
                         },
                         Event::WindowEvent {
                             window_id: RootWindowId(id),
-                            event: WindowEvent::MouseInput { device_id, state, button },
+                            event: WindowEvent::CursorInput { device_id, state, button },
                         },
                     ]));
                 }
@@ -398,7 +401,7 @@ impl ActiveEventLoop {
                 let runner = self.runner.clone();
                 let modifiers = self.modifiers.clone();
 
-                move |active_modifiers, pointer_id, position, button| {
+                move |active_modifiers, pointer_id, position, r#type, button| {
                     let modifiers = (modifiers.get() != active_modifiers).then(|| {
                         modifiers.set(active_modifiers);
                         Event::WindowEvent {
@@ -415,11 +418,11 @@ impl ActiveEventLoop {
                     runner.send_events(modifiers.into_iter().chain([
                         Event::WindowEvent {
                             window_id: RootWindowId(id),
-                            event: WindowEvent::CursorMoved { device_id, position },
+                            event: WindowEvent::CursorMoved { device_id, position, r#type },
                         },
                         Event::WindowEvent {
                             window_id: RootWindowId(id),
-                            event: WindowEvent::MouseInput {
+                            event: WindowEvent::CursorInput {
                                 device_id,
                                 state: ElementState::Pressed,
                                 button,
@@ -478,7 +481,7 @@ impl ActiveEventLoop {
                 let has_focus = has_focus.clone();
                 let modifiers = self.modifiers.clone();
 
-                move |active_modifiers, pointer_id, position, button| {
+                move |active_modifiers, pointer_id, position, r#type, button| {
                     let modifiers =
                         (has_focus.get() && modifiers.get() != active_modifiers).then(|| {
                             modifiers.set(active_modifiers);
@@ -496,11 +499,11 @@ impl ActiveEventLoop {
                     runner.send_events(modifiers.into_iter().chain([
                         Event::WindowEvent {
                             window_id: RootWindowId(id),
-                            event: WindowEvent::CursorMoved { device_id, position },
+                            event: WindowEvent::CursorMoved { device_id, position, r#type },
                         },
                         Event::WindowEvent {
                             window_id: RootWindowId(id),
-                            event: WindowEvent::MouseInput {
+                            event: WindowEvent::CursorInput {
                                 device_id,
                                 state: ElementState::Released,
                                 button,

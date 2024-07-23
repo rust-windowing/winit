@@ -11,8 +11,9 @@ use web_sys::{Document, KeyboardEvent, PageTransitionEvent, PointerEvent, WheelE
 use web_time::{Duration, Instant};
 
 use super::super::main_thread::MainThreadMarker;
+use super::super::web_sys::pointer::{PointerEventExt, WebPointerType};
 use super::super::DeviceId;
-use super::backend;
+use super::backend::{self, ButtonsState, EventListenerHandle};
 use super::state::State;
 use crate::dpi::PhysicalSize;
 use crate::event::{
@@ -21,7 +22,6 @@ use crate::event::{
 };
 use crate::event_loop::{ControlFlow, DeviceEvents};
 use crate::platform::web::{PollStrategy, WaitUntilStrategy};
-use crate::platform_impl::platform::backend::EventListenerHandle;
 use crate::platform_impl::platform::r#async::{DispatchRunner, Waker, WakerSpawner};
 use crate::platform_impl::platform::window::Inner;
 use crate::window::WindowId;
@@ -58,7 +58,7 @@ pub struct Execution {
     destroy_pending: RefCell<VecDeque<WindowId>>,
     page_transition_event_handle: RefCell<Option<backend::PageTransitionEventHandle>>,
     device_events: Cell<DeviceEvents>,
-    on_mouse_move: OnEventHandle<PointerEvent>,
+    on_mouse_move: OnEventHandle<PointerEventExt>,
     on_wheel: OnEventHandle<WheelEvent>,
     on_mouse_press: OnEventHandle<PointerEvent>,
     on_mouse_release: OnEventHandle<PointerEvent>,
@@ -239,27 +239,18 @@ impl Shared {
         *self.0.on_mouse_move.borrow_mut() = Some(EventListenerHandle::new(
             self.window().clone(),
             "pointermove",
-            Closure::new(move |event: PointerEvent| {
+            Closure::new(move |event: PointerEventExt| {
                 if !runner.device_events() {
-                    return;
-                }
-
-                let pointer_type = event.pointer_type();
-
-                if pointer_type != "mouse" {
                     return;
                 }
 
                 // chorded button event
                 let device_id = RootDeviceId(DeviceId(event.pointer_id()));
 
-                if let Some(button) = backend::event::mouse_button(&event) {
-                    debug_assert_eq!(
-                        pointer_type, "mouse",
-                        "expect pointer type of a chorded button event to be a mouse"
-                    );
-
-                    let state = if backend::event::mouse_buttons(&event).contains(button.into()) {
+                if let Some(button) = backend::event::raw_button(&event) {
+                    let state = if backend::event::cursor_buttons(&event)
+                        .contains(ButtonsState::from_bits_retain(button))
+                    {
                         ElementState::Pressed
                     } else {
                         ElementState::Released
@@ -267,7 +258,7 @@ impl Shared {
 
                     runner.send_event(Event::DeviceEvent {
                         device_id,
-                        event: DeviceEvent::Button { button: button.to_id(), state },
+                        event: DeviceEvent::Button { button: button.into(), state },
                     });
 
                     return;
@@ -288,10 +279,13 @@ impl Shared {
                         event: DeviceEvent::Motion { axis: 1, value: delta.y },
                     });
 
-                    x_motion.into_iter().chain(y_motion).chain(iter::once(Event::DeviceEvent {
-                        device_id,
-                        event: DeviceEvent::MouseMotion { delta: (delta.x, delta.y) },
-                    }))
+                    x_motion.into_iter().chain(y_motion).chain(
+                        matches!(WebPointerType::from_event(&event), Some(WebPointerType::Mouse))
+                            .then_some(Event::DeviceEvent {
+                                device_id,
+                                event: DeviceEvent::MouseMotion { delta: (delta.x, delta.y) },
+                            }),
+                    )
                 }));
             }),
         ));
@@ -322,15 +316,11 @@ impl Shared {
                     return;
                 }
 
-                if event.pointer_type() != "mouse" {
-                    return;
-                }
-
-                let button = backend::event::mouse_button(&event).expect("no mouse button pressed");
+                let button = backend::event::raw_button(&event).expect("no pointer button pressed");
                 runner.send_event(Event::DeviceEvent {
                     device_id: RootDeviceId(DeviceId(event.pointer_id())),
                     event: DeviceEvent::Button {
-                        button: button.to_id(),
+                        button: button.into(),
                         state: ElementState::Pressed,
                     },
                 });
@@ -345,15 +335,11 @@ impl Shared {
                     return;
                 }
 
-                if event.pointer_type() != "mouse" {
-                    return;
-                }
-
-                let button = backend::event::mouse_button(&event).expect("no mouse button pressed");
+                let button = backend::event::raw_button(&event).expect("no pointer button pressed");
                 runner.send_event(Event::DeviceEvent {
                     device_id: RootDeviceId(DeviceId(event.pointer_id())),
                     event: DeviceEvent::Button {
-                        button: button.to_id(),
+                        button: button.into(),
                         state: ElementState::Released,
                     },
                 });

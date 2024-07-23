@@ -10,6 +10,9 @@ disallowed-methods = [
     { path = "web_sys::Element::request_fullscreen", reason = "Doesn't account for compatibility with Safari" },
     { path = "web_sys::Document::exit_fullscreen", reason = "Doesn't account for compatibility with Safari" },
     { path = "web_sys::Document::fullscreen_element", reason = "Doesn't account for compatibility with Safari" },
+    { path = "web_sys::PointerEvent::pointer_type", reason = "Use `WebPointerType` to emit warnings" },
+    { path = "web_sys::MouseEvent::button", reason = "Use `backend::event::cursor_button()` to avoid wrong conversions" },
+    { path = "web_sys::MouseEvent::buttons", reason = "Use `backend::event::cursor_buttons()` to avoid wrong conversions" },
     { path = "objc2_app_kit::NSView::visibleRect", reason = "We expose a render target to the user, and visibility is not really relevant to that (and can break if you don't use the rectangle position as well). Use `frame` instead." },
     { path = "objc2_app_kit::NSWindow::setFrameTopLeftPoint", reason = "Not sufficient when working with Winit's coordinate system, use `flip_window_screen_coordinates` instead" },
 ]

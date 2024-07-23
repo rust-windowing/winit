@@ -452,6 +452,10 @@ impl WinitView {
         let mut touch_events = Vec::new();
         let os_supports_force = app_state::os_capabilities().force_touch;
         for touch in touches {
+            if let UITouchType::Pencil = touch.r#type() {
+                continue;
+            }
+
             let logical_location = touch.locationInView(None);
             let touch_type = touch.r#type();
             let force = if os_supports_force {
@@ -463,16 +467,9 @@ impl WinitView {
                 {
                     let force = touch.force();
                     let max_possible_force = touch.maximumPossibleForce();
-                    let altitude_angle: Option<f64> = if touch_type == UITouchType::Pencil {
-                        let angle = touch.altitudeAngle();
-                        Some(angle as _)
-                    } else {
-                        None
-                    };
                     Some(Force::Calibrated {
                         force: force as _,
                         max_possible_force: max_possible_force as _,
-                        altitude_angle,
                     })
                 } else {
                     None

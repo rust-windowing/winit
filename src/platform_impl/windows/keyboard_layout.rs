@@ -43,10 +43,10 @@ use windows_sys::Win32::UI::TextServices::HKL;
 
 use crate::keyboard::{Key, KeyCode, ModifiersState, NamedKey, NativeKey, PhysicalKey};
 use crate::platform_impl::{loword, primarylangid, scancode_to_physicalkey};
-use crate::utils::Lazy;
+use crate::utils::LazyLock;
 
-pub(crate) static LAYOUT_CACHE: Lazy<Mutex<LayoutCache>> =
-    Lazy::new(|| Mutex::new(LayoutCache::default()));
+pub(crate) static LAYOUT_CACHE: LazyLock<Mutex<LayoutCache>> =
+    LazyLock::new(|| Mutex::new(LayoutCache::default()));
 
 fn key_pressed(vkey: VIRTUAL_KEY) -> bool {
     unsafe { (GetKeyState(vkey as i32) & (1 << 15)) == (1 << 15) }
@@ -71,7 +71,7 @@ const NUMPAD_VKEYS: [VIRTUAL_KEY; 16] = [
     VK_DIVIDE,
 ];
 
-static NUMPAD_KEYCODES: Lazy<HashSet<KeyCode>> = Lazy::new(|| {
+static NUMPAD_KEYCODES: LazyLock<HashSet<KeyCode>> = LazyLock::new(|| {
     let mut keycodes = HashSet::new();
     keycodes.insert(KeyCode::Numpad0);
     keycodes.insert(KeyCode::Numpad1);

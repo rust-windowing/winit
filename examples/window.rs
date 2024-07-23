@@ -16,7 +16,9 @@ use rwh_06::{DisplayHandle, HasDisplayHandle};
 use softbuffer::{Context, Surface};
 use winit::application::ApplicationHandler;
 use winit::dpi::{LogicalSize, PhysicalPosition, PhysicalSize};
-use winit::event::{DeviceEvent, DeviceId, Ime, MouseButton, MouseScrollDelta, WindowEvent};
+use winit::event::{
+    CursorButton, DeviceEvent, DeviceId, Ime, MouseButton, MouseScrollDelta, WindowEvent,
+};
 use winit::event_loop::{ActiveEventLoop, EventLoop};
 use winit::keyboard::{Key, ModifiersState};
 #[cfg(macos_platform)]
@@ -373,12 +375,16 @@ impl ApplicationHandler for Application {
                     }
                 }
             },
-            WindowEvent::MouseInput { button, state, .. } => {
+            WindowEvent::CursorInput { button, state, .. } => {
                 let mods = window.modifiers;
-                if let Some(action) =
-                    state.is_pressed().then(|| Self::process_mouse_binding(button, &mods)).flatten()
-                {
-                    self.handle_action(event_loop, window_id, action);
+                if let CursorButton::Mouse(button) = button {
+                    if let Some(action) = state
+                        .is_pressed()
+                        .then(|| Self::process_mouse_binding(button, &mods))
+                        .flatten()
+                    {
+                        self.handle_action(event_loop, window_id, action);
+                    }
                 }
             },
             WindowEvent::CursorLeft { .. } => {

@@ -22,8 +22,8 @@ use xkbcommon_dl::xkb_mod_mask_t;
 
 use crate::dpi::{PhysicalPosition, PhysicalSize};
 use crate::event::{
-    DeviceEvent, ElementState, Event, Ime, InnerSizeWriter, MouseButton, MouseScrollDelta,
-    RawKeyEvent, Touch, TouchPhase, WindowEvent,
+    CursorType, DeviceEvent, ElementState, Event, Ime, InnerSizeWriter, MouseButton,
+    MouseScrollDelta, RawKeyEvent, Touch, TouchPhase, WindowEvent,
 };
 use crate::event_loop::ActiveEventLoop as RootAEL;
 use crate::keyboard::ModifiersState;
@@ -35,8 +35,8 @@ use crate::platform_impl::platform::ActiveEventLoop as PlatformActiveEventLoop;
 use crate::platform_impl::x11::atoms::*;
 use crate::platform_impl::x11::util::cookie::GenericEventCookie;
 use crate::platform_impl::x11::{
-    mkdid, mkwid, util, CookieResultExt, Device, DeviceId, DeviceInfo, Dnd, DndState, ImeReceiver,
-    ScrollOrientation, UnownedWindow, WindowId,
+    mkdid, mkwid, util, CookieResultExt, Device, DeviceId, DeviceInfo, DeviceType, Dnd, DndState,
+    ImeReceiver, ScrollOrientation, UnownedWindow, WindowId,
 };
 
 /// The maximum amount of X modifiers to replay.
@@ -337,8 +337,11 @@ impl EventProcessor {
         let window_target = Self::window_target(&self.target);
         let mut devices = self.devices.borrow_mut();
         if let Some(info) = DeviceInfo::get(&window_target.xconn, device as _) {
+            let wt = Self::window_target(&self.target);
+            let atoms = wt.x_connection().atoms();
+
             for info in info.iter() {
-                devices.insert(DeviceId(info.deviceid as _), Device::new(info));
+                devices.insert(DeviceId(info.deviceid as _), Device::new(info, atoms));
             }
         }
     }
@@ -1055,6 +1058,15 @@ impl EventProcessor {
         // Set the timestamp.
         wt.xconn.set_timestamp(event.time as xproto::Timestamp);
 
+        let Some(DeviceType::Mouse) = self
+            .devices
+            .borrow()
+            .get(&DeviceId(event.sourceid as xinput::DeviceId))
+            .map(|device| device.r#type)
+        else {
+            return;
+        };
+
         // Deliver multi-touch events instead of emulated mouse events.
         if (event.flags & xinput2::XIPointerEmulated) != 0 {
             return;
@@ -1062,14 +1074,14 @@ impl EventProcessor {
 
         let event = match event.detail as u32 {
             xlib::Button1 => {
-                WindowEvent::MouseInput { device_id, state, button: MouseButton::Left }
+                WindowEvent::CursorInput { device_id, state, button: MouseButton::Left.into() }
             },
             xlib::Button2 => {
-                WindowEvent::MouseInput { device_id, state, button: MouseButton::Middle }
+                WindowEvent::CursorInput { device_id, state, button: MouseButton::Middle.into() }
             },
 
             xlib::Button3 => {
-                WindowEvent::MouseInput { device_id, state, button: MouseButton::Right }
+                WindowEvent::CursorInput { device_id, state, button: MouseButton::Right.into() }
             },
 
             // Suppress emulated scroll wheel clicks, since we handle the real motion events for
@@ -1087,10 +1099,14 @@ impl EventProcessor {
                 },
                 phase: TouchPhase::Moved,
             },
-            8 => WindowEvent::MouseInput { device_id, state, button: MouseButton::Back },
+            8 => WindowEvent::CursorInput { device_id, state, button: MouseButton::Back.into() },
 
-            9 => WindowEvent::MouseInput { device_id, state, button: MouseButton::Forward },
-            x => WindowEvent::MouseInput { device_id, state, button: MouseButton::Other(x as u16) },
+            9 => WindowEvent::CursorInput { device_id, state, button: MouseButton::Forward.into() },
+            x => WindowEvent::CursorInput {
+                device_id,
+                state,
+                button: MouseButton::Other(x as u16).into(),
+            },
         };
 
         let event = Event::WindowEvent { window_id, event };
@@ -1105,6 +1121,15 @@ impl EventProcessor {
 
         // Set the timestamp.
         wt.xconn.set_timestamp(event.time as xproto::Timestamp);
+
+        let Some(DeviceType::Mouse) = self
+            .devices
+            .borrow()
+            .get(&DeviceId(event.sourceid as xinput::DeviceId))
+            .map(|device| device.r#type)
+        else {
+            return;
+        };
 
         let device_id = mkdid(event.deviceid as xinput::DeviceId);
         let window = event.event as xproto::Window;
@@ -1121,7 +1146,7 @@ impl EventProcessor {
 
             let event = Event::WindowEvent {
                 window_id,
-                event: WindowEvent::CursorMoved { device_id, position },
+                event: WindowEvent::CursorMoved { device_id, position, r#type: CursorType::Mouse },
             };
             callback(&self.target, event);
         } else if cursor_moved.is_none() {
@@ -1214,7 +1239,7 @@ impl EventProcessor {
 
             let event = Event::WindowEvent {
                 window_id,
-                event: WindowEvent::CursorMoved { device_id, position },
+                event: WindowEvent::CursorMoved { device_id, position, r#type: CursorType::Mouse },
             };
             callback(&self.target, event);
         }
@@ -1297,7 +1322,11 @@ impl EventProcessor {
 
         let event = Event::WindowEvent {
             window_id,
-            event: WindowEvent::CursorMoved { device_id: mkdid(pointer_id as _), position },
+            event: WindowEvent::CursorMoved {
+                device_id: mkdid(pointer_id as _),
+                position,
+                r#type: CursorType::Mouse,
+            },
         };
         callback(&self.target, event);
     }
@@ -1377,6 +1406,7 @@ impl EventProcessor {
                     event: WindowEvent::CursorMoved {
                         device_id: mkdid(util::VIRTUAL_CORE_POINTER),
                         position: location.cast(),
+                        r#type: CursorType::Mouse,
                     },
                 };
                 callback(&self.target, event);
@@ -1424,7 +1454,6 @@ impl EventProcessor {
         wt.xconn.set_timestamp(xev.time as xproto::Timestamp);
 
         let did = mkdid(xev.deviceid as xinput::DeviceId);
-
         let mask =
             unsafe { slice::from_raw_parts(xev.valuators.mask, xev.valuators.mask_len as usize) };
         let mut value = xev.raw_values;
@@ -1454,6 +1483,15 @@ impl EventProcessor {
 
             value = unsafe { value.offset(1) };
         }
+
+        let Some(DeviceType::Mouse) = self
+            .devices
+            .borrow()
+            .get(&DeviceId(xev.sourceid as xinput::DeviceId))
+            .map(|device| device.r#type)
+        else {
+            return;
+        };
 
         if let Some(mouse_delta) = mouse_delta.consume() {
             let event = Event::DeviceEvent {

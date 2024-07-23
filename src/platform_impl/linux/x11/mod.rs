@@ -987,6 +987,15 @@ pub struct Device {
     // For master devices, this is the paired device (pointer <-> keyboard).
     // For slave devices, this is the master.
     attachment: c_int,
+    r#type: DeviceType,
+}
+
+#[derive(Clone, Copy, Debug)]
+enum DeviceType {
+    Mouse,
+    Touch,
+    Pen,
+    Eraser,
 }
 
 #[derive(Debug, Copy, Clone)]
@@ -1003,9 +1012,10 @@ enum ScrollOrientation {
 }
 
 impl Device {
-    fn new(info: &ffi::XIDeviceInfo) -> Self {
+    fn new(info: &ffi::XIDeviceInfo, atoms: &Atoms) -> Self {
         let name = unsafe { CStr::from_ptr(info.name).to_string_lossy() };
         let mut scroll_axes = Vec::new();
+        let mut r#type = None;
 
         if Device::physical_device(info) {
             // Identify scroll axes
@@ -1022,12 +1032,34 @@ impl Device {
                         },
                         position: 0.0,
                     }));
+                } else if ty == ffi::XITouchClass {
+                    r#type = Some(DeviceType::Touch);
+                } else if r#type.is_none() && ty == ffi::XIValuatorClass {
+                    let info = unsafe { &*(class_ptr as *const ffi::XIValuatorClassInfo) };
+                    let atom = info.label as xproto::Atom;
+
+                    if atom == atoms[ABS_X]
+                        || atom == atoms[ABS_Y]
+                        || atom == atoms[ABS_PRESSURE]
+                        || atom == atoms[ABS_TILT_X]
+                        || atom == atoms[ABS_TILT_Y]
+                    {
+                        if name.contains("eraser") {
+                            r#type = Some(DeviceType::Eraser);
+                        } else {
+                            r#type = Some(DeviceType::Pen);
+                        }
+                    }
                 }
             }
         }
 
-        let mut device =
-            Device { _name: name.into_owned(), scroll_axes, attachment: info.attachment };
+        let mut device = Device {
+            _name: name.into_owned(),
+            scroll_axes,
+            attachment: info.attachment,
+            r#type: r#type.unwrap_or(DeviceType::Mouse),
+        };
         device.reset_scroll_position(info);
         device
     }

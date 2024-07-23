@@ -61,7 +61,8 @@ use crate::application::ApplicationHandler;
 use crate::dpi::{PhysicalPosition, PhysicalSize};
 use crate::error::EventLoopError;
 use crate::event::{
-    DeviceEvent, Event, Force, Ime, InnerSizeWriter, RawKeyEvent, Touch, TouchPhase, WindowEvent,
+    CursorType, DeviceEvent, Event, Force, Ime, InnerSizeWriter, RawKeyEvent, Touch, TouchPhase,
+    WindowEvent,
 };
 use crate::event_loop::{ActiveEventLoop as RootAEL, ControlFlow, DeviceEvents};
 use crate::keyboard::ModifiersState;
@@ -81,7 +82,7 @@ use crate::platform_impl::platform::window_state::{
 use crate::platform_impl::platform::{
     raw_input, util, wrap_device_id, Fullscreen, WindowId, DEVICE_ID,
 };
-use crate::utils::Lazy;
+use crate::utils::LazyLock;
 use crate::window::{
     CustomCursor as RootCustomCursor, CustomCursorSource, WindowId as RootWindowId,
 };
@@ -777,8 +778,8 @@ pub(crate) static DESTROY_MSG_ID: LazyMessageId = LazyMessageId::new("Winit::Des
 // documentation in the `window_state` module for more information.
 pub(crate) static SET_RETAIN_STATE_ON_SIZE_MSG_ID: LazyMessageId =
     LazyMessageId::new("Winit::SetRetainMaximized\0");
-static THREAD_EVENT_TARGET_WINDOW_CLASS: Lazy<Vec<u16>> =
-    Lazy::new(|| util::encode_wide("Winit Thread Event Target"));
+static THREAD_EVENT_TARGET_WINDOW_CLASS: LazyLock<Vec<u16>> =
+    LazyLock::new(|| util::encode_wide("Winit Thread Event Target"));
 /// When the taskbar is created, it registers a message with the "TaskbarCreated" string and then
 /// broadcasts this message to all top-level windows <https://docs.microsoft.com/en-us/windows/win32/shell/taskbar#taskbar-creation-notification>
 pub(crate) static TASKBAR_CREATED: LazyMessageId = LazyMessageId::new("TaskbarCreated\0");
@@ -1553,7 +1554,11 @@ unsafe fn public_window_callback_inner(
 
                 userdata.send_event(Event::WindowEvent {
                     window_id: RootWindowId(WindowId(window)),
-                    event: CursorMoved { device_id: DEVICE_ID, position },
+                    event: CursorMoved {
+                        device_id: DEVICE_ID,
+                        position,
+                        r#type: CursorType::Mouse,
+                    },
                 });
             }
 
@@ -1632,7 +1637,7 @@ unsafe fn public_window_callback_inner(
         WM_LBUTTONDOWN => {
             use crate::event::ElementState::Pressed;
             use crate::event::MouseButton::Left;
-            use crate::event::WindowEvent::MouseInput;
+            use crate::event::WindowEvent::CursorInput;
 
             unsafe { capture_mouse(window, &mut userdata.window_state_lock()) };
 
@@ -1640,7 +1645,7 @@ unsafe fn public_window_callback_inner(
 
             userdata.send_event(Event::WindowEvent {
                 window_id: RootWindowId(WindowId(window)),
-                event: MouseInput { device_id: DEVICE_ID, state: Pressed, button: Left },
+                event: CursorInput { device_id: DEVICE_ID, state: Pressed, button: Left.into() },
             });
             result = ProcResult::Value(0);
         },
@@ -1648,7 +1653,7 @@ unsafe fn public_window_callback_inner(
         WM_LBUTTONUP => {
             use crate::event::ElementState::Released;
             use crate::event::MouseButton::Left;
-            use crate::event::WindowEvent::MouseInput;
+            use crate::event::WindowEvent::CursorInput;
 
             unsafe { release_mouse(userdata.window_state_lock()) };
 
@@ -1656,7 +1661,7 @@ unsafe fn public_window_callback_inner(
 
             userdata.send_event(Event::WindowEvent {
                 window_id: RootWindowId(WindowId(window)),
-                event: MouseInput { device_id: DEVICE_ID, state: Released, button: Left },
+                event: CursorInput { device_id: DEVICE_ID, state: Released, button: Left.into() },
             });
             result = ProcResult::Value(0);
         },
@@ -1664,7 +1669,7 @@ unsafe fn public_window_callback_inner(
         WM_RBUTTONDOWN => {
             use crate::event::ElementState::Pressed;
             use crate::event::MouseButton::Right;
-            use crate::event::WindowEvent::MouseInput;
+            use crate::event::WindowEvent::CursorInput;
 
             unsafe { capture_mouse(window, &mut userdata.window_state_lock()) };
 
@@ -1672,7 +1677,7 @@ unsafe fn public_window_callback_inner(
 
             userdata.send_event(Event::WindowEvent {
                 window_id: RootWindowId(WindowId(window)),
-                event: MouseInput { device_id: DEVICE_ID, state: Pressed, button: Right },
+                event: CursorInput { device_id: DEVICE_ID, state: Pressed, button: Right.into() },
             });
             result = ProcResult::Value(0);
         },
@@ -1680,7 +1685,7 @@ unsafe fn public_window_callback_inner(
         WM_RBUTTONUP => {
             use crate::event::ElementState::Released;
             use crate::event::MouseButton::Right;
-            use crate::event::WindowEvent::MouseInput;
+            use crate::event::WindowEvent::CursorInput;
 
             unsafe { release_mouse(userdata.window_state_lock()) };
 
@@ -1688,7 +1693,7 @@ unsafe fn public_window_callback_inner(
 
             userdata.send_event(Event::WindowEvent {
                 window_id: RootWindowId(WindowId(window)),
-                event: MouseInput { device_id: DEVICE_ID, state: Released, button: Right },
+                event: CursorInput { device_id: DEVICE_ID, state: Released, button: Right.into() },
             });
             result = ProcResult::Value(0);
         },
@@ -1696,7 +1701,7 @@ unsafe fn public_window_callback_inner(
         WM_MBUTTONDOWN => {
             use crate::event::ElementState::Pressed;
             use crate::event::MouseButton::Middle;
-            use crate::event::WindowEvent::MouseInput;
+            use crate::event::WindowEvent::CursorInput;
 
             unsafe { capture_mouse(window, &mut userdata.window_state_lock()) };
 
@@ -1704,7 +1709,7 @@ unsafe fn public_window_callback_inner(
 
             userdata.send_event(Event::WindowEvent {
                 window_id: RootWindowId(WindowId(window)),
-                event: MouseInput { device_id: DEVICE_ID, state: Pressed, button: Middle },
+                event: CursorInput { device_id: DEVICE_ID, state: Pressed, button: Middle.into() },
             });
             result = ProcResult::Value(0);
         },
@@ -1712,7 +1717,7 @@ unsafe fn public_window_callback_inner(
         WM_MBUTTONUP => {
             use crate::event::ElementState::Released;
             use crate::event::MouseButton::Middle;
-            use crate::event::WindowEvent::MouseInput;
+            use crate::event::WindowEvent::CursorInput;
 
             unsafe { release_mouse(userdata.window_state_lock()) };
 
@@ -1720,7 +1725,7 @@ unsafe fn public_window_callback_inner(
 
             userdata.send_event(Event::WindowEvent {
                 window_id: RootWindowId(WindowId(window)),
-                event: MouseInput { device_id: DEVICE_ID, state: Released, button: Middle },
+                event: CursorInput { device_id: DEVICE_ID, state: Released, button: Middle.into() },
             });
             result = ProcResult::Value(0);
         },
@@ -1728,7 +1733,7 @@ unsafe fn public_window_callback_inner(
         WM_XBUTTONDOWN => {
             use crate::event::ElementState::Pressed;
             use crate::event::MouseButton::{Back, Forward, Other};
-            use crate::event::WindowEvent::MouseInput;
+            use crate::event::WindowEvent::CursorInput;
             let xbutton = super::get_xbutton_wparam(wparam as u32);
 
             unsafe { capture_mouse(window, &mut userdata.window_state_lock()) };
@@ -1737,14 +1742,15 @@ unsafe fn public_window_callback_inner(
 
             userdata.send_event(Event::WindowEvent {
                 window_id: RootWindowId(WindowId(window)),
-                event: MouseInput {
+                event: CursorInput {
                     device_id: DEVICE_ID,
                     state: Pressed,
                     button: match xbutton {
                         1 => Back,
                         2 => Forward,
                         _ => Other(xbutton),
-                    },
+                    }
+                    .into(),
                 },
             });
             result = ProcResult::Value(0);
@@ -1753,7 +1759,7 @@ unsafe fn public_window_callback_inner(
         WM_XBUTTONUP => {
             use crate::event::ElementState::Released;
             use crate::event::MouseButton::{Back, Forward, Other};
-            use crate::event::WindowEvent::MouseInput;
+            use crate::event::WindowEvent::CursorInput;
             let xbutton = super::get_xbutton_wparam(wparam as u32);
 
             unsafe { release_mouse(userdata.window_state_lock()) };
@@ -1762,14 +1768,15 @@ unsafe fn public_window_callback_inner(
 
             userdata.send_event(Event::WindowEvent {
                 window_id: RootWindowId(WindowId(window)),
-                event: MouseInput {
+                event: CursorInput {
                     device_id: DEVICE_ID,
                     state: Released,
                     button: match xbutton {
                         1 => Back,
                         2 => Forward,
                         _ => Other(xbutton),
-                    },
+                    }
+                    .into(),
                 },
             });
             result = ProcResult::Value(0);
