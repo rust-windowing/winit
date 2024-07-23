@@ -86,3 +86,4 @@ changelog entry.
 ### Fixed
 
 - On MacOS, fix building with `feature = "rwh_04"`.
+- On Web, pen events are now routed through to `WindowEvent::Cursor*`.
