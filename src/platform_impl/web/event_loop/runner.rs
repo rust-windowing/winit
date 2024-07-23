@@ -245,21 +245,10 @@ impl Shared {
                     return;
                 }
 
-                let pointer_type = event.pointer_type();
-
-                if pointer_type != "mouse" {
-                    return;
-                }
-
                 // chorded button event
                 let device_id = RootDeviceId(DeviceId(event.pointer_id()));
 
                 if let Some(button) = backend::event::mouse_button(&event) {
-                    debug_assert_eq!(
-                        pointer_type, "mouse",
-                        "expect pointer type of a chorded button event to be a mouse"
-                    );
-
                     let state = if backend::event::mouse_buttons(&event).contains(button.into()) {
                         ElementState::Pressed
                     } else {
@@ -323,10 +312,6 @@ impl Shared {
                     return;
                 }
 
-                if event.pointer_type() != "mouse" {
-                    return;
-                }
-
                 let button = backend::event::mouse_button(&event).expect("no mouse button pressed");
                 runner.send_event(Event::DeviceEvent {
                     device_id: RootDeviceId(DeviceId(event.pointer_id())),
@@ -343,10 +328,6 @@ impl Shared {
             "pointerup",
             Closure::new(move |event: PointerEvent| {
                 if !runner.device_events() {
-                    return;
-                }
-
-                if event.pointer_type() != "mouse" {
                     return;
                 }
 

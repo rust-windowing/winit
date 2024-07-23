@@ -263,21 +263,6 @@ impl ActiveEventLoop {
                 let has_focus = has_focus.clone();
                 let modifiers = self.modifiers.clone();
 
-                move |active_modifiers| {
-                    if has_focus.get() && modifiers.get() != active_modifiers {
-                        modifiers.set(active_modifiers);
-                        runner.send_event(Event::WindowEvent {
-                            window_id: RootWindowId(id),
-                            event: WindowEvent::ModifiersChanged(active_modifiers.into()),
-                        })
-                    }
-                }
-            },
-            {
-                let runner = self.runner.clone();
-                let has_focus = has_focus.clone();
-                let modifiers = self.modifiers.clone();
-
                 move |active_modifiers, pointer_id, events| {
                     let modifiers =
                         (has_focus.get() && modifiers.get() != active_modifiers).then(|| {
@@ -376,20 +361,6 @@ impl ActiveEventLoop {
                 let runner = self.runner.clone();
                 let modifiers = self.modifiers.clone();
 
-                move |active_modifiers| {
-                    if modifiers.get() != active_modifiers {
-                        modifiers.set(active_modifiers);
-                        runner.send_event(Event::WindowEvent {
-                            window_id: RootWindowId(id),
-                            event: WindowEvent::ModifiersChanged(active_modifiers.into()),
-                        })
-                    }
-                }
-            },
-            {
-                let runner = self.runner.clone();
-                let modifiers = self.modifiers.clone();
-
                 move |active_modifiers, pointer_id, position, button| {
                     let modifiers = (modifiers.get() != active_modifiers).then(|| {
                         modifiers.set(active_modifiers);
@@ -450,21 +421,6 @@ impl ActiveEventLoop {
         );
 
         canvas.on_mouse_release(
-            {
-                let runner = self.runner.clone();
-                let has_focus = has_focus.clone();
-                let modifiers = self.modifiers.clone();
-
-                move |active_modifiers| {
-                    if has_focus.get() && modifiers.get() != active_modifiers {
-                        modifiers.set(active_modifiers);
-                        runner.send_event(Event::WindowEvent {
-                            window_id: RootWindowId(id),
-                            event: WindowEvent::ModifiersChanged(active_modifiers.into()),
-                        });
-                    }
-                }
-            },
             {
                 let runner = self.runner.clone();
                 let has_focus = has_focus.clone();
