@@ -467,6 +467,22 @@ pub enum DeviceEvent {
     ///
     /// This represents raw, unfiltered physical motion. Not to be confused with
     /// [`WindowEvent::CursorMoved`].
+    ///
+    /// ## Platform-specific
+    ///
+    /// **Web:** Only returns raw data, not OS accelerated, if [`CursorGrabMode::Locked`] is used
+    /// and browser support is available, see
+    #[cfg_attr(
+        any(web_platform, docsrs),
+        doc = "[`ActiveEventLoopExtWeb::is_cursor_lock_raw()`][crate::platform::web::ActiveEventLoopExtWeb::is_cursor_lock_raw()]."
+    )]
+    #[cfg_attr(
+        not(any(web_platform, docsrs)),
+        doc = "`ActiveEventLoopExtWeb::is_cursor_lock_raw()`."
+    )]
+    ///
+    #[rustfmt::skip]
+    /// [`CursorGrabMode::Locked`]: crate::window::CursorGrabMode::Locked
     MouseMotion {
         /// (x, y) change in position in unspecified units.
         ///

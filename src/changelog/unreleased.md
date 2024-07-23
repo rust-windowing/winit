@@ -44,6 +44,9 @@ changelog entry.
 
 - Add `ActiveEventLoop::create_proxy()`.
 - On Web, implement `Error` for `platform::web::CustomCursorError`.
+- On Web, add `ActiveEventLoopExtWeb::is_cursor_lock_raw()` to determine if
+  `DeviceEvent::MouseMotion` is returning raw data, not OS accelerated, when using
+  `CursorGrabMode::Locked`.
 
 ### Changed
 
@@ -71,6 +74,8 @@ changelog entry.
   `EventLoopExtRunOnDemand::run_app_on_demand` to accept a `impl ApplicationHandler` directly,
   instead of requiring a `&mut` reference to it.
 - On Web, `Window::canvas()` now returns a reference.
+- On Web, `CursorGrabMode::Locked` now lets `DeviceEvent::MouseMotion` return raw data, not OS
+  accelerated, if the browser supports it.
 
 ### Removed
 
