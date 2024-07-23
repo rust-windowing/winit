@@ -57,22 +57,23 @@ pub(crate) fn request_fullscreen(
     match fullscreen {
         Fullscreen::Exclusive(_) => error!("Exclusive full screen mode is not supported"),
         Fullscreen::Borderless(Some(monitor)) => {
-            if monitor::has_screen_details_support(window) {
-                if let Some(monitor) = monitor.detailed(main_thread) {
-                    let options: FullscreenOptions = Object::new().unchecked_into();
-                    options.set_screen(&monitor);
-                    REJECT_HANDLER.with(|handler| {
-                        let _ = canvas.request_fullscreen_with_options(&options).catch(handler);
-                    });
-                } else {
-                    error!(
-                        "Selecting a specific screen for fullscreen mode requires a detailed \
-                         screen. See `MonitorHandleExtWeb::is_detailed()`."
-                    )
-                }
-            } else {
+            if !monitor::has_screen_details_support(window) {
                 error!(
                     "Fullscreen mode selecting a specific screen is not supported by this browser"
+                );
+                return;
+            }
+
+            if let Some(monitor) = monitor.detailed(main_thread) {
+                let options: FullscreenOptions = Object::new().unchecked_into();
+                options.set_screen(&monitor);
+                REJECT_HANDLER.with(|handler| {
+                    let _ = canvas.request_fullscreen_with_options(&options).catch(handler);
+                });
+            } else {
+                error!(
+                    "Selecting a specific screen for fullscreen mode requires a detailed screen. \
+                     See `MonitorHandleExtWeb::is_detailed()`."
                 )
             }
         },

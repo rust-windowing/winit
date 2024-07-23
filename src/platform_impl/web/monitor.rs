@@ -397,41 +397,8 @@ impl MonitorHandler {
                     } else {
                         // If permission is denied we listen for changes so we can catch external
                         // permission granting.
-                        let handle = EventListenerHandle::new(
-                            permission.clone(),
-                            "change",
-                            Closure::new({
-                                let runner = runner.weak();
-                                let permission = permission.clone();
-                                move || {
-                                    if let PermissionState::Granted = permission.state() {
-                                        let future = JsFuture::from(window.screen_details());
-
-                                        let runner = runner.clone();
-                                        wasm_bindgen_futures::spawn_local(async move {
-                                            let screen_details = match future.await {
-                                                Ok(screen_details) => {
-                                                    screen_details.unchecked_into()
-                                                },
-                                                Err(error) => unreachable_error(
-                                                    &error,
-                                                    "getting screen details failed even though \
-                                                     permission was granted",
-                                                ),
-                                            };
-
-                                            if let Some(runner) = runner.upgrade() {
-                                                // We drop the event listener handle here, which
-                                                // doesn't drop it while we are running it, because
-                                                // we are in a `spawn_local()` context.
-                                                *runner.monitor().state.borrow_mut() =
-                                                    State::Detailed(screen_details);
-                                            }
-                                        });
-                                    }
-                                }
-                            }),
-                        );
+                        let handle =
+                            Self::setup_listener(runner.weak(), window, permission.clone());
                         State::Permission { permission, _handle: handle }
                     };
 
@@ -446,6 +413,40 @@ impl MonitorHandler {
         };
 
         Self { state: RefCell::new(state), main_thread, window, engine, screen }
+    }
+
+    fn setup_listener(
+        runner: WeakShared,
+        window: WindowExt,
+        permission: PermissionStatus,
+    ) -> EventListenerHandle<dyn Fn()> {
+        EventListenerHandle::new(
+            permission.clone(),
+            "change",
+            Closure::new(move || {
+                if let PermissionState::Granted = permission.state() {
+                    let future = JsFuture::from(window.screen_details());
+
+                    let runner = runner.clone();
+                    wasm_bindgen_futures::spawn_local(async move {
+                        let screen_details = match future.await {
+                            Ok(screen_details) => screen_details.unchecked_into(),
+                            Err(error) => unreachable_error(
+                                &error,
+                                "getting screen details failed even though permission was granted",
+                            ),
+                        };
+
+                        if let Some(runner) = runner.upgrade() {
+                            // We drop the event listener handle here, which
+                            // doesn't drop it while we are running it, because
+                            // we are in a `spawn_local()` context.
+                            *runner.monitor().state.borrow_mut() = State::Detailed(screen_details);
+                        }
+                    });
+                }
+            }),
+        )
     }
 
     pub fn is_extended(&self) -> Option<bool> {
@@ -611,6 +612,47 @@ pub(crate) enum MonitorPermissionFuture {
     Ready(Option<Result<(), MonitorPermissionError>>),
 }
 
+impl MonitorPermissionFuture {
+    fn upgrade(&mut self) {
+        let notifier = Notifier::new();
+        let notified = notifier.notified();
+        let Self::Initialize { runner, .. } = mem::replace(self, Self::Upgrade(notified.clone()))
+        else {
+            unreachable!()
+        };
+
+        runner.dispatch(|(shared, window)| {
+            let future = JsFuture::from(window.screen_details());
+
+            if let Some(shared) = shared.upgrade() {
+                *shared.monitor().state.borrow_mut() = State::Upgrade(notified);
+            }
+
+            let shared = shared.clone();
+            wasm_bindgen_futures::spawn_local(async move {
+                match future.await {
+                    Ok(details) => {
+                        // Notifying `Future`s is not dependant on the lifetime
+                        // of
+                        // the runner, because
+                        // they can outlive it.
+                        notifier.notify(Ok(()));
+
+                        if let Some(shared) = shared.upgrade() {
+                            *shared.monitor().state.borrow_mut() =
+                                State::Detailed(details.unchecked_into())
+                        }
+                    },
+                    Err(error) => unreachable_error(
+                        &error,
+                        "getting screen details failed even though permission was granted",
+                    ),
+                }
+            });
+        });
+    }
+}
+
 impl Future for MonitorPermissionFuture {
     type Output = Result<(), MonitorPermissionError>;
 
@@ -625,46 +667,8 @@ impl Future for MonitorPermissionFuture {
                             Poll::Ready(Err(error))
                         },
                         MonitorPermissionError::Prompt => {
-                            let notifier = Notifier::new();
-                            let notified = notifier.notified();
-                            let Self::Initialize { runner, .. } =
-                                mem::replace(this, Self::Upgrade(notified.clone()))
-                            else {
-                                unreachable!()
-                            };
-
-                            runner.queue(|(shared, window)| {
-                                let future = JsFuture::from(window.screen_details());
-
-                                if let Some(shared) = shared.upgrade() {
-                                    *shared.monitor().state.borrow_mut() = State::Upgrade(notified);
-                                }
-
-                                let shared = shared.clone();
-                                wasm_bindgen_futures::spawn_local(async move {
-                                    match future.await {
-                                        Ok(details) => {
-                                            // Notifying `Future`s is not dependant on the lifetime
-                                            // of
-                                            // the runner, because
-                                            // they can outlive it.
-                                            notifier.notify(Ok(()));
-
-                                            if let Some(shared) = shared.upgrade() {
-                                                *shared.monitor().state.borrow_mut() =
-                                                    State::Detailed(details.unchecked_into())
-                                            }
-                                        },
-                                        Err(error) => unreachable_error(
-                                            &error,
-                                            "getting screen details failed even though permission \
-                                             was granted",
-                                        ),
-                                    }
-                                });
-
-                                Poll::Pending
-                            })
+                            this.upgrade();
+                            Poll::Pending
                         },
                     }
                 } else {

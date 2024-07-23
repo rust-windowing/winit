@@ -220,19 +220,15 @@ impl Shared {
     }
 
     pub(crate) fn start(&self, event_handler: Box<EventHandler>) {
-        let start = {
-            let mut runner = self.0.runner.borrow_mut();
-            assert!(matches!(*runner, RunnerEnum::Pending));
-            if self.0.monitor.is_initializing() {
-                *runner = RunnerEnum::Initializing(Runner::new(event_handler));
-                false
-            } else {
-                *runner = RunnerEnum::Running(Runner::new(event_handler));
-                true
-            }
-        };
+        let mut runner = self.0.runner.borrow_mut();
+        assert!(matches!(*runner, RunnerEnum::Pending));
+        if self.0.monitor.is_initializing() {
+            *runner = RunnerEnum::Initializing(Runner::new(event_handler));
+        } else {
+            *runner = RunnerEnum::Running(Runner::new(event_handler));
 
-        if start {
+            drop(runner);
+
             self.init();
             self.set_listener();
         }
