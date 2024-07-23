@@ -329,51 +329,29 @@ impl Canvas {
         self.pointer_handler.on_cursor_enter(&self.common, handler)
     }
 
-    pub fn on_mouse_release<MOD, M, T>(
-        &mut self,
-        modifier_handler: MOD,
-        mouse_handler: M,
-        touch_handler: T,
-    ) where
-        MOD: 'static + FnMut(ModifiersState),
+    pub fn on_mouse_release<M, T>(&mut self, mouse_handler: M, touch_handler: T)
+    where
         M: 'static + FnMut(ModifiersState, i32, PhysicalPosition<f64>, MouseButton),
         T: 'static + FnMut(ModifiersState, i32, PhysicalPosition<f64>, Force),
     {
-        self.pointer_handler.on_mouse_release(
-            &self.common,
-            modifier_handler,
-            mouse_handler,
-            touch_handler,
-        )
+        self.pointer_handler.on_mouse_release(&self.common, mouse_handler, touch_handler)
     }
 
-    pub fn on_mouse_press<MOD, M, T>(
-        &mut self,
-        modifier_handler: MOD,
-        mouse_handler: M,
-        touch_handler: T,
-    ) where
-        MOD: 'static + FnMut(ModifiersState),
+    pub fn on_mouse_press<M, T>(&mut self, mouse_handler: M, touch_handler: T)
+    where
         M: 'static + FnMut(ModifiersState, i32, PhysicalPosition<f64>, MouseButton),
         T: 'static + FnMut(ModifiersState, i32, PhysicalPosition<f64>, Force),
     {
         self.pointer_handler.on_mouse_press(
             &self.common,
-            modifier_handler,
             mouse_handler,
             touch_handler,
             Rc::clone(&self.prevent_default),
         )
     }
 
-    pub fn on_cursor_move<MOD, M, T, B>(
-        &mut self,
-        modifier_handler: MOD,
-        mouse_handler: M,
-        touch_handler: T,
-        button_handler: B,
-    ) where
-        MOD: 'static + FnMut(ModifiersState),
+    pub fn on_cursor_move<M, T, B>(&mut self, mouse_handler: M, touch_handler: T, button_handler: B)
+    where
         M: 'static + FnMut(ModifiersState, i32, &mut dyn Iterator<Item = PhysicalPosition<f64>>),
         T: 'static
             + FnMut(ModifiersState, i32, &mut dyn Iterator<Item = (PhysicalPosition<f64>, Force)>),
@@ -381,7 +359,6 @@ impl Canvas {
     {
         self.pointer_handler.on_cursor_move(
             &self.common,
-            modifier_handler,
             mouse_handler,
             touch_handler,
             button_handler,
