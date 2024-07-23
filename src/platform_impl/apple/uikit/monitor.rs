@@ -1,6 +1,7 @@
 #![allow(clippy::unnecessary_cast)]
 
 use std::collections::{BTreeSet, VecDeque};
+use std::num::{NonZeroU16, NonZeroU32};
 use std::{fmt, hash, ptr};
 
 use objc2::mutability::IsRetainable;
@@ -44,8 +45,7 @@ impl<T: IsRetainable + Message> Eq for MainThreadBoundDelegateImpls<T> {}
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
 pub struct VideoModeHandle {
     pub(crate) size: (u32, u32),
-    pub(crate) bit_depth: u16,
-    pub(crate) refresh_rate_millihertz: u32,
+    pub(crate) refresh_rate_millihertz: Option<NonZeroU32>,
     screen_mode: MainThreadBoundDelegateImpls<UIScreenMode>,
     pub(crate) monitor: MonitorHandle,
 }
@@ -60,7 +60,6 @@ impl VideoModeHandle {
         let size = screen_mode.size();
         VideoModeHandle {
             size: (size.width as u32, size.height as u32),
-            bit_depth: 32,
             refresh_rate_millihertz,
             screen_mode: MainThreadBoundDelegateImpls(MainThreadBound::new(screen_mode, mtm)),
             monitor: MonitorHandle::new(uiscreen),
@@ -71,12 +70,12 @@ impl VideoModeHandle {
         self.size.into()
     }
 
-    pub fn bit_depth(&self) -> u16 {
-        self.bit_depth
+    pub fn bit_depth(&self) -> Option<NonZeroU16> {
+        None
     }
 
-    pub fn refresh_rate_millihertz(&self) -> Option<u32> {
-        Some(self.refresh_rate_millihertz)
+    pub fn refresh_rate_millihertz(&self) -> Option<NonZeroU32> {
+        self.refresh_rate_millihertz
     }
 
     pub fn monitor(&self) -> MonitorHandle {
@@ -162,9 +161,9 @@ impl MonitorHandle {
         })
     }
 
-    pub fn position(&self) -> PhysicalPosition<i32> {
+    pub fn position(&self) -> Option<PhysicalPosition<i32>> {
         let bounds = self.ui_screen.get_on_main(|ui_screen| ui_screen.nativeBounds());
-        (bounds.origin.x as f64, bounds.origin.y as f64).into()
+        Some((bounds.origin.x as f64, bounds.origin.y as f64).into())
     }
 
     pub fn scale_factor(&self) -> f64 {
@@ -213,7 +212,7 @@ impl MonitorHandle {
     }
 }
 
-fn refresh_rate_millihertz(uiscreen: &UIScreen) -> u32 {
+fn refresh_rate_millihertz(uiscreen: &UIScreen) -> Option<NonZeroU32> {
     let refresh_rate_millihertz: NSInteger = {
         let os_capabilities = app_state::os_capabilities();
         if os_capabilities.maximum_frames_per_second {
@@ -234,7 +233,7 @@ fn refresh_rate_millihertz(uiscreen: &UIScreen) -> u32 {
         }
     };
 
-    refresh_rate_millihertz as u32 * 1000
+    NonZeroU32::new(refresh_rate_millihertz as u32 * 1000)
 }
 
 pub fn uiscreens(mtm: MainThreadMarker) -> VecDeque<MonitorHandle> {

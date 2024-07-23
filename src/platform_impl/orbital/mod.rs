@@ -1,6 +1,7 @@
 #![cfg(target_os = "redox")]
 
 use std::fmt::{self, Display, Formatter};
+use std::num::{NonZeroU16, NonZeroU32};
 use std::str;
 use std::sync::Arc;
 
@@ -197,11 +198,11 @@ pub struct MonitorHandle;
 
 impl MonitorHandle {
     pub fn name(&self) -> Option<String> {
-        Some("Redox Device".to_owned())
+        None
     }
 
-    pub fn position(&self) -> PhysicalPosition<i32> {
-        (0, 0).into()
+    pub fn position(&self) -> Option<PhysicalPosition<i32>> {
+        None
     }
 
     pub fn scale_factor(&self) -> f64 {
@@ -210,11 +211,7 @@ impl MonitorHandle {
 
     pub fn current_video_mode(&self) -> Option<VideoModeHandle> {
         // (it is guaranteed to support 32 bit color though)
-        Some(VideoModeHandle {
-            size: PhysicalSize::default(), // TODO
-            bit_depth: 32,
-            monitor: self.clone(),
-        })
+        Some(VideoModeHandle { monitor: self.clone() })
     }
 
     pub fn video_modes(&self) -> impl Iterator<Item = VideoModeHandle> {
@@ -224,21 +221,20 @@ impl MonitorHandle {
 
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub struct VideoModeHandle {
-    size: PhysicalSize<u32>,
-    bit_depth: u16,
     monitor: MonitorHandle,
 }
 
 impl VideoModeHandle {
     pub fn size(&self) -> PhysicalSize<u32> {
-        self.size
+        // TODO
+        PhysicalSize::default()
     }
 
-    pub fn bit_depth(&self) -> u16 {
-        self.bit_depth
+    pub fn bit_depth(&self) -> Option<NonZeroU16> {
+        None
     }
 
-    pub fn refresh_rate_millihertz(&self) -> Option<u32> {
+    pub fn refresh_rate_millihertz(&self) -> Option<NonZeroU32> {
         // TODO
         None
     }

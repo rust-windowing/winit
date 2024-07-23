@@ -1,3 +1,5 @@
+use std::num::{NonZeroU16, NonZeroU32};
+
 use sctk::output::{Mode, OutputData};
 use sctk::reexports::client::protocol::wl_output::WlOutput;
 use sctk::reexports::client::Proxy;
@@ -29,9 +31,9 @@ impl MonitorHandle {
     }
 
     #[inline]
-    pub fn position(&self) -> PhysicalPosition<i32> {
+    pub fn position(&self) -> Option<PhysicalPosition<i32>> {
         let output_data = self.proxy.data::<OutputData>().unwrap();
-        output_data.with_output_info(|info| {
+        Some(output_data.with_output_info(|info| {
             info.logical_position.map_or_else(
                 || {
                     LogicalPosition::<i32>::from(info.location)
@@ -42,7 +44,7 @@ impl MonitorHandle {
                         .to_physical(info.scale_factor as f64)
                 },
             )
-        })
+        }))
     }
 
     #[inline]
@@ -105,8 +107,7 @@ impl std::hash::Hash for MonitorHandle {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct VideoModeHandle {
     pub(crate) size: PhysicalSize<u32>,
-    pub(crate) bit_depth: u16,
-    pub(crate) refresh_rate_millihertz: u32,
+    pub(crate) refresh_rate_millihertz: Option<NonZeroU32>,
     pub(crate) monitor: MonitorHandle,
 }
 
@@ -114,8 +115,7 @@ impl VideoModeHandle {
     fn new(monitor: MonitorHandle, mode: Mode) -> Self {
         VideoModeHandle {
             size: (mode.dimensions.0 as u32, mode.dimensions.1 as u32).into(),
-            refresh_rate_millihertz: mode.refresh_rate as u32,
-            bit_depth: 32,
+            refresh_rate_millihertz: NonZeroU32::new(mode.refresh_rate as u32),
             monitor: monitor.clone(),
         }
     }
@@ -126,13 +126,13 @@ impl VideoModeHandle {
     }
 
     #[inline]
-    pub fn bit_depth(&self) -> u16 {
-        self.bit_depth
+    pub fn bit_depth(&self) -> Option<NonZeroU16> {
+        None
     }
 
     #[inline]
-    pub fn refresh_rate_millihertz(&self) -> Option<u32> {
-        Some(self.refresh_rate_millihertz)
+    pub fn refresh_rate_millihertz(&self) -> Option<NonZeroU32> {
+        self.refresh_rate_millihertz
     }
 
     pub fn monitor(&self) -> MonitorHandle {

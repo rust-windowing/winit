@@ -1,9 +1,11 @@
 use std::cell::{OnceCell, Ref, RefCell};
 use std::cmp::Ordering;
+use std::fmt::{self, Debug, Formatter};
 use std::future::Future;
 use std::hash::{Hash, Hasher};
 use std::iter::{self, Once};
 use std::mem;
+use std::num::{NonZeroU16, NonZeroU32};
 use std::ops::{Deref, DerefMut};
 use std::pin::Pin;
 use std::rc::{Rc, Weak};
@@ -31,7 +33,7 @@ use crate::platform::web::{
     MonitorPermissionError, Orientation, OrientationData, OrientationLock, OrientationLockError,
 };
 
-#[derive(Debug, Clone, Eq)]
+#[derive(Clone, Eq)]
 pub struct MonitorHandle {
     /// [`None`] means [`web_sys::Screen`], which is always the same.
     id: Option<u64>,
@@ -45,30 +47,15 @@ impl MonitorHandle {
     }
 
     pub fn scale_factor(&self) -> f64 {
-        self.inner.queue(|inner| match &inner.screen {
-            Screen::Screen(_) => 0.,
-            Screen::Detailed { screen, .. } => screen.device_pixel_ratio(),
-        })
+        self.inner.queue(|inner| inner.scale_factor())
     }
 
-    pub fn position(&self) -> PhysicalPosition<i32> {
-        self.inner.queue(|inner| {
-            if let Screen::Detailed { screen, .. } = &inner.screen {
-                PhysicalPosition::new(screen.left(), screen.top())
-            } else {
-                PhysicalPosition::default()
-            }
-        })
+    pub fn position(&self) -> Option<PhysicalPosition<i32>> {
+        self.inner.queue(|inner| inner.position())
     }
 
     pub fn name(&self) -> Option<String> {
-        self.inner.queue(|inner| {
-            if let Screen::Detailed { screen, .. } = &inner.screen {
-                Some(screen.label())
-            } else {
-                None
-            }
-        })
+        self.inner.queue(|inner| inner.name())
     }
 
     pub fn current_video_mode(&self) -> Option<VideoModeHandle> {
@@ -80,36 +67,7 @@ impl MonitorHandle {
     }
 
     pub fn orientation(&self) -> OrientationData {
-        self.inner.queue(|inner| {
-            let orientation = inner.orientation();
-            let angle = orientation.angle().unwrap();
-
-            match orientation.type_().unwrap() {
-                OrientationType::LandscapePrimary => OrientationData {
-                    orientation: Orientation::Landscape,
-                    flipped: false,
-                    natural: angle == 0,
-                },
-                OrientationType::LandscapeSecondary => OrientationData {
-                    orientation: Orientation::Landscape,
-                    flipped: true,
-                    natural: angle == 180,
-                },
-                OrientationType::PortraitPrimary => OrientationData {
-                    orientation: Orientation::Portrait,
-                    flipped: false,
-                    natural: angle == 0,
-                },
-                OrientationType::PortraitSecondary => OrientationData {
-                    orientation: Orientation::Portrait,
-                    flipped: true,
-                    natural: angle == 180,
-                },
-                _ => {
-                    unreachable!("found unrecognized orientation: {}", orientation.type_string())
-                },
-            }
-        })
+        self.inner.queue(|inner| inner.orientation())
     }
 
     pub fn request_lock(&self, orientation_lock: OrientationLock) -> OrientationLockFuture {
@@ -126,7 +84,7 @@ impl MonitorHandle {
             }
 
             let future =
-                JsFuture::from(inner.orientation().lock(orientation_lock.to_js()).unwrap());
+                JsFuture::from(inner.orientation_raw().lock(orientation_lock.to_js()).unwrap());
             let notifier = Notifier::new();
             let notified = notifier.notified();
 
@@ -151,22 +109,16 @@ impl MonitorHandle {
                 return Err(OrientationLockError::Unsupported);
             }
 
-            inner.orientation().unlock().map_err(OrientationLockError::from_js)
+            inner.orientation_raw().unlock().map_err(OrientationLockError::from_js)
         })
     }
 
     pub fn is_internal(&self) -> Option<bool> {
-        self.inner.queue(|inner| {
-            if let Screen::Detailed { screen, .. } = &inner.screen {
-                Some(screen.is_internal())
-            } else {
-                None
-            }
-        })
+        self.inner.queue(|inner| inner.is_internal())
     }
 
     pub fn is_detailed(&self) -> bool {
-        self.inner.queue(|inner| matches!(inner.screen, Screen::Detailed { .. }))
+        self.inner.queue(|inner| inner.is_detailed())
     }
 
     pub(crate) fn detailed(
@@ -184,6 +136,31 @@ impl MonitorHandle {
                 }
             })),
         }
+    }
+}
+
+impl Debug for MonitorHandle {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        let (name, position, scale_factor, orientation, is_internal, is_detailed) =
+            self.inner.queue(|this| {
+                (
+                    this.name(),
+                    this.position(),
+                    this.scale_factor(),
+                    this.orientation(),
+                    this.is_internal(),
+                    this.is_detailed(),
+                )
+            });
+
+        f.debug_struct("MonitorHandle")
+            .field("name", &name)
+            .field("position", &position)
+            .field("scale_factor", &scale_factor)
+            .field("orientation", &orientation)
+            .field("is_internal", &is_internal)
+            .field("is_detailed", &is_detailed)
+            .finish()
     }
 }
 
@@ -268,34 +245,32 @@ impl OrientationLockError {
     }
 }
 
-#[derive(Clone, Debug, Eq, Hash, PartialEq)]
-pub struct VideoModeHandle(pub(super) MonitorHandle);
+#[derive(Clone, Eq, Hash, PartialEq)]
+pub struct VideoModeHandle(MonitorHandle);
 
 impl VideoModeHandle {
     pub fn size(&self) -> PhysicalSize<u32> {
-        self.0.inner.queue(|inner| {
-            let width = inner.screen.width().unwrap();
-            let height = inner.screen.height().unwrap();
-
-            if let Some(Engine::Chromium) = inner.engine {
-                PhysicalSize::new(width, height).cast()
-            } else {
-                LogicalSize::new(width, height)
-                    .to_physical(super::web_sys::scale_factor(&inner.window))
-            }
-        })
+        self.0.inner.queue(|inner| inner.size())
     }
 
-    pub fn bit_depth(&self) -> u16 {
-        self.0.inner.queue(|inner| inner.screen.color_depth().unwrap()).try_into().unwrap()
+    pub fn bit_depth(&self) -> Option<NonZeroU16> {
+        self.0.inner.queue(|inner| inner.bit_depth())
     }
 
-    pub fn refresh_rate_millihertz(&self) -> Option<u32> {
+    pub fn refresh_rate_millihertz(&self) -> Option<NonZeroU32> {
         None
     }
 
     pub fn monitor(&self) -> MonitorHandle {
         self.0.clone()
+    }
+}
+
+impl Debug for VideoModeHandle {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        let (size, bit_depth) = self.0.inner.queue(|this| (this.size(), this.bit_depth()));
+
+        f.debug_struct("MonitorHandle").field("size", &size).field("bit_depth", &bit_depth).finish()
     }
 }
 
@@ -311,12 +286,94 @@ impl Inner {
         Self { window, engine, screen, orientation: OnceCell::new() }
     }
 
-    fn orientation(&self) -> &ScreenOrientationExt {
+    fn scale_factor(&self) -> f64 {
+        match &self.screen {
+            Screen::Screen(_) => 0.,
+            Screen::Detailed { screen, .. } => screen.device_pixel_ratio(),
+        }
+    }
+
+    fn position(&self) -> Option<PhysicalPosition<i32>> {
+        if let Screen::Detailed { screen, .. } = &self.screen {
+            Some(PhysicalPosition::new(screen.left(), screen.top()))
+        } else {
+            None
+        }
+    }
+
+    fn name(&self) -> Option<String> {
+        if let Screen::Detailed { screen, .. } = &self.screen {
+            Some(screen.label())
+        } else {
+            None
+        }
+    }
+
+    fn orientation_raw(&self) -> &ScreenOrientationExt {
         self.orientation.get_or_init(|| self.screen.orientation().unchecked_into())
     }
 
+    fn orientation(&self) -> OrientationData {
+        let orientation = self.orientation_raw();
+
+        let angle = orientation.angle().unwrap();
+
+        match orientation.type_().unwrap() {
+            OrientationType::LandscapePrimary => OrientationData {
+                orientation: Orientation::Landscape,
+                flipped: false,
+                natural: angle == 0,
+            },
+            OrientationType::LandscapeSecondary => OrientationData {
+                orientation: Orientation::Landscape,
+                flipped: true,
+                natural: angle == 180,
+            },
+            OrientationType::PortraitPrimary => OrientationData {
+                orientation: Orientation::Portrait,
+                flipped: false,
+                natural: angle == 0,
+            },
+            OrientationType::PortraitSecondary => OrientationData {
+                orientation: Orientation::Portrait,
+                flipped: true,
+                natural: angle == 180,
+            },
+            _ => {
+                unreachable!("found unrecognized orientation: {}", orientation.type_string())
+            },
+        }
+    }
+
+    fn is_internal(&self) -> Option<bool> {
+        if let Screen::Detailed { screen, .. } = &self.screen {
+            Some(screen.is_internal())
+        } else {
+            None
+        }
+    }
+
+    fn is_detailed(&self) -> bool {
+        matches!(self.screen, Screen::Detailed { .. })
+    }
+
+    fn size(&self) -> PhysicalSize<u32> {
+        let width = self.screen.width().unwrap();
+        let height = self.screen.height().unwrap();
+
+        if let Some(Engine::Chromium) = self.engine {
+            PhysicalSize::new(width, height).cast()
+        } else {
+            LogicalSize::new(width, height).to_physical(super::web_sys::scale_factor(&self.window))
+        }
+    }
+
+    fn bit_depth(&self) -> Option<NonZeroU16> {
+        NonZeroU16::new(self.screen.color_depth().unwrap().try_into().unwrap())
+    }
+
     fn has_lock_support(&self) -> bool {
-        *HAS_LOCK_SUPPORT.get_or_init(|| !self.orientation().has_lock().is_undefined())
+        *HAS_LOCK_SUPPORT.get_or_init(|| !self.orientation_raw().has_lock().is_undefined())
     }
 }
 

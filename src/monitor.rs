@@ -5,6 +5,8 @@
 //! methods, which return an iterator of [`MonitorHandle`]:
 //! - [`ActiveEventLoop::available_monitors`][crate::event_loop::ActiveEventLoop::available_monitors].
 //! - [`Window::available_monitors`][crate::window::Window::available_monitors].
+use std::num::{NonZeroU16, NonZeroU32};
+
 use crate::dpi::{PhysicalPosition, PhysicalSize};
 use crate::platform_impl;
 
@@ -44,7 +46,10 @@ impl Ord for VideoModeHandle {
 }
 
 impl VideoModeHandle {
-    /// Returns the resolution of this video mode.
+    /// Returns the resolution of this video mode. This **must not** be used to create your
+    /// rendering surface. Use [`Window::inner_size()`] instead.
+    ///
+    /// [`Window::inner_size()`]: crate::window::Window::inner_size
     #[inline]
     pub fn size(&self) -> PhysicalSize<u32> {
         self.video_mode.size()
@@ -53,19 +58,14 @@ impl VideoModeHandle {
     /// Returns the bit depth of this video mode, as in how many bits you have
     /// available per color. This is generally 24 bits or 32 bits on modern
     /// systems, depending on whether the alpha channel is counted or not.
-    ///
-    /// ## Platform-specific
-    ///
-    /// - **Wayland / Orbital:** Always returns 32.
-    /// - **iOS:** Always returns 32.
     #[inline]
-    pub fn bit_depth(&self) -> u16 {
+    pub fn bit_depth(&self) -> Option<NonZeroU16> {
         self.video_mode.bit_depth()
     }
 
     /// Returns the refresh rate of this video mode in mHz.
     #[inline]
-    pub fn refresh_rate_millihertz(&self) -> Option<u32> {
+    pub fn refresh_rate_millihertz(&self) -> Option<NonZeroU32> {
         self.video_mode.refresh_rate_millihertz()
     }
 
@@ -81,11 +81,11 @@ impl std::fmt::Display for VideoModeHandle {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "{}x{} {}({} bpp)",
+            "{}x{} {}{}",
             self.size().width,
             self.size().height,
             self.refresh_rate_millihertz().map(|rate| format!("@ {rate} mHz ")).unwrap_or_default(),
-            self.bit_depth()
+            self.bit_depth().map(|bit_depth| format!("({bit_depth} bpp)")).unwrap_or_default(),
         )
     }
 }
@@ -112,9 +112,15 @@ impl std::fmt::Display for VideoModeHandle {
 /// to check.
 ///
 /// [`Window`]: crate::window::Window
-#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[derive(Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct MonitorHandle {
     pub(crate) inner: platform_impl::MonitorHandle,
+}
+
+impl std::fmt::Debug for MonitorHandle {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.inner.fmt(f)
+    }
 }
 
 impl MonitorHandle {
@@ -140,14 +146,14 @@ impl MonitorHandle {
     ///
     /// ## Platform-specific
     ///
-    /// **Web:** Always returns [`Default`] without
+    /// **Web:** Always returns [`None`] without
     #[cfg_attr(
         any(web_platform, docsrs),
         doc = "[detailed monitor permissions][crate::platform::web::ActiveEventLoopExtWeb::request_detailed_monitor_permission]."
     )]
     #[cfg_attr(not(any(web_platform, docsrs)), doc = "detailed monitor permissions.")]
     #[inline]
-    pub fn position(&self) -> PhysicalPosition<i32> {
+    pub fn position(&self) -> Option<PhysicalPosition<i32>> {
         self.inner.position()
     }
 

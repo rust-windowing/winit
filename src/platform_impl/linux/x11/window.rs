@@ -822,7 +822,7 @@ impl UnownedWindow {
 
                 let window_position = self.outer_position_physical();
                 self.shared_state_lock().restore_position = Some(window_position);
-                let monitor_origin: (i32, i32) = monitor.position().into();
+                let monitor_origin: (i32, i32) = monitor.position;
                 self.set_position_inner(monitor_origin.0, monitor_origin.1)
                     .expect_then_ignore_error("Failed to set window position");
                 self.set_fullscreen_hint(true).map(Some)

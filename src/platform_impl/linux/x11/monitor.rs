@@ -1,3 +1,5 @@
+use std::num::{NonZeroU16, NonZeroU32};
+
 use x11rb::connection::RequestConnection;
 use x11rb::protocol::randr::{self, ConnectionExt as _};
 use x11rb::protocol::xproto;
@@ -20,8 +22,8 @@ impl XConnection {
 pub struct VideoModeHandle {
     pub(crate) current: bool,
     pub(crate) size: (u32, u32),
-    pub(crate) bit_depth: u16,
-    pub(crate) refresh_rate_millihertz: Option<u32>,
+    pub(crate) bit_depth: Option<NonZeroU16>,
+    pub(crate) refresh_rate_millihertz: Option<NonZeroU32>,
     pub(crate) native_mode: randr::Mode,
     pub(crate) monitor: Option<MonitorHandle>,
 }
@@ -33,12 +35,12 @@ impl VideoModeHandle {
     }
 
     #[inline]
-    pub fn bit_depth(&self) -> u16 {
+    pub fn bit_depth(&self) -> Option<NonZeroU16> {
         self.bit_depth
     }
 
     #[inline]
-    pub fn refresh_rate_millihertz(&self) -> Option<u32> {
+    pub fn refresh_rate_millihertz(&self) -> Option<NonZeroU32> {
         self.refresh_rate_millihertz
     }
 
@@ -55,7 +57,7 @@ pub struct MonitorHandle {
     /// The name of the monitor
     pub(crate) name: String,
     /// The position of the monitor in the X screen
-    position: (i32, i32),
+    pub(crate) position: (i32, i32),
     /// If the monitor is the primary one
     primary: bool,
     /// The DPI scale factor
@@ -93,10 +95,12 @@ impl std::hash::Hash for MonitorHandle {
 }
 
 #[inline]
-pub fn mode_refresh_rate_millihertz(mode: &randr::ModeInfo) -> Option<u32> {
+pub fn mode_refresh_rate_millihertz(mode: &randr::ModeInfo) -> Option<NonZeroU32> {
     if mode.dot_clock > 0 && mode.htotal > 0 && mode.vtotal > 0 {
         #[allow(clippy::unnecessary_cast)]
-        Some((mode.dot_clock as u64 * 1000 / (mode.htotal as u64 * mode.vtotal as u64)) as u32)
+        NonZeroU32::new(
+            (mode.dot_clock as u64 * 1000 / (mode.htotal as u64 * mode.vtotal as u64)) as u32,
+        )
     } else {
         None
     }
@@ -145,8 +149,8 @@ impl MonitorHandle {
         self.id as _
     }
 
-    pub fn position(&self) -> PhysicalPosition<i32> {
-        self.position.into()
+    pub fn position(&self) -> Option<PhysicalPosition<i32>> {
+        Some(self.position.into())
     }
 
     #[inline]

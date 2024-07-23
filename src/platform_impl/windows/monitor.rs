@@ -1,5 +1,6 @@
 use std::collections::{BTreeSet, VecDeque};
 use std::hash::Hash;
+use std::num::{NonZeroU16, NonZeroU32};
 use std::{io, mem, ptr};
 
 use windows_sys::Win32::Foundation::{BOOL, HWND, LPARAM, POINT, RECT};
@@ -20,8 +21,8 @@ use crate::platform_impl::platform::window::Window;
 #[derive(Clone)]
 pub struct VideoModeHandle {
     pub(crate) size: (u32, u32),
-    pub(crate) bit_depth: u16,
-    pub(crate) refresh_rate_millihertz: u32,
+    pub(crate) bit_depth: Option<NonZeroU16>,
+    pub(crate) refresh_rate_millihertz: Option<NonZeroU32>,
     pub(crate) monitor: MonitorHandle,
     // DEVMODEW is huge so we box it to avoid blowing up the size of winit::window::Fullscreen
     pub(crate) native_video_mode: Box<DEVMODEW>,
@@ -66,8 +67,8 @@ impl VideoModeHandle {
 
         VideoModeHandle {
             size: (mode.dmPelsWidth, mode.dmPelsHeight),
-            bit_depth: mode.dmBitsPerPel as u16,
-            refresh_rate_millihertz: mode.dmDisplayFrequency * 1000,
+            bit_depth: NonZeroU16::new(mode.dmBitsPerPel as u16),
+            refresh_rate_millihertz: NonZeroU32::new(mode.dmDisplayFrequency * 1000),
             monitor,
             native_video_mode: Box::new(mode),
         }
@@ -77,12 +78,12 @@ impl VideoModeHandle {
         self.size.into()
     }
 
-    pub fn bit_depth(&self) -> u16 {
+    pub fn bit_depth(&self) -> Option<NonZeroU16> {
         self.bit_depth
     }
 
-    pub fn refresh_rate_millihertz(&self) -> Option<u32> {
-        Some(self.refresh_rate_millihertz)
+    pub fn refresh_rate_millihertz(&self) -> Option<NonZeroU32> {
+        self.refresh_rate_millihertz
     }
 
     pub fn monitor(&self) -> MonitorHandle {
@@ -189,13 +190,13 @@ impl MonitorHandle {
     }
 
     #[inline]
-    pub fn position(&self) -> PhysicalPosition<i32> {
+    pub fn position(&self) -> Option<PhysicalPosition<i32>> {
         get_monitor_info(self.0)
             .map(|info| {
                 let rc_monitor = info.monitorInfo.rcMonitor;
                 PhysicalPosition { x: rc_monitor.left, y: rc_monitor.top }
             })
-            .unwrap_or(PhysicalPosition { x: 0, y: 0 })
+            .ok()
     }
 
     #[inline]

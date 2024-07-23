@@ -2,6 +2,7 @@ use std::any::Any;
 use std::cell::Cell;
 use std::collections::VecDeque;
 use std::hash::Hash;
+use std::num::{NonZeroU16, NonZeroU32};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
@@ -980,8 +981,8 @@ impl MonitorHandle {
         Some("Android Device".to_owned())
     }
 
-    pub fn position(&self) -> PhysicalPosition<i32> {
-        (0, 0).into()
+    pub fn position(&self) -> Option<PhysicalPosition<i32>> {
+        None
     }
 
     pub fn scale_factor(&self) -> f64 {
@@ -989,12 +990,7 @@ impl MonitorHandle {
     }
 
     pub fn current_video_mode(&self) -> Option<VideoModeHandle> {
-        Some(VideoModeHandle {
-            size: screen_size(&self.app),
-            // FIXME: it is guaranteed to support 32 bit color though
-            bit_depth: 32,
-            monitor: self.clone(),
-        })
+        Some(VideoModeHandle { size: screen_size(&self.app), monitor: self.clone() })
     }
 
     pub fn video_modes(&self) -> impl Iterator<Item = VideoModeHandle> {
@@ -1005,7 +1001,6 @@ impl MonitorHandle {
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub struct VideoModeHandle {
     size: PhysicalSize<u32>,
-    bit_depth: u16,
     monitor: MonitorHandle,
 }
 
@@ -1014,11 +1009,11 @@ impl VideoModeHandle {
         self.size
     }
 
-    pub fn bit_depth(&self) -> u16 {
-        self.bit_depth
+    pub fn bit_depth(&self) -> Option<NonZeroU16> {
+        None
     }
 
-    pub fn refresh_rate_millihertz(&self) -> Option<u32> {
+    pub fn refresh_rate_millihertz(&self) -> Option<NonZeroU32> {
         None
     }
 

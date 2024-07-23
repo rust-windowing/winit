@@ -786,7 +786,7 @@ impl Window {
                         Fullscreen::Borderless(None) => monitor::current_monitor(window),
                     };
 
-                    let position: (i32, i32) = monitor.position().into();
+                    let position: (i32, i32) = monitor.position().unwrap_or_default().into();
                     let size: (u32, u32) = monitor.size().into();
 
                     unsafe {

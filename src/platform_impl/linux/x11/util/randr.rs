@@ -1,3 +1,4 @@
+use std::num::NonZeroU16;
 use std::str::FromStr;
 use std::{env, str};
 
@@ -86,7 +87,7 @@ impl XConnection {
                     current: mode.id == current_mode,
                     size: (mode.width.into(), mode.height.into()),
                     refresh_rate_millihertz: monitor::mode_refresh_rate_millihertz(mode),
-                    bit_depth: bit_depth as u16,
+                    bit_depth: NonZeroU16::new(bit_depth as u16),
                     native_mode: mode.id,
                     // This is populated in `MonitorHandle::video_modes` as the
                     // video mode is returned to the user

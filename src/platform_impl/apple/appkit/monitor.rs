@@ -2,6 +2,7 @@
 
 use std::collections::VecDeque;
 use std::fmt;
+use std::num::{NonZeroU16, NonZeroU32};
 
 use core_foundation::array::{CFArrayGetCount, CFArrayGetValueAtIndex};
 use core_foundation::base::{CFRelease, TCFType};
@@ -20,8 +21,8 @@ use crate::dpi::{LogicalPosition, PhysicalPosition, PhysicalSize};
 #[derive(Clone)]
 pub struct VideoModeHandle {
     size: PhysicalSize<u32>,
-    bit_depth: u16,
-    refresh_rate_millihertz: Option<u32>,
+    bit_depth: Option<NonZeroU16>,
+    refresh_rate_millihertz: Option<NonZeroU32>,
     pub(crate) monitor: MonitorHandle,
     pub(crate) native_mode: NativeDisplayMode,
 }
@@ -83,7 +84,7 @@ impl VideoModeHandle {
     fn new(
         monitor: MonitorHandle,
         mode: NativeDisplayMode,
-        refresh_rate_millihertz: Option<u32>,
+        refresh_rate_millihertz: Option<NonZeroU32>,
     ) -> Self {
         unsafe {
             let pixel_encoding =
@@ -105,7 +106,7 @@ impl VideoModeHandle {
                     ffi::CGDisplayModeGetPixelHeight(mode.0) as u32,
                 ),
                 refresh_rate_millihertz,
-                bit_depth,
+                bit_depth: NonZeroU16::new(bit_depth),
                 monitor: monitor.clone(),
                 native_mode: mode,
             }
@@ -116,11 +117,11 @@ impl VideoModeHandle {
         self.size
     }
 
-    pub fn bit_depth(&self) -> u16 {
+    pub fn bit_depth(&self) -> Option<NonZeroU16> {
         self.bit_depth
     }
 
-    pub fn refresh_rate_millihertz(&self) -> Option<u32> {
+    pub fn refresh_rate_millihertz(&self) -> Option<NonZeroU32> {
         self.refresh_rate_millihertz
     }
 
@@ -192,7 +193,6 @@ impl fmt::Debug for MonitorHandle {
             .field("native_identifier", &self.native_identifier())
             .field("position", &self.position())
             .field("scale_factor", &self.scale_factor())
-            .field("refresh_rate_millihertz", &self.refresh_rate_millihertz())
             .finish_non_exhaustive()
     }
 }
@@ -216,13 +216,13 @@ impl MonitorHandle {
     }
 
     #[inline]
-    pub fn position(&self) -> PhysicalPosition<i32> {
+    pub fn position(&self) -> Option<PhysicalPosition<i32>> {
         // This is already in screen coordinates. If we were using `NSScreen`,
         // then a conversion would've been needed:
         // flip_window_screen_coordinates(self.ns_screen(mtm)?.frame())
         let bounds = unsafe { CGDisplayBounds(self.native_identifier()) };
         let position = LogicalPosition::new(bounds.origin.x, bounds.origin.y);
-        position.to_physical(self.scale_factor())
+        Some(position.to_physical(self.scale_factor()))
     }
 
     pub fn scale_factor(&self) -> f64 {
@@ -234,7 +234,7 @@ impl MonitorHandle {
         })
     }
 
-    fn refresh_rate_millihertz(&self) -> Option<u32> {
+    fn refresh_rate_millihertz(&self) -> Option<NonZeroU32> {
         let current_display_mode =
             NativeDisplayMode(unsafe { CGDisplayCopyDisplayMode(self.0) } as _);
         refresh_rate_millihertz(self.0, &current_display_mode)
@@ -272,7 +272,7 @@ impl MonitorHandle {
                 // CGDisplayModeGetRefreshRate returns 0.0 for any display that
                 // isn't a CRT
                 let refresh_rate_millihertz = if cg_refresh_rate_hertz > 0 {
-                    Some((cg_refresh_rate_hertz * 1000) as u32)
+                    NonZeroU32::new((cg_refresh_rate_hertz * 1000) as u32)
                 } else {
                     refresh_rate_millihertz
                 };
@@ -341,11 +341,11 @@ pub(crate) fn flip_window_screen_coordinates(frame: NSRect) -> NSPoint {
     NSPoint::new(frame.origin.x, y)
 }
 
-fn refresh_rate_millihertz(id: CGDirectDisplayID, mode: &NativeDisplayMode) -> Option<u32> {
+fn refresh_rate_millihertz(id: CGDirectDisplayID, mode: &NativeDisplayMode) -> Option<NonZeroU32> {
     unsafe {
         let refresh_rate = ffi::CGDisplayModeGetRefreshRate(mode.0);
         if refresh_rate > 0.0 {
-            return Some((refresh_rate * 1000.0).round() as u32);
+            return NonZeroU32::new((refresh_rate * 1000.0).round() as u32);
         }
 
         let mut display_link = std::ptr::null_mut();
@@ -360,6 +360,9 @@ fn refresh_rate_millihertz(id: CGDirectDisplayID, mode: &NativeDisplayMode) -> O
             return None;
         }
 
-        (time.time_scale as i64).checked_div(time.time_value).map(|v| (v * 1000) as u32)
+        (time.time_scale as i64)
+            .checked_div(time.time_value)
+            .map(|v| (v * 1000) as u32)
+            .and_then(NonZeroU32::new)
     }
 }

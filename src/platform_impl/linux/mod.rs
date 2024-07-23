@@ -4,6 +4,7 @@
 compile_error!("Please select a feature to build for unix: `x11`, `wayland`");
 
 use std::collections::VecDeque;
+use std::num::{NonZeroU16, NonZeroU32};
 use std::os::unix::io::{AsFd, AsRawFd, BorrowedFd, RawFd};
 use std::sync::Arc;
 use std::time::Duration;
@@ -242,7 +243,7 @@ impl MonitorHandle {
     }
 
     #[inline]
-    pub fn position(&self) -> PhysicalPosition<i32> {
+    pub fn position(&self) -> Option<PhysicalPosition<i32>> {
         x11_or_wayland!(match self; MonitorHandle(m) => m.position())
     }
 
@@ -277,12 +278,12 @@ impl VideoModeHandle {
     }
 
     #[inline]
-    pub fn bit_depth(&self) -> u16 {
+    pub fn bit_depth(&self) -> Option<NonZeroU16> {
         x11_or_wayland!(match self; VideoModeHandle(m) => m.bit_depth())
     }
 
     #[inline]
-    pub fn refresh_rate_millihertz(&self) -> Option<u32> {
+    pub fn refresh_rate_millihertz(&self) -> Option<NonZeroU32> {
         x11_or_wayland!(match self; VideoModeHandle(m) => m.refresh_rate_millihertz())
     }
 

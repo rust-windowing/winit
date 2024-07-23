@@ -95,7 +95,8 @@ changelog entry.
   accelerated, if the browser supports it.
 - `(Active)EventLoop::create_custom_cursor()` now returns a `Result<CustomCursor, ExternalError>`.
 - Changed how `ModifiersState` is serialized by Serde.
-- `VideoModeHandle::refresh_rate_millihertz()` now returns an `Option`.
+- `VideoModeHandle::refresh_rate_millihertz()` and `bit_depth()` now return a `Option<NonZero*>`.
+- `MonitorHandle::position()` now returns an `Option`.
 
 ### Removed
 
@@ -127,3 +128,4 @@ changelog entry.
 - On Web, pen events are now routed through to `WindowEvent::Cursor*`.
 - On macOS, fix panic when releasing not available monitor.
 - On MacOS, return the system theme in `Window::theme()` if no theme override is set.
+- On Orbital, `MonitorHandle::name()` now returns `None` instead of a dummy name.
