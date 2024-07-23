@@ -5,6 +5,7 @@ use std::error::Error;
 use std::fmt::Debug;
 #[cfg(not(any(android_platform, ios_platform)))]
 use std::num::NonZeroU32;
+use std::sync::mpsc::{self, Receiver, Sender};
 use std::sync::Arc;
 use std::{fmt, mem};
 
@@ -25,6 +26,8 @@ use winit::platform::macos::{OptionAsAlt, WindowAttributesExtMacOS, WindowExtMac
 use winit::platform::startup_notify::{
     self, EventLoopExtStartupNotify, WindowAttributesExtStartupNotify, WindowExtStartupNotify,
 };
+#[cfg(web_platform)]
+use winit::platform::web::{ActiveEventLoopExtWeb, CustomCursorExtWeb, WindowAttributesExtWeb};
 use winit::window::{
     Cursor, CursorGrabMode, CustomCursor, CustomCursorSource, Fullscreen, Icon, ResizeDirection,
     Theme, Window, WindowId,
@@ -43,26 +46,34 @@ fn main() -> Result<(), Box<dyn Error>> {
     tracing::init();
 
     let event_loop = EventLoop::new()?;
-    let _event_loop_proxy = event_loop.create_proxy();
+    let (sender, receiver) = mpsc::channel();
 
     // Wire the user event from another thread.
     #[cfg(not(web_platform))]
-    std::thread::spawn(move || {
-        // Wake up the `event_loop` once every second and dispatch a custom event
-        // from a different thread.
-        info!("Starting to send user event every second");
-        loop {
-            _event_loop_proxy.wake_up();
-            std::thread::sleep(std::time::Duration::from_secs(1));
-        }
-    });
+    {
+        let event_loop_proxy = event_loop.create_proxy();
+        let sender = sender.clone();
+        std::thread::spawn(move || {
+            // Wake up the `event_loop` once every second and dispatch a custom event
+            // from a different thread.
+            info!("Starting to send user event every second");
+            loop {
+                let _ = sender.send(Action::Message);
+                event_loop_proxy.wake_up();
+                std::thread::sleep(std::time::Duration::from_secs(1));
+            }
+        });
+    }
 
-    let app = Application::new(&event_loop);
+    let app = Application::new(&event_loop, receiver, sender);
     Ok(event_loop.run_app(app)?)
 }
 
 /// Application state and event handling.
 struct Application {
+    /// Trigger actions through proxy wake up.
+    receiver: Receiver<Action>,
+    sender: Sender<Action>,
     /// Custom cursors assets.
     custom_cursors: Vec<CustomCursor>,
     /// Application icon.
@@ -76,7 +87,7 @@ struct Application {
 }
 
 impl Application {
-    fn new(event_loop: &EventLoop) -> Self {
+    fn new(event_loop: &EventLoop, receiver: Receiver<Action>, sender: Sender<Action>) -> Self {
         // SAFETY: we drop the context right before the event loop is stopped, thus making it safe.
         #[cfg(not(any(android_platform, ios_platform)))]
         let context = Some(
@@ -103,6 +114,8 @@ impl Application {
         ];
 
         Self {
+            receiver,
+            sender,
             #[cfg(not(any(android_platform, ios_platform)))]
             context,
             custom_cursors,
@@ -138,7 +151,6 @@ impl Application {
 
         #[cfg(web_platform)]
         {
-            use winit::platform::web::WindowAttributesExtWeb;
             window_attributes = window_attributes.with_append(true);
         }
 
@@ -160,7 +172,23 @@ impl Application {
         Ok(window_id)
     }
 
-    fn handle_action(&mut self, event_loop: &ActiveEventLoop, window_id: WindowId, action: Action) {
+    fn handle_action_from_proxy(&mut self, _event_loop: &ActiveEventLoop, action: Action) {
+        match action {
+            #[cfg(web_platform)]
+            Action::DumpMonitors => self.dump_monitors(_event_loop),
+            Action::Message => {
+                info!("User wake up");
+            },
+            _ => unreachable!("Tried to execute invalid action without `WindowId`"),
+        }
+    }
+
+    fn handle_action_with_window(
+        &mut self,
+        event_loop: &ActiveEventLoop,
+        window_id: WindowId,
+        action: Action,
+    ) {
         // let cursor_position = self.cursor_position;
         let window = self.windows.get_mut(&window_id).unwrap();
         info!("Executing action: {action:?}");
@@ -217,6 +245,26 @@ impl Application {
                 }
             },
             Action::RequestResize => window.swap_dimensions(),
+            #[cfg(web_platform)]
+            Action::DumpMonitors => {
+                let future = event_loop.request_detailed_monitor_permission();
+                let proxy = event_loop.create_proxy();
+                let sender = self.sender.clone();
+                wasm_bindgen_futures::spawn_local(async move {
+                    if let Err(error) = future.await {
+                        error!("{error}")
+                    }
+
+                    let _ = sender.send(Action::DumpMonitors);
+                    proxy.wake_up();
+                });
+            },
+            #[cfg(not(web_platform))]
+            Action::DumpMonitors => self.dump_monitors(event_loop),
+            Action::Message => {
+                self.sender.send(Action::Message).unwrap();
+                event_loop.create_proxy().wake_up();
+            },
         }
     }
 
@@ -300,8 +348,10 @@ impl Application {
 }
 
 impl ApplicationHandler for Application {
-    fn proxy_wake_up(&mut self, _event_loop: &ActiveEventLoop) {
-        info!("User wake up");
+    fn proxy_wake_up(&mut self, event_loop: &ActiveEventLoop) {
+        while let Ok(action) = self.receiver.try_recv() {
+            self.handle_action_from_proxy(event_loop, action)
+        }
     }
 
     fn window_event(
@@ -369,7 +419,7 @@ impl ApplicationHandler for Application {
                     };
 
                     if let Some(action) = action {
-                        self.handle_action(event_loop, window_id, action);
+                        self.handle_action_with_window(event_loop, window_id, action);
                     }
                 }
             },
@@ -378,7 +428,7 @@ impl ApplicationHandler for Application {
                 if let Some(action) =
                     state.is_pressed().then(|| Self::process_mouse_binding(button, &mods)).flatten()
                 {
-                    self.handle_action(event_loop, window_id, action);
+                    self.handle_action_with_window(event_loop, window_id, action);
                 }
             },
             WindowEvent::CursorLeft { .. } => {
@@ -703,8 +753,6 @@ impl WindowState {
     ) {
         use std::time::Duration;
 
-        use winit::platform::web::CustomCursorExtWeb;
-
         let cursors = vec![
             custom_cursors[0].clone(),
             custom_cursors[1].clone(),
@@ -886,6 +934,8 @@ enum Action {
     #[cfg(macos_platform)]
     CreateNewTab,
     RequestResize,
+    DumpMonitors,
+    Message,
 }
 
 impl Action {
@@ -920,6 +970,14 @@ impl Action {
             #[cfg(macos_platform)]
             Action::CreateNewTab => "Create new tab",
             Action::RequestResize => "Request a resize",
+            #[cfg(not(web_platform))]
+            Action::DumpMonitors => "Dump monitor information",
+            #[cfg(web_platform)]
+            Action::DumpMonitors => {
+                "Request permission to query detailed monitor information and dump monitor \
+                 information"
+            },
+            Action::Message => "Prints a message through a user wake up",
         }
     }
 }
@@ -941,8 +999,6 @@ fn decode_cursor(bytes: &[u8]) -> CustomCursorSource {
 #[cfg(web_platform)]
 fn url_custom_cursor() -> CustomCursorSource {
     use std::sync::atomic::{AtomicU64, Ordering};
-
-    use winit::platform::web::CustomCursorExtWeb;
 
     static URL_COUNTER: AtomicU64 = AtomicU64::new(0);
 
@@ -1041,6 +1097,7 @@ const KEY_BINDINGS: &[Binding<&'static str>] = &[
     Binding::new("R", ModifiersState::CONTROL, Action::ToggleResizable),
     Binding::new("R", ModifiersState::ALT, Action::RequestResize),
     // M.
+    Binding::new("M", ModifiersState::CONTROL.union(ModifiersState::ALT), Action::DumpMonitors),
     Binding::new("M", ModifiersState::CONTROL, Action::ToggleMaximize),
     Binding::new("M", ModifiersState::ALT, Action::Minimize),
     // N.
@@ -1069,6 +1126,7 @@ const KEY_BINDINGS: &[Binding<&'static str>] = &[
     Binding::new("T", ModifiersState::SUPER, Action::CreateNewTab),
     #[cfg(macos_platform)]
     Binding::new("O", ModifiersState::CONTROL, Action::CycleOptionAsAlt),
+    Binding::new("S", ModifiersState::CONTROL, Action::Message),
 ];
 
 const MOUSE_BINDINGS: &[Binding<MouseButton>] = &[

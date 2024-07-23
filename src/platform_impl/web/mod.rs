@@ -44,7 +44,10 @@ pub(crate) use self::event_loop::{
     PlatformSpecificEventLoopAttributes,
 };
 pub(crate) use self::keyboard::KeyEventExtra;
-pub use self::monitor::{MonitorHandle, VideoModeHandle};
+pub(crate) use self::monitor::{
+    HasMonitorPermissionFuture, MonitorHandle, MonitorPermissionFuture, OrientationLockFuture,
+    VideoModeHandle,
+};
 use self::web_sys as backend;
 pub use self::window::{PlatformSpecificWindowAttributes, Window, WindowId};
 pub(crate) use crate::icon::NoIcon as PlatformIcon;

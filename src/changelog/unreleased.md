@@ -47,6 +47,13 @@ changelog entry.
 - On Web, add `ActiveEventLoopExtWeb::is_cursor_lock_raw()` to determine if
   `DeviceEvent::MouseMotion` is returning raw data, not OS accelerated, when using
   `CursorGrabMode::Locked`.
+- On Web, implement `MonitorHandle` and `VideoModeHandle`.
+  
+  Without prompting the user for permission, only the current monitor is returned. But when
+  prompting and being granted permission through
+  `ActiveEventLoop::request_detailed_monitor_permission()`, access to all monitors and their
+  information is available. This "detailed monitors" can be used in `Window::set_fullscreen()` as
+  well.
 
 ### Changed
 

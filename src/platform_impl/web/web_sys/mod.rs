@@ -15,9 +15,7 @@ use js_sys::Array;
 use wasm_bindgen::closure::Closure;
 use wasm_bindgen::prelude::wasm_bindgen;
 use wasm_bindgen::JsCast;
-use web_sys::{
-    Document, HtmlCanvasElement, Navigator, PageTransitionEvent, VisibilityState, Window,
-};
+use web_sys::{Document, HtmlCanvasElement, Navigator, PageTransitionEvent, VisibilityState};
 
 pub use self::canvas::{Canvas, Style};
 pub use self::event::ButtonsState;
@@ -182,15 +180,15 @@ thread_local! {
     static USER_AGENT_DATA: OnceCell<UserAgentData> = const { OnceCell::new() };
 }
 
-pub fn chrome_linux(window: &Window) -> bool {
-    USER_AGENT_DATA.with(|data| data.get_or_init(|| user_agent(window)).chrome_linux)
+pub fn chrome_linux(navigator: &Navigator) -> bool {
+    USER_AGENT_DATA.with(|data| data.get_or_init(|| user_agent(navigator)).chrome_linux)
 }
 
-pub fn engine(window: &Window) -> Option<Engine> {
-    USER_AGENT_DATA.with(|data| data.get_or_init(|| user_agent(window)).engine)
+pub fn engine(navigator: &Navigator) -> Option<Engine> {
+    USER_AGENT_DATA.with(|data| data.get_or_init(|| user_agent(navigator)).engine)
 }
 
-fn user_agent(window: &Window) -> UserAgentData {
+fn user_agent(navigator: &Navigator) -> UserAgentData {
     #[wasm_bindgen]
     extern "C" {
         #[wasm_bindgen(extends = Navigator)]
@@ -213,7 +211,7 @@ fn user_agent(window: &Window) -> UserAgentData {
         fn brand(this: &NavigatorUaBrandVersion) -> String;
     }
 
-    let navigator: NavigatorExt = window.navigator().unchecked_into();
+    let navigator: &NavigatorExt = navigator.unchecked_ref();
 
     if let Some(data) = navigator.user_agent_data() {
         let engine = 'engine: {

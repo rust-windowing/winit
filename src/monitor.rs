@@ -68,6 +68,10 @@ impl VideoModeHandle {
     }
 
     /// Returns the refresh rate of this video mode in mHz.
+    ///
+    /// ## Platform-specific
+    ///
+    /// **Web:** Always returns `0`.
     #[inline]
     pub fn refresh_rate_millihertz(&self) -> u32 {
         self.video_mode.refresh_rate_millihertz()
@@ -108,6 +112,15 @@ impl MonitorHandle {
     /// Returns a human-readable name of the monitor.
     ///
     /// Returns `None` if the monitor doesn't exist anymore.
+    ///
+    /// ## Platform-specific
+    ///
+    /// **Web:** Always returns [`None`] without
+    #[cfg_attr(
+        any(web_platform, docsrs),
+        doc = "[detailed monitor permissions][crate::platform::web::ActiveEventLoopExtWeb::request_detailed_monitor_permission]."
+    )]
+    #[cfg_attr(not(any(web_platform, docsrs)), doc = "detailed monitor permissions.")]
     #[inline]
     pub fn name(&self) -> Option<String> {
         self.inner.name()
@@ -121,6 +134,15 @@ impl MonitorHandle {
 
     /// Returns the top-left corner position of the monitor relative to the larger full
     /// screen area.
+    ///
+    /// ## Platform-specific
+    ///
+    /// **Web:** Always returns [`Default`] without
+    #[cfg_attr(
+        any(web_platform, docsrs),
+        doc = "[detailed monitor permissions][crate::platform::web::ActiveEventLoopExtWeb::request_detailed_monitor_permission]."
+    )]
+    #[cfg_attr(not(any(web_platform, docsrs)), doc = "detailed monitor permissions.")]
     #[inline]
     pub fn position(&self) -> PhysicalPosition<i32> {
         self.inner.position()
@@ -133,6 +155,10 @@ impl MonitorHandle {
     ///
     /// When using exclusive fullscreen, the refresh rate of the [`VideoModeHandle`] that was
     /// used to enter fullscreen should be used instead.
+    ///
+    /// ## Platform-specific
+    ///
+    /// **Web:** Always returns [`None`].
     #[inline]
     pub fn refresh_rate_millihertz(&self) -> Option<u32> {
         self.inner.refresh_rate_millihertz()
@@ -148,7 +174,14 @@ impl MonitorHandle {
     /// - **X11:** Can be overridden using the `WINIT_X11_SCALE_FACTOR` environment variable.
     /// - **Wayland:** May differ from [`Window::scale_factor`].
     /// - **Android:** Always returns 1.0.
+    /// - **Web:** Always returns `0.0` without
+    #[cfg_attr(
+        any(web_platform, docsrs),
+        doc = "  [detailed monitor permissions][crate::platform::web::ActiveEventLoopExtWeb::request_detailed_monitor_permission]."
+    )]
+    #[cfg_attr(not(any(web_platform, docsrs)), doc = "  detailed monitor permissions.")]
     ///
+    #[rustfmt::skip]
     /// [`Window::scale_factor`]: crate::window::Window::scale_factor
     #[inline]
     pub fn scale_factor(&self) -> f64 {
@@ -156,10 +189,6 @@ impl MonitorHandle {
     }
 
     /// Returns all fullscreen video modes supported by this monitor.
-    ///
-    /// ## Platform-specific
-    ///
-    /// - **Web:** Always returns an empty iterator
     #[inline]
     pub fn video_modes(&self) -> impl Iterator<Item = VideoModeHandle> {
         self.inner.video_modes().map(|video_mode| VideoModeHandle { video_mode })

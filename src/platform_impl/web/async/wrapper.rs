@@ -1,5 +1,7 @@
 use std::cell::{Ref, RefCell};
+use std::cmp;
 use std::future::Future;
+use std::hash::{Hash, Hasher};
 use std::marker::PhantomData;
 use std::sync::Arc;
 
@@ -79,5 +81,31 @@ impl<V, S: Clone + Send, E> Clone for Wrapper<V, S, E> {
             sender_data: self.sender_data.clone(),
             sender_handler: self.sender_handler,
         }
+    }
+}
+
+impl<V, S: Clone + Send, E> Eq for Wrapper<V, S, E> {}
+
+impl<V, S: Clone + Send, E> Hash for Wrapper<V, S, E> {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        Arc::as_ptr(&self.value.value).hash(state)
+    }
+}
+
+impl<V, S: Clone + Send, E> Ord for Wrapper<V, S, E> {
+    fn cmp(&self, other: &Self) -> cmp::Ordering {
+        Arc::as_ptr(&self.value.value).cmp(&Arc::as_ptr(&other.value.value))
+    }
+}
+
+impl<V, S: Clone + Send, E> PartialOrd for Wrapper<V, S, E> {
+    fn partial_cmp(&self, other: &Self) -> Option<cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl<V, S: Clone + Send, E> PartialEq for Wrapper<V, S, E> {
+    fn eq(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.value.value, &other.value.value)
     }
 }

@@ -380,6 +380,15 @@ impl ActiveEventLoop {
     }
 
     /// Returns the list of all the monitors available on the system.
+    ///
+    /// ## Platform-specific
+    ///
+    /// **Web:** Only returns the current monitor without
+    #[cfg_attr(
+        any(web_platform, docsrs),
+        doc = "[detailed monitor permissions][crate::platform::web::ActiveEventLoopExtWeb::request_detailed_monitor_permission]."
+    )]
+    #[cfg_attr(not(any(web_platform, docsrs)), doc = "detailed monitor permissions.")]
     #[inline]
     pub fn available_monitors(&self) -> impl Iterator<Item = MonitorHandle> {
         let _span = tracing::debug_span!("winit::ActiveEventLoop::available_monitors",).entered();
@@ -394,7 +403,13 @@ impl ActiveEventLoop {
     ///
     /// ## Platform-specific
     ///
-    /// **Wayland / Web:** Always returns `None`.
+    /// - **Wayland:** Always returns `None`.
+    /// - **Web:** Always returns `None` without
+    #[cfg_attr(
+        any(web_platform, docsrs),
+        doc = "  [detailed monitor permissions][crate::platform::web::ActiveEventLoopExtWeb::request_detailed_monitor_permission]."
+    )]
+    #[cfg_attr(not(any(web_platform, docsrs)), doc = "  detailed monitor permissions.")]
     #[inline]
     pub fn primary_monitor(&self) -> Option<MonitorHandle> {
         let _span = tracing::debug_span!("winit::ActiveEventLoop::primary_monitor",).entered();
