@@ -1,4 +1,4 @@
-use std::cell::RefCell;
+use std::cell::Ref;
 use std::collections::VecDeque;
 use std::rc::Rc;
 use std::sync::Arc;
@@ -24,15 +24,12 @@ pub struct Window {
 pub struct Inner {
     id: WindowId,
     pub window: web_sys::Window,
-    canvas: Rc<RefCell<backend::Canvas>>,
+    canvas: Rc<backend::Canvas>,
     destroy_fn: Option<Box<dyn FnOnce()>>,
 }
 
 impl Window {
-    pub(crate) fn new(
-        target: &ActiveEventLoop,
-        mut attr: WindowAttributes,
-    ) -> Result<Self, RootOE> {
+    pub(crate) fn new(target: &ActiveEventLoop, attr: WindowAttributes) -> Result<Self, RootOE> {
         let id = target.generate_id();
 
         let window = target.runner.window();
@@ -42,9 +39,9 @@ impl Window {
             id,
             window.clone(),
             document.clone(),
-            &mut attr,
+            attr,
         )?;
-        let canvas = Rc::new(RefCell::new(canvas));
+        let canvas = Rc::new(canvas);
 
         target.register(&canvas, id);
 
@@ -53,14 +50,8 @@ impl Window {
 
         let inner = Inner { id, window: window.clone(), canvas, destroy_fn: Some(destroy_fn) };
 
-        inner.set_title(&attr.title);
-        inner.set_maximized(attr.maximized);
-        inner.set_visible(attr.visible);
-        inner.set_window_icon(attr.window_icon);
-        inner.set_cursor(attr.cursor);
-
         let canvas = Rc::downgrade(&inner.canvas);
-        let (dispatcher, runner) = Dispatcher::new(target.runner.main_thread(), inner).unwrap();
+        let (dispatcher, runner) = Dispatcher::new(target.runner.main_thread(), inner);
         target.runner.add_canvas(RootWI(id), canvas, runner);
 
         Ok(Window { inner: dispatcher })
@@ -74,27 +65,27 @@ impl Window {
         self.inner.queue(f)
     }
 
-    pub fn canvas(&self) -> Option<HtmlCanvasElement> {
-        self.inner.value().map(|inner| inner.canvas.borrow().raw().clone())
+    pub fn canvas(&self) -> Option<Ref<'_, HtmlCanvasElement>> {
+        MainThreadMarker::new()
+            .map(|main_thread| Ref::map(self.inner.value(main_thread), |inner| inner.canvas.raw()))
     }
 
     pub(crate) fn prevent_default(&self) -> bool {
-        self.inner.queue(|inner| inner.canvas.borrow().prevent_default.get())
+        self.inner.queue(|inner| inner.canvas.prevent_default.get())
     }
 
     pub(crate) fn set_prevent_default(&self, prevent_default: bool) {
-        self.inner.dispatch(move |inner| inner.canvas.borrow().prevent_default.set(prevent_default))
+        self.inner.dispatch(move |inner| inner.canvas.prevent_default.set(prevent_default))
     }
 
     #[cfg(feature = "rwh_06")]
     #[inline]
     pub fn raw_window_handle_rwh_06(&self) -> Result<rwh_06::RawWindowHandle, rwh_06::HandleError> {
-        self.inner
-            .value()
-            .map(|inner| {
-                let canvas = inner.canvas.borrow();
+        MainThreadMarker::new()
+            .map(|main_thread| {
+                let inner = self.inner.value(main_thread);
                 // SAFETY: This will only work if the reference to `HtmlCanvasElement` stays valid.
-                let canvas: &wasm_bindgen::JsValue = canvas.raw();
+                let canvas: &wasm_bindgen::JsValue = inner.canvas.raw();
                 let window_handle =
                     rwh_06::WebCanvasWindowHandle::new(std::ptr::NonNull::from(canvas).cast());
                 rwh_06::RawWindowHandle::WebCanvas(window_handle)
@@ -113,7 +104,7 @@ impl Window {
 
 impl Inner {
     pub fn set_title(&self, title: &str) {
-        self.canvas.borrow().set_attribute("alt", title)
+        self.canvas.set_attribute("alt", title)
     }
 
     pub fn set_transparent(&self, _transparent: bool) {}
@@ -130,13 +121,13 @@ impl Inner {
     }
 
     pub fn request_redraw(&self) {
-        self.canvas.borrow().request_animation_frame();
+        self.canvas.request_animation_frame();
     }
 
     pub fn pre_present_notify(&self) {}
 
     pub fn outer_position(&self) -> Result<PhysicalPosition<i32>, NotSupportedError> {
-        Ok(self.canvas.borrow().position().to_physical(self.scale_factor()))
+        Ok(self.canvas.position().to_physical(self.scale_factor()))
     }
 
     pub fn inner_position(&self) -> Result<PhysicalPosition<i32>, NotSupportedError> {
@@ -145,15 +136,19 @@ impl Inner {
     }
 
     pub fn set_outer_position(&self, position: Position) {
-        let canvas = self.canvas.borrow();
         let position = position.to_logical::<f64>(self.scale_factor());
 
-        backend::set_canvas_position(canvas.document(), canvas.raw(), canvas.style(), position)
+        backend::set_canvas_position(
+            self.canvas.document(),
+            self.canvas.raw(),
+            self.canvas.style(),
+            position,
+        )
     }
 
     #[inline]
     pub fn inner_size(&self) -> PhysicalSize<u32> {
-        self.canvas.borrow().inner_size()
+        self.canvas.inner_size()
     }
 
     #[inline]
@@ -165,23 +160,35 @@ impl Inner {
     #[inline]
     pub fn request_inner_size(&self, size: Size) -> Option<PhysicalSize<u32>> {
         let size = size.to_logical(self.scale_factor());
-        let canvas = self.canvas.borrow();
-        backend::set_canvas_size(canvas.document(), canvas.raw(), canvas.style(), size);
+        backend::set_canvas_size(
+            self.canvas.document(),
+            self.canvas.raw(),
+            self.canvas.style(),
+            size,
+        );
         None
     }
 
     #[inline]
     pub fn set_min_inner_size(&self, dimensions: Option<Size>) {
         let dimensions = dimensions.map(|dimensions| dimensions.to_logical(self.scale_factor()));
-        let canvas = self.canvas.borrow();
-        backend::set_canvas_min_size(canvas.document(), canvas.raw(), canvas.style(), dimensions)
+        backend::set_canvas_min_size(
+            self.canvas.document(),
+            self.canvas.raw(),
+            self.canvas.style(),
+            dimensions,
+        )
     }
 
     #[inline]
     pub fn set_max_inner_size(&self, dimensions: Option<Size>) {
         let dimensions = dimensions.map(|dimensions| dimensions.to_logical(self.scale_factor()));
-        let canvas = self.canvas.borrow();
-        backend::set_canvas_max_size(canvas.document(), canvas.raw(), canvas.style(), dimensions)
+        backend::set_canvas_max_size(
+            self.canvas.document(),
+            self.canvas.raw(),
+            self.canvas.style(),
+            dimensions,
+        )
     }
 
     #[inline]
@@ -218,7 +225,7 @@ impl Inner {
 
     #[inline]
     pub fn set_cursor(&self, cursor: Cursor) {
-        self.canvas.borrow_mut().cursor.set_cursor(cursor)
+        self.canvas.cursor.set_cursor(cursor)
     }
 
     #[inline]
@@ -236,12 +243,12 @@ impl Inner {
             },
         };
 
-        self.canvas.borrow().set_cursor_lock(lock).map_err(ExternalError::Os)
+        self.canvas.set_cursor_lock(lock).map_err(ExternalError::Os)
     }
 
     #[inline]
     pub fn set_cursor_visible(&self, visible: bool) {
-        self.canvas.borrow_mut().cursor.set_cursor_visible(visible)
+        self.canvas.cursor.set_cursor_visible(visible)
     }
 
     #[inline]
@@ -286,7 +293,7 @@ impl Inner {
 
     #[inline]
     pub(crate) fn fullscreen(&self) -> Option<Fullscreen> {
-        if self.canvas.borrow().is_fullscreen() {
+        if self.canvas.is_fullscreen() {
             Some(Fullscreen::Borderless(None))
         } else {
             None
@@ -295,12 +302,10 @@ impl Inner {
 
     #[inline]
     pub(crate) fn set_fullscreen(&self, fullscreen: Option<Fullscreen>) {
-        let canvas = &self.canvas.borrow();
-
         if fullscreen.is_some() {
-            canvas.request_fullscreen();
+            self.canvas.request_fullscreen();
         } else {
-            canvas.exit_fullscreen()
+            self.canvas.exit_fullscreen()
         }
     }
 
@@ -340,7 +345,7 @@ impl Inner {
 
     #[inline]
     pub fn focus_window(&self) {
-        let _ = self.canvas.borrow().raw().focus();
+        let _ = self.canvas.raw().focus();
     }
 
     #[inline]
@@ -408,7 +413,7 @@ impl Inner {
 
     #[inline]
     pub fn has_focus(&self) -> bool {
-        self.canvas.borrow().has_focus.get()
+        self.canvas.has_focus.get()
     }
 
     pub fn title(&self) -> String {

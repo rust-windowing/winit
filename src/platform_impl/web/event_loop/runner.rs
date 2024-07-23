@@ -38,9 +38,9 @@ impl Clone for Shared {
 
 type OnEventHandle<T> = RefCell<Option<EventListenerHandle<dyn FnMut(T)>>>;
 
-pub struct Execution {
+struct Execution {
     main_thread: MainThreadMarker,
-    proxy_spawner: WakerSpawner<Weak<Self>>,
+    proxy_spawner: WakerSpawner<WeakShared>,
     control_flow: Cell<ControlFlow>,
     poll_strategy: Cell<PollStrategy>,
     wait_until_strategy: Cell<WaitUntilStrategy>,
@@ -53,7 +53,7 @@ pub struct Execution {
     window: web_sys::Window,
     document: Document,
     #[allow(clippy::type_complexity)]
-    all_canvases: RefCell<Vec<(WindowId, Weak<RefCell<backend::Canvas>>, DispatchRunner<Inner>)>>,
+    all_canvases: RefCell<Vec<(WindowId, Weak<backend::Canvas>, DispatchRunner<Inner>)>>,
     redraw_pending: RefCell<HashSet<WindowId>>,
     destroy_pending: RefCell<VecDeque<WindowId>>,
     page_transition_event_handle: RefCell<Option<backend::PageTransitionEventHandle>>,
@@ -116,7 +116,7 @@ impl Runner {
             EventWrapper::Event(event) => (self.event_handler)(event),
             EventWrapper::ScaleChange { canvas, size, scale } => {
                 if let Some(canvas) = canvas.upgrade() {
-                    canvas.borrow().handle_scale_change(
+                    canvas.handle_scale_change(
                         runner,
                         |event| (self.event_handler)(event),
                         size,
@@ -137,12 +137,12 @@ impl Shared {
         let document = window.document().expect("Failed to obtain document");
 
         Shared(Rc::<Execution>::new_cyclic(|weak| {
-            let proxy_spawner = WakerSpawner::new(main_thread, weak.clone(), |runner, local| {
-                if let Some(runner) = runner.upgrade() {
-                    Shared(runner).send_proxy_wake_up(local);
-                }
-            })
-            .expect("`EventLoop` has to be created in the main thread");
+            let proxy_spawner =
+                WakerSpawner::new(main_thread, WeakShared(weak.clone()), |runner, local| {
+                    if let Some(runner) = runner.upgrade() {
+                        runner.send_proxy_wake_up(local);
+                    }
+                });
 
             Execution {
                 main_thread,
@@ -189,7 +189,7 @@ impl Shared {
     pub fn add_canvas(
         &self,
         id: WindowId,
-        canvas: Weak<RefCell<backend::Canvas>>,
+        canvas: Weak<backend::Canvas>,
         runner: DispatchRunner<Inner>,
     ) {
         self.0.all_canvases.borrow_mut().push((id, canvas, runner));
@@ -391,7 +391,7 @@ impl Shared {
                             // - not visible and we don't know if it intersects yet
                             // - visible and intersects
                             if let (false, Some(true) | None) | (true, Some(true)) =
-                                (is_visible, canvas.borrow().is_intersecting)
+                                (is_visible, canvas.is_intersecting.get())
                             {
                                 runner.send_event(Event::WindowEvent {
                                     window_id: *id,
@@ -616,7 +616,7 @@ impl Shared {
             // and potentially block other threads in the meantime.
             for (_, window, runner) in self.0.all_canvases.borrow().iter() {
                 if let Some(window) = window.upgrade() {
-                    runner.run();
+                    runner.run(self.main_thread());
                     drop(window)
                 }
             }
@@ -705,7 +705,6 @@ impl Shared {
             // In case any remaining `Window`s are still not dropped, we will need
             // to explicitly remove the event handlers associated with their canvases.
             if let Some(canvas) = canvas.upgrade() {
-                let mut canvas = canvas.borrow_mut();
                 canvas.remove_listeners();
             }
         }
@@ -747,7 +746,7 @@ impl Shared {
             DeviceEvents::WhenFocused => {
                 self.0.all_canvases.borrow().iter().any(|(_, canvas, _)| {
                     if let Some(canvas) = canvas.upgrade() {
-                        canvas.borrow().has_focus.get()
+                        canvas.has_focus.get()
                     } else {
                         false
                     }
@@ -793,14 +792,23 @@ impl Shared {
         self.0.wait_until_strategy.get()
     }
 
-    pub(crate) fn waker(&self) -> Waker<Weak<Execution>> {
+    pub(crate) fn waker(&self) -> Waker<WeakShared> {
         self.0.proxy_spawner.waker()
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct WeakShared(Weak<Execution>);
+
+impl WeakShared {
+    pub fn upgrade(&self) -> Option<Shared> {
+        self.0.upgrade().map(Shared)
     }
 }
 
 pub(crate) enum EventWrapper {
     Event(Event),
-    ScaleChange { canvas: Weak<RefCell<backend::Canvas>>, size: PhysicalSize<u32>, scale: f64 },
+    ScaleChange { canvas: Weak<backend::Canvas>, size: PhysicalSize<u32>, scale: f64 },
 }
 
 impl From<Event> for EventWrapper {

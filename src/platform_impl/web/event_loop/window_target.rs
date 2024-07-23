@@ -1,16 +1,16 @@
-use std::cell::{Cell, RefCell};
+use std::cell::Cell;
 use std::clone::Clone;
 use std::collections::vec_deque::IntoIter as VecDequeIter;
 use std::collections::VecDeque;
 use std::iter;
-use std::rc::{Rc, Weak};
+use std::rc::Rc;
 
 use web_sys::Element;
 
 use super::super::monitor::MonitorHandle;
 use super::super::KeyEventExtra;
 use super::device::DeviceId;
-use super::runner::{EventWrapper, Execution};
+use super::runner::{EventWrapper, WeakShared};
 use super::window::WindowId;
 use super::{backend, runner, EventLoopProxy};
 use crate::event::{
@@ -80,9 +80,8 @@ impl ActiveEventLoop {
         CustomCursorFuture(CustomCursor::new_async(self, source.inner))
     }
 
-    pub fn register(&self, canvas: &Rc<RefCell<backend::Canvas>>, id: WindowId) {
+    pub fn register(&self, canvas: &Rc<backend::Canvas>, id: WindowId) {
         let canvas_clone = canvas.clone();
-        let mut canvas = canvas.borrow_mut();
         #[cfg(any(feature = "rwh_04", feature = "rwh_05"))]
         canvas.set_attribute("data-raw-handle", &id.0.to_string());
 
@@ -561,7 +560,6 @@ impl ActiveEventLoop {
                 let canvas = canvas_clone.clone();
 
                 move |new_size| {
-                    let canvas = canvas.borrow();
                     canvas.set_current_size(new_size);
                     if canvas.old_size() != new_size {
                         canvas.set_old_size(new_size);
@@ -579,7 +577,7 @@ impl ActiveEventLoop {
         canvas.on_intersection(move |is_intersecting| {
             // only fire if visible while skipping the first event if it's intersecting
             if backend::is_visible(runner.document())
-                && !(is_intersecting && canvas_clone.borrow().is_intersecting.is_none())
+                && !(is_intersecting && canvas_clone.is_intersecting.get().is_none())
             {
                 runner.send_event(Event::WindowEvent {
                     window_id: RootWindowId(id),
@@ -587,7 +585,7 @@ impl ActiveEventLoop {
                 });
             }
 
-            canvas_clone.borrow_mut().is_intersecting = Some(is_intersecting);
+            canvas_clone.is_intersecting.set(Some(is_intersecting));
         });
 
         let runner = self.runner.clone();
@@ -654,7 +652,7 @@ impl ActiveEventLoop {
         self.runner.wait_until_strategy()
     }
 
-    pub(crate) fn waker(&self) -> Waker<Weak<Execution>> {
+    pub(crate) fn waker(&self) -> Waker<WeakShared> {
         self.runner.waker()
     }
 

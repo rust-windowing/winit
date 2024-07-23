@@ -42,6 +42,7 @@
 //! [`WindowEvent::Touch`]: crate::event::WindowEvent::Touch
 //! [`Window::set_outer_position()`]: crate::window::Window::set_outer_position
 
+use std::cell::Ref;
 use std::error::Error;
 use std::fmt::{self, Display, Formatter};
 use std::future::Future;
@@ -67,7 +68,7 @@ pub struct HtmlCanvasElement;
 pub trait WindowExtWeb {
     /// Only returns the canvas if called from inside the window context (the
     /// main thread).
-    fn canvas(&self) -> Option<HtmlCanvasElement>;
+    fn canvas(&self) -> Option<Ref<'_, HtmlCanvasElement>>;
 
     /// Returns [`true`] if calling `event.preventDefault()` is enabled.
     ///
@@ -87,7 +88,7 @@ pub trait WindowExtWeb {
 
 impl WindowExtWeb for Window {
     #[inline]
-    fn canvas(&self) -> Option<HtmlCanvasElement> {
+    fn canvas(&self) -> Option<Ref<'_, HtmlCanvasElement>> {
         self.window.canvas()
     }
 
@@ -175,7 +176,7 @@ pub trait EventLoopExtWeb {
         not(all(web_platform, target_feature = "exception-handling")),
         doc = "[`run_app()`]: EventLoop::run_app()"
     )]
-    /// [^1]: `run_app()` is _not_ available on WASM when the target supports `exception-handling`.
+    /// [^1]: `run_app()` is _not_ available on Wasm when the target supports `exception-handling`.
     fn spawn_app<A: ApplicationHandler + 'static>(self, app: A);
 
     /// Sets the strategy for [`ControlFlow::Poll`].
@@ -398,7 +399,7 @@ impl fmt::Display for BadAnimation {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Empty => write!(f, "No cursors supplied"),
-            Self::Animation => write!(f, "A supplied cursor is an animtion"),
+            Self::Animation => write!(f, "A supplied cursor is an animation"),
         }
     }
 }
