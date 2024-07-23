@@ -50,11 +50,14 @@ Where `sid` is the current version of `rustc` provided by [Debian Sid], and
 
 [Debian Sid]: https://packages.debian.org/sid/rustc
 
-The exception is for the Android platform, where a higher Rust version
+An exception is made for the Android platform, where a higher Rust version
 must be used for certain Android features. In this case, the MSRV will be
 capped at the latest stable version of Rust minus three. This inconsistency is
 not reflected in Cargo metadata, as it is not powerful enough to expose this
 restriction.
+
+Redox OS is also not covered by this MSRV policy, as it requires a Rust nightly
+toolchain to compile.
 
 All crates in the [`rust-windowing`] organizations have the
 same MSRV policy.

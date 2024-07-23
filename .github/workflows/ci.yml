@@ -66,6 +66,9 @@ jobs:
           # Android is tested on stable-3
           - toolchain: '1.73'
             platform: { name: 'Android', target: aarch64-linux-android, os: ubuntu-latest, options: '--package=winit --features=android-native-activity', cmd: 'apk --' }
+          # Redox OS doesn't follow MSRV
+          - toolchain: '1.73'
+            platform: { name: 'Redox OS', target: x86_64-unknown-redox, os: ubuntu-latest }
         include:
           - toolchain: '1.73'
             platform: { name: 'Android', target: aarch64-linux-android, os: ubuntu-latest, options: '--package=winit --features=android-native-activity', cmd: 'apk --' }
