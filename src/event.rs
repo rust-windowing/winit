@@ -460,9 +460,6 @@ impl DeviceId {
 /// Note that these events are delivered regardless of input focus.
 #[derive(Clone, Debug, PartialEq)]
 pub enum DeviceEvent {
-    Added,
-    Removed,
-
     /// Change in physical position of a pointing device.
     ///
     /// This represents raw, unfiltered physical motion. Not to be confused with
@@ -1104,8 +1101,6 @@ mod tests {
                 let with_device_event =
                     |dev_ev| x(event::Event::DeviceEvent { device_id: did, event: dev_ev });
 
-                with_device_event(Added);
-                with_device_event(Removed);
                 with_device_event(MouseMotion { delta: (0.0, 0.0).into() });
                 with_device_event(MouseWheel {
                     delta: event::MouseScrollDelta::LineDelta(0.0, 0.0),
