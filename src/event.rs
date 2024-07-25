@@ -532,11 +532,11 @@ pub struct KeyEvent {
     /// ## Caveats
     ///
     /// - Certain niche hardware will shuffle around physical key positions, e.g. a keyboard that
-    /// implements DVORAK in hardware (or firmware)
+    ///   implements DVORAK in hardware (or firmware)
     /// - Your application will likely have to handle keyboards which are missing keys that your
-    /// own keyboard has.
+    ///   own keyboard has.
     /// - Certain `KeyCode`s will move between a couple of different positions depending on what
-    /// layout the keyboard was manufactured to support.
+    ///   layout the keyboard was manufactured to support.
     ///
     ///  **Because of these caveats, it is important that you provide users with a way to configure
     ///  most (if not all) keybinds in your application.**
@@ -558,8 +558,7 @@ pub struct KeyEvent {
     ///
     /// This has two use cases:
     /// - Allows querying whether the current input is a Dead key.
-    /// - Allows handling key-bindings on platforms which don't
-    /// support [`key_without_modifiers`].
+    /// - Allows handling key-bindings on platforms which don't support [`key_without_modifiers`].
     ///
     /// If you use this field (or [`key_without_modifiers`] for that matter) for keyboard
     /// shortcuts, **it is important that you provide users with a way to configure your
@@ -567,8 +566,8 @@ pub struct KeyEvent {
     /// incompatible keyboard layout.**
     ///
     /// ## Platform-specific
-    /// - **Web:** Dead keys might be reported as the real key instead
-    /// of `Dead` depending on the browser/OS.
+    /// - **Web:** Dead keys might be reported as the real key instead of `Dead` depending on the
+    ///   browser/OS.
     ///
     /// [`key_without_modifiers`]: crate::platform::modifier_supplement::KeyEventExtModifierSupplement::key_without_modifiers
     pub logical_key: keyboard::Key,
@@ -850,8 +849,8 @@ pub struct Touch {
     ///
     /// - Only available on **iOS** 9.0+, **Windows** 8+, **Web**, and **Android**.
     /// - **Android**: This will never be [None]. If the device doesn't support pressure
-    /// sensitivity, force will either be 0.0 or 1.0. Also see the
-    /// [android documentation](https://developer.android.com/reference/android/view/MotionEvent#AXIS_PRESSURE).
+    ///   sensitivity, force will either be 0.0 or 1.0. Also see the
+    ///   [android documentation](https://developer.android.com/reference/android/view/MotionEvent#AXIS_PRESSURE).
     pub force: Option<Force>,
     /// Unique identifier of a finger.
     pub id: u64,
