@@ -416,8 +416,8 @@ impl WindowAttributes {
     ///
     /// ## Platform-specific
     ///
-    /// - **macOS**: if `false`, [`NSWindowSharingNone`] is used but doesn't completely
-    /// prevent all apps from reading the window content, for instance, QuickTime.
+    /// - **macOS**: if `false`, [`NSWindowSharingNone`] is used but doesn't completely prevent all
+    ///   apps from reading the window content, for instance, QuickTime.
     /// - **iOS / Android / Web / x11 / Orbital:** Ignored.
     ///
     /// [`NSWindowSharingNone`]: https://developer.apple.com/documentation/appkit/nswindowsharingtype/nswindowsharingnone
@@ -465,8 +465,8 @@ impl WindowAttributes {
     /// ## Platform-specific
     ///
     /// - **Windows** : A child window has the WS_CHILD style and is confined
-    /// to the client area of its parent window. For more information, see
-    /// <https://docs.microsoft.com/en-us/windows/win32/winmsg/window-features#child-windows>
+    ///   to the client area of its parent window. For more information, see
+    ///   <https://docs.microsoft.com/en-us/windows/win32/winmsg/window-features#child-windows>
     /// - **X11**: A child window is confined to the client area of its parent window.
     /// - **Android / iOS / Wayland / Web:** Unsupported.
     #[cfg(feature = "rwh_06")]
@@ -529,9 +529,9 @@ impl Window {
     ///     provided by XRandR.
     ///
     ///   If `WINIT_X11_SCALE_FACTOR` is set to `randr`, it'll ignore the `Xft.dpi` field and use
-    /// the   XRandR scaling method. Generally speaking, you should try to configure the
-    /// standard system   variables to do what you want before resorting to
-    /// `WINIT_X11_SCALE_FACTOR`.
+    ///   the   XRandR scaling method. Generally speaking, you should try to configure the
+    ///   standard system   variables to do what you want before resorting to
+    ///   `WINIT_X11_SCALE_FACTOR`.
     /// - **Wayland:** The scale factor is suggested by the compositor for each window individually
     ///   by using the wp-fractional-scale protocol if available. Falls back to integer-scale
     ///   factors otherwise.
@@ -1394,8 +1394,8 @@ impl Window {
     ///
     /// ## Platform-specific
     ///
-    /// - **macOS**: if `false`, [`NSWindowSharingNone`] is used but doesn't completely
-    /// prevent all apps from reading the window content, for instance, QuickTime.
+    /// - **macOS**: if `false`, [`NSWindowSharingNone`] is used but doesn't completely prevent all
+    ///   apps from reading the window content, for instance, QuickTime.
     /// - **iOS / Android / x11 / Wayland / Web / Orbital:** Unsupported.
     ///
     /// [`NSWindowSharingNone`]: https://developer.apple.com/documentation/appkit/nswindowsharingtype/nswindowsharingnone
