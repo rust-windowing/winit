@@ -43,6 +43,7 @@ changelog entry.
 ### Added
 
 - On Web, implement `Error` for `platform::web::CustomCursorError`.
+- On Android, add `{Active,}EventLoopExtAndroid::android_app()` to access the app used to create the loop.
 
 ### Fixed
 

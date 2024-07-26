@@ -132,7 +132,7 @@ impl RedrawRequester {
 pub struct KeyEventExtra {}
 
 pub struct EventLoop<T: 'static> {
-    android_app: AndroidApp,
+    pub(crate) android_app: AndroidApp,
     window_target: event_loop::ActiveEventLoop,
     redraw_flag: SharedFlag,
     user_events_sender: mpsc::Sender<T>,
@@ -646,7 +646,7 @@ impl<T> EventLoopProxy<T> {
 }
 
 pub struct ActiveEventLoop {
-    app: AndroidApp,
+    pub(crate) app: AndroidApp,
     control_flow: Cell<ControlFlow>,
     exit: Cell<bool>,
     redraw_requester: RedrawRequester,
