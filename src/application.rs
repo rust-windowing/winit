@@ -325,6 +325,15 @@ pub trait ApplicationHandler {
     fn memory_warning(&mut self, event_loop: &ActiveEventLoop) {
         let _ = event_loop;
     }
+
+    /// Emitted when the application has received a URL, through a
+    /// custom URL handler.
+    ///
+    /// Only supported on macOS.
+    fn received_url(&mut self, event_loop: &ActiveEventLoop, url: String) {
+        let _ = event_loop;
+        let _ = url;
+    }
 }
 
 #[deny(clippy::missing_trait_methods)]

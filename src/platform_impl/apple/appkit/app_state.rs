@@ -6,7 +6,10 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use objc2::rc::Retained;
-use objc2::{declare_class, msg_send_id, mutability, ClassType, DeclaredClass};
+use objc2::runtime::AnyObject;
+use objc2::{
+    class, declare_class, msg_send, msg_send_id, mutability, sel, ClassType, DeclaredClass,
+};
 use objc2_app_kit::{NSApplication, NSApplicationActivationPolicy, NSApplicationDelegate};
 use objc2_foundation::{MainThreadMarker, NSNotification, NSObject, NSObjectProtocol};
 
@@ -18,6 +21,14 @@ use crate::application::ApplicationHandler;
 use crate::event::{StartCause, WindowEvent};
 use crate::event_loop::{ActiveEventLoop as RootActiveEventLoop, ControlFlow};
 use crate::window::WindowId as RootWindowId;
+
+/// Apple constants
+#[allow(non_upper_case_globals)]
+pub const kInternetEventClass: u32 = 0x4755524c;
+#[allow(non_upper_case_globals)]
+pub const kAEGetURL: u32 = 0x4755524c;
+#[allow(non_upper_case_globals)]
+pub const keyDirectObject: u32 = 0x2d2d2d2d;
 
 #[derive(Debug)]
 pub(super) struct AppState {
@@ -71,6 +82,33 @@ declare_class!(
         #[method(applicationWillTerminate:)]
         fn app_will_terminate(&self, notification: &NSNotification) {
             self.will_terminate(notification)
+        }
+
+        #[method(applicationWillFinishLaunching:)]
+        fn will_finish_launching(&self, _sender: Option<&AnyObject>) {
+            trace_scope!("applicationWillFinishLaunching");
+
+            unsafe {
+                let event_manager = class!(NSAppleEventManager);
+                let shared_manager: *mut AnyObject =
+                    msg_send![event_manager, sharedAppleEventManager];
+
+                let () = msg_send![shared_manager,
+                    setEventHandler: self
+                    andSelector: sel!(handleEvent:withReplyEvent:)
+                    forEventClass: kInternetEventClass
+                    andEventID: kAEGetURL
+                ];
+            }
+        }
+
+        #[method(handleEvent:withReplyEvent:)]
+        fn handle_url(&self, event: &AnyObject, _reply: u64) {
+            if let Some(string) = parse_url(event) {
+                self.with_handler(|app, event_loop| {
+                    app.received_url(event_loop, string);
+                });
+            }
         }
     }
 );
@@ -427,4 +465,24 @@ fn window_activation_hack(app: &NSApplication) {
             tracing::trace!("Skipping activating invisible window");
         }
     })
+}
+
+/// Convert a URL received as a kInternetEventClass into a Rust `String`
+fn parse_url(event: &AnyObject) -> Option<String> {
+    unsafe {
+        let class: u32 = msg_send![event, eventClass];
+        let id: u32 = msg_send![event, eventID];
+        if class != kInternetEventClass || id != kAEGetURL {
+            return None;
+        }
+        let subevent: *const AnyObject =
+            msg_send![event, paramDescriptorForKeyword: keyDirectObject];
+        let nsstring: *const AnyObject = msg_send![subevent, stringValue];
+        let cstr: *const i8 = msg_send![nsstring, UTF8String];
+        if !cstr.is_null() {
+            Some(std::ffi::CStr::from_ptr(cstr).to_string_lossy().into_owned())
+        } else {
+            None
+        }
+    }
 }
