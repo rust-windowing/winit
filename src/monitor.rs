@@ -8,10 +8,6 @@
 use crate::dpi::{PhysicalPosition, PhysicalSize};
 use crate::platform_impl;
 
-/// Deprecated! Use `VideoModeHandle` instead.
-#[deprecated = "Renamed to `VideoModeHandle`"]
-pub type VideoMode = VideoModeHandle;
-
 /// Describes a fullscreen video mode of a monitor.
 ///
 /// Can be acquired with [`MonitorHandle::video_modes`].
