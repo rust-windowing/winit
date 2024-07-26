@@ -54,6 +54,7 @@ changelog entry.
   `ActiveEventLoop::request_detailed_monitor_permission()`, access to all monitors and their
   information is available. This "detailed monitors" can be used in `Window::set_fullscreen()` as
   well.
+- On Android, add `{Active,}EventLoopExtAndroid::android_app()` to access the app used to create the loop.
 
 ### Changed
 
