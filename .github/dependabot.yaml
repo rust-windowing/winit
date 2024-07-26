@@ -1,0 +1,11 @@
+version: 2
+
+updates:
+  - package-ecosystem: npm
+    directory: src/platform_impl/web/script
+    schedule:
+        interval: daily
+    groups:
+        github-actions:
+            patterns:
+                - '*'
