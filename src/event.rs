@@ -39,6 +39,8 @@ use std::sync::{Mutex, Weak};
 #[cfg(not(web_platform))]
 use std::time::Instant;
 
+#[cfg(macos_platform)]
+use platform_impl::AppleStandardKeyBindingAction;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 use smol_str::SmolStr;
@@ -49,7 +51,7 @@ use crate::dpi::{PhysicalPosition, PhysicalSize};
 use crate::error::ExternalError;
 use crate::event_loop::AsyncRequestSerial;
 use crate::keyboard::{self, ModifiersKeyState, ModifiersKeys, ModifiersState};
-use crate::platform_impl::{self, AppleStandardKeyBindingAction};
+use crate::platform_impl;
 #[cfg(doc)]
 use crate::window::Window;
 use crate::window::{ActivationToken, Theme, WindowId};
