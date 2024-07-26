@@ -4,3 +4,5 @@
 7b0c7b6cb2c62767ca0c73c857b299883f55a883
 # Rustfmt: use `group_imports`
 2665c120981af548433645c6383b3580dd8f8fc4
+# Use Taplo for TOML formatting
+3398ebe467c43ccfd91916c5b81ff3c68f598556
