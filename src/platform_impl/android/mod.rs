@@ -1,6 +1,5 @@
 use std::any::Any;
 use std::cell::Cell;
-use std::collections::VecDeque;
 use std::hash::Hash;
 use std::num::{NonZeroU16, NonZeroU32};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -201,9 +200,8 @@ impl EventLoop {
                     app.window_event(&self.window_target, window_id, event);
                 },
                 MainEvent::ConfigChanged { .. } => {
-                    let monitor = MonitorHandle::new(self.android_app.clone());
-                    let old_scale_factor = monitor.scale_factor();
-                    let scale_factor = monitor.scale_factor();
+                    let old_scale_factor = scale_factor(&self.android_app);
+                    let scale_factor = scale_factor(&self.android_app);
                     if (scale_factor - old_scale_factor).abs() < f64::EPSILON {
                         let new_inner_size = Arc::new(Mutex::new(screen_size(&self.android_app)));
                         let window_id = window::WindowId(WindowId);
@@ -609,12 +607,11 @@ impl RootActiveEventLoop for ActiveEventLoop {
     }
 
     fn available_monitors(&self) -> Box<dyn Iterator<Item = RootMonitorHandle>> {
-        let handle = RootMonitorHandle { inner: MonitorHandle::new(self.app.clone()) };
-        Box::new(vec![handle].into_iter())
+        Box::new(std::iter::empty())
     }
 
     fn primary_monitor(&self) -> Option<RootMonitorHandle> {
-        Some(RootMonitorHandle { inner: MonitorHandle::new(self.app.clone()) })
+        None
     }
 
     fn system_theme(&self) -> Option<Theme> {
@@ -744,21 +741,19 @@ impl Window {
     }
 
     pub fn primary_monitor(&self) -> Option<MonitorHandle> {
-        Some(MonitorHandle::new(self.app.clone()))
+        None
     }
 
-    pub fn available_monitors(&self) -> VecDeque<MonitorHandle> {
-        let mut v = VecDeque::with_capacity(1);
-        v.push_back(MonitorHandle::new(self.app.clone()));
-        v
+    pub fn available_monitors(&self) -> Option<MonitorHandle> {
+        None
     }
 
     pub fn current_monitor(&self) -> Option<MonitorHandle> {
-        Some(MonitorHandle::new(self.app.clone()))
+        None
     }
 
     pub fn scale_factor(&self) -> f64 {
-        MonitorHandle::new(self.app.clone()).scale_factor()
+        scale_factor(&self.app)
     }
 
     pub fn request_redraw(&self) {
@@ -957,68 +952,49 @@ impl Display for OsError {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub struct MonitorHandle {
-    app: AndroidApp,
-}
-impl PartialOrd for MonitorHandle {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        Some(self.cmp(other))
-    }
-}
-impl Ord for MonitorHandle {
-    fn cmp(&self, _other: &Self) -> std::cmp::Ordering {
-        std::cmp::Ordering::Equal
-    }
-}
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct MonitorHandle;
 
 impl MonitorHandle {
-    pub(crate) fn new(app: AndroidApp) -> Self {
-        Self { app }
-    }
-
     pub fn name(&self) -> Option<String> {
-        Some("Android Device".to_owned())
+        unreachable!()
     }
 
     pub fn position(&self) -> Option<PhysicalPosition<i32>> {
-        None
+        unreachable!()
     }
 
     pub fn scale_factor(&self) -> f64 {
-        self.app.config().density().map(|dpi| dpi as f64 / 160.0).unwrap_or(1.0)
+        unreachable!()
     }
 
     pub fn current_video_mode(&self) -> Option<VideoModeHandle> {
-        Some(VideoModeHandle { size: screen_size(&self.app), monitor: self.clone() })
+        unreachable!()
     }
 
-    pub fn video_modes(&self) -> impl Iterator<Item = VideoModeHandle> {
-        self.current_video_mode().into_iter()
+    pub fn video_modes(&self) -> std::iter::Empty<VideoModeHandle> {
+        unreachable!()
     }
 }
 
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
-pub struct VideoModeHandle {
-    size: PhysicalSize<u32>,
-    monitor: MonitorHandle,
-}
+pub struct VideoModeHandle;
 
 impl VideoModeHandle {
     pub fn size(&self) -> PhysicalSize<u32> {
-        self.size
+        unreachable!()
     }
 
     pub fn bit_depth(&self) -> Option<NonZeroU16> {
-        None
+        unreachable!()
     }
 
     pub fn refresh_rate_millihertz(&self) -> Option<NonZeroU32> {
-        None
+        unreachable!()
     }
 
     pub fn monitor(&self) -> MonitorHandle {
-        self.monitor.clone()
+        unreachable!()
     }
 }
 
@@ -1028,4 +1004,8 @@ fn screen_size(app: &AndroidApp) -> PhysicalSize<u32> {
     } else {
         PhysicalSize::new(0, 0)
     }
+}
+
+fn scale_factor(app: &AndroidApp) -> f64 {
+    app.config().density().map(|dpi| dpi as f64 / 160.0).unwrap_or(1.0)
 }
