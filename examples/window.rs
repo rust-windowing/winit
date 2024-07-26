@@ -129,7 +129,7 @@ impl Application {
 
     fn create_window(
         &mut self,
-        event_loop: &ActiveEventLoop,
+        event_loop: &dyn ActiveEventLoop,
         _tab_id: Option<String>,
     ) -> Result<WindowId, Box<dyn Error>> {
         // TODO read-out activation token.
@@ -175,7 +175,7 @@ impl Application {
         Ok(window_id)
     }
 
-    fn handle_action_from_proxy(&mut self, _event_loop: &ActiveEventLoop, action: Action) {
+    fn handle_action_from_proxy(&mut self, _event_loop: &dyn ActiveEventLoop, action: Action) {
         match action {
             #[cfg(web_platform)]
             Action::DumpMonitors => self.dump_monitors(_event_loop),
@@ -188,7 +188,7 @@ impl Application {
 
     fn handle_action_with_window(
         &mut self,
-        event_loop: &ActiveEventLoop,
+        event_loop: &dyn ActiveEventLoop,
         window_id: WindowId,
         action: Action,
     ) {
@@ -286,7 +286,7 @@ impl Application {
         }
     }
 
-    fn dump_monitors(&self, event_loop: &ActiveEventLoop) {
+    fn dump_monitors(&self, event_loop: &dyn ActiveEventLoop) {
         info!("Monitors information");
         let primary_monitor = event_loop.primary_monitor();
         for monitor in event_loop.available_monitors() {
@@ -366,7 +366,7 @@ impl Application {
 }
 
 impl ApplicationHandler for Application {
-    fn proxy_wake_up(&mut self, event_loop: &ActiveEventLoop) {
+    fn proxy_wake_up(&mut self, event_loop: &dyn ActiveEventLoop) {
         while let Ok(action) = self.receiver.try_recv() {
             self.handle_action_from_proxy(event_loop, action)
         }
@@ -374,7 +374,7 @@ impl ApplicationHandler for Application {
 
     fn window_event(
         &mut self,
-        event_loop: &ActiveEventLoop,
+        event_loop: &dyn ActiveEventLoop,
         window_id: WindowId,
         event: WindowEvent,
     ) {
@@ -516,14 +516,14 @@ impl ApplicationHandler for Application {
 
     fn device_event(
         &mut self,
-        _event_loop: &ActiveEventLoop,
+        _event_loop: &dyn ActiveEventLoop,
         device_id: DeviceId,
         event: DeviceEvent,
     ) {
         info!("Device {device_id:?} event: {event:?}");
     }
 
-    fn can_create_surfaces(&mut self, event_loop: &ActiveEventLoop) {
+    fn can_create_surfaces(&mut self, event_loop: &dyn ActiveEventLoop) {
         info!("Ready to create surfaces");
         self.dump_monitors(event_loop);
 
@@ -533,7 +533,7 @@ impl ApplicationHandler for Application {
         self.print_help();
     }
 
-    fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
+    fn about_to_wait(&mut self, event_loop: &dyn ActiveEventLoop) {
         if self.windows.is_empty() {
             info!("No windows left, exiting...");
             event_loop.exit();
@@ -541,7 +541,7 @@ impl ApplicationHandler for Application {
     }
 
     #[cfg(not(any(android_platform, ios_platform)))]
-    fn exiting(&mut self, _event_loop: &ActiveEventLoop) {
+    fn exiting(&mut self, _event_loop: &dyn ActiveEventLoop) {
         // We must drop the context here.
         self.context = None;
     }
@@ -755,7 +755,10 @@ impl WindowState {
 
     /// Custom cursor from an URL.
     #[cfg(web_platform)]
-    fn url_custom_cursor(&mut self, event_loop: &ActiveEventLoop) -> Result<(), Box<dyn Error>> {
+    fn url_custom_cursor(
+        &mut self,
+        event_loop: &dyn ActiveEventLoop,
+    ) -> Result<(), Box<dyn Error>> {
         let cursor = event_loop.create_custom_cursor(url_custom_cursor())?;
 
         self.window.set_cursor(cursor);
@@ -767,7 +770,7 @@ impl WindowState {
     #[cfg(web_platform)]
     fn animation_custom_cursor(
         &mut self,
-        event_loop: &ActiveEventLoop,
+        event_loop: &dyn ActiveEventLoop,
         custom_cursors: &[CustomCursor],
     ) -> Result<(), Box<dyn Error>> {
         use std::time::Duration;

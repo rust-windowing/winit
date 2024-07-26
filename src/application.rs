@@ -12,7 +12,7 @@ pub trait ApplicationHandler {
     /// events, such as updating frame timing information for benchmarking or checking the
     /// [`StartCause`] to see if a timer set by
     /// [`ControlFlow::WaitUntil`][crate::event_loop::ControlFlow::WaitUntil] has elapsed.
-    fn new_events(&mut self, event_loop: &ActiveEventLoop, cause: StartCause) {
+    fn new_events(&mut self, event_loop: &dyn ActiveEventLoop, cause: StartCause) {
         let _ = (event_loop, cause);
     }
 
@@ -46,7 +46,7 @@ pub trait ApplicationHandler {
     /// **Android / macOS / Orbital / Wayland / Windows / X11:** Unsupported.
     ///
     /// [`resumed()`]: Self::resumed
-    fn resumed(&mut self, event_loop: &ActiveEventLoop) {
+    fn resumed(&mut self, event_loop: &dyn ActiveEventLoop) {
         let _ = event_loop;
     }
 
@@ -91,7 +91,7 @@ pub trait ApplicationHandler {
     ///
     /// [`can_create_surfaces()`]: Self::can_create_surfaces
     /// [`destroy_surfaces()`]: Self::destroy_surfaces
-    fn can_create_surfaces(&mut self, event_loop: &ActiveEventLoop);
+    fn can_create_surfaces(&mut self, event_loop: &dyn ActiveEventLoop);
 
     /// Called after a wake up is requested using [`EventLoopProxy::wake_up()`].
     ///
@@ -126,15 +126,15 @@ pub trait ApplicationHandler {
     /// impl ApplicationHandler for MyApp {
     ///     # fn window_event(
     ///     #     &mut self,
-    ///     #     _event_loop: &ActiveEventLoop,
+    ///     #     _event_loop: &dyn ActiveEventLoop,
     ///     #     _window_id: winit::window::WindowId,
     ///     #     _event: winit::event::WindowEvent,
     ///     # ) {
     ///     # }
     ///     #
-    ///     # fn can_create_surfaces(&mut self, _event_loop: &ActiveEventLoop) {}
+    ///     # fn can_create_surfaces(&mut self, _event_loop: &dyn ActiveEventLoop) {}
     ///     #
-    ///     fn proxy_wake_up(&mut self, _event_loop: &ActiveEventLoop) {
+    ///     fn proxy_wake_up(&mut self, _event_loop: &dyn ActiveEventLoop) {
     ///         // Iterate current events, since wake-ups may have been merged.
     ///         //
     ///         // Note: We take care not to use `recv` or `iter` here, as those are blocking,
@@ -180,14 +180,14 @@ pub trait ApplicationHandler {
     ///     Ok(())
     /// }
     /// ```
-    fn proxy_wake_up(&mut self, event_loop: &ActiveEventLoop) {
+    fn proxy_wake_up(&mut self, event_loop: &dyn ActiveEventLoop) {
         let _ = event_loop;
     }
 
     /// Emitted when the OS sends an event to a winit window.
     fn window_event(
         &mut self,
-        event_loop: &ActiveEventLoop,
+        event_loop: &dyn ActiveEventLoop,
         window_id: WindowId,
         event: WindowEvent,
     );
@@ -195,7 +195,7 @@ pub trait ApplicationHandler {
     /// Emitted when the OS sends an event to a device.
     fn device_event(
         &mut self,
-        event_loop: &ActiveEventLoop,
+        event_loop: &dyn ActiveEventLoop,
         device_id: DeviceId,
         event: DeviceEvent,
     ) {
@@ -213,7 +213,7 @@ pub trait ApplicationHandler {
     ///
     /// This is not an ideal event to drive application rendering from and instead applications
     /// should render in response to [`WindowEvent::RedrawRequested`] events.
-    fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
+    fn about_to_wait(&mut self, event_loop: &dyn ActiveEventLoop) {
         let _ = event_loop;
     }
 
@@ -247,7 +247,7 @@ pub trait ApplicationHandler {
     /// **Android / macOS / Orbital / Wayland / Windows / X11:** Unsupported.
     ///
     /// [`suspended()`]: Self::suspended
-    fn suspended(&mut self, event_loop: &ActiveEventLoop) {
+    fn suspended(&mut self, event_loop: &dyn ActiveEventLoop) {
         let _ = event_loop;
     }
 
@@ -286,7 +286,7 @@ pub trait ApplicationHandler {
     ///
     /// [`can_create_surfaces()`]: Self::can_create_surfaces
     /// [`destroy_surfaces()`]: Self::destroy_surfaces
-    fn destroy_surfaces(&mut self, event_loop: &ActiveEventLoop) {
+    fn destroy_surfaces(&mut self, event_loop: &dyn ActiveEventLoop) {
         let _ = event_loop;
     }
 
@@ -294,7 +294,7 @@ pub trait ApplicationHandler {
     ///
     /// This is irreversible - if this method is called, it is guaranteed that the event loop
     /// will exit right after.
-    fn exiting(&mut self, event_loop: &ActiveEventLoop) {
+    fn exiting(&mut self, event_loop: &dyn ActiveEventLoop) {
         let _ = event_loop;
     }
 
@@ -322,7 +322,7 @@ pub trait ApplicationHandler {
     /// ### Others
     ///
     /// - **macOS / Orbital / Wayland / Web / Windows:** Unsupported.
-    fn memory_warning(&mut self, event_loop: &ActiveEventLoop) {
+    fn memory_warning(&mut self, event_loop: &dyn ActiveEventLoop) {
         let _ = event_loop;
     }
 }
@@ -330,29 +330,29 @@ pub trait ApplicationHandler {
 #[deny(clippy::missing_trait_methods)]
 impl<A: ?Sized + ApplicationHandler> ApplicationHandler for &mut A {
     #[inline]
-    fn new_events(&mut self, event_loop: &ActiveEventLoop, cause: StartCause) {
+    fn new_events(&mut self, event_loop: &dyn ActiveEventLoop, cause: StartCause) {
         (**self).new_events(event_loop, cause);
     }
 
     #[inline]
-    fn resumed(&mut self, event_loop: &ActiveEventLoop) {
+    fn resumed(&mut self, event_loop: &dyn ActiveEventLoop) {
         (**self).resumed(event_loop);
     }
 
     #[inline]
-    fn can_create_surfaces(&mut self, event_loop: &ActiveEventLoop) {
+    fn can_create_surfaces(&mut self, event_loop: &dyn ActiveEventLoop) {
         (**self).can_create_surfaces(event_loop);
     }
 
     #[inline]
-    fn proxy_wake_up(&mut self, event_loop: &ActiveEventLoop) {
+    fn proxy_wake_up(&mut self, event_loop: &dyn ActiveEventLoop) {
         (**self).proxy_wake_up(event_loop);
     }
 
     #[inline]
     fn window_event(
         &mut self,
-        event_loop: &ActiveEventLoop,
+        event_loop: &dyn ActiveEventLoop,
         window_id: WindowId,
         event: WindowEvent,
     ) {
@@ -362,7 +362,7 @@ impl<A: ?Sized + ApplicationHandler> ApplicationHandler for &mut A {
     #[inline]
     fn device_event(
         &mut self,
-        event_loop: &ActiveEventLoop,
+        event_loop: &dyn ActiveEventLoop,
         device_id: DeviceId,
         event: DeviceEvent,
     ) {
@@ -370,27 +370,27 @@ impl<A: ?Sized + ApplicationHandler> ApplicationHandler for &mut A {
     }
 
     #[inline]
-    fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
+    fn about_to_wait(&mut self, event_loop: &dyn ActiveEventLoop) {
         (**self).about_to_wait(event_loop);
     }
 
     #[inline]
-    fn suspended(&mut self, event_loop: &ActiveEventLoop) {
+    fn suspended(&mut self, event_loop: &dyn ActiveEventLoop) {
         (**self).suspended(event_loop);
     }
 
     #[inline]
-    fn destroy_surfaces(&mut self, event_loop: &ActiveEventLoop) {
+    fn destroy_surfaces(&mut self, event_loop: &dyn ActiveEventLoop) {
         (**self).destroy_surfaces(event_loop);
     }
 
     #[inline]
-    fn exiting(&mut self, event_loop: &ActiveEventLoop) {
+    fn exiting(&mut self, event_loop: &dyn ActiveEventLoop) {
         (**self).exiting(event_loop);
     }
 
     #[inline]
-    fn memory_warning(&mut self, event_loop: &ActiveEventLoop) {
+    fn memory_warning(&mut self, event_loop: &dyn ActiveEventLoop) {
         (**self).memory_warning(event_loop);
     }
 }
@@ -398,29 +398,29 @@ impl<A: ?Sized + ApplicationHandler> ApplicationHandler for &mut A {
 #[deny(clippy::missing_trait_methods)]
 impl<A: ?Sized + ApplicationHandler> ApplicationHandler for Box<A> {
     #[inline]
-    fn new_events(&mut self, event_loop: &ActiveEventLoop, cause: StartCause) {
+    fn new_events(&mut self, event_loop: &dyn ActiveEventLoop, cause: StartCause) {
         (**self).new_events(event_loop, cause);
     }
 
     #[inline]
-    fn resumed(&mut self, event_loop: &ActiveEventLoop) {
+    fn resumed(&mut self, event_loop: &dyn ActiveEventLoop) {
         (**self).resumed(event_loop);
     }
 
     #[inline]
-    fn can_create_surfaces(&mut self, event_loop: &ActiveEventLoop) {
+    fn can_create_surfaces(&mut self, event_loop: &dyn ActiveEventLoop) {
         (**self).can_create_surfaces(event_loop);
     }
 
     #[inline]
-    fn proxy_wake_up(&mut self, event_loop: &ActiveEventLoop) {
+    fn proxy_wake_up(&mut self, event_loop: &dyn ActiveEventLoop) {
         (**self).proxy_wake_up(event_loop);
     }
 
     #[inline]
     fn window_event(
         &mut self,
-        event_loop: &ActiveEventLoop,
+        event_loop: &dyn ActiveEventLoop,
         window_id: WindowId,
         event: WindowEvent,
     ) {
@@ -430,7 +430,7 @@ impl<A: ?Sized + ApplicationHandler> ApplicationHandler for Box<A> {
     #[inline]
     fn device_event(
         &mut self,
-        event_loop: &ActiveEventLoop,
+        event_loop: &dyn ActiveEventLoop,
         device_id: DeviceId,
         event: DeviceEvent,
     ) {
@@ -438,27 +438,27 @@ impl<A: ?Sized + ApplicationHandler> ApplicationHandler for Box<A> {
     }
 
     #[inline]
-    fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
+    fn about_to_wait(&mut self, event_loop: &dyn ActiveEventLoop) {
         (**self).about_to_wait(event_loop);
     }
 
     #[inline]
-    fn suspended(&mut self, event_loop: &ActiveEventLoop) {
+    fn suspended(&mut self, event_loop: &dyn ActiveEventLoop) {
         (**self).suspended(event_loop);
     }
 
     #[inline]
-    fn destroy_surfaces(&mut self, event_loop: &ActiveEventLoop) {
+    fn destroy_surfaces(&mut self, event_loop: &dyn ActiveEventLoop) {
         (**self).destroy_surfaces(event_loop);
     }
 
     #[inline]
-    fn exiting(&mut self, event_loop: &ActiveEventLoop) {
+    fn exiting(&mut self, event_loop: &dyn ActiveEventLoop) {
         (**self).exiting(event_loop);
     }
 
     #[inline]
-    fn memory_warning(&mut self, event_loop: &ActiveEventLoop) {
+    fn memory_warning(&mut self, event_loop: &dyn ActiveEventLoop) {
         (**self).memory_warning(event_loop);
     }
 }

@@ -1,7 +1,5 @@
 use std::any::Any;
 use std::cell::Cell;
-use std::collections::VecDeque;
-use std::marker::PhantomData;
 use std::os::raw::c_void;
 use std::panic::{catch_unwind, resume_unwind, RefUnwindSafe, UnwindSafe};
 use std::ptr;
@@ -25,14 +23,21 @@ use super::app::WinitApplication;
 use super::app_state::ApplicationDelegate;
 use super::cursor::CustomCursor;
 use super::event::dummy_event;
-use super::monitor::{self, MonitorHandle};
+use super::monitor;
 use super::observer::setup_control_flow_observers;
 use crate::application::ApplicationHandler;
 use crate::error::{EventLoopError, ExternalError};
-use crate::event_loop::{ActiveEventLoop as RootWindowTarget, ControlFlow, DeviceEvents};
+use crate::event_loop::{
+    ActiveEventLoop as RootActiveEventLoop, ControlFlow, DeviceEvents,
+    EventLoopProxy as RootEventLoopProxy, OwnedDisplayHandle as RootOwnedDisplayHandle,
+};
+use crate::monitor::MonitorHandle as RootMonitorHandle;
 use crate::platform::macos::ActivationPolicy;
 use crate::platform::pump_events::PumpStatus;
-use crate::window::{CustomCursor as RootCustomCursor, CustomCursorSource, Theme};
+use crate::platform_impl::Window;
+use crate::window::{
+    CustomCursor as RootCustomCursor, CustomCursorSource, Theme, Window as RootWindow,
+};
 
 #[derive(Default)]
 pub struct PanicInfo {
@@ -66,83 +71,13 @@ impl PanicInfo {
 
 #[derive(Debug)]
 pub struct ActiveEventLoop {
-    delegate: Retained<ApplicationDelegate>,
+    pub(super) delegate: Retained<ApplicationDelegate>,
     pub(super) mtm: MainThreadMarker,
 }
 
 impl ActiveEventLoop {
-    pub fn create_proxy(&self) -> EventLoopProxy {
-        EventLoopProxy::new(self.delegate.proxy_wake_up())
-    }
-
-    pub(super) fn new_root(delegate: Retained<ApplicationDelegate>) -> RootWindowTarget {
-        let mtm = MainThreadMarker::from(&*delegate);
-        let p = Self { delegate, mtm };
-        RootWindowTarget { p, _marker: PhantomData }
-    }
-
     pub(super) fn app_delegate(&self) -> &ApplicationDelegate {
         &self.delegate
-    }
-
-    pub fn create_custom_cursor(
-        &self,
-        source: CustomCursorSource,
-    ) -> Result<RootCustomCursor, ExternalError> {
-        Ok(RootCustomCursor { inner: CustomCursor::new(source.inner)? })
-    }
-
-    #[inline]
-    pub fn available_monitors(&self) -> VecDeque<MonitorHandle> {
-        monitor::available_monitors()
-    }
-
-    #[inline]
-    pub fn primary_monitor(&self) -> Option<MonitorHandle> {
-        let monitor = monitor::primary_monitor();
-        Some(monitor)
-    }
-
-    #[inline]
-    pub fn listen_device_events(&self, _allowed: DeviceEvents) {}
-
-    #[inline]
-    pub fn system_theme(&self) -> Option<Theme> {
-        let app = NSApplication::sharedApplication(self.mtm);
-
-        if app.respondsToSelector(sel!(effectiveAppearance)) {
-            Some(super::window_delegate::appearance_to_theme(&app.effectiveAppearance()))
-        } else {
-            Some(Theme::Light)
-        }
-    }
-
-    #[cfg(feature = "rwh_06")]
-    #[inline]
-    pub fn raw_display_handle_rwh_06(
-        &self,
-    ) -> Result<rwh_06::RawDisplayHandle, rwh_06::HandleError> {
-        Ok(rwh_06::RawDisplayHandle::AppKit(rwh_06::AppKitDisplayHandle::new()))
-    }
-
-    pub(crate) fn set_control_flow(&self, control_flow: ControlFlow) {
-        self.delegate.set_control_flow(control_flow)
-    }
-
-    pub(crate) fn control_flow(&self) -> ControlFlow {
-        self.delegate.control_flow()
-    }
-
-    pub(crate) fn exit(&self) {
-        self.delegate.exit()
-    }
-
-    pub(crate) fn exiting(&self) -> bool {
-        self.delegate.exiting()
-    }
-
-    pub(crate) fn owned_display_handle(&self) -> OwnedDisplayHandle {
-        OwnedDisplayHandle
     }
 
     pub(crate) fn hide_application(&self) {
@@ -162,6 +97,86 @@ impl ActiveEventLoop {
     }
 }
 
+impl RootActiveEventLoop for ActiveEventLoop {
+    fn create_proxy(&self) -> RootEventLoopProxy {
+        let event_loop_proxy = EventLoopProxy::new(self.delegate.proxy_wake_up());
+        RootEventLoopProxy { event_loop_proxy }
+    }
+
+    fn create_window(
+        &self,
+        window_attributes: crate::window::WindowAttributes,
+    ) -> Result<crate::window::Window, crate::error::OsError> {
+        let window = Window::new(self, window_attributes)?;
+        Ok(RootWindow { window })
+    }
+
+    fn create_custom_cursor(
+        &self,
+        source: CustomCursorSource,
+    ) -> Result<RootCustomCursor, ExternalError> {
+        Ok(RootCustomCursor { inner: CustomCursor::new(source.inner)? })
+    }
+
+    fn available_monitors(&self) -> Box<dyn Iterator<Item = RootMonitorHandle>> {
+        Box::new(monitor::available_monitors().into_iter().map(|inner| RootMonitorHandle { inner }))
+    }
+
+    fn primary_monitor(&self) -> Option<crate::monitor::MonitorHandle> {
+        let monitor = monitor::primary_monitor();
+        Some(RootMonitorHandle { inner: monitor })
+    }
+
+    fn listen_device_events(&self, _allowed: DeviceEvents) {}
+
+    fn system_theme(&self) -> Option<Theme> {
+        let app = NSApplication::sharedApplication(self.mtm);
+
+        if app.respondsToSelector(sel!(effectiveAppearance)) {
+            Some(super::window_delegate::appearance_to_theme(&app.effectiveAppearance()))
+        } else {
+            Some(Theme::Light)
+        }
+    }
+
+    fn set_control_flow(&self, control_flow: ControlFlow) {
+        self.delegate.set_control_flow(control_flow)
+    }
+
+    fn control_flow(&self) -> ControlFlow {
+        self.delegate.control_flow()
+    }
+
+    fn exit(&self) {
+        self.delegate.exit()
+    }
+
+    fn exiting(&self) -> bool {
+        self.delegate.exiting()
+    }
+
+    fn owned_display_handle(&self) -> RootOwnedDisplayHandle {
+        RootOwnedDisplayHandle { platform: OwnedDisplayHandle }
+    }
+
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    #[cfg(feature = "rwh_06")]
+    fn rwh_06_handle(&self) -> &dyn rwh_06::HasDisplayHandle {
+        self
+    }
+}
+
+#[cfg(feature = "rwh_06")]
+impl rwh_06::HasDisplayHandle for ActiveEventLoop {
+    fn display_handle(&self) -> Result<rwh_06::DisplayHandle<'_>, rwh_06::HandleError> {
+        let raw = rwh_06::RawDisplayHandle::AppKit(rwh_06::AppKitDisplayHandle::new());
+        unsafe { Ok(rwh_06::DisplayHandle::borrow_raw(raw)) }
+    }
+}
+
 pub struct EventLoop {
     /// Store a reference to the application for convenience.
     ///
@@ -174,7 +189,7 @@ pub struct EventLoop {
     /// keep it around here as well.
     delegate: Retained<ApplicationDelegate>,
 
-    window_target: RootWindowTarget,
+    window_target: ActiveEventLoop,
     panic_info: Rc<PanicInfo>,
 }
 
@@ -235,15 +250,12 @@ impl EventLoop {
         Ok(EventLoop {
             app,
             delegate: delegate.clone(),
-            window_target: RootWindowTarget {
-                p: ActiveEventLoop { delegate, mtm },
-                _marker: PhantomData,
-            },
+            window_target: ActiveEventLoop { delegate, mtm },
             panic_info,
         })
     }
 
-    pub fn window_target(&self) -> &RootWindowTarget {
+    pub fn window_target(&self) -> &dyn RootActiveEventLoop {
         &self.window_target
     }
 

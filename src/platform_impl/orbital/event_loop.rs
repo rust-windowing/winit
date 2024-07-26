@@ -1,6 +1,6 @@
+use std::any::Any;
 use std::cell::Cell;
 use std::collections::VecDeque;
-use std::marker::PhantomData;
 use std::sync::{mpsc, Arc, Mutex};
 use std::time::Instant;
 use std::{mem, slice};
@@ -19,7 +19,7 @@ use super::{
 use crate::application::ApplicationHandler;
 use crate::error::{EventLoopError, ExternalError, NotSupportedError};
 use crate::event::{self, Ime, Modifiers, StartCause};
-use crate::event_loop::{self, ControlFlow, DeviceEvents};
+use crate::event_loop::{self, ActiveEventLoop as RootActiveEventLoop, ControlFlow, DeviceEvents};
 use crate::keyboard::{
     Key, KeyCode, KeyLocation, ModifiersKeys, ModifiersState, NamedKey, NativeKey, NativeKeyCode,
     PhysicalKey,
@@ -273,7 +273,7 @@ impl EventState {
 
 pub struct EventLoop {
     windows: Vec<(Arc<RedoxSocket>, EventState)>,
-    window_target: event_loop::ActiveEventLoop,
+    window_target: ActiveEventLoop,
     user_events_receiver: mpsc::Receiver<()>,
 }
 
@@ -306,18 +306,15 @@ impl EventLoop {
 
         Ok(Self {
             windows: Vec::new(),
-            window_target: event_loop::ActiveEventLoop {
-                p: ActiveEventLoop {
-                    control_flow: Cell::new(ControlFlow::default()),
-                    exit: Cell::new(false),
-                    creates: Mutex::new(VecDeque::new()),
-                    redraws: Arc::new(Mutex::new(VecDeque::new())),
-                    destroys: Arc::new(Mutex::new(VecDeque::new())),
-                    event_socket,
-                    wake_socket,
-                    user_events_sender,
-                },
-                _marker: PhantomData,
+            window_target: ActiveEventLoop {
+                control_flow: Cell::new(ControlFlow::default()),
+                exit: Cell::new(false),
+                creates: Mutex::new(VecDeque::new()),
+                redraws: Arc::new(Mutex::new(VecDeque::new())),
+                destroys: Arc::new(Mutex::new(VecDeque::new())),
+                event_socket,
+                wake_socket,
+                user_events_sender,
             },
             user_events_receiver,
         })
@@ -327,7 +324,7 @@ impl EventLoop {
         window_id: WindowId,
         event_option: EventOption,
         event_state: &mut EventState,
-        window_target: &event_loop::ActiveEventLoop,
+        window_target: &ActiveEventLoop,
         app: &mut A,
     ) {
         match event_option {
@@ -511,7 +508,7 @@ impl EventLoop {
 
             // Handle window creates.
             while let Some(window) = {
-                let mut creates = self.window_target.p.creates.lock().unwrap();
+                let mut creates = self.window_target.creates.lock().unwrap();
                 creates.pop_front()
             } {
                 let window_id = WindowId { fd: window.fd as u64 };
@@ -535,7 +532,7 @@ impl EventLoop {
 
             // Handle window destroys.
             while let Some(destroy_id) = {
-                let mut destroys = self.window_target.p.destroys.lock().unwrap();
+                let mut destroys = self.window_target.destroys.lock().unwrap();
                 destroys.pop_front()
             } {
                 let window_id = RootWindowId(destroy_id);
@@ -584,7 +581,7 @@ impl EventLoop {
                         .expect("failed to acknowledge resize");
 
                     // Require redraw after resize.
-                    let mut redraws = self.window_target.p.redraws.lock().unwrap();
+                    let mut redraws = self.window_target.redraws.lock().unwrap();
                     if !redraws.contains(&window_id) {
                         redraws.push_back(window_id);
                     }
@@ -600,7 +597,7 @@ impl EventLoop {
 
             // To avoid deadlocks the redraws lock is not held during event processing.
             while let Some(window_id) = {
-                let mut redraws = self.window_target.p.redraws.lock().unwrap();
+                let mut redraws = self.window_target.redraws.lock().unwrap();
                 redraws.pop_front()
             } {
                 app.window_event(
@@ -612,11 +609,11 @@ impl EventLoop {
 
             app.about_to_wait(&self.window_target);
 
-            if self.window_target.p.exiting() {
+            if self.window_target.exiting() {
                 break;
             }
 
-            let requested_resume = match self.window_target.p.control_flow() {
+            let requested_resume = match self.window_target.control_flow() {
                 ControlFlow::Poll => {
                     start_cause = StartCause::Poll;
                     continue;
@@ -630,7 +627,6 @@ impl EventLoop {
             let timeout_socket = TimeSocket::open().unwrap();
 
             self.window_target
-                .p
                 .event_socket
                 .write(&syscall::Event {
                     id: timeout_socket.0.fd,
@@ -658,7 +654,7 @@ impl EventLoop {
 
             // Wait for event if needed.
             let mut event = syscall::Event::default();
-            self.window_target.p.event_socket.read(&mut event).unwrap();
+            self.window_target.event_socket.read(&mut event).unwrap();
 
             // TODO: handle spurious wakeups (redraw caused wakeup but redraw already handled)
             match requested_resume {
@@ -679,7 +675,7 @@ impl EventLoop {
         Ok(())
     }
 
-    pub fn window_target(&self) -> &event_loop::ActiveEventLoop {
+    pub fn window_target(&self) -> &dyn RootActiveEventLoop {
         &self.window_target
     }
 }
@@ -721,65 +717,82 @@ pub struct ActiveEventLoop {
     user_events_sender: mpsc::SyncSender<()>,
 }
 
-impl ActiveEventLoop {
-    pub fn create_proxy(&self) -> EventLoopProxy {
-        EventLoopProxy {
-            user_events_sender: self.user_events_sender.clone(),
-            wake_socket: self.wake_socket.clone(),
+impl RootActiveEventLoop for ActiveEventLoop {
+    fn create_proxy(&self) -> event_loop::EventLoopProxy {
+        event_loop::EventLoopProxy {
+            event_loop_proxy: EventLoopProxy {
+                user_events_sender: self.user_events_sender.clone(),
+                wake_socket: self.wake_socket.clone(),
+            },
         }
     }
 
-    pub fn create_custom_cursor(
+    fn create_window(
         &self,
-        _source: CustomCursorSource,
+        window_attributes: crate::window::WindowAttributes,
+    ) -> Result<crate::window::Window, crate::error::OsError> {
+        let window = crate::platform_impl::Window::new(self, window_attributes)?;
+        Ok(crate::window::Window { window })
+    }
+
+    fn create_custom_cursor(
+        &self,
+        _: CustomCursorSource,
     ) -> Result<RootCustomCursor, ExternalError> {
         Err(ExternalError::NotSupported(NotSupportedError::new()))
     }
 
-    pub fn primary_monitor(&self) -> Option<MonitorHandle> {
-        Some(MonitorHandle)
-    }
-
-    pub fn available_monitors(&self) -> VecDeque<MonitorHandle> {
+    fn available_monitors(&self) -> Box<dyn Iterator<Item = crate::monitor::MonitorHandle>> {
         let mut v = VecDeque::with_capacity(1);
-        v.push_back(MonitorHandle);
-        v
+        v.push_back(crate::monitor::MonitorHandle { inner: MonitorHandle });
+        Box::new(v.into_iter())
     }
 
-    #[inline]
-    pub fn listen_device_events(&self, _allowed: DeviceEvents) {}
-
-    #[inline]
-    pub fn system_theme(&self) -> Option<Theme> {
+    fn system_theme(&self) -> Option<Theme> {
         None
     }
 
-    #[cfg(feature = "rwh_06")]
-    #[inline]
-    pub fn raw_display_handle_rwh_06(
-        &self,
-    ) -> Result<rwh_06::RawDisplayHandle, rwh_06::HandleError> {
-        Ok(rwh_06::RawDisplayHandle::Orbital(rwh_06::OrbitalDisplayHandle::new()))
+    fn primary_monitor(&self) -> Option<crate::monitor::MonitorHandle> {
+        Some(crate::monitor::MonitorHandle { inner: MonitorHandle })
     }
 
-    pub fn set_control_flow(&self, control_flow: ControlFlow) {
+    fn listen_device_events(&self, _allowed: DeviceEvents) {}
+
+    fn set_control_flow(&self, control_flow: ControlFlow) {
         self.control_flow.set(control_flow)
     }
 
-    pub fn control_flow(&self) -> ControlFlow {
+    fn control_flow(&self) -> ControlFlow {
         self.control_flow.get()
     }
 
-    pub(crate) fn exit(&self) {
+    fn exit(&self) {
         self.exit.set(true);
     }
 
-    pub(crate) fn exiting(&self) -> bool {
+    fn exiting(&self) -> bool {
         self.exit.get()
     }
 
-    pub(crate) fn owned_display_handle(&self) -> OwnedDisplayHandle {
-        OwnedDisplayHandle
+    fn owned_display_handle(&self) -> event_loop::OwnedDisplayHandle {
+        event_loop::OwnedDisplayHandle { platform: OwnedDisplayHandle }
+    }
+
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    #[cfg(feature = "rwh_06")]
+    fn rwh_06_handle(&self) -> &dyn rwh_06::HasDisplayHandle {
+        self
+    }
+}
+
+#[cfg(feature = "rwh_06")]
+impl rwh_06::HasDisplayHandle for ActiveEventLoop {
+    fn display_handle(&self) -> Result<rwh_06::DisplayHandle<'_>, rwh_06::HandleError> {
+        let raw = rwh_06::RawDisplayHandle::Orbital(rwh_06::OrbitalDisplayHandle::new());
+        unsafe { Ok(rwh_06::DisplayHandle::borrow_raw(raw)) }
     }
 }
 

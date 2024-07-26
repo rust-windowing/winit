@@ -109,9 +109,11 @@ impl WindowExtAndroid for Window {
     }
 }
 
-impl ActiveEventLoopExtAndroid for ActiveEventLoop {
+impl ActiveEventLoopExtAndroid for &dyn ActiveEventLoop {
     fn android_app(&self) -> &AndroidApp {
-        &self.p.app
+        let event_loop =
+            self.as_any().downcast_ref::<crate::platform_impl::ActiveEventLoop>().unwrap();
+        &event_loop.app
     }
 }
 
