@@ -17,6 +17,19 @@ jobs:
     - name: Check Formatting
       run: cargo fmt -- --check
 
+  taplo:
+    name: Taplo
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: taiki-e/checkout-action@v1
+      - name: Install Taplo
+        uses: taiki-e/install-action@v2
+        with:
+          tool: taplo-cli
+      - name: Run Taplo
+        run: taplo fmt --check
+
   typos:
     name: Check for typos
     runs-on: ubuntu-latest
