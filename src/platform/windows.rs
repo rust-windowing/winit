@@ -183,11 +183,11 @@ pub trait EventLoopBuilderExtWindows {
     /// Disable process-wide DPI awareness.
     ///
     /// ```
-    /// use winit::event_loop::EventLoopBuilder;
+    /// use winit::event_loop::EventLoop;
     /// #[cfg(target_os = "windows")]
     /// use winit::platform::windows::EventLoopBuilderExtWindows;
     ///
-    /// let mut builder = EventLoopBuilder::new();
+    /// let mut builder = EventLoop::builder();
     /// #[cfg(target_os = "windows")]
     /// builder.with_dpi_aware(false);
     /// # if false { // We can't test this part
@@ -203,11 +203,11 @@ pub trait EventLoopBuilderExtWindows {
     ///
     /// ```
     /// # use windows_sys::Win32::UI::WindowsAndMessaging::{ACCEL, CreateAcceleratorTableW, TranslateAcceleratorW, DispatchMessageW, TranslateMessage, MSG};
-    /// use winit::event_loop::EventLoopBuilder;
+    /// use winit::event_loop::EventLoop;
     /// #[cfg(target_os = "windows")]
     /// use winit::platform::windows::EventLoopBuilderExtWindows;
     ///
-    /// let mut builder = EventLoopBuilder::new();
+    /// let mut builder = EventLoop::builder();
     /// #[cfg(target_os = "windows")]
     /// builder.with_msg_hook(|msg|{
     ///     let msg = msg as *const MSG;

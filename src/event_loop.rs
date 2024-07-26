@@ -68,15 +68,6 @@ pub struct EventLoopBuilder {
 static EVENT_LOOP_CREATED: AtomicBool = AtomicBool::new(false);
 
 impl EventLoopBuilder {
-    /// Start building a new event loop.
-    #[inline]
-    #[deprecated = "use `EventLoop::builder` instead"]
-    pub fn new() -> Self {
-        EventLoop::builder()
-    }
-}
-
-impl EventLoopBuilder {
     /// Builds a new event loop.
     ///
     /// ***For cross-platform compatibility, the [`EventLoop`] must be created on the main thread,
@@ -276,24 +267,6 @@ impl EventLoop {
     /// Sets the [`ControlFlow`].
     pub fn set_control_flow(&self, control_flow: ControlFlow) {
         self.event_loop.window_target().p.set_control_flow(control_flow)
-    }
-
-    /// Create a window.
-    ///
-    /// Creating window without event loop running often leads to improper window creation;
-    /// use [`ActiveEventLoop::create_window`] instead.
-    #[deprecated = "use `ActiveEventLoop::create_window` instead"]
-    #[inline]
-    pub fn create_window(&self, window_attributes: WindowAttributes) -> Result<Window, OsError> {
-        let _span = tracing::debug_span!(
-            "winit::EventLoop::create_window",
-            window_attributes = ?window_attributes
-        )
-        .entered();
-
-        let window =
-            platform_impl::Window::new(&self.event_loop.window_target().p, window_attributes)?;
-        Ok(Window { window })
     }
 
     /// Create custom cursor.
