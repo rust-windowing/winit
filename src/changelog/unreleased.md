@@ -54,6 +54,7 @@ changelog entry.
   `ActiveEventLoop::request_detailed_monitor_permission()`, access to all monitors and their
   information is available. This "detailed monitors" can be used in `Window::set_fullscreen()` as
   well.
+- Add `WindowEvent::AppleStandardKeyBindingAction`. This can be used to implement standard behaviours such as "go to end of line" on macOS.
 
 ### Changed
 

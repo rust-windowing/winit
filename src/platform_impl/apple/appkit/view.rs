@@ -31,6 +31,7 @@ use crate::event::{
 };
 use crate::keyboard::{Key, KeyCode, KeyLocation, ModifiersState, NamedKey};
 use crate::platform::macos::OptionAsAlt;
+use crate::platform_impl::AppleStandardKeyBindingAction;
 use crate::window::WindowId as RootWindowId;
 
 #[derive(Debug)]
@@ -413,8 +414,13 @@ declare_class!(
         // Basically, we're sent this message whenever a keyboard event that doesn't generate a "human
         // readable" character happens, i.e. newlines, tabs, and Ctrl+C.
         #[method(doCommandBySelector:)]
-        fn do_command_by_selector(&self, _command: Sel) {
+        fn do_command_by_selector(&self, command: Sel) {
             trace_scope!("doCommandBySelector:");
+
+            // Send command action into event loop
+            let action = AppleStandardKeyBindingAction::from(command.name());
+            self.queue_event(WindowEvent::AppleStandardKeyBindingAction(action));
+
             // We shouldn't forward any character from just committed text, since we'll end up sending
             // it twice with some IMEs like Korean one. We'll also always send `Enter` in that case,
             // which is not desired given it was used to confirm IME input.
