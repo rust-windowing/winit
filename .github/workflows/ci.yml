@@ -243,9 +243,28 @@ jobs:
         log-level: error
         arguments: --all-features --target ${{ matrix.platform.target }}
 
+  eslint:
+    name: ESLint
+
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./src/platform_impl/web/script
+
+    steps:
+      - uses: taiki-e/checkout-action@v1
+      - name: Setup NPM
+        run: npm install
+      - name: Run ESLint
+        run: npx eslint
+
   swc:
     name: Minimize JavaScript
+
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./src/platform_impl/web/script
 
     steps:
       - uses: taiki-e/checkout-action@v1
@@ -253,7 +272,7 @@ jobs:
         run: sudo npm i -g @swc/cli
       - name: Run SWC
         run: |
-          swc src/platform_impl/web/web_sys/worker.js -o src/platform_impl/web/web_sys/worker.min.js
+          swc . --ignore node_modules,**/*.d.ts --only **/*.ts -d . --out-file-extension min.js
       - name: Check for diff
         run: |
           [[ -z $(git status -s) ]]
