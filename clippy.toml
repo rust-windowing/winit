@@ -13,4 +13,6 @@ disallowed-methods = [
     { path = "web_sys::Document::fullscreen_element", reason = "Doesn't account for compatibility with Safari" },
     { path = "objc2_app_kit::NSView::visibleRect", reason = "We expose a render target to the user, and visibility is not really relevant to that (and can break if you don't use the rectangle position as well). Use `frame` instead." },
     { path = "objc2_app_kit::NSWindow::setFrameTopLeftPoint", reason = "Not sufficient when working with Winit's coordinate system, use `flip_window_screen_coordinates` instead" },
+    { path = "core_foundation::runloop::kCFRunLoopCommonModes", reason = "Using the common modes includes the modal panel mode, which we usually want to avoid" },
+    { path = "objc2_foundation::NSRunLoopCommonModes", reason = "Using the common modes includes the modal panel mode, which we usually want to avoid" }
 ]

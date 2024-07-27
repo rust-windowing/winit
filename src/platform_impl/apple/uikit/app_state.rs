@@ -11,7 +11,7 @@ use std::{fmt, mem, ptr};
 use core_foundation::base::CFRelease;
 use core_foundation::date::CFAbsoluteTimeGetCurrent;
 use core_foundation::runloop::{
-    kCFRunLoopCommonModes, CFRunLoopAddTimer, CFRunLoopGetMain, CFRunLoopRef, CFRunLoopTimerCreate,
+    kCFRunLoopDefaultMode, CFRunLoopAddTimer, CFRunLoopGetMain, CFRunLoopRef, CFRunLoopTimerCreate,
     CFRunLoopTimerInvalidate, CFRunLoopTimerRef, CFRunLoopTimerSetNextFireDate,
 };
 use objc2::rc::Retained;
@@ -813,7 +813,7 @@ impl EventLoopWaker {
                 wakeup_main_loop,
                 ptr::null_mut(),
             );
-            CFRunLoopAddTimer(rl, timer, kCFRunLoopCommonModes);
+            CFRunLoopAddTimer(rl, timer, kCFRunLoopDefaultMode);
 
             EventLoopWaker { timer }
         }

@@ -7,8 +7,8 @@ use std::sync::Arc;
 
 use core_foundation::base::{CFIndex, CFRelease};
 use core_foundation::runloop::{
-    kCFRunLoopAfterWaiting, kCFRunLoopBeforeWaiting, kCFRunLoopCommonModes, kCFRunLoopDefaultMode,
-    kCFRunLoopExit, CFRunLoopActivity, CFRunLoopAddObserver, CFRunLoopAddSource, CFRunLoopGetMain,
+    kCFRunLoopAfterWaiting, kCFRunLoopBeforeWaiting, kCFRunLoopDefaultMode, kCFRunLoopExit,
+    CFRunLoopActivity, CFRunLoopAddObserver, CFRunLoopAddSource, CFRunLoopGetMain,
     CFRunLoopObserverCreate, CFRunLoopObserverRef, CFRunLoopSourceContext, CFRunLoopSourceCreate,
     CFRunLoopSourceInvalidate, CFRunLoopSourceRef, CFRunLoopSourceSignal, CFRunLoopWakeUp,
 };
@@ -261,7 +261,7 @@ impl EventLoopProxy {
                 perform: event_loop_proxy_handler,
             };
             let source = CFRunLoopSourceCreate(ptr::null_mut(), CFIndex::MAX - 1, &mut context);
-            CFRunLoopAddSource(rl, source, kCFRunLoopCommonModes);
+            CFRunLoopAddSource(rl, source, kCFRunLoopDefaultMode);
             CFRunLoopWakeUp(rl);
 
             EventLoopProxy { proxy_wake_up, source }
