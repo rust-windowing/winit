@@ -18,3 +18,5 @@ updates:
         github-actions:
             patterns:
                 - '*'
+    labels:
+        - "DS - web"
