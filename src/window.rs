@@ -1650,42 +1650,6 @@ impl rwh_06::HasDisplayHandle for Window {
     }
 }
 
-/// Wrapper to make objects `Send`.
-///
-/// # Safety
-///
-/// This is not safe! This is only used for `RawWindowHandle`, which only has unsafe getters.
-#[cfg(any(feature = "rwh_05", feature = "rwh_04"))]
-struct UnsafeSendWrapper<T>(T);
-
-#[cfg(any(feature = "rwh_05", feature = "rwh_04"))]
-unsafe impl<T> Send for UnsafeSendWrapper<T> {}
-
-#[cfg(feature = "rwh_05")]
-unsafe impl rwh_05::HasRawWindowHandle for Window {
-    fn raw_window_handle(&self) -> rwh_05::RawWindowHandle {
-        self.window.maybe_wait_on_main(|w| UnsafeSendWrapper(w.raw_window_handle_rwh_05())).0
-    }
-}
-
-#[cfg(feature = "rwh_05")]
-unsafe impl rwh_05::HasRawDisplayHandle for Window {
-    /// Returns a [`rwh_05::RawDisplayHandle`] used by the [`EventLoop`] that
-    /// created a window.
-    ///
-    /// [`EventLoop`]: crate::event_loop::EventLoop
-    fn raw_display_handle(&self) -> rwh_05::RawDisplayHandle {
-        self.window.maybe_wait_on_main(|w| UnsafeSendWrapper(w.raw_display_handle_rwh_05())).0
-    }
-}
-
-#[cfg(feature = "rwh_04")]
-unsafe impl rwh_04::HasRawWindowHandle for Window {
-    fn raw_window_handle(&self) -> rwh_04::RawWindowHandle {
-        self.window.maybe_wait_on_main(|w| UnsafeSendWrapper(w.raw_window_handle_rwh_04())).0
-    }
-}
-
 /// The behavior of cursor grabbing.
 ///
 /// Use this enum with [`Window::set_cursor_grab`] to grab the cursor.

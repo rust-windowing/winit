@@ -1854,34 +1854,6 @@ impl UnownedWindow {
         // TODO timer
     }
 
-    #[cfg(feature = "rwh_04")]
-    #[inline]
-    pub fn raw_window_handle_rwh_04(&self) -> rwh_04::RawWindowHandle {
-        let mut window_handle = rwh_04::XlibHandle::empty();
-        window_handle.display = self.xlib_display();
-        window_handle.window = self.xlib_window();
-        window_handle.visual_id = self.visual as c_ulong;
-        rwh_04::RawWindowHandle::Xlib(window_handle)
-    }
-
-    #[cfg(feature = "rwh_05")]
-    #[inline]
-    pub fn raw_window_handle_rwh_05(&self) -> rwh_05::RawWindowHandle {
-        let mut window_handle = rwh_05::XlibWindowHandle::empty();
-        window_handle.window = self.xlib_window();
-        window_handle.visual_id = self.visual as c_ulong;
-        window_handle.into()
-    }
-
-    #[cfg(feature = "rwh_05")]
-    #[inline]
-    pub fn raw_display_handle_rwh_05(&self) -> rwh_05::RawDisplayHandle {
-        let mut display_handle = rwh_05::XlibDisplayHandle::empty();
-        display_handle.display = self.xlib_display();
-        display_handle.screen = self.screen_id;
-        display_handle.into()
-    }
-
     #[cfg(feature = "rwh_06")]
     #[inline]
     pub fn raw_window_handle_rwh_06(&self) -> Result<rwh_06::RawWindowHandle, rwh_06::HandleError> {

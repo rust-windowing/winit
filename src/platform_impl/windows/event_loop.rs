@@ -506,11 +506,6 @@ impl ActiveEventLoop {
         Some(monitor)
     }
 
-    #[cfg(feature = "rwh_05")]
-    pub fn raw_display_handle_rwh_05(&self) -> rwh_05::RawDisplayHandle {
-        rwh_05::RawDisplayHandle::Windows(rwh_05::WindowsDisplayHandle::empty())
-    }
-
     #[cfg(feature = "rwh_06")]
     pub fn raw_display_handle_rwh_06(
         &self,
@@ -555,12 +550,6 @@ impl ActiveEventLoop {
 pub(crate) struct OwnedDisplayHandle;
 
 impl OwnedDisplayHandle {
-    #[cfg(feature = "rwh_05")]
-    #[inline]
-    pub fn raw_display_handle_rwh_05(&self) -> rwh_05::RawDisplayHandle {
-        rwh_05::WindowsDisplayHandle::empty().into()
-    }
-
     #[cfg(feature = "rwh_06")]
     #[inline]
     pub fn raw_display_handle_rwh_06(
