@@ -103,7 +103,7 @@ changelog entry.
   of `winit` using `objc2-ui-kit` and calling `UIDevice::currentDevice().userInterfaceIdiom()`.
 - On Web, remove unused `platform::web::CustomCursorError::Animation`.
 - Remove the `rwh_04` and `rwh_05` cargo feature and the corresponding `raw-window-handle` v0.4 and
-  v0.5 support.
+  v0.5 support. v0.6 remains in place and is enabled by default.
 
 ### Fixed
 

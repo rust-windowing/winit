@@ -440,9 +440,17 @@ pub trait WindowBorrowExtWindows: Borrow<Window> + Sized {
     /// It is the responsibility of the user to only pass the window handle into thread-safe
     /// Win32 APIs.
     ///
-    /// [`window_handle_any_thread`]: WindowExtWindows::window_handle_any_thread
     /// [`Window`]: crate::window::Window
-    /// [`HasWindowHandle`]: rwh_06::HasWindowHandle
+    #[cfg_attr(
+        feature = "rwh_06",
+        doc = "[`HasWindowHandle`]: rwh_06::HasWindowHandle",
+        doc = "[`window_handle_any_thread`]: WindowExtWindows::window_handle_any_thread"
+    )]
+    #[cfg_attr(
+        not(feature = "rwh_06"),
+        doc = "[`HasWindowHandle`]: #only-available-with-rwh_06",
+        doc = "[`window_handle_any_thread`]: #only-available-with-rwh_06"
+    )]
     unsafe fn any_thread(self) -> AnyThread<Self> {
         AnyThread(self)
     }

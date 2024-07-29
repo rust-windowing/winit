@@ -79,7 +79,6 @@ tracing = { version = "0.1.40", default-features = false }
 image = { version = "0.25.0", default-features = false, features = ["png"] }
 tracing = { version = "0.1.40", default-features = false, features = ["log"] }
 tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
-winit = { path = "." }
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dev-dependencies]
 softbuffer = { version = "0.4.0", default-features = false, features = [
@@ -327,6 +326,11 @@ wasm-bindgen-test = "0.3"
 [[example]]
 doc-scrape-examples = true
 name = "window"
+required-features = ["rwh_06"]
+
+[[example]]
+name = "child_window"
+required-features = ["rwh_06"]
 
 [workspace]
 members = ["dpi"]
