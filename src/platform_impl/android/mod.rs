@@ -390,6 +390,13 @@ impl EventLoop {
                             &mut self.combining_accent,
                         );
 
+                        let logical_key = keycodes::to_logical(key_char, keycode);
+                        let text = if let Key::Character(ref c) = logical_key {
+                            Some(c.to_owned())
+                        } else {
+                            None
+                        };
+
                         let window_id = window::WindowId(WindowId);
                         let event = event::WindowEvent::KeyboardInput {
                             device_id: event::DeviceId(DeviceId(key.device_id())),
@@ -399,7 +406,7 @@ impl EventLoop {
                                 logical_key: keycodes::to_logical(key_char, keycode),
                                 location: keycodes::to_location(keycode),
                                 repeat: key.repeat_count() > 0,
-                                text: None,
+                                text,
                                 platform_specific: KeyEventExtra {},
                             },
                             is_synthetic: false,
