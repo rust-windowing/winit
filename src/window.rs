@@ -1367,14 +1367,31 @@ impl Window {
         self.window.maybe_queue_on_main(move |w| w.set_theme(theme))
     }
 
-    /// Returns the current window theme override.
+    /// Returns the current system theme.
     ///
-    /// Returns `None` if the current theme is set as the system default, or if it cannot be
-    /// determined on the current platform.
+    /// Returns `None` if it cannot be determined on the current platform.
+    ///
+    /// This is the same as [`ActiveEventLoop::system_theme()`], and is provided for convenience.
     ///
     /// ## Platform-specific
     ///
-    /// - **iOS / Android / Wayland / x11 / Orbital:** Unsupported, returns `None`.
+    /// - **iOS / Android / Wayland / x11 / Orbital:** Unsupported.
+    ///
+    /// [`ActiveEventLoop::system_theme()`]: crate::event_loop::ActiveEventLoop::system_theme
+    #[inline]
+    pub fn system_theme(&self) -> Option<Theme> {
+        let _span = tracing::debug_span!("winit::Window::system_theme").entered();
+        self.window.maybe_wait_on_main(|w| w.system_theme())
+    }
+
+    /// Returns the current window theme.
+    ///
+    /// Returns `None` if it cannot be determined on the current platform.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **iOS / Android / x11 / Orbital:** Unsupported.
+    /// - **Wayland:** Only returns theme overrides.
     #[inline]
     pub fn theme(&self) -> Option<Theme> {
         let _span = tracing::debug_span!("winit::Window::theme",).entered();

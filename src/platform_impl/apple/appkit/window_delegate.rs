@@ -1622,15 +1622,21 @@ impl WindowDelegate {
         self.window().isKeyWindow()
     }
 
+    pub fn system_theme(&self) -> Option<Theme> {
+        let mtm = MainThreadMarker::from(self);
+        let app = NSApplication::sharedApplication(mtm);
+
+        if app.respondsToSelector(sel!(effectiveAppearance)) {
+            Some(super::window_delegate::appearance_to_theme(&app.effectiveAppearance()))
+        } else {
+            Some(Theme::Light)
+        }
+    }
+
     pub fn theme(&self) -> Option<Theme> {
-        // Note: We could choose between returning the value of `effectiveAppearance` or
-        // `appearance`, depending on what the user is asking about:
-        // - "how should I render on this particular frame".
-        // - "what is the configuration for this window".
-        //
-        // We choose the latter for consistency with the `set_theme` call, though it might also be
-        // useful to expose the former.
-        Some(appearance_to_theme(unsafe { &*self.window().appearance()? }))
+        unsafe { self.window().appearance() }
+            .map(|appearance| appearance_to_theme(&appearance))
+            .or_else(|| self.system_theme())
     }
 
     pub fn set_theme(&self, theme: Option<Theme>) {
@@ -1813,7 +1819,7 @@ fn dark_appearance_name() -> &'static NSString {
     ns_string!("NSAppearanceNameDarkAqua")
 }
 
-fn appearance_to_theme(appearance: &NSAppearance) -> Theme {
+pub fn appearance_to_theme(appearance: &NSAppearance) -> Theme {
     let best_match = appearance.bestMatchFromAppearancesWithNames(&NSArray::from_id_slice(&[
         unsafe { NSAppearanceNameAqua.copy() },
         dark_appearance_name().copy(),

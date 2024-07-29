@@ -395,7 +395,7 @@ impl Inner {
     pub fn set_theme(&self, _theme: Option<Theme>) {}
 
     #[inline]
-    pub fn theme(&self) -> Option<Theme> {
+    pub fn system_theme(&self) -> Option<Theme> {
         backend::is_dark_mode(&self.window).map(|is_dark_mode| {
             if is_dark_mode {
                 Theme::Dark
@@ -403,6 +403,11 @@ impl Inner {
                 Theme::Light
             }
         })
+    }
+
+    #[inline]
+    pub fn theme(&self) -> Option<Theme> {
+        self.system_theme()
     }
 
     pub fn set_content_protected(&self, _protected: bool) {}

@@ -605,6 +605,11 @@ impl ActiveEventLoop {
     #[inline]
     pub fn listen_device_events(&self, _allowed: DeviceEvents) {}
 
+    #[inline]
+    pub fn system_theme(&self) -> Option<Theme> {
+        None
+    }
+
     #[cfg(feature = "rwh_06")]
     #[inline]
     pub fn raw_display_handle_rwh_06(
@@ -897,6 +902,10 @@ impl Window {
     }
 
     pub fn set_theme(&self, _theme: Option<Theme>) {}
+
+    pub fn system_theme(&self) -> Option<Theme> {
+        None
+    }
 
     pub fn theme(&self) -> Option<Theme> {
         None

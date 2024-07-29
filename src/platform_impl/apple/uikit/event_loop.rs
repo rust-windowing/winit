@@ -24,7 +24,7 @@ use crate::application::ApplicationHandler;
 use crate::error::EventLoopError;
 use crate::event::Event;
 use crate::event_loop::{ActiveEventLoop as RootActiveEventLoop, ControlFlow, DeviceEvents};
-use crate::window::{CustomCursor, CustomCursorSource};
+use crate::window::{CustomCursor, CustomCursorSource, Theme};
 
 #[derive(Debug)]
 pub struct ActiveEventLoop {
@@ -52,6 +52,11 @@ impl ActiveEventLoop {
 
     #[inline]
     pub fn listen_device_events(&self, _allowed: DeviceEvents) {}
+
+    #[inline]
+    pub fn system_theme(&self) -> Option<Theme> {
+        None
+    }
 
     #[cfg(feature = "rwh_06")]
     #[inline]

@@ -459,6 +459,11 @@ impl Window {
     }
 
     #[inline]
+    pub fn system_theme(&self) -> Option<window::Theme> {
+        None
+    }
+
+    #[inline]
     pub fn theme(&self) -> Option<window::Theme> {
         None
     }

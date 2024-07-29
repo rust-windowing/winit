@@ -414,6 +414,10 @@ impl Inner {
         rwh_06::RawWindowHandle::UiKit(window_handle)
     }
 
+    pub fn system_theme(&self) -> Option<Theme> {
+        None
+    }
+
     pub fn theme(&self) -> Option<Theme> {
         warn!("`Window::theme` is ignored on iOS");
         None

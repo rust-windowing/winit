@@ -17,7 +17,7 @@ use core_foundation::runloop::{
 };
 use objc2::rc::{autoreleasepool, Retained};
 use objc2::runtime::ProtocolObject;
-use objc2::{msg_send_id, ClassType};
+use objc2::{msg_send_id, sel, ClassType};
 use objc2_app_kit::{NSApplication, NSApplicationActivationPolicy, NSWindow};
 use objc2_foundation::{MainThreadMarker, NSObjectProtocol};
 
@@ -32,7 +32,7 @@ use crate::error::EventLoopError;
 use crate::event_loop::{ActiveEventLoop as RootWindowTarget, ControlFlow, DeviceEvents};
 use crate::platform::macos::ActivationPolicy;
 use crate::platform::pump_events::PumpStatus;
-use crate::window::{CustomCursor as RootCustomCursor, CustomCursorSource};
+use crate::window::{CustomCursor as RootCustomCursor, CustomCursorSource, Theme};
 
 #[derive(Default)]
 pub struct PanicInfo {
@@ -102,6 +102,17 @@ impl ActiveEventLoop {
 
     #[inline]
     pub fn listen_device_events(&self, _allowed: DeviceEvents) {}
+
+    #[inline]
+    pub fn system_theme(&self) -> Option<Theme> {
+        let app = NSApplication::sharedApplication(self.mtm);
+
+        if app.respondsToSelector(sel!(effectiveAppearance)) {
+            Some(super::window_delegate::appearance_to_theme(&app.effectiveAppearance()))
+        } else {
+            Some(Theme::Light)
+        }
+    }
 
     #[cfg(feature = "rwh_06")]
     #[inline]

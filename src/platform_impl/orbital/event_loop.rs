@@ -25,7 +25,7 @@ use crate::keyboard::{
     PhysicalKey,
 };
 use crate::window::{
-    CustomCursor as RootCustomCursor, CustomCursorSource, WindowId as RootWindowId,
+    CustomCursor as RootCustomCursor, CustomCursorSource, Theme, WindowId as RootWindowId,
 };
 
 fn convert_scancode(scancode: u8) -> (PhysicalKey, Option<NamedKey>) {
@@ -746,6 +746,11 @@ impl ActiveEventLoop {
 
     #[inline]
     pub fn listen_device_events(&self, _allowed: DeviceEvents) {}
+
+    #[inline]
+    pub fn system_theme(&self) -> Option<Theme> {
+        None
+    }
 
     #[cfg(feature = "rwh_06")]
     #[inline]

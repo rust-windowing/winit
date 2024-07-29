@@ -589,6 +589,11 @@ impl Window {
     }
 
     #[inline]
+    pub fn system_theme(&self) -> Option<Theme> {
+        None
+    }
+
+    #[inline]
     pub fn theme(&self) -> Option<Theme> {
         x11_or_wayland!(match self; Window(window) => window.theme())
     }
@@ -862,6 +867,11 @@ impl ActiveEventLoop {
     #[inline]
     pub fn listen_device_events(&self, allowed: DeviceEvents) {
         x11_or_wayland!(match self; Self(evlp) => evlp.listen_device_events(allowed))
+    }
+
+    #[inline]
+    pub fn system_theme(&self) -> Option<Theme> {
+        None
     }
 
     #[cfg(feature = "rwh_06")]

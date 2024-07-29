@@ -82,7 +82,7 @@ use crate::platform_impl::platform::{
 };
 use crate::utils::Lazy;
 use crate::window::{
-    CustomCursor as RootCustomCursor, CustomCursorSource, WindowId as RootWindowId,
+    CustomCursor as RootCustomCursor, CustomCursorSource, Theme, WindowId as RootWindowId,
 };
 
 pub(crate) struct WindowData {
@@ -514,6 +514,10 @@ impl ActiveEventLoop {
 
     pub fn listen_device_events(&self, allowed: DeviceEvents) {
         raw_input::register_all_mice_and_keyboards_for_raw_input(self.thread_msg_target, allowed);
+    }
+
+    pub fn system_theme(&self) -> Option<Theme> {
+        Some(if super::dark_mode::should_use_dark_mode() { Theme::Dark } else { Theme::Light })
     }
 
     pub(crate) fn set_control_flow(&self, control_flow: ControlFlow) {
