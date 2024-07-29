@@ -404,7 +404,7 @@ impl EventLoop {
                             event: event::KeyEvent {
                                 state,
                                 physical_key: keycodes::to_physical_key(keycode),
-                                logical_key: keycodes::to_logical(key_char, keycode),
+                                logical_key,
                                 location: keycodes::to_location(keycode),
                                 repeat: key.repeat_count() > 0,
                                 text,
