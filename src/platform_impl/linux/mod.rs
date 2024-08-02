@@ -834,7 +834,10 @@ impl ActiveEventLoop {
         }
     }
 
-    pub fn create_custom_cursor(&self, cursor: CustomCursorSource) -> CustomCursor {
+    pub fn create_custom_cursor(
+        &self,
+        cursor: CustomCursorSource,
+    ) -> Result<CustomCursor, ExternalError> {
         x11_or_wayland!(match self; ActiveEventLoop(evlp) => evlp.create_custom_cursor(cursor))
     }
 

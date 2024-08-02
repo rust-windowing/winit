@@ -11,7 +11,7 @@ use super::device::DeviceId;
 use super::runner::{EventWrapper, WeakShared};
 use super::window::WindowId;
 use super::{backend, runner, EventLoopProxy};
-use crate::error::NotSupportedError;
+use crate::error::{ExternalError, NotSupportedError};
 use crate::event::{
     DeviceId as RootDeviceId, ElementState, Event, KeyEvent, Touch, TouchPhase, WindowEvent,
 };
@@ -71,8 +71,11 @@ impl ActiveEventLoop {
         EventLoopProxy::new(self.waker())
     }
 
-    pub fn create_custom_cursor(&self, source: CustomCursorSource) -> RootCustomCursor {
-        RootCustomCursor { inner: CustomCursor::new(self, source.inner) }
+    pub fn create_custom_cursor(
+        &self,
+        source: CustomCursorSource,
+    ) -> Result<RootCustomCursor, ExternalError> {
+        Ok(RootCustomCursor { inner: CustomCursor::new(self, source.inner) })
     }
 
     pub fn create_custom_cursor_async(&self, source: CustomCursorSource) -> CustomCursorFuture {

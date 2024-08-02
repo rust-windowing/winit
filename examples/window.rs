@@ -17,6 +17,7 @@ use rwh_06::{DisplayHandle, HasDisplayHandle};
 use softbuffer::{Context, Surface};
 use winit::application::ApplicationHandler;
 use winit::dpi::{LogicalSize, PhysicalPosition, PhysicalSize};
+use winit::error::ExternalError;
 use winit::event::{DeviceEvent, DeviceId, Ime, MouseButton, MouseScrollDelta, WindowEvent};
 use winit::event_loop::{ActiveEventLoop, EventLoop};
 use winit::keyboard::{Key, ModifiersState};
@@ -75,7 +76,7 @@ struct Application {
     receiver: Receiver<Action>,
     sender: Sender<Action>,
     /// Custom cursors assets.
-    custom_cursors: Vec<CustomCursor>,
+    custom_cursors: Result<Vec<CustomCursor>, ExternalError>,
     /// Application icon.
     icon: Icon,
     windows: HashMap<WindowId, WindowState>,
@@ -107,11 +108,13 @@ impl Application {
         let icon = load_icon(include_bytes!("data/icon.png"));
 
         info!("Loading cursor assets");
-        let custom_cursors = vec![
+        let custom_cursors = [
             event_loop.create_custom_cursor(decode_cursor(include_bytes!("data/cross.png"))),
             event_loop.create_custom_cursor(decode_cursor(include_bytes!("data/cross2.png"))),
             event_loop.create_custom_cursor(decode_cursor(include_bytes!("data/gradient.png"))),
-        ];
+        ]
+        .into_iter()
+        .collect();
 
         Self {
             receiver,
@@ -217,12 +220,27 @@ impl Application {
             Action::ToggleImeInput => window.toggle_ime(),
             Action::Minimize => window.minimize(),
             Action::NextCursor => window.next_cursor(),
-            Action::NextCustomCursor => window.next_custom_cursor(&self.custom_cursors),
+            Action::NextCustomCursor => {
+                if let Err(err) = self.custom_cursors.as_ref().map(|c| window.next_custom_cursor(c))
+                {
+                    error!("Error creating custom cursor: {err}");
+                }
+            },
             #[cfg(web_platform)]
-            Action::UrlCustomCursor => window.url_custom_cursor(event_loop),
+            Action::UrlCustomCursor => {
+                if let Err(err) = window.url_custom_cursor(event_loop) {
+                    error!("Error creating custom cursor from URL: {err}");
+                }
+            },
             #[cfg(web_platform)]
             Action::AnimationCustomCursor => {
-                window.animation_custom_cursor(event_loop, &self.custom_cursors)
+                if let Err(err) = self
+                    .custom_cursors
+                    .as_ref()
+                    .map(|c| window.animation_custom_cursor(event_loop, c))
+                {
+                    error!("Error creating animated custom cursor: {err}");
+                }
             },
             Action::CycleCursorGrab => window.cycle_cursor_grab(),
             Action::DragWindow => window.drag_window(),
@@ -588,7 +606,7 @@ impl WindowState {
         let mut state = Self {
             #[cfg(macos_platform)]
             option_as_alt: window.option_as_alt(),
-            custom_idx: app.custom_cursors.len() - 1,
+            custom_idx: app.custom_cursors.as_ref().map(Vec::len).unwrap_or(1) - 1,
             cursor_grab: CursorGrabMode::None,
             named_idx,
             #[cfg(not(any(android_platform, ios_platform)))]
@@ -737,10 +755,12 @@ impl WindowState {
 
     /// Custom cursor from an URL.
     #[cfg(web_platform)]
-    fn url_custom_cursor(&mut self, event_loop: &ActiveEventLoop) {
-        let cursor = event_loop.create_custom_cursor(url_custom_cursor());
+    fn url_custom_cursor(&mut self, event_loop: &ActiveEventLoop) -> Result<(), Box<dyn Error>> {
+        let cursor = event_loop.create_custom_cursor(url_custom_cursor())?;
 
         self.window.set_cursor(cursor);
+
+        Ok(())
     }
 
     /// Custom cursor from a URL.
@@ -749,18 +769,20 @@ impl WindowState {
         &mut self,
         event_loop: &ActiveEventLoop,
         custom_cursors: &[CustomCursor],
-    ) {
+    ) -> Result<(), Box<dyn Error>> {
         use std::time::Duration;
 
         let cursors = vec![
             custom_cursors[0].clone(),
             custom_cursors[1].clone(),
-            event_loop.create_custom_cursor(url_custom_cursor()),
+            event_loop.create_custom_cursor(url_custom_cursor())?,
         ];
         let cursor = CustomCursor::from_animation(Duration::from_secs(3), cursors).unwrap();
-        let cursor = event_loop.create_custom_cursor(cursor);
+        let cursor = event_loop.create_custom_cursor(cursor)?;
 
         self.window.set_cursor(cursor);
+
+        Ok(())
     }
 
     /// Resize the window to the new size.

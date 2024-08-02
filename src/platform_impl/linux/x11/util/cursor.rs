@@ -7,7 +7,8 @@ use x11rb::connection::Connection;
 
 use super::super::ActiveEventLoop;
 use super::*;
-use crate::platform_impl::PlatformCustomCursorSource;
+use crate::error::ExternalError;
+use crate::platform_impl::{OsError, PlatformCustomCursorSource};
 use crate::window::CursorIcon;
 
 impl XConnection {
@@ -123,14 +124,16 @@ impl CustomCursor {
     pub(crate) fn new(
         event_loop: &ActiveEventLoop,
         cursor: PlatformCustomCursorSource,
-    ) -> CustomCursor {
+    ) -> Result<CustomCursor, ExternalError> {
         unsafe {
             let ximage = (event_loop.xconn.xcursor.XcursorImageCreate)(
                 cursor.0.width as i32,
                 cursor.0.height as i32,
             );
             if ximage.is_null() {
-                panic!("failed to allocate cursor image");
+                return Err(ExternalError::Os(os_error!(OsError::Misc(
+                    "`XcursorImageCreate` failed"
+                ))));
             }
             (*ximage).xhot = cursor.0.hotspot_x as u32;
             (*ximage).yhot = cursor.0.hotspot_y as u32;
@@ -147,7 +150,9 @@ impl CustomCursor {
             let cursor =
                 (event_loop.xconn.xcursor.XcursorImageLoadCursor)(event_loop.xconn.display, ximage);
             (event_loop.xconn.xcursor.XcursorImageDestroy)(ximage);
-            Self { inner: Arc::new(CustomCursorInner { xconn: event_loop.xconn.clone(), cursor }) }
+            Ok(Self {
+                inner: Arc::new(CustomCursorInner { xconn: event_loop.xconn.clone(), cursor }),
+            })
         }
     }
 }

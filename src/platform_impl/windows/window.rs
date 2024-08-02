@@ -59,7 +59,7 @@ use crate::platform_impl::platform::dpi::{
 };
 use crate::platform_impl::platform::drop_handler::FileDropHandler;
 use crate::platform_impl::platform::event_loop::{self, ActiveEventLoop, DESTROY_MSG_ID};
-use crate::platform_impl::platform::icon::{self, IconType, WinCursor};
+use crate::platform_impl::platform::icon::{self, IconType};
 use crate::platform_impl::platform::ime::ImeContext;
 use crate::platform_impl::platform::keyboard::KeyEventBuilder;
 use crate::platform_impl::platform::monitor::{self, MonitorHandle};
@@ -383,17 +383,10 @@ impl Window {
                 });
             },
             Cursor::Custom(cursor) => {
-                let new_cursor = match cursor.inner {
-                    WinCursor::Cursor(cursor) => cursor,
-                    WinCursor::Failed => {
-                        warn!("Requested to apply failed cursor");
-                        return;
-                    },
-                };
                 self.window_state_lock().mouse.selected_cursor =
-                    SelectedCursor::Custom(new_cursor.clone());
+                    SelectedCursor::Custom(cursor.inner.0.clone());
                 self.thread_executor.execute_in_thread(move || unsafe {
-                    SetCursor(new_cursor.as_raw_handle());
+                    SetCursor(cursor.inner.0.as_raw_handle());
                 });
             },
         }

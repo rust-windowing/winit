@@ -58,7 +58,7 @@ use super::window::set_skip_taskbar;
 use super::SelectedCursor;
 use crate::application::ApplicationHandler;
 use crate::dpi::{PhysicalPosition, PhysicalSize};
-use crate::error::EventLoopError;
+use crate::error::{EventLoopError, ExternalError};
 use crate::event::{
     Event, Force, Ime, InnerSizeWriter, RawKeyEvent, Touch, TouchPhase, WindowEvent,
 };
@@ -483,16 +483,11 @@ impl ActiveEventLoop {
         EventLoopThreadExecutor { thread_id: self.thread_id, target_window: self.thread_msg_target }
     }
 
-    pub fn create_custom_cursor(&self, source: CustomCursorSource) -> RootCustomCursor {
-        let inner = match WinCursor::new(&source.inner.0) {
-            Ok(cursor) => cursor,
-            Err(err) => {
-                tracing::warn!("Failed to create custom cursor: {err}");
-                WinCursor::Failed
-            },
-        };
-
-        RootCustomCursor { inner }
+    pub fn create_custom_cursor(
+        &self,
+        source: CustomCursorSource,
+    ) -> Result<RootCustomCursor, ExternalError> {
+        Ok(RootCustomCursor { inner: WinCursor::new(&source.inner.0)? })
     }
 
     // TODO: Investigate opportunities for caching

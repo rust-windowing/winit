@@ -28,7 +28,7 @@ use super::event::dummy_event;
 use super::monitor::{self, MonitorHandle};
 use super::observer::setup_control_flow_observers;
 use crate::application::ApplicationHandler;
-use crate::error::EventLoopError;
+use crate::error::{EventLoopError, ExternalError};
 use crate::event_loop::{ActiveEventLoop as RootWindowTarget, ControlFlow, DeviceEvents};
 use crate::platform::macos::ActivationPolicy;
 use crate::platform::pump_events::PumpStatus;
@@ -85,8 +85,11 @@ impl ActiveEventLoop {
         &self.delegate
     }
 
-    pub fn create_custom_cursor(&self, source: CustomCursorSource) -> RootCustomCursor {
-        RootCustomCursor { inner: CustomCursor::new(source.inner) }
+    pub fn create_custom_cursor(
+        &self,
+        source: CustomCursorSource,
+    ) -> Result<RootCustomCursor, ExternalError> {
+        Ok(RootCustomCursor { inner: CustomCursor::new(source.inner)? })
     }
 
     #[inline]

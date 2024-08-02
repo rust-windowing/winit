@@ -20,7 +20,7 @@ use std::time::{Duration, Instant};
 use web_time::{Duration, Instant};
 
 use crate::application::ApplicationHandler;
-use crate::error::{EventLoopError, OsError};
+use crate::error::{EventLoopError, ExternalError, OsError};
 use crate::monitor::MonitorHandle;
 use crate::platform_impl;
 use crate::window::{CustomCursor, CustomCursorSource, Theme, Window, WindowAttributes};
@@ -270,7 +270,14 @@ impl EventLoop {
     }
 
     /// Create custom cursor.
-    pub fn create_custom_cursor(&self, custom_cursor: CustomCursorSource) -> CustomCursor {
+    ///
+    /// ## Platform-specific
+    ///
+    /// **iOS / Android / Orbital:** Unsupported.
+    pub fn create_custom_cursor(
+        &self,
+        custom_cursor: CustomCursorSource,
+    ) -> Result<CustomCursor, ExternalError> {
         self.event_loop.window_target().p.create_custom_cursor(custom_cursor)
     }
 }
@@ -338,7 +345,14 @@ impl ActiveEventLoop {
     }
 
     /// Create custom cursor.
-    pub fn create_custom_cursor(&self, custom_cursor: CustomCursorSource) -> CustomCursor {
+    ///
+    /// ## Platform-specific
+    ///
+    /// **iOS / Android / Orbital:** Unsupported.
+    pub fn create_custom_cursor(
+        &self,
+        custom_cursor: CustomCursorSource,
+    ) -> Result<CustomCursor, ExternalError> {
         let _span = tracing::debug_span!("winit::ActiveEventLoop::create_custom_cursor",).entered();
 
         self.p.create_custom_cursor(custom_cursor)

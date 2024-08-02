@@ -66,9 +66,9 @@ impl From<CustomCursor> for Cursor {
 ///     CustomCursor::from_url(String::from("http://localhost:3000/cursor.png"), 0, 0)
 /// };
 ///
-/// let custom_cursor = event_loop.create_custom_cursor(source);
-///
-/// window.set_cursor(custom_cursor.clone());
+/// if let Ok(custom_cursor) = event_loop.create_custom_cursor(source) {
+///     window.set_cursor(custom_cursor.clone());
+/// }
 /// # }
 /// ```
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
@@ -109,6 +109,8 @@ impl CustomCursor {
 /// See [`CustomCursor`] for more details.
 #[derive(Debug)]
 pub struct CustomCursorSource {
+    // Some platforms don't support custom cursors.
+    #[allow(dead_code)]
     pub(crate) inner: PlatformCustomCursorSource,
 }
 

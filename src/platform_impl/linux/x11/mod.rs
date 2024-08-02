@@ -25,7 +25,7 @@ use x11rb::x11_utils::X11Error as LogicalError;
 use x11rb::xcb_ffi::ReplyOrIdError;
 
 use crate::application::ApplicationHandler;
-use crate::error::{EventLoopError, OsError as RootOsError};
+use crate::error::{EventLoopError, ExternalError, OsError as RootOsError};
 use crate::event::{Event, StartCause, WindowEvent};
 use crate::event_loop::{ActiveEventLoop as RootAEL, ControlFlow, DeviceEvents};
 use crate::platform::pump_events::PumpStatus;
@@ -643,8 +643,13 @@ impl ActiveEventLoop {
         self.xconn.primary_monitor().ok()
     }
 
-    pub(crate) fn create_custom_cursor(&self, cursor: CustomCursorSource) -> RootCustomCursor {
-        RootCustomCursor { inner: PlatformCustomCursor::X(CustomCursor::new(self, cursor.inner)) }
+    pub(crate) fn create_custom_cursor(
+        &self,
+        cursor: CustomCursorSource,
+    ) -> Result<RootCustomCursor, ExternalError> {
+        Ok(RootCustomCursor {
+            inner: PlatformCustomCursor::X(CustomCursor::new(self, cursor.inner)?),
+        })
     }
 
     pub fn listen_device_events(&self, allowed: DeviceEvents) {
