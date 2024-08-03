@@ -4,7 +4,17 @@ categories = ["gui"]
 description = "Cross-platform window creation library."
 documentation = "https://docs.rs/winit"
 edition.workspace = true
-exclude = ["/.cargo"]
+include = [
+    "/build.rs",
+    "/docs",
+    "/examples",
+    "/FEATURES.md",
+    "/LICENSE",
+    "/src",
+    "!/src/platform_impl/web/script",
+    "/src/platform_impl/web/script/**/*.min.js",
+    "/tests",
+]
 keywords = ["windowing"]
 license.workspace = true
 name = "winit"
