@@ -336,32 +336,6 @@ impl Window {
         self.window
     }
 
-    #[cfg(feature = "rwh_04")]
-    #[inline]
-    pub fn raw_window_handle_rwh_04(&self) -> rwh_04::RawWindowHandle {
-        let mut window_handle = rwh_04::Win32Handle::empty();
-        window_handle.hwnd = self.window as *mut _;
-        let hinstance = unsafe { super::get_window_long(self.hwnd(), GWLP_HINSTANCE) };
-        window_handle.hinstance = hinstance as *mut _;
-        rwh_04::RawWindowHandle::Win32(window_handle)
-    }
-
-    #[cfg(feature = "rwh_05")]
-    #[inline]
-    pub fn raw_window_handle_rwh_05(&self) -> rwh_05::RawWindowHandle {
-        let mut window_handle = rwh_05::Win32WindowHandle::empty();
-        window_handle.hwnd = self.window as *mut _;
-        let hinstance = unsafe { super::get_window_long(self.hwnd(), GWLP_HINSTANCE) };
-        window_handle.hinstance = hinstance as *mut _;
-        rwh_05::RawWindowHandle::Win32(window_handle)
-    }
-
-    #[cfg(feature = "rwh_05")]
-    #[inline]
-    pub fn raw_display_handle_rwh_05(&self) -> rwh_05::RawDisplayHandle {
-        rwh_05::RawDisplayHandle::Windows(rwh_05::WindowsDisplayHandle::empty())
-    }
-
     #[cfg(feature = "rwh_06")]
     #[inline]
     pub unsafe fn rwh_06_no_thread_check(

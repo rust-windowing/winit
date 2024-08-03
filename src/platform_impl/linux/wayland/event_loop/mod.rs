@@ -650,16 +650,6 @@ impl ActiveEventLoop {
         }
     }
 
-    #[cfg(feature = "rwh_05")]
-    #[inline]
-    pub fn raw_display_handle_rwh_05(&self) -> rwh_05::RawDisplayHandle {
-        use sctk::reexports::client::Proxy;
-
-        let mut display_handle = rwh_05::WaylandDisplayHandle::empty();
-        display_handle.display = self.connection.display().id().as_ptr() as *mut _;
-        rwh_05::RawDisplayHandle::Wayland(display_handle)
-    }
-
     #[cfg(feature = "rwh_06")]
     #[inline]
     pub fn raw_display_handle_rwh_06(

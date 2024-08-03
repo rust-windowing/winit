@@ -391,28 +391,6 @@ impl Inner {
         self.id
     }
 
-    #[cfg(feature = "rwh_04")]
-    #[inline]
-    pub fn raw_window_handle_rwh_04(&self) -> rwh_04::RawWindowHandle {
-        let mut window_handle = rwh_04::WebHandle::empty();
-        window_handle.id = self.id.0;
-        rwh_04::RawWindowHandle::Web(window_handle)
-    }
-
-    #[cfg(feature = "rwh_05")]
-    #[inline]
-    pub fn raw_window_handle_rwh_05(&self) -> rwh_05::RawWindowHandle {
-        let mut window_handle = rwh_05::WebWindowHandle::empty();
-        window_handle.id = self.id.0;
-        rwh_05::RawWindowHandle::Web(window_handle)
-    }
-
-    #[cfg(feature = "rwh_05")]
-    #[inline]
-    pub fn raw_display_handle_rwh_05(&self) -> rwh_05::RawDisplayHandle {
-        rwh_05::RawDisplayHandle::Web(rwh_05::WebDisplayHandle::empty())
-    }
-
     #[inline]
     pub fn set_theme(&self, _theme: Option<Theme>) {}
 

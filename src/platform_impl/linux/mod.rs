@@ -569,24 +569,6 @@ impl Window {
         Some(x11_or_wayland!(match self; Window(w) => w.primary_monitor()?; as MonitorHandle))
     }
 
-    #[cfg(feature = "rwh_04")]
-    #[inline]
-    pub fn raw_window_handle_rwh_04(&self) -> rwh_04::RawWindowHandle {
-        x11_or_wayland!(match self; Window(window) => window.raw_window_handle_rwh_04())
-    }
-
-    #[cfg(feature = "rwh_05")]
-    #[inline]
-    pub fn raw_window_handle_rwh_05(&self) -> rwh_05::RawWindowHandle {
-        x11_or_wayland!(match self; Window(window) => window.raw_window_handle_rwh_05())
-    }
-
-    #[cfg(feature = "rwh_05")]
-    #[inline]
-    pub fn raw_display_handle_rwh_05(&self) -> rwh_05::RawDisplayHandle {
-        x11_or_wayland!(match self; Window(window) => window.raw_display_handle_rwh_05())
-    }
-
     #[cfg(feature = "rwh_06")]
     #[inline]
     pub fn raw_window_handle_rwh_06(&self) -> Result<rwh_06::RawWindowHandle, rwh_06::HandleError> {
@@ -882,12 +864,6 @@ impl ActiveEventLoop {
         x11_or_wayland!(match self; Self(evlp) => evlp.listen_device_events(allowed))
     }
 
-    #[cfg(feature = "rwh_05")]
-    #[inline]
-    pub fn raw_display_handle_rwh_05(&self) -> rwh_05::RawDisplayHandle {
-        x11_or_wayland!(match self; Self(evlp) => evlp.raw_display_handle_rwh_05())
-    }
-
     #[cfg(feature = "rwh_06")]
     #[inline]
     pub fn raw_display_handle_rwh_06(
@@ -944,29 +920,6 @@ pub(crate) enum OwnedDisplayHandle {
 }
 
 impl OwnedDisplayHandle {
-    #[cfg(feature = "rwh_05")]
-    #[inline]
-    pub fn raw_display_handle_rwh_05(&self) -> rwh_05::RawDisplayHandle {
-        match self {
-            #[cfg(x11_platform)]
-            Self::X(xconn) => {
-                let mut xlib_handle = rwh_05::XlibDisplayHandle::empty();
-                xlib_handle.display = xconn.display.cast();
-                xlib_handle.screen = xconn.default_screen_index() as _;
-                xlib_handle.into()
-            },
-
-            #[cfg(wayland_platform)]
-            Self::Wayland(conn) => {
-                use sctk::reexports::client::Proxy;
-
-                let mut wayland_handle = rwh_05::WaylandDisplayHandle::empty();
-                wayland_handle.display = conn.display().id().as_ptr() as *mut _;
-                wayland_handle.into()
-            },
-        }
-    }
-
     #[cfg(feature = "rwh_06")]
     #[inline]
     pub fn raw_display_handle_rwh_06(

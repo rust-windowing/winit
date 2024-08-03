@@ -605,12 +605,6 @@ impl ActiveEventLoop {
     #[inline]
     pub fn listen_device_events(&self, _allowed: DeviceEvents) {}
 
-    #[cfg(feature = "rwh_05")]
-    #[inline]
-    pub fn raw_display_handle_rwh_05(&self) -> rwh_05::RawDisplayHandle {
-        rwh_05::RawDisplayHandle::Android(rwh_05::AndroidDisplayHandle::empty())
-    }
-
     #[cfg(feature = "rwh_06")]
     #[inline]
     pub fn raw_display_handle_rwh_06(
@@ -648,12 +642,6 @@ impl ActiveEventLoop {
 pub(crate) struct OwnedDisplayHandle;
 
 impl OwnedDisplayHandle {
-    #[cfg(feature = "rwh_05")]
-    #[inline]
-    pub fn raw_display_handle_rwh_05(&self) -> rwh_05::RawDisplayHandle {
-        rwh_05::AndroidDisplayHandle::empty().into()
-    }
-
     #[cfg(feature = "rwh_06")]
     #[inline]
     pub fn raw_display_handle_rwh_06(
@@ -873,41 +861,6 @@ impl Window {
 
     pub fn set_cursor_hittest(&self, _hittest: bool) -> Result<(), error::ExternalError> {
         Err(error::ExternalError::NotSupported(error::NotSupportedError::new()))
-    }
-
-    #[cfg(feature = "rwh_04")]
-    pub fn raw_window_handle_rwh_04(&self) -> rwh_04::RawWindowHandle {
-        use rwh_04::HasRawWindowHandle;
-
-        if let Some(native_window) = self.app.native_window().as_ref() {
-            native_window.raw_window_handle()
-        } else {
-            panic!(
-                "Cannot get the native window, it's null and will always be null before \
-                 Event::Resumed and after Event::Suspended. Make sure you only call this function \
-                 between those events."
-            );
-        }
-    }
-
-    #[cfg(feature = "rwh_05")]
-    pub fn raw_window_handle_rwh_05(&self) -> rwh_05::RawWindowHandle {
-        use rwh_05::HasRawWindowHandle;
-
-        if let Some(native_window) = self.app.native_window().as_ref() {
-            native_window.raw_window_handle()
-        } else {
-            panic!(
-                "Cannot get the native window, it's null and will always be null before \
-                 Event::Resumed and after Event::Suspended. Make sure you only call this function \
-                 between those events."
-            );
-        }
-    }
-
-    #[cfg(feature = "rwh_05")]
-    pub fn raw_display_handle_rwh_05(&self) -> rwh_05::RawDisplayHandle {
-        rwh_05::RawDisplayHandle::Android(rwh_05::AndroidDisplayHandle::empty())
     }
 
     #[cfg(feature = "rwh_06")]

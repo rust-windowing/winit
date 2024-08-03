@@ -140,8 +140,6 @@
 //!
 //! * `x11` (enabled by default): On Unix platforms, enables the X11 backend.
 //! * `wayland` (enabled by default): On Unix platforms, enables the Wayland backend.
-//! * `rwh_04`: Implement `raw-window-handle v0.4` traits.
-//! * `rwh_05`: Implement `raw-window-handle v0.5` traits.
 //! * `rwh_06`: Implement `raw-window-handle v0.6` traits.
 //! * `serde`: Enables serialization/deserialization of certain types with [Serde](https://crates.io/crates/serde).
 //! * `mint`: Enables mint (math interoperability standard types) conversions.
@@ -180,10 +178,6 @@
 // Re-export DPI types so that users don't have to put it in Cargo.toml.
 #[doc(inline)]
 pub use dpi;
-#[cfg(feature = "rwh_04")]
-pub use rwh_04 as raw_window_handle_04;
-#[cfg(feature = "rwh_05")]
-pub use rwh_05 as raw_window_handle_05;
 #[cfg(feature = "rwh_06")]
 pub use rwh_06 as raw_window_handle;
 

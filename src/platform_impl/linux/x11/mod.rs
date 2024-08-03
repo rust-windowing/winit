@@ -670,14 +670,6 @@ impl ActiveEventLoop {
             .expect_then_ignore_error("Failed to update device event filter");
     }
 
-    #[cfg(feature = "rwh_05")]
-    pub fn raw_display_handle_rwh_05(&self) -> rwh_05::RawDisplayHandle {
-        let mut display_handle = rwh_05::XlibDisplayHandle::empty();
-        display_handle.display = self.xconn.display as *mut _;
-        display_handle.screen = self.xconn.default_screen_index() as c_int;
-        display_handle.into()
-    }
-
     #[cfg(feature = "rwh_06")]
     pub fn raw_display_handle_rwh_06(
         &self,

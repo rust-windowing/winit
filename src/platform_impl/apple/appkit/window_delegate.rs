@@ -1610,30 +1610,6 @@ impl WindowDelegate {
         Some(monitor)
     }
 
-    #[cfg(feature = "rwh_04")]
-    #[inline]
-    pub fn raw_window_handle_rwh_04(&self) -> rwh_04::RawWindowHandle {
-        let mut window_handle = rwh_04::AppKitHandle::empty();
-        window_handle.ns_window = self.window() as *const WinitWindow as *mut _;
-        window_handle.ns_view = Retained::as_ptr(&self.view()) as *mut _;
-        rwh_04::RawWindowHandle::AppKit(window_handle)
-    }
-
-    #[cfg(feature = "rwh_05")]
-    #[inline]
-    pub fn raw_window_handle_rwh_05(&self) -> rwh_05::RawWindowHandle {
-        let mut window_handle = rwh_05::AppKitWindowHandle::empty();
-        window_handle.ns_window = self.window() as *const WinitWindow as *mut _;
-        window_handle.ns_view = Retained::as_ptr(&self.view()) as *mut _;
-        rwh_05::RawWindowHandle::AppKit(window_handle)
-    }
-
-    #[cfg(feature = "rwh_05")]
-    #[inline]
-    pub fn raw_display_handle_rwh_05(&self) -> rwh_05::RawDisplayHandle {
-        rwh_05::RawDisplayHandle::AppKit(rwh_05::AppKitDisplayHandle::empty())
-    }
-
     #[cfg(feature = "rwh_06")]
     #[inline]
     pub fn raw_window_handle_rwh_06(&self) -> rwh_06::RawWindowHandle {
