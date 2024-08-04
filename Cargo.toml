@@ -14,7 +14,17 @@ rust-version.workspace = true
 repository.workspace = true
 license.workspace = true
 edition.workspace = true
-exclude = ["/.cargo"]
+include = [
+    "/build.rs",
+    "/docs",
+    "/examples",
+    "/FEATURES.md",
+    "/LICENSE",
+    "/src",
+    "!/src/platform_impl/web/script",
+    "/src/platform_impl/web/script/**/*.min.js",
+    "/tests",
+]
 
 [package.metadata.docs.rs]
 features = [
