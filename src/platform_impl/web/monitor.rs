@@ -7,6 +7,7 @@ use std::mem;
 use std::ops::{Deref, DerefMut};
 use std::pin::Pin;
 use std::rc::{Rc, Weak};
+use std::sync::OnceLock;
 use std::task::{ready, Context, Poll};
 
 use dpi::LogicalSize;
@@ -32,6 +33,7 @@ use crate::platform::web::{
 
 #[derive(Debug, Clone, Eq)]
 pub struct MonitorHandle {
+    /// [`None`] means [`web_sys::Screen`], which is always the same.
     id: Option<u64>,
     inner: Dispatcher<Inner>,
 }
@@ -93,8 +95,7 @@ impl MonitorHandle {
 
     pub fn orientation(&self) -> OrientationData {
         self.inner.queue(|inner| {
-            let orientation =
-                inner.orientation.get_or_init(|| inner.screen.orientation().unchecked_into());
+            let orientation = inner.orientation();
             let angle = orientation.angle().unwrap();
 
             match orientation.type_().unwrap() {
@@ -127,23 +128,19 @@ impl MonitorHandle {
 
     pub fn request_lock(&self, orientation_lock: OrientationLock) -> OrientationLockFuture {
         // Short-circuit without blocking.
-        if let Some(support) = HAS_LOCK_SUPPORT.with(|support| support.get().cloned()) {
+        if let Some(support) = has_previous_lock_support() {
             if !support {
                 return OrientationLockFuture::Ready(Some(Err(OrientationLockError::Unsupported)));
             }
         }
 
         self.inner.queue(|inner| {
-            let orientation =
-                inner.orientation.get_or_init(|| inner.screen.orientation().unchecked_into());
-
-            if !HAS_LOCK_SUPPORT
-                .with(|support| *support.get_or_init(|| !orientation.has_lock().is_undefined()))
-            {
+            if !inner.has_lock_support() {
                 return OrientationLockFuture::Ready(Some(Err(OrientationLockError::Unsupported)));
             }
 
-            let future = JsFuture::from(orientation.lock(orientation_lock.to_js()).unwrap());
+            let future =
+                JsFuture::from(inner.orientation().lock(orientation_lock.to_js()).unwrap());
             let notifier = Notifier::new();
             let notified = notifier.notified();
 
@@ -157,23 +154,18 @@ impl MonitorHandle {
 
     pub fn unlock(&self) -> Result<(), OrientationLockError> {
         // Short-circuit without blocking.
-        if let Some(support) = HAS_LOCK_SUPPORT.with(|support| support.get().cloned()) {
+        if let Some(support) = has_previous_lock_support() {
             if !support {
                 return Err(OrientationLockError::Unsupported);
             }
         }
 
         self.inner.queue(|inner| {
-            let orientation =
-                inner.orientation.get_or_init(|| inner.screen.orientation().unchecked_into());
-
-            if !HAS_LOCK_SUPPORT
-                .with(|support| *support.get_or_init(|| !orientation.has_lock().is_undefined()))
-            {
+            if !inner.has_lock_support() {
                 return Err(OrientationLockError::Unsupported);
             }
 
-            orientation.unlock().map_err(OrientationLockError::from_js)
+            inner.orientation().unlock().map_err(OrientationLockError::from_js)
         })
     }
 
@@ -322,15 +314,26 @@ impl Inner {
     fn new(window: WindowExt, engine: Option<Engine>, screen: Screen) -> Self {
         Self { window, engine, screen, orientation: OnceCell::new() }
     }
+
+    fn orientation(&self) -> &ScreenOrientationExt {
+        self.orientation.get_or_init(|| self.screen.orientation().unchecked_into())
+    }
+
+    fn has_lock_support(&self) -> bool {
+        *HAS_LOCK_SUPPORT.get_or_init(|| !self.orientation().has_lock().is_undefined())
+    }
 }
 
 impl Drop for Inner {
     fn drop(&mut self) {
         if let Screen::Detailed { runner, id, screen } = &self.screen {
+            // If this is the last screen with its ID, clean it up in the `MonitorHandler`.
             if Rc::strong_count(screen) == 1 {
                 if let Some(runner) = runner.upgrade() {
-                    let state = &mut runner.monitor().state.borrow_mut();
-                    let State::Detailed(detailed) = state.deref_mut() else { unreachable!() };
+                    let mut state = runner.monitor().state.borrow_mut();
+                    let State::Detailed(detailed) = state.deref_mut() else {
+                        unreachable!("found a `ScreenDetailed` without being in `State::Detailed`")
+                    };
 
                     detailed.screens.retain(|(id_internal, _)| *id_internal != *id)
                 }
@@ -387,17 +390,18 @@ impl Detailed {
         engine: Option<Engine>,
         screen: ScreenDetailed,
     ) -> MonitorHandle {
-        let (id, screen) = if let Some((id, screen)) =
-            self.screens.iter().find_map(|(id, internal_screen)| {
-                let internal_screen =
-                    internal_screen.upgrade().expect("dropped `MonitorHandle` without cleaning up");
+        // Before creating a new entry, see if we have an ID for this screen already.
+        let found_screen = self.screens.iter().find_map(|(id, internal_screen)| {
+            let internal_screen =
+                internal_screen.upgrade().expect("dropped `MonitorHandle` without cleaning up");
 
-                if *internal_screen == screen {
-                    Some((*id, internal_screen))
-                } else {
-                    None
-                }
-            }) {
+            if *internal_screen == screen {
+                Some((*id, internal_screen))
+            } else {
+                None
+            }
+        });
+        let (id, screen) = if let Some((id, screen)) = found_screen {
             (id, screen)
         } else {
             let id = self.id_counter;
@@ -417,6 +421,11 @@ impl Detailed {
 }
 
 impl MonitorHandler {
+    /// When the [`MonitorHandler`] is created, it first checks if permission has already been
+    /// granted by the user for this page, in which case it retrieves [`ScreenDetails`].
+    ///
+    /// If not, it will listen to external changes in the permission and automatically elevate
+    /// [`MonitorHandler`].
     pub fn new(
         main_thread: MainThreadMarker,
         window: Window,
@@ -428,6 +437,7 @@ impl MonitorHandler {
         let screen: ScreenExt = window.screen().unwrap().unchecked_into();
 
         let state = if has_screen_details_support(&window) {
+            // First try and get permissions.
             let permissions = navigator.permissions().expect(
                 "expected the Permissions API to be implemented if the Window Management API is \
                  as well",
@@ -451,6 +461,7 @@ impl MonitorHandler {
                 };
 
                 let details = match permission.state() {
+                    // If we have permission, go ahead and get `ScreenDetails`.
                     PermissionState::Granted => {
                         let details = match JsFuture::from(window.screen_details()).await {
                             Ok(details) => details.unchecked_into(),
@@ -506,6 +517,7 @@ impl MonitorHandler {
         Self { runner, state: RefCell::new(state), main_thread, window, engine, screen }
     }
 
+    /// Listens to external permission changes and elevates [`MonitorHandle`] automatically.
     fn setup_listener(
         runner: WeakShared,
         window: WindowExt,
@@ -530,7 +542,7 @@ impl MonitorHandler {
 
                         if let Some(runner) = runner.upgrade() {
                             // We drop the event listener handle here, which
-                            // doesn't drop it while we are running it, because
+                            // doesn't drop it during its execution, because
                             // we are in a `spawn_local()` context.
                             runner.monitor().upgrade(details);
                         }
@@ -540,6 +552,7 @@ impl MonitorHandler {
         )
     }
 
+    /// Elevate [`MonitorHandler`] to [`ScreenDetails`].
     fn upgrade(&self, details: ScreenDetails) {
         *self.state.borrow_mut() =
             State::Detailed(Detailed { details, id_counter: 0, screens: Vec::new() });
@@ -576,7 +589,8 @@ impl MonitorHandler {
 
     // Note: We have to return a `Vec` here because the iterator is otherwise not `Send` + `Sync`.
     pub fn available_monitors(&self) -> Vec<MonitorHandle> {
-        if let State::Detailed(detailed) = self.state.borrow_mut().deref_mut() {
+        let mut state = self.state.borrow_mut();
+        if let State::Detailed(detailed) = state.deref_mut() {
             detailed
                 .details
                 .screens()
@@ -584,6 +598,7 @@ impl MonitorHandler {
                 .map(move |screen| self.handle(detailed, screen))
                 .collect()
         } else {
+            drop(state);
             vec![self.current_monitor()]
         }
     }
@@ -602,12 +617,14 @@ impl MonitorHandler {
 
     pub(crate) fn request_detailed_monitor_permission(&self) -> MonitorPermissionFuture {
         let state = self.state.borrow();
-        let (notifier, notified) = match state.deref() {
+        let permission = match state.deref() {
             State::Unsupported => {
                 return MonitorPermissionFuture::Ready(Some(Err(
                     MonitorPermissionError::Unsupported,
                 )))
             },
+            // If we are currently initializing, wait for initialization to finish before we do our
+            // thing.
             State::Initialize(notified) => {
                 return MonitorPermissionFuture::Initialize {
                     runner: Dispatcher::new(
@@ -618,58 +635,34 @@ impl MonitorHandler {
                     notified: notified.clone(),
                 }
             },
-            State::Permission { permission, .. } => {
-                match permission.state() {
-                    PermissionState::Granted | PermissionState::Prompt => (),
-                    PermissionState::Denied => {
-                        return MonitorPermissionFuture::Ready(Some(Err(
-                            MonitorPermissionError::Denied,
-                        )))
-                    },
-                    _ => {
-                        error!(
-                            "encountered unknown permission state: {}",
-                            permission.state_string()
-                        );
-
-                        return MonitorPermissionFuture::Ready(Some(Err(
-                            MonitorPermissionError::Denied,
-                        )));
-                    },
-                }
-
-                drop(state);
-
-                let notifier = Notifier::new();
-                let notified = notifier.notified();
-                *self.state.borrow_mut() = State::Upgrade(notified.clone());
-
-                (notifier, notified)
-            },
-            // A request is already in progress.
+            // If we finished initialization we at least possess `PermissionStatus`.
+            State::Permission { permission, .. } => permission,
+            // A request is already in progress. Use that!
             State::Upgrade(notified) => return MonitorPermissionFuture::Upgrade(notified.clone()),
             State::Detailed { .. } => return MonitorPermissionFuture::Ready(Some(Ok(()))),
         };
 
-        let future = JsFuture::from(self.window.screen_details());
-        let runner = self.runner.clone();
-        wasm_bindgen_futures::spawn_local(async move {
-            match future.await {
-                Ok(details) => {
-                    // Notifying `Future`s is not dependant on the lifetime of the runner, because
-                    // they can outlive it.
-                    notifier.notify(Ok(()));
+        match permission.state() {
+            PermissionState::Granted | PermissionState::Prompt => (),
+            PermissionState::Denied => {
+                return MonitorPermissionFuture::Ready(Some(Err(MonitorPermissionError::Denied)))
+            },
+            _ => {
+                error!("encountered unknown permission state: {}", permission.state_string());
 
-                    if let Some(runner) = runner.upgrade() {
-                        runner.monitor().upgrade(details.unchecked_into());
-                    }
-                },
-                Err(error) => unreachable_error(
-                    &error,
-                    "getting screen details failed even though permission was granted",
-                ),
-            }
-        });
+                return MonitorPermissionFuture::Ready(Some(Err(MonitorPermissionError::Denied)));
+            },
+        }
+
+        drop(state);
+
+        // We are ready to explicitly ask the user for permission, lets go!
+
+        let notifier = Notifier::new();
+        let notified = notifier.notified();
+        *self.state.borrow_mut() = State::Upgrade(notified.clone());
+
+        MonitorPermissionFuture::upgrade_internal(self.runner.clone(), &self.window, notifier);
 
         MonitorPermissionFuture::Upgrade(notified)
     }
@@ -715,32 +708,37 @@ impl MonitorPermissionFuture {
         };
 
         runner.dispatch(|(runner, window)| {
-            let future = JsFuture::from(window.screen_details());
-
             if let Some(runner) = runner.upgrade() {
                 *runner.monitor().state.borrow_mut() = State::Upgrade(notified);
             }
 
-            let runner = runner.clone();
-            wasm_bindgen_futures::spawn_local(async move {
-                match future.await {
-                    Ok(details) => {
-                        // Notifying `Future`s is not dependant on the lifetime
-                        // of
-                        // the runner, because
-                        // they can outlive it.
-                        notifier.notify(Ok(()));
+            Self::upgrade_internal(runner.clone(), window, notifier);
+        });
+    }
 
-                        if let Some(runner) = runner.upgrade() {
-                            runner.monitor().upgrade(details.unchecked_into());
-                        }
-                    },
-                    Err(error) => unreachable_error(
-                        &error,
-                        "getting screen details failed even though permission was granted",
-                    ),
-                }
-            });
+    fn upgrade_internal(
+        runner: WeakShared,
+        window: &WindowExt,
+        notifier: Notifier<Result<(), MonitorPermissionError>>,
+    ) {
+        let future = JsFuture::from(window.screen_details());
+
+        wasm_bindgen_futures::spawn_local(async move {
+            match future.await {
+                Ok(details) => {
+                    // Notifying `Future`s is not dependant on the lifetime of the runner, because
+                    // they can outlive it.
+                    notifier.notify(Ok(()));
+
+                    if let Some(runner) = runner.upgrade() {
+                        runner.monitor().upgrade(details.unchecked_into());
+                    }
+                },
+                Err(error) => unreachable_error(
+                    &error,
+                    "getting screen details failed even though permission was granted",
+                ),
+            }
         });
     }
 }
@@ -806,8 +804,10 @@ fn unreachable_error(error: &JsValue, message: &str) -> ! {
     }
 }
 
-thread_local! {
-    static HAS_LOCK_SUPPORT: OnceCell<bool> = const { OnceCell::new() };
+static HAS_LOCK_SUPPORT: OnceLock<bool> = OnceLock::new();
+
+fn has_previous_lock_support() -> Option<bool> {
+    HAS_LOCK_SUPPORT.get().cloned()
 }
 
 pub fn has_screen_details_support(window: &Window) -> bool {
