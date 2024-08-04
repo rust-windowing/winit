@@ -226,7 +226,8 @@ pub trait EventLoopExtWeb {
     /// [`ControlFlow::WaitUntil`]: crate::event_loop::ControlFlow::WaitUntil
     fn wait_until_strategy(&self) -> WaitUntilStrategy;
 
-    /// Returns if the users device has multiple screens.
+    /// Returns if the users device has multiple screens. Useful to check before prompting the user
+    /// with [`EventLoopExtWeb::request_detailed_monitor_permission()`].
     ///
     /// Browsers might always return [`false`] to reduce fingerprinting.
     fn has_multiple_screens(&self) -> Result<bool, NotSupportedError>;
@@ -234,11 +235,17 @@ pub trait EventLoopExtWeb {
     /// Prompts the user for permission to query detailed information about available monitors. The
     /// returned [`MonitorPermissionFuture`] can be dropped without aborting the request.
     ///
+    /// Check [`EventLoopExtWeb::has_multiple_screens()`] before unnecessarily prompting the user
+    /// for such permissions.
+    ///
     /// [`MonitorHandle`]s don't automatically make use of this after permission is granted. New
     /// [`MonitorHandle`]s have to be created instead.
     fn request_detailed_monitor_permission(&self) -> MonitorPermissionFuture;
 
     /// Returns whether the user has given permission to access detailed monitor information.
+    ///
+    /// [`MonitorHandle`]s don't automatically make use of detailed monitor information after
+    /// permission is granted. New [`MonitorHandle`]s have to be created instead.
     fn has_detailed_monitor_permission(&self) -> HasMonitorPermissionFuture;
 }
 
@@ -314,7 +321,8 @@ pub trait ActiveEventLoopExtWeb {
     /// [`CursorGrabMode::Locked`]: crate::window::CursorGrabMode::Locked
     fn is_cursor_lock_raw(&self) -> bool;
 
-    /// Returns if the users device has multiple screens.
+    /// Returns if the users device has multiple screens. Useful to check before prompting the user
+    /// with [`EventLoopExtWeb::request_detailed_monitor_permission()`].
     ///
     /// Browsers might always return [`false`] to reduce fingerprinting.
     fn has_multiple_screens(&self) -> Result<bool, NotSupportedError>;
@@ -322,14 +330,17 @@ pub trait ActiveEventLoopExtWeb {
     /// Prompts the user for permission to query detailed information about available monitors. The
     /// returned [`MonitorPermissionFuture`] can be dropped without aborting the request.
     ///
+    /// Check [`EventLoopExtWeb::has_multiple_screens()`] before unnecessarily prompting the user
+    /// for such permissions.
+    ///
     /// [`MonitorHandle`]s don't automatically make use of this after permission is granted. New
     /// [`MonitorHandle`]s have to be created instead.
     fn request_detailed_monitor_permission(&self) -> MonitorPermissionFuture;
 
     /// Returns whether the user has given permission to access detailed monitor information.
     ///
-    /// [`MonitorHandle`]s don't automatically make use of this after permission is granted. New
-    /// [`MonitorHandle`]s have to be created instead.
+    /// [`MonitorHandle`]s don't automatically make use of detailed monitor information after
+    /// permission is granted. New [`MonitorHandle`]s have to be created instead.
     fn has_detailed_monitor_permission(&self) -> bool;
 }
 
@@ -608,7 +619,9 @@ pub trait MonitorHandleExtWeb {
     /// Will fail if a locking call is in progress.
     fn unlock(&self) -> Result<(), OrientationLockError>;
 
-    /// Returns whether this [`MonitorHandle`] was created using detailed monitor permissions.
+    /// Returns whether this [`MonitorHandle`] was created using detailed monitor permissions. If
+    /// [`false`] will always represent the current monitor the browser window is in instead of a
+    /// specific monitor.
     ///
     /// See [`ActiveEventLoop::request_detailed_monitor_permission()`].
     fn is_detailed(&self) -> bool;

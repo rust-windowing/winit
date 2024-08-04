@@ -98,6 +98,23 @@ impl std::fmt::Display for VideoModeHandle {
 ///
 /// Allows you to retrieve information about a given monitor and can be used in [`Window`] creation.
 ///
+/// ## Platform-specific
+///
+/// **Web:** A [`MonitorHandle`] created without
+#[cfg_attr(
+    any(web_platform, docsrs),
+    doc = "[detailed monitor permissions][crate::platform::web::ActiveEventLoopExtWeb::request_detailed_monitor_permission]."
+)]
+#[cfg_attr(not(any(web_platform, docsrs)), doc = "detailed monitor permissions.")]
+/// will always represent the current monitor the browser window is in instead of a specific
+/// monitor. See
+#[cfg_attr(
+    any(web_platform, docsrs),
+    doc = "[`MonitorHandleExtWeb::is_detailed()`][crate::platform::web::MonitorHandleExtWeb::is_detailed]"
+)]
+#[cfg_attr(not(any(web_platform, docsrs)), doc = "`MonitorHandleExtWeb::is_detailed()`")]
+/// to check.
+///
 /// [`Window`]: crate::window::Window
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct MonitorHandle {
