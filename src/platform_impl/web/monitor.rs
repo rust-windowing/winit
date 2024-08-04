@@ -1,10 +1,12 @@
 use std::cell::{OnceCell, Ref, RefCell};
+use std::cmp::Ordering;
 use std::future::Future;
-use std::hash::Hash;
+use std::hash::{Hash, Hasher};
 use std::iter::{self, Once};
 use std::mem;
-use std::ops::Deref;
+use std::ops::{Deref, DerefMut};
 use std::pin::Pin;
+use std::rc::{Rc, Weak};
 use std::task::{ready, Context, Poll};
 
 use dpi::LogicalSize;
@@ -28,24 +30,28 @@ use crate::platform::web::{
     MonitorPermissionError, Orientation, OrientationData, OrientationLock, OrientationLockError,
 };
 
-#[derive(Debug, Clone, Eq, Hash, Ord, PartialEq, PartialOrd)]
-pub struct MonitorHandle(Dispatcher<Inner>);
+#[derive(Debug, Clone, Eq)]
+pub struct MonitorHandle {
+    id: Option<u64>,
+    inner: Dispatcher<Inner>,
+}
 
 impl MonitorHandle {
     fn new(main_thread: MainThreadMarker, inner: Inner) -> Self {
-        Self(Dispatcher::new(main_thread, inner).0)
+        let id = if let Screen::Detailed { id, .. } = inner.screen { Some(id) } else { None };
+        Self { id, inner: Dispatcher::new(main_thread, inner).0 }
     }
 
     pub fn scale_factor(&self) -> f64 {
-        self.0.queue(|inner| match &inner.screen {
+        self.inner.queue(|inner| match &inner.screen {
             Screen::Screen(_) => 0.,
-            Screen::Detailed(screen) => screen.device_pixel_ratio(),
+            Screen::Detailed { screen, .. } => screen.device_pixel_ratio(),
         })
     }
 
     pub fn position(&self) -> PhysicalPosition<i32> {
-        self.0.queue(|inner| {
-            if let Screen::Detailed(screen) = &inner.screen {
+        self.inner.queue(|inner| {
+            if let Screen::Detailed { screen, .. } = &inner.screen {
                 PhysicalPosition::new(screen.left(), screen.top())
             } else {
                 PhysicalPosition::default()
@@ -54,8 +60,8 @@ impl MonitorHandle {
     }
 
     pub fn name(&self) -> Option<String> {
-        self.0.queue(|inner| {
-            if let Screen::Detailed(screen) = &inner.screen {
+        self.inner.queue(|inner| {
+            if let Screen::Detailed { screen, .. } = &inner.screen {
                 Some(screen.label())
             } else {
                 None
@@ -68,7 +74,7 @@ impl MonitorHandle {
     }
 
     pub fn size(&self) -> PhysicalSize<u32> {
-        self.0.queue(|inner| {
+        self.inner.queue(|inner| {
             let width = inner.screen.width().unwrap();
             let height = inner.screen.height().unwrap();
 
@@ -86,7 +92,7 @@ impl MonitorHandle {
     }
 
     pub fn orientation(&self) -> OrientationData {
-        self.0.queue(|inner| {
+        self.inner.queue(|inner| {
             let orientation =
                 inner.orientation.get_or_init(|| inner.screen.orientation().unchecked_into());
             let angle = orientation.angle().unwrap();
@@ -127,7 +133,7 @@ impl MonitorHandle {
             }
         }
 
-        self.0.queue(|inner| {
+        self.inner.queue(|inner| {
             let orientation =
                 inner.orientation.get_or_init(|| inner.screen.orientation().unchecked_into());
 
@@ -157,7 +163,7 @@ impl MonitorHandle {
             }
         }
 
-        self.0.queue(|inner| {
+        self.inner.queue(|inner| {
             let orientation =
                 inner.orientation.get_or_init(|| inner.screen.orientation().unchecked_into());
 
@@ -172,8 +178,8 @@ impl MonitorHandle {
     }
 
     pub fn is_internal(&self) -> Option<bool> {
-        self.0.queue(|inner| {
-            if let Screen::Detailed(screen) = &inner.screen {
+        self.inner.queue(|inner| {
+            if let Screen::Detailed { screen, .. } = &inner.screen {
                 Some(screen.is_internal())
             } else {
                 None
@@ -182,24 +188,48 @@ impl MonitorHandle {
     }
 
     pub fn is_detailed(&self) -> bool {
-        self.0.queue(|inner| matches!(inner.screen, Screen::Detailed(_)))
+        self.inner.queue(|inner| matches!(inner.screen, Screen::Detailed { .. }))
     }
 
     pub(crate) fn detailed(
         &self,
         main_thread: MainThreadMarker,
     ) -> Option<Ref<'_, ScreenDetailed>> {
-        let inner = self.0.value(main_thread);
+        let inner = self.inner.value(main_thread);
         match &inner.screen {
             Screen::Screen(_) => None,
-            Screen::Detailed(_) => Some(Ref::map(inner, |inner| {
-                if let Screen::Detailed(detailed) = &inner.screen {
-                    detailed
+            Screen::Detailed { .. } => Some(Ref::map(inner, |inner| {
+                if let Screen::Detailed { screen, .. } = &inner.screen {
+                    screen.deref()
                 } else {
                     unreachable!()
                 }
             })),
         }
+    }
+}
+
+impl Hash for MonitorHandle {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.id.hash(state)
+    }
+}
+
+impl Ord for MonitorHandle {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.id.cmp(&other.id)
+    }
+}
+
+impl PartialEq for MonitorHandle {
+    fn eq(&self, other: &Self) -> bool {
+        self.id.eq(&other.id)
+    }
+}
+
+impl PartialOrd for MonitorHandle {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
     }
 }
 
@@ -269,7 +299,7 @@ impl VideoModeHandle {
     }
 
     pub fn bit_depth(&self) -> u16 {
-        self.0 .0.queue(|inner| inner.screen.color_depth().unwrap()).try_into().unwrap()
+        self.0.inner.queue(|inner| inner.screen.color_depth().unwrap()).try_into().unwrap()
     }
 
     pub fn refresh_rate_millihertz(&self) -> u32 {
@@ -294,9 +324,24 @@ impl Inner {
     }
 }
 
+impl Drop for Inner {
+    fn drop(&mut self) {
+        if let Screen::Detailed { runner, id, screen } = &self.screen {
+            if Rc::strong_count(screen) == 1 {
+                if let Some(runner) = runner.upgrade() {
+                    let state = &mut runner.monitor().state.borrow_mut();
+                    let State::Detailed(detailed) = state.deref_mut() else { unreachable!() };
+
+                    detailed.screens.retain(|(id_internal, _)| *id_internal != *id)
+                }
+            }
+        }
+    }
+}
+
 enum Screen {
     Screen(ScreenExt),
-    Detailed(ScreenDetailed),
+    Detailed { runner: WeakShared, id: u64, screen: Rc<ScreenDetailed> },
 }
 
 impl Deref for Screen {
@@ -305,12 +350,13 @@ impl Deref for Screen {
     fn deref(&self) -> &Self::Target {
         match self {
             Screen::Screen(screen) => screen,
-            Screen::Detailed(screen) => screen,
+            Screen::Detailed { screen, .. } => screen,
         }
     }
 }
 
 pub struct MonitorHandler {
+    runner: WeakShared,
     state: RefCell<State>,
     main_thread: MainThreadMarker,
     window: WindowExt,
@@ -323,7 +369,51 @@ enum State {
     Initialize(Notified<Result<(), MonitorPermissionError>>),
     Permission { permission: PermissionStatusExt, _handle: EventListenerHandle<dyn Fn()> },
     Upgrade(Notified<Result<(), MonitorPermissionError>>),
-    Detailed(ScreenDetails),
+    Detailed(Detailed),
+}
+
+struct Detailed {
+    details: ScreenDetails,
+    id_counter: u64,
+    screens: Vec<(u64, Weak<ScreenDetailed>)>,
+}
+
+impl Detailed {
+    fn handle(
+        &mut self,
+        main_thread: MainThreadMarker,
+        runner: WeakShared,
+        window: WindowExt,
+        engine: Option<Engine>,
+        screen: ScreenDetailed,
+    ) -> MonitorHandle {
+        let (id, screen) = if let Some((id, screen)) =
+            self.screens.iter().find_map(|(id, internal_screen)| {
+                let internal_screen =
+                    internal_screen.upgrade().expect("dropped `MonitorHandle` without cleaning up");
+
+                if *internal_screen == screen {
+                    Some((*id, internal_screen))
+                } else {
+                    None
+                }
+            }) {
+            (id, screen)
+        } else {
+            let id = self.id_counter;
+            self.id_counter += 1;
+            let screen = Rc::new(screen);
+
+            self.screens.push((id, Rc::downgrade(&screen)));
+
+            (id, screen)
+        };
+
+        MonitorHandle::new(
+            main_thread,
+            Inner::new(window, engine, Screen::Detailed { runner, id, screen }),
+        )
+    }
 }
 
 impl MonitorHandler {
@@ -346,6 +436,7 @@ impl MonitorHandler {
             descriptor.set_name("window-management");
             let future = JsFuture::from(permissions.query(&descriptor).unwrap());
 
+            let runner = runner.clone();
             let window = window.clone();
             let notifier = Notifier::new();
             let notified = notifier.notified();
@@ -359,17 +450,17 @@ impl MonitorHandler {
                     ),
                 };
 
-                let screen_details = match permission.state() {
+                let details = match permission.state() {
                     PermissionState::Granted => {
-                        let screen_details = match JsFuture::from(window.screen_details()).await {
-                            Ok(screen_details) => screen_details.unchecked_into(),
+                        let details = match JsFuture::from(window.screen_details()).await {
+                            Ok(details) => details.unchecked_into(),
                             Err(error) => unreachable_error(
                                 &error,
                                 "getting screen details failed even though permission was granted",
                             ),
                         };
                         notifier.notify(Ok(()));
-                        Some(screen_details)
+                        Some(details)
                     },
                     PermissionState::Denied => {
                         notifier.notify(Err(MonitorPermissionError::Denied));
@@ -392,17 +483,17 @@ impl MonitorHandler {
                 // Notifying `Future`s is not dependant on the lifetime of the runner,
                 // because they can outlive it.
                 if let Some(runner) = runner.upgrade() {
-                    let state = if let Some(screen_details) = screen_details {
-                        State::Detailed(screen_details)
+                    if let Some(details) = details {
+                        runner.monitor().upgrade(details);
                     } else {
                         // If permission is denied we listen for changes so we can catch external
                         // permission granting.
                         let handle =
                             Self::setup_listener(runner.weak(), window, permission.clone());
-                        State::Permission { permission, _handle: handle }
+                        *runner.monitor().state.borrow_mut() =
+                            State::Permission { permission, _handle: handle };
                     };
 
-                    *runner.monitor().state.borrow_mut() = state;
                     runner.start_delayed();
                 }
             });
@@ -412,7 +503,7 @@ impl MonitorHandler {
             State::Unsupported
         };
 
-        Self { state: RefCell::new(state), main_thread, window, engine, screen }
+        Self { runner, state: RefCell::new(state), main_thread, window, engine, screen }
     }
 
     fn setup_listener(
@@ -429,8 +520,8 @@ impl MonitorHandler {
 
                     let runner = runner.clone();
                     wasm_bindgen_futures::spawn_local(async move {
-                        let screen_details = match future.await {
-                            Ok(screen_details) => screen_details.unchecked_into(),
+                        let details = match future.await {
+                            Ok(details) => details.unchecked_into(),
                             Err(error) => unreachable_error(
                                 &error,
                                 "getting screen details failed even though permission was granted",
@@ -441,12 +532,17 @@ impl MonitorHandler {
                             // We drop the event listener handle here, which
                             // doesn't drop it while we are running it, because
                             // we are in a `spawn_local()` context.
-                            *runner.monitor().state.borrow_mut() = State::Detailed(screen_details);
+                            runner.monitor().upgrade(details);
                         }
                     });
                 }
             }),
         )
+    }
+
+    fn upgrade(&self, details: ScreenDetails) {
+        *self.state.borrow_mut() =
+            State::Detailed(Detailed { details, id_counter: 0, screens: Vec::new() });
     }
 
     pub fn is_extended(&self) -> Option<bool> {
@@ -457,16 +553,19 @@ impl MonitorHandler {
         matches!(self.state.borrow().deref(), State::Initialize(_))
     }
 
+    fn handle(&self, detailed: &mut Detailed, screen: ScreenDetailed) -> MonitorHandle {
+        detailed.handle(
+            self.main_thread,
+            self.runner.clone(),
+            self.window.clone(),
+            self.engine,
+            screen,
+        )
+    }
+
     pub fn current_monitor(&self) -> MonitorHandle {
-        if let State::Detailed(details) = self.state.borrow().deref() {
-            MonitorHandle::new(
-                self.main_thread,
-                Inner::new(
-                    self.window.clone(),
-                    self.engine,
-                    Screen::Detailed(details.current_screen()),
-                ),
-            )
+        if let State::Detailed(detailed) = self.state.borrow_mut().deref_mut() {
+            self.handle(detailed, detailed.details.current_screen())
         } else {
             MonitorHandle::new(
                 self.main_thread,
@@ -477,16 +576,12 @@ impl MonitorHandler {
 
     // Note: We have to return a `Vec` here because the iterator is otherwise not `Send` + `Sync`.
     pub fn available_monitors(&self) -> Vec<MonitorHandle> {
-        if let State::Detailed(details) = self.state.borrow().deref() {
-            details
+        if let State::Detailed(detailed) = self.state.borrow_mut().deref_mut() {
+            detailed
+                .details
                 .screens()
                 .into_iter()
-                .map(move |screen| {
-                    MonitorHandle::new(
-                        self.main_thread,
-                        Inner::new(self.window.clone(), self.engine, Screen::Detailed(screen)),
-                    )
-                })
+                .map(move |screen| self.handle(detailed, screen))
                 .collect()
         } else {
             vec![self.current_monitor()]
@@ -494,24 +589,18 @@ impl MonitorHandler {
     }
 
     pub fn primary_monitor(&self) -> Option<MonitorHandle> {
-        if let State::Detailed(details) = self.state.borrow().deref() {
-            details.screens().into_iter().find_map(|screen| {
-                screen.is_primary().then(|| {
-                    MonitorHandle::new(
-                        self.main_thread,
-                        Inner::new(self.window.clone(), self.engine, Screen::Detailed(screen)),
-                    )
-                })
-            })
+        if let State::Detailed(detailed) = self.state.borrow_mut().deref_mut() {
+            detailed
+                .details
+                .screens()
+                .into_iter()
+                .find_map(|screen| screen.is_primary().then(|| self.handle(detailed, screen)))
         } else {
             None
         }
     }
 
-    pub(crate) fn request_detailed_monitor_permission(
-        &self,
-        shared: WeakShared,
-    ) -> MonitorPermissionFuture {
+    pub(crate) fn request_detailed_monitor_permission(&self) -> MonitorPermissionFuture {
         let state = self.state.borrow();
         let (notifier, notified) = match state.deref() {
             State::Unsupported => {
@@ -521,7 +610,11 @@ impl MonitorHandler {
             },
             State::Initialize(notified) => {
                 return MonitorPermissionFuture::Initialize {
-                    runner: Dispatcher::new(self.main_thread, (shared, self.window.clone())).0,
+                    runner: Dispatcher::new(
+                        self.main_thread,
+                        (self.runner.clone(), self.window.clone()),
+                    )
+                    .0,
                     notified: notified.clone(),
                 }
             },
@@ -555,10 +648,11 @@ impl MonitorHandler {
             },
             // A request is already in progress.
             State::Upgrade(notified) => return MonitorPermissionFuture::Upgrade(notified.clone()),
-            State::Detailed(_) => return MonitorPermissionFuture::Ready(Some(Ok(()))),
+            State::Detailed { .. } => return MonitorPermissionFuture::Ready(Some(Ok(()))),
         };
 
         let future = JsFuture::from(self.window.screen_details());
+        let runner = self.runner.clone();
         wasm_bindgen_futures::spawn_local(async move {
             match future.await {
                 Ok(details) => {
@@ -566,9 +660,8 @@ impl MonitorHandler {
                     // they can outlive it.
                     notifier.notify(Ok(()));
 
-                    if let Some(shared) = shared.upgrade() {
-                        *shared.monitor().state.borrow_mut() =
-                            State::Detailed(details.unchecked_into())
+                    if let Some(runner) = runner.upgrade() {
+                        runner.monitor().upgrade(details.unchecked_into());
                     }
                 },
                 Err(error) => unreachable_error(
@@ -587,7 +680,7 @@ impl MonitorHandler {
                 HasMonitorPermissionFuture::Ready(Some(false))
             },
             State::Initialize(notified) => HasMonitorPermissionFuture::Future(notified.clone()),
-            State::Detailed(_) => HasMonitorPermissionFuture::Ready(Some(true)),
+            State::Detailed { .. } => HasMonitorPermissionFuture::Ready(Some(true)),
         }
     }
 
@@ -597,7 +690,7 @@ impl MonitorHandler {
             State::Initialize(_) => {
                 unreachable!("called `has_detailed_monitor_permission()` while initializing")
             },
-            State::Detailed(_) => true,
+            State::Detailed { .. } => true,
         }
     }
 }
@@ -621,14 +714,14 @@ impl MonitorPermissionFuture {
             unreachable!()
         };
 
-        runner.dispatch(|(shared, window)| {
+        runner.dispatch(|(runner, window)| {
             let future = JsFuture::from(window.screen_details());
 
-            if let Some(shared) = shared.upgrade() {
-                *shared.monitor().state.borrow_mut() = State::Upgrade(notified);
+            if let Some(runner) = runner.upgrade() {
+                *runner.monitor().state.borrow_mut() = State::Upgrade(notified);
             }
 
-            let shared = shared.clone();
+            let runner = runner.clone();
             wasm_bindgen_futures::spawn_local(async move {
                 match future.await {
                     Ok(details) => {
@@ -638,9 +731,8 @@ impl MonitorPermissionFuture {
                         // they can outlive it.
                         notifier.notify(Ok(()));
 
-                        if let Some(shared) = shared.upgrade() {
-                            *shared.monitor().state.borrow_mut() =
-                                State::Detailed(details.unchecked_into())
+                        if let Some(runner) = runner.upgrade() {
+                            runner.monitor().upgrade(details.unchecked_into());
                         }
                     },
                     Err(error) => unreachable_error(
@@ -751,7 +843,7 @@ extern "C" {
     #[wasm_bindgen(method, getter)]
     fn screens(this: &ScreenDetails) -> Vec<ScreenDetailed>;
 
-    #[derive(Clone)]
+    #[derive(Clone, PartialEq)]
     #[wasm_bindgen(extends = web_sys::Screen)]
     pub(crate) type ScreenExt;
 
@@ -767,6 +859,7 @@ extern "C" {
     #[wasm_bindgen(method, getter, js_name = lock)]
     fn has_lock(this: &ScreenOrientationExt) -> JsValue;
 
+    #[derive(PartialEq)]
     #[wasm_bindgen(extends = ScreenExt)]
     pub(crate) type ScreenDetailed;
 

@@ -652,7 +652,7 @@ impl ActiveEventLoop {
     }
 
     pub(crate) fn request_detailed_monitor_permission(&self) -> MonitorPermissionFuture {
-        self.runner.monitor().request_detailed_monitor_permission(self.runner.weak())
+        self.runner.monitor().request_detailed_monitor_permission()
     }
 
     pub(crate) fn has_detailed_monitor_permission(&self) -> bool {
