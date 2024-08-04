@@ -2441,7 +2441,7 @@ unsafe extern "system" fn thread_event_target_callback(
     if userdata_removed {
         drop(userdata);
     } else {
-        Box::into_raw(userdata);
+        Box::leak(userdata);
     }
     result
 }
