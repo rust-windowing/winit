@@ -123,7 +123,7 @@ fn set_dark_mode_for_window(hwnd: HWND, is_dark_mode: bool) -> bool {
     }
 }
 
-fn should_use_dark_mode() -> bool {
+pub fn should_use_dark_mode() -> bool {
     should_apps_use_dark_mode() && !is_high_contrast()
 }
 

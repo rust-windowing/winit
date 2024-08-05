@@ -22,8 +22,8 @@ use crate::event_loop::{
     ActiveEventLoop as RootActiveEventLoop, ControlFlow, DeviceEvents, EventLoopClosed,
 };
 use crate::platform::ios::Idiom;
-use crate::platform_impl::platform::app_state::{EventLoopHandler, HandlePendingUserEvents};
-use crate::window::{CustomCursor, CustomCursorSource};
+use crate::platform_impl::ios::app_state::{EventLoopHandler, HandlePendingUserEvents};
+use crate::window::{CustomCursor, CustomCursorSource, Theme};
 
 use super::app_delegate::AppDelegate;
 use super::app_state::AppState;
@@ -56,6 +56,11 @@ impl ActiveEventLoop {
     #[inline]
     pub fn raw_display_handle_rwh_05(&self) -> rwh_05::RawDisplayHandle {
         rwh_05::RawDisplayHandle::UiKit(rwh_05::UiKitDisplayHandle::empty())
+    }
+
+    #[inline]
+    pub fn system_theme(&self) -> Option<Theme> {
+        None
     }
 
     #[cfg(feature = "rwh_06")]

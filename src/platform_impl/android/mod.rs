@@ -677,6 +677,11 @@ impl ActiveEventLoop {
         rwh_05::RawDisplayHandle::Android(rwh_05::AndroidDisplayHandle::empty())
     }
 
+    #[inline]
+    pub fn system_theme(&self) -> Option<Theme> {
+        None
+    }
+
     #[cfg(feature = "rwh_06")]
     #[inline]
     pub fn raw_display_handle_rwh_06(

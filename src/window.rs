@@ -1371,14 +1371,14 @@ impl Window {
         self.window.maybe_queue_on_main(move |w| w.set_theme(theme))
     }
 
-    /// Returns the current window theme override.
+    /// Returns the current window theme.
     ///
-    /// Returns `None` if the current theme is set as the system default, or if it cannot be
-    /// determined on the current platform.
+    /// Returns `None` if it cannot be determined on the current platform.
     ///
     /// ## Platform-specific
     ///
-    /// - **iOS / Android / Wayland / x11 / Orbital:** Unsupported, returns `None`.
+    /// - **iOS / Android / x11 / Orbital:** Unsupported.
+    /// - **Wayland:** Only returns theme overrides.
     #[inline]
     pub fn theme(&self) -> Option<Theme> {
         let _span = tracing::debug_span!("winit::Window::theme",).entered();

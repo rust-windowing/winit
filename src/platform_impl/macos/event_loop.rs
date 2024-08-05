@@ -16,7 +16,7 @@ use core_foundation::runloop::{
 };
 use objc2::rc::{autoreleasepool, Retained};
 use objc2::runtime::ProtocolObject;
-use objc2::{msg_send_id, ClassType};
+use objc2::{msg_send_id, sel, ClassType};
 use objc2_app_kit::{NSApplication, NSApplicationActivationPolicy, NSWindow};
 use objc2_foundation::{MainThreadMarker, NSObjectProtocol};
 
@@ -33,7 +33,7 @@ use crate::event_loop::{
 use crate::platform::macos::ActivationPolicy;
 use crate::platform::pump_events::PumpStatus;
 use crate::platform_impl::platform::cursor::CustomCursor;
-use crate::window::{CustomCursor as RootCustomCursor, CustomCursorSource};
+use crate::window::{CustomCursor as RootCustomCursor, CustomCursorSource, Theme};
 
 #[derive(Default)]
 pub struct PanicInfo {
@@ -104,6 +104,17 @@ impl ActiveEventLoop {
     #[inline]
     pub fn raw_display_handle_rwh_05(&self) -> rwh_05::RawDisplayHandle {
         rwh_05::RawDisplayHandle::AppKit(rwh_05::AppKitDisplayHandle::empty())
+    }
+
+    #[inline]
+    pub fn system_theme(&self) -> Option<Theme> {
+        let app = NSApplication::sharedApplication(self.mtm);
+
+        if app.respondsToSelector(sel!(effectiveAppearance)) {
+            Some(super::window_delegate::appearance_to_theme(&app.effectiveAppearance()))
+        } else {
+            Some(Theme::Light)
+        }
     }
 
     #[cfg(feature = "rwh_06")]
