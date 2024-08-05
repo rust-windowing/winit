@@ -23,7 +23,7 @@ use crate::application::ApplicationHandler;
 use crate::error::{EventLoopError, OsError};
 use crate::monitor::MonitorHandle;
 use crate::platform_impl;
-use crate::window::{CustomCursor, CustomCursorSource, Window, WindowAttributes};
+use crate::window::{CustomCursor, CustomCursorSource, Theme, Window, WindowAttributes};
 
 /// Provides a way to retrieve events from the system and from the windows that were registered to
 /// the events loop.
@@ -401,6 +401,17 @@ impl ActiveEventLoop {
         .entered();
 
         self.p.listen_device_events(allowed);
+    }
+
+    /// Returns the current system theme.
+    ///
+    /// Returns `None` if it cannot be determined on the current platform.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **iOS / Android / Wayland / x11 / Orbital:** Unsupported.
+    pub fn system_theme(&self) -> Option<Theme> {
+        self.p.system_theme()
     }
 
     /// Sets the [`ControlFlow`].

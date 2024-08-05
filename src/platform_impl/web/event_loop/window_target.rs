@@ -611,6 +611,16 @@ impl ActiveEventLoop {
         self.runner.listen_device_events(allowed)
     }
 
+    pub fn system_theme(&self) -> Option<Theme> {
+        backend::is_dark_mode(self.runner.window()).map(|is_dark_mode| {
+            if is_dark_mode {
+                Theme::Dark
+            } else {
+                Theme::Light
+            }
+        })
+    }
+
     pub(crate) fn set_control_flow(&self, control_flow: ControlFlow) {
         self.runner.set_control_flow(control_flow)
     }
