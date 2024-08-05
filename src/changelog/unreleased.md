@@ -49,3 +49,4 @@ changelog entry.
 
 - On MacOS, fix building with `feature = "rwh_04"`.
 - On Web, pen events are now routed through to `WindowEvent::Cursor*`.
+- On macOS, fix panic when releasing not available monitor.
