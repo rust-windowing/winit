@@ -1426,13 +1426,7 @@ impl WindowDelegate {
                 toggle_fullscreen(self.window());
             },
             (Some(Fullscreen::Exclusive(ref video_mode)), None) => {
-                unsafe {
-                    ffi::CGRestorePermanentDisplayConfiguration();
-                    assert_eq!(
-                        ffi::CGDisplayRelease(video_mode.monitor().native_identifier()),
-                        ffi::kCGErrorSuccess
-                    );
-                };
+                restore_and_release_display(&video_mode.monitor());
                 toggle_fullscreen(self.window());
             },
             (Some(Fullscreen::Borderless(_)), Some(Fullscreen::Exclusive(_))) => {
@@ -1463,13 +1457,7 @@ impl WindowDelegate {
                 );
                 app.setPresentationOptions(presentation_options);
 
-                unsafe {
-                    ffi::CGRestorePermanentDisplayConfiguration();
-                    assert_eq!(
-                        ffi::CGDisplayRelease(video_mode.monitor().native_identifier()),
-                        ffi::kCGErrorSuccess
-                    );
-                };
+                restore_and_release_display(&video_mode.monitor());
 
                 // Restore the normal window level following the Borderless fullscreen
                 // `CGShieldingWindowLevel() + 1` hack.
@@ -1686,6 +1674,21 @@ impl WindowDelegate {
 
     pub fn reset_dead_keys(&self) {
         // (Artur) I couldn't find a way to implement this.
+    }
+}
+
+fn restore_and_release_display(monitor: &MonitorHandle) {
+    let available_monitors = monitor::available_monitors();
+    if available_monitors.contains(monitor) {
+        unsafe {
+            ffi::CGRestorePermanentDisplayConfiguration();
+            assert_eq!(ffi::CGDisplayRelease(monitor.native_identifier()), ffi::kCGErrorSuccess);
+        };
+    } else {
+        warn!(
+            monitor = monitor.name(),
+            "Tried to restore exclusive fullscreen on a monitor that is no longer available"
+        );
     }
 }
 
