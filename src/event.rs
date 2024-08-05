@@ -340,9 +340,6 @@ pub enum WindowEvent {
     /// touchpad is being pressed) and stage (integer representing the click level).
     TouchpadPressure { device_id: DeviceId, pressure: f32, stage: i64 },
 
-    /// Motion on some analog axis. May report data redundant to other, more specific events.
-    AxisMotion { device_id: DeviceId, axis: AxisId, value: f64 },
-
     /// Touch event has been received
     ///
     /// ## Platform-specific
@@ -490,14 +487,6 @@ pub enum DeviceEvent {
     /// Physical scroll event
     MouseWheel {
         delta: MouseScrollDelta,
-    },
-
-    /// Motion on some analog axis. This event will be reported for all arbitrary input devices
-    /// that winit supports on this platform, including mouse devices.  If the device is a mouse
-    /// device then this will be reported alongside the MouseMotion event.
-    Motion {
-        axis: AxisId,
-        value: f64,
     },
 
     Button {
@@ -1082,7 +1071,6 @@ mod tests {
                     phase: event::TouchPhase::Started,
                 });
                 with_window_event(TouchpadPressure { device_id: did, pressure: 0.0, stage: 0 });
-                with_window_event(AxisMotion { device_id: did, axis: 0, value: 0.0 });
                 with_window_event(Touch(event::Touch {
                     device_id: did,
                     phase: event::TouchPhase::Started,
@@ -1105,7 +1093,6 @@ mod tests {
                 with_device_event(MouseWheel {
                     delta: event::MouseScrollDelta::LineDelta(0.0, 0.0),
                 });
-                with_device_event(Motion { axis: 0, value: 0.0 });
                 with_device_event(Button { button: 0, state: event::ElementState::Pressed });
             }
         }};

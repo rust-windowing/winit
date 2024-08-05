@@ -488,7 +488,6 @@ impl ApplicationHandler for Application {
             | WindowEvent::HoveredFileCancelled
             | WindowEvent::KeyboardInput { .. }
             | WindowEvent::CursorEntered { .. }
-            | WindowEvent::AxisMotion { .. }
             | WindowEvent::DroppedFile(_)
             | WindowEvent::HoveredFile(_)
             | WindowEvent::Destroyed

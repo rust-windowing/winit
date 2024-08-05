@@ -1147,7 +1147,7 @@ impl EventProcessor {
 
             let x = unsafe { *value };
 
-            let event = if let Some(&mut (_, ref mut info)) =
+            if let Some(&mut (_, ref mut info)) =
                 physical_device.scroll_axes.iter_mut().find(|&&mut (axis, _)| axis == i as _)
             {
                 let delta = (x - info.position) / info.increment;
@@ -1160,12 +1160,9 @@ impl EventProcessor {
                     ScrollOrientation::Vertical => MouseScrollDelta::LineDelta(0.0, -delta as f32),
                 };
 
-                WindowEvent::MouseWheel { device_id, delta, phase: TouchPhase::Moved }
-            } else {
-                WindowEvent::AxisMotion { device_id, axis: i as u32, value: unsafe { *value } }
-            };
-
-            events.push(Event::WindowEvent { window_id, event });
+                let event = WindowEvent::MouseWheel { device_id, delta, phase: TouchPhase::Moved };
+                events.push(Event::WindowEvent { window_id, event });
+            }
 
             value = unsafe { value.offset(1) };
         }
@@ -1445,12 +1442,6 @@ impl EventProcessor {
                 3 => scroll_delta.set_y(x as f32),
                 _ => {},
             }
-
-            let event = Event::DeviceEvent {
-                device_id: did,
-                event: DeviceEvent::Motion { axis: i as u32, value: x },
-            };
-            callback(&self.target, event);
 
             value = unsafe { value.offset(1) };
         }

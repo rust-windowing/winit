@@ -2382,7 +2382,7 @@ unsafe extern "system" fn thread_event_target_callback(
 }
 
 unsafe fn handle_raw_input(userdata: &ThreadMsgTargetData, data: RAWINPUT) {
-    use crate::event::DeviceEvent::{Button, Key, Motion, MouseMotion, MouseWheel};
+    use crate::event::DeviceEvent::{Button, Key, MouseMotion, MouseWheel};
     use crate::event::ElementState::{Pressed, Released};
     use crate::event::MouseScrollDelta::LineDelta;
 
@@ -2394,20 +2394,6 @@ unsafe fn handle_raw_input(userdata: &ThreadMsgTargetData, data: RAWINPUT) {
         if util::has_flag(mouse.usFlags as u32, MOUSE_MOVE_RELATIVE) {
             let x = mouse.lLastX as f64;
             let y = mouse.lLastY as f64;
-
-            if x != 0.0 {
-                userdata.send_event(Event::DeviceEvent {
-                    device_id,
-                    event: Motion { axis: 0, value: x },
-                });
-            }
-
-            if y != 0.0 {
-                userdata.send_event(Event::DeviceEvent {
-                    device_id,
-                    event: Motion { axis: 1, value: y },
-                });
-            }
 
             if x != 0.0 || y != 0.0 {
                 userdata.send_event(Event::DeviceEvent {

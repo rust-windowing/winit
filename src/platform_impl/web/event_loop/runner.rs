@@ -306,23 +306,13 @@ impl Shared {
 
                 // pointer move event
                 let mut delta = backend::event::MouseDelta::init(&navigator, &event);
-                runner.send_events(backend::event::pointer_move_event(event).flat_map(|event| {
+                runner.send_events(backend::event::pointer_move_event(event).map(|event| {
                     let delta = delta.delta(&event).to_physical(backend::scale_factor(&window));
 
-                    let x_motion = (delta.x != 0.0).then_some(Event::DeviceEvent {
-                        device_id,
-                        event: DeviceEvent::Motion { axis: 0, value: delta.x },
-                    });
-
-                    let y_motion = (delta.y != 0.0).then_some(Event::DeviceEvent {
-                        device_id,
-                        event: DeviceEvent::Motion { axis: 1, value: delta.y },
-                    });
-
-                    x_motion.into_iter().chain(y_motion).chain(iter::once(Event::DeviceEvent {
+                    Event::DeviceEvent {
                         device_id,
                         event: DeviceEvent::MouseMotion { delta: (delta.x, delta.y) },
-                    }))
+                    }
                 }));
             }),
         ));
