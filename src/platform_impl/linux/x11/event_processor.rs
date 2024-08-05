@@ -280,7 +280,7 @@ impl EventProcessor {
 
                     xinput2::XI_HierarchyChanged => {
                         let xev: &XIHierarchyEvent = unsafe { xev.as_event() };
-                        self.xinput2_hierarchy_changed(xev, &mut callback);
+                        self.xinput2_hierarchy_changed(xev);
                     },
                     _ => {},
                 }
@@ -1496,10 +1496,7 @@ impl EventProcessor {
         });
     }
 
-    fn xinput2_hierarchy_changed<F>(&mut self, xev: &XIHierarchyEvent, mut callback: F)
-    where
-        F: FnMut(&RootAEL, Event),
-    {
+    fn xinput2_hierarchy_changed(&mut self, xev: &XIHierarchyEvent) {
         let wt = Self::window_target(&self.target);
 
         // Set the timestamp.
@@ -1508,15 +1505,7 @@ impl EventProcessor {
         for info in infos {
             if 0 != info.flags & (xinput2::XISlaveAdded | xinput2::XIMasterAdded) {
                 self.init_device(info.deviceid as xinput::DeviceId);
-                callback(&self.target, Event::DeviceEvent {
-                    device_id: mkdid(info.deviceid as xinput::DeviceId),
-                    event: DeviceEvent::Added,
-                });
             } else if 0 != info.flags & (xinput2::XISlaveRemoved | xinput2::XIMasterRemoved) {
-                callback(&self.target, Event::DeviceEvent {
-                    device_id: mkdid(info.deviceid as xinput::DeviceId),
-                    event: DeviceEvent::Removed,
-                });
                 let mut devices = self.devices.borrow_mut();
                 devices.remove(&DeviceId(info.deviceid as xinput::DeviceId));
             }
