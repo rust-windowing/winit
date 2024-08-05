@@ -589,11 +589,6 @@ impl Window {
     }
 
     #[inline]
-    pub fn system_theme(&self) -> Option<Theme> {
-        None
-    }
-
-    #[inline]
     pub fn theme(&self) -> Option<Theme> {
         x11_or_wayland!(match self; Window(window) => window.theme())
     }

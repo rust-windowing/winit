@@ -942,11 +942,6 @@ impl Window {
     }
 
     #[inline]
-    pub fn system_theme(&self) -> Option<Theme> {
-        Some(if super::dark_mode::should_use_dark_mode() { Theme::Dark } else { Theme::Light })
-    }
-
-    #[inline]
     pub fn theme(&self) -> Option<Theme> {
         Some(self.window_state_lock().current_theme)
     }

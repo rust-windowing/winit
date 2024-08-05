@@ -1622,21 +1622,19 @@ impl WindowDelegate {
         self.window().isKeyWindow()
     }
 
-    pub fn system_theme(&self) -> Option<Theme> {
-        let mtm = MainThreadMarker::from(self);
-        let app = NSApplication::sharedApplication(mtm);
-
-        if app.respondsToSelector(sel!(effectiveAppearance)) {
-            Some(super::window_delegate::appearance_to_theme(&app.effectiveAppearance()))
-        } else {
-            Some(Theme::Light)
-        }
-    }
-
     pub fn theme(&self) -> Option<Theme> {
         unsafe { self.window().appearance() }
             .map(|appearance| appearance_to_theme(&appearance))
-            .or_else(|| self.system_theme())
+            .or_else(|| {
+                let mtm = MainThreadMarker::from(self);
+                let app = NSApplication::sharedApplication(mtm);
+
+                if app.respondsToSelector(sel!(effectiveAppearance)) {
+                    Some(super::window_delegate::appearance_to_theme(&app.effectiveAppearance()))
+                } else {
+                    Some(Theme::Light)
+                }
+            })
     }
 
     pub fn set_theme(&self, theme: Option<Theme>) {

@@ -903,10 +903,6 @@ impl Window {
 
     pub fn set_theme(&self, _theme: Option<Theme>) {}
 
-    pub fn system_theme(&self) -> Option<Theme> {
-        None
-    }
-
     pub fn theme(&self) -> Option<Theme> {
         None
     }
