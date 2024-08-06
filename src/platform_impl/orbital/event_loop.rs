@@ -17,7 +17,7 @@ use super::{
     RedoxSocket, TimeSocket, WindowId, WindowProperties,
 };
 use crate::application::ApplicationHandler;
-use crate::error::EventLoopError;
+use crate::error::{EventLoopError, ExternalError, NotSupportedError};
 use crate::event::{self, Ime, Modifiers, StartCause};
 use crate::event_loop::{self, ControlFlow, DeviceEvents};
 use crate::keyboard::{
@@ -729,9 +729,11 @@ impl ActiveEventLoop {
         }
     }
 
-    pub fn create_custom_cursor(&self, source: CustomCursorSource) -> RootCustomCursor {
-        let _ = source.inner;
-        RootCustomCursor { inner: super::PlatformCustomCursor }
+    pub fn create_custom_cursor(
+        &self,
+        _source: CustomCursorSource,
+    ) -> Result<RootCustomCursor, ExternalError> {
+        Err(ExternalError::NotSupported(NotSupportedError::new()))
     }
 
     pub fn primary_monitor(&self) -> Option<MonitorHandle> {

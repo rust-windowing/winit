@@ -85,6 +85,7 @@ changelog entry.
 - On Web, `Window::canvas()` now returns a reference.
 - On Web, `CursorGrabMode::Locked` now lets `DeviceEvent::MouseMotion` return raw data, not OS
   accelerated, if the browser supports it.
+- `(Active)EventLoop::create_custom_cursor()` now returns a `Result<CustomCursor, ExternalError>`.
 
 ### Removed
 

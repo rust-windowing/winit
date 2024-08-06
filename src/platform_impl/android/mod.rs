@@ -15,8 +15,7 @@ use tracing::{debug, trace, warn};
 use crate::application::ApplicationHandler;
 use crate::cursor::Cursor;
 use crate::dpi::{PhysicalPosition, PhysicalSize, Position, Size};
-use crate::error;
-use crate::error::EventLoopError;
+use crate::error::{self, EventLoopError, ExternalError, NotSupportedError};
 use crate::event::{self, Force, InnerSizeWriter, StartCause};
 use crate::event_loop::{self, ControlFlow, DeviceEvents};
 use crate::platform::pump_events::PumpStatus;
@@ -591,9 +590,11 @@ impl ActiveEventLoop {
         Some(MonitorHandle::new(self.app.clone()))
     }
 
-    pub fn create_custom_cursor(&self, source: CustomCursorSource) -> CustomCursor {
-        let _ = source.inner;
-        CustomCursor { inner: PlatformCustomCursor }
+    pub fn create_custom_cursor(
+        &self,
+        _source: CustomCursorSource,
+    ) -> Result<CustomCursor, ExternalError> {
+        Err(ExternalError::NotSupported(NotSupportedError::new()))
     }
 
     pub fn available_monitors(&self) -> VecDeque<MonitorHandle> {

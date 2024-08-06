@@ -16,7 +16,7 @@ use sctk::reexports::client::{globals, Connection, QueueHandle};
 use crate::application::ApplicationHandler;
 use crate::cursor::OnlyCursorImage;
 use crate::dpi::LogicalSize;
-use crate::error::{EventLoopError, OsError as RootOsError};
+use crate::error::{EventLoopError, ExternalError, OsError as RootOsError};
 use crate::event::{Event, InnerSizeWriter, StartCause, WindowEvent};
 use crate::event_loop::{ActiveEventLoop as RootActiveEventLoop, ControlFlow, DeviceEvents};
 use crate::platform::pump_events::PumpStatus;
@@ -644,10 +644,13 @@ impl ActiveEventLoop {
     #[inline]
     pub fn listen_device_events(&self, _allowed: DeviceEvents) {}
 
-    pub(crate) fn create_custom_cursor(&self, cursor: CustomCursorSource) -> RootCustomCursor {
-        RootCustomCursor {
+    pub(crate) fn create_custom_cursor(
+        &self,
+        cursor: CustomCursorSource,
+    ) -> Result<RootCustomCursor, ExternalError> {
+        Ok(RootCustomCursor {
             inner: PlatformCustomCursor::Wayland(OnlyCursorImage(Arc::from(cursor.inner.0))),
-        }
+        })
     }
 
     #[cfg(feature = "rwh_06")]

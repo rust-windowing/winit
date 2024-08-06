@@ -21,7 +21,7 @@ use super::app_delegate::AppDelegate;
 use super::app_state::{AppState, EventLoopHandler};
 use super::{app_state, monitor, MonitorHandle};
 use crate::application::ApplicationHandler;
-use crate::error::EventLoopError;
+use crate::error::{EventLoopError, ExternalError, NotSupportedError};
 use crate::event::Event;
 use crate::event_loop::{ActiveEventLoop as RootActiveEventLoop, ControlFlow, DeviceEvents};
 use crate::window::{CustomCursor, CustomCursorSource, Theme};
@@ -36,9 +36,11 @@ impl ActiveEventLoop {
         EventLoopProxy::new(AppState::get_mut(self.mtm).proxy_wake_up())
     }
 
-    pub fn create_custom_cursor(&self, source: CustomCursorSource) -> CustomCursor {
-        let _ = source.inner;
-        CustomCursor { inner: super::PlatformCustomCursor }
+    pub fn create_custom_cursor(
+        &self,
+        _source: CustomCursorSource,
+    ) -> Result<CustomCursor, ExternalError> {
+        Err(ExternalError::NotSupported(NotSupportedError::new()))
     }
 
     pub fn available_monitors(&self) -> VecDeque<MonitorHandle> {
