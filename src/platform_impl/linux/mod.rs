@@ -864,6 +864,11 @@ impl ActiveEventLoop {
         x11_or_wayland!(match self; Self(evlp) => evlp.listen_device_events(allowed))
     }
 
+    #[inline]
+    pub fn system_theme(&self) -> Option<Theme> {
+        None
+    }
+
     #[cfg(feature = "rwh_06")]
     #[inline]
     pub fn raw_display_handle_rwh_06(

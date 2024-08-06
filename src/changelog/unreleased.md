@@ -55,6 +55,7 @@ changelog entry.
   information is available. This "detailed monitors" can be used in `Window::set_fullscreen()` as
   well.
 - On Android, add `{Active,}EventLoopExtAndroid::android_app()` to access the app used to create the loop.
+- Add `ActiveEventLoop::system_theme()`, returning the current system theme.
 
 ### Changed
 
@@ -111,3 +112,4 @@ changelog entry.
 
 - On Web, pen events are now routed through to `WindowEvent::Cursor*`.
 - On macOS, fix panic when releasing not available monitor.
+- On MacOS, return the system theme in `Window::theme()` if no theme override is set.
