@@ -2,22 +2,8 @@ use sctk::output::OutputData;
 use sctk::reexports::client::protocol::wl_output::WlOutput;
 use sctk::reexports::client::Proxy;
 
-use super::event_loop::ActiveEventLoop;
 use crate::dpi::{LogicalPosition, PhysicalPosition, PhysicalSize};
 use crate::platform_impl::platform::VideoModeHandle as PlatformVideoModeHandle;
-
-impl ActiveEventLoop {
-    #[inline]
-    pub fn available_monitors(&self) -> impl Iterator<Item = MonitorHandle> {
-        self.state.borrow().output_state.outputs().map(MonitorHandle::new)
-    }
-
-    #[inline]
-    pub fn primary_monitor(&self) -> Option<MonitorHandle> {
-        // There's no primary monitor on Wayland.
-        None
-    }
-}
 
 #[derive(Clone, Debug)]
 pub struct MonitorHandle {

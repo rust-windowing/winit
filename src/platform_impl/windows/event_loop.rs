@@ -3,9 +3,7 @@
 mod runner;
 
 use std::cell::Cell;
-use std::collections::VecDeque;
 use std::ffi::c_void;
-use std::marker::PhantomData;
 use std::rc::Rc;
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard};
@@ -58,12 +56,16 @@ use super::window::set_skip_taskbar;
 use super::SelectedCursor;
 use crate::application::ApplicationHandler;
 use crate::dpi::{PhysicalPosition, PhysicalSize};
-use crate::error::{EventLoopError, ExternalError};
+use crate::error::{EventLoopError, ExternalError, OsError};
 use crate::event::{
     Event, Force, Ime, InnerSizeWriter, RawKeyEvent, Touch, TouchPhase, WindowEvent,
 };
-use crate::event_loop::{ActiveEventLoop as RootAEL, ControlFlow, DeviceEvents};
+use crate::event_loop::{
+    ActiveEventLoop as RootActiveEventLoop, ControlFlow, DeviceEvents,
+    EventLoopProxy as RootEventLoopProxy, OwnedDisplayHandle as RootOwnedDisplayHandle,
+};
 use crate::keyboard::ModifiersState;
+use crate::monitor::MonitorHandle as RootMonitorHandle;
 use crate::platform::pump_events::PumpStatus;
 use crate::platform_impl::platform::dark_mode::try_theme;
 use crate::platform_impl::platform::dpi::{become_dpi_aware, dpi_to_scale_factor};
@@ -80,9 +82,11 @@ use crate::platform_impl::platform::window_state::{
 use crate::platform_impl::platform::{
     raw_input, util, wrap_device_id, Fullscreen, WindowId, DEVICE_ID,
 };
+use crate::platform_impl::Window;
 use crate::utils::Lazy;
 use crate::window::{
-    CustomCursor as RootCustomCursor, CustomCursorSource, Theme, WindowId as RootWindowId,
+    CustomCursor as RootCustomCursor, CustomCursorSource, Theme, Window as RootWindow,
+    WindowAttributes, WindowId as RootWindowId,
 };
 
 pub(crate) struct WindowData {
@@ -122,7 +126,7 @@ pub(crate) enum ProcResult {
 }
 
 pub struct EventLoop {
-    window_target: RootAEL,
+    window_target: ActiveEventLoop,
     msg_hook: Option<Box<dyn FnMut(*const c_void) -> bool + 'static>>,
 }
 
@@ -174,15 +178,12 @@ impl EventLoop {
         );
 
         Ok(EventLoop {
-            window_target: RootAEL {
-                p: ActiveEventLoop { thread_id, thread_msg_target, runner_shared },
-                _marker: PhantomData,
-            },
+            window_target: ActiveEventLoop { thread_id, thread_msg_target, runner_shared },
             msg_hook: attributes.msg_hook.take(),
         })
     }
 
-    pub fn window_target(&self) -> &RootAEL {
+    pub fn window_target(&self) -> &dyn RootActiveEventLoop {
         &self.window_target
     }
 
@@ -194,9 +195,9 @@ impl EventLoop {
         &mut self,
         mut app: A,
     ) -> Result<(), EventLoopError> {
-        self.window_target.p.clear_exit();
+        self.window_target.clear_exit();
         {
-            let runner = &self.window_target.p.runner_shared;
+            let runner = &self.window_target.runner_shared;
 
             let event_loop_windows_ref = &self.window_target;
             // # Safety
@@ -236,7 +237,7 @@ impl EventLoop {
             }
         };
 
-        let runner = &self.window_target.p.runner_shared;
+        let runner = &self.window_target.runner_shared;
         runner.loop_destroyed();
 
         // # Safety
@@ -257,7 +258,7 @@ impl EventLoop {
         mut app: A,
     ) -> PumpStatus {
         {
-            let runner = &self.window_target.p.runner_shared;
+            let runner = &self.window_target.runner_shared;
             let event_loop_windows_ref = &self.window_target;
             // let user_event_receiver = &self.user_event_receiver;
 
@@ -296,7 +297,7 @@ impl EventLoop {
             self.dispatch_peeked_messages();
         }
 
-        let runner = &self.window_target.p.runner_shared;
+        let runner = &self.window_target.runner_shared;
 
         let status = if let Some(code) = runner.exit_code() {
             runner.loop_destroyed();
@@ -358,7 +359,7 @@ impl EventLoop {
             }
         }
 
-        let runner = &self.window_target.p.runner_shared;
+        let runner = &self.window_target.runner_shared;
 
         // We aim to be consistent with the MacOS backend which has a RunLoop
         // observer that will dispatch AboutToWait when about to wait for
@@ -420,7 +421,7 @@ impl EventLoop {
 
     /// Dispatch all queued messages via `PeekMessageW`
     fn dispatch_peeked_messages(&mut self) {
-        let runner = &self.window_target.p.runner_shared;
+        let runner = &self.window_target.runner_shared;
 
         // We generally want to continue dispatching all pending messages
         // but we also allow dispatching to be interrupted as a means to
@@ -469,78 +470,97 @@ impl EventLoop {
     }
 
     fn exit_code(&self) -> Option<i32> {
-        self.window_target.p.exit_code()
+        self.window_target.exit_code()
     }
 }
 
 impl ActiveEventLoop {
-    pub fn create_proxy(&self) -> EventLoopProxy {
-        EventLoopProxy { target_window: self.thread_msg_target }
-    }
-
     #[inline(always)]
     pub(crate) fn create_thread_executor(&self) -> EventLoopThreadExecutor {
         EventLoopThreadExecutor { thread_id: self.thread_id, target_window: self.thread_msg_target }
-    }
-
-    pub fn create_custom_cursor(
-        &self,
-        source: CustomCursorSource,
-    ) -> Result<RootCustomCursor, ExternalError> {
-        Ok(RootCustomCursor { inner: WinCursor::new(&source.inner.0)? })
-    }
-
-    // TODO: Investigate opportunities for caching
-    pub fn available_monitors(&self) -> VecDeque<MonitorHandle> {
-        monitor::available_monitors()
-    }
-
-    pub fn primary_monitor(&self) -> Option<MonitorHandle> {
-        let monitor = monitor::primary_monitor();
-        Some(monitor)
-    }
-
-    #[cfg(feature = "rwh_06")]
-    pub fn raw_display_handle_rwh_06(
-        &self,
-    ) -> Result<rwh_06::RawDisplayHandle, rwh_06::HandleError> {
-        Ok(rwh_06::RawDisplayHandle::Windows(rwh_06::WindowsDisplayHandle::new()))
-    }
-
-    pub fn listen_device_events(&self, allowed: DeviceEvents) {
-        raw_input::register_all_mice_and_keyboards_for_raw_input(self.thread_msg_target, allowed);
-    }
-
-    pub fn system_theme(&self) -> Option<Theme> {
-        Some(if super::dark_mode::should_use_dark_mode() { Theme::Dark } else { Theme::Light })
-    }
-
-    pub(crate) fn set_control_flow(&self, control_flow: ControlFlow) {
-        self.runner_shared.set_control_flow(control_flow)
-    }
-
-    pub(crate) fn control_flow(&self) -> ControlFlow {
-        self.runner_shared.control_flow()
-    }
-
-    pub(crate) fn exit(&self) {
-        self.runner_shared.set_exit_code(0)
-    }
-
-    pub(crate) fn exiting(&self) -> bool {
-        self.runner_shared.exit_code().is_some()
     }
 
     pub(crate) fn clear_exit(&self) {
         self.runner_shared.clear_exit();
     }
 
-    pub(crate) fn owned_display_handle(&self) -> OwnedDisplayHandle {
-        OwnedDisplayHandle
-    }
-
     fn exit_code(&self) -> Option<i32> {
         self.runner_shared.exit_code()
+    }
+}
+
+impl RootActiveEventLoop for ActiveEventLoop {
+    fn create_proxy(&self) -> RootEventLoopProxy {
+        let event_loop_proxy = EventLoopProxy { target_window: self.thread_msg_target };
+        RootEventLoopProxy { event_loop_proxy }
+    }
+
+    fn create_window(&self, window_attributes: WindowAttributes) -> Result<RootWindow, OsError> {
+        let window = Window::new(self, window_attributes)?;
+        Ok(RootWindow { window })
+    }
+
+    fn create_custom_cursor(
+        &self,
+        source: CustomCursorSource,
+    ) -> Result<RootCustomCursor, ExternalError> {
+        Ok(RootCustomCursor { inner: WinCursor::new(&source.inner.0)? })
+    }
+
+    fn available_monitors(&self) -> Box<dyn Iterator<Item = crate::monitor::MonitorHandle>> {
+        Box::new(
+            monitor::available_monitors()
+                .into_iter()
+                .map(|inner| crate::monitor::MonitorHandle { inner }),
+        )
+    }
+
+    fn primary_monitor(&self) -> Option<crate::monitor::MonitorHandle> {
+        Some(RootMonitorHandle { inner: monitor::primary_monitor() })
+    }
+
+    fn exiting(&self) -> bool {
+        self.runner_shared.exit_code().is_some()
+    }
+
+    fn system_theme(&self) -> Option<Theme> {
+        Some(if super::dark_mode::should_use_dark_mode() { Theme::Dark } else { Theme::Light })
+    }
+
+    fn listen_device_events(&self, allowed: DeviceEvents) {
+        raw_input::register_all_mice_and_keyboards_for_raw_input(self.thread_msg_target, allowed);
+    }
+
+    fn set_control_flow(&self, control_flow: ControlFlow) {
+        self.runner_shared.set_control_flow(control_flow)
+    }
+
+    fn control_flow(&self) -> ControlFlow {
+        self.runner_shared.control_flow()
+    }
+
+    fn exit(&self) {
+        self.runner_shared.set_exit_code(0)
+    }
+
+    fn owned_display_handle(&self) -> RootOwnedDisplayHandle {
+        RootOwnedDisplayHandle { platform: OwnedDisplayHandle }
+    }
+
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
+
+    fn rwh_06_handle(&self) -> &dyn rwh_06::HasDisplayHandle {
+        self
+    }
+}
+
+#[cfg(feature = "rwh_06")]
+impl rwh_06::HasDisplayHandle for ActiveEventLoop {
+    fn display_handle(&self) -> Result<rwh_06::DisplayHandle<'_>, rwh_06::HandleError> {
+        let raw = rwh_06::RawDisplayHandle::Windows(rwh_06::WindowsDisplayHandle::new());
+        unsafe { Ok(rwh_06::DisplayHandle::borrow_raw(raw)) }
     }
 }
 
@@ -632,7 +652,7 @@ fn dur2timeout(dur: Duration) -> u32 {
 impl Drop for EventLoop {
     fn drop(&mut self) {
         unsafe {
-            DestroyWindow(self.window_target.p.thread_msg_target);
+            DestroyWindow(self.window_target.thread_msg_target);
         }
     }
 }

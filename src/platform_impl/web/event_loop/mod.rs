@@ -1,11 +1,9 @@
-use std::marker::PhantomData;
-
 use super::{backend, device, window, HasMonitorPermissionFuture, MonitorPermissionFuture};
 use crate::application::ApplicationHandler;
 use crate::error::{EventLoopError, NotSupportedError};
 use crate::event::Event;
 use crate::event_loop::ActiveEventLoop as RootActiveEventLoop;
-use crate::platform::web::{ActiveEventLoopExtWeb, PollStrategy, WaitUntilStrategy};
+use crate::platform::web::{PollStrategy, WaitUntilStrategy};
 
 mod proxy;
 pub(crate) mod runner;
@@ -16,7 +14,7 @@ pub(crate) use proxy::EventLoopProxy;
 pub(crate) use window_target::{ActiveEventLoop, OwnedDisplayHandle};
 
 pub struct EventLoop {
-    elw: RootActiveEventLoop,
+    elw: ActiveEventLoop,
 }
 
 #[derive(Default, Debug, Copy, Clone, PartialEq, Eq, Hash)]
@@ -24,16 +22,15 @@ pub(crate) struct PlatformSpecificEventLoopAttributes {}
 
 impl EventLoop {
     pub(crate) fn new(_: &PlatformSpecificEventLoopAttributes) -> Result<Self, EventLoopError> {
-        let elw = RootActiveEventLoop { p: ActiveEventLoop::new(), _marker: PhantomData };
-        Ok(EventLoop { elw })
+        Ok(EventLoop { elw: ActiveEventLoop::new() })
     }
 
     pub fn run_app<A: ApplicationHandler>(self, mut app: A) -> ! {
-        let target = RootActiveEventLoop { p: self.elw.p.clone(), _marker: PhantomData };
+        let event_loop = self.elw.clone();
 
         // SAFETY: Don't use `move` to make sure we leak the `event_handler` and `target`.
         let handler: Box<dyn FnMut(Event)> =
-            Box::new(|event| handle_event(&mut app, &target, event));
+            Box::new(|event| handle_event(&mut app, &event_loop, event));
 
         // SAFETY: The `transmute` is necessary because `run()` requires `'static`. This is safe
         // because this function will never return and all resources not cleaned up by the point we
@@ -41,7 +38,7 @@ impl EventLoop {
         let handler = unsafe {
             std::mem::transmute::<Box<dyn FnMut(Event)>, Box<dyn FnMut(Event) + 'static>>(handler)
         };
-        self.elw.p.run(handler, false);
+        self.elw.run(handler, false);
 
         // Throw an exception to break out of Rust execution and use unreachable to tell the
         // compiler this function won't return, giving it a return type of '!'
@@ -53,12 +50,11 @@ impl EventLoop {
     }
 
     pub fn spawn_app<A: ApplicationHandler + 'static>(self, mut app: A) {
-        let target = RootActiveEventLoop { p: self.elw.p.clone(), _marker: PhantomData };
-
-        self.elw.p.run(Box::new(move |event| handle_event(&mut app, &target, event)), true);
+        let event_loop = self.elw.clone();
+        self.elw.run(Box::new(move |event| handle_event(&mut app, &event_loop, event)), true);
     }
 
-    pub fn window_target(&self) -> &RootActiveEventLoop {
+    pub fn window_target(&self) -> &dyn RootActiveEventLoop {
         &self.elw
     }
 
@@ -83,15 +79,15 @@ impl EventLoop {
     }
 
     pub(crate) fn request_detailed_monitor_permission(&self) -> MonitorPermissionFuture {
-        self.elw.request_detailed_monitor_permission().0
+        self.elw.request_detailed_monitor_permission()
     }
 
     pub fn has_detailed_monitor_permission(&self) -> HasMonitorPermissionFuture {
-        self.elw.p.runner.monitor().has_detailed_monitor_permission_async()
+        self.elw.runner.monitor().has_detailed_monitor_permission_async()
     }
 }
 
-fn handle_event<A: ApplicationHandler>(app: &mut A, target: &RootActiveEventLoop, event: Event) {
+fn handle_event<A: ApplicationHandler>(app: &mut A, target: &ActiveEventLoop, event: Event) {
     match event {
         Event::NewEvents(cause) => app.new_events(target, cause),
         Event::WindowEvent { window_id, event } => app.window_event(target, window_id, event),

@@ -20,7 +20,7 @@ fn main() -> Result<(), impl std::error::Error> {
     }
 
     impl ApplicationHandler for Application {
-        fn can_create_surfaces(&mut self, event_loop: &ActiveEventLoop) {
+        fn can_create_surfaces(&mut self, event_loop: &dyn ActiveEventLoop) {
             let attributes = Window::default_attributes()
                 .with_title("parent window")
                 .with_position(Position::Logical(LogicalPosition::new(0.0, 0.0)))
@@ -35,7 +35,7 @@ fn main() -> Result<(), impl std::error::Error> {
 
         fn window_event(
             &mut self,
-            event_loop: &ActiveEventLoop,
+            event_loop: &dyn ActiveEventLoop,
             window_id: winit::window::WindowId,
             event: WindowEvent,
         ) {
@@ -72,7 +72,7 @@ fn main() -> Result<(), impl std::error::Error> {
         }
     }
 
-    fn spawn_child_window(parent: &Window, event_loop: &ActiveEventLoop) -> Window {
+    fn spawn_child_window(parent: &Window, event_loop: &dyn ActiveEventLoop) -> Window {
         let parent = parent.raw_window_handle().unwrap();
         let mut window_attributes = Window::default_attributes()
             .with_title("child window")

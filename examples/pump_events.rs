@@ -22,14 +22,14 @@ fn main() -> std::process::ExitCode {
     }
 
     impl ApplicationHandler for PumpDemo {
-        fn can_create_surfaces(&mut self, event_loop: &ActiveEventLoop) {
+        fn can_create_surfaces(&mut self, event_loop: &dyn ActiveEventLoop) {
             let window_attributes = Window::default_attributes().with_title("A fantastic window!");
             self.window = Some(event_loop.create_window(window_attributes).unwrap());
         }
 
         fn window_event(
             &mut self,
-            event_loop: &ActiveEventLoop,
+            event_loop: &dyn ActiveEventLoop,
             _window_id: WindowId,
             event: WindowEvent,
         ) {

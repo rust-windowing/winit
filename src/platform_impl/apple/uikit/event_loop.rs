@@ -1,6 +1,5 @@
-use std::collections::VecDeque;
+use std::any::Any;
 use std::ffi::{c_char, c_int, c_void};
-use std::marker::PhantomData;
 use std::ptr::{self, NonNull};
 use std::sync::atomic::{AtomicBool, Ordering as AtomicOrdering};
 use std::sync::Arc;
@@ -21,73 +20,95 @@ use super::app_delegate::AppDelegate;
 use super::app_state::{AppState, EventLoopHandler};
 use super::{app_state, monitor, MonitorHandle};
 use crate::application::ApplicationHandler;
-use crate::error::{EventLoopError, ExternalError, NotSupportedError};
+use crate::error::{EventLoopError, ExternalError, NotSupportedError, OsError};
 use crate::event::Event;
-use crate::event_loop::{ActiveEventLoop as RootActiveEventLoop, ControlFlow, DeviceEvents};
-use crate::window::{CustomCursor, CustomCursorSource, Theme};
+use crate::event_loop::{
+    ActiveEventLoop as RootActiveEventLoop, ControlFlow, DeviceEvents,
+    EventLoopProxy as RootEventLoopProxy, OwnedDisplayHandle as RootOwnedDisplayHandle,
+};
+use crate::monitor::MonitorHandle as RootMonitorHandle;
+use crate::platform_impl::Window;
+use crate::window::{CustomCursor, CustomCursorSource, Theme, Window as RootWindow};
 
 #[derive(Debug)]
-pub struct ActiveEventLoop {
+pub(crate) struct ActiveEventLoop {
     pub(super) mtm: MainThreadMarker,
 }
 
-impl ActiveEventLoop {
-    pub fn create_proxy(&self) -> EventLoopProxy {
-        EventLoopProxy::new(AppState::get_mut(self.mtm).proxy_wake_up())
+impl RootActiveEventLoop for ActiveEventLoop {
+    fn create_proxy(&self) -> crate::event_loop::EventLoopProxy {
+        let event_loop_proxy = EventLoopProxy::new(AppState::get_mut(self.mtm).proxy_wake_up());
+        RootEventLoopProxy { event_loop_proxy }
     }
 
-    pub fn create_custom_cursor(
+    fn create_window(
+        &self,
+        window_attributes: crate::window::WindowAttributes,
+    ) -> Result<RootWindow, OsError> {
+        let window = Window::new(self, window_attributes)?;
+        Ok(RootWindow { window })
+    }
+
+    fn create_custom_cursor(
         &self,
         _source: CustomCursorSource,
     ) -> Result<CustomCursor, ExternalError> {
         Err(ExternalError::NotSupported(NotSupportedError::new()))
     }
 
-    pub fn available_monitors(&self) -> VecDeque<MonitorHandle> {
-        monitor::uiscreens(self.mtm)
+    fn available_monitors(&self) -> Box<dyn Iterator<Item = RootMonitorHandle>> {
+        Box::new(monitor::uiscreens(self.mtm).into_iter().map(|inner| RootMonitorHandle { inner }))
     }
 
-    pub fn primary_monitor(&self) -> Option<MonitorHandle> {
+    fn primary_monitor(&self) -> Option<crate::monitor::MonitorHandle> {
         #[allow(deprecated)]
-        Some(MonitorHandle::new(UIScreen::mainScreen(self.mtm)))
+        let monitor = MonitorHandle::new(UIScreen::mainScreen(self.mtm));
+        Some(RootMonitorHandle { inner: monitor })
     }
 
-    #[inline]
-    pub fn listen_device_events(&self, _allowed: DeviceEvents) {}
+    fn listen_device_events(&self, _allowed: DeviceEvents) {}
 
-    #[inline]
-    pub fn system_theme(&self) -> Option<Theme> {
-        None
-    }
-
-    #[cfg(feature = "rwh_06")]
-    #[inline]
-    pub fn raw_display_handle_rwh_06(
-        &self,
-    ) -> Result<rwh_06::RawDisplayHandle, rwh_06::HandleError> {
-        Ok(rwh_06::RawDisplayHandle::UiKit(rwh_06::UiKitDisplayHandle::new()))
-    }
-
-    pub(crate) fn set_control_flow(&self, control_flow: ControlFlow) {
+    fn set_control_flow(&self, control_flow: ControlFlow) {
         AppState::get_mut(self.mtm).set_control_flow(control_flow)
     }
 
-    pub(crate) fn control_flow(&self) -> ControlFlow {
+    fn system_theme(&self) -> Option<Theme> {
+        None
+    }
+
+    fn control_flow(&self) -> ControlFlow {
         AppState::get_mut(self.mtm).control_flow()
     }
 
-    pub(crate) fn exit(&self) {
+    fn exit(&self) {
         // https://developer.apple.com/library/archive/qa/qa1561/_index.html
         // it is not possible to quit an iOS app gracefully and programmatically
         tracing::warn!("`ControlFlow::Exit` ignored on iOS");
     }
 
-    pub(crate) fn exiting(&self) -> bool {
+    fn exiting(&self) -> bool {
         false
     }
 
-    pub(crate) fn owned_display_handle(&self) -> OwnedDisplayHandle {
-        OwnedDisplayHandle
+    fn owned_display_handle(&self) -> RootOwnedDisplayHandle {
+        RootOwnedDisplayHandle { platform: OwnedDisplayHandle }
+    }
+
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    #[cfg(feature = "rwh_06")]
+    fn rwh_06_handle(&self) -> &dyn rwh_06::HasDisplayHandle {
+        self
+    }
+}
+
+#[cfg(feature = "rwh_06")]
+impl rwh_06::HasDisplayHandle for ActiveEventLoop {
+    fn display_handle(&self) -> Result<rwh_06::DisplayHandle<'_>, rwh_06::HandleError> {
+        let raw = rwh_06::RawDisplayHandle::UiKit(rwh_06::UiKitDisplayHandle::new());
+        unsafe { Ok(rwh_06::DisplayHandle::borrow_raw(raw)) }
     }
 }
 
@@ -107,7 +128,7 @@ impl OwnedDisplayHandle {
 fn map_user_event<'a, A: ApplicationHandler + 'a>(
     mut app: A,
     proxy_wake_up: Arc<AtomicBool>,
-) -> impl FnMut(Event, &RootActiveEventLoop) + 'a {
+) -> impl FnMut(Event, &dyn RootActiveEventLoop) + 'a {
     move |event, window_target| match event {
         Event::NewEvents(cause) => app.new_events(window_target, cause),
         Event::WindowEvent { window_id, event } => {
@@ -132,7 +153,7 @@ fn map_user_event<'a, A: ApplicationHandler + 'a>(
 
 pub struct EventLoop {
     mtm: MainThreadMarker,
-    window_target: RootActiveEventLoop,
+    window_target: ActiveEventLoop,
 }
 
 #[derive(Default, Debug, Copy, Clone, PartialEq, Eq, Hash)]
@@ -157,10 +178,7 @@ impl EventLoop {
         // this line sets up the main run loop before `UIApplicationMain`
         setup_control_flow_observers();
 
-        Ok(EventLoop {
-            mtm,
-            window_target: RootActiveEventLoop { p: ActiveEventLoop { mtm }, _marker: PhantomData },
-        })
+        Ok(EventLoop { mtm, window_target: ActiveEventLoop { mtm } })
     }
 
     pub fn run_app<A: ApplicationHandler>(self, app: A) -> ! {
@@ -177,8 +195,8 @@ impl EventLoop {
 
         let handler = unsafe {
             std::mem::transmute::<
-                Box<dyn FnMut(Event, &RootActiveEventLoop)>,
-                Box<dyn FnMut(Event, &RootActiveEventLoop)>,
+                Box<dyn FnMut(Event, &dyn RootActiveEventLoop)>,
+                Box<dyn FnMut(Event, &dyn RootActiveEventLoop)>,
             >(Box::new(handler))
         };
 
@@ -206,7 +224,7 @@ impl EventLoop {
         unreachable!()
     }
 
-    pub fn window_target(&self) -> &RootActiveEventLoop {
+    pub fn window_target(&self) -> &dyn RootActiveEventLoop {
         &self.window_target
     }
 }

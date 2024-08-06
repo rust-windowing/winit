@@ -18,7 +18,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     }
 
     impl ApplicationHandler for XEmbedDemo {
-        fn can_create_surfaces(&mut self, event_loop: &ActiveEventLoop) {
+        fn can_create_surfaces(&mut self, event_loop: &dyn ActiveEventLoop) {
             let window_attributes = Window::default_attributes()
                 .with_title("An embedded window!")
                 .with_inner_size(winit::dpi::LogicalSize::new(128.0, 128.0))
@@ -29,7 +29,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
         fn window_event(
             &mut self,
-            event_loop: &ActiveEventLoop,
+            event_loop: &dyn ActiveEventLoop,
             _window_id: WindowId,
             event: WindowEvent,
         ) {
@@ -44,7 +44,7 @@ fn main() -> Result<(), Box<dyn Error>> {
             }
         }
 
-        fn about_to_wait(&mut self, _event_loop: &ActiveEventLoop) {
+        fn about_to_wait(&mut self, _event_loop: &dyn ActiveEventLoop) {
             self.window.as_ref().unwrap().request_redraw();
         }
     }

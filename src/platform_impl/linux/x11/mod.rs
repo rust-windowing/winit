@@ -1,7 +1,7 @@
+use std::any::Any;
 use std::cell::{Cell, RefCell};
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::ffi::CStr;
-use std::marker::PhantomData;
 use std::mem::MaybeUninit;
 use std::ops::Deref;
 use std::os::raw::*;
@@ -27,14 +27,17 @@ use x11rb::xcb_ffi::ReplyOrIdError;
 use crate::application::ApplicationHandler;
 use crate::error::{EventLoopError, ExternalError, OsError as RootOsError};
 use crate::event::{Event, StartCause, WindowEvent};
-use crate::event_loop::{ActiveEventLoop as RootAEL, ControlFlow, DeviceEvents};
+use crate::event_loop::{
+    ActiveEventLoop as RootActiveEventLoop, ControlFlow, DeviceEvents,
+    OwnedDisplayHandle as RootOwnedDisplayHandle,
+};
 use crate::platform::pump_events::PumpStatus;
 use crate::platform_impl::common::xkb::Context;
 use crate::platform_impl::platform::{min_timeout, WindowId};
-use crate::platform_impl::{
-    ActiveEventLoop as PlatformActiveEventLoop, OsError, PlatformCustomCursor,
+use crate::platform_impl::{OsError, OwnedDisplayHandle, PlatformCustomCursor};
+use crate::window::{
+    CustomCursor as RootCustomCursor, CustomCursorSource, Theme, WindowAttributes,
 };
-use crate::window::{CustomCursor as RootCustomCursor, CustomCursorSource, WindowAttributes};
 
 mod activation;
 mod atoms;
@@ -310,11 +313,8 @@ impl EventLoop {
         // Set initial device event filter.
         window_target.update_listen_device_events(true);
 
-        let root_window_target =
-            RootAEL { p: PlatformActiveEventLoop::X(window_target), _marker: PhantomData };
-
         let event_processor = EventProcessor {
-            target: root_window_target,
+            target: window_target,
             dnd,
             devices: Default::default(),
             randr_event_offset,
@@ -335,9 +335,9 @@ impl EventLoop {
 
         // Register for device hotplug events
         // (The request buffer is flushed during `init_device`)
-        let xconn = &EventProcessor::window_target(&event_processor.target).xconn;
-
-        xconn
+        event_processor
+            .target
+            .xconn
             .select_xinput_events(
                 root,
                 ALL_DEVICES,
@@ -345,7 +345,9 @@ impl EventLoop {
             )
             .expect_then_ignore_error("Failed to register for XInput2 device hotplug events");
 
-        xconn
+        event_processor
+            .target
+            .xconn
             .select_xkb_events(
                 0x100, // Use the "core keyboard device"
                 xkb::EventType::NEW_KEYBOARD_NOTIFY
@@ -366,7 +368,7 @@ impl EventLoop {
         }
     }
 
-    pub(crate) fn window_target(&self) -> &RootAEL {
+    pub(crate) fn window_target(&self) -> &dyn RootActiveEventLoop {
         &self.event_processor.target
     }
 
@@ -378,7 +380,7 @@ impl EventLoop {
         &mut self,
         mut app: A,
     ) -> Result<(), EventLoopError> {
-        self.event_processor.target.p.clear_exit();
+        self.event_processor.target.clear_exit();
         let exit = loop {
             match self.pump_app_events(None, &mut app) {
                 PumpStatus::Exit(0) => {
@@ -397,8 +399,7 @@ impl EventLoop {
         // `run_on_demand` calls but if they have only just dropped their
         // windows we need to make sure those last requests are sent to the
         // X Server.
-        let wt = EventProcessor::window_target(&self.event_processor.target);
-        wt.x_connection().sync_with_server().map_err(|x_err| {
+        self.event_processor.target.x_connection().sync_with_server().map_err(|x_err| {
             EventLoopError::Os(os_error!(OsError::XError(Arc::new(X11Error::Xlib(x_err)))))
         })?;
 
@@ -576,7 +577,6 @@ impl EventLoop {
                     event: WindowEvent::RedrawRequested,
                 } = event
                 {
-                    let window_target = EventProcessor::window_target(window_target);
                     window_target.redraw_sender.send(wid);
                 } else {
                     match event {
@@ -594,21 +594,19 @@ impl EventLoop {
     }
 
     fn control_flow(&self) -> ControlFlow {
-        let window_target = EventProcessor::window_target(&self.event_processor.target);
-        window_target.control_flow()
+        self.event_processor.target.control_flow()
     }
 
     fn exiting(&self) -> bool {
-        let window_target = EventProcessor::window_target(&self.event_processor.target);
-        window_target.exiting()
+        self.event_processor.target.exiting()
     }
 
     fn set_exit_code(&self, code: i32) {
-        self.window_target().p.set_exit_code(code);
+        self.event_processor.target.set_exit_code(code);
     }
 
     fn exit_code(&self) -> Option<i32> {
-        self.window_target().p.exit_code()
+        self.event_processor.target.exit_code()
     }
 }
 
@@ -625,35 +623,10 @@ impl AsRawFd for EventLoop {
 }
 
 impl ActiveEventLoop {
-    pub fn create_proxy(&self) -> EventLoopProxy {
-        self.event_loop_proxy.clone()
-    }
-
     /// Returns the `XConnection` of this events loop.
     #[inline]
     pub(crate) fn x_connection(&self) -> &Arc<XConnection> {
         &self.xconn
-    }
-
-    pub fn available_monitors(&self) -> impl Iterator<Item = MonitorHandle> {
-        self.xconn.available_monitors().into_iter().flatten()
-    }
-
-    pub fn primary_monitor(&self) -> Option<MonitorHandle> {
-        self.xconn.primary_monitor().ok()
-    }
-
-    pub(crate) fn create_custom_cursor(
-        &self,
-        cursor: CustomCursorSource,
-    ) -> Result<RootCustomCursor, ExternalError> {
-        Ok(RootCustomCursor {
-            inner: PlatformCustomCursor::X(CustomCursor::new(self, cursor.inner)?),
-        })
-    }
-
-    pub fn listen_device_events(&self, allowed: DeviceEvents) {
-        self.device_events.set(allowed);
     }
 
     /// Update the device event based on window focus.
@@ -690,24 +663,8 @@ impl ActiveEventLoop {
         Ok(display_handle.into())
     }
 
-    pub(crate) fn set_control_flow(&self, control_flow: ControlFlow) {
-        self.control_flow.set(control_flow)
-    }
-
-    pub(crate) fn control_flow(&self) -> ControlFlow {
-        self.control_flow.get()
-    }
-
-    pub(crate) fn exit(&self) {
-        self.exit.set(Some(0))
-    }
-
     pub(crate) fn clear_exit(&self) {
         self.exit.set(None)
-    }
-
-    pub(crate) fn exiting(&self) -> bool {
-        self.exit.get().is_some()
     }
 
     pub(crate) fn set_exit_code(&self, code: i32) {
@@ -716,6 +673,99 @@ impl ActiveEventLoop {
 
     pub(crate) fn exit_code(&self) -> Option<i32> {
         self.exit.get()
+    }
+}
+
+impl RootActiveEventLoop for ActiveEventLoop {
+    fn create_proxy(&self) -> crate::event_loop::EventLoopProxy {
+        crate::event_loop::EventLoopProxy {
+            event_loop_proxy: crate::platform_impl::EventLoopProxy::X(
+                self.event_loop_proxy.clone(),
+            ),
+        }
+    }
+
+    fn create_window(
+        &self,
+        window_attributes: WindowAttributes,
+    ) -> Result<crate::window::Window, RootOsError> {
+        let window = crate::platform_impl::x11::Window::new(self, window_attributes)?;
+        let window = crate::platform_impl::Window::X(window);
+        Ok(crate::window::Window { window })
+    }
+
+    fn create_custom_cursor(
+        &self,
+        custom_cursor: CustomCursorSource,
+    ) -> Result<RootCustomCursor, ExternalError> {
+        Ok(RootCustomCursor {
+            inner: PlatformCustomCursor::X(CustomCursor::new(self, custom_cursor.inner)?),
+        })
+    }
+
+    fn available_monitors(&self) -> Box<dyn Iterator<Item = crate::monitor::MonitorHandle>> {
+        Box::new(
+            self.xconn
+                .available_monitors()
+                .into_iter()
+                .flatten()
+                .map(crate::platform_impl::MonitorHandle::X)
+                .map(|inner| crate::monitor::MonitorHandle { inner }),
+        )
+    }
+
+    fn primary_monitor(&self) -> Option<crate::monitor::MonitorHandle> {
+        self.xconn
+            .primary_monitor()
+            .ok()
+            .map(crate::platform_impl::MonitorHandle::X)
+            .map(|inner| crate::monitor::MonitorHandle { inner })
+    }
+
+    fn system_theme(&self) -> Option<Theme> {
+        None
+    }
+
+    fn listen_device_events(&self, allowed: DeviceEvents) {
+        self.device_events.set(allowed);
+    }
+
+    fn set_control_flow(&self, control_flow: ControlFlow) {
+        self.control_flow.set(control_flow)
+    }
+
+    fn control_flow(&self) -> ControlFlow {
+        self.control_flow.get()
+    }
+
+    fn exit(&self) {
+        self.exit.set(Some(0))
+    }
+
+    fn exiting(&self) -> bool {
+        self.exit.get().is_some()
+    }
+
+    fn owned_display_handle(&self) -> RootOwnedDisplayHandle {
+        let handle = OwnedDisplayHandle::X(self.x_connection().clone());
+        RootOwnedDisplayHandle { platform: handle }
+    }
+
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    #[cfg(feature = "rwh_06")]
+    fn rwh_06_handle(&self) -> &dyn rwh_06::HasDisplayHandle {
+        self
+    }
+}
+
+#[cfg(feature = "rwh_06")]
+impl rwh_06::HasDisplayHandle for ActiveEventLoop {
+    fn display_handle(&self) -> Result<rwh_06::DisplayHandle<'_>, rwh_06::HandleError> {
+        let raw = self.raw_display_handle_rwh_06()?;
+        unsafe { Ok(rwh_06::DisplayHandle::borrow_raw(raw)) }
     }
 }
 

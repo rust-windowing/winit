@@ -2,7 +2,7 @@ use std::cell::RefCell;
 use std::{fmt, mem};
 
 use crate::application::ApplicationHandler;
-use crate::event_loop::ActiveEventLoop as RootActiveEventLoop;
+use crate::platform_impl::ActiveEventLoop;
 
 #[derive(Default)]
 pub(crate) struct EventHandler {
@@ -110,8 +110,8 @@ impl EventHandler {
 
     pub(crate) fn handle(
         &self,
-        callback: impl FnOnce(&mut dyn ApplicationHandler, &RootActiveEventLoop),
-        event_loop: &RootActiveEventLoop,
+        callback: impl FnOnce(&mut dyn ApplicationHandler, &ActiveEventLoop),
+        event_loop: &ActiveEventLoop,
     ) {
         match self.inner.try_borrow_mut().as_deref_mut() {
             Ok(Some(user_app)) => {

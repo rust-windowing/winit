@@ -1,3 +1,4 @@
+use std::any::Any;
 use std::cell::Cell;
 use std::clone::Clone;
 use std::iter;
@@ -5,7 +6,7 @@ use std::rc::Rc;
 
 use web_sys::Element;
 
-use super::super::monitor::{MonitorHandle, MonitorPermissionFuture};
+use super::super::monitor::MonitorPermissionFuture;
 use super::super::{lock, KeyEventExtra};
 use super::device::DeviceId;
 use super::runner::{EventWrapper, WeakShared};
@@ -15,13 +16,19 @@ use crate::error::{ExternalError, NotSupportedError};
 use crate::event::{
     DeviceId as RootDeviceId, ElementState, Event, KeyEvent, Touch, TouchPhase, WindowEvent,
 };
-use crate::event_loop::{ControlFlow, DeviceEvents};
+use crate::event_loop::{
+    ActiveEventLoop as RootActiveEventLoop, ControlFlow, DeviceEvents,
+    EventLoopProxy as RootEventLoopProxy, OwnedDisplayHandle as RootOwnedDisplayHandle,
+};
 use crate::keyboard::ModifiersState;
+use crate::monitor::MonitorHandle as RootMonitorHandle;
 use crate::platform::web::{CustomCursorFuture, PollStrategy, WaitUntilStrategy};
 use crate::platform_impl::platform::cursor::CustomCursor;
 use crate::platform_impl::platform::r#async::Waker;
+use crate::platform_impl::Window;
 use crate::window::{
-    CustomCursor as RootCustomCursor, CustomCursorSource, Theme, WindowId as RootWindowId,
+    CustomCursor as RootCustomCursor, CustomCursorSource, Theme, Window as RootWindow,
+    WindowId as RootWindowId,
 };
 
 #[derive(Default)]
@@ -65,17 +72,6 @@ impl ActiveEventLoop {
 
     pub fn generate_id(&self) -> WindowId {
         WindowId(self.runner.generate_id())
-    }
-
-    pub fn create_proxy(&self) -> EventLoopProxy {
-        EventLoopProxy::new(self.waker())
-    }
-
-    pub fn create_custom_cursor(
-        &self,
-        source: CustomCursorSource,
-    ) -> Result<RootCustomCursor, ExternalError> {
-        Ok(RootCustomCursor { inner: CustomCursor::new(self, source.inner) })
     }
 
     pub fn create_custom_cursor_async(&self, source: CustomCursorSource) -> CustomCursorFuture {
@@ -594,52 +590,6 @@ impl ActiveEventLoop {
         canvas.on_context_menu();
     }
 
-    pub fn available_monitors(&self) -> Vec<MonitorHandle> {
-        self.runner.monitor().available_monitors()
-    }
-
-    pub fn primary_monitor(&self) -> Option<MonitorHandle> {
-        self.runner.monitor().primary_monitor()
-    }
-
-    #[cfg(feature = "rwh_06")]
-    #[inline]
-    pub fn raw_display_handle_rwh_06(
-        &self,
-    ) -> Result<rwh_06::RawDisplayHandle, rwh_06::HandleError> {
-        Ok(rwh_06::RawDisplayHandle::Web(rwh_06::WebDisplayHandle::new()))
-    }
-
-    pub fn listen_device_events(&self, allowed: DeviceEvents) {
-        self.runner.listen_device_events(allowed)
-    }
-
-    pub fn system_theme(&self) -> Option<Theme> {
-        backend::is_dark_mode(self.runner.window()).map(|is_dark_mode| {
-            if is_dark_mode {
-                Theme::Dark
-            } else {
-                Theme::Light
-            }
-        })
-    }
-
-    pub(crate) fn set_control_flow(&self, control_flow: ControlFlow) {
-        self.runner.set_control_flow(control_flow)
-    }
-
-    pub(crate) fn control_flow(&self) -> ControlFlow {
-        self.runner.control_flow()
-    }
-
-    pub(crate) fn exit(&self) {
-        self.runner.exit()
-    }
-
-    pub(crate) fn exiting(&self) -> bool {
-        self.runner.exiting()
-    }
-
     pub(crate) fn set_poll_strategy(&self, strategy: PollStrategy) {
         self.runner.set_poll_strategy(strategy)
     }
@@ -675,9 +625,92 @@ impl ActiveEventLoop {
     pub(crate) fn waker(&self) -> Waker<WeakShared> {
         self.runner.waker()
     }
+}
 
-    pub(crate) fn owned_display_handle(&self) -> OwnedDisplayHandle {
-        OwnedDisplayHandle
+impl RootActiveEventLoop for ActiveEventLoop {
+    fn create_proxy(&self) -> RootEventLoopProxy {
+        let event_loop_proxy = EventLoopProxy::new(self.waker());
+        RootEventLoopProxy { event_loop_proxy }
+    }
+
+    fn create_window(
+        &self,
+        window_attributes: crate::window::WindowAttributes,
+    ) -> Result<crate::window::Window, crate::error::OsError> {
+        let window = Window::new(self, window_attributes)?;
+        Ok(RootWindow { window })
+    }
+
+    fn create_custom_cursor(
+        &self,
+        source: CustomCursorSource,
+    ) -> Result<RootCustomCursor, ExternalError> {
+        Ok(RootCustomCursor { inner: CustomCursor::new(self, source.inner) })
+    }
+
+    fn available_monitors(&self) -> Box<dyn Iterator<Item = RootMonitorHandle>> {
+        Box::new(
+            self.runner
+                .monitor()
+                .available_monitors()
+                .into_iter()
+                .map(|inner| RootMonitorHandle { inner }),
+        )
+    }
+
+    fn primary_monitor(&self) -> Option<RootMonitorHandle> {
+        self.runner.monitor().primary_monitor().map(|inner| RootMonitorHandle { inner })
+    }
+
+    fn listen_device_events(&self, allowed: DeviceEvents) {
+        self.runner.listen_device_events(allowed)
+    }
+
+    fn system_theme(&self) -> Option<Theme> {
+        backend::is_dark_mode(self.runner.window()).map(|is_dark_mode| {
+            if is_dark_mode {
+                Theme::Dark
+            } else {
+                Theme::Light
+            }
+        })
+    }
+
+    fn set_control_flow(&self, control_flow: ControlFlow) {
+        self.runner.set_control_flow(control_flow)
+    }
+
+    fn control_flow(&self) -> ControlFlow {
+        self.runner.control_flow()
+    }
+
+    fn exit(&self) {
+        self.runner.exit()
+    }
+
+    fn exiting(&self) -> bool {
+        self.runner.exiting()
+    }
+
+    fn owned_display_handle(&self) -> RootOwnedDisplayHandle {
+        RootOwnedDisplayHandle { platform: OwnedDisplayHandle }
+    }
+
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    #[cfg(feature = "rwh_06")]
+    fn rwh_06_handle(&self) -> &dyn rwh_06::HasDisplayHandle {
+        self
+    }
+}
+
+#[cfg(feature = "rwh_06")]
+impl rwh_06::HasDisplayHandle for ActiveEventLoop {
+    fn display_handle(&self) -> Result<rwh_06::DisplayHandle<'_>, rwh_06::HandleError> {
+        let raw = rwh_06::RawDisplayHandle::Web(rwh_06::WebDisplayHandle::new());
+        unsafe { Ok(rwh_06::DisplayHandle::borrow_raw(raw)) }
     }
 }
 

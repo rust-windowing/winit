@@ -59,6 +59,8 @@ changelog entry.
 
 ### Changed
 
+- Change `ActiveEventLoop` to be a trait.
+- `ApplicationHandler` now uses `dyn ActiveEventLoop`.
 - On Web, let events wake up event loop immediately when using `ControlFlow::Poll`.
 - Bump MSRV from `1.70` to `1.73`.
 - Changed `ApplicationHandler::user_event` to `user_wake_up`, removing the

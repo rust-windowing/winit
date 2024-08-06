@@ -395,21 +395,37 @@ pub trait ActiveEventLoopExtMacOS {
     fn allows_automatic_window_tabbing(&self) -> bool;
 }
 
-impl ActiveEventLoopExtMacOS for ActiveEventLoop {
+impl ActiveEventLoopExtMacOS for &dyn ActiveEventLoop {
     fn hide_application(&self) {
-        self.p.hide_application()
+        let event_loop = self
+            .as_any()
+            .downcast_ref::<crate::platform_impl::ActiveEventLoop>()
+            .expect("non macOS event loop on macOS");
+        event_loop.hide_application()
     }
 
     fn hide_other_applications(&self) {
-        self.p.hide_other_applications()
+        let event_loop = self
+            .as_any()
+            .downcast_ref::<crate::platform_impl::ActiveEventLoop>()
+            .expect("non macOS event loop on macOS");
+        event_loop.hide_other_applications()
     }
 
     fn set_allows_automatic_window_tabbing(&self, enabled: bool) {
-        self.p.set_allows_automatic_window_tabbing(enabled);
+        let event_loop = self
+            .as_any()
+            .downcast_ref::<crate::platform_impl::ActiveEventLoop>()
+            .expect("non macOS event loop on macOS");
+        event_loop.set_allows_automatic_window_tabbing(enabled);
     }
 
     fn allows_automatic_window_tabbing(&self) -> bool {
-        self.p.allows_automatic_window_tabbing()
+        let event_loop = self
+            .as_any()
+            .downcast_ref::<crate::platform_impl::ActiveEventLoop>()
+            .expect("non macOS event loop on macOS");
+        event_loop.allows_automatic_window_tabbing()
     }
 }
 

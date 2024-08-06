@@ -94,7 +94,7 @@ pub trait WindowExtWeb {
 
     /// Returns whether using [`CursorGrabMode::Locked`] returns raw, un-accelerated mouse input.
     ///
-    /// This is the same as [`ActiveEventLoop::is_cursor_lock_raw()`], and is provided for
+    /// This is the same as [`ActiveEventLoopExtWeb::is_cursor_lock_raw()`], and is provided for
     /// convenience.
     ///
     /// [`CursorGrabMode::Locked`]: crate::window::CursorGrabMode::Locked
@@ -344,50 +344,86 @@ pub trait ActiveEventLoopExtWeb {
     fn has_detailed_monitor_permission(&self) -> bool;
 }
 
-impl ActiveEventLoopExtWeb for ActiveEventLoop {
+impl ActiveEventLoopExtWeb for &dyn ActiveEventLoop {
     #[inline]
     fn create_custom_cursor_async(&self, source: CustomCursorSource) -> CustomCursorFuture {
-        self.p.create_custom_cursor_async(source)
+        let event_loop = self
+            .as_any()
+            .downcast_ref::<crate::platform_impl::ActiveEventLoop>()
+            .expect("non Web event loop on Web");
+        event_loop.create_custom_cursor_async(source)
     }
 
     #[inline]
     fn set_poll_strategy(&self, strategy: PollStrategy) {
-        self.p.set_poll_strategy(strategy);
+        let event_loop = self
+            .as_any()
+            .downcast_ref::<crate::platform_impl::ActiveEventLoop>()
+            .expect("non Web event loop on Web");
+        event_loop.set_poll_strategy(strategy);
     }
 
     #[inline]
     fn poll_strategy(&self) -> PollStrategy {
-        self.p.poll_strategy()
+        let event_loop = self
+            .as_any()
+            .downcast_ref::<crate::platform_impl::ActiveEventLoop>()
+            .expect("non Web event loop on Web");
+        event_loop.poll_strategy()
     }
 
     #[inline]
     fn set_wait_until_strategy(&self, strategy: WaitUntilStrategy) {
-        self.p.set_wait_until_strategy(strategy);
+        let event_loop = self
+            .as_any()
+            .downcast_ref::<crate::platform_impl::ActiveEventLoop>()
+            .expect("non Web event loop on Web");
+        event_loop.set_wait_until_strategy(strategy);
     }
 
     #[inline]
     fn wait_until_strategy(&self) -> WaitUntilStrategy {
-        self.p.wait_until_strategy()
+        let event_loop = self
+            .as_any()
+            .downcast_ref::<crate::platform_impl::ActiveEventLoop>()
+            .expect("non Web event loop on Web");
+        event_loop.wait_until_strategy()
     }
 
     #[inline]
     fn is_cursor_lock_raw(&self) -> bool {
-        self.p.is_cursor_lock_raw()
+        let event_loop = self
+            .as_any()
+            .downcast_ref::<crate::platform_impl::ActiveEventLoop>()
+            .expect("non Web event loop on Web");
+        event_loop.is_cursor_lock_raw()
     }
 
     #[inline]
     fn has_multiple_screens(&self) -> Result<bool, NotSupportedError> {
-        self.p.has_multiple_screens()
+        let event_loop = self
+            .as_any()
+            .downcast_ref::<crate::platform_impl::ActiveEventLoop>()
+            .expect("non Web event loop on Web");
+        event_loop.has_multiple_screens()
     }
 
     #[inline]
     fn request_detailed_monitor_permission(&self) -> MonitorPermissionFuture {
-        MonitorPermissionFuture(self.p.request_detailed_monitor_permission())
+        let event_loop = self
+            .as_any()
+            .downcast_ref::<crate::platform_impl::ActiveEventLoop>()
+            .expect("non Web event loop on Web");
+        MonitorPermissionFuture(event_loop.request_detailed_monitor_permission())
     }
 
     #[inline]
     fn has_detailed_monitor_permission(&self) -> bool {
-        self.p.has_detailed_monitor_permission()
+        let event_loop = self
+            .as_any()
+            .downcast_ref::<crate::platform_impl::ActiveEventLoop>()
+            .expect("non Web event loop on Web");
+        event_loop.has_detailed_monitor_permission()
     }
 }
 
@@ -623,7 +659,7 @@ pub trait MonitorHandleExtWeb {
     /// [`false`] will always represent the current monitor the browser window is in instead of a
     /// specific monitor.
     ///
-    /// See [`ActiveEventLoop::request_detailed_monitor_permission()`].
+    /// See [`ActiveEventLoopExtWeb::request_detailed_monitor_permission()`].
     fn is_detailed(&self) -> bool;
 }
 
