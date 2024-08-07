@@ -39,16 +39,3 @@ The migration guide could reference other migration examples in the current
 changelog entry.
 
 ## Unreleased
-
-### Added
-
-- Add `ActiveEventLoop::system_theme()`, returning the current system theme.
-- On Web, implement `Error` for `platform::web::CustomCursorError`.
-- On Android, add `{Active,}EventLoopExtAndroid::android_app()` to access the app used to create the loop.
-
-### Fixed
-
-- On MacOS, fix building with `feature = "rwh_04"`.
-- On Web, pen events are now routed through to `WindowEvent::Cursor*`.
-- On macOS, fix panic when releasing not available monitor.
-- On MacOS, return the system theme in `Window::theme()` if no theme override is set.
