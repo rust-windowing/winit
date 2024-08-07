@@ -116,7 +116,7 @@ impl std::fmt::Display for VideoModeHandle {
 /// to check.
 ///
 /// [`Window`]: crate::window::Window
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct MonitorHandle {
     pub(crate) inner: platform_impl::MonitorHandle,
 }

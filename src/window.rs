@@ -36,8 +36,8 @@ pub struct Window {
 }
 
 impl fmt::Debug for Window {
-    fn fmt(&self, fmtr: &mut fmt::Formatter<'_>) -> fmt::Result {
-        fmtr.pad("Window { .. }")
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Window").finish_non_exhaustive()
     }
 }
 
@@ -55,6 +55,20 @@ impl Drop for Window {
                 w.set_fullscreen(None);
             }
         })
+    }
+}
+
+impl PartialEq for Window {
+    fn eq(&self, other: &Self) -> bool {
+        self.id().eq(&other.id())
+    }
+}
+
+impl Eq for Window {}
+
+impl std::hash::Hash for Window {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.id().hash(state);
     }
 }
 
@@ -99,7 +113,7 @@ impl From<u64> for WindowId {
 }
 
 /// Attributes used when creating a window.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct WindowAttributes {
     pub inner_size: Option<Size>,
     pub min_inner_size: Option<Size>,
@@ -165,7 +179,7 @@ impl Default for WindowAttributes {
 ///
 /// The user has to account for that when using [`WindowAttributes::with_parent_window()`],
 /// which is `unsafe`.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 #[cfg(feature = "rwh_06")]
 pub(crate) struct SendSyncRawWindowHandle(pub(crate) rwh_06::RawWindowHandle);
 
@@ -1685,6 +1699,7 @@ pub enum CursorGrabMode {
 
 /// Defines the orientation that a window resize will be performed.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum ResizeDirection {
     East,
     North,
@@ -1713,7 +1728,7 @@ impl From<ResizeDirection> for CursorIcon {
 }
 
 /// Fullscreen modes.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum Fullscreen {
     Exclusive(VideoModeHandle),
 
@@ -1722,7 +1737,7 @@ pub enum Fullscreen {
 }
 
 /// The theme variant to use.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum Theme {
     /// Use the light variant.
@@ -1739,7 +1754,8 @@ pub enum Theme {
 ///
 /// [`Critical`]: Self::Critical
 /// [`Informational`]: Self::Informational
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum UserAttentionType {
     /// ## Platform-specific
     ///
@@ -1773,7 +1789,8 @@ bitflags::bitflags! {
 /// ## Platform-specific
 ///
 /// - **iOS / Android / Web / Wayland:** Unsupported.
-#[derive(Debug, Default, PartialEq, Eq, Clone, Copy)]
+#[derive(Debug, Default, PartialEq, Eq, Clone, Copy, Hash)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum WindowLevel {
     /// The window will always be below normal windows.
     ///
@@ -1796,8 +1813,9 @@ pub enum WindowLevel {
 /// ## Platform-specific
 ///
 /// - **iOS / Android / Web / Windows / X11 / macOS / Orbital:** Unsupported.
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
 #[non_exhaustive]
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Hash)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum ImePurpose {
     /// No special hints for the IME (default).
     Normal,
@@ -1818,7 +1836,7 @@ impl Default for ImePurpose {
 /// An opaque token used to activate the [`Window`].
 ///
 /// [`Window`]: crate::window::Window
-#[derive(Debug, PartialEq, Eq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone, Hash)]
 pub struct ActivationToken {
     pub(crate) _token: String,
 }

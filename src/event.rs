@@ -115,7 +115,7 @@ pub(crate) enum Event {
 }
 
 /// Describes the reason the event loop is resuming.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum StartCause {
     /// Sent if the time specified by [`ControlFlow::WaitUntil`] has been reached. Contains the
     /// moment the timeout was requested and the requested resume time. The actual resume time is
@@ -434,6 +434,12 @@ pub enum WindowEvent {
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct DeviceId(pub(crate) platform_impl::DeviceId);
 
+impl Default for DeviceId {
+    fn default() -> Self {
+        Self::dummy()
+    }
+}
+
 impl DeviceId {
     /// Returns a dummy id, useful for unit testing.
     ///
@@ -475,7 +481,7 @@ impl FingerId {
 /// (corresponding to GUI cursors and keyboard focus) the device IDs may not match.
 ///
 /// Note that these events are delivered regardless of input focus.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum DeviceEvent {
     /// Change in physical position of a pointing device.
     ///
@@ -524,7 +530,7 @@ pub enum DeviceEvent {
 /// repeat or the initial keypress. An application may emulate this by, for
 /// example keeping a Map/Set of pressed keys and determining whether a keypress
 /// corresponds to an already pressed key.
-#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct RawKeyEvent {
     pub physical_key: keyboard::PhysicalKey,
@@ -669,7 +675,8 @@ pub struct KeyEvent {
 }
 
 /// Describes keyboard modifiers event.
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Modifiers {
     pub(crate) state: ModifiersState,
 
@@ -871,6 +878,7 @@ pub struct Touch {
 
 /// Describes the force of a touch event
 #[derive(Debug, Clone, Copy, PartialEq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum Force {
     /// On iOS, the force is calibrated so that the same number corresponds to
     /// roughly the same amount of pressure on the screen regardless of the
@@ -1019,6 +1027,8 @@ impl PartialEq for InnerSizeWriter {
         self.new_inner_size.as_ptr() == other.new_inner_size.as_ptr()
     }
 }
+
+impl Eq for InnerSizeWriter {}
 
 #[cfg(test)]
 mod tests {

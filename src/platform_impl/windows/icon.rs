@@ -63,12 +63,12 @@ pub enum IconType {
     Big = ICON_BIG as isize,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq, Hash)]
 struct RaiiIcon {
     handle: HICON,
 }
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq, Eq, Hash)]
 pub struct WinIcon {
     inner: Arc<RaiiIcon>,
 }

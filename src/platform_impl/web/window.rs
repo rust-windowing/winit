@@ -457,6 +457,18 @@ pub struct PlatformSpecificWindowAttributes {
     pub(crate) append: bool,
 }
 
+impl PartialEq for PlatformSpecificWindowAttributes {
+    fn eq(&self, other: &Self) -> bool {
+        (match (&self.canvas, &other.canvas) {
+            (Some(this), Some(other)) => Arc::ptr_eq(this, other),
+            (None, None) => true,
+            _ => false,
+        }) && self.prevent_default.eq(&other.prevent_default)
+            && self.focusable.eq(&other.focusable)
+            && self.append.eq(&other.append)
+    }
+}
+
 impl PlatformSpecificWindowAttributes {
     pub(crate) fn set_canvas(&mut self, canvas: Option<backend::RawCanvasType>) {
         let Some(canvas) = canvas else {

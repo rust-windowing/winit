@@ -66,6 +66,9 @@
 
 use std::os::raw::c_void;
 
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
+
 use crate::monitor::{MonitorHandle, VideoModeHandle};
 use crate::window::{Window, WindowAttributes};
 
@@ -355,6 +358,7 @@ impl MonitorHandleExtIOS for MonitorHandle {
 
 /// Valid orientations for a particular [`Window`].
 #[derive(Default, Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum ValidOrientations {
     /// Excludes `PortraitUpsideDown` on iphone
     #[default]
@@ -371,6 +375,7 @@ bitflags::bitflags! {
     ///
     /// [edges]: https://developer.apple.com/documentation/uikit/uirectedge?language=objc
     #[derive(Default, Debug, Clone, Copy, PartialEq, Eq, Hash)]
+    #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
     pub struct ScreenEdge: u8 {
         const NONE   = 0;
         const TOP    = 1 << 0;
@@ -382,7 +387,8 @@ bitflags::bitflags! {
     }
 }
 
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum StatusBarStyle {
     #[default]
     Default,

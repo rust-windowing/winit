@@ -107,7 +107,7 @@ impl CustomCursor {
 /// Source for [`CustomCursor`].
 ///
 /// See [`CustomCursor`] for more details.
-#[derive(Debug)]
+#[derive(Debug, Clone, Eq, Hash, PartialEq)]
 pub struct CustomCursorSource {
     // Some platforms don't support custom cursors.
     #[allow(dead_code)]
@@ -115,7 +115,8 @@ pub struct CustomCursorSource {
 }
 
 /// An error produced when using [`CustomCursor::from_rgba`] with invalid arguments.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum BadImage {
     /// Produced when the image dimensions are larger than [`MAX_CURSOR_SIZE`]. This doesn't
     /// guarantee that the cursor will work, but should avoid many platform and device specific
@@ -166,7 +167,7 @@ impl Error for BadImage {}
 /// Platforms export this directly as `PlatformCustomCursorSource` if they need to only work with
 /// images.
 #[allow(dead_code)]
-#[derive(Debug)]
+#[derive(Debug, Clone, Eq, Hash, PartialEq)]
 pub(crate) struct OnlyCursorImageSource(pub(crate) CursorImage);
 
 #[allow(dead_code)]
@@ -201,7 +202,7 @@ impl PartialEq for OnlyCursorImage {
 
 impl Eq for OnlyCursorImage {}
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Eq, Hash, PartialEq)]
 #[allow(dead_code)]
 pub(crate) struct CursorImage {
     pub(crate) rgba: Vec<u8>,

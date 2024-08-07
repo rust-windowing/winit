@@ -6,6 +6,9 @@ use std::borrow::Borrow;
 use std::ffi::c_void;
 use std::path::Path;
 
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
+
 use crate::dpi::PhysicalSize;
 use crate::event::{DeviceId, FingerId};
 use crate::event_loop::EventLoopBuilder;
@@ -25,6 +28,7 @@ pub type HMONITOR = isize;
 ///
 /// [`DWM_SYSTEMBACKDROP_TYPE docs`]: https://learn.microsoft.com/en-us/windows/win32/api/dwmapi/ne-dwmapi-dwm_systembackdrop_type
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum BackdropType {
     /// Corresponds to `DWMSBT_AUTO`.
     ///
@@ -54,6 +58,7 @@ pub enum BackdropType {
 /// Describes a color used by Windows
 #[repr(transparent)]
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Color(u32);
 
 impl Color {
@@ -82,6 +87,7 @@ impl Default for Color {
 /// [`DWM_WINDOW_CORNER_PREFERENCE docs`]: https://learn.microsoft.com/en-us/windows/win32/api/dwmapi/ne-dwmapi-dwm_window_corner_preference
 #[repr(i32)]
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum CornerPreference {
     /// Corresponds to `DWMWCP_DEFAULT`.
     ///
@@ -108,7 +114,7 @@ pub enum CornerPreference {
 /// A wrapper around a [`Window`] that ignores thread-specific window handle limitations.
 ///
 /// See [`WindowBorrowExtWindows::any_thread`] for more information.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct AnyThread<W>(W);
 
 impl<W: Borrow<Window>> AnyThread<W> {

@@ -52,7 +52,7 @@ pub struct EventLoop {
 /// easier. But note that constructing multiple event loops is not supported.
 ///
 /// This can be created using [`EventLoop::builder`].
-#[derive(Default)]
+#[derive(Default, PartialEq, Eq, Hash)]
 pub struct EventLoopBuilder {
     pub(crate) platform_specific: platform_impl::PlatformSpecificEventLoopAttributes,
 }
@@ -115,9 +115,15 @@ impl EventLoopBuilder {
     }
 }
 
+impl fmt::Debug for EventLoopBuilder {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("EventLoopBuilder").finish_non_exhaustive()
+    }
+}
+
 impl fmt::Debug for EventLoop {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.pad("EventLoop { .. }")
+        f.debug_struct("EventLoop").finish_non_exhaustive()
     }
 }
 
@@ -129,7 +135,7 @@ impl fmt::Debug for EventLoop {
 ///
 /// [`Wait`]: Self::Wait
 /// [`about_to_wait`]: crate::application::ApplicationHandler::about_to_wait
-#[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq, Hash)]
 pub enum ControlFlow {
     /// When the current loop iteration finishes, immediately begin a new iteration regardless of
     /// whether or not new events are available to process.
@@ -419,7 +425,7 @@ pub trait ActiveEventLoop {
 ///
 /// - A zero-sized type that is likely optimized out.
 /// - A reference-counted pointer to the underlying type.
-#[derive(Clone)]
+#[derive(Clone, PartialEq, Eq)]
 pub struct OwnedDisplayHandle {
     #[cfg_attr(not(feature = "rwh_06"), allow(dead_code))]
     pub(crate) platform: platform_impl::OwnedDisplayHandle,
@@ -474,12 +480,13 @@ impl EventLoopProxy {
 
 impl fmt::Debug for EventLoopProxy {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.pad("EventLoopProxy { .. }")
+        f.debug_struct("ActiveEventLoop").finish_non_exhaustive()
     }
 }
 
 /// Control when device events are captured.
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug, Default)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum DeviceEvents {
     /// Report device events regardless of window focus.
     Always,
@@ -499,7 +506,7 @@ pub enum DeviceEvents {
 /// containing [`AsyncRequestSerial`] and some closure associated with it.
 /// Then once event is arriving the working list is being traversed and a job
 /// executed and removed from the list.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct AsyncRequestSerial {
     serial: usize,
 }

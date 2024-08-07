@@ -702,7 +702,7 @@ impl From<&AnyObject> for WindowId {
     }
 }
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq)]
 pub struct PlatformSpecificWindowAttributes {
     pub scale_factor: Option<f64>,
     pub valid_orientations: ValidOrientations,

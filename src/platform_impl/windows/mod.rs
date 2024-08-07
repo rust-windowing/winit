@@ -17,7 +17,7 @@ use crate::keyboard::Key;
 use crate::platform::windows::{BackdropType, Color, CornerPreference};
 use crate::platform_impl::Fullscreen;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct PlatformSpecificWindowAttributes {
     pub owner: Option<HWND>,
     pub menu: Option<HMENU>,

@@ -42,7 +42,7 @@ use crate::window::{
     WindowAttributes, WindowButtons, WindowId as RootWindowId, WindowLevel,
 };
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct PlatformSpecificWindowAttributes {
     pub movable_by_window_background: bool,
     pub titlebar_transparent: bool,
