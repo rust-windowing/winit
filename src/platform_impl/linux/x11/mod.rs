@@ -822,6 +822,16 @@ impl DeviceId {
     }
 }
 
+#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct FingerId(u32);
+
+impl FingerId {
+    #[allow(unused)]
+    pub const fn dummy() -> Self {
+        FingerId(0)
+    }
+}
+
 pub(crate) struct Window(Arc<UnownedWindow>);
 
 impl Deref for Window {
@@ -1025,6 +1035,10 @@ fn mkwid(w: xproto::Window) -> crate::window::WindowId {
 }
 fn mkdid(w: xinput::DeviceId) -> crate::event::DeviceId {
     crate::event::DeviceId(crate::platform_impl::DeviceId::X(DeviceId(w)))
+}
+
+fn mkfid(w: u32) -> crate::event::FingerId {
+    crate::event::FingerId(crate::platform_impl::FingerId::X(FingerId(w)))
 }
 
 #[derive(Debug)]

@@ -447,6 +447,26 @@ impl DeviceId {
     }
 }
 
+/// Identifier of a finger in a touch event.
+///
+/// Whenever a touch event is received it contains a `FingerId` which uniquely identifies the finger
+/// used for the current interaction.
+#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct FingerId(pub(crate) platform_impl::FingerId);
+
+impl FingerId {
+    /// Returns a dummy id, useful for unit testing.
+    ///
+    /// # Notes
+    ///
+    /// The only guarantee made about the return value of this function is that
+    /// it will always be equal to itself and to future values returned by this function.
+    /// No other guarantees are made. This may be equal to a real `FingerId`.
+    pub const fn dummy() -> Self {
+        FingerId(platform_impl::FingerId::dummy())
+    }
+}
+
 /// Represents raw hardware events that are not associated with any particular window.
 ///
 /// Useful for interactions that diverge significantly from a conventional 2D GUI, such as 3D camera
@@ -846,7 +866,7 @@ pub struct Touch {
     ///   [android documentation](https://developer.android.com/reference/android/view/MotionEvent#AXIS_PRESSURE).
     pub force: Option<Force>,
     /// Unique identifier of a finger.
-    pub id: u64,
+    pub finger_id: FingerId,
 }
 
 /// Describes the force of a touch event
@@ -1012,6 +1032,7 @@ mod tests {
             #[allow(unused_mut)]
             let mut x = $closure;
             let did = event::DeviceId::dummy();
+            let fid = event::FingerId::dummy();
 
             #[allow(deprecated)]
             {
@@ -1075,7 +1096,7 @@ mod tests {
                     device_id: did,
                     phase: event::TouchPhase::Started,
                     location: (0.0, 0.0).into(),
-                    id: 0,
+                    finger_id: fid,
                     force: Some(event::Force::Normalized(0.0)),
                 }));
                 with_window_event(ThemeChanged(crate::window::Theme::Light));
@@ -1133,6 +1154,7 @@ mod tests {
         let _ = event::StartCause::Init.clone();
 
         let did = crate::event::DeviceId::dummy().clone();
+        let fid = crate::event::FingerId::dummy().clone();
         HashSet::new().insert(did);
         let mut set = [did, did, did];
         set.sort_unstable();
@@ -1148,7 +1170,7 @@ mod tests {
             device_id: did,
             phase: event::TouchPhase::Started,
             location: (0.0, 0.0).into(),
-            id: 0,
+            finger_id: fid,
             force: Some(event::Force::Normalized(0.0)),
         }
         .clone();

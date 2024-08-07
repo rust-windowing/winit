@@ -177,6 +177,23 @@ impl DeviceId {
     }
 }
 
+#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum FingerId {
+    #[cfg(x11_platform)]
+    X(x11::FingerId),
+    #[cfg(wayland_platform)]
+    Wayland(wayland::FingerId),
+}
+
+impl FingerId {
+    pub const fn dummy() -> Self {
+        #[cfg(wayland_platform)]
+        return FingerId::Wayland(wayland::FingerId::dummy());
+        #[cfg(all(not(wayland_platform), x11_platform))]
+        return FingerId::X(x11::FingerId::dummy());
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum MonitorHandle {
     #[cfg(x11_platform)]

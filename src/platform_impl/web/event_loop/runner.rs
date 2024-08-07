@@ -287,7 +287,7 @@ impl Shared {
                 }
 
                 // chorded button event
-                let device_id = RootDeviceId(DeviceId(event.pointer_id()));
+                let device_id = RootDeviceId(DeviceId::new(event.pointer_id()));
 
                 if let Some(button) = backend::event::mouse_button(&event) {
                     let state = if backend::event::mouse_buttons(&event).contains(button.into()) {
@@ -328,7 +328,7 @@ impl Shared {
 
                 if let Some(delta) = backend::event::mouse_scroll_delta(&window, &event) {
                     runner.send_event(Event::DeviceEvent {
-                        device_id: RootDeviceId(DeviceId(0)),
+                        device_id: RootDeviceId(DeviceId::dummy()),
                         event: DeviceEvent::MouseWheel { delta },
                     });
                 }
@@ -345,7 +345,7 @@ impl Shared {
 
                 let button = backend::event::mouse_button(&event).expect("no mouse button pressed");
                 runner.send_event(Event::DeviceEvent {
-                    device_id: RootDeviceId(DeviceId(event.pointer_id())),
+                    device_id: RootDeviceId(DeviceId::new(event.pointer_id())),
                     event: DeviceEvent::Button {
                         button: button.to_id(),
                         state: ElementState::Pressed,
@@ -364,7 +364,7 @@ impl Shared {
 
                 let button = backend::event::mouse_button(&event).expect("no mouse button pressed");
                 runner.send_event(Event::DeviceEvent {
-                    device_id: RootDeviceId(DeviceId(event.pointer_id())),
+                    device_id: RootDeviceId(DeviceId::new(event.pointer_id())),
                     event: DeviceEvent::Button {
                         button: button.to_id(),
                         state: ElementState::Released,

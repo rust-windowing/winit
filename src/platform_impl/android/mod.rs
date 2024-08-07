@@ -359,7 +359,7 @@ impl EventLoop {
                             device_id,
                             phase,
                             location,
-                            id: pointer.pointer_id() as u64,
+                            finger_id: event::FingerId(FingerId(pointer.pointer_id())),
                             force: Some(Force::Normalized(pointer.pressure() as f64)),
                         });
 
@@ -702,6 +702,15 @@ pub struct DeviceId(i32);
 impl DeviceId {
     pub const fn dummy() -> Self {
         DeviceId(0)
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+pub struct FingerId(i32);
+
+impl FingerId {
+    pub const fn dummy() -> Self {
+        FingerId(0)
     }
 }
 

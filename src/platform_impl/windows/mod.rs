@@ -78,6 +78,24 @@ impl DeviceId {
     }
 }
 
+#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct FingerId {
+    id: u32,
+    primary: bool,
+}
+
+impl FingerId {
+    pub const fn dummy() -> Self {
+        FingerId { id: 0, primary: false }
+    }
+}
+
+impl FingerId {
+    pub fn is_primary(self) -> bool {
+        self.primary
+    }
+}
+
 // Constant device ID, to be removed when this backend is updated to report real device IDs.
 const DEVICE_ID: RootDeviceId = RootDeviceId(DeviceId(0));
 

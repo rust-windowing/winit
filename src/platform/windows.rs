@@ -7,7 +7,7 @@ use std::ffi::c_void;
 use std::path::Path;
 
 use crate::dpi::PhysicalSize;
-use crate::event::DeviceId;
+use crate::event::{DeviceId, FingerId};
 use crate::event_loop::EventLoopBuilder;
 use crate::monitor::MonitorHandle;
 use crate::window::{BadIcon, Icon, Window, WindowAttributes};
@@ -665,6 +665,20 @@ impl DeviceIdExtWindows for DeviceId {
     #[inline]
     fn persistent_identifier(&self) -> Option<String> {
         self.0.persistent_identifier()
+    }
+}
+
+/// Additional methods on `FingerId` that are specific to Windows.
+pub trait FingerIdExtWindows {
+    /// Indicates if the finger represents the first contact in a multi-touch interaction.
+    #[allow(clippy::wrong_self_convention)]
+    fn is_primary(self) -> bool;
+}
+
+impl FingerIdExtWindows for FingerId {
+    #[inline]
+    fn is_primary(self) -> bool {
+        self.0.is_primary()
     }
 }
 

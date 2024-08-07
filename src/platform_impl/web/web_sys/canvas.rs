@@ -12,6 +12,7 @@ use web_sys::{
 };
 
 use super::super::cursor::CursorHandler;
+use super::super::event::{DeviceId, FingerId};
 use super::super::main_thread::MainThreadMarker;
 use super::super::WindowId;
 use super::animation_frame::AnimationFrameHandler;
@@ -329,22 +330,22 @@ impl Canvas {
 
     pub fn on_cursor_leave<F>(&self, handler: F)
     where
-        F: 'static + FnMut(ModifiersState, Option<i32>),
+        F: 'static + FnMut(ModifiersState, Option<DeviceId>),
     {
         self.handlers.borrow_mut().pointer_handler.on_cursor_leave(&self.common, handler)
     }
 
     pub fn on_cursor_enter<F>(&self, handler: F)
     where
-        F: 'static + FnMut(ModifiersState, Option<i32>),
+        F: 'static + FnMut(ModifiersState, Option<DeviceId>),
     {
         self.handlers.borrow_mut().pointer_handler.on_cursor_enter(&self.common, handler)
     }
 
     pub fn on_mouse_release<M, T>(&self, mouse_handler: M, touch_handler: T)
     where
-        M: 'static + FnMut(ModifiersState, i32, PhysicalPosition<f64>, MouseButton),
-        T: 'static + FnMut(ModifiersState, i32, PhysicalPosition<f64>, Force),
+        M: 'static + FnMut(ModifiersState, DeviceId, PhysicalPosition<f64>, MouseButton),
+        T: 'static + FnMut(ModifiersState, DeviceId, FingerId, PhysicalPosition<f64>, Force),
     {
         self.handlers.borrow_mut().pointer_handler.on_mouse_release(
             &self.common,
@@ -355,8 +356,8 @@ impl Canvas {
 
     pub fn on_mouse_press<M, T>(&self, mouse_handler: M, touch_handler: T)
     where
-        M: 'static + FnMut(ModifiersState, i32, PhysicalPosition<f64>, MouseButton),
-        T: 'static + FnMut(ModifiersState, i32, PhysicalPosition<f64>, Force),
+        M: 'static + FnMut(ModifiersState, DeviceId, PhysicalPosition<f64>, MouseButton),
+        T: 'static + FnMut(ModifiersState, DeviceId, FingerId, PhysicalPosition<f64>, Force),
     {
         self.handlers.borrow_mut().pointer_handler.on_mouse_press(
             &self.common,
@@ -368,10 +369,17 @@ impl Canvas {
 
     pub fn on_cursor_move<M, T, B>(&self, mouse_handler: M, touch_handler: T, button_handler: B)
     where
-        M: 'static + FnMut(ModifiersState, i32, &mut dyn Iterator<Item = PhysicalPosition<f64>>),
+        M: 'static
+            + FnMut(ModifiersState, DeviceId, &mut dyn Iterator<Item = PhysicalPosition<f64>>),
         T: 'static
-            + FnMut(ModifiersState, i32, &mut dyn Iterator<Item = (PhysicalPosition<f64>, Force)>),
-        B: 'static + FnMut(ModifiersState, i32, PhysicalPosition<f64>, ButtonsState, MouseButton),
+            + FnMut(
+                ModifiersState,
+                DeviceId,
+                FingerId,
+                &mut dyn Iterator<Item = (PhysicalPosition<f64>, Force)>,
+            ),
+        B: 'static
+            + FnMut(ModifiersState, DeviceId, PhysicalPosition<f64>, ButtonsState, MouseButton),
     {
         self.handlers.borrow_mut().pointer_handler.on_cursor_move(
             &self.common,
@@ -384,14 +392,14 @@ impl Canvas {
 
     pub fn on_touch_cancel<F>(&self, handler: F)
     where
-        F: 'static + FnMut(i32, PhysicalPosition<f64>, Force),
+        F: 'static + FnMut(DeviceId, FingerId, PhysicalPosition<f64>, Force),
     {
         self.handlers.borrow_mut().pointer_handler.on_touch_cancel(&self.common, handler)
     }
 
     pub fn on_mouse_wheel<F>(&self, mut handler: F)
     where
-        F: 'static + FnMut(i32, MouseScrollDelta, ModifiersState),
+        F: 'static + FnMut(MouseScrollDelta, ModifiersState),
     {
         let window = self.common.window.clone();
         let prevent_default = Rc::clone(&self.prevent_default);
@@ -403,7 +411,7 @@ impl Canvas {
 
                 if let Some(delta) = event::mouse_scroll_delta(&window, &event) {
                     let modifiers = event::mouse_modifiers(&event);
-                    handler(0, delta, modifiers);
+                    handler(delta, modifiers);
                 }
             }));
     }

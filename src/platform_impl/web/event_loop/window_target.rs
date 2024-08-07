@@ -8,13 +8,14 @@ use web_sys::Element;
 
 use super::super::monitor::MonitorPermissionFuture;
 use super::super::{lock, KeyEventExtra};
-use super::device::DeviceId;
+use super::event::DeviceId;
 use super::runner::{EventWrapper, WeakShared};
 use super::window::WindowId;
 use super::{backend, runner, EventLoopProxy};
 use crate::error::{ExternalError, NotSupportedError};
 use crate::event::{
-    DeviceId as RootDeviceId, ElementState, Event, KeyEvent, Touch, TouchPhase, WindowEvent,
+    DeviceId as RootDeviceId, ElementState, Event, FingerId as RootFingerId, KeyEvent, Touch,
+    TouchPhase, WindowEvent,
 };
 use crate::event_loop::{
     ActiveEventLoop as RootActiveEventLoop, ControlFlow, DeviceEvents,
@@ -220,11 +221,9 @@ impl ActiveEventLoop {
                     }
                 });
 
-                let pointer = pointer_id.map(|pointer_id| Event::WindowEvent {
+                let pointer = pointer_id.map(|device_id| Event::WindowEvent {
                     window_id: RootWindowId(id),
-                    event: WindowEvent::CursorLeft {
-                        device_id: RootDeviceId(DeviceId(pointer_id)),
-                    },
+                    event: WindowEvent::CursorLeft { device_id: RootDeviceId(device_id) },
                 });
 
                 if focus.is_some() || pointer.is_some() {
@@ -247,11 +246,9 @@ impl ActiveEventLoop {
                     }
                 });
 
-                let pointer = pointer_id.map(|pointer_id| Event::WindowEvent {
+                let pointer = pointer_id.map(|device_id| Event::WindowEvent {
                     window_id: RootWindowId(id),
-                    event: WindowEvent::CursorEntered {
-                        device_id: RootDeviceId(DeviceId(pointer_id)),
-                    },
+                    event: WindowEvent::CursorEntered { device_id: RootDeviceId(device_id) },
                 });
 
                 if focus.is_some() || pointer.is_some() {
@@ -277,7 +274,7 @@ impl ActiveEventLoop {
                         });
 
                     runner.send_events(modifiers.into_iter().chain(events.flat_map(|position| {
-                        let device_id = RootDeviceId(DeviceId(pointer_id));
+                        let device_id = RootDeviceId(pointer_id);
 
                         iter::once(Event::WindowEvent {
                             window_id: RootWindowId(id),
@@ -291,7 +288,7 @@ impl ActiveEventLoop {
                 let has_focus = has_focus.clone();
                 let modifiers = self.modifiers.clone();
 
-                move |active_modifiers, device_id, events| {
+                move |active_modifiers, device_id, finger_id, events| {
                     let modifiers =
                         (has_focus.get() && modifiers.get() != active_modifiers).then(|| {
                             modifiers.set(active_modifiers);
@@ -305,8 +302,8 @@ impl ActiveEventLoop {
                         |(location, force)| Event::WindowEvent {
                             window_id: RootWindowId(id),
                             event: WindowEvent::Touch(Touch {
-                                id: device_id as u64,
-                                device_id: RootDeviceId(DeviceId(device_id)),
+                                finger_id: RootFingerId(finger_id),
+                                device_id: RootDeviceId(device_id),
                                 phase: TouchPhase::Moved,
                                 force: Some(force),
                                 location,
@@ -321,7 +318,7 @@ impl ActiveEventLoop {
                 let modifiers = self.modifiers.clone();
 
                 move |active_modifiers,
-                      pointer_id,
+                      device_id,
                       position: crate::dpi::PhysicalPosition<f64>,
                       buttons,
                       button| {
@@ -334,7 +331,7 @@ impl ActiveEventLoop {
                             }
                         });
 
-                    let device_id = RootDeviceId(DeviceId(pointer_id));
+                    let device_id = RootDeviceId(device_id);
 
                     let state = if buttons.contains(button.into()) {
                         ElementState::Pressed
@@ -373,7 +370,7 @@ impl ActiveEventLoop {
                         }
                     });
 
-                    let device_id: RootDeviceId = RootDeviceId(DeviceId(pointer_id));
+                    let device_id: RootDeviceId = RootDeviceId(pointer_id);
 
                     // A mouse down event may come in without any prior CursorMoved events,
                     // therefore we should send a CursorMoved event to make sure that the
@@ -398,7 +395,7 @@ impl ActiveEventLoop {
                 let runner = self.runner.clone();
                 let modifiers = self.modifiers.clone();
 
-                move |active_modifiers, device_id, location, force| {
+                move |active_modifiers, device_id, finger_id, location, force| {
                     let modifiers = (modifiers.get() != active_modifiers).then(|| {
                         modifiers.set(active_modifiers);
                         Event::WindowEvent {
@@ -411,8 +408,8 @@ impl ActiveEventLoop {
                         Event::WindowEvent {
                             window_id: RootWindowId(id),
                             event: WindowEvent::Touch(Touch {
-                                id: device_id as u64,
-                                device_id: RootDeviceId(DeviceId(device_id)),
+                                finger_id: RootFingerId(finger_id),
+                                device_id: RootDeviceId(device_id),
                                 phase: TouchPhase::Started,
                                 force: Some(force),
                                 location,
@@ -439,7 +436,7 @@ impl ActiveEventLoop {
                             }
                         });
 
-                    let device_id: RootDeviceId = RootDeviceId(DeviceId(pointer_id));
+                    let device_id: RootDeviceId = RootDeviceId(pointer_id);
 
                     // A mouse up event may come in without any prior CursorMoved events,
                     // therefore we should send a CursorMoved event to make sure that the
@@ -465,7 +462,7 @@ impl ActiveEventLoop {
                 let has_focus = has_focus.clone();
                 let modifiers = self.modifiers.clone();
 
-                move |active_modifiers, device_id, location, force| {
+                move |active_modifiers, device_id, finger_id, location, force| {
                     let modifiers =
                         (has_focus.get() && modifiers.get() != active_modifiers).then(|| {
                             modifiers.set(active_modifiers);
@@ -479,8 +476,8 @@ impl ActiveEventLoop {
                         Event::WindowEvent {
                             window_id: RootWindowId(id),
                             event: WindowEvent::Touch(Touch {
-                                id: device_id as u64,
-                                device_id: RootDeviceId(DeviceId(device_id)),
+                                finger_id: RootFingerId(finger_id),
+                                device_id: RootDeviceId(device_id),
                                 phase: TouchPhase::Ended,
                                 force: Some(force),
                                 location,
@@ -493,7 +490,7 @@ impl ActiveEventLoop {
 
         let runner = self.runner.clone();
         let modifiers = self.modifiers.clone();
-        canvas.on_mouse_wheel(move |pointer_id, delta, active_modifiers| {
+        canvas.on_mouse_wheel(move |delta, active_modifiers| {
             let modifiers_changed =
                 (has_focus.get() && modifiers.get() != active_modifiers).then(|| {
                     modifiers.set(active_modifiers);
@@ -507,7 +504,7 @@ impl ActiveEventLoop {
                 Event::WindowEvent {
                     window_id: RootWindowId(id),
                     event: WindowEvent::MouseWheel {
-                        device_id: RootDeviceId(DeviceId(pointer_id)),
+                        device_id: RootDeviceId(DeviceId::dummy()),
                         delta,
                         phase: TouchPhase::Moved,
                     },
@@ -516,12 +513,12 @@ impl ActiveEventLoop {
         });
 
         let runner = self.runner.clone();
-        canvas.on_touch_cancel(move |device_id, location, force| {
+        canvas.on_touch_cancel(move |device_id, finger_id, location, force| {
             runner.send_event(Event::WindowEvent {
                 window_id: RootWindowId(id),
                 event: WindowEvent::Touch(Touch {
-                    id: device_id as u64,
-                    device_id: RootDeviceId(DeviceId(device_id)),
+                    finger_id: RootFingerId(finger_id),
+                    device_id: RootDeviceId(device_id),
                     phase: TouchPhase::Cancelled,
                     force: Some(force),
                     location,
