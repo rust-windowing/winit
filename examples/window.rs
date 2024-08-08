@@ -27,6 +27,7 @@ use winit::platform::macos::{OptionAsAlt, WindowAttributesExtMacOS, WindowExtMac
 use winit::platform::startup_notify::{
     self, EventLoopExtStartupNotify, WindowAttributesExtStartupNotify, WindowExtStartupNotify,
 };
+use winit::platform::wayland::{EventLoopExtWayland, WaylandApplicationHandler};
 #[cfg(web_platform)]
 use winit::platform::web::{ActiveEventLoopExtWeb, CustomCursorExtWeb, WindowAttributesExtWeb};
 use winit::window::{
@@ -46,7 +47,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     tracing::init();
 
-    let event_loop = EventLoop::new()?;
+    let mut event_loop = EventLoop::new()?;
     let (sender, receiver) = mpsc::channel();
 
     // Wire the user event from another thread.
@@ -67,6 +68,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     }
 
     let app = Application::new(&event_loop, receiver, sender);
+    event_loop.register_wayland_callback::<Application>();
     Ok(event_loop.run_app(app)?)
 }
 
@@ -371,6 +373,11 @@ impl Application {
 }
 
 impl ApplicationHandler for Application {
+    fn as_any(&mut self) -> Option<&mut dyn std::any::Any> {
+        println!("Called");
+        Some(self)
+    }
+
     fn proxy_wake_up(&mut self, event_loop: &dyn ActiveEventLoop) {
         while let Ok(action) = self.receiver.try_recv() {
             self.handle_action_from_proxy(event_loop, action)
@@ -549,6 +556,12 @@ impl ApplicationHandler for Application {
     fn exiting(&mut self, _event_loop: &dyn ActiveEventLoop) {
         // We must drop the context here.
         self.context = None;
+    }
+}
+
+impl WaylandApplicationHandler for Application {
+    fn wayland_callback(&mut self) {
+        println!("Wayland callback!");
     }
 }
 
