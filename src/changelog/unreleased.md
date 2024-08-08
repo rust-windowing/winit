@@ -43,7 +43,6 @@ changelog entry.
 ### Added
 
 - Add `ActiveEventLoop::create_proxy()`.
-- On Web, implement `Error` for `platform::web::CustomCursorError`.
 - On Web, add `ActiveEventLoopExtWeb::is_cursor_lock_raw()` to determine if
   `DeviceEvent::MouseMotion` is returning raw data, not OS accelerated, when using
   `CursorGrabMode::Locked`.
@@ -54,8 +53,6 @@ changelog entry.
   `ActiveEventLoop::request_detailed_monitor_permission()`, access to all monitors and their
   information is available. This "detailed monitors" can be used in `Window::set_fullscreen()` as
   well.
-- On Android, add `{Active,}EventLoopExtAndroid::android_app()` to access the app used to create the loop.
-- Add `ActiveEventLoop::system_theme()`, returning the current system theme.
 - Add `Touch::finger_id` with a new type `FingerId`.
 - On Web and Windows, add `FingerIdExt*::is_primary()`, exposing a way to determine
   the primary finger in a multi-touch interaction.
@@ -126,7 +123,4 @@ changelog entry.
 
 ### Fixed
 
-- On Web, pen events are now routed through to `WindowEvent::Cursor*`.
-- On macOS, fix panic when releasing not available monitor.
-- On MacOS, return the system theme in `Window::theme()` if no theme override is set.
 - On Orbital, `MonitorHandle::name()` now returns `None` instead of a dummy name.

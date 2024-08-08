@@ -21,7 +21,7 @@ name = "winit"
 readme = "README.md"
 repository.workspace = true
 rust-version.workspace = true
-version = "0.30.4"
+version = "0.30.5"
 
 [package.metadata.docs.rs]
 features = [
