@@ -13,6 +13,7 @@
 //! * `wayland-csd-adwaita` (default).
 //! * `wayland-csd-adwaita-crossfont`.
 //! * `wayland-csd-adwaita-notitle`.
+use crate::application::ApplicationHandler;
 use crate::event_loop::{ActiveEventLoop, EventLoop, EventLoopBuilder};
 use crate::monitor::MonitorHandle;
 pub use crate::window::Theme;
@@ -22,6 +23,10 @@ use crate::window::{Window, WindowAttributes};
 pub trait ActiveEventLoopExtWayland {
     /// True if the [`ActiveEventLoop`] uses Wayland.
     fn is_wayland(&self) -> bool;
+}
+
+pub trait WaylandApplicationHandler: ApplicationHandler + 'static {
+    fn wayland_callback(&mut self);
 }
 
 impl ActiveEventLoopExtWayland for &dyn ActiveEventLoop {
@@ -35,12 +40,30 @@ impl ActiveEventLoopExtWayland for &dyn ActiveEventLoop {
 pub trait EventLoopExtWayland {
     /// True if the [`EventLoop`] uses Wayland.
     fn is_wayland(&self) -> bool;
+
+    fn register_wayland_callback<T: WaylandApplicationHandler>(&mut self);
 }
 
 impl EventLoopExtWayland for EventLoop {
     #[inline]
     fn is_wayland(&self) -> bool {
         self.event_loop.is_wayland()
+    }
+
+    fn register_wayland_callback<T: WaylandApplicationHandler>(&mut self) {
+        let event_loop = match &self.event_loop {
+            crate::platform_impl::EventLoop::Wayland(event_loop) => &event_loop.active_event_loop,
+            #[cfg(x11_platform)]
+            crate::platform_impl::EventLoop::X(_) => return,
+        };
+
+        event_loop.wayland_callback.set(Some(|app: &mut dyn ApplicationHandler| {
+            app.as_any()
+                .expect("as_any_mut is not implemented")
+                .downcast_mut::<T>()
+                .unwrap()
+                .wayland_callback()
+        }));
     }
 }
 

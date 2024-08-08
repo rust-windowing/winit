@@ -53,7 +53,7 @@ pub struct EventLoop {
     connection: Connection,
 
     /// Event loop window target.
-    active_event_loop: ActiveEventLoop,
+    pub(crate) active_event_loop: ActiveEventLoop,
 
     // XXX drop after everything else, just to be safe.
     /// Calloop's event loop.
@@ -139,6 +139,7 @@ impl EventLoop {
             control_flow: Cell::new(ControlFlow::default()),
             exit: Cell::new(None),
             state: RefCell::new(winit_state),
+            wayland_callback: Default::default(),
         };
 
         let event_loop = Self {
@@ -296,6 +297,10 @@ impl EventLoop {
         let mut window_ids = std::mem::take(&mut self.window_ids);
 
         app.new_events(&self.active_event_loop, cause);
+
+        if let Some(callback) = self.active_event_loop.wayland_callback.get() {
+            callback(app);
+        }
 
         // NB: For consistency all platforms must call `can_create_surfaces` even though Wayland
         // applications don't themselves have a formal surface destroy/create lifecycle.
@@ -582,6 +587,8 @@ pub struct ActiveEventLoop {
 
     /// Connection to the wayland server.
     pub connection: Connection,
+
+    pub wayland_callback: Cell<Option<fn(&mut dyn ApplicationHandler)>>,
 }
 
 impl RootActiveEventLoop for ActiveEventLoop {
