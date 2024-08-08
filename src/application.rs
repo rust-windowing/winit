@@ -1,5 +1,7 @@
 //! End user application handling.
 
+use std::any::Any;
+
 use crate::event::{DeviceEvent, DeviceId, StartCause, WindowEvent};
 use crate::event_loop::ActiveEventLoop;
 use crate::window::WindowId;
@@ -325,6 +327,14 @@ pub trait ApplicationHandler {
     fn memory_warning(&mut self, event_loop: &dyn ActiveEventLoop) {
         let _ = event_loop;
     }
+
+    /// Get the [`ApplicationHandler`] as mutable [`Any`].
+    ///
+    /// This is required to be implemented when platform specific traits are desired.
+    #[inline(always)]
+    fn as_any(&mut self) -> Option<&mut dyn Any> {
+        None
+    }
 }
 
 #[deny(clippy::missing_trait_methods)]
@@ -393,6 +403,11 @@ impl<A: ?Sized + ApplicationHandler> ApplicationHandler for &mut A {
     fn memory_warning(&mut self, event_loop: &dyn ActiveEventLoop) {
         (**self).memory_warning(event_loop);
     }
+
+    #[inline(always)]
+    fn as_any(&mut self) -> Option<&mut dyn Any> {
+        (**self).as_any()
+    }
 }
 
 #[deny(clippy::missing_trait_methods)]
@@ -460,5 +475,10 @@ impl<A: ?Sized + ApplicationHandler> ApplicationHandler for Box<A> {
     #[inline]
     fn memory_warning(&mut self, event_loop: &dyn ActiveEventLoop) {
         (**self).memory_warning(event_loop);
+    }
+
+    #[inline(always)]
+    fn as_any(&mut self) -> Option<&mut dyn Any> {
+        (**self).as_any()
     }
 }
