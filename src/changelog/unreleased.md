@@ -84,7 +84,7 @@ changelog entry.
 - On Web, `Window::canvas()` now returns a reference.
 - On Web, `CursorGrabMode::Locked` now lets `DeviceEvent::MouseMotion` return raw data, not OS
   accelerated, if the browser supports it.
-- On Android, when `keycode` can be represented as character, it is used as `KeyEvent::text`.
+- On Android, when `keycode` can be represented as character, its textual representation is provided in `KeyEvent::text`.
 
 ### Removed
 
