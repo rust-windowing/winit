@@ -49,6 +49,10 @@ changelog entry.
 ### Changed
 
 - On macOS, no longer need control of the main `NSApplication` class (which means you can now override it yourself).
+- On iOS, remove custom application delegates. You are now allowed to override the
+  application delegate yourself.
+- On iOS, no longer act as-if the application successfully open all URLs. Override
+  `application:didFinishLaunchingWithOptions:` and provide the desired behaviour yourself.
 
 ### Fixed
 
