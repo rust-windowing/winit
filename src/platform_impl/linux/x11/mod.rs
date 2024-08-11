@@ -18,8 +18,7 @@ use tracing::warn;
 use x11rb::connection::RequestConnection;
 use x11rb::errors::{ConnectError, ConnectionError, IdsExhausted, ReplyError};
 use x11rb::protocol::xinput::{self, ConnectionExt as _};
-use x11rb::protocol::xkb;
-use x11rb::protocol::xproto::{self, ConnectionExt as _};
+use x11rb::protocol::{xkb, xproto};
 use x11rb::x11_utils::X11Error as LogicalError;
 use x11rb::xcb_ffi::ReplyOrIdError;
 
@@ -33,9 +32,11 @@ use crate::event_loop::{
 use crate::platform::pump_events::PumpStatus;
 use crate::platform_impl::common::xkb::Context;
 use crate::platform_impl::platform::{min_timeout, WindowId};
+use crate::platform_impl::x11::window::Window;
 use crate::platform_impl::{OsError, OwnedDisplayHandle, PlatformCustomCursor};
 use crate::window::{
-    CustomCursor as RootCustomCursor, CustomCursorSource, Theme, WindowAttributes,
+    CustomCursor as RootCustomCursor, CustomCursorSource, Theme, Window as CoreWindow,
+    WindowAttributes,
 };
 
 mod activation;
@@ -46,7 +47,7 @@ pub mod ffi;
 mod ime;
 mod monitor;
 mod util;
-mod window;
+pub(crate) mod window;
 mod xdisplay;
 mod xsettings;
 
@@ -687,10 +688,8 @@ impl RootActiveEventLoop for ActiveEventLoop {
     fn create_window(
         &self,
         window_attributes: WindowAttributes,
-    ) -> Result<crate::window::Window, RootOsError> {
-        let window = crate::platform_impl::x11::Window::new(self, window_attributes)?;
-        let window = crate::platform_impl::Window::X(window);
-        Ok(crate::window::Window { window })
+    ) -> Result<Box<dyn CoreWindow>, RootOsError> {
+        Ok(Box::new(Window::new(self, window_attributes)?))
     }
 
     fn create_custom_cursor(
@@ -824,39 +823,6 @@ impl FingerId {
     #[allow(unused)]
     pub const fn dummy() -> Self {
         FingerId(0)
-    }
-}
-
-pub(crate) struct Window(Arc<UnownedWindow>);
-
-impl Deref for Window {
-    type Target = UnownedWindow;
-
-    #[inline]
-    fn deref(&self) -> &UnownedWindow {
-        &self.0
-    }
-}
-
-impl Window {
-    pub(crate) fn new(
-        event_loop: &ActiveEventLoop,
-        attribs: WindowAttributes,
-    ) -> Result<Self, RootOsError> {
-        let window = Arc::new(UnownedWindow::new(event_loop, attribs)?);
-        event_loop.windows.borrow_mut().insert(window.id(), Arc::downgrade(&window));
-        Ok(Window(window))
-    }
-}
-
-impl Drop for Window {
-    fn drop(&mut self) {
-        let window = self.deref();
-        let xconn = &window.xconn;
-
-        if let Ok(c) = xconn.xcb_connection().destroy_window(window.id().0 as xproto::Window) {
-            c.ignore_error();
-        }
     }
 }
 

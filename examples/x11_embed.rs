@@ -7,19 +7,19 @@ fn main() -> Result<(), Box<dyn Error>> {
     use winit::event::WindowEvent;
     use winit::event_loop::{ActiveEventLoop, EventLoop};
     use winit::platform::x11::WindowAttributesExtX11;
-    use winit::window::{Window, WindowId};
+    use winit::window::{Window, WindowAttributes, WindowId};
 
     #[path = "util/fill.rs"]
     mod fill;
 
     pub struct XEmbedDemo {
         parent_window_id: u32,
-        window: Option<Window>,
+        window: Option<Box<dyn Window>>,
     }
 
     impl ApplicationHandler for XEmbedDemo {
         fn can_create_surfaces(&mut self, event_loop: &dyn ActiveEventLoop) {
-            let window_attributes = Window::default_attributes()
+            let window_attributes = WindowAttributes::default()
                 .with_title("An embedded window!")
                 .with_inner_size(winit::dpi::LogicalSize::new(128.0, 128.0))
                 .with_embed_parent_window(self.parent_window_id);
@@ -38,7 +38,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                 WindowEvent::CloseRequested => event_loop.exit(),
                 WindowEvent::RedrawRequested => {
                     window.pre_present_notify();
-                    fill::fill_window(window);
+                    fill::fill_window(window.as_ref());
                 },
                 _ => (),
             }

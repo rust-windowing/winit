@@ -67,6 +67,8 @@ changelog entry.
 ### Changed
 
 - Change `ActiveEventLoop` to be a trait.
+- Change `Window` to be a trait.
+- `ActiveEventLoop::create_window` now returns `Box<dyn Window>`.
 - `ApplicationHandler` now uses `dyn ActiveEventLoop`.
 - On Web, let events wake up event loop immediately when using `ControlFlow::Poll`.
 - Bump MSRV from `1.70` to `1.73`.

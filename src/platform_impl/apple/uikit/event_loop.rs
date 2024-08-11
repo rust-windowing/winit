@@ -33,7 +33,7 @@ use crate::event_loop::{
 };
 use crate::monitor::MonitorHandle as RootMonitorHandle;
 use crate::platform_impl::Window;
-use crate::window::{CustomCursor, CustomCursorSource, Theme, Window as RootWindow};
+use crate::window::{CustomCursor, CustomCursorSource, Theme, Window as CoreWindow};
 
 #[derive(Debug)]
 pub(crate) struct ActiveEventLoop {
@@ -49,9 +49,8 @@ impl RootActiveEventLoop for ActiveEventLoop {
     fn create_window(
         &self,
         window_attributes: crate::window::WindowAttributes,
-    ) -> Result<RootWindow, OsError> {
-        let window = Window::new(self, window_attributes)?;
-        Ok(RootWindow { window })
+    ) -> Result<Box<dyn CoreWindow>, OsError> {
+        Ok(Box::new(Window::new(self, window_attributes)?))
     }
 
     fn create_custom_cursor(

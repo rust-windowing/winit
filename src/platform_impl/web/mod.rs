@@ -51,4 +51,3 @@ pub(crate) use self::monitor::{
 use self::web_sys as backend;
 pub use self::window::{PlatformSpecificWindowAttributes, Window, WindowId};
 pub(crate) use crate::icon::NoIcon as PlatformIcon;
-pub(crate) use crate::platform_impl::Fullscreen;

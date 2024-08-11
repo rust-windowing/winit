@@ -11,7 +11,7 @@ use winit::application::ApplicationHandler;
 use winit::event::{ElementState, KeyEvent, StartCause, WindowEvent};
 use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
 use winit::keyboard::{Key, NamedKey};
-use winit::window::{Window, WindowId};
+use winit::window::{Window, WindowAttributes, WindowId};
 
 #[path = "util/fill.rs"]
 mod fill;
@@ -52,7 +52,7 @@ struct ControlFlowDemo {
     request_redraw: bool,
     wait_cancelled: bool,
     close_requested: bool,
-    window: Option<Window>,
+    window: Option<Box<dyn Window>>,
 }
 
 impl ApplicationHandler for ControlFlowDemo {
@@ -66,7 +66,7 @@ impl ApplicationHandler for ControlFlowDemo {
     }
 
     fn can_create_surfaces(&mut self, event_loop: &dyn ActiveEventLoop) {
-        let window_attributes = Window::default_attributes().with_title(
+        let window_attributes = WindowAttributes::default().with_title(
             "Press 1, 2, 3 to change control flow mode. Press R to toggle redraw requests.",
         );
         self.window = Some(event_loop.create_window(window_attributes).unwrap());
@@ -114,7 +114,7 @@ impl ApplicationHandler for ControlFlowDemo {
             WindowEvent::RedrawRequested => {
                 let window = self.window.as_ref().unwrap();
                 window.pre_present_notify();
-                fill::fill_window(window);
+                fill::fill_window(window.as_ref());
             },
             _ => (),
         }

@@ -29,6 +29,7 @@ use super::main_thread::MainThreadMarker;
 use super::r#async::{Dispatcher, Notified, Notifier};
 use super::web_sys::{Engine, EventListenerHandle};
 use crate::dpi::{PhysicalPosition, PhysicalSize};
+use crate::monitor::MonitorHandle as RootMonitorHandle;
 use crate::platform::web::{
     MonitorPermissionError, Orientation, OrientationData, OrientationLock, OrientationLockError,
 };
@@ -185,6 +186,12 @@ impl PartialEq for MonitorHandle {
 impl PartialOrd for MonitorHandle {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
+    }
+}
+
+impl From<MonitorHandle> for RootMonitorHandle {
+    fn from(inner: MonitorHandle) -> Self {
+        RootMonitorHandle { inner }
     }
 }
 

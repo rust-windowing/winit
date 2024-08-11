@@ -44,16 +44,16 @@
 //! use winit::application::ApplicationHandler;
 //! use winit::event::WindowEvent;
 //! use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
-//! use winit::window::{Window, WindowId};
+//! use winit::window::{Window, WindowId, WindowAttributes};
 //!
 //! #[derive(Default)]
 //! struct App {
-//!     window: Option<Window>,
+//!     window: Option<Box<dyn Window>>,
 //! }
 //!
 //! impl ApplicationHandler for App {
 //!     fn can_create_surfaces(&mut self, event_loop: &dyn ActiveEventLoop) {
-//!         self.window = Some(event_loop.create_window(Window::default_attributes()).unwrap());
+//!         self.window = Some(event_loop.create_window(WindowAttributes::default()).unwrap());
 //!     }
 //!
 //!     fn window_event(&mut self, event_loop: &dyn ActiveEventLoop, id: WindowId, event: WindowEvent) {
