@@ -245,32 +245,28 @@ impl EventLoop {
         let center = unsafe { NSNotificationCenter::defaultCenter() };
 
         let weak_app_state = Rc::downgrade(&app_state);
-        let _did_finish_launching_observer = {
-            create_observer(
-                &center,
-                // `applicationDidFinishLaunching:`
-                unsafe { NSApplicationDidFinishLaunchingNotification },
-                move |notification| {
-                    if let Some(app_state) = weak_app_state.upgrade() {
-                        app_state.did_finish_launching(notification);
-                    }
-                },
-            )
-        };
+        let _did_finish_launching_observer = create_observer(
+            &center,
+            // `applicationDidFinishLaunching:`
+            unsafe { NSApplicationDidFinishLaunchingNotification },
+            move |notification| {
+                if let Some(app_state) = weak_app_state.upgrade() {
+                    app_state.did_finish_launching(notification);
+                }
+            },
+        );
 
         let weak_app_state = Rc::downgrade(&app_state);
-        let _will_terminate_observer = {
-            create_observer(
-                &center,
-                // `applicationWillTerminate:`
-                unsafe { NSApplicationWillTerminateNotification },
-                move |notification| {
-                    if let Some(app_state) = weak_app_state.upgrade() {
-                        app_state.will_terminate(notification);
-                    }
-                },
-            )
-        };
+        let _will_terminate_observer = create_observer(
+            &center,
+            // `applicationWillTerminate:`
+            unsafe { NSApplicationWillTerminateNotification },
+            move |notification| {
+                if let Some(app_state) = weak_app_state.upgrade() {
+                    app_state.will_terminate(notification);
+                }
+            },
+        );
 
         let panic_info: Rc<PanicInfo> = Default::default();
         setup_control_flow_observers(mtm, Rc::downgrade(&panic_info));

@@ -200,100 +200,82 @@ impl EventLoop {
 
         let center = unsafe { NSNotificationCenter::defaultCenter() };
 
-        let _did_finish_launching_observer = {
-            create_observer(
-                &center,
-                // `application:didFinishLaunchingWithOptions:`
-                unsafe { UIApplicationDidFinishLaunchingNotification },
-                move |_| {
-                    app_state::did_finish_launching(mtm);
-                },
-            )
-        };
-        let _did_become_active_observer = {
-            create_observer(
-                &center,
-                // `applicationDidBecomeActive:`
-                unsafe { UIApplicationDidBecomeActiveNotification },
-                move |_| {
-                    app_state::handle_nonuser_event(mtm, EventWrapper::StaticEvent(Event::Resumed));
-                },
-            )
-        };
-        let _will_resign_active_observer = {
-            create_observer(
-                &center,
-                // `applicationWillResignActive:`
-                unsafe { UIApplicationWillResignActiveNotification },
-                move |_| {
-                    app_state::handle_nonuser_event(
-                        mtm,
-                        EventWrapper::StaticEvent(Event::Suspended),
-                    );
-                },
-            )
-        };
-        let _will_enter_foreground_observer = {
-            create_observer(
-                &center,
-                // `applicationWillEnterForeground:`
-                unsafe { UIApplicationWillEnterForegroundNotification },
-                move |notification| {
-                    let app = unsafe { notification.object() }.expect(
-                        "UIApplicationWillEnterForegroundNotification to have application object",
-                    );
-                    // SAFETY: The `object` in `UIApplicationWillEnterForegroundNotification` is
-                    // documented to be `UIApplication`.
-                    let app: Retained<UIApplication> = unsafe { Retained::cast(app) };
-                    send_occluded_event_for_all_windows(&app, false);
-                },
-            )
-        };
-        let _did_enter_background_observer = {
-            create_observer(
-                &center,
-                // `applicationDidEnterBackground:`
-                unsafe { UIApplicationDidEnterBackgroundNotification },
-                move |notification| {
-                    let app = unsafe { notification.object() }.expect(
-                        "UIApplicationDidEnterBackgroundNotification to have application object",
-                    );
-                    // SAFETY: The `object` in `UIApplicationDidEnterBackgroundNotification` is
-                    // documented to be `UIApplication`.
-                    let app: Retained<UIApplication> = unsafe { Retained::cast(app) };
-                    send_occluded_event_for_all_windows(&app, true);
-                },
-            )
-        };
-        let _will_terminate_observer = {
-            create_observer(
-                &center,
-                // `applicationWillTerminate:`
-                unsafe { UIApplicationWillTerminateNotification },
-                move |notification| {
-                    let app = unsafe { notification.object() }.expect(
-                        "UIApplicationWillTerminateNotification to have application object",
-                    );
-                    // SAFETY: The `object` in `UIApplicationWillTerminateNotification` is
-                    // (somewhat) documented to be `UIApplication`.
-                    let app: Retained<UIApplication> = unsafe { Retained::cast(app) };
-                    app_state::terminated(&app);
-                },
-            )
-        };
-        let _did_receive_memory_warning_observer = {
-            create_observer(
-                &center,
-                // `applicationDidReceiveMemoryWarning:`
-                unsafe { UIApplicationDidReceiveMemoryWarningNotification },
-                move |_| {
-                    app_state::handle_nonuser_event(
-                        mtm,
-                        EventWrapper::StaticEvent(Event::MemoryWarning),
-                    );
-                },
-            )
-        };
+        let _did_finish_launching_observer = create_observer(
+            &center,
+            // `application:didFinishLaunchingWithOptions:`
+            unsafe { UIApplicationDidFinishLaunchingNotification },
+            move |_| {
+                app_state::did_finish_launching(mtm);
+            },
+        );
+        let _did_become_active_observer = create_observer(
+            &center,
+            // `applicationDidBecomeActive:`
+            unsafe { UIApplicationDidBecomeActiveNotification },
+            move |_| {
+                app_state::handle_nonuser_event(mtm, EventWrapper::StaticEvent(Event::Resumed));
+            },
+        );
+        let _will_resign_active_observer = create_observer(
+            &center,
+            // `applicationWillResignActive:`
+            unsafe { UIApplicationWillResignActiveNotification },
+            move |_| {
+                app_state::handle_nonuser_event(mtm, EventWrapper::StaticEvent(Event::Suspended));
+            },
+        );
+        let _will_enter_foreground_observer = create_observer(
+            &center,
+            // `applicationWillEnterForeground:`
+            unsafe { UIApplicationWillEnterForegroundNotification },
+            move |notification| {
+                let app = unsafe { notification.object() }.expect(
+                    "UIApplicationWillEnterForegroundNotification to have application object",
+                );
+                // SAFETY: The `object` in `UIApplicationWillEnterForegroundNotification` is
+                // documented to be `UIApplication`.
+                let app: Retained<UIApplication> = unsafe { Retained::cast(app) };
+                send_occluded_event_for_all_windows(&app, false);
+            },
+        );
+        let _did_enter_background_observer = create_observer(
+            &center,
+            // `applicationDidEnterBackground:`
+            unsafe { UIApplicationDidEnterBackgroundNotification },
+            move |notification| {
+                let app = unsafe { notification.object() }.expect(
+                    "UIApplicationDidEnterBackgroundNotification to have application object",
+                );
+                // SAFETY: The `object` in `UIApplicationDidEnterBackgroundNotification` is
+                // documented to be `UIApplication`.
+                let app: Retained<UIApplication> = unsafe { Retained::cast(app) };
+                send_occluded_event_for_all_windows(&app, true);
+            },
+        );
+        let _will_terminate_observer = create_observer(
+            &center,
+            // `applicationWillTerminate:`
+            unsafe { UIApplicationWillTerminateNotification },
+            move |notification| {
+                let app = unsafe { notification.object() }
+                    .expect("UIApplicationWillTerminateNotification to have application object");
+                // SAFETY: The `object` in `UIApplicationWillTerminateNotification` is
+                // (somewhat) documented to be `UIApplication`.
+                let app: Retained<UIApplication> = unsafe { Retained::cast(app) };
+                app_state::terminated(&app);
+            },
+        );
+        let _did_receive_memory_warning_observer = create_observer(
+            &center,
+            // `applicationDidReceiveMemoryWarning:`
+            unsafe { UIApplicationDidReceiveMemoryWarningNotification },
+            move |_| {
+                app_state::handle_nonuser_event(
+                    mtm,
+                    EventWrapper::StaticEvent(Event::MemoryWarning),
+                );
+            },
+        );
 
         Ok(EventLoop {
             mtm,
