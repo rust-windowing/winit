@@ -3,6 +3,7 @@ use std::cell::{Cell, RefCell};
 use std::collections::VecDeque;
 use std::ffi::c_void;
 use std::ptr;
+use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 
 use core_graphics::display::{CGDisplay, CGPoint};
@@ -26,7 +27,7 @@ use objc2_foundation::{
 };
 use tracing::{trace, warn};
 
-use super::app_state::ApplicationDelegate;
+use super::app_state::AppState;
 use super::cursor::cursor_from_icon;
 use super::monitor::{self, flip_window_screen_coordinates, get_display_id};
 use super::observer::RunLoop;
@@ -79,7 +80,7 @@ impl Default for PlatformSpecificWindowAttributes {
 #[derive(Debug)]
 pub(crate) struct State {
     /// Strong reference to the global application state.
-    app_delegate: Retained<ApplicationDelegate>,
+    app_state: Rc<AppState>,
 
     window: Retained<WinitWindow>,
 
@@ -482,7 +483,7 @@ impl Drop for WindowDelegate {
 }
 
 fn new_window(
-    app_delegate: &ApplicationDelegate,
+    app_state: &Rc<AppState>,
     attrs: &WindowAttributes,
     mtm: MainThreadMarker,
 ) -> Option<Retained<WinitWindow>> {
@@ -622,7 +623,7 @@ fn new_window(
         }
 
         let view = WinitView::new(
-            app_delegate,
+            app_state,
             &window,
             attrs.platform_specific.accepts_first_mouse,
             attrs.platform_specific.option_as_alt,
@@ -665,11 +666,11 @@ fn new_window(
 
 impl WindowDelegate {
     pub(super) fn new(
-        app_delegate: &ApplicationDelegate,
+        app_state: &Rc<AppState>,
         attrs: WindowAttributes,
         mtm: MainThreadMarker,
     ) -> Result<Retained<Self>, RootOsError> {
-        let window = new_window(app_delegate, &attrs, mtm)
+        let window = new_window(app_state, &attrs, mtm)
             .ok_or_else(|| os_error!(OsError::CreationError("couldn't create `NSWindow`")))?;
 
         #[cfg(feature = "rwh_06")]
@@ -709,7 +710,7 @@ impl WindowDelegate {
         }
 
         let delegate = mtm.alloc().set_ivars(State {
-            app_delegate: app_delegate.retain(),
+            app_state: Rc::clone(app_state),
             window: window.retain(),
             previous_position: Cell::new(None),
             previous_scale_factor: Cell::new(scale_factor),
@@ -808,7 +809,7 @@ impl WindowDelegate {
 
     pub(crate) fn queue_event(&self, event: WindowEvent) {
         let window_id = RootWindowId(self.window().id());
-        self.ivars().app_delegate.maybe_queue_with_handler(move |app, event_loop| {
+        self.ivars().app_state.maybe_queue_with_handler(move |app, event_loop| {
             app.window_event(event_loop, window_id, event);
         });
     }
@@ -907,7 +908,7 @@ impl WindowDelegate {
     }
 
     pub fn request_redraw(&self) {
-        self.ivars().app_delegate.queue_redraw(self.window().id());
+        self.ivars().app_state.queue_redraw(self.window().id());
     }
 
     #[inline]
