@@ -2,12 +2,13 @@ use std::any::Any;
 use std::cell::Cell;
 use std::os::raw::c_void;
 use std::panic::{catch_unwind, resume_unwind, RefUnwindSafe, UnwindSafe};
-use std::ptr;
+use std::ptr::{self, NonNull};
 use std::rc::{Rc, Weak};
 use std::sync::atomic::{AtomicBool, Ordering as AtomicOrdering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
+use block2::RcBlock;
 use core_foundation::base::{CFIndex, CFRelease};
 use core_foundation::runloop::{
     kCFRunLoopCommonModes, CFRunLoopAddSource, CFRunLoopGetMain, CFRunLoopSourceContext,
@@ -16,8 +17,13 @@ use core_foundation::runloop::{
 use objc2::rc::{autoreleasepool, Retained};
 use objc2::runtime::ProtocolObject;
 use objc2::{msg_send_id, sel, ClassType};
-use objc2_app_kit::{NSApplication, NSApplicationActivationPolicy, NSWindow};
-use objc2_foundation::{MainThreadMarker, NSObjectProtocol};
+use objc2_app_kit::{
+    NSApplication, NSApplicationActivationPolicy, NSApplicationDidFinishLaunchingNotification,
+    NSApplicationWillTerminateNotification, NSWindow,
+};
+use objc2_foundation::{
+    MainThreadMarker, NSNotification, NSNotificationCenter, NSObject, NSObjectProtocol,
+};
 
 use super::app::WinitApplication;
 use super::app_state::ApplicationDelegate;
@@ -191,6 +197,13 @@ pub struct EventLoop {
 
     window_target: ActiveEventLoop,
     panic_info: Rc<PanicInfo>,
+
+    // Since macOS 10.11 we no longer need to remove the observers before they are deallocated, the
+    // system instead cleans it up next time it would have posted it.
+    //
+    // Though we do still need to keep the observers around to prevent them from being deallocated.
+    _did_finish_launching_observer: Retained<NSObject>,
+    _will_terminate_observer: Retained<NSObject>,
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
@@ -240,6 +253,42 @@ impl EventLoop {
             attributes.activate_ignoring_other_apps,
         );
 
+        let center = unsafe { NSNotificationCenter::defaultCenter() };
+
+        let block = {
+            let delegate = objc2::rc::Weak::new(&*delegate);
+            RcBlock::new(move |notification: NonNull<NSNotification>| {
+                if let Some(delegate) = delegate.load() {
+                    delegate.did_finish_launching(unsafe { notification.as_ref() });
+                }
+            })
+        };
+        let _did_finish_launching_observer = unsafe {
+            center.addObserverForName_object_queue_usingBlock(
+                Some(NSApplicationDidFinishLaunchingNotification),
+                None, // No object filter
+                None, // No queue, run on posting thread (i.e. main thread)
+                &block,
+            )
+        };
+
+        let block = {
+            let delegate = objc2::rc::Weak::new(&*delegate);
+            RcBlock::new(move |notification: NonNull<NSNotification>| {
+                if let Some(delegate) = delegate.load() {
+                    delegate.will_terminate(unsafe { notification.as_ref() });
+                }
+            })
+        };
+        let _will_terminate_observer = unsafe {
+            center.addObserverForName_object_queue_usingBlock(
+                Some(NSApplicationWillTerminateNotification),
+                None, // No object filter
+                None, // No queue, run on posting thread (i.e. main thread)
+                &block,
+            )
+        };
+
         autoreleasepool(|_| {
             app.setDelegate(Some(ProtocolObject::from_ref(&*delegate)));
         });
@@ -252,6 +301,8 @@ impl EventLoop {
             delegate: delegate.clone(),
             window_target: ActiveEventLoop { delegate, mtm },
             panic_info,
+            _did_finish_launching_observer,
+            _will_terminate_observer,
         })
     }
 

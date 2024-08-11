@@ -62,17 +62,7 @@ declare_class!(
 
     unsafe impl NSObjectProtocol for ApplicationDelegate {}
 
-    unsafe impl NSApplicationDelegate for ApplicationDelegate {
-        #[method(applicationDidFinishLaunching:)]
-        fn app_did_finish_launching(&self, notification: &NSNotification) {
-            self.did_finish_launching(notification)
-        }
-
-        #[method(applicationWillTerminate:)]
-        fn app_will_terminate(&self, notification: &NSNotification) {
-            self.will_terminate(notification)
-        }
-    }
+    unsafe impl NSApplicationDelegate for ApplicationDelegate {}
 );
 
 impl ApplicationDelegate {
@@ -105,10 +95,10 @@ impl ApplicationDelegate {
         unsafe { msg_send_id![super(this), init] }
     }
 
-    // NOTE: This will, globally, only be run once, no matter how many
-    // `EventLoop`s the user creates.
-    fn did_finish_launching(&self, _notification: &NSNotification) {
-        trace_scope!("applicationDidFinishLaunching:");
+    // NOTE: This notification will, globally, only be emitted once,
+    // no matter how many `EventLoop`s the user creates.
+    pub fn did_finish_launching(&self, _notification: &NSNotification) {
+        trace_scope!("NSApplicationDidFinishLaunchingNotification");
         self.ivars().is_launched.set(true);
 
         let mtm = MainThreadMarker::from(self);
@@ -149,8 +139,8 @@ impl ApplicationDelegate {
         }
     }
 
-    fn will_terminate(&self, _notification: &NSNotification) {
-        trace_scope!("applicationWillTerminate:");
+    pub fn will_terminate(&self, _notification: &NSNotification) {
+        trace_scope!("NSApplicationWillTerminateNotification");
         // TODO: Notify every window that it will be destroyed, like done in iOS?
         self.internal_exit();
     }
