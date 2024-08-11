@@ -163,8 +163,8 @@ pub struct EventLoop {
     mtm: MainThreadMarker,
     window_target: ActiveEventLoop,
 
-    // Since iOS 9.0 we no longer need to remove the observers before they are deallocated, the
-    // system instead cleans it up next time it would have posted it.
+    // Since iOS 9.0, we no longer need to remove the observers before they are deallocated; the
+    // system instead cleans it up next time it would have posted a notification to it.
     //
     // Though we do still need to keep the observers around to prevent them from being deallocated.
     _did_finish_launching_observer: Retained<NSObject>,
