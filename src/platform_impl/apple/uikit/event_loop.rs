@@ -1,4 +1,3 @@
-use std::any::Any;
 use std::ffi::{c_char, c_int, c_void};
 use std::ptr::{self, NonNull};
 use std::sync::atomic::{AtomicBool, Ordering as AtomicOrdering};
@@ -92,10 +91,6 @@ impl RootActiveEventLoop for ActiveEventLoop {
 
     fn owned_display_handle(&self) -> RootOwnedDisplayHandle {
         RootOwnedDisplayHandle { platform: OwnedDisplayHandle }
-    }
-
-    fn as_any(&self) -> &dyn Any {
-        self
     }
 
     #[cfg(feature = "rwh_06")]

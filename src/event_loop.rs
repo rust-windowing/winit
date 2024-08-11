@@ -8,7 +8,6 @@
 //!
 //! See the root-level documentation for information on how to create and use an event loop to
 //! handle events.
-use std::any::Any;
 use std::fmt;
 use std::marker::PhantomData;
 #[cfg(any(x11_platform, wayland_platform))]
@@ -24,6 +23,7 @@ use crate::application::ApplicationHandler;
 use crate::error::{EventLoopError, ExternalError, OsError};
 use crate::monitor::MonitorHandle;
 use crate::platform_impl;
+use crate::utils::AsAny;
 use crate::window::{CustomCursor, CustomCursorSource, Theme, Window, WindowAttributes};
 
 /// Provides a way to retrieve events from the system and from the windows that were registered to
@@ -308,7 +308,7 @@ impl AsRawFd for EventLoop {
     }
 }
 
-pub trait ActiveEventLoop {
+pub trait ActiveEventLoop: AsAny {
     /// Creates an [`EventLoopProxy`] that can be used to dispatch user events
     /// to the main event loop, possibly from another thread.
     fn create_proxy(&self) -> EventLoopProxy;
@@ -403,14 +403,16 @@ pub trait ActiveEventLoop {
     /// See the [`OwnedDisplayHandle`] type for more information.
     fn owned_display_handle(&self) -> OwnedDisplayHandle;
 
-    /// Get the [`ActiveEventLoop`] as [`Any`].
-    ///
-    /// This is useful for downcasting to a concrete event loop type.
-    fn as_any(&self) -> &dyn Any;
-
     /// Get the raw-window-handle handle.
     #[cfg(feature = "rwh_06")]
     fn rwh_06_handle(&self) -> &dyn rwh_06::HasDisplayHandle;
+}
+
+#[cfg(feature = "rwh_06")]
+impl rwh_06::HasDisplayHandle for dyn ActiveEventLoop + '_ {
+    fn display_handle(&self) -> Result<rwh_06::DisplayHandle<'_>, rwh_06::HandleError> {
+        self.rwh_06_handle().display_handle()
+    }
 }
 
 /// A proxy for the underlying display handle.

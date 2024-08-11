@@ -570,10 +570,6 @@ impl RootActiveEventLoop for ActiveEventLoop {
         RootOwnedDisplayHandle { platform: OwnedDisplayHandle }
     }
 
-    fn as_any(&self) -> &dyn std::any::Any {
-        self
-    }
-
     fn rwh_06_handle(&self) -> &dyn rwh_06::HasDisplayHandle {
         self
     }

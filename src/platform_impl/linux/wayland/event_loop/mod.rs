@@ -1,6 +1,5 @@
 //! The event-loop routines.
 
-use std::any::Any;
 use std::cell::{Cell, RefCell};
 use std::io::Result as IOResult;
 use std::mem;
@@ -656,11 +655,6 @@ impl RootActiveEventLoop for ActiveEventLoop {
         crate::event_loop::OwnedDisplayHandle {
             platform: crate::platform_impl::OwnedDisplayHandle::Wayland(self.connection.clone()),
         }
-    }
-
-    #[inline(always)]
-    fn as_any(&self) -> &dyn Any {
-        self
     }
 
     #[cfg(feature = "rwh_06")]
