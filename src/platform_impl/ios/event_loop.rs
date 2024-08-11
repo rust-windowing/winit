@@ -13,8 +13,14 @@ use core_foundation::runloop::{
 };
 use objc2::rc::Retained;
 use objc2::{msg_send_id, ClassType};
-use objc2_foundation::{MainThreadMarker, NSString};
-use objc2_ui_kit::{UIApplication, UIApplicationMain, UIDevice, UIScreen, UIUserInterfaceIdiom};
+use objc2_foundation::{MainThreadMarker, NSNotificationCenter, NSObject};
+use objc2_ui_kit::{
+    UIApplication, UIApplicationDidBecomeActiveNotification,
+    UIApplicationDidEnterBackgroundNotification, UIApplicationDidFinishLaunchingNotification,
+    UIApplicationDidReceiveMemoryWarningNotification, UIApplicationMain,
+    UIApplicationWillEnterForegroundNotification, UIApplicationWillResignActiveNotification,
+    UIApplicationWillTerminateNotification, UIDevice, UIScreen, UIUserInterfaceIdiom,
+};
 
 use crate::error::EventLoopError;
 use crate::event::Event;
@@ -25,8 +31,8 @@ use crate::platform::ios::Idiom;
 use crate::platform_impl::ios::app_state::{EventLoopHandler, HandlePendingUserEvents};
 use crate::window::{CustomCursor, CustomCursorSource, Theme};
 
-use super::app_delegate::AppDelegate;
-use super::app_state::AppState;
+use super::app_state::{send_occluded_event_for_all_windows, AppState, EventWrapper};
+use super::notification_center::create_observer;
 use super::{app_state, monitor, MonitorHandle};
 
 #[derive(Debug)]
@@ -132,6 +138,18 @@ pub struct EventLoop<T: 'static> {
     sender: Sender<T>,
     receiver: Receiver<T>,
     window_target: RootActiveEventLoop,
+
+    // Since iOS 9.0, we no longer need to remove the observers before they are deallocated; the
+    // system instead cleans it up next time it would have posted a notification to it.
+    //
+    // Though we do still need to keep the observers around to prevent them from being deallocated.
+    _did_finish_launching_observer: Retained<NSObject>,
+    _did_become_active_observer: Retained<NSObject>,
+    _will_resign_active_observer: Retained<NSObject>,
+    _will_enter_foreground_observer: Retained<NSObject>,
+    _did_enter_background_observer: Retained<NSObject>,
+    _will_terminate_observer: Retained<NSObject>,
+    _did_receive_memory_warning_observer: Retained<NSObject>,
 }
 
 #[derive(Default, Debug, Copy, Clone, PartialEq, Eq, Hash)]
@@ -158,11 +176,97 @@ impl<T: 'static> EventLoop<T> {
         // this line sets up the main run loop before `UIApplicationMain`
         setup_control_flow_observers();
 
+        let center = unsafe { NSNotificationCenter::defaultCenter() };
+
+        let _did_finish_launching_observer = create_observer(
+            &center,
+            // `application:didFinishLaunchingWithOptions:`
+            unsafe { UIApplicationDidFinishLaunchingNotification },
+            move |_| {
+                app_state::did_finish_launching(mtm);
+            },
+        );
+        let _did_become_active_observer = create_observer(
+            &center,
+            // `applicationDidBecomeActive:`
+            unsafe { UIApplicationDidBecomeActiveNotification },
+            move |_| {
+                app_state::handle_nonuser_event(mtm, EventWrapper::StaticEvent(Event::Resumed));
+            },
+        );
+        let _will_resign_active_observer = create_observer(
+            &center,
+            // `applicationWillResignActive:`
+            unsafe { UIApplicationWillResignActiveNotification },
+            move |_| {
+                app_state::handle_nonuser_event(mtm, EventWrapper::StaticEvent(Event::Suspended));
+            },
+        );
+        let _will_enter_foreground_observer = create_observer(
+            &center,
+            // `applicationWillEnterForeground:`
+            unsafe { UIApplicationWillEnterForegroundNotification },
+            move |notification| {
+                let app = unsafe { notification.object() }.expect(
+                    "UIApplicationWillEnterForegroundNotification to have application object",
+                );
+                // SAFETY: The `object` in `UIApplicationWillEnterForegroundNotification` is
+                // documented to be `UIApplication`.
+                let app: Retained<UIApplication> = unsafe { Retained::cast(app) };
+                send_occluded_event_for_all_windows(&app, false);
+            },
+        );
+        let _did_enter_background_observer = create_observer(
+            &center,
+            // `applicationDidEnterBackground:`
+            unsafe { UIApplicationDidEnterBackgroundNotification },
+            move |notification| {
+                let app = unsafe { notification.object() }.expect(
+                    "UIApplicationDidEnterBackgroundNotification to have application object",
+                );
+                // SAFETY: The `object` in `UIApplicationDidEnterBackgroundNotification` is
+                // documented to be `UIApplication`.
+                let app: Retained<UIApplication> = unsafe { Retained::cast(app) };
+                send_occluded_event_for_all_windows(&app, true);
+            },
+        );
+        let _will_terminate_observer = create_observer(
+            &center,
+            // `applicationWillTerminate:`
+            unsafe { UIApplicationWillTerminateNotification },
+            move |notification| {
+                let app = unsafe { notification.object() }
+                    .expect("UIApplicationWillTerminateNotification to have application object");
+                // SAFETY: The `object` in `UIApplicationWillTerminateNotification` is
+                // (somewhat) documented to be `UIApplication`.
+                let app: Retained<UIApplication> = unsafe { Retained::cast(app) };
+                app_state::terminated(&app);
+            },
+        );
+        let _did_receive_memory_warning_observer = create_observer(
+            &center,
+            // `applicationDidReceiveMemoryWarning:`
+            unsafe { UIApplicationDidReceiveMemoryWarningNotification },
+            move |_| {
+                app_state::handle_nonuser_event(
+                    mtm,
+                    EventWrapper::StaticEvent(Event::MemoryWarning),
+                );
+            },
+        );
+
         Ok(EventLoop {
             mtm,
             sender,
             receiver,
             window_target: RootActiveEventLoop { p: ActiveEventLoop { mtm }, _marker: PhantomData },
+            _did_finish_launching_observer,
+            _did_become_active_observer,
+            _will_resign_active_observer,
+            _will_enter_foreground_observer,
+            _did_enter_background_observer,
+            _will_terminate_observer,
+            _did_receive_memory_warning_observer,
         })
     }
 
@@ -192,9 +296,6 @@ impl<T: 'static> EventLoop<T> {
 
         app_state::will_launch(self.mtm, handler);
 
-        // Ensure application delegate is initialized
-        let _ = AppDelegate::class();
-
         extern "C" {
             // These functions are in crt_externs.h.
             fn _NSGetArgc() -> *mut c_int;
@@ -205,8 +306,10 @@ impl<T: 'static> EventLoop<T> {
             UIApplicationMain(
                 *_NSGetArgc(),
                 NonNull::new(*_NSGetArgv()).unwrap(),
+                // We intentionally override neither the application nor the delegate, to allow the
+                // user to do so themselves!
                 None,
-                Some(&NSString::from_str(AppDelegate::NAME)),
+                None,
             )
         };
         unreachable!()

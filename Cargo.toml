@@ -117,12 +117,12 @@ android-activity = "0.6.0"
 ndk = { version = "0.9.0", default-features = false }
 
 [target.'cfg(any(target_os = "ios", target_os = "macos"))'.dependencies]
+block2 = "0.5.1"
 core-foundation = "0.9.3"
 objc2 = "0.5.2"
 
 [target.'cfg(target_os = "macos")'.dependencies]
 core-graphics = "0.23.1"
-block2 = "0.5.1"
 
 [target.'cfg(target_os = "macos")'.dependencies.objc2-foundation]
 version = "0.2.2"
@@ -180,11 +180,13 @@ features = [
 [target.'cfg(target_os = "ios")'.dependencies.objc2-foundation]
 version = "0.2.2"
 features = [
+    "block2",
     "dispatch",
     "NSArray",
     "NSEnumerator",
     "NSGeometry",
     "NSObjCRuntime",
+    "NSOperation",
     "NSString",
     "NSProcessInfo",
     "NSThread",
