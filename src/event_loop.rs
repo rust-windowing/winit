@@ -276,7 +276,7 @@ impl EventLoop {
 #[cfg(feature = "rwh_06")]
 impl rwh_06::HasDisplayHandle for EventLoop {
     fn display_handle(&self) -> Result<rwh_06::DisplayHandle<'_>, rwh_06::HandleError> {
-        rwh_06::HasDisplayHandle::display_handle(self.event_loop.window_target().rwh_06_handle())
+        rwh_06::HasDisplayHandle::display_handle(self.event_loop.window_target())
     }
 }
 
@@ -308,110 +308,137 @@ impl AsRawFd for EventLoop {
     }
 }
 
-pub trait ActiveEventLoop {
-    /// Creates an [`EventLoopProxy`] that can be used to dispatch user events
-    /// to the main event loop, possibly from another thread.
-    fn create_proxy(&self) -> EventLoopProxy;
-
-    /// Create the window.
-    ///
-    /// Possible causes of error include denied permission, incompatible system, and lack of memory.
-    ///
-    /// ## Platform-specific
-    ///
-    /// - **Web:** The window is created but not inserted into the Web page automatically. Please
-    ///   see the Web platform module for more information.
-    fn create_window(&self, window_attributes: WindowAttributes) -> Result<Window, OsError>;
-
-    /// Create custom cursor.
-    ///
-    /// ## Platform-specific
-    ///
-    /// **iOS / Android / Orbital:** Unsupported.
-    fn create_custom_cursor(
-        &self,
-        custom_cursor: CustomCursorSource,
-    ) -> Result<CustomCursor, ExternalError>;
-
-    /// Returns the list of all the monitors available on the system.
-    ///
-    /// ## Platform-specific
-    ///
-    /// **Web:** Only returns the current monitor without
-    #[cfg_attr(
-        any(web_platform, docsrs),
-        doc = "[detailed monitor permissions][crate::platform::web::ActiveEventLoopExtWeb::request_detailed_monitor_permission]."
-    )]
-    #[cfg_attr(not(any(web_platform, docsrs)), doc = "detailed monitor permissions.")]
-    fn available_monitors(&self) -> Box<dyn Iterator<Item = MonitorHandle>>;
-
-    /// Returns the primary monitor of the system.
-    ///
-    /// Returns `None` if it can't identify any monitor as a primary one.
-    ///
-    /// ## Platform-specific
-    ///
-    /// - **Wayland:** Always returns `None`.
-    /// - **Web:** Always returns `None` without
-    #[cfg_attr(
-        any(web_platform, docsrs),
-        doc = "  [detailed monitor permissions][crate::platform::web::ActiveEventLoopExtWeb::request_detailed_monitor_permission]."
-    )]
-    #[cfg_attr(not(any(web_platform, docsrs)), doc = "  detailed monitor permissions.")]
-    fn primary_monitor(&self) -> Option<MonitorHandle>;
-
-    /// Change if or when [`DeviceEvent`]s are captured.
-    ///
-    /// Since the [`DeviceEvent`] capture can lead to high CPU usage for unfocused windows, winit
-    /// will ignore them by default for unfocused windows on Linux/BSD. This method allows changing
-    /// this at runtime to explicitly capture them again.
-    ///
-    /// ## Platform-specific
-    ///
-    /// - **Wayland / macOS / iOS / Android / Orbital:** Unsupported.
-    ///
-    /// [`DeviceEvent`]: crate::event::DeviceEvent
-    fn listen_device_events(&self, allowed: DeviceEvents);
-
-    /// Returns the current system theme.
-    ///
-    /// Returns `None` if it cannot be determined on the current platform.
-    ///
-    /// ## Platform-specific
-    ///
-    /// - **iOS / Android / Wayland / x11 / Orbital:** Unsupported.
-    fn system_theme(&self) -> Option<Theme>;
-
-    /// Sets the [`ControlFlow`].
-    fn set_control_flow(&self, control_flow: ControlFlow);
-
-    /// Gets the current [`ControlFlow`].
-    fn control_flow(&self) -> ControlFlow;
-
-    /// This exits the event loop.
-    ///
-    /// See [`exiting`][crate::application::ApplicationHandler::exiting].
-    fn exit(&self);
-
-    /// Returns if the [`EventLoop`] is about to stop.
-    ///
-    /// See [`exit()`][Self::exit].
-    fn exiting(&self) -> bool;
-
-    /// Gets a persistent reference to the underlying platform display.
-    ///
-    /// See the [`OwnedDisplayHandle`] type for more information.
-    fn owned_display_handle(&self) -> OwnedDisplayHandle;
-
-    /// Get the [`ActiveEventLoop`] as [`Any`].
-    ///
-    /// This is useful for downcasting to a concrete event loop type.
-    fn as_any(&self) -> &dyn Any;
-
-    /// Get the raw-window-handle handle.
-    #[cfg(feature = "rwh_06")]
-    fn rwh_06_handle(&self) -> &dyn rwh_06::HasDisplayHandle;
+// cfg-gate whether the trait is a supertrait
+#[cfg(feature = "rwh_06")]
+macro_rules! cfg_rwh_supertrait {
+    (
+        $(#[$m:meta])*
+        $v:vis trait $name:ident: $supertrait:path {
+            $($body:item)*
+        }
+    ) => {
+        $(#[$m])*
+        $v trait $name: $supertrait {
+            $($body)*
+        }
+    };
 }
+#[cfg(not(feature = "rwh_06"))]
+macro_rules! cfg_rwh_supertrait {
+    ($(#[$m:meta])* $v:vis trait $name:ident: $supertrait:path $body:block) => {
+        $(#[$m])* $v trait $name $body
+    };
+}
+
+cfg_rwh_supertrait!(
+    /// Target that associates windows with an [`EventLoop`].
+    ///
+    /// This type exists to allow you to create new windows while Winit executes
+    /// your callback.
+    ///
+    /// This implements `HasDisplayHandle` when the corresponding `rwh_xx` feature is enabled.
+    pub trait ActiveEventLoop: rwh_06::HasDisplayHandle {
+        /// Creates an [`EventLoopProxy`] that can be used to dispatch user events
+        /// to the main event loop, possibly from another thread.
+        fn create_proxy(&self) -> EventLoopProxy;
+
+        /// Create the window.
+        ///
+        /// Possible causes of error include denied permission, incompatible system, and lack of
+        /// memory.
+        ///
+        /// ## Platform-specific
+        ///
+        /// - **Web:** The window is created but not inserted into the Web page automatically.
+        ///   Please see the Web platform module for more information.
+        fn create_window(&self, window_attributes: WindowAttributes) -> Result<Window, OsError>;
+
+        /// Create custom cursor.
+        ///
+        /// ## Platform-specific
+        ///
+        /// **iOS / Android / Orbital:** Unsupported.
+        fn create_custom_cursor(
+            &self,
+            custom_cursor: CustomCursorSource,
+        ) -> Result<CustomCursor, ExternalError>;
+
+        /// Returns the list of all the monitors available on the system.
+        ///
+        /// ## Platform-specific
+        ///
+        /// **Web:** Only returns the current monitor without
+        #[cfg_attr(
+            any(web_platform, docsrs),
+            doc = "[detailed monitor permissions][crate::platform::web::ActiveEventLoopExtWeb::request_detailed_monitor_permission]."
+        )]
+        #[cfg_attr(not(any(web_platform, docsrs)), doc = "detailed monitor permissions.")]
+        fn available_monitors(&self) -> Box<dyn Iterator<Item = MonitorHandle>>;
+
+        /// Returns the primary monitor of the system.
+        ///
+        /// Returns `None` if it can't identify any monitor as a primary one.
+        ///
+        /// ## Platform-specific
+        ///
+        /// - **Wayland:** Always returns `None`.
+        /// - **Web:** Always returns `None` without
+        #[cfg_attr(
+            any(web_platform, docsrs),
+            doc = "  [detailed monitor permissions][crate::platform::web::ActiveEventLoopExtWeb::request_detailed_monitor_permission]."
+        )]
+        #[cfg_attr(not(any(web_platform, docsrs)), doc = "  detailed monitor permissions.")]
+        fn primary_monitor(&self) -> Option<MonitorHandle>;
+
+        /// Change if or when [`DeviceEvent`]s are captured.
+        ///
+        /// Since the [`DeviceEvent`] capture can lead to high CPU usage for unfocused windows,
+        /// winit will ignore them by default for unfocused windows on Linux/BSD. This
+        /// method allows changing this at runtime to explicitly capture them again.
+        ///
+        /// ## Platform-specific
+        ///
+        /// - **Wayland / macOS / iOS / Android / Orbital:** Unsupported.
+        ///
+        /// [`DeviceEvent`]: crate::event::DeviceEvent
+        fn listen_device_events(&self, allowed: DeviceEvents);
+
+        /// Returns the current system theme.
+        ///
+        /// Returns `None` if it cannot be determined on the current platform.
+        ///
+        /// ## Platform-specific
+        ///
+        /// - **iOS / Android / Wayland / x11 / Orbital:** Unsupported.
+        fn system_theme(&self) -> Option<Theme>;
+
+        /// Sets the [`ControlFlow`].
+        fn set_control_flow(&self, control_flow: ControlFlow);
+
+        /// Gets the current [`ControlFlow`].
+        fn control_flow(&self) -> ControlFlow;
+
+        /// This exits the event loop.
+        ///
+        /// See [`exiting`][crate::application::ApplicationHandler::exiting].
+        fn exit(&self);
+
+        /// Returns if the [`EventLoop`] is about to stop.
+        ///
+        /// See [`exit()`][Self::exit].
+        fn exiting(&self) -> bool;
+
+        /// Gets a persistent reference to the underlying platform display.
+        ///
+        /// See the [`OwnedDisplayHandle`] type for more information.
+        fn owned_display_handle(&self) -> OwnedDisplayHandle;
+
+        /// Get the [`ActiveEventLoop`] as [`Any`].
+        ///
+        /// This is useful for downcasting to a concrete event loop type.
+        fn as_any(&self) -> &dyn Any;
+    }
+);
 
 /// A proxy for the underlying display handle.
 ///
