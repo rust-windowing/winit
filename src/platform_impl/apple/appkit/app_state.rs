@@ -60,7 +60,7 @@ unsafe impl<T> Sync for StaticMainThreadBound<T> {}
 // SAFETY: Creating `StaticMainThreadBound` in a `const` context, where there is no concept of the
 // main thread.
 static GLOBAL: StaticMainThreadBound<OnceCell<Rc<AppState>>> =
-    const { StaticMainThreadBound(OnceCell::new()) };
+    StaticMainThreadBound(OnceCell::new());
 
 impl AppState {
     pub(super) fn setup_global(
