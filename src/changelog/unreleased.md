@@ -94,6 +94,10 @@ changelog entry.
 - Changed how `ModifiersState` is serialized by Serde.
 - `VideoModeHandle::refresh_rate_millihertz()` and `bit_depth()` now return a `Option<NonZero*>`.
 - `MonitorHandle::position()` now returns an `Option`.
+- On iOS and macOS, remove custom application delegates. You are now allowed to override the
+  application delegate yourself.
+- On iOS, no longer act as-if the application successfully open all URLs. Override
+  `application:didFinishLaunchingWithOptions:` and provide the desired behaviour yourself.
 
 ### Removed
 

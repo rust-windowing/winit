@@ -1,10 +1,12 @@
 #![allow(clippy::unnecessary_cast)]
 
+use std::rc::Rc;
+
 use objc2::{declare_class, msg_send, mutability, ClassType, DeclaredClass};
 use objc2_app_kit::{NSApplication, NSEvent, NSEventModifierFlags, NSEventType, NSResponder};
 use objc2_foundation::{MainThreadMarker, NSObject};
 
-use super::app_state::ApplicationDelegate;
+use super::app_state::AppState;
 use super::DEVICE_ID;
 use crate::event::{DeviceEvent, ElementState};
 
@@ -38,15 +40,15 @@ declare_class!(
                     key_window.sendEvent(event);
                 }
             } else {
-                let delegate = ApplicationDelegate::get(MainThreadMarker::from(self));
-                maybe_dispatch_device_event(&delegate, event);
+                let app_state = AppState::get(MainThreadMarker::from(self));
+                maybe_dispatch_device_event(&app_state, event);
                 unsafe { msg_send![super(self), sendEvent: event] }
             }
         }
     }
 );
 
-fn maybe_dispatch_device_event(delegate: &ApplicationDelegate, event: &NSEvent) {
+fn maybe_dispatch_device_event(app_state: &Rc<AppState>, event: &NSEvent) {
     let event_type = unsafe { event.r#type() };
     #[allow(non_upper_case_globals)]
     match event_type {
@@ -58,7 +60,7 @@ fn maybe_dispatch_device_event(delegate: &ApplicationDelegate, event: &NSEvent) 
             let delta_y = unsafe { event.deltaY() } as f64;
 
             if delta_x != 0.0 || delta_y != 0.0 {
-                delegate.maybe_queue_with_handler(move |app, event_loop| {
+                app_state.maybe_queue_with_handler(move |app, event_loop| {
                     app.device_event(event_loop, DEVICE_ID, DeviceEvent::MouseMotion {
                         delta: (delta_x, delta_y),
                     });
@@ -67,7 +69,7 @@ fn maybe_dispatch_device_event(delegate: &ApplicationDelegate, event: &NSEvent) 
         },
         NSEventType::LeftMouseDown | NSEventType::RightMouseDown | NSEventType::OtherMouseDown => {
             let button = unsafe { event.buttonNumber() } as u32;
-            delegate.maybe_queue_with_handler(move |app, event_loop| {
+            app_state.maybe_queue_with_handler(move |app, event_loop| {
                 app.device_event(event_loop, DEVICE_ID, DeviceEvent::Button {
                     button,
                     state: ElementState::Pressed,
@@ -76,7 +78,7 @@ fn maybe_dispatch_device_event(delegate: &ApplicationDelegate, event: &NSEvent) 
         },
         NSEventType::LeftMouseUp | NSEventType::RightMouseUp | NSEventType::OtherMouseUp => {
             let button = unsafe { event.buttonNumber() } as u32;
-            delegate.maybe_queue_with_handler(move |app, event_loop| {
+            app_state.maybe_queue_with_handler(move |app, event_loop| {
                 app.device_event(event_loop, DEVICE_ID, DeviceEvent::Button {
                     button,
                     state: ElementState::Released,
