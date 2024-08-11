@@ -158,10 +158,6 @@ impl RootActiveEventLoop for ActiveEventLoop {
         RootOwnedDisplayHandle { platform: OwnedDisplayHandle }
     }
 
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
     #[cfg(feature = "rwh_06")]
     fn rwh_06_handle(&self) -> &dyn rwh_06::HasDisplayHandle {
         self

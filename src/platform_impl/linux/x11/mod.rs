@@ -1,4 +1,3 @@
-use std::any::Any;
 use std::cell::{Cell, RefCell};
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::ffi::CStr;
@@ -749,10 +748,6 @@ impl RootActiveEventLoop for ActiveEventLoop {
     fn owned_display_handle(&self) -> RootOwnedDisplayHandle {
         let handle = OwnedDisplayHandle::X(self.x_connection().clone());
         RootOwnedDisplayHandle { platform: handle }
-    }
-
-    fn as_any(&self) -> &dyn Any {
-        self
     }
 
     #[cfg(feature = "rwh_06")]
