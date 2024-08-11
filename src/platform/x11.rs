@@ -91,7 +91,7 @@ pub trait ActiveEventLoopExtX11 {
     fn is_x11(&self) -> bool;
 }
 
-impl ActiveEventLoopExtX11 for &dyn ActiveEventLoop {
+impl ActiveEventLoopExtX11 for dyn ActiveEventLoop + '_ {
     #[inline]
     fn is_x11(&self) -> bool {
         self.as_any().downcast_ref::<crate::platform_impl::x11::ActiveEventLoop>().is_some()

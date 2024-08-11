@@ -57,7 +57,7 @@ pub trait WindowAttributesExtStartupNotify {
     fn with_activation_token(self, token: ActivationToken) -> Self;
 }
 
-impl EventLoopExtStartupNotify for &dyn ActiveEventLoop {
+impl EventLoopExtStartupNotify for dyn ActiveEventLoop + '_ {
     fn read_token_from_env(&self) -> Option<ActivationToken> {
         #[cfg(x11_platform)]
         let _is_wayland = false;

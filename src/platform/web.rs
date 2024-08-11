@@ -347,7 +347,7 @@ pub trait ActiveEventLoopExtWeb {
     fn has_detailed_monitor_permission(&self) -> bool;
 }
 
-impl ActiveEventLoopExtWeb for &dyn ActiveEventLoop {
+impl ActiveEventLoopExtWeb for dyn ActiveEventLoop + '_ {
     #[inline]
     fn create_custom_cursor_async(&self, source: CustomCursorSource) -> CustomCursorFuture {
         let event_loop = self

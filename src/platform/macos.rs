@@ -396,7 +396,7 @@ pub trait ActiveEventLoopExtMacOS {
     fn allows_automatic_window_tabbing(&self) -> bool;
 }
 
-impl ActiveEventLoopExtMacOS for &dyn ActiveEventLoop {
+impl ActiveEventLoopExtMacOS for dyn ActiveEventLoop + '_ {
     fn hide_application(&self) {
         let event_loop = self
             .as_any()

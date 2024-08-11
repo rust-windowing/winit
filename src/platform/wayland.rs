@@ -24,7 +24,7 @@ pub trait ActiveEventLoopExtWayland {
     fn is_wayland(&self) -> bool;
 }
 
-impl ActiveEventLoopExtWayland for &dyn ActiveEventLoop {
+impl ActiveEventLoopExtWayland for dyn ActiveEventLoop + '_ {
     #[inline]
     fn is_wayland(&self) -> bool {
         self.as_any().downcast_ref::<crate::platform_impl::wayland::ActiveEventLoop>().is_some()
