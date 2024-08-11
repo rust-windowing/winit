@@ -323,8 +323,8 @@ impl EventLoop {
             UIApplicationMain(
                 *_NSGetArgc(),
                 NonNull::new(*_NSGetArgv()).unwrap(),
-                // We intentionally don't override neither the application nor the delegate, to
-                // allow the user to do so themselves!
+                // We intentionally override neither the application nor the delegate, to allow the
+                // user to do so themselves!
                 None,
                 None,
             )
