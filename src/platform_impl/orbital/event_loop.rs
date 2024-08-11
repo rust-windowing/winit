@@ -1,4 +1,3 @@
-use std::any::Any;
 use std::cell::Cell;
 use std::collections::VecDeque;
 use std::sync::{mpsc, Arc, Mutex};
@@ -776,10 +775,6 @@ impl RootActiveEventLoop for ActiveEventLoop {
 
     fn owned_display_handle(&self) -> event_loop::OwnedDisplayHandle {
         event_loop::OwnedDisplayHandle { platform: OwnedDisplayHandle }
-    }
-
-    fn as_any(&self) -> &dyn Any {
-        self
     }
 
     #[cfg(feature = "rwh_06")]

@@ -1,4 +1,3 @@
-use std::any::Any;
 use std::cell::Cell;
 use std::clone::Clone;
 use std::iter;
@@ -691,10 +690,6 @@ impl RootActiveEventLoop for ActiveEventLoop {
 
     fn owned_display_handle(&self) -> RootOwnedDisplayHandle {
         RootOwnedDisplayHandle { platform: OwnedDisplayHandle }
-    }
-
-    fn as_any(&self) -> &dyn Any {
-        self
     }
 
     #[cfg(feature = "rwh_06")]
