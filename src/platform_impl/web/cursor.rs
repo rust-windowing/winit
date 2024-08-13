@@ -542,8 +542,8 @@ fn from_rgba(
     //
     // We call `createImageBitmap()` before spawning the future,
     // to not have to clone the image buffer.
-    let mut options = ImageBitmapOptions::new();
-    options.premultiply_alpha(PremultiplyAlpha::None);
+    let options = ImageBitmapOptions::new();
+    options.set_premultiply_alpha(PremultiplyAlpha::None);
     let bitmap = JsFuture::from(
         window
             .create_image_bitmap_with_image_data_and_image_bitmap_options(&image_data, &options)

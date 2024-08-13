@@ -291,60 +291,63 @@ xkbcommon-dl = "0.4.2"
 orbclient = { version = "0.3.47", default-features = false }
 redox_syscall = "0.4.1"
 
-[target.'cfg(target_family = "wasm")'.dependencies.web_sys]
-package = "web-sys"
-version = "0.3.64"
-features = [
-    'AbortController',
-    'AbortSignal',
-    'Blob',
-    'BlobPropertyBag',
-    'console',
-    'CssStyleDeclaration',
-    'Document',
-    'DomException',
-    'DomRect',
-    'DomRectReadOnly',
-    'Element',
-    'Event',
-    'EventTarget',
-    'FocusEvent',
-    'HtmlCanvasElement',
-    'HtmlElement',
-    'HtmlImageElement',
-    'ImageBitmap',
-    'ImageBitmapOptions',
-    'ImageBitmapRenderingContext',
-    'ImageData',
-    'IntersectionObserver',
-    'IntersectionObserverEntry',
-    'KeyboardEvent',
-    'MediaQueryList',
-    'MessageChannel',
-    'MessagePort',
-    'Navigator',
-    'Node',
-    'PageTransitionEvent',
-    'PointerEvent',
-    'PremultiplyAlpha',
-    'ResizeObserver',
-    'ResizeObserverBoxOptions',
-    'ResizeObserverEntry',
-    'ResizeObserverOptions',
-    'ResizeObserverSize',
-    'VisibilityState',
-    'Window',
-    'WheelEvent',
-    'Worker',
-    'Url',
-]
-
 [target.'cfg(target_family = "wasm")'.dependencies]
-js-sys = "0.3.64"
+js-sys = "0.3.70"
 pin-project = "1"
-wasm-bindgen = "0.2"
-wasm-bindgen-futures = "0.4"
+wasm-bindgen = "0.2.93"
+wasm-bindgen-futures = "0.4.43"
 web-time = "1"
+web_sys = { package = "web-sys", version = "0.3.70", features = [
+    "AbortController",
+    "AbortSignal",
+    "Blob",
+    "BlobPropertyBag",
+    "console",
+    "CssStyleDeclaration",
+    "Document",
+    "DomException",
+    "DomRect",
+    "DomRectReadOnly",
+    "Element",
+    "Event",
+    "EventTarget",
+    "FocusEvent",
+    "HtmlCanvasElement",
+    "HtmlElement",
+    "HtmlImageElement",
+    "ImageBitmap",
+    "ImageBitmapOptions",
+    "ImageBitmapRenderingContext",
+    "ImageData",
+    "IntersectionObserver",
+    "IntersectionObserverEntry",
+    "KeyboardEvent",
+    "MediaQueryList",
+    "MessageChannel",
+    "MessagePort",
+    "Navigator",
+    "Node",
+    "OrientationLockType",
+    "OrientationType",
+    "PageTransitionEvent",
+    "Permissions",
+    "PermissionState",
+    "PermissionStatus",
+    "PointerEvent",
+    "PremultiplyAlpha",
+    "ResizeObserver",
+    "ResizeObserverBoxOptions",
+    "ResizeObserverEntry",
+    "ResizeObserverOptions",
+    "ResizeObserverSize",
+    "Screen",
+    "ScreenOrientation",
+    "Url",
+    "VisibilityState",
+    "WheelEvent",
+    "Window",
+    "Worker",
+] }
 
 [target.'cfg(all(target_family = "wasm", target_feature = "atomics"))'.dependencies]
 atomic-waker = "1"
