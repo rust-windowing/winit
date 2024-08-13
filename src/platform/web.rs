@@ -699,10 +699,9 @@ pub struct OrientationData {
     pub orientation: Orientation,
     /// [`true`] if the [`orientation`](Self::orientation) is flipped upside down.
     pub flipped: bool,
-    /// [`true`] if the [`Orientation`] is the most natural one for the screen regardless of being
-    /// flipped. Computer monitors are commonly naturally landscape mode, while mobile phones
-    /// are commonly naturally portrait mode.
-    pub natural: bool,
+    /// The most natural orientation for the screen. Computer monitors are commonly naturally
+    /// landscape mode, while mobile phones are commonly naturally portrait mode.
+    pub natural: Orientation,
 }
 
 /// Screen orientation.
@@ -726,14 +725,14 @@ pub enum OrientationLock {
     /// User is locked to landscape mode.
     Landscape {
         /// - [`None`]: User is locked to both upright or upside down landscape mode.
-        /// - [`false`]: User is locked to upright landscape mode.
+        /// - [`true`]: User is locked to upright landscape mode.
         /// - [`false`]: User is locked to upside down landscape mode.
         flipped: Option<bool>,
     },
     /// User is locked to portrait mode.
     Portrait {
         /// - [`None`]: User is locked to both upright or upside down portrait mode.
-        /// - [`false`]: User is locked to upright portrait mode.
+        /// - [`true`]: User is locked to upright portrait mode.
         /// - [`false`]: User is locked to upside down portrait mode.
         flipped: Option<bool>,
     },

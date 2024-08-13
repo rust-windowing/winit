@@ -322,22 +322,22 @@ impl Inner {
             OrientationType::LandscapePrimary => OrientationData {
                 orientation: Orientation::Landscape,
                 flipped: false,
-                natural: angle == 0,
+                natural: if angle == 0 { Orientation::Landscape } else { Orientation::Portrait },
             },
             OrientationType::LandscapeSecondary => OrientationData {
                 orientation: Orientation::Landscape,
                 flipped: true,
-                natural: angle == 180,
+                natural: if angle == 180 { Orientation::Landscape } else { Orientation::Portrait },
             },
             OrientationType::PortraitPrimary => OrientationData {
                 orientation: Orientation::Portrait,
                 flipped: false,
-                natural: angle == 0,
+                natural: if angle == 0 { Orientation::Portrait } else { Orientation::Landscape },
             },
             OrientationType::PortraitSecondary => OrientationData {
                 orientation: Orientation::Portrait,
                 flipped: true,
-                natural: angle == 180,
+                natural: if angle == 180 { Orientation::Portrait } else { Orientation::Landscape },
             },
             _ => {
                 unreachable!("found unrecognized orientation: {}", orientation.type_string())

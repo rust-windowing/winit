@@ -1151,7 +1151,7 @@ impl Window {
     /// - **iOS:** Can only be called on the main thread.
     /// - **Android / Orbital:** Will always return `None`.
     /// - **Wayland:** Can return `Borderless(None)` when there are no monitors.
-    /// - **Web:** Can only return `None` or `Borderless(None)`.
+    /// - **Web:** Can only return `None` or `Borderless`.
     #[inline]
     pub fn fullscreen(&self) -> Option<Fullscreen> {
         let _span = tracing::debug_span!("winit::Window::fullscreen",).entered();
