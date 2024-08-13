@@ -51,8 +51,11 @@ changelog entry.
   Without prompting the user for permission, only the current monitor is returned. But when
   prompting and being granted permission through
   `ActiveEventLoop::request_detailed_monitor_permission()`, access to all monitors and their
-  information is available. This "detailed monitors" can be used in `Window::set_fullscreen()` as
-  well.
+  details is available. Handles created with "detailed monitor permissions" can be used in
+  `Window::set_fullscreen()` as well.
+  
+  Keep in mind that handles do not auto-upgrade after permissions are granted and have to be
+  re-created to make full use of this feature.
 - Add `Touch::finger_id` with a new type `FingerId`.
 - On Web and Windows, add `FingerIdExt*::is_primary()`, exposing a way to determine
   the primary finger in a multi-touch interaction.

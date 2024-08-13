@@ -312,7 +312,7 @@ impl Inner {
     #[inline]
     pub(crate) fn fullscreen(&self) -> Option<Fullscreen> {
         if self.canvas.is_fullscreen() {
-            Some(Fullscreen::Borderless(None))
+            Some(Fullscreen::Borderless(Some(self.monitor.current_monitor())))
         } else {
             None
         }
