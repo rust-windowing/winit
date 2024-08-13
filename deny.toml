@@ -55,19 +55,6 @@ allow-globs = ["freetype2/*"]
 crate = "freetype-sys"
 
 [[bans.build.bypass]]
-allow = [
-    { path = "releases/friends.sh", checksum = "f896ccdcb8445d29ed6dd0d9a360f94d4f33af2f1cc9965e7bb38b156c45949d" },
-]
-crate = "wasm-bindgen"
-
-[[bans.build.bypass]]
-allow = [
-    { path = "ui-tests/update-all-references.sh", checksum = "8b8dbf31e7ada1314956db7a20ab14b13af3ae246a6295afdc7dc96af8ec3773" },
-    { path = "ui-tests/update-references.sh", checksum = "65375c25981646e08e8589449a06be4505b1a2c9e10d35f650be4b1b495dff22" },
-]
-crate = "wasm-bindgen-macro"
-
-[[bans.build.bypass]]
 allow-globs = ["lib/*.a"]
 crate = "windows_i686_gnu"
 

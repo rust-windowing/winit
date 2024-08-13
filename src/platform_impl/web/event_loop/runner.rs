@@ -4,8 +4,7 @@ use std::iter;
 use std::ops::Deref;
 use std::rc::{Rc, Weak};
 
-use js_sys::Function;
-use wasm_bindgen::prelude::{wasm_bindgen, Closure};
+use wasm_bindgen::prelude::Closure;
 use wasm_bindgen::JsCast;
 use web_sys::{Document, KeyboardEvent, Navigator, PageTransitionEvent, PointerEvent, WheelEvent};
 use web_time::{Duration, Instant};
@@ -495,14 +494,8 @@ impl Shared {
             if let Ok(RunnerEnum::Running(_)) =
                 self.0.runner.try_borrow().as_ref().map(Deref::deref)
             {
-                #[wasm_bindgen]
-                extern "C" {
-                    #[wasm_bindgen(js_name = queueMicrotask)]
-                    fn queue_microtask(task: Function);
-                }
-
-                queue_microtask(
-                    Closure::once_into_js({
+                self.window().queue_microtask(
+                    &Closure::once_into_js({
                         let this = Rc::downgrade(&self.0);
                         move || {
                             if let Some(shared) = this.upgrade() {
