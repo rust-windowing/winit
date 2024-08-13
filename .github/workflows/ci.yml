@@ -68,7 +68,8 @@ jobs:
           - { name: 'Wayland',            target: x86_64-unknown-linux-gnu, os: ubuntu-latest, options: '--no-default-features --features=wayland,wayland-dlopen' }
           - { name: 'Android',            target: aarch64-linux-android,    os: ubuntu-latest, options: '--package=winit --features=android-native-activity', cmd: 'apk --' }
           - { name: 'Redox OS',           target: x86_64-unknown-redox,     os: ubuntu-latest,   }
-          - { name: 'macOS',              target: x86_64-apple-darwin,      os: macos-latest,    }
+          - { name: 'macOS x86_64',       target: x86_64-apple-darwin,      os: macos-latest,    }
+          - { name: 'macOS Aarch64',      target: aarch64-apple-darwin,     os: macos-latest,    }
           - { name: 'iOS x86_64',         target: x86_64-apple-ios,         os: macos-latest,    }
           - { name: 'iOS Aarch64',        target: aarch64-apple-ios,        os: macos-latest,    }
           - { name: 'Web',                target: wasm32-unknown-unknown,   os: ubuntu-latest,   }
@@ -243,10 +244,11 @@ jobs:
           - { name: 'Android', target: aarch64-linux-android }
           - { name: 'iOS', target: aarch64-apple-ios }
           - { name: 'Linux', target: x86_64-unknown-linux-gnu }
-          - { name: 'macOS', target: x86_64-apple-darwin }
+          - { name: 'macOS', target: aarch64-apple-darwin }
           - { name: 'Redox OS', target: x86_64-unknown-redox }
           - { name: 'Web', target: wasm32-unknown-unknown }
-          - { name: 'Windows', target: x86_64-pc-windows-gnu }
+          - { name: 'Windows GNU', target: x86_64-pc-windows-gnu }
+          - { name: 'Windows MSVC', target: x86_64-pc-windows-msvc }
 
     steps:
     - uses: taiki-e/checkout-action@v1

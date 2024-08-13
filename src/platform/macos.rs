@@ -365,11 +365,11 @@ pub trait EventLoopBuilderExtMacOS {
     /// Set the activation policy to "accessory".
     ///
     /// ```
-    /// use winit::event_loop::EventLoopBuilder;
+    /// use winit::event_loop::EventLoop;
     /// #[cfg(target_os = "macos")]
     /// use winit::platform::macos::{ActivationPolicy, EventLoopBuilderExtMacOS};
     ///
-    /// let mut builder = EventLoopBuilder::new();
+    /// let mut builder = EventLoop::builder();
     /// #[cfg(target_os = "macos")]
     /// builder.with_activation_policy(ActivationPolicy::Accessory);
     /// # if false { // We can't test this part
@@ -387,11 +387,11 @@ pub trait EventLoopBuilderExtMacOS {
     /// Disable creating a default menubar.
     ///
     /// ```
-    /// use winit::event_loop::EventLoopBuilder;
+    /// use winit::event_loop::EventLoop;
     /// #[cfg(target_os = "macos")]
     /// use winit::platform::macos::EventLoopBuilderExtMacOS;
     ///
-    /// let mut builder = EventLoopBuilder::new();
+    /// let mut builder = EventLoop::builder();
     /// #[cfg(target_os = "macos")]
     /// builder.with_default_menu(false);
     /// # if false { // We can't test this part
