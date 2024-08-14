@@ -86,18 +86,6 @@ impl PartialEq for MonitorHandle {
 
 impl Eq for MonitorHandle {}
 
-impl PartialOrd for MonitorHandle {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        Some(self.cmp(other))
-    }
-}
-
-impl Ord for MonitorHandle {
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.native_identifier().cmp(&other.native_identifier())
-    }
-}
-
 impl std::hash::Hash for MonitorHandle {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         self.native_identifier().hash(state);

@@ -666,7 +666,7 @@ impl OwnedDisplayHandle {
     }
 }
 
-#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub(crate) struct WindowId;
 
 impl WindowId {
@@ -687,7 +687,7 @@ impl From<u64> for WindowId {
     }
 }
 
-#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub struct DeviceId(i32);
 
 impl DeviceId {
@@ -696,7 +696,7 @@ impl DeviceId {
     }
 }
 
-#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub struct FingerId(i32);
 
 impl FingerId {
@@ -947,7 +947,7 @@ impl Display for OsError {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct MonitorHandle;
 
 impl MonitorHandle {

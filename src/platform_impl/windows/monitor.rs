@@ -1,4 +1,4 @@
-use std::collections::{BTreeSet, VecDeque};
+use std::collections::VecDeque;
 use std::hash::Hash;
 use std::num::{NonZeroU16, NonZeroU32};
 use std::{io, mem, ptr};
@@ -91,7 +91,7 @@ impl VideoModeHandle {
     }
 }
 
-#[derive(Debug, Clone, Eq, PartialEq, Hash, PartialOrd, Ord)]
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub struct MonitorHandle(HMONITOR);
 
 // Send is not implemented for HMONITOR, we have to wrap it and implement it manually.
@@ -226,7 +226,7 @@ impl MonitorHandle {
         // EnumDisplaySettingsExW can return duplicate values (or some of the
         // fields are probably changing, but we aren't looking at those fields
         // anyway), so we're using a BTreeSet deduplicate
-        let mut modes = BTreeSet::<RootVideoModeHandle>::new();
+        let mut modes = Vec::new();
         let mod_map = |mode: RootVideoModeHandle| mode.video_mode;
 
         let monitor_info = match get_monitor_info(self.0) {
@@ -247,10 +247,8 @@ impl MonitorHandle {
                 break;
             }
 
-            // Use Ord impl of RootVideoModeHandle
-            modes.insert(RootVideoModeHandle {
-                video_mode: VideoModeHandle::new(self.clone(), mode),
-            });
+            modes
+                .push(RootVideoModeHandle { video_mode: VideoModeHandle::new(self.clone(), mode) });
 
             i += 1;
         }

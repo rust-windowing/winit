@@ -807,7 +807,7 @@ impl<'a> Deref for DeviceInfo<'a> {
     }
 }
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub struct DeviceId(xinput::DeviceId);
 
 impl DeviceId {
@@ -817,7 +817,7 @@ impl DeviceId {
     }
 }
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub struct FingerId(u32);
 
 impl FingerId {

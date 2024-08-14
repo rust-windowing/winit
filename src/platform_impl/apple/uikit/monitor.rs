@@ -1,6 +1,6 @@
 #![allow(clippy::unnecessary_cast)]
 
-use std::collections::{BTreeSet, VecDeque};
+use std::collections::VecDeque;
 use std::num::{NonZeroU16, NonZeroU32};
 use std::{fmt, hash, ptr};
 
@@ -113,19 +113,6 @@ impl PartialEq for MonitorHandle {
 
 impl Eq for MonitorHandle {}
 
-impl PartialOrd for MonitorHandle {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        Some(self.cmp(other))
-    }
-}
-
-impl Ord for MonitorHandle {
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        // TODO: Make a better ordering
-        (self as *const Self).cmp(&(other as *const Self))
-    }
-}
-
 impl fmt::Debug for MonitorHandle {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("MonitorHandle")
@@ -185,7 +172,7 @@ impl MonitorHandle {
             let ui_screen = self.ui_screen(mtm);
             // Use Ord impl of RootVideoModeHandle
 
-            let modes: BTreeSet<_> = ui_screen
+            let modes: Vec<_> = ui_screen
                 .availableModes()
                 .into_iter()
                 .map(|mode| RootVideoModeHandle {

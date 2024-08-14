@@ -127,6 +127,8 @@ changelog entry.
 - Remove `MonitorHandle::size()` and `refresh_rate_millihertz()` in favor of
   `MonitorHandle::current_video_mode()`.
 - On Android, remove all `MonitorHandle` support instead of emitting false data.
+- Remove `PartialOrd` and `Ord` implementations from `WindowId`, `DeviceId`, `MonitorHandle` and
+  `VideoModeHandle`.
 
 ### Fixed
 

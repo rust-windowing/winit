@@ -428,7 +428,7 @@ impl Drop for Inner {
         }
     }
 }
-#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub struct WindowId(pub(crate) u32);
 
 impl WindowId {

@@ -1,5 +1,4 @@
 use std::cell::{OnceCell, Ref, RefCell};
-use std::cmp::Ordering;
 use std::fmt::{self, Debug, Formatter};
 use std::future::Future;
 use std::hash::{Hash, Hasher};
@@ -170,21 +169,9 @@ impl Hash for MonitorHandle {
     }
 }
 
-impl Ord for MonitorHandle {
-    fn cmp(&self, other: &Self) -> Ordering {
-        self.id.cmp(&other.id)
-    }
-}
-
 impl PartialEq for MonitorHandle {
     fn eq(&self, other: &Self) -> bool {
         self.id.eq(&other.id)
-    }
-}
-
-impl PartialOrd for MonitorHandle {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(self.cmp(other))
     }
 }
 

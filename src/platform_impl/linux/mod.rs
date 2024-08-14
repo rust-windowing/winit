@@ -140,7 +140,7 @@ pub(crate) enum Window {
     Wayland(wayland::Window),
 }
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub struct WindowId(u64);
 
 impl From<WindowId> for u64 {
@@ -161,7 +161,7 @@ impl WindowId {
     }
 }
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub enum DeviceId {
     #[cfg(x11_platform)]
     X(x11::DeviceId),
@@ -178,7 +178,7 @@ impl DeviceId {
     }
 }
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub enum FingerId {
     #[cfg(x11_platform)]
     X(x11::FingerId),
@@ -195,7 +195,7 @@ impl FingerId {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum MonitorHandle {
     #[cfg(x11_platform)]
     X(x11::MonitorHandle),
