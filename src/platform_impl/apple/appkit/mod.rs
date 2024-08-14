@@ -5,7 +5,6 @@ mod app;
 mod app_state;
 mod cursor;
 mod event;
-mod event_handler;
 mod event_loop;
 mod ffi;
 mod menu;
