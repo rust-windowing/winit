@@ -84,7 +84,6 @@ impl XkbComposeState {
         })
     }
 
-    #[inline]
     pub fn feed(&mut self, keysym: xkb_keysym_t) -> ComposeStatus {
         let feed_result = unsafe { (XKBCH.xkb_compose_state_feed)(self.state.as_ptr(), keysym) };
         match feed_result {
@@ -95,14 +94,12 @@ impl XkbComposeState {
         }
     }
 
-    #[inline]
     pub fn reset(&mut self) {
         unsafe {
             (XKBCH.xkb_compose_state_reset)(self.state.as_ptr());
         }
     }
 
-    #[inline]
     pub fn status(&mut self) -> xkb_compose_status {
         unsafe { (XKBCH.xkb_compose_state_get_status)(self.state.as_ptr()) }
     }

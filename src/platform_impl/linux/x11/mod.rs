@@ -623,7 +623,6 @@ impl AsRawFd for EventLoop {
 
 impl ActiveEventLoop {
     /// Returns the `XConnection` of this events loop.
-    #[inline]
     pub(crate) fn x_connection(&self) -> &Arc<XConnection> {
         &self.xconn
     }
@@ -832,7 +831,6 @@ pub(crate) struct Window(Arc<UnownedWindow>);
 impl Deref for Window {
     type Target = UnownedWindow;
 
-    #[inline]
     fn deref(&self) -> &UnownedWindow {
         &self.0
     }
@@ -1104,14 +1102,12 @@ impl Device {
         }
     }
 
-    #[inline]
     fn physical_device(info: &ffi::XIDeviceInfo) -> bool {
         info._use == ffi::XISlaveKeyboard
             || info._use == ffi::XISlavePointer
             || info._use == ffi::XIFloatingSlave
     }
 
-    #[inline]
     fn classes(info: &ffi::XIDeviceInfo) -> &[*const ffi::XIAnyClassInfo] {
         unsafe {
             slice::from_raw_parts(
@@ -1123,7 +1119,6 @@ impl Device {
 }
 
 /// Convert the raw X11 representation for a 32-bit floating point to a double.
-#[inline]
 fn xinput_fp1616_to_float(fp: xinput::Fp1616) -> f64 {
     (fp as f64) / ((1 << 16) as f64)
 }

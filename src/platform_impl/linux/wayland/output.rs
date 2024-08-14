@@ -13,24 +13,20 @@ pub struct MonitorHandle {
 }
 
 impl MonitorHandle {
-    #[inline]
     pub(crate) fn new(proxy: WlOutput) -> Self {
         Self { proxy }
     }
 
-    #[inline]
     pub fn name(&self) -> Option<String> {
         let output_data = self.proxy.data::<OutputData>().unwrap();
         output_data.with_output_info(|info| info.name.clone())
     }
 
-    #[inline]
     pub fn native_identifier(&self) -> u32 {
         let output_data = self.proxy.data::<OutputData>().unwrap();
         output_data.with_output_info(|info| info.id)
     }
 
-    #[inline]
     pub fn position(&self) -> Option<PhysicalPosition<i32>> {
         let output_data = self.proxy.data::<OutputData>().unwrap();
         Some(output_data.with_output_info(|info| {
@@ -47,13 +43,11 @@ impl MonitorHandle {
         }))
     }
 
-    #[inline]
     pub fn scale_factor(&self) -> i32 {
         let output_data = self.proxy.data::<OutputData>().unwrap();
         output_data.scale_factor()
     }
 
-    #[inline]
     pub fn current_video_mode(&self) -> Option<PlatformVideoModeHandle> {
         let output_data = self.proxy.data::<OutputData>().unwrap();
         output_data.with_output_info(|info| {
@@ -65,7 +59,6 @@ impl MonitorHandle {
         })
     }
 
-    #[inline]
     pub fn video_modes(&self) -> impl Iterator<Item = PlatformVideoModeHandle> {
         let output_data = self.proxy.data::<OutputData>().unwrap();
         let modes = output_data.with_output_info(|info| info.modes.clone());
@@ -120,17 +113,14 @@ impl VideoModeHandle {
         }
     }
 
-    #[inline]
     pub fn size(&self) -> PhysicalSize<u32> {
         self.size
     }
 
-    #[inline]
     pub fn bit_depth(&self) -> Option<NonZeroU16> {
         None
     }
 
-    #[inline]
     pub fn refresh_rate_millihertz(&self) -> Option<NonZeroU32> {
         self.refresh_rate_millihertz
     }

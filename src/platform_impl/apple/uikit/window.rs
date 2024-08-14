@@ -217,7 +217,6 @@ impl Inner {
         None
     }
 
-    #[inline]
     pub fn set_resize_increments(&self, _increments: Option<Size>) {
         warn!("`Window::set_resize_increments` is ignored on iOS")
     }
@@ -231,12 +230,10 @@ impl Inner {
         false
     }
 
-    #[inline]
     pub fn set_enabled_buttons(&self, _buttons: WindowButtons) {
         warn!("`Window::set_enabled_buttons` is ignored on iOS");
     }
 
-    #[inline]
     pub fn enabled_buttons(&self) -> WindowButtons {
         warn!("`Window::enabled_buttons` is ignored on iOS");
         WindowButtons::all()
@@ -270,7 +267,6 @@ impl Inner {
         Err(ExternalError::NotSupported(NotSupportedError::new()))
     }
 
-    #[inline]
     pub fn show_window_menu(&self, _position: Position) {}
 
     pub fn set_cursor_hittest(&self, _hittest: bool) -> Result<(), ExternalError> {
@@ -425,7 +421,6 @@ impl Inner {
         self.window.isKeyWindow()
     }
 
-    #[inline]
     pub fn set_theme(&self, _theme: Option<Theme>) {
         warn!("`Window::set_theme` is ignored on iOS");
     }
@@ -537,7 +532,6 @@ impl Window {
     }
 
     #[cfg(feature = "rwh_06")]
-    #[inline]
     pub(crate) fn raw_window_handle_rwh_06(
         &self,
     ) -> Result<rwh_06::RawWindowHandle, rwh_06::HandleError> {
@@ -549,7 +543,6 @@ impl Window {
     }
 
     #[cfg(feature = "rwh_06")]
-    #[inline]
     pub(crate) fn raw_display_handle_rwh_06(
         &self,
     ) -> Result<rwh_06::RawDisplayHandle, rwh_06::HandleError> {

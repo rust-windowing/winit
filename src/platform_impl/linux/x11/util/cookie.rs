@@ -25,12 +25,10 @@ impl GenericEventCookie {
         }
     }
 
-    #[inline]
     pub fn extension(&self) -> u8 {
         self.cookie.extension as u8
     }
 
-    #[inline]
     pub fn evtype(&self) -> c_int {
         self.cookie.evtype
     }
@@ -40,7 +38,6 @@ impl GenericEventCookie {
     /// ## SAFETY
     ///
     /// The caller must ensure that the event has the `T` inside of it.
-    #[inline]
     pub unsafe fn as_event<T>(&self) -> &T {
         unsafe { &*(self.cookie.data as *const _) }
     }

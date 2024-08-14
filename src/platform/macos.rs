@@ -165,72 +165,58 @@ pub trait WindowExtMacOS {
 }
 
 impl WindowExtMacOS for Window {
-    #[inline]
     fn simple_fullscreen(&self) -> bool {
         self.window.maybe_wait_on_main(|w| w.simple_fullscreen())
     }
 
-    #[inline]
     fn set_simple_fullscreen(&self, fullscreen: bool) -> bool {
         self.window.maybe_wait_on_main(move |w| w.set_simple_fullscreen(fullscreen))
     }
 
-    #[inline]
     fn has_shadow(&self) -> bool {
         self.window.maybe_wait_on_main(|w| w.has_shadow())
     }
 
-    #[inline]
     fn set_has_shadow(&self, has_shadow: bool) {
         self.window.maybe_queue_on_main(move |w| w.set_has_shadow(has_shadow))
     }
 
-    #[inline]
     fn set_tabbing_identifier(&self, identifier: &str) {
         self.window.maybe_wait_on_main(|w| w.set_tabbing_identifier(identifier))
     }
 
-    #[inline]
     fn tabbing_identifier(&self) -> String {
         self.window.maybe_wait_on_main(|w| w.tabbing_identifier())
     }
 
-    #[inline]
     fn select_next_tab(&self) {
         self.window.maybe_queue_on_main(|w| w.select_next_tab())
     }
 
-    #[inline]
     fn select_previous_tab(&self) {
         self.window.maybe_queue_on_main(|w| w.select_previous_tab())
     }
 
-    #[inline]
     fn select_tab_at_index(&self, index: usize) {
         self.window.maybe_queue_on_main(move |w| w.select_tab_at_index(index))
     }
 
-    #[inline]
     fn num_tabs(&self) -> usize {
         self.window.maybe_wait_on_main(|w| w.num_tabs())
     }
 
-    #[inline]
     fn is_document_edited(&self) -> bool {
         self.window.maybe_wait_on_main(|w| w.is_document_edited())
     }
 
-    #[inline]
     fn set_document_edited(&self, edited: bool) {
         self.window.maybe_queue_on_main(move |w| w.set_document_edited(edited))
     }
 
-    #[inline]
     fn set_option_as_alt(&self, option_as_alt: OptionAsAlt) {
         self.window.maybe_queue_on_main(move |w| w.set_option_as_alt(option_as_alt))
     }
 
-    #[inline]
     fn option_as_alt(&self) -> OptionAsAlt {
         self.window.maybe_wait_on_main(|w| w.option_as_alt())
     }
@@ -288,67 +274,56 @@ pub trait WindowAttributesExtMacOS {
 }
 
 impl WindowAttributesExtMacOS for WindowAttributes {
-    #[inline]
     fn with_movable_by_window_background(mut self, movable_by_window_background: bool) -> Self {
         self.platform_specific.movable_by_window_background = movable_by_window_background;
         self
     }
 
-    #[inline]
     fn with_titlebar_transparent(mut self, titlebar_transparent: bool) -> Self {
         self.platform_specific.titlebar_transparent = titlebar_transparent;
         self
     }
 
-    #[inline]
     fn with_titlebar_hidden(mut self, titlebar_hidden: bool) -> Self {
         self.platform_specific.titlebar_hidden = titlebar_hidden;
         self
     }
 
-    #[inline]
     fn with_titlebar_buttons_hidden(mut self, titlebar_buttons_hidden: bool) -> Self {
         self.platform_specific.titlebar_buttons_hidden = titlebar_buttons_hidden;
         self
     }
 
-    #[inline]
     fn with_title_hidden(mut self, title_hidden: bool) -> Self {
         self.platform_specific.title_hidden = title_hidden;
         self
     }
 
-    #[inline]
     fn with_fullsize_content_view(mut self, fullsize_content_view: bool) -> Self {
         self.platform_specific.fullsize_content_view = fullsize_content_view;
         self
     }
 
-    #[inline]
     fn with_disallow_hidpi(mut self, disallow_hidpi: bool) -> Self {
         self.platform_specific.disallow_hidpi = disallow_hidpi;
         self
     }
 
-    #[inline]
     fn with_has_shadow(mut self, has_shadow: bool) -> Self {
         self.platform_specific.has_shadow = has_shadow;
         self
     }
 
-    #[inline]
     fn with_accepts_first_mouse(mut self, accepts_first_mouse: bool) -> Self {
         self.platform_specific.accepts_first_mouse = accepts_first_mouse;
         self
     }
 
-    #[inline]
     fn with_tabbing_identifier(mut self, tabbing_identifier: &str) -> Self {
         self.platform_specific.tabbing_identifier.replace(tabbing_identifier.to_string());
         self
     }
 
-    #[inline]
     fn with_option_as_alt(mut self, option_as_alt: OptionAsAlt) -> Self {
         self.platform_specific.option_as_alt = option_as_alt;
         self
@@ -408,19 +383,16 @@ pub trait EventLoopBuilderExtMacOS {
 }
 
 impl EventLoopBuilderExtMacOS for EventLoopBuilder {
-    #[inline]
     fn with_activation_policy(&mut self, activation_policy: ActivationPolicy) -> &mut Self {
         self.platform_specific.activation_policy = activation_policy;
         self
     }
 
-    #[inline]
     fn with_default_menu(&mut self, enable: bool) -> &mut Self {
         self.platform_specific.default_menu = enable;
         self
     }
 
-    #[inline]
     fn with_activate_ignoring_other_apps(&mut self, ignore: bool) -> &mut Self {
         self.platform_specific.activate_ignoring_other_apps = ignore;
         self
@@ -436,7 +408,6 @@ pub trait MonitorHandleExtMacOS {
 }
 
 impl MonitorHandleExtMacOS for MonitorHandle {
-    #[inline]
     fn native_id(&self) -> u32 {
         self.inner.native_identifier()
     }

@@ -143,7 +143,6 @@ impl<P> LogicalUnit<P> {
 }
 
 impl<P: Pixel> LogicalUnit<P> {
-    #[inline]
     pub fn from_physical<T: Into<PhysicalUnit<X>>, X: Pixel>(
         physical: T,
         scale_factor: f64,
@@ -151,13 +150,11 @@ impl<P: Pixel> LogicalUnit<P> {
         physical.into().to_logical(scale_factor)
     }
 
-    #[inline]
     pub fn to_physical<X: Pixel>(&self, scale_factor: f64) -> PhysicalUnit<X> {
         assert!(validate_scale_factor(scale_factor));
         PhysicalUnit::new(self.0.into() * scale_factor).cast()
     }
 
-    #[inline]
     pub fn cast<X: Pixel>(&self) -> LogicalUnit<X> {
         LogicalUnit(self.0.cast())
     }
@@ -237,18 +234,15 @@ impl<P> PhysicalUnit<P> {
 }
 
 impl<P: Pixel> PhysicalUnit<P> {
-    #[inline]
     pub fn from_logical<T: Into<LogicalUnit<X>>, X: Pixel>(logical: T, scale_factor: f64) -> Self {
         logical.into().to_physical(scale_factor)
     }
 
-    #[inline]
     pub fn to_logical<X: Pixel>(&self, scale_factor: f64) -> LogicalUnit<X> {
         assert!(validate_scale_factor(scale_factor));
         LogicalUnit::new(self.0.into() / scale_factor).cast()
     }
 
-    #[inline]
     pub fn cast<X: Pixel>(&self) -> PhysicalUnit<X> {
         PhysicalUnit(self.0.cast())
     }
@@ -377,7 +371,6 @@ impl<P> LogicalPosition<P> {
 }
 
 impl<P: Pixel> LogicalPosition<P> {
-    #[inline]
     pub fn from_physical<T: Into<PhysicalPosition<X>>, X: Pixel>(
         physical: T,
         scale_factor: f64,
@@ -385,7 +378,6 @@ impl<P: Pixel> LogicalPosition<P> {
         physical.into().to_logical(scale_factor)
     }
 
-    #[inline]
     pub fn to_physical<X: Pixel>(&self, scale_factor: f64) -> PhysicalPosition<X> {
         assert!(validate_scale_factor(scale_factor));
         let x = self.x.into() * scale_factor;
@@ -393,7 +385,6 @@ impl<P: Pixel> LogicalPosition<P> {
         PhysicalPosition::new(x, y).cast()
     }
 
-    #[inline]
     pub fn cast<X: Pixel>(&self) -> LogicalPosition<X> {
         LogicalPosition { x: self.x.cast(), y: self.y.cast() }
     }
@@ -453,7 +444,6 @@ impl<P> PhysicalPosition<P> {
 }
 
 impl<P: Pixel> PhysicalPosition<P> {
-    #[inline]
     pub fn from_logical<T: Into<LogicalPosition<X>>, X: Pixel>(
         logical: T,
         scale_factor: f64,
@@ -461,7 +451,6 @@ impl<P: Pixel> PhysicalPosition<P> {
         logical.into().to_physical(scale_factor)
     }
 
-    #[inline]
     pub fn to_logical<X: Pixel>(&self, scale_factor: f64) -> LogicalPosition<X> {
         assert!(validate_scale_factor(scale_factor));
         let x = self.x.into() / scale_factor;
@@ -469,7 +458,6 @@ impl<P: Pixel> PhysicalPosition<P> {
         LogicalPosition::new(x, y).cast()
     }
 
-    #[inline]
     pub fn cast<X: Pixel>(&self) -> PhysicalPosition<X> {
         PhysicalPosition { x: self.x.cast(), y: self.y.cast() }
     }
@@ -529,7 +517,6 @@ impl<P> LogicalSize<P> {
 }
 
 impl<P: Pixel> LogicalSize<P> {
-    #[inline]
     pub fn from_physical<T: Into<PhysicalSize<X>>, X: Pixel>(
         physical: T,
         scale_factor: f64,
@@ -537,7 +524,6 @@ impl<P: Pixel> LogicalSize<P> {
         physical.into().to_logical(scale_factor)
     }
 
-    #[inline]
     pub fn to_physical<X: Pixel>(&self, scale_factor: f64) -> PhysicalSize<X> {
         assert!(validate_scale_factor(scale_factor));
         let width = self.width.into() * scale_factor;
@@ -545,7 +531,6 @@ impl<P: Pixel> LogicalSize<P> {
         PhysicalSize::new(width, height).cast()
     }
 
-    #[inline]
     pub fn cast<X: Pixel>(&self) -> LogicalSize<X> {
         LogicalSize { width: self.width.cast(), height: self.height.cast() }
     }
@@ -605,12 +590,10 @@ impl<P> PhysicalSize<P> {
 }
 
 impl<P: Pixel> PhysicalSize<P> {
-    #[inline]
     pub fn from_logical<T: Into<LogicalSize<X>>, X: Pixel>(logical: T, scale_factor: f64) -> Self {
         logical.into().to_physical(scale_factor)
     }
 
-    #[inline]
     pub fn to_logical<X: Pixel>(&self, scale_factor: f64) -> LogicalSize<X> {
         assert!(validate_scale_factor(scale_factor));
         let width = self.width.into() / scale_factor;
@@ -618,7 +601,6 @@ impl<P: Pixel> PhysicalSize<P> {
         LogicalSize::new(width, height).cast()
     }
 
-    #[inline]
     pub fn cast<X: Pixel>(&self) -> PhysicalSize<X> {
         PhysicalSize { width: self.width.cast(), height: self.height.cast() }
     }

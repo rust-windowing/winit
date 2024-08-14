@@ -169,7 +169,6 @@ impl XConnection {
     }
 
     /// Checks whether an error has been triggered by the previous function calls.
-    #[inline]
     pub fn check_errors(&self) -> Result<(), XError> {
         let error = self.latest_error.lock().unwrap().take();
         if let Some(error) = error {
@@ -179,43 +178,36 @@ impl XConnection {
         }
     }
 
-    #[inline]
     pub fn randr_version(&self) -> (u32, u32) {
         self.randr_version
     }
 
     /// Get the underlying XCB connection.
-    #[inline]
     pub fn xcb_connection(&self) -> &XCBConnection {
         self.xcb.as_ref().expect("xcb_connection somehow called after drop?")
     }
 
     /// Get the list of atoms.
-    #[inline]
     pub fn atoms(&self) -> &Atoms {
         &self.atoms
     }
 
     /// Get the index of the default screen.
-    #[inline]
     pub fn default_screen_index(&self) -> usize {
         self.default_screen
     }
 
     /// Get the default screen.
-    #[inline]
     pub fn default_root(&self) -> &xproto::Screen {
         &self.xcb_connection().setup().roots[self.default_screen]
     }
 
     /// Get the resource database.
-    #[inline]
     pub fn database(&self) -> RwLockReadGuard<'_, resource_manager::Database> {
         self.database.read().unwrap_or_else(|e| e.into_inner())
     }
 
     /// Reload the resource database.
-    #[inline]
     pub fn reload_database(&self) -> Result<(), super::X11Error> {
         let database = resource_manager::new_from_default(self.xcb_connection())?;
         *self.database.write().unwrap_or_else(|e| e.into_inner()) = database;
@@ -223,13 +215,11 @@ impl XConnection {
     }
 
     /// Get the latest timestamp.
-    #[inline]
     pub fn timestamp(&self) -> u32 {
         self.timestamp.load(Ordering::Relaxed)
     }
 
     /// Set the last witnessed timestamp.
-    #[inline]
     pub fn set_timestamp(&self, timestamp: u32) {
         // Store the timestamp in the slot if it's greater than the last one.
         let mut last_timestamp = self.timestamp.load(Ordering::Relaxed);
@@ -253,7 +243,6 @@ impl XConnection {
     }
 
     /// Get the atom for Xsettings.
-    #[inline]
     pub fn xsettings_screen(&self) -> Option<xproto::Atom> {
         self.xsettings_screen
     }
@@ -266,7 +255,6 @@ impl fmt::Debug for XConnection {
 }
 
 impl Drop for XConnection {
-    #[inline]
     fn drop(&mut self) {
         self.xcb = None;
         unsafe { (self.xlib.XCloseDisplay)(self.display) };
@@ -308,7 +296,6 @@ pub enum XNotSupported {
 }
 
 impl From<ffi::OpenError> for XNotSupported {
-    #[inline]
     fn from(err: ffi::OpenError) -> XNotSupported {
         XNotSupported::LibraryOpenError(err)
     }
@@ -325,7 +312,6 @@ impl XNotSupported {
 }
 
 impl Error for XNotSupported {
-    #[inline]
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         match *self {
             XNotSupported::LibraryOpenError(ref err) => Some(err),

@@ -402,7 +402,6 @@ pub(crate) struct OwnedDisplayHandle;
 
 impl OwnedDisplayHandle {
     #[cfg(feature = "rwh_06")]
-    #[inline]
     pub fn raw_display_handle_rwh_06(
         &self,
     ) -> Result<rwh_06::RawDisplayHandle, rwh_06::HandleError> {
@@ -421,7 +420,6 @@ pub(super) fn stop_app_immediately(app: &NSApplication) {
 
 /// Catches panics that happen inside `f` and when a panic
 /// happens, stops the `sharedApplication`
-#[inline]
 pub fn stop_app_on_panic<F: FnOnce() -> R + UnwindSafe, R>(
     mtm: MainThreadMarker,
     panic_info: Weak<PanicInfo>,

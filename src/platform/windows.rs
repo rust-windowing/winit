@@ -119,19 +119,16 @@ pub struct AnyThread<W>(W);
 
 impl<W: Borrow<Window>> AnyThread<W> {
     /// Get a reference to the inner window.
-    #[inline]
     pub fn get_ref(&self) -> &Window {
         self.0.borrow()
     }
 
     /// Get a reference to the inner object.
-    #[inline]
     pub fn inner(&self) -> &W {
         &self.0
     }
 
     /// Unwrap and get the inner window.
-    #[inline]
     pub fn into_inner(self) -> W {
         self.0
     }
@@ -234,19 +231,16 @@ pub trait EventLoopBuilderExtWindows {
 }
 
 impl EventLoopBuilderExtWindows for EventLoopBuilder {
-    #[inline]
     fn with_any_thread(&mut self, any_thread: bool) -> &mut Self {
         self.platform_specific.any_thread = any_thread;
         self
     }
 
-    #[inline]
     fn with_dpi_aware(&mut self, dpi_aware: bool) -> &mut Self {
         self.platform_specific.dpi_aware = dpi_aware;
         self
     }
 
-    #[inline]
     fn with_msg_hook<F>(&mut self, callback: F) -> &mut Self
     where
         F: FnMut(*const c_void) -> bool + 'static,
@@ -366,37 +360,30 @@ pub trait WindowExtWindows {
 }
 
 impl WindowExtWindows for Window {
-    #[inline]
     fn set_enable(&self, enabled: bool) {
         self.window.set_enable(enabled)
     }
 
-    #[inline]
     fn set_taskbar_icon(&self, taskbar_icon: Option<Icon>) {
         self.window.set_taskbar_icon(taskbar_icon)
     }
 
-    #[inline]
     fn set_skip_taskbar(&self, skip: bool) {
         self.window.set_skip_taskbar(skip)
     }
 
-    #[inline]
     fn set_undecorated_shadow(&self, shadow: bool) {
         self.window.set_undecorated_shadow(shadow)
     }
 
-    #[inline]
     fn set_system_backdrop(&self, backdrop_type: BackdropType) {
         self.window.set_system_backdrop(backdrop_type)
     }
 
-    #[inline]
     fn set_border_color(&self, color: Option<Color>) {
         self.window.set_border_color(color.unwrap_or(Color::NONE))
     }
 
-    #[inline]
     fn set_title_background_color(&self, color: Option<Color>) {
         // The windows docs don't mention NONE as a valid options but it works in practice and is
         // useful to circumvent the Windows option "Show accent color on title bars and
@@ -404,12 +391,10 @@ impl WindowExtWindows for Window {
         self.window.set_title_background_color(color.unwrap_or(Color::NONE))
     }
 
-    #[inline]
     fn set_title_text_color(&self, color: Color) {
         self.window.set_title_text_color(color)
     }
 
-    #[inline]
     fn set_corner_preference(&self, preference: CornerPreference) {
         self.window.set_corner_preference(preference)
     }
@@ -553,85 +538,71 @@ pub trait WindowAttributesExtWindows {
 }
 
 impl WindowAttributesExtWindows for WindowAttributes {
-    #[inline]
     fn with_owner_window(mut self, parent: HWND) -> Self {
         self.platform_specific.owner = Some(parent);
         self
     }
 
-    #[inline]
     fn with_menu(mut self, menu: HMENU) -> Self {
         self.platform_specific.menu = Some(menu);
         self
     }
 
-    #[inline]
     fn with_taskbar_icon(mut self, taskbar_icon: Option<Icon>) -> Self {
         self.platform_specific.taskbar_icon = taskbar_icon;
         self
     }
 
-    #[inline]
     fn with_no_redirection_bitmap(mut self, flag: bool) -> Self {
         self.platform_specific.no_redirection_bitmap = flag;
         self
     }
 
-    #[inline]
     fn with_drag_and_drop(mut self, flag: bool) -> Self {
         self.platform_specific.drag_and_drop = flag;
         self
     }
 
-    #[inline]
     fn with_skip_taskbar(mut self, skip: bool) -> Self {
         self.platform_specific.skip_taskbar = skip;
         self
     }
 
-    #[inline]
     fn with_class_name<S: Into<String>>(mut self, class_name: S) -> Self {
         self.platform_specific.class_name = class_name.into();
         self
     }
 
-    #[inline]
     fn with_undecorated_shadow(mut self, shadow: bool) -> Self {
         self.platform_specific.decoration_shadow = shadow;
         self
     }
 
-    #[inline]
     fn with_system_backdrop(mut self, backdrop_type: BackdropType) -> Self {
         self.platform_specific.backdrop_type = backdrop_type;
         self
     }
 
-    #[inline]
     fn with_clip_children(mut self, flag: bool) -> Self {
         self.platform_specific.clip_children = flag;
         self
     }
 
-    #[inline]
     fn with_border_color(mut self, color: Option<Color>) -> Self {
         self.platform_specific.border_color = Some(color.unwrap_or(Color::NONE));
         self
     }
 
-    #[inline]
     fn with_title_background_color(mut self, color: Option<Color>) -> Self {
         self.platform_specific.title_background_color = Some(color.unwrap_or(Color::NONE));
         self
     }
 
-    #[inline]
     fn with_title_text_color(mut self, color: Color) -> Self {
         self.platform_specific.title_text_color = Some(color);
         self
     }
 
-    #[inline]
     fn with_corner_preference(mut self, corners: CornerPreference) -> Self {
         self.platform_specific.corner_preference = Some(corners);
         self
@@ -648,12 +619,10 @@ pub trait MonitorHandleExtWindows {
 }
 
 impl MonitorHandleExtWindows for MonitorHandle {
-    #[inline]
     fn native_id(&self) -> String {
         self.inner.native_identifier()
     }
 
-    #[inline]
     fn hmonitor(&self) -> HMONITOR {
         self.inner.hmonitor()
     }
@@ -668,7 +637,6 @@ pub trait DeviceIdExtWindows {
 }
 
 impl DeviceIdExtWindows for DeviceId {
-    #[inline]
     fn persistent_identifier(&self) -> Option<String> {
         self.0.persistent_identifier()
     }
@@ -682,7 +650,6 @@ pub trait FingerIdExtWindows {
 }
 
 impl FingerIdExtWindows for FingerId {
-    #[inline]
     fn is_primary(self) -> bool {
         self.0.is_primary()
     }

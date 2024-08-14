@@ -658,7 +658,6 @@ pub(crate) struct OwnedDisplayHandle;
 
 impl OwnedDisplayHandle {
     #[cfg(feature = "rwh_06")]
-    #[inline]
     pub fn raw_display_handle_rwh_06(
         &self,
     ) -> Result<rwh_06::RawDisplayHandle, rwh_06::HandleError> {
@@ -878,7 +877,6 @@ impl Window {
         Err(error::ExternalError::NotSupported(error::NotSupportedError::new()))
     }
 
-    #[inline]
     pub fn show_window_menu(&self, _position: Position) {}
 
     pub fn set_cursor_hittest(&self, _hittest: bool) -> Result<(), error::ExternalError> {

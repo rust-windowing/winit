@@ -165,18 +165,15 @@ impl MonitorHandle {
         MonitorHandle(hmonitor)
     }
 
-    #[inline]
     pub fn name(&self) -> Option<String> {
         let monitor_info = get_monitor_info(self.0).unwrap();
         Some(decode_wide(&monitor_info.szDevice).to_string_lossy().to_string())
     }
 
-    #[inline]
     pub fn native_identifier(&self) -> String {
         self.name().unwrap()
     }
 
-    #[inline]
     pub fn hmonitor(&self) -> HMONITOR {
         self.0
     }
@@ -189,7 +186,6 @@ impl MonitorHandle {
         }
     }
 
-    #[inline]
     pub fn position(&self) -> Option<PhysicalPosition<i32>> {
         get_monitor_info(self.0)
             .map(|info| {
@@ -199,12 +195,10 @@ impl MonitorHandle {
             .ok()
     }
 
-    #[inline]
     pub fn scale_factor(&self) -> f64 {
         dpi_to_scale_factor(get_monitor_dpi(self.0).unwrap_or(96))
     }
 
-    #[inline]
     pub fn current_video_mode(&self) -> Option<VideoModeHandle> {
         let monitor_info = get_monitor_info(self.0).ok()?;
         let device_name = monitor_info.szDevice.as_ptr();
@@ -221,7 +215,6 @@ impl MonitorHandle {
         }
     }
 
-    #[inline]
     pub fn video_modes(&self) -> impl Iterator<Item = VideoModeHandle> {
         // EnumDisplaySettingsExW can return duplicate values (or some of the
         // fields are probably changing, but we aren't looking at those fields
