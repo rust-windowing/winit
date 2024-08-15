@@ -12,7 +12,6 @@ use objc2_ui_kit::{UIScreen, UIScreenMode};
 
 use super::app_state;
 use crate::dpi::{PhysicalPosition, PhysicalSize};
-use crate::monitor::VideoModeHandle as RootVideoModeHandle;
 
 // Workaround for `MainThreadBound` implementing almost no traits
 #[derive(Debug)]
@@ -170,17 +169,14 @@ impl MonitorHandle {
     pub fn video_modes(&self) -> impl Iterator<Item = VideoModeHandle> {
         run_on_main(|mtm| {
             let ui_screen = self.ui_screen(mtm);
-            // Use Ord impl of RootVideoModeHandle
 
             let modes: Vec<_> = ui_screen
                 .availableModes()
                 .into_iter()
-                .map(|mode| RootVideoModeHandle {
-                    video_mode: VideoModeHandle::new(ui_screen.clone(), mode, mtm),
-                })
+                .map(|mode| VideoModeHandle::new(ui_screen.clone(), mode, mtm))
                 .collect();
 
-            modes.into_iter().map(|mode| mode.video_mode)
+            modes.into_iter()
         })
     }
 
