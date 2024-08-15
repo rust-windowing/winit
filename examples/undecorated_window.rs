@@ -23,7 +23,7 @@ impl Default for App {
 }
 
 impl ApplicationHandler for App {
-    fn can_create_surfaces(&mut self, event_loop: &ActiveEventLoop) {
+    fn can_create_surfaces(&mut self, event_loop: &dyn ActiveEventLoop) {
         let mut attrs = Window::default_attributes().with_decorations(false);
         #[cfg(windows)]
         {
@@ -33,7 +33,12 @@ impl ApplicationHandler for App {
         self.window = Some(event_loop.create_window(attrs).unwrap());
     }
 
-    fn window_event(&mut self, event_loop: &ActiveEventLoop, _id: WindowId, event: WindowEvent) {
+    fn window_event(
+        &mut self,
+        event_loop: &dyn ActiveEventLoop,
+        _id: WindowId,
+        event: WindowEvent,
+    ) {
         match event {
             #[cfg(windows)]
             WindowEvent::KeyboardInput {
