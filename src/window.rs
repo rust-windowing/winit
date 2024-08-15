@@ -93,7 +93,7 @@ impl WindowId {
         WindowId(platform_impl::WindowId::dummy())
     }
 
-    pub fn into_raw(self) -> u64 {
+    pub const fn into_raw(self) -> u64 {
         self.0.into_raw()
     }
 

@@ -3,10 +3,9 @@
 use std::collections::VecDeque;
 
 use objc2::rc::Retained;
-use objc2::runtime::{AnyObject, NSObject};
 use objc2::{class, declare_class, msg_send, msg_send_id, mutability, ClassType, DeclaredClass};
 use objc2_foundation::{
-    CGFloat, CGPoint, CGRect, CGSize, MainThreadBound, MainThreadMarker, NSObjectProtocol,
+    CGFloat, CGPoint, CGRect, CGSize, MainThreadBound, MainThreadMarker, NSObject, NSObjectProtocol,
 };
 use objc2_ui_kit::{
     UIApplication, UICoordinateSpace, UIResponder, UIScreen, UIScreenOverscanCompensation,
@@ -100,7 +99,7 @@ impl WinitUIWindow {
     }
 
     pub(crate) fn id(&self) -> WindowId {
-        WindowId { window: (self as *const Self as usize) as _ }
+        WindowId::from_window(self)
     }
 }
 
@@ -671,30 +670,23 @@ impl Inner {
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct WindowId {
-    window: *mut WinitUIWindow,
-}
+pub struct WindowId(usize);
 
 impl WindowId {
     pub const fn dummy() -> Self {
-        WindowId { window: std::ptr::null_mut() }
+        WindowId(0)
     }
 
-    pub fn into_raw(self) -> u64 {
-        self.window as u64
+    pub const fn into_raw(self) -> u64 {
+        self.0 as _
     }
 
     pub const fn from_raw(id: u64) -> Self {
-        Self { window: id as *mut WinitUIWindow }
+        Self(id as _)
     }
-}
 
-unsafe impl Send for WindowId {}
-unsafe impl Sync for WindowId {}
-
-impl From<&AnyObject> for WindowId {
-    fn from(window: &AnyObject) -> WindowId {
-        WindowId { window: window as *const _ as _ }
+    fn from_window(window: &UIWindow) -> Self {
+        Self(window as *const UIWindow as usize)
     }
 }
 
