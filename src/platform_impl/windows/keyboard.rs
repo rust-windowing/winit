@@ -658,12 +658,10 @@ fn destructure_key_lparam(lparam: LPARAM) -> KeyLParam {
     }
 }
 
-#[inline]
 fn new_ex_scancode(scancode: u8, extended: bool) -> ExScancode {
     (scancode as u16) | (if extended { 0xe000 } else { 0 })
 }
 
-#[inline]
 fn ex_scancode_from_lparam(lparam: LPARAM) -> ExScancode {
     let lparam = destructure_key_lparam(lparam);
     new_ex_scancode(lparam.scancode, lparam.extended)

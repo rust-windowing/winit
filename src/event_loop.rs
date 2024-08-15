@@ -93,7 +93,6 @@ impl EventLoopBuilder {
         not(android_platform),
         doc = "[`.with_android_app(app)`]: #only-available-on-android"
     )]
-    #[inline]
     pub fn build(&mut self) -> Result<EventLoop, EventLoopError> {
         let _span = tracing::debug_span!("winit::EventLoopBuilder::build").entered();
 
@@ -176,7 +175,6 @@ impl EventLoop {
     /// Create the event loop.
     ///
     /// This is an alias of `EventLoop::builder().build()`.
-    #[inline]
     pub fn new() -> Result<EventLoop, EventLoopError> {
         Self::builder().build()
     }
@@ -186,7 +184,6 @@ impl EventLoop {
     /// This returns an [`EventLoopBuilder`], to allow configuring the event loop before creation.
     ///
     /// To get the actual event loop, call [`build`][EventLoopBuilder::build] on that.
-    #[inline]
     pub fn builder() -> EventLoopBuilder {
         EventLoopBuilder { platform_specific: Default::default() }
     }
@@ -222,7 +219,6 @@ impl EventLoop {
     ///
     /// [`set_control_flow()`]: ActiveEventLoop::set_control_flow()
     /// [`run_app()`]: Self::run_app()
-    #[inline]
     #[cfg(not(all(web_platform, target_feature = "exception-handling")))]
     pub fn run_app<A: ApplicationHandler>(self, app: A) -> Result<(), EventLoopError> {
         self.event_loop.run_app(app)
@@ -434,7 +430,6 @@ pub struct OwnedDisplayHandle {
 }
 
 impl fmt::Debug for OwnedDisplayHandle {
-    #[inline]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("OwnedDisplayHandle").finish_non_exhaustive()
     }
@@ -442,7 +437,6 @@ impl fmt::Debug for OwnedDisplayHandle {
 
 #[cfg(feature = "rwh_06")]
 impl rwh_06::HasDisplayHandle for OwnedDisplayHandle {
-    #[inline]
     fn display_handle(&self) -> Result<rwh_06::DisplayHandle<'_>, rwh_06::HandleError> {
         let raw = self.platform.raw_display_handle_rwh_06()?;
 

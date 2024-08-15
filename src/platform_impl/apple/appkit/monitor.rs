@@ -210,12 +210,10 @@ impl MonitorHandle {
         Some(format!("Monitor #{screen_num}"))
     }
 
-    #[inline]
     pub fn native_identifier(&self) -> u32 {
         self.0
     }
 
-    #[inline]
     pub fn position(&self) -> Option<PhysicalPosition<i32>> {
         // This is already in screen coordinates. If we were using `NSScreen`,
         // then a conversion would've been needed:

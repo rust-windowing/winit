@@ -29,22 +29,18 @@ pub struct VideoModeHandle {
 }
 
 impl VideoModeHandle {
-    #[inline]
     pub fn size(&self) -> PhysicalSize<u32> {
         self.size.into()
     }
 
-    #[inline]
     pub fn bit_depth(&self) -> Option<NonZeroU16> {
         self.bit_depth
     }
 
-    #[inline]
     pub fn refresh_rate_millihertz(&self) -> Option<NonZeroU32> {
         self.refresh_rate_millihertz
     }
 
-    #[inline]
     pub fn monitor(&self) -> MonitorHandle {
         self.monitor.clone().unwrap()
     }
@@ -94,7 +90,6 @@ impl std::hash::Hash for MonitorHandle {
     }
 }
 
-#[inline]
 pub fn mode_refresh_rate_millihertz(mode: &randr::ModeInfo) -> Option<NonZeroU32> {
     if mode.dot_clock > 0 && mode.htotal > 0 && mode.vtotal > 0 {
         #[allow(clippy::unnecessary_cast)]
@@ -144,7 +139,6 @@ impl MonitorHandle {
         Some(self.name.clone())
     }
 
-    #[inline]
     pub fn native_identifier(&self) -> u32 {
         self.id as _
     }
@@ -153,17 +147,14 @@ impl MonitorHandle {
         Some(self.position.into())
     }
 
-    #[inline]
     pub fn scale_factor(&self) -> f64 {
         self.scale_factor
     }
 
-    #[inline]
     pub fn current_video_mode(&self) -> Option<PlatformVideoModeHandle> {
         self.video_modes.iter().find(|mode| mode.current).cloned().map(PlatformVideoModeHandle::X)
     }
 
-    #[inline]
     pub fn video_modes(&self) -> impl Iterator<Item = PlatformVideoModeHandle> {
         let monitor = self.clone();
         self.video_modes.clone().into_iter().map(move |mut x| {
@@ -264,7 +255,6 @@ impl XConnection {
         }
     }
 
-    #[inline]
     pub fn primary_monitor(&self) -> Result<MonitorHandle, X11Error> {
         Ok(self
             .available_monitors()?

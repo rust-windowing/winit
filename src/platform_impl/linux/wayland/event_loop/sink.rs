@@ -20,13 +20,11 @@ impl EventSink {
     }
 
     /// Return `true` if there're pending events.
-    #[inline]
     pub fn is_empty(&self) -> bool {
         self.window_events.is_empty()
     }
 
     /// Add new device event to a queue.
-    #[inline]
     pub fn push_device_event(&mut self, event: DeviceEvent, device_id: DeviceId) {
         self.window_events.push(Event::DeviceEvent {
             event,
@@ -35,17 +33,14 @@ impl EventSink {
     }
 
     /// Add new window event to a queue.
-    #[inline]
     pub fn push_window_event(&mut self, event: WindowEvent, window_id: WindowId) {
         self.window_events.push(Event::WindowEvent { event, window_id: RootWindowId(window_id) });
     }
 
-    #[inline]
     pub fn append(&mut self, other: &mut Self) {
         self.window_events.append(&mut other.window_events);
     }
 
-    #[inline]
     pub(crate) fn drain(&mut self) -> Drain<'_, Event> {
         self.window_events.drain(..)
     }

@@ -207,47 +207,38 @@ impl Canvas {
         position
     }
 
-    #[inline]
     pub fn old_size(&self) -> PhysicalSize<u32> {
         self.common.old_size.get()
     }
 
-    #[inline]
     pub fn inner_size(&self) -> PhysicalSize<u32> {
         self.common.current_size.get()
     }
 
-    #[inline]
     pub fn set_old_size(&self, size: PhysicalSize<u32>) {
         self.common.old_size.set(size)
     }
 
-    #[inline]
     pub fn set_current_size(&self, size: PhysicalSize<u32>) {
         self.common.current_size.set(size)
     }
 
-    #[inline]
     pub fn window(&self) -> &web_sys::Window {
         &self.common.window
     }
 
-    #[inline]
     pub fn navigator(&self) -> &Navigator {
         &self.common.navigator
     }
 
-    #[inline]
     pub fn document(&self) -> &Document {
         &self.common.document
     }
 
-    #[inline]
     pub fn raw(&self) -> &HtmlCanvasElement {
         &self.common.raw
     }
 
-    #[inline]
     pub fn style(&self) -> &Style {
         &self.common.style
     }

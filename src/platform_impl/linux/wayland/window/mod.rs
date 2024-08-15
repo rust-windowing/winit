@@ -223,50 +223,41 @@ impl Window {
 }
 
 impl Window {
-    #[inline]
     pub fn id(&self) -> WindowId {
         self.window_id
     }
 
-    #[inline]
     pub fn set_title(&self, title: impl ToString) {
         let new_title = title.to_string();
         self.window_state.lock().unwrap().set_title(new_title);
     }
 
-    #[inline]
     pub fn set_visible(&self, _visible: bool) {
         // Not possible on Wayland.
     }
 
-    #[inline]
     pub fn is_visible(&self) -> Option<bool> {
         None
     }
 
-    #[inline]
     pub fn outer_position(&self) -> Result<PhysicalPosition<i32>, NotSupportedError> {
         Err(NotSupportedError::new())
     }
 
-    #[inline]
     pub fn inner_position(&self) -> Result<PhysicalPosition<i32>, NotSupportedError> {
         Err(NotSupportedError::new())
     }
 
-    #[inline]
     pub fn set_outer_position(&self, _: Position) {
         // Not possible on Wayland.
     }
 
-    #[inline]
     pub fn inner_size(&self) -> PhysicalSize<u32> {
         let window_state = self.window_state.lock().unwrap();
         let scale_factor = window_state.scale_factor();
         super::logical_to_physical_rounded(window_state.inner_size(), scale_factor)
     }
 
-    #[inline]
     pub fn request_redraw(&self) {
         // NOTE: try to not wake up the loop when the event was already scheduled and not yet
         // processed by the loop, because if at this point the value was `true` it could only
@@ -282,19 +273,16 @@ impl Window {
         }
     }
 
-    #[inline]
     pub fn pre_present_notify(&self) {
         self.window_state.lock().unwrap().request_frame_callback();
     }
 
-    #[inline]
     pub fn outer_size(&self) -> PhysicalSize<u32> {
         let window_state = self.window_state.lock().unwrap();
         let scale_factor = window_state.scale_factor();
         super::logical_to_physical_rounded(window_state.outer_size(), scale_factor)
     }
 
-    #[inline]
     pub fn request_inner_size(&self, size: Size) -> Option<PhysicalSize<u32>> {
         let mut window_state = self.window_state.lock().unwrap();
         let new_size = window_state.request_inner_size(size);
@@ -303,7 +291,6 @@ impl Window {
     }
 
     /// Set the minimum inner size for the window.
-    #[inline]
     pub fn set_min_inner_size(&self, min_size: Option<Size>) {
         let scale_factor = self.scale_factor();
         let min_size = min_size.map(|size| size.to_logical(scale_factor));
@@ -313,7 +300,6 @@ impl Window {
     }
 
     /// Set the maximum inner size for the window.
-    #[inline]
     pub fn set_max_inner_size(&self, max_size: Option<Size>) {
         let scale_factor = self.scale_factor();
         let max_size = max_size.map(|size| size.to_logical(scale_factor));
@@ -322,45 +308,37 @@ impl Window {
         self.request_redraw();
     }
 
-    #[inline]
     pub fn resize_increments(&self) -> Option<PhysicalSize<u32>> {
         None
     }
 
-    #[inline]
     pub fn set_resize_increments(&self, _increments: Option<Size>) {
         warn!("`set_resize_increments` is not implemented for Wayland");
     }
 
-    #[inline]
     pub fn set_transparent(&self, transparent: bool) {
         self.window_state.lock().unwrap().set_transparent(transparent);
     }
 
-    #[inline]
     pub fn has_focus(&self) -> bool {
         self.window_state.lock().unwrap().has_focus()
     }
 
-    #[inline]
     pub fn is_minimized(&self) -> Option<bool> {
         // XXX clients don't know whether they are minimized or not.
         None
     }
 
-    #[inline]
     pub fn show_window_menu(&self, position: Position) {
         let scale_factor = self.scale_factor();
         let position = position.to_logical(scale_factor);
         self.window_state.lock().unwrap().show_window_menu(position);
     }
 
-    #[inline]
     pub fn drag_resize_window(&self, direction: ResizeDirection) -> Result<(), ExternalError> {
         self.window_state.lock().unwrap().drag_resize_window(direction)
     }
 
-    #[inline]
     pub fn set_resizable(&self, resizable: bool) {
         if self.window_state.lock().unwrap().set_resizable(resizable) {
             // NOTE: Requires commit to be applied.
@@ -368,49 +346,39 @@ impl Window {
         }
     }
 
-    #[inline]
     pub fn is_resizable(&self) -> bool {
         self.window_state.lock().unwrap().resizable()
     }
 
-    #[inline]
     pub fn set_enabled_buttons(&self, _buttons: WindowButtons) {
         // TODO(kchibisov) v5 of the xdg_shell allows that.
     }
 
-    #[inline]
     pub fn enabled_buttons(&self) -> WindowButtons {
         // TODO(kchibisov) v5 of the xdg_shell allows that.
         WindowButtons::all()
     }
 
-    #[inline]
     pub fn scale_factor(&self) -> f64 {
         self.window_state.lock().unwrap().scale_factor()
     }
 
-    #[inline]
     pub fn set_blur(&self, blur: bool) {
         self.window_state.lock().unwrap().set_blur(blur);
     }
 
-    #[inline]
     pub fn set_decorations(&self, decorate: bool) {
         self.window_state.lock().unwrap().set_decorate(decorate)
     }
 
-    #[inline]
     pub fn is_decorated(&self) -> bool {
         self.window_state.lock().unwrap().is_decorated()
     }
 
-    #[inline]
     pub fn set_window_level(&self, _level: WindowLevel) {}
 
-    #[inline]
     pub(crate) fn set_window_icon(&self, _window_icon: Option<PlatformIcon>) {}
 
-    #[inline]
     pub fn set_minimized(&self, minimized: bool) {
         // You can't unminimize the window on Wayland.
         if !minimized {
@@ -421,7 +389,6 @@ impl Window {
         self.window.set_minimized();
     }
 
-    #[inline]
     pub fn is_maximized(&self) -> bool {
         self.window_state
             .lock()
@@ -432,7 +399,6 @@ impl Window {
             .unwrap_or_default()
     }
 
-    #[inline]
     pub fn set_maximized(&self, maximized: bool) {
         if maximized {
             self.window.set_maximized()
@@ -441,7 +407,6 @@ impl Window {
         }
     }
 
-    #[inline]
     pub(crate) fn fullscreen(&self) -> Option<Fullscreen> {
         let is_fullscreen = self
             .window_state
@@ -460,7 +425,6 @@ impl Window {
         }
     }
 
-    #[inline]
     pub(crate) fn set_fullscreen(&self, fullscreen: Option<Fullscreen>) {
         match fullscreen {
             Some(Fullscreen::Exclusive(_)) => {
@@ -480,7 +444,6 @@ impl Window {
         }
     }
 
-    #[inline]
     pub fn set_cursor(&self, cursor: Cursor) {
         let window_state = &mut self.window_state.lock().unwrap();
 
@@ -490,7 +453,6 @@ impl Window {
         }
     }
 
-    #[inline]
     pub fn set_cursor_visible(&self, visible: bool) {
         self.window_state.lock().unwrap().set_cursor_visible(visible);
     }
@@ -537,12 +499,10 @@ impl Window {
         Ok(serial)
     }
 
-    #[inline]
     pub fn set_cursor_grab(&self, mode: CursorGrabMode) -> Result<(), ExternalError> {
         self.window_state.lock().unwrap().set_cursor_grab(mode)
     }
 
-    #[inline]
     pub fn set_cursor_position(&self, position: Position) -> Result<(), ExternalError> {
         let scale_factor = self.scale_factor();
         let position = position.to_logical(scale_factor);
@@ -554,12 +514,10 @@ impl Window {
             .map(|_| self.request_redraw())
     }
 
-    #[inline]
     pub fn drag_window(&self) -> Result<(), ExternalError> {
         self.window_state.lock().unwrap().drag_window()
     }
 
-    #[inline]
     pub fn set_cursor_hittest(&self, hittest: bool) -> Result<(), ExternalError> {
         let surface = self.window.wl_surface();
 
@@ -576,7 +534,6 @@ impl Window {
         }
     }
 
-    #[inline]
     pub fn set_ime_cursor_area(&self, position: Position, size: Size) {
         let window_state = self.window_state.lock().unwrap();
         if window_state.ime_allowed() {
@@ -587,7 +544,6 @@ impl Window {
         }
     }
 
-    #[inline]
     pub fn set_ime_allowed(&self, allowed: bool) {
         let mut window_state = self.window_state.lock().unwrap();
 
@@ -598,38 +554,31 @@ impl Window {
         }
     }
 
-    #[inline]
     pub fn set_ime_purpose(&self, purpose: ImePurpose) {
         self.window_state.lock().unwrap().set_ime_purpose(purpose);
     }
 
-    #[inline]
     pub fn focus_window(&self) {}
 
-    #[inline]
     pub fn surface(&self) -> &WlSurface {
         self.window.wl_surface()
     }
 
-    #[inline]
     pub fn current_monitor(&self) -> Option<MonitorHandle> {
         let data = self.window.wl_surface().data::<SurfaceData>()?;
         data.outputs().next().map(MonitorHandle::new)
     }
 
-    #[inline]
     pub fn available_monitors(&self) -> Vec<MonitorHandle> {
         self.monitors.lock().unwrap().clone()
     }
 
-    #[inline]
     pub fn primary_monitor(&self) -> Option<MonitorHandle> {
         // XXX there's no such concept on Wayland.
         None
     }
 
     #[cfg(feature = "rwh_06")]
-    #[inline]
     pub fn raw_window_handle_rwh_06(&self) -> Result<rwh_06::RawWindowHandle, rwh_06::HandleError> {
         Ok(rwh_06::WaylandWindowHandle::new({
             let ptr = self.window.wl_surface().id().as_ptr();
@@ -639,7 +588,6 @@ impl Window {
     }
 
     #[cfg(feature = "rwh_06")]
-    #[inline]
     pub fn raw_display_handle_rwh_06(
         &self,
     ) -> Result<rwh_06::RawDisplayHandle, rwh_06::HandleError> {
@@ -650,19 +598,16 @@ impl Window {
         .into())
     }
 
-    #[inline]
     pub fn set_theme(&self, theme: Option<Theme>) {
         self.window_state.lock().unwrap().set_theme(theme)
     }
 
-    #[inline]
     pub fn theme(&self) -> Option<Theme> {
         self.window_state.lock().unwrap().theme()
     }
 
     pub fn set_content_protected(&self, _protected: bool) {}
 
-    #[inline]
     pub fn title(&self) -> String {
         self.window_state.lock().unwrap().title().to_owned()
     }

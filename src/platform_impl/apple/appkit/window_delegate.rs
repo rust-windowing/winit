@@ -59,7 +59,6 @@ pub struct PlatformSpecificWindowAttributes {
 }
 
 impl Default for PlatformSpecificWindowAttributes {
-    #[inline]
     fn default() -> Self {
         Self {
             movable_by_window_background: false,
@@ -902,7 +901,6 @@ impl WindowDelegate {
         }
     }
 
-    #[inline]
     pub fn is_visible(&self) -> Option<bool> {
         Some(self.window().isVisible())
     }
@@ -911,7 +909,6 @@ impl WindowDelegate {
         self.ivars().app_state.queue_redraw(self.window().id());
     }
 
-    #[inline]
     pub fn pre_present_notify(&self) {}
 
     pub fn outer_position(&self) -> Result<PhysicalPosition<i32>, NotSupportedError> {
@@ -934,21 +931,18 @@ impl WindowDelegate {
         unsafe { self.window().setFrameOrigin(point) };
     }
 
-    #[inline]
     pub fn inner_size(&self) -> PhysicalSize<u32> {
         let content_rect = self.window().contentRectForFrameRect(self.window().frame());
         let logical = LogicalSize::new(content_rect.size.width, content_rect.size.height);
         logical.to_physical(self.scale_factor())
     }
 
-    #[inline]
     pub fn outer_size(&self) -> PhysicalSize<u32> {
         let frame = self.window().frame();
         let logical = LogicalSize::new(frame.size.width, frame.size.height);
         logical.to_physical(self.scale_factor())
     }
 
-    #[inline]
     pub fn request_inner_size(&self, size: Size) -> Option<PhysicalSize<u32>> {
         let scale_factor = self.scale_factor();
         let size = size.to_logical(scale_factor);
@@ -1027,7 +1021,6 @@ impl WindowDelegate {
         self.window().setContentResizeIncrements(size);
     }
 
-    #[inline]
     pub fn set_resizable(&self, resizable: bool) {
         self.ivars().resizable.set(resizable);
         let fullscreen = self.ivars().fullscreen.borrow().is_some();
@@ -1043,12 +1036,10 @@ impl WindowDelegate {
         // Otherwise, we don't change the mask until we exit fullscreen.
     }
 
-    #[inline]
     pub fn is_resizable(&self) -> bool {
         self.window().isResizable()
     }
 
-    #[inline]
     pub fn set_enabled_buttons(&self, buttons: WindowButtons) {
         let mut mask = self.window().styleMask();
 
@@ -1077,7 +1068,6 @@ impl WindowDelegate {
         }
     }
 
-    #[inline]
     pub fn enabled_buttons(&self) -> WindowButtons {
         let mut buttons = WindowButtons::empty();
         if self.window().isMiniaturizable() {
@@ -1113,7 +1103,6 @@ impl WindowDelegate {
         self.window().invalidateCursorRectsForView(&view);
     }
 
-    #[inline]
     pub fn set_cursor_grab(&self, mode: CursorGrabMode) -> Result<(), ExternalError> {
         let associate_mouse_cursor = match mode {
             CursorGrabMode::Locked => false,
@@ -1128,7 +1117,6 @@ impl WindowDelegate {
             .map_err(|status| ExternalError::Os(os_error!(OsError::CGError(status))))
     }
 
-    #[inline]
     pub fn set_cursor_visible(&self, visible: bool) {
         let view = self.view();
         let state_changed = view.set_cursor_visible(visible);
@@ -1137,12 +1125,10 @@ impl WindowDelegate {
         }
     }
 
-    #[inline]
     pub fn scale_factor(&self) -> f64 {
         self.window().backingScaleFactor() as _
     }
 
-    #[inline]
     pub fn set_cursor_position(&self, cursor_position: Position) -> Result<(), ExternalError> {
         let physical_window_position = self.inner_position().unwrap();
         let scale_factor = self.scale_factor();
@@ -1160,7 +1146,6 @@ impl WindowDelegate {
         Ok(())
     }
 
-    #[inline]
     pub fn drag_window(&self) -> Result<(), ExternalError> {
         let mtm = MainThreadMarker::from(self);
         let event = NSApplication::sharedApplication(mtm).currentEvent().unwrap();
@@ -1168,15 +1153,12 @@ impl WindowDelegate {
         Ok(())
     }
 
-    #[inline]
     pub fn drag_resize_window(&self, _direction: ResizeDirection) -> Result<(), ExternalError> {
         Err(ExternalError::NotSupported(NotSupportedError::new()))
     }
 
-    #[inline]
     pub fn show_window_menu(&self, _position: Position) {}
 
-    #[inline]
     pub fn set_cursor_hittest(&self, hittest: bool) -> Result<(), ExternalError> {
         self.window().setIgnoresMouseEvents(!hittest);
         Ok(())
@@ -1226,7 +1208,6 @@ impl WindowDelegate {
         self.set_maximized(maximized);
     }
 
-    #[inline]
     pub fn set_minimized(&self, minimized: bool) {
         let is_minimized = self.window().isMiniaturized();
         if is_minimized == minimized {
@@ -1240,12 +1221,10 @@ impl WindowDelegate {
         }
     }
 
-    #[inline]
     pub fn is_minimized(&self) -> Option<bool> {
         Some(self.window().isMiniaturized())
     }
 
-    #[inline]
     pub fn set_maximized(&self, maximized: bool) {
         let mtm = MainThreadMarker::from(self);
         let is_zoomed = self.is_zoomed();
@@ -1280,17 +1259,14 @@ impl WindowDelegate {
         }
     }
 
-    #[inline]
     pub(crate) fn fullscreen(&self) -> Option<Fullscreen> {
         self.ivars().fullscreen.borrow().clone()
     }
 
-    #[inline]
     pub fn is_maximized(&self) -> bool {
         self.is_zoomed()
     }
 
-    #[inline]
     pub(crate) fn set_fullscreen(&self, fullscreen: Option<Fullscreen>) {
         let mtm = MainThreadMarker::from(self);
         let app = NSApplication::sharedApplication(mtm);
@@ -1470,7 +1446,6 @@ impl WindowDelegate {
         };
     }
 
-    #[inline]
     pub fn set_decorations(&self, decorations: bool) {
         if decorations == self.ivars().decorations.get() {
             return;
@@ -1504,12 +1479,10 @@ impl WindowDelegate {
         self.set_style_mask(new_mask);
     }
 
-    #[inline]
     pub fn is_decorated(&self) -> bool {
         self.ivars().decorations.get()
     }
 
-    #[inline]
     pub fn set_window_level(&self, level: WindowLevel) {
         let level = match level {
             WindowLevel::AlwaysOnTop => ffi::kCGFloatingWindowLevel as NSWindowLevel,
@@ -1519,7 +1492,6 @@ impl WindowDelegate {
         self.window().setLevel(level);
     }
 
-    #[inline]
     pub fn set_window_icon(&self, _icon: Option<Icon>) {
         // macOS doesn't have window icons. Though, there is
         // `setRepresentedFilename`, but that's semantically distinct and should
@@ -1531,7 +1503,6 @@ impl WindowDelegate {
         // https://developer.apple.com/library/content/documentation/Cocoa/Conceptual/WinPanel/Tasks/SettingWindowTitle.html
     }
 
-    #[inline]
     pub fn set_ime_cursor_area(&self, spot: Position, size: Size) {
         let scale_factor = self.scale_factor();
         let logical_spot = spot.to_logical(scale_factor);
@@ -1543,15 +1514,12 @@ impl WindowDelegate {
         self.view().set_ime_cursor_area(logical_spot, size);
     }
 
-    #[inline]
     pub fn set_ime_allowed(&self, allowed: bool) {
         self.view().set_ime_allowed(allowed);
     }
 
-    #[inline]
     pub fn set_ime_purpose(&self, _purpose: ImePurpose) {}
 
-    #[inline]
     pub fn focus_window(&self) {
         let mtm = MainThreadMarker::from(self);
         let is_minimized = self.window().isMiniaturized();
@@ -1564,7 +1532,6 @@ impl WindowDelegate {
         }
     }
 
-    #[inline]
     pub fn request_user_attention(&self, request_type: Option<UserAttentionType>) {
         let mtm = MainThreadMarker::from(self);
         let ns_request_type = request_type.map(|ty| match ty {
@@ -1576,31 +1543,26 @@ impl WindowDelegate {
         }
     }
 
-    #[inline]
     // Allow directly accessing the current monitor internally without unwrapping.
     pub(crate) fn current_monitor_inner(&self) -> Option<MonitorHandle> {
         let display_id = get_display_id(&*self.window().screen()?);
         Some(MonitorHandle::new(display_id))
     }
 
-    #[inline]
     pub fn current_monitor(&self) -> Option<MonitorHandle> {
         self.current_monitor_inner()
     }
 
-    #[inline]
     pub fn available_monitors(&self) -> VecDeque<MonitorHandle> {
         monitor::available_monitors()
     }
 
-    #[inline]
     pub fn primary_monitor(&self) -> Option<MonitorHandle> {
         let monitor = monitor::primary_monitor();
         Some(monitor)
     }
 
     #[cfg(feature = "rwh_06")]
-    #[inline]
     pub fn raw_window_handle_rwh_06(&self) -> rwh_06::RawWindowHandle {
         let window_handle = rwh_06::AppKitWindowHandle::new({
             let ptr = Retained::as_ptr(&self.view()) as *mut _;
@@ -1618,7 +1580,6 @@ impl WindowDelegate {
         }
     }
 
-    #[inline]
     pub fn has_focus(&self) -> bool {
         self.window().isKeyWindow()
     }
@@ -1642,7 +1603,6 @@ impl WindowDelegate {
         unsafe { self.window().setAppearance(theme_to_appearance(theme).as_deref()) };
     }
 
-    #[inline]
     pub fn set_content_protected(&self, protected: bool) {
         self.window().setSharingType(if protected {
             NSWindowSharingType::NSWindowSharingNone
@@ -1676,12 +1636,10 @@ fn restore_and_release_display(monitor: &MonitorHandle) {
 }
 
 impl WindowExtMacOS for WindowDelegate {
-    #[inline]
     fn simple_fullscreen(&self) -> bool {
         self.ivars().is_simple_fullscreen.get()
     }
 
-    #[inline]
     fn set_simple_fullscreen(&self, fullscreen: bool) -> bool {
         let mtm = MainThreadMarker::from(self);
 
@@ -1747,37 +1705,30 @@ impl WindowExtMacOS for WindowDelegate {
         }
     }
 
-    #[inline]
     fn has_shadow(&self) -> bool {
         self.window().hasShadow()
     }
 
-    #[inline]
     fn set_has_shadow(&self, has_shadow: bool) {
         self.window().setHasShadow(has_shadow)
     }
 
-    #[inline]
     fn set_tabbing_identifier(&self, identifier: &str) {
         self.window().setTabbingIdentifier(&NSString::from_str(identifier))
     }
 
-    #[inline]
     fn tabbing_identifier(&self) -> String {
         self.window().tabbingIdentifier().to_string()
     }
 
-    #[inline]
     fn select_next_tab(&self) {
         self.window().selectNextTab(None)
     }
 
-    #[inline]
     fn select_previous_tab(&self) {
         unsafe { self.window().selectPreviousTab(None) }
     }
 
-    #[inline]
     fn select_tab_at_index(&self, index: usize) {
         if let Some(group) = self.window().tabGroup() {
             if let Some(windows) = unsafe { self.window().tabbedWindows() } {
@@ -1788,7 +1739,6 @@ impl WindowExtMacOS for WindowDelegate {
         }
     }
 
-    #[inline]
     fn num_tabs(&self) -> usize {
         unsafe { self.window().tabbedWindows() }.map(|windows| windows.len()).unwrap_or(1)
     }

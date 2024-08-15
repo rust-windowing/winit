@@ -498,7 +498,6 @@ impl EventLoop {
         std::mem::swap(&mut self.window_ids, &mut window_ids);
     }
 
-    #[inline]
     pub fn window_target(&self) -> &dyn RootActiveEventLoop {
         &self.active_event_loop
     }
@@ -608,7 +607,6 @@ impl RootActiveEventLoop for ActiveEventLoop {
         self.exit.get().is_some()
     }
 
-    #[inline]
     fn listen_device_events(&self, _allowed: DeviceEvents) {}
 
     fn create_custom_cursor(
@@ -620,7 +618,6 @@ impl RootActiveEventLoop for ActiveEventLoop {
         })
     }
 
-    #[inline]
     fn system_theme(&self) -> Option<Theme> {
         None
     }

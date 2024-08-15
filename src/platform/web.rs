@@ -105,7 +105,6 @@ pub trait WindowExtWeb {
 }
 
 impl WindowExtWeb for Window {
-    #[inline]
     fn canvas(&self) -> Option<Ref<'_, HtmlCanvasElement>> {
         self.window.canvas()
     }
@@ -348,7 +347,6 @@ pub trait ActiveEventLoopExtWeb {
 }
 
 impl ActiveEventLoopExtWeb for dyn ActiveEventLoop + '_ {
-    #[inline]
     fn create_custom_cursor_async(&self, source: CustomCursorSource) -> CustomCursorFuture {
         let event_loop = self
             .as_any()
@@ -357,7 +355,6 @@ impl ActiveEventLoopExtWeb for dyn ActiveEventLoop + '_ {
         event_loop.create_custom_cursor_async(source)
     }
 
-    #[inline]
     fn set_poll_strategy(&self, strategy: PollStrategy) {
         let event_loop = self
             .as_any()
@@ -366,7 +363,6 @@ impl ActiveEventLoopExtWeb for dyn ActiveEventLoop + '_ {
         event_loop.set_poll_strategy(strategy);
     }
 
-    #[inline]
     fn poll_strategy(&self) -> PollStrategy {
         let event_loop = self
             .as_any()
@@ -375,7 +371,6 @@ impl ActiveEventLoopExtWeb for dyn ActiveEventLoop + '_ {
         event_loop.poll_strategy()
     }
 
-    #[inline]
     fn set_wait_until_strategy(&self, strategy: WaitUntilStrategy) {
         let event_loop = self
             .as_any()
@@ -384,7 +379,6 @@ impl ActiveEventLoopExtWeb for dyn ActiveEventLoop + '_ {
         event_loop.set_wait_until_strategy(strategy);
     }
 
-    #[inline]
     fn wait_until_strategy(&self) -> WaitUntilStrategy {
         let event_loop = self
             .as_any()
@@ -393,7 +387,6 @@ impl ActiveEventLoopExtWeb for dyn ActiveEventLoop + '_ {
         event_loop.wait_until_strategy()
     }
 
-    #[inline]
     fn is_cursor_lock_raw(&self) -> bool {
         let event_loop = self
             .as_any()
@@ -402,7 +395,6 @@ impl ActiveEventLoopExtWeb for dyn ActiveEventLoop + '_ {
         event_loop.is_cursor_lock_raw()
     }
 
-    #[inline]
     fn has_multiple_screens(&self) -> Result<bool, NotSupportedError> {
         let event_loop = self
             .as_any()
@@ -411,7 +403,6 @@ impl ActiveEventLoopExtWeb for dyn ActiveEventLoop + '_ {
         event_loop.has_multiple_screens()
     }
 
-    #[inline]
     fn request_detailed_monitor_permission(&self) -> MonitorPermissionFuture {
         let event_loop = self
             .as_any()
@@ -420,7 +411,6 @@ impl ActiveEventLoopExtWeb for dyn ActiveEventLoop + '_ {
         MonitorPermissionFuture(event_loop.request_detailed_monitor_permission())
     }
 
-    #[inline]
     fn has_detailed_monitor_permission(&self) -> bool {
         let event_loop = self
             .as_any()

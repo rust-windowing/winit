@@ -81,7 +81,6 @@ impl FingerId {
 }
 
 /// Get the WindowId out of the surface.
-#[inline]
 fn make_wid(surface: &WlSurface) -> WindowId {
     WindowId(surface.id().as_ptr() as u64)
 }

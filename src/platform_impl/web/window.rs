@@ -93,7 +93,6 @@ impl Window {
     }
 
     #[cfg(feature = "rwh_06")]
-    #[inline]
     pub fn raw_window_handle_rwh_06(&self) -> Result<rwh_06::RawWindowHandle, rwh_06::HandleError> {
         MainThreadMarker::new()
             .map(|main_thread| {
@@ -108,7 +107,6 @@ impl Window {
     }
 
     #[cfg(feature = "rwh_06")]
-    #[inline]
     pub(crate) fn raw_display_handle_rwh_06(
         &self,
     ) -> Result<rwh_06::RawDisplayHandle, rwh_06::HandleError> {
@@ -129,7 +127,6 @@ impl Inner {
         // Intentionally a no-op
     }
 
-    #[inline]
     pub fn is_visible(&self) -> Option<bool> {
         None
     }
@@ -160,18 +157,15 @@ impl Inner {
         )
     }
 
-    #[inline]
     pub fn inner_size(&self) -> PhysicalSize<u32> {
         self.canvas.inner_size()
     }
 
-    #[inline]
     pub fn outer_size(&self) -> PhysicalSize<u32> {
         // Note: the canvas element has no window decorations, so this is equal to `inner_size`.
         self.inner_size()
     }
 
-    #[inline]
     pub fn request_inner_size(&self, size: Size) -> Option<PhysicalSize<u32>> {
         let size = size.to_logical(self.scale_factor());
         backend::set_canvas_size(
@@ -183,7 +177,6 @@ impl Inner {
         None
     }
 
-    #[inline]
     pub fn set_min_inner_size(&self, dimensions: Option<Size>) {
         let dimensions = dimensions.map(|dimensions| dimensions.to_logical(self.scale_factor()));
         backend::set_canvas_min_size(
@@ -194,7 +187,6 @@ impl Inner {
         )
     }
 
-    #[inline]
     pub fn set_max_inner_size(&self, dimensions: Option<Size>) {
         let dimensions = dimensions.map(|dimensions| dimensions.to_logical(self.scale_factor()));
         backend::set_canvas_max_size(
@@ -205,17 +197,14 @@ impl Inner {
         )
     }
 
-    #[inline]
     pub fn resize_increments(&self) -> Option<PhysicalSize<u32>> {
         None
     }
 
-    #[inline]
     pub fn set_resize_increments(&self, _increments: Option<Size>) {
         // Intentionally a no-op: users can't resize canvas elements
     }
 
-    #[inline]
     pub fn set_resizable(&self, _resizable: bool) {
         // Intentionally a no-op: users can't resize canvas elements
     }
@@ -224,30 +213,24 @@ impl Inner {
         true
     }
 
-    #[inline]
     pub fn set_enabled_buttons(&self, _buttons: WindowButtons) {}
 
-    #[inline]
     pub fn enabled_buttons(&self) -> WindowButtons {
         WindowButtons::all()
     }
 
-    #[inline]
     pub fn scale_factor(&self) -> f64 {
         super::backend::scale_factor(&self.window)
     }
 
-    #[inline]
     pub fn set_cursor(&self, cursor: Cursor) {
         self.canvas.cursor.set_cursor(cursor)
     }
 
-    #[inline]
     pub fn set_cursor_position(&self, _position: Position) -> Result<(), ExternalError> {
         Err(ExternalError::NotSupported(NotSupportedError::new()))
     }
 
-    #[inline]
     pub fn set_cursor_grab(&self, mode: CursorGrabMode) -> Result<(), ExternalError> {
         match mode {
             CursorGrabMode::None => self.canvas.document().exit_pointer_lock(),
@@ -264,52 +247,42 @@ impl Inner {
         Ok(())
     }
 
-    #[inline]
     pub fn set_cursor_visible(&self, visible: bool) {
         self.canvas.cursor.set_cursor_visible(visible)
     }
 
-    #[inline]
     pub fn drag_window(&self) -> Result<(), ExternalError> {
         Err(ExternalError::NotSupported(NotSupportedError::new()))
     }
 
-    #[inline]
     pub fn drag_resize_window(&self, _direction: ResizeDirection) -> Result<(), ExternalError> {
         Err(ExternalError::NotSupported(NotSupportedError::new()))
     }
 
-    #[inline]
     pub fn show_window_menu(&self, _position: Position) {}
 
-    #[inline]
     pub fn set_cursor_hittest(&self, _hittest: bool) -> Result<(), ExternalError> {
         Err(ExternalError::NotSupported(NotSupportedError::new()))
     }
 
-    #[inline]
     pub fn set_minimized(&self, _minimized: bool) {
         // Intentionally a no-op, as canvases cannot be 'minimized'
     }
 
-    #[inline]
     pub fn is_minimized(&self) -> Option<bool> {
         // Canvas cannot be 'minimized'
         Some(false)
     }
 
-    #[inline]
     pub fn set_maximized(&self, _maximized: bool) {
         // Intentionally a no-op, as canvases cannot be 'maximized'
     }
 
-    #[inline]
     pub fn is_maximized(&self) -> bool {
         // Canvas cannot be 'maximized'
         false
     }
 
-    #[inline]
     pub(crate) fn fullscreen(&self) -> Option<Fullscreen> {
         if self.canvas.is_fullscreen() {
             Some(Fullscreen::Borderless(Some(self.monitor.current_monitor())))
@@ -318,7 +291,6 @@ impl Inner {
         }
     }
 
-    #[inline]
     pub(crate) fn set_fullscreen(&self, fullscreen: Option<Fullscreen>) {
         if let Some(fullscreen) = fullscreen {
             self.canvas.request_fullscreen(fullscreen);
@@ -327,7 +299,6 @@ impl Inner {
         }
     }
 
-    #[inline]
     pub fn set_decorations(&self, _decorations: bool) {
         // Intentionally a no-op, no canvas decorations
     }
@@ -336,65 +307,52 @@ impl Inner {
         true
     }
 
-    #[inline]
     pub fn set_window_level(&self, _level: WindowLevel) {
         // Intentionally a no-op, no window ordering
     }
 
-    #[inline]
     pub fn set_window_icon(&self, _window_icon: Option<Icon>) {
         // Currently an intentional no-op
     }
 
-    #[inline]
     pub fn set_ime_cursor_area(&self, _position: Position, _size: Size) {
         // Currently not implemented
     }
 
-    #[inline]
     pub fn set_ime_allowed(&self, _allowed: bool) {
         // Currently not implemented
     }
 
-    #[inline]
     pub fn set_ime_purpose(&self, _purpose: ImePurpose) {
         // Currently not implemented
     }
 
-    #[inline]
     pub fn focus_window(&self) {
         let _ = self.canvas.raw().focus();
     }
 
-    #[inline]
     pub fn request_user_attention(&self, _request_type: Option<UserAttentionType>) {
         // Currently an intentional no-op
     }
 
-    #[inline]
     pub fn current_monitor(&self) -> Option<MonitorHandle> {
         Some(self.monitor.current_monitor())
     }
 
-    #[inline]
     pub fn available_monitors(&self) -> Vec<MonitorHandle> {
         self.monitor.available_monitors()
     }
 
-    #[inline]
     pub fn primary_monitor(&self) -> Option<MonitorHandle> {
         self.monitor.primary_monitor()
     }
 
-    #[inline]
     pub fn id(&self) -> WindowId {
         self.id
     }
 
-    #[inline]
     pub fn set_theme(&self, _theme: Option<Theme>) {}
 
-    #[inline]
     pub fn theme(&self) -> Option<Theme> {
         backend::is_dark_mode(&self.window).map(|is_dark_mode| {
             if is_dark_mode {
@@ -407,7 +365,6 @@ impl Inner {
 
     pub fn set_content_protected(&self, _protected: bool) {}
 
-    #[inline]
     pub fn has_focus(&self) -> bool {
         self.canvas.has_focus.get()
     }

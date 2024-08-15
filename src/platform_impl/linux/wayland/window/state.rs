@@ -382,7 +382,6 @@ impl WindowState {
         }
     }
 
-    #[inline]
     fn is_stateless(configure: &WindowConfigure) -> bool {
         !(configure.is_maximized() || configure.is_fullscreen() || configure.is_tiled())
     }
@@ -488,7 +487,6 @@ impl WindowState {
     }
 
     /// Get the stored resizable state.
-    #[inline]
     pub fn resizable(&self) -> bool {
         self.resizable
     }
@@ -496,7 +494,6 @@ impl WindowState {
     /// Set the resizable state on the window.
     ///
     /// Returns `true` when the state was applied.
-    #[inline]
     pub fn set_resizable(&mut self, resizable: bool) -> bool {
         if self.resizable == resizable {
             return false;
@@ -520,30 +517,25 @@ impl WindowState {
     }
 
     /// Whether the window is focused by any seat.
-    #[inline]
     pub fn has_focus(&self) -> bool {
         !self.seat_focus.is_empty()
     }
 
     /// Whether the IME is allowed.
-    #[inline]
     pub fn ime_allowed(&self) -> bool {
         self.ime_allowed
     }
 
     /// Get the size of the window.
-    #[inline]
     pub fn inner_size(&self) -> LogicalSize<u32> {
         self.size
     }
 
     /// Whether the window received initial configure event from the compositor.
-    #[inline]
     pub fn is_configured(&self) -> bool {
         self.last_configure.is_some()
     }
 
-    #[inline]
     pub fn is_decorated(&mut self) -> bool {
         let csd = self
             .last_configure
@@ -559,7 +551,6 @@ impl WindowState {
     }
 
     /// Get the outer size of the window.
-    #[inline]
     pub fn outer_size(&self) -> LogicalSize<u32> {
         self.frame
             .as_ref()
@@ -679,7 +670,6 @@ impl WindowState {
     }
 
     /// Get the scale factor of the window.
-    #[inline]
     pub fn scale_factor(&self) -> f64 {
         self.scale_factor
     }
@@ -793,7 +783,6 @@ impl WindowState {
     }
 
     /// The current theme for CSD decorations.
-    #[inline]
     pub fn theme(&self) -> Option<Theme> {
         self.theme
     }
@@ -903,7 +892,6 @@ impl WindowState {
     }
 
     /// Whether show or hide client side decorations.
-    #[inline]
     pub fn set_decorate(&mut self, decorate: bool) {
         if decorate == self.decorate {
             return;
@@ -928,13 +916,11 @@ impl WindowState {
     }
 
     /// Add seat focus for the window.
-    #[inline]
     pub fn add_seat_focus(&mut self, seat: ObjectId) {
         self.seat_focus.insert(seat);
     }
 
     /// Remove seat focus from the window.
-    #[inline]
     pub fn remove_seat_focus(&mut self, seat: &ObjectId) {
         self.seat_focus.remove(seat);
     }
@@ -987,7 +973,6 @@ impl WindowState {
     }
 
     /// Set the scale factor for the given window.
-    #[inline]
     pub fn set_scale_factor(&mut self, scale_factor: f64) {
         self.scale_factor = scale_factor;
 
@@ -1002,7 +987,6 @@ impl WindowState {
     }
 
     /// Make window background blurred
-    #[inline]
     pub fn set_blur(&mut self, blurred: bool) {
         if blurred && self.blur.is_none() {
             if let Some(blur_manager) = self.blur_manager.as_ref() {
@@ -1042,14 +1026,12 @@ impl WindowState {
     }
 
     /// Mark the window as transparent.
-    #[inline]
     pub fn set_transparent(&mut self, transparent: bool) {
         self.transparent = transparent;
         self.reload_transparency_hint();
     }
 
     /// Register text input on the top-level.
-    #[inline]
     pub fn text_input_entered(&mut self, text_input: &ZwpTextInputV3) {
         if !self.text_inputs.iter().any(|t| t == text_input) {
             self.text_inputs.push(text_input.clone());
@@ -1057,7 +1039,6 @@ impl WindowState {
     }
 
     /// The text input left the top-level.
-    #[inline]
     pub fn text_input_left(&mut self, text_input: &ZwpTextInputV3) {
         if let Some(position) = self.text_inputs.iter().position(|t| t == text_input) {
             self.text_inputs.remove(position);
@@ -1065,7 +1046,6 @@ impl WindowState {
     }
 
     /// Get the cached title.
-    #[inline]
     pub fn title(&self) -> &str {
         &self.title
     }

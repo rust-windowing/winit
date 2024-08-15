@@ -23,7 +23,6 @@ pub enum ImeContextCreationError {
 type XIMProcNonnull = unsafe extern "C" fn(ffi::XIM, ffi::XPointer, ffi::XPointer);
 
 /// Wrapper for creating XIM callbacks.
-#[inline]
 fn create_xim_callback(client_data: ffi::XPointer, callback: XIMProcNonnull) -> ffi::XIMCallback {
     XIMCallback { client_data, callback: Some(callback) }
 }

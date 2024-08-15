@@ -150,34 +150,28 @@ impl Window {
         Ok(())
     }
 
-    #[inline]
     pub fn id(&self) -> WindowId {
         WindowId { fd: self.window_socket.fd as u64 }
     }
 
-    #[inline]
     pub fn primary_monitor(&self) -> Option<MonitorHandle> {
         Some(MonitorHandle)
     }
 
-    #[inline]
     pub fn available_monitors(&self) -> VecDeque<MonitorHandle> {
         let mut v = VecDeque::with_capacity(1);
         v.push_back(MonitorHandle);
         v
     }
 
-    #[inline]
     pub fn current_monitor(&self) -> Option<MonitorHandle> {
         Some(MonitorHandle)
     }
 
-    #[inline]
     pub fn scale_factor(&self) -> f64 {
         MonitorHandle.scale_factor()
     }
 
-    #[inline]
     pub fn request_redraw(&self) {
         let window_id = self.id();
         let mut redraws = self.redraws.lock().unwrap();
@@ -188,15 +182,12 @@ impl Window {
         }
     }
 
-    #[inline]
     pub fn pre_present_notify(&self) {}
 
-    #[inline]
     pub fn reset_dead_keys(&self) {
         // TODO?
     }
 
-    #[inline]
     pub fn inner_position(&self) -> Result<PhysicalPosition<i32>, error::NotSupportedError> {
         let mut buf: [u8; 4096] = [0; 4096];
         let path = self.window_socket.fpath(&mut buf).expect("failed to read properties");
@@ -204,20 +195,17 @@ impl Window {
         Ok((properties.x, properties.y).into())
     }
 
-    #[inline]
     pub fn outer_position(&self) -> Result<PhysicalPosition<i32>, error::NotSupportedError> {
         // TODO: adjust for window decorations
         self.inner_position()
     }
 
-    #[inline]
     pub fn set_outer_position(&self, position: Position) {
         // TODO: adjust for window decorations
         let (x, y): (i32, i32) = position.to_physical::<i32>(self.scale_factor()).into();
         self.window_socket.write(format!("P,{x},{y}").as_bytes()).expect("failed to set position");
     }
 
-    #[inline]
     pub fn inner_size(&self) -> PhysicalSize<u32> {
         let mut buf: [u8; 4096] = [0; 4096];
         let path = self.window_socket.fpath(&mut buf).expect("failed to read properties");
@@ -225,26 +213,21 @@ impl Window {
         (properties.w, properties.h).into()
     }
 
-    #[inline]
     pub fn request_inner_size(&self, size: Size) -> Option<PhysicalSize<u32>> {
         let (w, h): (u32, u32) = size.to_physical::<u32>(self.scale_factor()).into();
         self.window_socket.write(format!("S,{w},{h}").as_bytes()).expect("failed to set size");
         None
     }
 
-    #[inline]
     pub fn outer_size(&self) -> PhysicalSize<u32> {
         // TODO: adjust for window decorations
         self.inner_size()
     }
 
-    #[inline]
     pub fn set_min_inner_size(&self, _: Option<Size>) {}
 
-    #[inline]
     pub fn set_max_inner_size(&self, _: Option<Size>) {}
 
-    #[inline]
     pub fn title(&self) -> String {
         let mut buf: [u8; 4096] = [0; 4096];
         let path = self.window_socket.fpath(&mut buf).expect("failed to read properties");
@@ -252,84 +235,66 @@ impl Window {
         properties.title.to_string()
     }
 
-    #[inline]
     pub fn set_title(&self, title: &str) {
         self.window_socket.write(format!("T,{title}").as_bytes()).expect("failed to set title");
     }
 
-    #[inline]
     pub fn set_transparent(&self, transparent: bool) {
         let _ = self.set_flag(ORBITAL_FLAG_TRANSPARENT, transparent);
     }
 
-    #[inline]
     pub fn set_blur(&self, _blur: bool) {}
 
-    #[inline]
     pub fn set_visible(&self, visible: bool) {
         let _ = self.set_flag(ORBITAL_FLAG_HIDDEN, !visible);
     }
 
-    #[inline]
     pub fn is_visible(&self) -> Option<bool> {
         Some(!self.get_flag(ORBITAL_FLAG_HIDDEN).unwrap_or(false))
     }
 
-    #[inline]
     pub fn resize_increments(&self) -> Option<PhysicalSize<u32>> {
         None
     }
 
-    #[inline]
     pub fn set_resize_increments(&self, _increments: Option<Size>) {}
 
-    #[inline]
     pub fn set_resizable(&self, resizeable: bool) {
         let _ = self.set_flag(ORBITAL_FLAG_RESIZABLE, resizeable);
     }
 
-    #[inline]
     pub fn is_resizable(&self) -> bool {
         self.get_flag(ORBITAL_FLAG_RESIZABLE).unwrap_or(false)
     }
 
-    #[inline]
     pub fn set_minimized(&self, _minimized: bool) {}
 
-    #[inline]
     pub fn is_minimized(&self) -> Option<bool> {
         None
     }
 
-    #[inline]
     pub fn set_maximized(&self, maximized: bool) {
         let _ = self.set_flag(ORBITAL_FLAG_MAXIMIZED, maximized);
     }
 
-    #[inline]
     pub fn is_maximized(&self) -> bool {
         self.get_flag(ORBITAL_FLAG_MAXIMIZED).unwrap_or(false)
     }
 
-    #[inline]
     pub(crate) fn set_fullscreen(&self, _monitor: Option<Fullscreen>) {}
 
-    #[inline]
     pub(crate) fn fullscreen(&self) -> Option<Fullscreen> {
         None
     }
 
-    #[inline]
     pub fn set_decorations(&self, decorations: bool) {
         let _ = self.set_flag(ORBITAL_FLAG_BORDERLESS, !decorations);
     }
 
-    #[inline]
     pub fn is_decorated(&self) -> bool {
         !self.get_flag(ORBITAL_FLAG_BORDERLESS).unwrap_or(false)
     }
 
-    #[inline]
     pub fn set_window_level(&self, level: window::WindowLevel) {
         match level {
             window::WindowLevel::AlwaysOnBottom => {
@@ -345,33 +310,24 @@ impl Window {
         }
     }
 
-    #[inline]
     pub fn set_window_icon(&self, _window_icon: Option<crate::icon::Icon>) {}
 
-    #[inline]
     pub fn set_ime_cursor_area(&self, _position: Position, _size: Size) {}
 
-    #[inline]
     pub fn set_ime_allowed(&self, _allowed: bool) {}
 
-    #[inline]
     pub fn set_ime_purpose(&self, _purpose: ImePurpose) {}
 
-    #[inline]
     pub fn focus_window(&self) {}
 
-    #[inline]
     pub fn request_user_attention(&self, _request_type: Option<window::UserAttentionType>) {}
 
-    #[inline]
     pub fn set_cursor(&self, _: Cursor) {}
 
-    #[inline]
     pub fn set_cursor_position(&self, _: Position) -> Result<(), error::ExternalError> {
         Err(error::ExternalError::NotSupported(error::NotSupportedError::new()))
     }
 
-    #[inline]
     pub fn set_cursor_grab(
         &self,
         mode: window::CursorGrabMode,
@@ -390,12 +346,10 @@ impl Window {
         Ok(())
     }
 
-    #[inline]
     pub fn set_cursor_visible(&self, visible: bool) {
         let _ = self.window_socket.write(format!("M,C,{}", if visible { 1 } else { 0 }).as_bytes());
     }
 
-    #[inline]
     pub fn drag_window(&self) -> Result<(), error::ExternalError> {
         self.window_socket
             .write(b"D")
@@ -403,7 +357,6 @@ impl Window {
         Ok(())
     }
 
-    #[inline]
     pub fn drag_resize_window(
         &self,
         direction: window::ResizeDirection,
@@ -424,16 +377,13 @@ impl Window {
         Ok(())
     }
 
-    #[inline]
     pub fn show_window_menu(&self, _position: Position) {}
 
-    #[inline]
     pub fn set_cursor_hittest(&self, _hittest: bool) -> Result<(), error::ExternalError> {
         Err(error::ExternalError::NotSupported(error::NotSupportedError::new()))
     }
 
     #[cfg(feature = "rwh_06")]
-    #[inline]
     pub fn raw_window_handle_rwh_06(&self) -> Result<rwh_06::RawWindowHandle, rwh_06::HandleError> {
         let handle = rwh_06::OrbitalWindowHandle::new({
             let window = self.window_socket.fd as *mut _;
@@ -443,32 +393,26 @@ impl Window {
     }
 
     #[cfg(feature = "rwh_06")]
-    #[inline]
     pub fn raw_display_handle_rwh_06(
         &self,
     ) -> Result<rwh_06::RawDisplayHandle, rwh_06::HandleError> {
         Ok(rwh_06::RawDisplayHandle::Orbital(rwh_06::OrbitalDisplayHandle::new()))
     }
 
-    #[inline]
     pub fn set_enabled_buttons(&self, _buttons: window::WindowButtons) {}
 
-    #[inline]
     pub fn enabled_buttons(&self) -> window::WindowButtons {
         window::WindowButtons::all()
     }
 
-    #[inline]
     pub fn theme(&self) -> Option<window::Theme> {
         None
     }
 
-    #[inline]
     pub fn has_focus(&self) -> bool {
         false
     }
 
-    #[inline]
     pub fn set_theme(&self, _theme: Option<window::Theme>) {}
 
     pub fn set_content_protected(&self, _protected: bool) {}

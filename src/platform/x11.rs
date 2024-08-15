@@ -77,7 +77,6 @@ pub type XWindow = u32;
 /// `false` if you're not initiated the `Sync`.**
 ///
 /// [`unsafe`]: https://www.remlab.net/op/xlib.shtml
-#[inline]
 pub fn register_xlib_error_hook(hook: XlibErrorHook) {
     // Append new hook.
     unsafe {
@@ -92,7 +91,6 @@ pub trait ActiveEventLoopExtX11 {
 }
 
 impl ActiveEventLoopExtX11 for dyn ActiveEventLoop + '_ {
-    #[inline]
     fn is_x11(&self) -> bool {
         self.as_any().downcast_ref::<crate::platform_impl::x11::ActiveEventLoop>().is_some()
     }
@@ -105,7 +103,6 @@ pub trait EventLoopExtX11 {
 }
 
 impl EventLoopExtX11 for EventLoop {
-    #[inline]
     fn is_x11(&self) -> bool {
         !self.event_loop.is_wayland()
     }
@@ -124,13 +121,11 @@ pub trait EventLoopBuilderExtX11 {
 }
 
 impl EventLoopBuilderExtX11 for EventLoopBuilder {
-    #[inline]
     fn with_x11(&mut self) -> &mut Self {
         self.platform_specific.forced_backend = Some(crate::platform_impl::Backend::X);
         self
     }
 
-    #[inline]
     fn with_any_thread(&mut self, any_thread: bool) -> &mut Self {
         self.platform_specific.any_thread = any_thread;
         self
@@ -197,44 +192,37 @@ pub trait WindowAttributesExtX11 {
 }
 
 impl WindowAttributesExtX11 for WindowAttributes {
-    #[inline]
     fn with_x11_visual(mut self, visual_id: XVisualID) -> Self {
         self.platform_specific.x11.visual_id = Some(visual_id);
         self
     }
 
-    #[inline]
     fn with_x11_screen(mut self, screen_id: i32) -> Self {
         self.platform_specific.x11.screen_id = Some(screen_id);
         self
     }
 
-    #[inline]
     fn with_name(mut self, general: impl Into<String>, instance: impl Into<String>) -> Self {
         self.platform_specific.name =
             Some(crate::platform_impl::ApplicationName::new(general.into(), instance.into()));
         self
     }
 
-    #[inline]
     fn with_override_redirect(mut self, override_redirect: bool) -> Self {
         self.platform_specific.x11.override_redirect = override_redirect;
         self
     }
 
-    #[inline]
     fn with_x11_window_type(mut self, x11_window_types: Vec<WindowType>) -> Self {
         self.platform_specific.x11.x11_window_types = x11_window_types;
         self
     }
 
-    #[inline]
     fn with_base_size<S: Into<Size>>(mut self, base_size: S) -> Self {
         self.platform_specific.x11.base_size = Some(base_size.into());
         self
     }
 
-    #[inline]
     fn with_embed_parent_window(mut self, parent_window_id: XWindow) -> Self {
         self.platform_specific.x11.embed_window = Some(parent_window_id);
         self
@@ -248,7 +236,6 @@ pub trait MonitorHandleExtX11 {
 }
 
 impl MonitorHandleExtX11 for MonitorHandle {
-    #[inline]
     fn native_id(&self) -> u32 {
         self.inner.native_identifier()
     }

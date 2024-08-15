@@ -50,7 +50,6 @@ impl VideoModeHandle {
     /// rendering surface. Use [`Window::inner_size()`] instead.
     ///
     /// [`Window::inner_size()`]: crate::window::Window::inner_size
-    #[inline]
     pub fn size(&self) -> PhysicalSize<u32> {
         self.video_mode.size()
     }
@@ -58,20 +57,17 @@ impl VideoModeHandle {
     /// Returns the bit depth of this video mode, as in how many bits you have
     /// available per color. This is generally 24 bits or 32 bits on modern
     /// systems, depending on whether the alpha channel is counted or not.
-    #[inline]
     pub fn bit_depth(&self) -> Option<NonZeroU16> {
         self.video_mode.bit_depth()
     }
 
     /// Returns the refresh rate of this video mode in mHz.
-    #[inline]
     pub fn refresh_rate_millihertz(&self) -> Option<NonZeroU32> {
         self.video_mode.refresh_rate_millihertz()
     }
 
     /// Returns the monitor that this video mode is valid for. Each monitor has
     /// a separate set of valid video modes.
-    #[inline]
     pub fn monitor(&self) -> MonitorHandle {
         MonitorHandle { inner: self.video_mode.monitor() }
     }
@@ -136,7 +132,6 @@ impl MonitorHandle {
         doc = "[detailed monitor permissions][crate::platform::web::ActiveEventLoopExtWeb::request_detailed_monitor_permission]."
     )]
     #[cfg_attr(not(any(web_platform, docsrs)), doc = "detailed monitor permissions.")]
-    #[inline]
     pub fn name(&self) -> Option<String> {
         self.inner.name()
     }
@@ -152,7 +147,6 @@ impl MonitorHandle {
         doc = "[detailed monitor permissions][crate::platform::web::ActiveEventLoopExtWeb::request_detailed_monitor_permission]."
     )]
     #[cfg_attr(not(any(web_platform, docsrs)), doc = "detailed monitor permissions.")]
-    #[inline]
     pub fn position(&self) -> Option<PhysicalPosition<i32>> {
         self.inner.position()
     }
@@ -176,19 +170,16 @@ impl MonitorHandle {
     ///
     #[rustfmt::skip]
     /// [`Window::scale_factor`]: crate::window::Window::scale_factor
-    #[inline]
     pub fn scale_factor(&self) -> f64 {
         self.inner.scale_factor()
     }
 
     /// Returns the currently active video mode of this monitor.
-    #[inline]
     pub fn current_video_mode(&self) -> Option<VideoModeHandle> {
         self.inner.current_video_mode().map(|video_mode| VideoModeHandle { video_mode })
     }
 
     /// Returns all fullscreen video modes supported by this monitor.
-    #[inline]
     pub fn video_modes(&self) -> impl Iterator<Item = VideoModeHandle> {
         self.inner.video_modes().map(|video_mode| VideoModeHandle { video_mode })
     }

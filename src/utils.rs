@@ -22,7 +22,6 @@ impl<T> Lazy<T> {
 impl<T> Deref for Lazy<T> {
     type Target = T;
 
-    #[inline]
     fn deref(&self) -> &'_ T {
         self.cell.get_or_init(self.init)
     }

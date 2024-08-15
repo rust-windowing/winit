@@ -49,7 +49,6 @@ impl Window {
     }
 
     #[cfg(feature = "rwh_06")]
-    #[inline]
     pub(crate) fn raw_window_handle_rwh_06(
         &self,
     ) -> Result<rwh_06::RawWindowHandle, rwh_06::HandleError> {
@@ -61,7 +60,6 @@ impl Window {
     }
 
     #[cfg(feature = "rwh_06")]
-    #[inline]
     pub(crate) fn raw_display_handle_rwh_06(
         &self,
     ) -> Result<rwh_06::RawDisplayHandle, rwh_06::HandleError> {
