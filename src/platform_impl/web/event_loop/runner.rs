@@ -4,13 +4,13 @@ use std::iter;
 use std::ops::Deref;
 use std::rc::{Rc, Weak};
 
-use js_sys::Function;
-use wasm_bindgen::prelude::{wasm_bindgen, Closure};
+use wasm_bindgen::prelude::Closure;
 use wasm_bindgen::JsCast;
-use web_sys::{Document, KeyboardEvent, PageTransitionEvent, PointerEvent, WheelEvent};
+use web_sys::{Document, KeyboardEvent, Navigator, PageTransitionEvent, PointerEvent, WheelEvent};
 use web_time::{Duration, Instant};
 
 use super::super::main_thread::MainThreadMarker;
+use super::super::monitor::MonitorHandler;
 use super::super::DeviceId;
 use super::backend;
 use super::state::State;
@@ -38,9 +38,9 @@ impl Clone for Shared {
 
 type OnEventHandle<T> = RefCell<Option<EventListenerHandle<dyn FnMut(T)>>>;
 
-pub struct Execution {
+struct Execution {
     main_thread: MainThreadMarker,
-    proxy_spawner: WakerSpawner<Weak<Self>>,
+    proxy_spawner: WakerSpawner<WeakShared>,
     control_flow: Cell<ControlFlow>,
     poll_strategy: Cell<PollStrategy>,
     wait_until_strategy: Cell<WaitUntilStrategy>,
@@ -51,11 +51,13 @@ pub struct Execution {
     events: RefCell<VecDeque<EventWrapper>>,
     id: RefCell<u32>,
     window: web_sys::Window,
+    navigator: Navigator,
     document: Document,
     #[allow(clippy::type_complexity)]
-    all_canvases: RefCell<Vec<(WindowId, Weak<RefCell<backend::Canvas>>, DispatchRunner<Inner>)>>,
+    all_canvases: RefCell<Vec<(WindowId, Weak<backend::Canvas>, DispatchRunner<Inner>)>>,
     redraw_pending: RefCell<HashSet<WindowId>>,
     destroy_pending: RefCell<VecDeque<WindowId>>,
+    pub(crate) monitor: Rc<MonitorHandler>,
     page_transition_event_handle: RefCell<Option<backend::PageTransitionEventHandle>>,
     device_events: Cell<DeviceEvents>,
     on_mouse_move: OnEventHandle<PointerEvent>,
@@ -70,6 +72,8 @@ pub struct Execution {
 enum RunnerEnum {
     /// The `EventLoop` is created but not being run.
     Pending,
+    /// The `EventLoop` is running some async initialization and is waiting to be started.
+    Initializing(Runner),
     /// The `EventLoop` is being run.
     Running(Runner),
     /// The `EventLoop` is exited after being started with `EventLoop::run_app`. Since
@@ -116,7 +120,7 @@ impl Runner {
             EventWrapper::Event(event) => (self.event_handler)(event),
             EventWrapper::ScaleChange { canvas, size, scale } => {
                 if let Some(canvas) = canvas.upgrade() {
-                    canvas.borrow().handle_scale_change(
+                    canvas.handle_scale_change(
                         runner,
                         |event| (self.event_handler)(event),
                         size,
@@ -134,15 +138,24 @@ impl Shared {
         #[allow(clippy::disallowed_methods)]
         let window = web_sys::window().expect("only callable from inside the `Window`");
         #[allow(clippy::disallowed_methods)]
+        let navigator = window.navigator();
+        #[allow(clippy::disallowed_methods)]
         let document = window.document().expect("Failed to obtain document");
 
         Shared(Rc::<Execution>::new_cyclic(|weak| {
-            let proxy_spawner = WakerSpawner::new(main_thread, weak.clone(), |runner, local| {
-                if let Some(runner) = runner.upgrade() {
-                    Shared(runner).send_proxy_wake_up(local);
-                }
-            })
-            .expect("`EventLoop` has to be created in the main thread");
+            let proxy_spawner =
+                WakerSpawner::new(main_thread, WeakShared(weak.clone()), |runner, local| {
+                    if let Some(runner) = runner.upgrade() {
+                        runner.send_proxy_wake_up(local);
+                    }
+                });
+
+            let monitor = MonitorHandler::new(
+                main_thread,
+                window.clone(),
+                &navigator,
+                WeakShared(weak.clone()),
+            );
 
             Execution {
                 main_thread,
@@ -156,11 +169,13 @@ impl Shared {
                 event_loop_recreation: Cell::new(false),
                 events: RefCell::new(VecDeque::new()),
                 window,
+                navigator,
                 document,
                 id: RefCell::new(0),
                 all_canvases: RefCell::new(Vec::new()),
                 redraw_pending: RefCell::new(HashSet::new()),
                 destroy_pending: RefCell::new(VecDeque::new()),
+                monitor: Rc::new(monitor),
                 page_transition_event_handle: RefCell::new(None),
                 device_events: Cell::default(),
                 on_mouse_move: RefCell::new(None),
@@ -182,6 +197,10 @@ impl Shared {
         &self.0.window
     }
 
+    pub fn navigator(&self) -> &Navigator {
+        &self.0.navigator
+    }
+
     pub fn document(&self) -> &Document {
         &self.0.document
     }
@@ -189,7 +208,7 @@ impl Shared {
     pub fn add_canvas(
         &self,
         id: WindowId,
-        canvas: Weak<RefCell<backend::Canvas>>,
+        canvas: Weak<backend::Canvas>,
         runner: DispatchRunner<Inner>,
     ) {
         self.0.all_canvases.borrow_mut().push((id, canvas, runner));
@@ -199,17 +218,38 @@ impl Shared {
         self.0.destroy_pending.borrow_mut().push_back(id);
     }
 
+    pub(crate) fn start(&self, event_handler: Box<EventHandler>) {
+        let mut runner = self.0.runner.borrow_mut();
+        assert!(matches!(*runner, RunnerEnum::Pending));
+        if self.0.monitor.is_initializing() {
+            *runner = RunnerEnum::Initializing(Runner::new(event_handler));
+        } else {
+            *runner = RunnerEnum::Running(Runner::new(event_handler));
+
+            drop(runner);
+
+            self.init();
+            self.set_listener();
+        }
+    }
+
+    pub(crate) fn start_delayed(&self) {
+        let event_handler = match self.0.runner.replace(RunnerEnum::Pending) {
+            RunnerEnum::Initializing(event_handler) => event_handler,
+            // The event loop wasn't started yet.
+            RunnerEnum::Pending => return,
+            _ => unreachable!("event loop already started before waiting for initialization"),
+        };
+        *self.0.runner.borrow_mut() = RunnerEnum::Running(event_handler);
+
+        self.init();
+        self.set_listener();
+    }
+
     // Set the event callback to use for the event loop runner
     // This the event callback is a fairly thin layer over the user-provided callback that closes
     // over a RootActiveEventLoop reference
-    pub(crate) fn set_listener(&self, event_handler: Box<EventHandler>) {
-        {
-            let mut runner = self.0.runner.borrow_mut();
-            assert!(matches!(*runner, RunnerEnum::Pending));
-            *runner = RunnerEnum::Running(Runner::new(event_handler));
-        }
-        self.init();
-
+    fn set_listener(&self) {
         *self.0.page_transition_event_handle.borrow_mut() = Some(backend::on_page_transition(
             self.window().clone(),
             {
@@ -236,6 +276,7 @@ impl Shared {
 
         let runner = self.clone();
         let window = self.window().clone();
+        let navigator = self.navigator().clone();
         *self.0.on_mouse_move.borrow_mut() = Some(EventListenerHandle::new(
             self.window().clone(),
             "pointermove",
@@ -244,21 +285,10 @@ impl Shared {
                     return;
                 }
 
-                let pointer_type = event.pointer_type();
-
-                if pointer_type != "mouse" {
-                    return;
-                }
-
                 // chorded button event
-                let device_id = RootDeviceId(DeviceId(event.pointer_id()));
+                let device_id = RootDeviceId(DeviceId::new(event.pointer_id()));
 
                 if let Some(button) = backend::event::mouse_button(&event) {
-                    debug_assert_eq!(
-                        pointer_type, "mouse",
-                        "expect pointer type of a chorded button event to be a mouse"
-                    );
-
                     let state = if backend::event::mouse_buttons(&event).contains(button.into()) {
                         ElementState::Pressed
                     } else {
@@ -274,24 +304,14 @@ impl Shared {
                 }
 
                 // pointer move event
-                let mut delta = backend::event::MouseDelta::init(&window, &event);
-                runner.send_events(backend::event::pointer_move_event(event).flat_map(|event| {
+                let mut delta = backend::event::MouseDelta::init(&navigator, &event);
+                runner.send_events(backend::event::pointer_move_event(event).map(|event| {
                     let delta = delta.delta(&event).to_physical(backend::scale_factor(&window));
 
-                    let x_motion = (delta.x != 0.0).then_some(Event::DeviceEvent {
-                        device_id,
-                        event: DeviceEvent::Motion { axis: 0, value: delta.x },
-                    });
-
-                    let y_motion = (delta.y != 0.0).then_some(Event::DeviceEvent {
-                        device_id,
-                        event: DeviceEvent::Motion { axis: 1, value: delta.y },
-                    });
-
-                    x_motion.into_iter().chain(y_motion).chain(iter::once(Event::DeviceEvent {
+                    Event::DeviceEvent {
                         device_id,
                         event: DeviceEvent::MouseMotion { delta: (delta.x, delta.y) },
-                    }))
+                    }
                 }));
             }),
         ));
@@ -307,7 +327,7 @@ impl Shared {
 
                 if let Some(delta) = backend::event::mouse_scroll_delta(&window, &event) {
                     runner.send_event(Event::DeviceEvent {
-                        device_id: RootDeviceId(DeviceId(0)),
+                        device_id: RootDeviceId(DeviceId::dummy()),
                         event: DeviceEvent::MouseWheel { delta },
                     });
                 }
@@ -322,13 +342,9 @@ impl Shared {
                     return;
                 }
 
-                if event.pointer_type() != "mouse" {
-                    return;
-                }
-
                 let button = backend::event::mouse_button(&event).expect("no mouse button pressed");
                 runner.send_event(Event::DeviceEvent {
-                    device_id: RootDeviceId(DeviceId(event.pointer_id())),
+                    device_id: RootDeviceId(DeviceId::new(event.pointer_id())),
                     event: DeviceEvent::Button {
                         button: button.to_id(),
                         state: ElementState::Pressed,
@@ -345,13 +361,9 @@ impl Shared {
                     return;
                 }
 
-                if event.pointer_type() != "mouse" {
-                    return;
-                }
-
                 let button = backend::event::mouse_button(&event).expect("no mouse button pressed");
                 runner.send_event(Event::DeviceEvent {
-                    device_id: RootDeviceId(DeviceId(event.pointer_id())),
+                    device_id: RootDeviceId(DeviceId::new(event.pointer_id())),
                     event: DeviceEvent::Button {
                         button: button.to_id(),
                         state: ElementState::Released,
@@ -410,7 +422,7 @@ impl Shared {
                             // - not visible and we don't know if it intersects yet
                             // - visible and intersects
                             if let (false, Some(true) | None) | (true, Some(true)) =
-                                (is_visible, canvas.borrow().is_intersecting)
+                                (is_visible, canvas.is_intersecting.get())
                             {
                                 runner.send_event(Event::WindowEvent {
                                     window_id: *id,
@@ -438,7 +450,7 @@ impl Shared {
         self.send_events::<EventWrapper>(iter::empty());
     }
 
-    pub fn init(&self) {
+    fn init(&self) {
         // NB: For consistency all platforms must call `can_create_surfaces` even though Web
         // applications don't themselves have a formal surface destroy/create lifecycle.
         self.run_until_cleared(
@@ -482,14 +494,8 @@ impl Shared {
             if let Ok(RunnerEnum::Running(_)) =
                 self.0.runner.try_borrow().as_ref().map(Deref::deref)
             {
-                #[wasm_bindgen]
-                extern "C" {
-                    #[wasm_bindgen(js_name = queueMicrotask)]
-                    fn queue_microtask(task: Function);
-                }
-
-                queue_microtask(
-                    Closure::once_into_js({
+                self.window().queue_microtask(
+                    &Closure::once_into_js({
                         let this = Rc::downgrade(&self.0);
                         move || {
                             if let Some(shared) = this.upgrade() {
@@ -520,8 +526,8 @@ impl Shared {
         match self.0.runner.try_borrow().as_ref().map(Deref::deref) {
             // If the runner is attached but not running, we always wake it up.
             Ok(RunnerEnum::Running(_)) => (),
-            Ok(RunnerEnum::Pending) => {
-                // The runner still hasn't been attached: queue this event and wait for it to be
+            // The runner still hasn't been attached: queue this event and wait for it to be
+            Ok(RunnerEnum::Pending | RunnerEnum::Initializing(_)) => {
                 process_immediately = false;
             },
             // Some other code is mutating the runner, which most likely means
@@ -624,6 +630,8 @@ impl Shared {
             RunnerEnum::Pending => self.0.events.borrow_mut().push_back(event.into()),
             // If the Runner has been destroyed, there is nothing to do.
             RunnerEnum::Destroyed => return,
+            // This function should never be called if we are still waiting for something.
+            RunnerEnum::Initializing(_) => unreachable!(),
         }
 
         let is_closed = self.exiting();
@@ -635,7 +643,7 @@ impl Shared {
             // and potentially block other threads in the meantime.
             for (_, window, runner) in self.0.all_canvases.borrow().iter() {
                 if let Some(window) = window.upgrade() {
-                    runner.run();
+                    runner.run(self.main_thread());
                     drop(window)
                 }
             }
@@ -724,7 +732,6 @@ impl Shared {
             // In case any remaining `Window`s are still not dropped, we will need
             // to explicitly remove the event handlers associated with their canvases.
             if let Some(canvas) = canvas.upgrade() {
-                let mut canvas = canvas.borrow_mut();
                 canvas.remove_listeners();
             }
         }
@@ -750,6 +757,8 @@ impl Shared {
             Ok(RunnerEnum::Pending) => false,
             // The event loop is closed since it has been destroyed.
             Ok(RunnerEnum::Destroyed) => true,
+            // The event loop is not closed since its still waiting to be started.
+            Ok(RunnerEnum::Initializing(_)) => false,
             // Some other code is mutating the runner, which most likely means
             // the event loop is running and busy.
             Err(_) => false,
@@ -766,7 +775,7 @@ impl Shared {
             DeviceEvents::WhenFocused => {
                 self.0.all_canvases.borrow().iter().any(|(_, canvas, _)| {
                     if let Some(canvas) = canvas.upgrade() {
-                        canvas.borrow().has_focus.get()
+                        canvas.has_focus.get()
                     } else {
                         false
                     }
@@ -812,14 +821,31 @@ impl Shared {
         self.0.wait_until_strategy.get()
     }
 
-    pub(crate) fn waker(&self) -> Waker<Weak<Execution>> {
+    pub(crate) fn waker(&self) -> Waker<WeakShared> {
         self.0.proxy_spawner.waker()
+    }
+
+    pub(crate) fn weak(&self) -> WeakShared {
+        WeakShared(Rc::downgrade(&self.0))
+    }
+
+    pub(crate) fn monitor(&self) -> &Rc<MonitorHandler> {
+        &self.0.monitor
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct WeakShared(Weak<Execution>);
+
+impl WeakShared {
+    pub fn upgrade(&self) -> Option<Shared> {
+        self.0.upgrade().map(Shared)
     }
 }
 
 pub(crate) enum EventWrapper {
     Event(Event),
-    ScaleChange { canvas: Weak<RefCell<backend::Canvas>>, size: PhysicalSize<u32>, scale: f64 },
+    ScaleChange { canvas: Weak<backend::Canvas>, size: PhysicalSize<u32>, scale: f64 },
 }
 
 impl From<Event> for EventWrapper {

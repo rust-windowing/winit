@@ -403,29 +403,6 @@ impl Inner {
         self.window.id()
     }
 
-    #[cfg(feature = "rwh_04")]
-    pub fn raw_window_handle_rwh_04(&self) -> rwh_04::RawWindowHandle {
-        let mut window_handle = rwh_04::UiKitHandle::empty();
-        window_handle.ui_window = Retained::as_ptr(&self.window) as _;
-        window_handle.ui_view = Retained::as_ptr(&self.view) as _;
-        window_handle.ui_view_controller = Retained::as_ptr(&self.view_controller) as _;
-        rwh_04::RawWindowHandle::UiKit(window_handle)
-    }
-
-    #[cfg(feature = "rwh_05")]
-    pub fn raw_window_handle_rwh_05(&self) -> rwh_05::RawWindowHandle {
-        let mut window_handle = rwh_05::UiKitWindowHandle::empty();
-        window_handle.ui_window = Retained::as_ptr(&self.window) as _;
-        window_handle.ui_view = Retained::as_ptr(&self.view) as _;
-        window_handle.ui_view_controller = Retained::as_ptr(&self.view_controller) as _;
-        rwh_05::RawWindowHandle::UiKit(window_handle)
-    }
-
-    #[cfg(feature = "rwh_05")]
-    pub fn raw_display_handle_rwh_05(&self) -> rwh_05::RawDisplayHandle {
-        rwh_05::RawDisplayHandle::UiKit(rwh_05::UiKitDisplayHandle::empty())
-    }
-
     #[cfg(feature = "rwh_06")]
     pub fn raw_window_handle_rwh_06(&self) -> rwh_06::RawWindowHandle {
         let mut window_handle = rwh_06::UiKitWindowHandle::new({
@@ -725,7 +702,7 @@ impl From<&AnyObject> for WindowId {
     }
 }
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq)]
 pub struct PlatformSpecificWindowAttributes {
     pub scale_factor: Option<f64>,
     pub valid_orientations: ValidOrientations,

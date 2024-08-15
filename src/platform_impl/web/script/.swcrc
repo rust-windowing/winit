@@ -1,6 +1,13 @@
 {
+	"module": {
+		"type": "es6"
+	},
+	"isModule": true,
 	"minify": true,
 	"jsc": {
+		"parser": {
+			"syntax": "typescript"
+		},
 		"target": "es2022",
 		"minify": {
 			"compress": {

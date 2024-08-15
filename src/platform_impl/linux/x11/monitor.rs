@@ -1,3 +1,5 @@
+use std::num::{NonZeroU16, NonZeroU32};
+
 use x11rb::connection::RequestConnection;
 use x11rb::protocol::randr::{self, ConnectionExt as _};
 use x11rb::protocol::xproto;
@@ -18,9 +20,10 @@ impl XConnection {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct VideoModeHandle {
+    pub(crate) current: bool,
     pub(crate) size: (u32, u32),
-    pub(crate) bit_depth: u16,
-    pub(crate) refresh_rate_millihertz: u32,
+    pub(crate) bit_depth: Option<NonZeroU16>,
+    pub(crate) refresh_rate_millihertz: Option<NonZeroU32>,
     pub(crate) native_mode: randr::Mode,
     pub(crate) monitor: Option<MonitorHandle>,
 }
@@ -32,12 +35,12 @@ impl VideoModeHandle {
     }
 
     #[inline]
-    pub fn bit_depth(&self) -> u16 {
+    pub fn bit_depth(&self) -> Option<NonZeroU16> {
         self.bit_depth
     }
 
     #[inline]
-    pub fn refresh_rate_millihertz(&self) -> u32 {
+    pub fn refresh_rate_millihertz(&self) -> Option<NonZeroU32> {
         self.refresh_rate_millihertz
     }
 
@@ -53,14 +56,10 @@ pub struct MonitorHandle {
     pub(crate) id: randr::Crtc,
     /// The name of the monitor
     pub(crate) name: String,
-    /// The size of the monitor
-    dimensions: (u32, u32),
     /// The position of the monitor in the X screen
-    position: (i32, i32),
+    pub(crate) position: (i32, i32),
     /// If the monitor is the primary one
     primary: bool,
-    /// The refresh rate used by monitor.
-    refresh_rate_millihertz: Option<u32>,
     /// The DPI scale factor
     pub(crate) scale_factor: f64,
     /// Used to determine which windows are on this monitor
@@ -96,10 +95,12 @@ impl std::hash::Hash for MonitorHandle {
 }
 
 #[inline]
-pub fn mode_refresh_rate_millihertz(mode: &randr::ModeInfo) -> Option<u32> {
+pub fn mode_refresh_rate_millihertz(mode: &randr::ModeInfo) -> Option<NonZeroU32> {
     if mode.dot_clock > 0 && mode.htotal > 0 && mode.vtotal > 0 {
         #[allow(clippy::unnecessary_cast)]
-        Some((mode.dot_clock as u64 * 1000 / (mode.htotal as u64 * mode.vtotal as u64)) as u32)
+        NonZeroU32::new(
+            (mode.dot_clock as u64 * 1000 / (mode.htotal as u64 * mode.vtotal as u64)) as u32,
+        )
     } else {
         None
     }
@@ -117,27 +118,9 @@ impl MonitorHandle {
         let dimensions = (crtc.width as u32, crtc.height as u32);
         let position = (crtc.x as i32, crtc.y as i32);
 
-        // Get the refresh rate of the current video mode.
-        let current_mode = crtc.mode;
-        let screen_modes = resources.modes();
-        let refresh_rate_millihertz = screen_modes
-            .iter()
-            .find(|mode| mode.id == current_mode)
-            .and_then(mode_refresh_rate_millihertz);
-
         let rect = util::AaRect::new(position, dimensions);
 
-        Some(MonitorHandle {
-            id,
-            name,
-            refresh_rate_millihertz,
-            scale_factor,
-            dimensions,
-            position,
-            primary,
-            rect,
-            video_modes,
-        })
+        Some(MonitorHandle { id, name, scale_factor, position, primary, rect, video_modes })
     }
 
     pub fn dummy() -> Self {
@@ -145,9 +128,7 @@ impl MonitorHandle {
             id: 0,
             name: "<dummy monitor>".into(),
             scale_factor: 1.0,
-            dimensions: (1, 1),
             position: (0, 0),
-            refresh_rate_millihertz: None,
             primary: true,
             rect: util::AaRect::new((0, 0), (1, 1)),
             video_modes: Vec::new(),
@@ -168,21 +149,18 @@ impl MonitorHandle {
         self.id as _
     }
 
-    pub fn size(&self) -> PhysicalSize<u32> {
-        self.dimensions.into()
-    }
-
-    pub fn position(&self) -> PhysicalPosition<i32> {
-        self.position.into()
-    }
-
-    pub fn refresh_rate_millihertz(&self) -> Option<u32> {
-        self.refresh_rate_millihertz
+    pub fn position(&self) -> Option<PhysicalPosition<i32>> {
+        Some(self.position.into())
     }
 
     #[inline]
     pub fn scale_factor(&self) -> f64 {
         self.scale_factor
+    }
+
+    #[inline]
+    pub fn current_video_mode(&self) -> Option<PlatformVideoModeHandle> {
+        self.video_modes.iter().find(|mode| mode.current).cloned().map(PlatformVideoModeHandle::X)
     }
 
     #[inline]

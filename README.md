@@ -8,7 +8,7 @@
 
 ```toml
 [dependencies]
-winit = "0.30.4"
+winit = "0.30.5"
 ```
 
 ## [Documentation](https://docs.rs/winit)
@@ -19,7 +19,7 @@ For features _outside_ the scope of winit, see [Are we GUI Yet?](https://arewegu
 
 ## Contact Us
 
-Join us in our [![Matrix](https://img.shields.io/badge/Matrix-%23rust--windowing%3Amatrix.org-blueviolet.svg)](https://matrix.to/#/#rust-windowing:matrix.org) room. If you don't get an answer there, try [![Libera.Chat](https://img.shields.io/badge/libera.chat-%23winit-red.svg)](https://web.libera.chat/#winit).
+Join us in our [![Matrix](https://img.shields.io/badge/Matrix-%23rust--windowing%3Amatrix.org-blueviolet.svg)](https://matrix.to/#/#rust-windowing:matrix.org) room.
 
 The maintainers have a meeting every friday at UTC 15. The meeting notes can be found [here](https://hackmd.io/@winit-meetings).
 
@@ -50,11 +50,14 @@ Where `sid` is the current version of `rustc` provided by [Debian Sid], and
 
 [Debian Sid]: https://packages.debian.org/sid/rustc
 
-The exception is for the Android platform, where a higher Rust version
+An exception is made for the Android platform, where a higher Rust version
 must be used for certain Android features. In this case, the MSRV will be
 capped at the latest stable version of Rust minus three. This inconsistency is
 not reflected in Cargo metadata, as it is not powerful enough to expose this
 restriction.
+
+Redox OS is also not covered by this MSRV policy, as it requires a Rust nightly
+toolchain to compile.
 
 All crates in the [`rust-windowing`] organizations have the
 same MSRV policy.

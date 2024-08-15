@@ -115,7 +115,7 @@ pub(crate) enum Event {
 }
 
 /// Describes the reason the event loop is resuming.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum StartCause {
     /// Sent if the time specified by [`ControlFlow::WaitUntil`] has been reached. Contains the
     /// moment the timeout was requested and the requested resume time. The actual resume time is
@@ -340,9 +340,6 @@ pub enum WindowEvent {
     /// touchpad is being pressed) and stage (integer representing the click level).
     TouchpadPressure { device_id: DeviceId, pressure: f32, stage: i64 },
 
-    /// Motion on some analog axis. May report data redundant to other, more specific events.
-    AxisMotion { device_id: DeviceId, axis: AxisId, value: f64 },
-
     /// Touch event has been received
     ///
     /// ## Platform-specific
@@ -437,6 +434,12 @@ pub enum WindowEvent {
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct DeviceId(pub(crate) platform_impl::DeviceId);
 
+impl Default for DeviceId {
+    fn default() -> Self {
+        Self::dummy()
+    }
+}
+
 impl DeviceId {
     /// Returns a dummy id, useful for unit testing.
     ///
@@ -450,6 +453,26 @@ impl DeviceId {
     }
 }
 
+/// Identifier of a finger in a touch event.
+///
+/// Whenever a touch event is received it contains a `FingerId` which uniquely identifies the finger
+/// used for the current interaction.
+#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct FingerId(pub(crate) platform_impl::FingerId);
+
+impl FingerId {
+    /// Returns a dummy id, useful for unit testing.
+    ///
+    /// # Notes
+    ///
+    /// The only guarantee made about the return value of this function is that
+    /// it will always be equal to itself and to future values returned by this function.
+    /// No other guarantees are made. This may be equal to a real `FingerId`.
+    pub const fn dummy() -> Self {
+        FingerId(platform_impl::FingerId::dummy())
+    }
+}
+
 /// Represents raw hardware events that are not associated with any particular window.
 ///
 /// Useful for interactions that diverge significantly from a conventional 2D GUI, such as 3D camera
@@ -458,15 +481,28 @@ impl DeviceId {
 /// (corresponding to GUI cursors and keyboard focus) the device IDs may not match.
 ///
 /// Note that these events are delivered regardless of input focus.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum DeviceEvent {
-    Added,
-    Removed,
-
     /// Change in physical position of a pointing device.
     ///
     /// This represents raw, unfiltered physical motion. Not to be confused with
     /// [`WindowEvent::CursorMoved`].
+    ///
+    /// ## Platform-specific
+    ///
+    /// **Web:** Only returns raw data, not OS accelerated, if [`CursorGrabMode::Locked`] is used
+    /// and browser support is available, see
+    #[cfg_attr(
+        any(web_platform, docsrs),
+        doc = "[`ActiveEventLoopExtWeb::is_cursor_lock_raw()`][crate::platform::web::ActiveEventLoopExtWeb::is_cursor_lock_raw()]."
+    )]
+    #[cfg_attr(
+        not(any(web_platform, docsrs)),
+        doc = "`ActiveEventLoopExtWeb::is_cursor_lock_raw()`."
+    )]
+    ///
+    #[rustfmt::skip]
+    /// [`CursorGrabMode::Locked`]: crate::window::CursorGrabMode::Locked
     MouseMotion {
         /// (x, y) change in position in unspecified units.
         ///
@@ -477,14 +513,6 @@ pub enum DeviceEvent {
     /// Physical scroll event
     MouseWheel {
         delta: MouseScrollDelta,
-    },
-
-    /// Motion on some analog axis. This event will be reported for all arbitrary input devices
-    /// that winit supports on this platform, including mouse devices.  If the device is a mouse
-    /// device then this will be reported alongside the MouseMotion event.
-    Motion {
-        axis: AxisId,
-        value: f64,
     },
 
     Button {
@@ -502,7 +530,7 @@ pub enum DeviceEvent {
 /// repeat or the initial keypress. An application may emulate this by, for
 /// example keeping a Map/Set of pressed keys and determining whether a keypress
 /// corresponds to an already pressed key.
-#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct RawKeyEvent {
     pub physical_key: keyboard::PhysicalKey,
@@ -523,11 +551,11 @@ pub struct KeyEvent {
     /// ## Caveats
     ///
     /// - Certain niche hardware will shuffle around physical key positions, e.g. a keyboard that
-    /// implements DVORAK in hardware (or firmware)
+    ///   implements DVORAK in hardware (or firmware)
     /// - Your application will likely have to handle keyboards which are missing keys that your
-    /// own keyboard has.
+    ///   own keyboard has.
     /// - Certain `KeyCode`s will move between a couple of different positions depending on what
-    /// layout the keyboard was manufactured to support.
+    ///   layout the keyboard was manufactured to support.
     ///
     ///  **Because of these caveats, it is important that you provide users with a way to configure
     ///  most (if not all) keybinds in your application.**
@@ -549,8 +577,7 @@ pub struct KeyEvent {
     ///
     /// This has two use cases:
     /// - Allows querying whether the current input is a Dead key.
-    /// - Allows handling key-bindings on platforms which don't
-    /// support [`key_without_modifiers`].
+    /// - Allows handling key-bindings on platforms which don't support [`key_without_modifiers`].
     ///
     /// If you use this field (or [`key_without_modifiers`] for that matter) for keyboard
     /// shortcuts, **it is important that you provide users with a way to configure your
@@ -558,8 +585,8 @@ pub struct KeyEvent {
     /// incompatible keyboard layout.**
     ///
     /// ## Platform-specific
-    /// - **Web:** Dead keys might be reported as the real key instead
-    /// of `Dead` depending on the browser/OS.
+    /// - **Web:** Dead keys might be reported as the real key instead of `Dead` depending on the
+    ///   browser/OS.
     ///
     /// [`key_without_modifiers`]: crate::platform::modifier_supplement::KeyEventExtModifierSupplement::key_without_modifiers
     pub logical_key: keyboard::Key,
@@ -616,7 +643,7 @@ pub struct KeyEvent {
     /// In games, you often want to ignore repated key events - this can be
     /// done by ignoring events where this property is set.
     ///
-    /// ```
+    /// ```no_run
     /// use winit::event::{ElementState, KeyEvent, WindowEvent};
     /// use winit::keyboard::{KeyCode, PhysicalKey};
     /// # let window_event = WindowEvent::RedrawRequested; // To make the example compile
@@ -648,7 +675,8 @@ pub struct KeyEvent {
 }
 
 /// Describes keyboard modifiers event.
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Modifiers {
     pub(crate) state: ModifiersState,
 
@@ -841,15 +869,16 @@ pub struct Touch {
     ///
     /// - Only available on **iOS** 9.0+, **Windows** 8+, **Web**, and **Android**.
     /// - **Android**: This will never be [None]. If the device doesn't support pressure
-    /// sensitivity, force will either be 0.0 or 1.0. Also see the
-    /// [android documentation](https://developer.android.com/reference/android/view/MotionEvent#AXIS_PRESSURE).
+    ///   sensitivity, force will either be 0.0 or 1.0. Also see the
+    ///   [android documentation](https://developer.android.com/reference/android/view/MotionEvent#AXIS_PRESSURE).
     pub force: Option<Force>,
     /// Unique identifier of a finger.
-    pub id: u64,
+    pub finger_id: FingerId,
 }
 
 /// Describes the force of a touch event
 #[derive(Debug, Clone, Copy, PartialEq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum Force {
     /// On iOS, the force is calibrated so that the same number corresponds to
     /// roughly the same amount of pressure on the screen regardless of the
@@ -999,6 +1028,8 @@ impl PartialEq for InnerSizeWriter {
     }
 }
 
+impl Eq for InnerSizeWriter {}
+
 #[cfg(test)]
 mod tests {
     use std::collections::{BTreeSet, HashSet};
@@ -1011,6 +1042,7 @@ mod tests {
             #[allow(unused_mut)]
             let mut x = $closure;
             let did = event::DeviceId::dummy();
+            let fid = event::FingerId::dummy();
 
             #[allow(deprecated)]
             {
@@ -1070,12 +1102,11 @@ mod tests {
                     phase: event::TouchPhase::Started,
                 });
                 with_window_event(TouchpadPressure { device_id: did, pressure: 0.0, stage: 0 });
-                with_window_event(AxisMotion { device_id: did, axis: 0, value: 0.0 });
                 with_window_event(Touch(event::Touch {
                     device_id: did,
                     phase: event::TouchPhase::Started,
                     location: (0.0, 0.0).into(),
-                    id: 0,
+                    finger_id: fid,
                     force: Some(event::Force::Normalized(0.0)),
                 }));
                 with_window_event(ThemeChanged(crate::window::Theme::Light));
@@ -1089,13 +1120,10 @@ mod tests {
                 let with_device_event =
                     |dev_ev| x(event::Event::DeviceEvent { device_id: did, event: dev_ev });
 
-                with_device_event(Added);
-                with_device_event(Removed);
                 with_device_event(MouseMotion { delta: (0.0, 0.0).into() });
                 with_device_event(MouseWheel {
                     delta: event::MouseScrollDelta::LineDelta(0.0, 0.0),
                 });
-                with_device_event(Motion { axis: 0, value: 0.0 });
                 with_device_event(Button { button: 0, state: event::ElementState::Pressed });
             }
         }};
@@ -1136,6 +1164,7 @@ mod tests {
         let _ = event::StartCause::Init.clone();
 
         let did = crate::event::DeviceId::dummy().clone();
+        let fid = crate::event::FingerId::dummy().clone();
         HashSet::new().insert(did);
         let mut set = [did, did, did];
         set.sort_unstable();
@@ -1151,7 +1180,7 @@ mod tests {
             device_id: did,
             phase: event::TouchPhase::Started,
             location: (0.0, 0.0).into(),
-            id: 0,
+            finger_id: fid,
             force: Some(event::Force::Normalized(0.0)),
         }
         .clone();

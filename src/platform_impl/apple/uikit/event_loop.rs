@@ -1,6 +1,4 @@
-use std::collections::VecDeque;
 use std::ffi::{c_char, c_int, c_void};
-use std::marker::PhantomData;
 use std::ptr::{self, NonNull};
 use std::sync::atomic::{AtomicBool, Ordering as AtomicOrdering};
 use std::sync::Arc;
@@ -14,92 +12,113 @@ use core_foundation::runloop::{
 };
 use objc2::rc::Retained;
 use objc2::{msg_send_id, ClassType};
-use objc2_foundation::{MainThreadMarker, NSString};
-use objc2_ui_kit::{UIApplication, UIApplicationMain, UIScreen};
+use objc2_foundation::{MainThreadMarker, NSNotificationCenter, NSObject};
+use objc2_ui_kit::{
+    UIApplication, UIApplicationDidBecomeActiveNotification,
+    UIApplicationDidEnterBackgroundNotification, UIApplicationDidFinishLaunchingNotification,
+    UIApplicationDidReceiveMemoryWarningNotification, UIApplicationMain,
+    UIApplicationWillEnterForegroundNotification, UIApplicationWillResignActiveNotification,
+    UIApplicationWillTerminateNotification, UIScreen,
+};
 
-use super::app_delegate::AppDelegate;
-use super::app_state::{AppState, EventLoopHandler};
+use super::super::notification_center::create_observer;
+use super::app_state::{
+    send_occluded_event_for_all_windows, AppState, EventLoopHandler, EventWrapper,
+};
 use super::{app_state, monitor, MonitorHandle};
 use crate::application::ApplicationHandler;
-use crate::error::EventLoopError;
+use crate::error::{EventLoopError, ExternalError, NotSupportedError, OsError};
 use crate::event::Event;
-use crate::event_loop::{ActiveEventLoop as RootActiveEventLoop, ControlFlow, DeviceEvents};
-use crate::window::{CustomCursor, CustomCursorSource};
+use crate::event_loop::{
+    ActiveEventLoop as RootActiveEventLoop, ControlFlow, DeviceEvents,
+    EventLoopProxy as RootEventLoopProxy, OwnedDisplayHandle as RootOwnedDisplayHandle,
+};
+use crate::monitor::MonitorHandle as RootMonitorHandle;
+use crate::platform_impl::Window;
+use crate::window::{CustomCursor, CustomCursorSource, Theme, Window as RootWindow};
 
 #[derive(Debug)]
-pub struct ActiveEventLoop {
+pub(crate) struct ActiveEventLoop {
     pub(super) mtm: MainThreadMarker,
 }
 
-impl ActiveEventLoop {
-    pub fn create_proxy(&self) -> EventLoopProxy {
-        EventLoopProxy::new(AppState::get_mut(self.mtm).proxy_wake_up())
+impl RootActiveEventLoop for ActiveEventLoop {
+    fn create_proxy(&self) -> crate::event_loop::EventLoopProxy {
+        let event_loop_proxy = EventLoopProxy::new(AppState::get_mut(self.mtm).proxy_wake_up());
+        RootEventLoopProxy { event_loop_proxy }
     }
 
-    pub fn create_custom_cursor(&self, source: CustomCursorSource) -> CustomCursor {
-        let _ = source.inner;
-        CustomCursor { inner: super::PlatformCustomCursor }
-    }
-
-    pub fn available_monitors(&self) -> VecDeque<MonitorHandle> {
-        monitor::uiscreens(self.mtm)
-    }
-
-    pub fn primary_monitor(&self) -> Option<MonitorHandle> {
-        #[allow(deprecated)]
-        Some(MonitorHandle::new(UIScreen::mainScreen(self.mtm)))
-    }
-
-    #[inline]
-    pub fn listen_device_events(&self, _allowed: DeviceEvents) {}
-
-    #[cfg(feature = "rwh_05")]
-    #[inline]
-    pub fn raw_display_handle_rwh_05(&self) -> rwh_05::RawDisplayHandle {
-        rwh_05::RawDisplayHandle::UiKit(rwh_05::UiKitDisplayHandle::empty())
-    }
-
-    #[cfg(feature = "rwh_06")]
-    #[inline]
-    pub fn raw_display_handle_rwh_06(
+    fn create_window(
         &self,
-    ) -> Result<rwh_06::RawDisplayHandle, rwh_06::HandleError> {
-        Ok(rwh_06::RawDisplayHandle::UiKit(rwh_06::UiKitDisplayHandle::new()))
+        window_attributes: crate::window::WindowAttributes,
+    ) -> Result<RootWindow, OsError> {
+        let window = Window::new(self, window_attributes)?;
+        Ok(RootWindow { window })
     }
 
-    pub(crate) fn set_control_flow(&self, control_flow: ControlFlow) {
+    fn create_custom_cursor(
+        &self,
+        _source: CustomCursorSource,
+    ) -> Result<CustomCursor, ExternalError> {
+        Err(ExternalError::NotSupported(NotSupportedError::new()))
+    }
+
+    fn available_monitors(&self) -> Box<dyn Iterator<Item = RootMonitorHandle>> {
+        Box::new(monitor::uiscreens(self.mtm).into_iter().map(|inner| RootMonitorHandle { inner }))
+    }
+
+    fn primary_monitor(&self) -> Option<crate::monitor::MonitorHandle> {
+        #[allow(deprecated)]
+        let monitor = MonitorHandle::new(UIScreen::mainScreen(self.mtm));
+        Some(RootMonitorHandle { inner: monitor })
+    }
+
+    fn listen_device_events(&self, _allowed: DeviceEvents) {}
+
+    fn set_control_flow(&self, control_flow: ControlFlow) {
         AppState::get_mut(self.mtm).set_control_flow(control_flow)
     }
 
-    pub(crate) fn control_flow(&self) -> ControlFlow {
+    fn system_theme(&self) -> Option<Theme> {
+        None
+    }
+
+    fn control_flow(&self) -> ControlFlow {
         AppState::get_mut(self.mtm).control_flow()
     }
 
-    pub(crate) fn exit(&self) {
+    fn exit(&self) {
         // https://developer.apple.com/library/archive/qa/qa1561/_index.html
         // it is not possible to quit an iOS app gracefully and programmatically
         tracing::warn!("`ControlFlow::Exit` ignored on iOS");
     }
 
-    pub(crate) fn exiting(&self) -> bool {
+    fn exiting(&self) -> bool {
         false
     }
 
-    pub(crate) fn owned_display_handle(&self) -> OwnedDisplayHandle {
-        OwnedDisplayHandle
+    fn owned_display_handle(&self) -> RootOwnedDisplayHandle {
+        RootOwnedDisplayHandle { platform: OwnedDisplayHandle }
+    }
+
+    #[cfg(feature = "rwh_06")]
+    fn rwh_06_handle(&self) -> &dyn rwh_06::HasDisplayHandle {
+        self
     }
 }
 
-#[derive(Clone)]
+#[cfg(feature = "rwh_06")]
+impl rwh_06::HasDisplayHandle for ActiveEventLoop {
+    fn display_handle(&self) -> Result<rwh_06::DisplayHandle<'_>, rwh_06::HandleError> {
+        let raw = rwh_06::RawDisplayHandle::UiKit(rwh_06::UiKitDisplayHandle::new());
+        unsafe { Ok(rwh_06::DisplayHandle::borrow_raw(raw)) }
+    }
+}
+
+#[derive(Clone, PartialEq, Eq)]
 pub(crate) struct OwnedDisplayHandle;
 
 impl OwnedDisplayHandle {
-    #[cfg(feature = "rwh_05")]
-    #[inline]
-    pub fn raw_display_handle_rwh_05(&self) -> rwh_05::RawDisplayHandle {
-        rwh_05::UiKitDisplayHandle::empty().into()
-    }
-
     #[cfg(feature = "rwh_06")]
     #[inline]
     pub fn raw_display_handle_rwh_06(
@@ -112,7 +131,7 @@ impl OwnedDisplayHandle {
 fn map_user_event<'a, A: ApplicationHandler + 'a>(
     mut app: A,
     proxy_wake_up: Arc<AtomicBool>,
-) -> impl FnMut(Event, &RootActiveEventLoop) + 'a {
+) -> impl FnMut(Event, &dyn RootActiveEventLoop) + 'a {
     move |event, window_target| match event {
         Event::NewEvents(cause) => app.new_events(window_target, cause),
         Event::WindowEvent { window_id, event } => {
@@ -137,7 +156,19 @@ fn map_user_event<'a, A: ApplicationHandler + 'a>(
 
 pub struct EventLoop {
     mtm: MainThreadMarker,
-    window_target: RootActiveEventLoop,
+    window_target: ActiveEventLoop,
+
+    // Since iOS 9.0, we no longer need to remove the observers before they are deallocated; the
+    // system instead cleans it up next time it would have posted a notification to it.
+    //
+    // Though we do still need to keep the observers around to prevent them from being deallocated.
+    _did_finish_launching_observer: Retained<NSObject>,
+    _did_become_active_observer: Retained<NSObject>,
+    _will_resign_active_observer: Retained<NSObject>,
+    _will_enter_foreground_observer: Retained<NSObject>,
+    _did_enter_background_observer: Retained<NSObject>,
+    _will_terminate_observer: Retained<NSObject>,
+    _did_receive_memory_warning_observer: Retained<NSObject>,
 }
 
 #[derive(Default, Debug, Copy, Clone, PartialEq, Eq, Hash)]
@@ -162,9 +193,95 @@ impl EventLoop {
         // this line sets up the main run loop before `UIApplicationMain`
         setup_control_flow_observers();
 
+        let center = unsafe { NSNotificationCenter::defaultCenter() };
+
+        let _did_finish_launching_observer = create_observer(
+            &center,
+            // `application:didFinishLaunchingWithOptions:`
+            unsafe { UIApplicationDidFinishLaunchingNotification },
+            move |_| {
+                app_state::did_finish_launching(mtm);
+            },
+        );
+        let _did_become_active_observer = create_observer(
+            &center,
+            // `applicationDidBecomeActive:`
+            unsafe { UIApplicationDidBecomeActiveNotification },
+            move |_| {
+                app_state::handle_nonuser_event(mtm, EventWrapper::StaticEvent(Event::Resumed));
+            },
+        );
+        let _will_resign_active_observer = create_observer(
+            &center,
+            // `applicationWillResignActive:`
+            unsafe { UIApplicationWillResignActiveNotification },
+            move |_| {
+                app_state::handle_nonuser_event(mtm, EventWrapper::StaticEvent(Event::Suspended));
+            },
+        );
+        let _will_enter_foreground_observer = create_observer(
+            &center,
+            // `applicationWillEnterForeground:`
+            unsafe { UIApplicationWillEnterForegroundNotification },
+            move |notification| {
+                let app = unsafe { notification.object() }.expect(
+                    "UIApplicationWillEnterForegroundNotification to have application object",
+                );
+                // SAFETY: The `object` in `UIApplicationWillEnterForegroundNotification` is
+                // documented to be `UIApplication`.
+                let app: Retained<UIApplication> = unsafe { Retained::cast(app) };
+                send_occluded_event_for_all_windows(&app, false);
+            },
+        );
+        let _did_enter_background_observer = create_observer(
+            &center,
+            // `applicationDidEnterBackground:`
+            unsafe { UIApplicationDidEnterBackgroundNotification },
+            move |notification| {
+                let app = unsafe { notification.object() }.expect(
+                    "UIApplicationDidEnterBackgroundNotification to have application object",
+                );
+                // SAFETY: The `object` in `UIApplicationDidEnterBackgroundNotification` is
+                // documented to be `UIApplication`.
+                let app: Retained<UIApplication> = unsafe { Retained::cast(app) };
+                send_occluded_event_for_all_windows(&app, true);
+            },
+        );
+        let _will_terminate_observer = create_observer(
+            &center,
+            // `applicationWillTerminate:`
+            unsafe { UIApplicationWillTerminateNotification },
+            move |notification| {
+                let app = unsafe { notification.object() }
+                    .expect("UIApplicationWillTerminateNotification to have application object");
+                // SAFETY: The `object` in `UIApplicationWillTerminateNotification` is
+                // (somewhat) documented to be `UIApplication`.
+                let app: Retained<UIApplication> = unsafe { Retained::cast(app) };
+                app_state::terminated(&app);
+            },
+        );
+        let _did_receive_memory_warning_observer = create_observer(
+            &center,
+            // `applicationDidReceiveMemoryWarning:`
+            unsafe { UIApplicationDidReceiveMemoryWarningNotification },
+            move |_| {
+                app_state::handle_nonuser_event(
+                    mtm,
+                    EventWrapper::StaticEvent(Event::MemoryWarning),
+                );
+            },
+        );
+
         Ok(EventLoop {
             mtm,
-            window_target: RootActiveEventLoop { p: ActiveEventLoop { mtm }, _marker: PhantomData },
+            window_target: ActiveEventLoop { mtm },
+            _did_finish_launching_observer,
+            _did_become_active_observer,
+            _will_resign_active_observer,
+            _will_enter_foreground_observer,
+            _did_enter_background_observer,
+            _will_terminate_observer,
+            _did_receive_memory_warning_observer,
         })
     }
 
@@ -182,17 +299,14 @@ impl EventLoop {
 
         let handler = unsafe {
             std::mem::transmute::<
-                Box<dyn FnMut(Event, &RootActiveEventLoop)>,
-                Box<dyn FnMut(Event, &RootActiveEventLoop)>,
+                Box<dyn FnMut(Event, &dyn RootActiveEventLoop)>,
+                Box<dyn FnMut(Event, &dyn RootActiveEventLoop)>,
             >(Box::new(handler))
         };
 
         let handler = EventLoopHandler { handler, event_loop: self.window_target };
 
         app_state::will_launch(self.mtm, handler);
-
-        // Ensure application delegate is initialized
-        let _ = AppDelegate::class();
 
         extern "C" {
             // These functions are in crt_externs.h.
@@ -204,14 +318,16 @@ impl EventLoop {
             UIApplicationMain(
                 *_NSGetArgc(),
                 NonNull::new(*_NSGetArgv()).unwrap(),
+                // We intentionally override neither the application nor the delegate, to allow the
+                // user to do so themselves!
                 None,
-                Some(&NSString::from_str(AppDelegate::NAME)),
+                None,
             )
         };
         unreachable!()
     }
 
-    pub fn window_target(&self) -> &RootActiveEventLoop {
+    pub fn window_target(&self) -> &dyn RootActiveEventLoop {
         &self.window_target
     }
 }

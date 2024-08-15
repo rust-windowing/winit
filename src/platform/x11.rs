@@ -91,10 +91,10 @@ pub trait ActiveEventLoopExtX11 {
     fn is_x11(&self) -> bool;
 }
 
-impl ActiveEventLoopExtX11 for ActiveEventLoop {
+impl ActiveEventLoopExtX11 for dyn ActiveEventLoop + '_ {
     #[inline]
     fn is_x11(&self) -> bool {
-        !self.p.is_wayland()
+        self.as_any().downcast_ref::<crate::platform_impl::x11::ActiveEventLoop>().is_some()
     }
 }
 
@@ -187,7 +187,7 @@ pub trait WindowAttributesExtX11 {
     /// use winit::window::Window;
     /// use winit::event_loop::ActiveEventLoop;
     /// use winit::platform::x11::{XWindow, WindowAttributesExtX11};
-    /// # fn create_window(event_loop: &ActiveEventLoop) -> Result<(), Box<dyn std::error::Error>> {
+    /// # fn create_window(event_loop: &dyn ActiveEventLoop) -> Result<(), Box<dyn std::error::Error>> {
     /// let parent_window_id = std::env::args().nth(1).unwrap().parse::<XWindow>()?;
     /// let window_attributes = Window::default_attributes().with_embed_parent_window(parent_window_id);
     /// let window = event_loop.create_window(window_attributes)?;

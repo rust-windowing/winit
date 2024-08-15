@@ -1,0 +1,9 @@
+{
+	"devDependencies": {
+		"@eslint/js": "^9",
+		"@types/eslint__js": "^8",
+		"eslint": "^9",
+		"typescript": "^5",
+		"typescript-eslint": "^8"
+	}
+}

@@ -24,6 +24,7 @@ use objc2_foundation::{
 use objc2_ui_kit::{UIApplication, UICoordinateSpace, UIView, UIWindow};
 
 use super::window::WinitUIWindow;
+use super::ActiveEventLoop;
 use crate::dpi::PhysicalSize;
 use crate::event::{Event, InnerSizeWriter, StartCause, WindowEvent};
 use crate::event_loop::{ActiveEventLoop as RootActiveEventLoop, ControlFlow};
@@ -43,8 +44,8 @@ macro_rules! bug_assert {
 
 pub(crate) struct EventLoopHandler {
     #[allow(clippy::type_complexity)]
-    pub(crate) handler: Box<dyn FnMut(Event, &RootActiveEventLoop)>,
-    pub(crate) event_loop: RootActiveEventLoop,
+    pub(crate) handler: Box<dyn FnMut(Event, &dyn RootActiveEventLoop)>,
+    pub(crate) event_loop: ActiveEventLoop,
 }
 
 impl fmt::Debug for EventLoopHandler {

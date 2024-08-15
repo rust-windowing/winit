@@ -36,8 +36,8 @@ pub struct Window {
 }
 
 impl fmt::Debug for Window {
-    fn fmt(&self, fmtr: &mut fmt::Formatter<'_>) -> fmt::Result {
-        fmtr.pad("Window { .. }")
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Window").finish_non_exhaustive()
     }
 }
 
@@ -55,6 +55,20 @@ impl Drop for Window {
                 w.set_fullscreen(None);
             }
         })
+    }
+}
+
+impl PartialEq for Window {
+    fn eq(&self, other: &Self) -> bool {
+        self.id().eq(&other.id())
+    }
+}
+
+impl Eq for Window {}
+
+impl std::hash::Hash for Window {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.id().hash(state);
     }
 }
 
@@ -99,7 +113,7 @@ impl From<u64> for WindowId {
 }
 
 /// Attributes used when creating a window.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct WindowAttributes {
     pub inner_size: Option<Size>,
     pub min_inner_size: Option<Size>,
@@ -165,7 +179,7 @@ impl Default for WindowAttributes {
 ///
 /// The user has to account for that when using [`WindowAttributes::with_parent_window()`],
 /// which is `unsafe`.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 #[cfg(feature = "rwh_06")]
 pub(crate) struct SendSyncRawWindowHandle(pub(crate) rwh_06::RawWindowHandle);
 
@@ -173,15 +187,6 @@ pub(crate) struct SendSyncRawWindowHandle(pub(crate) rwh_06::RawWindowHandle);
 unsafe impl Send for SendSyncRawWindowHandle {}
 #[cfg(feature = "rwh_06")]
 unsafe impl Sync for SendSyncRawWindowHandle {}
-
-impl WindowAttributes {
-    /// Initializes new attributes with default values.
-    #[inline]
-    #[deprecated = "use `Window::default_attributes` instead"]
-    pub fn new() -> Self {
-        Default::default()
-    }
-}
 
 impl WindowAttributes {
     /// Get the parent window stored on the attributes.
@@ -416,8 +421,8 @@ impl WindowAttributes {
     ///
     /// ## Platform-specific
     ///
-    /// - **macOS**: if `false`, [`NSWindowSharingNone`] is used but doesn't completely
-    /// prevent all apps from reading the window content, for instance, QuickTime.
+    /// - **macOS**: if `false`, [`NSWindowSharingNone`] is used but doesn't completely prevent all
+    ///   apps from reading the window content, for instance, QuickTime.
     /// - **iOS / Android / Web / x11 / Orbital:** Ignored.
     ///
     /// [`NSWindowSharingNone`]: https://developer.apple.com/documentation/appkit/nswindowsharingtype/nswindowsharingnone
@@ -465,8 +470,8 @@ impl WindowAttributes {
     /// ## Platform-specific
     ///
     /// - **Windows** : A child window has the WS_CHILD style and is confined
-    /// to the client area of its parent window. For more information, see
-    /// <https://docs.microsoft.com/en-us/windows/win32/winmsg/window-features#child-windows>
+    ///   to the client area of its parent window. For more information, see
+    ///   <https://docs.microsoft.com/en-us/windows/win32/winmsg/window-features#child-windows>
     /// - **X11**: A child window is confined to the client area of its parent window.
     /// - **Android / iOS / Wayland / Web:** Unsupported.
     #[cfg(feature = "rwh_06")]
@@ -529,9 +534,9 @@ impl Window {
     ///     provided by XRandR.
     ///
     ///   If `WINIT_X11_SCALE_FACTOR` is set to `randr`, it'll ignore the `Xft.dpi` field and use
-    /// the   XRandR scaling method. Generally speaking, you should try to configure the
-    /// standard system   variables to do what you want before resorting to
-    /// `WINIT_X11_SCALE_FACTOR`.
+    ///   the   XRandR scaling method. Generally speaking, you should try to configure the
+    ///   standard system   variables to do what you want before resorting to
+    ///   `WINIT_X11_SCALE_FACTOR`.
     /// - **Wayland:** The scale factor is suggested by the compositor for each window individually
     ///   by using the wp-fractional-scale protocol if available. Falls back to integer-scale
     ///   factors otherwise.
@@ -1120,7 +1125,13 @@ impl Window {
     /// - **Wayland:** Does not support exclusive fullscreen mode and will no-op a request.
     /// - **Windows:** Screen saver is disabled in fullscreen mode.
     /// - **Android / Orbital:** Unsupported.
-    /// - **Web:** Does nothing without a [transient activation].
+    /// - **Web:** Passing a [`MonitorHandle`] or [`VideoModeHandle`] that was not created with
+    #[cfg_attr(
+        any(web_platform, docsrs),
+        doc = "  [detailed monitor permissions][crate::platform::web::ActiveEventLoopExtWeb::request_detailed_monitor_permission]"
+    )]
+    #[cfg_attr(not(any(web_platform, docsrs)), doc = "  detailed monitor permissions")]
+    ///   or calling without a [transient activation] does nothing.
     ///
     /// [transient activation]: https://developer.mozilla.org/en-US/docs/Glossary/Transient_activation
     #[inline]
@@ -1140,7 +1151,7 @@ impl Window {
     /// - **iOS:** Can only be called on the main thread.
     /// - **Android / Orbital:** Will always return `None`.
     /// - **Wayland:** Can return `Borderless(None)` when there are no monitors.
-    /// - **Web:** Can only return `None` or `Borderless(None)`.
+    /// - **Web:** Can only return `None` or `Borderless`.
     #[inline]
     pub fn fullscreen(&self) -> Option<Fullscreen> {
         let _span = tracing::debug_span!("winit::Window::fullscreen",).entered();
@@ -1370,14 +1381,14 @@ impl Window {
         self.window.maybe_queue_on_main(move |w| w.set_theme(theme))
     }
 
-    /// Returns the current window theme override.
+    /// Returns the current window theme.
     ///
-    /// Returns `None` if the current theme is set as the system default, or if it cannot be
-    /// determined on the current platform.
+    /// Returns `None` if it cannot be determined on the current platform.
     ///
     /// ## Platform-specific
     ///
-    /// - **iOS / Android / Wayland / x11 / Orbital:** Unsupported, returns `None`.
+    /// - **iOS / Android / x11 / Orbital:** Unsupported.
+    /// - **Wayland:** Only returns theme overrides.
     #[inline]
     pub fn theme(&self) -> Option<Theme> {
         let _span = tracing::debug_span!("winit::Window::theme",).entered();
@@ -1388,8 +1399,8 @@ impl Window {
     ///
     /// ## Platform-specific
     ///
-    /// - **macOS**: if `false`, [`NSWindowSharingNone`] is used but doesn't completely
-    /// prevent all apps from reading the window content, for instance, QuickTime.
+    /// - **macOS**: if `false`, [`NSWindowSharingNone`] is used but doesn't completely prevent all
+    ///   apps from reading the window content, for instance, QuickTime.
     /// - **iOS / Android / x11 / Wayland / Web / Orbital:** Unsupported.
     ///
     /// [`NSWindowSharingNone`]: https://developer.apple.com/documentation/appkit/nswindowsharingtype/nswindowsharingnone
@@ -1425,13 +1436,6 @@ impl Window {
         let cursor = cursor.into();
         let _span = tracing::debug_span!("winit::Window::set_cursor",).entered();
         self.window.maybe_queue_on_main(move |w| w.set_cursor(cursor))
-    }
-
-    /// Deprecated! Use [`Window::set_cursor()`] instead.
-    #[deprecated = "Renamed to `set_cursor`"]
-    #[inline]
-    pub fn set_cursor_icon(&self, icon: CursorIcon) {
-        self.set_cursor(icon)
     }
 
     /// Changes the position of the cursor in window coordinates.
@@ -1593,6 +1597,17 @@ impl Window {
     /// This is the same as [`ActiveEventLoop::available_monitors`], and is provided for
     /// convenience.
     ///
+    ///
+    /// ## Platform-specific
+    ///
+    /// **Web:** Only returns the current monitor without
+    #[cfg_attr(
+        any(web_platform, docsrs),
+        doc = "[detailed monitor permissions][crate::platform::web::ActiveEventLoopExtWeb::request_detailed_monitor_permission]."
+    )]
+    #[cfg_attr(not(any(web_platform, docsrs)), doc = "detailed monitor permissions.")]
+    ///
+    #[rustfmt::skip]
     /// [`ActiveEventLoop::available_monitors`]: crate::event_loop::ActiveEventLoop::available_monitors
     #[inline]
     pub fn available_monitors(&self) -> impl Iterator<Item = MonitorHandle> {
@@ -1610,8 +1625,15 @@ impl Window {
     ///
     /// ## Platform-specific
     ///
-    /// **Wayland / Web:** Always returns `None`.
+    /// - **Wayland:** Always returns `None`.
+    /// - **Web:** Always returns `None` without
+    #[cfg_attr(
+        any(web_platform, docsrs),
+        doc = "  [detailed monitor permissions][crate::platform::web::ActiveEventLoopExtWeb::request_detailed_monitor_permission]."
+    )]
+    #[cfg_attr(not(any(web_platform, docsrs)), doc = "  detailed monitor permissions.")]
     ///
+    #[rustfmt::skip]
     /// [`ActiveEventLoop::primary_monitor`]: crate::event_loop::ActiveEventLoop::primary_monitor
     #[inline]
     pub fn primary_monitor(&self) -> Option<MonitorHandle> {
@@ -1639,42 +1661,6 @@ impl rwh_06::HasDisplayHandle for Window {
         // SAFETY: The window handle will never be deallocated while the window is alive,
         // and the main thread safety requirements are upheld internally by each platform.
         Ok(unsafe { rwh_06::DisplayHandle::borrow_raw(raw) })
-    }
-}
-
-/// Wrapper to make objects `Send`.
-///
-/// # Safety
-///
-/// This is not safe! This is only used for `RawWindowHandle`, which only has unsafe getters.
-#[cfg(any(feature = "rwh_05", feature = "rwh_04"))]
-struct UnsafeSendWrapper<T>(T);
-
-#[cfg(any(feature = "rwh_05", feature = "rwh_04"))]
-unsafe impl<T> Send for UnsafeSendWrapper<T> {}
-
-#[cfg(feature = "rwh_05")]
-unsafe impl rwh_05::HasRawWindowHandle for Window {
-    fn raw_window_handle(&self) -> rwh_05::RawWindowHandle {
-        self.window.maybe_wait_on_main(|w| UnsafeSendWrapper(w.raw_window_handle_rwh_05())).0
-    }
-}
-
-#[cfg(feature = "rwh_05")]
-unsafe impl rwh_05::HasRawDisplayHandle for Window {
-    /// Returns a [`rwh_05::RawDisplayHandle`] used by the [`EventLoop`] that
-    /// created a window.
-    ///
-    /// [`EventLoop`]: crate::event_loop::EventLoop
-    fn raw_display_handle(&self) -> rwh_05::RawDisplayHandle {
-        self.window.maybe_wait_on_main(|w| UnsafeSendWrapper(w.raw_display_handle_rwh_05())).0
-    }
-}
-
-#[cfg(feature = "rwh_04")]
-unsafe impl rwh_04::HasRawWindowHandle for Window {
-    fn raw_window_handle(&self) -> rwh_04::RawWindowHandle {
-        self.window.maybe_wait_on_main(|w| UnsafeSendWrapper(w.raw_window_handle_rwh_04())).0
     }
 }
 
@@ -1713,6 +1699,7 @@ pub enum CursorGrabMode {
 
 /// Defines the orientation that a window resize will be performed.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum ResizeDirection {
     East,
     North,
@@ -1741,7 +1728,7 @@ impl From<ResizeDirection> for CursorIcon {
 }
 
 /// Fullscreen modes.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum Fullscreen {
     Exclusive(VideoModeHandle),
 
@@ -1750,7 +1737,7 @@ pub enum Fullscreen {
 }
 
 /// The theme variant to use.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum Theme {
     /// Use the light variant.
@@ -1767,7 +1754,8 @@ pub enum Theme {
 ///
 /// [`Critical`]: Self::Critical
 /// [`Informational`]: Self::Informational
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum UserAttentionType {
     /// ## Platform-specific
     ///
@@ -1801,7 +1789,8 @@ bitflags::bitflags! {
 /// ## Platform-specific
 ///
 /// - **iOS / Android / Web / Wayland:** Unsupported.
-#[derive(Debug, Default, PartialEq, Eq, Clone, Copy)]
+#[derive(Debug, Default, PartialEq, Eq, Clone, Copy, Hash)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum WindowLevel {
     /// The window will always be below normal windows.
     ///
@@ -1824,8 +1813,9 @@ pub enum WindowLevel {
 /// ## Platform-specific
 ///
 /// - **iOS / Android / Web / Windows / X11 / macOS / Orbital:** Unsupported.
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
 #[non_exhaustive]
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Hash)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum ImePurpose {
     /// No special hints for the IME (default).
     Normal,
@@ -1846,7 +1836,7 @@ impl Default for ImePurpose {
 /// An opaque token used to activate the [`Window`].
 ///
 /// [`Window`]: crate::window::Window
-#[derive(Debug, PartialEq, Eq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone, Hash)]
 pub struct ActivationToken {
     pub(crate) _token: String,
 }

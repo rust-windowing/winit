@@ -4,7 +4,7 @@ use dpi::{LogicalPosition, PhysicalPosition, Position};
 use smol_str::SmolStr;
 use wasm_bindgen::prelude::wasm_bindgen;
 use wasm_bindgen::{JsCast, JsValue};
-use web_sys::{KeyboardEvent, MouseEvent, PointerEvent, WheelEvent};
+use web_sys::{KeyboardEvent, MouseEvent, Navigator, PointerEvent, WheelEvent};
 
 use super::Engine;
 use crate::event::{MouseButton, MouseScrollDelta};
@@ -108,8 +108,8 @@ pub enum MouseDelta {
 }
 
 impl MouseDelta {
-    pub fn init(window: &web_sys::Window, event: &PointerEvent) -> Self {
-        match super::engine(window) {
+    pub fn init(navigator: &Navigator, event: &PointerEvent) -> Self {
+        match super::engine(navigator) {
             Some(Engine::Chromium) => Self::Chromium,
             // Firefox has wrong movement values in coalesced events.
             Some(Engine::Gecko) if has_coalesced_events_support(event) => Self::Gecko {

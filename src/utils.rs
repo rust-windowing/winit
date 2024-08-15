@@ -4,6 +4,7 @@
 // This isn't used on every platform, which can come up as dead code warnings.
 #![allow(dead_code)]
 
+use std::any::Any;
 use std::ops::Deref;
 use std::sync::OnceLock;
 
@@ -24,5 +25,22 @@ impl<T> Deref for Lazy<T> {
     #[inline]
     fn deref(&self) -> &'_ T {
         self.cell.get_or_init(self.init)
+    }
+}
+
+pub trait AsAny {
+    fn as_any(&self) -> &dyn Any;
+    fn as_any_mut(&mut self) -> &mut dyn Any;
+}
+
+impl<T: Any> AsAny for T {
+    #[inline(always)]
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    #[inline(always)]
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
     }
 }

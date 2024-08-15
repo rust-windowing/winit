@@ -6,8 +6,11 @@ use std::borrow::Borrow;
 use std::ffi::c_void;
 use std::path::Path;
 
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
+
 use crate::dpi::PhysicalSize;
-use crate::event::DeviceId;
+use crate::event::{DeviceId, FingerId};
 use crate::event_loop::EventLoopBuilder;
 use crate::monitor::MonitorHandle;
 use crate::window::{BadIcon, Icon, Window, WindowAttributes};
@@ -25,6 +28,7 @@ pub type HMONITOR = isize;
 ///
 /// [`DWM_SYSTEMBACKDROP_TYPE docs`]: https://learn.microsoft.com/en-us/windows/win32/api/dwmapi/ne-dwmapi-dwm_systembackdrop_type
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum BackdropType {
     /// Corresponds to `DWMSBT_AUTO`.
     ///
@@ -54,6 +58,7 @@ pub enum BackdropType {
 /// Describes a color used by Windows
 #[repr(transparent)]
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Color(u32);
 
 impl Color {
@@ -82,6 +87,7 @@ impl Default for Color {
 /// [`DWM_WINDOW_CORNER_PREFERENCE docs`]: https://learn.microsoft.com/en-us/windows/win32/api/dwmapi/ne-dwmapi-dwm_window_corner_preference
 #[repr(i32)]
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum CornerPreference {
     /// Corresponds to `DWMWCP_DEFAULT`.
     ///
@@ -108,7 +114,7 @@ pub enum CornerPreference {
 /// A wrapper around a [`Window`] that ignores thread-specific window handle limitations.
 ///
 /// See [`WindowBorrowExtWindows::any_thread`] for more information.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct AnyThread<W>(W);
 
 impl<W: Borrow<Window>> AnyThread<W> {
@@ -183,11 +189,11 @@ pub trait EventLoopBuilderExtWindows {
     /// Disable process-wide DPI awareness.
     ///
     /// ```
-    /// use winit::event_loop::EventLoopBuilder;
+    /// use winit::event_loop::EventLoop;
     /// #[cfg(target_os = "windows")]
     /// use winit::platform::windows::EventLoopBuilderExtWindows;
     ///
-    /// let mut builder = EventLoopBuilder::new();
+    /// let mut builder = EventLoop::builder();
     /// #[cfg(target_os = "windows")]
     /// builder.with_dpi_aware(false);
     /// # if false { // We can't test this part
@@ -203,11 +209,11 @@ pub trait EventLoopBuilderExtWindows {
     ///
     /// ```
     /// # use windows_sys::Win32::UI::WindowsAndMessaging::{ACCEL, CreateAcceleratorTableW, TranslateAcceleratorW, DispatchMessageW, TranslateMessage, MSG};
-    /// use winit::event_loop::EventLoopBuilder;
+    /// use winit::event_loop::EventLoop;
     /// #[cfg(target_os = "windows")]
     /// use winit::platform::windows::EventLoopBuilderExtWindows;
     ///
-    /// let mut builder = EventLoopBuilder::new();
+    /// let mut builder = EventLoop::builder();
     /// #[cfg(target_os = "windows")]
     /// builder.with_msg_hook(|msg|{
     ///     let msg = msg as *const MSG;
@@ -440,9 +446,17 @@ pub trait WindowBorrowExtWindows: Borrow<Window> + Sized {
     /// It is the responsibility of the user to only pass the window handle into thread-safe
     /// Win32 APIs.
     ///
-    /// [`window_handle_any_thread`]: WindowExtWindows::window_handle_any_thread
     /// [`Window`]: crate::window::Window
-    /// [`HasWindowHandle`]: rwh_06::HasWindowHandle
+    #[cfg_attr(
+        feature = "rwh_06",
+        doc = "[`HasWindowHandle`]: rwh_06::HasWindowHandle",
+        doc = "[`window_handle_any_thread`]: WindowExtWindows::window_handle_any_thread"
+    )]
+    #[cfg_attr(
+        not(feature = "rwh_06"),
+        doc = "[`HasWindowHandle`]: #only-available-with-rwh_06",
+        doc = "[`window_handle_any_thread`]: #only-available-with-rwh_06"
+    )]
     unsafe fn any_thread(self) -> AnyThread<Self> {
         AnyThread(self)
     }
@@ -657,6 +671,20 @@ impl DeviceIdExtWindows for DeviceId {
     #[inline]
     fn persistent_identifier(&self) -> Option<String> {
         self.0.persistent_identifier()
+    }
+}
+
+/// Additional methods on `FingerId` that are specific to Windows.
+pub trait FingerIdExtWindows {
+    /// Indicates if the finger represents the first contact in a multi-touch interaction.
+    #[allow(clippy::wrong_self_convention)]
+    fn is_primary(self) -> bool;
+}
+
+impl FingerIdExtWindows for FingerId {
+    #[inline]
+    fn is_primary(self) -> bool {
+        self.0.is_primary()
     }
 }
 

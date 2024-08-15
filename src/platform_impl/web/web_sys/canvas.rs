@@ -1,4 +1,4 @@
-use std::cell::Cell;
+use std::cell::{Cell, RefCell};
 use std::ops::Deref;
 use std::rc::Rc;
 use std::sync::{Arc, Mutex};
@@ -7,11 +7,12 @@ use smol_str::SmolStr;
 use wasm_bindgen::closure::Closure;
 use wasm_bindgen::JsCast;
 use web_sys::{
-    CssStyleDeclaration, Document, Event, FocusEvent, HtmlCanvasElement, KeyboardEvent,
+    CssStyleDeclaration, Document, Event, FocusEvent, HtmlCanvasElement, KeyboardEvent, Navigator,
     PointerEvent, WheelEvent,
 };
 
 use super::super::cursor::CursorHandler;
+use super::super::event::{DeviceId, FingerId};
 use super::super::main_thread::MainThreadMarker;
 use super::super::WindowId;
 use super::animation_frame::AnimationFrameHandler;
@@ -24,16 +25,23 @@ use crate::dpi::{LogicalPosition, PhysicalPosition, PhysicalSize};
 use crate::error::OsError as RootOE;
 use crate::event::{Force, InnerSizeWriter, MouseButton, MouseScrollDelta};
 use crate::keyboard::{Key, KeyLocation, ModifiersState, PhysicalKey};
-use crate::platform_impl::OsError;
+use crate::platform_impl::{Fullscreen, OsError};
 use crate::window::{WindowAttributes, WindowId as RootWindowId};
 
 #[allow(dead_code)]
 pub struct Canvas {
+    main_thread: MainThreadMarker,
     common: Common,
     id: WindowId,
     pub has_focus: Rc<Cell<bool>>,
     pub prevent_default: Rc<Cell<bool>>,
-    pub is_intersecting: Option<bool>,
+    pub is_intersecting: Cell<Option<bool>>,
+    pub cursor: CursorHandler,
+    handlers: RefCell<Handlers>,
+}
+
+struct Handlers {
+    animation_frame_handler: AnimationFrameHandler,
     on_touch_start: Option<EventListenerHandle<dyn FnMut(Event)>>,
     on_focus: Option<EventListenerHandle<dyn FnMut(FocusEvent)>>,
     on_blur: Option<EventListenerHandle<dyn FnMut(FocusEvent)>>,
@@ -44,14 +52,13 @@ pub struct Canvas {
     pointer_handler: PointerHandler,
     on_resize_scale: Option<ResizeScaleHandle>,
     on_intersect: Option<IntersectionObserverHandle>,
-    animation_frame_handler: AnimationFrameHandler,
     on_touch_end: Option<EventListenerHandle<dyn FnMut(Event)>>,
     on_context_menu: Option<EventListenerHandle<dyn FnMut(PointerEvent)>>,
-    pub cursor: CursorHandler,
 }
 
 pub struct Common {
     pub window: web_sys::Window,
+    navigator: Navigator,
     pub document: Document,
     /// Note: resizing the HTMLCanvasElement should go through `backend::set_canvas_size` to ensure
     /// the DPI factor is maintained. Note: this is read-only because we use a pointer to this
@@ -73,15 +80,13 @@ impl Canvas {
         main_thread: MainThreadMarker,
         id: WindowId,
         window: web_sys::Window,
+        navigator: Navigator,
         document: Document,
-        attr: &mut WindowAttributes,
+        attr: WindowAttributes,
     ) -> Result<Self, RootOE> {
-        let canvas = match attr.platform_specific.canvas.take().map(|canvas| {
-            Arc::try_unwrap(canvas)
-                .map(|canvas| canvas.into_inner(main_thread))
-                .unwrap_or_else(|canvas| canvas.get(main_thread).clone())
-        }) {
-            Some(canvas) => canvas,
+        let canvas = match attr.platform_specific.canvas.map(Arc::try_unwrap) {
+            Some(Ok(canvas)) => canvas.into_inner(main_thread),
+            Some(Err(canvas)) => canvas.get(main_thread).clone(),
             None => document
                 .create_element("canvas")
                 .map_err(|_| os_error!(OsError("Failed to create canvas element".to_owned())))?
@@ -114,6 +119,7 @@ impl Canvas {
         let common = Common {
             window: window.clone(),
             document: document.clone(),
+            navigator,
             raw: Rc::new(canvas.clone()),
             style,
             old_size: Rc::default(),
@@ -140,8 +146,14 @@ impl Canvas {
             super::set_canvas_position(&common.document, &common.raw, &common.style, position);
         }
 
-        if attr.fullscreen.is_some() {
-            fullscreen::request_fullscreen(&document, &canvas);
+        if let Some(fullscreen) = attr.fullscreen {
+            fullscreen::request_fullscreen(
+                main_thread,
+                &window,
+                &document,
+                &canvas,
+                fullscreen.into(),
+            );
         }
 
         if attr.active {
@@ -149,35 +161,29 @@ impl Canvas {
         }
 
         Ok(Canvas {
+            main_thread,
             common,
             id,
             has_focus: Rc::new(Cell::new(false)),
             prevent_default: Rc::new(Cell::new(attr.platform_specific.prevent_default)),
-            is_intersecting: None,
-            on_touch_start: None,
-            on_blur: None,
-            on_focus: None,
-            on_keyboard_release: None,
-            on_keyboard_press: None,
-            on_mouse_wheel: None,
-            on_dark_mode: None,
-            pointer_handler: PointerHandler::new(),
-            on_resize_scale: None,
-            on_intersect: None,
-            animation_frame_handler: AnimationFrameHandler::new(window),
-            on_touch_end: None,
-            on_context_menu: None,
+            is_intersecting: Cell::new(None),
             cursor,
+            handlers: RefCell::new(Handlers {
+                animation_frame_handler: AnimationFrameHandler::new(window),
+                on_touch_start: None,
+                on_blur: None,
+                on_focus: None,
+                on_keyboard_release: None,
+                on_keyboard_press: None,
+                on_mouse_wheel: None,
+                on_dark_mode: None,
+                pointer_handler: PointerHandler::new(),
+                on_resize_scale: None,
+                on_intersect: None,
+                on_touch_end: None,
+                on_context_menu: None,
+            }),
         })
-    }
-
-    pub fn set_cursor_lock(&self, lock: bool) -> Result<(), RootOE> {
-        if lock {
-            self.raw().request_pointer_lock();
-        } else {
-            self.common.document.exit_pointer_lock();
-        }
-        Ok(())
     }
 
     pub fn set_attribute(&self, attribute: &str, value: &str) {
@@ -227,6 +233,11 @@ impl Canvas {
     }
 
     #[inline]
+    pub fn navigator(&self) -> &Navigator {
+        &self.common.navigator
+    }
+
+    #[inline]
     pub fn document(&self) -> &Document {
         &self.common.document
     }
@@ -241,39 +252,42 @@ impl Canvas {
         &self.common.style
     }
 
-    pub fn on_touch_start(&mut self) {
+    pub fn on_touch_start(&self) {
         let prevent_default = Rc::clone(&self.prevent_default);
-        self.on_touch_start = Some(self.common.add_event("touchstart", move |event: Event| {
-            if prevent_default.get() {
-                event.prevent_default();
-            }
-        }));
+        self.handlers.borrow_mut().on_touch_start =
+            Some(self.common.add_event("touchstart", move |event: Event| {
+                if prevent_default.get() {
+                    event.prevent_default();
+                }
+            }));
     }
 
-    pub fn on_blur<F>(&mut self, mut handler: F)
+    pub fn on_blur<F>(&self, mut handler: F)
     where
         F: 'static + FnMut(),
     {
-        self.on_blur = Some(self.common.add_event("blur", move |_: FocusEvent| {
-            handler();
-        }));
+        self.handlers.borrow_mut().on_blur =
+            Some(self.common.add_event("blur", move |_: FocusEvent| {
+                handler();
+            }));
     }
 
-    pub fn on_focus<F>(&mut self, mut handler: F)
+    pub fn on_focus<F>(&self, mut handler: F)
     where
         F: 'static + FnMut(),
     {
-        self.on_focus = Some(self.common.add_event("focus", move |_: FocusEvent| {
-            handler();
-        }));
+        self.handlers.borrow_mut().on_focus =
+            Some(self.common.add_event("focus", move |_: FocusEvent| {
+                handler();
+            }));
     }
 
-    pub fn on_keyboard_release<F>(&mut self, mut handler: F)
+    pub fn on_keyboard_release<F>(&self, mut handler: F)
     where
         F: 'static + FnMut(PhysicalKey, Key, Option<SmolStr>, KeyLocation, bool, ModifiersState),
     {
         let prevent_default = Rc::clone(&self.prevent_default);
-        self.on_keyboard_release =
+        self.handlers.borrow_mut().on_keyboard_release =
             Some(self.common.add_event("keyup", move |event: KeyboardEvent| {
                 if prevent_default.get() {
                     event.prevent_default();
@@ -291,12 +305,12 @@ impl Canvas {
             }));
     }
 
-    pub fn on_keyboard_press<F>(&mut self, mut handler: F)
+    pub fn on_keyboard_press<F>(&self, mut handler: F)
     where
         F: 'static + FnMut(PhysicalKey, Key, Option<SmolStr>, KeyLocation, bool, ModifiersState),
     {
         let prevent_default = Rc::clone(&self.prevent_default);
-        self.on_keyboard_press =
+        self.handlers.borrow_mut().on_keyboard_press =
             Some(self.common.add_event("keydown", move |event: KeyboardEvent| {
                 if prevent_default.get() {
                     event.prevent_default();
@@ -314,73 +328,61 @@ impl Canvas {
             }));
     }
 
-    pub fn on_cursor_leave<F>(&mut self, handler: F)
+    pub fn on_cursor_leave<F>(&self, handler: F)
     where
-        F: 'static + FnMut(ModifiersState, Option<i32>),
+        F: 'static + FnMut(ModifiersState, Option<DeviceId>),
     {
-        self.pointer_handler.on_cursor_leave(&self.common, handler)
+        self.handlers.borrow_mut().pointer_handler.on_cursor_leave(&self.common, handler)
     }
 
-    pub fn on_cursor_enter<F>(&mut self, handler: F)
+    pub fn on_cursor_enter<F>(&self, handler: F)
     where
-        F: 'static + FnMut(ModifiersState, Option<i32>),
+        F: 'static + FnMut(ModifiersState, Option<DeviceId>),
     {
-        self.pointer_handler.on_cursor_enter(&self.common, handler)
+        self.handlers.borrow_mut().pointer_handler.on_cursor_enter(&self.common, handler)
     }
 
-    pub fn on_mouse_release<MOD, M, T>(
-        &mut self,
-        modifier_handler: MOD,
-        mouse_handler: M,
-        touch_handler: T,
-    ) where
-        MOD: 'static + FnMut(ModifiersState),
-        M: 'static + FnMut(ModifiersState, i32, PhysicalPosition<f64>, MouseButton),
-        T: 'static + FnMut(ModifiersState, i32, PhysicalPosition<f64>, Force),
+    pub fn on_mouse_release<M, T>(&self, mouse_handler: M, touch_handler: T)
+    where
+        M: 'static + FnMut(ModifiersState, DeviceId, PhysicalPosition<f64>, MouseButton),
+        T: 'static + FnMut(ModifiersState, DeviceId, FingerId, PhysicalPosition<f64>, Force),
     {
-        self.pointer_handler.on_mouse_release(
+        self.handlers.borrow_mut().pointer_handler.on_mouse_release(
             &self.common,
-            modifier_handler,
             mouse_handler,
             touch_handler,
         )
     }
 
-    pub fn on_mouse_press<MOD, M, T>(
-        &mut self,
-        modifier_handler: MOD,
-        mouse_handler: M,
-        touch_handler: T,
-    ) where
-        MOD: 'static + FnMut(ModifiersState),
-        M: 'static + FnMut(ModifiersState, i32, PhysicalPosition<f64>, MouseButton),
-        T: 'static + FnMut(ModifiersState, i32, PhysicalPosition<f64>, Force),
+    pub fn on_mouse_press<M, T>(&self, mouse_handler: M, touch_handler: T)
+    where
+        M: 'static + FnMut(ModifiersState, DeviceId, PhysicalPosition<f64>, MouseButton),
+        T: 'static + FnMut(ModifiersState, DeviceId, FingerId, PhysicalPosition<f64>, Force),
     {
-        self.pointer_handler.on_mouse_press(
+        self.handlers.borrow_mut().pointer_handler.on_mouse_press(
             &self.common,
-            modifier_handler,
             mouse_handler,
             touch_handler,
             Rc::clone(&self.prevent_default),
         )
     }
 
-    pub fn on_cursor_move<MOD, M, T, B>(
-        &mut self,
-        modifier_handler: MOD,
-        mouse_handler: M,
-        touch_handler: T,
-        button_handler: B,
-    ) where
-        MOD: 'static + FnMut(ModifiersState),
-        M: 'static + FnMut(ModifiersState, i32, &mut dyn Iterator<Item = PhysicalPosition<f64>>),
+    pub fn on_cursor_move<M, T, B>(&self, mouse_handler: M, touch_handler: T, button_handler: B)
+    where
+        M: 'static
+            + FnMut(ModifiersState, DeviceId, &mut dyn Iterator<Item = PhysicalPosition<f64>>),
         T: 'static
-            + FnMut(ModifiersState, i32, &mut dyn Iterator<Item = (PhysicalPosition<f64>, Force)>),
-        B: 'static + FnMut(ModifiersState, i32, PhysicalPosition<f64>, ButtonsState, MouseButton),
+            + FnMut(
+                ModifiersState,
+                DeviceId,
+                FingerId,
+                &mut dyn Iterator<Item = (PhysicalPosition<f64>, Force)>,
+            ),
+        B: 'static
+            + FnMut(ModifiersState, DeviceId, PhysicalPosition<f64>, ButtonsState, MouseButton),
     {
-        self.pointer_handler.on_cursor_move(
+        self.handlers.borrow_mut().pointer_handler.on_cursor_move(
             &self.common,
-            modifier_handler,
             mouse_handler,
             touch_handler,
             button_handler,
@@ -388,48 +390,49 @@ impl Canvas {
         )
     }
 
-    pub fn on_touch_cancel<F>(&mut self, handler: F)
+    pub fn on_touch_cancel<F>(&self, handler: F)
     where
-        F: 'static + FnMut(i32, PhysicalPosition<f64>, Force),
+        F: 'static + FnMut(DeviceId, FingerId, PhysicalPosition<f64>, Force),
     {
-        self.pointer_handler.on_touch_cancel(&self.common, handler)
+        self.handlers.borrow_mut().pointer_handler.on_touch_cancel(&self.common, handler)
     }
 
-    pub fn on_mouse_wheel<F>(&mut self, mut handler: F)
+    pub fn on_mouse_wheel<F>(&self, mut handler: F)
     where
-        F: 'static + FnMut(i32, MouseScrollDelta, ModifiersState),
+        F: 'static + FnMut(MouseScrollDelta, ModifiersState),
     {
         let window = self.common.window.clone();
         let prevent_default = Rc::clone(&self.prevent_default);
-        self.on_mouse_wheel = Some(self.common.add_event("wheel", move |event: WheelEvent| {
-            if prevent_default.get() {
-                event.prevent_default();
-            }
+        self.handlers.borrow_mut().on_mouse_wheel =
+            Some(self.common.add_event("wheel", move |event: WheelEvent| {
+                if prevent_default.get() {
+                    event.prevent_default();
+                }
 
-            if let Some(delta) = event::mouse_scroll_delta(&window, &event) {
-                let modifiers = event::mouse_modifiers(&event);
-                handler(0, delta, modifiers);
-            }
-        }));
+                if let Some(delta) = event::mouse_scroll_delta(&window, &event) {
+                    let modifiers = event::mouse_modifiers(&event);
+                    handler(delta, modifiers);
+                }
+            }));
     }
 
-    pub fn on_dark_mode<F>(&mut self, mut handler: F)
+    pub fn on_dark_mode<F>(&self, mut handler: F)
     where
         F: 'static + FnMut(bool),
     {
-        self.on_dark_mode = Some(MediaQueryListHandle::new(
+        self.handlers.borrow_mut().on_dark_mode = Some(MediaQueryListHandle::new(
             &self.common.window,
             "(prefers-color-scheme: dark)",
             move |mql| handler(mql.matches()),
         ));
     }
 
-    pub(crate) fn on_resize_scale<S, R>(&mut self, scale_handler: S, size_handler: R)
+    pub(crate) fn on_resize_scale<S, R>(&self, scale_handler: S, size_handler: R)
     where
         S: 'static + Fn(PhysicalSize<u32>, f64),
         R: 'static + Fn(PhysicalSize<u32>),
     {
-        self.on_resize_scale = Some(ResizeScaleHandle::new(
+        self.handlers.borrow_mut().on_resize_scale = Some(ResizeScaleHandle::new(
             self.window().clone(),
             self.document().clone(),
             self.raw().clone(),
@@ -439,23 +442,24 @@ impl Canvas {
         ));
     }
 
-    pub(crate) fn on_intersection<F>(&mut self, handler: F)
+    pub(crate) fn on_intersection<F>(&self, handler: F)
     where
         F: 'static + FnMut(bool),
     {
-        self.on_intersect = Some(IntersectionObserverHandle::new(self.raw(), handler));
+        self.handlers.borrow_mut().on_intersect =
+            Some(IntersectionObserverHandle::new(self.raw(), handler));
     }
 
-    pub(crate) fn on_animation_frame<F>(&mut self, f: F)
+    pub(crate) fn on_animation_frame<F>(&self, f: F)
     where
         F: 'static + FnMut(),
     {
-        self.animation_frame_handler.on_animation_frame(f)
+        self.handlers.borrow_mut().animation_frame_handler.on_animation_frame(f)
     }
 
-    pub(crate) fn on_context_menu(&mut self) {
+    pub(crate) fn on_context_menu(&self) {
         let prevent_default = Rc::clone(&self.prevent_default);
-        self.on_context_menu =
+        self.handlers.borrow_mut().on_context_menu =
             Some(self.common.add_event("contextmenu", move |event: PointerEvent| {
                 if prevent_default.get() {
                     event.prevent_default();
@@ -463,8 +467,14 @@ impl Canvas {
             }));
     }
 
-    pub fn request_fullscreen(&self) {
-        fullscreen::request_fullscreen(self.document(), self.raw());
+    pub(crate) fn request_fullscreen(&self, fullscreen: Fullscreen) {
+        fullscreen::request_fullscreen(
+            self.main_thread,
+            self.window(),
+            self.document(),
+            self.raw(),
+            fullscreen,
+        );
     }
 
     pub fn exit_fullscreen(&self) {
@@ -476,7 +486,7 @@ impl Canvas {
     }
 
     pub fn request_animation_frame(&self) {
-        self.animation_frame_handler.request();
+        self.handlers.borrow().animation_frame_handler.request();
     }
 
     pub(crate) fn handle_scale_change(
@@ -509,7 +519,9 @@ impl Canvas {
             super::set_canvas_size(self.document(), self.raw(), self.style(), new_size);
 
             // Set the size might not trigger the event because the calculation is inaccurate.
-            self.on_resize_scale
+            self.handlers
+                .borrow()
+                .on_resize_scale
                 .as_ref()
                 .expect("expected Window to still be active")
                 .notify_resize();
@@ -523,20 +535,21 @@ impl Canvas {
         }
     }
 
-    pub fn remove_listeners(&mut self) {
-        self.on_touch_start = None;
-        self.on_focus = None;
-        self.on_blur = None;
-        self.on_keyboard_release = None;
-        self.on_keyboard_press = None;
-        self.on_mouse_wheel = None;
-        self.on_dark_mode = None;
-        self.pointer_handler.remove_listeners();
-        self.on_resize_scale = None;
-        self.on_intersect = None;
-        self.animation_frame_handler.cancel();
-        self.on_touch_end = None;
-        self.on_context_menu = None;
+    pub fn remove_listeners(&self) {
+        let mut handlers = self.handlers.borrow_mut();
+        handlers.on_touch_start.take();
+        handlers.on_focus.take();
+        handlers.on_blur.take();
+        handlers.on_keyboard_release.take();
+        handlers.on_keyboard_press.take();
+        handlers.on_mouse_wheel.take();
+        handlers.on_dark_mode.take();
+        handlers.pointer_handler.remove_listeners();
+        handlers.on_resize_scale = None;
+        handlers.on_intersect = None;
+        handlers.animation_frame_handler.cancel();
+        handlers.on_touch_end = None;
+        handlers.on_context_menu = None;
     }
 }
 

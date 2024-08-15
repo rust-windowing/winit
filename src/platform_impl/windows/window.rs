@@ -59,7 +59,7 @@ use crate::platform_impl::platform::dpi::{
 };
 use crate::platform_impl::platform::drop_handler::FileDropHandler;
 use crate::platform_impl::platform::event_loop::{self, ActiveEventLoop, DESTROY_MSG_ID};
-use crate::platform_impl::platform::icon::{self, IconType, WinCursor};
+use crate::platform_impl::platform::icon::{self, IconType};
 use crate::platform_impl::platform::ime::ImeContext;
 use crate::platform_impl::platform::keyboard::KeyEventBuilder;
 use crate::platform_impl::platform::monitor::{self, MonitorHandle};
@@ -357,32 +357,6 @@ impl Window {
         self.window
     }
 
-    #[cfg(feature = "rwh_04")]
-    #[inline]
-    pub fn raw_window_handle_rwh_04(&self) -> rwh_04::RawWindowHandle {
-        let mut window_handle = rwh_04::Win32Handle::empty();
-        window_handle.hwnd = self.window as *mut _;
-        let hinstance = unsafe { super::get_window_long(self.hwnd(), GWLP_HINSTANCE) };
-        window_handle.hinstance = hinstance as *mut _;
-        rwh_04::RawWindowHandle::Win32(window_handle)
-    }
-
-    #[cfg(feature = "rwh_05")]
-    #[inline]
-    pub fn raw_window_handle_rwh_05(&self) -> rwh_05::RawWindowHandle {
-        let mut window_handle = rwh_05::Win32WindowHandle::empty();
-        window_handle.hwnd = self.window as *mut _;
-        let hinstance = unsafe { super::get_window_long(self.hwnd(), GWLP_HINSTANCE) };
-        window_handle.hinstance = hinstance as *mut _;
-        rwh_05::RawWindowHandle::Win32(window_handle)
-    }
-
-    #[cfg(feature = "rwh_05")]
-    #[inline]
-    pub fn raw_display_handle_rwh_05(&self) -> rwh_05::RawDisplayHandle {
-        rwh_05::RawDisplayHandle::Windows(rwh_05::WindowsDisplayHandle::empty())
-    }
-
     #[cfg(feature = "rwh_06")]
     #[inline]
     pub unsafe fn rwh_06_no_thread_check(
@@ -430,17 +404,10 @@ impl Window {
                 });
             },
             Cursor::Custom(cursor) => {
-                let new_cursor = match cursor.inner {
-                    WinCursor::Cursor(cursor) => cursor,
-                    WinCursor::Failed => {
-                        warn!("Requested to apply failed cursor");
-                        return;
-                    },
-                };
                 self.window_state_lock().mouse.selected_cursor =
-                    SelectedCursor::Custom(new_cursor.clone());
+                    SelectedCursor::Custom(cursor.inner.0.clone());
                 self.thread_executor.execute_in_thread(move || unsafe {
-                    SetCursor(new_cursor.as_raw_handle());
+                    SetCursor(cursor.inner.0.as_raw_handle());
                 });
             },
         }
@@ -840,7 +807,7 @@ impl Window {
                         Fullscreen::Borderless(None) => monitor::current_monitor(window),
                     };
 
-                    let position: (i32, i32) = monitor.position().into();
+                    let position: (i32, i32) = monitor.position().unwrap_or_default().into();
                     let size: (u32, u32) = monitor.size().into();
 
                     unsafe {

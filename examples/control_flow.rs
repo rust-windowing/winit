@@ -56,7 +56,7 @@ struct ControlFlowDemo {
 }
 
 impl ApplicationHandler for ControlFlowDemo {
-    fn new_events(&mut self, _event_loop: &ActiveEventLoop, cause: StartCause) {
+    fn new_events(&mut self, _event_loop: &dyn ActiveEventLoop, cause: StartCause) {
         info!("new_events: {cause:?}");
 
         self.wait_cancelled = match cause {
@@ -65,7 +65,7 @@ impl ApplicationHandler for ControlFlowDemo {
         }
     }
 
-    fn can_create_surfaces(&mut self, event_loop: &ActiveEventLoop) {
+    fn can_create_surfaces(&mut self, event_loop: &dyn ActiveEventLoop) {
         let window_attributes = Window::default_attributes().with_title(
             "Press 1, 2, 3 to change control flow mode. Press R to toggle redraw requests.",
         );
@@ -74,7 +74,7 @@ impl ApplicationHandler for ControlFlowDemo {
 
     fn window_event(
         &mut self,
-        _event_loop: &ActiveEventLoop,
+        _event_loop: &dyn ActiveEventLoop,
         _window_id: WindowId,
         event: WindowEvent,
     ) {
@@ -120,7 +120,7 @@ impl ApplicationHandler for ControlFlowDemo {
         }
     }
 
-    fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
+    fn about_to_wait(&mut self, event_loop: &dyn ActiveEventLoop) {
         if self.request_redraw && !self.wait_cancelled && !self.close_requested {
             self.window.as_ref().unwrap().request_redraw();
         }

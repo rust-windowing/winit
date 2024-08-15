@@ -628,31 +628,6 @@ impl Window {
         None
     }
 
-    #[cfg(feature = "rwh_04")]
-    #[inline]
-    pub fn raw_window_handle_rwh_04(&self) -> rwh_04::RawWindowHandle {
-        let mut window_handle = rwh_04::WaylandHandle::empty();
-        window_handle.surface = self.window.wl_surface().id().as_ptr() as *mut _;
-        window_handle.display = self.display.id().as_ptr() as *mut _;
-        rwh_04::RawWindowHandle::Wayland(window_handle)
-    }
-
-    #[cfg(feature = "rwh_05")]
-    #[inline]
-    pub fn raw_window_handle_rwh_05(&self) -> rwh_05::RawWindowHandle {
-        let mut window_handle = rwh_05::WaylandWindowHandle::empty();
-        window_handle.surface = self.window.wl_surface().id().as_ptr() as *mut _;
-        rwh_05::RawWindowHandle::Wayland(window_handle)
-    }
-
-    #[cfg(feature = "rwh_05")]
-    #[inline]
-    pub fn raw_display_handle_rwh_05(&self) -> rwh_05::RawDisplayHandle {
-        let mut display_handle = rwh_05::WaylandDisplayHandle::empty();
-        display_handle.display = self.display.id().as_ptr() as *mut _;
-        rwh_05::RawDisplayHandle::Wayland(display_handle)
-    }
-
     #[cfg(feature = "rwh_06")]
     #[inline]
     pub fn raw_window_handle_rwh_06(&self) -> Result<rwh_06::RawWindowHandle, rwh_06::HandleError> {

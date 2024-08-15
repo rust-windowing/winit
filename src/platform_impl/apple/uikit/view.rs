@@ -14,9 +14,9 @@ use objc2_ui_kit::{
 
 use super::app_state::{self, EventWrapper};
 use super::window::WinitUIWindow;
-use super::DEVICE_ID;
+use super::{FingerId, DEVICE_ID};
 use crate::dpi::PhysicalPosition;
-use crate::event::{Event, Force, Touch, TouchPhase, WindowEvent};
+use crate::event::{Event, FingerId as RootFingerId, Force, Touch, TouchPhase, WindowEvent};
 use crate::window::{WindowAttributes, WindowId as RootWindowId};
 
 pub struct WinitViewState {
@@ -480,7 +480,7 @@ impl WinitView {
             } else {
                 None
             };
-            let touch_id = touch as *const UITouch as u64;
+            let touch_id = touch as *const UITouch as usize;
             let phase = touch.phase();
             let phase = match phase {
                 UITouchPhase::Began => TouchPhase::Started,
@@ -502,7 +502,7 @@ impl WinitView {
                 window_id: RootWindowId(window.id()),
                 event: WindowEvent::Touch(Touch {
                     device_id: DEVICE_ID,
-                    id: touch_id,
+                    finger_id: RootFingerId(FingerId(touch_id)),
                     location: physical_location,
                     force,
                     phase,

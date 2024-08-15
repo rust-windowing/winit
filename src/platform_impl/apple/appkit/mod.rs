@@ -43,6 +43,15 @@ impl DeviceId {
 // Constant device ID; to be removed when if backend is updated to report real device IDs.
 pub(crate) const DEVICE_ID: RootDeviceId = RootDeviceId(DeviceId);
 
+#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct FingerId;
+
+impl FingerId {
+    pub const fn dummy() -> Self {
+        FingerId
+    }
+}
+
 #[derive(Debug)]
 pub enum OsError {
     CGError(core_graphics::base::CGError),

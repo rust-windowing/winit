@@ -2,7 +2,6 @@
 
 use std::cell::{Cell, RefCell};
 use std::io::Result as IOResult;
-use std::marker::PhantomData;
 use std::mem;
 use std::os::unix::io::{AsFd, AsRawFd, BorrowedFd, RawFd};
 use std::sync::atomic::Ordering;
@@ -16,15 +15,13 @@ use sctk::reexports::client::{globals, Connection, QueueHandle};
 use crate::application::ApplicationHandler;
 use crate::cursor::OnlyCursorImage;
 use crate::dpi::LogicalSize;
-use crate::error::{EventLoopError, OsError as RootOsError};
+use crate::error::{EventLoopError, ExternalError, OsError as RootOsError};
 use crate::event::{Event, InnerSizeWriter, StartCause, WindowEvent};
 use crate::event_loop::{ActiveEventLoop as RootActiveEventLoop, ControlFlow, DeviceEvents};
 use crate::platform::pump_events::PumpStatus;
 use crate::platform_impl::platform::min_timeout;
-use crate::platform_impl::{
-    ActiveEventLoop as PlatformActiveEventLoop, OsError, PlatformCustomCursor,
-};
-use crate::window::{CustomCursor as RootCustomCursor, CustomCursorSource};
+use crate::platform_impl::{OsError, PlatformCustomCursor};
+use crate::window::{CustomCursor as RootCustomCursor, CustomCursorSource, Theme};
 
 mod proxy;
 pub mod sink;
@@ -55,7 +52,7 @@ pub struct EventLoop {
     connection: Connection,
 
     /// Event loop window target.
-    window_target: RootActiveEventLoop,
+    active_event_loop: ActiveEventLoop,
 
     // XXX drop after everything else, just to be safe.
     /// Calloop's event loop.
@@ -132,7 +129,7 @@ impl EventLoop {
             .map_err(|error| error.error);
         map_err!(result, WaylandError::Calloop)?;
 
-        let window_target = ActiveEventLoop {
+        let active_event_loop = ActiveEventLoop {
             connection: connection.clone(),
             wayland_dispatcher: wayland_dispatcher.clone(),
             event_loop_awakener,
@@ -151,10 +148,7 @@ impl EventLoop {
             connection,
             wayland_dispatcher,
             event_loop,
-            window_target: RootActiveEventLoop {
-                p: PlatformActiveEventLoop::Wayland(window_target),
-                _marker: PhantomData,
-            },
+            active_event_loop,
         };
 
         Ok(event_loop)
@@ -168,7 +162,7 @@ impl EventLoop {
         &mut self,
         mut app: A,
     ) -> Result<(), EventLoopError> {
-        self.window_target.p.clear_exit();
+        self.active_event_loop.clear_exit();
         let exit = loop {
             match self.pump_app_events(None, &mut app) {
                 PumpStatus::Exit(0) => {
@@ -212,7 +206,7 @@ impl EventLoop {
         if let Some(code) = self.exit_code() {
             self.loop_running = false;
 
-            app.exiting(&self.window_target);
+            app.exiting(&self.active_event_loop);
 
             PumpStatus::Exit(code)
         } else {
@@ -300,17 +294,17 @@ impl EventLoop {
         let mut buffer_sink = std::mem::take(&mut self.buffer_sink);
         let mut window_ids = std::mem::take(&mut self.window_ids);
 
-        app.new_events(&self.window_target, cause);
+        app.new_events(&self.active_event_loop, cause);
 
         // NB: For consistency all platforms must call `can_create_surfaces` even though Wayland
         // applications don't themselves have a formal surface destroy/create lifecycle.
         if cause == StartCause::Init {
-            app.can_create_surfaces(&self.window_target);
+            app.can_create_surfaces(&self.active_event_loop);
         }
 
         // Indicate user wake up.
         if self.with_state(|state| mem::take(&mut state.proxy_wake_up)) {
-            app.proxy_wake_up(&self.window_target);
+            app.proxy_wake_up(&self.active_event_loop);
         }
 
         // Drain the pending compositor updates.
@@ -337,7 +331,7 @@ impl EventLoop {
                     inner_size_writer: InnerSizeWriter::new(Arc::downgrade(&new_inner_size)),
                 };
 
-                app.window_event(&self.window_target, root_window_id, event);
+                app.window_event(&self.active_event_loop, root_window_id, event);
 
                 let physical_size = *new_inner_size.lock().unwrap();
                 drop(new_inner_size);
@@ -382,12 +376,12 @@ impl EventLoop {
 
                 let window_id = crate::window::WindowId(window_id);
                 let event = WindowEvent::Resized(physical_size);
-                app.window_event(&self.window_target, window_id, event);
+                app.window_event(&self.active_event_loop, window_id, event);
             }
 
             if compositor_update.close_window {
                 let window_id = crate::window::WindowId(window_id);
-                app.window_event(&self.window_target, window_id, WindowEvent::CloseRequested);
+                app.window_event(&self.active_event_loop, window_id, WindowEvent::CloseRequested);
             }
         }
 
@@ -398,10 +392,10 @@ impl EventLoop {
         for event in buffer_sink.drain() {
             match event {
                 Event::WindowEvent { window_id, event } => {
-                    app.window_event(&self.window_target, window_id, event)
+                    app.window_event(&self.active_event_loop, window_id, event)
                 },
                 Event::DeviceEvent { device_id, event } => {
-                    app.device_event(&self.window_target, device_id, event)
+                    app.device_event(&self.active_event_loop, device_id, event)
                 },
                 _ => unreachable!("event which is neither device nor window event."),
             }
@@ -414,10 +408,10 @@ impl EventLoop {
         for event in buffer_sink.drain() {
             match event {
                 Event::WindowEvent { window_id, event } => {
-                    app.window_event(&self.window_target, window_id, event)
+                    app.window_event(&self.active_event_loop, window_id, event)
                 },
                 Event::DeviceEvent { device_id, event } => {
-                    app.device_event(&self.window_target, device_id, event)
+                    app.device_event(&self.active_event_loop, device_id, event)
                 },
                 _ => unreachable!("event which is neither device nor window event."),
             }
@@ -457,7 +451,7 @@ impl EventLoop {
 
             if let Some(event) = event {
                 let window_id = crate::window::WindowId(*window_id);
-                app.window_event(&self.window_target, window_id, event);
+                app.window_event(&self.active_event_loop, window_id, event);
             }
         }
 
@@ -467,7 +461,7 @@ impl EventLoop {
         });
 
         // This is always the last event we dispatch before poll again
-        app.about_to_wait(&self.window_target);
+        app.about_to_wait(&self.active_event_loop);
 
         // Update the window frames and schedule redraws.
         let mut wake_up = false;
@@ -496,13 +490,7 @@ impl EventLoop {
         // If the user draws from the `AboutToWait` this is likely not required, however
         // we can't do much about it.
         if wake_up {
-            match &self.window_target.p {
-                PlatformActiveEventLoop::Wayland(window_target) => {
-                    window_target.event_loop_awakener.ping();
-                },
-                #[cfg(x11_platform)]
-                PlatformActiveEventLoop::X(_) => unreachable!(),
-            }
+            self.active_event_loop.event_loop_awakener.ping();
         }
 
         std::mem::swap(&mut self.compositor_updates, &mut compositor_updates);
@@ -511,26 +499,17 @@ impl EventLoop {
     }
 
     #[inline]
-    pub fn window_target(&self) -> &RootActiveEventLoop {
-        &self.window_target
+    pub fn window_target(&self) -> &dyn RootActiveEventLoop {
+        &self.active_event_loop
     }
 
     fn with_state<'a, U: 'a, F: FnOnce(&'a mut WinitState) -> U>(&'a mut self, callback: F) -> U {
-        let state = match &mut self.window_target.p {
-            PlatformActiveEventLoop::Wayland(window_target) => window_target.state.get_mut(),
-            #[cfg(x11_platform)]
-            _ => unreachable!(),
-        };
-
+        let state = self.active_event_loop.state.get_mut();
         callback(state)
     }
 
     fn loop_dispatch<D: Into<Option<std::time::Duration>>>(&mut self, timeout: D) -> IOResult<()> {
-        let state = match &mut self.window_target.p {
-            PlatformActiveEventLoop::Wayland(window_target) => window_target.state.get_mut(),
-            #[cfg(feature = "x11")]
-            _ => unreachable!(),
-        };
+        let state = &mut self.active_event_loop.state.get_mut();
 
         self.event_loop.dispatch(timeout, state).map_err(|error| {
             tracing::error!("Error dispatching event loop: {}", error);
@@ -539,11 +518,7 @@ impl EventLoop {
     }
 
     fn roundtrip(&mut self) -> Result<usize, RootOsError> {
-        let state = match &mut self.window_target.p {
-            PlatformActiveEventLoop::Wayland(window_target) => window_target.state.get_mut(),
-            #[cfg(feature = "x11")]
-            _ => unreachable!(),
-        };
+        let state = &mut self.active_event_loop.state.get_mut();
 
         let mut wayland_source = self.wayland_dispatcher.as_source_mut();
         let event_queue = wayland_source.queue();
@@ -553,19 +528,19 @@ impl EventLoop {
     }
 
     fn control_flow(&self) -> ControlFlow {
-        self.window_target.p.control_flow()
+        self.active_event_loop.control_flow()
     }
 
     fn exiting(&self) -> bool {
-        self.window_target.p.exiting()
+        self.active_event_loop.exiting()
     }
 
     fn set_exit_code(&self, code: i32) {
-        self.window_target.p.set_exit_code(code)
+        self.active_event_loop.set_exit_code(code)
     }
 
     fn exit_code(&self) -> Option<i32> {
-        self.window_target.p.exit_code()
+        self.active_event_loop.exit_code()
     }
 }
 
@@ -608,69 +583,110 @@ pub struct ActiveEventLoop {
     pub connection: Connection,
 }
 
-impl ActiveEventLoop {
-    pub(crate) fn create_proxy(&self) -> EventLoopProxy {
-        self.event_loop_proxy.clone()
-    }
-
-    pub(crate) fn set_control_flow(&self, control_flow: ControlFlow) {
-        self.control_flow.set(control_flow)
-    }
-
-    pub(crate) fn control_flow(&self) -> ControlFlow {
-        self.control_flow.get()
-    }
-
-    pub(crate) fn exit(&self) {
-        self.exit.set(Some(0))
-    }
-
-    pub(crate) fn clear_exit(&self) {
-        self.exit.set(None)
-    }
-
-    pub(crate) fn exiting(&self) -> bool {
-        self.exit.get().is_some()
-    }
-
-    pub(crate) fn set_exit_code(&self, code: i32) {
-        self.exit.set(Some(code))
-    }
-
-    pub(crate) fn exit_code(&self) -> Option<i32> {
-        self.exit.get()
-    }
-
-    #[inline]
-    pub fn listen_device_events(&self, _allowed: DeviceEvents) {}
-
-    pub(crate) fn create_custom_cursor(&self, cursor: CustomCursorSource) -> RootCustomCursor {
-        RootCustomCursor {
-            inner: PlatformCustomCursor::Wayland(OnlyCursorImage(Arc::from(cursor.inner.0))),
+impl RootActiveEventLoop for ActiveEventLoop {
+    fn create_proxy(&self) -> crate::event_loop::EventLoopProxy {
+        crate::event_loop::EventLoopProxy {
+            event_loop_proxy: crate::platform_impl::EventLoopProxy::Wayland(
+                self.event_loop_proxy.clone(),
+            ),
         }
     }
 
-    #[cfg(feature = "rwh_05")]
-    #[inline]
-    pub fn raw_display_handle_rwh_05(&self) -> rwh_05::RawDisplayHandle {
-        use sctk::reexports::client::Proxy;
+    fn set_control_flow(&self, control_flow: ControlFlow) {
+        self.control_flow.set(control_flow)
+    }
 
-        let mut display_handle = rwh_05::WaylandDisplayHandle::empty();
-        display_handle.display = self.connection.display().id().as_ptr() as *mut _;
-        rwh_05::RawDisplayHandle::Wayland(display_handle)
+    fn control_flow(&self) -> ControlFlow {
+        self.control_flow.get()
+    }
+
+    fn exit(&self) {
+        self.exit.set(Some(0))
+    }
+
+    fn exiting(&self) -> bool {
+        self.exit.get().is_some()
+    }
+
+    #[inline]
+    fn listen_device_events(&self, _allowed: DeviceEvents) {}
+
+    fn create_custom_cursor(
+        &self,
+        cursor: CustomCursorSource,
+    ) -> Result<RootCustomCursor, ExternalError> {
+        Ok(RootCustomCursor {
+            inner: PlatformCustomCursor::Wayland(OnlyCursorImage(Arc::from(cursor.inner.0))),
+        })
+    }
+
+    #[inline]
+    fn system_theme(&self) -> Option<Theme> {
+        None
+    }
+
+    fn create_window(
+        &self,
+        window_attributes: crate::window::WindowAttributes,
+    ) -> Result<crate::window::Window, RootOsError> {
+        let window = crate::platform_impl::wayland::Window::new(self, window_attributes)?;
+        let window = crate::platform_impl::Window::Wayland(window);
+        Ok(crate::window::Window { window })
+    }
+
+    fn available_monitors(&self) -> Box<dyn Iterator<Item = crate::monitor::MonitorHandle>> {
+        Box::new(
+            self.state
+                .borrow()
+                .output_state
+                .outputs()
+                .map(crate::platform_impl::wayland::output::MonitorHandle::new)
+                .map(crate::platform_impl::MonitorHandle::Wayland)
+                .map(|inner| crate::monitor::MonitorHandle { inner }),
+        )
+    }
+
+    fn primary_monitor(&self) -> Option<crate::monitor::MonitorHandle> {
+        // There's no primary monitor on Wayland.
+        None
+    }
+
+    fn owned_display_handle(&self) -> crate::event_loop::OwnedDisplayHandle {
+        crate::event_loop::OwnedDisplayHandle {
+            platform: crate::platform_impl::OwnedDisplayHandle::Wayland(self.connection.clone()),
+        }
     }
 
     #[cfg(feature = "rwh_06")]
-    #[inline]
-    pub fn raw_display_handle_rwh_06(
-        &self,
-    ) -> Result<rwh_06::RawDisplayHandle, rwh_06::HandleError> {
+    fn rwh_06_handle(&self) -> &dyn rwh_06::HasDisplayHandle {
+        self
+    }
+}
+
+impl ActiveEventLoop {
+    fn clear_exit(&self) {
+        self.exit.set(None)
+    }
+
+    fn set_exit_code(&self, code: i32) {
+        self.exit.set(Some(code))
+    }
+
+    fn exit_code(&self) -> Option<i32> {
+        self.exit.get()
+    }
+}
+
+#[cfg(feature = "rwh_06")]
+impl rwh_06::HasDisplayHandle for ActiveEventLoop {
+    fn display_handle(&self) -> Result<rwh_06::DisplayHandle<'_>, rwh_06::HandleError> {
         use sctk::reexports::client::Proxy;
 
-        Ok(rwh_06::WaylandDisplayHandle::new({
+        let raw = rwh_06::WaylandDisplayHandle::new({
             let ptr = self.connection.display().id().as_ptr();
             std::ptr::NonNull::new(ptr as *mut _).expect("wl_display should never be null")
-        })
-        .into())
+        });
+
+        Ok(unsafe { rwh_06::DisplayHandle::borrow_raw(raw.into()) })
     }
 }

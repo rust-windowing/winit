@@ -1,16 +1,23 @@
 use std::cell::OnceCell;
 
-use js_sys::Promise;
+use js_sys::{Object, Promise};
+use tracing::error;
 use wasm_bindgen::closure::Closure;
 use wasm_bindgen::prelude::wasm_bindgen;
 use wasm_bindgen::{JsCast, JsValue};
-use web_sys::{Document, Element, HtmlCanvasElement};
+use web_sys::{console, Document, Element, HtmlCanvasElement, Window};
 
-pub fn request_fullscreen(document: &Document, canvas: &HtmlCanvasElement) {
-    if is_fullscreen(document, canvas) {
-        return;
-    }
+use super::super::main_thread::MainThreadMarker;
+use super::super::monitor::{self, ScreenDetailed};
+use crate::platform_impl::Fullscreen;
 
+pub(crate) fn request_fullscreen(
+    main_thread: MainThreadMarker,
+    window: &Window,
+    document: &Document,
+    canvas: &HtmlCanvasElement,
+    fullscreen: Fullscreen,
+) {
     #[wasm_bindgen]
     extern "C" {
         #[wasm_bindgen(extends = HtmlCanvasElement)]
@@ -19,21 +26,66 @@ pub fn request_fullscreen(document: &Document, canvas: &HtmlCanvasElement) {
         #[wasm_bindgen(method, js_name = requestFullscreen)]
         fn request_fullscreen(this: &RequestFullscreen) -> Promise;
 
+        #[wasm_bindgen(method, js_name = requestFullscreen)]
+        fn request_fullscreen_with_options(
+            this: &RequestFullscreen,
+            options: &FullscreenOptions,
+        ) -> Promise;
+
         #[wasm_bindgen(method, js_name = webkitRequestFullscreen)]
         fn webkit_request_fullscreen(this: &RequestFullscreen);
+
+        type FullscreenOptions;
+
+        #[wasm_bindgen(method, setter, js_name = screen)]
+        fn set_screen(this: &FullscreenOptions, screen: &ScreenDetailed);
+    }
+
+    thread_local! {
+        static REJECT_HANDLER: Closure<dyn FnMut(JsValue)> = Closure::new(|error| {
+            console::error_1(&error);
+            error!("Failed to transition to full screen mode")
+        });
+    }
+
+    if is_fullscreen(document, canvas) {
+        return;
     }
 
     let canvas: &RequestFullscreen = canvas.unchecked_ref();
 
-    if has_fullscreen_api_support(canvas) {
-        thread_local! {
-            static REJECT_HANDLER: Closure<dyn FnMut(JsValue)> = Closure::new(|_| ());
-        }
-        REJECT_HANDLER.with(|handler| {
-            let _ = canvas.request_fullscreen().catch(handler);
-        });
-    } else {
-        canvas.webkit_request_fullscreen();
+    match fullscreen {
+        Fullscreen::Exclusive(_) => error!("Exclusive full screen mode is not supported"),
+        Fullscreen::Borderless(Some(monitor)) => {
+            if !monitor::has_screen_details_support(window) {
+                error!(
+                    "Fullscreen mode selecting a specific screen is not supported by this browser"
+                );
+                return;
+            }
+
+            if let Some(monitor) = monitor.detailed(main_thread) {
+                let options: FullscreenOptions = Object::new().unchecked_into();
+                options.set_screen(&monitor);
+                REJECT_HANDLER.with(|handler| {
+                    let _ = canvas.request_fullscreen_with_options(&options).catch(handler);
+                });
+            } else {
+                error!(
+                    "Selecting a specific screen for fullscreen mode requires a detailed screen. \
+                     See `MonitorHandleExtWeb::is_detailed()`."
+                )
+            }
+        },
+        Fullscreen::Borderless(None) => {
+            if has_fullscreen_api_support(canvas) {
+                REJECT_HANDLER.with(|handler| {
+                    let _ = canvas.request_fullscreen().catch(handler);
+                });
+            } else {
+                canvas.webkit_request_fullscreen();
+            }
+        },
     }
 }
 

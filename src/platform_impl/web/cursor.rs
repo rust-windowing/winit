@@ -27,7 +27,7 @@ use super::ActiveEventLoop;
 use crate::cursor::{BadImage, Cursor, CursorImage, CustomCursor as RootCustomCursor};
 use crate::platform::web::CustomCursorError;
 
-#[derive(Debug)]
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub(crate) enum CustomCursorSource {
     Image(CursorImage),
     Url { url: String, hotspot_x: u16, hotspot_y: u16 },
@@ -178,7 +178,7 @@ impl Future for CustomCursorFuture {
             panic!("`CustomCursorFuture` polled after completion")
         }
 
-        let result = ready!(Pin::new(&mut self.notified).poll(cx));
+        let result = ready!(Pin::new(&mut self.notified).poll(cx)).unwrap();
         let state = self.state.take().expect("`CustomCursorFuture` polled after completion");
 
         Poll::Ready(result.map(|_| CustomCursor { animation: self.animation, state }))
@@ -542,8 +542,8 @@ fn from_rgba(
     //
     // We call `createImageBitmap()` before spawning the future,
     // to not have to clone the image buffer.
-    let mut options = ImageBitmapOptions::new();
-    options.premultiply_alpha(PremultiplyAlpha::None);
+    let options = ImageBitmapOptions::new();
+    options.set_premultiply_alpha(PremultiplyAlpha::None);
     let bitmap = JsFuture::from(
         window
             .create_image_bitmap_with_image_data_and_image_bitmap_options(&image_data, &options)
@@ -662,7 +662,7 @@ async fn from_animation(
             ImageState::Loading { notifier, .. } => {
                 let notified = notifier.notified();
                 drop(state);
-                notified.await?;
+                notified.await.unwrap()?;
             },
             ImageState::Failed(error) => return Err(error.clone()),
             ImageState::Image(_) => drop(state),

@@ -3,6 +3,7 @@ use std::cell::{Cell, RefCell};
 use std::collections::VecDeque;
 use std::ffi::c_void;
 use std::ptr;
+use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 
 use core_graphics::display::{CGDisplay, CGPoint};
@@ -26,7 +27,7 @@ use objc2_foundation::{
 };
 use tracing::{trace, warn};
 
-use super::app_state::ApplicationDelegate;
+use super::app_state::AppState;
 use super::cursor::cursor_from_icon;
 use super::monitor::{self, flip_window_screen_coordinates, get_display_id};
 use super::observer::RunLoop;
@@ -42,7 +43,7 @@ use crate::window::{
     WindowAttributes, WindowButtons, WindowId as RootWindowId, WindowLevel,
 };
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct PlatformSpecificWindowAttributes {
     pub movable_by_window_background: bool,
     pub titlebar_transparent: bool,
@@ -79,7 +80,7 @@ impl Default for PlatformSpecificWindowAttributes {
 #[derive(Debug)]
 pub(crate) struct State {
     /// Strong reference to the global application state.
-    app_delegate: Retained<ApplicationDelegate>,
+    app_state: Rc<AppState>,
 
     window: Retained<WinitWindow>,
 
@@ -482,7 +483,7 @@ impl Drop for WindowDelegate {
 }
 
 fn new_window(
-    app_delegate: &ApplicationDelegate,
+    app_state: &Rc<AppState>,
     attrs: &WindowAttributes,
     mtm: MainThreadMarker,
 ) -> Option<Retained<WinitWindow>> {
@@ -622,7 +623,7 @@ fn new_window(
         }
 
         let view = WinitView::new(
-            app_delegate,
+            app_state,
             &window,
             attrs.platform_specific.accepts_first_mouse,
             attrs.platform_specific.option_as_alt,
@@ -665,11 +666,11 @@ fn new_window(
 
 impl WindowDelegate {
     pub(super) fn new(
-        app_delegate: &ApplicationDelegate,
+        app_state: &Rc<AppState>,
         attrs: WindowAttributes,
         mtm: MainThreadMarker,
     ) -> Result<Retained<Self>, RootOsError> {
-        let window = new_window(app_delegate, &attrs, mtm)
+        let window = new_window(app_state, &attrs, mtm)
             .ok_or_else(|| os_error!(OsError::CreationError("couldn't create `NSWindow`")))?;
 
         #[cfg(feature = "rwh_06")]
@@ -709,7 +710,7 @@ impl WindowDelegate {
         }
 
         let delegate = mtm.alloc().set_ivars(State {
-            app_delegate: app_delegate.retain(),
+            app_state: Rc::clone(app_state),
             window: window.retain(),
             previous_position: Cell::new(None),
             previous_scale_factor: Cell::new(scale_factor),
@@ -808,7 +809,7 @@ impl WindowDelegate {
 
     pub(crate) fn queue_event(&self, event: WindowEvent) {
         let window_id = RootWindowId(self.window().id());
-        self.ivars().app_delegate.maybe_queue_with_handler(move |app, event_loop| {
+        self.ivars().app_state.maybe_queue_with_handler(move |app, event_loop| {
             app.window_event(event_loop, window_id, event);
         });
     }
@@ -907,7 +908,7 @@ impl WindowDelegate {
     }
 
     pub fn request_redraw(&self) {
-        self.ivars().app_delegate.queue_redraw(self.window().id());
+        self.ivars().app_state.queue_redraw(self.window().id());
     }
 
     #[inline]
@@ -1428,13 +1429,7 @@ impl WindowDelegate {
                 toggle_fullscreen(self.window());
             },
             (Some(Fullscreen::Exclusive(ref video_mode)), None) => {
-                unsafe {
-                    ffi::CGRestorePermanentDisplayConfiguration();
-                    assert_eq!(
-                        ffi::CGDisplayRelease(video_mode.monitor().native_identifier()),
-                        ffi::kCGErrorSuccess
-                    );
-                };
+                restore_and_release_display(&video_mode.monitor());
                 toggle_fullscreen(self.window());
             },
             (Some(Fullscreen::Borderless(_)), Some(Fullscreen::Exclusive(_))) => {
@@ -1465,13 +1460,7 @@ impl WindowDelegate {
                 );
                 app.setPresentationOptions(presentation_options);
 
-                unsafe {
-                    ffi::CGRestorePermanentDisplayConfiguration();
-                    assert_eq!(
-                        ffi::CGDisplayRelease(video_mode.monitor().native_identifier()),
-                        ffi::kCGErrorSuccess
-                    );
-                };
+                restore_and_release_display(&video_mode.monitor());
 
                 // Restore the normal window level following the Borderless fullscreen
                 // `CGShieldingWindowLevel() + 1` hack.
@@ -1610,30 +1599,6 @@ impl WindowDelegate {
         Some(monitor)
     }
 
-    #[cfg(feature = "rwh_04")]
-    #[inline]
-    pub fn raw_window_handle_rwh_04(&self) -> rwh_04::RawWindowHandle {
-        let mut window_handle = rwh_04::AppKitHandle::empty();
-        window_handle.ns_window = self.window() as *const WinitWindow as *mut _;
-        window_handle.ns_view = Retained::as_ptr(&self.contentView().unwrap()) as *mut _;
-        rwh_04::RawWindowHandle::AppKit(window_handle)
-    }
-
-    #[cfg(feature = "rwh_05")]
-    #[inline]
-    pub fn raw_window_handle_rwh_05(&self) -> rwh_05::RawWindowHandle {
-        let mut window_handle = rwh_05::AppKitWindowHandle::empty();
-        window_handle.ns_window = self.window() as *const WinitWindow as *mut _;
-        window_handle.ns_view = Retained::as_ptr(&self.view()) as *mut _;
-        rwh_05::RawWindowHandle::AppKit(window_handle)
-    }
-
-    #[cfg(feature = "rwh_05")]
-    #[inline]
-    pub fn raw_display_handle_rwh_05(&self) -> rwh_05::RawDisplayHandle {
-        rwh_05::RawDisplayHandle::AppKit(rwh_05::AppKitDisplayHandle::empty())
-    }
-
     #[cfg(feature = "rwh_06")]
     #[inline]
     pub fn raw_window_handle_rwh_06(&self) -> rwh_06::RawWindowHandle {
@@ -1659,14 +1624,18 @@ impl WindowDelegate {
     }
 
     pub fn theme(&self) -> Option<Theme> {
-        // Note: We could choose between returning the value of `effectiveAppearance` or
-        // `appearance`, depending on what the user is asking about:
-        // - "how should I render on this particular frame".
-        // - "what is the configuration for this window".
-        //
-        // We choose the latter for consistency with the `set_theme` call, though it might also be
-        // useful to expose the former.
-        Some(appearance_to_theme(unsafe { &*self.window().appearance()? }))
+        unsafe { self.window().appearance() }
+            .map(|appearance| appearance_to_theme(&appearance))
+            .or_else(|| {
+                let mtm = MainThreadMarker::from(self);
+                let app = NSApplication::sharedApplication(mtm);
+
+                if app.respondsToSelector(sel!(effectiveAppearance)) {
+                    Some(super::window_delegate::appearance_to_theme(&app.effectiveAppearance()))
+                } else {
+                    Some(Theme::Light)
+                }
+            })
     }
 
     pub fn set_theme(&self, theme: Option<Theme>) {
@@ -1688,6 +1657,21 @@ impl WindowDelegate {
 
     pub fn reset_dead_keys(&self) {
         // (Artur) I couldn't find a way to implement this.
+    }
+}
+
+fn restore_and_release_display(monitor: &MonitorHandle) {
+    let available_monitors = monitor::available_monitors();
+    if available_monitors.contains(monitor) {
+        unsafe {
+            ffi::CGRestorePermanentDisplayConfiguration();
+            assert_eq!(ffi::CGDisplayRelease(monitor.native_identifier()), ffi::kCGErrorSuccess);
+        };
+    } else {
+        warn!(
+            monitor = monitor.name(),
+            "Tried to restore exclusive fullscreen on a monitor that is no longer available"
+        );
     }
 }
 
@@ -1834,7 +1818,7 @@ fn dark_appearance_name() -> &'static NSString {
     ns_string!("NSAppearanceNameDarkAqua")
 }
 
-fn appearance_to_theme(appearance: &NSAppearance) -> Theme {
+pub fn appearance_to_theme(appearance: &NSAppearance) -> Theme {
     let best_match = appearance.bestMatchFromAppearancesWithNames(&NSArray::from_id_slice(&[
         unsafe { NSAppearanceNameAqua.copy() },
         dark_appearance_name().copy(),
