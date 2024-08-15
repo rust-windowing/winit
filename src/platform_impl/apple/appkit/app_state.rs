@@ -8,7 +8,7 @@ use std::time::Instant;
 use objc2_app_kit::{NSApplication, NSApplicationActivationPolicy};
 use objc2_foundation::{MainThreadMarker, NSNotification};
 
-use super::event_handler::EventHandler;
+use super::super::event_handler::EventHandler;
 use super::event_loop::{stop_app_immediately, ActiveEventLoop, PanicInfo};
 use super::observer::{EventLoopWaker, RunLoop};
 use super::{menu, WindowId};
@@ -291,7 +291,7 @@ impl AppState {
         callback: impl FnOnce(&mut dyn ApplicationHandler, &ActiveEventLoop),
     ) {
         let event_loop = ActiveEventLoop { app_state: Rc::clone(self), mtm: self.mtm };
-        self.event_handler.handle(callback, &event_loop);
+        self.event_handler.handle(|app| callback(app, &event_loop));
     }
 
     /// dispatch `NewEvents(Init)` + `Resumed`

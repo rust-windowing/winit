@@ -22,9 +22,7 @@ use objc2_ui_kit::{
 };
 
 use super::super::notification_center::create_observer;
-use super::app_state::{
-    send_occluded_event_for_all_windows, AppState, EventLoopHandler, EventWrapper,
-};
+use super::app_state::{send_occluded_event_for_all_windows, AppState, EventWrapper};
 use super::{app_state, monitor, MonitorHandle};
 use crate::application::ApplicationHandler;
 use crate::error::{EventLoopError, ExternalError, NotSupportedError, OsError};
@@ -125,32 +123,6 @@ impl OwnedDisplayHandle {
         &self,
     ) -> Result<rwh_06::RawDisplayHandle, rwh_06::HandleError> {
         Ok(rwh_06::UiKitDisplayHandle::new().into())
-    }
-}
-
-fn map_user_event<'a, A: ApplicationHandler + 'a>(
-    mut app: A,
-    proxy_wake_up: Arc<AtomicBool>,
-) -> impl FnMut(Event, &dyn RootActiveEventLoop) + 'a {
-    move |event, window_target| match event {
-        Event::NewEvents(cause) => app.new_events(window_target, cause),
-        Event::WindowEvent { window_id, event } => {
-            app.window_event(window_target, window_id, event)
-        },
-        Event::DeviceEvent { device_id, event } => {
-            app.device_event(window_target, device_id, event)
-        },
-        Event::UserWakeUp => {
-            if proxy_wake_up.swap(false, AtomicOrdering::Relaxed) {
-                app.proxy_wake_up(window_target);
-            }
-        },
-        Event::Suspended => app.suspended(window_target),
-        Event::Resumed => app.resumed(window_target),
-        Event::CreateSurfaces => app.can_create_surfaces(window_target),
-        Event::AboutToWait => app.about_to_wait(window_target),
-        Event::LoopExiting => app.exiting(window_target),
-        Event::MemoryWarning => app.memory_warning(window_target),
     }
 }
 
@@ -285,7 +257,7 @@ impl EventLoop {
         })
     }
 
-    pub fn run_app<A: ApplicationHandler>(self, app: A) -> ! {
+    pub fn run_app<A: ApplicationHandler>(self, mut app: A) -> ! {
         let application: Option<Retained<UIApplication>> =
             unsafe { msg_send_id![UIApplication::class(), sharedApplication] };
         assert!(
@@ -295,35 +267,23 @@ impl EventLoop {
              `EventLoop::run_app` calls `UIApplicationMain` on iOS",
         );
 
-        let handler = map_user_event(app, AppState::get_mut(self.mtm).proxy_wake_up());
-
-        let handler = unsafe {
-            std::mem::transmute::<
-                Box<dyn FnMut(Event, &dyn RootActiveEventLoop)>,
-                Box<dyn FnMut(Event, &dyn RootActiveEventLoop)>,
-            >(Box::new(handler))
-        };
-
-        let handler = EventLoopHandler { handler, event_loop: self.window_target };
-
-        app_state::will_launch(self.mtm, handler);
-
         extern "C" {
             // These functions are in crt_externs.h.
             fn _NSGetArgc() -> *mut c_int;
             fn _NSGetArgv() -> *mut *mut *mut c_char;
         }
 
-        unsafe {
+        app_state::launch(self.mtm, &mut app, || unsafe {
             UIApplicationMain(
                 *_NSGetArgc(),
                 NonNull::new(*_NSGetArgv()).unwrap(),
-                // We intentionally override neither the application nor the delegate, to allow the
-                // user to do so themselves!
+                // We intentionally override neither the application nor the delegate, to allow
+                // the user to do so themselves!
                 None,
                 None,
-            )
-        };
+            );
+        });
+
         unreachable!()
     }
 
