@@ -78,6 +78,11 @@ impl WinitUIWindow {
         frame: CGRect,
         view_controller: &UIViewController,
     ) -> Retained<Self> {
+        // NOTE: This should only be created after the application has started launching,
+        // (`application:willFinishLaunchingWithOptions:` at the earliest), otherwise you'll run
+        // into very confusing issues with the window not being properly activated.
+        //
+        // Winit ensures this by not allowing access to `ActiveEventLoop` before handling events.
         let this: Retained<Self> = unsafe { msg_send_id![mtm.alloc(), initWithFrame: frame] };
 
         this.setRootViewController(Some(view_controller));
@@ -490,8 +495,7 @@ impl Window {
 
         let view_controller = WinitViewController::new(mtm, &window_attributes, &view);
         let window = WinitUIWindow::new(mtm, &window_attributes, frame, &view_controller);
-
-        app_state::set_key_window(mtm, &window);
+        window.makeKeyAndVisible();
 
         // Like the Windows and macOS backends, we send a `ScaleFactorChanged` and `Resized`
         // event on window creation if the DPI factor != 1.0

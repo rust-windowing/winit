@@ -558,6 +558,11 @@ fn new_window(
             masks |= NSWindowStyleMask::FullSizeContentView;
         }
 
+        // NOTE: This should only be created after the application has started launching,
+        // (`applicationWillFinishLaunching:` at the earliest), otherwise you'll run into very
+        // confusing issues with the window not being properly activated.
+        //
+        // Winit ensures this by not allowing access to `ActiveEventLoop` before handling events.
         let window: Option<Retained<WinitWindow>> = unsafe {
             msg_send_id![
                 super(mtm.alloc().set_ivars(())),

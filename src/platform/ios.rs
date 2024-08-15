@@ -3,15 +3,6 @@
 //! Winit has an OS requirement of iOS 8 or higher, and is regularly tested on
 //! iOS 9.3.
 //!
-//! ## Window initialization
-//!
-//! iOS's main `UIApplicationMain` does some init work that's required by all
-//! UI-related code (see issue [#1705]). It is best to create your windows
-//! inside [`ApplicationHandler::resumed`].
-//!
-//! [#1705]: https://github.com/rust-windowing/winit/issues/1705
-//! [`ApplicationHandler::resumed`]: crate::application::ApplicationHandler::resumed
-//!
 //! ## Building app
 //!
 //! To build ios app you will need rustc built for this targets:

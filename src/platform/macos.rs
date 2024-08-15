@@ -3,20 +3,6 @@
 //! Winit has an OS requirement of macOS 10.11 or higher (same as Rust
 //! itself), and is regularly tested on macOS 10.14.
 //!
-//! ## Window initialization
-//!
-//! A lot of functionality expects the application to be ready before you
-//! start doing anything; this includes creating windows, fetching monitors,
-//! drawing, and so on, see issues [#2238], [#2051] and [#2087].
-//!
-//! If you encounter problems, you should try doing your initialization inside
-//! [`ApplicationHandler::resumed`].
-//!
-//! [#2238]: https://github.com/rust-windowing/winit/issues/2238
-//! [#2051]: https://github.com/rust-windowing/winit/issues/2051
-//! [#2087]: https://github.com/rust-windowing/winit/issues/2087
-//! [`ApplicationHandler::resumed`]: crate::application::ApplicationHandler::resumed
-//!
 //! ## Custom `NSApplicationDelegate`
 //!
 //! Winit usually handles everything related to the lifecycle events of the application. Sometimes,
