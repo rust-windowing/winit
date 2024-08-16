@@ -1,5 +1,7 @@
-#[derive(Debug, Copy, Clone, Eq, PartialEq, PartialOrd, Ord, Hash)]
-pub struct DeviceId(u32);
+use crate::event::FingerId as RootFingerId;
+
+#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct DeviceId(pub(crate) u32);
 
 impl DeviceId {
     pub fn new(pointer_id: i32) -> Option<Self> {
@@ -32,5 +34,11 @@ impl FingerId {
 
     pub fn is_primary(self) -> bool {
         self.primary
+    }
+}
+
+impl From<FingerId> for RootFingerId {
+    fn from(id: FingerId) -> Self {
+        Self(id)
     }
 }

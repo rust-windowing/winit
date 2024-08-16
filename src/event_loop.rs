@@ -420,7 +420,7 @@ impl rwh_06::HasDisplayHandle for dyn ActiveEventLoop + '_ {
 
 /// A proxy for the underlying display handle.
 ///
-/// The purpose of this type is to provide a cheaply clonable handle to the underlying
+/// The purpose of this type is to provide a cheaply cloneable handle to the underlying
 /// display handle. This is often used by graphics APIs to connect to the underlying APIs.
 /// It is difficult to keep a handle to the [`EventLoop`] type or the [`ActiveEventLoop`]
 /// type. In contrast, this type involves no lifetimes and can be persisted for as long as

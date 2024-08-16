@@ -60,7 +60,7 @@ fn maybe_dispatch_device_event(app_state: &Rc<AppState>, event: &NSEvent) {
 
             if delta_x != 0.0 || delta_y != 0.0 {
                 app_state.maybe_queue_with_handler(move |app, event_loop| {
-                    app.device_event(event_loop, None, DeviceEvent::MouseMotion {
+                    app.device_event(event_loop, None, DeviceEvent::PointerMotion {
                         delta: (delta_x, delta_y),
                     });
                 });

@@ -446,20 +446,23 @@ impl ApplicationHandler for Application {
                     }
                 }
             },
-            WindowEvent::MouseInput { button, state, .. } => {
+            WindowEvent::PointerButton { button, state, .. } => {
+                info!("Pointer button {button:?} {state:?}");
                 let mods = window.modifiers;
-                if let Some(action) =
-                    state.is_pressed().then(|| Self::process_mouse_binding(button, &mods)).flatten()
+                if let Some(action) = state
+                    .is_pressed()
+                    .then(|| Self::process_mouse_binding(button.mouse_button(), &mods))
+                    .flatten()
                 {
                     self.handle_action_with_window(event_loop, window_id, action);
                 }
             },
-            WindowEvent::CursorLeft { .. } => {
-                info!("Cursor left Window={window_id:?}");
+            WindowEvent::PointerLeft { .. } => {
+                info!("Pointer left Window={window_id:?}");
                 window.cursor_left();
             },
-            WindowEvent::CursorMoved { position, .. } => {
-                info!("Moved cursor to {position:?}");
+            WindowEvent::PointerMoved { position, .. } => {
+                info!("Moved pointer to {position:?}");
                 window.cursor_moved(position);
             },
             WindowEvent::ActivationTokenDone { token: _token, .. } => {
@@ -510,11 +513,10 @@ impl ApplicationHandler for Application {
             WindowEvent::TouchpadPressure { .. }
             | WindowEvent::HoveredFileCancelled
             | WindowEvent::KeyboardInput { .. }
-            | WindowEvent::CursorEntered { .. }
+            | WindowEvent::PointerEntered { .. }
             | WindowEvent::DroppedFile(_)
             | WindowEvent::HoveredFile(_)
             | WindowEvent::Destroyed
-            | WindowEvent::Touch(_)
             | WindowEvent::Moved(_) => (),
         }
     }
