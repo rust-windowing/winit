@@ -1,7 +1,9 @@
 //! # macOS / AppKit
 //!
-//! Winit has an OS requirement of macOS 10.11 or higher (same as Rust
-//! itself), and is regularly tested on macOS 10.14.
+//! Winit has [the same macOS version requirements as `rustc`][rustc-macos-version], and is tested
+//! once in a while on as low as macOS 10.14.
+//!
+//! [rustc-macos-version]: https://doc.rust-lang.org/rustc/platform-support/apple-darwin.html#os-version
 //!
 //! ## Custom `NSApplicationDelegate`
 //!

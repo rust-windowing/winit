@@ -1,7 +1,9 @@
 //! # iOS / UIKit
 //!
-//! Winit has an OS requirement of iOS 8 or higher, and is regularly tested on
-//! iOS 9.3.
+//! Winit has [the same iOS version requirements as `rustc`][rustc-ios-version], although it's
+//! frequently only tested on newer iOS versions.
+//!
+//! [rustc-ios-version]: https://doc.rust-lang.org/rustc/platform-support/apple-ios.html#os-version
 //!
 //! ## Building app
 //!
