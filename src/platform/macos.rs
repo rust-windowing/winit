@@ -162,6 +162,12 @@ pub trait WindowExtMacOS {
 
     /// Getter for the [`WindowExtMacOS::set_option_as_alt`].
     fn option_as_alt(&self) -> OptionAsAlt;
+
+    /// Disable the Menu Bar and Dock in Borderless Fullscreen mode. Useful for games.
+    fn set_borderless_game(&self, borderless_game: bool);
+
+    /// Getter for the [`WindowExtMacOS::set_borderless_game`].
+    fn is_borderless_game(&self) -> bool;
 }
 
 impl WindowExtMacOS for Window {
@@ -234,6 +240,16 @@ impl WindowExtMacOS for Window {
     fn option_as_alt(&self) -> OptionAsAlt {
         self.window.maybe_wait_on_main(|w| w.option_as_alt())
     }
+
+    #[inline]
+    fn set_borderless_game(&self, borderless_game: bool) {
+        self.window.maybe_wait_on_main(|w| w.set_borderless_game(borderless_game))
+    }
+
+    #[inline]
+    fn is_borderless_game(&self) -> bool {
+        self.window.maybe_wait_on_main(|w| w.is_borderless_game())
+    }
 }
 
 /// Corresponds to `NSApplicationActivationPolicy`.
@@ -285,6 +301,8 @@ pub trait WindowAttributesExtMacOS {
     ///
     /// See [`WindowExtMacOS::set_option_as_alt`] for details on what this means if set.
     fn with_option_as_alt(self, option_as_alt: OptionAsAlt) -> Self;
+    /// See [`WindowExtMacOS::set_borderless_game`] for details on what this means if set.
+    fn with_borderless_game(self, borderless_game: bool) -> Self;
 }
 
 impl WindowAttributesExtMacOS for WindowAttributes {
@@ -351,6 +369,12 @@ impl WindowAttributesExtMacOS for WindowAttributes {
     #[inline]
     fn with_option_as_alt(mut self, option_as_alt: OptionAsAlt) -> Self {
         self.platform_specific.option_as_alt = option_as_alt;
+        self
+    }
+
+    #[inline]
+    fn with_borderless_game(mut self, borderless_game: bool) -> Self {
+        self.platform_specific.borderless_game = borderless_game;
         self
     }
 }
