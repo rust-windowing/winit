@@ -15,8 +15,7 @@ use core_foundation::runloop::{
     CFRunLoopTimerInvalidate, CFRunLoopTimerRef, CFRunLoopTimerSetNextFireDate,
 };
 use objc2::rc::Retained;
-use objc2::runtime::AnyObject;
-use objc2::{msg_send, sel};
+use objc2::sel;
 use objc2_foundation::{
     CGRect, CGSize, MainThreadMarker, NSInteger, NSObjectProtocol, NSOperatingSystemVersion,
     NSProcessInfo,
@@ -114,7 +113,6 @@ impl Event {
 #[must_use = "dropping `AppStateImpl` without inspecting it is probably a bug"]
 enum AppStateImpl {
     Initial {
-        queued_windows: Vec<Retained<WinitUIWindow>>,
         queued_events: Vec<EventWrapper>,
         queued_gpu_redraws: HashSet<Retained<WinitUIWindow>>,
     },
@@ -160,7 +158,6 @@ impl AppState {
                 let waker = EventLoopWaker::new(unsafe { CFRunLoopGetMain() });
                 **guard = Some(AppState {
                     app_state: Some(AppStateImpl::Initial {
-                        queued_windows: Vec::new(),
                         queued_events: Vec::new(),
                         queued_gpu_redraws: HashSet::new(),
                     }),
@@ -219,12 +216,10 @@ impl AppState {
         matches!(self.state(), AppStateImpl::Terminated)
     }
 
-    fn did_finish_launching_transition(
-        &mut self,
-    ) -> (Vec<Retained<WinitUIWindow>>, Vec<EventWrapper>) {
-        let (windows, events, queued_gpu_redraws) = match self.take_state() {
-            AppStateImpl::Initial { queued_windows, queued_events, queued_gpu_redraws } => {
-                (queued_windows, queued_events, queued_gpu_redraws)
+    fn did_finish_launching_transition(&mut self) -> Vec<EventWrapper> {
+        let (events, queued_gpu_redraws) = match self.take_state() {
+            AppStateImpl::Initial { queued_events, queued_gpu_redraws } => {
+                (queued_events, queued_gpu_redraws)
             },
             s => bug!("unexpected state {:?}", s),
         };
@@ -232,7 +227,7 @@ impl AppState {
             active_control_flow: self.control_flow,
             queued_gpu_redraws,
         });
-        (windows, events)
+        events
     }
 
     fn wakeup_transition(&mut self) -> Option<EventWrapper> {
@@ -393,26 +388,6 @@ impl AppState {
     }
 }
 
-pub(crate) fn set_key_window(mtm: MainThreadMarker, window: &Retained<WinitUIWindow>) {
-    let mut this = AppState::get_mut(mtm);
-    match this.state_mut() {
-        &mut AppStateImpl::Initial { ref mut queued_windows, .. } => {
-            return queued_windows.push(window.clone())
-        },
-        &mut AppStateImpl::ProcessingEvents { .. }
-        | &mut AppStateImpl::InUserCallback { .. }
-        | &mut AppStateImpl::ProcessingRedraws { .. } => {},
-        s @ &mut AppStateImpl::Waiting { .. } | s @ &mut AppStateImpl::PollFinished { .. } => {
-            bug!("unexpected state {:?}", s)
-        },
-        &mut AppStateImpl::Terminated => {
-            panic!("Attempt to create a `Window` after the app has terminated")
-        },
-    }
-    drop(this);
-    window.makeKeyAndVisible();
-}
-
 pub(crate) fn queue_gl_or_metal_redraw(mtm: MainThreadMarker, window: Retained<WinitUIWindow>) {
     let mut this = AppState::get_mut(mtm);
     match this.state_mut() {
@@ -436,39 +411,13 @@ pub(crate) fn launch(mtm: MainThreadMarker, app: &mut dyn ApplicationHandler, ru
 
 pub fn did_finish_launching(mtm: MainThreadMarker) {
     let mut this = AppState::get_mut(mtm);
-    let windows = match this.state_mut() {
-        AppStateImpl::Initial { queued_windows, .. } => mem::take(queued_windows),
-        s => bug!("unexpected state {:?}", s),
-    };
 
     this.waker.start();
 
     // have to drop RefMut because the window setup code below can trigger new events
     drop(this);
 
-    for window in windows {
-        // Do a little screen dance here to account for windows being created before
-        // `UIApplicationMain` is called. This fixes visual issues such as being
-        // offcenter and sized incorrectly. Additionally, to fix orientation issues, we
-        // gotta reset the `rootViewController`.
-        //
-        // relevant iOS log:
-        // ```
-        // [ApplicationLifecycle] Windows were created before application initialization
-        // completed. This may result in incorrect visual appearance.
-        // ```
-        let screen = window.screen();
-        let _: () = unsafe { msg_send![&window, setScreen: ptr::null::<AnyObject>()] };
-        window.setScreen(&screen);
-
-        let controller = window.rootViewController();
-        window.setRootViewController(None);
-        window.setRootViewController(controller.as_deref());
-
-        window.makeKeyAndVisible();
-    }
-
-    let (windows, events) = AppState::get_mut(mtm).did_finish_launching_transition();
+    let events = AppState::get_mut(mtm).did_finish_launching_transition();
 
     let events = [
         EventWrapper::StaticEvent(Event::NewEvents(StartCause::Init)),
@@ -477,12 +426,6 @@ pub fn did_finish_launching(mtm: MainThreadMarker) {
     .into_iter()
     .chain(events);
     handle_nonuser_events(mtm, events);
-
-    // the above window dance hack, could possibly trigger new windows to be created.
-    // we can just set those windows up normally, as they were created after didFinishLaunching
-    for window in windows {
-        window.makeKeyAndVisible();
-    }
 }
 
 // AppState::did_finish_launching handles the special transition `Init`
