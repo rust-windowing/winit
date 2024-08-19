@@ -47,13 +47,13 @@ changelog entry.
   `DeviceEvent::MouseMotion` is returning raw data, not OS accelerated, when using
   `CursorGrabMode::Locked`.
 - On Web, implement `MonitorHandle` and `VideoModeHandle`.
-  
+
   Without prompting the user for permission, only the current monitor is returned. But when
   prompting and being granted permission through
   `ActiveEventLoop::request_detailed_monitor_permission()`, access to all monitors and their
   details is available. Handles created with "detailed monitor permissions" can be used in
   `Window::set_fullscreen()` as well.
-  
+
   Keep in mind that handles do not auto-upgrade after permissions are granted and have to be
   re-created to make full use of this feature.
 - Add `Touch::finger_id` with a new type `FingerId`.
@@ -62,6 +62,7 @@ changelog entry.
 - Implement `Clone`, `Copy`, `Debug`, `Deserialize`, `Eq`, `Hash`, `Ord`, `PartialEq`, `PartialOrd`
   and `Serialize` on many types.
 - Add `MonitorHandle::current_video_mode()`.
+- Add basic iOS IME support. The soft keyboard can now be shown using `Window::set_ime_allowed`.
 
 ### Changed
 
