@@ -370,6 +370,9 @@ impl Inner {
         warn!("`Window::set_ime_cursor_area` is ignored on iOS")
     }
 
+    /// Show / hide the keyboard. To show the keyboard, we call `becomeFirstResponder`,
+    /// requesting focus for the [WinitView]. Since [WinitView] implements [objc2_ui_kit::UIKeyInput],
+    /// the keyboard will be shown. (As explained here: https://developer.apple.com/documentation/uikit/uiresponder/1621113-becomefirstresponder)
     pub fn set_ime_allowed(&self, allowed: bool) {
         if allowed {
             unsafe {
