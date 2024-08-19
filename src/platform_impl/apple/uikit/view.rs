@@ -551,6 +551,7 @@ impl WinitView {
             mtm,
             text.to_string().chars().flat_map(|c| {
                 let text = smol_str::SmolStr::from_iter([c]);
+                // Emit both press and release events
                 [ElementState::Pressed, ElementState::Released].map(|state| {
                     EventWrapper::StaticEvent(Event::WindowEvent {
                         window_id,
@@ -561,7 +562,7 @@ impl WinitView {
                                 } else {
                                     None
                                 },
-                                state: ElementState::Pressed,
+                                state,
                                 location: KeyLocation::Standard,
                                 repeat: false,
                                 logical_key: Key::Character(text.clone()),
