@@ -107,14 +107,14 @@ changelog entry.
 
 - Remove `Event`.
 - Remove already deprecated APIs:
-    - `EventLoop::create_window()`
-    - `EventLoop::run`.
-    - `EventLoopBuilder::new()`
-    - `EventLoopExtPumpEvents::pump_events`.
-    - `EventLoopExtRunOnDemand::run_on_demand`.
-    - `VideoMode`
-    - `WindowAttributes::new()`
-    - `Window::set_cursor_icon()`
+  - `EventLoop::create_window()`
+  - `EventLoop::run`.
+  - `EventLoopBuilder::new()`
+  - `EventLoopExtPumpEvents::pump_events`.
+  - `EventLoopExtRunOnDemand::run_on_demand`.
+  - `VideoMode`
+  - `WindowAttributes::new()`
+  - `Window::set_cursor_icon()`
 - On iOS, remove `platform::ios::EventLoopExtIOS` and related `platform::ios::Idiom` type.
 
   This feature was incomplete, and the equivalent functionality can be trivially achieved outside
