@@ -585,22 +585,24 @@ impl WinitView {
         let mtm = MainThreadMarker::new().unwrap();
         app_state::handle_nonuser_events(
             mtm,
-            std::iter::once(EventWrapper::StaticEvent(Event::WindowEvent {
-                window_id,
-                event: WindowEvent::KeyboardInput {
-                    device_id: DEVICE_ID,
-                    event: KeyEvent {
-                        state: ElementState::Pressed,
-                        logical_key: Key::Named(NamedKey::Backspace),
-                        physical_key: PhysicalKey::Code(KeyCode::Backspace),
-                        platform_specific: KeyEventExtra {},
-                        repeat: false,
-                        location: KeyLocation::Standard,
-                        text: None,
+            [ElementState::Pressed, ElementState::Released].map(|state| {
+                EventWrapper::StaticEvent(Event::WindowEvent {
+                    window_id,
+                    event: WindowEvent::KeyboardInput {
+                        device_id: DEVICE_ID,
+                        event: KeyEvent {
+                            state,
+                            logical_key: Key::Named(NamedKey::Backspace),
+                            physical_key: PhysicalKey::Code(KeyCode::Backspace),
+                            platform_specific: KeyEventExtra {},
+                            repeat: false,
+                            location: KeyLocation::Standard,
+                            text: None,
+                        },
+                        is_synthetic: false,
                     },
-                    is_synthetic: false,
-                },
-            })),
+                })
+            }),
         );
     }
 }
