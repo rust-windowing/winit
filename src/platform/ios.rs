@@ -5,6 +5,24 @@
 //!
 //! [rustc-ios-version]: https://doc.rust-lang.org/rustc/platform-support/apple-ios.html#os-version
 //!
+//! ## Running on Mac Catalyst
+//!
+//! Mac Catalyst allows running applications using UIKit on macOS, which can be very useful for
+//! testing. See [`rustc`'s documentation on Mac Catalyst][rustc-mac-catalyst] for details on how to
+//! use these targets. To use these with Winit, you'll need to bundle your application before
+//! running it, otherwise UIKit will exit with an error.
+//!
+//! To run e.g. the `window` example in the Winit repository, you can use [`cargo-bundle`] as
+//! follows:
+//!
+//! ```console
+//! $ cargo +nightly bundle --format=ios --target=aarch64-apple-ios-macabi --example=window
+//! $ ./target/aarch64-apple-ios-macabi/debug/examples/bundle/ios/winit.app/window
+//! ```
+//!
+//! [rustc-mac-catalyst]: https://doc.rust-lang.org/rustc/platform-support/apple-ios-macabi.html
+//! [`cargo-bundle`]: https://github.com/burtonageo/cargo-bundle
+//!
 //! ## Building app
 //!
 //! To build ios app you will need rustc built for this targets:
