@@ -590,7 +590,6 @@ impl Window {
     ///
     /// - **Windows** This API uses `RedrawWindow` to request a `WM_PAINT` message and
     ///   `RedrawRequested` is emitted in sync with any `WM_PAINT` messages.
-    /// - **iOS:** Can only be called on the main thread.
     /// - **Wayland:** The events are aligned with the frame callbacks when
     ///   [`Window::pre_present_notify`] is used.
     /// - **Web:** [`WindowEvent::RedrawRequested`] will be aligned with the
@@ -671,8 +670,8 @@ impl Window {
     ///
     /// ## Platform-specific
     ///
-    /// - **iOS:** Can only be called on the main thread. Returns the top left coordinates of the
-    ///   window's [safe area] in the screen space coordinate system.
+    /// - **iOS:** Returns the top left coordinates of the window's [safe area] in the screen space
+    ///   coordinate system.
     /// - **Web:** Returns the top-left coordinates relative to the viewport. _Note: this returns
     ///   the same value as [`Window::outer_position`]._
     /// - **Android / Wayland:** Always returns [`NotSupportedError`].
@@ -697,8 +696,8 @@ impl Window {
     ///
     /// ## Platform-specific
     ///
-    /// - **iOS:** Can only be called on the main thread. Returns the top left coordinates of the
-    ///   window in the screen space coordinate system.
+    /// - **iOS:** Returns the top left coordinates of the window in the screen space coordinate
+    ///   system.
     /// - **Web:** Returns the top-left coordinates relative to the viewport.
     /// - **Android / Wayland:** Always returns [`NotSupportedError`].
     #[inline]
@@ -727,8 +726,8 @@ impl Window {
     ///
     /// ## Platform-specific
     ///
-    /// - **iOS:** Can only be called on the main thread. Sets the top left coordinates of the
-    ///   window in the screen space coordinate system.
+    /// - **iOS:** Sets the top left coordinates of the window in the screen space coordinate
+    ///   system.
     /// - **Web:** Sets the top-left coordinates relative to the viewport. Doesn't account for CSS
     ///   [`transform`].
     /// - **Android / Wayland:** Unsupported.
@@ -752,8 +751,8 @@ impl Window {
     ///
     /// ## Platform-specific
     ///
-    /// - **iOS:** Can only be called on the main thread. Returns the `PhysicalSize` of the window's
-    ///   [safe area] in screen space coordinates.
+    /// - **iOS:** Returns the `PhysicalSize` of the window's [safe area] in screen space
+    ///   coordinates.
     /// - **Web:** Returns the size of the canvas element. Doesn't account for CSS [`transform`].
     ///
     /// [safe area]: https://developer.apple.com/documentation/uikit/uiview/2891103-safeareainsets?language=objc
@@ -818,8 +817,7 @@ impl Window {
     ///
     /// ## Platform-specific
     ///
-    /// - **iOS:** Can only be called on the main thread. Returns the [`PhysicalSize`] of the window
-    ///   in screen space coordinates.
+    /// - **iOS:** Returns the [`PhysicalSize`] of the window in screen space coordinates.
     /// - **Web:** Returns the size of the canvas element. _Note: this returns the same value as
     ///   [`Window::inner_size`]._
     #[inline]
@@ -973,7 +971,6 @@ impl Window {
     /// ## Platform-specific
     ///
     /// - **Android / Wayland / Web:** Unsupported.
-    /// - **iOS:** Can only be called on the main thread.
     #[inline]
     pub fn set_visible(&self, visible: bool) {
         let _span = tracing::debug_span!("winit::Window::set_visible", visible).entered();
@@ -1121,7 +1118,6 @@ impl Window {
     ///   separate spaces are not preferred.
     ///
     ///   The dock and the menu bar are disabled in exclusive fullscreen mode.
-    /// - **iOS:** Can only be called on the main thread.
     /// - **Wayland:** Does not support exclusive fullscreen mode and will no-op a request.
     /// - **Windows:** Screen saver is disabled in fullscreen mode.
     /// - **Android / Orbital:** Unsupported.
@@ -1148,7 +1144,6 @@ impl Window {
     ///
     /// ## Platform-specific
     ///
-    /// - **iOS:** Can only be called on the main thread.
     /// - **Android / Orbital:** Will always return `None`.
     /// - **Wayland:** Can return `Borderless(None)` when there are no monitors.
     /// - **Web:** Can only return `None` or `Borderless`.
