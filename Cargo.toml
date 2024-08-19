@@ -189,6 +189,8 @@ features = [
     "UIEvent",
     "UIGeometry",
     "UIGestureRecognizer",
+    "UITextInput",
+    "UITextInputTraits",
     "UIOrientation",
     "UIPanGestureRecognizer",
     "UIPinchGestureRecognizer",
