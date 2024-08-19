@@ -47,6 +47,7 @@ changelog entry.
 - On X11, the `window` example now understands the `X11_VISUAL_ID` and `X11_SCREEN_ID` env
   variables to test the respective modifiers of window creation.
 - On Android, the soft keyboard can now be shown using `Window::set_ime_allowed`.
+- Add basic iOS IME support. The soft keyboard can now be shown using `Window::set_ime_allowed`.
 
 ### Fixed
 
