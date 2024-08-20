@@ -1436,9 +1436,7 @@ impl WindowDelegate {
                 // by setting the presentation options. We do this here rather than in
                 // `window:willUseFullScreenPresentationOptions` because for some reason
                 // the menu bar remains interactable despite being hidden.
-                if self.ivars().is_borderless_game.get()
-                    && matches!(fullscreen, Fullscreen::Borderless(_))
-                {
+                if self.is_borderless_game() && matches!(fullscreen, Fullscreen::Borderless(_)) {
                     let presentation_options = NSApplicationPresentationOptions::NSApplicationPresentationHideDock
                             | NSApplicationPresentationOptions::NSApplicationPresentationHideMenuBar;
                     app.setPresentationOptions(presentation_options);
