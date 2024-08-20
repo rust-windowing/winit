@@ -284,13 +284,6 @@ declare_class!(
                     | NSApplicationPresentationOptions::NSApplicationPresentationHideDock
                     | NSApplicationPresentationOptions::NSApplicationPresentationHideMenuBar;
             }
-            if let Some(Fullscreen::Borderless(_)) = &*fullscreen {
-                if self.ivars().is_borderless_game.get() {
-                    options = NSApplicationPresentationOptions::NSApplicationPresentationFullScreen
-                        | NSApplicationPresentationOptions::NSApplicationPresentationHideDock
-                        | NSApplicationPresentationOptions::NSApplicationPresentationHideMenuBar;
-                }
-            }
 
             options
         }
@@ -1423,7 +1416,7 @@ impl WindowDelegate {
         }
 
         match (old_fullscreen, fullscreen) {
-            (None, Some(_)) => {
+            (None, Some(fullscreen)) => {
                 // `toggleFullScreen` doesn't work if the `StyleMask` is none, so we
                 // set a normal style temporarily. The previous state will be
                 // restored in `WindowDelegate::window_did_exit_fullscreen`.
@@ -1433,6 +1426,19 @@ impl WindowDelegate {
                     self.set_style_mask(required);
                     self.ivars().saved_style.set(Some(curr_mask));
                 }
+
+                // In borderless games, we want to disable the dock and menu bar
+                // by setting the presentation options. We do this here rather than in
+                // `window:willUseFullScreenPresentationOptions` because for some reason
+                // the menu bar remains interactable despite being hidden.
+                if self.ivars().is_borderless_game.get()
+                    && matches!(fullscreen, Fullscreen::Borderless(_))
+                {
+                    let presentation_options = NSApplicationPresentationOptions::NSApplicationPresentationHideDock
+                            | NSApplicationPresentationOptions::NSApplicationPresentationHideMenuBar;
+                    app.setPresentationOptions(presentation_options);
+                }
+
                 toggle_fullscreen(self.window());
             },
             (Some(Fullscreen::Borderless(_)), None) => {
