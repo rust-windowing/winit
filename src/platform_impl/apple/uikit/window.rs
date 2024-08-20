@@ -78,6 +78,11 @@ impl WinitUIWindow {
         frame: CGRect,
         view_controller: &UIViewController,
     ) -> Retained<Self> {
+        // NOTE: This should only be created after the application has started launching,
+        // (`application:willFinishLaunchingWithOptions:` at the earliest), otherwise you'll run
+        // into very confusing issues with the window not being properly activated.
+        //
+        // Winit ensures this by not allowing access to `ActiveEventLoop` before handling events.
         let this: Retained<Self> = unsafe { msg_send_id![mtm.alloc(), initWithFrame: frame] };
 
         this.setRootViewController(Some(view_controller));
@@ -365,12 +370,24 @@ impl Inner {
         warn!("`Window::set_ime_cursor_area` is ignored on iOS")
     }
 
-    pub fn set_ime_allowed(&self, _allowed: bool) {
-        warn!("`Window::set_ime_allowed` is ignored on iOS")
+    /// Show / hide the keyboard. To show the keyboard, we call `becomeFirstResponder`,
+    /// requesting focus for the [WinitView]. Since [WinitView] implements
+    /// [objc2_ui_kit::UIKeyInput], the keyboard will be shown.
+    /// <https://developer.apple.com/documentation/uikit/uiresponder/1621113-becomefirstresponder>
+    pub fn set_ime_allowed(&self, allowed: bool) {
+        if allowed {
+            unsafe {
+                self.view.becomeFirstResponder();
+            }
+        } else {
+            unsafe {
+                self.view.resignFirstResponder();
+            }
+        }
     }
 
     pub fn set_ime_purpose(&self, _purpose: ImePurpose) {
-        warn!("`Window::set_ime_allowed` is ignored on iOS")
+        warn!("`Window::set_ime_purpose` is ignored on iOS")
     }
 
     pub fn focus_window(&self) {
@@ -490,8 +507,7 @@ impl Window {
 
         let view_controller = WinitViewController::new(mtm, &window_attributes, &view);
         let window = WinitUIWindow::new(mtm, &window_attributes, frame, &view_controller);
-
-        app_state::set_key_window(mtm, &window);
+        window.makeKeyAndVisible();
 
         // Like the Windows and macOS backends, we send a `ScaleFactorChanged` and `Resized`
         // event on window creation if the DPI factor != 1.0
