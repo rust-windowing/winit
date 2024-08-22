@@ -650,7 +650,7 @@ unsafe extern "C" fn x_error_callback(
     display: *mut x11::ffi::Display,
     event: *mut x11::ffi::XErrorEvent,
 ) -> c_int {
-    let xconn_lock = X11_BACKEND.lock().unwrap();
+    let xconn_lock = X11_BACKEND.lock().unwrap_or_else(|e| e.into_inner());
     if let Ok(ref xconn) = *xconn_lock {
         // Call all the hooks.
         let mut error_handled = false;
@@ -777,7 +777,7 @@ impl<T: 'static> EventLoop<T> {
 
     #[cfg(x11_platform)]
     fn new_x11_any_thread() -> Result<EventLoop<T>, EventLoopError> {
-        let xconn = match X11_BACKEND.lock().unwrap().as_ref() {
+        let xconn = match X11_BACKEND.lock().unwrap_or_else(|e| e.into_inner()).as_ref() {
             Ok(xconn) => xconn.clone(),
             Err(_) => return Err(EventLoopError::NotSupported(NotSupportedError::new())),
         };
