@@ -152,75 +152,89 @@ pub trait WindowExtMacOS {
     fn option_as_alt(&self) -> OptionAsAlt;
 }
 
-impl WindowExtMacOS for Window {
+impl WindowExtMacOS for dyn Window + '_ {
     #[inline]
     fn simple_fullscreen(&self) -> bool {
-        self.window.maybe_wait_on_main(|w| w.simple_fullscreen())
+        let window = self.as_any().downcast_ref::<crate::platform_impl::Window>().unwrap();
+        window.maybe_wait_on_main(|w| w.simple_fullscreen())
     }
 
     #[inline]
     fn set_simple_fullscreen(&self, fullscreen: bool) -> bool {
-        self.window.maybe_wait_on_main(move |w| w.set_simple_fullscreen(fullscreen))
+        let window = self.as_any().downcast_ref::<crate::platform_impl::Window>().unwrap();
+        window.maybe_wait_on_main(move |w| w.set_simple_fullscreen(fullscreen))
     }
 
     #[inline]
     fn has_shadow(&self) -> bool {
-        self.window.maybe_wait_on_main(|w| w.has_shadow())
+        let window = self.as_any().downcast_ref::<crate::platform_impl::Window>().unwrap();
+        window.maybe_wait_on_main(|w| w.has_shadow())
     }
 
     #[inline]
     fn set_has_shadow(&self, has_shadow: bool) {
-        self.window.maybe_queue_on_main(move |w| w.set_has_shadow(has_shadow))
+        let window = self.as_any().downcast_ref::<crate::platform_impl::Window>().unwrap();
+        window.maybe_wait_on_main(move |w| w.set_has_shadow(has_shadow));
     }
 
     #[inline]
     fn set_tabbing_identifier(&self, identifier: &str) {
-        self.window.maybe_wait_on_main(|w| w.set_tabbing_identifier(identifier))
+        let window = self.as_any().downcast_ref::<crate::platform_impl::Window>().unwrap();
+        window.maybe_wait_on_main(|w| w.set_tabbing_identifier(identifier))
     }
 
     #[inline]
     fn tabbing_identifier(&self) -> String {
-        self.window.maybe_wait_on_main(|w| w.tabbing_identifier())
+        let window = self.as_any().downcast_ref::<crate::platform_impl::Window>().unwrap();
+        window.maybe_wait_on_main(|w| w.tabbing_identifier())
     }
 
     #[inline]
     fn select_next_tab(&self) {
-        self.window.maybe_queue_on_main(|w| w.select_next_tab())
+        let window = self.as_any().downcast_ref::<crate::platform_impl::Window>().unwrap();
+        window.maybe_wait_on_main(|w| w.select_next_tab());
     }
 
     #[inline]
     fn select_previous_tab(&self) {
-        self.window.maybe_queue_on_main(|w| w.select_previous_tab())
+        let window = self.as_any().downcast_ref::<crate::platform_impl::Window>().unwrap();
+        window.maybe_wait_on_main(|w| w.select_previous_tab());
     }
 
     #[inline]
     fn select_tab_at_index(&self, index: usize) {
-        self.window.maybe_queue_on_main(move |w| w.select_tab_at_index(index))
+        let window = self.as_any().downcast_ref::<crate::platform_impl::Window>().unwrap();
+        window.maybe_wait_on_main(move |w| w.select_tab_at_index(index));
     }
 
     #[inline]
     fn num_tabs(&self) -> usize {
-        self.window.maybe_wait_on_main(|w| w.num_tabs())
+        let window = self.as_any().downcast_ref::<crate::platform_impl::Window>().unwrap();
+        window.maybe_wait_on_main(|w| w.num_tabs())
     }
 
     #[inline]
     fn is_document_edited(&self) -> bool {
-        self.window.maybe_wait_on_main(|w| w.is_document_edited())
+        let window = self.as_any().downcast_ref::<crate::platform_impl::Window>().unwrap();
+        window.maybe_wait_on_main(|w| w.is_document_edited())
     }
 
     #[inline]
     fn set_document_edited(&self, edited: bool) {
-        self.window.maybe_queue_on_main(move |w| w.set_document_edited(edited))
+        let window = self.as_any().downcast_ref::<crate::platform_impl::Window>().unwrap();
+        window.maybe_wait_on_main(move |w| w.set_document_edited(edited));
     }
 
     #[inline]
     fn set_option_as_alt(&self, option_as_alt: OptionAsAlt) {
-        self.window.maybe_queue_on_main(move |w| w.set_option_as_alt(option_as_alt))
+        let window = self.as_any().downcast_ref::<crate::platform_impl::Window>().unwrap();
+        window.maybe_wait_on_main(move |w| w.set_option_as_alt(option_as_alt));
     }
 
     #[inline]
     fn option_as_alt(&self) -> OptionAsAlt {
-        self.window.maybe_wait_on_main(|w| w.option_as_alt())
+        let window = self.as_any().downcast_ref::<crate::platform_impl::Window>().unwrap();
+        window.maybe_wait_on_main(|w| w.option_as_alt())
     }
 }
 

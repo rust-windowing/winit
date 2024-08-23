@@ -209,42 +209,49 @@ pub trait WindowExtIOS {
     fn recognize_rotation_gesture(&self, should_recognize: bool);
 }
 
-impl WindowExtIOS for Window {
+impl WindowExtIOS for dyn Window + '_ {
     #[inline]
     fn set_scale_factor(&self, scale_factor: f64) {
-        self.window.maybe_queue_on_main(move |w| w.set_scale_factor(scale_factor))
+        let window = self.as_any().downcast_ref::<crate::platform_impl::Window>().unwrap();
+        window.maybe_wait_on_main(move |w| w.set_scale_factor(scale_factor));
     }
 
     #[inline]
     fn set_valid_orientations(&self, valid_orientations: ValidOrientations) {
-        self.window.maybe_queue_on_main(move |w| w.set_valid_orientations(valid_orientations))
+        let window = self.as_any().downcast_ref::<crate::platform_impl::Window>().unwrap();
+        window.maybe_wait_on_main(move |w| w.set_valid_orientations(valid_orientations));
     }
 
     #[inline]
     fn set_prefers_home_indicator_hidden(&self, hidden: bool) {
-        self.window.maybe_queue_on_main(move |w| w.set_prefers_home_indicator_hidden(hidden))
+        let window = self.as_any().downcast_ref::<crate::platform_impl::Window>().unwrap();
+        window.maybe_wait_on_main(move |w| w.set_prefers_home_indicator_hidden(hidden));
     }
 
     #[inline]
     fn set_preferred_screen_edges_deferring_system_gestures(&self, edges: ScreenEdge) {
-        self.window.maybe_queue_on_main(move |w| {
+        let window = self.as_any().downcast_ref::<crate::platform_impl::Window>().unwrap();
+        window.maybe_wait_on_main(move |w| {
             w.set_preferred_screen_edges_deferring_system_gestures(edges)
-        })
+        });
     }
 
     #[inline]
     fn set_prefers_status_bar_hidden(&self, hidden: bool) {
-        self.window.maybe_queue_on_main(move |w| w.set_prefers_status_bar_hidden(hidden))
+        let window = self.as_any().downcast_ref::<crate::platform_impl::Window>().unwrap();
+        window.maybe_wait_on_main(move |w| w.set_prefers_status_bar_hidden(hidden));
     }
 
     #[inline]
     fn set_preferred_status_bar_style(&self, status_bar_style: StatusBarStyle) {
-        self.window.maybe_queue_on_main(move |w| w.set_preferred_status_bar_style(status_bar_style))
+        let window = self.as_any().downcast_ref::<crate::platform_impl::Window>().unwrap();
+        window.maybe_wait_on_main(move |w| w.set_preferred_status_bar_style(status_bar_style))
     }
 
     #[inline]
     fn recognize_pinch_gesture(&self, should_recognize: bool) {
-        self.window.maybe_queue_on_main(move |w| w.recognize_pinch_gesture(should_recognize));
+        let window = self.as_any().downcast_ref::<crate::platform_impl::Window>().unwrap();
+        window.maybe_wait_on_main(move |w| w.recognize_pinch_gesture(should_recognize));
     }
 
     #[inline]
@@ -254,7 +261,8 @@ impl WindowExtIOS for Window {
         minimum_number_of_touches: u8,
         maximum_number_of_touches: u8,
     ) {
-        self.window.maybe_queue_on_main(move |w| {
+        let window = self.as_any().downcast_ref::<crate::platform_impl::Window>().unwrap();
+        window.maybe_wait_on_main(move |w| {
             w.recognize_pan_gesture(
                 should_recognize,
                 minimum_number_of_touches,
@@ -265,12 +273,14 @@ impl WindowExtIOS for Window {
 
     #[inline]
     fn recognize_doubletap_gesture(&self, should_recognize: bool) {
-        self.window.maybe_queue_on_main(move |w| w.recognize_doubletap_gesture(should_recognize));
+        let window = self.as_any().downcast_ref::<crate::platform_impl::Window>().unwrap();
+        window.maybe_wait_on_main(move |w| w.recognize_doubletap_gesture(should_recognize));
     }
 
     #[inline]
     fn recognize_rotation_gesture(&self, should_recognize: bool) {
-        self.window.maybe_queue_on_main(move |w| w.recognize_rotation_gesture(should_recognize));
+        let window = self.as_any().downcast_ref::<crate::platform_impl::Window>().unwrap();
+        window.maybe_wait_on_main(move |w| w.recognize_rotation_gesture(should_recognize));
     }
 }
 

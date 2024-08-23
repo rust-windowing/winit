@@ -9,7 +9,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     use winit::event::WindowEvent;
     use winit::event_loop::{ActiveEventLoop, EventLoop};
     use winit::platform::run_on_demand::EventLoopExtRunOnDemand;
-    use winit::window::{Window, WindowId};
+    use winit::window::{Window, WindowAttributes, WindowId};
 
     #[path = "util/fill.rs"]
     mod fill;
@@ -18,7 +18,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     struct App {
         idx: usize,
         window_id: Option<WindowId>,
-        window: Option<Window>,
+        window: Option<Box<dyn Window>>,
     }
 
     impl ApplicationHandler for App {
@@ -29,7 +29,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
 
         fn can_create_surfaces(&mut self, event_loop: &dyn ActiveEventLoop) {
-            let window_attributes = Window::default_attributes()
+            let window_attributes = WindowAttributes::default()
                 .with_title("Fantastic window number one!")
                 .with_inner_size(winit::dpi::LogicalSize::new(128.0, 128.0));
             let window = event_loop.create_window(window_attributes).unwrap();
@@ -65,11 +65,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                          CloseRequested",
                         self.idx
                     );
-                    fill::cleanup_window(window);
+                    fill::cleanup_window(window.as_ref());
                     self.window = None;
                 },
                 WindowEvent::RedrawRequested => {
-                    fill::fill_window(window);
+                    fill::fill_window(window.as_ref());
                 },
                 _ => (),
             }

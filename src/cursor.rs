@@ -50,7 +50,7 @@ impl From<CustomCursor> for Cursor {
 /// ```no_run
 /// # use winit::event_loop::ActiveEventLoop;
 /// # use winit::window::Window;
-/// # fn scope(event_loop: &dyn ActiveEventLoop, window: &Window) {
+/// # fn scope(event_loop: &dyn ActiveEventLoop, window: &dyn Window) {
 /// use winit::window::CustomCursor;
 ///
 /// let w = 10;
@@ -67,7 +67,7 @@ impl From<CustomCursor> for Cursor {
 /// };
 ///
 /// if let Ok(custom_cursor) = event_loop.create_custom_cursor(source) {
-///     window.set_cursor(custom_cursor.clone());
+///     window.set_cursor(custom_cursor.clone().into());
 /// }
 /// # }
 /// ```
