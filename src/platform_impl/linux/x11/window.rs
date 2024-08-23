@@ -1492,13 +1492,17 @@ impl UnownedWindow {
                 #[allow(clippy::mutex_atomic)]
                 if SelectedCursor::Named(icon) != old_cursor && *self.cursor_visible.lock().unwrap()
                 {
-                    self.xconn.set_cursor_icon(self.xwindow, Some(icon));
+                    if let Err(err) = self.xconn.set_cursor_icon(self.xwindow, Some(icon)) {
+                        tracing::error!("failed to set cursor icon: {err}");
+                    }
                 }
             },
             Cursor::Custom(RootCustomCursor { inner: PlatformCustomCursor::X(cursor) }) => {
                 #[allow(clippy::mutex_atomic)]
                 if *self.cursor_visible.lock().unwrap() {
-                    self.xconn.set_custom_cursor(self.xwindow, &cursor);
+                    if let Err(err) = self.xconn.set_custom_cursor(self.xwindow, &cursor) {
+                        tracing::error!("failed to set window icon: {err}");
+                    }
                 }
 
                 *self.selected_cursor.lock().unwrap() = SelectedCursor::Custom(cursor);
@@ -1599,16 +1603,18 @@ impl UnownedWindow {
             if visible { Some((*self.selected_cursor.lock().unwrap()).clone()) } else { None };
         *visible_lock = visible;
         drop(visible_lock);
-        match cursor {
+        let result = match cursor {
             Some(SelectedCursor::Custom(cursor)) => {
-                self.xconn.set_custom_cursor(self.xwindow, &cursor);
+                self.xconn.set_custom_cursor(self.xwindow, &cursor)
             },
             Some(SelectedCursor::Named(cursor)) => {
-                self.xconn.set_cursor_icon(self.xwindow, Some(cursor));
+                self.xconn.set_cursor_icon(self.xwindow, Some(cursor))
             },
-            None => {
-                self.xconn.set_cursor_icon(self.xwindow, None);
-            },
+            None => self.xconn.set_cursor_icon(self.xwindow, None),
+        };
+
+        if let Err(err) = result {
+            tracing::error!("failed to set cursor icon: {err}");
         }
     }
 
