@@ -1,4 +1,4 @@
-use std::collections::{BTreeSet, VecDeque};
+use std::collections::{HashSet, VecDeque};
 use std::hash::Hash;
 use std::num::{NonZeroU16, NonZeroU32};
 use std::{io, mem, ptr};
@@ -13,7 +13,6 @@ use windows_sys::Win32::Graphics::Gdi::{
 
 use super::util::decode_wide;
 use crate::dpi::{PhysicalPosition, PhysicalSize};
-use crate::monitor::VideoModeHandle as RootVideoModeHandle;
 use crate::platform_impl::platform::dpi::{dpi_to_scale_factor, get_monitor_dpi};
 use crate::platform_impl::platform::util::has_flag;
 use crate::platform_impl::platform::window::Window;
@@ -91,7 +90,7 @@ impl VideoModeHandle {
     }
 }
 
-#[derive(Debug, Clone, Eq, PartialEq, Hash, PartialOrd, Ord)]
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub struct MonitorHandle(HMONITOR);
 
 // Send is not implemented for HMONITOR, we have to wrap it and implement it manually.
@@ -225,15 +224,14 @@ impl MonitorHandle {
     pub fn video_modes(&self) -> impl Iterator<Item = VideoModeHandle> {
         // EnumDisplaySettingsExW can return duplicate values (or some of the
         // fields are probably changing, but we aren't looking at those fields
-        // anyway), so we're using a BTreeSet deduplicate
-        let mut modes = BTreeSet::<RootVideoModeHandle>::new();
-        let mod_map = |mode: RootVideoModeHandle| mode.video_mode;
+        // anyway), so we're using a HashSet to deduplicate.
+        let mut modes = HashSet::new();
 
         let monitor_info = match get_monitor_info(self.0) {
             Ok(monitor_info) => monitor_info,
             Err(error) => {
                 tracing::warn!("Error from get_monitor_info: {error}");
-                return modes.into_iter().map(mod_map);
+                return modes.into_iter();
             },
         };
 
@@ -247,14 +245,11 @@ impl MonitorHandle {
                 break;
             }
 
-            // Use Ord impl of RootVideoModeHandle
-            modes.insert(RootVideoModeHandle {
-                video_mode: VideoModeHandle::new(self.clone(), mode),
-            });
+            modes.insert(VideoModeHandle::new(self.clone(), mode));
 
             i += 1;
         }
 
-        modes.into_iter().map(mod_map)
+        modes.into_iter()
     }
 }

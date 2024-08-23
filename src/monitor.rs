@@ -24,27 +24,6 @@ impl std::fmt::Debug for VideoModeHandle {
     }
 }
 
-impl PartialOrd for VideoModeHandle {
-    fn partial_cmp(&self, other: &VideoModeHandle) -> Option<std::cmp::Ordering> {
-        Some(self.cmp(other))
-    }
-}
-
-impl Ord for VideoModeHandle {
-    fn cmp(&self, other: &VideoModeHandle) -> std::cmp::Ordering {
-        self.monitor().cmp(&other.monitor()).then(
-            self.size()
-                .cmp(&other.size())
-                .then(
-                    self.refresh_rate_millihertz()
-                        .cmp(&other.refresh_rate_millihertz())
-                        .then(self.bit_depth().cmp(&other.bit_depth())),
-                )
-                .reverse(),
-        )
-    }
-}
-
 impl VideoModeHandle {
     /// Returns the resolution of this video mode. This **must not** be used to create your
     /// rendering surface. Use [`Window::inner_size()`] instead.
@@ -112,7 +91,7 @@ impl std::fmt::Display for VideoModeHandle {
 /// to check.
 ///
 /// [`Window`]: crate::window::Window
-#[derive(Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[derive(Clone, PartialEq, Eq, Hash)]
 pub struct MonitorHandle {
     pub(crate) inner: platform_impl::MonitorHandle,
 }

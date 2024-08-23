@@ -78,7 +78,7 @@ impl std::hash::Hash for Window {
 ///
 /// Whenever you receive an event specific to a window, this event contains a `WindowId` which you
 /// can then compare to the ids of your windows.
-#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Copy, Clone, PartialEq, Eq, Hash)]
 pub struct WindowId(pub(crate) platform_impl::WindowId);
 
 impl WindowId {

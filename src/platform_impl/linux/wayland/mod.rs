@@ -62,7 +62,7 @@ impl From<WaylandError> for OsError {
 }
 
 /// Dummy device id, since Wayland doesn't have device events.
-#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub struct DeviceId;
 
 impl DeviceId {
@@ -71,7 +71,7 @@ impl DeviceId {
     }
 }
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub struct FingerId(i32);
 
 impl FingerId {

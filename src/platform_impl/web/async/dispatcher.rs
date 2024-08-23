@@ -1,5 +1,4 @@
 use std::cell::Ref;
-use std::cmp::Ordering;
 use std::fmt::{self, Debug, Formatter};
 use std::hash::{Hash, Hasher};
 use std::rc::Rc;
@@ -32,21 +31,9 @@ impl<T> Hash for Dispatcher<T> {
     }
 }
 
-impl<T> Ord for Dispatcher<T> {
-    fn cmp(&self, other: &Self) -> Ordering {
-        self.0.cmp(&other.0)
-    }
-}
-
 impl<T> PartialEq for Dispatcher<T> {
     fn eq(&self, other: &Self) -> bool {
         self.0.eq(&other.0)
-    }
-}
-
-impl<T> PartialOrd for Dispatcher<T> {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(self.cmp(other))
     }
 }
 

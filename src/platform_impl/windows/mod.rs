@@ -59,7 +59,7 @@ impl Default for PlatformSpecificWindowAttributes {
 unsafe impl Send for PlatformSpecificWindowAttributes {}
 unsafe impl Sync for PlatformSpecificWindowAttributes {}
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub struct DeviceId(u32);
 
 impl DeviceId {
@@ -78,7 +78,7 @@ impl DeviceId {
     }
 }
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub struct FingerId {
     id: u32,
     primary: bool,
@@ -111,7 +111,7 @@ pub struct KeyEventExtra {
     pub key_without_modifiers: Key,
 }
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub struct WindowId(HWND);
 unsafe impl Send for WindowId {}
 unsafe impl Sync for WindowId {}

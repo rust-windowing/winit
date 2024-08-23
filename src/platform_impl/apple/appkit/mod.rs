@@ -30,7 +30,7 @@ use crate::event::DeviceId as RootDeviceId;
 pub(crate) use crate::icon::NoIcon as PlatformIcon;
 pub(crate) use crate::platform_impl::Fullscreen;
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub struct DeviceId;
 
 impl DeviceId {
@@ -42,7 +42,7 @@ impl DeviceId {
 // Constant device ID; to be removed when if backend is updated to report real device IDs.
 pub(crate) const DEVICE_ID: RootDeviceId = RootDeviceId(DeviceId);
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub struct FingerId;
 
 impl FingerId {

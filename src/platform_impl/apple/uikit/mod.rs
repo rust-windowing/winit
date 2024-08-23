@@ -26,7 +26,7 @@ pub(crate) use crate::platform_impl::Fullscreen;
 /// UIKit (i.e. you can't differentiate between different external keyboards,
 /// or whether it was the main touchscreen, assistive technologies, or some
 /// other pointer device that caused a touch event).
-#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub struct DeviceId;
 
 impl DeviceId {
@@ -37,7 +37,7 @@ impl DeviceId {
 
 pub(crate) const DEVICE_ID: RootDeviceId = RootDeviceId(DeviceId);
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub struct FingerId(usize);
 
 impl FingerId {

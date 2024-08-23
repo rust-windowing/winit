@@ -69,7 +69,7 @@ impl Window {
     }
 }
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub struct WindowId(pub usize);
 
 impl WindowId {

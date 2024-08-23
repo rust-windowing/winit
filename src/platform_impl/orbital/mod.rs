@@ -96,7 +96,7 @@ impl TimeSocket {
 #[derive(Default, Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub(crate) struct PlatformSpecificEventLoopAttributes {}
 
-#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub struct WindowId {
     fd: u64,
 }
@@ -119,7 +119,7 @@ impl From<u64> for WindowId {
     }
 }
 
-#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub struct DeviceId;
 
 impl DeviceId {
@@ -128,7 +128,7 @@ impl DeviceId {
     }
 }
 
-#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub struct FingerId;
 
 impl FingerId {
@@ -193,7 +193,7 @@ pub(crate) use crate::cursor::{
 };
 pub(crate) use crate::icon::NoIcon as PlatformIcon;
 
-#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub struct MonitorHandle;
 
 impl MonitorHandle {

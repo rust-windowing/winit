@@ -431,7 +431,7 @@ pub enum WindowEvent {
 /// `DeviceId` which identifies its origin. Note that devices may be virtual (representing an
 /// on-screen cursor and keyboard focus) or physical. Virtual devices typically aggregate inputs
 /// from multiple physical devices.
-#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub struct DeviceId(pub(crate) platform_impl::DeviceId);
 
 impl Default for DeviceId {
@@ -457,7 +457,7 @@ impl DeviceId {
 ///
 /// Whenever a touch event is received it contains a `FingerId` which uniquely identifies the finger
 /// used for the current interaction.
-#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub struct FingerId(pub(crate) platform_impl::FingerId);
 
 impl FingerId {
@@ -1032,7 +1032,7 @@ impl Eq for InnerSizeWriter {}
 
 #[cfg(test)]
 mod tests {
-    use std::collections::{BTreeSet, HashSet};
+    use std::collections::HashSet;
 
     use crate::dpi::PhysicalPosition;
     use crate::event;
@@ -1166,11 +1166,6 @@ mod tests {
         let did = crate::event::DeviceId::dummy().clone();
         let fid = crate::event::FingerId::dummy().clone();
         HashSet::new().insert(did);
-        let mut set = [did, did, did];
-        set.sort_unstable();
-        let mut set2 = BTreeSet::new();
-        set2.insert(did);
-        set2.insert(did);
 
         HashSet::new().insert(event::TouchPhase::Started.clone());
         HashSet::new().insert(event::MouseButton::Left.clone());
