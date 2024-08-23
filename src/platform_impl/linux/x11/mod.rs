@@ -906,6 +906,9 @@ pub enum X11Error {
 
     /// Failed to get property.
     GetProperty(util::GetPropertyError),
+
+    /// Could not find an ARGB32 pict format.
+    NoArgb32Format,
 }
 
 impl fmt::Display for X11Error {
@@ -929,6 +932,9 @@ impl fmt::Display for X11Error {
             },
             X11Error::XsettingsParse(err) => {
                 write!(f, "Failed to parse xsettings: {:?}", err)
+            },
+            X11Error::NoArgb32Format => {
+                f.write_str("winit only supports X11 displays with ARGB32 picture formats")
             },
         }
     }
