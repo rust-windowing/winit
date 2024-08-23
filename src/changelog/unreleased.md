@@ -102,6 +102,7 @@ changelog entry.
   application delegate yourself.
 - On iOS, no longer act as-if the application successfully open all URLs. Override
   `application:didFinishLaunchingWithOptions:` and provide the desired behaviour yourself.
+- On X11, remove our dependency on libXcursor. (#3749)
 
 ### Removed
 

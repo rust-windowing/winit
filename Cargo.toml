@@ -257,6 +257,7 @@ wayland-protocols-plasma = { version = "0.3.2", features = ["client"], optional 
 x11-dl = { version = "2.19.1", optional = true }
 x11rb = { version = "0.13.0", default-features = false, features = [
     "allow-unsafe-code",
+    "cursor",
     "dl-libxcb",
     "randr",
     "resource_manager",
