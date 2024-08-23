@@ -133,3 +133,4 @@ changelog entry.
 ### Fixed
 
 - On Orbital, `MonitorHandle::name()` now returns `None` instead of a dummy name.
+- On Windows, fix `Window::inner_size` of undecorated window with shadows, reporting a size bigger than what's visible.
