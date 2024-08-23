@@ -117,6 +117,8 @@ pub(crate) static X11_BACKEND: Lazy<Mutex<Result<Arc<XConnection>, XNotSupported
 pub enum OsError {
     Misc(&'static str),
     #[cfg(x11_platform)]
+    XNotSupported(XNotSupported),
+    #[cfg(x11_platform)]
     XError(Arc<X11Error>),
     #[cfg(wayland_platform)]
     WaylandError(Arc<wayland::WaylandError>),
@@ -126,6 +128,8 @@ impl fmt::Display for OsError {
     fn fmt(&self, _f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
         match *self {
             OsError::Misc(e) => _f.pad(e),
+            #[cfg(x11_platform)]
+            OsError::XNotSupported(ref e) => fmt::Display::fmt(e, _f),
             #[cfg(x11_platform)]
             OsError::XError(ref e) => fmt::Display::fmt(e, _f),
             #[cfg(wayland_platform)]
@@ -779,7 +783,9 @@ impl<T: 'static> EventLoop<T> {
     fn new_x11_any_thread() -> Result<EventLoop<T>, EventLoopError> {
         let xconn = match X11_BACKEND.lock().unwrap_or_else(|e| e.into_inner()).as_ref() {
             Ok(xconn) => xconn.clone(),
-            Err(_) => return Err(EventLoopError::NotSupported(NotSupportedError::new())),
+            Err(err) => {
+                return Err(EventLoopError::Os(os_error!(OsError::XNotSupported(err.clone()))))
+            },
         };
 
         Ok(EventLoop::X(x11::EventLoop::new(xconn)))
