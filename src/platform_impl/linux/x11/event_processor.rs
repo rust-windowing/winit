@@ -598,7 +598,7 @@ impl EventProcessor {
         // `XSendEvent` (synthetic `ConfigureNotify`) -> position relative to root
         // `XConfigureNotify` (real `ConfigureNotify`) -> position relative to parent
         // https://tronche.com/gui/x/icccm/sec-4.html#s-4.1.5
-        // We don't want to send `Moved` when this is false, since then every `Resized`
+        // We don't want to send `Moved` when this is false, since then every `SurfaceResized`
         // (whether the window moved or not) is accompanied by an extraneous `Moved` event
         // that has a position relative to the parent window.
         let is_synthetic = xev.send_event == xlib::True;
@@ -757,7 +757,7 @@ impl EventProcessor {
         if resized {
             callback(&self.target, Event::WindowEvent {
                 window_id,
-                event: WindowEvent::Resized(new_inner_size.into()),
+                event: WindowEvent::SurfaceResized(new_inner_size.into()),
             });
         }
     }

@@ -375,7 +375,7 @@ impl EventLoop {
                 });
 
                 let window_id = crate::window::WindowId(window_id);
-                let event = WindowEvent::Resized(physical_size);
+                let event = WindowEvent::SurfaceResized(physical_size);
                 app.window_event(&self.active_event_loop, window_id, event);
             }
 

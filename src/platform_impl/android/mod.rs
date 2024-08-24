@@ -287,7 +287,7 @@ impl EventLoop {
                     PhysicalSize::new(0, 0)
                 };
                 let window_id = window::WindowId(WindowId);
-                let event = event::WindowEvent::Resized(size);
+                let event = event::WindowEvent::SurfaceResized(size);
                 app.window_event(&self.window_target, window_id, event);
             }
 

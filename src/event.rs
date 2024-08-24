@@ -149,7 +149,7 @@ pub enum WindowEvent {
     ActivationTokenDone { serial: AsyncRequestSerial, token: ActivationToken },
 
     /// The size of the window has changed. Contains the client area's new dimensions.
-    Resized(PhysicalSize<u32>),
+    SurfaceResized(PhysicalSize<u32>),
 
     /// The position of the window has changed. Contains the window's new position.
     ///
@@ -1066,7 +1066,7 @@ mod tests {
                 with_window_event(Destroyed);
                 with_window_event(Focused(true));
                 with_window_event(Moved((0, 0).into()));
-                with_window_event(Resized((0, 0).into()));
+                with_window_event(SurfaceResized((0, 0).into()));
                 with_window_event(DroppedFile("x.txt".into()));
                 with_window_event(HoveredFile("x.txt".into()));
                 with_window_event(HoveredFileCancelled);

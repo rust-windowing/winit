@@ -389,7 +389,7 @@ impl ApplicationHandler for Application {
         };
 
         match event {
-            WindowEvent::Resized(size) => {
+            WindowEvent::SurfaceResized(size) => {
                 window.resize(size);
             },
             WindowEvent::Focused(focused) => {
@@ -793,9 +793,9 @@ impl WindowState {
         Ok(())
     }
 
-    /// Resize the window to the new size.
+    /// Resize the surface to the new size.
     fn resize(&mut self, size: PhysicalSize<u32>) {
-        info!("Resized to {size:?}");
+        info!("Surface resized to {size:?}");
         #[cfg(not(any(android_platform, ios_platform)))]
         {
             let (width, height) = match (NonZeroU32::new(size.width), NonZeroU32::new(size.height))

@@ -161,7 +161,7 @@ declare_class!(
         #[method(windowDidResize:)]
         fn window_did_resize(&self, _: Option<&AnyObject>) {
             trace_scope!("windowDidResize:");
-            // NOTE: WindowEvent::Resized is reported in frameDidChange.
+            // NOTE: WindowEvent::SurfaceResized is reported in frameDidChange.
             self.emit_move_event();
         }
 
@@ -839,7 +839,7 @@ impl WindowDelegate {
             let size = NSSize::new(logical_size.width, logical_size.height);
             window.setContentSize(size);
         }
-        self.queue_event(WindowEvent::Resized(physical_size));
+        self.queue_event(WindowEvent::SurfaceResized(physical_size));
     }
 
     fn emit_move_event(&self) {

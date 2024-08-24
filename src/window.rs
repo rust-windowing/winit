@@ -674,7 +674,7 @@ pub trait Window: AsAny + Send + Sync {
     /// inner size is returned immediately, and the user one is ignored.
     ///
     /// When `None` is returned, it means that the request went to the display system,
-    /// and the actual size will be delivered later with the [`WindowEvent::Resized`].
+    /// and the actual size will be delivered later with the [`WindowEvent::SurfaceResized`].
     ///
     /// See [`Window::inner_size`] for more information about the values.
     ///
@@ -696,7 +696,7 @@ pub trait Window: AsAny + Send + Sync {
     ///
     /// - **Web:** Sets the size of the canvas element. Doesn't account for CSS [`transform`].
     ///
-    /// [`WindowEvent::Resized`]: crate::event::WindowEvent::Resized
+    /// [`WindowEvent::SurfaceResized`]: crate::event::WindowEvent::SurfaceResized
     /// [`transform`]: https://developer.mozilla.org/en-US/docs/Web/CSS/transform
     #[must_use]
     fn request_inner_size(&self, size: Size) -> Option<PhysicalSize<u32>>;
@@ -828,8 +828,8 @@ pub trait Window: AsAny + Send + Sync {
     /// Sets whether the window is resizable or not.
     ///
     /// Note that making the window unresizable doesn't exempt you from handling
-    /// [`WindowEvent::Resized`], as that event can still be triggered by DPI scaling, entering
-    /// fullscreen mode, etc. Also, the window could still be resized by calling
+    /// [`WindowEvent::SurfaceResized`], as that event can still be triggered by DPI scaling,
+    /// entering fullscreen mode, etc. Also, the window could still be resized by calling
     /// [`Window::request_inner_size`].
     ///
     /// ## Platform-specific
@@ -839,7 +839,7 @@ pub trait Window: AsAny + Send + Sync {
     /// - **X11:** Due to a bug in XFCE, this has no effect on Xfwm.
     /// - **iOS / Android / Web:** Unsupported.
     ///
-    /// [`WindowEvent::Resized`]: crate::event::WindowEvent::Resized
+    /// [`WindowEvent::SurfaceResized`]: crate::event::WindowEvent::SurfaceResized
     fn set_resizable(&self, resizable: bool);
 
     /// Gets the window's current resizable state.

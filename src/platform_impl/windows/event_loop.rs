@@ -1274,14 +1274,14 @@ unsafe fn public_window_callback_inner(
         },
 
         WM_SIZE => {
-            use crate::event::WindowEvent::Resized;
+            use crate::event::WindowEvent::SurfaceResized;
             let w = super::loword(lparam as u32) as u32;
             let h = super::hiword(lparam as u32) as u32;
 
             let physical_size = PhysicalSize::new(w, h);
             let event = Event::WindowEvent {
                 window_id: CoreWindowId(WindowId(window)),
-                event: Resized(physical_size),
+                event: SurfaceResized(physical_size),
             };
 
             {
