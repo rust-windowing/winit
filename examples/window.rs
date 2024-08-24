@@ -607,7 +607,7 @@ impl WindowState {
         let ime = true;
         window.set_ime_allowed(ime);
 
-        let size = window.inner_size();
+        let size = window.surface_size();
         let mut state = Self {
             #[cfg(macos_platform)]
             option_as_alt: window.option_as_alt(),
@@ -725,19 +725,19 @@ impl WindowState {
         self.window.set_option_as_alt(self.option_as_alt);
     }
 
-    /// Swap the window dimensions with `request_inner_size`.
+    /// Swap the window dimensions with `request_surface_size`.
     fn swap_dimensions(&mut self) {
-        let old_inner_size = self.window.inner_size();
-        let mut inner_size = old_inner_size;
+        let old_surface_size = self.window.surface_size();
+        let mut surface_size = old_surface_size;
 
-        mem::swap(&mut inner_size.width, &mut inner_size.height);
-        info!("Requesting resize from {old_inner_size:?} to {inner_size:?}");
+        mem::swap(&mut surface_size.width, &mut surface_size.height);
+        info!("Requesting resize from {old_surface_size:?} to {surface_size:?}");
 
-        if let Some(new_inner_size) = self.window.request_inner_size(inner_size.into()) {
-            if old_inner_size == new_inner_size {
+        if let Some(new_surface_size) = self.window.request_surface_size(surface_size.into()) {
+            if old_surface_size == new_surface_size {
                 info!("Inner size change got ignored");
             } else {
-                self.resize(new_inner_size);
+                self.resize(new_surface_size);
             }
         } else {
             info!("Request inner size is asynchronous");
@@ -840,7 +840,7 @@ impl WindowState {
             },
         };
 
-        let win_size = self.window.inner_size();
+        let win_size = self.window.surface_size();
         let border_size = BORDER_SIZE * self.window.scale_factor();
 
         let x_direction = if position.x < border_size {

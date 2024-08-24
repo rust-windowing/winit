@@ -42,13 +42,13 @@ impl Window {
             (-1, -1)
         };
 
-        let (w, h): (u32, u32) = if let Some(size) = attrs.inner_size {
+        let (w, h): (u32, u32) = if let Some(size) = attrs.surface_size {
             size.to_physical::<u32>(scale).into()
         } else {
             (1024, 768)
         };
 
-        // TODO: min/max inner_size
+        // TODO: min/max surface_size
 
         // Async by default.
         let mut flag_str = ORBITAL_FLAG_ASYNC.to_string();
@@ -225,7 +225,7 @@ impl CoreWindow for Window {
     }
 
     #[inline]
-    fn inner_size(&self) -> PhysicalSize<u32> {
+    fn surface_size(&self) -> PhysicalSize<u32> {
         let mut buf: [u8; 4096] = [0; 4096];
         let path = self.window_socket.fpath(&mut buf).expect("failed to read properties");
         let properties = WindowProperties::new(path);
@@ -233,7 +233,7 @@ impl CoreWindow for Window {
     }
 
     #[inline]
-    fn request_inner_size(&self, size: Size) -> Option<PhysicalSize<u32>> {
+    fn request_surface_size(&self, size: Size) -> Option<PhysicalSize<u32>> {
         let (w, h): (u32, u32) = size.to_physical::<u32>(self.scale_factor()).into();
         self.window_socket.write(format!("S,{w},{h}").as_bytes()).expect("failed to set size");
         None
@@ -242,14 +242,14 @@ impl CoreWindow for Window {
     #[inline]
     fn outer_size(&self) -> PhysicalSize<u32> {
         // TODO: adjust for window decorations
-        self.inner_size()
+        self.surface_size()
     }
 
     #[inline]
-    fn set_min_inner_size(&self, _: Option<Size>) {}
+    fn set_min_surface_size(&self, _: Option<Size>) {}
 
     #[inline]
-    fn set_max_inner_size(&self, _: Option<Size>) {}
+    fn set_max_surface_size(&self, _: Option<Size>) {}
 
     #[inline]
     fn title(&self) -> String {

@@ -127,11 +127,11 @@ impl RootWindow for Window {
         })
     }
 
-    fn inner_size(&self) -> PhysicalSize<u32> {
-        self.inner.queue(|inner| inner.canvas.inner_size())
+    fn surface_size(&self) -> PhysicalSize<u32> {
+        self.inner.queue(|inner| inner.canvas.surface_size())
     }
 
-    fn request_inner_size(&self, size: Size) -> Option<PhysicalSize<u32>> {
+    fn request_surface_size(&self, size: Size) -> Option<PhysicalSize<u32>> {
         self.inner.queue(|inner| {
             let size = size.to_logical(self.scale_factor());
             backend::set_canvas_size(
@@ -145,11 +145,11 @@ impl RootWindow for Window {
     }
 
     fn outer_size(&self) -> PhysicalSize<u32> {
-        // Note: the canvas element has no window decorations, so this is equal to `inner_size`.
-        self.inner_size()
+        // Note: the canvas element has no window decorations, so this is equal to `surface_size`.
+        self.surface_size()
     }
 
-    fn set_min_inner_size(&self, min_size: Option<Size>) {
+    fn set_min_surface_size(&self, min_size: Option<Size>) {
         self.inner.dispatch(move |inner| {
             let dimensions = min_size.map(|min_size| min_size.to_logical(inner.scale_factor()));
             backend::set_canvas_min_size(
@@ -161,7 +161,7 @@ impl RootWindow for Window {
         })
     }
 
-    fn set_max_inner_size(&self, max_size: Option<Size>) {
+    fn set_max_surface_size(&self, max_size: Option<Size>) {
         self.inner.dispatch(move |inner| {
             let dimensions = max_size.map(|dimensions| dimensions.to_logical(inner.scale_factor()));
             backend::set_canvas_max_size(

@@ -57,9 +57,9 @@ impl From<u64> for WindowId {
 /// Attributes used when creating a window.
 #[derive(Debug, Clone, PartialEq)]
 pub struct WindowAttributes {
-    pub inner_size: Option<Size>,
-    pub min_inner_size: Option<Size>,
-    pub max_inner_size: Option<Size>,
+    pub surface_size: Option<Size>,
+    pub min_surface_size: Option<Size>,
+    pub max_surface_size: Option<Size>,
     pub position: Option<Position>,
     pub resizable: bool,
     pub enabled_buttons: WindowButtons,
@@ -88,9 +88,9 @@ impl Default for WindowAttributes {
     #[inline]
     fn default() -> WindowAttributes {
         WindowAttributes {
-            inner_size: None,
-            min_inner_size: None,
-            max_inner_size: None,
+            surface_size: None,
+            min_surface_size: None,
+            max_surface_size: None,
             position: None,
             resizable: true,
             enabled_buttons: WindowButtons::all(),
@@ -141,10 +141,10 @@ impl WindowAttributes {
     ///
     /// If this is not set, some platform-specific dimensions will be used.
     ///
-    /// See [`Window::request_inner_size`] for details.
+    /// See [`Window::request_surface_size`] for details.
     #[inline]
-    pub fn with_inner_size<S: Into<Size>>(mut self, size: S) -> Self {
-        self.inner_size = Some(size.into());
+    pub fn with_surface_size<S: Into<Size>>(mut self, size: S) -> Self {
+        self.surface_size = Some(size.into());
         self
     }
 
@@ -153,10 +153,10 @@ impl WindowAttributes {
     /// If this is not set, the window will have no minimum dimensions (aside
     /// from reserved).
     ///
-    /// See [`Window::set_min_inner_size`] for details.
+    /// See [`Window::set_min_surface_size`] for details.
     #[inline]
-    pub fn with_min_inner_size<S: Into<Size>>(mut self, min_size: S) -> Self {
-        self.min_inner_size = Some(min_size.into());
+    pub fn with_min_surface_size<S: Into<Size>>(mut self, min_size: S) -> Self {
+        self.min_surface_size = Some(min_size.into());
         self
     }
 
@@ -165,10 +165,10 @@ impl WindowAttributes {
     /// If this is not set, the window will have no maximum or will be set to
     /// the primary monitor's dimensions by the platform.
     ///
-    /// See [`Window::set_max_inner_size`] for details.
+    /// See [`Window::set_max_surface_size`] for details.
     #[inline]
-    pub fn with_max_inner_size<S: Into<Size>>(mut self, max_size: S) -> Self {
-        self.max_inner_size = Some(max_size.into());
+    pub fn with_max_surface_size<S: Into<Size>>(mut self, max_size: S) -> Self {
+        self.max_surface_size = Some(max_size.into());
         self
     }
 
@@ -182,7 +182,7 @@ impl WindowAttributes {
     ///
     /// - **macOS:** The top left corner position of the window content, the window's "inner"
     ///   position. The window title bar will be placed above it. The window will be positioned such
-    ///   that it fits on screen, maintaining set `inner_size` if any. If you need to precisely
+    ///   that it fits on screen, maintaining set `surface_size` if any. If you need to precisely
     ///   position the top left corner of the whole window you have to use
     ///   [`Window::set_outer_position`] after creating the window.
     /// - **Windows:** The top left corner position of the window title bar, the window's "outer"
@@ -662,7 +662,7 @@ pub trait Window: AsAny + Send + Sync {
     ///
     /// [safe area]: https://developer.apple.com/documentation/uikit/uiview/2891103-safeareainsets?language=objc
     /// [`transform`]: https://developer.mozilla.org/en-US/docs/Web/CSS/transform
-    fn inner_size(&self) -> PhysicalSize<u32>;
+    fn surface_size(&self) -> PhysicalSize<u32>;
 
     /// Request the new size for the window.
     ///
@@ -676,7 +676,7 @@ pub trait Window: AsAny + Send + Sync {
     /// When `None` is returned, it means that the request went to the display system,
     /// and the actual size will be delivered later with the [`WindowEvent::SurfaceResized`].
     ///
-    /// See [`Window::inner_size`] for more information about the values.
+    /// See [`Window::surface_size`] for more information about the values.
     ///
     /// The request could automatically un-maximize the window if it's maximized.
     ///
@@ -685,10 +685,10 @@ pub trait Window: AsAny + Send + Sync {
     /// # use winit::window::Window;
     /// # fn scope(window: &dyn Window) {
     /// // Specify the size in logical dimensions like this:
-    /// let _ = window.request_inner_size(LogicalSize::new(400.0, 200.0).into());
+    /// let _ = window.request_surface_size(LogicalSize::new(400.0, 200.0).into());
     ///
     /// // Or specify the size in physical dimensions like this:
-    /// let _ = window.request_inner_size(PhysicalSize::new(400, 200).into());
+    /// let _ = window.request_surface_size(PhysicalSize::new(400, 200).into());
     /// # }
     /// ```
     ///
@@ -699,18 +699,18 @@ pub trait Window: AsAny + Send + Sync {
     /// [`WindowEvent::SurfaceResized`]: crate::event::WindowEvent::SurfaceResized
     /// [`transform`]: https://developer.mozilla.org/en-US/docs/Web/CSS/transform
     #[must_use]
-    fn request_inner_size(&self, size: Size) -> Option<PhysicalSize<u32>>;
+    fn request_surface_size(&self, size: Size) -> Option<PhysicalSize<u32>>;
 
     /// Returns the physical size of the entire window.
     ///
     /// These dimensions include the title bar and borders. If you don't want that (and you usually
-    /// don't), use [`Window::inner_size`] instead.
+    /// don't), use [`Window::surface_size`] instead.
     ///
     /// ## Platform-specific
     ///
     /// - **iOS:** Returns the [`PhysicalSize`] of the window in screen space coordinates.
     /// - **Web:** Returns the size of the canvas element. _Note: this returns the same value as
-    ///   [`Window::inner_size`]._
+    ///   [`Window::surface_size`]._
     fn outer_size(&self) -> PhysicalSize<u32>;
 
     /// Sets a minimum dimension size for the window.
@@ -720,17 +720,17 @@ pub trait Window: AsAny + Send + Sync {
     /// # use winit::window::Window;
     /// # fn scope(window: &dyn Window) {
     /// // Specify the size in logical dimensions like this:
-    /// window.set_min_inner_size(Some(LogicalSize::new(400.0, 200.0).into()));
+    /// window.set_min_surface_size(Some(LogicalSize::new(400.0, 200.0).into()));
     ///
     /// // Or specify the size in physical dimensions like this:
-    /// window.set_min_inner_size(Some(PhysicalSize::new(400, 200).into()));
+    /// window.set_min_surface_size(Some(PhysicalSize::new(400, 200).into()));
     /// # }
     /// ```
     ///
     /// ## Platform-specific
     ///
     /// - **iOS / Android / Orbital:** Unsupported.
-    fn set_min_inner_size(&self, min_size: Option<Size>);
+    fn set_min_surface_size(&self, min_size: Option<Size>);
 
     /// Sets a maximum dimension size for the window.
     ///
@@ -739,17 +739,17 @@ pub trait Window: AsAny + Send + Sync {
     /// # use winit::window::Window;
     /// # fn scope(window: &dyn Window) {
     /// // Specify the size in logical dimensions like this:
-    /// window.set_max_inner_size(Some(LogicalSize::new(400.0, 200.0).into()));
+    /// window.set_max_surface_size(Some(LogicalSize::new(400.0, 200.0).into()));
     ///
     /// // Or specify the size in physical dimensions like this:
-    /// window.set_max_inner_size(Some(PhysicalSize::new(400, 200).into()));
+    /// window.set_max_surface_size(Some(PhysicalSize::new(400, 200).into()));
     /// # }
     /// ```
     ///
     /// ## Platform-specific
     ///
     /// - **iOS / Android / Orbital:** Unsupported.
-    fn set_max_inner_size(&self, max_size: Option<Size>);
+    fn set_max_surface_size(&self, max_size: Option<Size>);
 
     /// Returns window resize increments if any were set.
     ///
@@ -830,7 +830,7 @@ pub trait Window: AsAny + Send + Sync {
     /// Note that making the window unresizable doesn't exempt you from handling
     /// [`WindowEvent::SurfaceResized`], as that event can still be triggered by DPI scaling,
     /// entering fullscreen mode, etc. Also, the window could still be resized by calling
-    /// [`Window::request_inner_size`].
+    /// [`Window::request_surface_size`].
     ///
     /// ## Platform-specific
     ///

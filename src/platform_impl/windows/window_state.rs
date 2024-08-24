@@ -151,8 +151,8 @@ impl WindowState {
                 last_position: None,
             },
 
-            min_size: attributes.min_inner_size,
-            max_size: attributes.max_inner_size,
+            min_size: attributes.min_surface_size,
+            max_size: attributes.max_surface_size,
 
             resize_increments: attributes.resize_increments,
 

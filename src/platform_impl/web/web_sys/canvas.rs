@@ -23,7 +23,7 @@ use super::pointer::PointerHandler;
 use super::{event, fullscreen, ButtonsState, ResizeScaleHandle};
 use crate::dpi::{LogicalPosition, PhysicalPosition, PhysicalSize};
 use crate::error::OsError as RootOE;
-use crate::event::{Force, SurfaceSizeWriter, MouseButton, MouseScrollDelta};
+use crate::event::{Force, MouseButton, MouseScrollDelta, SurfaceSizeWriter};
 use crate::keyboard::{Key, KeyLocation, ModifiersState, PhysicalKey};
 use crate::platform_impl::{Fullscreen, OsError};
 use crate::window::{WindowAttributes, WindowId as RootWindowId};
@@ -126,17 +126,17 @@ impl Canvas {
             current_size: Rc::default(),
         };
 
-        if let Some(size) = attr.inner_size {
+        if let Some(size) = attr.surface_size {
             let size = size.to_logical(super::scale_factor(&common.window));
             super::set_canvas_size(&common.document, &common.raw, &common.style, size);
         }
 
-        if let Some(size) = attr.min_inner_size {
+        if let Some(size) = attr.min_surface_size {
             let size = size.to_logical(super::scale_factor(&common.window));
             super::set_canvas_min_size(&common.document, &common.raw, &common.style, Some(size));
         }
 
-        if let Some(size) = attr.max_inner_size {
+        if let Some(size) = attr.max_surface_size {
             let size = size.to_logical(super::scale_factor(&common.window));
             super::set_canvas_max_size(&common.document, &common.raw, &common.style, Some(size));
         }
@@ -213,7 +213,7 @@ impl Canvas {
     }
 
     #[inline]
-    pub fn inner_size(&self) -> PhysicalSize<u32> {
+    pub fn surface_size(&self) -> PhysicalSize<u32> {
         self.common.current_size.get()
     }
 

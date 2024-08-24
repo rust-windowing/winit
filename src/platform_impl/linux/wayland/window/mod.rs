@@ -89,7 +89,7 @@ impl Window {
             state.xdg_activation.as_ref().map(|activation_state| activation_state.global().clone());
         let display = event_loop_window_target.connection.display();
 
-        let size: Size = attributes.inner_size.unwrap_or(LogicalSize::new(800., 600.).into());
+        let size: Size = attributes.surface_size.unwrap_or(LogicalSize::new(800., 600.).into());
 
         // We prefer server side decorations, however to not have decorations we ask for client
         // side decorations instead.
@@ -129,10 +129,10 @@ impl Window {
 
         // Set the min and max sizes. We must set the hints upon creating a window, so
         // we use the default `1.` scaling...
-        let min_size = attributes.min_inner_size.map(|size| size.to_logical(1.));
-        let max_size = attributes.max_inner_size.map(|size| size.to_logical(1.));
-        window_state.set_min_inner_size(min_size);
-        window_state.set_max_inner_size(max_size);
+        let min_size = attributes.min_surface_size.map(|size| size.to_logical(1.));
+        let max_size = attributes.max_surface_size.map(|size| size.to_logical(1.));
+        window_state.set_min_surface_size(min_size);
+        window_state.set_max_surface_size(max_size);
 
         // Non-resizable implies that the min and max sizes are set to the same value.
         window_state.set_resizable(attributes.resizable);
@@ -321,15 +321,15 @@ impl CoreWindow for Window {
         // Not possible.
     }
 
-    fn inner_size(&self) -> PhysicalSize<u32> {
+    fn surface_size(&self) -> PhysicalSize<u32> {
         let window_state = self.window_state.lock().unwrap();
         let scale_factor = window_state.scale_factor();
-        super::logical_to_physical_rounded(window_state.inner_size(), scale_factor)
+        super::logical_to_physical_rounded(window_state.surface_size(), scale_factor)
     }
 
-    fn request_inner_size(&self, size: Size) -> Option<PhysicalSize<u32>> {
+    fn request_surface_size(&self, size: Size) -> Option<PhysicalSize<u32>> {
         let mut window_state = self.window_state.lock().unwrap();
-        let new_size = window_state.request_inner_size(size);
+        let new_size = window_state.request_surface_size(size);
         self.request_redraw();
         Some(new_size)
     }
@@ -340,20 +340,20 @@ impl CoreWindow for Window {
         super::logical_to_physical_rounded(window_state.outer_size(), scale_factor)
     }
 
-    fn set_min_inner_size(&self, min_size: Option<Size>) {
+    fn set_min_surface_size(&self, min_size: Option<Size>) {
         let scale_factor = self.scale_factor();
         let min_size = min_size.map(|size| size.to_logical(scale_factor));
-        self.window_state.lock().unwrap().set_min_inner_size(min_size);
+        self.window_state.lock().unwrap().set_min_surface_size(min_size);
         // NOTE: Requires commit to be applied.
         self.request_redraw();
     }
 
     /// Set the maximum inner size for the window.
     #[inline]
-    fn set_max_inner_size(&self, max_size: Option<Size>) {
+    fn set_max_surface_size(&self, max_size: Option<Size>) {
         let scale_factor = self.scale_factor();
         let max_size = max_size.map(|size| size.to_logical(scale_factor));
-        self.window_state.lock().unwrap().set_max_inner_size(max_size);
+        self.window_state.lock().unwrap().set_max_surface_size(max_size);
         // NOTE: Requires commit to be applied.
         self.request_redraw();
     }

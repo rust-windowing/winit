@@ -16,7 +16,7 @@ use crate::application::ApplicationHandler;
 use crate::cursor::OnlyCursorImage;
 use crate::dpi::LogicalSize;
 use crate::error::{EventLoopError, ExternalError, OsError as RootOsError};
-use crate::event::{Event, SurfaceSizeWriter, StartCause, WindowEvent};
+use crate::event::{Event, StartCause, SurfaceSizeWriter, WindowEvent};
 use crate::event_loop::{ActiveEventLoop as RootActiveEventLoop, ControlFlow, DeviceEvents};
 use crate::platform::pump_events::PumpStatus;
 use crate::platform_impl::platform::min_timeout;
@@ -317,24 +317,24 @@ impl EventLoop {
                     let windows = state.windows.get_mut();
                     let window = windows.get(&window_id).unwrap().lock().unwrap();
                     let scale_factor = window.scale_factor();
-                    let size = logical_to_physical_rounded(window.inner_size(), scale_factor);
+                    let size = logical_to_physical_rounded(window.surface_size(), scale_factor);
                     (size, scale_factor)
                 });
 
                 // Stash the old window size.
                 let old_physical_size = physical_size;
 
-                let new_inner_size = Arc::new(Mutex::new(physical_size));
+                let new_surface_size = Arc::new(Mutex::new(physical_size));
                 let root_window_id = crate::window::WindowId(window_id);
                 let event = WindowEvent::ScaleFactorChanged {
                     scale_factor,
-                    surface_size_writer: SurfaceSizeWriter::new(Arc::downgrade(&new_inner_size)),
+                    surface_size_writer: SurfaceSizeWriter::new(Arc::downgrade(&new_surface_size)),
                 };
 
                 app.window_event(&self.active_event_loop, root_window_id, event);
 
-                let physical_size = *new_inner_size.lock().unwrap();
-                drop(new_inner_size);
+                let physical_size = *new_surface_size.lock().unwrap();
+                drop(new_surface_size);
 
                 // Resize the window when user altered the size.
                 if old_physical_size != physical_size {
@@ -344,7 +344,7 @@ impl EventLoop {
 
                         let new_logical_size: LogicalSize<f64> =
                             physical_size.to_logical(scale_factor);
-                        window.request_inner_size(new_logical_size.into());
+                        window.request_surface_size(new_logical_size.into());
                     });
 
                     // Make it queue resize.
@@ -360,7 +360,7 @@ impl EventLoop {
                     let window = windows.get(&window_id).unwrap().lock().unwrap();
 
                     let scale_factor = window.scale_factor();
-                    let size = logical_to_physical_rounded(window.inner_size(), scale_factor);
+                    let size = logical_to_physical_rounded(window.surface_size(), scale_factor);
 
                     // Mark the window as needed a redraw.
                     state

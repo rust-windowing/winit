@@ -458,7 +458,7 @@ impl CoreWindow for Window {
         }
     }
 
-    fn inner_size(&self) -> PhysicalSize<u32> {
+    fn surface_size(&self) -> PhysicalSize<u32> {
         let mut rect: RECT = unsafe { mem::zeroed() };
         if unsafe { GetClientRect(self.hwnd(), &mut rect) } == false.into() {
             panic!(
@@ -478,14 +478,14 @@ impl CoreWindow for Window {
             .unwrap()
     }
 
-    fn request_inner_size(&self, size: Size) -> Option<PhysicalSize<u32>> {
+    fn request_surface_size(&self, size: Size) -> Option<PhysicalSize<u32>> {
         let scale_factor = self.scale_factor();
         let physical_size = size.to_physical::<u32>(scale_factor);
 
         let window_flags = self.window_state_lock().window_flags;
         window_flags.set_size(self.hwnd(), physical_size);
 
-        if physical_size != self.inner_size() {
+        if physical_size != self.surface_size() {
             let window_state = Arc::clone(&self.window_state);
             let window = self.window;
             self.thread_executor.execute_in_thread(move || {
@@ -499,18 +499,18 @@ impl CoreWindow for Window {
         None
     }
 
-    fn set_min_inner_size(&self, size: Option<Size>) {
+    fn set_min_surface_size(&self, size: Option<Size>) {
         self.window_state_lock().min_size = size;
         // Make windows re-check the window size bounds.
-        let size = self.inner_size();
-        let _ = self.request_inner_size(size.into());
+        let size = self.surface_size();
+        let _ = self.request_surface_size(size.into());
     }
 
-    fn set_max_inner_size(&self, size: Option<Size>) {
+    fn set_max_surface_size(&self, size: Option<Size>) {
         self.window_state_lock().max_size = size;
         // Make windows re-check the window size bounds.
-        let size = self.inner_size();
-        let _ = self.request_inner_size(size.into());
+        let size = self.surface_size();
+        let _ = self.request_surface_size(size.into());
     }
 
     fn resize_increments(&self) -> Option<PhysicalSize<u32>> {
@@ -1209,13 +1209,14 @@ impl<'a> InitData<'a> {
 
         win.set_enabled_buttons(attributes.enabled_buttons);
 
-        let size = attributes.inner_size.unwrap_or_else(|| PhysicalSize::new(800, 600).into());
+        let size = attributes.surface_size.unwrap_or_else(|| PhysicalSize::new(800, 600).into());
         let max_size = attributes
-            .max_inner_size
+            .max_surface_size
             .unwrap_or_else(|| PhysicalSize::new(f64::MAX, f64::MAX).into());
-        let min_size = attributes.min_inner_size.unwrap_or_else(|| PhysicalSize::new(0, 0).into());
+        let min_size =
+            attributes.min_surface_size.unwrap_or_else(|| PhysicalSize::new(0, 0).into());
         let clamped_size = Size::clamp(size, min_size, max_size, win.scale_factor());
-        let _ = win.request_inner_size(clamped_size);
+        let _ = win.request_surface_size(clamped_size);
 
         // let margins = MARGINS {
         //     cxLeftWidth: 1,

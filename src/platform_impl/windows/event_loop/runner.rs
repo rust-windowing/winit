@@ -9,7 +9,7 @@ use windows_sys::Win32::Foundation::HWND;
 
 use super::ControlFlow;
 use crate::dpi::PhysicalSize;
-use crate::event::{Event, SurfaceSizeWriter, StartCause, WindowEvent};
+use crate::event::{Event, StartCause, SurfaceSizeWriter, WindowEvent};
 use crate::platform_impl::platform::event_loop::{WindowData, GWL_USERDATA};
 use crate::platform_impl::platform::get_window_long;
 use crate::window::WindowId;
@@ -362,7 +362,7 @@ impl BufferedEvent {
             } => BufferedEvent::ScaleFactorChanged(
                 window_id,
                 scale_factor,
-                *surface_size_writer.new_inner_size.upgrade().unwrap().lock().unwrap(),
+                *surface_size_writer.new_surface_size.upgrade().unwrap().lock().unwrap(),
             ),
             event => BufferedEvent::Event(event),
         }
@@ -371,8 +371,8 @@ impl BufferedEvent {
     pub fn dispatch_event(self, dispatch: impl FnOnce(Event)) {
         match self {
             Self::Event(event) => dispatch(event),
-            Self::ScaleFactorChanged(window_id, scale_factor, new_inner_size) => {
-                let user_new_innner_size = Arc::new(Mutex::new(new_inner_size));
+            Self::ScaleFactorChanged(window_id, scale_factor, new_surface_size) => {
+                let user_new_innner_size = Arc::new(Mutex::new(new_surface_size));
                 dispatch(Event::WindowEvent {
                     window_id,
                     event: WindowEvent::ScaleFactorChanged {
@@ -382,18 +382,18 @@ impl BufferedEvent {
                         )),
                     },
                 });
-                let inner_size = *user_new_innner_size.lock().unwrap();
+                let surface_size = *user_new_innner_size.lock().unwrap();
 
                 drop(user_new_innner_size);
 
-                if inner_size != new_inner_size {
+                if surface_size != new_surface_size {
                     let window_flags = unsafe {
                         let userdata =
                             get_window_long(window_id.0.into(), GWL_USERDATA) as *mut WindowData;
                         (*userdata).window_state_lock().window_flags
                     };
 
-                    window_flags.set_size((window_id.0).0, inner_size);
+                    window_flags.set_size((window_id.0).0, surface_size);
                 }
             },
         }

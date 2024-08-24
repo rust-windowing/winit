@@ -201,11 +201,11 @@ impl EventLoop {
                     let old_scale_factor = scale_factor(&self.android_app);
                     let scale_factor = scale_factor(&self.android_app);
                     if (scale_factor - old_scale_factor).abs() < f64::EPSILON {
-                        let new_inner_size = Arc::new(Mutex::new(screen_size(&self.android_app)));
+                        let new_surface_size = Arc::new(Mutex::new(screen_size(&self.android_app)));
                         let window_id = window::WindowId(WindowId);
                         let event = event::WindowEvent::ScaleFactorChanged {
                             surface_size_writer: SurfaceSizeWriter::new(Arc::downgrade(
-                                &new_inner_size,
+                                &new_surface_size,
                             )),
                             scale_factor,
                         };
@@ -808,21 +808,21 @@ impl CoreWindow for Window {
         // no effect
     }
 
-    fn inner_size(&self) -> PhysicalSize<u32> {
+    fn surface_size(&self) -> PhysicalSize<u32> {
         self.outer_size()
     }
 
-    fn request_inner_size(&self, _size: Size) -> Option<PhysicalSize<u32>> {
-        Some(self.inner_size())
+    fn request_surface_size(&self, _size: Size) -> Option<PhysicalSize<u32>> {
+        Some(self.surface_size())
     }
 
     fn outer_size(&self) -> PhysicalSize<u32> {
         screen_size(&self.app)
     }
 
-    fn set_min_inner_size(&self, _: Option<Size>) {}
+    fn set_min_surface_size(&self, _: Option<Size>) {}
 
-    fn set_max_inner_size(&self, _: Option<Size>) {}
+    fn set_max_surface_size(&self, _: Option<Size>) {}
 
     fn resize_increments(&self) -> Option<PhysicalSize<u32>> {
         None

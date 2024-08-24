@@ -502,7 +502,7 @@ fn new_window(
                 let scale_factor = NSScreen::mainScreen(mtm)
                     .map(|screen| screen.backingScaleFactor() as f64)
                     .unwrap_or(1.0);
-                let size = match attrs.inner_size {
+                let size = match attrs.surface_size {
                     Some(size) => {
                         let size = size.to_logical(scale_factor);
                         NSSize::new(size.width, size.height)
@@ -759,11 +759,11 @@ impl WindowDelegate {
             delegate.set_blur(attrs.blur);
         }
 
-        if let Some(dim) = attrs.min_inner_size {
-            delegate.set_min_inner_size(Some(dim));
+        if let Some(dim) = attrs.min_surface_size {
+            delegate.set_min_surface_size(Some(dim));
         }
-        if let Some(dim) = attrs.max_inner_size {
-            delegate.set_max_inner_size(Some(dim));
+        if let Some(dim) = attrs.max_surface_size {
+            delegate.set_max_surface_size(Some(dim));
         }
 
         delegate.set_window_level(attrs.window_level);
@@ -826,13 +826,13 @@ impl WindowDelegate {
         let content_size = LogicalSize::new(content_size.width, content_size.height);
 
         let suggested_size = content_size.to_physical(scale_factor);
-        let new_inner_size = Arc::new(Mutex::new(suggested_size));
+        let new_surface_size = Arc::new(Mutex::new(suggested_size));
         self.queue_event(WindowEvent::ScaleFactorChanged {
             scale_factor,
-            surface_size_writer: SurfaceSizeWriter::new(Arc::downgrade(&new_inner_size)),
+            surface_size_writer: SurfaceSizeWriter::new(Arc::downgrade(&new_surface_size)),
         });
-        let physical_size = *new_inner_size.lock().unwrap();
-        drop(new_inner_size);
+        let physical_size = *new_surface_size.lock().unwrap();
+        drop(new_surface_size);
 
         if physical_size != suggested_size {
             let logical_size = physical_size.to_logical(scale_factor);
@@ -940,7 +940,7 @@ impl WindowDelegate {
     }
 
     #[inline]
-    pub fn inner_size(&self) -> PhysicalSize<u32> {
+    pub fn surface_size(&self) -> PhysicalSize<u32> {
         let content_rect = self.window().contentRectForFrameRect(self.window().frame());
         let logical = LogicalSize::new(content_rect.size.width, content_rect.size.height);
         logical.to_physical(self.scale_factor())
@@ -954,14 +954,14 @@ impl WindowDelegate {
     }
 
     #[inline]
-    pub fn request_inner_size(&self, size: Size) -> Option<PhysicalSize<u32>> {
+    pub fn request_surface_size(&self, size: Size) -> Option<PhysicalSize<u32>> {
         let scale_factor = self.scale_factor();
         let size = size.to_logical(scale_factor);
         self.window().setContentSize(NSSize::new(size.width, size.height));
         None
     }
 
-    pub fn set_min_inner_size(&self, dimensions: Option<Size>) {
+    pub fn set_min_surface_size(&self, dimensions: Option<Size>) {
         let dimensions =
             dimensions.unwrap_or(Size::Logical(LogicalSize { width: 0.0, height: 0.0 }));
         let min_size = dimensions.to_logical::<CGFloat>(self.scale_factor());
@@ -980,7 +980,7 @@ impl WindowDelegate {
         self.window().setContentSize(current_size);
     }
 
-    pub fn set_max_inner_size(&self, dimensions: Option<Size>) {
+    pub fn set_max_surface_size(&self, dimensions: Option<Size>) {
         let dimensions = dimensions.unwrap_or(Size::Logical(LogicalSize {
             width: f32::MAX as f64,
             height: f32::MAX as f64,

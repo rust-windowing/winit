@@ -999,22 +999,22 @@ pub enum MouseScrollDelta {
 /// [`WindowEvent`].
 #[derive(Debug, Clone)]
 pub struct SurfaceSizeWriter {
-    pub(crate) new_inner_size: Weak<Mutex<PhysicalSize<u32>>>,
+    pub(crate) new_surface_size: Weak<Mutex<PhysicalSize<u32>>>,
 }
 
 impl SurfaceSizeWriter {
     #[cfg(not(orbital_platform))]
-    pub(crate) fn new(new_inner_size: Weak<Mutex<PhysicalSize<u32>>>) -> Self {
-        Self { new_inner_size }
+    pub(crate) fn new(new_surface_size: Weak<Mutex<PhysicalSize<u32>>>) -> Self {
+        Self { new_surface_size }
     }
 
     /// Try to request inner size which will be set synchronously on the window.
-    pub fn request_inner_size(
+    pub fn request_surface_size(
         &mut self,
-        new_inner_size: PhysicalSize<u32>,
+        new_surface_size: PhysicalSize<u32>,
     ) -> Result<(), ExternalError> {
-        if let Some(inner) = self.new_inner_size.upgrade() {
-            *inner.lock().unwrap() = new_inner_size;
+        if let Some(inner) = self.new_surface_size.upgrade() {
+            *inner.lock().unwrap() = new_surface_size;
             Ok(())
         } else {
             Err(ExternalError::Ignored)
@@ -1024,7 +1024,7 @@ impl SurfaceSizeWriter {
 
 impl PartialEq for SurfaceSizeWriter {
     fn eq(&self, other: &Self) -> bool {
-        self.new_inner_size.as_ptr() == other.new_inner_size.as_ptr()
+        self.new_surface_size.as_ptr() == other.new_surface_size.as_ptr()
     }
 }
 

@@ -24,7 +24,7 @@ fn main() -> Result<(), impl std::error::Error> {
             let attributes = WindowAttributes::default()
                 .with_title("parent window")
                 .with_position(Position::Logical(LogicalPosition::new(0.0, 0.0)))
-                .with_inner_size(LogicalSize::new(640.0f32, 480.0f32));
+                .with_surface_size(LogicalSize::new(640.0f32, 480.0f32));
             let window = event_loop.create_window(attributes).unwrap();
 
             println!("Parent window id: {:?})", window.id());
@@ -79,7 +79,7 @@ fn main() -> Result<(), impl std::error::Error> {
         let parent = parent.raw_window_handle().unwrap();
         let mut window_attributes = WindowAttributes::default()
             .with_title("child window")
-            .with_inner_size(LogicalSize::new(200.0f32, 200.0f32))
+            .with_surface_size(LogicalSize::new(200.0f32, 200.0f32))
             .with_position(Position::Logical(LogicalPosition::new(0.0, 0.0)))
             .with_visible(true);
         // `with_parent_window` is unsafe. Parent window must be a valid window.

@@ -127,24 +127,24 @@ impl CoreWindow for Window {
         self.maybe_wait_on_main(|delegate| delegate.set_outer_position(position));
     }
 
-    fn inner_size(&self) -> dpi::PhysicalSize<u32> {
-        self.maybe_wait_on_main(|delegate| delegate.inner_size())
+    fn surface_size(&self) -> dpi::PhysicalSize<u32> {
+        self.maybe_wait_on_main(|delegate| delegate.surface_size())
     }
 
-    fn request_inner_size(&self, size: Size) -> Option<dpi::PhysicalSize<u32>> {
-        self.maybe_wait_on_main(|delegate| delegate.request_inner_size(size))
+    fn request_surface_size(&self, size: Size) -> Option<dpi::PhysicalSize<u32>> {
+        self.maybe_wait_on_main(|delegate| delegate.request_surface_size(size))
     }
 
     fn outer_size(&self) -> dpi::PhysicalSize<u32> {
         self.maybe_wait_on_main(|delegate| delegate.outer_size())
     }
 
-    fn set_min_inner_size(&self, min_size: Option<Size>) {
-        self.maybe_wait_on_main(|delegate| delegate.set_min_inner_size(min_size))
+    fn set_min_surface_size(&self, min_size: Option<Size>) {
+        self.maybe_wait_on_main(|delegate| delegate.set_min_surface_size(min_size))
     }
 
-    fn set_max_inner_size(&self, max_size: Option<Size>) {
-        self.maybe_wait_on_main(|delegate| delegate.set_max_inner_size(max_size));
+    fn set_max_surface_size(&self, max_size: Option<Size>) {
+        self.maybe_wait_on_main(|delegate| delegate.set_max_surface_size(max_size));
     }
 
     fn resize_increments(&self) -> Option<dpi::PhysicalSize<u32>> {
