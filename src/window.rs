@@ -137,7 +137,7 @@ impl WindowAttributes {
         self.parent_window.as_ref().map(|handle| &handle.0)
     }
 
-    /// Requests the window to be of specific dimensions.
+    /// Requests the surface to be of specific dimensions.
     ///
     /// If this is not set, some platform-specific dimensions will be used.
     ///
@@ -148,10 +148,9 @@ impl WindowAttributes {
         self
     }
 
-    /// Sets the minimum dimensions a window can have.
+    /// Sets the minimum dimensions the surface can have.
     ///
-    /// If this is not set, the window will have no minimum dimensions (aside
-    /// from reserved).
+    /// If this is not set, the surface will have no minimum dimensions (aside from reserved).
     ///
     /// See [`Window::set_min_surface_size`] for details.
     #[inline]
@@ -160,9 +159,9 @@ impl WindowAttributes {
         self
     }
 
-    /// Sets the maximum dimensions a window can have.
+    /// Sets the maximum dimensions the surface can have.
     ///
-    /// If this is not set, the window will have no maximum or will be set to
+    /// If this is not set, the surface will have no maximum, or the maximum will be restricted to
     /// the primary monitor's dimensions by the platform.
     ///
     /// See [`Window::set_max_surface_size`] for details.
@@ -653,9 +652,9 @@ pub trait Window: AsAny + Send + Sync {
     /// [`transform`]: https://developer.mozilla.org/en-US/docs/Web/CSS/transform
     fn set_outer_position(&self, position: Position);
 
-    /// Returns the physical size of the window's client area.
+    /// Returns the size of the window's render-able surface.
     ///
-    /// The client area is the content of the window, excluding the title bar and borders.
+    /// This is the dimensions you should pass to things like Wgpu or Glutin when configuring.
     ///
     /// ## Platform-specific
     ///
@@ -667,14 +666,14 @@ pub trait Window: AsAny + Send + Sync {
     /// [`transform`]: https://developer.mozilla.org/en-US/docs/Web/CSS/transform
     fn surface_size(&self) -> PhysicalSize<u32>;
 
-    /// Request the new size for the window.
+    /// Request the new size for the surface.
     ///
     /// On platforms where the size is entirely controlled by the user the
     /// applied size will be returned immediately, resize event in such case
     /// may not be generated.
     ///
-    /// On platforms where resizing is disallowed by the windowing system, the current
-    /// inner size is returned immediately, and the user one is ignored.
+    /// On platforms where resizing is disallowed by the windowing system, the current surface size
+    /// is returned immediately, and the user one is ignored.
     ///
     /// When `None` is returned, it means that the request went to the display system,
     /// and the actual size will be delivered later with the [`WindowEvent::SurfaceResized`].
@@ -704,10 +703,10 @@ pub trait Window: AsAny + Send + Sync {
     #[must_use]
     fn request_surface_size(&self, size: Size) -> Option<PhysicalSize<u32>>;
 
-    /// Returns the physical size of the entire window.
+    /// Returns the size of the entire window.
     ///
-    /// These dimensions include the title bar and borders. If you don't want that (and you usually
-    /// don't), use [`Window::surface_size`] instead.
+    /// These dimensions include window decorations like the title bar and borders. If you don't
+    /// want that (and you usually don't), use [`Window::surface_size`] instead.
     ///
     /// ## Platform-specific
     ///
@@ -716,7 +715,7 @@ pub trait Window: AsAny + Send + Sync {
     ///   [`Window::surface_size`]._
     fn outer_size(&self) -> PhysicalSize<u32>;
 
-    /// Sets a minimum dimension size for the window.
+    /// Sets a minimum dimensions of the window's surface.
     ///
     /// ```no_run
     /// # use winit::dpi::{LogicalSize, PhysicalSize};
@@ -735,7 +734,7 @@ pub trait Window: AsAny + Send + Sync {
     /// - **iOS / Android / Orbital:** Unsupported.
     fn set_min_surface_size(&self, min_size: Option<Size>);
 
-    /// Sets a maximum dimension size for the window.
+    /// Sets a maximum dimensions of the window's surface.
     ///
     /// ```no_run
     /// # use winit::dpi::{LogicalSize, PhysicalSize};
@@ -754,17 +753,17 @@ pub trait Window: AsAny + Send + Sync {
     /// - **iOS / Android / Orbital:** Unsupported.
     fn set_max_surface_size(&self, max_size: Option<Size>);
 
-    /// Returns window resize increments if any were set.
+    /// Returns surface resize increments if any were set.
     ///
     /// ## Platform-specific
     ///
     /// - **iOS / Android / Web / Wayland / Orbital:** Always returns [`None`].
     fn surface_resize_increments(&self) -> Option<PhysicalSize<u32>>;
 
-    /// Sets window resize increments.
+    /// Sets resize increments of the surface.
     ///
-    /// This is a niche constraint hint usually employed by terminal emulators
-    /// and other apps that need "blocky" resizes.
+    /// This is a niche constraint hint usually employed by terminal emulators and other such apps
+    /// that need "blocky" resizes.
     ///
     /// ## Platform-specific
     ///

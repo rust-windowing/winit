@@ -46,7 +46,7 @@ pub type WinitFrame = sctk_adwaita::AdwaitaFrame<WinitState>;
 #[cfg(not(feature = "sctk-adwaita"))]
 pub type WinitFrame = sctk::shell::xdg::fallback_frame::FallbackFrame<WinitState>;
 
-// Minimum window inner size.
+// Minimum window surface size.
 const MIN_WINDOW_SIZE: LogicalSize<u32> = LogicalSize::new(2, 1);
 
 /// The state of the window which is being updated from the [`WinitState`].
@@ -112,7 +112,7 @@ pub struct WindowState {
     /// The text inputs observed on the window.
     text_inputs: Vec<ZwpTextInputV3>,
 
-    /// The inner size of the window, as in without client side decorations.
+    /// The surface size of the window, as in without client side decorations.
     size: LogicalSize<u32>,
 
     /// Whether the CSD fail to create, so we don't try to create them on each iteration.
@@ -361,7 +361,7 @@ impl WindowState {
         }
     }
 
-    /// Compute the bounds for the inner size of the surface.
+    /// Compute the bounds for the surface size of the surface.
     fn surface_size_bounds(
         &self,
         configure: &WindowConfigure,
@@ -636,7 +636,7 @@ impl WindowState {
         logical_to_physical_rounded(self.surface_size(), self.scale_factor())
     }
 
-    /// Resize the window to the new inner size.
+    /// Resize the window to the new surface size.
     fn resize(&mut self, surface_size: LogicalSize<u32>) {
         self.size = surface_size;
 
@@ -673,7 +673,7 @@ impl WindowState {
 
         // Update the target viewport, this is used if and only if fractional scaling is in use.
         if let Some(viewport) = self.viewport.as_ref() {
-            // Set inner size without the borders.
+            // Set surface size without the borders.
             viewport.set_destination(self.size.width as _, self.size.height as _);
         }
     }

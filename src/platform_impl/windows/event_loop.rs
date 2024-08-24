@@ -2131,7 +2131,7 @@ unsafe fn public_window_callback_inner(
             // New size as suggested by Windows.
             let suggested_rect = unsafe { *(lparam as *const RECT) };
 
-            // The window rect provided is the window's outer size, not it's inner size. However,
+            // The window rect provided is the window's outer size, not it's surface size. However,
             // win32 doesn't provide an `UnadjustWindowRectEx` function to get the client rect from
             // the outer rect, so we instead adjust the window rect to get the decoration margins
             // and remove them from the outer size.

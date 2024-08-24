@@ -740,7 +740,7 @@ impl WindowState {
                 self.resize(new_surface_size);
             }
         } else {
-            info!("Request inner size is asynchronous");
+            info!("Requesting surface size is asynchronous");
         }
     }
 

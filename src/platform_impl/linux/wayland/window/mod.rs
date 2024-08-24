@@ -348,7 +348,7 @@ impl CoreWindow for Window {
         self.request_redraw();
     }
 
-    /// Set the maximum inner size for the window.
+    /// Set the maximum surface size for the window.
     #[inline]
     fn set_max_surface_size(&self, max_size: Option<Size>) {
         let scale_factor = self.scale_factor();

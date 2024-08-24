@@ -148,7 +148,12 @@ pub enum WindowEvent {
     /// [`request_activation_token`]: crate::platform::startup_notify::WindowExtStartupNotify::request_activation_token
     ActivationTokenDone { serial: AsyncRequestSerial, token: ActivationToken },
 
-    /// The size of the window has changed. Contains the client area's new dimensions.
+    /// The size of the window's surface has changed.
+    ///
+    /// Contains the new dimensions of the surface (can also be retrieved with
+    /// [`Window::surface_size`]).
+    ///
+    /// [`Window::surface_size`]: crate::window::Window::surface_size
     SurfaceResized(PhysicalSize<u32>),
 
     /// The position of the window has changed. Contains the window's new position.
@@ -366,7 +371,7 @@ pub enum WindowEvent {
     /// For more information about DPI in general, see the [`dpi`] crate.
     ScaleFactorChanged {
         scale_factor: f64,
-        /// Handle to update inner size during scale changes.
+        /// Handle to update surface size during scale changes.
         ///
         /// See [`SurfaceSizeWriter`] docs for more details.
         surface_size_writer: SurfaceSizeWriter,
@@ -995,8 +1000,7 @@ pub enum MouseScrollDelta {
     PixelDelta(PhysicalPosition<f64>),
 }
 
-/// Handle to synchronously change the size of the window from the
-/// [`WindowEvent`].
+/// Handle to synchronously change the size of the window from the [`WindowEvent`].
 #[derive(Debug, Clone)]
 pub struct SurfaceSizeWriter {
     pub(crate) new_surface_size: Weak<Mutex<PhysicalSize<u32>>>,
@@ -1008,7 +1012,7 @@ impl SurfaceSizeWriter {
         Self { new_surface_size }
     }
 
-    /// Try to request inner size which will be set synchronously on the window.
+    /// Try to request surface size which will be set synchronously on the window.
     pub fn request_surface_size(
         &mut self,
         new_surface_size: PhysicalSize<u32>,
