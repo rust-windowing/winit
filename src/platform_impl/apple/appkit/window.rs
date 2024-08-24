@@ -147,12 +147,12 @@ impl CoreWindow for Window {
         self.maybe_wait_on_main(|delegate| delegate.set_max_surface_size(max_size));
     }
 
-    fn resize_increments(&self) -> Option<dpi::PhysicalSize<u32>> {
-        self.maybe_wait_on_main(|delegate| delegate.resize_increments())
+    fn surface_resize_increments(&self) -> Option<dpi::PhysicalSize<u32>> {
+        self.maybe_wait_on_main(|delegate| delegate.surface_resize_increments())
     }
 
-    fn set_resize_increments(&self, increments: Option<Size>) {
-        self.maybe_wait_on_main(|delegate| delegate.set_resize_increments(increments));
+    fn set_surface_resize_increments(&self, increments: Option<Size>) {
+        self.maybe_wait_on_main(|delegate| delegate.set_surface_resize_increments(increments));
     }
 
     fn set_title(&self, title: &str) {

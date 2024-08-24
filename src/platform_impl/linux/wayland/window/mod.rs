@@ -358,12 +358,12 @@ impl CoreWindow for Window {
         self.request_redraw();
     }
 
-    fn resize_increments(&self) -> Option<PhysicalSize<u32>> {
+    fn surface_resize_increments(&self) -> Option<PhysicalSize<u32>> {
         None
     }
 
-    fn set_resize_increments(&self, _increments: Option<Size>) {
-        warn!("`set_resize_increments` is not implemented for Wayland");
+    fn set_surface_resize_increments(&self, _increments: Option<Size>) {
+        warn!("`set_surface_resize_increments` is not implemented for Wayland");
     }
 
     fn set_title(&self, title: &str) {

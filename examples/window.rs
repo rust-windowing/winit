@@ -681,12 +681,12 @@ impl WindowState {
 
     /// Toggle resize increments on a window.
     fn toggle_resize_increments(&mut self) {
-        let new_increments = match self.window.resize_increments() {
+        let new_increments = match self.window.surface_resize_increments() {
             Some(_) => None,
             None => Some(LogicalSize::new(25.0, 25.0).into()),
         };
         info!("Had increments: {}", new_increments.is_none());
-        self.window.set_resize_increments(new_increments);
+        self.window.set_surface_resize_increments(new_increments);
     }
 
     /// Toggle fullscreen.

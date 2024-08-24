@@ -283,12 +283,12 @@ impl CoreWindow for Window {
     }
 
     #[inline]
-    fn resize_increments(&self) -> Option<PhysicalSize<u32>> {
+    fn surface_resize_increments(&self) -> Option<PhysicalSize<u32>> {
         None
     }
 
     #[inline]
-    fn set_resize_increments(&self, _increments: Option<Size>) {}
+    fn set_surface_resize_increments(&self, _increments: Option<Size>) {}
 
     #[inline]
     fn set_resizable(&self, resizeable: bool) {

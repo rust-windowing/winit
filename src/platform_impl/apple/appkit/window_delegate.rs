@@ -93,7 +93,7 @@ pub(crate) struct State {
     previous_scale_factor: Cell<f64>,
 
     /// The current resize increments for the window content.
-    resize_increments: Cell<NSSize>,
+    surface_resize_increments: Cell<NSSize>,
     /// Whether the window is showing decorations.
     decorations: Cell<bool>,
     resizable: Cell<bool>,
@@ -169,7 +169,7 @@ declare_class!(
         fn window_will_start_live_resize(&self, _: Option<&AnyObject>) {
             trace_scope!("windowWillStartLiveResize:");
 
-            let increments = self.ivars().resize_increments.get();
+            let increments = self.ivars().surface_resize_increments.get();
             self.set_resize_increments_inner(increments);
         }
 
@@ -700,13 +700,15 @@ impl WindowDelegate {
             None => (),
         }
 
-        let resize_increments =
-            match attrs.resize_increments.map(|i| i.to_logical(window.backingScaleFactor() as _)) {
-                Some(LogicalSize { width, height }) if width >= 1. && height >= 1. => {
-                    NSSize::new(width, height)
-                },
-                _ => NSSize::new(1., 1.),
-            };
+        let surface_resize_increments = match attrs
+            .surface_resize_increments
+            .map(|i| i.to_logical(window.backingScaleFactor() as _))
+        {
+            Some(LogicalSize { width, height }) if width >= 1. && height >= 1. => {
+                NSSize::new(width, height)
+            },
+            _ => NSSize::new(1., 1.),
+        };
 
         let scale_factor = window.backingScaleFactor() as _;
 
@@ -719,7 +721,7 @@ impl WindowDelegate {
             window: window.retain(),
             previous_position: Cell::new(None),
             previous_scale_factor: Cell::new(scale_factor),
-            resize_increments: Cell::new(resize_increments),
+            surface_resize_increments: Cell::new(surface_resize_increments),
             decorations: Cell::new(attrs.decorations),
             resizable: Cell::new(attrs.resizable),
             maximized: Cell::new(attrs.maximized),
@@ -1002,8 +1004,8 @@ impl WindowDelegate {
         self.window().setContentSize(current_size);
     }
 
-    pub fn resize_increments(&self) -> Option<PhysicalSize<u32>> {
-        let increments = self.ivars().resize_increments.get();
+    pub fn surface_resize_increments(&self) -> Option<PhysicalSize<u32>> {
+        let increments = self.ivars().surface_resize_increments.get();
         let (w, h) = (increments.width, increments.height);
         if w > 1.0 || h > 1.0 {
             Some(LogicalSize::new(w, h).to_physical(self.scale_factor()))
@@ -1012,9 +1014,9 @@ impl WindowDelegate {
         }
     }
 
-    pub fn set_resize_increments(&self, increments: Option<Size>) {
+    pub fn set_surface_resize_increments(&self, increments: Option<Size>) {
         // XXX the resize increments are only used during live resizes.
-        self.ivars().resize_increments.set(
+        self.ivars().surface_resize_increments.set(
             increments
                 .map(|increments| {
                     let logical = increments.to_logical::<f64>(self.scale_factor());

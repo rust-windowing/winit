@@ -824,11 +824,11 @@ impl CoreWindow for Window {
 
     fn set_max_surface_size(&self, _: Option<Size>) {}
 
-    fn resize_increments(&self) -> Option<PhysicalSize<u32>> {
+    fn surface_resize_increments(&self) -> Option<PhysicalSize<u32>> {
         None
     }
 
-    fn set_resize_increments(&self, _increments: Option<Size>) {}
+    fn set_surface_resize_increments(&self, _increments: Option<Size>) {}
 
     fn set_title(&self, _title: &str) {}
 

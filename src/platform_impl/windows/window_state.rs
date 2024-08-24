@@ -30,7 +30,7 @@ pub(crate) struct WindowState {
     pub min_size: Option<Size>,
     pub max_size: Option<Size>,
 
-    pub resize_increments: Option<Size>,
+    pub surface_resize_increments: Option<Size>,
 
     pub window_icon: Option<Icon>,
     pub taskbar_icon: Option<Icon>,
@@ -154,7 +154,7 @@ impl WindowState {
             min_size: attributes.min_surface_size,
             max_size: attributes.max_surface_size,
 
-            resize_increments: attributes.resize_increments,
+            surface_resize_increments: attributes.surface_resize_increments,
 
             window_icon: attributes.window_icon.clone(),
             taskbar_icon: None,

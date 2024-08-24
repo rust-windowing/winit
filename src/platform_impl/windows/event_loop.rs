@@ -1308,7 +1308,7 @@ unsafe fn public_window_callback_inner(
             let scale_factor = userdata.window_state_lock().scale_factor;
             let Some(inc) = userdata
                 .window_state_lock()
-                .resize_increments
+                .surface_resize_increments
                 .map(|inc| inc.to_physical(scale_factor))
                 .filter(|inc| inc.width > 0 && inc.height > 0)
             else {

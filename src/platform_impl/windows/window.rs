@@ -513,14 +513,14 @@ impl CoreWindow for Window {
         let _ = self.request_surface_size(size.into());
     }
 
-    fn resize_increments(&self) -> Option<PhysicalSize<u32>> {
+    fn surface_resize_increments(&self) -> Option<PhysicalSize<u32>> {
         let w = self.window_state_lock();
         let scale_factor = w.scale_factor;
-        w.resize_increments.map(|size| size.to_physical(scale_factor))
+        w.surface_resize_increments.map(|size| size.to_physical(scale_factor))
     }
 
-    fn set_resize_increments(&self, increments: Option<Size>) {
-        self.window_state_lock().resize_increments = increments;
+    fn set_surface_resize_increments(&self, increments: Option<Size>) {
+        self.window_state_lock().surface_resize_increments = increments;
     }
 
     fn set_resizable(&self, resizable: bool) {

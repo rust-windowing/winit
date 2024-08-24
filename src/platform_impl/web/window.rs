@@ -173,11 +173,11 @@ impl RootWindow for Window {
         })
     }
 
-    fn resize_increments(&self) -> Option<PhysicalSize<u32>> {
+    fn surface_resize_increments(&self) -> Option<PhysicalSize<u32>> {
         None
     }
 
-    fn set_resize_increments(&self, _: Option<Size>) {
+    fn set_surface_resize_increments(&self, _: Option<Size>) {
         // Intentionally a no-op: users can't resize canvas elements
     }
 

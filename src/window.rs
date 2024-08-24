@@ -60,6 +60,7 @@ pub struct WindowAttributes {
     pub surface_size: Option<Size>,
     pub min_surface_size: Option<Size>,
     pub max_surface_size: Option<Size>,
+    pub surface_resize_increments: Option<Size>,
     pub position: Option<Position>,
     pub resizable: bool,
     pub enabled_buttons: WindowButtons,
@@ -71,7 +72,6 @@ pub struct WindowAttributes {
     pub decorations: bool,
     pub window_icon: Option<Icon>,
     pub preferred_theme: Option<Theme>,
-    pub resize_increments: Option<Size>,
     pub content_protected: bool,
     pub window_level: WindowLevel,
     pub active: bool,
@@ -91,6 +91,7 @@ impl Default for WindowAttributes {
             surface_size: None,
             min_surface_size: None,
             max_surface_size: None,
+            surface_resize_increments: None,
             position: None,
             resizable: true,
             enabled_buttons: WindowButtons::all(),
@@ -104,7 +105,6 @@ impl Default for WindowAttributes {
             window_level: Default::default(),
             window_icon: None,
             preferred_theme: None,
-            resize_increments: None,
             content_protected: false,
             cursor: Cursor::default(),
             #[cfg(feature = "rwh_06")]
@@ -169,6 +169,20 @@ impl WindowAttributes {
     #[inline]
     pub fn with_max_surface_size<S: Into<Size>>(mut self, max_size: S) -> Self {
         self.max_surface_size = Some(max_size.into());
+        self
+    }
+
+    /// Build window with resize increments hint.
+    ///
+    /// The default is `None`.
+    ///
+    /// See [`Window::set_surface_resize_increments`] for details.
+    #[inline]
+    pub fn with_surface_resize_increments<S: Into<Size>>(
+        mut self,
+        surface_resize_increments: S,
+    ) -> Self {
+        self.surface_resize_increments = Some(surface_resize_increments.into());
         self
     }
 
@@ -343,17 +357,6 @@ impl WindowAttributes {
     #[inline]
     pub fn with_theme(mut self, theme: Option<Theme>) -> Self {
         self.preferred_theme = theme;
-        self
-    }
-
-    /// Build window with resize increments hint.
-    ///
-    /// The default is `None`.
-    ///
-    /// See [`Window::set_resize_increments`] for details.
-    #[inline]
-    pub fn with_resize_increments<S: Into<Size>>(mut self, resize_increments: S) -> Self {
-        self.resize_increments = Some(resize_increments.into());
         self
     }
 
@@ -756,7 +759,7 @@ pub trait Window: AsAny + Send + Sync {
     /// ## Platform-specific
     ///
     /// - **iOS / Android / Web / Wayland / Orbital:** Always returns [`None`].
-    fn resize_increments(&self) -> Option<PhysicalSize<u32>>;
+    fn surface_resize_increments(&self) -> Option<PhysicalSize<u32>>;
 
     /// Sets window resize increments.
     ///
@@ -769,7 +772,7 @@ pub trait Window: AsAny + Send + Sync {
     ///   numbers.
     /// - **Wayland:** Not implemented.
     /// - **iOS / Android / Web / Orbital:** Unsupported.
-    fn set_resize_increments(&self, increments: Option<Size>);
+    fn set_surface_resize_increments(&self, increments: Option<Size>);
 
     /// Modifies the title of the window.
     ///

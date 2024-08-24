@@ -114,12 +114,12 @@ impl CoreWindow for Window {
         self.0.set_max_surface_size(max_size)
     }
 
-    fn resize_increments(&self) -> Option<PhysicalSize<u32>> {
-        self.0.resize_increments()
+    fn surface_resize_increments(&self) -> Option<PhysicalSize<u32>> {
+        self.0.surface_resize_increments()
     }
 
-    fn set_resize_increments(&self, increments: Option<Size>) {
-        self.0.set_resize_increments(increments)
+    fn set_surface_resize_increments(&self, increments: Option<Size>) {
+        self.0.set_surface_resize_increments(increments)
     }
 
     fn set_title(&self, title: &str) {
@@ -358,7 +358,7 @@ pub struct SharedState {
     pub frame_extents: Option<util::FrameExtentsHeuristic>,
     pub min_surface_size: Option<Size>,
     pub max_surface_size: Option<Size>,
-    pub resize_increments: Option<Size>,
+    pub surface_resize_increments: Option<Size>,
     pub base_size: Option<Size>,
     pub visibility: Visibility,
     pub has_focus: bool,
@@ -398,7 +398,7 @@ impl SharedState {
             frame_extents: None,
             min_surface_size: None,
             max_surface_size: None,
-            resize_increments: None,
+            surface_resize_increments: None,
             base_size: None,
             has_focus: false,
             cursor_hittest: None,
@@ -734,7 +734,7 @@ impl UnownedWindow {
             let shared_state = window.shared_state.get_mut().unwrap();
             shared_state.min_surface_size = min_surface_size.map(Into::into);
             shared_state.max_surface_size = max_surface_size.map(Into::into);
-            shared_state.resize_increments = window_attrs.resize_increments;
+            shared_state.surface_resize_increments = window_attrs.surface_resize_increments;
             shared_state.base_size = window_attrs.platform_specific.x11.base_size;
 
             let normal_hints = WmSizeHints {
@@ -749,7 +749,7 @@ impl UnownedWindow {
                 max_size: max_surface_size.map(cast_physical_size_to_hint),
                 min_size: min_surface_size.map(cast_physical_size_to_hint),
                 size_increment: window_attrs
-                    .resize_increments
+                    .surface_resize_increments
                     .map(|size| cast_size_to_hint(size, scale_factor)),
                 base_size: window_attrs
                     .platform_specific
@@ -1671,7 +1671,7 @@ impl UnownedWindow {
     }
 
     #[inline]
-    pub fn resize_increments(&self) -> Option<PhysicalSize<u32>> {
+    pub fn surface_resize_increments(&self) -> Option<PhysicalSize<u32>> {
         WmSizeHints::get(
             self.xconn.xcb_connection(),
             self.xwindow as xproto::Window,
@@ -1685,8 +1685,8 @@ impl UnownedWindow {
     }
 
     #[inline]
-    pub fn set_resize_increments(&self, increments: Option<Size>) {
-        self.shared_state_lock().resize_increments = increments;
+    pub fn set_surface_resize_increments(&self, increments: Option<Size>) {
+        self.shared_state_lock().surface_resize_increments = increments;
         let physical_increments =
             increments.map(|increments| cast_size_to_hint(increments, self.scale_factor()));
         self.update_normal_hints(|hints| hints.size_increment = physical_increments)
@@ -1706,12 +1706,13 @@ impl UnownedWindow {
             let dpi_adjuster = |size: Size| -> (i32, i32) { cast_size_to_hint(size, scale_factor) };
             let max_size = shared_state.max_surface_size.map(dpi_adjuster);
             let min_size = shared_state.min_surface_size.map(dpi_adjuster);
-            let resize_increments = shared_state.resize_increments.map(dpi_adjuster);
+            let surface_resize_increments =
+                shared_state.surface_resize_increments.map(dpi_adjuster);
             let base_size = shared_state.base_size.map(dpi_adjuster);
 
             normal_hints.max_size = max_size;
             normal_hints.min_size = min_size;
-            normal_hints.size_increment = resize_increments;
+            normal_hints.size_increment = surface_resize_increments;
             normal_hints.base_size = base_size;
         })
         .expect("Failed to update normal hints");
