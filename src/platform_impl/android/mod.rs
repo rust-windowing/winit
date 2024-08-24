@@ -15,7 +15,7 @@ use crate::application::ApplicationHandler;
 use crate::cursor::Cursor;
 use crate::dpi::{PhysicalPosition, PhysicalSize, Position, Size};
 use crate::error::{self, EventLoopError, ExternalError, NotSupportedError};
-use crate::event::{self, Force, InnerSizeWriter, StartCause};
+use crate::event::{self, Force, StartCause, SurfaceSizeWriter};
 use crate::event_loop::{
     ActiveEventLoop as RootActiveEventLoop, ControlFlow, DeviceEvents,
     EventLoopProxy as RootEventLoopProxy, OwnedDisplayHandle as RootOwnedDisplayHandle,
@@ -204,7 +204,7 @@ impl EventLoop {
                         let new_inner_size = Arc::new(Mutex::new(screen_size(&self.android_app)));
                         let window_id = window::WindowId(WindowId);
                         let event = event::WindowEvent::ScaleFactorChanged {
-                            inner_size_writer: InnerSizeWriter::new(Arc::downgrade(
+                            surface_size_writer: SurfaceSizeWriter::new(Arc::downgrade(
                                 &new_inner_size,
                             )),
                             scale_factor,

@@ -23,7 +23,7 @@ use super::pointer::PointerHandler;
 use super::{event, fullscreen, ButtonsState, ResizeScaleHandle};
 use crate::dpi::{LogicalPosition, PhysicalPosition, PhysicalSize};
 use crate::error::OsError as RootOE;
-use crate::event::{Force, InnerSizeWriter, MouseButton, MouseScrollDelta};
+use crate::event::{Force, SurfaceSizeWriter, MouseButton, MouseScrollDelta};
 use crate::keyboard::{Key, KeyLocation, ModifiersState, PhysicalKey};
 use crate::platform_impl::{Fullscreen, OsError};
 use crate::window::{WindowAttributes, WindowId as RootWindowId};
@@ -504,7 +504,7 @@ impl Canvas {
                 window_id: RootWindowId(self.id),
                 event: crate::event::WindowEvent::ScaleFactorChanged {
                     scale_factor: scale,
-                    inner_size_writer: InnerSizeWriter::new(Arc::downgrade(&new_size)),
+                    surface_size_writer: SurfaceSizeWriter::new(Arc::downgrade(&new_size)),
                 },
             });
 

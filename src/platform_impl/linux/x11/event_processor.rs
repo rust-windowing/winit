@@ -22,8 +22,8 @@ use xkbcommon_dl::xkb_mod_mask_t;
 
 use crate::dpi::{PhysicalPosition, PhysicalSize};
 use crate::event::{
-    DeviceEvent, ElementState, Event, Ime, InnerSizeWriter, MouseButton, MouseScrollDelta,
-    RawKeyEvent, Touch, TouchPhase, WindowEvent,
+    DeviceEvent, ElementState, Event, Ime, MouseButton, MouseScrollDelta, RawKeyEvent,
+    SurfaceSizeWriter, Touch, TouchPhase, WindowEvent,
 };
 use crate::keyboard::ModifiersState;
 use crate::platform_impl::common::xkb::{self, XkbState};
@@ -706,7 +706,7 @@ impl EventProcessor {
                     window_id,
                     event: WindowEvent::ScaleFactorChanged {
                         scale_factor: new_scale_factor,
-                        inner_size_writer: InnerSizeWriter::new(Arc::downgrade(&inner_size)),
+                        surface_size_writer: SurfaceSizeWriter::new(Arc::downgrade(&inner_size)),
                     },
                 });
 

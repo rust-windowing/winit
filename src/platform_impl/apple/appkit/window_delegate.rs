@@ -36,7 +36,7 @@ use super::window::WinitWindow;
 use super::{ffi, Fullscreen, MonitorHandle, OsError, WindowId};
 use crate::dpi::{LogicalPosition, LogicalSize, PhysicalPosition, PhysicalSize, Position, Size};
 use crate::error::{ExternalError, NotSupportedError, OsError as RootOsError};
-use crate::event::{InnerSizeWriter, WindowEvent};
+use crate::event::{SurfaceSizeWriter, WindowEvent};
 use crate::platform::macos::{OptionAsAlt, WindowExtMacOS};
 use crate::window::{
     Cursor, CursorGrabMode, Icon, ImePurpose, ResizeDirection, Theme, UserAttentionType,
@@ -829,7 +829,7 @@ impl WindowDelegate {
         let new_inner_size = Arc::new(Mutex::new(suggested_size));
         self.queue_event(WindowEvent::ScaleFactorChanged {
             scale_factor,
-            inner_size_writer: InnerSizeWriter::new(Arc::downgrade(&new_inner_size)),
+            surface_size_writer: SurfaceSizeWriter::new(Arc::downgrade(&new_inner_size)),
         });
         let physical_size = *new_inner_size.lock().unwrap();
         drop(new_inner_size);

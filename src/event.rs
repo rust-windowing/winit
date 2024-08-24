@@ -360,7 +360,7 @@ pub enum WindowEvent {
     /// * Changing the display's scale factor (e.g. in Control Panel on Windows).
     /// * Moving the window to a display with a different scale factor.
     ///
-    /// To update the window size, use the provided [`InnerSizeWriter`] handle. By default, the
+    /// To update the window size, use the provided [`SurfaceSizeWriter`] handle. By default, the
     /// window is resized to the value suggested by the OS, but it can be changed to any value.
     ///
     /// For more information about DPI in general, see the [`dpi`] crate.
@@ -368,8 +368,8 @@ pub enum WindowEvent {
         scale_factor: f64,
         /// Handle to update inner size during scale changes.
         ///
-        /// See [`InnerSizeWriter`] docs for more details.
-        inner_size_writer: InnerSizeWriter,
+        /// See [`SurfaceSizeWriter`] docs for more details.
+        surface_size_writer: SurfaceSizeWriter,
     },
 
     /// The system window theme has changed.
@@ -998,11 +998,11 @@ pub enum MouseScrollDelta {
 /// Handle to synchronously change the size of the window from the
 /// [`WindowEvent`].
 #[derive(Debug, Clone)]
-pub struct InnerSizeWriter {
+pub struct SurfaceSizeWriter {
     pub(crate) new_inner_size: Weak<Mutex<PhysicalSize<u32>>>,
 }
 
-impl InnerSizeWriter {
+impl SurfaceSizeWriter {
     #[cfg(not(orbital_platform))]
     pub(crate) fn new(new_inner_size: Weak<Mutex<PhysicalSize<u32>>>) -> Self {
         Self { new_inner_size }
@@ -1022,13 +1022,13 @@ impl InnerSizeWriter {
     }
 }
 
-impl PartialEq for InnerSizeWriter {
+impl PartialEq for SurfaceSizeWriter {
     fn eq(&self, other: &Self) -> bool {
         self.new_inner_size.as_ptr() == other.new_inner_size.as_ptr()
     }
 }
 
-impl Eq for InnerSizeWriter {}
+impl Eq for SurfaceSizeWriter {}
 
 #[cfg(test)]
 mod tests {

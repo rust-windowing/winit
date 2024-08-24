@@ -16,7 +16,7 @@ use crate::application::ApplicationHandler;
 use crate::cursor::OnlyCursorImage;
 use crate::dpi::LogicalSize;
 use crate::error::{EventLoopError, ExternalError, OsError as RootOsError};
-use crate::event::{Event, InnerSizeWriter, StartCause, WindowEvent};
+use crate::event::{Event, SurfaceSizeWriter, StartCause, WindowEvent};
 use crate::event_loop::{ActiveEventLoop as RootActiveEventLoop, ControlFlow, DeviceEvents};
 use crate::platform::pump_events::PumpStatus;
 use crate::platform_impl::platform::min_timeout;
@@ -328,7 +328,7 @@ impl EventLoop {
                 let root_window_id = crate::window::WindowId(window_id);
                 let event = WindowEvent::ScaleFactorChanged {
                     scale_factor,
-                    inner_size_writer: InnerSizeWriter::new(Arc::downgrade(&new_inner_size)),
+                    surface_size_writer: SurfaceSizeWriter::new(Arc::downgrade(&new_inner_size)),
                 };
 
                 app.window_event(&self.active_event_loop, root_window_id, event);

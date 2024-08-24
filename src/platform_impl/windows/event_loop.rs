@@ -58,7 +58,7 @@ use crate::application::ApplicationHandler;
 use crate::dpi::{PhysicalPosition, PhysicalSize};
 use crate::error::{EventLoopError, ExternalError, OsError};
 use crate::event::{
-    Event, FingerId as RootFingerId, Force, Ime, InnerSizeWriter, RawKeyEvent, Touch, TouchPhase,
+    Event, FingerId as RootFingerId, Force, Ime, SurfaceSizeWriter, RawKeyEvent, Touch, TouchPhase,
     WindowEvent,
 };
 use crate::event_loop::{
@@ -2172,7 +2172,7 @@ unsafe fn public_window_callback_inner(
                 window_id: CoreWindowId(WindowId(window)),
                 event: ScaleFactorChanged {
                     scale_factor: new_scale_factor,
-                    inner_size_writer: InnerSizeWriter::new(Arc::downgrade(&new_inner_size)),
+                    surface_size_writer: SurfaceSizeWriter::new(Arc::downgrade(&new_inner_size)),
                 },
             });
 

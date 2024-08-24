@@ -9,7 +9,7 @@ use windows_sys::Win32::Foundation::HWND;
 
 use super::ControlFlow;
 use crate::dpi::PhysicalSize;
-use crate::event::{Event, InnerSizeWriter, StartCause, WindowEvent};
+use crate::event::{Event, SurfaceSizeWriter, StartCause, WindowEvent};
 use crate::platform_impl::platform::event_loop::{WindowData, GWL_USERDATA};
 use crate::platform_impl::platform::get_window_long;
 use crate::window::WindowId;
@@ -357,12 +357,12 @@ impl BufferedEvent {
     pub fn from_event(event: Event) -> BufferedEvent {
         match event {
             Event::WindowEvent {
-                event: WindowEvent::ScaleFactorChanged { scale_factor, inner_size_writer },
+                event: WindowEvent::ScaleFactorChanged { scale_factor, surface_size_writer },
                 window_id,
             } => BufferedEvent::ScaleFactorChanged(
                 window_id,
                 scale_factor,
-                *inner_size_writer.new_inner_size.upgrade().unwrap().lock().unwrap(),
+                *surface_size_writer.new_inner_size.upgrade().unwrap().lock().unwrap(),
             ),
             event => BufferedEvent::Event(event),
         }
@@ -377,7 +377,7 @@ impl BufferedEvent {
                     window_id,
                     event: WindowEvent::ScaleFactorChanged {
                         scale_factor,
-                        inner_size_writer: InnerSizeWriter::new(Arc::downgrade(
+                        surface_size_writer: SurfaceSizeWriter::new(Arc::downgrade(
                             &user_new_innner_size,
                         )),
                     },

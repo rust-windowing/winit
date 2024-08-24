@@ -23,7 +23,7 @@ use super::{
 use crate::cursor::{Cursor, CustomCursor as RootCustomCursor};
 use crate::dpi::{PhysicalPosition, PhysicalSize, Position, Size};
 use crate::error::{ExternalError, NotSupportedError, OsError as RootOsError};
-use crate::event::{Event, InnerSizeWriter, WindowEvent};
+use crate::event::{Event, SurfaceSizeWriter, WindowEvent};
 use crate::event_loop::AsyncRequestSerial;
 use crate::platform::x11::WindowType;
 use crate::platform_impl::x11::atoms::*;
@@ -1230,7 +1230,7 @@ impl UnownedWindow {
                 window_id,
                 event: WindowEvent::ScaleFactorChanged {
                     scale_factor: new_monitor.scale_factor,
-                    inner_size_writer: InnerSizeWriter::new(Arc::downgrade(&inner_size)),
+                    surface_size_writer: SurfaceSizeWriter::new(Arc::downgrade(&inner_size)),
                 },
             });
 

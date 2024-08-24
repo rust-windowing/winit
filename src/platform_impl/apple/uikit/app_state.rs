@@ -27,7 +27,7 @@ use super::window::WinitUIWindow;
 use super::ActiveEventLoop;
 use crate::application::ApplicationHandler;
 use crate::dpi::PhysicalSize;
-use crate::event::{Event, InnerSizeWriter, StartCause, WindowEvent};
+use crate::event::{Event, SurfaceSizeWriter, StartCause, WindowEvent};
 use crate::event_loop::ControlFlow;
 use crate::window::WindowId as RootWindowId;
 
@@ -674,7 +674,7 @@ fn handle_hidpi_proxy(mtm: MainThreadMarker, event: ScaleFactorChanged) {
         window_id: RootWindowId(window.id()),
         event: WindowEvent::ScaleFactorChanged {
             scale_factor,
-            inner_size_writer: InnerSizeWriter::new(Arc::downgrade(&new_inner_size)),
+            surface_size_writer: SurfaceSizeWriter::new(Arc::downgrade(&new_inner_size)),
         },
     };
     handle_event(mtm, event);
