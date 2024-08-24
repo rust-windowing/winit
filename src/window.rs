@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 
 pub use crate::cursor::{BadImage, Cursor, CustomCursor, CustomCursorSource, MAX_CURSOR_SIZE};
 use crate::dpi::{PhysicalPosition, PhysicalSize, Position, Size};
-use crate::error::{ExternalError, NotSupportedError};
+use crate::error::RequestError;
 pub use crate::icon::{BadIcon, Icon};
 use crate::monitor::{MonitorHandle, VideoModeHandle};
 use crate::platform_impl::{self, PlatformSpecificWindowAttributes};
@@ -601,10 +601,10 @@ pub trait Window: AsAny + Send + Sync {
     ///   coordinate system.
     /// - **Web:** Returns the top-left coordinates relative to the viewport. _Note: this returns
     ///   the same value as [`Window::outer_position`]._
-    /// - **Android / Wayland:** Always returns [`NotSupportedError`].
+    /// - **Android / Wayland:** Always returns [`RequestError::NotSupported`].
     ///
     /// [safe area]: https://developer.apple.com/documentation/uikit/uiview/2891103-safeareainsets?language=objc
-    fn inner_position(&self) -> Result<PhysicalPosition<i32>, NotSupportedError>;
+    fn inner_position(&self) -> Result<PhysicalPosition<i32>, RequestError>;
 
     /// Returns the position of the top-left hand corner of the window relative to the
     /// top-left hand corner of the desktop.
@@ -621,8 +621,8 @@ pub trait Window: AsAny + Send + Sync {
     /// - **iOS:** Returns the top left coordinates of the window in the screen space coordinate
     ///   system.
     /// - **Web:** Returns the top-left coordinates relative to the viewport.
-    /// - **Android / Wayland:** Always returns [`NotSupportedError`].
-    fn outer_position(&self) -> Result<PhysicalPosition<i32>, NotSupportedError>;
+    /// - **Android / Wayland:** Always returns [`RequestError::NotSupported`].
+    fn outer_position(&self) -> Result<PhysicalPosition<i32>, RequestError>;
 
     /// Modifies the position of the window.
     ///
@@ -1160,8 +1160,8 @@ pub trait Window: AsAny + Send + Sync {
     /// ## Platform-specific
     ///
     /// - **Wayland**: Cursor must be in [`CursorGrabMode::Locked`].
-    /// - **iOS / Android / Web / Orbital:** Always returns an [`ExternalError::NotSupported`].
-    fn set_cursor_position(&self, position: Position) -> Result<(), ExternalError>;
+    /// - **iOS / Android / Web / Orbital:** Always returns an [`RequestError::NotSupported`].
+    fn set_cursor_position(&self, position: Position) -> Result<(), RequestError>;
 
     /// Set grabbing [mode][CursorGrabMode] on the cursor preventing it from leaving the window.
     ///
@@ -1178,7 +1178,7 @@ pub trait Window: AsAny + Send + Sync {
     ///     .unwrap();
     /// # }
     /// ```
-    fn set_cursor_grab(&self, mode: CursorGrabMode) -> Result<(), ExternalError>;
+    fn set_cursor_grab(&self, mode: CursorGrabMode) -> Result<(), RequestError>;
 
     /// Modifies the cursor's visibility.
     ///
@@ -1204,8 +1204,8 @@ pub trait Window: AsAny + Send + Sync {
     /// - **X11:** Un-grabs the cursor.
     /// - **Wayland:** Requires the cursor to be inside the window to be dragged.
     /// - **macOS:** May prevent the button release event to be triggered.
-    /// - **iOS / Android / Web:** Always returns an [`ExternalError::NotSupported`].
-    fn drag_window(&self) -> Result<(), ExternalError>;
+    /// - **iOS / Android / Web:** Always returns an [`RequestError::NotSupported`].
+    fn drag_window(&self) -> Result<(), RequestError>;
 
     /// Resizes the window with the left mouse button until the button is released.
     ///
@@ -1214,9 +1214,9 @@ pub trait Window: AsAny + Send + Sync {
     ///
     /// ## Platform-specific
     ///
-    /// - **macOS:** Always returns an [`ExternalError::NotSupported`]
-    /// - **iOS / Android / Web:** Always returns an [`ExternalError::NotSupported`].
-    fn drag_resize_window(&self, direction: ResizeDirection) -> Result<(), ExternalError>;
+    /// - **macOS:** Always returns an [`RequestError::NotSupported`]
+    /// - **iOS / Android / Web:** Always returns an [`RequestError::NotSupported`].
+    fn drag_resize_window(&self, direction: ResizeDirection) -> Result<(), RequestError>;
 
     /// Show [window menu] at a specified position .
     ///
@@ -1237,8 +1237,8 @@ pub trait Window: AsAny + Send + Sync {
     ///
     /// ## Platform-specific
     ///
-    /// - **iOS / Android / Web / Orbital:** Always returns an [`ExternalError::NotSupported`].
-    fn set_cursor_hittest(&self, hittest: bool) -> Result<(), ExternalError>;
+    /// - **iOS / Android / Web / Orbital:** Always returns an [`RequestError::NotSupported`].
+    fn set_cursor_hittest(&self, hittest: bool) -> Result<(), RequestError>;
 
     /// Returns the monitor on which the window currently resides.
     ///
@@ -1345,8 +1345,8 @@ pub enum CursorGrabMode {
     ///
     /// ## Platform-specific
     ///
-    /// - **macOS:** Not implemented. Always returns [`ExternalError::NotSupported`] for now.
-    /// - **iOS / Android / Web:** Always returns an [`ExternalError::NotSupported`].
+    /// - **macOS:** Not implemented. Always returns [`RequestError::NotSupported`] for now.
+    /// - **iOS / Android / Web:** Always returns an [`RequestError::NotSupported`].
     Confined,
 
     /// The cursor is locked inside the window area to the certain position.
@@ -1356,9 +1356,9 @@ pub enum CursorGrabMode {
     ///
     /// ## Platform-specific
     ///
-    /// - **X11 / Windows:** Not implemented. Always returns [`ExternalError::NotSupported`] for
+    /// - **X11 / Windows:** Not implemented. Always returns [`RequestError::NotSupported`] for
     ///   now.
-    /// - **iOS / Android:** Always returns an [`ExternalError::NotSupported`].
+    /// - **iOS / Android:** Always returns an [`RequestError::NotSupported`].
     Locked,
 }
 

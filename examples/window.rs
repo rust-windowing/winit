@@ -17,7 +17,7 @@ use rwh_06::{DisplayHandle, HasDisplayHandle};
 use softbuffer::{Context, Surface};
 use winit::application::ApplicationHandler;
 use winit::dpi::{LogicalSize, PhysicalPosition, PhysicalSize};
-use winit::error::ExternalError;
+use winit::error::RequestError;
 use winit::event::{DeviceEvent, DeviceId, Ime, MouseButton, MouseScrollDelta, WindowEvent};
 use winit::event_loop::{ActiveEventLoop, EventLoop};
 use winit::keyboard::{Key, ModifiersState};
@@ -76,7 +76,7 @@ struct Application {
     receiver: Receiver<Action>,
     sender: Sender<Action>,
     /// Custom cursors assets.
-    custom_cursors: Result<Vec<CustomCursor>, ExternalError>,
+    custom_cursors: Result<Vec<CustomCursor>, RequestError>,
     /// Application icon.
     icon: Icon,
     windows: HashMap<WindowId, WindowState>,

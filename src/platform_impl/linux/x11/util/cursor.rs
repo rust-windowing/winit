@@ -9,8 +9,8 @@ use x11rb::protocol::xproto;
 
 use super::super::ActiveEventLoop;
 use super::*;
-use crate::error::ExternalError;
-use crate::platform_impl::{OsError, PlatformCustomCursorSource};
+use crate::error::RequestError;
+use crate::platform_impl::PlatformCustomCursorSource;
 use crate::window::CursorIcon;
 
 impl XConnection {
@@ -193,7 +193,7 @@ impl CustomCursor {
     pub(crate) fn new(
         event_loop: &ActiveEventLoop,
         mut cursor: PlatformCustomCursorSource,
-    ) -> Result<CustomCursor, ExternalError> {
+    ) -> Result<CustomCursor, RequestError> {
         // Reverse RGBA order to BGRA.
         cursor.0.rgba.chunks_mut(4).for_each(|chunk| {
             let chunk: &mut [u8; 4] = chunk.try_into().unwrap();
@@ -215,7 +215,7 @@ impl CustomCursor {
                 cursor.0.hotspot_y,
                 &cursor.0.rgba,
             )
-            .map_err(|err| ExternalError::Os(os_error!(OsError::XError(err.into()))))?;
+            .map_err(|err| os_error!(err))?;
 
         Ok(Self { inner: Arc::new(CustomCursorInner { xconn: event_loop.xconn.clone(), cursor }) })
     }

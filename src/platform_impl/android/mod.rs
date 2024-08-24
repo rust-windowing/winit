@@ -14,7 +14,7 @@ use tracing::{debug, trace, warn};
 use crate::application::ApplicationHandler;
 use crate::cursor::Cursor;
 use crate::dpi::{PhysicalPosition, PhysicalSize, Position, Size};
-use crate::error::{self, EventLoopError, ExternalError, NotSupportedError};
+use crate::error::{EventLoopError, NotSupportedError, RequestError};
 use crate::event::{self, Force, StartCause, SurfaceSizeWriter};
 use crate::event_loop::{
     ActiveEventLoop as RootActiveEventLoop, ControlFlow, DeviceEvents,
@@ -592,15 +592,15 @@ impl RootActiveEventLoop for ActiveEventLoop {
     fn create_window(
         &self,
         window_attributes: WindowAttributes,
-    ) -> Result<Box<dyn CoreWindow>, error::OsError> {
+    ) -> Result<Box<dyn CoreWindow>, RequestError> {
         Ok(Box::new(Window::new(self, window_attributes)?))
     }
 
     fn create_custom_cursor(
         &self,
         _source: CustomCursorSource,
-    ) -> Result<CustomCursor, ExternalError> {
-        Err(ExternalError::NotSupported(NotSupportedError::new()))
+    ) -> Result<CustomCursor, RequestError> {
+        Err(NotSupportedError::new("create_custom_cursor is not supported").into())
     }
 
     fn available_monitors(&self) -> Box<dyn Iterator<Item = RootMonitorHandle>> {
@@ -715,7 +715,7 @@ impl Window {
     pub(crate) fn new(
         el: &ActiveEventLoop,
         _window_attrs: window::WindowAttributes,
-    ) -> Result<Self, error::OsError> {
+    ) -> Result<Self, RequestError> {
         // FIXME this ignores requested window attributes
 
         Ok(Self { app: el.app.clone(), redraw_requester: el.redraw_requester.clone() })
@@ -796,12 +796,12 @@ impl CoreWindow for Window {
 
     fn pre_present_notify(&self) {}
 
-    fn inner_position(&self) -> Result<PhysicalPosition<i32>, error::NotSupportedError> {
-        Err(error::NotSupportedError::new())
+    fn inner_position(&self) -> Result<PhysicalPosition<i32>, RequestError> {
+        Err(NotSupportedError::new("inner_position is not supported").into())
     }
 
-    fn outer_position(&self) -> Result<PhysicalPosition<i32>, error::NotSupportedError> {
-        Err(error::NotSupportedError::new())
+    fn outer_position(&self) -> Result<PhysicalPosition<i32>, RequestError> {
+        Err(NotSupportedError::new("outer_position is not supported").into())
     }
 
     fn set_outer_position(&self, _position: Position) {
@@ -896,29 +896,29 @@ impl CoreWindow for Window {
 
     fn set_cursor(&self, _: Cursor) {}
 
-    fn set_cursor_position(&self, _: Position) -> Result<(), error::ExternalError> {
-        Err(error::ExternalError::NotSupported(error::NotSupportedError::new()))
+    fn set_cursor_position(&self, _: Position) -> Result<(), RequestError> {
+        Err(NotSupportedError::new("set_cursor_position is not supported").into())
     }
 
-    fn set_cursor_grab(&self, _: CursorGrabMode) -> Result<(), error::ExternalError> {
-        Err(error::ExternalError::NotSupported(error::NotSupportedError::new()))
+    fn set_cursor_grab(&self, _: CursorGrabMode) -> Result<(), RequestError> {
+        Err(NotSupportedError::new("set_cursor_grab is not supported").into())
     }
 
     fn set_cursor_visible(&self, _: bool) {}
 
-    fn drag_window(&self) -> Result<(), error::ExternalError> {
-        Err(error::ExternalError::NotSupported(error::NotSupportedError::new()))
+    fn drag_window(&self) -> Result<(), RequestError> {
+        Err(NotSupportedError::new("drag_window is not supported").into())
     }
 
-    fn drag_resize_window(&self, _direction: ResizeDirection) -> Result<(), error::ExternalError> {
-        Err(error::ExternalError::NotSupported(error::NotSupportedError::new()))
+    fn drag_resize_window(&self, _direction: ResizeDirection) -> Result<(), RequestError> {
+        Err(NotSupportedError::new("drag_resize_window").into())
     }
 
     #[inline]
     fn show_window_menu(&self, _position: Position) {}
 
-    fn set_cursor_hittest(&self, _hittest: bool) -> Result<(), error::ExternalError> {
-        Err(error::ExternalError::NotSupported(error::NotSupportedError::new()))
+    fn set_cursor_hittest(&self, _hittest: bool) -> Result<(), RequestError> {
+        Err(NotSupportedError::new("set_cursor_hittest is not supported").into())
     }
 
     fn set_theme(&self, _theme: Option<Theme>) {}

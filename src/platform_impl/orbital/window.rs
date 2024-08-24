@@ -1,12 +1,10 @@
 use std::collections::VecDeque;
 use std::sync::{Arc, Mutex};
 
-use super::{
-    ActiveEventLoop, MonitorHandle, OsError, RedoxSocket, TimeSocket, WindowId, WindowProperties,
-};
+use super::{ActiveEventLoop, MonitorHandle, RedoxSocket, TimeSocket, WindowId, WindowProperties};
 use crate::cursor::Cursor;
 use crate::dpi::{PhysicalPosition, PhysicalSize, Position, Size};
-use crate::error;
+use crate::error::{NotSupportedError, RequestError};
 use crate::monitor::MonitorHandle as CoreMonitorHandle;
 use crate::window::{self, Fullscreen, ImePurpose, Window as CoreWindow, WindowId as CoreWindowId};
 
@@ -32,7 +30,7 @@ impl Window {
     pub(crate) fn new(
         el: &ActiveEventLoop,
         attrs: window::WindowAttributes,
-    ) -> Result<Self, error::OsError> {
+    ) -> Result<Self, RequestError> {
         let scale = MonitorHandle.scale_factor();
 
         let (x, y) = if let Some(pos) = attrs.position {
@@ -125,20 +123,17 @@ impl Window {
         })
     }
 
-    fn get_flag(&self, flag: char) -> Result<bool, error::ExternalError> {
+    fn get_flag(&self, flag: char) -> Result<bool, RequestError> {
         let mut buf: [u8; 4096] = [0; 4096];
-        let path = self
-            .window_socket
-            .fpath(&mut buf)
-            .map_err(|err| error::ExternalError::Os(os_error!(OsError::new(err))))?;
+        let path = self.window_socket.fpath(&mut buf).map_err(|err| os_error!(format!("{err}")))?;
         let properties = WindowProperties::new(path);
         Ok(properties.flags.contains(flag))
     }
 
-    fn set_flag(&self, flag: char, value: bool) -> Result<(), error::ExternalError> {
+    fn set_flag(&self, flag: char, value: bool) -> Result<(), RequestError> {
         self.window_socket
             .write(format!("F,{flag},{}", if value { 1 } else { 0 }).as_bytes())
-            .map_err(|err| error::ExternalError::Os(os_error!(OsError::new(err))))?;
+            .map_err(|err| os_error!(format!("{err}")))?;
         Ok(())
     }
 
@@ -204,7 +199,7 @@ impl CoreWindow for Window {
     }
 
     #[inline]
-    fn inner_position(&self) -> Result<PhysicalPosition<i32>, error::NotSupportedError> {
+    fn inner_position(&self) -> Result<PhysicalPosition<i32>, RequestError> {
         let mut buf: [u8; 4096] = [0; 4096];
         let path = self.window_socket.fpath(&mut buf).expect("failed to read properties");
         let properties = WindowProperties::new(path);
@@ -212,7 +207,7 @@ impl CoreWindow for Window {
     }
 
     #[inline]
-    fn outer_position(&self) -> Result<PhysicalPosition<i32>, error::NotSupportedError> {
+    fn outer_position(&self) -> Result<PhysicalPosition<i32>, RequestError> {
         // TODO: adjust for window decorations
         self.inner_position()
     }
@@ -372,12 +367,12 @@ impl CoreWindow for Window {
     fn set_cursor(&self, _: Cursor) {}
 
     #[inline]
-    fn set_cursor_position(&self, _: Position) -> Result<(), error::ExternalError> {
-        Err(error::ExternalError::NotSupported(error::NotSupportedError::new()))
+    fn set_cursor_position(&self, _: Position) -> Result<(), RequestError> {
+        Err(NotSupportedError::new("set_cursor_position is not supported").into())
     }
 
     #[inline]
-    fn set_cursor_grab(&self, mode: window::CursorGrabMode) -> Result<(), error::ExternalError> {
+    fn set_cursor_grab(&self, mode: window::CursorGrabMode) -> Result<(), RequestError> {
         let (grab, relative) = match mode {
             window::CursorGrabMode::None => (false, false),
             window::CursorGrabMode::Confined => (true, false),
@@ -385,10 +380,10 @@ impl CoreWindow for Window {
         };
         self.window_socket
             .write(format!("M,G,{}", if grab { 1 } else { 0 }).as_bytes())
-            .map_err(|err| error::ExternalError::Os(os_error!(OsError::new(err))))?;
+            .map_err(|err| os_error!(format!("{err}")))?;
         self.window_socket
             .write(format!("M,R,{}", if relative { 1 } else { 0 }).as_bytes())
-            .map_err(|err| error::ExternalError::Os(os_error!(OsError::new(err))))?;
+            .map_err(|err| os_error!(format!("{err}")))?;
         Ok(())
     }
 
@@ -398,18 +393,13 @@ impl CoreWindow for Window {
     }
 
     #[inline]
-    fn drag_window(&self) -> Result<(), error::ExternalError> {
-        self.window_socket
-            .write(b"D")
-            .map_err(|err| error::ExternalError::Os(os_error!(OsError::new(err))))?;
+    fn drag_window(&self) -> Result<(), RequestError> {
+        self.window_socket.write(b"D").map_err(|err| os_error!(format!("{err}")))?;
         Ok(())
     }
 
     #[inline]
-    fn drag_resize_window(
-        &self,
-        direction: window::ResizeDirection,
-    ) -> Result<(), error::ExternalError> {
+    fn drag_resize_window(&self, direction: window::ResizeDirection) -> Result<(), RequestError> {
         let arg = match direction {
             window::ResizeDirection::East => "R",
             window::ResizeDirection::North => "T",
@@ -422,7 +412,7 @@ impl CoreWindow for Window {
         };
         self.window_socket
             .write(format!("D,{}", arg).as_bytes())
-            .map_err(|err| error::ExternalError::Os(os_error!(OsError::new(err))))?;
+            .map_err(|err| os_error!(format!("{err}")))?;
         Ok(())
     }
 
@@ -430,8 +420,8 @@ impl CoreWindow for Window {
     fn show_window_menu(&self, _position: Position) {}
 
     #[inline]
-    fn set_cursor_hittest(&self, _hittest: bool) -> Result<(), error::ExternalError> {
-        Err(error::ExternalError::NotSupported(error::NotSupportedError::new()))
+    fn set_cursor_hittest(&self, _hittest: bool) -> Result<(), RequestError> {
+        Err(NotSupportedError::new("set_cursor_hittest is not supported").into())
     }
 
     #[inline]

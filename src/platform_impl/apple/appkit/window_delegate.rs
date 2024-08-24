@@ -33,9 +33,9 @@ use super::monitor::{self, flip_window_screen_coordinates, get_display_id};
 use super::observer::RunLoop;
 use super::view::WinitView;
 use super::window::WinitWindow;
-use super::{ffi, Fullscreen, MonitorHandle, OsError, WindowId};
+use super::{ffi, Fullscreen, MonitorHandle, WindowId};
 use crate::dpi::{LogicalPosition, LogicalSize, PhysicalPosition, PhysicalSize, Position, Size};
-use crate::error::{ExternalError, NotSupportedError, OsError as RootOsError};
+use crate::error::{NotSupportedError, RequestError};
 use crate::event::{SurfaceSizeWriter, WindowEvent};
 use crate::platform::macos::{OptionAsAlt, WindowExtMacOS};
 use crate::window::{
@@ -677,9 +677,9 @@ impl WindowDelegate {
         app_state: &Rc<AppState>,
         attrs: WindowAttributes,
         mtm: MainThreadMarker,
-    ) -> Result<Retained<Self>, RootOsError> {
+    ) -> Result<Retained<Self>, RequestError> {
         let window = new_window(app_state, &attrs, mtm)
-            .ok_or_else(|| os_error!(OsError::CreationError("couldn't create `NSWindow`")))?;
+            .ok_or_else(|| os_error!("couldn't create `NSWindow`"))?;
 
         #[cfg(feature = "rwh_06")]
         match attrs.parent_window.map(|handle| handle.0) {
@@ -688,9 +688,9 @@ impl WindowDelegate {
                 // Unwrap is fine, since the pointer comes from `NonNull`.
                 let parent_view: Retained<NSView> =
                     unsafe { Retained::retain(handle.ns_view.as_ptr().cast()) }.unwrap();
-                let parent = parent_view.window().ok_or_else(|| {
-                    os_error!(OsError::CreationError("parent view should be installed in a window"))
-                })?;
+                let parent = parent_view
+                    .window()
+                    .ok_or_else(|| os_error!("parent view should be installed in a window"))?;
 
                 // SAFETY: We know that there are no parent -> child -> parent cycles since the only
                 // place in `winit` where we allow making a window a child window is
@@ -925,15 +925,15 @@ impl WindowDelegate {
     #[inline]
     pub fn pre_present_notify(&self) {}
 
-    pub fn outer_position(&self) -> Result<PhysicalPosition<i32>, NotSupportedError> {
+    pub fn outer_position(&self) -> PhysicalPosition<i32> {
         let position = flip_window_screen_coordinates(self.window().frame());
-        Ok(LogicalPosition::new(position.x, position.y).to_physical(self.scale_factor()))
+        LogicalPosition::new(position.x, position.y).to_physical(self.scale_factor())
     }
 
-    pub fn inner_position(&self) -> Result<PhysicalPosition<i32>, NotSupportedError> {
+    pub fn inner_position(&self) -> PhysicalPosition<i32> {
         let content_rect = self.window().contentRectForFrameRect(self.window().frame());
         let position = flip_window_screen_coordinates(content_rect);
-        Ok(LogicalPosition::new(position.x, position.y).to_physical(self.scale_factor()))
+        LogicalPosition::new(position.x, position.y).to_physical(self.scale_factor())
     }
 
     pub fn set_outer_position(&self, position: Position) {
@@ -1125,18 +1125,18 @@ impl WindowDelegate {
     }
 
     #[inline]
-    pub fn set_cursor_grab(&self, mode: CursorGrabMode) -> Result<(), ExternalError> {
+    pub fn set_cursor_grab(&self, mode: CursorGrabMode) -> Result<(), RequestError> {
         let associate_mouse_cursor = match mode {
             CursorGrabMode::Locked => false,
             CursorGrabMode::None => true,
             CursorGrabMode::Confined => {
-                return Err(ExternalError::NotSupported(NotSupportedError::new()))
+                return Err(NotSupportedError::new("confined cursor is not supported").into())
             },
         };
 
         // TODO: Do this for real https://stackoverflow.com/a/40922095/5435443
         CGDisplay::associate_mouse_and_mouse_cursor_position(associate_mouse_cursor)
-            .map_err(|status| ExternalError::Os(os_error!(OsError::CGError(status))))
+            .map_err(|status| os_error!(format!("CGError {status}")).into())
     }
 
     #[inline]
@@ -1154,8 +1154,8 @@ impl WindowDelegate {
     }
 
     #[inline]
-    pub fn set_cursor_position(&self, cursor_position: Position) -> Result<(), ExternalError> {
-        let physical_window_position = self.inner_position().unwrap();
+    pub fn set_cursor_position(&self, cursor_position: Position) -> Result<(), RequestError> {
+        let physical_window_position = self.inner_position();
         let scale_factor = self.scale_factor();
         let window_position = physical_window_position.to_logical::<CGFloat>(scale_factor);
         let logical_cursor_position = cursor_position.to_logical::<CGFloat>(scale_factor);
@@ -1164,33 +1164,31 @@ impl WindowDelegate {
             y: logical_cursor_position.y + window_position.y,
         };
         CGDisplay::warp_mouse_cursor_position(point)
-            .map_err(|e| ExternalError::Os(os_error!(OsError::CGError(e))))?;
+            .map_err(|status| os_error!(format!("CGError {status}")))?;
         CGDisplay::associate_mouse_and_mouse_cursor_position(true)
-            .map_err(|e| ExternalError::Os(os_error!(OsError::CGError(e))))?;
+            .map_err(|status| os_error!(format!("CGError {status}")))?;
 
         Ok(())
     }
 
     #[inline]
-    pub fn drag_window(&self) -> Result<(), ExternalError> {
+    pub fn drag_window(&self) {
         let mtm = MainThreadMarker::from(self);
         let event = NSApplication::sharedApplication(mtm).currentEvent().unwrap();
         self.window().performWindowDragWithEvent(&event);
-        Ok(())
     }
 
     #[inline]
-    pub fn drag_resize_window(&self, _direction: ResizeDirection) -> Result<(), ExternalError> {
-        Err(ExternalError::NotSupported(NotSupportedError::new()))
+    pub fn drag_resize_window(&self, _direction: ResizeDirection) -> Result<(), NotSupportedError> {
+        Err(NotSupportedError::new("drag_resize_window is not supported"))
     }
 
     #[inline]
     pub fn show_window_menu(&self, _position: Position) {}
 
     #[inline]
-    pub fn set_cursor_hittest(&self, hittest: bool) -> Result<(), ExternalError> {
+    pub fn set_cursor_hittest(&self, hittest: bool) {
         self.window().setIgnoresMouseEvents(!hittest);
-        Ok(())
     }
 
     pub(crate) fn is_zoomed(&self) -> bool {

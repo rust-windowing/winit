@@ -23,7 +23,7 @@ use x11rb::x11_utils::X11Error as LogicalError;
 use x11rb::xcb_ffi::ReplyOrIdError;
 
 use crate::application::ApplicationHandler;
-use crate::error::{EventLoopError, ExternalError, OsError as RootOsError};
+use crate::error::{EventLoopError, RequestError};
 use crate::event::{Event, StartCause, WindowEvent};
 use crate::event_loop::{
     ActiveEventLoop as RootActiveEventLoop, ControlFlow, DeviceEvents,
@@ -33,7 +33,7 @@ use crate::platform::pump_events::PumpStatus;
 use crate::platform_impl::common::xkb::Context;
 use crate::platform_impl::platform::{min_timeout, WindowId};
 use crate::platform_impl::x11::window::Window;
-use crate::platform_impl::{OsError, OwnedDisplayHandle, PlatformCustomCursor};
+use crate::platform_impl::{OwnedDisplayHandle, PlatformCustomCursor};
 use crate::window::{
     CustomCursor as RootCustomCursor, CustomCursorSource, Theme, Window as CoreWindow,
     WindowAttributes,
@@ -399,9 +399,11 @@ impl EventLoop {
         // `run_on_demand` calls but if they have only just dropped their
         // windows we need to make sure those last requests are sent to the
         // X Server.
-        self.event_processor.target.x_connection().sync_with_server().map_err(|x_err| {
-            EventLoopError::Os(os_error!(OsError::XError(Arc::new(X11Error::Xlib(x_err)))))
-        })?;
+        self.event_processor
+            .target
+            .x_connection()
+            .sync_with_server()
+            .map_err(|x_err| EventLoopError::Os(os_error!(X11Error::Xlib(x_err))))?;
 
         exit
     }
@@ -688,14 +690,14 @@ impl RootActiveEventLoop for ActiveEventLoop {
     fn create_window(
         &self,
         window_attributes: WindowAttributes,
-    ) -> Result<Box<dyn CoreWindow>, RootOsError> {
+    ) -> Result<Box<dyn CoreWindow>, RequestError> {
         Ok(Box::new(Window::new(self, window_attributes)?))
     }
 
     fn create_custom_cursor(
         &self,
         custom_cursor: CustomCursorSource,
-    ) -> Result<RootCustomCursor, ExternalError> {
+    ) -> Result<RootCustomCursor, RequestError> {
         Ok(RootCustomCursor {
             inner: PlatformCustomCursor::X(CustomCursor::new(self, custom_cursor.inner)?),
         })
