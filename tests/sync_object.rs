@@ -1,5 +1,5 @@
 #[allow(dead_code)]
-fn needs_sync<T: Sync>() {}
+fn needs_sync<T: Sync + ?Sized>() {}
 
 #[test]
 fn event_loop_proxy_send() {
@@ -8,7 +8,7 @@ fn event_loop_proxy_send() {
 
 #[test]
 fn window_sync() {
-    needs_sync::<winit::window::Window>();
+    needs_sync::<dyn winit::window::Window>();
 }
 
 #[test]

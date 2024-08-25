@@ -49,6 +49,7 @@ use crate::cursor::Cursor;
 use crate::dpi::{PhysicalPosition, PhysicalSize, Position, Size};
 use crate::error::{ExternalError, NotSupportedError, OsError as RootOsError};
 use crate::icon::Icon;
+use crate::monitor::MonitorHandle as CoreMonitorHandle;
 use crate::platform::windows::{BackdropType, Color, CornerPreference};
 use crate::platform_impl::platform::dark_mode::try_theme;
 use crate::platform_impl::platform::definitions::{
@@ -62,14 +63,14 @@ use crate::platform_impl::platform::event_loop::{self, ActiveEventLoop, DESTROY_
 use crate::platform_impl::platform::icon::{self, IconType};
 use crate::platform_impl::platform::ime::ImeContext;
 use crate::platform_impl::platform::keyboard::KeyEventBuilder;
-use crate::platform_impl::platform::monitor::{self, MonitorHandle};
 use crate::platform_impl::platform::window_state::{
     CursorFlags, SavedWindow, WindowFlags, WindowState,
 };
-use crate::platform_impl::platform::{util, Fullscreen, SelectedCursor, WindowId};
+use crate::platform_impl::platform::{monitor, util, Fullscreen, SelectedCursor, WindowId};
 use crate::window::{
-    CursorGrabMode, ImePurpose, ResizeDirection, Theme, UserAttentionType, WindowAttributes,
-    WindowButtons, WindowLevel,
+    CursorGrabMode, Fullscreen as CoreFullscreen, ImePurpose, ResizeDirection, Theme,
+    UserAttentionType, Window as CoreWindow, WindowAttributes, WindowButtons,
+    WindowId as CoreWindowId, WindowLevel,
 };
 
 /// The Win32 implementation of the main `Window` object.
@@ -96,248 +97,16 @@ impl Window {
         unsafe { init(w_attr, event_loop) }
     }
 
-    pub(crate) fn maybe_queue_on_main(&self, f: impl FnOnce(&Self) + Send + 'static) {
-        // TODO: Use `thread_executor` here
-        f(self)
-    }
-
-    pub(crate) fn maybe_wait_on_main<R: Send>(&self, f: impl FnOnce(&Self) -> R + Send) -> R {
-        // TODO: Use `thread_executor` here
-        f(self)
-    }
-
     fn window_state_lock(&self) -> MutexGuard<'_, WindowState> {
         self.window_state.lock().unwrap()
     }
 
-    pub fn set_title(&self, text: &str) {
-        let wide_text = util::encode_wide(text);
-        unsafe {
-            SetWindowTextW(self.hwnd(), wide_text.as_ptr());
-        }
-    }
-
-    pub fn set_transparent(&self, transparent: bool) {
-        let window = self.window;
-        let window_state = Arc::clone(&self.window_state);
-        self.thread_executor.execute_in_thread(move || {
-            let _ = &window;
-            WindowState::set_window_flags(window_state.lock().unwrap(), window, |f| {
-                f.set(WindowFlags::TRANSPARENT, transparent)
-            });
-        });
-    }
-
-    pub fn set_blur(&self, _blur: bool) {}
-
-    #[inline]
-    pub fn set_visible(&self, visible: bool) {
-        let window = self.window;
-        let window_state = Arc::clone(&self.window_state);
-        self.thread_executor.execute_in_thread(move || {
-            let _ = &window;
-            WindowState::set_window_flags(window_state.lock().unwrap(), window, |f| {
-                f.set(WindowFlags::VISIBLE, visible)
-            });
-        });
-    }
-
-    #[inline]
-    pub fn is_visible(&self) -> Option<bool> {
-        Some(unsafe { IsWindowVisible(self.window) == 1 })
-    }
-
-    #[inline]
-    pub fn request_redraw(&self) {
-        // NOTE: mark that we requested a redraw to handle requests during `WM_PAINT` handling.
-        self.window_state.lock().unwrap().redraw_requested = true;
-        unsafe {
-            RedrawWindow(self.hwnd(), ptr::null(), 0, RDW_INTERNALPAINT);
-        }
-    }
-
-    #[inline]
-    pub fn pre_present_notify(&self) {}
-
-    #[inline]
-    pub fn outer_position(&self) -> Result<PhysicalPosition<i32>, NotSupportedError> {
-        util::WindowArea::Outer
-            .get_rect(self.hwnd())
-            .map(|rect| Ok(PhysicalPosition::new(rect.left, rect.top)))
-            .expect(
-                "Unexpected GetWindowRect failure; please report this error to \
-                 rust-windowing/winit",
-            )
-    }
-
-    #[inline]
-    pub fn inner_position(&self) -> Result<PhysicalPosition<i32>, NotSupportedError> {
-        let mut position: POINT = unsafe { mem::zeroed() };
-        if unsafe { ClientToScreen(self.hwnd(), &mut position) } == false.into() {
-            panic!(
-                "Unexpected ClientToScreen failure: please report this error to \
-                 rust-windowing/winit"
-            )
-        }
-        Ok(PhysicalPosition::new(position.x, position.y))
-    }
-
-    #[inline]
-    pub fn set_outer_position(&self, position: Position) {
-        let (x, y): (i32, i32) = position.to_physical::<i32>(self.scale_factor()).into();
-
-        let window_state = Arc::clone(&self.window_state);
-        let window = self.window;
-        self.thread_executor.execute_in_thread(move || {
-            let _ = &window;
-            WindowState::set_window_flags(window_state.lock().unwrap(), window, |f| {
-                f.set(WindowFlags::MAXIMIZED, false)
-            });
-        });
-
-        unsafe {
-            SetWindowPos(
-                self.hwnd(),
-                0,
-                x,
-                y,
-                0,
-                0,
-                SWP_ASYNCWINDOWPOS | SWP_NOZORDER | SWP_NOSIZE | SWP_NOACTIVATE,
-            );
-            InvalidateRgn(self.hwnd(), 0, false.into());
-        }
-    }
-
-    #[inline]
-    pub fn inner_size(&self) -> PhysicalSize<u32> {
-        let mut rect: RECT = unsafe { mem::zeroed() };
-        if unsafe { GetClientRect(self.hwnd(), &mut rect) } == false.into() {
-            panic!(
-                "Unexpected GetClientRect failure: please report this error to \
-                 rust-windowing/winit"
-            )
-        }
-        PhysicalSize::new((rect.right - rect.left) as u32, (rect.bottom - rect.top) as u32)
-    }
-
-    #[inline]
-    pub fn outer_size(&self) -> PhysicalSize<u32> {
-        util::WindowArea::Outer
-            .get_rect(self.hwnd())
-            .map(|rect| {
-                PhysicalSize::new((rect.right - rect.left) as u32, (rect.bottom - rect.top) as u32)
-            })
-            .unwrap()
-    }
-
-    #[inline]
-    pub fn request_inner_size(&self, size: Size) -> Option<PhysicalSize<u32>> {
-        let scale_factor = self.scale_factor();
-        let physical_size = size.to_physical::<u32>(scale_factor);
-
-        let window_flags = self.window_state_lock().window_flags;
-        window_flags.set_size(self.hwnd(), physical_size);
-
-        if physical_size != self.inner_size() {
-            let window_state = Arc::clone(&self.window_state);
-            let window = self.window;
-            self.thread_executor.execute_in_thread(move || {
-                let _ = &window;
-                WindowState::set_window_flags(window_state.lock().unwrap(), window, |f| {
-                    f.set(WindowFlags::MAXIMIZED, false)
-                });
-            });
-        }
-
-        None
-    }
-
-    #[inline]
-    pub fn set_min_inner_size(&self, size: Option<Size>) {
-        self.window_state_lock().min_size = size;
-        // Make windows re-check the window size bounds.
-        let size = self.inner_size();
-        self.request_inner_size(size.into());
-    }
-
-    #[inline]
-    pub fn set_max_inner_size(&self, size: Option<Size>) {
-        self.window_state_lock().max_size = size;
-        // Make windows re-check the window size bounds.
-        let size = self.inner_size();
-        self.request_inner_size(size.into());
-    }
-
-    #[inline]
-    pub fn resize_increments(&self) -> Option<PhysicalSize<u32>> {
-        let w = self.window_state_lock();
-        let scale_factor = w.scale_factor;
-        w.resize_increments.map(|size| size.to_physical(scale_factor))
-    }
-
-    #[inline]
-    pub fn set_resize_increments(&self, increments: Option<Size>) {
-        self.window_state_lock().resize_increments = increments;
-    }
-
-    #[inline]
-    pub fn set_resizable(&self, resizable: bool) {
-        let window = self.window;
-        let window_state = Arc::clone(&self.window_state);
-
-        self.thread_executor.execute_in_thread(move || {
-            let _ = &window;
-            WindowState::set_window_flags(window_state.lock().unwrap(), window, |f| {
-                f.set(WindowFlags::RESIZABLE, resizable)
-            });
-        });
-    }
-
-    #[inline]
-    pub fn is_resizable(&self) -> bool {
-        let window_state = self.window_state_lock();
-        window_state.window_flags.contains(WindowFlags::RESIZABLE)
-    }
-
-    #[inline]
-    pub fn set_enabled_buttons(&self, buttons: WindowButtons) {
-        let window = self.window;
-        let window_state = Arc::clone(&self.window_state);
-
-        self.thread_executor.execute_in_thread(move || {
-            let _ = &window;
-            WindowState::set_window_flags(window_state.lock().unwrap(), window, |f| {
-                f.set(WindowFlags::MINIMIZABLE, buttons.contains(WindowButtons::MINIMIZE));
-                f.set(WindowFlags::MAXIMIZABLE, buttons.contains(WindowButtons::MAXIMIZE));
-                f.set(WindowFlags::CLOSABLE, buttons.contains(WindowButtons::CLOSE))
-            });
-        });
-    }
-
-    pub fn enabled_buttons(&self) -> WindowButtons {
-        let mut buttons = WindowButtons::empty();
-        let window_state = self.window_state_lock();
-        if window_state.window_flags.contains(WindowFlags::MINIMIZABLE) {
-            buttons |= WindowButtons::MINIMIZE;
-        }
-        if window_state.window_flags.contains(WindowFlags::MAXIMIZABLE) {
-            buttons |= WindowButtons::MAXIMIZE;
-        }
-        if window_state.window_flags.contains(WindowFlags::CLOSABLE) {
-            buttons |= WindowButtons::CLOSE;
-        }
-        buttons
-    }
-
     /// Returns the `hwnd` of this window.
-    #[inline]
     pub fn hwnd(&self) -> HWND {
         self.window
     }
 
     #[cfg(feature = "rwh_06")]
-    #[inline]
     pub unsafe fn rwh_06_no_thread_check(
         &self,
     ) -> Result<rwh_06::RawWindowHandle, rwh_06::HandleError> {
@@ -351,7 +120,6 @@ impl Window {
     }
 
     #[cfg(feature = "rwh_06")]
-    #[inline]
     pub fn raw_window_handle_rwh_06(&self) -> Result<rwh_06::RawWindowHandle, rwh_06::HandleError> {
         // TODO: Write a test once integration framework is ready to ensure that it holds.
         // If we aren't in the GUI thread, we can't return the window.
@@ -365,99 +133,51 @@ impl Window {
     }
 
     #[cfg(feature = "rwh_06")]
-    #[inline]
     pub fn raw_display_handle_rwh_06(
         &self,
     ) -> Result<rwh_06::RawDisplayHandle, rwh_06::HandleError> {
         Ok(rwh_06::RawDisplayHandle::Windows(rwh_06::WindowsDisplayHandle::new()))
     }
 
-    #[inline]
-    pub fn set_cursor(&self, cursor: Cursor) {
-        match cursor {
-            Cursor::Icon(icon) => {
-                self.window_state_lock().mouse.selected_cursor = SelectedCursor::Named(icon);
-                self.thread_executor.execute_in_thread(move || unsafe {
-                    let cursor = LoadCursorW(0, util::to_windows_cursor(icon));
-                    SetCursor(cursor);
-                });
-            },
-            Cursor::Custom(cursor) => {
-                self.window_state_lock().mouse.selected_cursor =
-                    SelectedCursor::Custom(cursor.inner.0.clone());
-                self.thread_executor.execute_in_thread(move || unsafe {
-                    SetCursor(cursor.inner.0.as_raw_handle());
-                });
-            },
-        }
+    pub fn set_enable(&self, enabled: bool) {
+        unsafe { EnableWindow(self.hwnd(), enabled.into()) };
     }
 
-    #[inline]
-    pub fn set_cursor_grab(&self, mode: CursorGrabMode) -> Result<(), ExternalError> {
-        let confine = match mode {
-            CursorGrabMode::None => false,
-            CursorGrabMode::Confined => true,
-            CursorGrabMode::Locked => {
-                return Err(ExternalError::NotSupported(NotSupportedError::new()))
-            },
-        };
+    pub fn set_skip_taskbar(&self, skip: bool) {
+        self.window_state_lock().skip_taskbar = skip;
+        unsafe { set_skip_taskbar(self.hwnd(), skip) };
+    }
 
+    pub fn set_undecorated_shadow(&self, shadow: bool) {
         let window = self.window;
         let window_state = Arc::clone(&self.window_state);
-        let (tx, rx) = channel();
 
         self.thread_executor.execute_in_thread(move || {
             let _ = &window;
-            let result = window_state
-                .lock()
-                .unwrap()
-                .mouse
-                .set_cursor_flags(window, |f| f.set(CursorFlags::GRABBED, confine))
-                .map_err(|e| ExternalError::Os(os_error!(e)));
-            let _ = tx.send(result);
+            WindowState::set_window_flags(window_state.lock().unwrap(), window, |f| {
+                f.set(WindowFlags::MARKER_UNDECORATED_SHADOW, shadow)
+            });
         });
-        rx.recv().unwrap()
     }
 
-    #[inline]
-    pub fn set_cursor_visible(&self, visible: bool) {
-        let window = self.window;
-        let window_state = Arc::clone(&self.window_state);
-        let (tx, rx) = channel();
-
-        self.thread_executor.execute_in_thread(move || {
-            let _ = &window;
-            let result = window_state
-                .lock()
-                .unwrap()
-                .mouse
-                .set_cursor_flags(window, |f| f.set(CursorFlags::HIDDEN, !visible))
-                .map_err(|e| e.to_string());
-            let _ = tx.send(result);
-        });
-        rx.recv().unwrap().ok();
-    }
-
-    #[inline]
-    pub fn scale_factor(&self) -> f64 {
-        self.window_state_lock().scale_factor
-    }
-
-    #[inline]
-    pub fn set_cursor_position(&self, position: Position) -> Result<(), ExternalError> {
-        let scale_factor = self.scale_factor();
-        let (x, y) = position.to_physical::<i32>(scale_factor).into();
-
-        let mut point = POINT { x, y };
+    pub fn set_system_backdrop(&self, backdrop_type: BackdropType) {
         unsafe {
-            if ClientToScreen(self.hwnd(), &mut point) == false.into() {
-                return Err(ExternalError::Os(os_error!(io::Error::last_os_error())));
-            }
-            if SetCursorPos(point.x, point.y) == false.into() {
-                return Err(ExternalError::Os(os_error!(io::Error::last_os_error())));
-            }
+            DwmSetWindowAttribute(
+                self.hwnd(),
+                DWMWA_SYSTEMBACKDROP_TYPE as u32,
+                &(backdrop_type as i32) as *const _ as _,
+                mem::size_of::<DWM_SYSTEMBACKDROP_TYPE>() as _,
+            );
         }
-        Ok(())
+    }
+
+    pub fn set_taskbar_icon(&self, taskbar_icon: Option<Icon>) {
+        if let Some(ref taskbar_icon) = taskbar_icon {
+            taskbar_icon.inner.set_for_window(self.hwnd(), IconType::Big);
+        } else {
+            icon::unset_for_window(self.hwnd(), IconType::Big);
+        }
+        self.window_state_lock().taskbar_icon = taskbar_icon;
     }
 
     unsafe fn handle_os_dragging(&self, wparam: WPARAM) {
@@ -488,33 +208,6 @@ impl Window {
                 PostMessageW(window, WM_NCLBUTTONDOWN, wparam, &points as *const _ as LPARAM)
             };
         });
-    }
-
-    #[inline]
-    pub fn drag_window(&self) -> Result<(), ExternalError> {
-        unsafe {
-            self.handle_os_dragging(HTCAPTION as WPARAM);
-        }
-
-        Ok(())
-    }
-
-    #[inline]
-    pub fn drag_resize_window(&self, direction: ResizeDirection) -> Result<(), ExternalError> {
-        unsafe {
-            self.handle_os_dragging(match direction {
-                ResizeDirection::East => HTRIGHT,
-                ResizeDirection::North => HTTOP,
-                ResizeDirection::NorthEast => HTTOPRIGHT,
-                ResizeDirection::NorthWest => HTTOPLEFT,
-                ResizeDirection::South => HTBOTTOM,
-                ResizeDirection::SouthEast => HTBOTTOMRIGHT,
-                ResizeDirection::SouthWest => HTBOTTOMLEFT,
-                ResizeDirection::West => HTLEFT,
-            } as WPARAM);
-        }
-
-        Ok(())
     }
 
     unsafe fn handle_showing_window_menu(&self, position: Position) {
@@ -593,14 +286,404 @@ impl Window {
     }
 
     #[inline]
-    pub fn show_window_menu(&self, position: Position) {
+    pub fn set_border_color(&self, color: Color) {
+        unsafe {
+            DwmSetWindowAttribute(
+                self.hwnd(),
+                DWMWA_BORDER_COLOR as u32,
+                &color as *const _ as _,
+                mem::size_of::<Color>() as _,
+            );
+        }
+    }
+
+    #[inline]
+    pub fn set_title_background_color(&self, color: Color) {
+        unsafe {
+            DwmSetWindowAttribute(
+                self.hwnd(),
+                DWMWA_CAPTION_COLOR as u32,
+                &color as *const _ as _,
+                mem::size_of::<Color>() as _,
+            );
+        }
+    }
+
+    #[inline]
+    pub fn set_title_text_color(&self, color: Color) {
+        unsafe {
+            DwmSetWindowAttribute(
+                self.hwnd(),
+                DWMWA_TEXT_COLOR as u32,
+                &color as *const _ as _,
+                mem::size_of::<Color>() as _,
+            );
+        }
+    }
+
+    #[inline]
+    pub fn set_corner_preference(&self, preference: CornerPreference) {
+        unsafe {
+            DwmSetWindowAttribute(
+                self.hwnd(),
+                DWMWA_WINDOW_CORNER_PREFERENCE as u32,
+                &(preference as DWM_WINDOW_CORNER_PREFERENCE) as *const _ as _,
+                mem::size_of::<DWM_WINDOW_CORNER_PREFERENCE>() as _,
+            );
+        }
+    }
+}
+
+impl Drop for Window {
+    fn drop(&mut self) {
+        // Restore fullscreen video mode on exit.
+        if matches!(self.fullscreen(), Some(CoreFullscreen::Exclusive(_))) {
+            self.set_fullscreen(None);
+        }
+
+        unsafe {
+            // The window must be destroyed from the same thread that created it, so we send a
+            // custom message to be handled by our callback to do the actual work.
+            PostMessageW(self.hwnd(), DESTROY_MSG_ID.get(), 0, 0);
+        }
+    }
+}
+
+#[cfg(feature = "rwh_06")]
+impl rwh_06::HasDisplayHandle for Window {
+    fn display_handle(&self) -> Result<rwh_06::DisplayHandle<'_>, rwh_06::HandleError> {
+        let raw = self.raw_display_handle_rwh_06()?;
+        unsafe { Ok(rwh_06::DisplayHandle::borrow_raw(raw)) }
+    }
+}
+
+#[cfg(feature = "rwh_06")]
+impl rwh_06::HasWindowHandle for Window {
+    fn window_handle(&self) -> Result<rwh_06::WindowHandle<'_>, rwh_06::HandleError> {
+        let raw = self.raw_window_handle_rwh_06()?;
+        unsafe { Ok(rwh_06::WindowHandle::borrow_raw(raw)) }
+    }
+}
+
+impl CoreWindow for Window {
+    fn set_title(&self, text: &str) {
+        let wide_text = util::encode_wide(text);
+        unsafe {
+            SetWindowTextW(self.hwnd(), wide_text.as_ptr());
+        }
+    }
+
+    fn set_transparent(&self, transparent: bool) {
+        let window = self.window;
+        let window_state = Arc::clone(&self.window_state);
+        self.thread_executor.execute_in_thread(move || {
+            let _ = &window;
+            WindowState::set_window_flags(window_state.lock().unwrap(), window, |f| {
+                f.set(WindowFlags::TRANSPARENT, transparent)
+            });
+        });
+    }
+
+    fn set_blur(&self, _blur: bool) {}
+
+    fn set_visible(&self, visible: bool) {
+        let window = self.window;
+        let window_state = Arc::clone(&self.window_state);
+        self.thread_executor.execute_in_thread(move || {
+            let _ = &window;
+            WindowState::set_window_flags(window_state.lock().unwrap(), window, |f| {
+                f.set(WindowFlags::VISIBLE, visible)
+            });
+        });
+    }
+
+    fn is_visible(&self) -> Option<bool> {
+        Some(unsafe { IsWindowVisible(self.window) == 1 })
+    }
+
+    fn request_redraw(&self) {
+        // NOTE: mark that we requested a redraw to handle requests during `WM_PAINT` handling.
+        self.window_state.lock().unwrap().redraw_requested = true;
+        unsafe {
+            RedrawWindow(self.hwnd(), ptr::null(), 0, RDW_INTERNALPAINT);
+        }
+    }
+
+    fn pre_present_notify(&self) {}
+
+    fn outer_position(&self) -> Result<PhysicalPosition<i32>, NotSupportedError> {
+        util::WindowArea::Outer
+            .get_rect(self.hwnd())
+            .map(|rect| Ok(PhysicalPosition::new(rect.left, rect.top)))
+            .expect(
+                "Unexpected GetWindowRect failure; please report this error to \
+                 rust-windowing/winit",
+            )
+    }
+
+    fn inner_position(&self) -> Result<PhysicalPosition<i32>, NotSupportedError> {
+        let mut position: POINT = unsafe { mem::zeroed() };
+        if unsafe { ClientToScreen(self.hwnd(), &mut position) } == false.into() {
+            panic!(
+                "Unexpected ClientToScreen failure: please report this error to \
+                 rust-windowing/winit"
+            )
+        }
+        Ok(PhysicalPosition::new(position.x, position.y))
+    }
+
+    fn set_outer_position(&self, position: Position) {
+        let (x, y): (i32, i32) = position.to_physical::<i32>(self.scale_factor()).into();
+
+        let window_state = Arc::clone(&self.window_state);
+        let window = self.window;
+        self.thread_executor.execute_in_thread(move || {
+            let _ = &window;
+            WindowState::set_window_flags(window_state.lock().unwrap(), window, |f| {
+                f.set(WindowFlags::MAXIMIZED, false)
+            });
+        });
+
+        unsafe {
+            SetWindowPos(
+                self.hwnd(),
+                0,
+                x,
+                y,
+                0,
+                0,
+                SWP_ASYNCWINDOWPOS | SWP_NOZORDER | SWP_NOSIZE | SWP_NOACTIVATE,
+            );
+            InvalidateRgn(self.hwnd(), 0, false.into());
+        }
+    }
+
+    fn inner_size(&self) -> PhysicalSize<u32> {
+        let mut rect: RECT = unsafe { mem::zeroed() };
+        if unsafe { GetClientRect(self.hwnd(), &mut rect) } == false.into() {
+            panic!(
+                "Unexpected GetClientRect failure: please report this error to \
+                 rust-windowing/winit"
+            )
+        }
+        PhysicalSize::new((rect.right - rect.left) as u32, (rect.bottom - rect.top) as u32)
+    }
+
+    fn outer_size(&self) -> PhysicalSize<u32> {
+        util::WindowArea::Outer
+            .get_rect(self.hwnd())
+            .map(|rect| {
+                PhysicalSize::new((rect.right - rect.left) as u32, (rect.bottom - rect.top) as u32)
+            })
+            .unwrap()
+    }
+
+    fn request_inner_size(&self, size: Size) -> Option<PhysicalSize<u32>> {
+        let scale_factor = self.scale_factor();
+        let physical_size = size.to_physical::<u32>(scale_factor);
+
+        let window_flags = self.window_state_lock().window_flags;
+        window_flags.set_size(self.hwnd(), physical_size);
+
+        if physical_size != self.inner_size() {
+            let window_state = Arc::clone(&self.window_state);
+            let window = self.window;
+            self.thread_executor.execute_in_thread(move || {
+                let _ = &window;
+                WindowState::set_window_flags(window_state.lock().unwrap(), window, |f| {
+                    f.set(WindowFlags::MAXIMIZED, false)
+                });
+            });
+        }
+
+        None
+    }
+
+    fn set_min_inner_size(&self, size: Option<Size>) {
+        self.window_state_lock().min_size = size;
+        // Make windows re-check the window size bounds.
+        let size = self.inner_size();
+        let _ = self.request_inner_size(size.into());
+    }
+
+    fn set_max_inner_size(&self, size: Option<Size>) {
+        self.window_state_lock().max_size = size;
+        // Make windows re-check the window size bounds.
+        let size = self.inner_size();
+        let _ = self.request_inner_size(size.into());
+    }
+
+    fn resize_increments(&self) -> Option<PhysicalSize<u32>> {
+        let w = self.window_state_lock();
+        let scale_factor = w.scale_factor;
+        w.resize_increments.map(|size| size.to_physical(scale_factor))
+    }
+
+    fn set_resize_increments(&self, increments: Option<Size>) {
+        self.window_state_lock().resize_increments = increments;
+    }
+
+    fn set_resizable(&self, resizable: bool) {
+        let window = self.window;
+        let window_state = Arc::clone(&self.window_state);
+
+        self.thread_executor.execute_in_thread(move || {
+            let _ = &window;
+            WindowState::set_window_flags(window_state.lock().unwrap(), window, |f| {
+                f.set(WindowFlags::RESIZABLE, resizable)
+            });
+        });
+    }
+
+    fn is_resizable(&self) -> bool {
+        let window_state = self.window_state_lock();
+        window_state.window_flags.contains(WindowFlags::RESIZABLE)
+    }
+
+    fn set_enabled_buttons(&self, buttons: WindowButtons) {
+        let window = self.window;
+        let window_state = Arc::clone(&self.window_state);
+
+        self.thread_executor.execute_in_thread(move || {
+            let _ = &window;
+            WindowState::set_window_flags(window_state.lock().unwrap(), window, |f| {
+                f.set(WindowFlags::MINIMIZABLE, buttons.contains(WindowButtons::MINIMIZE));
+                f.set(WindowFlags::MAXIMIZABLE, buttons.contains(WindowButtons::MAXIMIZE));
+                f.set(WindowFlags::CLOSABLE, buttons.contains(WindowButtons::CLOSE))
+            });
+        });
+    }
+
+    fn enabled_buttons(&self) -> WindowButtons {
+        let mut buttons = WindowButtons::empty();
+        let window_state = self.window_state_lock();
+        if window_state.window_flags.contains(WindowFlags::MINIMIZABLE) {
+            buttons |= WindowButtons::MINIMIZE;
+        }
+        if window_state.window_flags.contains(WindowFlags::MAXIMIZABLE) {
+            buttons |= WindowButtons::MAXIMIZE;
+        }
+        if window_state.window_flags.contains(WindowFlags::CLOSABLE) {
+            buttons |= WindowButtons::CLOSE;
+        }
+        buttons
+    }
+
+    fn set_cursor(&self, cursor: Cursor) {
+        match cursor {
+            Cursor::Icon(icon) => {
+                self.window_state_lock().mouse.selected_cursor = SelectedCursor::Named(icon);
+                self.thread_executor.execute_in_thread(move || unsafe {
+                    let cursor = LoadCursorW(0, util::to_windows_cursor(icon));
+                    SetCursor(cursor);
+                });
+            },
+            Cursor::Custom(cursor) => {
+                self.window_state_lock().mouse.selected_cursor =
+                    SelectedCursor::Custom(cursor.inner.0.clone());
+                self.thread_executor.execute_in_thread(move || unsafe {
+                    SetCursor(cursor.inner.0.as_raw_handle());
+                });
+            },
+        }
+    }
+
+    fn set_cursor_grab(&self, mode: CursorGrabMode) -> Result<(), ExternalError> {
+        let confine = match mode {
+            CursorGrabMode::None => false,
+            CursorGrabMode::Confined => true,
+            CursorGrabMode::Locked => {
+                return Err(ExternalError::NotSupported(NotSupportedError::new()))
+            },
+        };
+
+        let window = self.window;
+        let window_state = Arc::clone(&self.window_state);
+        let (tx, rx) = channel();
+
+        self.thread_executor.execute_in_thread(move || {
+            let _ = &window;
+            let result = window_state
+                .lock()
+                .unwrap()
+                .mouse
+                .set_cursor_flags(window, |f| f.set(CursorFlags::GRABBED, confine))
+                .map_err(|e| ExternalError::Os(os_error!(e)));
+            let _ = tx.send(result);
+        });
+        rx.recv().unwrap()
+    }
+
+    fn set_cursor_visible(&self, visible: bool) {
+        let window = self.window;
+        let window_state = Arc::clone(&self.window_state);
+        let (tx, rx) = channel();
+
+        self.thread_executor.execute_in_thread(move || {
+            let _ = &window;
+            let result = window_state
+                .lock()
+                .unwrap()
+                .mouse
+                .set_cursor_flags(window, |f| f.set(CursorFlags::HIDDEN, !visible))
+                .map_err(|e| e.to_string());
+            let _ = tx.send(result);
+        });
+        rx.recv().unwrap().ok();
+    }
+
+    fn scale_factor(&self) -> f64 {
+        self.window_state_lock().scale_factor
+    }
+
+    fn set_cursor_position(&self, position: Position) -> Result<(), ExternalError> {
+        let scale_factor = self.scale_factor();
+        let (x, y) = position.to_physical::<i32>(scale_factor).into();
+
+        let mut point = POINT { x, y };
+        unsafe {
+            if ClientToScreen(self.hwnd(), &mut point) == false.into() {
+                return Err(ExternalError::Os(os_error!(io::Error::last_os_error())));
+            }
+            if SetCursorPos(point.x, point.y) == false.into() {
+                return Err(ExternalError::Os(os_error!(io::Error::last_os_error())));
+            }
+        }
+        Ok(())
+    }
+
+    fn drag_window(&self) -> Result<(), ExternalError> {
+        unsafe {
+            self.handle_os_dragging(HTCAPTION as WPARAM);
+        }
+
+        Ok(())
+    }
+
+    fn drag_resize_window(&self, direction: ResizeDirection) -> Result<(), ExternalError> {
+        unsafe {
+            self.handle_os_dragging(match direction {
+                ResizeDirection::East => HTRIGHT,
+                ResizeDirection::North => HTTOP,
+                ResizeDirection::NorthEast => HTTOPRIGHT,
+                ResizeDirection::NorthWest => HTTOPLEFT,
+                ResizeDirection::South => HTBOTTOM,
+                ResizeDirection::SouthEast => HTBOTTOMRIGHT,
+                ResizeDirection::SouthWest => HTBOTTOMLEFT,
+                ResizeDirection::West => HTLEFT,
+            } as WPARAM);
+        }
+
+        Ok(())
+    }
+
+    fn show_window_menu(&self, position: Position) {
         unsafe {
             self.handle_showing_window_menu(position);
         }
     }
 
-    #[inline]
-    pub fn set_cursor_hittest(&self, hittest: bool) -> Result<(), ExternalError> {
+    fn set_cursor_hittest(&self, hittest: bool) -> Result<(), ExternalError> {
         let window = self.window;
         let window_state = Arc::clone(&self.window_state);
         self.thread_executor.execute_in_thread(move || {
@@ -612,13 +695,11 @@ impl Window {
         Ok(())
     }
 
-    #[inline]
-    pub fn id(&self) -> WindowId {
-        WindowId(self.hwnd())
+    fn id(&self) -> CoreWindowId {
+        CoreWindowId(WindowId(self.hwnd()))
     }
 
-    #[inline]
-    pub fn set_minimized(&self, minimized: bool) {
+    fn set_minimized(&self, minimized: bool) {
         let window = self.window;
         let window_state = Arc::clone(&self.window_state);
 
@@ -635,13 +716,11 @@ impl Window {
         });
     }
 
-    #[inline]
-    pub fn is_minimized(&self) -> Option<bool> {
+    fn is_minimized(&self) -> Option<bool> {
         Some(util::is_minimized(self.hwnd()))
     }
 
-    #[inline]
-    pub fn set_maximized(&self, maximized: bool) {
+    fn set_maximized(&self, maximized: bool) {
         let window = self.window;
         let window_state = Arc::clone(&self.window_state);
 
@@ -653,20 +732,18 @@ impl Window {
         });
     }
 
-    #[inline]
-    pub fn is_maximized(&self) -> bool {
+    fn is_maximized(&self) -> bool {
         let window_state = self.window_state_lock();
         window_state.window_flags.contains(WindowFlags::MAXIMIZED)
     }
 
-    #[inline]
-    pub fn fullscreen(&self) -> Option<Fullscreen> {
+    fn fullscreen(&self) -> Option<CoreFullscreen> {
         let window_state = self.window_state_lock();
-        window_state.fullscreen.clone()
+        window_state.fullscreen.clone().map(Into::into)
     }
 
-    #[inline]
-    pub fn set_fullscreen(&self, fullscreen: Option<Fullscreen>) {
+    fn set_fullscreen(&self, fullscreen: Option<CoreFullscreen>) {
+        let fullscreen = fullscreen.map(Into::into);
         let window = self.window;
         let window_state = Arc::clone(&self.window_state);
 
@@ -816,8 +893,7 @@ impl Window {
         });
     }
 
-    #[inline]
-    pub fn set_decorations(&self, decorations: bool) {
+    fn set_decorations(&self, decorations: bool) {
         let window = self.window;
         let window_state = Arc::clone(&self.window_state);
 
@@ -829,14 +905,12 @@ impl Window {
         });
     }
 
-    #[inline]
-    pub fn is_decorated(&self) -> bool {
+    fn is_decorated(&self) -> bool {
         let window_state = self.window_state_lock();
         window_state.window_flags.contains(WindowFlags::MARKER_DECORATIONS)
     }
 
-    #[inline]
-    pub fn set_window_level(&self, level: WindowLevel) {
+    fn set_window_level(&self, level: WindowLevel) {
         let window = self.window;
         let window_state = Arc::clone(&self.window_state);
 
@@ -849,13 +923,19 @@ impl Window {
         });
     }
 
-    #[inline]
-    pub fn current_monitor(&self) -> Option<MonitorHandle> {
-        Some(monitor::current_monitor(self.hwnd()))
+    fn current_monitor(&self) -> Option<CoreMonitorHandle> {
+        Some(CoreMonitorHandle { inner: monitor::current_monitor(self.hwnd()) })
     }
 
-    #[inline]
-    pub fn set_window_icon(&self, window_icon: Option<Icon>) {
+    fn available_monitors(&self) -> Box<dyn Iterator<Item = CoreMonitorHandle>> {
+        Box::new(monitor::available_monitors().into_iter().map(|inner| CoreMonitorHandle { inner }))
+    }
+
+    fn primary_monitor(&self) -> Option<CoreMonitorHandle> {
+        Some(CoreMonitorHandle { inner: monitor::primary_monitor() })
+    }
+
+    fn set_window_icon(&self, window_icon: Option<Icon>) {
         if let Some(ref window_icon) = window_icon {
             window_icon.inner.set_for_window(self.hwnd(), IconType::Small);
         } else {
@@ -864,23 +944,7 @@ impl Window {
         self.window_state_lock().window_icon = window_icon;
     }
 
-    #[inline]
-    pub fn set_enable(&self, enabled: bool) {
-        unsafe { EnableWindow(self.hwnd(), enabled.into()) };
-    }
-
-    #[inline]
-    pub fn set_taskbar_icon(&self, taskbar_icon: Option<Icon>) {
-        if let Some(ref taskbar_icon) = taskbar_icon {
-            taskbar_icon.inner.set_for_window(self.hwnd(), IconType::Big);
-        } else {
-            icon::unset_for_window(self.hwnd(), IconType::Big);
-        }
-        self.window_state_lock().taskbar_icon = taskbar_icon;
-    }
-
-    #[inline]
-    pub fn set_ime_cursor_area(&self, spot: Position, size: Size) {
+    fn set_ime_cursor_area(&self, spot: Position, size: Size) {
         let window = self.window;
         let state = self.window_state.clone();
         self.thread_executor.execute_in_thread(move || unsafe {
@@ -889,8 +953,7 @@ impl Window {
         });
     }
 
-    #[inline]
-    pub fn set_ime_allowed(&self, allowed: bool) {
+    fn set_ime_allowed(&self, allowed: bool) {
         let window = self.window;
         let state = self.window_state.clone();
         self.thread_executor.execute_in_thread(move || unsafe {
@@ -899,11 +962,9 @@ impl Window {
         })
     }
 
-    #[inline]
-    pub fn set_ime_purpose(&self, _purpose: ImePurpose) {}
+    fn set_ime_purpose(&self, _purpose: ImePurpose) {}
 
-    #[inline]
-    pub fn request_user_attention(&self, request_type: Option<UserAttentionType>) {
+    fn request_user_attention(&self, request_type: Option<UserAttentionType>) {
         let window = self.window;
         let active_window_handle = unsafe { GetActiveWindow() };
         if window == active_window_handle {
@@ -929,23 +990,20 @@ impl Window {
         });
     }
 
-    #[inline]
-    pub fn set_theme(&self, theme: Option<Theme>) {
+    fn set_theme(&self, theme: Option<Theme>) {
         try_theme(self.window, theme);
     }
 
-    #[inline]
-    pub fn theme(&self) -> Option<Theme> {
+    fn theme(&self) -> Option<Theme> {
         Some(self.window_state_lock().current_theme)
     }
 
-    #[inline]
-    pub fn has_focus(&self) -> bool {
+    fn has_focus(&self) -> bool {
         let window_state = self.window_state.lock().unwrap();
         window_state.has_active_focus()
     }
 
-    pub fn title(&self) -> String {
+    fn title(&self) -> String {
         let len = unsafe { GetWindowTextLengthW(self.window) } + 1;
         let mut buf = vec![0; len as usize];
         unsafe { GetWindowTextW(self.window, buf.as_mut_ptr(), len) };
@@ -953,38 +1011,7 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_skip_taskbar(&self, skip: bool) {
-        self.window_state_lock().skip_taskbar = skip;
-        unsafe { set_skip_taskbar(self.hwnd(), skip) };
-    }
-
-    #[inline]
-    pub fn set_undecorated_shadow(&self, shadow: bool) {
-        let window = self.window;
-        let window_state = Arc::clone(&self.window_state);
-
-        self.thread_executor.execute_in_thread(move || {
-            let _ = &window;
-            WindowState::set_window_flags(window_state.lock().unwrap(), window, |f| {
-                f.set(WindowFlags::MARKER_UNDECORATED_SHADOW, shadow)
-            });
-        });
-    }
-
-    #[inline]
-    pub fn set_system_backdrop(&self, backdrop_type: BackdropType) {
-        unsafe {
-            DwmSetWindowAttribute(
-                self.hwnd(),
-                DWMWA_SYSTEMBACKDROP_TYPE as u32,
-                &(backdrop_type as i32) as *const _ as _,
-                mem::size_of::<DWM_SYSTEMBACKDROP_TYPE>() as _,
-            );
-        }
-    }
-
-    #[inline]
-    pub fn focus_window(&self) {
+    fn focus_window(&self) {
         let window_flags = self.window_state_lock().window_flags();
 
         let is_visible = window_flags.contains(WindowFlags::VISIBLE);
@@ -997,7 +1024,7 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_content_protected(&self, protected: bool) {
+    fn set_content_protected(&self, protected: bool) {
         unsafe {
             SetWindowDisplayAffinity(
                 self.hwnd(),
@@ -1007,7 +1034,7 @@ impl Window {
     }
 
     #[inline]
-    pub fn reset_dead_keys(&self) {
+    fn reset_dead_keys(&self) {
         // `ToUnicode` consumes the dead-key by default, so we are constructing a fake (but valid)
         // key input which we can call `ToUnicode` with.
         unsafe {
@@ -1026,63 +1053,14 @@ impl Window {
         }
     }
 
-    #[inline]
-    pub fn set_border_color(&self, color: Color) {
-        unsafe {
-            DwmSetWindowAttribute(
-                self.hwnd(),
-                DWMWA_BORDER_COLOR as u32,
-                &color as *const _ as _,
-                mem::size_of::<Color>() as _,
-            );
-        }
+    #[cfg(feature = "rwh_06")]
+    fn rwh_06_window_handle(&self) -> &dyn rwh_06::HasWindowHandle {
+        self
     }
 
-    #[inline]
-    pub fn set_title_background_color(&self, color: Color) {
-        unsafe {
-            DwmSetWindowAttribute(
-                self.hwnd(),
-                DWMWA_CAPTION_COLOR as u32,
-                &color as *const _ as _,
-                mem::size_of::<Color>() as _,
-            );
-        }
-    }
-
-    #[inline]
-    pub fn set_title_text_color(&self, color: Color) {
-        unsafe {
-            DwmSetWindowAttribute(
-                self.hwnd(),
-                DWMWA_TEXT_COLOR as u32,
-                &color as *const _ as _,
-                mem::size_of::<Color>() as _,
-            );
-        }
-    }
-
-    #[inline]
-    pub fn set_corner_preference(&self, preference: CornerPreference) {
-        unsafe {
-            DwmSetWindowAttribute(
-                self.hwnd(),
-                DWMWA_WINDOW_CORNER_PREFERENCE as u32,
-                &(preference as DWM_WINDOW_CORNER_PREFERENCE) as *const _ as _,
-                mem::size_of::<DWM_WINDOW_CORNER_PREFERENCE>() as _,
-            );
-        }
-    }
-}
-
-impl Drop for Window {
-    #[inline]
-    fn drop(&mut self) {
-        unsafe {
-            // The window must be destroyed from the same thread that created it, so we send a
-            // custom message to be handled by our callback to do the actual work.
-            PostMessageW(self.hwnd(), DESTROY_MSG_ID.get(), 0, 0);
-        }
+    #[cfg(feature = "rwh_06")]
+    fn rwh_06_display_handle(&self) -> &dyn rwh_06::HasDisplayHandle {
+        self
     }
 }
 
@@ -1237,7 +1215,7 @@ impl<'a> InitData<'a> {
             .unwrap_or_else(|| PhysicalSize::new(f64::MAX, f64::MAX).into());
         let min_size = attributes.min_inner_size.unwrap_or_else(|| PhysicalSize::new(0, 0).into());
         let clamped_size = Size::clamp(size, min_size, max_size, win.scale_factor());
-        win.request_inner_size(clamped_size);
+        let _ = win.request_inner_size(clamped_size);
 
         // let margins = MARGINS {
         //     cxLeftWidth: 1,

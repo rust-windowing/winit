@@ -3,7 +3,6 @@
 #[cfg(all(not(x11_platform), not(wayland_platform)))]
 compile_error!("Please select a feature to build for unix: `x11`, `wayland`");
 
-use std::collections::VecDeque;
 use std::num::{NonZeroU16, NonZeroU32};
 use std::os::unix::io::{AsFd, AsRawFd, BorrowedFd, RawFd};
 use std::sync::Arc;
@@ -19,22 +18,19 @@ pub(crate) use self::common::xkb::{physicalkey_to_scancode, scancode_to_physical
 use self::x11::{X11Error, XConnection, XError, XNotSupported};
 use crate::application::ApplicationHandler;
 pub(crate) use crate::cursor::OnlyCursorImageSource as PlatformCustomCursorSource;
-use crate::dpi::{PhysicalPosition, PhysicalSize, Position, Size};
-use crate::error::{EventLoopError, ExternalError, NotSupportedError};
-use crate::event_loop::{ActiveEventLoop, AsyncRequestSerial};
-use crate::icon::Icon;
+#[cfg(x11_platform)]
+use crate::dpi::Size;
+use crate::dpi::{PhysicalPosition, PhysicalSize};
+use crate::error::EventLoopError;
+use crate::event_loop::ActiveEventLoop;
 pub(crate) use crate::icon::RgbaIcon as PlatformIcon;
 use crate::keyboard::Key;
 use crate::platform::pump_events::PumpStatus;
 #[cfg(x11_platform)]
 use crate::platform::x11::{WindowType as XWindowType, XlibErrorHook};
-pub(crate) use crate::platform_impl::Fullscreen;
 #[cfg(x11_platform)]
 use crate::utils::Lazy;
-use crate::window::{
-    ActivationToken, Cursor, CursorGrabMode, ImePurpose, ResizeDirection, Theme, UserAttentionType,
-    WindowButtons, WindowLevel,
-};
+use crate::window::ActivationToken;
 
 pub(crate) mod common;
 #[cfg(wayland_platform)]
@@ -116,6 +112,8 @@ pub(crate) static X11_BACKEND: Lazy<Mutex<Result<Arc<XConnection>, XNotSupported
 pub enum OsError {
     Misc(&'static str),
     #[cfg(x11_platform)]
+    XNotSupported(XNotSupported),
+    #[cfg(x11_platform)]
     XError(Arc<X11Error>),
     #[cfg(wayland_platform)]
     WaylandError(Arc<wayland::WaylandError>),
@@ -126,18 +124,13 @@ impl fmt::Display for OsError {
         match *self {
             OsError::Misc(e) => _f.pad(e),
             #[cfg(x11_platform)]
+            OsError::XNotSupported(ref e) => fmt::Display::fmt(e, _f),
+            #[cfg(x11_platform)]
             OsError::XError(ref e) => fmt::Display::fmt(e, _f),
             #[cfg(wayland_platform)]
             OsError::WaylandError(ref e) => fmt::Display::fmt(e, _f),
         }
     }
-}
-
-pub(crate) enum Window {
-    #[cfg(x11_platform)]
-    X(x11::Window),
-    #[cfg(wayland_platform)]
-    Wayland(wayland::Window),
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -293,316 +286,6 @@ impl VideoModeHandle {
     }
 }
 
-impl Window {
-    pub(crate) fn maybe_queue_on_main(&self, f: impl FnOnce(&Self) + Send + 'static) {
-        f(self)
-    }
-
-    pub(crate) fn maybe_wait_on_main<R: Send>(&self, f: impl FnOnce(&Self) -> R + Send) -> R {
-        f(self)
-    }
-
-    #[inline]
-    pub fn id(&self) -> WindowId {
-        x11_or_wayland!(match self; Window(w) => w.id())
-    }
-
-    #[inline]
-    pub fn set_title(&self, title: &str) {
-        x11_or_wayland!(match self; Window(w) => w.set_title(title));
-    }
-
-    #[inline]
-    pub fn set_transparent(&self, transparent: bool) {
-        x11_or_wayland!(match self; Window(w) => w.set_transparent(transparent));
-    }
-
-    #[inline]
-    pub fn set_blur(&self, blur: bool) {
-        x11_or_wayland!(match self; Window(w) => w.set_blur(blur));
-    }
-
-    #[inline]
-    pub fn set_visible(&self, visible: bool) {
-        x11_or_wayland!(match self; Window(w) => w.set_visible(visible))
-    }
-
-    #[inline]
-    pub fn is_visible(&self) -> Option<bool> {
-        x11_or_wayland!(match self; Window(w) => w.is_visible())
-    }
-
-    #[inline]
-    pub fn outer_position(&self) -> Result<PhysicalPosition<i32>, NotSupportedError> {
-        x11_or_wayland!(match self; Window(w) => w.outer_position())
-    }
-
-    #[inline]
-    pub fn inner_position(&self) -> Result<PhysicalPosition<i32>, NotSupportedError> {
-        x11_or_wayland!(match self; Window(w) => w.inner_position())
-    }
-
-    #[inline]
-    pub fn set_outer_position(&self, position: Position) {
-        x11_or_wayland!(match self; Window(w) => w.set_outer_position(position))
-    }
-
-    #[inline]
-    pub fn inner_size(&self) -> PhysicalSize<u32> {
-        x11_or_wayland!(match self; Window(w) => w.inner_size())
-    }
-
-    #[inline]
-    pub fn outer_size(&self) -> PhysicalSize<u32> {
-        x11_or_wayland!(match self; Window(w) => w.outer_size())
-    }
-
-    #[inline]
-    pub fn request_inner_size(&self, size: Size) -> Option<PhysicalSize<u32>> {
-        x11_or_wayland!(match self; Window(w) => w.request_inner_size(size))
-    }
-
-    #[inline]
-    pub(crate) fn request_activation_token(&self) -> Result<AsyncRequestSerial, NotSupportedError> {
-        x11_or_wayland!(match self; Window(w) => w.request_activation_token())
-    }
-
-    #[inline]
-    pub fn set_min_inner_size(&self, dimensions: Option<Size>) {
-        x11_or_wayland!(match self; Window(w) => w.set_min_inner_size(dimensions))
-    }
-
-    #[inline]
-    pub fn set_max_inner_size(&self, dimensions: Option<Size>) {
-        x11_or_wayland!(match self; Window(w) => w.set_max_inner_size(dimensions))
-    }
-
-    #[inline]
-    pub fn resize_increments(&self) -> Option<PhysicalSize<u32>> {
-        x11_or_wayland!(match self; Window(w) => w.resize_increments())
-    }
-
-    #[inline]
-    pub fn set_resize_increments(&self, increments: Option<Size>) {
-        x11_or_wayland!(match self; Window(w) => w.set_resize_increments(increments))
-    }
-
-    #[inline]
-    pub fn set_resizable(&self, resizable: bool) {
-        x11_or_wayland!(match self; Window(w) => w.set_resizable(resizable))
-    }
-
-    #[inline]
-    pub fn is_resizable(&self) -> bool {
-        x11_or_wayland!(match self; Window(w) => w.is_resizable())
-    }
-
-    #[inline]
-    pub fn set_enabled_buttons(&self, buttons: WindowButtons) {
-        x11_or_wayland!(match self; Window(w) => w.set_enabled_buttons(buttons))
-    }
-
-    #[inline]
-    pub fn enabled_buttons(&self) -> WindowButtons {
-        x11_or_wayland!(match self; Window(w) => w.enabled_buttons())
-    }
-
-    #[inline]
-    pub fn set_cursor(&self, cursor: Cursor) {
-        x11_or_wayland!(match self; Window(w) => w.set_cursor(cursor))
-    }
-
-    #[inline]
-    pub fn set_cursor_grab(&self, mode: CursorGrabMode) -> Result<(), ExternalError> {
-        x11_or_wayland!(match self; Window(window) => window.set_cursor_grab(mode))
-    }
-
-    #[inline]
-    pub fn set_cursor_visible(&self, visible: bool) {
-        x11_or_wayland!(match self; Window(window) => window.set_cursor_visible(visible))
-    }
-
-    #[inline]
-    pub fn drag_window(&self) -> Result<(), ExternalError> {
-        x11_or_wayland!(match self; Window(window) => window.drag_window())
-    }
-
-    #[inline]
-    pub fn drag_resize_window(&self, direction: ResizeDirection) -> Result<(), ExternalError> {
-        x11_or_wayland!(match self; Window(window) => window.drag_resize_window(direction))
-    }
-
-    #[inline]
-    pub fn show_window_menu(&self, position: Position) {
-        x11_or_wayland!(match self; Window(w) => w.show_window_menu(position))
-    }
-
-    #[inline]
-    pub fn set_cursor_hittest(&self, hittest: bool) -> Result<(), ExternalError> {
-        x11_or_wayland!(match self; Window(w) => w.set_cursor_hittest(hittest))
-    }
-
-    #[inline]
-    pub fn scale_factor(&self) -> f64 {
-        x11_or_wayland!(match self; Window(w) => w.scale_factor())
-    }
-
-    #[inline]
-    pub fn set_cursor_position(&self, position: Position) -> Result<(), ExternalError> {
-        x11_or_wayland!(match self; Window(w) => w.set_cursor_position(position))
-    }
-
-    #[inline]
-    pub fn set_maximized(&self, maximized: bool) {
-        x11_or_wayland!(match self; Window(w) => w.set_maximized(maximized))
-    }
-
-    #[inline]
-    pub fn is_maximized(&self) -> bool {
-        x11_or_wayland!(match self; Window(w) => w.is_maximized())
-    }
-
-    #[inline]
-    pub fn set_minimized(&self, minimized: bool) {
-        x11_or_wayland!(match self; Window(w) => w.set_minimized(minimized))
-    }
-
-    #[inline]
-    pub fn is_minimized(&self) -> Option<bool> {
-        x11_or_wayland!(match self; Window(w) => w.is_minimized())
-    }
-
-    #[inline]
-    pub(crate) fn fullscreen(&self) -> Option<Fullscreen> {
-        x11_or_wayland!(match self; Window(w) => w.fullscreen())
-    }
-
-    #[inline]
-    pub(crate) fn set_fullscreen(&self, monitor: Option<Fullscreen>) {
-        x11_or_wayland!(match self; Window(w) => w.set_fullscreen(monitor))
-    }
-
-    #[inline]
-    pub fn set_decorations(&self, decorations: bool) {
-        x11_or_wayland!(match self; Window(w) => w.set_decorations(decorations))
-    }
-
-    #[inline]
-    pub fn is_decorated(&self) -> bool {
-        x11_or_wayland!(match self; Window(w) => w.is_decorated())
-    }
-
-    #[inline]
-    pub fn set_window_level(&self, level: WindowLevel) {
-        x11_or_wayland!(match self; Window(w) => w.set_window_level(level))
-    }
-
-    #[inline]
-    pub fn set_window_icon(&self, window_icon: Option<Icon>) {
-        x11_or_wayland!(match self; Window(w) => w.set_window_icon(window_icon.map(|icon| icon.inner)))
-    }
-
-    #[inline]
-    pub fn set_ime_cursor_area(&self, position: Position, size: Size) {
-        x11_or_wayland!(match self; Window(w) => w.set_ime_cursor_area(position, size))
-    }
-
-    #[inline]
-    pub fn reset_dead_keys(&self) {
-        common::xkb::reset_dead_keys()
-    }
-
-    #[inline]
-    pub fn set_ime_allowed(&self, allowed: bool) {
-        x11_or_wayland!(match self; Window(w) => w.set_ime_allowed(allowed))
-    }
-
-    #[inline]
-    pub fn set_ime_purpose(&self, purpose: ImePurpose) {
-        x11_or_wayland!(match self; Window(w) => w.set_ime_purpose(purpose))
-    }
-
-    #[inline]
-    pub fn focus_window(&self) {
-        x11_or_wayland!(match self; Window(w) => w.focus_window())
-    }
-
-    pub fn request_user_attention(&self, request_type: Option<UserAttentionType>) {
-        x11_or_wayland!(match self; Window(w) => w.request_user_attention(request_type))
-    }
-
-    #[inline]
-    pub fn request_redraw(&self) {
-        x11_or_wayland!(match self; Window(w) => w.request_redraw())
-    }
-
-    #[inline]
-    pub fn pre_present_notify(&self) {
-        x11_or_wayland!(match self; Window(w) => w.pre_present_notify())
-    }
-
-    #[inline]
-    pub fn current_monitor(&self) -> Option<MonitorHandle> {
-        Some(x11_or_wayland!(match self; Window(w) => w.current_monitor()?; as MonitorHandle))
-    }
-
-    #[inline]
-    pub fn available_monitors(&self) -> VecDeque<MonitorHandle> {
-        match self {
-            #[cfg(x11_platform)]
-            Window::X(ref window) => {
-                window.available_monitors().into_iter().map(MonitorHandle::X).collect()
-            },
-            #[cfg(wayland_platform)]
-            Window::Wayland(ref window) => {
-                window.available_monitors().into_iter().map(MonitorHandle::Wayland).collect()
-            },
-        }
-    }
-
-    #[inline]
-    pub fn primary_monitor(&self) -> Option<MonitorHandle> {
-        Some(x11_or_wayland!(match self; Window(w) => w.primary_monitor()?; as MonitorHandle))
-    }
-
-    #[cfg(feature = "rwh_06")]
-    #[inline]
-    pub fn raw_window_handle_rwh_06(&self) -> Result<rwh_06::RawWindowHandle, rwh_06::HandleError> {
-        x11_or_wayland!(match self; Window(window) => window.raw_window_handle_rwh_06())
-    }
-
-    #[cfg(feature = "rwh_06")]
-    #[inline]
-    pub fn raw_display_handle_rwh_06(
-        &self,
-    ) -> Result<rwh_06::RawDisplayHandle, rwh_06::HandleError> {
-        x11_or_wayland!(match self; Window(window) => window.raw_display_handle_rwh_06())
-    }
-
-    #[inline]
-    pub fn set_theme(&self, theme: Option<Theme>) {
-        x11_or_wayland!(match self; Window(window) => window.set_theme(theme))
-    }
-
-    #[inline]
-    pub fn theme(&self) -> Option<Theme> {
-        x11_or_wayland!(match self; Window(window) => window.theme())
-    }
-
-    pub fn set_content_protected(&self, protected: bool) {
-        x11_or_wayland!(match self; Window(window) => window.set_content_protected(protected))
-    }
-
-    #[inline]
-    pub fn has_focus(&self) -> bool {
-        x11_or_wayland!(match self; Window(window) => window.has_focus())
-    }
-
-    pub fn title(&self) -> String {
-        x11_or_wayland!(match self; Window(window) => window.title())
-    }
-}
-
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub struct KeyEventExtra {
     pub text_with_all_modifiers: Option<SmolStr>,
@@ -626,7 +309,7 @@ unsafe extern "C" fn x_error_callback(
     display: *mut x11::ffi::Display,
     event: *mut x11::ffi::XErrorEvent,
 ) -> c_int {
-    let xconn_lock = X11_BACKEND.lock().unwrap();
+    let xconn_lock = X11_BACKEND.lock().unwrap_or_else(|e| e.into_inner());
     if let Ok(ref xconn) = *xconn_lock {
         // Call all the hooks.
         let mut error_handled = false;
@@ -748,9 +431,11 @@ impl EventLoop {
 
     #[cfg(x11_platform)]
     fn new_x11_any_thread() -> Result<EventLoop, EventLoopError> {
-        let xconn = match X11_BACKEND.lock().unwrap().as_ref() {
+        let xconn = match X11_BACKEND.lock().unwrap_or_else(|e| e.into_inner()).as_ref() {
             Ok(xconn) => xconn.clone(),
-            Err(_) => return Err(EventLoopError::NotSupported(NotSupportedError::new())),
+            Err(err) => {
+                return Err(EventLoopError::Os(os_error!(OsError::XNotSupported(err.clone()))))
+            },
         };
 
         Ok(EventLoop::X(x11::EventLoop::new(xconn)))

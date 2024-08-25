@@ -27,8 +27,7 @@ use crate::platform_impl::platform::cursor::CustomCursor;
 use crate::platform_impl::platform::r#async::Waker;
 use crate::platform_impl::Window;
 use crate::window::{
-    CustomCursor as RootCustomCursor, CustomCursorSource, Theme, Window as RootWindow,
-    WindowId as RootWindowId,
+    CustomCursor as RootCustomCursor, CustomCursorSource, Theme, WindowId as RootWindowId,
 };
 
 #[derive(Default)]
@@ -632,9 +631,9 @@ impl RootActiveEventLoop for ActiveEventLoop {
     fn create_window(
         &self,
         window_attributes: crate::window::WindowAttributes,
-    ) -> Result<crate::window::Window, crate::error::OsError> {
+    ) -> Result<Box<dyn crate::window::Window>, crate::error::OsError> {
         let window = Window::new(self, window_attributes)?;
-        Ok(RootWindow { window })
+        Ok(Box::new(window))
     }
 
     fn create_custom_cursor(

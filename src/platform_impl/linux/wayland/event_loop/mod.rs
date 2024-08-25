@@ -628,10 +628,9 @@ impl RootActiveEventLoop for ActiveEventLoop {
     fn create_window(
         &self,
         window_attributes: crate::window::WindowAttributes,
-    ) -> Result<crate::window::Window, RootOsError> {
+    ) -> Result<Box<dyn crate::window::Window>, RootOsError> {
         let window = crate::platform_impl::wayland::Window::new(self, window_attributes)?;
-        let window = crate::platform_impl::Window::Wayland(window);
-        Ok(crate::window::Window { window })
+        Ok(Box::new(window))
     }
 
     fn available_monitors(&self) -> Box<dyn Iterator<Item = crate::monitor::MonitorHandle>> {

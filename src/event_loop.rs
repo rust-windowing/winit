@@ -321,7 +321,10 @@ pub trait ActiveEventLoop: AsAny {
     ///
     /// - **Web:** The window is created but not inserted into the Web page automatically. Please
     ///   see the Web platform module for more information.
-    fn create_window(&self, window_attributes: WindowAttributes) -> Result<Window, OsError>;
+    fn create_window(
+        &self,
+        window_attributes: WindowAttributes,
+    ) -> Result<Box<dyn Window>, OsError>;
 
     /// Create custom cursor.
     ///
