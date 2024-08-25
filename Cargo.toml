@@ -150,6 +150,7 @@ objc2-foundation = { version = "0.2.2", features = [
     "NSDictionary",
     "NSDistributedNotificationCenter",
     "NSEnumerator",
+    "NSGeometry",
     "NSKeyValueObserving",
     "NSNotification",
     "NSObjCRuntime",

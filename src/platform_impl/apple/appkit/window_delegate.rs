@@ -6,7 +6,7 @@ use std::ptr;
 use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 
-use core_graphics::display::{CGDisplay, CGPoint};
+use core_graphics::display::CGDisplay;
 use monitor::VideoModeHandle;
 use objc2::rc::{autoreleasepool, Retained};
 use objc2::runtime::{AnyObject, ProtocolObject};
@@ -20,10 +20,10 @@ use objc2_app_kit::{
     NSWindowSharingType, NSWindowStyleMask, NSWindowTabbingMode, NSWindowTitleVisibility,
 };
 use objc2_foundation::{
-    ns_string, CGFloat, MainThreadMarker, NSArray, NSCopying, NSDictionary, NSKeyValueChangeKey,
-    NSKeyValueChangeNewKey, NSKeyValueChangeOldKey, NSKeyValueObservingOptions, NSObject,
-    NSObjectNSDelayedPerforming, NSObjectNSKeyValueObserverRegistration, NSObjectProtocol, NSPoint,
-    NSRect, NSSize, NSString,
+    ns_string, CGFloat, MainThreadMarker, NSArray, NSCopying, NSDictionary, NSEdgeInsets,
+    NSKeyValueChangeKey, NSKeyValueChangeNewKey, NSKeyValueChangeOldKey,
+    NSKeyValueObservingOptions, NSObject, NSObjectNSDelayedPerforming,
+    NSObjectNSKeyValueObserverRegistration, NSObjectProtocol, NSPoint, NSRect, NSSize, NSString,
 };
 use tracing::{trace, warn};
 
@@ -439,9 +439,15 @@ declare_class!(
             // NOTE: We don't _really_ need to check the key path, as there should only be one, but
             // in the future we might want to observe other key paths.
             if key_path == Some(ns_string!("effectiveAppearance")) {
-                let change = change.expect("requested a change dictionary in `addObserver`, but none was provided");
-                let old = change.get(unsafe { NSKeyValueChangeOldKey }).expect("requested change dictionary did not contain `NSKeyValueChangeOldKey`");
-                let new = change.get(unsafe { NSKeyValueChangeNewKey }).expect("requested change dictionary did not contain `NSKeyValueChangeNewKey`");
+                let change = change.expect(
+                    "requested a change dictionary in `addObserver`, but none was provided",
+                );
+                let old = change
+                    .get(unsafe { NSKeyValueChangeOldKey })
+                    .expect("requested change dictionary did not contain `NSKeyValueChangeOldKey`");
+                let new = change
+                    .get(unsafe { NSKeyValueChangeNewKey })
+                    .expect("requested change dictionary did not contain `NSKeyValueChangeNewKey`");
 
                 // SAFETY: The value of `effectiveAppearance` is `NSAppearance`
                 let old: *const AnyObject = old;
@@ -930,10 +936,10 @@ impl WindowDelegate {
         LogicalPosition::new(position.x, position.y).to_physical(self.scale_factor())
     }
 
-    pub fn inner_position(&self) -> PhysicalPosition<i32> {
+    pub fn surface_position(&self) -> Result<PhysicalPosition<u32>, RequestError> {
         let content_rect = self.window().contentRectForFrameRect(self.window().frame());
-        let position = flip_window_screen_coordinates(content_rect);
-        LogicalPosition::new(position.x, position.y).to_physical(self.scale_factor())
+        let logical = LogicalPosition::new(content_rect.origin.x, content_rect.origin.y);
+        logical.to_physical(self.scale_factor())
     }
 
     pub fn set_outer_position(&self, position: Position) {
@@ -957,6 +963,13 @@ impl WindowDelegate {
         let frame = self.window().frame();
         let logical = LogicalSize::new(frame.size.width, frame.size.height);
         logical.to_physical(self.scale_factor())
+    }
+
+    pub fn safe_area(&self) -> (PhysicalPosition<u32>, PhysicalSize<u32>) {
+        let safe_rect = unsafe { self.view().safeAreaRect() };
+        let position = LogicalPosition::new(safe_rect.origin.x, safe_rect.origin.y);
+        let size = LogicalSize::new(safe_rect.size.width, safe_rect.size.height);
+        (position.to_physical(self.scale_factor()), size.to_physical(self.scale_factor()))
     }
 
     #[inline]
@@ -1155,13 +1168,12 @@ impl WindowDelegate {
 
     #[inline]
     pub fn set_cursor_position(&self, cursor_position: Position) -> Result<(), RequestError> {
-        let physical_window_position = self.inner_position();
-        let scale_factor = self.scale_factor();
-        let window_position = physical_window_position.to_logical::<CGFloat>(scale_factor);
-        let logical_cursor_position = cursor_position.to_logical::<CGFloat>(scale_factor);
-        let point = CGPoint {
-            x: logical_cursor_position.x + window_position.x,
-            y: logical_cursor_position.y + window_position.y,
+        let content_rect = self.window().contentRectForFrameRect(self.window().frame());
+        let window_position = flip_window_screen_coordinates(content_rect);
+        let cursor_position = cursor_position.to_logical::<CGFloat>(self.scale_factor());
+        let point = core_graphics::display::CGPoint {
+            x: window_position.x + cursor_position.x,
+            y: window_position.y + cursor_position.y,
         };
         CGDisplay::warp_mouse_cursor_position(point)
             .map_err(|status| os_error!(format!("CGError {status}")))?;
@@ -1742,12 +1754,15 @@ impl WindowExtMacOS for WindowDelegate {
             let screen = self.window().screen().expect("expected screen to be available");
             self.window().setFrame_display(screen.frame(), true);
 
+            // Configure the safe area rectangle, to ensure that we don't obscure the notch.
+            if NSScreen::class().responds_to(sel!(safeAreaInsets)) {
+                unsafe { self.view().setAdditionalSafeAreaInsets(screen.safeAreaInsets()) };
+            }
+
             // Fullscreen windows can't be resized, minimized, or moved
             self.toggle_style_mask(NSWindowStyleMask::Miniaturizable, false);
             self.toggle_style_mask(NSWindowStyleMask::Resizable, false);
             self.window().setMovable(false);
-
-            true
         } else {
             let new_mask = self.saved_style();
             self.set_style_mask(new_mask);
@@ -1760,11 +1775,22 @@ impl WindowExtMacOS for WindowDelegate {
                 app.setPresentationOptions(presentation_opts);
             }
 
+            if NSScreen::class().responds_to(sel!(safeAreaInsets)) {
+                unsafe {
+                    self.view().setAdditionalSafeAreaInsets(NSEdgeInsets {
+                        top: 0.0,
+                        left: 0.0,
+                        bottom: 0.0,
+                        right: 0.0,
+                    });
+                }
+            }
+
             self.window().setFrame_display(frame, true);
             self.window().setMovable(true);
-
-            true
         }
+
+        true
     }
 
     #[inline]

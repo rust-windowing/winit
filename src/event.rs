@@ -156,7 +156,10 @@ pub enum WindowEvent {
     /// [`Window::surface_size`]: crate::window::Window::surface_size
     SurfaceResized(PhysicalSize<u32>),
 
-    /// The position of the window has changed. Contains the window's new position.
+    /// The position of the window has changed.
+    ///
+    /// Contains the window's new position in desktop coordinates (can also be retrieved with
+    /// [`Window::outer_position`]).
     ///
     /// ## Platform-specific
     ///

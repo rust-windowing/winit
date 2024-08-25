@@ -65,6 +65,8 @@ changelog entry.
 - Add basic iOS IME support. The soft keyboard can now be shown using `Window::set_ime_allowed`.
 - On macOS, add `WindowExtMacOS::set_borderless_game` and `WindowAttributesExtMacOS::with_borderless_game`
   to fully disable the menu bar and dock in Borderless Fullscreen as commonly done in games.
+- Added `Window::surface_position`, which is the position of the surface inside the window.
+- Added `Window::safe_area`, which describes the area of the surface that is unobstructed.
 
 ### Changed
 
@@ -150,6 +152,7 @@ changelog entry.
 - Remove `MonitorHandle::size()` and `refresh_rate_millihertz()` in favor of
   `MonitorHandle::current_video_mode()`.
 - On Android, remove all `MonitorHandle` support instead of emitting false data.
+- Removed `Window::inner_position`, use the new `Window::surface_position` instead.
 
 ### Fixed
 

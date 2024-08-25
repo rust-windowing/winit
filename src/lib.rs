@@ -115,6 +115,41 @@
 //! [`visible` set to `false`][crate::window::WindowAttributes::with_visible] and explicitly make
 //! the window visible only once you're ready to render into it.
 //!
+//! # Coordinate systems
+//!
+//! Windowing systems use many different coordinate systems, and this is reflected in Winit as well;
+//! there are "desktop coordinates", which is the coordinates of a window or monitor relative to the
+//! desktop at large, "window coordinates" which is the coordinates of the surface, relative to the
+//! window, and finally "surface coordinates", which is the coordinates relative to the drawn
+//! surface. All of these coordinates are relative to the top-left corner of their respective
+//! origin.
+//!
+//! Most of the functionality in Winit works with surface coordinates, so usually you only need to
+//! concern yourself with those. In case you need to convert to some other coordinate system, Winit
+//! provides [`Window::surface_position`] and [`Window::surface_size`] to describe the surface's
+//! location in window coordinates, and Winit provides [`Window::outer_position`] and
+//! [`Window::outer_size`] to describe the window's location in desktop coordinates. Using these
+//! methods, you should be able to convert a position in one coordinate system to another.
+//!
+//! An overview of how these four methods fit together can be seen in the image below:
+#![doc = concat!("\n\n", include_str!("../docs/res/coordinate-systems-desktop.svg"), "\n\n")] // Rustfmt removes \n, re-add them
+//! On mobile, the situation is usually a bit different; because of the smaller screen space,
+//! windows usually fill the whole screen at a time, and as such there is _rarely_ a difference
+//! between these three coordinate systems, although you should still strive to handle this, as
+//! they're still relevant in more niche area such as Mac Catalyst, or multi-tasking on tablets.
+//!
+//! There is, however, a different important concept: The "safe area". This can be accessed with
+//! [`Window::safe_area`], and describes a rectangle in the surface that is not obscured by notches,
+//! the status bar, and so on. You should be drawing your background and non-important content on
+//! the entire surface, but restrict important content (such as interactable UIs, text, etc.) to
+//! being drawn in the safe area.
+#![doc = concat!("\n\n", include_str!("../docs/res/coordinate-systems-mobile.svg"), "\n\n")] // Rustfmt removes \n, re-add them
+//! [`Window::surface_position`]: crate::window::Window::surface_position
+//! [`Window::surface_size`]: crate::window::Window::surface_size
+//! [`Window::outer_position`]: crate::window::Window::outer_position
+//! [`Window::outer_size`]: crate::window::Window::outer_size
+//! [`Window::safe_area`]: crate::window::Window::safe_area
+//!
 //! # UI scaling
 //!
 //! UI scaling is important, go read the docs for the [`dpi`] crate for an
