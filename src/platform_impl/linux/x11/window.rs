@@ -805,6 +805,20 @@ impl UnownedWindow {
                 leap!(result).ignore_error();
             }
 
+            // Select XInput2 events
+            let mask = xinput::XIEventMask::MOTION
+                | xinput::XIEventMask::BUTTON_PRESS
+                | xinput::XIEventMask::BUTTON_RELEASE
+                | xinput::XIEventMask::ENTER
+                | xinput::XIEventMask::LEAVE
+                | xinput::XIEventMask::FOCUS_IN
+                | xinput::XIEventMask::FOCUS_OUT
+                | xinput::XIEventMask::TOUCH_BEGIN
+                | xinput::XIEventMask::TOUCH_UPDATE
+                | xinput::XIEventMask::TOUCH_END;
+            leap!(xconn.select_xinput_events(window.xwindow, super::ALL_MASTER_DEVICES, mask))
+                .ignore_error();
+
             // Set visibility (map window)
             if window_attrs.visible {
                 leap!(xconn.xcb_connection().map_window(window.xwindow)).ignore_error();
@@ -827,20 +841,6 @@ impl UnownedWindow {
                     return Err(os_error!("`XkbSetDetectableAutoRepeat` failed").into());
                 }
             }
-
-            // Select XInput2 events
-            let mask = xinput::XIEventMask::MOTION
-                | xinput::XIEventMask::BUTTON_PRESS
-                | xinput::XIEventMask::BUTTON_RELEASE
-                | xinput::XIEventMask::ENTER
-                | xinput::XIEventMask::LEAVE
-                | xinput::XIEventMask::FOCUS_IN
-                | xinput::XIEventMask::FOCUS_OUT
-                | xinput::XIEventMask::TOUCH_BEGIN
-                | xinput::XIEventMask::TOUCH_UPDATE
-                | xinput::XIEventMask::TOUCH_END;
-            leap!(xconn.select_xinput_events(window.xwindow, super::ALL_MASTER_DEVICES, mask))
-                .ignore_error();
 
             // Try to create input context for the window.
             if let Some(ime) = event_loop.ime.as_ref() {

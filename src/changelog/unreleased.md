@@ -156,6 +156,7 @@ changelog entry.
     identify a finger in a multi-touch interaction. Replaces the old `Touch::id`.
   - In the same spirit rename `DeviceEvent::MouseMotion` to `PointerMotion`.
   - Remove `Force::Calibrated::altitude_angle`.
+  - On X11, fix XInput handling that prevented a new window from getting the focus. (#2841)
 
 ### Removed
 
