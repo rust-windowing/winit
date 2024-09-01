@@ -1,39 +1,4 @@
 //! The event enums and assorted supporting types.
-//!
-//! These are sent to the closure given to [`EventLoop::run_app(...)`], where they get
-//! processed and used to modify the program state. For more details, see the root-level
-//! documentation.
-//!
-//! Some of these events represent different "parts" of a traditional event-handling loop. You could
-//! approximate the basic ordering loop of [`EventLoop::run_app(...)`] like this:
-//!
-//! ```rust,ignore
-//! let mut start_cause = StartCause::Init;
-//!
-//! while !elwt.exiting() {
-//!     app.new_events(event_loop, start_cause);
-//!
-//!     for event in (window events, user events, device events) {
-//!         // This will pick the right method on the application based on the event.
-//!         app.handle_event(event_loop, event);
-//!     }
-//!
-//!     for window_id in (redraw windows) {
-//!         app.window_event(event_loop, window_id, RedrawRequested);
-//!     }
-//!
-//!     app.about_to_wait(event_loop);
-//!     start_cause = wait_if_necessary();
-//! }
-//!
-//! app.exiting(event_loop);
-//! ```
-//!
-//! This leaves out timing details like [`ControlFlow::WaitUntil`] but hopefully
-//! describes what happens in what order.
-//!
-//! [`EventLoop::run_app(...)`]: crate::event_loop::EventLoop::run_app
-//! [`ControlFlow::WaitUntil`]: crate::event_loop::ControlFlow::WaitUntil
 use std::path::PathBuf;
 use std::sync::{Mutex, Weak};
 #[cfg(not(web_platform))]
@@ -85,11 +50,6 @@ pub(crate) enum Event {
     /// [`ApplicationHandler::suspended`]: crate::application::ApplicationHandler::suspended
     Suspended,
 
-    /// See [`ApplicationHandler::can_create_surfaces`] for details.
-    ///
-    /// [`ApplicationHandler::can_create_surfaces`]: crate::application::ApplicationHandler::can_create_surfaces
-    CreateSurfaces,
-
     /// See [`ApplicationHandler::resumed`] for details.
     ///
     /// [`ApplicationHandler::resumed`]: crate::application::ApplicationHandler::resumed
@@ -99,11 +59,6 @@ pub(crate) enum Event {
     ///
     /// [`ApplicationHandler::about_to_wait`]: crate::application::ApplicationHandler::about_to_wait
     AboutToWait,
-
-    /// See [`ApplicationHandler::exiting`] for details.
-    ///
-    /// [`ApplicationHandler::exiting`]: crate::application::ApplicationHandler::exiting
-    LoopExiting,
 
     /// See [`ApplicationHandler::memory_warning`] for details.
     ///
@@ -1055,7 +1010,6 @@ mod tests {
                 let wid = WindowId::dummy();
                 x(NewEvents(event::StartCause::Init));
                 x(AboutToWait);
-                x(LoopExiting);
                 x(Suspended);
                 x(Resumed);
 

@@ -192,10 +192,10 @@ pub trait EventLoopExtWeb {
     /// Initializes the winit event loop.
     ///
     /// Unlike
-    #[cfg_attr(all(web_platform, target_feature = "exception-handling"), doc = "`run_app()`")]
+    #[cfg_attr(all(web_platform, target_feature = "exception-handling"), doc = "`run()`")]
     #[cfg_attr(
         not(all(web_platform, target_feature = "exception-handling")),
-        doc = "[`run_app()`]"
+        doc = "[`run()`]"
     )]
     /// [^1], this returns immediately, and doesn't throw an exception in order to
     /// satisfy its [`!`] return type.
@@ -208,9 +208,9 @@ pub trait EventLoopExtWeb {
     ///
     #[cfg_attr(
         not(all(web_platform, target_feature = "exception-handling")),
-        doc = "[`run_app()`]: EventLoop::run_app()"
+        doc = "[`run()`]: EventLoop::run()"
     )]
-    /// [^1]: `run_app()` is _not_ available on Wasm when the target supports `exception-handling`.
+    /// [^1]: `run()` is _not_ available on Wasm when the target supports `exception-handling`.
     fn spawn_app<A: ApplicationHandler + 'static>(self, app: A);
 
     /// Sets the strategy for [`ControlFlow::Poll`].

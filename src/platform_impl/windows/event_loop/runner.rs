@@ -248,9 +248,8 @@ impl EventLoopRunner {
         }
     }
 
-    /// Dispatch control flow events (`NewEvents`, `AboutToWait`, and
-    /// `LoopExiting`) as necessary to bring the internal `RunnerState` to the
-    /// new runner state.
+    /// Dispatch control flow events (`new_events`, `about_to_wait`) as necessary to bring the
+    /// internal `RunnerState` to the new runner state.
     ///
     /// The state transitions are defined as follows:
     ///
@@ -294,7 +293,6 @@ impl EventLoopRunner {
                 self.call_new_events(true);
                 self.call_event_handler(Event::AboutToWait);
                 self.last_events_cleared.set(Instant::now());
-                self.call_event_handler(Event::LoopExiting);
             },
             (_, Uninitialized) => panic!("cannot move state to Uninitialized"),
 
@@ -302,9 +300,7 @@ impl EventLoopRunner {
             (Idle, HandlingMainEvents) => {
                 self.call_new_events(false);
             },
-            (Idle, Destroyed) => {
-                self.call_event_handler(Event::LoopExiting);
-            },
+            (Idle, Destroyed) => {},
 
             (HandlingMainEvents, Idle) => {
                 // This is always the last event we dispatch before waiting for new events
@@ -314,7 +310,6 @@ impl EventLoopRunner {
             (HandlingMainEvents, Destroyed) => {
                 self.call_event_handler(Event::AboutToWait);
                 self.last_events_cleared.set(Instant::now());
-                self.call_event_handler(Event::LoopExiting);
             },
 
             (Destroyed, _) => panic!("cannot move state from Destroyed"),
@@ -344,11 +339,6 @@ impl EventLoopRunner {
             },
         };
         self.call_event_handler(Event::NewEvents(start_cause));
-        // NB: For consistency all platforms must call `can_create_surfaces` even though Windows
-        // applications don't themselves have a formal surface destroy/create lifecycle.
-        if init {
-            self.call_event_handler(Event::CreateSurfaces);
-        }
         self.dispatch_buffered_events();
     }
 }

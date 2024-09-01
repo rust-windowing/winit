@@ -1,4 +1,4 @@
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::{fmt, mem};
 
 use crate::application::ApplicationHandler;
@@ -11,7 +11,17 @@ pub(crate) struct EventHandler {
     /// - Not registered by the event loop (None).
     /// - Present (Some(handler)).
     /// - Currently executing the handler / in use (RefCell borrowed).
-    inner: RefCell<Option<&'static mut dyn ApplicationHandler>>,
+    inner: Cell<State>,
+}
+
+#[derive(Default)]
+enum State {
+    #[default]
+    NotRegistered,
+    Registered(Box<dyn FnOnce() -> Box<dyn ApplicationHandler + 'static> + 'static>),
+    Ready(Box<dyn ApplicationHandler + 'static>),
+    CurrentlyExecuting,
+    Deinitialized,
 }
 
 impl fmt::Debug for EventHandler {
@@ -27,7 +37,7 @@ impl fmt::Debug for EventHandler {
 
 impl EventHandler {
     pub(crate) fn new() -> Self {
-        Self { inner: RefCell::new(None) }
+        Self { inner: Cell::new(State::NotRegistered) }
     }
 
     /// Set the event loop handler for the duration of the given closure.
@@ -37,7 +47,7 @@ impl EventHandler {
     /// from within the closure.
     pub(crate) fn set<'handler, R>(
         &self,
-        app: &'handler mut dyn ApplicationHandler,
+        init_closure: Box<dyn FnOnce() -> Box<dyn ApplicationHandler + 'handler> + 'handler>,
         closure: impl FnOnce() -> R,
     ) -> R {
         // SAFETY: We extend the lifetime of the handler here so that we can
@@ -48,8 +58,8 @@ impl EventHandler {
         // extended beyond `'handler`.
         let handler = unsafe {
             mem::transmute::<
-                &'handler mut dyn ApplicationHandler,
-                &'static mut dyn ApplicationHandler,
+                Box<dyn ApplicationHandler + 'handler>,
+                Box<dyn ApplicationHandler + 'static>,
             >(app)
         };
 
@@ -120,7 +130,7 @@ impl EventHandler {
                 //
                 // If the handler unwinds, the `RefMut` will ensure that the
                 // handler is no longer borrowed.
-                callback(*user_app);
+                callback(user_app);
             },
             Ok(None) => {
                 // `NSApplication`, our app state and this handler are all

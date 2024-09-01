@@ -451,11 +451,7 @@ impl Shared {
     }
 
     fn init(&self) {
-        // NB: For consistency all platforms must call `can_create_surfaces` even though Web
-        // applications don't themselves have a formal surface destroy/create lifecycle.
-        self.run_until_cleared(
-            [Event::NewEvents(StartCause::Init), Event::CreateSurfaces].into_iter(),
-        );
+        self.run_until_cleared([Event::NewEvents(StartCause::Init)].into_iter());
     }
 
     // Run the polling logic for the Poll ControlFlow, which involves clearing the queue
@@ -611,7 +607,7 @@ impl Shared {
         self.apply_control_flow();
         // We don't call `handle_loop_destroyed` here because we don't need to
         // perform cleanup when the Web browser is going to destroy the page.
-        self.handle_event(Event::LoopExiting);
+        todo!("drop the application handler");
     }
 
     // handle_event takes in events and either queues them or applies a callback
@@ -715,7 +711,7 @@ impl Shared {
     }
 
     fn handle_loop_destroyed(&self) {
-        self.handle_event(Event::LoopExiting);
+        todo!("drop the application handler");
         let all_canvases = std::mem::take(&mut *self.0.all_canvases.borrow_mut());
         *self.0.page_transition_event_handle.borrow_mut() = None;
         *self.0.on_mouse_move.borrow_mut() = None;

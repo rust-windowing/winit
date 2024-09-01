@@ -14,7 +14,7 @@ use super::observer::{EventLoopWaker, RunLoop};
 use super::{menu, WindowId};
 use crate::application::ApplicationHandler;
 use crate::event::{StartCause, WindowEvent};
-use crate::event_loop::ControlFlow;
+use crate::event_loop::{ActiveEventLoop, ControlFlow};
 use crate::window::WindowId as RootWindowId;
 
 #[derive(Debug)]
@@ -153,12 +153,12 @@ impl AppState {
 
     /// Place the event handler in the application state for the duration
     /// of the given closure.
-    pub fn set_event_handler<R>(
+    pub fn set_init_closure<A: ApplicationHandler, R>(
         &self,
-        handler: &mut dyn ApplicationHandler,
+        init_closure: impl FnOnce(&dyn ActiveEventLoop) -> A,
         closure: impl FnOnce() -> R,
     ) -> R {
-        self.event_handler.set(handler, closure)
+        self.event_handler.set(init_closure, closure)
     }
 
     pub fn proxy_wake_up(&self) -> Arc<AtomicBool> {

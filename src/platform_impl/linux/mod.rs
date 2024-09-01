@@ -451,15 +451,18 @@ impl EventLoop {
         }
     }
 
-    pub fn run_app<A: ApplicationHandler>(self, app: A) -> Result<(), EventLoopError> {
-        x11_or_wayland!(match self; EventLoop(evlp) => evlp.run_app(app))
+    pub fn run<A: ApplicationHandler>(
+        self,
+        init_closure: impl FnOnce(&dyn ActiveEventLoop) -> A,
+    ) -> Result<(), EventLoopError> {
+        x11_or_wayland!(match self; EventLoop(evlp) => evlp.run(init_closure))
     }
 
-    pub fn run_app_on_demand<A: ApplicationHandler>(
+    pub fn run_on_demand<A: ApplicationHandler>(
         &mut self,
-        app: A,
+        init_closure: impl FnOnce(&dyn ActiveEventLoop) -> A,
     ) -> Result<(), EventLoopError> {
-        x11_or_wayland!(match self; EventLoop(evlp) => evlp.run_app_on_demand(app))
+        x11_or_wayland!(match self; EventLoop(evlp) => evlp.run_on_demand(init_closure))
     }
 
     pub fn pump_app_events<A: ApplicationHandler>(

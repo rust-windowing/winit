@@ -13,26 +13,12 @@ fn main() -> Result<(), impl std::error::Error> {
     #[path = "util/fill.rs"]
     mod fill;
 
-    #[derive(Default)]
     struct Application {
-        parent_window_id: Option<WindowId>,
+        parent_window_id: WindowId,
         windows: HashMap<WindowId, Box<dyn Window>>,
     }
 
     impl ApplicationHandler for Application {
-        fn can_create_surfaces(&mut self, event_loop: &dyn ActiveEventLoop) {
-            let attributes = WindowAttributes::default()
-                .with_title("parent window")
-                .with_position(Position::Logical(LogicalPosition::new(0.0, 0.0)))
-                .with_inner_size(LogicalSize::new(640.0f32, 480.0f32));
-            let window = event_loop.create_window(attributes).unwrap();
-
-            println!("Parent window id: {:?})", window.id());
-            self.parent_window_id = Some(window.id());
-
-            self.windows.insert(window.id(), window);
-        }
-
         fn window_event(
             &mut self,
             event_loop: &dyn ActiveEventLoop,
@@ -56,7 +42,7 @@ fn main() -> Result<(), impl std::error::Error> {
                     event: KeyEvent { state: ElementState::Pressed, .. },
                     ..
                 } => {
-                    let parent_window = self.windows.get(&self.parent_window_id.unwrap()).unwrap();
+                    let parent_window = self.windows.get(&self.parent_window_id).unwrap();
                     let child_window = spawn_child_window(parent_window.as_ref(), event_loop);
                     let child_id = child_window.id();
                     println!("Child window created with id: {child_id:?}");
@@ -70,6 +56,20 @@ fn main() -> Result<(), impl std::error::Error> {
                 _ => (),
             }
         }
+    }
+
+    fn init(event_loop: &dyn ActiveEventLoop) -> Application {
+        let attributes = WindowAttributes::default()
+            .with_title("parent window")
+            .with_position(Position::Logical(LogicalPosition::new(0.0, 0.0)))
+            .with_inner_size(LogicalSize::new(640.0f32, 480.0f32));
+        let window = event_loop.create_window(attributes).unwrap();
+
+        println!("Parent window id: {:?})", window.id());
+
+        let parent_window_id = window.id();
+        let windows = HashMap::from([(window.id(), window)]);
+        Application { parent_window_id, windows }
     }
 
     fn spawn_child_window(
@@ -89,7 +89,7 @@ fn main() -> Result<(), impl std::error::Error> {
     }
 
     let event_loop = EventLoop::new().unwrap();
-    event_loop.run_app(Application::default())
+    event_loop.run(init)
 }
 
 #[cfg(not(any(x11_platform, macos_platform, windows_platform)))]

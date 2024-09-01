@@ -210,15 +210,21 @@ impl EventLoop {
         &self.window_target
     }
 
-    pub fn run_app<A: ApplicationHandler>(mut self, app: A) -> Result<(), EventLoopError> {
-        self.run_app_on_demand(app)
+    pub fn run<A: ApplicationHandler>(
+        mut self,
+        init_closure: impl FnOnce(&dyn RootActiveEventLoop) -> A,
+    ) -> Result<(), EventLoopError> {
+        self.run_on_demand(init_closure)
     }
 
-    pub fn run_app_on_demand<A: ApplicationHandler>(
+    pub fn run_on_demand<A: ApplicationHandler>(
         &mut self,
-        mut app: A,
+        init_closure: impl FnOnce(&dyn RootActiveEventLoop) -> A,
     ) -> Result<(), EventLoopError> {
         self.window_target.clear_exit();
+
+        let mut app = init_closure(&self.window_target);
+
         {
             let runner = &self.window_target.runner_shared;
 
@@ -238,9 +244,7 @@ impl EventLoop {
                     Event::UserWakeUp => app.proxy_wake_up(event_loop_windows_ref),
                     Event::Suspended => app.suspended(event_loop_windows_ref),
                     Event::Resumed => app.resumed(event_loop_windows_ref),
-                    Event::CreateSurfaces => app.can_create_surfaces(event_loop_windows_ref),
                     Event::AboutToWait => app.about_to_wait(event_loop_windows_ref),
-                    Event::LoopExiting => app.exiting(event_loop_windows_ref),
                     Event::MemoryWarning => app.memory_warning(event_loop_windows_ref),
                 });
             }
@@ -304,9 +308,7 @@ impl EventLoop {
                     Event::UserWakeUp => app.proxy_wake_up(event_loop_windows_ref),
                     Event::Suspended => app.suspended(event_loop_windows_ref),
                     Event::Resumed => app.resumed(event_loop_windows_ref),
-                    Event::CreateSurfaces => app.can_create_surfaces(event_loop_windows_ref),
                     Event::AboutToWait => app.about_to_wait(event_loop_windows_ref),
-                    Event::LoopExiting => app.exiting(event_loop_windows_ref),
                     Event::MemoryWarning => app.memory_warning(event_loop_windows_ref),
                 });
 
@@ -334,8 +336,10 @@ impl EventLoop {
             PumpStatus::Continue
         };
 
-        // We wait until we've checked for an exit status before clearing the
-        // application callback, in case we need to dispatch a LoopExiting event
+        // We wait until we've checked for an exit status before clearing the application callback,
+        // in case any of the methods above ends up triggering an event.
+        //
+        // This drops the user's `ApplicationHandler`.
         //
         // # Safety
         // This pairs up with our call to `runner.set_event_handler` and ensures

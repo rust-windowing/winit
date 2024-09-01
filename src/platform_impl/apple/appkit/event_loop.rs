@@ -278,20 +278,23 @@ impl EventLoop {
         &self.window_target
     }
 
-    pub fn run_app<A: ApplicationHandler>(mut self, app: A) -> Result<(), EventLoopError> {
-        self.run_app_on_demand(app)
+    pub fn run<A: ApplicationHandler>(
+        mut self,
+        init_closure: impl FnOnce(&dyn RootActiveEventLoop) -> A,
+    ) -> Result<(), EventLoopError> {
+        self.run_on_demand(init_closure)
     }
 
     // NB: we don't base this on `pump_events` because for `MacOs` we can't support
     // `pump_events` elegantly (we just ask to run the loop for a "short" amount of
     // time and so a layered implementation would end up using a lot of CPU due to
     // redundant wake ups.
-    pub fn run_app_on_demand<A: ApplicationHandler>(
+    pub fn run_on_demand<A: ApplicationHandler>(
         &mut self,
-        mut app: A,
+        init_closure: impl FnOnce(&dyn RootActiveEventLoop) -> A,
     ) -> Result<(), EventLoopError> {
         self.app_state.clear_exit();
-        self.app_state.set_event_handler(&mut app, || {
+        self.app_state.set_init_closure(init_closure, || {
             autoreleasepool(|_| {
                 // clear / normalize pump_events state
                 self.app_state.set_wait_timeout(None);

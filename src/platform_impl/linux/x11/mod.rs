@@ -372,15 +372,21 @@ impl EventLoop {
         &self.event_processor.target
     }
 
-    pub fn run_app<A: ApplicationHandler>(mut self, app: A) -> Result<(), EventLoopError> {
-        self.run_app_on_demand(app)
+    pub fn run<A: ApplicationHandler>(
+        mut self,
+        init_closure: impl FnOnce(&dyn RootActiveEventLoop) -> A,
+    ) -> Result<(), EventLoopError> {
+        self.run_on_demand(init_closure)
     }
 
-    pub fn run_app_on_demand<A: ApplicationHandler>(
+    pub fn run_on_demand<A: ApplicationHandler>(
         &mut self,
-        mut app: A,
+        init_closure: impl FnOnce(&dyn RootActiveEventLoop) -> A,
     ) -> Result<(), EventLoopError> {
         self.event_processor.target.clear_exit();
+
+        let mut app = init_closure(&self.event_processor.target);
+
         let exit = loop {
             match self.pump_app_events(None, &mut app) {
                 PumpStatus::Exit(0) => {
@@ -425,8 +431,6 @@ impl EventLoop {
         }
         if let Some(code) = self.exit_code() {
             self.loop_running = false;
-
-            app.exiting(self.window_target());
 
             PumpStatus::Exit(code)
         } else {
@@ -507,12 +511,6 @@ impl EventLoop {
 
     fn single_iteration<A: ApplicationHandler>(&mut self, app: &mut A, cause: StartCause) {
         app.new_events(&self.event_processor.target, cause);
-
-        // NB: For consistency all platforms must call `can_create_surfaces` even though X11
-        // applications don't themselves have a formal surface destroy/create lifecycle.
-        if cause == StartCause::Init {
-            app.can_create_surfaces(&self.event_processor.target)
-        }
 
         // Process all pending events
         self.drain_events(app);

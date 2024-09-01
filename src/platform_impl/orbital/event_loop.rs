@@ -498,14 +498,14 @@ impl EventLoop {
         }
     }
 
-    pub fn run_app<A: ApplicationHandler>(mut self, mut app: A) -> Result<(), EventLoopError> {
+    pub fn run<A: ApplicationHandler>(
+        mut self,
+        init_closure: impl FnOnce(&dyn RootActiveEventLoop) -> A,
+    ) -> Result<(), EventLoopError> {
+        let mut app = init_closure(&self.window_target);
         let mut start_cause = StartCause::Init;
         loop {
             app.new_events(&self.window_target, start_cause);
-
-            if start_cause == StartCause::Init {
-                app.can_create_surfaces(&self.window_target);
-            }
 
             // Handle window creates.
             while let Some(window) = {
@@ -670,8 +670,6 @@ impl EventLoop {
                 },
             }
         }
-
-        app.exiting(&self.window_target);
 
         Ok(())
     }

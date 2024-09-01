@@ -77,7 +77,6 @@ fn handle_event(mtm: MainThreadMarker, event: Event) {
         Event::UserWakeUp => app.proxy_wake_up(event_loop),
         Event::Suspended => app.suspended(event_loop),
         Event::Resumed => app.resumed(event_loop),
-        Event::CreateSurfaces => app.can_create_surfaces(event_loop),
         Event::AboutToWait => app.about_to_wait(event_loop),
         Event::LoopExiting => app.exiting(event_loop),
         Event::MemoryWarning => app.memory_warning(event_loop),
@@ -419,12 +418,8 @@ pub fn did_finish_launching(mtm: MainThreadMarker) {
 
     let events = AppState::get_mut(mtm).did_finish_launching_transition();
 
-    let events = [
-        EventWrapper::StaticEvent(Event::NewEvents(StartCause::Init)),
-        EventWrapper::StaticEvent(Event::CreateSurfaces),
-    ]
-    .into_iter()
-    .chain(events);
+    let events =
+        [EventWrapper::StaticEvent(Event::NewEvents(StartCause::Init))].into_iter().chain(events);
     handle_nonuser_events(mtm, events);
 }
 

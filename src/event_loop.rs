@@ -193,9 +193,47 @@ impl EventLoop {
 }
 
 impl EventLoop {
-    /// Run the application with the event loop on the calling thread.
+    /// Run the event loop on the current thread.
+    ///
+    /// You pass in a closure that returns your application state. This closure has access to the
+    /// currently running event loop, allowing you to initialize your windows and surfaces in here.
     ///
     /// See the [`set_control_flow()`] docs on how to change the event loop's behavior.
+    ///
+    /// ## Event loop flow
+    ///
+    /// This function internally handles the different parts of a traditional event-handling loop.
+    /// You could imagine this method being implemented like this:
+    ///
+    /// ```rust,ignore
+    /// // Initialize.
+    /// let mut app = init_closure(event_loop);
+    /// let mut start_cause = StartCause::Init;
+    ///
+    /// // Run loop.
+    /// while !elwt.exiting() {
+    ///     // Wake up.
+    ///     app.new_events(event_loop, start_cause);
+    ///
+    ///     // Handle events by the user.
+    ///     for (device_id, event) in incoming_device_events {
+    ///         app.device_event(event_loop, device_id, event);
+    ///     }
+    ///     for (window_id, event) in incoming_window_events {
+    ///         app.window_event(event_loop, window_id, event);
+    ///     }
+    ///
+    ///     // Done handling events, wait until we're woken up again.
+    ///     app.about_to_wait(event_loop);
+    ///     start_cause = wait_if_necessary();
+    /// }
+    ///
+    /// // Finished running, drop application state.
+    /// drop(app);
+    /// ```
+    ///
+    /// This is of course a very coarse-grained overview, and leaves out timing details like
+    /// [`ControlFlow::WaitUntil`] and life-cycle methods like [`ApplicationHandler::resumed`].
     ///
     /// ## Platform-specific
     ///
@@ -211,21 +249,32 @@ impl EventLoop {
         doc = "  [`EventLoopExtWeb::spawn_app()`][crate::platform::web::EventLoopExtWeb::spawn_app()]"
     )]
     #[cfg_attr(not(any(web_platform, docsrs)), doc = "  `EventLoopExtWeb::spawn_app()`")]
-    ///   [^1] instead of [`run_app()`] to avoid the need for the Javascript exception trick, and to
+    ///   [^1] instead of [`run()`] to avoid the need for the Javascript exception trick, and to
     ///   make   it clearer that the event loop runs asynchronously (via the browser's own,
     ///   internal, event   loop) and doesn't block the current thread of execution like it does
     ///   on other platforms.
     ///
     ///   This function won't be available with `target_feature = "exception-handling"`.
+    /// - **Android:** The initialization closure is only called once the application is at a point
+    ///   where the underlying surface is initialized.
     ///
     /// [^1]: `spawn_app()` is only available on the Web platform.
     ///
     /// [`set_control_flow()`]: ActiveEventLoop::set_control_flow()
-    /// [`run_app()`]: Self::run_app()
+    /// [`run()`]: Self::run()
     #[inline]
     #[cfg(not(all(web_platform, target_feature = "exception-handling")))]
+    pub fn run<A: ApplicationHandler>(
+        self,
+        init_closure: impl FnOnce(&dyn ActiveEventLoop) -> A,
+    ) -> Result<(), EventLoopError> {
+        self.event_loop.run(init_closure)
+    }
+
+    /// Run the event loop with the given application state.
+    #[deprecated = "less flexible version of `run`"]
     pub fn run_app<A: ApplicationHandler>(self, app: A) -> Result<(), EventLoopError> {
-        self.event_loop.run_app(app)
+        self.run(|_event_loop| app)
     }
 
     /// Creates an [`EventLoopProxy`] that can be used to dispatch user events
@@ -391,9 +440,7 @@ pub trait ActiveEventLoop: AsAny {
     /// Gets the current [`ControlFlow`].
     fn control_flow(&self) -> ControlFlow;
 
-    /// This exits the event loop.
-    ///
-    /// See [`exiting`][crate::application::ApplicationHandler::exiting].
+    /// This stops the event loop.
     fn exit(&self);
 
     /// Returns if the [`EventLoop`] is about to stop.

@@ -95,9 +95,7 @@ fn handle_event<A: ApplicationHandler>(app: &mut A, target: &ActiveEventLoop, ev
         Event::UserWakeUp => app.proxy_wake_up(target),
         Event::Suspended => app.suspended(target),
         Event::Resumed => app.resumed(target),
-        Event::CreateSurfaces => app.can_create_surfaces(target),
         Event::AboutToWait => app.about_to_wait(target),
-        Event::LoopExiting => app.exiting(target),
         Event::MemoryWarning => app.memory_warning(target),
     }
 }

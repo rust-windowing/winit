@@ -154,15 +154,21 @@ impl EventLoop {
         Ok(event_loop)
     }
 
-    pub fn run_app<A: ApplicationHandler>(mut self, app: A) -> Result<(), EventLoopError> {
-        self.run_app_on_demand(app)
+    pub fn run<A: ApplicationHandler>(
+        mut self,
+        init_closure: impl FnOnce(&dyn RootActiveEventLoop) -> A,
+    ) -> Result<(), EventLoopError> {
+        self.run_on_demand(init_closure)
     }
 
-    pub fn run_app_on_demand<A: ApplicationHandler>(
+    pub fn run_on_demand<A: ApplicationHandler>(
         &mut self,
-        mut app: A,
+        init_closure: impl FnOnce(&dyn RootActiveEventLoop) -> A,
     ) -> Result<(), EventLoopError> {
         self.active_event_loop.clear_exit();
+
+        let mut app = init_closure(&self.active_event_loop);
+
         let exit = loop {
             match self.pump_app_events(None, &mut app) {
                 PumpStatus::Exit(0) => {
@@ -205,8 +211,6 @@ impl EventLoop {
         }
         if let Some(code) = self.exit_code() {
             self.loop_running = false;
-
-            app.exiting(&self.active_event_loop);
 
             PumpStatus::Exit(code)
         } else {
@@ -295,12 +299,6 @@ impl EventLoop {
         let mut window_ids = std::mem::take(&mut self.window_ids);
 
         app.new_events(&self.active_event_loop, cause);
-
-        // NB: For consistency all platforms must call `can_create_surfaces` even though Wayland
-        // applications don't themselves have a formal surface destroy/create lifecycle.
-        if cause == StartCause::Init {
-            app.can_create_surfaces(&self.active_event_loop);
-        }
 
         // Indicate user wake up.
         if self.with_state(|state| mem::take(&mut state.proxy_wake_up)) {

@@ -1,16 +1,14 @@
 use crate::application::ApplicationHandler;
 use crate::error::EventLoopError;
-use crate::event_loop::EventLoop;
+use crate::event_loop::{ActiveEventLoop, EventLoop};
 #[cfg(doc)]
-use crate::{
-    event_loop::ActiveEventLoop, platform::pump_events::EventLoopExtPumpEvents, window::Window,
-};
+use crate::{platform::pump_events::EventLoopExtPumpEvents, window::Window};
 
 /// Additional methods on [`EventLoop`] to return control flow to the caller.
 pub trait EventLoopExtRunOnDemand {
     /// Run the application with the event loop on the calling thread.
     ///
-    /// Unlike [`EventLoop::run_app`], this function accepts non-`'static` (i.e. non-`move`)
+    /// Unlike [`EventLoop::run`], this function accepts non-`'static` (i.e. non-`move`)
     /// closures and it is possible to return control back to the caller without
     /// consuming the `EventLoop` (by using [`exit()`]) and
     /// so the event loop can be re-run after it has exit.
@@ -23,7 +21,7 @@ pub trait EventLoopExtRunOnDemand {
     /// to while maintaining the full state of your application. (If you need something like this
     /// you can look at the [`EventLoopExtPumpEvents::pump_app_events()`] API)
     ///
-    /// Each time `run_app_on_demand` is called the startup sequence of `init`, followed by
+    /// Each time `run_on_demand` is called the startup sequence of `init`, followed by
     /// `resume` is being preserved.
     ///
     /// See the [`set_control_flow()`] docs on how to change the event loop's behavior.
@@ -40,7 +38,7 @@ pub trait EventLoopExtRunOnDemand {
     ///   [^1] more than once instead).
     /// - No [`Window`] state can be carried between separate runs of the event loop.
     ///
-    /// You are strongly encouraged to use [`EventLoop::run_app()`] for portability, unless you
+    /// You are strongly encouraged to use [`EventLoop::run()`] for portability, unless you
     /// specifically need the ability to re-run a single event loop more than once
     ///
     /// # Supported Platforms
@@ -60,12 +58,18 @@ pub trait EventLoopExtRunOnDemand {
     ///
     /// [`exit()`]: ActiveEventLoop::exit()
     /// [`set_control_flow()`]: ActiveEventLoop::set_control_flow()
-    fn run_app_on_demand<A: ApplicationHandler>(&mut self, app: A) -> Result<(), EventLoopError>;
+    fn run_on_demand<A: ApplicationHandler>(
+        &mut self,
+        init_closure: impl FnOnce(&dyn ActiveEventLoop) -> A,
+    ) -> Result<(), EventLoopError>;
 }
 
 impl EventLoopExtRunOnDemand for EventLoop {
-    fn run_app_on_demand<A: ApplicationHandler>(&mut self, app: A) -> Result<(), EventLoopError> {
-        self.event_loop.run_app_on_demand(app)
+    fn run_on_demand<A: ApplicationHandler>(
+        &mut self,
+        init_closure: impl FnOnce(&dyn ActiveEventLoop) -> A,
+    ) -> Result<(), EventLoopError> {
+        self.event_loop.run_on_demand(init_closure)
     }
 }
 

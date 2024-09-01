@@ -1,18 +1,13 @@
 //! Winit is a cross-platform window creation and event loop management library.
 //!
-//! # Building windows
-//!
-//! Before you can create a [`Window`], you first need to build an [`EventLoop`]. This is done with
-//! the [`EventLoop::new()`] function.
-//!
-//! ```no_run
-//! use winit::event_loop::EventLoop;
-//! let event_loop = EventLoop::new().unwrap();
-//! ```
-//!
-//! Then you create a [`Window`] with [`create_window`].
-//!
 //! # Event handling
+//!
+//! Basically all of the functionality that Winit exposes requires an [`ActiveEventLoop`], which you
+//! can get access to by running an [`EventLoop`] using [`EventLoop::new()`] and
+//! [`EventLoop::run()`].
+//!
+//! Once it's running, you can create your [`Window`]s with [`ActiveEventLoop::create_window()`] by
+//! passing in the desired [`WindowAttributes`].
 //!
 //! Once a [`Window`] has been created, it will generate different *events*. A [`Window`] object can
 //! generate [`WindowEvent`]s when certain input events occur, such as a cursor moving over the
@@ -21,9 +16,10 @@
 //! Some user activity, like mouse movement, can generate both a [`WindowEvent`] *and* a
 //! [`DeviceEvent`].
 //!
-//! You can retrieve events by calling [`EventLoop::run_app()`]. This function will
-//! dispatch events for every [`Window`] that was created with that particular [`EventLoop`], and
-//! will run until [`exit()`] is used, at which point [`exiting()`] is called.
+//! You retrieve by implementing [`ApplicationHandler`] for a new type, which will be the state of
+//! your application. The methods in this trait will continuously receive events until
+//! [`ActiveEventLoop::exit()`] is used, at which point your application state will be dropped, and
+//! the application shuts down.
 //!
 //! Winit no longer uses a `EventLoop::poll_events() -> impl Iterator<Event>`-based event loop
 //! model, since that can't be implemented properly on some platforms (e.g Web, iOS) and works
@@ -44,19 +40,20 @@
 //! use winit::application::ApplicationHandler;
 //! use winit::event::WindowEvent;
 //! use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
-//! use winit::window::{Window, WindowId, WindowAttributes};
+//! use winit::window::{Window, WindowAttributes, WindowId};
 //!
-//! #[derive(Default)]
 //! struct App {
-//!     window: Option<Box<dyn Window>>,
+//!     window: Box<dyn Window>,
 //! }
 //!
 //! impl ApplicationHandler for App {
-//!     fn can_create_surfaces(&mut self, event_loop: &dyn ActiveEventLoop) {
-//!         self.window = Some(event_loop.create_window(WindowAttributes::default()).unwrap());
-//!     }
-//!
-//!     fn window_event(&mut self, event_loop: &dyn ActiveEventLoop, id: WindowId, event: WindowEvent) {
+//!     fn window_event(
+//!         &mut self,
+//!         event_loop: &dyn ActiveEventLoop,
+//!         id: WindowId,
+//!         event: WindowEvent,
+//!     ) {
+//!         // Called by `EventLoop::run` when a new event happens on the window.
 //!         match event {
 //!             WindowEvent::CloseRequested => {
 //!                 println!("The close button was pressed; stopping");
@@ -74,28 +71,45 @@
 //!                 // Queue a RedrawRequested event.
 //!                 //
 //!                 // You only need to call this if you've determined that you need to redraw in
-//!                 // applications which do not always need to. Applications that redraw continuously
-//!                 // can render here instead.
-//!                 self.window.as_ref().unwrap().request_redraw();
-//!             }
+//!                 // applications which do not always need to.
+//!                 self.window.request_redraw();
+//!             },
 //!             _ => (),
 //!         }
 //!     }
 //! }
 //!
-//! let event_loop = EventLoop::new().unwrap();
+//! fn main() -> Result<(), Box<dyn std::error::Error>> {
+//!     // Create a new event loop.
+//!     let event_loop = EventLoop::new()?;
 //!
-//! // ControlFlow::Poll continuously runs the event loop, even if the OS hasn't
-//! // dispatched any events. This is ideal for games and similar applications.
-//! event_loop.set_control_flow(ControlFlow::Poll);
+//!     // Configure settings before launching.
 //!
-//! // ControlFlow::Wait pauses the event loop if no events are available to process.
-//! // This is ideal for non-game applications that only update in response to user
-//! // input, and uses significantly less power/CPU time than ControlFlow::Poll.
-//! event_loop.set_control_flow(ControlFlow::Wait);
+//!     // ControlFlow::Poll continuously runs the event loop, even if the OS hasn't
+//!     // dispatched any events. This is ideal for games and similar applications.
+//!     event_loop.set_control_flow(ControlFlow::Poll);
 //!
-//! let mut app = App::default();
-//! event_loop.run_app(&mut app);
+//!     // ControlFlow::Wait pauses the event loop if no events are available to process.
+//!     // This is ideal for non-game applications that only update in response to user
+//!     // input, and uses significantly less power/CPU time than ControlFlow::Poll.
+//!     event_loop.set_control_flow(ControlFlow::Wait);
+//!
+//!     // Launch and begin running our event loop.
+//!     event_loop.run(|event_loop| {
+//!         // The event loop has launched, and we can initialize our UI state in this closure.
+//!
+//!         // Create a simple window with default attributes.
+//!         let window = event_loop
+//!             .create_window(WindowAttributes::default())
+//!             .expect("failed creating window");
+//!
+//!         // Give our newly created application state to Winit, which will, when necessary, call
+//!         // the `ApplicationHandler` methods configured above.
+//!         App { window }
+//!     })?;
+//!
+//!     Ok(())
+//! }
 //! ```
 //!
 //! [`WindowEvent`] has a [`WindowId`] member. In multi-window environments, it should be
@@ -147,20 +161,21 @@
 //! See the [`platform`] module for documentation on platform-specific cargo
 //! features.
 //!
+//! [`ActiveEventLoop`]: event_loop::ActiveEventLoop
 //! [`EventLoop`]: event_loop::EventLoop
 //! [`EventLoop::new()`]: event_loop::EventLoop::new
-//! [`EventLoop::run_app()`]: event_loop::EventLoop::run_app
-//! [`exit()`]: event_loop::ActiveEventLoop::exit
+//! [`EventLoop::run()`]: event_loop::EventLoop::run
+//! [`ActiveEventLoop::exit()`]: event_loop::ActiveEventLoop::exit
 //! [`Window`]: window::Window
 //! [`WindowId`]: window::WindowId
 //! [`WindowAttributes`]: window::WindowAttributes
 //! [window_new]: window::Window::new
-//! [`create_window`]: event_loop::ActiveEventLoop::create_window
+//! [`ActiveEventLoop::create_window()`]: event_loop::ActiveEventLoop::create_window
 //! [`Window::id()`]: window::Window::id
 //! [`WindowEvent`]: event::WindowEvent
 //! [`DeviceEvent`]: event::DeviceEvent
+//! [`ApplicationHandler`]: application::ApplicationHandler
 //! [`Event::UserEvent`]: event::Event::UserEvent
-//! [`exiting()`]: crate::application::ApplicationHandler::exiting
 //! [`raw_window_handle`]: ./window/struct.Window.html#method.raw_window_handle
 //! [`raw_display_handle`]: ./window/struct.Window.html#method.raw_display_handle
 //! [^1]: `EventLoopExtPumpEvents::pump_app_events()` is only available on Windows, macOS, Android, X11 and Wayland.

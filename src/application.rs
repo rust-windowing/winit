@@ -5,6 +5,8 @@ use crate::event_loop::ActiveEventLoop;
 use crate::window::WindowId;
 
 /// The handler of the application events.
+///
+/// This is dropped when the event loop is being shut down.
 pub trait ApplicationHandler {
     /// Emitted when new events arrive from the OS to be processed.
     ///
@@ -50,49 +52,6 @@ pub trait ApplicationHandler {
         let _ = event_loop;
     }
 
-    /// Emitted from the point onwards the application should create render surfaces.
-    ///
-    /// See [`destroy_surfaces()`].
-    ///
-    /// ## Portability
-    ///
-    /// It's recommended that applications should only initialize their render surfaces after the
-    /// [`can_create_surfaces()`] method is called. Some systems (specifically Android) won't allow
-    /// applications to create a render surface until that point.
-    ///
-    /// For consistency, all platforms call this method even if they don't themselves have a formal
-    /// surface destroy/create lifecycle. For systems without a surface destroy/create lifecycle the
-    /// [`can_create_surfaces()`] event is always emitted after the [`StartCause::Init`] event.
-    ///
-    /// Applications should be able to gracefully handle back-to-back [`can_create_surfaces()`] and
-    /// [`destroy_surfaces()`] calls.
-    ///
-    /// ## Platform-specific
-    ///
-    /// ### Android
-    ///
-    /// On Android, the [`can_create_surfaces()`] method is called when a new [`SurfaceView`] has
-    /// been created. This is expected to closely correlate with the [`onResume`] lifecycle
-    /// event but there may technically be a discrepancy.
-    ///
-    /// [`onResume`]: https://developer.android.com/reference/android/app/Activity#onResume()
-    ///
-    /// Applications that need to run on Android must wait until they have been "resumed" before
-    /// they will be able to create a render surface (such as an `EGLSurface`, [`VkSurfaceKHR`]
-    /// or [`wgpu::Surface`]) which depend on having a [`SurfaceView`]. Applications must also
-    /// assume that if they are [suspended], then their render surfaces are invalid and should
-    /// be dropped.
-    ///
-    /// [suspended]: Self::destroy_surfaces
-    /// [`SurfaceView`]: https://developer.android.com/reference/android/view/SurfaceView
-    /// [Activity lifecycle]: https://developer.android.com/guide/components/activities/activity-lifecycle
-    /// [`VkSurfaceKHR`]: https://www.khronos.org/registry/vulkan/specs/1.3-extensions/man/html/VkSurfaceKHR.html
-    /// [`wgpu::Surface`]: https://docs.rs/wgpu/latest/wgpu/struct.Surface.html
-    ///
-    /// [`can_create_surfaces()`]: Self::can_create_surfaces
-    /// [`destroy_surfaces()`]: Self::destroy_surfaces
-    fn can_create_surfaces(&mut self, event_loop: &dyn ActiveEventLoop);
-
     /// Called after a wake up is requested using [`EventLoopProxy::wake_up()`].
     ///
     /// Multiple calls to the aforementioned method will be merged, and will only wake the event
@@ -132,8 +91,6 @@ pub trait ApplicationHandler {
     ///     # ) {
     ///     # }
     ///     #
-    ///     # fn can_create_surfaces(&mut self, _event_loop: &dyn ActiveEventLoop) {}
-    ///     #
     ///     fn proxy_wake_up(&mut self, _event_loop: &dyn ActiveEventLoop) {
     ///         // Iterate current events, since wake-ups may have been merged.
     ///         //
@@ -151,8 +108,6 @@ pub trait ApplicationHandler {
     ///     let event_loop = EventLoop::new()?;
     ///
     ///     let (sender, receiver) = mpsc::channel();
-    ///
-    ///     let mut app = MyApp { receiver };
     ///
     ///     // Send an event in a loop
     ///     let proxy = event_loop.create_proxy();
@@ -172,9 +127,8 @@ pub trait ApplicationHandler {
     ///         }
     ///     });
     ///
-    ///     event_loop.run_app(&mut app)?;
+    ///     event_loop.run(|_event_loop| MyApp { receiver })?;
     ///
-    ///     drop(app);
     ///     background_thread.join().unwrap();
     ///
     ///     Ok(())
@@ -253,48 +207,52 @@ pub trait ApplicationHandler {
 
     /// Emitted when the application must destroy its render surfaces.
     ///
-    /// See [`can_create_surfaces()`] for more details.
+    /// [`recreate_surfaces()`] is emitted after this when it's safe to re-create surfaces.
     ///
     /// ## Platform-specific
     ///
     /// ### Android
     ///
-    /// On Android, the [`destroy_surfaces()`] method is called when the application's associated
-    /// [`SurfaceView`] is destroyed. This is expected to closely correlate with the [`onPause`]
-    /// lifecycle event but there may technically be a discrepancy.
+    /// Applications that need to run on Android must be able to handle their underlying
+    /// [`SurfaceView`] being destroyed, which in turn indirectly invalidates any existing
+    /// render surfaces that may have been created outside of Winit (such as an `EGLSurface`,
+    /// [`VkSurfaceKHR`] or [`wgpu::Surface`]).
     ///
-    /// [`onPause`]: https://developer.android.com/reference/android/app/Activity#onPause()
+    /// This means that in this method, you must drop all render surfaces before the event callback
+    /// completes, and only re-create them in [`recreate_surfaces()`].
     ///
-    /// Applications that need to run on Android should assume their [`SurfaceView`] has been
-    /// destroyed, which indirectly invalidates any existing render surfaces that may have been
-    /// created outside of Winit (such as an `EGLSurface`, [`VkSurfaceKHR`] or [`wgpu::Surface`]).
+    /// This is expected to closely correlate with the [`onPause`] lifecycle event but there may
+    /// technically be a discrepancy.
     ///
-    /// After being [suspended] on Android applications must drop all render surfaces before
-    /// the event callback completes, which may be re-created when the application is next
-    /// [resumed].
-    ///
-    /// [suspended]: Self::destroy_surfaces
-    /// [resumed]: Self::can_create_surfaces
+    /// [`recreate_surfaces()`]: Self::recreate_surfaces
     /// [`SurfaceView`]: https://developer.android.com/reference/android/view/SurfaceView
-    /// [Activity lifecycle]: https://developer.android.com/guide/components/activities/activity-lifecycle
     /// [`VkSurfaceKHR`]: https://www.khronos.org/registry/vulkan/specs/1.3-extensions/man/html/VkSurfaceKHR.html
     /// [`wgpu::Surface`]: https://docs.rs/wgpu/latest/wgpu/struct.Surface.html
-    ///
-    /// ### Others
-    ///
-    /// - **iOS / macOS / Orbital / Wayland / Web / Windows / X11:** Unsupported.
-    ///
-    /// [`can_create_surfaces()`]: Self::can_create_surfaces
-    /// [`destroy_surfaces()`]: Self::destroy_surfaces
+    /// [`onPause`]: https://developer.android.com/reference/android/app/Activity#onPause()
     fn destroy_surfaces(&mut self, event_loop: &dyn ActiveEventLoop) {
         let _ = event_loop;
     }
 
-    /// Emitted when the event loop is being shut down.
+    /// Emitted when the application should re-create render surfaces, after destroying them in
+    /// [`destroy_surfaces()`], see that for details.
     ///
-    /// This is irreversible - if this method is called, it is guaranteed that the event loop
-    /// will exit right after.
-    fn exiting(&mut self, event_loop: &dyn ActiveEventLoop) {
+    /// ## Platform-specific
+    ///
+    /// ### Android
+    ///
+    /// On Android, surfaces should be created in the initialization closure given to
+    /// [`EventLoop::run()`], just like on all other platforms. When they need to be re-created
+    /// after being destroyed by the system, because a new [`SurfaceView`] has been created, you
+    /// will need to use this callback.
+    ///
+    /// This is expected to closely correlate with the [`onResume`] lifecycle event but there may
+    /// technically be a discrepancy.
+    ///
+    /// [`destroy_surfaces()`]: Self::destroy_surfaces
+    /// [`EventLoop::run()`]: crate::event_loop::EventLoop::run
+    /// [`SurfaceView`]: https://developer.android.com/reference/android/view/SurfaceView
+    /// [`onResume`]: https://developer.android.com/reference/android/app/Activity#onResume()
+    fn recreate_surfaces(&mut self, event_loop: &dyn ActiveEventLoop) {
         let _ = event_loop;
     }
 
@@ -340,11 +298,6 @@ impl<A: ?Sized + ApplicationHandler> ApplicationHandler for &mut A {
     }
 
     #[inline]
-    fn can_create_surfaces(&mut self, event_loop: &dyn ActiveEventLoop) {
-        (**self).can_create_surfaces(event_loop);
-    }
-
-    #[inline]
     fn proxy_wake_up(&mut self, event_loop: &dyn ActiveEventLoop) {
         (**self).proxy_wake_up(event_loop);
     }
@@ -385,8 +338,8 @@ impl<A: ?Sized + ApplicationHandler> ApplicationHandler for &mut A {
     }
 
     #[inline]
-    fn exiting(&mut self, event_loop: &dyn ActiveEventLoop) {
-        (**self).exiting(event_loop);
+    fn recreate_surfaces(&mut self, event_loop: &dyn ActiveEventLoop) {
+        (**self).recreate_surfaces(event_loop);
     }
 
     #[inline]
@@ -408,11 +361,6 @@ impl<A: ?Sized + ApplicationHandler> ApplicationHandler for Box<A> {
     }
 
     #[inline]
-    fn can_create_surfaces(&mut self, event_loop: &dyn ActiveEventLoop) {
-        (**self).can_create_surfaces(event_loop);
-    }
-
-    #[inline]
     fn proxy_wake_up(&mut self, event_loop: &dyn ActiveEventLoop) {
         (**self).proxy_wake_up(event_loop);
     }
@@ -453,8 +401,8 @@ impl<A: ?Sized + ApplicationHandler> ApplicationHandler for Box<A> {
     }
 
     #[inline]
-    fn exiting(&mut self, event_loop: &dyn ActiveEventLoop) {
-        (**self).exiting(event_loop);
+    fn recreate_surfaces(&mut self, event_loop: &dyn ActiveEventLoop) {
+        (**self).recreate_surfaces(event_loop);
     }
 
     #[inline]

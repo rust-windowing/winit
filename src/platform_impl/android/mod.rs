@@ -1,5 +1,6 @@
 use std::cell::Cell;
 use std::hash::Hash;
+use std::mem::replace;
 use std::num::{NonZeroU16, NonZeroU32};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
@@ -122,6 +123,55 @@ impl Default for PlatformSpecificEventLoopAttributes {
     }
 }
 
+enum ApplicationState<A, F> {
+    SurfacesNotReady(F),
+    Ready(A),
+    Invalid,
+}
+
+impl<A: ApplicationHandler, F: FnOnce(&dyn RootActiveEventLoop) -> A> ApplicationState<A, F> {
+    fn surfaces_ready(&mut self, event_loop: &dyn RootActiveEventLoop) {
+        // Temporarily transition to an invalid state to make the compiler happy
+        match replace(self, Self::Invalid) {
+            Self::SurfacesNotReady(handler) => {
+                let mut app = handler(event_loop);
+                // We run lifecycle events here that didn't get emitted before now because the
+                // application wasn't yet ready.
+                app.new_events(event_loop, StartCause::Init);
+
+                *self = Self::Ready(app);
+            },
+            Self::Ready(mut app) => {
+                app.recreate_surfaces(event_loop);
+                *self = Self::Ready(app);
+            },
+            Self::Invalid => unreachable!("invalid state"),
+        }
+    }
+
+    #[track_caller]
+    fn handle_if_ready(&mut self, closure: impl FnOnce(&mut A)) {
+        match self {
+            Self::SurfacesNotReady(_) => {
+                tracing::trace!("event happened before application handler was initialized")
+            },
+            Self::Ready(app) => closure(app),
+            Self::Invalid => unreachable!("invalid state"),
+        }
+    }
+
+    #[track_caller]
+    fn handle(&mut self, closure: impl FnOnce(&mut A)) {
+        match self {
+            Self::SurfacesNotReady(_) => {
+                tracing::error!("tried to call application handler before it being initialized")
+            },
+            Self::Ready(app) => closure(app),
+            Self::Invalid => unreachable!("invalid state"),
+        }
+    }
+}
+
 impl EventLoop {
     pub(crate) fn new(
         attributes: &PlatformSpecificEventLoopAttributes,
@@ -157,10 +207,10 @@ impl EventLoop {
         &self.window_target
     }
 
-    fn single_iteration<A: ApplicationHandler>(
+    fn single_iteration<A: ApplicationHandler, F: FnOnce(&dyn RootActiveEventLoop) -> A>(
         &mut self,
         main_event: Option<MainEvent<'_>>,
-        app: &mut A,
+        app_state: &mut ApplicationState<A, F>,
     ) {
         trace!("Mainloop iteration");
 
@@ -168,17 +218,17 @@ impl EventLoop {
         let mut pending_redraw = self.pending_redraw;
         let mut resized = false;
 
-        app.new_events(&self.window_target, cause);
+        app_state.handle_if_ready(|app| app.new_events(&self.window_target, cause));
 
         if let Some(event) = main_event {
             trace!("Handling main event {:?}", event);
 
             match event {
                 MainEvent::InitWindow { .. } => {
-                    app.can_create_surfaces(&self.window_target);
+                    app_state.surfaces_ready(&self.window_target);
                 },
                 MainEvent::TerminateWindow { .. } => {
-                    app.destroy_surfaces(&self.window_target);
+                    app_state.handle(|app| app.destroy_surfaces(&self.window_target));
                 },
                 MainEvent::WindowResized { .. } => resized = true,
                 MainEvent::RedrawNeeded { .. } => pending_redraw = true,
@@ -189,13 +239,13 @@ impl EventLoop {
                     HAS_FOCUS.store(true, Ordering::Relaxed);
                     let window_id = window::WindowId(WindowId);
                     let event = event::WindowEvent::Focused(true);
-                    app.window_event(&self.window_target, window_id, event);
+                    app_state.handle(|app| app.window_event(&self.window_target, window_id, event));
                 },
                 MainEvent::LostFocus => {
                     HAS_FOCUS.store(false, Ordering::Relaxed);
                     let window_id = window::WindowId(WindowId);
                     let event = event::WindowEvent::Focused(false);
-                    app.window_event(&self.window_target, window_id, event);
+                    app_state.handle(|app| app.window_event(&self.window_target, window_id, event));
                 },
                 MainEvent::ConfigChanged { .. } => {
                     let old_scale_factor = scale_factor(&self.android_app);
@@ -210,11 +260,12 @@ impl EventLoop {
                             scale_factor,
                         };
 
-                        app.window_event(&self.window_target, window_id, event);
+                        app_state
+                            .handle(|app| app.window_event(&self.window_target, window_id, event));
                     }
                 },
                 MainEvent::LowMemory => {
-                    app.memory_warning(&self.window_target);
+                    app_state.handle(|app| app.memory_warning(&self.window_target));
                 },
                 MainEvent::Start => {
                     // XXX: how to forward this state to applications?
@@ -259,7 +310,7 @@ impl EventLoop {
         let android_app = self.android_app.clone();
 
         // Process input events
-        match android_app.input_events_iter() {
+        app_state.handle_if_ready(|app| match android_app.input_events_iter() {
             Ok(mut input_iter) => loop {
                 let read_event =
                     input_iter.next(|event| self.handle_input_event(&android_app, event, app));
@@ -271,11 +322,13 @@ impl EventLoop {
             Err(err) => {
                 tracing::warn!("Failed to get input events iterator: {err:?}");
             },
-        }
+        });
 
-        if self.window_target.proxy_wake_up.swap(false, Ordering::Relaxed) {
-            app.proxy_wake_up(&self.window_target);
-        }
+        app_state.handle_if_ready(|app| {
+            if self.window_target.proxy_wake_up.swap(false, Ordering::Relaxed) {
+                app.proxy_wake_up(&self.window_target);
+            }
+        });
 
         if self.running {
             if resized {
@@ -288,7 +341,7 @@ impl EventLoop {
                 };
                 let window_id = window::WindowId(WindowId);
                 let event = event::WindowEvent::Resized(size);
-                app.window_event(&self.window_target, window_id, event);
+                app_state.handle(|app| app.window_event(&self.window_target, window_id, event));
             }
 
             pending_redraw |= self.redraw_flag.get_and_reset();
@@ -296,12 +349,12 @@ impl EventLoop {
                 pending_redraw = false;
                 let window_id = window::WindowId(WindowId);
                 let event = event::WindowEvent::RedrawRequested;
-                app.window_event(&self.window_target, window_id, event);
+                app_state.handle(|app| app.window_event(&self.window_target, window_id, event));
             }
         }
 
         // This is always the last event we dispatch before poll again
-        app.about_to_wait(&self.window_target);
+        app_state.handle_if_ready(|app| app.about_to_wait(&self.window_target));
 
         self.pending_redraw = pending_redraw;
     }
@@ -413,17 +466,21 @@ impl EventLoop {
         input_status
     }
 
-    pub fn run_app<A: ApplicationHandler>(mut self, app: A) -> Result<(), EventLoopError> {
-        self.run_app_on_demand(app)
+    pub fn run<A: ApplicationHandler>(
+        mut self,
+        init_closure: impl FnOnce(&dyn RootActiveEventLoop) -> A,
+    ) -> Result<(), EventLoopError> {
+        self.run_on_demand(init_closure)
     }
 
-    pub fn run_app_on_demand<A: ApplicationHandler>(
+    pub fn run_on_demand<A: ApplicationHandler>(
         &mut self,
-        mut app: A,
+        init_closure: impl FnOnce(&dyn RootActiveEventLoop) -> A,
     ) -> Result<(), EventLoopError> {
         self.window_target.clear_exit();
+        let mut app_state = ApplicationState::SurfacesNotReady(init_closure);
         loop {
-            match self.pump_app_events(None, &mut app) {
+            match self.pump_app_events_inner(None, &mut app_state) {
                 PumpStatus::Exit(0) => {
                     break Ok(());
                 },
@@ -440,7 +497,21 @@ impl EventLoop {
     pub fn pump_app_events<A: ApplicationHandler>(
         &mut self,
         timeout: Option<Duration>,
-        mut app: A,
+        app: A,
+    ) -> PumpStatus {
+        fn type_helper<A>(_event_loop: &dyn RootActiveEventLoop) -> A {
+            unimplemented!()
+        }
+        #[allow(unused_assignments)]
+        let mut app_state = ApplicationState::SurfacesNotReady(type_helper::<A>);
+        app_state = ApplicationState::Ready(app);
+        self.pump_app_events_inner(timeout, &mut app_state)
+    }
+
+    fn pump_app_events_inner<A: ApplicationHandler, F: FnOnce(&dyn RootActiveEventLoop) -> A>(
+        &mut self,
+        timeout: Option<Duration>,
+        app_state: &mut ApplicationState<A, F>,
     ) -> PumpStatus {
         if !self.loop_running {
             self.loop_running = true;
@@ -452,18 +523,16 @@ impl EventLoop {
             self.cause = StartCause::Init;
 
             // run the initial loop iteration
-            self.single_iteration(None, &mut app);
+            self.single_iteration(None, app_state);
         }
 
         // Consider the possibility that the `StartCause::Init` iteration could
         // request to Exit
         if !self.exiting() {
-            self.poll_events_with_timeout(timeout, &mut app);
+            self.poll_events_with_timeout(timeout, app_state);
         }
         if self.exiting() {
             self.loop_running = false;
-
-            app.exiting(&self.window_target);
 
             PumpStatus::Exit(0)
         } else {
@@ -471,10 +540,10 @@ impl EventLoop {
         }
     }
 
-    fn poll_events_with_timeout<A: ApplicationHandler>(
+    fn poll_events_with_timeout<A: ApplicationHandler, F: FnOnce(&dyn RootActiveEventLoop) -> A>(
         &mut self,
         mut timeout: Option<Duration>,
-        app: &mut A,
+        app_state: &mut ApplicationState<A, F>,
     ) {
         let start = Instant::now();
 
@@ -540,7 +609,7 @@ impl EventLoop {
                 },
             };
 
-            self.single_iteration(main_event, app);
+            self.single_iteration(main_event, app_state);
         });
     }
 

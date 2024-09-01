@@ -21,20 +21,22 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         window: Option<Box<dyn Window>>,
     }
 
-    impl ApplicationHandler for App {
-        fn about_to_wait(&mut self, _event_loop: &dyn ActiveEventLoop) {
-            if let Some(window) = self.window.as_ref() {
-                window.request_redraw();
-            }
-        }
-
-        fn can_create_surfaces(&mut self, event_loop: &dyn ActiveEventLoop) {
+    impl App {
+        fn init_window(&mut self, event_loop: &dyn ActiveEventLoop) {
             let window_attributes = WindowAttributes::default()
                 .with_title("Fantastic window number one!")
                 .with_inner_size(winit::dpi::LogicalSize::new(128.0, 128.0));
             let window = event_loop.create_window(window_attributes).unwrap();
             self.window_id = Some(window.id());
             self.window = Some(window);
+        }
+    }
+
+    impl ApplicationHandler for App {
+        fn about_to_wait(&mut self, _event_loop: &dyn ActiveEventLoop) {
+            if let Some(window) = self.window.as_ref() {
+                window.request_redraw();
+            }
         }
 
         fn window_event(
@@ -81,14 +83,20 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut event_loop = EventLoop::new().unwrap();
 
     let mut app = App { idx: 1, ..Default::default() };
-    event_loop.run_app_on_demand(&mut app)?;
+    event_loop.run_on_demand(|event_loop| {
+        app.init_window(event_loop);
+        &mut app
+    })?;
 
     println!("--------------------------------------------------------- Finished first loop");
     println!("--------------------------------------------------------- Waiting 5 seconds");
     std::thread::sleep(Duration::from_secs(5));
 
     app.idx += 1;
-    event_loop.run_app_on_demand(&mut app)?;
+    event_loop.run_on_demand(|event_loop| {
+        app.init_window(event_loop);
+        &mut app
+    })?;
     println!("--------------------------------------------------------- Finished second loop");
     Ok(())
 }
