@@ -2,6 +2,8 @@
 
 use crate::event::{DeviceEvent, DeviceId, StartCause, WindowEvent};
 use crate::event_loop::ActiveEventLoop;
+#[cfg(any(doc, target_os = "macos"))]
+use crate::platform::macos::ApplicationHandlerExtMacOS;
 use crate::window::WindowId;
 
 /// The handler of the application events.
@@ -329,11 +331,9 @@ pub trait ApplicationHandler {
     /// The macOS-specific handler.
     ///
     /// The return value from this should not change at runtime.
-    #[cfg(target_os = "macos")]
+    #[cfg(any(doc, target_os = "macos"))]
     #[inline]
-    fn macos_handler(
-        &mut self,
-    ) -> Option<&mut dyn crate::platform::macos::ApplicationHandlerExtMacOS> {
+    fn macos_handler(&mut self) -> Option<&mut dyn ApplicationHandlerExtMacOS> {
         None
     }
 }
@@ -405,11 +405,9 @@ impl<A: ?Sized + ApplicationHandler> ApplicationHandler for &mut A {
         (**self).memory_warning(event_loop);
     }
 
-    #[cfg(target_os = "macos")]
+    #[cfg(any(doc, target_os = "macos"))]
     #[inline]
-    fn macos_handler(
-        &mut self,
-    ) -> Option<&mut dyn crate::platform::macos::ApplicationHandlerExtMacOS> {
+    fn macos_handler(&mut self) -> Option<&mut dyn ApplicationHandlerExtMacOS> {
         (**self).macos_handler()
     }
 }
@@ -481,11 +479,9 @@ impl<A: ?Sized + ApplicationHandler> ApplicationHandler for Box<A> {
         (**self).memory_warning(event_loop);
     }
 
-    #[cfg(target_os = "macos")]
+    #[cfg(any(doc, target_os = "macos"))]
     #[inline]
-    fn macos_handler(
-        &mut self,
-    ) -> Option<&mut dyn crate::platform::macos::ApplicationHandlerExtMacOS> {
+    fn macos_handler(&mut self) -> Option<&mut dyn ApplicationHandlerExtMacOS> {
         (**self).macos_handler()
     }
 }
