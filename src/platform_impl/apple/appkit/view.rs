@@ -432,6 +432,14 @@ declare_class!(
                 self.ivars().ime_state.set(ImeState::Ground);
             }
 
+            // The documentation for `-[NSTextInputClient doCommandBySelector:]` clearly states that
+            // we should not be forwarding this event up the responder chain.
+
+            // Ignore no-operation selectors
+            if command == sel!(noop:) {
+                return;
+            }
+
             // Send command action to user if they requested it.
             match command.name().parse::<StandardKeyBindingAction>() {
                 Ok(action) => {
@@ -446,9 +454,6 @@ declare_class!(
                     tracing::error!("{err}. Maybe Winit needs to be updated?");
                 }
             }
-
-            // The documentation for `-[NSTextInputClient doCommandBySelector:]` clearly states that
-            // we should not be forwarding this event up the responder chain.
         }
     }
 

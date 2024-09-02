@@ -563,8 +563,12 @@ impl Error for StandardKeyBindingActionParseError {}
 
 macro_rules! standard_key_bindings {
     ($($name:ident($sel:ident :)),* $(,)?) => {
-        /// `NSStandardKeyBindingResponding`.
+        /// Corresponds to the selectors in `NSStandardKeyBindingResponding`.
+        ///
+        /// This list may be incomplete, it was last updated in September 2024. Feel free to open
+        /// an issue if a new key binding exists that Winit does not yet know about.
         #[derive(Debug, Clone, PartialEq, Eq, Hash)]
+        #[non_exhaustive]
         pub enum StandardKeyBindingAction {
             $($name,)*
         }
@@ -723,7 +727,4 @@ standard_key_bindings! {
 
     // Instance methods
     ShowContextMenuForSelection(showContextMenuForSelection:),
-
-    // Other
-    Noop(noop:),
 }
