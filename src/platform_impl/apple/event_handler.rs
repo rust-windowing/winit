@@ -2,8 +2,9 @@ use std::cell::RefCell;
 use std::{fmt, mem};
 
 use crate::application::ApplicationHandler;
-use crate::event_loop::ActiveEventLoop as RootActiveEventLoop;
 
+/// A helper type for storing a reference to `ApplicationHandler`, allowing interior mutable access
+/// to it within the execution of a closure.
 #[derive(Default)]
 pub(crate) struct EventHandler {
     /// This can be in the following states:
@@ -100,19 +101,17 @@ impl EventHandler {
         // soundness.
     }
 
+    #[cfg(target_os = "macos")]
     pub(crate) fn in_use(&self) -> bool {
         self.inner.try_borrow().is_err()
     }
 
+    #[cfg(target_os = "macos")]
     pub(crate) fn ready(&self) -> bool {
         matches!(self.inner.try_borrow().as_deref(), Ok(Some(_)))
     }
 
-    pub(crate) fn handle(
-        &self,
-        callback: impl FnOnce(&mut dyn ApplicationHandler, &RootActiveEventLoop),
-        event_loop: &RootActiveEventLoop,
-    ) {
+    pub(crate) fn handle(&self, callback: impl FnOnce(&mut dyn ApplicationHandler)) {
         match self.inner.try_borrow_mut().as_deref_mut() {
             Ok(Some(user_app)) => {
                 // It is important that we keep the reference borrowed here,
@@ -121,10 +120,10 @@ impl EventHandler {
                 //
                 // If the handler unwinds, the `RefMut` will ensure that the
                 // handler is no longer borrowed.
-                callback(*user_app, event_loop);
+                callback(*user_app);
             },
             Ok(None) => {
-                // `NSApplication`, our app delegate and this handler are all
+                // `NSApplication`, our app state and this handler are all
                 // global state and so it's not impossible that we could get
                 // an event after the application has exited the `EventLoop`.
                 tracing::error!("tried to run event handler, but no handler was set");

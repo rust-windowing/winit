@@ -4,8 +4,7 @@ use std::iter;
 use std::ops::Deref;
 use std::rc::{Rc, Weak};
 
-use js_sys::Function;
-use wasm_bindgen::prelude::{wasm_bindgen, Closure};
+use wasm_bindgen::prelude::Closure;
 use wasm_bindgen::JsCast;
 use web_sys::{Document, KeyboardEvent, Navigator, PageTransitionEvent, PointerEvent, WheelEvent};
 use web_time::{Duration, Instant};
@@ -287,7 +286,7 @@ impl Shared {
                 }
 
                 // chorded button event
-                let device_id = RootDeviceId(DeviceId(event.pointer_id()));
+                let device_id = RootDeviceId(DeviceId::new(event.pointer_id()));
 
                 if let Some(button) = backend::event::mouse_button(&event) {
                     let state = if backend::event::mouse_buttons(&event).contains(button.into()) {
@@ -306,23 +305,13 @@ impl Shared {
 
                 // pointer move event
                 let mut delta = backend::event::MouseDelta::init(&navigator, &event);
-                runner.send_events(backend::event::pointer_move_event(event).flat_map(|event| {
+                runner.send_events(backend::event::pointer_move_event(event).map(|event| {
                     let delta = delta.delta(&event).to_physical(backend::scale_factor(&window));
 
-                    let x_motion = (delta.x != 0.0).then_some(Event::DeviceEvent {
-                        device_id,
-                        event: DeviceEvent::Motion { axis: 0, value: delta.x },
-                    });
-
-                    let y_motion = (delta.y != 0.0).then_some(Event::DeviceEvent {
-                        device_id,
-                        event: DeviceEvent::Motion { axis: 1, value: delta.y },
-                    });
-
-                    x_motion.into_iter().chain(y_motion).chain(iter::once(Event::DeviceEvent {
+                    Event::DeviceEvent {
                         device_id,
                         event: DeviceEvent::MouseMotion { delta: (delta.x, delta.y) },
-                    }))
+                    }
                 }));
             }),
         ));
@@ -338,7 +327,7 @@ impl Shared {
 
                 if let Some(delta) = backend::event::mouse_scroll_delta(&window, &event) {
                     runner.send_event(Event::DeviceEvent {
-                        device_id: RootDeviceId(DeviceId(0)),
+                        device_id: RootDeviceId(DeviceId::dummy()),
                         event: DeviceEvent::MouseWheel { delta },
                     });
                 }
@@ -355,7 +344,7 @@ impl Shared {
 
                 let button = backend::event::mouse_button(&event).expect("no mouse button pressed");
                 runner.send_event(Event::DeviceEvent {
-                    device_id: RootDeviceId(DeviceId(event.pointer_id())),
+                    device_id: RootDeviceId(DeviceId::new(event.pointer_id())),
                     event: DeviceEvent::Button {
                         button: button.to_id(),
                         state: ElementState::Pressed,
@@ -374,7 +363,7 @@ impl Shared {
 
                 let button = backend::event::mouse_button(&event).expect("no mouse button pressed");
                 runner.send_event(Event::DeviceEvent {
-                    device_id: RootDeviceId(DeviceId(event.pointer_id())),
+                    device_id: RootDeviceId(DeviceId::new(event.pointer_id())),
                     event: DeviceEvent::Button {
                         button: button.to_id(),
                         state: ElementState::Released,
@@ -505,14 +494,8 @@ impl Shared {
             if let Ok(RunnerEnum::Running(_)) =
                 self.0.runner.try_borrow().as_ref().map(Deref::deref)
             {
-                #[wasm_bindgen]
-                extern "C" {
-                    #[wasm_bindgen(js_name = queueMicrotask)]
-                    fn queue_microtask(task: Function);
-                }
-
-                queue_microtask(
-                    Closure::once_into_js({
+                self.window().queue_microtask(
+                    &Closure::once_into_js({
                         let this = Rc::downgrade(&self.0);
                         move || {
                             if let Some(shared) = this.upgrade() {

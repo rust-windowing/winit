@@ -17,6 +17,7 @@ use rwh_06::{DisplayHandle, HasDisplayHandle};
 use softbuffer::{Context, Surface};
 use winit::application::ApplicationHandler;
 use winit::dpi::{LogicalSize, PhysicalPosition, PhysicalSize};
+use winit::error::ExternalError;
 use winit::event::{DeviceEvent, DeviceId, Ime, MouseButton, MouseScrollDelta, WindowEvent};
 use winit::event_loop::{ActiveEventLoop, EventLoop};
 use winit::keyboard::{Key, ModifiersState};
@@ -30,7 +31,7 @@ use winit::platform::startup_notify::{
 use winit::platform::web::{ActiveEventLoopExtWeb, CustomCursorExtWeb, WindowAttributesExtWeb};
 use winit::window::{
     Cursor, CursorGrabMode, CustomCursor, CustomCursorSource, Fullscreen, Icon, ResizeDirection,
-    Theme, Window, WindowId,
+    Theme, Window, WindowAttributes, WindowId,
 };
 
 #[path = "util/tracing.rs"]
@@ -75,7 +76,7 @@ struct Application {
     receiver: Receiver<Action>,
     sender: Sender<Action>,
     /// Custom cursors assets.
-    custom_cursors: Vec<CustomCursor>,
+    custom_cursors: Result<Vec<CustomCursor>, ExternalError>,
     /// Application icon.
     icon: Icon,
     windows: HashMap<WindowId, WindowState>,
@@ -107,11 +108,13 @@ impl Application {
         let icon = load_icon(include_bytes!("data/icon.png"));
 
         info!("Loading cursor assets");
-        let custom_cursors = vec![
+        let custom_cursors = [
             event_loop.create_custom_cursor(decode_cursor(include_bytes!("data/cross.png"))),
             event_loop.create_custom_cursor(decode_cursor(include_bytes!("data/cross2.png"))),
             event_loop.create_custom_cursor(decode_cursor(include_bytes!("data/gradient.png"))),
-        ];
+        ]
+        .into_iter()
+        .collect();
 
         Self {
             receiver,
@@ -126,13 +129,13 @@ impl Application {
 
     fn create_window(
         &mut self,
-        event_loop: &ActiveEventLoop,
+        event_loop: &dyn ActiveEventLoop,
         _tab_id: Option<String>,
     ) -> Result<WindowId, Box<dyn Error>> {
         // TODO read-out activation token.
 
         #[allow(unused_mut)]
-        let mut window_attributes = Window::default_attributes()
+        let mut window_attributes = WindowAttributes::default()
             .with_title("Winit window")
             .with_transparent(true)
             .with_window_icon(Some(self.icon.clone()));
@@ -172,7 +175,7 @@ impl Application {
         Ok(window_id)
     }
 
-    fn handle_action_from_proxy(&mut self, _event_loop: &ActiveEventLoop, action: Action) {
+    fn handle_action_from_proxy(&mut self, _event_loop: &dyn ActiveEventLoop, action: Action) {
         match action {
             #[cfg(web_platform)]
             Action::DumpMonitors => self.dump_monitors(_event_loop),
@@ -185,7 +188,7 @@ impl Application {
 
     fn handle_action_with_window(
         &mut self,
-        event_loop: &ActiveEventLoop,
+        event_loop: &dyn ActiveEventLoop,
         window_id: WindowId,
         action: Action,
     ) {
@@ -217,12 +220,27 @@ impl Application {
             Action::ToggleImeInput => window.toggle_ime(),
             Action::Minimize => window.minimize(),
             Action::NextCursor => window.next_cursor(),
-            Action::NextCustomCursor => window.next_custom_cursor(&self.custom_cursors),
+            Action::NextCustomCursor => {
+                if let Err(err) = self.custom_cursors.as_ref().map(|c| window.next_custom_cursor(c))
+                {
+                    error!("Error creating custom cursor: {err}");
+                }
+            },
             #[cfg(web_platform)]
-            Action::UrlCustomCursor => window.url_custom_cursor(event_loop),
+            Action::UrlCustomCursor => {
+                if let Err(err) = window.url_custom_cursor(event_loop) {
+                    error!("Error creating custom cursor from URL: {err}");
+                }
+            },
             #[cfg(web_platform)]
             Action::AnimationCustomCursor => {
-                window.animation_custom_cursor(event_loop, &self.custom_cursors)
+                if let Err(err) = self
+                    .custom_cursors
+                    .as_ref()
+                    .map(|c| window.animation_custom_cursor(event_loop, c))
+                {
+                    error!("Error creating animated custom cursor: {err}");
+                }
             },
             Action::CycleCursorGrab => window.cycle_cursor_grab(),
             Action::DragWindow => window.drag_window(),
@@ -268,7 +286,7 @@ impl Application {
         }
     }
 
-    fn dump_monitors(&self, event_loop: &ActiveEventLoop) {
+    fn dump_monitors(&self, event_loop: &dyn ActiveEventLoop) {
         info!("Monitors information");
         let primary_monitor = event_loop.primary_monitor();
         for monitor in event_loop.available_monitors() {
@@ -284,27 +302,32 @@ impl Application {
                 info!("{intro}: [no name]");
             }
 
-            let PhysicalSize { width, height } = monitor.size();
-            info!(
-                "  Current mode: {width}x{height}{}",
-                if let Some(m_hz) = monitor.refresh_rate_millihertz() {
-                    format!(" @ {}.{} Hz", m_hz / 1000, m_hz % 1000)
-                } else {
-                    String::new()
-                }
-            );
+            if let Some(current_mode) = monitor.current_video_mode() {
+                let PhysicalSize { width, height } = current_mode.size();
+                let bits =
+                    current_mode.bit_depth().map(|bits| format!("x{bits}")).unwrap_or_default();
+                let m_hz = current_mode
+                    .refresh_rate_millihertz()
+                    .map(|m_hz| format!(" @ {}.{} Hz", m_hz.get() / 1000, m_hz.get() % 1000))
+                    .unwrap_or_default();
+                info!("  {width}x{height}{bits}{m_hz}");
+            }
 
-            let PhysicalPosition { x, y } = monitor.position();
-            info!("  Position: {x},{y}");
+            if let Some(PhysicalPosition { x, y }) = monitor.position() {
+                info!("  Position: {x},{y}");
+            }
 
             info!("  Scale factor: {}", monitor.scale_factor());
 
             info!("  Available modes (width x height x bit-depth):");
             for mode in monitor.video_modes() {
                 let PhysicalSize { width, height } = mode.size();
-                let bits = mode.bit_depth();
-                let m_hz = mode.refresh_rate_millihertz();
-                info!("    {width}x{height}x{bits} @ {}.{} Hz", m_hz / 1000, m_hz % 1000);
+                let bits = mode.bit_depth().map(|bits| format!("x{bits}")).unwrap_or_default();
+                let m_hz = mode
+                    .refresh_rate_millihertz()
+                    .map(|m_hz| format!(" @ {}.{} Hz", m_hz.get() / 1000, m_hz.get() % 1000))
+                    .unwrap_or_default();
+                info!("    {width}x{height}{bits}{m_hz}");
             }
         }
     }
@@ -348,7 +371,7 @@ impl Application {
 }
 
 impl ApplicationHandler for Application {
-    fn proxy_wake_up(&mut self, event_loop: &ActiveEventLoop) {
+    fn proxy_wake_up(&mut self, event_loop: &dyn ActiveEventLoop) {
         while let Ok(action) = self.receiver.try_recv() {
             self.handle_action_from_proxy(event_loop, action)
         }
@@ -356,7 +379,7 @@ impl ApplicationHandler for Application {
 
     fn window_event(
         &mut self,
-        event_loop: &ActiveEventLoop,
+        event_loop: &dyn ActiveEventLoop,
         window_id: WindowId,
         event: WindowEvent,
     ) {
@@ -488,7 +511,6 @@ impl ApplicationHandler for Application {
             | WindowEvent::HoveredFileCancelled
             | WindowEvent::KeyboardInput { .. }
             | WindowEvent::CursorEntered { .. }
-            | WindowEvent::AxisMotion { .. }
             | WindowEvent::DroppedFile(_)
             | WindowEvent::HoveredFile(_)
             | WindowEvent::Destroyed
@@ -502,14 +524,14 @@ impl ApplicationHandler for Application {
 
     fn device_event(
         &mut self,
-        _event_loop: &ActiveEventLoop,
+        _event_loop: &dyn ActiveEventLoop,
         device_id: DeviceId,
         event: DeviceEvent,
     ) {
         info!("Device {device_id:?} event: {event:?}");
     }
 
-    fn can_create_surfaces(&mut self, event_loop: &ActiveEventLoop) {
+    fn can_create_surfaces(&mut self, event_loop: &dyn ActiveEventLoop) {
         info!("Ready to create surfaces");
         self.dump_monitors(event_loop);
 
@@ -519,7 +541,7 @@ impl ApplicationHandler for Application {
         self.print_help();
     }
 
-    fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
+    fn about_to_wait(&mut self, event_loop: &dyn ActiveEventLoop) {
         if self.windows.is_empty() {
             info!("No windows left, exiting...");
             event_loop.exit();
@@ -527,7 +549,7 @@ impl ApplicationHandler for Application {
     }
 
     #[cfg(not(any(android_platform, ios_platform)))]
-    fn exiting(&mut self, _event_loop: &ActiveEventLoop) {
+    fn exiting(&mut self, _event_loop: &dyn ActiveEventLoop) {
         // We must drop the context here.
         self.context = None;
     }
@@ -541,9 +563,9 @@ struct WindowState {
     ///
     /// NOTE: This surface must be dropped before the `Window`.
     #[cfg(not(any(android_platform, ios_platform)))]
-    surface: Surface<DisplayHandle<'static>, Arc<Window>>,
+    surface: Surface<DisplayHandle<'static>, Arc<dyn Window>>,
     /// The actual winit Window.
-    window: Arc<Window>,
+    window: Arc<dyn Window>,
     /// The window theme we're drawing with.
     theme: Theme,
     /// Cursor position over the window.
@@ -571,8 +593,8 @@ struct WindowState {
 }
 
 impl WindowState {
-    fn new(app: &Application, window: Window) -> Result<Self, Box<dyn Error>> {
-        let window = Arc::new(window);
+    fn new(app: &Application, window: Box<dyn Window>) -> Result<Self, Box<dyn Error>> {
+        let window: Arc<dyn Window> = Arc::from(window);
 
         // SAFETY: the surface is dropped before the `window` which provided it with handle, thus
         // it doesn't outlive it.
@@ -582,7 +604,7 @@ impl WindowState {
         let theme = window.theme().unwrap_or(Theme::Dark);
         info!("Theme: {theme:?}");
         let named_idx = 0;
-        window.set_cursor(CURSORS[named_idx]);
+        window.set_cursor(CURSORS[named_idx].into());
 
         // Allow IME out of the box.
         let ime = true;
@@ -592,7 +614,7 @@ impl WindowState {
         let mut state = Self {
             #[cfg(macos_platform)]
             option_as_alt: window.option_as_alt(),
-            custom_idx: app.custom_cursors.len() - 1,
+            custom_idx: app.custom_cursors.as_ref().map(Vec::len).unwrap_or(1) - 1,
             cursor_grab: CursorGrabMode::None,
             named_idx,
             #[cfg(not(any(android_platform, ios_platform)))]
@@ -617,7 +639,7 @@ impl WindowState {
         self.ime = !self.ime;
         self.window.set_ime_allowed(self.ime);
         if let Some(position) = self.ime.then_some(self.cursor_position).flatten() {
-            self.window.set_ime_cursor_area(position, PhysicalSize::new(20, 20));
+            self.window.set_ime_cursor_area(position.into(), PhysicalSize::new(20, 20).into());
         }
     }
 
@@ -628,7 +650,7 @@ impl WindowState {
     pub fn cursor_moved(&mut self, position: PhysicalPosition<f64>) {
         self.cursor_position = Some(position);
         if self.ime {
-            self.window.set_ime_cursor_area(position, PhysicalSize::new(20, 20));
+            self.window.set_ime_cursor_area(position.into(), PhysicalSize::new(20, 20).into());
         }
     }
 
@@ -664,7 +686,7 @@ impl WindowState {
     fn toggle_resize_increments(&mut self) {
         let new_increments = match self.window.resize_increments() {
             Some(_) => None,
-            None => Some(LogicalSize::new(25.0, 25.0)),
+            None => Some(LogicalSize::new(25.0, 25.0).into()),
         };
         info!("Had increments: {}", new_increments.is_none());
         self.window.set_resize_increments(new_increments);
@@ -714,7 +736,7 @@ impl WindowState {
         mem::swap(&mut inner_size.width, &mut inner_size.height);
         info!("Requesting resize from {old_inner_size:?} to {inner_size:?}");
 
-        if let Some(new_inner_size) = self.window.request_inner_size(inner_size) {
+        if let Some(new_inner_size) = self.window.request_inner_size(inner_size.into()) {
             if old_inner_size == new_inner_size {
                 info!("Inner size change got ignored");
             } else {
@@ -741,30 +763,37 @@ impl WindowState {
 
     /// Custom cursor from an URL.
     #[cfg(web_platform)]
-    fn url_custom_cursor(&mut self, event_loop: &ActiveEventLoop) {
-        let cursor = event_loop.create_custom_cursor(url_custom_cursor());
+    fn url_custom_cursor(
+        &mut self,
+        event_loop: &dyn ActiveEventLoop,
+    ) -> Result<(), Box<dyn Error>> {
+        let cursor = event_loop.create_custom_cursor(url_custom_cursor())?;
 
-        self.window.set_cursor(cursor);
+        self.window.set_cursor(cursor.into());
+
+        Ok(())
     }
 
     /// Custom cursor from a URL.
     #[cfg(web_platform)]
     fn animation_custom_cursor(
         &mut self,
-        event_loop: &ActiveEventLoop,
+        event_loop: &dyn ActiveEventLoop,
         custom_cursors: &[CustomCursor],
-    ) {
+    ) -> Result<(), Box<dyn Error>> {
         use std::time::Duration;
 
         let cursors = vec![
             custom_cursors[0].clone(),
             custom_cursors[1].clone(),
-            event_loop.create_custom_cursor(url_custom_cursor()),
+            event_loop.create_custom_cursor(url_custom_cursor())?,
         ];
         let cursor = CustomCursor::from_animation(Duration::from_secs(3), cursors).unwrap();
-        let cursor = event_loop.create_custom_cursor(cursor);
+        let cursor = event_loop.create_custom_cursor(cursor)?;
 
-        self.window.set_cursor(cursor);
+        self.window.set_cursor(cursor.into());
+
+        Ok(())
     }
 
     /// Resize the window to the new size.
@@ -791,7 +820,7 @@ impl WindowState {
     /// Show window menu.
     fn show_menu(&self) {
         if let Some(position) = self.cursor_position {
-            self.window.show_window_menu(position);
+            self.window.show_window_menu(position.into());
         }
     }
 

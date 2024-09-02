@@ -1,7 +1,5 @@
 use std::any::Any;
 use std::cell::Cell;
-use std::collections::VecDeque;
-use std::marker::PhantomData;
 use std::os::raw::c_void;
 use std::panic::{catch_unwind, resume_unwind, RefUnwindSafe, UnwindSafe};
 use std::ptr;
@@ -16,23 +14,31 @@ use core_foundation::runloop::{
     CFRunLoopSourceCreate, CFRunLoopSourceRef, CFRunLoopSourceSignal, CFRunLoopWakeUp,
 };
 use objc2::rc::{autoreleasepool, Retained};
-use objc2::runtime::ProtocolObject;
-use objc2::{msg_send_id, ClassType};
-use objc2_app_kit::{NSApplication, NSApplicationActivationPolicy, NSWindow};
-use objc2_foundation::{MainThreadMarker, NSObjectProtocol};
+use objc2::{msg_send_id, sel, ClassType};
+use objc2_app_kit::{
+    NSApplication, NSApplicationActivationPolicy, NSApplicationDidFinishLaunchingNotification,
+    NSApplicationWillTerminateNotification, NSWindow,
+};
+use objc2_foundation::{MainThreadMarker, NSNotificationCenter, NSObject, NSObjectProtocol};
 
+use super::super::notification_center::create_observer;
 use super::app::WinitApplication;
-use super::app_state::ApplicationDelegate;
+use super::app_state::AppState;
 use super::cursor::CustomCursor;
 use super::event::dummy_event;
-use super::monitor::{self, MonitorHandle};
+use super::monitor;
 use super::observer::setup_control_flow_observers;
 use crate::application::ApplicationHandler;
-use crate::error::EventLoopError;
-use crate::event_loop::{ActiveEventLoop as RootWindowTarget, ControlFlow, DeviceEvents};
+use crate::error::{EventLoopError, ExternalError};
+use crate::event_loop::{
+    ActiveEventLoop as RootActiveEventLoop, ControlFlow, DeviceEvents,
+    EventLoopProxy as RootEventLoopProxy, OwnedDisplayHandle as RootOwnedDisplayHandle,
+};
+use crate::monitor::MonitorHandle as RootMonitorHandle;
 use crate::platform::macos::ActivationPolicy;
 use crate::platform::pump_events::PumpStatus;
-use crate::window::{CustomCursor as RootCustomCursor, CustomCursorSource};
+use crate::platform_impl::Window;
+use crate::window::{CustomCursor as RootCustomCursor, CustomCursorSource, Theme};
 
 #[derive(Default)]
 pub struct PanicInfo {
@@ -66,77 +72,11 @@ impl PanicInfo {
 
 #[derive(Debug)]
 pub struct ActiveEventLoop {
-    delegate: Retained<ApplicationDelegate>,
+    pub(super) app_state: Rc<AppState>,
     pub(super) mtm: MainThreadMarker,
 }
 
 impl ActiveEventLoop {
-    pub fn create_proxy(&self) -> EventLoopProxy {
-        EventLoopProxy::new(self.delegate.proxy_wake_up())
-    }
-
-    pub(super) fn new_root(delegate: Retained<ApplicationDelegate>) -> RootWindowTarget {
-        let mtm = MainThreadMarker::from(&*delegate);
-        let p = Self { delegate, mtm };
-        RootWindowTarget { p, _marker: PhantomData }
-    }
-
-    pub(super) fn app_delegate(&self) -> &ApplicationDelegate {
-        &self.delegate
-    }
-
-    pub fn create_custom_cursor(&self, source: CustomCursorSource) -> RootCustomCursor {
-        RootCustomCursor { inner: CustomCursor::new(source.inner) }
-    }
-
-    #[inline]
-    pub fn available_monitors(&self) -> VecDeque<MonitorHandle> {
-        monitor::available_monitors()
-    }
-
-    #[inline]
-    pub fn primary_monitor(&self) -> Option<MonitorHandle> {
-        let monitor = monitor::primary_monitor();
-        Some(monitor)
-    }
-
-    #[inline]
-    pub fn listen_device_events(&self, _allowed: DeviceEvents) {}
-
-    #[cfg(feature = "rwh_05")]
-    #[inline]
-    pub fn raw_display_handle_rwh_05(&self) -> rwh_05::RawDisplayHandle {
-        rwh_05::RawDisplayHandle::AppKit(rwh_05::AppKitDisplayHandle::empty())
-    }
-
-    #[cfg(feature = "rwh_06")]
-    #[inline]
-    pub fn raw_display_handle_rwh_06(
-        &self,
-    ) -> Result<rwh_06::RawDisplayHandle, rwh_06::HandleError> {
-        Ok(rwh_06::RawDisplayHandle::AppKit(rwh_06::AppKitDisplayHandle::new()))
-    }
-
-    pub(crate) fn set_control_flow(&self, control_flow: ControlFlow) {
-        self.delegate.set_control_flow(control_flow)
-    }
-
-    pub(crate) fn control_flow(&self) -> ControlFlow {
-        self.delegate.control_flow()
-    }
-
-    pub(crate) fn exit(&self) {
-        self.delegate.exit()
-    }
-
-    pub(crate) fn exiting(&self) -> bool {
-        self.delegate.exiting()
-    }
-
-    pub(crate) fn owned_display_handle(&self) -> OwnedDisplayHandle {
-        OwnedDisplayHandle
-    }
-
     pub(crate) fn hide_application(&self) {
         NSApplication::sharedApplication(self.mtm).hide(None)
     }
@@ -154,20 +94,98 @@ impl ActiveEventLoop {
     }
 }
 
+impl RootActiveEventLoop for ActiveEventLoop {
+    fn create_proxy(&self) -> RootEventLoopProxy {
+        let event_loop_proxy = EventLoopProxy::new(self.app_state.proxy_wake_up());
+        RootEventLoopProxy { event_loop_proxy }
+    }
+
+    fn create_window(
+        &self,
+        window_attributes: crate::window::WindowAttributes,
+    ) -> Result<Box<dyn crate::window::Window>, crate::error::OsError> {
+        Ok(Box::new(Window::new(self, window_attributes)?))
+    }
+
+    fn create_custom_cursor(
+        &self,
+        source: CustomCursorSource,
+    ) -> Result<RootCustomCursor, ExternalError> {
+        Ok(RootCustomCursor { inner: CustomCursor::new(source.inner)? })
+    }
+
+    fn available_monitors(&self) -> Box<dyn Iterator<Item = RootMonitorHandle>> {
+        Box::new(monitor::available_monitors().into_iter().map(|inner| RootMonitorHandle { inner }))
+    }
+
+    fn primary_monitor(&self) -> Option<crate::monitor::MonitorHandle> {
+        let monitor = monitor::primary_monitor();
+        Some(RootMonitorHandle { inner: monitor })
+    }
+
+    fn listen_device_events(&self, _allowed: DeviceEvents) {}
+
+    fn system_theme(&self) -> Option<Theme> {
+        let app = NSApplication::sharedApplication(self.mtm);
+
+        if app.respondsToSelector(sel!(effectiveAppearance)) {
+            Some(super::window_delegate::appearance_to_theme(&app.effectiveAppearance()))
+        } else {
+            Some(Theme::Light)
+        }
+    }
+
+    fn set_control_flow(&self, control_flow: ControlFlow) {
+        self.app_state.set_control_flow(control_flow)
+    }
+
+    fn control_flow(&self) -> ControlFlow {
+        self.app_state.control_flow()
+    }
+
+    fn exit(&self) {
+        self.app_state.exit()
+    }
+
+    fn exiting(&self) -> bool {
+        self.app_state.exiting()
+    }
+
+    fn owned_display_handle(&self) -> RootOwnedDisplayHandle {
+        RootOwnedDisplayHandle { platform: OwnedDisplayHandle }
+    }
+
+    #[cfg(feature = "rwh_06")]
+    fn rwh_06_handle(&self) -> &dyn rwh_06::HasDisplayHandle {
+        self
+    }
+}
+
+#[cfg(feature = "rwh_06")]
+impl rwh_06::HasDisplayHandle for ActiveEventLoop {
+    fn display_handle(&self) -> Result<rwh_06::DisplayHandle<'_>, rwh_06::HandleError> {
+        let raw = rwh_06::RawDisplayHandle::AppKit(rwh_06::AppKitDisplayHandle::new());
+        unsafe { Ok(rwh_06::DisplayHandle::borrow_raw(raw)) }
+    }
+}
+
 pub struct EventLoop {
     /// Store a reference to the application for convenience.
     ///
     /// We intentionally don't store `WinitApplication` since we want to have
     /// the possibility of swapping that out at some point.
     app: Retained<NSApplication>,
-    /// The application delegate that we've registered.
-    ///
-    /// The delegate is only weakly referenced by NSApplication, so we must
-    /// keep it around here as well.
-    delegate: Retained<ApplicationDelegate>,
+    app_state: Rc<AppState>,
 
-    window_target: RootWindowTarget,
+    window_target: ActiveEventLoop,
     panic_info: Rc<PanicInfo>,
+
+    // Since macOS 10.11, we no longer need to remove the observers before they are deallocated;
+    // the system instead cleans it up next time it would have posted a notification to it.
+    //
+    // Though we do still need to keep the observers around to prevent them from being deallocated.
+    _did_finish_launching_observer: Retained<NSObject>,
+    _will_terminate_observer: Retained<NSObject>,
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
@@ -210,32 +228,53 @@ impl EventLoop {
             ActivationPolicy::Prohibited => NSApplicationActivationPolicy::Prohibited,
         };
 
-        let delegate = ApplicationDelegate::new(
+        let app_state = AppState::setup_global(
             mtm,
             activation_policy,
             attributes.default_menu,
             attributes.activate_ignoring_other_apps,
         );
 
-        autoreleasepool(|_| {
-            app.setDelegate(Some(ProtocolObject::from_ref(&*delegate)));
-        });
+        let center = unsafe { NSNotificationCenter::defaultCenter() };
+
+        let weak_app_state = Rc::downgrade(&app_state);
+        let _did_finish_launching_observer = create_observer(
+            &center,
+            // `applicationDidFinishLaunching:`
+            unsafe { NSApplicationDidFinishLaunchingNotification },
+            move |notification| {
+                if let Some(app_state) = weak_app_state.upgrade() {
+                    app_state.did_finish_launching(notification);
+                }
+            },
+        );
+
+        let weak_app_state = Rc::downgrade(&app_state);
+        let _will_terminate_observer = create_observer(
+            &center,
+            // `applicationWillTerminate:`
+            unsafe { NSApplicationWillTerminateNotification },
+            move |notification| {
+                if let Some(app_state) = weak_app_state.upgrade() {
+                    app_state.will_terminate(notification);
+                }
+            },
+        );
 
         let panic_info: Rc<PanicInfo> = Default::default();
         setup_control_flow_observers(mtm, Rc::downgrade(&panic_info));
 
         Ok(EventLoop {
             app,
-            delegate: delegate.clone(),
-            window_target: RootWindowTarget {
-                p: ActiveEventLoop { delegate, mtm },
-                _marker: PhantomData,
-            },
+            app_state: app_state.clone(),
+            window_target: ActiveEventLoop { app_state, mtm },
             panic_info,
+            _did_finish_launching_observer,
+            _will_terminate_observer,
         })
     }
 
-    pub fn window_target(&self) -> &RootWindowTarget {
+    pub fn window_target(&self) -> &dyn RootActiveEventLoop {
         &self.window_target
     }
 
@@ -251,19 +290,19 @@ impl EventLoop {
         &mut self,
         mut app: A,
     ) -> Result<(), EventLoopError> {
-        self.delegate.clear_exit();
-        self.delegate.set_event_handler(&mut app, || {
+        self.app_state.clear_exit();
+        self.app_state.set_event_handler(&mut app, || {
             autoreleasepool(|_| {
                 // clear / normalize pump_events state
-                self.delegate.set_wait_timeout(None);
-                self.delegate.set_stop_before_wait(false);
-                self.delegate.set_stop_after_wait(false);
-                self.delegate.set_stop_on_redraw(false);
+                self.app_state.set_wait_timeout(None);
+                self.app_state.set_stop_before_wait(false);
+                self.app_state.set_stop_after_wait(false);
+                self.app_state.set_stop_on_redraw(false);
 
-                if self.delegate.is_launched() {
-                    debug_assert!(!self.delegate.is_running());
-                    self.delegate.set_is_running(true);
-                    self.delegate.dispatch_init_events();
+                if self.app_state.is_launched() {
+                    debug_assert!(!self.app_state.is_running());
+                    self.app_state.set_is_running(true);
+                    self.app_state.dispatch_init_events();
                 }
 
                 // SAFETY: We do not run the application re-entrantly
@@ -278,7 +317,7 @@ impl EventLoop {
                     resume_unwind(panic);
                 }
 
-                self.delegate.internal_exit()
+                self.app_state.internal_exit()
             })
         });
 
@@ -290,47 +329,47 @@ impl EventLoop {
         timeout: Option<Duration>,
         mut app: A,
     ) -> PumpStatus {
-        self.delegate.set_event_handler(&mut app, || {
+        self.app_state.set_event_handler(&mut app, || {
             autoreleasepool(|_| {
                 // As a special case, if the application hasn't been launched yet then we at least
                 // run the loop until it has fully launched.
-                if !self.delegate.is_launched() {
-                    debug_assert!(!self.delegate.is_running());
+                if !self.app_state.is_launched() {
+                    debug_assert!(!self.app_state.is_running());
 
-                    self.delegate.set_stop_on_launch();
+                    self.app_state.set_stop_on_launch();
                     // SAFETY: We do not run the application re-entrantly
                     unsafe { self.app.run() };
 
                     // Note: we dispatch `NewEvents(Init)` + `Resumed` events after the application
                     // has launched
-                } else if !self.delegate.is_running() {
+                } else if !self.app_state.is_running() {
                     // Even though the application may have been launched, it's possible we aren't
                     // running if the `EventLoop` was run before and has since
                     // exited. This indicates that we just starting to re-run
                     // the same `EventLoop` again.
-                    self.delegate.set_is_running(true);
-                    self.delegate.dispatch_init_events();
+                    self.app_state.set_is_running(true);
+                    self.app_state.dispatch_init_events();
                 } else {
                     // Only run for as long as the given `Duration` allows so we don't block the
                     // external loop.
                     match timeout {
                         Some(Duration::ZERO) => {
-                            self.delegate.set_wait_timeout(None);
-                            self.delegate.set_stop_before_wait(true);
+                            self.app_state.set_wait_timeout(None);
+                            self.app_state.set_stop_before_wait(true);
                         },
                         Some(duration) => {
-                            self.delegate.set_stop_before_wait(false);
+                            self.app_state.set_stop_before_wait(false);
                             let timeout = Instant::now() + duration;
-                            self.delegate.set_wait_timeout(Some(timeout));
-                            self.delegate.set_stop_after_wait(true);
+                            self.app_state.set_wait_timeout(Some(timeout));
+                            self.app_state.set_stop_after_wait(true);
                         },
                         None => {
-                            self.delegate.set_wait_timeout(None);
-                            self.delegate.set_stop_before_wait(false);
-                            self.delegate.set_stop_after_wait(true);
+                            self.app_state.set_wait_timeout(None);
+                            self.app_state.set_stop_before_wait(false);
+                            self.app_state.set_stop_after_wait(true);
                         },
                     }
-                    self.delegate.set_stop_on_redraw(true);
+                    self.app_state.set_stop_on_redraw(true);
                     // SAFETY: We do not run the application re-entrantly
                     unsafe { self.app.run() };
                 }
@@ -344,8 +383,8 @@ impl EventLoop {
                     resume_unwind(panic);
                 }
 
-                if self.delegate.exiting() {
-                    self.delegate.internal_exit();
+                if self.app_state.exiting() {
+                    self.app_state.internal_exit();
                     PumpStatus::Exit(0)
                 } else {
                     PumpStatus::Continue
@@ -355,16 +394,10 @@ impl EventLoop {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq, Eq)]
 pub(crate) struct OwnedDisplayHandle;
 
 impl OwnedDisplayHandle {
-    #[cfg(feature = "rwh_05")]
-    #[inline]
-    pub fn raw_display_handle_rwh_05(&self) -> rwh_05::RawDisplayHandle {
-        rwh_05::AppKitDisplayHandle::empty().into()
-    }
-
     #[cfg(feature = "rwh_06")]
     #[inline]
     pub fn raw_display_handle_rwh_06(

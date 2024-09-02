@@ -27,7 +27,7 @@ use super::ActiveEventLoop;
 use crate::cursor::{BadImage, Cursor, CursorImage, CustomCursor as RootCustomCursor};
 use crate::platform::web::CustomCursorError;
 
-#[derive(Debug)]
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub(crate) enum CustomCursorSource {
     Image(CursorImage),
     Url { url: String, hotspot_x: u16, hotspot_y: u16 },
@@ -542,8 +542,8 @@ fn from_rgba(
     //
     // We call `createImageBitmap()` before spawning the future,
     // to not have to clone the image buffer.
-    let mut options = ImageBitmapOptions::new();
-    options.premultiply_alpha(PremultiplyAlpha::None);
+    let options = ImageBitmapOptions::new();
+    options.set_premultiply_alpha(PremultiplyAlpha::None);
     let bitmap = JsFuture::from(
         window
             .create_image_bitmap_with_image_data_and_image_bitmap_options(&image_data, &options)

@@ -3,8 +3,7 @@ use windows_sys::Win32::Foundation::{HANDLE, HWND};
 use windows_sys::Win32::UI::WindowsAndMessaging::{HMENU, WINDOW_LONG_PTR_INDEX};
 
 pub(crate) use self::event_loop::{
-    ActiveEventLoop, EventLoop, EventLoopProxy, OwnedDisplayHandle,
-    PlatformSpecificEventLoopAttributes,
+    EventLoop, EventLoopProxy, OwnedDisplayHandle, PlatformSpecificEventLoopAttributes,
 };
 pub use self::icon::WinIcon as PlatformIcon;
 pub(crate) use self::icon::{SelectedCursor, WinCursor as PlatformCustomCursor, WinIcon};
@@ -18,7 +17,7 @@ use crate::keyboard::Key;
 use crate::platform::windows::{BackdropType, Color, CornerPreference};
 use crate::platform_impl::Fullscreen;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct PlatformSpecificWindowAttributes {
     pub owner: Option<HWND>,
     pub menu: Option<HMENU>,
@@ -76,6 +75,24 @@ impl DeviceId {
         } else {
             None
         }
+    }
+}
+
+#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct FingerId {
+    id: u32,
+    primary: bool,
+}
+
+impl FingerId {
+    pub const fn dummy() -> Self {
+        FingerId { id: 0, primary: false }
+    }
+}
+
+impl FingerId {
+    pub fn is_primary(self) -> bool {
+        self.primary
     }
 }
 

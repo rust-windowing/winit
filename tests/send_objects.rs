@@ -1,5 +1,5 @@
 #[allow(dead_code)]
-fn needs_send<T: Send>() {}
+fn needs_send<T: Send + ?Sized>() {}
 
 #[test]
 fn event_loop_proxy_send() {
@@ -8,7 +8,7 @@ fn event_loop_proxy_send() {
 
 #[test]
 fn window_send() {
-    needs_send::<winit::window::Window>();
+    needs_send::<dyn winit::window::Window>();
 }
 
 #[test]

@@ -5,21 +5,27 @@ use std::rc::Rc;
 
 use web_sys::Element;
 
-use super::super::monitor::{MonitorHandle, MonitorPermissionFuture};
+use super::super::monitor::MonitorPermissionFuture;
 use super::super::{lock, KeyEventExtra};
-use super::device::DeviceId;
+use super::event::DeviceId;
 use super::runner::{EventWrapper, WeakShared};
 use super::window::WindowId;
 use super::{backend, runner, EventLoopProxy};
-use crate::error::NotSupportedError;
+use crate::error::{ExternalError, NotSupportedError};
 use crate::event::{
-    DeviceId as RootDeviceId, ElementState, Event, KeyEvent, Touch, TouchPhase, WindowEvent,
+    DeviceId as RootDeviceId, ElementState, Event, FingerId as RootFingerId, KeyEvent, Touch,
+    TouchPhase, WindowEvent,
 };
-use crate::event_loop::{ControlFlow, DeviceEvents};
+use crate::event_loop::{
+    ActiveEventLoop as RootActiveEventLoop, ControlFlow, DeviceEvents,
+    EventLoopProxy as RootEventLoopProxy, OwnedDisplayHandle as RootOwnedDisplayHandle,
+};
 use crate::keyboard::ModifiersState;
+use crate::monitor::MonitorHandle as RootMonitorHandle;
 use crate::platform::web::{CustomCursorFuture, PollStrategy, WaitUntilStrategy};
 use crate::platform_impl::platform::cursor::CustomCursor;
 use crate::platform_impl::platform::r#async::Waker;
+use crate::platform_impl::Window;
 use crate::window::{
     CustomCursor as RootCustomCursor, CustomCursorSource, Theme, WindowId as RootWindowId,
 };
@@ -67,22 +73,12 @@ impl ActiveEventLoop {
         WindowId(self.runner.generate_id())
     }
 
-    pub fn create_proxy(&self) -> EventLoopProxy {
-        EventLoopProxy::new(self.waker())
-    }
-
-    pub fn create_custom_cursor(&self, source: CustomCursorSource) -> RootCustomCursor {
-        RootCustomCursor { inner: CustomCursor::new(self, source.inner) }
-    }
-
     pub fn create_custom_cursor_async(&self, source: CustomCursorSource) -> CustomCursorFuture {
         CustomCursorFuture(CustomCursor::new_async(self, source.inner))
     }
 
     pub fn register(&self, canvas: &Rc<backend::Canvas>, id: WindowId) {
         let canvas_clone = canvas.clone();
-        #[cfg(any(feature = "rwh_04", feature = "rwh_05"))]
-        canvas.set_attribute("data-raw-handle", &id.0.to_string());
 
         canvas.on_touch_start();
 
@@ -223,11 +219,9 @@ impl ActiveEventLoop {
                     }
                 });
 
-                let pointer = pointer_id.map(|pointer_id| Event::WindowEvent {
+                let pointer = pointer_id.map(|device_id| Event::WindowEvent {
                     window_id: RootWindowId(id),
-                    event: WindowEvent::CursorLeft {
-                        device_id: RootDeviceId(DeviceId(pointer_id)),
-                    },
+                    event: WindowEvent::CursorLeft { device_id: RootDeviceId(device_id) },
                 });
 
                 if focus.is_some() || pointer.is_some() {
@@ -250,11 +244,9 @@ impl ActiveEventLoop {
                     }
                 });
 
-                let pointer = pointer_id.map(|pointer_id| Event::WindowEvent {
+                let pointer = pointer_id.map(|device_id| Event::WindowEvent {
                     window_id: RootWindowId(id),
-                    event: WindowEvent::CursorEntered {
-                        device_id: RootDeviceId(DeviceId(pointer_id)),
-                    },
+                    event: WindowEvent::CursorEntered { device_id: RootDeviceId(device_id) },
                 });
 
                 if focus.is_some() || pointer.is_some() {
@@ -280,7 +272,7 @@ impl ActiveEventLoop {
                         });
 
                     runner.send_events(modifiers.into_iter().chain(events.flat_map(|position| {
-                        let device_id = RootDeviceId(DeviceId(pointer_id));
+                        let device_id = RootDeviceId(pointer_id);
 
                         iter::once(Event::WindowEvent {
                             window_id: RootWindowId(id),
@@ -294,7 +286,7 @@ impl ActiveEventLoop {
                 let has_focus = has_focus.clone();
                 let modifiers = self.modifiers.clone();
 
-                move |active_modifiers, device_id, events| {
+                move |active_modifiers, device_id, finger_id, events| {
                     let modifiers =
                         (has_focus.get() && modifiers.get() != active_modifiers).then(|| {
                             modifiers.set(active_modifiers);
@@ -308,8 +300,8 @@ impl ActiveEventLoop {
                         |(location, force)| Event::WindowEvent {
                             window_id: RootWindowId(id),
                             event: WindowEvent::Touch(Touch {
-                                id: device_id as u64,
-                                device_id: RootDeviceId(DeviceId(device_id)),
+                                finger_id: RootFingerId(finger_id),
+                                device_id: RootDeviceId(device_id),
                                 phase: TouchPhase::Moved,
                                 force: Some(force),
                                 location,
@@ -324,7 +316,7 @@ impl ActiveEventLoop {
                 let modifiers = self.modifiers.clone();
 
                 move |active_modifiers,
-                      pointer_id,
+                      device_id,
                       position: crate::dpi::PhysicalPosition<f64>,
                       buttons,
                       button| {
@@ -337,7 +329,7 @@ impl ActiveEventLoop {
                             }
                         });
 
-                    let device_id = RootDeviceId(DeviceId(pointer_id));
+                    let device_id = RootDeviceId(device_id);
 
                     let state = if buttons.contains(button.into()) {
                         ElementState::Pressed
@@ -376,7 +368,7 @@ impl ActiveEventLoop {
                         }
                     });
 
-                    let device_id: RootDeviceId = RootDeviceId(DeviceId(pointer_id));
+                    let device_id: RootDeviceId = RootDeviceId(pointer_id);
 
                     // A mouse down event may come in without any prior CursorMoved events,
                     // therefore we should send a CursorMoved event to make sure that the
@@ -401,7 +393,7 @@ impl ActiveEventLoop {
                 let runner = self.runner.clone();
                 let modifiers = self.modifiers.clone();
 
-                move |active_modifiers, device_id, location, force| {
+                move |active_modifiers, device_id, finger_id, location, force| {
                     let modifiers = (modifiers.get() != active_modifiers).then(|| {
                         modifiers.set(active_modifiers);
                         Event::WindowEvent {
@@ -414,8 +406,8 @@ impl ActiveEventLoop {
                         Event::WindowEvent {
                             window_id: RootWindowId(id),
                             event: WindowEvent::Touch(Touch {
-                                id: device_id as u64,
-                                device_id: RootDeviceId(DeviceId(device_id)),
+                                finger_id: RootFingerId(finger_id),
+                                device_id: RootDeviceId(device_id),
                                 phase: TouchPhase::Started,
                                 force: Some(force),
                                 location,
@@ -442,7 +434,7 @@ impl ActiveEventLoop {
                             }
                         });
 
-                    let device_id: RootDeviceId = RootDeviceId(DeviceId(pointer_id));
+                    let device_id: RootDeviceId = RootDeviceId(pointer_id);
 
                     // A mouse up event may come in without any prior CursorMoved events,
                     // therefore we should send a CursorMoved event to make sure that the
@@ -468,7 +460,7 @@ impl ActiveEventLoop {
                 let has_focus = has_focus.clone();
                 let modifiers = self.modifiers.clone();
 
-                move |active_modifiers, device_id, location, force| {
+                move |active_modifiers, device_id, finger_id, location, force| {
                     let modifiers =
                         (has_focus.get() && modifiers.get() != active_modifiers).then(|| {
                             modifiers.set(active_modifiers);
@@ -482,8 +474,8 @@ impl ActiveEventLoop {
                         Event::WindowEvent {
                             window_id: RootWindowId(id),
                             event: WindowEvent::Touch(Touch {
-                                id: device_id as u64,
-                                device_id: RootDeviceId(DeviceId(device_id)),
+                                finger_id: RootFingerId(finger_id),
+                                device_id: RootDeviceId(device_id),
                                 phase: TouchPhase::Ended,
                                 force: Some(force),
                                 location,
@@ -496,7 +488,7 @@ impl ActiveEventLoop {
 
         let runner = self.runner.clone();
         let modifiers = self.modifiers.clone();
-        canvas.on_mouse_wheel(move |pointer_id, delta, active_modifiers| {
+        canvas.on_mouse_wheel(move |delta, active_modifiers| {
             let modifiers_changed =
                 (has_focus.get() && modifiers.get() != active_modifiers).then(|| {
                     modifiers.set(active_modifiers);
@@ -510,7 +502,7 @@ impl ActiveEventLoop {
                 Event::WindowEvent {
                     window_id: RootWindowId(id),
                     event: WindowEvent::MouseWheel {
-                        device_id: RootDeviceId(DeviceId(pointer_id)),
+                        device_id: RootDeviceId(DeviceId::dummy()),
                         delta,
                         phase: TouchPhase::Moved,
                     },
@@ -519,12 +511,12 @@ impl ActiveEventLoop {
         });
 
         let runner = self.runner.clone();
-        canvas.on_touch_cancel(move |device_id, location, force| {
+        canvas.on_touch_cancel(move |device_id, finger_id, location, force| {
             runner.send_event(Event::WindowEvent {
                 window_id: RootWindowId(id),
                 event: WindowEvent::Touch(Touch {
-                    id: device_id as u64,
-                    device_id: RootDeviceId(DeviceId(device_id)),
+                    finger_id: RootFingerId(finger_id),
+                    device_id: RootDeviceId(device_id),
                     phase: TouchPhase::Cancelled,
                     force: Some(force),
                     location,
@@ -593,48 +585,6 @@ impl ActiveEventLoop {
         canvas.on_context_menu();
     }
 
-    pub fn available_monitors(&self) -> Vec<MonitorHandle> {
-        self.runner.monitor().available_monitors()
-    }
-
-    pub fn primary_monitor(&self) -> Option<MonitorHandle> {
-        self.runner.monitor().primary_monitor()
-    }
-
-    #[cfg(feature = "rwh_05")]
-    #[inline]
-    pub fn raw_display_handle_rwh_05(&self) -> rwh_05::RawDisplayHandle {
-        rwh_05::RawDisplayHandle::Web(rwh_05::WebDisplayHandle::empty())
-    }
-
-    #[cfg(feature = "rwh_06")]
-    #[inline]
-    pub fn raw_display_handle_rwh_06(
-        &self,
-    ) -> Result<rwh_06::RawDisplayHandle, rwh_06::HandleError> {
-        Ok(rwh_06::RawDisplayHandle::Web(rwh_06::WebDisplayHandle::new()))
-    }
-
-    pub fn listen_device_events(&self, allowed: DeviceEvents) {
-        self.runner.listen_device_events(allowed)
-    }
-
-    pub(crate) fn set_control_flow(&self, control_flow: ControlFlow) {
-        self.runner.set_control_flow(control_flow)
-    }
-
-    pub(crate) fn control_flow(&self) -> ControlFlow {
-        self.runner.control_flow()
-    }
-
-    pub(crate) fn exit(&self) {
-        self.runner.exit()
-    }
-
-    pub(crate) fn exiting(&self) -> bool {
-        self.runner.exiting()
-    }
-
     pub(crate) fn set_poll_strategy(&self, strategy: PollStrategy) {
         self.runner.set_poll_strategy(strategy)
     }
@@ -660,7 +610,7 @@ impl ActiveEventLoop {
     }
 
     pub(crate) fn request_detailed_monitor_permission(&self) -> MonitorPermissionFuture {
-        self.runner.monitor().request_detailed_monitor_permission(self.runner.weak())
+        self.runner.monitor().request_detailed_monitor_permission()
     }
 
     pub(crate) fn has_detailed_monitor_permission(&self) -> bool {
@@ -670,22 +620,95 @@ impl ActiveEventLoop {
     pub(crate) fn waker(&self) -> Waker<WeakShared> {
         self.runner.waker()
     }
+}
 
-    pub(crate) fn owned_display_handle(&self) -> OwnedDisplayHandle {
-        OwnedDisplayHandle
+impl RootActiveEventLoop for ActiveEventLoop {
+    fn create_proxy(&self) -> RootEventLoopProxy {
+        let event_loop_proxy = EventLoopProxy::new(self.waker());
+        RootEventLoopProxy { event_loop_proxy }
+    }
+
+    fn create_window(
+        &self,
+        window_attributes: crate::window::WindowAttributes,
+    ) -> Result<Box<dyn crate::window::Window>, crate::error::OsError> {
+        let window = Window::new(self, window_attributes)?;
+        Ok(Box::new(window))
+    }
+
+    fn create_custom_cursor(
+        &self,
+        source: CustomCursorSource,
+    ) -> Result<RootCustomCursor, ExternalError> {
+        Ok(RootCustomCursor { inner: CustomCursor::new(self, source.inner) })
+    }
+
+    fn available_monitors(&self) -> Box<dyn Iterator<Item = RootMonitorHandle>> {
+        Box::new(
+            self.runner
+                .monitor()
+                .available_monitors()
+                .into_iter()
+                .map(|inner| RootMonitorHandle { inner }),
+        )
+    }
+
+    fn primary_monitor(&self) -> Option<RootMonitorHandle> {
+        self.runner.monitor().primary_monitor().map(|inner| RootMonitorHandle { inner })
+    }
+
+    fn listen_device_events(&self, allowed: DeviceEvents) {
+        self.runner.listen_device_events(allowed)
+    }
+
+    fn system_theme(&self) -> Option<Theme> {
+        backend::is_dark_mode(self.runner.window()).map(|is_dark_mode| {
+            if is_dark_mode {
+                Theme::Dark
+            } else {
+                Theme::Light
+            }
+        })
+    }
+
+    fn set_control_flow(&self, control_flow: ControlFlow) {
+        self.runner.set_control_flow(control_flow)
+    }
+
+    fn control_flow(&self) -> ControlFlow {
+        self.runner.control_flow()
+    }
+
+    fn exit(&self) {
+        self.runner.exit()
+    }
+
+    fn exiting(&self) -> bool {
+        self.runner.exiting()
+    }
+
+    fn owned_display_handle(&self) -> RootOwnedDisplayHandle {
+        RootOwnedDisplayHandle { platform: OwnedDisplayHandle }
+    }
+
+    #[cfg(feature = "rwh_06")]
+    fn rwh_06_handle(&self) -> &dyn rwh_06::HasDisplayHandle {
+        self
     }
 }
 
-#[derive(Clone)]
+#[cfg(feature = "rwh_06")]
+impl rwh_06::HasDisplayHandle for ActiveEventLoop {
+    fn display_handle(&self) -> Result<rwh_06::DisplayHandle<'_>, rwh_06::HandleError> {
+        let raw = rwh_06::RawDisplayHandle::Web(rwh_06::WebDisplayHandle::new());
+        unsafe { Ok(rwh_06::DisplayHandle::borrow_raw(raw)) }
+    }
+}
+
+#[derive(Clone, PartialEq, Eq)]
 pub(crate) struct OwnedDisplayHandle;
 
 impl OwnedDisplayHandle {
-    #[cfg(feature = "rwh_05")]
-    #[inline]
-    pub fn raw_display_handle_rwh_05(&self) -> rwh_05::RawDisplayHandle {
-        rwh_05::WebDisplayHandle::empty().into()
-    }
-
     #[cfg(feature = "rwh_06")]
     #[inline]
     pub fn raw_display_handle_rwh_06(

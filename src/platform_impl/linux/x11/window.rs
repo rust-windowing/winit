@@ -1,6 +1,7 @@
 use std::ffi::CString;
 use std::mem::replace;
 use std::num::NonZeroU32;
+use std::ops::Deref;
 use std::os::raw::*;
 use std::path::Path;
 use std::sync::{Arc, Mutex, MutexGuard};
@@ -30,13 +31,311 @@ use crate::platform_impl::x11::{
     xinput_fp1616_to_float, MonitorHandle as X11MonitorHandle, WakeSender, X11Error,
 };
 use crate::platform_impl::{
-    Fullscreen, MonitorHandle as PlatformMonitorHandle, OsError, PlatformCustomCursor,
+    common, Fullscreen, MonitorHandle as PlatformMonitorHandle, OsError, PlatformCustomCursor,
     PlatformIcon, VideoModeHandle as PlatformVideoModeHandle,
 };
 use crate::window::{
-    CursorGrabMode, ImePurpose, ResizeDirection, Theme, UserAttentionType, WindowAttributes,
-    WindowButtons, WindowLevel,
+    CursorGrabMode, ImePurpose, ResizeDirection, Theme, UserAttentionType, Window as CoreWindow,
+    WindowAttributes, WindowButtons, WindowLevel,
 };
+
+pub(crate) struct Window(Arc<UnownedWindow>);
+
+impl Deref for Window {
+    type Target = UnownedWindow;
+
+    #[inline]
+    fn deref(&self) -> &UnownedWindow {
+        &self.0
+    }
+}
+
+impl Window {
+    pub(crate) fn new(
+        event_loop: &ActiveEventLoop,
+        attribs: WindowAttributes,
+    ) -> Result<Self, RootOsError> {
+        let window = Arc::new(UnownedWindow::new(event_loop, attribs)?);
+        event_loop.windows.borrow_mut().insert(window.id(), Arc::downgrade(&window));
+        Ok(Window(window))
+    }
+}
+
+impl CoreWindow for Window {
+    fn id(&self) -> crate::window::WindowId {
+        crate::window::WindowId(self.0.id())
+    }
+
+    fn scale_factor(&self) -> f64 {
+        self.0.scale_factor()
+    }
+
+    fn request_redraw(&self) {
+        self.0.request_redraw()
+    }
+
+    fn pre_present_notify(&self) {
+        self.0.pre_present_notify()
+    }
+
+    fn reset_dead_keys(&self) {
+        common::xkb::reset_dead_keys();
+    }
+
+    fn inner_position(&self) -> Result<PhysicalPosition<i32>, NotSupportedError> {
+        self.0.inner_position()
+    }
+
+    fn outer_position(&self) -> Result<PhysicalPosition<i32>, NotSupportedError> {
+        self.0.outer_position()
+    }
+
+    fn set_outer_position(&self, position: Position) {
+        self.0.set_outer_position(position)
+    }
+
+    fn inner_size(&self) -> PhysicalSize<u32> {
+        self.0.inner_size()
+    }
+
+    fn request_inner_size(&self, size: Size) -> Option<PhysicalSize<u32>> {
+        self.0.request_inner_size(size)
+    }
+
+    fn outer_size(&self) -> PhysicalSize<u32> {
+        self.0.outer_size()
+    }
+
+    fn set_min_inner_size(&self, min_size: Option<Size>) {
+        self.0.set_min_inner_size(min_size)
+    }
+
+    fn set_max_inner_size(&self, max_size: Option<Size>) {
+        self.0.set_max_inner_size(max_size)
+    }
+
+    fn resize_increments(&self) -> Option<PhysicalSize<u32>> {
+        self.0.resize_increments()
+    }
+
+    fn set_resize_increments(&self, increments: Option<Size>) {
+        self.0.set_resize_increments(increments)
+    }
+
+    fn set_title(&self, title: &str) {
+        self.0.set_title(title);
+    }
+
+    fn set_transparent(&self, transparent: bool) {
+        self.0.set_transparent(transparent);
+    }
+
+    fn set_blur(&self, blur: bool) {
+        self.0.set_blur(blur);
+    }
+
+    fn set_visible(&self, visible: bool) {
+        self.0.set_visible(visible);
+    }
+
+    fn is_visible(&self) -> Option<bool> {
+        self.0.is_visible()
+    }
+
+    fn set_resizable(&self, resizable: bool) {
+        self.0.set_resizable(resizable);
+    }
+
+    fn is_resizable(&self) -> bool {
+        self.0.is_resizable()
+    }
+
+    fn set_enabled_buttons(&self, buttons: WindowButtons) {
+        self.0.set_enabled_buttons(buttons)
+    }
+
+    fn enabled_buttons(&self) -> WindowButtons {
+        self.0.enabled_buttons()
+    }
+
+    fn set_minimized(&self, minimized: bool) {
+        self.0.set_minimized(minimized)
+    }
+
+    fn is_minimized(&self) -> Option<bool> {
+        self.0.is_minimized()
+    }
+
+    fn set_maximized(&self, maximized: bool) {
+        self.0.set_maximized(maximized)
+    }
+
+    fn is_maximized(&self) -> bool {
+        self.0.is_maximized()
+    }
+
+    fn set_fullscreen(&self, fullscreen: Option<crate::window::Fullscreen>) {
+        self.0.set_fullscreen(fullscreen.map(Into::into))
+    }
+
+    fn fullscreen(&self) -> Option<crate::window::Fullscreen> {
+        self.0.fullscreen().map(Into::into)
+    }
+
+    fn set_decorations(&self, decorations: bool) {
+        self.0.set_decorations(decorations);
+    }
+
+    fn is_decorated(&self) -> bool {
+        self.0.is_decorated()
+    }
+
+    fn set_window_level(&self, level: WindowLevel) {
+        self.0.set_window_level(level);
+    }
+
+    fn set_window_icon(&self, window_icon: Option<crate::window::Icon>) {
+        self.0.set_window_icon(window_icon.map(|inner| inner.inner))
+    }
+
+    fn set_ime_cursor_area(&self, position: Position, size: Size) {
+        self.0.set_ime_cursor_area(position, size);
+    }
+
+    fn set_ime_allowed(&self, allowed: bool) {
+        self.0.set_ime_allowed(allowed);
+    }
+
+    fn set_ime_purpose(&self, purpose: ImePurpose) {
+        self.0.set_ime_purpose(purpose);
+    }
+
+    fn focus_window(&self) {
+        self.0.focus_window();
+    }
+
+    fn has_focus(&self) -> bool {
+        self.0.has_focus()
+    }
+
+    fn request_user_attention(&self, request_type: Option<UserAttentionType>) {
+        self.0.request_user_attention(request_type);
+    }
+
+    fn set_theme(&self, theme: Option<Theme>) {
+        self.0.set_theme(theme);
+    }
+
+    fn theme(&self) -> Option<Theme> {
+        self.0.theme()
+    }
+
+    fn set_content_protected(&self, protected: bool) {
+        self.0.set_content_protected(protected);
+    }
+
+    fn title(&self) -> String {
+        self.0.title()
+    }
+
+    fn set_cursor(&self, cursor: Cursor) {
+        self.0.set_cursor(cursor);
+    }
+
+    fn set_cursor_position(&self, position: Position) -> Result<(), ExternalError> {
+        self.0.set_cursor_position(position)
+    }
+
+    fn set_cursor_grab(&self, mode: CursorGrabMode) -> Result<(), ExternalError> {
+        self.0.set_cursor_grab(mode)
+    }
+
+    fn set_cursor_visible(&self, visible: bool) {
+        self.0.set_cursor_visible(visible);
+    }
+
+    fn drag_window(&self) -> Result<(), ExternalError> {
+        self.0.drag_window()
+    }
+
+    fn drag_resize_window(&self, direction: ResizeDirection) -> Result<(), ExternalError> {
+        self.0.drag_resize_window(direction)
+    }
+
+    fn show_window_menu(&self, position: Position) {
+        self.0.show_window_menu(position);
+    }
+
+    fn set_cursor_hittest(&self, hittest: bool) -> Result<(), ExternalError> {
+        self.0.set_cursor_hittest(hittest)
+    }
+
+    fn current_monitor(&self) -> Option<crate::monitor::MonitorHandle> {
+        self.0
+            .current_monitor()
+            .map(crate::platform_impl::MonitorHandle::X)
+            .map(|inner| crate::monitor::MonitorHandle { inner })
+    }
+
+    fn available_monitors(&self) -> Box<dyn Iterator<Item = crate::monitor::MonitorHandle>> {
+        Box::new(
+            self.0
+                .available_monitors()
+                .into_iter()
+                .map(crate::platform_impl::MonitorHandle::X)
+                .map(|inner| crate::monitor::MonitorHandle { inner }),
+        )
+    }
+
+    fn primary_monitor(&self) -> Option<crate::monitor::MonitorHandle> {
+        self.0
+            .primary_monitor()
+            .map(crate::platform_impl::MonitorHandle::X)
+            .map(|inner| crate::monitor::MonitorHandle { inner })
+    }
+
+    #[cfg(feature = "rwh_06")]
+    fn rwh_06_display_handle(&self) -> &dyn rwh_06::HasDisplayHandle {
+        self
+    }
+
+    #[cfg(feature = "rwh_06")]
+    fn rwh_06_window_handle(&self) -> &dyn rwh_06::HasWindowHandle {
+        self
+    }
+}
+
+#[cfg(feature = "rwh_06")]
+impl rwh_06::HasDisplayHandle for Window {
+    fn display_handle(&self) -> Result<rwh_06::DisplayHandle<'_>, rwh_06::HandleError> {
+        let raw = self.0.raw_display_handle_rwh_06()?;
+        unsafe { Ok(rwh_06::DisplayHandle::borrow_raw(raw)) }
+    }
+}
+
+#[cfg(feature = "rwh_06")]
+impl rwh_06::HasWindowHandle for Window {
+    fn window_handle(&self) -> Result<rwh_06::WindowHandle<'_>, rwh_06::HandleError> {
+        let raw = self.0.raw_window_handle_rwh_06()?;
+        unsafe { Ok(rwh_06::WindowHandle::borrow_raw(raw)) }
+    }
+}
+
+impl Drop for Window {
+    fn drop(&mut self) {
+        let window = &self.0;
+        let xconn = &window.xconn;
+
+        // Restore the video mode on drop.
+        if let Some(Fullscreen::Exclusive(_)) = window.fullscreen() {
+            window.set_fullscreen(None);
+        }
+
+        if let Ok(c) = xconn.xcb_connection().destroy_window(window.id().0 as xproto::Window) {
+            c.ignore_error();
+        }
+    }
+}
 
 #[derive(Debug)]
 pub struct SharedState {
@@ -822,7 +1121,7 @@ impl UnownedWindow {
 
                 let window_position = self.outer_position_physical();
                 self.shared_state_lock().restore_position = Some(window_position);
-                let monitor_origin: (i32, i32) = monitor.position().into();
+                let monitor_origin: (i32, i32) = monitor.position;
                 self.set_position_inner(monitor_origin.0, monitor_origin.1)
                     .expect_then_ignore_error("Failed to set window position");
                 self.set_fullscreen_hint(true).map(Some)
@@ -1492,13 +1791,17 @@ impl UnownedWindow {
                 #[allow(clippy::mutex_atomic)]
                 if SelectedCursor::Named(icon) != old_cursor && *self.cursor_visible.lock().unwrap()
                 {
-                    self.xconn.set_cursor_icon(self.xwindow, Some(icon));
+                    if let Err(err) = self.xconn.set_cursor_icon(self.xwindow, Some(icon)) {
+                        tracing::error!("failed to set cursor icon: {err}");
+                    }
                 }
             },
             Cursor::Custom(RootCustomCursor { inner: PlatformCustomCursor::X(cursor) }) => {
                 #[allow(clippy::mutex_atomic)]
                 if *self.cursor_visible.lock().unwrap() {
-                    self.xconn.set_custom_cursor(self.xwindow, &cursor);
+                    if let Err(err) = self.xconn.set_custom_cursor(self.xwindow, &cursor) {
+                        tracing::error!("failed to set window icon: {err}");
+                    }
                 }
 
                 *self.selected_cursor.lock().unwrap() = SelectedCursor::Custom(cursor);
@@ -1599,16 +1902,18 @@ impl UnownedWindow {
             if visible { Some((*self.selected_cursor.lock().unwrap()).clone()) } else { None };
         *visible_lock = visible;
         drop(visible_lock);
-        match cursor {
+        let result = match cursor {
             Some(SelectedCursor::Custom(cursor)) => {
-                self.xconn.set_custom_cursor(self.xwindow, &cursor);
+                self.xconn.set_custom_cursor(self.xwindow, &cursor)
             },
             Some(SelectedCursor::Named(cursor)) => {
-                self.xconn.set_cursor_icon(self.xwindow, Some(cursor));
+                self.xconn.set_cursor_icon(self.xwindow, Some(cursor))
             },
-            None => {
-                self.xconn.set_cursor_icon(self.xwindow, None);
-            },
+            None => self.xconn.set_cursor_icon(self.xwindow, None),
+        };
+
+        if let Err(err) = result {
+            tracing::error!("failed to set cursor icon: {err}");
         }
     }
 
@@ -1852,34 +2157,6 @@ impl UnownedWindow {
     #[inline]
     pub fn pre_present_notify(&self) {
         // TODO timer
-    }
-
-    #[cfg(feature = "rwh_04")]
-    #[inline]
-    pub fn raw_window_handle_rwh_04(&self) -> rwh_04::RawWindowHandle {
-        let mut window_handle = rwh_04::XlibHandle::empty();
-        window_handle.display = self.xlib_display();
-        window_handle.window = self.xlib_window();
-        window_handle.visual_id = self.visual as c_ulong;
-        rwh_04::RawWindowHandle::Xlib(window_handle)
-    }
-
-    #[cfg(feature = "rwh_05")]
-    #[inline]
-    pub fn raw_window_handle_rwh_05(&self) -> rwh_05::RawWindowHandle {
-        let mut window_handle = rwh_05::XlibWindowHandle::empty();
-        window_handle.window = self.xlib_window();
-        window_handle.visual_id = self.visual as c_ulong;
-        window_handle.into()
-    }
-
-    #[cfg(feature = "rwh_05")]
-    #[inline]
-    pub fn raw_display_handle_rwh_05(&self) -> rwh_05::RawDisplayHandle {
-        let mut display_handle = rwh_05::XlibDisplayHandle::empty();
-        display_handle.display = self.xlib_display();
-        display_handle.screen = self.screen_id;
-        display_handle.into()
     }
 
     #[cfg(feature = "rwh_06")]

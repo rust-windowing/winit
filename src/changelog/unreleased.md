@@ -43,21 +43,34 @@ changelog entry.
 ### Added
 
 - Add `ActiveEventLoop::create_proxy()`.
-- On Web, implement `Error` for `platform::web::CustomCursorError`.
 - On Web, add `ActiveEventLoopExtWeb::is_cursor_lock_raw()` to determine if
   `DeviceEvent::MouseMotion` is returning raw data, not OS accelerated, when using
   `CursorGrabMode::Locked`.
 - On Web, implement `MonitorHandle` and `VideoModeHandle`.
-  
+
   Without prompting the user for permission, only the current monitor is returned. But when
   prompting and being granted permission through
   `ActiveEventLoop::request_detailed_monitor_permission()`, access to all monitors and their
-  information is available. This "detailed monitors" can be used in `Window::set_fullscreen()` as
-  well.
+  details is available. Handles created with "detailed monitor permissions" can be used in
+  `Window::set_fullscreen()` as well.
+
+  Keep in mind that handles do not auto-upgrade after permissions are granted and have to be
+  re-created to make full use of this feature.
+- Add `Touch::finger_id` with a new type `FingerId`.
+- On Web and Windows, add `FingerIdExt*::is_primary()`, exposing a way to determine
+  the primary finger in a multi-touch interaction.
+- Implement `Clone`, `Copy`, `Debug`, `Deserialize`, `Eq`, `Hash`, `Ord`, `PartialEq`, `PartialOrd`
+  and `Serialize` on many types.
+- Add `MonitorHandle::current_video_mode()`.
+- Add basic iOS IME support. The soft keyboard can now be shown using `Window::set_ime_allowed`.
 - Add `WindowEvent::AppleStandardKeyBindingAction`. This can be used to implement standard behaviours such as "go to end of line" on macOS.
 
 ### Changed
 
+- Change `ActiveEventLoop` to be a trait.
+- Change `Window` to be a trait.
+- `ActiveEventLoop::create_window` now returns `Box<dyn Window>`.
+- `ApplicationHandler` now uses `dyn ActiveEventLoop`.
 - On Web, let events wake up event loop immediately when using `ControlFlow::Poll`.
 - Bump MSRV from `1.70` to `1.73`.
 - Changed `ApplicationHandler::user_event` to `user_wake_up`, removing the
@@ -84,20 +97,42 @@ changelog entry.
 - On Web, `Window::canvas()` now returns a reference.
 - On Web, `CursorGrabMode::Locked` now lets `DeviceEvent::MouseMotion` return raw data, not OS
   accelerated, if the browser supports it.
+- `(Active)EventLoop::create_custom_cursor()` now returns a `Result<CustomCursor, ExternalError>`.
+- Changed how `ModifiersState` is serialized by Serde.
+- `VideoModeHandle::refresh_rate_millihertz()` and `bit_depth()` now return a `Option<NonZero*>`.
+- `MonitorHandle::position()` now returns an `Option`.
+- On iOS and macOS, remove custom application delegates. You are now allowed to override the
+  application delegate yourself.
+- On iOS, no longer act as-if the application successfully open all URLs. Override
+  `application:didFinishLaunchingWithOptions:` and provide the desired behaviour yourself.
+- On X11, remove our dependency on libXcursor. (#3749)
 
 ### Removed
 
-- Remove `EventLoop::run`.
-- Remove `EventLoopExtRunOnDemand::run_on_demand`.
-- Remove `EventLoopExtPumpEvents::pump_events`.
 - Remove `Event`.
+- Remove already deprecated APIs:
+  - `EventLoop::create_window()`
+  - `EventLoop::run`.
+  - `EventLoopBuilder::new()`
+  - `EventLoopExtPumpEvents::pump_events`.
+  - `EventLoopExtRunOnDemand::run_on_demand`.
+  - `VideoMode`
+  - `WindowAttributes::new()`
+  - `Window::set_cursor_icon()`
 - On iOS, remove `platform::ios::EventLoopExtIOS` and related `platform::ios::Idiom` type.
 
   This feature was incomplete, and the equivalent functionality can be trivially achieved outside
   of `winit` using `objc2-ui-kit` and calling `UIDevice::currentDevice().userInterfaceIdiom()`.
 - On Web, remove unused `platform::web::CustomCursorError::Animation`.
+- Remove the `rwh_04` and `rwh_05` cargo feature and the corresponding `raw-window-handle` v0.4 and
+  v0.5 support. v0.6 remains in place and is enabled by default.
+- Remove `DeviceEvent::Added` and `DeviceEvent::Removed`.
+- Remove `DeviceEvent::Motion` and `WindowEvent::AxisMotion`.
+- Remove `Touch::id` in favor of `Touch::finger_id`.
+- Remove `MonitorHandle::size()` and `refresh_rate_millihertz()` in favor of
+  `MonitorHandle::current_video_mode()`.
+- On Android, remove all `MonitorHandle` support instead of emitting false data.
 
 ### Fixed
 
-- On MacOS, fix building with `feature = "rwh_04"`.
-- On Web, pen events are now routed through to `WindowEvent::Cursor*`.
+- On Orbital, `MonitorHandle::name()` now returns `None` instead of a dummy name.

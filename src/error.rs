@@ -15,7 +15,8 @@ pub enum ExternalError {
 }
 
 /// The error type for when the requested operation is not supported by the backend.
-#[derive(Clone)]
+#[derive(Clone, Copy, Default, Eq, Hash, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct NotSupportedError {
     _marker: (),
 }

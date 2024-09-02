@@ -1,18 +1,74 @@
 //! # macOS / AppKit
 //!
-//! Winit has an OS requirement of macOS 10.11 or higher (same as Rust
-//! itself), and is regularly tested on macOS 10.14.
+//! Winit has [the same macOS version requirements as `rustc`][rustc-macos-version], and is tested
+//! once in a while on as low as macOS 10.14.
 //!
-//! A lot of functionality expects the application to be ready before you
-//! start doing anything; this includes creating windows, fetching monitors,
-//! drawing, and so on, see issues [#2238], [#2051] and [#2087].
+//! [rustc-macos-version]: https://doc.rust-lang.org/rustc/platform-support/apple-darwin.html#os-version
 //!
-//! If you encounter problems, you should try doing your initialization inside
-//! `Event::Resumed`.
+//! ## Custom `NSApplicationDelegate`
 //!
-//! [#2238]: https://github.com/rust-windowing/winit/issues/2238
-//! [#2051]: https://github.com/rust-windowing/winit/issues/2051
-//! [#2087]: https://github.com/rust-windowing/winit/issues/2087
+//! Winit usually handles everything related to the lifecycle events of the application. Sometimes,
+//! though, you might want to do more niche stuff, such as [handle when the user re-activates the
+//! application][reopen]. Such functionality is not exposed directly in Winit, since it would
+//! increase the API surface by quite a lot.
+//!
+//! [reopen]: https://developer.apple.com/documentation/appkit/nsapplicationdelegate/1428638-applicationshouldhandlereopen?language=objc
+//!
+//! Instead, Winit guarantees that it will not register an application delegate, so the solution is
+//! to register your own application delegate, as outlined in the following example (see
+//! `objc2-app-kit` for more detailed information).
+#![cfg_attr(target_os = "macos", doc = "```")]
+#![cfg_attr(not(target_os = "macos"), doc = "```ignore")]
+//! use objc2::rc::Retained;
+//! use objc2::runtime::ProtocolObject;
+//! use objc2::{declare_class, msg_send_id, mutability, ClassType, DeclaredClass};
+//! use objc2_app_kit::{NSApplication, NSApplicationDelegate};
+//! use objc2_foundation::{NSArray, NSURL, MainThreadMarker, NSObject, NSObjectProtocol};
+//! use winit::event_loop::EventLoop;
+//!
+//! declare_class!(
+//!     struct AppDelegate;
+//!
+//!     unsafe impl ClassType for AppDelegate {
+//!         type Super = NSObject;
+//!         type Mutability = mutability::MainThreadOnly;
+//!         const NAME: &'static str = "MyAppDelegate";
+//!     }
+//!
+//!     impl DeclaredClass for AppDelegate {}
+//!
+//!     unsafe impl NSObjectProtocol for AppDelegate {}
+//!
+//!     unsafe impl NSApplicationDelegate for AppDelegate {
+//!         #[method(application:openURLs:)]
+//!         fn application_openURLs(&self, application: &NSApplication, urls: &NSArray<NSURL>) {
+//!             // Note: To specifically get `application:openURLs:` to work, you _might_
+//!             // have to bundle your application. This is not done in this example.
+//!             println!("open urls: {application:?}, {urls:?}");
+//!         }
+//!     }
+//! );
+//!
+//! impl AppDelegate {
+//!     fn new(mtm: MainThreadMarker) -> Retained<Self> {
+//!         unsafe { msg_send_id![super(mtm.alloc().set_ivars(())), init] }
+//!     }
+//! }
+//!
+//! fn main() -> Result<(), Box<dyn std::error::Error>> {
+//!     let event_loop = EventLoop::new()?;
+//!
+//!     let mtm = MainThreadMarker::new().unwrap();
+//!     let delegate = AppDelegate::new(mtm);
+//!     // Important: Call `sharedApplication` after `EventLoop::new`,
+//!     // doing it before is not yet supported.
+//!     let app = NSApplication::sharedApplication(mtm);
+//!     app.setDelegate(Some(ProtocolObject::from_ref(&*delegate)));
+//!
+//!     // event_loop.run_app(&mut my_app);
+//!     Ok(())
+//! }
+//! ```
 
 use std::os::raw::c_void;
 
@@ -96,80 +152,95 @@ pub trait WindowExtMacOS {
     fn option_as_alt(&self) -> OptionAsAlt;
 }
 
-impl WindowExtMacOS for Window {
+impl WindowExtMacOS for dyn Window + '_ {
     #[inline]
     fn simple_fullscreen(&self) -> bool {
-        self.window.maybe_wait_on_main(|w| w.simple_fullscreen())
+        let window = self.as_any().downcast_ref::<crate::platform_impl::Window>().unwrap();
+        window.maybe_wait_on_main(|w| w.simple_fullscreen())
     }
 
     #[inline]
     fn set_simple_fullscreen(&self, fullscreen: bool) -> bool {
-        self.window.maybe_wait_on_main(move |w| w.set_simple_fullscreen(fullscreen))
+        let window = self.as_any().downcast_ref::<crate::platform_impl::Window>().unwrap();
+        window.maybe_wait_on_main(move |w| w.set_simple_fullscreen(fullscreen))
     }
 
     #[inline]
     fn has_shadow(&self) -> bool {
-        self.window.maybe_wait_on_main(|w| w.has_shadow())
+        let window = self.as_any().downcast_ref::<crate::platform_impl::Window>().unwrap();
+        window.maybe_wait_on_main(|w| w.has_shadow())
     }
 
     #[inline]
     fn set_has_shadow(&self, has_shadow: bool) {
-        self.window.maybe_queue_on_main(move |w| w.set_has_shadow(has_shadow))
+        let window = self.as_any().downcast_ref::<crate::platform_impl::Window>().unwrap();
+        window.maybe_wait_on_main(move |w| w.set_has_shadow(has_shadow));
     }
 
     #[inline]
     fn set_tabbing_identifier(&self, identifier: &str) {
-        self.window.maybe_wait_on_main(|w| w.set_tabbing_identifier(identifier))
+        let window = self.as_any().downcast_ref::<crate::platform_impl::Window>().unwrap();
+        window.maybe_wait_on_main(|w| w.set_tabbing_identifier(identifier))
     }
 
     #[inline]
     fn tabbing_identifier(&self) -> String {
-        self.window.maybe_wait_on_main(|w| w.tabbing_identifier())
+        let window = self.as_any().downcast_ref::<crate::platform_impl::Window>().unwrap();
+        window.maybe_wait_on_main(|w| w.tabbing_identifier())
     }
 
     #[inline]
     fn select_next_tab(&self) {
-        self.window.maybe_queue_on_main(|w| w.select_next_tab())
+        let window = self.as_any().downcast_ref::<crate::platform_impl::Window>().unwrap();
+        window.maybe_wait_on_main(|w| w.select_next_tab());
     }
 
     #[inline]
     fn select_previous_tab(&self) {
-        self.window.maybe_queue_on_main(|w| w.select_previous_tab())
+        let window = self.as_any().downcast_ref::<crate::platform_impl::Window>().unwrap();
+        window.maybe_wait_on_main(|w| w.select_previous_tab());
     }
 
     #[inline]
     fn select_tab_at_index(&self, index: usize) {
-        self.window.maybe_queue_on_main(move |w| w.select_tab_at_index(index))
+        let window = self.as_any().downcast_ref::<crate::platform_impl::Window>().unwrap();
+        window.maybe_wait_on_main(move |w| w.select_tab_at_index(index));
     }
 
     #[inline]
     fn num_tabs(&self) -> usize {
-        self.window.maybe_wait_on_main(|w| w.num_tabs())
+        let window = self.as_any().downcast_ref::<crate::platform_impl::Window>().unwrap();
+        window.maybe_wait_on_main(|w| w.num_tabs())
     }
 
     #[inline]
     fn is_document_edited(&self) -> bool {
-        self.window.maybe_wait_on_main(|w| w.is_document_edited())
+        let window = self.as_any().downcast_ref::<crate::platform_impl::Window>().unwrap();
+        window.maybe_wait_on_main(|w| w.is_document_edited())
     }
 
     #[inline]
     fn set_document_edited(&self, edited: bool) {
-        self.window.maybe_queue_on_main(move |w| w.set_document_edited(edited))
+        let window = self.as_any().downcast_ref::<crate::platform_impl::Window>().unwrap();
+        window.maybe_wait_on_main(move |w| w.set_document_edited(edited));
     }
 
     #[inline]
     fn set_option_as_alt(&self, option_as_alt: OptionAsAlt) {
-        self.window.maybe_queue_on_main(move |w| w.set_option_as_alt(option_as_alt))
+        let window = self.as_any().downcast_ref::<crate::platform_impl::Window>().unwrap();
+        window.maybe_wait_on_main(move |w| w.set_option_as_alt(option_as_alt));
     }
 
     #[inline]
     fn option_as_alt(&self) -> OptionAsAlt {
-        self.window.maybe_wait_on_main(|w| w.option_as_alt())
+        let window = self.as_any().downcast_ref::<crate::platform_impl::Window>().unwrap();
+        window.maybe_wait_on_main(|w| w.option_as_alt())
     }
 }
 
 /// Corresponds to `NSApplicationActivationPolicy`.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum ActivationPolicy {
     /// Corresponds to `NSApplicationActivationPolicyRegular`.
     #[default]
@@ -296,11 +367,11 @@ pub trait EventLoopBuilderExtMacOS {
     /// Set the activation policy to "accessory".
     ///
     /// ```
-    /// use winit::event_loop::EventLoopBuilder;
+    /// use winit::event_loop::EventLoop;
     /// #[cfg(target_os = "macos")]
     /// use winit::platform::macos::{ActivationPolicy, EventLoopBuilderExtMacOS};
     ///
-    /// let mut builder = EventLoopBuilder::new();
+    /// let mut builder = EventLoop::builder();
     /// #[cfg(target_os = "macos")]
     /// builder.with_activation_policy(ActivationPolicy::Accessory);
     /// # if false { // We can't test this part
@@ -318,11 +389,11 @@ pub trait EventLoopBuilderExtMacOS {
     /// Disable creating a default menubar.
     ///
     /// ```
-    /// use winit::event_loop::EventLoopBuilder;
+    /// use winit::event_loop::EventLoop;
     /// #[cfg(target_os = "macos")]
     /// use winit::platform::macos::EventLoopBuilderExtMacOS;
     ///
-    /// let mut builder = EventLoopBuilder::new();
+    /// let mut builder = EventLoop::builder();
     /// #[cfg(target_os = "macos")]
     /// builder.with_default_menu(false);
     /// # if false { // We can't test this part
@@ -395,28 +466,44 @@ pub trait ActiveEventLoopExtMacOS {
     fn allows_automatic_window_tabbing(&self) -> bool;
 }
 
-impl ActiveEventLoopExtMacOS for ActiveEventLoop {
+impl ActiveEventLoopExtMacOS for dyn ActiveEventLoop + '_ {
     fn hide_application(&self) {
-        self.p.hide_application()
+        let event_loop = self
+            .as_any()
+            .downcast_ref::<crate::platform_impl::ActiveEventLoop>()
+            .expect("non macOS event loop on macOS");
+        event_loop.hide_application()
     }
 
     fn hide_other_applications(&self) {
-        self.p.hide_other_applications()
+        let event_loop = self
+            .as_any()
+            .downcast_ref::<crate::platform_impl::ActiveEventLoop>()
+            .expect("non macOS event loop on macOS");
+        event_loop.hide_other_applications()
     }
 
     fn set_allows_automatic_window_tabbing(&self, enabled: bool) {
-        self.p.set_allows_automatic_window_tabbing(enabled);
+        let event_loop = self
+            .as_any()
+            .downcast_ref::<crate::platform_impl::ActiveEventLoop>()
+            .expect("non macOS event loop on macOS");
+        event_loop.set_allows_automatic_window_tabbing(enabled);
     }
 
     fn allows_automatic_window_tabbing(&self) -> bool {
-        self.p.allows_automatic_window_tabbing()
+        let event_loop = self
+            .as_any()
+            .downcast_ref::<crate::platform_impl::ActiveEventLoop>()
+            .expect("non macOS event loop on macOS");
+        event_loop.allows_automatic_window_tabbing()
     }
 }
 
 /// Option as alt behavior.
 ///
 /// The default is `None`.
-#[derive(Default, Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Default, Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum OptionAsAlt {
     /// The left `Option` key is treated as `Alt`.

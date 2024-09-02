@@ -1,6 +1,5 @@
 #![allow(clippy::let_unit_value)]
 
-mod app_delegate;
 mod app_state;
 mod event_loop;
 mod monitor;
@@ -37,6 +36,15 @@ impl DeviceId {
 }
 
 pub(crate) const DEVICE_ID: RootDeviceId = RootDeviceId(DeviceId);
+
+#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct FingerId(usize);
+
+impl FingerId {
+    pub const fn dummy() -> Self {
+        FingerId(0)
+    }
+}
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct KeyEventExtra {}

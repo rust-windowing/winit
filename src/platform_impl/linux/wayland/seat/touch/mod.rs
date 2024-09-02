@@ -10,7 +10,7 @@ use tracing::warn;
 use crate::dpi::LogicalPosition;
 use crate::event::{Touch, TouchPhase, WindowEvent};
 use crate::platform_impl::wayland::state::WinitState;
-use crate::platform_impl::wayland::{self, DeviceId};
+use crate::platform_impl::wayland::{self, DeviceId, FingerId};
 
 impl TouchHandler for WinitState {
     fn down(
@@ -50,7 +50,9 @@ impl TouchHandler for WinitState {
                 phase: TouchPhase::Started,
                 location: location.to_physical(scale_factor),
                 force: None,
-                id: id as u64,
+                finger_id: crate::event::FingerId(crate::platform_impl::FingerId::Wayland(
+                    FingerId(id),
+                )),
             }),
             window_id,
         );
@@ -93,7 +95,9 @@ impl TouchHandler for WinitState {
                 phase: TouchPhase::Ended,
                 location: touch_point.location.to_physical(scale_factor),
                 force: None,
-                id: id as u64,
+                finger_id: crate::event::FingerId(crate::platform_impl::FingerId::Wayland(
+                    FingerId(id),
+                )),
             }),
             window_id,
         );
@@ -138,7 +142,9 @@ impl TouchHandler for WinitState {
                 phase: TouchPhase::Moved,
                 location: touch_point.location.to_physical(scale_factor),
                 force: None,
-                id: id as u64,
+                finger_id: crate::event::FingerId(crate::platform_impl::FingerId::Wayland(
+                    FingerId(id),
+                )),
             }),
             window_id,
         );
@@ -170,7 +176,9 @@ impl TouchHandler for WinitState {
                     phase: TouchPhase::Cancelled,
                     location,
                     force: None,
-                    id: id as u64,
+                    finger_id: crate::event::FingerId(crate::platform_impl::FingerId::Wayland(
+                        FingerId(id),
+                    )),
                 }),
                 window_id,
             );

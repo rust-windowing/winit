@@ -175,7 +175,7 @@ impl Schedule {
         F: 'static + FnMut(),
     {
         thread_local! {
-            static URL: ScriptUrl = ScriptUrl::new(include_str!("worker.min.js"));
+            static URL: ScriptUrl = ScriptUrl::new(include_str!("../script/worker.min.js"));
             static WORKER: Worker = URL.with(|url| Worker::new(&url.0)).expect("`new Worker()` is not expected to fail with a local script");
         }
 
@@ -275,8 +275,8 @@ struct ScriptUrl(String);
 impl ScriptUrl {
     fn new(script: &str) -> Self {
         let sequence = Array::of1(&script.into());
-        let mut property = BlobPropertyBag::new();
-        property.type_("text/javascript");
+        let property = BlobPropertyBag::new();
+        property.set_type("text/javascript");
         let blob = Blob::new_with_str_sequence_and_options(&sequence, &property)
             .expect("`new Blob()` should never throw");
 

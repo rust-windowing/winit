@@ -50,12 +50,15 @@ use std::pin::Pin;
 use std::task::{Context, Poll};
 use std::time::Duration;
 
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
 #[cfg(web_platform)]
 use web_sys::HtmlCanvasElement;
 
 use crate::application::ApplicationHandler;
 use crate::cursor::CustomCursorSource;
 use crate::error::NotSupportedError;
+use crate::event::FingerId;
 use crate::event_loop::{ActiveEventLoop, EventLoop};
 use crate::monitor::MonitorHandle;
 use crate::platform_impl::PlatformCustomCursorSource;
@@ -79,7 +82,7 @@ pub trait WindowExtWeb {
 
     /// Returns [`true`] if calling `event.preventDefault()` is enabled.
     ///
-    /// See [`Window::set_prevent_default()`] for more details.
+    /// See [`WindowExtWeb::set_prevent_default()`] for more details.
     fn prevent_default(&self) -> bool;
 
     /// Sets whether `event.preventDefault()` should be called on events on the
@@ -94,29 +97,41 @@ pub trait WindowExtWeb {
 
     /// Returns whether using [`CursorGrabMode::Locked`] returns raw, un-accelerated mouse input.
     ///
-    /// This is the same as [`ActiveEventLoop::is_cursor_lock_raw()`], and is provided for
+    /// This is the same as [`ActiveEventLoopExtWeb::is_cursor_lock_raw()`], and is provided for
     /// convenience.
     ///
     /// [`CursorGrabMode::Locked`]: crate::window::CursorGrabMode::Locked
     fn is_cursor_lock_raw(&self) -> bool;
 }
 
-impl WindowExtWeb for Window {
+impl WindowExtWeb for dyn Window + '_ {
     #[inline]
     fn canvas(&self) -> Option<Ref<'_, HtmlCanvasElement>> {
-        self.window.canvas()
+        self.as_any()
+            .downcast_ref::<crate::platform_impl::Window>()
+            .expect("non Web window on Web")
+            .canvas()
     }
 
     fn prevent_default(&self) -> bool {
-        self.window.prevent_default()
+        self.as_any()
+            .downcast_ref::<crate::platform_impl::Window>()
+            .expect("non Web window on Web")
+            .prevent_default()
     }
 
     fn set_prevent_default(&self, prevent_default: bool) {
-        self.window.set_prevent_default(prevent_default)
+        self.as_any()
+            .downcast_ref::<crate::platform_impl::Window>()
+            .expect("non Web window on Web")
+            .set_prevent_default(prevent_default)
     }
 
     fn is_cursor_lock_raw(&self) -> bool {
-        self.window.is_cursor_lock_raw()
+        self.as_any()
+            .downcast_ref::<crate::platform_impl::Window>()
+            .expect("non Web window on Web")
+            .is_cursor_lock_raw()
     }
 }
 
@@ -133,7 +148,7 @@ pub trait WindowAttributesExtWeb {
     /// Sets whether `event.preventDefault()` should be called on events on the
     /// canvas that have side effects.
     ///
-    /// See [`Window::set_prevent_default()`] for more details.
+    /// See [`WindowExtWeb::set_prevent_default()`] for more details.
     ///
     /// Enabled by default.
     fn with_prevent_default(self, prevent_default: bool) -> Self;
@@ -226,7 +241,8 @@ pub trait EventLoopExtWeb {
     /// [`ControlFlow::WaitUntil`]: crate::event_loop::ControlFlow::WaitUntil
     fn wait_until_strategy(&self) -> WaitUntilStrategy;
 
-    /// Returns if the users device has multiple screens.
+    /// Returns if the users device has multiple screens. Useful to check before prompting the user
+    /// with [`EventLoopExtWeb::request_detailed_monitor_permission()`].
     ///
     /// Browsers might always return [`false`] to reduce fingerprinting.
     fn has_multiple_screens(&self) -> Result<bool, NotSupportedError>;
@@ -234,11 +250,17 @@ pub trait EventLoopExtWeb {
     /// Prompts the user for permission to query detailed information about available monitors. The
     /// returned [`MonitorPermissionFuture`] can be dropped without aborting the request.
     ///
+    /// Check [`EventLoopExtWeb::has_multiple_screens()`] before unnecessarily prompting the user
+    /// for such permissions.
+    ///
     /// [`MonitorHandle`]s don't automatically make use of this after permission is granted. New
     /// [`MonitorHandle`]s have to be created instead.
     fn request_detailed_monitor_permission(&self) -> MonitorPermissionFuture;
 
     /// Returns whether the user has given permission to access detailed monitor information.
+    ///
+    /// [`MonitorHandle`]s don't automatically make use of detailed monitor information after
+    /// permission is granted. New [`MonitorHandle`]s have to be created instead.
     fn has_detailed_monitor_permission(&self) -> HasMonitorPermissionFuture;
 }
 
@@ -314,7 +336,8 @@ pub trait ActiveEventLoopExtWeb {
     /// [`CursorGrabMode::Locked`]: crate::window::CursorGrabMode::Locked
     fn is_cursor_lock_raw(&self) -> bool;
 
-    /// Returns if the users device has multiple screens.
+    /// Returns if the users device has multiple screens. Useful to check before prompting the user
+    /// with [`EventLoopExtWeb::request_detailed_monitor_permission()`].
     ///
     /// Browsers might always return [`false`] to reduce fingerprinting.
     fn has_multiple_screens(&self) -> Result<bool, NotSupportedError>;
@@ -322,66 +345,106 @@ pub trait ActiveEventLoopExtWeb {
     /// Prompts the user for permission to query detailed information about available monitors. The
     /// returned [`MonitorPermissionFuture`] can be dropped without aborting the request.
     ///
+    /// Check [`EventLoopExtWeb::has_multiple_screens()`] before unnecessarily prompting the user
+    /// for such permissions.
+    ///
     /// [`MonitorHandle`]s don't automatically make use of this after permission is granted. New
     /// [`MonitorHandle`]s have to be created instead.
     fn request_detailed_monitor_permission(&self) -> MonitorPermissionFuture;
 
     /// Returns whether the user has given permission to access detailed monitor information.
     ///
-    /// [`MonitorHandle`]s don't automatically make use of this after permission is granted. New
-    /// [`MonitorHandle`]s have to be created instead.
+    /// [`MonitorHandle`]s don't automatically make use of detailed monitor information after
+    /// permission is granted. New [`MonitorHandle`]s have to be created instead.
     fn has_detailed_monitor_permission(&self) -> bool;
 }
 
-impl ActiveEventLoopExtWeb for ActiveEventLoop {
+impl ActiveEventLoopExtWeb for dyn ActiveEventLoop + '_ {
     #[inline]
     fn create_custom_cursor_async(&self, source: CustomCursorSource) -> CustomCursorFuture {
-        self.p.create_custom_cursor_async(source)
+        let event_loop = self
+            .as_any()
+            .downcast_ref::<crate::platform_impl::ActiveEventLoop>()
+            .expect("non Web event loop on Web");
+        event_loop.create_custom_cursor_async(source)
     }
 
     #[inline]
     fn set_poll_strategy(&self, strategy: PollStrategy) {
-        self.p.set_poll_strategy(strategy);
+        let event_loop = self
+            .as_any()
+            .downcast_ref::<crate::platform_impl::ActiveEventLoop>()
+            .expect("non Web event loop on Web");
+        event_loop.set_poll_strategy(strategy);
     }
 
     #[inline]
     fn poll_strategy(&self) -> PollStrategy {
-        self.p.poll_strategy()
+        let event_loop = self
+            .as_any()
+            .downcast_ref::<crate::platform_impl::ActiveEventLoop>()
+            .expect("non Web event loop on Web");
+        event_loop.poll_strategy()
     }
 
     #[inline]
     fn set_wait_until_strategy(&self, strategy: WaitUntilStrategy) {
-        self.p.set_wait_until_strategy(strategy);
+        let event_loop = self
+            .as_any()
+            .downcast_ref::<crate::platform_impl::ActiveEventLoop>()
+            .expect("non Web event loop on Web");
+        event_loop.set_wait_until_strategy(strategy);
     }
 
     #[inline]
     fn wait_until_strategy(&self) -> WaitUntilStrategy {
-        self.p.wait_until_strategy()
+        let event_loop = self
+            .as_any()
+            .downcast_ref::<crate::platform_impl::ActiveEventLoop>()
+            .expect("non Web event loop on Web");
+        event_loop.wait_until_strategy()
     }
 
     #[inline]
     fn is_cursor_lock_raw(&self) -> bool {
-        self.p.is_cursor_lock_raw()
+        let event_loop = self
+            .as_any()
+            .downcast_ref::<crate::platform_impl::ActiveEventLoop>()
+            .expect("non Web event loop on Web");
+        event_loop.is_cursor_lock_raw()
     }
 
     #[inline]
     fn has_multiple_screens(&self) -> Result<bool, NotSupportedError> {
-        self.p.has_multiple_screens()
+        let event_loop = self
+            .as_any()
+            .downcast_ref::<crate::platform_impl::ActiveEventLoop>()
+            .expect("non Web event loop on Web");
+        event_loop.has_multiple_screens()
     }
 
     #[inline]
     fn request_detailed_monitor_permission(&self) -> MonitorPermissionFuture {
-        MonitorPermissionFuture(self.p.request_detailed_monitor_permission())
+        let event_loop = self
+            .as_any()
+            .downcast_ref::<crate::platform_impl::ActiveEventLoop>()
+            .expect("non Web event loop on Web");
+        MonitorPermissionFuture(event_loop.request_detailed_monitor_permission())
     }
 
     #[inline]
     fn has_detailed_monitor_permission(&self) -> bool {
-        self.p.has_detailed_monitor_permission()
+        let event_loop = self
+            .as_any()
+            .downcast_ref::<crate::platform_impl::ActiveEventLoop>()
+            .expect("non Web event loop on Web");
+        event_loop.has_detailed_monitor_permission()
     }
 }
 
 /// Strategy used for [`ControlFlow::Poll`][crate::event_loop::ControlFlow::Poll].
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, Eq, Hash, PartialEq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum PollStrategy {
     /// Uses [`Window.requestIdleCallback()`] to queue the next event loop. If not available
     /// this will fallback to [`setTimeout()`].
@@ -407,7 +470,8 @@ pub enum PollStrategy {
 }
 
 /// Strategy used for [`ControlFlow::WaitUntil`][crate::event_loop::ControlFlow::WaitUntil].
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, Eq, Hash, PartialEq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum WaitUntilStrategy {
     /// Uses the [Prioritized Task Scheduling API] to queue the next event loop. If not available
     /// this will fallback to [`setTimeout()`].
@@ -476,7 +540,8 @@ impl CustomCursorExtWeb for CustomCursor {
 }
 
 /// An error produced when using [`CustomCursor::from_animation`] with invalid arguments.
-#[derive(Debug, Clone)]
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum BadAnimation {
     /// Produced when no cursors were supplied.
     Empty,
@@ -509,7 +574,8 @@ impl Future for CustomCursorFuture {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum CustomCursorError {
     Blob,
     Decode(String),
@@ -608,9 +674,11 @@ pub trait MonitorHandleExtWeb {
     /// Will fail if a locking call is in progress.
     fn unlock(&self) -> Result<(), OrientationLockError>;
 
-    /// Returns whether this [`MonitorHandle`] was created using detailed monitor permissions.
+    /// Returns whether this [`MonitorHandle`] was created using detailed monitor permissions. If
+    /// [`false`] will always represent the current monitor the browser window is in instead of a
+    /// specific monitor.
     ///
-    /// See [`ActiveEventLoop::request_detailed_monitor_permission()`].
+    /// See [`ActiveEventLoopExtWeb::request_detailed_monitor_permission()`].
     fn is_detailed(&self) -> bool;
 }
 
@@ -643,10 +711,9 @@ pub struct OrientationData {
     pub orientation: Orientation,
     /// [`true`] if the [`orientation`](Self::orientation) is flipped upside down.
     pub flipped: bool,
-    /// [`true`] if the [`Orientation`] is the most natural one for the screen regardless of being
-    /// flipped. Computer monitors are commonly naturally landscape mode, while mobile phones
-    /// are commonly naturally portrait mode.
-    pub natural: bool,
+    /// The most natural orientation for the screen. Computer monitors are commonly naturally
+    /// landscape mode, while mobile phones are commonly naturally portrait mode.
+    pub natural: Orientation,
 }
 
 /// Screen orientation.
@@ -670,14 +737,14 @@ pub enum OrientationLock {
     /// User is locked to landscape mode.
     Landscape {
         /// - [`None`]: User is locked to both upright or upside down landscape mode.
-        /// - [`false`]: User is locked to upright landscape mode.
+        /// - [`true`]: User is locked to upright landscape mode.
         /// - [`false`]: User is locked to upside down landscape mode.
         flipped: Option<bool>,
     },
     /// User is locked to portrait mode.
     Portrait {
         /// - [`None`]: User is locked to both upright or upside down portrait mode.
-        /// - [`false`]: User is locked to upright portrait mode.
+        /// - [`true`]: User is locked to upright portrait mode.
         /// - [`false`]: User is locked to upside down portrait mode.
         flipped: Option<bool>,
     },
@@ -714,3 +781,16 @@ impl Display for OrientationLockError {
 }
 
 impl Error for OrientationLockError {}
+
+/// Additional methods on [`FingerId`] that are specific to Web.
+pub trait FingerIdExtWeb {
+    /// Indicates if the finger represents the first contact in a multi-touch interaction.
+    #[allow(clippy::wrong_self_convention)]
+    fn is_primary(self) -> bool;
+}
+
+impl FingerIdExtWeb for FingerId {
+    fn is_primary(self) -> bool {
+        self.0.is_primary()
+    }
+}

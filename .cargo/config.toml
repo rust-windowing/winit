@@ -2,8 +2,8 @@
 #
 # Note that these flags are (intentionally) not included when building from the downloaded crate.
 [build]
-rustflags = ["--cfg=unreleased_changelogs"]
 rustdocflags = ["--cfg=unreleased_changelogs"]
+rustflags = ["--cfg=unreleased_changelogs"]
 
 [target.wasm32-unknown-unknown]
 runner = "wasm-bindgen-test-runner"

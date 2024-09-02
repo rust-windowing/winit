@@ -17,6 +17,19 @@ jobs:
     - name: Check Formatting
       run: cargo fmt -- --check
 
+  taplo:
+    name: Taplo
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: taiki-e/checkout-action@v1
+      - name: Install Taplo
+        uses: taiki-e/install-action@v2
+        with:
+          tool: taplo-cli
+      - name: Run Taplo
+        run: taplo fmt --check
+
   typos:
     name: Check for typos
     runs-on: ubuntu-latest
@@ -55,7 +68,8 @@ jobs:
           - { name: 'Wayland',            target: x86_64-unknown-linux-gnu, os: ubuntu-latest, options: '--no-default-features --features=wayland,wayland-dlopen' }
           - { name: 'Android',            target: aarch64-linux-android,    os: ubuntu-latest, options: '--package=winit --features=android-native-activity', cmd: 'apk --' }
           - { name: 'Redox OS',           target: x86_64-unknown-redox,     os: ubuntu-latest,   }
-          - { name: 'macOS',              target: x86_64-apple-darwin,      os: macos-latest,    }
+          - { name: 'macOS x86_64',       target: x86_64-apple-darwin,      os: macos-latest,    }
+          - { name: 'macOS Aarch64',      target: aarch64-apple-darwin,     os: macos-latest,    }
           - { name: 'iOS x86_64',         target: x86_64-apple-ios,         os: macos-latest,    }
           - { name: 'iOS Aarch64',        target: aarch64-apple-ios,        os: macos-latest,    }
           - { name: 'Web',                target: wasm32-unknown-unknown,   os: ubuntu-latest,   }
@@ -106,7 +120,7 @@ jobs:
       # the cache has been downloaded.
       #
       # This could be avoided if we added Cargo.lock to the repository.
-      uses: actions/cache/restore@v3
+      uses: actions/cache/restore@v4
       with:
         # https://doc.rust-lang.org/cargo/guide/cargo-home.html#caching-the-cargo-home-in-ci
         path: |
@@ -127,7 +141,7 @@ jobs:
     - name: Cache cargo-apk
       if: contains(matrix.platform.target, 'android')
       id: cargo-apk-cache
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       with:
         path: ~/.cargo/bin/cargo-apk
         # Change this key if we update the required cargo-apk version
@@ -204,13 +218,13 @@ jobs:
 
     - name: Check docs.rs documentation
       if: matrix.toolchain == 'nightly'
-      run: cargo doc --no-deps $OPTIONS --features=rwh_04,rwh_05,rwh_06,serde,mint,android-native-activity
+      run: cargo doc --no-deps $OPTIONS --features=serde,mint,android-native-activity
       env:
         RUSTDOCFLAGS: '--deny=warnings ${{ matrix.platform.rustflags }} --cfg=docsrs --cfg=unreleased_changelogs'
 
     # See restore step above
     - name: Save cache of cargo folder
-      uses: actions/cache/save@v3
+      uses: actions/cache/save@v4
       with:
         path: |
           ~/.cargo/registry/index/
@@ -230,22 +244,42 @@ jobs:
           - { name: 'Android', target: aarch64-linux-android }
           - { name: 'iOS', target: aarch64-apple-ios }
           - { name: 'Linux', target: x86_64-unknown-linux-gnu }
-          - { name: 'macOS', target: x86_64-apple-darwin }
+          - { name: 'macOS', target: aarch64-apple-darwin }
           - { name: 'Redox OS', target: x86_64-unknown-redox }
           - { name: 'Web', target: wasm32-unknown-unknown }
-          - { name: 'Windows', target: x86_64-pc-windows-gnu }
+          - { name: 'Windows GNU', target: x86_64-pc-windows-gnu }
+          - { name: 'Windows MSVC', target: x86_64-pc-windows-msvc }
 
     steps:
     - uses: taiki-e/checkout-action@v1
-    - uses: EmbarkStudios/cargo-deny-action@v1
+    - uses: EmbarkStudios/cargo-deny-action@v2
       with:
         command: check
         log-level: error
         arguments: --all-features --target ${{ matrix.platform.target }}
 
+  eslint:
+    name: ESLint
+
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./src/platform_impl/web/script
+
+    steps:
+      - uses: taiki-e/checkout-action@v1
+      - name: Setup NPM
+        run: npm install
+      - name: Run ESLint
+        run: npx eslint
+
   swc:
     name: Minimize JavaScript
+
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./src/platform_impl/web/script
 
     steps:
       - uses: taiki-e/checkout-action@v1
@@ -253,7 +287,7 @@ jobs:
         run: sudo npm i -g @swc/cli
       - name: Run SWC
         run: |
-          swc src/platform_impl/web/web_sys/worker.js -o src/platform_impl/web/web_sys/worker.min.js
+          swc . --ignore node_modules,**/*.d.ts --only **/*.ts -d . --out-file-extension min.js
       - name: Check for diff
         run: |
           [[ -z $(git status -s) ]]

@@ -23,10 +23,11 @@ use crate::dpi::{LogicalPosition, LogicalSize, PhysicalPosition, PhysicalSize, P
 use crate::error::{ExternalError, NotSupportedError, OsError as RootOsError};
 use crate::event::{Event, WindowEvent};
 use crate::icon::Icon;
+use crate::monitor::MonitorHandle as CoreMonitorHandle;
 use crate::platform::ios::{ScreenEdge, StatusBarStyle, ValidOrientations};
 use crate::window::{
-    CursorGrabMode, ImePurpose, ResizeDirection, Theme, UserAttentionType, WindowAttributes,
-    WindowButtons, WindowId as RootWindowId, WindowLevel,
+    CursorGrabMode, ImePurpose, ResizeDirection, Theme, UserAttentionType, Window as CoreWindow,
+    WindowAttributes, WindowButtons, WindowId as CoreWindowId, WindowLevel,
 };
 
 declare_class!(
@@ -49,7 +50,7 @@ declare_class!(
             app_state::handle_nonuser_event(
                 mtm,
                 EventWrapper::StaticEvent(Event::WindowEvent {
-                    window_id: RootWindowId(self.id()),
+                    window_id: CoreWindowId(self.id()),
                     event: WindowEvent::Focused(true),
                 }),
             );
@@ -62,7 +63,7 @@ declare_class!(
             app_state::handle_nonuser_event(
                 mtm,
                 EventWrapper::StaticEvent(Event::WindowEvent {
-                    window_id: RootWindowId(self.id()),
+                    window_id: CoreWindowId(self.id()),
                     event: WindowEvent::Focused(false),
                 }),
             );
@@ -78,6 +79,11 @@ impl WinitUIWindow {
         frame: CGRect,
         view_controller: &UIViewController,
     ) -> Retained<Self> {
+        // NOTE: This should only be created after the application has started launching,
+        // (`application:willFinishLaunchingWithOptions:` at the earliest), otherwise you'll run
+        // into very confusing issues with the window not being properly activated.
+        //
+        // Winit ensures this by not allowing access to `ActiveEventLoop` before handling events.
         let this: Retained<Self> = unsafe { msg_send_id![mtm.alloc(), initWithFrame: frame] };
 
         this.setRootViewController(Some(view_controller));
@@ -365,12 +371,24 @@ impl Inner {
         warn!("`Window::set_ime_cursor_area` is ignored on iOS")
     }
 
-    pub fn set_ime_allowed(&self, _allowed: bool) {
-        warn!("`Window::set_ime_allowed` is ignored on iOS")
+    /// Show / hide the keyboard. To show the keyboard, we call `becomeFirstResponder`,
+    /// requesting focus for the [WinitView]. Since [WinitView] implements
+    /// [objc2_ui_kit::UIKeyInput], the keyboard will be shown.
+    /// <https://developer.apple.com/documentation/uikit/uiresponder/1621113-becomefirstresponder>
+    pub fn set_ime_allowed(&self, allowed: bool) {
+        if allowed {
+            unsafe {
+                self.view.becomeFirstResponder();
+            }
+        } else {
+            unsafe {
+                self.view.resignFirstResponder();
+            }
+        }
     }
 
     pub fn set_ime_purpose(&self, _purpose: ImePurpose) {
-        warn!("`Window::set_ime_allowed` is ignored on iOS")
+        warn!("`Window::set_ime_purpose` is ignored on iOS")
     }
 
     pub fn focus_window(&self) {
@@ -401,29 +419,6 @@ impl Inner {
 
     pub fn id(&self) -> WindowId {
         self.window.id()
-    }
-
-    #[cfg(feature = "rwh_04")]
-    pub fn raw_window_handle_rwh_04(&self) -> rwh_04::RawWindowHandle {
-        let mut window_handle = rwh_04::UiKitHandle::empty();
-        window_handle.ui_window = Retained::as_ptr(&self.window) as _;
-        window_handle.ui_view = Retained::as_ptr(&self.view) as _;
-        window_handle.ui_view_controller = Retained::as_ptr(&self.view_controller) as _;
-        rwh_04::RawWindowHandle::UiKit(window_handle)
-    }
-
-    #[cfg(feature = "rwh_05")]
-    pub fn raw_window_handle_rwh_05(&self) -> rwh_05::RawWindowHandle {
-        let mut window_handle = rwh_05::UiKitWindowHandle::empty();
-        window_handle.ui_window = Retained::as_ptr(&self.window) as _;
-        window_handle.ui_view = Retained::as_ptr(&self.view) as _;
-        window_handle.ui_view_controller = Retained::as_ptr(&self.view_controller) as _;
-        rwh_05::RawWindowHandle::UiKit(window_handle)
-    }
-
-    #[cfg(feature = "rwh_05")]
-    pub fn raw_display_handle_rwh_05(&self) -> rwh_05::RawDisplayHandle {
-        rwh_05::RawDisplayHandle::UiKit(rwh_05::UiKitDisplayHandle::empty())
     }
 
     #[cfg(feature = "rwh_06")]
@@ -513,8 +508,7 @@ impl Window {
 
         let view_controller = WinitViewController::new(mtm, &window_attributes, &view);
         let window = WinitUIWindow::new(mtm, &window_attributes, frame, &view_controller);
-
-        app_state::set_key_window(mtm, &window);
+        window.makeKeyAndVisible();
 
         // Like the Windows and macOS backends, we send a `ScaleFactorChanged` and `Resized`
         // event on window creation if the DPI factor != 1.0
@@ -529,7 +523,7 @@ impl Window {
                 width: screen_frame.size.width as f64,
                 height: screen_frame.size.height as f64,
             };
-            let window_id = RootWindowId(window.id());
+            let window_id = CoreWindowId(window.id());
             app_state::handle_nonuser_events(
                 mtm,
                 std::iter::once(EventWrapper::ScaleFactorChanged(app_state::ScaleFactorChanged {
@@ -548,11 +542,6 @@ impl Window {
 
         let inner = Inner { window, view_controller, view, gl_or_metal_backed };
         Ok(Window { inner: MainThreadBound::new(inner, mtm) })
-    }
-
-    pub(crate) fn maybe_queue_on_main(&self, f: impl FnOnce(&Inner) + Send + 'static) {
-        // For now, don't actually do queuing, since it may be less predictable
-        self.maybe_wait_on_main(f)
     }
 
     pub(crate) fn maybe_wait_on_main<R: Send>(&self, f: impl FnOnce(&Inner) -> R + Send) -> R {
@@ -577,6 +566,272 @@ impl Window {
         &self,
     ) -> Result<rwh_06::RawDisplayHandle, rwh_06::HandleError> {
         Ok(rwh_06::RawDisplayHandle::UiKit(rwh_06::UiKitDisplayHandle::new()))
+    }
+}
+
+#[cfg(feature = "rwh_06")]
+impl rwh_06::HasDisplayHandle for Window {
+    fn display_handle(&self) -> Result<rwh_06::DisplayHandle<'_>, rwh_06::HandleError> {
+        let raw = self.raw_display_handle_rwh_06()?;
+        unsafe { Ok(rwh_06::DisplayHandle::borrow_raw(raw)) }
+    }
+}
+
+#[cfg(feature = "rwh_06")]
+impl rwh_06::HasWindowHandle for Window {
+    fn window_handle(&self) -> Result<rwh_06::WindowHandle<'_>, rwh_06::HandleError> {
+        let raw = self.raw_window_handle_rwh_06()?;
+        unsafe { Ok(rwh_06::WindowHandle::borrow_raw(raw)) }
+    }
+}
+
+impl CoreWindow for Window {
+    fn id(&self) -> crate::window::WindowId {
+        self.maybe_wait_on_main(|delegate| crate::window::WindowId(delegate.id()))
+    }
+
+    fn scale_factor(&self) -> f64 {
+        self.maybe_wait_on_main(|delegate| delegate.scale_factor())
+    }
+
+    fn request_redraw(&self) {
+        self.maybe_wait_on_main(|delegate| delegate.request_redraw());
+    }
+
+    fn pre_present_notify(&self) {
+        self.maybe_wait_on_main(|delegate| delegate.pre_present_notify());
+    }
+
+    fn reset_dead_keys(&self) {
+        self.maybe_wait_on_main(|delegate| delegate.reset_dead_keys());
+    }
+
+    fn inner_position(
+        &self,
+    ) -> Result<dpi::PhysicalPosition<i32>, crate::error::NotSupportedError> {
+        self.maybe_wait_on_main(|delegate| delegate.inner_position())
+    }
+
+    fn outer_position(
+        &self,
+    ) -> Result<dpi::PhysicalPosition<i32>, crate::error::NotSupportedError> {
+        self.maybe_wait_on_main(|delegate| delegate.outer_position())
+    }
+
+    fn set_outer_position(&self, position: Position) {
+        self.maybe_wait_on_main(|delegate| delegate.set_outer_position(position));
+    }
+
+    fn inner_size(&self) -> dpi::PhysicalSize<u32> {
+        self.maybe_wait_on_main(|delegate| delegate.inner_size())
+    }
+
+    fn request_inner_size(&self, size: Size) -> Option<dpi::PhysicalSize<u32>> {
+        self.maybe_wait_on_main(|delegate| delegate.request_inner_size(size))
+    }
+
+    fn outer_size(&self) -> dpi::PhysicalSize<u32> {
+        self.maybe_wait_on_main(|delegate| delegate.outer_size())
+    }
+
+    fn set_min_inner_size(&self, min_size: Option<Size>) {
+        self.maybe_wait_on_main(|delegate| delegate.set_min_inner_size(min_size))
+    }
+
+    fn set_max_inner_size(&self, max_size: Option<Size>) {
+        self.maybe_wait_on_main(|delegate| delegate.set_max_inner_size(max_size));
+    }
+
+    fn resize_increments(&self) -> Option<dpi::PhysicalSize<u32>> {
+        self.maybe_wait_on_main(|delegate| delegate.resize_increments())
+    }
+
+    fn set_resize_increments(&self, increments: Option<Size>) {
+        self.maybe_wait_on_main(|delegate| delegate.set_resize_increments(increments));
+    }
+
+    fn set_title(&self, title: &str) {
+        self.maybe_wait_on_main(|delegate| delegate.set_title(title));
+    }
+
+    fn set_transparent(&self, transparent: bool) {
+        self.maybe_wait_on_main(|delegate| delegate.set_transparent(transparent));
+    }
+
+    fn set_blur(&self, blur: bool) {
+        self.maybe_wait_on_main(|delegate| delegate.set_blur(blur));
+    }
+
+    fn set_visible(&self, visible: bool) {
+        self.maybe_wait_on_main(|delegate| delegate.set_visible(visible));
+    }
+
+    fn is_visible(&self) -> Option<bool> {
+        self.maybe_wait_on_main(|delegate| delegate.is_visible())
+    }
+
+    fn set_resizable(&self, resizable: bool) {
+        self.maybe_wait_on_main(|delegate| delegate.set_resizable(resizable))
+    }
+
+    fn is_resizable(&self) -> bool {
+        self.maybe_wait_on_main(|delegate| delegate.is_resizable())
+    }
+
+    fn set_enabled_buttons(&self, buttons: WindowButtons) {
+        self.maybe_wait_on_main(|delegate| delegate.set_enabled_buttons(buttons))
+    }
+
+    fn enabled_buttons(&self) -> WindowButtons {
+        self.maybe_wait_on_main(|delegate| delegate.enabled_buttons())
+    }
+
+    fn set_minimized(&self, minimized: bool) {
+        self.maybe_wait_on_main(|delegate| delegate.set_minimized(minimized));
+    }
+
+    fn is_minimized(&self) -> Option<bool> {
+        self.maybe_wait_on_main(|delegate| delegate.is_minimized())
+    }
+
+    fn set_maximized(&self, maximized: bool) {
+        self.maybe_wait_on_main(|delegate| delegate.set_maximized(maximized));
+    }
+
+    fn is_maximized(&self) -> bool {
+        self.maybe_wait_on_main(|delegate| delegate.is_maximized())
+    }
+
+    fn set_fullscreen(&self, fullscreen: Option<crate::window::Fullscreen>) {
+        self.maybe_wait_on_main(|delegate| delegate.set_fullscreen(fullscreen.map(Into::into)))
+    }
+
+    fn fullscreen(&self) -> Option<crate::window::Fullscreen> {
+        self.maybe_wait_on_main(|delegate| delegate.fullscreen().map(Into::into))
+    }
+
+    fn set_decorations(&self, decorations: bool) {
+        self.maybe_wait_on_main(|delegate| delegate.set_decorations(decorations));
+    }
+
+    fn is_decorated(&self) -> bool {
+        self.maybe_wait_on_main(|delegate| delegate.is_decorated())
+    }
+
+    fn set_window_level(&self, level: WindowLevel) {
+        self.maybe_wait_on_main(|delegate| delegate.set_window_level(level));
+    }
+
+    fn set_window_icon(&self, window_icon: Option<Icon>) {
+        self.maybe_wait_on_main(|delegate| delegate.set_window_icon(window_icon));
+    }
+
+    fn set_ime_cursor_area(&self, position: Position, size: Size) {
+        self.maybe_wait_on_main(|delegate| delegate.set_ime_cursor_area(position, size));
+    }
+
+    fn set_ime_allowed(&self, allowed: bool) {
+        self.maybe_wait_on_main(|delegate| delegate.set_ime_allowed(allowed));
+    }
+
+    fn set_ime_purpose(&self, purpose: ImePurpose) {
+        self.maybe_wait_on_main(|delegate| delegate.set_ime_purpose(purpose));
+    }
+
+    fn focus_window(&self) {
+        self.maybe_wait_on_main(|delegate| delegate.focus_window());
+    }
+
+    fn has_focus(&self) -> bool {
+        self.maybe_wait_on_main(|delegate| delegate.has_focus())
+    }
+
+    fn request_user_attention(&self, request_type: Option<UserAttentionType>) {
+        self.maybe_wait_on_main(|delegate| delegate.request_user_attention(request_type));
+    }
+
+    fn set_theme(&self, theme: Option<Theme>) {
+        self.maybe_wait_on_main(|delegate| delegate.set_theme(theme));
+    }
+
+    fn theme(&self) -> Option<Theme> {
+        self.maybe_wait_on_main(|delegate| delegate.theme())
+    }
+
+    fn set_content_protected(&self, protected: bool) {
+        self.maybe_wait_on_main(|delegate| delegate.set_content_protected(protected));
+    }
+
+    fn title(&self) -> String {
+        self.maybe_wait_on_main(|delegate| delegate.title())
+    }
+
+    fn set_cursor(&self, cursor: Cursor) {
+        self.maybe_wait_on_main(|delegate| delegate.set_cursor(cursor));
+    }
+
+    fn set_cursor_position(&self, position: Position) -> Result<(), crate::error::ExternalError> {
+        self.maybe_wait_on_main(|delegate| delegate.set_cursor_position(position))
+    }
+
+    fn set_cursor_grab(
+        &self,
+        mode: crate::window::CursorGrabMode,
+    ) -> Result<(), crate::error::ExternalError> {
+        self.maybe_wait_on_main(|delegate| delegate.set_cursor_grab(mode))
+    }
+
+    fn set_cursor_visible(&self, visible: bool) {
+        self.maybe_wait_on_main(|delegate| delegate.set_cursor_visible(visible))
+    }
+
+    fn drag_window(&self) -> Result<(), crate::error::ExternalError> {
+        self.maybe_wait_on_main(|delegate| delegate.drag_window())
+    }
+
+    fn drag_resize_window(
+        &self,
+        direction: crate::window::ResizeDirection,
+    ) -> Result<(), crate::error::ExternalError> {
+        self.maybe_wait_on_main(|delegate| delegate.drag_resize_window(direction))
+    }
+
+    fn show_window_menu(&self, position: Position) {
+        self.maybe_wait_on_main(|delegate| delegate.show_window_menu(position))
+    }
+
+    fn set_cursor_hittest(&self, hittest: bool) -> Result<(), crate::error::ExternalError> {
+        self.maybe_wait_on_main(|delegate| delegate.set_cursor_hittest(hittest))
+    }
+
+    fn current_monitor(&self) -> Option<CoreMonitorHandle> {
+        self.maybe_wait_on_main(|delegate| {
+            delegate.current_monitor().map(|inner| CoreMonitorHandle { inner })
+        })
+    }
+
+    fn available_monitors(&self) -> Box<dyn Iterator<Item = CoreMonitorHandle>> {
+        self.maybe_wait_on_main(|delegate| {
+            Box::new(
+                delegate.available_monitors().into_iter().map(|inner| CoreMonitorHandle { inner }),
+            )
+        })
+    }
+
+    fn primary_monitor(&self) -> Option<CoreMonitorHandle> {
+        self.maybe_wait_on_main(|delegate| {
+            delegate.primary_monitor().map(|inner| CoreMonitorHandle { inner })
+        })
+    }
+
+    #[cfg(feature = "rwh_06")]
+    fn rwh_06_display_handle(&self) -> &dyn rwh_06::HasDisplayHandle {
+        self
+    }
+
+    #[cfg(feature = "rwh_06")]
+    fn rwh_06_window_handle(&self) -> &dyn rwh_06::HasWindowHandle {
+        self
     }
 }
 
@@ -725,7 +980,7 @@ impl From<&AnyObject> for WindowId {
     }
 }
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq)]
 pub struct PlatformSpecificWindowAttributes {
     pub scale_factor: Option<f64>,
     pub valid_orientations: ValidOrientations,

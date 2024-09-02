@@ -1,5 +1,6 @@
 use std::collections::{BTreeSet, VecDeque};
 use std::hash::Hash;
+use std::num::{NonZeroU16, NonZeroU32};
 use std::{io, mem, ptr};
 
 use windows_sys::Win32::Foundation::{BOOL, HWND, LPARAM, POINT, RECT};
@@ -15,13 +16,12 @@ use crate::dpi::{PhysicalPosition, PhysicalSize};
 use crate::monitor::VideoModeHandle as RootVideoModeHandle;
 use crate::platform_impl::platform::dpi::{dpi_to_scale_factor, get_monitor_dpi};
 use crate::platform_impl::platform::util::has_flag;
-use crate::platform_impl::platform::window::Window;
 
 #[derive(Clone)]
 pub struct VideoModeHandle {
     pub(crate) size: (u32, u32),
-    pub(crate) bit_depth: u16,
-    pub(crate) refresh_rate_millihertz: u32,
+    pub(crate) bit_depth: Option<NonZeroU16>,
+    pub(crate) refresh_rate_millihertz: Option<NonZeroU32>,
     pub(crate) monitor: MonitorHandle,
     // DEVMODEW is huge so we box it to avoid blowing up the size of winit::window::Fullscreen
     pub(crate) native_video_mode: Box<DEVMODEW>,
@@ -59,15 +59,29 @@ impl std::fmt::Debug for VideoModeHandle {
 }
 
 impl VideoModeHandle {
+    fn new(monitor: MonitorHandle, mode: DEVMODEW) -> Self {
+        const REQUIRED_FIELDS: u32 =
+            DM_BITSPERPEL | DM_PELSWIDTH | DM_PELSHEIGHT | DM_DISPLAYFREQUENCY;
+        assert!(has_flag(mode.dmFields, REQUIRED_FIELDS));
+
+        VideoModeHandle {
+            size: (mode.dmPelsWidth, mode.dmPelsHeight),
+            bit_depth: NonZeroU16::new(mode.dmBitsPerPel as u16),
+            refresh_rate_millihertz: NonZeroU32::new(mode.dmDisplayFrequency * 1000),
+            monitor,
+            native_video_mode: Box::new(mode),
+        }
+    }
+
     pub fn size(&self) -> PhysicalSize<u32> {
         self.size.into()
     }
 
-    pub fn bit_depth(&self) -> u16 {
+    pub fn bit_depth(&self) -> Option<NonZeroU16> {
         self.bit_depth
     }
 
-    pub fn refresh_rate_millihertz(&self) -> u32 {
+    pub fn refresh_rate_millihertz(&self) -> Option<NonZeroU32> {
         self.refresh_rate_millihertz
     }
 
@@ -121,17 +135,6 @@ pub fn current_monitor(hwnd: HWND) -> MonitorHandle {
     MonitorHandle::new(hmonitor)
 }
 
-impl Window {
-    pub fn available_monitors(&self) -> VecDeque<MonitorHandle> {
-        available_monitors()
-    }
-
-    pub fn primary_monitor(&self) -> Option<MonitorHandle> {
-        let monitor = primary_monitor();
-        Some(monitor)
-    }
-}
-
 pub(crate) fn get_monitor_info(hmonitor: HMONITOR) -> Result<MONITORINFOEXW, io::Error> {
     let mut monitor_info: MONITORINFOEXW = unsafe { mem::zeroed() };
     monitor_info.monitorInfo.cbSize = mem::size_of::<MONITORINFOEXW>() as u32;
@@ -166,8 +169,7 @@ impl MonitorHandle {
         self.0
     }
 
-    #[inline]
-    pub fn size(&self) -> PhysicalSize<u32> {
+    pub(crate) fn size(&self) -> PhysicalSize<u32> {
         let rc_monitor = get_monitor_info(self.0).unwrap().monitorInfo.rcMonitor;
         PhysicalSize {
             width: (rc_monitor.right - rc_monitor.left) as u32,
@@ -176,7 +178,22 @@ impl MonitorHandle {
     }
 
     #[inline]
-    pub fn refresh_rate_millihertz(&self) -> Option<u32> {
+    pub fn position(&self) -> Option<PhysicalPosition<i32>> {
+        get_monitor_info(self.0)
+            .map(|info| {
+                let rc_monitor = info.monitorInfo.rcMonitor;
+                PhysicalPosition { x: rc_monitor.left, y: rc_monitor.top }
+            })
+            .ok()
+    }
+
+    #[inline]
+    pub fn scale_factor(&self) -> f64 {
+        dpi_to_scale_factor(get_monitor_dpi(self.0).unwrap_or(96))
+    }
+
+    #[inline]
+    pub fn current_video_mode(&self) -> Option<VideoModeHandle> {
         let monitor_info = get_monitor_info(self.0).ok()?;
         let device_name = monitor_info.szDevice.as_ptr();
         unsafe {
@@ -187,24 +204,9 @@ impl MonitorHandle {
             {
                 None
             } else {
-                Some(mode.dmDisplayFrequency * 1000)
+                Some(VideoModeHandle::new(self.clone(), mode))
             }
         }
-    }
-
-    #[inline]
-    pub fn position(&self) -> PhysicalPosition<i32> {
-        get_monitor_info(self.0)
-            .map(|info| {
-                let rc_monitor = info.monitorInfo.rcMonitor;
-                PhysicalPosition { x: rc_monitor.left, y: rc_monitor.top }
-            })
-            .unwrap_or(PhysicalPosition { x: 0, y: 0 })
-    }
-
-    #[inline]
-    pub fn scale_factor(&self) -> f64 {
-        dpi_to_scale_factor(get_monitor_dpi(self.0).unwrap_or(96))
     }
 
     #[inline]
@@ -233,19 +235,9 @@ impl MonitorHandle {
                 break;
             }
 
-            const REQUIRED_FIELDS: u32 =
-                DM_BITSPERPEL | DM_PELSWIDTH | DM_PELSHEIGHT | DM_DISPLAYFREQUENCY;
-            assert!(has_flag(mode.dmFields, REQUIRED_FIELDS));
-
             // Use Ord impl of RootVideoModeHandle
             modes.insert(RootVideoModeHandle {
-                video_mode: VideoModeHandle {
-                    size: (mode.dmPelsWidth, mode.dmPelsHeight),
-                    bit_depth: mode.dmBitsPerPel as u16,
-                    refresh_rate_millihertz: mode.dmDisplayFrequency * 1000,
-                    monitor: self.clone(),
-                    native_video_mode: Box::new(mode),
-                },
+                video_mode: VideoModeHandle::new(self.clone(), mode),
             });
 
             i += 1;

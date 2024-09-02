@@ -50,7 +50,7 @@ impl fmt::Display for BadIcon {
 
 impl Error for BadIcon {}
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub(crate) struct RgbaIcon {
     pub(crate) rgba: Vec<u8>,
     pub(crate) width: u32,
@@ -58,7 +58,7 @@ pub(crate) struct RgbaIcon {
 }
 
 /// For platforms which don't have window icons (e.g. Web)
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub(crate) struct NoIcon;
 
 #[allow(dead_code)] // These are not used on every platform
@@ -94,7 +94,7 @@ mod constructors {
 }
 
 /// An icon used for the window titlebar, taskbar, etc.
-#[derive(Clone)]
+#[derive(Clone, Eq, Hash, PartialEq)]
 pub struct Icon {
     pub(crate) inner: PlatformIcon,
 }
