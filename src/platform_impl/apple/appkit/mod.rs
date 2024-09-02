@@ -10,7 +10,6 @@ mod ffi;
 mod menu;
 mod monitor;
 mod observer;
-mod standard_key_binding;
 mod view;
 mod window;
 mod window_delegate;
@@ -24,7 +23,6 @@ pub(crate) use self::event_loop::{
     PlatformSpecificEventLoopAttributes,
 };
 pub(crate) use self::monitor::{MonitorHandle, VideoModeHandle};
-pub use self::standard_key_binding::AppleStandardKeyBindingAction;
 pub(crate) use self::window::{Window, WindowId};
 pub(crate) use self::window_delegate::PlatformSpecificWindowAttributes;
 pub(crate) use crate::cursor::OnlyCursorImageSource as PlatformCustomCursorSource;

@@ -31,8 +31,7 @@ use crate::event::{
     WindowEvent,
 };
 use crate::keyboard::{Key, KeyCode, KeyLocation, ModifiersState, NamedKey};
-use crate::platform::macos::OptionAsAlt;
-use crate::platform_impl::AppleStandardKeyBindingAction;
+use crate::platform::macos::{OptionAsAlt, StandardKeyBindingAction};
 use crate::window::WindowId as RootWindowId;
 
 #[derive(Debug)]
@@ -418,10 +417,6 @@ declare_class!(
         fn do_command_by_selector(&self, command: Sel) {
             trace_scope!("doCommandBySelector:");
 
-            // Send command action into event loop
-            let action = AppleStandardKeyBindingAction::from(command.name());
-            self.queue_event(WindowEvent::AppleStandardKeyBindingAction(action));
-
             // We shouldn't forward any character from just committed text, since we'll end up sending
             // it twice with some IMEs like Korean one. We'll also always send `Enter` in that case,
             // which is not desired given it was used to confirm IME input.
@@ -436,6 +431,24 @@ declare_class!(
                 // Leave preedit so that we also report the key-up for this key.
                 self.ivars().ime_state.set(ImeState::Ground);
             }
+
+            // Send command action to user if they requested it.
+            match command.name().parse::<StandardKeyBindingAction>() {
+                Ok(action) => {
+                    let window_id = RootWindowId(self.window().id());
+                    self.ivars().app_state.maybe_queue_with_handler(move |app, event_loop| {
+                        if let Some(handler) = app.macos_handler() {
+                            handler.standard_key_binding(event_loop, window_id, action);
+                        }
+                    });
+                }
+                Err(err) => {
+                    tracing::error!("{err}. Maybe Winit needs to be updated?");
+                }
+            }
+
+            // The documentation for `-[NSTextInputClient doCommandBySelector:]` clearly states that
+            // we should not be forwarding this event up the responder chain.
         }
     }
 

@@ -39,8 +39,6 @@ use std::sync::{Mutex, Weak};
 #[cfg(not(web_platform))]
 use std::time::Instant;
 
-#[cfg(macos_platform)]
-use platform_impl::AppleStandardKeyBindingAction;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 use smol_str::SmolStr;
@@ -149,13 +147,6 @@ pub enum WindowEvent {
     ///
     /// [`request_activation_token`]: crate::platform::startup_notify::WindowExtStartupNotify::request_activation_token
     ActivationTokenDone { serial: AsyncRequestSerial, token: ActivationToken },
-
-    /// A system-sent keybinding event on macOS. Often text editing related.
-    /// ## Platform-specific
-    ///
-    /// - Only available on **macOS**.
-    #[cfg(macos_platform)]
-    AppleStandardKeyBindingAction(AppleStandardKeyBindingAction),
 
     /// The size of the window has changed. Contains the client area's new dimensions.
     Resized(PhysicalSize<u32>),

@@ -325,6 +325,17 @@ pub trait ApplicationHandler {
     fn memory_warning(&mut self, event_loop: &dyn ActiveEventLoop) {
         let _ = event_loop;
     }
+
+    /// The macOS-specific handler.
+    ///
+    /// The return value from this should not change at runtime.
+    #[cfg(target_os = "macos")]
+    #[inline]
+    fn macos_handler(
+        &mut self,
+    ) -> Option<&mut dyn crate::platform::macos::ApplicationHandlerExtMacOS> {
+        None
+    }
 }
 
 #[deny(clippy::missing_trait_methods)]

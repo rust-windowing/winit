@@ -22,7 +22,10 @@ use winit::event::{DeviceEvent, DeviceId, Ime, MouseButton, MouseScrollDelta, Wi
 use winit::event_loop::{ActiveEventLoop, EventLoop};
 use winit::keyboard::{Key, ModifiersState};
 #[cfg(macos_platform)]
-use winit::platform::macos::{OptionAsAlt, WindowAttributesExtMacOS, WindowExtMacOS};
+use winit::platform::macos::{
+    ApplicationHandlerExtMacOS, OptionAsAlt, StandardKeyBindingAction, WindowAttributesExtMacOS,
+    WindowExtMacOS,
+};
 #[cfg(any(x11_platform, wayland_platform))]
 use winit::platform::startup_notify::{
     self, EventLoopExtStartupNotify, WindowAttributesExtStartupNotify, WindowExtStartupNotify,
@@ -516,9 +519,6 @@ impl ApplicationHandler for Application {
             | WindowEvent::Destroyed
             | WindowEvent::Touch(_)
             | WindowEvent::Moved(_) => (),
-
-            #[cfg(target_os = "macos")]
-            WindowEvent::AppleStandardKeyBindingAction(_) => (),
         }
     }
 
@@ -552,6 +552,23 @@ impl ApplicationHandler for Application {
     fn exiting(&mut self, _event_loop: &dyn ActiveEventLoop) {
         // We must drop the context here.
         self.context = None;
+    }
+
+    #[cfg(target_os = "macos")]
+    fn macos_handler(&mut self) -> Option<&mut dyn ApplicationHandlerExtMacOS> {
+        Some(self)
+    }
+}
+
+#[cfg(target_os = "macos")]
+impl ApplicationHandlerExtMacOS for Application {
+    fn standard_key_binding(
+        &mut self,
+        _event_loop: &dyn ActiveEventLoop,
+        window_id: WindowId,
+        action: StandardKeyBindingAction,
+    ) {
+        info!(?window_id, ?action, "macOS standard key binding");
     }
 }
 
