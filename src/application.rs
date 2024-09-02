@@ -404,6 +404,14 @@ impl<A: ?Sized + ApplicationHandler> ApplicationHandler for &mut A {
     fn memory_warning(&mut self, event_loop: &dyn ActiveEventLoop) {
         (**self).memory_warning(event_loop);
     }
+
+    #[cfg(target_os = "macos")]
+    #[inline]
+    fn macos_handler(
+        &mut self,
+    ) -> Option<&mut dyn crate::platform::macos::ApplicationHandlerExtMacOS> {
+        (**self).macos_handler()
+    }
 }
 
 #[deny(clippy::missing_trait_methods)]
@@ -471,5 +479,13 @@ impl<A: ?Sized + ApplicationHandler> ApplicationHandler for Box<A> {
     #[inline]
     fn memory_warning(&mut self, event_loop: &dyn ActiveEventLoop) {
         (**self).memory_warning(event_loop);
+    }
+
+    #[cfg(target_os = "macos")]
+    #[inline]
+    fn macos_handler(
+        &mut self,
+    ) -> Option<&mut dyn crate::platform::macos::ApplicationHandlerExtMacOS> {
+        (**self).macos_handler()
     }
 }
