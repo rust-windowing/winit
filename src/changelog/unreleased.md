@@ -134,4 +134,6 @@ changelog entry.
 
 ### Fixed
 
+- On Android, map hover events to their winit equivalents. These events
+  are required for accessibility.
 - On Orbital, `MonitorHandle::name()` now returns `None` instead of a dummy name.
