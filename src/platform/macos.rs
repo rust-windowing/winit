@@ -70,8 +70,8 @@
 //! }
 //! ```
 
-use core::fmt;
 use std::error::Error;
+use std::fmt;
 use std::os::raw::c_void;
 use std::str::FromStr;
 
