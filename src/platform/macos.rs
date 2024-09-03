@@ -70,10 +70,7 @@
 //! }
 //! ```
 
-use std::error::Error;
-use std::fmt;
 use std::os::raw::c_void;
-use std::str::FromStr;
 
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
@@ -528,203 +525,47 @@ pub enum OptionAsAlt {
 ///
 /// This can be registered with [`ApplicationHandler::macos_handler`].
 pub trait ApplicationHandlerExtMacOS: ApplicationHandler {
-    /// The system interpreted a keypress as a standard key binding commands.
+    /// The system interpreted a keypress as a standard key binding command.
     ///
     /// Examples include inserting tabs and newlines, or moving the insertion point, see
-    /// [`StandardKeyBindingAction`] for details. These are often text editing related.
+    /// [`NSStandardKeyBindingResponding`] for the full list of key bindings. They are often text
+    /// editing related.
     ///
     /// This corresponds to the [`doCommandBySelector:`] method on `NSTextInputClient`.
     ///
+    /// The `action` parameter contains the string representation of the selector. Examples include
+    /// `"insertBacktab:"`, `"indent:"` and `"noop:"`.
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// impl ApplicationHandlerExtMacOS for App {
+    ///     fn standard_key_binding(
+    ///         &mut self,
+    ///         event_loop: &dyn ActiveEventLoop,
+    ///         window_id: WindowId,
+    ///         action: &str,
+    ///     ) {
+    ///         match action {
+    ///             "moveBackward:" => self.cursor.position -= 1,
+    ///             "moveForward:" => self.cursor.position += 1,
+    ///             _ => {} // Ignore other actions
+    ///         }
+    ///     }
+    /// }
+    /// ```
+    ///
+    /// [`NSStandardKeyBindingResponding`]: https://developer.apple.com/documentation/appkit/nsstandardkeybindingresponding?language=objc
     /// [`doCommandBySelector:`]: https://developer.apple.com/documentation/appkit/nstextinputclient/1438256-docommandbyselector?language=objc
     #[doc(alias = "doCommandBySelector:")]
     fn standard_key_binding(
         &mut self,
         event_loop: &dyn ActiveEventLoop,
         window_id: WindowId,
-        action: StandardKeyBindingAction,
+        action: &str,
     ) {
         let _ = event_loop;
         let _ = window_id;
         let _ = action;
     }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-#[non_exhaustive]
-pub struct StandardKeyBindingActionParseError(String);
-
-impl fmt::Display for StandardKeyBindingActionParseError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "failed parsing NSStandardKeyBindingResponding from {:?}", self.0)
-    }
-}
-
-impl Error for StandardKeyBindingActionParseError {}
-
-macro_rules! standard_key_bindings {
-    ($($name:ident($sel:ident :)),* $(,)?) => {
-        /// Corresponds to the selectors in `NSStandardKeyBindingResponding`.
-        ///
-        /// This list may be incomplete, it was last updated in September 2024. Feel free to open
-        /// an issue if a new key binding exists that Winit does not yet know about.
-        #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-        #[non_exhaustive]
-        pub enum StandardKeyBindingAction {
-            $($name,)*
-        }
-
-        impl FromStr for StandardKeyBindingAction {
-            type Err = StandardKeyBindingActionParseError;
-
-            fn from_str(s: &str) -> Result<Self, Self::Err> {
-                Ok(match s {
-                    $(concat!(stringify!($sel), ":") => Self::$name,)*
-                    s => return Err(StandardKeyBindingActionParseError(s.into())),
-                })
-            }
-        }
-
-        impl StandardKeyBindingAction {
-            pub fn as_str(&self) -> &str {
-                match self {
-                    $(Self::$name => concat!(stringify!($sel), ":"),)*
-                }
-            }
-        }
-    };
-}
-
-standard_key_bindings! {
-    // Inserting content
-    InsertBacktab(insertBacktab:),
-    InsertContainerBreak(insertContainerBreak:),
-    InsertDoubleQuoteIgnoringSubstitution(insertDoubleQuoteIgnoringSubstitution:),
-    InsertLineBreak(insertLineBreak:),
-    InsertNewline(insertNewline:),
-    InsertNewlineIgnoringFieldEditor(insertNewlineIgnoringFieldEditor:),
-    InsertParagraphSeparator(insertParagraphSeparator:),
-    InsertSingleQuoteIgnoringSubstitution(insertSingleQuoteIgnoringSubstitution:),
-    InsertTab(insertTab:),
-    InsertTabIgnoringFieldEditor(insertTabIgnoringFieldEditor:),
-    InsertText(insertText:),
-
-    // Deleting content
-    DeleteBackward(deleteBackward:),
-    DeleteBackwardByDecomposingPreviousCharacter(deleteBackwardByDecomposingPreviousCharacter:),
-    DeleteForward(deleteForward:),
-    DeleteToBeginningOfLine(deleteToBeginningOfLine:),
-    DeleteToBeginningOfParagraph(deleteToBeginningOfParagraph:),
-    DeleteToEndOfLine(deleteToEndOfLine:),
-    DeleteToEndOfParagraph(deleteToEndOfParagraph:),
-    DeleteWordBackward(deleteWordBackward:),
-    DeleteWordForward(deleteWordForward:),
-    Yank(yank:),
-
-    // Moving the insertion pointer
-    MoveBackward(moveBackward:),
-    MoveDown(moveDown:),
-    MoveForward(moveForward:),
-    MoveLeft(moveLeft:),
-    MoveRight(moveRight:),
-    MoveUp(moveUp:),
-
-    // Modifying the selection
-    MoveBackwardAndModifySelection(moveBackwardAndModifySelection:),
-    MoveDownAndModifySelection(moveDownAndModifySelection:),
-    MoveForwardAndModifySelection(moveForwardAndModifySelection:),
-    MoveLeftAndModifySelection(moveLeftAndModifySelection:),
-    MoveRightAndModifySelection(moveRightAndModifySelection:),
-    MoveUpAndModifySelection(moveUpAndModifySelection:),
-
-    // Scrolling content
-    ScrollPageDown(scrollPageDown:),
-    ScrollPageUp(scrollPageUp:),
-    ScrollLineDown(scrollLineDown:),
-    ScrollLineUp(scrollLineUp:),
-    ScrollToBeginningOfDocument(scrollToBeginningOfDocument:),
-    ScrollToEndOfDocument(scrollToEndOfDocument:),
-    PageDown(pageDown:),
-    PageUp(pageUp:),
-    PageUpAndModifySelection(pageUpAndModifySelection:),
-    PageDownAndModifySelection(pageDownAndModifySelection:),
-    CenterSelectionInVisibleArea(centerSelectionInVisibleArea:),
-
-    // Transposing elements
-    Transpose(transpose:),
-    TransposeWords(transposeWords:),
-
-    // Indenting content
-    Indent(indent:),
-
-    // Cancelling operations
-    CancelOperation(cancelOperation:),
-
-    // Supporting quickLook
-    QuickLookPreviewItems(quickLookPreviewItems:),
-
-    // Supporting writing direction
-    MakeBaseWritingDirectionLeftToRight(makeBaseWritingDirectionLeftToRight:),
-    MakeBaseWritingDirectionNatural(makeBaseWritingDirectionNatural:),
-    MakeBaseWritingDirectionRightToLeft(makeBaseWritingDirectionRightToLeft:),
-    MakeTextWritingDirectionLeftToRight(makeTextWritingDirectionLeftToRight:),
-    MakeTextWritingDirectionNatural(makeTextWritingDirectionNatural:),
-    MakeTextWritingDirectionRightToLeft(makeTextWritingDirectionRightToLeft:),
-
-    // Changing captilization
-    CapitalizeWord(capitalizeWord:),
-    ChangeCaseOfLetter(changeCaseOfLetter:),
-    LowercaseWord(lowercaseWord:),
-    UppercaseWord(uppercaseWord:),
-
-    // Moving the selection in documents
-    MoveToBeginningOfDocument(moveToBeginningOfDocument:),
-    MoveToBeginningOfDocumentAndModifySelection(moveToBeginningOfDocumentAndModifySelection:),
-    MoveToEndOfDocument(moveToEndOfDocument:),
-    MoveToEndOfDocumentAndModifySelection(moveToEndOfDocumentAndModifySelection:),
-
-    // Moving the selection in paragraphs
-    MoveParagraphBackwardAndModifySelection(moveParagraphBackwardAndModifySelection:),
-    MoveParagraphForwardAndModifySelection(moveParagraphForwardAndModifySelection:),
-    MoveToBeginningOfParagraph(moveToBeginningOfParagraph:),
-    MoveToBeginningOfParagraphAndModifySelection(moveToBeginningOfParagraphAndModifySelection:),
-    MoveToEndOfParagraph(moveToEndOfParagraph:),
-    MoveToEndOfParagraphAndModifySelection(moveToEndOfParagraphAndModifySelection:),
-
-    // Moving the selection in lines of text
-    MoveToBeginningOfLine(moveToBeginningOfLine:),
-    MoveToBeginningOfLineAndModifySelection(moveToBeginningOfLineAndModifySelection:),
-    MoveToEndOfLine(moveToEndOfLine:),
-    MoveToEndOfLineAndModifySelection(moveToEndOfLineAndModifySelection:),
-    MoveToLeftEndOfLine(moveToLeftEndOfLine:),
-    MoveToLeftEndOfLineAndModifySelection(moveToLeftEndOfLineAndModifySelection:),
-    MoveToRightEndOfLine(moveToRightEndOfLine:),
-    MoveToRightEndOfLineAndModifySelection(moveToRightEndOfLineAndModifySelection:),
-
-    // Changing the selection
-    SelectAll(selectAll:),
-    SelectLine(selectLine:),
-    SelectParagraph(selectParagraph:),
-    SelectWord(selectWord:),
-
-    // Supporting marked selections
-    SetMark(setMark:),
-    SelectToMark(selectToMark:),
-    DeleteToMark(deleteToMark:),
-    SwapWithMark(swapWithMark:),
-
-    // Supporting autocomplete
-    Complete(complete:),
-
-    // Moving selection by word boundaries
-    MoveWordBackward(moveWordBackward:),
-    MoveWordBackwardAndModifySelection(moveWordBackwardAndModifySelection:),
-    MoveWordForward(moveWordForward:),
-    MoveWordForwardAndModifySelection(moveWordForwardAndModifySelection:),
-    MoveWordLeft(moveWordLeft:),
-    MoveWordLeftAndModifySelection(moveWordLeftAndModifySelection:),
-    MoveWordRight(moveWordRight:),
-    MoveWordRightAndModifySelection(moveWordRightAndModifySelection:),
-
-    // Instance methods
-    ShowContextMenuForSelection(showContextMenuForSelection:),
 }

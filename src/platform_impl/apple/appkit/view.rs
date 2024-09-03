@@ -31,7 +31,7 @@ use crate::event::{
     WindowEvent,
 };
 use crate::keyboard::{Key, KeyCode, KeyLocation, ModifiersState, NamedKey};
-use crate::platform::macos::{OptionAsAlt, StandardKeyBindingAction};
+use crate::platform::macos::OptionAsAlt;
 use crate::window::WindowId as RootWindowId;
 
 #[derive(Debug)]
@@ -432,28 +432,17 @@ declare_class!(
                 self.ivars().ime_state.set(ImeState::Ground);
             }
 
-            // The documentation for `-[NSTextInputClient doCommandBySelector:]` clearly states that
-            // we should not be forwarding this event up the responder chain.
-
-            // Ignore no-operation selectors
-            if command == sel!(noop:) {
-                return;
-            }
-
             // Send command action to user if they requested it.
-            match command.name().parse::<StandardKeyBindingAction>() {
-                Ok(action) => {
-                    let window_id = RootWindowId(self.window().id());
-                    self.ivars().app_state.maybe_queue_with_handler(move |app, event_loop| {
-                        if let Some(handler) = app.macos_handler() {
-                            handler.standard_key_binding(event_loop, window_id, action);
-                        }
-                    });
+            let window_id = RootWindowId(self.window().id());
+            self.ivars().app_state.maybe_queue_with_handler(move |app, event_loop| {
+                if let Some(handler) = app.macos_handler() {
+                    handler.standard_key_binding(event_loop, window_id, command.name());
                 }
-                Err(err) => {
-                    tracing::error!("{err}. Maybe Winit needs to be updated?");
-                }
-            }
+            });
+
+            // The documentation for `-[NSTextInputClient doCommandBySelector:]` clearly states that
+            // we should not be forwarding this event up the responder chain, so no calling `super`
+            // here either.
         }
     }
 

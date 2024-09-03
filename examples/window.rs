@@ -23,8 +23,7 @@ use winit::event_loop::{ActiveEventLoop, EventLoop};
 use winit::keyboard::{Key, ModifiersState};
 #[cfg(macos_platform)]
 use winit::platform::macos::{
-    ApplicationHandlerExtMacOS, OptionAsAlt, StandardKeyBindingAction, WindowAttributesExtMacOS,
-    WindowExtMacOS,
+    ApplicationHandlerExtMacOS, OptionAsAlt, WindowAttributesExtMacOS, WindowExtMacOS,
 };
 #[cfg(any(x11_platform, wayland_platform))]
 use winit::platform::startup_notify::{
@@ -566,7 +565,7 @@ impl ApplicationHandlerExtMacOS for Application {
         &mut self,
         _event_loop: &dyn ActiveEventLoop,
         window_id: WindowId,
-        action: StandardKeyBindingAction,
+        action: &str,
     ) {
         info!(?window_id, ?action, "macOS standard key binding");
     }
