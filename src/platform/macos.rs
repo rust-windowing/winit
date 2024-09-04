@@ -245,12 +245,14 @@ impl WindowExtMacOS for dyn Window + '_ {
 
     #[inline]
     fn set_borderless_game(&self, borderless_game: bool) {
-        self.window.maybe_wait_on_main(|w| w.set_borderless_game(borderless_game))
+        let window = self.as_any().downcast_ref::<crate::platform_impl::Window>().unwrap();
+        window.maybe_wait_on_main(|w| w.set_borderless_game(borderless_game))
     }
 
     #[inline]
     fn is_borderless_game(&self) -> bool {
-        self.window.maybe_wait_on_main(|w| w.is_borderless_game())
+        let window = self.as_any().downcast_ref::<crate::platform_impl::Window>().unwrap();
+        window.maybe_wait_on_main(|w| w.is_borderless_game())
     }
 }
 
