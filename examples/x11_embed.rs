@@ -21,7 +21,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         fn can_create_surfaces(&mut self, event_loop: &dyn ActiveEventLoop) {
             let window_attributes = WindowAttributes::default()
                 .with_title("An embedded window!")
-                .with_inner_size(winit::dpi::LogicalSize::new(128.0, 128.0))
+                .with_surface_size(winit::dpi::LogicalSize::new(128.0, 128.0))
                 .with_embed_parent_window(self.parent_window_id);
 
             self.window = Some(event_loop.create_window(window_attributes).unwrap());

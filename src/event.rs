@@ -148,8 +148,13 @@ pub enum WindowEvent {
     /// [`request_activation_token`]: crate::platform::startup_notify::WindowExtStartupNotify::request_activation_token
     ActivationTokenDone { serial: AsyncRequestSerial, token: ActivationToken },
 
-    /// The size of the window has changed. Contains the client area's new dimensions.
-    Resized(PhysicalSize<u32>),
+    /// The size of the window's surface has changed.
+    ///
+    /// Contains the new dimensions of the surface (can also be retrieved with
+    /// [`Window::surface_size`]).
+    ///
+    /// [`Window::surface_size`]: crate::window::Window::surface_size
+    SurfaceResized(PhysicalSize<u32>),
 
     /// The position of the window has changed. Contains the window's new position.
     ///
@@ -360,16 +365,16 @@ pub enum WindowEvent {
     /// * Changing the display's scale factor (e.g. in Control Panel on Windows).
     /// * Moving the window to a display with a different scale factor.
     ///
-    /// To update the window size, use the provided [`InnerSizeWriter`] handle. By default, the
+    /// To update the window size, use the provided [`SurfaceSizeWriter`] handle. By default, the
     /// window is resized to the value suggested by the OS, but it can be changed to any value.
     ///
     /// For more information about DPI in general, see the [`dpi`] crate.
     ScaleFactorChanged {
         scale_factor: f64,
-        /// Handle to update inner size during scale changes.
+        /// Handle to update surface size during scale changes.
         ///
-        /// See [`InnerSizeWriter`] docs for more details.
-        inner_size_writer: InnerSizeWriter,
+        /// See [`SurfaceSizeWriter`] docs for more details.
+        surface_size_writer: SurfaceSizeWriter,
     },
 
     /// The system window theme has changed.
@@ -995,26 +1000,25 @@ pub enum MouseScrollDelta {
     PixelDelta(PhysicalPosition<f64>),
 }
 
-/// Handle to synchronously change the size of the window from the
-/// [`WindowEvent`].
+/// Handle to synchronously change the size of the window from the [`WindowEvent`].
 #[derive(Debug, Clone)]
-pub struct InnerSizeWriter {
-    pub(crate) new_inner_size: Weak<Mutex<PhysicalSize<u32>>>,
+pub struct SurfaceSizeWriter {
+    pub(crate) new_surface_size: Weak<Mutex<PhysicalSize<u32>>>,
 }
 
-impl InnerSizeWriter {
+impl SurfaceSizeWriter {
     #[cfg(not(orbital_platform))]
-    pub(crate) fn new(new_inner_size: Weak<Mutex<PhysicalSize<u32>>>) -> Self {
-        Self { new_inner_size }
+    pub(crate) fn new(new_surface_size: Weak<Mutex<PhysicalSize<u32>>>) -> Self {
+        Self { new_surface_size }
     }
 
-    /// Try to request inner size which will be set synchronously on the window.
-    pub fn request_inner_size(
+    /// Try to request surface size which will be set synchronously on the window.
+    pub fn request_surface_size(
         &mut self,
-        new_inner_size: PhysicalSize<u32>,
+        new_surface_size: PhysicalSize<u32>,
     ) -> Result<(), ExternalError> {
-        if let Some(inner) = self.new_inner_size.upgrade() {
-            *inner.lock().unwrap() = new_inner_size;
+        if let Some(inner) = self.new_surface_size.upgrade() {
+            *inner.lock().unwrap() = new_surface_size;
             Ok(())
         } else {
             Err(ExternalError::Ignored)
@@ -1022,13 +1026,13 @@ impl InnerSizeWriter {
     }
 }
 
-impl PartialEq for InnerSizeWriter {
+impl PartialEq for SurfaceSizeWriter {
     fn eq(&self, other: &Self) -> bool {
-        self.new_inner_size.as_ptr() == other.new_inner_size.as_ptr()
+        self.new_surface_size.as_ptr() == other.new_surface_size.as_ptr()
     }
 }
 
-impl Eq for InnerSizeWriter {}
+impl Eq for SurfaceSizeWriter {}
 
 #[cfg(test)]
 mod tests {
@@ -1066,7 +1070,7 @@ mod tests {
                 with_window_event(Destroyed);
                 with_window_event(Focused(true));
                 with_window_event(Moved((0, 0).into()));
-                with_window_event(Resized((0, 0).into()));
+                with_window_event(SurfaceResized((0, 0).into()));
                 with_window_event(DroppedFile("x.txt".into()));
                 with_window_event(HoveredFile("x.txt".into()));
                 with_window_event(HoveredFileCancelled);

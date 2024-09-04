@@ -22,8 +22,8 @@ use xkbcommon_dl::xkb_mod_mask_t;
 
 use crate::dpi::{PhysicalPosition, PhysicalSize};
 use crate::event::{
-    DeviceEvent, ElementState, Event, Ime, InnerSizeWriter, MouseButton, MouseScrollDelta,
-    RawKeyEvent, Touch, TouchPhase, WindowEvent,
+    DeviceEvent, ElementState, Event, Ime, MouseButton, MouseScrollDelta, RawKeyEvent,
+    SurfaceSizeWriter, Touch, TouchPhase, WindowEvent,
 };
 use crate::keyboard::ModifiersState;
 use crate::platform_impl::common::xkb::{self, XkbState};
@@ -598,19 +598,19 @@ impl EventProcessor {
         // `XSendEvent` (synthetic `ConfigureNotify`) -> position relative to root
         // `XConfigureNotify` (real `ConfigureNotify`) -> position relative to parent
         // https://tronche.com/gui/x/icccm/sec-4.html#s-4.1.5
-        // We don't want to send `Moved` when this is false, since then every `Resized`
+        // We don't want to send `Moved` when this is false, since then every `SurfaceResized`
         // (whether the window moved or not) is accompanied by an extraneous `Moved` event
         // that has a position relative to the parent window.
         let is_synthetic = xev.send_event == xlib::True;
 
         // These are both in physical space.
-        let new_inner_size = (xev.width as u32, xev.height as u32);
+        let new_surface_size = (xev.width as u32, xev.height as u32);
         let new_inner_position = (xev.x, xev.y);
 
         let (mut resized, moved) = {
             let mut shared_state_lock = window.shared_state_lock();
 
-            let resized = util::maybe_change(&mut shared_state_lock.size, new_inner_size);
+            let resized = util::maybe_change(&mut shared_state_lock.size, new_surface_size);
             let moved = if is_synthetic {
                 util::maybe_change(&mut shared_state_lock.inner_position, new_inner_position)
             } else {
@@ -671,7 +671,7 @@ impl EventProcessor {
 
             let last_scale_factor = shared_state_lock.last_monitor.scale_factor;
             let new_scale_factor = {
-                let window_rect = util::AaRect::new(new_outer_position, new_inner_size);
+                let window_rect = util::AaRect::new(new_outer_position, new_surface_size);
                 let monitor = self
                     .target
                     .xconn
@@ -695,27 +695,30 @@ impl EventProcessor {
                     &shared_state_lock,
                 );
 
-                let old_inner_size = PhysicalSize::new(width, height);
-                let new_inner_size = PhysicalSize::new(new_width, new_height);
+                let old_surface_size = PhysicalSize::new(width, height);
+                let new_surface_size = PhysicalSize::new(new_width, new_height);
 
                 // Unlock shared state to prevent deadlock in callback below
                 drop(shared_state_lock);
 
-                let inner_size = Arc::new(Mutex::new(new_inner_size));
+                let surface_size = Arc::new(Mutex::new(new_surface_size));
                 callback(&self.target, Event::WindowEvent {
                     window_id,
                     event: WindowEvent::ScaleFactorChanged {
                         scale_factor: new_scale_factor,
-                        inner_size_writer: InnerSizeWriter::new(Arc::downgrade(&inner_size)),
+                        surface_size_writer: SurfaceSizeWriter::new(Arc::downgrade(&surface_size)),
                     },
                 });
 
-                let new_inner_size = *inner_size.lock().unwrap();
-                drop(inner_size);
+                let new_surface_size = *surface_size.lock().unwrap();
+                drop(surface_size);
 
-                if new_inner_size != old_inner_size {
-                    window.request_inner_size_physical(new_inner_size.width, new_inner_size.height);
-                    window.shared_state_lock().dpi_adjusted = Some(new_inner_size.into());
+                if new_surface_size != old_surface_size {
+                    window.request_surface_size_physical(
+                        new_surface_size.width,
+                        new_surface_size.height,
+                    );
+                    window.shared_state_lock().dpi_adjusted = Some(new_surface_size.into());
                     // if the DPI factor changed, force a resize event to ensure the logical
                     // size is computed with the right DPI factor
                     resized = true;
@@ -736,13 +739,13 @@ impl EventProcessor {
             // XResizeWindow requests, making Xorg, the winit client, and the WM
             // consume 100% of CPU.
             if let Some(adjusted_size) = shared_state_lock.dpi_adjusted {
-                if new_inner_size == adjusted_size || !util::wm_name_is_one_of(&["Xfwm4"]) {
+                if new_surface_size == adjusted_size || !util::wm_name_is_one_of(&["Xfwm4"]) {
                     // When this finally happens, the event will not be synthetic.
                     shared_state_lock.dpi_adjusted = None;
                 } else {
                     // Unlock shared state to prevent deadlock in callback below
                     drop(shared_state_lock);
-                    window.request_inner_size_physical(adjusted_size.0, adjusted_size.1);
+                    window.request_surface_size_physical(adjusted_size.0, adjusted_size.1);
                 }
             }
 
@@ -757,7 +760,7 @@ impl EventProcessor {
         if resized {
             callback(&self.target, Event::WindowEvent {
                 window_id,
-                event: WindowEvent::Resized(new_inner_size.into()),
+                event: WindowEvent::SurfaceResized(new_surface_size.into()),
             });
         }
     }

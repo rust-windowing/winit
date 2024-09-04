@@ -187,7 +187,7 @@ impl Inner {
         self.window.setBounds(bounds);
     }
 
-    pub fn inner_size(&self) -> PhysicalSize<u32> {
+    pub fn surface_size(&self) -> PhysicalSize<u32> {
         let scale_factor = self.scale_factor();
         let safe_area = self.safe_area_screen_space();
         let size = LogicalSize {
@@ -207,25 +207,25 @@ impl Inner {
         size.to_physical(scale_factor)
     }
 
-    pub fn request_inner_size(&self, _size: Size) -> Option<PhysicalSize<u32>> {
-        Some(self.inner_size())
+    pub fn request_surface_size(&self, _size: Size) -> Option<PhysicalSize<u32>> {
+        Some(self.surface_size())
     }
 
-    pub fn set_min_inner_size(&self, _dimensions: Option<Size>) {
-        warn!("`Window::set_min_inner_size` is ignored on iOS")
+    pub fn set_min_surface_size(&self, _dimensions: Option<Size>) {
+        warn!("`Window::set_min_surface_size` is ignored on iOS")
     }
 
-    pub fn set_max_inner_size(&self, _dimensions: Option<Size>) {
-        warn!("`Window::set_max_inner_size` is ignored on iOS")
+    pub fn set_max_surface_size(&self, _dimensions: Option<Size>) {
+        warn!("`Window::set_max_surface_size` is ignored on iOS")
     }
 
-    pub fn resize_increments(&self) -> Option<PhysicalSize<u32>> {
+    pub fn surface_resize_increments(&self) -> Option<PhysicalSize<u32>> {
         None
     }
 
     #[inline]
-    pub fn set_resize_increments(&self, _increments: Option<Size>) {
-        warn!("`Window::set_resize_increments` is ignored on iOS")
+    pub fn set_surface_resize_increments(&self, _increments: Option<Size>) {
+        warn!("`Window::set_surface_resize_increments` is ignored on iOS")
     }
 
     pub fn set_resizable(&self, _resizable: bool) {
@@ -469,11 +469,11 @@ impl Window {
     ) -> Result<Window, RootOsError> {
         let mtm = event_loop.mtm;
 
-        if window_attributes.min_inner_size.is_some() {
-            warn!("`WindowAttributes::min_inner_size` is ignored on iOS");
+        if window_attributes.min_surface_size.is_some() {
+            warn!("`WindowAttributes::min_surface_size` is ignored on iOS");
         }
-        if window_attributes.max_inner_size.is_some() {
-            warn!("`WindowAttributes::max_inner_size` is ignored on iOS");
+        if window_attributes.max_surface_size.is_some() {
+            warn!("`WindowAttributes::max_surface_size` is ignored on iOS");
         }
 
         // TODO: transparency, visible
@@ -489,7 +489,7 @@ impl Window {
 
         let screen_bounds = screen.bounds();
 
-        let frame = match window_attributes.inner_size {
+        let frame = match window_attributes.surface_size {
             Some(dim) => {
                 let scale_factor = screen.scale();
                 let size = dim.to_logical::<f64>(scale_factor as f64);
@@ -510,7 +510,7 @@ impl Window {
         let window = WinitUIWindow::new(mtm, &window_attributes, frame, &view_controller);
         window.makeKeyAndVisible();
 
-        // Like the Windows and macOS backends, we send a `ScaleFactorChanged` and `Resized`
+        // Like the Windows and macOS backends, we send a `ScaleFactorChanged` and `SurfaceResized`
         // event on window creation if the DPI factor != 1.0
         let scale_factor = view.contentScaleFactor();
         let scale_factor = scale_factor as f64;
@@ -534,7 +534,7 @@ impl Window {
                 .chain(std::iter::once(EventWrapper::StaticEvent(
                     Event::WindowEvent {
                         window_id,
-                        event: WindowEvent::Resized(size.to_physical(scale_factor)),
+                        event: WindowEvent::SurfaceResized(size.to_physical(scale_factor)),
                     },
                 ))),
             );
@@ -622,32 +622,32 @@ impl CoreWindow for Window {
         self.maybe_wait_on_main(|delegate| delegate.set_outer_position(position));
     }
 
-    fn inner_size(&self) -> dpi::PhysicalSize<u32> {
-        self.maybe_wait_on_main(|delegate| delegate.inner_size())
+    fn surface_size(&self) -> dpi::PhysicalSize<u32> {
+        self.maybe_wait_on_main(|delegate| delegate.surface_size())
     }
 
-    fn request_inner_size(&self, size: Size) -> Option<dpi::PhysicalSize<u32>> {
-        self.maybe_wait_on_main(|delegate| delegate.request_inner_size(size))
+    fn request_surface_size(&self, size: Size) -> Option<dpi::PhysicalSize<u32>> {
+        self.maybe_wait_on_main(|delegate| delegate.request_surface_size(size))
     }
 
     fn outer_size(&self) -> dpi::PhysicalSize<u32> {
         self.maybe_wait_on_main(|delegate| delegate.outer_size())
     }
 
-    fn set_min_inner_size(&self, min_size: Option<Size>) {
-        self.maybe_wait_on_main(|delegate| delegate.set_min_inner_size(min_size))
+    fn set_min_surface_size(&self, min_size: Option<Size>) {
+        self.maybe_wait_on_main(|delegate| delegate.set_min_surface_size(min_size))
     }
 
-    fn set_max_inner_size(&self, max_size: Option<Size>) {
-        self.maybe_wait_on_main(|delegate| delegate.set_max_inner_size(max_size));
+    fn set_max_surface_size(&self, max_size: Option<Size>) {
+        self.maybe_wait_on_main(|delegate| delegate.set_max_surface_size(max_size));
     }
 
-    fn resize_increments(&self) -> Option<dpi::PhysicalSize<u32>> {
-        self.maybe_wait_on_main(|delegate| delegate.resize_increments())
+    fn surface_resize_increments(&self) -> Option<dpi::PhysicalSize<u32>> {
+        self.maybe_wait_on_main(|delegate| delegate.surface_resize_increments())
     }
 
-    fn set_resize_increments(&self, increments: Option<Size>) {
-        self.maybe_wait_on_main(|delegate| delegate.set_resize_increments(increments));
+    fn set_surface_resize_increments(&self, increments: Option<Size>) {
+        self.maybe_wait_on_main(|delegate| delegate.set_surface_resize_increments(increments));
     }
 
     fn set_title(&self, title: &str) {

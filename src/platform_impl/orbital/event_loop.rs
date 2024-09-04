@@ -476,7 +476,7 @@ impl EventLoop {
                 app.window_event(
                     window_target,
                     RootWindowId(window_id),
-                    event::WindowEvent::Resized((width, height).into()),
+                    event::WindowEvent::SurfaceResized((width, height).into()),
                 );
 
                 // Acknowledge resize after event loop.
@@ -523,7 +523,7 @@ impl EventLoop {
                 let window_id = RootWindowId(window_id);
 
                 // Send resize event on create to indicate first size.
-                let event = event::WindowEvent::Resized((properties.w, properties.h).into());
+                let event = event::WindowEvent::SurfaceResized((properties.w, properties.h).into());
                 app.window_event(&self.window_target, window_id, event);
 
                 // Send moved event on create to indicate first position.

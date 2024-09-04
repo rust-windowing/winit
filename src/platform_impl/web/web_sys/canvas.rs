@@ -23,7 +23,7 @@ use super::pointer::PointerHandler;
 use super::{event, fullscreen, ButtonsState, ResizeScaleHandle};
 use crate::dpi::{LogicalPosition, PhysicalPosition, PhysicalSize};
 use crate::error::OsError as RootOE;
-use crate::event::{Force, InnerSizeWriter, MouseButton, MouseScrollDelta};
+use crate::event::{Force, MouseButton, MouseScrollDelta, SurfaceSizeWriter};
 use crate::keyboard::{Key, KeyLocation, ModifiersState, PhysicalKey};
 use crate::platform_impl::{Fullscreen, OsError};
 use crate::window::{WindowAttributes, WindowId as RootWindowId};
@@ -126,17 +126,17 @@ impl Canvas {
             current_size: Rc::default(),
         };
 
-        if let Some(size) = attr.inner_size {
+        if let Some(size) = attr.surface_size {
             let size = size.to_logical(super::scale_factor(&common.window));
             super::set_canvas_size(&common.document, &common.raw, &common.style, size);
         }
 
-        if let Some(size) = attr.min_inner_size {
+        if let Some(size) = attr.min_surface_size {
             let size = size.to_logical(super::scale_factor(&common.window));
             super::set_canvas_min_size(&common.document, &common.raw, &common.style, Some(size));
         }
 
-        if let Some(size) = attr.max_inner_size {
+        if let Some(size) = attr.max_surface_size {
             let size = size.to_logical(super::scale_factor(&common.window));
             super::set_canvas_max_size(&common.document, &common.raw, &common.style, Some(size));
         }
@@ -213,7 +213,7 @@ impl Canvas {
     }
 
     #[inline]
-    pub fn inner_size(&self) -> PhysicalSize<u32> {
+    pub fn surface_size(&self) -> PhysicalSize<u32> {
         self.common.current_size.get()
     }
 
@@ -504,7 +504,7 @@ impl Canvas {
                 window_id: RootWindowId(self.id),
                 event: crate::event::WindowEvent::ScaleFactorChanged {
                     scale_factor: scale,
-                    inner_size_writer: InnerSizeWriter::new(Arc::downgrade(&new_size)),
+                    surface_size_writer: SurfaceSizeWriter::new(Arc::downgrade(&new_size)),
                 },
             });
 
@@ -513,8 +513,8 @@ impl Canvas {
         };
 
         if current_size != new_size {
-            // Then we resize the canvas to the new size, a new
-            // `Resized` event will be sent by the `ResizeObserver`:
+            // Then we resize the canvas to the new size, a new `SurfaceResized` event will be sent
+            // by the `ResizeObserver`:
             let new_size = new_size.to_logical(scale);
             super::set_canvas_size(self.document(), self.raw(), self.style(), new_size);
 
@@ -530,7 +530,7 @@ impl Canvas {
             self.set_old_size(new_size);
             runner.send_event(crate::event::Event::WindowEvent {
                 window_id: RootWindowId(self.id),
-                event: crate::event::WindowEvent::Resized(new_size),
+                event: crate::event::WindowEvent::SurfaceResized(new_size),
             })
         }
     }

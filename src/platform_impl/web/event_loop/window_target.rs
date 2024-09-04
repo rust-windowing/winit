@@ -556,7 +556,7 @@ impl ActiveEventLoop {
                         canvas.set_old_size(new_size);
                         runner.send_event(Event::WindowEvent {
                             window_id: RootWindowId(id),
-                            event: WindowEvent::Resized(new_size),
+                            event: WindowEvent::SurfaceResized(new_size),
                         });
                         canvas.request_animation_frame();
                     }
