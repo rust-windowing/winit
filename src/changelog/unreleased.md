@@ -63,6 +63,8 @@ changelog entry.
   and `Serialize` on many types.
 - Add `MonitorHandle::current_video_mode()`.
 - Add basic iOS IME support. The soft keyboard can now be shown using `Window::set_ime_allowed`.
+- On macOS, add `WindowExtMacOS::set_borderless_game` and `WindowAttributesExtMacOS::with_borderless_game`
+  to fully disable the menu bar and dock in Borderless Fullscreen as commonly done in games.
 
 ### Changed
 
