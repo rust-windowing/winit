@@ -3,25 +3,24 @@
 #[cfg(all(not(x11_platform), not(wayland_platform)))]
 compile_error!("Please select a feature to build for unix: `x11`, `wayland`");
 
+use std::env;
 use std::num::{NonZeroU16, NonZeroU32};
 use std::os::unix::io::{AsFd, AsRawFd, BorrowedFd, RawFd};
-use std::sync::Arc;
 use std::time::Duration;
-use std::{env, fmt};
 #[cfg(x11_platform)]
-use std::{ffi::CStr, mem::MaybeUninit, os::raw::*, sync::Mutex};
+use std::{ffi::CStr, mem::MaybeUninit, os::raw::*, sync::Arc, sync::Mutex};
 
 use smol_str::SmolStr;
 
 pub(crate) use self::common::xkb::{physicalkey_to_scancode, scancode_to_physicalkey};
 #[cfg(x11_platform)]
-use self::x11::{X11Error, XConnection, XError, XNotSupported};
+use self::x11::{XConnection, XError, XNotSupported};
 use crate::application::ApplicationHandler;
 pub(crate) use crate::cursor::OnlyCursorImageSource as PlatformCustomCursorSource;
 #[cfg(x11_platform)]
 use crate::dpi::Size;
 use crate::dpi::{PhysicalPosition, PhysicalSize};
-use crate::error::EventLoopError;
+use crate::error::{EventLoopError, NotSupportedError};
 use crate::event_loop::ActiveEventLoop;
 pub(crate) use crate::icon::RgbaIcon as PlatformIcon;
 use crate::keyboard::Key;
@@ -107,31 +106,6 @@ impl Default for PlatformSpecificWindowAttributes {
 #[cfg(x11_platform)]
 pub(crate) static X11_BACKEND: Lazy<Mutex<Result<Arc<XConnection>, XNotSupported>>> =
     Lazy::new(|| Mutex::new(XConnection::new(Some(x_error_callback)).map(Arc::new)));
-
-#[derive(Debug, Clone)]
-pub enum OsError {
-    Misc(&'static str),
-    #[cfg(x11_platform)]
-    XNotSupported(XNotSupported),
-    #[cfg(x11_platform)]
-    XError(Arc<X11Error>),
-    #[cfg(wayland_platform)]
-    WaylandError(Arc<wayland::WaylandError>),
-}
-
-impl fmt::Display for OsError {
-    fn fmt(&self, _f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
-        match *self {
-            OsError::Misc(e) => _f.pad(e),
-            #[cfg(x11_platform)]
-            OsError::XNotSupported(ref e) => fmt::Display::fmt(e, _f),
-            #[cfg(x11_platform)]
-            OsError::XError(ref e) => fmt::Display::fmt(e, _f),
-            #[cfg(wayland_platform)]
-            OsError::WaylandError(ref e) => fmt::Display::fmt(e, _f),
-        }
-    }
-}
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct WindowId(u64);
@@ -411,7 +385,7 @@ impl EventLoop {
                 } else {
                     "neither WAYLAND_DISPLAY nor WAYLAND_SOCKET nor DISPLAY is set."
                 };
-                return Err(EventLoopError::Os(os_error!(OsError::Misc(msg))));
+                return Err(NotSupportedError::new(msg).into());
             },
         };
 
@@ -433,9 +407,7 @@ impl EventLoop {
     fn new_x11_any_thread() -> Result<EventLoop, EventLoopError> {
         let xconn = match X11_BACKEND.lock().unwrap_or_else(|e| e.into_inner()).as_ref() {
             Ok(xconn) => xconn.clone(),
-            Err(err) => {
-                return Err(EventLoopError::Os(os_error!(OsError::XNotSupported(err.clone()))))
-            },
+            Err(err) => return Err(os_error!(err.clone()).into()),
         };
 
         Ok(EventLoop::X(x11::EventLoop::new(xconn)))

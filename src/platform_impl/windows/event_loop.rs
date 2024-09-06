@@ -56,7 +56,7 @@ use super::window::set_skip_taskbar;
 use super::SelectedCursor;
 use crate::application::ApplicationHandler;
 use crate::dpi::{PhysicalPosition, PhysicalSize};
-use crate::error::{EventLoopError, ExternalError, OsError};
+use crate::error::{EventLoopError, RequestError};
 use crate::event::{
     Event, FingerId as RootFingerId, Force, Ime, RawKeyEvent, SurfaceSizeWriter, Touch, TouchPhase,
     WindowEvent,
@@ -521,14 +521,14 @@ impl RootActiveEventLoop for ActiveEventLoop {
     fn create_window(
         &self,
         window_attributes: WindowAttributes,
-    ) -> Result<Box<dyn CoreWindow>, OsError> {
+    ) -> Result<Box<dyn CoreWindow>, RequestError> {
         Ok(Box::new(Window::new(self, window_attributes)?))
     }
 
     fn create_custom_cursor(
         &self,
         source: CustomCursorSource,
-    ) -> Result<RootCustomCursor, ExternalError> {
+    ) -> Result<RootCustomCursor, RequestError> {
         Ok(RootCustomCursor { inner: WinCursor::new(&source.inner.0)? })
     }
 

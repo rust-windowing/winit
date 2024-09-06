@@ -16,13 +16,13 @@ use super::event_loop::sink::EventSink;
 use super::output::MonitorHandle;
 use super::state::WinitState;
 use super::types::xdg_activation::XdgActivationTokenData;
-use super::{ActiveEventLoop, WaylandError, WindowId};
+use super::{ActiveEventLoop, WindowId};
 use crate::dpi::{LogicalSize, PhysicalPosition, PhysicalSize, Position, Size};
-use crate::error::{ExternalError, NotSupportedError, OsError as RootOsError};
+use crate::error::{NotSupportedError, RequestError};
 use crate::event::{Ime, WindowEvent};
 use crate::event_loop::AsyncRequestSerial;
 use crate::monitor::MonitorHandle as CoreMonitorHandle;
-use crate::platform_impl::{Fullscreen, MonitorHandle as PlatformMonitorHandle, OsError};
+use crate::platform_impl::{Fullscreen, MonitorHandle as PlatformMonitorHandle};
 use crate::window::{
     Cursor, CursorGrabMode, Fullscreen as CoreFullscreen, ImePurpose, ResizeDirection, Theme,
     UserAttentionType, Window as CoreWindow, WindowAttributes, WindowButtons,
@@ -77,7 +77,7 @@ impl Window {
     pub(crate) fn new(
         event_loop_window_target: &ActiveEventLoop,
         attributes: WindowAttributes,
-    ) -> Result<Self, RootOsError> {
+    ) -> Result<Self, RequestError> {
         let queue_handle = event_loop_window_target.queue_handle.clone();
         let mut state = event_loop_window_target.state.borrow_mut();
 
@@ -190,15 +190,11 @@ impl Window {
         let event_queue = wayland_source.queue();
 
         // Do a roundtrip.
-        event_queue.roundtrip(&mut state).map_err(|error| {
-            os_error!(OsError::WaylandError(Arc::new(WaylandError::Dispatch(error))))
-        })?;
+        event_queue.roundtrip(&mut state).map_err(|err| os_error!(err))?;
 
         // XXX Wait for the initial configure to arrive.
         while !window_state.lock().unwrap().is_configured() {
-            event_queue.blocking_dispatch(&mut state).map_err(|error| {
-                os_error!(OsError::WaylandError(Arc::new(WaylandError::Dispatch(error))))
-            })?;
+            event_queue.blocking_dispatch(&mut state).map_err(|err| os_error!(err))?;
         }
 
         // Wake-up event loop, so it'll send initial redraw requested.
@@ -223,10 +219,10 @@ impl Window {
 }
 
 impl Window {
-    pub fn request_activation_token(&self) -> Result<AsyncRequestSerial, NotSupportedError> {
+    pub fn request_activation_token(&self) -> Result<AsyncRequestSerial, RequestError> {
         let xdg_activation = match self.xdg_activation.as_ref() {
             Some(xdg_activation) => xdg_activation,
-            None => return Err(NotSupportedError::new()),
+            None => return Err(NotSupportedError::new("xdg_activation_v1 is not available").into()),
         };
 
         let serial = AsyncRequestSerial::get();
@@ -309,12 +305,14 @@ impl CoreWindow for Window {
         crate::platform_impl::common::xkb::reset_dead_keys()
     }
 
-    fn inner_position(&self) -> Result<PhysicalPosition<i32>, NotSupportedError> {
-        Err(NotSupportedError::new())
+    fn inner_position(&self) -> Result<PhysicalPosition<i32>, RequestError> {
+        Err(NotSupportedError::new("window position information is not available on Wayland")
+            .into())
     }
 
-    fn outer_position(&self) -> Result<PhysicalPosition<i32>, NotSupportedError> {
-        Err(NotSupportedError::new())
+    fn outer_position(&self) -> Result<PhysicalPosition<i32>, RequestError> {
+        Err(NotSupportedError::new("window position information is not available on Wayland")
+            .into())
     }
 
     fn set_outer_position(&self, _position: Position) {
@@ -576,7 +574,7 @@ impl CoreWindow for Window {
         }
     }
 
-    fn set_cursor_position(&self, position: Position) -> Result<(), ExternalError> {
+    fn set_cursor_position(&self, position: Position) -> Result<(), RequestError> {
         let scale_factor = self.scale_factor();
         let position = position.to_logical(scale_factor);
         self.window_state
@@ -587,7 +585,7 @@ impl CoreWindow for Window {
             .map(|_| self.request_redraw())
     }
 
-    fn set_cursor_grab(&self, mode: CursorGrabMode) -> Result<(), ExternalError> {
+    fn set_cursor_grab(&self, mode: CursorGrabMode) -> Result<(), RequestError> {
         self.window_state.lock().unwrap().set_cursor_grab(mode)
     }
 
@@ -595,11 +593,11 @@ impl CoreWindow for Window {
         self.window_state.lock().unwrap().set_cursor_visible(visible);
     }
 
-    fn drag_window(&self) -> Result<(), ExternalError> {
+    fn drag_window(&self) -> Result<(), RequestError> {
         self.window_state.lock().unwrap().drag_window()
     }
 
-    fn drag_resize_window(&self, direction: ResizeDirection) -> Result<(), ExternalError> {
+    fn drag_resize_window(&self, direction: ResizeDirection) -> Result<(), RequestError> {
         self.window_state.lock().unwrap().drag_resize_window(direction)
     }
 
@@ -609,16 +607,14 @@ impl CoreWindow for Window {
         self.window_state.lock().unwrap().show_window_menu(position);
     }
 
-    fn set_cursor_hittest(&self, hittest: bool) -> Result<(), ExternalError> {
+    fn set_cursor_hittest(&self, hittest: bool) -> Result<(), RequestError> {
         let surface = self.window.wl_surface();
 
         if hittest {
             surface.set_input_region(None);
             Ok(())
         } else {
-            let region = Region::new(&*self.compositor).map_err(|_| {
-                ExternalError::Os(os_error!(OsError::Misc("failed to set input region.")))
-            })?;
+            let region = Region::new(&*self.compositor).map_err(|err| os_error!(err))?;
             region.add(0, 0, 0, 0);
             surface.set_input_region(Some(region.wl_region()));
             Ok(())

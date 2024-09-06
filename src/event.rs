@@ -46,7 +46,7 @@ use smol_str::SmolStr;
 use web_time::Instant;
 
 use crate::dpi::{PhysicalPosition, PhysicalSize};
-use crate::error::ExternalError;
+use crate::error::RequestError;
 use crate::event_loop::AsyncRequestSerial;
 use crate::keyboard::{self, ModifiersKeyState, ModifiersKeys, ModifiersState};
 use crate::platform_impl;
@@ -1016,12 +1016,12 @@ impl SurfaceSizeWriter {
     pub fn request_surface_size(
         &mut self,
         new_surface_size: PhysicalSize<u32>,
-    ) -> Result<(), ExternalError> {
+    ) -> Result<(), RequestError> {
         if let Some(inner) = self.new_surface_size.upgrade() {
             *inner.lock().unwrap() = new_surface_size;
             Ok(())
         } else {
-            Err(ExternalError::Ignored)
+            Err(RequestError::Ignored)
         }
     }
 }

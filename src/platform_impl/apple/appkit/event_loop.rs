@@ -29,7 +29,7 @@ use super::event::dummy_event;
 use super::monitor;
 use super::observer::setup_control_flow_observers;
 use crate::application::ApplicationHandler;
-use crate::error::{EventLoopError, ExternalError};
+use crate::error::{EventLoopError, RequestError};
 use crate::event_loop::{
     ActiveEventLoop as RootActiveEventLoop, ControlFlow, DeviceEvents,
     EventLoopProxy as RootEventLoopProxy, OwnedDisplayHandle as RootOwnedDisplayHandle,
@@ -103,14 +103,14 @@ impl RootActiveEventLoop for ActiveEventLoop {
     fn create_window(
         &self,
         window_attributes: crate::window::WindowAttributes,
-    ) -> Result<Box<dyn crate::window::Window>, crate::error::OsError> {
+    ) -> Result<Box<dyn crate::window::Window>, RequestError> {
         Ok(Box::new(Window::new(self, window_attributes)?))
     }
 
     fn create_custom_cursor(
         &self,
         source: CustomCursorSource,
-    ) -> Result<RootCustomCursor, ExternalError> {
+    ) -> Result<RootCustomCursor, RequestError> {
         Ok(RootCustomCursor { inner: CustomCursor::new(source.inner)? })
     }
 

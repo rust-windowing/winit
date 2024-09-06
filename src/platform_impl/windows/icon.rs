@@ -17,7 +17,7 @@ use windows_sys::Win32::UI::WindowsAndMessaging::{
 use super::util;
 use crate::cursor::CursorImage;
 use crate::dpi::PhysicalSize;
-use crate::error::ExternalError;
+use crate::error::RequestError;
 use crate::icon::*;
 
 impl Pixel {
@@ -179,7 +179,7 @@ impl Default for SelectedCursor {
 pub struct WinCursor(pub(super) Arc<RaiiCursor>);
 
 impl WinCursor {
-    pub(crate) fn new(image: &CursorImage) -> Result<Self, ExternalError> {
+    pub(crate) fn new(image: &CursorImage) -> Result<Self, RequestError> {
         let mut bgra = image.rgba.clone();
         bgra.chunks_exact_mut(4).for_each(|chunk| chunk.swap(0, 2));
 
@@ -189,16 +189,16 @@ impl WinCursor {
         unsafe {
             let hdc_screen = GetDC(0);
             if hdc_screen == 0 {
-                return Err(ExternalError::Os(os_error!(io::Error::last_os_error())));
+                return Err(os_error!(io::Error::last_os_error()).into());
             }
             let hbm_color = CreateCompatibleBitmap(hdc_screen, w, h);
             ReleaseDC(0, hdc_screen);
             if hbm_color == 0 {
-                return Err(ExternalError::Os(os_error!(io::Error::last_os_error())));
+                return Err(os_error!(io::Error::last_os_error()).into());
             }
             if SetBitmapBits(hbm_color, bgra.len() as u32, bgra.as_ptr() as *const c_void) == 0 {
                 DeleteObject(hbm_color);
-                return Err(ExternalError::Os(os_error!(io::Error::last_os_error())));
+                return Err(os_error!(io::Error::last_os_error()).into());
             };
 
             // Mask created according to https://learn.microsoft.com/en-us/windows/win32/api/wingdi/nf-wingdi-createbitmap#parameters
@@ -206,7 +206,7 @@ impl WinCursor {
             let hbm_mask = CreateBitmap(w, h, 1, 1, mask_bits.as_ptr() as *const _);
             if hbm_mask == 0 {
                 DeleteObject(hbm_color);
-                return Err(ExternalError::Os(os_error!(io::Error::last_os_error())));
+                return Err(os_error!(io::Error::last_os_error()).into());
             }
 
             let icon_info = ICONINFO {
@@ -221,7 +221,7 @@ impl WinCursor {
             DeleteObject(hbm_color);
             DeleteObject(hbm_mask);
             if handle == 0 {
-                return Err(ExternalError::Os(os_error!(io::Error::last_os_error())));
+                return Err(os_error!(io::Error::last_os_error()).into());
             }
 
             Ok(Self(Arc::new(RaiiCursor { handle })))

@@ -8,19 +8,18 @@ use std::sync::atomic::Ordering;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
-use sctk::reexports::calloop::Error as CalloopError;
 use sctk::reexports::calloop_wayland_source::WaylandSource;
 use sctk::reexports::client::{globals, Connection, QueueHandle};
 
 use crate::application::ApplicationHandler;
 use crate::cursor::OnlyCursorImage;
 use crate::dpi::LogicalSize;
-use crate::error::{EventLoopError, ExternalError, OsError as RootOsError};
+use crate::error::{EventLoopError, OsError, RequestError};
 use crate::event::{Event, StartCause, SurfaceSizeWriter, WindowEvent};
 use crate::event_loop::{ActiveEventLoop as RootActiveEventLoop, ControlFlow, DeviceEvents};
 use crate::platform::pump_events::PumpStatus;
 use crate::platform_impl::platform::min_timeout;
-use crate::platform_impl::{OsError, PlatformCustomCursor};
+use crate::platform_impl::PlatformCustomCursor;
 use crate::window::{CustomCursor as RootCustomCursor, CustomCursorSource, Theme};
 
 mod proxy;
@@ -31,7 +30,7 @@ use sink::EventSink;
 
 use super::state::{WindowCompositorUpdate, WinitState};
 use super::window::state::FrameCallbackState;
-use super::{logical_to_physical_rounded, DeviceId, WaylandError, WindowId};
+use super::{logical_to_physical_rounded, DeviceId, WindowId};
 
 type WaylandDispatcher = calloop::Dispatcher<'static, WaylandSource<WinitState>, WinitState>;
 
@@ -61,27 +60,20 @@ pub struct EventLoop {
 
 impl EventLoop {
     pub fn new() -> Result<EventLoop, EventLoopError> {
-        macro_rules! map_err {
-            ($e:expr, $err:expr) => {
-                $e.map_err(|error| os_error!($err(error).into()))
-            };
-        }
-
-        let connection = map_err!(Connection::connect_to_env(), WaylandError::Connection)?;
+        let connection = Connection::connect_to_env().map_err(|err| os_error!(err))?;
 
         let (globals, mut event_queue) =
-            map_err!(globals::registry_queue_init(&connection), WaylandError::Global)?;
+            globals::registry_queue_init(&connection).map_err(|err| os_error!(err))?;
         let queue_handle = event_queue.handle();
 
         let event_loop =
-            map_err!(calloop::EventLoop::<WinitState>::try_new(), WaylandError::Calloop)?;
+            calloop::EventLoop::<WinitState>::try_new().map_err(|err| os_error!(err))?;
 
-        let mut winit_state = WinitState::new(&globals, &queue_handle, event_loop.handle())
-            .map_err(|error| os_error!(error))?;
+        let mut winit_state = WinitState::new(&globals, &queue_handle, event_loop.handle())?;
 
         // NOTE: do a roundtrip after binding the globals to prevent potential
         // races with the server.
-        map_err!(event_queue.roundtrip(&mut winit_state), WaylandError::Dispatch)?;
+        event_queue.roundtrip(&mut winit_state).map_err(|err| os_error!(err))?;
 
         // Register Wayland source.
         let wayland_source = WaylandSource::new(connection.clone(), event_queue);
@@ -97,37 +89,32 @@ impl EventLoop {
                 result
             });
 
-        map_err!(
-            event_loop.handle().register_dispatcher(wayland_dispatcher.clone()),
-            WaylandError::Calloop
-        )?;
+        event_loop
+            .handle()
+            .register_dispatcher(wayland_dispatcher.clone())
+            .map_err(|err| os_error!(err))?;
 
         // Setup the user proxy.
         let (ping, ping_source) = calloop::ping::make_ping().unwrap();
-        let result = event_loop
+        event_loop
             .handle()
             .insert_source(ping_source, move |_, _, winit_state: &mut WinitState| {
                 winit_state.dispatched_events = true;
                 winit_state.proxy_wake_up = true;
             })
-            .map_err(|error| error.error);
-        map_err!(result, WaylandError::Calloop)?;
+            .map_err(|err| os_error!(err))?;
 
         // An event's loop awakener to wake up for window events from winit's windows.
-        let (event_loop_awakener, event_loop_awakener_source) = map_err!(
-            calloop::ping::make_ping()
-                .map_err(|error| CalloopError::OtherError(Box::new(error).into())),
-            WaylandError::Calloop
-        )?;
+        let (event_loop_awakener, event_loop_awakener_source) =
+            calloop::ping::make_ping().map_err(|err| os_error!(err))?;
 
-        let result = event_loop
+        event_loop
             .handle()
             .insert_source(event_loop_awakener_source, move |_, _, winit_state: &mut WinitState| {
                 // Mark that we have something to dispatch.
                 winit_state.dispatched_events = true;
             })
-            .map_err(|error| error.error);
-        map_err!(result, WaylandError::Calloop)?;
+            .map_err(|err| os_error!(err))?;
 
         let active_event_loop = ActiveEventLoop {
             connection: connection.clone(),
@@ -517,14 +504,12 @@ impl EventLoop {
         })
     }
 
-    fn roundtrip(&mut self) -> Result<usize, RootOsError> {
+    fn roundtrip(&mut self) -> Result<usize, OsError> {
         let state = &mut self.active_event_loop.state.get_mut();
 
         let mut wayland_source = self.wayland_dispatcher.as_source_mut();
         let event_queue = wayland_source.queue();
-        event_queue.roundtrip(state).map_err(|error| {
-            os_error!(OsError::WaylandError(Arc::new(WaylandError::Dispatch(error))))
-        })
+        event_queue.roundtrip(state).map_err(|err| os_error!(err))
     }
 
     fn control_flow(&self) -> ControlFlow {
@@ -614,7 +599,7 @@ impl RootActiveEventLoop for ActiveEventLoop {
     fn create_custom_cursor(
         &self,
         cursor: CustomCursorSource,
-    ) -> Result<RootCustomCursor, ExternalError> {
+    ) -> Result<RootCustomCursor, RequestError> {
         Ok(RootCustomCursor {
             inner: PlatformCustomCursor::Wayland(OnlyCursorImage(Arc::from(cursor.inner.0))),
         })
@@ -628,7 +613,7 @@ impl RootActiveEventLoop for ActiveEventLoop {
     fn create_window(
         &self,
         window_attributes: crate::window::WindowAttributes,
-    ) -> Result<Box<dyn crate::window::Window>, RootOsError> {
+    ) -> Result<Box<dyn crate::window::Window>, RequestError> {
         let window = crate::platform_impl::wayland::Window::new(self, window_attributes)?;
         Ok(Box::new(window))
     }

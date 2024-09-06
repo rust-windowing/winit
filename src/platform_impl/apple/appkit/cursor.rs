@@ -11,9 +11,8 @@ use objc2_foundation::{
     NSString,
 };
 
-use super::OsError;
 use crate::cursor::{CursorImage, OnlyCursorImageSource};
-use crate::error::ExternalError;
+use crate::error::RequestError;
 use crate::window::CursorIcon;
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
@@ -25,12 +24,12 @@ unsafe impl Send for CustomCursor {}
 unsafe impl Sync for CustomCursor {}
 
 impl CustomCursor {
-    pub(crate) fn new(cursor: OnlyCursorImageSource) -> Result<CustomCursor, ExternalError> {
+    pub(crate) fn new(cursor: OnlyCursorImageSource) -> Result<CustomCursor, RequestError> {
         cursor_from_image(&cursor.0).map(Self)
     }
 }
 
-pub(crate) fn cursor_from_image(cursor: &CursorImage) -> Result<Retained<NSCursor>, ExternalError> {
+pub(crate) fn cursor_from_image(cursor: &CursorImage) -> Result<Retained<NSCursor>, RequestError> {
     let width = cursor.width;
     let height = cursor.height;
 
@@ -48,7 +47,7 @@ pub(crate) fn cursor_from_image(cursor: &CursorImage) -> Result<Retained<NSCurso
             width as isize * 4,
             32,
         )
-    }.ok_or_else(|| ExternalError::Os(os_error!(OsError::CreationError("parent view should be installed in a window"))))?;
+    }.ok_or_else(|| os_error!("parent view should be installed in a window"))?;
     let bitmap_data = unsafe { slice::from_raw_parts_mut(bitmap.bitmapData(), cursor.rgba.len()) };
     bitmap_data.copy_from_slice(&cursor.rgba);
 

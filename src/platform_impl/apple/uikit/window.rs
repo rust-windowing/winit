@@ -20,7 +20,7 @@ use super::view_controller::WinitViewController;
 use super::{app_state, monitor, ActiveEventLoop, Fullscreen, MonitorHandle};
 use crate::cursor::Cursor;
 use crate::dpi::{LogicalPosition, LogicalSize, PhysicalPosition, PhysicalSize, Position, Size};
-use crate::error::{ExternalError, NotSupportedError, OsError as RootOsError};
+use crate::error::{NotSupportedError, RequestError};
 use crate::event::{Event, WindowEvent};
 use crate::icon::Icon;
 use crate::monitor::MonitorHandle as CoreMonitorHandle;
@@ -159,20 +159,20 @@ impl Inner {
 
     pub fn pre_present_notify(&self) {}
 
-    pub fn inner_position(&self) -> Result<PhysicalPosition<i32>, NotSupportedError> {
+    pub fn inner_position(&self) -> PhysicalPosition<i32> {
         let safe_area = self.safe_area_screen_space();
         let position =
             LogicalPosition { x: safe_area.origin.x as f64, y: safe_area.origin.y as f64 };
         let scale_factor = self.scale_factor();
-        Ok(position.to_physical(scale_factor))
+        position.to_physical(scale_factor)
     }
 
-    pub fn outer_position(&self) -> Result<PhysicalPosition<i32>, NotSupportedError> {
+    pub fn outer_position(&self) -> PhysicalPosition<i32> {
         let screen_frame = self.screen_frame();
         let position =
             LogicalPosition { x: screen_frame.origin.x as f64, y: screen_frame.origin.y as f64 };
         let scale_factor = self.scale_factor();
-        Ok(position.to_physical(scale_factor))
+        position.to_physical(scale_factor)
     }
 
     pub fn set_outer_position(&self, physical_position: Position) {
@@ -256,31 +256,31 @@ impl Inner {
         debug!("`Window::set_cursor` ignored on iOS")
     }
 
-    pub fn set_cursor_position(&self, _position: Position) -> Result<(), ExternalError> {
-        Err(ExternalError::NotSupported(NotSupportedError::new()))
+    pub fn set_cursor_position(&self, _position: Position) -> Result<(), NotSupportedError> {
+        Err(NotSupportedError::new("set_cursor_position is not supported"))
     }
 
-    pub fn set_cursor_grab(&self, _: CursorGrabMode) -> Result<(), ExternalError> {
-        Err(ExternalError::NotSupported(NotSupportedError::new()))
+    pub fn set_cursor_grab(&self, _: CursorGrabMode) -> Result<(), NotSupportedError> {
+        Err(NotSupportedError::new("set_cursor_grab is not supported"))
     }
 
     pub fn set_cursor_visible(&self, _visible: bool) {
         debug!("`Window::set_cursor_visible` is ignored on iOS")
     }
 
-    pub fn drag_window(&self) -> Result<(), ExternalError> {
-        Err(ExternalError::NotSupported(NotSupportedError::new()))
+    pub fn drag_window(&self) -> Result<(), NotSupportedError> {
+        Err(NotSupportedError::new("drag_window is not supported"))
     }
 
-    pub fn drag_resize_window(&self, _direction: ResizeDirection) -> Result<(), ExternalError> {
-        Err(ExternalError::NotSupported(NotSupportedError::new()))
+    pub fn drag_resize_window(&self, _direction: ResizeDirection) -> Result<(), NotSupportedError> {
+        Err(NotSupportedError::new("drag_resize_window is not supported"))
     }
 
     #[inline]
     pub fn show_window_menu(&self, _position: Position) {}
 
-    pub fn set_cursor_hittest(&self, _hittest: bool) -> Result<(), ExternalError> {
-        Err(ExternalError::NotSupported(NotSupportedError::new()))
+    pub fn set_cursor_hittest(&self, _hittest: bool) -> Result<(), NotSupportedError> {
+        Err(NotSupportedError::new("set_cursor_hittest is not supported"))
     }
 
     pub fn set_minimized(&self, _minimized: bool) {
@@ -466,7 +466,7 @@ impl Window {
     pub(crate) fn new(
         event_loop: &ActiveEventLoop,
         window_attributes: WindowAttributes,
-    ) -> Result<Window, RootOsError> {
+    ) -> Result<Window, RequestError> {
         let mtm = event_loop.mtm;
 
         if window_attributes.min_surface_size.is_some() {
@@ -606,31 +606,27 @@ impl CoreWindow for Window {
         self.maybe_wait_on_main(|delegate| delegate.reset_dead_keys());
     }
 
-    fn inner_position(
-        &self,
-    ) -> Result<dpi::PhysicalPosition<i32>, crate::error::NotSupportedError> {
-        self.maybe_wait_on_main(|delegate| delegate.inner_position())
+    fn inner_position(&self) -> Result<PhysicalPosition<i32>, RequestError> {
+        Ok(self.maybe_wait_on_main(|delegate| delegate.inner_position()))
     }
 
-    fn outer_position(
-        &self,
-    ) -> Result<dpi::PhysicalPosition<i32>, crate::error::NotSupportedError> {
-        self.maybe_wait_on_main(|delegate| delegate.outer_position())
+    fn outer_position(&self) -> Result<PhysicalPosition<i32>, RequestError> {
+        Ok(self.maybe_wait_on_main(|delegate| delegate.outer_position()))
     }
 
     fn set_outer_position(&self, position: Position) {
         self.maybe_wait_on_main(|delegate| delegate.set_outer_position(position));
     }
 
-    fn surface_size(&self) -> dpi::PhysicalSize<u32> {
+    fn surface_size(&self) -> PhysicalSize<u32> {
         self.maybe_wait_on_main(|delegate| delegate.surface_size())
     }
 
-    fn request_surface_size(&self, size: Size) -> Option<dpi::PhysicalSize<u32>> {
+    fn request_surface_size(&self, size: Size) -> Option<PhysicalSize<u32>> {
         self.maybe_wait_on_main(|delegate| delegate.request_surface_size(size))
     }
 
-    fn outer_size(&self) -> dpi::PhysicalSize<u32> {
+    fn outer_size(&self) -> PhysicalSize<u32> {
         self.maybe_wait_on_main(|delegate| delegate.outer_size())
     }
 
@@ -642,7 +638,7 @@ impl CoreWindow for Window {
         self.maybe_wait_on_main(|delegate| delegate.set_max_surface_size(max_size));
     }
 
-    fn surface_resize_increments(&self) -> Option<dpi::PhysicalSize<u32>> {
+    fn surface_resize_increments(&self) -> Option<PhysicalSize<u32>> {
         self.maybe_wait_on_main(|delegate| delegate.surface_resize_increments())
     }
 
@@ -770,38 +766,35 @@ impl CoreWindow for Window {
         self.maybe_wait_on_main(|delegate| delegate.set_cursor(cursor));
     }
 
-    fn set_cursor_position(&self, position: Position) -> Result<(), crate::error::ExternalError> {
-        self.maybe_wait_on_main(|delegate| delegate.set_cursor_position(position))
+    fn set_cursor_position(&self, position: Position) -> Result<(), RequestError> {
+        Ok(self.maybe_wait_on_main(|delegate| delegate.set_cursor_position(position))?)
     }
 
-    fn set_cursor_grab(
-        &self,
-        mode: crate::window::CursorGrabMode,
-    ) -> Result<(), crate::error::ExternalError> {
-        self.maybe_wait_on_main(|delegate| delegate.set_cursor_grab(mode))
+    fn set_cursor_grab(&self, mode: crate::window::CursorGrabMode) -> Result<(), RequestError> {
+        Ok(self.maybe_wait_on_main(|delegate| delegate.set_cursor_grab(mode))?)
     }
 
     fn set_cursor_visible(&self, visible: bool) {
         self.maybe_wait_on_main(|delegate| delegate.set_cursor_visible(visible))
     }
 
-    fn drag_window(&self) -> Result<(), crate::error::ExternalError> {
-        self.maybe_wait_on_main(|delegate| delegate.drag_window())
+    fn drag_window(&self) -> Result<(), RequestError> {
+        Ok(self.maybe_wait_on_main(|delegate| delegate.drag_window())?)
     }
 
     fn drag_resize_window(
         &self,
         direction: crate::window::ResizeDirection,
-    ) -> Result<(), crate::error::ExternalError> {
-        self.maybe_wait_on_main(|delegate| delegate.drag_resize_window(direction))
+    ) -> Result<(), RequestError> {
+        Ok(self.maybe_wait_on_main(|delegate| delegate.drag_resize_window(direction))?)
     }
 
     fn show_window_menu(&self, position: Position) {
         self.maybe_wait_on_main(|delegate| delegate.show_window_menu(position))
     }
 
-    fn set_cursor_hittest(&self, hittest: bool) -> Result<(), crate::error::ExternalError> {
-        self.maybe_wait_on_main(|delegate| delegate.set_cursor_hittest(hittest))
+    fn set_cursor_hittest(&self, hittest: bool) -> Result<(), RequestError> {
+        Ok(self.maybe_wait_on_main(|delegate| delegate.set_cursor_hittest(hittest))?)
     }
 
     fn current_monitor(&self) -> Option<CoreMonitorHandle> {

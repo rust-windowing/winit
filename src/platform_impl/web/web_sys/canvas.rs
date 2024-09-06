@@ -22,10 +22,10 @@ use super::media_query_handle::MediaQueryListHandle;
 use super::pointer::PointerHandler;
 use super::{event, fullscreen, ButtonsState, ResizeScaleHandle};
 use crate::dpi::{LogicalPosition, PhysicalPosition, PhysicalSize};
-use crate::error::OsError as RootOE;
+use crate::error::RequestError;
 use crate::event::{Force, MouseButton, MouseScrollDelta, SurfaceSizeWriter};
 use crate::keyboard::{Key, KeyLocation, ModifiersState, PhysicalKey};
-use crate::platform_impl::{Fullscreen, OsError};
+use crate::platform_impl::Fullscreen;
 use crate::window::{WindowAttributes, WindowId as RootWindowId};
 
 #[allow(dead_code)]
@@ -83,13 +83,13 @@ impl Canvas {
         navigator: Navigator,
         document: Document,
         attr: WindowAttributes,
-    ) -> Result<Self, RootOE> {
+    ) -> Result<Self, RequestError> {
         let canvas = match attr.platform_specific.canvas.map(Arc::try_unwrap) {
             Some(Ok(canvas)) => canvas.into_inner(main_thread),
             Some(Err(canvas)) => canvas.get(main_thread).clone(),
             None => document
                 .create_element("canvas")
-                .map_err(|_| os_error!(OsError("Failed to create canvas element".to_owned())))?
+                .map_err(|_| os_error!("Failed to create canvas element"))?
                 .unchecked_into(),
         };
 
@@ -109,7 +109,7 @@ impl Canvas {
         if attr.platform_specific.focusable {
             canvas
                 .set_attribute("tabindex", "0")
-                .map_err(|_| os_error!(OsError("Failed to set a tabindex".to_owned())))?;
+                .map_err(|_| os_error!("Failed to set a tabindex"))?;
         }
 
         let style = Style::new(&window, &canvas);

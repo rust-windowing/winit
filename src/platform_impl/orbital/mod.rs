@@ -1,9 +1,7 @@
 #![cfg(target_os = "redox")]
 
-use std::fmt::{self, Display, Formatter};
 use std::num::{NonZeroU16, NonZeroU32};
-use std::str;
-use std::sync::Arc;
+use std::{fmt, str};
 
 use smol_str::SmolStr;
 
@@ -14,6 +12,11 @@ mod event_loop;
 
 pub use self::window::Window;
 mod window;
+
+pub(crate) use crate::cursor::{
+    NoCustomCursor as PlatformCustomCursor, NoCustomCursor as PlatformCustomCursorSource,
+};
+pub(crate) use crate::icon::NoIcon as PlatformIcon;
 
 struct RedoxSocket {
     fd: usize,
@@ -172,26 +175,6 @@ impl<'a> fmt::Display for WindowProperties<'a> {
         )
     }
 }
-
-#[derive(Clone, Debug)]
-pub struct OsError(Arc<syscall::Error>);
-
-impl OsError {
-    fn new(error: syscall::Error) -> Self {
-        Self(Arc::new(error))
-    }
-}
-
-impl Display for OsError {
-    fn fmt(&self, fmt: &mut Formatter<'_>) -> Result<(), fmt::Error> {
-        self.0.fmt(fmt)
-    }
-}
-
-pub(crate) use crate::cursor::{
-    NoCustomCursor as PlatformCustomCursor, NoCustomCursor as PlatformCustomCursorSource,
-};
-pub(crate) use crate::icon::NoIcon as PlatformIcon;
 
 #[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct MonitorHandle;
