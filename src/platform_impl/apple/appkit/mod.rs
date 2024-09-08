@@ -21,7 +21,7 @@ pub(crate) use self::event_loop::{
     PlatformSpecificEventLoopAttributes,
 };
 pub(crate) use self::monitor::{MonitorHandle, VideoModeHandle};
-pub(crate) use self::window::{Window, WindowId};
+pub(crate) use self::window::Window;
 pub(crate) use self::window_delegate::PlatformSpecificWindowAttributes;
 pub(crate) use crate::cursor::OnlyCursorImageSource as PlatformCustomCursorSource;
 pub(crate) use crate::icon::NoIcon as PlatformIcon;

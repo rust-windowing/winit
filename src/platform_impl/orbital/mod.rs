@@ -100,21 +100,6 @@ impl TimeSocket {
 pub(crate) struct PlatformSpecificEventLoopAttributes {}
 
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
-pub struct WindowId {
-    fd: u64,
-}
-
-impl WindowId {
-    pub const fn into_raw(self) -> u64 {
-        self.fd
-    }
-
-    pub const fn from_raw(id: u64) -> Self {
-        Self { fd: id }
-    }
-}
-
-#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct DeviceId;
 
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]

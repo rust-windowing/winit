@@ -1,4 +1,4 @@
-use super::{backend, window, HasMonitorPermissionFuture, MonitorPermissionFuture};
+use super::{backend, HasMonitorPermissionFuture, MonitorPermissionFuture};
 use crate::application::ApplicationHandler;
 use crate::error::{EventLoopError, NotSupportedError};
 use crate::event::Event;
