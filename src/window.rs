@@ -93,10 +93,16 @@ impl WindowId {
         WindowId(platform_impl::WindowId::dummy())
     }
 
+    /// Convert the `WindowId` into the underlying integer.
+    ///
+    /// This is useful if you need to pass the ID across an FFI boundary, or store it in an atomic.
     pub const fn into_raw(self) -> u64 {
         self.0.into_raw()
     }
 
+    /// Construct a `WindowId` from the underlying integer.
+    ///
+    /// This should only be called with integers returned from [`WindowId::into_raw`].
     pub const fn from_raw(id: u64) -> Self {
         Self(platform_impl::WindowId::from_raw(id))
     }
