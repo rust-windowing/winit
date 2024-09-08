@@ -227,6 +227,12 @@ impl VideoModeHandle {
     }
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Fullscreen {
+    Exclusive(VideoModeHandle),
+    Borderless(Option<MonitorHandle>),
+}
+
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub struct KeyEventExtra {
     pub key_without_modifiers: Key,

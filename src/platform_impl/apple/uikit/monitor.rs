@@ -240,3 +240,9 @@ pub fn uiscreens(mtm: MainThreadMarker) -> VecDeque<MonitorHandle> {
     #[allow(deprecated)]
     UIScreen::screens(mtm).into_iter().map(MonitorHandle::new).collect()
 }
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Fullscreen {
+    Exclusive(VideoModeHandle),
+    Borderless(Option<MonitorHandle>),
+}

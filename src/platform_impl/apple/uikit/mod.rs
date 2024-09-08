@@ -13,14 +13,13 @@ pub(crate) use self::event_loop::{
     ActiveEventLoop, EventLoop, EventLoopProxy, OwnedDisplayHandle,
     PlatformSpecificEventLoopAttributes,
 };
-pub(crate) use self::monitor::{MonitorHandle, VideoModeHandle};
+pub(crate) use self::monitor::{Fullscreen, MonitorHandle, VideoModeHandle};
 pub(crate) use self::window::{PlatformSpecificWindowAttributes, Window, WindowId};
 pub(crate) use crate::cursor::{
     NoCustomCursor as PlatformCustomCursor, NoCustomCursor as PlatformCustomCursorSource,
 };
 use crate::event::DeviceId as RootDeviceId;
 pub(crate) use crate::icon::NoIcon as PlatformIcon;
-pub(crate) use crate::platform_impl::Fullscreen;
 
 /// There is no way to detect which device that performed a certain event in
 /// UIKit (i.e. you can't differentiate between different external keyboards,

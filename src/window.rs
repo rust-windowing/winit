@@ -10,7 +10,8 @@ pub use crate::cursor::{BadImage, Cursor, CustomCursor, CustomCursorSource, MAX_
 use crate::dpi::{PhysicalPosition, PhysicalSize, Position, Size};
 use crate::error::RequestError;
 pub use crate::icon::{BadIcon, Icon};
-use crate::monitor::{MonitorHandle, VideoModeHandle};
+pub use crate::monitor::Fullscreen;
+use crate::monitor::MonitorHandle;
 use crate::platform_impl::{self, PlatformSpecificWindowAttributes};
 use crate::utils::AsAny;
 
@@ -931,6 +932,7 @@ pub trait Window: AsAny + Send + Sync {
     ///   or calling without a [transient activation] does nothing.
     ///
     /// [transient activation]: https://developer.mozilla.org/en-US/docs/Glossary/Transient_activation
+    /// [`VideoModeHandle`]: crate::monitor::VideoModeHandle
     fn set_fullscreen(&self, fullscreen: Option<Fullscreen>);
 
     /// Gets the window's current fullscreen state.
@@ -1390,15 +1392,6 @@ impl From<ResizeDirection> for CursorIcon {
             West => CursorIcon::WResize,
         }
     }
-}
-
-/// Fullscreen modes.
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub enum Fullscreen {
-    Exclusive(VideoModeHandle),
-
-    /// Providing `None` to `Borderless` will fullscreen on the current monitor.
-    Borderless(Option<MonitorHandle>),
 }
 
 /// The theme variant to use.

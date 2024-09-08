@@ -34,6 +34,12 @@ use crate::platform::web::{
     MonitorPermissionError, Orientation, OrientationData, OrientationLock, OrientationLockError,
 };
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Fullscreen {
+    Exclusive(VideoModeHandle),
+    Borderless(Option<MonitorHandle>),
+}
+
 #[derive(Clone, Eq)]
 pub struct MonitorHandle {
     /// [`None`] means [`web_sys::Screen`], which is always the same.

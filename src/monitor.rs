@@ -193,3 +193,36 @@ impl MonitorHandle {
         self.inner.video_modes().map(|video_mode| VideoModeHandle { video_mode })
     }
 }
+
+/// Fullscreen modes.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub enum Fullscreen {
+    Exclusive(VideoModeHandle),
+
+    /// Providing `None` to `Borderless` will fullscreen on the current monitor.
+    Borderless(Option<MonitorHandle>),
+}
+
+impl From<Fullscreen> for platform_impl::Fullscreen {
+    fn from(f: Fullscreen) -> Self {
+        match f {
+            Fullscreen::Exclusive(mode) => Self::Exclusive(mode.video_mode),
+            Fullscreen::Borderless(Some(handle)) => Self::Borderless(Some(handle.inner)),
+            Fullscreen::Borderless(None) => Self::Borderless(None),
+        }
+    }
+}
+
+impl From<platform_impl::Fullscreen> for Fullscreen {
+    fn from(f: platform_impl::Fullscreen) -> Self {
+        match f {
+            platform_impl::Fullscreen::Exclusive(video_mode) => {
+                Self::Exclusive(VideoModeHandle { video_mode })
+            },
+            platform_impl::Fullscreen::Borderless(Some(inner)) => {
+                Self::Borderless(Some(MonitorHandle { inner }))
+            },
+            platform_impl::Fullscreen::Borderless(None) => Self::Borderless(None),
+        }
+    }
+}

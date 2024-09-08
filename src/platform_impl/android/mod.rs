@@ -23,8 +23,8 @@ use crate::event_loop::{
 use crate::monitor::MonitorHandle as RootMonitorHandle;
 use crate::platform::pump_events::PumpStatus;
 use crate::window::{
-    self, CursorGrabMode, CustomCursor, CustomCursorSource, Fullscreen, ImePurpose,
-    ResizeDirection, Theme, Window as CoreWindow, WindowAttributes, WindowButtons, WindowLevel,
+    self, CursorGrabMode, CustomCursor, CustomCursorSource, ImePurpose, ResizeDirection, Theme,
+    Window as CoreWindow, WindowAttributes, WindowButtons, WindowLevel,
 };
 
 mod keycodes;
@@ -1004,6 +1004,12 @@ impl VideoModeHandle {
     pub fn monitor(&self) -> MonitorHandle {
         unreachable!()
     }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Fullscreen {
+    Exclusive(VideoModeHandle),
+    Borderless(Option<MonitorHandle>),
 }
 
 fn screen_size(app: &AndroidApp) -> PhysicalSize<u32> {
