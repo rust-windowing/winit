@@ -14,18 +14,17 @@ use tracing::{debug, trace, warn};
 use crate::application::ApplicationHandler;
 use crate::cursor::Cursor;
 use crate::dpi::{PhysicalPosition, PhysicalSize, Position, Size};
-use crate::error::{self, EventLoopError, ExternalError, NotSupportedError};
-use crate::event::{self, Force, InnerSizeWriter, StartCause};
+use crate::error::{EventLoopError, NotSupportedError, RequestError};
+use crate::event::{self, Force, StartCause, SurfaceSizeWriter};
 use crate::event_loop::{
     ActiveEventLoop as RootActiveEventLoop, ControlFlow, DeviceEvents,
     EventLoopProxy as RootEventLoopProxy, OwnedDisplayHandle as RootOwnedDisplayHandle,
 };
 use crate::monitor::MonitorHandle as RootMonitorHandle;
 use crate::platform::pump_events::PumpStatus;
-use crate::platform_impl::Fullscreen;
 use crate::window::{
-    self, CursorGrabMode, CustomCursor, CustomCursorSource, ImePurpose, ResizeDirection, Theme,
-    Window as RootWindow, WindowAttributes, WindowButtons, WindowLevel,
+    self, CursorGrabMode, CustomCursor, CustomCursorSource, Fullscreen, ImePurpose,
+    ResizeDirection, Theme, Window as CoreWindow, WindowAttributes, WindowButtons, WindowLevel,
 };
 
 mod keycodes;
@@ -202,11 +201,11 @@ impl EventLoop {
                     let old_scale_factor = scale_factor(&self.android_app);
                     let scale_factor = scale_factor(&self.android_app);
                     if (scale_factor - old_scale_factor).abs() < f64::EPSILON {
-                        let new_inner_size = Arc::new(Mutex::new(screen_size(&self.android_app)));
+                        let new_surface_size = Arc::new(Mutex::new(screen_size(&self.android_app)));
                         let window_id = window::WindowId(WindowId);
                         let event = event::WindowEvent::ScaleFactorChanged {
-                            inner_size_writer: InnerSizeWriter::new(Arc::downgrade(
-                                &new_inner_size,
+                            surface_size_writer: SurfaceSizeWriter::new(Arc::downgrade(
+                                &new_surface_size,
                             )),
                             scale_factor,
                         };
@@ -288,7 +287,7 @@ impl EventLoop {
                     PhysicalSize::new(0, 0)
                 };
                 let window_id = window::WindowId(WindowId);
-                let event = event::WindowEvent::Resized(size);
+                let event = event::WindowEvent::SurfaceResized(size);
                 app.window_event(&self.window_target, window_id, event);
             }
 
@@ -593,16 +592,15 @@ impl RootActiveEventLoop for ActiveEventLoop {
     fn create_window(
         &self,
         window_attributes: WindowAttributes,
-    ) -> Result<RootWindow, error::OsError> {
-        let window = Window::new(self, window_attributes)?;
-        Ok(RootWindow { window })
+    ) -> Result<Box<dyn CoreWindow>, RequestError> {
+        Ok(Box::new(Window::new(self, window_attributes)?))
     }
 
     fn create_custom_cursor(
         &self,
         _source: CustomCursorSource,
-    ) -> Result<CustomCursor, ExternalError> {
-        Err(ExternalError::NotSupported(NotSupportedError::new()))
+    ) -> Result<CustomCursor, RequestError> {
+        Err(NotSupportedError::new("create_custom_cursor is not supported").into())
     }
 
     fn available_monitors(&self) -> Box<dyn Iterator<Item = RootMonitorHandle>> {
@@ -713,178 +711,24 @@ impl Window {
     pub(crate) fn new(
         el: &ActiveEventLoop,
         _window_attrs: window::WindowAttributes,
-    ) -> Result<Self, error::OsError> {
+    ) -> Result<Self, RequestError> {
         // FIXME this ignores requested window attributes
 
         Ok(Self { app: el.app.clone(), redraw_requester: el.redraw_requester.clone() })
     }
 
-    pub(crate) fn maybe_queue_on_main(&self, f: impl FnOnce(&Self) + Send + 'static) {
-        f(self)
+    pub fn config(&self) -> ConfigurationRef {
+        self.app.config()
     }
 
-    pub(crate) fn maybe_wait_on_main<R: Send>(&self, f: impl FnOnce(&Self) -> R + Send) -> R {
-        f(self)
-    }
-
-    pub fn id(&self) -> WindowId {
-        WindowId
-    }
-
-    pub fn primary_monitor(&self) -> Option<MonitorHandle> {
-        None
-    }
-
-    pub fn available_monitors(&self) -> Option<MonitorHandle> {
-        None
-    }
-
-    pub fn current_monitor(&self) -> Option<MonitorHandle> {
-        None
-    }
-
-    pub fn scale_factor(&self) -> f64 {
-        scale_factor(&self.app)
-    }
-
-    pub fn request_redraw(&self) {
-        self.redraw_requester.request_redraw()
-    }
-
-    pub fn pre_present_notify(&self) {}
-
-    pub fn inner_position(&self) -> Result<PhysicalPosition<i32>, error::NotSupportedError> {
-        Err(error::NotSupportedError::new())
-    }
-
-    pub fn outer_position(&self) -> Result<PhysicalPosition<i32>, error::NotSupportedError> {
-        Err(error::NotSupportedError::new())
-    }
-
-    pub fn set_outer_position(&self, _position: Position) {
-        // no effect
-    }
-
-    pub fn inner_size(&self) -> PhysicalSize<u32> {
-        self.outer_size()
-    }
-
-    pub fn request_inner_size(&self, _size: Size) -> Option<PhysicalSize<u32>> {
-        Some(self.inner_size())
-    }
-
-    pub fn outer_size(&self) -> PhysicalSize<u32> {
-        screen_size(&self.app)
-    }
-
-    pub fn set_min_inner_size(&self, _: Option<Size>) {}
-
-    pub fn set_max_inner_size(&self, _: Option<Size>) {}
-
-    pub fn resize_increments(&self) -> Option<PhysicalSize<u32>> {
-        None
-    }
-
-    pub fn set_resize_increments(&self, _increments: Option<Size>) {}
-
-    pub fn set_title(&self, _title: &str) {}
-
-    pub fn set_transparent(&self, _transparent: bool) {}
-
-    pub fn set_blur(&self, _blur: bool) {}
-
-    pub fn set_visible(&self, _visibility: bool) {}
-
-    pub fn is_visible(&self) -> Option<bool> {
-        None
-    }
-
-    pub fn set_resizable(&self, _resizeable: bool) {}
-
-    pub fn is_resizable(&self) -> bool {
-        false
-    }
-
-    pub fn set_enabled_buttons(&self, _buttons: WindowButtons) {}
-
-    pub fn enabled_buttons(&self) -> WindowButtons {
-        WindowButtons::all()
-    }
-
-    pub fn set_minimized(&self, _minimized: bool) {}
-
-    pub fn is_minimized(&self) -> Option<bool> {
-        None
-    }
-
-    pub fn set_maximized(&self, _maximized: bool) {}
-
-    pub fn is_maximized(&self) -> bool {
-        false
-    }
-
-    pub fn set_fullscreen(&self, _monitor: Option<Fullscreen>) {
-        warn!("Cannot set fullscreen on Android");
-    }
-
-    pub fn fullscreen(&self) -> Option<Fullscreen> {
-        None
-    }
-
-    pub fn set_decorations(&self, _decorations: bool) {}
-
-    pub fn is_decorated(&self) -> bool {
-        true
-    }
-
-    pub fn set_window_level(&self, _level: WindowLevel) {}
-
-    pub fn set_window_icon(&self, _window_icon: Option<crate::icon::Icon>) {}
-
-    pub fn set_ime_cursor_area(&self, _position: Position, _size: Size) {}
-
-    pub fn set_ime_allowed(&self, _allowed: bool) {}
-
-    pub fn set_ime_purpose(&self, _purpose: ImePurpose) {}
-
-    pub fn focus_window(&self) {}
-
-    pub fn request_user_attention(&self, _request_type: Option<window::UserAttentionType>) {}
-
-    pub fn set_cursor(&self, _: Cursor) {}
-
-    pub fn set_cursor_position(&self, _: Position) -> Result<(), error::ExternalError> {
-        Err(error::ExternalError::NotSupported(error::NotSupportedError::new()))
-    }
-
-    pub fn set_cursor_grab(&self, _: CursorGrabMode) -> Result<(), error::ExternalError> {
-        Err(error::ExternalError::NotSupported(error::NotSupportedError::new()))
-    }
-
-    pub fn set_cursor_visible(&self, _: bool) {}
-
-    pub fn drag_window(&self) -> Result<(), error::ExternalError> {
-        Err(error::ExternalError::NotSupported(error::NotSupportedError::new()))
-    }
-
-    pub fn drag_resize_window(
-        &self,
-        _direction: ResizeDirection,
-    ) -> Result<(), error::ExternalError> {
-        Err(error::ExternalError::NotSupported(error::NotSupportedError::new()))
-    }
-
-    #[inline]
-    pub fn show_window_menu(&self, _position: Position) {}
-
-    pub fn set_cursor_hittest(&self, _hittest: bool) -> Result<(), error::ExternalError> {
-        Err(error::ExternalError::NotSupported(error::NotSupportedError::new()))
+    pub fn content_rect(&self) -> Rect {
+        self.app.content_rect()
     }
 
     #[cfg(feature = "rwh_06")]
     // Allow the usage of HasRawWindowHandle inside this function
     #[allow(deprecated)]
-    pub fn raw_window_handle_rwh_06(&self) -> Result<rwh_06::RawWindowHandle, rwh_06::HandleError> {
+    fn raw_window_handle_rwh_06(&self) -> Result<rwh_06::RawWindowHandle, rwh_06::HandleError> {
         use rwh_06::HasRawWindowHandle;
 
         if let Some(native_window) = self.app.native_window().as_ref() {
@@ -900,37 +744,206 @@ impl Window {
     }
 
     #[cfg(feature = "rwh_06")]
-    pub fn raw_display_handle_rwh_06(
-        &self,
-    ) -> Result<rwh_06::RawDisplayHandle, rwh_06::HandleError> {
+    fn raw_display_handle_rwh_06(&self) -> Result<rwh_06::RawDisplayHandle, rwh_06::HandleError> {
         Ok(rwh_06::RawDisplayHandle::Android(rwh_06::AndroidDisplayHandle::new()))
     }
+}
 
-    pub fn config(&self) -> ConfigurationRef {
-        self.app.config()
+#[cfg(feature = "rwh_06")]
+impl rwh_06::HasDisplayHandle for Window {
+    fn display_handle(&self) -> Result<rwh_06::DisplayHandle<'_>, rwh_06::HandleError> {
+        let raw = self.raw_display_handle_rwh_06()?;
+        unsafe { Ok(rwh_06::DisplayHandle::borrow_raw(raw)) }
+    }
+}
+
+#[cfg(feature = "rwh_06")]
+impl rwh_06::HasWindowHandle for Window {
+    fn window_handle(&self) -> Result<rwh_06::WindowHandle<'_>, rwh_06::HandleError> {
+        let raw = self.raw_window_handle_rwh_06()?;
+        unsafe { Ok(rwh_06::WindowHandle::borrow_raw(raw)) }
+    }
+}
+
+impl CoreWindow for Window {
+    fn id(&self) -> window::WindowId {
+        window::WindowId(WindowId)
     }
 
-    pub fn content_rect(&self) -> Rect {
-        self.app.content_rect()
-    }
-
-    pub fn set_theme(&self, _theme: Option<Theme>) {}
-
-    pub fn theme(&self) -> Option<Theme> {
+    fn primary_monitor(&self) -> Option<RootMonitorHandle> {
         None
     }
 
-    pub fn set_content_protected(&self, _protected: bool) {}
+    fn available_monitors(&self) -> Box<dyn Iterator<Item = RootMonitorHandle>> {
+        Box::new(std::iter::empty())
+    }
 
-    pub fn has_focus(&self) -> bool {
+    fn current_monitor(&self) -> Option<RootMonitorHandle> {
+        None
+    }
+
+    fn scale_factor(&self) -> f64 {
+        scale_factor(&self.app)
+    }
+
+    fn request_redraw(&self) {
+        self.redraw_requester.request_redraw()
+    }
+
+    fn pre_present_notify(&self) {}
+
+    fn inner_position(&self) -> Result<PhysicalPosition<i32>, RequestError> {
+        Err(NotSupportedError::new("inner_position is not supported").into())
+    }
+
+    fn outer_position(&self) -> Result<PhysicalPosition<i32>, RequestError> {
+        Err(NotSupportedError::new("outer_position is not supported").into())
+    }
+
+    fn set_outer_position(&self, _position: Position) {
+        // no effect
+    }
+
+    fn surface_size(&self) -> PhysicalSize<u32> {
+        self.outer_size()
+    }
+
+    fn request_surface_size(&self, _size: Size) -> Option<PhysicalSize<u32>> {
+        Some(self.surface_size())
+    }
+
+    fn outer_size(&self) -> PhysicalSize<u32> {
+        screen_size(&self.app)
+    }
+
+    fn set_min_surface_size(&self, _: Option<Size>) {}
+
+    fn set_max_surface_size(&self, _: Option<Size>) {}
+
+    fn surface_resize_increments(&self) -> Option<PhysicalSize<u32>> {
+        None
+    }
+
+    fn set_surface_resize_increments(&self, _increments: Option<Size>) {}
+
+    fn set_title(&self, _title: &str) {}
+
+    fn set_transparent(&self, _transparent: bool) {}
+
+    fn set_blur(&self, _blur: bool) {}
+
+    fn set_visible(&self, _visibility: bool) {}
+
+    fn is_visible(&self) -> Option<bool> {
+        None
+    }
+
+    fn set_resizable(&self, _resizeable: bool) {}
+
+    fn is_resizable(&self) -> bool {
+        false
+    }
+
+    fn set_enabled_buttons(&self, _buttons: WindowButtons) {}
+
+    fn enabled_buttons(&self) -> WindowButtons {
+        WindowButtons::all()
+    }
+
+    fn set_minimized(&self, _minimized: bool) {}
+
+    fn is_minimized(&self) -> Option<bool> {
+        None
+    }
+
+    fn set_maximized(&self, _maximized: bool) {}
+
+    fn is_maximized(&self) -> bool {
+        false
+    }
+
+    fn set_fullscreen(&self, _monitor: Option<Fullscreen>) {
+        warn!("Cannot set fullscreen on Android");
+    }
+
+    fn fullscreen(&self) -> Option<Fullscreen> {
+        None
+    }
+
+    fn set_decorations(&self, _decorations: bool) {}
+
+    fn is_decorated(&self) -> bool {
+        true
+    }
+
+    fn set_window_level(&self, _level: WindowLevel) {}
+
+    fn set_window_icon(&self, _window_icon: Option<crate::icon::Icon>) {}
+
+    fn set_ime_cursor_area(&self, _position: Position, _size: Size) {}
+
+    fn set_ime_allowed(&self, _allowed: bool) {}
+
+    fn set_ime_purpose(&self, _purpose: ImePurpose) {}
+
+    fn focus_window(&self) {}
+
+    fn request_user_attention(&self, _request_type: Option<window::UserAttentionType>) {}
+
+    fn set_cursor(&self, _: Cursor) {}
+
+    fn set_cursor_position(&self, _: Position) -> Result<(), RequestError> {
+        Err(NotSupportedError::new("set_cursor_position is not supported").into())
+    }
+
+    fn set_cursor_grab(&self, _: CursorGrabMode) -> Result<(), RequestError> {
+        Err(NotSupportedError::new("set_cursor_grab is not supported").into())
+    }
+
+    fn set_cursor_visible(&self, _: bool) {}
+
+    fn drag_window(&self) -> Result<(), RequestError> {
+        Err(NotSupportedError::new("drag_window is not supported").into())
+    }
+
+    fn drag_resize_window(&self, _direction: ResizeDirection) -> Result<(), RequestError> {
+        Err(NotSupportedError::new("drag_resize_window").into())
+    }
+
+    #[inline]
+    fn show_window_menu(&self, _position: Position) {}
+
+    fn set_cursor_hittest(&self, _hittest: bool) -> Result<(), RequestError> {
+        Err(NotSupportedError::new("set_cursor_hittest is not supported").into())
+    }
+
+    fn set_theme(&self, _theme: Option<Theme>) {}
+
+    fn theme(&self) -> Option<Theme> {
+        None
+    }
+
+    fn set_content_protected(&self, _protected: bool) {}
+
+    fn has_focus(&self) -> bool {
         HAS_FOCUS.load(Ordering::Relaxed)
     }
 
-    pub fn title(&self) -> String {
+    fn title(&self) -> String {
         String::new()
     }
 
-    pub fn reset_dead_keys(&self) {}
+    fn reset_dead_keys(&self) {}
+
+    #[cfg(feature = "rwh_06")]
+    fn rwh_06_display_handle(&self) -> &dyn rwh_06::HasDisplayHandle {
+        self
+    }
+
+    #[cfg(feature = "rwh_06")]
+    fn rwh_06_window_handle(&self) -> &dyn rwh_06::HasWindowHandle {
+        self
+    }
 }
 
 #[derive(Default, Clone, Debug)]

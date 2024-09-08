@@ -103,8 +103,6 @@ fn wrap_device_id(id: u32) -> RootDeviceId {
     RootDeviceId(DeviceId(id))
 }
 
-pub type OsError = std::io::Error;
-
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub struct KeyEventExtra {
     pub text_with_all_modifiers: Option<SmolStr>,

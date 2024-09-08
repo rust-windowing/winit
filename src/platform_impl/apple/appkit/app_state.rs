@@ -8,7 +8,7 @@ use std::time::Instant;
 use objc2_app_kit::{NSApplication, NSApplicationActivationPolicy};
 use objc2_foundation::{MainThreadMarker, NSNotification};
 
-use super::event_handler::EventHandler;
+use super::super::event_handler::EventHandler;
 use super::event_loop::{stop_app_immediately, ActiveEventLoop, PanicInfo};
 use super::observer::{EventLoopWaker, RunLoop};
 use super::{menu, WindowId};
@@ -115,7 +115,6 @@ impl AppState {
         // menu bar is initially unresponsive on macOS 10.15.
         app.setActivationPolicy(self.activation_policy);
 
-        window_activation_hack(&app);
         #[allow(deprecated)]
         app.activateIgnoringOtherApps(self.activate_ignoring_other_apps);
 
@@ -291,7 +290,7 @@ impl AppState {
         callback: impl FnOnce(&mut dyn ApplicationHandler, &ActiveEventLoop),
     ) {
         let event_loop = ActiveEventLoop { app_state: Rc::clone(self), mtm: self.mtm };
-        self.event_handler.handle(callback, &event_loop);
+        self.event_handler.handle(|app| callback(app, &event_loop));
     }
 
     /// dispatch `NewEvents(Init)` + `Resumed`
@@ -386,27 +385,4 @@ impl AppState {
 /// `Option::min`)
 fn min_timeout(a: Option<Instant>, b: Option<Instant>) -> Option<Instant> {
     a.map_or(b, |a_timeout| b.map_or(Some(a_timeout), |b_timeout| Some(a_timeout.min(b_timeout))))
-}
-
-/// A hack to make activation of multiple windows work when creating them before
-/// `applicationDidFinishLaunching:` / `Event::Event::NewEvents(StartCause::Init)`.
-///
-/// Alternative to this would be the user calling `window.set_visible(true)` in
-/// `StartCause::Init`.
-///
-/// If this becomes too bothersome to maintain, it can probably be removed
-/// without too much damage.
-fn window_activation_hack(app: &NSApplication) {
-    // TODO: Proper ordering of the windows
-    app.windows().into_iter().for_each(|window| {
-        // Call `makeKeyAndOrderFront` if it was called on the window in `WinitWindow::new`
-        // This way we preserve the user's desired initial visibility status
-        // TODO: Also filter on the type/"level" of the window, and maybe other things?
-        if window.isVisible() {
-            tracing::trace!("Activating visible window");
-            window.makeKeyAndOrderFront(None);
-        } else {
-            tracing::trace!("Skipping activating invisible window");
-        }
-    })
 }

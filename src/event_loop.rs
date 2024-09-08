@@ -20,7 +20,7 @@ use std::time::{Duration, Instant};
 use web_time::{Duration, Instant};
 
 use crate::application::ApplicationHandler;
-use crate::error::{EventLoopError, ExternalError, OsError};
+use crate::error::{EventLoopError, RequestError};
 use crate::monitor::MonitorHandle;
 use crate::platform_impl;
 use crate::utils::AsAny;
@@ -268,7 +268,7 @@ impl EventLoop {
     pub fn create_custom_cursor(
         &self,
         custom_cursor: CustomCursorSource,
-    ) -> Result<CustomCursor, ExternalError> {
+    ) -> Result<CustomCursor, RequestError> {
         self.event_loop.window_target().create_custom_cursor(custom_cursor)
     }
 }
@@ -321,7 +321,10 @@ pub trait ActiveEventLoop: AsAny {
     ///
     /// - **Web:** The window is created but not inserted into the Web page automatically. Please
     ///   see the Web platform module for more information.
-    fn create_window(&self, window_attributes: WindowAttributes) -> Result<Window, OsError>;
+    fn create_window(
+        &self,
+        window_attributes: WindowAttributes,
+    ) -> Result<Box<dyn Window>, RequestError>;
 
     /// Create custom cursor.
     ///
@@ -331,7 +334,7 @@ pub trait ActiveEventLoop: AsAny {
     fn create_custom_cursor(
         &self,
         custom_cursor: CustomCursorSource,
-    ) -> Result<CustomCursor, ExternalError>;
+    ) -> Result<CustomCursor, RequestError>;
 
     /// Returns the list of all the monitors available on the system.
     ///

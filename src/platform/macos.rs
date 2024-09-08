@@ -1,21 +1,9 @@
 //! # macOS / AppKit
 //!
-//! Winit has an OS requirement of macOS 10.11 or higher (same as Rust
-//! itself), and is regularly tested on macOS 10.14.
+//! Winit has [the same macOS version requirements as `rustc`][rustc-macos-version], and is tested
+//! once in a while on as low as macOS 10.14.
 //!
-//! ## Window initialization
-//!
-//! A lot of functionality expects the application to be ready before you
-//! start doing anything; this includes creating windows, fetching monitors,
-//! drawing, and so on, see issues [#2238], [#2051] and [#2087].
-//!
-//! If you encounter problems, you should try doing your initialization inside
-//! [`ApplicationHandler::resumed`].
-//!
-//! [#2238]: https://github.com/rust-windowing/winit/issues/2238
-//! [#2051]: https://github.com/rust-windowing/winit/issues/2051
-//! [#2087]: https://github.com/rust-windowing/winit/issues/2087
-//! [`ApplicationHandler::resumed`]: crate::application::ApplicationHandler::resumed
+//! [rustc-macos-version]: https://doc.rust-lang.org/rustc/platform-support/apple-darwin.html#os-version
 //!
 //! ## Custom `NSApplicationDelegate`
 //!
@@ -162,77 +150,109 @@ pub trait WindowExtMacOS {
 
     /// Getter for the [`WindowExtMacOS::set_option_as_alt`].
     fn option_as_alt(&self) -> OptionAsAlt;
+
+    /// Disable the Menu Bar and Dock in Borderless Fullscreen mode. Useful for games.
+    fn set_borderless_game(&self, borderless_game: bool);
+
+    /// Getter for the [`WindowExtMacOS::set_borderless_game`].
+    fn is_borderless_game(&self) -> bool;
 }
 
-impl WindowExtMacOS for Window {
+impl WindowExtMacOS for dyn Window + '_ {
     #[inline]
     fn simple_fullscreen(&self) -> bool {
-        self.window.maybe_wait_on_main(|w| w.simple_fullscreen())
+        let window = self.as_any().downcast_ref::<crate::platform_impl::Window>().unwrap();
+        window.maybe_wait_on_main(|w| w.simple_fullscreen())
     }
 
     #[inline]
     fn set_simple_fullscreen(&self, fullscreen: bool) -> bool {
-        self.window.maybe_wait_on_main(move |w| w.set_simple_fullscreen(fullscreen))
+        let window = self.as_any().downcast_ref::<crate::platform_impl::Window>().unwrap();
+        window.maybe_wait_on_main(move |w| w.set_simple_fullscreen(fullscreen))
     }
 
     #[inline]
     fn has_shadow(&self) -> bool {
-        self.window.maybe_wait_on_main(|w| w.has_shadow())
+        let window = self.as_any().downcast_ref::<crate::platform_impl::Window>().unwrap();
+        window.maybe_wait_on_main(|w| w.has_shadow())
     }
 
     #[inline]
     fn set_has_shadow(&self, has_shadow: bool) {
-        self.window.maybe_queue_on_main(move |w| w.set_has_shadow(has_shadow))
+        let window = self.as_any().downcast_ref::<crate::platform_impl::Window>().unwrap();
+        window.maybe_wait_on_main(move |w| w.set_has_shadow(has_shadow));
     }
 
     #[inline]
     fn set_tabbing_identifier(&self, identifier: &str) {
-        self.window.maybe_wait_on_main(|w| w.set_tabbing_identifier(identifier))
+        let window = self.as_any().downcast_ref::<crate::platform_impl::Window>().unwrap();
+        window.maybe_wait_on_main(|w| w.set_tabbing_identifier(identifier))
     }
 
     #[inline]
     fn tabbing_identifier(&self) -> String {
-        self.window.maybe_wait_on_main(|w| w.tabbing_identifier())
+        let window = self.as_any().downcast_ref::<crate::platform_impl::Window>().unwrap();
+        window.maybe_wait_on_main(|w| w.tabbing_identifier())
     }
 
     #[inline]
     fn select_next_tab(&self) {
-        self.window.maybe_queue_on_main(|w| w.select_next_tab())
+        let window = self.as_any().downcast_ref::<crate::platform_impl::Window>().unwrap();
+        window.maybe_wait_on_main(|w| w.select_next_tab());
     }
 
     #[inline]
     fn select_previous_tab(&self) {
-        self.window.maybe_queue_on_main(|w| w.select_previous_tab())
+        let window = self.as_any().downcast_ref::<crate::platform_impl::Window>().unwrap();
+        window.maybe_wait_on_main(|w| w.select_previous_tab());
     }
 
     #[inline]
     fn select_tab_at_index(&self, index: usize) {
-        self.window.maybe_queue_on_main(move |w| w.select_tab_at_index(index))
+        let window = self.as_any().downcast_ref::<crate::platform_impl::Window>().unwrap();
+        window.maybe_wait_on_main(move |w| w.select_tab_at_index(index));
     }
 
     #[inline]
     fn num_tabs(&self) -> usize {
-        self.window.maybe_wait_on_main(|w| w.num_tabs())
+        let window = self.as_any().downcast_ref::<crate::platform_impl::Window>().unwrap();
+        window.maybe_wait_on_main(|w| w.num_tabs())
     }
 
     #[inline]
     fn is_document_edited(&self) -> bool {
-        self.window.maybe_wait_on_main(|w| w.is_document_edited())
+        let window = self.as_any().downcast_ref::<crate::platform_impl::Window>().unwrap();
+        window.maybe_wait_on_main(|w| w.is_document_edited())
     }
 
     #[inline]
     fn set_document_edited(&self, edited: bool) {
-        self.window.maybe_queue_on_main(move |w| w.set_document_edited(edited))
+        let window = self.as_any().downcast_ref::<crate::platform_impl::Window>().unwrap();
+        window.maybe_wait_on_main(move |w| w.set_document_edited(edited));
     }
 
     #[inline]
     fn set_option_as_alt(&self, option_as_alt: OptionAsAlt) {
-        self.window.maybe_queue_on_main(move |w| w.set_option_as_alt(option_as_alt))
+        let window = self.as_any().downcast_ref::<crate::platform_impl::Window>().unwrap();
+        window.maybe_wait_on_main(move |w| w.set_option_as_alt(option_as_alt));
     }
 
     #[inline]
     fn option_as_alt(&self) -> OptionAsAlt {
-        self.window.maybe_wait_on_main(|w| w.option_as_alt())
+        let window = self.as_any().downcast_ref::<crate::platform_impl::Window>().unwrap();
+        window.maybe_wait_on_main(|w| w.option_as_alt())
+    }
+
+    #[inline]
+    fn set_borderless_game(&self, borderless_game: bool) {
+        let window = self.as_any().downcast_ref::<crate::platform_impl::Window>().unwrap();
+        window.maybe_wait_on_main(|w| w.set_borderless_game(borderless_game))
+    }
+
+    #[inline]
+    fn is_borderless_game(&self) -> bool {
+        let window = self.as_any().downcast_ref::<crate::platform_impl::Window>().unwrap();
+        window.maybe_wait_on_main(|w| w.is_borderless_game())
     }
 }
 
@@ -285,6 +305,8 @@ pub trait WindowAttributesExtMacOS {
     ///
     /// See [`WindowExtMacOS::set_option_as_alt`] for details on what this means if set.
     fn with_option_as_alt(self, option_as_alt: OptionAsAlt) -> Self;
+    /// See [`WindowExtMacOS::set_borderless_game`] for details on what this means if set.
+    fn with_borderless_game(self, borderless_game: bool) -> Self;
 }
 
 impl WindowAttributesExtMacOS for WindowAttributes {
@@ -351,6 +373,12 @@ impl WindowAttributesExtMacOS for WindowAttributes {
     #[inline]
     fn with_option_as_alt(mut self, option_as_alt: OptionAsAlt) -> Self {
         self.platform_specific.option_as_alt = option_as_alt;
+        self
+    }
+
+    #[inline]
+    fn with_borderless_game(mut self, borderless_game: bool) -> Self {
+        self.platform_specific.borderless_game = borderless_game;
         self
     }
 }

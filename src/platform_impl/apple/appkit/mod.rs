@@ -5,7 +5,6 @@ mod app;
 mod app_state;
 mod cursor;
 mod event;
-mod event_handler;
 mod event_loop;
 mod ffi;
 mod menu;
@@ -14,8 +13,6 @@ mod observer;
 mod view;
 mod window;
 mod window_delegate;
-
-use std::fmt;
 
 pub(crate) use self::cursor::CustomCursor as PlatformCustomCursor;
 pub(crate) use self::event::{physicalkey_to_scancode, scancode_to_physicalkey, KeyEventExtra};
@@ -49,20 +46,5 @@ pub struct FingerId;
 impl FingerId {
     pub const fn dummy() -> Self {
         FingerId
-    }
-}
-
-#[derive(Debug)]
-pub enum OsError {
-    CGError(core_graphics::base::CGError),
-    CreationError(&'static str),
-}
-
-impl fmt::Display for OsError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            OsError::CGError(e) => f.pad(&format!("CGError {e}")),
-            OsError::CreationError(e) => f.pad(e),
-        }
     }
 }

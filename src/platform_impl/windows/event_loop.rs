@@ -56,9 +56,9 @@ use super::window::set_skip_taskbar;
 use super::SelectedCursor;
 use crate::application::ApplicationHandler;
 use crate::dpi::{PhysicalPosition, PhysicalSize};
-use crate::error::{EventLoopError, ExternalError, OsError};
+use crate::error::{EventLoopError, RequestError};
 use crate::event::{
-    Event, FingerId as RootFingerId, Force, Ime, InnerSizeWriter, RawKeyEvent, Touch, TouchPhase,
+    Event, FingerId as RootFingerId, Force, Ime, RawKeyEvent, SurfaceSizeWriter, Touch, TouchPhase,
     WindowEvent,
 };
 use crate::event_loop::{
@@ -86,8 +86,8 @@ use crate::platform_impl::platform::{
 use crate::platform_impl::Window;
 use crate::utils::Lazy;
 use crate::window::{
-    CustomCursor as RootCustomCursor, CustomCursorSource, Theme, Window as RootWindow,
-    WindowAttributes, WindowId as RootWindowId,
+    CustomCursor as RootCustomCursor, CustomCursorSource, Theme, Window as CoreWindow,
+    WindowAttributes, WindowId as CoreWindowId,
 };
 
 pub(crate) struct WindowData {
@@ -518,15 +518,17 @@ impl RootActiveEventLoop for ActiveEventLoop {
         RootEventLoopProxy { event_loop_proxy }
     }
 
-    fn create_window(&self, window_attributes: WindowAttributes) -> Result<RootWindow, OsError> {
-        let window = Window::new(self, window_attributes)?;
-        Ok(RootWindow { window })
+    fn create_window(
+        &self,
+        window_attributes: WindowAttributes,
+    ) -> Result<Box<dyn CoreWindow>, RequestError> {
+        Ok(Box::new(Window::new(self, window_attributes)?))
     }
 
     fn create_custom_cursor(
         &self,
         source: CustomCursorSource,
-    ) -> Result<RootCustomCursor, ExternalError> {
+    ) -> Result<RootCustomCursor, RequestError> {
         Ok(RootCustomCursor { inner: WinCursor::new(&source.inner.0)? })
     }
 
@@ -918,7 +920,7 @@ fn update_modifiers(window: HWND, userdata: &WindowData) {
         drop(window_state);
 
         userdata.send_event(Event::WindowEvent {
-            window_id: RootWindowId(WindowId(window)),
+            window_id: CoreWindowId(WindowId(window)),
             event: ModifiersChanged(modifiers.into()),
         });
     }
@@ -930,7 +932,7 @@ unsafe fn gain_active_focus(window: HWND, userdata: &WindowData) {
     update_modifiers(window, userdata);
 
     userdata.send_event(Event::WindowEvent {
-        window_id: RootWindowId(WindowId(window)),
+        window_id: CoreWindowId(WindowId(window)),
         event: Focused(true),
     });
 }
@@ -940,12 +942,12 @@ unsafe fn lose_active_focus(window: HWND, userdata: &WindowData) {
 
     userdata.window_state_lock().modifiers_state = ModifiersState::empty();
     userdata.send_event(Event::WindowEvent {
-        window_id: RootWindowId(WindowId(window)),
+        window_id: CoreWindowId(WindowId(window)),
         event: ModifiersChanged(ModifiersState::empty().into()),
     });
 
     userdata.send_event(Event::WindowEvent {
-        window_id: RootWindowId(WindowId(window)),
+        window_id: CoreWindowId(WindowId(window)),
         event: Focused(false),
     });
 }
@@ -1043,7 +1045,7 @@ unsafe fn public_window_callback_inner(
             userdata.key_event_builder.process_message(window, msg, wparam, lparam, &mut result);
         for event in events {
             userdata.send_event(Event::WindowEvent {
-                window_id: RootWindowId(WindowId(window)),
+                window_id: CoreWindowId(WindowId(window)),
                 event: KeyboardInput {
                     device_id: DEVICE_ID,
                     event: event.event,
@@ -1128,7 +1130,7 @@ unsafe fn public_window_callback_inner(
         WM_CLOSE => {
             use crate::event::WindowEvent::CloseRequested;
             userdata.send_event(Event::WindowEvent {
-                window_id: RootWindowId(WindowId(window)),
+                window_id: CoreWindowId(WindowId(window)),
                 event: CloseRequested,
             });
             result = ProcResult::Value(0);
@@ -1138,7 +1140,7 @@ unsafe fn public_window_callback_inner(
             use crate::event::WindowEvent::Destroyed;
             unsafe { RevokeDragDrop(window) };
             userdata.send_event(Event::WindowEvent {
-                window_id: RootWindowId(WindowId(window)),
+                window_id: CoreWindowId(WindowId(window)),
                 event: Destroyed,
             });
             result = ProcResult::Value(0);
@@ -1159,7 +1161,7 @@ unsafe fn public_window_callback_inner(
             // and request a normal redraw with `RedrawWindow`.
             if !userdata.event_loop_runner.should_buffer() {
                 userdata.send_event(Event::WindowEvent {
-                    window_id: RootWindowId(WindowId(window)),
+                    window_id: CoreWindowId(WindowId(window)),
                     event: WindowEvent::RedrawRequested,
                 });
             }
@@ -1262,7 +1264,7 @@ unsafe fn public_window_callback_inner(
                 let physical_position =
                     unsafe { PhysicalPosition::new((*windowpos).x, (*windowpos).y) };
                 userdata.send_event(Event::WindowEvent {
-                    window_id: RootWindowId(WindowId(window)),
+                    window_id: CoreWindowId(WindowId(window)),
                     event: Moved(physical_position),
                 });
             }
@@ -1272,14 +1274,14 @@ unsafe fn public_window_callback_inner(
         },
 
         WM_SIZE => {
-            use crate::event::WindowEvent::Resized;
+            use crate::event::WindowEvent::SurfaceResized;
             let w = super::loword(lparam as u32) as u32;
             let h = super::hiword(lparam as u32) as u32;
 
             let physical_size = PhysicalSize::new(w, h);
             let event = Event::WindowEvent {
-                window_id: RootWindowId(WindowId(window)),
-                event: Resized(physical_size),
+                window_id: CoreWindowId(WindowId(window)),
+                event: SurfaceResized(physical_size),
             };
 
             {
@@ -1306,7 +1308,7 @@ unsafe fn public_window_callback_inner(
             let scale_factor = userdata.window_state_lock().scale_factor;
             let Some(inc) = userdata
                 .window_state_lock()
-                .resize_increments
+                .surface_resize_increments
                 .map(|inc| inc.to_physical(scale_factor))
                 .filter(|inc| inc.width > 0 && inc.height > 0)
             else {
@@ -1393,7 +1395,7 @@ unsafe fn public_window_callback_inner(
                 userdata.window_state_lock().ime_state = ImeState::Enabled;
 
                 userdata.send_event(Event::WindowEvent {
-                    window_id: RootWindowId(WindowId(window)),
+                    window_id: CoreWindowId(WindowId(window)),
                     event: WindowEvent::Ime(Ime::Enabled),
                 });
             }
@@ -1413,7 +1415,7 @@ unsafe fn public_window_callback_inner(
 
                 if lparam == 0 {
                     userdata.send_event(Event::WindowEvent {
-                        window_id: RootWindowId(WindowId(window)),
+                        window_id: CoreWindowId(WindowId(window)),
                         event: WindowEvent::Ime(Ime::Preedit(String::new(), None)),
                     });
                 }
@@ -1425,11 +1427,11 @@ unsafe fn public_window_callback_inner(
                         userdata.window_state_lock().ime_state = ImeState::Enabled;
 
                         userdata.send_event(Event::WindowEvent {
-                            window_id: RootWindowId(WindowId(window)),
+                            window_id: CoreWindowId(WindowId(window)),
                             event: WindowEvent::Ime(Ime::Preedit(String::new(), None)),
                         });
                         userdata.send_event(Event::WindowEvent {
-                            window_id: RootWindowId(WindowId(window)),
+                            window_id: CoreWindowId(WindowId(window)),
                             event: WindowEvent::Ime(Ime::Commit(text)),
                         });
                     }
@@ -1444,7 +1446,7 @@ unsafe fn public_window_callback_inner(
                         let cursor_range = first.map(|f| (f, last.unwrap_or(f)));
 
                         userdata.send_event(Event::WindowEvent {
-                            window_id: RootWindowId(WindowId(window)),
+                            window_id: CoreWindowId(WindowId(window)),
                             event: WindowEvent::Ime(Ime::Preedit(text, cursor_range)),
                         });
                     }
@@ -1467,11 +1469,11 @@ unsafe fn public_window_callback_inner(
                     let ime_context = unsafe { ImeContext::current(window) };
                     if let Some(text) = unsafe { ime_context.get_composed_text() } {
                         userdata.send_event(Event::WindowEvent {
-                            window_id: RootWindowId(WindowId(window)),
+                            window_id: CoreWindowId(WindowId(window)),
                             event: WindowEvent::Ime(Ime::Preedit(String::new(), None)),
                         });
                         userdata.send_event(Event::WindowEvent {
-                            window_id: RootWindowId(WindowId(window)),
+                            window_id: CoreWindowId(WindowId(window)),
                             event: WindowEvent::Ime(Ime::Commit(text)),
                         });
                     }
@@ -1480,7 +1482,7 @@ unsafe fn public_window_callback_inner(
                 userdata.window_state_lock().ime_state = ImeState::Disabled;
 
                 userdata.send_event(Event::WindowEvent {
-                    window_id: RootWindowId(WindowId(window)),
+                    window_id: CoreWindowId(WindowId(window)),
                     event: WindowEvent::Ime(Ime::Disabled),
                 });
             }
@@ -1538,7 +1540,7 @@ unsafe fn public_window_callback_inner(
 
                         drop(w);
                         userdata.send_event(Event::WindowEvent {
-                            window_id: RootWindowId(WindowId(window)),
+                            window_id: CoreWindowId(WindowId(window)),
                             event: CursorEntered { device_id: DEVICE_ID },
                         });
 
@@ -1559,7 +1561,7 @@ unsafe fn public_window_callback_inner(
 
                         drop(w);
                         userdata.send_event(Event::WindowEvent {
-                            window_id: RootWindowId(WindowId(window)),
+                            window_id: CoreWindowId(WindowId(window)),
                             event: CursorLeft { device_id: DEVICE_ID },
                         });
                     },
@@ -1578,7 +1580,7 @@ unsafe fn public_window_callback_inner(
                 update_modifiers(window, userdata);
 
                 userdata.send_event(Event::WindowEvent {
-                    window_id: RootWindowId(WindowId(window)),
+                    window_id: CoreWindowId(WindowId(window)),
                     event: CursorMoved { device_id: DEVICE_ID, position },
                 });
             }
@@ -1594,7 +1596,7 @@ unsafe fn public_window_callback_inner(
             }
 
             userdata.send_event(Event::WindowEvent {
-                window_id: RootWindowId(WindowId(window)),
+                window_id: CoreWindowId(WindowId(window)),
                 event: CursorLeft { device_id: DEVICE_ID },
             });
 
@@ -1610,7 +1612,7 @@ unsafe fn public_window_callback_inner(
             update_modifiers(window, userdata);
 
             userdata.send_event(Event::WindowEvent {
-                window_id: RootWindowId(WindowId(window)),
+                window_id: CoreWindowId(WindowId(window)),
                 event: WindowEvent::MouseWheel {
                     device_id: DEVICE_ID,
                     delta: LineDelta(0.0, value),
@@ -1630,7 +1632,7 @@ unsafe fn public_window_callback_inner(
             update_modifiers(window, userdata);
 
             userdata.send_event(Event::WindowEvent {
-                window_id: RootWindowId(WindowId(window)),
+                window_id: CoreWindowId(WindowId(window)),
                 event: WindowEvent::MouseWheel {
                     device_id: DEVICE_ID,
                     delta: LineDelta(value, 0.0),
@@ -1665,7 +1667,7 @@ unsafe fn public_window_callback_inner(
             update_modifiers(window, userdata);
 
             userdata.send_event(Event::WindowEvent {
-                window_id: RootWindowId(WindowId(window)),
+                window_id: CoreWindowId(WindowId(window)),
                 event: MouseInput { device_id: DEVICE_ID, state: Pressed, button: Left },
             });
             result = ProcResult::Value(0);
@@ -1681,7 +1683,7 @@ unsafe fn public_window_callback_inner(
             update_modifiers(window, userdata);
 
             userdata.send_event(Event::WindowEvent {
-                window_id: RootWindowId(WindowId(window)),
+                window_id: CoreWindowId(WindowId(window)),
                 event: MouseInput { device_id: DEVICE_ID, state: Released, button: Left },
             });
             result = ProcResult::Value(0);
@@ -1697,7 +1699,7 @@ unsafe fn public_window_callback_inner(
             update_modifiers(window, userdata);
 
             userdata.send_event(Event::WindowEvent {
-                window_id: RootWindowId(WindowId(window)),
+                window_id: CoreWindowId(WindowId(window)),
                 event: MouseInput { device_id: DEVICE_ID, state: Pressed, button: Right },
             });
             result = ProcResult::Value(0);
@@ -1713,7 +1715,7 @@ unsafe fn public_window_callback_inner(
             update_modifiers(window, userdata);
 
             userdata.send_event(Event::WindowEvent {
-                window_id: RootWindowId(WindowId(window)),
+                window_id: CoreWindowId(WindowId(window)),
                 event: MouseInput { device_id: DEVICE_ID, state: Released, button: Right },
             });
             result = ProcResult::Value(0);
@@ -1729,7 +1731,7 @@ unsafe fn public_window_callback_inner(
             update_modifiers(window, userdata);
 
             userdata.send_event(Event::WindowEvent {
-                window_id: RootWindowId(WindowId(window)),
+                window_id: CoreWindowId(WindowId(window)),
                 event: MouseInput { device_id: DEVICE_ID, state: Pressed, button: Middle },
             });
             result = ProcResult::Value(0);
@@ -1745,7 +1747,7 @@ unsafe fn public_window_callback_inner(
             update_modifiers(window, userdata);
 
             userdata.send_event(Event::WindowEvent {
-                window_id: RootWindowId(WindowId(window)),
+                window_id: CoreWindowId(WindowId(window)),
                 event: MouseInput { device_id: DEVICE_ID, state: Released, button: Middle },
             });
             result = ProcResult::Value(0);
@@ -1762,7 +1764,7 @@ unsafe fn public_window_callback_inner(
             update_modifiers(window, userdata);
 
             userdata.send_event(Event::WindowEvent {
-                window_id: RootWindowId(WindowId(window)),
+                window_id: CoreWindowId(WindowId(window)),
                 event: MouseInput {
                     device_id: DEVICE_ID,
                     state: Pressed,
@@ -1787,7 +1789,7 @@ unsafe fn public_window_callback_inner(
             update_modifiers(window, userdata);
 
             userdata.send_event(Event::WindowEvent {
-                window_id: RootWindowId(WindowId(window)),
+                window_id: CoreWindowId(WindowId(window)),
                 event: MouseInput {
                     device_id: DEVICE_ID,
                     state: Released,
@@ -1836,7 +1838,7 @@ unsafe fn public_window_callback_inner(
                     let y = location.y as f64 + (input.y % 100) as f64 / 100f64;
                     let location = PhysicalPosition::new(x, y);
                     userdata.send_event(Event::WindowEvent {
-                        window_id: RootWindowId(WindowId(window)),
+                        window_id: CoreWindowId(WindowId(window)),
                         event: WindowEvent::Touch(Touch {
                             phase: if util::has_flag(input.dwFlags, TOUCHEVENTF_DOWN) {
                                 TouchPhase::Started
@@ -1984,7 +1986,7 @@ unsafe fn public_window_callback_inner(
                     let y = location.y as f64 + y.fract();
                     let location = PhysicalPosition::new(x, y);
                     userdata.send_event(Event::WindowEvent {
-                        window_id: RootWindowId(WindowId(window)),
+                        window_id: CoreWindowId(WindowId(window)),
                         event: WindowEvent::Touch(Touch {
                             phase: if util::has_flag(pointer_info.pointerFlags, POINTER_FLAG_DOWN) {
                                 TouchPhase::Started
@@ -2129,7 +2131,7 @@ unsafe fn public_window_callback_inner(
             // New size as suggested by Windows.
             let suggested_rect = unsafe { *(lparam as *const RECT) };
 
-            // The window rect provided is the window's outer size, not it's inner size. However,
+            // The window rect provided is the window's outer size, not it's surface size. However,
             // win32 doesn't provide an `UnadjustWindowRectEx` function to get the client rect from
             // the outer rect, so we instead adjust the window rect to get the decoration margins
             // and remove them from the outer size.
@@ -2149,33 +2151,33 @@ unsafe fn public_window_callback_inner(
             let old_physical_inner_rect = util::WindowArea::Inner
                 .get_rect(window)
                 .expect("failed to query (old) inner window area");
-            let old_physical_inner_size = PhysicalSize::new(
+            let old_physical_surface_size = PhysicalSize::new(
                 (old_physical_inner_rect.right - old_physical_inner_rect.left) as u32,
                 (old_physical_inner_rect.bottom - old_physical_inner_rect.top) as u32,
             );
 
             // `allow_resize` prevents us from re-applying DPI adjustment to the restored size after
             // exiting fullscreen (the restored size is already DPI adjusted).
-            let new_physical_inner_size = match allow_resize {
+            let new_physical_surface_size = match allow_resize {
                 // We calculate our own size because the default suggested rect doesn't do a great
                 // job of preserving the window's logical size.
-                true => old_physical_inner_size
+                true => old_physical_surface_size
                     .to_logical::<f64>(old_scale_factor)
                     .to_physical::<u32>(new_scale_factor),
-                false => old_physical_inner_size,
+                false => old_physical_surface_size,
             };
 
-            let new_inner_size = Arc::new(Mutex::new(new_physical_inner_size));
+            let new_surface_size = Arc::new(Mutex::new(new_physical_surface_size));
             userdata.send_event(Event::WindowEvent {
-                window_id: RootWindowId(WindowId(window)),
+                window_id: CoreWindowId(WindowId(window)),
                 event: ScaleFactorChanged {
                     scale_factor: new_scale_factor,
-                    inner_size_writer: InnerSizeWriter::new(Arc::downgrade(&new_inner_size)),
+                    surface_size_writer: SurfaceSizeWriter::new(Arc::downgrade(&new_surface_size)),
                 },
             });
 
-            let new_physical_inner_size = *new_inner_size.lock().unwrap();
-            drop(new_inner_size);
+            let new_physical_surface_size = *new_surface_size.lock().unwrap();
+            drop(new_surface_size);
 
             let dragging_window: bool;
 
@@ -2184,7 +2186,7 @@ unsafe fn public_window_callback_inner(
                 dragging_window =
                     window_state.window_flags().contains(WindowFlags::MARKER_IN_SIZE_MOVE);
                 // Unset maximized if we're changing the window's size.
-                if new_physical_inner_size != old_physical_inner_size {
+                if new_physical_surface_size != old_physical_surface_size {
                     WindowState::set_window_flags(window_state, window, |f| {
                         f.set(WindowFlags::MAXIMIZED, false)
                     });
@@ -2199,8 +2201,8 @@ unsafe fn public_window_callback_inner(
                 let mut conservative_rect = RECT {
                     left: suggested_ul.0,
                     top: suggested_ul.1,
-                    right: suggested_ul.0 + new_physical_inner_size.width as i32,
-                    bottom: suggested_ul.1 + new_physical_inner_size.height as i32,
+                    right: suggested_ul.0 + new_physical_surface_size.width as i32,
+                    bottom: suggested_ul.1 + new_physical_surface_size.height as i32,
                 };
 
                 conservative_rect = window_flags
@@ -2319,7 +2321,7 @@ unsafe fn public_window_callback_inner(
                     window_state.current_theme = new_theme;
                     drop(window_state);
                     userdata.send_event(Event::WindowEvent {
-                        window_id: RootWindowId(WindowId(window)),
+                        window_id: CoreWindowId(WindowId(window)),
                         event: ThemeChanged(new_theme),
                     });
                 }

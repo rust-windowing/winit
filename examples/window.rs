@@ -17,7 +17,7 @@ use rwh_06::{DisplayHandle, HasDisplayHandle};
 use softbuffer::{Context, Surface};
 use winit::application::ApplicationHandler;
 use winit::dpi::{LogicalSize, PhysicalPosition, PhysicalSize};
-use winit::error::ExternalError;
+use winit::error::RequestError;
 use winit::event::{DeviceEvent, DeviceId, Ime, MouseButton, MouseScrollDelta, WindowEvent};
 use winit::event_loop::{ActiveEventLoop, EventLoop};
 use winit::keyboard::{Key, ModifiersState};
@@ -31,7 +31,7 @@ use winit::platform::startup_notify::{
 use winit::platform::web::{ActiveEventLoopExtWeb, CustomCursorExtWeb, WindowAttributesExtWeb};
 use winit::window::{
     Cursor, CursorGrabMode, CustomCursor, CustomCursorSource, Fullscreen, Icon, ResizeDirection,
-    Theme, Window, WindowId,
+    Theme, Window, WindowAttributes, WindowId,
 };
 
 #[path = "util/tracing.rs"]
@@ -76,7 +76,7 @@ struct Application {
     receiver: Receiver<Action>,
     sender: Sender<Action>,
     /// Custom cursors assets.
-    custom_cursors: Result<Vec<CustomCursor>, ExternalError>,
+    custom_cursors: Result<Vec<CustomCursor>, RequestError>,
     /// Application icon.
     icon: Icon,
     windows: HashMap<WindowId, WindowState>,
@@ -135,7 +135,7 @@ impl Application {
         // TODO read-out activation token.
 
         #[allow(unused_mut)]
-        let mut window_attributes = Window::default_attributes()
+        let mut window_attributes = WindowAttributes::default()
             .with_title("Winit window")
             .with_transparent(true)
             .with_window_icon(Some(self.icon.clone()));
@@ -389,7 +389,7 @@ impl ApplicationHandler for Application {
         };
 
         match event {
-            WindowEvent::Resized(size) => {
+            WindowEvent::SurfaceResized(size) => {
                 window.resize(size);
             },
             WindowEvent::Focused(focused) => {
@@ -560,9 +560,9 @@ struct WindowState {
     ///
     /// NOTE: This surface must be dropped before the `Window`.
     #[cfg(not(any(android_platform, ios_platform)))]
-    surface: Surface<DisplayHandle<'static>, Arc<Window>>,
+    surface: Surface<DisplayHandle<'static>, Arc<dyn Window>>,
     /// The actual winit Window.
-    window: Arc<Window>,
+    window: Arc<dyn Window>,
     /// The window theme we're drawing with.
     theme: Theme,
     /// Cursor position over the window.
@@ -590,8 +590,8 @@ struct WindowState {
 }
 
 impl WindowState {
-    fn new(app: &Application, window: Window) -> Result<Self, Box<dyn Error>> {
-        let window = Arc::new(window);
+    fn new(app: &Application, window: Box<dyn Window>) -> Result<Self, Box<dyn Error>> {
+        let window: Arc<dyn Window> = Arc::from(window);
 
         // SAFETY: the surface is dropped before the `window` which provided it with handle, thus
         // it doesn't outlive it.
@@ -601,13 +601,13 @@ impl WindowState {
         let theme = window.theme().unwrap_or(Theme::Dark);
         info!("Theme: {theme:?}");
         let named_idx = 0;
-        window.set_cursor(CURSORS[named_idx]);
+        window.set_cursor(CURSORS[named_idx].into());
 
         // Allow IME out of the box.
         let ime = true;
         window.set_ime_allowed(ime);
 
-        let size = window.inner_size();
+        let size = window.surface_size();
         let mut state = Self {
             #[cfg(macos_platform)]
             option_as_alt: window.option_as_alt(),
@@ -636,7 +636,7 @@ impl WindowState {
         self.ime = !self.ime;
         self.window.set_ime_allowed(self.ime);
         if let Some(position) = self.ime.then_some(self.cursor_position).flatten() {
-            self.window.set_ime_cursor_area(position, PhysicalSize::new(20, 20));
+            self.window.set_ime_cursor_area(position.into(), PhysicalSize::new(20, 20).into());
         }
     }
 
@@ -647,7 +647,7 @@ impl WindowState {
     pub fn cursor_moved(&mut self, position: PhysicalPosition<f64>) {
         self.cursor_position = Some(position);
         if self.ime {
-            self.window.set_ime_cursor_area(position, PhysicalSize::new(20, 20));
+            self.window.set_ime_cursor_area(position.into(), PhysicalSize::new(20, 20).into());
         }
     }
 
@@ -681,12 +681,12 @@ impl WindowState {
 
     /// Toggle resize increments on a window.
     fn toggle_resize_increments(&mut self) {
-        let new_increments = match self.window.resize_increments() {
+        let new_increments = match self.window.surface_resize_increments() {
             Some(_) => None,
-            None => Some(LogicalSize::new(25.0, 25.0)),
+            None => Some(LogicalSize::new(25.0, 25.0).into()),
         };
         info!("Had increments: {}", new_increments.is_none());
-        self.window.set_resize_increments(new_increments);
+        self.window.set_surface_resize_increments(new_increments);
     }
 
     /// Toggle fullscreen.
@@ -725,22 +725,22 @@ impl WindowState {
         self.window.set_option_as_alt(self.option_as_alt);
     }
 
-    /// Swap the window dimensions with `request_inner_size`.
+    /// Swap the window dimensions with `request_surface_size`.
     fn swap_dimensions(&mut self) {
-        let old_inner_size = self.window.inner_size();
-        let mut inner_size = old_inner_size;
+        let old_surface_size = self.window.surface_size();
+        let mut surface_size = old_surface_size;
 
-        mem::swap(&mut inner_size.width, &mut inner_size.height);
-        info!("Requesting resize from {old_inner_size:?} to {inner_size:?}");
+        mem::swap(&mut surface_size.width, &mut surface_size.height);
+        info!("Requesting resize from {old_surface_size:?} to {surface_size:?}");
 
-        if let Some(new_inner_size) = self.window.request_inner_size(inner_size) {
-            if old_inner_size == new_inner_size {
+        if let Some(new_surface_size) = self.window.request_surface_size(surface_size.into()) {
+            if old_surface_size == new_surface_size {
                 info!("Inner size change got ignored");
             } else {
-                self.resize(new_inner_size);
+                self.resize(new_surface_size);
             }
         } else {
-            info!("Request inner size is asynchronous");
+            info!("Requesting surface size is asynchronous");
         }
     }
 
@@ -766,7 +766,7 @@ impl WindowState {
     ) -> Result<(), Box<dyn Error>> {
         let cursor = event_loop.create_custom_cursor(url_custom_cursor())?;
 
-        self.window.set_cursor(cursor);
+        self.window.set_cursor(cursor.into());
 
         Ok(())
     }
@@ -788,14 +788,14 @@ impl WindowState {
         let cursor = CustomCursor::from_animation(Duration::from_secs(3), cursors).unwrap();
         let cursor = event_loop.create_custom_cursor(cursor)?;
 
-        self.window.set_cursor(cursor);
+        self.window.set_cursor(cursor.into());
 
         Ok(())
     }
 
-    /// Resize the window to the new size.
+    /// Resize the surface to the new size.
     fn resize(&mut self, size: PhysicalSize<u32>) {
-        info!("Resized to {size:?}");
+        info!("Surface resized to {size:?}");
         #[cfg(not(any(android_platform, ios_platform)))]
         {
             let (width, height) = match (NonZeroU32::new(size.width), NonZeroU32::new(size.height))
@@ -817,7 +817,7 @@ impl WindowState {
     /// Show window menu.
     fn show_menu(&self) {
         if let Some(position) = self.cursor_position {
-            self.window.show_window_menu(position);
+            self.window.show_window_menu(position.into());
         }
     }
 
@@ -840,7 +840,7 @@ impl WindowState {
             },
         };
 
-        let win_size = self.window.inner_size();
+        let win_size = self.window.surface_size();
         let border_size = BORDER_SIZE * self.window.scale_factor();
 
         let x_direction = if position.x < border_size {

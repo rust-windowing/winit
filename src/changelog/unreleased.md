@@ -47,13 +47,13 @@ changelog entry.
   `DeviceEvent::MouseMotion` is returning raw data, not OS accelerated, when using
   `CursorGrabMode::Locked`.
 - On Web, implement `MonitorHandle` and `VideoModeHandle`.
-  
+
   Without prompting the user for permission, only the current monitor is returned. But when
   prompting and being granted permission through
   `ActiveEventLoop::request_detailed_monitor_permission()`, access to all monitors and their
   details is available. Handles created with "detailed monitor permissions" can be used in
   `Window::set_fullscreen()` as well.
-  
+
   Keep in mind that handles do not auto-upgrade after permissions are granted and have to be
   re-created to make full use of this feature.
 - Add `Touch::finger_id` with a new type `FingerId`.
@@ -62,11 +62,16 @@ changelog entry.
 - Implement `Clone`, `Copy`, `Debug`, `Deserialize`, `Eq`, `Hash`, `Ord`, `PartialEq`, `PartialOrd`
   and `Serialize` on many types.
 - Add `MonitorHandle::current_video_mode()`.
+- Add basic iOS IME support. The soft keyboard can now be shown using `Window::set_ime_allowed`.
+- On macOS, add `WindowExtMacOS::set_borderless_game` and `WindowAttributesExtMacOS::with_borderless_game`
+  to fully disable the menu bar and dock in Borderless Fullscreen as commonly done in games.
 - Add `WindowId::into_raw()` and `from_raw()`.
 
 ### Changed
 
 - Change `ActiveEventLoop` to be a trait.
+- Change `Window` to be a trait.
+- `ActiveEventLoop::create_window` now returns `Box<dyn Window>`.
 - `ApplicationHandler` now uses `dyn ActiveEventLoop`.
 - On Web, let events wake up event loop immediately when using `ControlFlow::Poll`.
 - Bump MSRV from `1.70` to `1.73`.
@@ -102,6 +107,24 @@ changelog entry.
   application delegate yourself.
 - On iOS, no longer act as-if the application successfully open all URLs. Override
   `application:didFinishLaunchingWithOptions:` and provide the desired behaviour yourself.
+- On X11, remove our dependency on libXcursor. (#3749)
+- Renamed the following APIs to make it clearer that the sizes apply to the underlying surface:
+  - `WindowEvent::Resized` to `SurfaceResized`.
+  - `InnerSizeWriter` to `SurfaceSizeWriter`.
+  - `WindowAttributes.inner_size` to `surface_size`.
+  - `WindowAttributes.min_inner_size` to `min_surface_size`.
+  - `WindowAttributes.max_inner_size` to `max_surface_size`.
+  - `WindowAttributes.resize_increments` to `surface_resize_increments`.
+  - `WindowAttributes::with_inner_size` to `with_surface_size`.
+  - `WindowAttributes::with_min_inner_size` to `with_min_surface_size`.
+  - `WindowAttributes::with_max_inner_size` to `with_max_surface_size`.
+  - `WindowAttributes::with_resize_increments` to `with_surface_resize_increments`.
+  - `Window::inner_size` to `surface_size`.
+  - `Window::request_inner_size` to `request_surface_size`.
+  - `Window::set_min_inner_size` to `set_min_surface_size`.
+  - `Window::set_max_inner_size` to `set_max_surface_size`.
+
+  To migrate, you can probably just replace all instances of `inner_size` with `surface_size` in your codebase.
 
 ### Removed
 

@@ -11,7 +11,7 @@ use super::event::DeviceId;
 use super::runner::{EventWrapper, WeakShared};
 use super::window::WindowId;
 use super::{backend, runner, EventLoopProxy};
-use crate::error::{ExternalError, NotSupportedError};
+use crate::error::{NotSupportedError, RequestError};
 use crate::event::{
     DeviceId as RootDeviceId, ElementState, Event, FingerId as RootFingerId, KeyEvent, Touch,
     TouchPhase, WindowEvent,
@@ -27,8 +27,7 @@ use crate::platform_impl::platform::cursor::CustomCursor;
 use crate::platform_impl::platform::r#async::Waker;
 use crate::platform_impl::Window;
 use crate::window::{
-    CustomCursor as RootCustomCursor, CustomCursorSource, Theme, Window as RootWindow,
-    WindowId as RootWindowId,
+    CustomCursor as RootCustomCursor, CustomCursorSource, Theme, WindowId as RootWindowId,
 };
 
 #[derive(Default)]
@@ -557,7 +556,7 @@ impl ActiveEventLoop {
                         canvas.set_old_size(new_size);
                         runner.send_event(Event::WindowEvent {
                             window_id: RootWindowId(id),
-                            event: WindowEvent::Resized(new_size),
+                            event: WindowEvent::SurfaceResized(new_size),
                         });
                         canvas.request_animation_frame();
                     }
@@ -607,7 +606,10 @@ impl ActiveEventLoop {
     }
 
     pub(crate) fn has_multiple_screens(&self) -> Result<bool, NotSupportedError> {
-        self.runner.monitor().is_extended().ok_or(NotSupportedError::new())
+        self.runner
+            .monitor()
+            .is_extended()
+            .ok_or(NotSupportedError::new("has_multiple_screens is not supported"))
     }
 
     pub(crate) fn request_detailed_monitor_permission(&self) -> MonitorPermissionFuture {
@@ -632,15 +634,15 @@ impl RootActiveEventLoop for ActiveEventLoop {
     fn create_window(
         &self,
         window_attributes: crate::window::WindowAttributes,
-    ) -> Result<crate::window::Window, crate::error::OsError> {
+    ) -> Result<Box<dyn crate::window::Window>, RequestError> {
         let window = Window::new(self, window_attributes)?;
-        Ok(RootWindow { window })
+        Ok(Box::new(window))
     }
 
     fn create_custom_cursor(
         &self,
         source: CustomCursorSource,
-    ) -> Result<RootCustomCursor, ExternalError> {
+    ) -> Result<RootCustomCursor, RequestError> {
         Ok(RootCustomCursor { inner: CustomCursor::new(self, source.inner) })
     }
 
