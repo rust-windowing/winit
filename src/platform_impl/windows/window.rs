@@ -47,7 +47,7 @@ use windows_sys::Win32::UI::WindowsAndMessaging::{
 
 use crate::cursor::Cursor;
 use crate::dpi::{PhysicalPosition, PhysicalSize, Position, Size};
-use crate::error::{ExternalError, NotSupportedError, OsError as RootOsError};
+use crate::error::{NotSupportedError, RequestError};
 use crate::icon::Icon;
 use crate::monitor::MonitorHandle as CoreMonitorHandle;
 use crate::platform::windows::{BackdropType, Color, CornerPreference};
@@ -89,7 +89,7 @@ impl Window {
     pub(crate) fn new(
         event_loop: &ActiveEventLoop,
         w_attr: WindowAttributes,
-    ) -> Result<Window, RootOsError> {
+    ) -> Result<Window, RequestError> {
         // We dispatch an `init` function because of code style.
         // First person to remove the need for cloning here gets a cookie!
         //
@@ -411,7 +411,7 @@ impl CoreWindow for Window {
 
     fn pre_present_notify(&self) {}
 
-    fn outer_position(&self) -> Result<PhysicalPosition<i32>, NotSupportedError> {
+    fn outer_position(&self) -> Result<PhysicalPosition<i32>, RequestError> {
         util::WindowArea::Outer
             .get_rect(self.hwnd())
             .map(|rect| Ok(PhysicalPosition::new(rect.left, rect.top)))
@@ -421,7 +421,7 @@ impl CoreWindow for Window {
             )
     }
 
-    fn inner_position(&self) -> Result<PhysicalPosition<i32>, NotSupportedError> {
+    fn inner_position(&self) -> Result<PhysicalPosition<i32>, RequestError> {
         let mut position: POINT = unsafe { mem::zeroed() };
         if unsafe { ClientToScreen(self.hwnd(), &mut position) } == false.into() {
             panic!(
@@ -458,7 +458,7 @@ impl CoreWindow for Window {
         }
     }
 
-    fn inner_size(&self) -> PhysicalSize<u32> {
+    fn surface_size(&self) -> PhysicalSize<u32> {
         let mut rect: RECT = unsafe { mem::zeroed() };
         if unsafe { GetClientRect(self.hwnd(), &mut rect) } == false.into() {
             panic!(
@@ -478,14 +478,14 @@ impl CoreWindow for Window {
             .unwrap()
     }
 
-    fn request_inner_size(&self, size: Size) -> Option<PhysicalSize<u32>> {
+    fn request_surface_size(&self, size: Size) -> Option<PhysicalSize<u32>> {
         let scale_factor = self.scale_factor();
         let physical_size = size.to_physical::<u32>(scale_factor);
 
         let window_flags = self.window_state_lock().window_flags;
         window_flags.set_size(self.hwnd(), physical_size);
 
-        if physical_size != self.inner_size() {
+        if physical_size != self.surface_size() {
             let window_state = Arc::clone(&self.window_state);
             let window = self.window;
             self.thread_executor.execute_in_thread(move || {
@@ -499,28 +499,28 @@ impl CoreWindow for Window {
         None
     }
 
-    fn set_min_inner_size(&self, size: Option<Size>) {
+    fn set_min_surface_size(&self, size: Option<Size>) {
         self.window_state_lock().min_size = size;
         // Make windows re-check the window size bounds.
-        let size = self.inner_size();
-        let _ = self.request_inner_size(size.into());
+        let size = self.surface_size();
+        let _ = self.request_surface_size(size.into());
     }
 
-    fn set_max_inner_size(&self, size: Option<Size>) {
+    fn set_max_surface_size(&self, size: Option<Size>) {
         self.window_state_lock().max_size = size;
         // Make windows re-check the window size bounds.
-        let size = self.inner_size();
-        let _ = self.request_inner_size(size.into());
+        let size = self.surface_size();
+        let _ = self.request_surface_size(size.into());
     }
 
-    fn resize_increments(&self) -> Option<PhysicalSize<u32>> {
+    fn surface_resize_increments(&self) -> Option<PhysicalSize<u32>> {
         let w = self.window_state_lock();
         let scale_factor = w.scale_factor;
-        w.resize_increments.map(|size| size.to_physical(scale_factor))
+        w.surface_resize_increments.map(|size| size.to_physical(scale_factor))
     }
 
-    fn set_resize_increments(&self, increments: Option<Size>) {
-        self.window_state_lock().resize_increments = increments;
+    fn set_surface_resize_increments(&self, increments: Option<Size>) {
+        self.window_state_lock().surface_resize_increments = increments;
     }
 
     fn set_resizable(&self, resizable: bool) {
@@ -588,12 +588,12 @@ impl CoreWindow for Window {
         }
     }
 
-    fn set_cursor_grab(&self, mode: CursorGrabMode) -> Result<(), ExternalError> {
+    fn set_cursor_grab(&self, mode: CursorGrabMode) -> Result<(), RequestError> {
         let confine = match mode {
             CursorGrabMode::None => false,
             CursorGrabMode::Confined => true,
             CursorGrabMode::Locked => {
-                return Err(ExternalError::NotSupported(NotSupportedError::new()))
+                return Err(NotSupportedError::new("locked cursor is not supported").into())
             },
         };
 
@@ -608,9 +608,10 @@ impl CoreWindow for Window {
                 .unwrap()
                 .mouse
                 .set_cursor_flags(window, |f| f.set(CursorFlags::GRABBED, confine))
-                .map_err(|e| ExternalError::Os(os_error!(e)));
+                .map_err(|err| os_error!(err).into());
             let _ = tx.send(result);
         });
+
         rx.recv().unwrap()
     }
 
@@ -636,23 +637,23 @@ impl CoreWindow for Window {
         self.window_state_lock().scale_factor
     }
 
-    fn set_cursor_position(&self, position: Position) -> Result<(), ExternalError> {
+    fn set_cursor_position(&self, position: Position) -> Result<(), RequestError> {
         let scale_factor = self.scale_factor();
         let (x, y) = position.to_physical::<i32>(scale_factor).into();
 
         let mut point = POINT { x, y };
         unsafe {
             if ClientToScreen(self.hwnd(), &mut point) == false.into() {
-                return Err(ExternalError::Os(os_error!(io::Error::last_os_error())));
+                return Err(os_error!(io::Error::last_os_error()).into());
             }
             if SetCursorPos(point.x, point.y) == false.into() {
-                return Err(ExternalError::Os(os_error!(io::Error::last_os_error())));
+                return Err(os_error!(io::Error::last_os_error()).into());
             }
         }
         Ok(())
     }
 
-    fn drag_window(&self) -> Result<(), ExternalError> {
+    fn drag_window(&self) -> Result<(), RequestError> {
         unsafe {
             self.handle_os_dragging(HTCAPTION as WPARAM);
         }
@@ -660,7 +661,7 @@ impl CoreWindow for Window {
         Ok(())
     }
 
-    fn drag_resize_window(&self, direction: ResizeDirection) -> Result<(), ExternalError> {
+    fn drag_resize_window(&self, direction: ResizeDirection) -> Result<(), RequestError> {
         unsafe {
             self.handle_os_dragging(match direction {
                 ResizeDirection::East => HTRIGHT,
@@ -683,7 +684,7 @@ impl CoreWindow for Window {
         }
     }
 
-    fn set_cursor_hittest(&self, hittest: bool) -> Result<(), ExternalError> {
+    fn set_cursor_hittest(&self, hittest: bool) -> Result<(), RequestError> {
         let window = self.window;
         let window_state = Arc::clone(&self.window_state);
         self.thread_executor.execute_in_thread(move || {
@@ -1209,13 +1210,14 @@ impl<'a> InitData<'a> {
 
         win.set_enabled_buttons(attributes.enabled_buttons);
 
-        let size = attributes.inner_size.unwrap_or_else(|| PhysicalSize::new(800, 600).into());
+        let size = attributes.surface_size.unwrap_or_else(|| PhysicalSize::new(800, 600).into());
         let max_size = attributes
-            .max_inner_size
+            .max_surface_size
             .unwrap_or_else(|| PhysicalSize::new(f64::MAX, f64::MAX).into());
-        let min_size = attributes.min_inner_size.unwrap_or_else(|| PhysicalSize::new(0, 0).into());
+        let min_size =
+            attributes.min_surface_size.unwrap_or_else(|| PhysicalSize::new(0, 0).into());
         let clamped_size = Size::clamp(size, min_size, max_size, win.scale_factor());
-        let _ = win.request_inner_size(clamped_size);
+        let _ = win.request_surface_size(clamped_size);
 
         // let margins = MARGINS {
         //     cxLeftWidth: 1,
@@ -1248,7 +1250,7 @@ impl<'a> InitData<'a> {
 unsafe fn init(
     attributes: WindowAttributes,
     event_loop: &ActiveEventLoop,
-) -> Result<Window, RootOsError> {
+) -> Result<Window, RequestError> {
     let title = util::encode_wide(&attributes.title);
 
     let class_name = util::encode_wide(&attributes.platform_specific.class_name);
@@ -1331,7 +1333,7 @@ unsafe fn init(
     }
 
     if handle == 0 {
-        return Err(os_error!(io::Error::last_os_error()));
+        return Err(os_error!(io::Error::last_os_error()).into());
     }
 
     // If the handle is non-null, then window creation must have succeeded, which means

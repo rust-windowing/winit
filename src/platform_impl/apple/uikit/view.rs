@@ -93,7 +93,7 @@ declare_class!(
                 mtm,
                 EventWrapper::StaticEvent(Event::WindowEvent {
                     window_id: RootWindowId(window.id()),
-                    event: WindowEvent::Resized(size),
+                    event: WindowEvent::SurfaceResized(size),
                 }),
             );
         }
@@ -144,7 +144,7 @@ declare_class!(
                 .chain(std::iter::once(EventWrapper::StaticEvent(
                     Event::WindowEvent {
                         window_id,
-                        event: WindowEvent::Resized(size.to_physical(scale_factor)),
+                        event: WindowEvent::SurfaceResized(size.to_physical(scale_factor)),
                     },
                 ))),
             );

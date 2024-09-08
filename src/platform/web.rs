@@ -27,14 +27,14 @@
 //! - [`padding`](https://developer.mozilla.org/en-US/docs/Web/CSS/padding)
 //!
 //! The following APIs can't take them into account and will therefore provide inaccurate results:
-//! - [`WindowEvent::Resized`] and [`Window::(set_)inner_size()`]
+//! - [`WindowEvent::SurfaceResized`] and [`Window::(set_)surface_size()`]
 //! - [`WindowEvent::Occluded`]
 //! - [`WindowEvent::CursorMoved`], [`WindowEvent::CursorEntered`], [`WindowEvent::CursorLeft`], and
 //!   [`WindowEvent::Touch`].
 //! - [`Window::set_outer_position()`]
 //!
-//! [`WindowEvent::Resized`]: crate::event::WindowEvent::Resized
-//! [`Window::(set_)inner_size()`]: crate::window::Window::inner_size
+//! [`WindowEvent::SurfaceResized`]: crate::event::WindowEvent::SurfaceResized
+//! [`Window::(set_)surface_size()`]: crate::window::Window::surface_size
 //! [`WindowEvent::Occluded`]: crate::event::WindowEvent::Occluded
 //! [`WindowEvent::CursorMoved`]: crate::event::WindowEvent::CursorMoved
 //! [`WindowEvent::CursorEntered`]: crate::event::WindowEvent::CursorEntered

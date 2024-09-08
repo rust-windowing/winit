@@ -76,7 +76,7 @@ impl FrameExtentsHeuristic {
         }
     }
 
-    pub fn inner_size_to_outer(&self, width: u32, height: u32) -> (u32, u32) {
+    pub fn surface_size_to_outer(&self, width: u32, height: u32) -> (u32, u32) {
         (
             width.saturating_add(
                 self.frame_extents.left.saturating_add(self.frame_extents.right) as _
@@ -98,7 +98,7 @@ impl XConnection {
         self.xcb_connection().translate_coordinates(window, root, 0, 0)?.reply().map_err(Into::into)
     }
 
-    // This is adequate for inner_size
+    // This is adequate for surface_size
     pub fn get_geometry(
         &self,
         window: xproto::Window,

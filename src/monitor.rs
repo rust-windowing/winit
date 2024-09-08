@@ -47,9 +47,9 @@ impl Ord for VideoModeHandle {
 
 impl VideoModeHandle {
     /// Returns the resolution of this video mode. This **must not** be used to create your
-    /// rendering surface. Use [`Window::inner_size()`] instead.
+    /// rendering surface. Use [`Window::surface_size()`] instead.
     ///
-    /// [`Window::inner_size()`]: crate::window::Window::inner_size
+    /// [`Window::surface_size()`]: crate::window::Window::surface_size
     #[inline]
     pub fn size(&self) -> PhysicalSize<u32> {
         self.video_mode.size()

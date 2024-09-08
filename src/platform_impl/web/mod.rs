@@ -37,7 +37,6 @@ pub(crate) use cursor::{
     CustomCursorSource as PlatformCustomCursorSource,
 };
 
-pub use self::error::OsError;
 pub use self::event::{DeviceId, FingerId};
 pub(crate) use self::event_loop::{
     ActiveEventLoop, EventLoop, EventLoopProxy, OwnedDisplayHandle,

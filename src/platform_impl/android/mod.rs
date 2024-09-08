@@ -14,8 +14,8 @@ use tracing::{debug, trace, warn};
 use crate::application::ApplicationHandler;
 use crate::cursor::Cursor;
 use crate::dpi::{PhysicalPosition, PhysicalSize, Position, Size};
-use crate::error::{self, EventLoopError, ExternalError, NotSupportedError};
-use crate::event::{self, Force, InnerSizeWriter, StartCause};
+use crate::error::{EventLoopError, NotSupportedError, RequestError};
+use crate::event::{self, Force, StartCause, SurfaceSizeWriter};
 use crate::event_loop::{
     ActiveEventLoop as RootActiveEventLoop, ControlFlow, DeviceEvents,
     EventLoopProxy as RootEventLoopProxy, OwnedDisplayHandle as RootOwnedDisplayHandle,
@@ -201,11 +201,11 @@ impl EventLoop {
                     let old_scale_factor = scale_factor(&self.android_app);
                     let scale_factor = scale_factor(&self.android_app);
                     if (scale_factor - old_scale_factor).abs() < f64::EPSILON {
-                        let new_inner_size = Arc::new(Mutex::new(screen_size(&self.android_app)));
+                        let new_surface_size = Arc::new(Mutex::new(screen_size(&self.android_app)));
                         let window_id = window::WindowId(WindowId);
                         let event = event::WindowEvent::ScaleFactorChanged {
-                            inner_size_writer: InnerSizeWriter::new(Arc::downgrade(
-                                &new_inner_size,
+                            surface_size_writer: SurfaceSizeWriter::new(Arc::downgrade(
+                                &new_surface_size,
                             )),
                             scale_factor,
                         };
@@ -287,7 +287,7 @@ impl EventLoop {
                     PhysicalSize::new(0, 0)
                 };
                 let window_id = window::WindowId(WindowId);
-                let event = event::WindowEvent::Resized(size);
+                let event = event::WindowEvent::SurfaceResized(size);
                 app.window_event(&self.window_target, window_id, event);
             }
 
@@ -592,15 +592,15 @@ impl RootActiveEventLoop for ActiveEventLoop {
     fn create_window(
         &self,
         window_attributes: WindowAttributes,
-    ) -> Result<Box<dyn CoreWindow>, error::OsError> {
+    ) -> Result<Box<dyn CoreWindow>, RequestError> {
         Ok(Box::new(Window::new(self, window_attributes)?))
     }
 
     fn create_custom_cursor(
         &self,
         _source: CustomCursorSource,
-    ) -> Result<CustomCursor, ExternalError> {
-        Err(ExternalError::NotSupported(NotSupportedError::new()))
+    ) -> Result<CustomCursor, RequestError> {
+        Err(NotSupportedError::new("create_custom_cursor is not supported").into())
     }
 
     fn available_monitors(&self) -> Box<dyn Iterator<Item = RootMonitorHandle>> {
@@ -715,7 +715,7 @@ impl Window {
     pub(crate) fn new(
         el: &ActiveEventLoop,
         _window_attrs: window::WindowAttributes,
-    ) -> Result<Self, error::OsError> {
+    ) -> Result<Self, RequestError> {
         // FIXME this ignores requested window attributes
 
         Ok(Self { app: el.app.clone(), redraw_requester: el.redraw_requester.clone() })
@@ -796,39 +796,39 @@ impl CoreWindow for Window {
 
     fn pre_present_notify(&self) {}
 
-    fn inner_position(&self) -> Result<PhysicalPosition<i32>, error::NotSupportedError> {
-        Err(error::NotSupportedError::new())
+    fn inner_position(&self) -> Result<PhysicalPosition<i32>, RequestError> {
+        Err(NotSupportedError::new("inner_position is not supported").into())
     }
 
-    fn outer_position(&self) -> Result<PhysicalPosition<i32>, error::NotSupportedError> {
-        Err(error::NotSupportedError::new())
+    fn outer_position(&self) -> Result<PhysicalPosition<i32>, RequestError> {
+        Err(NotSupportedError::new("outer_position is not supported").into())
     }
 
     fn set_outer_position(&self, _position: Position) {
         // no effect
     }
 
-    fn inner_size(&self) -> PhysicalSize<u32> {
+    fn surface_size(&self) -> PhysicalSize<u32> {
         self.outer_size()
     }
 
-    fn request_inner_size(&self, _size: Size) -> Option<PhysicalSize<u32>> {
-        Some(self.inner_size())
+    fn request_surface_size(&self, _size: Size) -> Option<PhysicalSize<u32>> {
+        Some(self.surface_size())
     }
 
     fn outer_size(&self) -> PhysicalSize<u32> {
         screen_size(&self.app)
     }
 
-    fn set_min_inner_size(&self, _: Option<Size>) {}
+    fn set_min_surface_size(&self, _: Option<Size>) {}
 
-    fn set_max_inner_size(&self, _: Option<Size>) {}
+    fn set_max_surface_size(&self, _: Option<Size>) {}
 
-    fn resize_increments(&self) -> Option<PhysicalSize<u32>> {
+    fn surface_resize_increments(&self) -> Option<PhysicalSize<u32>> {
         None
     }
 
-    fn set_resize_increments(&self, _increments: Option<Size>) {}
+    fn set_surface_resize_increments(&self, _increments: Option<Size>) {}
 
     fn set_title(&self, _title: &str) {}
 
@@ -896,29 +896,29 @@ impl CoreWindow for Window {
 
     fn set_cursor(&self, _: Cursor) {}
 
-    fn set_cursor_position(&self, _: Position) -> Result<(), error::ExternalError> {
-        Err(error::ExternalError::NotSupported(error::NotSupportedError::new()))
+    fn set_cursor_position(&self, _: Position) -> Result<(), RequestError> {
+        Err(NotSupportedError::new("set_cursor_position is not supported").into())
     }
 
-    fn set_cursor_grab(&self, _: CursorGrabMode) -> Result<(), error::ExternalError> {
-        Err(error::ExternalError::NotSupported(error::NotSupportedError::new()))
+    fn set_cursor_grab(&self, _: CursorGrabMode) -> Result<(), RequestError> {
+        Err(NotSupportedError::new("set_cursor_grab is not supported").into())
     }
 
     fn set_cursor_visible(&self, _: bool) {}
 
-    fn drag_window(&self) -> Result<(), error::ExternalError> {
-        Err(error::ExternalError::NotSupported(error::NotSupportedError::new()))
+    fn drag_window(&self) -> Result<(), RequestError> {
+        Err(NotSupportedError::new("drag_window is not supported").into())
     }
 
-    fn drag_resize_window(&self, _direction: ResizeDirection) -> Result<(), error::ExternalError> {
-        Err(error::ExternalError::NotSupported(error::NotSupportedError::new()))
+    fn drag_resize_window(&self, _direction: ResizeDirection) -> Result<(), RequestError> {
+        Err(NotSupportedError::new("drag_resize_window").into())
     }
 
     #[inline]
     fn show_window_menu(&self, _position: Position) {}
 
-    fn set_cursor_hittest(&self, _hittest: bool) -> Result<(), error::ExternalError> {
-        Err(error::ExternalError::NotSupported(error::NotSupportedError::new()))
+    fn set_cursor_hittest(&self, _hittest: bool) -> Result<(), RequestError> {
+        Err(NotSupportedError::new("set_cursor_hittest is not supported").into())
     }
 
     fn set_theme(&self, _theme: Option<Theme>) {}

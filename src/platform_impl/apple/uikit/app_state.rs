@@ -27,7 +27,7 @@ use super::window::WinitUIWindow;
 use super::ActiveEventLoop;
 use crate::application::ApplicationHandler;
 use crate::dpi::PhysicalSize;
-use crate::event::{Event, InnerSizeWriter, StartCause, WindowEvent};
+use crate::event::{Event, StartCause, SurfaceSizeWriter, WindowEvent};
 use crate::event_loop::ControlFlow;
 use crate::window::WindowId as RootWindowId;
 
@@ -669,18 +669,18 @@ pub(crate) fn terminated(application: &UIApplication) {
 
 fn handle_hidpi_proxy(mtm: MainThreadMarker, event: ScaleFactorChanged) {
     let ScaleFactorChanged { suggested_size, scale_factor, window } = event;
-    let new_inner_size = Arc::new(Mutex::new(suggested_size));
+    let new_surface_size = Arc::new(Mutex::new(suggested_size));
     let event = Event::WindowEvent {
         window_id: RootWindowId(window.id()),
         event: WindowEvent::ScaleFactorChanged {
             scale_factor,
-            inner_size_writer: InnerSizeWriter::new(Arc::downgrade(&new_inner_size)),
+            surface_size_writer: SurfaceSizeWriter::new(Arc::downgrade(&new_surface_size)),
         },
     };
     handle_event(mtm, event);
     let (view, screen_frame) = get_view_and_screen_frame(&window);
-    let physical_size = *new_inner_size.lock().unwrap();
-    drop(new_inner_size);
+    let physical_size = *new_surface_size.lock().unwrap();
+    drop(new_surface_size);
     let logical_size = physical_size.to_logical(scale_factor);
     let size = CGSize::new(logical_size.width, logical_size.height);
     let new_frame: CGRect = CGRect::new(screen_frame.origin, size);

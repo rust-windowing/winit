@@ -23,7 +23,7 @@
 
 use std::env;
 
-use crate::error::NotSupportedError;
+use crate::error::{NotSupportedError, RequestError};
 use crate::event_loop::{ActiveEventLoop, AsyncRequestSerial};
 #[cfg(wayland_platform)]
 use crate::platform::wayland::ActiveEventLoopExtWayland;
@@ -46,7 +46,7 @@ pub trait WindowExtStartupNotify {
     /// Request a new activation token.
     ///
     /// The token will be delivered inside
-    fn request_activation_token(&self) -> Result<AsyncRequestSerial, NotSupportedError>;
+    fn request_activation_token(&self) -> Result<AsyncRequestSerial, RequestError>;
 }
 
 pub trait WindowAttributesExtStartupNotify {
@@ -73,7 +73,7 @@ impl EventLoopExtStartupNotify for dyn ActiveEventLoop + '_ {
 }
 
 impl WindowExtStartupNotify for dyn Window + '_ {
-    fn request_activation_token(&self) -> Result<AsyncRequestSerial, NotSupportedError> {
+    fn request_activation_token(&self) -> Result<AsyncRequestSerial, RequestError> {
         #[cfg(wayland_platform)]
         if let Some(window) = self.as_any().downcast_ref::<crate::platform_impl::wayland::Window>()
         {
@@ -87,7 +87,7 @@ impl WindowExtStartupNotify for dyn Window + '_ {
             return window.request_activation_token();
         }
 
-        Err(NotSupportedError::new())
+        Err(NotSupportedError::new("startup notify is not supported").into())
     }
 }
 

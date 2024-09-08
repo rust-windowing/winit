@@ -8,7 +8,7 @@ use objc2_foundation::{MainThreadBound, MainThreadMarker, NSObject};
 
 use super::event_loop::ActiveEventLoop;
 use super::window_delegate::WindowDelegate;
-use crate::error::OsError as RootOsError;
+use crate::error::RequestError;
 use crate::monitor::MonitorHandle as CoreMonitorHandle;
 use crate::window::{
     Cursor, Fullscreen, Icon, ImePurpose, Theme, UserAttentionType, Window as CoreWindow,
@@ -25,7 +25,7 @@ impl Window {
     pub(crate) fn new(
         window_target: &ActiveEventLoop,
         attributes: WindowAttributes,
-    ) -> Result<Self, RootOsError> {
+    ) -> Result<Self, RequestError> {
         let mtm = window_target.mtm;
         let delegate =
             autoreleasepool(|_| WindowDelegate::new(&window_target.app_state, attributes, mtm))?;
@@ -111,48 +111,44 @@ impl CoreWindow for Window {
         self.maybe_wait_on_main(|delegate| delegate.reset_dead_keys());
     }
 
-    fn inner_position(
-        &self,
-    ) -> Result<dpi::PhysicalPosition<i32>, crate::error::NotSupportedError> {
-        self.maybe_wait_on_main(|delegate| delegate.inner_position())
+    fn inner_position(&self) -> Result<dpi::PhysicalPosition<i32>, RequestError> {
+        Ok(self.maybe_wait_on_main(|delegate| delegate.inner_position()))
     }
 
-    fn outer_position(
-        &self,
-    ) -> Result<dpi::PhysicalPosition<i32>, crate::error::NotSupportedError> {
-        self.maybe_wait_on_main(|delegate| delegate.outer_position())
+    fn outer_position(&self) -> Result<dpi::PhysicalPosition<i32>, RequestError> {
+        Ok(self.maybe_wait_on_main(|delegate| delegate.outer_position()))
     }
 
     fn set_outer_position(&self, position: Position) {
         self.maybe_wait_on_main(|delegate| delegate.set_outer_position(position));
     }
 
-    fn inner_size(&self) -> dpi::PhysicalSize<u32> {
-        self.maybe_wait_on_main(|delegate| delegate.inner_size())
+    fn surface_size(&self) -> dpi::PhysicalSize<u32> {
+        self.maybe_wait_on_main(|delegate| delegate.surface_size())
     }
 
-    fn request_inner_size(&self, size: Size) -> Option<dpi::PhysicalSize<u32>> {
-        self.maybe_wait_on_main(|delegate| delegate.request_inner_size(size))
+    fn request_surface_size(&self, size: Size) -> Option<dpi::PhysicalSize<u32>> {
+        self.maybe_wait_on_main(|delegate| delegate.request_surface_size(size))
     }
 
     fn outer_size(&self) -> dpi::PhysicalSize<u32> {
         self.maybe_wait_on_main(|delegate| delegate.outer_size())
     }
 
-    fn set_min_inner_size(&self, min_size: Option<Size>) {
-        self.maybe_wait_on_main(|delegate| delegate.set_min_inner_size(min_size))
+    fn set_min_surface_size(&self, min_size: Option<Size>) {
+        self.maybe_wait_on_main(|delegate| delegate.set_min_surface_size(min_size))
     }
 
-    fn set_max_inner_size(&self, max_size: Option<Size>) {
-        self.maybe_wait_on_main(|delegate| delegate.set_max_inner_size(max_size));
+    fn set_max_surface_size(&self, max_size: Option<Size>) {
+        self.maybe_wait_on_main(|delegate| delegate.set_max_surface_size(max_size));
     }
 
-    fn resize_increments(&self) -> Option<dpi::PhysicalSize<u32>> {
-        self.maybe_wait_on_main(|delegate| delegate.resize_increments())
+    fn surface_resize_increments(&self) -> Option<dpi::PhysicalSize<u32>> {
+        self.maybe_wait_on_main(|delegate| delegate.surface_resize_increments())
     }
 
-    fn set_resize_increments(&self, increments: Option<Size>) {
-        self.maybe_wait_on_main(|delegate| delegate.set_resize_increments(increments));
+    fn set_surface_resize_increments(&self, increments: Option<Size>) {
+        self.maybe_wait_on_main(|delegate| delegate.set_surface_resize_increments(increments));
     }
 
     fn set_title(&self, title: &str) {
@@ -275,14 +271,11 @@ impl CoreWindow for Window {
         self.maybe_wait_on_main(|delegate| delegate.set_cursor(cursor));
     }
 
-    fn set_cursor_position(&self, position: Position) -> Result<(), crate::error::ExternalError> {
+    fn set_cursor_position(&self, position: Position) -> Result<(), RequestError> {
         self.maybe_wait_on_main(|delegate| delegate.set_cursor_position(position))
     }
 
-    fn set_cursor_grab(
-        &self,
-        mode: crate::window::CursorGrabMode,
-    ) -> Result<(), crate::error::ExternalError> {
+    fn set_cursor_grab(&self, mode: crate::window::CursorGrabMode) -> Result<(), RequestError> {
         self.maybe_wait_on_main(|delegate| delegate.set_cursor_grab(mode))
     }
 
@@ -290,23 +283,25 @@ impl CoreWindow for Window {
         self.maybe_wait_on_main(|delegate| delegate.set_cursor_visible(visible))
     }
 
-    fn drag_window(&self) -> Result<(), crate::error::ExternalError> {
-        self.maybe_wait_on_main(|delegate| delegate.drag_window())
+    fn drag_window(&self) -> Result<(), RequestError> {
+        self.maybe_wait_on_main(|delegate| delegate.drag_window());
+        Ok(())
     }
 
     fn drag_resize_window(
         &self,
         direction: crate::window::ResizeDirection,
-    ) -> Result<(), crate::error::ExternalError> {
-        self.maybe_wait_on_main(|delegate| delegate.drag_resize_window(direction))
+    ) -> Result<(), RequestError> {
+        Ok(self.maybe_wait_on_main(|delegate| delegate.drag_resize_window(direction))?)
     }
 
     fn show_window_menu(&self, position: Position) {
         self.maybe_wait_on_main(|delegate| delegate.show_window_menu(position))
     }
 
-    fn set_cursor_hittest(&self, hittest: bool) -> Result<(), crate::error::ExternalError> {
-        self.maybe_wait_on_main(|delegate| delegate.set_cursor_hittest(hittest))
+    fn set_cursor_hittest(&self, hittest: bool) -> Result<(), RequestError> {
+        self.maybe_wait_on_main(|delegate| delegate.set_cursor_hittest(hittest));
+        Ok(())
     }
 
     fn current_monitor(&self) -> Option<CoreMonitorHandle> {

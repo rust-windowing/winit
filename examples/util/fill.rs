@@ -72,7 +72,7 @@ mod platform {
 
     pub fn fill_window(window: &dyn Window) {
         GC.with(|gc| {
-            let size = window.inner_size();
+            let size = window.surface_size();
             let (Some(width), Some(height)) =
                 (NonZeroU32::new(size.width), NonZeroU32::new(size.height))
             else {

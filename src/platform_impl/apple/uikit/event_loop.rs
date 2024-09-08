@@ -25,7 +25,7 @@ use super::super::notification_center::create_observer;
 use super::app_state::{send_occluded_event_for_all_windows, AppState, EventWrapper};
 use super::{app_state, monitor, MonitorHandle};
 use crate::application::ApplicationHandler;
-use crate::error::{EventLoopError, ExternalError, NotSupportedError, OsError};
+use crate::error::{EventLoopError, NotSupportedError, RequestError};
 use crate::event::Event;
 use crate::event_loop::{
     ActiveEventLoop as RootActiveEventLoop, ControlFlow, DeviceEvents,
@@ -49,15 +49,15 @@ impl RootActiveEventLoop for ActiveEventLoop {
     fn create_window(
         &self,
         window_attributes: crate::window::WindowAttributes,
-    ) -> Result<Box<dyn CoreWindow>, OsError> {
+    ) -> Result<Box<dyn CoreWindow>, RequestError> {
         Ok(Box::new(Window::new(self, window_attributes)?))
     }
 
     fn create_custom_cursor(
         &self,
         _source: CustomCursorSource,
-    ) -> Result<CustomCursor, ExternalError> {
-        Err(ExternalError::NotSupported(NotSupportedError::new()))
+    ) -> Result<CustomCursor, RequestError> {
+        Err(NotSupportedError::new("create_custom_cursor is not supported").into())
     }
 
     fn available_monitors(&self) -> Box<dyn Iterator<Item = RootMonitorHandle>> {

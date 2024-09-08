@@ -9,7 +9,7 @@ use super::monitor::MonitorHandler;
 use super::r#async::Dispatcher;
 use super::{backend, lock, ActiveEventLoop};
 use crate::dpi::{PhysicalPosition, PhysicalSize, Position, Size};
-use crate::error::{ExternalError, NotSupportedError, OsError as RootOE};
+use crate::error::{NotSupportedError, RequestError};
 use crate::icon::Icon;
 use crate::monitor::MonitorHandle as RootMonitorHandle;
 use crate::window::{
@@ -31,7 +31,10 @@ pub struct Inner {
 }
 
 impl Window {
-    pub(crate) fn new(target: &ActiveEventLoop, attr: WindowAttributes) -> Result<Self, RootOE> {
+    pub(crate) fn new(
+        target: &ActiveEventLoop,
+        attr: WindowAttributes,
+    ) -> Result<Self, RequestError> {
         let id = target.generate_id();
 
         let window = target.runner.window();
@@ -106,13 +109,13 @@ impl RootWindow for Window {
         // Not supported
     }
 
-    fn inner_position(&self) -> Result<PhysicalPosition<i32>, NotSupportedError> {
+    fn inner_position(&self) -> Result<PhysicalPosition<i32>, RequestError> {
         // Note: the canvas element has no window decorations, so this is equal to `outer_position`.
         self.outer_position()
     }
 
-    fn outer_position(&self) -> Result<PhysicalPosition<i32>, NotSupportedError> {
-        self.inner.queue(|inner| Ok(inner.canvas.position().to_physical(inner.scale_factor())))
+    fn outer_position(&self) -> Result<PhysicalPosition<i32>, RequestError> {
+        Ok(self.inner.queue(|inner| inner.canvas.position().to_physical(inner.scale_factor())))
     }
 
     fn set_outer_position(&self, position: Position) {
@@ -127,11 +130,11 @@ impl RootWindow for Window {
         })
     }
 
-    fn inner_size(&self) -> PhysicalSize<u32> {
-        self.inner.queue(|inner| inner.canvas.inner_size())
+    fn surface_size(&self) -> PhysicalSize<u32> {
+        self.inner.queue(|inner| inner.canvas.surface_size())
     }
 
-    fn request_inner_size(&self, size: Size) -> Option<PhysicalSize<u32>> {
+    fn request_surface_size(&self, size: Size) -> Option<PhysicalSize<u32>> {
         self.inner.queue(|inner| {
             let size = size.to_logical(self.scale_factor());
             backend::set_canvas_size(
@@ -145,11 +148,11 @@ impl RootWindow for Window {
     }
 
     fn outer_size(&self) -> PhysicalSize<u32> {
-        // Note: the canvas element has no window decorations, so this is equal to `inner_size`.
-        self.inner_size()
+        // Note: the canvas element has no window decorations, so this is equal to `surface_size`.
+        self.surface_size()
     }
 
-    fn set_min_inner_size(&self, min_size: Option<Size>) {
+    fn set_min_surface_size(&self, min_size: Option<Size>) {
         self.inner.dispatch(move |inner| {
             let dimensions = min_size.map(|min_size| min_size.to_logical(inner.scale_factor()));
             backend::set_canvas_min_size(
@@ -161,7 +164,7 @@ impl RootWindow for Window {
         })
     }
 
-    fn set_max_inner_size(&self, max_size: Option<Size>) {
+    fn set_max_surface_size(&self, max_size: Option<Size>) {
         self.inner.dispatch(move |inner| {
             let dimensions = max_size.map(|dimensions| dimensions.to_logical(inner.scale_factor()));
             backend::set_canvas_max_size(
@@ -173,11 +176,11 @@ impl RootWindow for Window {
         })
     }
 
-    fn resize_increments(&self) -> Option<PhysicalSize<u32>> {
+    fn surface_resize_increments(&self) -> Option<PhysicalSize<u32>> {
         None
     }
 
-    fn set_resize_increments(&self, _: Option<Size>) {
+    fn set_surface_resize_increments(&self, _: Option<Size>) {
         // Intentionally a no-op: users can't resize canvas elements
     }
 
@@ -315,12 +318,12 @@ impl RootWindow for Window {
         self.inner.dispatch(move |inner| inner.canvas.cursor.set_cursor(cursor))
     }
 
-    fn set_cursor_position(&self, _: Position) -> Result<(), ExternalError> {
-        Err(ExternalError::NotSupported(NotSupportedError::new()))
+    fn set_cursor_position(&self, _: Position) -> Result<(), RequestError> {
+        Err(NotSupportedError::new("set_cursor_position is not supported").into())
     }
 
-    fn set_cursor_grab(&self, mode: CursorGrabMode) -> Result<(), ExternalError> {
-        self.inner.queue(|inner| {
+    fn set_cursor_grab(&self, mode: CursorGrabMode) -> Result<(), RequestError> {
+        Ok(self.inner.queue(|inner| {
             match mode {
                 CursorGrabMode::None => inner.canvas.document().exit_pointer_lock(),
                 CursorGrabMode::Locked => lock::request_pointer_lock(
@@ -329,30 +332,30 @@ impl RootWindow for Window {
                     inner.canvas.raw(),
                 ),
                 CursorGrabMode::Confined => {
-                    return Err(ExternalError::NotSupported(NotSupportedError::new()))
+                    return Err(NotSupportedError::new("confined cursor mode is not supported"))
                 },
             }
 
             Ok(())
-        })
+        })?)
     }
 
     fn set_cursor_visible(&self, visible: bool) {
         self.inner.dispatch(move |inner| inner.canvas.cursor.set_cursor_visible(visible))
     }
 
-    fn drag_window(&self) -> Result<(), ExternalError> {
-        Err(ExternalError::NotSupported(NotSupportedError::new()))
+    fn drag_window(&self) -> Result<(), RequestError> {
+        Err(NotSupportedError::new("drag_window is not supported").into())
     }
 
-    fn drag_resize_window(&self, _: ResizeDirection) -> Result<(), ExternalError> {
-        Err(ExternalError::NotSupported(NotSupportedError::new()))
+    fn drag_resize_window(&self, _: ResizeDirection) -> Result<(), RequestError> {
+        Err(NotSupportedError::new("drag_resize_window is not supported").into())
     }
 
     fn show_window_menu(&self, _: Position) {}
 
-    fn set_cursor_hittest(&self, _: bool) -> Result<(), ExternalError> {
-        Err(ExternalError::NotSupported(NotSupportedError::new()))
+    fn set_cursor_hittest(&self, _: bool) -> Result<(), RequestError> {
+        Err(NotSupportedError::new("set_cursor_hittest is not supported").into())
     }
 
     fn current_monitor(&self) -> Option<RootMonitorHandle> {

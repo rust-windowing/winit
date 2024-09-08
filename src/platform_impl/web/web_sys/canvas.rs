@@ -22,10 +22,10 @@ use super::media_query_handle::MediaQueryListHandle;
 use super::pointer::PointerHandler;
 use super::{event, fullscreen, ButtonsState, ResizeScaleHandle};
 use crate::dpi::{LogicalPosition, PhysicalPosition, PhysicalSize};
-use crate::error::OsError as RootOE;
-use crate::event::{Force, InnerSizeWriter, MouseButton, MouseScrollDelta};
+use crate::error::RequestError;
+use crate::event::{Force, MouseButton, MouseScrollDelta, SurfaceSizeWriter};
 use crate::keyboard::{Key, KeyLocation, ModifiersState, PhysicalKey};
-use crate::platform_impl::{Fullscreen, OsError};
+use crate::platform_impl::Fullscreen;
 use crate::window::{WindowAttributes, WindowId as RootWindowId};
 
 #[allow(dead_code)]
@@ -83,13 +83,13 @@ impl Canvas {
         navigator: Navigator,
         document: Document,
         attr: WindowAttributes,
-    ) -> Result<Self, RootOE> {
+    ) -> Result<Self, RequestError> {
         let canvas = match attr.platform_specific.canvas.map(Arc::try_unwrap) {
             Some(Ok(canvas)) => canvas.into_inner(main_thread),
             Some(Err(canvas)) => canvas.get(main_thread).clone(),
             None => document
                 .create_element("canvas")
-                .map_err(|_| os_error!(OsError("Failed to create canvas element".to_owned())))?
+                .map_err(|_| os_error!("Failed to create canvas element"))?
                 .unchecked_into(),
         };
 
@@ -109,7 +109,7 @@ impl Canvas {
         if attr.platform_specific.focusable {
             canvas
                 .set_attribute("tabindex", "0")
-                .map_err(|_| os_error!(OsError("Failed to set a tabindex".to_owned())))?;
+                .map_err(|_| os_error!("Failed to set a tabindex"))?;
         }
 
         let style = Style::new(&window, &canvas);
@@ -126,17 +126,17 @@ impl Canvas {
             current_size: Rc::default(),
         };
 
-        if let Some(size) = attr.inner_size {
+        if let Some(size) = attr.surface_size {
             let size = size.to_logical(super::scale_factor(&common.window));
             super::set_canvas_size(&common.document, &common.raw, &common.style, size);
         }
 
-        if let Some(size) = attr.min_inner_size {
+        if let Some(size) = attr.min_surface_size {
             let size = size.to_logical(super::scale_factor(&common.window));
             super::set_canvas_min_size(&common.document, &common.raw, &common.style, Some(size));
         }
 
-        if let Some(size) = attr.max_inner_size {
+        if let Some(size) = attr.max_surface_size {
             let size = size.to_logical(super::scale_factor(&common.window));
             super::set_canvas_max_size(&common.document, &common.raw, &common.style, Some(size));
         }
@@ -213,7 +213,7 @@ impl Canvas {
     }
 
     #[inline]
-    pub fn inner_size(&self) -> PhysicalSize<u32> {
+    pub fn surface_size(&self) -> PhysicalSize<u32> {
         self.common.current_size.get()
     }
 
@@ -504,7 +504,7 @@ impl Canvas {
                 window_id: RootWindowId(self.id),
                 event: crate::event::WindowEvent::ScaleFactorChanged {
                     scale_factor: scale,
-                    inner_size_writer: InnerSizeWriter::new(Arc::downgrade(&new_size)),
+                    surface_size_writer: SurfaceSizeWriter::new(Arc::downgrade(&new_size)),
                 },
             });
 
@@ -513,8 +513,8 @@ impl Canvas {
         };
 
         if current_size != new_size {
-            // Then we resize the canvas to the new size, a new
-            // `Resized` event will be sent by the `ResizeObserver`:
+            // Then we resize the canvas to the new size, a new `SurfaceResized` event will be sent
+            // by the `ResizeObserver`:
             let new_size = new_size.to_logical(scale);
             super::set_canvas_size(self.document(), self.raw(), self.style(), new_size);
 
@@ -530,7 +530,7 @@ impl Canvas {
             self.set_old_size(new_size);
             runner.send_event(crate::event::Event::WindowEvent {
                 window_id: RootWindowId(self.id),
-                event: crate::event::WindowEvent::Resized(new_size),
+                event: crate::event::WindowEvent::SurfaceResized(new_size),
             })
         }
     }

@@ -20,7 +20,7 @@ use super::view_controller::WinitViewController;
 use super::{app_state, monitor, ActiveEventLoop, Fullscreen, MonitorHandle};
 use crate::cursor::Cursor;
 use crate::dpi::{LogicalPosition, LogicalSize, PhysicalPosition, PhysicalSize, Position, Size};
-use crate::error::{ExternalError, NotSupportedError, OsError as RootOsError};
+use crate::error::{NotSupportedError, RequestError};
 use crate::event::{Event, WindowEvent};
 use crate::icon::Icon;
 use crate::monitor::MonitorHandle as CoreMonitorHandle;
@@ -159,20 +159,20 @@ impl Inner {
 
     pub fn pre_present_notify(&self) {}
 
-    pub fn inner_position(&self) -> Result<PhysicalPosition<i32>, NotSupportedError> {
+    pub fn inner_position(&self) -> PhysicalPosition<i32> {
         let safe_area = self.safe_area_screen_space();
         let position =
             LogicalPosition { x: safe_area.origin.x as f64, y: safe_area.origin.y as f64 };
         let scale_factor = self.scale_factor();
-        Ok(position.to_physical(scale_factor))
+        position.to_physical(scale_factor)
     }
 
-    pub fn outer_position(&self) -> Result<PhysicalPosition<i32>, NotSupportedError> {
+    pub fn outer_position(&self) -> PhysicalPosition<i32> {
         let screen_frame = self.screen_frame();
         let position =
             LogicalPosition { x: screen_frame.origin.x as f64, y: screen_frame.origin.y as f64 };
         let scale_factor = self.scale_factor();
-        Ok(position.to_physical(scale_factor))
+        position.to_physical(scale_factor)
     }
 
     pub fn set_outer_position(&self, physical_position: Position) {
@@ -187,7 +187,7 @@ impl Inner {
         self.window.setBounds(bounds);
     }
 
-    pub fn inner_size(&self) -> PhysicalSize<u32> {
+    pub fn surface_size(&self) -> PhysicalSize<u32> {
         let scale_factor = self.scale_factor();
         let safe_area = self.safe_area_screen_space();
         let size = LogicalSize {
@@ -207,25 +207,25 @@ impl Inner {
         size.to_physical(scale_factor)
     }
 
-    pub fn request_inner_size(&self, _size: Size) -> Option<PhysicalSize<u32>> {
-        Some(self.inner_size())
+    pub fn request_surface_size(&self, _size: Size) -> Option<PhysicalSize<u32>> {
+        Some(self.surface_size())
     }
 
-    pub fn set_min_inner_size(&self, _dimensions: Option<Size>) {
-        warn!("`Window::set_min_inner_size` is ignored on iOS")
+    pub fn set_min_surface_size(&self, _dimensions: Option<Size>) {
+        warn!("`Window::set_min_surface_size` is ignored on iOS")
     }
 
-    pub fn set_max_inner_size(&self, _dimensions: Option<Size>) {
-        warn!("`Window::set_max_inner_size` is ignored on iOS")
+    pub fn set_max_surface_size(&self, _dimensions: Option<Size>) {
+        warn!("`Window::set_max_surface_size` is ignored on iOS")
     }
 
-    pub fn resize_increments(&self) -> Option<PhysicalSize<u32>> {
+    pub fn surface_resize_increments(&self) -> Option<PhysicalSize<u32>> {
         None
     }
 
     #[inline]
-    pub fn set_resize_increments(&self, _increments: Option<Size>) {
-        warn!("`Window::set_resize_increments` is ignored on iOS")
+    pub fn set_surface_resize_increments(&self, _increments: Option<Size>) {
+        warn!("`Window::set_surface_resize_increments` is ignored on iOS")
     }
 
     pub fn set_resizable(&self, _resizable: bool) {
@@ -256,31 +256,31 @@ impl Inner {
         debug!("`Window::set_cursor` ignored on iOS")
     }
 
-    pub fn set_cursor_position(&self, _position: Position) -> Result<(), ExternalError> {
-        Err(ExternalError::NotSupported(NotSupportedError::new()))
+    pub fn set_cursor_position(&self, _position: Position) -> Result<(), NotSupportedError> {
+        Err(NotSupportedError::new("set_cursor_position is not supported"))
     }
 
-    pub fn set_cursor_grab(&self, _: CursorGrabMode) -> Result<(), ExternalError> {
-        Err(ExternalError::NotSupported(NotSupportedError::new()))
+    pub fn set_cursor_grab(&self, _: CursorGrabMode) -> Result<(), NotSupportedError> {
+        Err(NotSupportedError::new("set_cursor_grab is not supported"))
     }
 
     pub fn set_cursor_visible(&self, _visible: bool) {
         debug!("`Window::set_cursor_visible` is ignored on iOS")
     }
 
-    pub fn drag_window(&self) -> Result<(), ExternalError> {
-        Err(ExternalError::NotSupported(NotSupportedError::new()))
+    pub fn drag_window(&self) -> Result<(), NotSupportedError> {
+        Err(NotSupportedError::new("drag_window is not supported"))
     }
 
-    pub fn drag_resize_window(&self, _direction: ResizeDirection) -> Result<(), ExternalError> {
-        Err(ExternalError::NotSupported(NotSupportedError::new()))
+    pub fn drag_resize_window(&self, _direction: ResizeDirection) -> Result<(), NotSupportedError> {
+        Err(NotSupportedError::new("drag_resize_window is not supported"))
     }
 
     #[inline]
     pub fn show_window_menu(&self, _position: Position) {}
 
-    pub fn set_cursor_hittest(&self, _hittest: bool) -> Result<(), ExternalError> {
-        Err(ExternalError::NotSupported(NotSupportedError::new()))
+    pub fn set_cursor_hittest(&self, _hittest: bool) -> Result<(), NotSupportedError> {
+        Err(NotSupportedError::new("set_cursor_hittest is not supported"))
     }
 
     pub fn set_minimized(&self, _minimized: bool) {
@@ -466,14 +466,14 @@ impl Window {
     pub(crate) fn new(
         event_loop: &ActiveEventLoop,
         window_attributes: WindowAttributes,
-    ) -> Result<Window, RootOsError> {
+    ) -> Result<Window, RequestError> {
         let mtm = event_loop.mtm;
 
-        if window_attributes.min_inner_size.is_some() {
-            warn!("`WindowAttributes::min_inner_size` is ignored on iOS");
+        if window_attributes.min_surface_size.is_some() {
+            warn!("`WindowAttributes::min_surface_size` is ignored on iOS");
         }
-        if window_attributes.max_inner_size.is_some() {
-            warn!("`WindowAttributes::max_inner_size` is ignored on iOS");
+        if window_attributes.max_surface_size.is_some() {
+            warn!("`WindowAttributes::max_surface_size` is ignored on iOS");
         }
 
         // TODO: transparency, visible
@@ -489,7 +489,7 @@ impl Window {
 
         let screen_bounds = screen.bounds();
 
-        let frame = match window_attributes.inner_size {
+        let frame = match window_attributes.surface_size {
             Some(dim) => {
                 let scale_factor = screen.scale();
                 let size = dim.to_logical::<f64>(scale_factor as f64);
@@ -510,7 +510,7 @@ impl Window {
         let window = WinitUIWindow::new(mtm, &window_attributes, frame, &view_controller);
         window.makeKeyAndVisible();
 
-        // Like the Windows and macOS backends, we send a `ScaleFactorChanged` and `Resized`
+        // Like the Windows and macOS backends, we send a `ScaleFactorChanged` and `SurfaceResized`
         // event on window creation if the DPI factor != 1.0
         let scale_factor = view.contentScaleFactor();
         let scale_factor = scale_factor as f64;
@@ -534,7 +534,7 @@ impl Window {
                 .chain(std::iter::once(EventWrapper::StaticEvent(
                     Event::WindowEvent {
                         window_id,
-                        event: WindowEvent::Resized(size.to_physical(scale_factor)),
+                        event: WindowEvent::SurfaceResized(size.to_physical(scale_factor)),
                     },
                 ))),
             );
@@ -606,48 +606,44 @@ impl CoreWindow for Window {
         self.maybe_wait_on_main(|delegate| delegate.reset_dead_keys());
     }
 
-    fn inner_position(
-        &self,
-    ) -> Result<dpi::PhysicalPosition<i32>, crate::error::NotSupportedError> {
-        self.maybe_wait_on_main(|delegate| delegate.inner_position())
+    fn inner_position(&self) -> Result<PhysicalPosition<i32>, RequestError> {
+        Ok(self.maybe_wait_on_main(|delegate| delegate.inner_position()))
     }
 
-    fn outer_position(
-        &self,
-    ) -> Result<dpi::PhysicalPosition<i32>, crate::error::NotSupportedError> {
-        self.maybe_wait_on_main(|delegate| delegate.outer_position())
+    fn outer_position(&self) -> Result<PhysicalPosition<i32>, RequestError> {
+        Ok(self.maybe_wait_on_main(|delegate| delegate.outer_position()))
     }
 
     fn set_outer_position(&self, position: Position) {
         self.maybe_wait_on_main(|delegate| delegate.set_outer_position(position));
     }
 
-    fn inner_size(&self) -> dpi::PhysicalSize<u32> {
-        self.maybe_wait_on_main(|delegate| delegate.inner_size())
+    fn surface_size(&self) -> PhysicalSize<u32> {
+        self.maybe_wait_on_main(|delegate| delegate.surface_size())
     }
 
-    fn request_inner_size(&self, size: Size) -> Option<dpi::PhysicalSize<u32>> {
-        self.maybe_wait_on_main(|delegate| delegate.request_inner_size(size))
+    fn request_surface_size(&self, size: Size) -> Option<PhysicalSize<u32>> {
+        self.maybe_wait_on_main(|delegate| delegate.request_surface_size(size))
     }
 
-    fn outer_size(&self) -> dpi::PhysicalSize<u32> {
+    fn outer_size(&self) -> PhysicalSize<u32> {
         self.maybe_wait_on_main(|delegate| delegate.outer_size())
     }
 
-    fn set_min_inner_size(&self, min_size: Option<Size>) {
-        self.maybe_wait_on_main(|delegate| delegate.set_min_inner_size(min_size))
+    fn set_min_surface_size(&self, min_size: Option<Size>) {
+        self.maybe_wait_on_main(|delegate| delegate.set_min_surface_size(min_size))
     }
 
-    fn set_max_inner_size(&self, max_size: Option<Size>) {
-        self.maybe_wait_on_main(|delegate| delegate.set_max_inner_size(max_size));
+    fn set_max_surface_size(&self, max_size: Option<Size>) {
+        self.maybe_wait_on_main(|delegate| delegate.set_max_surface_size(max_size));
     }
 
-    fn resize_increments(&self) -> Option<dpi::PhysicalSize<u32>> {
-        self.maybe_wait_on_main(|delegate| delegate.resize_increments())
+    fn surface_resize_increments(&self) -> Option<PhysicalSize<u32>> {
+        self.maybe_wait_on_main(|delegate| delegate.surface_resize_increments())
     }
 
-    fn set_resize_increments(&self, increments: Option<Size>) {
-        self.maybe_wait_on_main(|delegate| delegate.set_resize_increments(increments));
+    fn set_surface_resize_increments(&self, increments: Option<Size>) {
+        self.maybe_wait_on_main(|delegate| delegate.set_surface_resize_increments(increments));
     }
 
     fn set_title(&self, title: &str) {
@@ -770,38 +766,35 @@ impl CoreWindow for Window {
         self.maybe_wait_on_main(|delegate| delegate.set_cursor(cursor));
     }
 
-    fn set_cursor_position(&self, position: Position) -> Result<(), crate::error::ExternalError> {
-        self.maybe_wait_on_main(|delegate| delegate.set_cursor_position(position))
+    fn set_cursor_position(&self, position: Position) -> Result<(), RequestError> {
+        Ok(self.maybe_wait_on_main(|delegate| delegate.set_cursor_position(position))?)
     }
 
-    fn set_cursor_grab(
-        &self,
-        mode: crate::window::CursorGrabMode,
-    ) -> Result<(), crate::error::ExternalError> {
-        self.maybe_wait_on_main(|delegate| delegate.set_cursor_grab(mode))
+    fn set_cursor_grab(&self, mode: crate::window::CursorGrabMode) -> Result<(), RequestError> {
+        Ok(self.maybe_wait_on_main(|delegate| delegate.set_cursor_grab(mode))?)
     }
 
     fn set_cursor_visible(&self, visible: bool) {
         self.maybe_wait_on_main(|delegate| delegate.set_cursor_visible(visible))
     }
 
-    fn drag_window(&self) -> Result<(), crate::error::ExternalError> {
-        self.maybe_wait_on_main(|delegate| delegate.drag_window())
+    fn drag_window(&self) -> Result<(), RequestError> {
+        Ok(self.maybe_wait_on_main(|delegate| delegate.drag_window())?)
     }
 
     fn drag_resize_window(
         &self,
         direction: crate::window::ResizeDirection,
-    ) -> Result<(), crate::error::ExternalError> {
-        self.maybe_wait_on_main(|delegate| delegate.drag_resize_window(direction))
+    ) -> Result<(), RequestError> {
+        Ok(self.maybe_wait_on_main(|delegate| delegate.drag_resize_window(direction))?)
     }
 
     fn show_window_menu(&self, position: Position) {
         self.maybe_wait_on_main(|delegate| delegate.show_window_menu(position))
     }
 
-    fn set_cursor_hittest(&self, hittest: bool) -> Result<(), crate::error::ExternalError> {
-        self.maybe_wait_on_main(|delegate| delegate.set_cursor_hittest(hittest))
+    fn set_cursor_hittest(&self, hittest: bool) -> Result<(), RequestError> {
+        Ok(self.maybe_wait_on_main(|delegate| delegate.set_cursor_hittest(hittest))?)
     }
 
     fn current_monitor(&self) -> Option<CoreMonitorHandle> {

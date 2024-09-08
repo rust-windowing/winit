@@ -12,11 +12,11 @@ use orbclient::{
 use smol_str::SmolStr;
 
 use super::{
-    DeviceId, KeyEventExtra, MonitorHandle, OsError, PlatformSpecificEventLoopAttributes,
-    RedoxSocket, TimeSocket, WindowId, WindowProperties,
+    DeviceId, KeyEventExtra, MonitorHandle, PlatformSpecificEventLoopAttributes, RedoxSocket,
+    TimeSocket, WindowId, WindowProperties,
 };
 use crate::application::ApplicationHandler;
-use crate::error::{EventLoopError, ExternalError, NotSupportedError};
+use crate::error::{EventLoopError, NotSupportedError, RequestError};
 use crate::event::{self, Ime, Modifiers, StartCause};
 use crate::event_loop::{self, ActiveEventLoop as RootActiveEventLoop, ControlFlow, DeviceEvents};
 use crate::keyboard::{
@@ -284,17 +284,11 @@ impl EventLoop {
         // events.
         let (user_events_sender, user_events_receiver) = mpsc::sync_channel(1);
 
-        let event_socket = Arc::new(
-            RedoxSocket::event()
-                .map_err(OsError::new)
-                .map_err(|error| EventLoopError::Os(os_error!(error)))?,
-        );
+        let event_socket =
+            Arc::new(RedoxSocket::event().map_err(|error| os_error!(format!("{error}")))?);
 
-        let wake_socket = Arc::new(
-            TimeSocket::open()
-                .map_err(OsError::new)
-                .map_err(|error| EventLoopError::Os(os_error!(error)))?,
-        );
+        let wake_socket =
+            Arc::new(TimeSocket::open().map_err(|error| os_error!(format!("{error}")))?);
 
         event_socket
             .write(&syscall::Event {
@@ -302,8 +296,7 @@ impl EventLoop {
                 flags: syscall::EventFlags::EVENT_READ,
                 data: wake_socket.0.fd,
             })
-            .map_err(OsError::new)
-            .map_err(|error| EventLoopError::Os(os_error!(error)))?;
+            .map_err(|error| os_error!(format!("{error}")))?;
 
         Ok(Self {
             windows: Vec::new(),
@@ -476,7 +469,7 @@ impl EventLoop {
                 app.window_event(
                     window_target,
                     RootWindowId(window_id),
-                    event::WindowEvent::Resized((width, height).into()),
+                    event::WindowEvent::SurfaceResized((width, height).into()),
                 );
 
                 // Acknowledge resize after event loop.
@@ -523,7 +516,7 @@ impl EventLoop {
                 let window_id = RootWindowId(window_id);
 
                 // Send resize event on create to indicate first size.
-                let event = event::WindowEvent::Resized((properties.w, properties.h).into());
+                let event = event::WindowEvent::SurfaceResized((properties.w, properties.h).into());
                 app.window_event(&self.window_target, window_id, event);
 
                 // Send moved event on create to indicate first position.
@@ -731,15 +724,15 @@ impl RootActiveEventLoop for ActiveEventLoop {
     fn create_window(
         &self,
         window_attributes: crate::window::WindowAttributes,
-    ) -> Result<Box<dyn CoreWindow>, crate::error::OsError> {
+    ) -> Result<Box<dyn CoreWindow>, RequestError> {
         Ok(Box::new(Window::new(self, window_attributes)?))
     }
 
     fn create_custom_cursor(
         &self,
         _: CustomCursorSource,
-    ) -> Result<RootCustomCursor, ExternalError> {
-        Err(ExternalError::NotSupported(NotSupportedError::new()))
+    ) -> Result<RootCustomCursor, RequestError> {
+        Err(NotSupportedError::new("create_custom_cursor is not supported").into())
     }
 
     fn available_monitors(&self) -> Box<dyn Iterator<Item = crate::monitor::MonitorHandle>> {

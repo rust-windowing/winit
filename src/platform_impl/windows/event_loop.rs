@@ -56,9 +56,9 @@ use super::window::set_skip_taskbar;
 use super::SelectedCursor;
 use crate::application::ApplicationHandler;
 use crate::dpi::{PhysicalPosition, PhysicalSize};
-use crate::error::{EventLoopError, ExternalError, OsError};
+use crate::error::{EventLoopError, RequestError};
 use crate::event::{
-    Event, FingerId as RootFingerId, Force, Ime, InnerSizeWriter, RawKeyEvent, Touch, TouchPhase,
+    Event, FingerId as RootFingerId, Force, Ime, RawKeyEvent, SurfaceSizeWriter, Touch, TouchPhase,
     WindowEvent,
 };
 use crate::event_loop::{
@@ -521,14 +521,14 @@ impl RootActiveEventLoop for ActiveEventLoop {
     fn create_window(
         &self,
         window_attributes: WindowAttributes,
-    ) -> Result<Box<dyn CoreWindow>, OsError> {
+    ) -> Result<Box<dyn CoreWindow>, RequestError> {
         Ok(Box::new(Window::new(self, window_attributes)?))
     }
 
     fn create_custom_cursor(
         &self,
         source: CustomCursorSource,
-    ) -> Result<RootCustomCursor, ExternalError> {
+    ) -> Result<RootCustomCursor, RequestError> {
         Ok(RootCustomCursor { inner: WinCursor::new(&source.inner.0)? })
     }
 
@@ -1274,14 +1274,14 @@ unsafe fn public_window_callback_inner(
         },
 
         WM_SIZE => {
-            use crate::event::WindowEvent::Resized;
+            use crate::event::WindowEvent::SurfaceResized;
             let w = super::loword(lparam as u32) as u32;
             let h = super::hiword(lparam as u32) as u32;
 
             let physical_size = PhysicalSize::new(w, h);
             let event = Event::WindowEvent {
                 window_id: CoreWindowId(WindowId(window)),
-                event: Resized(physical_size),
+                event: SurfaceResized(physical_size),
             };
 
             {
@@ -1308,7 +1308,7 @@ unsafe fn public_window_callback_inner(
             let scale_factor = userdata.window_state_lock().scale_factor;
             let Some(inc) = userdata
                 .window_state_lock()
-                .resize_increments
+                .surface_resize_increments
                 .map(|inc| inc.to_physical(scale_factor))
                 .filter(|inc| inc.width > 0 && inc.height > 0)
             else {
@@ -2131,7 +2131,7 @@ unsafe fn public_window_callback_inner(
             // New size as suggested by Windows.
             let suggested_rect = unsafe { *(lparam as *const RECT) };
 
-            // The window rect provided is the window's outer size, not it's inner size. However,
+            // The window rect provided is the window's outer size, not it's surface size. However,
             // win32 doesn't provide an `UnadjustWindowRectEx` function to get the client rect from
             // the outer rect, so we instead adjust the window rect to get the decoration margins
             // and remove them from the outer size.
@@ -2151,33 +2151,33 @@ unsafe fn public_window_callback_inner(
             let old_physical_inner_rect = util::WindowArea::Inner
                 .get_rect(window)
                 .expect("failed to query (old) inner window area");
-            let old_physical_inner_size = PhysicalSize::new(
+            let old_physical_surface_size = PhysicalSize::new(
                 (old_physical_inner_rect.right - old_physical_inner_rect.left) as u32,
                 (old_physical_inner_rect.bottom - old_physical_inner_rect.top) as u32,
             );
 
             // `allow_resize` prevents us from re-applying DPI adjustment to the restored size after
             // exiting fullscreen (the restored size is already DPI adjusted).
-            let new_physical_inner_size = match allow_resize {
+            let new_physical_surface_size = match allow_resize {
                 // We calculate our own size because the default suggested rect doesn't do a great
                 // job of preserving the window's logical size.
-                true => old_physical_inner_size
+                true => old_physical_surface_size
                     .to_logical::<f64>(old_scale_factor)
                     .to_physical::<u32>(new_scale_factor),
-                false => old_physical_inner_size,
+                false => old_physical_surface_size,
             };
 
-            let new_inner_size = Arc::new(Mutex::new(new_physical_inner_size));
+            let new_surface_size = Arc::new(Mutex::new(new_physical_surface_size));
             userdata.send_event(Event::WindowEvent {
                 window_id: CoreWindowId(WindowId(window)),
                 event: ScaleFactorChanged {
                     scale_factor: new_scale_factor,
-                    inner_size_writer: InnerSizeWriter::new(Arc::downgrade(&new_inner_size)),
+                    surface_size_writer: SurfaceSizeWriter::new(Arc::downgrade(&new_surface_size)),
                 },
             });
 
-            let new_physical_inner_size = *new_inner_size.lock().unwrap();
-            drop(new_inner_size);
+            let new_physical_surface_size = *new_surface_size.lock().unwrap();
+            drop(new_surface_size);
 
             let dragging_window: bool;
 
@@ -2186,7 +2186,7 @@ unsafe fn public_window_callback_inner(
                 dragging_window =
                     window_state.window_flags().contains(WindowFlags::MARKER_IN_SIZE_MOVE);
                 // Unset maximized if we're changing the window's size.
-                if new_physical_inner_size != old_physical_inner_size {
+                if new_physical_surface_size != old_physical_surface_size {
                     WindowState::set_window_flags(window_state, window, |f| {
                         f.set(WindowFlags::MAXIMIZED, false)
                     });
@@ -2201,8 +2201,8 @@ unsafe fn public_window_callback_inner(
                 let mut conservative_rect = RECT {
                     left: suggested_ul.0,
                     top: suggested_ul.1,
-                    right: suggested_ul.0 + new_physical_inner_size.width as i32,
-                    bottom: suggested_ul.1 + new_physical_inner_size.height as i32,
+                    right: suggested_ul.0 + new_physical_surface_size.width as i32,
+                    bottom: suggested_ul.1 + new_physical_surface_size.height as i32,
                 };
 
                 conservative_rect = window_flags
