@@ -157,3 +157,4 @@ changelog entry.
 ### Fixed
 
 - On Orbital, `MonitorHandle::name()` now returns `None` instead of a dummy name.
+- On iOS, fixed `SurfaceResized` and `Window::surface_size` not reporting the size of the actual surface.

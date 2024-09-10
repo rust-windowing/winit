@@ -527,14 +527,9 @@ impl Window {
         let scale_factor = view.contentScaleFactor();
         let scale_factor = scale_factor as f64;
         if scale_factor != 1.0 {
-            let bounds = view.bounds();
-            let screen = window.screen();
-            let screen_space = screen.coordinateSpace();
-            let screen_frame = view.convertRect_toCoordinateSpace(bounds, &screen_space);
-            let size = LogicalSize {
-                width: screen_frame.size.width as f64,
-                height: screen_frame.size.height as f64,
-            };
+            let frame = view.frame();
+            let size =
+                LogicalSize { width: frame.size.width as f64, height: frame.size.height as f64 };
             let window_id = CoreWindowId(window.id());
             app_state::handle_nonuser_events(
                 mtm,
