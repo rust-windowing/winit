@@ -966,7 +966,16 @@ impl WindowDelegate {
     }
 
     pub fn safe_area(&self) -> (PhysicalPosition<u32>, PhysicalSize<u32>) {
-        let safe_rect = unsafe { self.view().safeAreaRect() };
+        // Only available on macOS 11.0
+        let safe_rect = if self.view().respondsToSelector(sel!(safeAreaRect)) {
+            // Includes NSWindowStyleMask::FullSizeContentView by default, and the notch because
+            // we've set it up with `additionalSafeAreaInsets`.
+            unsafe { self.view().safeAreaRect() }
+        } else {
+            // Includes NSWindowStyleMask::FullSizeContentView
+            // Convert from window coordinates to view coordinates
+            unsafe { self.view().convertRect_fromView(self.window().contentLayoutRect(), None) }
+        };
         let position = LogicalPosition::new(safe_rect.origin.x, safe_rect.origin.y);
         let size = LogicalSize::new(safe_rect.size.width, safe_rect.size.height);
         (position.to_physical(self.scale_factor()), size.to_physical(self.scale_factor()))
