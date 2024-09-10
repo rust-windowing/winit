@@ -823,6 +823,7 @@ impl CoreWindow for Window {
 
     fn safe_area(&self) -> (PhysicalPosition<u32>, PhysicalSize<u32>) {
         // FIXME: Complete this implementation
+        // Also wire up so that `Resized` events are emitted when the safe area insets changes.
         ((0, 0).into(), self.surface_size())
     }
 
