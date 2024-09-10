@@ -5,3 +5,6 @@ TME_LEAVE = "TME_LEAVE"             # From windows_sys::Win32::UI::Input::Keyboa
 XF86_Calculater = "XF86_Calculater" # From xkbcommon_dl::keysyms::XF86_Calculater
 ptd = "ptd"                         # From windows_sys::Win32::System::Com::FORMATETC { ptd, ..}
 requestor = "requestor"             # From x11_dl::xlib::XSelectionEvent { requestor ..}
+
+[files]
+extend-exclude = ["docs/*.drawio"]
