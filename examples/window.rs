@@ -3,7 +3,7 @@
 use std::collections::HashMap;
 use std::error::Error;
 use std::fmt::Debug;
-#[cfg(not(any(android_platform, ios_platform)))]
+#[cfg(not(android_platform))]
 use std::num::NonZeroU32;
 use std::sync::mpsc::{self, Receiver, Sender};
 use std::sync::Arc;
@@ -11,9 +11,9 @@ use std::{fmt, mem};
 
 use ::tracing::{error, info};
 use cursor_icon::CursorIcon;
-#[cfg(not(any(android_platform, ios_platform)))]
+#[cfg(not(android_platform))]
 use rwh_06::{DisplayHandle, HasDisplayHandle};
-#[cfg(not(any(android_platform, ios_platform)))]
+#[cfg(not(android_platform))]
 use softbuffer::{Context, Surface};
 use winit::application::ApplicationHandler;
 use winit::dpi::{LogicalSize, PhysicalPosition, PhysicalSize};
@@ -83,14 +83,14 @@ struct Application {
     /// Drawing context.
     ///
     /// With OpenGL it could be EGLDisplay.
-    #[cfg(not(any(android_platform, ios_platform)))]
+    #[cfg(not(android_platform))]
     context: Option<Context<DisplayHandle<'static>>>,
 }
 
 impl Application {
     fn new(event_loop: &EventLoop, receiver: Receiver<Action>, sender: Sender<Action>) -> Self {
         // SAFETY: we drop the context right before the event loop is stopped, thus making it safe.
-        #[cfg(not(any(android_platform, ios_platform)))]
+        #[cfg(not(android_platform))]
         let context = Some(
             Context::new(unsafe {
                 std::mem::transmute::<DisplayHandle<'_>, DisplayHandle<'static>>(
@@ -119,7 +119,7 @@ impl Application {
         Self {
             receiver,
             sender,
-            #[cfg(not(any(android_platform, ios_platform)))]
+            #[cfg(not(android_platform))]
             context,
             custom_cursors,
             icon,
@@ -545,7 +545,7 @@ impl ApplicationHandler for Application {
         }
     }
 
-    #[cfg(not(any(android_platform, ios_platform)))]
+    #[cfg(not(android_platform))]
     fn exiting(&mut self, _event_loop: &dyn ActiveEventLoop) {
         // We must drop the context here.
         self.context = None;
@@ -559,7 +559,7 @@ struct WindowState {
     /// Render surface.
     ///
     /// NOTE: This surface must be dropped before the `Window`.
-    #[cfg(not(any(android_platform, ios_platform)))]
+    #[cfg(not(android_platform))]
     surface: Surface<DisplayHandle<'static>, Arc<dyn Window>>,
     /// The actual winit Window.
     window: Arc<dyn Window>,
@@ -595,7 +595,7 @@ impl WindowState {
 
         // SAFETY: the surface is dropped before the `window` which provided it with handle, thus
         // it doesn't outlive it.
-        #[cfg(not(any(android_platform, ios_platform)))]
+        #[cfg(not(android_platform))]
         let surface = Surface::new(app.context.as_ref().unwrap(), Arc::clone(&window))?;
 
         let theme = window.theme().unwrap_or(Theme::Dark);
@@ -614,7 +614,7 @@ impl WindowState {
             custom_idx: app.custom_cursors.as_ref().map(Vec::len).unwrap_or(1) - 1,
             cursor_grab: CursorGrabMode::None,
             named_idx,
-            #[cfg(not(any(android_platform, ios_platform)))]
+            #[cfg(not(android_platform))]
             surface,
             window,
             theme,
@@ -796,7 +796,7 @@ impl WindowState {
     /// Resize the surface to the new size.
     fn resize(&mut self, size: PhysicalSize<u32>) {
         info!("Surface resized to {size:?}");
-        #[cfg(not(any(android_platform, ios_platform)))]
+        #[cfg(not(android_platform))]
         {
             let (width, height) = match (NonZeroU32::new(size.width), NonZeroU32::new(size.height))
             {
@@ -889,7 +889,7 @@ impl WindowState {
     }
 
     /// Draw the window contents.
-    #[cfg(not(any(android_platform, ios_platform)))]
+    #[cfg(not(android_platform))]
     fn draw(&mut self) -> Result<(), Box<dyn Error>> {
         if self.occluded {
             info!("Skipping drawing occluded window={:?}", self.window.id());
@@ -911,7 +911,7 @@ impl WindowState {
         Ok(())
     }
 
-    #[cfg(any(android_platform, ios_platform))]
+    #[cfg(android_platform)]
     fn draw(&mut self) -> Result<(), Box<dyn Error>> {
         info!("Drawing but without rendering...");
         Ok(())
