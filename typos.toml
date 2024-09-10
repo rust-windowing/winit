@@ -7,4 +7,4 @@ ptd = "ptd"                         # From windows_sys::Win32::System::Com::FORM
 requestor = "requestor"             # From x11_dl::xlib::XSelectionEvent { requestor ..}
 
 [files]
-extend-exclude = ["docs/*.drawio"]
+extend-exclude = ["*.drawio"]
