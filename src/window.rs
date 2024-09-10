@@ -610,7 +610,8 @@ pub trait Window: AsAny + Send + Sync {
     /// [`outer_position`]: Self::outer_position
     #[cfg_attr(
         any(macos_platform, docsrs),
-        doc = "[`with_titlebar_transparent`]: WindowAttributesExtMacOS::with_titlebar_transparent"
+        doc = "[`with_titlebar_transparent`]: \
+               crate::platform::macos::WindowAttributesExtMacOS::with_titlebar_transparent"
     )]
     #[cfg_attr(
         not(any(macos_platform, docsrs)),
