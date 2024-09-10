@@ -82,8 +82,8 @@ impl CoreWindow for Window {
         common::xkb::reset_dead_keys();
     }
 
-    fn inner_position(&self) -> Result<PhysicalPosition<i32>, RequestError> {
-        self.0.inner_position()
+    fn surface_position(&self) -> PhysicalPosition<i32> {
+        self.0.surface_position()
     }
 
     fn outer_position(&self) -> Result<PhysicalPosition<i32>, RequestError> {
@@ -104,6 +104,10 @@ impl CoreWindow for Window {
 
     fn outer_size(&self) -> PhysicalSize<u32> {
         self.0.outer_size()
+    }
+
+    fn safe_area(&self) -> (PhysicalPosition<u32>, PhysicalSize<u32>) {
+        self.0.safe_area()
     }
 
     fn set_min_surface_size(&self, min_size: Option<Size>) {
@@ -1508,7 +1512,7 @@ impl UnownedWindow {
         }
     }
 
-    pub(crate) fn inner_position_physical(&self) -> (i32, i32) {
+    fn inner_position_physical(&self) -> (i32, i32) {
         // This should be okay to unwrap since the only error XTranslateCoordinates can return
         // is BadWindow, and if the window handle is bad we have bigger problems.
         self.xconn
@@ -1518,8 +1522,14 @@ impl UnownedWindow {
     }
 
     #[inline]
-    pub fn inner_position(&self) -> Result<PhysicalPosition<i32>, RequestError> {
-        Ok(self.inner_position_physical().into())
+    pub fn surface_position(&self) -> PhysicalPosition<i32> {
+        let extents = self.shared_state_lock().frame_extents.clone();
+        if let Some(extents) = extents {
+            extents.surface_position().into()
+        } else {
+            self.update_cached_frame_extents();
+            self.surface_position()
+        }
     }
 
     pub(crate) fn set_position_inner(
@@ -1580,6 +1590,11 @@ impl UnownedWindow {
             self.update_cached_frame_extents();
             self.outer_size()
         }
+    }
+
+    fn safe_area(&self) -> (PhysicalPosition<u32>, PhysicalSize<u32>) {
+        // FIXME: Complete this implementation
+        ((0, 0).into(), self.surface_size())
     }
 
     pub(crate) fn request_surface_size_physical(&self, width: u32, height: u32) {
@@ -1989,7 +2004,7 @@ impl UnownedWindow {
             .query_pointer(self.xwindow, util::VIRTUAL_CORE_POINTER)
             .map_err(|err| os_error!(err))?;
 
-        let window_position = self.inner_position()?;
+        let window_position = self.inner_position_physical();
 
         let atoms = self.xconn.atoms();
         let message = atoms[_NET_WM_MOVERESIZE];
@@ -2016,8 +2031,8 @@ impl UnownedWindow {
                         | xproto::EventMask::SUBSTRUCTURE_NOTIFY,
                 ),
                 [
-                    (window_position.x + xinput_fp1616_to_float(pointer.win_x) as i32) as u32,
-                    (window_position.y + xinput_fp1616_to_float(pointer.win_y) as i32) as u32,
+                    (window_position.0 + xinput_fp1616_to_float(pointer.win_x) as i32) as u32,
+                    (window_position.1 + xinput_fp1616_to_float(pointer.win_y) as i32) as u32,
                     action.try_into().unwrap(),
                     1, // Button 1
                     1,

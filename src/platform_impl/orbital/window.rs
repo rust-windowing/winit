@@ -199,17 +199,17 @@ impl CoreWindow for Window {
     }
 
     #[inline]
-    fn inner_position(&self) -> Result<PhysicalPosition<i32>, RequestError> {
-        let mut buf: [u8; 4096] = [0; 4096];
-        let path = self.window_socket.fpath(&mut buf).expect("failed to read properties");
-        let properties = WindowProperties::new(path);
-        Ok((properties.x, properties.y).into())
+    fn surface_position(&self) -> PhysicalPosition<i32> {
+        // TODO: adjust for window decorations
+        (0, 0).into()
     }
 
     #[inline]
     fn outer_position(&self) -> Result<PhysicalPosition<i32>, RequestError> {
-        // TODO: adjust for window decorations
-        self.inner_position()
+        let mut buf: [u8; 4096] = [0; 4096];
+        let path = self.window_socket.fpath(&mut buf).expect("failed to read properties");
+        let properties = WindowProperties::new(path);
+        Ok((properties.x, properties.y).into())
     }
 
     #[inline]
@@ -238,6 +238,11 @@ impl CoreWindow for Window {
     fn outer_size(&self) -> PhysicalSize<u32> {
         // TODO: adjust for window decorations
         self.surface_size()
+    }
+
+    fn safe_area(&self) -> (PhysicalPosition<u32>, PhysicalSize<u32>) {
+        // FIXME: Complete this implementation
+        ((0, 0).into(), self.surface_size())
     }
 
     #[inline]

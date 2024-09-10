@@ -746,7 +746,8 @@ pub trait Window: AsAny + Send + Sync {
     ///
     /// ## Platform-specific
     ///
-    /// - **Wayland / Android / Orbital:** Unimplemented, returns `((0, 0), surface_size)`.
+    /// - **Android / Orbital / Wayland / Web / Windows / X11:** Unimplemented, returns `((0, 0),
+    ///   surface_size)`.
     fn safe_area(&self) -> (PhysicalPosition<u32>, PhysicalSize<u32>);
 
     /// Sets a minimum dimensions of the window's surface.

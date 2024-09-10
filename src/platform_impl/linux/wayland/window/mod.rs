@@ -305,9 +305,8 @@ impl CoreWindow for Window {
         crate::platform_impl::common::xkb::reset_dead_keys()
     }
 
-    fn inner_position(&self) -> Result<PhysicalPosition<i32>, RequestError> {
-        Err(NotSupportedError::new("window position information is not available on Wayland")
-            .into())
+    fn surface_position(&self) -> PhysicalPosition<i32> {
+        (0, 0).into()
     }
 
     fn outer_position(&self) -> Result<PhysicalPosition<i32>, RequestError> {
@@ -336,6 +335,11 @@ impl CoreWindow for Window {
         let window_state = self.window_state.lock().unwrap();
         let scale_factor = window_state.scale_factor();
         super::logical_to_physical_rounded(window_state.outer_size(), scale_factor)
+    }
+
+    fn safe_area(&self) -> (PhysicalPosition<u32>, PhysicalSize<u32>) {
+        // FIXME: Include CSDs drawn by Winit
+        ((0, 0).into(), self.surface_size())
     }
 
     fn set_min_surface_size(&self, min_size: Option<Size>) {

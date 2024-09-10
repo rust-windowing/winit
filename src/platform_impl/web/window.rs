@@ -109,9 +109,9 @@ impl RootWindow for Window {
         // Not supported
     }
 
-    fn inner_position(&self) -> Result<PhysicalPosition<i32>, RequestError> {
-        // Note: the canvas element has no window decorations, so this is equal to `outer_position`.
-        self.outer_position()
+    fn surface_position(&self) -> PhysicalPosition<i32> {
+        // Note: the canvas element has no window decorations.
+        (0, 0).into()
     }
 
     fn outer_position(&self) -> Result<PhysicalPosition<i32>, RequestError> {
@@ -150,6 +150,11 @@ impl RootWindow for Window {
     fn outer_size(&self) -> PhysicalSize<u32> {
         // Note: the canvas element has no window decorations, so this is equal to `surface_size`.
         self.surface_size()
+    }
+
+    fn safe_area(&self) -> (PhysicalPosition<u32>, PhysicalSize<u32>) {
+        // FIXME: Complete this implementation
+        ((0, 0).into(), self.surface_size())
     }
 
     fn set_min_surface_size(&self, min_size: Option<Size>) {
