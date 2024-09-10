@@ -796,7 +796,7 @@ impl CoreWindow for Window {
 
     fn pre_present_notify(&self) {}
 
-    fn inner_position(&self) -> PhysicalPosition<i32> {
+    fn surface_position(&self) -> PhysicalPosition<i32> {
         // FIXME: Complete this implementation
         (0, 0).into()
     }
