@@ -193,8 +193,8 @@ impl Inner {
     }
 
     pub fn outer_size(&self) -> PhysicalSize<u32> {
-        let screen_frame = self.screen_frame();
-        let size = LogicalSize::new(screen_frame.size.width, screen_frame.size.height);
+        let frame = self.window.frame();
+        let size = LogicalSize::new(frame.size.width, frame.size.height);
         size.to_physical(self.scale_factor())
     }
 
@@ -204,7 +204,8 @@ impl Inner {
 
     pub fn safe_area(&self) -> (PhysicalPosition<u32>, PhysicalSize<u32>) {
         let frame = self.view.frame();
-        let safe_area = if app_state::os_capabilities().safe_area {
+        // Only available on iOS 11.0
+        let insets = if app_state::os_capabilities().safe_area {
             self.view.safeAreaInsets()
         } else {
             // Assume the status bar frame is the only thing that obscures the view
@@ -213,10 +214,10 @@ impl Inner {
             let status_bar_frame = app.statusBarFrame();
             UIEdgeInsets { top: status_bar_frame.size.height, left: 0.0, bottom: 0.0, right: 0.0 }
         };
-        let position = LogicalPosition::new(safe_area.left, safe_area.top);
+        let position = LogicalPosition::new(insets.left, insets.top);
         let size = LogicalSize::new(
-            frame.size.width - safe_area.left - safe_area.right,
-            frame.size.height - safe_area.top - safe_area.bottom,
+            frame.size.width - insets.left - insets.right,
+            frame.size.height - insets.top - insets.bottom,
         );
         let scale_factor = self.scale_factor();
         (position.to_physical(scale_factor), size.to_physical(scale_factor))
