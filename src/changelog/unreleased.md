@@ -228,3 +228,4 @@ changelog entry.
 - On Windows, fixed the event loop not waking on accessibility requests.
 - On X11, fixed cursor grab mode state tracking on error.
 - On X11, fixed crash with uim
+- On iOS, maybe fixed high CPU usage even when using `ControlFlow::Wait`.
