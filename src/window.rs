@@ -725,8 +725,6 @@ pub trait Window: AsAny + Send + Sync {
     /// ## Platform-specific
     ///
     /// - **Wayland / Android / Orbital:** Unimplemented, returns `((0, 0), surface_size)`.
-    /// - **macOS:** This must be used when using `set_simple_fullscreen` to prevent overlapping the
-    ///   notch on newer devices.
     fn safe_area(&self) -> (PhysicalPosition<u32>, PhysicalSize<u32>);
 
     /// Sets a minimum dimensions of the window's surface.
