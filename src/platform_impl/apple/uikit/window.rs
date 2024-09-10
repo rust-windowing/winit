@@ -159,7 +159,7 @@ impl Inner {
 
     pub fn pre_present_notify(&self) {}
 
-    pub fn surface_position(&self) -> PhysicalPosition<u32> {
+    pub fn surface_position(&self) -> PhysicalPosition<i32> {
         let view_position = self.view.frame().origin;
         let position =
             unsafe { self.window.convertPoint_fromView(view_position, Some(&self.view)) };
@@ -167,7 +167,7 @@ impl Inner {
         position.to_physical(self.scale_factor())
     }
 
-    pub fn outer_position(&self) -> Result<PhysicalPosition<i32>, NotSupportedError> {
+    pub fn outer_position(&self) -> Result<PhysicalPosition<i32>, RequestError> {
         let screen_frame = self.screen_frame();
         let position =
             LogicalPosition { x: screen_frame.origin.x as f64, y: screen_frame.origin.y as f64 };
@@ -617,7 +617,7 @@ impl CoreWindow for Window {
         self.maybe_wait_on_main(|delegate| delegate.reset_dead_keys());
     }
 
-    fn surface_position(&self) -> PhysicalPosition<u32> {
+    fn surface_position(&self) -> PhysicalPosition<i32> {
         self.maybe_wait_on_main(|delegate| delegate.surface_position())
     }
 

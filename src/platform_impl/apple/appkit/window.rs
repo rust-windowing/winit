@@ -111,7 +111,7 @@ impl CoreWindow for Window {
         self.maybe_wait_on_main(|delegate| delegate.reset_dead_keys());
     }
 
-    fn surface_position(&self) -> dpi::PhysicalPosition<u32> {
+    fn surface_position(&self) -> dpi::PhysicalPosition<i32> {
         self.maybe_wait_on_main(|delegate| delegate.surface_position())
     }
 

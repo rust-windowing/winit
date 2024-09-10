@@ -601,6 +601,9 @@ pub trait Window: AsAny + Send + Sync {
     /// transparent using [`with_titlebar_transparent`] on macOS, or your are drawing window
     /// decorations yourself).
     ///
+    /// This _may_ be negative in the off case that the windowing system decided to make a surface
+    /// that is larger than your window.
+    ///
     /// If the window does not have any decorations, and the surface is in the exact same position
     /// as the window itself, this simply returns `(0, 0)`.
     ///
@@ -613,7 +616,7 @@ pub trait Window: AsAny + Send + Sync {
         not(any(macos_platform, docsrs)),
         doc = "[`with_titlebar_transparent`]: #only-available-on-macos"
     )]
-    fn surface_position(&self) -> PhysicalPosition<u32>;
+    fn surface_position(&self) -> PhysicalPosition<i32>;
 
     /// The position of the top-left hand corner of the window relative to the top-left hand corner
     /// of the desktop.

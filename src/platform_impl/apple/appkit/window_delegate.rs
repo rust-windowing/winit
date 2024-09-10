@@ -931,12 +931,12 @@ impl WindowDelegate {
     #[inline]
     pub fn pre_present_notify(&self) {}
 
-    pub fn outer_position(&self) -> PhysicalPosition<i32> {
+    pub fn outer_position(&self) -> Result<PhysicalPosition<i32>, RequestError> {
         let position = flip_window_screen_coordinates(self.window().frame());
-        LogicalPosition::new(position.x, position.y).to_physical(self.scale_factor())
+        Ok(LogicalPosition::new(position.x, position.y).to_physical(self.scale_factor()))
     }
 
-    pub fn surface_position(&self) -> Result<PhysicalPosition<u32>, RequestError> {
+    pub fn surface_position(&self) -> PhysicalPosition<i32> {
         let content_rect = self.window().contentRectForFrameRect(self.window().frame());
         let logical = LogicalPosition::new(content_rect.origin.x, content_rect.origin.y);
         logical.to_physical(self.scale_factor())
