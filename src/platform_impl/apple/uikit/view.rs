@@ -11,6 +11,7 @@ use objc2_ui_kit::{
     UIResponder, UIRotationGestureRecognizer, UITapGestureRecognizer, UITextInputTraits, UITouch,
     UITouchPhase, UITouchType, UITraitEnvironment, UIView,
 };
+use tracing::debug;
 
 use super::app_state::{self, EventWrapper};
 use super::window::WinitUIWindow;
@@ -134,6 +135,13 @@ declare_class!(
                     },
                 ))),
             );
+        }
+
+        #[method(safeAreaInsetsDidChange)]
+        fn safe_area_changed(&self) {
+            debug!("safeAreaInsetsDidChange was called, requesting redraw");
+            // When the safe area changes we want to make sure to emit a redraw event
+            self.setNeedsDisplay();
         }
 
         #[method(touchesBegan:withEvent:)]
