@@ -429,7 +429,7 @@ impl CoreWindow for Window {
                  rust-windowing/winit"
             )
         }
-        PhysicalPosition::new(rect.left as i32, rect.top as i32)
+        PhysicalPosition::new(rect.left, rect.top)
     }
 
     fn set_outer_position(&self, position: Position) {
