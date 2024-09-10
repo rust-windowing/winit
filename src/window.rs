@@ -593,11 +593,26 @@ pub trait Window: AsAny + Send + Sync {
     /// The position of the top-left hand corner of the surface relative to the top-left hand corner
     /// of the window.
     ///
-    /// This can be useful for figuring out the size of the window's decorations (such as buttons,
-    /// title, etc.).
+    /// This, combined with [`outer_position`], can be useful for calculating the position of the
+    /// surface relative to the desktop.
+    ///
+    /// This may also be useful for figuring out the size of the window's decorations (such as
+    /// buttons, title, etc.), but may also not correspond to that (e.g. if the title bar is made
+    /// transparent using [`with_titlebar_transparent`] on macOS, or your are drawing window
+    /// decorations yourself).
     ///
     /// If the window does not have any decorations, and the surface is in the exact same position
     /// as the window itself, this simply returns `(0, 0)`.
+    ///
+    /// [`outer_position`]: Self::outer_position
+    #[cfg_attr(
+        any(macos_platform, docsrs),
+        doc = "[`with_titlebar_transparent`]: WindowAttributesExtMacOS::with_titlebar_transparent"
+    )]
+    #[cfg_attr(
+        not(any(macos_platform, docsrs)),
+        doc = "[`with_titlebar_transparent`]: #only-available-on-macos"
+    )]
     fn surface_position(&self) -> PhysicalPosition<u32>;
 
     /// The position of the top-left hand corner of the window relative to the top-left hand corner
@@ -650,9 +665,9 @@ pub trait Window: AsAny + Send + Sync {
     /// surface for drawing. See [`WindowEvent::SurfaceResized`] for listening to changes to this
     /// field.
     ///
-    /// Note that to ensure that your content is not obscured by things such as notches, you will
-    /// likely want to only draw inside a specific area of the surface, see [`Window::safe_area`]
-    /// for details.
+    /// Note that to ensure that your content is not obscured by things such as notches or the title
+    /// bar, you will likely want to only draw important content inside a specific area of the
+    /// surface, see [`safe_area`] for details.
     ///
     /// ## Platform-specific
     ///
@@ -660,6 +675,7 @@ pub trait Window: AsAny + Send + Sync {
     ///
     /// [`transform`]: https://developer.mozilla.org/en-US/docs/Web/CSS/transform
     /// [`WindowEvent::SurfaceResized`]: crate::event::WindowEvent::SurfaceResized
+    /// [`safe_area`]: Window::safe_area
     fn surface_size(&self) -> PhysicalSize<u32>;
 
     /// Request the new size for the surface.
@@ -721,6 +737,8 @@ pub trait Window: AsAny + Send + Sync {
     /// The safe area is a rectangle that is defined relative to the origin at the top-left corner
     /// of the surface, and the size extending downwards to the right. The area will not extend
     /// beyond [the bounds of the surface][Window::surface_size].
+    ///
+    /// If the entire content of the surface is visible, this returns `((0, 0), surface_size)`.
     ///
     /// ## Platform-specific
     ///
