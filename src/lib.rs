@@ -115,6 +115,14 @@
 //! [`visible` set to `false`][crate::window::WindowAttributes::with_visible] and explicitly make
 //! the window visible only once you're ready to render into it.
 //!
+//! There is another important concept you need to know about when drawing: the "safe area". This
+//! can be accessed with [`Window::safe_area`], and describes a rectangle in the surface that is not
+//! obscured by notches, the status bar, and so on. You should be drawing your background and
+//! non-important content on the entire surface, but restrict important content (such as
+//! interactable UIs, text, etc.) to only being drawn inside the safe area.
+//!
+//! [`Window::safe_area`]: crate::window::Window::safe_area
+//!
 //! # Coordinate systems
 //!
 //! Windowing systems use many different coordinate systems, and this is reflected in Winit as well;
@@ -138,17 +146,13 @@
 //! between these three coordinate systems, although you should still strive to handle this, as
 //! they're still relevant in more niche area such as Mac Catalyst, or multi-tasking on tablets.
 //!
-//! There is, however, a different important concept: The "safe area". This can be accessed with
-//! [`Window::safe_area`], and describes a rectangle in the surface that is not obscured by notches,
-//! the status bar, and so on. You should be drawing your background and non-important content on
-//! the entire surface, but restrict important content (such as interactable UIs, text, etc.) to
-//! being drawn in the safe area.
+//! Note that the safe area (discussed above) is especially important here, since windows on mobile
+//! are often full screen, and often the device has notches (as illustrated in the image below).
 #![doc = concat!("\n\n", include_str!("../docs/res/coordinate-systems-mobile.svg"), "\n\n")] // Rustfmt removes \n, re-add them
 //! [`Window::surface_position`]: crate::window::Window::surface_position
 //! [`Window::surface_size`]: crate::window::Window::surface_size
 //! [`Window::outer_position`]: crate::window::Window::outer_position
 //! [`Window::outer_size`]: crate::window::Window::outer_size
-//! [`Window::safe_area`]: crate::window::Window::safe_area
 //!
 //! # UI scaling
 //!
