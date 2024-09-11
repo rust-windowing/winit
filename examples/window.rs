@@ -216,6 +216,10 @@ impl Application {
             Action::ToggleResizable => window.toggle_resizable(),
             Action::ToggleDecorations => window.toggle_decorations(),
             Action::ToggleFullscreen => window.toggle_fullscreen(),
+            #[cfg(macos_platform)]
+            Action::ToggleSimpleFullscreen => {
+                window.window.set_simple_fullscreen(!window.window.simple_fullscreen());
+            },
             Action::ToggleMaximize => window.toggle_maximize(),
             Action::ToggleImeInput => window.toggle_ime(),
             Action::Minimize => window.minimize(),
@@ -896,18 +900,55 @@ impl WindowState {
             return Ok(());
         }
 
-        const WHITE: u32 = 0xffffffff;
-        const DARK_GRAY: u32 = 0xff181818;
-
-        let color = match self.theme {
-            Theme::Light => WHITE,
-            Theme::Dark => DARK_GRAY,
-        };
-
         let mut buffer = self.surface.buffer_mut()?;
-        buffer.fill(color);
+
+        // Fill the whole surface with a plain background
+        buffer.fill(match self.theme {
+            Theme::Light => 0xffffffff, // White
+            Theme::Dark => 0xff181818,  // Dark gray
+        });
+
+        // Draw a star (without anti-aliasing) inside the safe area
+        let surface_size = self.window.surface_size();
+        let (origin, size) = self.window.safe_area();
+        let in_star = |x, y| -> bool {
+            // Shamelessly adapted from https://stackoverflow.com/a/2049593.
+            let sign = |p1: (i32, i32), p2: (i32, i32), p3: (i32, i32)| -> i32 {
+                (p1.0 - p3.0) * (p2.1 - p3.1) - (p2.0 - p3.0) * (p1.1 - p3.1)
+            };
+
+            let pt = (x as i32, y as i32);
+            let v1 = (0, size.height as i32 / 2);
+            let v2 = (size.width as i32 / 2, 0);
+            let v3 = (size.width as i32, size.height as i32 / 2);
+            let v4 = (size.width as i32 / 2, size.height as i32);
+
+            let d1 = sign(pt, v1, v2);
+            let d2 = sign(pt, v2, v3);
+            let d3 = sign(pt, v3, v4);
+            let d4 = sign(pt, v4, v1);
+
+            let has_neg = (d1 < 0) || (d2 < 0) || (d3 < 0) || (d4 < 0);
+            let has_pos = (d1 > 0) || (d2 > 0) || (d3 > 0) || (d4 > 0);
+
+            !(has_neg && has_pos)
+        };
+        for y in 0..size.height {
+            for x in 0..size.width {
+                if in_star(x, y) {
+                    let index = (origin.y + y) * surface_size.width + (origin.x + x);
+                    buffer[index as usize] = match self.theme {
+                        Theme::Light => 0xffe8e8e8, // Light gray
+                        Theme::Dark => 0xff525252,  // Medium gray
+                    };
+                }
+            }
+        }
+
+        // Present the buffer
         self.window.pre_present_notify();
         buffer.present()?;
+
         Ok(())
     }
 
@@ -944,6 +985,8 @@ enum Action {
     ToggleDecorations,
     ToggleResizable,
     ToggleFullscreen,
+    #[cfg(macos_platform)]
+    ToggleSimpleFullscreen,
     ToggleMaximize,
     Minimize,
     NextCursor,
@@ -977,6 +1020,8 @@ impl Action {
             Action::ToggleDecorations => "Toggle decorations",
             Action::ToggleResizable => "Toggle window resizable state",
             Action::ToggleFullscreen => "Toggle fullscreen",
+            #[cfg(macos_platform)]
+            Action::ToggleSimpleFullscreen => "Toggle simple fullscreen",
             Action::ToggleMaximize => "Maximize",
             Action::Minimize => "Minimize",
             Action::ToggleResizeIncrements => "Use resize increments when resizing window",
@@ -1119,6 +1164,8 @@ const KEY_BINDINGS: &[Binding<&'static str>] = &[
     Binding::new("Q", ModifiersState::CONTROL, Action::CloseWindow),
     Binding::new("H", ModifiersState::CONTROL, Action::PrintHelp),
     Binding::new("F", ModifiersState::CONTROL, Action::ToggleFullscreen),
+    #[cfg(macos_platform)]
+    Binding::new("F", ModifiersState::ALT, Action::ToggleSimpleFullscreen),
     Binding::new("D", ModifiersState::CONTROL, Action::ToggleDecorations),
     Binding::new("I", ModifiersState::CONTROL, Action::ToggleImeInput),
     Binding::new("L", ModifiersState::CONTROL, Action::CycleCursorGrab),

@@ -590,41 +590,51 @@ pub trait Window: AsAny + Send + Sync {
     // extension trait
     fn reset_dead_keys(&self);
 
-    /// Returns the position of the top-left hand corner of the window's client area relative to the
-    /// top-left hand corner of the desktop.
+    /// The position of the top-left hand corner of the surface relative to the top-left hand corner
+    /// of the window.
     ///
-    /// The same conditions that apply to [`Window::outer_position`] apply to this method.
+    /// This, combined with [`outer_position`], can be useful for calculating the position of the
+    /// surface relative to the desktop.
     ///
-    /// ## Platform-specific
+    /// This may also be useful for figuring out the size of the window's decorations (such as
+    /// buttons, title, etc.), but may also not correspond to that (e.g. if the title bar is made
+    /// transparent using [`with_titlebar_transparent`] on macOS, or your are drawing window
+    /// decorations yourself).
     ///
-    /// - **iOS:** Returns the top left coordinates of the window's [safe area] in the screen space
-    ///   coordinate system.
-    /// - **Web:** Returns the top-left coordinates relative to the viewport. _Note: this returns
-    ///   the same value as [`Window::outer_position`]._
-    /// - **Android / Wayland:** Always returns [`RequestError::NotSupported`].
+    /// This may be negative.
     ///
-    /// [safe area]: https://developer.apple.com/documentation/uikit/uiview/2891103-safeareainsets?language=objc
-    fn inner_position(&self) -> Result<PhysicalPosition<i32>, RequestError>;
+    /// If the window does not have any decorations, and the surface is in the exact same position
+    /// as the window itself, this simply returns `(0, 0)`.
+    ///
+    /// [`outer_position`]: Self::outer_position
+    #[cfg_attr(
+        any(macos_platform, docsrs),
+        doc = "[`with_titlebar_transparent`]: \
+               crate::platform::macos::WindowAttributesExtMacOS::with_titlebar_transparent"
+    )]
+    #[cfg_attr(
+        not(any(macos_platform, docsrs)),
+        doc = "[`with_titlebar_transparent`]: #only-available-on-macos"
+    )]
+    fn surface_position(&self) -> PhysicalPosition<i32>;
 
-    /// Returns the position of the top-left hand corner of the window relative to the
-    /// top-left hand corner of the desktop.
+    /// The position of the top-left hand corner of the window relative to the top-left hand corner
+    /// of the desktop.
     ///
     /// Note that the top-left hand corner of the desktop is not necessarily the same as
     /// the screen. If the user uses a desktop with multiple monitors, the top-left hand corner
-    /// of the desktop is the top-left hand corner of the monitor at the top-left of the desktop.
+    /// of the desktop is the top-left hand corner of the primary monitor of the desktop.
     ///
     /// The coordinates can be negative if the top-left hand corner of the window is outside
-    /// of the visible screen region.
+    /// of the visible screen region, or on another monitor than the primary.
     ///
     /// ## Platform-specific
     ///
-    /// - **iOS:** Returns the top left coordinates of the window in the screen space coordinate
-    ///   system.
     /// - **Web:** Returns the top-left coordinates relative to the viewport.
     /// - **Android / Wayland:** Always returns [`RequestError::NotSupported`].
     fn outer_position(&self) -> Result<PhysicalPosition<i32>, RequestError>;
 
-    /// Modifies the position of the window.
+    /// Sets the position of the window on the desktop.
     ///
     /// See [`Window::outer_position`] for more information about the coordinates.
     /// This automatically un-maximizes the window if it's maximized.
@@ -654,16 +664,21 @@ pub trait Window: AsAny + Send + Sync {
 
     /// Returns the size of the window's render-able surface.
     ///
-    /// This is the dimensions you should pass to things like Wgpu or Glutin when configuring.
+    /// This is the dimensions you should pass to things like Wgpu or Glutin when configuring the
+    /// surface for drawing. See [`WindowEvent::SurfaceResized`] for listening to changes to this
+    /// field.
+    ///
+    /// Note that to ensure that your content is not obscured by things such as notches or the title
+    /// bar, you will likely want to only draw important content inside a specific area of the
+    /// surface, see [`safe_area`] for details.
     ///
     /// ## Platform-specific
     ///
-    /// - **iOS:** Returns the `PhysicalSize` of the window's [safe area] in screen space
-    ///   coordinates.
     /// - **Web:** Returns the size of the canvas element. Doesn't account for CSS [`transform`].
     ///
-    /// [safe area]: https://developer.apple.com/documentation/uikit/uiview/2891103-safeareainsets?language=objc
     /// [`transform`]: https://developer.mozilla.org/en-US/docs/Web/CSS/transform
+    /// [`WindowEvent::SurfaceResized`]: crate::event::WindowEvent::SurfaceResized
+    /// [`safe_area`]: Window::safe_area
     fn surface_size(&self) -> PhysicalSize<u32>;
 
     /// Request the new size for the surface.
@@ -710,10 +725,29 @@ pub trait Window: AsAny + Send + Sync {
     ///
     /// ## Platform-specific
     ///
-    /// - **iOS:** Returns the [`PhysicalSize`] of the window in screen space coordinates.
     /// - **Web:** Returns the size of the canvas element. _Note: this returns the same value as
     ///   [`Window::surface_size`]._
     fn outer_size(&self) -> PhysicalSize<u32>;
+
+    /// The area of the surface that is unobstructed.
+    ///
+    /// On some devices, especially mobile devices, the screen is not a perfect rectangle, and may
+    /// have rounded corners, notches, bezels, and so on. When drawing your content, you usually
+    /// want to draw your background and other such unimportant content on the entire surface, while
+    /// you will want to restrict important content such as text, interactable or visual indicators
+    /// to the part of the screen that is actually visible; for this, you use the safe area.
+    ///
+    /// The safe area is a rectangle that is defined relative to the origin at the top-left corner
+    /// of the surface, and the size extending downwards to the right. The area will not extend
+    /// beyond [the bounds of the surface][Window::surface_size].
+    ///
+    /// If the entire content of the surface is visible, this returns `((0, 0), surface_size)`.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **Android / Orbital / Wayland / Web / Windows / X11:** Unimplemented, returns `((0, 0),
+    ///   surface_size)`.
+    fn safe_area(&self) -> (PhysicalPosition<u32>, PhysicalSize<u32>);
 
     /// Sets a minimum dimensions of the window's surface.
     ///
@@ -987,8 +1021,8 @@ pub trait Window: AsAny + Send + Sync {
     fn set_window_icon(&self, window_icon: Option<Icon>);
 
     /// Set the IME cursor editing area, where the `position` is the top left corner of that area
-    /// and `size` is the size of this area starting from the position. An example of such area
-    /// could be a input field in the UI or line in the editor.
+    /// in surface coordinates and `size` is the size of this area starting from the position. An
+    /// example of such area could be a input field in the UI or line in the editor.
     ///
     /// The windowing system could place a candidate box close to that area, but try to not obscure
     /// the specified area, so the user input to it stays visible.
@@ -1218,7 +1252,7 @@ pub trait Window: AsAny + Send + Sync {
     /// - **iOS / Android / Web:** Always returns an [`RequestError::NotSupported`].
     fn drag_resize_window(&self, direction: ResizeDirection) -> Result<(), RequestError>;
 
-    /// Show [window menu] at a specified position .
+    /// Show [window menu] at a specified position in surface coordinates.
     ///
     /// This is the context menu that is normally shown when interacting with
     /// the title bar. This is useful when implementing custom decorations.

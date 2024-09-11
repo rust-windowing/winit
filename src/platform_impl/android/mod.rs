@@ -796,8 +796,8 @@ impl CoreWindow for Window {
 
     fn pre_present_notify(&self) {}
 
-    fn inner_position(&self) -> Result<PhysicalPosition<i32>, RequestError> {
-        Err(NotSupportedError::new("inner_position is not supported").into())
+    fn surface_position(&self) -> PhysicalPosition<i32> {
+        (0, 0).into()
     }
 
     fn outer_position(&self) -> Result<PhysicalPosition<i32>, RequestError> {
@@ -818,6 +818,10 @@ impl CoreWindow for Window {
 
     fn outer_size(&self) -> PhysicalSize<u32> {
         screen_size(&self.app)
+    }
+
+    fn safe_area(&self) -> (PhysicalPosition<u32>, PhysicalSize<u32>) {
+        ((0, 0).into(), self.surface_size())
     }
 
     fn set_min_surface_size(&self, _: Option<Size>) {}

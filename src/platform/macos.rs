@@ -91,6 +91,9 @@ pub trait WindowExtMacOS {
     /// This is how fullscreen used to work on macOS in versions before Lion.
     /// And allows the user to have a fullscreen window without using another
     /// space or taking control over the entire monitor.
+    ///
+    /// Make sure you only draw your important content inside the safe area so that it does not
+    /// overlap with the notch on newer devices, see [`Window::safe_area`] for details.
     fn set_simple_fullscreen(&self, fullscreen: bool) -> bool;
 
     /// Returns whether or not the window has shadow.
