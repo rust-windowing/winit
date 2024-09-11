@@ -193,6 +193,9 @@ pub enum WindowEvent {
     /// The window gained or lost focus.
     ///
     /// The parameter is true if the window has gained focus, and false if it has lost focus.
+    ///
+    /// Windows are unfocused upon creation, but will usually be focused by the system soon
+    /// afterwards.
     Focused(bool),
 
     /// An event from the keyboard has been received.

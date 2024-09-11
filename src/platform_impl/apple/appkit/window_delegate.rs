@@ -770,10 +770,6 @@ impl WindowDelegate {
 
         delegate.set_cursor(attrs.cursor);
 
-        // XXX Send `Focused(false)` right after creating the window delegate, so we won't
-        // obscure the real focused events on the startup.
-        delegate.queue_event(WindowEvent::Focused(false));
-
         // Set fullscreen mode after we setup everything
         delegate.set_fullscreen(attrs.fullscreen.map(Into::into));
 
