@@ -850,7 +850,7 @@ impl WindowDelegate {
 
     fn emit_move_event(&self) {
         let position = flip_window_screen_coordinates(self.window().frame());
-        if dbg!(self.ivars().previous_position.get()) == dbg!(position) {
+        if self.ivars().previous_position.get() == position {
             return;
         }
         self.ivars().previous_position.set(position);
