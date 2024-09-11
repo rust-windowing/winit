@@ -153,7 +153,7 @@ pub enum ControlFlow {
     /// refresh rate should instead issue a [`Window::request_redraw`] at the end of
     /// [`WindowEvent::RedrawRequested`].
     ///
-    /// [`WindowEvent::RedrawRequested`]: crate::window::WindowEvent::RedrawRequested
+    /// [`WindowEvent::RedrawRequested`]: crate::event::WindowEvent::RedrawRequested
     WaitUntil(Instant),
 }
 
