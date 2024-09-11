@@ -1593,7 +1593,6 @@ impl UnownedWindow {
     }
 
     fn safe_area(&self) -> (PhysicalPosition<u32>, PhysicalSize<u32>) {
-        // FIXME: Complete this implementation
         ((0, 0).into(), self.surface_size())
     }
 

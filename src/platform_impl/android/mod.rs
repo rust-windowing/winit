@@ -797,7 +797,6 @@ impl CoreWindow for Window {
     fn pre_present_notify(&self) {}
 
     fn surface_position(&self) -> PhysicalPosition<i32> {
-        // FIXME: Complete this implementation
         (0, 0).into()
     }
 
@@ -822,8 +821,6 @@ impl CoreWindow for Window {
     }
 
     fn safe_area(&self) -> (PhysicalPosition<u32>, PhysicalSize<u32>) {
-        // FIXME: Complete this implementation
-        // Also wire up so that `RedrawRequested` events are emitted when the safe insets change.
         ((0, 0).into(), self.surface_size())
     }
 
