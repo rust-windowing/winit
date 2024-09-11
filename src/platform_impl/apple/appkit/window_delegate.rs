@@ -740,12 +740,6 @@ impl WindowDelegate {
         });
         let delegate: Retained<WindowDelegate> = unsafe { msg_send_id![super(delegate), init] };
 
-        if scale_factor != 1.0 {
-            let delegate = delegate.clone();
-            RunLoop::main(mtm).queue_closure(move || {
-                delegate.handle_scale_factor_changed(scale_factor);
-            });
-        }
         window.setDelegate(Some(ProtocolObject::from_ref(&*delegate)));
 
         // Listen for theme change event.

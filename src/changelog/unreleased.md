@@ -124,6 +124,7 @@ changelog entry.
   - `Window::set_max_inner_size` to `set_max_surface_size`.
 
   To migrate, you can probably just replace all instances of `inner_size` with `surface_size` in your codebase.
+- On macOS and iOS, no longer emit `ScaleFactorChanged` upon window creation.
 
 ### Removed
 
