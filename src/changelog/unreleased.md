@@ -154,3 +154,4 @@ changelog entry.
 ### Fixed
 
 - On Orbital, `MonitorHandle::name()` now returns `None` instead of a dummy name.
+- On macOS, fixed redundant `SurfaceResized` event at window creation.
