@@ -565,10 +565,11 @@ fn new_window(
 
         if attrs.platform_specific.fullsize_content_view {
             // NOTE: If we decide to add an option to change this at runtime, we must emit a
-            // `SurfaceResized` event to let Alacritty know that the safe area changed.
+            // `SurfaceResized` event to let applications know that the safe area changed.
             //
             // An alternative would be to add a `WindowEvent::SafeAreaChanged` event, this could be
-            // done with an observer on `safeAreaRect` / `contentLayoutRect`.
+            // done with an observer on `safeAreaRect` / `contentLayoutRect`, see:
+            // <https://github.com/rust-windowing/winit/issues/3911>
             masks |= NSWindowStyleMask::FullSizeContentView;
         }
 
