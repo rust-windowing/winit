@@ -601,8 +601,7 @@ pub trait Window: AsAny + Send + Sync {
     /// transparent using [`with_titlebar_transparent`] on macOS, or your are drawing window
     /// decorations yourself).
     ///
-    /// This _may_ be negative in the off case that the windowing system decided to make a surface
-    /// that is larger than your window.
+    /// This may be negative.
     ///
     /// If the window does not have any decorations, and the surface is in the exact same position
     /// as the window itself, this simply returns `(0, 0)`.
