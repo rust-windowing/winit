@@ -154,3 +154,4 @@ changelog entry.
 ### Fixed
 
 - On Orbital, `MonitorHandle::name()` now returns `None` instead of a dummy name.
+- On macOS, fix `WindowEvent::Moved` sometimes being triggered unnecessarily on resize.
