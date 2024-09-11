@@ -338,7 +338,6 @@ impl CoreWindow for Window {
     }
 
     fn safe_area(&self) -> (PhysicalPosition<u32>, PhysicalSize<u32>) {
-        // FIXME: Include CSDs drawn by Winit
         ((0, 0).into(), self.surface_size())
     }
 
