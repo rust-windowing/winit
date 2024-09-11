@@ -1,6 +1,6 @@
 <mxfile host="app.diagrams.net" agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:130.0) Gecko/20100101 Firefox/130.0" version="24.7.12" pages="2">
   <diagram name="desktop" id="3DDum1nDijUk3y7wIDRm">
-    <mxGraphModel dx="1139" dy="747" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1000" pageHeight="600" math="0" shadow="0">
+    <mxGraphModel dx="789" dy="517" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1000" pageHeight="600" math="0" shadow="0">
       <root>
         <mxCell id="0" />
         <mxCell id="1" parent="0" />
@@ -37,8 +37,8 @@
             <mxPoint x="720.0000000000002" y="199.69" as="targetPoint" />
           </mxGeometry>
         </mxCell>
-        <mxCell id="cRYnzpdCW-J0f_YpP3mc-9" value="&lt;font&gt;outer_position&lt;/font&gt;" style="endArrow=none;html=1;strokeWidth=3;rounded=0;exitX=0;exitY=0;exitDx=0;exitDy=0;dashed=1;align=right;fontSize=20;fontFamily=monospace;fontColor=#6C8EBF;labelBackgroundColor=none;spacingLeft=0;spacingRight=15;spacing=0;fillColor=#dae8fc;strokeColor=#6C8EBF;" parent="1" source="cRYnzpdCW-J0f_YpP3mc-3" edge="1">
-          <mxGeometry x="-0.3077" y="-33" width="50" height="50" relative="1" as="geometry">
+        <mxCell id="cRYnzpdCW-J0f_YpP3mc-9" value="&lt;font&gt;outer_position&lt;/font&gt;" style="endArrow=blockThin;html=1;strokeWidth=3;rounded=0;exitX=0;exitY=0;exitDx=0;exitDy=0;dashed=1;align=right;fontSize=20;fontFamily=monospace;fontColor=#6C8EBF;labelBackgroundColor=none;spacingLeft=0;spacingRight=15;spacing=0;fillColor=#dae8fc;strokeColor=#6C8EBF;endFill=1;startArrow=oval;startFill=1;endSize=6;targetPerimeterSpacing=0;" parent="1" source="cRYnzpdCW-J0f_YpP3mc-3" edge="1">
+          <mxGeometry x="-0.3088" y="-33" width="50" height="50" relative="1" as="geometry">
             <mxPoint x="80" y="160" as="sourcePoint" />
             <mxPoint x="240" y="160" as="targetPoint" />
             <mxPoint as="offset" />
@@ -66,7 +66,7 @@
             <mxPoint as="offset" />
           </mxGeometry>
         </mxCell>
-        <mxCell id="cRYnzpdCW-J0f_YpP3mc-12" value="&lt;font&gt;surface_position&lt;/font&gt;" style="endArrow=none;html=1;strokeWidth=3;rounded=0;dashed=1;align=right;fontSize=20;fontFamily=monospace;fontColor=#82B366;labelBackgroundColor=none;spacingLeft=0;spacingRight=15;spacing=0;fillColor=#d5e8d4;strokeColor=#82b366;exitX=0;exitY=0;exitDx=0;exitDy=0;entryX=0;entryY=0;entryDx=0;entryDy=0;curved=1;" parent="1" source="cRYnzpdCW-J0f_YpP3mc-2" target="cRYnzpdCW-J0f_YpP3mc-5" edge="1">
+        <mxCell id="cRYnzpdCW-J0f_YpP3mc-12" value="&lt;font&gt;surface_position&lt;/font&gt;" style="endArrow=blockThin;html=1;strokeWidth=3;rounded=0;dashed=1;align=right;fontSize=20;fontFamily=monospace;fontColor=#82B366;labelBackgroundColor=none;spacingLeft=0;spacingRight=15;spacing=0;fillColor=#d5e8d4;strokeColor=#82b366;exitX=0;exitY=0;exitDx=0;exitDy=0;entryX=0;entryY=0;entryDx=0;entryDy=0;curved=1;startArrow=oval;startFill=1;endFill=1;" parent="1" source="cRYnzpdCW-J0f_YpP3mc-2" target="cRYnzpdCW-J0f_YpP3mc-5" edge="1">
           <mxGeometry y="-70" width="50" height="50" relative="1" as="geometry">
             <mxPoint x="120" y="160" as="sourcePoint" />
             <mxPoint x="140" y="220" as="targetPoint" />
@@ -80,7 +80,7 @@
     </mxGraphModel>
   </diagram>
   <diagram name="mobile" id="D5mAeJSS4Z33KEKjPCBt">
-    <mxGraphModel dx="1140" dy="747" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="720" pageHeight="720" math="0" shadow="0">
+    <mxGraphModel dx="1207" dy="791" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="720" pageHeight="720" math="0" shadow="0">
       <root>
         <mxCell id="0" />
         <mxCell id="1" parent="0" />
@@ -121,9 +121,9 @@
             <mxPoint as="offset" />
           </mxGeometry>
         </mxCell>
-        <mxCell id="PfQfIIXmTFyXyFiRlI0e-1" value="&lt;div&gt;safe_area&lt;/div&gt;&lt;div align=&quot;center&quot;&gt;(position)&lt;/div&gt;" style="endArrow=none;html=1;strokeWidth=3;rounded=0;dashed=1;align=right;fontSize=20;fontFamily=monospace;fontColor=#D79B00;labelBackgroundColor=none;spacingLeft=0;spacingRight=15;spacing=0;fillColor=#ffe6cc;strokeColor=#d79b00;exitX=0;exitY=0;exitDx=0;exitDy=0;entryX=0;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="RxwCrVmIsQwV7z5iJ9nY-2" target="RxwCrVmIsQwV7z5iJ9nY-4">
+        <mxCell id="PfQfIIXmTFyXyFiRlI0e-1" value="&lt;div&gt;safe_area&lt;/div&gt;&lt;div align=&quot;center&quot;&gt;(position)&lt;/div&gt;" style="endArrow=blockThin;html=1;strokeWidth=3;rounded=0;dashed=1;align=right;fontSize=20;fontFamily=monospace;fontColor=#D79B00;labelBackgroundColor=none;spacingLeft=0;spacingRight=15;spacing=0;fillColor=#ffe6cc;strokeColor=#d79b00;entryX=0;entryY=0;entryDx=0;entryDy=0;startArrow=oval;startFill=1;endFill=1;" edge="1" parent="1" target="RxwCrVmIsQwV7z5iJ9nY-4">
           <mxGeometry y="-16" width="50" height="50" relative="1" as="geometry">
-            <mxPoint x="150" y="90" as="sourcePoint" />
+            <mxPoint x="130" y="50" as="sourcePoint" />
             <mxPoint x="150" y="650" as="targetPoint" />
             <mxPoint as="offset" />
           </mxGeometry>
