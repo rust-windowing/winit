@@ -146,8 +146,8 @@
 //! between these three coordinate systems, although you should still strive to handle this, as
 //! they're still relevant in more niche area such as Mac Catalyst, or multi-tasking on tablets.
 //!
-//! Note that the safe area (discussed above) is especially important here, since windows on mobile
-//! are often full screen, and often the device has notches (as illustrated in the image below).
+//! This is illustrated in the image below, along with the safe area since it's often relevant on
+//! mobile.
 #![doc = concat!("\n\n", include_str!("../docs/res/coordinate-systems-mobile.svg"), "\n\n")] // Rustfmt removes \n, re-add them
 //! [`Window::surface_position`]: crate::window::Window::surface_position
 //! [`Window::surface_size`]: crate::window::Window::surface_size
