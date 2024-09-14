@@ -1014,9 +1014,6 @@ fn mkfid(w: u32) -> crate::event::FingerId {
 pub struct Device {
     _name: String,
     scroll_axes: Vec<(i32, ScrollAxis)>,
-    // For master devices, this is the paired device (pointer <-> keyboard).
-    // For slave devices, this is the master.
-    attachment: c_int,
 }
 
 #[derive(Debug, Copy, Clone)]
@@ -1056,8 +1053,7 @@ impl Device {
             }
         }
 
-        let mut device =
-            Device { _name: name.into_owned(), scroll_axes, attachment: info.attachment };
+        let mut device = Device { _name: name.into_owned(), scroll_axes };
         device.reset_scroll_position(info);
         device
     }

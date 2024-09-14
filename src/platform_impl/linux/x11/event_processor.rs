@@ -1219,7 +1219,6 @@ impl EventProcessor {
         self.target.update_listen_device_events(true);
 
         let window_id = mkwid(window);
-        let position = PhysicalPosition::new(xev.event_x, xev.event_y);
 
         if let Some(window) = self.with_window(window, Arc::clone) {
             window.shared_state_lock().has_focus = true;
@@ -1238,21 +1237,6 @@ impl EventProcessor {
         );
 
         self.update_mods_from_query(window_id, &mut callback);
-
-        // The deviceid for this event is for a keyboard instead of a pointer,
-        // so we have to do a little extra work.
-        let pointer_id = self
-            .devices
-            .borrow()
-            .get(&DeviceId(xev.deviceid as xinput::DeviceId))
-            .map(|device| device.attachment)
-            .unwrap_or(2);
-
-        let event = Event::WindowEvent {
-            window_id,
-            event: WindowEvent::CursorMoved { device_id: mkdid(pointer_id as _), position },
-        };
-        callback(&self.target, event);
     }
 
     fn xinput2_unfocused<F>(&mut self, xev: &XIFocusOutEvent, mut callback: F)

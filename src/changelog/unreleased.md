@@ -154,3 +154,4 @@ changelog entry.
 ### Fixed
 
 - On Orbital, `MonitorHandle::name()` now returns `None` instead of a dummy name.
+- On X11, bringing the window into focus will not emit a `WindowEvent::CursorMoved` anymore.
