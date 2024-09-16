@@ -389,7 +389,7 @@ pub trait EventLoopBuilderExtMacOS {
     /// For instance, `with_activation_policy(ActivationPolicy::Regular)` will prevent
     /// the application from running as an "agent", even if LSUIElement is set to true.
     ///
-    /// If unused, the application will honor the package manifest.
+    /// If unused, the Winit will honor the package manifest.
     ///
     /// # Example
     ///
