@@ -18,7 +18,12 @@ use crate::window::WindowId as RootWindowId;
 
 #[derive(Debug)]
 pub(super) struct AppState {
-    activation_policy: NSApplicationActivationPolicy,
+    // <<<<<<< HEAD:src/platform_impl/macos/app_state.rs
+    //     activation_policy: NSApplicationActivationPolicy,
+    // =======
+    activation_policy: Option<NSApplicationActivationPolicy>,
+    // >>>>>>> 7e819bb2 (Prevent winit from overriding LSUIElement in package manifests
+    // (#3920)):src/platform_impl/apple/appkit/app_state.rs
     default_menu: bool,
     activate_ignoring_other_apps: bool,
     run_loop: RunLoop,
@@ -74,7 +79,7 @@ declare_class!(
 impl ApplicationDelegate {
     pub(super) fn new(
         mtm: MainThreadMarker,
-        activation_policy: NSApplicationActivationPolicy,
+        activation_policy: Option<NSApplicationActivationPolicy>,
         default_menu: bool,
         activate_ignoring_other_apps: bool,
     ) -> Retained<Self> {
@@ -111,7 +116,11 @@ impl ApplicationDelegate {
         // We need to delay setting the activation policy and activating the app
         // until `applicationDidFinishLaunching` has been called. Otherwise the
         // menu bar is initially unresponsive on macOS 10.15.
-        app.setActivationPolicy(self.ivars().activation_policy);
+        // If no activation policy is explicitly provided, do not set it at all
+        // to allow the package manifest to define behavior via LSUIElement.
+        if let Some(activation_policy) = self.ivars().activation_policy {
+            app.setActivationPolicy(activation_policy);
+        }
 
         window_activation_hack(&app);
         #[allow(deprecated)]

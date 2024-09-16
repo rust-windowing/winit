@@ -44,3 +44,8 @@ changelog entry.
 
 - On macOS, add `WindowExtMacOS::set_borderless_game` and `WindowAttributesExtMacOS::with_borderless_game`
   to fully disable the menu bar and dock in Borderless Fullscreen as commonly done in games.
+
+### Fixed
+
+- On MacOS, package manifest definitions of `LSUIElement` will no longer be overridden with the
+  default activation policy, unless explicitly provided during initialization.
