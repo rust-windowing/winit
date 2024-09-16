@@ -257,10 +257,11 @@ impl WindowExtMacOS for dyn Window + '_ {
 }
 
 /// Corresponds to `NSApplicationActivationPolicy`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum ActivationPolicy {
     /// Corresponds to `NSApplicationActivationPolicyRegular`.
+    #[default]
     Regular,
 
     /// Corresponds to `NSApplicationActivationPolicyAccessory`.
