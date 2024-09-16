@@ -175,14 +175,12 @@ impl WindowExtMacOS for Window {
 
     #[inline]
     fn set_borderless_game(&self, borderless_game: bool) {
-        let window = self.as_any().downcast_ref::<crate::platform_impl::Window>().unwrap();
-        window.maybe_wait_on_main(|w| w.set_borderless_game(borderless_game))
+        self.window.maybe_wait_on_main(|w| w.set_borderless_game(borderless_game))
     }
 
     #[inline]
     fn is_borderless_game(&self) -> bool {
-        let window = self.as_any().downcast_ref::<crate::platform_impl::Window>().unwrap();
-        window.maybe_wait_on_main(|w| w.is_borderless_game())
+        self.window.maybe_wait_on_main(|w| w.is_borderless_game())
     }
 }
 
@@ -313,9 +311,12 @@ impl WindowAttributesExtMacOS for WindowAttributes {
 }
 
 pub trait EventLoopBuilderExtMacOS {
-    /// Sets the activation policy for the application.
+    /// Sets the activation policy for the application. If used, this will override
+    /// any relevant settings provided in the package manifest.
+    /// For instance, `with_activation_policy(ActivationPolicy::Regular)` will prevent
+    /// the application from running as an "agent", even if LSUIElement is set to true.
     ///
-    /// It is set to [`ActivationPolicy::Regular`] by default.
+    /// If unused, the Winit will honor the package manifest.
     ///
     /// # Example
     ///
@@ -367,7 +368,7 @@ pub trait EventLoopBuilderExtMacOS {
 impl<T> EventLoopBuilderExtMacOS for EventLoopBuilder<T> {
     #[inline]
     fn with_activation_policy(&mut self, activation_policy: ActivationPolicy) -> &mut Self {
-        self.platform_specific.activation_policy = activation_policy;
+        self.platform_specific.activation_policy = Some(activation_policy);
         self
     }
 
