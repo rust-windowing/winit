@@ -154,3 +154,5 @@ changelog entry.
 ### Fixed
 
 - On Orbital, `MonitorHandle::name()` now returns `None` instead of a dummy name.
+- On MacOS, package manifest definitions of `LSUIElement` will no longer be overridden with the
+  default activation policy, unless explicitly provided during initialization.
