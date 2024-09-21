@@ -73,6 +73,7 @@ use serde::{Deserialize, Serialize};
 use crate::application::ApplicationHandler;
 use crate::event_loop::{ActiveEventLoop, EventLoopBuilder};
 use crate::monitor::MonitorHandle;
+use crate::platform_impl::MonitorHandle as MacOsMonitorHandle;
 use crate::window::{Window, WindowAttributes, WindowId};
 
 /// Additional methods on [`Window`] that are specific to MacOS.
@@ -499,22 +500,16 @@ impl EventLoopBuilderExtMacOS for EventLoopBuilder {
 
 /// Additional methods on [`MonitorHandle`] that are specific to MacOS.
 pub trait MonitorHandleExtMacOS {
-    /// Returns the identifier of the monitor for Cocoa.
-    fn native_id(&self) -> u32;
     /// Returns a pointer to the NSScreen representing this monitor.
     fn ns_screen(&self) -> Option<*mut c_void>;
 }
 
 impl MonitorHandleExtMacOS for MonitorHandle {
-    #[inline]
-    fn native_id(&self) -> u32 {
-        self.inner.native_identifier()
-    }
-
     fn ns_screen(&self) -> Option<*mut c_void> {
+        let monitor = self.as_any().downcast_ref::<MacOsMonitorHandle>().unwrap();
         // SAFETY: We only use the marker to get a pointer
         let mtm = unsafe { objc2::MainThreadMarker::new_unchecked() };
-        self.inner.ns_screen(mtm).map(|s| objc2::rc::Retained::as_ptr(&s) as _)
+        monitor.ns_screen(mtm).map(|s| objc2::rc::Retained::as_ptr(&s) as _)
     }
 }
 

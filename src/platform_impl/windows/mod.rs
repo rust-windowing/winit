@@ -13,7 +13,6 @@ use crate::event::DeviceId;
 use crate::icon::Icon;
 use crate::keyboard::Key;
 use crate::platform::windows::{BackdropType, Color, CornerPreference};
-use crate::platform_impl::Fullscreen;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct PlatformSpecificWindowAttributes {

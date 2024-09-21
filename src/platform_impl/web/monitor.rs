@@ -8,7 +8,7 @@ use std::num::NonZeroU16;
 use std::ops::{Deref, DerefMut};
 use std::pin::Pin;
 use std::rc::{Rc, Weak};
-use std::sync::OnceLock;
+use std::sync::{Arc, OnceLock};
 use std::task::{ready, Context, Poll};
 
 use dpi::LogicalSize;
@@ -28,7 +28,7 @@ use super::main_thread::MainThreadMarker;
 use super::r#async::{Dispatcher, Notified, Notifier};
 use super::web_sys::{Engine, EventListenerHandle};
 use crate::dpi::{PhysicalPosition, PhysicalSize};
-use crate::monitor::{MonitorHandle as RootMonitorHandle, VideoMode};
+use crate::monitor::{MonitorHandle as CoreMonitorHandle, MonitorHandleProvider, VideoMode};
 use crate::platform::web::{
     MonitorPermissionError, Orientation, OrientationData, OrientationLock, OrientationLockError,
 };
@@ -44,30 +44,6 @@ impl MonitorHandle {
     fn new(main_thread: MainThreadMarker, inner: Inner) -> Self {
         let id = if let Screen::Detailed { id, .. } = inner.screen { Some(id) } else { None };
         Self { id, inner: Dispatcher::new(main_thread, inner).0 }
-    }
-
-    pub fn scale_factor(&self) -> f64 {
-        self.inner.queue(|inner| inner.scale_factor())
-    }
-
-    pub fn position(&self) -> Option<PhysicalPosition<i32>> {
-        self.inner.queue(|inner| inner.position())
-    }
-
-    pub fn name(&self) -> Option<String> {
-        self.inner.queue(|inner| inner.name())
-    }
-
-    pub fn current_video_mode(&self) -> Option<VideoMode> {
-        Some(VideoMode {
-            size: self.inner.queue(|inner| inner.size()),
-            bit_depth: self.inner.queue(|inner| inner.bit_depth()),
-            refresh_rate_millihertz: None,
-        })
-    }
-
-    pub fn video_modes(&self) -> impl Iterator<Item = VideoMode> {
-        self.current_video_mode().into_iter()
     }
 
     pub fn orientation(&self) -> OrientationData {
@@ -143,6 +119,36 @@ impl MonitorHandle {
     }
 }
 
+impl MonitorHandleProvider for MonitorHandle {
+    fn native_id(&self) -> u64 {
+        self.id.unwrap_or_default()
+    }
+
+    fn scale_factor(&self) -> f64 {
+        self.inner.queue(|inner| inner.scale_factor())
+    }
+
+    fn position(&self) -> Option<PhysicalPosition<i32>> {
+        self.inner.queue(|inner| inner.position())
+    }
+
+    fn name(&self) -> Option<std::borrow::Cow<'_, str>> {
+        self.inner.queue(|inner| inner.name().map(Into::into))
+    }
+
+    fn current_video_mode(&self) -> Option<VideoMode> {
+        Some(VideoMode {
+            size: self.inner.queue(|inner| inner.size()),
+            bit_depth: self.inner.queue(|inner| inner.bit_depth()),
+            refresh_rate_millihertz: None,
+        })
+    }
+
+    fn video_modes(&self) -> Box<dyn Iterator<Item = VideoMode>> {
+        Box::new(self.current_video_mode().into_iter())
+    }
+}
+
 impl Debug for MonitorHandle {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         let (name, position, scale_factor, orientation, is_internal, is_detailed) =
@@ -192,9 +198,9 @@ impl PartialOrd for MonitorHandle {
     }
 }
 
-impl From<MonitorHandle> for RootMonitorHandle {
-    fn from(inner: MonitorHandle) -> Self {
-        RootMonitorHandle { inner }
+impl From<MonitorHandle> for CoreMonitorHandle {
+    fn from(monitor: MonitorHandle) -> Self {
+        CoreMonitorHandle(Arc::new(monitor))
     }
 }
 

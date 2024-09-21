@@ -1,13 +1,14 @@
 use std::collections::VecDeque;
+use std::iter;
 use std::sync::{Arc, Mutex};
 
 use super::event_loop::EventLoopProxy;
-use super::{ActiveEventLoop, MonitorHandle, RedoxSocket, WindowProperties};
+use super::{ActiveEventLoop, RedoxSocket, WindowProperties};
 use crate::cursor::Cursor;
 use crate::dpi::{PhysicalInsets, PhysicalPosition, PhysicalSize, Position, Size};
 use crate::error::{NotSupportedError, RequestError};
-use crate::monitor::MonitorHandle as CoreMonitorHandle;
-use crate::window::{self, Fullscreen, ImePurpose, Window as CoreWindow, WindowId};
+use crate::monitor::{Fullscreen, MonitorHandle as CoreMonitorHandle};
+use crate::window::{self, ImePurpose, Window as CoreWindow, WindowId};
 
 // These values match the values uses in the `window_new` function in orbital:
 // https://gitlab.redox-os.org/redox-os/orbital/-/blob/master/src/scheme.rs
@@ -32,7 +33,7 @@ impl Window {
         el: &ActiveEventLoop,
         attrs: window::WindowAttributes,
     ) -> Result<Self, RequestError> {
-        let scale = MonitorHandle.scale_factor();
+        let scale = 1.;
 
         let (x, y) = if let Some(pos) = attrs.position {
             pos.to_physical::<i32>(scale).into()
@@ -160,22 +161,22 @@ impl CoreWindow for Window {
 
     #[inline]
     fn primary_monitor(&self) -> Option<CoreMonitorHandle> {
-        Some(CoreMonitorHandle { inner: MonitorHandle })
+        None
     }
 
     #[inline]
     fn available_monitors(&self) -> Box<dyn Iterator<Item = CoreMonitorHandle>> {
-        Box::new(vec![CoreMonitorHandle { inner: MonitorHandle }].into_iter())
+        Box::new(iter::empty())
     }
 
     #[inline]
     fn current_monitor(&self) -> Option<CoreMonitorHandle> {
-        Some(CoreMonitorHandle { inner: MonitorHandle })
+        None
     }
 
     #[inline]
     fn scale_factor(&self) -> f64 {
-        MonitorHandle.scale_factor()
+        1.
     }
 
     #[inline]
