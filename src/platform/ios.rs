@@ -108,6 +108,7 @@ use std::os::raw::c_void;
 use serde::{Deserialize, Serialize};
 
 use crate::monitor::{MonitorHandle, VideoMode};
+use crate::platform_impl::MonitorHandle as IosMonitorHandle;
 use crate::window::{Window, WindowAttributes};
 
 /// Additional methods on [`Window`] that are specific to iOS.
@@ -115,10 +116,11 @@ pub trait WindowExtIOS {
     /// Sets the [`contentScaleFactor`] of the underlying [`UIWindow`] to `scale_factor`.
     ///
     /// The default value is device dependent, and it's recommended GLES or Metal applications set
-    /// this to [`MonitorHandle::scale_factor()`].
+    /// this to [`MonitorHandleProvider::scale_factor()`].
     ///
     /// [`UIWindow`]: https://developer.apple.com/documentation/uikit/uiwindow?language=objc
     /// [`contentScaleFactor`]: https://developer.apple.com/documentation/uikit/uiview/1622657-contentscalefactor?language=objc
+    /// [`MonitorHandleProvider::scale_factor()`]: crate::monitor::MonitorHandleProvider::scale_factor()
     fn set_scale_factor(&self, scale_factor: f64);
 
     /// Sets the valid orientations for the [`Window`].
@@ -289,10 +291,11 @@ pub trait WindowAttributesExtIOS {
     /// Sets the [`contentScaleFactor`] of the underlying [`UIWindow`] to `scale_factor`.
     ///
     /// The default value is device dependent, and it's recommended GLES or Metal applications set
-    /// this to [`MonitorHandle::scale_factor()`].
+    /// this to [`MonitorHandleProvider::scale_factor()`].
     ///
     /// [`UIWindow`]: https://developer.apple.com/documentation/uikit/uiwindow?language=objc
     /// [`contentScaleFactor`]: https://developer.apple.com/documentation/uikit/uiview/1622657-contentscalefactor?language=objc
+    /// [`MonitorHandleProvider::scale_factor()`]: crate::monitor::MonitorHandleProvider::scale_factor()
     fn with_scale_factor(self, scale_factor: f64) -> Self;
 
     /// Sets the valid orientations for the [`Window`].
@@ -395,12 +398,14 @@ impl MonitorHandleExtIOS for MonitorHandle {
     fn ui_screen(&self) -> *mut c_void {
         // SAFETY: The marker is only used to get the pointer of the screen
         let mtm = unsafe { objc2::MainThreadMarker::new_unchecked() };
-        objc2::rc::Retained::as_ptr(self.inner.ui_screen(mtm)) as *mut c_void
+        let monitor = self.as_any().downcast_ref::<IosMonitorHandle>().unwrap();
+        objc2::rc::Retained::as_ptr(monitor.ui_screen(mtm)) as *mut c_void
     }
 
     #[inline]
     fn preferred_video_mode(&self) -> VideoMode {
-        self.inner.preferred_video_mode()
+        let monitor = self.as_any().downcast_ref::<IosMonitorHandle>().unwrap();
+        monitor.preferred_video_mode()
     }
 }
 

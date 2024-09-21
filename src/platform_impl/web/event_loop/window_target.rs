@@ -18,7 +18,7 @@ use crate::event_loop::{
     EventLoopProxy as RootEventLoopProxy, OwnedDisplayHandle as CoreOwnedDisplayHandle,
 };
 use crate::keyboard::ModifiersState;
-use crate::monitor::MonitorHandle as RootMonitorHandle;
+use crate::monitor::MonitorHandle as CoremMonitorHandle;
 use crate::platform::web::{CustomCursorFuture, PollStrategy, WaitUntilStrategy};
 use crate::platform_impl::platform::cursor::CustomCursor;
 use crate::platform_impl::web::event_loop::proxy::EventLoopProxy;
@@ -502,18 +502,18 @@ impl RootActiveEventLoop for ActiveEventLoop {
         Ok(RootCustomCursor { inner: CustomCursor::new(self, source.inner) })
     }
 
-    fn available_monitors(&self) -> Box<dyn Iterator<Item = RootMonitorHandle>> {
+    fn available_monitors(&self) -> Box<dyn Iterator<Item = CoremMonitorHandle>> {
         Box::new(
             self.runner
                 .monitor()
                 .available_monitors()
                 .into_iter()
-                .map(|inner| RootMonitorHandle { inner }),
+                .map(|monitor| CoremMonitorHandle(Arc::new(monitor))),
         )
     }
 
-    fn primary_monitor(&self) -> Option<RootMonitorHandle> {
-        self.runner.monitor().primary_monitor().map(|inner| RootMonitorHandle { inner })
+    fn primary_monitor(&self) -> Option<CoremMonitorHandle> {
+        self.runner.monitor().primary_monitor().map(|monitor| CoremMonitorHandle(Arc::new(monitor)))
     }
 
     fn listen_device_events(&self, allowed: DeviceEvents) {
