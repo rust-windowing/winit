@@ -15,7 +15,6 @@ use windows_sys::Win32::Foundation::HANDLE;
 use crate::dpi::PhysicalSize;
 use crate::event::DeviceId;
 use crate::event_loop::EventLoopBuilder;
-use crate::monitor::MonitorHandle;
 use crate::window::{BadIcon, Icon, Window, WindowAttributes};
 
 /// Window Handle type used by Win32 API
@@ -615,27 +614,6 @@ impl WindowAttributesExtWindows for WindowAttributes {
     fn with_corner_preference(mut self, corners: CornerPreference) -> Self {
         self.platform_specific.corner_preference = Some(corners);
         self
-    }
-}
-
-/// Additional methods on `MonitorHandle` that are specific to Windows.
-pub trait MonitorHandleExtWindows {
-    /// Returns the name of the monitor adapter specific to the Win32 API.
-    fn native_id(&self) -> String;
-
-    /// Returns the handle of the monitor - `HMONITOR`.
-    fn hmonitor(&self) -> HMONITOR;
-}
-
-impl MonitorHandleExtWindows for MonitorHandle {
-    #[inline]
-    fn native_id(&self) -> String {
-        self.inner.native_identifier()
-    }
-
-    #[inline]
-    fn hmonitor(&self) -> HMONITOR {
-        self.inner.hmonitor()
     }
 }
 

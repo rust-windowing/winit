@@ -19,7 +19,8 @@ use windows_sys::Win32::UI::WindowsAndMessaging::{
 use crate::dpi::{PhysicalPosition, PhysicalSize, Size};
 use crate::icon::Icon;
 use crate::keyboard::ModifiersState;
-use crate::platform_impl::platform::{event_loop, util, Fullscreen, SelectedCursor};
+use crate::monitor::Fullscreen;
+use crate::platform_impl::platform::{event_loop, util, SelectedCursor};
 use crate::window::{Theme, WindowAttributes};
 
 /// Contains information about states and the window that the callback is going to use.

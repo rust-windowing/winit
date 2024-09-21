@@ -58,8 +58,7 @@ use crate::application::ApplicationHandler;
 use crate::cursor::CustomCursorSource;
 use crate::error::NotSupportedError;
 use crate::event_loop::{ActiveEventLoop, EventLoop};
-use crate::monitor::MonitorHandle;
-use crate::platform_impl::PlatformCustomCursorSource;
+use crate::monitor::MonitorHandleProvider;
 #[cfg(web_platform)]
 use crate::platform_impl::{
     CustomCursorFuture as PlatformCustomCursorFuture,
@@ -67,6 +66,7 @@ use crate::platform_impl::{
     MonitorPermissionFuture as PlatformMonitorPermissionFuture,
     OrientationLockFuture as PlatformOrientationLockFuture,
 };
+use crate::platform_impl::{MonitorHandle as WebMonitorHandle, PlatformCustomCursorSource};
 use crate::window::{CustomCursor, Window, WindowAttributes};
 
 #[cfg(not(web_platform))]
@@ -253,12 +253,18 @@ pub trait EventLoopExtWeb {
     ///
     /// [`MonitorHandle`]s don't automatically make use of this after permission is granted. New
     /// [`MonitorHandle`]s have to be created instead.
+    ///
+    /// [`MonitorHandle`]: crate::monitor::MonitorHandle
     fn request_detailed_monitor_permission(&self) -> MonitorPermissionFuture;
 
     /// Returns whether the user has given permission to access detailed monitor information.
     ///
     /// [`MonitorHandle`]s don't automatically make use of detailed monitor information after
     /// permission is granted. New [`MonitorHandle`]s have to be created instead.
+    ///
+    /// [`MonitorHandle`]: crate::monitor::MonitorHandle
+    ///
+    /// [`MonitorHandle`]: crate::monitor::MonitorHandle
     fn has_detailed_monitor_permission(&self) -> HasMonitorPermissionFuture;
 }
 
@@ -348,12 +354,16 @@ pub trait ActiveEventLoopExtWeb {
     ///
     /// [`MonitorHandle`]s don't automatically make use of this after permission is granted. New
     /// [`MonitorHandle`]s have to be created instead.
+    ///
+    /// [`MonitorHandle`]: crate::monitor::MonitorHandle
     fn request_detailed_monitor_permission(&self) -> MonitorPermissionFuture;
 
     /// Returns whether the user has given permission to access detailed monitor information.
     ///
     /// [`MonitorHandle`]s don't automatically make use of detailed monitor information after
     /// permission is granted. New [`MonitorHandle`]s have to be created instead.
+    ///
+    /// [`MonitorHandle`]: crate::monitor::MonitorHandle
     fn has_detailed_monitor_permission(&self) -> bool;
 }
 
@@ -650,6 +660,8 @@ impl Future for HasMonitorPermissionFuture {
 }
 
 /// Additional methods on [`MonitorHandle`] that are specific to the Web.
+///
+/// [`MonitorHandle`]: crate::monitor::MonitorHandle
 pub trait MonitorHandleExtWeb {
     /// Returns whether the screen is internal to the device or external.
     ///
@@ -677,28 +689,35 @@ pub trait MonitorHandleExtWeb {
     /// specific monitor.
     ///
     /// See [`ActiveEventLoopExtWeb::request_detailed_monitor_permission()`].
+    ///
+    /// [`MonitorHandle`]: crate::monitor::MonitorHandle
     fn is_detailed(&self) -> bool;
 }
 
-impl MonitorHandleExtWeb for MonitorHandle {
+impl MonitorHandleExtWeb for dyn MonitorHandleProvider + '_ {
     fn is_internal(&self) -> Option<bool> {
-        self.inner.is_internal()
+        self.as_any().downcast_ref::<WebMonitorHandle>().unwrap().is_internal()
     }
 
     fn orientation(&self) -> OrientationData {
-        self.inner.orientation()
+        self.as_any().downcast_ref::<WebMonitorHandle>().unwrap().orientation()
     }
 
     fn request_lock(&self, orientation_lock: OrientationLock) -> OrientationLockFuture {
-        OrientationLockFuture(self.inner.request_lock(orientation_lock))
+        let future = self
+            .as_any()
+            .downcast_ref::<WebMonitorHandle>()
+            .unwrap()
+            .request_lock(orientation_lock);
+        OrientationLockFuture(future)
     }
 
     fn unlock(&self) -> Result<(), OrientationLockError> {
-        self.inner.unlock()
+        self.as_any().downcast_ref::<WebMonitorHandle>().unwrap().unlock()
     }
 
     fn is_detailed(&self) -> bool {
-        self.inner.is_detailed()
+        self.as_any().downcast_ref::<WebMonitorHandle>().unwrap().is_detailed()
     }
 }
 

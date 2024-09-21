@@ -28,7 +28,7 @@ use crate::event_loop::{
     ActiveEventLoop as RootActiveEventLoop, ControlFlow, DeviceEvents,
     EventLoopProxy as CoreEventLoopProxy, OwnedDisplayHandle as CoreOwnedDisplayHandle,
 };
-use crate::monitor::MonitorHandle as RootMonitorHandle;
+use crate::monitor::MonitorHandle as CoreMonitorHandle;
 use crate::platform_impl::Window;
 use crate::window::{CustomCursor, CustomCursorSource, Theme, Window as CoreWindow};
 
@@ -56,14 +56,18 @@ impl RootActiveEventLoop for ActiveEventLoop {
         Err(NotSupportedError::new("create_custom_cursor is not supported").into())
     }
 
-    fn available_monitors(&self) -> Box<dyn Iterator<Item = RootMonitorHandle>> {
-        Box::new(monitor::uiscreens(self.mtm).into_iter().map(|inner| RootMonitorHandle { inner }))
+    fn available_monitors(&self) -> Box<dyn Iterator<Item = CoreMonitorHandle>> {
+        Box::new(
+            monitor::uiscreens(self.mtm)
+                .into_iter()
+                .map(|monitor| CoreMonitorHandle(Arc::new(monitor))),
+        )
     }
 
     fn primary_monitor(&self) -> Option<crate::monitor::MonitorHandle> {
         #[allow(deprecated)]
         let monitor = MonitorHandle::new(UIScreen::mainScreen(self.mtm));
-        Some(RootMonitorHandle { inner: monitor })
+        Some(CoreMonitorHandle(Arc::new(monitor)))
     }
 
     fn listen_device_events(&self, _allowed: DeviceEvents) {}

@@ -24,4 +24,3 @@ pub(crate) use self::window::Window;
 pub(crate) use self::window_delegate::PlatformSpecificWindowAttributes;
 pub(crate) use crate::cursor::OnlyCursorImageSource as PlatformCustomCursorSource;
 pub(crate) use crate::icon::NoIcon as PlatformIcon;
-pub(crate) use crate::platform_impl::Fullscreen;

@@ -2,7 +2,7 @@ use std::cell::Cell;
 use std::collections::VecDeque;
 use std::sync::{mpsc, Arc, Mutex};
 use std::time::Instant;
-use std::{mem, slice};
+use std::{iter, mem, slice};
 
 use bitflags::bitflags;
 use orbclient::{
@@ -11,9 +11,7 @@ use orbclient::{
 };
 use smol_str::SmolStr;
 
-use super::{
-    MonitorHandle, PlatformSpecificEventLoopAttributes, RedoxSocket, TimeSocket, WindowProperties,
-};
+use super::{PlatformSpecificEventLoopAttributes, RedoxSocket, TimeSocket, WindowProperties};
 use crate::application::ApplicationHandler;
 use crate::error::{EventLoopError, NotSupportedError, RequestError};
 use crate::event::{self, Ime, Modifiers, StartCause};
@@ -711,9 +709,7 @@ impl RootActiveEventLoop for ActiveEventLoop {
     }
 
     fn available_monitors(&self) -> Box<dyn Iterator<Item = crate::monitor::MonitorHandle>> {
-        let mut v = VecDeque::with_capacity(1);
-        v.push_back(crate::monitor::MonitorHandle { inner: MonitorHandle });
-        Box::new(v.into_iter())
+        Box::new(iter::empty())
     }
 
     fn system_theme(&self) -> Option<Theme> {
@@ -721,7 +717,7 @@ impl RootActiveEventLoop for ActiveEventLoop {
     }
 
     fn primary_monitor(&self) -> Option<crate::monitor::MonitorHandle> {
-        Some(crate::monitor::MonitorHandle { inner: MonitorHandle })
+        None
     }
 
     fn listen_device_events(&self, _allowed: DeviceEvents) {}

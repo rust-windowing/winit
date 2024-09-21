@@ -72,6 +72,7 @@ changelog entry.
 - On X11, Wayland, Windows and macOS, improved scancode conversions for more obscure key codes.
 - Add ability to make non-activating window on macOS using `NSPanel` with `NSWindowStyleMask::NonactivatingPanel`.
 - On Windows, add `IconExtWindows::from_resource_name`.
+- Implement `MonitorHandleProvider` for `MonitorHandle` to access common monitor API.
 
 ### Changed
 
@@ -189,6 +190,7 @@ changelog entry.
 - On macOS, no longer need control of the main `NSApplication` class (which means you can now override it yourself).
 - Removed `KeyEventExtModifierSupplement`, and made the fields `text_with_all_modifiers` and
   `key_without_modifiers` public on `KeyEvent` instead.
+- Move `window::Fullscreen` to `monitor::Fullscreen`.
 
 ### Removed
 

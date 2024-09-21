@@ -13,11 +13,10 @@ use super::{backend, lock, ActiveEventLoop};
 use crate::dpi::{LogicalInsets, PhysicalInsets, PhysicalPosition, PhysicalSize, Position, Size};
 use crate::error::{NotSupportedError, RequestError};
 use crate::icon::Icon;
-use crate::monitor::MonitorHandle as RootMonitorHandle;
+use crate::monitor::{Fullscreen, MonitorHandle as CoremMonitorHandle};
 use crate::window::{
-    Cursor, CursorGrabMode, Fullscreen as RootFullscreen, ImePurpose, ResizeDirection, Theme,
-    UserAttentionType, Window as RootWindow, WindowAttributes, WindowButtons, WindowId,
-    WindowLevel,
+    Cursor, CursorGrabMode, ImePurpose, ResizeDirection, Theme, UserAttentionType,
+    Window as RootWindow, WindowAttributes, WindowButtons, WindowId, WindowLevel,
 };
 
 pub struct Window {
@@ -270,20 +269,20 @@ impl RootWindow for Window {
         false
     }
 
-    fn set_fullscreen(&self, fullscreen: Option<RootFullscreen>) {
+    fn set_fullscreen(&self, fullscreen: Option<Fullscreen>) {
         self.inner.dispatch(move |inner| {
             if let Some(fullscreen) = fullscreen {
-                inner.canvas.request_fullscreen(fullscreen.into());
+                inner.canvas.request_fullscreen(fullscreen);
             } else {
                 inner.canvas.exit_fullscreen()
             }
         })
     }
 
-    fn fullscreen(&self) -> Option<RootFullscreen> {
+    fn fullscreen(&self) -> Option<Fullscreen> {
         self.inner.queue(|inner| {
             if inner.canvas.is_fullscreen() {
-                Some(RootFullscreen::Borderless(None))
+                Some(Fullscreen::Borderless(None))
             } else {
                 None
             }
@@ -396,21 +395,21 @@ impl RootWindow for Window {
         Err(NotSupportedError::new("set_cursor_hittest is not supported").into())
     }
 
-    fn current_monitor(&self) -> Option<RootMonitorHandle> {
+    fn current_monitor(&self) -> Option<CoremMonitorHandle> {
         Some(self.inner.queue(|inner| inner.monitor.current_monitor()).into())
     }
 
-    fn available_monitors(&self) -> Box<dyn Iterator<Item = RootMonitorHandle>> {
+    fn available_monitors(&self) -> Box<dyn Iterator<Item = CoremMonitorHandle>> {
         Box::new(
             self.inner
                 .queue(|inner| inner.monitor.available_monitors())
                 .into_iter()
-                .map(RootMonitorHandle::from),
+                .map(CoremMonitorHandle::from),
         )
     }
 
-    fn primary_monitor(&self) -> Option<RootMonitorHandle> {
-        self.inner.queue(|inner| inner.monitor.primary_monitor()).map(RootMonitorHandle::from)
+    fn primary_monitor(&self) -> Option<CoremMonitorHandle> {
+        self.inner.queue(|inner| inner.monitor.primary_monitor()).map(CoremMonitorHandle::from)
     }
 
     fn rwh_06_display_handle(&self) -> &dyn rwh_06::HasDisplayHandle {
