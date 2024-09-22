@@ -241,7 +241,8 @@ pub enum WindowEvent {
         /// (x,y) coords in pixels relative to the top-left corner of the window. Because the range
         /// of this data is limited by the display area and it may have been transformed by
         /// the OS to implement effects such as cursor acceleration, it should not be used
-        /// to implement non-cursor-like interactions such as 3D camera control.
+        /// to implement non-cursor-like interactions such as 3D camera control. For that,
+        /// consider [`DeviceEvent::MouseMotion`].
         position: PhysicalPosition<f64>,
     },
 
