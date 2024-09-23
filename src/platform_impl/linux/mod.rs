@@ -647,7 +647,7 @@ pub(crate) enum PlatformCustomCursor {
 
 /// Hooks for X11 errors.
 #[cfg(x11_platform)]
-pub(crate) static mut XLIB_ERROR_HOOKS: Mutex<Vec<XlibErrorHook>> = Mutex::new(Vec::new());
+pub(crate) static XLIB_ERROR_HOOKS: Mutex<Vec<XlibErrorHook>> = Mutex::new(Vec::new());
 
 #[cfg(x11_platform)]
 unsafe extern "C" fn x_error_callback(
@@ -658,7 +658,7 @@ unsafe extern "C" fn x_error_callback(
     if let Ok(ref xconn) = *xconn_lock {
         // Call all the hooks.
         let mut error_handled = false;
-        for hook in unsafe { XLIB_ERROR_HOOKS.lock() }.unwrap().iter() {
+        for hook in XLIB_ERROR_HOOKS.lock().unwrap().iter() {
             error_handled |= hook(display as *mut _, event as *mut _);
         }
 
