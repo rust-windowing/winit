@@ -147,6 +147,8 @@ impl AppState {
         // must be mut because plain `static` requires `Sync`
         static mut APP_STATE: RefCell<Option<AppState>> = RefCell::new(None);
 
+        #[allow(unknown_lints)] // New lint below
+        #[allow(static_mut_refs)] // TODO: Use `MainThreadBound` instead.
         let mut guard = unsafe { APP_STATE.borrow_mut() };
         if guard.is_none() {
             #[inline(never)]
