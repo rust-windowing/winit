@@ -43,6 +43,8 @@ changelog entry.
 ### Added
 
 - Add `ActiveEventLoop::create_proxy()`.
+- On Android, map hover events to their winit equivalents. These events
+  are required for accessibility.
 - On Web, add `ActiveEventLoopExtWeb::is_cursor_lock_raw()` to determine if
   `DeviceEvent::MouseMotion` is returning raw data, not OS accelerated, when using
   `CursorGrabMode::Locked`.
