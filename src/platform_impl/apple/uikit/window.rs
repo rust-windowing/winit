@@ -510,36 +510,6 @@ impl Window {
         let window = WinitUIWindow::new(mtm, &window_attributes, frame, &view_controller);
         window.makeKeyAndVisible();
 
-        // Like the Windows and macOS backends, we send a `ScaleFactorChanged` and `SurfaceResized`
-        // event on window creation if the DPI factor != 1.0
-        let scale_factor = view.contentScaleFactor();
-        let scale_factor = scale_factor as f64;
-        if scale_factor != 1.0 {
-            let bounds = view.bounds();
-            let screen = window.screen();
-            let screen_space = screen.coordinateSpace();
-            let screen_frame = view.convertRect_toCoordinateSpace(bounds, &screen_space);
-            let size = LogicalSize {
-                width: screen_frame.size.width as f64,
-                height: screen_frame.size.height as f64,
-            };
-            let window_id = CoreWindowId(window.id());
-            app_state::handle_nonuser_events(
-                mtm,
-                std::iter::once(EventWrapper::ScaleFactorChanged(app_state::ScaleFactorChanged {
-                    window: window.clone(),
-                    scale_factor,
-                    suggested_size: size.to_physical(scale_factor),
-                }))
-                .chain(std::iter::once(EventWrapper::StaticEvent(
-                    Event::WindowEvent {
-                        window_id,
-                        event: WindowEvent::SurfaceResized(size.to_physical(scale_factor)),
-                    },
-                ))),
-            );
-        }
-
         let inner = Inner { window, view_controller, view, gl_or_metal_backed };
         Ok(Window { inner: MainThreadBound::new(inner, mtm) })
     }

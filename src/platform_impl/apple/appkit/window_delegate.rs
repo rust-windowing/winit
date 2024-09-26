@@ -740,12 +740,6 @@ impl WindowDelegate {
         });
         let delegate: Retained<WindowDelegate> = unsafe { msg_send_id![super(delegate), init] };
 
-        if scale_factor != 1.0 {
-            let delegate = delegate.clone();
-            RunLoop::main(mtm).queue_closure(move || {
-                delegate.handle_scale_factor_changed(scale_factor);
-            });
-        }
         window.setDelegate(Some(ProtocolObject::from_ref(&*delegate)));
 
         // Listen for theme change event.
@@ -775,10 +769,6 @@ impl WindowDelegate {
         delegate.set_window_level(attrs.window_level);
 
         delegate.set_cursor(attrs.cursor);
-
-        // XXX Send `Focused(false)` right after creating the window delegate, so we won't
-        // obscure the real focused events on the startup.
-        delegate.queue_event(WindowEvent::Focused(false));
 
         // Set fullscreen mode after we setup everything
         delegate.set_fullscreen(attrs.fullscreen.map(Into::into));
