@@ -88,8 +88,8 @@ pub(crate) struct State {
 
     // During `windowDidResize`, we use this to only send Moved if the position changed.
     //
-    // This is expressed in native screen coordinates.
-    previous_position: Cell<Option<NSPoint>>,
+    // This is expressed in desktop coordinates, and flipped to match Winit's coordinate system.
+    previous_position: Cell<NSPoint>,
 
     // Used to prevent redundant events.
     previous_scale_factor: Cell<f64>,
@@ -722,7 +722,7 @@ impl WindowDelegate {
         let delegate = mtm.alloc().set_ivars(State {
             app_state: Rc::clone(app_state),
             window: window.retain(),
-            previous_position: Cell::new(None),
+            previous_position: Cell::new(flip_window_screen_coordinates(window.frame())),
             previous_scale_factor: Cell::new(scale_factor),
             surface_resize_increments: Cell::new(surface_resize_increments),
             decorations: Cell::new(attrs.decorations),
@@ -849,13 +849,12 @@ impl WindowDelegate {
     }
 
     fn emit_move_event(&self) {
-        let frame = self.window().frame();
-        if self.ivars().previous_position.get() == Some(frame.origin) {
+        let position = flip_window_screen_coordinates(self.window().frame());
+        if self.ivars().previous_position.get() == position {
             return;
         }
-        self.ivars().previous_position.set(Some(frame.origin));
+        self.ivars().previous_position.set(position);
 
-        let position = flip_window_screen_coordinates(frame);
         let position =
             LogicalPosition::new(position.x, position.y).to_physical(self.scale_factor());
         self.queue_event(WindowEvent::Moved(position));
