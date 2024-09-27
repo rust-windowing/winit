@@ -88,7 +88,7 @@ changelog entry.
   `ApplicationHandler::resumed/suspended()`.
 
   `ApplicationHandler::can_create_surfaces()` should, for portability reasons
-  to Android, be the only place to create render surfaces.
+  to Android, be the only place to create render surfaces.  
 
   `ApplicationHandler::resumed/suspended()` are now only emitted by iOS and Web
   and now signify actually resuming/suspending the application.
@@ -125,6 +125,7 @@ changelog entry.
   - `Window::set_max_inner_size` to `set_max_surface_size`.
 
   To migrate, you can probably just replace all instances of `inner_size` with `surface_size` in your codebase.
+- On X11, fix XInput handling that prevented a new window from getting the focus. (#2841)
 
 ### Removed
 

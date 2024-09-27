@@ -872,12 +872,30 @@ impl EventProcessor {
         // Set the timestamp.
         self.target.xconn.set_timestamp(xev.time as xproto::Timestamp);
 
+        // A key input implies being the active window
         let window = match self.active_window {
             Some(window) => window,
-            None => return,
+            None => *self.active_window.insert(xev.window as xproto::Window),
         };
 
         let window_id = mkwid(window);
+        // A key input also implies having the focus.
+        // `focused` indicates if the focus has been gained here and we have to
+        // notify the user callback.
+        let focused = self.with_window(window, |window| {
+            let mut shared_state_lock = window.shared_state_lock();
+            if !shared_state_lock.has_focus {
+                shared_state_lock.has_focus = true;
+                true
+            } else {
+                false
+            }
+        });
+        if focused == Some(true) {
+            let event = Event::WindowEvent { window_id, event: WindowEvent::Focused(true) };
+            callback(&self.target, event);
+        }
+
         let device_id = mkdid(util::VIRTUAL_CORE_KEYBOARD);
 
         let keycode = xev.keycode as _;
