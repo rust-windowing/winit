@@ -65,6 +65,7 @@ changelog entry.
 - Add basic iOS IME support. The soft keyboard can now be shown using `Window::set_ime_allowed`.
 - On macOS, add `WindowExtMacOS::set_borderless_game` and `WindowAttributesExtMacOS::with_borderless_game`
   to fully disable the menu bar and dock in Borderless Fullscreen as commonly done in games.
+- Add `WindowId::into_raw()` and `from_raw()`.
 
 ### Changed
 
@@ -150,6 +151,8 @@ changelog entry.
 - Remove `MonitorHandle::size()` and `refresh_rate_millihertz()` in favor of
   `MonitorHandle::current_video_mode()`.
 - On Android, remove all `MonitorHandle` support instead of emitting false data.
+- Remove `impl From<u64> for WindowId` and `impl From<WindowId> for u64`. Replaced with
+  `WindowId::into_raw()` and `from_raw()`.
 
 ### Fixed
 

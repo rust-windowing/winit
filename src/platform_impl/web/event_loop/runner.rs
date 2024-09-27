@@ -49,7 +49,7 @@ struct Execution {
     suspended: Cell<bool>,
     event_loop_recreation: Cell<bool>,
     events: RefCell<VecDeque<EventWrapper>>,
-    id: RefCell<u32>,
+    id: Cell<u64>,
     window: web_sys::Window,
     navigator: Navigator,
     document: Document,
@@ -171,7 +171,7 @@ impl Shared {
                 window,
                 navigator,
                 document,
-                id: RefCell::new(0),
+                id: Cell::new(0),
                 all_canvases: RefCell::new(Vec::new()),
                 redraw_pending: RefCell::new(HashSet::new()),
                 destroy_pending: RefCell::new(VecDeque::new()),
@@ -438,11 +438,11 @@ impl Shared {
 
     // Generate a strictly increasing ID
     // This is used to differentiate windows when handling events
-    pub fn generate_id(&self) -> u32 {
-        let mut id = self.0.id.borrow_mut();
-        *id += 1;
+    pub fn generate_id(&self) -> u64 {
+        let id = self.0.id.get();
+        self.0.id.set(id.checked_add(1).expect("exhausted `WindowId`"));
 
-        *id
+        id
     }
 
     pub fn request_redraw(&self, id: WindowId) {
