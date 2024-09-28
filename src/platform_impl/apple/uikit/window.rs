@@ -20,7 +20,7 @@ use super::{app_state, monitor, ActiveEventLoop, Fullscreen, MonitorHandle};
 use crate::cursor::Cursor;
 use crate::dpi::{LogicalPosition, LogicalSize, PhysicalPosition, PhysicalSize, Position, Size};
 use crate::error::{NotSupportedError, RequestError};
-use crate::event::{Event, WindowEvent};
+use crate::event::WindowEvent;
 use crate::icon::Icon;
 use crate::monitor::MonitorHandle as CoreMonitorHandle;
 use crate::platform::ios::{ScreenEdge, StatusBarStyle, ValidOrientations};
@@ -48,10 +48,10 @@ declare_class!(
             let mtm = MainThreadMarker::new().unwrap();
             app_state::handle_nonuser_event(
                 mtm,
-                EventWrapper::StaticEvent(Event::WindowEvent {
+                EventWrapper::Window {
                     window_id: CoreWindowId(self.id()),
                     event: WindowEvent::Focused(true),
-                }),
+                },
             );
             let _: () = unsafe { msg_send![super(self), becomeKeyWindow] };
         }
@@ -61,10 +61,10 @@ declare_class!(
             let mtm = MainThreadMarker::new().unwrap();
             app_state::handle_nonuser_event(
                 mtm,
-                EventWrapper::StaticEvent(Event::WindowEvent {
+                EventWrapper::Window {
                     window_id: CoreWindowId(self.id()),
                     event: WindowEvent::Focused(false),
-                }),
+                },
             );
             let _: () = unsafe { msg_send![super(self), resignKeyWindow] };
         }
@@ -530,12 +530,10 @@ impl Window {
                     scale_factor,
                     suggested_size: size.to_physical(scale_factor),
                 }))
-                .chain(std::iter::once(EventWrapper::StaticEvent(
-                    Event::WindowEvent {
-                        window_id,
-                        event: WindowEvent::SurfaceResized(size.to_physical(scale_factor)),
-                    },
-                ))),
+                .chain(std::iter::once(EventWrapper::Window {
+                    window_id,
+                    event: WindowEvent::SurfaceResized(size.to_physical(scale_factor)),
+                })),
             );
         }
 
