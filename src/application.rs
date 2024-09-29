@@ -196,7 +196,7 @@ pub trait ApplicationHandler {
     fn device_event(
         &mut self,
         event_loop: &dyn ActiveEventLoop,
-        device_id: DeviceId,
+        device_id: Option<DeviceId>,
         event: DeviceEvent,
     ) {
         let _ = (event_loop, device_id, event);
@@ -363,7 +363,7 @@ impl<A: ?Sized + ApplicationHandler> ApplicationHandler for &mut A {
     fn device_event(
         &mut self,
         event_loop: &dyn ActiveEventLoop,
-        device_id: DeviceId,
+        device_id: Option<DeviceId>,
         event: DeviceEvent,
     ) {
         (**self).device_event(event_loop, device_id, event);
@@ -431,7 +431,7 @@ impl<A: ?Sized + ApplicationHandler> ApplicationHandler for Box<A> {
     fn device_event(
         &mut self,
         event_loop: &dyn ActiveEventLoop,
-        device_id: DeviceId,
+        device_id: Option<DeviceId>,
         event: DeviceEvent,
     ) {
         (**self).device_event(event_loop, device_id, event);

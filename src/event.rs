@@ -78,7 +78,7 @@ pub(crate) enum Event {
     ///
     /// [`ApplicationHandler::device_event`]: crate::application::ApplicationHandler::device_event
     #[allow(clippy::enum_variant_names)]
-    DeviceEvent { device_id: DeviceId, event: DeviceEvent },
+    DeviceEvent { device_id: Option<DeviceId>, event: DeviceEvent },
 
     /// See [`ApplicationHandler::suspended`] for details.
     ///
@@ -199,7 +199,7 @@ pub enum WindowEvent {
     ///   numpad keys act as if NumLock wasn't active. When this is used, the OS sends fake key
     ///   events which are not marked as `is_synthetic`.
     KeyboardInput {
-        device_id: DeviceId,
+        device_id: Option<DeviceId>,
         event: KeyEvent,
 
         /// If `true`, the event was generated synthetically by winit
@@ -236,7 +236,7 @@ pub enum WindowEvent {
     /// [`padding`]: https://developer.mozilla.org/en-US/docs/Web/CSS/padding
     /// [`transform`]: https://developer.mozilla.org/en-US/docs/Web/CSS/transform
     CursorMoved {
-        device_id: DeviceId,
+        device_id: Option<DeviceId>,
 
         /// (x,y) coords in pixels relative to the top-left corner of the window. Because the range
         /// of this data is limited by the display area and it may have been transformed by
@@ -255,7 +255,7 @@ pub enum WindowEvent {
     /// [`border`]: https://developer.mozilla.org/en-US/docs/Web/CSS/border
     /// [`padding`]: https://developer.mozilla.org/en-US/docs/Web/CSS/padding
     /// [`transform`]: https://developer.mozilla.org/en-US/docs/Web/CSS/transform
-    CursorEntered { device_id: DeviceId },
+    CursorEntered { device_id: Option<DeviceId> },
 
     /// The cursor has left the window.
     ///
@@ -266,13 +266,13 @@ pub enum WindowEvent {
     /// [`border`]: https://developer.mozilla.org/en-US/docs/Web/CSS/border
     /// [`padding`]: https://developer.mozilla.org/en-US/docs/Web/CSS/padding
     /// [`transform`]: https://developer.mozilla.org/en-US/docs/Web/CSS/transform
-    CursorLeft { device_id: DeviceId },
+    CursorLeft { device_id: Option<DeviceId> },
 
     /// A mouse wheel movement or touchpad scroll occurred.
-    MouseWheel { device_id: DeviceId, delta: MouseScrollDelta, phase: TouchPhase },
+    MouseWheel { device_id: Option<DeviceId>, delta: MouseScrollDelta, phase: TouchPhase },
 
     /// An mouse button press has been received.
-    MouseInput { device_id: DeviceId, state: ElementState, button: MouseButton },
+    MouseInput { device_id: Option<DeviceId>, state: ElementState, button: MouseButton },
 
     /// Two-finger pinch gesture, often used for magnification.
     ///
@@ -281,7 +281,7 @@ pub enum WindowEvent {
     /// - Only available on **macOS** and **iOS**.
     /// - On iOS, not recognized by default. It must be enabled when needed.
     PinchGesture {
-        device_id: DeviceId,
+        device_id: Option<DeviceId>,
         /// Positive values indicate magnification (zooming in) and  negative
         /// values indicate shrinking (zooming out).
         ///
@@ -297,7 +297,7 @@ pub enum WindowEvent {
     /// - Only available on **iOS**.
     /// - On iOS, not recognized by default. It must be enabled when needed.
     PanGesture {
-        device_id: DeviceId,
+        device_id: Option<DeviceId>,
         /// Change in pixels of pan gesture from last update.
         delta: PhysicalPosition<f32>,
         phase: TouchPhase,
@@ -321,7 +321,7 @@ pub enum WindowEvent {
     ///
     /// - Only available on **macOS 10.8** and later, and **iOS**.
     /// - On iOS, not recognized by default. It must be enabled when needed.
-    DoubleTapGesture { device_id: DeviceId },
+    DoubleTapGesture { device_id: Option<DeviceId> },
 
     /// Two-finger rotation gesture.
     ///
@@ -333,7 +333,7 @@ pub enum WindowEvent {
     /// - Only available on **macOS** and **iOS**.
     /// - On iOS, not recognized by default. It must be enabled when needed.
     RotationGesture {
-        device_id: DeviceId,
+        device_id: Option<DeviceId>,
         /// change in rotation in degrees
         delta: f32,
         phase: TouchPhase,
@@ -344,7 +344,7 @@ pub enum WindowEvent {
     /// At the moment, only supported on Apple forcetouch-capable macbooks.
     /// The parameters are: pressure level (value between 0 and 1 representing how hard the
     /// touchpad is being pressed) and stage (integer representing the click level).
-    TouchpadPressure { device_id: DeviceId, pressure: f32, stage: i64 },
+    TouchpadPressure { device_id: Option<DeviceId>, pressure: f32, stage: i64 },
 
     /// Touch event has been received
     ///
@@ -440,25 +440,6 @@ pub enum WindowEvent {
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct DeviceId(pub(crate) platform_impl::DeviceId);
 
-impl Default for DeviceId {
-    fn default() -> Self {
-        Self::dummy()
-    }
-}
-
-impl DeviceId {
-    /// Returns a dummy id, useful for unit testing.
-    ///
-    /// # Notes
-    ///
-    /// The only guarantee made about the return value of this function is that
-    /// it will always be equal to itself and to future values returned by this function.
-    /// No other guarantees are made. This may be equal to a real `DeviceId`.
-    pub const fn dummy() -> Self {
-        DeviceId(platform_impl::DeviceId::dummy())
-    }
-}
-
 /// Identifier of a finger in a touch event.
 ///
 /// Whenever a touch event is received it contains a `FingerId` which uniquely identifies the finger
@@ -467,14 +448,8 @@ impl DeviceId {
 pub struct FingerId(pub(crate) platform_impl::FingerId);
 
 impl FingerId {
-    /// Returns a dummy id, useful for unit testing.
-    ///
-    /// # Notes
-    ///
-    /// The only guarantee made about the return value of this function is that
-    /// it will always be equal to itself and to future values returned by this function.
-    /// No other guarantees are made. This may be equal to a real `FingerId`.
-    pub const fn dummy() -> Self {
+    #[cfg(test)]
+    pub(crate) const fn dummy() -> Self {
         FingerId(platform_impl::FingerId::dummy())
     }
 }
@@ -865,7 +840,7 @@ pub enum TouchPhase {
 /// [`transform`]: https://developer.mozilla.org/en-US/docs/Web/CSS/transform
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Touch {
-    pub device_id: DeviceId,
+    pub device_id: Option<DeviceId>,
     pub phase: TouchPhase,
     pub location: PhysicalPosition<f64>,
     /// Describes how hard the screen was pressed. May be `None` if the platform
@@ -1046,7 +1021,6 @@ mod tests {
         ($closure:expr) => {{
             #[allow(unused_mut)]
             let mut x = $closure;
-            let did = event::DeviceId::dummy();
             let fid = event::FingerId::dummy();
 
             #[allow(deprecated)]
@@ -1057,7 +1031,7 @@ mod tests {
                 use crate::window::WindowId;
 
                 // Mainline events.
-                let wid = WindowId::dummy();
+                let wid = WindowId::from_raw(0);
                 x(NewEvents(event::StartCause::Init));
                 x(AboutToWait);
                 x(LoopExiting);
@@ -1076,39 +1050,39 @@ mod tests {
                 with_window_event(HoveredFile("x.txt".into()));
                 with_window_event(HoveredFileCancelled);
                 with_window_event(Ime(Enabled));
-                with_window_event(CursorMoved { device_id: did, position: (0, 0).into() });
+                with_window_event(CursorMoved { device_id: None, position: (0, 0).into() });
                 with_window_event(ModifiersChanged(event::Modifiers::default()));
-                with_window_event(CursorEntered { device_id: did });
-                with_window_event(CursorLeft { device_id: did });
+                with_window_event(CursorEntered { device_id: None });
+                with_window_event(CursorLeft { device_id: None });
                 with_window_event(MouseWheel {
-                    device_id: did,
+                    device_id: None,
                     delta: event::MouseScrollDelta::LineDelta(0.0, 0.0),
                     phase: event::TouchPhase::Started,
                 });
                 with_window_event(MouseInput {
-                    device_id: did,
+                    device_id: None,
                     state: event::ElementState::Pressed,
                     button: event::MouseButton::Other(0),
                 });
                 with_window_event(PinchGesture {
-                    device_id: did,
+                    device_id: None,
                     delta: 0.0,
                     phase: event::TouchPhase::Started,
                 });
-                with_window_event(DoubleTapGesture { device_id: did });
+                with_window_event(DoubleTapGesture { device_id: None });
                 with_window_event(RotationGesture {
-                    device_id: did,
+                    device_id: None,
                     delta: 0.0,
                     phase: event::TouchPhase::Started,
                 });
                 with_window_event(PanGesture {
-                    device_id: did,
+                    device_id: None,
                     delta: PhysicalPosition::<f32>::new(0.0, 0.0),
                     phase: event::TouchPhase::Started,
                 });
-                with_window_event(TouchpadPressure { device_id: did, pressure: 0.0, stage: 0 });
+                with_window_event(TouchpadPressure { device_id: None, pressure: 0.0, stage: 0 });
                 with_window_event(Touch(event::Touch {
-                    device_id: did,
+                    device_id: None,
                     phase: event::TouchPhase::Started,
                     location: (0.0, 0.0).into(),
                     finger_id: fid,
@@ -1123,7 +1097,7 @@ mod tests {
                 use event::DeviceEvent::*;
 
                 let with_device_event =
-                    |dev_ev| x(event::Event::DeviceEvent { device_id: did, event: dev_ev });
+                    |dev_ev| x(event::Event::DeviceEvent { device_id: None, event: dev_ev });
 
                 with_device_event(MouseMotion { delta: (0.0, 0.0).into() });
                 with_device_event(MouseWheel {
@@ -1168,21 +1142,20 @@ mod tests {
         });
         let _ = event::StartCause::Init.clone();
 
-        let did = crate::event::DeviceId::dummy().clone();
         let fid = crate::event::FingerId::dummy().clone();
-        HashSet::new().insert(did);
-        let mut set = [did, did, did];
+        HashSet::new().insert(fid);
+        let mut set = [fid, fid, fid];
         set.sort_unstable();
         let mut set2 = BTreeSet::new();
-        set2.insert(did);
-        set2.insert(did);
+        set2.insert(fid);
+        set2.insert(fid);
 
         HashSet::new().insert(event::TouchPhase::Started.clone());
         HashSet::new().insert(event::MouseButton::Left.clone());
         HashSet::new().insert(event::Ime::Enabled);
 
         let _ = event::Touch {
-            device_id: did,
+            device_id: None,
             phase: event::TouchPhase::Started,
             location: (0.0, 0.0).into(),
             finger_id: fid,

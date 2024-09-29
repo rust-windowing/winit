@@ -24,7 +24,6 @@ use super::event::{
     scancode_to_physicalkey,
 };
 use super::window::WinitWindow;
-use super::DEVICE_ID;
 use crate::dpi::{LogicalPosition, LogicalSize};
 use crate::event::{
     DeviceEvent, ElementState, Ime, Modifiers, MouseButton, MouseScrollDelta, TouchPhase,
@@ -486,7 +485,7 @@ declare_class!(
             if !had_ime_input || self.ivars().forward_key_to_app.get() {
                 let key_event = create_key_event(&event, true, unsafe { event.isARepeat() }, None);
                 self.queue_event(WindowEvent::KeyboardInput {
-                    device_id: DEVICE_ID,
+                    device_id: None,
                     event: key_event,
                     is_synthetic: false,
                 });
@@ -506,7 +505,7 @@ declare_class!(
                 ImeState::Ground | ImeState::Disabled
             ) {
                 self.queue_event(WindowEvent::KeyboardInput {
-                    device_id: DEVICE_ID,
+                    device_id: None,
                     event: create_key_event(&event, false, false, None),
                     is_synthetic: false,
                 });
@@ -557,7 +556,7 @@ declare_class!(
             let event = create_key_event(&event, true, unsafe { event.isARepeat() }, None);
 
             self.queue_event(WindowEvent::KeyboardInput {
-                device_id: DEVICE_ID,
+                device_id: None,
                 event,
                 is_synthetic: false,
             });
@@ -642,7 +641,7 @@ declare_class!(
         fn mouse_entered(&self, _event: &NSEvent) {
             trace_scope!("mouseEntered:");
             self.queue_event(WindowEvent::CursorEntered {
-                device_id: DEVICE_ID,
+                device_id: None,
             });
         }
 
@@ -651,7 +650,7 @@ declare_class!(
             trace_scope!("mouseExited:");
 
             self.queue_event(WindowEvent::CursorLeft {
-                device_id: DEVICE_ID,
+                device_id: None,
             });
         }
 
@@ -689,10 +688,10 @@ declare_class!(
             self.update_modifiers(event, false);
 
             self.ivars().app_state.maybe_queue_with_handler(move |app, event_loop|
-                app.device_event(event_loop, DEVICE_ID, DeviceEvent::MouseWheel { delta })
+                app.device_event(event_loop, None, DeviceEvent::MouseWheel { delta })
             );
             self.queue_event(WindowEvent::MouseWheel {
-                device_id: DEVICE_ID,
+                device_id: None,
                 delta,
                 phase,
             });
@@ -714,7 +713,7 @@ declare_class!(
             };
 
             self.queue_event(WindowEvent::PinchGesture {
-                device_id: DEVICE_ID,
+                device_id: None,
                 delta: unsafe { event.magnification() },
                 phase,
             });
@@ -727,7 +726,7 @@ declare_class!(
             self.mouse_motion(event);
 
             self.queue_event(WindowEvent::DoubleTapGesture {
-                device_id: DEVICE_ID,
+                device_id: None,
             });
         }
 
@@ -747,7 +746,7 @@ declare_class!(
             };
 
             self.queue_event(WindowEvent::RotationGesture {
-                device_id: DEVICE_ID,
+                device_id: None,
                 delta: unsafe { event.rotation() },
                 phase,
             });
@@ -758,7 +757,7 @@ declare_class!(
             trace_scope!("pressureChangeWithEvent:");
 
             self.queue_event(WindowEvent::TouchpadPressure {
-                device_id: DEVICE_ID,
+                device_id: None,
                 pressure: unsafe { event.pressure() },
                 stage: unsafe { event.stage() } as i64,
             });
@@ -972,7 +971,7 @@ impl WinitView {
                         event.location = KeyLocation::Left;
                         event.physical_key = get_left_modifier_code(&event.logical_key).into();
                         events.push_back(WindowEvent::KeyboardInput {
-                            device_id: DEVICE_ID,
+                            device_id: None,
                             event,
                             is_synthetic: false,
                         });
@@ -981,7 +980,7 @@ impl WinitView {
                         event.location = KeyLocation::Right;
                         event.physical_key = get_right_modifier_code(&event.logical_key).into();
                         events.push_back(WindowEvent::KeyboardInput {
-                            device_id: DEVICE_ID,
+                            device_id: None,
                             event,
                             is_synthetic: false,
                         });
@@ -1012,7 +1011,7 @@ impl WinitView {
                     }
 
                     events.push_back(WindowEvent::KeyboardInput {
-                        device_id: DEVICE_ID,
+                        device_id: None,
                         event,
                         is_synthetic: false,
                     });
@@ -1038,11 +1037,7 @@ impl WinitView {
 
         self.update_modifiers(event, false);
 
-        self.queue_event(WindowEvent::MouseInput {
-            device_id: DEVICE_ID,
-            state: button_state,
-            button,
-        });
+        self.queue_event(WindowEvent::MouseInput { device_id: None, state: button_state, button });
     }
 
     fn mouse_motion(&self, event: &NSEvent) {
@@ -1067,7 +1062,7 @@ impl WinitView {
         self.update_modifiers(event, false);
 
         self.queue_event(WindowEvent::CursorMoved {
-            device_id: DEVICE_ID,
+            device_id: None,
             position: view_point.to_physical(self.scale_factor()),
         });
     }

@@ -330,22 +330,23 @@ impl Canvas {
 
     pub fn on_cursor_leave<F>(&self, handler: F)
     where
-        F: 'static + FnMut(ModifiersState, Option<DeviceId>),
+        F: 'static + FnMut(ModifiersState, Option<Option<DeviceId>>),
     {
         self.handlers.borrow_mut().pointer_handler.on_cursor_leave(&self.common, handler)
     }
 
     pub fn on_cursor_enter<F>(&self, handler: F)
     where
-        F: 'static + FnMut(ModifiersState, Option<DeviceId>),
+        F: 'static + FnMut(ModifiersState, Option<Option<DeviceId>>),
     {
         self.handlers.borrow_mut().pointer_handler.on_cursor_enter(&self.common, handler)
     }
 
     pub fn on_mouse_release<M, T>(&self, mouse_handler: M, touch_handler: T)
     where
-        M: 'static + FnMut(ModifiersState, DeviceId, PhysicalPosition<f64>, MouseButton),
-        T: 'static + FnMut(ModifiersState, DeviceId, FingerId, PhysicalPosition<f64>, Force),
+        M: 'static + FnMut(ModifiersState, Option<DeviceId>, PhysicalPosition<f64>, MouseButton),
+        T: 'static
+            + FnMut(ModifiersState, Option<DeviceId>, FingerId, PhysicalPosition<f64>, Force),
     {
         self.handlers.borrow_mut().pointer_handler.on_mouse_release(
             &self.common,
@@ -356,8 +357,9 @@ impl Canvas {
 
     pub fn on_mouse_press<M, T>(&self, mouse_handler: M, touch_handler: T)
     where
-        M: 'static + FnMut(ModifiersState, DeviceId, PhysicalPosition<f64>, MouseButton),
-        T: 'static + FnMut(ModifiersState, DeviceId, FingerId, PhysicalPosition<f64>, Force),
+        M: 'static + FnMut(ModifiersState, Option<DeviceId>, PhysicalPosition<f64>, MouseButton),
+        T: 'static
+            + FnMut(ModifiersState, Option<DeviceId>, FingerId, PhysicalPosition<f64>, Force),
     {
         self.handlers.borrow_mut().pointer_handler.on_mouse_press(
             &self.common,
@@ -370,16 +372,22 @@ impl Canvas {
     pub fn on_cursor_move<M, T, B>(&self, mouse_handler: M, touch_handler: T, button_handler: B)
     where
         M: 'static
-            + FnMut(ModifiersState, DeviceId, &mut dyn Iterator<Item = PhysicalPosition<f64>>),
+            + FnMut(ModifiersState, Option<DeviceId>, &mut dyn Iterator<Item = PhysicalPosition<f64>>),
         T: 'static
             + FnMut(
                 ModifiersState,
-                DeviceId,
+                Option<DeviceId>,
                 FingerId,
                 &mut dyn Iterator<Item = (PhysicalPosition<f64>, Force)>,
             ),
         B: 'static
-            + FnMut(ModifiersState, DeviceId, PhysicalPosition<f64>, ButtonsState, MouseButton),
+            + FnMut(
+                ModifiersState,
+                Option<DeviceId>,
+                PhysicalPosition<f64>,
+                ButtonsState,
+                MouseButton,
+            ),
     {
         self.handlers.borrow_mut().pointer_handler.on_cursor_move(
             &self.common,
@@ -392,7 +400,7 @@ impl Canvas {
 
     pub fn on_touch_cancel<F>(&self, handler: F)
     where
-        F: 'static + FnMut(DeviceId, FingerId, PhysicalPosition<f64>, Force),
+        F: 'static + FnMut(Option<DeviceId>, FingerId, PhysicalPosition<f64>, Force),
     {
         self.handlers.borrow_mut().pointer_handler.on_touch_cancel(&self.common, handler)
     }

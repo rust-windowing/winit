@@ -12,8 +12,8 @@ use orbclient::{
 use smol_str::SmolStr;
 
 use super::{
-    DeviceId, KeyEventExtra, MonitorHandle, PlatformSpecificEventLoopAttributes, RedoxSocket,
-    TimeSocket, WindowId, WindowProperties,
+    KeyEventExtra, MonitorHandle, PlatformSpecificEventLoopAttributes, RedoxSocket, TimeSocket,
+    WindowId, WindowProperties,
 };
 use crate::application::ApplicationHandler;
 use crate::error::{EventLoopError, NotSupportedError, RequestError};
@@ -364,7 +364,7 @@ impl EventLoop {
 
                 let window_id = RootWindowId(window_id);
                 let event = event::WindowEvent::KeyboardInput {
-                    device_id: event::DeviceId(DeviceId),
+                    device_id: None,
                     event: event::KeyEvent {
                         logical_key,
                         physical_key,
@@ -407,29 +407,20 @@ impl EventLoop {
                 app.window_event(
                     window_target,
                     RootWindowId(window_id),
-                    event::WindowEvent::CursorMoved {
-                        device_id: event::DeviceId(DeviceId),
-                        position: (x, y).into(),
-                    },
+                    event::WindowEvent::CursorMoved { device_id: None, position: (x, y).into() },
                 );
             },
             EventOption::MouseRelative(MouseRelativeEvent { dx, dy }) => {
-                app.device_event(
-                    window_target,
-                    event::DeviceId(DeviceId),
-                    event::DeviceEvent::MouseMotion { delta: (dx as f64, dy as f64) },
-                );
+                app.device_event(window_target, None, event::DeviceEvent::MouseMotion {
+                    delta: (dx as f64, dy as f64),
+                });
             },
             EventOption::Button(ButtonEvent { left, middle, right }) => {
                 while let Some((button, state)) = event_state.mouse(left, middle, right) {
                     app.window_event(
                         window_target,
                         RootWindowId(window_id),
-                        event::WindowEvent::MouseInput {
-                            device_id: event::DeviceId(DeviceId),
-                            state,
-                            button,
-                        },
+                        event::WindowEvent::MouseInput { device_id: None, state, button },
                     );
                 }
             },
@@ -438,7 +429,7 @@ impl EventLoop {
                     window_target,
                     RootWindowId(window_id),
                     event::WindowEvent::MouseWheel {
-                        device_id: event::DeviceId(DeviceId),
+                        device_id: None,
                         delta: event::MouseScrollDelta::LineDelta(x as f32, y as f32),
                         phase: event::TouchPhase::Moved,
                     },
@@ -478,9 +469,9 @@ impl EventLoop {
             // TODO: Screen, Clipboard, Drop
             EventOption::Hover(HoverEvent { entered }) => {
                 let event = if entered {
-                    event::WindowEvent::CursorEntered { device_id: event::DeviceId(DeviceId) }
+                    event::WindowEvent::CursorEntered { device_id: None }
                 } else {
-                    event::WindowEvent::CursorLeft { device_id: event::DeviceId(DeviceId) }
+                    event::WindowEvent::CursorLeft { device_id: None }
                 };
 
                 app.window_event(window_target, RootWindowId(window_id), event);

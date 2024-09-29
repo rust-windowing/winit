@@ -14,7 +14,7 @@ use objc2_ui_kit::{
 
 use super::app_state::{self, EventWrapper};
 use super::window::WinitUIWindow;
-use super::{FingerId, DEVICE_ID};
+use super::FingerId;
 use crate::dpi::PhysicalPosition;
 use crate::event::{
     ElementState, Event, FingerId as RootFingerId, Force, KeyEvent, Touch, TouchPhase, WindowEvent,
@@ -198,7 +198,7 @@ declare_class!(
             let gesture_event = EventWrapper::StaticEvent(Event::WindowEvent {
                 window_id: RootWindowId(window.id()),
                 event: WindowEvent::PinchGesture {
-                    device_id: DEVICE_ID,
+                    device_id: None,
                     delta: delta as f64,
                     phase,
                 },
@@ -216,7 +216,7 @@ declare_class!(
                 let gesture_event = EventWrapper::StaticEvent(Event::WindowEvent {
                     window_id: RootWindowId(window.id()),
                     event: WindowEvent::DoubleTapGesture {
-                        device_id: DEVICE_ID,
+                        device_id: None,
                     },
                 });
 
@@ -258,7 +258,7 @@ declare_class!(
             let gesture_event = EventWrapper::StaticEvent(Event::WindowEvent {
                 window_id: RootWindowId(window.id()),
                 event: WindowEvent::RotationGesture {
-                    device_id: DEVICE_ID,
+                    device_id: None,
                     delta: -delta.to_degrees() as _,
                     phase,
                 },
@@ -309,7 +309,7 @@ declare_class!(
             let gesture_event = EventWrapper::StaticEvent(Event::WindowEvent {
                 window_id: RootWindowId(window.id()),
                 event: WindowEvent::PanGesture {
-                    device_id: DEVICE_ID,
+                    device_id: None,
                     delta: PhysicalPosition::new(dx as _, dy as _),
                     phase,
                 },
@@ -530,7 +530,7 @@ impl WinitView {
             touch_events.push(EventWrapper::StaticEvent(Event::WindowEvent {
                 window_id: RootWindowId(window.id()),
                 event: WindowEvent::Touch(Touch {
-                    device_id: DEVICE_ID,
+                    device_id: None,
                     finger_id: RootFingerId(FingerId(touch_id)),
                     location: physical_location,
                     force,
@@ -572,7 +572,7 @@ impl WinitView {
                                 platform_specific: KeyEventExtra {},
                             },
                             is_synthetic: false,
-                            device_id: DEVICE_ID,
+                            device_id: None,
                         },
                     })
                 })
@@ -590,7 +590,7 @@ impl WinitView {
                 EventWrapper::StaticEvent(Event::WindowEvent {
                     window_id,
                     event: WindowEvent::KeyboardInput {
-                        device_id: DEVICE_ID,
+                        device_id: None,
                         event: KeyEvent {
                             state,
                             logical_key: Key::Named(NamedKey::Backspace),

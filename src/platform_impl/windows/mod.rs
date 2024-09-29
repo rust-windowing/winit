@@ -63,12 +63,6 @@ unsafe impl Sync for PlatformSpecificWindowAttributes {}
 pub struct DeviceId(u32);
 
 impl DeviceId {
-    pub const fn dummy() -> Self {
-        DeviceId(0)
-    }
-}
-
-impl DeviceId {
     pub fn persistent_identifier(&self) -> Option<String> {
         if self.0 != 0 {
             raw_input::get_raw_input_device_name(self.0 as HANDLE)
@@ -85,6 +79,7 @@ pub struct FingerId {
 }
 
 impl FingerId {
+    #[cfg(test)]
     pub const fn dummy() -> Self {
         FingerId { id: 0, primary: false }
     }
@@ -95,9 +90,6 @@ impl FingerId {
         self.primary
     }
 }
-
-// Constant device ID, to be removed when this backend is updated to report real device IDs.
-const DEVICE_ID: RootDeviceId = RootDeviceId(DeviceId(0));
 
 fn wrap_device_id(id: u32) -> RootDeviceId {
     RootDeviceId(DeviceId(id))
@@ -115,10 +107,6 @@ unsafe impl Send for WindowId {}
 unsafe impl Sync for WindowId {}
 
 impl WindowId {
-    pub const fn dummy() -> Self {
-        WindowId(0)
-    }
-
     pub const fn into_raw(self) -> u64 {
         self.0 as u64
     }

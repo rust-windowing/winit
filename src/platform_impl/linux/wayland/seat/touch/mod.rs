@@ -10,7 +10,7 @@ use tracing::warn;
 use crate::dpi::LogicalPosition;
 use crate::event::{Touch, TouchPhase, WindowEvent};
 use crate::platform_impl::wayland::state::WinitState;
-use crate::platform_impl::wayland::{self, DeviceId, FingerId};
+use crate::platform_impl::wayland::{self, FingerId};
 
 impl TouchHandler for WinitState {
     fn down(
@@ -44,9 +44,7 @@ impl TouchHandler for WinitState {
 
         self.events_sink.push_window_event(
             WindowEvent::Touch(Touch {
-                device_id: crate::event::DeviceId(crate::platform_impl::DeviceId::Wayland(
-                    DeviceId,
-                )),
+                device_id: None,
                 phase: TouchPhase::Started,
                 location: location.to_physical(scale_factor),
                 force: None,
@@ -89,9 +87,7 @@ impl TouchHandler for WinitState {
 
         self.events_sink.push_window_event(
             WindowEvent::Touch(Touch {
-                device_id: crate::event::DeviceId(crate::platform_impl::DeviceId::Wayland(
-                    DeviceId,
-                )),
+                device_id: None,
                 phase: TouchPhase::Ended,
                 location: touch_point.location.to_physical(scale_factor),
                 force: None,
@@ -136,9 +132,7 @@ impl TouchHandler for WinitState {
 
         self.events_sink.push_window_event(
             WindowEvent::Touch(Touch {
-                device_id: crate::event::DeviceId(crate::platform_impl::DeviceId::Wayland(
-                    DeviceId,
-                )),
+                device_id: None,
                 phase: TouchPhase::Moved,
                 location: touch_point.location.to_physical(scale_factor),
                 force: None,
@@ -170,9 +164,7 @@ impl TouchHandler for WinitState {
 
             self.events_sink.push_window_event(
                 WindowEvent::Touch(Touch {
-                    device_id: crate::event::DeviceId(crate::platform_impl::DeviceId::Wayland(
-                        DeviceId,
-                    )),
+                    device_id: None,
                     phase: TouchPhase::Cancelled,
                     location,
                     force: None,

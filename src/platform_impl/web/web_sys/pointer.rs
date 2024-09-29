@@ -36,7 +36,7 @@ impl PointerHandler {
 
     pub fn on_cursor_leave<F>(&mut self, canvas_common: &Common, mut handler: F)
     where
-        F: 'static + FnMut(ModifiersState, Option<DeviceId>),
+        F: 'static + FnMut(ModifiersState, Option<Option<DeviceId>>),
     {
         self.on_cursor_leave =
             Some(canvas_common.add_event("pointerout", move |event: PointerEvent| {
@@ -54,7 +54,7 @@ impl PointerHandler {
 
     pub fn on_cursor_enter<F>(&mut self, canvas_common: &Common, mut handler: F)
     where
-        F: 'static + FnMut(ModifiersState, Option<DeviceId>),
+        F: 'static + FnMut(ModifiersState, Option<Option<DeviceId>>),
     {
         self.on_cursor_enter =
             Some(canvas_common.add_event("pointerover", move |event: PointerEvent| {
@@ -76,8 +76,9 @@ impl PointerHandler {
         mut mouse_handler: M,
         mut touch_handler: T,
     ) where
-        M: 'static + FnMut(ModifiersState, DeviceId, PhysicalPosition<f64>, MouseButton),
-        T: 'static + FnMut(ModifiersState, DeviceId, FingerId, PhysicalPosition<f64>, Force),
+        M: 'static + FnMut(ModifiersState, Option<DeviceId>, PhysicalPosition<f64>, MouseButton),
+        T: 'static
+            + FnMut(ModifiersState, Option<DeviceId>, FingerId, PhysicalPosition<f64>, Force),
     {
         let window = canvas_common.window.clone();
         self.on_pointer_release =
@@ -112,8 +113,9 @@ impl PointerHandler {
         mut touch_handler: T,
         prevent_default: Rc<Cell<bool>>,
     ) where
-        M: 'static + FnMut(ModifiersState, DeviceId, PhysicalPosition<f64>, MouseButton),
-        T: 'static + FnMut(ModifiersState, DeviceId, FingerId, PhysicalPosition<f64>, Force),
+        M: 'static + FnMut(ModifiersState, Option<DeviceId>, PhysicalPosition<f64>, MouseButton),
+        T: 'static
+            + FnMut(ModifiersState, Option<DeviceId>, FingerId, PhysicalPosition<f64>, Force),
     {
         let window = canvas_common.window.clone();
         let canvas = canvas_common.raw().clone();
@@ -172,16 +174,22 @@ impl PointerHandler {
         prevent_default: Rc<Cell<bool>>,
     ) where
         M: 'static
-            + FnMut(ModifiersState, DeviceId, &mut dyn Iterator<Item = PhysicalPosition<f64>>),
+            + FnMut(ModifiersState, Option<DeviceId>, &mut dyn Iterator<Item = PhysicalPosition<f64>>),
         T: 'static
             + FnMut(
                 ModifiersState,
-                DeviceId,
+                Option<DeviceId>,
                 FingerId,
                 &mut dyn Iterator<Item = (PhysicalPosition<f64>, Force)>,
             ),
         B: 'static
-            + FnMut(ModifiersState, DeviceId, PhysicalPosition<f64>, ButtonsState, MouseButton),
+            + FnMut(
+                ModifiersState,
+                Option<DeviceId>,
+                PhysicalPosition<f64>,
+                ButtonsState,
+                MouseButton,
+            ),
     {
         let window = canvas_common.window.clone();
         let canvas = canvas_common.raw().clone();
@@ -237,7 +245,7 @@ impl PointerHandler {
 
     pub fn on_touch_cancel<F>(&mut self, canvas_common: &Common, mut handler: F)
     where
-        F: 'static + FnMut(DeviceId, FingerId, PhysicalPosition<f64>, Force),
+        F: 'static + FnMut(Option<DeviceId>, FingerId, PhysicalPosition<f64>, Force),
     {
         let window = canvas_common.window.clone();
         self.on_touch_cancel =

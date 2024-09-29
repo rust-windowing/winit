@@ -944,10 +944,6 @@ impl Inner {
 pub struct WindowId(usize);
 
 impl WindowId {
-    pub const fn dummy() -> Self {
-        WindowId(0)
-    }
-
     pub const fn into_raw(self) -> u64 {
         self.0 as _
     }
