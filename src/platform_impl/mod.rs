@@ -1,6 +1,3 @@
-use crate::monitor::{MonitorHandle as RootMonitorHandle, VideoModeHandle as RootVideoModeHandle};
-use crate::window::Fullscreen as RootFullscreen;
-
 #[cfg(android_platform)]
 mod android;
 #[cfg(target_vendor = "apple")]
@@ -27,38 +24,6 @@ pub use self::platform::*;
 use self::web as platform;
 #[cfg(windows_platform)]
 use self::windows as platform;
-
-/// Helper for converting between platform-specific and generic
-/// [`VideoModeHandle`]/[`MonitorHandle`]
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) enum Fullscreen {
-    Exclusive(VideoModeHandle),
-    Borderless(Option<MonitorHandle>),
-}
-
-impl From<RootFullscreen> for Fullscreen {
-    fn from(f: RootFullscreen) -> Self {
-        match f {
-            RootFullscreen::Exclusive(mode) => Self::Exclusive(mode.video_mode),
-            RootFullscreen::Borderless(Some(handle)) => Self::Borderless(Some(handle.inner)),
-            RootFullscreen::Borderless(None) => Self::Borderless(None),
-        }
-    }
-}
-
-impl From<Fullscreen> for RootFullscreen {
-    fn from(f: Fullscreen) -> Self {
-        match f {
-            Fullscreen::Exclusive(video_mode) => {
-                Self::Exclusive(RootVideoModeHandle { video_mode })
-            },
-            Fullscreen::Borderless(Some(inner)) => {
-                Self::Borderless(Some(RootMonitorHandle { inner }))
-            },
-            Fullscreen::Borderless(None) => Self::Borderless(None),
-        }
-    }
-}
 
 #[cfg(all(
     not(ios_platform),

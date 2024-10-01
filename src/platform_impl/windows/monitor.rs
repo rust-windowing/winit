@@ -17,6 +17,12 @@ use crate::monitor::VideoModeHandle as RootVideoModeHandle;
 use crate::platform_impl::platform::dpi::{dpi_to_scale_factor, get_monitor_dpi};
 use crate::platform_impl::platform::util::has_flag;
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Fullscreen {
+    Exclusive(VideoModeHandle),
+    Borderless(Option<MonitorHandle>),
+}
+
 #[derive(Clone)]
 pub struct VideoModeHandle {
     pub(crate) size: (u32, u32),

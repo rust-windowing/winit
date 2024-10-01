@@ -298,6 +298,12 @@ impl MonitorHandle {
     }
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Fullscreen {
+    Exclusive(VideoModeHandle),
+    Borderless(Option<MonitorHandle>),
+}
+
 pub(crate) fn get_display_id(screen: &NSScreen) -> u32 {
     let key = ns_string!("NSScreenNumber");
 
