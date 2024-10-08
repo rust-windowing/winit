@@ -108,19 +108,6 @@ pub(crate) static X11_BACKEND: Lazy<Mutex<Result<Arc<XConnection>, XNotSupported
     Lazy::new(|| Mutex::new(XConnection::new(Some(x_error_callback)).map(Arc::new)));
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct WindowId(u64);
-
-impl WindowId {
-    pub const fn into_raw(self) -> u64 {
-        self.0
-    }
-
-    pub const fn from_raw(id: u64) -> Self {
-        Self(id)
-    }
-}
-
-#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum DeviceId {
     #[cfg(x11_platform)]
     X(x11::DeviceId),

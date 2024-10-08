@@ -29,7 +29,6 @@ use crate::application::ApplicationHandler;
 use crate::dpi::PhysicalSize;
 use crate::event::{Event, StartCause, SurfaceSizeWriter, WindowEvent};
 use crate::event_loop::ControlFlow;
-use crate::window::WindowId as RootWindowId;
 
 macro_rules! bug {
     ($($msg:tt)*) => {
@@ -599,7 +598,7 @@ pub(crate) fn send_occluded_event_for_all_windows(application: &UIApplication, o
                 &*ptr
             };
             events.push(EventWrapper::StaticEvent(Event::WindowEvent {
-                window_id: RootWindowId(window.id()),
+                window_id: window.id(),
                 event: WindowEvent::Occluded(occluded),
             }));
         }
@@ -626,7 +625,7 @@ pub fn handle_main_events_cleared(mtm: MainThreadMarker) {
         .into_iter()
         .map(|window| {
             EventWrapper::StaticEvent(Event::WindowEvent {
-                window_id: RootWindowId(window.id()),
+                window_id: window.id(),
                 event: WindowEvent::RedrawRequested,
             })
         })
@@ -655,7 +654,7 @@ pub(crate) fn terminated(application: &UIApplication) {
                 &*ptr
             };
             events.push(EventWrapper::StaticEvent(Event::WindowEvent {
-                window_id: RootWindowId(window.id()),
+                window_id: window.id(),
                 event: WindowEvent::Destroyed,
             }));
         }
@@ -673,7 +672,7 @@ fn handle_hidpi_proxy(mtm: MainThreadMarker, event: ScaleFactorChanged) {
     let ScaleFactorChanged { suggested_size, scale_factor, window } = event;
     let new_surface_size = Arc::new(Mutex::new(suggested_size));
     let event = Event::WindowEvent {
-        window_id: RootWindowId(window.id()),
+        window_id: window.id(),
         event: WindowEvent::ScaleFactorChanged {
             scale_factor,
             surface_size_writer: SurfaceSizeWriter::new(Arc::downgrade(&new_surface_size)),

@@ -101,27 +101,6 @@ pub struct KeyEventExtra {
     pub key_without_modifiers: Key,
 }
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct WindowId(HWND);
-unsafe impl Send for WindowId {}
-unsafe impl Sync for WindowId {}
-
-impl WindowId {
-    pub const fn into_raw(self) -> u64 {
-        self.0 as u64
-    }
-
-    pub const fn from_raw(id: u64) -> Self {
-        Self(id as HWND)
-    }
-}
-
-impl From<WindowId> for HWND {
-    fn from(window_id: WindowId) -> Self {
-        window_id.0
-    }
-}
-
 #[inline(always)]
 const fn get_xbutton_wparam(x: u32) -> u16 {
     hiword(x)

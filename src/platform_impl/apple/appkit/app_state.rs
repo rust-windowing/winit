@@ -10,12 +10,12 @@ use objc2_foundation::{MainThreadMarker, NSNotification};
 
 use super::super::event_handler::EventHandler;
 use super::event_loop::{stop_app_immediately, ActiveEventLoop, PanicInfo};
+use super::menu;
 use super::observer::{EventLoopWaker, RunLoop};
-use super::{menu, WindowId};
 use crate::application::ApplicationHandler;
 use crate::event::{StartCause, WindowEvent};
 use crate::event_loop::ControlFlow;
-use crate::window::WindowId as RootWindowId;
+use crate::window::WindowId;
 
 #[derive(Debug)]
 pub(super) struct AppState {
@@ -245,7 +245,7 @@ impl AppState {
         // -> Don't go back into the event handler when our callstack originates from there
         if !self.event_handler.in_use() {
             self.with_handler(|app, event_loop| {
-                app.window_event(event_loop, RootWindowId(window_id), WindowEvent::RedrawRequested);
+                app.window_event(event_loop, window_id, WindowEvent::RedrawRequested);
             });
 
             // `pump_events` will request to stop immediately _after_ dispatching RedrawRequested
@@ -357,7 +357,7 @@ impl AppState {
         let redraw = mem::take(&mut *self.pending_redraw.borrow_mut());
         for window_id in redraw {
             self.with_handler(|app, event_loop| {
-                app.window_event(event_loop, RootWindowId(window_id), WindowEvent::RedrawRequested);
+                app.window_event(event_loop, window_id, WindowEvent::RedrawRequested);
             });
         }
         self.with_handler(|app, event_loop| {

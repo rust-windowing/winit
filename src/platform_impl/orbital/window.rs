@@ -1,12 +1,12 @@
 use std::collections::VecDeque;
 use std::sync::{Arc, Mutex};
 
-use super::{ActiveEventLoop, MonitorHandle, RedoxSocket, TimeSocket, WindowId, WindowProperties};
+use super::{ActiveEventLoop, MonitorHandle, RedoxSocket, TimeSocket, WindowProperties};
 use crate::cursor::Cursor;
 use crate::dpi::{PhysicalPosition, PhysicalSize, Position, Size};
 use crate::error::{NotSupportedError, RequestError};
 use crate::monitor::MonitorHandle as CoreMonitorHandle;
-use crate::window::{self, Fullscreen, ImePurpose, Window as CoreWindow, WindowId as CoreWindowId};
+use crate::window::{self, Fullscreen, ImePurpose, Window as CoreWindow, WindowId};
 
 // These values match the values uses in the `window_new` function in orbital:
 // https://gitlab.redox-os.org/redox-os/orbital/-/blob/master/src/scheme.rs
@@ -155,8 +155,8 @@ impl Window {
 }
 
 impl CoreWindow for Window {
-    fn id(&self) -> CoreWindowId {
-        CoreWindowId(WindowId { fd: self.window_socket.fd as u64 })
+    fn id(&self) -> WindowId {
+        WindowId::from_raw(self.window_socket.fd)
     }
 
     #[inline]
@@ -181,7 +181,7 @@ impl CoreWindow for Window {
 
     #[inline]
     fn request_redraw(&self) {
-        let window_id = self.id().0;
+        let window_id = self.id();
         let mut redraws = self.redraws.lock().unwrap();
         if !redraws.contains(&window_id) {
             redraws.push_back(window_id);
@@ -478,7 +478,7 @@ impl Drop for Window {
     fn drop(&mut self) {
         {
             let mut destroys = self.destroys.lock().unwrap();
-            destroys.push_back(self.id().0);
+            destroys.push_back(self.id());
         }
 
         self.wake_socket.wake().unwrap();

@@ -49,7 +49,7 @@ struct Execution {
     suspended: Cell<bool>,
     event_loop_recreation: Cell<bool>,
     events: RefCell<VecDeque<EventWrapper>>,
-    id: Cell<u64>,
+    id: Cell<usize>,
     window: web_sys::Window,
     navigator: Navigator,
     document: Document,
@@ -438,7 +438,7 @@ impl Shared {
 
     // Generate a strictly increasing ID
     // This is used to differentiate windows when handling events
-    pub fn generate_id(&self) -> u64 {
+    pub fn generate_id(&self) -> usize {
         let id = self.0.id.get();
         self.0.id.set(id.checked_add(1).expect("exhausted `WindowId`"));
 

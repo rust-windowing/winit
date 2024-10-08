@@ -22,7 +22,7 @@ use crate::event::{
 };
 use crate::keyboard::{Key, KeyCode, KeyLocation, NamedKey, NativeKeyCode, PhysicalKey};
 use crate::platform_impl::KeyEventExtra;
-use crate::window::{WindowAttributes, WindowId as RootWindowId};
+use crate::window::WindowAttributes;
 
 pub struct WinitViewState {
     pinch_gesture_recognizer: RefCell<Option<Retained<UIPinchGestureRecognizer>>>,
@@ -58,7 +58,7 @@ declare_class!(
             app_state::handle_nonuser_event(
                 mtm,
                 EventWrapper::StaticEvent(Event::WindowEvent {
-                    window_id: RootWindowId(window.id()),
+                    window_id: window.id(),
                     event: WindowEvent::RedrawRequested,
                 }),
             );
@@ -93,7 +93,7 @@ declare_class!(
             app_state::handle_nonuser_event(
                 mtm,
                 EventWrapper::StaticEvent(Event::WindowEvent {
-                    window_id: RootWindowId(window.id()),
+                    window_id: window.id(),
                     event: WindowEvent::SurfaceResized(size),
                 }),
             );
@@ -132,7 +132,7 @@ declare_class!(
                 width: screen_frame.size.width as f64,
                 height: screen_frame.size.height as f64,
             };
-            let window_id = RootWindowId(window.id());
+            let window_id = window.id();
             app_state::handle_nonuser_events(
                 mtm,
                 std::iter::once(EventWrapper::ScaleFactorChanged(
@@ -197,7 +197,7 @@ declare_class!(
             };
 
             let gesture_event = EventWrapper::StaticEvent(Event::WindowEvent {
-                window_id: RootWindowId(window.id()),
+                window_id: window.id(),
                 event: WindowEvent::PinchGesture {
                     device_id: None,
                     delta: delta as f64,
@@ -215,7 +215,7 @@ declare_class!(
 
             if recognizer.state() == UIGestureRecognizerState::Ended {
                 let gesture_event = EventWrapper::StaticEvent(Event::WindowEvent {
-                    window_id: RootWindowId(window.id()),
+                    window_id: window.id(),
                     event: WindowEvent::DoubleTapGesture {
                         device_id: None,
                     },
@@ -257,7 +257,7 @@ declare_class!(
 
             // Make delta negative to match macos, convert to degrees
             let gesture_event = EventWrapper::StaticEvent(Event::WindowEvent {
-                window_id: RootWindowId(window.id()),
+                window_id: window.id(),
                 event: WindowEvent::RotationGesture {
                     device_id: None,
                     delta: -delta.to_degrees() as _,
@@ -308,7 +308,7 @@ declare_class!(
 
 
             let gesture_event = EventWrapper::StaticEvent(Event::WindowEvent {
-                window_id: RootWindowId(window.id()),
+                window_id: window.id(),
                 event: WindowEvent::PanGesture {
                     device_id: None,
                     delta: PhysicalPosition::new(dx as _, dy as _),
@@ -512,7 +512,7 @@ impl WinitView {
                     scale_factor as f64,
                 )
             };
-            let window_id = RootWindowId(window.id());
+            let window_id = window.id();
             let finger_id = RootFingerId(FingerId(touch_id));
 
             match phase {
@@ -597,7 +597,7 @@ impl WinitView {
 
     fn handle_insert_text(&self, text: &NSString) {
         let window = self.window().unwrap();
-        let window_id = RootWindowId(window.id());
+        let window_id = window.id();
         let mtm = MainThreadMarker::new().unwrap();
         // send individual events for each character
         app_state::handle_nonuser_events(
@@ -635,7 +635,7 @@ impl WinitView {
 
     fn handle_delete_backward(&self) {
         let window = self.window().unwrap();
-        let window_id = RootWindowId(window.id());
+        let window_id = window.id();
         let mtm = MainThreadMarker::new().unwrap();
         app_state::handle_nonuser_events(
             mtm,

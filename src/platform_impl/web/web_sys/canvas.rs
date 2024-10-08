@@ -14,7 +14,6 @@ use web_sys::{
 use super::super::cursor::CursorHandler;
 use super::super::event::DeviceId;
 use super::super::main_thread::MainThreadMarker;
-use super::super::WindowId;
 use super::animation_frame::AnimationFrameHandler;
 use super::event_handle::EventListenerHandle;
 use super::intersection_handle::IntersectionObserverHandle;
@@ -28,7 +27,7 @@ use crate::event::{
 };
 use crate::keyboard::{Key, KeyLocation, ModifiersState, PhysicalKey};
 use crate::platform_impl::Fullscreen;
-use crate::window::{WindowAttributes, WindowId as RootWindowId};
+use crate::window::{WindowAttributes, WindowId};
 
 #[allow(dead_code)]
 pub struct Canvas {
@@ -490,7 +489,7 @@ impl Canvas {
         let new_size = {
             let new_size = Arc::new(Mutex::new(current_size));
             event_handler(crate::event::Event::WindowEvent {
-                window_id: RootWindowId(self.id),
+                window_id: self.id,
                 event: crate::event::WindowEvent::ScaleFactorChanged {
                     scale_factor: scale,
                     surface_size_writer: SurfaceSizeWriter::new(Arc::downgrade(&new_size)),
@@ -518,7 +517,7 @@ impl Canvas {
             // Then we at least send a resized event.
             self.set_old_size(new_size);
             runner.send_event(crate::event::Event::WindowEvent {
-                window_id: RootWindowId(self.id),
+                window_id: self.id,
                 event: crate::event::WindowEvent::SurfaceResized(new_size),
             })
         }

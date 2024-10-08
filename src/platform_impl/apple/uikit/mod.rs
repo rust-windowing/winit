@@ -14,7 +14,7 @@ pub(crate) use self::event_loop::{
     PlatformSpecificEventLoopAttributes,
 };
 pub(crate) use self::monitor::{MonitorHandle, VideoModeHandle};
-pub(crate) use self::window::{PlatformSpecificWindowAttributes, Window, WindowId};
+pub(crate) use self::window::{PlatformSpecificWindowAttributes, Window};
 pub(crate) use crate::cursor::{
     NoCustomCursor as PlatformCustomCursor, NoCustomCursor as PlatformCustomCursorSource,
 };

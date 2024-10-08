@@ -26,7 +26,7 @@ use crate::monitor::MonitorHandle as CoreMonitorHandle;
 use crate::platform::ios::{ScreenEdge, StatusBarStyle, ValidOrientations};
 use crate::window::{
     CursorGrabMode, ImePurpose, ResizeDirection, Theme, UserAttentionType, Window as CoreWindow,
-    WindowAttributes, WindowButtons, WindowId as CoreWindowId, WindowLevel,
+    WindowAttributes, WindowButtons, WindowId, WindowLevel,
 };
 
 declare_class!(
@@ -49,7 +49,7 @@ declare_class!(
             app_state::handle_nonuser_event(
                 mtm,
                 EventWrapper::StaticEvent(Event::WindowEvent {
-                    window_id: CoreWindowId(self.id()),
+                    window_id: self.id(),
                     event: WindowEvent::Focused(true),
                 }),
             );
@@ -62,7 +62,7 @@ declare_class!(
             app_state::handle_nonuser_event(
                 mtm,
                 EventWrapper::StaticEvent(Event::WindowEvent {
-                    window_id: CoreWindowId(self.id()),
+                    window_id: self.id(),
                     event: WindowEvent::Focused(false),
                 }),
             );
@@ -105,7 +105,7 @@ impl WinitUIWindow {
     }
 
     pub(crate) fn id(&self) -> WindowId {
-        WindowId::from_window(self)
+        WindowId::from_raw(self as *const Self as usize)
     }
 }
 
@@ -522,7 +522,6 @@ impl Window {
                 width: screen_frame.size.width as f64,
                 height: screen_frame.size.height as f64,
             };
-            let window_id = CoreWindowId(window.id());
             app_state::handle_nonuser_events(
                 mtm,
                 std::iter::once(EventWrapper::ScaleFactorChanged(app_state::ScaleFactorChanged {
@@ -532,7 +531,7 @@ impl Window {
                 }))
                 .chain(std::iter::once(EventWrapper::StaticEvent(
                     Event::WindowEvent {
-                        window_id,
+                        window_id: window.id(),
                         event: WindowEvent::SurfaceResized(size.to_physical(scale_factor)),
                     },
                 ))),
@@ -586,7 +585,7 @@ impl rwh_06::HasWindowHandle for Window {
 
 impl CoreWindow for Window {
     fn id(&self) -> crate::window::WindowId {
-        self.maybe_wait_on_main(|delegate| crate::window::WindowId(delegate.id()))
+        self.maybe_wait_on_main(|delegate| delegate.id())
     }
 
     fn scale_factor(&self) -> f64 {
@@ -937,23 +936,6 @@ impl Inner {
                 size: CGSize { width: screen_frame.size.width, height },
             }
         }
-    }
-}
-
-#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct WindowId(usize);
-
-impl WindowId {
-    pub const fn into_raw(self) -> u64 {
-        self.0 as _
-    }
-
-    pub const fn from_raw(id: u64) -> Self {
-        Self(id as _)
-    }
-
-    fn from_window(window: &UIWindow) -> Self {
-        Self(window as *const UIWindow as usize)
     }
 }
 
