@@ -317,48 +317,115 @@ impl EventLoop {
             InputEvent::MotionEvent(motion_event) => {
                 let window_id = window::WindowId(WindowId);
                 let device_id = Some(event::DeviceId(DeviceId(motion_event.device_id())));
+                let action = motion_event.action();
 
-                let phase = match motion_event.action() {
-                    MotionAction::Down | MotionAction::PointerDown => {
-                        Some(event::TouchPhase::Started)
+                let pointers: Option<
+                    Box<dyn Iterator<Item = android_activity::input::Pointer<'_>>>,
+                > = match action {
+                    MotionAction::Down
+                    | MotionAction::PointerDown
+                    | MotionAction::Up
+                    | MotionAction::PointerUp => Some(Box::new(std::iter::once(
+                        motion_event.pointer_at_index(motion_event.pointer_index()),
+                    ))),
+                    MotionAction::Move | MotionAction::Cancel => {
+                        Some(Box::new(motion_event.pointers()))
                     },
-                    MotionAction::Up | MotionAction::PointerUp => Some(event::TouchPhase::Ended),
-                    MotionAction::Move => Some(event::TouchPhase::Moved),
-                    MotionAction::Cancel => Some(event::TouchPhase::Cancelled),
-                    _ => {
-                        None // TODO mouse events
-                    },
+                    // TODO mouse events
+                    _ => None,
                 };
-                if let Some(phase) = phase {
-                    let pointers: Box<dyn Iterator<Item = android_activity::input::Pointer<'_>>> =
-                        match phase {
-                            event::TouchPhase::Started | event::TouchPhase::Ended => {
-                                Box::new(std::iter::once(
-                                    motion_event.pointer_at_index(motion_event.pointer_index()),
-                                ))
-                            },
-                            event::TouchPhase::Moved | event::TouchPhase::Cancelled => {
-                                Box::new(motion_event.pointers())
-                            },
-                        };
 
+                if let Some(pointers) = pointers {
                     for pointer in pointers {
-                        let location =
+                        let tool_type = pointer.tool_type();
+                        let position =
                             PhysicalPosition { x: pointer.x() as _, y: pointer.y() as _ };
                         trace!(
-                            "Input event {device_id:?}, {phase:?}, loc={location:?}, \
-                             pointer={pointer:?}"
+                            "Input event {device_id:?}, {action:?}, loc={position:?}, \
+                             pointer={pointer:?}, tool_type={tool_type:?}"
                         );
+                        let finger_id = event::FingerId(FingerId(pointer.pointer_id()));
+                        let force = Some(Force::Normalized(pointer.pressure() as f64));
 
-                        let event = event::WindowEvent::Touch(event::Touch {
-                            device_id,
-                            phase,
-                            location,
-                            finger_id: event::FingerId(FingerId(pointer.pointer_id())),
-                            force: Some(Force::Normalized(pointer.pressure() as f64)),
-                        });
+                        match action {
+                            MotionAction::Down | MotionAction::PointerDown => {
+                                let event = event::WindowEvent::PointerEntered {
+                                    device_id,
+                                    position,
+                                    kind: match tool_type {
+                                        android_activity::input::ToolType::Finger => {
+                                            event::PointerKind::Touch(finger_id)
+                                        },
+                                        // TODO mouse events
+                                        android_activity::input::ToolType::Mouse => continue,
+                                        _ => event::PointerKind::Unknown,
+                                    },
+                                };
+                                app.window_event(&self.window_target, window_id, event);
+                                let event = event::WindowEvent::PointerButton {
+                                    device_id,
+                                    state: event::ElementState::Pressed,
+                                    position,
+                                    button: match tool_type {
+                                        android_activity::input::ToolType::Finger => {
+                                            event::ButtonSource::Touch { finger_id, force }
+                                        },
+                                        // TODO mouse events
+                                        android_activity::input::ToolType::Mouse => continue,
+                                        _ => event::ButtonSource::Unknown(0),
+                                    },
+                                };
+                                app.window_event(&self.window_target, window_id, event);
+                            },
+                            MotionAction::Move => {
+                                let event = event::WindowEvent::PointerMoved {
+                                    device_id,
+                                    position,
+                                    source: match tool_type {
+                                        android_activity::input::ToolType::Finger => {
+                                            event::PointerSource::Touch { finger_id, force }
+                                        },
+                                        // TODO mouse events
+                                        android_activity::input::ToolType::Mouse => continue,
+                                        _ => event::PointerSource::Unknown,
+                                    },
+                                };
+                                app.window_event(&self.window_target, window_id, event);
+                            },
+                            MotionAction::Up | MotionAction::PointerUp | MotionAction::Cancel => {
+                                if let MotionAction::Up | MotionAction::PointerUp = action {
+                                    let event = event::WindowEvent::PointerButton {
+                                        device_id,
+                                        state: event::ElementState::Released,
+                                        position,
+                                        button: match tool_type {
+                                            android_activity::input::ToolType::Finger => {
+                                                event::ButtonSource::Touch { finger_id, force }
+                                            },
+                                            // TODO mouse events
+                                            android_activity::input::ToolType::Mouse => continue,
+                                            _ => event::ButtonSource::Unknown(0),
+                                        },
+                                    };
+                                    app.window_event(&self.window_target, window_id, event);
+                                }
 
-                        app.window_event(&self.window_target, window_id, event);
+                                let event = event::WindowEvent::PointerLeft {
+                                    device_id,
+                                    position: Some(position),
+                                    kind: match tool_type {
+                                        android_activity::input::ToolType::Finger => {
+                                            event::PointerKind::Touch(finger_id)
+                                        },
+                                        // TODO mouse events
+                                        android_activity::input::ToolType::Mouse => continue,
+                                        _ => event::PointerKind::Unknown,
+                                    },
+                                };
+                                app.window_event(&self.window_target, window_id, event);
+                            },
+                            _ => unreachable!(),
+                        }
                     }
                 }
             },

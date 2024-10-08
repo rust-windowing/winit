@@ -68,7 +68,7 @@ impl Dispatch<ZwpRelativePointerV1, GlobalData, WinitState> for RelativePointerS
         };
         state
             .events_sink
-            .push_device_event(DeviceEvent::MouseMotion { delta: (dx_unaccel, dy_unaccel) });
+            .push_device_event(DeviceEvent::PointerMotion { delta: (dx_unaccel, dy_unaccel) });
     }
 }
 

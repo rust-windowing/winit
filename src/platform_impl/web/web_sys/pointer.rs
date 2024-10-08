@@ -1,15 +1,14 @@
 use std::cell::Cell;
 use std::rc::Rc;
 
-use event::ButtonsState;
 use web_sys::PointerEvent;
 
-use super::super::event::{DeviceId, FingerId};
+use super::super::event::DeviceId;
 use super::canvas::Common;
 use super::event;
 use super::event_handle::EventListenerHandle;
 use crate::dpi::PhysicalPosition;
-use crate::event::{Force, MouseButton};
+use crate::event::{ButtonSource, ElementState, Force, PointerKind, PointerSource};
 use crate::keyboard::ModifiersState;
 
 #[allow(dead_code)]
@@ -34,88 +33,78 @@ impl PointerHandler {
         }
     }
 
-    pub fn on_cursor_leave<F>(&mut self, canvas_common: &Common, mut handler: F)
+    pub fn on_pointer_leave<F>(&mut self, canvas_common: &Common, mut handler: F)
     where
-        F: 'static + FnMut(ModifiersState, Option<Option<DeviceId>>),
+        F: 'static + FnMut(ModifiersState, Option<DeviceId>, PhysicalPosition<f64>, PointerKind),
     {
+        let window = canvas_common.window.clone();
         self.on_cursor_leave =
             Some(canvas_common.add_event("pointerout", move |event: PointerEvent| {
                 let modifiers = event::mouse_modifiers(&event);
-
-                // touch events are handled separately
-                // handling them here would produce duplicate mouse events, inconsistent with
-                // other platforms.
-                let device_id =
-                    (event.pointer_type() != "touch").then(|| DeviceId::new(event.pointer_id()));
-
-                handler(modifiers, device_id);
+                let pointer_id = event.pointer_id();
+                let device_id = DeviceId::new(pointer_id);
+                let position =
+                    event::mouse_position(&event).to_physical(super::scale_factor(&window));
+                let kind = event::pointer_type(&event, pointer_id);
+                handler(modifiers, device_id, position, kind);
             }));
     }
 
-    pub fn on_cursor_enter<F>(&mut self, canvas_common: &Common, mut handler: F)
+    pub fn on_pointer_enter<F>(&mut self, canvas_common: &Common, mut handler: F)
     where
-        F: 'static + FnMut(ModifiersState, Option<Option<DeviceId>>),
+        F: 'static + FnMut(ModifiersState, Option<DeviceId>, PhysicalPosition<f64>, PointerKind),
     {
+        let window = canvas_common.window.clone();
         self.on_cursor_enter =
             Some(canvas_common.add_event("pointerover", move |event: PointerEvent| {
                 let modifiers = event::mouse_modifiers(&event);
-
-                // touch events are handled separately
-                // handling them here would produce duplicate mouse events, inconsistent with
-                // other platforms.
-                let device_id =
-                    (event.pointer_type() != "touch").then(|| DeviceId::new(event.pointer_id()));
-
-                handler(modifiers, device_id);
+                let pointer_id = event.pointer_id();
+                let device_id = DeviceId::new(pointer_id);
+                let position =
+                    event::mouse_position(&event).to_physical(super::scale_factor(&window));
+                let kind = event::pointer_type(&event, pointer_id);
+                handler(modifiers, device_id, position, kind);
             }));
     }
 
-    pub fn on_mouse_release<M, T>(
-        &mut self,
-        canvas_common: &Common,
-        mut mouse_handler: M,
-        mut touch_handler: T,
-    ) where
-        M: 'static + FnMut(ModifiersState, Option<DeviceId>, PhysicalPosition<f64>, MouseButton),
-        T: 'static
-            + FnMut(ModifiersState, Option<DeviceId>, FingerId, PhysicalPosition<f64>, Force),
+    pub fn on_pointer_release<C>(&mut self, canvas_common: &Common, mut handler: C)
+    where
+        C: 'static + FnMut(ModifiersState, Option<DeviceId>, PhysicalPosition<f64>, ButtonSource),
     {
         let window = canvas_common.window.clone();
         self.on_pointer_release =
             Some(canvas_common.add_event("pointerup", move |event: PointerEvent| {
                 let modifiers = event::mouse_modifiers(&event);
+                let pointer_id = event.pointer_id();
+                let kind = event::pointer_type(&event, pointer_id);
 
-                match event.pointer_type().as_str() {
-                    "touch" => {
-                        let pointer_id = event.pointer_id();
-                        touch_handler(
-                            modifiers,
-                            DeviceId::new(pointer_id),
-                            FingerId::new(pointer_id, event.is_primary()),
-                            event::mouse_position(&event).to_physical(super::scale_factor(&window)),
-                            Force::Normalized(event.pressure() as f64),
-                        )
+                let button = event::mouse_button(&event).expect("no mouse button pressed");
+
+                let source = match kind {
+                    PointerKind::Mouse => ButtonSource::Mouse(button),
+                    PointerKind::Touch(finger_id) => ButtonSource::Touch {
+                        finger_id,
+                        force: Some(Force::Normalized(event.pressure().into())),
                     },
-                    _ => mouse_handler(
-                        modifiers,
-                        DeviceId::new(event.pointer_id()),
-                        event::mouse_position(&event).to_physical(super::scale_factor(&window)),
-                        event::mouse_button(&event).expect("no mouse button released"),
-                    ),
-                }
+                    PointerKind::Unknown => ButtonSource::Unknown(button.to_id()),
+                };
+
+                handler(
+                    modifiers,
+                    DeviceId::new(pointer_id),
+                    event::mouse_position(&event).to_physical(super::scale_factor(&window)),
+                    source,
+                )
             }));
     }
 
-    pub fn on_mouse_press<M, T>(
+    pub fn on_pointer_press<C>(
         &mut self,
         canvas_common: &Common,
-        mut mouse_handler: M,
-        mut touch_handler: T,
+        mut handler: C,
         prevent_default: Rc<Cell<bool>>,
     ) where
-        M: 'static + FnMut(ModifiersState, Option<DeviceId>, PhysicalPosition<f64>, MouseButton),
-        T: 'static
-            + FnMut(ModifiersState, Option<DeviceId>, FingerId, PhysicalPosition<f64>, Force),
+        C: 'static + FnMut(ModifiersState, Option<DeviceId>, PhysicalPosition<f64>, ButtonSource),
     {
         let window = canvas_common.window.clone();
         let canvas = canvas_common.raw().clone();
@@ -129,75 +118,65 @@ impl PointerHandler {
                 }
 
                 let modifiers = event::mouse_modifiers(&event);
-                let pointer_type = &event.pointer_type();
+                let pointer_id = event.pointer_id();
+                let kind = event::pointer_type(&event, pointer_id);
+                let button = event::mouse_button(&event).expect("no mouse button pressed");
 
-                match pointer_type.as_str() {
-                    "touch" => {
-                        let pointer_id = event.pointer_id();
-                        touch_handler(
-                            modifiers,
-                            DeviceId::new(pointer_id),
-                            FingerId::new(pointer_id, event.is_primary()),
-                            event::mouse_position(&event).to_physical(super::scale_factor(&window)),
-                            Force::Normalized(event.pressure() as f64),
-                        );
+                let source = match kind {
+                    PointerKind::Mouse => {
+                        // Error is swallowed here since the error would occur every time the
+                        // mouse is clicked when the cursor is
+                        // grabbed, and there is probably not a
+                        // situation where this could fail, that we
+                        // care if it fails.
+                        let _e = canvas.set_pointer_capture(pointer_id);
+
+                        ButtonSource::Mouse(button)
                     },
-                    _ => {
-                        let pointer_id = event.pointer_id();
-
-                        mouse_handler(
-                            modifiers,
-                            DeviceId::new(pointer_id),
-                            event::mouse_position(&event).to_physical(super::scale_factor(&window)),
-                            event::mouse_button(&event).expect("no mouse button pressed"),
-                        );
-
-                        if pointer_type == "mouse" {
-                            // Error is swallowed here since the error would occur every time the
-                            // mouse is clicked when the cursor is
-                            // grabbed, and there is probably not a
-                            // situation where this could fail, that we
-                            // care if it fails.
-                            let _e = canvas.set_pointer_capture(pointer_id);
-                        }
+                    PointerKind::Touch(finger_id) => ButtonSource::Touch {
+                        finger_id,
+                        force: Some(Force::Normalized(event.pressure().into())),
                     },
-                }
+                    PointerKind::Unknown => ButtonSource::Unknown(button.to_id()),
+                };
+
+                handler(
+                    modifiers,
+                    DeviceId::new(pointer_id),
+                    event::mouse_position(&event).to_physical(super::scale_factor(&window)),
+                    source,
+                )
             }));
     }
 
-    pub fn on_cursor_move<M, T, B>(
+    pub fn on_pointer_move<C, B>(
         &mut self,
         canvas_common: &Common,
-        mut mouse_handler: M,
-        mut touch_handler: T,
+        mut cursor_handler: C,
         mut button_handler: B,
         prevent_default: Rc<Cell<bool>>,
     ) where
-        M: 'static
-            + FnMut(ModifiersState, Option<DeviceId>, &mut dyn Iterator<Item = PhysicalPosition<f64>>),
-        T: 'static
+        C: 'static
             + FnMut(
-                ModifiersState,
                 Option<DeviceId>,
-                FingerId,
-                &mut dyn Iterator<Item = (PhysicalPosition<f64>, Force)>,
+                &mut dyn Iterator<Item = (ModifiersState, PhysicalPosition<f64>, PointerSource)>,
             ),
         B: 'static
             + FnMut(
                 ModifiersState,
                 Option<DeviceId>,
                 PhysicalPosition<f64>,
-                ButtonsState,
-                MouseButton,
+                ElementState,
+                ButtonSource,
             ),
     {
         let window = canvas_common.window.clone();
         let canvas = canvas_common.raw().clone();
         self.on_cursor_move =
             Some(canvas_common.add_event("pointermove", move |event: PointerEvent| {
-                let modifiers = event::mouse_modifiers(&event);
                 let pointer_id = event.pointer_id();
                 let device_id = DeviceId::new(pointer_id);
+                let kind = event::pointer_type(&event, pointer_id);
 
                 // chorded button event
                 if let Some(button) = event::mouse_button(&event) {
@@ -208,11 +187,34 @@ impl PointerHandler {
                         let _ = canvas.focus();
                     }
 
+                    let state = if event::mouse_buttons(&event).contains(button.into()) {
+                        ElementState::Pressed
+                    } else {
+                        ElementState::Released
+                    };
+
+                    let button = match kind {
+                        PointerKind::Mouse => ButtonSource::Mouse(button),
+                        PointerKind::Touch(finger_id) => {
+                            let button_id = button.to_id();
+
+                            if button_id != 1 {
+                                tracing::error!("unexpected touch button id: {button_id}");
+                            }
+
+                            ButtonSource::Touch {
+                                finger_id,
+                                force: Some(Force::Normalized(event.pressure().into())),
+                            }
+                        },
+                        PointerKind::Unknown => todo!(),
+                    };
+
                     button_handler(
-                        modifiers,
+                        event::mouse_modifiers(&event),
                         device_id,
                         event::mouse_position(&event).to_physical(super::scale_factor(&window)),
-                        event::mouse_buttons(&event),
+                        state,
                         button,
                     );
 
@@ -221,44 +223,24 @@ impl PointerHandler {
 
                 // pointer move event
                 let scale = super::scale_factor(&window);
-                match event.pointer_type().as_str() {
-                    "touch" => touch_handler(
-                        modifiers,
-                        device_id,
-                        FingerId::new(pointer_id, event.is_primary()),
-                        &mut event::pointer_move_event(event).map(|event| {
-                            (
-                                event::mouse_position(&event).to_physical(scale),
-                                Force::Normalized(event.pressure() as f64),
-                            )
-                        }),
-                    ),
-                    _ => mouse_handler(
-                        modifiers,
-                        device_id,
-                        &mut event::pointer_move_event(event)
-                            .map(|event| event::mouse_position(&event).to_physical(scale)),
-                    ),
-                };
-            }));
-    }
 
-    pub fn on_touch_cancel<F>(&mut self, canvas_common: &Common, mut handler: F)
-    where
-        F: 'static + FnMut(Option<DeviceId>, FingerId, PhysicalPosition<f64>, Force),
-    {
-        let window = canvas_common.window.clone();
-        self.on_touch_cancel =
-            Some(canvas_common.add_event("pointercancel", move |event: PointerEvent| {
-                if event.pointer_type() == "touch" {
-                    let pointer_id = event.pointer_id();
-                    handler(
-                        DeviceId::new(pointer_id),
-                        FingerId::new(pointer_id, event.is_primary()),
-                        event::mouse_position(&event).to_physical(super::scale_factor(&window)),
-                        Force::Normalized(event.pressure() as f64),
-                    );
-                }
+                cursor_handler(
+                    device_id,
+                    &mut event::pointer_move_event(event).map(|event| {
+                        (
+                            event::mouse_modifiers(&event),
+                            event::mouse_position(&event).to_physical(scale),
+                            match kind {
+                                PointerKind::Mouse => PointerSource::Mouse,
+                                PointerKind::Touch(finger_id) => PointerSource::Touch {
+                                    finger_id,
+                                    force: Some(Force::Normalized(event.pressure().into())),
+                                },
+                                PointerKind::Unknown => PointerSource::Unknown,
+                            },
+                        )
+                    }),
+                );
             }));
     }
 

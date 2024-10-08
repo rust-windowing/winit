@@ -407,11 +407,15 @@ impl EventLoop {
                 app.window_event(
                     window_target,
                     RootWindowId(window_id),
-                    event::WindowEvent::CursorMoved { device_id: None, position: (x, y).into() },
+                    event::WindowEvent::PointerMoved {
+                        device_id: None,
+                        position: (x, y).into(),
+                        source: event::PointerSource::Mouse,
+                    },
                 );
             },
             EventOption::MouseRelative(MouseRelativeEvent { dx, dy }) => {
-                app.device_event(window_target, None, event::DeviceEvent::MouseMotion {
+                app.device_event(window_target, None, event::DeviceEvent::PointerMotion {
                     delta: (dx as f64, dy as f64),
                 });
             },
@@ -420,7 +424,12 @@ impl EventLoop {
                     app.window_event(
                         window_target,
                         RootWindowId(window_id),
-                        event::WindowEvent::MouseInput { device_id: None, state, button },
+                        event::WindowEvent::PointerButton {
+                            device_id: None,
+                            state,
+                            position: dpi::PhysicalPosition::default(),
+                            button: button.into(),
+                        },
                     );
                 }
             },
@@ -469,9 +478,17 @@ impl EventLoop {
             // TODO: Screen, Clipboard, Drop
             EventOption::Hover(HoverEvent { entered }) => {
                 let event = if entered {
-                    event::WindowEvent::CursorEntered { device_id: None }
+                    event::WindowEvent::PointerEntered {
+                        device_id: None,
+                        position: dpi::PhysicalPosition::default(),
+                        kind: event::PointerKind::Mouse,
+                    }
                 } else {
-                    event::WindowEvent::CursorLeft { device_id: None }
+                    event::WindowEvent::PointerLeft {
+                        device_id: None,
+                        position: None,
+                        kind: event::PointerKind::Mouse,
+                    }
                 };
 
                 app.window_event(window_target, RootWindowId(window_id), event);

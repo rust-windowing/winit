@@ -26,8 +26,8 @@ use super::event::{
 use super::window::WinitWindow;
 use crate::dpi::{LogicalPosition, LogicalSize};
 use crate::event::{
-    DeviceEvent, ElementState, Ime, Modifiers, MouseButton, MouseScrollDelta, TouchPhase,
-    WindowEvent,
+    DeviceEvent, ElementState, Ime, Modifiers, MouseButton, MouseScrollDelta, PointerKind,
+    PointerSource, TouchPhase, WindowEvent,
 };
 use crate::keyboard::{Key, KeyCode, KeyLocation, ModifiersState, NamedKey};
 use crate::platform::macos::OptionAsAlt;
@@ -638,19 +638,28 @@ declare_class!(
         }
 
         #[method(mouseEntered:)]
-        fn mouse_entered(&self, _event: &NSEvent) {
+        fn mouse_entered(&self, event: &NSEvent) {
             trace_scope!("mouseEntered:");
-            self.queue_event(WindowEvent::CursorEntered {
+
+            let position = self.mouse_view_point(event).to_physical(self.scale_factor());
+
+            self.queue_event(WindowEvent::PointerEntered {
                 device_id: None,
+                position,
+                kind: PointerKind::Mouse,
             });
         }
 
         #[method(mouseExited:)]
-        fn mouse_exited(&self, _event: &NSEvent) {
+        fn mouse_exited(&self, event: &NSEvent) {
             trace_scope!("mouseExited:");
 
-            self.queue_event(WindowEvent::CursorLeft {
+            let position = self.mouse_view_point(event).to_physical(self.scale_factor());
+
+            self.queue_event(WindowEvent::PointerLeft {
                 device_id: None,
+                position: Some(position),
+                kind: PointerKind::Mouse,
             });
         }
 
@@ -1033,16 +1042,21 @@ impl WinitView {
     }
 
     fn mouse_click(&self, event: &NSEvent, button_state: ElementState) {
+        let position = self.mouse_view_point(event).to_physical(self.scale_factor());
         let button = mouse_button(event);
 
         self.update_modifiers(event, false);
 
-        self.queue_event(WindowEvent::MouseInput { device_id: None, state: button_state, button });
+        self.queue_event(WindowEvent::PointerButton {
+            device_id: None,
+            state: button_state,
+            position,
+            button: button.into(),
+        });
     }
 
     fn mouse_motion(&self, event: &NSEvent) {
-        let window_point = unsafe { event.locationInWindow() };
-        let view_point = self.convertPoint_fromView(window_point, None);
+        let view_point = self.mouse_view_point(event);
         let frame = self.frame();
 
         if view_point.x.is_sign_negative()
@@ -1057,14 +1071,20 @@ impl WinitView {
             }
         }
 
-        let view_point = LogicalPosition::new(view_point.x, view_point.y);
-
         self.update_modifiers(event, false);
 
-        self.queue_event(WindowEvent::CursorMoved {
+        self.queue_event(WindowEvent::PointerMoved {
             device_id: None,
             position: view_point.to_physical(self.scale_factor()),
+            source: PointerSource::Mouse,
         });
+    }
+
+    fn mouse_view_point(&self, event: &NSEvent) -> LogicalPosition<f64> {
+        let window_point = unsafe { event.locationInWindow() };
+        let view_point = self.convertPoint_fromView(window_point, None);
+
+        LogicalPosition::new(view_point.x, view_point.y)
     }
 }
 

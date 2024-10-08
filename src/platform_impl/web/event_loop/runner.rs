@@ -297,7 +297,7 @@ impl Shared {
 
                     runner.send_event(Event::DeviceEvent {
                         device_id,
-                        event: DeviceEvent::Button { button: button.to_id(), state },
+                        event: DeviceEvent::Button { button: button.to_id().into(), state },
                     });
 
                     return;
@@ -310,7 +310,7 @@ impl Shared {
 
                     Event::DeviceEvent {
                         device_id,
-                        event: DeviceEvent::MouseMotion { delta: (delta.x, delta.y) },
+                        event: DeviceEvent::PointerMotion { delta: (delta.x, delta.y) },
                     }
                 }));
             }),
@@ -346,7 +346,7 @@ impl Shared {
                 runner.send_event(Event::DeviceEvent {
                     device_id: DeviceId::new(event.pointer_id()).map(RootDeviceId),
                     event: DeviceEvent::Button {
-                        button: button.to_id(),
+                        button: button.to_id().into(),
                         state: ElementState::Pressed,
                     },
                 });
@@ -365,7 +365,7 @@ impl Shared {
                 runner.send_event(Event::DeviceEvent {
                     device_id: DeviceId::new(event.pointer_id()).map(RootDeviceId),
                     event: DeviceEvent::Button {
-                        button: button.to_id(),
+                        button: button.to_id().into(),
                         state: ElementState::Released,
                     },
                 });
