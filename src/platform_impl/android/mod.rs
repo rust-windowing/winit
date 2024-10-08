@@ -104,7 +104,13 @@ pub struct EventLoop {
     window_target: ActiveEventLoop,
     redraw_flag: SharedFlag,
     loop_running: bool, // Dispatched `NewEvents<Init>`
-    running: bool,
+    // /// `onStart()` - `onStop()` lifecycle, denoting when the app is visible
+    // TODO: Might use activity_visible for allowing proxy wakeup events?
+    // activity_visible: bool,
+    // /// `onResume()` - `onPause()` lifecycle, denoting when the app is actively interacted with
+    // activity_active: bool,
+    // TODO: This should be per-Activity (likely analogous to per-Window) state.
+    window_has_surface: bool,
     pending_redraw: bool,
     cause: StartCause,
     ignore_volume_keys: bool,
@@ -149,7 +155,7 @@ impl EventLoop {
             },
             redraw_flag,
             loop_running: false,
-            running: false,
+            window_has_surface: false,
             pending_redraw: false,
             cause: StartCause::Init,
             ignore_volume_keys: attributes.ignore_volume_keys,
@@ -179,13 +185,21 @@ impl EventLoop {
 
             match event {
                 MainEvent::InitWindow { .. } => {
+                    self.window_has_surface = true;
                     app.can_create_surfaces(&self.window_target);
                 },
                 MainEvent::TerminateWindow { .. } => {
                     app.destroy_surfaces(&self.window_target);
+                    self.window_has_surface = false;
                 },
-                MainEvent::WindowResized { .. } => resized = true,
-                MainEvent::RedrawNeeded { .. } => pending_redraw = true,
+                MainEvent::WindowResized { .. } => {
+                    assert!(self.window_has_surface);
+                    resized = true
+                },
+                MainEvent::RedrawNeeded { .. } => {
+                    assert!(self.window_has_surface);
+                    pending_redraw = true
+                },
                 MainEvent::ContentRectChanged { .. } => {
                     warn!("TODO: find a way to notify application of content rect change");
                 },
@@ -223,7 +237,6 @@ impl EventLoop {
                 },
                 MainEvent::Resume { .. } => {
                     debug!("App Resumed - is running");
-                    self.running = true;
                 },
                 MainEvent::SaveState { .. } => {
                     // XXX: how to forward this state to applications?
@@ -232,7 +245,6 @@ impl EventLoop {
                 },
                 MainEvent::Pause => {
                     debug!("App Paused - stopped running");
-                    self.running = false;
                 },
                 MainEvent::Stop => {
                     // XXX: how to forward this state to applications?
@@ -278,7 +290,12 @@ impl EventLoop {
             app.proxy_wake_up(&self.window_target);
         }
 
-        if self.running {
+        // The SurfaceHolder.Callback that causes the ::WindowResized event should at least fire
+        // once, directly after InitWindow.  Despite not explicitly documented, it should never fire
+        // after ::TerminateWindow.
+        // https://cs.android.com/android/platform/superproject/main/+/main:frameworks/base/core/java/android/view/SurfaceHolder.java;l=64-108;drc=366d14f6457edfa12491de15dcad02859f6f2b7a
+        // https://cs.android.com/android/platform/superproject/main/+/main:frameworks/base/core/java/android/app/NativeActivity.java;l=266-271;drc=5d123b67756dffcfdebdb936ab2de2b29c799321
+        if self.window_has_surface {
             if resized {
                 let size = if let Some(native_window) = self.android_app.native_window().as_ref() {
                     let width = native_window.width() as _;
@@ -544,7 +561,8 @@ impl EventLoop {
 
         self.pending_redraw |= self.redraw_flag.get_and_reset();
 
-        timeout = if self.running
+        // TODO: Theoretically the wake-up should also be handled when there's no surface
+        timeout = if self.window_has_surface
             && (self.pending_redraw || self.window_target.proxy_wake_up.load(Ordering::Relaxed))
         {
             // If we already have work to do then we don't want to block on the next poll
@@ -576,7 +594,8 @@ impl EventLoop {
                     // a wake up here so we can ignore the wake up if there are no events/requests.
                     // We also ignore wake ups while suspended.
                     self.pending_redraw |= self.redraw_flag.get_and_reset();
-                    if !self.running
+                    // TODO: The wake-up should also be handled when there's no surface
+                    if !self.window_has_surface
                         || (!self.pending_redraw
                             && !self.window_target.proxy_wake_up.load(Ordering::Relaxed))
                     {
