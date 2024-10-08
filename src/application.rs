@@ -41,11 +41,21 @@ pub trait ApplicationHandler {
     /// [`pageshow`]: https://developer.mozilla.org/en-US/docs/Web/API/Window/pageshow_event
     /// [`bfcache`]: https://web.dev/bfcache/
     ///
+    /// ### Android
+    ///
+    /// On Android, the [`resumed()`] method is called when the `Activity` is (again, if after a
+    /// prior [`suspended()`]) being displayed to the user.  This is a good place to begin drawing
+    /// visual elements, running animations, etc.  It is driven by Android's [`onStart()`] method.
+    ///
+    /// [`onStart()`]: https://developer.android.com/reference/android/app/Activity#onStart()
+    ///
     /// ### Others
     ///
-    /// **Android / macOS / Orbital / Wayland / Windows / X11:** Unsupported.
+    /// **macOS / Orbital / Wayland / Windows / X11:** Unsupported.
     ///
-    /// [`resumed()`]: Self::resumed
+    /// [`resumed()`]: Self::resumed()
+    /// [`suspended()`]: Self::suspended()
+    /// [`exiting()`]: Self::exiting()
     fn resumed(&mut self, event_loop: &dyn ActiveEventLoop) {
         let _ = event_loop;
     }
@@ -71,26 +81,24 @@ pub trait ApplicationHandler {
     ///
     /// ### Android
     ///
-    /// On Android, the [`can_create_surfaces()`] method is called when a new [`SurfaceView`] has
-    /// been created. This is expected to closely correlate with the [`onResume`] lifecycle
-    /// event but there may technically be a discrepancy.
+    /// On Android, the [`can_create_surfaces()`] method is called when a new [`NativeWindow`]
+    /// (native [`Surface`]) is created which backs the application window.  This is expected to
+    /// closely correlate with the [`onStart`] lifecycle event which typically results in a surface
+    /// to be created after the app becomes visible.
     ///
-    /// [`onResume`]: https://developer.android.com/reference/android/app/Activity#onResume()
-    ///
-    /// Applications that need to run on Android must wait until they have been "resumed" before
+    /// Applications that need to run on Android must wait until they have received a surface before
     /// they will be able to create a render surface (such as an `EGLSurface`, [`VkSurfaceKHR`]
-    /// or [`wgpu::Surface`]) which depend on having a [`SurfaceView`]. Applications must also
-    /// assume that if they are [suspended], then their render surfaces are invalid and should
-    /// be dropped.
+    /// or [`wgpu::Surface`]) which depend on having a [`NativeWindow`]. Applications must handle
+    /// [`destroy_surfaces()`], where their render surfaces are invalid and should be dropped.
     ///
-    /// [suspended]: Self::destroy_surfaces
-    /// [`SurfaceView`]: https://developer.android.com/reference/android/view/SurfaceView
-    /// [Activity lifecycle]: https://developer.android.com/guide/components/activities/activity-lifecycle
+    /// [`NativeWindow`]: https://developer.android.com/ndk/reference/group/a-native-window
+    /// [`Surface`]: https://developer.android.com/reference/android/view/Surface
+    /// [`onStart`]: https://developer.android.com/reference/android/app/Activity#onStart()
     /// [`VkSurfaceKHR`]: https://www.khronos.org/registry/vulkan/specs/1.3-extensions/man/html/VkSurfaceKHR.html
     /// [`wgpu::Surface`]: https://docs.rs/wgpu/latest/wgpu/struct.Surface.html
     ///
-    /// [`can_create_surfaces()`]: Self::can_create_surfaces
-    /// [`destroy_surfaces()`]: Self::destroy_surfaces
+    /// [`can_create_surfaces()`]: Self::can_create_surfaces()
+    /// [`destroy_surfaces()`]: Self::destroy_surfaces()
     fn can_create_surfaces(&mut self, event_loop: &dyn ActiveEventLoop);
 
     /// Called after a wake up is requested using [`EventLoopProxy::wake_up()`].
@@ -235,18 +243,30 @@ pub trait ApplicationHandler {
     /// ### Web
     ///
     /// On Web, the [`suspended()`] method is called in response to a [`pagehide`] event if the
-    /// page is being restored from the [`bfcache`] (back/forward cache) - an in-memory cache that
+    /// page is being moved/stored in the [`bfcache`] (back/forward cache) - an in-memory cache that
     /// stores a complete snapshot of a page (including the JavaScript heap) as the user is
     /// navigating away.
     ///
     /// [`pagehide`]: https://developer.mozilla.org/en-US/docs/Web/API/Window/pagehide_event
     /// [`bfcache`]: https://web.dev/bfcache/
     ///
+    /// ### Android
+    ///
+    /// On Android, the [`suspended()`] method is called when the `Activity` is no longer visible to
+    /// the user.  This is a good place to stop refreshing UI, running animations and other visual
+    /// things.  It is driven by Android's [`onStop()`] method.
+    ///
+    /// After this event the application either receives [`resumed()`] again, or [`exiting()`].
+    ///
+    /// [`onStop()`]: https://developer.android.com/reference/android/app/Activity#onStop()
+    ///
     /// ### Others
     ///
-    /// **Android / macOS / Orbital / Wayland / Windows / X11:** Unsupported.
+    /// **macOS / Orbital / Wayland / Windows / X11:** Unsupported.
     ///
-    /// [`suspended()`]: Self::suspended
+    /// [`resumed()`]: Self::resumed()
+    /// [`suspended()`]: Self::suspended()
+    /// [`exiting()`]: Self::exiting()
     fn suspended(&mut self, event_loop: &dyn ActiveEventLoop) {
         let _ = event_loop;
     }
@@ -259,24 +279,22 @@ pub trait ApplicationHandler {
     ///
     /// ### Android
     ///
-    /// On Android, the [`destroy_surfaces()`] method is called when the application's associated
-    /// [`SurfaceView`] is destroyed. This is expected to closely correlate with the [`onPause`]
-    /// lifecycle event but there may technically be a discrepancy.
+    /// On Android, the [`destroy_surfaces()`] method is called when the application's
+    /// [`NativeWindow`] (native [`Surface`]) is destroyed. This is expected to closely correlate
+    /// with the [`onStop`] lifecycle event which typically results in the surface to be destroyed
+    /// after the app becomes invisible.
     ///
-    /// [`onPause`]: https://developer.android.com/reference/android/app/Activity#onPause()
-    ///
-    /// Applications that need to run on Android should assume their [`SurfaceView`] has been
+    /// Applications that need to run on Android should assume their [`NativeWindow`] has been
     /// destroyed, which indirectly invalidates any existing render surfaces that may have been
     /// created outside of Winit (such as an `EGLSurface`, [`VkSurfaceKHR`] or [`wgpu::Surface`]).
     ///
-    /// After being [suspended] on Android applications must drop all render surfaces before
-    /// the event callback completes, which may be re-created when the application is next
-    /// [resumed].
+    /// When receiving [`destroy_surfaces()`] Android applications must drop all render surfaces
+    /// before the event callback completes, which may be re-created when the application next
+    /// receives [`can_create_surfaces()`].
     ///
-    /// [suspended]: Self::destroy_surfaces
-    /// [resumed]: Self::can_create_surfaces
-    /// [`SurfaceView`]: https://developer.android.com/reference/android/view/SurfaceView
-    /// [Activity lifecycle]: https://developer.android.com/guide/components/activities/activity-lifecycle
+    /// [`NativeWindow`]: https://developer.android.com/ndk/reference/group/a-native-window
+    /// [`Surface`]: https://developer.android.com/reference/android/view/Surface
+    /// [`onStop`]: https://developer.android.com/reference/android/app/Activity#onStop()
     /// [`VkSurfaceKHR`]: https://www.khronos.org/registry/vulkan/specs/1.3-extensions/man/html/VkSurfaceKHR.html
     /// [`wgpu::Surface`]: https://docs.rs/wgpu/latest/wgpu/struct.Surface.html
     ///
@@ -284,8 +302,8 @@ pub trait ApplicationHandler {
     ///
     /// - **iOS / macOS / Orbital / Wayland / Web / Windows / X11:** Unsupported.
     ///
-    /// [`can_create_surfaces()`]: Self::can_create_surfaces
-    /// [`destroy_surfaces()`]: Self::destroy_surfaces
+    /// [`can_create_surfaces()`]: Self::can_create_surfaces()
+    /// [`destroy_surfaces()`]: Self::destroy_surfaces()
     fn destroy_surfaces(&mut self, event_loop: &dyn ActiveEventLoop) {
         let _ = event_loop;
     }
