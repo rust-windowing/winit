@@ -17,6 +17,7 @@ use crate::dpi::LogicalSize;
 use crate::error::{EventLoopError, OsError, RequestError};
 use crate::event::{Event, StartCause, SurfaceSizeWriter, WindowEvent};
 use crate::event_loop::{ActiveEventLoop as RootActiveEventLoop, ControlFlow, DeviceEvents};
+use crate::monitor::MonitorHandle as CoreMonitorHandle;
 use crate::platform::pump_events::PumpStatus;
 use crate::platform_impl::platform::min_timeout;
 use crate::platform_impl::PlatformCustomCursor;
@@ -28,6 +29,7 @@ pub mod sink;
 pub use proxy::EventLoopProxy;
 use sink::EventSink;
 
+use super::output::MonitorHandle;
 use super::state::{WindowCompositorUpdate, WinitState};
 use super::window::state::FrameCallbackState;
 use super::{logical_to_physical_rounded, WindowId};
@@ -618,19 +620,18 @@ impl RootActiveEventLoop for ActiveEventLoop {
         Ok(Box::new(window))
     }
 
-    fn available_monitors(&self) -> Box<dyn Iterator<Item = crate::monitor::MonitorHandle>> {
+    fn available_monitors(&self) -> Box<dyn Iterator<Item = CoreMonitorHandle>> {
         Box::new(
             self.state
                 .borrow()
                 .output_state
                 .outputs()
-                .map(crate::platform_impl::wayland::output::MonitorHandle::new)
-                .map(crate::platform_impl::MonitorHandle::Wayland)
-                .map(|inner| crate::monitor::MonitorHandle { inner }),
+                .map(MonitorHandle::new)
+                .map(|inner| CoreMonitorHandle(Arc::new(inner))),
         )
     }
 
-    fn primary_monitor(&self) -> Option<crate::monitor::MonitorHandle> {
+    fn primary_monitor(&self) -> Option<CoreMonitorHandle> {
         // There's no primary monitor on Wayland.
         None
     }

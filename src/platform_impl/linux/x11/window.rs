@@ -270,28 +270,30 @@ impl CoreWindow for Window {
         self.0.set_cursor_hittest(hittest)
     }
 
-    fn current_monitor(&self) -> Option<crate::monitor::MonitorHandle> {
+    fn current_monitor(&self) -> Option<crate::monitor::MonitorHandleProvider> {
         self.0
             .current_monitor()
             .map(crate::platform_impl::MonitorHandle::X)
-            .map(|inner| crate::monitor::MonitorHandle { inner })
+            .map(|inner| crate::monitor::MonitorHandleProvider { inner })
     }
 
-    fn available_monitors(&self) -> Box<dyn Iterator<Item = crate::monitor::MonitorHandle>> {
+    fn available_monitors(
+        &self,
+    ) -> Box<dyn Iterator<Item = crate::monitor::MonitorHandleProvider>> {
         Box::new(
             self.0
                 .available_monitors()
                 .into_iter()
                 .map(crate::platform_impl::MonitorHandle::X)
-                .map(|inner| crate::monitor::MonitorHandle { inner }),
+                .map(|inner| crate::monitor::MonitorHandleProvider { inner }),
         )
     }
 
-    fn primary_monitor(&self) -> Option<crate::monitor::MonitorHandle> {
+    fn primary_monitor(&self) -> Option<crate::monitor::MonitorHandleProvider> {
         self.0
             .primary_monitor()
             .map(crate::platform_impl::MonitorHandle::X)
-            .map(|inner| crate::monitor::MonitorHandle { inner })
+            .map(|inner| crate::monitor::MonitorHandleProvider { inner })
     }
 
     #[cfg(feature = "rwh_06")]

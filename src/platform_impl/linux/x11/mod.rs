@@ -703,23 +703,25 @@ impl RootActiveEventLoop for ActiveEventLoop {
         })
     }
 
-    fn available_monitors(&self) -> Box<dyn Iterator<Item = crate::monitor::MonitorHandle>> {
+    fn available_monitors(
+        &self,
+    ) -> Box<dyn Iterator<Item = crate::monitor::MonitorHandleProvider>> {
         Box::new(
             self.xconn
                 .available_monitors()
                 .into_iter()
                 .flatten()
                 .map(crate::platform_impl::MonitorHandle::X)
-                .map(|inner| crate::monitor::MonitorHandle { inner }),
+                .map(|inner| crate::monitor::MonitorHandleProvider { inner }),
         )
     }
 
-    fn primary_monitor(&self) -> Option<crate::monitor::MonitorHandle> {
+    fn primary_monitor(&self) -> Option<crate::monitor::MonitorHandleProvider> {
         self.xconn
             .primary_monitor()
             .ok()
             .map(crate::platform_impl::MonitorHandle::X)
-            .map(|inner| crate::monitor::MonitorHandle { inner })
+            .map(|inner| crate::monitor::MonitorHandleProvider { inner })
     }
 
     fn system_theme(&self) -> Option<Theme> {

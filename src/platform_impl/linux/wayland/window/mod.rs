@@ -21,12 +21,12 @@ use crate::dpi::{LogicalSize, PhysicalPosition, PhysicalSize, Position, Size};
 use crate::error::{NotSupportedError, RequestError};
 use crate::event::{Ime, WindowEvent};
 use crate::event_loop::AsyncRequestSerial;
-use crate::monitor::MonitorHandle as CoreMonitorHandle;
-use crate::platform_impl::{Fullscreen, MonitorHandle as PlatformMonitorHandle};
+use crate::monitor::{Fullscreen, MonitorHandle as CoreMonitorHandle};
+use crate::platform_impl::wayland::output;
+use crate::utils::AsAny;
 use crate::window::{
-    Cursor, CursorGrabMode, Fullscreen as CoreFullscreen, ImePurpose, ResizeDirection, Theme,
-    UserAttentionType, Window as CoreWindow, WindowAttributes, WindowButtons,
-    WindowId as CoreWindowId, WindowLevel,
+    Cursor, CursorGrabMode, ImePurpose, ResizeDirection, Theme, UserAttentionType,
+    Window as CoreWindow, WindowAttributes, WindowButtons, WindowId as CoreWindowId, WindowLevel,
 };
 
 pub(crate) mod state;
@@ -139,18 +139,19 @@ impl Window {
 
         // Set startup mode.
         match attributes.fullscreen.map(Into::into) {
-            Some(Fullscreen::Exclusive(_)) => {
+            Some(Fullscreen::Exclusive(..)) => {
                 warn!("`Fullscreen::Exclusive` is ignored on Wayland");
             },
             #[cfg_attr(not(x11_platform), allow(clippy::bind_instead_of_map))]
             Some(Fullscreen::Borderless(monitor)) => {
-                let output = monitor.and_then(|monitor| match monitor {
-                    PlatformMonitorHandle::Wayland(monitor) => Some(monitor.proxy),
-                    #[cfg(x11_platform)]
-                    PlatformMonitorHandle::X(_) => None,
+                let output = monitor.as_ref().and_then(|monitor| {
+                    monitor
+                        .as_any()
+                        .downcast_ref::<output::MonitorHandle>()
+                        .map(|handle| &handle.proxy)
                 });
 
-                window.set_fullscreen(output.as_ref())
+                window.set_fullscreen(output)
             },
             _ if attributes.maximized => window.set_maximized(),
             _ => (),
@@ -435,26 +436,27 @@ impl CoreWindow for Window {
             .unwrap_or_default()
     }
 
-    fn set_fullscreen(&self, fullscreen: Option<CoreFullscreen>) {
+    fn set_fullscreen(&self, fullscreen: Option<Fullscreen>) {
         match fullscreen {
-            Some(CoreFullscreen::Exclusive(_)) => {
+            Some(Fullscreen::Exclusive(..)) => {
                 warn!("`Fullscreen::Exclusive` is ignored on Wayland");
             },
             #[cfg_attr(not(x11_platform), allow(clippy::bind_instead_of_map))]
-            Some(CoreFullscreen::Borderless(monitor)) => {
-                let output = monitor.and_then(|monitor| match monitor.inner {
-                    PlatformMonitorHandle::Wayland(monitor) => Some(monitor.proxy),
-                    #[cfg(x11_platform)]
-                    PlatformMonitorHandle::X(_) => None,
+            Some(Fullscreen::Borderless(monitor)) => {
+                let output = monitor.as_ref().and_then(|monitor| {
+                    monitor
+                        .as_any()
+                        .downcast_ref::<output::MonitorHandle>()
+                        .map(|handle| &handle.proxy)
                 });
 
-                self.window.set_fullscreen(output.as_ref())
+                self.window.set_fullscreen(output)
             },
             None => self.window.unset_fullscreen(),
         }
     }
 
-    fn fullscreen(&self) -> Option<CoreFullscreen> {
+    fn fullscreen(&self) -> Option<Fullscreen> {
         let is_fullscreen = self
             .window_state
             .lock()
@@ -466,7 +468,7 @@ impl CoreWindow for Window {
 
         if is_fullscreen {
             let current_monitor = self.current_monitor();
-            Some(CoreFullscreen::Borderless(current_monitor))
+            Some(Fullscreen::Borderless(current_monitor))
         } else {
             None
         }
@@ -626,8 +628,7 @@ impl CoreWindow for Window {
         data.outputs()
             .next()
             .map(MonitorHandle::new)
-            .map(crate::platform_impl::MonitorHandle::Wayland)
-            .map(|inner| CoreMonitorHandle { inner })
+            .map(|monitor| CoreMonitorHandle(Arc::new(monitor)))
     }
 
     fn available_monitors(&self) -> Box<dyn Iterator<Item = CoreMonitorHandle>> {
@@ -637,8 +638,7 @@ impl CoreWindow for Window {
                 .unwrap()
                 .clone()
                 .into_iter()
-                .map(crate::platform_impl::MonitorHandle::Wayland)
-                .map(|inner| CoreMonitorHandle { inner }),
+                .map(|inner| CoreMonitorHandle(Arc::new(inner))),
         )
     }
 
