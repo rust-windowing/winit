@@ -510,7 +510,7 @@ pub trait Surface: AsAny + Send + Sync {
     ///
     /// This is the **strongly encouraged** method of redrawing windows, as it can integrate with
     /// OS-requested redraws (e.g. when a window gets resized). To improve the event delivery
-    /// consider using [`Window::pre_present_notify`] as described in docs.
+    /// consider using [`Surface::pre_present_notify`] as described in docs.
     ///
     /// Applications should always aim to redraw whenever they receive a `RedrawRequested` event.
     ///
@@ -526,7 +526,7 @@ pub trait Surface: AsAny + Send + Sync {
     /// - **Windows** This API uses `RedrawWindow` to request a `WM_PAINT` message and
     ///   `RedrawRequested` is emitted in sync with any `WM_PAINT` messages.
     /// - **Wayland:** The events are aligned with the frame callbacks when
-    ///   [`Window::pre_present_notify`] is used.
+    ///   [`Surface::pre_present_notify`] is used.
     /// - **Web:** [`WindowEvent::RedrawRequested`] will be aligned with the
     ///   `requestAnimationFrame`.
     ///
@@ -546,7 +546,7 @@ pub trait Surface: AsAny + Send + Sync {
     /// APIs and software rendering.
     ///
     /// ```no_run
-    /// # use winit::window::Window;
+    /// # use winit::Surface::Window;
     /// # fn swap_buffers() {}
     /// # fn scope(window: &dyn Window) {
     /// // Do the actual drawing with OpenGL.
@@ -593,13 +593,13 @@ pub trait Surface: AsAny + Send + Sync {
     /// When `None` is returned, it means that the request went to the display system,
     /// and the actual size will be delivered later with the [`WindowEvent::SurfaceResized`].
     ///
-    /// See [`Window::surface_size`] for more information about the values.
+    /// See [`Surface::surface_size`] for more information about the values.
     ///
     /// The request could automatically un-maximize the window if it's maximized.
     ///
     /// ```no_run
     /// # use winit::dpi::{LogicalSize, PhysicalSize};
-    /// # use winit::window::Window;
+    /// # use winit::Surface::Window;
     /// # fn scope(window: &dyn Window) {
     /// // Specify the size in logical dimensions like this:
     /// let _ = window.request_surface_size(LogicalSize::new(400.0, 200.0).into());
@@ -650,7 +650,7 @@ pub trait Surface: AsAny + Send + Sync {
     ///
     /// ```no_run
     /// # use winit::dpi::{LogicalPosition, PhysicalPosition};
-    /// # use winit::window::Window;
+    /// # use winit::Surface::Window;
     /// # fn scope(window: &dyn Window) {
     /// // Specify the position in logical dimensions like this:
     /// window.set_cursor_position(LogicalPosition::new(400.0, 200.0).into());
@@ -673,7 +673,7 @@ pub trait Surface: AsAny + Send + Sync {
     /// First try confining the cursor, and if that fails, try locking it instead.
     ///
     /// ```no_run
-    /// # use winit::window::{CursorGrabMode, Window};
+    /// # use winit::Surface::{CursorGrabMode, Window};
     /// # fn scope(window: &dyn Window) {
     /// window
     ///     .set_cursor_grab(CursorGrabMode::Confined)
