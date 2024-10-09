@@ -24,9 +24,9 @@ use crate::event_loop::AsyncRequestSerial;
 use crate::monitor::MonitorHandle as CoreMonitorHandle;
 use crate::platform_impl::{Fullscreen, MonitorHandle as PlatformMonitorHandle};
 use crate::window::{
-    Cursor, CursorGrabMode, Fullscreen as CoreFullscreen, ImePurpose, ResizeDirection, Theme,
-    UserAttentionType, Window as CoreWindow, Surface as CoreSurface, WindowAttributes, WindowButtons, WindowId,
-    WindowLevel,
+    Cursor, CursorGrabMode, Fullscreen as CoreFullscreen, ImePurpose, ResizeDirection,
+    Surface as CoreSurface, Theme, UserAttentionType, Window as CoreWindow, WindowAttributes,
+    WindowButtons, WindowId, WindowLevel,
 };
 
 pub(crate) mod state;
@@ -318,7 +318,6 @@ impl CoreSurface for Window {
     fn set_transparent(&self, transparent: bool) {
         self.window_state.lock().unwrap().set_transparent(transparent);
     }
-    
 
     fn set_cursor(&self, cursor: Cursor) {
         let window_state = &mut self.window_state.lock().unwrap();
@@ -364,7 +363,6 @@ impl CoreSurface for Window {
 }
 
 impl CoreWindow for Window {
-
     #[inline]
     fn title(&self) -> String {
         self.window_state.lock().unwrap().title().to_owned()

@@ -35,8 +35,8 @@ use crate::platform_impl::{
     VideoModeHandle as PlatformVideoModeHandle,
 };
 use crate::window::{
-    CursorGrabMode, ImePurpose, ResizeDirection, Theme, UserAttentionType, Window as CoreWindow, Surface as CoreSurface,
-    WindowAttributes, WindowButtons, WindowId, WindowLevel,
+    CursorGrabMode, ImePurpose, ResizeDirection, Surface as CoreSurface, Theme, UserAttentionType,
+    Window as CoreWindow, WindowAttributes, WindowButtons, WindowId, WindowLevel,
 };
 
 pub(crate) struct Window(Arc<UnownedWindow>);
