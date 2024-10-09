@@ -726,7 +726,6 @@ pub trait Surface: AsAny + Send + Sync {
 /// **Web:** The [`Window`], which is represented by a `HTMLElementCanvas`, can
 /// not be closed by dropping the [`Window`].
 pub trait Window: Surface {
-
     /// Reset the dead key state of the keyboard.
     ///
     /// This is useful when a dead key is bound to trigger an action. Then
