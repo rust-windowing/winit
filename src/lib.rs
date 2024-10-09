@@ -99,7 +99,7 @@
 //! ```
 //!
 //! [`WindowEvent`] has a [`WindowId`] member. In multi-window environments, it should be
-//! compared to the value returned by [`Window::id()`] to determine which [`Window`]
+//! compared to the value returned by [`Surface::id()`] to determine which [`Window`]
 //! dispatched the event.
 //!
 //! # Drawing on the window
@@ -132,7 +132,7 @@
 //! can be found by calling [`window.scale_factor()`].
 //!
 //! [`ScaleFactorChanged`]: event::WindowEvent::ScaleFactorChanged
-//! [`window.scale_factor()`]: window::Window::scale_factor
+//! [`window.scale_factor()`]: window::Surface::scale_factor
 //!
 //! # Cargo Features
 //!
@@ -212,7 +212,7 @@
 //! [`WindowAttributes`]: window::WindowAttributes
 //! [window_new]: window::Window::new
 //! [`create_window`]: event_loop::ActiveEventLoop::create_window
-//! [`Window::id()`]: window::Window::id
+//! [`Surface::id()`]: window::Surface::id
 //! [`WindowEvent`]: event::WindowEvent
 //! [`DeviceEvent`]: event::DeviceEvent
 //! [`Event::UserEvent`]: event::Event::UserEvent

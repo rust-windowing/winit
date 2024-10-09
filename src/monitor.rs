@@ -47,9 +47,9 @@ impl Ord for VideoModeHandle {
 
 impl VideoModeHandle {
     /// Returns the resolution of this video mode. This **must not** be used to create your
-    /// rendering surface. Use [`Window::surface_size()`] instead.
+    /// rendering surface. Use [`Surface::surface_size()`] instead.
     ///
-    /// [`Window::surface_size()`]: crate::window::Window::surface_size
+    /// [`Surface::surface_size()`]: crate::window::Surface::surface_size
     #[inline]
     pub fn size(&self) -> PhysicalSize<u32> {
         self.video_mode.size()
@@ -158,14 +158,14 @@ impl MonitorHandle {
     }
 
     /// Returns the scale factor of the underlying monitor. To map logical pixels to physical
-    /// pixels and vice versa, use [`Window::scale_factor`].
+    /// pixels and vice versa, use [`Surface::scale_factor`].
     ///
     /// See the [`dpi`] module for more information.
     ///
     /// ## Platform-specific
     ///
     /// - **X11:** Can be overridden using the `WINIT_X11_SCALE_FACTOR` environment variable.
-    /// - **Wayland:** May differ from [`Window::scale_factor`].
+    /// - **Wayland:** May differ from [`Surface::scale_factor`].
     /// - **Android:** Always returns 1.0.
     /// - **Web:** Always returns `0.0` without
     #[cfg_attr(
@@ -175,7 +175,7 @@ impl MonitorHandle {
     #[cfg_attr(not(any(web_platform, docsrs)), doc = "  detailed monitor permissions.")]
     ///
     #[rustfmt::skip]
-    /// [`Window::scale_factor`]: crate::window::Window::scale_factor
+    /// [`Surface::scale_factor`]: crate::window::Surface::scale_factor
     #[inline]
     pub fn scale_factor(&self) -> f64 {
         self.inner.scale_factor()

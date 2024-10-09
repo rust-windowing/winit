@@ -122,7 +122,7 @@ impl Inner {
     }
 
     pub fn set_transparent(&self, _transparent: bool) {
-        debug!("`Window::set_transparent` is ignored on iOS")
+        debug!("`Surface::set_transparent` is ignored on iOS")
     }
 
     pub fn set_blur(&self, _blur: bool) {
@@ -252,7 +252,7 @@ impl Inner {
     }
 
     pub fn set_cursor(&self, _cursor: Cursor) {
-        debug!("`Window::set_cursor` ignored on iOS")
+        debug!("`Surface::set_cursor` ignored on iOS")
     }
 
     pub fn set_cursor_position(&self, _position: Position) -> Result<(), NotSupportedError> {
@@ -264,7 +264,7 @@ impl Inner {
     }
 
     pub fn set_cursor_visible(&self, _visible: bool) {
-        debug!("`Window::set_cursor_visible` is ignored on iOS")
+        debug!("`Surface::set_cursor_visible` is ignored on iOS")
     }
 
     pub fn drag_window(&self) -> Result<(), NotSupportedError> {
