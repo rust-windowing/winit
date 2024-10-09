@@ -420,9 +420,9 @@ impl WindowAttributes {
     }
 }
 
-/// Represents a window.
+/// Represents a surface.
 ///
-/// The window is closed when dropped.
+/// The surface is closed when dropped.
 ///
 /// ## Threading
 ///
@@ -436,9 +436,9 @@ impl WindowAttributes {
 ///
 /// ## Platform-specific
 ///
-/// **Web:** The [`Window`], which is represented by a `HTMLElementCanvas`, can
-/// not be closed by dropping the [`Window`].
-pub trait Window: AsAny + Send + Sync {
+/// **Web:** The [`Surface`], which is represented by a `HTMLElementCanvas`, can
+/// not be closed by dropping the [`Surface`].
+pub trait Surface: AsAny + Send + Sync {
     /// Returns an identifier unique to the window.
     fn id(&self) -> WindowId;
 
@@ -567,6 +567,166 @@ pub trait Window: AsAny + Send + Sync {
     /// [`WindowEvent::RedrawRequested`]: crate::event::WindowEvent::RedrawRequested
     fn pre_present_notify(&self);
 
+    /// Returns the size of the window's render-able surface.
+    ///
+    /// This is the dimensions you should pass to things like Wgpu or Glutin when configuring.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **iOS:** Returns the `PhysicalSize` of the window's [safe area] in screen space
+    ///   coordinates.
+    /// - **Web:** Returns the size of the canvas element. Doesn't account for CSS [`transform`].
+    ///
+    /// [safe area]: https://developer.apple.com/documentation/uikit/uiview/2891103-safeareainsets?language=objc
+    /// [`transform`]: https://developer.mozilla.org/en-US/docs/Web/CSS/transform
+    fn surface_size(&self) -> PhysicalSize<u32>;
+
+    /// Request the new size for the surface.
+    ///
+    /// On platforms where the size is entirely controlled by the user the
+    /// applied size will be returned immediately, resize event in such case
+    /// may not be generated.
+    ///
+    /// On platforms where resizing is disallowed by the windowing system, the current surface size
+    /// is returned immediately, and the user one is ignored.
+    ///
+    /// When `None` is returned, it means that the request went to the display system,
+    /// and the actual size will be delivered later with the [`WindowEvent::SurfaceResized`].
+    ///
+    /// See [`Window::surface_size`] for more information about the values.
+    ///
+    /// The request could automatically un-maximize the window if it's maximized.
+    ///
+    /// ```no_run
+    /// # use winit::dpi::{LogicalSize, PhysicalSize};
+    /// # use winit::window::Window;
+    /// # fn scope(window: &dyn Window) {
+    /// // Specify the size in logical dimensions like this:
+    /// let _ = window.request_surface_size(LogicalSize::new(400.0, 200.0).into());
+    ///
+    /// // Or specify the size in physical dimensions like this:
+    /// let _ = window.request_surface_size(PhysicalSize::new(400, 200).into());
+    /// # }
+    /// ```
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **Web:** Sets the size of the canvas element. Doesn't account for CSS [`transform`].
+    ///
+    /// [`WindowEvent::SurfaceResized`]: crate::event::WindowEvent::SurfaceResized
+    /// [`transform`]: https://developer.mozilla.org/en-US/docs/Web/CSS/transform
+    #[must_use]
+    fn request_surface_size(&self, size: Size) -> Option<PhysicalSize<u32>>;
+
+    /// Change the window transparency state.
+    ///
+    /// This is just a hint that may not change anything about
+    /// the window transparency, however doing a mismatch between
+    /// the content of your window and this hint may result in
+    /// visual artifacts.
+    ///
+    /// The default value follows the [`WindowAttributes::with_transparent`].
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **macOS:** This will reset the window's background color.
+    /// - **Web / iOS / Android:** Unsupported.
+    /// - **X11:** Can only be set while building the window, with
+    ///   [`WindowAttributes::with_transparent`].
+    fn set_transparent(&self, transparent: bool);
+
+    /// Modifies whether the window catches cursor events.
+    ///
+    /// If `true`, the window will catch the cursor events. If `false`, events are passed through
+    /// the window such that any other window behind it receives them. By default hittest is
+    /// enabled.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **iOS / Android / Web / Orbital:** Always returns an [`RequestError::NotSupported`].
+    fn set_cursor_hittest(&self, hittest: bool) -> Result<(), RequestError>;
+
+    /// Changes the position of the cursor in window coordinates.
+    ///
+    /// ```no_run
+    /// # use winit::dpi::{LogicalPosition, PhysicalPosition};
+    /// # use winit::window::Window;
+    /// # fn scope(window: &dyn Window) {
+    /// // Specify the position in logical dimensions like this:
+    /// window.set_cursor_position(LogicalPosition::new(400.0, 200.0).into());
+    ///
+    /// // Or specify the position in physical dimensions like this:
+    /// window.set_cursor_position(PhysicalPosition::new(400, 200).into());
+    /// # }
+    /// ```
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **Wayland**: Cursor must be in [`CursorGrabMode::Locked`].
+    /// - **iOS / Android / Web / Orbital:** Always returns an [`RequestError::NotSupported`].
+    fn set_cursor_position(&self, position: Position) -> Result<(), RequestError>;
+
+    /// Set grabbing [mode][CursorGrabMode] on the cursor preventing it from leaving the window.
+    ///
+    /// # Example
+    ///
+    /// First try confining the cursor, and if that fails, try locking it instead.
+    ///
+    /// ```no_run
+    /// # use winit::window::{CursorGrabMode, Window};
+    /// # fn scope(window: &dyn Window) {
+    /// window
+    ///     .set_cursor_grab(CursorGrabMode::Confined)
+    ///     .or_else(|_e| window.set_cursor_grab(CursorGrabMode::Locked))
+    ///     .unwrap();
+    /// # }
+    /// ```
+    fn set_cursor_grab(&self, mode: CursorGrabMode) -> Result<(), RequestError>;
+
+    /// Modifies the cursor icon of the window.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **iOS / Android / Orbital:** Unsupported.
+    /// - **Web:** Custom cursors have to be loaded and decoded first, until then the previous
+    ///   cursor is shown.
+    fn set_cursor(&self, cursor: Cursor);
+
+    /// Modifies the cursor's visibility.
+    ///
+    /// If `false`, this will hide the cursor. If `true`, this will show the cursor.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **Windows:** The cursor is only hidden within the confines of the window.
+    /// - **X11:** The cursor is only hidden within the confines of the window.
+    /// - **Wayland:** The cursor is only hidden within the confines of the window.
+    /// - **macOS:** The cursor is hidden as long as the window has input focus, even if the cursor
+    ///   is outside of the window.
+    /// - **iOS / Android:** Unsupported.
+    fn set_cursor_visible(&self, visible: bool);
+}
+
+/// Represents a toplevel window, which may generally have decorations.
+///
+/// The window is closed when dropped.
+///
+/// ## Threading
+///
+/// This is `Send + Sync`, meaning that it can be freely used from other
+/// threads.
+///
+/// However, some platforms (macOS, Web and iOS) only allow user interface
+/// interactions on the main thread, so on those platforms, if you use the
+/// window from a thread other than the main, the code is scheduled to run on
+/// the main thread, and your thread may be blocked until that completes.
+///
+/// ## Platform-specific
+///
+/// **Web:** The [`Window`], which is represented by a `HTMLElementCanvas`, can
+/// not be closed by dropping the [`Window`].
+pub trait Window: Surface {
+
     /// Reset the dead key state of the keyboard.
     ///
     /// This is useful when a dead key is bound to trigger an action. Then
@@ -642,57 +802,6 @@ pub trait Window: AsAny + Send + Sync {
     ///
     /// [`transform`]: https://developer.mozilla.org/en-US/docs/Web/CSS/transform
     fn set_outer_position(&self, position: Position);
-
-    /// Returns the size of the window's render-able surface.
-    ///
-    /// This is the dimensions you should pass to things like Wgpu or Glutin when configuring.
-    ///
-    /// ## Platform-specific
-    ///
-    /// - **iOS:** Returns the `PhysicalSize` of the window's [safe area] in screen space
-    ///   coordinates.
-    /// - **Web:** Returns the size of the canvas element. Doesn't account for CSS [`transform`].
-    ///
-    /// [safe area]: https://developer.apple.com/documentation/uikit/uiview/2891103-safeareainsets?language=objc
-    /// [`transform`]: https://developer.mozilla.org/en-US/docs/Web/CSS/transform
-    fn surface_size(&self) -> PhysicalSize<u32>;
-
-    /// Request the new size for the surface.
-    ///
-    /// On platforms where the size is entirely controlled by the user the
-    /// applied size will be returned immediately, resize event in such case
-    /// may not be generated.
-    ///
-    /// On platforms where resizing is disallowed by the windowing system, the current surface size
-    /// is returned immediately, and the user one is ignored.
-    ///
-    /// When `None` is returned, it means that the request went to the display system,
-    /// and the actual size will be delivered later with the [`WindowEvent::SurfaceResized`].
-    ///
-    /// See [`Window::surface_size`] for more information about the values.
-    ///
-    /// The request could automatically un-maximize the window if it's maximized.
-    ///
-    /// ```no_run
-    /// # use winit::dpi::{LogicalSize, PhysicalSize};
-    /// # use winit::window::Window;
-    /// # fn scope(window: &dyn Window) {
-    /// // Specify the size in logical dimensions like this:
-    /// let _ = window.request_surface_size(LogicalSize::new(400.0, 200.0).into());
-    ///
-    /// // Or specify the size in physical dimensions like this:
-    /// let _ = window.request_surface_size(PhysicalSize::new(400, 200).into());
-    /// # }
-    /// ```
-    ///
-    /// ## Platform-specific
-    ///
-    /// - **Web:** Sets the size of the canvas element. Doesn't account for CSS [`transform`].
-    ///
-    /// [`WindowEvent::SurfaceResized`]: crate::event::WindowEvent::SurfaceResized
-    /// [`transform`]: https://developer.mozilla.org/en-US/docs/Web/CSS/transform
-    #[must_use]
-    fn request_surface_size(&self, size: Size) -> Option<PhysicalSize<u32>>;
 
     /// Returns the size of the entire window.
     ///
@@ -770,23 +879,6 @@ pub trait Window: AsAny + Send + Sync {
     ///
     /// - **iOS / Android:** Unsupported.
     fn set_title(&self, title: &str);
-
-    /// Change the window transparency state.
-    ///
-    /// This is just a hint that may not change anything about
-    /// the window transparency, however doing a mismatch between
-    /// the content of your window and this hint may result in
-    /// visual artifacts.
-    ///
-    /// The default value follows the [`WindowAttributes::with_transparent`].
-    ///
-    /// ## Platform-specific
-    ///
-    /// - **macOS:** This will reset the window's background color.
-    /// - **Web / iOS / Android:** Unsupported.
-    /// - **X11:** Can only be set while building the window, with
-    ///   [`WindowAttributes::with_transparent`].
-    fn set_transparent(&self, transparent: bool);
 
     /// Change the window blur state.
     ///
@@ -1125,66 +1217,6 @@ pub trait Window: AsAny + Send + Sync {
     /// - **iOS / Android / x11 / Wayland / Web:** Unsupported. Always returns an empty string.
     fn title(&self) -> String;
 
-    /// Modifies the cursor icon of the window.
-    ///
-    /// ## Platform-specific
-    ///
-    /// - **iOS / Android / Orbital:** Unsupported.
-    /// - **Web:** Custom cursors have to be loaded and decoded first, until then the previous
-    ///   cursor is shown.
-    fn set_cursor(&self, cursor: Cursor);
-
-    /// Changes the position of the cursor in window coordinates.
-    ///
-    /// ```no_run
-    /// # use winit::dpi::{LogicalPosition, PhysicalPosition};
-    /// # use winit::window::Window;
-    /// # fn scope(window: &dyn Window) {
-    /// // Specify the position in logical dimensions like this:
-    /// window.set_cursor_position(LogicalPosition::new(400.0, 200.0).into());
-    ///
-    /// // Or specify the position in physical dimensions like this:
-    /// window.set_cursor_position(PhysicalPosition::new(400, 200).into());
-    /// # }
-    /// ```
-    ///
-    /// ## Platform-specific
-    ///
-    /// - **Wayland**: Cursor must be in [`CursorGrabMode::Locked`].
-    /// - **iOS / Android / Web / Orbital:** Always returns an [`RequestError::NotSupported`].
-    fn set_cursor_position(&self, position: Position) -> Result<(), RequestError>;
-
-    /// Set grabbing [mode][CursorGrabMode] on the cursor preventing it from leaving the window.
-    ///
-    /// # Example
-    ///
-    /// First try confining the cursor, and if that fails, try locking it instead.
-    ///
-    /// ```no_run
-    /// # use winit::window::{CursorGrabMode, Window};
-    /// # fn scope(window: &dyn Window) {
-    /// window
-    ///     .set_cursor_grab(CursorGrabMode::Confined)
-    ///     .or_else(|_e| window.set_cursor_grab(CursorGrabMode::Locked))
-    ///     .unwrap();
-    /// # }
-    /// ```
-    fn set_cursor_grab(&self, mode: CursorGrabMode) -> Result<(), RequestError>;
-
-    /// Modifies the cursor's visibility.
-    ///
-    /// If `false`, this will hide the cursor. If `true`, this will show the cursor.
-    ///
-    /// ## Platform-specific
-    ///
-    /// - **Windows:** The cursor is only hidden within the confines of the window.
-    /// - **X11:** The cursor is only hidden within the confines of the window.
-    /// - **Wayland:** The cursor is only hidden within the confines of the window.
-    /// - **macOS:** The cursor is hidden as long as the window has input focus, even if the cursor
-    ///   is outside of the window.
-    /// - **iOS / Android:** Unsupported.
-    fn set_cursor_visible(&self, visible: bool);
-
     /// Moves the window with the left mouse button until the button is released.
     ///
     /// There's no guarantee that this will work unless the left mouse button was pressed
@@ -1219,17 +1251,6 @@ pub trait Window: AsAny + Send + Sync {
     ///
     /// [window menu]: https://en.wikipedia.org/wiki/Common_menus_in_Microsoft_Windows#System_menu
     fn show_window_menu(&self, position: Position);
-
-    /// Modifies whether the window catches cursor events.
-    ///
-    /// If `true`, the window will catch the cursor events. If `false`, events are passed through
-    /// the window such that any other window behind it receives them. By default hittest is
-    /// enabled.
-    ///
-    /// ## Platform-specific
-    ///
-    /// - **iOS / Android / Web / Orbital:** Always returns an [`RequestError::NotSupported`].
-    fn set_cursor_hittest(&self, hittest: bool) -> Result<(), RequestError>;
 
     /// Returns the monitor on which the window currently resides.
     ///
