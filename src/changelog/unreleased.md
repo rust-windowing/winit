@@ -161,7 +161,7 @@ changelog entry.
   - `EventLoopExtRunOnDemand::run_on_demand`.
   - `VideoMode`
   - `WindowAttributes::new()`
-  - `Window::set_cursor_icon()`
+  - `Surface::set_cursor_icon()`
 - On iOS, remove `platform::ios::EventLoopExtIOS` and related `platform::ios::Idiom` type.
 
   This feature was incomplete, and the equivalent functionality can be trivially achieved outside

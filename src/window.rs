@@ -16,7 +16,7 @@ use crate::utils::AsAny;
 
 /// Identifier of a window. Unique for each window.
 ///
-/// Can be obtained with [`window.id()`][`Window::id`].
+/// Can be obtained with [`window.id()`][`Surface::id`].
 ///
 /// Whenever you receive an event specific to a window, this event contains a `WindowId` which you
 /// can then compare to the ids of your windows.
@@ -132,7 +132,7 @@ impl WindowAttributes {
     ///
     /// If this is not set, some platform-specific dimensions will be used.
     ///
-    /// See [`Window::request_surface_size`] for details.
+    /// See [`Surface::request_surface_size`] for details.
     #[inline]
     pub fn with_surface_size<S: Into<Size>>(mut self, size: S) -> Self {
         self.surface_size = Some(size.into());
@@ -271,7 +271,7 @@ impl WindowAttributes {
     /// If this is `true`, writing colors with alpha values different than
     /// `1.0` will produce a transparent window. On some platforms this
     /// is more of a hint for the system and you'd still have the alpha
-    /// buffer. To control it see [`Window::set_transparent`].
+    /// buffer. To control it see [`Surface::set_transparent`].
     ///
     /// The default is `false`.
     #[inline]
@@ -387,7 +387,7 @@ impl WindowAttributes {
     ///
     /// The default is [`CursorIcon::Default`].
     ///
-    /// See [`Window::set_cursor()`] for more details.
+    /// See [`Surface::set_cursor()`] for more details.
     #[inline]
     pub fn with_cursor(mut self, cursor: impl Into<Cursor>) -> Self {
         self.cursor = cursor.into();
@@ -805,13 +805,13 @@ pub trait Window: Surface {
     /// Returns the size of the entire window.
     ///
     /// These dimensions include window decorations like the title bar and borders. If you don't
-    /// want that (and you usually don't), use [`Window::surface_size`] instead.
+    /// want that (and you usually don't), use [`Surface::surface_size`] instead.
     ///
     /// ## Platform-specific
     ///
     /// - **iOS:** Returns the [`PhysicalSize`] of the window in screen space coordinates.
     /// - **Web:** Returns the size of the canvas element. _Note: this returns the same value as
-    ///   [`Window::surface_size`]._
+    ///   [`Surface::surface_size`]._
     fn outer_size(&self) -> PhysicalSize<u32>;
 
     /// Sets a minimum dimensions of the window's surface.
@@ -914,7 +914,7 @@ pub trait Window: Surface {
     /// Note that making the window unresizable doesn't exempt you from handling
     /// [`WindowEvent::SurfaceResized`], as that event can still be triggered by DPI scaling,
     /// entering fullscreen mode, etc. Also, the window could still be resized by calling
-    /// [`Window::request_surface_size`].
+    /// [`Surface::request_surface_size`].
     ///
     /// ## Platform-specific
     ///
@@ -1342,7 +1342,7 @@ impl rwh_06::HasWindowHandle for dyn Window + '_ {
 
 /// The behavior of cursor grabbing.
 ///
-/// Use this enum with [`Window::set_cursor_grab`] to grab the cursor.
+/// Use this enum with [`Surface::set_cursor_grab`] to grab the cursor.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum CursorGrabMode {

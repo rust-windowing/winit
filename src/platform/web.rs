@@ -34,7 +34,7 @@
 //! - [`Window::set_outer_position()`]
 //!
 //! [`WindowEvent::SurfaceResized`]: crate::event::WindowEvent::SurfaceResized
-//! [`Window::(set_)surface_size()`]: crate::window::Window::surface_size
+//! [`Window::(set_)surface_size()`]: crate::window::Surface::surface_size
 //! [`WindowEvent::Occluded`]: crate::event::WindowEvent::Occluded
 //! [`WindowEvent::PointerMoved`]: crate::event::WindowEvent::PointerMoved
 //! [`WindowEvent::PointerEntered`]: crate::event::WindowEvent::PointerEntered

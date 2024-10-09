@@ -151,9 +151,9 @@ pub enum WindowEvent {
     /// The size of the window's surface has changed.
     ///
     /// Contains the new dimensions of the surface (can also be retrieved with
-    /// [`Window::surface_size`]).
+    /// [`Surface::surface_size`]).
     ///
-    /// [`Window::surface_size`]: crate::window::Window::surface_size
+    /// [`Surface::surface_size`]: crate::window::Surface::surface_size
     SurfaceResized(PhysicalSize<u32>),
 
     /// The position of the window has changed. Contains the window's new position.
@@ -448,7 +448,7 @@ pub enum WindowEvent {
     /// This gets triggered in two scenarios:
     /// - The OS has performed an operation that's invalidated the window's contents (such as
     ///   resizing the window).
-    /// - The application has explicitly requested a redraw via [`Window::request_redraw`].
+    /// - The application has explicitly requested a redraw via [`Surface::request_redraw`].
     ///
     /// Winit will aggregate duplicate redraw requests into a single event, to
     /// help avoid duplicating rendering work.
