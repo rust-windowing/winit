@@ -51,7 +51,7 @@ use crate::event_loop::AsyncRequestSerial;
 use crate::keyboard::{self, ModifiersKeyState, ModifiersKeys, ModifiersState};
 use crate::platform_impl;
 #[cfg(doc)]
-use crate::window::Window;
+use crate::window::{Surface, Window};
 use crate::window::{ActivationToken, Theme, WindowId};
 
 // TODO: Remove once the backends can call `ApplicationHandler` methods directly. For now backends
