@@ -546,7 +546,7 @@ pub trait Surface: AsAny + Send + Sync {
     /// APIs and software rendering.
     ///
     /// ```no_run
-    /// # use winit::Surface::Window;
+    /// # use winit::window::Window;
     /// # fn swap_buffers() {}
     /// # fn scope(window: &dyn Window) {
     /// // Do the actual drawing with OpenGL.
@@ -599,7 +599,7 @@ pub trait Surface: AsAny + Send + Sync {
     ///
     /// ```no_run
     /// # use winit::dpi::{LogicalSize, PhysicalSize};
-    /// # use winit::Surface::Window;
+    /// # use winit::window::Window;
     /// # fn scope(window: &dyn Window) {
     /// // Specify the size in logical dimensions like this:
     /// let _ = window.request_surface_size(LogicalSize::new(400.0, 200.0).into());
@@ -650,7 +650,7 @@ pub trait Surface: AsAny + Send + Sync {
     ///
     /// ```no_run
     /// # use winit::dpi::{LogicalPosition, PhysicalPosition};
-    /// # use winit::Surface::Window;
+    /// # use winit::window::Window;
     /// # fn scope(window: &dyn Window) {
     /// // Specify the position in logical dimensions like this:
     /// window.set_cursor_position(LogicalPosition::new(400.0, 200.0).into());
@@ -673,7 +673,7 @@ pub trait Surface: AsAny + Send + Sync {
     /// First try confining the cursor, and if that fails, try locking it instead.
     ///
     /// ```no_run
-    /// # use winit::Surface::{CursorGrabMode, Window};
+    /// # use winit::window::{CursorGrabMode, Window};
     /// # fn scope(window: &dyn Window) {
     /// window
     ///     .set_cursor_grab(CursorGrabMode::Confined)
