@@ -1,5 +1,5 @@
 use smol_str::SmolStr;
-use windows_sys::Win32::Foundation::{HANDLE, HWND};
+use windows_sys::Win32::Foundation::HWND;
 use windows_sys::Win32::UI::WindowsAndMessaging::{HMENU, WINDOW_LONG_PTR_INDEX};
 
 pub(crate) use self::event_loop::{
@@ -11,7 +11,7 @@ pub(crate) use self::keyboard::{physicalkey_to_scancode, scancode_to_physicalkey
 pub(crate) use self::monitor::{MonitorHandle, VideoModeHandle};
 pub(crate) use self::window::Window;
 pub(crate) use crate::cursor::OnlyCursorImageSource as PlatformCustomCursorSource;
-use crate::event::DeviceId as RootDeviceId;
+use crate::event::DeviceId;
 use crate::icon::Icon;
 use crate::keyboard::Key;
 use crate::platform::windows::{BackdropType, Color, CornerPreference};
@@ -60,19 +60,6 @@ unsafe impl Send for PlatformSpecificWindowAttributes {}
 unsafe impl Sync for PlatformSpecificWindowAttributes {}
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct DeviceId(u32);
-
-impl DeviceId {
-    pub fn persistent_identifier(&self) -> Option<String> {
-        if self.0 != 0 {
-            raw_input::get_raw_input_device_name(self.0 as HANDLE)
-        } else {
-            None
-        }
-    }
-}
-
-#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct FingerId {
     id: u32,
     primary: bool,
@@ -91,8 +78,8 @@ impl FingerId {
     }
 }
 
-fn wrap_device_id(id: u32) -> RootDeviceId {
-    RootDeviceId(DeviceId(id))
+fn wrap_device_id(id: u32) -> DeviceId {
+    DeviceId::from_raw(id as i64)
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
@@ -166,6 +153,6 @@ mod ime;
 mod keyboard;
 mod keyboard_layout;
 mod monitor;
-mod raw_input;
+pub(crate) mod raw_input;
 mod window;
 mod window_state;

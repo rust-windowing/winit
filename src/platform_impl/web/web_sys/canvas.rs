@@ -12,7 +12,6 @@ use web_sys::{
 };
 
 use super::super::cursor::CursorHandler;
-use super::super::event::DeviceId;
 use super::super::main_thread::MainThreadMarker;
 use super::animation_frame::AnimationFrameHandler;
 use super::event_handle::EventListenerHandle;
@@ -23,7 +22,8 @@ use super::{event, fullscreen, ResizeScaleHandle};
 use crate::dpi::{LogicalPosition, PhysicalPosition, PhysicalSize};
 use crate::error::RequestError;
 use crate::event::{
-    ButtonSource, ElementState, MouseScrollDelta, PointerKind, PointerSource, SurfaceSizeWriter,
+    ButtonSource, DeviceId, ElementState, MouseScrollDelta, PointerKind, PointerSource,
+    SurfaceSizeWriter,
 };
 use crate::keyboard::{Key, KeyLocation, ModifiersState, PhysicalKey};
 use crate::platform_impl::Fullscreen;

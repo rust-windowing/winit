@@ -100,9 +100,6 @@ impl TimeSocket {
 pub(crate) struct PlatformSpecificEventLoopAttributes {}
 
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
-pub struct DeviceId;
-
-#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct FingerId;
 
 impl FingerId {

@@ -10,9 +10,7 @@ use super::super::{lock, KeyEventExtra};
 use super::runner::{EventWrapper, WeakShared};
 use super::{backend, runner, EventLoopProxy};
 use crate::error::{NotSupportedError, RequestError};
-use crate::event::{
-    DeviceId as RootDeviceId, ElementState, Event, KeyEvent, TouchPhase, WindowEvent,
-};
+use crate::event::{ElementState, Event, KeyEvent, TouchPhase, WindowEvent};
 use crate::event_loop::{
     ActiveEventLoop as RootActiveEventLoop, ControlFlow, DeviceEvents,
     EventLoopProxy as RootEventLoopProxy, OwnedDisplayHandle as RootOwnedDisplayHandle,
@@ -210,11 +208,7 @@ impl ActiveEventLoop {
 
                 runner.send_events(focus.into_iter().chain(iter::once(Event::WindowEvent {
                     window_id,
-                    event: WindowEvent::PointerLeft {
-                        device_id: device_id.map(RootDeviceId),
-                        position: Some(position),
-                        kind,
-                    },
+                    event: WindowEvent::PointerLeft { device_id, position: Some(position), kind },
                 })))
             }
         });
@@ -235,11 +229,7 @@ impl ActiveEventLoop {
 
                 runner.send_events(focus.into_iter().chain(iter::once(Event::WindowEvent {
                     window_id,
-                    event: WindowEvent::PointerEntered {
-                        device_id: device_id.map(RootDeviceId),
-                        position,
-                        kind,
-                    },
+                    event: WindowEvent::PointerEntered { device_id, position, kind },
                 })))
             }
         });
@@ -250,10 +240,8 @@ impl ActiveEventLoop {
                 let has_focus = has_focus.clone();
                 let modifiers = self.modifiers.clone();
 
-                move |pointer_id, events| {
+                move |device_id, events| {
                     runner.send_events(events.flat_map(|(active_modifiers, position, source)| {
-                        let device_id = pointer_id.map(RootDeviceId);
-
                         let modifiers = (has_focus.get() && modifiers.get() != active_modifiers)
                             .then(|| {
                                 modifiers.set(active_modifiers);
@@ -285,8 +273,6 @@ impl ActiveEventLoop {
                             }
                         });
 
-                    let device_id = device_id.map(RootDeviceId);
-
                     runner.send_events(modifiers.into_iter().chain([Event::WindowEvent {
                         window_id,
                         event: WindowEvent::PointerButton { device_id, state, position, button },
@@ -299,7 +285,7 @@ impl ActiveEventLoop {
             let runner = self.runner.clone();
             let modifiers = self.modifiers.clone();
 
-            move |active_modifiers, pointer_id, position, button| {
+            move |active_modifiers, device_id, position, button| {
                 let modifiers = (modifiers.get() != active_modifiers).then(|| {
                     modifiers.set(active_modifiers);
                     Event::WindowEvent {
@@ -308,7 +294,6 @@ impl ActiveEventLoop {
                     }
                 });
 
-                let device_id = pointer_id.map(RootDeviceId);
                 runner.send_events(modifiers.into_iter().chain(iter::once(Event::WindowEvent {
                     window_id,
                     event: WindowEvent::PointerButton {
@@ -326,7 +311,7 @@ impl ActiveEventLoop {
             let has_focus = has_focus.clone();
             let modifiers = self.modifiers.clone();
 
-            move |active_modifiers, pointer_id, position, button| {
+            move |active_modifiers, device_id, position, button| {
                 let modifiers =
                     (has_focus.get() && modifiers.get() != active_modifiers).then(|| {
                         modifiers.set(active_modifiers);
@@ -335,8 +320,6 @@ impl ActiveEventLoop {
                             event: WindowEvent::ModifiersChanged(active_modifiers.into()),
                         }
                     });
-
-                let device_id = pointer_id.map(RootDeviceId);
 
                 runner.send_events(modifiers.into_iter().chain(iter::once(Event::WindowEvent {
                     window_id,

@@ -108,15 +108,6 @@ pub(crate) static X11_BACKEND: Lazy<Mutex<Result<Arc<XConnection>, XNotSupported
     Lazy::new(|| Mutex::new(XConnection::new(Some(x_error_callback)).map(Arc::new)));
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum DeviceId {
-    #[cfg(x11_platform)]
-    X(x11::DeviceId),
-    #[cfg(wayland_platform)]
-    #[allow(unused)]
-    Wayland(wayland::DeviceId),
-}
-
-#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum FingerId {
     #[cfg(x11_platform)]
     X(x11::FingerId),
