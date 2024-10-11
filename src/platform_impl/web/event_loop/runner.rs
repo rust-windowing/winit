@@ -21,7 +21,7 @@ use crate::event::{
 };
 use crate::event_loop::{ControlFlow, DeviceEvents};
 use crate::platform::web::{PollStrategy, WaitUntilStrategy};
-use crate::platform_impl::platform::backend::EventListenerHandle;
+use crate::platform_impl::platform::backend::{EventListenerHandle, SafeAreaHandle};
 use crate::platform_impl::platform::r#async::{DispatchRunner, Waker, WakerSpawner};
 use crate::platform_impl::platform::window::Inner;
 use crate::window::WindowId;
@@ -58,6 +58,7 @@ struct Execution {
     redraw_pending: RefCell<HashSet<WindowId>>,
     destroy_pending: RefCell<VecDeque<WindowId>>,
     pub(crate) monitor: Rc<MonitorHandler>,
+    safe_area: Rc<SafeAreaHandle>,
     page_transition_event_handle: RefCell<Option<backend::PageTransitionEventHandle>>,
     device_events: Cell<DeviceEvents>,
     on_mouse_move: OnEventHandle<PointerEvent>,
@@ -157,6 +158,8 @@ impl Shared {
                 WeakShared(weak.clone()),
             );
 
+            let safe_area = SafeAreaHandle::new(&window, &document);
+
             Execution {
                 main_thread,
                 proxy_spawner,
@@ -176,6 +179,7 @@ impl Shared {
                 redraw_pending: RefCell::new(HashSet::new()),
                 destroy_pending: RefCell::new(VecDeque::new()),
                 monitor: Rc::new(monitor),
+                safe_area: Rc::new(safe_area),
                 page_transition_event_handle: RefCell::new(None),
                 device_events: Cell::default(),
                 on_mouse_move: RefCell::new(None),
@@ -831,6 +835,10 @@ impl Shared {
 
     pub(crate) fn monitor(&self) -> &Rc<MonitorHandler> {
         &self.0.monitor
+    }
+
+    pub(crate) fn safe_area(&self) -> &Rc<SafeAreaHandle> {
+        &self.0.safe_area
     }
 }
 

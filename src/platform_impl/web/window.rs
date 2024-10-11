@@ -2,6 +2,7 @@ use std::cell::Ref;
 use std::rc::Rc;
 use std::sync::Arc;
 
+use dpi::{LogicalPosition, LogicalSize};
 use web_sys::HtmlCanvasElement;
 
 use super::main_thread::{MainThreadMarker, MainThreadSafe};
@@ -26,6 +27,7 @@ pub struct Inner {
     id: WindowId,
     pub window: web_sys::Window,
     monitor: Rc<MonitorHandler>,
+    safe_area: Rc<backend::SafeAreaHandle>,
     canvas: Rc<backend::Canvas>,
     destroy_fn: Option<Box<dyn FnOnce()>>,
 }
@@ -59,6 +61,7 @@ impl Window {
             id,
             window: window.clone(),
             monitor: Rc::clone(target.runner.monitor()),
+            safe_area: Rc::clone(target.runner.safe_area()),
             canvas,
             destroy_fn: Some(destroy_fn),
         };
@@ -153,7 +156,37 @@ impl RootWindow for Window {
     }
 
     fn safe_area(&self) -> (PhysicalPosition<u32>, PhysicalSize<u32>) {
-        ((0, 0).into(), self.surface_size())
+        self.inner.queue(|inner| {
+            let (safe_start_pos, safe_size) = inner.safe_area.get();
+            let safe_end_pos = LogicalPosition::new(
+                safe_start_pos.x + safe_size.width,
+                safe_start_pos.y + safe_size.height,
+            );
+
+            let surface_start_pos = inner.canvas.position();
+            let surface_size = LogicalSize::new(
+                backend::style_size_property(inner.canvas.style(), "width"),
+                backend::style_size_property(inner.canvas.style(), "height"),
+            );
+            let surface_end_pos = LogicalPosition::new(
+                surface_start_pos.x + surface_size.width,
+                surface_start_pos.y + surface_size.height,
+            );
+
+            let pos = LogicalPosition::new(
+                f64::max(safe_start_pos.x - surface_start_pos.x, 0.),
+                f64::max(safe_start_pos.y - surface_start_pos.y, 0.),
+            );
+            let width = safe_size.width
+                - (f64::max(surface_start_pos.x - safe_start_pos.x, 0.)
+                    + f64::max(safe_end_pos.x - surface_end_pos.x, 0.));
+            let height = safe_size.height
+                - (f64::max(surface_start_pos.y - safe_start_pos.y, 0.)
+                    + f64::max(safe_end_pos.y - surface_end_pos.y, 0.));
+            let size = LogicalSize::new(width, height);
+
+            (pos.to_physical(inner.scale_factor()), size.to_physical(inner.scale_factor()))
+        })
     }
 
     fn set_min_surface_size(&self, min_size: Option<Size>) {
