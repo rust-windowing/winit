@@ -585,7 +585,25 @@ impl From<MouseButton> for ButtonSource {
 /// on-screen cursor and keyboard focus) or physical. Virtual devices typically aggregate inputs
 /// from multiple physical devices.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct DeviceId(pub(crate) platform_impl::DeviceId);
+pub struct DeviceId(i64);
+
+impl DeviceId {
+    /// Convert the [`DeviceId`] into the underlying integer.
+    ///
+    /// This is useful if you need to pass the ID across an FFI boundary, or store it in an atomic.
+    #[allow(dead_code)]
+    pub(crate) const fn into_raw(self) -> i64 {
+        self.0
+    }
+
+    /// Construct a [`DeviceId`] from the underlying integer.
+    ///
+    /// This should only be called with integers returned from [`DeviceId::into_raw`].
+    #[allow(dead_code)]
+    pub(crate) const fn from_raw(id: i64) -> Self {
+        Self(id)
+    }
+}
 
 /// Identifier of a finger in a touch event.
 ///
