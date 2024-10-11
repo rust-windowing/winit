@@ -164,7 +164,7 @@ pub fn mouse_scroll_delta(
 pub fn pointer_type(event: &PointerEvent, pointer_id: i32) -> PointerKind {
     match event.pointer_type().as_str() {
         "mouse" => PointerKind::Mouse,
-        "touch" => PointerKind::Touch(FingerId::new(pointer_id, event.is_primary()).into()),
+        "touch" => PointerKind::Touch(FingerId::new(pointer_id).into()),
         _ => PointerKind::Unknown,
     }
 }

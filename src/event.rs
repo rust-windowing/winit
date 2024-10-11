@@ -245,6 +245,12 @@ pub enum WindowEvent {
         /// [`transform`]: https://developer.mozilla.org/en-US/docs/Web/CSS/transform
         position: PhysicalPosition<f64>,
 
+        /// Indicates whether the event is created by a primary pointer.
+        ///
+        /// A pointer is considered primary when it's a mouse, the first finger in a multi-touch
+        /// interaction, or an unknown pointer source.
+        primary: bool,
+
         source: PointerSource,
     },
 
@@ -263,6 +269,12 @@ pub enum WindowEvent {
         /// [`padding`]: https://developer.mozilla.org/en-US/docs/Web/CSS/padding
         /// [`transform`]: https://developer.mozilla.org/en-US/docs/Web/CSS/transform
         position: PhysicalPosition<f64>,
+
+        /// Indicates whether the event is created by a primary pointer.
+        ///
+        /// A pointer is considered primary when it's a mouse, the first finger in a multi-touch
+        /// interaction, or an unknown pointer source.
+        primary: bool,
 
         kind: PointerKind,
     },
@@ -283,6 +295,12 @@ pub enum WindowEvent {
         /// [`padding`]: https://developer.mozilla.org/en-US/docs/Web/CSS/padding
         /// [`transform`]: https://developer.mozilla.org/en-US/docs/Web/CSS/transform
         position: Option<PhysicalPosition<f64>>,
+
+        /// Indicates whether the event is created by a primary pointer.
+        ///
+        /// A pointer is considered primary when it's a mouse, the first finger in a multi-touch
+        /// interaction, or an unknown pointer source.
+        primary: bool,
 
         kind: PointerKind,
     },
@@ -306,6 +324,12 @@ pub enum WindowEvent {
         /// [`padding`]: https://developer.mozilla.org/en-US/docs/Web/CSS/padding
         /// [`transform`]: https://developer.mozilla.org/en-US/docs/Web/CSS/transform
         position: PhysicalPosition<f64>,
+
+        /// Indicates whether the event is created by a primary pointer.
+        ///
+        /// A pointer is considered primary when it's a mouse, the first finger in a multi-touch
+        /// interaction, or an unknown pointer source.
+        primary: bool,
 
         button: ButtonSource,
     },
@@ -1162,16 +1186,19 @@ mod tests {
                 with_window_event(Ime(Enabled));
                 with_window_event(PointerMoved {
                     device_id: None,
+                    primary: true,
                     position: (0, 0).into(),
                     source: PointerSource::Mouse,
                 });
                 with_window_event(ModifiersChanged(event::Modifiers::default()));
                 with_window_event(PointerEntered {
                     device_id: None,
+                    primary: true,
                     position: (0, 0).into(),
                     kind: PointerKind::Mouse,
                 });
                 with_window_event(PointerLeft {
+                    primary: true,
                     device_id: None,
                     position: Some((0, 0).into()),
                     kind: PointerKind::Mouse,
@@ -1183,12 +1210,14 @@ mod tests {
                 });
                 with_window_event(PointerButton {
                     device_id: None,
+                    primary: true,
                     state: event::ElementState::Pressed,
                     position: (0, 0).into(),
                     button: event::MouseButton::Other(0).into(),
                 });
                 with_window_event(PointerButton {
                     device_id: None,
+                    primary: true,
                     state: event::ElementState::Released,
                     position: (0, 0).into(),
                     button: event::ButtonSource::Touch {

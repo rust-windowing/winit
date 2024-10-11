@@ -41,6 +41,7 @@ impl TouchHandler for WinitState {
         // Update the state of the point.
         let location = LogicalPosition::<f64>::from(position);
         seat_state.touch_map.insert(id, TouchPoint { surface, location });
+        let primary = seat_state.first_touch_id.get_or_insert(id) == &id;
 
         let position = location.to_physical(scale_factor);
         let finger_id =
@@ -49,6 +50,7 @@ impl TouchHandler for WinitState {
         self.events_sink.push_window_event(
             WindowEvent::PointerEntered {
                 device_id: None,
+                primary,
                 position,
                 kind: PointerKind::Touch(finger_id),
             },
@@ -57,6 +59,7 @@ impl TouchHandler for WinitState {
         self.events_sink.push_window_event(
             WindowEvent::PointerButton {
                 device_id: None,
+                primary,
                 state: ElementState::Pressed,
                 position,
                 button: ButtonSource::Touch { finger_id, force: None },
@@ -88,6 +91,12 @@ impl TouchHandler for WinitState {
             None => return,
         };
 
+        // Update the primary touch point.
+        let primary = seat_state.first_touch_id == Some(id);
+        if primary {
+            seat_state.first_touch_id = None;
+        }
+
         let window_id = wayland::make_wid(&touch_point.surface);
         let scale_factor = match self.windows.get_mut().get(&window_id) {
             Some(window) => window.lock().unwrap().scale_factor(),
@@ -101,6 +110,7 @@ impl TouchHandler for WinitState {
         self.events_sink.push_window_event(
             WindowEvent::PointerButton {
                 device_id: None,
+                primary,
                 state: ElementState::Released,
                 position,
                 button: ButtonSource::Touch { finger_id, force: None },
@@ -110,6 +120,7 @@ impl TouchHandler for WinitState {
         self.events_sink.push_window_event(
             WindowEvent::PointerLeft {
                 device_id: None,
+                primary,
                 position: Some(position),
                 kind: PointerKind::Touch(finger_id),
             },
@@ -140,6 +151,8 @@ impl TouchHandler for WinitState {
             None => return,
         };
 
+        let primary = seat_state.first_touch_id == Some(id);
+
         let window_id = wayland::make_wid(&touch_point.surface);
         let scale_factor = match self.windows.get_mut().get(&window_id) {
             Some(window) => window.lock().unwrap().scale_factor(),
@@ -151,6 +164,7 @@ impl TouchHandler for WinitState {
         self.events_sink.push_window_event(
             WindowEvent::PointerMoved {
                 device_id: None,
+                primary,
                 position: touch_point.location.to_physical(scale_factor),
                 source: PointerSource::Touch {
                     finger_id: crate::event::FingerId(crate::platform_impl::FingerId::Wayland(
@@ -179,11 +193,13 @@ impl TouchHandler for WinitState {
                 None => return,
             };
 
+            let primary = seat_state.first_touch_id == Some(id);
             let position = touch_point.location.to_physical(scale_factor);
 
             self.events_sink.push_window_event(
                 WindowEvent::PointerLeft {
                     device_id: None,
+                    primary,
                     position: Some(position),
                     kind: PointerKind::Touch(crate::event::FingerId(
                         crate::platform_impl::FingerId::Wayland(FingerId(id)),
@@ -192,6 +208,8 @@ impl TouchHandler for WinitState {
                 window_id,
             );
         }
+
+        seat_state.first_touch_id = None;
     }
 
     fn shape(

@@ -1542,6 +1542,7 @@ unsafe fn public_window_callback_inner(
                             window_id: WindowId::from_raw(window as usize),
                             event: PointerEntered {
                                 device_id: None,
+                                primary: true,
                                 position,
                                 kind: PointerKind::Mouse,
                             },
@@ -1567,6 +1568,7 @@ unsafe fn public_window_callback_inner(
                             window_id: WindowId::from_raw(window as usize),
                             event: PointerLeft {
                                 device_id: None,
+                                primary: true,
                                 position: Some(position),
                                 kind: PointerKind::Mouse,
                             },
@@ -1588,7 +1590,12 @@ unsafe fn public_window_callback_inner(
 
                 userdata.send_event(Event::WindowEvent {
                     window_id: WindowId::from_raw(window as usize),
-                    event: PointerMoved { device_id: None, position, source: PointerSource::Mouse },
+                    event: PointerMoved {
+                        device_id: None,
+                        primary: true,
+                        position,
+                        source: PointerSource::Mouse,
+                    },
                 });
             }
 
@@ -1606,7 +1613,7 @@ unsafe fn public_window_callback_inner(
 
             userdata.send_event(Event::WindowEvent {
                 window_id: WindowId::from_raw(window as usize),
-                event: PointerLeft { device_id: None, position: None, kind: Mouse },
+                event: PointerLeft { device_id: None, primary: true, position: None, kind: Mouse },
             });
 
             result = ProcResult::Value(0);
@@ -1683,6 +1690,7 @@ unsafe fn public_window_callback_inner(
                 window_id: WindowId::from_raw(window as usize),
                 event: PointerButton {
                     device_id: None,
+                    primary: true,
                     state: Pressed,
                     position,
                     button: Left.into(),
@@ -1708,6 +1716,7 @@ unsafe fn public_window_callback_inner(
                 window_id: WindowId::from_raw(window as usize),
                 event: PointerButton {
                     device_id: None,
+                    primary: true,
                     state: Released,
                     position,
                     button: Left.into(),
@@ -1733,6 +1742,7 @@ unsafe fn public_window_callback_inner(
                 window_id: WindowId::from_raw(window as usize),
                 event: PointerButton {
                     device_id: None,
+                    primary: true,
                     state: Pressed,
                     position,
                     button: Right.into(),
@@ -1758,6 +1768,7 @@ unsafe fn public_window_callback_inner(
                 window_id: WindowId::from_raw(window as usize),
                 event: PointerButton {
                     device_id: None,
+                    primary: true,
                     state: Released,
                     position,
                     button: Right.into(),
@@ -1783,6 +1794,7 @@ unsafe fn public_window_callback_inner(
                 window_id: WindowId::from_raw(window as usize),
                 event: PointerButton {
                     device_id: None,
+                    primary: true,
                     state: Pressed,
                     position,
                     button: Middle.into(),
@@ -1808,6 +1820,7 @@ unsafe fn public_window_callback_inner(
                 window_id: WindowId::from_raw(window as usize),
                 event: PointerButton {
                     device_id: None,
+                    primary: true,
                     state: Released,
                     position,
                     button: Middle.into(),
@@ -1834,6 +1847,7 @@ unsafe fn public_window_callback_inner(
                 window_id: WindowId::from_raw(window as usize),
                 event: PointerButton {
                     device_id: None,
+                    primary: true,
                     state: Pressed,
                     position,
                     button: match xbutton {
@@ -1865,6 +1879,7 @@ unsafe fn public_window_callback_inner(
                 window_id: WindowId::from_raw(window as usize),
                 event: PointerButton {
                     device_id: None,
+                    primary: true,
                     state: Released,
                     position,
                     button: match xbutton {
@@ -1918,16 +1933,15 @@ unsafe fn public_window_callback_inner(
                     let position = PhysicalPosition::new(x, y);
 
                     let window_id = WindowId::from_raw(window as usize);
-                    let finger_id = RootFingerId(FingerId {
-                        id: input.dwID,
-                        primary: util::has_flag(input.dwFlags, TOUCHEVENTF_PRIMARY),
-                    });
+                    let finger_id = RootFingerId(FingerId { id: input.dwID });
+                    let primary = util::has_flag(input.dwFlags, TOUCHEVENTF_PRIMARY);
 
                     if util::has_flag(input.dwFlags, TOUCHEVENTF_DOWN) {
                         userdata.send_event(Event::WindowEvent {
                             window_id,
                             event: WindowEvent::PointerEntered {
                                 device_id: None,
+                                primary,
                                 position,
                                 kind: PointerKind::Touch(finger_id),
                             },
@@ -1936,6 +1950,7 @@ unsafe fn public_window_callback_inner(
                             window_id,
                             event: WindowEvent::PointerButton {
                                 device_id: None,
+                                primary,
                                 state: Pressed,
                                 position,
                                 button: Touch { finger_id, force: None },
@@ -1946,6 +1961,7 @@ unsafe fn public_window_callback_inner(
                             window_id,
                             event: WindowEvent::PointerButton {
                                 device_id: None,
+                                primary,
                                 state: Released,
                                 position,
                                 button: Touch { finger_id, force: None },
@@ -1955,6 +1971,7 @@ unsafe fn public_window_callback_inner(
                             window_id,
                             event: WindowEvent::PointerLeft {
                                 device_id: None,
+                                primary,
                                 position: Some(position),
                                 kind: PointerKind::Touch(finger_id),
                             },
@@ -1964,6 +1981,7 @@ unsafe fn public_window_callback_inner(
                             window_id,
                             event: WindowEvent::PointerMoved {
                                 device_id: None,
+                                primary,
                                 position,
                                 source: PointerSource::Touch { finger_id, force: None },
                             },
@@ -2086,16 +2104,15 @@ unsafe fn public_window_callback_inner(
                     let position = PhysicalPosition::new(x, y);
 
                     let window_id = WindowId::from_raw(window as usize);
-                    let finger_id = RootFingerId(FingerId {
-                        id: pointer_info.pointerId,
-                        primary: util::has_flag(pointer_info.pointerFlags, POINTER_FLAG_PRIMARY),
-                    });
+                    let finger_id = RootFingerId(FingerId { id: pointer_info.pointerId });
+                    let primary = util::has_flag(pointer_info.pointerFlags, POINTER_FLAG_PRIMARY);
 
                     if util::has_flag(pointer_info.pointerFlags, POINTER_FLAG_DOWN) {
                         userdata.send_event(Event::WindowEvent {
                             window_id,
                             event: WindowEvent::PointerEntered {
                                 device_id: None,
+                                primary,
                                 position,
                                 kind: if let PT_TOUCH = pointer_info.pointerType {
                                     PointerKind::Touch(finger_id)
@@ -2108,6 +2125,7 @@ unsafe fn public_window_callback_inner(
                             window_id,
                             event: WindowEvent::PointerButton {
                                 device_id: None,
+                                primary,
                                 state: Pressed,
                                 position,
                                 button: if let PT_TOUCH = pointer_info.pointerType {
@@ -2122,6 +2140,7 @@ unsafe fn public_window_callback_inner(
                             window_id,
                             event: WindowEvent::PointerButton {
                                 device_id: None,
+                                primary,
                                 state: Released,
                                 position,
                                 button: if let PT_TOUCH = pointer_info.pointerType {
@@ -2135,6 +2154,7 @@ unsafe fn public_window_callback_inner(
                             window_id,
                             event: WindowEvent::PointerLeft {
                                 device_id: None,
+                                primary,
                                 position: Some(position),
                                 kind: if let PT_TOUCH = pointer_info.pointerType {
                                     PointerKind::Touch(finger_id)
@@ -2148,6 +2168,7 @@ unsafe fn public_window_callback_inner(
                             window_id,
                             event: WindowEvent::PointerMoved {
                                 device_id: None,
+                                primary,
                                 position,
                                 source: if let PT_TOUCH = pointer_info.pointerType {
                                     PointerSource::Touch { finger_id, force }
