@@ -149,6 +149,7 @@ changelog entry.
     the primary finger in a multi-touch interaction.
   - In the same spirit rename `DeviceEvent::MouseMotion` to `PointerMotion`.
   - Remove `Force::Calibrated::altitude_angle`.
+- Change signature of `apple::appkit::WindowDelegate::drag_window()` to return `Result<(), RequestError>`.
 
 ### Removed
 
@@ -185,5 +186,6 @@ changelog entry.
 
 - On Orbital, `MonitorHandle::name()` now returns `None` instead of a dummy name.
 - On macOS, fix `WindowEvent::Moved` sometimes being triggered unnecessarily on resize.
-- On MacOS, package manifest definitions of `LSUIElement` will no longer be overridden with the
+- On macOS, package manifest definitions of `LSUIElement` will no longer be overridden with the
   default activation policy, unless explicitly provided during initialization.
+- On macOS `drag_window()` without a left click present, will result in error instead of panic.
