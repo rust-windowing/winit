@@ -3,13 +3,13 @@ use std::rc::Rc;
 
 use web_sys::PointerEvent;
 
-use super::super::event::DeviceId;
 use super::canvas::Common;
 use super::event;
 use super::event_handle::EventListenerHandle;
 use crate::dpi::PhysicalPosition;
-use crate::event::{ButtonSource, ElementState, Force, PointerKind, PointerSource};
+use crate::event::{ButtonSource, DeviceId, ElementState, Force, PointerKind, PointerSource};
 use crate::keyboard::ModifiersState;
+use crate::platform_impl::web::event::mkdid;
 
 #[allow(dead_code)]
 pub(super) struct PointerHandler {
@@ -42,7 +42,7 @@ impl PointerHandler {
             Some(canvas_common.add_event("pointerout", move |event: PointerEvent| {
                 let modifiers = event::mouse_modifiers(&event);
                 let pointer_id = event.pointer_id();
-                let device_id = DeviceId::new(pointer_id);
+                let device_id = mkdid(pointer_id);
                 let position =
                     event::mouse_position(&event).to_physical(super::scale_factor(&window));
                 let kind = event::pointer_type(&event, pointer_id);
@@ -59,7 +59,7 @@ impl PointerHandler {
             Some(canvas_common.add_event("pointerover", move |event: PointerEvent| {
                 let modifiers = event::mouse_modifiers(&event);
                 let pointer_id = event.pointer_id();
-                let device_id = DeviceId::new(pointer_id);
+                let device_id = mkdid(pointer_id);
                 let position =
                     event::mouse_position(&event).to_physical(super::scale_factor(&window));
                 let kind = event::pointer_type(&event, pointer_id);
@@ -91,7 +91,7 @@ impl PointerHandler {
 
                 handler(
                     modifiers,
-                    DeviceId::new(pointer_id),
+                    mkdid(pointer_id),
                     event::mouse_position(&event).to_physical(super::scale_factor(&window)),
                     source,
                 )
@@ -142,7 +142,7 @@ impl PointerHandler {
 
                 handler(
                     modifiers,
-                    DeviceId::new(pointer_id),
+                    mkdid(pointer_id),
                     event::mouse_position(&event).to_physical(super::scale_factor(&window)),
                     source,
                 )
@@ -175,7 +175,7 @@ impl PointerHandler {
         self.on_cursor_move =
             Some(canvas_common.add_event("pointermove", move |event: PointerEvent| {
                 let pointer_id = event.pointer_id();
-                let device_id = DeviceId::new(pointer_id);
+                let device_id = mkdid(pointer_id);
                 let kind = event::pointer_type(&event, pointer_id);
 
                 // chorded button event
