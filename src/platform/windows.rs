@@ -114,7 +114,7 @@ pub enum CornerPreference {
 
 /// A wrapper around a [`Window`] that ignores thread-specific window handle limitations.
 ///
-/// See [`WindowBorrowExtWindows::with_any_thread`] for more information.
+/// See [`WindowBorrowExtWindows::any_thread`] for more information.
 #[derive(Clone, Debug)]
 pub struct AnyThread<W: Window>(W);
 
