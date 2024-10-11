@@ -62,19 +62,12 @@ unsafe impl Sync for PlatformSpecificWindowAttributes {}
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct FingerId {
     id: u32,
-    primary: bool,
 }
 
 impl FingerId {
     #[cfg(test)]
     pub const fn dummy() -> Self {
-        FingerId { id: 0, primary: false }
-    }
-}
-
-impl FingerId {
-    pub fn is_primary(self) -> bool {
-        self.primary
+        FingerId { id: 0 }
     }
 }
 
