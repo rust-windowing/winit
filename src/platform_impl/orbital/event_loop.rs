@@ -404,6 +404,7 @@ impl EventLoop {
             EventOption::Mouse(MouseEvent { x, y }) => {
                 app.window_event(window_target, window_id, event::WindowEvent::PointerMoved {
                     device_id: None,
+                    primary: true,
                     position: (x, y).into(),
                     source: event::PointerSource::Mouse,
                 });
@@ -417,6 +418,7 @@ impl EventLoop {
                 while let Some((button, state)) = event_state.mouse(left, middle, right) {
                     app.window_event(window_target, window_id, event::WindowEvent::PointerButton {
                         device_id: None,
+                        primary: true,
                         state,
                         position: dpi::PhysicalPosition::default(),
                         button: button.into(),
@@ -458,12 +460,14 @@ impl EventLoop {
                 let event = if entered {
                     event::WindowEvent::PointerEntered {
                         device_id: None,
+                        primary: true,
                         position: dpi::PhysicalPosition::default(),
                         kind: event::PointerKind::Mouse,
                     }
                 } else {
                     event::WindowEvent::PointerLeft {
                         device_id: None,
+                        primary: true,
                         position: None,
                         kind: event::PointerKind::Mouse,
                     }
