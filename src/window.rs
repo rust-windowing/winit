@@ -420,7 +420,7 @@ impl WindowAttributes {
     }
 }
 
-/// Represents a surface.
+/// Represents an area that can be drawn to; this includes windows.
 ///
 /// The surface is closed when dropped.
 ///
@@ -705,6 +705,58 @@ pub trait Surface: AsAny + Send + Sync {
     ///   is outside of the window.
     /// - **iOS / Android:** Unsupported.
     fn set_cursor_visible(&self, visible: bool);
+
+    /// Returns the monitor on which the window currently resides.
+    ///
+    /// Returns `None` if current monitor can't be detected.
+    fn current_monitor(&self) -> Option<MonitorHandle>;
+
+    /// Returns the list of all the monitors available on the system.
+    ///
+    /// This is the same as [`ActiveEventLoop::available_monitors`], and is provided for
+    /// convenience.
+    ///
+    ///
+    /// ## Platform-specific
+    ///
+    /// **Web:** Only returns the current monitor without
+    #[cfg_attr(
+        any(web_platform, docsrs),
+        doc = "[detailed monitor permissions][crate::platform::web::ActiveEventLoopExtWeb::request_detailed_monitor_permission]."
+    )]
+    #[cfg_attr(not(any(web_platform, docsrs)), doc = "detailed monitor permissions.")]
+    ///
+    #[rustfmt::skip]
+    /// [`ActiveEventLoop::available_monitors`]: crate::event_loop::ActiveEventLoop::available_monitors
+    fn available_monitors(&self) -> Box<dyn Iterator<Item = MonitorHandle>>;
+
+    /// Returns the primary monitor of the system.
+    ///
+    /// Returns `None` if it can't identify any monitor as a primary one.
+    ///
+    /// This is the same as [`ActiveEventLoop::primary_monitor`], and is provided for convenience.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **Wayland:** Always returns `None`.
+    /// - **Web:** Always returns `None` without
+    #[cfg_attr(
+        any(web_platform, docsrs),
+        doc = "  [detailed monitor permissions][crate::platform::web::ActiveEventLoopExtWeb::request_detailed_monitor_permission]."
+    )]
+    #[cfg_attr(not(any(web_platform, docsrs)), doc = "  detailed monitor permissions.")]
+    ///
+    #[rustfmt::skip]
+    /// [`ActiveEventLoop::primary_monitor`]: crate::event_loop::ActiveEventLoop::primary_monitor
+    fn primary_monitor(&self) -> Option<MonitorHandle>;
+
+    /// Get the raw-window-handle v0.6 display handle.
+    #[cfg(feature = "rwh_06")]
+    fn rwh_06_display_handle(&self) -> &dyn rwh_06::HasDisplayHandle;
+
+    /// Get the raw-window-handle v0.6 window handle.
+    #[cfg(feature = "rwh_06")]
+    fn rwh_06_window_handle(&self) -> &dyn rwh_06::HasWindowHandle;
 }
 
 /// Represents a toplevel window, which may generally have decorations.
@@ -1250,58 +1302,6 @@ pub trait Window: Surface {
     ///
     /// [window menu]: https://en.wikipedia.org/wiki/Common_menus_in_Microsoft_Windows#System_menu
     fn show_window_menu(&self, position: Position);
-
-    /// Returns the monitor on which the window currently resides.
-    ///
-    /// Returns `None` if current monitor can't be detected.
-    fn current_monitor(&self) -> Option<MonitorHandle>;
-
-    /// Returns the list of all the monitors available on the system.
-    ///
-    /// This is the same as [`ActiveEventLoop::available_monitors`], and is provided for
-    /// convenience.
-    ///
-    ///
-    /// ## Platform-specific
-    ///
-    /// **Web:** Only returns the current monitor without
-    #[cfg_attr(
-        any(web_platform, docsrs),
-        doc = "[detailed monitor permissions][crate::platform::web::ActiveEventLoopExtWeb::request_detailed_monitor_permission]."
-    )]
-    #[cfg_attr(not(any(web_platform, docsrs)), doc = "detailed monitor permissions.")]
-    ///
-    #[rustfmt::skip]
-    /// [`ActiveEventLoop::available_monitors`]: crate::event_loop::ActiveEventLoop::available_monitors
-    fn available_monitors(&self) -> Box<dyn Iterator<Item = MonitorHandle>>;
-
-    /// Returns the primary monitor of the system.
-    ///
-    /// Returns `None` if it can't identify any monitor as a primary one.
-    ///
-    /// This is the same as [`ActiveEventLoop::primary_monitor`], and is provided for convenience.
-    ///
-    /// ## Platform-specific
-    ///
-    /// - **Wayland:** Always returns `None`.
-    /// - **Web:** Always returns `None` without
-    #[cfg_attr(
-        any(web_platform, docsrs),
-        doc = "  [detailed monitor permissions][crate::platform::web::ActiveEventLoopExtWeb::request_detailed_monitor_permission]."
-    )]
-    #[cfg_attr(not(any(web_platform, docsrs)), doc = "  detailed monitor permissions.")]
-    ///
-    #[rustfmt::skip]
-    /// [`ActiveEventLoop::primary_monitor`]: crate::event_loop::ActiveEventLoop::primary_monitor
-    fn primary_monitor(&self) -> Option<MonitorHandle>;
-
-    /// Get the raw-window-handle v0.6 display handle.
-    #[cfg(feature = "rwh_06")]
-    fn rwh_06_display_handle(&self) -> &dyn rwh_06::HasDisplayHandle;
-
-    /// Get the raw-window-handle v0.6 window handle.
-    #[cfg(feature = "rwh_06")]
-    fn rwh_06_window_handle(&self) -> &dyn rwh_06::HasWindowHandle;
 }
 
 impl dyn Window {
