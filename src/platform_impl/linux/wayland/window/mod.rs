@@ -360,6 +360,44 @@ impl CoreSurface for Window {
             Ok(())
         }
     }
+
+    fn current_monitor(&self) -> Option<CoreMonitorHandle> {
+        let data = self.window.wl_surface().data::<SurfaceData>()?;
+        data.outputs()
+            .next()
+            .map(MonitorHandle::new)
+            .map(crate::platform_impl::MonitorHandle::Wayland)
+            .map(|inner| CoreMonitorHandle { inner })
+    }
+
+    fn available_monitors(&self) -> Box<dyn Iterator<Item = CoreMonitorHandle>> {
+        Box::new(
+            self.monitors
+                .lock()
+                .unwrap()
+                .clone()
+                .into_iter()
+                .map(crate::platform_impl::MonitorHandle::Wayland)
+                .map(|inner| CoreMonitorHandle { inner }),
+        )
+    }
+
+    fn primary_monitor(&self) -> Option<CoreMonitorHandle> {
+        // NOTE: There's no such concept on Wayland.
+        None
+    }
+
+    /// Get the raw-window-handle v0.6 display handle.
+    #[cfg(feature = "rwh_06")]
+    fn rwh_06_display_handle(&self) -> &dyn rwh_06::HasDisplayHandle {
+        self
+    }
+
+    /// Get the raw-window-handle v0.6 window handle.
+    #[cfg(feature = "rwh_06")]
+    fn rwh_06_window_handle(&self) -> &dyn rwh_06::HasWindowHandle {
+        self
+    }
 }
 
 impl CoreWindow for Window {
@@ -621,44 +659,6 @@ impl CoreWindow for Window {
         let scale_factor = self.scale_factor();
         let position = position.to_logical(scale_factor);
         self.window_state.lock().unwrap().show_window_menu(position);
-    }
-
-    fn current_monitor(&self) -> Option<CoreMonitorHandle> {
-        let data = self.window.wl_surface().data::<SurfaceData>()?;
-        data.outputs()
-            .next()
-            .map(MonitorHandle::new)
-            .map(crate::platform_impl::MonitorHandle::Wayland)
-            .map(|inner| CoreMonitorHandle { inner })
-    }
-
-    fn available_monitors(&self) -> Box<dyn Iterator<Item = CoreMonitorHandle>> {
-        Box::new(
-            self.monitors
-                .lock()
-                .unwrap()
-                .clone()
-                .into_iter()
-                .map(crate::platform_impl::MonitorHandle::Wayland)
-                .map(|inner| CoreMonitorHandle { inner }),
-        )
-    }
-
-    fn primary_monitor(&self) -> Option<CoreMonitorHandle> {
-        // NOTE: There's no such concept on Wayland.
-        None
-    }
-
-    /// Get the raw-window-handle v0.6 display handle.
-    #[cfg(feature = "rwh_06")]
-    fn rwh_06_display_handle(&self) -> &dyn rwh_06::HasDisplayHandle {
-        self
-    }
-
-    /// Get the raw-window-handle v0.6 window handle.
-    #[cfg(feature = "rwh_06")]
-    fn rwh_06_window_handle(&self) -> &dyn rwh_06::HasWindowHandle {
-        self
     }
 }
 

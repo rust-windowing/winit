@@ -109,6 +109,40 @@ impl CoreSurface for Window {
     fn set_cursor_hittest(&self, hittest: bool) -> Result<(), RequestError> {
         self.0.set_cursor_hittest(hittest)
     }
+    
+    fn current_monitor(&self) -> Option<crate::monitor::MonitorHandle> {
+        self.0
+            .current_monitor()
+            .map(crate::platform_impl::MonitorHandle::X)
+            .map(|inner| crate::monitor::MonitorHandle { inner })
+    }
+
+    fn available_monitors(&self) -> Box<dyn Iterator<Item = crate::monitor::MonitorHandle>> {
+        Box::new(
+            self.0
+                .available_monitors()
+                .into_iter()
+                .map(crate::platform_impl::MonitorHandle::X)
+                .map(|inner| crate::monitor::MonitorHandle { inner }),
+        )
+    }
+
+    fn primary_monitor(&self) -> Option<crate::monitor::MonitorHandle> {
+        self.0
+            .primary_monitor()
+            .map(crate::platform_impl::MonitorHandle::X)
+            .map(|inner| crate::monitor::MonitorHandle { inner })
+    }
+
+    #[cfg(feature = "rwh_06")]
+    fn rwh_06_display_handle(&self) -> &dyn rwh_06::HasDisplayHandle {
+        self
+    }
+
+    #[cfg(feature = "rwh_06")]
+    fn rwh_06_window_handle(&self) -> &dyn rwh_06::HasWindowHandle {
+        self
+    }
 }
 
 impl CoreWindow for Window {
@@ -272,39 +306,7 @@ impl CoreWindow for Window {
         self.0.show_window_menu(position);
     }
 
-    fn current_monitor(&self) -> Option<crate::monitor::MonitorHandle> {
-        self.0
-            .current_monitor()
-            .map(crate::platform_impl::MonitorHandle::X)
-            .map(|inner| crate::monitor::MonitorHandle { inner })
-    }
 
-    fn available_monitors(&self) -> Box<dyn Iterator<Item = crate::monitor::MonitorHandle>> {
-        Box::new(
-            self.0
-                .available_monitors()
-                .into_iter()
-                .map(crate::platform_impl::MonitorHandle::X)
-                .map(|inner| crate::monitor::MonitorHandle { inner }),
-        )
-    }
-
-    fn primary_monitor(&self) -> Option<crate::monitor::MonitorHandle> {
-        self.0
-            .primary_monitor()
-            .map(crate::platform_impl::MonitorHandle::X)
-            .map(|inner| crate::monitor::MonitorHandle { inner })
-    }
-
-    #[cfg(feature = "rwh_06")]
-    fn rwh_06_display_handle(&self) -> &dyn rwh_06::HasDisplayHandle {
-        self
-    }
-
-    #[cfg(feature = "rwh_06")]
-    fn rwh_06_window_handle(&self) -> &dyn rwh_06::HasWindowHandle {
-        self
-    }
 }
 
 #[cfg(feature = "rwh_06")]
