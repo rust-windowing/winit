@@ -8,10 +8,10 @@ use ::tracing::{info, warn};
 #[cfg(web_platform)]
 use web_time as time;
 use winit::application::ApplicationHandler;
-use winit::event::{ElementState, KeyEvent, StartCause, WindowEvent};
+use winit::event::{ElementState, KeyEvent, StartCause, SurfaceEvent};
 use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
 use winit::keyboard::{Key, NamedKey};
-use winit::window::{Window, WindowAttributes, WindowId};
+use winit::window::{Window, WindowAttributes, SurfaceId};
 
 #[path = "util/fill.rs"]
 mod fill;
@@ -75,16 +75,16 @@ impl ApplicationHandler for ControlFlowDemo {
     fn window_event(
         &mut self,
         _event_loop: &dyn ActiveEventLoop,
-        _window_id: WindowId,
-        event: WindowEvent,
+        _window_id: SurfaceId,
+        event: SurfaceEvent,
     ) {
         info!("{event:?}");
 
         match event {
-            WindowEvent::CloseRequested => {
+            SurfaceEvent::CloseRequested => {
                 self.close_requested = true;
             },
-            WindowEvent::KeyboardInput {
+            SurfaceEvent::KeyboardInput {
                 event: KeyEvent { logical_key: key, state: ElementState::Pressed, .. },
                 ..
             } => match key.as_ref() {
@@ -111,7 +111,7 @@ impl ApplicationHandler for ControlFlowDemo {
                 },
                 _ => (),
             },
-            WindowEvent::RedrawRequested => {
+            SurfaceEvent::RedrawRequested => {
                 let window = self.window.as_ref().unwrap();
                 window.pre_present_notify();
                 fill::fill_window(window.as_ref());

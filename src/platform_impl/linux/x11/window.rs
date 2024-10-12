@@ -23,7 +23,7 @@ use super::{
 use crate::cursor::{Cursor, CustomCursor as RootCustomCursor};
 use crate::dpi::{PhysicalPosition, PhysicalSize, Position, Size};
 use crate::error::{NotSupportedError, RequestError};
-use crate::event::{Event, SurfaceSizeWriter, WindowEvent};
+use crate::event::{Event, SurfaceSizeWriter, SurfaceEvent};
 use crate::event_loop::AsyncRequestSerial;
 use crate::platform::x11::WindowType;
 use crate::platform_impl::x11::atoms::*;
@@ -36,7 +36,7 @@ use crate::platform_impl::{
 };
 use crate::window::{
     CursorGrabMode, ImePurpose, ResizeDirection, Surface as CoreSurface, Theme, UserAttentionType,
-    Window as CoreWindow, WindowAttributes, WindowButtons, WindowId, WindowLevel,
+    Window as CoreWindow, WindowAttributes, WindowButtons, SurfaceId, WindowLevel,
 };
 
 pub(crate) struct Window(Arc<UnownedWindow>);
@@ -62,7 +62,7 @@ impl Window {
 }
 
 impl CoreSurface for Window {
-    fn id(&self) -> WindowId {
+    fn id(&self) -> SurfaceId {
         self.0.id()
     }
 
@@ -434,7 +434,7 @@ pub struct UnownedWindow {
     cursor_visible: Mutex<bool>,
     ime_sender: Mutex<ImeSender>,
     pub shared_state: Mutex<SharedState>,
-    redraw_sender: WakeSender<WindowId>,
+    redraw_sender: WakeSender<SurfaceId>,
     activation_sender: WakeSender<super::ActivationToken>,
 }
 macro_rules! leap {
@@ -1234,7 +1234,7 @@ impl UnownedWindow {
             let surface_size = Arc::new(Mutex::new(PhysicalSize::new(new_width, new_height)));
             callback(Event::WindowEvent {
                 window_id: self.id(),
-                event: WindowEvent::ScaleFactorChanged {
+                event: SurfaceEvent::ScaleFactorChanged {
                     scale_factor: new_monitor.scale_factor,
                     surface_size_writer: SurfaceSizeWriter::new(Arc::downgrade(&surface_size)),
                 },
@@ -2142,8 +2142,8 @@ impl UnownedWindow {
     }
 
     #[inline]
-    pub fn id(&self) -> WindowId {
-        WindowId::from_raw(self.xwindow as _)
+    pub fn id(&self) -> SurfaceId {
+        SurfaceId::from_raw(self.xwindow as _)
     }
 
     pub(super) fn sync_counter_id(&self) -> Option<NonZeroU32> {
@@ -2152,7 +2152,7 @@ impl UnownedWindow {
 
     #[inline]
     pub fn request_redraw(&self) {
-        self.redraw_sender.send(WindowId::from_raw(self.xwindow as _));
+        self.redraw_sender.send(SurfaceId::from_raw(self.xwindow as _));
     }
 
     #[inline]

@@ -27,18 +27,18 @@
 //! - [`padding`](https://developer.mozilla.org/en-US/docs/Web/CSS/padding)
 //!
 //! The following APIs can't take them into account and will therefore provide inaccurate results:
-//! - [`WindowEvent::SurfaceResized`] and [`Window::(set_)surface_size()`]
-//! - [`WindowEvent::Occluded`]
-//! - [`WindowEvent::PointerMoved`], [`WindowEvent::PointerEntered`] and
-//!   [`WindowEvent::PointerLeft`].
+//! - [`SurfaceEvent::SurfaceResized`] and [`Window::(set_)surface_size()`]
+//! - [`SurfaceEvent::Occluded`]
+//! - [`SurfaceEvent::PointerMoved`], [`SurfaceEvent::PointerEntered`] and
+//!   [`SurfaceEvent::PointerLeft`].
 //! - [`Window::set_outer_position()`]
 //!
-//! [`WindowEvent::SurfaceResized`]: crate::event::WindowEvent::SurfaceResized
+//! [`SurfaceEvent::SurfaceResized`]: crate::event::SurfaceEvent::SurfaceResized
 //! [`Window::(set_)surface_size()`]: crate::window::Surface::surface_size
-//! [`WindowEvent::Occluded`]: crate::event::WindowEvent::Occluded
-//! [`WindowEvent::PointerMoved`]: crate::event::WindowEvent::PointerMoved
-//! [`WindowEvent::PointerEntered`]: crate::event::WindowEvent::PointerEntered
-//! [`WindowEvent::PointerLeft`]: crate::event::WindowEvent::PointerLeft
+//! [`SurfaceEvent::Occluded`]: crate::event::SurfaceEvent::Occluded
+//! [`SurfaceEvent::PointerMoved`]: crate::event::SurfaceEvent::PointerMoved
+//! [`SurfaceEvent::PointerEntered`]: crate::event::SurfaceEvent::PointerEntered
+//! [`SurfaceEvent::PointerLeft`]: crate::event::SurfaceEvent::PointerLeft
 //! [`Window::set_outer_position()`]: crate::window::Window::set_outer_position
 
 use std::cell::Ref;

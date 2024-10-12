@@ -14,32 +14,32 @@ use crate::monitor::{MonitorHandle, VideoModeHandle};
 use crate::platform_impl::PlatformSpecificWindowAttributes;
 use crate::utils::AsAny;
 
-/// Identifier of a window. Unique for each window.
+/// Identifier of a surface. Unique for each surface.
 ///
-/// Can be obtained with [`window.id()`][`Surface::id`].
+/// Can be obtained with [`surface.id()`][`Surface::id`].
 ///
-/// Whenever you receive an event specific to a window, this event contains a `WindowId` which you
-/// can then compare to the ids of your windows.
+/// Whenever you receive an event specific to a surface, this event contains a `SurfaceId` which you
+/// can then compare to the IDs of your surfaces.
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct WindowId(usize);
+pub struct SurfaceId(usize);
 
-impl WindowId {
-    /// Convert the `WindowId` into the underlying integer.
+impl SurfaceId {
+    /// Convert the `SurfaceId` into the underlying integer.
     ///
     /// This is useful if you need to pass the ID across an FFI boundary, or store it in an atomic.
     pub const fn into_raw(self) -> usize {
         self.0
     }
 
-    /// Construct a `WindowId` from the underlying integer.
+    /// Construct a `SurfaceId` from the underlying integer.
     ///
-    /// This should only be called with integers returned from [`WindowId::into_raw`].
+    /// This should only be called with integers returned from [`SurfaceId::into_raw`].
     pub const fn from_raw(id: usize) -> Self {
         Self(id)
     }
 }
 
-impl fmt::Debug for WindowId {
+impl fmt::Debug for SurfaceId {
     fn fmt(&self, fmtr: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.0.fmt(fmtr)
     }
@@ -370,13 +370,13 @@ impl WindowAttributes {
     /// Whether the window will be initially focused or not.
     ///
     /// The window should be assumed as not focused by default
-    /// following by the [`WindowEvent::Focused`].
+    /// following by the [`SurfaceEvent::Focused`].
     ///
     /// ## Platform-specific:
     ///
     /// **Android / iOS / X11 / Wayland / Orbital:** Unsupported.
     ///
-    /// [`WindowEvent::Focused`]: crate::event::WindowEvent::Focused.
+    /// [`SurfaceEvent::Focused`]: crate::event::SurfaceEvent::Focused.
     #[inline]
     pub fn with_active(mut self, active: bool) -> Self {
         self.active = active;
@@ -440,13 +440,13 @@ impl WindowAttributes {
 /// not be closed by dropping the [`Surface`].
 pub trait Surface: AsAny + Send + Sync {
     /// Returns an identifier unique to the window.
-    fn id(&self) -> WindowId;
+    fn id(&self) -> SurfaceId;
 
     /// Returns the scale factor that can be used to map logical pixels to physical pixels, and
     /// vice versa.
     ///
     /// Note that this value can change depending on user action (for example if the window is
-    /// moved to another screen); as such, tracking [`WindowEvent::ScaleFactorChanged`] events is
+    /// moved to another screen); as such, tracking [`SurfaceEvent::ScaleFactorChanged`] events is
     /// the most robust way to track the DPI you need to use to draw.
     ///
     /// This value may differ from [`MonitorHandle::scale_factor`].
@@ -496,7 +496,7 @@ pub trait Surface: AsAny + Send + Sync {
     ///   both the screen scaling and the browser zoom level and can go below `1.0`.
     /// - **Orbital:** This is currently unimplemented, and this function always returns 1.0.
     ///
-    /// [`WindowEvent::ScaleFactorChanged`]: crate::event::WindowEvent::ScaleFactorChanged
+    /// [`SurfaceEvent::ScaleFactorChanged`]: crate::event::SurfaceEvent::ScaleFactorChanged
     /// [windows_1]: https://docs.microsoft.com/en-us/windows/win32/hidpi/high-dpi-desktop-application-development-on-windows
     /// [apple_1]: https://developer.apple.com/library/archive/documentation/DeviceInformation/Reference/iOSDeviceCompatibility/Displays/Displays.html
     /// [apple_2]: https://developer.apple.com/design/human-interface-guidelines/macos/icons-and-images/image-size-and-resolution/
@@ -505,7 +505,7 @@ pub trait Surface: AsAny + Send + Sync {
     /// [`contentScaleFactor`]: https://developer.apple.com/documentation/uikit/uiview/1622657-contentscalefactor?language=objc
     fn scale_factor(&self) -> f64;
 
-    /// Queues a [`WindowEvent::RedrawRequested`] event to be emitted that aligns with the windowing
+    /// Queues a [`SurfaceEvent::RedrawRequested`] event to be emitted that aligns with the windowing
     /// system drawing loop.
     ///
     /// This is the **strongly encouraged** method of redrawing windows, as it can integrate with
@@ -527,10 +527,10 @@ pub trait Surface: AsAny + Send + Sync {
     ///   `RedrawRequested` is emitted in sync with any `WM_PAINT` messages.
     /// - **Wayland:** The events are aligned with the frame callbacks when
     ///   [`Surface::pre_present_notify`] is used.
-    /// - **Web:** [`WindowEvent::RedrawRequested`] will be aligned with the
+    /// - **Web:** [`SurfaceEvent::RedrawRequested`] will be aligned with the
     ///   `requestAnimationFrame`.
     ///
-    /// [`WindowEvent::RedrawRequested`]: crate::event::WindowEvent::RedrawRequested
+    /// [`SurfaceEvent::RedrawRequested`]: crate::event::SurfaceEvent::RedrawRequested
     fn request_redraw(&self);
 
     /// Notify the windowing system before presenting to the window.
@@ -538,7 +538,7 @@ pub trait Surface: AsAny + Send + Sync {
     /// You should call this event after your drawing operations, but before you submit
     /// the buffer to the display or commit your drawings. Doing so will help winit to properly
     /// schedule and make assumptions about its internal state. For example, it could properly
-    /// throttle [`WindowEvent::RedrawRequested`].
+    /// throttle [`SurfaceEvent::RedrawRequested`].
     ///
     /// ## Example
     ///
@@ -562,9 +562,9 @@ pub trait Surface: AsAny + Send + Sync {
     /// ## Platform-specific
     ///
     /// - **Android / iOS / X11 / Web / Windows / macOS / Orbital:** Unsupported.
-    /// - **Wayland:** Schedules a frame callback to throttle [`WindowEvent::RedrawRequested`].
+    /// - **Wayland:** Schedules a frame callback to throttle [`SurfaceEvent::RedrawRequested`].
     ///
-    /// [`WindowEvent::RedrawRequested`]: crate::event::WindowEvent::RedrawRequested
+    /// [`SurfaceEvent::RedrawRequested`]: crate::event::SurfaceEvent::RedrawRequested
     fn pre_present_notify(&self);
 
     /// Returns the size of the window's render-able surface.
@@ -591,7 +591,7 @@ pub trait Surface: AsAny + Send + Sync {
     /// is returned immediately, and the user one is ignored.
     ///
     /// When `None` is returned, it means that the request went to the display system,
-    /// and the actual size will be delivered later with the [`WindowEvent::SurfaceResized`].
+    /// and the actual size will be delivered later with the [`SurfaceEvent::SurfaceResized`].
     ///
     /// See [`Surface::surface_size`] for more information about the values.
     ///
@@ -613,7 +613,7 @@ pub trait Surface: AsAny + Send + Sync {
     ///
     /// - **Web:** Sets the size of the canvas element. Doesn't account for CSS [`transform`].
     ///
-    /// [`WindowEvent::SurfaceResized`]: crate::event::WindowEvent::SurfaceResized
+    /// [`SurfaceEvent::SurfaceResized`]: crate::event::SurfaceEvent::SurfaceResized
     /// [`transform`]: https://developer.mozilla.org/en-US/docs/Web/CSS/transform
     #[must_use]
     fn request_surface_size(&self, size: Size) -> Option<PhysicalSize<u32>>;
@@ -969,7 +969,7 @@ pub trait Window: Surface {
     /// Sets whether the window is resizable or not.
     ///
     /// Note that making the window unresizable doesn't exempt you from handling
-    /// [`WindowEvent::SurfaceResized`], as that event can still be triggered by DPI scaling,
+    /// [`SurfaceEvent::SurfaceResized`], as that event can still be triggered by DPI scaling,
     /// entering fullscreen mode, etc. Also, the window could still be resized by calling
     /// [`Surface::request_surface_size`].
     ///
@@ -980,7 +980,7 @@ pub trait Window: Surface {
     /// - **X11:** Due to a bug in XFCE, this has no effect on Xfwm.
     /// - **iOS / Android / Web:** Unsupported.
     ///
-    /// [`WindowEvent::SurfaceResized`]: crate::event::WindowEvent::SurfaceResized
+    /// [`SurfaceEvent::SurfaceResized`]: crate::event::SurfaceEvent::SurfaceResized
     fn set_resizable(&self, resizable: bool);
 
     /// Gets the window's current resizable state.
@@ -1187,8 +1187,8 @@ pub trait Window: Surface {
     /// - **Android / Web / Orbital:** Unsupported.
     /// - **X11**: Enabling IME will disable dead keys reporting during compose.
     ///
-    /// [`Ime`]: crate::event::WindowEvent::Ime
-    /// [`KeyboardInput`]: crate::event::WindowEvent::KeyboardInput
+    /// [`Ime`]: crate::event::SurfaceEvent::Ime
+    /// [`KeyboardInput`]: crate::event::SurfaceEvent::KeyboardInput
     fn set_ime_allowed(&self, allowed: bool);
 
     /// Sets the IME purpose for the window using [`ImePurpose`].
@@ -1212,9 +1212,9 @@ pub trait Window: Surface {
 
     /// Gets whether the window has keyboard focus.
     ///
-    /// This queries the same state information as [`WindowEvent::Focused`].
+    /// This queries the same state information as [`SurfaceEvent::Focused`].
     ///
-    /// [`WindowEvent::Focused`]: crate::event::WindowEvent::Focused
+    /// [`SurfaceEvent::Focused`]: crate::event::SurfaceEvent::Focused
     fn has_focus(&self) -> bool;
 
     /// Requests user attention to the window, this has no effect if the application

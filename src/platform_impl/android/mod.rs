@@ -191,12 +191,12 @@ impl EventLoop {
                 },
                 MainEvent::GainedFocus => {
                     HAS_FOCUS.store(true, Ordering::Relaxed);
-                    let event = event::WindowEvent::Focused(true);
+                    let event = event::SurfaceEvent::Focused(true);
                     app.window_event(&self.window_target, GLOBAL_WINDOW, event);
                 },
                 MainEvent::LostFocus => {
                     HAS_FOCUS.store(false, Ordering::Relaxed);
-                    let event = event::WindowEvent::Focused(false);
+                    let event = event::SurfaceEvent::Focused(false);
                     app.window_event(&self.window_target, GLOBAL_WINDOW, event);
                 },
                 MainEvent::ConfigChanged { .. } => {
@@ -204,7 +204,7 @@ impl EventLoop {
                     let scale_factor = scale_factor(&self.android_app);
                     if (scale_factor - old_scale_factor).abs() < f64::EPSILON {
                         let new_surface_size = Arc::new(Mutex::new(screen_size(&self.android_app)));
-                        let event = event::WindowEvent::ScaleFactorChanged {
+                        let event = event::SurfaceEvent::ScaleFactorChanged {
                             surface_size_writer: SurfaceSizeWriter::new(Arc::downgrade(
                                 &new_surface_size,
                             )),
@@ -287,14 +287,14 @@ impl EventLoop {
                 } else {
                     PhysicalSize::new(0, 0)
                 };
-                let event = event::WindowEvent::SurfaceResized(size);
+                let event = event::SurfaceEvent::SurfaceResized(size);
                 app.window_event(&self.window_target, GLOBAL_WINDOW, event);
             }
 
             pending_redraw |= self.redraw_flag.get_and_reset();
             if pending_redraw {
                 pending_redraw = false;
-                let event = event::WindowEvent::RedrawRequested;
+                let event = event::SurfaceEvent::RedrawRequested;
                 app.window_event(&self.window_target, GLOBAL_WINDOW, event);
             }
         }
@@ -347,7 +347,7 @@ impl EventLoop {
 
                         match action {
                             MotionAction::Down | MotionAction::PointerDown => {
-                                let event = event::WindowEvent::PointerEntered {
+                                let event = event::SurfaceEvent::PointerEntered {
                                     device_id,
                                     position,
                                     kind: match tool_type {
@@ -360,7 +360,7 @@ impl EventLoop {
                                     },
                                 };
                                 app.window_event(&self.window_target, GLOBAL_WINDOW, event);
-                                let event = event::WindowEvent::PointerButton {
+                                let event = event::SurfaceEvent::PointerButton {
                                     device_id,
                                     state: event::ElementState::Pressed,
                                     position,
@@ -376,7 +376,7 @@ impl EventLoop {
                                 app.window_event(&self.window_target, GLOBAL_WINDOW, event);
                             },
                             MotionAction::Move => {
-                                let event = event::WindowEvent::PointerMoved {
+                                let event = event::SurfaceEvent::PointerMoved {
                                     device_id,
                                     position,
                                     source: match tool_type {
@@ -392,7 +392,7 @@ impl EventLoop {
                             },
                             MotionAction::Up | MotionAction::PointerUp | MotionAction::Cancel => {
                                 if let MotionAction::Up | MotionAction::PointerUp = action {
-                                    let event = event::WindowEvent::PointerButton {
+                                    let event = event::SurfaceEvent::PointerButton {
                                         device_id,
                                         state: event::ElementState::Released,
                                         position,
@@ -408,7 +408,7 @@ impl EventLoop {
                                     app.window_event(&self.window_target, GLOBAL_WINDOW, event);
                                 }
 
-                                let event = event::WindowEvent::PointerLeft {
+                                let event = event::SurfaceEvent::PointerLeft {
                                     device_id,
                                     position: Some(position),
                                     kind: match tool_type {
@@ -451,7 +451,7 @@ impl EventLoop {
                             &mut self.combining_accent,
                         );
 
-                        let event = event::WindowEvent::KeyboardInput {
+                        let event = event::SurfaceEvent::KeyboardInput {
                             device_id: Some(DeviceId::from_raw(key.device_id() as i64)),
                             event: event::KeyEvent {
                                 state,

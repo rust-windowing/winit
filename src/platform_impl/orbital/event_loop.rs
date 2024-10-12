@@ -361,7 +361,7 @@ impl EventLoop {
                     key_without_modifiers = logical_key.clone();
                 }
 
-                let event = event::WindowEvent::KeyboardInput {
+                let event = event::SurfaceEvent::KeyboardInput {
                     device_id: None,
                     event: event::KeyEvent {
                         logical_key,
@@ -385,7 +385,7 @@ impl EventLoop {
                     app.window_event(
                         window_target,
                         window_id,
-                        event::WindowEvent::ModifiersChanged(event_state.modifiers()),
+                        event::SurfaceEvent::ModifiersChanged(event_state.modifiers()),
                     );
                 }
             },
@@ -393,19 +393,19 @@ impl EventLoop {
                 app.window_event(
                     window_target,
                     window_id,
-                    event::WindowEvent::Ime(Ime::Preedit("".into(), None)),
+                    event::SurfaceEvent::Ime(Ime::Preedit("".into(), None)),
                 );
                 app.window_event(
                     window_target,
                     window_id,
-                    event::WindowEvent::Ime(Ime::Commit(character.into())),
+                    event::SurfaceEvent::Ime(Ime::Commit(character.into())),
                 );
             },
             EventOption::Mouse(MouseEvent { x, y }) => {
                 app.window_event(
                     window_target,
                     window_id,
-                    event::WindowEvent::PointerMoved {
+                    event::SurfaceEvent::PointerMoved {
                         device_id: None,
                         position: (x, y).into(),
                         source: event::PointerSource::Mouse,
@@ -424,7 +424,7 @@ impl EventLoop {
                     app.window_event(
                         window_target,
                         window_id,
-                        event::WindowEvent::PointerButton {
+                        event::SurfaceEvent::PointerButton {
                             device_id: None,
                             state,
                             position: dpi::PhysicalPosition::default(),
@@ -437,7 +437,7 @@ impl EventLoop {
                 app.window_event(
                     window_target,
                     window_id,
-                    event::WindowEvent::MouseWheel {
+                    event::SurfaceEvent::MouseWheel {
                         device_id: None,
                         delta: event::MouseScrollDelta::LineDelta(x as f32, y as f32),
                         phase: event::TouchPhase::Moved,
@@ -445,23 +445,23 @@ impl EventLoop {
                 );
             },
             EventOption::Quit(QuitEvent {}) => {
-                app.window_event(window_target, window_id, event::WindowEvent::CloseRequested);
+                app.window_event(window_target, window_id, event::SurfaceEvent::CloseRequested);
             },
             EventOption::Focus(FocusEvent { focused }) => {
-                app.window_event(window_target, window_id, event::WindowEvent::Focused(focused));
+                app.window_event(window_target, window_id, event::SurfaceEvent::Focused(focused));
             },
             EventOption::Move(MoveEvent { x, y }) => {
                 app.window_event(
                     window_target,
                     window_id,
-                    event::WindowEvent::Moved((x, y).into()),
+                    event::SurfaceEvent::Moved((x, y).into()),
                 );
             },
             EventOption::Resize(ResizeEvent { width, height }) => {
                 app.window_event(
                     window_target,
                     window_id,
-                    event::WindowEvent::SurfaceResized((width, height).into()),
+                    event::SurfaceEvent::SurfaceResized((width, height).into()),
                 );
 
                 // Acknowledge resize after event loop.
@@ -470,13 +470,13 @@ impl EventLoop {
             // TODO: Screen, Clipboard, Drop
             EventOption::Hover(HoverEvent { entered }) => {
                 let event = if entered {
-                    event::WindowEvent::PointerEntered {
+                    event::SurfaceEvent::PointerEntered {
                         device_id: None,
                         position: dpi::PhysicalPosition::default(),
                         kind: event::PointerKind::Mouse,
                     }
                 } else {
-                    event::WindowEvent::PointerLeft {
+                    event::SurfaceEvent::PointerLeft {
                         device_id: None,
                         position: None,
                         kind: event::PointerKind::Mouse,
@@ -514,11 +514,11 @@ impl EventLoop {
                 self.windows.push((window, EventState::default()));
 
                 // Send resize event on create to indicate first size.
-                let event = event::WindowEvent::SurfaceResized((properties.w, properties.h).into());
+                let event = event::SurfaceEvent::SurfaceResized((properties.w, properties.h).into());
                 app.window_event(&self.window_target, window_id, event);
 
                 // Send moved event on create to indicate first position.
-                let event = event::WindowEvent::Moved((properties.x, properties.y).into());
+                let event = event::SurfaceEvent::Moved((properties.x, properties.y).into());
                 app.window_event(&self.window_target, window_id, event);
             }
 
@@ -527,7 +527,7 @@ impl EventLoop {
                 let mut destroys = self.window_target.destroys.lock().unwrap();
                 destroys.pop_front()
             } {
-                app.window_event(&self.window_target, destroy_id, event::WindowEvent::Destroyed);
+                app.window_event(&self.window_target, destroy_id, event::SurfaceEvent::Destroyed);
                 self.windows
                     .retain(|(window, _event_state)| WindowId::from_raw(window.fd) != destroy_id);
             }
@@ -595,7 +595,7 @@ impl EventLoop {
                 app.window_event(
                     &self.window_target,
                     window_id,
-                    event::WindowEvent::RedrawRequested,
+                    event::SurfaceEvent::RedrawRequested,
                 );
             }
 

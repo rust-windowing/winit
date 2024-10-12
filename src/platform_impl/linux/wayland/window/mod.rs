@@ -19,14 +19,14 @@ use super::types::xdg_activation::XdgActivationTokenData;
 use super::ActiveEventLoop;
 use crate::dpi::{LogicalSize, PhysicalPosition, PhysicalSize, Position, Size};
 use crate::error::{NotSupportedError, RequestError};
-use crate::event::{Ime, WindowEvent};
+use crate::event::{Ime, SurfaceEvent};
 use crate::event_loop::AsyncRequestSerial;
 use crate::monitor::MonitorHandle as CoreMonitorHandle;
 use crate::platform_impl::{Fullscreen, MonitorHandle as PlatformMonitorHandle};
 use crate::window::{
     Cursor, CursorGrabMode, Fullscreen as CoreFullscreen, ImePurpose, ResizeDirection,
     Surface as CoreSurface, Theme, UserAttentionType, Window as CoreWindow, WindowAttributes,
-    WindowButtons, WindowId, WindowLevel,
+    WindowButtons, SurfaceId, WindowLevel,
 };
 
 pub(crate) mod state;
@@ -39,7 +39,7 @@ pub struct Window {
     window: SctkWindow,
 
     /// Window id.
-    window_id: WindowId,
+    window_id: SurfaceId,
 
     /// The state of the window.
     window_state: Arc<Mutex<WindowState>>,
@@ -183,7 +183,7 @@ impl Window {
         let window_requests = Arc::new(window_requests);
         state.window_requests.get_mut().insert(window_id, window_requests.clone());
 
-        // Setup the event sync to insert `WindowEvents` right from the window.
+        // Setup the event sync to insert `SurfaceEvents` right from the window.
         let window_events_sink = state.window_events_sink.clone();
 
         let mut wayland_source = event_loop_window_target.wayland_dispatcher.as_source_mut();
@@ -273,7 +273,7 @@ impl rwh_06::HasDisplayHandle for Window {
 }
 
 impl CoreSurface for Window {
-    fn id(&self) -> WindowId {
+    fn id(&self) -> SurfaceId {
         self.window_id
     }
 
@@ -598,7 +598,7 @@ impl CoreWindow for Window {
         let mut window_state = self.window_state.lock().unwrap();
 
         if window_state.ime_allowed() != allowed && window_state.set_ime_allowed(allowed) {
-            let event = WindowEvent::Ime(if allowed { Ime::Enabled } else { Ime::Disabled });
+            let event = SurfaceEvent::Ime(if allowed { Ime::Enabled } else { Ime::Disabled });
             self.window_events_sink.lock().unwrap().push_window_event(event, self.window_id);
             self.event_loop_awakener.ping();
         }

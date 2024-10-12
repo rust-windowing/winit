@@ -5,18 +5,18 @@ fn main() -> Result<(), impl std::error::Error> {
 
     use winit::application::ApplicationHandler;
     use winit::dpi::{LogicalPosition, LogicalSize, Position};
-    use winit::event::{ElementState, KeyEvent, WindowEvent};
+    use winit::event::{ElementState, KeyEvent, SurfaceEvent};
     use winit::event_loop::{ActiveEventLoop, EventLoop};
     use winit::raw_window_handle::HasRawWindowHandle;
-    use winit::window::{Window, WindowAttributes, WindowId};
+    use winit::window::{Window, WindowAttributes, SurfaceId};
 
     #[path = "util/fill.rs"]
     mod fill;
 
     #[derive(Default)]
     struct Application {
-        parent_window_id: Option<WindowId>,
-        windows: HashMap<WindowId, Box<dyn Window>>,
+        parent_window_id: Option<SurfaceId>,
+        windows: HashMap<SurfaceId, Box<dyn Window>>,
     }
 
     impl ApplicationHandler for Application {
@@ -36,15 +36,15 @@ fn main() -> Result<(), impl std::error::Error> {
         fn window_event(
             &mut self,
             event_loop: &dyn ActiveEventLoop,
-            window_id: winit::window::WindowId,
-            event: WindowEvent,
+            window_id: winit::window::SurfaceId,
+            event: SurfaceEvent,
         ) {
             match event {
-                WindowEvent::CloseRequested => {
+                SurfaceEvent::CloseRequested => {
                     self.windows.clear();
                     event_loop.exit();
                 },
-                WindowEvent::PointerEntered { device_id: _, .. } => {
+                SurfaceEvent::PointerEntered { device_id: _, .. } => {
                     // On x11, println when the cursor entered in a window even if the child window
                     // is created by some key inputs.
                     // the child windows are always placed at (0, 0) with size (200, 200) in the
@@ -52,7 +52,7 @@ fn main() -> Result<(), impl std::error::Error> {
                     // the cursor around (200, 200) in parent window.
                     println!("cursor entered in the window {window_id:?}");
                 },
-                WindowEvent::KeyboardInput {
+                SurfaceEvent::KeyboardInput {
                     event: KeyEvent { state: ElementState::Pressed, .. },
                     ..
                 } => {
@@ -62,7 +62,7 @@ fn main() -> Result<(), impl std::error::Error> {
                     println!("Child window created with id: {child_id:?}");
                     self.windows.insert(child_id, child_window);
                 },
-                WindowEvent::RedrawRequested => {
+                SurfaceEvent::RedrawRequested => {
                     if let Some(window) = self.windows.get(&window_id) {
                         fill::fill_window(window.as_ref());
                     }

@@ -2,8 +2,8 @@
 
 use std::vec::Drain;
 
-use crate::event::{DeviceEvent, Event, WindowEvent};
-use crate::window::WindowId;
+use crate::event::{DeviceEvent, Event, SurfaceEvent};
+use crate::window::SurfaceId;
 
 /// An event loop's sink to deliver events from the Wayland event callbacks
 /// to the winit's user.
@@ -31,7 +31,7 @@ impl EventSink {
 
     /// Add new window event to a queue.
     #[inline]
-    pub fn push_window_event(&mut self, event: WindowEvent, window_id: WindowId) {
+    pub fn push_window_event(&mut self, event: SurfaceEvent, window_id: SurfaceId) {
         self.window_events.push(Event::WindowEvent { event, window_id });
     }
 

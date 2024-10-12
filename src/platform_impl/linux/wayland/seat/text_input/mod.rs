@@ -9,7 +9,7 @@ use sctk::reexports::protocols::wp::text_input::zv3::client::zwp_text_input_v3::
     ContentHint, ContentPurpose, Event as TextInputEvent, ZwpTextInputV3,
 };
 
-use crate::event::{Ime, WindowEvent};
+use crate::event::{Ime, SurfaceEvent};
 use crate::platform_impl::wayland;
 use crate::platform_impl::wayland::state::WinitState;
 use crate::window::ImePurpose;
@@ -73,7 +73,7 @@ impl Dispatch<ZwpTextInputV3, TextInputData, WinitState> for TextInputState {
                     text_input.enable();
                     text_input.set_content_type_by_purpose(window.ime_purpose());
                     text_input.commit();
-                    state.events_sink.push_window_event(WindowEvent::Ime(Ime::Enabled), window_id);
+                    state.events_sink.push_window_event(SurfaceEvent::Ime(Ime::Enabled), window_id);
                 }
 
                 window.text_input_entered(text_input);
@@ -96,7 +96,7 @@ impl Dispatch<ZwpTextInputV3, TextInputData, WinitState> for TextInputState {
 
                 window.text_input_left(text_input);
 
-                state.events_sink.push_window_event(WindowEvent::Ime(Ime::Disabled), window_id);
+                state.events_sink.push_window_event(SurfaceEvent::Ime(Ime::Disabled), window_id);
             },
             TextInputEvent::PreeditString { text, cursor_begin, cursor_end } => {
                 let text = text.unwrap_or_default();
@@ -121,7 +121,7 @@ impl Dispatch<ZwpTextInputV3, TextInputData, WinitState> for TextInputState {
 
                 // Clear preedit at the start of `Done`.
                 state.events_sink.push_window_event(
-                    WindowEvent::Ime(Ime::Preedit(String::new(), None)),
+                    SurfaceEvent::Ime(Ime::Preedit(String::new(), None)),
                     window_id,
                 );
 
@@ -129,7 +129,7 @@ impl Dispatch<ZwpTextInputV3, TextInputData, WinitState> for TextInputState {
                 if let Some(text) = text_input_data.pending_commit.take() {
                     state
                         .events_sink
-                        .push_window_event(WindowEvent::Ime(Ime::Commit(text)), window_id);
+                        .push_window_event(SurfaceEvent::Ime(Ime::Commit(text)), window_id);
                 }
 
                 // Send preedit.
@@ -138,7 +138,7 @@ impl Dispatch<ZwpTextInputV3, TextInputData, WinitState> for TextInputState {
                         preedit.cursor_begin.map(|b| (b, preedit.cursor_end.unwrap_or(b)));
 
                     state.events_sink.push_window_event(
-                        WindowEvent::Ime(Ime::Preedit(preedit.text, cursor_range)),
+                        SurfaceEvent::Ime(Ime::Preedit(preedit.text, cursor_range)),
                         window_id,
                     );
                 }

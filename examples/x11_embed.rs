@@ -4,10 +4,10 @@ use std::error::Error;
 #[cfg(x11_platform)]
 fn main() -> Result<(), Box<dyn Error>> {
     use winit::application::ApplicationHandler;
-    use winit::event::WindowEvent;
+    use winit::event::SurfaceEvent;
     use winit::event_loop::{ActiveEventLoop, EventLoop};
     use winit::platform::x11::WindowAttributesExtX11;
-    use winit::window::{Window, WindowAttributes, WindowId};
+    use winit::window::{Window, WindowAttributes, SurfaceId};
 
     #[path = "util/fill.rs"]
     mod fill;
@@ -30,13 +30,13 @@ fn main() -> Result<(), Box<dyn Error>> {
         fn window_event(
             &mut self,
             event_loop: &dyn ActiveEventLoop,
-            _window_id: WindowId,
-            event: WindowEvent,
+            _window_id: SurfaceId,
+            event: SurfaceEvent,
         ) {
             let window = self.window.as_ref().unwrap();
             match event {
-                WindowEvent::CloseRequested => event_loop.exit(),
-                WindowEvent::RedrawRequested => {
+                SurfaceEvent::CloseRequested => event_loop.exit(),
+                SurfaceEvent::RedrawRequested => {
                     window.pre_present_notify();
                     fill::fill_window(window.as_ref());
                 },

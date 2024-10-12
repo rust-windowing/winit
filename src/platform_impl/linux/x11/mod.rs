@@ -24,7 +24,7 @@ use x11rb::xcb_ffi::ReplyOrIdError;
 
 use crate::application::ApplicationHandler;
 use crate::error::{EventLoopError, RequestError};
-use crate::event::{DeviceId, Event, StartCause, WindowEvent};
+use crate::event::{DeviceId, Event, StartCause, SurfaceEvent};
 use crate::event_loop::{
     ActiveEventLoop as RootActiveEventLoop, ControlFlow, DeviceEvents,
     OwnedDisplayHandle as RootOwnedDisplayHandle,
@@ -36,7 +36,7 @@ use crate::platform_impl::x11::window::Window;
 use crate::platform_impl::{OwnedDisplayHandle, PlatformCustomCursor};
 use crate::window::{
     CustomCursor as RootCustomCursor, CustomCursorSource, Theme, Window as CoreWindow,
-    WindowAttributes, WindowId,
+    WindowAttributes, SurfaceId,
 };
 
 mod activation;
@@ -136,8 +136,8 @@ pub struct ActiveEventLoop {
     exit: Cell<Option<i32>>,
     root: xproto::Window,
     ime: Option<RefCell<Ime>>,
-    windows: RefCell<HashMap<WindowId, Weak<UnownedWindow>>>,
-    redraw_sender: WakeSender<WindowId>,
+    windows: RefCell<HashMap<SurfaceId, Weak<UnownedWindow>>>,
+    redraw_sender: WakeSender<SurfaceId>,
     activation_sender: WakeSender<ActivationToken>,
     event_loop_proxy: EventLoopProxy,
     device_events: Cell<DeviceEvents>,
@@ -147,14 +147,14 @@ pub struct EventLoop {
     loop_running: bool,
     event_loop: Loop<'static, EventLoopState>,
     event_processor: EventProcessor,
-    redraw_receiver: PeekableReceiver<WindowId>,
+    redraw_receiver: PeekableReceiver<SurfaceId>,
     activation_receiver: PeekableReceiver<ActivationToken>,
 
     /// The current state of the event loop.
     state: EventLoopState,
 }
 
-type ActivationToken = (WindowId, crate::event_loop::AsyncRequestSerial);
+type ActivationToken = (SurfaceId, crate::event_loop::AsyncRequestSerial);
 
 struct EventLoopState {
     /// The latest readiness state for the x11 file descriptor
@@ -529,7 +529,7 @@ impl EventLoop {
 
             match token {
                 Some(Ok(token)) => {
-                    let event = WindowEvent::ActivationTokenDone {
+                    let event = SurfaceEvent::ActivationTokenDone {
                         serial,
                         token: crate::window::ActivationToken::_new(token),
                     };
@@ -559,7 +559,7 @@ impl EventLoop {
                 app.window_event(
                     &self.event_processor.target,
                     window_id,
-                    WindowEvent::RedrawRequested,
+                    SurfaceEvent::RedrawRequested,
                 );
             }
         }
@@ -574,7 +574,7 @@ impl EventLoop {
         while unsafe { self.event_processor.poll_one_event(xev.as_mut_ptr()) } {
             let mut xev = unsafe { xev.assume_init() };
             self.event_processor.process_event(&mut xev, |window_target, event: Event| {
-                if let Event::WindowEvent { window_id, event: WindowEvent::RedrawRequested } = event
+                if let Event::WindowEvent { window_id, event: SurfaceEvent::RedrawRequested } = event
                 {
                     window_target.redraw_sender.send(window_id);
                 } else {
@@ -987,8 +987,8 @@ impl<'a, E: fmt::Debug> CookieResultExt for Result<VoidCookie<'a>, E> {
     }
 }
 
-fn mkwid(w: xproto::Window) -> crate::window::WindowId {
-    crate::window::WindowId::from_raw(w as _)
+fn mkwid(w: xproto::Window) -> crate::window::SurfaceId {
+    crate::window::SurfaceId::from_raw(w as _)
 }
 fn mkdid(w: xinput::DeviceId) -> DeviceId {
     DeviceId::from_raw(w as i64)

@@ -8,7 +8,7 @@ use sctk::seat::touch::{TouchData, TouchHandler};
 use tracing::warn;
 
 use crate::dpi::LogicalPosition;
-use crate::event::{ButtonSource, ElementState, PointerKind, PointerSource, WindowEvent};
+use crate::event::{ButtonSource, ElementState, PointerKind, PointerSource, SurfaceEvent};
 use crate::platform_impl::wayland::state::WinitState;
 use crate::platform_impl::wayland::{self, FingerId};
 
@@ -47,7 +47,7 @@ impl TouchHandler for WinitState {
             crate::event::FingerId(crate::platform_impl::FingerId::Wayland(FingerId(id)));
 
         self.events_sink.push_window_event(
-            WindowEvent::PointerEntered {
+            SurfaceEvent::PointerEntered {
                 device_id: None,
                 position,
                 kind: PointerKind::Touch(finger_id),
@@ -55,7 +55,7 @@ impl TouchHandler for WinitState {
             window_id,
         );
         self.events_sink.push_window_event(
-            WindowEvent::PointerButton {
+            SurfaceEvent::PointerButton {
                 device_id: None,
                 state: ElementState::Pressed,
                 position,
@@ -99,7 +99,7 @@ impl TouchHandler for WinitState {
             crate::event::FingerId(crate::platform_impl::FingerId::Wayland(FingerId(id)));
 
         self.events_sink.push_window_event(
-            WindowEvent::PointerButton {
+            SurfaceEvent::PointerButton {
                 device_id: None,
                 state: ElementState::Released,
                 position,
@@ -108,7 +108,7 @@ impl TouchHandler for WinitState {
             window_id,
         );
         self.events_sink.push_window_event(
-            WindowEvent::PointerLeft {
+            SurfaceEvent::PointerLeft {
                 device_id: None,
                 position: Some(position),
                 kind: PointerKind::Touch(finger_id),
@@ -149,7 +149,7 @@ impl TouchHandler for WinitState {
         touch_point.location = LogicalPosition::<f64>::from(position);
 
         self.events_sink.push_window_event(
-            WindowEvent::PointerMoved {
+            SurfaceEvent::PointerMoved {
                 device_id: None,
                 position: touch_point.location.to_physical(scale_factor),
                 source: PointerSource::Touch {
@@ -182,7 +182,7 @@ impl TouchHandler for WinitState {
             let position = touch_point.location.to_physical(scale_factor);
 
             self.events_sink.push_window_event(
-                WindowEvent::PointerLeft {
+                SurfaceEvent::PointerLeft {
                     device_id: None,
                     position: Some(position),
                     kind: PointerKind::Touch(crate::event::FingerId(

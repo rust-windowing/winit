@@ -18,7 +18,7 @@ fn window_builder_send() {
 
 #[test]
 fn ids_send() {
-    needs_send::<winit::window::WindowId>();
+    needs_send::<winit::window::SurfaceId>();
     needs_send::<winit::event::DeviceId>();
     needs_send::<winit::monitor::MonitorHandle>();
 }

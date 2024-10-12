@@ -62,7 +62,7 @@ changelog entry.
 - Add basic iOS IME support. The soft keyboard can now be shown using `Window::set_ime_allowed`.
 - On macOS, add `WindowExtMacOS::set_borderless_game` and `WindowAttributesExtMacOS::with_borderless_game`
   to fully disable the menu bar and dock in Borderless Fullscreen as commonly done in games.
-- Add `WindowId::into_raw()` and `from_raw()`.
+- Add `SurfaceId::into_raw()` and `from_raw()`.
 - Add `PointerKind`, `PointerSource`, `ButtonSource`, `FingerId` and `position` to all pointer
   events as part of the pointer event overhaul.
 - Add `DeviceId::into_raw()` and `from_raw()`.
@@ -109,7 +109,7 @@ changelog entry.
   `application:didFinishLaunchingWithOptions:` and provide the desired behaviour yourself.
 - On X11, remove our dependency on libXcursor. (#3749)
 - Renamed the following APIs to make it clearer that the sizes apply to the underlying surface:
-  - `WindowEvent::Resized` to `SurfaceResized`.
+  - `SurfaceEvent::Resized` to `SurfaceResized`.
   - `InnerSizeWriter` to `SurfaceSizeWriter`.
   - `WindowAttributes.inner_size` to `surface_size`.
   - `WindowAttributes.min_inner_size` to `min_surface_size`.
@@ -127,7 +127,7 @@ changelog entry.
   To migrate, you can probably just replace all instances of `inner_size` with `surface_size` in your codebase.
 - Every event carrying a `DeviceId` now uses `Option<DeviceId>` instead. A `None` value signifies that the
   device can't be uniquely identified.
-- Pointer `WindowEvent`s were overhauled. The new events can handle any type of pointer, serving as
+- Pointer `SurfaceEvent`s were overhauled. The new events can handle any type of pointer, serving as
   a single pointer input source. Now your application can handle any pointer type without having to
   explicitly handle e.g. `Touch`:
   - Rename `CursorMoved` to `PointerMoved`.
@@ -171,14 +171,14 @@ changelog entry.
 - Remove the `rwh_04` and `rwh_05` cargo feature and the corresponding `raw-window-handle` v0.4 and
   v0.5 support. v0.6 remains in place and is enabled by default.
 - Remove `DeviceEvent::Added` and `DeviceEvent::Removed`.
-- Remove `DeviceEvent::Motion` and `WindowEvent::AxisMotion`.
+- Remove `DeviceEvent::Motion` and `SurfaceEvent::AxisMotion`.
 - Remove `MonitorHandle::size()` and `refresh_rate_millihertz()` in favor of
   `MonitorHandle::current_video_mode()`.
 - On Android, remove all `MonitorHandle` support instead of emitting false data.
 - Remove `impl From<u64> for WindowId` and `impl From<WindowId> for u64`. Replaced with
-  `WindowId::into_raw()` and `from_raw()`.
-- Remove `dummy()` from `WindowId` and `DeviceId`.
-- Remove `WindowEvent::Touch` and `Touch` in favor of the new `PointerKind`, `PointerSource` and
+  `SurfaceId::into_raw()` and `from_raw()`.
+- Remove `dummy()` from `SurfaceId` and `DeviceId`.
+- Remove `SurfaceEvent::Touch` and `Touch` in favor of the new `PointerKind`, `PointerSource` and
  `ButtonSource` as part of the new pointer event overhaul.
 - Remove `Force::altitude_angle`.
 

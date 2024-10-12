@@ -52,7 +52,7 @@ use crate::keyboard::{self, ModifiersKeyState, ModifiersKeys, ModifiersState};
 use crate::platform_impl;
 #[cfg(doc)]
 use crate::window::{Surface, Window};
-use crate::window::{ActivationToken, Theme, WindowId};
+use crate::window::{ActivationToken, Theme, SurfaceId};
 
 // TODO: Remove once the backends can call `ApplicationHandler` methods directly. For now backends
 // like Windows and Web require `Event` to wire user events, otherwise each backend will have to
@@ -72,7 +72,7 @@ pub(crate) enum Event {
     ///
     /// [`ApplicationHandler::window_event()`]: crate::application::ApplicationHandler::window_event()
     #[allow(clippy::enum_variant_names)]
-    WindowEvent { window_id: WindowId, event: WindowEvent },
+    WindowEvent { window_id: SurfaceId, event: SurfaceEvent },
 
     /// See [`ApplicationHandler::device_event()`] for details.
     ///
@@ -138,9 +138,9 @@ pub enum StartCause {
     Init,
 }
 
-/// Describes an event from a [`Window`].
+/// Describes an event from a [`Surface`].
 #[derive(Debug, Clone, PartialEq)]
-pub enum WindowEvent {
+pub enum SurfaceEvent {
     /// The activation token was delivered back and now could be used.
     #[cfg_attr(not(any(x11_platform, wayland_platform)), allow(rustdoc::broken_intra_doc_links))]
     /// Delivered in response to [`request_activation_token`].
@@ -482,23 +482,23 @@ pub enum PointerSource {
     Mouse,
     /// Represents a touch event.
     ///
-    /// Every time the user touches the screen, a [`WindowEvent::PointerEntered`] and a
-    /// [`WindowEvent::PointerButton`] with [`ElementState::Pressed`] event with an unique
+    /// Every time the user touches the screen, a [`SurfaceEvent::PointerEntered`] and a
+    /// [`SurfaceEvent::PointerButton`] with [`ElementState::Pressed`] event with an unique
     /// identifier for the finger is emitted. When a finger is lifted, a
-    /// [`WindowEvent::PointerButton`] with [`ElementState::Released`] and a
-    /// [`WindowEvent::PointerLeft`] event is generated with the same [`FingerId`].
+    /// [`SurfaceEvent::PointerButton`] with [`ElementState::Released`] and a
+    /// [`SurfaceEvent::PointerLeft`] event is generated with the same [`FingerId`].
     ///
-    /// After a [`WindowEvent::PointerEntered`] event has been emitted, there may be zero or more
-    /// [`WindowEvent::PointerMoved`] events when the finger is moved or the touch pressure
+    /// After a [`SurfaceEvent::PointerEntered`] event has been emitted, there may be zero or more
+    /// [`SurfaceEvent::PointerMoved`] events when the finger is moved or the touch pressure
     /// changes.
     ///
-    /// A [`WindowEvent::PointerLeft`] without a [`WindowEvent::PointerButton`] with
+    /// A [`SurfaceEvent::PointerLeft`] without a [`SurfaceEvent::PointerButton`] with
     /// [`ElementState::Released`] event is emitted when the system has canceled tracking this
     /// touch, such as when the window loses focus, or on mobile devices if the user moves the
     /// device against their face.
     ///
-    /// The [`FingerId`] may be reused by the system after a [`WindowEvent::PointerLeft`] event.
-    /// The user should assume that a new [`WindowEvent::PointerEntered`] event received with the
+    /// The [`FingerId`] may be reused by the system after a [`SurfaceEvent::PointerLeft`] event.
+    /// The user should assume that a new [`SurfaceEvent::PointerEntered`] event received with the
     /// same ID has nothing to do with the old finger and is a new finger.
     ///
     /// ## Platform-specific
@@ -533,7 +533,7 @@ impl From<PointerSource> for PointerKind {
     }
 }
 
-/// Represents the pointer type of a [`WindowEvent::PointerButton`].
+/// Represents the pointer type of a [`SurfaceEvent::PointerButton`].
 ///
 /// **Wayland/X11:** [`Unknown`](Self::Unknown) device types are converted to known variants by the
 /// system.
@@ -632,7 +632,7 @@ pub enum DeviceEvent {
     /// Change in physical position of a pointing device.
     ///
     /// This represents raw, unfiltered physical motion. Not to be confused with
-    /// [`WindowEvent::PointerMoved`].
+    /// [`SurfaceEvent::PointerMoved`].
     ///
     /// ## Platform-specific
     ///
@@ -790,11 +790,11 @@ pub struct KeyEvent {
     /// done by ignoring events where this property is set.
     ///
     /// ```no_run
-    /// use winit::event::{ElementState, KeyEvent, WindowEvent};
+    /// use winit::event::{ElementState, KeyEvent, SurfaceEvent};
     /// use winit::keyboard::{KeyCode, PhysicalKey};
-    /// # let window_event = WindowEvent::RedrawRequested; // To make the example compile
+    /// # let window_event = SurfaceEvent::RedrawRequested; // To make the example compile
     /// match window_event {
-    ///     WindowEvent::KeyboardInput {
+    ///     SurfaceEvent::KeyboardInput {
     ///         event:
     ///             KeyEvent {
     ///                 physical_key: PhysicalKey::Code(KeyCode::KeyW),
@@ -898,7 +898,7 @@ impl From<ModifiersState> for Modifiers {
 /// This is also called a "composition event".
 ///
 /// Most keypresses using a latin-like keyboard layout simply generate a
-/// [`WindowEvent::KeyboardInput`]. However, one couldn't possibly have a key for every single
+/// [`SurfaceEvent::KeyboardInput`]. However, one couldn't possibly have a key for every single
 /// unicode character that the user might want to type
 /// - so the solution operating systems employ is to allow the user to type these using _a sequence
 ///   of keypresses_ instead.
@@ -1085,7 +1085,7 @@ pub enum MouseScrollDelta {
     PixelDelta(PhysicalPosition<f64>),
 }
 
-/// Handle to synchronously change the size of the window from the [`WindowEvent`].
+/// Handle to synchronously change the size of the window from the [`SurfaceEvent`].
 #[derive(Debug, Clone)]
 pub struct SurfaceSizeWriter {
     pub(crate) new_surface_size: Weak<Mutex<PhysicalSize<u32>>>,
@@ -1136,12 +1136,12 @@ mod tests {
             {
                 use crate::event::Event::*;
                 use crate::event::Ime::Enabled;
-                use crate::event::WindowEvent::*;
+                use crate::event::SurfaceEvent::*;
                 use crate::event::{PointerKind, PointerSource};
-                use crate::window::WindowId;
+                use crate::window::SurfaceId;
 
                 // Mainline events.
-                let wid = WindowId::from_raw(0);
+                let wid = SurfaceId::from_raw(0);
                 x(NewEvents(event::StartCause::Init));
                 x(AboutToWait);
                 x(LoopExiting);

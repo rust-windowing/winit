@@ -29,11 +29,11 @@ use sctk::seat::SeatState;
 use crate::dpi::{LogicalPosition, PhysicalPosition};
 use crate::event::{
     ElementState, MouseButton, MouseScrollDelta, PointerKind, PointerSource, TouchPhase,
-    WindowEvent,
+    SurfaceEvent,
 };
 
 use crate::platform_impl::wayland::state::WinitState;
-use crate::platform_impl::wayland::{self, WindowId};
+use crate::platform_impl::wayland::{self, SurfaceId};
 
 pub mod relative_pointer;
 
@@ -126,7 +126,7 @@ impl PointerHandler for WinitState {
                 // Regular events on the main surface.
                 PointerEventKind::Enter { .. } => {
                     self.events_sink.push_window_event(
-                        WindowEvent::PointerEntered {
+                        SurfaceEvent::PointerEntered {
                             device_id: None,
                             position,
                             kind: PointerKind::Mouse,
@@ -146,7 +146,7 @@ impl PointerHandler for WinitState {
                     pointer.winit_data().inner.lock().unwrap().surface = None;
 
                     self.events_sink.push_window_event(
-                        WindowEvent::PointerLeft {
+                        SurfaceEvent::PointerLeft {
                             device_id: None,
                             position: Some(position),
                             kind: PointerKind::Mouse,
@@ -156,7 +156,7 @@ impl PointerHandler for WinitState {
                 },
                 PointerEventKind::Motion { .. } => {
                     self.events_sink.push_window_event(
-                        WindowEvent::PointerMoved {
+                        SurfaceEvent::PointerMoved {
                             device_id: None,
                             position,
                             source: PointerSource::Mouse,
@@ -176,7 +176,7 @@ impl PointerHandler for WinitState {
                         ElementState::Released
                     };
                     self.events_sink.push_window_event(
-                        WindowEvent::PointerButton {
+                        SurfaceEvent::PointerButton {
                             device_id: None,
                             state,
                             position,
@@ -226,7 +226,7 @@ impl PointerHandler for WinitState {
                     };
 
                     self.events_sink.push_window_event(
-                        WindowEvent::MouseWheel { device_id: None, delta, phase },
+                        SurfaceEvent::MouseWheel { device_id: None, delta, phase },
                         window_id,
                     )
                 },
@@ -309,7 +309,7 @@ impl WinitPointerData {
     }
 
     /// Active window.
-    pub fn focused_window(&self) -> Option<WindowId> {
+    pub fn focused_window(&self) -> Option<SurfaceId> {
         self.inner.lock().unwrap().surface
     }
 
@@ -349,7 +349,7 @@ pub struct WinitPointerDataInner {
     latest_button_serial: u32,
 
     /// Currently focused window.
-    surface: Option<WindowId>,
+    surface: Option<SurfaceId>,
 
     /// Current axis phase.
     phase: TouchPhase,
