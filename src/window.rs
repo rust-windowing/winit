@@ -757,6 +757,11 @@ pub trait Surface: AsAny + Send + Sync {
     /// Get the raw-window-handle v0.6 window handle.
     #[cfg(feature = "rwh_06")]
     fn rwh_06_window_handle(&self) -> &dyn rwh_06::HasWindowHandle;
+
+    /// Tries to downcast this surface to a [`Window`]. Returns `None` if the surface is not a window.
+    fn as_window(&self) -> Option<&dyn Window> {
+        None
+    }
 }
 
 /// Represents a toplevel window, which may generally have decorations.

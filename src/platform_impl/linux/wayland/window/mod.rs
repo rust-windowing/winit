@@ -398,6 +398,10 @@ impl CoreSurface for Window {
     fn rwh_06_window_handle(&self) -> &dyn rwh_06::HasWindowHandle {
         self
     }
+    
+    fn as_window(&self) -> Option<&dyn CoreWindow> {
+        Some(self)
+    }
 }
 
 impl CoreWindow for Window {
