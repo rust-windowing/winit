@@ -9,6 +9,8 @@ use std::path::Path;
 
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
+#[cfg(windows_platform)]
+use windows_sys::Win32::Foundation::HANDLE;
 
 use crate::dpi::PhysicalSize;
 use crate::event::{DeviceId, FingerId};
@@ -656,10 +658,15 @@ pub trait DeviceIdExtWindows {
     fn persistent_identifier(&self) -> Option<String>;
 }
 
+#[cfg(windows_platform)]
 impl DeviceIdExtWindows for DeviceId {
-    #[inline]
     fn persistent_identifier(&self) -> Option<String> {
-        self.0.persistent_identifier()
+        let raw_id = self.into_raw();
+        if raw_id != 0 {
+            crate::platform_impl::raw_input::get_raw_input_device_name(raw_id as HANDLE)
+        } else {
+            None
+        }
     }
 }
 

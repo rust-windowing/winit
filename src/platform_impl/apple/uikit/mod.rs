@@ -21,13 +21,6 @@ pub(crate) use crate::cursor::{
 pub(crate) use crate::icon::NoIcon as PlatformIcon;
 pub(crate) use crate::platform_impl::Fullscreen;
 
-/// There is no way to detect which device that performed a certain event in
-/// UIKit (i.e. you can't differentiate between different external keyboards,
-/// or whether it was the main touchscreen, assistive technologies, or some
-/// other pointer device that caused a touch event).
-#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct DeviceId;
-
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct FingerId(usize);
 

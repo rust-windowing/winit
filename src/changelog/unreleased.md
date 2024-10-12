@@ -65,6 +65,7 @@ changelog entry.
 - Add `WindowId::into_raw()` and `from_raw()`.
 - Add `PointerKind`, `PointerSource`, `ButtonSource`, `FingerId` and `position` to all pointer
   events as part of the pointer event overhaul.
+- Add `DeviceId::into_raw()` and `from_raw()`.
 
 ### Changed
 

@@ -9,16 +9,13 @@ use wasm_bindgen::JsCast;
 use web_sys::{Document, KeyboardEvent, Navigator, PageTransitionEvent, PointerEvent, WheelEvent};
 use web_time::{Duration, Instant};
 
+use super::super::event;
 use super::super::main_thread::MainThreadMarker;
 use super::super::monitor::MonitorHandler;
-use super::super::DeviceId;
 use super::backend;
 use super::state::State;
 use crate::dpi::PhysicalSize;
-use crate::event::{
-    DeviceEvent, DeviceId as RootDeviceId, ElementState, Event, RawKeyEvent, StartCause,
-    WindowEvent,
-};
+use crate::event::{DeviceEvent, ElementState, Event, RawKeyEvent, StartCause, WindowEvent};
 use crate::event_loop::{ControlFlow, DeviceEvents};
 use crate::platform::web::{PollStrategy, WaitUntilStrategy};
 use crate::platform_impl::platform::backend::EventListenerHandle;
@@ -286,7 +283,7 @@ impl Shared {
                 }
 
                 // chorded button event
-                let device_id = DeviceId::new(event.pointer_id()).map(RootDeviceId);
+                let device_id = event::mkdid(event.pointer_id());
 
                 if let Some(button) = backend::event::mouse_button(&event) {
                     let state = if backend::event::mouse_buttons(&event).contains(button.into()) {
@@ -344,7 +341,7 @@ impl Shared {
 
                 let button = backend::event::mouse_button(&event).expect("no mouse button pressed");
                 runner.send_event(Event::DeviceEvent {
-                    device_id: DeviceId::new(event.pointer_id()).map(RootDeviceId),
+                    device_id: event::mkdid(event.pointer_id()),
                     event: DeviceEvent::Button {
                         button: button.to_id().into(),
                         state: ElementState::Pressed,
@@ -363,7 +360,7 @@ impl Shared {
 
                 let button = backend::event::mouse_button(&event).expect("no mouse button pressed");
                 runner.send_event(Event::DeviceEvent {
-                    device_id: DeviceId::new(event.pointer_id()).map(RootDeviceId),
+                    device_id: event::mkdid(event.pointer_id()),
                     event: DeviceEvent::Button {
                         button: button.to_id().into(),
                         state: ElementState::Released,
