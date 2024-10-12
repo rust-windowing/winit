@@ -15,10 +15,10 @@
 //! # Event handling
 //!
 //! Once a [`Window`] has been created, it will generate different *events*. A [`Window`] object can
-//! generate [`WindowEvent`]s when certain input events occur, such as a cursor moving over the
+//! generate [`SurfaceEvent`]s when certain input events occur, such as a cursor moving over the
 //! window or a key getting pressed while the window is focused. Devices can generate
 //! [`DeviceEvent`]s, which contain unfiltered event data that isn't specific to a certain window.
-//! Some user activity, like mouse movement, can generate both a [`WindowEvent`] *and* a
+//! Some user activity, like mouse movement, can generate both a [`SurfaceEvent`] *and* a
 //! [`DeviceEvent`].
 //!
 //! You can retrieve events by calling [`EventLoop::run_app()`]. This function will
@@ -42,9 +42,9 @@
 //!
 //! ```no_run
 //! use winit::application::ApplicationHandler;
-//! use winit::event::WindowEvent;
+//! use winit::event::SurfaceEvent;
 //! use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
-//! use winit::window::{Window, WindowId, WindowAttributes};
+//! use winit::window::{Window, SurfaceId, WindowAttributes};
 //!
 //! #[derive(Default)]
 //! struct App {
@@ -56,13 +56,13 @@
 //!         self.window = Some(event_loop.create_window(WindowAttributes::default()).unwrap());
 //!     }
 //!
-//!     fn window_event(&mut self, event_loop: &dyn ActiveEventLoop, id: WindowId, event: WindowEvent) {
+//!     fn window_event(&mut self, event_loop: &dyn ActiveEventLoop, id: SurfaceId, event: SurfaceEvent) {
 //!         match event {
-//!             WindowEvent::CloseRequested => {
+//!             SurfaceEvent::CloseRequested => {
 //!                 println!("The close button was pressed; stopping");
 //!                 event_loop.exit();
 //!             },
-//!             WindowEvent::RedrawRequested => {
+//!             SurfaceEvent::RedrawRequested => {
 //!                 // Redraw the application.
 //!                 //
 //!                 // It's preferable for applications that do not render continuously to render in
@@ -98,7 +98,7 @@
 //! event_loop.run_app(&mut app);
 //! ```
 //!
-//! [`WindowEvent`] has a [`WindowId`] member. In multi-window environments, it should be
+//! [`SurfaceEvent`] has a [`SurfaceId`] member. In multi-window environments, it should be
 //! compared to the value returned by [`Surface::id()`] to determine which [`Window`]
 //! dispatched the event.
 //!
@@ -131,7 +131,7 @@
 //! factor. If a window hasn't received a [`ScaleFactorChanged`] event, its scale factor
 //! can be found by calling [`window.scale_factor()`].
 //!
-//! [`ScaleFactorChanged`]: event::WindowEvent::ScaleFactorChanged
+//! [`ScaleFactorChanged`]: event::SurfaceEvent::ScaleFactorChanged
 //! [`window.scale_factor()`]: window::Surface::scale_factor
 //!
 //! # Cargo Features
@@ -208,12 +208,12 @@
 //! [`EventLoop::run_app()`]: event_loop::EventLoop::run_app
 //! [`exit()`]: event_loop::ActiveEventLoop::exit
 //! [`Window`]: window::Window
-//! [`WindowId`]: window::WindowId
+//! [`SurfaceId`]: window::SurfaceId
 //! [`WindowAttributes`]: window::WindowAttributes
 //! [window_new]: window::Window::new
 //! [`create_window`]: event_loop::ActiveEventLoop::create_window
 //! [`Surface::id()`]: window::Surface::id
-//! [`WindowEvent`]: event::WindowEvent
+//! [`SurfaceEvent`]: event::SurfaceEvent
 //! [`DeviceEvent`]: event::DeviceEvent
 //! [`Event::UserEvent`]: event::Event::UserEvent
 //! [`exiting()`]: crate::application::ApplicationHandler::exiting

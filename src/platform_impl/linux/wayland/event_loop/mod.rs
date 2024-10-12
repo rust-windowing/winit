@@ -15,7 +15,7 @@ use crate::application::ApplicationHandler;
 use crate::cursor::OnlyCursorImage;
 use crate::dpi::LogicalSize;
 use crate::error::{EventLoopError, OsError, RequestError};
-use crate::event::{Event, StartCause, SurfaceSizeWriter, WindowEvent};
+use crate::event::{Event, StartCause, SurfaceSizeWriter, SurfaceEvent};
 use crate::event_loop::{ActiveEventLoop as RootActiveEventLoop, ControlFlow, DeviceEvents};
 use crate::platform::pump_events::PumpStatus;
 use crate::platform_impl::platform::min_timeout;
@@ -30,7 +30,7 @@ use sink::EventSink;
 
 use super::state::{WindowCompositorUpdate, WinitState};
 use super::window::state::FrameCallbackState;
-use super::{logical_to_physical_rounded, WindowId};
+use super::{logical_to_physical_rounded, SurfaceId};
 
 type WaylandDispatcher = calloop::Dispatcher<'static, WaylandSource<WinitState>, WinitState>;
 
@@ -41,7 +41,7 @@ pub struct EventLoop {
 
     buffer_sink: EventSink,
     compositor_updates: Vec<WindowCompositorUpdate>,
-    window_ids: Vec<WindowId>,
+    window_ids: Vec<SurfaceId>,
 
     /// The Wayland dispatcher to has raw access to the queue when needed, such as
     /// when creating a new window.
@@ -312,7 +312,7 @@ impl EventLoop {
                 let old_physical_size = physical_size;
 
                 let new_surface_size = Arc::new(Mutex::new(physical_size));
-                let event = WindowEvent::ScaleFactorChanged {
+                let event = SurfaceEvent::ScaleFactorChanged {
                     scale_factor,
                     surface_size_writer: SurfaceSizeWriter::new(Arc::downgrade(&new_surface_size)),
                 };
@@ -360,12 +360,12 @@ impl EventLoop {
                     size
                 });
 
-                let event = WindowEvent::SurfaceResized(physical_size);
+                let event = SurfaceEvent::SurfaceResized(physical_size);
                 app.window_event(&self.active_event_loop, window_id, event);
             }
 
             if compositor_update.close_window {
-                app.window_event(&self.active_event_loop, window_id, WindowEvent::CloseRequested);
+                app.window_event(&self.active_event_loop, window_id, SurfaceEvent::CloseRequested);
             }
         }
 
@@ -412,7 +412,7 @@ impl EventLoop {
                 if window_requests.get(window_id).unwrap().take_closed() {
                     mem::drop(window_requests.remove(window_id));
                     mem::drop(state.windows.get_mut().remove(window_id));
-                    return Some(WindowEvent::Destroyed);
+                    return Some(SurfaceEvent::Destroyed);
                 }
 
                 let mut window =
@@ -430,7 +430,7 @@ impl EventLoop {
                 // Redraw the frame while at it.
                 redraw_requested |= window.refresh_frame();
 
-                redraw_requested.then_some(WindowEvent::RedrawRequested)
+                redraw_requested.then_some(SurfaceEvent::RedrawRequested)
             });
 
             if let Some(event) = event {

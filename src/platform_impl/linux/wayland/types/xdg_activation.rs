@@ -14,7 +14,7 @@ use sctk::reexports::protocols::xdg::activation::v1::client::xdg_activation_v1::
 
 use crate::event_loop::AsyncRequestSerial;
 use crate::platform_impl::wayland::state::WinitState;
-use crate::window::{ActivationToken, WindowId};
+use crate::window::{ActivationToken, SurfaceId};
 
 pub struct XdgActivationState {
     xdg_activation: XdgActivationV1,
@@ -76,7 +76,7 @@ impl Dispatch<XdgActivationTokenV1, XdgActivationTokenData, WinitState> for XdgA
             },
             XdgActivationTokenData::Obtain((window_id, serial)) => {
                 state.events_sink.push_window_event(
-                    crate::event::WindowEvent::ActivationTokenDone {
+                    crate::event::SurfaceEvent::ActivationTokenDone {
                         serial: *serial,
                         token: ActivationToken::_new(token),
                     },
@@ -94,7 +94,7 @@ pub enum XdgActivationTokenData {
     /// Request user attention for the given surface.
     Attention((WlSurface, Weak<AtomicBool>)),
     /// Get a token to be passed outside of the winit.
-    Obtain((WindowId, AsyncRequestSerial)),
+    Obtain((SurfaceId, AsyncRequestSerial)),
 }
 
 delegate_dispatch!(WinitState: [ XdgActivationV1: GlobalData] => XdgActivationState);

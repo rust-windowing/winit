@@ -18,7 +18,7 @@ use softbuffer::{Context, Surface};
 use winit::application::ApplicationHandler;
 use winit::dpi::{LogicalSize, PhysicalPosition, PhysicalSize};
 use winit::error::RequestError;
-use winit::event::{DeviceEvent, DeviceId, Ime, MouseButton, MouseScrollDelta, WindowEvent};
+use winit::event::{DeviceEvent, DeviceId, Ime, MouseButton, MouseScrollDelta, SurfaceEvent};
 use winit::event_loop::{ActiveEventLoop, EventLoop};
 use winit::keyboard::{Key, ModifiersState};
 #[cfg(macos_platform)]
@@ -31,7 +31,7 @@ use winit::platform::startup_notify::{
 use winit::platform::web::{ActiveEventLoopExtWeb, CustomCursorExtWeb, WindowAttributesExtWeb};
 use winit::window::{
     Cursor, CursorGrabMode, CustomCursor, CustomCursorSource, Fullscreen, Icon, ResizeDirection,
-    Theme, Window, WindowAttributes, WindowId,
+    Theme, Window, WindowAttributes, SurfaceId,
 };
 
 #[path = "util/tracing.rs"]
@@ -79,7 +79,7 @@ struct Application {
     custom_cursors: Result<Vec<CustomCursor>, RequestError>,
     /// Application icon.
     icon: Icon,
-    windows: HashMap<WindowId, WindowState>,
+    windows: HashMap<SurfaceId, WindowState>,
     /// Drawing context.
     ///
     /// With OpenGL it could be EGLDisplay.
@@ -131,7 +131,7 @@ impl Application {
         &mut self,
         event_loop: &dyn ActiveEventLoop,
         _tab_id: Option<String>,
-    ) -> Result<WindowId, Box<dyn Error>> {
+    ) -> Result<SurfaceId, Box<dyn Error>> {
         // TODO read-out activation token.
 
         #[allow(unused_mut)]
@@ -182,14 +182,14 @@ impl Application {
             Action::Message => {
                 info!("User wake up");
             },
-            _ => unreachable!("Tried to execute invalid action without `WindowId`"),
+            _ => unreachable!("Tried to execute invalid action without `SurfaceId`"),
         }
     }
 
     fn handle_action_with_window(
         &mut self,
         event_loop: &dyn ActiveEventLoop,
-        window_id: WindowId,
+        window_id: SurfaceId,
         action: Action,
     ) {
         // let cursor_position = self.cursor_position;
@@ -380,8 +380,8 @@ impl ApplicationHandler for Application {
     fn window_event(
         &mut self,
         event_loop: &dyn ActiveEventLoop,
-        window_id: WindowId,
-        event: WindowEvent,
+        window_id: SurfaceId,
+        event: SurfaceEvent,
     ) {
         let window = match self.windows.get_mut(&window_id) {
             Some(window) => window,
@@ -389,40 +389,40 @@ impl ApplicationHandler for Application {
         };
 
         match event {
-            WindowEvent::SurfaceResized(size) => {
+            SurfaceEvent::SurfaceResized(size) => {
                 window.resize(size);
             },
-            WindowEvent::Focused(focused) => {
+            SurfaceEvent::Focused(focused) => {
                 if focused {
                     info!("Window={window_id:?} focused");
                 } else {
                     info!("Window={window_id:?} unfocused");
                 }
             },
-            WindowEvent::ScaleFactorChanged { scale_factor, .. } => {
+            SurfaceEvent::ScaleFactorChanged { scale_factor, .. } => {
                 info!("Window={window_id:?} changed scale to {scale_factor}");
             },
-            WindowEvent::ThemeChanged(theme) => {
+            SurfaceEvent::ThemeChanged(theme) => {
                 info!("Theme changed to {theme:?}");
                 window.set_draw_theme(theme);
             },
-            WindowEvent::RedrawRequested => {
+            SurfaceEvent::RedrawRequested => {
                 if let Err(err) = window.draw() {
                     error!("Error drawing window: {err}");
                 }
             },
-            WindowEvent::Occluded(occluded) => {
+            SurfaceEvent::Occluded(occluded) => {
                 window.set_occluded(occluded);
             },
-            WindowEvent::CloseRequested => {
+            SurfaceEvent::CloseRequested => {
                 info!("Closing Window={window_id:?}");
                 self.windows.remove(&window_id);
             },
-            WindowEvent::ModifiersChanged(modifiers) => {
+            SurfaceEvent::ModifiersChanged(modifiers) => {
                 window.modifiers = modifiers.state();
                 info!("Modifiers changed to {:?}", window.modifiers);
             },
-            WindowEvent::MouseWheel { delta, .. } => match delta {
+            SurfaceEvent::MouseWheel { delta, .. } => match delta {
                 MouseScrollDelta::LineDelta(x, y) => {
                     info!("Mouse wheel Line Delta: ({x},{y})");
                 },
@@ -430,7 +430,7 @@ impl ApplicationHandler for Application {
                     info!("Mouse wheel Pixel Delta: ({},{})", px.x, px.y);
                 },
             },
-            WindowEvent::KeyboardInput { event, is_synthetic: false, .. } => {
+            SurfaceEvent::KeyboardInput { event, is_synthetic: false, .. } => {
                 let mods = window.modifiers;
 
                 // Dispatch actions only on press.
@@ -446,7 +446,7 @@ impl ApplicationHandler for Application {
                     }
                 }
             },
-            WindowEvent::PointerButton { button, state, .. } => {
+            SurfaceEvent::PointerButton { button, state, .. } => {
                 info!("Pointer button {button:?} {state:?}");
                 let mods = window.modifiers;
                 if let Some(action) = state
@@ -457,15 +457,15 @@ impl ApplicationHandler for Application {
                     self.handle_action_with_window(event_loop, window_id, action);
                 }
             },
-            WindowEvent::PointerLeft { .. } => {
+            SurfaceEvent::PointerLeft { .. } => {
                 info!("Pointer left Window={window_id:?}");
                 window.cursor_left();
             },
-            WindowEvent::PointerMoved { position, .. } => {
+            SurfaceEvent::PointerMoved { position, .. } => {
                 info!("Moved pointer to {position:?}");
                 window.cursor_moved(position);
             },
-            WindowEvent::ActivationTokenDone { token: _token, .. } => {
+            SurfaceEvent::ActivationTokenDone { token: _token, .. } => {
                 #[cfg(any(x11_platform, wayland_platform))]
                 {
                     startup_notify::set_activation_token_env(_token);
@@ -474,7 +474,7 @@ impl ApplicationHandler for Application {
                     }
                 }
             },
-            WindowEvent::Ime(event) => match event {
+            SurfaceEvent::Ime(event) => match event {
                 Ime::Enabled => info!("IME enabled for Window={window_id:?}"),
                 Ime::Preedit(text, caret_pos) => {
                     info!("Preedit: {}, with caret at {:?}", text, caret_pos);
@@ -484,7 +484,7 @@ impl ApplicationHandler for Application {
                 },
                 Ime::Disabled => info!("IME disabled for Window={window_id:?}"),
             },
-            WindowEvent::PinchGesture { delta, .. } => {
+            SurfaceEvent::PinchGesture { delta, .. } => {
                 window.zoom += delta;
                 let zoom = window.zoom;
                 if delta > 0.0 {
@@ -493,7 +493,7 @@ impl ApplicationHandler for Application {
                     info!("Zoomed out {delta:.5} (now: {zoom:.5})");
                 }
             },
-            WindowEvent::RotationGesture { delta, .. } => {
+            SurfaceEvent::RotationGesture { delta, .. } => {
                 window.rotated += delta;
                 let rotated = window.rotated;
                 if delta > 0.0 {
@@ -502,22 +502,22 @@ impl ApplicationHandler for Application {
                     info!("Rotated clockwise {delta:.5} (now: {rotated:.5})");
                 }
             },
-            WindowEvent::PanGesture { delta, phase, .. } => {
+            SurfaceEvent::PanGesture { delta, phase, .. } => {
                 window.panned.x += delta.x;
                 window.panned.y += delta.y;
                 info!("Panned ({delta:?})) (now: {:?}), {phase:?}", window.panned);
             },
-            WindowEvent::DoubleTapGesture { .. } => {
+            SurfaceEvent::DoubleTapGesture { .. } => {
                 info!("Smart zoom");
             },
-            WindowEvent::TouchpadPressure { .. }
-            | WindowEvent::HoveredFileCancelled
-            | WindowEvent::KeyboardInput { .. }
-            | WindowEvent::PointerEntered { .. }
-            | WindowEvent::DroppedFile(_)
-            | WindowEvent::HoveredFile(_)
-            | WindowEvent::Destroyed
-            | WindowEvent::Moved(_) => (),
+            SurfaceEvent::TouchpadPressure { .. }
+            | SurfaceEvent::HoveredFileCancelled
+            | SurfaceEvent::KeyboardInput { .. }
+            | SurfaceEvent::PointerEntered { .. }
+            | SurfaceEvent::DroppedFile(_)
+            | SurfaceEvent::HoveredFile(_)
+            | SurfaceEvent::Destroyed
+            | SurfaceEvent::Moved(_) => (),
         }
     }
 

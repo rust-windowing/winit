@@ -437,7 +437,7 @@ impl Shared {
     // This is used to differentiate windows when handling events
     pub fn generate_id(&self) -> usize {
         let id = self.0.id.get();
-        self.0.id.set(id.checked_add(1).expect("exhausted `WindowId`"));
+        self.0.id.set(id.checked_add(1).expect("exhausted `SurfaceId`"));
 
         id
     }
@@ -568,7 +568,7 @@ impl Shared {
             self.0.all_canvases.borrow_mut().retain(|&(item_id, ..)| item_id != id);
             self.handle_event(Event::WindowEvent {
                 window_id: id,
-                event: crate::event::WindowEvent::Destroyed,
+                event: crate::event::SurfaceEvent::Destroyed,
             });
             self.0.redraw_pending.borrow_mut().remove(&id);
         }

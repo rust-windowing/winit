@@ -8,10 +8,10 @@ fn main() -> std::process::ExitCode {
     use std::time::Duration;
 
     use winit::application::ApplicationHandler;
-    use winit::event::WindowEvent;
+    use winit::event::SurfaceEvent;
     use winit::event_loop::{ActiveEventLoop, EventLoop};
     use winit::platform::pump_events::{EventLoopExtPumpEvents, PumpStatus};
-    use winit::window::{Window, WindowAttributes, WindowId};
+    use winit::window::{Window, WindowAttributes, SurfaceId};
 
     #[path = "util/fill.rs"]
     mod fill;
@@ -30,8 +30,8 @@ fn main() -> std::process::ExitCode {
         fn window_event(
             &mut self,
             event_loop: &dyn ActiveEventLoop,
-            _window_id: WindowId,
-            event: WindowEvent,
+            _window_id: SurfaceId,
+            event: SurfaceEvent,
         ) {
             println!("{event:?}");
 
@@ -41,8 +41,8 @@ fn main() -> std::process::ExitCode {
             };
 
             match event {
-                WindowEvent::CloseRequested => event_loop.exit(),
-                WindowEvent::RedrawRequested => {
+                SurfaceEvent::CloseRequested => event_loop.exit(),
+                SurfaceEvent::RedrawRequested => {
                     fill::fill_window(window.as_ref());
                     window.request_redraw();
                 },

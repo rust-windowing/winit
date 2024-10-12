@@ -6,10 +6,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     use std::time::Duration;
 
     use winit::application::ApplicationHandler;
-    use winit::event::WindowEvent;
+    use winit::event::SurfaceEvent;
     use winit::event_loop::{ActiveEventLoop, EventLoop};
     use winit::platform::run_on_demand::EventLoopExtRunOnDemand;
-    use winit::window::{Window, WindowAttributes, WindowId};
+    use winit::window::{Window, WindowAttributes, SurfaceId};
 
     #[path = "util/fill.rs"]
     mod fill;
@@ -17,7 +17,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     #[derive(Default)]
     struct App {
         idx: usize,
-        window_id: Option<WindowId>,
+        window_id: Option<SurfaceId>,
         window: Option<Box<dyn Window>>,
     }
 
@@ -40,10 +40,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         fn window_event(
             &mut self,
             event_loop: &dyn ActiveEventLoop,
-            window_id: WindowId,
-            event: WindowEvent,
+            window_id: SurfaceId,
+            event: SurfaceEvent,
         ) {
-            if event == WindowEvent::Destroyed && self.window_id == Some(window_id) {
+            if event == SurfaceEvent::Destroyed && self.window_id == Some(window_id) {
                 println!(
                     "--------------------------------------------------------- Window {} Destroyed",
                     self.idx
@@ -59,7 +59,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             };
 
             match event {
-                WindowEvent::CloseRequested => {
+                SurfaceEvent::CloseRequested => {
                     println!(
                         "--------------------------------------------------------- Window {} \
                          CloseRequested",
@@ -68,7 +68,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     fill::cleanup_window(window.as_ref());
                     self.window = None;
                 },
-                WindowEvent::RedrawRequested => {
+                SurfaceEvent::RedrawRequested => {
                     fill::fill_window(window.as_ref());
                 },
                 _ => (),

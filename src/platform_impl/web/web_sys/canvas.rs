@@ -490,7 +490,7 @@ impl Canvas {
             let new_size = Arc::new(Mutex::new(current_size));
             event_handler(crate::event::Event::WindowEvent {
                 window_id: self.id,
-                event: crate::event::WindowEvent::ScaleFactorChanged {
+                event: crate::event::SurfaceEvent::ScaleFactorChanged {
                     scale_factor: scale,
                     surface_size_writer: SurfaceSizeWriter::new(Arc::downgrade(&new_size)),
                 },
@@ -518,7 +518,7 @@ impl Canvas {
             self.set_old_size(new_size);
             runner.send_event(crate::event::Event::WindowEvent {
                 window_id: self.id,
-                event: crate::event::WindowEvent::SurfaceResized(new_size),
+                event: crate::event::SurfaceEvent::SurfaceResized(new_size),
             })
         }
     }

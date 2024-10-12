@@ -13,7 +13,7 @@ use sctk::seat::pointer::{ThemeSpec, ThemedPointer};
 use sctk::seat::{Capability as SeatCapability, SeatHandler, SeatState};
 use tracing::warn;
 
-use crate::event::WindowEvent;
+use crate::event::SurfaceEvent;
 use crate::keyboard::ModifiersState;
 use crate::platform_impl::wayland::state::WinitState;
 
@@ -219,7 +219,7 @@ impl WinitState {
             let had_focus = window.has_focus();
             window.remove_seat_focus(seat);
             if had_focus != window.has_focus() {
-                self.events_sink.push_window_event(WindowEvent::Focused(false), *window_id);
+                self.events_sink.push_window_event(SurfaceEvent::Focused(false), *window_id);
             }
         }
     }
