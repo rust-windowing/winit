@@ -284,8 +284,7 @@ impl CoreWindow for Window {
     }
 
     fn drag_window(&self) -> Result<(), RequestError> {
-        self.maybe_wait_on_main(|delegate| delegate.drag_window());
-        Ok(())
+        self.maybe_wait_on_main(|delegate| delegate.drag_window())
     }
 
     fn drag_resize_window(
