@@ -27,13 +27,13 @@ use crate::event::{
 };
 use crate::keyboard::{Key, KeyLocation, ModifiersState, PhysicalKey};
 use crate::platform_impl::Fullscreen;
-use crate::window::{WindowAttributes, WindowId};
+use crate::window::{WindowAttributes, SurfaceId};
 
 #[allow(dead_code)]
 pub struct Canvas {
     main_thread: MainThreadMarker,
     common: Common,
-    id: WindowId,
+    id: SurfaceId,
     pub has_focus: Rc<Cell<bool>>,
     pub prevent_default: Rc<Cell<bool>>,
     pub is_intersecting: Cell<Option<bool>>,
@@ -79,7 +79,7 @@ pub struct Style {
 impl Canvas {
     pub(crate) fn create(
         main_thread: MainThreadMarker,
-        id: WindowId,
+        id: SurfaceId,
         window: web_sys::Window,
         navigator: Navigator,
         document: Document,

@@ -15,13 +15,13 @@ use super::super::monitor::MonitorHandler;
 use super::backend;
 use super::state::State;
 use crate::dpi::PhysicalSize;
-use crate::event::{DeviceEvent, ElementState, Event, RawKeyEvent, StartCause, WindowEvent};
+use crate::event::{DeviceEvent, ElementState, Event, RawKeyEvent, StartCause, SurfaceEvent};
 use crate::event_loop::{ControlFlow, DeviceEvents};
 use crate::platform::web::{PollStrategy, WaitUntilStrategy};
 use crate::platform_impl::platform::backend::EventListenerHandle;
 use crate::platform_impl::platform::r#async::{DispatchRunner, Waker, WakerSpawner};
 use crate::platform_impl::platform::window::Inner;
-use crate::window::WindowId;
+use crate::window::SurfaceId;
 
 pub struct Shared(Rc<Execution>);
 
@@ -51,9 +51,9 @@ struct Execution {
     navigator: Navigator,
     document: Document,
     #[allow(clippy::type_complexity)]
-    all_canvases: RefCell<Vec<(WindowId, Weak<backend::Canvas>, DispatchRunner<Inner>)>>,
-    redraw_pending: RefCell<HashSet<WindowId>>,
-    destroy_pending: RefCell<VecDeque<WindowId>>,
+    all_canvases: RefCell<Vec<(SurfaceId, Weak<backend::Canvas>, DispatchRunner<Inner>)>>,
+    redraw_pending: RefCell<HashSet<SurfaceId>>,
+    destroy_pending: RefCell<VecDeque<SurfaceId>>,
     pub(crate) monitor: Rc<MonitorHandler>,
     page_transition_event_handle: RefCell<Option<backend::PageTransitionEventHandle>>,
     device_events: Cell<DeviceEvents>,
@@ -204,14 +204,14 @@ impl Shared {
 
     pub fn add_canvas(
         &self,
-        id: WindowId,
+        id: SurfaceId,
         canvas: Weak<backend::Canvas>,
         runner: DispatchRunner<Inner>,
     ) {
         self.0.all_canvases.borrow_mut().push((id, canvas, runner));
     }
 
-    pub fn notify_destroy_window(&self, id: WindowId) {
+    pub fn notify_destroy_window(&self, id: SurfaceId) {
         self.0.destroy_pending.borrow_mut().push_back(id);
     }
 
@@ -423,7 +423,7 @@ impl Shared {
                             {
                                 runner.send_event(Event::WindowEvent {
                                     window_id: *id,
-                                    event: WindowEvent::Occluded(!is_visible),
+                                    event: SurfaceEvent::Occluded(!is_visible),
                                 });
                             }
                         }
@@ -442,7 +442,7 @@ impl Shared {
         id
     }
 
-    pub fn request_redraw(&self, id: WindowId) {
+    pub fn request_redraw(&self, id: SurfaceId) {
         self.0.redraw_pending.borrow_mut().insert(id);
         self.send_events::<EventWrapper>(iter::empty());
     }
@@ -585,11 +585,11 @@ impl Shared {
         self.process_destroy_pending_windows();
 
         // Collect all of the redraw events to avoid double-locking the RefCell
-        let redraw_events: Vec<WindowId> = self.0.redraw_pending.borrow_mut().drain().collect();
+        let redraw_events: Vec<SurfaceId> = self.0.redraw_pending.borrow_mut().drain().collect();
         for window_id in redraw_events {
             self.handle_event(Event::WindowEvent {
                 window_id,
-                event: WindowEvent::RedrawRequested,
+                event: SurfaceEvent::RedrawRequested,
             });
         }
 
