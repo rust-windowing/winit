@@ -24,7 +24,7 @@ use x11rb::xcb_ffi::ReplyOrIdError;
 
 use crate::application::ApplicationHandler;
 use crate::error::{EventLoopError, RequestError};
-use crate::event::{Event, StartCause, WindowEvent};
+use crate::event::{DeviceId, Event, StartCause, WindowEvent};
 use crate::event_loop::{
     ActiveEventLoop as RootActiveEventLoop, ControlFlow, DeviceEvents,
     OwnedDisplayHandle as RootOwnedDisplayHandle,
@@ -806,9 +806,6 @@ impl<'a> Deref for DeviceInfo<'a> {
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct DeviceId(xinput::DeviceId);
-
-#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct FingerId(u32);
 
 impl FingerId {
@@ -993,8 +990,8 @@ impl<'a, E: fmt::Debug> CookieResultExt for Result<VoidCookie<'a>, E> {
 fn mkwid(w: xproto::Window) -> crate::window::WindowId {
     crate::window::WindowId::from_raw(w as _)
 }
-fn mkdid(w: xinput::DeviceId) -> crate::event::DeviceId {
-    crate::event::DeviceId(crate::platform_impl::DeviceId::X(DeviceId(w)))
+fn mkdid(w: xinput::DeviceId) -> DeviceId {
+    DeviceId::from_raw(w as i64)
 }
 
 fn mkfid(w: u32) -> crate::event::FingerId {

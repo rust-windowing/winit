@@ -17,10 +17,6 @@ mod state;
 mod types;
 mod window;
 
-/// Dummy device id, since Wayland doesn't have device events.
-#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct DeviceId;
-
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct FingerId(i32);
 
