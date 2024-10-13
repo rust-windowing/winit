@@ -72,7 +72,7 @@ impl EventLoopBuilder {
     /// Attempting to create the event loop off the main thread will panic. This
     /// restriction isn't strictly necessary on all platforms, but is imposed to
     /// eliminate any nasty surprises when porting to platforms that require it.
-    /// `EventLoopBuilderExt::any_thread` functions are exposed in the relevant
+    /// `EventLoopBuilderExt::with_any_thread` functions are exposed in the relevant
     /// [`platform`] module if the target platform supports creating an event
     /// loop on any thread.
     ///
