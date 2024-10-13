@@ -189,3 +189,4 @@ changelog entry.
 - On MacOS, package manifest definitions of `LSUIElement` will no longer be overridden with the
   default activation policy, unless explicitly provided during initialization.
 - On X11, key events forward to IME anyway, even when it's disabled.
+- On Windows, make `ControlFlow::WaitUntil` work more precisely using `CREATE_WAITABLE_TIMER_HIGH_RESOLUTION`.
