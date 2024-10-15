@@ -188,4 +188,4 @@ changelog entry.
 - On macOS, fix `WindowEvent::Moved` sometimes being triggered unnecessarily on resize.
 - On macOS, package manifest definitions of `LSUIElement` will no longer be overridden with the
   default activation policy, unless explicitly provided during initialization.
-- On macOS `drag_window()` without a left click present, will result in error instead of panic.
+- On macOS, fix crash when calling `drag_window()` without a left click present.
