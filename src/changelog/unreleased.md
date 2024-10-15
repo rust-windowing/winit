@@ -149,7 +149,6 @@ changelog entry.
     the primary finger in a multi-touch interaction.
   - In the same spirit rename `DeviceEvent::MouseMotion` to `PointerMotion`.
   - Remove `Force::Calibrated::altitude_angle`.
-- Change signature of `apple::appkit::WindowDelegate::drag_window()` to return `Result<(), RequestError>`.
 
 ### Removed
 
