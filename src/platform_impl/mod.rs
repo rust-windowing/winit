@@ -22,6 +22,7 @@ use self::apple as platform;
 use self::linux as platform;
 #[cfg(orbital_platform)]
 use self::orbital as platform;
+#[allow(unused_imports)]
 pub use self::platform::*;
 #[cfg(web_platform)]
 use self::web as platform;

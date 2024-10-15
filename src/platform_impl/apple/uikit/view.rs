@@ -14,11 +14,10 @@ use objc2_ui_kit::{
 
 use super::app_state::{self, EventWrapper};
 use super::window::WinitUIWindow;
-use super::FingerId;
 use crate::dpi::PhysicalPosition;
 use crate::event::{
-    ButtonSource, ElementState, Event, FingerId as RootFingerId, Force, KeyEvent, PointerKind,
-    PointerSource, TouchPhase, WindowEvent,
+    ButtonSource, ElementState, Event, FingerId, Force, KeyEvent, PointerKind, PointerSource,
+    TouchPhase, WindowEvent,
 };
 use crate::keyboard::{Key, KeyCode, KeyLocation, NamedKey, NativeKeyCode, PhysicalKey};
 use crate::platform_impl::KeyEventExtra;
@@ -519,7 +518,7 @@ impl WinitView {
                 )
             };
             let window_id = window.id();
-            let finger_id = RootFingerId(FingerId(touch_id));
+            let finger_id = FingerId::from_raw(touch_id);
 
             let ivars = self.ivars();
 

@@ -8,9 +8,9 @@ use sctk::seat::touch::{TouchData, TouchHandler};
 use tracing::warn;
 
 use crate::dpi::LogicalPosition;
-use crate::event::{ButtonSource, ElementState, PointerKind, PointerSource, WindowEvent};
+use crate::event::{ButtonSource, ElementState, FingerId, PointerKind, PointerSource, WindowEvent};
+use crate::platform_impl::wayland;
 use crate::platform_impl::wayland::state::WinitState;
-use crate::platform_impl::wayland::{self, FingerId};
 
 impl TouchHandler for WinitState {
     fn down(
@@ -44,8 +44,7 @@ impl TouchHandler for WinitState {
         let primary = seat_state.first_touch_id.get_or_insert(id) == &id;
 
         let position = location.to_physical(scale_factor);
-        let finger_id =
-            crate::event::FingerId(crate::platform_impl::FingerId::Wayland(FingerId(id)));
+        let finger_id = FingerId::from_raw(id as usize);
 
         self.events_sink.push_window_event(
             WindowEvent::PointerEntered {
@@ -104,8 +103,7 @@ impl TouchHandler for WinitState {
         };
 
         let position = touch_point.location.to_physical(scale_factor);
-        let finger_id =
-            crate::event::FingerId(crate::platform_impl::FingerId::Wayland(FingerId(id)));
+        let finger_id = FingerId::from_raw(id as usize);
 
         self.events_sink.push_window_event(
             WindowEvent::PointerButton {
@@ -167,9 +165,7 @@ impl TouchHandler for WinitState {
                 primary,
                 position: touch_point.location.to_physical(scale_factor),
                 source: PointerSource::Touch {
-                    finger_id: crate::event::FingerId(crate::platform_impl::FingerId::Wayland(
-                        FingerId(id),
-                    )),
+                    finger_id: FingerId::from_raw(id as usize),
                     force: None,
                 },
             },
@@ -201,9 +197,7 @@ impl TouchHandler for WinitState {
                     device_id: None,
                     primary,
                     position: Some(position),
-                    kind: PointerKind::Touch(crate::event::FingerId(
-                        crate::platform_impl::FingerId::Wayland(FingerId(id)),
-                    )),
+                    kind: PointerKind::Touch(FingerId::from_raw(id as usize)),
                 },
                 window_id,
             );

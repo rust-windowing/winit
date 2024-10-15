@@ -58,8 +58,7 @@ use crate::application::ApplicationHandler;
 use crate::dpi::{PhysicalPosition, PhysicalSize};
 use crate::error::{EventLoopError, RequestError};
 use crate::event::{
-    Event, FingerId as RootFingerId, Force, Ime, RawKeyEvent, SurfaceSizeWriter, TouchPhase,
-    WindowEvent,
+    Event, FingerId, Force, Ime, RawKeyEvent, SurfaceSizeWriter, TouchPhase, WindowEvent,
 };
 use crate::event_loop::{
     ActiveEventLoop as RootActiveEventLoop, ControlFlow, DeviceEvents,
@@ -80,7 +79,7 @@ use crate::platform_impl::platform::window::InitData;
 use crate::platform_impl::platform::window_state::{
     CursorFlags, ImeState, WindowFlags, WindowState,
 };
-use crate::platform_impl::platform::{raw_input, util, wrap_device_id, FingerId, Fullscreen};
+use crate::platform_impl::platform::{raw_input, util, wrap_device_id, Fullscreen};
 use crate::platform_impl::Window;
 use crate::utils::Lazy;
 use crate::window::{
@@ -1933,7 +1932,7 @@ unsafe fn public_window_callback_inner(
                     let position = PhysicalPosition::new(x, y);
 
                     let window_id = WindowId::from_raw(window as usize);
-                    let finger_id = RootFingerId(FingerId { id: input.dwID });
+                    let finger_id = FingerId::from_raw(input.dwID as usize);
                     let primary = util::has_flag(input.dwFlags, TOUCHEVENTF_PRIMARY);
 
                     if util::has_flag(input.dwFlags, TOUCHEVENTF_DOWN) {
@@ -2104,7 +2103,7 @@ unsafe fn public_window_callback_inner(
                     let position = PhysicalPosition::new(x, y);
 
                     let window_id = WindowId::from_raw(window as usize);
-                    let finger_id = RootFingerId(FingerId { id: pointer_info.pointerId });
+                    let finger_id = FingerId::from_raw(pointer_info.pointerId as usize);
                     let primary = util::has_flag(pointer_info.pointerFlags, POINTER_FLAG_PRIMARY);
 
                     if util::has_flag(pointer_info.pointerFlags, POINTER_FLAG_DOWN) {
