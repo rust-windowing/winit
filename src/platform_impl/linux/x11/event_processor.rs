@@ -22,8 +22,9 @@ use xkbcommon_dl::xkb_mod_mask_t;
 
 use crate::dpi::{PhysicalPosition, PhysicalSize};
 use crate::event::{
-    ButtonSource, DeviceEvent, DeviceId, ElementState, Event, Ime, MouseButton, MouseScrollDelta,
-    PointerKind, PointerSource, RawKeyEvent, SurfaceSizeWriter, TouchPhase, WindowEvent,
+    ButtonSource, DeviceEvent, DeviceId, ElementState, Event, FingerId, Ime, MouseButton,
+    MouseScrollDelta, PointerKind, PointerSource, RawKeyEvent, SurfaceSizeWriter, TouchPhase,
+    WindowEvent,
 };
 use crate::keyboard::ModifiersState;
 use crate::platform_impl::common::xkb::{self, XkbState};
@@ -33,7 +34,7 @@ use crate::platform_impl::platform::x11::ActiveEventLoop;
 use crate::platform_impl::x11::atoms::*;
 use crate::platform_impl::x11::util::cookie::GenericEventCookie;
 use crate::platform_impl::x11::{
-    mkdid, mkfid, mkwid, util, CookieResultExt, Device, DeviceInfo, Dnd, DndState, ImeReceiver,
+    mkdid, mkwid, util, CookieResultExt, Device, DeviceInfo, Dnd, DndState, ImeReceiver,
     ScrollOrientation, UnownedWindow, WindowId,
 };
 
@@ -1390,7 +1391,7 @@ impl EventProcessor {
             }
 
             let device_id = Some(mkdid(xev.deviceid as xinput::DeviceId));
-            let finger_id = mkfid(id);
+            let finger_id = FingerId::from_raw(id as usize);
 
             match phase {
                 xinput2::XI_TouchBegin => {

@@ -15,7 +15,7 @@ use crate::application::ApplicationHandler;
 use crate::cursor::Cursor;
 use crate::dpi::{PhysicalPosition, PhysicalSize, Position, Size};
 use crate::error::{EventLoopError, NotSupportedError, RequestError};
-use crate::event::{self, DeviceId, Force, StartCause, SurfaceSizeWriter};
+use crate::event::{self, DeviceId, FingerId, Force, StartCause, SurfaceSizeWriter};
 use crate::event_loop::{
     ActiveEventLoop as RootActiveEventLoop, ControlFlow, DeviceEvents,
     EventLoopProxy as RootEventLoopProxy, OwnedDisplayHandle as RootOwnedDisplayHandle,
@@ -107,7 +107,7 @@ pub struct EventLoop {
     running: bool,
     pending_redraw: bool,
     cause: StartCause,
-    primary_pointer: FingerId,
+    primary_pointer: Option<FingerId>,
     ignore_volume_keys: bool,
     combining_accent: Option<char>,
 }
@@ -141,7 +141,7 @@ impl EventLoop {
 
         Ok(Self {
             android_app: android_app.clone(),
-            primary_pointer: FingerId::dummy(),
+            primary_pointer: None,
             window_target: ActiveEventLoop {
                 app: android_app.clone(),
                 control_flow: Cell::new(ControlFlow::default()),
@@ -342,14 +342,14 @@ impl EventLoop {
                         "Input event {device_id:?}, {action:?}, loc={position:?}, \
                          pointer={pointer:?}, tool_type={tool_type:?}"
                     );
-                    let finger_id = event::FingerId(FingerId(pointer.pointer_id()));
+                    let finger_id = FingerId::from_raw(pointer.pointer_id() as usize);
                     let force = Some(Force::Normalized(pointer.pressure() as f64));
 
                     match action {
                         MotionAction::Down | MotionAction::PointerDown => {
                             let primary = action == MotionAction::Down;
                             if primary {
-                                self.primary_pointer = finger_id.0;
+                                self.primary_pointer = Some(finger_id);
                             }
                             let event = event::WindowEvent::PointerEntered {
                                 device_id,
@@ -382,7 +382,7 @@ impl EventLoop {
                             app.window_event(&self.window_target, GLOBAL_WINDOW, event);
                         },
                         MotionAction::Move => {
-                            let primary = self.primary_pointer == finger_id.0;
+                            let primary = self.primary_pointer == Some(finger_id);
                             let event = event::WindowEvent::PointerMoved {
                                 device_id,
                                 primary,
@@ -401,10 +401,10 @@ impl EventLoop {
                         MotionAction::Up | MotionAction::PointerUp | MotionAction::Cancel => {
                             let primary = action == MotionAction::Up
                                 || (action == MotionAction::Cancel
-                                    && self.primary_pointer == finger_id.0);
+                                    && self.primary_pointer == Some(finger_id));
 
                             if primary {
-                                self.primary_pointer = FingerId::dummy();
+                                self.primary_pointer = None;
                             }
 
                             if let MotionAction::Up | MotionAction::PointerUp = action {
@@ -742,15 +742,6 @@ impl OwnedDisplayHandle {
         &self,
     ) -> Result<rwh_06::RawDisplayHandle, rwh_06::HandleError> {
         Ok(rwh_06::AndroidDisplayHandle::new().into())
-    }
-}
-
-#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
-pub struct FingerId(i32);
-
-impl FingerId {
-    pub const fn dummy() -> Self {
-        FingerId(0)
     }
 }
 
