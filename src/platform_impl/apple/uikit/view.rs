@@ -14,11 +14,10 @@ use objc2_ui_kit::{
 
 use super::app_state::{self, EventWrapper};
 use super::window::WinitUIWindow;
-use super::FingerId;
 use crate::dpi::PhysicalPosition;
 use crate::event::{
-    ButtonSource, ElementState, Event, FingerId as RootFingerId, Force, KeyEvent, PointerKind,
-    PointerSource, TouchPhase, WindowEvent,
+    ButtonSource, ElementState, Event, FingerId, Force, KeyEvent, PointerKind, PointerSource,
+    TouchPhase, WindowEvent,
 };
 use crate::keyboard::{Key, KeyCode, KeyLocation, NamedKey, NativeKeyCode, PhysicalKey};
 use crate::platform_impl::KeyEventExtra;
@@ -35,7 +34,7 @@ pub struct WinitViewState {
     pinch_last_delta: Cell<CGFloat>,
     pan_last_delta: Cell<CGPoint>,
 
-    primary_finger: Cell<Option<usize>>,
+    primary_finger: Cell<Option<FingerId>>,
     fingers: Cell<u8>,
 }
 
@@ -519,7 +518,7 @@ impl WinitView {
                 )
             };
             let window_id = window.id();
-            let finger_id = RootFingerId(FingerId(touch_id));
+            let finger_id = FingerId::from_raw(touch_id);
 
             let ivars = self.ivars();
 
@@ -529,15 +528,17 @@ impl WinitView {
                         true
                     } else {
                         ivars.fingers.set(ivars.fingers.get() + 1);
+                        // Keep the primary finger around until we clear all the fingers to
+                        // recognize it when user briefly removes it.
                         match ivars.primary_finger.get() {
-                            Some(primary_id) => primary_id == touch_id,
+                            Some(primary_id) => primary_id == finger_id,
                             None => {
                                 debug_assert_eq!(
                                     ivars.fingers.get(),
                                     1,
                                     "number of fingers were not counted correctly"
                                 );
-                                ivars.primary_finger.set(Some(touch_id));
+                                ivars.primary_finger.set(Some(finger_id));
                                 true
                             },
                         }
@@ -575,7 +576,7 @@ impl WinitView {
                     let (primary, source) = if let UITouchType::Pencil = touch_type {
                         (true, PointerSource::Unknown)
                     } else {
-                        (ivars.primary_finger.get().unwrap() == touch_id, PointerSource::Touch {
+                        (ivars.primary_finger.get().unwrap() == finger_id, PointerSource::Touch {
                             finger_id,
                             force,
                         })
@@ -597,7 +598,7 @@ impl WinitView {
                         true
                     } else {
                         ivars.fingers.set(ivars.fingers.get() - 1);
-                        let primary = ivars.primary_finger.get().unwrap() == touch_id;
+                        let primary = ivars.primary_finger.get().unwrap() == finger_id;
                         if ivars.fingers.get() == 0 {
                             ivars.primary_finger.set(None);
                         }
