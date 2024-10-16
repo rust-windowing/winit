@@ -13,7 +13,7 @@ use serde::{Deserialize, Serialize};
 use windows_sys::Win32::Foundation::HANDLE;
 
 use crate::dpi::PhysicalSize;
-use crate::event::{DeviceId, FingerId};
+use crate::event::DeviceId;
 use crate::event_loop::EventLoopBuilder;
 use crate::monitor::MonitorHandle;
 use crate::window::{BadIcon, Icon, Window, WindowAttributes};
@@ -667,20 +667,6 @@ impl DeviceIdExtWindows for DeviceId {
         } else {
             None
         }
-    }
-}
-
-/// Additional methods on `FingerId` that are specific to Windows.
-pub trait FingerIdExtWindows {
-    /// Indicates if the finger represents the first contact in a multi-touch interaction.
-    #[allow(clippy::wrong_self_convention)]
-    fn is_primary(self) -> bool;
-}
-
-impl FingerIdExtWindows for FingerId {
-    #[inline]
-    fn is_primary(self) -> bool {
-        self.0.is_primary()
     }
 }
 

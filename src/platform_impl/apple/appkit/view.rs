@@ -644,6 +644,7 @@ declare_class!(
 
             self.queue_event(WindowEvent::PointerEntered {
                 device_id: None,
+                primary: true,
                 position,
                 kind: PointerKind::Mouse,
             });
@@ -657,6 +658,7 @@ declare_class!(
 
             self.queue_event(WindowEvent::PointerLeft {
                 device_id: None,
+                primary: true,
                 position: Some(position),
                 kind: PointerKind::Mouse,
             });
@@ -1048,6 +1050,7 @@ impl WinitView {
 
         self.queue_event(WindowEvent::PointerButton {
             device_id: None,
+            primary: true,
             state: button_state,
             position,
             button: button.into(),
@@ -1074,6 +1077,7 @@ impl WinitView {
 
         self.queue_event(WindowEvent::PointerMoved {
             device_id: None,
+            primary: true,
             position: view_point.to_physical(self.scale_factor()),
             source: PointerSource::Mouse,
         });
