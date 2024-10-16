@@ -218,11 +218,11 @@ impl EventLoop {
                     app.memory_warning(&self.window_target);
                 },
                 MainEvent::Start => {
-                    // XXX: how to forward this state to applications?
-                    warn!("TODO: forward onStart notification to application");
+                    app.resumed(self.window_target());
                 },
                 MainEvent::Resume { .. } => {
                     debug!("App Resumed - is running");
+                    // TODO: This is incorrect - will be solved in https://github.com/rust-windowing/winit/pull/3897
                     self.running = true;
                 },
                 MainEvent::SaveState { .. } => {
@@ -232,11 +232,11 @@ impl EventLoop {
                 },
                 MainEvent::Pause => {
                     debug!("App Paused - stopped running");
+                    // TODO: This is incorrect - will be solved in https://github.com/rust-windowing/winit/pull/3897
                     self.running = false;
                 },
                 MainEvent::Stop => {
-                    // XXX: how to forward this state to applications?
-                    warn!("TODO: forward onStop notification to application");
+                    app.suspended(self.window_target());
                 },
                 MainEvent::Destroy => {
                     // XXX: maybe exit mainloop to drop things before being
