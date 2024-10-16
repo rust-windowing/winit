@@ -2,6 +2,8 @@
 
 use crate::event::{DeviceEvent, DeviceId, StartCause, WindowEvent};
 use crate::event_loop::ActiveEventLoop;
+#[cfg(any(docsrs, macos_platform))]
+use crate::platform::macos::ApplicationHandlerExtMacOS;
 use crate::window::WindowId;
 
 /// The handler of the application events.
@@ -343,6 +345,15 @@ pub trait ApplicationHandler {
     fn memory_warning(&mut self, event_loop: &dyn ActiveEventLoop) {
         let _ = event_loop;
     }
+
+    /// The macOS-specific handler.
+    ///
+    /// The return value from this should not change at runtime.
+    #[cfg(any(docsrs, macos_platform))]
+    #[inline(always)]
+    fn macos_handler(&mut self) -> Option<&mut dyn ApplicationHandlerExtMacOS> {
+        None
+    }
 }
 
 #[deny(clippy::missing_trait_methods)]
@@ -411,6 +422,12 @@ impl<A: ?Sized + ApplicationHandler> ApplicationHandler for &mut A {
     fn memory_warning(&mut self, event_loop: &dyn ActiveEventLoop) {
         (**self).memory_warning(event_loop);
     }
+
+    #[cfg(any(docsrs, macos_platform))]
+    #[inline]
+    fn macos_handler(&mut self) -> Option<&mut dyn ApplicationHandlerExtMacOS> {
+        (**self).macos_handler()
+    }
 }
 
 #[deny(clippy::missing_trait_methods)]
@@ -478,5 +495,11 @@ impl<A: ?Sized + ApplicationHandler> ApplicationHandler for Box<A> {
     #[inline]
     fn memory_warning(&mut self, event_loop: &dyn ActiveEventLoop) {
         (**self).memory_warning(event_loop);
+    }
+
+    #[cfg(any(docsrs, macos_platform))]
+    #[inline]
+    fn macos_handler(&mut self) -> Option<&mut dyn ApplicationHandlerExtMacOS> {
+        (**self).macos_handler()
     }
 }
