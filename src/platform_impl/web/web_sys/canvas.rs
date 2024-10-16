@@ -27,13 +27,13 @@ use crate::event::{
 };
 use crate::keyboard::{Key, KeyLocation, ModifiersState, PhysicalKey};
 use crate::platform_impl::Fullscreen;
-use crate::window::{WindowAttributes, WindowId};
+use crate::window::{WindowAttributes, SurfaceId};
 
 #[allow(dead_code)]
 pub struct Canvas {
     main_thread: MainThreadMarker,
     common: Common,
-    id: WindowId,
+    id: SurfaceId,
     pub has_focus: Rc<Cell<bool>>,
     pub prevent_default: Rc<Cell<bool>>,
     pub is_intersecting: Cell<Option<bool>>,
@@ -79,7 +79,7 @@ pub struct Style {
 impl Canvas {
     pub(crate) fn create(
         main_thread: MainThreadMarker,
-        id: WindowId,
+        id: SurfaceId,
         window: web_sys::Window,
         navigator: Navigator,
         document: Document,
@@ -490,7 +490,7 @@ impl Canvas {
             let new_size = Arc::new(Mutex::new(current_size));
             event_handler(crate::event::Event::WindowEvent {
                 window_id: self.id,
-                event: crate::event::WindowEvent::ScaleFactorChanged {
+                event: crate::event::SurfaceEvent::ScaleFactorChanged {
                     scale_factor: scale,
                     surface_size_writer: SurfaceSizeWriter::new(Arc::downgrade(&new_size)),
                 },
@@ -518,7 +518,7 @@ impl Canvas {
             self.set_old_size(new_size);
             runner.send_event(crate::event::Event::WindowEvent {
                 window_id: self.id,
-                event: crate::event::WindowEvent::SurfaceResized(new_size),
+                event: crate::event::SurfaceEvent::SurfaceResized(new_size),
             })
         }
     }

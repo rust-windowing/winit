@@ -80,7 +80,7 @@ impl FileDropHandler {
         _pt: *const POINTL,
         pdwEffect: *mut u32,
     ) -> HRESULT {
-        use crate::event::WindowEvent::HoveredFile;
+        use crate::event::SurfaceEvent::HoveredFile;
         let drop_handler = unsafe { Self::from_interface(this) };
         let hdrop = unsafe {
             Self::iterate_filenames(pDataObj, |filename| {
@@ -115,7 +115,7 @@ impl FileDropHandler {
     }
 
     pub unsafe extern "system" fn DragLeave(this: *mut IDropTarget) -> HRESULT {
-        use crate::event::WindowEvent::HoveredFileCancelled;
+        use crate::event::SurfaceEvent::HoveredFileCancelled;
         let drop_handler = unsafe { Self::from_interface(this) };
         if drop_handler.hovered_is_valid {
             drop_handler.send_event(Event::WindowEvent {
@@ -134,7 +134,7 @@ impl FileDropHandler {
         _pt: *const POINTL,
         _pdwEffect: *mut u32,
     ) -> HRESULT {
-        use crate::event::WindowEvent::DroppedFile;
+        use crate::event::SurfaceEvent::DroppedFile;
         let drop_handler = unsafe { Self::from_interface(this) };
         let hdrop = unsafe {
             Self::iterate_filenames(pDataObj, |filename| {
