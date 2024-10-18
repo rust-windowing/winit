@@ -8,7 +8,7 @@ pub use window::Window;
 
 pub(super) use crate::cursor::OnlyCursorImage as CustomCursor;
 use crate::dpi::{LogicalSize, PhysicalSize};
-use crate::window::WindowId;
+use crate::window::SurfaceId;
 
 mod event_loop;
 mod output;
@@ -29,8 +29,8 @@ impl FingerId {
 
 /// Get the WindowId out of the surface.
 #[inline]
-fn make_wid(surface: &WlSurface) -> WindowId {
-    WindowId::from_raw(surface.id().as_ptr() as usize)
+fn make_wid(surface: &WlSurface) -> SurfaceId {
+    SurfaceId::from_raw(surface.id().as_ptr() as usize)
 }
 
 /// The default routine does floor, but we need round on Wayland.

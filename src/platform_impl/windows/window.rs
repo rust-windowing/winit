@@ -69,7 +69,7 @@ use crate::platform_impl::platform::window_state::{
 use crate::platform_impl::platform::{monitor, util, Fullscreen, SelectedCursor};
 use crate::window::{
     CursorGrabMode, Fullscreen as CoreFullscreen, ImePurpose, ResizeDirection, Theme,
-    UserAttentionType, Window as CoreWindow, WindowAttributes, WindowButtons, WindowId,
+    UserAttentionType, Window as CoreWindow, Surface as CoreSurface, WindowAttributes, WindowButtons, SurfaceId,
     WindowLevel,
 };
 
@@ -365,12 +365,54 @@ impl rwh_06::HasWindowHandle for Window {
     }
 }
 
-impl CoreWindow for Window {
-    fn set_title(&self, text: &str) {
-        let wide_text = util::encode_wide(text);
+impl CoreSurface for Window {
+    fn id(&self) -> SurfaceId {
+        SurfaceId::from_raw(self.hwnd() as usize)
+    }
+    fn scale_factor(&self) -> f64 {
+        self.window_state_lock().scale_factor
+    }
+
+    fn pre_present_notify(&self) {}
+
+    fn request_redraw(&self) {
+        // NOTE: mark that we requested a redraw to handle requests during `WM_PAINT` handling.
+        self.window_state.lock().unwrap().redraw_requested = true;
         unsafe {
-            SetWindowTextW(self.hwnd(), wide_text.as_ptr());
+            RedrawWindow(self.hwnd(), ptr::null(), 0, RDW_INTERNALPAINT);
         }
+    }
+
+    fn surface_size(&self) -> PhysicalSize<u32> {
+        let mut rect: RECT = unsafe { mem::zeroed() };
+        if unsafe { GetClientRect(self.hwnd(), &mut rect) } == false.into() {
+            panic!(
+                "Unexpected GetClientRect failure: please report this error to \
+                 rust-windowing/winit"
+            )
+        }
+        PhysicalSize::new((rect.right - rect.left) as u32, (rect.bottom - rect.top) as u32)
+    }
+
+    fn request_surface_size(&self, size: Size) -> Option<PhysicalSize<u32>> {
+        let scale_factor = self.scale_factor();
+        let physical_size = size.to_physical::<u32>(scale_factor);
+
+        let window_flags = self.window_state_lock().window_flags;
+        window_flags.set_size(self.hwnd(), physical_size);
+
+        if physical_size != self.surface_size() {
+            let window_state = Arc::clone(&self.window_state);
+            let window = self.window;
+            self.thread_executor.execute_in_thread(move || {
+                let _ = &window;
+                WindowState::set_window_flags(window_state.lock().unwrap(), window, |f| {
+                    f.set(WindowFlags::MAXIMIZED, false)
+                });
+            });
+        }
+
+        None
     }
 
     fn set_transparent(&self, transparent: bool) {
@@ -382,6 +424,133 @@ impl CoreWindow for Window {
                 f.set(WindowFlags::TRANSPARENT, transparent)
             });
         });
+    }
+
+    fn set_cursor(&self, cursor: Cursor) {
+        match cursor {
+            Cursor::Icon(icon) => {
+                self.window_state_lock().mouse.selected_cursor = SelectedCursor::Named(icon);
+                self.thread_executor.execute_in_thread(move || unsafe {
+                    let cursor = LoadCursorW(0, util::to_windows_cursor(icon));
+                    SetCursor(cursor);
+                });
+            },
+            Cursor::Custom(cursor) => {
+                self.window_state_lock().mouse.selected_cursor =
+                    SelectedCursor::Custom(cursor.inner.0.clone());
+                self.thread_executor.execute_in_thread(move || unsafe {
+                    SetCursor(cursor.inner.0.as_raw_handle());
+                });
+            },
+        }
+    }
+
+    fn set_cursor_grab(&self, mode: CursorGrabMode) -> Result<(), RequestError> {
+        let confine = match mode {
+            CursorGrabMode::None => false,
+            CursorGrabMode::Confined => true,
+            CursorGrabMode::Locked => {
+                return Err(NotSupportedError::new("locked cursor is not supported").into())
+            },
+        };
+
+        let window = self.window;
+        let window_state = Arc::clone(&self.window_state);
+        let (tx, rx) = channel();
+
+        self.thread_executor.execute_in_thread(move || {
+            let _ = &window;
+            let result = window_state
+                .lock()
+                .unwrap()
+                .mouse
+                .set_cursor_flags(window, |f| f.set(CursorFlags::GRABBED, confine))
+                .map_err(|err| os_error!(err).into());
+            let _ = tx.send(result);
+        });
+
+        rx.recv().unwrap()
+    }
+
+    fn set_cursor_visible(&self, visible: bool) {
+        let window = self.window;
+        let window_state = Arc::clone(&self.window_state);
+        let (tx, rx) = channel();
+
+        self.thread_executor.execute_in_thread(move || {
+            let _ = &window;
+            let result = window_state
+                .lock()
+                .unwrap()
+                .mouse
+                .set_cursor_flags(window, |f| f.set(CursorFlags::HIDDEN, !visible))
+                .map_err(|e| e.to_string());
+            let _ = tx.send(result);
+        });
+        rx.recv().unwrap().ok();
+    }
+
+    fn set_cursor_position(&self, position: Position) -> Result<(), RequestError> {
+        let scale_factor = self.scale_factor();
+        let (x, y) = position.to_physical::<i32>(scale_factor).into();
+
+        let mut point = POINT { x, y };
+        unsafe {
+            if ClientToScreen(self.hwnd(), &mut point) == false.into() {
+                return Err(os_error!(io::Error::last_os_error()).into());
+            }
+            if SetCursorPos(point.x, point.y) == false.into() {
+                return Err(os_error!(io::Error::last_os_error()).into());
+            }
+        }
+        Ok(())
+    }
+
+    fn set_cursor_hittest(&self, hittest: bool) -> Result<(), RequestError> {
+        let window = self.window;
+        let window_state = Arc::clone(&self.window_state);
+        self.thread_executor.execute_in_thread(move || {
+            WindowState::set_window_flags(window_state.lock().unwrap(), window, |f| {
+                f.set(WindowFlags::IGNORE_CURSOR_EVENT, !hittest)
+            });
+        });
+
+        Ok(())
+    }
+
+    fn current_monitor(&self) -> Option<CoreMonitorHandle> {
+        Some(CoreMonitorHandle { inner: monitor::current_monitor(self.hwnd()) })
+    }
+
+    fn available_monitors(&self) -> Box<dyn Iterator<Item = CoreMonitorHandle>> {
+        Box::new(monitor::available_monitors().into_iter().map(|inner| CoreMonitorHandle { inner }))
+    }
+
+    fn primary_monitor(&self) -> Option<CoreMonitorHandle> {
+        Some(CoreMonitorHandle { inner: monitor::primary_monitor() })
+    }
+
+    #[cfg(feature = "rwh_06")]
+    fn rwh_06_window_handle(&self) -> &dyn rwh_06::HasWindowHandle {
+        self
+    }
+
+    #[cfg(feature = "rwh_06")]
+    fn rwh_06_display_handle(&self) -> &dyn rwh_06::HasDisplayHandle {
+        self
+    }
+
+    fn as_window(&self) -> Option<&dyn CoreWindow> {
+        Some(self)
+    }
+}
+
+impl CoreWindow for Window {
+    fn set_title(&self, text: &str) {
+        let wide_text = util::encode_wide(text);
+        unsafe {
+            SetWindowTextW(self.hwnd(), wide_text.as_ptr());
+        }
     }
 
     fn set_blur(&self, _blur: bool) {}
@@ -400,16 +569,6 @@ impl CoreWindow for Window {
     fn is_visible(&self) -> Option<bool> {
         Some(unsafe { IsWindowVisible(self.window) == 1 })
     }
-
-    fn request_redraw(&self) {
-        // NOTE: mark that we requested a redraw to handle requests during `WM_PAINT` handling.
-        self.window_state.lock().unwrap().redraw_requested = true;
-        unsafe {
-            RedrawWindow(self.hwnd(), ptr::null(), 0, RDW_INTERNALPAINT);
-        }
-    }
-
-    fn pre_present_notify(&self) {}
 
     fn outer_position(&self) -> Result<PhysicalPosition<i32>, RequestError> {
         util::WindowArea::Outer
@@ -458,17 +617,6 @@ impl CoreWindow for Window {
         }
     }
 
-    fn surface_size(&self) -> PhysicalSize<u32> {
-        let mut rect: RECT = unsafe { mem::zeroed() };
-        if unsafe { GetClientRect(self.hwnd(), &mut rect) } == false.into() {
-            panic!(
-                "Unexpected GetClientRect failure: please report this error to \
-                 rust-windowing/winit"
-            )
-        }
-        PhysicalSize::new((rect.right - rect.left) as u32, (rect.bottom - rect.top) as u32)
-    }
-
     fn outer_size(&self) -> PhysicalSize<u32> {
         util::WindowArea::Outer
             .get_rect(self.hwnd())
@@ -476,27 +624,6 @@ impl CoreWindow for Window {
                 PhysicalSize::new((rect.right - rect.left) as u32, (rect.bottom - rect.top) as u32)
             })
             .unwrap()
-    }
-
-    fn request_surface_size(&self, size: Size) -> Option<PhysicalSize<u32>> {
-        let scale_factor = self.scale_factor();
-        let physical_size = size.to_physical::<u32>(scale_factor);
-
-        let window_flags = self.window_state_lock().window_flags;
-        window_flags.set_size(self.hwnd(), physical_size);
-
-        if physical_size != self.surface_size() {
-            let window_state = Arc::clone(&self.window_state);
-            let window = self.window;
-            self.thread_executor.execute_in_thread(move || {
-                let _ = &window;
-                WindowState::set_window_flags(window_state.lock().unwrap(), window, |f| {
-                    f.set(WindowFlags::MAXIMIZED, false)
-                });
-            });
-        }
-
-        None
     }
 
     fn set_min_surface_size(&self, size: Option<Size>) {
@@ -569,90 +696,6 @@ impl CoreWindow for Window {
         buttons
     }
 
-    fn set_cursor(&self, cursor: Cursor) {
-        match cursor {
-            Cursor::Icon(icon) => {
-                self.window_state_lock().mouse.selected_cursor = SelectedCursor::Named(icon);
-                self.thread_executor.execute_in_thread(move || unsafe {
-                    let cursor = LoadCursorW(0, util::to_windows_cursor(icon));
-                    SetCursor(cursor);
-                });
-            },
-            Cursor::Custom(cursor) => {
-                self.window_state_lock().mouse.selected_cursor =
-                    SelectedCursor::Custom(cursor.inner.0.clone());
-                self.thread_executor.execute_in_thread(move || unsafe {
-                    SetCursor(cursor.inner.0.as_raw_handle());
-                });
-            },
-        }
-    }
-
-    fn set_cursor_grab(&self, mode: CursorGrabMode) -> Result<(), RequestError> {
-        let confine = match mode {
-            CursorGrabMode::None => false,
-            CursorGrabMode::Confined => true,
-            CursorGrabMode::Locked => {
-                return Err(NotSupportedError::new("locked cursor is not supported").into())
-            },
-        };
-
-        let window = self.window;
-        let window_state = Arc::clone(&self.window_state);
-        let (tx, rx) = channel();
-
-        self.thread_executor.execute_in_thread(move || {
-            let _ = &window;
-            let result = window_state
-                .lock()
-                .unwrap()
-                .mouse
-                .set_cursor_flags(window, |f| f.set(CursorFlags::GRABBED, confine))
-                .map_err(|err| os_error!(err).into());
-            let _ = tx.send(result);
-        });
-
-        rx.recv().unwrap()
-    }
-
-    fn set_cursor_visible(&self, visible: bool) {
-        let window = self.window;
-        let window_state = Arc::clone(&self.window_state);
-        let (tx, rx) = channel();
-
-        self.thread_executor.execute_in_thread(move || {
-            let _ = &window;
-            let result = window_state
-                .lock()
-                .unwrap()
-                .mouse
-                .set_cursor_flags(window, |f| f.set(CursorFlags::HIDDEN, !visible))
-                .map_err(|e| e.to_string());
-            let _ = tx.send(result);
-        });
-        rx.recv().unwrap().ok();
-    }
-
-    fn scale_factor(&self) -> f64 {
-        self.window_state_lock().scale_factor
-    }
-
-    fn set_cursor_position(&self, position: Position) -> Result<(), RequestError> {
-        let scale_factor = self.scale_factor();
-        let (x, y) = position.to_physical::<i32>(scale_factor).into();
-
-        let mut point = POINT { x, y };
-        unsafe {
-            if ClientToScreen(self.hwnd(), &mut point) == false.into() {
-                return Err(os_error!(io::Error::last_os_error()).into());
-            }
-            if SetCursorPos(point.x, point.y) == false.into() {
-                return Err(os_error!(io::Error::last_os_error()).into());
-            }
-        }
-        Ok(())
-    }
-
     fn drag_window(&self) -> Result<(), RequestError> {
         unsafe {
             self.handle_os_dragging(HTCAPTION as WPARAM);
@@ -682,22 +725,6 @@ impl CoreWindow for Window {
         unsafe {
             self.handle_showing_window_menu(position);
         }
-    }
-
-    fn set_cursor_hittest(&self, hittest: bool) -> Result<(), RequestError> {
-        let window = self.window;
-        let window_state = Arc::clone(&self.window_state);
-        self.thread_executor.execute_in_thread(move || {
-            WindowState::set_window_flags(window_state.lock().unwrap(), window, |f| {
-                f.set(WindowFlags::IGNORE_CURSOR_EVENT, !hittest)
-            });
-        });
-
-        Ok(())
-    }
-
-    fn id(&self) -> WindowId {
-        WindowId::from_raw(self.hwnd() as usize)
     }
 
     fn set_minimized(&self, minimized: bool) {
@@ -924,18 +951,6 @@ impl CoreWindow for Window {
         });
     }
 
-    fn current_monitor(&self) -> Option<CoreMonitorHandle> {
-        Some(CoreMonitorHandle { inner: monitor::current_monitor(self.hwnd()) })
-    }
-
-    fn available_monitors(&self) -> Box<dyn Iterator<Item = CoreMonitorHandle>> {
-        Box::new(monitor::available_monitors().into_iter().map(|inner| CoreMonitorHandle { inner }))
-    }
-
-    fn primary_monitor(&self) -> Option<CoreMonitorHandle> {
-        Some(CoreMonitorHandle { inner: monitor::primary_monitor() })
-    }
-
     fn set_window_icon(&self, window_icon: Option<Icon>) {
         if let Some(ref window_icon) = window_icon {
             window_icon.inner.set_for_window(self.hwnd(), IconType::Small);
@@ -1052,16 +1067,6 @@ impl CoreWindow for Window {
                 0,
             );
         }
-    }
-
-    #[cfg(feature = "rwh_06")]
-    fn rwh_06_window_handle(&self) -> &dyn rwh_06::HasWindowHandle {
-        self
-    }
-
-    #[cfg(feature = "rwh_06")]
-    fn rwh_06_display_handle(&self) -> &dyn rwh_06::HasDisplayHandle {
-        self
     }
 }
 

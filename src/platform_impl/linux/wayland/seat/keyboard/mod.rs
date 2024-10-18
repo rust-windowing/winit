@@ -12,12 +12,12 @@ use sctk::reexports::client::protocol::wl_seat::WlSeat;
 use sctk::reexports::client::{Connection, Dispatch, Proxy, QueueHandle, WEnum};
 use tracing::warn;
 
-use crate::event::{ElementState, WindowEvent};
+use crate::event::{ElementState, SurfaceEvent};
 use crate::keyboard::ModifiersState;
 use crate::platform_impl::common::xkb::Context;
 use crate::platform_impl::wayland::event_loop::sink::EventSink;
 use crate::platform_impl::wayland::state::WinitState;
-use crate::platform_impl::wayland::{self, WindowId};
+use crate::platform_impl::wayland::{self, SurfaceId};
 
 impl Dispatch<WlKeyboard, KeyboardData, WinitState> for WinitState {
     fn event(
@@ -83,13 +83,13 @@ impl Dispatch<WlKeyboard, KeyboardData, WinitState> for WinitState {
 
                 // The keyboard focus is considered as general focus.
                 if was_unfocused {
-                    state.events_sink.push_window_event(WindowEvent::Focused(true), window_id);
+                    state.events_sink.push_window_event(SurfaceEvent::Focused(true), window_id);
                 }
 
                 // HACK: this is just for GNOME not fixing their ordering issue of modifiers.
                 if std::mem::take(&mut seat_state.modifiers_pending) {
                     state.events_sink.push_window_event(
-                        WindowEvent::ModifiersChanged(seat_state.modifiers.into()),
+                        SurfaceEvent::ModifiersChanged(seat_state.modifiers.into()),
                         window_id,
                     );
                 }
@@ -122,11 +122,11 @@ impl Dispatch<WlKeyboard, KeyboardData, WinitState> for WinitState {
                 if !focused {
                     // Notify that no modifiers are being pressed.
                     state.events_sink.push_window_event(
-                        WindowEvent::ModifiersChanged(ModifiersState::empty().into()),
+                        SurfaceEvent::ModifiersChanged(ModifiersState::empty().into()),
                         window_id,
                     );
 
-                    state.events_sink.push_window_event(WindowEvent::Focused(false), window_id);
+                    state.events_sink.push_window_event(SurfaceEvent::Focused(false), window_id);
                 }
             },
             WlKeyboardEvent::Key { key, state: WEnum::Value(WlKeyState::Pressed), .. } => {
@@ -245,7 +245,7 @@ impl Dispatch<WlKeyboard, KeyboardData, WinitState> for WinitState {
                 };
 
                 state.events_sink.push_window_event(
-                    WindowEvent::ModifiersChanged(seat_state.modifiers.into()),
+                    SurfaceEvent::ModifiersChanged(seat_state.modifiers.into()),
                     window_id,
                 );
             },
@@ -344,7 +344,7 @@ impl Default for RepeatInfo {
 #[derive(Debug)]
 pub struct KeyboardData {
     /// The currently focused window surface. Could be `None` on bugged compositors, like mutter.
-    window_id: Mutex<Option<WindowId>>,
+    window_id: Mutex<Option<SurfaceId>>,
 
     /// The seat used to create this keyboard.
     seat: WlSeat,
@@ -371,7 +371,7 @@ fn key_input(
 
     if let Some(mut key_context) = keyboard_state.xkb_context.key_context() {
         let event = key_context.process_key_event(keycode, state, repeat);
-        let event = WindowEvent::KeyboardInput { device_id: None, event, is_synthetic: false };
+        let event = SurfaceEvent::KeyboardInput { device_id: None, event, is_synthetic: false };
         event_sink.push_window_event(event, window_id);
     }
 }

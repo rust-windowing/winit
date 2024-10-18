@@ -59,7 +59,7 @@ use crate::dpi::{PhysicalPosition, PhysicalSize};
 use crate::error::{EventLoopError, RequestError};
 use crate::event::{
     Event, FingerId as RootFingerId, Force, Ime, RawKeyEvent, SurfaceSizeWriter, TouchPhase,
-    WindowEvent,
+    SurfaceEvent,
 };
 use crate::event_loop::{
     ActiveEventLoop as RootActiveEventLoop, ControlFlow, DeviceEvents,
@@ -85,7 +85,7 @@ use crate::platform_impl::Window;
 use crate::utils::Lazy;
 use crate::window::{
     CustomCursor as RootCustomCursor, CustomCursorSource, Theme, Window as CoreWindow,
-    WindowAttributes, WindowId,
+    WindowAttributes, SurfaceId,
 };
 
 pub(crate) struct WindowData {
@@ -227,7 +227,7 @@ impl EventLoop {
             unsafe {
                 runner.set_event_handler(move |event| match event {
                     Event::NewEvents(cause) => app.new_events(event_loop_windows_ref, cause),
-                    Event::WindowEvent { window_id, event } => {
+                    Event::SurfaceEvent { window_id, event } => {
                         app.window_event(event_loop_windows_ref, window_id, event)
                     },
                     Event::DeviceEvent { device_id, event } => {
@@ -293,7 +293,7 @@ impl EventLoop {
             unsafe {
                 runner.set_event_handler(move |event| match event {
                     Event::NewEvents(cause) => app.new_events(event_loop_windows_ref, cause),
-                    Event::WindowEvent { window_id, event } => {
+                    Event::SurfaceEvent { window_id, event } => {
                         app.window_event(event_loop_windows_ref, window_id, event)
                     },
                     Event::DeviceEvent { device_id, event } => {
@@ -903,7 +903,7 @@ fn normalize_pointer_pressure(pressure: u32) -> Option<Force> {
 /// Emit a `ModifiersChanged` event whenever modifiers have changed.
 /// Returns the current modifier state
 fn update_modifiers(window: HWND, userdata: &WindowData) {
-    use crate::event::WindowEvent::ModifiersChanged;
+    use crate::event::SurfaceEvent::ModifiersChanged;
 
     let modifiers = {
         let mut layouts = LAYOUT_CACHE.lock().unwrap();
@@ -917,35 +917,35 @@ fn update_modifiers(window: HWND, userdata: &WindowData) {
         // Drop lock
         drop(window_state);
 
-        userdata.send_event(Event::WindowEvent {
-            window_id: WindowId::from_raw(window as usize),
+        userdata.send_event(Event::SurfaceEvent {
+            window_id: SurfaceId::from_raw(window as usize),
             event: ModifiersChanged(modifiers.into()),
         });
     }
 }
 
 unsafe fn gain_active_focus(window: HWND, userdata: &WindowData) {
-    use crate::event::WindowEvent::Focused;
+    use crate::event::SurfaceEvent::Focused;
 
     update_modifiers(window, userdata);
 
-    userdata.send_event(Event::WindowEvent {
-        window_id: WindowId::from_raw(window as usize),
+    userdata.send_event(Event::SurfaceEvent {
+        window_id: SurfaceId::from_raw(window as usize),
         event: Focused(true),
     });
 }
 
 unsafe fn lose_active_focus(window: HWND, userdata: &WindowData) {
-    use crate::event::WindowEvent::{Focused, ModifiersChanged};
+    use crate::event::SurfaceEvent::{Focused, ModifiersChanged};
 
     userdata.window_state_lock().modifiers_state = ModifiersState::empty();
-    userdata.send_event(Event::WindowEvent {
-        window_id: WindowId::from_raw(window as usize),
+    userdata.send_event(Event::SurfaceEvent {
+        window_id: SurfaceId::from_raw(window as usize),
         event: ModifiersChanged(ModifiersState::empty().into()),
     });
 
-    userdata.send_event(Event::WindowEvent {
-        window_id: WindowId::from_raw(window as usize),
+    userdata.send_event(Event::SurfaceEvent {
+        window_id: SurfaceId::from_raw(window as usize),
         event: Focused(false),
     });
 }
@@ -1038,12 +1038,12 @@ unsafe fn public_window_callback_inner(
         .unwrap_or_else(|| result = ProcResult::Value(-1));
 
     let keyboard_callback = || {
-        use crate::event::WindowEvent::KeyboardInput;
+        use crate::event::SurfaceEvent::KeyboardInput;
         let events =
             userdata.key_event_builder.process_message(window, msg, wparam, lparam, &mut result);
         for event in events {
-            userdata.send_event(Event::WindowEvent {
-                window_id: WindowId::from_raw(window as usize),
+            userdata.send_event(Event::SurfaceEvent {
+                window_id: SurfaceId::from_raw(window as usize),
                 event: KeyboardInput {
                     device_id: None,
                     event: event.event,
@@ -1126,19 +1126,19 @@ unsafe fn public_window_callback_inner(
         },
 
         WM_CLOSE => {
-            use crate::event::WindowEvent::CloseRequested;
-            userdata.send_event(Event::WindowEvent {
-                window_id: WindowId::from_raw(window as usize),
+            use crate::event::SurfaceEvent::CloseRequested;
+            userdata.send_event(Event::SurfaceEvent {
+                window_id: SurfaceId::from_raw(window as usize),
                 event: CloseRequested,
             });
             result = ProcResult::Value(0);
         },
 
         WM_DESTROY => {
-            use crate::event::WindowEvent::Destroyed;
+            use crate::event::SurfaceEvent::Destroyed;
             unsafe { RevokeDragDrop(window) };
-            userdata.send_event(Event::WindowEvent {
-                window_id: WindowId::from_raw(window as usize),
+            userdata.send_event(Event::SurfaceEvent {
+                window_id: SurfaceId::from_raw(window as usize),
                 event: Destroyed,
             });
             result = ProcResult::Value(0);
@@ -1158,9 +1158,9 @@ unsafe fn public_window_callback_inner(
             // window outside the normal flow of the event loop. This way mark event as handled
             // and request a normal redraw with `RedrawWindow`.
             if !userdata.event_loop_runner.should_buffer() {
-                userdata.send_event(Event::WindowEvent {
-                    window_id: WindowId::from_raw(window as usize),
-                    event: WindowEvent::RedrawRequested,
+                userdata.send_event(Event::SurfaceEvent {
+                    window_id: SurfaceId::from_raw(window as usize),
+                    event: SurfaceEvent::RedrawRequested,
                 });
             }
 
@@ -1255,14 +1255,14 @@ unsafe fn public_window_callback_inner(
 
         // WM_MOVE supplies client area positions, so we send Moved here instead.
         WM_WINDOWPOSCHANGED => {
-            use crate::event::WindowEvent::Moved;
+            use crate::event::SurfaceEvent::Moved;
 
             let windowpos = lparam as *const WINDOWPOS;
             if unsafe { (*windowpos).flags & SWP_NOMOVE != SWP_NOMOVE } {
                 let physical_position =
                     unsafe { PhysicalPosition::new((*windowpos).x, (*windowpos).y) };
-                userdata.send_event(Event::WindowEvent {
-                    window_id: WindowId::from_raw(window as usize),
+                userdata.send_event(Event::SurfaceEvent {
+                    window_id: SurfaceId::from_raw(window as usize),
                     event: Moved(physical_position),
                 });
             }
@@ -1272,13 +1272,13 @@ unsafe fn public_window_callback_inner(
         },
 
         WM_SIZE => {
-            use crate::event::WindowEvent::SurfaceResized;
+            use crate::event::SurfaceEvent::SurfaceResized;
             let w = super::loword(lparam as u32) as u32;
             let h = super::hiword(lparam as u32) as u32;
 
             let physical_size = PhysicalSize::new(w, h);
-            let event = Event::WindowEvent {
-                window_id: WindowId::from_raw(window as usize),
+            let event = Event::SurfaceEvent {
+                window_id: SurfaceId::from_raw(window as usize),
                 event: SurfaceResized(physical_size),
             };
 
@@ -1392,9 +1392,9 @@ unsafe fn public_window_callback_inner(
             if ime_allowed {
                 userdata.window_state_lock().ime_state = ImeState::Enabled;
 
-                userdata.send_event(Event::WindowEvent {
-                    window_id: WindowId::from_raw(window as usize),
-                    event: WindowEvent::Ime(Ime::Enabled),
+                userdata.send_event(Event::SurfaceEvent {
+                    window_id: SurfaceId::from_raw(window as usize),
+                    event: SurfaceEvent::Ime(Ime::Enabled),
                 });
             }
 
@@ -1412,9 +1412,9 @@ unsafe fn public_window_callback_inner(
                 let ime_context = unsafe { ImeContext::current(window) };
 
                 if lparam == 0 {
-                    userdata.send_event(Event::WindowEvent {
-                        window_id: WindowId::from_raw(window as usize),
-                        event: WindowEvent::Ime(Ime::Preedit(String::new(), None)),
+                    userdata.send_event(Event::SurfaceEvent {
+                        window_id: SurfaceId::from_raw(window as usize),
+                        event: SurfaceEvent::Ime(Ime::Preedit(String::new(), None)),
                     });
                 }
 
@@ -1424,13 +1424,13 @@ unsafe fn public_window_callback_inner(
                     if let Some(text) = unsafe { ime_context.get_composed_text() } {
                         userdata.window_state_lock().ime_state = ImeState::Enabled;
 
-                        userdata.send_event(Event::WindowEvent {
-                            window_id: WindowId::from_raw(window as usize),
-                            event: WindowEvent::Ime(Ime::Preedit(String::new(), None)),
+                        userdata.send_event(Event::SurfaceEvent {
+                            window_id: SurfaceId::from_raw(window as usize),
+                            event: SurfaceEvent::Ime(Ime::Preedit(String::new(), None)),
                         });
-                        userdata.send_event(Event::WindowEvent {
-                            window_id: WindowId::from_raw(window as usize),
-                            event: WindowEvent::Ime(Ime::Commit(text)),
+                        userdata.send_event(Event::SurfaceEvent {
+                            window_id: SurfaceId::from_raw(window as usize),
+                            event: SurfaceEvent::Ime(Ime::Commit(text)),
                         });
                     }
                 }
@@ -1443,9 +1443,9 @@ unsafe fn public_window_callback_inner(
                         userdata.window_state_lock().ime_state = ImeState::Preedit;
                         let cursor_range = first.map(|f| (f, last.unwrap_or(f)));
 
-                        userdata.send_event(Event::WindowEvent {
-                            window_id: WindowId::from_raw(window as usize),
-                            event: WindowEvent::Ime(Ime::Preedit(text, cursor_range)),
+                        userdata.send_event(Event::SurfaceEvent {
+                            window_id: SurfaceId::from_raw(window as usize),
+                            event: SurfaceEvent::Ime(Ime::Preedit(text, cursor_range)),
                         });
                     }
                 }
@@ -1466,22 +1466,22 @@ unsafe fn public_window_callback_inner(
                     // trying receiving composing result and commit if exists.
                     let ime_context = unsafe { ImeContext::current(window) };
                     if let Some(text) = unsafe { ime_context.get_composed_text() } {
-                        userdata.send_event(Event::WindowEvent {
-                            window_id: WindowId::from_raw(window as usize),
-                            event: WindowEvent::Ime(Ime::Preedit(String::new(), None)),
+                        userdata.send_event(Event::SurfaceEvent {
+                            window_id: SurfaceId::from_raw(window as usize),
+                            event: SurfaceEvent::Ime(Ime::Preedit(String::new(), None)),
                         });
-                        userdata.send_event(Event::WindowEvent {
-                            window_id: WindowId::from_raw(window as usize),
-                            event: WindowEvent::Ime(Ime::Commit(text)),
+                        userdata.send_event(Event::SurfaceEvent {
+                            window_id: SurfaceId::from_raw(window as usize),
+                            event: SurfaceEvent::Ime(Ime::Commit(text)),
                         });
                     }
                 }
 
                 userdata.window_state_lock().ime_state = ImeState::Disabled;
 
-                userdata.send_event(Event::WindowEvent {
-                    window_id: WindowId::from_raw(window as usize),
-                    event: WindowEvent::Ime(Ime::Disabled),
+                userdata.send_event(Event::SurfaceEvent {
+                    window_id: SurfaceId::from_raw(window as usize),
+                    event: SurfaceEvent::Ime(Ime::Disabled),
                 });
             }
 
@@ -1504,7 +1504,7 @@ unsafe fn public_window_callback_inner(
                 let mut w = userdata.window_state_lock();
                 w.set_window_flags_in_place(|f| f.set(WindowFlags::MINIMIZED, true));
             }
-            // Send `WindowEvent::Minimized` here if we decide to implement one
+            // Send `SurfaceEvent::Minimized` here if we decide to implement one
 
             if wparam == SC_SCREENSAVE as usize {
                 let window_state = userdata.window_state_lock();
@@ -1518,7 +1518,7 @@ unsafe fn public_window_callback_inner(
         },
 
         WM_MOUSEMOVE => {
-            use crate::event::WindowEvent::{PointerEntered, PointerLeft, PointerMoved};
+            use crate::event::SurfaceEvent::{PointerEntered, PointerLeft, PointerMoved};
             use crate::event::{PointerKind, PointerSource};
 
             let x = super::get_x_lparam(lparam as u32) as i32;
@@ -1538,8 +1538,8 @@ unsafe fn public_window_callback_inner(
                             .ok();
 
                         drop(w);
-                        userdata.send_event(Event::WindowEvent {
-                            window_id: WindowId::from_raw(window as usize),
+                        userdata.send_event(Event::SurfaceEvent {
+                            window_id: SurfaceId::from_raw(window as usize),
                             event: PointerEntered {
                                 device_id: None,
                                 position,
@@ -1563,8 +1563,8 @@ unsafe fn public_window_callback_inner(
                             .ok();
 
                         drop(w);
-                        userdata.send_event(Event::WindowEvent {
-                            window_id: WindowId::from_raw(window as usize),
+                        userdata.send_event(Event::SurfaceEvent {
+                            window_id: SurfaceId::from_raw(window as usize),
                             event: PointerLeft {
                                 device_id: None,
                                 position: Some(position),
@@ -1586,8 +1586,8 @@ unsafe fn public_window_callback_inner(
             if cursor_moved {
                 update_modifiers(window, userdata);
 
-                userdata.send_event(Event::WindowEvent {
-                    window_id: WindowId::from_raw(window as usize),
+                userdata.send_event(Event::SurfaceEvent {
+                    window_id: SurfaceId::from_raw(window as usize),
                     event: PointerMoved { device_id: None, position, source: PointerSource::Mouse },
                 });
             }
@@ -1597,15 +1597,15 @@ unsafe fn public_window_callback_inner(
 
         WM_MOUSELEAVE => {
             use crate::event::PointerKind::Mouse;
-            use crate::event::WindowEvent::PointerLeft;
+            use crate::event::SurfaceEvent::PointerLeft;
 
             {
                 let mut w = userdata.window_state_lock();
                 w.mouse.set_cursor_flags(window, |f| f.set(CursorFlags::IN_WINDOW, false)).ok();
             }
 
-            userdata.send_event(Event::WindowEvent {
-                window_id: WindowId::from_raw(window as usize),
+            userdata.send_event(Event::SurfaceEvent {
+                window_id: SurfaceId::from_raw(window as usize),
                 event: PointerLeft { device_id: None, position: None, kind: Mouse },
             });
 
@@ -1620,9 +1620,9 @@ unsafe fn public_window_callback_inner(
 
             update_modifiers(window, userdata);
 
-            userdata.send_event(Event::WindowEvent {
-                window_id: WindowId::from_raw(window as usize),
-                event: WindowEvent::MouseWheel {
+            userdata.send_event(Event::SurfaceEvent {
+                window_id: SurfaceId::from_raw(window as usize),
+                event: SurfaceEvent::MouseWheel {
                     device_id: None,
                     delta: LineDelta(0.0, value),
                     phase: TouchPhase::Moved,
@@ -1640,9 +1640,9 @@ unsafe fn public_window_callback_inner(
 
             update_modifiers(window, userdata);
 
-            userdata.send_event(Event::WindowEvent {
-                window_id: WindowId::from_raw(window as usize),
-                event: WindowEvent::MouseWheel {
+            userdata.send_event(Event::SurfaceEvent {
+                window_id: SurfaceId::from_raw(window as usize),
+                event: SurfaceEvent::MouseWheel {
                     device_id: None,
                     delta: LineDelta(value, 0.0),
                     phase: TouchPhase::Moved,
@@ -1669,7 +1669,7 @@ unsafe fn public_window_callback_inner(
         WM_LBUTTONDOWN => {
             use crate::event::ElementState::Pressed;
             use crate::event::MouseButton::Left;
-            use crate::event::WindowEvent::PointerButton;
+            use crate::event::SurfaceEvent::PointerButton;
 
             unsafe { capture_mouse(window, &mut userdata.window_state_lock()) };
 
@@ -1679,8 +1679,8 @@ unsafe fn public_window_callback_inner(
             let y = super::get_y_lparam(lparam as u32) as i32;
             let position = PhysicalPosition::new(x as f64, y as f64);
 
-            userdata.send_event(Event::WindowEvent {
-                window_id: WindowId::from_raw(window as usize),
+            userdata.send_event(Event::SurfaceEvent {
+                window_id: SurfaceId::from_raw(window as usize),
                 event: PointerButton {
                     device_id: None,
                     state: Pressed,
@@ -1694,7 +1694,7 @@ unsafe fn public_window_callback_inner(
         WM_LBUTTONUP => {
             use crate::event::ElementState::Released;
             use crate::event::MouseButton::Left;
-            use crate::event::WindowEvent::PointerButton;
+            use crate::event::SurfaceEvent::PointerButton;
 
             unsafe { release_mouse(userdata.window_state_lock()) };
 
@@ -1704,8 +1704,8 @@ unsafe fn public_window_callback_inner(
             let y = super::get_y_lparam(lparam as u32) as i32;
             let position = PhysicalPosition::new(x as f64, y as f64);
 
-            userdata.send_event(Event::WindowEvent {
-                window_id: WindowId::from_raw(window as usize),
+            userdata.send_event(Event::SurfaceEvent {
+                window_id: SurfaceId::from_raw(window as usize),
                 event: PointerButton {
                     device_id: None,
                     state: Released,
@@ -1719,7 +1719,7 @@ unsafe fn public_window_callback_inner(
         WM_RBUTTONDOWN => {
             use crate::event::ElementState::Pressed;
             use crate::event::MouseButton::Right;
-            use crate::event::WindowEvent::PointerButton;
+            use crate::event::SurfaceEvent::PointerButton;
 
             unsafe { capture_mouse(window, &mut userdata.window_state_lock()) };
 
@@ -1729,8 +1729,8 @@ unsafe fn public_window_callback_inner(
             let y = super::get_y_lparam(lparam as u32) as i32;
             let position = PhysicalPosition::new(x as f64, y as f64);
 
-            userdata.send_event(Event::WindowEvent {
-                window_id: WindowId::from_raw(window as usize),
+            userdata.send_event(Event::SurfaceEvent {
+                window_id: SurfaceId::from_raw(window as usize),
                 event: PointerButton {
                     device_id: None,
                     state: Pressed,
@@ -1744,7 +1744,7 @@ unsafe fn public_window_callback_inner(
         WM_RBUTTONUP => {
             use crate::event::ElementState::Released;
             use crate::event::MouseButton::Right;
-            use crate::event::WindowEvent::PointerButton;
+            use crate::event::SurfaceEvent::PointerButton;
 
             unsafe { release_mouse(userdata.window_state_lock()) };
 
@@ -1754,8 +1754,8 @@ unsafe fn public_window_callback_inner(
             let y = super::get_y_lparam(lparam as u32) as i32;
             let position = PhysicalPosition::new(x as f64, y as f64);
 
-            userdata.send_event(Event::WindowEvent {
-                window_id: WindowId::from_raw(window as usize),
+            userdata.send_event(Event::SurfaceEvent {
+                window_id: SurfaceId::from_raw(window as usize),
                 event: PointerButton {
                     device_id: None,
                     state: Released,
@@ -1769,7 +1769,7 @@ unsafe fn public_window_callback_inner(
         WM_MBUTTONDOWN => {
             use crate::event::ElementState::Pressed;
             use crate::event::MouseButton::Middle;
-            use crate::event::WindowEvent::PointerButton;
+            use crate::event::SurfaceEvent::PointerButton;
 
             unsafe { capture_mouse(window, &mut userdata.window_state_lock()) };
 
@@ -1779,8 +1779,8 @@ unsafe fn public_window_callback_inner(
             let y = super::get_y_lparam(lparam as u32) as i32;
             let position = PhysicalPosition::new(x as f64, y as f64);
 
-            userdata.send_event(Event::WindowEvent {
-                window_id: WindowId::from_raw(window as usize),
+            userdata.send_event(Event::SurfaceEvent {
+                window_id: SurfaceId::from_raw(window as usize),
                 event: PointerButton {
                     device_id: None,
                     state: Pressed,
@@ -1794,7 +1794,7 @@ unsafe fn public_window_callback_inner(
         WM_MBUTTONUP => {
             use crate::event::ElementState::Released;
             use crate::event::MouseButton::Middle;
-            use crate::event::WindowEvent::PointerButton;
+            use crate::event::SurfaceEvent::PointerButton;
 
             unsafe { release_mouse(userdata.window_state_lock()) };
 
@@ -1804,8 +1804,8 @@ unsafe fn public_window_callback_inner(
             let y = super::get_y_lparam(lparam as u32) as i32;
             let position = PhysicalPosition::new(x as f64, y as f64);
 
-            userdata.send_event(Event::WindowEvent {
-                window_id: WindowId::from_raw(window as usize),
+            userdata.send_event(Event::SurfaceEvent {
+                window_id: SurfaceId::from_raw(window as usize),
                 event: PointerButton {
                     device_id: None,
                     state: Released,
@@ -1819,7 +1819,7 @@ unsafe fn public_window_callback_inner(
         WM_XBUTTONDOWN => {
             use crate::event::ElementState::Pressed;
             use crate::event::MouseButton::{Back, Forward, Other};
-            use crate::event::WindowEvent::PointerButton;
+            use crate::event::SurfaceEvent::PointerButton;
             let xbutton = super::get_xbutton_wparam(wparam as u32);
 
             unsafe { capture_mouse(window, &mut userdata.window_state_lock()) };
@@ -1830,8 +1830,8 @@ unsafe fn public_window_callback_inner(
             let y = super::get_y_lparam(lparam as u32) as i32;
             let position = PhysicalPosition::new(x as f64, y as f64);
 
-            userdata.send_event(Event::WindowEvent {
-                window_id: WindowId::from_raw(window as usize),
+            userdata.send_event(Event::SurfaceEvent {
+                window_id: SurfaceId::from_raw(window as usize),
                 event: PointerButton {
                     device_id: None,
                     state: Pressed,
@@ -1850,7 +1850,7 @@ unsafe fn public_window_callback_inner(
         WM_XBUTTONUP => {
             use crate::event::ElementState::Released;
             use crate::event::MouseButton::{Back, Forward, Other};
-            use crate::event::WindowEvent::PointerButton;
+            use crate::event::SurfaceEvent::PointerButton;
             let xbutton = super::get_xbutton_wparam(wparam as u32);
 
             unsafe { release_mouse(userdata.window_state_lock()) };
@@ -1861,8 +1861,8 @@ unsafe fn public_window_callback_inner(
             let y = super::get_y_lparam(lparam as u32) as i32;
             let position = PhysicalPosition::new(x as f64, y as f64);
 
-            userdata.send_event(Event::WindowEvent {
-                window_id: WindowId::from_raw(window as usize),
+            userdata.send_event(Event::SurfaceEvent {
+                window_id: SurfaceId::from_raw(window as usize),
                 event: PointerButton {
                     device_id: None,
                     state: Released,
@@ -1917,24 +1917,24 @@ unsafe fn public_window_callback_inner(
                     let y = position.y as f64 + (input.y % 100) as f64 / 100f64;
                     let position = PhysicalPosition::new(x, y);
 
-                    let window_id = WindowId::from_raw(window as usize);
+                    let window_id = SurfaceId::from_raw(window as usize);
                     let finger_id = RootFingerId(FingerId {
                         id: input.dwID,
                         primary: util::has_flag(input.dwFlags, TOUCHEVENTF_PRIMARY),
                     });
 
                     if util::has_flag(input.dwFlags, TOUCHEVENTF_DOWN) {
-                        userdata.send_event(Event::WindowEvent {
+                        userdata.send_event(Event::SurfaceEvent {
                             window_id,
-                            event: WindowEvent::PointerEntered {
+                            event: SurfaceEvent::PointerEntered {
                                 device_id: None,
                                 position,
                                 kind: PointerKind::Touch(finger_id),
                             },
                         });
-                        userdata.send_event(Event::WindowEvent {
+                        userdata.send_event(Event::SurfaceEvent {
                             window_id,
-                            event: WindowEvent::PointerButton {
+                            event: SurfaceEvent::PointerButton {
                                 device_id: None,
                                 state: Pressed,
                                 position,
@@ -1942,27 +1942,27 @@ unsafe fn public_window_callback_inner(
                             },
                         });
                     } else if util::has_flag(input.dwFlags, TOUCHEVENTF_UP) {
-                        userdata.send_event(Event::WindowEvent {
+                        userdata.send_event(Event::SurfaceEvent {
                             window_id,
-                            event: WindowEvent::PointerButton {
+                            event: SurfaceEvent::PointerButton {
                                 device_id: None,
                                 state: Released,
                                 position,
                                 button: Touch { finger_id, force: None },
                             },
                         });
-                        userdata.send_event(Event::WindowEvent {
+                        userdata.send_event(Event::SurfaceEvent {
                             window_id,
-                            event: WindowEvent::PointerLeft {
+                            event: SurfaceEvent::PointerLeft {
                                 device_id: None,
                                 position: Some(position),
                                 kind: PointerKind::Touch(finger_id),
                             },
                         });
                     } else if util::has_flag(input.dwFlags, TOUCHEVENTF_MOVE) {
-                        userdata.send_event(Event::WindowEvent {
+                        userdata.send_event(Event::SurfaceEvent {
                             window_id,
-                            event: WindowEvent::PointerMoved {
+                            event: SurfaceEvent::PointerMoved {
                                 device_id: None,
                                 position,
                                 source: PointerSource::Touch { finger_id, force: None },
@@ -2085,16 +2085,16 @@ unsafe fn public_window_callback_inner(
                     let y = location.y as f64 + y.fract();
                     let position = PhysicalPosition::new(x, y);
 
-                    let window_id = WindowId::from_raw(window as usize);
+                    let window_id = SurfaceId::from_raw(window as usize);
                     let finger_id = RootFingerId(FingerId {
                         id: pointer_info.pointerId,
                         primary: util::has_flag(pointer_info.pointerFlags, POINTER_FLAG_PRIMARY),
                     });
 
                     if util::has_flag(pointer_info.pointerFlags, POINTER_FLAG_DOWN) {
-                        userdata.send_event(Event::WindowEvent {
+                        userdata.send_event(Event::SurfaceEvent {
                             window_id,
-                            event: WindowEvent::PointerEntered {
+                            event: SurfaceEvent::PointerEntered {
                                 device_id: None,
                                 position,
                                 kind: if let PT_TOUCH = pointer_info.pointerType {
@@ -2104,9 +2104,9 @@ unsafe fn public_window_callback_inner(
                                 },
                             },
                         });
-                        userdata.send_event(Event::WindowEvent {
+                        userdata.send_event(Event::SurfaceEvent {
                             window_id,
-                            event: WindowEvent::PointerButton {
+                            event: SurfaceEvent::PointerButton {
                                 device_id: None,
                                 state: Pressed,
                                 position,
@@ -2118,9 +2118,9 @@ unsafe fn public_window_callback_inner(
                             },
                         });
                     } else if util::has_flag(pointer_info.pointerFlags, POINTER_FLAG_UP) {
-                        userdata.send_event(Event::WindowEvent {
+                        userdata.send_event(Event::SurfaceEvent {
                             window_id,
-                            event: WindowEvent::PointerButton {
+                            event: SurfaceEvent::PointerButton {
                                 device_id: None,
                                 state: Released,
                                 position,
@@ -2131,9 +2131,9 @@ unsafe fn public_window_callback_inner(
                                 },
                             },
                         });
-                        userdata.send_event(Event::WindowEvent {
+                        userdata.send_event(Event::SurfaceEvent {
                             window_id,
-                            event: WindowEvent::PointerLeft {
+                            event: SurfaceEvent::PointerLeft {
                                 device_id: None,
                                 position: Some(position),
                                 kind: if let PT_TOUCH = pointer_info.pointerType {
@@ -2144,9 +2144,9 @@ unsafe fn public_window_callback_inner(
                             },
                         });
                     } else if util::has_flag(pointer_info.pointerFlags, POINTER_FLAG_UPDATE) {
-                        userdata.send_event(Event::WindowEvent {
+                        userdata.send_event(Event::SurfaceEvent {
                             window_id,
-                            event: WindowEvent::PointerMoved {
+                            event: SurfaceEvent::PointerMoved {
                                 device_id: None,
                                 position,
                                 source: if let PT_TOUCH = pointer_info.pointerType {
@@ -2251,7 +2251,7 @@ unsafe fn public_window_callback_inner(
         // Only sent on Windows 8.1 or newer. On Windows 7 and older user has to log out to change
         // DPI, therefore all applications are closed while DPI is changing.
         WM_DPICHANGED => {
-            use crate::event::WindowEvent::ScaleFactorChanged;
+            use crate::event::SurfaceEvent::ScaleFactorChanged;
 
             // This message actually provides two DPI values - x and y. However MSDN says that
             // "you only need to use either the X-axis or the Y-axis value when scaling your
@@ -2317,8 +2317,8 @@ unsafe fn public_window_callback_inner(
             };
 
             let new_surface_size = Arc::new(Mutex::new(new_physical_surface_size));
-            userdata.send_event(Event::WindowEvent {
-                window_id: WindowId::from_raw(window as usize),
+            userdata.send_event(Event::SurfaceEvent {
+                window_id: SurfaceId::from_raw(window as usize),
                 event: ScaleFactorChanged {
                     scale_factor: new_scale_factor,
                     surface_size_writer: SurfaceSizeWriter::new(Arc::downgrade(&new_surface_size)),
@@ -2458,7 +2458,7 @@ unsafe fn public_window_callback_inner(
         },
 
         WM_SETTINGCHANGE => {
-            use crate::event::WindowEvent::ThemeChanged;
+            use crate::event::SurfaceEvent::ThemeChanged;
 
             let preferred_theme = userdata.window_state_lock().preferred_theme;
 
@@ -2469,8 +2469,8 @@ unsafe fn public_window_callback_inner(
                 if window_state.current_theme != new_theme {
                     window_state.current_theme = new_theme;
                     drop(window_state);
-                    userdata.send_event(Event::WindowEvent {
-                        window_id: WindowId::from_raw(window as usize),
+                    userdata.send_event(Event::SurfaceEvent {
+                        window_id: SurfaceId::from_raw(window as usize),
                         event: ThemeChanged(new_theme),
                     });
                 }
