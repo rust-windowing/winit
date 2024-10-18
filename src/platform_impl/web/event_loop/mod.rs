@@ -90,7 +90,7 @@ impl EventLoop {
 fn handle_event<A: ApplicationHandler>(app: &mut A, target: &ActiveEventLoop, event: Event) {
     match event {
         Event::NewEvents(cause) => app.new_events(target, cause),
-        Event::WindowEvent { window_id, event } => app.window_event(target, window_id, event),
+        Event::SurfaceEvent { window_id, event } => app.window_event(target, window_id, event),
         Event::DeviceEvent { device_id, event } => app.device_event(target, device_id, event),
         Event::UserWakeUp => app.proxy_wake_up(target),
         Event::Suspended => app.suspended(target),

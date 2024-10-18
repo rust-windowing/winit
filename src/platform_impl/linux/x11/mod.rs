@@ -574,12 +574,12 @@ impl EventLoop {
         while unsafe { self.event_processor.poll_one_event(xev.as_mut_ptr()) } {
             let mut xev = unsafe { xev.assume_init() };
             self.event_processor.process_event(&mut xev, |window_target, event: Event| {
-                if let Event::WindowEvent { window_id, event: SurfaceEvent::RedrawRequested } = event
+                if let Event::SurfaceEvent { window_id, event: SurfaceEvent::RedrawRequested } = event
                 {
                     window_target.redraw_sender.send(window_id);
                 } else {
                     match event {
-                        Event::WindowEvent { window_id, event } => {
+                        Event::SurfaceEvent { window_id, event } => {
                             app.window_event(window_target, window_id, event)
                         },
                         Event::DeviceEvent { device_id, event } => {

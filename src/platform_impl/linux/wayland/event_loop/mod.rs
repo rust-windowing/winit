@@ -375,7 +375,7 @@ impl EventLoop {
         });
         for event in buffer_sink.drain() {
             match event {
-                Event::WindowEvent { window_id, event } => {
+                Event::SurfaceEvent { window_id, event } => {
                     app.window_event(&self.active_event_loop, window_id, event)
                 },
                 Event::DeviceEvent { device_id, event } => {
@@ -391,7 +391,7 @@ impl EventLoop {
         });
         for event in buffer_sink.drain() {
             match event {
-                Event::WindowEvent { window_id, event } => {
+                Event::SurfaceEvent { window_id, event } => {
                     app.window_event(&self.active_event_loop, window_id, event)
                 },
                 Event::DeviceEvent { device_id, event } => {
