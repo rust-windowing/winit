@@ -32,7 +32,7 @@ impl EventSink {
     /// Add new window event to a queue.
     #[inline]
     pub fn push_window_event(&mut self, event: SurfaceEvent, window_id: SurfaceId) {
-        self.window_events.push(Event::WindowEvent { event, window_id });
+        self.window_events.push(Event::SurfaceEvent { event, window_id });
     }
 
     #[inline]

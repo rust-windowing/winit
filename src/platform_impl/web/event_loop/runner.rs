@@ -421,7 +421,7 @@ impl Shared {
                             if let (false, Some(true) | None) | (true, Some(true)) =
                                 (is_visible, canvas.is_intersecting.get())
                             {
-                                runner.send_event(Event::WindowEvent {
+                                runner.send_event(Event::SurfaceEvent {
                                     window_id: *id,
                                     event: SurfaceEvent::Occluded(!is_visible),
                                 });
@@ -566,7 +566,7 @@ impl Shared {
     fn process_destroy_pending_windows(&self) {
         while let Some(id) = self.0.destroy_pending.borrow_mut().pop_front() {
             self.0.all_canvases.borrow_mut().retain(|&(item_id, ..)| item_id != id);
-            self.handle_event(Event::WindowEvent {
+            self.handle_event(Event::SurfaceEvent {
                 window_id: id,
                 event: crate::event::SurfaceEvent::Destroyed,
             });
@@ -587,7 +587,7 @@ impl Shared {
         // Collect all of the redraw events to avoid double-locking the RefCell
         let redraw_events: Vec<SurfaceId> = self.0.redraw_pending.borrow_mut().drain().collect();
         for window_id in redraw_events {
-            self.handle_event(Event::WindowEvent {
+            self.handle_event(Event::SurfaceEvent {
                 window_id,
                 event: SurfaceEvent::RedrawRequested,
             });

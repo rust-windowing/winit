@@ -1232,7 +1232,7 @@ impl UnownedWindow {
 
             let old_surface_size = PhysicalSize::new(width, height);
             let surface_size = Arc::new(Mutex::new(PhysicalSize::new(new_width, new_height)));
-            callback(Event::WindowEvent {
+            callback(Event::SurfaceEvent {
                 window_id: self.id(),
                 event: SurfaceEvent::ScaleFactorChanged {
                     scale_factor: new_monitor.scale_factor,
