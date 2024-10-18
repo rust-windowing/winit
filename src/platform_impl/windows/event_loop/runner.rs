@@ -9,10 +9,10 @@ use windows_sys::Win32::Foundation::HWND;
 
 use super::ControlFlow;
 use crate::dpi::PhysicalSize;
-use crate::event::{Event, StartCause, SurfaceSizeWriter, WindowEvent};
+use crate::event::{Event, StartCause, SurfaceSizeWriter, SurfaceEvent};
 use crate::platform_impl::platform::event_loop::{WindowData, GWL_USERDATA};
 use crate::platform_impl::platform::get_window_long;
-use crate::window::WindowId;
+use crate::window::SurfaceId;
 
 type EventHandler = Cell<Option<Box<dyn FnMut(Event)>>>;
 
@@ -201,7 +201,7 @@ impl EventLoopRunner {
     }
 
     pub(crate) fn send_event(&self, event: Event) {
-        if let Event::WindowEvent { event: WindowEvent::RedrawRequested, .. } = event {
+        if let Event::SurfaceEvent { event: SurfaceEvent::RedrawRequested, .. } = event {
             self.call_event_handler(event);
             // As a rule, to ensure that `pump_events` can't block an external event loop
             // for too long, we always guarantee that `pump_events` will return control to
@@ -356,8 +356,8 @@ impl EventLoopRunner {
 impl BufferedEvent {
     pub fn from_event(event: Event) -> BufferedEvent {
         match event {
-            Event::WindowEvent {
-                event: WindowEvent::ScaleFactorChanged { scale_factor, surface_size_writer },
+            Event::SurfaceEvent {
+                event: SurfaceEvent::ScaleFactorChanged { scale_factor, surface_size_writer },
                 window_id,
             } => BufferedEvent::ScaleFactorChanged(
                 window_id.into_raw() as HWND,
@@ -373,9 +373,9 @@ impl BufferedEvent {
             Self::Event(event) => dispatch(event),
             Self::ScaleFactorChanged(window, scale_factor, new_surface_size) => {
                 let user_new_surface_size = Arc::new(Mutex::new(new_surface_size));
-                dispatch(Event::WindowEvent {
-                    window_id: WindowId::from_raw(window as usize),
-                    event: WindowEvent::ScaleFactorChanged {
+                dispatch(Event::SurfaceEvent {
+                    window_id: SurfaceId::from_raw(window as usize),
+                    event: SurfaceEvent::ScaleFactorChanged {
                         scale_factor,
                         surface_size_writer: SurfaceSizeWriter::new(Arc::downgrade(
                             &user_new_surface_size,
