@@ -72,7 +72,7 @@ pub(crate) enum Event {
     ///
     /// [`ApplicationHandler::window_event()`]: crate::application::ApplicationHandler::window_event()
     #[allow(clippy::enum_variant_names)]
-    WindowEvent { window_id: SurfaceId, event: SurfaceEvent },
+    SurfaceEvent { window_id: SurfaceId, event: SurfaceEvent },
 
     /// See [`ApplicationHandler::device_event()`] for details.
     ///
@@ -1149,7 +1149,7 @@ mod tests {
                 x(Resumed);
 
                 // Window events.
-                let with_window_event = |wev| x(WindowEvent { window_id: wid, event: wev });
+                let with_window_event = |wev| x(SurfaceEvent { window_id: wid, event: wev });
 
                 with_window_event(CloseRequested);
                 with_window_event(Destroyed);
