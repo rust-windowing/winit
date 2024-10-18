@@ -30,7 +30,7 @@ use sink::EventSink;
 
 use super::state::{WindowCompositorUpdate, WinitState};
 use super::window::state::FrameCallbackState;
-use super::{logical_to_physical_rounded, WindowId};
+use super::WindowId;
 
 type WaylandDispatcher = calloop::Dispatcher<'static, WaylandSource<WinitState>, WinitState>;
 
@@ -304,8 +304,8 @@ impl EventLoop {
                     let windows = state.windows.get_mut();
                     let window = windows.get(&window_id).unwrap().lock().unwrap();
                     let scale_factor = window.scale_factor();
-                    let size = logical_to_physical_rounded(window.surface_size(), scale_factor);
-                    (size, scale_factor)
+                    let size = window.surface_size() * scale_factor;
+                    (size, scale_factor.to_f64())
                 });
 
                 // Stash the old window size.
@@ -346,7 +346,7 @@ impl EventLoop {
                     let window = windows.get(&window_id).unwrap().lock().unwrap();
 
                     let scale_factor = window.scale_factor();
-                    let size = logical_to_physical_rounded(window.surface_size(), scale_factor);
+                    let size = window.surface_size() * scale_factor;
 
                     // Mark the window as needed a redraw.
                     state
