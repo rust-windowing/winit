@@ -24,7 +24,7 @@ use crate::monitor::MonitorHandle as RootMonitorHandle;
 use crate::platform::pump_events::PumpStatus;
 use crate::window::{
     self, CursorGrabMode, CustomCursor, CustomCursorSource, Fullscreen, ImePurpose,
-    ResizeDirection, Theme, Window as CoreWindow, WindowAttributes, WindowButtons, WindowId,
+    ResizeDirection, Theme, Window as CoreWindow, WindowAttributes, WindowButtons, SurfaceId,
     WindowLevel, Surface as CoreSurface
 };
 
