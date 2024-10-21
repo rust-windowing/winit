@@ -65,6 +65,7 @@ changelog entry.
 - Add `WindowId::into_raw()` and `from_raw()`.
 - Add `PointerKind`, `PointerSource`, `ButtonSource`, `FingerId` and `position` to all pointer
   events as part of the pointer event overhaul.
+- Add `DeviceId::into_raw()` and `from_raw()`.
 
 ### Changed
 
@@ -83,14 +84,14 @@ changelog entry.
 - Changed `EventLoopProxy::send_event` to `EventLoopProxy::wake_up`, it now
   only wakes up the loop.
 - On X11, implement smooth resizing through the sync extension API.
-- `ApplicationHandler::create|destroy_surfaces()` was split off from
+- `ApplicationHandler::can_create|destroy_surfaces()` was split off from
   `ApplicationHandler::resumed/suspended()`.
 
   `ApplicationHandler::can_create_surfaces()` should, for portability reasons
   to Android, be the only place to create render surfaces.
 
-  `ApplicationHandler::resumed/suspended()` are now only emitted by iOS and Web
-  and now signify actually resuming/suspending the application.
+  `ApplicationHandler::resumed/suspended()` are now only emitted by iOS, Web
+  and Android, and now signify actually resuming/suspending the application.
 - Rename `platform::web::*ExtWebSys` to `*ExtWeb`.
 - Change signature of `EventLoop::run_app`, `EventLoopExtPumpEvents::pump_app_events` and
   `EventLoopExtRunOnDemand::run_app_on_demand` to accept a `impl ApplicationHandler` directly,
@@ -188,3 +189,4 @@ changelog entry.
 - On macOS, package manifest definitions of `LSUIElement` will no longer be overridden with the
   default activation policy, unless explicitly provided during initialization.
 - On macOS, fix crash when calling `drag_window()` without a left click present.
+- On X11, key events forward to IME anyway, even when it's disabled.

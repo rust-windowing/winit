@@ -108,15 +108,6 @@ pub(crate) static X11_BACKEND: Lazy<Mutex<Result<Arc<XConnection>, XNotSupported
     Lazy::new(|| Mutex::new(XConnection::new(Some(x_error_callback)).map(Arc::new)));
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum DeviceId {
-    #[cfg(x11_platform)]
-    X(x11::DeviceId),
-    #[cfg(wayland_platform)]
-    #[allow(unused)]
-    Wayland(wayland::DeviceId),
-}
-
-#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum FingerId {
     #[cfg(x11_platform)]
     X(x11::FingerId),
@@ -321,8 +312,8 @@ impl EventLoop {
                 "Initializing the event loop outside of the main thread is a significant \
                  cross-platform compatibility hazard. If you absolutely need to create an \
                  EventLoop on a different thread, you can use the \
-                 `EventLoopBuilderExtX11::any_thread` or `EventLoopBuilderExtWayland::any_thread` \
-                 functions."
+                 `EventLoopBuilderExtX11::with_any_thread` or \
+                 `EventLoopBuilderExtWayland::with_any_thread` functions."
             );
         }
 

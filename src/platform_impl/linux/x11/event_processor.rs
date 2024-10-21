@@ -22,7 +22,7 @@ use xkbcommon_dl::xkb_mod_mask_t;
 
 use crate::dpi::{PhysicalPosition, PhysicalSize};
 use crate::event::{
-    ButtonSource, DeviceEvent, ElementState, Event, Ime, MouseButton, MouseScrollDelta,
+    ButtonSource, DeviceEvent, DeviceId, ElementState, Event, Ime, MouseButton, MouseScrollDelta,
     PointerKind, PointerSource, RawKeyEvent, SurfaceSizeWriter, TouchPhase, WindowEvent,
 };
 use crate::keyboard::ModifiersState;
@@ -33,8 +33,8 @@ use crate::platform_impl::platform::x11::ActiveEventLoop;
 use crate::platform_impl::x11::atoms::*;
 use crate::platform_impl::x11::util::cookie::GenericEventCookie;
 use crate::platform_impl::x11::{
-    mkdid, mkfid, mkwid, util, CookieResultExt, Device, DeviceId, DeviceInfo, Dnd, DndState,
-    ImeReceiver, ScrollOrientation, UnownedWindow, WindowId,
+    mkdid, mkfid, mkwid, util, CookieResultExt, Device, DeviceInfo, Dnd, DndState, ImeReceiver,
+    ScrollOrientation, UnownedWindow, WindowId,
 };
 
 /// The maximum amount of X modifiers to replay.
@@ -142,8 +142,18 @@ impl EventProcessor {
     {
         let event_type = xev.get_type();
 
-        if self.filter_event(xev) {
-            if event_type == xlib::KeyPress || event_type == xlib::KeyRelease {
+        // If we have IME disabled, don't try to `filter_event`, since only IME can consume them
+        // and forward back. This is not desired for e.g. games since some IMEs may delay the input
+        // and game can toggle IME back when e.g. typing into some field where latency won't really
+        // matter.
+        if event_type == xlib::KeyPress || event_type == xlib::KeyRelease {
+            let ime = self.target.ime.as_ref();
+            let window = self.active_window.map(|window| window as XWindow);
+            let forward_to_ime = ime
+                .and_then(|ime| window.map(|window| ime.borrow().is_ime_allowed(window)))
+                .unwrap_or(false);
+
+            if forward_to_ime && self.filter_event(xev) {
                 let xev: &XKeyEvent = xev.as_ref();
                 if self.xmodmap.is_modifier(xev.keycode as u8) {
                     // Don't grow the buffer past the `MAX_MOD_REPLAY_LEN`. This could happen
@@ -156,7 +166,8 @@ impl EventProcessor {
                     self.xfiltered_modifiers.push_front(xev.serial);
                 }
             }
-            return;
+        } else {
+            self.filter_event(xev);
         }
 
         match event_type {
@@ -319,7 +330,7 @@ impl EventProcessor {
         let mut devices = self.devices.borrow_mut();
         if let Some(info) = DeviceInfo::get(&self.target.xconn, device as _) {
             for info in info.iter() {
-                devices.insert(DeviceId(info.deviceid as _), Device::new(info));
+                devices.insert(mkdid(info.deviceid as xinput::DeviceId), Device::new(info));
             }
         }
     }
@@ -1119,7 +1130,7 @@ impl EventProcessor {
             slice::from_raw_parts(event.valuators.mask, event.valuators.mask_len as usize)
         };
         let mut devices = self.devices.borrow_mut();
-        let physical_device = match devices.get_mut(&DeviceId(event.sourceid as xinput::DeviceId)) {
+        let physical_device = match devices.get_mut(&mkdid(event.sourceid as xinput::DeviceId)) {
             Some(device) => device,
             None => return,
         };
@@ -1178,7 +1189,7 @@ impl EventProcessor {
                 if device_info.deviceid == event.sourceid
                     || device_info.attachment == event.sourceid
                 {
-                    let device_id = DeviceId(device_info.deviceid as _);
+                    let device_id = mkdid(device_info.deviceid as xinput::DeviceId);
                     if let Some(device) = devices.get_mut(&device_id) {
                         device.reset_scroll_position(device_info);
                     }
@@ -1273,8 +1284,8 @@ impl EventProcessor {
         let device_id = self
             .devices
             .borrow()
-            .get(&DeviceId(xev.deviceid as xinput::DeviceId))
-            .map(|device| mkdid(device.attachment as _));
+            .get(&mkdid(xev.deviceid as xinput::DeviceId))
+            .map(|device| mkdid(device.attachment as xinput::DeviceId));
 
         let event = Event::WindowEvent {
             window_id,
@@ -1520,7 +1531,7 @@ impl EventProcessor {
                 self.init_device(info.deviceid as xinput::DeviceId);
             } else if 0 != info.flags & (xinput2::XISlaveRemoved | xinput2::XIMasterRemoved) {
                 let mut devices = self.devices.borrow_mut();
-                devices.remove(&DeviceId(info.deviceid as xinput::DeviceId));
+                devices.remove(&mkdid(info.deviceid as xinput::DeviceId));
             }
         }
     }

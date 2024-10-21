@@ -15,7 +15,7 @@ use crate::application::ApplicationHandler;
 use crate::cursor::Cursor;
 use crate::dpi::{PhysicalPosition, PhysicalSize, Position, Size};
 use crate::error::{EventLoopError, NotSupportedError, RequestError};
-use crate::event::{self, Force, StartCause, SurfaceSizeWriter};
+use crate::event::{self, DeviceId, Force, StartCause, SurfaceSizeWriter};
 use crate::event_loop::{
     ActiveEventLoop as RootActiveEventLoop, ControlFlow, DeviceEvents,
     EventLoopProxy as RootEventLoopProxy, OwnedDisplayHandle as RootOwnedDisplayHandle,
@@ -218,11 +218,11 @@ impl EventLoop {
                     app.memory_warning(&self.window_target);
                 },
                 MainEvent::Start => {
-                    // XXX: how to forward this state to applications?
-                    warn!("TODO: forward onStart notification to application");
+                    app.resumed(self.window_target());
                 },
                 MainEvent::Resume { .. } => {
                     debug!("App Resumed - is running");
+                    // TODO: This is incorrect - will be solved in https://github.com/rust-windowing/winit/pull/3897
                     self.running = true;
                 },
                 MainEvent::SaveState { .. } => {
@@ -232,11 +232,11 @@ impl EventLoop {
                 },
                 MainEvent::Pause => {
                     debug!("App Paused - stopped running");
+                    // TODO: This is incorrect - will be solved in https://github.com/rust-windowing/winit/pull/3897
                     self.running = false;
                 },
                 MainEvent::Stop => {
-                    // XXX: how to forward this state to applications?
-                    warn!("TODO: forward onStop notification to application");
+                    app.suspended(self.window_target());
                 },
                 MainEvent::Destroy => {
                     // XXX: maybe exit mainloop to drop things before being
@@ -314,7 +314,7 @@ impl EventLoop {
         let mut input_status = InputStatus::Handled;
         match event {
             InputEvent::MotionEvent(motion_event) => {
-                let device_id = Some(event::DeviceId(DeviceId(motion_event.device_id())));
+                let device_id = Some(DeviceId::from_raw(motion_event.device_id() as i64));
                 let action = motion_event.action();
 
                 let pointers: Option<
@@ -452,7 +452,7 @@ impl EventLoop {
                         );
 
                         let event = event::WindowEvent::KeyboardInput {
-                            device_id: Some(event::DeviceId(DeviceId(key.device_id()))),
+                            device_id: Some(DeviceId::from_raw(key.device_id() as i64)),
                             event: event::KeyEvent {
                                 state,
                                 physical_key: keycodes::to_physical_key(keycode),
@@ -727,9 +727,6 @@ impl OwnedDisplayHandle {
         Ok(rwh_06::AndroidDisplayHandle::new().into())
     }
 }
-
-#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
-pub struct DeviceId(i32);
 
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct FingerId(i32);

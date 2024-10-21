@@ -63,51 +63,51 @@ use crate::window::{ActivationToken, Theme, WindowId};
 #[allow(dead_code)]
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) enum Event {
-    /// See [`ApplicationHandler::new_events`] for details.
+    /// See [`ApplicationHandler::new_events()`] for details.
     ///
-    /// [`ApplicationHandler::new_events`]: crate::application::ApplicationHandler::new_events
+    /// [`ApplicationHandler::new_events()`]: crate::application::ApplicationHandler::new_events()
     NewEvents(StartCause),
 
-    /// See [`ApplicationHandler::window_event`] for details.
+    /// See [`ApplicationHandler::window_event()`] for details.
     ///
-    /// [`ApplicationHandler::window_event`]: crate::application::ApplicationHandler::window_event
+    /// [`ApplicationHandler::window_event()`]: crate::application::ApplicationHandler::window_event()
     #[allow(clippy::enum_variant_names)]
     WindowEvent { window_id: WindowId, event: WindowEvent },
 
-    /// See [`ApplicationHandler::device_event`] for details.
+    /// See [`ApplicationHandler::device_event()`] for details.
     ///
-    /// [`ApplicationHandler::device_event`]: crate::application::ApplicationHandler::device_event
+    /// [`ApplicationHandler::device_event()`]: crate::application::ApplicationHandler::device_event()
     #[allow(clippy::enum_variant_names)]
     DeviceEvent { device_id: Option<DeviceId>, event: DeviceEvent },
 
-    /// See [`ApplicationHandler::suspended`] for details.
+    /// See [`ApplicationHandler::suspended()`] for details.
     ///
-    /// [`ApplicationHandler::suspended`]: crate::application::ApplicationHandler::suspended
+    /// [`ApplicationHandler::suspended()`]: crate::application::ApplicationHandler::suspended()
     Suspended,
 
-    /// See [`ApplicationHandler::can_create_surfaces`] for details.
+    /// See [`ApplicationHandler::can_create_surfaces()`] for details.
     ///
-    /// [`ApplicationHandler::can_create_surfaces`]: crate::application::ApplicationHandler::can_create_surfaces
+    /// [`ApplicationHandler::can_create_surfaces()`]: crate::application::ApplicationHandler::can_create_surfaces()
     CreateSurfaces,
 
-    /// See [`ApplicationHandler::resumed`] for details.
+    /// See [`ApplicationHandler::resumed()`] for details.
     ///
-    /// [`ApplicationHandler::resumed`]: crate::application::ApplicationHandler::resumed
+    /// [`ApplicationHandler::resumed()`]: crate::application::ApplicationHandler::resumed()
     Resumed,
 
-    /// See [`ApplicationHandler::about_to_wait`] for details.
+    /// See [`ApplicationHandler::about_to_wait()`] for details.
     ///
-    /// [`ApplicationHandler::about_to_wait`]: crate::application::ApplicationHandler::about_to_wait
+    /// [`ApplicationHandler::about_to_wait()`]: crate::application::ApplicationHandler::about_to_wait()
     AboutToWait,
 
-    /// See [`ApplicationHandler::exiting`] for details.
+    /// See [`ApplicationHandler::exiting()`] for details.
     ///
-    /// [`ApplicationHandler::exiting`]: crate::application::ApplicationHandler::exiting
+    /// [`ApplicationHandler::exiting()`]: crate::application::ApplicationHandler::exiting()
     LoopExiting,
 
-    /// See [`ApplicationHandler::memory_warning`] for details.
+    /// See [`ApplicationHandler::memory_warning()`] for details.
     ///
-    /// [`ApplicationHandler::memory_warning`]: crate::application::ApplicationHandler::memory_warning
+    /// [`ApplicationHandler::memory_warning()`]: crate::application::ApplicationHandler::memory_warning()
     MemoryWarning,
 
     /// User requested a wake up.
@@ -585,7 +585,25 @@ impl From<MouseButton> for ButtonSource {
 /// on-screen cursor and keyboard focus) or physical. Virtual devices typically aggregate inputs
 /// from multiple physical devices.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct DeviceId(pub(crate) platform_impl::DeviceId);
+pub struct DeviceId(i64);
+
+impl DeviceId {
+    /// Convert the [`DeviceId`] into the underlying integer.
+    ///
+    /// This is useful if you need to pass the ID across an FFI boundary, or store it in an atomic.
+    #[allow(dead_code)]
+    pub(crate) const fn into_raw(self) -> i64 {
+        self.0
+    }
+
+    /// Construct a [`DeviceId`] from the underlying integer.
+    ///
+    /// This should only be called with integers returned from [`DeviceId::into_raw`].
+    #[allow(dead_code)]
+    pub(crate) const fn from_raw(id: i64) -> Self {
+        Self(id)
+    }
+}
 
 /// Identifier of a finger in a touch event.
 ///
