@@ -124,7 +124,7 @@ impl Default for PlatformSpecificEventLoopAttributes {
 }
 
 // Android currently only supports one window
-const GLOBAL_WINDOW: WindowId = WindowId::from_raw(0);
+const GLOBAL_WINDOW: SurfaceId = SurfaceId::from_raw(0);
 
 impl EventLoop {
     pub(crate) fn new(
@@ -805,7 +805,7 @@ impl rwh_06::HasWindowHandle for Window {
 }
 
 impl CoreSurface for Window {
-    fn id(&self) -> WindowId {
+    fn id(&self) -> SurfaceId {
         GLOBAL_WINDOW
     }
 
