@@ -14,18 +14,18 @@ use tracing::{debug, trace, warn};
 use crate::application::ApplicationHandler;
 use crate::cursor::Cursor;
 use crate::dpi::{PhysicalPosition, PhysicalSize, Position, Size};
-use crate::error::{self, EventLoopError, ExternalError, NotSupportedError};
-use crate::event::{self, Force, InnerSizeWriter, StartCause};
+use crate::error::{EventLoopError, NotSupportedError, RequestError};
+use crate::event::{self, DeviceId, Force, StartCause, SurfaceSizeWriter};
 use crate::event_loop::{
     ActiveEventLoop as RootActiveEventLoop, ControlFlow, DeviceEvents,
     EventLoopProxy as RootEventLoopProxy, OwnedDisplayHandle as RootOwnedDisplayHandle,
 };
 use crate::monitor::MonitorHandle as RootMonitorHandle;
 use crate::platform::pump_events::PumpStatus;
-use crate::platform_impl::Fullscreen;
 use crate::window::{
-    self, CursorGrabMode, CustomCursor, CustomCursorSource, ImePurpose, ResizeDirection, Theme,
-    Window as RootWindow, WindowAttributes, WindowButtons, WindowLevel,
+    self, CursorGrabMode, CustomCursor, CustomCursorSource, Fullscreen, ImePurpose,
+    ResizeDirection, Theme, Window as CoreWindow, WindowAttributes, WindowButtons, WindowId,
+    WindowLevel,
 };
 
 mod keycodes;
@@ -123,6 +123,9 @@ impl Default for PlatformSpecificEventLoopAttributes {
     }
 }
 
+// Android currently only supports one window
+const GLOBAL_WINDOW: WindowId = WindowId::from_raw(0);
+
 impl EventLoop {
     pub(crate) fn new(
         attributes: &PlatformSpecificEventLoopAttributes,
@@ -188,30 +191,27 @@ impl EventLoop {
                 },
                 MainEvent::GainedFocus => {
                     HAS_FOCUS.store(true, Ordering::Relaxed);
-                    let window_id = window::WindowId(WindowId);
                     let event = event::WindowEvent::Focused(true);
-                    app.window_event(&self.window_target, window_id, event);
+                    app.window_event(&self.window_target, GLOBAL_WINDOW, event);
                 },
                 MainEvent::LostFocus => {
                     HAS_FOCUS.store(false, Ordering::Relaxed);
-                    let window_id = window::WindowId(WindowId);
                     let event = event::WindowEvent::Focused(false);
-                    app.window_event(&self.window_target, window_id, event);
+                    app.window_event(&self.window_target, GLOBAL_WINDOW, event);
                 },
                 MainEvent::ConfigChanged { .. } => {
                     let old_scale_factor = scale_factor(&self.android_app);
                     let scale_factor = scale_factor(&self.android_app);
                     if (scale_factor - old_scale_factor).abs() < f64::EPSILON {
-                        let new_inner_size = Arc::new(Mutex::new(screen_size(&self.android_app)));
-                        let window_id = window::WindowId(WindowId);
+                        let new_surface_size = Arc::new(Mutex::new(screen_size(&self.android_app)));
                         let event = event::WindowEvent::ScaleFactorChanged {
-                            inner_size_writer: InnerSizeWriter::new(Arc::downgrade(
-                                &new_inner_size,
+                            surface_size_writer: SurfaceSizeWriter::new(Arc::downgrade(
+                                &new_surface_size,
                             )),
                             scale_factor,
                         };
 
-                        app.window_event(&self.window_target, window_id, event);
+                        app.window_event(&self.window_target, GLOBAL_WINDOW, event);
                     }
                 },
                 MainEvent::LowMemory => {
@@ -287,17 +287,15 @@ impl EventLoop {
                 } else {
                     PhysicalSize::new(0, 0)
                 };
-                let window_id = window::WindowId(WindowId);
-                let event = event::WindowEvent::Resized(size);
-                app.window_event(&self.window_target, window_id, event);
+                let event = event::WindowEvent::SurfaceResized(size);
+                app.window_event(&self.window_target, GLOBAL_WINDOW, event);
             }
 
             pending_redraw |= self.redraw_flag.get_and_reset();
             if pending_redraw {
                 pending_redraw = false;
-                let window_id = window::WindowId(WindowId);
                 let event = event::WindowEvent::RedrawRequested;
-                app.window_event(&self.window_target, window_id, event);
+                app.window_event(&self.window_target, GLOBAL_WINDOW, event);
             }
         }
 
@@ -316,50 +314,116 @@ impl EventLoop {
         let mut input_status = InputStatus::Handled;
         match event {
             InputEvent::MotionEvent(motion_event) => {
-                let window_id = window::WindowId(WindowId);
-                let device_id = event::DeviceId(DeviceId(motion_event.device_id()));
+                let device_id = Some(DeviceId::from_raw(motion_event.device_id() as i64));
+                let action = motion_event.action();
 
-                let phase = match motion_event.action() {
-                    MotionAction::Down | MotionAction::PointerDown => {
-                        Some(event::TouchPhase::Started)
+                let pointers: Option<
+                    Box<dyn Iterator<Item = android_activity::input::Pointer<'_>>>,
+                > = match action {
+                    MotionAction::Down
+                    | MotionAction::PointerDown
+                    | MotionAction::Up
+                    | MotionAction::PointerUp => Some(Box::new(std::iter::once(
+                        motion_event.pointer_at_index(motion_event.pointer_index()),
+                    ))),
+                    MotionAction::Move | MotionAction::Cancel => {
+                        Some(Box::new(motion_event.pointers()))
                     },
-                    MotionAction::Up | MotionAction::PointerUp => Some(event::TouchPhase::Ended),
-                    MotionAction::Move => Some(event::TouchPhase::Moved),
-                    MotionAction::Cancel => Some(event::TouchPhase::Cancelled),
-                    _ => {
-                        None // TODO mouse events
-                    },
+                    // TODO mouse events
+                    _ => None,
                 };
-                if let Some(phase) = phase {
-                    let pointers: Box<dyn Iterator<Item = android_activity::input::Pointer<'_>>> =
-                        match phase {
-                            event::TouchPhase::Started | event::TouchPhase::Ended => {
-                                Box::new(std::iter::once(
-                                    motion_event.pointer_at_index(motion_event.pointer_index()),
-                                ))
-                            },
-                            event::TouchPhase::Moved | event::TouchPhase::Cancelled => {
-                                Box::new(motion_event.pointers())
-                            },
-                        };
 
+                if let Some(pointers) = pointers {
                     for pointer in pointers {
-                        let location =
+                        let tool_type = pointer.tool_type();
+                        let position =
                             PhysicalPosition { x: pointer.x() as _, y: pointer.y() as _ };
                         trace!(
-                            "Input event {device_id:?}, {phase:?}, loc={location:?}, \
-                             pointer={pointer:?}"
+                            "Input event {device_id:?}, {action:?}, loc={position:?}, \
+                             pointer={pointer:?}, tool_type={tool_type:?}"
                         );
+                        let finger_id = event::FingerId(FingerId(pointer.pointer_id()));
+                        let force = Some(Force::Normalized(pointer.pressure() as f64));
 
-                        let event = event::WindowEvent::Touch(event::Touch {
-                            device_id,
-                            phase,
-                            location,
-                            finger_id: event::FingerId(FingerId(pointer.pointer_id())),
-                            force: Some(Force::Normalized(pointer.pressure() as f64)),
-                        });
+                        match action {
+                            MotionAction::Down | MotionAction::PointerDown => {
+                                let event = event::WindowEvent::PointerEntered {
+                                    device_id,
+                                    position,
+                                    kind: match tool_type {
+                                        android_activity::input::ToolType::Finger => {
+                                            event::PointerKind::Touch(finger_id)
+                                        },
+                                        // TODO mouse events
+                                        android_activity::input::ToolType::Mouse => continue,
+                                        _ => event::PointerKind::Unknown,
+                                    },
+                                };
+                                app.window_event(&self.window_target, GLOBAL_WINDOW, event);
+                                let event = event::WindowEvent::PointerButton {
+                                    device_id,
+                                    state: event::ElementState::Pressed,
+                                    position,
+                                    button: match tool_type {
+                                        android_activity::input::ToolType::Finger => {
+                                            event::ButtonSource::Touch { finger_id, force }
+                                        },
+                                        // TODO mouse events
+                                        android_activity::input::ToolType::Mouse => continue,
+                                        _ => event::ButtonSource::Unknown(0),
+                                    },
+                                };
+                                app.window_event(&self.window_target, GLOBAL_WINDOW, event);
+                            },
+                            MotionAction::Move => {
+                                let event = event::WindowEvent::PointerMoved {
+                                    device_id,
+                                    position,
+                                    source: match tool_type {
+                                        android_activity::input::ToolType::Finger => {
+                                            event::PointerSource::Touch { finger_id, force }
+                                        },
+                                        // TODO mouse events
+                                        android_activity::input::ToolType::Mouse => continue,
+                                        _ => event::PointerSource::Unknown,
+                                    },
+                                };
+                                app.window_event(&self.window_target, GLOBAL_WINDOW, event);
+                            },
+                            MotionAction::Up | MotionAction::PointerUp | MotionAction::Cancel => {
+                                if let MotionAction::Up | MotionAction::PointerUp = action {
+                                    let event = event::WindowEvent::PointerButton {
+                                        device_id,
+                                        state: event::ElementState::Released,
+                                        position,
+                                        button: match tool_type {
+                                            android_activity::input::ToolType::Finger => {
+                                                event::ButtonSource::Touch { finger_id, force }
+                                            },
+                                            // TODO mouse events
+                                            android_activity::input::ToolType::Mouse => continue,
+                                            _ => event::ButtonSource::Unknown(0),
+                                        },
+                                    };
+                                    app.window_event(&self.window_target, GLOBAL_WINDOW, event);
+                                }
 
-                        app.window_event(&self.window_target, window_id, event);
+                                let event = event::WindowEvent::PointerLeft {
+                                    device_id,
+                                    position: Some(position),
+                                    kind: match tool_type {
+                                        android_activity::input::ToolType::Finger => {
+                                            event::PointerKind::Touch(finger_id)
+                                        },
+                                        // TODO mouse events
+                                        android_activity::input::ToolType::Mouse => continue,
+                                        _ => event::PointerKind::Unknown,
+                                    },
+                                };
+                                app.window_event(&self.window_target, GLOBAL_WINDOW, event);
+                            },
+                            _ => unreachable!(),
+                        }
                     }
                 }
             },
@@ -387,9 +451,8 @@ impl EventLoop {
                             &mut self.combining_accent,
                         );
 
-                        let window_id = window::WindowId(WindowId);
                         let event = event::WindowEvent::KeyboardInput {
-                            device_id: event::DeviceId(DeviceId(key.device_id())),
+                            device_id: Some(DeviceId::from_raw(key.device_id() as i64)),
                             event: event::KeyEvent {
                                 state,
                                 physical_key: keycodes::to_physical_key(keycode),
@@ -402,7 +465,7 @@ impl EventLoop {
                             is_synthetic: false,
                         };
 
-                        app.window_event(&self.window_target, window_id, event);
+                        app.window_event(&self.window_target, GLOBAL_WINDOW, event);
                     },
                 }
             },
@@ -593,16 +656,15 @@ impl RootActiveEventLoop for ActiveEventLoop {
     fn create_window(
         &self,
         window_attributes: WindowAttributes,
-    ) -> Result<RootWindow, error::OsError> {
-        let window = Window::new(self, window_attributes)?;
-        Ok(RootWindow { window })
+    ) -> Result<Box<dyn CoreWindow>, RequestError> {
+        Ok(Box::new(Window::new(self, window_attributes)?))
     }
 
     fn create_custom_cursor(
         &self,
         _source: CustomCursorSource,
-    ) -> Result<CustomCursor, ExternalError> {
-        Err(ExternalError::NotSupported(NotSupportedError::new()))
+    ) -> Result<CustomCursor, RequestError> {
+        Err(NotSupportedError::new("create_custom_cursor is not supported").into())
     }
 
     fn available_monitors(&self) -> Box<dyn Iterator<Item = RootMonitorHandle>> {
@@ -667,39 +729,10 @@ impl OwnedDisplayHandle {
 }
 
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
-pub(crate) struct WindowId;
-
-impl WindowId {
-    pub const fn dummy() -> Self {
-        WindowId
-    }
-}
-
-impl From<WindowId> for u64 {
-    fn from(_: WindowId) -> Self {
-        0
-    }
-}
-
-impl From<u64> for WindowId {
-    fn from(_: u64) -> Self {
-        Self
-    }
-}
-
-#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
-pub struct DeviceId(i32);
-
-impl DeviceId {
-    pub const fn dummy() -> Self {
-        DeviceId(0)
-    }
-}
-
-#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct FingerId(i32);
 
 impl FingerId {
+    #[cfg(test)]
     pub const fn dummy() -> Self {
         FingerId(0)
     }
@@ -717,178 +750,24 @@ impl Window {
     pub(crate) fn new(
         el: &ActiveEventLoop,
         _window_attrs: window::WindowAttributes,
-    ) -> Result<Self, error::OsError> {
+    ) -> Result<Self, RequestError> {
         // FIXME this ignores requested window attributes
 
         Ok(Self { app: el.app.clone(), redraw_requester: el.redraw_requester.clone() })
     }
 
-    pub(crate) fn maybe_queue_on_main(&self, f: impl FnOnce(&Self) + Send + 'static) {
-        f(self)
+    pub fn config(&self) -> ConfigurationRef {
+        self.app.config()
     }
 
-    pub(crate) fn maybe_wait_on_main<R: Send>(&self, f: impl FnOnce(&Self) -> R + Send) -> R {
-        f(self)
-    }
-
-    pub fn id(&self) -> WindowId {
-        WindowId
-    }
-
-    pub fn primary_monitor(&self) -> Option<MonitorHandle> {
-        None
-    }
-
-    pub fn available_monitors(&self) -> Option<MonitorHandle> {
-        None
-    }
-
-    pub fn current_monitor(&self) -> Option<MonitorHandle> {
-        None
-    }
-
-    pub fn scale_factor(&self) -> f64 {
-        scale_factor(&self.app)
-    }
-
-    pub fn request_redraw(&self) {
-        self.redraw_requester.request_redraw()
-    }
-
-    pub fn pre_present_notify(&self) {}
-
-    pub fn inner_position(&self) -> Result<PhysicalPosition<i32>, error::NotSupportedError> {
-        Err(error::NotSupportedError::new())
-    }
-
-    pub fn outer_position(&self) -> Result<PhysicalPosition<i32>, error::NotSupportedError> {
-        Err(error::NotSupportedError::new())
-    }
-
-    pub fn set_outer_position(&self, _position: Position) {
-        // no effect
-    }
-
-    pub fn inner_size(&self) -> PhysicalSize<u32> {
-        self.outer_size()
-    }
-
-    pub fn request_inner_size(&self, _size: Size) -> Option<PhysicalSize<u32>> {
-        Some(self.inner_size())
-    }
-
-    pub fn outer_size(&self) -> PhysicalSize<u32> {
-        screen_size(&self.app)
-    }
-
-    pub fn set_min_inner_size(&self, _: Option<Size>) {}
-
-    pub fn set_max_inner_size(&self, _: Option<Size>) {}
-
-    pub fn resize_increments(&self) -> Option<PhysicalSize<u32>> {
-        None
-    }
-
-    pub fn set_resize_increments(&self, _increments: Option<Size>) {}
-
-    pub fn set_title(&self, _title: &str) {}
-
-    pub fn set_transparent(&self, _transparent: bool) {}
-
-    pub fn set_blur(&self, _blur: bool) {}
-
-    pub fn set_visible(&self, _visibility: bool) {}
-
-    pub fn is_visible(&self) -> Option<bool> {
-        None
-    }
-
-    pub fn set_resizable(&self, _resizeable: bool) {}
-
-    pub fn is_resizable(&self) -> bool {
-        false
-    }
-
-    pub fn set_enabled_buttons(&self, _buttons: WindowButtons) {}
-
-    pub fn enabled_buttons(&self) -> WindowButtons {
-        WindowButtons::all()
-    }
-
-    pub fn set_minimized(&self, _minimized: bool) {}
-
-    pub fn is_minimized(&self) -> Option<bool> {
-        None
-    }
-
-    pub fn set_maximized(&self, _maximized: bool) {}
-
-    pub fn is_maximized(&self) -> bool {
-        false
-    }
-
-    pub fn set_fullscreen(&self, _monitor: Option<Fullscreen>) {
-        warn!("Cannot set fullscreen on Android");
-    }
-
-    pub fn fullscreen(&self) -> Option<Fullscreen> {
-        None
-    }
-
-    pub fn set_decorations(&self, _decorations: bool) {}
-
-    pub fn is_decorated(&self) -> bool {
-        true
-    }
-
-    pub fn set_window_level(&self, _level: WindowLevel) {}
-
-    pub fn set_window_icon(&self, _window_icon: Option<crate::icon::Icon>) {}
-
-    pub fn set_ime_cursor_area(&self, _position: Position, _size: Size) {}
-
-    pub fn set_ime_allowed(&self, _allowed: bool) {}
-
-    pub fn set_ime_purpose(&self, _purpose: ImePurpose) {}
-
-    pub fn focus_window(&self) {}
-
-    pub fn request_user_attention(&self, _request_type: Option<window::UserAttentionType>) {}
-
-    pub fn set_cursor(&self, _: Cursor) {}
-
-    pub fn set_cursor_position(&self, _: Position) -> Result<(), error::ExternalError> {
-        Err(error::ExternalError::NotSupported(error::NotSupportedError::new()))
-    }
-
-    pub fn set_cursor_grab(&self, _: CursorGrabMode) -> Result<(), error::ExternalError> {
-        Err(error::ExternalError::NotSupported(error::NotSupportedError::new()))
-    }
-
-    pub fn set_cursor_visible(&self, _: bool) {}
-
-    pub fn drag_window(&self) -> Result<(), error::ExternalError> {
-        Err(error::ExternalError::NotSupported(error::NotSupportedError::new()))
-    }
-
-    pub fn drag_resize_window(
-        &self,
-        _direction: ResizeDirection,
-    ) -> Result<(), error::ExternalError> {
-        Err(error::ExternalError::NotSupported(error::NotSupportedError::new()))
-    }
-
-    #[inline]
-    pub fn show_window_menu(&self, _position: Position) {}
-
-    pub fn set_cursor_hittest(&self, _hittest: bool) -> Result<(), error::ExternalError> {
-        Err(error::ExternalError::NotSupported(error::NotSupportedError::new()))
+    pub fn content_rect(&self) -> Rect {
+        self.app.content_rect()
     }
 
     #[cfg(feature = "rwh_06")]
     // Allow the usage of HasRawWindowHandle inside this function
     #[allow(deprecated)]
-    pub fn raw_window_handle_rwh_06(&self) -> Result<rwh_06::RawWindowHandle, rwh_06::HandleError> {
+    fn raw_window_handle_rwh_06(&self) -> Result<rwh_06::RawWindowHandle, rwh_06::HandleError> {
         use rwh_06::HasRawWindowHandle;
 
         if let Some(native_window) = self.app.native_window().as_ref() {
@@ -904,37 +783,206 @@ impl Window {
     }
 
     #[cfg(feature = "rwh_06")]
-    pub fn raw_display_handle_rwh_06(
-        &self,
-    ) -> Result<rwh_06::RawDisplayHandle, rwh_06::HandleError> {
+    fn raw_display_handle_rwh_06(&self) -> Result<rwh_06::RawDisplayHandle, rwh_06::HandleError> {
         Ok(rwh_06::RawDisplayHandle::Android(rwh_06::AndroidDisplayHandle::new()))
     }
+}
 
-    pub fn config(&self) -> ConfigurationRef {
-        self.app.config()
+#[cfg(feature = "rwh_06")]
+impl rwh_06::HasDisplayHandle for Window {
+    fn display_handle(&self) -> Result<rwh_06::DisplayHandle<'_>, rwh_06::HandleError> {
+        let raw = self.raw_display_handle_rwh_06()?;
+        unsafe { Ok(rwh_06::DisplayHandle::borrow_raw(raw)) }
+    }
+}
+
+#[cfg(feature = "rwh_06")]
+impl rwh_06::HasWindowHandle for Window {
+    fn window_handle(&self) -> Result<rwh_06::WindowHandle<'_>, rwh_06::HandleError> {
+        let raw = self.raw_window_handle_rwh_06()?;
+        unsafe { Ok(rwh_06::WindowHandle::borrow_raw(raw)) }
+    }
+}
+
+impl CoreWindow for Window {
+    fn id(&self) -> WindowId {
+        GLOBAL_WINDOW
     }
 
-    pub fn content_rect(&self) -> Rect {
-        self.app.content_rect()
-    }
-
-    pub fn set_theme(&self, _theme: Option<Theme>) {}
-
-    pub fn theme(&self) -> Option<Theme> {
+    fn primary_monitor(&self) -> Option<RootMonitorHandle> {
         None
     }
 
-    pub fn set_content_protected(&self, _protected: bool) {}
+    fn available_monitors(&self) -> Box<dyn Iterator<Item = RootMonitorHandle>> {
+        Box::new(std::iter::empty())
+    }
 
-    pub fn has_focus(&self) -> bool {
+    fn current_monitor(&self) -> Option<RootMonitorHandle> {
+        None
+    }
+
+    fn scale_factor(&self) -> f64 {
+        scale_factor(&self.app)
+    }
+
+    fn request_redraw(&self) {
+        self.redraw_requester.request_redraw()
+    }
+
+    fn pre_present_notify(&self) {}
+
+    fn inner_position(&self) -> Result<PhysicalPosition<i32>, RequestError> {
+        Err(NotSupportedError::new("inner_position is not supported").into())
+    }
+
+    fn outer_position(&self) -> Result<PhysicalPosition<i32>, RequestError> {
+        Err(NotSupportedError::new("outer_position is not supported").into())
+    }
+
+    fn set_outer_position(&self, _position: Position) {
+        // no effect
+    }
+
+    fn surface_size(&self) -> PhysicalSize<u32> {
+        self.outer_size()
+    }
+
+    fn request_surface_size(&self, _size: Size) -> Option<PhysicalSize<u32>> {
+        Some(self.surface_size())
+    }
+
+    fn outer_size(&self) -> PhysicalSize<u32> {
+        screen_size(&self.app)
+    }
+
+    fn set_min_surface_size(&self, _: Option<Size>) {}
+
+    fn set_max_surface_size(&self, _: Option<Size>) {}
+
+    fn surface_resize_increments(&self) -> Option<PhysicalSize<u32>> {
+        None
+    }
+
+    fn set_surface_resize_increments(&self, _increments: Option<Size>) {}
+
+    fn set_title(&self, _title: &str) {}
+
+    fn set_transparent(&self, _transparent: bool) {}
+
+    fn set_blur(&self, _blur: bool) {}
+
+    fn set_visible(&self, _visibility: bool) {}
+
+    fn is_visible(&self) -> Option<bool> {
+        None
+    }
+
+    fn set_resizable(&self, _resizeable: bool) {}
+
+    fn is_resizable(&self) -> bool {
+        false
+    }
+
+    fn set_enabled_buttons(&self, _buttons: WindowButtons) {}
+
+    fn enabled_buttons(&self) -> WindowButtons {
+        WindowButtons::all()
+    }
+
+    fn set_minimized(&self, _minimized: bool) {}
+
+    fn is_minimized(&self) -> Option<bool> {
+        None
+    }
+
+    fn set_maximized(&self, _maximized: bool) {}
+
+    fn is_maximized(&self) -> bool {
+        false
+    }
+
+    fn set_fullscreen(&self, _monitor: Option<Fullscreen>) {
+        warn!("Cannot set fullscreen on Android");
+    }
+
+    fn fullscreen(&self) -> Option<Fullscreen> {
+        None
+    }
+
+    fn set_decorations(&self, _decorations: bool) {}
+
+    fn is_decorated(&self) -> bool {
+        true
+    }
+
+    fn set_window_level(&self, _level: WindowLevel) {}
+
+    fn set_window_icon(&self, _window_icon: Option<crate::icon::Icon>) {}
+
+    fn set_ime_cursor_area(&self, _position: Position, _size: Size) {}
+
+    fn set_ime_allowed(&self, _allowed: bool) {}
+
+    fn set_ime_purpose(&self, _purpose: ImePurpose) {}
+
+    fn focus_window(&self) {}
+
+    fn request_user_attention(&self, _request_type: Option<window::UserAttentionType>) {}
+
+    fn set_cursor(&self, _: Cursor) {}
+
+    fn set_cursor_position(&self, _: Position) -> Result<(), RequestError> {
+        Err(NotSupportedError::new("set_cursor_position is not supported").into())
+    }
+
+    fn set_cursor_grab(&self, _: CursorGrabMode) -> Result<(), RequestError> {
+        Err(NotSupportedError::new("set_cursor_grab is not supported").into())
+    }
+
+    fn set_cursor_visible(&self, _: bool) {}
+
+    fn drag_window(&self) -> Result<(), RequestError> {
+        Err(NotSupportedError::new("drag_window is not supported").into())
+    }
+
+    fn drag_resize_window(&self, _direction: ResizeDirection) -> Result<(), RequestError> {
+        Err(NotSupportedError::new("drag_resize_window").into())
+    }
+
+    #[inline]
+    fn show_window_menu(&self, _position: Position) {}
+
+    fn set_cursor_hittest(&self, _hittest: bool) -> Result<(), RequestError> {
+        Err(NotSupportedError::new("set_cursor_hittest is not supported").into())
+    }
+
+    fn set_theme(&self, _theme: Option<Theme>) {}
+
+    fn theme(&self) -> Option<Theme> {
+        None
+    }
+
+    fn set_content_protected(&self, _protected: bool) {}
+
+    fn has_focus(&self) -> bool {
         HAS_FOCUS.load(Ordering::Relaxed)
     }
 
-    pub fn title(&self) -> String {
+    fn title(&self) -> String {
         String::new()
     }
 
-    pub fn reset_dead_keys(&self) {}
+    fn reset_dead_keys(&self) {}
+
+    #[cfg(feature = "rwh_06")]
+    fn rwh_06_display_handle(&self) -> &dyn rwh_06::HasDisplayHandle {
+        self
+    }
+
+    #[cfg(feature = "rwh_06")]
+    fn rwh_06_window_handle(&self) -> &dyn rwh_06::HasWindowHandle {
+        self
+    }
 }
 
 #[derive(Default, Clone, Debug)]

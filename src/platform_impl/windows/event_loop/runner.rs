@@ -9,7 +9,7 @@ use windows_sys::Win32::Foundation::HWND;
 
 use super::ControlFlow;
 use crate::dpi::PhysicalSize;
-use crate::event::{Event, InnerSizeWriter, StartCause, WindowEvent};
+use crate::event::{Event, StartCause, SurfaceSizeWriter, WindowEvent};
 use crate::platform_impl::platform::event_loop::{WindowData, GWL_USERDATA};
 use crate::platform_impl::platform::get_window_long;
 use crate::window::WindowId;
@@ -53,7 +53,7 @@ pub(crate) enum RunnerState {
 
 enum BufferedEvent {
     Event(Event),
-    ScaleFactorChanged(WindowId, f64, PhysicalSize<u32>),
+    ScaleFactorChanged(HWND, f64, PhysicalSize<u32>),
 }
 
 impl EventLoopRunner {
@@ -357,12 +357,12 @@ impl BufferedEvent {
     pub fn from_event(event: Event) -> BufferedEvent {
         match event {
             Event::WindowEvent {
-                event: WindowEvent::ScaleFactorChanged { scale_factor, inner_size_writer },
+                event: WindowEvent::ScaleFactorChanged { scale_factor, surface_size_writer },
                 window_id,
             } => BufferedEvent::ScaleFactorChanged(
-                window_id,
+                window_id.into_raw() as HWND,
                 scale_factor,
-                *inner_size_writer.new_inner_size.upgrade().unwrap().lock().unwrap(),
+                *surface_size_writer.new_surface_size.upgrade().unwrap().lock().unwrap(),
             ),
             event => BufferedEvent::Event(event),
         }
@@ -371,29 +371,28 @@ impl BufferedEvent {
     pub fn dispatch_event(self, dispatch: impl FnOnce(Event)) {
         match self {
             Self::Event(event) => dispatch(event),
-            Self::ScaleFactorChanged(window_id, scale_factor, new_inner_size) => {
-                let user_new_innner_size = Arc::new(Mutex::new(new_inner_size));
+            Self::ScaleFactorChanged(window, scale_factor, new_surface_size) => {
+                let user_new_surface_size = Arc::new(Mutex::new(new_surface_size));
                 dispatch(Event::WindowEvent {
-                    window_id,
+                    window_id: WindowId::from_raw(window as usize),
                     event: WindowEvent::ScaleFactorChanged {
                         scale_factor,
-                        inner_size_writer: InnerSizeWriter::new(Arc::downgrade(
-                            &user_new_innner_size,
+                        surface_size_writer: SurfaceSizeWriter::new(Arc::downgrade(
+                            &user_new_surface_size,
                         )),
                     },
                 });
-                let inner_size = *user_new_innner_size.lock().unwrap();
+                let surface_size = *user_new_surface_size.lock().unwrap();
 
-                drop(user_new_innner_size);
+                drop(user_new_surface_size);
 
-                if inner_size != new_inner_size {
+                if surface_size != new_surface_size {
                     let window_flags = unsafe {
-                        let userdata =
-                            get_window_long(window_id.0.into(), GWL_USERDATA) as *mut WindowData;
+                        let userdata = get_window_long(window, GWL_USERDATA) as *mut WindowData;
                         (*userdata).window_state_lock().window_flags
                     };
 
-                    window_flags.set_size((window_id.0).0, inner_size);
+                    window_flags.set_size(window, surface_size);
                 }
             },
         }

@@ -29,7 +29,7 @@ use super::event::dummy_event;
 use super::monitor;
 use super::observer::setup_control_flow_observers;
 use crate::application::ApplicationHandler;
-use crate::error::{EventLoopError, ExternalError};
+use crate::error::{EventLoopError, RequestError};
 use crate::event_loop::{
     ActiveEventLoop as RootActiveEventLoop, ControlFlow, DeviceEvents,
     EventLoopProxy as RootEventLoopProxy, OwnedDisplayHandle as RootOwnedDisplayHandle,
@@ -38,9 +38,7 @@ use crate::monitor::MonitorHandle as RootMonitorHandle;
 use crate::platform::macos::ActivationPolicy;
 use crate::platform::pump_events::PumpStatus;
 use crate::platform_impl::Window;
-use crate::window::{
-    CustomCursor as RootCustomCursor, CustomCursorSource, Theme, Window as RootWindow,
-};
+use crate::window::{CustomCursor as RootCustomCursor, CustomCursorSource, Theme};
 
 #[derive(Default)]
 pub struct PanicInfo {
@@ -105,15 +103,14 @@ impl RootActiveEventLoop for ActiveEventLoop {
     fn create_window(
         &self,
         window_attributes: crate::window::WindowAttributes,
-    ) -> Result<crate::window::Window, crate::error::OsError> {
-        let window = Window::new(self, window_attributes)?;
-        Ok(RootWindow { window })
+    ) -> Result<Box<dyn crate::window::Window>, RequestError> {
+        Ok(Box::new(Window::new(self, window_attributes)?))
     }
 
     fn create_custom_cursor(
         &self,
         source: CustomCursorSource,
-    ) -> Result<RootCustomCursor, ExternalError> {
+    ) -> Result<RootCustomCursor, RequestError> {
         Ok(RootCustomCursor { inner: CustomCursor::new(source.inner)? })
     }
 
@@ -193,18 +190,14 @@ pub struct EventLoop {
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub(crate) struct PlatformSpecificEventLoopAttributes {
-    pub(crate) activation_policy: ActivationPolicy,
+    pub(crate) activation_policy: Option<ActivationPolicy>,
     pub(crate) default_menu: bool,
     pub(crate) activate_ignoring_other_apps: bool,
 }
 
 impl Default for PlatformSpecificEventLoopAttributes {
     fn default() -> Self {
-        Self {
-            activation_policy: Default::default(), // Regular
-            default_menu: true,
-            activate_ignoring_other_apps: true,
-        }
+        Self { activation_policy: None, default_menu: true, activate_ignoring_other_apps: true }
     }
 }
 
@@ -226,9 +219,10 @@ impl EventLoop {
         }
 
         let activation_policy = match attributes.activation_policy {
-            ActivationPolicy::Regular => NSApplicationActivationPolicy::Regular,
-            ActivationPolicy::Accessory => NSApplicationActivationPolicy::Accessory,
-            ActivationPolicy::Prohibited => NSApplicationActivationPolicy::Prohibited,
+            None => None,
+            Some(ActivationPolicy::Regular) => Some(NSApplicationActivationPolicy::Regular),
+            Some(ActivationPolicy::Accessory) => Some(NSApplicationActivationPolicy::Accessory),
+            Some(ActivationPolicy::Prohibited) => Some(NSApplicationActivationPolicy::Prohibited),
         };
 
         let app_state = AppState::setup_global(

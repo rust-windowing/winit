@@ -8,19 +8,19 @@ use std::time::Instant;
 use objc2_app_kit::{NSApplication, NSApplicationActivationPolicy};
 use objc2_foundation::{MainThreadMarker, NSNotification};
 
-use super::event_handler::EventHandler;
+use super::super::event_handler::EventHandler;
 use super::event_loop::{stop_app_immediately, ActiveEventLoop, PanicInfo};
+use super::menu;
 use super::observer::{EventLoopWaker, RunLoop};
-use super::{menu, WindowId};
 use crate::application::ApplicationHandler;
 use crate::event::{StartCause, WindowEvent};
 use crate::event_loop::ControlFlow;
-use crate::window::WindowId as RootWindowId;
+use crate::window::WindowId;
 
 #[derive(Debug)]
 pub(super) struct AppState {
     mtm: MainThreadMarker,
-    activation_policy: NSApplicationActivationPolicy,
+    activation_policy: Option<NSApplicationActivationPolicy>,
     default_menu: bool,
     activate_ignoring_other_apps: bool,
     run_loop: RunLoop,
@@ -65,7 +65,7 @@ static GLOBAL: StaticMainThreadBound<OnceCell<Rc<AppState>>> =
 impl AppState {
     pub(super) fn setup_global(
         mtm: MainThreadMarker,
-        activation_policy: NSApplicationActivationPolicy,
+        activation_policy: Option<NSApplicationActivationPolicy>,
         default_menu: bool,
         activate_ignoring_other_apps: bool,
     ) -> Rc<Self> {
@@ -113,9 +113,12 @@ impl AppState {
         // We need to delay setting the activation policy and activating the app
         // until `applicationDidFinishLaunching` has been called. Otherwise the
         // menu bar is initially unresponsive on macOS 10.15.
-        app.setActivationPolicy(self.activation_policy);
+        // If no activation policy is explicitly provided, do not set it at all
+        // to allow the package manifest to define behavior via LSUIElement.
+        if self.activation_policy.is_some() {
+            app.setActivationPolicy(self.activation_policy.unwrap());
+        }
 
-        window_activation_hack(&app);
         #[allow(deprecated)]
         app.activateIgnoringOtherApps(self.activate_ignoring_other_apps);
 
@@ -242,7 +245,7 @@ impl AppState {
         // -> Don't go back into the event handler when our callstack originates from there
         if !self.event_handler.in_use() {
             self.with_handler(|app, event_loop| {
-                app.window_event(event_loop, RootWindowId(window_id), WindowEvent::RedrawRequested);
+                app.window_event(event_loop, window_id, WindowEvent::RedrawRequested);
             });
 
             // `pump_events` will request to stop immediately _after_ dispatching RedrawRequested
@@ -291,7 +294,7 @@ impl AppState {
         callback: impl FnOnce(&mut dyn ApplicationHandler, &ActiveEventLoop),
     ) {
         let event_loop = ActiveEventLoop { app_state: Rc::clone(self), mtm: self.mtm };
-        self.event_handler.handle(callback, &event_loop);
+        self.event_handler.handle(|app| callback(app, &event_loop));
     }
 
     /// dispatch `NewEvents(Init)` + `Resumed`
@@ -354,7 +357,7 @@ impl AppState {
         let redraw = mem::take(&mut *self.pending_redraw.borrow_mut());
         for window_id in redraw {
             self.with_handler(|app, event_loop| {
-                app.window_event(event_loop, RootWindowId(window_id), WindowEvent::RedrawRequested);
+                app.window_event(event_loop, window_id, WindowEvent::RedrawRequested);
             });
         }
         self.with_handler(|app, event_loop| {
@@ -386,27 +389,4 @@ impl AppState {
 /// `Option::min`)
 fn min_timeout(a: Option<Instant>, b: Option<Instant>) -> Option<Instant> {
     a.map_or(b, |a_timeout| b.map_or(Some(a_timeout), |b_timeout| Some(a_timeout.min(b_timeout))))
-}
-
-/// A hack to make activation of multiple windows work when creating them before
-/// `applicationDidFinishLaunching:` / `Event::Event::NewEvents(StartCause::Init)`.
-///
-/// Alternative to this would be the user calling `window.set_visible(true)` in
-/// `StartCause::Init`.
-///
-/// If this becomes too bothersome to maintain, it can probably be removed
-/// without too much damage.
-fn window_activation_hack(app: &NSApplication) {
-    // TODO: Proper ordering of the windows
-    app.windows().into_iter().for_each(|window| {
-        // Call `makeKeyAndOrderFront` if it was called on the window in `WinitWindow::new`
-        // This way we preserve the user's desired initial visibility status
-        // TODO: Also filter on the type/"level" of the window, and maybe other things?
-        if window.isVisible() {
-            tracing::trace!("Activating visible window");
-            window.makeKeyAndOrderFront(None);
-        } else {
-            tracing::trace!("Skipping activating invisible window");
-        }
-    })
 }

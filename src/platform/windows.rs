@@ -4,10 +4,13 @@
 //! tested regularly.
 use std::borrow::Borrow;
 use std::ffi::c_void;
+use std::ops::Deref;
 use std::path::Path;
 
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
+#[cfg(windows_platform)]
+use windows_sys::Win32::Foundation::HANDLE;
 
 use crate::dpi::PhysicalSize;
 use crate::event::{DeviceId, FingerId};
@@ -115,50 +118,25 @@ pub enum CornerPreference {
 ///
 /// See [`WindowBorrowExtWindows::any_thread`] for more information.
 #[derive(Clone, Debug)]
-pub struct AnyThread<W>(W);
+pub struct AnyThread<W: Window>(W);
 
-impl<W: Borrow<Window>> AnyThread<W> {
+impl<W: Window> AnyThread<W> {
     /// Get a reference to the inner window.
     #[inline]
-    pub fn get_ref(&self) -> &Window {
-        self.0.borrow()
-    }
-
-    /// Get a reference to the inner object.
-    #[inline]
-    pub fn inner(&self) -> &W {
+    pub fn get_ref(&self) -> &dyn Window {
         &self.0
     }
-
-    /// Unwrap and get the inner window.
-    #[inline]
-    pub fn into_inner(self) -> W {
-        self.0
-    }
 }
 
-impl<W: Borrow<Window>> AsRef<Window> for AnyThread<W> {
-    fn as_ref(&self) -> &Window {
-        self.get_ref()
-    }
-}
-
-impl<W: Borrow<Window>> Borrow<Window> for AnyThread<W> {
-    fn borrow(&self) -> &Window {
-        self.get_ref()
-    }
-}
-
-impl<W: Borrow<Window>> std::ops::Deref for AnyThread<W> {
-    type Target = Window;
-
+impl<W: Window> Deref for AnyThread<W> {
+    type Target = W;
     fn deref(&self) -> &Self::Target {
-        self.get_ref()
+        &self.0
     }
 }
 
 #[cfg(feature = "rwh_06")]
-impl<W: Borrow<Window>> rwh_06::HasWindowHandle for AnyThread<W> {
+impl<W: Window> rwh_06::HasWindowHandle for AnyThread<W> {
     fn window_handle(&self) -> Result<rwh_06::WindowHandle<'_>, rwh_06::HandleError> {
         // SAFETY: The top level user has asserted this is only used safely.
         unsafe { self.get_ref().window_handle_any_thread() }
@@ -341,7 +319,7 @@ pub trait WindowExtWindows {
     ///
     /// ```no_run
     /// # use winit::window::Window;
-    /// # fn scope(window: Window) {
+    /// # fn scope(window: Box<dyn Window>) {
     /// use std::thread;
     ///
     /// use winit::platform::windows::WindowExtWindows;
@@ -365,35 +343,41 @@ pub trait WindowExtWindows {
     ) -> Result<rwh_06::WindowHandle<'_>, rwh_06::HandleError>;
 }
 
-impl WindowExtWindows for Window {
+impl WindowExtWindows for dyn Window + '_ {
     #[inline]
     fn set_enable(&self, enabled: bool) {
-        self.window.set_enable(enabled)
+        let window = self.as_any().downcast_ref::<crate::platform_impl::Window>().unwrap();
+        window.set_enable(enabled)
     }
 
     #[inline]
     fn set_taskbar_icon(&self, taskbar_icon: Option<Icon>) {
-        self.window.set_taskbar_icon(taskbar_icon)
+        let window = self.as_any().downcast_ref::<crate::platform_impl::Window>().unwrap();
+        window.set_taskbar_icon(taskbar_icon)
     }
 
     #[inline]
     fn set_skip_taskbar(&self, skip: bool) {
-        self.window.set_skip_taskbar(skip)
+        let window = self.as_any().downcast_ref::<crate::platform_impl::Window>().unwrap();
+        window.set_skip_taskbar(skip)
     }
 
     #[inline]
     fn set_undecorated_shadow(&self, shadow: bool) {
-        self.window.set_undecorated_shadow(shadow)
+        let window = self.as_any().downcast_ref::<crate::platform_impl::Window>().unwrap();
+        window.set_undecorated_shadow(shadow)
     }
 
     #[inline]
     fn set_system_backdrop(&self, backdrop_type: BackdropType) {
-        self.window.set_system_backdrop(backdrop_type)
+        let window = self.as_any().downcast_ref::<crate::platform_impl::Window>().unwrap();
+        window.set_system_backdrop(backdrop_type)
     }
 
     #[inline]
     fn set_border_color(&self, color: Option<Color>) {
-        self.window.set_border_color(color.unwrap_or(Color::NONE))
+        let window = self.as_any().downcast_ref::<crate::platform_impl::Window>().unwrap();
+        window.set_border_color(color.unwrap_or(Color::NONE))
     }
 
     #[inline]
@@ -401,25 +385,29 @@ impl WindowExtWindows for Window {
         // The windows docs don't mention NONE as a valid options but it works in practice and is
         // useful to circumvent the Windows option "Show accent color on title bars and
         // window borders"
-        self.window.set_title_background_color(color.unwrap_or(Color::NONE))
+        let window = self.as_any().downcast_ref::<crate::platform_impl::Window>().unwrap();
+        window.set_title_background_color(color.unwrap_or(Color::NONE))
     }
 
     #[inline]
     fn set_title_text_color(&self, color: Color) {
-        self.window.set_title_text_color(color)
+        let window = self.as_any().downcast_ref::<crate::platform_impl::Window>().unwrap();
+        window.set_title_text_color(color)
     }
 
     #[inline]
     fn set_corner_preference(&self, preference: CornerPreference) {
-        self.window.set_corner_preference(preference)
+        let window = self.as_any().downcast_ref::<crate::platform_impl::Window>().unwrap();
+        window.set_corner_preference(preference)
     }
 
     #[cfg(feature = "rwh_06")]
     unsafe fn window_handle_any_thread(
         &self,
     ) -> Result<rwh_06::WindowHandle<'_>, rwh_06::HandleError> {
+        let window = self.as_any().downcast_ref::<crate::platform_impl::Window>().unwrap();
         unsafe {
-            let handle = self.window.rwh_06_no_thread_check()?;
+            let handle = window.rwh_06_no_thread_check()?;
 
             // SAFETY: The handle is valid in this context.
             Ok(rwh_06::WindowHandle::borrow_raw(handle))
@@ -430,7 +418,7 @@ impl WindowExtWindows for Window {
 /// Additional methods for anything that dereference to [`Window`].
 ///
 /// [`Window`]: crate::window::Window
-pub trait WindowBorrowExtWindows: Borrow<Window> + Sized {
+pub trait WindowBorrowExtWindows: Borrow<dyn Window> + Sized {
     /// Create an object that allows accessing the inner window handle in a thread-unsafe way.
     ///
     /// It is possible to call [`window_handle_any_thread`] to get around Windows's thread
@@ -457,12 +445,15 @@ pub trait WindowBorrowExtWindows: Borrow<Window> + Sized {
         doc = "[`HasWindowHandle`]: #only-available-with-rwh_06",
         doc = "[`window_handle_any_thread`]: #only-available-with-rwh_06"
     )]
-    unsafe fn any_thread(self) -> AnyThread<Self> {
+    unsafe fn any_thread(self) -> AnyThread<Self>
+    where
+        Self: Window,
+    {
         AnyThread(self)
     }
 }
 
-impl<W: Borrow<Window> + Sized> WindowBorrowExtWindows for W {}
+impl<W: Borrow<dyn Window> + Sized> WindowBorrowExtWindows for W {}
 
 /// Additional methods on `WindowAttributes` that are specific to Windows.
 #[allow(rustdoc::broken_intra_doc_links)]
@@ -667,10 +658,15 @@ pub trait DeviceIdExtWindows {
     fn persistent_identifier(&self) -> Option<String>;
 }
 
+#[cfg(windows_platform)]
 impl DeviceIdExtWindows for DeviceId {
-    #[inline]
     fn persistent_identifier(&self) -> Option<String> {
-        self.0.persistent_identifier()
+        let raw_id = self.into_raw();
+        if raw_id != 0 {
+            crate::platform_impl::raw_input::get_raw_input_device_name(raw_id as HANDLE)
+        } else {
+            None
+        }
     }
 }
 

@@ -27,19 +27,18 @@
 //! - [`padding`](https://developer.mozilla.org/en-US/docs/Web/CSS/padding)
 //!
 //! The following APIs can't take them into account and will therefore provide inaccurate results:
-//! - [`WindowEvent::Resized`] and [`Window::(set_)inner_size()`]
+//! - [`WindowEvent::SurfaceResized`] and [`Window::(set_)surface_size()`]
 //! - [`WindowEvent::Occluded`]
-//! - [`WindowEvent::CursorMoved`], [`WindowEvent::CursorEntered`], [`WindowEvent::CursorLeft`], and
-//!   [`WindowEvent::Touch`].
+//! - [`WindowEvent::PointerMoved`], [`WindowEvent::PointerEntered`] and
+//!   [`WindowEvent::PointerLeft`].
 //! - [`Window::set_outer_position()`]
 //!
-//! [`WindowEvent::Resized`]: crate::event::WindowEvent::Resized
-//! [`Window::(set_)inner_size()`]: crate::window::Window::inner_size
+//! [`WindowEvent::SurfaceResized`]: crate::event::WindowEvent::SurfaceResized
+//! [`Window::(set_)surface_size()`]: crate::window::Window::surface_size
 //! [`WindowEvent::Occluded`]: crate::event::WindowEvent::Occluded
-//! [`WindowEvent::CursorMoved`]: crate::event::WindowEvent::CursorMoved
-//! [`WindowEvent::CursorEntered`]: crate::event::WindowEvent::CursorEntered
-//! [`WindowEvent::CursorLeft`]: crate::event::WindowEvent::CursorLeft
-//! [`WindowEvent::Touch`]: crate::event::WindowEvent::Touch
+//! [`WindowEvent::PointerMoved`]: crate::event::WindowEvent::PointerMoved
+//! [`WindowEvent::PointerEntered`]: crate::event::WindowEvent::PointerEntered
+//! [`WindowEvent::PointerLeft`]: crate::event::WindowEvent::PointerLeft
 //! [`Window::set_outer_position()`]: crate::window::Window::set_outer_position
 
 use std::cell::Ref;
@@ -82,7 +81,7 @@ pub trait WindowExtWeb {
 
     /// Returns [`true`] if calling `event.preventDefault()` is enabled.
     ///
-    /// See [`Window::set_prevent_default()`] for more details.
+    /// See [`WindowExtWeb::set_prevent_default()`] for more details.
     fn prevent_default(&self) -> bool;
 
     /// Sets whether `event.preventDefault()` should be called on events on the
@@ -104,22 +103,34 @@ pub trait WindowExtWeb {
     fn is_cursor_lock_raw(&self) -> bool;
 }
 
-impl WindowExtWeb for Window {
+impl WindowExtWeb for dyn Window + '_ {
     #[inline]
     fn canvas(&self) -> Option<Ref<'_, HtmlCanvasElement>> {
-        self.window.canvas()
+        self.as_any()
+            .downcast_ref::<crate::platform_impl::Window>()
+            .expect("non Web window on Web")
+            .canvas()
     }
 
     fn prevent_default(&self) -> bool {
-        self.window.prevent_default()
+        self.as_any()
+            .downcast_ref::<crate::platform_impl::Window>()
+            .expect("non Web window on Web")
+            .prevent_default()
     }
 
     fn set_prevent_default(&self, prevent_default: bool) {
-        self.window.set_prevent_default(prevent_default)
+        self.as_any()
+            .downcast_ref::<crate::platform_impl::Window>()
+            .expect("non Web window on Web")
+            .set_prevent_default(prevent_default)
     }
 
     fn is_cursor_lock_raw(&self) -> bool {
-        self.window.is_cursor_lock_raw()
+        self.as_any()
+            .downcast_ref::<crate::platform_impl::Window>()
+            .expect("non Web window on Web")
+            .is_cursor_lock_raw()
     }
 }
 
@@ -136,7 +147,7 @@ pub trait WindowAttributesExtWeb {
     /// Sets whether `event.preventDefault()` should be called on events on the
     /// canvas that have side effects.
     ///
-    /// See [`Window::set_prevent_default()`] for more details.
+    /// See [`WindowExtWeb::set_prevent_default()`] for more details.
     ///
     /// Enabled by default.
     fn with_prevent_default(self, prevent_default: bool) -> Self;

@@ -14,8 +14,7 @@ use sctk::reexports::protocols::xdg::activation::v1::client::xdg_activation_v1::
 
 use crate::event_loop::AsyncRequestSerial;
 use crate::platform_impl::wayland::state::WinitState;
-use crate::platform_impl::WindowId;
-use crate::window::ActivationToken;
+use crate::window::{ActivationToken, WindowId};
 
 pub struct XdgActivationState {
     xdg_activation: XdgActivationV1,

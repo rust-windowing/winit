@@ -1,18 +1,20 @@
 #![allow(unused)]
 
+use std::sync::Arc;
+
 use winit::application::ApplicationHandler;
 use winit::event::{ElementState, KeyEvent, WindowEvent};
 use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
 use winit::keyboard::Key;
 #[cfg(windows)]
 use winit::platform::windows::{WindowAttributesExtWindows, WindowExtWindows};
-use winit::window::{Window, WindowId};
+use winit::window::{Window, WindowAttributes, WindowId};
 
 #[path = "util/fill.rs"]
 mod fill;
 
 struct App {
-    window: Option<Window>,
+    window: Option<Box<dyn Window>>,
     shadow: bool,
 }
 
@@ -24,7 +26,7 @@ impl Default for App {
 
 impl ApplicationHandler for App {
     fn can_create_surfaces(&mut self, event_loop: &dyn ActiveEventLoop) {
-        let mut attrs = Window::default_attributes().with_decorations(false);
+        let mut attrs = WindowAttributes::default().with_decorations(false);
         #[cfg(windows)]
         {
             attrs = attrs.with_undecorated_shadow(true);
@@ -53,7 +55,7 @@ impl ApplicationHandler for App {
             },
             WindowEvent::RedrawRequested => {
                 let window = self.window.as_ref().unwrap();
-                fill::fill_window_with_border(window);
+                fill::fill_window_with_border(window.as_ref());
                 window.request_redraw();
             },
             _ => (),

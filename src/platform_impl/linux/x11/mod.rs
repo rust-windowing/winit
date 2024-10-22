@@ -18,24 +18,25 @@ use tracing::warn;
 use x11rb::connection::RequestConnection;
 use x11rb::errors::{ConnectError, ConnectionError, IdsExhausted, ReplyError};
 use x11rb::protocol::xinput::{self, ConnectionExt as _};
-use x11rb::protocol::xkb;
-use x11rb::protocol::xproto::{self, ConnectionExt as _};
+use x11rb::protocol::{xkb, xproto};
 use x11rb::x11_utils::X11Error as LogicalError;
 use x11rb::xcb_ffi::ReplyOrIdError;
 
 use crate::application::ApplicationHandler;
-use crate::error::{EventLoopError, ExternalError, OsError as RootOsError};
-use crate::event::{Event, StartCause, WindowEvent};
+use crate::error::{EventLoopError, RequestError};
+use crate::event::{DeviceId, Event, StartCause, WindowEvent};
 use crate::event_loop::{
     ActiveEventLoop as RootActiveEventLoop, ControlFlow, DeviceEvents,
     OwnedDisplayHandle as RootOwnedDisplayHandle,
 };
 use crate::platform::pump_events::PumpStatus;
 use crate::platform_impl::common::xkb::Context;
-use crate::platform_impl::platform::{min_timeout, WindowId};
-use crate::platform_impl::{OsError, OwnedDisplayHandle, PlatformCustomCursor};
+use crate::platform_impl::platform::min_timeout;
+use crate::platform_impl::x11::window::Window;
+use crate::platform_impl::{OwnedDisplayHandle, PlatformCustomCursor};
 use crate::window::{
-    CustomCursor as RootCustomCursor, CustomCursorSource, Theme, WindowAttributes,
+    CustomCursor as RootCustomCursor, CustomCursorSource, Theme, Window as CoreWindow,
+    WindowAttributes, WindowId,
 };
 
 mod activation;
@@ -46,7 +47,7 @@ pub mod ffi;
 mod ime;
 mod monitor;
 mod util;
-mod window;
+pub(crate) mod window;
 mod xdisplay;
 mod xsettings;
 
@@ -398,9 +399,11 @@ impl EventLoop {
         // `run_on_demand` calls but if they have only just dropped their
         // windows we need to make sure those last requests are sent to the
         // X Server.
-        self.event_processor.target.x_connection().sync_with_server().map_err(|x_err| {
-            EventLoopError::Os(os_error!(OsError::XError(Arc::new(X11Error::Xlib(x_err)))))
-        })?;
+        self.event_processor
+            .target
+            .x_connection()
+            .sync_with_server()
+            .map_err(|x_err| EventLoopError::Os(os_error!(X11Error::Xlib(x_err))))?;
 
         exit
     }
@@ -518,13 +521,14 @@ impl EventLoop {
 
         // Empty activation tokens.
         while let Ok((window_id, serial)) = self.activation_receiver.try_recv() {
-            let token = self.event_processor.with_window(window_id.0 as xproto::Window, |window| {
-                window.generate_activation_token()
-            });
+            let token = self
+                .event_processor
+                .with_window(window_id.into_raw() as xproto::Window, |window| {
+                    window.generate_activation_token()
+                });
 
             match token {
                 Some(Ok(token)) => {
-                    let window_id = crate::window::WindowId(window_id);
                     let event = WindowEvent::ActivationTokenDone {
                         serial,
                         token: crate::window::ActivationToken::_new(token),
@@ -552,7 +556,6 @@ impl EventLoop {
             }
 
             for window_id in windows {
-                let window_id = crate::window::WindowId(window_id);
                 app.window_event(
                     &self.event_processor.target,
                     window_id,
@@ -571,12 +574,9 @@ impl EventLoop {
         while unsafe { self.event_processor.poll_one_event(xev.as_mut_ptr()) } {
             let mut xev = unsafe { xev.assume_init() };
             self.event_processor.process_event(&mut xev, |window_target, event: Event| {
-                if let Event::WindowEvent {
-                    window_id: crate::window::WindowId(wid),
-                    event: WindowEvent::RedrawRequested,
-                } = event
+                if let Event::WindowEvent { window_id, event: WindowEvent::RedrawRequested } = event
                 {
-                    window_target.redraw_sender.send(wid);
+                    window_target.redraw_sender.send(window_id);
                 } else {
                     match event {
                         Event::WindowEvent { window_id, event } => {
@@ -687,16 +687,14 @@ impl RootActiveEventLoop for ActiveEventLoop {
     fn create_window(
         &self,
         window_attributes: WindowAttributes,
-    ) -> Result<crate::window::Window, RootOsError> {
-        let window = crate::platform_impl::x11::Window::new(self, window_attributes)?;
-        let window = crate::platform_impl::Window::X(window);
-        Ok(crate::window::Window { window })
+    ) -> Result<Box<dyn CoreWindow>, RequestError> {
+        Ok(Box::new(Window::new(self, window_attributes)?))
     }
 
     fn create_custom_cursor(
         &self,
         custom_cursor: CustomCursorSource,
-    ) -> Result<RootCustomCursor, ExternalError> {
+    ) -> Result<RootCustomCursor, RequestError> {
         Ok(RootCustomCursor {
             inner: PlatformCustomCursor::X(CustomCursor::new(self, custom_cursor.inner)?),
         })
@@ -808,55 +806,13 @@ impl<'a> Deref for DeviceInfo<'a> {
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct DeviceId(xinput::DeviceId);
-
-impl DeviceId {
-    #[allow(unused)]
-    pub const fn dummy() -> Self {
-        DeviceId(0)
-    }
-}
-
-#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct FingerId(u32);
 
 impl FingerId {
+    #[cfg(test)]
     #[allow(unused)]
     pub const fn dummy() -> Self {
         FingerId(0)
-    }
-}
-
-pub(crate) struct Window(Arc<UnownedWindow>);
-
-impl Deref for Window {
-    type Target = UnownedWindow;
-
-    #[inline]
-    fn deref(&self) -> &UnownedWindow {
-        &self.0
-    }
-}
-
-impl Window {
-    pub(crate) fn new(
-        event_loop: &ActiveEventLoop,
-        attribs: WindowAttributes,
-    ) -> Result<Self, RootOsError> {
-        let window = Arc::new(UnownedWindow::new(event_loop, attribs)?);
-        event_loop.windows.borrow_mut().insert(window.id(), Arc::downgrade(&window));
-        Ok(Window(window))
-    }
-}
-
-impl Drop for Window {
-    fn drop(&mut self) {
-        let window = self.deref();
-        let xconn = &window.xconn;
-
-        if let Ok(c) = xconn.xcb_connection().destroy_window(window.id().0 as xproto::Window) {
-            c.ignore_error();
-        }
     }
 }
 
@@ -906,6 +862,9 @@ pub enum X11Error {
 
     /// Failed to get property.
     GetProperty(util::GetPropertyError),
+
+    /// Could not find an ARGB32 pict format.
+    NoArgb32Format,
 }
 
 impl fmt::Display for X11Error {
@@ -929,6 +888,9 @@ impl fmt::Display for X11Error {
             },
             X11Error::XsettingsParse(err) => {
                 write!(f, "Failed to parse xsettings: {:?}", err)
+            },
+            X11Error::NoArgb32Format => {
+                f.write_str("winit only supports X11 displays with ARGB32 picture formats")
             },
         }
     }
@@ -1026,10 +988,10 @@ impl<'a, E: fmt::Debug> CookieResultExt for Result<VoidCookie<'a>, E> {
 }
 
 fn mkwid(w: xproto::Window) -> crate::window::WindowId {
-    crate::window::WindowId(crate::platform_impl::platform::WindowId(w as _))
+    crate::window::WindowId::from_raw(w as _)
 }
-fn mkdid(w: xinput::DeviceId) -> crate::event::DeviceId {
-    crate::event::DeviceId(crate::platform_impl::DeviceId::X(DeviceId(w)))
+fn mkdid(w: xinput::DeviceId) -> DeviceId {
+    DeviceId::from_raw(w as i64)
 }
 
 fn mkfid(w: u32) -> crate::event::FingerId {

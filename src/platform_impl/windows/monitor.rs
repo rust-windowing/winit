@@ -16,7 +16,6 @@ use crate::dpi::{PhysicalPosition, PhysicalSize};
 use crate::monitor::VideoModeHandle as RootVideoModeHandle;
 use crate::platform_impl::platform::dpi::{dpi_to_scale_factor, get_monitor_dpi};
 use crate::platform_impl::platform::util::has_flag;
-use crate::platform_impl::platform::window::Window;
 
 #[derive(Clone)]
 pub struct VideoModeHandle {
@@ -134,17 +133,6 @@ pub fn primary_monitor() -> MonitorHandle {
 pub fn current_monitor(hwnd: HWND) -> MonitorHandle {
     let hmonitor = unsafe { MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST) };
     MonitorHandle::new(hmonitor)
-}
-
-impl Window {
-    pub fn available_monitors(&self) -> VecDeque<MonitorHandle> {
-        available_monitors()
-    }
-
-    pub fn primary_monitor(&self) -> Option<MonitorHandle> {
-        let monitor = primary_monitor();
-        Some(monitor)
-    }
 }
 
 pub(crate) fn get_monitor_info(hmonitor: HMONITOR) -> Result<MONITORINFOEXW, io::Error> {
