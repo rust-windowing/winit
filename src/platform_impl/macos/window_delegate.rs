@@ -1163,7 +1163,8 @@ impl WindowDelegate {
     #[inline]
     pub fn drag_window(&self) -> Result<(), ExternalError> {
         let mtm = MainThreadMarker::from(self);
-        let event = NSApplication::sharedApplication(mtm).currentEvent().unwrap();
+        let event =
+            NSApplication::sharedApplication(mtm).currentEvent().ok_or(ExternalError::Ignored)?;
         self.window().performWindowDragWithEvent(&event);
         Ok(())
     }
