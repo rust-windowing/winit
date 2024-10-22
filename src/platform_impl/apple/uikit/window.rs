@@ -20,13 +20,13 @@ use super::{app_state, monitor, ActiveEventLoop, Fullscreen, MonitorHandle};
 use crate::cursor::Cursor;
 use crate::dpi::{LogicalPosition, LogicalSize, PhysicalPosition, PhysicalSize, Position, Size};
 use crate::error::{NotSupportedError, RequestError};
-use crate::event::{Event, WindowEvent};
+use crate::event::{Event, SurfaceEvent};
 use crate::icon::Icon;
 use crate::monitor::MonitorHandle as CoreMonitorHandle;
 use crate::platform::ios::{ScreenEdge, StatusBarStyle, ValidOrientations};
 use crate::window::{
     CursorGrabMode, ImePurpose, ResizeDirection, Theme, UserAttentionType, Window as CoreWindow,
-    WindowAttributes, WindowButtons, WindowId, WindowLevel,
+    WindowAttributes, WindowButtons, SurfaceId, WindowLevel,
 };
 
 declare_class!(
@@ -48,9 +48,9 @@ declare_class!(
             let mtm = MainThreadMarker::new().unwrap();
             app_state::handle_nonuser_event(
                 mtm,
-                EventWrapper::StaticEvent(Event::WindowEvent {
+                EventWrapper::StaticEvent(Event::SurfaceEvent {
                     window_id: self.id(),
-                    event: WindowEvent::Focused(true),
+                    event: SurfaceEvent::Focused(true),
                 }),
             );
             let _: () = unsafe { msg_send![super(self), becomeKeyWindow] };
@@ -61,9 +61,9 @@ declare_class!(
             let mtm = MainThreadMarker::new().unwrap();
             app_state::handle_nonuser_event(
                 mtm,
-                EventWrapper::StaticEvent(Event::WindowEvent {
+                EventWrapper::StaticEvent(Event::SurfaceEvent {
                     window_id: self.id(),
-                    event: WindowEvent::Focused(false),
+                    event: SurfaceEvent::Focused(false),
                 }),
             );
             let _: () = unsafe { msg_send![super(self), resignKeyWindow] };
@@ -104,8 +104,8 @@ impl WinitUIWindow {
         this
     }
 
-    pub(crate) fn id(&self) -> WindowId {
-        WindowId::from_raw(self as *const Self as usize)
+    pub(crate) fn id(&self) -> SurfaceId {
+        SurfaceId::from_raw(self as *const Self as usize)
     }
 }
 
@@ -416,7 +416,7 @@ impl Inner {
         Some(MonitorHandle::new(UIScreen::mainScreen(MainThreadMarker::new().unwrap())))
     }
 
-    pub fn id(&self) -> WindowId {
+    pub fn id(&self) -> SurfaceId {
         self.window.id()
     }
 
@@ -530,9 +530,9 @@ impl Window {
                     suggested_size: size.to_physical(scale_factor),
                 }))
                 .chain(std::iter::once(EventWrapper::StaticEvent(
-                    Event::WindowEvent {
+                    Event::SurfaceEvent {
                         window_id: window.id(),
-                        event: WindowEvent::SurfaceResized(size.to_physical(scale_factor)),
+                        event: SurfaceEvent::SurfaceResized(size.to_physical(scale_factor)),
                     },
                 ))),
             );
@@ -584,7 +584,7 @@ impl rwh_06::HasWindowHandle for Window {
 }
 
 impl CoreWindow for Window {
-    fn id(&self) -> crate::window::WindowId {
+    fn id(&self) -> crate::window::SurfaceId {
         self.maybe_wait_on_main(|delegate| delegate.id())
     }
 

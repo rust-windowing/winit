@@ -27,7 +27,7 @@ use super::window::WinitUIWindow;
 use super::ActiveEventLoop;
 use crate::application::ApplicationHandler;
 use crate::dpi::PhysicalSize;
-use crate::event::{Event, StartCause, SurfaceSizeWriter, WindowEvent};
+use crate::event::{Event, StartCause, SurfaceSizeWriter, SurfaceEvent};
 use crate::event_loop::ControlFlow;
 
 macro_rules! bug {
@@ -71,7 +71,7 @@ fn handle_event(mtm: MainThreadMarker, event: Event) {
     let event_loop = &ActiveEventLoop { mtm };
     get_handler(mtm).handle(|app| match event {
         Event::NewEvents(cause) => app.new_events(event_loop, cause),
-        Event::WindowEvent { window_id, event } => app.window_event(event_loop, window_id, event),
+        Event::SurfaceEvent { window_id, event } => app.window_event(event_loop, window_id, event),
         Event::DeviceEvent { device_id, event } => app.device_event(event_loop, device_id, event),
         Event::UserWakeUp => app.proxy_wake_up(event_loop),
         Event::Suspended => app.suspended(event_loop),
@@ -103,7 +103,7 @@ enum UserCallbackTransitionResult<'a> {
 
 impl Event {
     fn is_redraw(&self) -> bool {
-        matches!(self, Event::WindowEvent { event: WindowEvent::RedrawRequested, .. })
+        matches!(self, Event::SurfaceEvent { event: SurfaceEvent::RedrawRequested, .. })
     }
 }
 
@@ -597,9 +597,9 @@ pub(crate) fn send_occluded_event_for_all_windows(application: &UIApplication, o
                 let ptr: *const WinitUIWindow = ptr.cast();
                 &*ptr
             };
-            events.push(EventWrapper::StaticEvent(Event::WindowEvent {
+            events.push(EventWrapper::StaticEvent(Event::SurfaceEvent {
                 window_id: window.id(),
-                event: WindowEvent::Occluded(occluded),
+                event: SurfaceEvent::Occluded(occluded),
             }));
         }
     }
@@ -624,9 +624,9 @@ pub fn handle_main_events_cleared(mtm: MainThreadMarker) {
         .main_events_cleared_transition()
         .into_iter()
         .map(|window| {
-            EventWrapper::StaticEvent(Event::WindowEvent {
+            EventWrapper::StaticEvent(Event::SurfaceEvent {
                 window_id: window.id(),
-                event: WindowEvent::RedrawRequested,
+                event: SurfaceEvent::RedrawRequested,
             })
         })
         .collect();
@@ -653,9 +653,9 @@ pub(crate) fn terminated(application: &UIApplication) {
                 let ptr: *const WinitUIWindow = ptr.cast();
                 &*ptr
             };
-            events.push(EventWrapper::StaticEvent(Event::WindowEvent {
+            events.push(EventWrapper::StaticEvent(Event::SurfaceEvent {
                 window_id: window.id(),
-                event: WindowEvent::Destroyed,
+                event: SurfaceEvent::Destroyed,
             }));
         }
     }
@@ -671,9 +671,9 @@ pub(crate) fn terminated(application: &UIApplication) {
 fn handle_hidpi_proxy(mtm: MainThreadMarker, event: ScaleFactorChanged) {
     let ScaleFactorChanged { suggested_size, scale_factor, window } = event;
     let new_surface_size = Arc::new(Mutex::new(suggested_size));
-    let event = Event::WindowEvent {
+    let event = Event::SurfaceEvent {
         window_id: window.id(),
-        event: WindowEvent::ScaleFactorChanged {
+        event: SurfaceEvent::ScaleFactorChanged {
             scale_factor,
             surface_size_writer: SurfaceSizeWriter::new(Arc::downgrade(&new_surface_size)),
         },

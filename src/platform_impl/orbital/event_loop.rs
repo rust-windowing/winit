@@ -25,7 +25,7 @@ use crate::keyboard::{
 };
 use crate::platform_impl::Window;
 use crate::window::{
-    CustomCursor as RootCustomCursor, CustomCursorSource, Theme, Window as CoreWindow, WindowId,
+    CustomCursor as RootCustomCursor, CustomCursorSource, Theme, Window as CoreWindow, SurfaceId,
 };
 
 fn convert_scancode(scancode: u8) -> (PhysicalKey, Option<NamedKey>) {
@@ -314,7 +314,7 @@ impl EventLoop {
     }
 
     fn process_event<A: ApplicationHandler>(
-        window_id: WindowId,
+        window_id: SurfaceId,
         event_option: EventOption,
         event_state: &mut EventState,
         window_target: &ActiveEventLoop,
@@ -505,7 +505,7 @@ impl EventLoop {
                 let mut creates = self.window_target.creates.lock().unwrap();
                 creates.pop_front()
             } {
-                let window_id = WindowId::from_raw(window.fd);
+                let window_id = SurfaceId::from_raw(window.fd);
 
                 let mut buf: [u8; 4096] = [0; 4096];
                 let path = window.fpath(&mut buf).expect("failed to read properties");
@@ -529,14 +529,14 @@ impl EventLoop {
             } {
                 app.window_event(&self.window_target, destroy_id, event::SurfaceEvent::Destroyed);
                 self.windows
-                    .retain(|(window, _event_state)| WindowId::from_raw(window.fd) != destroy_id);
+                    .retain(|(window, _event_state)| SurfaceId::from_raw(window.fd) != destroy_id);
             }
 
             // Handle window events.
             let mut i = 0;
             // While loop is used here because the same window may be processed more than once.
             while let Some((window, event_state)) = self.windows.get_mut(i) {
-                let window_id = WindowId::from_raw(window.fd);
+                let window_id = SurfaceId::from_raw(window.fd);
 
                 let mut event_buf = [0u8; 16 * mem::size_of::<orbclient::Event>()];
                 let count =
@@ -702,8 +702,8 @@ pub struct ActiveEventLoop {
     control_flow: Cell<ControlFlow>,
     exit: Cell<bool>,
     pub(super) creates: Mutex<VecDeque<Arc<RedoxSocket>>>,
-    pub(super) redraws: Arc<Mutex<VecDeque<WindowId>>>,
-    pub(super) destroys: Arc<Mutex<VecDeque<WindowId>>>,
+    pub(super) redraws: Arc<Mutex<VecDeque<SurfaceId>>>,
+    pub(super) destroys: Arc<Mutex<VecDeque<SurfaceId>>>,
     pub(super) event_socket: Arc<RedoxSocket>,
     pub(super) wake_socket: Arc<TimeSocket>,
     user_events_sender: mpsc::SyncSender<()>,

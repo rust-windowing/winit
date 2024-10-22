@@ -36,11 +36,11 @@ use super::window::WinitWindow;
 use super::{ffi, Fullscreen, MonitorHandle};
 use crate::dpi::{LogicalPosition, LogicalSize, PhysicalPosition, PhysicalSize, Position, Size};
 use crate::error::{NotSupportedError, RequestError};
-use crate::event::{SurfaceSizeWriter, WindowEvent};
+use crate::event::{SurfaceSizeWriter, SurfaceEvent};
 use crate::platform::macos::{OptionAsAlt, WindowExtMacOS};
 use crate::window::{
     Cursor, CursorGrabMode, Icon, ImePurpose, ResizeDirection, Theme, UserAttentionType,
-    WindowAttributes, WindowButtons, WindowId, WindowLevel,
+    WindowAttributes, WindowButtons, SurfaceId, WindowLevel,
 };
 
 #[derive(Clone, Debug, PartialEq)]
@@ -145,7 +145,7 @@ declare_class!(
         #[method(windowShouldClose:)]
         fn window_should_close(&self, _: Option<&AnyObject>) -> bool {
             trace_scope!("windowShouldClose:");
-            self.queue_event(WindowEvent::CloseRequested);
+            self.queue_event(SurfaceEvent::CloseRequested);
             false
         }
 
@@ -158,13 +158,13 @@ declare_class!(
                 // be called after the window closes.
                 self.window().setDelegate(None);
             });
-            self.queue_event(WindowEvent::Destroyed);
+            self.queue_event(SurfaceEvent::Destroyed);
         }
 
         #[method(windowDidResize:)]
         fn window_did_resize(&self, _: Option<&AnyObject>) {
             trace_scope!("windowDidResize:");
-            // NOTE: WindowEvent::SurfaceResized is reported in frameDidChange.
+            // NOTE: SurfaceEvent::SurfaceResized is reported in frameDidChange.
             self.emit_move_event();
         }
 
@@ -210,7 +210,7 @@ declare_class!(
             trace_scope!("windowDidBecomeKey:");
             // TODO: center the cursor if the window had mouse grab when it
             // lost focus
-            self.queue_event(WindowEvent::Focused(true));
+            self.queue_event(SurfaceEvent::Focused(true));
         }
 
         #[method(windowDidResignKey:)]
@@ -225,7 +225,7 @@ declare_class!(
             // a synthetic ModifiersChanged event when we lose focus.
             self.view().reset_modifiers();
 
-            self.queue_event(WindowEvent::Focused(false));
+            self.queue_event(SurfaceEvent::Focused(false));
         }
 
         /// Invoked when before enter fullscreen
@@ -350,7 +350,7 @@ declare_class!(
         fn window_did_change_occlusion_state(&self, _: Option<&AnyObject>) {
             trace_scope!("windowDidChangeOcclusionState:");
             let visible = self.window().occlusionState().contains(NSWindowOcclusionState::Visible);
-            self.queue_event(WindowEvent::Occluded(!visible));
+            self.queue_event(SurfaceEvent::Occluded(!visible));
         }
 
         #[method(windowDidChangeScreen:)]
@@ -379,7 +379,7 @@ declare_class!(
 
             filenames.into_iter().for_each(|file| {
                 let path = PathBuf::from(file.to_string());
-                self.queue_event(WindowEvent::HoveredFile(path));
+                self.queue_event(SurfaceEvent::HoveredFile(path));
             });
 
             true
@@ -405,7 +405,7 @@ declare_class!(
 
             filenames.into_iter().for_each(|file| {
                 let path = PathBuf::from(file.to_string());
-                self.queue_event(WindowEvent::DroppedFile(path));
+                self.queue_event(SurfaceEvent::DroppedFile(path));
             });
 
             true
@@ -421,7 +421,7 @@ declare_class!(
         #[method(draggingExited:)]
         fn dragging_exited(&self, _sender: Option<&NSObject>) {
             trace_scope!("draggingExited:");
-            self.queue_event(WindowEvent::HoveredFileCancelled);
+            self.queue_event(SurfaceEvent::HoveredFileCancelled);
         }
     }
 
@@ -469,7 +469,7 @@ declare_class!(
                     return;
                 }
 
-                self.queue_event(WindowEvent::ThemeChanged(new));
+                self.queue_event(SurfaceEvent::ThemeChanged(new));
             } else {
                 panic!("unknown observed keypath {key_path:?}");
             }
@@ -778,7 +778,7 @@ impl WindowDelegate {
 
         // XXX Send `Focused(false)` right after creating the window delegate, so we won't
         // obscure the real focused events on the startup.
-        delegate.queue_event(WindowEvent::Focused(false));
+        delegate.queue_event(SurfaceEvent::Focused(false));
 
         // Set fullscreen mode after we setup everything
         delegate.set_fullscreen(attrs.fullscreen.map(Into::into));
@@ -814,11 +814,11 @@ impl WindowDelegate {
     }
 
     #[track_caller]
-    pub(crate) fn id(&self) -> WindowId {
+    pub(crate) fn id(&self) -> SurfaceId {
         self.window().id()
     }
 
-    pub(crate) fn queue_event(&self, event: WindowEvent) {
+    pub(crate) fn queue_event(&self, event: SurfaceEvent) {
         let window_id = self.window().id();
         self.ivars().app_state.maybe_queue_with_handler(move |app, event_loop| {
             app.window_event(event_loop, window_id, event);
@@ -833,7 +833,7 @@ impl WindowDelegate {
 
         let suggested_size = content_size.to_physical(scale_factor);
         let new_surface_size = Arc::new(Mutex::new(suggested_size));
-        self.queue_event(WindowEvent::ScaleFactorChanged {
+        self.queue_event(SurfaceEvent::ScaleFactorChanged {
             scale_factor,
             surface_size_writer: SurfaceSizeWriter::new(Arc::downgrade(&new_surface_size)),
         });
@@ -845,7 +845,7 @@ impl WindowDelegate {
             let size = NSSize::new(logical_size.width, logical_size.height);
             window.setContentSize(size);
         }
-        self.queue_event(WindowEvent::SurfaceResized(physical_size));
+        self.queue_event(SurfaceEvent::SurfaceResized(physical_size));
     }
 
     fn emit_move_event(&self) {
@@ -857,7 +857,7 @@ impl WindowDelegate {
 
         let position =
             LogicalPosition::new(position.x, position.y).to_physical(self.scale_factor());
-        self.queue_event(WindowEvent::Moved(position));
+        self.queue_event(SurfaceEvent::Moved(position));
     }
 
     fn set_style_mask(&self, mask: NSWindowStyleMask) {

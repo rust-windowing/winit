@@ -13,9 +13,9 @@ use super::event_loop::{stop_app_immediately, ActiveEventLoop, PanicInfo};
 use super::menu;
 use super::observer::{EventLoopWaker, RunLoop};
 use crate::application::ApplicationHandler;
-use crate::event::{StartCause, WindowEvent};
+use crate::event::{StartCause, SurfaceEvent};
 use crate::event_loop::ControlFlow;
-use crate::window::WindowId;
+use crate::window::SurfaceId;
 
 #[derive(Debug)]
 pub(super) struct AppState {
@@ -40,7 +40,7 @@ pub(super) struct AppState {
     waker: RefCell<EventLoopWaker>,
     start_time: Cell<Option<Instant>>,
     wait_timeout: Cell<Option<Instant>>,
-    pending_redraw: RefCell<Vec<WindowId>>,
+    pending_redraw: RefCell<Vec<SurfaceId>>,
     // NOTE: This is strongly referenced by our `NSWindowDelegate` and our `NSView` subclass, and
     // as such should be careful to not add fields that, in turn, strongly reference those.
 }
@@ -240,12 +240,12 @@ impl AppState {
         self.control_flow.get()
     }
 
-    pub fn handle_redraw(self: &Rc<Self>, window_id: WindowId) {
+    pub fn handle_redraw(self: &Rc<Self>, window_id: SurfaceId) {
         // Redraw request might come out of order from the OS.
         // -> Don't go back into the event handler when our callstack originates from there
         if !self.event_handler.in_use() {
             self.with_handler(|app, event_loop| {
-                app.window_event(event_loop, window_id, WindowEvent::RedrawRequested);
+                app.window_event(event_loop, window_id, SurfaceEvent::RedrawRequested);
             });
 
             // `pump_events` will request to stop immediately _after_ dispatching RedrawRequested
@@ -258,7 +258,7 @@ impl AppState {
         }
     }
 
-    pub fn queue_redraw(&self, window_id: WindowId) {
+    pub fn queue_redraw(&self, window_id: SurfaceId) {
         let mut pending_redraw = self.pending_redraw.borrow_mut();
         if !pending_redraw.contains(&window_id) {
             pending_redraw.push(window_id);
@@ -357,7 +357,7 @@ impl AppState {
         let redraw = mem::take(&mut *self.pending_redraw.borrow_mut());
         for window_id in redraw {
             self.with_handler(|app, event_loop| {
-                app.window_event(event_loop, window_id, WindowEvent::RedrawRequested);
+                app.window_event(event_loop, window_id, SurfaceEvent::RedrawRequested);
             });
         }
         self.with_handler(|app, event_loop| {

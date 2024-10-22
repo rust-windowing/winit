@@ -6,7 +6,7 @@ use crate::cursor::Cursor;
 use crate::dpi::{PhysicalPosition, PhysicalSize, Position, Size};
 use crate::error::{NotSupportedError, RequestError};
 use crate::monitor::MonitorHandle as CoreMonitorHandle;
-use crate::window::{self, Fullscreen, ImePurpose, Window as CoreWindow, WindowId};
+use crate::window::{self, Fullscreen, ImePurpose, Window as CoreWindow, SurfaceId};
 
 // These values match the values uses in the `window_new` function in orbital:
 // https://gitlab.redox-os.org/redox-os/orbital/-/blob/master/src/scheme.rs
@@ -21,8 +21,8 @@ const ORBITAL_FLAG_TRANSPARENT: char = 't';
 
 pub struct Window {
     window_socket: Arc<RedoxSocket>,
-    redraws: Arc<Mutex<VecDeque<WindowId>>>,
-    destroys: Arc<Mutex<VecDeque<WindowId>>>,
+    redraws: Arc<Mutex<VecDeque<SurfaceId>>>,
+    destroys: Arc<Mutex<VecDeque<SurfaceId>>>,
     wake_socket: Arc<TimeSocket>,
 }
 
@@ -155,8 +155,8 @@ impl Window {
 }
 
 impl CoreWindow for Window {
-    fn id(&self) -> WindowId {
-        WindowId::from_raw(self.window_socket.fd)
+    fn id(&self) -> SurfaceId {
+        SurfaceId::from_raw(self.window_socket.fd)
     }
 
     #[inline]
