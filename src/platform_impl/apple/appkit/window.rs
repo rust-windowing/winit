@@ -141,12 +141,32 @@ impl CoreSurface for Window {
     }
 
     #[cfg(feature = "rwh_06")]
-    fn rwh_06_display_handle(&self) -> &dyn rwh_06::HasDisplayHandle {
+    fn rwh_06_window_handle(&self) -> &dyn rwh_06::HasWindowHandle {
         self
     }
 
+    fn current_monitor(&self) -> Option<CoreMonitorHandle> {
+        self.maybe_wait_on_main(|delegate| {
+            delegate.current_monitor().map(|inner| CoreMonitorHandle { inner })
+        })
+    }
+
+    fn available_monitors(&self) -> Box<dyn Iterator<Item = CoreMonitorHandle>> {
+        self.maybe_wait_on_main(|delegate| {
+            Box::new(
+                delegate.available_monitors().into_iter().map(|inner| CoreMonitorHandle { inner }),
+            )
+        })
+    }
+
+    fn primary_monitor(&self) -> Option<CoreMonitorHandle> {
+        self.maybe_wait_on_main(|delegate| {
+            delegate.primary_monitor().map(|inner| CoreMonitorHandle { inner })
+        })
+    }
+
     #[cfg(feature = "rwh_06")]
-    fn rwh_06_window_handle(&self) -> &dyn rwh_06::HasWindowHandle {
+    fn rwh_06_display_handle(&self) -> &dyn rwh_06::HasDisplayHandle {
         self
     }
 }
@@ -313,26 +333,6 @@ impl CoreWindow for Window {
 
     fn show_window_menu(&self, position: Position) {
         self.maybe_wait_on_main(|delegate| delegate.show_window_menu(position))
-    }
-
-    fn current_monitor(&self) -> Option<CoreMonitorHandle> {
-        self.maybe_wait_on_main(|delegate| {
-            delegate.current_monitor().map(|inner| CoreMonitorHandle { inner })
-        })
-    }
-
-    fn available_monitors(&self) -> Box<dyn Iterator<Item = CoreMonitorHandle>> {
-        self.maybe_wait_on_main(|delegate| {
-            Box::new(
-                delegate.available_monitors().into_iter().map(|inner| CoreMonitorHandle { inner }),
-            )
-        })
-    }
-
-    fn primary_monitor(&self) -> Option<CoreMonitorHandle> {
-        self.maybe_wait_on_main(|delegate| {
-            delegate.primary_monitor().map(|inner| CoreMonitorHandle { inner })
-        })
     }
 }
 

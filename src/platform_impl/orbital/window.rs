@@ -194,22 +194,38 @@ impl CoreSurface for Window {
     }
 
     #[inline]
+    fn set_cursor(&self, _: Cursor) {}
+
+    #[inline]
+    fn set_cursor_position(&self, _: Position) -> Result<(), RequestError> {
+        Err(NotSupportedError::new("set_cursor_position is not supported").into())
+    }
+
+    #[inline]
+    fn set_cursor_grab(&self, mode: window::CursorGrabMode) -> Result<(), RequestError> {
+        let (grab, relative) = match mode {
+            window::CursorGrabMode::None => (false, false),
+            window::CursorGrabMode::Confined => (true, false),
+            window::CursorGrabMode::Locked => (true, true),
+        };
+        self.window_socket
+            .write(format!("M,G,{}", if grab { 1 } else { 0 }).as_bytes())
+            .map_err(|err| os_error!(format!("{err}")))?;
+        self.window_socket
+            .write(format!("M,R,{}", if relative { 1 } else { 0 }).as_bytes())
+            .map_err(|err| os_error!(format!("{err}")))?;
+        Ok(())
+    }
+
+    #[inline]
+    fn set_cursor_visible(&self, visible: bool) {
+        let _ = self.window_socket.write(format!("M,C,{}", if visible { 1 } else { 0 }).as_bytes());
+    }
+
+    #[inline]
     fn set_cursor_hittest(&self, _hittest: bool) -> Result<(), RequestError> {
         Err(NotSupportedError::new("set_cursor_hittest is not supported").into())
     }
-    
-    #[cfg(feature = "rwh_06")]
-    fn rwh_06_window_handle(&self) -> &dyn rwh_06::HasWindowHandle {
-        self
-    }
-
-    #[cfg(feature = "rwh_06")]
-    fn rwh_06_display_handle(&self) -> &dyn rwh_06::HasDisplayHandle {
-        self
-    }
-}
-
-impl CoreWindow for Window {
 
     #[inline]
     fn primary_monitor(&self) -> Option<CoreMonitorHandle> {
@@ -225,6 +241,19 @@ impl CoreWindow for Window {
     fn current_monitor(&self) -> Option<CoreMonitorHandle> {
         Some(CoreMonitorHandle { inner: MonitorHandle })
     }
+    
+    #[cfg(feature = "rwh_06")]
+    fn rwh_06_window_handle(&self) -> &dyn rwh_06::HasWindowHandle {
+        self
+    }
+
+    #[cfg(feature = "rwh_06")]
+    fn rwh_06_display_handle(&self) -> &dyn rwh_06::HasDisplayHandle {
+        self
+    }
+}
+
+impl CoreWindow for Window {
 
     #[inline]
     fn reset_dead_keys(&self) {
@@ -380,35 +409,6 @@ impl CoreWindow for Window {
 
     #[inline]
     fn request_user_attention(&self, _request_type: Option<window::UserAttentionType>) {}
-
-    #[inline]
-    fn set_cursor(&self, _: Cursor) {}
-
-    #[inline]
-    fn set_cursor_position(&self, _: Position) -> Result<(), RequestError> {
-        Err(NotSupportedError::new("set_cursor_position is not supported").into())
-    }
-
-    #[inline]
-    fn set_cursor_grab(&self, mode: window::CursorGrabMode) -> Result<(), RequestError> {
-        let (grab, relative) = match mode {
-            window::CursorGrabMode::None => (false, false),
-            window::CursorGrabMode::Confined => (true, false),
-            window::CursorGrabMode::Locked => (true, true),
-        };
-        self.window_socket
-            .write(format!("M,G,{}", if grab { 1 } else { 0 }).as_bytes())
-            .map_err(|err| os_error!(format!("{err}")))?;
-        self.window_socket
-            .write(format!("M,R,{}", if relative { 1 } else { 0 }).as_bytes())
-            .map_err(|err| os_error!(format!("{err}")))?;
-        Ok(())
-    }
-
-    #[inline]
-    fn set_cursor_visible(&self, visible: bool) {
-        let _ = self.window_socket.write(format!("M,C,{}", if visible { 1 } else { 0 }).as_bytes());
-    }
 
     #[inline]
     fn drag_window(&self) -> Result<(), RequestError> {
