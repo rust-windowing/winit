@@ -154,24 +154,9 @@ impl Window {
     }
 }
 
-impl CoreWindow for Window {
+impl CoreSurface for Window {
     fn id(&self) -> SurfaceId {
         SurfaceId::from_raw(self.window_socket.fd)
-    }
-
-    #[inline]
-    fn primary_monitor(&self) -> Option<CoreMonitorHandle> {
-        Some(CoreMonitorHandle { inner: MonitorHandle })
-    }
-
-    #[inline]
-    fn available_monitors(&self) -> Box<dyn Iterator<Item = CoreMonitorHandle>> {
-        Box::new(vec![CoreMonitorHandle { inner: MonitorHandle }].into_iter())
-    }
-
-    #[inline]
-    fn current_monitor(&self) -> Option<CoreMonitorHandle> {
-        Some(CoreMonitorHandle { inner: MonitorHandle })
     }
 
     #[inline]
@@ -192,6 +177,54 @@ impl CoreWindow for Window {
 
     #[inline]
     fn pre_present_notify(&self) {}
+
+    #[inline]
+    fn surface_size(&self) -> PhysicalSize<u32> {
+        let mut buf: [u8; 4096] = [0; 4096];
+        let path = self.window_socket.fpath(&mut buf).expect("failed to read properties");
+        let properties = WindowProperties::new(path);
+        (properties.w, properties.h).into()
+    }
+
+    #[inline]
+    fn request_surface_size(&self, size: Size) -> Option<PhysicalSize<u32>> {
+        let (w, h): (u32, u32) = size.to_physical::<u32>(self.scale_factor()).into();
+        self.window_socket.write(format!("S,{w},{h}").as_bytes()).expect("failed to set size");
+        None
+    }
+
+    #[inline]
+    fn set_cursor_hittest(&self, _hittest: bool) -> Result<(), RequestError> {
+        Err(NotSupportedError::new("set_cursor_hittest is not supported").into())
+    }
+    
+    #[cfg(feature = "rwh_06")]
+    fn rwh_06_window_handle(&self) -> &dyn rwh_06::HasWindowHandle {
+        self
+    }
+
+    #[cfg(feature = "rwh_06")]
+    fn rwh_06_display_handle(&self) -> &dyn rwh_06::HasDisplayHandle {
+        self
+    }
+}
+
+impl CoreWindow for Window {
+
+    #[inline]
+    fn primary_monitor(&self) -> Option<CoreMonitorHandle> {
+        Some(CoreMonitorHandle { inner: MonitorHandle })
+    }
+
+    #[inline]
+    fn available_monitors(&self) -> Box<dyn Iterator<Item = CoreMonitorHandle>> {
+        Box::new(vec![CoreMonitorHandle { inner: MonitorHandle }].into_iter())
+    }
+
+    #[inline]
+    fn current_monitor(&self) -> Option<CoreMonitorHandle> {
+        Some(CoreMonitorHandle { inner: MonitorHandle })
+    }
 
     #[inline]
     fn reset_dead_keys(&self) {
@@ -217,21 +250,6 @@ impl CoreWindow for Window {
         // TODO: adjust for window decorations
         let (x, y): (i32, i32) = position.to_physical::<i32>(self.scale_factor()).into();
         self.window_socket.write(format!("P,{x},{y}").as_bytes()).expect("failed to set position");
-    }
-
-    #[inline]
-    fn surface_size(&self) -> PhysicalSize<u32> {
-        let mut buf: [u8; 4096] = [0; 4096];
-        let path = self.window_socket.fpath(&mut buf).expect("failed to read properties");
-        let properties = WindowProperties::new(path);
-        (properties.w, properties.h).into()
-    }
-
-    #[inline]
-    fn request_surface_size(&self, size: Size) -> Option<PhysicalSize<u32>> {
-        let (w, h): (u32, u32) = size.to_physical::<u32>(self.scale_factor()).into();
-        self.window_socket.write(format!("S,{w},{h}").as_bytes()).expect("failed to set size");
-        None
     }
 
     #[inline]
@@ -420,11 +438,6 @@ impl CoreWindow for Window {
     fn show_window_menu(&self, _position: Position) {}
 
     #[inline]
-    fn set_cursor_hittest(&self, _hittest: bool) -> Result<(), RequestError> {
-        Err(NotSupportedError::new("set_cursor_hittest is not supported").into())
-    }
-
-    #[inline]
     fn set_enabled_buttons(&self, _buttons: window::WindowButtons) {}
 
     #[inline]
@@ -446,16 +459,6 @@ impl CoreWindow for Window {
     fn set_theme(&self, _theme: Option<window::Theme>) {}
 
     fn set_content_protected(&self, _protected: bool) {}
-
-    #[cfg(feature = "rwh_06")]
-    fn rwh_06_window_handle(&self) -> &dyn rwh_06::HasWindowHandle {
-        self
-    }
-
-    #[cfg(feature = "rwh_06")]
-    fn rwh_06_display_handle(&self) -> &dyn rwh_06::HasDisplayHandle {
-        self
-    }
 }
 
 #[cfg(feature = "rwh_06")]
