@@ -24,15 +24,13 @@ use super::event::{
     scancode_to_physicalkey,
 };
 use super::window::WinitWindow;
-use super::DEVICE_ID;
 use crate::dpi::{LogicalPosition, LogicalSize};
 use crate::event::{
-    DeviceEvent, ElementState, Ime, Modifiers, MouseButton, MouseScrollDelta, TouchPhase,
-    WindowEvent,
+    DeviceEvent, ElementState, Ime, Modifiers, MouseButton, MouseScrollDelta, PointerKind,
+    PointerSource, TouchPhase, WindowEvent,
 };
 use crate::keyboard::{Key, KeyCode, KeyLocation, ModifiersState, NamedKey};
 use crate::platform::macos::OptionAsAlt;
-use crate::window::WindowId as RootWindowId;
 
 #[derive(Debug)]
 struct CursorState {
@@ -499,7 +497,7 @@ declare_class!(
             if !had_ime_input || self.ivars().forward_key_to_app.get() {
                 let key_event = create_key_event(&event, true, unsafe { event.isARepeat() }, None);
                 self.queue_event(WindowEvent::KeyboardInput {
-                    device_id: DEVICE_ID,
+                    device_id: None,
                     event: key_event,
                     is_synthetic: false,
                 });
@@ -519,7 +517,7 @@ declare_class!(
                 ImeState::Ground | ImeState::Disabled
             ) {
                 self.queue_event(WindowEvent::KeyboardInput {
-                    device_id: DEVICE_ID,
+                    device_id: None,
                     event: create_key_event(&event, false, false, None),
                     is_synthetic: false,
                 });
@@ -570,7 +568,7 @@ declare_class!(
             let event = create_key_event(&event, true, unsafe { event.isARepeat() }, None);
 
             self.queue_event(WindowEvent::KeyboardInput {
-                device_id: DEVICE_ID,
+                device_id: None,
                 event,
                 is_synthetic: false,
             });
@@ -652,19 +650,28 @@ declare_class!(
         }
 
         #[method(mouseEntered:)]
-        fn mouse_entered(&self, _event: &NSEvent) {
+        fn mouse_entered(&self, event: &NSEvent) {
             trace_scope!("mouseEntered:");
-            self.queue_event(WindowEvent::CursorEntered {
-                device_id: DEVICE_ID,
+
+            let position = self.mouse_view_point(event).to_physical(self.scale_factor());
+
+            self.queue_event(WindowEvent::PointerEntered {
+                device_id: None,
+                position,
+                kind: PointerKind::Mouse,
             });
         }
 
         #[method(mouseExited:)]
-        fn mouse_exited(&self, _event: &NSEvent) {
+        fn mouse_exited(&self, event: &NSEvent) {
             trace_scope!("mouseExited:");
 
-            self.queue_event(WindowEvent::CursorLeft {
-                device_id: DEVICE_ID,
+            let position = self.mouse_view_point(event).to_physical(self.scale_factor());
+
+            self.queue_event(WindowEvent::PointerLeft {
+                device_id: None,
+                position: Some(position),
+                kind: PointerKind::Mouse,
             });
         }
 
@@ -702,10 +709,10 @@ declare_class!(
             self.update_modifiers(event, false);
 
             self.ivars().app_state.maybe_queue_with_handler(move |app, event_loop|
-                app.device_event(event_loop, DEVICE_ID, DeviceEvent::MouseWheel { delta })
+                app.device_event(event_loop, None, DeviceEvent::MouseWheel { delta })
             );
             self.queue_event(WindowEvent::MouseWheel {
-                device_id: DEVICE_ID,
+                device_id: None,
                 delta,
                 phase,
             });
@@ -727,7 +734,7 @@ declare_class!(
             };
 
             self.queue_event(WindowEvent::PinchGesture {
-                device_id: DEVICE_ID,
+                device_id: None,
                 delta: unsafe { event.magnification() },
                 phase,
             });
@@ -740,7 +747,7 @@ declare_class!(
             self.mouse_motion(event);
 
             self.queue_event(WindowEvent::DoubleTapGesture {
-                device_id: DEVICE_ID,
+                device_id: None,
             });
         }
 
@@ -760,7 +767,7 @@ declare_class!(
             };
 
             self.queue_event(WindowEvent::RotationGesture {
-                device_id: DEVICE_ID,
+                device_id: None,
                 delta: unsafe { event.rotation() },
                 phase,
             });
@@ -771,7 +778,7 @@ declare_class!(
             trace_scope!("pressureChangeWithEvent:");
 
             self.queue_event(WindowEvent::TouchpadPressure {
-                device_id: DEVICE_ID,
+                device_id: None,
                 pressure: unsafe { event.pressure() },
                 stage: unsafe { event.stage() } as i64,
             });
@@ -847,7 +854,7 @@ impl WinitView {
     }
 
     fn queue_event(&self, event: WindowEvent) {
-        let window_id = RootWindowId(self.window().id());
+        let window_id = self.window().id();
         self.ivars().app_state.maybe_queue_with_handler(move |app, event_loop| {
             app.window_event(event_loop, window_id, event);
         });
@@ -985,7 +992,7 @@ impl WinitView {
                         event.location = KeyLocation::Left;
                         event.physical_key = get_left_modifier_code(&event.logical_key).into();
                         events.push_back(WindowEvent::KeyboardInput {
-                            device_id: DEVICE_ID,
+                            device_id: None,
                             event,
                             is_synthetic: false,
                         });
@@ -994,7 +1001,7 @@ impl WinitView {
                         event.location = KeyLocation::Right;
                         event.physical_key = get_right_modifier_code(&event.logical_key).into();
                         events.push_back(WindowEvent::KeyboardInput {
-                            device_id: DEVICE_ID,
+                            device_id: None,
                             event,
                             is_synthetic: false,
                         });
@@ -1025,7 +1032,7 @@ impl WinitView {
                     }
 
                     events.push_back(WindowEvent::KeyboardInput {
-                        device_id: DEVICE_ID,
+                        device_id: None,
                         event,
                         is_synthetic: false,
                     });
@@ -1047,20 +1054,21 @@ impl WinitView {
     }
 
     fn mouse_click(&self, event: &NSEvent, button_state: ElementState) {
+        let position = self.mouse_view_point(event).to_physical(self.scale_factor());
         let button = mouse_button(event);
 
         self.update_modifiers(event, false);
 
-        self.queue_event(WindowEvent::MouseInput {
-            device_id: DEVICE_ID,
+        self.queue_event(WindowEvent::PointerButton {
+            device_id: None,
             state: button_state,
-            button,
+            position,
+            button: button.into(),
         });
     }
 
     fn mouse_motion(&self, event: &NSEvent) {
-        let window_point = unsafe { event.locationInWindow() };
-        let view_point = self.convertPoint_fromView(window_point, None);
+        let view_point = self.mouse_view_point(event);
         let frame = self.frame();
 
         if view_point.x.is_sign_negative()
@@ -1075,14 +1083,20 @@ impl WinitView {
             }
         }
 
-        let view_point = LogicalPosition::new(view_point.x, view_point.y);
-
         self.update_modifiers(event, false);
 
-        self.queue_event(WindowEvent::CursorMoved {
-            device_id: DEVICE_ID,
+        self.queue_event(WindowEvent::PointerMoved {
+            device_id: None,
             position: view_point.to_physical(self.scale_factor()),
+            source: PointerSource::Mouse,
         });
+    }
+
+    fn mouse_view_point(&self, event: &NSEvent) -> LogicalPosition<f64> {
+        let window_point = unsafe { event.locationInWindow() };
+        let view_point = self.convertPoint_fromView(window_point, None);
+
+        LogicalPosition::new(view_point.x, view_point.y)
     }
 }
 

@@ -37,7 +37,7 @@ pub(crate) use cursor::{
     CustomCursorSource as PlatformCustomCursorSource,
 };
 
-pub use self::event::{DeviceId, FingerId};
+pub use self::event::FingerId;
 pub(crate) use self::event_loop::{
     ActiveEventLoop, EventLoop, EventLoopProxy, OwnedDisplayHandle,
     PlatformSpecificEventLoopAttributes,
@@ -48,5 +48,5 @@ pub(crate) use self::monitor::{
     VideoModeHandle,
 };
 use self::web_sys as backend;
-pub use self::window::{PlatformSpecificWindowAttributes, Window, WindowId};
+pub use self::window::{PlatformSpecificWindowAttributes, Window};
 pub(crate) use crate::icon::NoIcon as PlatformIcon;

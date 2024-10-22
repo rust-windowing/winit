@@ -72,7 +72,7 @@ impl EventLoopBuilder {
     /// Attempting to create the event loop off the main thread will panic. This
     /// restriction isn't strictly necessary on all platforms, but is imposed to
     /// eliminate any nasty surprises when porting to platforms that require it.
-    /// `EventLoopBuilderExt::any_thread` functions are exposed in the relevant
+    /// `EventLoopBuilderExt::with_any_thread` functions are exposed in the relevant
     /// [`platform`] module if the target platform supports creating an event
     /// loop on any thread.
     ///
@@ -420,7 +420,7 @@ impl rwh_06::HasDisplayHandle for dyn ActiveEventLoop + '_ {
 
 /// A proxy for the underlying display handle.
 ///
-/// The purpose of this type is to provide a cheaply clonable handle to the underlying
+/// The purpose of this type is to provide a cheaply cloneable handle to the underlying
 /// display handle. This is often used by graphics APIs to connect to the underlying APIs.
 /// It is difficult to keep a handle to the [`EventLoop`] type or the [`ActiveEventLoop`]
 /// type. In contrast, this type involves no lifetimes and can be persisted for as long as

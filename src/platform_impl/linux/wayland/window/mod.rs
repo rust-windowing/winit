@@ -16,7 +16,7 @@ use super::event_loop::sink::EventSink;
 use super::output::MonitorHandle;
 use super::state::WinitState;
 use super::types::xdg_activation::XdgActivationTokenData;
-use super::{ActiveEventLoop, WindowId};
+use super::ActiveEventLoop;
 use crate::dpi::{LogicalSize, PhysicalPosition, PhysicalSize, Position, Size};
 use crate::error::{NotSupportedError, RequestError};
 use crate::event::{Ime, WindowEvent};
@@ -25,8 +25,8 @@ use crate::monitor::MonitorHandle as CoreMonitorHandle;
 use crate::platform_impl::{Fullscreen, MonitorHandle as PlatformMonitorHandle};
 use crate::window::{
     Cursor, CursorGrabMode, Fullscreen as CoreFullscreen, ImePurpose, ResizeDirection, Theme,
-    UserAttentionType, Window as CoreWindow, WindowAttributes, WindowButtons,
-    WindowId as CoreWindowId, WindowLevel,
+    UserAttentionType, Window as CoreWindow, WindowAttributes, WindowButtons, WindowId,
+    WindowLevel,
 };
 
 pub(crate) mod state;
@@ -273,8 +273,8 @@ impl rwh_06::HasDisplayHandle for Window {
 }
 
 impl CoreWindow for Window {
-    fn id(&self) -> CoreWindowId {
-        CoreWindowId(self.window_id)
+    fn id(&self) -> WindowId {
+        self.window_id
     }
 
     fn request_redraw(&self) {

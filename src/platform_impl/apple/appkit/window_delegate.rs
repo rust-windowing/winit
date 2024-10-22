@@ -33,14 +33,14 @@ use super::monitor::{self, flip_window_screen_coordinates, get_display_id};
 use super::observer::RunLoop;
 use super::view::WinitView;
 use super::window::WinitWindow;
-use super::{ffi, Fullscreen, MonitorHandle, WindowId};
+use super::{ffi, Fullscreen, MonitorHandle};
 use crate::dpi::{LogicalPosition, LogicalSize, PhysicalPosition, PhysicalSize, Position, Size};
 use crate::error::{NotSupportedError, RequestError};
 use crate::event::{SurfaceSizeWriter, WindowEvent};
 use crate::platform::macos::{OptionAsAlt, WindowExtMacOS};
 use crate::window::{
     Cursor, CursorGrabMode, Icon, ImePurpose, ResizeDirection, Theme, UserAttentionType,
-    WindowAttributes, WindowButtons, WindowId as RootWindowId, WindowLevel,
+    WindowAttributes, WindowButtons, WindowId, WindowLevel,
 };
 
 #[derive(Clone, Debug, PartialEq)]
@@ -88,8 +88,8 @@ pub(crate) struct State {
 
     // During `windowDidResize`, we use this to only send Moved if the position changed.
     //
-    // This is expressed in native screen coordinates.
-    previous_position: Cell<Option<NSPoint>>,
+    // This is expressed in desktop coordinates, and flipped to match Winit's coordinate system.
+    previous_position: Cell<NSPoint>,
 
     // Used to prevent redundant events.
     previous_scale_factor: Cell<f64>,
@@ -218,10 +218,10 @@ declare_class!(
             trace_scope!("windowDidResignKey:");
             // It happens rather often, e.g. when the user is Cmd+Tabbing, that the
             // NSWindowDelegate will receive a didResignKey event despite no event
-            // being received when the modifiers are released.  This is because
+            // being received when the modifiers are released. This is because
             // flagsChanged events are received by the NSView instead of the
             // NSWindowDelegate, and as a result a tracked modifiers state can quite
-            // easily fall out of synchrony with reality.  This requires us to emit
+            // easily fall out of synchrony with reality. This requires us to emit
             // a synthetic ModifiersChanged event when we lose focus.
             self.view().reset_modifiers();
 
@@ -722,7 +722,7 @@ impl WindowDelegate {
         let delegate = mtm.alloc().set_ivars(State {
             app_state: Rc::clone(app_state),
             window: window.retain(),
-            previous_position: Cell::new(None),
+            previous_position: Cell::new(flip_window_screen_coordinates(window.frame())),
             previous_scale_factor: Cell::new(scale_factor),
             surface_resize_increments: Cell::new(surface_resize_increments),
             decorations: Cell::new(attrs.decorations),
@@ -819,7 +819,7 @@ impl WindowDelegate {
     }
 
     pub(crate) fn queue_event(&self, event: WindowEvent) {
-        let window_id = RootWindowId(self.window().id());
+        let window_id = self.window().id();
         self.ivars().app_state.maybe_queue_with_handler(move |app, event_loop| {
             app.window_event(event_loop, window_id, event);
         });
@@ -849,13 +849,12 @@ impl WindowDelegate {
     }
 
     fn emit_move_event(&self) {
-        let frame = self.window().frame();
-        if self.ivars().previous_position.get() == Some(frame.origin) {
+        let position = flip_window_screen_coordinates(self.window().frame());
+        if self.ivars().previous_position.get() == position {
             return;
         }
-        self.ivars().previous_position.set(Some(frame.origin));
+        self.ivars().previous_position.set(position);
 
-        let position = flip_window_screen_coordinates(frame);
         let position =
             LogicalPosition::new(position.x, position.y).to_physical(self.scale_factor());
         self.queue_event(WindowEvent::Moved(position));

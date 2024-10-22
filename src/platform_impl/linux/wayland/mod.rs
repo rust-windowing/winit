@@ -8,7 +8,7 @@ pub use window::Window;
 
 pub(super) use crate::cursor::OnlyCursorImage as CustomCursor;
 use crate::dpi::{LogicalSize, PhysicalSize};
-pub use crate::platform_impl::platform::WindowId;
+use crate::window::WindowId;
 
 mod event_loop;
 mod output;
@@ -17,20 +17,11 @@ mod state;
 mod types;
 mod window;
 
-/// Dummy device id, since Wayland doesn't have device events.
-#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct DeviceId;
-
-impl DeviceId {
-    pub const fn dummy() -> Self {
-        DeviceId
-    }
-}
-
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct FingerId(i32);
 
 impl FingerId {
+    #[cfg(test)]
     pub const fn dummy() -> Self {
         FingerId(0)
     }
@@ -39,7 +30,7 @@ impl FingerId {
 /// Get the WindowId out of the surface.
 #[inline]
 fn make_wid(surface: &WlSurface) -> WindowId {
-    WindowId(surface.id().as_ptr() as u64)
+    WindowId::from_raw(surface.id().as_ptr() as usize)
 }
 
 /// The default routine does floor, but we need round on Wayland.

@@ -29,17 +29,16 @@
 //! The following APIs can't take them into account and will therefore provide inaccurate results:
 //! - [`WindowEvent::SurfaceResized`] and [`Window::(set_)surface_size()`]
 //! - [`WindowEvent::Occluded`]
-//! - [`WindowEvent::CursorMoved`], [`WindowEvent::CursorEntered`], [`WindowEvent::CursorLeft`], and
-//!   [`WindowEvent::Touch`].
+//! - [`WindowEvent::PointerMoved`], [`WindowEvent::PointerEntered`] and
+//!   [`WindowEvent::PointerLeft`].
 //! - [`Window::set_outer_position()`]
 //!
 //! [`WindowEvent::SurfaceResized`]: crate::event::WindowEvent::SurfaceResized
 //! [`Window::(set_)surface_size()`]: crate::window::Window::surface_size
 //! [`WindowEvent::Occluded`]: crate::event::WindowEvent::Occluded
-//! [`WindowEvent::CursorMoved`]: crate::event::WindowEvent::CursorMoved
-//! [`WindowEvent::CursorEntered`]: crate::event::WindowEvent::CursorEntered
-//! [`WindowEvent::CursorLeft`]: crate::event::WindowEvent::CursorLeft
-//! [`WindowEvent::Touch`]: crate::event::WindowEvent::Touch
+//! [`WindowEvent::PointerMoved`]: crate::event::WindowEvent::PointerMoved
+//! [`WindowEvent::PointerEntered`]: crate::event::WindowEvent::PointerEntered
+//! [`WindowEvent::PointerLeft`]: crate::event::WindowEvent::PointerLeft
 //! [`Window::set_outer_position()`]: crate::window::Window::set_outer_position
 
 use std::cell::Ref;

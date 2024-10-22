@@ -91,8 +91,8 @@ image = { version = "0.25.0", default-features = false, features = ["png"] }
 tracing = { version = "0.1.40", default-features = false, features = ["log"] }
 tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
 
-[target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dev-dependencies]
-softbuffer = { version = "0.4.0", default-features = false, features = [
+[target.'cfg(not(target_os = "android"))'.dev-dependencies]
+softbuffer = { version = "0.4.6", default-features = false, features = [
     "x11",
     "x11-dlopen",
     "wayland",
@@ -270,7 +270,7 @@ xkbcommon-dl = "0.4.2"
 # Orbital
 [target.'cfg(target_os = "redox")'.dependencies]
 orbclient = { version = "0.3.47", default-features = false }
-redox_syscall = "0.4.1"
+redox_syscall = "0.5.7"
 
 # Web
 [target.'cfg(target_family = "wasm")'.dependencies]

@@ -12,7 +12,7 @@ use crate::error::RequestError;
 use crate::monitor::MonitorHandle as CoreMonitorHandle;
 use crate::window::{
     Cursor, Fullscreen, Icon, ImePurpose, Theme, UserAttentionType, Window as CoreWindow,
-    WindowAttributes, WindowButtons, WindowLevel,
+    WindowAttributes, WindowButtons, WindowId, WindowLevel,
 };
 
 pub(crate) struct Window {
@@ -92,7 +92,7 @@ impl rwh_06::HasWindowHandle for Window {
 
 impl CoreWindow for Window {
     fn id(&self) -> crate::window::WindowId {
-        self.maybe_wait_on_main(|delegate| crate::window::WindowId(delegate.id()))
+        self.maybe_wait_on_main(|delegate| delegate.id())
     }
 
     fn scale_factor(&self) -> f64 {
@@ -335,27 +335,6 @@ impl CoreWindow for Window {
     }
 }
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct WindowId(pub usize);
-
-impl WindowId {
-    pub const fn dummy() -> Self {
-        Self(0)
-    }
-}
-
-impl From<WindowId> for u64 {
-    fn from(window_id: WindowId) -> Self {
-        window_id.0 as u64
-    }
-}
-
-impl From<u64> for WindowId {
-    fn from(raw_id: u64) -> Self {
-        Self(raw_id as usize)
-    }
-}
-
 declare_class!(
     #[derive(Debug)]
     pub struct WinitWindow;
@@ -386,6 +365,6 @@ declare_class!(
 
 impl WinitWindow {
     pub(super) fn id(&self) -> WindowId {
-        WindowId(self as *const Self as usize)
+        WindowId::from_raw(self as *const Self as usize)
     }
 }

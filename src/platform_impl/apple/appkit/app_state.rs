@@ -10,17 +10,17 @@ use objc2_foundation::{MainThreadMarker, NSNotification};
 
 use super::super::event_handler::EventHandler;
 use super::event_loop::{stop_app_immediately, ActiveEventLoop, PanicInfo};
+use super::menu;
 use super::observer::{EventLoopWaker, RunLoop};
-use super::{menu, WindowId};
 use crate::application::ApplicationHandler;
 use crate::event::{StartCause, WindowEvent};
 use crate::event_loop::ControlFlow;
-use crate::window::WindowId as RootWindowId;
+use crate::window::WindowId;
 
 #[derive(Debug)]
 pub(super) struct AppState {
     mtm: MainThreadMarker,
-    activation_policy: NSApplicationActivationPolicy,
+    activation_policy: Option<NSApplicationActivationPolicy>,
     default_menu: bool,
     activate_ignoring_other_apps: bool,
     run_loop: RunLoop,
@@ -65,7 +65,7 @@ static GLOBAL: StaticMainThreadBound<OnceCell<Rc<AppState>>> =
 impl AppState {
     pub(super) fn setup_global(
         mtm: MainThreadMarker,
-        activation_policy: NSApplicationActivationPolicy,
+        activation_policy: Option<NSApplicationActivationPolicy>,
         default_menu: bool,
         activate_ignoring_other_apps: bool,
     ) -> Rc<Self> {
@@ -113,7 +113,11 @@ impl AppState {
         // We need to delay setting the activation policy and activating the app
         // until `applicationDidFinishLaunching` has been called. Otherwise the
         // menu bar is initially unresponsive on macOS 10.15.
-        app.setActivationPolicy(self.activation_policy);
+        // If no activation policy is explicitly provided, do not set it at all
+        // to allow the package manifest to define behavior via LSUIElement.
+        if self.activation_policy.is_some() {
+            app.setActivationPolicy(self.activation_policy.unwrap());
+        }
 
         #[allow(deprecated)]
         app.activateIgnoringOtherApps(self.activate_ignoring_other_apps);
@@ -241,7 +245,7 @@ impl AppState {
         // -> Don't go back into the event handler when our callstack originates from there
         if !self.event_handler.in_use() {
             self.with_handler(|app, event_loop| {
-                app.window_event(event_loop, RootWindowId(window_id), WindowEvent::RedrawRequested);
+                app.window_event(event_loop, window_id, WindowEvent::RedrawRequested);
             });
 
             // `pump_events` will request to stop immediately _after_ dispatching RedrawRequested
@@ -353,7 +357,7 @@ impl AppState {
         let redraw = mem::take(&mut *self.pending_redraw.borrow_mut());
         for window_id in redraw {
             self.with_handler(|app, event_loop| {
-                app.window_event(event_loop, RootWindowId(window_id), WindowEvent::RedrawRequested);
+                app.window_event(event_loop, window_id, WindowEvent::RedrawRequested);
             });
         }
         self.with_handler(|app, event_loop| {

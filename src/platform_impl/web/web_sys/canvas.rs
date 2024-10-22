@@ -12,21 +12,22 @@ use web_sys::{
 };
 
 use super::super::cursor::CursorHandler;
-use super::super::event::{DeviceId, FingerId};
 use super::super::main_thread::MainThreadMarker;
-use super::super::WindowId;
 use super::animation_frame::AnimationFrameHandler;
 use super::event_handle::EventListenerHandle;
 use super::intersection_handle::IntersectionObserverHandle;
 use super::media_query_handle::MediaQueryListHandle;
 use super::pointer::PointerHandler;
-use super::{event, fullscreen, ButtonsState, ResizeScaleHandle};
+use super::{event, fullscreen, ResizeScaleHandle};
 use crate::dpi::{LogicalPosition, PhysicalPosition, PhysicalSize};
 use crate::error::RequestError;
-use crate::event::{Force, MouseButton, MouseScrollDelta, SurfaceSizeWriter};
+use crate::event::{
+    ButtonSource, DeviceId, ElementState, MouseScrollDelta, PointerKind, PointerSource,
+    SurfaceSizeWriter,
+};
 use crate::keyboard::{Key, KeyLocation, ModifiersState, PhysicalKey};
 use crate::platform_impl::Fullscreen;
-use crate::window::{WindowAttributes, WindowId as RootWindowId};
+use crate::window::{WindowAttributes, WindowId};
 
 #[allow(dead_code)]
 pub struct Canvas {
@@ -328,73 +329,60 @@ impl Canvas {
             }));
     }
 
-    pub fn on_cursor_leave<F>(&self, handler: F)
+    pub fn on_pointer_leave<F>(&self, handler: F)
     where
-        F: 'static + FnMut(ModifiersState, Option<DeviceId>),
+        F: 'static + FnMut(ModifiersState, Option<DeviceId>, PhysicalPosition<f64>, PointerKind),
     {
-        self.handlers.borrow_mut().pointer_handler.on_cursor_leave(&self.common, handler)
+        self.handlers.borrow_mut().pointer_handler.on_pointer_leave(&self.common, handler)
     }
 
-    pub fn on_cursor_enter<F>(&self, handler: F)
+    pub fn on_pointer_enter<F>(&self, handler: F)
     where
-        F: 'static + FnMut(ModifiersState, Option<DeviceId>),
+        F: 'static + FnMut(ModifiersState, Option<DeviceId>, PhysicalPosition<f64>, PointerKind),
     {
-        self.handlers.borrow_mut().pointer_handler.on_cursor_enter(&self.common, handler)
+        self.handlers.borrow_mut().pointer_handler.on_pointer_enter(&self.common, handler)
     }
 
-    pub fn on_mouse_release<M, T>(&self, mouse_handler: M, touch_handler: T)
+    pub fn on_pointer_release<C>(&self, handler: C)
     where
-        M: 'static + FnMut(ModifiersState, DeviceId, PhysicalPosition<f64>, MouseButton),
-        T: 'static + FnMut(ModifiersState, DeviceId, FingerId, PhysicalPosition<f64>, Force),
+        C: 'static + FnMut(ModifiersState, Option<DeviceId>, PhysicalPosition<f64>, ButtonSource),
     {
-        self.handlers.borrow_mut().pointer_handler.on_mouse_release(
+        self.handlers.borrow_mut().pointer_handler.on_pointer_release(&self.common, handler)
+    }
+
+    pub fn on_pointer_press<C>(&self, handler: C)
+    where
+        C: 'static + FnMut(ModifiersState, Option<DeviceId>, PhysicalPosition<f64>, ButtonSource),
+    {
+        self.handlers.borrow_mut().pointer_handler.on_pointer_press(
             &self.common,
-            mouse_handler,
-            touch_handler,
-        )
-    }
-
-    pub fn on_mouse_press<M, T>(&self, mouse_handler: M, touch_handler: T)
-    where
-        M: 'static + FnMut(ModifiersState, DeviceId, PhysicalPosition<f64>, MouseButton),
-        T: 'static + FnMut(ModifiersState, DeviceId, FingerId, PhysicalPosition<f64>, Force),
-    {
-        self.handlers.borrow_mut().pointer_handler.on_mouse_press(
-            &self.common,
-            mouse_handler,
-            touch_handler,
+            handler,
             Rc::clone(&self.prevent_default),
         )
     }
 
-    pub fn on_cursor_move<M, T, B>(&self, mouse_handler: M, touch_handler: T, button_handler: B)
+    pub fn on_pointer_move<C, B>(&self, cursor_handler: C, button_handler: B)
     where
-        M: 'static
-            + FnMut(ModifiersState, DeviceId, &mut dyn Iterator<Item = PhysicalPosition<f64>>),
-        T: 'static
+        C: 'static
             + FnMut(
-                ModifiersState,
-                DeviceId,
-                FingerId,
-                &mut dyn Iterator<Item = (PhysicalPosition<f64>, Force)>,
+                Option<DeviceId>,
+                &mut dyn Iterator<Item = (ModifiersState, PhysicalPosition<f64>, PointerSource)>,
             ),
         B: 'static
-            + FnMut(ModifiersState, DeviceId, PhysicalPosition<f64>, ButtonsState, MouseButton),
+            + FnMut(
+                ModifiersState,
+                Option<DeviceId>,
+                PhysicalPosition<f64>,
+                ElementState,
+                ButtonSource,
+            ),
     {
-        self.handlers.borrow_mut().pointer_handler.on_cursor_move(
+        self.handlers.borrow_mut().pointer_handler.on_pointer_move(
             &self.common,
-            mouse_handler,
-            touch_handler,
+            cursor_handler,
             button_handler,
             Rc::clone(&self.prevent_default),
         )
-    }
-
-    pub fn on_touch_cancel<F>(&self, handler: F)
-    where
-        F: 'static + FnMut(DeviceId, FingerId, PhysicalPosition<f64>, Force),
-    {
-        self.handlers.borrow_mut().pointer_handler.on_touch_cancel(&self.common, handler)
     }
 
     pub fn on_mouse_wheel<F>(&self, mut handler: F)
@@ -501,7 +489,7 @@ impl Canvas {
         let new_size = {
             let new_size = Arc::new(Mutex::new(current_size));
             event_handler(crate::event::Event::WindowEvent {
-                window_id: RootWindowId(self.id),
+                window_id: self.id,
                 event: crate::event::WindowEvent::ScaleFactorChanged {
                     scale_factor: scale,
                     surface_size_writer: SurfaceSizeWriter::new(Arc::downgrade(&new_size)),
@@ -529,7 +517,7 @@ impl Canvas {
             // Then we at least send a resized event.
             self.set_old_size(new_size);
             runner.send_event(crate::event::Event::WindowEvent {
-                window_id: RootWindowId(self.id),
+                window_id: self.id,
                 event: crate::event::WindowEvent::SurfaceResized(new_size),
             })
         }

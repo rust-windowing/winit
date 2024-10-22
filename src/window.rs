@@ -11,7 +11,7 @@ use crate::dpi::{PhysicalPosition, PhysicalSize, Position, Size};
 use crate::error::RequestError;
 pub use crate::icon::{BadIcon, Icon};
 use crate::monitor::{MonitorHandle, VideoModeHandle};
-use crate::platform_impl::{self, PlatformSpecificWindowAttributes};
+use crate::platform_impl::PlatformSpecificWindowAttributes;
 use crate::utils::AsAny;
 
 /// Identifier of a window. Unique for each window.
@@ -21,36 +21,27 @@ use crate::utils::AsAny;
 /// Whenever you receive an event specific to a window, this event contains a `WindowId` which you
 /// can then compare to the ids of your windows.
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct WindowId(pub(crate) platform_impl::WindowId);
+pub struct WindowId(usize);
 
 impl WindowId {
-    /// Returns a dummy id, useful for unit testing.
+    /// Convert the `WindowId` into the underlying integer.
     ///
-    /// # Notes
+    /// This is useful if you need to pass the ID across an FFI boundary, or store it in an atomic.
+    pub const fn into_raw(self) -> usize {
+        self.0
+    }
+
+    /// Construct a `WindowId` from the underlying integer.
     ///
-    /// The only guarantee made about the return value of this function is that
-    /// it will always be equal to itself and to future values returned by this function.
-    /// No other guarantees are made. This may be equal to a real [`WindowId`].
-    pub const fn dummy() -> Self {
-        WindowId(platform_impl::WindowId::dummy())
+    /// This should only be called with integers returned from [`WindowId::into_raw`].
+    pub const fn from_raw(id: usize) -> Self {
+        Self(id)
     }
 }
 
 impl fmt::Debug for WindowId {
     fn fmt(&self, fmtr: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.0.fmt(fmtr)
-    }
-}
-
-impl From<WindowId> for u64 {
-    fn from(window_id: WindowId) -> Self {
-        window_id.0.into()
-    }
-}
-
-impl From<u64> for WindowId {
-    fn from(raw_id: u64) -> Self {
-        Self(raw_id.into())
     }
 }
 

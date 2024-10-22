@@ -108,44 +108,6 @@ pub(crate) static X11_BACKEND: Lazy<Mutex<Result<Arc<XConnection>, XNotSupported
     Lazy::new(|| Mutex::new(XConnection::new(Some(x_error_callback)).map(Arc::new)));
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct WindowId(u64);
-
-impl From<WindowId> for u64 {
-    fn from(window_id: WindowId) -> Self {
-        window_id.0
-    }
-}
-
-impl From<u64> for WindowId {
-    fn from(raw_id: u64) -> Self {
-        Self(raw_id)
-    }
-}
-
-impl WindowId {
-    pub const fn dummy() -> Self {
-        Self(0)
-    }
-}
-
-#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum DeviceId {
-    #[cfg(x11_platform)]
-    X(x11::DeviceId),
-    #[cfg(wayland_platform)]
-    Wayland(wayland::DeviceId),
-}
-
-impl DeviceId {
-    pub const fn dummy() -> Self {
-        #[cfg(wayland_platform)]
-        return DeviceId::Wayland(wayland::DeviceId::dummy());
-        #[cfg(all(not(wayland_platform), x11_platform))]
-        return DeviceId::X(x11::DeviceId::dummy());
-    }
-}
-
-#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum FingerId {
     #[cfg(x11_platform)]
     X(x11::FingerId),
@@ -154,6 +116,7 @@ pub enum FingerId {
 }
 
 impl FingerId {
+    #[cfg(test)]
     pub const fn dummy() -> Self {
         #[cfg(wayland_platform)]
         return FingerId::Wayland(wayland::FingerId::dummy());
@@ -276,7 +239,7 @@ pub(crate) enum PlatformCustomCursor {
 
 /// Hooks for X11 errors.
 #[cfg(x11_platform)]
-pub(crate) static mut XLIB_ERROR_HOOKS: Mutex<Vec<XlibErrorHook>> = Mutex::new(Vec::new());
+pub(crate) static XLIB_ERROR_HOOKS: Mutex<Vec<XlibErrorHook>> = Mutex::new(Vec::new());
 
 #[cfg(x11_platform)]
 unsafe extern "C" fn x_error_callback(
@@ -287,7 +250,7 @@ unsafe extern "C" fn x_error_callback(
     if let Ok(ref xconn) = *xconn_lock {
         // Call all the hooks.
         let mut error_handled = false;
-        for hook in unsafe { XLIB_ERROR_HOOKS.lock() }.unwrap().iter() {
+        for hook in XLIB_ERROR_HOOKS.lock().unwrap().iter() {
             error_handled |= hook(display as *mut _, event as *mut _);
         }
 
@@ -349,8 +312,8 @@ impl EventLoop {
                 "Initializing the event loop outside of the main thread is a significant \
                  cross-platform compatibility hazard. If you absolutely need to create an \
                  EventLoop on a different thread, you can use the \
-                 `EventLoopBuilderExtX11::any_thread` or `EventLoopBuilderExtWayland::any_thread` \
-                 functions."
+                 `EventLoopBuilderExtX11::with_any_thread` or \
+                 `EventLoopBuilderExtWayland::with_any_thread` functions."
             );
         }
 

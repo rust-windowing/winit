@@ -385,9 +385,12 @@ impl WindowAttributesExtMacOS for WindowAttributes {
 }
 
 pub trait EventLoopBuilderExtMacOS {
-    /// Sets the activation policy for the application.
+    /// Sets the activation policy for the application. If used, this will override
+    /// any relevant settings provided in the package manifest.
+    /// For instance, `with_activation_policy(ActivationPolicy::Regular)` will prevent
+    /// the application from running as an "agent", even if LSUIElement is set to true.
     ///
-    /// It is set to [`ActivationPolicy::Regular`] by default.
+    /// If unused, the Winit will honor the package manifest.
     ///
     /// # Example
     ///
@@ -439,7 +442,7 @@ pub trait EventLoopBuilderExtMacOS {
 impl EventLoopBuilderExtMacOS for EventLoopBuilder {
     #[inline]
     fn with_activation_policy(&mut self, activation_policy: ActivationPolicy) -> &mut Self {
-        self.platform_specific.activation_policy = activation_policy;
+        self.platform_specific.activation_policy = Some(activation_policy);
         self
     }
 

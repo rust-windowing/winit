@@ -18,7 +18,6 @@ use wasm_bindgen::JsCast;
 use web_sys::{Document, HtmlCanvasElement, Navigator, PageTransitionEvent, VisibilityState};
 
 pub use self::canvas::{Canvas, Style};
-pub use self::event::ButtonsState;
 pub use self::event_handle::EventListenerHandle;
 pub use self::resize_scaling::ResizeScaleHandle;
 pub use self::schedule::Schedule;

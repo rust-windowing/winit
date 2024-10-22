@@ -66,11 +66,11 @@ use crate::platform_impl::platform::keyboard::KeyEventBuilder;
 use crate::platform_impl::platform::window_state::{
     CursorFlags, SavedWindow, WindowFlags, WindowState,
 };
-use crate::platform_impl::platform::{monitor, util, Fullscreen, SelectedCursor, WindowId};
+use crate::platform_impl::platform::{monitor, util, Fullscreen, SelectedCursor};
 use crate::window::{
     CursorGrabMode, Fullscreen as CoreFullscreen, ImePurpose, ResizeDirection, Theme,
-    UserAttentionType, Window as CoreWindow, WindowAttributes, WindowButtons,
-    WindowId as CoreWindowId, WindowLevel,
+    UserAttentionType, Window as CoreWindow, WindowAttributes, WindowButtons, WindowId,
+    WindowLevel,
 };
 
 /// The Win32 implementation of the main `Window` object.
@@ -696,8 +696,8 @@ impl CoreWindow for Window {
         Ok(())
     }
 
-    fn id(&self) -> CoreWindowId {
-        CoreWindowId(WindowId(self.hwnd()))
+    fn id(&self) -> WindowId {
+        WindowId::from_raw(self.hwnd() as usize)
     }
 
     fn set_minimized(&self, minimized: bool) {

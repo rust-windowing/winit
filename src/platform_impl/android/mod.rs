@@ -15,7 +15,7 @@ use crate::application::ApplicationHandler;
 use crate::cursor::Cursor;
 use crate::dpi::{PhysicalPosition, PhysicalSize, Position, Size};
 use crate::error::{EventLoopError, NotSupportedError, RequestError};
-use crate::event::{self, Force, StartCause, SurfaceSizeWriter};
+use crate::event::{self, DeviceId, Force, StartCause, SurfaceSizeWriter};
 use crate::event_loop::{
     ActiveEventLoop as RootActiveEventLoop, ControlFlow, DeviceEvents,
     EventLoopProxy as RootEventLoopProxy, OwnedDisplayHandle as RootOwnedDisplayHandle,
@@ -24,7 +24,8 @@ use crate::monitor::MonitorHandle as RootMonitorHandle;
 use crate::platform::pump_events::PumpStatus;
 use crate::window::{
     self, CursorGrabMode, CustomCursor, CustomCursorSource, Fullscreen, ImePurpose,
-    ResizeDirection, Theme, Window as CoreWindow, WindowAttributes, WindowButtons, WindowLevel,
+    ResizeDirection, Theme, Window as CoreWindow, WindowAttributes, WindowButtons, WindowId,
+    WindowLevel,
 };
 
 mod keycodes;
@@ -122,6 +123,9 @@ impl Default for PlatformSpecificEventLoopAttributes {
     }
 }
 
+// Android currently only supports one window
+const GLOBAL_WINDOW: WindowId = WindowId::from_raw(0);
+
 impl EventLoop {
     pub(crate) fn new(
         attributes: &PlatformSpecificEventLoopAttributes,
@@ -187,22 +191,19 @@ impl EventLoop {
                 },
                 MainEvent::GainedFocus => {
                     HAS_FOCUS.store(true, Ordering::Relaxed);
-                    let window_id = window::WindowId(WindowId);
                     let event = event::WindowEvent::Focused(true);
-                    app.window_event(&self.window_target, window_id, event);
+                    app.window_event(&self.window_target, GLOBAL_WINDOW, event);
                 },
                 MainEvent::LostFocus => {
                     HAS_FOCUS.store(false, Ordering::Relaxed);
-                    let window_id = window::WindowId(WindowId);
                     let event = event::WindowEvent::Focused(false);
-                    app.window_event(&self.window_target, window_id, event);
+                    app.window_event(&self.window_target, GLOBAL_WINDOW, event);
                 },
                 MainEvent::ConfigChanged { .. } => {
                     let old_scale_factor = scale_factor(&self.android_app);
                     let scale_factor = scale_factor(&self.android_app);
                     if (scale_factor - old_scale_factor).abs() < f64::EPSILON {
                         let new_surface_size = Arc::new(Mutex::new(screen_size(&self.android_app)));
-                        let window_id = window::WindowId(WindowId);
                         let event = event::WindowEvent::ScaleFactorChanged {
                             surface_size_writer: SurfaceSizeWriter::new(Arc::downgrade(
                                 &new_surface_size,
@@ -210,18 +211,18 @@ impl EventLoop {
                             scale_factor,
                         };
 
-                        app.window_event(&self.window_target, window_id, event);
+                        app.window_event(&self.window_target, GLOBAL_WINDOW, event);
                     }
                 },
                 MainEvent::LowMemory => {
                     app.memory_warning(&self.window_target);
                 },
                 MainEvent::Start => {
-                    // XXX: how to forward this state to applications?
-                    warn!("TODO: forward onStart notification to application");
+                    app.resumed(self.window_target());
                 },
                 MainEvent::Resume { .. } => {
                     debug!("App Resumed - is running");
+                    // TODO: This is incorrect - will be solved in https://github.com/rust-windowing/winit/pull/3897
                     self.running = true;
                 },
                 MainEvent::SaveState { .. } => {
@@ -231,11 +232,11 @@ impl EventLoop {
                 },
                 MainEvent::Pause => {
                     debug!("App Paused - stopped running");
+                    // TODO: This is incorrect - will be solved in https://github.com/rust-windowing/winit/pull/3897
                     self.running = false;
                 },
                 MainEvent::Stop => {
-                    // XXX: how to forward this state to applications?
-                    warn!("TODO: forward onStop notification to application");
+                    app.suspended(self.window_target());
                 },
                 MainEvent::Destroy => {
                     // XXX: maybe exit mainloop to drop things before being
@@ -286,17 +287,15 @@ impl EventLoop {
                 } else {
                     PhysicalSize::new(0, 0)
                 };
-                let window_id = window::WindowId(WindowId);
                 let event = event::WindowEvent::SurfaceResized(size);
-                app.window_event(&self.window_target, window_id, event);
+                app.window_event(&self.window_target, GLOBAL_WINDOW, event);
             }
 
             pending_redraw |= self.redraw_flag.get_and_reset();
             if pending_redraw {
                 pending_redraw = false;
-                let window_id = window::WindowId(WindowId);
                 let event = event::WindowEvent::RedrawRequested;
-                app.window_event(&self.window_target, window_id, event);
+                app.window_event(&self.window_target, GLOBAL_WINDOW, event);
             }
         }
 
@@ -315,50 +314,116 @@ impl EventLoop {
         let mut input_status = InputStatus::Handled;
         match event {
             InputEvent::MotionEvent(motion_event) => {
-                let window_id = window::WindowId(WindowId);
-                let device_id = event::DeviceId(DeviceId(motion_event.device_id()));
+                let device_id = Some(DeviceId::from_raw(motion_event.device_id() as i64));
+                let action = motion_event.action();
 
-                let phase = match motion_event.action() {
-                    MotionAction::Down | MotionAction::PointerDown => {
-                        Some(event::TouchPhase::Started)
+                let pointers: Option<
+                    Box<dyn Iterator<Item = android_activity::input::Pointer<'_>>>,
+                > = match action {
+                    MotionAction::Down
+                    | MotionAction::PointerDown
+                    | MotionAction::Up
+                    | MotionAction::PointerUp => Some(Box::new(std::iter::once(
+                        motion_event.pointer_at_index(motion_event.pointer_index()),
+                    ))),
+                    MotionAction::Move | MotionAction::Cancel => {
+                        Some(Box::new(motion_event.pointers()))
                     },
-                    MotionAction::Up | MotionAction::PointerUp => Some(event::TouchPhase::Ended),
-                    MotionAction::Move => Some(event::TouchPhase::Moved),
-                    MotionAction::Cancel => Some(event::TouchPhase::Cancelled),
-                    _ => {
-                        None // TODO mouse events
-                    },
+                    // TODO mouse events
+                    _ => None,
                 };
-                if let Some(phase) = phase {
-                    let pointers: Box<dyn Iterator<Item = android_activity::input::Pointer<'_>>> =
-                        match phase {
-                            event::TouchPhase::Started | event::TouchPhase::Ended => {
-                                Box::new(std::iter::once(
-                                    motion_event.pointer_at_index(motion_event.pointer_index()),
-                                ))
-                            },
-                            event::TouchPhase::Moved | event::TouchPhase::Cancelled => {
-                                Box::new(motion_event.pointers())
-                            },
-                        };
 
+                if let Some(pointers) = pointers {
                     for pointer in pointers {
-                        let location =
+                        let tool_type = pointer.tool_type();
+                        let position =
                             PhysicalPosition { x: pointer.x() as _, y: pointer.y() as _ };
                         trace!(
-                            "Input event {device_id:?}, {phase:?}, loc={location:?}, \
-                             pointer={pointer:?}"
+                            "Input event {device_id:?}, {action:?}, loc={position:?}, \
+                             pointer={pointer:?}, tool_type={tool_type:?}"
                         );
+                        let finger_id = event::FingerId(FingerId(pointer.pointer_id()));
+                        let force = Some(Force::Normalized(pointer.pressure() as f64));
 
-                        let event = event::WindowEvent::Touch(event::Touch {
-                            device_id,
-                            phase,
-                            location,
-                            finger_id: event::FingerId(FingerId(pointer.pointer_id())),
-                            force: Some(Force::Normalized(pointer.pressure() as f64)),
-                        });
+                        match action {
+                            MotionAction::Down | MotionAction::PointerDown => {
+                                let event = event::WindowEvent::PointerEntered {
+                                    device_id,
+                                    position,
+                                    kind: match tool_type {
+                                        android_activity::input::ToolType::Finger => {
+                                            event::PointerKind::Touch(finger_id)
+                                        },
+                                        // TODO mouse events
+                                        android_activity::input::ToolType::Mouse => continue,
+                                        _ => event::PointerKind::Unknown,
+                                    },
+                                };
+                                app.window_event(&self.window_target, GLOBAL_WINDOW, event);
+                                let event = event::WindowEvent::PointerButton {
+                                    device_id,
+                                    state: event::ElementState::Pressed,
+                                    position,
+                                    button: match tool_type {
+                                        android_activity::input::ToolType::Finger => {
+                                            event::ButtonSource::Touch { finger_id, force }
+                                        },
+                                        // TODO mouse events
+                                        android_activity::input::ToolType::Mouse => continue,
+                                        _ => event::ButtonSource::Unknown(0),
+                                    },
+                                };
+                                app.window_event(&self.window_target, GLOBAL_WINDOW, event);
+                            },
+                            MotionAction::Move => {
+                                let event = event::WindowEvent::PointerMoved {
+                                    device_id,
+                                    position,
+                                    source: match tool_type {
+                                        android_activity::input::ToolType::Finger => {
+                                            event::PointerSource::Touch { finger_id, force }
+                                        },
+                                        // TODO mouse events
+                                        android_activity::input::ToolType::Mouse => continue,
+                                        _ => event::PointerSource::Unknown,
+                                    },
+                                };
+                                app.window_event(&self.window_target, GLOBAL_WINDOW, event);
+                            },
+                            MotionAction::Up | MotionAction::PointerUp | MotionAction::Cancel => {
+                                if let MotionAction::Up | MotionAction::PointerUp = action {
+                                    let event = event::WindowEvent::PointerButton {
+                                        device_id,
+                                        state: event::ElementState::Released,
+                                        position,
+                                        button: match tool_type {
+                                            android_activity::input::ToolType::Finger => {
+                                                event::ButtonSource::Touch { finger_id, force }
+                                            },
+                                            // TODO mouse events
+                                            android_activity::input::ToolType::Mouse => continue,
+                                            _ => event::ButtonSource::Unknown(0),
+                                        },
+                                    };
+                                    app.window_event(&self.window_target, GLOBAL_WINDOW, event);
+                                }
 
-                        app.window_event(&self.window_target, window_id, event);
+                                let event = event::WindowEvent::PointerLeft {
+                                    device_id,
+                                    position: Some(position),
+                                    kind: match tool_type {
+                                        android_activity::input::ToolType::Finger => {
+                                            event::PointerKind::Touch(finger_id)
+                                        },
+                                        // TODO mouse events
+                                        android_activity::input::ToolType::Mouse => continue,
+                                        _ => event::PointerKind::Unknown,
+                                    },
+                                };
+                                app.window_event(&self.window_target, GLOBAL_WINDOW, event);
+                            },
+                            _ => unreachable!(),
+                        }
                     }
                 }
             },
@@ -386,9 +451,8 @@ impl EventLoop {
                             &mut self.combining_accent,
                         );
 
-                        let window_id = window::WindowId(WindowId);
                         let event = event::WindowEvent::KeyboardInput {
-                            device_id: event::DeviceId(DeviceId(key.device_id())),
+                            device_id: Some(DeviceId::from_raw(key.device_id() as i64)),
                             event: event::KeyEvent {
                                 state,
                                 physical_key: keycodes::to_physical_key(keycode),
@@ -401,7 +465,7 @@ impl EventLoop {
                             is_synthetic: false,
                         };
 
-                        app.window_event(&self.window_target, window_id, event);
+                        app.window_event(&self.window_target, GLOBAL_WINDOW, event);
                     },
                 }
             },
@@ -665,39 +729,10 @@ impl OwnedDisplayHandle {
 }
 
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
-pub(crate) struct WindowId;
-
-impl WindowId {
-    pub const fn dummy() -> Self {
-        WindowId
-    }
-}
-
-impl From<WindowId> for u64 {
-    fn from(_: WindowId) -> Self {
-        0
-    }
-}
-
-impl From<u64> for WindowId {
-    fn from(_: u64) -> Self {
-        Self
-    }
-}
-
-#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
-pub struct DeviceId(i32);
-
-impl DeviceId {
-    pub const fn dummy() -> Self {
-        DeviceId(0)
-    }
-}
-
-#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct FingerId(i32);
 
 impl FingerId {
+    #[cfg(test)]
     pub const fn dummy() -> Self {
         FingerId(0)
     }
@@ -770,8 +805,8 @@ impl rwh_06::HasWindowHandle for Window {
 }
 
 impl CoreWindow for Window {
-    fn id(&self) -> window::WindowId {
-        window::WindowId(WindowId)
+    fn id(&self) -> WindowId {
+        GLOBAL_WINDOW
     }
 
     fn primary_monitor(&self) -> Option<RootMonitorHandle> {

@@ -14,7 +14,7 @@ use crate::icon::Icon;
 use crate::monitor::MonitorHandle as RootMonitorHandle;
 use crate::window::{
     Cursor, CursorGrabMode, Fullscreen as RootFullscreen, ImePurpose, ResizeDirection, Theme,
-    UserAttentionType, Window as RootWindow, WindowAttributes, WindowButtons, WindowId as RootWI,
+    UserAttentionType, Window as RootWindow, WindowAttributes, WindowButtons, WindowId,
     WindowLevel,
 };
 
@@ -53,7 +53,7 @@ impl Window {
         target.register(&canvas, id);
 
         let runner = target.runner.clone();
-        let destroy_fn = Box::new(move || runner.notify_destroy_window(RootWI(id)));
+        let destroy_fn = Box::new(move || runner.notify_destroy_window(id));
 
         let inner = Inner {
             id,
@@ -65,7 +65,7 @@ impl Window {
 
         let canvas = Rc::downgrade(&inner.canvas);
         let (dispatcher, runner) = Dispatcher::new(target.runner.main_thread(), inner);
-        target.runner.add_canvas(RootWI(id), canvas, runner);
+        target.runner.add_canvas(id, canvas, runner);
 
         Ok(Window { inner: dispatcher })
     }
@@ -91,8 +91,8 @@ impl Window {
 }
 
 impl RootWindow for Window {
-    fn id(&self) -> RootWI {
-        RootWI(self.inner.queue(|inner| inner.id))
+    fn id(&self) -> WindowId {
+        self.inner.queue(|inner| inner.id)
     }
 
     fn scale_factor(&self) -> f64 {
@@ -429,27 +429,6 @@ impl Drop for Inner {
         }
     }
 }
-#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct WindowId(pub(crate) u32);
-
-impl WindowId {
-    pub const fn dummy() -> Self {
-        Self(0)
-    }
-}
-
-impl From<WindowId> for u64 {
-    fn from(window_id: WindowId) -> Self {
-        window_id.0 as u64
-    }
-}
-
-impl From<u64> for WindowId {
-    fn from(raw_id: u64) -> Self {
-        Self(raw_id as u32)
-    }
-}
-
 #[derive(Clone, Debug)]
 pub struct PlatformSpecificWindowAttributes {
     pub(crate) canvas: Option<Arc<MainThreadSafe<backend::RawCanvasType>>>,
