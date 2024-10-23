@@ -60,7 +60,8 @@ changelog entry.
   and `Serialize` on many types.
 - Add `MonitorHandle::current_video_mode()`.
 - Add basic iOS IME support. The soft keyboard can now be shown using `Window::set_ime_allowed`.
-- Add `WindowEvent::AppleStandardKeyBindingAction`. This can be used to implement standard behaviours such as "go to end of line" on macOS.
+- Add `ApplicationHandlerExtMacOS` trait, and a `macos_handler` method to `ApplicationHandler` which returns a `dyn ApplicationHandlerExtMacOS` which allows for macOS specific extensions to winit.
+- Add a `standard_key_binding` method to the `ApplicationHandlerExtMacOS` trait. This allows handling of standard keybindings such as "go to end of line" on macOS.
 - On macOS, add `WindowExtMacOS::set_borderless_game` and `WindowAttributesExtMacOS::with_borderless_game`
   to fully disable the menu bar and dock in Borderless Fullscreen as commonly done in games.
 - Add `WindowId::into_raw()` and `from_raw()`.
