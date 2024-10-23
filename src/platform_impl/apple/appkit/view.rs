@@ -412,8 +412,9 @@ declare_class!(
         // Basically, we're sent this message whenever a keyboard event that doesn't generate a "human
         // readable" character happens, i.e. newlines, tabs, and Ctrl+C.
         #[method(doCommandBySelector:)]
-        fn do_command_by_selector(&self, _command: Sel) {
+        fn do_command_by_selector(&self, command: Sel) {
             trace_scope!("doCommandBySelector:");
+
             // We shouldn't forward any character from just committed text, since we'll end up sending
             // it twice with some IMEs like Korean one. We'll also always send `Enter` in that case,
             // which is not desired given it was used to confirm IME input.
@@ -428,6 +429,18 @@ declare_class!(
                 // Leave preedit so that we also report the key-up for this key.
                 self.ivars().ime_state.set(ImeState::Ground);
             }
+
+            // Send command action to user if they requested it.
+            let window_id = self.window().id();
+            self.ivars().app_state.maybe_queue_with_handler(move |app, event_loop| {
+                if let Some(handler) = app.macos_handler() {
+                    handler.standard_key_binding(event_loop, window_id, command.name());
+                }
+            });
+
+            // The documentation for `-[NSTextInputClient doCommandBySelector:]` clearly states that
+            // we should not be forwarding this event up the responder chain, so no calling `super`
+            // here either.
         }
     }
 
