@@ -5,7 +5,7 @@ use std::sync::atomic::{AtomicBool, Ordering as AtomicOrdering};
 use std::sync::Arc;
 use std::time::Instant;
 
-use objc2_app_kit::{NSApplication, NSApplicationActivationPolicy};
+use objc2_app_kit::{NSApplication, NSApplicationActivationPolicy, NSRunningApplication};
 use objc2_foundation::{MainThreadMarker, NSNotification};
 
 use super::super::event_handler::EventHandler;
@@ -109,6 +109,8 @@ impl AppState {
         trace_scope!("NSApplicationDidFinishLaunchingNotification");
         self.is_launched.set(true);
 
+        
+
         let app = NSApplication::sharedApplication(self.mtm);
         // We need to delay setting the activation policy and activating the app
         // until `applicationDidFinishLaunching` has been called. Otherwise the
@@ -117,6 +119,12 @@ impl AppState {
         // to allow the package manifest to define behavior via LSUIElement.
         if self.activation_policy.is_some() {
             app.setActivationPolicy(self.activation_policy.unwrap());
+        } else {
+            let is_bundle =
+            unsafe { NSRunningApplication::currentApplication().bundleIdentifier().is_some() };
+            if !is_bundle {
+                app.setActivationPolicy(NSApplicationActivationPolicy::Regular);
+            }
         }
 
         #[allow(deprecated)]
