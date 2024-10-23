@@ -24,6 +24,7 @@ use sctk::subcompositor::SubcompositorState;
 use crate::error::OsError;
 use crate::platform_impl::wayland::event_loop::sink::EventSink;
 use crate::platform_impl::wayland::output::MonitorHandle;
+use crate::platform_impl::wayland::scale::Scale;
 use crate::platform_impl::wayland::seat::{
     PointerConstraintsState, RelativePointerState, TextInputState, WinitPointerData,
     WinitPointerDataExt, WinitSeatState,
@@ -200,7 +201,7 @@ impl WinitState {
     pub fn scale_factor_changed(
         &mut self,
         surface: &WlSurface,
-        scale_factor: f64,
+        scale_factor: Scale,
         is_legacy: bool,
     ) {
         // Check if the cursor surface.
@@ -372,7 +373,9 @@ impl CompositorHandler for WinitState {
         surface: &WlSurface,
         scale_factor: i32,
     ) {
-        self.scale_factor_changed(surface, scale_factor as f64, true)
+        assert!(scale_factor >= 0);
+        let scale = Scale::from_integer_scale(scale_factor as u32);
+        self.scale_factor_changed(surface, scale, true)
     }
 
     fn frame(&mut self, _: &Connection, _: &QueueHandle<Self>, surface: &WlSurface, _: u32) {
