@@ -192,3 +192,4 @@ changelog entry.
   default activation policy, unless explicitly provided during initialization.
 - On macOS, fix crash when calling `drag_window()` without a left click present.
 - On X11, key events forward to IME anyway, even when it's disabled.
+- On X11, calculate IME position correctly, taking into account the height of the cursor area.

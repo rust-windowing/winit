@@ -2032,12 +2032,13 @@ impl UnownedWindow {
     }
 
     #[inline]
-    pub fn set_ime_cursor_area(&self, spot: Position, _size: Size) {
-        let (x, y) = spot.to_physical::<i32>(self.scale_factor()).into();
+    pub fn set_ime_cursor_area(&self, spot: Position, size: Size) {
+        let (x, y) = spot.to_physical::<i16>(self.scale_factor()).into();
+        let height = size.to_physical::<i16>(self.scale_factor()).height;
         let _ = self.ime_sender.lock().unwrap().send(ImeRequest::Position(
             self.xwindow as ffi::Window,
             x,
-            y,
+            y.saturating_add(height),
         ));
     }
 
