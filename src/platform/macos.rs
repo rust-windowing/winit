@@ -127,7 +127,7 @@ pub trait WindowExtMacOS {
     /// # Examples
     ///
     /// ```ignore
-    /// WindowEvent::CloseRequested => {
+    /// SurfaceEvent::CloseRequested => {
     ///     if window.is_document_edited() {
     ///         // Show the user a save pop-up or similar
     ///     } else {

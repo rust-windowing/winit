@@ -566,7 +566,7 @@ impl ApplicationHandlerExtMacOS for Application {
     fn standard_key_binding(
         &mut self,
         _event_loop: &dyn ActiveEventLoop,
-        window_id: WindowId,
+        window_id: SurfaceId,
         action: &str,
     ) {
         info!(?window_id, ?action, "macOS standard key binding");
