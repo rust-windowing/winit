@@ -68,7 +68,7 @@ changelog entry.
 - Add `PointerKind`, `PointerSource`, `ButtonSource`, `FingerId` and `position` to all pointer
   events as part of the pointer event overhaul.
 - Add `DeviceId::into_raw()` and `from_raw()`.
-- Add the `Surface` trait to represent a generic drawable area.
+- Add the `Surface` trait to represent a generic window.
 
 ### Changed
 
@@ -153,10 +153,11 @@ changelog entry.
     the primary finger in a multi-touch interaction.
   - In the same spirit rename `DeviceEvent::MouseMotion` to `PointerMotion`.
   - Remove `Force::Calibrated::altitude_angle`.
-- Various window-related things are renamed to account for the fact they work with all surfaces.
-  - Rename `WindowId` to `SurfaceId`.
-  - Rename `WindowEvent` to `SurfaceEvent`.
-  - Rename `Event::WindowEvent` to `Event::SurfaceEvent`.
+- Changed `Window` to be a subtrait of `Surface`; it now contains methods specific to toplevel windows.
+- Renamed structs previously associated with `Window`s, since they now apply to all `Surface`s:
+  - `WindowId` to `SurfaceId`
+  - `WindowEvent` to `SurfaceEvent`
+  - `Event::WindowEvent` to `Event::SurfaceEvent`
 
 ### Removed
 
