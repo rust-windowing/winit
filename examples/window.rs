@@ -33,6 +33,11 @@ use winit::window::{
     Cursor, CursorGrabMode, CustomCursor, CustomCursorSource, Fullscreen, Icon, ResizeDirection,
     Theme, Window, WindowAttributes, WindowId,
 };
+#[cfg(macos_platform)]
+use winit::{
+    event_loop::EventLoopBuilder,
+    platform::macos::{ActivationPolicy, EventLoopBuilderExtMacOS},
+};
 
 #[path = "util/tracing.rs"]
 mod tracing;
@@ -46,8 +51,17 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     tracing::init();
 
-    let event_loop = EventLoop::new()?;
     let (sender, receiver) = mpsc::channel();
+
+    #[cfg(macos_platform)]
+    let event_loop = {
+        let mut builder = EventLoopBuilder::default();
+        builder.with_activation_policy(ActivationPolicy::Regular);
+        builder.build()?
+    };
+
+    #[cfg(not(macos_platform))]
+    let event_loop = EventLoop::new()?;
 
     // Wire the user event from another thread.
     #[cfg(not(web_platform))]
