@@ -7,9 +7,8 @@
 //! The `softbuffer` crate is used, largely because of its ease of use. `glutin` or `wgpu` could
 //! also be used to fill the window buffer, but they are more complicated to use.
 
-#[allow(unused_imports)]
-pub use platform::cleanup_window;
-pub use platform::fill_window;
+#![allow(unused)]
+pub use platform::{cleanup_window, fill_window, fill_window_with_border};
 
 #[cfg(all(feature = "rwh_06", not(any(target_os = "android", target_os = "ios"))))]
 mod platform {
@@ -19,7 +18,7 @@ mod platform {
     use std::mem::ManuallyDrop;
     use std::num::NonZeroU32;
 
-    use softbuffer::{Context, Surface};
+    use softbuffer::{Buffer, Context, Surface};
     use winit::window::{Window, WindowId};
 
     thread_local! {
@@ -70,7 +69,31 @@ mod platform {
         }
     }
 
+    const DARK_GRAY: u32 = 0xff181818;
+    const LEMON: u32 = 0xffd1ffbd;
+
     pub fn fill_window(window: &dyn Window) {
+        fill_window_ex(window, |_, _, buffer| buffer.fill(DARK_GRAY))
+    }
+
+    pub fn fill_window_with_border(window: &dyn Window) {
+        fill_window_ex(window, |width, height, buffer| {
+            for y in 0..height {
+                for x in 0..width {
+                    let color = if (x == 0 || y == 0 || x == width - 1 || y == height - 1) {
+                        LEMON
+                    } else {
+                        DARK_GRAY
+                    };
+                    buffer[y * width + x] = color;
+                }
+            }
+        })
+    }
+    pub fn fill_window_ex<F: Fn(usize, usize, &mut Buffer<&dyn Window, &dyn Window>)>(
+        window: &dyn Window,
+        f: F,
+    ) {
         GC.with(|gc| {
             let size = window.surface_size();
             let (Some(width), Some(height)) =
@@ -84,13 +107,15 @@ mod platform {
             let surface =
                 gc.get_or_insert_with(|| GraphicsContext::new(window)).create_surface(window);
 
-            // Fill a buffer with a solid color.
-            const DARK_GRAY: u32 = 0xff181818;
-
             surface.resize(width, height).expect("Failed to resize the softbuffer surface");
 
             let mut buffer = surface.buffer_mut().expect("Failed to get the softbuffer buffer");
-            buffer.fill(DARK_GRAY);
+
+            let width = width.get() as usize;
+            let height = height.get() as usize;
+
+            f(width, height, &mut buffer);
+
             buffer.present().expect("Failed to present the softbuffer buffer");
         })
     }
@@ -109,6 +134,10 @@ mod platform {
 #[cfg(not(all(feature = "rwh_06", not(any(target_os = "android", target_os = "ios")))))]
 mod platform {
     pub fn fill_window(_window: &dyn winit::window::Window) {
+        // No-op on mobile platforms.
+    }
+
+    pub fn fill_window_with_border(_window: &dyn winit::window::Window) {
         // No-op on mobile platforms.
     }
 
