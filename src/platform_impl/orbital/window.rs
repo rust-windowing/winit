@@ -194,6 +194,11 @@ impl CoreSurface for Window {
     }
 
     #[inline]
+    fn set_transparent(&self, transparent: bool) {
+        let _ = self.set_flag(ORBITAL_FLAG_TRANSPARENT, transparent);
+    }
+
+    #[inline]
     fn set_cursor(&self, _: Cursor) {}
 
     #[inline]
@@ -308,11 +313,6 @@ impl CoreWindow for Window {
     #[inline]
     fn set_title(&self, title: &str) {
         self.window_socket.write(format!("T,{title}").as_bytes()).expect("failed to set title");
-    }
-
-    #[inline]
-    fn set_transparent(&self, transparent: bool) {
-        let _ = self.set_flag(ORBITAL_FLAG_TRANSPARENT, transparent);
     }
 
     #[inline]
