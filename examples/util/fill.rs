@@ -20,7 +20,7 @@ mod platform {
     use std::num::NonZeroU32;
 
     use softbuffer::{Context, Surface};
-    use winit::window::{Window, SurfaceId};
+    use winit::window::{SurfaceId, Window};
 
     thread_local! {
         // NOTE: You should never do things like that, create context and drop it before

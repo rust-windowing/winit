@@ -50,9 +50,9 @@ use crate::error::RequestError;
 use crate::event_loop::AsyncRequestSerial;
 use crate::keyboard::{self, ModifiersKeyState, ModifiersKeys, ModifiersState};
 use crate::platform_impl;
+use crate::window::{ActivationToken, SurfaceId, Theme};
 #[cfg(doc)]
 use crate::window::{Surface, Window};
-use crate::window::{ActivationToken, Theme, SurfaceId};
 
 // TODO: Remove once the backends can call `ApplicationHandler` methods directly. For now backends
 // like Windows and Web require `Event` to wire user events, otherwise each backend will have to

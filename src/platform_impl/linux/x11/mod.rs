@@ -35,8 +35,8 @@ use crate::platform_impl::platform::min_timeout;
 use crate::platform_impl::x11::window::Window;
 use crate::platform_impl::{OwnedDisplayHandle, PlatformCustomCursor};
 use crate::window::{
-    CustomCursor as RootCustomCursor, CustomCursorSource, Theme, Window as CoreWindow,
-    WindowAttributes, SurfaceId,
+    CustomCursor as RootCustomCursor, CustomCursorSource, SurfaceId, Theme, Window as CoreWindow,
+    WindowAttributes,
 };
 
 mod activation;
@@ -574,7 +574,8 @@ impl EventLoop {
         while unsafe { self.event_processor.poll_one_event(xev.as_mut_ptr()) } {
             let mut xev = unsafe { xev.assume_init() };
             self.event_processor.process_event(&mut xev, |window_target, event: Event| {
-                if let Event::SurfaceEvent { window_id, event: SurfaceEvent::RedrawRequested } = event
+                if let Event::SurfaceEvent { window_id, event: SurfaceEvent::RedrawRequested } =
+                    event
                 {
                     window_target.redraw_sender.send(window_id);
                 } else {

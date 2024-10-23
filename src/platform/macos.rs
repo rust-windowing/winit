@@ -78,7 +78,7 @@ use serde::{Deserialize, Serialize};
 use crate::application::ApplicationHandler;
 use crate::event_loop::{ActiveEventLoop, EventLoopBuilder};
 use crate::monitor::MonitorHandle;
-use crate::window::{Window, WindowAttributes, SurfaceId};
+use crate::window::{SurfaceId, Window, WindowAttributes};
 
 /// Additional methods on [`Window`] that are specific to MacOS.
 pub trait WindowExtMacOS {

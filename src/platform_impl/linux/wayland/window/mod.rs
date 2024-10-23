@@ -25,8 +25,8 @@ use crate::monitor::MonitorHandle as CoreMonitorHandle;
 use crate::platform_impl::{Fullscreen, MonitorHandle as PlatformMonitorHandle};
 use crate::window::{
     Cursor, CursorGrabMode, Fullscreen as CoreFullscreen, ImePurpose, ResizeDirection,
-    Surface as CoreSurface, Theme, UserAttentionType, Window as CoreWindow, WindowAttributes,
-    WindowButtons, SurfaceId, WindowLevel,
+    Surface as CoreSurface, SurfaceId, Theme, UserAttentionType, Window as CoreWindow,
+    WindowAttributes, WindowButtons, WindowLevel,
 };
 
 pub(crate) mod state;
@@ -398,7 +398,7 @@ impl CoreSurface for Window {
     fn rwh_06_window_handle(&self) -> &dyn rwh_06::HasWindowHandle {
         self
     }
-    
+
     fn as_window(&self) -> Option<&dyn CoreWindow> {
         Some(self)
     }

@@ -27,7 +27,7 @@ use super::window::WinitUIWindow;
 use super::ActiveEventLoop;
 use crate::application::ApplicationHandler;
 use crate::dpi::PhysicalSize;
-use crate::event::{Event, StartCause, SurfaceSizeWriter, SurfaceEvent};
+use crate::event::{Event, StartCause, SurfaceEvent, SurfaceSizeWriter};
 use crate::event_loop::ControlFlow;
 
 macro_rules! bug {

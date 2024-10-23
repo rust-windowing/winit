@@ -33,7 +33,7 @@ use winit::platform::startup_notify::{
 use winit::platform::web::{ActiveEventLoopExtWeb, CustomCursorExtWeb, WindowAttributesExtWeb};
 use winit::window::{
     Cursor, CursorGrabMode, CustomCursor, CustomCursorSource, Fullscreen, Icon, ResizeDirection,
-    Theme, Window, WindowAttributes, SurfaceId,
+    SurfaceId, Theme, Window, WindowAttributes,
 };
 
 #[path = "util/tracing.rs"]

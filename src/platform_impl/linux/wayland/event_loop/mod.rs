@@ -15,7 +15,7 @@ use crate::application::ApplicationHandler;
 use crate::cursor::OnlyCursorImage;
 use crate::dpi::LogicalSize;
 use crate::error::{EventLoopError, OsError, RequestError};
-use crate::event::{Event, StartCause, SurfaceSizeWriter, SurfaceEvent};
+use crate::event::{Event, StartCause, SurfaceEvent, SurfaceSizeWriter};
 use crate::event_loop::{ActiveEventLoop as RootActiveEventLoop, ControlFlow, DeviceEvents};
 use crate::platform::pump_events::PumpStatus;
 use crate::platform_impl::platform::min_timeout;

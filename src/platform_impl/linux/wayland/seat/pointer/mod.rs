@@ -28,8 +28,8 @@ use sctk::seat::SeatState;
 
 use crate::dpi::{LogicalPosition, PhysicalPosition};
 use crate::event::{
-    ElementState, MouseButton, MouseScrollDelta, PointerKind, PointerSource, TouchPhase,
-    SurfaceEvent,
+    ElementState, MouseButton, MouseScrollDelta, PointerKind, PointerSource, SurfaceEvent,
+    TouchPhase,
 };
 
 use crate::platform_impl::wayland::state::WinitState;

@@ -27,7 +27,7 @@ use super::window::WinitWindow;
 use crate::dpi::{LogicalPosition, LogicalSize};
 use crate::event::{
     DeviceEvent, ElementState, Ime, Modifiers, MouseButton, MouseScrollDelta, PointerKind,
-    PointerSource, TouchPhase, SurfaceEvent,
+    PointerSource, SurfaceEvent, TouchPhase,
 };
 use crate::keyboard::{Key, KeyCode, KeyLocation, ModifiersState, NamedKey};
 use crate::platform::macos::OptionAsAlt;

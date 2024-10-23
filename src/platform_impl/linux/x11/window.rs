@@ -23,7 +23,7 @@ use super::{
 use crate::cursor::{Cursor, CustomCursor as RootCustomCursor};
 use crate::dpi::{PhysicalPosition, PhysicalSize, Position, Size};
 use crate::error::{NotSupportedError, RequestError};
-use crate::event::{Event, SurfaceSizeWriter, SurfaceEvent};
+use crate::event::{Event, SurfaceEvent, SurfaceSizeWriter};
 use crate::event_loop::AsyncRequestSerial;
 use crate::platform::x11::WindowType;
 use crate::platform_impl::x11::atoms::*;
@@ -35,8 +35,8 @@ use crate::platform_impl::{
     VideoModeHandle as PlatformVideoModeHandle,
 };
 use crate::window::{
-    CursorGrabMode, ImePurpose, ResizeDirection, Surface as CoreSurface, Theme, UserAttentionType,
-    Window as CoreWindow, WindowAttributes, WindowButtons, SurfaceId, WindowLevel,
+    CursorGrabMode, ImePurpose, ResizeDirection, Surface as CoreSurface, SurfaceId, Theme,
+    UserAttentionType, Window as CoreWindow, WindowAttributes, WindowButtons, WindowLevel,
 };
 
 pub(crate) struct Window(Arc<UnownedWindow>);
@@ -109,7 +109,7 @@ impl CoreSurface for Window {
     fn set_cursor_hittest(&self, hittest: bool) -> Result<(), RequestError> {
         self.0.set_cursor_hittest(hittest)
     }
-    
+
     fn current_monitor(&self) -> Option<crate::monitor::MonitorHandle> {
         self.0
             .current_monitor()
@@ -143,7 +143,7 @@ impl CoreSurface for Window {
     fn rwh_06_window_handle(&self) -> &dyn rwh_06::HasWindowHandle {
         self
     }
-    
+
     fn as_window(&self) -> Option<&dyn CoreWindow> {
         Some(self)
     }
@@ -309,8 +309,6 @@ impl CoreWindow for Window {
     fn show_window_menu(&self, position: Position) {
         self.0.show_window_menu(position);
     }
-
-
 }
 
 #[cfg(feature = "rwh_06")]

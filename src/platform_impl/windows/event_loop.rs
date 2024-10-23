@@ -58,8 +58,8 @@ use crate::application::ApplicationHandler;
 use crate::dpi::{PhysicalPosition, PhysicalSize};
 use crate::error::{EventLoopError, RequestError};
 use crate::event::{
-    Event, FingerId as RootFingerId, Force, Ime, RawKeyEvent, SurfaceSizeWriter, TouchPhase,
-    SurfaceEvent,
+    Event, FingerId as RootFingerId, Force, Ime, RawKeyEvent, SurfaceEvent, SurfaceSizeWriter,
+    TouchPhase,
 };
 use crate::event_loop::{
     ActiveEventLoop as RootActiveEventLoop, ControlFlow, DeviceEvents,
@@ -84,8 +84,8 @@ use crate::platform_impl::platform::{raw_input, util, wrap_device_id, FingerId, 
 use crate::platform_impl::Window;
 use crate::utils::Lazy;
 use crate::window::{
-    CustomCursor as RootCustomCursor, CustomCursorSource, Theme, Window as CoreWindow,
-    WindowAttributes, SurfaceId,
+    CustomCursor as RootCustomCursor, CustomCursorSource, SurfaceId, Theme, Window as CoreWindow,
+    WindowAttributes,
 };
 
 pub(crate) struct WindowData {

@@ -39,7 +39,7 @@ use crate::platform_impl::wayland::state::{WindowCompositorUpdate, WinitState};
 use crate::platform_impl::wayland::types::cursor::{CustomCursor, SelectedCursor};
 use crate::platform_impl::wayland::types::kwin_blur::KWinBlurManager;
 use crate::platform_impl::PlatformCustomCursor;
-use crate::window::{CursorGrabMode, CursorIcon, ImePurpose, ResizeDirection, Theme, SurfaceId};
+use crate::window::{CursorGrabMode, CursorIcon, ImePurpose, ResizeDirection, SurfaceId, Theme};
 
 #[cfg(feature = "sctk-adwaita")]
 pub type WinitFrame = sctk_adwaita::AdwaitaFrame<WinitState>;

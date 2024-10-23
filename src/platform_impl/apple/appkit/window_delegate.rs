@@ -36,11 +36,11 @@ use super::window::WinitWindow;
 use super::{ffi, Fullscreen, MonitorHandle};
 use crate::dpi::{LogicalPosition, LogicalSize, PhysicalPosition, PhysicalSize, Position, Size};
 use crate::error::{NotSupportedError, RequestError};
-use crate::event::{SurfaceSizeWriter, SurfaceEvent};
+use crate::event::{SurfaceEvent, SurfaceSizeWriter};
 use crate::platform::macos::{OptionAsAlt, WindowExtMacOS};
 use crate::window::{
-    Cursor, CursorGrabMode, Icon, ImePurpose, ResizeDirection, Theme, UserAttentionType,
-    WindowAttributes, WindowButtons, SurfaceId, WindowLevel,
+    Cursor, CursorGrabMode, Icon, ImePurpose, ResizeDirection, SurfaceId, Theme, UserAttentionType,
+    WindowAttributes, WindowButtons, WindowLevel,
 };
 
 #[derive(Clone, Debug, PartialEq)]

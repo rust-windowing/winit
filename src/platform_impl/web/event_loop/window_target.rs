@@ -10,7 +10,7 @@ use super::super::{lock, KeyEventExtra};
 use super::runner::{EventWrapper, WeakShared};
 use super::{backend, runner, EventLoopProxy};
 use crate::error::{NotSupportedError, RequestError};
-use crate::event::{ElementState, Event, KeyEvent, TouchPhase, SurfaceEvent};
+use crate::event::{ElementState, Event, KeyEvent, SurfaceEvent, TouchPhase};
 use crate::event_loop::{
     ActiveEventLoop as RootActiveEventLoop, ControlFlow, DeviceEvents,
     EventLoopProxy as RootEventLoopProxy, OwnedDisplayHandle as RootOwnedDisplayHandle,
@@ -21,7 +21,7 @@ use crate::platform::web::{CustomCursorFuture, PollStrategy, WaitUntilStrategy};
 use crate::platform_impl::platform::cursor::CustomCursor;
 use crate::platform_impl::platform::r#async::Waker;
 use crate::platform_impl::Window;
-use crate::window::{CustomCursor as RootCustomCursor, CustomCursorSource, Theme, SurfaceId};
+use crate::window::{CustomCursor as RootCustomCursor, CustomCursorSource, SurfaceId, Theme};
 
 #[derive(Default)]
 struct ModifiersShared(Rc<Cell<ModifiersState>>);
@@ -89,10 +89,9 @@ impl ActiveEventLoop {
                 }
             });
 
-            runner.send_events(clear_modifiers.into_iter().chain(iter::once(Event::SurfaceEvent {
-                window_id,
-                event: SurfaceEvent::Focused(false),
-            })));
+            runner.send_events(clear_modifiers.into_iter().chain(iter::once(
+                Event::SurfaceEvent { window_id, event: SurfaceEvent::Focused(false) },
+            )));
         });
 
         let runner = self.runner.clone();

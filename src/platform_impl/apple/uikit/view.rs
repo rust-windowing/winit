@@ -18,7 +18,7 @@ use super::FingerId;
 use crate::dpi::PhysicalPosition;
 use crate::event::{
     ButtonSource, ElementState, Event, FingerId as RootFingerId, Force, KeyEvent, PointerKind,
-    PointerSource, TouchPhase, SurfaceEvent,
+    PointerSource, SurfaceEvent, TouchPhase,
 };
 use crate::keyboard::{Key, KeyCode, KeyLocation, NamedKey, NativeKeyCode, PhysicalKey};
 use crate::platform_impl::KeyEventExtra;

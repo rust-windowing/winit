@@ -25,8 +25,8 @@ use crate::icon::Icon;
 use crate::monitor::MonitorHandle as CoreMonitorHandle;
 use crate::platform::ios::{ScreenEdge, StatusBarStyle, ValidOrientations};
 use crate::window::{
-    CursorGrabMode, ImePurpose, ResizeDirection, Theme, UserAttentionType, Window as CoreWindow,
-    WindowAttributes, WindowButtons, SurfaceId, WindowLevel, Surface as CoreSurface
+    CursorGrabMode, ImePurpose, ResizeDirection, Surface as CoreSurface, SurfaceId, Theme,
+    UserAttentionType, Window as CoreWindow, WindowAttributes, WindowButtons, WindowLevel,
 };
 
 declare_class!(
@@ -668,7 +668,6 @@ impl CoreSurface for Window {
 }
 
 impl CoreWindow for Window {
-
     fn reset_dead_keys(&self) {
         self.maybe_wait_on_main(|delegate| delegate.reset_dead_keys());
     }

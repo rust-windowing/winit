@@ -68,9 +68,9 @@ use crate::platform_impl::platform::window_state::{
 };
 use crate::platform_impl::platform::{monitor, util, Fullscreen, SelectedCursor};
 use crate::window::{
-    CursorGrabMode, Fullscreen as CoreFullscreen, ImePurpose, ResizeDirection, Theme,
-    UserAttentionType, Window as CoreWindow, Surface as CoreSurface, WindowAttributes, WindowButtons, SurfaceId,
-    WindowLevel,
+    CursorGrabMode, Fullscreen as CoreFullscreen, ImePurpose, ResizeDirection,
+    Surface as CoreSurface, SurfaceId, Theme, UserAttentionType, Window as CoreWindow,
+    WindowAttributes, WindowButtons, WindowLevel,
 };
 
 /// The Win32 implementation of the main `Window` object.

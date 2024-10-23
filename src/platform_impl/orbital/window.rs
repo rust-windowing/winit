@@ -6,7 +6,9 @@ use crate::cursor::Cursor;
 use crate::dpi::{PhysicalPosition, PhysicalSize, Position, Size};
 use crate::error::{NotSupportedError, RequestError};
 use crate::monitor::MonitorHandle as CoreMonitorHandle;
-use crate::window::{self, Fullscreen, ImePurpose, Window as CoreWindow, Surface as CoreSurface, SurfaceId};
+use crate::window::{
+    self, Fullscreen, ImePurpose, Surface as CoreSurface, SurfaceId, Window as CoreWindow,
+};
 
 // These values match the values uses in the `window_new` function in orbital:
 // https://gitlab.redox-os.org/redox-os/orbital/-/blob/master/src/scheme.rs
@@ -246,7 +248,7 @@ impl CoreSurface for Window {
     fn current_monitor(&self) -> Option<CoreMonitorHandle> {
         Some(CoreMonitorHandle { inner: MonitorHandle })
     }
-    
+
     #[cfg(feature = "rwh_06")]
     fn rwh_06_window_handle(&self) -> &dyn rwh_06::HasWindowHandle {
         self
@@ -263,7 +265,6 @@ impl CoreSurface for Window {
 }
 
 impl CoreWindow for Window {
-
     #[inline]
     fn reset_dead_keys(&self) {
         // TODO?

@@ -27,7 +27,7 @@ use crate::event::{
 };
 use crate::keyboard::{Key, KeyLocation, ModifiersState, PhysicalKey};
 use crate::platform_impl::Fullscreen;
-use crate::window::{WindowAttributes, SurfaceId};
+use crate::window::{SurfaceId, WindowAttributes};
 
 #[allow(dead_code)]
 pub struct Canvas {

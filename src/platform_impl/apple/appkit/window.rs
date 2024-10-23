@@ -11,8 +11,8 @@ use super::window_delegate::WindowDelegate;
 use crate::error::RequestError;
 use crate::monitor::MonitorHandle as CoreMonitorHandle;
 use crate::window::{
-    Cursor, Fullscreen, Icon, ImePurpose, Theme, UserAttentionType, Window as CoreWindow,
-    WindowAttributes, WindowButtons, SurfaceId, WindowLevel, Surface as CoreSurface,
+    Cursor, Fullscreen, Icon, ImePurpose, Surface as CoreSurface, SurfaceId, Theme,
+    UserAttentionType, Window as CoreWindow, WindowAttributes, WindowButtons, WindowLevel,
 };
 
 pub(crate) struct Window {
@@ -118,7 +118,7 @@ impl CoreSurface for Window {
     fn set_transparent(&self, transparent: bool) {
         self.maybe_wait_on_main(|delegate| delegate.set_transparent(transparent));
     }
-    
+
     fn set_cursor(&self, cursor: Cursor) {
         self.maybe_wait_on_main(|delegate| delegate.set_cursor(cursor));
     }

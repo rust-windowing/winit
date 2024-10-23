@@ -191,8 +191,6 @@ impl RootSurface for Window {
 }
 
 impl RootWindow for Window {
-    
-
     fn reset_dead_keys(&self) {
         // Not supported
     }

@@ -25,7 +25,7 @@ use crate::keyboard::{
 };
 use crate::platform_impl::Window;
 use crate::window::{
-    CustomCursor as RootCustomCursor, CustomCursorSource, Theme, Window as CoreWindow, SurfaceId,
+    CustomCursor as RootCustomCursor, CustomCursorSource, SurfaceId, Theme, Window as CoreWindow,
 };
 
 fn convert_scancode(scancode: u8) -> (PhysicalKey, Option<NamedKey>) {
@@ -514,7 +514,8 @@ impl EventLoop {
                 self.windows.push((window, EventState::default()));
 
                 // Send resize event on create to indicate first size.
-                let event = event::SurfaceEvent::SurfaceResized((properties.w, properties.h).into());
+                let event =
+                    event::SurfaceEvent::SurfaceResized((properties.w, properties.h).into());
                 app.window_event(&self.window_target, window_id, event);
 
                 // Send moved event on create to indicate first position.

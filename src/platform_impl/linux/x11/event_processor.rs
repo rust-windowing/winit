@@ -23,7 +23,7 @@ use xkbcommon_dl::xkb_mod_mask_t;
 use crate::dpi::{PhysicalPosition, PhysicalSize};
 use crate::event::{
     ButtonSource, DeviceEvent, DeviceId, ElementState, Event, Ime, MouseButton, MouseScrollDelta,
-    PointerKind, PointerSource, RawKeyEvent, SurfaceSizeWriter, TouchPhase, SurfaceEvent,
+    PointerKind, PointerSource, RawKeyEvent, SurfaceEvent, SurfaceSizeWriter, TouchPhase,
 };
 use crate::keyboard::ModifiersState;
 use crate::platform_impl::common::xkb::{self, XkbState};
@@ -34,7 +34,7 @@ use crate::platform_impl::x11::atoms::*;
 use crate::platform_impl::x11::util::cookie::GenericEventCookie;
 use crate::platform_impl::x11::{
     mkdid, mkfid, mkwid, util, CookieResultExt, Device, DeviceInfo, Dnd, DndState, ImeReceiver,
-    ScrollOrientation, UnownedWindow, SurfaceId,
+    ScrollOrientation, SurfaceId, UnownedWindow,
 };
 
 /// The maximum amount of X modifiers to replay.
@@ -548,7 +548,8 @@ impl EventProcessor {
 
         if xev.message_type == atoms[XdndLeave] as c_ulong {
             self.dnd.reset();
-            let event = Event::SurfaceEvent { window_id, event: SurfaceEvent::HoveredFileCancelled };
+            let event =
+                Event::SurfaceEvent { window_id, event: SurfaceEvent::HoveredFileCancelled };
             callback(&self.target, event);
         }
     }
@@ -981,8 +982,10 @@ impl EventProcessor {
                 };
                 callback(&self.target, event);
 
-                let event =
-                    Event::SurfaceEvent { window_id, event: SurfaceEvent::Ime(Ime::Commit(written)) };
+                let event = Event::SurfaceEvent {
+                    window_id,
+                    event: SurfaceEvent::Ime(Ime::Commit(written)),
+                };
 
                 self.is_composing = false;
                 callback(&self.target, event);

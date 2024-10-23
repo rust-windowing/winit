@@ -24,8 +24,8 @@ use crate::monitor::MonitorHandle as RootMonitorHandle;
 use crate::platform::pump_events::PumpStatus;
 use crate::window::{
     self, CursorGrabMode, CustomCursor, CustomCursorSource, Fullscreen, ImePurpose,
-    ResizeDirection, Theme, Window as CoreWindow, WindowAttributes, WindowButtons, SurfaceId,
-    WindowLevel, Surface as CoreSurface
+    ResizeDirection, Surface as CoreSurface, SurfaceId, Theme, Window as CoreWindow,
+    WindowAttributes, WindowButtons, WindowLevel,
 };
 
 mod keycodes;
@@ -869,7 +869,6 @@ impl CoreSurface for Window {
 }
 
 impl CoreWindow for Window {
-
     fn inner_position(&self) -> Result<PhysicalPosition<i32>, RequestError> {
         Err(NotSupportedError::new("inner_position is not supported").into())
     }
