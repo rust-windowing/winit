@@ -805,17 +805,6 @@ impl<'a> Deref for DeviceInfo<'a> {
     }
 }
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct FingerId(u32);
-
-impl FingerId {
-    #[cfg(test)]
-    #[allow(unused)]
-    pub const fn dummy() -> Self {
-        FingerId(0)
-    }
-}
-
 #[derive(Clone)]
 pub struct EventLoopProxy {
     ping: Ping,
@@ -992,10 +981,6 @@ fn mkwid(w: xproto::Window) -> crate::window::WindowId {
 }
 fn mkdid(w: xinput::DeviceId) -> DeviceId {
     DeviceId::from_raw(w as i64)
-}
-
-fn mkfid(w: u32) -> crate::event::FingerId {
-    crate::event::FingerId(crate::platform_impl::FingerId::X(FingerId(w)))
 }
 
 #[derive(Debug)]

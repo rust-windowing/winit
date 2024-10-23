@@ -107,24 +107,6 @@ impl Default for PlatformSpecificWindowAttributes {
 pub(crate) static X11_BACKEND: Lazy<Mutex<Result<Arc<XConnection>, XNotSupported>>> =
     Lazy::new(|| Mutex::new(XConnection::new(Some(x_error_callback)).map(Arc::new)));
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum FingerId {
-    #[cfg(x11_platform)]
-    X(x11::FingerId),
-    #[cfg(wayland_platform)]
-    Wayland(wayland::FingerId),
-}
-
-impl FingerId {
-    #[cfg(test)]
-    pub const fn dummy() -> Self {
-        #[cfg(wayland_platform)]
-        return FingerId::Wayland(wayland::FingerId::dummy());
-        #[cfg(all(not(wayland_platform), x11_platform))]
-        return FingerId::X(x11::FingerId::dummy());
-    }
-}
-
 #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum MonitorHandle {
     #[cfg(x11_platform)]
