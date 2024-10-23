@@ -78,7 +78,7 @@ use serde::{Deserialize, Serialize};
 use crate::application::ApplicationHandler;
 use crate::event_loop::{ActiveEventLoop, EventLoopBuilder};
 use crate::monitor::MonitorHandle;
-use crate::window::{Window, WindowAttributes, WindowId};
+use crate::window::{Window, WindowAttributes, SurfaceId};
 
 /// Additional methods on [`Window`] that are specific to MacOS.
 pub trait WindowExtMacOS {
@@ -572,7 +572,7 @@ pub trait ApplicationHandlerExtMacOS: ApplicationHandler {
     ///     fn standard_key_binding(
     ///         &mut self,
     ///         event_loop: &dyn ActiveEventLoop,
-    ///         window_id: WindowId,
+    ///         window_id: SurfaceId,
     ///         action: &str,
     ///     ) {
     ///         match action {
@@ -590,7 +590,7 @@ pub trait ApplicationHandlerExtMacOS: ApplicationHandler {
     fn standard_key_binding(
         &mut self,
         event_loop: &dyn ActiveEventLoop,
-        window_id: WindowId,
+        window_id: SurfaceId,
         action: &str,
     ) {
         let _ = event_loop;

@@ -27,7 +27,7 @@ impl FingerId {
     }
 }
 
-/// Get the WindowId out of the surface.
+/// Get the SurfaceId out of the surface.
 #[inline]
 fn make_wid(surface: &WlSurface) -> SurfaceId {
     SurfaceId::from_raw(surface.id().as_ptr() as usize)
