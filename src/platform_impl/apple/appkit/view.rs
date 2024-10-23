@@ -431,7 +431,7 @@ declare_class!(
             }
 
             // Send command action to user if they requested it.
-            let window_id = RootWindowId(self.window().id());
+            let window_id = self.window().id();
             self.ivars().app_state.maybe_queue_with_handler(move |app, event_loop| {
                 if let Some(handler) = app.macos_handler() {
                     handler.standard_key_binding(event_loop, window_id, command.name());
