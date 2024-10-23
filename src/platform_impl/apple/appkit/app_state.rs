@@ -119,7 +119,7 @@ impl AppState {
             app.setActivationPolicy(self.activation_policy.unwrap());
         } else {
             let is_bundle =
-            unsafe { NSRunningApplication::currentApplication().bundleIdentifier().is_some() };
+                unsafe { NSRunningApplication::currentApplication().bundleIdentifier().is_some() };
             if !is_bundle {
                 app.setActivationPolicy(NSApplicationActivationPolicy::Regular);
             }
