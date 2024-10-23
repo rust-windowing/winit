@@ -109,8 +109,6 @@ impl AppState {
         trace_scope!("NSApplicationDidFinishLaunchingNotification");
         self.is_launched.set(true);
 
-        
-
         let app = NSApplication::sharedApplication(self.mtm);
         // We need to delay setting the activation policy and activating the app
         // until `applicationDidFinishLaunching` has been called. Otherwise the
