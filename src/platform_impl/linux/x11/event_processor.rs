@@ -23,7 +23,7 @@ use xkbcommon_dl::xkb_mod_mask_t;
 use crate::dpi::{PhysicalPosition, PhysicalSize};
 use crate::event::{
     ButtonSource, DeviceEvent, DeviceId, ElementState, Event, Ime, MouseButton, MouseScrollDelta,
-    PointerKind, PointerSource, RawKeyEvent, SurfaceSizeWriter, TouchPhase, WindowEvent,
+    PointerKind, PointerSource, RawKeyEvent, SurfaceEvent, SurfaceSizeWriter, TouchPhase,
 };
 use crate::keyboard::ModifiersState;
 use crate::platform_impl::common::xkb::{self, XkbState};
@@ -34,7 +34,7 @@ use crate::platform_impl::x11::atoms::*;
 use crate::platform_impl::x11::util::cookie::GenericEventCookie;
 use crate::platform_impl::x11::{
     mkdid, mkfid, mkwid, util, CookieResultExt, Device, DeviceInfo, Dnd, DndState, ImeReceiver,
-    ScrollOrientation, UnownedWindow, WindowId,
+    ScrollOrientation, SurfaceId, UnownedWindow,
 };
 
 /// The maximum amount of X modifiers to replay.
@@ -99,27 +99,27 @@ impl EventProcessor {
         while let Ok((window, event)) = self.ime_event_receiver.try_recv() {
             let window_id = mkwid(window as xproto::Window);
             let event = match event {
-                ImeEvent::Enabled => WindowEvent::Ime(Ime::Enabled),
+                ImeEvent::Enabled => SurfaceEvent::Ime(Ime::Enabled),
                 ImeEvent::Start => {
                     self.is_composing = true;
-                    WindowEvent::Ime(Ime::Preedit("".to_owned(), None))
+                    SurfaceEvent::Ime(Ime::Preedit("".to_owned(), None))
                 },
                 ImeEvent::Update(text, position) if self.is_composing => {
-                    WindowEvent::Ime(Ime::Preedit(text, Some((position, position))))
+                    SurfaceEvent::Ime(Ime::Preedit(text, Some((position, position))))
                 },
                 ImeEvent::End => {
                     self.is_composing = false;
                     // Issue empty preedit on `Done`.
-                    WindowEvent::Ime(Ime::Preedit(String::new(), None))
+                    SurfaceEvent::Ime(Ime::Preedit(String::new(), None))
                 },
                 ImeEvent::Disabled => {
                     self.is_composing = false;
-                    WindowEvent::Ime(Ime::Disabled)
+                    SurfaceEvent::Ime(Ime::Disabled)
                 },
                 _ => continue,
             };
 
-            callback(&self.target, Event::WindowEvent { window_id, event });
+            callback(&self.target, Event::SurfaceEvent { window_id, event });
         }
     }
 
@@ -340,7 +340,7 @@ impl EventProcessor {
         F: Fn(&Arc<UnownedWindow>) -> Ret,
     {
         let mut deleted = false;
-        let window_id = WindowId::from_raw(window_id as _);
+        let window_id = SurfaceId::from_raw(window_id as _);
         let result = self
             .target
             .windows
@@ -371,7 +371,7 @@ impl EventProcessor {
         let window_id = mkwid(window);
 
         if xev.data.get_long(0) as xproto::Atom == self.target.wm_delete_window {
-            let event = Event::WindowEvent { window_id, event: WindowEvent::CloseRequested };
+            let event = Event::SurfaceEvent { window_id, event: SurfaceEvent::CloseRequested };
             callback(&self.target, event);
             return;
         }
@@ -521,9 +521,9 @@ impl EventProcessor {
             let (source_window, state) = if let Some(source_window) = self.dnd.source_window {
                 if let Some(Ok(ref path_list)) = self.dnd.result {
                     for path in path_list {
-                        let event = Event::WindowEvent {
+                        let event = Event::SurfaceEvent {
                             window_id,
-                            event: WindowEvent::DroppedFile(path.clone()),
+                            event: SurfaceEvent::DroppedFile(path.clone()),
                         };
                         callback(&self.target, event);
                     }
@@ -548,7 +548,8 @@ impl EventProcessor {
 
         if xev.message_type == atoms[XdndLeave] as c_ulong {
             self.dnd.reset();
-            let event = Event::WindowEvent { window_id, event: WindowEvent::HoveredFileCancelled };
+            let event =
+                Event::SurfaceEvent { window_id, event: SurfaceEvent::HoveredFileCancelled };
             callback(&self.target, event);
         }
     }
@@ -575,9 +576,9 @@ impl EventProcessor {
             let parse_result = self.dnd.parse_data(&mut data);
             if let Ok(ref path_list) = parse_result {
                 for path in path_list {
-                    let event = Event::WindowEvent {
+                    let event = Event::SurfaceEvent {
                         window_id,
-                        event: WindowEvent::HoveredFile(path.clone()),
+                        event: SurfaceEvent::HoveredFile(path.clone()),
                     };
                     callback(&self.target, event);
                 }
@@ -657,9 +658,9 @@ impl EventProcessor {
             drop(shared_state_lock);
 
             if moved {
-                callback(&self.target, Event::WindowEvent {
+                callback(&self.target, Event::SurfaceEvent {
                     window_id,
-                    event: WindowEvent::Moved(outer.into()),
+                    event: SurfaceEvent::Moved(outer.into()),
                 });
             }
             outer
@@ -706,9 +707,9 @@ impl EventProcessor {
                 drop(shared_state_lock);
 
                 let surface_size = Arc::new(Mutex::new(new_surface_size));
-                callback(&self.target, Event::WindowEvent {
+                callback(&self.target, Event::SurfaceEvent {
                     window_id,
-                    event: WindowEvent::ScaleFactorChanged {
+                    event: SurfaceEvent::ScaleFactorChanged {
                         scale_factor: new_scale_factor,
                         surface_size_writer: SurfaceSizeWriter::new(Arc::downgrade(&surface_size)),
                     },
@@ -762,9 +763,9 @@ impl EventProcessor {
         }
 
         if resized {
-            callback(&self.target, Event::WindowEvent {
+            callback(&self.target, Event::SurfaceEvent {
                 window_id,
-                event: WindowEvent::SurfaceResized(new_surface_size.into()),
+                event: SurfaceEvent::SurfaceResized(new_surface_size.into()),
             });
         }
     }
@@ -795,7 +796,7 @@ impl EventProcessor {
         // window, given that we can't rely on `CreateNotify`, due to it being not
         // sent.
         let focus = self.with_window(window, |window| window.has_focus()).unwrap_or_default();
-        let event = Event::WindowEvent { window_id, event: WindowEvent::Focused(focus) };
+        let event = Event::SurfaceEvent { window_id, event: SurfaceEvent::Focused(focus) };
 
         callback(&self.target, event);
     }
@@ -809,7 +810,7 @@ impl EventProcessor {
 
         // In the event that the window's been destroyed without being dropped first, we
         // cleanup again here.
-        self.target.windows.borrow_mut().remove(&WindowId::from_raw(window as _));
+        self.target.windows.borrow_mut().remove(&SurfaceId::from_raw(window as _));
 
         // Since all XIM stuff needs to happen from the same thread, we destroy the input
         // context here instead of when dropping the window.
@@ -819,7 +820,7 @@ impl EventProcessor {
                 .expect("Failed to destroy input context");
         }
 
-        callback(&self.target, Event::WindowEvent { window_id, event: WindowEvent::Destroyed });
+        callback(&self.target, Event::SurfaceEvent { window_id, event: SurfaceEvent::Destroyed });
     }
 
     fn property_notify<F>(&mut self, xev: &XPropertyEvent, mut callback: F)
@@ -842,9 +843,9 @@ impl EventProcessor {
     {
         let xwindow = xev.window as xproto::Window;
 
-        let event = Event::WindowEvent {
+        let event = Event::SurfaceEvent {
             window_id: mkwid(xwindow),
-            event: WindowEvent::Occluded(xev.state == xlib::VisibilityFullyObscured),
+            event: SurfaceEvent::Occluded(xev.state == xlib::VisibilityFullyObscured),
         };
         callback(&self.target, event);
 
@@ -863,7 +864,7 @@ impl EventProcessor {
             let window = xev.window as xproto::Window;
             let window_id = mkwid(window);
 
-            let event = Event::WindowEvent { window_id, event: WindowEvent::RedrawRequested };
+            let event = Event::SurfaceEvent { window_id, event: SurfaceEvent::RedrawRequested };
 
             callback(&self.target, event);
         }
@@ -943,9 +944,9 @@ impl EventProcessor {
 
             if let Some(mut key_processor) = self.xkb_context.key_context() {
                 let event = key_processor.process_key_event(keycode, state, repeat);
-                let event = Event::WindowEvent {
+                let event = Event::SurfaceEvent {
                     window_id,
-                    event: WindowEvent::KeyboardInput {
+                    event: SurfaceEvent::KeyboardInput {
                         device_id: None,
                         event,
                         is_synthetic: false,
@@ -967,14 +968,16 @@ impl EventProcessor {
         {
             let written = self.target.xconn.lookup_utf8(ic, xev);
             if !written.is_empty() {
-                let event = Event::WindowEvent {
+                let event = Event::SurfaceEvent {
                     window_id,
-                    event: WindowEvent::Ime(Ime::Preedit(String::new(), None)),
+                    event: SurfaceEvent::Ime(Ime::Preedit(String::new(), None)),
                 };
                 callback(&self.target, event);
 
-                let event =
-                    Event::WindowEvent { window_id, event: WindowEvent::Ime(Ime::Commit(written)) };
+                let event = Event::SurfaceEvent {
+                    window_id,
+                    event: SurfaceEvent::Ime(Ime::Commit(written)),
+                };
 
                 self.is_composing = false;
                 callback(&self.target, event);
@@ -984,7 +987,7 @@ impl EventProcessor {
 
     fn send_synthic_modifier_from_core<F>(
         &mut self,
-        window_id: crate::window::WindowId,
+        window_id: crate::window::SurfaceId,
         state: u16,
         mut callback: F,
     ) where
@@ -1009,7 +1012,7 @@ impl EventProcessor {
         let mods: ModifiersState = xkb_state.modifiers().into();
 
         let event =
-            Event::WindowEvent { window_id, event: WindowEvent::ModifiersChanged(mods.into()) };
+            Event::SurfaceEvent { window_id, event: SurfaceEvent::ModifiersChanged(mods.into()) };
 
         callback(&self.target, event);
     }
@@ -1032,20 +1035,20 @@ impl EventProcessor {
         let position = PhysicalPosition::new(event.event_x, event.event_y);
 
         let event = match event.detail as u32 {
-            xlib::Button1 => WindowEvent::PointerButton {
+            xlib::Button1 => SurfaceEvent::PointerButton {
                 device_id,
                 state,
                 position,
                 button: MouseButton::Left.into(),
             },
-            xlib::Button2 => WindowEvent::PointerButton {
+            xlib::Button2 => SurfaceEvent::PointerButton {
                 device_id,
                 state,
                 position,
                 button: MouseButton::Middle.into(),
             },
 
-            xlib::Button3 => WindowEvent::PointerButton {
+            xlib::Button3 => SurfaceEvent::PointerButton {
                 device_id,
                 state,
                 position,
@@ -1056,7 +1059,7 @@ impl EventProcessor {
             // those. In practice, even clicky scroll wheels appear to be reported by
             // evdev (and XInput2 in turn) as axis motion, so we don't otherwise
             // special-case these button presses.
-            4..=7 => WindowEvent::MouseWheel {
+            4..=7 => SurfaceEvent::MouseWheel {
                 device_id,
                 delta: match event.detail {
                     4 => MouseScrollDelta::LineDelta(0.0, 1.0),
@@ -1067,20 +1070,20 @@ impl EventProcessor {
                 },
                 phase: TouchPhase::Moved,
             },
-            8 => WindowEvent::PointerButton {
+            8 => SurfaceEvent::PointerButton {
                 device_id,
                 state,
                 position,
                 button: MouseButton::Back.into(),
             },
 
-            9 => WindowEvent::PointerButton {
+            9 => SurfaceEvent::PointerButton {
                 device_id,
                 state,
                 position,
                 button: MouseButton::Forward.into(),
             },
-            x => WindowEvent::PointerButton {
+            x => SurfaceEvent::PointerButton {
                 device_id,
                 state,
                 position,
@@ -1088,7 +1091,7 @@ impl EventProcessor {
             },
         };
 
-        let event = Event::WindowEvent { window_id, event };
+        let event = Event::SurfaceEvent { window_id, event };
         callback(&self.target, event);
     }
 
@@ -1112,9 +1115,9 @@ impl EventProcessor {
         if cursor_moved == Some(true) {
             let position = PhysicalPosition::new(event.event_x, event.event_y);
 
-            let event = Event::WindowEvent {
+            let event = Event::SurfaceEvent {
                 window_id,
-                event: WindowEvent::PointerMoved {
+                event: SurfaceEvent::PointerMoved {
                     device_id,
                     position,
                     source: PointerSource::Mouse,
@@ -1157,8 +1160,8 @@ impl EventProcessor {
                     ScrollOrientation::Vertical => MouseScrollDelta::LineDelta(0.0, -delta as f32),
                 };
 
-                let event = WindowEvent::MouseWheel { device_id, delta, phase: TouchPhase::Moved };
-                events.push(Event::WindowEvent { window_id, event });
+                let event = SurfaceEvent::MouseWheel { device_id, delta, phase: TouchPhase::Moved };
+                events.push(Event::SurfaceEvent { window_id, event });
             }
 
             value = unsafe { value.offset(1) };
@@ -1201,9 +1204,9 @@ impl EventProcessor {
             let device_id = Some(device_id);
             let position = PhysicalPosition::new(event.event_x, event.event_y);
 
-            let event = Event::WindowEvent {
+            let event = Event::SurfaceEvent {
                 window_id,
-                event: WindowEvent::PointerEntered {
+                event: SurfaceEvent::PointerEntered {
                     device_id,
                     position,
                     kind: PointerKind::Mouse,
@@ -1225,9 +1228,9 @@ impl EventProcessor {
         // Leave, FocusIn, and FocusOut can be received by a window that's already
         // been destroyed, which the user presumably doesn't want to deal with.
         if self.window_exists(window) {
-            let event = Event::WindowEvent {
+            let event = Event::SurfaceEvent {
                 window_id: mkwid(window),
-                event: WindowEvent::PointerLeft {
+                event: SurfaceEvent::PointerLeft {
                     device_id: Some(mkdid(event.deviceid as xinput::DeviceId)),
                     position: Some(PhysicalPosition::new(event.event_x, event.event_y)),
                     kind: PointerKind::Mouse,
@@ -1265,7 +1268,7 @@ impl EventProcessor {
             window.shared_state_lock().has_focus = true;
         }
 
-        let event = Event::WindowEvent { window_id, event: WindowEvent::Focused(true) };
+        let event = Event::SurfaceEvent { window_id, event: SurfaceEvent::Focused(true) };
         callback(&self.target, event);
 
         // Issue key press events for all pressed keys
@@ -1287,9 +1290,9 @@ impl EventProcessor {
             .get(&mkdid(xev.deviceid as xinput::DeviceId))
             .map(|device| mkdid(device.attachment as xinput::DeviceId));
 
-        let event = Event::WindowEvent {
+        let event = Event::SurfaceEvent {
             window_id,
-            event: WindowEvent::PointerMoved { device_id, position, source: PointerSource::Mouse },
+            event: SurfaceEvent::PointerMoved { device_id, position, source: PointerSource::Mouse },
         };
         callback(&self.target, event);
     }
@@ -1340,7 +1343,7 @@ impl EventProcessor {
                 window.shared_state_lock().has_focus = false;
             }
 
-            let event = Event::WindowEvent { window_id, event: WindowEvent::Focused(false) };
+            let event = Event::SurfaceEvent { window_id, event: SurfaceEvent::Focused(false) };
             callback(&self.target, event)
         }
     }
@@ -1361,9 +1364,9 @@ impl EventProcessor {
             // Mouse cursor position changes when touch events are received.
             // Only the first concurrently active touch ID moves the mouse cursor.
             if is_first_touch(&mut self.first_touch, &mut self.num_touch, id, phase) {
-                let event = Event::WindowEvent {
+                let event = Event::SurfaceEvent {
                     window_id,
-                    event: WindowEvent::PointerMoved {
+                    event: SurfaceEvent::PointerMoved {
                         device_id: None,
                         position: position.cast(),
                         source: PointerSource::Mouse,
@@ -1377,18 +1380,18 @@ impl EventProcessor {
 
             match phase {
                 xinput2::XI_TouchBegin => {
-                    let event = Event::WindowEvent {
+                    let event = Event::SurfaceEvent {
                         window_id,
-                        event: WindowEvent::PointerEntered {
+                        event: SurfaceEvent::PointerEntered {
                             device_id,
                             position,
                             kind: PointerKind::Touch(finger_id),
                         },
                     };
                     callback(&self.target, event);
-                    let event = Event::WindowEvent {
+                    let event = Event::SurfaceEvent {
                         window_id,
-                        event: WindowEvent::PointerButton {
+                        event: SurfaceEvent::PointerButton {
                             device_id,
                             state: ElementState::Pressed,
                             position,
@@ -1398,9 +1401,9 @@ impl EventProcessor {
                     callback(&self.target, event);
                 },
                 xinput2::XI_TouchUpdate => {
-                    let event = Event::WindowEvent {
+                    let event = Event::SurfaceEvent {
                         window_id,
-                        event: WindowEvent::PointerMoved {
+                        event: SurfaceEvent::PointerMoved {
                             device_id,
                             position,
                             source: PointerSource::Touch { finger_id, force: None },
@@ -1409,9 +1412,9 @@ impl EventProcessor {
                     callback(&self.target, event);
                 },
                 xinput2::XI_TouchEnd => {
-                    let event = Event::WindowEvent {
+                    let event = Event::SurfaceEvent {
                         window_id,
-                        event: WindowEvent::PointerButton {
+                        event: SurfaceEvent::PointerButton {
                             device_id,
                             state: ElementState::Released,
                             position,
@@ -1419,9 +1422,9 @@ impl EventProcessor {
                         },
                     };
                     callback(&self.target, event);
-                    let event = Event::WindowEvent {
+                    let event = Event::SurfaceEvent {
                         window_id,
-                        event: WindowEvent::PointerLeft {
+                        event: SurfaceEvent::PointerLeft {
                             device_id,
                             position: Some(position),
                             kind: PointerKind::Touch(finger_id),
@@ -1645,7 +1648,7 @@ impl EventProcessor {
         }
     }
 
-    fn update_mods_from_query<F>(&mut self, window_id: crate::window::WindowId, mut callback: F)
+    fn update_mods_from_query<F>(&mut self, window_id: crate::window::SurfaceId, mut callback: F)
     where
         F: FnMut(&ActiveEventLoop, Event),
     {
@@ -1679,7 +1682,7 @@ impl EventProcessor {
 
     pub(crate) fn update_mods_from_core_event<F>(
         &mut self,
-        window_id: crate::window::WindowId,
+        window_id: crate::window::SurfaceId,
         state: u16,
         mut callback: F,
     ) where
@@ -1758,7 +1761,7 @@ impl EventProcessor {
     /// unless `force` is passed. The `force` should be passed when the active window changes.
     fn send_modifiers<F: FnMut(&ActiveEventLoop, Event)>(
         &self,
-        window_id: crate::window::WindowId,
+        window_id: crate::window::SurfaceId,
         modifiers: ModifiersState,
         force: bool,
         callback: &mut F,
@@ -1766,9 +1769,9 @@ impl EventProcessor {
         // NOTE: Always update the modifiers to account for case when they've changed
         // and forced was `true`.
         if self.modifiers.replace(modifiers) != modifiers || force {
-            let event = Event::WindowEvent {
+            let event = Event::SurfaceEvent {
                 window_id,
-                event: WindowEvent::ModifiersChanged(self.modifiers.get().into()),
+                event: SurfaceEvent::ModifiersChanged(self.modifiers.get().into()),
             };
             callback(&self.target, event);
         }
@@ -1776,7 +1779,7 @@ impl EventProcessor {
 
     fn handle_pressed_keys<F>(
         target: &ActiveEventLoop,
-        window_id: crate::window::WindowId,
+        window_id: crate::window::SurfaceId,
         state: ElementState,
         xkb_context: &mut Context,
         callback: &mut F,
@@ -1803,9 +1806,9 @@ impl EventProcessor {
 
         for keycode in target.xconn.query_keymap().into_iter().filter(|k| *k >= KEYCODE_OFFSET) {
             let event = key_processor.process_key_event(keycode as u32, state, false);
-            let event = Event::WindowEvent {
+            let event = Event::SurfaceEvent {
                 window_id,
-                event: WindowEvent::KeyboardInput { device_id: None, event, is_synthetic: true },
+                event: SurfaceEvent::KeyboardInput { device_id: None, event, is_synthetic: true },
             };
             callback(target, event);
         }

@@ -14,32 +14,32 @@ use crate::monitor::{MonitorHandle, VideoModeHandle};
 use crate::platform_impl::PlatformSpecificWindowAttributes;
 use crate::utils::AsAny;
 
-/// Identifier of a window. Unique for each window.
+/// Identifier of a surface. Unique for each surface.
 ///
-/// Can be obtained with [`window.id()`][`Window::id`].
+/// Can be obtained with [`surface.id()`][`Surface::id`].
 ///
-/// Whenever you receive an event specific to a window, this event contains a `WindowId` which you
-/// can then compare to the ids of your windows.
+/// Whenever you receive an event specific to a surface, this event contains a `SurfaceId` which you
+/// can then compare to the IDs of your surfaces.
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct WindowId(usize);
+pub struct SurfaceId(usize);
 
-impl WindowId {
-    /// Convert the `WindowId` into the underlying integer.
+impl SurfaceId {
+    /// Convert the `SurfaceId` into the underlying integer.
     ///
     /// This is useful if you need to pass the ID across an FFI boundary, or store it in an atomic.
     pub const fn into_raw(self) -> usize {
         self.0
     }
 
-    /// Construct a `WindowId` from the underlying integer.
+    /// Construct a `SurfaceId` from the underlying integer.
     ///
-    /// This should only be called with integers returned from [`WindowId::into_raw`].
+    /// This should only be called with integers returned from [`SurfaceId::into_raw`].
     pub const fn from_raw(id: usize) -> Self {
         Self(id)
     }
 }
 
-impl fmt::Debug for WindowId {
+impl fmt::Debug for SurfaceId {
     fn fmt(&self, fmtr: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.0.fmt(fmtr)
     }
@@ -132,7 +132,7 @@ impl WindowAttributes {
     ///
     /// If this is not set, some platform-specific dimensions will be used.
     ///
-    /// See [`Window::request_surface_size`] for details.
+    /// See [`Surface::request_surface_size`] for details.
     #[inline]
     pub fn with_surface_size<S: Into<Size>>(mut self, size: S) -> Self {
         self.surface_size = Some(size.into());
@@ -271,7 +271,7 @@ impl WindowAttributes {
     /// If this is `true`, writing colors with alpha values different than
     /// `1.0` will produce a transparent window. On some platforms this
     /// is more of a hint for the system and you'd still have the alpha
-    /// buffer. To control it see [`Window::set_transparent`].
+    /// buffer. To control it see [`Surface::set_transparent`].
     ///
     /// The default is `false`.
     #[inline]
@@ -370,13 +370,13 @@ impl WindowAttributes {
     /// Whether the window will be initially focused or not.
     ///
     /// The window should be assumed as not focused by default
-    /// following by the [`WindowEvent::Focused`].
+    /// following by the [`SurfaceEvent::Focused`].
     ///
     /// ## Platform-specific:
     ///
     /// **Android / iOS / X11 / Wayland / Orbital:** Unsupported.
     ///
-    /// [`WindowEvent::Focused`]: crate::event::WindowEvent::Focused.
+    /// [`SurfaceEvent::Focused`]: crate::event::SurfaceEvent::Focused.
     #[inline]
     pub fn with_active(mut self, active: bool) -> Self {
         self.active = active;
@@ -387,7 +387,7 @@ impl WindowAttributes {
     ///
     /// The default is [`CursorIcon::Default`].
     ///
-    /// See [`Window::set_cursor()`] for more details.
+    /// See [`Surface::set_cursor()`] for more details.
     #[inline]
     pub fn with_cursor(mut self, cursor: impl Into<Cursor>) -> Self {
         self.cursor = cursor.into();
@@ -420,9 +420,9 @@ impl WindowAttributes {
     }
 }
 
-/// Represents a window.
+/// Represents an area that can be drawn to; this includes windows.
 ///
-/// The window is closed when dropped.
+/// The surface is closed when dropped.
 ///
 /// ## Threading
 ///
@@ -436,17 +436,17 @@ impl WindowAttributes {
 ///
 /// ## Platform-specific
 ///
-/// **Web:** The [`Window`], which is represented by a `HTMLElementCanvas`, can
-/// not be closed by dropping the [`Window`].
-pub trait Window: AsAny + Send + Sync {
+/// **Web:** The [`Surface`], which is represented by a `HTMLElementCanvas`, can
+/// not be closed by dropping the [`Surface`].
+pub trait Surface: AsAny + Send + Sync {
     /// Returns an identifier unique to the window.
-    fn id(&self) -> WindowId;
+    fn id(&self) -> SurfaceId;
 
     /// Returns the scale factor that can be used to map logical pixels to physical pixels, and
     /// vice versa.
     ///
     /// Note that this value can change depending on user action (for example if the window is
-    /// moved to another screen); as such, tracking [`WindowEvent::ScaleFactorChanged`] events is
+    /// moved to another screen); as such, tracking [`SurfaceEvent::ScaleFactorChanged`] events is
     /// the most robust way to track the DPI you need to use to draw.
     ///
     /// This value may differ from [`MonitorHandle::scale_factor`].
@@ -496,7 +496,7 @@ pub trait Window: AsAny + Send + Sync {
     ///   both the screen scaling and the browser zoom level and can go below `1.0`.
     /// - **Orbital:** This is currently unimplemented, and this function always returns 1.0.
     ///
-    /// [`WindowEvent::ScaleFactorChanged`]: crate::event::WindowEvent::ScaleFactorChanged
+    /// [`SurfaceEvent::ScaleFactorChanged`]: crate::event::SurfaceEvent::ScaleFactorChanged
     /// [windows_1]: https://docs.microsoft.com/en-us/windows/win32/hidpi/high-dpi-desktop-application-development-on-windows
     /// [apple_1]: https://developer.apple.com/library/archive/documentation/DeviceInformation/Reference/iOSDeviceCompatibility/Displays/Displays.html
     /// [apple_2]: https://developer.apple.com/design/human-interface-guidelines/macos/icons-and-images/image-size-and-resolution/
@@ -505,12 +505,12 @@ pub trait Window: AsAny + Send + Sync {
     /// [`contentScaleFactor`]: https://developer.apple.com/documentation/uikit/uiview/1622657-contentscalefactor?language=objc
     fn scale_factor(&self) -> f64;
 
-    /// Queues a [`WindowEvent::RedrawRequested`] event to be emitted that aligns with the windowing
-    /// system drawing loop.
+    /// Queues a [`SurfaceEvent::RedrawRequested`] event to be emitted that aligns with the
+    /// windowing system drawing loop.
     ///
     /// This is the **strongly encouraged** method of redrawing windows, as it can integrate with
     /// OS-requested redraws (e.g. when a window gets resized). To improve the event delivery
-    /// consider using [`Window::pre_present_notify`] as described in docs.
+    /// consider using [`Surface::pre_present_notify`] as described in docs.
     ///
     /// Applications should always aim to redraw whenever they receive a `RedrawRequested` event.
     ///
@@ -526,11 +526,11 @@ pub trait Window: AsAny + Send + Sync {
     /// - **Windows** This API uses `RedrawWindow` to request a `WM_PAINT` message and
     ///   `RedrawRequested` is emitted in sync with any `WM_PAINT` messages.
     /// - **Wayland:** The events are aligned with the frame callbacks when
-    ///   [`Window::pre_present_notify`] is used.
-    /// - **Web:** [`WindowEvent::RedrawRequested`] will be aligned with the
+    ///   [`Surface::pre_present_notify`] is used.
+    /// - **Web:** [`SurfaceEvent::RedrawRequested`] will be aligned with the
     ///   `requestAnimationFrame`.
     ///
-    /// [`WindowEvent::RedrawRequested`]: crate::event::WindowEvent::RedrawRequested
+    /// [`SurfaceEvent::RedrawRequested`]: crate::event::SurfaceEvent::RedrawRequested
     fn request_redraw(&self);
 
     /// Notify the windowing system before presenting to the window.
@@ -538,7 +538,7 @@ pub trait Window: AsAny + Send + Sync {
     /// You should call this event after your drawing operations, but before you submit
     /// the buffer to the display or commit your drawings. Doing so will help winit to properly
     /// schedule and make assumptions about its internal state. For example, it could properly
-    /// throttle [`WindowEvent::RedrawRequested`].
+    /// throttle [`SurfaceEvent::RedrawRequested`].
     ///
     /// ## Example
     ///
@@ -562,11 +562,228 @@ pub trait Window: AsAny + Send + Sync {
     /// ## Platform-specific
     ///
     /// - **Android / iOS / X11 / Web / Windows / macOS / Orbital:** Unsupported.
-    /// - **Wayland:** Schedules a frame callback to throttle [`WindowEvent::RedrawRequested`].
+    /// - **Wayland:** Schedules a frame callback to throttle [`SurfaceEvent::RedrawRequested`].
     ///
-    /// [`WindowEvent::RedrawRequested`]: crate::event::WindowEvent::RedrawRequested
+    /// [`SurfaceEvent::RedrawRequested`]: crate::event::SurfaceEvent::RedrawRequested
     fn pre_present_notify(&self);
 
+    /// Returns the size of the window's render-able surface.
+    ///
+    /// This is the dimensions you should pass to things like Wgpu or Glutin when configuring.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **iOS:** Returns the `PhysicalSize` of the window's [safe area] in screen space
+    ///   coordinates.
+    /// - **Web:** Returns the size of the canvas element. Doesn't account for CSS [`transform`].
+    ///
+    /// [safe area]: https://developer.apple.com/documentation/uikit/uiview/2891103-safeareainsets?language=objc
+    /// [`transform`]: https://developer.mozilla.org/en-US/docs/Web/CSS/transform
+    fn surface_size(&self) -> PhysicalSize<u32>;
+
+    /// Request the new size for the surface.
+    ///
+    /// On platforms where the size is entirely controlled by the user the
+    /// applied size will be returned immediately, resize event in such case
+    /// may not be generated.
+    ///
+    /// On platforms where resizing is disallowed by the windowing system, the current surface size
+    /// is returned immediately, and the user one is ignored.
+    ///
+    /// When `None` is returned, it means that the request went to the display system,
+    /// and the actual size will be delivered later with the [`SurfaceEvent::SurfaceResized`].
+    ///
+    /// See [`Surface::surface_size`] for more information about the values.
+    ///
+    /// The request could automatically un-maximize the window if it's maximized.
+    ///
+    /// ```no_run
+    /// # use winit::dpi::{LogicalSize, PhysicalSize};
+    /// # use winit::window::Window;
+    /// # fn scope(window: &dyn Window) {
+    /// // Specify the size in logical dimensions like this:
+    /// let _ = window.request_surface_size(LogicalSize::new(400.0, 200.0).into());
+    ///
+    /// // Or specify the size in physical dimensions like this:
+    /// let _ = window.request_surface_size(PhysicalSize::new(400, 200).into());
+    /// # }
+    /// ```
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **Web:** Sets the size of the canvas element. Doesn't account for CSS [`transform`].
+    ///
+    /// [`SurfaceEvent::SurfaceResized`]: crate::event::SurfaceEvent::SurfaceResized
+    /// [`transform`]: https://developer.mozilla.org/en-US/docs/Web/CSS/transform
+    #[must_use]
+    fn request_surface_size(&self, size: Size) -> Option<PhysicalSize<u32>>;
+
+    /// Change the window transparency state.
+    ///
+    /// This is just a hint that may not change anything about
+    /// the window transparency, however doing a mismatch between
+    /// the content of your window and this hint may result in
+    /// visual artifacts.
+    ///
+    /// The default value follows the [`WindowAttributes::with_transparent`].
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **macOS:** This will reset the window's background color.
+    /// - **Web / iOS / Android:** Unsupported.
+    /// - **X11:** Can only be set while building the window, with
+    ///   [`WindowAttributes::with_transparent`].
+    fn set_transparent(&self, transparent: bool);
+
+    /// Modifies whether the window catches cursor events.
+    ///
+    /// If `true`, the window will catch the cursor events. If `false`, events are passed through
+    /// the window such that any other window behind it receives them. By default hittest is
+    /// enabled.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **iOS / Android / Web / Orbital:** Always returns an [`RequestError::NotSupported`].
+    fn set_cursor_hittest(&self, hittest: bool) -> Result<(), RequestError>;
+
+    /// Changes the position of the cursor in window coordinates.
+    ///
+    /// ```no_run
+    /// # use winit::dpi::{LogicalPosition, PhysicalPosition};
+    /// # use winit::window::Window;
+    /// # fn scope(window: &dyn Window) {
+    /// // Specify the position in logical dimensions like this:
+    /// window.set_cursor_position(LogicalPosition::new(400.0, 200.0).into());
+    ///
+    /// // Or specify the position in physical dimensions like this:
+    /// window.set_cursor_position(PhysicalPosition::new(400, 200).into());
+    /// # }
+    /// ```
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **Wayland**: Cursor must be in [`CursorGrabMode::Locked`].
+    /// - **iOS / Android / Web / Orbital:** Always returns an [`RequestError::NotSupported`].
+    fn set_cursor_position(&self, position: Position) -> Result<(), RequestError>;
+
+    /// Set grabbing [mode][CursorGrabMode] on the cursor preventing it from leaving the window.
+    ///
+    /// # Example
+    ///
+    /// First try confining the cursor, and if that fails, try locking it instead.
+    ///
+    /// ```no_run
+    /// # use winit::window::{CursorGrabMode, Window};
+    /// # fn scope(window: &dyn Window) {
+    /// window
+    ///     .set_cursor_grab(CursorGrabMode::Confined)
+    ///     .or_else(|_e| window.set_cursor_grab(CursorGrabMode::Locked))
+    ///     .unwrap();
+    /// # }
+    /// ```
+    fn set_cursor_grab(&self, mode: CursorGrabMode) -> Result<(), RequestError>;
+
+    /// Modifies the cursor icon of the window.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **iOS / Android / Orbital:** Unsupported.
+    /// - **Web:** Custom cursors have to be loaded and decoded first, until then the previous
+    ///   cursor is shown.
+    fn set_cursor(&self, cursor: Cursor);
+
+    /// Modifies the cursor's visibility.
+    ///
+    /// If `false`, this will hide the cursor. If `true`, this will show the cursor.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **Windows:** The cursor is only hidden within the confines of the window.
+    /// - **X11:** The cursor is only hidden within the confines of the window.
+    /// - **Wayland:** The cursor is only hidden within the confines of the window.
+    /// - **macOS:** The cursor is hidden as long as the window has input focus, even if the cursor
+    ///   is outside of the window.
+    /// - **iOS / Android:** Unsupported.
+    fn set_cursor_visible(&self, visible: bool);
+
+    /// Returns the monitor on which the window currently resides.
+    ///
+    /// Returns `None` if current monitor can't be detected.
+    fn current_monitor(&self) -> Option<MonitorHandle>;
+
+    /// Returns the list of all the monitors available on the system.
+    ///
+    /// This is the same as [`ActiveEventLoop::available_monitors`], and is provided for
+    /// convenience.
+    ///
+    ///
+    /// ## Platform-specific
+    ///
+    /// **Web:** Only returns the current monitor without
+    #[cfg_attr(
+        any(web_platform, docsrs),
+        doc = "[detailed monitor permissions][crate::platform::web::ActiveEventLoopExtWeb::request_detailed_monitor_permission]."
+    )]
+    #[cfg_attr(not(any(web_platform, docsrs)), doc = "detailed monitor permissions.")]
+    ///
+    #[rustfmt::skip]
+    /// [`ActiveEventLoop::available_monitors`]: crate::event_loop::ActiveEventLoop::available_monitors
+    fn available_monitors(&self) -> Box<dyn Iterator<Item = MonitorHandle>>;
+
+    /// Returns the primary monitor of the system.
+    ///
+    /// Returns `None` if it can't identify any monitor as a primary one.
+    ///
+    /// This is the same as [`ActiveEventLoop::primary_monitor`], and is provided for convenience.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **Wayland:** Always returns `None`.
+    /// - **Web:** Always returns `None` without
+    #[cfg_attr(
+        any(web_platform, docsrs),
+        doc = "  [detailed monitor permissions][crate::platform::web::ActiveEventLoopExtWeb::request_detailed_monitor_permission]."
+    )]
+    #[cfg_attr(not(any(web_platform, docsrs)), doc = "  detailed monitor permissions.")]
+    ///
+    #[rustfmt::skip]
+    /// [`ActiveEventLoop::primary_monitor`]: crate::event_loop::ActiveEventLoop::primary_monitor
+    fn primary_monitor(&self) -> Option<MonitorHandle>;
+
+    /// Get the raw-window-handle v0.6 display handle.
+    #[cfg(feature = "rwh_06")]
+    fn rwh_06_display_handle(&self) -> &dyn rwh_06::HasDisplayHandle;
+
+    /// Get the raw-window-handle v0.6 window handle.
+    #[cfg(feature = "rwh_06")]
+    fn rwh_06_window_handle(&self) -> &dyn rwh_06::HasWindowHandle;
+
+    /// Tries to downcast this surface to a [`Window`]. Returns `None` if the surface is not a
+    /// window.
+    fn as_window(&self) -> Option<&dyn Window> {
+        None
+    }
+}
+
+/// Represents a toplevel window, which may generally have decorations.
+///
+/// The window is closed when dropped.
+///
+/// ## Threading
+///
+/// This is `Send + Sync`, meaning that it can be freely used from other
+/// threads.
+///
+/// However, some platforms (macOS, Web and iOS) only allow user interface
+/// interactions on the main thread, so on those platforms, if you use the
+/// window from a thread other than the main, the code is scheduled to run on
+/// the main thread, and your thread may be blocked until that completes.
+///
+/// ## Platform-specific
+///
+/// **Web:** The [`Window`], which is represented by a `HTMLElementCanvas`, can
+/// not be closed by dropping the [`Window`].
+pub trait Window: Surface {
     /// Reset the dead key state of the keyboard.
     ///
     /// This is useful when a dead key is bound to trigger an action. Then
@@ -643,67 +860,16 @@ pub trait Window: AsAny + Send + Sync {
     /// [`transform`]: https://developer.mozilla.org/en-US/docs/Web/CSS/transform
     fn set_outer_position(&self, position: Position);
 
-    /// Returns the size of the window's render-able surface.
-    ///
-    /// This is the dimensions you should pass to things like Wgpu or Glutin when configuring.
-    ///
-    /// ## Platform-specific
-    ///
-    /// - **iOS:** Returns the `PhysicalSize` of the window's [safe area] in screen space
-    ///   coordinates.
-    /// - **Web:** Returns the size of the canvas element. Doesn't account for CSS [`transform`].
-    ///
-    /// [safe area]: https://developer.apple.com/documentation/uikit/uiview/2891103-safeareainsets?language=objc
-    /// [`transform`]: https://developer.mozilla.org/en-US/docs/Web/CSS/transform
-    fn surface_size(&self) -> PhysicalSize<u32>;
-
-    /// Request the new size for the surface.
-    ///
-    /// On platforms where the size is entirely controlled by the user the
-    /// applied size will be returned immediately, resize event in such case
-    /// may not be generated.
-    ///
-    /// On platforms where resizing is disallowed by the windowing system, the current surface size
-    /// is returned immediately, and the user one is ignored.
-    ///
-    /// When `None` is returned, it means that the request went to the display system,
-    /// and the actual size will be delivered later with the [`WindowEvent::SurfaceResized`].
-    ///
-    /// See [`Window::surface_size`] for more information about the values.
-    ///
-    /// The request could automatically un-maximize the window if it's maximized.
-    ///
-    /// ```no_run
-    /// # use winit::dpi::{LogicalSize, PhysicalSize};
-    /// # use winit::window::Window;
-    /// # fn scope(window: &dyn Window) {
-    /// // Specify the size in logical dimensions like this:
-    /// let _ = window.request_surface_size(LogicalSize::new(400.0, 200.0).into());
-    ///
-    /// // Or specify the size in physical dimensions like this:
-    /// let _ = window.request_surface_size(PhysicalSize::new(400, 200).into());
-    /// # }
-    /// ```
-    ///
-    /// ## Platform-specific
-    ///
-    /// - **Web:** Sets the size of the canvas element. Doesn't account for CSS [`transform`].
-    ///
-    /// [`WindowEvent::SurfaceResized`]: crate::event::WindowEvent::SurfaceResized
-    /// [`transform`]: https://developer.mozilla.org/en-US/docs/Web/CSS/transform
-    #[must_use]
-    fn request_surface_size(&self, size: Size) -> Option<PhysicalSize<u32>>;
-
     /// Returns the size of the entire window.
     ///
     /// These dimensions include window decorations like the title bar and borders. If you don't
-    /// want that (and you usually don't), use [`Window::surface_size`] instead.
+    /// want that (and you usually don't), use [`Surface::surface_size`] instead.
     ///
     /// ## Platform-specific
     ///
     /// - **iOS:** Returns the [`PhysicalSize`] of the window in screen space coordinates.
     /// - **Web:** Returns the size of the canvas element. _Note: this returns the same value as
-    ///   [`Window::surface_size`]._
+    ///   [`Surface::surface_size`]._
     fn outer_size(&self) -> PhysicalSize<u32>;
 
     /// Sets a minimum dimensions of the window's surface.
@@ -771,23 +937,6 @@ pub trait Window: AsAny + Send + Sync {
     /// - **iOS / Android:** Unsupported.
     fn set_title(&self, title: &str);
 
-    /// Change the window transparency state.
-    ///
-    /// This is just a hint that may not change anything about
-    /// the window transparency, however doing a mismatch between
-    /// the content of your window and this hint may result in
-    /// visual artifacts.
-    ///
-    /// The default value follows the [`WindowAttributes::with_transparent`].
-    ///
-    /// ## Platform-specific
-    ///
-    /// - **macOS:** This will reset the window's background color.
-    /// - **Web / iOS / Android:** Unsupported.
-    /// - **X11:** Can only be set while building the window, with
-    ///   [`WindowAttributes::with_transparent`].
-    fn set_transparent(&self, transparent: bool);
-
     /// Change the window blur state.
     ///
     /// If `true`, this will make the transparent window background blurry.
@@ -821,9 +970,9 @@ pub trait Window: AsAny + Send + Sync {
     /// Sets whether the window is resizable or not.
     ///
     /// Note that making the window unresizable doesn't exempt you from handling
-    /// [`WindowEvent::SurfaceResized`], as that event can still be triggered by DPI scaling,
+    /// [`SurfaceEvent::SurfaceResized`], as that event can still be triggered by DPI scaling,
     /// entering fullscreen mode, etc. Also, the window could still be resized by calling
-    /// [`Window::request_surface_size`].
+    /// [`Surface::request_surface_size`].
     ///
     /// ## Platform-specific
     ///
@@ -832,7 +981,7 @@ pub trait Window: AsAny + Send + Sync {
     /// - **X11:** Due to a bug in XFCE, this has no effect on Xfwm.
     /// - **iOS / Android / Web:** Unsupported.
     ///
-    /// [`WindowEvent::SurfaceResized`]: crate::event::WindowEvent::SurfaceResized
+    /// [`SurfaceEvent::SurfaceResized`]: crate::event::SurfaceEvent::SurfaceResized
     fn set_resizable(&self, resizable: bool);
 
     /// Gets the window's current resizable state.
@@ -1039,8 +1188,8 @@ pub trait Window: AsAny + Send + Sync {
     /// - **Android / Web / Orbital:** Unsupported.
     /// - **X11**: Enabling IME will disable dead keys reporting during compose.
     ///
-    /// [`Ime`]: crate::event::WindowEvent::Ime
-    /// [`KeyboardInput`]: crate::event::WindowEvent::KeyboardInput
+    /// [`Ime`]: crate::event::SurfaceEvent::Ime
+    /// [`KeyboardInput`]: crate::event::SurfaceEvent::KeyboardInput
     fn set_ime_allowed(&self, allowed: bool);
 
     /// Sets the IME purpose for the window using [`ImePurpose`].
@@ -1064,9 +1213,9 @@ pub trait Window: AsAny + Send + Sync {
 
     /// Gets whether the window has keyboard focus.
     ///
-    /// This queries the same state information as [`WindowEvent::Focused`].
+    /// This queries the same state information as [`SurfaceEvent::Focused`].
     ///
-    /// [`WindowEvent::Focused`]: crate::event::WindowEvent::Focused
+    /// [`SurfaceEvent::Focused`]: crate::event::SurfaceEvent::Focused
     fn has_focus(&self) -> bool;
 
     /// Requests user attention to the window, this has no effect if the application
@@ -1125,66 +1274,6 @@ pub trait Window: AsAny + Send + Sync {
     /// - **iOS / Android / x11 / Wayland / Web:** Unsupported. Always returns an empty string.
     fn title(&self) -> String;
 
-    /// Modifies the cursor icon of the window.
-    ///
-    /// ## Platform-specific
-    ///
-    /// - **iOS / Android / Orbital:** Unsupported.
-    /// - **Web:** Custom cursors have to be loaded and decoded first, until then the previous
-    ///   cursor is shown.
-    fn set_cursor(&self, cursor: Cursor);
-
-    /// Changes the position of the cursor in window coordinates.
-    ///
-    /// ```no_run
-    /// # use winit::dpi::{LogicalPosition, PhysicalPosition};
-    /// # use winit::window::Window;
-    /// # fn scope(window: &dyn Window) {
-    /// // Specify the position in logical dimensions like this:
-    /// window.set_cursor_position(LogicalPosition::new(400.0, 200.0).into());
-    ///
-    /// // Or specify the position in physical dimensions like this:
-    /// window.set_cursor_position(PhysicalPosition::new(400, 200).into());
-    /// # }
-    /// ```
-    ///
-    /// ## Platform-specific
-    ///
-    /// - **Wayland**: Cursor must be in [`CursorGrabMode::Locked`].
-    /// - **iOS / Android / Web / Orbital:** Always returns an [`RequestError::NotSupported`].
-    fn set_cursor_position(&self, position: Position) -> Result<(), RequestError>;
-
-    /// Set grabbing [mode][CursorGrabMode] on the cursor preventing it from leaving the window.
-    ///
-    /// # Example
-    ///
-    /// First try confining the cursor, and if that fails, try locking it instead.
-    ///
-    /// ```no_run
-    /// # use winit::window::{CursorGrabMode, Window};
-    /// # fn scope(window: &dyn Window) {
-    /// window
-    ///     .set_cursor_grab(CursorGrabMode::Confined)
-    ///     .or_else(|_e| window.set_cursor_grab(CursorGrabMode::Locked))
-    ///     .unwrap();
-    /// # }
-    /// ```
-    fn set_cursor_grab(&self, mode: CursorGrabMode) -> Result<(), RequestError>;
-
-    /// Modifies the cursor's visibility.
-    ///
-    /// If `false`, this will hide the cursor. If `true`, this will show the cursor.
-    ///
-    /// ## Platform-specific
-    ///
-    /// - **Windows:** The cursor is only hidden within the confines of the window.
-    /// - **X11:** The cursor is only hidden within the confines of the window.
-    /// - **Wayland:** The cursor is only hidden within the confines of the window.
-    /// - **macOS:** The cursor is hidden as long as the window has input focus, even if the cursor
-    ///   is outside of the window.
-    /// - **iOS / Android:** Unsupported.
-    fn set_cursor_visible(&self, visible: bool);
-
     /// Moves the window with the left mouse button until the button is released.
     ///
     /// There's no guarantee that this will work unless the left mouse button was pressed
@@ -1219,69 +1308,6 @@ pub trait Window: AsAny + Send + Sync {
     ///
     /// [window menu]: https://en.wikipedia.org/wiki/Common_menus_in_Microsoft_Windows#System_menu
     fn show_window_menu(&self, position: Position);
-
-    /// Modifies whether the window catches cursor events.
-    ///
-    /// If `true`, the window will catch the cursor events. If `false`, events are passed through
-    /// the window such that any other window behind it receives them. By default hittest is
-    /// enabled.
-    ///
-    /// ## Platform-specific
-    ///
-    /// - **iOS / Android / Web / Orbital:** Always returns an [`RequestError::NotSupported`].
-    fn set_cursor_hittest(&self, hittest: bool) -> Result<(), RequestError>;
-
-    /// Returns the monitor on which the window currently resides.
-    ///
-    /// Returns `None` if current monitor can't be detected.
-    fn current_monitor(&self) -> Option<MonitorHandle>;
-
-    /// Returns the list of all the monitors available on the system.
-    ///
-    /// This is the same as [`ActiveEventLoop::available_monitors`], and is provided for
-    /// convenience.
-    ///
-    ///
-    /// ## Platform-specific
-    ///
-    /// **Web:** Only returns the current monitor without
-    #[cfg_attr(
-        any(web_platform, docsrs),
-        doc = "[detailed monitor permissions][crate::platform::web::ActiveEventLoopExtWeb::request_detailed_monitor_permission]."
-    )]
-    #[cfg_attr(not(any(web_platform, docsrs)), doc = "detailed monitor permissions.")]
-    ///
-    #[rustfmt::skip]
-    /// [`ActiveEventLoop::available_monitors`]: crate::event_loop::ActiveEventLoop::available_monitors
-    fn available_monitors(&self) -> Box<dyn Iterator<Item = MonitorHandle>>;
-
-    /// Returns the primary monitor of the system.
-    ///
-    /// Returns `None` if it can't identify any monitor as a primary one.
-    ///
-    /// This is the same as [`ActiveEventLoop::primary_monitor`], and is provided for convenience.
-    ///
-    /// ## Platform-specific
-    ///
-    /// - **Wayland:** Always returns `None`.
-    /// - **Web:** Always returns `None` without
-    #[cfg_attr(
-        any(web_platform, docsrs),
-        doc = "  [detailed monitor permissions][crate::platform::web::ActiveEventLoopExtWeb::request_detailed_monitor_permission]."
-    )]
-    #[cfg_attr(not(any(web_platform, docsrs)), doc = "  detailed monitor permissions.")]
-    ///
-    #[rustfmt::skip]
-    /// [`ActiveEventLoop::primary_monitor`]: crate::event_loop::ActiveEventLoop::primary_monitor
-    fn primary_monitor(&self) -> Option<MonitorHandle>;
-
-    /// Get the raw-window-handle v0.6 display handle.
-    #[cfg(feature = "rwh_06")]
-    fn rwh_06_display_handle(&self) -> &dyn rwh_06::HasDisplayHandle;
-
-    /// Get the raw-window-handle v0.6 window handle.
-    #[cfg(feature = "rwh_06")]
-    fn rwh_06_window_handle(&self) -> &dyn rwh_06::HasWindowHandle;
 }
 
 impl dyn Window {
@@ -1322,7 +1348,7 @@ impl rwh_06::HasWindowHandle for dyn Window + '_ {
 
 /// The behavior of cursor grabbing.
 ///
-/// Use this enum with [`Window::set_cursor_grab`] to grab the cursor.
+/// Use this enum with [`Surface::set_cursor_grab`] to grab the cursor.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum CursorGrabMode {

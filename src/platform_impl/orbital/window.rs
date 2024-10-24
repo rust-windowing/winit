@@ -6,7 +6,9 @@ use crate::cursor::Cursor;
 use crate::dpi::{PhysicalPosition, PhysicalSize, Position, Size};
 use crate::error::{NotSupportedError, RequestError};
 use crate::monitor::MonitorHandle as CoreMonitorHandle;
-use crate::window::{self, Fullscreen, ImePurpose, Window as CoreWindow, WindowId};
+use crate::window::{
+    self, Fullscreen, ImePurpose, Surface as CoreSurface, SurfaceId, Window as CoreWindow,
+};
 
 // These values match the values uses in the `window_new` function in orbital:
 // https://gitlab.redox-os.org/redox-os/orbital/-/blob/master/src/scheme.rs
@@ -21,8 +23,8 @@ const ORBITAL_FLAG_TRANSPARENT: char = 't';
 
 pub struct Window {
     window_socket: Arc<RedoxSocket>,
-    redraws: Arc<Mutex<VecDeque<WindowId>>>,
-    destroys: Arc<Mutex<VecDeque<WindowId>>>,
+    redraws: Arc<Mutex<VecDeque<SurfaceId>>>,
+    destroys: Arc<Mutex<VecDeque<SurfaceId>>>,
     wake_socket: Arc<TimeSocket>,
 }
 
@@ -154,24 +156,9 @@ impl Window {
     }
 }
 
-impl CoreWindow for Window {
-    fn id(&self) -> WindowId {
-        WindowId::from_raw(self.window_socket.fd)
-    }
-
-    #[inline]
-    fn primary_monitor(&self) -> Option<CoreMonitorHandle> {
-        Some(CoreMonitorHandle { inner: MonitorHandle })
-    }
-
-    #[inline]
-    fn available_monitors(&self) -> Box<dyn Iterator<Item = CoreMonitorHandle>> {
-        Box::new(vec![CoreMonitorHandle { inner: MonitorHandle }].into_iter())
-    }
-
-    #[inline]
-    fn current_monitor(&self) -> Option<CoreMonitorHandle> {
-        Some(CoreMonitorHandle { inner: MonitorHandle })
+impl CoreSurface for Window {
+    fn id(&self) -> SurfaceId {
+        SurfaceId::from_raw(self.window_socket.fd)
     }
 
     #[inline]
@@ -193,6 +180,91 @@ impl CoreWindow for Window {
     #[inline]
     fn pre_present_notify(&self) {}
 
+    #[inline]
+    fn surface_size(&self) -> PhysicalSize<u32> {
+        let mut buf: [u8; 4096] = [0; 4096];
+        let path = self.window_socket.fpath(&mut buf).expect("failed to read properties");
+        let properties = WindowProperties::new(path);
+        (properties.w, properties.h).into()
+    }
+
+    #[inline]
+    fn request_surface_size(&self, size: Size) -> Option<PhysicalSize<u32>> {
+        let (w, h): (u32, u32) = size.to_physical::<u32>(self.scale_factor()).into();
+        self.window_socket.write(format!("S,{w},{h}").as_bytes()).expect("failed to set size");
+        None
+    }
+
+    #[inline]
+    fn set_transparent(&self, transparent: bool) {
+        let _ = self.set_flag(ORBITAL_FLAG_TRANSPARENT, transparent);
+    }
+
+    #[inline]
+    fn set_cursor(&self, _: Cursor) {}
+
+    #[inline]
+    fn set_cursor_position(&self, _: Position) -> Result<(), RequestError> {
+        Err(NotSupportedError::new("set_cursor_position is not supported").into())
+    }
+
+    #[inline]
+    fn set_cursor_grab(&self, mode: window::CursorGrabMode) -> Result<(), RequestError> {
+        let (grab, relative) = match mode {
+            window::CursorGrabMode::None => (false, false),
+            window::CursorGrabMode::Confined => (true, false),
+            window::CursorGrabMode::Locked => (true, true),
+        };
+        self.window_socket
+            .write(format!("M,G,{}", if grab { 1 } else { 0 }).as_bytes())
+            .map_err(|err| os_error!(format!("{err}")))?;
+        self.window_socket
+            .write(format!("M,R,{}", if relative { 1 } else { 0 }).as_bytes())
+            .map_err(|err| os_error!(format!("{err}")))?;
+        Ok(())
+    }
+
+    #[inline]
+    fn set_cursor_visible(&self, visible: bool) {
+        let _ = self.window_socket.write(format!("M,C,{}", if visible { 1 } else { 0 }).as_bytes());
+    }
+
+    #[inline]
+    fn set_cursor_hittest(&self, _hittest: bool) -> Result<(), RequestError> {
+        Err(NotSupportedError::new("set_cursor_hittest is not supported").into())
+    }
+
+    #[inline]
+    fn primary_monitor(&self) -> Option<CoreMonitorHandle> {
+        Some(CoreMonitorHandle { inner: MonitorHandle })
+    }
+
+    #[inline]
+    fn available_monitors(&self) -> Box<dyn Iterator<Item = CoreMonitorHandle>> {
+        Box::new(vec![CoreMonitorHandle { inner: MonitorHandle }].into_iter())
+    }
+
+    #[inline]
+    fn current_monitor(&self) -> Option<CoreMonitorHandle> {
+        Some(CoreMonitorHandle { inner: MonitorHandle })
+    }
+
+    #[cfg(feature = "rwh_06")]
+    fn rwh_06_window_handle(&self) -> &dyn rwh_06::HasWindowHandle {
+        self
+    }
+
+    #[cfg(feature = "rwh_06")]
+    fn rwh_06_display_handle(&self) -> &dyn rwh_06::HasDisplayHandle {
+        self
+    }
+
+    fn as_window(&self) -> Option<&dyn CoreWindow> {
+        Some(self)
+    }
+}
+
+impl CoreWindow for Window {
     #[inline]
     fn reset_dead_keys(&self) {
         // TODO?
@@ -220,21 +292,6 @@ impl CoreWindow for Window {
     }
 
     #[inline]
-    fn surface_size(&self) -> PhysicalSize<u32> {
-        let mut buf: [u8; 4096] = [0; 4096];
-        let path = self.window_socket.fpath(&mut buf).expect("failed to read properties");
-        let properties = WindowProperties::new(path);
-        (properties.w, properties.h).into()
-    }
-
-    #[inline]
-    fn request_surface_size(&self, size: Size) -> Option<PhysicalSize<u32>> {
-        let (w, h): (u32, u32) = size.to_physical::<u32>(self.scale_factor()).into();
-        self.window_socket.write(format!("S,{w},{h}").as_bytes()).expect("failed to set size");
-        None
-    }
-
-    #[inline]
     fn outer_size(&self) -> PhysicalSize<u32> {
         // TODO: adjust for window decorations
         self.surface_size()
@@ -257,11 +314,6 @@ impl CoreWindow for Window {
     #[inline]
     fn set_title(&self, title: &str) {
         self.window_socket.write(format!("T,{title}").as_bytes()).expect("failed to set title");
-    }
-
-    #[inline]
-    fn set_transparent(&self, transparent: bool) {
-        let _ = self.set_flag(ORBITAL_FLAG_TRANSPARENT, transparent);
     }
 
     #[inline]
@@ -364,35 +416,6 @@ impl CoreWindow for Window {
     fn request_user_attention(&self, _request_type: Option<window::UserAttentionType>) {}
 
     #[inline]
-    fn set_cursor(&self, _: Cursor) {}
-
-    #[inline]
-    fn set_cursor_position(&self, _: Position) -> Result<(), RequestError> {
-        Err(NotSupportedError::new("set_cursor_position is not supported").into())
-    }
-
-    #[inline]
-    fn set_cursor_grab(&self, mode: window::CursorGrabMode) -> Result<(), RequestError> {
-        let (grab, relative) = match mode {
-            window::CursorGrabMode::None => (false, false),
-            window::CursorGrabMode::Confined => (true, false),
-            window::CursorGrabMode::Locked => (true, true),
-        };
-        self.window_socket
-            .write(format!("M,G,{}", if grab { 1 } else { 0 }).as_bytes())
-            .map_err(|err| os_error!(format!("{err}")))?;
-        self.window_socket
-            .write(format!("M,R,{}", if relative { 1 } else { 0 }).as_bytes())
-            .map_err(|err| os_error!(format!("{err}")))?;
-        Ok(())
-    }
-
-    #[inline]
-    fn set_cursor_visible(&self, visible: bool) {
-        let _ = self.window_socket.write(format!("M,C,{}", if visible { 1 } else { 0 }).as_bytes());
-    }
-
-    #[inline]
     fn drag_window(&self) -> Result<(), RequestError> {
         self.window_socket.write(b"D").map_err(|err| os_error!(format!("{err}")))?;
         Ok(())
@@ -420,11 +443,6 @@ impl CoreWindow for Window {
     fn show_window_menu(&self, _position: Position) {}
 
     #[inline]
-    fn set_cursor_hittest(&self, _hittest: bool) -> Result<(), RequestError> {
-        Err(NotSupportedError::new("set_cursor_hittest is not supported").into())
-    }
-
-    #[inline]
     fn set_enabled_buttons(&self, _buttons: window::WindowButtons) {}
 
     #[inline]
@@ -446,16 +464,6 @@ impl CoreWindow for Window {
     fn set_theme(&self, _theme: Option<window::Theme>) {}
 
     fn set_content_protected(&self, _protected: bool) {}
-
-    #[cfg(feature = "rwh_06")]
-    fn rwh_06_window_handle(&self) -> &dyn rwh_06::HasWindowHandle {
-        self
-    }
-
-    #[cfg(feature = "rwh_06")]
-    fn rwh_06_display_handle(&self) -> &dyn rwh_06::HasDisplayHandle {
-        self
-    }
 }
 
 #[cfg(feature = "rwh_06")]

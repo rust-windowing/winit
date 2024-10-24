@@ -24,8 +24,8 @@ use crate::monitor::MonitorHandle as RootMonitorHandle;
 use crate::platform::pump_events::PumpStatus;
 use crate::window::{
     self, CursorGrabMode, CustomCursor, CustomCursorSource, Fullscreen, ImePurpose,
-    ResizeDirection, Theme, Window as CoreWindow, WindowAttributes, WindowButtons, WindowId,
-    WindowLevel,
+    ResizeDirection, Surface as CoreSurface, SurfaceId, Theme, Window as CoreWindow,
+    WindowAttributes, WindowButtons, WindowLevel,
 };
 
 mod keycodes;
@@ -124,7 +124,7 @@ impl Default for PlatformSpecificEventLoopAttributes {
 }
 
 // Android currently only supports one window
-const GLOBAL_WINDOW: WindowId = WindowId::from_raw(0);
+const GLOBAL_WINDOW: SurfaceId = SurfaceId::from_raw(0);
 
 impl EventLoop {
     pub(crate) fn new(
@@ -191,12 +191,12 @@ impl EventLoop {
                 },
                 MainEvent::GainedFocus => {
                     HAS_FOCUS.store(true, Ordering::Relaxed);
-                    let event = event::WindowEvent::Focused(true);
+                    let event = event::SurfaceEvent::Focused(true);
                     app.window_event(&self.window_target, GLOBAL_WINDOW, event);
                 },
                 MainEvent::LostFocus => {
                     HAS_FOCUS.store(false, Ordering::Relaxed);
-                    let event = event::WindowEvent::Focused(false);
+                    let event = event::SurfaceEvent::Focused(false);
                     app.window_event(&self.window_target, GLOBAL_WINDOW, event);
                 },
                 MainEvent::ConfigChanged { .. } => {
@@ -204,7 +204,7 @@ impl EventLoop {
                     let scale_factor = scale_factor(&self.android_app);
                     if (scale_factor - old_scale_factor).abs() < f64::EPSILON {
                         let new_surface_size = Arc::new(Mutex::new(screen_size(&self.android_app)));
-                        let event = event::WindowEvent::ScaleFactorChanged {
+                        let event = event::SurfaceEvent::ScaleFactorChanged {
                             surface_size_writer: SurfaceSizeWriter::new(Arc::downgrade(
                                 &new_surface_size,
                             )),
@@ -287,14 +287,14 @@ impl EventLoop {
                 } else {
                     PhysicalSize::new(0, 0)
                 };
-                let event = event::WindowEvent::SurfaceResized(size);
+                let event = event::SurfaceEvent::SurfaceResized(size);
                 app.window_event(&self.window_target, GLOBAL_WINDOW, event);
             }
 
             pending_redraw |= self.redraw_flag.get_and_reset();
             if pending_redraw {
                 pending_redraw = false;
-                let event = event::WindowEvent::RedrawRequested;
+                let event = event::SurfaceEvent::RedrawRequested;
                 app.window_event(&self.window_target, GLOBAL_WINDOW, event);
             }
         }
@@ -347,7 +347,7 @@ impl EventLoop {
 
                         match action {
                             MotionAction::Down | MotionAction::PointerDown => {
-                                let event = event::WindowEvent::PointerEntered {
+                                let event = event::SurfaceEvent::PointerEntered {
                                     device_id,
                                     position,
                                     kind: match tool_type {
@@ -360,7 +360,7 @@ impl EventLoop {
                                     },
                                 };
                                 app.window_event(&self.window_target, GLOBAL_WINDOW, event);
-                                let event = event::WindowEvent::PointerButton {
+                                let event = event::SurfaceEvent::PointerButton {
                                     device_id,
                                     state: event::ElementState::Pressed,
                                     position,
@@ -376,7 +376,7 @@ impl EventLoop {
                                 app.window_event(&self.window_target, GLOBAL_WINDOW, event);
                             },
                             MotionAction::Move => {
-                                let event = event::WindowEvent::PointerMoved {
+                                let event = event::SurfaceEvent::PointerMoved {
                                     device_id,
                                     position,
                                     source: match tool_type {
@@ -392,7 +392,7 @@ impl EventLoop {
                             },
                             MotionAction::Up | MotionAction::PointerUp | MotionAction::Cancel => {
                                 if let MotionAction::Up | MotionAction::PointerUp = action {
-                                    let event = event::WindowEvent::PointerButton {
+                                    let event = event::SurfaceEvent::PointerButton {
                                         device_id,
                                         state: event::ElementState::Released,
                                         position,
@@ -408,7 +408,7 @@ impl EventLoop {
                                     app.window_event(&self.window_target, GLOBAL_WINDOW, event);
                                 }
 
-                                let event = event::WindowEvent::PointerLeft {
+                                let event = event::SurfaceEvent::PointerLeft {
                                     device_id,
                                     position: Some(position),
                                     kind: match tool_type {
@@ -451,7 +451,7 @@ impl EventLoop {
                             &mut self.combining_accent,
                         );
 
-                        let event = event::WindowEvent::KeyboardInput {
+                        let event = event::SurfaceEvent::KeyboardInput {
                             device_id: Some(DeviceId::from_raw(key.device_id() as i64)),
                             event: event::KeyEvent {
                                 state,
@@ -804,8 +804,8 @@ impl rwh_06::HasWindowHandle for Window {
     }
 }
 
-impl CoreWindow for Window {
-    fn id(&self) -> WindowId {
+impl CoreSurface for Window {
+    fn id(&self) -> SurfaceId {
         GLOBAL_WINDOW
     }
 
@@ -831,6 +831,44 @@ impl CoreWindow for Window {
 
     fn pre_present_notify(&self) {}
 
+    fn surface_size(&self) -> PhysicalSize<u32> {
+        self.outer_size()
+    }
+
+    fn request_surface_size(&self, _size: Size) -> Option<PhysicalSize<u32>> {
+        Some(self.surface_size())
+    }
+
+    fn set_transparent(&self, _transparent: bool) {}
+
+    fn set_cursor(&self, _: Cursor) {}
+
+    fn set_cursor_position(&self, _: Position) -> Result<(), RequestError> {
+        Err(NotSupportedError::new("set_cursor_position is not supported").into())
+    }
+
+    fn set_cursor_grab(&self, _: CursorGrabMode) -> Result<(), RequestError> {
+        Err(NotSupportedError::new("set_cursor_grab is not supported").into())
+    }
+
+    fn set_cursor_visible(&self, _: bool) {}
+
+    fn set_cursor_hittest(&self, _hittest: bool) -> Result<(), RequestError> {
+        Err(NotSupportedError::new("set_cursor_hittest is not supported").into())
+    }
+
+    #[cfg(feature = "rwh_06")]
+    fn rwh_06_display_handle(&self) -> &dyn rwh_06::HasDisplayHandle {
+        self
+    }
+
+    #[cfg(feature = "rwh_06")]
+    fn rwh_06_window_handle(&self) -> &dyn rwh_06::HasWindowHandle {
+        self
+    }
+}
+
+impl CoreWindow for Window {
     fn inner_position(&self) -> Result<PhysicalPosition<i32>, RequestError> {
         Err(NotSupportedError::new("inner_position is not supported").into())
     }
@@ -841,14 +879,6 @@ impl CoreWindow for Window {
 
     fn set_outer_position(&self, _position: Position) {
         // no effect
-    }
-
-    fn surface_size(&self) -> PhysicalSize<u32> {
-        self.outer_size()
-    }
-
-    fn request_surface_size(&self, _size: Size) -> Option<PhysicalSize<u32>> {
-        Some(self.surface_size())
     }
 
     fn outer_size(&self) -> PhysicalSize<u32> {
@@ -866,8 +896,6 @@ impl CoreWindow for Window {
     fn set_surface_resize_increments(&self, _increments: Option<Size>) {}
 
     fn set_title(&self, _title: &str) {}
-
-    fn set_transparent(&self, _transparent: bool) {}
 
     fn set_blur(&self, _blur: bool) {}
 
@@ -929,18 +957,6 @@ impl CoreWindow for Window {
 
     fn request_user_attention(&self, _request_type: Option<window::UserAttentionType>) {}
 
-    fn set_cursor(&self, _: Cursor) {}
-
-    fn set_cursor_position(&self, _: Position) -> Result<(), RequestError> {
-        Err(NotSupportedError::new("set_cursor_position is not supported").into())
-    }
-
-    fn set_cursor_grab(&self, _: CursorGrabMode) -> Result<(), RequestError> {
-        Err(NotSupportedError::new("set_cursor_grab is not supported").into())
-    }
-
-    fn set_cursor_visible(&self, _: bool) {}
-
     fn drag_window(&self) -> Result<(), RequestError> {
         Err(NotSupportedError::new("drag_window is not supported").into())
     }
@@ -951,10 +967,6 @@ impl CoreWindow for Window {
 
     #[inline]
     fn show_window_menu(&self, _position: Position) {}
-
-    fn set_cursor_hittest(&self, _hittest: bool) -> Result<(), RequestError> {
-        Err(NotSupportedError::new("set_cursor_hittest is not supported").into())
-    }
 
     fn set_theme(&self, _theme: Option<Theme>) {}
 
@@ -973,16 +985,6 @@ impl CoreWindow for Window {
     }
 
     fn reset_dead_keys(&self) {}
-
-    #[cfg(feature = "rwh_06")]
-    fn rwh_06_display_handle(&self) -> &dyn rwh_06::HasDisplayHandle {
-        self
-    }
-
-    #[cfg(feature = "rwh_06")]
-    fn rwh_06_window_handle(&self) -> &dyn rwh_06::HasWindowHandle {
-        self
-    }
 }
 
 #[derive(Default, Clone, Debug)]

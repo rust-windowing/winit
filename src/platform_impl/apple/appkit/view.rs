@@ -27,7 +27,7 @@ use super::window::WinitWindow;
 use crate::dpi::{LogicalPosition, LogicalSize};
 use crate::event::{
     DeviceEvent, ElementState, Ime, Modifiers, MouseButton, MouseScrollDelta, PointerKind,
-    PointerSource, TouchPhase, WindowEvent,
+    PointerSource, SurfaceEvent, TouchPhase,
 };
 use crate::keyboard::{Key, KeyCode, KeyLocation, ModifiersState, NamedKey};
 use crate::platform::macos::OptionAsAlt;
@@ -196,7 +196,7 @@ declare_class!(
             // 2. Even when a window resize does occur on a new tabbed window, it contains the wrong size (includes tab height).
             let logical_size = LogicalSize::new(rect.size.width as f64, rect.size.height as f64);
             let size = logical_size.to_physical::<u32>(self.scale_factor());
-            self.queue_event(WindowEvent::SurfaceResized(size));
+            self.queue_event(SurfaceEvent::SurfaceResized(size));
         }
 
         #[method(drawRect:)]
@@ -301,7 +301,7 @@ declare_class!(
             // Notify IME is active if application still doesn't know it.
             if self.ivars().ime_state.get() == ImeState::Disabled {
                 *self.ivars().input_source.borrow_mut() = self.current_input_source();
-                self.queue_event(WindowEvent::Ime(Ime::Enabled));
+                self.queue_event(SurfaceEvent::Ime(Ime::Enabled));
             }
 
             if unsafe { self.hasMarkedText() } {
@@ -324,8 +324,8 @@ declare_class!(
                 Some((lowerbound_utf8, upperbound_utf8))
             };
 
-            // Send WindowEvent for updating marked text
-            self.queue_event(WindowEvent::Ime(Ime::Preedit(string.to_string(), cursor_range)));
+            // Send SurfaceEvent for updating marked text
+            self.queue_event(SurfaceEvent::Ime(Ime::Preedit(string.to_string(), cursor_range)));
         }
 
         #[method(unmarkText)]
@@ -336,7 +336,7 @@ declare_class!(
             let input_context = self.inputContext().expect("input context");
             input_context.discardMarkedText();
 
-            self.queue_event(WindowEvent::Ime(Ime::Preedit(String::new(), None)));
+            self.queue_event(SurfaceEvent::Ime(Ime::Preedit(String::new(), None)));
             if self.is_ime_enabled() {
                 // Leave the Preedit self.ivars()
                 self.ivars().ime_state.set(ImeState::Ground);
@@ -403,8 +403,8 @@ declare_class!(
 
             // Commit only if we have marked text.
             if unsafe { self.hasMarkedText() } && self.is_ime_enabled() && !is_control {
-                self.queue_event(WindowEvent::Ime(Ime::Preedit(String::new(), None)));
-                self.queue_event(WindowEvent::Ime(Ime::Commit(string)));
+                self.queue_event(SurfaceEvent::Ime(Ime::Preedit(String::new(), None)));
+                self.queue_event(SurfaceEvent::Ime(Ime::Commit(string)));
                 self.ivars().ime_state.set(ImeState::Committed);
             }
         }
@@ -455,7 +455,7 @@ declare_class!(
                     *prev_input_source = current_input_source;
                     drop(prev_input_source);
                     self.ivars().ime_state.set(ImeState::Disabled);
-                    self.queue_event(WindowEvent::Ime(Ime::Disabled));
+                    self.queue_event(SurfaceEvent::Ime(Ime::Disabled));
                 }
             }
 
@@ -496,7 +496,7 @@ declare_class!(
 
             if !had_ime_input || self.ivars().forward_key_to_app.get() {
                 let key_event = create_key_event(&event, true, unsafe { event.isARepeat() }, None);
-                self.queue_event(WindowEvent::KeyboardInput {
+                self.queue_event(SurfaceEvent::KeyboardInput {
                     device_id: None,
                     event: key_event,
                     is_synthetic: false,
@@ -516,7 +516,7 @@ declare_class!(
                 self.ivars().ime_state.get(),
                 ImeState::Ground | ImeState::Disabled
             ) {
-                self.queue_event(WindowEvent::KeyboardInput {
+                self.queue_event(SurfaceEvent::KeyboardInput {
                     device_id: None,
                     event: create_key_event(&event, false, false, None),
                     is_synthetic: false,
@@ -567,7 +567,7 @@ declare_class!(
             self.update_modifiers(&event, false);
             let event = create_key_event(&event, true, unsafe { event.isARepeat() }, None);
 
-            self.queue_event(WindowEvent::KeyboardInput {
+            self.queue_event(SurfaceEvent::KeyboardInput {
                 device_id: None,
                 event,
                 is_synthetic: false,
@@ -655,7 +655,7 @@ declare_class!(
 
             let position = self.mouse_view_point(event).to_physical(self.scale_factor());
 
-            self.queue_event(WindowEvent::PointerEntered {
+            self.queue_event(SurfaceEvent::PointerEntered {
                 device_id: None,
                 position,
                 kind: PointerKind::Mouse,
@@ -668,7 +668,7 @@ declare_class!(
 
             let position = self.mouse_view_point(event).to_physical(self.scale_factor());
 
-            self.queue_event(WindowEvent::PointerLeft {
+            self.queue_event(SurfaceEvent::PointerLeft {
                 device_id: None,
                 position: Some(position),
                 kind: PointerKind::Mouse,
@@ -711,7 +711,7 @@ declare_class!(
             self.ivars().app_state.maybe_queue_with_handler(move |app, event_loop|
                 app.device_event(event_loop, None, DeviceEvent::MouseWheel { delta })
             );
-            self.queue_event(WindowEvent::MouseWheel {
+            self.queue_event(SurfaceEvent::MouseWheel {
                 device_id: None,
                 delta,
                 phase,
@@ -733,7 +733,7 @@ declare_class!(
                 _ => return,
             };
 
-            self.queue_event(WindowEvent::PinchGesture {
+            self.queue_event(SurfaceEvent::PinchGesture {
                 device_id: None,
                 delta: unsafe { event.magnification() },
                 phase,
@@ -746,7 +746,7 @@ declare_class!(
 
             self.mouse_motion(event);
 
-            self.queue_event(WindowEvent::DoubleTapGesture {
+            self.queue_event(SurfaceEvent::DoubleTapGesture {
                 device_id: None,
             });
         }
@@ -766,7 +766,7 @@ declare_class!(
                 _ => return,
             };
 
-            self.queue_event(WindowEvent::RotationGesture {
+            self.queue_event(SurfaceEvent::RotationGesture {
                 device_id: None,
                 delta: unsafe { event.rotation() },
                 phase,
@@ -777,7 +777,7 @@ declare_class!(
         fn pressure_change_with_event(&self, event: &NSEvent) {
             trace_scope!("pressureChangeWithEvent:");
 
-            self.queue_event(WindowEvent::TouchpadPressure {
+            self.queue_event(SurfaceEvent::TouchpadPressure {
                 device_id: None,
                 pressure: unsafe { event.pressure() },
                 stage: unsafe { event.stage() } as i64,
@@ -853,7 +853,7 @@ impl WinitView {
         self.ivars()._ns_window.load().expect("view to have a window")
     }
 
-    fn queue_event(&self, event: WindowEvent) {
+    fn queue_event(&self, event: SurfaceEvent) {
         let window_id = self.window().id();
         self.ivars().app_state.maybe_queue_with_handler(move |app, event_loop| {
             app.window_event(event_loop, window_id, event);
@@ -912,7 +912,7 @@ impl WinitView {
 
         if self.ivars().ime_state.get() != ImeState::Disabled {
             self.ivars().ime_state.set(ImeState::Disabled);
-            self.queue_event(WindowEvent::Ime(Ime::Disabled));
+            self.queue_event(SurfaceEvent::Ime(Ime::Disabled));
         }
     }
 
@@ -927,7 +927,7 @@ impl WinitView {
     pub(super) fn reset_modifiers(&self) {
         if !self.ivars().modifiers.get().state().is_empty() {
             self.ivars().modifiers.set(Modifiers::default());
-            self.queue_event(WindowEvent::ModifiersChanged(self.ivars().modifiers.get()));
+            self.queue_event(SurfaceEvent::ModifiersChanged(self.ivars().modifiers.get()));
         }
     }
 
@@ -991,7 +991,7 @@ impl WinitView {
                         let mut event = event.clone();
                         event.location = KeyLocation::Left;
                         event.physical_key = get_left_modifier_code(&event.logical_key).into();
-                        events.push_back(WindowEvent::KeyboardInput {
+                        events.push_back(SurfaceEvent::KeyboardInput {
                             device_id: None,
                             event,
                             is_synthetic: false,
@@ -1000,7 +1000,7 @@ impl WinitView {
                     if phys_mod.contains(ModLocationMask::RIGHT) {
                         event.location = KeyLocation::Right;
                         event.physical_key = get_right_modifier_code(&event.logical_key).into();
-                        events.push_back(WindowEvent::KeyboardInput {
+                        events.push_back(SurfaceEvent::KeyboardInput {
                             device_id: None,
                             event,
                             is_synthetic: false,
@@ -1031,7 +1031,7 @@ impl WinitView {
                         event.state = if is_pressed { Pressed } else { Released };
                     }
 
-                    events.push_back(WindowEvent::KeyboardInput {
+                    events.push_back(SurfaceEvent::KeyboardInput {
                         device_id: None,
                         event,
                         is_synthetic: false,
@@ -1050,7 +1050,7 @@ impl WinitView {
             return;
         }
 
-        self.queue_event(WindowEvent::ModifiersChanged(self.ivars().modifiers.get()));
+        self.queue_event(SurfaceEvent::ModifiersChanged(self.ivars().modifiers.get()));
     }
 
     fn mouse_click(&self, event: &NSEvent, button_state: ElementState) {
@@ -1059,7 +1059,7 @@ impl WinitView {
 
         self.update_modifiers(event, false);
 
-        self.queue_event(WindowEvent::PointerButton {
+        self.queue_event(SurfaceEvent::PointerButton {
             device_id: None,
             state: button_state,
             position,
@@ -1085,7 +1085,7 @@ impl WinitView {
 
         self.update_modifiers(event, false);
 
-        self.queue_event(WindowEvent::PointerMoved {
+        self.queue_event(SurfaceEvent::PointerMoved {
             device_id: None,
             position: view_point.to_physical(self.scale_factor()),
             source: PointerSource::Mouse,

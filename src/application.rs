@@ -1,10 +1,10 @@
 //! End user application handling.
 
-use crate::event::{DeviceEvent, DeviceId, StartCause, WindowEvent};
+use crate::event::{DeviceEvent, DeviceId, StartCause, SurfaceEvent};
 use crate::event_loop::ActiveEventLoop;
 #[cfg(any(docsrs, macos_platform))]
 use crate::platform::macos::ApplicationHandlerExtMacOS;
-use crate::window::WindowId;
+use crate::window::SurfaceId;
 
 /// The handler of the application events.
 pub trait ApplicationHandler {
@@ -137,8 +137,8 @@ pub trait ApplicationHandler {
     ///     # fn window_event(
     ///     #     &mut self,
     ///     #     _event_loop: &dyn ActiveEventLoop,
-    ///     #     _window_id: winit::window::WindowId,
-    ///     #     _event: winit::event::WindowEvent,
+    ///     #     _window_id: winit::window::SurfaceId,
+    ///     #     _event: winit::event::SurfaceEvent,
     ///     # ) {
     ///     # }
     ///     #
@@ -198,8 +198,8 @@ pub trait ApplicationHandler {
     fn window_event(
         &mut self,
         event_loop: &dyn ActiveEventLoop,
-        window_id: WindowId,
-        event: WindowEvent,
+        window_id: SurfaceId,
+        event: SurfaceEvent,
     );
 
     /// Emitted when the OS sends an event to a device.
@@ -222,7 +222,7 @@ pub trait ApplicationHandler {
     /// ups and also lots of corresponding `AboutToWait` events.
     ///
     /// This is not an ideal event to drive application rendering from and instead applications
-    /// should render in response to [`WindowEvent::RedrawRequested`] events.
+    /// should render in response to [`SurfaceEvent::RedrawRequested`] events.
     fn about_to_wait(&mut self, event_loop: &dyn ActiveEventLoop) {
         let _ = event_loop;
     }
@@ -382,8 +382,8 @@ impl<A: ?Sized + ApplicationHandler> ApplicationHandler for &mut A {
     fn window_event(
         &mut self,
         event_loop: &dyn ActiveEventLoop,
-        window_id: WindowId,
-        event: WindowEvent,
+        window_id: SurfaceId,
+        event: SurfaceEvent,
     ) {
         (**self).window_event(event_loop, window_id, event);
     }
@@ -456,8 +456,8 @@ impl<A: ?Sized + ApplicationHandler> ApplicationHandler for Box<A> {
     fn window_event(
         &mut self,
         event_loop: &dyn ActiveEventLoop,
-        window_id: WindowId,
-        event: WindowEvent,
+        window_id: SurfaceId,
+        event: SurfaceEvent,
     ) {
         (**self).window_event(event_loop, window_id, event);
     }

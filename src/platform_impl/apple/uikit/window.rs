@@ -20,13 +20,13 @@ use super::{app_state, monitor, ActiveEventLoop, Fullscreen, MonitorHandle};
 use crate::cursor::Cursor;
 use crate::dpi::{LogicalPosition, LogicalSize, PhysicalPosition, PhysicalSize, Position, Size};
 use crate::error::{NotSupportedError, RequestError};
-use crate::event::{Event, WindowEvent};
+use crate::event::{Event, SurfaceEvent};
 use crate::icon::Icon;
 use crate::monitor::MonitorHandle as CoreMonitorHandle;
 use crate::platform::ios::{ScreenEdge, StatusBarStyle, ValidOrientations};
 use crate::window::{
-    CursorGrabMode, ImePurpose, ResizeDirection, Theme, UserAttentionType, Window as CoreWindow,
-    WindowAttributes, WindowButtons, WindowId, WindowLevel,
+    CursorGrabMode, ImePurpose, ResizeDirection, Surface as CoreSurface, SurfaceId, Theme,
+    UserAttentionType, Window as CoreWindow, WindowAttributes, WindowButtons, WindowLevel,
 };
 
 declare_class!(
@@ -48,9 +48,9 @@ declare_class!(
             let mtm = MainThreadMarker::new().unwrap();
             app_state::handle_nonuser_event(
                 mtm,
-                EventWrapper::StaticEvent(Event::WindowEvent {
+                EventWrapper::StaticEvent(Event::SurfaceEvent {
                     window_id: self.id(),
-                    event: WindowEvent::Focused(true),
+                    event: SurfaceEvent::Focused(true),
                 }),
             );
             let _: () = unsafe { msg_send![super(self), becomeKeyWindow] };
@@ -61,9 +61,9 @@ declare_class!(
             let mtm = MainThreadMarker::new().unwrap();
             app_state::handle_nonuser_event(
                 mtm,
-                EventWrapper::StaticEvent(Event::WindowEvent {
+                EventWrapper::StaticEvent(Event::SurfaceEvent {
                     window_id: self.id(),
-                    event: WindowEvent::Focused(false),
+                    event: SurfaceEvent::Focused(false),
                 }),
             );
             let _: () = unsafe { msg_send![super(self), resignKeyWindow] };
@@ -104,8 +104,8 @@ impl WinitUIWindow {
         this
     }
 
-    pub(crate) fn id(&self) -> WindowId {
-        WindowId::from_raw(self as *const Self as usize)
+    pub(crate) fn id(&self) -> SurfaceId {
+        SurfaceId::from_raw(self as *const Self as usize)
     }
 }
 
@@ -122,7 +122,7 @@ impl Inner {
     }
 
     pub fn set_transparent(&self, _transparent: bool) {
-        debug!("`Window::set_transparent` is ignored on iOS")
+        debug!("`Surface::set_transparent` is ignored on iOS")
     }
 
     pub fn set_blur(&self, _blur: bool) {
@@ -252,7 +252,7 @@ impl Inner {
     }
 
     pub fn set_cursor(&self, _cursor: Cursor) {
-        debug!("`Window::set_cursor` ignored on iOS")
+        debug!("`Surface::set_cursor` ignored on iOS")
     }
 
     pub fn set_cursor_position(&self, _position: Position) -> Result<(), NotSupportedError> {
@@ -264,7 +264,7 @@ impl Inner {
     }
 
     pub fn set_cursor_visible(&self, _visible: bool) {
-        debug!("`Window::set_cursor_visible` is ignored on iOS")
+        debug!("`Surface::set_cursor_visible` is ignored on iOS")
     }
 
     pub fn drag_window(&self) -> Result<(), NotSupportedError> {
@@ -416,7 +416,7 @@ impl Inner {
         Some(MonitorHandle::new(UIScreen::mainScreen(MainThreadMarker::new().unwrap())))
     }
 
-    pub fn id(&self) -> WindowId {
+    pub fn id(&self) -> SurfaceId {
         self.window.id()
     }
 
@@ -530,9 +530,9 @@ impl Window {
                     suggested_size: size.to_physical(scale_factor),
                 }))
                 .chain(std::iter::once(EventWrapper::StaticEvent(
-                    Event::WindowEvent {
+                    Event::SurfaceEvent {
                         window_id: window.id(),
-                        event: WindowEvent::SurfaceResized(size.to_physical(scale_factor)),
+                        event: SurfaceEvent::SurfaceResized(size.to_physical(scale_factor)),
                     },
                 ))),
             );
@@ -583,8 +583,8 @@ impl rwh_06::HasWindowHandle for Window {
     }
 }
 
-impl CoreWindow for Window {
-    fn id(&self) -> crate::window::WindowId {
+impl CoreSurface for Window {
+    fn id(&self) -> crate::window::SurfaceId {
         self.maybe_wait_on_main(|delegate| delegate.id())
     }
 
@@ -600,6 +600,74 @@ impl CoreWindow for Window {
         self.maybe_wait_on_main(|delegate| delegate.pre_present_notify());
     }
 
+    fn surface_size(&self) -> PhysicalSize<u32> {
+        self.maybe_wait_on_main(|delegate| delegate.surface_size())
+    }
+
+    fn request_surface_size(&self, size: Size) -> Option<PhysicalSize<u32>> {
+        self.maybe_wait_on_main(|delegate| delegate.request_surface_size(size))
+    }
+
+    fn set_transparent(&self, transparent: bool) {
+        self.maybe_wait_on_main(|delegate| delegate.set_transparent(transparent));
+    }
+
+    fn set_cursor(&self, cursor: Cursor) {
+        self.maybe_wait_on_main(|delegate| delegate.set_cursor(cursor));
+    }
+
+    fn set_cursor_position(&self, position: Position) -> Result<(), RequestError> {
+        Ok(self.maybe_wait_on_main(|delegate| delegate.set_cursor_position(position))?)
+    }
+
+    fn set_cursor_grab(&self, mode: crate::window::CursorGrabMode) -> Result<(), RequestError> {
+        Ok(self.maybe_wait_on_main(|delegate| delegate.set_cursor_grab(mode))?)
+    }
+
+    fn set_cursor_visible(&self, visible: bool) {
+        self.maybe_wait_on_main(|delegate| delegate.set_cursor_visible(visible))
+    }
+
+    fn set_cursor_hittest(&self, hittest: bool) -> Result<(), RequestError> {
+        Ok(self.maybe_wait_on_main(|delegate| delegate.set_cursor_hittest(hittest))?)
+    }
+
+    fn current_monitor(&self) -> Option<CoreMonitorHandle> {
+        self.maybe_wait_on_main(|delegate| {
+            delegate.current_monitor().map(|inner| CoreMonitorHandle { inner })
+        })
+    }
+
+    fn available_monitors(&self) -> Box<dyn Iterator<Item = CoreMonitorHandle>> {
+        self.maybe_wait_on_main(|delegate| {
+            Box::new(
+                delegate.available_monitors().into_iter().map(|inner| CoreMonitorHandle { inner }),
+            )
+        })
+    }
+
+    fn primary_monitor(&self) -> Option<CoreMonitorHandle> {
+        self.maybe_wait_on_main(|delegate| {
+            delegate.primary_monitor().map(|inner| CoreMonitorHandle { inner })
+        })
+    }
+
+    #[cfg(feature = "rwh_06")]
+    fn rwh_06_display_handle(&self) -> &dyn rwh_06::HasDisplayHandle {
+        self
+    }
+
+    #[cfg(feature = "rwh_06")]
+    fn rwh_06_window_handle(&self) -> &dyn rwh_06::HasWindowHandle {
+        self
+    }
+
+    fn as_window(&self) -> Option<&dyn CoreWindow> {
+        Some(self)
+    }
+}
+
+impl CoreWindow for Window {
     fn reset_dead_keys(&self) {
         self.maybe_wait_on_main(|delegate| delegate.reset_dead_keys());
     }
@@ -614,14 +682,6 @@ impl CoreWindow for Window {
 
     fn set_outer_position(&self, position: Position) {
         self.maybe_wait_on_main(|delegate| delegate.set_outer_position(position));
-    }
-
-    fn surface_size(&self) -> PhysicalSize<u32> {
-        self.maybe_wait_on_main(|delegate| delegate.surface_size())
-    }
-
-    fn request_surface_size(&self, size: Size) -> Option<PhysicalSize<u32>> {
-        self.maybe_wait_on_main(|delegate| delegate.request_surface_size(size))
     }
 
     fn outer_size(&self) -> PhysicalSize<u32> {
@@ -646,10 +706,6 @@ impl CoreWindow for Window {
 
     fn set_title(&self, title: &str) {
         self.maybe_wait_on_main(|delegate| delegate.set_title(title));
-    }
-
-    fn set_transparent(&self, transparent: bool) {
-        self.maybe_wait_on_main(|delegate| delegate.set_transparent(transparent));
     }
 
     fn set_blur(&self, blur: bool) {
@@ -760,22 +816,6 @@ impl CoreWindow for Window {
         self.maybe_wait_on_main(|delegate| delegate.title())
     }
 
-    fn set_cursor(&self, cursor: Cursor) {
-        self.maybe_wait_on_main(|delegate| delegate.set_cursor(cursor));
-    }
-
-    fn set_cursor_position(&self, position: Position) -> Result<(), RequestError> {
-        Ok(self.maybe_wait_on_main(|delegate| delegate.set_cursor_position(position))?)
-    }
-
-    fn set_cursor_grab(&self, mode: crate::window::CursorGrabMode) -> Result<(), RequestError> {
-        Ok(self.maybe_wait_on_main(|delegate| delegate.set_cursor_grab(mode))?)
-    }
-
-    fn set_cursor_visible(&self, visible: bool) {
-        self.maybe_wait_on_main(|delegate| delegate.set_cursor_visible(visible))
-    }
-
     fn drag_window(&self) -> Result<(), RequestError> {
         Ok(self.maybe_wait_on_main(|delegate| delegate.drag_window())?)
     }
@@ -789,40 +829,6 @@ impl CoreWindow for Window {
 
     fn show_window_menu(&self, position: Position) {
         self.maybe_wait_on_main(|delegate| delegate.show_window_menu(position))
-    }
-
-    fn set_cursor_hittest(&self, hittest: bool) -> Result<(), RequestError> {
-        Ok(self.maybe_wait_on_main(|delegate| delegate.set_cursor_hittest(hittest))?)
-    }
-
-    fn current_monitor(&self) -> Option<CoreMonitorHandle> {
-        self.maybe_wait_on_main(|delegate| {
-            delegate.current_monitor().map(|inner| CoreMonitorHandle { inner })
-        })
-    }
-
-    fn available_monitors(&self) -> Box<dyn Iterator<Item = CoreMonitorHandle>> {
-        self.maybe_wait_on_main(|delegate| {
-            Box::new(
-                delegate.available_monitors().into_iter().map(|inner| CoreMonitorHandle { inner }),
-            )
-        })
-    }
-
-    fn primary_monitor(&self) -> Option<CoreMonitorHandle> {
-        self.maybe_wait_on_main(|delegate| {
-            delegate.primary_monitor().map(|inner| CoreMonitorHandle { inner })
-        })
-    }
-
-    #[cfg(feature = "rwh_06")]
-    fn rwh_06_display_handle(&self) -> &dyn rwh_06::HasDisplayHandle {
-        self
-    }
-
-    #[cfg(feature = "rwh_06")]
-    fn rwh_06_window_handle(&self) -> &dyn rwh_06::HasWindowHandle {
-        self
     }
 }
 

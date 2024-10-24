@@ -25,7 +25,7 @@ use crate::keyboard::{
 };
 use crate::platform_impl::Window;
 use crate::window::{
-    CustomCursor as RootCustomCursor, CustomCursorSource, Theme, Window as CoreWindow, WindowId,
+    CustomCursor as RootCustomCursor, CustomCursorSource, SurfaceId, Theme, Window as CoreWindow,
 };
 
 fn convert_scancode(scancode: u8) -> (PhysicalKey, Option<NamedKey>) {
@@ -314,7 +314,7 @@ impl EventLoop {
     }
 
     fn process_event<A: ApplicationHandler>(
-        window_id: WindowId,
+        window_id: SurfaceId,
         event_option: EventOption,
         event_state: &mut EventState,
         window_target: &ActiveEventLoop,
@@ -361,7 +361,7 @@ impl EventLoop {
                     key_without_modifiers = logical_key.clone();
                 }
 
-                let event = event::WindowEvent::KeyboardInput {
+                let event = event::SurfaceEvent::KeyboardInput {
                     device_id: None,
                     event: event::KeyEvent {
                         logical_key,
@@ -385,7 +385,7 @@ impl EventLoop {
                     app.window_event(
                         window_target,
                         window_id,
-                        event::WindowEvent::ModifiersChanged(event_state.modifiers()),
+                        event::SurfaceEvent::ModifiersChanged(event_state.modifiers()),
                     );
                 }
             },
@@ -393,16 +393,16 @@ impl EventLoop {
                 app.window_event(
                     window_target,
                     window_id,
-                    event::WindowEvent::Ime(Ime::Preedit("".into(), None)),
+                    event::SurfaceEvent::Ime(Ime::Preedit("".into(), None)),
                 );
                 app.window_event(
                     window_target,
                     window_id,
-                    event::WindowEvent::Ime(Ime::Commit(character.into())),
+                    event::SurfaceEvent::Ime(Ime::Commit(character.into())),
                 );
             },
             EventOption::Mouse(MouseEvent { x, y }) => {
-                app.window_event(window_target, window_id, event::WindowEvent::PointerMoved {
+                app.window_event(window_target, window_id, event::SurfaceEvent::PointerMoved {
                     device_id: None,
                     position: (x, y).into(),
                     source: event::PointerSource::Mouse,
@@ -415,39 +415,43 @@ impl EventLoop {
             },
             EventOption::Button(ButtonEvent { left, middle, right }) => {
                 while let Some((button, state)) = event_state.mouse(left, middle, right) {
-                    app.window_event(window_target, window_id, event::WindowEvent::PointerButton {
-                        device_id: None,
-                        state,
-                        position: dpi::PhysicalPosition::default(),
-                        button: button.into(),
-                    });
+                    app.window_event(
+                        window_target,
+                        window_id,
+                        event::SurfaceEvent::PointerButton {
+                            device_id: None,
+                            state,
+                            position: dpi::PhysicalPosition::default(),
+                            button: button.into(),
+                        },
+                    );
                 }
             },
             EventOption::Scroll(ScrollEvent { x, y }) => {
-                app.window_event(window_target, window_id, event::WindowEvent::MouseWheel {
+                app.window_event(window_target, window_id, event::SurfaceEvent::MouseWheel {
                     device_id: None,
                     delta: event::MouseScrollDelta::LineDelta(x as f32, y as f32),
                     phase: event::TouchPhase::Moved,
                 });
             },
             EventOption::Quit(QuitEvent {}) => {
-                app.window_event(window_target, window_id, event::WindowEvent::CloseRequested);
+                app.window_event(window_target, window_id, event::SurfaceEvent::CloseRequested);
             },
             EventOption::Focus(FocusEvent { focused }) => {
-                app.window_event(window_target, window_id, event::WindowEvent::Focused(focused));
+                app.window_event(window_target, window_id, event::SurfaceEvent::Focused(focused));
             },
             EventOption::Move(MoveEvent { x, y }) => {
                 app.window_event(
                     window_target,
                     window_id,
-                    event::WindowEvent::Moved((x, y).into()),
+                    event::SurfaceEvent::Moved((x, y).into()),
                 );
             },
             EventOption::Resize(ResizeEvent { width, height }) => {
                 app.window_event(
                     window_target,
                     window_id,
-                    event::WindowEvent::SurfaceResized((width, height).into()),
+                    event::SurfaceEvent::SurfaceResized((width, height).into()),
                 );
 
                 // Acknowledge resize after event loop.
@@ -456,13 +460,13 @@ impl EventLoop {
             // TODO: Screen, Clipboard, Drop
             EventOption::Hover(HoverEvent { entered }) => {
                 let event = if entered {
-                    event::WindowEvent::PointerEntered {
+                    event::SurfaceEvent::PointerEntered {
                         device_id: None,
                         position: dpi::PhysicalPosition::default(),
                         kind: event::PointerKind::Mouse,
                     }
                 } else {
-                    event::WindowEvent::PointerLeft {
+                    event::SurfaceEvent::PointerLeft {
                         device_id: None,
                         position: None,
                         kind: event::PointerKind::Mouse,
@@ -491,7 +495,7 @@ impl EventLoop {
                 let mut creates = self.window_target.creates.lock().unwrap();
                 creates.pop_front()
             } {
-                let window_id = WindowId::from_raw(window.fd);
+                let window_id = SurfaceId::from_raw(window.fd);
 
                 let mut buf: [u8; 4096] = [0; 4096];
                 let path = window.fpath(&mut buf).expect("failed to read properties");
@@ -500,11 +504,12 @@ impl EventLoop {
                 self.windows.push((window, EventState::default()));
 
                 // Send resize event on create to indicate first size.
-                let event = event::WindowEvent::SurfaceResized((properties.w, properties.h).into());
+                let event =
+                    event::SurfaceEvent::SurfaceResized((properties.w, properties.h).into());
                 app.window_event(&self.window_target, window_id, event);
 
                 // Send moved event on create to indicate first position.
-                let event = event::WindowEvent::Moved((properties.x, properties.y).into());
+                let event = event::SurfaceEvent::Moved((properties.x, properties.y).into());
                 app.window_event(&self.window_target, window_id, event);
             }
 
@@ -513,16 +518,16 @@ impl EventLoop {
                 let mut destroys = self.window_target.destroys.lock().unwrap();
                 destroys.pop_front()
             } {
-                app.window_event(&self.window_target, destroy_id, event::WindowEvent::Destroyed);
+                app.window_event(&self.window_target, destroy_id, event::SurfaceEvent::Destroyed);
                 self.windows
-                    .retain(|(window, _event_state)| WindowId::from_raw(window.fd) != destroy_id);
+                    .retain(|(window, _event_state)| SurfaceId::from_raw(window.fd) != destroy_id);
             }
 
             // Handle window events.
             let mut i = 0;
             // While loop is used here because the same window may be processed more than once.
             while let Some((window, event_state)) = self.windows.get_mut(i) {
-                let window_id = WindowId::from_raw(window.fd);
+                let window_id = SurfaceId::from_raw(window.fd);
 
                 let mut event_buf = [0u8; 16 * mem::size_of::<orbclient::Event>()];
                 let count =
@@ -581,7 +586,7 @@ impl EventLoop {
                 app.window_event(
                     &self.window_target,
                     window_id,
-                    event::WindowEvent::RedrawRequested,
+                    event::SurfaceEvent::RedrawRequested,
                 );
             }
 
@@ -688,8 +693,8 @@ pub struct ActiveEventLoop {
     control_flow: Cell<ControlFlow>,
     exit: Cell<bool>,
     pub(super) creates: Mutex<VecDeque<Arc<RedoxSocket>>>,
-    pub(super) redraws: Arc<Mutex<VecDeque<WindowId>>>,
-    pub(super) destroys: Arc<Mutex<VecDeque<WindowId>>>,
+    pub(super) redraws: Arc<Mutex<VecDeque<SurfaceId>>>,
+    pub(super) destroys: Arc<Mutex<VecDeque<SurfaceId>>>,
     pub(super) event_socket: Arc<RedoxSocket>,
     pub(super) wake_socket: Arc<TimeSocket>,
     user_events_sender: mpsc::SyncSender<()>,
