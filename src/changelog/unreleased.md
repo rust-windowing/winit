@@ -154,7 +154,7 @@ changelog entry.
   - In the same spirit rename `DeviceEvent::MouseMotion` to `PointerMotion`.
   - Remove `Force::Calibrated::altitude_angle`.
 - Changed `Window` to be a subtrait of `Surface`; it now contains methods specific to toplevel windows.
-- Renamed structs previously associated with `Window`s, since they now apply to all `Surface`s:
+- **Breaking:** Renamed structs previously associated with `Window`s, since they now apply to all `Surface`s:
   - `WindowId` to `SurfaceId`
   - `WindowEvent` to `SurfaceEvent`
   - `Event::WindowEvent` to `Event::SurfaceEvent`
