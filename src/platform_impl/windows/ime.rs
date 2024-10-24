@@ -31,21 +31,32 @@ impl ImeContext {
         let text = unsafe { self.get_composition_string(GCS_COMPSTR) }?;
         let attrs = unsafe { self.get_composition_data(GCS_COMPATTR) }.unwrap_or_default();
 
+        // text is UTF-8, and attrs is UTF-16, so we need to convert the UTF-8 index to UTF-16 for
+        // processing.
+        let utf16_to_utf8 = {
+            let mut utf16_to_utf8 = Vec::new();
+            let mut utf8_offset = 0;
+
+            for chr in text.chars() {
+                let utf16_len = chr.len_utf16();
+                utf16_to_utf8.extend(std::iter::repeat(utf8_offset).take(utf16_len));
+                utf8_offset += chr.len_utf8();
+            }
+            utf16_to_utf8
+        };
+
         let mut first = None;
         let mut last = None;
-        let mut boundary_before_char = 0;
 
-        for (attr, chr) in attrs.into_iter().zip(text.chars()) {
+        for (utf16_idx, &attr) in attrs.iter().enumerate() {
             let char_is_targeted =
                 attr as u32 == ATTR_TARGET_CONVERTED || attr as u32 == ATTR_TARGET_NOTCONVERTED;
-
+            let utf8_idx = *utf16_to_utf8.get(utf16_idx).unwrap_or(&text.len());
             if first.is_none() && char_is_targeted {
-                first = Some(boundary_before_char);
+                first = Some(utf8_idx);
             } else if first.is_some() && last.is_none() && !char_is_targeted {
-                last = Some(boundary_before_char);
+                last = Some(utf8_idx);
             }
-
-            boundary_before_char += chr.len_utf8();
         }
 
         if first.is_some() && last.is_none() {
