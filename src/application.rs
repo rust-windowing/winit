@@ -2,10 +2,9 @@
 
 use crate::event::{DeviceEvent, DeviceId, StartCause, SurfaceEvent};
 use crate::event_loop::ActiveEventLoop;
-use crate::window::SurfaceId;
-
 #[cfg(any(docsrs, macos_platform))]
 use crate::platform::macos::ApplicationHandlerExtMacOS;
+use crate::window::SurfaceId;
 
 /// The handler of the application events.
 pub trait ApplicationHandler {

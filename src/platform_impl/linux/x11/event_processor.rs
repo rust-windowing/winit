@@ -658,10 +658,10 @@ impl EventProcessor {
             drop(shared_state_lock);
 
             if moved {
-                callback(
-                    &self.target,
-                    Event::SurfaceEvent { window_id, event: SurfaceEvent::Moved(outer.into()) },
-                );
+                callback(&self.target, Event::SurfaceEvent {
+                    window_id,
+                    event: SurfaceEvent::Moved(outer.into()),
+                });
             }
             outer
         };
@@ -707,18 +707,13 @@ impl EventProcessor {
                 drop(shared_state_lock);
 
                 let surface_size = Arc::new(Mutex::new(new_surface_size));
-                callback(
-                    &self.target,
-                    Event::SurfaceEvent {
-                        window_id,
-                        event: SurfaceEvent::ScaleFactorChanged {
-                            scale_factor: new_scale_factor,
-                            surface_size_writer: SurfaceSizeWriter::new(Arc::downgrade(
-                                &surface_size,
-                            )),
-                        },
+                callback(&self.target, Event::SurfaceEvent {
+                    window_id,
+                    event: SurfaceEvent::ScaleFactorChanged {
+                        scale_factor: new_scale_factor,
+                        surface_size_writer: SurfaceSizeWriter::new(Arc::downgrade(&surface_size)),
                     },
-                );
+                });
 
                 let new_surface_size = *surface_size.lock().unwrap();
                 drop(surface_size);
@@ -768,13 +763,10 @@ impl EventProcessor {
         }
 
         if resized {
-            callback(
-                &self.target,
-                Event::SurfaceEvent {
-                    window_id,
-                    event: SurfaceEvent::SurfaceResized(new_surface_size.into()),
-                },
-            );
+            callback(&self.target, Event::SurfaceEvent {
+                window_id,
+                event: SurfaceEvent::SurfaceResized(new_surface_size.into()),
+            });
         }
     }
 
@@ -1527,13 +1519,10 @@ impl EventProcessor {
         }
         let physical_key = xkb::raw_keycode_to_physicalkey(keycode);
 
-        callback(
-            &self.target,
-            Event::DeviceEvent {
-                device_id,
-                event: DeviceEvent::Key(RawKeyEvent { physical_key, state }),
-            },
-        );
+        callback(&self.target, Event::DeviceEvent {
+            device_id,
+            event: DeviceEvent::Key(RawKeyEvent { physical_key, state }),
+        });
     }
 
     fn xinput2_hierarchy_changed(&mut self, xev: &XIHierarchyEvent) {

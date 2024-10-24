@@ -505,8 +505,8 @@ pub trait Surface: AsAny + Send + Sync {
     /// [`contentScaleFactor`]: https://developer.apple.com/documentation/uikit/uiview/1622657-contentscalefactor?language=objc
     fn scale_factor(&self) -> f64;
 
-    /// Queues a [`SurfaceEvent::RedrawRequested`] event to be emitted that aligns with the windowing
-    /// system drawing loop.
+    /// Queues a [`SurfaceEvent::RedrawRequested`] event to be emitted that aligns with the
+    /// windowing system drawing loop.
     ///
     /// This is the **strongly encouraged** method of redrawing windows, as it can integrate with
     /// OS-requested redraws (e.g. when a window gets resized). To improve the event delivery
@@ -758,7 +758,8 @@ pub trait Surface: AsAny + Send + Sync {
     #[cfg(feature = "rwh_06")]
     fn rwh_06_window_handle(&self) -> &dyn rwh_06::HasWindowHandle;
 
-    /// Tries to downcast this surface to a [`Window`]. Returns `None` if the surface is not a window.
+    /// Tries to downcast this surface to a [`Window`]. Returns `None` if the surface is not a
+    /// window.
     fn as_window(&self) -> Option<&dyn Window> {
         None
     }
