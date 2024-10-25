@@ -759,6 +759,120 @@ impl<P: Pixel> From<LogicalPosition<P>> for Position {
     }
 }
 
+/// A rectangle represented in logical pixels.
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Default, Hash)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub struct LogicalRect<P> {
+    pub origin: LogicalPosition<P>,
+    pub size: LogicalSize<P>,
+}
+
+impl<P> LogicalRect<P> {
+    #[inline]
+    pub const fn new(origin: LogicalPosition<P>, size: LogicalSize<P>) -> Self {
+        Self { origin, size }
+    }
+}
+
+impl<P: Pixel> LogicalRect<P> {
+    #[inline]
+    pub fn from_physical<T: Into<PhysicalRect<X>>, X: Pixel>(
+        physical: T,
+        scale_factor: f64,
+    ) -> Self {
+        physical.into().to_logical(scale_factor)
+    }
+
+    #[inline]
+    pub fn to_physical<X: Pixel>(&self, scale_factor: f64) -> PhysicalRect<X> {
+        let origin = self.origin.to_physical(scale_factor);
+        let size = self.size.to_physical(scale_factor);
+        PhysicalRect::new(origin, size)
+    }
+
+    #[inline]
+    pub fn cast<X: Pixel>(&self) -> LogicalRect<X> {
+        LogicalRect { origin: self.origin.cast(), size: self.size.cast() }
+    }
+}
+
+/// A rectangle represented in physical pixels.
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Default, Hash)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub struct PhysicalRect<P> {
+    pub origin: PhysicalPosition<P>,
+    pub size: PhysicalSize<P>,
+}
+
+impl<P> PhysicalRect<P> {
+    #[inline]
+    pub const fn new(origin: PhysicalPosition<P>, size: PhysicalSize<P>) -> Self {
+        Self { origin, size }
+    }
+}
+
+impl<P: Pixel> PhysicalRect<P> {
+    #[inline]
+    pub fn from_logical<T: Into<LogicalRect<X>>, X: Pixel>(logical: T, scale_factor: f64) -> Self {
+        logical.into().to_physical(scale_factor)
+    }
+
+    #[inline]
+    pub fn to_logical<X: Pixel>(&self, scale_factor: f64) -> LogicalRect<X> {
+        assert!(validate_scale_factor(scale_factor));
+        let origin = self.origin.to_logical(scale_factor);
+        let size = self.size.to_logical(scale_factor);
+        LogicalRect::new(origin, size)
+    }
+
+    #[inline]
+    pub fn cast<X: Pixel>(&self) -> PhysicalRect<X> {
+        PhysicalRect { origin: self.origin.cast(), size: self.size.cast() }
+    }
+}
+
+/// A rectangle that's either physical or logical.
+#[derive(Debug, Copy, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub enum Rect {
+    Physical(PhysicalRect<i32>),
+    Logical(LogicalRect<f64>),
+}
+
+impl Rect {
+    pub fn new<R: Into<Self>>(rect: R) -> Self {
+        rect.into()
+    }
+
+    pub fn to_logical<P: Pixel>(&self, scale_factor: f64) -> LogicalRect<P> {
+        match *self {
+            Self::Physical(rect) => rect.to_logical(scale_factor),
+            Self::Logical(rect) => rect.cast(),
+        }
+    }
+
+    pub fn to_physical<P: Pixel>(&self, scale_factor: f64) -> PhysicalRect<P> {
+        match *self {
+            Self::Physical(rect) => rect.cast(),
+            Self::Logical(rect) => rect.to_physical(scale_factor),
+        }
+    }
+}
+
+impl<P: Pixel> From<PhysicalRect<P>> for Rect {
+    #[inline]
+    fn from(rect: PhysicalRect<P>) -> Self {
+        Self::Physical(rect.cast())
+    }
+}
+
+impl<P: Pixel> From<LogicalRect<P>> for Rect {
+    #[inline]
+    fn from(rect: LogicalRect<P>) -> Self {
+        Self::Logical(rect.cast())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::collections::HashSet;
