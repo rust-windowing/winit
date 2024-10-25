@@ -136,6 +136,7 @@ objc2-app-kit = { version = "0.2.2", features = [
     "NSScreen",
     "NSTextInputClient",
     "NSTextInputContext",
+    "NSToolbar",
     "NSView",
     "NSWindow",
     "NSWindowScripting",
