@@ -511,13 +511,16 @@ impl UnownedWindow {
             None => xconn.default_screen_index() as c_int,
         };
 
-        // An iterator over all of the visuals combined with their depths.
-        let mut all_visuals = xconn
-            .xcb_connection()
-            .setup()
-            .roots
+        let screen_id_usize = usize::try_from(screen_id)
+            .map_err(|_| NotSupportedError::new("screen id must be non-negative"))?;
+        let screen = xconn.xcb_connection().setup().roots.get(screen_id_usize).ok_or(
+            NotSupportedError::new("requested screen id not present in server's response"),
+        )?;
+
+        // An iterator over the visuals matching screen id combined with their depths.
+        let mut all_visuals = screen
+            .allowed_depths
             .iter()
-            .flat_map(|root| &root.allowed_depths)
             .flat_map(|depth| depth.visuals.iter().map(move |visual| (visual, depth.depth)));
 
         // creating
