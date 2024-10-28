@@ -144,12 +144,26 @@ impl UnownedWindow {
     ) -> Result<UnownedWindow, RootOsError> {
         let xconn = &event_loop.xconn;
         let atoms = xconn.atoms();
+
+        let screen_id = match window_attrs.platform_specific.x11.screen_id {
+            Some(id) => id,
+            None => xconn.default_screen_index() as c_int,
+        };
+
+        let screen = {
+            let screen_id_usize = usize::try_from(screen_id)
+                .map_err(|_| os_error!(OsError::Misc("screen id must be non-negative")))?;
+            xconn.xcb_connection().setup().roots.get(screen_id_usize).ok_or(os_error!(
+                OsError::Misc("requested screen id not present in server's response")
+            ))?
+        };
+
         #[cfg(feature = "rwh_06")]
         let root = match window_attrs.parent_window.as_ref().map(|handle| handle.0) {
             Some(rwh_06::RawWindowHandle::Xlib(handle)) => handle.window as xproto::Window,
             Some(rwh_06::RawWindowHandle::Xcb(handle)) => handle.window.get(),
             Some(raw) => unreachable!("Invalid raw window handle {raw:?} on X11"),
-            None => event_loop.root,
+            None => screen.root,
         };
         #[cfg(not(feature = "rwh_06"))]
         let root = event_loop.root;
@@ -205,19 +219,6 @@ impl UnownedWindow {
             }
             debug!("Calculated physical dimensions: {}x{}", dimensions.0, dimensions.1);
             dimensions
-        };
-
-        let screen_id = match window_attrs.platform_specific.x11.screen_id {
-            Some(id) => id,
-            None => xconn.default_screen_index() as c_int,
-        };
-
-        let screen = {
-            let screen_id_usize = usize::try_from(screen_id)
-                .map_err(|_| os_error!(OsError::Misc("screen id must be non-negative")))?;
-            xconn.xcb_connection().setup().roots.get(screen_id_usize).ok_or(os_error!(
-                OsError::Misc("requested screen id not present in server's response")
-            ))?
         };
 
         // An iterator over the visuals matching screen id combined with their depths.
