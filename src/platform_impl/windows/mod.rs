@@ -2,9 +2,7 @@ use smol_str::SmolStr;
 use windows_sys::Win32::Foundation::HWND;
 use windows_sys::Win32::UI::WindowsAndMessaging::{HMENU, WINDOW_LONG_PTR_INDEX};
 
-pub(crate) use self::event_loop::{
-    EventLoop, OwnedDisplayHandle, PlatformSpecificEventLoopAttributes,
-};
+pub(crate) use self::event_loop::{EventLoop, PlatformSpecificEventLoopAttributes};
 pub use self::icon::WinIcon as PlatformIcon;
 pub(crate) use self::icon::{SelectedCursor, WinCursor as PlatformCustomCursor, WinIcon};
 pub(crate) use self::keyboard::{physicalkey_to_scancode, scancode_to_physicalkey};

@@ -38,7 +38,7 @@ pub(crate) use cursor::{
 };
 
 pub(crate) use self::event_loop::{
-    ActiveEventLoop, EventLoop, OwnedDisplayHandle, PlatformSpecificEventLoopAttributes,
+    ActiveEventLoop, EventLoop, PlatformSpecificEventLoopAttributes,
 };
 pub(crate) use self::keyboard::KeyEventExtra;
 pub(crate) use self::monitor::{

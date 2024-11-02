@@ -5,6 +5,7 @@ use std::panic::{catch_unwind, resume_unwind, RefUnwindSafe, UnwindSafe};
 use std::ptr;
 use std::rc::{Rc, Weak};
 use std::sync::atomic::{AtomicBool, Ordering as AtomicOrdering};
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use core_foundation::base::{CFIndex, CFRelease};
@@ -19,6 +20,7 @@ use objc2_app_kit::{
     NSApplicationWillTerminateNotification, NSWindow,
 };
 use objc2_foundation::{MainThreadMarker, NSNotificationCenter, NSObject, NSObjectProtocol};
+use rwh_06::HasDisplayHandle;
 
 use super::super::notification_center::create_observer;
 use super::app::WinitApplication;
@@ -32,7 +34,7 @@ use crate::error::{EventLoopError, RequestError};
 use crate::event_loop::{
     ActiveEventLoop as RootActiveEventLoop, ControlFlow, DeviceEvents,
     EventLoopProxy as CoreEventLoopProxy, EventLoopProxyProvider,
-    OwnedDisplayHandle as RootOwnedDisplayHandle,
+    OwnedDisplayHandle as CoreOwnedDisplayHandle,
 };
 use crate::monitor::MonitorHandle as RootMonitorHandle;
 use crate::platform::macos::ActivationPolicy;
@@ -150,8 +152,8 @@ impl RootActiveEventLoop for ActiveEventLoop {
         self.app_state.exiting()
     }
 
-    fn owned_display_handle(&self) -> RootOwnedDisplayHandle {
-        RootOwnedDisplayHandle { platform: OwnedDisplayHandle }
+    fn owned_display_handle(&self) -> CoreOwnedDisplayHandle {
+        CoreOwnedDisplayHandle::new(Arc::new(OwnedDisplayHandle))
     }
 
     fn rwh_06_handle(&self) -> &dyn rwh_06::HasDisplayHandle {
@@ -388,15 +390,12 @@ impl EventLoop {
     }
 }
 
-#[derive(Clone, PartialEq, Eq)]
 pub(crate) struct OwnedDisplayHandle;
 
-impl OwnedDisplayHandle {
-    #[inline]
-    pub fn raw_display_handle_rwh_06(
-        &self,
-    ) -> Result<rwh_06::RawDisplayHandle, rwh_06::HandleError> {
-        Ok(rwh_06::AppKitDisplayHandle::new().into())
+impl HasDisplayHandle for OwnedDisplayHandle {
+    fn display_handle(&self) -> Result<rwh_06::DisplayHandle<'_>, rwh_06::HandleError> {
+        let raw = rwh_06::RawDisplayHandle::AppKit(rwh_06::AppKitDisplayHandle::new());
+        unsafe { Ok(rwh_06::DisplayHandle::borrow_raw(raw)) }
     }
 }
 

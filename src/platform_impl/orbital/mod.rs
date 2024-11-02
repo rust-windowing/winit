@@ -5,7 +5,7 @@ use std::{fmt, str};
 
 use smol_str::SmolStr;
 
-pub(crate) use self::event_loop::{ActiveEventLoop, EventLoop, OwnedDisplayHandle};
+pub(crate) use self::event_loop::{ActiveEventLoop, EventLoop};
 use crate::dpi::{PhysicalPosition, PhysicalSize};
 use crate::keyboard::Key;
 mod event_loop;
