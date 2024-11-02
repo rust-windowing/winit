@@ -273,7 +273,6 @@ impl EventLoop {
     }
 }
 
-#[cfg(feature = "rwh_06")]
 impl rwh_06::HasDisplayHandle for EventLoop {
     fn display_handle(&self) -> Result<rwh_06::DisplayHandle<'_>, rwh_06::HandleError> {
         rwh_06::HasDisplayHandle::display_handle(self.event_loop.window_target().rwh_06_handle())
@@ -407,11 +406,9 @@ pub trait ActiveEventLoop: AsAny {
     fn owned_display_handle(&self) -> OwnedDisplayHandle;
 
     /// Get the raw-window-handle handle.
-    #[cfg(feature = "rwh_06")]
     fn rwh_06_handle(&self) -> &dyn rwh_06::HasDisplayHandle;
 }
 
-#[cfg(feature = "rwh_06")]
 impl rwh_06::HasDisplayHandle for dyn ActiveEventLoop + '_ {
     fn display_handle(&self) -> Result<rwh_06::DisplayHandle<'_>, rwh_06::HandleError> {
         self.rwh_06_handle().display_handle()
@@ -432,7 +429,7 @@ impl rwh_06::HasDisplayHandle for dyn ActiveEventLoop + '_ {
 /// - A reference-counted pointer to the underlying type.
 #[derive(Clone, PartialEq, Eq)]
 pub struct OwnedDisplayHandle {
-    #[cfg_attr(not(feature = "rwh_06"), allow(dead_code))]
+    #[allow(dead_code)]
     pub(crate) platform: platform_impl::OwnedDisplayHandle,
 }
 
@@ -443,7 +440,6 @@ impl fmt::Debug for OwnedDisplayHandle {
     }
 }
 
-#[cfg(feature = "rwh_06")]
 impl rwh_06::HasDisplayHandle for OwnedDisplayHandle {
     #[inline]
     fn display_handle(&self) -> Result<rwh_06::DisplayHandle<'_>, rwh_06::HandleError> {

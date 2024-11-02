@@ -692,7 +692,6 @@ impl WindowDelegate {
         let window = new_window(app_state, &attrs, mtm)
             .ok_or_else(|| os_error!("couldn't create `NSWindow`"))?;
 
-        #[cfg(feature = "rwh_06")]
         match attrs.parent_window.map(|handle| handle.0) {
             Some(rwh_06::RawWindowHandle::AppKit(handle)) => {
                 // SAFETY: Caller ensures the pointer is valid or NULL
@@ -1631,7 +1630,6 @@ impl WindowDelegate {
         Some(monitor)
     }
 
-    #[cfg(feature = "rwh_06")]
     #[inline]
     pub fn raw_window_handle_rwh_06(&self) -> rwh_06::RawWindowHandle {
         let window_handle = rwh_06::AppKitWindowHandle::new({

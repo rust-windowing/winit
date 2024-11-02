@@ -106,7 +106,6 @@ impl Window {
         self.window
     }
 
-    #[cfg(feature = "rwh_06")]
     pub unsafe fn rwh_06_no_thread_check(
         &self,
     ) -> Result<rwh_06::RawWindowHandle, rwh_06::HandleError> {
@@ -119,7 +118,6 @@ impl Window {
         Ok(rwh_06::RawWindowHandle::Win32(window_handle))
     }
 
-    #[cfg(feature = "rwh_06")]
     pub fn raw_window_handle_rwh_06(&self) -> Result<rwh_06::RawWindowHandle, rwh_06::HandleError> {
         // TODO: Write a test once integration framework is ready to ensure that it holds.
         // If we aren't in the GUI thread, we can't return the window.
@@ -132,7 +130,6 @@ impl Window {
         unsafe { self.rwh_06_no_thread_check() }
     }
 
-    #[cfg(feature = "rwh_06")]
     pub fn raw_display_handle_rwh_06(
         &self,
     ) -> Result<rwh_06::RawDisplayHandle, rwh_06::HandleError> {
@@ -349,7 +346,6 @@ impl Drop for Window {
     }
 }
 
-#[cfg(feature = "rwh_06")]
 impl rwh_06::HasDisplayHandle for Window {
     fn display_handle(&self) -> Result<rwh_06::DisplayHandle<'_>, rwh_06::HandleError> {
         let raw = self.raw_display_handle_rwh_06()?;
@@ -357,7 +353,6 @@ impl rwh_06::HasDisplayHandle for Window {
     }
 }
 
-#[cfg(feature = "rwh_06")]
 impl rwh_06::HasWindowHandle for Window {
     fn window_handle(&self) -> Result<rwh_06::WindowHandle<'_>, rwh_06::HandleError> {
         let raw = self.raw_window_handle_rwh_06()?;
@@ -1054,12 +1049,10 @@ impl CoreWindow for Window {
         }
     }
 
-    #[cfg(feature = "rwh_06")]
     fn rwh_06_window_handle(&self) -> &dyn rwh_06::HasWindowHandle {
         self
     }
 
-    #[cfg(feature = "rwh_06")]
     fn rwh_06_display_handle(&self) -> &dyn rwh_06::HasDisplayHandle {
         self
     }
@@ -1288,7 +1281,6 @@ unsafe fn init(
         },
     };
 
-    #[cfg(feature = "rwh_06")]
     let parent = match attributes.parent_window.as_ref().map(|handle| handle.0) {
         Some(rwh_06::RawWindowHandle::Win32(handle)) => {
             window_flags.set(WindowFlags::CHILD, true);
@@ -1300,9 +1292,6 @@ unsafe fn init(
         Some(raw) => unreachable!("Invalid raw window handle {raw:?} on Windows"),
         None => fallback_parent(),
     };
-
-    #[cfg(not(feature = "rwh_06"))]
-    let parent = fallback_parent();
 
     let menu = attributes.platform_specific.menu;
     let fullscreen = attributes.fullscreen.clone();
