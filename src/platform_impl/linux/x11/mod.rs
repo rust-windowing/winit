@@ -647,7 +647,6 @@ impl ActiveEventLoop {
             .expect_then_ignore_error("Failed to update device event filter");
     }
 
-    #[cfg(feature = "rwh_06")]
     pub fn raw_display_handle_rwh_06(
         &self,
     ) -> Result<rwh_06::RawDisplayHandle, rwh_06::HandleError> {
@@ -748,13 +747,11 @@ impl RootActiveEventLoop for ActiveEventLoop {
         RootOwnedDisplayHandle { platform: handle }
     }
 
-    #[cfg(feature = "rwh_06")]
     fn rwh_06_handle(&self) -> &dyn rwh_06::HasDisplayHandle {
         self
     }
 }
 
-#[cfg(feature = "rwh_06")]
 impl rwh_06::HasDisplayHandle for ActiveEventLoop {
     fn display_handle(&self) -> Result<rwh_06::DisplayHandle<'_>, rwh_06::HandleError> {
         let raw = self.raw_display_handle_rwh_06()?;

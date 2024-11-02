@@ -550,13 +550,11 @@ impl RootActiveEventLoop for ActiveEventLoop {
         RootOwnedDisplayHandle { platform: OwnedDisplayHandle }
     }
 
-    #[cfg(feature = "rwh_06")]
     fn rwh_06_handle(&self) -> &dyn rwh_06::HasDisplayHandle {
         self
     }
 }
 
-#[cfg(feature = "rwh_06")]
 impl rwh_06::HasDisplayHandle for ActiveEventLoop {
     fn display_handle(&self) -> Result<rwh_06::DisplayHandle<'_>, rwh_06::HandleError> {
         let raw = rwh_06::RawDisplayHandle::Web(rwh_06::WebDisplayHandle::new());
@@ -568,7 +566,6 @@ impl rwh_06::HasDisplayHandle for ActiveEventLoop {
 pub(crate) struct OwnedDisplayHandle;
 
 impl OwnedDisplayHandle {
-    #[cfg(feature = "rwh_06")]
     #[inline]
     pub fn raw_display_handle_rwh_06(
         &self,

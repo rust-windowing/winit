@@ -420,7 +420,6 @@ pub(crate) enum OwnedDisplayHandle {
 }
 
 impl OwnedDisplayHandle {
-    #[cfg(feature = "rwh_06")]
     #[inline]
     pub fn raw_display_handle_rwh_06(
         &self,

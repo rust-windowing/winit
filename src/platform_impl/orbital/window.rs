@@ -137,7 +137,6 @@ impl Window {
         Ok(())
     }
 
-    #[cfg(feature = "rwh_06")]
     #[inline]
     fn raw_window_handle_rwh_06(&self) -> Result<rwh_06::RawWindowHandle, rwh_06::HandleError> {
         let handle = rwh_06::OrbitalWindowHandle::new({
@@ -147,7 +146,6 @@ impl Window {
         Ok(rwh_06::RawWindowHandle::Orbital(handle))
     }
 
-    #[cfg(feature = "rwh_06")]
     #[inline]
     fn raw_display_handle_rwh_06(&self) -> Result<rwh_06::RawDisplayHandle, rwh_06::HandleError> {
         Ok(rwh_06::RawDisplayHandle::Orbital(rwh_06::OrbitalDisplayHandle::new()))
@@ -447,18 +445,15 @@ impl CoreWindow for Window {
 
     fn set_content_protected(&self, _protected: bool) {}
 
-    #[cfg(feature = "rwh_06")]
     fn rwh_06_window_handle(&self) -> &dyn rwh_06::HasWindowHandle {
         self
     }
 
-    #[cfg(feature = "rwh_06")]
     fn rwh_06_display_handle(&self) -> &dyn rwh_06::HasDisplayHandle {
         self
     }
 }
 
-#[cfg(feature = "rwh_06")]
 impl rwh_06::HasWindowHandle for Window {
     fn window_handle(&self) -> Result<rwh_06::WindowHandle<'_>, rwh_06::HandleError> {
         let raw = self.raw_window_handle_rwh_06()?;
@@ -466,7 +461,6 @@ impl rwh_06::HasWindowHandle for Window {
     }
 }
 
-#[cfg(feature = "rwh_06")]
 impl rwh_06::HasDisplayHandle for Window {
     fn display_handle(&self) -> Result<rwh_06::DisplayHandle<'_>, rwh_06::HandleError> {
         let raw = self.raw_display_handle_rwh_06()?;

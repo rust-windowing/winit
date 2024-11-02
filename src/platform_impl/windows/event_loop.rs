@@ -524,7 +524,6 @@ impl RootActiveEventLoop for ActiveEventLoop {
     }
 }
 
-#[cfg(feature = "rwh_06")]
 impl rwh_06::HasDisplayHandle for ActiveEventLoop {
     fn display_handle(&self) -> Result<rwh_06::DisplayHandle<'_>, rwh_06::HandleError> {
         let raw = rwh_06::RawDisplayHandle::Windows(rwh_06::WindowsDisplayHandle::new());
@@ -536,7 +535,6 @@ impl rwh_06::HasDisplayHandle for ActiveEventLoop {
 pub(crate) struct OwnedDisplayHandle;
 
 impl OwnedDisplayHandle {
-    #[cfg(feature = "rwh_06")]
     #[inline]
     pub fn raw_display_handle_rwh_06(
         &self,

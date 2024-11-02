@@ -135,7 +135,6 @@ impl<W: Window> Deref for AnyThread<W> {
     }
 }
 
-#[cfg(feature = "rwh_06")]
 impl<W: Window> rwh_06::HasWindowHandle for AnyThread<W> {
     fn window_handle(&self) -> Result<rwh_06::WindowHandle<'_>, rwh_06::HandleError> {
         // SAFETY: The top level user has asserted this is only used safely.
@@ -337,7 +336,6 @@ pub trait WindowExtWindows {
     /// });
     /// # }
     /// ```
-    #[cfg(feature = "rwh_06")]
     unsafe fn window_handle_any_thread(
         &self,
     ) -> Result<rwh_06::WindowHandle<'_>, rwh_06::HandleError>;
@@ -401,7 +399,6 @@ impl WindowExtWindows for dyn Window + '_ {
         window.set_corner_preference(preference)
     }
 
-    #[cfg(feature = "rwh_06")]
     unsafe fn window_handle_any_thread(
         &self,
     ) -> Result<rwh_06::WindowHandle<'_>, rwh_06::HandleError> {
@@ -435,16 +432,8 @@ pub trait WindowBorrowExtWindows: Borrow<dyn Window> + Sized {
     /// Win32 APIs.
     ///
     /// [`Window`]: crate::window::Window
-    #[cfg_attr(
-        feature = "rwh_06",
-        doc = "[`HasWindowHandle`]: rwh_06::HasWindowHandle",
-        doc = "[`window_handle_any_thread`]: WindowExtWindows::window_handle_any_thread"
-    )]
-    #[cfg_attr(
-        not(feature = "rwh_06"),
-        doc = "[`HasWindowHandle`]: #only-available-with-rwh_06",
-        doc = "[`window_handle_any_thread`]: #only-available-with-rwh_06"
-    )]
+    /// [`HasWindowHandle`]: rwh_06::HasWindowHandle
+    /// [`window_handle_any_thread`]: WindowExtWindows::window_handle_any_thread
     unsafe fn any_thread(self) -> AnyThread<Self>
     where
         Self: Window,
