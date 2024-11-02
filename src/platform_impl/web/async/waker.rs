@@ -5,10 +5,9 @@ use std::task::Poll;
 
 use super::super::main_thread::MainThreadMarker;
 use super::{AtomicWaker, Wrapper};
+use crate::event_loop::EventLoopProxyProvider;
 
-pub struct WakerSpawner<T: 'static>(Wrapper<Handler<T>, Sender, ()>);
-
-pub struct Waker<T: 'static>(Wrapper<Handler<T>, Sender, ()>);
+pub struct EventLoopProxy<T: 'static>(Wrapper<Handler<T>, Sender, ()>);
 
 struct Handler<T> {
     value: T,
@@ -18,7 +17,7 @@ struct Handler<T> {
 #[derive(Clone)]
 struct Sender(Arc<Inner>);
 
-impl<T> WakerSpawner<T> {
+impl<T> EventLoopProxy<T> {
     pub fn new(main_thread: MainThreadMarker, value: T, handler: fn(&T, bool)) -> Self {
         let inner = Arc::new(Inner {
             awoken: AtomicBool::new(false),
@@ -28,7 +27,7 @@ impl<T> WakerSpawner<T> {
 
         let handler = Handler { value, handler };
 
-        let sender = Sender(Arc::clone(&inner));
+        let sender = Sender(inner.clone());
 
         Self(Wrapper::new(
             main_thread,
@@ -75,10 +74,6 @@ impl<T> WakerSpawner<T> {
         ))
     }
 
-    pub fn waker(&self) -> Waker<T> {
-        Waker(self.0.clone())
-    }
-
     pub fn take(&self) -> bool {
         debug_assert!(
             MainThreadMarker::new().is_some(),
@@ -89,7 +84,7 @@ impl<T> WakerSpawner<T> {
     }
 }
 
-impl<T> Drop for WakerSpawner<T> {
+impl<T> Drop for EventLoopProxy<T> {
     fn drop(&mut self) {
         self.0.with_sender_data(|inner| {
             inner.0.closed.store(true, Ordering::Relaxed);
@@ -98,15 +93,9 @@ impl<T> Drop for WakerSpawner<T> {
     }
 }
 
-impl<T> Waker<T> {
-    pub fn wake(&self) {
+impl<T> EventLoopProxyProvider for EventLoopProxy<T> {
+    fn wake_up(&self) {
         self.0.send(())
-    }
-}
-
-impl<T> Clone for Waker<T> {
-    fn clone(&self) -> Self {
-        Self(self.0.clone())
     }
 }
 

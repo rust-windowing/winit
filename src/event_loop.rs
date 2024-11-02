@@ -13,6 +13,7 @@ use std::marker::PhantomData;
 #[cfg(any(x11_platform, wayland_platform))]
 use std::os::unix::io::{AsFd, AsRawFd, BorrowedFd, RawFd};
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use std::sync::Arc;
 #[cfg(not(web_platform))]
 use std::time::{Duration, Instant};
 
@@ -452,10 +453,23 @@ impl rwh_06::HasDisplayHandle for OwnedDisplayHandle {
     }
 }
 
+pub(crate) trait EventLoopProxyProvider: Send + Sync {
+    /// See [`EventLoopProxy::wake_up`] for details.
+    fn wake_up(&self);
+}
+
 /// Control the [`EventLoop`], possibly from a different thread, without referencing it directly.
 #[derive(Clone)]
 pub struct EventLoopProxy {
-    pub(crate) event_loop_proxy: platform_impl::EventLoopProxy,
+    pub(crate) proxy: Arc<dyn EventLoopProxyProvider>,
+}
+
+impl std::fmt::Debug for EventLoopProxy {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("EventLoopProxy")
+            .field("proxy", &(Arc::as_ptr(&self.proxy) as *const usize))
+            .finish_non_exhaustive()
+    }
 }
 
 impl EventLoopProxy {
@@ -475,13 +489,11 @@ impl EventLoopProxy {
     ///
     /// [#3687]: https://github.com/rust-windowing/winit/pull/3687
     pub fn wake_up(&self) {
-        self.event_loop_proxy.wake_up();
+        self.proxy.wake_up();
     }
-}
 
-impl fmt::Debug for EventLoopProxy {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("ActiveEventLoop").finish_non_exhaustive()
+    pub(crate) fn new(proxy: Arc<dyn EventLoopProxyProvider>) -> Self {
+        Self { proxy }
     }
 }
 

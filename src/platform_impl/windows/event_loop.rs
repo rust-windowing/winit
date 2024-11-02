@@ -69,7 +69,8 @@ use crate::event::{
 };
 use crate::event_loop::{
     ActiveEventLoop as RootActiveEventLoop, ControlFlow, DeviceEvents,
-    EventLoopProxy as RootEventLoopProxy, OwnedDisplayHandle as RootOwnedDisplayHandle,
+    EventLoopProxy as RootEventLoopProxy, EventLoopProxyProvider,
+    OwnedDisplayHandle as RootOwnedDisplayHandle,
 };
 use crate::keyboard::ModifiersState;
 use crate::monitor::MonitorHandle as RootMonitorHandle;
@@ -462,7 +463,7 @@ impl ActiveEventLoop {
 impl RootActiveEventLoop for ActiveEventLoop {
     fn create_proxy(&self) -> RootEventLoopProxy {
         let event_loop_proxy = EventLoopProxy { target_window: self.thread_msg_target };
-        RootEventLoopProxy { event_loop_proxy }
+        RootEventLoopProxy::new(Arc::new(event_loop_proxy))
     }
 
     fn create_window(
@@ -802,15 +803,14 @@ impl EventLoopThreadExecutor {
 
 type ThreadExecFn = Box<Box<dyn FnMut()>>;
 
-#[derive(Clone)]
 pub struct EventLoopProxy {
     target_window: HWND,
 }
 
 unsafe impl Send for EventLoopProxy {}
 
-impl EventLoopProxy {
-    pub fn wake_up(&self) {
+impl EventLoopProxyProvider for EventLoopProxy {
+    fn wake_up(&self) {
         unsafe { PostMessageW(self.target_window, USER_EVENT_MSG_ID.get(), 0, 0) };
     }
 }

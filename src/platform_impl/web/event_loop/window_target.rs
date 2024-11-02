@@ -2,13 +2,14 @@ use std::cell::Cell;
 use std::clone::Clone;
 use std::iter;
 use std::rc::Rc;
+use std::sync::Arc;
 
 use web_sys::Element;
 
 use super::super::monitor::MonitorPermissionFuture;
 use super::super::{lock, KeyEventExtra};
 use super::runner::{EventWrapper, WeakShared};
-use super::{backend, runner, EventLoopProxy};
+use super::{backend, runner};
 use crate::error::{NotSupportedError, RequestError};
 use crate::event::{ElementState, Event, KeyEvent, TouchPhase, WindowEvent};
 use crate::event_loop::{
@@ -19,7 +20,7 @@ use crate::keyboard::ModifiersState;
 use crate::monitor::MonitorHandle as RootMonitorHandle;
 use crate::platform::web::{CustomCursorFuture, PollStrategy, WaitUntilStrategy};
 use crate::platform_impl::platform::cursor::CustomCursor;
-use crate::platform_impl::platform::r#async::Waker;
+use crate::platform_impl::web::r#async::EventLoopProxy;
 use crate::platform_impl::Window;
 use crate::window::{CustomCursor as RootCustomCursor, CustomCursorSource, Theme, WindowId};
 
@@ -476,15 +477,15 @@ impl ActiveEventLoop {
         self.runner.monitor().has_detailed_monitor_permission()
     }
 
-    pub(crate) fn waker(&self) -> Waker<WeakShared> {
-        self.runner.waker()
+    pub(crate) fn event_loop_proxy(&self) -> Arc<EventLoopProxy<WeakShared>> {
+        self.runner.event_loop_proxy().clone()
     }
 }
 
 impl RootActiveEventLoop for ActiveEventLoop {
     fn create_proxy(&self) -> RootEventLoopProxy {
-        let event_loop_proxy = EventLoopProxy::new(self.waker());
-        RootEventLoopProxy { event_loop_proxy }
+        let event_loop_proxy = self.event_loop_proxy();
+        RootEventLoopProxy::new(event_loop_proxy)
     }
 
     fn create_window(

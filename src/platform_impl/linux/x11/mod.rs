@@ -27,6 +27,7 @@ use crate::error::{EventLoopError, RequestError};
 use crate::event::{DeviceId, Event, StartCause, WindowEvent};
 use crate::event_loop::{
     ActiveEventLoop as RootActiveEventLoop, ControlFlow, DeviceEvents,
+    EventLoopProxy as CoreEventLoopProxy, EventLoopProxyProvider,
     OwnedDisplayHandle as RootOwnedDisplayHandle,
 };
 use crate::platform::pump_events::PumpStatus;
@@ -139,7 +140,7 @@ pub struct ActiveEventLoop {
     windows: RefCell<HashMap<WindowId, Weak<UnownedWindow>>>,
     redraw_sender: WakeSender<WindowId>,
     activation_sender: WakeSender<ActivationToken>,
-    event_loop_proxy: EventLoopProxy,
+    event_loop_proxy: CoreEventLoopProxy,
     device_events: Cell<DeviceEvents>,
 }
 
@@ -306,7 +307,7 @@ impl EventLoop {
                 sender: activation_token_sender, // not used again so no clone
                 waker: waker.clone(),
             },
-            event_loop_proxy,
+            event_loop_proxy: event_loop_proxy.into(),
             device_events: Default::default(),
         };
 
@@ -675,12 +676,8 @@ impl ActiveEventLoop {
 }
 
 impl RootActiveEventLoop for ActiveEventLoop {
-    fn create_proxy(&self) -> crate::event_loop::EventLoopProxy {
-        crate::event_loop::EventLoopProxy {
-            event_loop_proxy: crate::platform_impl::EventLoopProxy::X(
-                self.event_loop_proxy.clone(),
-            ),
-        }
+    fn create_proxy(&self) -> CoreEventLoopProxy {
+        self.event_loop_proxy.clone()
     }
 
     fn create_window(
@@ -759,12 +756,6 @@ impl rwh_06::HasDisplayHandle for ActiveEventLoop {
     }
 }
 
-impl EventLoopProxy {
-    pub fn wake_up(&self) {
-        self.ping.ping();
-    }
-}
-
 struct DeviceInfo<'a> {
     xconn: &'a XConnection,
     info: *const ffi::XIDeviceInfo,
@@ -807,9 +798,21 @@ pub struct EventLoopProxy {
     ping: Ping,
 }
 
+impl EventLoopProxyProvider for EventLoopProxy {
+    fn wake_up(&self) {
+        self.ping.ping();
+    }
+}
+
 impl EventLoopProxy {
     fn new(ping: Ping) -> Self {
         Self { ping }
+    }
+}
+
+impl From<EventLoopProxy> for CoreEventLoopProxy {
+    fn from(value: EventLoopProxy) -> Self {
+        CoreEventLoopProxy::new(Arc::new(value))
     }
 }
 

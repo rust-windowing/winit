@@ -1,7 +1,8 @@
 use std::collections::VecDeque;
 use std::sync::{Arc, Mutex};
 
-use super::{ActiveEventLoop, MonitorHandle, RedoxSocket, TimeSocket, WindowProperties};
+use super::event_loop::EventLoopProxy;
+use super::{ActiveEventLoop, MonitorHandle, RedoxSocket, WindowProperties};
 use crate::cursor::Cursor;
 use crate::dpi::{PhysicalPosition, PhysicalSize, Position, Size};
 use crate::error::{NotSupportedError, RequestError};
@@ -23,7 +24,7 @@ pub struct Window {
     window_socket: Arc<RedoxSocket>,
     redraws: Arc<Mutex<VecDeque<WindowId>>>,
     destroys: Arc<Mutex<VecDeque<WindowId>>>,
-    wake_socket: Arc<TimeSocket>,
+    event_loop_proxy: Arc<EventLoopProxy>,
 }
 
 impl Window {
@@ -113,13 +114,13 @@ impl Window {
             creates.push_back(window_socket.clone());
         }
 
-        el.wake_socket.wake().unwrap();
+        el.event_loop_proxy.wake_socket.wake().unwrap();
 
         Ok(Self {
             window_socket,
             redraws: el.redraws.clone(),
             destroys: el.destroys.clone(),
-            wake_socket: el.wake_socket.clone(),
+            event_loop_proxy: el.event_loop_proxy.clone(),
         })
     }
 
@@ -184,7 +185,7 @@ impl CoreWindow for Window {
         if !redraws.contains(&window_id) {
             redraws.push_back(window_id);
 
-            self.wake_socket.wake().unwrap();
+            self.event_loop_proxy.wake_socket.wake().unwrap();
         }
     }
 
@@ -475,6 +476,6 @@ impl Drop for Window {
             destroys.push_back(self.id());
         }
 
-        self.wake_socket.wake().unwrap();
+        self.event_loop_proxy.wake_socket.wake().unwrap();
     }
 }

@@ -25,12 +25,13 @@ use crate::window::{CustomCursor as RootCustomCursor, CustomCursorSource, Theme}
 mod proxy;
 pub mod sink;
 
-pub use proxy::EventLoopProxy;
+use proxy::EventLoopProxy;
 use sink::EventSink;
 
 use super::state::{WindowCompositorUpdate, WinitState};
 use super::window::state::FrameCallbackState;
 use super::{logical_to_physical_rounded, WindowId};
+pub use crate::event_loop::EventLoopProxy as CoreEventLoopProxy;
 
 type WaylandDispatcher = calloop::Dispatcher<'static, WaylandSource<WinitState>, WinitState>;
 
@@ -120,7 +121,7 @@ impl EventLoop {
             connection: connection.clone(),
             wayland_dispatcher: wayland_dispatcher.clone(),
             event_loop_awakener,
-            event_loop_proxy: EventLoopProxy::new(ping),
+            event_loop_proxy: EventLoopProxy::new(ping).into(),
             queue_handle,
             control_flow: Cell::new(ControlFlow::default()),
             exit: Cell::new(None),
@@ -539,7 +540,7 @@ impl AsRawFd for EventLoop {
 
 pub struct ActiveEventLoop {
     /// Event loop proxy
-    event_loop_proxy: EventLoopProxy,
+    event_loop_proxy: CoreEventLoopProxy,
 
     /// The event loop wakeup source.
     pub event_loop_awakener: calloop::ping::Ping,
@@ -565,12 +566,8 @@ pub struct ActiveEventLoop {
 }
 
 impl RootActiveEventLoop for ActiveEventLoop {
-    fn create_proxy(&self) -> crate::event_loop::EventLoopProxy {
-        crate::event_loop::EventLoopProxy {
-            event_loop_proxy: crate::platform_impl::EventLoopProxy::Wayland(
-                self.event_loop_proxy.clone(),
-            ),
-        }
+    fn create_proxy(&self) -> CoreEventLoopProxy {
+        self.event_loop_proxy.clone()
     }
 
     fn set_control_flow(&self, control_flow: ControlFlow) {

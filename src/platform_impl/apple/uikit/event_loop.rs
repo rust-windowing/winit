@@ -1,7 +1,6 @@
 use std::ffi::{c_char, c_int, c_void};
 use std::ptr::{self, NonNull};
 use std::sync::atomic::{AtomicBool, Ordering as AtomicOrdering};
-use std::sync::Arc;
 
 use core_foundation::base::{CFIndex, CFRelease};
 use core_foundation::runloop::{
@@ -29,7 +28,8 @@ use crate::error::{EventLoopError, NotSupportedError, RequestError};
 use crate::event::Event;
 use crate::event_loop::{
     ActiveEventLoop as RootActiveEventLoop, ControlFlow, DeviceEvents,
-    EventLoopProxy as RootEventLoopProxy, OwnedDisplayHandle as RootOwnedDisplayHandle,
+    EventLoopProxy as CoreEventLoopProxy, EventLoopProxyProvider,
+    OwnedDisplayHandle as RootOwnedDisplayHandle,
 };
 use crate::monitor::MonitorHandle as RootMonitorHandle;
 use crate::platform_impl::Window;
@@ -41,9 +41,8 @@ pub(crate) struct ActiveEventLoop {
 }
 
 impl RootActiveEventLoop for ActiveEventLoop {
-    fn create_proxy(&self) -> crate::event_loop::EventLoopProxy {
-        let event_loop_proxy = EventLoopProxy::new(AppState::get_mut(self.mtm).proxy_wake_up());
-        RootEventLoopProxy { event_loop_proxy }
+    fn create_proxy(&self) -> CoreEventLoopProxy {
+        CoreEventLoopProxy::new(AppState::get_mut(self.mtm).event_loop_proxy().clone())
     }
 
     fn create_window(
@@ -289,18 +288,12 @@ impl EventLoop {
 }
 
 pub struct EventLoopProxy {
-    proxy_wake_up: Arc<AtomicBool>,
+    pub(crate) wake_up: AtomicBool,
     source: CFRunLoopSourceRef,
 }
 
 unsafe impl Send for EventLoopProxy {}
 unsafe impl Sync for EventLoopProxy {}
-
-impl Clone for EventLoopProxy {
-    fn clone(&self) -> EventLoopProxy {
-        EventLoopProxy::new(self.proxy_wake_up.clone())
-    }
-}
 
 impl Drop for EventLoopProxy {
     fn drop(&mut self) {
@@ -312,7 +305,7 @@ impl Drop for EventLoopProxy {
 }
 
 impl EventLoopProxy {
-    fn new(proxy_wake_up: Arc<AtomicBool>) -> EventLoopProxy {
+    pub(crate) fn new() -> EventLoopProxy {
         unsafe {
             // just wake up the eventloop
             extern "C" fn event_loop_proxy_handler(_: *const c_void) {}
@@ -336,12 +329,14 @@ impl EventLoopProxy {
             CFRunLoopAddSource(rl, source, kCFRunLoopCommonModes);
             CFRunLoopWakeUp(rl);
 
-            EventLoopProxy { proxy_wake_up, source }
+            EventLoopProxy { wake_up: AtomicBool::new(false), source }
         }
     }
+}
 
-    pub fn wake_up(&self) {
-        self.proxy_wake_up.store(true, AtomicOrdering::Relaxed);
+impl EventLoopProxyProvider for EventLoopProxy {
+    fn wake_up(&self) {
+        self.wake_up.store(true, AtomicOrdering::Relaxed);
         unsafe {
             // let the main thread know there's a new event
             CFRunLoopSourceSignal(self.source);
