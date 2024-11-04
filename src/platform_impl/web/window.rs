@@ -9,7 +9,7 @@ use super::main_thread::{MainThreadMarker, MainThreadSafe};
 use super::monitor::MonitorHandler;
 use super::r#async::Dispatcher;
 use super::{backend, lock, ActiveEventLoop};
-use crate::dpi::{PhysicalInsets, PhysicalPosition, PhysicalSize, Position, Size};
+use crate::dpi::{LogicalInsets, PhysicalInsets, PhysicalPosition, PhysicalSize, Position, Size};
 use crate::error::{NotSupportedError, RequestError};
 use crate::icon::Icon;
 use crate::monitor::MonitorHandle as RootMonitorHandle;
