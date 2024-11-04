@@ -15,9 +15,10 @@ use objc2_app_kit::{
     NSAppKitVersionNumber, NSAppKitVersionNumber10_12, NSAppearance, NSAppearanceCustomization,
     NSAppearanceNameAqua, NSApplication, NSApplicationPresentationOptions, NSBackingStoreType,
     NSColor, NSDraggingDestination, NSFilenamesPboardType, NSPasteboard,
-    NSRequestUserAttentionType, NSScreen, NSView, NSWindowButton, NSWindowDelegate,
+    NSRequestUserAttentionType, NSScreen, NSToolbar, NSView, NSWindowButton, NSWindowDelegate,
     NSWindowFullScreenButton, NSWindowLevel, NSWindowOcclusionState, NSWindowOrderingMode,
     NSWindowSharingType, NSWindowStyleMask, NSWindowTabbingMode, NSWindowTitleVisibility,
+    NSWindowToolbarStyle,
 };
 use objc2_foundation::{
     ns_string, CGFloat, MainThreadMarker, NSArray, NSCopying, NSDictionary, NSEdgeInsets,
@@ -33,7 +34,7 @@ use super::monitor::{self, flip_window_screen_coordinates, get_display_id};
 use super::observer::RunLoop;
 use super::view::WinitView;
 use super::window::WinitWindow;
-use super::{ffi, Fullscreen, MonitorHandle, WindowId};
+use super::{ffi, Fullscreen, MonitorHandle};
 use crate::dpi::{
     LogicalInsets, LogicalPosition, LogicalSize, PhysicalInsets, PhysicalPosition, PhysicalSize,
     Position, Size,
@@ -43,7 +44,7 @@ use crate::event::{SurfaceSizeWriter, WindowEvent};
 use crate::platform::macos::{OptionAsAlt, WindowExtMacOS};
 use crate::window::{
     Cursor, CursorGrabMode, Icon, ImePurpose, ResizeDirection, Theme, UserAttentionType,
-    WindowAttributes, WindowButtons, WindowId as RootWindowId, WindowLevel,
+    WindowAttributes, WindowButtons, WindowId, WindowLevel,
 };
 
 #[derive(Clone, Debug, PartialEq)]
@@ -60,6 +61,7 @@ pub struct PlatformSpecificWindowAttributes {
     pub tabbing_identifier: Option<String>,
     pub option_as_alt: OptionAsAlt,
     pub borderless_game: bool,
+    pub unified_titlebar: bool,
 }
 
 impl Default for PlatformSpecificWindowAttributes {
@@ -78,6 +80,7 @@ impl Default for PlatformSpecificWindowAttributes {
             tabbing_identifier: None,
             option_as_alt: Default::default(),
             borderless_game: false,
+            unified_titlebar: false,
         }
     }
 }
@@ -91,8 +94,8 @@ pub(crate) struct State {
 
     // During `windowDidResize`, we use this to only send Moved if the position changed.
     //
-    // This is expressed in native screen coordinates.
-    previous_position: Cell<Option<NSPoint>>,
+    // This is expressed in desktop coordinates, and flipped to match Winit's coordinate system.
+    previous_position: Cell<NSPoint>,
 
     // Used to prevent redundant events.
     previous_scale_factor: Cell<f64>,
@@ -221,10 +224,10 @@ declare_class!(
             trace_scope!("windowDidResignKey:");
             // It happens rather often, e.g. when the user is Cmd+Tabbing, that the
             // NSWindowDelegate will receive a didResignKey event despite no event
-            // being received when the modifiers are released.  This is because
+            // being received when the modifiers are released. This is because
             // flagsChanged events are received by the NSView instead of the
             // NSWindowDelegate, and as a result a tracked modifiers state can quite
-            // easily fall out of synchrony with reality.  This requires us to emit
+            // easily fall out of synchrony with reality. This requires us to emit
             // a synthetic ModifiersChanged event when we lose focus.
             self.view().reset_modifiers();
 
@@ -631,6 +634,14 @@ fn new_window(
         if attrs.platform_specific.movable_by_window_background {
             window.setMovableByWindowBackground(true);
         }
+        if attrs.platform_specific.unified_titlebar {
+            unsafe {
+                // The toolbar style is ignored if there is no toolbar, so it is
+                // necessary to add one.
+                window.setToolbar(Some(&NSToolbar::new(mtm)));
+                window.setToolbarStyle(NSWindowToolbarStyle::Unified);
+            }
+        }
 
         if !attrs.enabled_buttons.contains(WindowButtons::MAXIMIZE) {
             if let Some(button) = window.standardWindowButton(NSWindowButton::NSWindowZoomButton) {
@@ -696,7 +707,6 @@ impl WindowDelegate {
         let window = new_window(app_state, &attrs, mtm)
             .ok_or_else(|| os_error!("couldn't create `NSWindow`"))?;
 
-        #[cfg(feature = "rwh_06")]
         match attrs.parent_window.map(|handle| handle.0) {
             Some(rwh_06::RawWindowHandle::AppKit(handle)) => {
                 // SAFETY: Caller ensures the pointer is valid or NULL
@@ -737,7 +747,7 @@ impl WindowDelegate {
         let delegate = mtm.alloc().set_ivars(State {
             app_state: Rc::clone(app_state),
             window: window.retain(),
-            previous_position: Cell::new(None),
+            previous_position: Cell::new(flip_window_screen_coordinates(window.frame())),
             previous_scale_factor: Cell::new(scale_factor),
             surface_resize_increments: Cell::new(surface_resize_increments),
             decorations: Cell::new(attrs.decorations),
@@ -834,7 +844,7 @@ impl WindowDelegate {
     }
 
     pub(crate) fn queue_event(&self, event: WindowEvent) {
-        let window_id = RootWindowId(self.window().id());
+        let window_id = self.window().id();
         self.ivars().app_state.maybe_queue_with_handler(move |app, event_loop| {
             app.window_event(event_loop, window_id, event);
         });
@@ -864,13 +874,12 @@ impl WindowDelegate {
     }
 
     fn emit_move_event(&self) {
-        let frame = self.window().frame();
-        if self.ivars().previous_position.get() == Some(frame.origin) {
+        let position = flip_window_screen_coordinates(self.window().frame());
+        if self.ivars().previous_position.get() == position {
             return;
         }
-        self.ivars().previous_position.set(Some(frame.origin));
+        self.ivars().previous_position.set(position);
 
-        let position = flip_window_screen_coordinates(frame);
         let position =
             LogicalPosition::new(position.x, position.y).to_physical(self.scale_factor());
         self.queue_event(WindowEvent::Moved(position));
@@ -1212,10 +1221,12 @@ impl WindowDelegate {
     }
 
     #[inline]
-    pub fn drag_window(&self) {
+    pub fn drag_window(&self) -> Result<(), RequestError> {
         let mtm = MainThreadMarker::from(self);
-        let event = NSApplication::sharedApplication(mtm).currentEvent().unwrap();
+        let event =
+            NSApplication::sharedApplication(mtm).currentEvent().ok_or(RequestError::Ignored)?;
         self.window().performWindowDragWithEvent(&event);
+        Ok(())
     }
 
     #[inline]
@@ -1659,7 +1670,6 @@ impl WindowDelegate {
         Some(monitor)
     }
 
-    #[cfg(feature = "rwh_06")]
     #[inline]
     pub fn raw_window_handle_rwh_06(&self) -> rwh_06::RawWindowHandle {
         let window_handle = rwh_06::AppKitWindowHandle::new({
@@ -1889,6 +1899,34 @@ impl WindowExtMacOS for WindowDelegate {
 
     fn is_borderless_game(&self) -> bool {
         self.ivars().is_borderless_game.get()
+    }
+
+    fn set_unified_titlebar(&self, unified_titlebar: bool) {
+        let window = self.window();
+
+        if unified_titlebar {
+            let mtm = MainThreadMarker::from(self);
+
+            unsafe {
+                // The toolbar style is ignored if there is no toolbar, so it is
+                // necessary to add one.
+                window.setToolbar(Some(&NSToolbar::new(mtm)));
+                window.setToolbarStyle(NSWindowToolbarStyle::Unified);
+            }
+        } else {
+            unsafe {
+                window.setToolbar(None);
+                window.setToolbarStyle(NSWindowToolbarStyle::Automatic);
+            }
+        }
+    }
+
+    fn unified_titlebar(&self) -> bool {
+        let window = self.window();
+
+        unsafe {
+            window.toolbar().is_some() && window.toolbarStyle() == NSWindowToolbarStyle::Unified
+        }
     }
 }
 

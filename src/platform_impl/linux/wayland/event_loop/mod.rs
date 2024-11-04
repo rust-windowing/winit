@@ -30,7 +30,7 @@ use sink::EventSink;
 
 use super::state::{WindowCompositorUpdate, WinitState};
 use super::window::state::FrameCallbackState;
-use super::{logical_to_physical_rounded, DeviceId, WindowId};
+use super::{logical_to_physical_rounded, WindowId};
 
 type WaylandDispatcher = calloop::Dispatcher<'static, WaylandSource<WinitState>, WinitState>;
 
@@ -312,13 +312,12 @@ impl EventLoop {
                 let old_physical_size = physical_size;
 
                 let new_surface_size = Arc::new(Mutex::new(physical_size));
-                let root_window_id = crate::window::WindowId(window_id);
                 let event = WindowEvent::ScaleFactorChanged {
                     scale_factor,
                     surface_size_writer: SurfaceSizeWriter::new(Arc::downgrade(&new_surface_size)),
                 };
 
-                app.window_event(&self.active_event_loop, root_window_id, event);
+                app.window_event(&self.active_event_loop, window_id, event);
 
                 let physical_size = *new_surface_size.lock().unwrap();
                 drop(new_surface_size);
@@ -361,13 +360,11 @@ impl EventLoop {
                     size
                 });
 
-                let window_id = crate::window::WindowId(window_id);
                 let event = WindowEvent::SurfaceResized(physical_size);
                 app.window_event(&self.active_event_loop, window_id, event);
             }
 
             if compositor_update.close_window {
-                let window_id = crate::window::WindowId(window_id);
                 app.window_event(&self.active_event_loop, window_id, WindowEvent::CloseRequested);
             }
         }
@@ -437,8 +434,7 @@ impl EventLoop {
             });
 
             if let Some(event) = event {
-                let window_id = crate::window::WindowId(*window_id);
-                app.window_event(&self.active_event_loop, window_id, event);
+                app.window_event(&self.active_event_loop, *window_id, event);
             }
         }
 
@@ -641,7 +637,6 @@ impl RootActiveEventLoop for ActiveEventLoop {
         }
     }
 
-    #[cfg(feature = "rwh_06")]
     fn rwh_06_handle(&self) -> &dyn rwh_06::HasDisplayHandle {
         self
     }
@@ -661,7 +656,6 @@ impl ActiveEventLoop {
     }
 }
 
-#[cfg(feature = "rwh_06")]
 impl rwh_06::HasDisplayHandle for ActiveEventLoop {
     fn display_handle(&self) -> Result<rwh_06::DisplayHandle<'_>, rwh_06::HandleError> {
         use sctk::reexports::client::Proxy;

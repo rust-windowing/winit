@@ -1,32 +1,12 @@
-#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct DeviceId(i32);
+use crate::event::DeviceId;
 
-impl DeviceId {
-    pub fn new(pointer_id: i32) -> Self {
-        Self(pointer_id)
-    }
-
-    pub const fn dummy() -> Self {
-        Self(-1)
-    }
-}
-
-#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct FingerId {
-    pointer_id: i32,
-    primary: bool,
-}
-
-impl FingerId {
-    pub fn new(pointer_id: i32, primary: bool) -> Self {
-        Self { pointer_id, primary }
-    }
-
-    pub const fn dummy() -> Self {
-        Self { pointer_id: -1, primary: false }
-    }
-
-    pub fn is_primary(self) -> bool {
-        self.primary
+pub(crate) fn mkdid(pointer_id: i32) -> Option<DeviceId> {
+    if let Ok(pointer_id) = u32::try_from(pointer_id) {
+        Some(DeviceId::from_raw(pointer_id as i64))
+    } else if pointer_id == -1 {
+        None
+    } else {
+        tracing::error!("found unexpected negative `PointerEvent.pointerId`: {pointer_id}");
+        None
     }
 }

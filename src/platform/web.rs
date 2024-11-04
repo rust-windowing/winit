@@ -29,17 +29,16 @@
 //! The following APIs can't take them into account and will therefore provide inaccurate results:
 //! - [`WindowEvent::SurfaceResized`] and [`Window::(set_)surface_size()`]
 //! - [`WindowEvent::Occluded`]
-//! - [`WindowEvent::CursorMoved`], [`WindowEvent::CursorEntered`], [`WindowEvent::CursorLeft`], and
-//!   [`WindowEvent::Touch`].
+//! - [`WindowEvent::PointerMoved`], [`WindowEvent::PointerEntered`] and
+//!   [`WindowEvent::PointerLeft`].
 //! - [`Window::set_outer_position()`]
 //!
 //! [`WindowEvent::SurfaceResized`]: crate::event::WindowEvent::SurfaceResized
 //! [`Window::(set_)surface_size()`]: crate::window::Window::surface_size
 //! [`WindowEvent::Occluded`]: crate::event::WindowEvent::Occluded
-//! [`WindowEvent::CursorMoved`]: crate::event::WindowEvent::CursorMoved
-//! [`WindowEvent::CursorEntered`]: crate::event::WindowEvent::CursorEntered
-//! [`WindowEvent::CursorLeft`]: crate::event::WindowEvent::CursorLeft
-//! [`WindowEvent::Touch`]: crate::event::WindowEvent::Touch
+//! [`WindowEvent::PointerMoved`]: crate::event::WindowEvent::PointerMoved
+//! [`WindowEvent::PointerEntered`]: crate::event::WindowEvent::PointerEntered
+//! [`WindowEvent::PointerLeft`]: crate::event::WindowEvent::PointerLeft
 //! [`Window::set_outer_position()`]: crate::window::Window::set_outer_position
 
 use std::cell::Ref;
@@ -58,7 +57,6 @@ use web_sys::HtmlCanvasElement;
 use crate::application::ApplicationHandler;
 use crate::cursor::CustomCursorSource;
 use crate::error::NotSupportedError;
-use crate::event::FingerId;
 use crate::event_loop::{ActiveEventLoop, EventLoop};
 use crate::monitor::MonitorHandle;
 use crate::platform_impl::PlatformCustomCursorSource;
@@ -781,16 +779,3 @@ impl Display for OrientationLockError {
 }
 
 impl Error for OrientationLockError {}
-
-/// Additional methods on [`FingerId`] that are specific to Web.
-pub trait FingerIdExtWeb {
-    /// Indicates if the finger represents the first contact in a multi-touch interaction.
-    #[allow(clippy::wrong_self_convention)]
-    fn is_primary(self) -> bool;
-}
-
-impl FingerIdExtWeb for FingerId {
-    fn is_primary(self) -> bool {
-        self.0.is_primary()
-    }
-}

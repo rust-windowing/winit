@@ -27,10 +27,10 @@ use sctk::seat::pointer::{
 use sctk::seat::SeatState;
 
 use crate::dpi::{LogicalPosition, PhysicalPosition};
-use crate::event::{ElementState, MouseButton, MouseScrollDelta, TouchPhase, WindowEvent};
+use crate::event::{ElementState, MouseButton, MouseScrollDelta, PointerSource, PointerKind, TouchPhase, WindowEvent};
 
 use crate::platform_impl::wayland::state::WinitState;
-use crate::platform_impl::wayland::{self, DeviceId, WindowId};
+use crate::platform_impl::wayland::{self, WindowId};
 
 pub mod relative_pointer;
 
@@ -58,8 +58,6 @@ impl PointerHandler for WinitState {
                 return;
             },
         };
-
-        let device_id = crate::event::DeviceId(crate::platform_impl::DeviceId::Wayland(DeviceId));
 
         for event in events {
             let surface = &event.surface;
@@ -124,18 +122,20 @@ impl PointerHandler for WinitState {
                 },
                 // Regular events on the main surface.
                 PointerEventKind::Enter { .. } => {
-                    self.events_sink
-                        .push_window_event(WindowEvent::CursorEntered { device_id }, window_id);
+                    self.events_sink.push_window_event(
+                        WindowEvent::PointerEntered {
+                            primary: true,
+                            device_id: None,
+                            position,
+                            kind: PointerKind::Mouse,
+                        },
+                        window_id,
+                    );
 
                     window.pointer_entered(Arc::downgrade(themed_pointer));
 
                     // Set the currently focused surface.
                     pointer.winit_data().inner.lock().unwrap().surface = Some(window_id);
-
-                    self.events_sink.push_window_event(
-                        WindowEvent::CursorMoved { device_id, position },
-                        window_id,
-                    );
                 },
                 PointerEventKind::Leave { .. } => {
                     window.pointer_left(Arc::downgrade(themed_pointer));
@@ -143,12 +143,24 @@ impl PointerHandler for WinitState {
                     // Remove the active surface.
                     pointer.winit_data().inner.lock().unwrap().surface = None;
 
-                    self.events_sink
-                        .push_window_event(WindowEvent::CursorLeft { device_id }, window_id);
+                    self.events_sink.push_window_event(
+                        WindowEvent::PointerLeft {
+                            primary: true,
+                            device_id: None,
+                            position: Some(position),
+                            kind: PointerKind::Mouse,
+                        },
+                        window_id,
+                    );
                 },
                 PointerEventKind::Motion { .. } => {
                     self.events_sink.push_window_event(
-                        WindowEvent::CursorMoved { device_id, position },
+                        WindowEvent::PointerMoved {
+                            primary: true,
+                            device_id: None,
+                            position,
+                            source: PointerSource::Mouse,
+                        },
                         window_id,
                     );
                 },
@@ -164,7 +176,13 @@ impl PointerHandler for WinitState {
                         ElementState::Released
                     };
                     self.events_sink.push_window_event(
-                        WindowEvent::MouseInput { device_id, state, button },
+                        WindowEvent::PointerButton {
+                            primary: true,
+                            device_id: None,
+                            state,
+                            position,
+                            button: button.into(),
+                        },
                         window_id,
                     );
                 },
@@ -209,7 +227,7 @@ impl PointerHandler for WinitState {
                     };
 
                     self.events_sink.push_window_event(
-                        WindowEvent::MouseWheel { device_id, delta, phase },
+                        WindowEvent::MouseWheel { device_id: None, delta, phase },
                         window_id,
                     )
                 },

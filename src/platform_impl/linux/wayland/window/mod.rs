@@ -16,7 +16,7 @@ use super::event_loop::sink::EventSink;
 use super::output::MonitorHandle;
 use super::state::WinitState;
 use super::types::xdg_activation::XdgActivationTokenData;
-use super::{ActiveEventLoop, WindowId};
+use super::ActiveEventLoop;
 use crate::dpi::{LogicalSize, PhysicalInsets, PhysicalPosition, PhysicalSize, Position, Size};
 use crate::error::{NotSupportedError, RequestError};
 use crate::event::{Ime, WindowEvent};
@@ -25,8 +25,8 @@ use crate::monitor::MonitorHandle as CoreMonitorHandle;
 use crate::platform_impl::{Fullscreen, MonitorHandle as PlatformMonitorHandle};
 use crate::window::{
     Cursor, CursorGrabMode, Fullscreen as CoreFullscreen, ImePurpose, ResizeDirection, Theme,
-    UserAttentionType, Window as CoreWindow, WindowAttributes, WindowButtons,
-    WindowId as CoreWindowId, WindowLevel,
+    UserAttentionType, Window as CoreWindow, WindowAttributes, WindowButtons, WindowId,
+    WindowLevel,
 };
 
 pub(crate) mod state;
@@ -248,7 +248,6 @@ impl Drop for Window {
     }
 }
 
-#[cfg(feature = "rwh_06")]
 impl rwh_06::HasWindowHandle for Window {
     fn window_handle(&self) -> Result<rwh_06::WindowHandle<'_>, rwh_06::HandleError> {
         let raw = rwh_06::WaylandWindowHandle::new({
@@ -260,7 +259,6 @@ impl rwh_06::HasWindowHandle for Window {
     }
 }
 
-#[cfg(feature = "rwh_06")]
 impl rwh_06::HasDisplayHandle for Window {
     fn display_handle(&self) -> Result<rwh_06::DisplayHandle<'_>, rwh_06::HandleError> {
         let raw = rwh_06::WaylandDisplayHandle::new({
@@ -273,8 +271,8 @@ impl rwh_06::HasDisplayHandle for Window {
 }
 
 impl CoreWindow for Window {
-    fn id(&self) -> CoreWindowId {
-        CoreWindowId(self.window_id)
+    fn id(&self) -> WindowId {
+        self.window_id
     }
 
     fn request_redraw(&self) {
@@ -651,13 +649,11 @@ impl CoreWindow for Window {
     }
 
     /// Get the raw-window-handle v0.6 display handle.
-    #[cfg(feature = "rwh_06")]
     fn rwh_06_display_handle(&self) -> &dyn rwh_06::HasDisplayHandle {
         self
     }
 
     /// Get the raw-window-handle v0.6 window handle.
-    #[cfg(feature = "rwh_06")]
     fn rwh_06_window_handle(&self) -> &dyn rwh_06::HasWindowHandle {
         self
     }

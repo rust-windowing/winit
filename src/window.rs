@@ -11,7 +11,7 @@ use crate::dpi::{PhysicalInsets, PhysicalPosition, PhysicalSize, Position, Size}
 use crate::error::RequestError;
 pub use crate::icon::{BadIcon, Icon};
 use crate::monitor::{MonitorHandle, VideoModeHandle};
-use crate::platform_impl::{self, PlatformSpecificWindowAttributes};
+use crate::platform_impl::PlatformSpecificWindowAttributes;
 use crate::utils::AsAny;
 
 /// Identifier of a window. Unique for each window.
@@ -21,36 +21,27 @@ use crate::utils::AsAny;
 /// Whenever you receive an event specific to a window, this event contains a `WindowId` which you
 /// can then compare to the ids of your windows.
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct WindowId(pub(crate) platform_impl::WindowId);
+pub struct WindowId(usize);
 
 impl WindowId {
-    /// Returns a dummy id, useful for unit testing.
+    /// Convert the `WindowId` into the underlying integer.
     ///
-    /// # Notes
+    /// This is useful if you need to pass the ID across an FFI boundary, or store it in an atomic.
+    pub const fn into_raw(self) -> usize {
+        self.0
+    }
+
+    /// Construct a `WindowId` from the underlying integer.
     ///
-    /// The only guarantee made about the return value of this function is that
-    /// it will always be equal to itself and to future values returned by this function.
-    /// No other guarantees are made. This may be equal to a real [`WindowId`].
-    pub const fn dummy() -> Self {
-        WindowId(platform_impl::WindowId::dummy())
+    /// This should only be called with integers returned from [`WindowId::into_raw`].
+    pub const fn from_raw(id: usize) -> Self {
+        Self(id)
     }
 }
 
 impl fmt::Debug for WindowId {
     fn fmt(&self, fmtr: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.0.fmt(fmtr)
-    }
-}
-
-impl From<WindowId> for u64 {
-    fn from(window_id: WindowId) -> Self {
-        window_id.0.into()
-    }
-}
-
-impl From<u64> for WindowId {
-    fn from(raw_id: u64) -> Self {
-        Self(raw_id.into())
     }
 }
 
@@ -76,7 +67,6 @@ pub struct WindowAttributes {
     pub window_level: WindowLevel,
     pub active: bool,
     pub cursor: Cursor,
-    #[cfg(feature = "rwh_06")]
     pub(crate) parent_window: Option<SendSyncRawWindowHandle>,
     pub fullscreen: Option<Fullscreen>,
     // Platform-specific configuration.
@@ -107,7 +97,6 @@ impl Default for WindowAttributes {
             preferred_theme: None,
             content_protected: false,
             cursor: Cursor::default(),
-            #[cfg(feature = "rwh_06")]
             parent_window: None,
             active: true,
             platform_specific: Default::default(),
@@ -122,17 +111,13 @@ impl Default for WindowAttributes {
 /// The user has to account for that when using [`WindowAttributes::with_parent_window()`],
 /// which is `unsafe`.
 #[derive(Debug, Clone, PartialEq)]
-#[cfg(feature = "rwh_06")]
 pub(crate) struct SendSyncRawWindowHandle(pub(crate) rwh_06::RawWindowHandle);
 
-#[cfg(feature = "rwh_06")]
 unsafe impl Send for SendSyncRawWindowHandle {}
-#[cfg(feature = "rwh_06")]
 unsafe impl Sync for SendSyncRawWindowHandle {}
 
 impl WindowAttributes {
     /// Get the parent window stored on the attributes.
-    #[cfg(feature = "rwh_06")]
     pub fn parent_window(&self) -> Option<&rwh_06::RawWindowHandle> {
         self.parent_window.as_ref().map(|handle| &handle.0)
     }
@@ -418,7 +403,6 @@ impl WindowAttributes {
     ///   <https://docs.microsoft.com/en-us/windows/win32/winmsg/window-features#child-windows>
     /// - **X11**: A child window is confined to the client area of its parent window.
     /// - **Android / iOS / Wayland / Web:** Unsupported.
-    #[cfg(feature = "rwh_06")]
     #[inline]
     pub unsafe fn with_parent_window(
         mut self,
@@ -1343,11 +1327,9 @@ pub trait Window: AsAny + Send + Sync {
     fn primary_monitor(&self) -> Option<MonitorHandle>;
 
     /// Get the raw-window-handle v0.6 display handle.
-    #[cfg(feature = "rwh_06")]
     fn rwh_06_display_handle(&self) -> &dyn rwh_06::HasDisplayHandle;
 
     /// Get the raw-window-handle v0.6 window handle.
-    #[cfg(feature = "rwh_06")]
     fn rwh_06_window_handle(&self) -> &dyn rwh_06::HasWindowHandle;
 }
 
@@ -1373,14 +1355,12 @@ impl std::hash::Hash for dyn Window + '_ {
     }
 }
 
-#[cfg(feature = "rwh_06")]
 impl rwh_06::HasDisplayHandle for dyn Window + '_ {
     fn display_handle(&self) -> Result<rwh_06::DisplayHandle<'_>, rwh_06::HandleError> {
         self.rwh_06_display_handle().display_handle()
     }
 }
 
-#[cfg(feature = "rwh_06")]
 impl rwh_06::HasWindowHandle for dyn Window + '_ {
     fn window_handle(&self) -> Result<rwh_06::WindowHandle<'_>, rwh_06::HandleError> {
         self.rwh_06_window_handle().window_handle()

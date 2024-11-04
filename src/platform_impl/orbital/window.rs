@@ -1,12 +1,12 @@
 use std::collections::VecDeque;
 use std::sync::{Arc, Mutex};
 
-use super::{ActiveEventLoop, MonitorHandle, RedoxSocket, TimeSocket, WindowId, WindowProperties};
+use super::{ActiveEventLoop, MonitorHandle, RedoxSocket, TimeSocket, WindowProperties};
 use crate::cursor::Cursor;
 use crate::dpi::{PhysicalInsets, PhysicalPosition, PhysicalSize, Position, Size};
 use crate::error::{NotSupportedError, RequestError};
 use crate::monitor::MonitorHandle as CoreMonitorHandle;
-use crate::window::{self, Fullscreen, ImePurpose, Window as CoreWindow, WindowId as CoreWindowId};
+use crate::window::{self, Fullscreen, ImePurpose, Window as CoreWindow, WindowId};
 
 // These values match the values uses in the `window_new` function in orbital:
 // https://gitlab.redox-os.org/redox-os/orbital/-/blob/master/src/scheme.rs
@@ -137,7 +137,6 @@ impl Window {
         Ok(())
     }
 
-    #[cfg(feature = "rwh_06")]
     #[inline]
     fn raw_window_handle_rwh_06(&self) -> Result<rwh_06::RawWindowHandle, rwh_06::HandleError> {
         let handle = rwh_06::OrbitalWindowHandle::new({
@@ -147,7 +146,6 @@ impl Window {
         Ok(rwh_06::RawWindowHandle::Orbital(handle))
     }
 
-    #[cfg(feature = "rwh_06")]
     #[inline]
     fn raw_display_handle_rwh_06(&self) -> Result<rwh_06::RawDisplayHandle, rwh_06::HandleError> {
         Ok(rwh_06::RawDisplayHandle::Orbital(rwh_06::OrbitalDisplayHandle::new()))
@@ -155,8 +153,8 @@ impl Window {
 }
 
 impl CoreWindow for Window {
-    fn id(&self) -> CoreWindowId {
-        CoreWindowId(WindowId { fd: self.window_socket.fd as u64 })
+    fn id(&self) -> WindowId {
+        WindowId::from_raw(self.window_socket.fd)
     }
 
     #[inline]
@@ -181,7 +179,7 @@ impl CoreWindow for Window {
 
     #[inline]
     fn request_redraw(&self) {
-        let window_id = self.id().0;
+        let window_id = self.id();
         let mut redraws = self.redraws.lock().unwrap();
         if !redraws.contains(&window_id) {
             redraws.push_back(window_id);
@@ -451,18 +449,15 @@ impl CoreWindow for Window {
 
     fn set_content_protected(&self, _protected: bool) {}
 
-    #[cfg(feature = "rwh_06")]
     fn rwh_06_window_handle(&self) -> &dyn rwh_06::HasWindowHandle {
         self
     }
 
-    #[cfg(feature = "rwh_06")]
     fn rwh_06_display_handle(&self) -> &dyn rwh_06::HasDisplayHandle {
         self
     }
 }
 
-#[cfg(feature = "rwh_06")]
 impl rwh_06::HasWindowHandle for Window {
     fn window_handle(&self) -> Result<rwh_06::WindowHandle<'_>, rwh_06::HandleError> {
         let raw = self.raw_window_handle_rwh_06()?;
@@ -470,7 +465,6 @@ impl rwh_06::HasWindowHandle for Window {
     }
 }
 
-#[cfg(feature = "rwh_06")]
 impl rwh_06::HasDisplayHandle for Window {
     fn display_handle(&self) -> Result<rwh_06::DisplayHandle<'_>, rwh_06::HandleError> {
         let raw = self.raw_display_handle_rwh_06()?;
@@ -482,7 +476,7 @@ impl Drop for Window {
     fn drop(&mut self) {
         {
             let mut destroys = self.destroys.lock().unwrap();
-            destroys.push_back(self.id().0);
+            destroys.push_back(self.id());
         }
 
         self.wake_socket.wake().unwrap();

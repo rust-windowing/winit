@@ -24,19 +24,19 @@ use x11rb::xcb_ffi::ReplyOrIdError;
 
 use crate::application::ApplicationHandler;
 use crate::error::{EventLoopError, RequestError};
-use crate::event::{Event, StartCause, WindowEvent};
+use crate::event::{DeviceId, Event, StartCause, WindowEvent};
 use crate::event_loop::{
     ActiveEventLoop as RootActiveEventLoop, ControlFlow, DeviceEvents,
     OwnedDisplayHandle as RootOwnedDisplayHandle,
 };
 use crate::platform::pump_events::PumpStatus;
 use crate::platform_impl::common::xkb::Context;
-use crate::platform_impl::platform::{min_timeout, WindowId};
+use crate::platform_impl::platform::min_timeout;
 use crate::platform_impl::x11::window::Window;
 use crate::platform_impl::{OwnedDisplayHandle, PlatformCustomCursor};
 use crate::window::{
     CustomCursor as RootCustomCursor, CustomCursorSource, Theme, Window as CoreWindow,
-    WindowAttributes,
+    WindowAttributes, WindowId,
 };
 
 mod activation;
@@ -521,13 +521,14 @@ impl EventLoop {
 
         // Empty activation tokens.
         while let Ok((window_id, serial)) = self.activation_receiver.try_recv() {
-            let token = self.event_processor.with_window(window_id.0 as xproto::Window, |window| {
-                window.generate_activation_token()
-            });
+            let token = self
+                .event_processor
+                .with_window(window_id.into_raw() as xproto::Window, |window| {
+                    window.generate_activation_token()
+                });
 
             match token {
                 Some(Ok(token)) => {
-                    let window_id = crate::window::WindowId(window_id);
                     let event = WindowEvent::ActivationTokenDone {
                         serial,
                         token: crate::window::ActivationToken::_new(token),
@@ -555,7 +556,6 @@ impl EventLoop {
             }
 
             for window_id in windows {
-                let window_id = crate::window::WindowId(window_id);
                 app.window_event(
                     &self.event_processor.target,
                     window_id,
@@ -574,12 +574,9 @@ impl EventLoop {
         while unsafe { self.event_processor.poll_one_event(xev.as_mut_ptr()) } {
             let mut xev = unsafe { xev.assume_init() };
             self.event_processor.process_event(&mut xev, |window_target, event: Event| {
-                if let Event::WindowEvent {
-                    window_id: crate::window::WindowId(wid),
-                    event: WindowEvent::RedrawRequested,
-                } = event
+                if let Event::WindowEvent { window_id, event: WindowEvent::RedrawRequested } = event
                 {
-                    window_target.redraw_sender.send(wid);
+                    window_target.redraw_sender.send(window_id);
                 } else {
                     match event {
                         Event::WindowEvent { window_id, event } => {
@@ -650,7 +647,6 @@ impl ActiveEventLoop {
             .expect_then_ignore_error("Failed to update device event filter");
     }
 
-    #[cfg(feature = "rwh_06")]
     pub fn raw_display_handle_rwh_06(
         &self,
     ) -> Result<rwh_06::RawDisplayHandle, rwh_06::HandleError> {
@@ -751,13 +747,11 @@ impl RootActiveEventLoop for ActiveEventLoop {
         RootOwnedDisplayHandle { platform: handle }
     }
 
-    #[cfg(feature = "rwh_06")]
     fn rwh_06_handle(&self) -> &dyn rwh_06::HasDisplayHandle {
         self
     }
 }
 
-#[cfg(feature = "rwh_06")]
 impl rwh_06::HasDisplayHandle for ActiveEventLoop {
     fn display_handle(&self) -> Result<rwh_06::DisplayHandle<'_>, rwh_06::HandleError> {
         let raw = self.raw_display_handle_rwh_06()?;
@@ -805,26 +799,6 @@ impl<'a> Deref for DeviceInfo<'a> {
 
     fn deref(&self) -> &Self::Target {
         unsafe { slice::from_raw_parts(self.info, self.count) }
-    }
-}
-
-#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct DeviceId(xinput::DeviceId);
-
-impl DeviceId {
-    #[allow(unused)]
-    pub const fn dummy() -> Self {
-        DeviceId(0)
-    }
-}
-
-#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct FingerId(u32);
-
-impl FingerId {
-    #[allow(unused)]
-    pub const fn dummy() -> Self {
-        FingerId(0)
     }
 }
 
@@ -1000,14 +974,10 @@ impl<'a, E: fmt::Debug> CookieResultExt for Result<VoidCookie<'a>, E> {
 }
 
 fn mkwid(w: xproto::Window) -> crate::window::WindowId {
-    crate::window::WindowId(crate::platform_impl::platform::WindowId(w as _))
+    crate::window::WindowId::from_raw(w as _)
 }
-fn mkdid(w: xinput::DeviceId) -> crate::event::DeviceId {
-    crate::event::DeviceId(crate::platform_impl::DeviceId::X(DeviceId(w)))
-}
-
-fn mkfid(w: u32) -> crate::event::FingerId {
-    crate::event::FingerId(crate::platform_impl::FingerId::X(FingerId(w)))
+fn mkdid(w: xinput::DeviceId) -> DeviceId {
+    DeviceId::from_raw(w as i64)
 }
 
 #[derive(Debug)]

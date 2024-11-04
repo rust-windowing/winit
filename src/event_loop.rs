@@ -72,7 +72,7 @@ impl EventLoopBuilder {
     /// Attempting to create the event loop off the main thread will panic. This
     /// restriction isn't strictly necessary on all platforms, but is imposed to
     /// eliminate any nasty surprises when porting to platforms that require it.
-    /// `EventLoopBuilderExt::any_thread` functions are exposed in the relevant
+    /// `EventLoopBuilderExt::with_any_thread` functions are exposed in the relevant
     /// [`platform`] module if the target platform supports creating an event
     /// loop on any thread.
     ///
@@ -273,7 +273,6 @@ impl EventLoop {
     }
 }
 
-#[cfg(feature = "rwh_06")]
 impl rwh_06::HasDisplayHandle for EventLoop {
     fn display_handle(&self) -> Result<rwh_06::DisplayHandle<'_>, rwh_06::HandleError> {
         rwh_06::HasDisplayHandle::display_handle(self.event_loop.window_target().rwh_06_handle())
@@ -407,11 +406,9 @@ pub trait ActiveEventLoop: AsAny {
     fn owned_display_handle(&self) -> OwnedDisplayHandle;
 
     /// Get the raw-window-handle handle.
-    #[cfg(feature = "rwh_06")]
     fn rwh_06_handle(&self) -> &dyn rwh_06::HasDisplayHandle;
 }
 
-#[cfg(feature = "rwh_06")]
 impl rwh_06::HasDisplayHandle for dyn ActiveEventLoop + '_ {
     fn display_handle(&self) -> Result<rwh_06::DisplayHandle<'_>, rwh_06::HandleError> {
         self.rwh_06_handle().display_handle()
@@ -420,7 +417,7 @@ impl rwh_06::HasDisplayHandle for dyn ActiveEventLoop + '_ {
 
 /// A proxy for the underlying display handle.
 ///
-/// The purpose of this type is to provide a cheaply clonable handle to the underlying
+/// The purpose of this type is to provide a cheaply cloneable handle to the underlying
 /// display handle. This is often used by graphics APIs to connect to the underlying APIs.
 /// It is difficult to keep a handle to the [`EventLoop`] type or the [`ActiveEventLoop`]
 /// type. In contrast, this type involves no lifetimes and can be persisted for as long as
@@ -432,7 +429,7 @@ impl rwh_06::HasDisplayHandle for dyn ActiveEventLoop + '_ {
 /// - A reference-counted pointer to the underlying type.
 #[derive(Clone, PartialEq, Eq)]
 pub struct OwnedDisplayHandle {
-    #[cfg_attr(not(feature = "rwh_06"), allow(dead_code))]
+    #[allow(dead_code)]
     pub(crate) platform: platform_impl::OwnedDisplayHandle,
 }
 
@@ -443,7 +440,6 @@ impl fmt::Debug for OwnedDisplayHandle {
     }
 }
 
-#[cfg(feature = "rwh_06")]
 impl rwh_06::HasDisplayHandle for OwnedDisplayHandle {
     #[inline]
     fn display_handle(&self) -> Result<rwh_06::DisplayHandle<'_>, rwh_06::HandleError> {

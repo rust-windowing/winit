@@ -99,47 +99,6 @@ impl TimeSocket {
 #[derive(Default, Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub(crate) struct PlatformSpecificEventLoopAttributes {}
 
-#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
-pub struct WindowId {
-    fd: u64,
-}
-
-impl WindowId {
-    pub const fn dummy() -> Self {
-        WindowId { fd: u64::MAX }
-    }
-}
-
-impl From<WindowId> for u64 {
-    fn from(id: WindowId) -> Self {
-        id.fd
-    }
-}
-
-impl From<u64> for WindowId {
-    fn from(fd: u64) -> Self {
-        Self { fd }
-    }
-}
-
-#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
-pub struct DeviceId;
-
-impl DeviceId {
-    pub const fn dummy() -> Self {
-        DeviceId
-    }
-}
-
-#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
-pub struct FingerId;
-
-impl FingerId {
-    pub const fn dummy() -> Self {
-        FingerId
-    }
-}
-
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub struct PlatformSpecificWindowAttributes;
 

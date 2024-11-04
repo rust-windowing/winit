@@ -40,6 +40,9 @@ pub struct WinitSeatState {
     /// The mapping from touched points to the surfaces they're present.
     touch_map: AHashMap<i32, TouchPoint>,
 
+    /// Id of the first touch event.
+    first_touch_id: Option<i32>,
+
     /// The text input bound on the seat.
     text_input: Option<Arc<ZwpTextInputV3>>,
 

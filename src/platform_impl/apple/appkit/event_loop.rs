@@ -155,13 +155,11 @@ impl RootActiveEventLoop for ActiveEventLoop {
         RootOwnedDisplayHandle { platform: OwnedDisplayHandle }
     }
 
-    #[cfg(feature = "rwh_06")]
     fn rwh_06_handle(&self) -> &dyn rwh_06::HasDisplayHandle {
         self
     }
 }
 
-#[cfg(feature = "rwh_06")]
 impl rwh_06::HasDisplayHandle for ActiveEventLoop {
     fn display_handle(&self) -> Result<rwh_06::DisplayHandle<'_>, rwh_06::HandleError> {
         let raw = rwh_06::RawDisplayHandle::AppKit(rwh_06::AppKitDisplayHandle::new());
@@ -190,18 +188,14 @@ pub struct EventLoop {
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub(crate) struct PlatformSpecificEventLoopAttributes {
-    pub(crate) activation_policy: ActivationPolicy,
+    pub(crate) activation_policy: Option<ActivationPolicy>,
     pub(crate) default_menu: bool,
     pub(crate) activate_ignoring_other_apps: bool,
 }
 
 impl Default for PlatformSpecificEventLoopAttributes {
     fn default() -> Self {
-        Self {
-            activation_policy: Default::default(), // Regular
-            default_menu: true,
-            activate_ignoring_other_apps: true,
-        }
+        Self { activation_policy: None, default_menu: true, activate_ignoring_other_apps: true }
     }
 }
 
@@ -223,9 +217,10 @@ impl EventLoop {
         }
 
         let activation_policy = match attributes.activation_policy {
-            ActivationPolicy::Regular => NSApplicationActivationPolicy::Regular,
-            ActivationPolicy::Accessory => NSApplicationActivationPolicy::Accessory,
-            ActivationPolicy::Prohibited => NSApplicationActivationPolicy::Prohibited,
+            None => None,
+            Some(ActivationPolicy::Regular) => Some(NSApplicationActivationPolicy::Regular),
+            Some(ActivationPolicy::Accessory) => Some(NSApplicationActivationPolicy::Accessory),
+            Some(ActivationPolicy::Prohibited) => Some(NSApplicationActivationPolicy::Prohibited),
         };
 
         let app_state = AppState::setup_global(
@@ -398,7 +393,6 @@ impl EventLoop {
 pub(crate) struct OwnedDisplayHandle;
 
 impl OwnedDisplayHandle {
-    #[cfg(feature = "rwh_06")]
     #[inline]
     pub fn raw_display_handle_rwh_06(
         &self,
