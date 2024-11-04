@@ -140,7 +140,7 @@
 //! methods, you should be able to convert a position in one coordinate system to another.
 //!
 //! An overview of how these four methods fit together can be seen in the image below:
-#![doc = concat!("\n\n", include_str!("../docs/res/coordinate-systems-desktop.svg"), "\n\n")] // Rustfmt removes \n, re-add them
+#![doc = concat!("\n\n", include_str!("../docs/res/coordinate-systems-desktop.svg"), "\n\n")] // Rustfmt removes \n, adding them like this works around that.
 //! On mobile, the situation is usually a bit different; because of the smaller screen space,
 //! windows usually fill the whole screen at a time, and as such there is _rarely_ a difference
 //! between these three coordinate systems, although you should still strive to handle this, as
@@ -148,7 +148,7 @@
 //!
 //! This is illustrated in the image below, along with the safe area since it's often relevant on
 //! mobile.
-#![doc = concat!("\n\n", include_str!("../docs/res/coordinate-systems-mobile.svg"), "\n\n")] // Rustfmt removes \n, re-add them
+#![doc = concat!("\n\n", include_str!("../docs/res/coordinate-systems-mobile.svg"), "\n\n")] // Rustfmt removes \n, adding them like this works around that.
 //! [`Window::surface_position`]: crate::window::Window::surface_position
 //! [`Window::surface_size`]: crate::window::Window::surface_size
 //! [`Window::outer_position`]: crate::window::Window::outer_position
