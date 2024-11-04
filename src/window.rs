@@ -741,6 +741,9 @@ pub trait Window: AsAny + Send + Sync {
     /// of the surface, and the size extending downwards to the right. The area will not extend
     /// beyond [the bounds of the surface][Window::surface_size].
     ///
+    /// Note that the safe area does not take occlusion from other windows into account; in a way,
+    /// it is only a "hardware"-level occlusion.
+    ///
     /// If the entire content of the surface is visible, this returns `((0, 0), surface_size)`.
     ///
     /// ## Platform-specific
