@@ -985,7 +985,7 @@ impl WindowDelegate {
 
     pub fn safe_area(&self) -> PhysicalInsets<u32> {
         // Only available on macOS 11.0
-        let insets = if self.view().respondsToSelector(sel!(safeAreaInsets)) || false {
+        let insets = if self.view().respondsToSelector(sel!(safeAreaInsets)) {
             // Includes NSWindowStyleMask::FullSizeContentView by default, and the notch because
             // we've set it up with `additionalSafeAreaInsets`.
             unsafe { self.view().safeAreaInsets() }
