@@ -9,7 +9,7 @@ use super::main_thread::{MainThreadMarker, MainThreadSafe};
 use super::monitor::MonitorHandler;
 use super::r#async::Dispatcher;
 use super::{backend, lock, ActiveEventLoop};
-use crate::dpi::{PhysicalPosition, PhysicalSize, Position, Size};
+use crate::dpi::{PhysicalInsets, PhysicalPosition, PhysicalSize, Position, Size};
 use crate::error::{NotSupportedError, RequestError};
 use crate::icon::Icon;
 use crate::monitor::MonitorHandle as RootMonitorHandle;
@@ -155,7 +155,7 @@ impl RootWindow for Window {
         self.surface_size()
     }
 
-    fn safe_area(&self) -> (PhysicalPosition<u32>, PhysicalSize<u32>) {
+    fn safe_area(&self) -> PhysicalInsets<u32> {
         self.inner.queue(|inner| {
             let (safe_start_pos, safe_size) = inner.safe_area.get();
             let safe_end_pos = LogicalPosition::new(
@@ -173,19 +173,13 @@ impl RootWindow for Window {
                 surface_start_pos.y + surface_size.height,
             );
 
-            let pos = LogicalPosition::new(
-                f64::max(safe_start_pos.x - surface_start_pos.x, 0.),
-                f64::max(safe_start_pos.y - surface_start_pos.y, 0.),
-            );
-            let width = safe_size.width
-                - (f64::max(surface_start_pos.x - safe_start_pos.x, 0.)
-                    + f64::max(safe_end_pos.x - surface_end_pos.x, 0.));
-            let height = safe_size.height
-                - (f64::max(surface_start_pos.y - safe_start_pos.y, 0.)
-                    + f64::max(safe_end_pos.y - surface_end_pos.y, 0.));
-            let size = LogicalSize::new(width, height);
+            let top = f64::max(safe_start_pos.y - surface_start_pos.y, 0.);
+            let left = f64::max(safe_start_pos.x - surface_start_pos.x, 0.);
+            let bottom = f64::max(surface_end_pos.y - safe_end_pos.y, 0.);
+            let right = f64::max(surface_end_pos.x - safe_end_pos.x, 0.);
 
-            (pos.to_physical(inner.scale_factor()), size.to_physical(inner.scale_factor()))
+            let insets = LogicalInsets::new(top, left, bottom, right);
+            insets.to_physical(inner.scale_factor())
         })
     }
 

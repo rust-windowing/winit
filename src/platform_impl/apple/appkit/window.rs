@@ -135,7 +135,7 @@ impl CoreWindow for Window {
         self.maybe_wait_on_main(|delegate| delegate.outer_size())
     }
 
-    fn safe_area(&self) -> (dpi::PhysicalPosition<u32>, dpi::PhysicalSize<u32>) {
+    fn safe_area(&self) -> dpi::PhysicalInsets<u32> {
         self.maybe_wait_on_main(|delegate| delegate.safe_area())
     }
 

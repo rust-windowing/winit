@@ -21,7 +21,7 @@ use super::{
     ffi, ActiveEventLoop, CookieResultExt, ImeRequest, ImeSender, VoidCookie, WindowId, XConnection,
 };
 use crate::cursor::{Cursor, CustomCursor as RootCustomCursor};
-use crate::dpi::{PhysicalPosition, PhysicalSize, Position, Size};
+use crate::dpi::{PhysicalInsets, PhysicalPosition, PhysicalSize, Position, Size};
 use crate::error::{NotSupportedError, RequestError};
 use crate::event::{Event, SurfaceSizeWriter, WindowEvent};
 use crate::event_loop::AsyncRequestSerial;
@@ -106,7 +106,7 @@ impl CoreWindow for Window {
         self.0.outer_size()
     }
 
-    fn safe_area(&self) -> (PhysicalPosition<u32>, PhysicalSize<u32>) {
+    fn safe_area(&self) -> PhysicalInsets<u32> {
         self.0.safe_area()
     }
 
@@ -1592,8 +1592,8 @@ impl UnownedWindow {
         }
     }
 
-    fn safe_area(&self) -> (PhysicalPosition<u32>, PhysicalSize<u32>) {
-        ((0, 0).into(), self.surface_size())
+    fn safe_area(&self) -> PhysicalInsets<u32> {
+        PhysicalInsets::new(0, 0, 0, 0)
     }
 
     pub(crate) fn request_surface_size_physical(&self, width: u32, height: u32) {

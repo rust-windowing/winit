@@ -19,7 +19,10 @@ use super::view::WinitView;
 use super::view_controller::WinitViewController;
 use super::{app_state, monitor, ActiveEventLoop, Fullscreen, MonitorHandle};
 use crate::cursor::Cursor;
-use crate::dpi::{LogicalPosition, LogicalSize, PhysicalPosition, PhysicalSize, Position, Size};
+use crate::dpi::{
+    LogicalInsets, LogicalPosition, LogicalSize, PhysicalInsets, PhysicalPosition, PhysicalSize,
+    Position, Size,
+};
 use crate::error::{NotSupportedError, RequestError};
 use crate::event::{Event, WindowEvent};
 use crate::icon::Icon;
@@ -202,8 +205,7 @@ impl Inner {
         Some(self.surface_size())
     }
 
-    pub fn safe_area(&self) -> (PhysicalPosition<u32>, PhysicalSize<u32>) {
-        let frame = self.view.frame();
+    pub fn safe_area(&self) -> PhysicalInsets<u32> {
         // Only available on iOS 11.0
         let insets = if app_state::os_capabilities().safe_area {
             self.view.safeAreaInsets()
@@ -214,13 +216,8 @@ impl Inner {
             let status_bar_frame = app.statusBarFrame();
             UIEdgeInsets { top: status_bar_frame.size.height, left: 0.0, bottom: 0.0, right: 0.0 }
         };
-        let position = LogicalPosition::new(insets.left, insets.top);
-        let size = LogicalSize::new(
-            frame.size.width - insets.left - insets.right,
-            frame.size.height - insets.top - insets.bottom,
-        );
-        let scale_factor = self.scale_factor();
-        (position.to_physical(scale_factor), size.to_physical(scale_factor))
+        let insets = LogicalInsets::new(insets.top, insets.left, insets.bottom, insets.right);
+        insets.to_physical(self.scale_factor())
     }
 
     pub fn set_min_surface_size(&self, _dimensions: Option<Size>) {
@@ -637,7 +634,7 @@ impl CoreWindow for Window {
         self.maybe_wait_on_main(|delegate| delegate.outer_size())
     }
 
-    fn safe_area(&self) -> (PhysicalPosition<u32>, PhysicalSize<u32>) {
+    fn safe_area(&self) -> PhysicalInsets<u32> {
         self.maybe_wait_on_main(|delegate| delegate.safe_area())
     }
 

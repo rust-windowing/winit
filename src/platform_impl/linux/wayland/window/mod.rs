@@ -17,7 +17,7 @@ use super::output::MonitorHandle;
 use super::state::WinitState;
 use super::types::xdg_activation::XdgActivationTokenData;
 use super::{ActiveEventLoop, WindowId};
-use crate::dpi::{LogicalSize, PhysicalPosition, PhysicalSize, Position, Size};
+use crate::dpi::{LogicalSize, PhysicalInsets, PhysicalPosition, PhysicalSize, Position, Size};
 use crate::error::{NotSupportedError, RequestError};
 use crate::event::{Ime, WindowEvent};
 use crate::event_loop::AsyncRequestSerial;
@@ -337,8 +337,8 @@ impl CoreWindow for Window {
         super::logical_to_physical_rounded(window_state.outer_size(), scale_factor)
     }
 
-    fn safe_area(&self) -> (PhysicalPosition<u32>, PhysicalSize<u32>) {
-        ((0, 0).into(), self.surface_size())
+    fn safe_area(&self) -> PhysicalInsets<u32> {
+        PhysicalInsets::new(0, 0, 0, 0)
     }
 
     fn set_min_surface_size(&self, min_size: Option<Size>) {

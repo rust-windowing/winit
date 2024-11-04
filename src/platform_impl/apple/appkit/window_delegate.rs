@@ -34,7 +34,10 @@ use super::observer::RunLoop;
 use super::view::WinitView;
 use super::window::WinitWindow;
 use super::{ffi, Fullscreen, MonitorHandle, WindowId};
-use crate::dpi::{LogicalPosition, LogicalSize, PhysicalPosition, PhysicalSize, Position, Size};
+use crate::dpi::{
+    LogicalInsets, LogicalPosition, LogicalSize, PhysicalInsets, PhysicalPosition, PhysicalSize,
+    Position, Size,
+};
 use crate::error::{NotSupportedError, RequestError};
 use crate::event::{SurfaceSizeWriter, WindowEvent};
 use crate::platform::macos::{OptionAsAlt, WindowExtMacOS};
@@ -971,20 +974,30 @@ impl WindowDelegate {
         logical.to_physical(self.scale_factor())
     }
 
-    pub fn safe_area(&self) -> (PhysicalPosition<u32>, PhysicalSize<u32>) {
+    pub fn safe_area(&self) -> PhysicalInsets<u32> {
         // Only available on macOS 11.0
-        let safe_rect = if self.view().respondsToSelector(sel!(safeAreaRect)) {
+        let insets = if self.view().respondsToSelector(sel!(safeAreaInsets)) || false {
             // Includes NSWindowStyleMask::FullSizeContentView by default, and the notch because
             // we've set it up with `additionalSafeAreaInsets`.
-            unsafe { self.view().safeAreaRect() }
+            unsafe { self.view().safeAreaInsets() }
         } else {
+            let content_rect = self.window().contentRectForFrameRect(self.window().frame());
             // Includes NSWindowStyleMask::FullSizeContentView
             // Convert from window coordinates to view coordinates
-            unsafe { self.view().convertRect_fromView(self.window().contentLayoutRect(), None) }
+            let safe_rect = unsafe {
+                self.view().convertRect_fromView(self.window().contentLayoutRect(), None)
+            };
+            NSEdgeInsets {
+                top: safe_rect.origin.y - content_rect.origin.y,
+                left: safe_rect.origin.x - content_rect.origin.x,
+                bottom: (content_rect.size.height + content_rect.origin.x)
+                    - (safe_rect.size.height + safe_rect.origin.x),
+                right: (content_rect.size.width + content_rect.origin.y)
+                    - (safe_rect.size.width + safe_rect.origin.y),
+            }
         };
-        let position = LogicalPosition::new(safe_rect.origin.x, safe_rect.origin.y);
-        let size = LogicalSize::new(safe_rect.size.width, safe_rect.size.height);
-        (position.to_physical(self.scale_factor()), size.to_physical(self.scale_factor()))
+        let insets = LogicalInsets::new(insets.top, insets.left, insets.bottom, insets.right);
+        insets.to_physical(self.scale_factor())
     }
 
     #[inline]

@@ -7,7 +7,7 @@ pub use cursor_icon::{CursorIcon, ParseError as CursorIconParseError};
 use serde::{Deserialize, Serialize};
 
 pub use crate::cursor::{BadImage, Cursor, CustomCursor, CustomCursorSource, MAX_CURSOR_SIZE};
-use crate::dpi::{PhysicalPosition, PhysicalSize, Position, Size};
+use crate::dpi::{PhysicalInsets, PhysicalPosition, PhysicalSize, Position, Size};
 use crate::error::RequestError;
 pub use crate::icon::{BadIcon, Icon};
 use crate::monitor::{MonitorHandle, VideoModeHandle};
@@ -729,7 +729,7 @@ pub trait Window: AsAny + Send + Sync {
     ///   [`Window::surface_size`]._
     fn outer_size(&self) -> PhysicalSize<u32>;
 
-    /// The area of the surface that is unobstructed.
+    /// The inset area of the surface that is unobstructed.
     ///
     /// On some devices, especially mobile devices, the screen is not a perfect rectangle, and may
     /// have rounded corners, notches, bezels, and so on. When drawing your content, you usually
@@ -750,7 +750,28 @@ pub trait Window: AsAny + Send + Sync {
     ///
     /// - **Android / Orbital / Wayland / Web / Windows / X11:** Unimplemented, returns `((0, 0),
     ///   surface_size)`.
-    fn safe_area(&self) -> (PhysicalPosition<u32>, PhysicalSize<u32>);
+    ///
+    /// ## Examples
+    ///
+    /// Convert safe area insets to a size and a position.
+    ///
+    /// ```
+    /// use winit::dpi::{PhysicalPosition, PhysicalSize};
+    ///
+    /// # let surface_size = dpi::PhysicalSize::new(0, 0);
+    /// # #[cfg(requires_window)]
+    /// let surface_size = window.surface_size();
+    /// # let insets = dpi::PhysicalInsets::new(0, 0, 0, 0);
+    /// # #[cfg(requires_window)]
+    /// let insets = window.safe_area();
+    ///
+    /// let origin = PhysicalPosition::new(insets.left, insets.top);
+    /// let size = PhysicalSize::new(
+    ///     surface_size.width - insets.left - insets.right,
+    ///     surface_size.height - insets.top - insets.bottom,
+    /// );
+    /// ```
+    fn safe_area(&self) -> PhysicalInsets<u32>;
 
     /// Sets a minimum dimensions of the window's surface.
     ///

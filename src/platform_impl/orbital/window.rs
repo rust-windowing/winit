@@ -3,7 +3,7 @@ use std::sync::{Arc, Mutex};
 
 use super::{ActiveEventLoop, MonitorHandle, RedoxSocket, TimeSocket, WindowId, WindowProperties};
 use crate::cursor::Cursor;
-use crate::dpi::{PhysicalPosition, PhysicalSize, Position, Size};
+use crate::dpi::{PhysicalInsets, PhysicalPosition, PhysicalSize, Position, Size};
 use crate::error::{NotSupportedError, RequestError};
 use crate::monitor::MonitorHandle as CoreMonitorHandle;
 use crate::window::{self, Fullscreen, ImePurpose, Window as CoreWindow, WindowId as CoreWindowId};
@@ -240,8 +240,8 @@ impl CoreWindow for Window {
         self.surface_size()
     }
 
-    fn safe_area(&self) -> (PhysicalPosition<u32>, PhysicalSize<u32>) {
-        ((0, 0).into(), self.surface_size())
+    fn safe_area(&self) -> PhysicalInsets<u32> {
+        PhysicalInsets::new(0, 0, 0, 0)
     }
 
     #[inline]

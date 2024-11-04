@@ -910,7 +910,15 @@ impl WindowState {
 
         // Draw a star (without anti-aliasing) inside the safe area
         let surface_size = self.window.surface_size();
-        let (origin, size) = self.window.safe_area();
+        let insets = self.window.safe_area();
+        // Compute the safe rectangle.
+        // Winit's coordinate system has (0, 0) in the top-left corner.
+        let origin = PhysicalPosition::new(insets.left, insets.top);
+        let size = PhysicalSize::new(
+            surface_size.width - insets.left - insets.right,
+            surface_size.height - insets.top - insets.bottom,
+        );
+
         let in_star = |x, y| -> bool {
             // Shamelessly adapted from https://stackoverflow.com/a/2049593.
             let sign = |p1: (i32, i32), p2: (i32, i32), p3: (i32, i32)| -> i32 {

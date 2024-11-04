@@ -46,7 +46,7 @@ use windows_sys::Win32::UI::WindowsAndMessaging::{
 };
 
 use crate::cursor::Cursor;
-use crate::dpi::{PhysicalPosition, PhysicalSize, Position, Size};
+use crate::dpi::{PhysicalInsets, PhysicalPosition, PhysicalSize, Position, Size};
 use crate::error::{NotSupportedError, RequestError};
 use crate::icon::Icon;
 use crate::monitor::MonitorHandle as CoreMonitorHandle;
@@ -499,8 +499,8 @@ impl CoreWindow for Window {
         None
     }
 
-    fn safe_area(&self) -> (PhysicalPosition<u32>, PhysicalSize<u32>) {
-        ((0, 0).into(), self.surface_size())
+    fn safe_area(&self) -> PhysicalInsets<u32> {
+        PhysicalInsets::new(0, 0, 0, 0)
     }
 
     fn set_min_surface_size(&self, size: Option<Size>) {
