@@ -637,7 +637,6 @@ impl RootActiveEventLoop for ActiveEventLoop {
         }
     }
 
-    #[cfg(feature = "rwh_06")]
     fn rwh_06_handle(&self) -> &dyn rwh_06::HasDisplayHandle {
         self
     }
@@ -657,7 +656,6 @@ impl ActiveEventLoop {
     }
 }
 
-#[cfg(feature = "rwh_06")]
 impl rwh_06::HasDisplayHandle for ActiveEventLoop {
     fn display_handle(&self) -> Result<rwh_06::DisplayHandle<'_>, rwh_06::HandleError> {
         use sctk::reexports::client::Proxy;

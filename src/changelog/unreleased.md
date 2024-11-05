@@ -67,8 +67,8 @@ changelog entry.
 - On macOS, add `WindowExtMacOS::set_unified_titlebar` and `WindowAttributesExtMacOS::with_unified_titlebar`
   to use a larger style of titlebar.
 - Add `WindowId::into_raw()` and `from_raw()`.
-- Add `PointerKind`, `PointerSource`, `ButtonSource`, `FingerId` and `position` to all pointer
-  events as part of the pointer event overhaul.
+- Add `PointerKind`, `PointerSource`, `ButtonSource`, `FingerId`, `primary` and `position` to all
+  pointer events as part of the pointer event overhaul.
 - Add `DeviceId::into_raw()` and `from_raw()`.
 
 ### Changed
@@ -139,6 +139,8 @@ changelog entry.
   - Rename `CursorEntered` to `PointerEntered`.
   - Rename `CursorLeft` to `PointerLeft`.
   - Rename `MouseInput` to `PointerButton`.
+  - Add `primary` to every `PointerEvent` as a way to identify discard non-primary pointers in a
+    multi-touch interaction.
   - Add `position` to every `PointerEvent`.
   - `PointerMoved` is **not sent** after `PointerEntered` anymore.
   - Remove `Touch`, which is folded into the `Pointer*` events.
@@ -151,8 +153,6 @@ changelog entry.
     type to a generic mouse button.
   - New `FingerId` added to `PointerKind::Touch` and `PointerSource::Touch` able to uniquely
     identify a finger in a multi-touch interaction. Replaces the old `Touch::id`.
-  - On Web and Windows, add `FingerIdExt*::is_primary()`, exposing a way to determine
-    the primary finger in a multi-touch interaction.
   - In the same spirit rename `DeviceEvent::MouseMotion` to `PointerMotion`.
   - Remove `Force::Calibrated::altitude_angle`.
 
@@ -195,3 +195,5 @@ changelog entry.
   default activation policy, unless explicitly provided during initialization.
 - On macOS, fix crash when calling `drag_window()` without a left click present.
 - On X11, key events forward to IME anyway, even when it's disabled.
+- On Windows, make `ControlFlow::WaitUntil` work more precisely using `CREATE_WAITABLE_TIMER_HIGH_RESOLUTION`.
+- On X11, creating windows on screen that is not the first one (e.g. `DISPLAY=:0.1`) works again.

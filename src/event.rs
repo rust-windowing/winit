@@ -245,6 +245,12 @@ pub enum WindowEvent {
         /// [`transform`]: https://developer.mozilla.org/en-US/docs/Web/CSS/transform
         position: PhysicalPosition<f64>,
 
+        /// Indicates whether the event is created by a primary pointer.
+        ///
+        /// A pointer is considered primary when it's a mouse, the first finger in a multi-touch
+        /// interaction, or an unknown pointer source.
+        primary: bool,
+
         source: PointerSource,
     },
 
@@ -263,6 +269,12 @@ pub enum WindowEvent {
         /// [`padding`]: https://developer.mozilla.org/en-US/docs/Web/CSS/padding
         /// [`transform`]: https://developer.mozilla.org/en-US/docs/Web/CSS/transform
         position: PhysicalPosition<f64>,
+
+        /// Indicates whether the event is created by a primary pointer.
+        ///
+        /// A pointer is considered primary when it's a mouse, the first finger in a multi-touch
+        /// interaction, or an unknown pointer source.
+        primary: bool,
 
         kind: PointerKind,
     },
@@ -283,6 +295,12 @@ pub enum WindowEvent {
         /// [`padding`]: https://developer.mozilla.org/en-US/docs/Web/CSS/padding
         /// [`transform`]: https://developer.mozilla.org/en-US/docs/Web/CSS/transform
         position: Option<PhysicalPosition<f64>>,
+
+        /// Indicates whether the event is created by a primary pointer.
+        ///
+        /// A pointer is considered primary when it's a mouse, the first finger in a multi-touch
+        /// interaction, or an unknown pointer source.
+        primary: bool,
 
         kind: PointerKind,
     },
@@ -306,6 +324,12 @@ pub enum WindowEvent {
         /// [`padding`]: https://developer.mozilla.org/en-US/docs/Web/CSS/padding
         /// [`transform`]: https://developer.mozilla.org/en-US/docs/Web/CSS/transform
         position: PhysicalPosition<f64>,
+
+        /// Indicates whether the event is created by a primary pointer.
+        ///
+        /// A pointer is considered primary when it's a mouse, the first finger in a multi-touch
+        /// interaction, or an unknown pointer source.
+        primary: bool,
 
         button: ButtonSource,
     },
@@ -610,12 +634,23 @@ impl DeviceId {
 /// Whenever a touch event is received it contains a `FingerId` which uniquely identifies the finger
 /// used for the current interaction.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct FingerId(pub(crate) platform_impl::FingerId);
+pub struct FingerId(pub(crate) usize);
 
 impl FingerId {
-    #[cfg(test)]
-    pub(crate) const fn dummy() -> Self {
-        FingerId(platform_impl::FingerId::dummy())
+    /// Convert the [`FingerId`] into the underlying integer.
+    ///
+    /// This is useful if you need to pass the ID across an FFI boundary, or store it in an atomic.
+    #[allow(dead_code)]
+    pub(crate) const fn into_raw(self) -> usize {
+        self.0
+    }
+
+    /// Construct a [`FingerId`] from the underlying integer.
+    ///
+    /// This should only be called with integers returned from [`FingerId::into_raw`].
+    #[allow(dead_code)]
+    pub(crate) const fn from_raw(id: usize) -> Self {
+        Self(id)
     }
 }
 
@@ -1130,7 +1165,7 @@ mod tests {
         ($closure:expr) => {{
             #[allow(unused_mut)]
             let mut x = $closure;
-            let fid = event::FingerId::dummy();
+            let fid = event::FingerId::from_raw(0);
 
             #[allow(deprecated)]
             {
@@ -1162,16 +1197,19 @@ mod tests {
                 with_window_event(Ime(Enabled));
                 with_window_event(PointerMoved {
                     device_id: None,
+                    primary: true,
                     position: (0, 0).into(),
                     source: PointerSource::Mouse,
                 });
                 with_window_event(ModifiersChanged(event::Modifiers::default()));
                 with_window_event(PointerEntered {
                     device_id: None,
+                    primary: true,
                     position: (0, 0).into(),
                     kind: PointerKind::Mouse,
                 });
                 with_window_event(PointerLeft {
+                    primary: true,
                     device_id: None,
                     position: Some((0, 0).into()),
                     kind: PointerKind::Mouse,
@@ -1183,12 +1221,14 @@ mod tests {
                 });
                 with_window_event(PointerButton {
                     device_id: None,
+                    primary: true,
                     state: event::ElementState::Pressed,
                     position: (0, 0).into(),
                     button: event::MouseButton::Other(0).into(),
                 });
                 with_window_event(PointerButton {
                     device_id: None,
+                    primary: true,
                     state: event::ElementState::Released,
                     position: (0, 0).into(),
                     button: event::ButtonSource::Touch {
@@ -1262,7 +1302,7 @@ mod tests {
         });
         let _ = event::StartCause::Init.clone();
 
-        let fid = crate::event::FingerId::dummy().clone();
+        let fid = crate::event::FingerId::from_raw(0).clone();
         HashSet::new().insert(fid);
         let mut set = [fid, fid, fid];
         set.sort_unstable();

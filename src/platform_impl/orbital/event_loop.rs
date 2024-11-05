@@ -404,6 +404,7 @@ impl EventLoop {
             EventOption::Mouse(MouseEvent { x, y }) => {
                 app.window_event(window_target, window_id, event::WindowEvent::PointerMoved {
                     device_id: None,
+                    primary: true,
                     position: (x, y).into(),
                     source: event::PointerSource::Mouse,
                 });
@@ -417,6 +418,7 @@ impl EventLoop {
                 while let Some((button, state)) = event_state.mouse(left, middle, right) {
                     app.window_event(window_target, window_id, event::WindowEvent::PointerButton {
                         device_id: None,
+                        primary: true,
                         state,
                         position: dpi::PhysicalPosition::default(),
                         button: button.into(),
@@ -458,12 +460,14 @@ impl EventLoop {
                 let event = if entered {
                     event::WindowEvent::PointerEntered {
                         device_id: None,
+                        primary: true,
                         position: dpi::PhysicalPosition::default(),
                         kind: event::PointerKind::Mouse,
                     }
                 } else {
                     event::WindowEvent::PointerLeft {
                         device_id: None,
+                        primary: true,
                         position: None,
                         kind: event::PointerKind::Mouse,
                     }
@@ -755,13 +759,11 @@ impl RootActiveEventLoop for ActiveEventLoop {
         event_loop::OwnedDisplayHandle { platform: OwnedDisplayHandle }
     }
 
-    #[cfg(feature = "rwh_06")]
     fn rwh_06_handle(&self) -> &dyn rwh_06::HasDisplayHandle {
         self
     }
 }
 
-#[cfg(feature = "rwh_06")]
 impl rwh_06::HasDisplayHandle for ActiveEventLoop {
     fn display_handle(&self) -> Result<rwh_06::DisplayHandle<'_>, rwh_06::HandleError> {
         let raw = rwh_06::RawDisplayHandle::Orbital(rwh_06::OrbitalDisplayHandle::new());
@@ -773,7 +775,6 @@ impl rwh_06::HasDisplayHandle for ActiveEventLoop {
 pub(crate) struct OwnedDisplayHandle;
 
 impl OwnedDisplayHandle {
-    #[cfg(feature = "rwh_06")]
     #[inline]
     pub fn raw_display_handle_rwh_06(
         &self,

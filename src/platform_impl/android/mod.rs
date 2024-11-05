@@ -15,7 +15,7 @@ use crate::application::ApplicationHandler;
 use crate::cursor::Cursor;
 use crate::dpi::{PhysicalPosition, PhysicalSize, Position, Size};
 use crate::error::{EventLoopError, NotSupportedError, RequestError};
-use crate::event::{self, DeviceId, Force, StartCause, SurfaceSizeWriter};
+use crate::event::{self, DeviceId, FingerId, Force, StartCause, SurfaceSizeWriter};
 use crate::event_loop::{
     ActiveEventLoop as RootActiveEventLoop, ControlFlow, DeviceEvents,
     EventLoopProxy as RootEventLoopProxy, OwnedDisplayHandle as RootOwnedDisplayHandle,
@@ -108,6 +108,7 @@ pub struct EventLoop {
     running: bool,
     pending_redraw: bool,
     cause: StartCause,
+    primary_pointer: Option<FingerId>,
     ignore_volume_keys: bool,
     combining_accent: Option<char>,
 }
@@ -141,6 +142,7 @@ impl EventLoop {
 
         Ok(Self {
             android_app: android_app.clone(),
+            primary_pointer: None,
             window_target: ActiveEventLoop {
                 app: android_app.clone(),
                 control_flow: Cell::new(ControlFlow::default()),
@@ -334,36 +336,83 @@ impl EventLoop {
                     _ => None,
                 };
 
-                if let Some(pointers) = pointers {
-                    for pointer in pointers {
-                        let tool_type = pointer.tool_type();
-                        let position =
-                            PhysicalPosition { x: pointer.x() as _, y: pointer.y() as _ };
-                        trace!(
-                            "Input event {device_id:?}, {action:?}, loc={position:?}, \
-                             pointer={pointer:?}, tool_type={tool_type:?}"
-                        );
-                        let finger_id = event::FingerId(FingerId(pointer.pointer_id()));
-                        let force = Some(Force::Normalized(pointer.pressure() as f64));
+                for pointer in pointers.into_iter().flatten() {
+                    let tool_type = pointer.tool_type();
+                    let position = PhysicalPosition { x: pointer.x() as _, y: pointer.y() as _ };
+                    trace!(
+                        "Input event {device_id:?}, {action:?}, loc={position:?}, \
+                         pointer={pointer:?}, tool_type={tool_type:?}"
+                    );
+                    let finger_id = FingerId::from_raw(pointer.pointer_id() as usize);
+                    let force = Some(Force::Normalized(pointer.pressure() as f64));
 
-                        match action {
-                            MotionAction::Down | MotionAction::PointerDown => {
-                                let event = event::WindowEvent::PointerEntered {
-                                    device_id,
-                                    position,
-                                    kind: match tool_type {
-                                        android_activity::input::ToolType::Finger => {
-                                            event::PointerKind::Touch(finger_id)
-                                        },
-                                        // TODO mouse events
-                                        android_activity::input::ToolType::Mouse => continue,
-                                        _ => event::PointerKind::Unknown,
+                    match action {
+                        MotionAction::Down | MotionAction::PointerDown => {
+                            let primary = action == MotionAction::Down;
+                            if primary {
+                                self.primary_pointer = Some(finger_id);
+                            }
+                            let event = event::WindowEvent::PointerEntered {
+                                device_id,
+                                primary,
+                                position,
+                                kind: match tool_type {
+                                    android_activity::input::ToolType::Finger => {
+                                        event::PointerKind::Touch(finger_id)
                                     },
-                                };
-                                app.window_event(&self.window_target, GLOBAL_WINDOW, event);
+                                    // TODO mouse events
+                                    android_activity::input::ToolType::Mouse => continue,
+                                    _ => event::PointerKind::Unknown,
+                                },
+                            };
+                            app.window_event(&self.window_target, GLOBAL_WINDOW, event);
+                            let event = event::WindowEvent::PointerButton {
+                                device_id,
+                                primary,
+                                state: event::ElementState::Pressed,
+                                position,
+                                button: match tool_type {
+                                    android_activity::input::ToolType::Finger => {
+                                        event::ButtonSource::Touch { finger_id, force }
+                                    },
+                                    // TODO mouse events
+                                    android_activity::input::ToolType::Mouse => continue,
+                                    _ => event::ButtonSource::Unknown(0),
+                                },
+                            };
+                            app.window_event(&self.window_target, GLOBAL_WINDOW, event);
+                        },
+                        MotionAction::Move => {
+                            let primary = self.primary_pointer == Some(finger_id);
+                            let event = event::WindowEvent::PointerMoved {
+                                device_id,
+                                primary,
+                                position,
+                                source: match tool_type {
+                                    android_activity::input::ToolType::Finger => {
+                                        event::PointerSource::Touch { finger_id, force }
+                                    },
+                                    // TODO mouse events
+                                    android_activity::input::ToolType::Mouse => continue,
+                                    _ => event::PointerSource::Unknown,
+                                },
+                            };
+                            app.window_event(&self.window_target, GLOBAL_WINDOW, event);
+                        },
+                        MotionAction::Up | MotionAction::PointerUp | MotionAction::Cancel => {
+                            let primary = action == MotionAction::Up
+                                || (action == MotionAction::Cancel
+                                    && self.primary_pointer == Some(finger_id));
+
+                            if primary {
+                                self.primary_pointer = None;
+                            }
+
+                            if let MotionAction::Up | MotionAction::PointerUp = action {
                                 let event = event::WindowEvent::PointerButton {
                                     device_id,
-                                    state: event::ElementState::Pressed,
+                                    primary,
+                                    state: event::ElementState::Released,
                                     position,
                                     button: match tool_type {
                                         android_activity::input::ToolType::Finger => {
@@ -375,56 +424,24 @@ impl EventLoop {
                                     },
                                 };
                                 app.window_event(&self.window_target, GLOBAL_WINDOW, event);
-                            },
-                            MotionAction::Move => {
-                                let event = event::WindowEvent::PointerMoved {
-                                    device_id,
-                                    position,
-                                    source: match tool_type {
-                                        android_activity::input::ToolType::Finger => {
-                                            event::PointerSource::Touch { finger_id, force }
-                                        },
-                                        // TODO mouse events
-                                        android_activity::input::ToolType::Mouse => continue,
-                                        _ => event::PointerSource::Unknown,
-                                    },
-                                };
-                                app.window_event(&self.window_target, GLOBAL_WINDOW, event);
-                            },
-                            MotionAction::Up | MotionAction::PointerUp | MotionAction::Cancel => {
-                                if let MotionAction::Up | MotionAction::PointerUp = action {
-                                    let event = event::WindowEvent::PointerButton {
-                                        device_id,
-                                        state: event::ElementState::Released,
-                                        position,
-                                        button: match tool_type {
-                                            android_activity::input::ToolType::Finger => {
-                                                event::ButtonSource::Touch { finger_id, force }
-                                            },
-                                            // TODO mouse events
-                                            android_activity::input::ToolType::Mouse => continue,
-                                            _ => event::ButtonSource::Unknown(0),
-                                        },
-                                    };
-                                    app.window_event(&self.window_target, GLOBAL_WINDOW, event);
-                                }
+                            }
 
-                                let event = event::WindowEvent::PointerLeft {
-                                    device_id,
-                                    position: Some(position),
-                                    kind: match tool_type {
-                                        android_activity::input::ToolType::Finger => {
-                                            event::PointerKind::Touch(finger_id)
-                                        },
-                                        // TODO mouse events
-                                        android_activity::input::ToolType::Mouse => continue,
-                                        _ => event::PointerKind::Unknown,
+                            let event = event::WindowEvent::PointerLeft {
+                                device_id,
+                                primary,
+                                position: Some(position),
+                                kind: match tool_type {
+                                    android_activity::input::ToolType::Finger => {
+                                        event::PointerKind::Touch(finger_id)
                                     },
-                                };
-                                app.window_event(&self.window_target, GLOBAL_WINDOW, event);
-                            },
-                            _ => unreachable!(),
-                        }
+                                    // TODO mouse events
+                                    android_activity::input::ToolType::Mouse => continue,
+                                    _ => event::PointerKind::Unknown,
+                                },
+                            };
+                            app.window_event(&self.window_target, GLOBAL_WINDOW, event);
+                        },
+                        _ => unreachable!(),
                     }
                 }
             },
@@ -709,13 +726,11 @@ impl RootActiveEventLoop for ActiveEventLoop {
         RootOwnedDisplayHandle { platform: OwnedDisplayHandle }
     }
 
-    #[cfg(feature = "rwh_06")]
     fn rwh_06_handle(&self) -> &dyn rwh_06::HasDisplayHandle {
         self
     }
 }
 
-#[cfg(feature = "rwh_06")]
 impl rwh_06::HasDisplayHandle for ActiveEventLoop {
     fn display_handle(&self) -> Result<rwh_06::DisplayHandle<'_>, rwh_06::HandleError> {
         let raw = rwh_06::AndroidDisplayHandle::new();
@@ -727,22 +742,11 @@ impl rwh_06::HasDisplayHandle for ActiveEventLoop {
 pub(crate) struct OwnedDisplayHandle;
 
 impl OwnedDisplayHandle {
-    #[cfg(feature = "rwh_06")]
     #[inline]
     pub fn raw_display_handle_rwh_06(
         &self,
     ) -> Result<rwh_06::RawDisplayHandle, rwh_06::HandleError> {
         Ok(rwh_06::AndroidDisplayHandle::new().into())
-    }
-}
-
-#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
-pub struct FingerId(i32);
-
-impl FingerId {
-    #[cfg(test)]
-    pub const fn dummy() -> Self {
-        FingerId(0)
     }
 }
 
@@ -772,7 +776,6 @@ impl Window {
         self.app.content_rect()
     }
 
-    #[cfg(feature = "rwh_06")]
     // Allow the usage of HasRawWindowHandle inside this function
     #[allow(deprecated)]
     fn raw_window_handle_rwh_06(&self) -> Result<rwh_06::RawWindowHandle, rwh_06::HandleError> {
@@ -790,13 +793,11 @@ impl Window {
         }
     }
 
-    #[cfg(feature = "rwh_06")]
     fn raw_display_handle_rwh_06(&self) -> Result<rwh_06::RawDisplayHandle, rwh_06::HandleError> {
         Ok(rwh_06::RawDisplayHandle::Android(rwh_06::AndroidDisplayHandle::new()))
     }
 }
 
-#[cfg(feature = "rwh_06")]
 impl rwh_06::HasDisplayHandle for Window {
     fn display_handle(&self) -> Result<rwh_06::DisplayHandle<'_>, rwh_06::HandleError> {
         let raw = self.raw_display_handle_rwh_06()?;
@@ -804,7 +805,6 @@ impl rwh_06::HasDisplayHandle for Window {
     }
 }
 
-#[cfg(feature = "rwh_06")]
 impl rwh_06::HasWindowHandle for Window {
     fn window_handle(&self) -> Result<rwh_06::WindowHandle<'_>, rwh_06::HandleError> {
         let raw = self.raw_window_handle_rwh_06()?;
@@ -982,12 +982,10 @@ impl CoreWindow for Window {
 
     fn reset_dead_keys(&self) {}
 
-    #[cfg(feature = "rwh_06")]
     fn rwh_06_display_handle(&self) -> &dyn rwh_06::HasDisplayHandle {
         self
     }
 
-    #[cfg(feature = "rwh_06")]
     fn rwh_06_window_handle(&self) -> &dyn rwh_06::HasWindowHandle {
         self
     }

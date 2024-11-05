@@ -57,7 +57,6 @@ use web_sys::HtmlCanvasElement;
 use crate::application::ApplicationHandler;
 use crate::cursor::CustomCursorSource;
 use crate::error::NotSupportedError;
-use crate::event::FingerId;
 use crate::event_loop::{ActiveEventLoop, EventLoop};
 use crate::monitor::MonitorHandle;
 use crate::platform_impl::PlatformCustomCursorSource;
@@ -780,16 +779,3 @@ impl Display for OrientationLockError {
 }
 
 impl Error for OrientationLockError {}
-
-/// Additional methods on [`FingerId`] that are specific to Web.
-pub trait FingerIdExtWeb {
-    /// Indicates if the finger represents the first contact in a multi-touch interaction.
-    #[allow(clippy::wrong_self_convention)]
-    fn is_primary(self) -> bool;
-}
-
-impl FingerIdExtWeb for FingerId {
-    fn is_primary(self) -> bool {
-        self.0.is_primary()
-    }
-}
