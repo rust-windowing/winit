@@ -1,6 +1,5 @@
 use std::cell::Cell;
 use std::collections::VecDeque;
-use std::marker::PhantomData;
 use std::sync::{mpsc, Arc, Mutex};
 use std::time::Instant;
 use std::{mem, slice};
@@ -13,19 +12,20 @@ use orbclient::{
 use smol_str::SmolStr;
 
 use super::{
-    DeviceId, KeyEventExtra, MonitorHandle, OsError, PlatformSpecificEventLoopAttributes,
-    RedoxSocket, TimeSocket, WindowId, WindowProperties,
+    KeyEventExtra, MonitorHandle, PlatformSpecificEventLoopAttributes, RedoxSocket, TimeSocket,
+    WindowProperties,
 };
 use crate::application::ApplicationHandler;
-use crate::error::EventLoopError;
+use crate::error::{EventLoopError, NotSupportedError, RequestError};
 use crate::event::{self, Ime, Modifiers, StartCause};
-use crate::event_loop::{self, ControlFlow, DeviceEvents};
+use crate::event_loop::{self, ActiveEventLoop as RootActiveEventLoop, ControlFlow, DeviceEvents};
 use crate::keyboard::{
     Key, KeyCode, KeyLocation, ModifiersKeys, ModifiersState, NamedKey, NativeKey, NativeKeyCode,
     PhysicalKey,
 };
+use crate::platform_impl::Window;
 use crate::window::{
-    CustomCursor as RootCustomCursor, CustomCursorSource, WindowId as RootWindowId,
+    CustomCursor as RootCustomCursor, CustomCursorSource, Theme, Window as CoreWindow, WindowId,
 };
 
 fn convert_scancode(scancode: u8) -> (PhysicalKey, Option<NamedKey>) {
@@ -273,7 +273,7 @@ impl EventState {
 
 pub struct EventLoop {
     windows: Vec<(Arc<RedoxSocket>, EventState)>,
-    window_target: event_loop::ActiveEventLoop,
+    window_target: ActiveEventLoop,
     user_events_receiver: mpsc::Receiver<()>,
 }
 
@@ -283,17 +283,11 @@ impl EventLoop {
         // events.
         let (user_events_sender, user_events_receiver) = mpsc::sync_channel(1);
 
-        let event_socket = Arc::new(
-            RedoxSocket::event()
-                .map_err(OsError::new)
-                .map_err(|error| EventLoopError::Os(os_error!(error)))?,
-        );
+        let event_socket =
+            Arc::new(RedoxSocket::event().map_err(|error| os_error!(format!("{error}")))?);
 
-        let wake_socket = Arc::new(
-            TimeSocket::open()
-                .map_err(OsError::new)
-                .map_err(|error| EventLoopError::Os(os_error!(error)))?,
-        );
+        let wake_socket =
+            Arc::new(TimeSocket::open().map_err(|error| os_error!(format!("{error}")))?);
 
         event_socket
             .write(&syscall::Event {
@@ -301,23 +295,19 @@ impl EventLoop {
                 flags: syscall::EventFlags::EVENT_READ,
                 data: wake_socket.0.fd,
             })
-            .map_err(OsError::new)
-            .map_err(|error| EventLoopError::Os(os_error!(error)))?;
+            .map_err(|error| os_error!(format!("{error}")))?;
 
         Ok(Self {
             windows: Vec::new(),
-            window_target: event_loop::ActiveEventLoop {
-                p: ActiveEventLoop {
-                    control_flow: Cell::new(ControlFlow::default()),
-                    exit: Cell::new(false),
-                    creates: Mutex::new(VecDeque::new()),
-                    redraws: Arc::new(Mutex::new(VecDeque::new())),
-                    destroys: Arc::new(Mutex::new(VecDeque::new())),
-                    event_socket,
-                    wake_socket,
-                    user_events_sender,
-                },
-                _marker: PhantomData,
+            window_target: ActiveEventLoop {
+                control_flow: Cell::new(ControlFlow::default()),
+                exit: Cell::new(false),
+                creates: Mutex::new(VecDeque::new()),
+                redraws: Arc::new(Mutex::new(VecDeque::new())),
+                destroys: Arc::new(Mutex::new(VecDeque::new())),
+                event_socket,
+                wake_socket,
+                user_events_sender,
             },
             user_events_receiver,
         })
@@ -327,7 +317,7 @@ impl EventLoop {
         window_id: WindowId,
         event_option: EventOption,
         event_state: &mut EventState,
-        window_target: &event_loop::ActiveEventLoop,
+        window_target: &ActiveEventLoop,
         app: &mut A,
     ) {
         match event_option {
@@ -371,9 +361,8 @@ impl EventLoop {
                     key_without_modifiers = logical_key.clone();
                 }
 
-                let window_id = RootWindowId(window_id);
                 let event = event::WindowEvent::KeyboardInput {
-                    device_id: event::DeviceId(DeviceId),
+                    device_id: None,
                     event: event::KeyEvent {
                         logical_key,
                         physical_key,
@@ -403,82 +392,62 @@ impl EventLoop {
             EventOption::TextInput(TextInputEvent { character }) => {
                 app.window_event(
                     window_target,
-                    RootWindowId(window_id),
+                    window_id,
                     event::WindowEvent::Ime(Ime::Preedit("".into(), None)),
                 );
                 app.window_event(
                     window_target,
-                    RootWindowId(window_id),
+                    window_id,
                     event::WindowEvent::Ime(Ime::Commit(character.into())),
                 );
             },
             EventOption::Mouse(MouseEvent { x, y }) => {
-                app.window_event(
-                    window_target,
-                    RootWindowId(window_id),
-                    event::WindowEvent::CursorMoved {
-                        device_id: event::DeviceId(DeviceId),
-                        position: (x, y).into(),
-                    },
-                );
+                app.window_event(window_target, window_id, event::WindowEvent::PointerMoved {
+                    device_id: None,
+                    position: (x, y).into(),
+                    source: event::PointerSource::Mouse,
+                });
             },
             EventOption::MouseRelative(MouseRelativeEvent { dx, dy }) => {
-                app.device_event(
-                    window_target,
-                    event::DeviceId(DeviceId),
-                    event::DeviceEvent::MouseMotion { delta: (dx as f64, dy as f64) },
-                );
+                app.device_event(window_target, None, event::DeviceEvent::PointerMotion {
+                    delta: (dx as f64, dy as f64),
+                });
             },
             EventOption::Button(ButtonEvent { left, middle, right }) => {
                 while let Some((button, state)) = event_state.mouse(left, middle, right) {
-                    app.window_event(
-                        window_target,
-                        RootWindowId(window_id),
-                        event::WindowEvent::MouseInput {
-                            device_id: event::DeviceId(DeviceId),
-                            state,
-                            button,
-                        },
-                    );
+                    app.window_event(window_target, window_id, event::WindowEvent::PointerButton {
+                        device_id: None,
+                        state,
+                        position: dpi::PhysicalPosition::default(),
+                        button: button.into(),
+                    });
                 }
             },
             EventOption::Scroll(ScrollEvent { x, y }) => {
-                app.window_event(
-                    window_target,
-                    RootWindowId(window_id),
-                    event::WindowEvent::MouseWheel {
-                        device_id: event::DeviceId(DeviceId),
-                        delta: event::MouseScrollDelta::LineDelta(x as f32, y as f32),
-                        phase: event::TouchPhase::Moved,
-                    },
-                );
+                app.window_event(window_target, window_id, event::WindowEvent::MouseWheel {
+                    device_id: None,
+                    delta: event::MouseScrollDelta::LineDelta(x as f32, y as f32),
+                    phase: event::TouchPhase::Moved,
+                });
             },
             EventOption::Quit(QuitEvent {}) => {
-                app.window_event(
-                    window_target,
-                    RootWindowId(window_id),
-                    event::WindowEvent::CloseRequested,
-                );
+                app.window_event(window_target, window_id, event::WindowEvent::CloseRequested);
             },
             EventOption::Focus(FocusEvent { focused }) => {
-                app.window_event(
-                    window_target,
-                    RootWindowId(window_id),
-                    event::WindowEvent::Focused(focused),
-                );
+                app.window_event(window_target, window_id, event::WindowEvent::Focused(focused));
             },
             EventOption::Move(MoveEvent { x, y }) => {
                 app.window_event(
                     window_target,
-                    RootWindowId(window_id),
+                    window_id,
                     event::WindowEvent::Moved((x, y).into()),
                 );
             },
             EventOption::Resize(ResizeEvent { width, height }) => {
                 app.window_event(
                     window_target,
-                    RootWindowId(window_id),
-                    event::WindowEvent::Resized((width, height).into()),
+                    window_id,
+                    event::WindowEvent::SurfaceResized((width, height).into()),
                 );
 
                 // Acknowledge resize after event loop.
@@ -487,12 +456,20 @@ impl EventLoop {
             // TODO: Screen, Clipboard, Drop
             EventOption::Hover(HoverEvent { entered }) => {
                 let event = if entered {
-                    event::WindowEvent::CursorEntered { device_id: event::DeviceId(DeviceId) }
+                    event::WindowEvent::PointerEntered {
+                        device_id: None,
+                        position: dpi::PhysicalPosition::default(),
+                        kind: event::PointerKind::Mouse,
+                    }
                 } else {
-                    event::WindowEvent::CursorLeft { device_id: event::DeviceId(DeviceId) }
+                    event::WindowEvent::PointerLeft {
+                        device_id: None,
+                        position: None,
+                        kind: event::PointerKind::Mouse,
+                    }
                 };
 
-                app.window_event(window_target, RootWindowId(window_id), event);
+                app.window_event(window_target, window_id, event);
             },
             other => {
                 tracing::warn!("unhandled event: {:?}", other);
@@ -511,10 +488,10 @@ impl EventLoop {
 
             // Handle window creates.
             while let Some(window) = {
-                let mut creates = self.window_target.p.creates.lock().unwrap();
+                let mut creates = self.window_target.creates.lock().unwrap();
                 creates.pop_front()
             } {
-                let window_id = WindowId { fd: window.fd as u64 };
+                let window_id = WindowId::from_raw(window.fd);
 
                 let mut buf: [u8; 4096] = [0; 4096];
                 let path = window.fpath(&mut buf).expect("failed to read properties");
@@ -522,10 +499,8 @@ impl EventLoop {
 
                 self.windows.push((window, EventState::default()));
 
-                let window_id = RootWindowId(window_id);
-
                 // Send resize event on create to indicate first size.
-                let event = event::WindowEvent::Resized((properties.w, properties.h).into());
+                let event = event::WindowEvent::SurfaceResized((properties.w, properties.h).into());
                 app.window_event(&self.window_target, window_id, event);
 
                 // Send moved event on create to indicate first position.
@@ -535,19 +510,19 @@ impl EventLoop {
 
             // Handle window destroys.
             while let Some(destroy_id) = {
-                let mut destroys = self.window_target.p.destroys.lock().unwrap();
+                let mut destroys = self.window_target.destroys.lock().unwrap();
                 destroys.pop_front()
             } {
-                let window_id = RootWindowId(destroy_id);
-                app.window_event(&self.window_target, window_id, event::WindowEvent::Destroyed);
-                self.windows.retain(|(window, _event_state)| window.fd as u64 != destroy_id.fd);
+                app.window_event(&self.window_target, destroy_id, event::WindowEvent::Destroyed);
+                self.windows
+                    .retain(|(window, _event_state)| WindowId::from_raw(window.fd) != destroy_id);
             }
 
             // Handle window events.
             let mut i = 0;
             // While loop is used here because the same window may be processed more than once.
             while let Some((window, event_state)) = self.windows.get_mut(i) {
-                let window_id = WindowId { fd: window.fd as u64 };
+                let window_id = WindowId::from_raw(window.fd);
 
                 let mut event_buf = [0u8; 16 * mem::size_of::<orbclient::Event>()];
                 let count =
@@ -584,7 +559,7 @@ impl EventLoop {
                         .expect("failed to acknowledge resize");
 
                     // Require redraw after resize.
-                    let mut redraws = self.window_target.p.redraws.lock().unwrap();
+                    let mut redraws = self.window_target.redraws.lock().unwrap();
                     if !redraws.contains(&window_id) {
                         redraws.push_back(window_id);
                     }
@@ -600,23 +575,23 @@ impl EventLoop {
 
             // To avoid deadlocks the redraws lock is not held during event processing.
             while let Some(window_id) = {
-                let mut redraws = self.window_target.p.redraws.lock().unwrap();
+                let mut redraws = self.window_target.redraws.lock().unwrap();
                 redraws.pop_front()
             } {
                 app.window_event(
                     &self.window_target,
-                    RootWindowId(window_id),
+                    window_id,
                     event::WindowEvent::RedrawRequested,
                 );
             }
 
             app.about_to_wait(&self.window_target);
 
-            if self.window_target.p.exiting() {
+            if self.window_target.exiting() {
                 break;
             }
 
-            let requested_resume = match self.window_target.p.control_flow() {
+            let requested_resume = match self.window_target.control_flow() {
                 ControlFlow::Poll => {
                     start_cause = StartCause::Poll;
                     continue;
@@ -630,7 +605,6 @@ impl EventLoop {
             let timeout_socket = TimeSocket::open().unwrap();
 
             self.window_target
-                .p
                 .event_socket
                 .write(&syscall::Event {
                     id: timeout_socket.0.fd,
@@ -658,7 +632,7 @@ impl EventLoop {
 
             // Wait for event if needed.
             let mut event = syscall::Event::default();
-            self.window_target.p.event_socket.read(&mut event).unwrap();
+            self.window_target.event_socket.read(&mut event).unwrap();
 
             // TODO: handle spurious wakeups (redraw caused wakeup but redraw already handled)
             match requested_resume {
@@ -679,7 +653,7 @@ impl EventLoop {
         Ok(())
     }
 
-    pub fn window_target(&self) -> &event_loop::ActiveEventLoop {
+    pub fn window_target(&self) -> &dyn RootActiveEventLoop {
         &self.window_target
     }
 }
@@ -721,77 +695,84 @@ pub struct ActiveEventLoop {
     user_events_sender: mpsc::SyncSender<()>,
 }
 
-impl ActiveEventLoop {
-    pub fn create_proxy(&self) -> EventLoopProxy {
-        EventLoopProxy {
-            user_events_sender: self.user_events_sender.clone(),
-            wake_socket: self.wake_socket.clone(),
+impl RootActiveEventLoop for ActiveEventLoop {
+    fn create_proxy(&self) -> event_loop::EventLoopProxy {
+        event_loop::EventLoopProxy {
+            event_loop_proxy: EventLoopProxy {
+                user_events_sender: self.user_events_sender.clone(),
+                wake_socket: self.wake_socket.clone(),
+            },
         }
     }
 
-    pub fn create_custom_cursor(&self, source: CustomCursorSource) -> RootCustomCursor {
-        let _ = source.inner;
-        RootCustomCursor { inner: super::PlatformCustomCursor }
-    }
-
-    pub fn primary_monitor(&self) -> Option<MonitorHandle> {
-        Some(MonitorHandle)
-    }
-
-    pub fn available_monitors(&self) -> VecDeque<MonitorHandle> {
-        let mut v = VecDeque::with_capacity(1);
-        v.push_back(MonitorHandle);
-        v
-    }
-
-    #[inline]
-    pub fn listen_device_events(&self, _allowed: DeviceEvents) {}
-
-    #[cfg(feature = "rwh_05")]
-    #[inline]
-    pub fn raw_display_handle_rwh_05(&self) -> rwh_05::RawDisplayHandle {
-        rwh_05::RawDisplayHandle::Orbital(rwh_05::OrbitalDisplayHandle::empty())
-    }
-
-    #[cfg(feature = "rwh_06")]
-    #[inline]
-    pub fn raw_display_handle_rwh_06(
+    fn create_window(
         &self,
-    ) -> Result<rwh_06::RawDisplayHandle, rwh_06::HandleError> {
-        Ok(rwh_06::RawDisplayHandle::Orbital(rwh_06::OrbitalDisplayHandle::new()))
+        window_attributes: crate::window::WindowAttributes,
+    ) -> Result<Box<dyn CoreWindow>, RequestError> {
+        Ok(Box::new(Window::new(self, window_attributes)?))
     }
 
-    pub fn set_control_flow(&self, control_flow: ControlFlow) {
+    fn create_custom_cursor(
+        &self,
+        _: CustomCursorSource,
+    ) -> Result<RootCustomCursor, RequestError> {
+        Err(NotSupportedError::new("create_custom_cursor is not supported").into())
+    }
+
+    fn available_monitors(&self) -> Box<dyn Iterator<Item = crate::monitor::MonitorHandle>> {
+        let mut v = VecDeque::with_capacity(1);
+        v.push_back(crate::monitor::MonitorHandle { inner: MonitorHandle });
+        Box::new(v.into_iter())
+    }
+
+    fn system_theme(&self) -> Option<Theme> {
+        None
+    }
+
+    fn primary_monitor(&self) -> Option<crate::monitor::MonitorHandle> {
+        Some(crate::monitor::MonitorHandle { inner: MonitorHandle })
+    }
+
+    fn listen_device_events(&self, _allowed: DeviceEvents) {}
+
+    fn set_control_flow(&self, control_flow: ControlFlow) {
         self.control_flow.set(control_flow)
     }
 
-    pub fn control_flow(&self) -> ControlFlow {
+    fn control_flow(&self) -> ControlFlow {
         self.control_flow.get()
     }
 
-    pub(crate) fn exit(&self) {
+    fn exit(&self) {
         self.exit.set(true);
     }
 
-    pub(crate) fn exiting(&self) -> bool {
+    fn exiting(&self) -> bool {
         self.exit.get()
     }
 
-    pub(crate) fn owned_display_handle(&self) -> OwnedDisplayHandle {
-        OwnedDisplayHandle
+    fn owned_display_handle(&self) -> event_loop::OwnedDisplayHandle {
+        event_loop::OwnedDisplayHandle { platform: OwnedDisplayHandle }
+    }
+
+    #[cfg(feature = "rwh_06")]
+    fn rwh_06_handle(&self) -> &dyn rwh_06::HasDisplayHandle {
+        self
     }
 }
 
-#[derive(Clone)]
+#[cfg(feature = "rwh_06")]
+impl rwh_06::HasDisplayHandle for ActiveEventLoop {
+    fn display_handle(&self) -> Result<rwh_06::DisplayHandle<'_>, rwh_06::HandleError> {
+        let raw = rwh_06::RawDisplayHandle::Orbital(rwh_06::OrbitalDisplayHandle::new());
+        unsafe { Ok(rwh_06::DisplayHandle::borrow_raw(raw)) }
+    }
+}
+
+#[derive(Clone, PartialEq, Eq)]
 pub(crate) struct OwnedDisplayHandle;
 
 impl OwnedDisplayHandle {
-    #[cfg(feature = "rwh_05")]
-    #[inline]
-    pub fn raw_display_handle_rwh_05(&self) -> rwh_05::RawDisplayHandle {
-        rwh_05::OrbitalDisplayHandle::empty().into()
-    }
-
     #[cfg(feature = "rwh_06")]
     #[inline]
     pub fn raw_display_handle_rwh_06(

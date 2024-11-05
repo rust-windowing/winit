@@ -2,6 +2,7 @@
 
 use std::collections::VecDeque;
 use std::fmt;
+use std::num::{NonZeroU16, NonZeroU32};
 
 use core_foundation::array::{CFArrayGetCount, CFArrayGetValueAtIndex};
 use core_foundation::base::{CFRelease, TCFType};
@@ -20,8 +21,8 @@ use crate::dpi::{LogicalPosition, PhysicalPosition, PhysicalSize};
 #[derive(Clone)]
 pub struct VideoModeHandle {
     size: PhysicalSize<u32>,
-    bit_depth: u16,
-    refresh_rate_millihertz: u32,
+    bit_depth: Option<NonZeroU16>,
+    refresh_rate_millihertz: Option<NonZeroU32>,
     pub(crate) monitor: MonitorHandle,
     pub(crate) native_mode: NativeDisplayMode,
 }
@@ -80,15 +81,47 @@ impl Clone for NativeDisplayMode {
 }
 
 impl VideoModeHandle {
+    fn new(
+        monitor: MonitorHandle,
+        mode: NativeDisplayMode,
+        refresh_rate_millihertz: Option<NonZeroU32>,
+    ) -> Self {
+        unsafe {
+            let pixel_encoding =
+                CFString::wrap_under_create_rule(ffi::CGDisplayModeCopyPixelEncoding(mode.0))
+                    .to_string();
+            let bit_depth = if pixel_encoding.eq_ignore_ascii_case(ffi::IO32BitDirectPixels) {
+                32
+            } else if pixel_encoding.eq_ignore_ascii_case(ffi::IO16BitDirectPixels) {
+                16
+            } else if pixel_encoding.eq_ignore_ascii_case(ffi::kIO30BitDirectPixels) {
+                30
+            } else {
+                unimplemented!()
+            };
+
+            VideoModeHandle {
+                size: PhysicalSize::new(
+                    ffi::CGDisplayModeGetPixelWidth(mode.0) as u32,
+                    ffi::CGDisplayModeGetPixelHeight(mode.0) as u32,
+                ),
+                refresh_rate_millihertz,
+                bit_depth: NonZeroU16::new(bit_depth),
+                monitor: monitor.clone(),
+                native_mode: mode,
+            }
+        }
+    }
+
     pub fn size(&self) -> PhysicalSize<u32> {
         self.size
     }
 
-    pub fn bit_depth(&self) -> u16 {
+    pub fn bit_depth(&self) -> Option<NonZeroU16> {
         self.bit_depth
     }
 
-    pub fn refresh_rate_millihertz(&self) -> u32 {
+    pub fn refresh_rate_millihertz(&self) -> Option<NonZeroU32> {
         self.refresh_rate_millihertz
     }
 
@@ -158,10 +191,8 @@ impl fmt::Debug for MonitorHandle {
         f.debug_struct("MonitorHandle")
             .field("name", &self.name())
             .field("native_identifier", &self.native_identifier())
-            .field("size", &self.size())
             .field("position", &self.position())
             .field("scale_factor", &self.scale_factor())
-            .field("refresh_rate_millihertz", &self.refresh_rate_millihertz())
             .finish_non_exhaustive()
     }
 }
@@ -184,22 +215,14 @@ impl MonitorHandle {
         self.0
     }
 
-    pub fn size(&self) -> PhysicalSize<u32> {
-        let MonitorHandle(display_id) = *self;
-        let display = CGDisplay::new(display_id);
-        let height = display.pixels_high();
-        let width = display.pixels_wide();
-        PhysicalSize::from_logical::<_, f64>((width as f64, height as f64), self.scale_factor())
-    }
-
     #[inline]
-    pub fn position(&self) -> PhysicalPosition<i32> {
+    pub fn position(&self) -> Option<PhysicalPosition<i32>> {
         // This is already in screen coordinates. If we were using `NSScreen`,
         // then a conversion would've been needed:
         // flip_window_screen_coordinates(self.ns_screen(mtm)?.frame())
         let bounds = unsafe { CGDisplayBounds(self.native_identifier()) };
         let position = LogicalPosition::new(bounds.origin.x, bounds.origin.y);
-        position.to_physical(self.scale_factor())
+        Some(position.to_physical(self.scale_factor()))
     }
 
     pub fn scale_factor(&self) -> f64 {
@@ -211,34 +234,20 @@ impl MonitorHandle {
         })
     }
 
-    pub fn refresh_rate_millihertz(&self) -> Option<u32> {
-        unsafe {
-            let current_display_mode = NativeDisplayMode(CGDisplayCopyDisplayMode(self.0) as _);
-            let refresh_rate = ffi::CGDisplayModeGetRefreshRate(current_display_mode.0);
-            if refresh_rate > 0.0 {
-                return Some((refresh_rate * 1000.0).round() as u32);
-            }
+    fn refresh_rate_millihertz(&self) -> Option<NonZeroU32> {
+        let current_display_mode =
+            NativeDisplayMode(unsafe { CGDisplayCopyDisplayMode(self.0) } as _);
+        refresh_rate_millihertz(self.0, &current_display_mode)
+    }
 
-            let mut display_link = std::ptr::null_mut();
-            if ffi::CVDisplayLinkCreateWithCGDisplay(self.0, &mut display_link)
-                != ffi::kCVReturnSuccess
-            {
-                return None;
-            }
-            let time = ffi::CVDisplayLinkGetNominalOutputVideoRefreshPeriod(display_link);
-            ffi::CVDisplayLinkRelease(display_link);
-
-            // This value is indefinite if an invalid display link was specified
-            if time.flags & ffi::kCVTimeIsIndefinite != 0 {
-                return None;
-            }
-
-            (time.time_scale as i64).checked_div(time.time_value).map(|v| (v * 1000) as u32)
-        }
+    pub fn current_video_mode(&self) -> Option<VideoModeHandle> {
+        let mode = NativeDisplayMode(unsafe { CGDisplayCopyDisplayMode(self.0) } as _);
+        let refresh_rate_millihertz = refresh_rate_millihertz(self.0, &mode);
+        Some(VideoModeHandle::new(self.clone(), mode, refresh_rate_millihertz))
     }
 
     pub fn video_modes(&self) -> impl Iterator<Item = VideoModeHandle> {
-        let refresh_rate_millihertz = self.refresh_rate_millihertz().unwrap_or(0);
+        let refresh_rate_millihertz = self.refresh_rate_millihertz();
         let monitor = self.clone();
 
         unsafe {
@@ -263,34 +272,16 @@ impl MonitorHandle {
                 // CGDisplayModeGetRefreshRate returns 0.0 for any display that
                 // isn't a CRT
                 let refresh_rate_millihertz = if cg_refresh_rate_hertz > 0 {
-                    (cg_refresh_rate_hertz * 1000) as u32
+                    NonZeroU32::new((cg_refresh_rate_hertz * 1000) as u32)
                 } else {
                     refresh_rate_millihertz
                 };
 
-                let pixel_encoding =
-                    CFString::wrap_under_create_rule(ffi::CGDisplayModeCopyPixelEncoding(mode))
-                        .to_string();
-                let bit_depth = if pixel_encoding.eq_ignore_ascii_case(ffi::IO32BitDirectPixels) {
-                    32
-                } else if pixel_encoding.eq_ignore_ascii_case(ffi::IO16BitDirectPixels) {
-                    16
-                } else if pixel_encoding.eq_ignore_ascii_case(ffi::kIO30BitDirectPixels) {
-                    30
-                } else {
-                    unimplemented!()
-                };
-
-                VideoModeHandle {
-                    size: PhysicalSize::new(
-                        ffi::CGDisplayModeGetPixelWidth(mode) as u32,
-                        ffi::CGDisplayModeGetPixelHeight(mode) as u32,
-                    ),
+                VideoModeHandle::new(
+                    monitor.clone(),
+                    NativeDisplayMode(mode),
                     refresh_rate_millihertz,
-                    bit_depth,
-                    monitor: monitor.clone(),
-                    native_mode: NativeDisplayMode(mode),
-                }
+                )
             })
         }
     }
@@ -348,4 +339,30 @@ pub(crate) fn flip_window_screen_coordinates(frame: NSRect) -> NSPoint {
 
     let y = main_screen_height - frame.size.height - frame.origin.y;
     NSPoint::new(frame.origin.x, y)
+}
+
+fn refresh_rate_millihertz(id: CGDirectDisplayID, mode: &NativeDisplayMode) -> Option<NonZeroU32> {
+    unsafe {
+        let refresh_rate = ffi::CGDisplayModeGetRefreshRate(mode.0);
+        if refresh_rate > 0.0 {
+            return NonZeroU32::new((refresh_rate * 1000.0).round() as u32);
+        }
+
+        let mut display_link = std::ptr::null_mut();
+        if ffi::CVDisplayLinkCreateWithCGDisplay(id, &mut display_link) != ffi::kCVReturnSuccess {
+            return None;
+        }
+        let time = ffi::CVDisplayLinkGetNominalOutputVideoRefreshPeriod(display_link);
+        ffi::CVDisplayLinkRelease(display_link);
+
+        // This value is indefinite if an invalid display link was specified
+        if time.flags & ffi::kCVTimeIsIndefinite != 0 {
+            return None;
+        }
+
+        (time.time_scale as i64)
+            .checked_div(time.time_value)
+            .map(|v| (v * 1000) as u32)
+            .and_then(NonZeroU32::new)
+    }
 }

@@ -1,7 +1,8 @@
+use std::error::Error;
 use std::ffi::CStr;
 use std::os::raw::c_short;
 use std::sync::Arc;
-use std::{mem, ptr};
+use std::{fmt, mem, ptr};
 
 use x11_dl::xlib::{XIMCallback, XIMPreeditCaretCallbackStruct, XIMPreeditDrawCallbackStruct};
 
@@ -18,6 +19,19 @@ pub enum ImeContextCreationError {
     /// Got null pointer from Xlib but without exact reason.
     Null,
 }
+
+impl fmt::Display for ImeContextCreationError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            ImeContextCreationError::XError(err) => err.fmt(f),
+            ImeContextCreationError::Null => {
+                write!(f, "got null pointer from Xlib without exact reason")
+            },
+        }
+    }
+}
+
+impl Error for ImeContextCreationError {}
 
 /// The callback used by XIM preedit functions.
 type XIMProcNonnull = unsafe extern "C" fn(ffi::XIM, ffi::XPointer, ffi::XPointer);

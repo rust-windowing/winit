@@ -44,19 +44,19 @@
 //! use winit::application::ApplicationHandler;
 //! use winit::event::WindowEvent;
 //! use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
-//! use winit::window::{Window, WindowId};
+//! use winit::window::{Window, WindowId, WindowAttributes};
 //!
 //! #[derive(Default)]
 //! struct App {
-//!     window: Option<Window>,
+//!     window: Option<Box<dyn Window>>,
 //! }
 //!
 //! impl ApplicationHandler for App {
-//!     fn can_create_surfaces(&mut self, event_loop: &ActiveEventLoop) {
-//!         self.window = Some(event_loop.create_window(Window::default_attributes()).unwrap());
+//!     fn can_create_surfaces(&mut self, event_loop: &dyn ActiveEventLoop) {
+//!         self.window = Some(event_loop.create_window(WindowAttributes::default()).unwrap());
 //!     }
 //!
-//!     fn window_event(&mut self, event_loop: &ActiveEventLoop, id: WindowId, event: WindowEvent) {
+//!     fn window_event(&mut self, event_loop: &dyn ActiveEventLoop, id: WindowId, event: WindowEvent) {
 //!         match event {
 //!             WindowEvent::CloseRequested => {
 //!                 println!("The close button was pressed; stopping");
@@ -140,14 +140,68 @@
 //!
 //! * `x11` (enabled by default): On Unix platforms, enables the X11 backend.
 //! * `wayland` (enabled by default): On Unix platforms, enables the Wayland backend.
-//! * `rwh_04`: Implement `raw-window-handle v0.4` traits.
-//! * `rwh_05`: Implement `raw-window-handle v0.5` traits.
 //! * `rwh_06`: Implement `raw-window-handle v0.6` traits.
 //! * `serde`: Enables serialization/deserialization of certain types with [Serde](https://crates.io/crates/serde).
 //! * `mint`: Enables mint (math interoperability standard types) conversions.
 //!
 //! See the [`platform`] module for documentation on platform-specific cargo
 //! features.
+//!
+//! # Platform/Architecture Support
+//!
+//! Platform support on `winit` has two tiers: Tier 1 and Tier 2.
+//!
+//! - Tier 1 is **guaranteed to work**. Targets in this tier are actively tested both in CI and by
+//!   maintainers.
+//! - Tier 2 is **guaranteed to build**. Code compilation is tested in CI, but deeper testing is not
+//!   done.
+//!
+//! Please open an issue if you would like to add a Tier 2 target, or if you would
+//! like a Tier 2 target moved to Tier 1.
+//!
+//! ## Tier 1 Targets
+//!
+//! |Target Name                    |Target Triple                       |APIs           |
+//! |-------------------------------|------------------------------------|---------------|
+//! |32-Bit x86 Windows with MSVC   |`i686-pc-windows-msvc`              |Win32          |
+//! |64-Bit x86 Windows with MSVC   |`x86_64-pc-windows-msvc`            |Win32          |
+//! |32-Bit x86 Windows with glibc  |`i686-pc-windows-gnu`               |Win32          |
+//! |64-Bit x86 Windows with glibc  |`x86_64-pc-windows-gnu`             |Win32          |
+//! |32-Bit x86 Linux with glibc    |`i686-unknown-linux-gnu`            |X11, Wayland   |
+//! |64-Bit x86 Linux with glibc    |`x86_64-unknown-linux-gnu`          |X11, Wayland   |
+//! |64-Bit ARM Android             |`aarch64-linux-android`             |Android        |
+//! |64-Bit x86 Redox OS            |`x86_64-unknown-redox`              |Orbital        |
+//! |32-Bit x86 Redox OS            |`i686-unknown-redox`                |Orbital        |
+//! |64-Bit ARM Redox OS            |`aarch64-unknown-redox`             |Orbital        |
+//! |64-bit x64 macOS               |`x86_64-apple-darwin`               |AppKit         |
+//! |64-bit ARM macOS               |`aarch64-apple-darwin`              |AppKit         |
+//! |32-bit Wasm Web browser        |`wasm32-unknown-unknown`            |`wasm-bindgen` |
+//!
+//! ## Tier 2 Targets
+//!
+//! |Target Name                         |Target Triple                       |APIs           |
+//! |------------------------------------|------------------------------------|---------------|
+//! |64-Bit ARM Windows with MSVC        |`aarch64-pc-windows-msvc`           |Win32          |
+//! |32-Bit x86 Windows 7 with MSVC      |`i686-win7-windows-msvc`            |Win32          |
+//! |64-Bit x86 Windows 7 with MSVC      |`x86_64-win7-windows-msvc`          |Win32          |
+//! |64-bit x86 Linux with Musl          |`x86_64-unknown-linux-musl`         |X11, Wayland   |
+//! |64-bit x86 Linux with 32-bit glibc  |`x86_64-unknown-linux-gnux32`       |X11, Wayland   |
+//! |64-bit x86 Android                  |`x86_64-linux-android`              |Android        |
+//! |64-bit x64 iOS                      |`x86_64-apple-ios`                  |UIKit          |
+//! |64-bit ARM iOS                      |`aarch64-apple-ios`                 |UIKit          |
+//! |64-bit ARM Mac Catalyst             |`aarch64-apple-ios-macabi`          |UIKit          |
+//! |32-bit x86 Android                  |`i686-linux-android`                |Android        |
+//! |64-bit x86 FreeBSD                  |`x86_64-unknown-freebsd`            |X11, Wayland   |
+//! |64-bit x86 NetBSD                   |`x86_64-unknown-netbsd`             |X11            |
+//! |32-bit x86 Linux with Musl          |`i686-unknown-linux-musl`           |X11, Wayland   |
+//! |64-bit RISC-V Linux with glibc      |`riscv64gc-unknown-linux-gnu`       |X11, Wayland   |
+//! |64-bit ARM Linux with glibc         |`aarch64-unknown-linux-gnu`         |X11, Wayland   |
+//! |64-bit ARM Linux with Musl          |`aarch64-unknown-linux-musl`        |X11, Wayland   |
+//! |64-bit PowerPC Linux with glibc     |`powerpc64le-unknown-linux-gnu`     |X11, Wayland   |
+//! |32-Bit ARM Linux with glibc         |`armv5te-unknown-linux-gnueabi`     |X11, Wayland   |
+//! |64-Bit Linux on IBM Supercomputers  |`s390x-unknown-linux-gnu`           |X11, Wayland   |
+//! |32-bit ARM Android                  |`arm-linux-androideabi`             |Android        |
+//! |64-bit SPARC Linux with glibc       |`sparc64-unknown-linux-gnu`         |X11, Wayland   |
 //!
 //! [`EventLoop`]: event_loop::EventLoop
 //! [`EventLoop::new()`]: event_loop::EventLoop::new
@@ -180,10 +234,6 @@
 // Re-export DPI types so that users don't have to put it in Cargo.toml.
 #[doc(inline)]
 pub use dpi;
-#[cfg(feature = "rwh_04")]
-pub use rwh_04 as raw_window_handle_04;
-#[cfg(feature = "rwh_05")]
-pub use rwh_05 as raw_window_handle_05;
 #[cfg(feature = "rwh_06")]
 pub use rwh_06 as raw_window_handle;
 

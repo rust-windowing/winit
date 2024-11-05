@@ -1,8 +1,7 @@
 #![cfg(target_os = "redox")]
 
-use std::fmt::{self, Display, Formatter};
-use std::str;
-use std::sync::Arc;
+use std::num::{NonZeroU16, NonZeroU32};
+use std::{fmt, str};
 
 use smol_str::SmolStr;
 
@@ -13,6 +12,11 @@ mod event_loop;
 
 pub use self::window::Window;
 mod window;
+
+pub(crate) use crate::cursor::{
+    NoCustomCursor as PlatformCustomCursor, NoCustomCursor as PlatformCustomCursorSource,
+};
+pub(crate) use crate::icon::NoIcon as PlatformIcon;
 
 struct RedoxSocket {
     fd: usize,
@@ -96,34 +100,12 @@ impl TimeSocket {
 pub(crate) struct PlatformSpecificEventLoopAttributes {}
 
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
-pub struct WindowId {
-    fd: u64,
-}
+pub struct FingerId;
 
-impl WindowId {
+impl FingerId {
+    #[cfg(test)]
     pub const fn dummy() -> Self {
-        WindowId { fd: u64::MAX }
-    }
-}
-
-impl From<WindowId> for u64 {
-    fn from(id: WindowId) -> Self {
-        id.fd
-    }
-}
-
-impl From<u64> for WindowId {
-    fn from(fd: u64) -> Self {
-        Self { fd }
-    }
-}
-
-#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
-pub struct DeviceId;
-
-impl DeviceId {
-    pub const fn dummy() -> Self {
-        DeviceId
+        FingerId
     }
 }
 
@@ -163,83 +145,50 @@ impl<'a> fmt::Display for WindowProperties<'a> {
     }
 }
 
-#[derive(Clone, Debug)]
-pub struct OsError(Arc<syscall::Error>);
-
-impl OsError {
-    fn new(error: syscall::Error) -> Self {
-        Self(Arc::new(error))
-    }
-}
-
-impl Display for OsError {
-    fn fmt(&self, fmt: &mut Formatter<'_>) -> Result<(), fmt::Error> {
-        self.0.fmt(fmt)
-    }
-}
-
-pub(crate) use crate::cursor::{
-    NoCustomCursor as PlatformCustomCursor, NoCustomCursor as PlatformCustomCursorSource,
-};
-pub(crate) use crate::icon::NoIcon as PlatformIcon;
-
 #[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct MonitorHandle;
 
 impl MonitorHandle {
     pub fn name(&self) -> Option<String> {
-        Some("Redox Device".to_owned())
+        None
     }
 
-    pub fn size(&self) -> PhysicalSize<u32> {
-        PhysicalSize::new(0, 0) // TODO
-    }
-
-    pub fn position(&self) -> PhysicalPosition<i32> {
-        (0, 0).into()
+    pub fn position(&self) -> Option<PhysicalPosition<i32>> {
+        None
     }
 
     pub fn scale_factor(&self) -> f64 {
         1.0 // TODO
     }
 
-    pub fn refresh_rate_millihertz(&self) -> Option<u32> {
-        // FIXME no way to get real refresh rate for now.
-        None
+    pub fn current_video_mode(&self) -> Option<VideoModeHandle> {
+        // (it is guaranteed to support 32 bit color though)
+        Some(VideoModeHandle { monitor: self.clone() })
     }
 
     pub fn video_modes(&self) -> impl Iterator<Item = VideoModeHandle> {
-        let size = self.size().into();
-        // FIXME this is not the real refresh rate
-        // (it is guaranteed to support 32 bit color though)
-        std::iter::once(VideoModeHandle {
-            size,
-            bit_depth: 32,
-            refresh_rate_millihertz: 60000,
-            monitor: self.clone(),
-        })
+        self.current_video_mode().into_iter()
     }
 }
 
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub struct VideoModeHandle {
-    size: (u32, u32),
-    bit_depth: u16,
-    refresh_rate_millihertz: u32,
     monitor: MonitorHandle,
 }
 
 impl VideoModeHandle {
     pub fn size(&self) -> PhysicalSize<u32> {
-        self.size.into()
+        // TODO
+        PhysicalSize::default()
     }
 
-    pub fn bit_depth(&self) -> u16 {
-        self.bit_depth
+    pub fn bit_depth(&self) -> Option<NonZeroU16> {
+        None
     }
 
-    pub fn refresh_rate_millihertz(&self) -> u32 {
-        self.refresh_rate_millihertz
+    pub fn refresh_rate_millihertz(&self) -> Option<NonZeroU32> {
+        // TODO
+        None
     }
 
     pub fn monitor(&self) -> MonitorHandle {

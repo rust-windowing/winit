@@ -638,7 +638,7 @@ pub fn keysym_to_key(keysym: u32) -> Key {
         // keysyms::ISO_Release_Margin_Left => NamedKey::IsoReleaseMarginLeft,
         // keysyms::ISO_Release_Margin_Right => NamedKey::IsoReleaseMarginRight,
         // keysyms::ISO_Release_Both_Margins => NamedKey::IsoReleaseBothMargins,
-        // keysyms::ISO_Fast_Cursor_Left => NamedKey::IsoFastCursorLeft,
+        // keysyms::ISO_Fast_Cursor_Left => NamedKey::IsoFastPointerLeft,
         // keysyms::ISO_Fast_Cursor_Right => NamedKey::IsoFastCursorRight,
         // keysyms::ISO_Fast_Cursor_Up => NamedKey::IsoFastCursorUp,
         // keysyms::ISO_Fast_Cursor_Down => NamedKey::IsoFastCursorDown,

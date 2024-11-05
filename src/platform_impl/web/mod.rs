@@ -22,8 +22,8 @@
 
 mod r#async;
 mod cursor;
-mod device;
 mod error;
+mod event;
 mod event_loop;
 mod keyboard;
 mod lock;
@@ -37,8 +37,7 @@ pub(crate) use cursor::{
     CustomCursorSource as PlatformCustomCursorSource,
 };
 
-pub use self::device::DeviceId;
-pub use self::error::OsError;
+pub use self::event::FingerId;
 pub(crate) use self::event_loop::{
     ActiveEventLoop, EventLoop, EventLoopProxy, OwnedDisplayHandle,
     PlatformSpecificEventLoopAttributes,
@@ -49,6 +48,5 @@ pub(crate) use self::monitor::{
     VideoModeHandle,
 };
 use self::web_sys as backend;
-pub use self::window::{PlatformSpecificWindowAttributes, Window, WindowId};
+pub use self::window::{PlatformSpecificWindowAttributes, Window};
 pub(crate) use crate::icon::NoIcon as PlatformIcon;
-pub(crate) use crate::platform_impl::Fullscreen;

@@ -12,6 +12,7 @@ use objc2_foundation::{
 };
 
 use crate::cursor::{CursorImage, OnlyCursorImageSource};
+use crate::error::RequestError;
 use crate::window::CursorIcon;
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
@@ -23,12 +24,12 @@ unsafe impl Send for CustomCursor {}
 unsafe impl Sync for CustomCursor {}
 
 impl CustomCursor {
-    pub(crate) fn new(cursor: OnlyCursorImageSource) -> CustomCursor {
-        Self(cursor_from_image(&cursor.0))
+    pub(crate) fn new(cursor: OnlyCursorImageSource) -> Result<CustomCursor, RequestError> {
+        cursor_from_image(&cursor.0).map(Self)
     }
 }
 
-pub(crate) fn cursor_from_image(cursor: &CursorImage) -> Retained<NSCursor> {
+pub(crate) fn cursor_from_image(cursor: &CursorImage) -> Result<Retained<NSCursor>, RequestError> {
     let width = cursor.width;
     let height = cursor.height;
 
@@ -45,8 +46,8 @@ pub(crate) fn cursor_from_image(cursor: &CursorImage) -> Retained<NSCursor> {
             NSDeviceRGBColorSpace,
             width as isize * 4,
             32,
-        ).unwrap()
-    };
+        )
+    }.ok_or_else(|| os_error!("parent view should be installed in a window"))?;
     let bitmap_data = unsafe { slice::from_raw_parts_mut(bitmap.bitmapData(), cursor.rgba.len()) };
     bitmap_data.copy_from_slice(&cursor.rgba);
 
@@ -57,7 +58,7 @@ pub(crate) fn cursor_from_image(cursor: &CursorImage) -> Retained<NSCursor> {
 
     let hotspot = NSPoint::new(cursor.hotspot_x as f64, cursor.hotspot_y as f64);
 
-    NSCursor::initWithImage_hotSpot(NSCursor::alloc(), &image, hotspot)
+    Ok(NSCursor::initWithImage_hotSpot(NSCursor::alloc(), &image, hotspot))
 }
 
 pub(crate) fn default_cursor() -> Retained<NSCursor> {

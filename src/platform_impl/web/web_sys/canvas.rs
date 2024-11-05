@@ -13,19 +13,21 @@ use web_sys::{
 
 use super::super::cursor::CursorHandler;
 use super::super::main_thread::MainThreadMarker;
-use super::super::WindowId;
 use super::animation_frame::AnimationFrameHandler;
 use super::event_handle::EventListenerHandle;
 use super::intersection_handle::IntersectionObserverHandle;
 use super::media_query_handle::MediaQueryListHandle;
 use super::pointer::PointerHandler;
-use super::{event, fullscreen, ButtonsState, ResizeScaleHandle};
+use super::{event, fullscreen, ResizeScaleHandle};
 use crate::dpi::{LogicalPosition, PhysicalPosition, PhysicalSize};
-use crate::error::OsError as RootOE;
-use crate::event::{Force, InnerSizeWriter, MouseButton, MouseScrollDelta};
+use crate::error::RequestError;
+use crate::event::{
+    ButtonSource, DeviceId, ElementState, MouseScrollDelta, PointerKind, PointerSource,
+    SurfaceSizeWriter,
+};
 use crate::keyboard::{Key, KeyLocation, ModifiersState, PhysicalKey};
-use crate::platform_impl::{Fullscreen, OsError};
-use crate::window::{WindowAttributes, WindowId as RootWindowId};
+use crate::platform_impl::Fullscreen;
+use crate::window::{WindowAttributes, WindowId};
 
 #[allow(dead_code)]
 pub struct Canvas {
@@ -82,13 +84,13 @@ impl Canvas {
         navigator: Navigator,
         document: Document,
         attr: WindowAttributes,
-    ) -> Result<Self, RootOE> {
+    ) -> Result<Self, RequestError> {
         let canvas = match attr.platform_specific.canvas.map(Arc::try_unwrap) {
             Some(Ok(canvas)) => canvas.into_inner(main_thread),
             Some(Err(canvas)) => canvas.get(main_thread).clone(),
             None => document
                 .create_element("canvas")
-                .map_err(|_| os_error!(OsError("Failed to create canvas element".to_owned())))?
+                .map_err(|_| os_error!("Failed to create canvas element"))?
                 .unchecked_into(),
         };
 
@@ -108,7 +110,7 @@ impl Canvas {
         if attr.platform_specific.focusable {
             canvas
                 .set_attribute("tabindex", "0")
-                .map_err(|_| os_error!(OsError("Failed to set a tabindex".to_owned())))?;
+                .map_err(|_| os_error!("Failed to set a tabindex"))?;
         }
 
         let style = Style::new(&window, &canvas);
@@ -125,17 +127,17 @@ impl Canvas {
             current_size: Rc::default(),
         };
 
-        if let Some(size) = attr.inner_size {
+        if let Some(size) = attr.surface_size {
             let size = size.to_logical(super::scale_factor(&common.window));
             super::set_canvas_size(&common.document, &common.raw, &common.style, size);
         }
 
-        if let Some(size) = attr.min_inner_size {
+        if let Some(size) = attr.min_surface_size {
             let size = size.to_logical(super::scale_factor(&common.window));
             super::set_canvas_min_size(&common.document, &common.raw, &common.style, Some(size));
         }
 
-        if let Some(size) = attr.max_inner_size {
+        if let Some(size) = attr.max_surface_size {
             let size = size.to_logical(super::scale_factor(&common.window));
             super::set_canvas_max_size(&common.document, &common.raw, &common.style, Some(size));
         }
@@ -212,7 +214,7 @@ impl Canvas {
     }
 
     #[inline]
-    pub fn inner_size(&self) -> PhysicalSize<u32> {
+    pub fn surface_size(&self) -> PhysicalSize<u32> {
         self.common.current_size.get()
     }
 
@@ -327,71 +329,65 @@ impl Canvas {
             }));
     }
 
-    pub fn on_cursor_leave<F>(&self, handler: F)
+    pub fn on_pointer_leave<F>(&self, handler: F)
     where
-        F: 'static + FnMut(ModifiersState, Option<i32>),
+        F: 'static + FnMut(ModifiersState, Option<DeviceId>, PhysicalPosition<f64>, PointerKind),
     {
-        self.handlers.borrow_mut().pointer_handler.on_cursor_leave(&self.common, handler)
+        self.handlers.borrow_mut().pointer_handler.on_pointer_leave(&self.common, handler)
     }
 
-    pub fn on_cursor_enter<F>(&self, handler: F)
+    pub fn on_pointer_enter<F>(&self, handler: F)
     where
-        F: 'static + FnMut(ModifiersState, Option<i32>),
+        F: 'static + FnMut(ModifiersState, Option<DeviceId>, PhysicalPosition<f64>, PointerKind),
     {
-        self.handlers.borrow_mut().pointer_handler.on_cursor_enter(&self.common, handler)
+        self.handlers.borrow_mut().pointer_handler.on_pointer_enter(&self.common, handler)
     }
 
-    pub fn on_mouse_release<M, T>(&self, mouse_handler: M, touch_handler: T)
+    pub fn on_pointer_release<C>(&self, handler: C)
     where
-        M: 'static + FnMut(ModifiersState, i32, PhysicalPosition<f64>, MouseButton),
-        T: 'static + FnMut(ModifiersState, i32, PhysicalPosition<f64>, Force),
+        C: 'static + FnMut(ModifiersState, Option<DeviceId>, PhysicalPosition<f64>, ButtonSource),
     {
-        self.handlers.borrow_mut().pointer_handler.on_mouse_release(
+        self.handlers.borrow_mut().pointer_handler.on_pointer_release(&self.common, handler)
+    }
+
+    pub fn on_pointer_press<C>(&self, handler: C)
+    where
+        C: 'static + FnMut(ModifiersState, Option<DeviceId>, PhysicalPosition<f64>, ButtonSource),
+    {
+        self.handlers.borrow_mut().pointer_handler.on_pointer_press(
             &self.common,
-            mouse_handler,
-            touch_handler,
-        )
-    }
-
-    pub fn on_mouse_press<M, T>(&self, mouse_handler: M, touch_handler: T)
-    where
-        M: 'static + FnMut(ModifiersState, i32, PhysicalPosition<f64>, MouseButton),
-        T: 'static + FnMut(ModifiersState, i32, PhysicalPosition<f64>, Force),
-    {
-        self.handlers.borrow_mut().pointer_handler.on_mouse_press(
-            &self.common,
-            mouse_handler,
-            touch_handler,
+            handler,
             Rc::clone(&self.prevent_default),
         )
     }
 
-    pub fn on_cursor_move<M, T, B>(&self, mouse_handler: M, touch_handler: T, button_handler: B)
+    pub fn on_pointer_move<C, B>(&self, cursor_handler: C, button_handler: B)
     where
-        M: 'static + FnMut(ModifiersState, i32, &mut dyn Iterator<Item = PhysicalPosition<f64>>),
-        T: 'static
-            + FnMut(ModifiersState, i32, &mut dyn Iterator<Item = (PhysicalPosition<f64>, Force)>),
-        B: 'static + FnMut(ModifiersState, i32, PhysicalPosition<f64>, ButtonsState, MouseButton),
+        C: 'static
+            + FnMut(
+                Option<DeviceId>,
+                &mut dyn Iterator<Item = (ModifiersState, PhysicalPosition<f64>, PointerSource)>,
+            ),
+        B: 'static
+            + FnMut(
+                ModifiersState,
+                Option<DeviceId>,
+                PhysicalPosition<f64>,
+                ElementState,
+                ButtonSource,
+            ),
     {
-        self.handlers.borrow_mut().pointer_handler.on_cursor_move(
+        self.handlers.borrow_mut().pointer_handler.on_pointer_move(
             &self.common,
-            mouse_handler,
-            touch_handler,
+            cursor_handler,
             button_handler,
             Rc::clone(&self.prevent_default),
         )
     }
 
-    pub fn on_touch_cancel<F>(&self, handler: F)
-    where
-        F: 'static + FnMut(i32, PhysicalPosition<f64>, Force),
-    {
-        self.handlers.borrow_mut().pointer_handler.on_touch_cancel(&self.common, handler)
-    }
-
     pub fn on_mouse_wheel<F>(&self, mut handler: F)
     where
-        F: 'static + FnMut(i32, MouseScrollDelta, ModifiersState),
+        F: 'static + FnMut(MouseScrollDelta, ModifiersState),
     {
         let window = self.common.window.clone();
         let prevent_default = Rc::clone(&self.prevent_default);
@@ -403,7 +399,7 @@ impl Canvas {
 
                 if let Some(delta) = event::mouse_scroll_delta(&window, &event) {
                     let modifiers = event::mouse_modifiers(&event);
-                    handler(0, delta, modifiers);
+                    handler(delta, modifiers);
                 }
             }));
     }
@@ -493,10 +489,10 @@ impl Canvas {
         let new_size = {
             let new_size = Arc::new(Mutex::new(current_size));
             event_handler(crate::event::Event::WindowEvent {
-                window_id: RootWindowId(self.id),
+                window_id: self.id,
                 event: crate::event::WindowEvent::ScaleFactorChanged {
                     scale_factor: scale,
-                    inner_size_writer: InnerSizeWriter::new(Arc::downgrade(&new_size)),
+                    surface_size_writer: SurfaceSizeWriter::new(Arc::downgrade(&new_size)),
                 },
             });
 
@@ -505,8 +501,8 @@ impl Canvas {
         };
 
         if current_size != new_size {
-            // Then we resize the canvas to the new size, a new
-            // `Resized` event will be sent by the `ResizeObserver`:
+            // Then we resize the canvas to the new size, a new `SurfaceResized` event will be sent
+            // by the `ResizeObserver`:
             let new_size = new_size.to_logical(scale);
             super::set_canvas_size(self.document(), self.raw(), self.style(), new_size);
 
@@ -521,8 +517,8 @@ impl Canvas {
             // Then we at least send a resized event.
             self.set_old_size(new_size);
             runner.send_event(crate::event::Event::WindowEvent {
-                window_id: RootWindowId(self.id),
-                event: crate::event::WindowEvent::Resized(new_size),
+                window_id: self.id,
+                event: crate::event::WindowEvent::SurfaceResized(new_size),
             })
         }
     }

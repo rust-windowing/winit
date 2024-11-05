@@ -1,23 +1,11 @@
-use sctk::output::OutputData;
+use std::num::{NonZeroU16, NonZeroU32};
+
+use sctk::output::{Mode, OutputData};
 use sctk::reexports::client::protocol::wl_output::WlOutput;
 use sctk::reexports::client::Proxy;
 
-use super::event_loop::ActiveEventLoop;
 use crate::dpi::{LogicalPosition, PhysicalPosition, PhysicalSize};
 use crate::platform_impl::platform::VideoModeHandle as PlatformVideoModeHandle;
-
-impl ActiveEventLoop {
-    #[inline]
-    pub fn available_monitors(&self) -> impl Iterator<Item = MonitorHandle> {
-        self.state.borrow().output_state.outputs().map(MonitorHandle::new)
-    }
-
-    #[inline]
-    pub fn primary_monitor(&self) -> Option<MonitorHandle> {
-        // There's no primary monitor on Wayland.
-        None
-    }
-}
 
 #[derive(Clone, Debug)]
 pub struct MonitorHandle {
@@ -43,23 +31,9 @@ impl MonitorHandle {
     }
 
     #[inline]
-    pub fn size(&self) -> PhysicalSize<u32> {
+    pub fn position(&self) -> Option<PhysicalPosition<i32>> {
         let output_data = self.proxy.data::<OutputData>().unwrap();
-        let dimensions = output_data.with_output_info(|info| {
-            info.modes.iter().find_map(|mode| mode.current.then_some(mode.dimensions))
-        });
-
-        match dimensions {
-            Some((width, height)) => (width as u32, height as u32),
-            _ => (0, 0),
-        }
-        .into()
-    }
-
-    #[inline]
-    pub fn position(&self) -> PhysicalPosition<i32> {
-        let output_data = self.proxy.data::<OutputData>().unwrap();
-        output_data.with_output_info(|info| {
+        Some(output_data.with_output_info(|info| {
             info.logical_position.map_or_else(
                 || {
                     LogicalPosition::<i32>::from(info.location)
@@ -70,21 +44,25 @@ impl MonitorHandle {
                         .to_physical(info.scale_factor as f64)
                 },
             )
-        })
-    }
-
-    #[inline]
-    pub fn refresh_rate_millihertz(&self) -> Option<u32> {
-        let output_data = self.proxy.data::<OutputData>().unwrap();
-        output_data.with_output_info(|info| {
-            info.modes.iter().find_map(|mode| mode.current.then_some(mode.refresh_rate as u32))
-        })
+        }))
     }
 
     #[inline]
     pub fn scale_factor(&self) -> i32 {
         let output_data = self.proxy.data::<OutputData>().unwrap();
         output_data.scale_factor()
+    }
+
+    #[inline]
+    pub fn current_video_mode(&self) -> Option<PlatformVideoModeHandle> {
+        let output_data = self.proxy.data::<OutputData>().unwrap();
+        output_data.with_output_info(|info| {
+            let mode = info.modes.iter().find(|mode| mode.current).cloned();
+
+            mode.map(|mode| {
+                PlatformVideoModeHandle::Wayland(VideoModeHandle::new(self.clone(), mode))
+            })
+        })
     }
 
     #[inline]
@@ -95,12 +73,7 @@ impl MonitorHandle {
         let monitor = self.clone();
 
         modes.into_iter().map(move |mode| {
-            PlatformVideoModeHandle::Wayland(VideoModeHandle {
-                size: (mode.dimensions.0 as u32, mode.dimensions.1 as u32).into(),
-                refresh_rate_millihertz: mode.refresh_rate as u32,
-                bit_depth: 32,
-                monitor: monitor.clone(),
-            })
+            PlatformVideoModeHandle::Wayland(VideoModeHandle::new(monitor.clone(), mode))
         })
     }
 }
@@ -134,24 +107,31 @@ impl std::hash::Hash for MonitorHandle {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct VideoModeHandle {
     pub(crate) size: PhysicalSize<u32>,
-    pub(crate) bit_depth: u16,
-    pub(crate) refresh_rate_millihertz: u32,
+    pub(crate) refresh_rate_millihertz: Option<NonZeroU32>,
     pub(crate) monitor: MonitorHandle,
 }
 
 impl VideoModeHandle {
+    fn new(monitor: MonitorHandle, mode: Mode) -> Self {
+        VideoModeHandle {
+            size: (mode.dimensions.0 as u32, mode.dimensions.1 as u32).into(),
+            refresh_rate_millihertz: NonZeroU32::new(mode.refresh_rate as u32),
+            monitor: monitor.clone(),
+        }
+    }
+
     #[inline]
     pub fn size(&self) -> PhysicalSize<u32> {
         self.size
     }
 
     #[inline]
-    pub fn bit_depth(&self) -> u16 {
-        self.bit_depth
+    pub fn bit_depth(&self) -> Option<NonZeroU16> {
+        None
     }
 
     #[inline]
-    pub fn refresh_rate_millihertz(&self) -> u32 {
+    pub fn refresh_rate_millihertz(&self) -> Option<NonZeroU32> {
         self.refresh_rate_millihertz
     }
 

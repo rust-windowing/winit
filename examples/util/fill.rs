@@ -11,7 +11,7 @@
 pub use platform::cleanup_window;
 pub use platform::fill_window;
 
-#[cfg(all(feature = "rwh_05", not(any(target_os = "android", target_os = "ios"))))]
+#[cfg(all(feature = "rwh_06", not(any(target_os = "android", target_os = "ios"))))]
 mod platform {
     use std::cell::RefCell;
     use std::collections::HashMap;
@@ -34,18 +34,20 @@ mod platform {
     /// The graphics context used to draw to a window.
     struct GraphicsContext {
         /// The global softbuffer context.
-        context: RefCell<Context<&'static Window>>,
+        context: RefCell<Context<&'static dyn Window>>,
 
         /// The hash map of window IDs to surfaces.
-        surfaces: HashMap<WindowId, Surface<&'static Window, &'static Window>>,
+        surfaces: HashMap<WindowId, Surface<&'static dyn Window, &'static dyn Window>>,
     }
 
     impl GraphicsContext {
-        fn new(w: &Window) -> Self {
+        fn new(w: &dyn Window) -> Self {
             Self {
                 context: RefCell::new(
-                    Context::new(unsafe { mem::transmute::<&'_ Window, &'static Window>(w) })
-                        .expect("Failed to create a softbuffer context"),
+                    Context::new(unsafe {
+                        mem::transmute::<&'_ dyn Window, &'static dyn Window>(w)
+                    })
+                    .expect("Failed to create a softbuffer context"),
                 ),
                 surfaces: HashMap::new(),
             }
@@ -53,24 +55,24 @@ mod platform {
 
         fn create_surface(
             &mut self,
-            window: &Window,
-        ) -> &mut Surface<&'static Window, &'static Window> {
+            window: &dyn Window,
+        ) -> &mut Surface<&'static dyn Window, &'static dyn Window> {
             self.surfaces.entry(window.id()).or_insert_with(|| {
                 Surface::new(&self.context.borrow(), unsafe {
-                    mem::transmute::<&'_ Window, &'static Window>(window)
+                    mem::transmute::<&'_ dyn Window, &'static dyn Window>(window)
                 })
                 .expect("Failed to create a softbuffer surface")
             })
         }
 
-        fn destroy_surface(&mut self, window: &Window) {
+        fn destroy_surface(&mut self, window: &dyn Window) {
             self.surfaces.remove(&window.id());
         }
     }
 
-    pub fn fill_window(window: &Window) {
+    pub fn fill_window(window: &dyn Window) {
         GC.with(|gc| {
-            let size = window.inner_size();
+            let size = window.surface_size();
             let (Some(width), Some(height)) =
                 (NonZeroU32::new(size.width), NonZeroU32::new(size.height))
             else {
@@ -94,7 +96,7 @@ mod platform {
     }
 
     #[allow(dead_code)]
-    pub fn cleanup_window(window: &Window) {
+    pub fn cleanup_window(window: &dyn Window) {
         GC.with(|gc| {
             let mut gc = gc.borrow_mut();
             if let Some(context) = gc.as_mut() {
@@ -104,14 +106,14 @@ mod platform {
     }
 }
 
-#[cfg(not(all(feature = "rwh_05", not(any(target_os = "android", target_os = "ios")))))]
+#[cfg(not(all(feature = "rwh_06", not(any(target_os = "android", target_os = "ios")))))]
 mod platform {
-    pub fn fill_window(_window: &winit::window::Window) {
+    pub fn fill_window(_window: &dyn winit::window::Window) {
         // No-op on mobile platforms.
     }
 
     #[allow(dead_code)]
-    pub fn cleanup_window(_window: &winit::window::Window) {
+    pub fn cleanup_window(_window: &dyn winit::window::Window) {
         // No-op on mobile platforms.
     }
 }

@@ -2,6 +2,8 @@
 
 use crate::event::{DeviceEvent, DeviceId, StartCause, WindowEvent};
 use crate::event_loop::ActiveEventLoop;
+#[cfg(any(docsrs, macos_platform))]
+use crate::platform::macos::ApplicationHandlerExtMacOS;
 use crate::window::WindowId;
 
 /// The handler of the application events.
@@ -12,7 +14,7 @@ pub trait ApplicationHandler {
     /// events, such as updating frame timing information for benchmarking or checking the
     /// [`StartCause`] to see if a timer set by
     /// [`ControlFlow::WaitUntil`][crate::event_loop::ControlFlow::WaitUntil] has elapsed.
-    fn new_events(&mut self, event_loop: &ActiveEventLoop, cause: StartCause) {
+    fn new_events(&mut self, event_loop: &dyn ActiveEventLoop, cause: StartCause) {
         let _ = (event_loop, cause);
     }
 
@@ -41,12 +43,22 @@ pub trait ApplicationHandler {
     /// [`pageshow`]: https://developer.mozilla.org/en-US/docs/Web/API/Window/pageshow_event
     /// [`bfcache`]: https://web.dev/bfcache/
     ///
+    /// ### Android
+    ///
+    /// On Android, the [`resumed()`] method is called when the `Activity` is (again, if after a
+    /// prior [`suspended()`]) being displayed to the user. This is a good place to begin drawing
+    /// visual elements, running animations, etc. It is driven by Android's [`onStart()`] method.
+    ///
+    /// [`onStart()`]: https://developer.android.com/reference/android/app/Activity#onStart()
+    ///
     /// ### Others
     ///
-    /// **Android / macOS / Orbital / Wayland / Windows / X11:** Unsupported.
+    /// **macOS / Orbital / Wayland / Windows / X11:** Unsupported.
     ///
-    /// [`resumed()`]: Self::resumed
-    fn resumed(&mut self, event_loop: &ActiveEventLoop) {
+    /// [`resumed()`]: Self::resumed()
+    /// [`suspended()`]: Self::suspended()
+    /// [`exiting()`]: Self::exiting()
+    fn resumed(&mut self, event_loop: &dyn ActiveEventLoop) {
         let _ = event_loop;
     }
 
@@ -71,27 +83,25 @@ pub trait ApplicationHandler {
     ///
     /// ### Android
     ///
-    /// On Android, the [`can_create_surfaces()`] method is called when a new [`SurfaceView`] has
-    /// been created. This is expected to closely correlate with the [`onResume`] lifecycle
-    /// event but there may technically be a discrepancy.
+    /// On Android, the [`can_create_surfaces()`] method is called when a new [`NativeWindow`]
+    /// (native [`Surface`]) is created which backs the application window. This is expected to
+    /// closely correlate with the [`onStart`] lifecycle event which typically results in a surface
+    /// to be created after the app becomes visible.
     ///
-    /// [`onResume`]: https://developer.android.com/reference/android/app/Activity#onResume()
-    ///
-    /// Applications that need to run on Android must wait until they have been "resumed" before
+    /// Applications that need to run on Android must wait until they have received a surface before
     /// they will be able to create a render surface (such as an `EGLSurface`, [`VkSurfaceKHR`]
-    /// or [`wgpu::Surface`]) which depend on having a [`SurfaceView`]. Applications must also
-    /// assume that if they are [suspended], then their render surfaces are invalid and should
-    /// be dropped.
+    /// or [`wgpu::Surface`]) which depend on having a [`NativeWindow`]. Applications must handle
+    /// [`destroy_surfaces()`], where their render surfaces are invalid and should be dropped.
     ///
-    /// [suspended]: Self::destroy_surfaces
-    /// [`SurfaceView`]: https://developer.android.com/reference/android/view/SurfaceView
-    /// [Activity lifecycle]: https://developer.android.com/guide/components/activities/activity-lifecycle
+    /// [`NativeWindow`]: https://developer.android.com/ndk/reference/group/a-native-window
+    /// [`Surface`]: https://developer.android.com/reference/android/view/Surface
+    /// [`onStart`]: https://developer.android.com/reference/android/app/Activity#onStart()
     /// [`VkSurfaceKHR`]: https://www.khronos.org/registry/vulkan/specs/1.3-extensions/man/html/VkSurfaceKHR.html
     /// [`wgpu::Surface`]: https://docs.rs/wgpu/latest/wgpu/struct.Surface.html
     ///
-    /// [`can_create_surfaces()`]: Self::can_create_surfaces
-    /// [`destroy_surfaces()`]: Self::destroy_surfaces
-    fn can_create_surfaces(&mut self, event_loop: &ActiveEventLoop);
+    /// [`can_create_surfaces()`]: Self::can_create_surfaces()
+    /// [`destroy_surfaces()`]: Self::destroy_surfaces()
+    fn can_create_surfaces(&mut self, event_loop: &dyn ActiveEventLoop);
 
     /// Called after a wake up is requested using [`EventLoopProxy::wake_up()`].
     ///
@@ -126,15 +136,15 @@ pub trait ApplicationHandler {
     /// impl ApplicationHandler for MyApp {
     ///     # fn window_event(
     ///     #     &mut self,
-    ///     #     _event_loop: &ActiveEventLoop,
+    ///     #     _event_loop: &dyn ActiveEventLoop,
     ///     #     _window_id: winit::window::WindowId,
     ///     #     _event: winit::event::WindowEvent,
     ///     # ) {
     ///     # }
     ///     #
-    ///     # fn can_create_surfaces(&mut self, _event_loop: &ActiveEventLoop) {}
+    ///     # fn can_create_surfaces(&mut self, _event_loop: &dyn ActiveEventLoop) {}
     ///     #
-    ///     fn proxy_wake_up(&mut self, _event_loop: &ActiveEventLoop) {
+    ///     fn proxy_wake_up(&mut self, _event_loop: &dyn ActiveEventLoop) {
     ///         // Iterate current events, since wake-ups may have been merged.
     ///         //
     ///         // Note: We take care not to use `recv` or `iter` here, as those are blocking,
@@ -180,14 +190,14 @@ pub trait ApplicationHandler {
     ///     Ok(())
     /// }
     /// ```
-    fn proxy_wake_up(&mut self, event_loop: &ActiveEventLoop) {
+    fn proxy_wake_up(&mut self, event_loop: &dyn ActiveEventLoop) {
         let _ = event_loop;
     }
 
     /// Emitted when the OS sends an event to a winit window.
     fn window_event(
         &mut self,
-        event_loop: &ActiveEventLoop,
+        event_loop: &dyn ActiveEventLoop,
         window_id: WindowId,
         event: WindowEvent,
     );
@@ -195,8 +205,8 @@ pub trait ApplicationHandler {
     /// Emitted when the OS sends an event to a device.
     fn device_event(
         &mut self,
-        event_loop: &ActiveEventLoop,
-        device_id: DeviceId,
+        event_loop: &dyn ActiveEventLoop,
+        device_id: Option<DeviceId>,
         event: DeviceEvent,
     ) {
         let _ = (event_loop, device_id, event);
@@ -213,7 +223,7 @@ pub trait ApplicationHandler {
     ///
     /// This is not an ideal event to drive application rendering from and instead applications
     /// should render in response to [`WindowEvent::RedrawRequested`] events.
-    fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
+    fn about_to_wait(&mut self, event_loop: &dyn ActiveEventLoop) {
         let _ = event_loop;
     }
 
@@ -235,19 +245,31 @@ pub trait ApplicationHandler {
     /// ### Web
     ///
     /// On Web, the [`suspended()`] method is called in response to a [`pagehide`] event if the
-    /// page is being restored from the [`bfcache`] (back/forward cache) - an in-memory cache that
+    /// page is being stored in the [`bfcache`] (back/forward cache) - an in-memory cache that
     /// stores a complete snapshot of a page (including the JavaScript heap) as the user is
     /// navigating away.
     ///
     /// [`pagehide`]: https://developer.mozilla.org/en-US/docs/Web/API/Window/pagehide_event
     /// [`bfcache`]: https://web.dev/bfcache/
     ///
+    /// ### Android
+    ///
+    /// On Android, the [`suspended()`] method is called when the `Activity` is no longer visible
+    /// to the user. This is a good place to stop refreshing UI, running animations and other visual
+    /// things. It is driven by Android's [`onStop()`] method.
+    ///
+    /// After this event the application either receives [`resumed()`] again, or [`exiting()`].
+    ///
+    /// [`onStop()`]: https://developer.android.com/reference/android/app/Activity#onStop()
+    ///
     /// ### Others
     ///
-    /// **Android / macOS / Orbital / Wayland / Windows / X11:** Unsupported.
+    /// **macOS / Orbital / Wayland / Windows / X11:** Unsupported.
     ///
-    /// [`suspended()`]: Self::suspended
-    fn suspended(&mut self, event_loop: &ActiveEventLoop) {
+    /// [`resumed()`]: Self::resumed()
+    /// [`suspended()`]: Self::suspended()
+    /// [`exiting()`]: Self::exiting()
+    fn suspended(&mut self, event_loop: &dyn ActiveEventLoop) {
         let _ = event_loop;
     }
 
@@ -259,24 +281,22 @@ pub trait ApplicationHandler {
     ///
     /// ### Android
     ///
-    /// On Android, the [`destroy_surfaces()`] method is called when the application's associated
-    /// [`SurfaceView`] is destroyed. This is expected to closely correlate with the [`onPause`]
-    /// lifecycle event but there may technically be a discrepancy.
+    /// On Android, the [`destroy_surfaces()`] method is called when the application's
+    /// [`NativeWindow`] (native [`Surface`]) is destroyed. This is expected to closely correlate
+    /// with the [`onStop`] lifecycle event which typically results in the surface to be destroyed
+    /// after the app becomes invisible.
     ///
-    /// [`onPause`]: https://developer.android.com/reference/android/app/Activity#onPause()
-    ///
-    /// Applications that need to run on Android should assume their [`SurfaceView`] has been
+    /// Applications that need to run on Android should assume their [`NativeWindow`] has been
     /// destroyed, which indirectly invalidates any existing render surfaces that may have been
     /// created outside of Winit (such as an `EGLSurface`, [`VkSurfaceKHR`] or [`wgpu::Surface`]).
     ///
-    /// After being [suspended] on Android applications must drop all render surfaces before
-    /// the event callback completes, which may be re-created when the application is next
-    /// [resumed].
+    /// When receiving [`destroy_surfaces()`] Android applications should drop all render surfaces
+    /// before the event callback completes, which may be re-created when the application next
+    /// receives [`can_create_surfaces()`].
     ///
-    /// [suspended]: Self::destroy_surfaces
-    /// [resumed]: Self::can_create_surfaces
-    /// [`SurfaceView`]: https://developer.android.com/reference/android/view/SurfaceView
-    /// [Activity lifecycle]: https://developer.android.com/guide/components/activities/activity-lifecycle
+    /// [`NativeWindow`]: https://developer.android.com/ndk/reference/group/a-native-window
+    /// [`Surface`]: https://developer.android.com/reference/android/view/Surface
+    /// [`onStop`]: https://developer.android.com/reference/android/app/Activity#onStop()
     /// [`VkSurfaceKHR`]: https://www.khronos.org/registry/vulkan/specs/1.3-extensions/man/html/VkSurfaceKHR.html
     /// [`wgpu::Surface`]: https://docs.rs/wgpu/latest/wgpu/struct.Surface.html
     ///
@@ -284,9 +304,9 @@ pub trait ApplicationHandler {
     ///
     /// - **iOS / macOS / Orbital / Wayland / Web / Windows / X11:** Unsupported.
     ///
-    /// [`can_create_surfaces()`]: Self::can_create_surfaces
-    /// [`destroy_surfaces()`]: Self::destroy_surfaces
-    fn destroy_surfaces(&mut self, event_loop: &ActiveEventLoop) {
+    /// [`can_create_surfaces()`]: Self::can_create_surfaces()
+    /// [`destroy_surfaces()`]: Self::destroy_surfaces()
+    fn destroy_surfaces(&mut self, event_loop: &dyn ActiveEventLoop) {
         let _ = event_loop;
     }
 
@@ -294,7 +314,7 @@ pub trait ApplicationHandler {
     ///
     /// This is irreversible - if this method is called, it is guaranteed that the event loop
     /// will exit right after.
-    fn exiting(&mut self, event_loop: &ActiveEventLoop) {
+    fn exiting(&mut self, event_loop: &dyn ActiveEventLoop) {
         let _ = event_loop;
     }
 
@@ -322,37 +342,46 @@ pub trait ApplicationHandler {
     /// ### Others
     ///
     /// - **macOS / Orbital / Wayland / Web / Windows:** Unsupported.
-    fn memory_warning(&mut self, event_loop: &ActiveEventLoop) {
+    fn memory_warning(&mut self, event_loop: &dyn ActiveEventLoop) {
         let _ = event_loop;
+    }
+
+    /// The macOS-specific handler.
+    ///
+    /// The return value from this should not change at runtime.
+    #[cfg(any(docsrs, macos_platform))]
+    #[inline(always)]
+    fn macos_handler(&mut self) -> Option<&mut dyn ApplicationHandlerExtMacOS> {
+        None
     }
 }
 
 #[deny(clippy::missing_trait_methods)]
 impl<A: ?Sized + ApplicationHandler> ApplicationHandler for &mut A {
     #[inline]
-    fn new_events(&mut self, event_loop: &ActiveEventLoop, cause: StartCause) {
+    fn new_events(&mut self, event_loop: &dyn ActiveEventLoop, cause: StartCause) {
         (**self).new_events(event_loop, cause);
     }
 
     #[inline]
-    fn resumed(&mut self, event_loop: &ActiveEventLoop) {
+    fn resumed(&mut self, event_loop: &dyn ActiveEventLoop) {
         (**self).resumed(event_loop);
     }
 
     #[inline]
-    fn can_create_surfaces(&mut self, event_loop: &ActiveEventLoop) {
+    fn can_create_surfaces(&mut self, event_loop: &dyn ActiveEventLoop) {
         (**self).can_create_surfaces(event_loop);
     }
 
     #[inline]
-    fn proxy_wake_up(&mut self, event_loop: &ActiveEventLoop) {
+    fn proxy_wake_up(&mut self, event_loop: &dyn ActiveEventLoop) {
         (**self).proxy_wake_up(event_loop);
     }
 
     #[inline]
     fn window_event(
         &mut self,
-        event_loop: &ActiveEventLoop,
+        event_loop: &dyn ActiveEventLoop,
         window_id: WindowId,
         event: WindowEvent,
     ) {
@@ -362,65 +391,71 @@ impl<A: ?Sized + ApplicationHandler> ApplicationHandler for &mut A {
     #[inline]
     fn device_event(
         &mut self,
-        event_loop: &ActiveEventLoop,
-        device_id: DeviceId,
+        event_loop: &dyn ActiveEventLoop,
+        device_id: Option<DeviceId>,
         event: DeviceEvent,
     ) {
         (**self).device_event(event_loop, device_id, event);
     }
 
     #[inline]
-    fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
+    fn about_to_wait(&mut self, event_loop: &dyn ActiveEventLoop) {
         (**self).about_to_wait(event_loop);
     }
 
     #[inline]
-    fn suspended(&mut self, event_loop: &ActiveEventLoop) {
+    fn suspended(&mut self, event_loop: &dyn ActiveEventLoop) {
         (**self).suspended(event_loop);
     }
 
     #[inline]
-    fn destroy_surfaces(&mut self, event_loop: &ActiveEventLoop) {
+    fn destroy_surfaces(&mut self, event_loop: &dyn ActiveEventLoop) {
         (**self).destroy_surfaces(event_loop);
     }
 
     #[inline]
-    fn exiting(&mut self, event_loop: &ActiveEventLoop) {
+    fn exiting(&mut self, event_loop: &dyn ActiveEventLoop) {
         (**self).exiting(event_loop);
     }
 
     #[inline]
-    fn memory_warning(&mut self, event_loop: &ActiveEventLoop) {
+    fn memory_warning(&mut self, event_loop: &dyn ActiveEventLoop) {
         (**self).memory_warning(event_loop);
+    }
+
+    #[cfg(any(docsrs, macos_platform))]
+    #[inline]
+    fn macos_handler(&mut self) -> Option<&mut dyn ApplicationHandlerExtMacOS> {
+        (**self).macos_handler()
     }
 }
 
 #[deny(clippy::missing_trait_methods)]
 impl<A: ?Sized + ApplicationHandler> ApplicationHandler for Box<A> {
     #[inline]
-    fn new_events(&mut self, event_loop: &ActiveEventLoop, cause: StartCause) {
+    fn new_events(&mut self, event_loop: &dyn ActiveEventLoop, cause: StartCause) {
         (**self).new_events(event_loop, cause);
     }
 
     #[inline]
-    fn resumed(&mut self, event_loop: &ActiveEventLoop) {
+    fn resumed(&mut self, event_loop: &dyn ActiveEventLoop) {
         (**self).resumed(event_loop);
     }
 
     #[inline]
-    fn can_create_surfaces(&mut self, event_loop: &ActiveEventLoop) {
+    fn can_create_surfaces(&mut self, event_loop: &dyn ActiveEventLoop) {
         (**self).can_create_surfaces(event_loop);
     }
 
     #[inline]
-    fn proxy_wake_up(&mut self, event_loop: &ActiveEventLoop) {
+    fn proxy_wake_up(&mut self, event_loop: &dyn ActiveEventLoop) {
         (**self).proxy_wake_up(event_loop);
     }
 
     #[inline]
     fn window_event(
         &mut self,
-        event_loop: &ActiveEventLoop,
+        event_loop: &dyn ActiveEventLoop,
         window_id: WindowId,
         event: WindowEvent,
     ) {
@@ -430,35 +465,41 @@ impl<A: ?Sized + ApplicationHandler> ApplicationHandler for Box<A> {
     #[inline]
     fn device_event(
         &mut self,
-        event_loop: &ActiveEventLoop,
-        device_id: DeviceId,
+        event_loop: &dyn ActiveEventLoop,
+        device_id: Option<DeviceId>,
         event: DeviceEvent,
     ) {
         (**self).device_event(event_loop, device_id, event);
     }
 
     #[inline]
-    fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
+    fn about_to_wait(&mut self, event_loop: &dyn ActiveEventLoop) {
         (**self).about_to_wait(event_loop);
     }
 
     #[inline]
-    fn suspended(&mut self, event_loop: &ActiveEventLoop) {
+    fn suspended(&mut self, event_loop: &dyn ActiveEventLoop) {
         (**self).suspended(event_loop);
     }
 
     #[inline]
-    fn destroy_surfaces(&mut self, event_loop: &ActiveEventLoop) {
+    fn destroy_surfaces(&mut self, event_loop: &dyn ActiveEventLoop) {
         (**self).destroy_surfaces(event_loop);
     }
 
     #[inline]
-    fn exiting(&mut self, event_loop: &ActiveEventLoop) {
+    fn exiting(&mut self, event_loop: &dyn ActiveEventLoop) {
         (**self).exiting(event_loop);
     }
 
     #[inline]
-    fn memory_warning(&mut self, event_loop: &ActiveEventLoop) {
+    fn memory_warning(&mut self, event_loop: &dyn ActiveEventLoop) {
         (**self).memory_warning(event_loop);
+    }
+
+    #[cfg(any(docsrs, macos_platform))]
+    #[inline]
+    fn macos_handler(&mut self) -> Option<&mut dyn ApplicationHandlerExtMacOS> {
+        (**self).macos_handler()
     }
 }
