@@ -320,7 +320,7 @@ impl CoreWindow for Window {
     fn surface_size(&self) -> PhysicalSize<u32> {
         let window_state = self.window_state.lock().unwrap();
         let scale_factor = window_state.scale_factor();
-        super::logical_to_physical_rounded(window_state.surface_size(), scale_factor)
+        window_state.surface_size() * scale_factor
     }
 
     fn request_surface_size(&self, size: Size) -> Option<PhysicalSize<u32>> {
@@ -333,7 +333,7 @@ impl CoreWindow for Window {
     fn outer_size(&self) -> PhysicalSize<u32> {
         let window_state = self.window_state.lock().unwrap();
         let scale_factor = window_state.scale_factor();
-        super::logical_to_physical_rounded(window_state.outer_size(), scale_factor)
+        window_state.outer_size() * scale_factor
     }
 
     fn set_min_surface_size(&self, min_size: Option<Size>) {
@@ -472,7 +472,7 @@ impl CoreWindow for Window {
 
     #[inline]
     fn scale_factor(&self) -> f64 {
-        self.window_state.lock().unwrap().scale_factor()
+        self.window_state.lock().unwrap().scale_factor_f64()
     }
 
     #[inline]
@@ -498,7 +498,7 @@ impl CoreWindow for Window {
     fn set_ime_cursor_area(&self, position: Position, size: Size) {
         let window_state = self.window_state.lock().unwrap();
         if window_state.ime_allowed() {
-            let scale_factor = window_state.scale_factor();
+            let scale_factor = window_state.scale_factor_f64();
             let position = position.to_logical(scale_factor);
             let size = size.to_logical(scale_factor);
             window_state.set_ime_cursor_area(position, size);

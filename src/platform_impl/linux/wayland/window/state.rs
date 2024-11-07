@@ -31,7 +31,7 @@ use wayland_protocols_plasma::blur::client::org_kde_kwin_blur::OrgKdeKwinBlur;
 use crate::cursor::CustomCursor as RootCustomCursor;
 use crate::dpi::{LogicalPosition, LogicalSize, PhysicalSize, Size};
 use crate::error::{NotSupportedError, RequestError};
-use crate::platform_impl::wayland::logical_to_physical_rounded;
+use crate::platform_impl::wayland::scale::Scale;
 use crate::platform_impl::wayland::seat::{
     PointerConstraintsState, WinitPointerData, WinitPointerDataExt, ZwpTextInputV3Ext,
 };
@@ -92,7 +92,7 @@ pub struct WindowState {
     seat_focus: HashSet<ObjectId>,
 
     /// The scale factor of the window.
-    scale_factor: f64,
+    scale_factor: Scale,
 
     /// Whether the window is transparent.
     transparent: bool,
@@ -203,7 +203,7 @@ impl WindowState {
             pointers: Default::default(),
             queue_handle: queue_handle.clone(),
             resizable: true,
-            scale_factor: 1.,
+            scale_factor: Scale::from_integer_scale(1),
             shm: winit_state.shm.wl_shm().clone(),
             custom_cursor_pool: winit_state.custom_cursor_pool.clone(),
             size: initial_size.to_logical(1.),
@@ -266,7 +266,7 @@ impl WindowState {
         // should be delivered before the first configure, thus apply it to
         // properly scale the physical sizes provided by the users.
         if let Some(initial_size) = self.initial_size.take() {
-            self.size = initial_size.to_logical(self.scale_factor());
+            self.size = initial_size.to_logical(self.scale_factor_f64());
             self.stateless_size = self.size;
         }
 
@@ -287,7 +287,7 @@ impl WindowState {
             ) {
                 Ok(mut frame) => {
                     frame.set_title(&self.title);
-                    frame.set_scaling_factor(self.scale_factor);
+                    frame.set_scaling_factor(self.scale_factor.to_f64());
                     // Hide the frame if we were asked to not decorate.
                     frame.set_hidden(!self.decorate);
                     self.frame = Some(frame);
@@ -630,10 +630,10 @@ impl WindowState {
     /// Try to resize the window when the user can do so.
     pub fn request_surface_size(&mut self, surface_size: Size) -> PhysicalSize<u32> {
         if self.last_configure.as_ref().map(Self::is_stateless).unwrap_or(true) {
-            self.resize(surface_size.to_logical(self.scale_factor()))
+            self.resize(surface_size.to_logical(self.scale_factor_f64()))
         }
 
-        logical_to_physical_rounded(self.surface_size(), self.scale_factor())
+        self.surface_size() * self.scale_factor()
     }
 
     /// Resize the window to the new surface size.
@@ -680,8 +680,14 @@ impl WindowState {
 
     /// Get the scale factor of the window.
     #[inline]
-    pub fn scale_factor(&self) -> f64 {
+    pub fn scale_factor(&self) -> Scale {
         self.scale_factor
+    }
+
+    /// Get the f64 approximation of the scale factor of the window.
+    #[inline]
+    pub fn scale_factor_f64(&self) -> f64 {
+        self.scale_factor.to_f64()
     }
 
     /// Set the cursor icon.
@@ -993,16 +999,16 @@ impl WindowState {
 
     /// Set the scale factor for the given window.
     #[inline]
-    pub fn set_scale_factor(&mut self, scale_factor: f64) {
+    pub fn set_scale_factor(&mut self, scale_factor: Scale) {
         self.scale_factor = scale_factor;
 
         // NOTE: When fractional scaling is not used update the buffer scale.
         if self.fractional_scale.is_none() {
-            let _ = self.window.set_buffer_scale(self.scale_factor as _);
+            let _ = self.window.set_buffer_scale(self.scale_factor.round_up());
         }
 
         if let Some(frame) = self.frame.as_mut() {
-            frame.set_scaling_factor(scale_factor);
+            frame.set_scaling_factor(scale_factor.to_f64());
         }
     }
 

@@ -9,10 +9,8 @@ use sctk::reexports::protocols::wp::fractional_scale::v1::client::wp_fractional_
     Event as FractionalScalingEvent, WpFractionalScaleV1,
 };
 
+use crate::platform_impl::wayland::scale::Scale;
 use crate::platform_impl::wayland::state::WinitState;
-
-/// The scaling factor denominator.
-const SCALE_DENOMINATOR: f64 = 120.;
 
 /// Fractional scaling manager.
 #[derive(Debug)]
@@ -68,7 +66,8 @@ impl Dispatch<WpFractionalScaleV1, FractionalScaling, WinitState> for Fractional
         _: &QueueHandle<WinitState>,
     ) {
         if let FractionalScalingEvent::PreferredScale { scale } = event {
-            state.scale_factor_changed(&data.surface, scale as f64 / SCALE_DENOMINATOR, false);
+            let scale = Scale::from_wp_fractional_scale(scale);
+            state.scale_factor_changed(&data.surface, scale, false);
         }
     }
 }

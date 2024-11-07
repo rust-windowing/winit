@@ -76,7 +76,7 @@ impl PointerHandler for WinitState {
                 None => continue,
             };
 
-            let scale_factor = window.scale_factor();
+            let scale_factor = window.scale_factor_f64();
             let position: PhysicalPosition<f64> =
                 LogicalPosition::new(event.position.0, event.position.1).to_physical(scale_factor);
 
