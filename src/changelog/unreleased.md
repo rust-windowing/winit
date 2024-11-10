@@ -156,6 +156,7 @@ changelog entry.
     identify a finger in a multi-touch interaction. Replaces the old `Touch::id`.
   - In the same spirit rename `DeviceEvent::MouseMotion` to `PointerMotion`.
   - Remove `Force::Calibrated::altitude_angle`.
+- Update `smol_str` to version `0.3`
 
 ### Removed
 
