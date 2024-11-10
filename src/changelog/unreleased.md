@@ -70,6 +70,8 @@ changelog entry.
 - Add `PointerKind`, `PointerSource`, `ButtonSource`, `FingerId`, `primary` and `position` to all
   pointer events as part of the pointer event overhaul.
 - Add `DeviceId::into_raw()` and `from_raw()`.
+- On X11, the `window` example now understands the `X11_VISUAL_ID` and `X11_SCREEN_ID` env
+  variables to test the respective modifiers of window creation.
 
 ### Changed
 
@@ -197,3 +199,4 @@ changelog entry.
 - On X11, key events forward to IME anyway, even when it's disabled.
 - On Windows, make `ControlFlow::WaitUntil` work more precisely using `CREATE_WAITABLE_TIMER_HIGH_RESOLUTION`.
 - On X11, creating windows on screen that is not the first one (e.g. `DISPLAY=:0.1`) works again.
+- On X11, creating windows while passing `with_x11_screen(non_default_screen)` works again.
