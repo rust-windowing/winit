@@ -60,12 +60,18 @@ changelog entry.
   and `Serialize` on many types.
 - Add `MonitorHandle::current_video_mode()`.
 - Add basic iOS IME support. The soft keyboard can now be shown using `Window::set_ime_allowed`.
+- Add `ApplicationHandlerExtMacOS` trait, and a `macos_handler` method to `ApplicationHandler` which returns a `dyn ApplicationHandlerExtMacOS` which allows for macOS specific extensions to winit.
+- Add a `standard_key_binding` method to the `ApplicationHandlerExtMacOS` trait. This allows handling of standard keybindings such as "go to end of line" on macOS.
 - On macOS, add `WindowExtMacOS::set_borderless_game` and `WindowAttributesExtMacOS::with_borderless_game`
   to fully disable the menu bar and dock in Borderless Fullscreen as commonly done in games.
+- On macOS, add `WindowExtMacOS::set_unified_titlebar` and `WindowAttributesExtMacOS::with_unified_titlebar`
+  to use a larger style of titlebar.
 - Add `WindowId::into_raw()` and `from_raw()`.
-- Add `PointerKind`, `PointerSource`, `ButtonSource`, `FingerId` and `position` to all pointer
-  events as part of the pointer event overhaul.
+- Add `PointerKind`, `PointerSource`, `ButtonSource`, `FingerId`, `primary` and `position` to all
+  pointer events as part of the pointer event overhaul.
 - Add `DeviceId::into_raw()` and `from_raw()`.
+- On X11, the `window` example now understands the `X11_VISUAL_ID` and `X11_SCREEN_ID` env
+  variables to test the respective modifiers of window creation.
 
 ### Changed
 
@@ -84,14 +90,14 @@ changelog entry.
 - Changed `EventLoopProxy::send_event` to `EventLoopProxy::wake_up`, it now
   only wakes up the loop.
 - On X11, implement smooth resizing through the sync extension API.
-- `ApplicationHandler::create|destroy_surfaces()` was split off from
+- `ApplicationHandler::can_create|destroy_surfaces()` was split off from
   `ApplicationHandler::resumed/suspended()`.
 
   `ApplicationHandler::can_create_surfaces()` should, for portability reasons
   to Android, be the only place to create render surfaces.
 
-  `ApplicationHandler::resumed/suspended()` are now only emitted by iOS and Web
-  and now signify actually resuming/suspending the application.
+  `ApplicationHandler::resumed/suspended()` are now only emitted by iOS, Web
+  and Android, and now signify actually resuming/suspending the application.
 - Rename `platform::web::*ExtWebSys` to `*ExtWeb`.
 - Change signature of `EventLoop::run_app`, `EventLoopExtPumpEvents::pump_app_events` and
   `EventLoopExtRunOnDemand::run_app_on_demand` to accept a `impl ApplicationHandler` directly,
@@ -134,6 +140,8 @@ changelog entry.
   - Rename `CursorEntered` to `PointerEntered`.
   - Rename `CursorLeft` to `PointerLeft`.
   - Rename `MouseInput` to `PointerButton`.
+  - Add `primary` to every `PointerEvent` as a way to identify discard non-primary pointers in a
+    multi-touch interaction.
   - Add `position` to every `PointerEvent`.
   - `PointerMoved` is **not sent** after `PointerEntered` anymore.
   - Remove `Touch`, which is folded into the `Pointer*` events.
@@ -146,8 +154,6 @@ changelog entry.
     type to a generic mouse button.
   - New `FingerId` added to `PointerKind::Touch` and `PointerSource::Touch` able to uniquely
     identify a finger in a multi-touch interaction. Replaces the old `Touch::id`.
-  - On Web and Windows, add `FingerIdExt*::is_primary()`, exposing a way to determine
-    the primary finger in a multi-touch interaction.
   - In the same spirit rename `DeviceEvent::MouseMotion` to `PointerMotion`.
   - Remove `Force::Calibrated::altitude_angle`.
 
@@ -186,7 +192,11 @@ changelog entry.
 
 - On Orbital, `MonitorHandle::name()` now returns `None` instead of a dummy name.
 - On macOS, fix `WindowEvent::Moved` sometimes being triggered unnecessarily on resize.
-- On MacOS, package manifest definitions of `LSUIElement` will no longer be overridden with the
+- On macOS, package manifest definitions of `LSUIElement` will no longer be overridden with the
   default activation policy, unless explicitly provided during initialization.
+- On macOS, fix crash when calling `drag_window()` without a left click present.
 - On X11, key events forward to IME anyway, even when it's disabled.
+- On Windows, make `ControlFlow::WaitUntil` work more precisely using `CREATE_WAITABLE_TIMER_HIGH_RESOLUTION`.
+- On X11, creating windows on screen that is not the first one (e.g. `DISPLAY=:0.1`) works again.
+- On X11, creating windows while passing `with_x11_screen(non_default_screen)` works again.
 - On Windows, fix `Window::inner_size` of undecorated window with shadows, reporting a size bigger than what's visible.

@@ -21,6 +21,7 @@ pub mod windows;
 #[cfg(any(x11_platform, docsrs))]
 pub mod x11;
 
+#[allow(unused_imports)]
 #[cfg(any(
     windows_platform,
     macos_platform,

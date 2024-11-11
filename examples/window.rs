@@ -22,13 +22,17 @@ use winit::event::{DeviceEvent, DeviceId, Ime, MouseButton, MouseScrollDelta, Wi
 use winit::event_loop::{ActiveEventLoop, EventLoop};
 use winit::keyboard::{Key, ModifiersState};
 #[cfg(macos_platform)]
-use winit::platform::macos::{OptionAsAlt, WindowAttributesExtMacOS, WindowExtMacOS};
+use winit::platform::macos::{
+    ApplicationHandlerExtMacOS, OptionAsAlt, WindowAttributesExtMacOS, WindowExtMacOS,
+};
 #[cfg(any(x11_platform, wayland_platform))]
 use winit::platform::startup_notify::{
     self, EventLoopExtStartupNotify, WindowAttributesExtStartupNotify, WindowExtStartupNotify,
 };
 #[cfg(web_platform)]
 use winit::platform::web::{ActiveEventLoopExtWeb, CustomCursorExtWeb, WindowAttributesExtWeb};
+#[cfg(x11_platform)]
+use winit::platform::x11::WindowAttributesExtX11;
 use winit::window::{
     Cursor, CursorGrabMode, CustomCursor, CustomCursorSource, Fullscreen, Icon, ResizeDirection,
     Theme, Window, WindowAttributes, WindowId,
@@ -145,6 +149,28 @@ impl Application {
             startup_notify::reset_activation_token_env();
             info!("Using token {:?} to activate a window", token);
             window_attributes = window_attributes.with_activation_token(token);
+        }
+
+        #[cfg(x11_platform)]
+        match std::env::var("X11_VISUAL_ID") {
+            Ok(visual_id_str) => {
+                info!("Using X11 visual id {visual_id_str}");
+                let visual_id = visual_id_str.parse()?;
+                window_attributes = window_attributes.with_x11_visual(visual_id);
+            },
+            Err(_) => info!("Set the X11_VISUAL_ID env variable to request specific X11 visual"),
+        }
+
+        #[cfg(x11_platform)]
+        match std::env::var("X11_SCREEN_ID") {
+            Ok(screen_id_str) => {
+                info!("Placing the window on X11 screen {screen_id_str}");
+                let screen_id = screen_id_str.parse()?;
+                window_attributes = window_attributes.with_x11_screen(screen_id);
+            },
+            Err(_) => info!(
+                "Set the X11_SCREEN_ID env variable to place the window on non-default screen"
+            ),
         }
 
         #[cfg(macos_platform)]
@@ -551,6 +577,23 @@ impl ApplicationHandler for Application {
     fn exiting(&mut self, _event_loop: &dyn ActiveEventLoop) {
         // We must drop the context here.
         self.context = None;
+    }
+
+    #[cfg(target_os = "macos")]
+    fn macos_handler(&mut self) -> Option<&mut dyn ApplicationHandlerExtMacOS> {
+        Some(self)
+    }
+}
+
+#[cfg(target_os = "macos")]
+impl ApplicationHandlerExtMacOS for Application {
+    fn standard_key_binding(
+        &mut self,
+        _event_loop: &dyn ActiveEventLoop,
+        window_id: WindowId,
+        action: &str,
+    ) {
+        info!(?window_id, ?action, "macOS standard key binding");
     }
 }
 

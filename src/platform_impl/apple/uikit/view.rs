@@ -14,11 +14,10 @@ use objc2_ui_kit::{
 
 use super::app_state::{self, EventWrapper};
 use super::window::WinitUIWindow;
-use super::FingerId;
 use crate::dpi::PhysicalPosition;
 use crate::event::{
-    ButtonSource, ElementState, Event, FingerId as RootFingerId, Force, KeyEvent, PointerKind,
-    PointerSource, TouchPhase, WindowEvent,
+    ButtonSource, ElementState, Event, FingerId, Force, KeyEvent, PointerKind, PointerSource,
+    TouchPhase, WindowEvent,
 };
 use crate::keyboard::{Key, KeyCode, KeyLocation, NamedKey, NativeKeyCode, PhysicalKey};
 use crate::platform_impl::KeyEventExtra;
@@ -34,6 +33,9 @@ pub struct WinitViewState {
     rotation_last_delta: Cell<CGFloat>,
     pinch_last_delta: Cell<CGFloat>,
     pan_last_delta: Cell<CGPoint>,
+
+    primary_finger: Cell<Option<FingerId>>,
+    fingers: Cell<u8>,
 }
 
 declare_class!(
@@ -371,6 +373,9 @@ impl WinitView {
             rotation_last_delta: Cell::new(0.0),
             pinch_last_delta: Cell::new(0.0),
             pan_last_delta: Cell::new(CGPoint { x: 0.0, y: 0.0 }),
+
+            primary_finger: Cell::new(None),
+            fingers: Cell::new(0),
         });
         let this: Retained<Self> = unsafe { msg_send_id![super(this), initWithFrame: frame] };
 
@@ -513,14 +518,37 @@ impl WinitView {
                 )
             };
             let window_id = window.id();
-            let finger_id = RootFingerId(FingerId(touch_id));
+            let finger_id = FingerId::from_raw(touch_id);
+
+            let ivars = self.ivars();
 
             match phase {
                 UITouchPhase::Began => {
+                    let primary = if let UITouchType::Pencil = touch_type {
+                        true
+                    } else {
+                        ivars.fingers.set(ivars.fingers.get() + 1);
+                        // Keep the primary finger around until we clear all the fingers to
+                        // recognize it when user briefly removes it.
+                        match ivars.primary_finger.get() {
+                            Some(primary_id) => primary_id == finger_id,
+                            None => {
+                                debug_assert_eq!(
+                                    ivars.fingers.get(),
+                                    1,
+                                    "number of fingers were not counted correctly"
+                                );
+                                ivars.primary_finger.set(Some(finger_id));
+                                true
+                            },
+                        }
+                    };
+
                     touch_events.push(EventWrapper::StaticEvent(Event::WindowEvent {
                         window_id,
                         event: WindowEvent::PointerEntered {
                             device_id: None,
+                            primary,
                             position,
                             kind: if let UITouchType::Pencil = touch_type {
                                 PointerKind::Unknown
@@ -533,6 +561,7 @@ impl WinitView {
                         window_id,
                         event: WindowEvent::PointerButton {
                             device_id: None,
+                            primary,
                             state: ElementState::Pressed,
                             position,
                             button: if let UITouchType::Pencil = touch_type {
@@ -544,26 +573,44 @@ impl WinitView {
                     }));
                 },
                 UITouchPhase::Moved => {
+                    let (primary, source) = if let UITouchType::Pencil = touch_type {
+                        (true, PointerSource::Unknown)
+                    } else {
+                        (ivars.primary_finger.get().unwrap() == finger_id, PointerSource::Touch {
+                            finger_id,
+                            force,
+                        })
+                    };
+
                     touch_events.push(EventWrapper::StaticEvent(Event::WindowEvent {
                         window_id,
                         event: WindowEvent::PointerMoved {
                             device_id: None,
+                            primary,
                             position,
-                            source: if let UITouchType::Pencil = touch_type {
-                                PointerSource::Unknown
-                            } else {
-                                PointerSource::Touch { finger_id, force }
-                            },
+                            source,
                         },
                     }));
                 },
                 // 2 is UITouchPhase::Stationary and is not expected here
                 UITouchPhase::Ended | UITouchPhase::Cancelled => {
+                    let primary = if let UITouchType::Pencil = touch_type {
+                        true
+                    } else {
+                        ivars.fingers.set(ivars.fingers.get() - 1);
+                        let primary = ivars.primary_finger.get().unwrap() == finger_id;
+                        if ivars.fingers.get() == 0 {
+                            ivars.primary_finger.set(None);
+                        }
+                        primary
+                    };
+
                     if let UITouchPhase::Ended = phase {
                         touch_events.push(EventWrapper::StaticEvent(Event::WindowEvent {
                             window_id,
                             event: WindowEvent::PointerButton {
                                 device_id: None,
+                                primary,
                                 state: ElementState::Released,
                                 position,
                                 button: if let UITouchType::Pencil = touch_type {
@@ -579,6 +626,7 @@ impl WinitView {
                         window_id,
                         event: WindowEvent::PointerLeft {
                             device_id: None,
+                            primary,
                             position: Some(position),
                             kind: if let UITouchType::Pencil = touch_type {
                                 PointerKind::Unknown

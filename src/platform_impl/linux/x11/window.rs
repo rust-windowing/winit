@@ -294,18 +294,15 @@ impl CoreWindow for Window {
             .map(|inner| crate::monitor::MonitorHandle { inner })
     }
 
-    #[cfg(feature = "rwh_06")]
     fn rwh_06_display_handle(&self) -> &dyn rwh_06::HasDisplayHandle {
         self
     }
 
-    #[cfg(feature = "rwh_06")]
     fn rwh_06_window_handle(&self) -> &dyn rwh_06::HasWindowHandle {
         self
     }
 }
 
-#[cfg(feature = "rwh_06")]
 impl rwh_06::HasDisplayHandle for Window {
     fn display_handle(&self) -> Result<rwh_06::DisplayHandle<'_>, rwh_06::HandleError> {
         let raw = self.0.raw_display_handle_rwh_06()?;
@@ -313,7 +310,6 @@ impl rwh_06::HasDisplayHandle for Window {
     }
 }
 
-#[cfg(feature = "rwh_06")]
 impl rwh_06::HasWindowHandle for Window {
     fn window_handle(&self) -> Result<rwh_06::WindowHandle<'_>, rwh_06::HandleError> {
         let raw = self.0.raw_window_handle_rwh_06()?;
@@ -443,15 +439,26 @@ impl UnownedWindow {
     ) -> Result<UnownedWindow, RequestError> {
         let xconn = &event_loop.xconn;
         let atoms = xconn.atoms();
-        #[cfg(feature = "rwh_06")]
+
+        let screen_id = match window_attrs.platform_specific.x11.screen_id {
+            Some(id) => id,
+            None => xconn.default_screen_index() as c_int,
+        };
+
+        let screen = {
+            let screen_id_usize = usize::try_from(screen_id)
+                .map_err(|_| NotSupportedError::new("screen id must be non-negative"))?;
+            xconn.xcb_connection().setup().roots.get(screen_id_usize).ok_or(
+                NotSupportedError::new("requested screen id not present in server's response"),
+            )?
+        };
+
         let root = match window_attrs.parent_window.as_ref().map(|handle| handle.0) {
             Some(rwh_06::RawWindowHandle::Xlib(handle)) => handle.window as xproto::Window,
             Some(rwh_06::RawWindowHandle::Xcb(handle)) => handle.window.get(),
             Some(raw) => unreachable!("Invalid raw window handle {raw:?} on X11"),
-            None => event_loop.root,
+            None => screen.root,
         };
-        #[cfg(not(feature = "rwh_06"))]
-        let root = event_loop.root;
 
         let mut monitors = leap!(xconn.available_monitors());
         let guessed_monitor = if monitors.is_empty() {
@@ -506,18 +513,10 @@ impl UnownedWindow {
             dimensions
         };
 
-        let screen_id = match window_attrs.platform_specific.x11.screen_id {
-            Some(id) => id,
-            None => xconn.default_screen_index() as c_int,
-        };
-
-        // An iterator over all of the visuals combined with their depths.
-        let mut all_visuals = xconn
-            .xcb_connection()
-            .setup()
-            .roots
+        // An iterator over the visuals matching screen id combined with their depths.
+        let mut all_visuals = screen
+            .allowed_depths
             .iter()
-            .flat_map(|root| &root.allowed_depths)
             .flat_map(|depth| depth.visuals.iter().map(move |visual| (visual, depth.depth)));
 
         // creating
@@ -2152,7 +2151,6 @@ impl UnownedWindow {
         // TODO timer
     }
 
-    #[cfg(feature = "rwh_06")]
     #[inline]
     pub fn raw_window_handle_rwh_06(&self) -> Result<rwh_06::RawWindowHandle, rwh_06::HandleError> {
         let mut window_handle = rwh_06::XlibWindowHandle::new(self.xlib_window());
@@ -2160,7 +2158,6 @@ impl UnownedWindow {
         Ok(window_handle.into())
     }
 
-    #[cfg(feature = "rwh_06")]
     #[inline]
     pub fn raw_display_handle_rwh_06(
         &self,

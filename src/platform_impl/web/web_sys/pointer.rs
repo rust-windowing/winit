@@ -35,7 +35,8 @@ impl PointerHandler {
 
     pub fn on_pointer_leave<F>(&mut self, canvas_common: &Common, mut handler: F)
     where
-        F: 'static + FnMut(ModifiersState, Option<DeviceId>, PhysicalPosition<f64>, PointerKind),
+        F: 'static
+            + FnMut(ModifiersState, Option<DeviceId>, bool, PhysicalPosition<f64>, PointerKind),
     {
         let window = canvas_common.window.clone();
         self.on_cursor_leave =
@@ -46,13 +47,14 @@ impl PointerHandler {
                 let position =
                     event::mouse_position(&event).to_physical(super::scale_factor(&window));
                 let kind = event::pointer_type(&event, pointer_id);
-                handler(modifiers, device_id, position, kind);
+                handler(modifiers, device_id, event.is_primary(), position, kind);
             }));
     }
 
     pub fn on_pointer_enter<F>(&mut self, canvas_common: &Common, mut handler: F)
     where
-        F: 'static + FnMut(ModifiersState, Option<DeviceId>, PhysicalPosition<f64>, PointerKind),
+        F: 'static
+            + FnMut(ModifiersState, Option<DeviceId>, bool, PhysicalPosition<f64>, PointerKind),
     {
         let window = canvas_common.window.clone();
         self.on_cursor_enter =
@@ -63,13 +65,14 @@ impl PointerHandler {
                 let position =
                     event::mouse_position(&event).to_physical(super::scale_factor(&window));
                 let kind = event::pointer_type(&event, pointer_id);
-                handler(modifiers, device_id, position, kind);
+                handler(modifiers, device_id, event.is_primary(), position, kind);
             }));
     }
 
     pub fn on_pointer_release<C>(&mut self, canvas_common: &Common, mut handler: C)
     where
-        C: 'static + FnMut(ModifiersState, Option<DeviceId>, PhysicalPosition<f64>, ButtonSource),
+        C: 'static
+            + FnMut(ModifiersState, Option<DeviceId>, bool, PhysicalPosition<f64>, ButtonSource),
     {
         let window = canvas_common.window.clone();
         self.on_pointer_release =
@@ -92,6 +95,7 @@ impl PointerHandler {
                 handler(
                     modifiers,
                     mkdid(pointer_id),
+                    event.is_primary(),
                     event::mouse_position(&event).to_physical(super::scale_factor(&window)),
                     source,
                 )
@@ -104,7 +108,8 @@ impl PointerHandler {
         mut handler: C,
         prevent_default: Rc<Cell<bool>>,
     ) where
-        C: 'static + FnMut(ModifiersState, Option<DeviceId>, PhysicalPosition<f64>, ButtonSource),
+        C: 'static
+            + FnMut(ModifiersState, Option<DeviceId>, bool, PhysicalPosition<f64>, ButtonSource),
     {
         let window = canvas_common.window.clone();
         let canvas = canvas_common.raw().clone();
@@ -143,6 +148,7 @@ impl PointerHandler {
                 handler(
                     modifiers,
                     mkdid(pointer_id),
+                    event.is_primary(),
                     event::mouse_position(&event).to_physical(super::scale_factor(&window)),
                     source,
                 )
@@ -159,12 +165,15 @@ impl PointerHandler {
         C: 'static
             + FnMut(
                 Option<DeviceId>,
-                &mut dyn Iterator<Item = (ModifiersState, PhysicalPosition<f64>, PointerSource)>,
+                &mut dyn Iterator<
+                    Item = (ModifiersState, bool, PhysicalPosition<f64>, PointerSource),
+                >,
             ),
         B: 'static
             + FnMut(
                 ModifiersState,
                 Option<DeviceId>,
+                bool,
                 PhysicalPosition<f64>,
                 ElementState,
                 ButtonSource,
@@ -177,6 +186,7 @@ impl PointerHandler {
                 let pointer_id = event.pointer_id();
                 let device_id = mkdid(pointer_id);
                 let kind = event::pointer_type(&event, pointer_id);
+                let primary = event.is_primary();
 
                 // chorded button event
                 if let Some(button) = event::mouse_button(&event) {
@@ -213,6 +223,7 @@ impl PointerHandler {
                     button_handler(
                         event::mouse_modifiers(&event),
                         device_id,
+                        primary,
                         event::mouse_position(&event).to_physical(super::scale_factor(&window)),
                         state,
                         button,
@@ -229,6 +240,7 @@ impl PointerHandler {
                     &mut event::pointer_move_event(event).map(|event| {
                         (
                             event::mouse_modifiers(&event),
+                            event.is_primary(),
                             event::mouse_position(&event).to_physical(scale),
                             match kind {
                                 PointerKind::Mouse => PointerSource::Mouse,
