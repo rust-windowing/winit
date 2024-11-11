@@ -470,8 +470,8 @@ impl EventLoop {
                         );
 
                         let logical_key = keycodes::to_logical(key_char, keycode);
-                        let text = if let Key::Character(ref c) = logical_key {
-                            Some(c.to_owned())
+                        let text = if state == event::ElementState::Pressed {
+                            logical_key.to_text().map(SmolStr::new)
                         } else {
                             None
                         };
