@@ -464,11 +464,9 @@ pub struct EventLoopProxy {
     pub(crate) proxy: Arc<dyn EventLoopProxyProvider>,
 }
 
-impl std::fmt::Debug for EventLoopProxy {
+impl fmt::Debug for EventLoopProxy {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("EventLoopProxy")
-            .field("proxy", &(Arc::as_ptr(&self.proxy) as *const usize))
-            .finish_non_exhaustive()
+        f.debug_struct("EventLoopProxy").finish_non_exhaustive()
     }
 }
 

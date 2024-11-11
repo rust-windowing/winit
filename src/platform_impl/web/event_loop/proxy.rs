@@ -4,30 +4,35 @@ use std::sync::Arc;
 use std::task::Poll;
 
 use super::super::main_thread::MainThreadMarker;
-use super::{AtomicWaker, Wrapper};
 use crate::event_loop::EventLoopProxyProvider;
+use crate::platform_impl::web::event_loop::runner::WeakShared;
+use crate::platform_impl::web::r#async::{AtomicWaker, Wrapper};
 
-pub struct EventLoopProxy<T: 'static>(Wrapper<Handler<T>, Sender, ()>);
+pub struct EventLoopProxy(Wrapper<Handler, Sender, ()>);
 
-struct Handler<T> {
-    value: T,
-    handler: fn(&T, bool),
+struct Handler {
+    execution: WeakShared,
+    handler: fn(&WeakShared, bool),
 }
 
 #[derive(Clone)]
 struct Sender(Arc<Inner>);
 
-impl<T> EventLoopProxy<T> {
-    pub fn new(main_thread: MainThreadMarker, value: T, handler: fn(&T, bool)) -> Self {
+impl EventLoopProxy {
+    pub fn new(
+        main_thread: MainThreadMarker,
+        execution: WeakShared,
+        handler: fn(&WeakShared, bool),
+    ) -> Self {
         let inner = Arc::new(Inner {
             awoken: AtomicBool::new(false),
             waker: AtomicWaker::new(),
             closed: AtomicBool::new(false),
         });
 
-        let handler = Handler { value, handler };
+        let handler = Handler { execution, handler };
 
-        let sender = Sender(inner.clone());
+        let sender = Sender(Arc::clone(&inner));
 
         Self(Wrapper::new(
             main_thread,
@@ -35,7 +40,7 @@ impl<T> EventLoopProxy<T> {
             |handler, _| {
                 let handler = handler.borrow();
                 let handler = handler.as_ref().unwrap();
-                (handler.handler)(&handler.value, true);
+                (handler.handler)(&handler.execution, true);
             },
             {
                 let inner = Arc::clone(&inner);
@@ -62,7 +67,7 @@ impl<T> EventLoopProxy<T> {
                     {
                         let handler = handler.borrow();
                         let handler = handler.as_ref().unwrap();
-                        (handler.handler)(&handler.value, false);
+                        (handler.handler)(&handler.execution, false);
                     }
                 }
             },
@@ -84,7 +89,7 @@ impl<T> EventLoopProxy<T> {
     }
 }
 
-impl<T> Drop for EventLoopProxy<T> {
+impl Drop for EventLoopProxy {
     fn drop(&mut self) {
         self.0.with_sender_data(|inner| {
             inner.0.closed.store(true, Ordering::Relaxed);
@@ -93,7 +98,7 @@ impl<T> Drop for EventLoopProxy<T> {
     }
 }
 
-impl<T> EventLoopProxyProvider for EventLoopProxy<T> {
+impl EventLoopProxyProvider for EventLoopProxy {
     fn wake_up(&self) {
         self.0.send(())
     }

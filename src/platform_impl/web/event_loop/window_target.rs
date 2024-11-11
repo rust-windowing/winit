@@ -8,7 +8,7 @@ use web_sys::Element;
 
 use super::super::monitor::MonitorPermissionFuture;
 use super::super::{lock, KeyEventExtra};
-use super::runner::{EventWrapper, WeakShared};
+use super::runner::EventWrapper;
 use super::{backend, runner};
 use crate::error::{NotSupportedError, RequestError};
 use crate::event::{ElementState, Event, KeyEvent, TouchPhase, WindowEvent};
@@ -20,7 +20,7 @@ use crate::keyboard::ModifiersState;
 use crate::monitor::MonitorHandle as RootMonitorHandle;
 use crate::platform::web::{CustomCursorFuture, PollStrategy, WaitUntilStrategy};
 use crate::platform_impl::platform::cursor::CustomCursor;
-use crate::platform_impl::web::r#async::EventLoopProxy;
+use crate::platform_impl::web::event_loop::proxy::EventLoopProxy;
 use crate::platform_impl::Window;
 use crate::window::{CustomCursor as RootCustomCursor, CustomCursorSource, Theme, WindowId};
 
@@ -477,7 +477,7 @@ impl ActiveEventLoop {
         self.runner.monitor().has_detailed_monitor_permission()
     }
 
-    pub(crate) fn event_loop_proxy(&self) -> Arc<EventLoopProxy<WeakShared>> {
+    pub(crate) fn event_loop_proxy(&self) -> Arc<EventLoopProxy> {
         self.runner.event_loop_proxy().clone()
     }
 }

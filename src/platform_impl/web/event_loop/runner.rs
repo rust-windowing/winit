@@ -14,13 +14,14 @@ use super::super::event;
 use super::super::main_thread::MainThreadMarker;
 use super::super::monitor::MonitorHandler;
 use super::backend;
+use super::proxy::EventLoopProxy;
 use super::state::State;
 use crate::dpi::PhysicalSize;
 use crate::event::{DeviceEvent, ElementState, Event, RawKeyEvent, StartCause, WindowEvent};
 use crate::event_loop::{ControlFlow, DeviceEvents};
 use crate::platform::web::{PollStrategy, WaitUntilStrategy};
 use crate::platform_impl::platform::backend::EventListenerHandle;
-use crate::platform_impl::platform::r#async::{DispatchRunner, EventLoopProxy};
+use crate::platform_impl::platform::r#async::DispatchRunner;
 use crate::platform_impl::platform::window::Inner;
 use crate::window::WindowId;
 
@@ -38,7 +39,7 @@ type OnEventHandle<T> = RefCell<Option<EventListenerHandle<dyn FnMut(T)>>>;
 
 struct Execution {
     main_thread: MainThreadMarker,
-    event_loop_proxy: Arc<EventLoopProxy<WeakShared>>,
+    event_loop_proxy: Arc<EventLoopProxy>,
     control_flow: Cell<ControlFlow>,
     poll_strategy: Cell<PollStrategy>,
     wait_until_strategy: Cell<WaitUntilStrategy>,
@@ -819,7 +820,7 @@ impl Shared {
         self.0.wait_until_strategy.get()
     }
 
-    pub(crate) fn event_loop_proxy(&self) -> &Arc<EventLoopProxy<WeakShared>> {
+    pub(crate) fn event_loop_proxy(&self) -> &Arc<EventLoopProxy> {
         &self.0.event_loop_proxy
     }
 

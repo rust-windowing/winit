@@ -5,6 +5,7 @@ use crate::event::Event;
 use crate::event_loop::ActiveEventLoop as RootActiveEventLoop;
 use crate::platform::web::{PollStrategy, WaitUntilStrategy};
 
+mod proxy;
 pub(crate) mod runner;
 mod state;
 mod window_target;
