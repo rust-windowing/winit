@@ -3,7 +3,7 @@ use windows_sys::Win32::Foundation::HWND;
 use windows_sys::Win32::UI::WindowsAndMessaging::{HMENU, WINDOW_LONG_PTR_INDEX};
 
 pub(crate) use self::event_loop::{
-    EventLoop, EventLoopProxy, OwnedDisplayHandle, PlatformSpecificEventLoopAttributes,
+    EventLoop, OwnedDisplayHandle, PlatformSpecificEventLoopAttributes,
 };
 pub use self::icon::WinIcon as PlatformIcon;
 pub(crate) use self::icon::{SelectedCursor, WinCursor as PlatformCustomCursor, WinIcon};
@@ -58,25 +58,6 @@ impl Default for PlatformSpecificWindowAttributes {
 
 unsafe impl Send for PlatformSpecificWindowAttributes {}
 unsafe impl Sync for PlatformSpecificWindowAttributes {}
-
-#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct FingerId {
-    id: u32,
-    primary: bool,
-}
-
-impl FingerId {
-    #[cfg(test)]
-    pub const fn dummy() -> Self {
-        FingerId { id: 0, primary: false }
-    }
-}
-
-impl FingerId {
-    pub fn is_primary(self) -> bool {
-        self.primary
-    }
-}
 
 fn wrap_device_id(id: u32) -> DeviceId {
     DeviceId::from_raw(id as i64)

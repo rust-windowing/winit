@@ -107,24 +107,6 @@ impl Default for PlatformSpecificWindowAttributes {
 pub(crate) static X11_BACKEND: Lazy<Mutex<Result<Arc<XConnection>, XNotSupported>>> =
     Lazy::new(|| Mutex::new(XConnection::new(Some(x_error_callback)).map(Arc::new)));
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum FingerId {
-    #[cfg(x11_platform)]
-    X(x11::FingerId),
-    #[cfg(wayland_platform)]
-    Wayland(wayland::FingerId),
-}
-
-impl FingerId {
-    #[cfg(test)]
-    pub const fn dummy() -> Self {
-        #[cfg(wayland_platform)]
-        return FingerId::Wayland(wayland::FingerId::dummy());
-        #[cfg(all(not(wayland_platform), x11_platform))]
-        return FingerId::X(x11::FingerId::dummy());
-    }
-}
-
 #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum MonitorHandle {
     #[cfg(x11_platform)]
@@ -295,14 +277,6 @@ pub enum EventLoop {
     X(x11::EventLoop),
 }
 
-#[derive(Clone)]
-pub enum EventLoopProxy {
-    #[cfg(x11_platform)]
-    X(x11::EventLoopProxy),
-    #[cfg(wayland_platform)]
-    Wayland(wayland::EventLoopProxy),
-}
-
 impl EventLoop {
     pub(crate) fn new(
         attributes: &PlatformSpecificEventLoopAttributes,
@@ -422,12 +396,6 @@ impl AsRawFd for EventLoop {
     }
 }
 
-impl EventLoopProxy {
-    pub fn wake_up(&self) {
-        x11_or_wayland!(match self; EventLoopProxy(proxy) => proxy.wake_up())
-    }
-}
-
 #[derive(Clone)]
 #[allow(dead_code)]
 pub(crate) enum OwnedDisplayHandle {
@@ -438,7 +406,6 @@ pub(crate) enum OwnedDisplayHandle {
 }
 
 impl OwnedDisplayHandle {
-    #[cfg(feature = "rwh_06")]
     #[inline]
     pub fn raw_display_handle_rwh_06(
         &self,

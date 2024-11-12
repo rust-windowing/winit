@@ -331,28 +331,32 @@ impl Canvas {
 
     pub fn on_pointer_leave<F>(&self, handler: F)
     where
-        F: 'static + FnMut(ModifiersState, Option<DeviceId>, PhysicalPosition<f64>, PointerKind),
+        F: 'static
+            + FnMut(ModifiersState, Option<DeviceId>, bool, PhysicalPosition<f64>, PointerKind),
     {
         self.handlers.borrow_mut().pointer_handler.on_pointer_leave(&self.common, handler)
     }
 
     pub fn on_pointer_enter<F>(&self, handler: F)
     where
-        F: 'static + FnMut(ModifiersState, Option<DeviceId>, PhysicalPosition<f64>, PointerKind),
+        F: 'static
+            + FnMut(ModifiersState, Option<DeviceId>, bool, PhysicalPosition<f64>, PointerKind),
     {
         self.handlers.borrow_mut().pointer_handler.on_pointer_enter(&self.common, handler)
     }
 
     pub fn on_pointer_release<C>(&self, handler: C)
     where
-        C: 'static + FnMut(ModifiersState, Option<DeviceId>, PhysicalPosition<f64>, ButtonSource),
+        C: 'static
+            + FnMut(ModifiersState, Option<DeviceId>, bool, PhysicalPosition<f64>, ButtonSource),
     {
         self.handlers.borrow_mut().pointer_handler.on_pointer_release(&self.common, handler)
     }
 
     pub fn on_pointer_press<C>(&self, handler: C)
     where
-        C: 'static + FnMut(ModifiersState, Option<DeviceId>, PhysicalPosition<f64>, ButtonSource),
+        C: 'static
+            + FnMut(ModifiersState, Option<DeviceId>, bool, PhysicalPosition<f64>, ButtonSource),
     {
         self.handlers.borrow_mut().pointer_handler.on_pointer_press(
             &self.common,
@@ -366,12 +370,15 @@ impl Canvas {
         C: 'static
             + FnMut(
                 Option<DeviceId>,
-                &mut dyn Iterator<Item = (ModifiersState, PhysicalPosition<f64>, PointerSource)>,
+                &mut dyn Iterator<
+                    Item = (ModifiersState, bool, PhysicalPosition<f64>, PointerSource),
+                >,
             ),
         B: 'static
             + FnMut(
                 ModifiersState,
                 Option<DeviceId>,
+                bool,
                 PhysicalPosition<f64>,
                 ElementState,
                 ButtonSource,

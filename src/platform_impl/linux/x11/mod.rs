@@ -27,6 +27,7 @@ use crate::error::{EventLoopError, RequestError};
 use crate::event::{DeviceId, Event, StartCause, WindowEvent};
 use crate::event_loop::{
     ActiveEventLoop as RootActiveEventLoop, ControlFlow, DeviceEvents,
+    EventLoopProxy as CoreEventLoopProxy, EventLoopProxyProvider,
     OwnedDisplayHandle as RootOwnedDisplayHandle,
 };
 use crate::platform::pump_events::PumpStatus;
@@ -139,7 +140,7 @@ pub struct ActiveEventLoop {
     windows: RefCell<HashMap<WindowId, Weak<UnownedWindow>>>,
     redraw_sender: WakeSender<WindowId>,
     activation_sender: WakeSender<ActivationToken>,
-    event_loop_proxy: EventLoopProxy,
+    event_loop_proxy: CoreEventLoopProxy,
     device_events: Cell<DeviceEvents>,
 }
 
@@ -306,7 +307,7 @@ impl EventLoop {
                 sender: activation_token_sender, // not used again so no clone
                 waker: waker.clone(),
             },
-            event_loop_proxy,
+            event_loop_proxy: event_loop_proxy.into(),
             device_events: Default::default(),
         };
 
@@ -647,7 +648,6 @@ impl ActiveEventLoop {
             .expect_then_ignore_error("Failed to update device event filter");
     }
 
-    #[cfg(feature = "rwh_06")]
     pub fn raw_display_handle_rwh_06(
         &self,
     ) -> Result<rwh_06::RawDisplayHandle, rwh_06::HandleError> {
@@ -676,12 +676,8 @@ impl ActiveEventLoop {
 }
 
 impl RootActiveEventLoop for ActiveEventLoop {
-    fn create_proxy(&self) -> crate::event_loop::EventLoopProxy {
-        crate::event_loop::EventLoopProxy {
-            event_loop_proxy: crate::platform_impl::EventLoopProxy::X(
-                self.event_loop_proxy.clone(),
-            ),
-        }
+    fn create_proxy(&self) -> CoreEventLoopProxy {
+        self.event_loop_proxy.clone()
     }
 
     fn create_window(
@@ -748,23 +744,15 @@ impl RootActiveEventLoop for ActiveEventLoop {
         RootOwnedDisplayHandle { platform: handle }
     }
 
-    #[cfg(feature = "rwh_06")]
     fn rwh_06_handle(&self) -> &dyn rwh_06::HasDisplayHandle {
         self
     }
 }
 
-#[cfg(feature = "rwh_06")]
 impl rwh_06::HasDisplayHandle for ActiveEventLoop {
     fn display_handle(&self) -> Result<rwh_06::DisplayHandle<'_>, rwh_06::HandleError> {
         let raw = self.raw_display_handle_rwh_06()?;
         unsafe { Ok(rwh_06::DisplayHandle::borrow_raw(raw)) }
-    }
-}
-
-impl EventLoopProxy {
-    pub fn wake_up(&self) {
-        self.ping.ping();
     }
 }
 
@@ -805,25 +793,26 @@ impl<'a> Deref for DeviceInfo<'a> {
     }
 }
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct FingerId(u32);
-
-impl FingerId {
-    #[cfg(test)]
-    #[allow(unused)]
-    pub const fn dummy() -> Self {
-        FingerId(0)
-    }
-}
-
 #[derive(Clone)]
 pub struct EventLoopProxy {
     ping: Ping,
 }
 
+impl EventLoopProxyProvider for EventLoopProxy {
+    fn wake_up(&self) {
+        self.ping.ping();
+    }
+}
+
 impl EventLoopProxy {
     fn new(ping: Ping) -> Self {
         Self { ping }
+    }
+}
+
+impl From<EventLoopProxy> for CoreEventLoopProxy {
+    fn from(value: EventLoopProxy) -> Self {
+        CoreEventLoopProxy::new(Arc::new(value))
     }
 }
 
@@ -992,10 +981,6 @@ fn mkwid(w: xproto::Window) -> crate::window::WindowId {
 }
 fn mkdid(w: xinput::DeviceId) -> DeviceId {
     DeviceId::from_raw(w as i64)
-}
-
-fn mkfid(w: u32) -> crate::event::FingerId {
-    crate::event::FingerId(crate::platform_impl::FingerId::X(FingerId(w)))
 }
 
 #[derive(Debug)]

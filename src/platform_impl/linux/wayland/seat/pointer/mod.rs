@@ -124,6 +124,7 @@ impl PointerHandler for WinitState {
                 PointerEventKind::Enter { .. } => {
                     self.events_sink.push_window_event(
                         WindowEvent::PointerEntered {
+                            primary: true,
                             device_id: None,
                             position,
                             kind: PointerKind::Mouse,
@@ -144,6 +145,7 @@ impl PointerHandler for WinitState {
 
                     self.events_sink.push_window_event(
                         WindowEvent::PointerLeft {
+                            primary: true,
                             device_id: None,
                             position: Some(position),
                             kind: PointerKind::Mouse,
@@ -154,6 +156,7 @@ impl PointerHandler for WinitState {
                 PointerEventKind::Motion { .. } => {
                     self.events_sink.push_window_event(
                         WindowEvent::PointerMoved {
+                            primary: true,
                             device_id: None,
                             position,
                             source: PointerSource::Mouse,
@@ -174,6 +177,7 @@ impl PointerHandler for WinitState {
                     };
                     self.events_sink.push_window_event(
                         WindowEvent::PointerButton {
+                            primary: true,
                             device_id: None,
                             state,
                             position,

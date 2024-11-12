@@ -1,6 +1,6 @@
 //! Winit's Wayland backend.
 
-pub use event_loop::{ActiveEventLoop, EventLoop, EventLoopProxy};
+pub use event_loop::{ActiveEventLoop, EventLoop};
 pub use output::{MonitorHandle, VideoModeHandle};
 use sctk::reexports::client::protocol::wl_surface::WlSurface;
 use sctk::reexports::client::Proxy;
@@ -16,16 +16,6 @@ mod seat;
 mod state;
 mod types;
 mod window;
-
-#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct FingerId(i32);
-
-impl FingerId {
-    #[cfg(test)]
-    pub const fn dummy() -> Self {
-        FingerId(0)
-    }
-}
 
 /// Get the WindowId out of the surface.
 #[inline]

@@ -37,10 +37,8 @@ pub(crate) use cursor::{
     CustomCursorSource as PlatformCustomCursorSource,
 };
 
-pub use self::event::FingerId;
 pub(crate) use self::event_loop::{
-    ActiveEventLoop, EventLoop, EventLoopProxy, OwnedDisplayHandle,
-    PlatformSpecificEventLoopAttributes,
+    ActiveEventLoop, EventLoop, OwnedDisplayHandle, PlatformSpecificEventLoopAttributes,
 };
 pub(crate) use self::keyboard::KeyEventExtra;
 pub(crate) use self::monitor::{
