@@ -18,7 +18,8 @@ use crate::error::{EventLoopError, NotSupportedError, RequestError};
 use crate::event::{self, DeviceId, FingerId, Force, StartCause, SurfaceSizeWriter};
 use crate::event_loop::{
     ActiveEventLoop as RootActiveEventLoop, ControlFlow, DeviceEvents,
-    EventLoopProxy as RootEventLoopProxy, OwnedDisplayHandle as RootOwnedDisplayHandle,
+    EventLoopProxy as CoreEventLoopProxy, EventLoopProxyProvider,
+    OwnedDisplayHandle as RootOwnedDisplayHandle,
 };
 use crate::monitor::MonitorHandle as RootMonitorHandle;
 use crate::platform::pump_events::PumpStatus;
@@ -131,12 +132,13 @@ impl EventLoop {
     pub(crate) fn new(
         attributes: &PlatformSpecificEventLoopAttributes,
     ) -> Result<Self, EventLoopError> {
-        let proxy_wake_up = Arc::new(AtomicBool::new(false));
-
         let android_app = attributes.android_app.as_ref().expect(
             "An `AndroidApp` as passed to android_main() is required to create an `EventLoop` on \
              Android",
         );
+
+        let event_loop_proxy = Arc::new(EventLoopProxy::new(android_app.create_waker()));
+
         let redraw_flag = SharedFlag::new();
 
         Ok(Self {
@@ -147,7 +149,7 @@ impl EventLoop {
                 control_flow: Cell::new(ControlFlow::default()),
                 exit: Cell::new(false),
                 redraw_requester: RedrawRequester::new(&redraw_flag, android_app.create_waker()),
-                proxy_wake_up,
+                event_loop_proxy,
             },
             redraw_flag,
             loop_running: false,
@@ -276,7 +278,7 @@ impl EventLoop {
             },
         }
 
-        if self.window_target.proxy_wake_up.swap(false, Ordering::Relaxed) {
+        if self.window_target.event_loop_proxy.wake_up.swap(false, Ordering::Relaxed) {
             app.proxy_wake_up(&self.window_target);
         }
 
@@ -562,7 +564,8 @@ impl EventLoop {
         self.pending_redraw |= self.redraw_flag.get_and_reset();
 
         timeout = if self.running
-            && (self.pending_redraw || self.window_target.proxy_wake_up.load(Ordering::Relaxed))
+            && (self.pending_redraw
+                || self.window_target.event_loop_proxy.wake_up.load(Ordering::Relaxed))
         {
             // If we already have work to do then we don't want to block on the next poll
             Some(Duration::ZERO)
@@ -595,7 +598,7 @@ impl EventLoop {
                     self.pending_redraw |= self.redraw_flag.get_and_reset();
                     if !self.running
                         || (!self.pending_redraw
-                            && !self.window_target.proxy_wake_up.load(Ordering::Relaxed))
+                            && !self.window_target.event_loop_proxy.wake_up.load(Ordering::Relaxed))
                     {
                         return;
                     }
@@ -634,15 +637,20 @@ impl EventLoop {
     }
 }
 
-#[derive(Clone)]
 pub struct EventLoopProxy {
-    proxy_wake_up: Arc<AtomicBool>,
+    wake_up: AtomicBool,
     waker: AndroidAppWaker,
 }
 
 impl EventLoopProxy {
-    pub fn wake_up(&self) {
-        self.proxy_wake_up.store(true, Ordering::Relaxed);
+    fn new(waker: AndroidAppWaker) -> Self {
+        Self { wake_up: AtomicBool::new(false), waker }
+    }
+}
+
+impl EventLoopProxyProvider for EventLoopProxy {
+    fn wake_up(&self) {
+        self.wake_up.store(true, Ordering::Relaxed);
         self.waker.wake();
     }
 }
@@ -652,7 +660,7 @@ pub struct ActiveEventLoop {
     control_flow: Cell<ControlFlow>,
     exit: Cell<bool>,
     redraw_requester: RedrawRequester,
-    proxy_wake_up: Arc<AtomicBool>,
+    event_loop_proxy: Arc<EventLoopProxy>,
 }
 
 impl ActiveEventLoop {
@@ -662,12 +670,8 @@ impl ActiveEventLoop {
 }
 
 impl RootActiveEventLoop for ActiveEventLoop {
-    fn create_proxy(&self) -> RootEventLoopProxy {
-        let event_loop_proxy = EventLoopProxy {
-            proxy_wake_up: self.proxy_wake_up.clone(),
-            waker: self.app.create_waker(),
-        };
-        RootEventLoopProxy { event_loop_proxy }
+    fn create_proxy(&self) -> CoreEventLoopProxy {
+        CoreEventLoopProxy::new(self.event_loop_proxy.clone())
     }
 
     fn create_window(

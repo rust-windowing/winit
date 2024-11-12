@@ -3,7 +3,7 @@
 use std::cell::{OnceCell, RefCell, RefMut};
 use std::collections::HashSet;
 use std::os::raw::c_void;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::Ordering;
 use std::sync::{Arc, Mutex, OnceLock};
 use std::time::Instant;
 use std::{mem, ptr};
@@ -24,7 +24,7 @@ use objc2_ui_kit::{UIApplication, UICoordinateSpace, UIView, UIWindow};
 
 use super::super::event_handler::EventHandler;
 use super::window::WinitUIWindow;
-use super::ActiveEventLoop;
+use super::{ActiveEventLoop, EventLoopProxy};
 use crate::application::ApplicationHandler;
 use crate::dpi::PhysicalSize;
 use crate::event::{Event, StartCause, SurfaceSizeWriter, WindowEvent};
@@ -139,7 +139,7 @@ pub(crate) struct AppState {
     app_state: Option<AppStateImpl>,
     control_flow: ControlFlow,
     waker: EventLoopWaker,
-    proxy_wake_up: Arc<AtomicBool>,
+    event_loop_proxy: Arc<EventLoopProxy>,
 }
 
 impl AppState {
@@ -164,7 +164,7 @@ impl AppState {
                     }),
                     control_flow: ControlFlow::default(),
                     waker,
-                    proxy_wake_up: Arc::new(AtomicBool::new(false)),
+                    event_loop_proxy: Arc::new(EventLoopProxy::new()),
                 });
             }
             init_guard(&mut guard);
@@ -376,8 +376,8 @@ impl AppState {
         }
     }
 
-    pub(crate) fn proxy_wake_up(&self) -> Arc<AtomicBool> {
-        self.proxy_wake_up.clone()
+    pub fn event_loop_proxy(&self) -> &Arc<EventLoopProxy> {
+        &self.event_loop_proxy
     }
 
     pub(crate) fn set_control_flow(&mut self, control_flow: ControlFlow) {
@@ -543,10 +543,10 @@ fn handle_user_events(mtm: MainThreadMarker) {
     if processing_redraws {
         bug!("user events attempted to be sent out while `ProcessingRedraws`");
     }
-    let proxy_wake_up = this.proxy_wake_up.clone();
+    let event_loop_proxy = this.event_loop_proxy().clone();
     drop(this);
 
-    if proxy_wake_up.swap(false, Ordering::Relaxed) {
+    if event_loop_proxy.wake_up.swap(false, Ordering::Relaxed) {
         handle_event(mtm, Event::UserWakeUp);
     }
 
@@ -578,7 +578,7 @@ fn handle_user_events(mtm: MainThreadMarker) {
             }
         }
 
-        if proxy_wake_up.swap(false, Ordering::Relaxed) {
+        if event_loop_proxy.wake_up.swap(false, Ordering::Relaxed) {
             handle_event(mtm, Event::UserWakeUp);
         }
     }

@@ -277,14 +277,6 @@ pub enum EventLoop {
     X(x11::EventLoop),
 }
 
-#[derive(Clone)]
-pub enum EventLoopProxy {
-    #[cfg(x11_platform)]
-    X(x11::EventLoopProxy),
-    #[cfg(wayland_platform)]
-    Wayland(wayland::EventLoopProxy),
-}
-
 impl EventLoop {
     pub(crate) fn new(
         attributes: &PlatformSpecificEventLoopAttributes,
@@ -401,12 +393,6 @@ impl AsFd for EventLoop {
 impl AsRawFd for EventLoop {
     fn as_raw_fd(&self) -> RawFd {
         x11_or_wayland!(match self; EventLoop(evlp) => evlp.as_raw_fd())
-    }
-}
-
-impl EventLoopProxy {
-    pub fn wake_up(&self) {
-        x11_or_wayland!(match self; EventLoopProxy(proxy) => proxy.wake_up())
     }
 }
 
