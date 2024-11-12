@@ -1028,8 +1028,8 @@ pub trait Window: AsAny + Send + Sync {
     ///
     /// - **macOS:** IME must be enabled to receive text-input where dead-key sequences are
     ///   combined.
-    /// - **iOS:** This will show / hide the soft keyboard.
-    /// - **Android / Web / Orbital:** Unsupported.
+    /// - **iOS / Android:** This will show / hide the soft keyboard.
+    /// - **Web / Orbital:** Unsupported.
     /// - **X11**: Enabling IME will disable dead keys reporting during compose.
     ///
     /// [`Ime`]: crate::event::WindowEvent::Ime
