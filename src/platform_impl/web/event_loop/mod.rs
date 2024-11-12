@@ -10,7 +10,6 @@ pub(crate) mod runner;
 mod state;
 mod window_target;
 
-pub(crate) use proxy::EventLoopProxy;
 pub(crate) use window_target::{ActiveEventLoop, OwnedDisplayHandle};
 
 pub struct EventLoop {

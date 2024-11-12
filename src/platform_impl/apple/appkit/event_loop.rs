@@ -5,7 +5,6 @@ use std::panic::{catch_unwind, resume_unwind, RefUnwindSafe, UnwindSafe};
 use std::ptr;
 use std::rc::{Rc, Weak};
 use std::sync::atomic::{AtomicBool, Ordering as AtomicOrdering};
-use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use core_foundation::base::{CFIndex, CFRelease};
@@ -32,7 +31,8 @@ use crate::application::ApplicationHandler;
 use crate::error::{EventLoopError, RequestError};
 use crate::event_loop::{
     ActiveEventLoop as RootActiveEventLoop, ControlFlow, DeviceEvents,
-    EventLoopProxy as RootEventLoopProxy, OwnedDisplayHandle as RootOwnedDisplayHandle,
+    EventLoopProxy as CoreEventLoopProxy, EventLoopProxyProvider,
+    OwnedDisplayHandle as RootOwnedDisplayHandle,
 };
 use crate::monitor::MonitorHandle as RootMonitorHandle;
 use crate::platform::macos::ActivationPolicy;
@@ -95,9 +95,8 @@ impl ActiveEventLoop {
 }
 
 impl RootActiveEventLoop for ActiveEventLoop {
-    fn create_proxy(&self) -> RootEventLoopProxy {
-        let event_loop_proxy = EventLoopProxy::new(self.app_state.proxy_wake_up());
-        RootEventLoopProxy { event_loop_proxy }
+    fn create_proxy(&self) -> CoreEventLoopProxy {
+        CoreEventLoopProxy::new(self.app_state.event_loop_proxy().clone())
     }
 
     fn create_window(
@@ -436,8 +435,9 @@ pub fn stop_app_on_panic<F: FnOnce() -> R + UnwindSafe, R>(
     }
 }
 
+#[derive(Debug)]
 pub struct EventLoopProxy {
-    proxy_wake_up: Arc<AtomicBool>,
+    pub(crate) wake_up: AtomicBool,
     source: CFRunLoopSourceRef,
 }
 
@@ -452,14 +452,8 @@ impl Drop for EventLoopProxy {
     }
 }
 
-impl Clone for EventLoopProxy {
-    fn clone(&self) -> Self {
-        EventLoopProxy::new(self.proxy_wake_up.clone())
-    }
-}
-
 impl EventLoopProxy {
-    fn new(proxy_wake_up: Arc<AtomicBool>) -> Self {
+    pub(crate) fn new() -> Self {
         unsafe {
             // just wake up the eventloop
             extern "C" fn event_loop_proxy_handler(_: *const c_void) {}
@@ -483,14 +477,16 @@ impl EventLoopProxy {
             CFRunLoopAddSource(rl, source, kCFRunLoopCommonModes);
             CFRunLoopWakeUp(rl);
 
-            EventLoopProxy { proxy_wake_up, source }
+            EventLoopProxy { wake_up: AtomicBool::new(false), source }
         }
     }
+}
 
-    pub fn wake_up(&self) {
-        self.proxy_wake_up.store(true, AtomicOrdering::Relaxed);
+impl EventLoopProxyProvider for EventLoopProxy {
+    fn wake_up(&self) {
+        self.wake_up.store(true, AtomicOrdering::Relaxed);
         unsafe {
-            // let the main thread know there's a new event
+            // Let the main thread know there's a new event.
             CFRunLoopSourceSignal(self.source);
             let rl = CFRunLoopGetMain();
             CFRunLoopWakeUp(rl);
