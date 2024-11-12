@@ -9,6 +9,7 @@ use android_activity::input::{InputEvent, KeyAction, Keycode, MotionAction};
 use android_activity::{
     AndroidApp, AndroidAppWaker, ConfigurationRef, InputStatus, MainEvent, Rect,
 };
+use ndk::configuration::UiModeNight;
 use tracing::{debug, trace, warn};
 
 use crate::application::ApplicationHandler;
@@ -101,6 +102,7 @@ pub struct KeyEventExtra {}
 
 pub struct EventLoop {
     pub(crate) android_app: AndroidApp,
+    config: ConfigurationRef,
     window_target: ActiveEventLoop,
     redraw_flag: SharedFlag,
     loop_running: bool, // Dispatched `NewEvents<Init>`
@@ -141,6 +143,7 @@ impl EventLoop {
 
         Ok(Self {
             android_app: android_app.clone(),
+            config: android_app.config(),
             primary_pointer: None,
             window_target: ActiveEventLoop {
                 app: android_app.clone(),
@@ -202,8 +205,11 @@ impl EventLoop {
                     app.window_event(&self.window_target, GLOBAL_WINDOW, event);
                 },
                 MainEvent::ConfigChanged { .. } => {
-                    let old_scale_factor = scale_factor(&self.android_app);
-                    let scale_factor = scale_factor(&self.android_app);
+                    let old_config = self.config.clone();
+                    self.config = self.android_app.config();
+
+                    let old_scale_factor = scale_factor(&old_config);
+                    let scale_factor = scale_factor(&self.config);
                     if (scale_factor - old_scale_factor).abs() < f64::EPSILON {
                         let new_surface_size = Arc::new(Mutex::new(screen_size(&self.android_app)));
                         let event = event::WindowEvent::ScaleFactorChanged {
@@ -214,6 +220,15 @@ impl EventLoop {
                         };
 
                         app.window_event(&self.window_target, GLOBAL_WINDOW, event);
+                    }
+
+                    let old_theme = config_theme(&old_config);
+                    let theme = config_theme(&self.config);
+                    if old_theme != theme {
+                        if let Some(theme) = theme {
+                            let event = event::WindowEvent::ThemeChanged(theme);
+                            app.window_event(&self.window_target, GLOBAL_WINDOW, event);
+                        }
                     }
                 },
                 MainEvent::LowMemory => {
@@ -693,7 +708,7 @@ impl RootActiveEventLoop for ActiveEventLoop {
     }
 
     fn system_theme(&self) -> Option<Theme> {
-        None
+        config_theme(&self.app.config())
     }
 
     fn listen_device_events(&self, _allowed: DeviceEvents) {}
@@ -822,7 +837,7 @@ impl CoreWindow for Window {
     }
 
     fn scale_factor(&self) -> f64 {
-        scale_factor(&self.app)
+        scale_factor(&self.app.config())
     }
 
     fn request_redraw(&self) {
@@ -959,7 +974,7 @@ impl CoreWindow for Window {
     fn set_theme(&self, _theme: Option<Theme>) {}
 
     fn theme(&self) -> Option<Theme> {
-        None
+        config_theme(&self.app.config())
     }
 
     fn set_content_protected(&self, _protected: bool) {}
@@ -1047,6 +1062,16 @@ fn screen_size(app: &AndroidApp) -> PhysicalSize<u32> {
     }
 }
 
-fn scale_factor(app: &AndroidApp) -> f64 {
-    app.config().density().map(|dpi| dpi as f64 / 160.0).unwrap_or(1.0)
+fn scale_factor(cfg: &ConfigurationRef) -> f64 {
+    cfg.density().map(|dpi| dpi as f64 / 160.0).unwrap_or(1.0)
+}
+
+fn config_theme(cfg: &ConfigurationRef) -> Option<Theme> {
+    use UiModeNight::*;
+    match cfg.ui_mode_night() {
+        No => Some(Theme::Light),
+        Yes => Some(Theme::Dark),
+        Any => None,
+        _ => None,
+    }
 }
