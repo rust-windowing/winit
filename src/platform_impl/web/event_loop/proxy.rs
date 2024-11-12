@@ -8,54 +8,47 @@ use crate::event_loop::EventLoopProxyProvider;
 use crate::platform_impl::web::event_loop::runner::WeakShared;
 use crate::platform_impl::web::r#async::{AtomicWaker, Wrapper};
 
-pub struct EventLoopProxy(Wrapper<Handler, Sender, ()>);
+pub struct EventLoopProxy(Wrapper<WeakShared, Arc<State>, ()>);
 
-struct Handler {
-    execution: WeakShared,
-    handler: fn(&WeakShared, bool),
+struct State {
+    awoken: AtomicBool,
+    waker: AtomicWaker,
+    closed: AtomicBool,
 }
 
-#[derive(Clone)]
-struct Sender(Arc<Inner>);
-
 impl EventLoopProxy {
-    pub fn new(
-        main_thread: MainThreadMarker,
-        execution: WeakShared,
-        handler: fn(&WeakShared, bool),
-    ) -> Self {
-        let inner = Arc::new(Inner {
+    pub fn new(main_thread: MainThreadMarker, runner: WeakShared) -> Self {
+        let state = Arc::new(State {
             awoken: AtomicBool::new(false),
             waker: AtomicWaker::new(),
             closed: AtomicBool::new(false),
         });
 
-        let handler = Handler { execution, handler };
-
-        let sender = Sender(Arc::clone(&inner));
-
         Self(Wrapper::new(
             main_thread,
-            handler,
-            |handler, _| {
-                let handler = handler.borrow();
-                let handler = handler.as_ref().unwrap();
-                (handler.handler)(&handler.execution, true);
+            runner,
+            |runner, _| {
+                let runner = runner.borrow();
+                let runner = runner.as_ref().unwrap();
+
+                if let Some(runner) = runner.upgrade() {
+                    runner.send_proxy_wake_up(true);
+                }
             },
             {
-                let inner = Arc::clone(&inner);
+                let state = Arc::clone(&state);
 
-                move |handler| async move {
+                move |runner| async move {
                     while future::poll_fn(|cx| {
-                        if inner.awoken.swap(false, Ordering::Relaxed) {
+                        if state.awoken.swap(false, Ordering::Relaxed) {
                             Poll::Ready(true)
                         } else {
-                            inner.waker.register(cx.waker());
+                            state.waker.register(cx.waker());
 
-                            if inner.awoken.swap(false, Ordering::Relaxed) {
+                            if state.awoken.swap(false, Ordering::Relaxed) {
                                 Poll::Ready(true)
                             } else {
-                                if inner.closed.load(Ordering::Relaxed) {
+                                if state.closed.load(Ordering::Relaxed) {
                                     return Poll::Ready(false);
                                 }
 
@@ -65,16 +58,19 @@ impl EventLoopProxy {
                     })
                     .await
                     {
-                        let handler = handler.borrow();
-                        let handler = handler.as_ref().unwrap();
-                        (handler.handler)(&handler.execution, false);
+                        let runner = runner.borrow();
+                        let runner = runner.as_ref().unwrap();
+
+                        if let Some(runner) = runner.upgrade() {
+                            runner.send_proxy_wake_up(false);
+                        }
                     }
                 }
             },
-            sender,
-            |inner, _| {
-                inner.0.awoken.store(true, Ordering::Relaxed);
-                inner.0.waker.wake();
+            state,
+            |state, _| {
+                state.awoken.store(true, Ordering::Relaxed);
+                state.waker.wake();
             },
         ))
     }
@@ -85,15 +81,15 @@ impl EventLoopProxy {
             "this should only be called from the main thread"
         );
 
-        self.0.with_sender_data(|inner| inner.0.awoken.swap(false, Ordering::Relaxed))
+        self.0.with_sender_data(|state| state.awoken.swap(false, Ordering::Relaxed))
     }
 }
 
 impl Drop for EventLoopProxy {
     fn drop(&mut self) {
-        self.0.with_sender_data(|inner| {
-            inner.0.closed.store(true, Ordering::Relaxed);
-            inner.0.waker.wake();
+        self.0.with_sender_data(|state| {
+            state.closed.store(true, Ordering::Relaxed);
+            state.waker.wake();
         });
     }
 }
@@ -102,10 +98,4 @@ impl EventLoopProxyProvider for EventLoopProxy {
     fn wake_up(&self) {
         self.0.send(())
     }
-}
-
-struct Inner {
-    awoken: AtomicBool,
-    waker: AtomicWaker,
-    closed: AtomicBool,
 }

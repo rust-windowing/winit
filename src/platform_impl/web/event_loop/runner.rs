@@ -142,12 +142,7 @@ impl Shared {
         let document = window.document().expect("Failed to obtain document");
 
         Shared(Rc::<Execution>::new_cyclic(|weak| {
-            let proxy_spawner =
-                EventLoopProxy::new(main_thread, WeakShared(weak.clone()), |runner, local| {
-                    if let Some(runner) = runner.upgrade() {
-                        runner.send_proxy_wake_up(local);
-                    }
-                });
+            let proxy_spawner = EventLoopProxy::new(main_thread, WeakShared(weak.clone()));
 
             let monitor = MonitorHandler::new(
                 main_thread,
