@@ -46,6 +46,7 @@ changelog entry.
   to fully disable the menu bar and dock in Borderless Fullscreen as commonly done in games.
 - On X11, the `window` example now understands the `X11_VISUAL_ID` and `X11_SCREEN_ID` env
   variables to test the respective modifiers of window creation.
+- On Android, the soft keyboard can now be shown using `Window::set_ime_allowed`.
 
 ### Fixed
 
