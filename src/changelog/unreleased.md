@@ -157,6 +157,7 @@ changelog entry.
     identify a finger in a multi-touch interaction. Replaces the old `Touch::id`.
   - In the same spirit rename `DeviceEvent::MouseMotion` to `PointerMotion`.
   - Remove `Force::Calibrated::altitude_angle`.
+  - On X11, use bottom-right corner for IME hotspot in `Window::set_ime_cursor_area`.
 
 ### Removed
 
