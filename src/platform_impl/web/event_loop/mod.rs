@@ -10,7 +10,7 @@ pub(crate) mod runner;
 mod state;
 mod window_target;
 
-pub(crate) use window_target::{ActiveEventLoop, OwnedDisplayHandle};
+pub(crate) use window_target::ActiveEventLoop;
 
 pub struct EventLoop {
     elw: ActiveEventLoop,

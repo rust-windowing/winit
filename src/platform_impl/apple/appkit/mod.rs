@@ -17,7 +17,7 @@ mod window_delegate;
 pub(crate) use self::cursor::CustomCursor as PlatformCustomCursor;
 pub(crate) use self::event::{physicalkey_to_scancode, scancode_to_physicalkey, KeyEventExtra};
 pub(crate) use self::event_loop::{
-    ActiveEventLoop, EventLoop, OwnedDisplayHandle, PlatformSpecificEventLoopAttributes,
+    ActiveEventLoop, EventLoop, PlatformSpecificEventLoopAttributes,
 };
 pub(crate) use self::monitor::{MonitorHandle, VideoModeHandle};
 pub(crate) use self::window::Window;

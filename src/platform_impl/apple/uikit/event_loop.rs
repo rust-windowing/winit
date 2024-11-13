@@ -1,6 +1,7 @@
 use std::ffi::{c_char, c_int, c_void};
 use std::ptr::{self, NonNull};
 use std::sync::atomic::{AtomicBool, Ordering as AtomicOrdering};
+use std::sync::Arc;
 
 use core_foundation::base::{CFIndex, CFRelease};
 use core_foundation::runloop::{
@@ -19,6 +20,7 @@ use objc2_ui_kit::{
     UIApplicationWillEnterForegroundNotification, UIApplicationWillResignActiveNotification,
     UIApplicationWillTerminateNotification, UIScreen,
 };
+use rwh_06::HasDisplayHandle;
 
 use super::super::notification_center::create_observer;
 use super::app_state::{send_occluded_event_for_all_windows, AppState, EventWrapper};
@@ -29,7 +31,7 @@ use crate::event::Event;
 use crate::event_loop::{
     ActiveEventLoop as RootActiveEventLoop, ControlFlow, DeviceEvents,
     EventLoopProxy as CoreEventLoopProxy, EventLoopProxyProvider,
-    OwnedDisplayHandle as RootOwnedDisplayHandle,
+    OwnedDisplayHandle as CoreOwnedDisplayHandle,
 };
 use crate::monitor::MonitorHandle as RootMonitorHandle;
 use crate::platform_impl::Window;
@@ -93,8 +95,8 @@ impl RootActiveEventLoop for ActiveEventLoop {
         false
     }
 
-    fn owned_display_handle(&self) -> RootOwnedDisplayHandle {
-        RootOwnedDisplayHandle { platform: OwnedDisplayHandle }
+    fn owned_display_handle(&self) -> CoreOwnedDisplayHandle {
+        CoreOwnedDisplayHandle::new(Arc::new(OwnedDisplayHandle))
     }
 
     fn rwh_06_handle(&self) -> &dyn rwh_06::HasDisplayHandle {
@@ -112,12 +114,10 @@ impl rwh_06::HasDisplayHandle for ActiveEventLoop {
 #[derive(Clone, PartialEq, Eq)]
 pub(crate) struct OwnedDisplayHandle;
 
-impl OwnedDisplayHandle {
-    #[inline]
-    pub fn raw_display_handle_rwh_06(
-        &self,
-    ) -> Result<rwh_06::RawDisplayHandle, rwh_06::HandleError> {
-        Ok(rwh_06::UiKitDisplayHandle::new().into())
+impl HasDisplayHandle for OwnedDisplayHandle {
+    fn display_handle(&self) -> Result<rwh_06::DisplayHandle<'_>, rwh_06::HandleError> {
+        let raw = rwh_06::RawDisplayHandle::UiKit(rwh_06::UiKitDisplayHandle::new());
+        unsafe { Ok(rwh_06::DisplayHandle::borrow_raw(raw)) }
     }
 }
 

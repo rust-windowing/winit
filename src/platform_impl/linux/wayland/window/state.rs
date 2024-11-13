@@ -10,7 +10,7 @@ use sctk::reexports::client::backend::ObjectId;
 use sctk::reexports::client::protocol::wl_seat::WlSeat;
 use sctk::reexports::client::protocol::wl_shm::WlShm;
 use sctk::reexports::client::protocol::wl_surface::WlSurface;
-use sctk::reexports::client::{Connection, Proxy, QueueHandle};
+use sctk::reexports::client::{Proxy, QueueHandle};
 use sctk::reexports::csd_frame::{
     DecorationsFrame, FrameAction, FrameClick, ResizeEdge, WindowState as XdgWindowState,
 };
@@ -31,6 +31,7 @@ use wayland_protocols_plasma::blur::client::org_kde_kwin_blur::OrgKdeKwinBlur;
 use crate::cursor::CustomCursor as RootCustomCursor;
 use crate::dpi::{LogicalPosition, LogicalSize, PhysicalSize, Size};
 use crate::error::{NotSupportedError, RequestError};
+use crate::platform_impl::wayland::event_loop::OwnedDisplayHandle;
 use crate::platform_impl::wayland::logical_to_physical_rounded;
 use crate::platform_impl::wayland::seat::{
     PointerConstraintsState, WinitPointerData, WinitPointerDataExt, ZwpTextInputV3Ext,
@@ -52,7 +53,7 @@ const MIN_WINDOW_SIZE: LogicalSize<u32> = LogicalSize::new(2, 1);
 /// The state of the window which is being updated from the [`WinitState`].
 pub struct WindowState {
     /// The connection to Wayland server.
-    pub connection: Connection,
+    pub handle: Arc<OwnedDisplayHandle>,
 
     /// The `Shm` to set cursor.
     pub shm: WlShm,
@@ -161,7 +162,7 @@ pub struct WindowState {
 impl WindowState {
     /// Create new window state.
     pub fn new(
-        connection: Connection,
+        handle: Arc<OwnedDisplayHandle>,
         queue_handle: &QueueHandle<WinitState>,
         winit_state: &WinitState,
         initial_size: Size,
@@ -183,7 +184,7 @@ impl WindowState {
             blur: None,
             blur_manager: winit_state.kwin_blur_manager.clone(),
             compositor,
-            connection,
+            handle,
             csd_fails: false,
             cursor_grab_mode: GrabState::new(),
             selected_cursor: Default::default(),
@@ -693,7 +694,7 @@ impl WindowState {
         }
 
         self.apply_on_pointer(|pointer, _| {
-            if pointer.set_cursor(&self.connection, cursor_icon).is_err() {
+            if pointer.set_cursor(&self.handle.connection, cursor_icon).is_err() {
                 warn!("Failed to set cursor to {:?}", cursor_icon);
             }
         })
