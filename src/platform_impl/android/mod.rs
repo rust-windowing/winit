@@ -925,7 +925,13 @@ impl CoreWindow for Window {
 
     fn set_ime_cursor_area(&self, _position: Position, _size: Size) {}
 
-    fn set_ime_allowed(&self, _allowed: bool) {}
+    fn set_ime_allowed(&self, allowed: bool) {
+        if allowed {
+            self.app.show_soft_input(true);
+        } else {
+            self.app.hide_soft_input(true);
+        }
+    }
 
     fn set_ime_purpose(&self, _purpose: ImePurpose) {}
 
