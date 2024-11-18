@@ -115,12 +115,16 @@ impl AppState {
         // menu bar is initially unresponsive on macOS 10.15.
         // If no activation policy is explicitly provided, do not set it at all
         // to allow the package manifest to define behavior via LSUIElement.
-        if self.activation_policy.is_some() {
-            app.setActivationPolicy(self.activation_policy.unwrap());
+        if let Some(activation_policy) = self.activation_policy {
+            app.setActivationPolicy(activation_policy);
         }
 
-        #[allow(deprecated)]
-        app.activateIgnoringOtherApps(self.activate_ignoring_other_apps);
+        if self.activate_ignoring_other_apps
+            && self.activation_policy != Some(NSApplicationActivationPolicy::Prohibited)
+        {
+            #[allow(deprecated)]
+            app.activateIgnoringOtherApps(true);
+        }
 
         if self.default_menu {
             // The menubar initialization should be before the `NewEvents` event, to allow
