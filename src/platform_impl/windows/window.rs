@@ -33,16 +33,16 @@ use windows_sys::Win32::UI::Input::KeyboardAndMouse::{
 use windows_sys::Win32::UI::Input::Touch::{RegisterTouchWindow, TWF_WANTPALM};
 use windows_sys::Win32::UI::WindowsAndMessaging::{
     CreateWindowExW, EnableMenuItem, FlashWindowEx, GetClientRect, GetCursorPos,
-    GetForegroundWindow, GetSystemMenu, GetSystemMetrics, GetWindowPlacement, GetWindowTextLengthW,
-    GetWindowTextW, IsWindowVisible, LoadCursorW, PeekMessageW, PostMessageW, RegisterClassExW,
-    SetCursor, SetCursorPos, SetForegroundWindow, SetMenuDefaultItem, SetWindowDisplayAffinity,
-    SetWindowPlacement, SetWindowPos, SetWindowTextW, TrackPopupMenu, CS_HREDRAW, CS_VREDRAW,
-    CW_USEDEFAULT, FLASHWINFO, FLASHW_ALL, FLASHW_STOP, FLASHW_TIMERNOFG, FLASHW_TRAY,
-    GWLP_HINSTANCE, HTBOTTOM, HTBOTTOMLEFT, HTBOTTOMRIGHT, HTCAPTION, HTLEFT, HTRIGHT, HTTOP,
-    HTTOPLEFT, HTTOPRIGHT, MENU_ITEM_STATE, MFS_DISABLED, MFS_ENABLED, MF_BYCOMMAND, NID_READY,
-    PM_NOREMOVE, SC_CLOSE, SC_MAXIMIZE, SC_MINIMIZE, SC_MOVE, SC_RESTORE, SC_SIZE, SM_DIGITIZER,
-    SWP_ASYNCWINDOWPOS, SWP_NOACTIVATE, SWP_NOSIZE, SWP_NOZORDER, TPM_LEFTALIGN, TPM_RETURNCMD,
-    WDA_EXCLUDEFROMCAPTURE, WDA_NONE, WM_NCLBUTTONDOWN, WM_SYSCOMMAND, WNDCLASSEXW,
+    GetForegroundWindow, GetSystemMenu, GetSystemMetrics, GetWindowPlacement, GetWindowRect,
+    GetWindowTextLengthW, GetWindowTextW, IsWindowVisible, LoadCursorW, PeekMessageW, PostMessageW,
+    RegisterClassExW, SetCursor, SetCursorPos, SetForegroundWindow, SetMenuDefaultItem,
+    SetWindowDisplayAffinity, SetWindowPlacement, SetWindowPos, SetWindowTextW, TrackPopupMenu,
+    CS_HREDRAW, CS_VREDRAW, CW_USEDEFAULT, FLASHWINFO, FLASHW_ALL, FLASHW_STOP, FLASHW_TIMERNOFG,
+    FLASHW_TRAY, GWLP_HINSTANCE, HTBOTTOM, HTBOTTOMLEFT, HTBOTTOMRIGHT, HTCAPTION, HTLEFT, HTRIGHT,
+    HTTOP, HTTOPLEFT, HTTOPRIGHT, MENU_ITEM_STATE, MFS_DISABLED, MFS_ENABLED, MF_BYCOMMAND,
+    NID_READY, PM_NOREMOVE, SC_CLOSE, SC_MAXIMIZE, SC_MINIMIZE, SC_MOVE, SC_RESTORE, SC_SIZE,
+    SM_DIGITIZER, SWP_ASYNCWINDOWPOS, SWP_NOACTIVATE, SWP_NOSIZE, SWP_NOZORDER, TPM_LEFTALIGN,
+    TPM_RETURNCMD, WDA_EXCLUDEFROMCAPTURE, WDA_NONE, WM_NCLBUTTONDOWN, WM_SYSCOMMAND, WNDCLASSEXW,
 };
 
 use crate::cursor::Cursor;
@@ -461,7 +461,30 @@ impl CoreWindow for Window {
                  rust-windowing/winit"
             )
         }
-        PhysicalSize::new((rect.right - rect.left) as u32, (rect.bottom - rect.top) as u32)
+
+        let mut width = rect.right - rect.left;
+        let mut height = rect.bottom - rect.top;
+
+        let window_flags = self.window_state_lock().window_flags;
+        if window_flags.contains(WindowFlags::MARKER_UNDECORATED_SHADOW)
+            && !window_flags.contains(WindowFlags::MARKER_DECORATIONS)
+        {
+            let mut pt: POINT = unsafe { mem::zeroed() };
+            if unsafe { ClientToScreen(self.hwnd(), &mut pt) } == true.into() {
+                let mut window_rc: RECT = unsafe { mem::zeroed() };
+                if unsafe { GetWindowRect(self.hwnd(), &mut window_rc) } == true.into() {
+                    let left_b = pt.x - window_rc.left;
+                    let right_b = pt.x + width - window_rc.right;
+                    let top_b = pt.y - window_rc.top;
+                    let bottom_b = pt.y + height - window_rc.bottom;
+
+                    width = width - left_b - right_b;
+                    height = height - top_b - bottom_b;
+                }
+            }
+        }
+
+        PhysicalSize::new(width as u32, height as u32)
     }
 
     fn outer_size(&self) -> PhysicalSize<u32> {
@@ -475,9 +498,28 @@ impl CoreWindow for Window {
 
     fn request_surface_size(&self, size: Size) -> Option<PhysicalSize<u32>> {
         let scale_factor = self.scale_factor();
-        let physical_size = size.to_physical::<u32>(scale_factor);
+        let mut physical_size = size.to_physical::<u32>(scale_factor);
 
         let window_flags = self.window_state_lock().window_flags;
+        if window_flags.contains(WindowFlags::MARKER_UNDECORATED_SHADOW)
+            && !window_flags.contains(WindowFlags::MARKER_DECORATIONS)
+        {
+            let mut pt: POINT = unsafe { mem::zeroed() };
+            if unsafe { ClientToScreen(self.hwnd(), &mut pt) } == true.into() {
+                let mut window_rc: RECT = unsafe { mem::zeroed() };
+                if unsafe { GetWindowRect(self.hwnd(), &mut window_rc) } == true.into() {
+                    let left_b = pt.x - window_rc.left;
+                    let right_b = pt.x + physical_size.width as i32 - window_rc.right;
+                    let top_b = pt.y - window_rc.top;
+                    let bottom_b = pt.y + physical_size.height as i32 - window_rc.bottom;
+
+                    physical_size.width = (physical_size.width as i32 + (left_b - right_b)) as u32;
+                    physical_size.height =
+                        (physical_size.height as i32 + (top_b - bottom_b)) as u32;
+                }
+            }
+        }
+
         window_flags.set_size(self.hwnd(), physical_size);
 
         if physical_size != self.surface_size() {
