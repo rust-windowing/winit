@@ -157,6 +157,13 @@ pub trait WindowExtMacOS {
 
     /// Getter for the [`WindowExtMacOS::set_borderless_game`].
     fn is_borderless_game(&self) -> bool;
+
+    /// Makes the titlebar bigger, effectively adding more space around the
+    /// window controls if the titlebar is invisible.
+    fn set_unified_titlebar(&self, unified_titlebar: bool);
+
+    /// Getter for the [`WindowExtMacOS::set_unified_titlebar`].
+    fn unified_titlebar(&self) -> bool;
 }
 
 impl WindowExtMacOS for dyn Window + '_ {
@@ -255,6 +262,18 @@ impl WindowExtMacOS for dyn Window + '_ {
         let window = self.as_any().downcast_ref::<crate::platform_impl::Window>().unwrap();
         window.maybe_wait_on_main(|w| w.is_borderless_game())
     }
+
+    #[inline]
+    fn set_unified_titlebar(&self, unified_titlebar: bool) {
+        let window = self.as_any().downcast_ref::<crate::platform_impl::Window>().unwrap();
+        window.maybe_wait_on_main(|w| w.set_unified_titlebar(unified_titlebar))
+    }
+
+    #[inline]
+    fn unified_titlebar(&self) -> bool {
+        let window = self.as_any().downcast_ref::<crate::platform_impl::Window>().unwrap();
+        window.maybe_wait_on_main(|w| w.unified_titlebar())
+    }
 }
 
 /// Corresponds to `NSApplicationActivationPolicy`.
@@ -308,6 +327,8 @@ pub trait WindowAttributesExtMacOS {
     fn with_option_as_alt(self, option_as_alt: OptionAsAlt) -> Self;
     /// See [`WindowExtMacOS::set_borderless_game`] for details on what this means if set.
     fn with_borderless_game(self, borderless_game: bool) -> Self;
+    /// See [`WindowExtMacOS::set_unified_titlebar`] for details on what this means if set.
+    fn with_unified_titlebar(self, unified_titlebar: bool) -> Self;
 }
 
 impl WindowAttributesExtMacOS for WindowAttributes {
@@ -380,6 +401,12 @@ impl WindowAttributesExtMacOS for WindowAttributes {
     #[inline]
     fn with_borderless_game(mut self, borderless_game: bool) -> Self {
         self.platform_specific.borderless_game = borderless_game;
+        self
+    }
+
+    #[inline]
+    fn with_unified_titlebar(mut self, unified_titlebar: bool) -> Self {
+        self.platform_specific.unified_titlebar = unified_titlebar;
         self
     }
 }

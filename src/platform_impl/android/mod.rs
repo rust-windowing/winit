@@ -15,10 +15,11 @@ use crate::application::ApplicationHandler;
 use crate::cursor::Cursor;
 use crate::dpi::{PhysicalPosition, PhysicalSize, Position, Size};
 use crate::error::{EventLoopError, NotSupportedError, RequestError};
-use crate::event::{self, DeviceId, Force, StartCause, SurfaceSizeWriter};
+use crate::event::{self, DeviceId, FingerId, Force, StartCause, SurfaceSizeWriter};
 use crate::event_loop::{
     ActiveEventLoop as RootActiveEventLoop, ControlFlow, DeviceEvents,
-    EventLoopProxy as RootEventLoopProxy, OwnedDisplayHandle as RootOwnedDisplayHandle,
+    EventLoopProxy as CoreEventLoopProxy, EventLoopProxyProvider,
+    OwnedDisplayHandle as CoreOwnedDisplayHandle,
 };
 use crate::monitor::MonitorHandle as RootMonitorHandle;
 use crate::platform::pump_events::PumpStatus;
@@ -107,6 +108,7 @@ pub struct EventLoop {
     running: bool,
     pending_redraw: bool,
     cause: StartCause,
+    primary_pointer: Option<FingerId>,
     ignore_volume_keys: bool,
     combining_accent: Option<char>,
 }
@@ -130,22 +132,24 @@ impl EventLoop {
     pub(crate) fn new(
         attributes: &PlatformSpecificEventLoopAttributes,
     ) -> Result<Self, EventLoopError> {
-        let proxy_wake_up = Arc::new(AtomicBool::new(false));
-
         let android_app = attributes.android_app.as_ref().expect(
             "An `AndroidApp` as passed to android_main() is required to create an `EventLoop` on \
              Android",
         );
+
+        let event_loop_proxy = Arc::new(EventLoopProxy::new(android_app.create_waker()));
+
         let redraw_flag = SharedFlag::new();
 
         Ok(Self {
             android_app: android_app.clone(),
+            primary_pointer: None,
             window_target: ActiveEventLoop {
                 app: android_app.clone(),
                 control_flow: Cell::new(ControlFlow::default()),
                 exit: Cell::new(false),
                 redraw_requester: RedrawRequester::new(&redraw_flag, android_app.create_waker()),
-                proxy_wake_up,
+                event_loop_proxy,
             },
             redraw_flag,
             loop_running: false,
@@ -274,7 +278,7 @@ impl EventLoop {
             },
         }
 
-        if self.window_target.proxy_wake_up.swap(false, Ordering::Relaxed) {
+        if self.window_target.event_loop_proxy.wake_up.swap(false, Ordering::Relaxed) {
             app.proxy_wake_up(&self.window_target);
         }
 
@@ -333,36 +337,83 @@ impl EventLoop {
                     _ => None,
                 };
 
-                if let Some(pointers) = pointers {
-                    for pointer in pointers {
-                        let tool_type = pointer.tool_type();
-                        let position =
-                            PhysicalPosition { x: pointer.x() as _, y: pointer.y() as _ };
-                        trace!(
-                            "Input event {device_id:?}, {action:?}, loc={position:?}, \
-                             pointer={pointer:?}, tool_type={tool_type:?}"
-                        );
-                        let finger_id = event::FingerId(FingerId(pointer.pointer_id()));
-                        let force = Some(Force::Normalized(pointer.pressure() as f64));
+                for pointer in pointers.into_iter().flatten() {
+                    let tool_type = pointer.tool_type();
+                    let position = PhysicalPosition { x: pointer.x() as _, y: pointer.y() as _ };
+                    trace!(
+                        "Input event {device_id:?}, {action:?}, loc={position:?}, \
+                         pointer={pointer:?}, tool_type={tool_type:?}"
+                    );
+                    let finger_id = FingerId::from_raw(pointer.pointer_id() as usize);
+                    let force = Some(Force::Normalized(pointer.pressure() as f64));
 
-                        match action {
-                            MotionAction::Down | MotionAction::PointerDown => {
-                                let event = event::WindowEvent::PointerEntered {
-                                    device_id,
-                                    position,
-                                    kind: match tool_type {
-                                        android_activity::input::ToolType::Finger => {
-                                            event::PointerKind::Touch(finger_id)
-                                        },
-                                        // TODO mouse events
-                                        android_activity::input::ToolType::Mouse => continue,
-                                        _ => event::PointerKind::Unknown,
+                    match action {
+                        MotionAction::Down | MotionAction::PointerDown => {
+                            let primary = action == MotionAction::Down;
+                            if primary {
+                                self.primary_pointer = Some(finger_id);
+                            }
+                            let event = event::WindowEvent::PointerEntered {
+                                device_id,
+                                primary,
+                                position,
+                                kind: match tool_type {
+                                    android_activity::input::ToolType::Finger => {
+                                        event::PointerKind::Touch(finger_id)
                                     },
-                                };
-                                app.window_event(&self.window_target, GLOBAL_WINDOW, event);
+                                    // TODO mouse events
+                                    android_activity::input::ToolType::Mouse => continue,
+                                    _ => event::PointerKind::Unknown,
+                                },
+                            };
+                            app.window_event(&self.window_target, GLOBAL_WINDOW, event);
+                            let event = event::WindowEvent::PointerButton {
+                                device_id,
+                                primary,
+                                state: event::ElementState::Pressed,
+                                position,
+                                button: match tool_type {
+                                    android_activity::input::ToolType::Finger => {
+                                        event::ButtonSource::Touch { finger_id, force }
+                                    },
+                                    // TODO mouse events
+                                    android_activity::input::ToolType::Mouse => continue,
+                                    _ => event::ButtonSource::Unknown(0),
+                                },
+                            };
+                            app.window_event(&self.window_target, GLOBAL_WINDOW, event);
+                        },
+                        MotionAction::Move => {
+                            let primary = self.primary_pointer == Some(finger_id);
+                            let event = event::WindowEvent::PointerMoved {
+                                device_id,
+                                primary,
+                                position,
+                                source: match tool_type {
+                                    android_activity::input::ToolType::Finger => {
+                                        event::PointerSource::Touch { finger_id, force }
+                                    },
+                                    // TODO mouse events
+                                    android_activity::input::ToolType::Mouse => continue,
+                                    _ => event::PointerSource::Unknown,
+                                },
+                            };
+                            app.window_event(&self.window_target, GLOBAL_WINDOW, event);
+                        },
+                        MotionAction::Up | MotionAction::PointerUp | MotionAction::Cancel => {
+                            let primary = action == MotionAction::Up
+                                || (action == MotionAction::Cancel
+                                    && self.primary_pointer == Some(finger_id));
+
+                            if primary {
+                                self.primary_pointer = None;
+                            }
+
+                            if let MotionAction::Up | MotionAction::PointerUp = action {
                                 let event = event::WindowEvent::PointerButton {
                                     device_id,
-                                    state: event::ElementState::Pressed,
+                                    primary,
+                                    state: event::ElementState::Released,
                                     position,
                                     button: match tool_type {
                                         android_activity::input::ToolType::Finger => {
@@ -374,56 +425,24 @@ impl EventLoop {
                                     },
                                 };
                                 app.window_event(&self.window_target, GLOBAL_WINDOW, event);
-                            },
-                            MotionAction::Move => {
-                                let event = event::WindowEvent::PointerMoved {
-                                    device_id,
-                                    position,
-                                    source: match tool_type {
-                                        android_activity::input::ToolType::Finger => {
-                                            event::PointerSource::Touch { finger_id, force }
-                                        },
-                                        // TODO mouse events
-                                        android_activity::input::ToolType::Mouse => continue,
-                                        _ => event::PointerSource::Unknown,
-                                    },
-                                };
-                                app.window_event(&self.window_target, GLOBAL_WINDOW, event);
-                            },
-                            MotionAction::Up | MotionAction::PointerUp | MotionAction::Cancel => {
-                                if let MotionAction::Up | MotionAction::PointerUp = action {
-                                    let event = event::WindowEvent::PointerButton {
-                                        device_id,
-                                        state: event::ElementState::Released,
-                                        position,
-                                        button: match tool_type {
-                                            android_activity::input::ToolType::Finger => {
-                                                event::ButtonSource::Touch { finger_id, force }
-                                            },
-                                            // TODO mouse events
-                                            android_activity::input::ToolType::Mouse => continue,
-                                            _ => event::ButtonSource::Unknown(0),
-                                        },
-                                    };
-                                    app.window_event(&self.window_target, GLOBAL_WINDOW, event);
-                                }
+                            }
 
-                                let event = event::WindowEvent::PointerLeft {
-                                    device_id,
-                                    position: Some(position),
-                                    kind: match tool_type {
-                                        android_activity::input::ToolType::Finger => {
-                                            event::PointerKind::Touch(finger_id)
-                                        },
-                                        // TODO mouse events
-                                        android_activity::input::ToolType::Mouse => continue,
-                                        _ => event::PointerKind::Unknown,
+                            let event = event::WindowEvent::PointerLeft {
+                                device_id,
+                                primary,
+                                position: Some(position),
+                                kind: match tool_type {
+                                    android_activity::input::ToolType::Finger => {
+                                        event::PointerKind::Touch(finger_id)
                                     },
-                                };
-                                app.window_event(&self.window_target, GLOBAL_WINDOW, event);
-                            },
-                            _ => unreachable!(),
-                        }
+                                    // TODO mouse events
+                                    android_activity::input::ToolType::Mouse => continue,
+                                    _ => event::PointerKind::Unknown,
+                                },
+                            };
+                            app.window_event(&self.window_target, GLOBAL_WINDOW, event);
+                        },
+                        _ => unreachable!(),
                     }
                 }
             },
@@ -545,7 +564,8 @@ impl EventLoop {
         self.pending_redraw |= self.redraw_flag.get_and_reset();
 
         timeout = if self.running
-            && (self.pending_redraw || self.window_target.proxy_wake_up.load(Ordering::Relaxed))
+            && (self.pending_redraw
+                || self.window_target.event_loop_proxy.wake_up.load(Ordering::Relaxed))
         {
             // If we already have work to do then we don't want to block on the next poll
             Some(Duration::ZERO)
@@ -578,7 +598,7 @@ impl EventLoop {
                     self.pending_redraw |= self.redraw_flag.get_and_reset();
                     if !self.running
                         || (!self.pending_redraw
-                            && !self.window_target.proxy_wake_up.load(Ordering::Relaxed))
+                            && !self.window_target.event_loop_proxy.wake_up.load(Ordering::Relaxed))
                     {
                         return;
                     }
@@ -617,15 +637,20 @@ impl EventLoop {
     }
 }
 
-#[derive(Clone)]
 pub struct EventLoopProxy {
-    proxy_wake_up: Arc<AtomicBool>,
+    wake_up: AtomicBool,
     waker: AndroidAppWaker,
 }
 
 impl EventLoopProxy {
-    pub fn wake_up(&self) {
-        self.proxy_wake_up.store(true, Ordering::Relaxed);
+    fn new(waker: AndroidAppWaker) -> Self {
+        Self { wake_up: AtomicBool::new(false), waker }
+    }
+}
+
+impl EventLoopProxyProvider for EventLoopProxy {
+    fn wake_up(&self) {
+        self.wake_up.store(true, Ordering::Relaxed);
         self.waker.wake();
     }
 }
@@ -635,7 +660,7 @@ pub struct ActiveEventLoop {
     control_flow: Cell<ControlFlow>,
     exit: Cell<bool>,
     redraw_requester: RedrawRequester,
-    proxy_wake_up: Arc<AtomicBool>,
+    event_loop_proxy: Arc<EventLoopProxy>,
 }
 
 impl ActiveEventLoop {
@@ -645,12 +670,8 @@ impl ActiveEventLoop {
 }
 
 impl RootActiveEventLoop for ActiveEventLoop {
-    fn create_proxy(&self) -> RootEventLoopProxy {
-        let event_loop_proxy = EventLoopProxy {
-            proxy_wake_up: self.proxy_wake_up.clone(),
-            waker: self.app.create_waker(),
-        };
-        RootEventLoopProxy { event_loop_proxy }
+    fn create_proxy(&self) -> CoreEventLoopProxy {
+        CoreEventLoopProxy::new(self.event_loop_proxy.clone())
     }
 
     fn create_window(
@@ -697,17 +718,15 @@ impl RootActiveEventLoop for ActiveEventLoop {
         self.exit.get()
     }
 
-    fn owned_display_handle(&self) -> RootOwnedDisplayHandle {
-        RootOwnedDisplayHandle { platform: OwnedDisplayHandle }
+    fn owned_display_handle(&self) -> CoreOwnedDisplayHandle {
+        CoreOwnedDisplayHandle::new(Arc::new(OwnedDisplayHandle))
     }
 
-    #[cfg(feature = "rwh_06")]
     fn rwh_06_handle(&self) -> &dyn rwh_06::HasDisplayHandle {
         self
     }
 }
 
-#[cfg(feature = "rwh_06")]
 impl rwh_06::HasDisplayHandle for ActiveEventLoop {
     fn display_handle(&self) -> Result<rwh_06::DisplayHandle<'_>, rwh_06::HandleError> {
         let raw = rwh_06::AndroidDisplayHandle::new();
@@ -718,23 +737,10 @@ impl rwh_06::HasDisplayHandle for ActiveEventLoop {
 #[derive(Clone, PartialEq, Eq)]
 pub(crate) struct OwnedDisplayHandle;
 
-impl OwnedDisplayHandle {
-    #[cfg(feature = "rwh_06")]
-    #[inline]
-    pub fn raw_display_handle_rwh_06(
-        &self,
-    ) -> Result<rwh_06::RawDisplayHandle, rwh_06::HandleError> {
-        Ok(rwh_06::AndroidDisplayHandle::new().into())
-    }
-}
-
-#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
-pub struct FingerId(i32);
-
-impl FingerId {
-    #[cfg(test)]
-    pub const fn dummy() -> Self {
-        FingerId(0)
+impl rwh_06::HasDisplayHandle for OwnedDisplayHandle {
+    fn display_handle(&self) -> Result<rwh_06::DisplayHandle<'_>, rwh_06::HandleError> {
+        let raw = rwh_06::AndroidDisplayHandle::new();
+        Ok(unsafe { rwh_06::DisplayHandle::borrow_raw(raw.into()) })
     }
 }
 
@@ -764,7 +770,6 @@ impl Window {
         self.app.content_rect()
     }
 
-    #[cfg(feature = "rwh_06")]
     // Allow the usage of HasRawWindowHandle inside this function
     #[allow(deprecated)]
     fn raw_window_handle_rwh_06(&self) -> Result<rwh_06::RawWindowHandle, rwh_06::HandleError> {
@@ -782,13 +787,11 @@ impl Window {
         }
     }
 
-    #[cfg(feature = "rwh_06")]
     fn raw_display_handle_rwh_06(&self) -> Result<rwh_06::RawDisplayHandle, rwh_06::HandleError> {
         Ok(rwh_06::RawDisplayHandle::Android(rwh_06::AndroidDisplayHandle::new()))
     }
 }
 
-#[cfg(feature = "rwh_06")]
 impl rwh_06::HasDisplayHandle for Window {
     fn display_handle(&self) -> Result<rwh_06::DisplayHandle<'_>, rwh_06::HandleError> {
         let raw = self.raw_display_handle_rwh_06()?;
@@ -796,7 +799,6 @@ impl rwh_06::HasDisplayHandle for Window {
     }
 }
 
-#[cfg(feature = "rwh_06")]
 impl rwh_06::HasWindowHandle for Window {
     fn window_handle(&self) -> Result<rwh_06::WindowHandle<'_>, rwh_06::HandleError> {
         let raw = self.raw_window_handle_rwh_06()?;
@@ -921,7 +923,13 @@ impl CoreWindow for Window {
 
     fn set_ime_cursor_area(&self, _position: Position, _size: Size) {}
 
-    fn set_ime_allowed(&self, _allowed: bool) {}
+    fn set_ime_allowed(&self, allowed: bool) {
+        if allowed {
+            self.app.show_soft_input(true);
+        } else {
+            self.app.hide_soft_input(true);
+        }
+    }
 
     fn set_ime_purpose(&self, _purpose: ImePurpose) {}
 
@@ -974,12 +982,10 @@ impl CoreWindow for Window {
 
     fn reset_dead_keys(&self) {}
 
-    #[cfg(feature = "rwh_06")]
     fn rwh_06_display_handle(&self) -> &dyn rwh_06::HasDisplayHandle {
         self
     }
 
-    #[cfg(feature = "rwh_06")]
     fn rwh_06_window_handle(&self) -> &dyn rwh_06::HasWindowHandle {
         self
     }

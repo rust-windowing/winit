@@ -16,7 +16,10 @@ use crate::cursor::OnlyCursorImage;
 use crate::dpi::LogicalSize;
 use crate::error::{EventLoopError, OsError, RequestError};
 use crate::event::{Event, StartCause, SurfaceSizeWriter, WindowEvent};
-use crate::event_loop::{ActiveEventLoop as RootActiveEventLoop, ControlFlow, DeviceEvents};
+use crate::event_loop::{
+    ActiveEventLoop as RootActiveEventLoop, ControlFlow, DeviceEvents,
+    OwnedDisplayHandle as CoreOwnedDisplayHandle,
+};
 use crate::platform::pump_events::PumpStatus;
 use crate::platform_impl::platform::min_timeout;
 use crate::platform_impl::PlatformCustomCursor;
@@ -25,12 +28,13 @@ use crate::window::{CustomCursor as RootCustomCursor, CustomCursorSource, Theme}
 mod proxy;
 pub mod sink;
 
-pub use proxy::EventLoopProxy;
+use proxy::EventLoopProxy;
 use sink::EventSink;
 
 use super::state::{WindowCompositorUpdate, WinitState};
 use super::window::state::FrameCallbackState;
 use super::{logical_to_physical_rounded, WindowId};
+pub use crate::event_loop::EventLoopProxy as CoreEventLoopProxy;
 
 type WaylandDispatcher = calloop::Dispatcher<'static, WaylandSource<WinitState>, WinitState>;
 
@@ -48,7 +52,7 @@ pub struct EventLoop {
     wayland_dispatcher: WaylandDispatcher,
 
     /// Connection to the wayland server.
-    connection: Connection,
+    handle: Arc<OwnedDisplayHandle>,
 
     /// Event loop window target.
     active_event_loop: ActiveEventLoop,
@@ -116,11 +120,12 @@ impl EventLoop {
             })
             .map_err(|err| os_error!(err))?;
 
+        let handle = Arc::new(OwnedDisplayHandle::new(connection));
         let active_event_loop = ActiveEventLoop {
-            connection: connection.clone(),
+            handle: handle.clone(),
             wayland_dispatcher: wayland_dispatcher.clone(),
             event_loop_awakener,
-            event_loop_proxy: EventLoopProxy::new(ping),
+            event_loop_proxy: EventLoopProxy::new(ping).into(),
             queue_handle,
             control_flow: Cell::new(ControlFlow::default()),
             exit: Cell::new(None),
@@ -132,7 +137,7 @@ impl EventLoop {
             compositor_updates: Vec::new(),
             buffer_sink: EventSink::default(),
             window_ids: Vec::new(),
-            connection,
+            handle,
             wayland_dispatcher,
             event_loop,
             active_event_loop,
@@ -226,7 +231,7 @@ impl EventLoop {
             //
             // Checking for flush error is essential to perform an exit with error, since
             // once we have a protocol error, we could get stuck retrying...
-            if self.connection.flush().is_err() {
+            if self.handle.connection.flush().is_err() {
                 self.set_exit_code(1);
                 return;
             }
@@ -539,7 +544,7 @@ impl AsRawFd for EventLoop {
 
 pub struct ActiveEventLoop {
     /// Event loop proxy
-    event_loop_proxy: EventLoopProxy,
+    event_loop_proxy: CoreEventLoopProxy,
 
     /// The event loop wakeup source.
     pub event_loop_awakener: calloop::ping::Ping,
@@ -560,17 +565,13 @@ pub struct ActiveEventLoop {
     /// Dispatcher of Wayland events.
     pub wayland_dispatcher: WaylandDispatcher,
 
-    /// Connection to the wayland server.
-    pub connection: Connection,
+    /// Handle for the underlying event loop.
+    pub handle: Arc<OwnedDisplayHandle>,
 }
 
 impl RootActiveEventLoop for ActiveEventLoop {
-    fn create_proxy(&self) -> crate::event_loop::EventLoopProxy {
-        crate::event_loop::EventLoopProxy {
-            event_loop_proxy: crate::platform_impl::EventLoopProxy::Wayland(
-                self.event_loop_proxy.clone(),
-            ),
-        }
+    fn create_proxy(&self) -> CoreEventLoopProxy {
+        self.event_loop_proxy.clone()
     }
 
     fn set_control_flow(&self, control_flow: ControlFlow) {
@@ -631,13 +632,10 @@ impl RootActiveEventLoop for ActiveEventLoop {
         None
     }
 
-    fn owned_display_handle(&self) -> crate::event_loop::OwnedDisplayHandle {
-        crate::event_loop::OwnedDisplayHandle {
-            platform: crate::platform_impl::OwnedDisplayHandle::Wayland(self.connection.clone()),
-        }
+    fn owned_display_handle(&self) -> CoreOwnedDisplayHandle {
+        CoreOwnedDisplayHandle::new(self.handle.clone())
     }
 
-    #[cfg(feature = "rwh_06")]
     fn rwh_06_handle(&self) -> &dyn rwh_06::HasDisplayHandle {
         self
     }
@@ -657,8 +655,23 @@ impl ActiveEventLoop {
     }
 }
 
-#[cfg(feature = "rwh_06")]
 impl rwh_06::HasDisplayHandle for ActiveEventLoop {
+    fn display_handle(&self) -> Result<rwh_06::DisplayHandle<'_>, rwh_06::HandleError> {
+        self.handle.display_handle()
+    }
+}
+
+pub struct OwnedDisplayHandle {
+    pub(crate) connection: Connection,
+}
+
+impl OwnedDisplayHandle {
+    fn new(connection: Connection) -> Self {
+        Self { connection }
+    }
+}
+
+impl rwh_06::HasDisplayHandle for OwnedDisplayHandle {
     fn display_handle(&self) -> Result<rwh_06::DisplayHandle<'_>, rwh_06::HandleError> {
         use sctk::reexports::client::Proxy;
 

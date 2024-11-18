@@ -2,24 +2,25 @@ use std::cell::Cell;
 use std::clone::Clone;
 use std::iter;
 use std::rc::Rc;
+use std::sync::Arc;
 
 use web_sys::Element;
 
 use super::super::monitor::MonitorPermissionFuture;
 use super::super::{lock, KeyEventExtra};
-use super::runner::{EventWrapper, WeakShared};
-use super::{backend, runner, EventLoopProxy};
+use super::runner::EventWrapper;
+use super::{backend, runner};
 use crate::error::{NotSupportedError, RequestError};
 use crate::event::{ElementState, Event, KeyEvent, TouchPhase, WindowEvent};
 use crate::event_loop::{
     ActiveEventLoop as RootActiveEventLoop, ControlFlow, DeviceEvents,
-    EventLoopProxy as RootEventLoopProxy, OwnedDisplayHandle as RootOwnedDisplayHandle,
+    EventLoopProxy as RootEventLoopProxy, OwnedDisplayHandle as CoreOwnedDisplayHandle,
 };
 use crate::keyboard::ModifiersState;
 use crate::monitor::MonitorHandle as RootMonitorHandle;
 use crate::platform::web::{CustomCursorFuture, PollStrategy, WaitUntilStrategy};
 use crate::platform_impl::platform::cursor::CustomCursor;
-use crate::platform_impl::platform::r#async::Waker;
+use crate::platform_impl::web::event_loop::proxy::EventLoopProxy;
 use crate::platform_impl::Window;
 use crate::window::{CustomCursor as RootCustomCursor, CustomCursorSource, Theme, WindowId};
 
@@ -197,7 +198,7 @@ impl ActiveEventLoop {
             let has_focus = has_focus.clone();
             let modifiers = self.modifiers.clone();
 
-            move |active_modifiers, device_id, position, kind| {
+            move |active_modifiers, device_id, primary, position, kind| {
                 let focus = (has_focus.get() && modifiers.get() != active_modifiers).then(|| {
                     modifiers.set(active_modifiers);
                     Event::WindowEvent {
@@ -208,7 +209,12 @@ impl ActiveEventLoop {
 
                 runner.send_events(focus.into_iter().chain(iter::once(Event::WindowEvent {
                     window_id,
-                    event: WindowEvent::PointerLeft { device_id, position: Some(position), kind },
+                    event: WindowEvent::PointerLeft {
+                        device_id,
+                        primary,
+                        position: Some(position),
+                        kind,
+                    },
                 })))
             }
         });
@@ -218,7 +224,7 @@ impl ActiveEventLoop {
             let has_focus = has_focus.clone();
             let modifiers = self.modifiers.clone();
 
-            move |active_modifiers, device_id, position, kind| {
+            move |active_modifiers, device_id, primary, position, kind| {
                 let focus = (has_focus.get() && modifiers.get() != active_modifiers).then(|| {
                     modifiers.set(active_modifiers);
                     Event::WindowEvent {
@@ -229,7 +235,7 @@ impl ActiveEventLoop {
 
                 runner.send_events(focus.into_iter().chain(iter::once(Event::WindowEvent {
                     window_id,
-                    event: WindowEvent::PointerEntered { device_id, position, kind },
+                    event: WindowEvent::PointerEntered { device_id, primary, position, kind },
                 })))
             }
         });
@@ -241,21 +247,31 @@ impl ActiveEventLoop {
                 let modifiers = self.modifiers.clone();
 
                 move |device_id, events| {
-                    runner.send_events(events.flat_map(|(active_modifiers, position, source)| {
-                        let modifiers = (has_focus.get() && modifiers.get() != active_modifiers)
-                            .then(|| {
-                                modifiers.set(active_modifiers);
-                                Event::WindowEvent {
-                                    window_id,
-                                    event: WindowEvent::ModifiersChanged(active_modifiers.into()),
-                                }
-                            });
+                    runner.send_events(events.flat_map(
+                        |(active_modifiers, primary, position, source)| {
+                            let modifiers = (has_focus.get()
+                                && modifiers.get() != active_modifiers)
+                                .then(|| {
+                                    modifiers.set(active_modifiers);
+                                    Event::WindowEvent {
+                                        window_id,
+                                        event: WindowEvent::ModifiersChanged(
+                                            active_modifiers.into(),
+                                        ),
+                                    }
+                                });
 
-                        modifiers.into_iter().chain(iter::once(Event::WindowEvent {
-                            window_id,
-                            event: WindowEvent::PointerMoved { device_id, position, source },
-                        }))
-                    }));
+                            modifiers.into_iter().chain(iter::once(Event::WindowEvent {
+                                window_id,
+                                event: WindowEvent::PointerMoved {
+                                    device_id,
+                                    primary,
+                                    position,
+                                    source,
+                                },
+                            }))
+                        },
+                    ));
                 }
             },
             {
@@ -263,7 +279,7 @@ impl ActiveEventLoop {
                 let has_focus = has_focus.clone();
                 let modifiers = self.modifiers.clone();
 
-                move |active_modifiers, device_id, position, state, button| {
+                move |active_modifiers, device_id, primary, position, state, button| {
                     let modifiers =
                         (has_focus.get() && modifiers.get() != active_modifiers).then(|| {
                             modifiers.set(active_modifiers);
@@ -275,7 +291,13 @@ impl ActiveEventLoop {
 
                     runner.send_events(modifiers.into_iter().chain([Event::WindowEvent {
                         window_id,
-                        event: WindowEvent::PointerButton { device_id, state, position, button },
+                        event: WindowEvent::PointerButton {
+                            device_id,
+                            primary,
+                            state,
+                            position,
+                            button,
+                        },
                     }]));
                 }
             },
@@ -285,7 +307,7 @@ impl ActiveEventLoop {
             let runner = self.runner.clone();
             let modifiers = self.modifiers.clone();
 
-            move |active_modifiers, device_id, position, button| {
+            move |active_modifiers, device_id, primary, position, button| {
                 let modifiers = (modifiers.get() != active_modifiers).then(|| {
                     modifiers.set(active_modifiers);
                     Event::WindowEvent {
@@ -298,6 +320,7 @@ impl ActiveEventLoop {
                     window_id,
                     event: WindowEvent::PointerButton {
                         device_id,
+                        primary,
                         state: ElementState::Pressed,
                         position,
                         button,
@@ -311,7 +334,7 @@ impl ActiveEventLoop {
             let has_focus = has_focus.clone();
             let modifiers = self.modifiers.clone();
 
-            move |active_modifiers, device_id, position, button| {
+            move |active_modifiers, device_id, primary, position, button| {
                 let modifiers =
                     (has_focus.get() && modifiers.get() != active_modifiers).then(|| {
                         modifiers.set(active_modifiers);
@@ -325,6 +348,7 @@ impl ActiveEventLoop {
                     window_id,
                     event: WindowEvent::PointerButton {
                         device_id,
+                        primary,
                         state: ElementState::Released,
                         position,
                         button,
@@ -453,15 +477,15 @@ impl ActiveEventLoop {
         self.runner.monitor().has_detailed_monitor_permission()
     }
 
-    pub(crate) fn waker(&self) -> Waker<WeakShared> {
-        self.runner.waker()
+    pub(crate) fn event_loop_proxy(&self) -> Arc<EventLoopProxy> {
+        self.runner.event_loop_proxy().clone()
     }
 }
 
 impl RootActiveEventLoop for ActiveEventLoop {
     fn create_proxy(&self) -> RootEventLoopProxy {
-        let event_loop_proxy = EventLoopProxy::new(self.waker());
-        RootEventLoopProxy { event_loop_proxy }
+        let event_loop_proxy = self.event_loop_proxy();
+        RootEventLoopProxy::new(event_loop_proxy)
     }
 
     fn create_window(
@@ -523,17 +547,15 @@ impl RootActiveEventLoop for ActiveEventLoop {
         self.runner.exiting()
     }
 
-    fn owned_display_handle(&self) -> RootOwnedDisplayHandle {
-        RootOwnedDisplayHandle { platform: OwnedDisplayHandle }
+    fn owned_display_handle(&self) -> CoreOwnedDisplayHandle {
+        CoreOwnedDisplayHandle::new(Arc::new(OwnedDisplayHandle))
     }
 
-    #[cfg(feature = "rwh_06")]
     fn rwh_06_handle(&self) -> &dyn rwh_06::HasDisplayHandle {
         self
     }
 }
 
-#[cfg(feature = "rwh_06")]
 impl rwh_06::HasDisplayHandle for ActiveEventLoop {
     fn display_handle(&self) -> Result<rwh_06::DisplayHandle<'_>, rwh_06::HandleError> {
         let raw = rwh_06::RawDisplayHandle::Web(rwh_06::WebDisplayHandle::new());
@@ -541,15 +563,12 @@ impl rwh_06::HasDisplayHandle for ActiveEventLoop {
     }
 }
 
-#[derive(Clone, PartialEq, Eq)]
+#[derive(Clone)]
 pub(crate) struct OwnedDisplayHandle;
 
-impl OwnedDisplayHandle {
-    #[cfg(feature = "rwh_06")]
-    #[inline]
-    pub fn raw_display_handle_rwh_06(
-        &self,
-    ) -> Result<rwh_06::RawDisplayHandle, rwh_06::HandleError> {
-        Ok(rwh_06::WebDisplayHandle::new().into())
+impl rwh_06::HasDisplayHandle for OwnedDisplayHandle {
+    fn display_handle(&self) -> Result<rwh_06::DisplayHandle<'_>, rwh_06::HandleError> {
+        let raw = rwh_06::RawDisplayHandle::Web(rwh_06::WebDisplayHandle::new());
+        unsafe { Ok(rwh_06::DisplayHandle::borrow_raw(raw)) }
     }
 }

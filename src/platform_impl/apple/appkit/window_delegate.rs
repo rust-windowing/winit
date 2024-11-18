@@ -15,9 +15,10 @@ use objc2_app_kit::{
     NSAppKitVersionNumber, NSAppKitVersionNumber10_12, NSAppearance, NSAppearanceCustomization,
     NSAppearanceNameAqua, NSApplication, NSApplicationPresentationOptions, NSBackingStoreType,
     NSColor, NSDraggingDestination, NSFilenamesPboardType, NSPasteboard,
-    NSRequestUserAttentionType, NSScreen, NSView, NSWindowButton, NSWindowDelegate,
+    NSRequestUserAttentionType, NSScreen, NSToolbar, NSView, NSWindowButton, NSWindowDelegate,
     NSWindowFullScreenButton, NSWindowLevel, NSWindowOcclusionState, NSWindowOrderingMode,
     NSWindowSharingType, NSWindowStyleMask, NSWindowTabbingMode, NSWindowTitleVisibility,
+    NSWindowToolbarStyle,
 };
 use objc2_foundation::{
     ns_string, CGFloat, MainThreadMarker, NSArray, NSCopying, NSDictionary, NSKeyValueChangeKey,
@@ -57,6 +58,7 @@ pub struct PlatformSpecificWindowAttributes {
     pub tabbing_identifier: Option<String>,
     pub option_as_alt: OptionAsAlt,
     pub borderless_game: bool,
+    pub unified_titlebar: bool,
 }
 
 impl Default for PlatformSpecificWindowAttributes {
@@ -75,6 +77,7 @@ impl Default for PlatformSpecificWindowAttributes {
             tabbing_identifier: None,
             option_as_alt: Default::default(),
             borderless_game: false,
+            unified_titlebar: false,
         }
     }
 }
@@ -616,6 +619,14 @@ fn new_window(
         if attrs.platform_specific.movable_by_window_background {
             window.setMovableByWindowBackground(true);
         }
+        if attrs.platform_specific.unified_titlebar {
+            unsafe {
+                // The toolbar style is ignored if there is no toolbar, so it is
+                // necessary to add one.
+                window.setToolbar(Some(&NSToolbar::new(mtm)));
+                window.setToolbarStyle(NSWindowToolbarStyle::Unified);
+            }
+        }
 
         if !attrs.enabled_buttons.contains(WindowButtons::MAXIMIZE) {
             if let Some(button) = window.standardWindowButton(NSWindowButton::NSWindowZoomButton) {
@@ -681,7 +692,6 @@ impl WindowDelegate {
         let window = new_window(app_state, &attrs, mtm)
             .ok_or_else(|| os_error!("couldn't create `NSWindow`"))?;
 
-        #[cfg(feature = "rwh_06")]
         match attrs.parent_window.map(|handle| handle.0) {
             Some(rwh_06::RawWindowHandle::AppKit(handle)) => {
                 // SAFETY: Caller ensures the pointer is valid or NULL
@@ -1620,7 +1630,6 @@ impl WindowDelegate {
         Some(monitor)
     }
 
-    #[cfg(feature = "rwh_06")]
     #[inline]
     pub fn raw_window_handle_rwh_06(&self) -> rwh_06::RawWindowHandle {
         let window_handle = rwh_06::AppKitWindowHandle::new({
@@ -1836,6 +1845,34 @@ impl WindowExtMacOS for WindowDelegate {
 
     fn is_borderless_game(&self) -> bool {
         self.ivars().is_borderless_game.get()
+    }
+
+    fn set_unified_titlebar(&self, unified_titlebar: bool) {
+        let window = self.window();
+
+        if unified_titlebar {
+            let mtm = MainThreadMarker::from(self);
+
+            unsafe {
+                // The toolbar style is ignored if there is no toolbar, so it is
+                // necessary to add one.
+                window.setToolbar(Some(&NSToolbar::new(mtm)));
+                window.setToolbarStyle(NSWindowToolbarStyle::Unified);
+            }
+        } else {
+            unsafe {
+                window.setToolbar(None);
+                window.setToolbarStyle(NSWindowToolbarStyle::Automatic);
+            }
+        }
+    }
+
+    fn unified_titlebar(&self) -> bool {
+        let window = self.window();
+
+        unsafe {
+            window.toolbar().is_some() && window.toolbarStyle() == NSWindowToolbarStyle::Unified
+        }
     }
 }
 

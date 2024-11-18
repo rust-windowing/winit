@@ -8,9 +8,9 @@ use sctk::seat::touch::{TouchData, TouchHandler};
 use tracing::warn;
 
 use crate::dpi::LogicalPosition;
-use crate::event::{ButtonSource, ElementState, PointerKind, PointerSource, WindowEvent};
+use crate::event::{ButtonSource, ElementState, FingerId, PointerKind, PointerSource, WindowEvent};
+use crate::platform_impl::wayland;
 use crate::platform_impl::wayland::state::WinitState;
-use crate::platform_impl::wayland::{self, FingerId};
 
 impl TouchHandler for WinitState {
     fn down(
@@ -40,15 +40,20 @@ impl TouchHandler for WinitState {
 
         // Update the state of the point.
         let location = LogicalPosition::<f64>::from(position);
+        // Only update primary finger once we don't have any touch.
+        if seat_state.touch_map.is_empty() {
+            seat_state.first_touch_id = Some(id);
+        }
+        let primary = seat_state.first_touch_id == Some(id);
         seat_state.touch_map.insert(id, TouchPoint { surface, location });
 
         let position = location.to_physical(scale_factor);
-        let finger_id =
-            crate::event::FingerId(crate::platform_impl::FingerId::Wayland(FingerId(id)));
+        let finger_id = FingerId::from_raw(id as usize);
 
         self.events_sink.push_window_event(
             WindowEvent::PointerEntered {
                 device_id: None,
+                primary,
                 position,
                 kind: PointerKind::Touch(finger_id),
             },
@@ -57,6 +62,7 @@ impl TouchHandler for WinitState {
         self.events_sink.push_window_event(
             WindowEvent::PointerButton {
                 device_id: None,
+                primary,
                 state: ElementState::Pressed,
                 position,
                 button: ButtonSource::Touch { finger_id, force: None },
@@ -88,6 +94,15 @@ impl TouchHandler for WinitState {
             None => return,
         };
 
+        // Update the primary touch point.
+        let primary = seat_state.first_touch_id == Some(id);
+        // Reset primary finger once all the other fingers are lifted to not transfer primary
+        // finger to some other finger and still accept it when it's briefly moved between the
+        // windows.
+        if seat_state.touch_map.is_empty() {
+            seat_state.first_touch_id = None;
+        }
+
         let window_id = wayland::make_wid(&touch_point.surface);
         let scale_factor = match self.windows.get_mut().get(&window_id) {
             Some(window) => window.lock().unwrap().scale_factor(),
@@ -95,12 +110,12 @@ impl TouchHandler for WinitState {
         };
 
         let position = touch_point.location.to_physical(scale_factor);
-        let finger_id =
-            crate::event::FingerId(crate::platform_impl::FingerId::Wayland(FingerId(id)));
+        let finger_id = FingerId::from_raw(id as usize);
 
         self.events_sink.push_window_event(
             WindowEvent::PointerButton {
                 device_id: None,
+                primary,
                 state: ElementState::Released,
                 position,
                 button: ButtonSource::Touch { finger_id, force: None },
@@ -110,6 +125,7 @@ impl TouchHandler for WinitState {
         self.events_sink.push_window_event(
             WindowEvent::PointerLeft {
                 device_id: None,
+                primary,
                 position: Some(position),
                 kind: PointerKind::Touch(finger_id),
             },
@@ -140,6 +156,8 @@ impl TouchHandler for WinitState {
             None => return,
         };
 
+        let primary = seat_state.first_touch_id == Some(id);
+
         let window_id = wayland::make_wid(&touch_point.surface);
         let scale_factor = match self.windows.get_mut().get(&window_id) {
             Some(window) => window.lock().unwrap().scale_factor(),
@@ -151,11 +169,10 @@ impl TouchHandler for WinitState {
         self.events_sink.push_window_event(
             WindowEvent::PointerMoved {
                 device_id: None,
+                primary,
                 position: touch_point.location.to_physical(scale_factor),
                 source: PointerSource::Touch {
-                    finger_id: crate::event::FingerId(crate::platform_impl::FingerId::Wayland(
-                        FingerId(id),
-                    )),
+                    finger_id: FingerId::from_raw(id as usize),
                     force: None,
                 },
             },
@@ -179,19 +196,21 @@ impl TouchHandler for WinitState {
                 None => return,
             };
 
+            let primary = seat_state.first_touch_id == Some(id);
             let position = touch_point.location.to_physical(scale_factor);
 
             self.events_sink.push_window_event(
                 WindowEvent::PointerLeft {
                     device_id: None,
+                    primary,
                     position: Some(position),
-                    kind: PointerKind::Touch(crate::event::FingerId(
-                        crate::platform_impl::FingerId::Wayland(FingerId(id)),
-                    )),
+                    kind: PointerKind::Touch(FingerId::from_raw(id as usize)),
                 },
                 window_id,
             );
         }
+
+        seat_state.first_touch_id = None;
     }
 
     fn shape(

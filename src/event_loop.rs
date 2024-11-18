@@ -13,9 +13,11 @@ use std::marker::PhantomData;
 #[cfg(any(x11_platform, wayland_platform))]
 use std::os::unix::io::{AsFd, AsRawFd, BorrowedFd, RawFd};
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use std::sync::Arc;
 #[cfg(not(web_platform))]
 use std::time::{Duration, Instant};
 
+use rwh_06::{DisplayHandle, HandleError, HasDisplayHandle};
 #[cfg(web_platform)]
 use web_time::{Duration, Instant};
 
@@ -273,10 +275,9 @@ impl EventLoop {
     }
 }
 
-#[cfg(feature = "rwh_06")]
-impl rwh_06::HasDisplayHandle for EventLoop {
-    fn display_handle(&self) -> Result<rwh_06::DisplayHandle<'_>, rwh_06::HandleError> {
-        rwh_06::HasDisplayHandle::display_handle(self.event_loop.window_target().rwh_06_handle())
+impl HasDisplayHandle for EventLoop {
+    fn display_handle(&self) -> Result<DisplayHandle<'_>, HandleError> {
+        HasDisplayHandle::display_handle(self.event_loop.window_target().rwh_06_handle())
     }
 }
 
@@ -407,13 +408,11 @@ pub trait ActiveEventLoop: AsAny {
     fn owned_display_handle(&self) -> OwnedDisplayHandle;
 
     /// Get the raw-window-handle handle.
-    #[cfg(feature = "rwh_06")]
-    fn rwh_06_handle(&self) -> &dyn rwh_06::HasDisplayHandle;
+    fn rwh_06_handle(&self) -> &dyn HasDisplayHandle;
 }
 
-#[cfg(feature = "rwh_06")]
-impl rwh_06::HasDisplayHandle for dyn ActiveEventLoop + '_ {
-    fn display_handle(&self) -> Result<rwh_06::DisplayHandle<'_>, rwh_06::HandleError> {
+impl HasDisplayHandle for dyn ActiveEventLoop + '_ {
+    fn display_handle(&self) -> Result<DisplayHandle<'_>, HandleError> {
         self.rwh_06_handle().display_handle()
     }
 }
@@ -430,36 +429,55 @@ impl rwh_06::HasDisplayHandle for dyn ActiveEventLoop + '_ {
 ///
 /// - A zero-sized type that is likely optimized out.
 /// - A reference-counted pointer to the underlying type.
-#[derive(Clone, PartialEq, Eq)]
+#[derive(Clone)]
 pub struct OwnedDisplayHandle {
-    #[cfg_attr(not(feature = "rwh_06"), allow(dead_code))]
-    pub(crate) platform: platform_impl::OwnedDisplayHandle,
+    pub(crate) handle: Arc<dyn HasDisplayHandle>,
+}
+
+impl OwnedDisplayHandle {
+    pub(crate) fn new(handle: Arc<dyn HasDisplayHandle>) -> Self {
+        Self { handle }
+    }
+}
+
+impl HasDisplayHandle for OwnedDisplayHandle {
+    fn display_handle(&self) -> Result<DisplayHandle<'_>, HandleError> {
+        self.handle.display_handle()
+    }
 }
 
 impl fmt::Debug for OwnedDisplayHandle {
-    #[inline]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("OwnedDisplayHandle").finish_non_exhaustive()
     }
 }
 
-#[cfg(feature = "rwh_06")]
-impl rwh_06::HasDisplayHandle for OwnedDisplayHandle {
-    #[inline]
-    fn display_handle(&self) -> Result<rwh_06::DisplayHandle<'_>, rwh_06::HandleError> {
-        let raw = self.platform.raw_display_handle_rwh_06()?;
-
-        // SAFETY: The underlying display handle should be safe.
-        let handle = unsafe { rwh_06::DisplayHandle::borrow_raw(raw) };
-
-        Ok(handle)
+impl PartialEq for OwnedDisplayHandle {
+    fn eq(&self, other: &Self) -> bool {
+        match (self.display_handle(), other.display_handle()) {
+            (Ok(lhs), Ok(rhs)) => lhs == rhs,
+            _ => false,
+        }
     }
+}
+
+impl Eq for OwnedDisplayHandle {}
+
+pub(crate) trait EventLoopProxyProvider: Send + Sync {
+    /// See [`EventLoopProxy::wake_up`] for details.
+    fn wake_up(&self);
 }
 
 /// Control the [`EventLoop`], possibly from a different thread, without referencing it directly.
 #[derive(Clone)]
 pub struct EventLoopProxy {
-    pub(crate) event_loop_proxy: platform_impl::EventLoopProxy,
+    pub(crate) proxy: Arc<dyn EventLoopProxyProvider>,
+}
+
+impl fmt::Debug for EventLoopProxy {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("EventLoopProxy").finish_non_exhaustive()
+    }
 }
 
 impl EventLoopProxy {
@@ -479,13 +497,11 @@ impl EventLoopProxy {
     ///
     /// [#3687]: https://github.com/rust-windowing/winit/pull/3687
     pub fn wake_up(&self) {
-        self.event_loop_proxy.wake_up();
+        self.proxy.wake_up();
     }
-}
 
-impl fmt::Debug for EventLoopProxy {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("ActiveEventLoop").finish_non_exhaustive()
+    pub(crate) fn new(proxy: Arc<dyn EventLoopProxyProvider>) -> Self {
+        Self { proxy }
     }
 }
 

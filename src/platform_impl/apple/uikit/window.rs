@@ -420,7 +420,6 @@ impl Inner {
         self.window.id()
     }
 
-    #[cfg(feature = "rwh_06")]
     pub fn raw_window_handle_rwh_06(&self) -> rwh_06::RawWindowHandle {
         let mut window_handle = rwh_06::UiKitWindowHandle::new({
             let ui_view = Retained::as_ptr(&self.view) as _;
@@ -546,7 +545,6 @@ impl Window {
         self.inner.get_on_main(|inner| f(inner))
     }
 
-    #[cfg(feature = "rwh_06")]
     #[inline]
     pub(crate) fn raw_window_handle_rwh_06(
         &self,
@@ -558,7 +556,6 @@ impl Window {
         }
     }
 
-    #[cfg(feature = "rwh_06")]
     #[inline]
     pub(crate) fn raw_display_handle_rwh_06(
         &self,
@@ -567,7 +564,6 @@ impl Window {
     }
 }
 
-#[cfg(feature = "rwh_06")]
 impl rwh_06::HasDisplayHandle for Window {
     fn display_handle(&self) -> Result<rwh_06::DisplayHandle<'_>, rwh_06::HandleError> {
         let raw = self.raw_display_handle_rwh_06()?;
@@ -575,7 +571,6 @@ impl rwh_06::HasDisplayHandle for Window {
     }
 }
 
-#[cfg(feature = "rwh_06")]
 impl rwh_06::HasWindowHandle for Window {
     fn window_handle(&self) -> Result<rwh_06::WindowHandle<'_>, rwh_06::HandleError> {
         let raw = self.raw_window_handle_rwh_06()?;
@@ -815,12 +810,10 @@ impl CoreWindow for Window {
         })
     }
 
-    #[cfg(feature = "rwh_06")]
     fn rwh_06_display_handle(&self) -> &dyn rwh_06::HasDisplayHandle {
         self
     }
 
-    #[cfg(feature = "rwh_06")]
     fn rwh_06_window_handle(&self) -> &dyn rwh_06::HasWindowHandle {
         self
     }

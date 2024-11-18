@@ -107,24 +107,6 @@ impl Default for PlatformSpecificWindowAttributes {
 pub(crate) static X11_BACKEND: Lazy<Mutex<Result<Arc<XConnection>, XNotSupported>>> =
     Lazy::new(|| Mutex::new(XConnection::new(Some(x_error_callback)).map(Arc::new)));
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum FingerId {
-    #[cfg(x11_platform)]
-    X(x11::FingerId),
-    #[cfg(wayland_platform)]
-    Wayland(wayland::FingerId),
-}
-
-impl FingerId {
-    #[cfg(test)]
-    pub const fn dummy() -> Self {
-        #[cfg(wayland_platform)]
-        return FingerId::Wayland(wayland::FingerId::dummy());
-        #[cfg(all(not(wayland_platform), x11_platform))]
-        return FingerId::X(x11::FingerId::dummy());
-    }
-}
-
 #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum MonitorHandle {
     #[cfg(x11_platform)]
@@ -295,14 +277,6 @@ pub enum EventLoop {
     X(x11::EventLoop),
 }
 
-#[derive(Clone)]
-pub enum EventLoopProxy {
-    #[cfg(x11_platform)]
-    X(x11::EventLoopProxy),
-    #[cfg(wayland_platform)]
-    Wayland(wayland::EventLoopProxy),
-}
-
 impl EventLoop {
     pub(crate) fn new(
         attributes: &PlatformSpecificEventLoopAttributes,
@@ -421,65 +395,6 @@ impl AsRawFd for EventLoop {
         x11_or_wayland!(match self; EventLoop(evlp) => evlp.as_raw_fd())
     }
 }
-
-impl EventLoopProxy {
-    pub fn wake_up(&self) {
-        x11_or_wayland!(match self; EventLoopProxy(proxy) => proxy.wake_up())
-    }
-}
-
-#[derive(Clone)]
-#[allow(dead_code)]
-pub(crate) enum OwnedDisplayHandle {
-    #[cfg(x11_platform)]
-    X(Arc<XConnection>),
-    #[cfg(wayland_platform)]
-    Wayland(wayland_client::Connection),
-}
-
-impl OwnedDisplayHandle {
-    #[cfg(feature = "rwh_06")]
-    #[inline]
-    pub fn raw_display_handle_rwh_06(
-        &self,
-    ) -> Result<rwh_06::RawDisplayHandle, rwh_06::HandleError> {
-        use std::ptr::NonNull;
-
-        match self {
-            #[cfg(x11_platform)]
-            Self::X(xconn) => Ok(rwh_06::XlibDisplayHandle::new(
-                NonNull::new(xconn.display.cast()),
-                xconn.default_screen_index() as _,
-            )
-            .into()),
-
-            #[cfg(wayland_platform)]
-            Self::Wayland(conn) => {
-                use sctk::reexports::client::Proxy;
-
-                Ok(rwh_06::WaylandDisplayHandle::new(
-                    NonNull::new(conn.display().id().as_ptr().cast()).unwrap(),
-                )
-                .into())
-            },
-        }
-    }
-}
-
-impl PartialEq for OwnedDisplayHandle {
-    fn eq(&self, other: &Self) -> bool {
-        match (self, other) {
-            #[cfg(x11_platform)]
-            (Self::X(this), Self::X(other)) => Arc::as_ptr(this).eq(&Arc::as_ptr(other)),
-            #[cfg(wayland_platform)]
-            (Self::Wayland(this), Self::Wayland(other)) => this.eq(other),
-            #[cfg(all(x11_platform, wayland_platform))]
-            _ => false,
-        }
-    }
-}
-
-impl Eq for OwnedDisplayHandle {}
 
 /// Returns the minimum `Option<Duration>`, taking into account that `None`
 /// equates to an infinite timeout, not a zero timeout (so can't just use

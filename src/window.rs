@@ -67,7 +67,6 @@ pub struct WindowAttributes {
     pub window_level: WindowLevel,
     pub active: bool,
     pub cursor: Cursor,
-    #[cfg(feature = "rwh_06")]
     pub(crate) parent_window: Option<SendSyncRawWindowHandle>,
     pub fullscreen: Option<Fullscreen>,
     // Platform-specific configuration.
@@ -98,7 +97,6 @@ impl Default for WindowAttributes {
             preferred_theme: None,
             content_protected: false,
             cursor: Cursor::default(),
-            #[cfg(feature = "rwh_06")]
             parent_window: None,
             active: true,
             platform_specific: Default::default(),
@@ -113,17 +111,13 @@ impl Default for WindowAttributes {
 /// The user has to account for that when using [`WindowAttributes::with_parent_window()`],
 /// which is `unsafe`.
 #[derive(Debug, Clone, PartialEq)]
-#[cfg(feature = "rwh_06")]
 pub(crate) struct SendSyncRawWindowHandle(pub(crate) rwh_06::RawWindowHandle);
 
-#[cfg(feature = "rwh_06")]
 unsafe impl Send for SendSyncRawWindowHandle {}
-#[cfg(feature = "rwh_06")]
 unsafe impl Sync for SendSyncRawWindowHandle {}
 
 impl WindowAttributes {
     /// Get the parent window stored on the attributes.
-    #[cfg(feature = "rwh_06")]
     pub fn parent_window(&self) -> Option<&rwh_06::RawWindowHandle> {
         self.parent_window.as_ref().map(|handle| &handle.0)
     }
@@ -409,7 +403,6 @@ impl WindowAttributes {
     ///   <https://docs.microsoft.com/en-us/windows/win32/winmsg/window-features#child-windows>
     /// - **X11**: A child window is confined to the client area of its parent window.
     /// - **Android / iOS / Wayland / Web:** Unsupported.
-    #[cfg(feature = "rwh_06")]
     #[inline]
     pub unsafe fn with_parent_window(
         mut self,
@@ -1012,7 +1005,8 @@ pub trait Window: AsAny + Send + Sync {
     ///
     /// ## Platform-specific
     ///
-    /// - **X11:** - area is not supported, only position.
+    /// - **X11:** Area is not supported, only position. The bottom-right corner of the provided
+    ///   area is reported as the position.
     /// - **iOS / Android / Web / Orbital:** Unsupported.
     ///
     /// [chinese]: https://support.apple.com/guide/chinese-input-method/use-the-candidate-window-cim12992/104/mac/12.0
@@ -1035,8 +1029,8 @@ pub trait Window: AsAny + Send + Sync {
     ///
     /// - **macOS:** IME must be enabled to receive text-input where dead-key sequences are
     ///   combined.
-    /// - **iOS:** This will show / hide the soft keyboard.
-    /// - **Android / Web / Orbital:** Unsupported.
+    /// - **iOS / Android:** This will show / hide the soft keyboard.
+    /// - **Web / Orbital:** Unsupported.
     /// - **X11**: Enabling IME will disable dead keys reporting during compose.
     ///
     /// [`Ime`]: crate::event::WindowEvent::Ime
@@ -1276,11 +1270,9 @@ pub trait Window: AsAny + Send + Sync {
     fn primary_monitor(&self) -> Option<MonitorHandle>;
 
     /// Get the raw-window-handle v0.6 display handle.
-    #[cfg(feature = "rwh_06")]
     fn rwh_06_display_handle(&self) -> &dyn rwh_06::HasDisplayHandle;
 
     /// Get the raw-window-handle v0.6 window handle.
-    #[cfg(feature = "rwh_06")]
     fn rwh_06_window_handle(&self) -> &dyn rwh_06::HasWindowHandle;
 }
 
@@ -1306,14 +1298,12 @@ impl std::hash::Hash for dyn Window + '_ {
     }
 }
 
-#[cfg(feature = "rwh_06")]
 impl rwh_06::HasDisplayHandle for dyn Window + '_ {
     fn display_handle(&self) -> Result<rwh_06::DisplayHandle<'_>, rwh_06::HandleError> {
         self.rwh_06_display_handle().display_handle()
     }
 }
 
-#[cfg(feature = "rwh_06")]
 impl rwh_06::HasWindowHandle for dyn Window + '_ {
     fn window_handle(&self) -> Result<rwh_06::WindowHandle<'_>, rwh_06::HandleError> {
         self.rwh_06_window_handle().window_handle()
