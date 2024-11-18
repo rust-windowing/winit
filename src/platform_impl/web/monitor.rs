@@ -3,13 +3,12 @@ use std::cmp::Ordering;
 use std::fmt::{self, Debug, Formatter};
 use std::future::Future;
 use std::hash::{Hash, Hasher};
-use std::iter::{self, Once};
 use std::mem;
-use std::num::{NonZeroU16, NonZeroU32};
+use std::num::NonZeroU16;
 use std::ops::{Deref, DerefMut};
 use std::pin::Pin;
 use std::rc::{Rc, Weak};
-use std::sync::OnceLock;
+use std::sync::{Arc, OnceLock};
 use std::task::{ready, Context, Poll};
 
 use dpi::LogicalSize;
@@ -29,7 +28,7 @@ use super::main_thread::MainThreadMarker;
 use super::r#async::{Dispatcher, Notified, Notifier};
 use super::web_sys::{Engine, EventListenerHandle};
 use crate::dpi::{PhysicalPosition, PhysicalSize};
-use crate::monitor::MonitorHandle as RootMonitorHandle;
+use crate::monitor::{MonitorHandle as RootMonitorHandle, MonitorHandleProvider, VideoMode};
 use crate::platform::web::{
     MonitorPermissionError, Orientation, OrientationData, OrientationLock, OrientationLockError,
 };
@@ -45,26 +44,6 @@ impl MonitorHandle {
     fn new(main_thread: MainThreadMarker, inner: Inner) -> Self {
         let id = if let Screen::Detailed { id, .. } = inner.screen { Some(id) } else { None };
         Self { id, inner: Dispatcher::new(main_thread, inner).0 }
-    }
-
-    pub fn scale_factor(&self) -> f64 {
-        self.inner.queue(|inner| inner.scale_factor())
-    }
-
-    pub fn position(&self) -> Option<PhysicalPosition<i32>> {
-        self.inner.queue(|inner| inner.position())
-    }
-
-    pub fn name(&self) -> Option<String> {
-        self.inner.queue(|inner| inner.name())
-    }
-
-    pub fn current_video_mode(&self) -> Option<VideoModeHandle> {
-        Some(VideoModeHandle(self.clone()))
-    }
-
-    pub fn video_modes(&self) -> Once<VideoModeHandle> {
-        iter::once(VideoModeHandle(self.clone()))
     }
 
     pub fn orientation(&self) -> OrientationData {
@@ -140,6 +119,36 @@ impl MonitorHandle {
     }
 }
 
+impl MonitorHandleProvider for MonitorHandle {
+    fn native_id(&self) -> u64 {
+        self.id.unwrap_or_default()
+    }
+
+    fn scale_factor(&self) -> f64 {
+        self.inner.queue(|inner| inner.scale_factor())
+    }
+
+    fn position(&self) -> Option<PhysicalPosition<i32>> {
+        self.inner.queue(|inner| inner.position())
+    }
+
+    fn name(&self) -> Option<std::borrow::Cow<'_, str>> {
+        self.inner.queue(|inner| inner.name().map(Into::into))
+    }
+
+    fn current_video_mode(&self) -> Option<VideoMode> {
+        Some(VideoMode {
+            size: self.inner.queue(|inner| inner.size()),
+            bit_depth: self.inner.queue(|inner| inner.bit_depth()),
+            refresh_rate_millihertz: None,
+        })
+    }
+
+    fn video_modes(&self) -> Box<dyn Iterator<Item = VideoMode>> {
+        Box::new(self.current_video_mode().into_iter())
+    }
+}
+
 impl Debug for MonitorHandle {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         let (name, position, scale_factor, orientation, is_internal, is_detailed) =
@@ -190,8 +199,8 @@ impl PartialOrd for MonitorHandle {
 }
 
 impl From<MonitorHandle> for RootMonitorHandle {
-    fn from(inner: MonitorHandle) -> Self {
-        RootMonitorHandle { inner }
+    fn from(monitor: MonitorHandle) -> Self {
+        RootMonitorHandle(Arc::new(monitor))
     }
 }
 
@@ -249,35 +258,6 @@ impl OrientationLockError {
         } else {
             OrientationLockError::Unsupported
         }
-    }
-}
-
-#[derive(Clone, Eq, Hash, PartialEq)]
-pub struct VideoModeHandle(MonitorHandle);
-
-impl VideoModeHandle {
-    pub fn size(&self) -> PhysicalSize<u32> {
-        self.0.inner.queue(|inner| inner.size())
-    }
-
-    pub fn bit_depth(&self) -> Option<NonZeroU16> {
-        self.0.inner.queue(|inner| inner.bit_depth())
-    }
-
-    pub fn refresh_rate_millihertz(&self) -> Option<NonZeroU32> {
-        None
-    }
-
-    pub fn monitor(&self) -> MonitorHandle {
-        self.0.clone()
-    }
-}
-
-impl Debug for VideoModeHandle {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        let (size, bit_depth) = self.0.inner.queue(|this| (this.size(), this.bit_depth()));
-
-        f.debug_struct("MonitorHandle").field("size", &size).field("bit_depth", &bit_depth).finish()
     }
 }
 

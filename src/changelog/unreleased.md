@@ -158,6 +158,8 @@ changelog entry.
   - In the same spirit rename `DeviceEvent::MouseMotion` to `PointerMotion`.
   - Remove `Force::Calibrated::altitude_angle`.
   - On X11, use bottom-right corner for IME hotspot in `Window::set_ime_cursor_area`.
+- `VideoModeHandle` to `VideoMode` which stores plain data.
+- `Fullscreen::Exclusive` to take `(MonitorHandle, VideoMode)`.
 
 ### Removed
 

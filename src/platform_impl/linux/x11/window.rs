@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::ffi::CString;
 use std::mem::replace;
 use std::num::NonZeroU32;
@@ -25,15 +26,15 @@ use crate::dpi::{PhysicalPosition, PhysicalSize, Position, Size};
 use crate::error::{NotSupportedError, RequestError};
 use crate::event::{Event, SurfaceSizeWriter, WindowEvent};
 use crate::event_loop::AsyncRequestSerial;
+use crate::monitor::{
+    Fullscreen, MonitorHandle as CoreMonitorHandle, MonitorHandleProvider, VideoMode,
+};
 use crate::platform::x11::WindowType;
 use crate::platform_impl::x11::atoms::*;
 use crate::platform_impl::x11::{
     xinput_fp1616_to_float, MonitorHandle as X11MonitorHandle, WakeSender, X11Error,
 };
-use crate::platform_impl::{
-    common, Fullscreen, MonitorHandle as PlatformMonitorHandle, PlatformCustomCursor, PlatformIcon,
-    VideoModeHandle as PlatformVideoModeHandle,
-};
+use crate::platform_impl::{common, PlatformCustomCursor, PlatformIcon};
 use crate::window::{
     CursorGrabMode, ImePurpose, ResizeDirection, Theme, UserAttentionType, Window as CoreWindow,
     WindowAttributes, WindowButtons, WindowId, WindowLevel,
@@ -174,11 +175,11 @@ impl CoreWindow for Window {
         self.0.is_maximized()
     }
 
-    fn set_fullscreen(&self, fullscreen: Option<crate::window::Fullscreen>) {
+    fn set_fullscreen(&self, fullscreen: Option<Fullscreen>) {
         self.0.set_fullscreen(fullscreen.map(Into::into))
     }
 
-    fn fullscreen(&self) -> Option<crate::window::Fullscreen> {
+    fn fullscreen(&self) -> Option<Fullscreen> {
         self.0.fullscreen().map(Into::into)
     }
 
@@ -270,28 +271,21 @@ impl CoreWindow for Window {
         self.0.set_cursor_hittest(hittest)
     }
 
-    fn current_monitor(&self) -> Option<crate::monitor::MonitorHandle> {
-        self.0
-            .current_monitor()
-            .map(crate::platform_impl::MonitorHandle::X)
-            .map(|inner| crate::monitor::MonitorHandle { inner })
+    fn current_monitor(&self) -> Option<CoreMonitorHandle> {
+        self.0.current_monitor().map(|monitor| CoreMonitorHandle(Arc::new(monitor)))
     }
 
-    fn available_monitors(&self) -> Box<dyn Iterator<Item = crate::monitor::MonitorHandle>> {
+    fn available_monitors(&self) -> Box<dyn Iterator<Item = CoreMonitorHandle>> {
         Box::new(
             self.0
                 .available_monitors()
                 .into_iter()
-                .map(crate::platform_impl::MonitorHandle::X)
-                .map(|inner| crate::monitor::MonitorHandle { inner }),
+                .map(|monitor| CoreMonitorHandle(Arc::new(monitor))),
         )
     }
 
-    fn primary_monitor(&self) -> Option<crate::monitor::MonitorHandle> {
-        self.0
-            .primary_monitor()
-            .map(crate::platform_impl::MonitorHandle::X)
-            .map(|inner| crate::monitor::MonitorHandle { inner })
+    fn primary_monitor(&self) -> Option<CoreMonitorHandle> {
+        self.0.primary_monitor().map(|monitor| CoreMonitorHandle(Arc::new(monitor)))
     }
 
     fn rwh_06_display_handle(&self) -> &dyn rwh_06::HasDisplayHandle {
@@ -323,7 +317,7 @@ impl Drop for Window {
         let xconn = &window.xconn;
 
         // Restore the video mode on drop.
-        if let Some(Fullscreen::Exclusive(_)) = window.fullscreen() {
+        if let Some(Fullscreen::Exclusive(..)) = window.fullscreen() {
             window.set_fullscreen(None);
         }
 
@@ -1031,20 +1025,17 @@ impl UnownedWindow {
             // fullscreen, so we can restore it upon exit, as XRandR does not
             // provide a mechanism to set this per app-session or restore this
             // to the desktop video mode as macOS and Windows do
-            (&None, &Some(Fullscreen::Exclusive(PlatformVideoModeHandle::X(ref video_mode))))
-            | (
-                &Some(Fullscreen::Borderless(_)),
-                &Some(Fullscreen::Exclusive(PlatformVideoModeHandle::X(ref video_mode))),
-            ) => {
-                let monitor = video_mode.monitor.as_ref().unwrap();
+            (&None, &Some(Fullscreen::Exclusive(ref monitor, _)))
+            | (&Some(Fullscreen::Borderless(_)), &Some(Fullscreen::Exclusive(ref monitor, _))) => {
+                let id = monitor.native_id() as _;
                 shared_state_lock.desktop_video_mode = Some((
-                    monitor.id,
-                    self.xconn.get_crtc_mode(monitor.id).expect("Failed to get desktop video mode"),
+                    id,
+                    self.xconn.get_crtc_mode(id).expect("Failed to get desktop video mode"),
                 ));
             },
             // Restore desktop video mode upon exiting exclusive fullscreen
-            (&Some(Fullscreen::Exclusive(_)), &None)
-            | (&Some(Fullscreen::Exclusive(_)), &Some(Fullscreen::Borderless(_))) => {
+            (&Some(Fullscreen::Exclusive(..)), &None)
+            | (&Some(Fullscreen::Exclusive(..)), &Some(Fullscreen::Borderless(_))) => {
                 let (monitor_id, mode_id) = shared_state_lock.desktop_video_mode.take().unwrap();
                 self.xconn
                     .set_crtc_config(monitor_id, mode_id)
@@ -1067,26 +1058,40 @@ impl UnownedWindow {
                 flusher.map(Some)
             },
             Some(fullscreen) => {
-                let (video_mode, monitor) = match fullscreen {
-                    Fullscreen::Exclusive(PlatformVideoModeHandle::X(ref video_mode)) => {
-                        (Some(video_mode), video_mode.monitor.clone().unwrap())
-                    },
-                    Fullscreen::Borderless(Some(PlatformMonitorHandle::X(monitor))) => {
-                        (None, monitor)
-                    },
-                    Fullscreen::Borderless(None) => {
-                        (None, self.shared_state_lock().last_monitor.clone())
-                    },
-                    #[cfg(wayland_platform)]
-                    _ => unreachable!(),
-                };
+                let (monitor, video_mode): (Cow<'_, X11MonitorHandle>, Option<&VideoMode>) =
+                    match &fullscreen {
+                        Fullscreen::Exclusive(monitor, video_mode) => {
+                            let monitor =
+                                monitor.as_any().downcast_ref::<X11MonitorHandle>().unwrap();
+                            (Cow::Borrowed(monitor), Some(video_mode))
+                        },
+                        Fullscreen::Borderless(Some(monitor)) => {
+                            let monitor =
+                                monitor.as_any().downcast_ref::<X11MonitorHandle>().unwrap();
+                            (Cow::Borrowed(monitor), None)
+                        },
+                        Fullscreen::Borderless(None) => {
+                            (Cow::Owned(self.shared_state_lock().last_monitor.clone()), None)
+                        },
+                    };
 
                 // Don't set fullscreen on an invalid dummy monitor handle
                 if monitor.is_dummy() {
                     return Ok(None);
                 }
 
-                if let Some(video_mode) = video_mode {
+                if let Some(native_mode) = video_mode.and_then(|requested| {
+                    monitor.video_modes.iter().find_map(|mode| {
+                        if mode.refresh_rate_millihertz == requested.refresh_rate_millihertz
+                            && mode.size == requested.size
+                            && mode.bit_depth == requested.bit_depth
+                        {
+                            Some(mode.native_mode)
+                        } else {
+                            None
+                        }
+                    })
+                }) {
                     // FIXME: this is actually not correct if we're setting the
                     // video mode to a resolution higher than the current
                     // desktop resolution, because XRandR does not automatically
@@ -1113,7 +1118,7 @@ impl UnownedWindow {
                     // this will make someone unhappy, but it's very unusual for
                     // games to want to do this anyway).
                     self.xconn
-                        .set_crtc_config(monitor.id, video_mode.native_mode)
+                        .set_crtc_config(monitor.native_id() as _, native_mode)
                         .expect("failed to set video mode");
                 }
 

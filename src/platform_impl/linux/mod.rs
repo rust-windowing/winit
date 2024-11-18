@@ -4,7 +4,6 @@
 compile_error!("Please select a feature to build for unix: `x11`, `wayland`");
 
 use std::env;
-use std::num::{NonZeroU16, NonZeroU32};
 use std::os::unix::io::{AsFd, AsRawFd, BorrowedFd, RawFd};
 use std::time::Duration;
 #[cfg(x11_platform)]
@@ -19,7 +18,6 @@ use crate::application::ApplicationHandler;
 pub(crate) use crate::cursor::OnlyCursorImageSource as PlatformCustomCursorSource;
 #[cfg(x11_platform)]
 use crate::dpi::Size;
-use crate::dpi::{PhysicalPosition, PhysicalSize};
 use crate::error::{EventLoopError, NotSupportedError};
 use crate::event_loop::ActiveEventLoop;
 pub(crate) use crate::icon::RgbaIcon as PlatformIcon;
@@ -107,14 +105,6 @@ impl Default for PlatformSpecificWindowAttributes {
 pub(crate) static X11_BACKEND: Lazy<Mutex<Result<Arc<XConnection>, XNotSupported>>> =
     Lazy::new(|| Mutex::new(XConnection::new(Some(x_error_callback)).map(Arc::new)));
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub enum MonitorHandle {
-    #[cfg(x11_platform)]
-    X(x11::MonitorHandle),
-    #[cfg(wayland_platform)]
-    Wayland(wayland::MonitorHandle),
-}
-
 /// `x11_or_wayland!(match expr; Enum(foo) => foo.something())`
 /// expands to the equivalent of
 /// ```ignore
@@ -141,68 +131,6 @@ macro_rules! x11_or_wayland {
             $enum::Wayland($($c1)*) => $x,
         }
     };
-}
-
-impl MonitorHandle {
-    #[inline]
-    pub fn name(&self) -> Option<String> {
-        x11_or_wayland!(match self; MonitorHandle(m) => m.name())
-    }
-
-    #[inline]
-    pub fn native_identifier(&self) -> u32 {
-        x11_or_wayland!(match self; MonitorHandle(m) => m.native_identifier())
-    }
-
-    #[inline]
-    pub fn position(&self) -> Option<PhysicalPosition<i32>> {
-        x11_or_wayland!(match self; MonitorHandle(m) => m.position())
-    }
-
-    #[inline]
-    pub fn scale_factor(&self) -> f64 {
-        x11_or_wayland!(match self; MonitorHandle(m) => m.scale_factor() as _)
-    }
-
-    #[inline]
-    pub fn current_video_mode(&self) -> Option<VideoModeHandle> {
-        x11_or_wayland!(match self; MonitorHandle(m) => m.current_video_mode())
-    }
-
-    #[inline]
-    pub fn video_modes(&self) -> Box<dyn Iterator<Item = VideoModeHandle>> {
-        x11_or_wayland!(match self; MonitorHandle(m) => Box::new(m.video_modes()))
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub enum VideoModeHandle {
-    #[cfg(x11_platform)]
-    X(x11::VideoModeHandle),
-    #[cfg(wayland_platform)]
-    Wayland(wayland::VideoModeHandle),
-}
-
-impl VideoModeHandle {
-    #[inline]
-    pub fn size(&self) -> PhysicalSize<u32> {
-        x11_or_wayland!(match self; VideoModeHandle(m) => m.size())
-    }
-
-    #[inline]
-    pub fn bit_depth(&self) -> Option<NonZeroU16> {
-        x11_or_wayland!(match self; VideoModeHandle(m) => m.bit_depth())
-    }
-
-    #[inline]
-    pub fn refresh_rate_millihertz(&self) -> Option<NonZeroU32> {
-        x11_or_wayland!(match self; VideoModeHandle(m) => m.refresh_rate_millihertz())
-    }
-
-    #[inline]
-    pub fn monitor(&self) -> MonitorHandle {
-        x11_or_wayland!(match self; VideoModeHandle(m) => m.monitor(); as MonitorHandle)
-    }
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]

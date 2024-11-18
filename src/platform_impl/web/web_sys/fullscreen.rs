@@ -9,7 +9,8 @@ use web_sys::{console, Document, Element, HtmlCanvasElement, Window};
 
 use super::super::main_thread::MainThreadMarker;
 use super::super::monitor::{self, ScreenDetailed};
-use crate::platform_impl::Fullscreen;
+use crate::monitor::Fullscreen;
+use crate::platform_impl::MonitorHandle;
 
 pub(crate) fn request_fullscreen(
     main_thread: MainThreadMarker,
@@ -55,7 +56,7 @@ pub(crate) fn request_fullscreen(
     let canvas: &RequestFullscreen = canvas.unchecked_ref();
 
     match fullscreen {
-        Fullscreen::Exclusive(_) => error!("Exclusive full screen mode is not supported"),
+        Fullscreen::Exclusive(..) => error!("Exclusive full screen mode is not supported"),
         Fullscreen::Borderless(Some(monitor)) => {
             if !monitor::has_screen_details_support(window) {
                 error!(
@@ -63,6 +64,8 @@ pub(crate) fn request_fullscreen(
                 );
                 return;
             }
+
+            let monitor = monitor.as_any().downcast_ref::<MonitorHandle>().unwrap();
 
             if let Some(monitor) = monitor.detailed(main_thread) {
                 let options: FullscreenOptions = Object::new().unchecked_into();

@@ -17,22 +17,18 @@ use objc2_foundation::{ns_string, run_on_main, MainThreadMarker, NSNumber, NSPoi
 
 use super::ffi;
 use crate::dpi::{LogicalPosition, PhysicalPosition, PhysicalSize};
+use crate::monitor::{MonitorHandleProvider, VideoMode};
 
 #[derive(Clone)]
 pub struct VideoModeHandle {
-    size: PhysicalSize<u32>,
-    bit_depth: Option<NonZeroU16>,
-    refresh_rate_millihertz: Option<NonZeroU32>,
+    pub(crate) mode: VideoMode,
     pub(crate) monitor: MonitorHandle,
     pub(crate) native_mode: NativeDisplayMode,
 }
 
 impl PartialEq for VideoModeHandle {
     fn eq(&self, other: &Self) -> bool {
-        self.size == other.size
-            && self.bit_depth == other.bit_depth
-            && self.refresh_rate_millihertz == other.refresh_rate_millihertz
-            && self.monitor == other.monitor
+        self.mode == other.mode && self.monitor == other.monitor
     }
 }
 
@@ -40,9 +36,7 @@ impl Eq for VideoModeHandle {}
 
 impl std::hash::Hash for VideoModeHandle {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        self.size.hash(state);
-        self.bit_depth.hash(state);
-        self.refresh_rate_millihertz.hash(state);
+        self.mode.hash(state);
         self.monitor.hash(state);
     }
 }
@@ -50,9 +44,7 @@ impl std::hash::Hash for VideoModeHandle {
 impl std::fmt::Debug for VideoModeHandle {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("VideoModeHandle")
-            .field("size", &self.size)
-            .field("bit_depth", &self.bit_depth)
-            .field("refresh_rate_millihertz", &self.refresh_rate_millihertz)
+            .field("mode", &self.mode)
             .field("monitor", &self.monitor)
             .finish()
     }
@@ -83,13 +75,15 @@ impl Clone for NativeDisplayMode {
 impl VideoModeHandle {
     fn new(
         monitor: MonitorHandle,
-        mode: NativeDisplayMode,
+        native_mode: NativeDisplayMode,
         refresh_rate_millihertz: Option<NonZeroU32>,
     ) -> Self {
         unsafe {
-            let pixel_encoding =
-                CFString::wrap_under_create_rule(ffi::CGDisplayModeCopyPixelEncoding(mode.0))
-                    .to_string();
+            let pixel_encoding = CFString::wrap_under_create_rule(
+                ffi::CGDisplayModeCopyPixelEncoding(native_mode.0),
+            )
+            .to_string();
+
             let bit_depth = if pixel_encoding.eq_ignore_ascii_case(ffi::IO32BitDirectPixels) {
                 32
             } else if pixel_encoding.eq_ignore_ascii_case(ffi::IO16BitDirectPixels) {
@@ -100,38 +94,125 @@ impl VideoModeHandle {
                 unimplemented!()
             };
 
-            VideoModeHandle {
+            let mode = VideoMode {
                 size: PhysicalSize::new(
-                    ffi::CGDisplayModeGetPixelWidth(mode.0) as u32,
-                    ffi::CGDisplayModeGetPixelHeight(mode.0) as u32,
+                    ffi::CGDisplayModeGetPixelWidth(native_mode.0) as u32,
+                    ffi::CGDisplayModeGetPixelHeight(native_mode.0) as u32,
                 ),
                 refresh_rate_millihertz,
                 bit_depth: NonZeroU16::new(bit_depth),
-                monitor: monitor.clone(),
-                native_mode: mode,
-            }
+            };
+
+            VideoModeHandle { mode, monitor: monitor.clone(), native_mode }
         }
-    }
-
-    pub fn size(&self) -> PhysicalSize<u32> {
-        self.size
-    }
-
-    pub fn bit_depth(&self) -> Option<NonZeroU16> {
-        self.bit_depth
-    }
-
-    pub fn refresh_rate_millihertz(&self) -> Option<NonZeroU32> {
-        self.refresh_rate_millihertz
-    }
-
-    pub fn monitor(&self) -> MonitorHandle {
-        self.monitor.clone()
     }
 }
 
 #[derive(Clone)]
 pub struct MonitorHandle(CGDirectDisplayID);
+
+impl MonitorHandle {
+    pub fn new(id: CGDirectDisplayID) -> Self {
+        MonitorHandle(id)
+    }
+
+    fn refresh_rate_millihertz(&self) -> Option<NonZeroU32> {
+        let current_display_mode =
+            NativeDisplayMode(unsafe { CGDisplayCopyDisplayMode(self.0) } as _);
+        refresh_rate_millihertz(self.0, &current_display_mode)
+    }
+
+    pub fn video_mode_handles(&self) -> impl Iterator<Item = VideoModeHandle> {
+        let refresh_rate_millihertz = self.refresh_rate_millihertz();
+        let monitor = self.clone();
+
+        unsafe {
+            let modes = {
+                let array = ffi::CGDisplayCopyAllDisplayModes(self.0, std::ptr::null());
+                assert!(!array.is_null(), "failed to get list of display modes");
+                let array_count = CFArrayGetCount(array);
+                let modes: Vec<_> = (0..array_count)
+                    .map(move |i| {
+                        let mode = CFArrayGetValueAtIndex(array, i) as *mut _;
+                        ffi::CGDisplayModeRetain(mode);
+                        mode
+                    })
+                    .collect();
+                CFRelease(array as *const _);
+                modes
+            };
+
+            modes.into_iter().map(move |mode| {
+                let cg_refresh_rate_hertz = ffi::CGDisplayModeGetRefreshRate(mode).round() as i64;
+
+                // CGDisplayModeGetRefreshRate returns 0.0 for any display that
+                // isn't a CRT
+                let refresh_rate_millihertz = if cg_refresh_rate_hertz > 0 {
+                    NonZeroU32::new((cg_refresh_rate_hertz * 1000) as u32)
+                } else {
+                    refresh_rate_millihertz
+                };
+
+                VideoModeHandle::new(
+                    monitor.clone(),
+                    NativeDisplayMode(mode),
+                    refresh_rate_millihertz,
+                )
+            })
+        }
+    }
+
+    pub(crate) fn ns_screen(&self, mtm: MainThreadMarker) -> Option<Retained<NSScreen>> {
+        let uuid = unsafe { ffi::CGDisplayCreateUUIDFromDisplayID(self.0) };
+        NSScreen::screens(mtm).into_iter().find(|screen| {
+            let other_native_id = get_display_id(screen);
+            let other_uuid = unsafe {
+                ffi::CGDisplayCreateUUIDFromDisplayID(other_native_id as CGDirectDisplayID)
+            };
+            uuid == other_uuid
+        })
+    }
+}
+
+impl MonitorHandleProvider for MonitorHandle {
+    fn native_id(&self) -> u64 {
+        self.0 as _
+    }
+
+    fn name(&self) -> Option<std::borrow::Cow<'_, str>> {
+        let MonitorHandle(display_id) = *self;
+        let screen_num = CGDisplay::new(display_id).model_number();
+        Some(format!("Monitor #{screen_num}").into())
+    }
+
+    fn position(&self) -> Option<PhysicalPosition<i32>> {
+        // This is already in screen coordinates. If we were using `NSScreen`,
+        // then a conversion would've been needed:
+        // flip_window_screen_coordinates(self.ns_screen(mtm)?.frame())
+        let bounds = unsafe { CGDisplayBounds(self.0) };
+        let position = LogicalPosition::new(bounds.origin.x, bounds.origin.y);
+        Some(position.to_physical(self.scale_factor()))
+    }
+
+    fn scale_factor(&self) -> f64 {
+        run_on_main(|mtm| {
+            match self.ns_screen(mtm) {
+                Some(screen) => screen.backingScaleFactor() as f64,
+                None => 1.0, // default to 1.0 when we can't find the screen
+            }
+        })
+    }
+
+    fn current_video_mode(&self) -> Option<VideoMode> {
+        let native_ode = NativeDisplayMode(unsafe { CGDisplayCopyDisplayMode(self.0) } as _);
+        let refresh_rate_millihertz = refresh_rate_millihertz(self.0, &native_ode);
+        Some(VideoModeHandle::new(self.clone(), native_ode, refresh_rate_millihertz).mode)
+    }
+
+    fn video_modes(&self) -> Box<dyn Iterator<Item = VideoMode>> {
+        Box::new(self.video_mode_handles().map(|mode| mode.mode))
+    }
+}
 
 // `CGDirectDisplayID` changes on video mode change, so we cannot rely on that
 // for comparisons, but we can use `CGDisplayCreateUUIDFromDisplayID` to get an
@@ -190,111 +271,10 @@ impl fmt::Debug for MonitorHandle {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("MonitorHandle")
             .field("name", &self.name())
-            .field("native_identifier", &self.native_identifier())
+            .field("native_id", &self.native_id())
             .field("position", &self.position())
             .field("scale_factor", &self.scale_factor())
             .finish_non_exhaustive()
-    }
-}
-
-impl MonitorHandle {
-    pub fn new(id: CGDirectDisplayID) -> Self {
-        MonitorHandle(id)
-    }
-
-    // TODO: Be smarter about this:
-    // <https://github.com/glfw/glfw/blob/57cbded0760a50b9039ee0cb3f3c14f60145567c/src/cocoa_monitor.m#L44-L126>
-    pub fn name(&self) -> Option<String> {
-        let MonitorHandle(display_id) = *self;
-        let screen_num = CGDisplay::new(display_id).model_number();
-        Some(format!("Monitor #{screen_num}"))
-    }
-
-    #[inline]
-    pub fn native_identifier(&self) -> u32 {
-        self.0
-    }
-
-    #[inline]
-    pub fn position(&self) -> Option<PhysicalPosition<i32>> {
-        // This is already in screen coordinates. If we were using `NSScreen`,
-        // then a conversion would've been needed:
-        // flip_window_screen_coordinates(self.ns_screen(mtm)?.frame())
-        let bounds = unsafe { CGDisplayBounds(self.native_identifier()) };
-        let position = LogicalPosition::new(bounds.origin.x, bounds.origin.y);
-        Some(position.to_physical(self.scale_factor()))
-    }
-
-    pub fn scale_factor(&self) -> f64 {
-        run_on_main(|mtm| {
-            match self.ns_screen(mtm) {
-                Some(screen) => screen.backingScaleFactor() as f64,
-                None => 1.0, // default to 1.0 when we can't find the screen
-            }
-        })
-    }
-
-    fn refresh_rate_millihertz(&self) -> Option<NonZeroU32> {
-        let current_display_mode =
-            NativeDisplayMode(unsafe { CGDisplayCopyDisplayMode(self.0) } as _);
-        refresh_rate_millihertz(self.0, &current_display_mode)
-    }
-
-    pub fn current_video_mode(&self) -> Option<VideoModeHandle> {
-        let mode = NativeDisplayMode(unsafe { CGDisplayCopyDisplayMode(self.0) } as _);
-        let refresh_rate_millihertz = refresh_rate_millihertz(self.0, &mode);
-        Some(VideoModeHandle::new(self.clone(), mode, refresh_rate_millihertz))
-    }
-
-    pub fn video_modes(&self) -> impl Iterator<Item = VideoModeHandle> {
-        let refresh_rate_millihertz = self.refresh_rate_millihertz();
-        let monitor = self.clone();
-
-        unsafe {
-            let modes = {
-                let array = ffi::CGDisplayCopyAllDisplayModes(self.0, std::ptr::null());
-                assert!(!array.is_null(), "failed to get list of display modes");
-                let array_count = CFArrayGetCount(array);
-                let modes: Vec<_> = (0..array_count)
-                    .map(move |i| {
-                        let mode = CFArrayGetValueAtIndex(array, i) as *mut _;
-                        ffi::CGDisplayModeRetain(mode);
-                        mode
-                    })
-                    .collect();
-                CFRelease(array as *const _);
-                modes
-            };
-
-            modes.into_iter().map(move |mode| {
-                let cg_refresh_rate_hertz = ffi::CGDisplayModeGetRefreshRate(mode).round() as i64;
-
-                // CGDisplayModeGetRefreshRate returns 0.0 for any display that
-                // isn't a CRT
-                let refresh_rate_millihertz = if cg_refresh_rate_hertz > 0 {
-                    NonZeroU32::new((cg_refresh_rate_hertz * 1000) as u32)
-                } else {
-                    refresh_rate_millihertz
-                };
-
-                VideoModeHandle::new(
-                    monitor.clone(),
-                    NativeDisplayMode(mode),
-                    refresh_rate_millihertz,
-                )
-            })
-        }
-    }
-
-    pub(crate) fn ns_screen(&self, mtm: MainThreadMarker) -> Option<Retained<NSScreen>> {
-        let uuid = unsafe { ffi::CGDisplayCreateUUIDFromDisplayID(self.0) };
-        NSScreen::screens(mtm).into_iter().find(|screen| {
-            let other_native_id = get_display_id(screen);
-            let other_uuid = unsafe {
-                ffi::CGDisplayCreateUUIDFromDisplayID(other_native_id as CGDirectDisplayID)
-            };
-            uuid == other_uuid
-        })
     }
 }
 

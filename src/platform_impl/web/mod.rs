@@ -43,7 +43,6 @@ pub(crate) use self::event_loop::{
 pub(crate) use self::keyboard::KeyEventExtra;
 pub(crate) use self::monitor::{
     HasMonitorPermissionFuture, MonitorHandle, MonitorPermissionFuture, OrientationLockFuture,
-    VideoModeHandle,
 };
 use self::web_sys as backend;
 pub use self::window::{PlatformSpecificWindowAttributes, Window};

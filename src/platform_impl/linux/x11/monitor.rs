@@ -1,12 +1,13 @@
 use std::num::{NonZeroU16, NonZeroU32};
 
+use dpi::PhysicalSize;
 use x11rb::connection::RequestConnection;
 use x11rb::protocol::randr::{self, ConnectionExt as _};
 use x11rb::protocol::xproto;
 
 use super::{util, X11Error, XConnection};
-use crate::dpi::{PhysicalPosition, PhysicalSize};
-use crate::platform_impl::VideoModeHandle as PlatformVideoModeHandle;
+use crate::dpi::PhysicalPosition;
+use crate::monitor::{MonitorHandleProvider, VideoMode};
 
 // Used for testing. This should always be committed as false.
 const DISABLE_MONITOR_LIST_CACHING: bool = false;
@@ -21,32 +22,19 @@ impl XConnection {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct VideoModeHandle {
     pub(crate) current: bool,
-    pub(crate) size: (u32, u32),
+    pub(crate) size: PhysicalSize<u32>,
     pub(crate) bit_depth: Option<NonZeroU16>,
     pub(crate) refresh_rate_millihertz: Option<NonZeroU32>,
     pub(crate) native_mode: randr::Mode,
-    pub(crate) monitor: Option<MonitorHandle>,
 }
 
-impl VideoModeHandle {
-    #[inline]
-    pub fn size(&self) -> PhysicalSize<u32> {
-        self.size.into()
-    }
-
-    #[inline]
-    pub fn bit_depth(&self) -> Option<NonZeroU16> {
-        self.bit_depth
-    }
-
-    #[inline]
-    pub fn refresh_rate_millihertz(&self) -> Option<NonZeroU32> {
-        self.refresh_rate_millihertz
-    }
-
-    #[inline]
-    pub fn monitor(&self) -> MonitorHandle {
-        self.monitor.clone().unwrap()
+impl From<VideoModeHandle> for VideoMode {
+    fn from(mode: VideoModeHandle) -> Self {
+        VideoMode {
+            size: mode.size,
+            bit_depth: mode.bit_depth,
+            refresh_rate_millihertz: mode.refresh_rate_millihertz,
+        }
     }
 }
 
@@ -65,7 +53,33 @@ pub struct MonitorHandle {
     /// Used to determine which windows are on this monitor
     pub(crate) rect: util::AaRect,
     /// Supported video modes on this monitor
-    video_modes: Vec<VideoModeHandle>,
+    pub(crate) video_modes: Vec<VideoModeHandle>,
+}
+
+impl MonitorHandleProvider for MonitorHandle {
+    fn native_id(&self) -> u64 {
+        self.id as _
+    }
+
+    fn name(&self) -> Option<std::borrow::Cow<'_, str>> {
+        Some(self.name.as_str().into())
+    }
+
+    fn position(&self) -> Option<PhysicalPosition<i32>> {
+        Some(self.position.into())
+    }
+
+    fn scale_factor(&self) -> f64 {
+        self.scale_factor
+    }
+
+    fn current_video_mode(&self) -> Option<VideoMode> {
+        self.video_modes.iter().find_map(|mode| mode.current.then(|| mode.clone().into()))
+    }
+
+    fn video_modes(&self) -> Box<dyn Iterator<Item = VideoMode>> {
+        Box::new(self.video_modes.clone().into_iter().map(|mode| mode.into()))
+    }
 }
 
 impl PartialEq for MonitorHandle {
@@ -138,38 +152,6 @@ impl MonitorHandle {
     pub(crate) fn is_dummy(&self) -> bool {
         // Zero is an invalid XID value; no real monitor will have it
         self.id == 0
-    }
-
-    pub fn name(&self) -> Option<String> {
-        Some(self.name.clone())
-    }
-
-    #[inline]
-    pub fn native_identifier(&self) -> u32 {
-        self.id as _
-    }
-
-    pub fn position(&self) -> Option<PhysicalPosition<i32>> {
-        Some(self.position.into())
-    }
-
-    #[inline]
-    pub fn scale_factor(&self) -> f64 {
-        self.scale_factor
-    }
-
-    #[inline]
-    pub fn current_video_mode(&self) -> Option<PlatformVideoModeHandle> {
-        self.video_modes.iter().find(|mode| mode.current).cloned().map(PlatformVideoModeHandle::X)
-    }
-
-    #[inline]
-    pub fn video_modes(&self) -> impl Iterator<Item = PlatformVideoModeHandle> {
-        let monitor = self.clone();
-        self.video_modes.clone().into_iter().map(move |mut x| {
-            x.monitor = Some(monitor.clone());
-            PlatformVideoModeHandle::X(x)
-        })
     }
 }
 

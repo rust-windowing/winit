@@ -509,12 +509,12 @@ impl RootActiveEventLoop for ActiveEventLoop {
                 .monitor()
                 .available_monitors()
                 .into_iter()
-                .map(|inner| RootMonitorHandle { inner }),
+                .map(|monitor| RootMonitorHandle(Arc::new(monitor))),
         )
     }
 
     fn primary_monitor(&self) -> Option<RootMonitorHandle> {
-        self.runner.monitor().primary_monitor().map(|inner| RootMonitorHandle { inner })
+        self.runner.monitor().primary_monitor().map(|monitor| RootMonitorHandle(Arc::new(monitor)))
     }
 
     fn listen_device_events(&self, allowed: DeviceEvents) {

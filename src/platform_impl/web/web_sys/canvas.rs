@@ -26,7 +26,7 @@ use crate::event::{
     SurfaceSizeWriter,
 };
 use crate::keyboard::{Key, KeyLocation, ModifiersState, PhysicalKey};
-use crate::platform_impl::Fullscreen;
+use crate::monitor::Fullscreen;
 use crate::window::{WindowAttributes, WindowId};
 
 #[allow(dead_code)]
@@ -148,13 +148,7 @@ impl Canvas {
         }
 
         if let Some(fullscreen) = attr.fullscreen {
-            fullscreen::request_fullscreen(
-                main_thread,
-                &window,
-                &document,
-                &canvas,
-                fullscreen.into(),
-            );
+            fullscreen::request_fullscreen(main_thread, &window, &document, &canvas, fullscreen);
         }
 
         if attr.active {

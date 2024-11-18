@@ -1,6 +1,5 @@
 use std::cell::Cell;
 use std::hash::Hash;
-use std::num::{NonZeroU16, NonZeroU32};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
@@ -21,12 +20,11 @@ use crate::event_loop::{
     EventLoopProxy as CoreEventLoopProxy, EventLoopProxyProvider,
     OwnedDisplayHandle as CoreOwnedDisplayHandle,
 };
-use crate::monitor::MonitorHandle as RootMonitorHandle;
+use crate::monitor::{Fullscreen, MonitorHandle as RootMonitorHandle};
 use crate::platform::pump_events::PumpStatus;
 use crate::window::{
-    self, CursorGrabMode, CustomCursor, CustomCursorSource, Fullscreen, ImePurpose,
-    ResizeDirection, Theme, Window as CoreWindow, WindowAttributes, WindowButtons, WindowId,
-    WindowLevel,
+    self, CursorGrabMode, CustomCursor, CustomCursorSource, ImePurpose, ResizeDirection, Theme,
+    Window as CoreWindow, WindowAttributes, WindowButtons, WindowId, WindowLevel,
 };
 
 mod keycodes;
@@ -998,52 +996,6 @@ use std::fmt::{self, Display, Formatter};
 impl Display for OsError {
     fn fmt(&self, fmt: &mut Formatter<'_>) -> Result<(), fmt::Error> {
         write!(fmt, "Android OS Error")
-    }
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct MonitorHandle;
-
-impl MonitorHandle {
-    pub fn name(&self) -> Option<String> {
-        unreachable!()
-    }
-
-    pub fn position(&self) -> Option<PhysicalPosition<i32>> {
-        unreachable!()
-    }
-
-    pub fn scale_factor(&self) -> f64 {
-        unreachable!()
-    }
-
-    pub fn current_video_mode(&self) -> Option<VideoModeHandle> {
-        unreachable!()
-    }
-
-    pub fn video_modes(&self) -> std::iter::Empty<VideoModeHandle> {
-        unreachable!()
-    }
-}
-
-#[derive(Clone, Debug, Eq, Hash, PartialEq)]
-pub struct VideoModeHandle;
-
-impl VideoModeHandle {
-    pub fn size(&self) -> PhysicalSize<u32> {
-        unreachable!()
-    }
-
-    pub fn bit_depth(&self) -> Option<NonZeroU16> {
-        unreachable!()
-    }
-
-    pub fn refresh_rate_millihertz(&self) -> Option<NonZeroU32> {
-        unreachable!()
-    }
-
-    pub fn monitor(&self) -> MonitorHandle {
-        unreachable!()
     }
 }
 

@@ -30,6 +30,7 @@ use crate::event_loop::{
     EventLoopProxy as CoreEventLoopProxy, EventLoopProxyProvider,
     OwnedDisplayHandle as CoreOwnedDisplayHandle,
 };
+use crate::monitor::MonitorHandle as CoreMonitorHandle;
 use crate::platform::pump_events::PumpStatus;
 use crate::platform_impl::common::xkb::Context;
 use crate::platform_impl::platform::min_timeout;
@@ -682,23 +683,18 @@ impl RootActiveEventLoop for ActiveEventLoop {
         })
     }
 
-    fn available_monitors(&self) -> Box<dyn Iterator<Item = crate::monitor::MonitorHandle>> {
+    fn available_monitors(&self) -> Box<dyn Iterator<Item = CoreMonitorHandle>> {
         Box::new(
             self.xconn
                 .available_monitors()
                 .into_iter()
                 .flatten()
-                .map(crate::platform_impl::MonitorHandle::X)
-                .map(|inner| crate::monitor::MonitorHandle { inner }),
+                .map(|monitor| CoreMonitorHandle(Arc::new(monitor))),
         )
     }
 
-    fn primary_monitor(&self) -> Option<crate::monitor::MonitorHandle> {
-        self.xconn
-            .primary_monitor()
-            .ok()
-            .map(crate::platform_impl::MonitorHandle::X)
-            .map(|inner| crate::monitor::MonitorHandle { inner })
+    fn primary_monitor(&self) -> Option<CoreMonitorHandle> {
+        self.xconn.primary_monitor().ok().map(|monitor| CoreMonitorHandle(Arc::new(monitor)))
     }
 
     fn system_theme(&self) -> Option<Theme> {

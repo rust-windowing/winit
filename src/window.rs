@@ -10,7 +10,7 @@ pub use crate::cursor::{BadImage, Cursor, CustomCursor, CustomCursorSource, MAX_
 use crate::dpi::{PhysicalPosition, PhysicalSize, Position, Size};
 use crate::error::RequestError;
 pub use crate::icon::{BadIcon, Icon};
-use crate::monitor::{MonitorHandle, VideoModeHandle};
+use crate::monitor::{Fullscreen, MonitorHandle};
 use crate::platform_impl::PlatformSpecificWindowAttributes;
 use crate::utils::AsAny;
 
@@ -46,7 +46,7 @@ impl fmt::Debug for WindowId {
 }
 
 /// Attributes used when creating a window.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone)]
 pub struct WindowAttributes {
     pub surface_size: Option<Size>,
     pub min_surface_size: Option<Size>,
@@ -442,7 +442,7 @@ pub trait Window: AsAny + Send + Sync {
     /// moved to another screen); as such, tracking [`WindowEvent::ScaleFactorChanged`] events is
     /// the most robust way to track the DPI you need to use to draw.
     ///
-    /// This value may differ from [`MonitorHandle::scale_factor`].
+    /// This value may differ from [`MonitorHandleProvider::scale_factor`].
     ///
     /// See the [`dpi`] crate for more information.
     ///
@@ -496,6 +496,7 @@ pub trait Window: AsAny + Send + Sync {
     /// [android_1]: https://developer.android.com/training/multiscreen/screendensities
     /// [web_1]: https://developer.mozilla.org/en-US/docs/Web/API/Window/devicePixelRatio
     /// [`contentScaleFactor`]: https://developer.apple.com/documentation/uikit/uiview/1622657-contentscalefactor?language=objc
+    /// [`MonitorHandleProvider::scale_factor`]: crate::monitor::MonitorHandleProvider::scale_factor.
     fn scale_factor(&self) -> f64;
 
     /// Queues a [`WindowEvent::RedrawRequested`] event to be emitted that aligns with the windowing
@@ -906,15 +907,16 @@ pub trait Window: AsAny + Send + Sync {
     /// - **Wayland:** Does not support exclusive fullscreen mode and will no-op a request.
     /// - **Windows:** Screen saver is disabled in fullscreen mode.
     /// - **Android / Orbital:** Unsupported.
-    /// - **Web:** Passing a [`MonitorHandle`] or [`VideoModeHandle`] that was not created with
+    /// - **Web:** Passing a [`MonitorHandle`] or [`VideoMode`] that was not created with
     #[cfg_attr(
-        any(web_platform, docsrs),
+        web_platform,
         doc = "  [detailed monitor permissions][crate::platform::web::ActiveEventLoopExtWeb::request_detailed_monitor_permission]"
     )]
-    #[cfg_attr(not(any(web_platform, docsrs)), doc = "  detailed monitor permissions")]
+    #[cfg_attr(not(web_platform), doc = "  detailed monitor permissions")]
     ///   or calling without a [transient activation] does nothing.
     ///
     /// [transient activation]: https://developer.mozilla.org/en-US/docs/Glossary/Transient_activation
+    /// [`VideoMode`]: crate::monitor::VideoMode
     fn set_fullscreen(&self, fullscreen: Option<Fullscreen>);
 
     /// Gets the window's current fullscreen state.
@@ -1240,10 +1242,10 @@ pub trait Window: AsAny + Send + Sync {
     ///
     /// **Web:** Only returns the current monitor without
     #[cfg_attr(
-        any(web_platform, docsrs),
+        web_platform,
         doc = "[detailed monitor permissions][crate::platform::web::ActiveEventLoopExtWeb::request_detailed_monitor_permission]."
     )]
-    #[cfg_attr(not(any(web_platform, docsrs)), doc = "detailed monitor permissions.")]
+    #[cfg_attr(not(web_platform), doc = "detailed monitor permissions.")]
     ///
     #[rustfmt::skip]
     /// [`ActiveEventLoop::available_monitors`]: crate::event_loop::ActiveEventLoop::available_monitors
@@ -1260,10 +1262,10 @@ pub trait Window: AsAny + Send + Sync {
     /// - **Wayland:** Always returns `None`.
     /// - **Web:** Always returns `None` without
     #[cfg_attr(
-        any(web_platform, docsrs),
+        web_platform,
         doc = "  [detailed monitor permissions][crate::platform::web::ActiveEventLoopExtWeb::request_detailed_monitor_permission]."
     )]
-    #[cfg_attr(not(any(web_platform, docsrs)), doc = "  detailed monitor permissions.")]
+    #[cfg_attr(not(web_platform), doc = "  detailed monitor permissions.")]
     ///
     #[rustfmt::skip]
     /// [`ActiveEventLoop::primary_monitor`]: crate::event_loop::ActiveEventLoop::primary_monitor
@@ -1371,15 +1373,6 @@ impl From<ResizeDirection> for CursorIcon {
             West => CursorIcon::WResize,
         }
     }
-}
-
-/// Fullscreen modes.
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub enum Fullscreen {
-    Exclusive(VideoModeHandle),
-
-    /// Providing `None` to `Borderless` will fullscreen on the current monitor.
-    Borderless(Option<MonitorHandle>),
 }
 
 /// The theme variant to use.
