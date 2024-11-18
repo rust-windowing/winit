@@ -5,7 +5,9 @@ use std::time::Instant;
 
 use objc2::rc::Retained;
 use objc2::{declare_class, msg_send_id, mutability, ClassType, DeclaredClass};
-use objc2_app_kit::{NSApplication, NSApplicationActivationPolicy, NSApplicationDelegate};
+use objc2_app_kit::{
+    NSApplication, NSApplicationActivationPolicy, NSApplicationDelegate, NSRunningApplication,
+};
 use objc2_foundation::{MainThreadMarker, NSNotification, NSObject, NSObjectProtocol};
 
 use super::event_handler::EventHandler;
@@ -18,12 +20,7 @@ use crate::window::WindowId as RootWindowId;
 
 #[derive(Debug)]
 pub(super) struct AppState {
-    // <<<<<<< HEAD:src/platform_impl/macos/app_state.rs
-    //     activation_policy: NSApplicationActivationPolicy,
-    // =======
     activation_policy: Option<NSApplicationActivationPolicy>,
-    // >>>>>>> 7e819bb2 (Prevent winit from overriding LSUIElement in package manifests
-    // (#3920)):src/platform_impl/apple/appkit/app_state.rs
     default_menu: bool,
     activate_ignoring_other_apps: bool,
     run_loop: RunLoop,
@@ -120,6 +117,19 @@ impl ApplicationDelegate {
         // to allow the package manifest to define behavior via LSUIElement.
         if let Some(activation_policy) = self.ivars().activation_policy {
             app.setActivationPolicy(activation_policy);
+        } else {
+            // If no activation policy is explicitly provided, and the application
+            // is bundled, do not set the activation policy at all, to allow the
+            // package manifest to define the behavior via LSUIElement.
+            //
+            // See:
+            // - https://github.com/rust-windowing/winit/issues/261
+            // - https://github.com/rust-windowing/winit/issues/3958
+            let is_bundled =
+                unsafe { NSRunningApplication::currentApplication().bundleIdentifier().is_some() };
+            if !is_bundled {
+                app.setActivationPolicy(NSApplicationActivationPolicy::Regular);
+            }
         }
 
         window_activation_hack(&app);
