@@ -11,6 +11,8 @@ Unreleased` header.
 
 ## Unreleased
 
+- Add `Rect`, `PhysicalRect` and `LogicalRect`.
+
 ## 0.1.1
 
 - Derive `Debug`, `Copy`, `Clone`, `PartialEq`, `Serialize`, `Deserialize` traits for `PixelUnit`.
