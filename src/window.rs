@@ -728,12 +728,11 @@ pub trait Window: AsAny + Send + Sync {
     /// Note that the safe area does not take occlusion from other windows into account; in a way,
     /// it is only a "hardware"-level occlusion.
     ///
-    /// If the entire content of the surface is visible, this returns `((0, 0), surface_size)`.
+    /// If the entire content of the surface is visible, this returns `(0, 0, 0, 0)`.
     ///
     /// ## Platform-specific
     ///
-    /// - **Android / Orbital / Wayland / Web / Windows / X11:** Unimplemented, returns `((0, 0),
-    ///   surface_size)`.
+    /// - **Android / Orbital / Wayland / Windows / X11:** Unimplemented, returns `(0, 0, 0, 0)`.
     ///
     /// ## Examples
     ///
