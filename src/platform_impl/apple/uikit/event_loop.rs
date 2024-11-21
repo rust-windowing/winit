@@ -20,6 +20,7 @@ use objc2_ui_kit::{
     UIApplicationWillEnterForegroundNotification, UIApplicationWillResignActiveNotification,
     UIApplicationWillTerminateNotification, UIScreen,
 };
+use rwh_06::HasDisplayHandle;
 
 use super::super::notification_center::create_observer;
 use super::app_state::{send_occluded_event_for_all_windows, AppState, EventWrapper};
@@ -29,7 +30,8 @@ use crate::error::{EventLoopError, NotSupportedError, RequestError};
 use crate::event::Event;
 use crate::event_loop::{
     ActiveEventLoop as RootActiveEventLoop, ControlFlow, DeviceEvents,
-    EventLoopProxy as RootEventLoopProxy, OwnedDisplayHandle as RootOwnedDisplayHandle,
+    EventLoopProxy as CoreEventLoopProxy, EventLoopProxyProvider,
+    OwnedDisplayHandle as CoreOwnedDisplayHandle,
 };
 use crate::monitor::MonitorHandle as RootMonitorHandle;
 use crate::platform_impl::Window;
@@ -41,9 +43,8 @@ pub(crate) struct ActiveEventLoop {
 }
 
 impl RootActiveEventLoop for ActiveEventLoop {
-    fn create_proxy(&self) -> crate::event_loop::EventLoopProxy {
-        let event_loop_proxy = EventLoopProxy::new(AppState::get_mut(self.mtm).proxy_wake_up());
-        RootEventLoopProxy { event_loop_proxy }
+    fn create_proxy(&self) -> CoreEventLoopProxy {
+        CoreEventLoopProxy::new(AppState::get_mut(self.mtm).event_loop_proxy().clone())
     }
 
     fn create_window(
@@ -94,8 +95,8 @@ impl RootActiveEventLoop for ActiveEventLoop {
         false
     }
 
-    fn owned_display_handle(&self) -> RootOwnedDisplayHandle {
-        RootOwnedDisplayHandle { platform: OwnedDisplayHandle }
+    fn owned_display_handle(&self) -> CoreOwnedDisplayHandle {
+        CoreOwnedDisplayHandle::new(Arc::new(OwnedDisplayHandle))
     }
 
     fn rwh_06_handle(&self) -> &dyn rwh_06::HasDisplayHandle {
@@ -113,12 +114,10 @@ impl rwh_06::HasDisplayHandle for ActiveEventLoop {
 #[derive(Clone, PartialEq, Eq)]
 pub(crate) struct OwnedDisplayHandle;
 
-impl OwnedDisplayHandle {
-    #[inline]
-    pub fn raw_display_handle_rwh_06(
-        &self,
-    ) -> Result<rwh_06::RawDisplayHandle, rwh_06::HandleError> {
-        Ok(rwh_06::UiKitDisplayHandle::new().into())
+impl HasDisplayHandle for OwnedDisplayHandle {
+    fn display_handle(&self) -> Result<rwh_06::DisplayHandle<'_>, rwh_06::HandleError> {
+        let raw = rwh_06::RawDisplayHandle::UiKit(rwh_06::UiKitDisplayHandle::new());
+        unsafe { Ok(rwh_06::DisplayHandle::borrow_raw(raw)) }
     }
 }
 
@@ -289,18 +288,12 @@ impl EventLoop {
 }
 
 pub struct EventLoopProxy {
-    proxy_wake_up: Arc<AtomicBool>,
+    pub(crate) wake_up: AtomicBool,
     source: CFRunLoopSourceRef,
 }
 
 unsafe impl Send for EventLoopProxy {}
 unsafe impl Sync for EventLoopProxy {}
-
-impl Clone for EventLoopProxy {
-    fn clone(&self) -> EventLoopProxy {
-        EventLoopProxy::new(self.proxy_wake_up.clone())
-    }
-}
 
 impl Drop for EventLoopProxy {
     fn drop(&mut self) {
@@ -312,7 +305,7 @@ impl Drop for EventLoopProxy {
 }
 
 impl EventLoopProxy {
-    fn new(proxy_wake_up: Arc<AtomicBool>) -> EventLoopProxy {
+    pub(crate) fn new() -> EventLoopProxy {
         unsafe {
             // just wake up the eventloop
             extern "C" fn event_loop_proxy_handler(_: *const c_void) {}
@@ -336,12 +329,14 @@ impl EventLoopProxy {
             CFRunLoopAddSource(rl, source, kCFRunLoopCommonModes);
             CFRunLoopWakeUp(rl);
 
-            EventLoopProxy { proxy_wake_up, source }
+            EventLoopProxy { wake_up: AtomicBool::new(false), source }
         }
     }
+}
 
-    pub fn wake_up(&self) {
-        self.proxy_wake_up.store(true, AtomicOrdering::Relaxed);
+impl EventLoopProxyProvider for EventLoopProxy {
+    fn wake_up(&self) {
+        self.wake_up.store(true, AtomicOrdering::Relaxed);
         unsafe {
             // let the main thread know there's a new event
             CFRunLoopSourceSignal(self.source);

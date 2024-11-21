@@ -27,13 +27,14 @@ use crate::error::{EventLoopError, RequestError};
 use crate::event::{DeviceId, Event, StartCause, WindowEvent};
 use crate::event_loop::{
     ActiveEventLoop as RootActiveEventLoop, ControlFlow, DeviceEvents,
-    OwnedDisplayHandle as RootOwnedDisplayHandle,
+    EventLoopProxy as CoreEventLoopProxy, EventLoopProxyProvider,
+    OwnedDisplayHandle as CoreOwnedDisplayHandle,
 };
 use crate::platform::pump_events::PumpStatus;
 use crate::platform_impl::common::xkb::Context;
 use crate::platform_impl::platform::min_timeout;
 use crate::platform_impl::x11::window::Window;
-use crate::platform_impl::{OwnedDisplayHandle, PlatformCustomCursor};
+use crate::platform_impl::PlatformCustomCursor;
 use crate::window::{
     CustomCursor as RootCustomCursor, CustomCursorSource, Theme, Window as CoreWindow,
     WindowAttributes, WindowId,
@@ -139,7 +140,7 @@ pub struct ActiveEventLoop {
     windows: RefCell<HashMap<WindowId, Weak<UnownedWindow>>>,
     redraw_sender: WakeSender<WindowId>,
     activation_sender: WakeSender<ActivationToken>,
-    event_loop_proxy: EventLoopProxy,
+    event_loop_proxy: CoreEventLoopProxy,
     device_events: Cell<DeviceEvents>,
 }
 
@@ -306,7 +307,7 @@ impl EventLoop {
                 sender: activation_token_sender, // not used again so no clone
                 waker: waker.clone(),
             },
-            event_loop_proxy,
+            event_loop_proxy: event_loop_proxy.into(),
             device_events: Default::default(),
         };
 
@@ -647,20 +648,6 @@ impl ActiveEventLoop {
             .expect_then_ignore_error("Failed to update device event filter");
     }
 
-    pub fn raw_display_handle_rwh_06(
-        &self,
-    ) -> Result<rwh_06::RawDisplayHandle, rwh_06::HandleError> {
-        let display_handle = rwh_06::XlibDisplayHandle::new(
-            // SAFETY: display will never be null
-            Some(
-                std::ptr::NonNull::new(self.xconn.display as *mut _)
-                    .expect("X11 display should never be null"),
-            ),
-            self.xconn.default_screen_index() as c_int,
-        );
-        Ok(display_handle.into())
-    }
-
     pub(crate) fn clear_exit(&self) {
         self.exit.set(None)
     }
@@ -675,12 +662,8 @@ impl ActiveEventLoop {
 }
 
 impl RootActiveEventLoop for ActiveEventLoop {
-    fn create_proxy(&self) -> crate::event_loop::EventLoopProxy {
-        crate::event_loop::EventLoopProxy {
-            event_loop_proxy: crate::platform_impl::EventLoopProxy::X(
-                self.event_loop_proxy.clone(),
-            ),
-        }
+    fn create_proxy(&self) -> CoreEventLoopProxy {
+        self.event_loop_proxy.clone()
     }
 
     fn create_window(
@@ -742,9 +725,8 @@ impl RootActiveEventLoop for ActiveEventLoop {
         self.exit.get().is_some()
     }
 
-    fn owned_display_handle(&self) -> RootOwnedDisplayHandle {
-        let handle = OwnedDisplayHandle::X(self.x_connection().clone());
-        RootOwnedDisplayHandle { platform: handle }
+    fn owned_display_handle(&self) -> CoreOwnedDisplayHandle {
+        CoreOwnedDisplayHandle::new(self.x_connection().clone())
     }
 
     fn rwh_06_handle(&self) -> &dyn rwh_06::HasDisplayHandle {
@@ -754,14 +736,7 @@ impl RootActiveEventLoop for ActiveEventLoop {
 
 impl rwh_06::HasDisplayHandle for ActiveEventLoop {
     fn display_handle(&self) -> Result<rwh_06::DisplayHandle<'_>, rwh_06::HandleError> {
-        let raw = self.raw_display_handle_rwh_06()?;
-        unsafe { Ok(rwh_06::DisplayHandle::borrow_raw(raw)) }
-    }
-}
-
-impl EventLoopProxy {
-    pub fn wake_up(&self) {
-        self.ping.ping();
+        self.xconn.display_handle()
     }
 }
 
@@ -807,9 +782,21 @@ pub struct EventLoopProxy {
     ping: Ping,
 }
 
+impl EventLoopProxyProvider for EventLoopProxy {
+    fn wake_up(&self) {
+        self.ping.ping();
+    }
+}
+
 impl EventLoopProxy {
     fn new(ping: Ping) -> Self {
         Self { ping }
+    }
+}
+
+impl From<EventLoopProxy> for CoreEventLoopProxy {
+    fn from(value: EventLoopProxy) -> Self {
+        CoreEventLoopProxy::new(Arc::new(value))
     }
 }
 

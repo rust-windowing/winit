@@ -2031,12 +2031,19 @@ impl UnownedWindow {
     }
 
     #[inline]
-    pub fn set_ime_cursor_area(&self, spot: Position, _size: Size) {
-        let (x, y) = spot.to_physical::<i32>(self.scale_factor()).into();
+    pub fn set_ime_cursor_area(&self, spot: Position, size: Size) {
+        let PhysicalPosition { x, y } = spot.to_physical::<i16>(self.scale_factor());
+        let PhysicalSize { width, height } = size.to_physical::<i16>(self.scale_factor());
+        // We only currently support reporting a caret position via XIM.
+        // No IM servers currently process preedit area information from XIM clients
+        // and it is unclear this is even part of the standard protocol.
+        // Fcitx and iBus both assume that the position reported is at the insertion
+        // caret, and by default will place the candidate window under and to the
+        // right of the reported point.
         let _ = self.ime_sender.lock().unwrap().send(ImeRequest::Position(
             self.xwindow as ffi::Window,
-            x,
-            y,
+            x.saturating_add(width),
+            y.saturating_add(height),
         ));
     }
 

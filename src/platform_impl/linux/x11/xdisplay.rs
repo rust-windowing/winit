@@ -1,9 +1,11 @@
 use std::collections::HashMap;
 use std::error::Error;
+use std::ffi::c_int;
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::{Arc, Mutex, RwLock, RwLockReadGuard};
 use std::{fmt, ptr};
 
+use rwh_06::HasDisplayHandle;
 use x11rb::connection::Connection;
 use x11rb::protocol::randr::ConnectionExt as _;
 use x11rb::protocol::render;
@@ -60,6 +62,13 @@ pub struct XConnection {
 
     pub latest_error: Mutex<Option<XError>>,
     pub cursor_cache: Mutex<HashMap<Option<CursorIcon>, xproto::Cursor>>,
+}
+
+impl HasDisplayHandle for XConnection {
+    fn display_handle(&self) -> Result<rwh_06::DisplayHandle<'_>, rwh_06::HandleError> {
+        let raw = self.raw_display_handle()?;
+        unsafe { Ok(rwh_06::DisplayHandle::borrow_raw(raw)) }
+    }
 }
 
 unsafe impl Send for XConnection {}
@@ -283,6 +292,19 @@ impl XConnection {
         let endian = xproto::ImageOrder::LSB_FIRST;
 
         self.xcb_connection().setup().image_byte_order != endian
+    }
+
+    pub fn raw_display_handle(&self) -> Result<rwh_06::RawDisplayHandle, rwh_06::HandleError> {
+        let display_handle = rwh_06::XlibDisplayHandle::new(
+            // SAFETY: display will never be null
+            Some(
+                std::ptr::NonNull::new(self.display as *mut _)
+                    .expect("X11 display should never be null"),
+            ),
+            self.default_screen_index() as c_int,
+        );
+
+        Ok(display_handle.into())
     }
 }
 
