@@ -923,52 +923,27 @@ impl WindowState {
 
         let mut buffer = self.surface.buffer_mut()?;
 
-        // Fill the whole surface with a plain background
-        buffer.fill(match self.theme {
-            Theme::Light => 0xffffffff, // White
-            Theme::Dark => 0xff181818,  // Dark gray
-        });
-
-        // Draw a star (without anti-aliasing) inside the safe area
+        // Draw a different color inside the safe area
         let surface_size = self.window.surface_size();
         let insets = self.window.safe_area();
-        // Compute the safe rectangle.
-        // Winit's coordinate system has (0, 0) in the top-left corner.
-        let origin = PhysicalPosition::new(insets.left, insets.top);
-        let size = PhysicalSize::new(
-            surface_size.width - insets.left - insets.right,
-            surface_size.height - insets.top - insets.bottom,
-        );
-
-        let in_star = |x, y| -> bool {
-            // Shamelessly adapted from https://stackoverflow.com/a/2049593.
-            let sign = |p1: (i32, i32), p2: (i32, i32), p3: (i32, i32)| -> i32 {
-                (p1.0 - p3.0) * (p2.1 - p3.1) - (p2.0 - p3.0) * (p1.1 - p3.1)
-            };
-
-            let pt = (x as i32, y as i32);
-            let v1 = (0, size.height as i32 / 2);
-            let v2 = (size.width as i32 / 2, 0);
-            let v3 = (size.width as i32, size.height as i32 / 2);
-            let v4 = (size.width as i32 / 2, size.height as i32);
-
-            let d1 = sign(pt, v1, v2);
-            let d2 = sign(pt, v2, v3);
-            let d3 = sign(pt, v3, v4);
-            let d4 = sign(pt, v4, v1);
-
-            let has_neg = (d1 < 0) || (d2 < 0) || (d3 < 0) || (d4 < 0);
-            let has_pos = (d1 > 0) || (d2 > 0) || (d3 > 0) || (d4 > 0);
-
-            !(has_neg && has_pos)
-        };
-        for y in 0..size.height {
-            for x in 0..size.width {
-                if in_star(x, y) {
-                    let index = (origin.y + y) * surface_size.width + (origin.x + x);
-                    buffer[index as usize] = match self.theme {
+        for y in 0..surface_size.height {
+            for x in 0..surface_size.width {
+                let index = y as usize * surface_size.width as usize + x as usize;
+                if insets.left <= x
+                    && x <= (surface_size.width - insets.right)
+                    && insets.top <= y
+                    && y <= (surface_size.height - insets.bottom)
+                {
+                    // In safe area
+                    buffer[index] = match self.theme {
                         Theme::Light => 0xffe8e8e8, // Light gray
                         Theme::Dark => 0xff525252,  // Medium gray
+                    };
+                } else {
+                    // Outside safe area
+                    buffer[index] = match self.theme {
+                        Theme::Light => 0xffffffff, // White
+                        Theme::Dark => 0xff181818,  // Dark gray
                     };
                 }
             }
