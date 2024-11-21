@@ -186,8 +186,9 @@ impl EventLoop {
     ) -> Result<Self, EventLoopError> {
         let thread_id = unsafe { GetCurrentThreadId() };
 
+        #[cfg(debug_assertions)]
         if !attributes.any_thread && thread_id != main_thread_id() {
-            panic!(
+            tracing::warn!(
                 "Initializing the event loop outside of the main thread is a significant \
                  cross-platform compatibility hazard. If you absolutely need to create an \
                  EventLoop on a different thread, you can use the \
@@ -556,10 +557,12 @@ impl rwh_06::HasDisplayHandle for OwnedDisplayHandle {
 /// to setup global state within a program. The OS will call a list of function pointers which
 /// assign values to a static variable. To have get a hold of the main thread id, we need to place
 /// our function pointer inside of the `.CRT$XCU` section so it is called before the main
-/// entrypoint.
+/// entrypoint. Note that when compiled into a dylib, this is not guaranteed to be ran from the "main"
+/// thread, so this is not foolproof.
 ///
 /// Full details of CRT initialization can be found here:
 /// <https://docs.microsoft.com/en-us/cpp/c-runtime-library/crt-initialization?view=msvc-160>
+#[cfg(debug_assertions)]
 fn main_thread_id() -> u32 {
     static mut MAIN_THREAD_ID: u32 = 0;
 
