@@ -72,8 +72,8 @@ pub struct Common {
 
 #[derive(Clone, Debug)]
 pub struct Style {
-    read: CssStyleDeclaration,
-    write: CssStyleDeclaration,
+    pub(super) read: CssStyleDeclaration,
+    pub(super) write: CssStyleDeclaration,
 }
 
 impl Canvas {

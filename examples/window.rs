@@ -242,6 +242,10 @@ impl Application {
             Action::ToggleResizable => window.toggle_resizable(),
             Action::ToggleDecorations => window.toggle_decorations(),
             Action::ToggleFullscreen => window.toggle_fullscreen(),
+            #[cfg(macos_platform)]
+            Action::ToggleSimpleFullscreen => {
+                window.window.set_simple_fullscreen(!window.window.simple_fullscreen());
+            },
             Action::ToggleMaximize => window.toggle_maximize(),
             Action::ToggleImeInput => window.toggle_ime(),
             Action::Minimize => window.minimize(),
@@ -941,18 +945,38 @@ impl WindowState {
             return Ok(());
         }
 
-        const WHITE: u32 = 0xffffffff;
-        const DARK_GRAY: u32 = 0xff181818;
-
-        let color = match self.theme {
-            Theme::Light => WHITE,
-            Theme::Dark => DARK_GRAY,
-        };
-
         let mut buffer = self.surface.buffer_mut()?;
-        buffer.fill(color);
+
+        // Draw a different color inside the safe area
+        let surface_size = self.window.surface_size();
+        let insets = self.window.safe_area();
+        for y in 0..surface_size.height {
+            for x in 0..surface_size.width {
+                let index = y as usize * surface_size.width as usize + x as usize;
+                if insets.left <= x
+                    && x <= (surface_size.width - insets.right)
+                    && insets.top <= y
+                    && y <= (surface_size.height - insets.bottom)
+                {
+                    // In safe area
+                    buffer[index] = match self.theme {
+                        Theme::Light => 0xffe8e8e8, // Light gray
+                        Theme::Dark => 0xff525252,  // Medium gray
+                    };
+                } else {
+                    // Outside safe area
+                    buffer[index] = match self.theme {
+                        Theme::Light => 0xffffffff, // White
+                        Theme::Dark => 0xff181818,  // Dark gray
+                    };
+                }
+            }
+        }
+
+        // Present the buffer
         self.window.pre_present_notify();
         buffer.present()?;
+
         Ok(())
     }
 
@@ -989,6 +1013,8 @@ enum Action {
     ToggleDecorations,
     ToggleResizable,
     ToggleFullscreen,
+    #[cfg(macos_platform)]
+    ToggleSimpleFullscreen,
     ToggleMaximize,
     Minimize,
     NextCursor,
@@ -1022,6 +1048,8 @@ impl Action {
             Action::ToggleDecorations => "Toggle decorations",
             Action::ToggleResizable => "Toggle window resizable state",
             Action::ToggleFullscreen => "Toggle fullscreen",
+            #[cfg(macos_platform)]
+            Action::ToggleSimpleFullscreen => "Toggle simple fullscreen",
             Action::ToggleMaximize => "Maximize",
             Action::Minimize => "Minimize",
             Action::ToggleResizeIncrements => "Use resize increments when resizing window",
@@ -1164,6 +1192,8 @@ const KEY_BINDINGS: &[Binding<&'static str>] = &[
     Binding::new("Q", ModifiersState::CONTROL, Action::CloseWindow),
     Binding::new("H", ModifiersState::CONTROL, Action::PrintHelp),
     Binding::new("F", ModifiersState::CONTROL, Action::ToggleFullscreen),
+    #[cfg(macos_platform)]
+    Binding::new("F", ModifiersState::ALT, Action::ToggleSimpleFullscreen),
     Binding::new("D", ModifiersState::CONTROL, Action::ToggleDecorations),
     Binding::new("I", ModifiersState::CONTROL, Action::ToggleImeInput),
     Binding::new("L", ModifiersState::CONTROL, Action::CycleCursorGrab),

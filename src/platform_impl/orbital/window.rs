@@ -4,7 +4,7 @@ use std::sync::{Arc, Mutex};
 use super::event_loop::EventLoopProxy;
 use super::{ActiveEventLoop, MonitorHandle, RedoxSocket, WindowProperties};
 use crate::cursor::Cursor;
-use crate::dpi::{PhysicalPosition, PhysicalSize, Position, Size};
+use crate::dpi::{PhysicalInsets, PhysicalPosition, PhysicalSize, Position, Size};
 use crate::error::{NotSupportedError, RequestError};
 use crate::monitor::MonitorHandle as CoreMonitorHandle;
 use crate::window::{self, Fullscreen, ImePurpose, Window as CoreWindow, WindowId};
@@ -198,17 +198,17 @@ impl CoreWindow for Window {
     }
 
     #[inline]
-    fn inner_position(&self) -> Result<PhysicalPosition<i32>, RequestError> {
-        let mut buf: [u8; 4096] = [0; 4096];
-        let path = self.window_socket.fpath(&mut buf).expect("failed to read properties");
-        let properties = WindowProperties::new(path);
-        Ok((properties.x, properties.y).into())
+    fn surface_position(&self) -> PhysicalPosition<i32> {
+        // TODO: adjust for window decorations
+        (0, 0).into()
     }
 
     #[inline]
     fn outer_position(&self) -> Result<PhysicalPosition<i32>, RequestError> {
-        // TODO: adjust for window decorations
-        self.inner_position()
+        let mut buf: [u8; 4096] = [0; 4096];
+        let path = self.window_socket.fpath(&mut buf).expect("failed to read properties");
+        let properties = WindowProperties::new(path);
+        Ok((properties.x, properties.y).into())
     }
 
     #[inline]
@@ -237,6 +237,10 @@ impl CoreWindow for Window {
     fn outer_size(&self) -> PhysicalSize<u32> {
         // TODO: adjust for window decorations
         self.surface_size()
+    }
+
+    fn safe_area(&self) -> PhysicalInsets<u32> {
+        PhysicalInsets::new(0, 0, 0, 0)
     }
 
     #[inline]

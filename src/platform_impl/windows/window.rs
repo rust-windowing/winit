@@ -46,7 +46,7 @@ use windows_sys::Win32::UI::WindowsAndMessaging::{
 };
 
 use crate::cursor::Cursor;
-use crate::dpi::{PhysicalPosition, PhysicalSize, Position, Size};
+use crate::dpi::{PhysicalInsets, PhysicalPosition, PhysicalSize, Position, Size};
 use crate::error::{NotSupportedError, RequestError};
 use crate::icon::Icon;
 use crate::monitor::MonitorHandle as CoreMonitorHandle;
@@ -416,15 +416,15 @@ impl CoreWindow for Window {
             )
     }
 
-    fn inner_position(&self) -> Result<PhysicalPosition<i32>, RequestError> {
-        let mut position: POINT = unsafe { mem::zeroed() };
-        if unsafe { ClientToScreen(self.hwnd(), &mut position) } == false.into() {
+    fn surface_position(&self) -> PhysicalPosition<i32> {
+        let mut rect: RECT = unsafe { mem::zeroed() };
+        if unsafe { GetClientRect(self.hwnd(), &mut rect) } == false.into() {
             panic!(
-                "Unexpected ClientToScreen failure: please report this error to \
+                "Unexpected GetClientRect failure: please report this error to \
                  rust-windowing/winit"
             )
         }
-        Ok(PhysicalPosition::new(position.x, position.y))
+        PhysicalPosition::new(rect.left, rect.top)
     }
 
     fn set_outer_position(&self, position: Position) {
@@ -492,6 +492,10 @@ impl CoreWindow for Window {
         }
 
         None
+    }
+
+    fn safe_area(&self) -> PhysicalInsets<u32> {
+        PhysicalInsets::new(0, 0, 0, 0)
     }
 
     fn set_min_surface_size(&self, size: Option<Size>) {

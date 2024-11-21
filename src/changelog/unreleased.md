@@ -73,6 +73,8 @@ changelog entry.
 - Add `DeviceId::into_raw()` and `from_raw()`.
 - On X11, the `window` example now understands the `X11_VISUAL_ID` and `X11_SCREEN_ID` env
   variables to test the respective modifiers of window creation.
+- Added `Window::surface_position`, which is the position of the surface inside the window.
+- Added `Window::safe_area`, which describes the area of the surface that is unobstructed.
 
 ### Changed
 
@@ -157,7 +159,7 @@ changelog entry.
     identify a finger in a multi-touch interaction. Replaces the old `Touch::id`.
   - In the same spirit rename `DeviceEvent::MouseMotion` to `PointerMotion`.
   - Remove `Force::Calibrated::altitude_angle`.
- - On X11, use bottom-right corner for IME hotspot in `Window::set_ime_cursor_area`.
+- On X11, use bottom-right corner for IME hotspot in `Window::set_ime_cursor_area`.
 
 ### Removed
 
@@ -189,6 +191,7 @@ changelog entry.
 - Remove `WindowEvent::Touch` and `Touch` in favor of the new `PointerKind`, `PointerSource` and
  `ButtonSource` as part of the new pointer event overhaul.
 - Remove `Force::altitude_angle`.
+- Removed `Window::inner_position`, use the new `Window::surface_position` instead.
 
 ### Fixed
 
@@ -202,3 +205,4 @@ changelog entry.
 - On X11, creating windows on screen that is not the first one (e.g. `DISPLAY=:0.1`) works again.
 - On X11, creating windows while passing `with_x11_screen(non_default_screen)` works again.
 - On X11, fix XInput handling that prevented a new window from getting the focus in some cases.
+- On iOS, fixed `SurfaceResized` and `Window::surface_size` not reporting the size of the actual surface.
