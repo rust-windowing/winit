@@ -3,6 +3,7 @@ use std::collections::{HashSet, VecDeque};
 use std::iter;
 use std::ops::Deref;
 use std::rc::{Rc, Weak};
+use std::sync::Arc;
 
 use wasm_bindgen::prelude::Closure;
 use wasm_bindgen::JsCast;
@@ -13,13 +14,14 @@ use super::super::event;
 use super::super::main_thread::MainThreadMarker;
 use super::super::monitor::MonitorHandler;
 use super::backend;
+use super::proxy::EventLoopProxy;
 use super::state::State;
 use crate::dpi::PhysicalSize;
 use crate::event::{DeviceEvent, ElementState, Event, RawKeyEvent, StartCause, WindowEvent};
 use crate::event_loop::{ControlFlow, DeviceEvents};
 use crate::platform::web::{PollStrategy, WaitUntilStrategy};
 use crate::platform_impl::platform::backend::{EventListenerHandle, SafeAreaHandle};
-use crate::platform_impl::platform::r#async::{DispatchRunner, Waker, WakerSpawner};
+use crate::platform_impl::platform::r#async::DispatchRunner;
 use crate::platform_impl::platform::window::Inner;
 use crate::window::WindowId;
 
@@ -37,7 +39,7 @@ type OnEventHandle<T> = RefCell<Option<EventListenerHandle<dyn FnMut(T)>>>;
 
 struct Execution {
     main_thread: MainThreadMarker,
-    proxy_spawner: WakerSpawner<WeakShared>,
+    event_loop_proxy: Arc<EventLoopProxy>,
     control_flow: Cell<ControlFlow>,
     poll_strategy: Cell<PollStrategy>,
     wait_until_strategy: Cell<WaitUntilStrategy>,
@@ -141,12 +143,7 @@ impl Shared {
         let document = window.document().expect("Failed to obtain document");
 
         Shared(Rc::<Execution>::new_cyclic(|weak| {
-            let proxy_spawner =
-                WakerSpawner::new(main_thread, WeakShared(weak.clone()), |runner, local| {
-                    if let Some(runner) = runner.upgrade() {
-                        runner.send_proxy_wake_up(local);
-                    }
-                });
+            let proxy_spawner = EventLoopProxy::new(main_thread, WeakShared(weak.clone()));
 
             let monitor = MonitorHandler::new(
                 main_thread,
@@ -159,7 +156,7 @@ impl Shared {
 
             Execution {
                 main_thread,
-                proxy_spawner,
+                event_loop_proxy: Arc::new(proxy_spawner),
                 control_flow: Cell::new(ControlFlow::default()),
                 poll_strategy: Cell::new(PollStrategy::default()),
                 wait_until_strategy: Cell::new(WaitUntilStrategy::default()),
@@ -657,7 +654,7 @@ impl Shared {
                 // Pre-fetch `UserEvent`s to avoid having to wait until the next event loop cycle.
                 events.extend(
                     self.0
-                        .proxy_spawner
+                        .event_loop_proxy
                         .take()
                         .then_some(Event::UserWakeUp)
                         .map(EventWrapper::from),
@@ -822,8 +819,8 @@ impl Shared {
         self.0.wait_until_strategy.get()
     }
 
-    pub(crate) fn waker(&self) -> Waker<WeakShared> {
-        self.0.proxy_spawner.waker()
+    pub(crate) fn event_loop_proxy(&self) -> &Arc<EventLoopProxy> {
+        &self.0.event_loop_proxy
     }
 
     pub(crate) fn weak(&self) -> WeakShared {

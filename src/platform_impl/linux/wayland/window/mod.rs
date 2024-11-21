@@ -87,7 +87,7 @@ impl Window {
         let compositor = state.compositor_state.clone();
         let xdg_activation =
             state.xdg_activation.as_ref().map(|activation_state| activation_state.global().clone());
-        let display = event_loop_window_target.connection.display();
+        let display = event_loop_window_target.handle.connection.display();
 
         let size: Size = attributes.surface_size.unwrap_or(LogicalSize::new(800., 600.).into());
 
@@ -103,7 +103,7 @@ impl Window {
             state.xdg_shell.create_window(surface.clone(), default_decorations, &queue_handle);
 
         let mut window_state = WindowState::new(
-            event_loop_window_target.connection.clone(),
+            event_loop_window_target.handle.clone(),
             &event_loop_window_target.queue_handle,
             &state,
             size,
