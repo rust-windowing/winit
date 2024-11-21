@@ -557,8 +557,8 @@ impl rwh_06::HasDisplayHandle for OwnedDisplayHandle {
 /// to setup global state within a program. The OS will call a list of function pointers which
 /// assign values to a static variable. To have get a hold of the main thread id, we need to place
 /// our function pointer inside of the `.CRT$XCU` section so it is called before the main
-/// entrypoint. Note that when compiled into a dylib, this is not guaranteed to be ran from the "main"
-/// thread, so this is not foolproof.
+/// entrypoint. Note that when compiled into a dylib, this is not guaranteed to be ran from the 
+/// "main" thread, so this is not foolproof.
 ///
 /// Full details of CRT initialization can be found here:
 /// <https://docs.microsoft.com/en-us/cpp/c-runtime-library/crt-initialization?view=msvc-160>
