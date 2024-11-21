@@ -158,6 +158,8 @@ changelog entry.
   - In the same spirit rename `DeviceEvent::MouseMotion` to `PointerMotion`.
   - Remove `Force::Calibrated::altitude_angle`.
   - On X11, use bottom-right corner for IME hotspot in `Window::set_ime_cursor_area`.
+- Main thread check is now more lax on Windows due to it not being fully reliable: it now produces a log instead
+  of a hard panic, and is not checked without `cfg(debug_assertions)`.
 
 ### Removed
 
