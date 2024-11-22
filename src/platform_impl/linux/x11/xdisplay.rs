@@ -164,7 +164,7 @@ impl XConnection {
     fn new_xsettings_screen(xcb: &XCBConnection, default_screen: usize) -> Option<xproto::Atom> {
         // Fetch the _XSETTINGS_S[screen number] atom.
         let xsettings_screen = xcb
-            .intern_atom(false, format!("_XSETTINGS_S{}", default_screen).as_bytes())
+            .intern_atom(false, format!("_XSETTINGS_S{default_screen}").as_bytes())
             .ok()?
             .reply()
             .ok()?

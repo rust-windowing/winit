@@ -843,24 +843,24 @@ pub enum X11Error {
 impl fmt::Display for X11Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            X11Error::Xlib(e) => write!(f, "Xlib error: {}", e),
-            X11Error::Connect(e) => write!(f, "X11 connection error: {}", e),
-            X11Error::Connection(e) => write!(f, "X11 connection error: {}", e),
-            X11Error::XidsExhausted(e) => write!(f, "XID range exhausted: {}", e),
-            X11Error::GetProperty(e) => write!(f, "Failed to get X property {}", e),
-            X11Error::X11(e) => write!(f, "X11 error: {:?}", e),
-            X11Error::UnexpectedNull(s) => write!(f, "Xlib function returned null: {}", s),
+            X11Error::Xlib(e) => write!(f, "Xlib error: {e}"),
+            X11Error::Connect(e) => write!(f, "X11 connection error: {e}"),
+            X11Error::Connection(e) => write!(f, "X11 connection error: {e}"),
+            X11Error::XidsExhausted(e) => write!(f, "XID range exhausted: {e}"),
+            X11Error::GetProperty(e) => write!(f, "Failed to get X property {e}"),
+            X11Error::X11(e) => write!(f, "X11 error: {e:?}"),
+            X11Error::UnexpectedNull(s) => write!(f, "Xlib function returned null: {s}"),
             X11Error::InvalidActivationToken(s) => write!(
                 f,
                 "Invalid activation token: {}",
                 std::str::from_utf8(s).unwrap_or("<invalid utf8>")
             ),
-            X11Error::MissingExtension(s) => write!(f, "Missing X11 extension: {}", s),
+            X11Error::MissingExtension(s) => write!(f, "Missing X11 extension: {s}"),
             X11Error::NoSuchVisual(visualid) => {
-                write!(f, "Could not find a matching X11 visual for ID `{:x}`", visualid)
+                write!(f, "Could not find a matching X11 visual for ID `{visualid:x}`")
             },
             X11Error::XsettingsParse(err) => {
-                write!(f, "Failed to parse xsettings: {:?}", err)
+                write!(f, "Failed to parse xsettings: {err:?}")
             },
             X11Error::NoArgb32Format => {
                 f.write_str("winit only supports X11 displays with ARGB32 picture formats")
