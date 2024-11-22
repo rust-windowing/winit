@@ -8,8 +8,8 @@ use objc2_foundation::{
     CGFloat, CGPoint, CGRect, CGSize, MainThreadBound, MainThreadMarker, NSObject, NSObjectProtocol,
 };
 use objc2_ui_kit::{
-    UIApplication, UICoordinateSpace, UIResponder, UIScreen, UIScreenOverscanCompensation,
-    UIViewController, UIWindow,
+    UIApplication, UICoordinateSpace, UIEdgeInsets, UIResponder, UIScreen,
+    UIScreenOverscanCompensation, UIViewController, UIWindow,
 };
 use tracing::{debug, warn};
 
@@ -18,7 +18,10 @@ use super::view::WinitView;
 use super::view_controller::WinitViewController;
 use super::{app_state, monitor, ActiveEventLoop, Fullscreen, MonitorHandle};
 use crate::cursor::Cursor;
-use crate::dpi::{LogicalPosition, LogicalSize, PhysicalPosition, PhysicalSize, Position, Size};
+use crate::dpi::{
+    LogicalInsets, LogicalPosition, LogicalSize, PhysicalInsets, PhysicalPosition, PhysicalSize,
+    Position, Size,
+};
 use crate::error::{NotSupportedError, RequestError};
 use crate::event::{Event, WindowEvent};
 use crate::icon::Icon;
@@ -158,20 +161,19 @@ impl Inner {
 
     pub fn pre_present_notify(&self) {}
 
-    pub fn inner_position(&self) -> PhysicalPosition<i32> {
-        let safe_area = self.safe_area_screen_space();
+    pub fn surface_position(&self) -> PhysicalPosition<i32> {
+        let view_position = self.view.frame().origin;
         let position =
-            LogicalPosition { x: safe_area.origin.x as f64, y: safe_area.origin.y as f64 };
-        let scale_factor = self.scale_factor();
-        position.to_physical(scale_factor)
+            unsafe { self.window.convertPoint_fromView(view_position, Some(&self.view)) };
+        let position = LogicalPosition::new(position.x, position.y);
+        position.to_physical(self.scale_factor())
     }
 
-    pub fn outer_position(&self) -> PhysicalPosition<i32> {
+    pub fn outer_position(&self) -> Result<PhysicalPosition<i32>, RequestError> {
         let screen_frame = self.screen_frame();
         let position =
             LogicalPosition { x: screen_frame.origin.x as f64, y: screen_frame.origin.y as f64 };
-        let scale_factor = self.scale_factor();
-        position.to_physical(scale_factor)
+        Ok(position.to_physical(self.scale_factor()))
     }
 
     pub fn set_outer_position(&self, physical_position: Position) {
@@ -187,27 +189,34 @@ impl Inner {
     }
 
     pub fn surface_size(&self) -> PhysicalSize<u32> {
-        let scale_factor = self.scale_factor();
-        let safe_area = self.safe_area_screen_space();
-        let size = LogicalSize {
-            width: safe_area.size.width as f64,
-            height: safe_area.size.height as f64,
-        };
-        size.to_physical(scale_factor)
+        let frame = self.view.frame();
+        let size = LogicalSize::new(frame.size.width, frame.size.height);
+        size.to_physical(self.scale_factor())
     }
 
     pub fn outer_size(&self) -> PhysicalSize<u32> {
-        let scale_factor = self.scale_factor();
-        let screen_frame = self.screen_frame();
-        let size = LogicalSize {
-            width: screen_frame.size.width as f64,
-            height: screen_frame.size.height as f64,
-        };
-        size.to_physical(scale_factor)
+        let frame = self.window.frame();
+        let size = LogicalSize::new(frame.size.width, frame.size.height);
+        size.to_physical(self.scale_factor())
     }
 
     pub fn request_surface_size(&self, _size: Size) -> Option<PhysicalSize<u32>> {
         Some(self.surface_size())
+    }
+
+    pub fn safe_area(&self) -> PhysicalInsets<u32> {
+        // Only available on iOS 11.0
+        let insets = if app_state::os_capabilities().safe_area {
+            self.view.safeAreaInsets()
+        } else {
+            // Assume the status bar frame is the only thing that obscures the view
+            let app = UIApplication::sharedApplication(MainThreadMarker::new().unwrap());
+            #[allow(deprecated)]
+            let status_bar_frame = app.statusBarFrame();
+            UIEdgeInsets { top: status_bar_frame.size.height, left: 0.0, bottom: 0.0, right: 0.0 }
+        };
+        let insets = LogicalInsets::new(insets.top, insets.left, insets.bottom, insets.right);
+        insets.to_physical(self.scale_factor())
     }
 
     pub fn set_min_surface_size(&self, _dimensions: Option<Size>) {
@@ -513,14 +522,9 @@ impl Window {
         let scale_factor = view.contentScaleFactor();
         let scale_factor = scale_factor as f64;
         if scale_factor != 1.0 {
-            let bounds = view.bounds();
-            let screen = window.screen();
-            let screen_space = screen.coordinateSpace();
-            let screen_frame = view.convertRect_toCoordinateSpace(bounds, &screen_space);
-            let size = LogicalSize {
-                width: screen_frame.size.width as f64,
-                height: screen_frame.size.height as f64,
-            };
+            let frame = view.frame();
+            let size =
+                LogicalSize { width: frame.size.width as f64, height: frame.size.height as f64 };
             app_state::handle_nonuser_events(
                 mtm,
                 std::iter::once(EventWrapper::ScaleFactorChanged(app_state::ScaleFactorChanged {
@@ -599,12 +603,12 @@ impl CoreWindow for Window {
         self.maybe_wait_on_main(|delegate| delegate.reset_dead_keys());
     }
 
-    fn inner_position(&self) -> Result<PhysicalPosition<i32>, RequestError> {
-        Ok(self.maybe_wait_on_main(|delegate| delegate.inner_position()))
+    fn surface_position(&self) -> PhysicalPosition<i32> {
+        self.maybe_wait_on_main(|delegate| delegate.surface_position())
     }
 
     fn outer_position(&self) -> Result<PhysicalPosition<i32>, RequestError> {
-        Ok(self.maybe_wait_on_main(|delegate| delegate.outer_position()))
+        self.maybe_wait_on_main(|delegate| delegate.outer_position())
     }
 
     fn set_outer_position(&self, position: Position) {
@@ -621,6 +625,10 @@ impl CoreWindow for Window {
 
     fn outer_size(&self) -> PhysicalSize<u32> {
         self.maybe_wait_on_main(|delegate| delegate.outer_size())
+    }
+
+    fn safe_area(&self) -> PhysicalInsets<u32> {
+        self.maybe_wait_on_main(|delegate| delegate.safe_area())
     }
 
     fn set_min_surface_size(&self, min_size: Option<Size>) {
@@ -881,7 +889,7 @@ impl Inner {
 
 impl Inner {
     fn screen_frame(&self) -> CGRect {
-        self.rect_to_screen_space(self.window.bounds())
+        self.rect_to_screen_space(self.window.frame())
     }
 
     fn rect_to_screen_space(&self, rect: CGRect) -> CGRect {
@@ -892,43 +900,6 @@ impl Inner {
     fn rect_from_screen_space(&self, rect: CGRect) -> CGRect {
         let screen_space = self.window.screen().coordinateSpace();
         self.window.convertRect_fromCoordinateSpace(rect, &screen_space)
-    }
-
-    fn safe_area_screen_space(&self) -> CGRect {
-        let bounds = self.window.bounds();
-        if app_state::os_capabilities().safe_area {
-            let safe_area = self.window.safeAreaInsets();
-            let safe_bounds = CGRect {
-                origin: CGPoint {
-                    x: bounds.origin.x + safe_area.left,
-                    y: bounds.origin.y + safe_area.top,
-                },
-                size: CGSize {
-                    width: bounds.size.width - safe_area.left - safe_area.right,
-                    height: bounds.size.height - safe_area.top - safe_area.bottom,
-                },
-            };
-            self.rect_to_screen_space(safe_bounds)
-        } else {
-            let screen_frame = self.rect_to_screen_space(bounds);
-            let status_bar_frame = {
-                let app = UIApplication::sharedApplication(MainThreadMarker::new().unwrap());
-                #[allow(deprecated)]
-                app.statusBarFrame()
-            };
-            let (y, height) = if screen_frame.origin.y > status_bar_frame.size.height {
-                (screen_frame.origin.y, screen_frame.size.height)
-            } else {
-                let y = status_bar_frame.size.height;
-                let height = screen_frame.size.height
-                    - (status_bar_frame.size.height - screen_frame.origin.y);
-                (y, height)
-            };
-            CGRect {
-                origin: CGPoint { x: screen_frame.origin.x, y },
-                size: CGSize { width: screen_frame.size.width, height },
-            }
-        }
     }
 }
 

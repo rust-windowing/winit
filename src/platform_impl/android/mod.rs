@@ -13,7 +13,7 @@ use tracing::{debug, trace, warn};
 
 use crate::application::ApplicationHandler;
 use crate::cursor::Cursor;
-use crate::dpi::{PhysicalPosition, PhysicalSize, Position, Size};
+use crate::dpi::{PhysicalInsets, PhysicalPosition, PhysicalSize, Position, Size};
 use crate::error::{EventLoopError, NotSupportedError, RequestError};
 use crate::event::{self, DeviceId, FingerId, Force, StartCause, SurfaceSizeWriter};
 use crate::event_loop::{
@@ -833,8 +833,8 @@ impl CoreWindow for Window {
 
     fn pre_present_notify(&self) {}
 
-    fn inner_position(&self) -> Result<PhysicalPosition<i32>, RequestError> {
-        Err(NotSupportedError::new("inner_position is not supported").into())
+    fn surface_position(&self) -> PhysicalPosition<i32> {
+        (0, 0).into()
     }
 
     fn outer_position(&self) -> Result<PhysicalPosition<i32>, RequestError> {
@@ -855,6 +855,10 @@ impl CoreWindow for Window {
 
     fn outer_size(&self) -> PhysicalSize<u32> {
         screen_size(&self.app)
+    }
+
+    fn safe_area(&self) -> PhysicalInsets<u32> {
+        PhysicalInsets::new(0, 0, 0, 0)
     }
 
     fn set_min_surface_size(&self, _: Option<Size>) {}

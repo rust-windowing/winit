@@ -67,13 +67,18 @@ pub struct FrameExtentsHeuristic {
 }
 
 impl FrameExtentsHeuristic {
-    pub fn inner_pos_to_outer(&self, x: i32, y: i32) -> (i32, i32) {
+    pub fn surface_position(&self) -> (i32, i32) {
         use self::FrameExtentsHeuristicPath::*;
         if self.heuristic_path != UnsupportedBordered {
-            (x - self.frame_extents.left as i32, y - self.frame_extents.top as i32)
+            (self.frame_extents.left as i32, self.frame_extents.top as i32)
         } else {
-            (x, y)
+            (0, 0)
         }
+    }
+
+    pub fn inner_pos_to_outer(&self, x: i32, y: i32) -> (i32, i32) {
+        let (left, top) = self.surface_position();
+        (x - left, y - top)
     }
 
     pub fn surface_size_to_outer(&self, width: u32, height: u32) -> (u32, u32) {
