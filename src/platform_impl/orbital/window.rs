@@ -414,7 +414,7 @@ impl CoreWindow for Window {
             window::ResizeDirection::West => "L",
         };
         self.window_socket
-            .write(format!("D,{}", arg).as_bytes())
+            .write(format!("D,{arg}").as_bytes())
             .map_err(|err| os_error!(format!("{err}")))?;
         Ok(())
     }
