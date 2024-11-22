@@ -188,12 +188,20 @@ impl EventLoop {
 
         #[cfg(debug_assertions)]
         if !attributes.any_thread && thread_id != main_thread_id() {
-            tracing::warn!(
-                "Initializing the event loop outside of the main thread is a significant \
-                 cross-platform compatibility hazard. If you absolutely need to create an \
-                 EventLoop on a different thread, you can use the \
-                 `EventLoopBuilderExtWindows::with_any_thread` function."
-            );
+            const MESSAGE: &str = "Initializing the event loop outside of the main thread is a \
+                                   significant cross-platform compatibility hazard. If you \
+                                   absolutely need to create an EventLoop on a different thread, \
+                                   you can use the `EventLoopBuilderExtWindows::with_any_thread` \
+                                   function.";
+
+            // If we're not the main module, it's possible for main_thread_id() to be incorrect.
+            // See https://github.com/rust-windowing/winit/issues/3999
+            // In that case, log a warning instead of an outright panic.
+            if is_self_main_module() {
+                panic!("{}", MESSAGE);
+            } else {
+                tracing::warn!("{}", MESSAGE);
+            }
         }
 
         if attributes.dpi_aware {
@@ -557,7 +565,7 @@ impl rwh_06::HasDisplayHandle for OwnedDisplayHandle {
 /// to setup global state within a program. The OS will call a list of function pointers which
 /// assign values to a static variable. To have get a hold of the main thread id, we need to place
 /// our function pointer inside of the `.CRT$XCU` section so it is called before the main
-/// entrypoint. Note that when compiled into a dylib, this is not guaranteed to be ran from the 
+/// entrypoint. Note that when compiled into a dylib, this is not guaranteed to be ran from the
 /// "main" thread, so this is not foolproof.
 ///
 /// Full details of CRT initialization can be found here:
@@ -584,6 +592,31 @@ fn main_thread_id() -> u32 {
     };
 
     unsafe { MAIN_THREAD_ID }
+}
+
+/// Check if winit is compiled into the main module (.exe).
+#[cfg(debug_assertions)]
+fn is_self_main_module() -> bool {
+    use std::ptr::null;
+
+    use windows_sys::Win32::Foundation::HMODULE;
+    use windows_sys::Win32::System::LibraryLoader::{
+        GetModuleHandleA, GetModuleHandleExA, GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS,
+        GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+    };
+
+    unsafe {
+        let mut winit_module: HMODULE = 0;
+        GetModuleHandleExA(
+            GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+            is_self_main_module as *const u8,
+            &mut winit_module,
+        );
+
+        let main_module = GetModuleHandleA(null());
+
+        winit_module == main_module
+    }
 }
 
 /// Returns the minimum `Option<Duration>`, taking into account that `None`
