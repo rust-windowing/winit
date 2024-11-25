@@ -207,7 +207,6 @@ impl Inner {
     pub fn insets(&self, kind: InsetKind) -> PhysicalInsets<u32> {
         match kind {
             InsetKind::SafeArea => self.safe_area(),
-            _ => PhysicalInsets::new(0, 0, 0, 0),
         }
     }
 

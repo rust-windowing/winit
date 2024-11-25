@@ -857,7 +857,7 @@ impl CoreWindow for Window {
         screen_size(&self.app)
     }
 
-    fn insets(&self, kind: InsetKind) -> PhysicalInsets<u32> {
+    fn insets(&self, _kind: InsetKind) -> PhysicalInsets<u32> {
         PhysicalInsets::new(0, 0, 0, 0)
     }
 
