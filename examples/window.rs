@@ -33,9 +33,11 @@ use winit::platform::startup_notify::{
 use winit::platform::web::{ActiveEventLoopExtWeb, CustomCursorExtWeb, WindowAttributesExtWeb};
 #[cfg(x11_platform)]
 use winit::platform::x11::WindowAttributesExtX11;
+#[cfg(not(android_platform))]
+use winit::window::InsetKind;
 use winit::window::{
-    Cursor, CursorGrabMode, CustomCursor, CustomCursorSource, Fullscreen, Icon, InsetKind,
-    ResizeDirection, Theme, Window, WindowAttributes, WindowId,
+    Cursor, CursorGrabMode, CustomCursor, CustomCursorSource, Fullscreen, Icon, ResizeDirection,
+    Theme, Window, WindowAttributes, WindowId,
 };
 
 #[path = "util/tracing.rs"]
