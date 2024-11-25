@@ -43,7 +43,7 @@ use crate::error::{NotSupportedError, RequestError};
 use crate::event::{SurfaceSizeWriter, WindowEvent};
 use crate::platform::macos::{OptionAsAlt, WindowExtMacOS};
 use crate::window::{
-    Cursor, CursorGrabMode, Icon, ImePurpose, ResizeDirection, Theme, UserAttentionType,
+    Cursor, CursorGrabMode, Icon, ImePurpose, InsetKind, ResizeDirection, Theme, UserAttentionType,
     WindowAttributes, WindowButtons, WindowId, WindowLevel,
 };
 
@@ -983,7 +983,14 @@ impl WindowDelegate {
         logical.to_physical(self.scale_factor())
     }
 
-    pub fn safe_area(&self) -> PhysicalInsets<u32> {
+    pub fn insets(&self, kind: InsetKind) -> PhysicalInsets<u32> {
+        match kind {
+            InsetKind::SafeArea => self.safe_area(),
+            _ => PhysicalInsets::new(0, 0, 0, 0),
+        }
+    }
+
+    fn safe_area(&self) -> PhysicalInsets<u32> {
         // Only available on macOS 11.0
         let insets = if self.view().respondsToSelector(sel!(safeAreaInsets)) {
             // Includes NSWindowStyleMask::FullSizeContentView by default, and the notch because

@@ -28,8 +28,8 @@ use crate::icon::Icon;
 use crate::monitor::MonitorHandle as CoreMonitorHandle;
 use crate::platform::ios::{ScreenEdge, StatusBarStyle, ValidOrientations};
 use crate::window::{
-    CursorGrabMode, ImePurpose, ResizeDirection, Theme, UserAttentionType, Window as CoreWindow,
-    WindowAttributes, WindowButtons, WindowId, WindowLevel,
+    CursorGrabMode, ImePurpose, InsetKind, ResizeDirection, Theme, UserAttentionType,
+    Window as CoreWindow, WindowAttributes, WindowButtons, WindowId, WindowLevel,
 };
 
 declare_class!(
@@ -204,7 +204,14 @@ impl Inner {
         Some(self.surface_size())
     }
 
-    pub fn safe_area(&self) -> PhysicalInsets<u32> {
+    pub fn insets(&self, kind: InsetKind) -> PhysicalInsets<u32> {
+        match kind {
+            InsetKind::SafeArea => self.safe_area(),
+            _ => PhysicalInsets::new(0, 0, 0, 0),
+        }
+    }
+
+    fn safe_area(&self) -> PhysicalInsets<u32> {
         // Only available on iOS 11.0
         let insets = if app_state::os_capabilities().safe_area {
             self.view.safeAreaInsets()
@@ -627,8 +634,8 @@ impl CoreWindow for Window {
         self.maybe_wait_on_main(|delegate| delegate.outer_size())
     }
 
-    fn safe_area(&self) -> PhysicalInsets<u32> {
-        self.maybe_wait_on_main(|delegate| delegate.safe_area())
+    fn insets(&self, kind: InsetKind) -> PhysicalInsets<u32> {
+        self.maybe_wait_on_main(|delegate| delegate.insets(kind))
     }
 
     fn set_min_surface_size(&self, min_size: Option<Size>) {
