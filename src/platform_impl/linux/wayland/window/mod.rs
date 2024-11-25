@@ -24,8 +24,8 @@ use crate::event_loop::AsyncRequestSerial;
 use crate::monitor::MonitorHandle as CoreMonitorHandle;
 use crate::platform_impl::{Fullscreen, MonitorHandle as PlatformMonitorHandle};
 use crate::window::{
-    Cursor, CursorGrabMode, Fullscreen as CoreFullscreen, ImePurpose, ResizeDirection, Theme,
-    UserAttentionType, Window as CoreWindow, WindowAttributes, WindowButtons, WindowId,
+    Cursor, CursorGrabMode, Fullscreen as CoreFullscreen, ImePurpose, InsetKind, ResizeDirection,
+    Theme, UserAttentionType, Window as CoreWindow, WindowAttributes, WindowButtons, WindowId,
     WindowLevel,
 };
 
@@ -335,7 +335,7 @@ impl CoreWindow for Window {
         super::logical_to_physical_rounded(window_state.outer_size(), scale_factor)
     }
 
-    fn safe_area(&self) -> PhysicalInsets<u32> {
+    fn insets(&self, _kind: InsetKind) -> PhysicalInsets<u32> {
         PhysicalInsets::new(0, 0, 0, 0)
     }
 

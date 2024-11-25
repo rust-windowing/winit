@@ -940,6 +940,8 @@ impl WindowState {
     /// Draw the window contents.
     #[cfg(not(android_platform))]
     fn draw(&mut self) -> Result<(), Box<dyn Error>> {
+        use winit::window::InsetKind;
+
         if self.occluded {
             info!("Skipping drawing occluded window={:?}", self.window.id());
             return Ok(());
@@ -949,7 +951,7 @@ impl WindowState {
 
         // Draw a different color inside the safe area
         let surface_size = self.window.surface_size();
-        let insets = self.window.safe_area();
+        let insets = self.window.insets(InsetKind::SafeArea);
         for y in 0..surface_size.height {
             for x in 0..surface_size.width {
                 let index = y as usize * surface_size.width as usize + x as usize;
