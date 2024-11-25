@@ -480,7 +480,7 @@ pub enum WindowEvent {
     /// Winit will aggregate duplicate redraw requests into a single event, to
     /// help avoid duplicating rendering work.
     ///
-    /// [the safe area]: crate::window::Window::safe_area
+    /// [the safe area]: crate::window::InsetKind::SafeArea
     RedrawRequested,
 }
 

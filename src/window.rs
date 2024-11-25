@@ -654,7 +654,7 @@ pub trait Window: AsAny + Send + Sync {
     ///
     /// Note that to ensure that your content is not obscured by things such as notches or the title
     /// bar, you will likely want to only draw important content inside a specific area of the
-    /// surface, see [`safe_area()`] for details.
+    /// surface; see [`insets()`] and [`InsetKind::SafeArea`] for details.
     ///
     /// ## Platform-specific
     ///
@@ -662,7 +662,7 @@ pub trait Window: AsAny + Send + Sync {
     ///
     /// [`transform`]: https://developer.mozilla.org/en-US/docs/Web/CSS/transform
     /// [`WindowEvent::SurfaceResized`]: crate::event::WindowEvent::SurfaceResized
-    /// [`safe_area()`]: Window::safe_area
+    /// [`insets()`]: Window::insets
     fn surface_size(&self) -> PhysicalSize<u32>;
 
     /// Request the new size for the surface.
