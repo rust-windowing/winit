@@ -1572,8 +1572,6 @@ pub enum InsetKind {
     ///
     /// ## Platform-specific
     ///
-    /// - **Android / Orbital / Wayland / Windows / X11:** Unimplemented,
-    ///   returns `(0, 0, 0, 0)`.
-    ///
+    /// - **Android / Orbital / Wayland / Windows / X11:** Unimplemented, returns `(0, 0, 0, 0)`.
     SafeArea,
 }

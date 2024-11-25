@@ -34,8 +34,8 @@ use winit::platform::web::{ActiveEventLoopExtWeb, CustomCursorExtWeb, WindowAttr
 #[cfg(x11_platform)]
 use winit::platform::x11::WindowAttributesExtX11;
 use winit::window::{
-    Cursor, CursorGrabMode, CustomCursor, CustomCursorSource, Fullscreen, Icon, ResizeDirection,
-    Theme, Window, WindowAttributes, WindowId,
+    Cursor, CursorGrabMode, CustomCursor, CustomCursorSource, Fullscreen, Icon, InsetKind,
+    ResizeDirection, Theme, Window, WindowAttributes, WindowId,
 };
 
 #[path = "util/tracing.rs"]
@@ -940,8 +940,6 @@ impl WindowState {
     /// Draw the window contents.
     #[cfg(not(android_platform))]
     fn draw(&mut self) -> Result<(), Box<dyn Error>> {
-        use winit::window::InsetKind;
-
         if self.occluded {
             info!("Skipping drawing occluded window={:?}", self.window.id());
             return Ok(());
