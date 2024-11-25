@@ -654,7 +654,7 @@ pub trait Window: AsAny + Send + Sync {
     ///
     /// Note that to ensure that your content is not obscured by things such as notches or the title
     /// bar, you will likely want to only draw important content inside a specific area of the
-    /// surface, see [`safe_area()`] for details.
+    /// surface; see [`insets()`] and [`InsetKind::SafeArea`] for details.
     ///
     /// ## Platform-specific
     ///
@@ -662,7 +662,7 @@ pub trait Window: AsAny + Send + Sync {
     ///
     /// [`transform`]: https://developer.mozilla.org/en-US/docs/Web/CSS/transform
     /// [`WindowEvent::SurfaceResized`]: crate::event::WindowEvent::SurfaceResized
-    /// [`safe_area()`]: Window::safe_area
+    /// [`insets()`]: Window::insets
     fn surface_size(&self) -> PhysicalSize<u32>;
 
     /// Request the new size for the surface.
@@ -713,26 +713,19 @@ pub trait Window: AsAny + Send + Sync {
     ///   [`Window::surface_size`]._
     fn outer_size(&self) -> PhysicalSize<u32>;
 
-    /// The inset area of the surface that is unobstructed.
+    /// Request the size of a specific [`InsetKind`].
     ///
-    /// On some devices, especially mobile devices, the screen is not a perfect rectangle, and may
-    /// have rounded corners, notches, bezels, and so on. When drawing your content, you usually
-    /// want to draw your background and other such unimportant content on the entire surface, while
-    /// you will want to restrict important content such as text, interactable or visual indicators
-    /// to the part of the screen that is actually visible; for this, you use the safe area.
+    /// When drawing your content, you usually want to draw your background and
+    /// other such unimportant content on the entire surface, while you will
+    /// want to restrict important content such as text, interactable or visual
+    /// indicators to the part of the screen that is actually visible; for this,
+    /// you use insets to compute the area within which you can draw your
+    /// important content.
     ///
-    /// The safe area is a rectangle that is defined relative to the origin at the top-left corner
-    /// of the surface, and the size extending downwards to the right. The area will not extend
-    /// beyond [the bounds of the surface][Window::surface_size].
-    ///
-    /// Note that the safe area does not take occlusion from other windows into account; in a way,
-    /// it is only a "hardware"-level occlusion.
-    ///
-    /// If the entire content of the surface is visible, this returns `(0, 0, 0, 0)`.
-    ///
-    /// ## Platform-specific
-    ///
-    /// - **Android / Orbital / Wayland / Windows / X11:** Unimplemented, returns `(0, 0, 0, 0)`.
+    /// On some devices, especially mobile devices, the screen is not a perfect
+    /// rectangle, and may have rounded corners, notches, bezels, and so on.
+    /// Some areas of the window may also be used by the platform itself for
+    /// drawing its own elements.
     ///
     /// ## Examples
     ///
@@ -746,7 +739,7 @@ pub trait Window: AsAny + Send + Sync {
     /// let surface_size = window.surface_size();
     /// # let insets = dpi::PhysicalInsets::new(0, 0, 0, 0);
     /// # #[cfg(requires_window)]
-    /// let insets = window.safe_area();
+    /// let insets = window.insets(InsetKind::SafeArea);
     ///
     /// let origin = PhysicalPosition::new(insets.left, insets.top);
     /// let size = PhysicalSize::new(
@@ -754,7 +747,7 @@ pub trait Window: AsAny + Send + Sync {
     ///     surface_size.height - insets.top - insets.bottom,
     /// );
     /// ```
-    fn safe_area(&self) -> PhysicalInsets<u32>;
+    fn insets(&self, kind: InsetKind) -> PhysicalInsets<u32>;
 
     /// Sets a minimum dimensions of the window's surface.
     ///
@@ -1548,4 +1541,37 @@ impl ActivationToken {
     pub(crate) fn _new(_token: String) -> Self {
         Self { _token }
     }
+}
+
+/// Kind of window inset that a [`Window`] may have.
+///
+/// Insets are a set of distances from the edges of a window which are used by
+/// the platform for a specific purpose. They may be "hardware" insets, such as
+/// the camera notch on a mobile device, or "software" insets, such as the space
+/// which the native window control buttons take up.
+///
+/// Use [`Window::insets`] to get the inset distances for a specific kind of
+/// inset.
+#[non_exhaustive]
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Hash)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub enum InsetKind {
+    /// The inset area of the surface that is guaranteed to be unobstructed by
+    /// any other inset - the "safest" inset.
+    ///
+    /// The safe area is a rectangle that is defined relative to the origin at
+    /// the top-left corner of the surface, and the size extending downwards to
+    /// the right. The area will not extend beyond
+    /// [the bounds of the surface][Window::surface_size].
+    ///
+    /// Note that the safe area does not take occlusion from other windows into
+    /// account; in a way, it is only a "hardware"-level occlusion.
+    ///
+    /// If the entire content of the surface is visible, this returns
+    /// `(0, 0, 0, 0)`.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **Android / Orbital / Wayland / Windows / X11:** Unimplemented, returns `(0, 0, 0, 0)`.
+    SafeArea,
 }

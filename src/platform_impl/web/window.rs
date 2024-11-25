@@ -14,8 +14,8 @@ use crate::error::{NotSupportedError, RequestError};
 use crate::icon::Icon;
 use crate::monitor::MonitorHandle as RootMonitorHandle;
 use crate::window::{
-    Cursor, CursorGrabMode, Fullscreen as RootFullscreen, ImePurpose, ResizeDirection, Theme,
-    UserAttentionType, Window as RootWindow, WindowAttributes, WindowButtons, WindowId,
+    Cursor, CursorGrabMode, Fullscreen as RootFullscreen, ImePurpose, InsetKind, ResizeDirection,
+    Theme, UserAttentionType, Window as RootWindow, WindowAttributes, WindowButtons, WindowId,
     WindowLevel,
 };
 
@@ -91,6 +91,34 @@ impl Window {
             lock::is_cursor_lock_raw(inner.canvas.navigator(), inner.canvas.document())
         })
     }
+
+    fn safe_area(&self) -> PhysicalInsets<u32> {
+        self.inner.queue(|inner| {
+            let (safe_start_pos, safe_size) = inner.safe_area.get();
+            let safe_end_pos = LogicalPosition::new(
+                safe_start_pos.x + safe_size.width,
+                safe_start_pos.y + safe_size.height,
+            );
+
+            let surface_start_pos = inner.canvas.position();
+            let surface_size = LogicalSize::new(
+                backend::style_size_property(inner.canvas.style(), "width"),
+                backend::style_size_property(inner.canvas.style(), "height"),
+            );
+            let surface_end_pos = LogicalPosition::new(
+                surface_start_pos.x + surface_size.width,
+                surface_start_pos.y + surface_size.height,
+            );
+
+            let top = f64::max(safe_start_pos.y - surface_start_pos.y, 0.);
+            let left = f64::max(safe_start_pos.x - surface_start_pos.x, 0.);
+            let bottom = f64::max(surface_end_pos.y - safe_end_pos.y, 0.);
+            let right = f64::max(surface_end_pos.x - safe_end_pos.x, 0.);
+
+            let insets = LogicalInsets::new(top, left, bottom, right);
+            insets.to_physical(inner.scale_factor())
+        })
+    }
 }
 
 impl RootWindow for Window {
@@ -155,32 +183,10 @@ impl RootWindow for Window {
         self.surface_size()
     }
 
-    fn safe_area(&self) -> PhysicalInsets<u32> {
-        self.inner.queue(|inner| {
-            let (safe_start_pos, safe_size) = inner.safe_area.get();
-            let safe_end_pos = LogicalPosition::new(
-                safe_start_pos.x + safe_size.width,
-                safe_start_pos.y + safe_size.height,
-            );
-
-            let surface_start_pos = inner.canvas.position();
-            let surface_size = LogicalSize::new(
-                backend::style_size_property(inner.canvas.style(), "width"),
-                backend::style_size_property(inner.canvas.style(), "height"),
-            );
-            let surface_end_pos = LogicalPosition::new(
-                surface_start_pos.x + surface_size.width,
-                surface_start_pos.y + surface_size.height,
-            );
-
-            let top = f64::max(safe_start_pos.y - surface_start_pos.y, 0.);
-            let left = f64::max(safe_start_pos.x - surface_start_pos.x, 0.);
-            let bottom = f64::max(surface_end_pos.y - safe_end_pos.y, 0.);
-            let right = f64::max(surface_end_pos.x - safe_end_pos.x, 0.);
-
-            let insets = LogicalInsets::new(top, left, bottom, right);
-            insets.to_physical(inner.scale_factor())
-        })
+    fn insets(&self, kind: InsetKind) -> PhysicalInsets<u32> {
+        match kind {
+            InsetKind::SafeArea => self.safe_area(),
+        }
     }
 
     fn set_min_surface_size(&self, min_size: Option<Size>) {

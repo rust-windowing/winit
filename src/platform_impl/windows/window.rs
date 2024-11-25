@@ -68,7 +68,7 @@ use crate::platform_impl::platform::window_state::{
 };
 use crate::platform_impl::platform::{monitor, util, Fullscreen, SelectedCursor};
 use crate::window::{
-    CursorGrabMode, Fullscreen as CoreFullscreen, ImePurpose, ResizeDirection, Theme,
+    CursorGrabMode, Fullscreen as CoreFullscreen, ImePurpose, InsetKind, ResizeDirection, Theme,
     UserAttentionType, Window as CoreWindow, WindowAttributes, WindowButtons, WindowId,
     WindowLevel,
 };
@@ -494,7 +494,7 @@ impl CoreWindow for Window {
         None
     }
 
-    fn safe_area(&self) -> PhysicalInsets<u32> {
+    fn insets(&self, _kind: InsetKind) -> PhysicalInsets<u32> {
         PhysicalInsets::new(0, 0, 0, 0)
     }
 

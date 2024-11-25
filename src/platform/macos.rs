@@ -94,7 +94,7 @@ pub trait WindowExtMacOS {
     /// space or taking control over the entire monitor.
     ///
     /// Make sure you only draw your important content inside the safe area so that it does not
-    /// overlap with the notch on newer devices, see [`Window::safe_area`] for details.
+    /// overlap with the notch on newer devices; see [`Window::insets`] for details.
     fn set_simple_fullscreen(&self, fullscreen: bool) -> bool;
 
     /// Returns whether or not the window has shadow.

@@ -11,8 +11,8 @@ use super::window_delegate::WindowDelegate;
 use crate::error::RequestError;
 use crate::monitor::MonitorHandle as CoreMonitorHandle;
 use crate::window::{
-    Cursor, Fullscreen, Icon, ImePurpose, Theme, UserAttentionType, Window as CoreWindow,
-    WindowAttributes, WindowButtons, WindowId, WindowLevel,
+    Cursor, Fullscreen, Icon, ImePurpose, InsetKind, Theme, UserAttentionType,
+    Window as CoreWindow, WindowAttributes, WindowButtons, WindowId, WindowLevel,
 };
 
 pub(crate) struct Window {
@@ -131,8 +131,8 @@ impl CoreWindow for Window {
         self.maybe_wait_on_main(|delegate| delegate.outer_size())
     }
 
-    fn safe_area(&self) -> dpi::PhysicalInsets<u32> {
-        self.maybe_wait_on_main(|delegate| delegate.safe_area())
+    fn insets(&self, kind: InsetKind) -> dpi::PhysicalInsets<u32> {
+        self.maybe_wait_on_main(|delegate| delegate.insets(kind))
     }
 
     fn set_min_surface_size(&self, min_size: Option<Size>) {

@@ -7,7 +7,7 @@ use crate::cursor::Cursor;
 use crate::dpi::{PhysicalInsets, PhysicalPosition, PhysicalSize, Position, Size};
 use crate::error::{NotSupportedError, RequestError};
 use crate::monitor::MonitorHandle as CoreMonitorHandle;
-use crate::window::{self, Fullscreen, ImePurpose, Window as CoreWindow, WindowId};
+use crate::window::{self, Fullscreen, ImePurpose, InsetKind, Window as CoreWindow, WindowId};
 
 // These values match the values uses in the `window_new` function in orbital:
 // https://gitlab.redox-os.org/redox-os/orbital/-/blob/master/src/scheme.rs
@@ -239,7 +239,7 @@ impl CoreWindow for Window {
         self.surface_size()
     }
 
-    fn safe_area(&self) -> PhysicalInsets<u32> {
+    fn insets(&self, _kind: InsetKind) -> PhysicalInsets<u32> {
         PhysicalInsets::new(0, 0, 0, 0)
     }
 

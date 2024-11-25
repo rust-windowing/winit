@@ -33,6 +33,8 @@ use winit::platform::startup_notify::{
 use winit::platform::web::{ActiveEventLoopExtWeb, CustomCursorExtWeb, WindowAttributesExtWeb};
 #[cfg(x11_platform)]
 use winit::platform::x11::WindowAttributesExtX11;
+#[cfg(not(android_platform))]
+use winit::window::InsetKind;
 use winit::window::{
     Cursor, CursorGrabMode, CustomCursor, CustomCursorSource, Fullscreen, Icon, ResizeDirection,
     Theme, Window, WindowAttributes, WindowId,
@@ -949,7 +951,7 @@ impl WindowState {
 
         // Draw a different color inside the safe area
         let surface_size = self.window.surface_size();
-        let insets = self.window.safe_area();
+        let insets = self.window.insets(InsetKind::SafeArea);
         for y in 0..surface_size.height {
             for x in 0..surface_size.width {
                 let index = y as usize * surface_size.width as usize + x as usize;

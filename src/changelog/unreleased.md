@@ -74,7 +74,8 @@ changelog entry.
 - On X11, the `window` example now understands the `X11_VISUAL_ID` and `X11_SCREEN_ID` env
   variables to test the respective modifiers of window creation.
 - Added `Window::surface_position`, which is the position of the surface inside the window.
-- Added `Window::safe_area`, which describes the area of the surface that is unobstructed.
+- Added `Window::insets`, which lets you read the distance from the edge of the window taken by a certain `InsetKind`.
+- Added `InsetKind::SafeArea`, used with `Window::insets`, which describes the area of the surface that is unobstructed.
 
 ### Changed
 

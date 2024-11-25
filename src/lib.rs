@@ -124,12 +124,14 @@
 //! the window visible only once you're ready to render into it.
 //!
 //! There is another important concept you need to know about when drawing: the "safe area". This
-//! can be accessed with [`Window::safe_area`], and describes a rectangle in the surface that is not
-//! obscured by notches, the status bar, and so on. You should be drawing your background and
-//! non-important content on the entire surface, but restrict important content (such as
-//! interactable UIs, text, etc.) to only being drawn inside the safe area.
+//! can be accessed by querying [`Window::insets`] with [`InsetKind::SafeArea`], and describes a
+//! rectangle in the surface that is not obscured by notches, the status bar, and so on. You should
+//! be drawing your background and non-important content on the entire surface, but restrict
+//! important content (such as interactable UIs, text, etc.) to only being drawn inside the safe
+//! area.
 //!
-//! [`Window::safe_area`]: crate::window::Window::safe_area
+//! [`Window::insets`]: crate::window::Window::insets
+//! [`InsetKind::SafeArea`]: crate::window::InsetKind::SafeArea
 //!
 //! # Coordinate systems
 //!

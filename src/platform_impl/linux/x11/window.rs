@@ -35,8 +35,8 @@ use crate::platform_impl::{
     VideoModeHandle as PlatformVideoModeHandle,
 };
 use crate::window::{
-    CursorGrabMode, ImePurpose, ResizeDirection, Theme, UserAttentionType, Window as CoreWindow,
-    WindowAttributes, WindowButtons, WindowId, WindowLevel,
+    CursorGrabMode, ImePurpose, InsetKind, ResizeDirection, Theme, UserAttentionType,
+    Window as CoreWindow, WindowAttributes, WindowButtons, WindowId, WindowLevel,
 };
 
 pub(crate) struct Window(Arc<UnownedWindow>);
@@ -106,8 +106,8 @@ impl CoreWindow for Window {
         self.0.outer_size()
     }
 
-    fn safe_area(&self) -> PhysicalInsets<u32> {
-        self.0.safe_area()
+    fn insets(&self, kind: InsetKind) -> PhysicalInsets<u32> {
+        self.0.insets(kind)
     }
 
     fn set_min_surface_size(&self, min_size: Option<Size>) {
@@ -1592,7 +1592,7 @@ impl UnownedWindow {
         }
     }
 
-    fn safe_area(&self) -> PhysicalInsets<u32> {
+    fn insets(&self, _kind: InsetKind) -> PhysicalInsets<u32> {
         PhysicalInsets::new(0, 0, 0, 0)
     }
 

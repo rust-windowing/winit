@@ -24,7 +24,7 @@ use crate::event_loop::{
 use crate::monitor::MonitorHandle as RootMonitorHandle;
 use crate::platform::pump_events::PumpStatus;
 use crate::window::{
-    self, CursorGrabMode, CustomCursor, CustomCursorSource, Fullscreen, ImePurpose,
+    self, CursorGrabMode, CustomCursor, CustomCursorSource, Fullscreen, ImePurpose, InsetKind,
     ResizeDirection, Theme, Window as CoreWindow, WindowAttributes, WindowButtons, WindowId,
     WindowLevel,
 };
@@ -857,7 +857,7 @@ impl CoreWindow for Window {
         screen_size(&self.app)
     }
 
-    fn safe_area(&self) -> PhysicalInsets<u32> {
+    fn insets(&self, _kind: InsetKind) -> PhysicalInsets<u32> {
         PhysicalInsets::new(0, 0, 0, 0)
     }
 
