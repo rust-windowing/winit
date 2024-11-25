@@ -14,8 +14,8 @@ use crate::error::{NotSupportedError, RequestError};
 use crate::icon::Icon;
 use crate::monitor::MonitorHandle as RootMonitorHandle;
 use crate::window::{
-    Cursor, CursorGrabMode, Fullscreen as RootFullscreen, ImePurpose, ResizeDirection, Theme,
-    UserAttentionType, Window as RootWindow, WindowAttributes, WindowButtons, WindowId,
+    Cursor, CursorGrabMode, Fullscreen as RootFullscreen, ImePurpose, InsetKind, ResizeDirection,
+    Theme, UserAttentionType, Window as RootWindow, WindowAttributes, WindowButtons, WindowId,
     WindowLevel,
 };
 
