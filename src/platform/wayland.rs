@@ -54,6 +54,8 @@ pub trait EventLoopBuilderExtWayland {
     /// By default, the window is only allowed to be created on the main
     /// thread, to make platform compatibility easier.
     fn with_any_thread(&mut self, any_thread: bool) -> &mut Self;
+
+    fn with_session_id(&mut self, session_id: String) -> &mut Self;
 }
 
 impl EventLoopBuilderExtWayland for EventLoopBuilder {
@@ -66,6 +68,12 @@ impl EventLoopBuilderExtWayland for EventLoopBuilder {
     #[inline]
     fn with_any_thread(&mut self, any_thread: bool) -> &mut Self {
         self.platform_specific.any_thread = any_thread;
+        self
+    }
+
+    #[inline]
+    fn with_session_id(&mut self, session_id: String) -> &mut Self {
+        self.platform_specific.session_id = Some(session_id);
         self
     }
 }

@@ -35,6 +35,8 @@ use crate::platform_impl::wayland::types::xdg_activation::XdgActivationState;
 use crate::platform_impl::wayland::window::{WindowRequests, WindowState};
 use crate::platform_impl::wayland::WindowId;
 
+use super::types::xdg_session_management::XdgSessionManager;
+
 /// Winit's Wayland state.
 pub struct WinitState {
     /// The WlRegistry.
@@ -106,6 +108,7 @@ pub struct WinitState {
 
     /// KWin blur manager.
     pub kwin_blur_manager: Option<KWinBlurManager>,
+    pub xdg_session_manager: Option<XdgSessionManager>,
 
     /// Loop handle to re-register event sources, such as keyboard repeat.
     pub loop_handle: LoopHandle<'static, Self>,
@@ -123,6 +126,7 @@ impl WinitState {
         globals: &GlobalList,
         queue_handle: &QueueHandle<Self>,
         loop_handle: LoopHandle<'static, WinitState>,
+        session_id: Option<String>,
     ) -> Result<Self, OsError> {
         let registry_state = RegistryState::new(globals);
         let compositor_state =
@@ -178,6 +182,7 @@ impl WinitState {
             viewporter_state,
             fractional_scaling_manager,
             kwin_blur_manager: KWinBlurManager::new(globals, queue_handle).ok(),
+            xdg_session_manager: XdgSessionManager::new(globals, queue_handle, session_id).ok(),
 
             seats,
             text_input_state: TextInputState::new(globals, queue_handle).ok(),

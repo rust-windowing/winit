@@ -102,6 +102,16 @@ impl Window {
         let window =
             state.xdg_shell.create_window(surface.clone(), default_decorations, &queue_handle);
 
+        if let Some(session) = state.xdg_session_manager.as_mut() {
+            if let Some(name) = attributes.platform_specific.name.as_ref() {
+                session.restore_toplevel(
+                    &queue_handle,
+                    window.xdg_toplevel(),
+                    format!("{}-{}", name.general, name.instance),
+                );
+            }
+        }
+
         let mut window_state = WindowState::new(
             event_loop_window_target.handle.clone(),
             &event_loop_window_target.queue_handle,
