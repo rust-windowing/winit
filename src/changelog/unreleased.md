@@ -191,6 +191,7 @@ changelog entry.
 - Removed `KeyEventExtModifierSupplement`, and made the fields `text_with_all_modifiers` and
   `key_without_modifiers` public on `KeyEvent` instead.
 - Move `window::Fullscreen` to `monitor::Fullscreen`.
+- Renamed "super" key to "meta", to match the naming in the W3C specification.
 
 ### Removed
 

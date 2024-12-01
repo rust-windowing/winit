@@ -215,7 +215,7 @@ pub fn keyboard_modifiers(event: &KeyboardEvent) -> ModifiersState {
         state |= ModifiersState::ALT;
     }
     if event.meta_key() {
-        state |= ModifiersState::SUPER;
+        state |= ModifiersState::META;
     }
 
     state
@@ -234,7 +234,7 @@ pub fn mouse_modifiers(event: &MouseEvent) -> ModifiersState {
         state |= ModifiersState::ALT;
     }
     if event.meta_key() {
-        state |= ModifiersState::SUPER;
+        state |= ModifiersState::META;
     }
 
     state

@@ -279,7 +279,7 @@ impl LayoutCache {
         mods.set(ModifiersState::SHIFT, key_pressed(VK_SHIFT));
         mods.set(ModifiersState::CONTROL, key_pressed(VK_CONTROL) && !filter_out_altgr);
         mods.set(ModifiersState::ALT, key_pressed(VK_MENU) && !filter_out_altgr);
-        mods.set(ModifiersState::SUPER, key_pressed(VK_LWIN) || key_pressed(VK_RWIN));
+        mods.set(ModifiersState::META, key_pressed(VK_LWIN) || key_pressed(VK_RWIN));
         mods
     }
 
@@ -584,8 +584,8 @@ fn keycode_to_vkey(keycode: KeyCode, hkl: u64) -> VIRTUAL_KEY {
         KeyCode::ControlLeft => VK_LCONTROL,
         KeyCode::ControlRight => VK_RCONTROL,
         KeyCode::Enter => VK_RETURN,
-        KeyCode::SuperLeft => VK_LWIN,
-        KeyCode::SuperRight => VK_RWIN,
+        KeyCode::MetaLeft => VK_LWIN,
+        KeyCode::MetaRight => VK_RWIN,
         KeyCode::ShiftLeft => VK_RSHIFT,
         KeyCode::ShiftRight => VK_LSHIFT,
         KeyCode::Space => VK_SPACE,
@@ -803,8 +803,8 @@ fn vkey_to_non_char_key(
         VK_INSERT => Key::Named(NamedKey::Insert),
         VK_DELETE => Key::Named(NamedKey::Delete),
         VK_HELP => Key::Named(NamedKey::Help),
-        VK_LWIN => Key::Named(NamedKey::Super),
-        VK_RWIN => Key::Named(NamedKey::Super),
+        VK_LWIN => Key::Named(NamedKey::Meta),
+        VK_RWIN => Key::Named(NamedKey::Meta),
         VK_APPS => Key::Named(NamedKey::ContextMenu),
         VK_SLEEP => Key::Named(NamedKey::Standby),
 

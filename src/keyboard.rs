@@ -283,11 +283,7 @@ impl PartialEq<PhysicalKey> for NativeKeyCode {
 
 /// Code representing the location of a physical key
 ///
-/// This mostly conforms to the UI Events Specification's [`KeyboardEvent.code`] with a few
-/// exceptions:
-/// - The keys that the specification calls "MetaLeft" and "MetaRight" are named "SuperLeft" and
-///   "SuperRight" here.
-/// - The key that the specification calls "Super" is reported as `Unidentified` here.
+/// This conforms to the UI Events Specification's [`KeyboardEvent.code`].
 ///
 /// [`KeyboardEvent.code`]: https://w3c.github.io/uievents-code/#code-value-tables
 #[non_exhaustive]
@@ -420,7 +416,7 @@ pub enum KeyCode {
     /// <kbd>CapsLock</kbd> or <kbd>⇪</kbd>
     CapsLock,
     /// The application context menu key, which is typically found between the right
-    /// <kbd>Super</kbd> key and the right <kbd>Control</kbd> key.
+    /// <kbd>Meta</kbd> key and the right <kbd>Control</kbd> key.
     ContextMenu,
     /// <kbd>Control</kbd> or <kbd>⌃</kbd>
     ControlLeft,
@@ -429,9 +425,9 @@ pub enum KeyCode {
     /// <kbd>Enter</kbd> or <kbd>↵</kbd>. Labeled <kbd>Return</kbd> on Apple keyboards.
     Enter,
     /// The Windows, <kbd>⌘</kbd>, <kbd>Command</kbd>, or other OS symbol key.
-    SuperLeft,
+    MetaLeft,
     /// The Windows, <kbd>⌘</kbd>, <kbd>Command</kbd>, or other OS symbol key.
-    SuperRight,
+    MetaRight,
     /// <kbd>Shift</kbd> or <kbd>⇧</kbd>
     ShiftLeft,
     /// <kbd>Shift</kbd> or <kbd>⇧</kbd>
@@ -613,8 +609,8 @@ pub enum KeyCode {
     AudioVolumeMute,
     AudioVolumeUp,
     WakeUp,
-    // Legacy modifier key. Also called "Super" in certain places.
-    Meta,
+    // Legacy modifier key.
+    Super,
     // Legacy modifier key.
     Hyper,
     Turbo,
@@ -741,10 +737,7 @@ pub enum KeyCode {
 
 /// A [`Key::Named`] value
 ///
-/// This mostly conforms to the UI Events Specification's [`KeyboardEvent.key`] with a few
-/// exceptions:
-/// - The `Super` variant here, is named `Meta` in the aforementioned specification. (There's
-///   another key which the specification calls `Super`. That does not exist here.)
+/// This conforms to the UI Events Specification's [`KeyboardEvent.key`].
 ///
 /// [`KeyboardEvent.key`]: https://w3c.github.io/uievents-key/
 #[non_exhaustive]
@@ -789,16 +782,14 @@ pub enum NamedKey {
     /// The Symbol modifier key (used on some virtual keyboards).
     Symbol,
     SymbolLock,
-    // Legacy modifier key. Also called "Super" in certain places.
-    Meta,
+    // Legacy modifier key.
+    Super,
     // Legacy modifier key.
     Hyper,
-    /// Used to enable "super" modifier function for interpreting concurrent or subsequent keyboard
+    /// Used to enable "meta" modifier function for interpreting concurrent or subsequent keyboard
     /// input. This key value is used for the "Windows Logo" key and the Apple `Command` or `⌘`
     /// key.
-    ///
-    /// Note: In some contexts (e.g. the Web) this is referred to as the "Meta" key.
-    Super,
+    Meta,
     /// The `Enter` or `↵` key. Used to activate current selection or accept current input. This
     /// key value is also used for the `Return` (Macintosh numpad) key. This key value is also
     /// used for the Android `KEYCODE_DPAD_CENTER`.
@@ -860,7 +851,7 @@ pub enum NamedKey {
     Attn,
     Cancel,
     /// Show the application’s context menu.
-    /// This key is commonly found between the right `Super` key and the right `Control` key.
+    /// This key is commonly found between the right `Meta` key and the right `Control` key.
     ContextMenu,
     /// The `Esc` key. This key was originally used to initiate an escape sequence, but is
     /// now more generally used to exit or "escape" the current context, such as closing a dialog
@@ -1704,7 +1695,7 @@ bitflags! {
         /// The "alt" key.
         const ALT = 0b100 << 6;
         /// This is the "windows" key on PC and "command" key on Mac.
-        const SUPER = 0b100 << 9;
+        const META = 0b100 << 9;
     }
 }
 
@@ -1724,9 +1715,9 @@ impl ModifiersState {
         self.intersects(Self::ALT)
     }
 
-    /// Returns `true` if the super key is pressed.
-    pub fn super_key(&self) -> bool {
-        self.intersects(Self::SUPER)
+    /// Returns `true` if the meta key is pressed.
+    pub fn meta_key(&self) -> bool {
+        self.intersects(Self::META)
     }
 }
 
@@ -1759,7 +1750,7 @@ bitflags! {
         const RCONTROL = 0b0000_1000;
         const LALT     = 0b0001_0000;
         const RALT     = 0b0010_0000;
-        const LSUPER   = 0b0100_0000;
-        const RSUPER   = 0b1000_0000;
+        const LMETA    = 0b0100_0000;
+        const RMETA    = 0b1000_0000;
     }
 }

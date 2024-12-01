@@ -143,8 +143,8 @@ pub fn to_physical_key(keycode: Keycode) -> PhysicalKey {
         Keycode::AltLeft => KeyCode::AltLeft,
         Keycode::AltRight => KeyCode::AltRight,
 
-        Keycode::MetaLeft => KeyCode::SuperLeft,
-        Keycode::MetaRight => KeyCode::SuperRight,
+        Keycode::MetaLeft => KeyCode::MetaLeft,
+        Keycode::MetaRight => KeyCode::MetaRight,
 
         Keycode::LeftBracket => KeyCode::BracketLeft,
         Keycode::RightBracket => KeyCode::BracketRight,
@@ -340,8 +340,8 @@ pub fn to_logical(key_char: Option<KeyMapChar>, keycode: Keycode) -> Key {
             CtrlRight => Key::Named(NamedKey::Control),
             CapsLock => Key::Named(NamedKey::CapsLock),
             ScrollLock => Key::Named(NamedKey::ScrollLock),
-            MetaLeft => Key::Named(NamedKey::Super),
-            MetaRight => Key::Named(NamedKey::Super),
+            MetaLeft => Key::Named(NamedKey::Meta),
+            MetaRight => Key::Named(NamedKey::Meta),
             Function => Key::Named(NamedKey::Fn),
             Sysrq => Key::Named(NamedKey::PrintScreen),
             Break => Key::Named(NamedKey::Pause),

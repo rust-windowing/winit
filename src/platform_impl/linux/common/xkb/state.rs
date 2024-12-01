@@ -183,7 +183,7 @@ impl From<ModifiersState> for crate::keyboard::ModifiersState {
         to_mods.set(crate::keyboard::ModifiersState::SHIFT, mods.shift);
         to_mods.set(crate::keyboard::ModifiersState::CONTROL, mods.ctrl);
         to_mods.set(crate::keyboard::ModifiersState::ALT, mods.alt);
-        to_mods.set(crate::keyboard::ModifiersState::SUPER, mods.logo);
+        to_mods.set(crate::keyboard::ModifiersState::META, mods.logo);
         to_mods
     }
 }
