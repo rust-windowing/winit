@@ -955,8 +955,21 @@ impl WindowDelegate {
     }
 
     pub fn surface_position(&self) -> PhysicalPosition<i32> {
-        let content_rect = self.window().contentRectForFrameRect(self.window().frame());
-        let logical = LogicalPosition::new(content_rect.origin.x, content_rect.origin.y);
+        // The calculation here is a bit awkward because we've gotta reconcile the
+        // different origins (Winit prefers top-left vs. NSWindow's bottom-left),
+        // and I couldn't find a built-in way to do so.
+
+        // The position of the window and the view, both in Winit screen coordinates.
+        let window_position = flip_window_screen_coordinates(self.window().frame());
+        let view_position = flip_window_screen_coordinates(
+            self.window().contentRectForFrameRect(self.window().frame()),
+        );
+
+        // And use that to convert the view position to window coordinates.
+        let surface_position =
+            NSPoint::new(view_position.x - window_position.x, view_position.y - window_position.y);
+
+        let logical = LogicalPosition::new(surface_position.x, surface_position.y);
         logical.to_physical(self.scale_factor())
     }
 
