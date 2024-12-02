@@ -910,12 +910,12 @@ impl Modifiers {
 
     /// The state of the left super key.
     pub fn lsuper_state(&self) -> ModifiersKeyState {
-        self.mod_state(ModifiersKeys::LSUPER)
+        self.mod_state(ModifiersKeys::LMETA)
     }
 
     /// The state of the right super key.
     pub fn rsuper_state(&self) -> ModifiersKeyState {
-        self.mod_state(ModifiersKeys::RSUPER)
+        self.mod_state(ModifiersKeys::RMETA)
     }
 
     fn mod_state(&self, modifier: ModifiersKeys) -> ModifiersKeyState {

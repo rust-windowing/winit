@@ -1125,7 +1125,7 @@ fn modifiers_to_string(mods: ModifiersState) -> String {
     let mut mods_line = String::new();
     // Always add + since it's printed as a part of the bindings.
     for (modifier, desc) in [
-        (ModifiersState::SUPER, "Super+"),
+        (ModifiersState::META, "Meta+"),
         (ModifiersState::ALT, "Alt+"),
         (ModifiersState::CONTROL, "Ctrl+"),
         (ModifiersState::SHIFT, "Shift+"),
@@ -1224,10 +1224,10 @@ const KEY_BINDINGS: &[Binding<&'static str>] = &[
     Binding::new("Z", ModifiersState::CONTROL, Action::ToggleCursorVisibility),
     // K.
     Binding::new("K", ModifiersState::empty(), Action::SetTheme(None)),
-    Binding::new("K", ModifiersState::SUPER, Action::SetTheme(Some(Theme::Light))),
+    Binding::new("K", ModifiersState::META, Action::SetTheme(Some(Theme::Light))),
     Binding::new("K", ModifiersState::CONTROL, Action::SetTheme(Some(Theme::Dark))),
     #[cfg(macos_platform)]
-    Binding::new("T", ModifiersState::SUPER, Action::CreateNewTab),
+    Binding::new("T", ModifiersState::META, Action::CreateNewTab),
     #[cfg(macos_platform)]
     Binding::new("O", ModifiersState::CONTROL, Action::CycleOptionAsAlt),
     Binding::new("S", ModifiersState::CONTROL, Action::Message),

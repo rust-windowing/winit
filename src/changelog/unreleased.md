@@ -161,6 +161,7 @@ changelog entry.
   - In the same spirit rename `DeviceEvent::MouseMotion` to `PointerMotion`.
   - Remove `Force::Calibrated::altitude_angle`.
 - On X11, use bottom-right corner for IME hotspot in `Window::set_ime_cursor_area`.
+- Renamed "super" key to "meta", to match the naming in the W3C specification.
 
 ### Removed
 
@@ -193,6 +194,7 @@ changelog entry.
  `ButtonSource` as part of the new pointer event overhaul.
 - Remove `Force::altitude_angle`.
 - Removed `Window::inner_position`, use the new `Window::surface_position` instead.
+- Removed `NamedKey::Space`, match on `Key::Character(" ")` instead.
 
 ### Fixed
 
