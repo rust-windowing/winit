@@ -82,7 +82,7 @@ fn key_to_modifier(key: &Key) -> Option<ModifiersState> {
     match key {
         Key::Named(NamedKey::Alt) => Some(ModifiersState::ALT),
         Key::Named(NamedKey::Control) => Some(ModifiersState::CONTROL),
-        Key::Named(NamedKey::Super) => Some(ModifiersState::SUPER),
+        Key::Named(NamedKey::Meta) => Some(ModifiersState::META),
         Key::Named(NamedKey::Shift) => Some(ModifiersState::SHIFT),
         _ => None,
     }
@@ -93,7 +93,7 @@ fn get_right_modifier_code(key: &Key) -> KeyCode {
         Key::Named(NamedKey::Alt) => KeyCode::AltRight,
         Key::Named(NamedKey::Control) => KeyCode::ControlRight,
         Key::Named(NamedKey::Shift) => KeyCode::ShiftRight,
-        Key::Named(NamedKey::Super) => KeyCode::SuperRight,
+        Key::Named(NamedKey::Meta) => KeyCode::MetaRight,
         _ => unreachable!(),
     }
 }
@@ -103,7 +103,7 @@ fn get_left_modifier_code(key: &Key) -> KeyCode {
         Key::Named(NamedKey::Alt) => KeyCode::AltLeft,
         Key::Named(NamedKey::Control) => KeyCode::ControlLeft,
         Key::Named(NamedKey::Shift) => KeyCode::ShiftLeft,
-        Key::Named(NamedKey::Super) => KeyCode::SuperLeft,
+        Key::Named(NamedKey::Meta) => KeyCode::MetaLeft,
         _ => unreachable!(),
     }
 }

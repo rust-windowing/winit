@@ -732,7 +732,9 @@ pub struct KeyEvent {
     /// The most prevalent use case for this is games. For example the default keys for the player
     /// to move around might be the W, A, S, and D keys on a US layout. The position of these keys
     /// is more important than their label, so they should map to Z, Q, S, and D on an "AZERTY"
-    /// layout. (This value is `KeyCode::KeyW` for the Z key on an AZERTY layout.)
+    /// layout. (This value is [`Code::KeyW`] for the Z key on an AZERTY layout.)
+    ///
+    /// [`Code::KeyW`]: keyboard_types::Code::KeyW
     ///
     /// ## Caveats
     ///
@@ -740,7 +742,7 @@ pub struct KeyEvent {
     ///   implements DVORAK in hardware (or firmware)
     /// - Your application will likely have to handle keyboards which are missing keys that your
     ///   own keyboard has.
-    /// - Certain `KeyCode`s will move between a couple of different positions depending on what
+    /// - Certain `Code`s will move between a couple of different positions depending on what
     ///   layout the keyboard was manufactured to support.
     ///
     ///  **Because of these caveats, it is important that you provide users with a way to configure
@@ -910,12 +912,12 @@ impl Modifiers {
 
     /// The state of the left super key.
     pub fn lsuper_state(&self) -> ModifiersKeyState {
-        self.mod_state(ModifiersKeys::LSUPER)
+        self.mod_state(ModifiersKeys::LMETA)
     }
 
     /// The state of the right super key.
     pub fn rsuper_state(&self) -> ModifiersKeyState {
-        self.mod_state(ModifiersKeys::RSUPER)
+        self.mod_state(ModifiersKeys::RMETA)
     }
 
     fn mod_state(&self, modifier: ModifiersKeys) -> ModifiersKeyState {
