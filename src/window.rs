@@ -7,11 +7,11 @@ pub use cursor_icon::{CursorIcon, ParseError as CursorIconParseError};
 use serde::{Deserialize, Serialize};
 
 pub use crate::cursor::{BadImage, Cursor, CustomCursor, CustomCursorSource, MAX_CURSOR_SIZE};
-use crate::dpi::{PhysicalPosition, PhysicalSize, Position, Size};
+use crate::dpi::{PhysicalInsets, PhysicalPosition, PhysicalSize, Position, Size};
 use crate::error::RequestError;
 pub use crate::icon::{BadIcon, Icon};
 use crate::monitor::{MonitorHandle, VideoModeHandle};
-use crate::platform_impl::{self, PlatformSpecificWindowAttributes};
+use crate::platform_impl::PlatformSpecificWindowAttributes;
 use crate::utils::AsAny;
 
 /// Identifier of a window. Unique for each window.
@@ -21,36 +21,27 @@ use crate::utils::AsAny;
 /// Whenever you receive an event specific to a window, this event contains a `WindowId` which you
 /// can then compare to the ids of your windows.
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct WindowId(pub(crate) platform_impl::WindowId);
+pub struct WindowId(usize);
 
 impl WindowId {
-    /// Returns a dummy id, useful for unit testing.
+    /// Convert the `WindowId` into the underlying integer.
     ///
-    /// # Notes
+    /// This is useful if you need to pass the ID across an FFI boundary, or store it in an atomic.
+    pub const fn into_raw(self) -> usize {
+        self.0
+    }
+
+    /// Construct a `WindowId` from the underlying integer.
     ///
-    /// The only guarantee made about the return value of this function is that
-    /// it will always be equal to itself and to future values returned by this function.
-    /// No other guarantees are made. This may be equal to a real [`WindowId`].
-    pub const fn dummy() -> Self {
-        WindowId(platform_impl::WindowId::dummy())
+    /// This should only be called with integers returned from [`WindowId::into_raw`].
+    pub const fn from_raw(id: usize) -> Self {
+        Self(id)
     }
 }
 
 impl fmt::Debug for WindowId {
     fn fmt(&self, fmtr: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.0.fmt(fmtr)
-    }
-}
-
-impl From<WindowId> for u64 {
-    fn from(window_id: WindowId) -> Self {
-        window_id.0.into()
-    }
-}
-
-impl From<u64> for WindowId {
-    fn from(raw_id: u64) -> Self {
-        Self(raw_id.into())
     }
 }
 
@@ -76,7 +67,6 @@ pub struct WindowAttributes {
     pub window_level: WindowLevel,
     pub active: bool,
     pub cursor: Cursor,
-    #[cfg(feature = "rwh_06")]
     pub(crate) parent_window: Option<SendSyncRawWindowHandle>,
     pub fullscreen: Option<Fullscreen>,
     // Platform-specific configuration.
@@ -107,7 +97,6 @@ impl Default for WindowAttributes {
             preferred_theme: None,
             content_protected: false,
             cursor: Cursor::default(),
-            #[cfg(feature = "rwh_06")]
             parent_window: None,
             active: true,
             platform_specific: Default::default(),
@@ -122,17 +111,13 @@ impl Default for WindowAttributes {
 /// The user has to account for that when using [`WindowAttributes::with_parent_window()`],
 /// which is `unsafe`.
 #[derive(Debug, Clone, PartialEq)]
-#[cfg(feature = "rwh_06")]
 pub(crate) struct SendSyncRawWindowHandle(pub(crate) rwh_06::RawWindowHandle);
 
-#[cfg(feature = "rwh_06")]
 unsafe impl Send for SendSyncRawWindowHandle {}
-#[cfg(feature = "rwh_06")]
 unsafe impl Sync for SendSyncRawWindowHandle {}
 
 impl WindowAttributes {
     /// Get the parent window stored on the attributes.
-    #[cfg(feature = "rwh_06")]
     pub fn parent_window(&self) -> Option<&rwh_06::RawWindowHandle> {
         self.parent_window.as_ref().map(|handle| &handle.0)
     }
@@ -418,7 +403,6 @@ impl WindowAttributes {
     ///   <https://docs.microsoft.com/en-us/windows/win32/winmsg/window-features#child-windows>
     /// - **X11**: A child window is confined to the client area of its parent window.
     /// - **Android / iOS / Wayland / Web:** Unsupported.
-    #[cfg(feature = "rwh_06")]
     #[inline]
     pub unsafe fn with_parent_window(
         mut self,
@@ -590,41 +574,51 @@ pub trait Window: AsAny + Send + Sync {
     // extension trait
     fn reset_dead_keys(&self);
 
-    /// Returns the position of the top-left hand corner of the window's client area relative to the
-    /// top-left hand corner of the desktop.
+    /// The position of the top-left hand corner of the surface relative to the top-left hand corner
+    /// of the window.
     ///
-    /// The same conditions that apply to [`Window::outer_position`] apply to this method.
+    /// This, combined with [`outer_position`], can be useful for calculating the position of the
+    /// surface relative to the desktop.
     ///
-    /// ## Platform-specific
+    /// This may also be useful for figuring out the size of the window's decorations (such as
+    /// buttons, title, etc.), but may also not correspond to that (e.g. if the title bar is made
+    /// transparent using [`with_titlebar_transparent`] on macOS, or your are drawing window
+    /// decorations yourself).
     ///
-    /// - **iOS:** Returns the top left coordinates of the window's [safe area] in the screen space
-    ///   coordinate system.
-    /// - **Web:** Returns the top-left coordinates relative to the viewport. _Note: this returns
-    ///   the same value as [`Window::outer_position`]._
-    /// - **Android / Wayland:** Always returns [`RequestError::NotSupported`].
+    /// This may be negative.
     ///
-    /// [safe area]: https://developer.apple.com/documentation/uikit/uiview/2891103-safeareainsets?language=objc
-    fn inner_position(&self) -> Result<PhysicalPosition<i32>, RequestError>;
+    /// If the window does not have any decorations, and the surface is in the exact same position
+    /// as the window itself, this simply returns `(0, 0)`.
+    ///
+    /// [`outer_position`]: Self::outer_position
+    #[cfg_attr(
+        any(macos_platform, docsrs),
+        doc = "[`with_titlebar_transparent`]: \
+               crate::platform::macos::WindowAttributesExtMacOS::with_titlebar_transparent"
+    )]
+    #[cfg_attr(
+        not(any(macos_platform, docsrs)),
+        doc = "[`with_titlebar_transparent`]: #only-available-on-macos"
+    )]
+    fn surface_position(&self) -> PhysicalPosition<i32>;
 
-    /// Returns the position of the top-left hand corner of the window relative to the
-    /// top-left hand corner of the desktop.
+    /// The position of the top-left hand corner of the window relative to the top-left hand corner
+    /// of the desktop.
     ///
     /// Note that the top-left hand corner of the desktop is not necessarily the same as
     /// the screen. If the user uses a desktop with multiple monitors, the top-left hand corner
-    /// of the desktop is the top-left hand corner of the monitor at the top-left of the desktop.
+    /// of the desktop is the top-left hand corner of the primary monitor of the desktop.
     ///
     /// The coordinates can be negative if the top-left hand corner of the window is outside
-    /// of the visible screen region.
+    /// of the visible screen region, or on another monitor than the primary.
     ///
     /// ## Platform-specific
     ///
-    /// - **iOS:** Returns the top left coordinates of the window in the screen space coordinate
-    ///   system.
     /// - **Web:** Returns the top-left coordinates relative to the viewport.
     /// - **Android / Wayland:** Always returns [`RequestError::NotSupported`].
     fn outer_position(&self) -> Result<PhysicalPosition<i32>, RequestError>;
 
-    /// Modifies the position of the window.
+    /// Sets the position of the window on the desktop.
     ///
     /// See [`Window::outer_position`] for more information about the coordinates.
     /// This automatically un-maximizes the window if it's maximized.
@@ -654,16 +648,21 @@ pub trait Window: AsAny + Send + Sync {
 
     /// Returns the size of the window's render-able surface.
     ///
-    /// This is the dimensions you should pass to things like Wgpu or Glutin when configuring.
+    /// This is the dimensions you should pass to things like Wgpu or Glutin when configuring the
+    /// surface for drawing. See [`WindowEvent::SurfaceResized`] for listening to changes to this
+    /// field.
+    ///
+    /// Note that to ensure that your content is not obscured by things such as notches or the title
+    /// bar, you will likely want to only draw important content inside a specific area of the
+    /// surface, see [`safe_area()`] for details.
     ///
     /// ## Platform-specific
     ///
-    /// - **iOS:** Returns the `PhysicalSize` of the window's [safe area] in screen space
-    ///   coordinates.
     /// - **Web:** Returns the size of the canvas element. Doesn't account for CSS [`transform`].
     ///
-    /// [safe area]: https://developer.apple.com/documentation/uikit/uiview/2891103-safeareainsets?language=objc
     /// [`transform`]: https://developer.mozilla.org/en-US/docs/Web/CSS/transform
+    /// [`WindowEvent::SurfaceResized`]: crate::event::WindowEvent::SurfaceResized
+    /// [`safe_area()`]: Window::safe_area
     fn surface_size(&self) -> PhysicalSize<u32>;
 
     /// Request the new size for the surface.
@@ -710,10 +709,52 @@ pub trait Window: AsAny + Send + Sync {
     ///
     /// ## Platform-specific
     ///
-    /// - **iOS:** Returns the [`PhysicalSize`] of the window in screen space coordinates.
     /// - **Web:** Returns the size of the canvas element. _Note: this returns the same value as
     ///   [`Window::surface_size`]._
     fn outer_size(&self) -> PhysicalSize<u32>;
+
+    /// The inset area of the surface that is unobstructed.
+    ///
+    /// On some devices, especially mobile devices, the screen is not a perfect rectangle, and may
+    /// have rounded corners, notches, bezels, and so on. When drawing your content, you usually
+    /// want to draw your background and other such unimportant content on the entire surface, while
+    /// you will want to restrict important content such as text, interactable or visual indicators
+    /// to the part of the screen that is actually visible; for this, you use the safe area.
+    ///
+    /// The safe area is a rectangle that is defined relative to the origin at the top-left corner
+    /// of the surface, and the size extending downwards to the right. The area will not extend
+    /// beyond [the bounds of the surface][Window::surface_size].
+    ///
+    /// Note that the safe area does not take occlusion from other windows into account; in a way,
+    /// it is only a "hardware"-level occlusion.
+    ///
+    /// If the entire content of the surface is visible, this returns `(0, 0, 0, 0)`.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **Android / Orbital / Wayland / Windows / X11:** Unimplemented, returns `(0, 0, 0, 0)`.
+    ///
+    /// ## Examples
+    ///
+    /// Convert safe area insets to a size and a position.
+    ///
+    /// ```
+    /// use winit::dpi::{PhysicalPosition, PhysicalSize};
+    ///
+    /// # let surface_size = dpi::PhysicalSize::new(0, 0);
+    /// # #[cfg(requires_window)]
+    /// let surface_size = window.surface_size();
+    /// # let insets = dpi::PhysicalInsets::new(0, 0, 0, 0);
+    /// # #[cfg(requires_window)]
+    /// let insets = window.safe_area();
+    ///
+    /// let origin = PhysicalPosition::new(insets.left, insets.top);
+    /// let size = PhysicalSize::new(
+    ///     surface_size.width - insets.left - insets.right,
+    ///     surface_size.height - insets.top - insets.bottom,
+    /// );
+    /// ```
+    fn safe_area(&self) -> PhysicalInsets<u32>;
 
     /// Sets a minimum dimensions of the window's surface.
     ///
@@ -987,8 +1028,8 @@ pub trait Window: AsAny + Send + Sync {
     fn set_window_icon(&self, window_icon: Option<Icon>);
 
     /// Set the IME cursor editing area, where the `position` is the top left corner of that area
-    /// and `size` is the size of this area starting from the position. An example of such area
-    /// could be a input field in the UI or line in the editor.
+    /// in surface coordinates and `size` is the size of this area starting from the position. An
+    /// example of such area could be a input field in the UI or line in the editor.
     ///
     /// The windowing system could place a candidate box close to that area, but try to not obscure
     /// the specified area, so the user input to it stays visible.
@@ -1021,7 +1062,8 @@ pub trait Window: AsAny + Send + Sync {
     ///
     /// ## Platform-specific
     ///
-    /// - **X11:** - area is not supported, only position.
+    /// - **X11:** Area is not supported, only position. The bottom-right corner of the provided
+    ///   area is reported as the position.
     /// - **iOS / Android / Web / Orbital:** Unsupported.
     ///
     /// [chinese]: https://support.apple.com/guide/chinese-input-method/use-the-candidate-window-cim12992/104/mac/12.0
@@ -1044,8 +1086,8 @@ pub trait Window: AsAny + Send + Sync {
     ///
     /// - **macOS:** IME must be enabled to receive text-input where dead-key sequences are
     ///   combined.
-    /// - **iOS:** This will show / hide the soft keyboard.
-    /// - **Android / Web / Orbital:** Unsupported.
+    /// - **iOS / Android:** This will show / hide the soft keyboard.
+    /// - **Web / Orbital:** Unsupported.
     /// - **X11**: Enabling IME will disable dead keys reporting during compose.
     ///
     /// [`Ime`]: crate::event::WindowEvent::Ime
@@ -1218,7 +1260,7 @@ pub trait Window: AsAny + Send + Sync {
     /// - **iOS / Android / Web:** Always returns an [`RequestError::NotSupported`].
     fn drag_resize_window(&self, direction: ResizeDirection) -> Result<(), RequestError>;
 
-    /// Show [window menu] at a specified position .
+    /// Show [window menu] at a specified position in surface coordinates.
     ///
     /// This is the context menu that is normally shown when interacting with
     /// the title bar. This is useful when implementing custom decorations.
@@ -1285,11 +1327,9 @@ pub trait Window: AsAny + Send + Sync {
     fn primary_monitor(&self) -> Option<MonitorHandle>;
 
     /// Get the raw-window-handle v0.6 display handle.
-    #[cfg(feature = "rwh_06")]
     fn rwh_06_display_handle(&self) -> &dyn rwh_06::HasDisplayHandle;
 
     /// Get the raw-window-handle v0.6 window handle.
-    #[cfg(feature = "rwh_06")]
     fn rwh_06_window_handle(&self) -> &dyn rwh_06::HasWindowHandle;
 }
 
@@ -1315,14 +1355,12 @@ impl std::hash::Hash for dyn Window + '_ {
     }
 }
 
-#[cfg(feature = "rwh_06")]
 impl rwh_06::HasDisplayHandle for dyn Window + '_ {
     fn display_handle(&self) -> Result<rwh_06::DisplayHandle<'_>, rwh_06::HandleError> {
         self.rwh_06_display_handle().display_handle()
     }
 }
 
-#[cfg(feature = "rwh_06")]
 impl rwh_06::HasWindowHandle for dyn Window + '_ {
     fn window_handle(&self) -> Result<rwh_06::WindowHandle<'_>, rwh_06::HandleError> {
         self.rwh_06_window_handle().window_handle()

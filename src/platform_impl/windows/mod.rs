@@ -1,17 +1,15 @@
 use smol_str::SmolStr;
-use windows_sys::Win32::Foundation::{HANDLE, HWND};
+use windows_sys::Win32::Foundation::HWND;
 use windows_sys::Win32::UI::WindowsAndMessaging::{HMENU, WINDOW_LONG_PTR_INDEX};
 
-pub(crate) use self::event_loop::{
-    EventLoop, EventLoopProxy, OwnedDisplayHandle, PlatformSpecificEventLoopAttributes,
-};
+pub(crate) use self::event_loop::{EventLoop, PlatformSpecificEventLoopAttributes};
 pub use self::icon::WinIcon as PlatformIcon;
 pub(crate) use self::icon::{SelectedCursor, WinCursor as PlatformCustomCursor, WinIcon};
 pub(crate) use self::keyboard::{physicalkey_to_scancode, scancode_to_physicalkey};
 pub(crate) use self::monitor::{MonitorHandle, VideoModeHandle};
 pub(crate) use self::window::Window;
 pub(crate) use crate::cursor::OnlyCursorImageSource as PlatformCustomCursorSource;
-use crate::event::DeviceId as RootDeviceId;
+use crate::event::DeviceId;
 use crate::icon::Icon;
 use crate::keyboard::Key;
 use crate::platform::windows::{BackdropType, Color, CornerPreference};
@@ -59,83 +57,14 @@ impl Default for PlatformSpecificWindowAttributes {
 unsafe impl Send for PlatformSpecificWindowAttributes {}
 unsafe impl Sync for PlatformSpecificWindowAttributes {}
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct DeviceId(u32);
-
-impl DeviceId {
-    pub const fn dummy() -> Self {
-        DeviceId(0)
-    }
-}
-
-impl DeviceId {
-    pub fn persistent_identifier(&self) -> Option<String> {
-        if self.0 != 0 {
-            raw_input::get_raw_input_device_name(self.0 as HANDLE)
-        } else {
-            None
-        }
-    }
-}
-
-#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct FingerId {
-    id: u32,
-    primary: bool,
-}
-
-impl FingerId {
-    pub const fn dummy() -> Self {
-        FingerId { id: 0, primary: false }
-    }
-}
-
-impl FingerId {
-    pub fn is_primary(self) -> bool {
-        self.primary
-    }
-}
-
-// Constant device ID, to be removed when this backend is updated to report real device IDs.
-const DEVICE_ID: RootDeviceId = RootDeviceId(DeviceId(0));
-
-fn wrap_device_id(id: u32) -> RootDeviceId {
-    RootDeviceId(DeviceId(id))
+fn wrap_device_id(id: u32) -> DeviceId {
+    DeviceId::from_raw(id as i64)
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub struct KeyEventExtra {
     pub text_with_all_modifiers: Option<SmolStr>,
     pub key_without_modifiers: Key,
-}
-
-#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct WindowId(HWND);
-unsafe impl Send for WindowId {}
-unsafe impl Sync for WindowId {}
-
-impl WindowId {
-    pub const fn dummy() -> Self {
-        WindowId(0)
-    }
-}
-
-impl From<WindowId> for u64 {
-    fn from(window_id: WindowId) -> Self {
-        window_id.0 as u64
-    }
-}
-
-impl From<WindowId> for HWND {
-    fn from(window_id: WindowId) -> Self {
-        window_id.0
-    }
-}
-
-impl From<u64> for WindowId {
-    fn from(raw_id: u64) -> Self {
-        Self(raw_id as HWND)
-    }
 }
 
 #[inline(always)]
@@ -203,6 +132,6 @@ mod ime;
 mod keyboard;
 mod keyboard_layout;
 mod monitor;
-mod raw_input;
+pub(crate) mod raw_input;
 mod window;
 mod window_state;

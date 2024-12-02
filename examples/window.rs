@@ -22,13 +22,17 @@ use winit::event::{DeviceEvent, DeviceId, Ime, MouseButton, MouseScrollDelta, Wi
 use winit::event_loop::{ActiveEventLoop, EventLoop};
 use winit::keyboard::{Key, ModifiersState};
 #[cfg(macos_platform)]
-use winit::platform::macos::{OptionAsAlt, WindowAttributesExtMacOS, WindowExtMacOS};
+use winit::platform::macos::{
+    ApplicationHandlerExtMacOS, OptionAsAlt, WindowAttributesExtMacOS, WindowExtMacOS,
+};
 #[cfg(any(x11_platform, wayland_platform))]
 use winit::platform::startup_notify::{
     self, EventLoopExtStartupNotify, WindowAttributesExtStartupNotify, WindowExtStartupNotify,
 };
 #[cfg(web_platform)]
 use winit::platform::web::{ActiveEventLoopExtWeb, CustomCursorExtWeb, WindowAttributesExtWeb};
+#[cfg(x11_platform)]
+use winit::platform::x11::WindowAttributesExtX11;
 use winit::window::{
     Cursor, CursorGrabMode, CustomCursor, CustomCursorSource, Fullscreen, Icon, ResizeDirection,
     Theme, Window, WindowAttributes, WindowId,
@@ -147,6 +151,28 @@ impl Application {
             window_attributes = window_attributes.with_activation_token(token);
         }
 
+        #[cfg(x11_platform)]
+        match std::env::var("X11_VISUAL_ID") {
+            Ok(visual_id_str) => {
+                info!("Using X11 visual id {visual_id_str}");
+                let visual_id = visual_id_str.parse()?;
+                window_attributes = window_attributes.with_x11_visual(visual_id);
+            },
+            Err(_) => info!("Set the X11_VISUAL_ID env variable to request specific X11 visual"),
+        }
+
+        #[cfg(x11_platform)]
+        match std::env::var("X11_SCREEN_ID") {
+            Ok(screen_id_str) => {
+                info!("Placing the window on X11 screen {screen_id_str}");
+                let screen_id = screen_id_str.parse()?;
+                window_attributes = window_attributes.with_x11_screen(screen_id);
+            },
+            Err(_) => info!(
+                "Set the X11_SCREEN_ID env variable to place the window on non-default screen"
+            ),
+        }
+
         #[cfg(macos_platform)]
         if let Some(tab_id) = _tab_id {
             window_attributes = window_attributes.with_tabbing_identifier(&tab_id);
@@ -216,6 +242,10 @@ impl Application {
             Action::ToggleResizable => window.toggle_resizable(),
             Action::ToggleDecorations => window.toggle_decorations(),
             Action::ToggleFullscreen => window.toggle_fullscreen(),
+            #[cfg(macos_platform)]
+            Action::ToggleSimpleFullscreen => {
+                window.window.set_simple_fullscreen(!window.window.simple_fullscreen());
+            },
             Action::ToggleMaximize => window.toggle_maximize(),
             Action::ToggleImeInput => window.toggle_ime(),
             Action::Minimize => window.minimize(),
@@ -446,20 +476,23 @@ impl ApplicationHandler for Application {
                     }
                 }
             },
-            WindowEvent::MouseInput { button, state, .. } => {
+            WindowEvent::PointerButton { button, state, .. } => {
+                info!("Pointer button {button:?} {state:?}");
                 let mods = window.modifiers;
-                if let Some(action) =
-                    state.is_pressed().then(|| Self::process_mouse_binding(button, &mods)).flatten()
+                if let Some(action) = state
+                    .is_pressed()
+                    .then(|| Self::process_mouse_binding(button.mouse_button(), &mods))
+                    .flatten()
                 {
                     self.handle_action_with_window(event_loop, window_id, action);
                 }
             },
-            WindowEvent::CursorLeft { .. } => {
-                info!("Cursor left Window={window_id:?}");
+            WindowEvent::PointerLeft { .. } => {
+                info!("Pointer left Window={window_id:?}");
                 window.cursor_left();
             },
-            WindowEvent::CursorMoved { position, .. } => {
-                info!("Moved cursor to {position:?}");
+            WindowEvent::PointerMoved { position, .. } => {
+                info!("Moved pointer to {position:?}");
                 window.cursor_moved(position);
             },
             WindowEvent::ActivationTokenDone { token: _token, .. } => {
@@ -510,11 +543,10 @@ impl ApplicationHandler for Application {
             WindowEvent::TouchpadPressure { .. }
             | WindowEvent::HoveredFileCancelled
             | WindowEvent::KeyboardInput { .. }
-            | WindowEvent::CursorEntered { .. }
+            | WindowEvent::PointerEntered { .. }
             | WindowEvent::DroppedFile(_)
             | WindowEvent::HoveredFile(_)
             | WindowEvent::Destroyed
-            | WindowEvent::Touch(_)
             | WindowEvent::Moved(_) => (),
         }
     }
@@ -522,7 +554,7 @@ impl ApplicationHandler for Application {
     fn device_event(
         &mut self,
         _event_loop: &dyn ActiveEventLoop,
-        device_id: DeviceId,
+        device_id: Option<DeviceId>,
         event: DeviceEvent,
     ) {
         info!("Device {device_id:?} event: {event:?}");
@@ -549,6 +581,23 @@ impl ApplicationHandler for Application {
     fn exiting(&mut self, _event_loop: &dyn ActiveEventLoop) {
         // We must drop the context here.
         self.context = None;
+    }
+
+    #[cfg(target_os = "macos")]
+    fn macos_handler(&mut self) -> Option<&mut dyn ApplicationHandlerExtMacOS> {
+        Some(self)
+    }
+}
+
+#[cfg(target_os = "macos")]
+impl ApplicationHandlerExtMacOS for Application {
+    fn standard_key_binding(
+        &mut self,
+        _event_loop: &dyn ActiveEventLoop,
+        window_id: WindowId,
+        action: &str,
+    ) {
+        info!(?window_id, ?action, "macOS standard key binding");
     }
 }
 
@@ -896,18 +945,38 @@ impl WindowState {
             return Ok(());
         }
 
-        const WHITE: u32 = 0xffffffff;
-        const DARK_GRAY: u32 = 0xff181818;
-
-        let color = match self.theme {
-            Theme::Light => WHITE,
-            Theme::Dark => DARK_GRAY,
-        };
-
         let mut buffer = self.surface.buffer_mut()?;
-        buffer.fill(color);
+
+        // Draw a different color inside the safe area
+        let surface_size = self.window.surface_size();
+        let insets = self.window.safe_area();
+        for y in 0..surface_size.height {
+            for x in 0..surface_size.width {
+                let index = y as usize * surface_size.width as usize + x as usize;
+                if insets.left <= x
+                    && x <= (surface_size.width - insets.right)
+                    && insets.top <= y
+                    && y <= (surface_size.height - insets.bottom)
+                {
+                    // In safe area
+                    buffer[index] = match self.theme {
+                        Theme::Light => 0xffe8e8e8, // Light gray
+                        Theme::Dark => 0xff525252,  // Medium gray
+                    };
+                } else {
+                    // Outside safe area
+                    buffer[index] = match self.theme {
+                        Theme::Light => 0xffffffff, // White
+                        Theme::Dark => 0xff181818,  // Dark gray
+                    };
+                }
+            }
+        }
+
+        // Present the buffer
         self.window.pre_present_notify();
         buffer.present()?;
+
         Ok(())
     }
 
@@ -944,6 +1013,8 @@ enum Action {
     ToggleDecorations,
     ToggleResizable,
     ToggleFullscreen,
+    #[cfg(macos_platform)]
+    ToggleSimpleFullscreen,
     ToggleMaximize,
     Minimize,
     NextCursor,
@@ -977,6 +1048,8 @@ impl Action {
             Action::ToggleDecorations => "Toggle decorations",
             Action::ToggleResizable => "Toggle window resizable state",
             Action::ToggleFullscreen => "Toggle fullscreen",
+            #[cfg(macos_platform)]
+            Action::ToggleSimpleFullscreen => "Toggle simple fullscreen",
             Action::ToggleMaximize => "Maximize",
             Action::Minimize => "Minimize",
             Action::ToggleResizeIncrements => "Use resize increments when resizing window",
@@ -1119,6 +1192,8 @@ const KEY_BINDINGS: &[Binding<&'static str>] = &[
     Binding::new("Q", ModifiersState::CONTROL, Action::CloseWindow),
     Binding::new("H", ModifiersState::CONTROL, Action::PrintHelp),
     Binding::new("F", ModifiersState::CONTROL, Action::ToggleFullscreen),
+    #[cfg(macos_platform)]
+    Binding::new("F", ModifiersState::ALT, Action::ToggleSimpleFullscreen),
     Binding::new("D", ModifiersState::CONTROL, Action::ToggleDecorations),
     Binding::new("I", ModifiersState::CONTROL, Action::ToggleImeInput),
     Binding::new("L", ModifiersState::CONTROL, Action::CycleCursorGrab),

@@ -7,7 +7,7 @@ use wasm_bindgen::{JsCast, JsValue};
 use web_sys::{KeyboardEvent, MouseEvent, Navigator, PointerEvent, WheelEvent};
 
 use super::Engine;
-use crate::event::{MouseButton, MouseScrollDelta};
+use crate::event::{FingerId, MouseButton, MouseScrollDelta, PointerKind};
 use crate::keyboard::{Key, KeyLocation, ModifiersState, NamedKey, PhysicalKey};
 
 bitflags::bitflags! {
@@ -68,14 +68,14 @@ pub fn mouse_button(event: &MouseEvent) -> Option<MouseButton> {
 }
 
 impl MouseButton {
-    pub fn to_id(self) -> u32 {
+    pub fn to_id(self) -> u16 {
         match self {
             MouseButton::Left => 0,
             MouseButton::Right => 1,
             MouseButton::Middle => 2,
             MouseButton::Back => 3,
             MouseButton::Forward => 4,
-            MouseButton::Other(value) => value.into(),
+            MouseButton::Other(value) => value,
         }
     }
 }
@@ -157,6 +157,14 @@ pub fn mouse_scroll_delta(
             Some(MouseScrollDelta::PixelDelta(delta))
         },
         _ => None,
+    }
+}
+
+pub fn pointer_type(event: &PointerEvent, pointer_id: i32) -> PointerKind {
+    match event.pointer_type().as_str() {
+        "mouse" => PointerKind::Mouse,
+        "touch" => PointerKind::Touch(FingerId::from_raw(pointer_id as usize)),
+        _ => PointerKind::Unknown,
     }
 }
 

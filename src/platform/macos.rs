@@ -75,9 +75,10 @@ use std::os::raw::c_void;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
+use crate::application::ApplicationHandler;
 use crate::event_loop::{ActiveEventLoop, EventLoopBuilder};
 use crate::monitor::MonitorHandle;
-use crate::window::{Window, WindowAttributes};
+use crate::window::{Window, WindowAttributes, WindowId};
 
 /// Additional methods on [`Window`] that are specific to MacOS.
 pub trait WindowExtMacOS {
@@ -91,6 +92,9 @@ pub trait WindowExtMacOS {
     /// This is how fullscreen used to work on macOS in versions before Lion.
     /// And allows the user to have a fullscreen window without using another
     /// space or taking control over the entire monitor.
+    ///
+    /// Make sure you only draw your important content inside the safe area so that it does not
+    /// overlap with the notch on newer devices, see [`Window::safe_area`] for details.
     fn set_simple_fullscreen(&self, fullscreen: bool) -> bool;
 
     /// Returns whether or not the window has shadow.
@@ -156,6 +160,13 @@ pub trait WindowExtMacOS {
 
     /// Getter for the [`WindowExtMacOS::set_borderless_game`].
     fn is_borderless_game(&self) -> bool;
+
+    /// Makes the titlebar bigger, effectively adding more space around the
+    /// window controls if the titlebar is invisible.
+    fn set_unified_titlebar(&self, unified_titlebar: bool);
+
+    /// Getter for the [`WindowExtMacOS::set_unified_titlebar`].
+    fn unified_titlebar(&self) -> bool;
 }
 
 impl WindowExtMacOS for dyn Window + '_ {
@@ -254,6 +265,18 @@ impl WindowExtMacOS for dyn Window + '_ {
         let window = self.as_any().downcast_ref::<crate::platform_impl::Window>().unwrap();
         window.maybe_wait_on_main(|w| w.is_borderless_game())
     }
+
+    #[inline]
+    fn set_unified_titlebar(&self, unified_titlebar: bool) {
+        let window = self.as_any().downcast_ref::<crate::platform_impl::Window>().unwrap();
+        window.maybe_wait_on_main(|w| w.set_unified_titlebar(unified_titlebar))
+    }
+
+    #[inline]
+    fn unified_titlebar(&self) -> bool {
+        let window = self.as_any().downcast_ref::<crate::platform_impl::Window>().unwrap();
+        window.maybe_wait_on_main(|w| w.unified_titlebar())
+    }
 }
 
 /// Corresponds to `NSApplicationActivationPolicy`.
@@ -307,6 +330,8 @@ pub trait WindowAttributesExtMacOS {
     fn with_option_as_alt(self, option_as_alt: OptionAsAlt) -> Self;
     /// See [`WindowExtMacOS::set_borderless_game`] for details on what this means if set.
     fn with_borderless_game(self, borderless_game: bool) -> Self;
+    /// See [`WindowExtMacOS::set_unified_titlebar`] for details on what this means if set.
+    fn with_unified_titlebar(self, unified_titlebar: bool) -> Self;
 }
 
 impl WindowAttributesExtMacOS for WindowAttributes {
@@ -381,12 +406,21 @@ impl WindowAttributesExtMacOS for WindowAttributes {
         self.platform_specific.borderless_game = borderless_game;
         self
     }
+
+    #[inline]
+    fn with_unified_titlebar(mut self, unified_titlebar: bool) -> Self {
+        self.platform_specific.unified_titlebar = unified_titlebar;
+        self
+    }
 }
 
 pub trait EventLoopBuilderExtMacOS {
-    /// Sets the activation policy for the application.
+    /// Sets the activation policy for the application. If used, this will override
+    /// any relevant settings provided in the package manifest.
+    /// For instance, `with_activation_policy(ActivationPolicy::Regular)` will prevent
+    /// the application from running as an "agent", even if LSUIElement is set to true.
     ///
-    /// It is set to [`ActivationPolicy::Regular`] by default.
+    /// If unused, the Winit will honor the package manifest.
     ///
     /// # Example
     ///
@@ -438,7 +472,7 @@ pub trait EventLoopBuilderExtMacOS {
 impl EventLoopBuilderExtMacOS for EventLoopBuilder {
     #[inline]
     fn with_activation_policy(&mut self, activation_policy: ActivationPolicy) -> &mut Self {
-        self.platform_specific.activation_policy = activation_policy;
+        self.platform_specific.activation_policy = Some(activation_policy);
         self
     }
 
@@ -544,4 +578,53 @@ pub enum OptionAsAlt {
     /// No special handling is applied for `Option` key.
     #[default]
     None,
+}
+
+/// Additional events on [`ApplicationHandler`] that are specific to macOS.
+///
+/// This can be registered with [`ApplicationHandler::macos_handler`].
+pub trait ApplicationHandlerExtMacOS: ApplicationHandler {
+    /// The system interpreted a keypress as a standard key binding command.
+    ///
+    /// Examples include inserting tabs and newlines, or moving the insertion point, see
+    /// [`NSStandardKeyBindingResponding`] for the full list of key bindings. They are often text
+    /// editing related.
+    ///
+    /// This corresponds to the [`doCommandBySelector:`] method on `NSTextInputClient`.
+    ///
+    /// The `action` parameter contains the string representation of the selector. Examples include
+    /// `"insertBacktab:"`, `"indent:"` and `"noop:"`.
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// impl ApplicationHandlerExtMacOS for App {
+    ///     fn standard_key_binding(
+    ///         &mut self,
+    ///         event_loop: &dyn ActiveEventLoop,
+    ///         window_id: WindowId,
+    ///         action: &str,
+    ///     ) {
+    ///         match action {
+    ///             "moveBackward:" => self.cursor.position -= 1,
+    ///             "moveForward:" => self.cursor.position += 1,
+    ///             _ => {} // Ignore other actions
+    ///         }
+    ///     }
+    /// }
+    /// ```
+    ///
+    /// [`NSStandardKeyBindingResponding`]: https://developer.apple.com/documentation/appkit/nsstandardkeybindingresponding?language=objc
+    /// [`doCommandBySelector:`]: https://developer.apple.com/documentation/appkit/nstextinputclient/1438256-docommandbyselector?language=objc
+    #[doc(alias = "doCommandBySelector:")]
+    fn standard_key_binding(
+        &mut self,
+        event_loop: &dyn ActiveEventLoop,
+        window_id: WindowId,
+        action: &str,
+    ) {
+        let _ = event_loop;
+        let _ = window_id;
+        let _ = action;
+    }
 }

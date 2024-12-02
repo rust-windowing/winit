@@ -17,7 +17,7 @@ use crate::keyboard::ModifiersState;
 use crate::platform_impl::common::xkb::Context;
 use crate::platform_impl::wayland::event_loop::sink::EventSink;
 use crate::platform_impl::wayland::state::WinitState;
-use crate::platform_impl::wayland::{self, DeviceId, WindowId};
+use crate::platform_impl::wayland::{self, WindowId};
 
 impl Dispatch<WlKeyboard, KeyboardData, WinitState> for WinitState {
     fn event(
@@ -369,10 +369,9 @@ fn key_input(
         None => return,
     };
 
-    let device_id = crate::event::DeviceId(crate::platform_impl::DeviceId::Wayland(DeviceId));
     if let Some(mut key_context) = keyboard_state.xkb_context.key_context() {
         let event = key_context.process_key_event(keycode, state, repeat);
-        let event = WindowEvent::KeyboardInput { device_id, event, is_synthetic: false };
+        let event = WindowEvent::KeyboardInput { device_id: None, event, is_synthetic: false };
         event_sink.push_window_event(event, window_id);
     }
 }

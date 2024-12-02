@@ -141,8 +141,11 @@ impl MonitorHandle {
         self.inner.name()
     }
 
-    /// Returns the top-left corner position of the monitor relative to the larger full
-    /// screen area.
+    /// Returns the top-left corner position of the monitor in desktop coordinates.
+    ///
+    /// This position is in the same coordinate system as [`Window::outer_position`].
+    ///
+    /// [`Window::outer_position`]: crate::window::Window::outer_position
     ///
     /// ## Platform-specific
     ///

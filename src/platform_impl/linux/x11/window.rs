@@ -18,10 +18,10 @@ use x11rb::protocol::{randr, xinput};
 
 use super::util::{self, SelectedCursor};
 use super::{
-    ffi, ActiveEventLoop, CookieResultExt, ImeRequest, ImeSender, VoidCookie, WindowId, XConnection,
+    ffi, ActiveEventLoop, CookieResultExt, ImeRequest, ImeSender, VoidCookie, XConnection,
 };
 use crate::cursor::{Cursor, CustomCursor as RootCustomCursor};
-use crate::dpi::{PhysicalPosition, PhysicalSize, Position, Size};
+use crate::dpi::{PhysicalInsets, PhysicalPosition, PhysicalSize, Position, Size};
 use crate::error::{NotSupportedError, RequestError};
 use crate::event::{Event, SurfaceSizeWriter, WindowEvent};
 use crate::event_loop::AsyncRequestSerial;
@@ -36,7 +36,7 @@ use crate::platform_impl::{
 };
 use crate::window::{
     CursorGrabMode, ImePurpose, ResizeDirection, Theme, UserAttentionType, Window as CoreWindow,
-    WindowAttributes, WindowButtons, WindowLevel,
+    WindowAttributes, WindowButtons, WindowId, WindowLevel,
 };
 
 pub(crate) struct Window(Arc<UnownedWindow>);
@@ -62,8 +62,8 @@ impl Window {
 }
 
 impl CoreWindow for Window {
-    fn id(&self) -> crate::window::WindowId {
-        crate::window::WindowId(self.0.id())
+    fn id(&self) -> WindowId {
+        self.0.id()
     }
 
     fn scale_factor(&self) -> f64 {
@@ -82,8 +82,8 @@ impl CoreWindow for Window {
         common::xkb::reset_dead_keys();
     }
 
-    fn inner_position(&self) -> Result<PhysicalPosition<i32>, RequestError> {
-        self.0.inner_position()
+    fn surface_position(&self) -> PhysicalPosition<i32> {
+        self.0.surface_position()
     }
 
     fn outer_position(&self) -> Result<PhysicalPosition<i32>, RequestError> {
@@ -104,6 +104,10 @@ impl CoreWindow for Window {
 
     fn outer_size(&self) -> PhysicalSize<u32> {
         self.0.outer_size()
+    }
+
+    fn safe_area(&self) -> PhysicalInsets<u32> {
+        self.0.safe_area()
     }
 
     fn set_min_surface_size(&self, min_size: Option<Size>) {
@@ -294,18 +298,15 @@ impl CoreWindow for Window {
             .map(|inner| crate::monitor::MonitorHandle { inner })
     }
 
-    #[cfg(feature = "rwh_06")]
     fn rwh_06_display_handle(&self) -> &dyn rwh_06::HasDisplayHandle {
         self
     }
 
-    #[cfg(feature = "rwh_06")]
     fn rwh_06_window_handle(&self) -> &dyn rwh_06::HasWindowHandle {
         self
     }
 }
 
-#[cfg(feature = "rwh_06")]
 impl rwh_06::HasDisplayHandle for Window {
     fn display_handle(&self) -> Result<rwh_06::DisplayHandle<'_>, rwh_06::HandleError> {
         let raw = self.0.raw_display_handle_rwh_06()?;
@@ -313,7 +314,6 @@ impl rwh_06::HasDisplayHandle for Window {
     }
 }
 
-#[cfg(feature = "rwh_06")]
 impl rwh_06::HasWindowHandle for Window {
     fn window_handle(&self) -> Result<rwh_06::WindowHandle<'_>, rwh_06::HandleError> {
         let raw = self.0.raw_window_handle_rwh_06()?;
@@ -331,7 +331,9 @@ impl Drop for Window {
             window.set_fullscreen(None);
         }
 
-        if let Ok(c) = xconn.xcb_connection().destroy_window(window.id().0 as xproto::Window) {
+        if let Ok(c) =
+            xconn.xcb_connection().destroy_window(window.id().into_raw() as xproto::Window)
+        {
             c.ignore_error();
         }
     }
@@ -441,15 +443,26 @@ impl UnownedWindow {
     ) -> Result<UnownedWindow, RequestError> {
         let xconn = &event_loop.xconn;
         let atoms = xconn.atoms();
-        #[cfg(feature = "rwh_06")]
+
+        let screen_id = match window_attrs.platform_specific.x11.screen_id {
+            Some(id) => id,
+            None => xconn.default_screen_index() as c_int,
+        };
+
+        let screen = {
+            let screen_id_usize = usize::try_from(screen_id)
+                .map_err(|_| NotSupportedError::new("screen id must be non-negative"))?;
+            xconn.xcb_connection().setup().roots.get(screen_id_usize).ok_or(
+                NotSupportedError::new("requested screen id not present in server's response"),
+            )?
+        };
+
         let root = match window_attrs.parent_window.as_ref().map(|handle| handle.0) {
             Some(rwh_06::RawWindowHandle::Xlib(handle)) => handle.window as xproto::Window,
             Some(rwh_06::RawWindowHandle::Xcb(handle)) => handle.window.get(),
             Some(raw) => unreachable!("Invalid raw window handle {raw:?} on X11"),
-            None => event_loop.root,
+            None => screen.root,
         };
-        #[cfg(not(feature = "rwh_06"))]
-        let root = event_loop.root;
 
         let mut monitors = leap!(xconn.available_monitors());
         let guessed_monitor = if monitors.is_empty() {
@@ -504,18 +517,10 @@ impl UnownedWindow {
             dimensions
         };
 
-        let screen_id = match window_attrs.platform_specific.x11.screen_id {
-            Some(id) => id,
-            None => xconn.default_screen_index() as c_int,
-        };
-
-        // An iterator over all of the visuals combined with their depths.
-        let mut all_visuals = xconn
-            .xcb_connection()
-            .setup()
-            .roots
+        // An iterator over the visuals matching screen id combined with their depths.
+        let mut all_visuals = screen
+            .allowed_depths
             .iter()
-            .flat_map(|root| &root.allowed_depths)
             .flat_map(|depth| depth.visuals.iter().map(move |visual| (visual, depth.depth)));
 
         // creating
@@ -804,6 +809,20 @@ impl UnownedWindow {
                 leap!(result).ignore_error();
             }
 
+            // Select XInput2 events
+            let mask = xinput::XIEventMask::MOTION
+                | xinput::XIEventMask::BUTTON_PRESS
+                | xinput::XIEventMask::BUTTON_RELEASE
+                | xinput::XIEventMask::ENTER
+                | xinput::XIEventMask::LEAVE
+                | xinput::XIEventMask::FOCUS_IN
+                | xinput::XIEventMask::FOCUS_OUT
+                | xinput::XIEventMask::TOUCH_BEGIN
+                | xinput::XIEventMask::TOUCH_UPDATE
+                | xinput::XIEventMask::TOUCH_END;
+            leap!(xconn.select_xinput_events(window.xwindow, super::ALL_MASTER_DEVICES, mask))
+                .ignore_error();
+
             // Set visibility (map window)
             if window_attrs.visible {
                 leap!(xconn.xcb_connection().map_window(window.xwindow)).ignore_error();
@@ -826,20 +845,6 @@ impl UnownedWindow {
                     return Err(os_error!("`XkbSetDetectableAutoRepeat` failed").into());
                 }
             }
-
-            // Select XInput2 events
-            let mask = xinput::XIEventMask::MOTION
-                | xinput::XIEventMask::BUTTON_PRESS
-                | xinput::XIEventMask::BUTTON_RELEASE
-                | xinput::XIEventMask::ENTER
-                | xinput::XIEventMask::LEAVE
-                | xinput::XIEventMask::FOCUS_IN
-                | xinput::XIEventMask::FOCUS_OUT
-                | xinput::XIEventMask::TOUCH_BEGIN
-                | xinput::XIEventMask::TOUCH_UPDATE
-                | xinput::XIEventMask::TOUCH_END;
-            leap!(xconn.select_xinput_events(window.xwindow, super::ALL_MASTER_DEVICES, mask))
-                .ignore_error();
 
             // Try to create input context for the window.
             if let Some(ime) = event_loop.ime.as_ref() {
@@ -1220,11 +1225,10 @@ impl UnownedWindow {
                 &self.shared_state_lock(),
             );
 
-            let window_id = crate::window::WindowId(self.id());
             let old_surface_size = PhysicalSize::new(width, height);
             let surface_size = Arc::new(Mutex::new(PhysicalSize::new(new_width, new_height)));
             callback(Event::WindowEvent {
-                window_id,
+                window_id: self.id(),
                 event: WindowEvent::ScaleFactorChanged {
                     scale_factor: new_monitor.scale_factor,
                     surface_size_writer: SurfaceSizeWriter::new(Arc::downgrade(&surface_size)),
@@ -1508,7 +1512,7 @@ impl UnownedWindow {
         }
     }
 
-    pub(crate) fn inner_position_physical(&self) -> (i32, i32) {
+    fn inner_position_physical(&self) -> (i32, i32) {
         // This should be okay to unwrap since the only error XTranslateCoordinates can return
         // is BadWindow, and if the window handle is bad we have bigger problems.
         self.xconn
@@ -1518,8 +1522,14 @@ impl UnownedWindow {
     }
 
     #[inline]
-    pub fn inner_position(&self) -> Result<PhysicalPosition<i32>, RequestError> {
-        Ok(self.inner_position_physical().into())
+    pub fn surface_position(&self) -> PhysicalPosition<i32> {
+        let extents = self.shared_state_lock().frame_extents.clone();
+        if let Some(extents) = extents {
+            extents.surface_position().into()
+        } else {
+            self.update_cached_frame_extents();
+            self.surface_position()
+        }
     }
 
     pub(crate) fn set_position_inner(
@@ -1580,6 +1590,10 @@ impl UnownedWindow {
             self.update_cached_frame_extents();
             self.outer_size()
         }
+    }
+
+    fn safe_area(&self) -> PhysicalInsets<u32> {
+        PhysicalInsets::new(0, 0, 0, 0)
     }
 
     pub(crate) fn request_surface_size_physical(&self, width: u32, height: u32) {
@@ -1989,7 +2003,7 @@ impl UnownedWindow {
             .query_pointer(self.xwindow, util::VIRTUAL_CORE_POINTER)
             .map_err(|err| os_error!(err))?;
 
-        let window_position = self.inner_position()?;
+        let window_position = self.inner_position_physical();
 
         let atoms = self.xconn.atoms();
         let message = atoms[_NET_WM_MOVERESIZE];
@@ -2016,8 +2030,8 @@ impl UnownedWindow {
                         | xproto::EventMask::SUBSTRUCTURE_NOTIFY,
                 ),
                 [
-                    (window_position.x + xinput_fp1616_to_float(pointer.win_x) as i32) as u32,
-                    (window_position.y + xinput_fp1616_to_float(pointer.win_y) as i32) as u32,
+                    (window_position.0 + xinput_fp1616_to_float(pointer.win_x) as i32) as u32,
+                    (window_position.1 + xinput_fp1616_to_float(pointer.win_y) as i32) as u32,
                     action.try_into().unwrap(),
                     1, // Button 1
                     1,
@@ -2031,12 +2045,19 @@ impl UnownedWindow {
     }
 
     #[inline]
-    pub fn set_ime_cursor_area(&self, spot: Position, _size: Size) {
-        let (x, y) = spot.to_physical::<i32>(self.scale_factor()).into();
+    pub fn set_ime_cursor_area(&self, spot: Position, size: Size) {
+        let PhysicalPosition { x, y } = spot.to_physical::<i16>(self.scale_factor());
+        let PhysicalSize { width, height } = size.to_physical::<i16>(self.scale_factor());
+        // We only currently support reporting a caret position via XIM.
+        // No IM servers currently process preedit area information from XIM clients
+        // and it is unclear this is even part of the standard protocol.
+        // Fcitx and iBus both assume that the position reported is at the insertion
+        // caret, and by default will place the candidate window under and to the
+        // right of the reported point.
         let _ = self.ime_sender.lock().unwrap().send(ImeRequest::Position(
             self.xwindow as ffi::Window,
-            x,
-            y,
+            x.saturating_add(width),
+            y.saturating_add(height),
         ));
     }
 
@@ -2134,7 +2155,7 @@ impl UnownedWindow {
 
     #[inline]
     pub fn id(&self) -> WindowId {
-        WindowId(self.xwindow as _)
+        WindowId::from_raw(self.xwindow as _)
     }
 
     pub(super) fn sync_counter_id(&self) -> Option<NonZeroU32> {
@@ -2143,7 +2164,7 @@ impl UnownedWindow {
 
     #[inline]
     pub fn request_redraw(&self) {
-        self.redraw_sender.send(WindowId(self.xwindow as _));
+        self.redraw_sender.send(WindowId::from_raw(self.xwindow as _));
     }
 
     #[inline]
@@ -2151,7 +2172,6 @@ impl UnownedWindow {
         // TODO timer
     }
 
-    #[cfg(feature = "rwh_06")]
     #[inline]
     pub fn raw_window_handle_rwh_06(&self) -> Result<rwh_06::RawWindowHandle, rwh_06::HandleError> {
         let mut window_handle = rwh_06::XlibWindowHandle::new(self.xlib_window());
@@ -2159,7 +2179,6 @@ impl UnownedWindow {
         Ok(window_handle.into())
     }
 
-    #[cfg(feature = "rwh_06")]
     #[inline]
     pub fn raw_display_handle_rwh_06(
         &self,

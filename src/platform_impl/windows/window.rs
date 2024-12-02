@@ -46,7 +46,7 @@ use windows_sys::Win32::UI::WindowsAndMessaging::{
 };
 
 use crate::cursor::Cursor;
-use crate::dpi::{PhysicalPosition, PhysicalSize, Position, Size};
+use crate::dpi::{PhysicalInsets, PhysicalPosition, PhysicalSize, Position, Size};
 use crate::error::{NotSupportedError, RequestError};
 use crate::icon::Icon;
 use crate::monitor::MonitorHandle as CoreMonitorHandle;
@@ -66,11 +66,11 @@ use crate::platform_impl::platform::keyboard::KeyEventBuilder;
 use crate::platform_impl::platform::window_state::{
     CursorFlags, SavedWindow, WindowFlags, WindowState,
 };
-use crate::platform_impl::platform::{monitor, util, Fullscreen, SelectedCursor, WindowId};
+use crate::platform_impl::platform::{monitor, util, Fullscreen, SelectedCursor};
 use crate::window::{
     CursorGrabMode, Fullscreen as CoreFullscreen, ImePurpose, ResizeDirection, Theme,
-    UserAttentionType, Window as CoreWindow, WindowAttributes, WindowButtons,
-    WindowId as CoreWindowId, WindowLevel,
+    UserAttentionType, Window as CoreWindow, WindowAttributes, WindowButtons, WindowId,
+    WindowLevel,
 };
 
 /// The Win32 implementation of the main `Window` object.
@@ -106,7 +106,6 @@ impl Window {
         self.window
     }
 
-    #[cfg(feature = "rwh_06")]
     pub unsafe fn rwh_06_no_thread_check(
         &self,
     ) -> Result<rwh_06::RawWindowHandle, rwh_06::HandleError> {
@@ -119,7 +118,6 @@ impl Window {
         Ok(rwh_06::RawWindowHandle::Win32(window_handle))
     }
 
-    #[cfg(feature = "rwh_06")]
     pub fn raw_window_handle_rwh_06(&self) -> Result<rwh_06::RawWindowHandle, rwh_06::HandleError> {
         // TODO: Write a test once integration framework is ready to ensure that it holds.
         // If we aren't in the GUI thread, we can't return the window.
@@ -132,7 +130,6 @@ impl Window {
         unsafe { self.rwh_06_no_thread_check() }
     }
 
-    #[cfg(feature = "rwh_06")]
     pub fn raw_display_handle_rwh_06(
         &self,
     ) -> Result<rwh_06::RawDisplayHandle, rwh_06::HandleError> {
@@ -349,7 +346,6 @@ impl Drop for Window {
     }
 }
 
-#[cfg(feature = "rwh_06")]
 impl rwh_06::HasDisplayHandle for Window {
     fn display_handle(&self) -> Result<rwh_06::DisplayHandle<'_>, rwh_06::HandleError> {
         let raw = self.raw_display_handle_rwh_06()?;
@@ -357,7 +353,6 @@ impl rwh_06::HasDisplayHandle for Window {
     }
 }
 
-#[cfg(feature = "rwh_06")]
 impl rwh_06::HasWindowHandle for Window {
     fn window_handle(&self) -> Result<rwh_06::WindowHandle<'_>, rwh_06::HandleError> {
         let raw = self.raw_window_handle_rwh_06()?;
@@ -421,15 +416,15 @@ impl CoreWindow for Window {
             )
     }
 
-    fn inner_position(&self) -> Result<PhysicalPosition<i32>, RequestError> {
-        let mut position: POINT = unsafe { mem::zeroed() };
-        if unsafe { ClientToScreen(self.hwnd(), &mut position) } == false.into() {
+    fn surface_position(&self) -> PhysicalPosition<i32> {
+        let mut rect: RECT = unsafe { mem::zeroed() };
+        if unsafe { GetClientRect(self.hwnd(), &mut rect) } == false.into() {
             panic!(
-                "Unexpected ClientToScreen failure: please report this error to \
+                "Unexpected GetClientRect failure: please report this error to \
                  rust-windowing/winit"
             )
         }
-        Ok(PhysicalPosition::new(position.x, position.y))
+        PhysicalPosition::new(rect.left, rect.top)
     }
 
     fn set_outer_position(&self, position: Position) {
@@ -497,6 +492,10 @@ impl CoreWindow for Window {
         }
 
         None
+    }
+
+    fn safe_area(&self) -> PhysicalInsets<u32> {
+        PhysicalInsets::new(0, 0, 0, 0)
     }
 
     fn set_min_surface_size(&self, size: Option<Size>) {
@@ -696,8 +695,8 @@ impl CoreWindow for Window {
         Ok(())
     }
 
-    fn id(&self) -> CoreWindowId {
-        CoreWindowId(WindowId(self.hwnd()))
+    fn id(&self) -> WindowId {
+        WindowId::from_raw(self.hwnd() as usize)
     }
 
     fn set_minimized(&self, minimized: bool) {
@@ -1054,12 +1053,10 @@ impl CoreWindow for Window {
         }
     }
 
-    #[cfg(feature = "rwh_06")]
     fn rwh_06_window_handle(&self) -> &dyn rwh_06::HasWindowHandle {
         self
     }
 
-    #[cfg(feature = "rwh_06")]
     fn rwh_06_display_handle(&self) -> &dyn rwh_06::HasDisplayHandle {
         self
     }
@@ -1074,7 +1071,7 @@ pub(super) struct InitData<'a> {
     pub window: Option<Window>,
 }
 
-impl<'a> InitData<'a> {
+impl InitData<'_> {
     unsafe fn create_window(&self, window: HWND) -> Window {
         // Register for touch events if applicable
         {
@@ -1288,7 +1285,6 @@ unsafe fn init(
         },
     };
 
-    #[cfg(feature = "rwh_06")]
     let parent = match attributes.parent_window.as_ref().map(|handle| handle.0) {
         Some(rwh_06::RawWindowHandle::Win32(handle)) => {
             window_flags.set(WindowFlags::CHILD, true);
@@ -1300,9 +1296,6 @@ unsafe fn init(
         Some(raw) => unreachable!("Invalid raw window handle {raw:?} on Windows"),
         None => fallback_parent(),
     };
-
-    #[cfg(not(feature = "rwh_06"))]
-    let parent = fallback_parent();
 
     let menu = attributes.platform_specific.menu;
     let fullscreen = attributes.fullscreen.clone();
