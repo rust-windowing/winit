@@ -161,6 +161,8 @@ changelog entry.
   - In the same spirit rename `DeviceEvent::MouseMotion` to `PointerMotion`.
   - Remove `Force::Calibrated::altitude_angle`.
 - On X11, use bottom-right corner for IME hotspot in `Window::set_ime_cursor_area`.
+- On macOS and iOS, no longer emit `ScaleFactorChanged` upon window creation.
+- On macOS, no longer emit `Focused` upon window creation.
 
 ### Removed
 
