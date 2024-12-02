@@ -563,7 +563,7 @@ impl rwh_06::HasDisplayHandle for OwnedDisplayHandle {
 fn main_thread_id() -> u32 {
     static mut MAIN_THREAD_ID: u32 = 0;
 
-    /// Function pointer used in CRT initialization section to set the above static field's value.
+    // Function pointer used in CRT initialization section to set the above static field's value.
 
     // Mark as used so this is not removable.
     #[used]
