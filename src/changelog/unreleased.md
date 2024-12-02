@@ -206,3 +206,4 @@ changelog entry.
 - On X11, creating windows while passing `with_x11_screen(non_default_screen)` works again.
 - On X11, fix XInput handling that prevented a new window from getting the focus in some cases.
 - On iOS, fixed `SurfaceResized` and `Window::surface_size` not reporting the size of the actual surface.
+- On macOS, fix crash when pressing Caps Lock in certain configurations.
