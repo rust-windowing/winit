@@ -75,6 +75,7 @@ changelog entry.
   variables to test the respective modifiers of window creation.
 - Added `Window::surface_position`, which is the position of the surface inside the window.
 - Added `Window::safe_area`, which describes the area of the surface that is unobstructed.
+- On Android, improved scancode conversions for more obscure key codes.
 
 ### Changed
 
