@@ -6,7 +6,6 @@ use x11rb::protocol::xkb;
 use super::*;
 
 pub const VIRTUAL_CORE_POINTER: u16 = 2;
-pub const VIRTUAL_CORE_KEYBOARD: u16 = 3;
 
 // A base buffer size of 1kB uses a negligible amount of RAM while preventing us from having to
 // re-allocate (and make another round-trip) in the *vast* majority of cases.

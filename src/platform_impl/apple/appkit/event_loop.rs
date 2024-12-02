@@ -20,6 +20,7 @@ use objc2_app_kit::{
     NSApplicationWillTerminateNotification, NSWindow,
 };
 use objc2_foundation::{MainThreadMarker, NSNotificationCenter, NSObject, NSObjectProtocol};
+use rwh_06::HasDisplayHandle;
 
 use super::super::notification_center::create_observer;
 use super::app::WinitApplication;
@@ -32,7 +33,8 @@ use crate::application::ApplicationHandler;
 use crate::error::{EventLoopError, RequestError};
 use crate::event_loop::{
     ActiveEventLoop as RootActiveEventLoop, ControlFlow, DeviceEvents,
-    EventLoopProxy as RootEventLoopProxy, OwnedDisplayHandle as RootOwnedDisplayHandle,
+    EventLoopProxy as CoreEventLoopProxy, EventLoopProxyProvider,
+    OwnedDisplayHandle as CoreOwnedDisplayHandle,
 };
 use crate::monitor::MonitorHandle as RootMonitorHandle;
 use crate::platform::macos::ActivationPolicy;
@@ -95,9 +97,8 @@ impl ActiveEventLoop {
 }
 
 impl RootActiveEventLoop for ActiveEventLoop {
-    fn create_proxy(&self) -> RootEventLoopProxy {
-        let event_loop_proxy = EventLoopProxy::new(self.app_state.proxy_wake_up());
-        RootEventLoopProxy { event_loop_proxy }
+    fn create_proxy(&self) -> CoreEventLoopProxy {
+        CoreEventLoopProxy::new(self.app_state.event_loop_proxy().clone())
     }
 
     fn create_window(
@@ -151,17 +152,15 @@ impl RootActiveEventLoop for ActiveEventLoop {
         self.app_state.exiting()
     }
 
-    fn owned_display_handle(&self) -> RootOwnedDisplayHandle {
-        RootOwnedDisplayHandle { platform: OwnedDisplayHandle }
+    fn owned_display_handle(&self) -> CoreOwnedDisplayHandle {
+        CoreOwnedDisplayHandle::new(Arc::new(OwnedDisplayHandle))
     }
 
-    #[cfg(feature = "rwh_06")]
     fn rwh_06_handle(&self) -> &dyn rwh_06::HasDisplayHandle {
         self
     }
 }
 
-#[cfg(feature = "rwh_06")]
 impl rwh_06::HasDisplayHandle for ActiveEventLoop {
     fn display_handle(&self) -> Result<rwh_06::DisplayHandle<'_>, rwh_06::HandleError> {
         let raw = rwh_06::RawDisplayHandle::AppKit(rwh_06::AppKitDisplayHandle::new());
@@ -190,18 +189,14 @@ pub struct EventLoop {
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub(crate) struct PlatformSpecificEventLoopAttributes {
-    pub(crate) activation_policy: ActivationPolicy,
+    pub(crate) activation_policy: Option<ActivationPolicy>,
     pub(crate) default_menu: bool,
     pub(crate) activate_ignoring_other_apps: bool,
 }
 
 impl Default for PlatformSpecificEventLoopAttributes {
     fn default() -> Self {
-        Self {
-            activation_policy: Default::default(), // Regular
-            default_menu: true,
-            activate_ignoring_other_apps: true,
-        }
+        Self { activation_policy: None, default_menu: true, activate_ignoring_other_apps: true }
     }
 }
 
@@ -223,9 +218,10 @@ impl EventLoop {
         }
 
         let activation_policy = match attributes.activation_policy {
-            ActivationPolicy::Regular => NSApplicationActivationPolicy::Regular,
-            ActivationPolicy::Accessory => NSApplicationActivationPolicy::Accessory,
-            ActivationPolicy::Prohibited => NSApplicationActivationPolicy::Prohibited,
+            None => None,
+            Some(ActivationPolicy::Regular) => Some(NSApplicationActivationPolicy::Regular),
+            Some(ActivationPolicy::Accessory) => Some(NSApplicationActivationPolicy::Accessory),
+            Some(ActivationPolicy::Prohibited) => Some(NSApplicationActivationPolicy::Prohibited),
         };
 
         let app_state = AppState::setup_global(
@@ -394,16 +390,12 @@ impl EventLoop {
     }
 }
 
-#[derive(Clone, PartialEq, Eq)]
 pub(crate) struct OwnedDisplayHandle;
 
-impl OwnedDisplayHandle {
-    #[cfg(feature = "rwh_06")]
-    #[inline]
-    pub fn raw_display_handle_rwh_06(
-        &self,
-    ) -> Result<rwh_06::RawDisplayHandle, rwh_06::HandleError> {
-        Ok(rwh_06::AppKitDisplayHandle::new().into())
+impl HasDisplayHandle for OwnedDisplayHandle {
+    fn display_handle(&self) -> Result<rwh_06::DisplayHandle<'_>, rwh_06::HandleError> {
+        let raw = rwh_06::RawDisplayHandle::AppKit(rwh_06::AppKitDisplayHandle::new());
+        unsafe { Ok(rwh_06::DisplayHandle::borrow_raw(raw)) }
     }
 }
 
@@ -442,8 +434,9 @@ pub fn stop_app_on_panic<F: FnOnce() -> R + UnwindSafe, R>(
     }
 }
 
+#[derive(Debug)]
 pub struct EventLoopProxy {
-    proxy_wake_up: Arc<AtomicBool>,
+    pub(crate) wake_up: AtomicBool,
     source: CFRunLoopSourceRef,
 }
 
@@ -458,14 +451,8 @@ impl Drop for EventLoopProxy {
     }
 }
 
-impl Clone for EventLoopProxy {
-    fn clone(&self) -> Self {
-        EventLoopProxy::new(self.proxy_wake_up.clone())
-    }
-}
-
 impl EventLoopProxy {
-    fn new(proxy_wake_up: Arc<AtomicBool>) -> Self {
+    pub(crate) fn new() -> Self {
         unsafe {
             // just wake up the eventloop
             extern "C" fn event_loop_proxy_handler(_: *const c_void) {}
@@ -489,14 +476,16 @@ impl EventLoopProxy {
             CFRunLoopAddSource(rl, source, kCFRunLoopCommonModes);
             CFRunLoopWakeUp(rl);
 
-            EventLoopProxy { proxy_wake_up, source }
+            EventLoopProxy { wake_up: AtomicBool::new(false), source }
         }
     }
+}
 
-    pub fn wake_up(&self) {
-        self.proxy_wake_up.store(true, AtomicOrdering::Relaxed);
+impl EventLoopProxyProvider for EventLoopProxy {
+    fn wake_up(&self) {
+        self.wake_up.store(true, AtomicOrdering::Relaxed);
         unsafe {
-            // let the main thread know there's a new event
+            // Let the main thread know there's a new event.
             CFRunLoopSourceSignal(self.source);
             let rl = CFRunLoopGetMain();
             CFRunLoopWakeUp(rl);

@@ -3,7 +3,7 @@
 use std::cell::{OnceCell, RefCell, RefMut};
 use std::collections::HashSet;
 use std::os::raw::c_void;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::Ordering;
 use std::sync::{Arc, Mutex, OnceLock};
 use std::time::Instant;
 use std::{mem, ptr};
@@ -24,12 +24,11 @@ use objc2_ui_kit::{UIApplication, UICoordinateSpace, UIView, UIWindow};
 
 use super::super::event_handler::EventHandler;
 use super::window::WinitUIWindow;
-use super::ActiveEventLoop;
+use super::{ActiveEventLoop, EventLoopProxy};
 use crate::application::ApplicationHandler;
 use crate::dpi::PhysicalSize;
 use crate::event::{Event, StartCause, SurfaceSizeWriter, WindowEvent};
 use crate::event_loop::ControlFlow;
-use crate::window::WindowId as RootWindowId;
 
 macro_rules! bug {
     ($($msg:tt)*) => {
@@ -140,7 +139,7 @@ pub(crate) struct AppState {
     app_state: Option<AppStateImpl>,
     control_flow: ControlFlow,
     waker: EventLoopWaker,
-    proxy_wake_up: Arc<AtomicBool>,
+    event_loop_proxy: Arc<EventLoopProxy>,
 }
 
 impl AppState {
@@ -150,6 +149,8 @@ impl AppState {
         // must be mut because plain `static` requires `Sync`
         static mut APP_STATE: RefCell<Option<AppState>> = RefCell::new(None);
 
+        #[allow(unknown_lints)] // New lint below
+        #[allow(static_mut_refs)] // TODO: Use `MainThreadBound` instead.
         let mut guard = unsafe { APP_STATE.borrow_mut() };
         if guard.is_none() {
             #[inline(never)]
@@ -163,7 +164,7 @@ impl AppState {
                     }),
                     control_flow: ControlFlow::default(),
                     waker,
-                    proxy_wake_up: Arc::new(AtomicBool::new(false)),
+                    event_loop_proxy: Arc::new(EventLoopProxy::new()),
                 });
             }
             init_guard(&mut guard);
@@ -375,8 +376,8 @@ impl AppState {
         }
     }
 
-    pub(crate) fn proxy_wake_up(&self) -> Arc<AtomicBool> {
-        self.proxy_wake_up.clone()
+    pub fn event_loop_proxy(&self) -> &Arc<EventLoopProxy> {
+        &self.event_loop_proxy
     }
 
     pub(crate) fn set_control_flow(&mut self, control_flow: ControlFlow) {
@@ -542,10 +543,10 @@ fn handle_user_events(mtm: MainThreadMarker) {
     if processing_redraws {
         bug!("user events attempted to be sent out while `ProcessingRedraws`");
     }
-    let proxy_wake_up = this.proxy_wake_up.clone();
+    let event_loop_proxy = this.event_loop_proxy().clone();
     drop(this);
 
-    if proxy_wake_up.swap(false, Ordering::Relaxed) {
+    if event_loop_proxy.wake_up.swap(false, Ordering::Relaxed) {
         handle_event(mtm, Event::UserWakeUp);
     }
 
@@ -577,7 +578,7 @@ fn handle_user_events(mtm: MainThreadMarker) {
             }
         }
 
-        if proxy_wake_up.swap(false, Ordering::Relaxed) {
+        if event_loop_proxy.wake_up.swap(false, Ordering::Relaxed) {
             handle_event(mtm, Event::UserWakeUp);
         }
     }
@@ -597,7 +598,7 @@ pub(crate) fn send_occluded_event_for_all_windows(application: &UIApplication, o
                 &*ptr
             };
             events.push(EventWrapper::StaticEvent(Event::WindowEvent {
-                window_id: RootWindowId(window.id()),
+                window_id: window.id(),
                 event: WindowEvent::Occluded(occluded),
             }));
         }
@@ -624,7 +625,7 @@ pub fn handle_main_events_cleared(mtm: MainThreadMarker) {
         .into_iter()
         .map(|window| {
             EventWrapper::StaticEvent(Event::WindowEvent {
-                window_id: RootWindowId(window.id()),
+                window_id: window.id(),
                 event: WindowEvent::RedrawRequested,
             })
         })
@@ -653,7 +654,7 @@ pub(crate) fn terminated(application: &UIApplication) {
                 &*ptr
             };
             events.push(EventWrapper::StaticEvent(Event::WindowEvent {
-                window_id: RootWindowId(window.id()),
+                window_id: window.id(),
                 event: WindowEvent::Destroyed,
             }));
         }
@@ -671,7 +672,7 @@ fn handle_hidpi_proxy(mtm: MainThreadMarker, event: ScaleFactorChanged) {
     let ScaleFactorChanged { suggested_size, scale_factor, window } = event;
     let new_surface_size = Arc::new(Mutex::new(suggested_size));
     let event = Event::WindowEvent {
-        window_id: RootWindowId(window.id()),
+        window_id: window.id(),
         event: WindowEvent::ScaleFactorChanged {
             scale_factor,
             surface_size_writer: SurfaceSizeWriter::new(Arc::downgrade(&new_surface_size)),

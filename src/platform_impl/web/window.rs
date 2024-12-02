@@ -2,19 +2,20 @@ use std::cell::Ref;
 use std::rc::Rc;
 use std::sync::Arc;
 
+use dpi::{LogicalPosition, LogicalSize};
 use web_sys::HtmlCanvasElement;
 
 use super::main_thread::{MainThreadMarker, MainThreadSafe};
 use super::monitor::MonitorHandler;
 use super::r#async::Dispatcher;
 use super::{backend, lock, ActiveEventLoop};
-use crate::dpi::{PhysicalPosition, PhysicalSize, Position, Size};
+use crate::dpi::{LogicalInsets, PhysicalInsets, PhysicalPosition, PhysicalSize, Position, Size};
 use crate::error::{NotSupportedError, RequestError};
 use crate::icon::Icon;
 use crate::monitor::MonitorHandle as RootMonitorHandle;
 use crate::window::{
     Cursor, CursorGrabMode, Fullscreen as RootFullscreen, ImePurpose, ResizeDirection, Theme,
-    UserAttentionType, Window as RootWindow, WindowAttributes, WindowButtons, WindowId as RootWI,
+    UserAttentionType, Window as RootWindow, WindowAttributes, WindowButtons, WindowId,
     WindowLevel,
 };
 
@@ -26,6 +27,7 @@ pub struct Inner {
     id: WindowId,
     pub window: web_sys::Window,
     monitor: Rc<MonitorHandler>,
+    safe_area: Rc<backend::SafeAreaHandle>,
     canvas: Rc<backend::Canvas>,
     destroy_fn: Option<Box<dyn FnOnce()>>,
 }
@@ -53,19 +55,20 @@ impl Window {
         target.register(&canvas, id);
 
         let runner = target.runner.clone();
-        let destroy_fn = Box::new(move || runner.notify_destroy_window(RootWI(id)));
+        let destroy_fn = Box::new(move || runner.notify_destroy_window(id));
 
         let inner = Inner {
             id,
             window: window.clone(),
             monitor: Rc::clone(target.runner.monitor()),
+            safe_area: Rc::clone(target.runner.safe_area()),
             canvas,
             destroy_fn: Some(destroy_fn),
         };
 
         let canvas = Rc::downgrade(&inner.canvas);
         let (dispatcher, runner) = Dispatcher::new(target.runner.main_thread(), inner);
-        target.runner.add_canvas(RootWI(id), canvas, runner);
+        target.runner.add_canvas(id, canvas, runner);
 
         Ok(Window { inner: dispatcher })
     }
@@ -91,8 +94,8 @@ impl Window {
 }
 
 impl RootWindow for Window {
-    fn id(&self) -> RootWI {
-        RootWI(self.inner.queue(|inner| inner.id))
+    fn id(&self) -> WindowId {
+        self.inner.queue(|inner| inner.id)
     }
 
     fn scale_factor(&self) -> f64 {
@@ -109,9 +112,9 @@ impl RootWindow for Window {
         // Not supported
     }
 
-    fn inner_position(&self) -> Result<PhysicalPosition<i32>, RequestError> {
-        // Note: the canvas element has no window decorations, so this is equal to `outer_position`.
-        self.outer_position()
+    fn surface_position(&self) -> PhysicalPosition<i32> {
+        // Note: the canvas element has no window decorations.
+        (0, 0).into()
     }
 
     fn outer_position(&self) -> Result<PhysicalPosition<i32>, RequestError> {
@@ -150,6 +153,34 @@ impl RootWindow for Window {
     fn outer_size(&self) -> PhysicalSize<u32> {
         // Note: the canvas element has no window decorations, so this is equal to `surface_size`.
         self.surface_size()
+    }
+
+    fn safe_area(&self) -> PhysicalInsets<u32> {
+        self.inner.queue(|inner| {
+            let (safe_start_pos, safe_size) = inner.safe_area.get();
+            let safe_end_pos = LogicalPosition::new(
+                safe_start_pos.x + safe_size.width,
+                safe_start_pos.y + safe_size.height,
+            );
+
+            let surface_start_pos = inner.canvas.position();
+            let surface_size = LogicalSize::new(
+                backend::style_size_property(inner.canvas.style(), "width"),
+                backend::style_size_property(inner.canvas.style(), "height"),
+            );
+            let surface_end_pos = LogicalPosition::new(
+                surface_start_pos.x + surface_size.width,
+                surface_start_pos.y + surface_size.height,
+            );
+
+            let top = f64::max(safe_start_pos.y - surface_start_pos.y, 0.);
+            let left = f64::max(safe_start_pos.x - surface_start_pos.x, 0.);
+            let bottom = f64::max(surface_end_pos.y - safe_end_pos.y, 0.);
+            let right = f64::max(surface_end_pos.x - safe_end_pos.x, 0.);
+
+            let insets = LogicalInsets::new(top, left, bottom, right);
+            insets.to_physical(inner.scale_factor())
+        })
     }
 
     fn set_min_surface_size(&self, min_size: Option<Size>) {
@@ -375,18 +406,15 @@ impl RootWindow for Window {
         self.inner.queue(|inner| inner.monitor.primary_monitor()).map(RootMonitorHandle::from)
     }
 
-    #[cfg(feature = "rwh_06")]
     fn rwh_06_display_handle(&self) -> &dyn rwh_06::HasDisplayHandle {
         self
     }
 
-    #[cfg(feature = "rwh_06")]
     fn rwh_06_window_handle(&self) -> &dyn rwh_06::HasWindowHandle {
         self
     }
 }
 
-#[cfg(feature = "rwh_06")]
 impl rwh_06::HasWindowHandle for Window {
     fn window_handle(&self) -> Result<rwh_06::WindowHandle<'_>, rwh_06::HandleError> {
         MainThreadMarker::new()
@@ -408,7 +436,6 @@ impl rwh_06::HasWindowHandle for Window {
     }
 }
 
-#[cfg(feature = "rwh_06")]
 impl rwh_06::HasDisplayHandle for Window {
     fn display_handle(&self) -> Result<rwh_06::DisplayHandle<'_>, rwh_06::HandleError> {
         Ok(rwh_06::DisplayHandle::web())
@@ -429,27 +456,6 @@ impl Drop for Inner {
         }
     }
 }
-#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct WindowId(pub(crate) u32);
-
-impl WindowId {
-    pub const fn dummy() -> Self {
-        Self(0)
-    }
-}
-
-impl From<WindowId> for u64 {
-    fn from(window_id: WindowId) -> Self {
-        window_id.0 as u64
-    }
-}
-
-impl From<u64> for WindowId {
-    fn from(raw_id: u64) -> Self {
-        Self(raw_id as u32)
-    }
-}
-
 #[derive(Clone, Debug)]
 pub struct PlatformSpecificWindowAttributes {
     pub(crate) canvas: Option<Arc<MainThreadSafe<backend::RawCanvasType>>>,

@@ -7,7 +7,6 @@ use objc2_app_kit::{NSApplication, NSEvent, NSEventModifierFlags, NSEventType, N
 use objc2_foundation::{MainThreadMarker, NSObject};
 
 use super::app_state::AppState;
-use super::DEVICE_ID;
 use crate::event::{DeviceEvent, ElementState};
 
 declare_class!(
@@ -61,7 +60,7 @@ fn maybe_dispatch_device_event(app_state: &Rc<AppState>, event: &NSEvent) {
 
             if delta_x != 0.0 || delta_y != 0.0 {
                 app_state.maybe_queue_with_handler(move |app, event_loop| {
-                    app.device_event(event_loop, DEVICE_ID, DeviceEvent::MouseMotion {
+                    app.device_event(event_loop, None, DeviceEvent::PointerMotion {
                         delta: (delta_x, delta_y),
                     });
                 });
@@ -70,7 +69,7 @@ fn maybe_dispatch_device_event(app_state: &Rc<AppState>, event: &NSEvent) {
         NSEventType::LeftMouseDown | NSEventType::RightMouseDown | NSEventType::OtherMouseDown => {
             let button = unsafe { event.buttonNumber() } as u32;
             app_state.maybe_queue_with_handler(move |app, event_loop| {
-                app.device_event(event_loop, DEVICE_ID, DeviceEvent::Button {
+                app.device_event(event_loop, None, DeviceEvent::Button {
                     button,
                     state: ElementState::Pressed,
                 });
@@ -79,7 +78,7 @@ fn maybe_dispatch_device_event(app_state: &Rc<AppState>, event: &NSEvent) {
         NSEventType::LeftMouseUp | NSEventType::RightMouseUp | NSEventType::OtherMouseUp => {
             let button = unsafe { event.buttonNumber() } as u32;
             app_state.maybe_queue_with_handler(move |app, event_loop| {
-                app.device_event(event_loop, DEVICE_ID, DeviceEvent::Button {
+                app.device_event(event_loop, None, DeviceEvent::Button {
                     button,
                     state: ElementState::Released,
                 });

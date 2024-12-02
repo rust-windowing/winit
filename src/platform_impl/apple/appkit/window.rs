@@ -12,7 +12,7 @@ use crate::error::RequestError;
 use crate::monitor::MonitorHandle as CoreMonitorHandle;
 use crate::window::{
     Cursor, Fullscreen, Icon, ImePurpose, Theme, UserAttentionType, Window as CoreWindow,
-    WindowAttributes, WindowButtons, WindowLevel,
+    WindowAttributes, WindowButtons, WindowId, WindowLevel,
 };
 
 pub(crate) struct Window {
@@ -42,7 +42,6 @@ impl Window {
         self.delegate.get_on_main(|delegate| f(delegate))
     }
 
-    #[cfg(feature = "rwh_06")]
     #[inline]
     pub(crate) fn raw_window_handle_rwh_06(
         &self,
@@ -54,7 +53,6 @@ impl Window {
         }
     }
 
-    #[cfg(feature = "rwh_06")]
     #[inline]
     pub(crate) fn raw_display_handle_rwh_06(
         &self,
@@ -74,7 +72,6 @@ impl Drop for Window {
     }
 }
 
-#[cfg(feature = "rwh_06")]
 impl rwh_06::HasDisplayHandle for Window {
     fn display_handle(&self) -> Result<rwh_06::DisplayHandle<'_>, rwh_06::HandleError> {
         let raw = self.raw_display_handle_rwh_06()?;
@@ -82,7 +79,6 @@ impl rwh_06::HasDisplayHandle for Window {
     }
 }
 
-#[cfg(feature = "rwh_06")]
 impl rwh_06::HasWindowHandle for Window {
     fn window_handle(&self) -> Result<rwh_06::WindowHandle<'_>, rwh_06::HandleError> {
         let raw = self.raw_window_handle_rwh_06()?;
@@ -92,7 +88,7 @@ impl rwh_06::HasWindowHandle for Window {
 
 impl CoreWindow for Window {
     fn id(&self) -> crate::window::WindowId {
-        self.maybe_wait_on_main(|delegate| crate::window::WindowId(delegate.id()))
+        self.maybe_wait_on_main(|delegate| delegate.id())
     }
 
     fn scale_factor(&self) -> f64 {
@@ -111,12 +107,12 @@ impl CoreWindow for Window {
         self.maybe_wait_on_main(|delegate| delegate.reset_dead_keys());
     }
 
-    fn inner_position(&self) -> Result<dpi::PhysicalPosition<i32>, RequestError> {
-        Ok(self.maybe_wait_on_main(|delegate| delegate.inner_position()))
+    fn surface_position(&self) -> dpi::PhysicalPosition<i32> {
+        self.maybe_wait_on_main(|delegate| delegate.surface_position())
     }
 
     fn outer_position(&self) -> Result<dpi::PhysicalPosition<i32>, RequestError> {
-        Ok(self.maybe_wait_on_main(|delegate| delegate.outer_position()))
+        self.maybe_wait_on_main(|delegate| delegate.outer_position())
     }
 
     fn set_outer_position(&self, position: Position) {
@@ -133,6 +129,10 @@ impl CoreWindow for Window {
 
     fn outer_size(&self) -> dpi::PhysicalSize<u32> {
         self.maybe_wait_on_main(|delegate| delegate.outer_size())
+    }
+
+    fn safe_area(&self) -> dpi::PhysicalInsets<u32> {
+        self.maybe_wait_on_main(|delegate| delegate.safe_area())
     }
 
     fn set_min_surface_size(&self, min_size: Option<Size>) {
@@ -284,8 +284,7 @@ impl CoreWindow for Window {
     }
 
     fn drag_window(&self) -> Result<(), RequestError> {
-        self.maybe_wait_on_main(|delegate| delegate.drag_window());
-        Ok(())
+        self.maybe_wait_on_main(|delegate| delegate.drag_window())
     }
 
     fn drag_resize_window(
@@ -324,35 +323,12 @@ impl CoreWindow for Window {
         })
     }
 
-    #[cfg(feature = "rwh_06")]
     fn rwh_06_display_handle(&self) -> &dyn rwh_06::HasDisplayHandle {
         self
     }
 
-    #[cfg(feature = "rwh_06")]
     fn rwh_06_window_handle(&self) -> &dyn rwh_06::HasWindowHandle {
         self
-    }
-}
-
-#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct WindowId(pub usize);
-
-impl WindowId {
-    pub const fn dummy() -> Self {
-        Self(0)
-    }
-}
-
-impl From<WindowId> for u64 {
-    fn from(window_id: WindowId) -> Self {
-        window_id.0 as u64
-    }
-}
-
-impl From<u64> for WindowId {
-    fn from(raw_id: u64) -> Self {
-        Self(raw_id as usize)
     }
 }
 
@@ -386,6 +362,6 @@ declare_class!(
 
 impl WinitWindow {
     pub(super) fn id(&self) -> WindowId {
-        WindowId(self as *const Self as usize)
+        WindowId::from_raw(self as *const Self as usize)
     }
 }

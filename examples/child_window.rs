@@ -44,7 +44,7 @@ fn main() -> Result<(), impl std::error::Error> {
                     self.windows.clear();
                     event_loop.exit();
                 },
-                WindowEvent::CursorEntered { device_id: _ } => {
+                WindowEvent::PointerEntered { device_id: _, .. } => {
                     // On x11, println when the cursor entered in a window even if the child window
                     // is created by some key inputs.
                     // the child windows are always placed at (0, 0) with size (200, 200) in the
