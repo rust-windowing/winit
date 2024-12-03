@@ -1,11 +1,11 @@
 #![deny(unused_results)]
 
-use std::cell::{OnceCell, RefCell, RefMut};
+use std::cell::{Cell, OnceCell};
 use std::collections::HashSet;
 use std::os::raw::c_void;
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
-use std::{mem, ptr};
+use std::{fmt, ptr};
 
 use dispatch2::MainThreadBound;
 use dpi::PhysicalSize;
@@ -29,12 +29,6 @@ use crate::window::WinitUIWindow;
 macro_rules! bug {
     ($($msg:tt)*) => {
         panic!("winit iOS bug, file an issue: {}", format!($($msg)*))
-    };
-}
-
-macro_rules! bug_assert {
-    ($test:expr, $($msg:tt)*) => {
-        assert!($test, "winit iOS bug, file an issue: {}", format!($($msg)*))
     };
 }
 
@@ -83,110 +77,78 @@ enum AppStateImpl {
 }
 
 pub(crate) struct AppState {
-    // This should never be `None`, except for briefly during a state transition.
-    app_state: Option<AppStateImpl>,
-    control_flow: ControlFlow,
+    state: Cell<AppStateImpl>,
+    control_flow: Cell<ControlFlow>,
     waker: EventLoopWaker,
     event_loop_proxy: Arc<EventLoopProxy>,
-    queued_events: Vec<EventWrapper>,
-    queued_gpu_redraws: HashSet<Retained<WinitUIWindow>>,
+    queued_events: Cell<Vec<EventWrapper>>,
+    queued_gpu_redraws: Cell<HashSet<Retained<WinitUIWindow>>>,
 }
 
+impl fmt::Debug for AppState {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("AppState")
+            .field("control_flow", &self.control_flow)
+            .field("waker", &self.waker)
+            .field("event_loop_proxy", &self.event_loop_proxy)
+            .field("queued_events", &"Cell<...>")
+            .field("queued_gpu_redraws", &"Cell<...>")
+            .finish_non_exhaustive()
+    }
+}
+
+// SAFETY: Creating `MainThreadBound` in a `const` context,
+// where there is no concept of the main thread.
+static GLOBAL: MainThreadBound<OnceCell<AppState>> =
+    MainThreadBound::new(OnceCell::new(), unsafe { MainThreadMarker::new_unchecked() });
+
 impl AppState {
-    pub(crate) fn get_mut(mtm: MainThreadMarker) -> RefMut<'static, AppState> {
-        // basically everything in UIKit requires the main thread, so it's pointless to use the
-        // std::sync APIs.
-        // must be mut because plain `static` requires `Sync`
-        static mut APP_STATE: RefCell<Option<AppState>> = RefCell::new(None);
-
-        #[allow(unknown_lints)] // New lint below
-        #[allow(static_mut_refs)] // TODO: Use `MainThreadBound` instead.
-        let mut guard = unsafe { APP_STATE.borrow_mut() };
-        if guard.is_none() {
-            #[inline(never)]
-            #[cold]
-            fn init_guard(guard: &mut RefMut<'static, Option<AppState>>, mtm: MainThreadMarker) {
-                let waker = EventLoopWaker::new(CFRunLoop::main().unwrap());
-                let event_loop_proxy = Arc::new(EventLoopProxy::new(mtm, move || {
-                    get_handler(mtm).handle(|app| app.proxy_wake_up(&ActiveEventLoop { mtm }));
-                }));
-
-                **guard = Some(AppState {
-                    app_state: Some(AppStateImpl::Initial),
-                    control_flow: ControlFlow::default(),
-                    waker,
-                    event_loop_proxy,
-                    queued_events: Vec::new(),
-                    queued_gpu_redraws: HashSet::new(),
-                });
-            }
-            init_guard(&mut guard, mtm);
-        }
-        RefMut::map(guard, |state| state.as_mut().unwrap())
+    pub(crate) fn setup_global(mtm: MainThreadMarker) -> bool {
+        let event_loop_proxy = Arc::new(EventLoopProxy::new(mtm, move || {
+            get_handler(mtm).handle(|app| app.proxy_wake_up(&ActiveEventLoop { mtm }));
+        }));
+        GLOBAL
+            .get(mtm)
+            .set(Self {
+                state: Cell::new(AppStateImpl::Initial),
+                control_flow: Cell::new(ControlFlow::default()),
+                waker: EventLoopWaker::new(CFRunLoop::main().unwrap()),
+                event_loop_proxy,
+                queued_events: Cell::new(Vec::new()),
+                queued_gpu_redraws: Cell::new(HashSet::new()),
+            })
+            .is_ok()
     }
 
-    fn state(&self) -> &AppStateImpl {
-        match &self.app_state {
-            Some(ref state) => state,
-            None => bug!("`AppState` previously failed a state transition"),
-        }
-    }
-
-    fn state_mut(&mut self) -> &mut AppStateImpl {
-        match &mut self.app_state {
-            Some(ref mut state) => state,
-            None => bug!("`AppState` previously failed a state transition"),
-        }
-    }
-
-    fn take_state(&mut self) -> AppStateImpl {
-        match self.app_state.take() {
-            Some(state) => state,
-            None => bug!("`AppState` previously failed a state transition"),
-        }
-    }
-
-    fn set_state(&mut self, new_state: AppStateImpl) {
-        bug_assert!(
-            self.app_state.is_none(),
-            "attempted to set an `AppState` without calling `take_state` first {:?}",
-            self.app_state
-        );
-        self.app_state = Some(new_state)
-    }
-
-    fn replace_state(&mut self, new_state: AppStateImpl) -> AppStateImpl {
-        match &mut self.app_state {
-            Some(ref mut state) => mem::replace(state, new_state),
-            None => bug!("`AppState` previously failed a state transition"),
-        }
+    pub(crate) fn get(mtm: MainThreadMarker) -> &'static Self {
+        GLOBAL.get(mtm).get().expect("tried to get application state before it was registered")
     }
 
     fn has_launched(&self) -> bool {
-        !matches!(self.state(), AppStateImpl::Initial)
+        !matches!(self.state.get(), AppStateImpl::Initial)
     }
 
     fn has_terminated(&self) -> bool {
-        matches!(self.state(), AppStateImpl::Terminated)
+        matches!(self.state.get(), AppStateImpl::Terminated)
     }
 
-    fn did_finish_launching_transition(&mut self) {
-        match self.take_state() {
+    fn did_finish_launching_transition(&self) {
+        match self.state.get() {
             AppStateImpl::Initial => {},
             s => bug!("unexpected state {:?}", s),
         }
-
-        self.set_state(AppStateImpl::ProcessingEvents { active_control_flow: self.control_flow });
+        self.state
+            .set(AppStateImpl::ProcessingEvents { active_control_flow: self.control_flow.get() });
     }
 
-    fn wakeup_transition(&mut self) -> Option<StartCause> {
+    fn wakeup_transition(&self) -> Option<StartCause> {
         // before `AppState::did_finish_launching` is called, pretend there is no running
         // event loop.
         if !self.has_launched() || self.has_terminated() {
             return None;
         }
 
-        let start_cause = match (self.control_flow, self.take_state()) {
+        let start_cause = match (self.control_flow.get(), self.state.get()) {
             (ControlFlow::Poll, AppStateImpl::PollFinished) => StartCause::Poll,
             (ControlFlow::Wait, AppStateImpl::Waiting { start }) => {
                 StartCause::WaitCancelled { start, requested_resume: None }
@@ -201,60 +163,61 @@ impl AppState {
             s => bug!("`EventHandler` unexpectedly woke up {:?}", s),
         };
 
-        self.set_state(AppStateImpl::ProcessingEvents { active_control_flow: self.control_flow });
+        self.state
+            .set(AppStateImpl::ProcessingEvents { active_control_flow: self.control_flow.get() });
         Some(start_cause)
     }
 
-    fn main_events_cleared_transition(&mut self) {
-        let active_control_flow = match self.take_state() {
+    fn main_events_cleared_transition(&self) {
+        let active_control_flow = match self.state.get() {
             AppStateImpl::ProcessingEvents { active_control_flow } => active_control_flow,
             s => bug!("unexpected state {:?}", s),
         };
-        self.set_state(AppStateImpl::ProcessingRedraws { active_control_flow });
+        self.state.set(AppStateImpl::ProcessingRedraws { active_control_flow });
     }
 
-    fn events_cleared_transition(&mut self) {
+    fn events_cleared_transition(&self) {
         if !self.has_launched() || self.has_terminated() {
             return;
         }
-        let old = match self.take_state() {
+        let old = match self.state.get() {
             AppStateImpl::ProcessingRedraws { active_control_flow } => active_control_flow,
             s => bug!("unexpected state {:?}", s),
         };
 
-        let new = self.control_flow;
+        let new = self.control_flow.get();
         match (old, new) {
             (ControlFlow::Wait, ControlFlow::Wait) => {
                 let start = Instant::now();
-                self.set_state(AppStateImpl::Waiting { start });
+                self.state.set(AppStateImpl::Waiting { start });
                 self.waker.stop()
             },
             (ControlFlow::WaitUntil(old_instant), ControlFlow::WaitUntil(new_instant))
                 if old_instant == new_instant =>
             {
                 let start = Instant::now();
-                self.set_state(AppStateImpl::Waiting { start });
+                self.state.set(AppStateImpl::Waiting { start });
             },
             (_, ControlFlow::Wait) => {
                 let start = Instant::now();
-                self.set_state(AppStateImpl::Waiting { start });
+                self.state.set(AppStateImpl::Waiting { start });
                 self.waker.stop()
             },
             (_, ControlFlow::WaitUntil(new_instant)) => {
                 let start = Instant::now();
-                self.set_state(AppStateImpl::Waiting { start });
+                self.state.set(AppStateImpl::Waiting { start });
                 self.waker.start_at(new_instant)
             },
             // Unlike on macOS, handle Poll to Poll transition here to call the waker
             (_, ControlFlow::Poll) => {
-                self.set_state(AppStateImpl::PollFinished);
+                self.state.set(AppStateImpl::PollFinished);
                 self.waker.start()
             },
         }
     }
 
-    fn terminated_transition(&mut self) {
-        match self.replace_state(AppStateImpl::Terminated) {
+    fn terminated_transition(&self) {
+        match self.state.replace(AppStateImpl::Terminated) {
             AppStateImpl::ProcessingEvents { .. } => {},
             s => bug!("terminated while not processing events {:?}", s),
         }
@@ -264,25 +227,27 @@ impl AppState {
         &self.event_loop_proxy
     }
 
-    pub(crate) fn set_control_flow(&mut self, control_flow: ControlFlow) {
-        self.control_flow = control_flow;
+    pub(crate) fn set_control_flow(&self, control_flow: ControlFlow) {
+        self.control_flow.set(control_flow);
     }
 
     pub(crate) fn control_flow(&self) -> ControlFlow {
-        self.control_flow
+        self.control_flow.get()
     }
 }
 
 pub(crate) fn queue_gl_or_metal_redraw(mtm: MainThreadMarker, window: Retained<WinitUIWindow>) {
-    let mut this = AppState::get_mut(mtm);
-    match this.state_mut() {
-        &mut AppStateImpl::Initial | &mut AppStateImpl::ProcessingEvents { .. } => {
-            let _ = this.queued_gpu_redraws.insert(window);
+    let this = AppState::get(mtm);
+    match this.state.get() {
+        AppStateImpl::Initial | AppStateImpl::ProcessingEvents { .. } => {
+            let mut queued_gpu_redraws = this.queued_gpu_redraws.take();
+            let _ = queued_gpu_redraws.insert(window);
+            this.queued_gpu_redraws.set(queued_gpu_redraws);
         },
-        s @ &mut AppStateImpl::ProcessingRedraws { .. }
-        | s @ &mut AppStateImpl::Waiting { .. }
-        | s @ &mut AppStateImpl::PollFinished => bug!("unexpected state {:?}", s),
-        &mut AppStateImpl::Terminated => {
+        s @ AppStateImpl::ProcessingRedraws { .. }
+        | s @ AppStateImpl::Waiting { .. }
+        | s @ AppStateImpl::PollFinished => bug!("unexpected state {:?}", s),
+        AppStateImpl::Terminated => {
             panic!("Attempt to create a `Window` after the app has terminated")
         },
     }
@@ -297,14 +262,10 @@ pub(crate) fn launch<R>(
 }
 
 pub fn did_finish_launching(mtm: MainThreadMarker) {
-    let mut this = AppState::get_mut(mtm);
+    let this = AppState::get(mtm);
 
     this.waker.start();
-
-    // have to drop RefMut because the window setup code below can trigger new events
-    drop(this);
-
-    AppState::get_mut(mtm).did_finish_launching_transition();
+    this.did_finish_launching_transition();
 
     get_handler(mtm).handle(|app| app.new_events(&ActiveEventLoop { mtm }, StartCause::Init));
     get_handler(mtm).handle(|app| app.can_create_surfaces(&ActiveEventLoop { mtm }));
@@ -313,12 +274,11 @@ pub fn did_finish_launching(mtm: MainThreadMarker) {
 
 // AppState::did_finish_launching handles the special transition `Init`
 pub fn handle_wakeup_transition(mtm: MainThreadMarker) {
-    let mut this = AppState::get_mut(mtm);
+    let this = AppState::get(mtm);
     let cause = match this.wakeup_transition() {
         None => return,
         Some(cause) => cause,
     };
-    drop(this);
 
     get_handler(mtm).handle(|app| app.new_events(&ActiveEventLoop { mtm }, cause));
     handle_nonuser_events(mtm, []);
@@ -332,19 +292,20 @@ pub(crate) fn handle_nonuser_events<I: IntoIterator<Item = EventWrapper>>(
     mtm: MainThreadMarker,
     events: I,
 ) {
-    let mut this = AppState::get_mut(mtm);
+    let this = AppState::get(mtm);
     if this.has_terminated() {
         return;
     }
 
     if !get_handler(mtm).ready() {
         // Prevent re-entrancy; queue the events up for once we're done handling the event instead.
-        this.queued_events.extend(events);
+        let mut queued_events = this.queued_events.take();
+        queued_events.extend(events);
+        this.queued_events.set(queued_events);
         return;
     }
 
-    let processing_redraws = matches!(this.state(), AppStateImpl::ProcessingRedraws { .. });
-    drop(this);
+    let processing_redraws = matches!(this.state.get(), AppStateImpl::ProcessingRedraws { .. });
 
     for event in events {
         if !processing_redraws && event.is_redraw() {
@@ -359,12 +320,10 @@ pub(crate) fn handle_nonuser_events<I: IntoIterator<Item = EventWrapper>>(
     }
 
     loop {
-        let mut this = AppState::get_mut(mtm);
-        let queued_events = mem::take(&mut this.queued_events);
+        let queued_events = this.queued_events.take();
         if queued_events.is_empty() {
             break;
         }
-        drop(this);
 
         for event in queued_events {
             if !processing_redraws && event.is_redraw() {
@@ -381,19 +340,16 @@ pub(crate) fn handle_nonuser_events<I: IntoIterator<Item = EventWrapper>>(
 }
 
 fn handle_user_events(mtm: MainThreadMarker) {
-    let this = AppState::get_mut(mtm);
-    if matches!(this.state(), AppStateImpl::ProcessingRedraws { .. }) {
+    let this = AppState::get(mtm);
+    if matches!(this.state.get(), AppStateImpl::ProcessingRedraws { .. }) {
         bug!("user events attempted to be sent out while `ProcessingRedraws`");
     }
-    drop(this);
 
     loop {
-        let mut this = AppState::get_mut(mtm);
-        let queued_events = mem::take(&mut this.queued_events);
+        let queued_events = this.queued_events.take();
         if queued_events.is_empty() {
             break;
         }
-        drop(this);
 
         for event in queued_events {
             handle_wrapped_event(mtm, event);
@@ -418,26 +374,23 @@ pub(crate) fn send_occluded_event_for_all_windows(application: &UIApplication, o
 }
 
 pub fn handle_main_events_cleared(mtm: MainThreadMarker) {
-    let mut this = AppState::get_mut(mtm);
+    let this = AppState::get(mtm);
     if !this.has_launched() || this.has_terminated() {
         return;
     }
-    match this.state_mut() {
+    match this.state.get() {
         AppStateImpl::ProcessingEvents { .. } => {},
         _ => bug!("`ProcessingRedraws` happened unexpectedly"),
     };
-    drop(this);
 
     handle_user_events(mtm);
 
-    let mut this = AppState::get_mut(mtm);
     this.main_events_cleared_transition();
-    let queued_gpu_redraws = mem::take(&mut this.queued_gpu_redraws);
+    let queued_gpu_redraws = this.queued_gpu_redraws.take();
     let redraw_events = queued_gpu_redraws.into_iter().map(|window| EventWrapper::Window {
         window_id: window.id(),
         event: WindowEvent::RedrawRequested,
     });
-    drop(this);
 
     handle_nonuser_events(mtm, redraw_events);
     get_handler(mtm).handle(|app| app.about_to_wait(&ActiveEventLoop { mtm }));
@@ -445,7 +398,7 @@ pub fn handle_main_events_cleared(mtm: MainThreadMarker) {
 }
 
 pub fn handle_events_cleared(mtm: MainThreadMarker) {
-    AppState::get_mut(mtm).events_cleared_transition();
+    AppState::get(mtm).events_cleared_transition();
 }
 
 pub(crate) fn handle_resumed(mtm: MainThreadMarker) {
@@ -478,11 +431,10 @@ pub(crate) fn terminated(application: &UIApplication) {
     }
     handle_nonuser_events(mtm, events);
 
-    let mut this = AppState::get_mut(mtm);
+    let this = AppState::get(mtm);
     this.terminated_transition();
     // Prevent EventLoopProxy from firing again.
     this.event_loop_proxy.invalidate();
-    drop(this);
 
     get_handler(mtm).terminate();
 }
@@ -523,6 +475,7 @@ fn get_view_and_screen_frame(window: &WinitUIWindow) -> (Retained<UIView>, CGRec
     (view, screen_frame)
 }
 
+#[derive(Debug)]
 struct EventLoopWaker {
     timer: CFRetained<CFRunLoopTimer>,
 }
@@ -556,15 +509,15 @@ impl EventLoopWaker {
         }
     }
 
-    fn stop(&mut self) {
+    fn stop(&self) {
         self.timer.set_next_fire_date(f64::MAX);
     }
 
-    fn start(&mut self) {
+    fn start(&self) {
         self.timer.set_next_fire_date(f64::MIN);
     }
 
-    fn start_at(&mut self, instant: Instant) {
+    fn start_at(&self, instant: Instant) {
         let now = Instant::now();
         if now >= instant {
             self.start();
