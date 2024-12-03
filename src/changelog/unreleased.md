@@ -75,7 +75,7 @@ changelog entry.
   variables to test the respective modifiers of window creation.
 - Added `Window::surface_position`, which is the position of the surface inside the window.
 - Added `Window::safe_area`, which describes the area of the surface that is unobstructed.
-- On X11 and Wayland, improved scancode conversions for more obscure key codes.
+- On X11, Wayland, Windows and macOS, improved scancode conversions for more obscure key codes.
 
 ### Changed
 
@@ -209,4 +209,6 @@ changelog entry.
 - On X11, creating windows while passing `with_x11_screen(non_default_screen)` works again.
 - On X11, fix XInput handling that prevented a new window from getting the focus in some cases.
 - On iOS, fixed `SurfaceResized` and `Window::surface_size` not reporting the size of the actual surface.
+- On macOS, fixed the scancode conversion for audio volume keys.
+- On macOS, fixed the scancode conversion for `IntlBackslash`.
 - On macOS, fixed redundant `SurfaceResized` event at window creation.

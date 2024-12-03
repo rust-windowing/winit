@@ -962,8 +962,21 @@ impl WindowDelegate {
     }
 
     pub fn surface_position(&self) -> PhysicalPosition<i32> {
-        let content_rect = self.window().contentRectForFrameRect(self.window().frame());
-        let logical = LogicalPosition::new(content_rect.origin.x, content_rect.origin.y);
+        // The calculation here is a bit awkward because we've gotta reconcile the
+        // different origins (Winit prefers top-left vs. NSWindow's bottom-left),
+        // and I couldn't find a built-in way to do so.
+
+        // The position of the window and the view, both in Winit screen coordinates.
+        let window_position = flip_window_screen_coordinates(self.window().frame());
+        let view_position = flip_window_screen_coordinates(
+            self.window().contentRectForFrameRect(self.window().frame()),
+        );
+
+        // And use that to convert the view position to window coordinates.
+        let surface_position =
+            NSPoint::new(view_position.x - window_position.x, view_position.y - window_position.y);
+
+        let logical = LogicalPosition::new(surface_position.x, surface_position.y);
         logical.to_physical(self.scale_factor())
     }
 
@@ -997,19 +1010,24 @@ impl WindowDelegate {
             // we've set it up with `additionalSafeAreaInsets`.
             unsafe { self.view().safeAreaInsets() }
         } else {
-            let content_rect = self.window().contentRectForFrameRect(self.window().frame());
-            // Includes NSWindowStyleMask::FullSizeContentView
-            // Convert from window coordinates to view coordinates
-            let safe_rect = unsafe {
-                self.view().convertRect_fromView(self.window().contentLayoutRect(), None)
+            // If `safeAreaInsets` is not available, we'll have to do the calculation ourselves.
+
+            let window_rect = unsafe {
+                self.window().convertRectFromScreen(
+                    self.window().contentRectForFrameRect(self.window().frame()),
+                )
             };
+            // This includes NSWindowStyleMask::FullSizeContentView.
+            let layout_rect = unsafe { self.window().contentLayoutRect() };
+
+            // Calculate the insets from window coordinates in AppKit's coordinate system.
             NSEdgeInsets {
-                top: safe_rect.origin.y - content_rect.origin.y,
-                left: safe_rect.origin.x - content_rect.origin.x,
-                bottom: (content_rect.size.height + content_rect.origin.x)
-                    - (safe_rect.size.height + safe_rect.origin.x),
-                right: (content_rect.size.width + content_rect.origin.y)
-                    - (safe_rect.size.width + safe_rect.origin.y),
+                top: (window_rect.size.height + window_rect.origin.y)
+                    - (layout_rect.size.height + layout_rect.origin.y),
+                left: layout_rect.origin.x - window_rect.origin.x,
+                bottom: layout_rect.origin.y - window_rect.origin.y,
+                right: (window_rect.size.width + window_rect.origin.x)
+                    - (layout_rect.size.width + layout_rect.origin.x),
             }
         };
         let insets = LogicalInsets::new(insets.top, insets.left, insets.bottom, insets.right);
