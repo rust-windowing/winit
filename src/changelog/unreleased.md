@@ -75,7 +75,7 @@ changelog entry.
   variables to test the respective modifiers of window creation.
 - Added `Window::surface_position`, which is the position of the surface inside the window.
 - Added `Window::safe_area`, which describes the area of the surface that is unobstructed.
-- On macOS, improved scancode conversions for more obscure key codes.
+- On X11, Wayland, Windows and macOS, improved scancode conversions for more obscure key codes.
 
 ### Changed
 
@@ -161,6 +161,8 @@ changelog entry.
   - In the same spirit rename `DeviceEvent::MouseMotion` to `PointerMotion`.
   - Remove `Force::Calibrated::altitude_angle`.
 - On X11, use bottom-right corner for IME hotspot in `Window::set_ime_cursor_area`.
+- On macOS and iOS, no longer emit `ScaleFactorChanged` upon window creation.
+- On macOS, no longer emit `Focused` upon window creation.
 
 ### Removed
 
