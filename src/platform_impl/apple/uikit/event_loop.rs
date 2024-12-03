@@ -38,7 +38,7 @@ pub(crate) struct ActiveEventLoop {
 
 impl RootActiveEventLoop for ActiveEventLoop {
     fn create_proxy(&self) -> CoreEventLoopProxy {
-        CoreEventLoopProxy::new(AppState::get_mut(self.mtm).event_loop_proxy().clone())
+        CoreEventLoopProxy::new(AppState::get(self.mtm).event_loop_proxy().clone())
     }
 
     fn create_window(
@@ -72,7 +72,7 @@ impl RootActiveEventLoop for ActiveEventLoop {
     fn listen_device_events(&self, _allowed: DeviceEvents) {}
 
     fn set_control_flow(&self, control_flow: ControlFlow) {
-        AppState::get_mut(self.mtm).set_control_flow(control_flow)
+        AppState::get(self.mtm).set_control_flow(control_flow)
     }
 
     fn system_theme(&self) -> Option<Theme> {
@@ -80,7 +80,7 @@ impl RootActiveEventLoop for ActiveEventLoop {
     }
 
     fn control_flow(&self) -> ControlFlow {
-        AppState::get_mut(self.mtm).control_flow()
+        AppState::get(self.mtm).control_flow()
     }
 
     fn exit(&self) {
@@ -147,14 +147,7 @@ impl EventLoop {
         let mtm = MainThreadMarker::new()
             .expect("On iOS, `EventLoop` must be created on the main thread");
 
-        static mut SINGLETON_INIT: bool = false;
-        unsafe {
-            assert!(
-                !SINGLETON_INIT,
-                "Only one `EventLoop` is supported on iOS. `EventLoopProxy` might be helpful"
-            );
-            SINGLETON_INIT = true;
-        }
+        AppState::setup_global(mtm);
 
         // this line sets up the main run loop before `UIApplicationMain`
         setup_control_flow_observers();
