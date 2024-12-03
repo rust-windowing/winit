@@ -213,3 +213,4 @@ changelog entry.
 - On macOS, fixed the scancode conversion for `IntlBackslash`.
 - On macOS, fixed redundant `SurfaceResized` event at window creation.
 - On macOS, fix crash when pressing Caps Lock in certain configurations.
+- On iOS, fixed `MonitorHandle`'s `PartialEq` and `Hash` implementations.
