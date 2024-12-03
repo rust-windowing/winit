@@ -1,4 +1,3 @@
-use smol_str::SmolStr;
 use windows_sys::Win32::Foundation::HWND;
 use windows_sys::Win32::UI::WindowsAndMessaging::{HMENU, WINDOW_LONG_PTR_INDEX};
 
@@ -11,7 +10,6 @@ pub(crate) use self::window::Window;
 pub(crate) use crate::cursor::OnlyCursorImageSource as PlatformCustomCursorSource;
 use crate::event::DeviceId;
 use crate::icon::Icon;
-use crate::keyboard::Key;
 use crate::platform::windows::{BackdropType, Color, CornerPreference};
 use crate::platform_impl::Fullscreen;
 
@@ -59,12 +57,6 @@ unsafe impl Sync for PlatformSpecificWindowAttributes {}
 
 fn wrap_device_id(id: u32) -> DeviceId {
     DeviceId::from_raw(id as i64)
-}
-
-#[derive(Debug, Clone, Eq, PartialEq, Hash)]
-pub struct KeyEventExtra {
-    pub text_with_all_modifiers: Option<SmolStr>,
-    pub key_without_modifiers: Key,
 }
 
 #[inline(always)]

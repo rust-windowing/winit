@@ -3,11 +3,8 @@
 use std::num::{NonZeroU16, NonZeroU32};
 use std::{fmt, str};
 
-use smol_str::SmolStr;
-
 pub(crate) use self::event_loop::{ActiveEventLoop, EventLoop};
 use crate::dpi::{PhysicalPosition, PhysicalSize};
-use crate::keyboard::Key;
 mod event_loop;
 
 pub use self::window::Window;
@@ -184,10 +181,4 @@ impl VideoModeHandle {
     pub fn monitor(&self) -> MonitorHandle {
         self.monitor.clone()
     }
-}
-
-#[derive(Debug, Clone, Eq, PartialEq, Hash)]
-pub struct KeyEventExtra {
-    pub key_without_modifiers: Key,
-    pub text_with_all_modifiers: Option<SmolStr>,
 }

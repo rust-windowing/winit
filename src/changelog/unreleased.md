@@ -163,6 +163,8 @@ changelog entry.
 - On X11, use bottom-right corner for IME hotspot in `Window::set_ime_cursor_area`.
 - On macOS and iOS, no longer emit `ScaleFactorChanged` upon window creation.
 - On macOS, no longer emit `Focused` upon window creation.
+- Removed `KeyEventExtModifierSupplement`, and made the fields `text_with_all_modifiers` and
+  `key_without_modifiers` public on `KeyEvent` instead.
 
 ### Removed
 

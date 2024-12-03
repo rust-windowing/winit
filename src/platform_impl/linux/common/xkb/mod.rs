@@ -16,7 +16,6 @@ use {x11_dl::xlib_xcb::xcb_connection_t, xkbcommon_dl::x11::xkbcommon_x11_handle
 
 use crate::event::{ElementState, KeyEvent};
 use crate::keyboard::{Key, KeyLocation};
-use crate::platform_impl::KeyEventExtra;
 use crate::utils::Lazy;
 
 mod compose;
@@ -198,9 +197,16 @@ impl KeyContext<'_> {
         let (key_without_modifiers, _) = event.key_without_modifiers();
         let text_with_all_modifiers = event.text_with_all_modifiers();
 
-        let platform_specific = KeyEventExtra { text_with_all_modifiers, key_without_modifiers };
-
-        KeyEvent { physical_key, logical_key, text, location, state, repeat, platform_specific }
+        KeyEvent {
+            physical_key,
+            logical_key,
+            text,
+            location,
+            state,
+            repeat,
+            text_with_all_modifiers,
+            key_without_modifiers,
+        }
     }
 
     fn keysym_to_utf8_raw(&mut self, keysym: u32) -> Option<SmolStr> {

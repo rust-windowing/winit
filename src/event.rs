@@ -49,7 +49,6 @@ use crate::dpi::{PhysicalPosition, PhysicalSize};
 use crate::error::RequestError;
 use crate::event_loop::AsyncRequestSerial;
 use crate::keyboard::{self, ModifiersKeyState, ModifiersKeys, ModifiersState};
-use crate::platform_impl;
 #[cfg(doc)]
 use crate::window::Window;
 use crate::window::{ActivationToken, Theme, WindowId};
@@ -764,12 +763,6 @@ pub struct KeyEvent {
     /// you somehow see this in the wild, we'd like to know :)
     pub physical_key: keyboard::PhysicalKey,
 
-    // Allowing `broken_intra_doc_links` for `logical_key`, because
-    // `key_without_modifiers` is not available on all platforms
-    #[cfg_attr(
-        not(any(windows_platform, macos_platform, x11_platform, wayland_platform)),
-        allow(rustdoc::broken_intra_doc_links)
-    )]
     /// This value is affected by all modifiers except <kbd>Ctrl</kbd>.
     ///
     /// This has two use cases:
@@ -785,7 +778,7 @@ pub struct KeyEvent {
     /// - **Web:** Dead keys might be reported as the real key instead of `Dead` depending on the
     ///   browser/OS.
     ///
-    /// [`key_without_modifiers`]: crate::platform::modifier_supplement::KeyEventExtModifierSupplement::key_without_modifiers
+    /// [`key_without_modifiers`]: Self::key_without_modifiers
     pub logical_key: keyboard::Key,
 
     /// Contains the text produced by this keypress.
@@ -806,7 +799,7 @@ pub struct KeyEvent {
     /// This is `None` if the current keypress cannot
     /// be interpreted as text.
     ///
-    /// See also: `text_with_all_modifiers()`
+    /// See also [`text_with_all_modifiers`][Self::text_with_all_modifiers].
     pub text: Option<SmolStr>,
 
     /// Contains the location of this key on the keyboard.
@@ -862,13 +855,33 @@ pub struct KeyEvent {
     /// ```
     pub repeat: bool,
 
-    /// Platform-specific key event information.
+    /// Identical to [`text`][Self::text] but this is affected by <kbd>Ctrl</kbd>.
     ///
-    /// On Windows, Linux and macOS, this type contains the key without modifiers and the text with
-    /// all modifiers applied.
+    /// For example, pressing <kbd>Ctrl</kbd>+<kbd>a</kbd> produces `Some("\x01")`.
     ///
-    /// On Android, iOS, Redox and Web, this type is a no-op.
-    pub(crate) platform_specific: platform_impl::KeyEventExtra,
+    /// ## Platform-specific
+    ///
+    /// - **Android:** Unimplemented, this field is always the same value as `text`.
+    /// - **iOS:** Unimplemented, this field is always the same value as `text`.
+    /// - **Web:** Unsupported, this field is always the same value as `text`.
+    pub text_with_all_modifiers: Option<SmolStr>,
+
+    /// This value ignores all modifiers including, but not limited to <kbd>Shift</kbd>,
+    /// <kbd>Caps Lock</kbd>, and <kbd>Ctrl</kbd>. In most cases this means that the
+    /// unicode character in the resulting string is lowercase.
+    ///
+    /// This is useful for key-bindings / shortcut key combinations.
+    ///
+    /// In case [`logical_key`][Self::logical_key] reports [`Dead`][keyboard::Key::Dead],
+    /// this will still report the key as `Character` according to the current keyboard
+    /// layout. This value cannot be `Dead`.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **Android:** Unimplemented, this field is always the same value as `logical_key`.
+    /// - **iOS:** Unimplemented, this field is always the same value as `logical_key`.
+    /// - **Web:** Unsupported, this field is always the same value as `logical_key`.
+    pub key_without_modifiers: keyboard::Key,
 }
 
 /// Describes keyboard modifiers event.
