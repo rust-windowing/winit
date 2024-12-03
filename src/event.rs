@@ -153,6 +153,9 @@ pub enum WindowEvent {
     /// Contains the new dimensions of the surface (can also be retrieved with
     /// [`Window::surface_size`]).
     ///
+    /// This event will not necessarily be emitted upon window creation, query
+    /// [`Window::surface_size`] if you need to determine the surface's initial size.
+    ///
     /// [`Window::surface_size`]: crate::window::Window::surface_size
     SurfaceResized(PhysicalSize<u32>),
 
@@ -193,6 +196,9 @@ pub enum WindowEvent {
     /// The window gained or lost focus.
     ///
     /// The parameter is true if the window has gained focus, and false if it has lost focus.
+    ///
+    /// Windows are unfocused upon creation, but will usually be focused by the system soon
+    /// afterwards.
     Focused(bool),
 
     /// An event from the keyboard has been received.
@@ -420,7 +426,12 @@ pub enum WindowEvent {
     /// To update the window size, use the provided [`SurfaceSizeWriter`] handle. By default, the
     /// window is resized to the value suggested by the OS, but it can be changed to any value.
     ///
+    /// This event will not necessarily be emitted upon window creation, query
+    /// [`Window::scale_factor`] if you need to determine the window's initial scale factor.
+    ///
     /// For more information about DPI in general, see the [`dpi`] crate.
+    ///
+    /// [`Window::scale_factor`]: crate::window::Window::scale_factor
     ScaleFactorChanged {
         scale_factor: f64,
         /// Handle to update surface size during scale changes.
