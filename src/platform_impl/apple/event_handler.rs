@@ -1,33 +1,55 @@
-use std::cell::RefCell;
+use std::cell::Cell;
 use std::{fmt, mem};
 
 use crate::application::ApplicationHandler;
+use crate::event_loop::ActiveEventLoop;
 
 /// A helper type for storing a reference to `ApplicationHandler`, allowing interior mutable access
 /// to it within the execution of a closure.
 #[derive(Default)]
 pub(crate) struct EventHandler {
-    /// This can be in the following states:
-    /// - Not registered by the event loop (None).
-    /// - Present (Some(handler)).
-    /// - Currently executing the handler / in use (RefCell borrowed).
-    inner: RefCell<Option<&'static mut dyn ApplicationHandler>>,
+    state: Cell<State>,
+}
+
+type InitClosure<'handler> =
+    Box<dyn FnOnce(&dyn ActiveEventLoop) -> Box<dyn ApplicationHandler + 'handler> + 'handler>;
+
+#[derive(Default)]
+enum State {
+    /// Not registered by the event loop.
+    #[default]
+    NotRegistered,
+    /// The event is registered by the event loop.
+    Registered(InitClosure<'static>),
+    /// The application has been initialized, and we're ready to handle events.
+    Ready(Box<dyn ApplicationHandler + 'static>),
+    /// Currently executing the handler.
+    CurrentlyExecuting,
+    /// The application has been terminated.
+    Terminated,
+    // TODO: Invalid state?
 }
 
 impl fmt::Debug for EventHandler {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let state = match self.inner.try_borrow().as_deref() {
-            Ok(Some(_)) => "<available>",
-            Ok(None) => "<not set>",
-            Err(_) => "<in use>",
+        let state = self.state.replace(State::CurrentlyExecuting);
+        // NOTE: We're very careful not to panic inside the "critial" section here.
+        let string = match &state {
+            State::NotRegistered => "<not registered>",
+            State::Registered(_) => "<registered>",
+            State::Ready(_) => "<ready>",
+            State::CurrentlyExecuting => "<currently executing>",
+            State::Terminated => "<terminated>",
         };
-        f.debug_struct("EventHandler").field("state", &state).finish_non_exhaustive()
+        self.state.set(state);
+
+        f.debug_struct("EventHandler").field("state", &string).finish_non_exhaustive()
     }
 }
 
 impl EventHandler {
-    pub(crate) fn new() -> Self {
-        Self { inner: RefCell::new(None) }
+    pub(crate) const fn new() -> Self {
+        Self { state: Cell::new(State::NotRegistered) }
     }
 
     /// Set the event loop handler for the duration of the given closure.
@@ -37,7 +59,7 @@ impl EventHandler {
     /// from within the closure.
     pub(crate) fn set<'handler, R>(
         &self,
-        app: &'handler mut dyn ApplicationHandler,
+        init_closure: InitClosure<'handler>,
         closure: impl FnOnce() -> R,
     ) -> R {
         // SAFETY: We extend the lifetime of the handler here so that we can
@@ -46,14 +68,9 @@ impl EventHandler {
         // This is sound, since we make sure to unset the handler again at the
         // end of this function, and as such the lifetime isn't actually
         // extended beyond `'handler`.
-        let handler = unsafe {
-            mem::transmute::<
-                &'handler mut dyn ApplicationHandler,
-                &'static mut dyn ApplicationHandler,
-            >(app)
-        };
+        let handler = unsafe { mem::transmute::<InitClosure<'handler>, InitClosure<'static>>(app) };
 
-        match self.inner.try_borrow_mut().as_deref_mut() {
+        match self.state.try_borrow_mut().as_deref_mut() {
             Ok(Some(_)) => {
                 unreachable!("tried to set handler while another was already set");
             },
@@ -69,7 +86,7 @@ impl EventHandler {
 
         impl Drop for ClearOnDrop<'_> {
             fn drop(&mut self) {
-                match self.0.inner.try_borrow_mut().as_deref_mut() {
+                match self.0.state.try_borrow_mut().as_deref_mut() {
                     Ok(data @ Some(_)) => {
                         *data = None;
                     },
@@ -101,6 +118,10 @@ impl EventHandler {
         // soundness.
     }
 
+    fn init(&self) {}
+
+    fn terminate(&self) {}
+
     #[cfg(target_os = "macos")]
     pub(crate) fn in_use(&self) -> bool {
         self.inner.try_borrow().is_err()
@@ -120,7 +141,7 @@ impl EventHandler {
                 //
                 // If the handler unwinds, the `RefMut` will ensure that the
                 // handler is no longer borrowed.
-                callback(*user_app);
+                callback(user_app);
             },
             Ok(None) => {
                 // `NSApplication`, our app state and this handler are all

@@ -7,6 +7,8 @@ use crate::platform::macos::ApplicationHandlerExtMacOS;
 use crate::window::WindowId;
 
 /// The handler of the application events.
+///
+/// This is [dropped][std::ops::Drop] when the event loop is being shut down.
 pub trait ApplicationHandler {
     /// Emitted when new events arrive from the OS to be processed.
     ///
@@ -101,7 +103,9 @@ pub trait ApplicationHandler {
     ///
     /// [`can_create_surfaces()`]: Self::can_create_surfaces()
     /// [`destroy_surfaces()`]: Self::destroy_surfaces()
-    fn can_create_surfaces(&mut self, event_loop: &dyn ActiveEventLoop);
+    fn can_create_surfaces(&mut self, event_loop: &dyn ActiveEventLoop) {
+        let _ = event_loop;
+    }
 
     /// Called after a wake up is requested using [`EventLoopProxy::wake_up()`].
     ///
@@ -142,8 +146,6 @@ pub trait ApplicationHandler {
     ///     # ) {
     ///     # }
     ///     #
-    ///     # fn can_create_surfaces(&mut self, _event_loop: &dyn ActiveEventLoop) {}
-    ///     #
     ///     fn proxy_wake_up(&mut self, _event_loop: &dyn ActiveEventLoop) {
     ///         // Iterate current events, since wake-ups may have been merged.
     ///         //
@@ -161,8 +163,6 @@ pub trait ApplicationHandler {
     ///     let event_loop = EventLoop::new()?;
     ///
     ///     let (sender, receiver) = mpsc::channel();
-    ///
-    ///     let mut app = MyApp { receiver };
     ///
     ///     // Send an event in a loop
     ///     let proxy = event_loop.create_proxy();
@@ -182,9 +182,8 @@ pub trait ApplicationHandler {
     ///         }
     ///     });
     ///
-    ///     event_loop.run_app(&mut app)?;
+    ///     event_loop.run(|_event_loop| MyApp { receiver })?;
     ///
-    ///     drop(app);
     ///     background_thread.join().unwrap();
     ///
     ///     Ok(())
@@ -286,13 +285,13 @@ pub trait ApplicationHandler {
     /// with the [`onStop`] lifecycle event which typically results in the surface to be destroyed
     /// after the app becomes invisible.
     ///
-    /// Applications that need to run on Android should assume their [`NativeWindow`] has been
-    /// destroyed, which indirectly invalidates any existing render surfaces that may have been
-    /// created outside of Winit (such as an `EGLSurface`, [`VkSurfaceKHR`] or [`wgpu::Surface`]).
+    /// Applications that need to run on Android must be able to handle their underlying
+    /// [`SurfaceView`] being destroyed, which in turn indirectly invalidates any existing
+    /// render surfaces that may have been created outside of Winit (such as an `EGLSurface`,
+    /// [`VkSurfaceKHR`] or [`wgpu::Surface`]).
     ///
-    /// When receiving [`destroy_surfaces()`] Android applications should drop all render surfaces
-    /// before the event callback completes, which may be re-created when the application next
-    /// receives [`can_create_surfaces()`].
+    /// This means that in this method, you must drop all render surfaces before the event callback
+    /// completes, and only re-create them in or after [`can_create_surfaces()`] is next recieved.
     ///
     /// [`NativeWindow`]: https://developer.android.com/ndk/reference/group/a-native-window
     /// [`Surface`]: https://developer.android.com/reference/android/view/Surface
@@ -307,14 +306,6 @@ pub trait ApplicationHandler {
     /// [`can_create_surfaces()`]: Self::can_create_surfaces()
     /// [`destroy_surfaces()`]: Self::destroy_surfaces()
     fn destroy_surfaces(&mut self, event_loop: &dyn ActiveEventLoop) {
-        let _ = event_loop;
-    }
-
-    /// Emitted when the event loop is being shut down.
-    ///
-    /// This is irreversible - if this method is called, it is guaranteed that the event loop
-    /// will exit right after.
-    fn exiting(&mut self, event_loop: &dyn ActiveEventLoop) {
         let _ = event_loop;
     }
 
@@ -414,11 +405,6 @@ impl<A: ?Sized + ApplicationHandler> ApplicationHandler for &mut A {
     }
 
     #[inline]
-    fn exiting(&mut self, event_loop: &dyn ActiveEventLoop) {
-        (**self).exiting(event_loop);
-    }
-
-    #[inline]
     fn memory_warning(&mut self, event_loop: &dyn ActiveEventLoop) {
         (**self).memory_warning(event_loop);
     }
@@ -485,11 +471,6 @@ impl<A: ?Sized + ApplicationHandler> ApplicationHandler for Box<A> {
     #[inline]
     fn destroy_surfaces(&mut self, event_loop: &dyn ActiveEventLoop) {
         (**self).destroy_surfaces(event_loop);
-    }
-
-    #[inline]
-    fn exiting(&mut self, event_loop: &dyn ActiveEventLoop) {
-        (**self).exiting(event_loop);
     }
 
     #[inline]
