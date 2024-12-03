@@ -6,18 +6,19 @@ use objc2::runtime::{NSObjectProtocol, ProtocolObject};
 use objc2::{declare_class, msg_send, msg_send_id, mutability, sel, ClassType, DeclaredClass};
 use objc2_foundation::{CGFloat, CGPoint, CGRect, MainThreadMarker, NSObject, NSSet, NSString};
 use objc2_ui_kit::{
-    UICoordinateSpace, UIEvent, UIForceTouchCapability, UIGestureRecognizer,
-    UIGestureRecognizerDelegate, UIGestureRecognizerState, UIKeyInput, UIPanGestureRecognizer,
-    UIPinchGestureRecognizer, UIResponder, UIRotationGestureRecognizer, UITapGestureRecognizer,
-    UITextInputTraits, UITouch, UITouchPhase, UITouchType, UITraitEnvironment, UIView,
+    UIEvent, UIForceTouchCapability, UIGestureRecognizer, UIGestureRecognizerDelegate,
+    UIGestureRecognizerState, UIKeyInput, UIPanGestureRecognizer, UIPinchGestureRecognizer,
+    UIResponder, UIRotationGestureRecognizer, UITapGestureRecognizer, UITextInputTraits, UITouch,
+    UITouchPhase, UITouchType, UITraitEnvironment, UIView,
 };
+use tracing::debug;
 
 use super::app_state::{self, EventWrapper};
 use super::window::WinitUIWindow;
 use crate::dpi::PhysicalPosition;
 use crate::event::{
-    ButtonSource, ElementState, Event, FingerId, Force, KeyEvent, PointerKind, PointerSource,
-    TouchPhase, WindowEvent,
+    ButtonSource, ElementState, FingerId, Force, KeyEvent, PointerKind, PointerSource, TouchPhase,
+    WindowEvent,
 };
 use crate::keyboard::{Key, KeyCode, KeyLocation, NamedKey, NativeKeyCode, PhysicalKey};
 use crate::platform_impl::KeyEventExtra;
@@ -59,10 +60,10 @@ declare_class!(
             let window = self.window().unwrap();
             app_state::handle_nonuser_event(
                 mtm,
-                EventWrapper::StaticEvent(Event::WindowEvent {
+                EventWrapper::Window {
                     window_id: window.id(),
                     event: WindowEvent::RedrawRequested,
-                }),
+                },
             );
             let _: () = unsafe { msg_send![super(self), drawRect: rect] };
         }
@@ -72,32 +73,21 @@ declare_class!(
             let mtm = MainThreadMarker::new().unwrap();
             let _: () = unsafe { msg_send![super(self), layoutSubviews] };
 
-            let window = self.window().unwrap();
-            let window_bounds = window.bounds();
-            let screen = window.screen();
-            let screen_space = screen.coordinateSpace();
-            let screen_frame = self.convertRect_toCoordinateSpace(window_bounds, &screen_space);
-            let scale_factor = screen.scale();
+            let frame = self.frame();
+            let scale_factor = self.contentScaleFactor() as f64;
             let size = crate::dpi::LogicalSize {
-                width: screen_frame.size.width as f64,
-                height: screen_frame.size.height as f64,
+                width: frame.size.width as f64,
+                height: frame.size.height as f64,
             }
-            .to_physical(scale_factor as f64);
+            .to_physical(scale_factor);
 
-            // If the app is started in landscape, the view frame and window bounds can be mismatched.
-            // The view frame will be in portrait and the window bounds in landscape. So apply the
-            // window bounds to the view frame to make it consistent.
-            let view_frame = self.frame();
-            if view_frame != window_bounds {
-                self.setFrame(window_bounds);
-            }
-
+            let window = self.window().unwrap();
             app_state::handle_nonuser_event(
                 mtm,
-                EventWrapper::StaticEvent(Event::WindowEvent {
+                EventWrapper::Window {
                     window_id: window.id(),
                     event: WindowEvent::SurfaceResized(size),
-                }),
+                },
             );
         }
 
@@ -126,13 +116,10 @@ declare_class!(
                 "invalid scale_factor set on UIView",
             );
             let scale_factor = scale_factor as f64;
-            let bounds = self.bounds();
-            let screen = window.screen();
-            let screen_space = screen.coordinateSpace();
-            let screen_frame = self.convertRect_toCoordinateSpace(bounds, &screen_space);
+            let frame = self.frame();
             let size = crate::dpi::LogicalSize {
-                width: screen_frame.size.width as f64,
-                height: screen_frame.size.height as f64,
+                width: frame.size.width as f64,
+                height: frame.size.height as f64,
             };
             let window_id = window.id();
             app_state::handle_nonuser_events(
@@ -144,13 +131,19 @@ declare_class!(
                         suggested_size: size.to_physical(scale_factor),
                     },
                 ))
-                .chain(std::iter::once(EventWrapper::StaticEvent(
-                    Event::WindowEvent {
+                .chain(std::iter::once(EventWrapper::Window {
                         window_id,
                         event: WindowEvent::SurfaceResized(size.to_physical(scale_factor)),
                     },
-                ))),
+                )),
             );
+        }
+
+        #[method(safeAreaInsetsDidChange)]
+        fn safe_area_changed(&self) {
+            debug!("safeAreaInsetsDidChange was called, requesting redraw");
+            // When the safe area changes we want to make sure to emit a redraw event
+            self.setNeedsDisplay();
         }
 
         #[method(touchesBegan:withEvent:)]
@@ -195,17 +188,17 @@ declare_class!(
                     // Pass -delta so that action is reversed
                     (TouchPhase::Cancelled, -recognizer.scale())
                 }
-                state => panic!("unexpected recognizer state: {:?}", state),
+                state => panic!("unexpected recognizer state: {state:?}"),
             };
 
-            let gesture_event = EventWrapper::StaticEvent(Event::WindowEvent {
+            let gesture_event = EventWrapper::Window {
                 window_id: window.id(),
                 event: WindowEvent::PinchGesture {
                     device_id: None,
                     delta: delta as f64,
                     phase,
                 },
-            });
+            };
 
             let mtm = MainThreadMarker::new().unwrap();
             app_state::handle_nonuser_event(mtm, gesture_event);
@@ -216,12 +209,12 @@ declare_class!(
             let window = self.window().unwrap();
 
             if recognizer.state() == UIGestureRecognizerState::Ended {
-                let gesture_event = EventWrapper::StaticEvent(Event::WindowEvent {
+                let gesture_event = EventWrapper::Window {
                     window_id: window.id(),
                     event: WindowEvent::DoubleTapGesture {
                         device_id: None,
                     },
-                });
+                };
 
                 let mtm = MainThreadMarker::new().unwrap();
                 app_state::handle_nonuser_event(mtm, gesture_event);
@@ -254,18 +247,18 @@ declare_class!(
                     // Pass -delta so that action is reversed
                     (TouchPhase::Cancelled, -recognizer.rotation())
                 }
-                state => panic!("unexpected recognizer state: {:?}", state),
+                state => panic!("unexpected recognizer state: {state:?}"),
             };
 
             // Make delta negative to match macos, convert to degrees
-            let gesture_event = EventWrapper::StaticEvent(Event::WindowEvent {
+            let gesture_event = EventWrapper::Window {
                 window_id: window.id(),
                 event: WindowEvent::RotationGesture {
                     device_id: None,
                     delta: -delta.to_degrees() as _,
                     phase,
                 },
-            });
+            };
 
             let mtm = MainThreadMarker::new().unwrap();
             app_state::handle_nonuser_event(mtm, gesture_event);
@@ -305,18 +298,18 @@ declare_class!(
                     // Pass -delta so that action is reversed
                     (TouchPhase::Cancelled, -last_pan.x, -last_pan.y)
                 }
-                state => panic!("unexpected recognizer state: {:?}", state),
+                state => panic!("unexpected recognizer state: {state:?}"),
             };
 
 
-            let gesture_event = EventWrapper::StaticEvent(Event::WindowEvent {
+            let gesture_event = EventWrapper::Window {
                 window_id: window.id(),
                 event: WindowEvent::PanGesture {
                     device_id: None,
                     delta: PhysicalPosition::new(dx as _, dy as _),
                     phase,
                 },
-            });
+            };
 
             let mtm = MainThreadMarker::new().unwrap();
             app_state::handle_nonuser_event(mtm, gesture_event);
@@ -544,7 +537,7 @@ impl WinitView {
                         }
                     };
 
-                    touch_events.push(EventWrapper::StaticEvent(Event::WindowEvent {
+                    touch_events.push(EventWrapper::Window {
                         window_id,
                         event: WindowEvent::PointerEntered {
                             device_id: None,
@@ -556,8 +549,8 @@ impl WinitView {
                                 PointerKind::Touch(finger_id)
                             },
                         },
-                    }));
-                    touch_events.push(EventWrapper::StaticEvent(Event::WindowEvent {
+                    });
+                    touch_events.push(EventWrapper::Window {
                         window_id,
                         event: WindowEvent::PointerButton {
                             device_id: None,
@@ -570,7 +563,7 @@ impl WinitView {
                                 ButtonSource::Touch { finger_id, force }
                             },
                         },
-                    }));
+                    });
                 },
                 UITouchPhase::Moved => {
                     let (primary, source) = if let UITouchType::Pencil = touch_type {
@@ -582,7 +575,7 @@ impl WinitView {
                         })
                     };
 
-                    touch_events.push(EventWrapper::StaticEvent(Event::WindowEvent {
+                    touch_events.push(EventWrapper::Window {
                         window_id,
                         event: WindowEvent::PointerMoved {
                             device_id: None,
@@ -590,7 +583,7 @@ impl WinitView {
                             position,
                             source,
                         },
-                    }));
+                    });
                 },
                 // 2 is UITouchPhase::Stationary and is not expected here
                 UITouchPhase::Ended | UITouchPhase::Cancelled => {
@@ -606,7 +599,7 @@ impl WinitView {
                     };
 
                     if let UITouchPhase::Ended = phase {
-                        touch_events.push(EventWrapper::StaticEvent(Event::WindowEvent {
+                        touch_events.push(EventWrapper::Window {
                             window_id,
                             event: WindowEvent::PointerButton {
                                 device_id: None,
@@ -619,10 +612,10 @@ impl WinitView {
                                     ButtonSource::Touch { finger_id, force }
                                 },
                             },
-                        }));
+                        });
                     }
 
-                    touch_events.push(EventWrapper::StaticEvent(Event::WindowEvent {
+                    touch_events.push(EventWrapper::Window {
                         window_id,
                         event: WindowEvent::PointerLeft {
                             device_id: None,
@@ -634,7 +627,7 @@ impl WinitView {
                                 PointerKind::Touch(finger_id)
                             },
                         },
-                    }));
+                    });
                 },
                 _ => panic!("unexpected touch phase: {phase:?}"),
             }
@@ -653,29 +646,25 @@ impl WinitView {
             text.to_string().chars().flat_map(|c| {
                 let text = smol_str::SmolStr::from_iter([c]);
                 // Emit both press and release events
-                [ElementState::Pressed, ElementState::Released].map(|state| {
-                    EventWrapper::StaticEvent(Event::WindowEvent {
-                        window_id,
-                        event: WindowEvent::KeyboardInput {
-                            event: KeyEvent {
-                                text: if state == ElementState::Pressed {
-                                    Some(text.clone())
-                                } else {
-                                    None
-                                },
-                                state,
-                                location: KeyLocation::Standard,
-                                repeat: false,
-                                logical_key: Key::Character(text.clone()),
-                                physical_key: PhysicalKey::Unidentified(
-                                    NativeKeyCode::Unidentified,
-                                ),
-                                platform_specific: KeyEventExtra {},
+                [ElementState::Pressed, ElementState::Released].map(|state| EventWrapper::Window {
+                    window_id,
+                    event: WindowEvent::KeyboardInput {
+                        device_id: None,
+                        event: KeyEvent {
+                            text: if state == ElementState::Pressed {
+                                Some(text.clone())
+                            } else {
+                                None
                             },
-                            is_synthetic: false,
-                            device_id: None,
+                            state,
+                            location: KeyLocation::Standard,
+                            repeat: false,
+                            logical_key: Key::Character(text.clone()),
+                            physical_key: PhysicalKey::Unidentified(NativeKeyCode::Unidentified),
+                            platform_specific: KeyEventExtra {},
                         },
-                    })
+                        is_synthetic: false,
+                    },
                 })
             }),
         );
@@ -687,23 +676,21 @@ impl WinitView {
         let mtm = MainThreadMarker::new().unwrap();
         app_state::handle_nonuser_events(
             mtm,
-            [ElementState::Pressed, ElementState::Released].map(|state| {
-                EventWrapper::StaticEvent(Event::WindowEvent {
-                    window_id,
-                    event: WindowEvent::KeyboardInput {
-                        device_id: None,
-                        event: KeyEvent {
-                            state,
-                            logical_key: Key::Named(NamedKey::Backspace),
-                            physical_key: PhysicalKey::Code(KeyCode::Backspace),
-                            platform_specific: KeyEventExtra {},
-                            repeat: false,
-                            location: KeyLocation::Standard,
-                            text: None,
-                        },
-                        is_synthetic: false,
+            [ElementState::Pressed, ElementState::Released].map(|state| EventWrapper::Window {
+                window_id,
+                event: WindowEvent::KeyboardInput {
+                    device_id: None,
+                    event: KeyEvent {
+                        state,
+                        logical_key: Key::Named(NamedKey::Backspace),
+                        physical_key: PhysicalKey::Code(KeyCode::Backspace),
+                        platform_specific: KeyEventExtra {},
+                        repeat: false,
+                        location: KeyLocation::Standard,
+                        text: None,
                     },
-                })
+                    is_synthetic: false,
+                },
             }),
         );
     }

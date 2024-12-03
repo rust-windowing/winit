@@ -69,7 +69,8 @@ use crate::event::{
 };
 use crate::event_loop::{
     ActiveEventLoop as RootActiveEventLoop, ControlFlow, DeviceEvents,
-    EventLoopProxy as RootEventLoopProxy, OwnedDisplayHandle as RootOwnedDisplayHandle,
+    EventLoopProxy as RootEventLoopProxy, EventLoopProxyProvider,
+    OwnedDisplayHandle as CoreOwnedDisplayHandle,
 };
 use crate::keyboard::ModifiersState;
 use crate::monitor::MonitorHandle as RootMonitorHandle;
@@ -462,7 +463,7 @@ impl ActiveEventLoop {
 impl RootActiveEventLoop for ActiveEventLoop {
     fn create_proxy(&self) -> RootEventLoopProxy {
         let event_loop_proxy = EventLoopProxy { target_window: self.thread_msg_target };
-        RootEventLoopProxy { event_loop_proxy }
+        RootEventLoopProxy::new(Arc::new(event_loop_proxy))
     }
 
     fn create_window(
@@ -515,8 +516,8 @@ impl RootActiveEventLoop for ActiveEventLoop {
         self.runner_shared.set_exit_code(0)
     }
 
-    fn owned_display_handle(&self) -> RootOwnedDisplayHandle {
-        RootOwnedDisplayHandle { platform: OwnedDisplayHandle }
+    fn owned_display_handle(&self) -> CoreOwnedDisplayHandle {
+        CoreOwnedDisplayHandle::new(Arc::new(OwnedDisplayHandle))
     }
 
     fn rwh_06_handle(&self) -> &dyn rwh_06::HasDisplayHandle {
@@ -531,15 +532,13 @@ impl rwh_06::HasDisplayHandle for ActiveEventLoop {
     }
 }
 
-#[derive(Clone, PartialEq, Eq)]
+#[derive(Clone)]
 pub(crate) struct OwnedDisplayHandle;
 
-impl OwnedDisplayHandle {
-    #[inline]
-    pub fn raw_display_handle_rwh_06(
-        &self,
-    ) -> Result<rwh_06::RawDisplayHandle, rwh_06::HandleError> {
-        Ok(rwh_06::WindowsDisplayHandle::new().into())
+impl rwh_06::HasDisplayHandle for OwnedDisplayHandle {
+    fn display_handle(&self) -> Result<rwh_06::DisplayHandle<'_>, rwh_06::HandleError> {
+        let raw = rwh_06::RawDisplayHandle::Windows(rwh_06::WindowsDisplayHandle::new());
+        unsafe { Ok(rwh_06::DisplayHandle::borrow_raw(raw)) }
     }
 }
 
@@ -564,7 +563,7 @@ impl OwnedDisplayHandle {
 fn main_thread_id() -> u32 {
     static mut MAIN_THREAD_ID: u32 = 0;
 
-    /// Function pointer used in CRT initialization section to set the above static field's value.
+    // Function pointer used in CRT initialization section to set the above static field's value.
 
     // Mark as used so this is not removable.
     #[used]
@@ -802,15 +801,14 @@ impl EventLoopThreadExecutor {
 
 type ThreadExecFn = Box<Box<dyn FnMut()>>;
 
-#[derive(Clone)]
 pub struct EventLoopProxy {
     target_window: HWND,
 }
 
 unsafe impl Send for EventLoopProxy {}
 
-impl EventLoopProxy {
-    pub fn wake_up(&self) {
+impl EventLoopProxyProvider for EventLoopProxy {
+    fn wake_up(&self) {
         unsafe { PostMessageW(self.target_window, USER_EVENT_MSG_ID.get(), 0, 0) };
     }
 }

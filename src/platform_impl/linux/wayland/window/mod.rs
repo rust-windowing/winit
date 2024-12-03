@@ -17,7 +17,7 @@ use super::output::MonitorHandle;
 use super::state::WinitState;
 use super::types::xdg_activation::XdgActivationTokenData;
 use super::ActiveEventLoop;
-use crate::dpi::{LogicalSize, PhysicalPosition, PhysicalSize, Position, Size};
+use crate::dpi::{LogicalSize, PhysicalInsets, PhysicalPosition, PhysicalSize, Position, Size};
 use crate::error::{NotSupportedError, RequestError};
 use crate::event::{Ime, WindowEvent};
 use crate::event_loop::AsyncRequestSerial;
@@ -87,7 +87,7 @@ impl Window {
         let compositor = state.compositor_state.clone();
         let xdg_activation =
             state.xdg_activation.as_ref().map(|activation_state| activation_state.global().clone());
-        let display = event_loop_window_target.connection.display();
+        let display = event_loop_window_target.handle.connection.display();
 
         let size: Size = attributes.surface_size.unwrap_or(LogicalSize::new(800., 600.).into());
 
@@ -103,7 +103,7 @@ impl Window {
             state.xdg_shell.create_window(surface.clone(), default_decorations, &queue_handle);
 
         let mut window_state = WindowState::new(
-            event_loop_window_target.connection.clone(),
+            event_loop_window_target.handle.clone(),
             &event_loop_window_target.queue_handle,
             &state,
             size,
@@ -303,9 +303,8 @@ impl CoreWindow for Window {
         crate::platform_impl::common::xkb::reset_dead_keys()
     }
 
-    fn inner_position(&self) -> Result<PhysicalPosition<i32>, RequestError> {
-        Err(NotSupportedError::new("window position information is not available on Wayland")
-            .into())
+    fn surface_position(&self) -> PhysicalPosition<i32> {
+        (0, 0).into()
     }
 
     fn outer_position(&self) -> Result<PhysicalPosition<i32>, RequestError> {
@@ -334,6 +333,10 @@ impl CoreWindow for Window {
         let window_state = self.window_state.lock().unwrap();
         let scale_factor = window_state.scale_factor();
         super::logical_to_physical_rounded(window_state.outer_size(), scale_factor)
+    }
+
+    fn safe_area(&self) -> PhysicalInsets<u32> {
+        PhysicalInsets::new(0, 0, 0, 0)
     }
 
     fn set_min_surface_size(&self, min_size: Option<Size>) {

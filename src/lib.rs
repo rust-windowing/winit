@@ -7,7 +7,12 @@
 //!
 //! ```no_run
 //! use winit::event_loop::EventLoop;
-//! let event_loop = EventLoop::new().unwrap();
+//!
+//! # // Intentionally use `fn main` for clarity
+//! fn main() {
+//!     let event_loop = EventLoop::new().unwrap();
+//!     // ...
+//! }
 //! ```
 //!
 //! Then you create a [`Window`] with [`create_window`].
@@ -83,19 +88,22 @@
 //!     }
 //! }
 //!
-//! let event_loop = EventLoop::new().unwrap();
+//! # // Intentionally use `fn main` for clarity
+//! fn main() {
+//!     let event_loop = EventLoop::new().unwrap();
 //!
-//! // ControlFlow::Poll continuously runs the event loop, even if the OS hasn't
-//! // dispatched any events. This is ideal for games and similar applications.
-//! event_loop.set_control_flow(ControlFlow::Poll);
+//!     // ControlFlow::Poll continuously runs the event loop, even if the OS hasn't
+//!     // dispatched any events. This is ideal for games and similar applications.
+//!     event_loop.set_control_flow(ControlFlow::Poll);
 //!
-//! // ControlFlow::Wait pauses the event loop if no events are available to process.
-//! // This is ideal for non-game applications that only update in response to user
-//! // input, and uses significantly less power/CPU time than ControlFlow::Poll.
-//! event_loop.set_control_flow(ControlFlow::Wait);
+//!     // ControlFlow::Wait pauses the event loop if no events are available to process.
+//!     // This is ideal for non-game applications that only update in response to user
+//!     // input, and uses significantly less power/CPU time than ControlFlow::Poll.
+//!     event_loop.set_control_flow(ControlFlow::Wait);
 //!
-//! let mut app = App::default();
-//! event_loop.run_app(&mut app);
+//!     let mut app = App::default();
+//!     event_loop.run_app(&mut app);
+//! }
 //! ```
 //!
 //! [`WindowEvent`] has a [`WindowId`] member. In multi-window environments, it should be
@@ -114,6 +122,45 @@
 //! display the window to the user. If you notice this happening, you should create the window with
 //! [`visible` set to `false`][crate::window::WindowAttributes::with_visible] and explicitly make
 //! the window visible only once you're ready to render into it.
+//!
+//! There is another important concept you need to know about when drawing: the "safe area". This
+//! can be accessed with [`Window::safe_area`], and describes a rectangle in the surface that is not
+//! obscured by notches, the status bar, and so on. You should be drawing your background and
+//! non-important content on the entire surface, but restrict important content (such as
+//! interactable UIs, text, etc.) to only being drawn inside the safe area.
+//!
+//! [`Window::safe_area`]: crate::window::Window::safe_area
+//!
+//! # Coordinate systems
+//!
+//! Windowing systems use many different coordinate systems, and this is reflected in Winit as well;
+//! there are "desktop coordinates", which is the coordinates of a window or monitor relative to the
+//! desktop at large, "window coordinates" which is the coordinates of the surface, relative to the
+//! window, and finally "surface coordinates", which is the coordinates relative to the drawn
+//! surface. All of these coordinates are relative to the top-left corner of their respective
+//! origin.
+//!
+//! Most of the functionality in Winit works with surface coordinates, so usually you only need to
+//! concern yourself with those. In case you need to convert to some other coordinate system, Winit
+//! provides [`Window::surface_position`] and [`Window::surface_size`] to describe the surface's
+//! location in window coordinates, and Winit provides [`Window::outer_position`] and
+//! [`Window::outer_size`] to describe the window's location in desktop coordinates. Using these
+//! methods, you should be able to convert a position in one coordinate system to another.
+//!
+//! An overview of how these four methods fit together can be seen in the image below:
+#![doc = concat!("\n\n", include_str!("../docs/res/coordinate-systems-desktop.svg"), "\n\n")] // Rustfmt removes \n, adding them like this works around that.
+//! On mobile, the situation is usually a bit different; because of the smaller screen space,
+//! windows usually fill the whole screen at a time, and as such there is _rarely_ a difference
+//! between these three coordinate systems, although you should still strive to handle this, as
+//! they're still relevant in more niche area such as Mac Catalyst, or multi-tasking on tablets.
+//!
+//! This is illustrated in the image below, along with the safe area since it's often relevant on
+//! mobile.
+#![doc = concat!("\n\n", include_str!("../docs/res/coordinate-systems-mobile.svg"), "\n\n")] // Rustfmt removes \n, adding them like this works around that.
+//! [`Window::surface_position`]: crate::window::Window::surface_position
+//! [`Window::surface_size`]: crate::window::Window::surface_size
+//! [`Window::outer_position`]: crate::window::Window::outer_position
+//! [`Window::outer_size`]: crate::window::Window::outer_size
 //!
 //! # UI scaling
 //!
@@ -230,6 +277,7 @@
 // doc
 #![cfg_attr(docsrs, feature(doc_auto_cfg, doc_cfg_hide), doc(cfg_hide(doc, docsrs)))]
 #![allow(clippy::missing_safety_doc)]
+#![warn(clippy::uninlined_format_args)]
 
 // Re-export DPI types so that users don't have to put it in Cargo.toml.
 #[doc(inline)]

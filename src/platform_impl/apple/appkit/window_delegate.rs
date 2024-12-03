@@ -6,7 +6,7 @@ use std::ptr;
 use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 
-use core_graphics::display::{CGDisplay, CGPoint};
+use core_graphics::display::CGDisplay;
 use monitor::VideoModeHandle;
 use objc2::rc::{autoreleasepool, Retained};
 use objc2::runtime::{AnyObject, ProtocolObject};
@@ -15,16 +15,16 @@ use objc2_app_kit::{
     NSAppKitVersionNumber, NSAppKitVersionNumber10_12, NSAppearance, NSAppearanceCustomization,
     NSAppearanceNameAqua, NSApplication, NSApplicationPresentationOptions, NSBackingStoreType,
     NSColor, NSDraggingDestination, NSFilenamesPboardType, NSPasteboard,
-    NSRequestUserAttentionType, NSScreen, NSToolbar, NSView, NSWindowButton, NSWindowDelegate,
-    NSWindowFullScreenButton, NSWindowLevel, NSWindowOcclusionState, NSWindowOrderingMode,
-    NSWindowSharingType, NSWindowStyleMask, NSWindowTabbingMode, NSWindowTitleVisibility,
-    NSWindowToolbarStyle,
+    NSRequestUserAttentionType, NSScreen, NSToolbar, NSView, NSViewFrameDidChangeNotification,
+    NSWindowButton, NSWindowDelegate, NSWindowFullScreenButton, NSWindowLevel,
+    NSWindowOcclusionState, NSWindowOrderingMode, NSWindowSharingType, NSWindowStyleMask,
+    NSWindowTabbingMode, NSWindowTitleVisibility, NSWindowToolbarStyle,
 };
 use objc2_foundation::{
-    ns_string, CGFloat, MainThreadMarker, NSArray, NSCopying, NSDictionary, NSKeyValueChangeKey,
-    NSKeyValueChangeNewKey, NSKeyValueChangeOldKey, NSKeyValueObservingOptions, NSObject,
-    NSObjectNSDelayedPerforming, NSObjectNSKeyValueObserverRegistration, NSObjectProtocol, NSPoint,
-    NSRect, NSSize, NSString,
+    ns_string, CGFloat, MainThreadMarker, NSArray, NSCopying, NSDictionary, NSEdgeInsets,
+    NSKeyValueChangeKey, NSKeyValueChangeNewKey, NSKeyValueChangeOldKey,
+    NSKeyValueObservingOptions, NSNotificationCenter, NSObject, NSObjectNSDelayedPerforming,
+    NSObjectNSKeyValueObserverRegistration, NSObjectProtocol, NSPoint, NSRect, NSSize, NSString,
 };
 use tracing::{trace, warn};
 
@@ -35,7 +35,10 @@ use super::observer::RunLoop;
 use super::view::WinitView;
 use super::window::WinitWindow;
 use super::{ffi, Fullscreen, MonitorHandle};
-use crate::dpi::{LogicalPosition, LogicalSize, PhysicalPosition, PhysicalSize, Position, Size};
+use crate::dpi::{
+    LogicalInsets, LogicalPosition, LogicalSize, PhysicalInsets, PhysicalPosition, PhysicalSize,
+    Position, Size,
+};
 use crate::error::{NotSupportedError, RequestError};
 use crate::event::{SurfaceSizeWriter, WindowEvent};
 use crate::platform::macos::{OptionAsAlt, WindowExtMacOS};
@@ -167,7 +170,7 @@ declare_class!(
         #[method(windowDidResize:)]
         fn window_did_resize(&self, _: Option<&AnyObject>) {
             trace_scope!("windowDidResize:");
-            // NOTE: WindowEvent::SurfaceResized is reported in frameDidChange.
+            // NOTE: WindowEvent::SurfaceResized is reported using NSViewFrameDidChangeNotification.
             self.emit_move_event();
         }
 
@@ -442,9 +445,15 @@ declare_class!(
             // NOTE: We don't _really_ need to check the key path, as there should only be one, but
             // in the future we might want to observe other key paths.
             if key_path == Some(ns_string!("effectiveAppearance")) {
-                let change = change.expect("requested a change dictionary in `addObserver`, but none was provided");
-                let old = change.get(unsafe { NSKeyValueChangeOldKey }).expect("requested change dictionary did not contain `NSKeyValueChangeOldKey`");
-                let new = change.get(unsafe { NSKeyValueChangeNewKey }).expect("requested change dictionary did not contain `NSKeyValueChangeNewKey`");
+                let change = change.expect(
+                    "requested a change dictionary in `addObserver`, but none was provided",
+                );
+                let old = change
+                    .get(unsafe { NSKeyValueChangeOldKey })
+                    .expect("requested change dictionary did not contain `NSKeyValueChangeOldKey`");
+                let new = change
+                    .get(unsafe { NSKeyValueChangeNewKey })
+                    .expect("requested change dictionary did not contain `NSKeyValueChangeNewKey`");
 
                 // SAFETY: The value of `effectiveAppearance` is `NSAppearance`
                 let old: *const AnyObject = old;
@@ -561,6 +570,12 @@ fn new_window(
         }
 
         if attrs.platform_specific.fullsize_content_view {
+            // NOTE: If we decide to add an option to change this at runtime, we must emit a
+            // `SurfaceResized` event to let applications know that the safe area changed.
+            //
+            // An alternative would be to add a `WindowEvent::SafeAreaChanged` event, this could be
+            // done with an observer on `safeAreaRect` / `contentLayoutRect`, see:
+            // <https://github.com/rust-windowing/winit/issues/3911>
             masks |= NSWindowStyleMask::FullSizeContentView;
         }
 
@@ -643,9 +658,9 @@ fn new_window(
 
         let view = WinitView::new(
             app_state,
-            &window,
             attrs.platform_specific.accepts_first_mouse,
             attrs.platform_specific.option_as_alt,
+            mtm,
         );
 
         // The default value of `setWantsBestResolutionOpenGLSurface:` was `false` until
@@ -666,6 +681,23 @@ fn new_window(
         // Configure the new view as the "key view" for the window
         window.setContentView(Some(&view));
         window.setInitialFirstResponder(Some(&view));
+
+        // Configure the view to send notifications whenever its frame rectangle changes.
+        //
+        // We explicitly do this _after_ setting the view as the content view of the window, to
+        // avoid a resize event when creating the window.
+        view.setPostsFrameChangedNotifications(true);
+        // `setPostsFrameChangedNotifications` posts the notification immediately, so register the
+        // observer _after_, again so that the event isn't triggered initially.
+        let notification_center = unsafe { NSNotificationCenter::defaultCenter() };
+        unsafe {
+            notification_center.addObserver_selector_name_object(
+                &view,
+                sel!(viewFrameDidChangeNotification:),
+                Some(NSViewFrameDidChangeNotification),
+                Some(&view),
+            )
+        }
 
         if attrs.transparent {
             window.setOpaque(false);
@@ -750,12 +782,6 @@ impl WindowDelegate {
         });
         let delegate: Retained<WindowDelegate> = unsafe { msg_send_id![super(delegate), init] };
 
-        if scale_factor != 1.0 {
-            let delegate = delegate.clone();
-            RunLoop::main(mtm).queue_closure(move || {
-                delegate.handle_scale_factor_changed(scale_factor);
-            });
-        }
         window.setDelegate(Some(ProtocolObject::from_ref(&*delegate)));
 
         // Listen for theme change event.
@@ -785,10 +811,6 @@ impl WindowDelegate {
         delegate.set_window_level(attrs.window_level);
 
         delegate.set_cursor(attrs.cursor);
-
-        // XXX Send `Focused(false)` right after creating the window delegate, so we won't
-        // obscure the real focused events on the startup.
-        delegate.queue_event(WindowEvent::Focused(false));
 
         // Set fullscreen mode after we setup everything
         delegate.set_fullscreen(attrs.fullscreen.map(Into::into));
@@ -934,15 +956,28 @@ impl WindowDelegate {
     #[inline]
     pub fn pre_present_notify(&self) {}
 
-    pub fn outer_position(&self) -> PhysicalPosition<i32> {
+    pub fn outer_position(&self) -> Result<PhysicalPosition<i32>, RequestError> {
         let position = flip_window_screen_coordinates(self.window().frame());
-        LogicalPosition::new(position.x, position.y).to_physical(self.scale_factor())
+        Ok(LogicalPosition::new(position.x, position.y).to_physical(self.scale_factor()))
     }
 
-    pub fn inner_position(&self) -> PhysicalPosition<i32> {
-        let content_rect = self.window().contentRectForFrameRect(self.window().frame());
-        let position = flip_window_screen_coordinates(content_rect);
-        LogicalPosition::new(position.x, position.y).to_physical(self.scale_factor())
+    pub fn surface_position(&self) -> PhysicalPosition<i32> {
+        // The calculation here is a bit awkward because we've gotta reconcile the
+        // different origins (Winit prefers top-left vs. NSWindow's bottom-left),
+        // and I couldn't find a built-in way to do so.
+
+        // The position of the window and the view, both in Winit screen coordinates.
+        let window_position = flip_window_screen_coordinates(self.window().frame());
+        let view_position = flip_window_screen_coordinates(
+            self.window().contentRectForFrameRect(self.window().frame()),
+        );
+
+        // And use that to convert the view position to window coordinates.
+        let surface_position =
+            NSPoint::new(view_position.x - window_position.x, view_position.y - window_position.y);
+
+        let logical = LogicalPosition::new(surface_position.x, surface_position.y);
+        logical.to_physical(self.scale_factor())
     }
 
     pub fn set_outer_position(&self, position: Position) {
@@ -966,6 +1001,37 @@ impl WindowDelegate {
         let frame = self.window().frame();
         let logical = LogicalSize::new(frame.size.width, frame.size.height);
         logical.to_physical(self.scale_factor())
+    }
+
+    pub fn safe_area(&self) -> PhysicalInsets<u32> {
+        // Only available on macOS 11.0
+        let insets = if self.view().respondsToSelector(sel!(safeAreaInsets)) {
+            // Includes NSWindowStyleMask::FullSizeContentView by default, and the notch because
+            // we've set it up with `additionalSafeAreaInsets`.
+            unsafe { self.view().safeAreaInsets() }
+        } else {
+            // If `safeAreaInsets` is not available, we'll have to do the calculation ourselves.
+
+            let window_rect = unsafe {
+                self.window().convertRectFromScreen(
+                    self.window().contentRectForFrameRect(self.window().frame()),
+                )
+            };
+            // This includes NSWindowStyleMask::FullSizeContentView.
+            let layout_rect = unsafe { self.window().contentLayoutRect() };
+
+            // Calculate the insets from window coordinates in AppKit's coordinate system.
+            NSEdgeInsets {
+                top: (window_rect.size.height + window_rect.origin.y)
+                    - (layout_rect.size.height + layout_rect.origin.y),
+                left: layout_rect.origin.x - window_rect.origin.x,
+                bottom: layout_rect.origin.y - window_rect.origin.y,
+                right: (window_rect.size.width + window_rect.origin.x)
+                    - (layout_rect.size.width + layout_rect.origin.x),
+            }
+        };
+        let insets = LogicalInsets::new(insets.top, insets.left, insets.bottom, insets.right);
+        insets.to_physical(self.scale_factor())
     }
 
     #[inline]
@@ -1164,13 +1230,12 @@ impl WindowDelegate {
 
     #[inline]
     pub fn set_cursor_position(&self, cursor_position: Position) -> Result<(), RequestError> {
-        let physical_window_position = self.inner_position();
-        let scale_factor = self.scale_factor();
-        let window_position = physical_window_position.to_logical::<CGFloat>(scale_factor);
-        let logical_cursor_position = cursor_position.to_logical::<CGFloat>(scale_factor);
-        let point = CGPoint {
-            x: logical_cursor_position.x + window_position.x,
-            y: logical_cursor_position.y + window_position.y,
+        let content_rect = self.window().contentRectForFrameRect(self.window().frame());
+        let window_position = flip_window_screen_coordinates(content_rect);
+        let cursor_position = cursor_position.to_logical::<CGFloat>(self.scale_factor());
+        let point = core_graphics::display::CGPoint {
+            x: window_position.x + cursor_position.x,
+            y: window_position.y + cursor_position.y,
         };
         CGDisplay::warp_mouse_cursor_position(point)
             .map_err(|status| os_error!(format!("CGError {status}")))?;
@@ -1752,12 +1817,15 @@ impl WindowExtMacOS for WindowDelegate {
             let screen = self.window().screen().expect("expected screen to be available");
             self.window().setFrame_display(screen.frame(), true);
 
+            // Configure the safe area rectangle, to ensure that we don't obscure the notch.
+            if NSScreen::class().responds_to(sel!(safeAreaInsets)) {
+                unsafe { self.view().setAdditionalSafeAreaInsets(screen.safeAreaInsets()) };
+            }
+
             // Fullscreen windows can't be resized, minimized, or moved
             self.toggle_style_mask(NSWindowStyleMask::Miniaturizable, false);
             self.toggle_style_mask(NSWindowStyleMask::Resizable, false);
             self.window().setMovable(false);
-
-            true
         } else {
             let new_mask = self.saved_style();
             self.set_style_mask(new_mask);
@@ -1770,11 +1838,22 @@ impl WindowExtMacOS for WindowDelegate {
                 app.setPresentationOptions(presentation_opts);
             }
 
+            if NSScreen::class().responds_to(sel!(safeAreaInsets)) {
+                unsafe {
+                    self.view().setAdditionalSafeAreaInsets(NSEdgeInsets {
+                        top: 0.0,
+                        left: 0.0,
+                        bottom: 0.0,
+                        right: 0.0,
+                    });
+                }
+            }
+
             self.window().setFrame_display(frame, true);
             self.window().setMovable(true);
-
-            true
         }
+
+        true
     }
 
     #[inline]

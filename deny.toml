@@ -26,12 +26,12 @@ targets = [
 
 [licenses]
 allow = [
-    "Apache-2.0",       # https://tldrlegal.com/license/apache-license-2.0-(apache-2.0)
-    "BSD-2-Clause",     # https://tldrlegal.com/license/bsd-2-clause-license-(freebsd)
-    "BSD-3-Clause",     # https://tldrlegal.com/license/bsd-3-clause-license-(revised)
-    "ISC",              # https://tldrlegal.com/license/-isc-license
-    "MIT",              # https://tldrlegal.com/license/mit-license
-    "Unicode-DFS-2016", # https://spdx.org/licenses/Unicode-DFS-2016.html
+    "Apache-2.0",   # https://tldrlegal.com/license/apache-license-2.0-(apache-2.0)
+    "BSD-2-Clause", # https://tldrlegal.com/license/bsd-2-clause-license-(freebsd)
+    "BSD-3-Clause", # https://tldrlegal.com/license/bsd-3-clause-license-(revised)
+    "ISC",          # https://tldrlegal.com/license/isc-license
+    "MIT",          # https://tldrlegal.com/license/mit-license
+    "Unicode-3.0",  # https://spdx.org/licenses/Unicode-3.0.html
 ]
 confidence-threshold = 1.0
 private = { ignore = true }

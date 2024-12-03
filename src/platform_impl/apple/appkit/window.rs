@@ -107,12 +107,12 @@ impl CoreWindow for Window {
         self.maybe_wait_on_main(|delegate| delegate.reset_dead_keys());
     }
 
-    fn inner_position(&self) -> Result<dpi::PhysicalPosition<i32>, RequestError> {
-        Ok(self.maybe_wait_on_main(|delegate| delegate.inner_position()))
+    fn surface_position(&self) -> dpi::PhysicalPosition<i32> {
+        self.maybe_wait_on_main(|delegate| delegate.surface_position())
     }
 
     fn outer_position(&self) -> Result<dpi::PhysicalPosition<i32>, RequestError> {
-        Ok(self.maybe_wait_on_main(|delegate| delegate.outer_position()))
+        self.maybe_wait_on_main(|delegate| delegate.outer_position())
     }
 
     fn set_outer_position(&self, position: Position) {
@@ -129,6 +129,10 @@ impl CoreWindow for Window {
 
     fn outer_size(&self) -> dpi::PhysicalSize<u32> {
         self.maybe_wait_on_main(|delegate| delegate.outer_size())
+    }
+
+    fn safe_area(&self) -> dpi::PhysicalInsets<u32> {
+        self.maybe_wait_on_main(|delegate| delegate.safe_area())
     }
 
     fn set_min_surface_size(&self, min_size: Option<Size>) {
