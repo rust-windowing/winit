@@ -15,7 +15,7 @@ mod window;
 mod window_delegate;
 
 pub(crate) use self::cursor::CustomCursor as PlatformCustomCursor;
-pub(crate) use self::event::{physicalkey_to_scancode, scancode_to_physicalkey, KeyEventExtra};
+pub(crate) use self::event::{physicalkey_to_scancode, scancode_to_physicalkey};
 pub(crate) use self::event_loop::{
     ActiveEventLoop, EventLoop, PlatformSpecificEventLoopAttributes,
 };

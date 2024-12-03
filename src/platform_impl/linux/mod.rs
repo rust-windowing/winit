@@ -9,8 +9,6 @@ use std::time::Duration;
 #[cfg(x11_platform)]
 use std::{ffi::CStr, mem::MaybeUninit, os::raw::*, sync::Arc, sync::Mutex};
 
-use smol_str::SmolStr;
-
 pub(crate) use self::common::xkb::{physicalkey_to_scancode, scancode_to_physicalkey};
 #[cfg(x11_platform)]
 use self::x11::{XConnection, XError, XNotSupported};
@@ -22,7 +20,6 @@ use crate::dpi::Size;
 use crate::error::{EventLoopError, NotSupportedError};
 use crate::event_loop::ActiveEventLoop;
 pub(crate) use crate::icon::RgbaIcon as PlatformIcon;
-use crate::keyboard::Key;
 use crate::monitor::VideoMode;
 use crate::platform::pump_events::PumpStatus;
 #[cfg(x11_platform)]
@@ -173,12 +170,6 @@ impl MonitorHandle {
     pub fn video_modes(&self) -> Box<dyn Iterator<Item = VideoMode>> {
         x11_or_wayland!(match self; MonitorHandle(m) => Box::new(m.video_modes()))
     }
-}
-
-#[derive(Debug, Clone, Eq, PartialEq, Hash)]
-pub struct KeyEventExtra {
-    pub text_with_all_modifiers: Option<SmolStr>,
-    pub key_without_modifiers: Key,
 }
 
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
