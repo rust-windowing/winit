@@ -163,6 +163,7 @@ changelog entry.
 - On X11, use bottom-right corner for IME hotspot in `Window::set_ime_cursor_area`.
 - On macOS and iOS, no longer emit `ScaleFactorChanged` upon window creation.
 - On macOS, no longer emit `Focused` upon window creation.
+- On iOS, emit more events immediately, instead of queuing them.
 
 ### Removed
 

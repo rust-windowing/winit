@@ -23,7 +23,7 @@ use crate::dpi::{
     Position, Size,
 };
 use crate::error::{NotSupportedError, RequestError};
-use crate::event::{Event, WindowEvent};
+use crate::event::WindowEvent;
 use crate::icon::Icon;
 use crate::monitor::MonitorHandle as CoreMonitorHandle;
 use crate::platform::ios::{ScreenEdge, StatusBarStyle, ValidOrientations};
@@ -51,10 +51,10 @@ declare_class!(
             let mtm = MainThreadMarker::new().unwrap();
             app_state::handle_nonuser_event(
                 mtm,
-                EventWrapper::StaticEvent(Event::WindowEvent {
+                EventWrapper::Window {
                     window_id: self.id(),
                     event: WindowEvent::Focused(true),
-                }),
+                },
             );
             let _: () = unsafe { msg_send![super(self), becomeKeyWindow] };
         }
@@ -64,10 +64,10 @@ declare_class!(
             let mtm = MainThreadMarker::new().unwrap();
             app_state::handle_nonuser_event(
                 mtm,
-                EventWrapper::StaticEvent(Event::WindowEvent {
+                EventWrapper::Window {
                     window_id: self.id(),
                     event: WindowEvent::Focused(false),
-                }),
+                },
             );
             let _: () = unsafe { msg_send![super(self), resignKeyWindow] };
         }

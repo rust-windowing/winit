@@ -23,11 +23,10 @@ use objc2_ui_kit::{
 use rwh_06::HasDisplayHandle;
 
 use super::super::notification_center::create_observer;
-use super::app_state::{send_occluded_event_for_all_windows, AppState, EventWrapper};
+use super::app_state::{send_occluded_event_for_all_windows, AppState};
 use super::{app_state, monitor, MonitorHandle};
 use crate::application::ApplicationHandler;
 use crate::error::{EventLoopError, NotSupportedError, RequestError};
-use crate::event::Event;
 use crate::event_loop::{
     ActiveEventLoop as RootActiveEventLoop, ControlFlow, DeviceEvents,
     EventLoopProxy as CoreEventLoopProxy, EventLoopProxyProvider,
@@ -174,17 +173,13 @@ impl EventLoop {
             &center,
             // `applicationDidBecomeActive:`
             unsafe { UIApplicationDidBecomeActiveNotification },
-            move |_| {
-                app_state::handle_nonuser_event(mtm, EventWrapper::StaticEvent(Event::Resumed));
-            },
+            move |_| app_state::handle_resumed(mtm),
         );
         let _will_resign_active_observer = create_observer(
             &center,
             // `applicationWillResignActive:`
             unsafe { UIApplicationWillResignActiveNotification },
-            move |_| {
-                app_state::handle_nonuser_event(mtm, EventWrapper::StaticEvent(Event::Suspended));
-            },
+            move |_| app_state::handle_suspended(mtm),
         );
         let _will_enter_foreground_observer = create_observer(
             &center,
@@ -231,12 +226,7 @@ impl EventLoop {
             &center,
             // `applicationDidReceiveMemoryWarning:`
             unsafe { UIApplicationDidReceiveMemoryWarningNotification },
-            move |_| {
-                app_state::handle_nonuser_event(
-                    mtm,
-                    EventWrapper::StaticEvent(Event::MemoryWarning),
-                );
-            },
+            move |_| app_state::handle_memory_warning(mtm),
         );
 
         Ok(EventLoop {
