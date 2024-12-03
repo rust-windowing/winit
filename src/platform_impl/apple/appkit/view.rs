@@ -4,17 +4,17 @@ use std::collections::{HashMap, VecDeque};
 use std::ptr;
 use std::rc::Rc;
 
-use objc2::rc::{Retained, WeakId};
+use objc2::rc::Retained;
 use objc2::runtime::{AnyObject, Sel};
-use objc2::{declare_class, msg_send_id, mutability, sel, ClassType, DeclaredClass};
+use objc2::{declare_class, msg_send_id, mutability, ClassType, DeclaredClass};
 use objc2_app_kit::{
     NSApplication, NSCursor, NSEvent, NSEventPhase, NSResponder, NSTextInputClient,
-    NSTrackingRectTag, NSView, NSViewFrameDidChangeNotification,
+    NSTrackingRectTag, NSView,
 };
 use objc2_foundation::{
     MainThreadMarker, NSArray, NSAttributedString, NSAttributedStringKey, NSCopying,
-    NSMutableAttributedString, NSNotFound, NSNotificationCenter, NSObject, NSObjectProtocol,
-    NSPoint, NSRange, NSRect, NSSize, NSString, NSUInteger,
+    NSMutableAttributedString, NSNotFound, NSObject, NSObjectProtocol, NSPoint, NSRange, NSRect,
+    NSSize, NSString, NSUInteger,
 };
 
 use super::app_state::AppState;
@@ -134,9 +134,6 @@ pub struct ViewState {
     marked_text: RefCell<Retained<NSMutableAttributedString>>,
     accepts_first_mouse: bool,
 
-    // Weak reference because the window keeps a strong reference to the view
-    _ns_window: WeakId<WinitWindow>,
-
     /// The state of the `Option` as `Alt`.
     option_as_alt: Cell<OptionAsAlt>,
 }
@@ -177,9 +174,10 @@ declare_class!(
             self.ivars().tracking_rect.set(Some(tracking_rect));
         }
 
-        #[method(frameDidChange:)]
-        fn frame_did_change(&self, _event: &NSEvent) {
-            trace_scope!("frameDidChange:");
+        // Not a normal method on `NSView`, it's triggered by `NSViewFrameDidChangeNotification`.
+        #[method(viewFrameDidChangeNotification:)]
+        fn frame_did_change(&self, _notification: Option<&AnyObject>) {
+            trace_scope!("NSViewFrameDidChangeNotification");
             if let Some(tracking_rect) = self.ivars().tracking_rect.take() {
                 self.removeTrackingRect(tracking_rect);
             }
@@ -203,10 +201,7 @@ declare_class!(
         fn draw_rect(&self, _rect: NSRect) {
             trace_scope!("drawRect:");
 
-            // It's a workaround for https://github.com/rust-windowing/winit/issues/2640, don't replace with `self.window_id()`.
-            if let Some(window) = self.ivars()._ns_window.load() {
-                self.ivars().app_state.handle_redraw(window.id());
-            }
+            self.ivars().app_state.handle_redraw(self.window().id());
 
             // This is a direct subclass of NSView, no need to call superclass' drawRect:
         }
@@ -806,11 +801,10 @@ declare_class!(
 impl WinitView {
     pub(super) fn new(
         app_state: &Rc<AppState>,
-        window: &WinitWindow,
         accepts_first_mouse: bool,
         option_as_alt: OptionAsAlt,
+        mtm: MainThreadMarker,
     ) -> Retained<Self> {
-        let mtm = MainThreadMarker::from(window);
         let this = mtm.alloc().set_ivars(ViewState {
             app_state: Rc::clone(app_state),
             cursor_state: Default::default(),
@@ -825,21 +819,9 @@ impl WinitView {
             forward_key_to_app: Default::default(),
             marked_text: Default::default(),
             accepts_first_mouse,
-            _ns_window: WeakId::new(&window.retain()),
             option_as_alt: Cell::new(option_as_alt),
         });
         let this: Retained<Self> = unsafe { msg_send_id![super(this), init] };
-
-        this.setPostsFrameChangedNotifications(true);
-        let notification_center = unsafe { NSNotificationCenter::defaultCenter() };
-        unsafe {
-            notification_center.addObserver_selector_name_object(
-                &this,
-                sel!(frameDidChange:),
-                Some(NSViewFrameDidChangeNotification),
-                Some(&this),
-            )
-        }
 
         *this.ivars().input_source.borrow_mut() = this.current_input_source();
 
@@ -847,12 +829,14 @@ impl WinitView {
     }
 
     fn window(&self) -> Retained<WinitWindow> {
-        // TODO: Simply use `window` property on `NSView`.
-        // That only returns a window _after_ the view has been attached though!
-        // (which is incompatible with `frameDidChange:`)
-        //
-        // unsafe { msg_send_id![self, window] }
-        self.ivars()._ns_window.load().expect("view to have a window")
+        let window = (**self).window().expect("view must be installed in a window");
+
+        if !window.isKindOfClass(WinitWindow::class()) {
+            unreachable!("view installed in non-WinitWindow");
+        }
+
+        // SAFETY: Just checked that the window is `WinitWindow`
+        unsafe { Retained::cast(window) }
     }
 
     fn queue_event(&self, event: WindowEvent) {
