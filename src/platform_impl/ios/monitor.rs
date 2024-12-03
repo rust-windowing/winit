@@ -102,13 +102,20 @@ impl Clone for MonitorHandle {
 
 impl hash::Hash for MonitorHandle {
     fn hash<H: hash::Hasher>(&self, state: &mut H) {
-        (self as *const Self).hash(state);
+        // SAFETY: Only getting the pointer.
+        let mtm = unsafe { MainThreadMarker::new_unchecked() };
+        Retained::as_ptr(self.ui_screen.get(mtm)).hash(state);
     }
 }
 
 impl PartialEq for MonitorHandle {
     fn eq(&self, other: &Self) -> bool {
-        ptr::eq(self, other)
+        // SAFETY: Only getting the pointer.
+        let mtm = unsafe { MainThreadMarker::new_unchecked() };
+        ptr::eq(
+            Retained::as_ptr(self.ui_screen.get(mtm)),
+            Retained::as_ptr(other.ui_screen.get(mtm)),
+        )
     }
 }
 
@@ -122,8 +129,10 @@ impl PartialOrd for MonitorHandle {
 
 impl Ord for MonitorHandle {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        // SAFETY: Only getting the pointer.
         // TODO: Make a better ordering
-        (self as *const Self).cmp(&(other as *const Self))
+        let mtm = unsafe { MainThreadMarker::new_unchecked() };
+        Retained::as_ptr(self.ui_screen.get(mtm)).cmp(&Retained::as_ptr(other.ui_screen.get(mtm)))
     }
 }
 
@@ -241,4 +250,28 @@ fn refresh_rate_millihertz(uiscreen: &UIScreen) -> u32 {
 pub fn uiscreens(mtm: MainThreadMarker) -> VecDeque<MonitorHandle> {
     #[allow(deprecated)]
     UIScreen::screens(mtm).into_iter().map(MonitorHandle::new).collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use objc2_foundation::NSSet;
+
+    use super::*;
+
+    // Test that UIScreen pointer comparisons are correct.
+    #[test]
+    #[allow(deprecated)]
+    fn screen_comparisons() {
+        // Test code, doesn't matter that it's not thread safe
+        let mtm = unsafe { MainThreadMarker::new_unchecked() };
+
+        assert!(ptr::eq(&*UIScreen::mainScreen(mtm), &*UIScreen::mainScreen(mtm)));
+
+        let main = UIScreen::mainScreen(mtm);
+        assert!(UIScreen::screens(mtm).iter().any(|screen| ptr::eq(screen, &*main)));
+
+        assert!(unsafe {
+            NSSet::setWithArray(&UIScreen::screens(mtm)).containsObject(&UIScreen::mainScreen(mtm))
+        });
+    }
 }
