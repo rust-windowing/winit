@@ -211,3 +211,4 @@ changelog entry.
 - On iOS, fixed `SurfaceResized` and `Window::surface_size` not reporting the size of the actual surface.
 - On macOS, fixed the scancode conversion for audio volume keys.
 - On macOS, fixed the scancode conversion for `IntlBackslash`.
+- On macOS, fixed redundant `SurfaceResized` event at window creation.
