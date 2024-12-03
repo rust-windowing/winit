@@ -2,12 +2,9 @@
 
 use std::{fmt, str};
 
-use smol_str::SmolStr;
-
 pub(crate) use self::event_loop::{ActiveEventLoop, EventLoop};
 pub use self::window::Window;
 use crate::dpi::PhysicalPosition;
-use crate::keyboard::Key;
 use crate::monitor::VideoMode;
 
 mod event_loop;
@@ -159,10 +156,4 @@ impl MonitorHandle {
     pub fn video_modes(&self) -> impl Iterator<Item = VideoMode> {
         std::iter::empty()
     }
-}
-
-#[derive(Debug, Clone, Eq, PartialEq, Hash)]
-pub struct KeyEventExtra {
-    pub key_without_modifiers: Key,
-    pub text_with_all_modifiers: Option<SmolStr>,
 }
