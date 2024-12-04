@@ -67,7 +67,25 @@ pub type CGDisplayModeRef = *mut c_void;
 // https://developer.apple.com/library/archive/documentation/MacOSX/Conceptual/OSX_Technology_Overview/SystemFrameworks/SystemFrameworks.html#//apple_ref/doc/uid/TP40001067-CH210-BBCFFIEG
 #[link(name = "ApplicationServices", kind = "framework")]
 extern "C" {
-    pub fn CGDisplayCreateUUIDFromDisplayID(display: CGDirectDisplayID) -> CFUUIDRef;
+    fn CGDisplayCreateUUIDFromDisplayID(display: CGDirectDisplayID) -> CFUUIDRef;
+}
+
+/// Convenice wrapper around `CFUUIDRef` which releases on drop.
+#[derive(PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub(crate) struct CfUuid(pub(crate) CFUUIDRef);
+
+impl CfUuid {
+    pub fn from_display_id(value: CGDirectDisplayID) -> Self {
+        CfUuid(unsafe { CGDisplayCreateUUIDFromDisplayID(value) })
+    }
+}
+
+impl Drop for CfUuid {
+    fn drop(&mut self) {
+        unsafe {
+            core_foundation::base::CFRelease(self.0 as *const _);
+        }
+    }
 }
 
 #[link(name = "CoreGraphics", kind = "framework")]
