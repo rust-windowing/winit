@@ -133,15 +133,19 @@ impl VideoModeHandle {
 #[derive(Clone)]
 pub struct MonitorHandle(CGDirectDisplayID);
 
+impl MonitorHandle {
+    /// Internal comparisons of [`MonitorHandle`]s are done first requesting a UUID for the handle.
+    fn uuid(&self) -> ffi::CfUuid {
+        ffi::CfUuid::from_display_id(self.0)
+    }
+}
+
 // `CGDirectDisplayID` changes on video mode change, so we cannot rely on that
 // for comparisons, but we can use `CGDisplayCreateUUIDFromDisplayID` to get an
 // unique identifier that persists even across system reboots
 impl PartialEq for MonitorHandle {
     fn eq(&self, other: &Self) -> bool {
-        unsafe {
-            ffi::CGDisplayCreateUUIDFromDisplayID(self.0)
-                == ffi::CGDisplayCreateUUIDFromDisplayID(other.0)
-        }
+        self.uuid() == other.uuid()
     }
 }
 
@@ -155,18 +159,13 @@ impl PartialOrd for MonitorHandle {
 
 impl Ord for MonitorHandle {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        unsafe {
-            ffi::CGDisplayCreateUUIDFromDisplayID(self.0)
-                .cmp(&ffi::CGDisplayCreateUUIDFromDisplayID(other.0))
-        }
+        self.uuid().cmp(&other.uuid())
     }
 }
 
 impl std::hash::Hash for MonitorHandle {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        unsafe {
-            ffi::CGDisplayCreateUUIDFromDisplayID(self.0).hash(state);
-        }
+        self.uuid().hash(state);
     }
 }
 
@@ -287,12 +286,10 @@ impl MonitorHandle {
     }
 
     pub(crate) fn ns_screen(&self, mtm: MainThreadMarker) -> Option<Retained<NSScreen>> {
-        let uuid = unsafe { ffi::CGDisplayCreateUUIDFromDisplayID(self.0) };
+        let uuid = self.uuid();
         NSScreen::screens(mtm).into_iter().find(|screen| {
             let other_native_id = get_display_id(screen);
-            let other_uuid = unsafe {
-                ffi::CGDisplayCreateUUIDFromDisplayID(other_native_id as CGDirectDisplayID)
-            };
+            let other_uuid = ffi::CfUuid::from_display_id(other_native_id);
             uuid == other_uuid
         })
     }
