@@ -81,7 +81,7 @@ cursor-icon = "1.1.0"
 dpi = { version = "0.1.1", path = "dpi" }
 rwh_06 = { package = "raw-window-handle", version = "0.6", features = ["std"] }
 serde = { workspace = true, optional = true }
-smol_str = "0.2.0"
+smol_str = "0.3"
 tracing = { version = "0.1.40", default-features = false }
 
 [dev-dependencies]

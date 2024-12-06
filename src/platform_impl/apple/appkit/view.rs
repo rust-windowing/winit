@@ -4,30 +4,30 @@ use std::collections::{HashMap, VecDeque};
 use std::ptr;
 use std::rc::Rc;
 
-use objc2::rc::{Retained, WeakId};
+use objc2::rc::Retained;
 use objc2::runtime::{AnyObject, Sel};
-use objc2::{declare_class, msg_send_id, mutability, sel, ClassType, DeclaredClass};
+use objc2::{declare_class, msg_send_id, mutability, ClassType, DeclaredClass};
 use objc2_app_kit::{
     NSApplication, NSCursor, NSEvent, NSEventPhase, NSResponder, NSTextInputClient,
-    NSTrackingRectTag, NSView, NSViewFrameDidChangeNotification,
+    NSTrackingRectTag, NSView,
 };
 use objc2_foundation::{
     MainThreadMarker, NSArray, NSAttributedString, NSAttributedStringKey, NSCopying,
-    NSMutableAttributedString, NSNotFound, NSNotificationCenter, NSObject, NSObjectProtocol,
-    NSPoint, NSRange, NSRect, NSSize, NSString, NSUInteger,
+    NSMutableAttributedString, NSNotFound, NSObject, NSObjectProtocol, NSPoint, NSRange, NSRect,
+    NSSize, NSString, NSUInteger,
 };
 
 use super::app_state::AppState;
 use super::cursor::{default_cursor, invisible_cursor};
 use super::event::{
     code_to_key, code_to_location, create_key_event, event_mods, lalt_pressed, ralt_pressed,
-    scancode_to_physicalkey,
+    scancode_to_physicalkey, KeyEventExtra,
 };
 use super::window::WinitWindow;
 use crate::dpi::{LogicalPosition, LogicalSize};
 use crate::event::{
-    DeviceEvent, ElementState, Ime, Modifiers, MouseButton, MouseScrollDelta, PointerKind,
-    PointerSource, TouchPhase, WindowEvent,
+    DeviceEvent, ElementState, Ime, KeyEvent, Modifiers, MouseButton, MouseScrollDelta,
+    PointerKind, PointerSource, TouchPhase, WindowEvent,
 };
 use crate::keyboard::{Key, KeyCode, KeyLocation, ModifiersState, NamedKey};
 use crate::platform::macos::OptionAsAlt;
@@ -134,9 +134,6 @@ pub struct ViewState {
     marked_text: RefCell<Retained<NSMutableAttributedString>>,
     accepts_first_mouse: bool,
 
-    // Weak reference because the window keeps a strong reference to the view
-    _ns_window: WeakId<WinitWindow>,
-
     /// The state of the `Option` as `Alt`.
     option_as_alt: Cell<OptionAsAlt>,
 }
@@ -177,9 +174,10 @@ declare_class!(
             self.ivars().tracking_rect.set(Some(tracking_rect));
         }
 
-        #[method(frameDidChange:)]
-        fn frame_did_change(&self, _event: &NSEvent) {
-            trace_scope!("frameDidChange:");
+        // Not a normal method on `NSView`, it's triggered by `NSViewFrameDidChangeNotification`.
+        #[method(viewFrameDidChangeNotification:)]
+        fn frame_did_change(&self, _notification: Option<&AnyObject>) {
+            trace_scope!("NSViewFrameDidChangeNotification");
             if let Some(tracking_rect) = self.ivars().tracking_rect.take() {
                 self.removeTrackingRect(tracking_rect);
             }
@@ -203,10 +201,7 @@ declare_class!(
         fn draw_rect(&self, _rect: NSRect) {
             trace_scope!("drawRect:");
 
-            // It's a workaround for https://github.com/rust-windowing/winit/issues/2640, don't replace with `self.window_id()`.
-            if let Some(window) = self.ivars()._ns_window.load() {
-                self.ivars().app_state.handle_redraw(window.id());
-            }
+            self.ivars().app_state.handle_redraw(self.window().id());
 
             // This is a direct subclass of NSView, no need to call superclass' drawRect:
         }
@@ -495,7 +490,7 @@ declare_class!(
             };
 
             if !had_ime_input || self.ivars().forward_key_to_app.get() {
-                let key_event = create_key_event(&event, true, unsafe { event.isARepeat() }, None);
+                let key_event = create_key_event(&event, true, unsafe { event.isARepeat() });
                 self.queue_event(WindowEvent::KeyboardInput {
                     device_id: None,
                     event: key_event,
@@ -518,7 +513,7 @@ declare_class!(
             ) {
                 self.queue_event(WindowEvent::KeyboardInput {
                     device_id: None,
-                    event: create_key_event(&event, false, false, None),
+                    event: create_key_event(&event, false, false),
                     is_synthetic: false,
                 });
             }
@@ -565,7 +560,7 @@ declare_class!(
                 .expect("could not find current event");
 
             self.update_modifiers(&event, false);
-            let event = create_key_event(&event, true, unsafe { event.isARepeat() }, None);
+            let event = create_key_event(&event, true, unsafe { event.isARepeat() });
 
             self.queue_event(WindowEvent::KeyboardInput {
                 device_id: None,
@@ -806,11 +801,10 @@ declare_class!(
 impl WinitView {
     pub(super) fn new(
         app_state: &Rc<AppState>,
-        window: &WinitWindow,
         accepts_first_mouse: bool,
         option_as_alt: OptionAsAlt,
+        mtm: MainThreadMarker,
     ) -> Retained<Self> {
-        let mtm = MainThreadMarker::from(window);
         let this = mtm.alloc().set_ivars(ViewState {
             app_state: Rc::clone(app_state),
             cursor_state: Default::default(),
@@ -825,21 +819,9 @@ impl WinitView {
             forward_key_to_app: Default::default(),
             marked_text: Default::default(),
             accepts_first_mouse,
-            _ns_window: WeakId::new(&window.retain()),
             option_as_alt: Cell::new(option_as_alt),
         });
         let this: Retained<Self> = unsafe { msg_send_id![super(this), init] };
-
-        this.setPostsFrameChangedNotifications(true);
-        let notification_center = unsafe { NSNotificationCenter::defaultCenter() };
-        unsafe {
-            notification_center.addObserver_selector_name_object(
-                &this,
-                sel!(frameDidChange:),
-                Some(NSViewFrameDidChangeNotification),
-                Some(&this),
-            )
-        }
 
         *this.ivars().input_source.borrow_mut() = this.current_input_source();
 
@@ -847,12 +829,14 @@ impl WinitView {
     }
 
     fn window(&self) -> Retained<WinitWindow> {
-        // TODO: Simply use `window` property on `NSView`.
-        // That only returns a window _after_ the view has been attached though!
-        // (which is incompatible with `frameDidChange:`)
-        //
-        // unsafe { msg_send_id![self, window] }
-        self.ivars()._ns_window.load().expect("view to have a window")
+        let window = (**self).window().expect("view must be installed in a window");
+
+        if !window.isKindOfClass(WinitWindow::class()) {
+            unreachable!("view installed in non-WinitWindow");
+        }
+
+        // SAFETY: Just checked that the window is `WinitWindow`
+        unsafe { Retained::cast(window) }
     }
 
     fn queue_event(&self, event: WindowEvent) {
@@ -962,22 +946,36 @@ impl WinitView {
                 let scancode = unsafe { ns_event.keyCode() };
                 let physical_key = scancode_to_physicalkey(scancode as u32);
 
-                // We'll correct the `is_press` later.
-                let mut event = create_key_event(ns_event, false, false, Some(physical_key));
-
-                let key = code_to_key(physical_key, scancode);
+                let logical_key = code_to_key(physical_key, scancode);
                 // Ignore processing of unknown modifiers because we can't determine whether
                 // it was pressed or release reliably.
-                let Some(event_modifier) = key_to_modifier(&key) else {
+                //
+                // Furthermore, sometimes normal keys are reported inside flagsChanged:, such as
+                // when holding Caps Lock while pressing another key, see:
+                // https://github.com/alacritty/alacritty/issues/8268
+                let Some(event_modifier) = key_to_modifier(&logical_key) else {
                     break 'send_event;
                 };
-                event.physical_key = physical_key;
-                event.logical_key = key.clone();
-                event.location = code_to_location(physical_key);
+
+                let mut event = KeyEvent {
+                    location: code_to_location(physical_key),
+                    logical_key: logical_key.clone(),
+                    physical_key,
+                    repeat: false,
+                    // We'll correct this later.
+                    state: Pressed,
+                    text: None,
+                    platform_specific: KeyEventExtra {
+                        text_with_all_modifiers: None,
+                        key_without_modifiers: logical_key.clone(),
+                    },
+                };
+
                 let location_mask = ModLocationMask::from_location(event.location);
 
                 let mut phys_mod_state = self.ivars().phys_modifiers.borrow_mut();
-                let phys_mod = phys_mod_state.entry(key).or_insert(ModLocationMask::empty());
+                let phys_mod =
+                    phys_mod_state.entry(logical_key).or_insert(ModLocationMask::empty());
 
                 let is_active = current_modifiers.state().contains(event_modifier);
                 let mut events = VecDeque::with_capacity(2);

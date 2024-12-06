@@ -92,17 +92,12 @@ fn get_logical_key_char(ns_event: &NSEvent, modifierless_chars: &str) -> Key {
 /// Create `KeyEvent` for the given `NSEvent`.
 ///
 /// This function shouldn't be called when the IME input is in process.
-pub(crate) fn create_key_event(
-    ns_event: &NSEvent,
-    is_press: bool,
-    is_repeat: bool,
-    key_override: Option<PhysicalKey>,
-) -> KeyEvent {
+pub(crate) fn create_key_event(ns_event: &NSEvent, is_press: bool, is_repeat: bool) -> KeyEvent {
     use ElementState::{Pressed, Released};
     let state = if is_press { Pressed } else { Released };
 
     let scancode = unsafe { ns_event.keyCode() };
-    let mut physical_key = key_override.unwrap_or_else(|| scancode_to_physicalkey(scancode as u32));
+    let mut physical_key = scancode_to_physicalkey(scancode as u32);
 
     // NOTE: The logical key should heed both SHIFT and ALT if possible.
     // For instance:
@@ -111,20 +106,15 @@ pub(crate) fn create_key_event(
     // * Pressing CTRL SHIFT A: logical key should also be "A"
     // This is not easy to tease out of `NSEvent`, but we do our best.
 
-    let text_with_all_modifiers: Option<SmolStr> = if key_override.is_some() {
+    let characters = unsafe { ns_event.characters() }.map(|s| s.to_string()).unwrap_or_default();
+    let text_with_all_modifiers = if characters.is_empty() {
         None
     } else {
-        let characters =
-            unsafe { ns_event.characters() }.map(|s| s.to_string()).unwrap_or_default();
-        if characters.is_empty() {
-            None
-        } else {
-            if matches!(physical_key, PhysicalKey::Unidentified(_)) {
-                // The key may be one of the funky function keys
-                physical_key = extra_function_key_to_code(scancode, &characters);
-            }
-            Some(SmolStr::new(characters))
+        if matches!(physical_key, PhysicalKey::Unidentified(_)) {
+            // The key may be one of the funky function keys
+            physical_key = extra_function_key_to_code(scancode, &characters);
         }
+        Some(SmolStr::new(characters))
     };
 
     let key_from_code = code_to_key(physical_key, scancode);
@@ -377,6 +367,7 @@ pub(crate) fn physicalkey_to_scancode(physical_key: PhysicalKey) -> Option<u32> 
         KeyCode::KeyX => Some(0x07),
         KeyCode::KeyC => Some(0x08),
         KeyCode::KeyV => Some(0x09),
+        KeyCode::IntlBackslash => Some(0x0a),
         KeyCode::KeyB => Some(0x0b),
         KeyCode::KeyQ => Some(0x0c),
         KeyCode::KeyW => Some(0x0d),
@@ -422,18 +413,21 @@ pub(crate) fn physicalkey_to_scancode(physical_key: PhysicalKey) -> Option<u32> 
         KeyCode::SuperRight => Some(0x36),
         KeyCode::SuperLeft => Some(0x37),
         KeyCode::ShiftLeft => Some(0x38),
+        KeyCode::CapsLock => Some(0x39),
         KeyCode::AltLeft => Some(0x3a),
         KeyCode::ControlLeft => Some(0x3b),
         KeyCode::ShiftRight => Some(0x3c),
         KeyCode::AltRight => Some(0x3d),
         KeyCode::ControlRight => Some(0x3e),
+        KeyCode::Fn => Some(0x3f),
         KeyCode::F17 => Some(0x40),
         KeyCode::NumpadDecimal => Some(0x41),
         KeyCode::NumpadMultiply => Some(0x43),
         KeyCode::NumpadAdd => Some(0x45),
         KeyCode::NumLock => Some(0x47),
-        KeyCode::AudioVolumeUp => Some(0x49),
-        KeyCode::AudioVolumeDown => Some(0x4a),
+        KeyCode::AudioVolumeUp => Some(0x48),
+        KeyCode::AudioVolumeDown => Some(0x49),
+        KeyCode::AudioVolumeMute => Some(0x4a),
         KeyCode::NumpadDivide => Some(0x4b),
         KeyCode::NumpadEnter => Some(0x4c),
         KeyCode::NumpadSubtract => Some(0x4e),
@@ -452,17 +446,22 @@ pub(crate) fn physicalkey_to_scancode(physical_key: PhysicalKey) -> Option<u32> 
         KeyCode::Numpad8 => Some(0x5b),
         KeyCode::Numpad9 => Some(0x5c),
         KeyCode::IntlYen => Some(0x5d),
+        KeyCode::IntlRo => Some(0x5e),
+        KeyCode::NumpadComma => Some(0x5f),
         KeyCode::F5 => Some(0x60),
         KeyCode::F6 => Some(0x61),
         KeyCode::F7 => Some(0x62),
         KeyCode::F3 => Some(0x63),
         KeyCode::F8 => Some(0x64),
         KeyCode::F9 => Some(0x65),
+        KeyCode::Lang2 => Some(0x66),
         KeyCode::F11 => Some(0x67),
+        KeyCode::Lang1 => Some(0x68),
         KeyCode::F13 => Some(0x69),
         KeyCode::F16 => Some(0x6a),
         KeyCode::F14 => Some(0x6b),
         KeyCode::F10 => Some(0x6d),
+        KeyCode::ContextMenu => Some(0x6e),
         KeyCode::F12 => Some(0x6f),
         KeyCode::F15 => Some(0x71),
         KeyCode::Insert => Some(0x72),
@@ -478,11 +477,26 @@ pub(crate) fn physicalkey_to_scancode(physical_key: PhysicalKey) -> Option<u32> 
         KeyCode::ArrowRight => Some(0x7c),
         KeyCode::ArrowDown => Some(0x7d),
         KeyCode::ArrowUp => Some(0x7e),
+        KeyCode::Power => Some(0x7f),
         _ => None,
     }
 }
 
 pub(crate) fn scancode_to_physicalkey(scancode: u32) -> PhysicalKey {
+    // Follows what Chromium and Firefox do:
+    // https://chromium.googlesource.com/chromium/src.git/+/3e1a26c44c024d97dc9a4c09bbc6a2365398ca2c/ui/events/keycodes/dom/dom_code_data.inc
+    // https://searchfox.org/mozilla-central/rev/c597e9c789ad36af84a0370d395be066b7dc94f4/widget/NativeKeyToDOMCodeName.h
+    //
+    // See also:
+    // Carbon.framework/Versions/A/Frameworks/HIToolbox.framework/Versions/A/Headers/Events.h
+    //
+    // Also see https://developer.apple.com/documentation/appkit/function-key-unicode-values:
+    //
+    // > the system handles some function keys at a lower level and your app never sees them.
+    // > Examples include the Volume Up key, Volume Down key, Volume Mute key, Eject key, and
+    // > Function key found on many Macs.
+    //
+    // So the handling of some of these is mostly for show.
     PhysicalKey::Code(match scancode {
         0x00 => KeyCode::KeyA,
         0x01 => KeyCode::KeyS,
@@ -494,7 +508,11 @@ pub(crate) fn scancode_to_physicalkey(scancode: u32) -> PhysicalKey {
         0x07 => KeyCode::KeyX,
         0x08 => KeyCode::KeyC,
         0x09 => KeyCode::KeyV,
-        // 0x0a => World 1,
+        // This key is typically located near LeftShift key, roughly the same location as backquote
+        // (`) on Windows' US layout.
+        //
+        // The keycap varies on international keyboards.
+        0x0a => KeyCode::IntlBackslash,
         0x0b => KeyCode::KeyB,
         0x0c => KeyCode::KeyQ,
         0x0d => KeyCode::KeyW,
@@ -536,7 +554,7 @@ pub(crate) fn scancode_to_physicalkey(scancode: u32) -> PhysicalKey {
         0x31 => KeyCode::Space,
         0x32 => KeyCode::Backquote,
         0x33 => KeyCode::Backspace,
-        // 0x34 => unknown,
+        // 0x34 => unknown, // kVK_Powerbook_KeypadEnter
         0x35 => KeyCode::Escape,
         0x36 => KeyCode::SuperRight,
         0x37 => KeyCode::SuperLeft,
@@ -555,15 +573,10 @@ pub(crate) fn scancode_to_physicalkey(scancode: u32) -> PhysicalKey {
         // 0x44 => unknown,
         0x45 => KeyCode::NumpadAdd,
         // 0x46 => unknown,
-        0x47 => KeyCode::NumLock,
-        // 0x48 => KeyCode::NumpadClear,
-
-        // TODO: (Artur) for me, kVK_VolumeUp is 0x48
-        // macOS 10.11
-        // /System/Library/Frameworks/Carbon.framework/Versions/A/Frameworks/HIToolbox.framework/
-        // Versions/A/Headers/Events.h
-        0x49 => KeyCode::AudioVolumeUp,
-        0x4a => KeyCode::AudioVolumeDown,
+        0x47 => KeyCode::NumLock, // kVK_ANSI_KeypadClear
+        0x48 => KeyCode::AudioVolumeUp,
+        0x49 => KeyCode::AudioVolumeDown,
+        0x4a => KeyCode::AudioVolumeMute,
         0x4b => KeyCode::NumpadDivide,
         0x4c => KeyCode::NumpadEnter,
         // 0x4d => unknown,
@@ -583,23 +596,23 @@ pub(crate) fn scancode_to_physicalkey(scancode: u32) -> PhysicalKey {
         0x5b => KeyCode::Numpad8,
         0x5c => KeyCode::Numpad9,
         0x5d => KeyCode::IntlYen,
-        // 0x5e => JIS Ro,
-        // 0x5f => unknown,
+        0x5e => KeyCode::IntlRo,
+        0x5f => KeyCode::NumpadComma,
         0x60 => KeyCode::F5,
         0x61 => KeyCode::F6,
         0x62 => KeyCode::F7,
         0x63 => KeyCode::F3,
         0x64 => KeyCode::F8,
         0x65 => KeyCode::F9,
-        // 0x66 => JIS Eisuu (macOS),
+        0x66 => KeyCode::Lang2,
         0x67 => KeyCode::F11,
-        // 0x68 => JIS Kanna (macOS),
+        0x68 => KeyCode::Lang1,
         0x69 => KeyCode::F13,
         0x6a => KeyCode::F16,
         0x6b => KeyCode::F14,
         // 0x6c => unknown,
         0x6d => KeyCode::F10,
-        // 0x6e => unknown,
+        0x6e => KeyCode::ContextMenu,
         0x6f => KeyCode::F12,
         // 0x70 => unknown,
         0x71 => KeyCode::F15,
@@ -616,11 +629,7 @@ pub(crate) fn scancode_to_physicalkey(scancode: u32) -> PhysicalKey {
         0x7c => KeyCode::ArrowRight,
         0x7d => KeyCode::ArrowDown,
         0x7e => KeyCode::ArrowUp,
-        // 0x7f =>  unknown,
-
-        // 0xA is the caret (^) an macOS's German QERTZ layout. This key is at the same location as
-        // backquote (`) on Windows' US layout.
-        0xa => KeyCode::Backquote,
+        0x7f => KeyCode::Power, // On 10.7 and 10.8 only
         _ => return PhysicalKey::Unidentified(NativeKeyCode::MacOS(scancode as u16)),
     })
 }

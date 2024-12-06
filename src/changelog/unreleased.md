@@ -75,6 +75,7 @@ changelog entry.
   variables to test the respective modifiers of window creation.
 - Added `Window::surface_position`, which is the position of the surface inside the window.
 - Added `Window::safe_area`, which describes the area of the surface that is unobstructed.
+- On X11, Wayland, Windows and macOS, improved scancode conversions for more obscure key codes.
 
 ### Changed
 
@@ -160,6 +161,10 @@ changelog entry.
   - In the same spirit rename `DeviceEvent::MouseMotion` to `PointerMotion`.
   - Remove `Force::Calibrated::altitude_angle`.
 - On X11, use bottom-right corner for IME hotspot in `Window::set_ime_cursor_area`.
+- On macOS and iOS, no longer emit `ScaleFactorChanged` upon window creation.
+- On macOS, no longer emit `Focused` upon window creation.
+- On iOS, emit more events immediately, instead of queuing them.
+- Update `smol_str` to version `0.3`
 
 ### Removed
 
@@ -206,3 +211,8 @@ changelog entry.
 - On X11, creating windows while passing `with_x11_screen(non_default_screen)` works again.
 - On X11, fix XInput handling that prevented a new window from getting the focus in some cases.
 - On iOS, fixed `SurfaceResized` and `Window::surface_size` not reporting the size of the actual surface.
+- On macOS, fixed the scancode conversion for audio volume keys.
+- On macOS, fixed the scancode conversion for `IntlBackslash`.
+- On macOS, fixed redundant `SurfaceResized` event at window creation.
+- On macOS, fix crash when pressing Caps Lock in certain configurations.
+- On iOS, fixed `MonitorHandle`'s `PartialEq` and `Hash` implementations.
