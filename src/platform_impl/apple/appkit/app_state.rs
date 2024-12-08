@@ -9,12 +9,12 @@ use objc2_app_kit::{NSApplication, NSApplicationActivationPolicy, NSRunningAppli
 use objc2_foundation::{MainThreadMarker, NSNotification};
 
 use super::super::event_handler::EventHandler;
-use super::event_loop::{stop_app_immediately, ActiveEventLoop, EventLoopProxy, PanicInfo};
+use super::event_loop::{stop_app_immediately, EventLoopProxy, PanicInfo};
 use super::menu;
 use super::observer::{EventLoopWaker, RunLoop};
 use crate::application::ApplicationHandler;
 use crate::event::{StartCause, WindowEvent};
-use crate::event_loop::ControlFlow;
+use crate::event_loop::{ActiveEventLoop, ControlFlow};
 use crate::window::WindowId;
 
 #[derive(Debug)]
@@ -163,17 +163,25 @@ impl AppState {
     pub fn will_terminate(self: &Rc<Self>, _notification: &NSNotification) {
         trace_scope!("NSApplicationWillTerminateNotification");
         // TODO: Notify every window that it will be destroyed, like done in iOS?
+        self.with_handler(|app, event_loop| {
+            app.exiting(event_loop);
+        });
         self.internal_exit();
     }
 
     /// Place the event handler in the application state for the duration
     /// of the given closure.
-    pub fn set_event_handler<R>(
+    pub fn set_init_closure<A: ApplicationHandler, R>(
         &self,
-        handler: &mut dyn ApplicationHandler,
+        init_closure: impl FnOnce(&dyn ActiveEventLoop) -> A,
         closure: impl FnOnce() -> R,
     ) -> R {
-        self.event_handler.set(handler, closure)
+        let init_closure = Box::new(
+            |active_event_loop: &'_ dyn ActiveEventLoop| -> Box<dyn ApplicationHandler + '_> {
+                Box::new(init_closure(active_event_loop))
+            },
+        );
+        self.event_handler.set(init_closure, closure)
     }
 
     pub fn event_loop_proxy(&self) -> &Arc<EventLoopProxy> {
@@ -208,10 +216,6 @@ impl AppState {
     /// NOTE: that if the `NSApplication` has been launched then that state is preserved,
     /// and we won't need to re-launch the app if subsequent EventLoops are run.
     pub fn internal_exit(self: &Rc<Self>) {
-        self.with_handler(|app, event_loop| {
-            app.exiting(event_loop);
-        });
-
         self.set_is_running(false);
         self.set_stop_on_redraw(false);
         self.set_stop_before_wait(false);

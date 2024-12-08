@@ -70,8 +70,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         });
     }
 
-    let app = Application::new(&event_loop, receiver, sender);
-    Ok(event_loop.run_app(app)?)
+    Ok(event_loop.run(|event_loop| Application::new(event_loop, receiver, sender))?)
 }
 
 /// Application state and event handling.
@@ -88,21 +87,24 @@ struct Application {
     ///
     /// With OpenGL it could be EGLDisplay.
     #[cfg(not(android_platform))]
-    context: Option<Context<DisplayHandle<'static>>>,
+    context: Context<DisplayHandle<'static>>,
 }
 
 impl Application {
-    fn new(event_loop: &EventLoop, receiver: Receiver<Action>, sender: Sender<Action>) -> Self {
-        // SAFETY: we drop the context right before the event loop is stopped, thus making it safe.
+    fn new(
+        event_loop: &dyn ActiveEventLoop,
+        receiver: Receiver<Action>,
+        sender: Sender<Action>,
+    ) -> Self {
+        // SAFETY: The context is stored in the application, which is dropped right before the event
+        // loop is stopped, thus making it safe.
         #[cfg(not(android_platform))]
-        let context = Some(
-            Context::new(unsafe {
-                std::mem::transmute::<DisplayHandle<'_>, DisplayHandle<'static>>(
-                    event_loop.display_handle().unwrap(),
-                )
-            })
-            .unwrap(),
-        );
+        let context = Context::new(unsafe {
+            std::mem::transmute::<DisplayHandle<'_>, DisplayHandle<'static>>(
+                event_loop.display_handle().unwrap(),
+            )
+        })
+        .unwrap();
 
         // You'll have to choose an icon size at your own discretion. On X11, the desired size
         // varies by WM, and on Windows, you still have to account for screen scaling. Here
@@ -120,7 +122,7 @@ impl Application {
         .into_iter()
         .collect();
 
-        Self {
+        let mut app = Self {
             receiver,
             sender,
             #[cfg(not(android_platform))]
@@ -128,7 +130,16 @@ impl Application {
             custom_cursors,
             icon,
             windows: Default::default(),
-        }
+        };
+
+        app.dump_monitors(event_loop);
+
+        // Create initial window.
+        app.create_window(event_loop, None).expect("failed to create initial window");
+
+        app.print_help();
+
+        app
     }
 
     fn create_window(
@@ -560,14 +571,12 @@ impl ApplicationHandler for Application {
         info!("Device {device_id:?} event: {event:?}");
     }
 
-    fn can_create_surfaces(&mut self, event_loop: &dyn ActiveEventLoop) {
-        info!("Ready to create surfaces");
-        self.dump_monitors(event_loop);
-
-        // Create initial window.
-        self.create_window(event_loop, None).expect("failed to create initial window");
-
-        self.print_help();
+    #[cfg(not(android_platform))]
+    fn can_create_surfaces(&mut self, _event_loop: &dyn ActiveEventLoop) {
+        for window in self.windows.values_mut() {
+            window.surface = Some(Surface::new(&self.context, Arc::clone(&window.window)).unwrap());
+            window.resize(window.window.surface_size());
+        }
     }
 
     fn about_to_wait(&mut self, event_loop: &dyn ActiveEventLoop) {
@@ -578,9 +587,10 @@ impl ApplicationHandler for Application {
     }
 
     #[cfg(not(android_platform))]
-    fn exiting(&mut self, _event_loop: &dyn ActiveEventLoop) {
-        // We must drop the context here.
-        self.context = None;
+    fn destroy_surfaces(&mut self, _event_loop: &dyn ActiveEventLoop) {
+        for window in self.windows.values_mut() {
+            window.surface = None;
+        }
     }
 
     #[cfg(target_os = "macos")]
@@ -607,9 +617,9 @@ struct WindowState {
     ime: bool,
     /// Render surface.
     ///
-    /// NOTE: This surface must be dropped before the `Window`.
+    /// `None` when not between `can_create_surfaces` and `destroy_surfaces`.
     #[cfg(not(android_platform))]
-    surface: Surface<DisplayHandle<'static>, Arc<dyn Window>>,
+    surface: Option<Surface<DisplayHandle<'static>, Arc<dyn Window>>>,
     /// The actual winit Window.
     window: Arc<dyn Window>,
     /// The window theme we're drawing with.
@@ -642,11 +652,6 @@ impl WindowState {
     fn new(app: &Application, window: Box<dyn Window>) -> Result<Self, Box<dyn Error>> {
         let window: Arc<dyn Window> = Arc::from(window);
 
-        // SAFETY: the surface is dropped before the `window` which provided it with handle, thus
-        // it doesn't outlive it.
-        #[cfg(not(android_platform))]
-        let surface = Surface::new(app.context.as_ref().unwrap(), Arc::clone(&window))?;
-
         let theme = window.theme().unwrap_or(Theme::Dark);
         info!("Theme: {theme:?}");
         let named_idx = 0;
@@ -656,15 +661,14 @@ impl WindowState {
         let ime = true;
         window.set_ime_allowed(ime);
 
-        let size = window.surface_size();
-        let mut state = Self {
+        Ok(Self {
             #[cfg(macos_platform)]
             option_as_alt: window.option_as_alt(),
             custom_idx: app.custom_cursors.as_ref().map(Vec::len).unwrap_or(1) - 1,
             cursor_grab: CursorGrabMode::None,
             named_idx,
             #[cfg(not(android_platform))]
-            surface,
+            surface: None,
             window,
             theme,
             ime,
@@ -675,10 +679,7 @@ impl WindowState {
             rotated: Default::default(),
             panned: Default::default(),
             zoom: Default::default(),
-        };
-
-        state.resize(size);
-        Ok(state)
+        })
     }
 
     pub fn toggle_ime(&mut self) {
@@ -852,7 +853,11 @@ impl WindowState {
                 (Some(width), Some(height)) => (width, height),
                 _ => return,
             };
-            self.surface.resize(width, height).expect("failed to resize inner buffer");
+            self.surface
+                .as_mut()
+                .unwrap()
+                .resize(width, height)
+                .expect("failed to resize inner buffer");
         }
         self.window.request_redraw();
     }
@@ -945,7 +950,7 @@ impl WindowState {
             return Ok(());
         }
 
-        let mut buffer = self.surface.buffer_mut()?;
+        let mut buffer = self.surface.as_mut().unwrap().buffer_mut()?;
 
         // Draw a different color inside the safe area
         let surface_size = self.window.surface_size();
