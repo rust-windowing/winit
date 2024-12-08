@@ -45,10 +45,11 @@ pub(crate) enum Backend {
     Wayland,
 }
 
-#[derive(Debug, Default, Copy, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Default, Clone, PartialEq, Eq, Hash)]
 pub(crate) struct PlatformSpecificEventLoopAttributes {
     pub(crate) forced_backend: Option<Backend>,
     pub(crate) any_thread: bool,
+    pub(crate) session_id: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -329,15 +330,17 @@ impl EventLoop {
         // Create the display based on the backend.
         match backend {
             #[cfg(wayland_platform)]
-            Backend::Wayland => EventLoop::new_wayland_any_thread().map_err(Into::into),
+            Backend::Wayland => {
+                EventLoop::new_wayland_any_thread(attributes.session_id.clone()).map_err(Into::into)
+            },
             #[cfg(x11_platform)]
             Backend::X => EventLoop::new_x11_any_thread().map_err(Into::into),
         }
     }
 
     #[cfg(wayland_platform)]
-    fn new_wayland_any_thread() -> Result<EventLoop, EventLoopError> {
-        wayland::EventLoop::new().map(|evlp| EventLoop::Wayland(Box::new(evlp)))
+    fn new_wayland_any_thread(session_id: Option<String>) -> Result<EventLoop, EventLoopError> {
+        wayland::EventLoop::new(session_id).map(|evlp| EventLoop::Wayland(Box::new(evlp)))
     }
 
     #[cfg(x11_platform)]
