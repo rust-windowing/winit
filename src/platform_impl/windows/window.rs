@@ -532,6 +532,10 @@ impl CoreWindow for Window {
                 f.set(WindowFlags::RESIZABLE, resizable)
             });
         });
+        //Nonresizable windows can still contain a maximize button, so we'd have to additionally remove the button.
+        let mut buttons = self.enabled_buttons();
+        buttons.set(WindowButtons::MAXIMIZE, resizable);
+        self.set_enabled_buttons(buttons);
     }
 
     fn is_resizable(&self) -> bool {
@@ -1205,7 +1209,10 @@ impl InitData<'_> {
         // attribute is correctly applied.
         win.set_visible(attributes.visible);
 
-        win.set_enabled_buttons(attributes.enabled_buttons);
+        //Nonresizable windows can still contain a maximize button, so we'd have to additionally remove the button.
+        let mut buttons = attributes.enabled_buttons;
+        buttons.set(WindowButtons::MAXIMIZE, attributes.resizable);
+        win.set_enabled_buttons(buttons);
 
         let size = attributes.surface_size.unwrap_or_else(|| PhysicalSize::new(800, 600).into());
         let max_size = attributes
