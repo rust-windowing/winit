@@ -62,3 +62,4 @@ changelog entry.
 - On X11, fix XInput handling that prevented a new window from getting the focus in some cases.
 - On macOS, fix crash when pressing Caps Lock in certain configurations.
 - On iOS, fixed `MonitorHandle`'s `PartialEq` and `Hash` implementations.
+- On macOS, fixed undocumented cursors (e.g. zoom, resize, help) always appearing to be invalid and falling back to the default cursor.
