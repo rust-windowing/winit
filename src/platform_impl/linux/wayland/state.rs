@@ -24,6 +24,7 @@ use sctk::subcompositor::SubcompositorState;
 use crate::error::OsError;
 use crate::platform_impl::wayland::event_loop::sink::EventSink;
 use crate::platform_impl::wayland::output::MonitorHandle;
+use crate::platform_impl::wayland::seat::data_device::DataDeviceManager;
 use crate::platform_impl::wayland::seat::{
     PointerConstraintsState, RelativePointerState, TextInputState, WinitPointerData,
     WinitPointerDataExt, WinitSeatState,
@@ -72,6 +73,9 @@ pub struct WinitState {
 
     /// The update for the `windows` coming from the compositor.
     pub window_compositor_updates: Vec<WindowCompositorUpdate>,
+
+    /// Data device manager handles copy & paste and drag & drop
+    pub data_device_manager: Option<DataDeviceManager>,
 
     /// Currently handled seats.
     pub seats: AHashMap<ObjectId, WinitSeatState>,
@@ -142,8 +146,8 @@ impl WinitState {
         let output_state = OutputState::new(globals, queue_handle);
         let monitors = output_state.outputs().map(MonitorHandle::new).collect();
 
+        let data_device_manager = DataDeviceManager::new(globals, queue_handle).ok();
         let seat_state = SeatState::new(globals, queue_handle);
-
         let mut seats = AHashMap::default();
         for seat in seat_state.seats() {
             seats.insert(seat.id(), WinitSeatState::new());
@@ -179,6 +183,7 @@ impl WinitState {
             fractional_scaling_manager,
             kwin_blur_manager: KWinBlurManager::new(globals, queue_handle).ok(),
 
+            data_device_manager,
             seats,
             text_input_state: TextInputState::new(globals, queue_handle).ok(),
 
