@@ -3,7 +3,7 @@
 use dpi::{Position, Size};
 use objc2::rc::{autoreleasepool, Retained};
 use objc2::{declare_class, mutability, ClassType, DeclaredClass};
-use objc2_app_kit::{NSResponder, NSWindow};
+use objc2_app_kit::{NSPanel, NSResponder, NSWindow};
 use objc2_foundation::{MainThreadBound, MainThreadMarker, NSObject};
 
 use super::event_loop::ActiveEventLoop;
@@ -16,7 +16,7 @@ use crate::window::{
 };
 
 pub(crate) struct Window {
-    window: MainThreadBound<Retained<WinitWindow>>,
+    window: MainThreadBound<Retained<NSWindow>>,
     /// The window only keeps a weak reference to this, so we must keep it around here.
     delegate: MainThreadBound<Retained<WindowDelegate>>,
 }
@@ -360,8 +360,30 @@ declare_class!(
     }
 );
 
-impl WinitWindow {
-    pub(super) fn id(&self) -> WindowId {
-        WindowId::from_raw(self as *const Self as usize)
+declare_class!(
+    #[derive(Debug)]
+    pub struct WinitPanel;
+
+    unsafe impl ClassType for WinitPanel {
+        #[inherits(NSWindow, NSResponder, NSObject)]
+        type Super = NSPanel;
+        type Mutability = mutability::MainThreadOnly;
+        const NAME: &'static str = "WinitPanel";
     }
+
+    impl DeclaredClass for WinitPanel {}
+
+    unsafe impl WinitPanel {
+        // although NSPanel can become key window
+        // it doesn't if window doesn't have NSWindowStyleMask::Titled
+        #[method(canBecomeKeyWindow)]
+        fn can_become_key_window(&self) -> bool {
+            trace_scope!("canBecomeKeyWindow");
+            true
+        }
+    }
+);
+
+pub(super) fn window_id(window: &NSWindow) -> WindowId {
+    WindowId::from_raw(window as *const _ as usize)
 }
