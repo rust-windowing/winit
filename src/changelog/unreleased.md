@@ -216,3 +216,4 @@ changelog entry.
 - On macOS, fixed redundant `SurfaceResized` event at window creation.
 - On macOS, fix crash when pressing Caps Lock in certain configurations.
 - On iOS, fixed `MonitorHandle`'s `PartialEq` and `Hash` implementations.
+- On macOS, fixed undocumented cursors (e.g. zoom, resize, help) always appearing to be invalid and falling back to the default cursor.
