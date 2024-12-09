@@ -14,7 +14,7 @@ use core_foundation::runloop::{
     CFRunLoopSourceCreate, CFRunLoopSourceRef, CFRunLoopSourceSignal, CFRunLoopWakeUp,
 };
 use objc2::rc::{autoreleasepool, Retained};
-use objc2::{msg_send_id, sel, ClassType};
+use objc2::sel;
 use objc2_app_kit::{
     NSApplication, NSApplicationActivationPolicy, NSApplicationDidFinishLaunchingNotification,
     NSApplicationWillTerminateNotification, NSWindow,
@@ -23,7 +23,7 @@ use objc2_foundation::{MainThreadMarker, NSNotificationCenter, NSObject, NSObjec
 use rwh_06::HasDisplayHandle;
 
 use super::super::notification_center::create_observer;
-use super::app::WinitApplication;
+use super::app::override_send_event;
 use super::app_state::AppState;
 use super::cursor::CustomCursor;
 use super::event::dummy_event;
@@ -207,16 +207,6 @@ impl EventLoop {
         let mtm = MainThreadMarker::new()
             .expect("on macOS, `EventLoop` must be created on the main thread!");
 
-        let app: Retained<NSApplication> =
-            unsafe { msg_send_id![WinitApplication::class(), sharedApplication] };
-
-        if !app.is_kind_of::<WinitApplication>() {
-            panic!(
-                "`winit` requires control over the principal class. You must create the event \
-                 loop before other parts of your application initialize NSApplication"
-            );
-        }
-
         let activation_policy = match attributes.activation_policy {
             None => None,
             Some(ActivationPolicy::Regular) => Some(NSApplicationActivationPolicy::Regular),
@@ -230,6 +220,12 @@ impl EventLoop {
             attributes.default_menu,
             attributes.activate_ignoring_other_apps,
         );
+
+        // Initialize the application (if it has not already been).
+        let app = NSApplication::sharedApplication(mtm);
+
+        // Override `sendEvent:` on the application to forward to our application state.
+        override_send_event(&app);
 
         let center = unsafe { NSNotificationCenter::defaultCenter() };
 

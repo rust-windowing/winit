@@ -76,6 +76,7 @@ changelog entry.
 - Added `Window::surface_position`, which is the position of the surface inside the window.
 - Added `Window::safe_area`, which describes the area of the surface that is unobstructed.
 - On X11, Wayland, Windows and macOS, improved scancode conversions for more obscure key codes.
+- On macOS, no longer need control of the main `NSApplication` class (which means you can now override it yourself).
 
 ### Changed
 
