@@ -332,7 +332,7 @@ pub trait WindowAttributesExtMacOS {
     fn with_borderless_game(self, borderless_game: bool) -> Self;
     /// See [`WindowExtMacOS::set_unified_titlebar`] for details on what this means if set.
     fn with_unified_titlebar(self, unified_titlebar: bool) -> Self;
-    /// Use [`NSPanel`] window with [`NonactivatingPanel`] window style mask instead of [`NSWindow`]
+    /// Use [`NSPanel`] window with [`NonactivatingPanel`] window style mask instead of [`NSWindow`].
     ///
     /// [`NSWindow`]: https://developer.apple.com/documentation/appkit/NSWindow?language=objc
     /// [`NSPanel`]: https://developer.apple.com/documentation/appkit/NSPanel?language=objc
