@@ -16,7 +16,7 @@ use objc2_app_kit::{
     NSAppearanceNameAqua, NSApplication, NSApplicationPresentationOptions, NSBackingStoreType,
     NSColor, NSDraggingDestination, NSFilenamesPboardType, NSPasteboard,
     NSRequestUserAttentionType, NSScreen, NSToolbar, NSView, NSViewFrameDidChangeNotification,
-    NSWindowButton, NSWindowDelegate, NSWindowFullScreenButton, NSWindowLevel,
+    NSWindow, NSWindowButton, NSWindowDelegate, NSWindowFullScreenButton, NSWindowLevel,
     NSWindowOcclusionState, NSWindowOrderingMode, NSWindowSharingType, NSWindowStyleMask,
     NSWindowTabbingMode, NSWindowTitleVisibility, NSWindowToolbarStyle,
 };
@@ -33,7 +33,7 @@ use super::cursor::cursor_from_icon;
 use super::monitor::{self, flip_window_screen_coordinates, get_display_id};
 use super::observer::RunLoop;
 use super::view::WinitView;
-use super::window::WinitWindow;
+use super::window::{window_id, WinitPanel, WinitWindow};
 use super::{ffi, Fullscreen, MonitorHandle};
 use crate::dpi::{
     LogicalInsets, LogicalPosition, LogicalSize, PhysicalInsets, PhysicalPosition, PhysicalSize,
@@ -62,6 +62,7 @@ pub struct PlatformSpecificWindowAttributes {
     pub option_as_alt: OptionAsAlt,
     pub borderless_game: bool,
     pub unified_titlebar: bool,
+    pub panel: bool,
 }
 
 impl Default for PlatformSpecificWindowAttributes {
@@ -81,6 +82,7 @@ impl Default for PlatformSpecificWindowAttributes {
             option_as_alt: Default::default(),
             borderless_game: false,
             unified_titlebar: false,
+            panel: false,
         }
     }
 }
@@ -90,7 +92,7 @@ pub(crate) struct State {
     /// Strong reference to the global application state.
     app_state: Rc<AppState>,
 
-    window: Retained<WinitWindow>,
+    window: Retained<NSWindow>,
 
     // During `windowDidResize`, we use this to only send Moved if the position changed.
     //
@@ -501,7 +503,7 @@ fn new_window(
     app_state: &Rc<AppState>,
     attrs: &WindowAttributes,
     mtm: MainThreadMarker,
-) -> Option<Retained<WinitWindow>> {
+) -> Option<Retained<NSWindow>> {
     autoreleasepool(|_| {
         let screen = match attrs.fullscreen.clone().map(Into::into) {
             Some(Fullscreen::Borderless(Some(monitor)))
@@ -584,16 +586,33 @@ fn new_window(
         // confusing issues with the window not being properly activated.
         //
         // Winit ensures this by not allowing access to `ActiveEventLoop` before handling events.
-        let window: Option<Retained<WinitWindow>> = unsafe {
-            msg_send_id![
-                super(mtm.alloc().set_ivars(())),
-                initWithContentRect: frame,
-                styleMask: masks,
-                backing: NSBackingStoreType::NSBackingStoreBuffered,
-                defer: false,
-            ]
+        let window: Retained<NSWindow> = if attrs.platform_specific.panel {
+            masks |= NSWindowStyleMask::NonactivatingPanel;
+
+            let window: Option<Retained<WinitPanel>> = unsafe {
+                msg_send_id![
+                    super(mtm.alloc().set_ivars(())),
+                    initWithContentRect: frame,
+                    styleMask: masks,
+                    backing: NSBackingStoreType::NSBackingStoreBuffered,
+                    defer: false,
+                ]
+            };
+
+            window?.as_super().as_super().retain()
+        } else {
+            let window: Option<Retained<WinitWindow>> = unsafe {
+                msg_send_id![
+                    super(mtm.alloc().set_ivars(())),
+                    initWithContentRect: frame,
+                    styleMask: masks,
+                    backing: NSBackingStoreType::NSBackingStoreBuffered,
+                    defer: false,
+                ]
+            };
+
+            window?.as_super().retain()
         };
-        let window = window?;
 
         // It is very important for correct memory management that we
         // disable the extra release that would otherwise happen when
@@ -841,17 +860,17 @@ impl WindowDelegate {
     }
 
     #[track_caller]
-    pub(super) fn window(&self) -> &WinitWindow {
+    pub(super) fn window(&self) -> &NSWindow {
         &self.ivars().window
     }
 
     #[track_caller]
     pub(crate) fn id(&self) -> WindowId {
-        self.window().id()
+        window_id(self.window())
     }
 
     pub(crate) fn queue_event(&self, event: WindowEvent) {
-        let window_id = self.window().id();
+        let window_id = window_id(self.window());
         self.ivars().app_state.maybe_queue_with_handler(move |app, event_loop| {
             app.window_event(event_loop, window_id, event);
         });
@@ -950,7 +969,7 @@ impl WindowDelegate {
     }
 
     pub fn request_redraw(&self) {
-        self.ivars().app_state.queue_redraw(self.window().id());
+        self.ivars().app_state.queue_redraw(window_id(self.window()));
     }
 
     #[inline]
@@ -1488,7 +1507,7 @@ impl WindowDelegate {
 
         self.ivars().fullscreen.replace(fullscreen.clone());
 
-        fn toggle_fullscreen(window: &WinitWindow) {
+        fn toggle_fullscreen(window: &NSWindow) {
             // Window level must be restored from `CGShieldingWindowLevel()
             // + 1` back to normal in order for `toggleFullScreen` to do
             // anything

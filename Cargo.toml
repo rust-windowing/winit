@@ -128,6 +128,7 @@ objc2-app-kit = { version = "0.2.2", features = [
     "NSMenu",
     "NSMenuItem",
     "NSOpenGLView",
+    "NSPanel",
     "NSPasteboard",
     "NSResponder",
     "NSRunningApplication",

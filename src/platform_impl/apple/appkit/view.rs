@@ -9,7 +9,7 @@ use objc2::runtime::{AnyObject, Sel};
 use objc2::{declare_class, msg_send_id, mutability, ClassType, DeclaredClass};
 use objc2_app_kit::{
     NSApplication, NSCursor, NSEvent, NSEventPhase, NSResponder, NSTextInputClient,
-    NSTrackingRectTag, NSView,
+    NSTrackingRectTag, NSView, NSWindow,
 };
 use objc2_foundation::{
     MainThreadMarker, NSArray, NSAttributedString, NSAttributedStringKey, NSCopying,
@@ -23,7 +23,7 @@ use super::event::{
     code_to_key, code_to_location, create_key_event, event_mods, lalt_pressed, ralt_pressed,
     scancode_to_physicalkey, KeyEventExtra,
 };
-use super::window::WinitWindow;
+use super::window::window_id;
 use crate::dpi::{LogicalPosition, LogicalSize};
 use crate::event::{
     DeviceEvent, ElementState, Ime, KeyEvent, Modifiers, MouseButton, MouseScrollDelta,
@@ -201,7 +201,7 @@ declare_class!(
         fn draw_rect(&self, _rect: NSRect) {
             trace_scope!("drawRect:");
 
-            self.ivars().app_state.handle_redraw(self.window().id());
+            self.ivars().app_state.handle_redraw(window_id(&self.window()));
 
             // This is a direct subclass of NSView, no need to call superclass' drawRect:
         }
@@ -426,7 +426,7 @@ declare_class!(
             }
 
             // Send command action to user if they requested it.
-            let window_id = self.window().id();
+            let window_id = window_id(&self.window());
             self.ivars().app_state.maybe_queue_with_handler(move |app, event_loop| {
                 if let Some(handler) = app.macos_handler() {
                     handler.standard_key_binding(event_loop, window_id, command.name());
@@ -828,19 +828,12 @@ impl WinitView {
         this
     }
 
-    fn window(&self) -> Retained<WinitWindow> {
-        let window = (**self).window().expect("view must be installed in a window");
-
-        if !window.isKindOfClass(WinitWindow::class()) {
-            unreachable!("view installed in non-WinitWindow");
-        }
-
-        // SAFETY: Just checked that the window is `WinitWindow`
-        unsafe { Retained::cast(window) }
+    fn window(&self) -> Retained<NSWindow> {
+        (**self).window().expect("view must be installed in a window")
     }
 
     fn queue_event(&self, event: WindowEvent) {
-        let window_id = self.window().id();
+        let window_id = window_id(&self.window());
         self.ivars().app_state.maybe_queue_with_handler(move |app, event_loop| {
             app.window_event(event_loop, window_id, event);
         });
