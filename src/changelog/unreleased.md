@@ -59,6 +59,7 @@ changelog entry.
 - Implement `Clone`, `Copy`, `Debug`, `Deserialize`, `Eq`, `Hash`, `Ord`, `PartialEq`, `PartialOrd`
   and `Serialize` on many types.
 - Add `MonitorHandle::current_video_mode()`.
+- On Android, the soft keyboard can now be shown using `Window::set_ime_allowed`.
 - Add basic iOS IME support. The soft keyboard can now be shown using `Window::set_ime_allowed`.
 - Add `ApplicationHandlerExtMacOS` trait, and a `macos_handler` method to `ApplicationHandler` which returns a `dyn ApplicationHandlerExtMacOS` which allows for macOS specific extensions to winit.
 - Add a `standard_key_binding` method to the `ApplicationHandlerExtMacOS` trait. This allows handling of standard keybindings such as "go to end of line" on macOS.
@@ -72,6 +73,10 @@ changelog entry.
 - Add `DeviceId::into_raw()` and `from_raw()`.
 - On X11, the `window` example now understands the `X11_VISUAL_ID` and `X11_SCREEN_ID` env
   variables to test the respective modifiers of window creation.
+- Added `Window::surface_position`, which is the position of the surface inside the window.
+- Added `Window::safe_area`, which describes the area of the surface that is unobstructed.
+- On X11, Wayland, Windows and macOS, improved scancode conversions for more obscure key codes.
+- Add ability to make non-activating window on macOS using `NSPanel` with `NSWindowStyleMask::NonactivatingPanel`.
 
 ### Changed
 
@@ -157,6 +162,11 @@ changelog entry.
     identify a finger in a multi-touch interaction. Replaces the old `Touch::id`.
   - In the same spirit rename `DeviceEvent::MouseMotion` to `PointerMotion`.
   - Remove `Force::Calibrated::altitude_angle`.
+- On X11, use bottom-right corner for IME hotspot in `Window::set_ime_cursor_area`.
+- On macOS and iOS, no longer emit `ScaleFactorChanged` upon window creation.
+- On macOS, no longer emit `Focused` upon window creation.
+- On iOS, emit more events immediately, instead of queuing them.
+- Update `smol_str` to version `0.3`
 
 ### Removed
 
@@ -188,6 +198,7 @@ changelog entry.
 - Remove `WindowEvent::Touch` and `Touch` in favor of the new `PointerKind`, `PointerSource` and
  `ButtonSource` as part of the new pointer event overhaul.
 - Remove `Force::altitude_angle`.
+- Removed `Window::inner_position`, use the new `Window::surface_position` instead.
 
 ### Fixed
 
@@ -200,3 +211,11 @@ changelog entry.
 - On Windows, make `ControlFlow::WaitUntil` work more precisely using `CREATE_WAITABLE_TIMER_HIGH_RESOLUTION`.
 - On X11, creating windows on screen that is not the first one (e.g. `DISPLAY=:0.1`) works again.
 - On X11, creating windows while passing `with_x11_screen(non_default_screen)` works again.
+- On X11, fix XInput handling that prevented a new window from getting the focus in some cases.
+- On iOS, fixed `SurfaceResized` and `Window::surface_size` not reporting the size of the actual surface.
+- On macOS, fixed the scancode conversion for audio volume keys.
+- On macOS, fixed the scancode conversion for `IntlBackslash`.
+- On macOS, fixed redundant `SurfaceResized` event at window creation.
+- On macOS, fix crash when pressing Caps Lock in certain configurations.
+- On iOS, fixed `MonitorHandle`'s `PartialEq` and `Hash` implementations.
+- On macOS, fixed undocumented cursors (e.g. zoom, resize, help) always appearing to be invalid and falling back to the default cursor.

@@ -1,15 +1,15 @@
 use std::cell::{Cell, OnceCell, RefCell};
 use std::mem;
 use std::rc::{Rc, Weak};
-use std::sync::atomic::{AtomicBool, Ordering as AtomicOrdering};
+use std::sync::atomic::Ordering as AtomicOrdering;
 use std::sync::Arc;
 use std::time::Instant;
 
-use objc2_app_kit::{NSApplication, NSApplicationActivationPolicy};
+use objc2_app_kit::{NSApplication, NSApplicationActivationPolicy, NSRunningApplication};
 use objc2_foundation::{MainThreadMarker, NSNotification};
 
 use super::super::event_handler::EventHandler;
-use super::event_loop::{stop_app_immediately, ActiveEventLoop, PanicInfo};
+use super::event_loop::{stop_app_immediately, ActiveEventLoop, EventLoopProxy, PanicInfo};
 use super::menu;
 use super::observer::{EventLoopWaker, RunLoop};
 use crate::application::ApplicationHandler;
@@ -24,7 +24,7 @@ pub(super) struct AppState {
     default_menu: bool,
     activate_ignoring_other_apps: bool,
     run_loop: RunLoop,
-    proxy_wake_up: Arc<AtomicBool>,
+    event_loop_proxy: Arc<EventLoopProxy>,
     event_handler: EventHandler,
     stop_on_launch: Cell<bool>,
     stop_before_wait: Cell<bool>,
@@ -72,7 +72,7 @@ impl AppState {
         let this = Rc::new(AppState {
             mtm,
             activation_policy,
-            proxy_wake_up: Arc::new(AtomicBool::new(false)),
+            event_loop_proxy: Arc::new(EventLoopProxy::new()),
             default_menu,
             activate_ignoring_other_apps,
             run_loop: RunLoop::main(mtm),
@@ -113,10 +113,21 @@ impl AppState {
         // We need to delay setting the activation policy and activating the app
         // until `applicationDidFinishLaunching` has been called. Otherwise the
         // menu bar is initially unresponsive on macOS 10.15.
-        // If no activation policy is explicitly provided, do not set it at all
-        // to allow the package manifest to define behavior via LSUIElement.
-        if self.activation_policy.is_some() {
-            app.setActivationPolicy(self.activation_policy.unwrap());
+        if let Some(activation_policy) = self.activation_policy {
+            app.setActivationPolicy(activation_policy);
+        } else {
+            // If no activation policy is explicitly provided, and the application
+            // is bundled, do not set the activation policy at all, to allow the
+            // package manifest to define the behavior via LSUIElement.
+            //
+            // See:
+            // - https://github.com/rust-windowing/winit/issues/261
+            // - https://github.com/rust-windowing/winit/issues/3958
+            let is_bundled =
+                unsafe { NSRunningApplication::currentApplication().bundleIdentifier().is_some() };
+            if !is_bundled {
+                app.setActivationPolicy(NSApplicationActivationPolicy::Regular);
+            }
         }
 
         #[allow(deprecated)]
@@ -165,8 +176,8 @@ impl AppState {
         self.event_handler.set(handler, closure)
     }
 
-    pub fn proxy_wake_up(&self) -> Arc<AtomicBool> {
-        self.proxy_wake_up.clone()
+    pub fn event_loop_proxy(&self) -> &Arc<EventLoopProxy> {
+        &self.event_loop_proxy
     }
 
     /// If `pump_events` is called to progress the event loop then we
@@ -350,7 +361,7 @@ impl AppState {
             return;
         }
 
-        if self.proxy_wake_up.swap(false, AtomicOrdering::Relaxed) {
+        if self.event_loop_proxy.wake_up.swap(false, AtomicOrdering::Relaxed) {
             self.with_handler(|app, event_loop| app.proxy_wake_up(event_loop));
         }
 

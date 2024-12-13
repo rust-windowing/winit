@@ -5,7 +5,7 @@ use std::{fmt, str};
 
 use smol_str::SmolStr;
 
-pub(crate) use self::event_loop::{ActiveEventLoop, EventLoop, EventLoopProxy, OwnedDisplayHandle};
+pub(crate) use self::event_loop::{ActiveEventLoop, EventLoop};
 use crate::dpi::{PhysicalPosition, PhysicalSize};
 use crate::keyboard::Key;
 mod event_loop;
@@ -125,7 +125,7 @@ impl<'a> WindowProperties<'a> {
     }
 }
 
-impl<'a> fmt::Display for WindowProperties<'a> {
+impl fmt::Display for WindowProperties<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,

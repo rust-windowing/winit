@@ -92,6 +92,9 @@ pub trait WindowExtMacOS {
     /// This is how fullscreen used to work on macOS in versions before Lion.
     /// And allows the user to have a fullscreen window without using another
     /// space or taking control over the entire monitor.
+    ///
+    /// Make sure you only draw your important content inside the safe area so that it does not
+    /// overlap with the notch on newer devices, see [`Window::safe_area`] for details.
     fn set_simple_fullscreen(&self, fullscreen: bool) -> bool;
 
     /// Returns whether or not the window has shadow.
@@ -329,6 +332,13 @@ pub trait WindowAttributesExtMacOS {
     fn with_borderless_game(self, borderless_game: bool) -> Self;
     /// See [`WindowExtMacOS::set_unified_titlebar`] for details on what this means if set.
     fn with_unified_titlebar(self, unified_titlebar: bool) -> Self;
+    /// Use [`NSPanel`] window with [`NonactivatingPanel`] window style mask instead of
+    /// [`NSWindow`].
+    ///
+    /// [`NSWindow`]: https://developer.apple.com/documentation/appkit/NSWindow?language=objc
+    /// [`NSPanel`]: https://developer.apple.com/documentation/appkit/NSPanel?language=objc
+    /// [`NonactivatingPanel`]: https://developer.apple.com/documentation/appkit/nswindow/stylemask-swift.struct/nonactivatingpanel?language=objc
+    fn with_panel(self, panel: bool) -> Self;
 }
 
 impl WindowAttributesExtMacOS for WindowAttributes {
@@ -407,6 +417,12 @@ impl WindowAttributesExtMacOS for WindowAttributes {
     #[inline]
     fn with_unified_titlebar(mut self, unified_titlebar: bool) -> Self {
         self.platform_specific.unified_titlebar = unified_titlebar;
+        self
+    }
+
+    #[inline]
+    fn with_panel(mut self, panel: bool) -> Self {
+        self.platform_specific.panel = panel;
         self
     }
 }
