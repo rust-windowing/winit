@@ -27,6 +27,7 @@ pub struct Window {
     redraws: Arc<Mutex<VecDeque<WindowId>>>,
     destroys: Arc<Mutex<VecDeque<WindowId>>>,
     wake_socket: Arc<TimeSocket>,
+    window_attributes: window::WindowAttributes,
 }
 
 impl Window {
@@ -34,6 +35,7 @@ impl Window {
         el: &ActiveEventLoop,
         attrs: window::WindowAttributes,
     ) -> Result<Self, error::OsError> {
+        let cloned_attrs = attrs.clone();
         let scale = MonitorHandle.scale_factor();
 
         let (x, y) = if let Some(pos) = attrs.position {
@@ -123,6 +125,7 @@ impl Window {
             redraws: el.redraws.clone(),
             destroys: el.destroys.clone(),
             wake_socket: el.wake_socket.clone(),
+            window_attributes: cloned_attrs,
         })
     }
 
@@ -274,6 +277,11 @@ impl Window {
     #[inline]
     pub fn is_visible(&self) -> Option<bool> {
         Some(!self.get_flag(ORBITAL_FLAG_HIDDEN).unwrap_or(false))
+    }
+
+    #[inline]
+    pub fn window_attributes(&self) -> WindowAttributes {
+        self.window_attributes.clone()
     }
 
     #[inline]

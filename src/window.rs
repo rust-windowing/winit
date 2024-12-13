@@ -34,6 +34,7 @@ use serde::{Deserialize, Serialize};
 /// not be closed by dropping the [`Window`].
 pub struct Window {
     pub(crate) window: platform_impl::Window,
+    pub(crate) window_attributes: WindowAttributes,
 }
 
 impl fmt::Debug for Window {
@@ -989,6 +990,12 @@ impl Window {
     pub fn is_visible(&self) -> Option<bool> {
         let _span = tracing::debug_span!("winit::Window::is_visible",).entered();
         self.window.maybe_wait_on_main(|w| w.is_visible())
+    }
+
+    /// Get window attributes
+    #[inline]
+    pub fn window_attributes(&self) -> WindowAttributes {
+        self.window_attributes.clone()
     }
 
     /// Sets whether the window is resizable or not.

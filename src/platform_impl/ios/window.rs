@@ -130,6 +130,10 @@ impl Inner {
         self.window.setHidden(!visible)
     }
 
+    pub fn window_attributes(&self) -> WindowAttributes {
+        self.window_attributes.clone()
+    }
+
     pub fn is_visible(&self) -> Option<bool> {
         warn!("`Window::is_visible` is ignored on iOS");
         None
@@ -467,6 +471,7 @@ impl Inner {
 
 pub struct Window {
     inner: MainThreadBound<Inner>,
+    window_attributes: WindowAttributes,
 }
 
 impl Window {
@@ -475,6 +480,7 @@ impl Window {
         window_attributes: WindowAttributes,
     ) -> Result<Window, RootOsError> {
         let mtm = event_loop.mtm;
+        let cloned_attrs = window_attributes.clone();
 
         if window_attributes.min_inner_size.is_some() {
             warn!("`WindowAttributes::min_inner_size` is ignored on iOS");
@@ -549,7 +555,7 @@ impl Window {
         }
 
         let inner = Inner { window, view_controller, view, gl_or_metal_backed };
-        Ok(Window { inner: MainThreadBound::new(inner, mtm) })
+        Ok(Window { inner: MainThreadBound::new(inner, mtm), window_attributes: cloned_attrs })
     }
 
     pub(crate) fn maybe_queue_on_main(&self, f: impl FnOnce(&Inner) + Send + 'static) {

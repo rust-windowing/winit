@@ -14,6 +14,8 @@ pub(crate) struct Window {
     window: MainThreadBound<Retained<WinitWindow>>,
     /// The window only keeps a weak reference to this, so we must keep it around here.
     delegate: MainThreadBound<Retained<WindowDelegate>>,
+    /// Window Attributes
+    window_attributes: WindowAttributes,
 }
 
 impl Drop for Window {
@@ -27,6 +29,7 @@ impl Window {
         window_target: &ActiveEventLoop,
         attributes: WindowAttributes,
     ) -> Result<Self, RootOsError> {
+        let cloned_attrs = attributes.clone();
         let mtm = window_target.mtm;
         let delegate = autoreleasepool(|_| {
             WindowDelegate::new(window_target.app_delegate(), attributes, mtm)
@@ -34,6 +37,7 @@ impl Window {
         Ok(Window {
             window: MainThreadBound::new(delegate.window().retain(), mtm),
             delegate: MainThreadBound::new(delegate, mtm),
+            window_attributes: cloned_attrs,
         })
     }
 

@@ -74,6 +74,9 @@ pub struct Window {
 
     /// The event sink to deliver synthetic events.
     window_events_sink: Arc<Mutex<EventSink>>,
+
+    /// Get the window Attributes
+    window_attributes: WindowAttributes,
 }
 
 impl Window {
@@ -81,6 +84,7 @@ impl Window {
         event_loop_window_target: &ActiveEventLoop,
         attributes: WindowAttributes,
     ) -> Result<Self, RootOsError> {
+        let cloned_attributes = attributes.clone();
         let queue_handle = event_loop_window_target.queue_handle.clone();
         let mut state = event_loop_window_target.state.borrow_mut();
 
@@ -214,6 +218,7 @@ impl Window {
             monitors,
             window_id,
             compositor,
+            window_attributes: cloned_attributes,
             window_state,
             queue_handle,
             xdg_activation,
@@ -245,6 +250,11 @@ impl Window {
     #[inline]
     pub fn is_visible(&self) -> Option<bool> {
         None
+    }
+
+    #[inline]
+    pub fn window_attributes(&self) -> WindowAttributes {
+        self.window_attributes.clone()
     }
 
     #[inline]

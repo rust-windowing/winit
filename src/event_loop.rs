@@ -305,6 +305,7 @@ impl<T> EventLoop<T> {
     #[deprecated = "use `ActiveEventLoop::create_window` instead"]
     #[inline]
     pub fn create_window(&self, window_attributes: WindowAttributes) -> Result<Window, OsError> {
+        let cloned_attrs = window_attributes.clone();
         let _span = tracing::debug_span!(
             "winit::EventLoop::create_window",
             window_attributes = ?window_attributes
@@ -313,7 +314,7 @@ impl<T> EventLoop<T> {
 
         let window =
             platform_impl::Window::new(&self.event_loop.window_target().p, window_attributes)?;
-        Ok(Window { window })
+        Ok(Window { window, window_attributes: cloned_attrs })
     }
 
     /// Create custom cursor.
@@ -376,6 +377,7 @@ impl ActiveEventLoop {
     ///   see the web platform module for more information.
     #[inline]
     pub fn create_window(&self, window_attributes: WindowAttributes) -> Result<Window, OsError> {
+        let cloned_attrs = window_attributes.clone();
         let _span = tracing::debug_span!(
             "winit::ActiveEventLoop::create_window",
             window_attributes = ?window_attributes
@@ -383,7 +385,7 @@ impl ActiveEventLoop {
         .entered();
 
         let window = platform_impl::Window::new(&self.p, window_attributes)?;
-        Ok(Window { window })
+        Ok(Window { window, window_attributes: cloned_attrs })
     }
 
     /// Create custom cursor.

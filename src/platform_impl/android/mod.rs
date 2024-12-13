@@ -770,6 +770,7 @@ pub struct PlatformSpecificWindowAttributes;
 pub(crate) struct Window {
     app: AndroidApp,
     redraw_requester: RedrawRequester,
+    window_attributes: WindowAttributes,
 }
 
 impl Window {
@@ -862,6 +863,10 @@ impl Window {
 
     pub fn is_visible(&self) -> Option<bool> {
         None
+    }
+
+    pub fn window_attributes(&self) -> WindowAttributes {
+        self.window_attributes.clone()
     }
 
     pub fn set_resizable(&self, _resizeable: bool) {}

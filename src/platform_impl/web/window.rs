@@ -19,6 +19,7 @@ use std::sync::Arc;
 
 pub struct Window {
     inner: Dispatcher<Inner>,
+    window_attributes: WindowAttributes,
 }
 
 pub struct Inner {
@@ -33,6 +34,7 @@ impl Window {
         target: &ActiveEventLoop,
         mut attr: WindowAttributes,
     ) -> Result<Self, RootOE> {
+        let cloned_attrs = attr.clone();
         let id = target.generate_id();
 
         let window = target.runner.window();
@@ -63,7 +65,7 @@ impl Window {
         let (dispatcher, runner) = Dispatcher::new(target.runner.main_thread(), inner).unwrap();
         target.runner.add_canvas(RootWI(id), canvas, runner);
 
-        Ok(Window { inner: dispatcher })
+        Ok(Window { inner: dispatcher, window_attributes: cloned_attrs })
     }
 
     pub(crate) fn maybe_queue_on_main(&self, f: impl FnOnce(&Inner) + Send + 'static) {
@@ -127,6 +129,11 @@ impl Inner {
     #[inline]
     pub fn is_visible(&self) -> Option<bool> {
         None
+    }
+
+    #[inline]
+    pub fn window_attributes(&self) -> WindowAttributes {
+        self.window_attributes.clone()
     }
 
     pub fn request_redraw(&self) {

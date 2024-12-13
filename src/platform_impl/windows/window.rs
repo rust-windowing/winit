@@ -83,6 +83,9 @@ pub(crate) struct Window {
 
     // The events loop proxy.
     thread_executor: event_loop::EventLoopThreadExecutor,
+
+    // Window Attributes
+    window_attributes: WindowAttributes,
 }
 
 impl Window {

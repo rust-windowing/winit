@@ -125,6 +125,7 @@ pub struct UnownedWindow {
     pub shared_state: Mutex<SharedState>,
     redraw_sender: WakeSender<WindowId>,
     activation_sender: WakeSender<super::ActivationToken>,
+    window_attributes: WindowAttributes,
 }
 
 macro_rules! leap {
@@ -142,6 +143,7 @@ impl UnownedWindow {
         event_loop: &ActiveEventLoop,
         window_attrs: WindowAttributes,
     ) -> Result<UnownedWindow, RootOsError> {
+        let cloned_attrs = window_attrs.clone();
         let xconn = &event_loop.xconn;
         let atoms = xconn.atoms();
         #[cfg(feature = "rwh_06")]
@@ -337,6 +339,7 @@ impl UnownedWindow {
             xconn: Arc::clone(xconn),
             xwindow: xwindow as xproto::Window,
             visual,
+            window_attributes: cloned_attrs,
             root,
             screen_id,
             selected_cursor: Default::default(),
@@ -1152,6 +1155,11 @@ impl UnownedWindow {
     #[inline]
     pub fn is_visible(&self) -> Option<bool> {
         Some(self.shared_state_lock().visibility == Visibility::Yes)
+    }
+
+    #[inline]
+    pub fn window_attributes(&self) -> WindowAttributes {
+        self.window_attributes.clone()
     }
 
     fn update_cached_frame_extents(&self) {
