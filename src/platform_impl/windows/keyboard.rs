@@ -98,7 +98,7 @@ impl KeyEventBuilder {
                     MatchResult::MessagesToDispatch(self.pending.complete_multi(key_events))
                 },
                 WM_KILLFOCUS => {
-                    // sythesize keyup events
+                    // synthesize keyup events
                     let kbd_state = get_kbd_state();
                     let key_events = Self::synthesize_kbd_state(ElementState::Released, &kbd_state);
                     MatchResult::MessagesToDispatch(self.pending.complete_multi(key_events))
@@ -334,11 +334,11 @@ impl KeyEventBuilder {
         // We are synthesizing the press event for caps-lock first for the following reasons:
         // 1. If caps-lock is *not* held down but *is* active, then we have to synthesize all
         //    printable keys, respecting the caps-lock state.
-        // 2. If caps-lock is held down, we could choose to sythesize its keypress after every other
-        //    key, in which case all other keys *must* be sythesized as if the caps-lock state was
-        //    be the opposite of what it currently is.
+        // 2. If caps-lock is held down, we could choose to synthesize its keypress after every
+        //    other key, in which case all other keys *must* be sythesized as if the caps-lock state
+        //    was be the opposite of what it currently is.
         // --
-        // For the sake of simplicity we are choosing to always sythesize
+        // For the sake of simplicity we are choosing to always synthesize
         // caps-lock first, and always use the current caps-lock state
         // to determine the produced text
         if is_key_pressed!(VK_CAPITAL) {

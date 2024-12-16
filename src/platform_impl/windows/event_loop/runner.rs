@@ -377,19 +377,19 @@ impl<T> BufferedEvent<T> {
         match self {
             Self::Event(event) => dispatch(event),
             Self::ScaleFactorChanged(window_id, scale_factor, new_inner_size) => {
-                let user_new_innner_size = Arc::new(Mutex::new(new_inner_size));
+                let user_new_inner_size = Arc::new(Mutex::new(new_inner_size));
                 dispatch(Event::WindowEvent {
                     window_id,
                     event: WindowEvent::ScaleFactorChanged {
                         scale_factor,
                         inner_size_writer: InnerSizeWriter::new(Arc::downgrade(
-                            &user_new_innner_size,
+                            &user_new_inner_size,
                         )),
                     },
                 });
-                let inner_size = *user_new_innner_size.lock().unwrap();
+                let inner_size = *user_new_inner_size.lock().unwrap();
 
-                drop(user_new_innner_size);
+                drop(user_new_inner_size);
 
                 if inner_size != new_inner_size {
                     let window_flags = unsafe {
