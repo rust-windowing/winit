@@ -7,7 +7,12 @@
 //!
 //! ```no_run
 //! use winit::event_loop::EventLoop;
-//! let event_loop = EventLoop::new().unwrap();
+//!
+//! # // Intentionally use `fn main` for clarity
+//! fn main() {
+//!     let event_loop = EventLoop::new().unwrap();
+//!     // ...
+//! }
 //! ```
 //!
 //! Then you create a [`Window`] with [`create_window`].
@@ -84,19 +89,22 @@
 //!     }
 //! }
 //!
-//! let event_loop = EventLoop::new().unwrap();
+//! # // Intentionally use `fn main` for clarity
+//! fn main() {
+//!     let event_loop = EventLoop::new().unwrap();
 //!
-//! // ControlFlow::Poll continuously runs the event loop, even if the OS hasn't
-//! // dispatched any events. This is ideal for games and similar applications.
-//! event_loop.set_control_flow(ControlFlow::Poll);
+//!     // ControlFlow::Poll continuously runs the event loop, even if the OS hasn't
+//!     // dispatched any events. This is ideal for games and similar applications.
+//!     event_loop.set_control_flow(ControlFlow::Poll);
 //!
-//! // ControlFlow::Wait pauses the event loop if no events are available to process.
-//! // This is ideal for non-game applications that only update in response to user
-//! // input, and uses significantly less power/CPU time than ControlFlow::Poll.
-//! event_loop.set_control_flow(ControlFlow::Wait);
+//!     // ControlFlow::Wait pauses the event loop if no events are available to process.
+//!     // This is ideal for non-game applications that only update in response to user
+//!     // input, and uses significantly less power/CPU time than ControlFlow::Poll.
+//!     event_loop.set_control_flow(ControlFlow::Wait);
 //!
-//! let mut app = App::default();
-//! event_loop.run_app(&mut app);
+//!     let mut app = App::default();
+//!     event_loop.run_app(&mut app);
+//! }
 //! ```
 //!
 //! [`WindowEvent`] has a [`WindowId`] member. In multi-window environments, it should be

@@ -31,6 +31,8 @@ use winit::platform::macos::{OptionAsAlt, WindowAttributesExtMacOS, WindowExtMac
 use winit::platform::startup_notify::{
     self, EventLoopExtStartupNotify, WindowAttributesExtStartupNotify, WindowExtStartupNotify,
 };
+#[cfg(x11_platform)]
+use winit::platform::x11::WindowAttributesExtX11;
 
 #[path = "util/tracing.rs"]
 mod tracing;
@@ -138,6 +140,28 @@ impl Application {
             startup_notify::reset_activation_token_env();
             info!("Using token {:?} to activate a window", token);
             window_attributes = window_attributes.with_activation_token(token);
+        }
+
+        #[cfg(x11_platform)]
+        match std::env::var("X11_VISUAL_ID") {
+            Ok(visual_id_str) => {
+                info!("Using X11 visual id {visual_id_str}");
+                let visual_id = visual_id_str.parse()?;
+                window_attributes = window_attributes.with_x11_visual(visual_id);
+            },
+            Err(_) => info!("Set the X11_VISUAL_ID env variable to request specific X11 visual"),
+        }
+
+        #[cfg(x11_platform)]
+        match std::env::var("X11_SCREEN_ID") {
+            Ok(screen_id_str) => {
+                info!("Placing the window on X11 screen {screen_id_str}");
+                let screen_id = screen_id_str.parse()?;
+                window_attributes = window_attributes.with_x11_screen(screen_id);
+            },
+            Err(_) => info!(
+                "Set the X11_SCREEN_ID env variable to place the window on non-default screen"
+            ),
         }
 
         #[cfg(macos_platform)]

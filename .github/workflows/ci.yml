@@ -221,7 +221,7 @@ jobs:
 
     steps:
     - uses: taiki-e/checkout-action@v1
-    - uses: EmbarkStudios/cargo-deny-action@v1
+    - uses: EmbarkStudios/cargo-deny-action@v2
       with:
         command: check
         log-level: error

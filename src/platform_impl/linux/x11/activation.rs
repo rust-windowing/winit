@@ -165,7 +165,7 @@ fn push_display(buffer: &mut Vec<u8>, display: &impl std::fmt::Display) {
         buffer: &'a mut Vec<u8>,
     }
 
-    impl<'a> std::fmt::Write for Writer<'a> {
+    impl std::fmt::Write for Writer<'_> {
         fn write_str(&mut self, s: &str) -> std::fmt::Result {
             self.buffer.extend_from_slice(s.as_bytes());
             Ok(())

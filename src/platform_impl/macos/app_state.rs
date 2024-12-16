@@ -5,7 +5,9 @@ use std::time::Instant;
 
 use objc2::rc::Retained;
 use objc2::{declare_class, msg_send_id, mutability, ClassType, DeclaredClass};
-use objc2_app_kit::{NSApplication, NSApplicationActivationPolicy, NSApplicationDelegate};
+use objc2_app_kit::{
+    NSApplication, NSApplicationActivationPolicy, NSApplicationDelegate, NSRunningApplication,
+};
 use objc2_foundation::{MainThreadMarker, NSNotification, NSObject, NSObjectProtocol};
 
 use super::event_handler::EventHandler;
@@ -18,7 +20,7 @@ use crate::window::WindowId as RootWindowId;
 
 #[derive(Debug)]
 pub(super) struct AppState {
-    activation_policy: NSApplicationActivationPolicy,
+    activation_policy: Option<NSApplicationActivationPolicy>,
     default_menu: bool,
     activate_ignoring_other_apps: bool,
     run_loop: RunLoop,
@@ -74,7 +76,7 @@ declare_class!(
 impl ApplicationDelegate {
     pub(super) fn new(
         mtm: MainThreadMarker,
-        activation_policy: NSApplicationActivationPolicy,
+        activation_policy: Option<NSApplicationActivationPolicy>,
         default_menu: bool,
         activate_ignoring_other_apps: bool,
     ) -> Retained<Self> {
@@ -111,7 +113,24 @@ impl ApplicationDelegate {
         // We need to delay setting the activation policy and activating the app
         // until `applicationDidFinishLaunching` has been called. Otherwise the
         // menu bar is initially unresponsive on macOS 10.15.
-        app.setActivationPolicy(self.ivars().activation_policy);
+        // If no activation policy is explicitly provided, do not set it at all
+        // to allow the package manifest to define behavior via LSUIElement.
+        if let Some(activation_policy) = self.ivars().activation_policy {
+            app.setActivationPolicy(activation_policy);
+        } else {
+            // If no activation policy is explicitly provided, and the application
+            // is bundled, do not set the activation policy at all, to allow the
+            // package manifest to define the behavior via LSUIElement.
+            //
+            // See:
+            // - https://github.com/rust-windowing/winit/issues/261
+            // - https://github.com/rust-windowing/winit/issues/3958
+            let is_bundled =
+                unsafe { NSRunningApplication::currentApplication().bundleIdentifier().is_some() };
+            if !is_bundled {
+                app.setActivationPolicy(NSApplicationActivationPolicy::Regular);
+            }
+        }
 
         window_activation_hack(&app);
         #[allow(deprecated)]

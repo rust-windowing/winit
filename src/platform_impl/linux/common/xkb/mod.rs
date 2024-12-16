@@ -184,7 +184,7 @@ pub struct KeyContext<'a> {
     scratch_buffer: &'a mut Vec<u8>,
 }
 
-impl<'a> KeyContext<'a> {
+impl KeyContext<'_> {
     pub fn process_key_event(
         &mut self,
         keycode: u32,

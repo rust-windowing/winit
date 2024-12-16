@@ -422,7 +422,7 @@ impl fmt::Display for BadAnimation {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Empty => write!(f, "No cursors supplied"),
-            Self::Animation => write!(f, "A supplied cursor is an animtion"),
+            Self::Animation => write!(f, "A supplied cursor is an animation"),
         }
     }
 }

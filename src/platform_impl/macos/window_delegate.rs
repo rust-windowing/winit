@@ -55,6 +55,7 @@ pub struct PlatformSpecificWindowAttributes {
     pub accepts_first_mouse: bool,
     pub tabbing_identifier: Option<String>,
     pub option_as_alt: OptionAsAlt,
+    pub borderless_game: bool,
 }
 
 impl Default for PlatformSpecificWindowAttributes {
@@ -72,6 +73,7 @@ impl Default for PlatformSpecificWindowAttributes {
             accepts_first_mouse: true,
             tabbing_identifier: None,
             option_as_alt: Default::default(),
+            borderless_game: false,
         }
     }
 }
@@ -85,8 +87,8 @@ pub(crate) struct State {
 
     // During `windowDidResize`, we use this to only send Moved if the position changed.
     //
-    // This is expressed in native screen coordinates.
-    previous_position: Cell<Option<NSPoint>>,
+    // This is expressed in desktop coordinates, and flipped to match Winit's coordinate system.
+    previous_position: Cell<NSPoint>,
 
     // Used to prevent redundant events.
     previous_scale_factor: Cell<f64>,
@@ -120,6 +122,7 @@ pub(crate) struct State {
     standard_frame: Cell<Option<NSRect>>,
     is_simple_fullscreen: Cell<bool>,
     saved_style: Cell<Option<NSWindowStyleMask>>,
+    is_borderless_game: Cell<bool>,
 }
 
 declare_class!(
@@ -711,7 +714,7 @@ impl WindowDelegate {
         let delegate = mtm.alloc().set_ivars(State {
             app_delegate: app_delegate.retain(),
             window: window.retain(),
-            previous_position: Cell::new(None),
+            previous_position: Cell::new(flip_window_screen_coordinates(window.frame())),
             previous_scale_factor: Cell::new(scale_factor),
             resize_increments: Cell::new(resize_increments),
             decorations: Cell::new(attrs.decorations),
@@ -725,6 +728,7 @@ impl WindowDelegate {
             standard_frame: Cell::new(None),
             is_simple_fullscreen: Cell::new(false),
             saved_style: Cell::new(None),
+            is_borderless_game: Cell::new(attrs.platform_specific.borderless_game),
         });
         let delegate: Retained<WindowDelegate> = unsafe { msg_send_id![super(delegate), init] };
 
@@ -835,13 +839,12 @@ impl WindowDelegate {
     }
 
     fn emit_move_event(&self) {
-        let frame = self.window().frame();
-        if self.ivars().previous_position.get() == Some(frame.origin) {
+        let position = flip_window_screen_coordinates(self.window().frame());
+        if self.ivars().previous_position.get() == position {
             return;
         }
-        self.ivars().previous_position.set(Some(frame.origin));
+        self.ivars().previous_position.set(position);
 
-        let position = flip_window_screen_coordinates(frame);
         let position =
             LogicalPosition::new(position.x, position.y).to_physical(self.scale_factor());
         self.queue_event(WindowEvent::Moved(position));
@@ -1160,7 +1163,8 @@ impl WindowDelegate {
     #[inline]
     pub fn drag_window(&self) -> Result<(), ExternalError> {
         let mtm = MainThreadMarker::from(self);
-        let event = NSApplication::sharedApplication(mtm).currentEvent().unwrap();
+        let event =
+            NSApplication::sharedApplication(mtm).currentEvent().ok_or(ExternalError::Ignored)?;
         self.window().performWindowDragWithEvent(&event);
         Ok(())
     }
@@ -1409,7 +1413,7 @@ impl WindowDelegate {
         }
 
         match (old_fullscreen, fullscreen) {
-            (None, Some(_)) => {
+            (None, Some(fullscreen)) => {
                 // `toggleFullScreen` doesn't work if the `StyleMask` is none, so we
                 // set a normal style temporarily. The previous state will be
                 // restored in `WindowDelegate::window_did_exit_fullscreen`.
@@ -1419,6 +1423,17 @@ impl WindowDelegate {
                     self.set_style_mask(required);
                     self.ivars().saved_style.set(Some(curr_mask));
                 }
+
+                // In borderless games, we want to disable the dock and menu bar
+                // by setting the presentation options. We do this here rather than in
+                // `window:willUseFullScreenPresentationOptions` because for some reason
+                // the menu bar remains interactable despite being hidden.
+                if self.is_borderless_game() && matches!(fullscreen, Fullscreen::Borderless(_)) {
+                    let presentation_options = NSApplicationPresentationOptions::NSApplicationPresentationHideDock
+                            | NSApplicationPresentationOptions::NSApplicationPresentationHideMenuBar;
+                    app.setPresentationOptions(presentation_options);
+                }
+
                 toggle_fullscreen(self.window());
             },
             (Some(Fullscreen::Borderless(_)), None) => {
@@ -1828,6 +1843,14 @@ impl WindowExtMacOS for WindowDelegate {
 
     fn option_as_alt(&self) -> OptionAsAlt {
         self.view().option_as_alt()
+    }
+
+    fn set_borderless_game(&self, borderless_game: bool) {
+        self.ivars().is_borderless_game.set(borderless_game);
+    }
+
+    fn is_borderless_game(&self) -> bool {
+        self.ivars().is_borderless_game.get()
     }
 }
 

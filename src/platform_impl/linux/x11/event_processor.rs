@@ -145,8 +145,19 @@ impl EventProcessor {
     {
         let event_type = xev.get_type();
 
-        if self.filter_event(xev) {
-            if event_type == xlib::KeyPress || event_type == xlib::KeyRelease {
+        // If we have IME disabled, don't try to `filter_event`, since only IME can consume them
+        // and forward back. This is not desired for e.g. games since some IMEs may delay the input
+        // and game can toggle IME back when e.g. typing into some field where latency won't really
+        // matter.
+        if event_type == xlib::KeyPress || event_type == xlib::KeyRelease {
+            let wt = Self::window_target(&self.target);
+            let ime = wt.ime.as_ref();
+            let window = self.active_window.map(|window| window as XWindow);
+            let forward_to_ime = ime
+                .and_then(|ime| window.map(|window| ime.borrow().is_ime_allowed(window)))
+                .unwrap_or(false);
+
+            if forward_to_ime && self.filter_event(xev) {
                 let xev: &XKeyEvent = xev.as_ref();
                 if self.xmodmap.is_modifier(xev.keycode as u8) {
                     // Don't grow the buffer past the `MAX_MOD_REPLAY_LEN`. This could happen
@@ -159,7 +170,8 @@ impl EventProcessor {
                     self.xfiltered_modifiers.push_front(xev.serial);
                 }
             }
-            return;
+        } else {
+            self.filter_event(xev);
         }
 
         match event_type {

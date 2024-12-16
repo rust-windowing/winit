@@ -1,3 +1,15 @@
+use std::cell::{Cell, RefCell};
+use std::collections::{HashSet, VecDeque};
+use std::iter;
+use std::num::NonZeroUsize;
+use std::ops::Deref;
+use std::rc::{Rc, Weak};
+
+use wasm_bindgen::prelude::Closure;
+use wasm_bindgen::JsCast;
+use web_sys::{Document, KeyboardEvent, PageTransitionEvent, PointerEvent, WheelEvent};
+use web_time::{Duration, Instant};
+
 use super::super::main_thread::MainThreadMarker;
 use super::super::DeviceId;
 use super::backend;
@@ -13,18 +25,6 @@ use crate::platform_impl::platform::backend::EventListenerHandle;
 use crate::platform_impl::platform::r#async::{DispatchRunner, Waker, WakerSpawner};
 use crate::platform_impl::platform::window::Inner;
 use crate::window::WindowId;
-
-use js_sys::Function;
-use std::cell::{Cell, RefCell};
-use std::collections::{HashSet, VecDeque};
-use std::iter;
-use std::num::NonZeroUsize;
-use std::ops::Deref;
-use std::rc::{Rc, Weak};
-use wasm_bindgen::prelude::{wasm_bindgen, Closure};
-use wasm_bindgen::JsCast;
-use web_sys::{Document, KeyboardEvent, PageTransitionEvent, PointerEvent, WheelEvent};
-use web_time::{Duration, Instant};
 
 pub struct Shared(Rc<Execution>);
 
@@ -459,33 +459,24 @@ impl Shared {
 
         if local {
             // If the loop is not running and triggered locally, queue on next microtick.
-            if let Ok(RunnerEnum::Running(ref runner)) =
+            if let Ok(RunnerEnum::Running(_)) =
                 self.0.runner.try_borrow().as_ref().map(Deref::deref)
             {
-                // If we're currently polling let `send_events` do its job.
-                if !matches!(runner.state, State::Poll { .. }) {
-                    #[wasm_bindgen]
-                    extern "C" {
-                        #[wasm_bindgen(js_name = queueMicrotask)]
-                        fn queue_microtask(task: Function);
-                    }
-
-                    queue_microtask(
-                        Closure::once_into_js({
-                            let this = Rc::downgrade(&self.0);
-                            move || {
-                                if let Some(shared) = this.upgrade() {
-                                    Shared(shared).send_events(
-                                        iter::repeat(Event::UserEvent(())).take(count.get()),
-                                    )
-                                }
+                self.window().queue_microtask(
+                    &Closure::once_into_js({
+                        let this = Rc::downgrade(&self.0);
+                        move || {
+                            if let Some(shared) = this.upgrade() {
+                                Shared(shared).send_events(
+                                    iter::repeat(Event::UserEvent(())).take(count.get()),
+                                )
                             }
-                        })
-                        .unchecked_into(),
-                    );
+                        }
+                    })
+                    .unchecked_into(),
+                );
 
-                    return;
-                }
+                return;
             }
         }
 

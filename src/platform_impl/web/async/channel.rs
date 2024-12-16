@@ -23,7 +23,7 @@ pub struct Sender<T>(Arc<SenderInner<T>>);
 struct SenderInner<T> {
     // We need to wrap it into a `Mutex` to make it `Sync`. So the sender can't
     // be accessed on the main thread, as it could block. Additionally we need
-    // to wrap `Sender` in an `Arc` to make it clonable on the main thread without
+    // to wrap `Sender` in an `Arc` to make it cloneable on the main thread without
     // having to block.
     sender: Mutex<mpsc::Sender<T>>,
     shared: Arc<Shared>,

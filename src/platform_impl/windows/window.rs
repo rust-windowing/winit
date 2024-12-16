@@ -1129,7 +1129,7 @@ pub(super) struct InitData<'a> {
     pub window: Option<Window>,
 }
 
-impl<'a> InitData<'a> {
+impl InitData<'_> {
     unsafe fn create_window(&self, window: HWND) -> Window {
         // Register for touch events if applicable
         {

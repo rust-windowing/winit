@@ -226,6 +226,16 @@ impl Ime {
         // Create new context supporting IME input.
         let _ = self.create_context(window, allowed);
     }
+
+    pub fn is_ime_allowed(&self, window: ffi::Window) -> bool {
+        if self.is_destroyed() {
+            false
+        } else if let Some(Some(context)) = self.inner.contexts.get(&window) {
+            context.is_allowed()
+        } else {
+            false
+        }
+    }
 }
 
 impl Drop for Ime {

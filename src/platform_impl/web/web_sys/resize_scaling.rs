@@ -139,10 +139,9 @@ impl ResizeScaleInternal {
 
         // Safari doesn't support `devicePixelContentBoxSize`
         if has_device_pixel_support() {
-            observer.observe_with_options(
-                canvas,
-                ResizeObserverOptions::new().box_(ResizeObserverBoxOptions::DevicePixelContentBox),
-            );
+            let options = ResizeObserverOptions::new();
+            options.set_box(ResizeObserverBoxOptions::DevicePixelContentBox);
+            observer.observe_with_options(canvas, &options);
         } else {
             observer.observe(canvas);
         }
