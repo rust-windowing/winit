@@ -134,8 +134,7 @@ impl VideoModeHandle {
 #[derive(Clone)]
 pub struct MonitorHandle(CGDirectDisplayID);
 
-#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-struct MonitorUuid([u8; 16]);
+type MonitorUuid = [u8; 16];
 
 impl MonitorHandle {
     /// Internal comparisons of [`MonitorHandle`]s are done first requesting a UUID for the handle.
@@ -144,7 +143,7 @@ impl MonitorHandle {
             CFUUID::wrap_under_create_rule(ffi::CGDisplayCreateUUIDFromDisplayID(self.0))
         };
         let uuid = unsafe { CFUUIDGetUUIDBytes(cf_uuid.as_concrete_TypeRef()) };
-        MonitorUuid([
+        MonitorUuid::from([
             uuid.byte0,
             uuid.byte1,
             uuid.byte2,
