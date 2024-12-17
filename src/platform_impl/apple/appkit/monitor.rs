@@ -7,6 +7,7 @@ use std::num::{NonZeroU16, NonZeroU32};
 use core_foundation::array::{CFArrayGetCount, CFArrayGetValueAtIndex};
 use core_foundation::base::{CFRelease, TCFType};
 use core_foundation::string::CFString;
+use core_foundation::uuid::{CFUUIDGetUUIDBytes, CFUUID};
 use core_graphics::display::{
     CGDirectDisplayID, CGDisplay, CGDisplayBounds, CGDisplayCopyDisplayMode,
 };
@@ -133,10 +134,34 @@ impl VideoModeHandle {
 #[derive(Clone)]
 pub struct MonitorHandle(CGDirectDisplayID);
 
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+struct MonitorUuid([u8; 16]);
+
 impl MonitorHandle {
     /// Internal comparisons of [`MonitorHandle`]s are done first requesting a UUID for the handle.
-    fn uuid(&self) -> ffi::CfUuid {
-        ffi::CfUuid::from_display_id(self.0)
+    fn uuid(&self) -> MonitorUuid {
+        let cf_uuid = unsafe {
+            CFUUID::wrap_under_create_rule(ffi::CGDisplayCreateUUIDFromDisplayID(self.0))
+        };
+        let uuid = unsafe { CFUUIDGetUUIDBytes(cf_uuid.as_concrete_TypeRef()) };
+        MonitorUuid([
+            uuid.byte0,
+            uuid.byte1,
+            uuid.byte2,
+            uuid.byte3,
+            uuid.byte4,
+            uuid.byte5,
+            uuid.byte6,
+            uuid.byte7,
+            uuid.byte8,
+            uuid.byte9,
+            uuid.byte10,
+            uuid.byte11,
+            uuid.byte12,
+            uuid.byte13,
+            uuid.byte14,
+            uuid.byte15,
+        ])
     }
 }
 
@@ -289,8 +314,8 @@ impl MonitorHandle {
         let uuid = self.uuid();
         NSScreen::screens(mtm).into_iter().find(|screen| {
             let other_native_id = get_display_id(screen);
-            let other_uuid = ffi::CfUuid::from_display_id(other_native_id);
-            uuid == other_uuid
+            let other = MonitorHandle::new(other_native_id);
+            uuid == other.uuid()
         })
     }
 }
