@@ -13,6 +13,7 @@
 //! * `wayland-csd-adwaita` (default).
 //! * `wayland-csd-adwaita-crossfont`.
 //! * `wayland-csd-adwaita-notitle`.
+#[cfg(wayland_platform)]
 use sctk::shell::wlr_layer::{Anchor, KeyboardInteractivity, Layer};
 
 use crate::event_loop::{ActiveEventLoop, EventLoop, EventLoopBuilder};
@@ -90,14 +91,19 @@ pub trait WindowAttributesExtWayland {
     /// [Desktop Entry Spec](https://specifications.freedesktop.org/desktop-entry-spec/desktop-entry-spec-latest.html#desktop-file-id)
     fn with_name(self, general: impl Into<String>, instance: impl Into<String>) -> Self;
 
+    #[cfg(wayland_platform)]
     fn with_anchor(self, anchor: Anchor) -> Self;
 
+    #[cfg(wayland_platform)]
     fn with_exclusive_zone(self, exclusive_zone: i32) -> Self;
 
+    #[cfg(wayland_platform)]
     fn with_margin(self, top: i32, right: i32, bottom: i32, left: i32) -> Self;
 
+    #[cfg(wayland_platform)]
     fn with_keyboard_interactivity(self, keyboard_interactivity: KeyboardInteractivity) -> Self;
 
+    #[cfg(wayland_platform)]
     fn with_layer(self, layer: Layer) -> Self;
 }
 
@@ -110,24 +116,28 @@ impl WindowAttributesExtWayland for WindowAttributes {
     }
 
     #[inline]
+    #[cfg(wayland_platform)]
     fn with_anchor(mut self, anchor: Anchor) -> Self {
         self.platform_specific.wayland.anchor = Some(anchor);
         self
     }
 
     #[inline]
+    #[cfg(wayland_platform)]
     fn with_exclusive_zone(mut self, exclusive_zone: i32) -> Self {
         self.platform_specific.wayland.exclusive_zone = Some(exclusive_zone);
         self
     }
 
     #[inline]
+    #[cfg(wayland_platform)]
     fn with_margin(mut self, top: i32, right: i32, bottom: i32, left: i32) -> Self {
         self.platform_specific.wayland.margin = Some((top, right, bottom, left));
         self
     }
 
     #[inline]
+    #[cfg(wayland_platform)]
     fn with_keyboard_interactivity(
         mut self,
         keyboard_interactivity: KeyboardInteractivity,
@@ -137,6 +147,7 @@ impl WindowAttributesExtWayland for WindowAttributes {
     }
 
     #[inline]
+    #[cfg(wayland_platform)]
     fn with_layer(mut self, layer: Layer) -> Self {
         self.platform_specific.wayland.layer = Some(layer);
         self
