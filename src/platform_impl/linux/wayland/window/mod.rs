@@ -401,12 +401,13 @@ impl CoreWindow for Window {
     }
 
     fn outer_position(&self) -> Result<PhysicalPosition<i32>, RequestError> {
-        Err(NotSupportedError::new("window position information is not available on Wayland")
-            .into())
+        // XXX just for LayerShell
+        self.window_state.lock().unwrap().outer_position()
     }
 
-    fn set_outer_position(&self, _position: Position) {
-        // Not possible.
+    fn set_outer_position(&self, position: Position) {
+        // XXX just for LayerShell
+        self.window_state.lock().unwrap().set_outer_position(position);
     }
 
     fn surface_size(&self) -> PhysicalSize<u32> {
