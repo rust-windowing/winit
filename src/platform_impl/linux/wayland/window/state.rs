@@ -5,6 +5,7 @@ use std::sync::{Arc, Mutex, Weak};
 use std::time::Duration;
 
 use ahash::HashSet;
+use dpi::{PhysicalPosition, Position};
 use sctk::compositor::{CompositorState, Region, SurfaceData, SurfaceDataExt};
 use sctk::reexports::client::backend::ObjectId;
 use sctk::reexports::client::protocol::wl_seat::WlSeat;
@@ -78,7 +79,7 @@ pub struct WindowState {
     /// Queue handle.
     pub queue_handle: QueueHandle<WinitState>,
 
-    /// State that differes based on being an XDG shell or a WLR layer shell
+    /// State that differs based on being an XDG shell or a WLR layer shell
     shell_specific: ShellSpecificState,
 
     /// Theme variant.
@@ -86,9 +87,6 @@ pub struct WindowState {
 
     /// The current window title.
     title: String,
-
-    /// Whether the frame is resizable.
-    resizable: bool,
 
     // NOTE: we can't use simple counter, since it's racy when seat getting destroyed and new
     // is created, since add/removed stuff could be delivered a bit out of order.
@@ -229,7 +227,6 @@ impl WindowState {
             pointer_constraints,
             pointers: Default::default(),
             queue_handle: queue_handle.clone(),
-            resizable: true,
             scale_factor: 1.,
             shm: winit_state.shm.wl_shm().clone(),
             custom_cursor_pool: winit_state.custom_cursor_pool.clone(),
@@ -272,11 +269,10 @@ impl WindowState {
             },
             size: initial_size.to_logical(1.0),
             selected_cursor: Default::default(),
-            decorate: true,
+            decorate: false,
             frame_callback_state: FrameCallbackState::None,
             seat_focus: Default::default(),
             has_pending_move: None,
-            resizable: true,
             custom_cursor_pool: winit_state.custom_cursor_pool.clone(),
             initial_size: Some(initial_size),
             text_inputs: Vec::new(),
@@ -736,6 +732,27 @@ impl WindowState {
         }
     }
 
+    #[inline]
+    pub fn outer_position(&self) -> Result<PhysicalPosition<i32>, RequestError> {
+        Err(NotSupportedError::new("window position information is not available on xdg Wayland")
+            .into())
+    }
+
+    pub fn set_outer_position(&self, position: Position) {
+        let position = position.to_logical(self.scale_factor);
+
+        match &self.shell_specific {
+            ShellSpecificState::Xdg { .. } => {
+                warn!("Change window position is not available on xdg Wayland",)
+            },
+            // XXX just works for LayerShell
+            // Probably we can save this change to get in the `outer_position` function
+            ShellSpecificState::WlrLayer { surface, .. } => {
+                surface.set_margin(position.y, 0, 0, position.x)
+            },
+        }
+    }
+
     /// Get the outer size of the window.
     #[inline]
     pub fn outer_size(&self) -> LogicalSize<u32> {
@@ -865,7 +882,8 @@ impl WindowState {
                     outer_size.height as i32,
                 );
 
-                // Update the target viewport, this is used if and only if fractional scaling is in use.
+                // Update the target viewport, this is used if and only if fractional scaling is in
+                // use.
                 if let Some(viewport) = viewport.as_ref() {
                     // Set inner size without the borders.
                     viewport.set_destination(self.size.width as _, self.size.height as _);
