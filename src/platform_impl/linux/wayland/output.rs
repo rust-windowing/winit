@@ -60,7 +60,11 @@ impl MonitorHandle {
             let mode = info.modes.iter().find(|mode| mode.current).cloned();
 
             mode.map(|mode| {
-                PlatformVideoModeHandle::Wayland(VideoModeHandle::new(self.clone(), mode))
+                PlatformVideoModeHandle::Wayland(VideoModeHandle::new(
+                    self.clone(),
+                    info.logical_size,
+                    mode,
+                ))
             })
         })
     }
@@ -68,12 +72,13 @@ impl MonitorHandle {
     #[inline]
     pub fn video_modes(&self) -> impl Iterator<Item = PlatformVideoModeHandle> {
         let output_data = self.proxy.data::<OutputData>().unwrap();
-        let modes = output_data.with_output_info(|info| info.modes.clone());
+        let (size, modes) =
+            output_data.with_output_info(|info| (info.logical_size, info.modes.clone()));
 
         let monitor = self.clone();
 
         modes.into_iter().map(move |mode| {
-            PlatformVideoModeHandle::Wayland(VideoModeHandle::new(monitor.clone(), mode))
+            PlatformVideoModeHandle::Wayland(VideoModeHandle::new(monitor.clone(), size, mode))
         })
     }
 }
@@ -112,9 +117,12 @@ pub struct VideoModeHandle {
 }
 
 impl VideoModeHandle {
-    fn new(monitor: MonitorHandle, mode: Mode) -> Self {
+    fn new(monitor: MonitorHandle, size: Option<(i32, i32)>, mode: Mode) -> Self {
         VideoModeHandle {
-            size: (mode.dimensions.0 as u32, mode.dimensions.1 as u32).into(),
+            size: size
+                .map(|(x, y)| (x as u32, y as u32))
+                .unwrap_or_else(|| (mode.dimensions.0 as u32, mode.dimensions.1 as u32))
+                .into(),
             refresh_rate_millihertz: NonZeroU32::new(mode.refresh_rate as u32),
             monitor: monitor.clone(),
         }
