@@ -59,20 +59,14 @@ changelog entry.
 - Implement `Clone`, `Copy`, `Debug`, `Deserialize`, `Eq`, `Hash`, `Ord`, `PartialEq`, `PartialOrd`
   and `Serialize` on many types.
 - Add `MonitorHandle::current_video_mode()`.
-- On Android, the soft keyboard can now be shown using `Window::set_ime_allowed`.
-- Add basic iOS IME support. The soft keyboard can now be shown using `Window::set_ime_allowed`.
 - Add `ApplicationHandlerExtMacOS` trait, and a `macos_handler` method to `ApplicationHandler` which returns a `dyn ApplicationHandlerExtMacOS` which allows for macOS specific extensions to winit.
 - Add a `standard_key_binding` method to the `ApplicationHandlerExtMacOS` trait. This allows handling of standard keybindings such as "go to end of line" on macOS.
-- On macOS, add `WindowExtMacOS::set_borderless_game` and `WindowAttributesExtMacOS::with_borderless_game`
-  to fully disable the menu bar and dock in Borderless Fullscreen as commonly done in games.
 - On macOS, add `WindowExtMacOS::set_unified_titlebar` and `WindowAttributesExtMacOS::with_unified_titlebar`
   to use a larger style of titlebar.
 - Add `WindowId::into_raw()` and `from_raw()`.
 - Add `PointerKind`, `PointerSource`, `ButtonSource`, `FingerId`, `primary` and `position` to all
   pointer events as part of the pointer event overhaul.
 - Add `DeviceId::into_raw()` and `from_raw()`.
-- On X11, the `window` example now understands the `X11_VISUAL_ID` and `X11_SCREEN_ID` env
-  variables to test the respective modifiers of window creation.
 - Added `Window::surface_position`, which is the position of the surface inside the window.
 - Added `Window::safe_area`, which describes the area of the surface that is unobstructed.
 - On X11, Wayland, Windows and macOS, improved scancode conversions for more obscure key codes.
@@ -202,19 +196,7 @@ changelog entry.
 ### Fixed
 
 - On Orbital, `MonitorHandle::name()` now returns `None` instead of a dummy name.
-- On macOS, fix `WindowEvent::Moved` sometimes being triggered unnecessarily on resize.
-- On macOS, package manifest definitions of `LSUIElement` will no longer be overridden with the
-  default activation policy, unless explicitly provided during initialization.
-- On macOS, fix crash when calling `drag_window()` without a left click present.
-- On X11, key events forward to IME anyway, even when it's disabled.
-- On Windows, make `ControlFlow::WaitUntil` work more precisely using `CREATE_WAITABLE_TIMER_HIGH_RESOLUTION`.
-- On X11, creating windows on screen that is not the first one (e.g. `DISPLAY=:0.1`) works again.
-- On X11, creating windows while passing `with_x11_screen(non_default_screen)` works again.
-- On X11, fix XInput handling that prevented a new window from getting the focus in some cases.
 - On iOS, fixed `SurfaceResized` and `Window::surface_size` not reporting the size of the actual surface.
 - On macOS, fixed the scancode conversion for audio volume keys.
 - On macOS, fixed the scancode conversion for `IntlBackslash`.
 - On macOS, fixed redundant `SurfaceResized` event at window creation.
-- On macOS, fix crash when pressing Caps Lock in certain configurations.
-- On iOS, fixed `MonitorHandle`'s `PartialEq` and `Hash` implementations.
-- On macOS, fixed undocumented cursors (e.g. zoom, resize, help) always appearing to be invalid and falling back to the default cursor.
