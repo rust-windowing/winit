@@ -129,6 +129,7 @@ impl EventProcessor {
     /// Specifically, this involves all of the KeyPress events in compose/pre-edit sequences,
     /// along with an extra copy of the KeyRelease events. This also prevents backspace and
     /// arrow keys from being detected twice.
+    #[must_use]
     fn filter_event(&mut self, xev: &mut XEvent) -> bool {
         let wt = Self::window_target(&self.target);
         unsafe {
@@ -149,7 +150,7 @@ impl EventProcessor {
         // and forward back. This is not desired for e.g. games since some IMEs may delay the input
         // and game can toggle IME back when e.g. typing into some field where latency won't really
         // matter.
-        if event_type == xlib::KeyPress || event_type == xlib::KeyRelease {
+        let filtered = if event_type == xlib::KeyPress || event_type == xlib::KeyRelease {
             let wt = Self::window_target(&self.target);
             let ime = wt.ime.as_ref();
             let window = self.active_window.map(|window| window as XWindow);
@@ -157,7 +158,8 @@ impl EventProcessor {
                 .and_then(|ime| window.map(|window| ime.borrow().is_ime_allowed(window)))
                 .unwrap_or(false);
 
-            if forward_to_ime && self.filter_event(xev) {
+            let filtered = forward_to_ime && self.filter_event(xev);
+            if filtered {
                 let xev: &XKeyEvent = xev.as_ref();
                 if self.xmodmap.is_modifier(xev.keycode as u8) {
                     // Don't grow the buffer past the `MAX_MOD_REPLAY_LEN`. This could happen
@@ -170,8 +172,15 @@ impl EventProcessor {
                     self.xfiltered_modifiers.push_front(xev.serial);
                 }
             }
+
+            filtered
         } else {
-            self.filter_event(xev);
+            self.filter_event(xev)
+        };
+
+        // Don't process event if it was filtered.
+        if filtered {
+            return;
         }
 
         match event_type {
