@@ -200,4 +200,3 @@ changelog entry.
 - On macOS, fixed the scancode conversion for audio volume keys.
 - On macOS, fixed the scancode conversion for `IntlBackslash`.
 - On macOS, fixed redundant `SurfaceResized` event at window creation.
-- On X11, fixed KeyboardInput delivered twice when IME enabled.
