@@ -70,7 +70,7 @@ mod platform {
         }
     }
 
-    pub fn fill_window(window: &dyn Window) {
+    pub fn fill_window(window: &dyn Window, color: u32) {
         GC.with(|gc| {
             let size = window.surface_size();
             let (Some(width), Some(height)) =
@@ -84,13 +84,12 @@ mod platform {
             let surface =
                 gc.get_or_insert_with(|| GraphicsContext::new(window)).create_surface(window);
 
-            // Fill a buffer with a solid color.
-            const DARK_GRAY: u32 = 0xff181818;
+            // Fill a buffer with a solid color
 
             surface.resize(width, height).expect("Failed to resize the softbuffer surface");
 
             let mut buffer = surface.buffer_mut().expect("Failed to get the softbuffer buffer");
-            buffer.fill(DARK_GRAY);
+            buffer.fill(color);
             buffer.present().expect("Failed to present the softbuffer buffer");
         })
     }

@@ -38,7 +38,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                 WindowEvent::CloseRequested => event_loop.exit(),
                 WindowEvent::RedrawRequested => {
                     window.pre_present_notify();
-                    fill::fill_window(window.as_ref());
+                    fill::fill_window(window.as_ref(), 0xff181818);
                 },
                 _ => (),
             }
