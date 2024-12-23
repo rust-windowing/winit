@@ -68,7 +68,7 @@ fn main() -> Result<(), impl std::error::Error> {
                         if window_id == self.parent_window_id.unwrap() {
                             fill::fill_window(window.as_ref(), 0xff181818);
                         } else {
-                            fill::fill_window(window.as_ref(), 0xffBBBBBB);
+                            fill::fill_window(window.as_ref(), 0xffbbbbbb);
                         }
                     }
                 },
