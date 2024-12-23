@@ -40,6 +40,10 @@ changelog entry.
 
 ## Unreleased
 
+### Added
+
+- On X11, add a workaround for disabling IME on GNOME.
+
 ### Fixed
 
 - On Windows, fixed the event loop not waking on accessibility requests.
