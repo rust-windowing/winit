@@ -107,7 +107,7 @@ mod platform {
 
 #[cfg(any(target_os = "android", target_os = "ios"))]
 mod platform {
-    pub fn fill_window(_window: &dyn winit::window::Window) {
+    pub fn fill_window(_window: &dyn winit::window::Window, color: u32) {
         // No-op on mobile platforms.
     }
 
