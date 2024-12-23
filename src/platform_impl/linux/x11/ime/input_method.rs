@@ -81,7 +81,9 @@ impl InputMethod {
         }
 
         let preedit_style = preedit_style.unwrap_or_else(|| none_style.unwrap());
-        let none_style = none_style.unwrap_or(preedit_style);
+        // Always initialize none style even when it's not advertised, since it seems to work
+        // regardless...
+        let none_style = none_style.unwrap_or(Style::None(XIM_NONE_STYLE));
 
         Some(InputMethod { im, _name: name, preedit_style, none_style })
     }
