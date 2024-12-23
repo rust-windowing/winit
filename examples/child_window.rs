@@ -85,7 +85,6 @@ fn main() -> Result<(), impl std::error::Error> {
         let parent = parent.raw_window_handle().unwrap();
 
         // As child count increases, x goes from 0*128 to 5*128 and then repeats
-        println!("{}", child_count);
         let x: f64 = child_count.rem_euclid(5) as f64 * 128.0;
 
         // After 5 windows have been put side by side horizontally, a new row starts 
