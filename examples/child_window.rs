@@ -56,15 +56,20 @@ fn main() -> Result<(), impl std::error::Error> {
                     event: KeyEvent { state: ElementState::Pressed, .. },
                     ..
                 } => {
+                    let child_index = self.windows.len() - 1;
                     let parent_window = self.windows.get(&self.parent_window_id.unwrap()).unwrap();
-                    let child_window = spawn_child_window(parent_window.as_ref(), event_loop);
+                    let child_window = spawn_child_window(parent_window.as_ref(), event_loop, child_index as i32);
                     let child_id = child_window.id();
                     println!("Child window created with id: {child_id:?}");
                     self.windows.insert(child_id, child_window);
                 },
                 WindowEvent::RedrawRequested => {
                     if let Some(window) = self.windows.get(&window_id) {
-                        fill::fill_window(window.as_ref());
+                        if window_id == self.parent_window_id.unwrap() {
+                            fill::fill_window(window.as_ref(), 0xff181818);
+                        } else {
+                            fill::fill_window(window.as_ref(), 0xffBBBBBB);
+                        }
                     }
                 },
                 _ => (),
@@ -75,12 +80,21 @@ fn main() -> Result<(), impl std::error::Error> {
     fn spawn_child_window(
         parent: &dyn Window,
         event_loop: &dyn ActiveEventLoop,
+        child_count: i32,
     ) -> Box<dyn Window> {
         let parent = parent.raw_window_handle().unwrap();
+
+        //As child count increases, x goes from 0*128 to 5*128 and then repeats
+        println!("{}", child_count);
+        let x: f64 = child_count.rem_euclid(5) as f64 * 128.0;
+
+        //After 5 windows have been put side by side horizontally, a new row starts 
+        let y: f64 = (child_count / 5) as f64 * 96.0;
+
         let mut window_attributes = WindowAttributes::default()
             .with_title("child window")
-            .with_surface_size(LogicalSize::new(200.0f32, 200.0f32))
-            .with_position(Position::Logical(LogicalPosition::new(0.0, 0.0)))
+            .with_surface_size(LogicalSize::new(128.0f32, 96.0))
+            .with_position(Position::Logical(LogicalPosition::new(x, y)))
             .with_visible(true);
         // `with_parent_window` is unsafe. Parent window must be a valid window.
         window_attributes = unsafe { window_attributes.with_parent_window(Some(parent)) };
