@@ -736,6 +736,7 @@ fn wait_for_messages_impl(
         let (num_handles, raw_handles) =
             if use_timer { (1, [high_resolution_timer.unwrap()]) } else { (0, [ptr::null_mut()]) };
 
+        // We must use `QS_ALLINPUT` to wake on accessibility messages.
         let result = MsgWaitForMultipleObjectsEx(
             num_handles,
             raw_handles.as_ptr() as *const _,
