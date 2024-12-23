@@ -58,7 +58,8 @@ fn main() -> Result<(), impl std::error::Error> {
                 } => {
                     let child_index = self.windows.len() - 1;
                     let parent_window = self.windows.get(&self.parent_window_id.unwrap()).unwrap();
-                    let child_window = spawn_child_window(parent_window.as_ref(), event_loop, child_index as i32);
+                    let child_window =
+                        spawn_child_window(parent_window.as_ref(), event_loop, child_index as i32);
                     let child_id = child_window.id();
                     println!("Child window created with id: {child_id:?}");
                     self.windows.insert(child_id, child_window);
@@ -87,7 +88,7 @@ fn main() -> Result<(), impl std::error::Error> {
         // As child count increases, x goes from 0*128 to 5*128 and then repeats
         let x: f64 = child_count.rem_euclid(5) as f64 * 128.0;
 
-        // After 5 windows have been put side by side horizontally, a new row starts 
+        // After 5 windows have been put side by side horizontally, a new row starts
         let y: f64 = (child_count / 5) as f64 * 96.0;
 
         let mut window_attributes = WindowAttributes::default()
