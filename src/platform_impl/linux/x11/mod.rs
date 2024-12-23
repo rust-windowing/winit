@@ -373,15 +373,21 @@ impl EventLoop {
         &self.event_processor.target
     }
 
-    pub fn run_app<A: ApplicationHandler>(mut self, app: A) -> Result<(), EventLoopError> {
-        self.run_app_on_demand(app)
+    pub fn run<A: ApplicationHandler>(
+        mut self,
+        init_closure: impl FnOnce(&dyn RootActiveEventLoop) -> A,
+    ) -> Result<(), EventLoopError> {
+        self.run_on_demand(init_closure)
     }
 
-    pub fn run_app_on_demand<A: ApplicationHandler>(
+    pub fn run_on_demand<A: ApplicationHandler>(
         &mut self,
-        mut app: A,
+        init_closure: impl FnOnce(&dyn RootActiveEventLoop) -> A,
     ) -> Result<(), EventLoopError> {
         self.event_processor.target.clear_exit();
+
+        let mut app = init_closure(&self.event_processor.target);
+
         let exit = loop {
             match self.pump_app_events(None, &mut app) {
                 PumpStatus::Exit(0) => {
@@ -428,8 +434,6 @@ impl EventLoop {
         }
         if let Some(code) = self.exit_code() {
             self.loop_running = false;
-
-            app.exiting(self.window_target());
 
             PumpStatus::Exit(code)
         } else {

@@ -496,15 +496,21 @@ impl EventLoop {
         input_status
     }
 
-    pub fn run_app<A: ApplicationHandler>(mut self, app: A) -> Result<(), EventLoopError> {
-        self.run_app_on_demand(app)
+    pub fn run<A: ApplicationHandler>(
+        mut self,
+        init_closure: impl FnOnce(&dyn RootActiveEventLoop) -> A,
+    ) -> Result<(), EventLoopError> {
+        self.run_on_demand(init_closure)
     }
 
-    pub fn run_app_on_demand<A: ApplicationHandler>(
+    pub fn run_on_demand<A: ApplicationHandler>(
         &mut self,
-        mut app: A,
+        init_closure: impl FnOnce(&dyn RootActiveEventLoop) -> A,
     ) -> Result<(), EventLoopError> {
         self.window_target.clear_exit();
+
+        let mut app = init_closure(&self.window_target);
+
         loop {
             match self.pump_app_events(None, &mut app) {
                 PumpStatus::Exit(0) => {
@@ -545,8 +551,6 @@ impl EventLoop {
         }
         if self.exiting() {
             self.loop_running = false;
-
-            app.exiting(&self.window_target);
 
             PumpStatus::Exit(0)
         } else {
