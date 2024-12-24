@@ -43,7 +43,7 @@ fn main() -> std::process::ExitCode {
             match event {
                 WindowEvent::CloseRequested => event_loop.exit(),
                 WindowEvent::RedrawRequested => {
-                    fill::fill_window(window.as_ref());
+                    fill::fill_window(window.as_ref(), 0xff181818);
                     window.request_redraw();
                 },
                 _ => (),
