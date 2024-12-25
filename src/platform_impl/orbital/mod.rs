@@ -1,16 +1,16 @@
 #![cfg(target_os = "redox")]
 
-use std::num::{NonZeroU16, NonZeroU32};
 use std::{fmt, str};
 
 use smol_str::SmolStr;
 
 pub(crate) use self::event_loop::{ActiveEventLoop, EventLoop};
-use crate::dpi::{PhysicalPosition, PhysicalSize};
-use crate::keyboard::Key;
-mod event_loop;
-
 pub use self::window::Window;
+use crate::dpi::PhysicalPosition;
+use crate::keyboard::Key;
+use crate::monitor::VideoMode;
+
+mod event_loop;
 mod window;
 
 pub(crate) use crate::cursor::{
@@ -151,38 +151,13 @@ impl MonitorHandle {
         1.0 // TODO
     }
 
-    pub fn current_video_mode(&self) -> Option<VideoModeHandle> {
+    pub fn current_video_mode(&self) -> Option<VideoMode> {
         // (it is guaranteed to support 32 bit color though)
-        Some(VideoModeHandle { monitor: self.clone() })
-    }
-
-    pub fn video_modes(&self) -> impl Iterator<Item = VideoModeHandle> {
-        self.current_video_mode().into_iter()
-    }
-}
-
-#[derive(Clone, Debug, Eq, Hash, PartialEq)]
-pub struct VideoModeHandle {
-    monitor: MonitorHandle,
-}
-
-impl VideoModeHandle {
-    pub fn size(&self) -> PhysicalSize<u32> {
-        // TODO
-        PhysicalSize::default()
-    }
-
-    pub fn bit_depth(&self) -> Option<NonZeroU16> {
         None
     }
 
-    pub fn refresh_rate_millihertz(&self) -> Option<NonZeroU32> {
-        // TODO
-        None
-    }
-
-    pub fn monitor(&self) -> MonitorHandle {
-        self.monitor.clone()
+    pub fn video_modes(&self) -> impl Iterator<Item = VideoMode> {
+        std::iter::empty()
     }
 }
 

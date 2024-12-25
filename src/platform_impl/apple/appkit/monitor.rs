@@ -17,22 +17,18 @@ use objc2_foundation::{ns_string, run_on_main, MainThreadMarker, NSNumber, NSPoi
 
 use super::ffi;
 use crate::dpi::{LogicalPosition, PhysicalPosition, PhysicalSize};
+use crate::monitor::VideoMode;
 
 #[derive(Clone)]
 pub struct VideoModeHandle {
-    size: PhysicalSize<u32>,
-    bit_depth: Option<NonZeroU16>,
-    refresh_rate_millihertz: Option<NonZeroU32>,
+    pub(crate) mode: VideoMode,
     pub(crate) monitor: MonitorHandle,
     pub(crate) native_mode: NativeDisplayMode,
 }
 
 impl PartialEq for VideoModeHandle {
     fn eq(&self, other: &Self) -> bool {
-        self.size == other.size
-            && self.bit_depth == other.bit_depth
-            && self.refresh_rate_millihertz == other.refresh_rate_millihertz
-            && self.monitor == other.monitor
+        self.monitor == other.monitor && self.mode == other.mode
     }
 }
 
@@ -40,19 +36,14 @@ impl Eq for VideoModeHandle {}
 
 impl std::hash::Hash for VideoModeHandle {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        self.size.hash(state);
-        self.bit_depth.hash(state);
-        self.refresh_rate_millihertz.hash(state);
         self.monitor.hash(state);
     }
 }
 
 impl std::fmt::Debug for VideoModeHandle {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("VideoModeHandle")
-            .field("size", &self.size)
-            .field("bit_depth", &self.bit_depth)
-            .field("refresh_rate_millihertz", &self.refresh_rate_millihertz)
+        f.debug_struct("VideoMode")
+            .field("mode", &self.mode)
             .field("monitor", &self.monitor)
             .finish()
     }
@@ -83,13 +74,14 @@ impl Clone for NativeDisplayMode {
 impl VideoModeHandle {
     fn new(
         monitor: MonitorHandle,
-        mode: NativeDisplayMode,
+        native_mode: NativeDisplayMode,
         refresh_rate_millihertz: Option<NonZeroU32>,
     ) -> Self {
         unsafe {
-            let pixel_encoding =
-                CFString::wrap_under_create_rule(ffi::CGDisplayModeCopyPixelEncoding(mode.0))
-                    .to_string();
+            let pixel_encoding = CFString::wrap_under_create_rule(
+                ffi::CGDisplayModeCopyPixelEncoding(native_mode.0),
+            )
+            .to_string();
             let bit_depth = if pixel_encoding.eq_ignore_ascii_case(ffi::IO32BitDirectPixels) {
                 32
             } else if pixel_encoding.eq_ignore_ascii_case(ffi::IO16BitDirectPixels) {
@@ -100,33 +92,17 @@ impl VideoModeHandle {
                 unimplemented!()
             };
 
-            VideoModeHandle {
+            let mode = VideoMode {
                 size: PhysicalSize::new(
-                    ffi::CGDisplayModeGetPixelWidth(mode.0) as u32,
-                    ffi::CGDisplayModeGetPixelHeight(mode.0) as u32,
+                    ffi::CGDisplayModeGetPixelWidth(native_mode.0) as u32,
+                    ffi::CGDisplayModeGetPixelHeight(native_mode.0) as u32,
                 ),
                 refresh_rate_millihertz,
                 bit_depth: NonZeroU16::new(bit_depth),
-                monitor: monitor.clone(),
-                native_mode: mode,
-            }
+            };
+
+            VideoModeHandle { mode, monitor: monitor.clone(), native_mode }
         }
-    }
-
-    pub fn size(&self) -> PhysicalSize<u32> {
-        self.size
-    }
-
-    pub fn bit_depth(&self) -> Option<NonZeroU16> {
-        self.bit_depth
-    }
-
-    pub fn refresh_rate_millihertz(&self) -> Option<NonZeroU32> {
-        self.refresh_rate_millihertz
-    }
-
-    pub fn monitor(&self) -> MonitorHandle {
-        self.monitor.clone()
     }
 }
 
@@ -240,13 +216,17 @@ impl MonitorHandle {
         refresh_rate_millihertz(self.0, &current_display_mode)
     }
 
-    pub fn current_video_mode(&self) -> Option<VideoModeHandle> {
+    pub fn current_video_mode(&self) -> Option<VideoMode> {
         let mode = NativeDisplayMode(unsafe { CGDisplayCopyDisplayMode(self.0) } as _);
         let refresh_rate_millihertz = refresh_rate_millihertz(self.0, &mode);
-        Some(VideoModeHandle::new(self.clone(), mode, refresh_rate_millihertz))
+        Some(VideoModeHandle::new(self.clone(), mode, refresh_rate_millihertz).mode)
     }
 
-    pub fn video_modes(&self) -> impl Iterator<Item = VideoModeHandle> {
+    pub fn video_modes(&self) -> impl Iterator<Item = VideoMode> {
+        self.video_modes_handles().map(|handle| handle.mode)
+    }
+
+    pub(crate) fn video_modes_handles(&self) -> impl Iterator<Item = VideoModeHandle> {
         let refresh_rate_millihertz = self.refresh_rate_millihertz();
         let monitor = self.clone();
 

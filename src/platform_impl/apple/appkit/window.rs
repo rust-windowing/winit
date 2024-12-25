@@ -64,7 +64,7 @@ impl Window {
 impl Drop for Window {
     fn drop(&mut self) {
         // Restore the video mode.
-        if matches!(self.fullscreen(), Some(Fullscreen::Exclusive(_))) {
+        if matches!(self.fullscreen(), Some(Fullscreen::Exclusive(_, _))) {
             self.set_fullscreen(None);
         }
 

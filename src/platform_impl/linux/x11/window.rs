@@ -32,7 +32,6 @@ use crate::platform_impl::x11::{
 };
 use crate::platform_impl::{
     common, Fullscreen, MonitorHandle as PlatformMonitorHandle, PlatformCustomCursor, PlatformIcon,
-    VideoModeHandle as PlatformVideoModeHandle,
 };
 use crate::window::{
     CursorGrabMode, ImePurpose, ResizeDirection, Theme, UserAttentionType, Window as CoreWindow,
@@ -327,7 +326,7 @@ impl Drop for Window {
         let xconn = &window.xconn;
 
         // Restore the video mode on drop.
-        if let Some(Fullscreen::Exclusive(_)) = window.fullscreen() {
+        if let Some(Fullscreen::Exclusive(..)) = window.fullscreen() {
             window.set_fullscreen(None);
         }
 
@@ -1035,20 +1034,17 @@ impl UnownedWindow {
             // fullscreen, so we can restore it upon exit, as XRandR does not
             // provide a mechanism to set this per app-session or restore this
             // to the desktop video mode as macOS and Windows do
-            (&None, &Some(Fullscreen::Exclusive(PlatformVideoModeHandle::X(ref video_mode))))
-            | (
-                &Some(Fullscreen::Borderless(_)),
-                &Some(Fullscreen::Exclusive(PlatformVideoModeHandle::X(ref video_mode))),
-            ) => {
-                let monitor = video_mode.monitor.as_ref().unwrap();
+            (&None, &Some(Fullscreen::Exclusive(ref monitor, _)))
+            | (&Some(Fullscreen::Borderless(_)), &Some(Fullscreen::Exclusive(ref monitor, _))) => {
+                let id = monitor.native_identifier();
                 shared_state_lock.desktop_video_mode = Some((
-                    monitor.id,
-                    self.xconn.get_crtc_mode(monitor.id).expect("Failed to get desktop video mode"),
+                    id,
+                    self.xconn.get_crtc_mode(id).expect("Failed to get desktop video mode"),
                 ));
             },
             // Restore desktop video mode upon exiting exclusive fullscreen
-            (&Some(Fullscreen::Exclusive(_)), &None)
-            | (&Some(Fullscreen::Exclusive(_)), &Some(Fullscreen::Borderless(_))) => {
+            (&Some(Fullscreen::Exclusive(..)), &None)
+            | (&Some(Fullscreen::Exclusive(..)), &Some(Fullscreen::Borderless(_))) => {
                 let (monitor_id, mode_id) = shared_state_lock.desktop_video_mode.take().unwrap();
                 self.xconn
                     .set_crtc_config(monitor_id, mode_id)
@@ -1072,8 +1068,8 @@ impl UnownedWindow {
             },
             Some(fullscreen) => {
                 let (video_mode, monitor) = match fullscreen {
-                    Fullscreen::Exclusive(PlatformVideoModeHandle::X(ref video_mode)) => {
-                        (Some(video_mode), video_mode.monitor.clone().unwrap())
+                    Fullscreen::Exclusive(PlatformMonitorHandle::X(monitor), video_mode) => {
+                        (Some(video_mode), monitor.clone())
                     },
                     Fullscreen::Borderless(Some(PlatformMonitorHandle::X(monitor))) => {
                         (None, monitor)
@@ -1090,7 +1086,18 @@ impl UnownedWindow {
                     return Ok(None);
                 }
 
-                if let Some(video_mode) = video_mode {
+                if let Some(native_mode) = video_mode.and_then(|requested| {
+                    monitor.video_modes.iter().find_map(|mode| {
+                        if mode.refresh_rate_millihertz == requested.refresh_rate_millihertz
+                            && mode.size == requested.size
+                            && mode.bit_depth == requested.bit_depth
+                        {
+                            Some(mode.native_mode)
+                        } else {
+                            None
+                        }
+                    })
+                }) {
                     // FIXME: this is actually not correct if we're setting the
                     // video mode to a resolution higher than the current
                     // desktop resolution, because XRandR does not automatically
@@ -1117,7 +1124,7 @@ impl UnownedWindow {
                     // this will make someone unhappy, but it's very unusual for
                     // games to want to do this anyway).
                     self.xconn
-                        .set_crtc_config(monitor.id, video_mode.native_mode)
+                        .set_crtc_config(monitor.id, native_mode)
                         .expect("failed to set video mode");
                 }
 
