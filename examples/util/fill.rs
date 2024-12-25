@@ -9,10 +9,8 @@
 
 #[allow(unused_imports)]
 pub use platform::cleanup_window;
-
 #[allow(unused_imports)]
 pub use platform::fill_window;
-
 #[allow(unused_imports)]
 pub use platform::fill_window_with_color;
 
