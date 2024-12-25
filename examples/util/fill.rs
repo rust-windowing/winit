@@ -99,6 +99,7 @@ mod platform {
         })
     }
 
+    #[allow(dead_code)]
     pub fn fill_window(window: &dyn Window) {
         fill_window_with_color(window, 0xff181818);
     }
