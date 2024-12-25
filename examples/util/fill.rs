@@ -119,6 +119,7 @@ mod platform {
         // No-op on mobile platforms.
     }
 
+    #[allow(dead_code)]
     pub fn fill_window_with_color(_window: &dyn winit::window::Window, _color: u32) {
         // No-op on mobile platforms.
     }
