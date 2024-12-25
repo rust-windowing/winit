@@ -1,5 +1,6 @@
 #[cfg(any(x11_platform, macos_platform, windows_platform))]
 #[allow(deprecated)]
+
 fn main() -> Result<(), impl std::error::Error> {
     use std::collections::HashMap;
 
@@ -13,10 +14,24 @@ fn main() -> Result<(), impl std::error::Error> {
     #[path = "util/fill.rs"]
     mod fill;
 
+    struct WindowData {
+        window: Box<dyn Window>,
+        color: u32
+    }
+
+    impl WindowData {
+        fn new(window: Box<dyn Window>, color: u32) -> Self {
+            Self {
+                window: window,
+                color: color
+            }
+        }
+    }
+
     #[derive(Default)]
     struct Application {
         parent_window_id: Option<WindowId>,
-        windows: HashMap<WindowId, Box<dyn Window>>,
+        windows: HashMap<WindowId, WindowData>,
     }
 
     impl ApplicationHandler for Application {
@@ -26,11 +41,10 @@ fn main() -> Result<(), impl std::error::Error> {
                 .with_position(Position::Logical(LogicalPosition::new(0.0, 0.0)))
                 .with_surface_size(LogicalSize::new(640.0f32, 480.0f32));
             let window = event_loop.create_window(attributes).unwrap();
-
             println!("Parent window id: {:?})", window.id());
             self.parent_window_id = Some(window.id());
 
-            self.windows.insert(window.id(), window);
+            self.windows.insert(window.id(), WindowData::new(window, 0xffbbbbbb));
         }
 
         fn window_event(
@@ -56,20 +70,22 @@ fn main() -> Result<(), impl std::error::Error> {
                     event: KeyEvent { state: ElementState::Pressed, .. },
                     ..
                 } => {
-                    let child_index = self.windows.len() - 1;
+                    let child_index: i32 = ( self.windows.len() - 1 ) as i32;
+                    let child_color: u32 = 0xff000000 as u32 + ( (3 as u32).pow((child_index + 2).rem_euclid(16) as u32));
+
                     let parent_window = self.windows.get(&self.parent_window_id.unwrap()).unwrap();
                     let child_window =
-                        spawn_child_window(parent_window.as_ref(), event_loop, child_index as i32);
+                        spawn_child_window(parent_window.window.as_ref(), event_loop, child_index);
                     let child_id = child_window.id();
                     println!("Child window created with id: {child_id:?}");
-                    self.windows.insert(child_id, child_window);
+                    self.windows.insert(child_id, WindowData::new(child_window, child_color as u32));
                 },
                 WindowEvent::RedrawRequested => {
                     if let Some(window) = self.windows.get(&window_id) {
                         if window_id == self.parent_window_id.unwrap() {
-                            fill::fill_window_with_color(window.as_ref(), 0xff181818);
+                            fill::fill_window_with_color(window.window.as_ref(), 0xff181818);
                         } else {
-                            fill::fill_window_with_color(window.as_ref(), 0xffbbbbbb);
+                            fill::fill_window_with_color(window.window.as_ref(), window.color);
                         }
                     }
                 },
