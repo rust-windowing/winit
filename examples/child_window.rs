@@ -67,16 +67,15 @@ fn main() -> Result<(), impl std::error::Error> {
                     ..
                 } => {
                     let child_index: i32 = (self.windows.len() - 1) as i32;
-                    let child_color: u32 = 0xff000000_u32
-                        + ((3 as u32).pow((child_index + 2).rem_euclid(16) as u32));
+                    let child_color: u32 =
+                        0xff000000_u32 + ((3_u32).pow((child_index + 2).rem_euclid(16) as u32));
 
                     let parent_window = self.windows.get(&self.parent_window_id.unwrap()).unwrap();
                     let child_window =
                         spawn_child_window(parent_window.window.as_ref(), event_loop, child_index);
                     let child_id = child_window.id();
                     println!("Child window created with id: {child_id:?}");
-                    self.windows
-                        .insert(child_id, WindowData::new(child_window, child_color));
+                    self.windows.insert(child_id, WindowData::new(child_window, child_color));
                 },
                 WindowEvent::RedrawRequested => {
                     if let Some(window) = self.windows.get(&window_id) {
