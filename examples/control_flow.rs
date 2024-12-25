@@ -114,7 +114,7 @@ impl ApplicationHandler for ControlFlowDemo {
             WindowEvent::RedrawRequested => {
                 let window = self.window.as_ref().unwrap();
                 window.pre_present_notify();
-                fill::fill_window(window.as_ref(), 0xff181818);
+                fill::fill_window(window.as_ref());
             },
             _ => (),
         }

@@ -67,9 +67,9 @@ fn main() -> Result<(), impl std::error::Error> {
                 WindowEvent::RedrawRequested => {
                     if let Some(window) = self.windows.get(&window_id) {
                         if window_id == self.parent_window_id.unwrap() {
-                            fill::fill_window(window.as_ref(), 0xff181818);
+                            fill::fill_window_with_color(window.as_ref(), 0xff181818);
                         } else {
-                            fill::fill_window(window.as_ref(), 0xffbbbbbb);
+                            fill::fill_window_with_color(window.as_ref(), 0xffbbbbbb);
                         }
                     }
                 },

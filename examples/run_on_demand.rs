@@ -69,7 +69,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     self.window = None;
                 },
                 WindowEvent::RedrawRequested => {
-                    fill::fill_window(window.as_ref(), 0xff181818);
+                    fill::fill_window(window.as_ref());
                 },
                 _ => (),
             }

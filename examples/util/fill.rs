@@ -9,7 +9,12 @@
 
 #[allow(unused_imports)]
 pub use platform::cleanup_window;
+
+#[allow(unused_imports)]
 pub use platform::fill_window;
+
+#[allow(unused_imports)]
+pub use platform::fill_window_with_color;
 
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
 mod platform {
@@ -70,7 +75,7 @@ mod platform {
         }
     }
 
-    pub fn fill_window(window: &dyn Window, color: u32) {
+    pub fn fill_window_with_color(window: &dyn Window, color: u32) {
         GC.with(|gc| {
             let size = window.surface_size();
             let (Some(width), Some(height)) =
@@ -92,6 +97,10 @@ mod platform {
             buffer.fill(color);
             buffer.present().expect("Failed to present the softbuffer buffer");
         })
+    }
+
+    pub fn fill_window(window: &dyn Window) {
+        fill_window_with_color(window, 0xff181818);
     }
 
     #[allow(dead_code)]
