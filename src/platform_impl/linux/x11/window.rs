@@ -1088,10 +1088,7 @@ impl UnownedWindow {
 
                 if let Some(native_mode) = video_mode.and_then(|requested| {
                     monitor.video_modes.iter().find_map(|mode| {
-                        if mode.refresh_rate_millihertz == requested.refresh_rate_millihertz
-                            && mode.size == requested.size
-                            && mode.bit_depth == requested.bit_depth
-                        {
+                        if mode.mode == requested {
                             Some(mode.native_mode)
                         } else {
                             None

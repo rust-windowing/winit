@@ -1,11 +1,11 @@
-use std::num::{NonZeroU16, NonZeroU32};
+use std::num::NonZeroU32;
 
 use x11rb::connection::RequestConnection;
 use x11rb::protocol::randr::{self, ConnectionExt as _};
 use x11rb::protocol::xproto;
 
 use super::{util, X11Error, XConnection};
-use crate::dpi::{PhysicalPosition, PhysicalSize};
+use crate::dpi::PhysicalPosition;
 use crate::monitor::VideoMode;
 
 // Used for testing. This should always be committed as false.
@@ -21,20 +21,14 @@ impl XConnection {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct VideoModeHandle {
     pub(crate) current: bool,
-    pub(crate) size: PhysicalSize<u32>,
-    pub(crate) bit_depth: Option<NonZeroU16>,
-    pub(crate) refresh_rate_millihertz: Option<NonZeroU32>,
+    pub(crate) mode: VideoMode,
     pub(crate) native_mode: randr::Mode,
     pub(crate) monitor: Option<MonitorHandle>,
 }
 
 impl From<VideoModeHandle> for VideoMode {
-    fn from(mode: VideoModeHandle) -> Self {
-        Self {
-            size: mode.size,
-            bit_depth: mode.bit_depth,
-            refresh_rate_millihertz: mode.refresh_rate_millihertz,
-        }
+    fn from(handle: VideoModeHandle) -> Self {
+        handle.mode
     }
 }
 

@@ -7,7 +7,7 @@ use crate::platform_impl;
 
 /// Describes a fullscreen video mode of a monitor.
 ///
-/// Can be acquired with [`MonitorHandle::video_modes`].
+/// Can be retrieved with [`MonitorHandle::video_modes()`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct VideoMode {
     pub(crate) size: PhysicalSize<u32>,
@@ -39,24 +39,18 @@ impl VideoMode {
 
 impl fmt::Display for VideoMode {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "{}x{} {}{}",
-            self.size.width,
-            self.size.height,
-            self.refresh_rate_millihertz.map(|rate| format!("@ {rate} mHz ")).unwrap_or_default(),
-            self.bit_depth.map(|bit_depth| format!("({bit_depth} bpp)")).unwrap_or_default(),
-        )
+        write!(f, "{}x{}", self.size.width, self.size.height)?;
+
+        if let Some(refresh_rate) = self.refresh_rate_millihertz.as_ref() {
+            write!(f, "@{refresh_rate}mHz")?;
+        }
+
+        if let Some(bit_depth) = self.bit_depth.as_ref() {
+            write!(f, " ({bit_depth} bpp)")?;
+        }
+
+        Ok(())
     }
-}
-
-/// Fullscreen modes.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum Fullscreen {
-    Exclusive(MonitorHandle, VideoMode),
-
-    /// Providing `None` to `Borderless` will fullscreen on the current monitor.
-    Borderless(Option<MonitorHandle>),
 }
 
 /// Handle to a monitor.

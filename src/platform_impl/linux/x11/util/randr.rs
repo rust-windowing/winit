@@ -7,6 +7,7 @@ use x11rb::protocol::randr::{self, ConnectionExt as _};
 
 use super::*;
 use crate::dpi::validate_scale_factor;
+use crate::monitor::VideoMode;
 use crate::platform_impl::platform::x11::{monitor, VideoModeHandle};
 
 /// Represents values of `WINIT_HIDPI_FACTOR`.
@@ -85,9 +86,11 @@ impl XConnection {
             .map(|mode| {
                 VideoModeHandle {
                     current: mode.id == current_mode,
-                    size: (mode.width as u32, mode.height as u32).into(),
-                    refresh_rate_millihertz: monitor::mode_refresh_rate_millihertz(mode),
-                    bit_depth: NonZeroU16::new(bit_depth as u16),
+                    mode: VideoMode {
+                        size: (mode.width as u32, mode.height as u32).into(),
+                        refresh_rate_millihertz: monitor::mode_refresh_rate_millihertz(mode),
+                        bit_depth: NonZeroU16::new(bit_depth as u16),
+                    },
                     native_mode: mode.id,
                     // This is populated in `MonitorHandle::video_modes` as the
                     // video mode is returned to the user
