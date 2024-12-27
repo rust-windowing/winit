@@ -532,7 +532,7 @@ impl EventLoop {
                 Some(Ok(token)) => {
                     let event = WindowEvent::ActivationTokenDone {
                         serial,
-                        token: crate::window::ActivationToken::_new(token),
+                        token: crate::window::ActivationToken::from_raw(token),
                     };
                     app.window_event(&self.event_processor.target, window_id, event);
                 },
