@@ -66,9 +66,9 @@ fn main() -> Result<(), impl std::error::Error> {
                     event: KeyEvent { state: ElementState::Pressed, .. },
                     ..
                 } => {
-                    let child_index: i32 = (self.windows.len() - 1) as i32;
-                    let child_color: u32 =
-                        0xff000000_u32 + ((3_u32).pow((child_index + 2).rem_euclid(16) as u32));
+                    let child_index = self.windows.len() - 1;
+                    let child_color =
+                        0xff000000 + 3_u32.pow((child_index + 2).rem_euclid(16) as u32);
 
                     let parent_window = self.windows.get(&self.parent_window_id.unwrap()).unwrap();
                     let child_window =
@@ -80,7 +80,7 @@ fn main() -> Result<(), impl std::error::Error> {
                 WindowEvent::RedrawRequested => {
                     if let Some(window) = self.windows.get(&window_id) {
                         if window_id == self.parent_window_id.unwrap() {
-                            fill::fill_window_with_color(window.window.as_ref(), 0xff181818);
+                            fill::fill_window(window.window.as_ref());
                         } else {
                             fill::fill_window_with_color(window.window.as_ref(), window.color);
                         }
@@ -94,7 +94,7 @@ fn main() -> Result<(), impl std::error::Error> {
     fn spawn_child_window(
         parent: &dyn Window,
         event_loop: &dyn ActiveEventLoop,
-        child_count: i32,
+        child_count: usize,
     ) -> Box<dyn Window> {
         let parent = parent.raw_window_handle().unwrap();
 
