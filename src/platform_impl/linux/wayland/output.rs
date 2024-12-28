@@ -96,7 +96,7 @@ impl std::hash::Hash for MonitorHandle {
     }
 }
 
-/// Convert the wayland's [`Mode`] to winit's [`VideoMode`].
+/// Convert Wayland's [`Mode`] to winit's [`VideoMode`].
 fn wayland_mode_to_core_mode(mode: Mode) -> VideoMode {
     VideoMode {
         size: (mode.dimensions.0, mode.dimensions.1).into(),

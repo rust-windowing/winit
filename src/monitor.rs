@@ -41,11 +41,11 @@ impl fmt::Display for VideoMode {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}x{}", self.size.width, self.size.height)?;
 
-        if let Some(refresh_rate) = self.refresh_rate_millihertz.as_ref() {
+        if let Some(refresh_rate) = self.refresh_rate_millihertz {
             write!(f, "@{refresh_rate}mHz")?;
         }
 
-        if let Some(bit_depth) = self.bit_depth.as_ref() {
+        if let Some(bit_depth) = self.bit_depth {
             write!(f, " ({bit_depth} bpp)")?;
         }
 
