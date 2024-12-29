@@ -112,6 +112,10 @@ softbuffer = { version = "0.4.0", default-features = false, features = [
     "wayland-dlopen",
 ] }
 
+[target.'cfg(target_env = "ohos")'.dependencies]
+openharmony-ability = { path = "../../ohos-rs/openharmony-activity/crates/ability" }
+openharmony-ability-derive = { path = "../../ohos-rs/openharmony-activity/crates/derive" }
+
 [target.'cfg(target_os = "android")'.dependencies]
 android-activity = "0.6.0"
 ndk = { version = "0.9.0", default-features = false }
