@@ -17,7 +17,7 @@ use openharmony_ability::{
 
 use crate::application::ApplicationHandler;
 use crate::cursor::Cursor;
-use crate::dpi::{PhysicalInsets, PhysicalPosition, PhysicalSize, Position, Size};
+use crate::dpi::{PhysicalPosition, PhysicalSize, Position, Size};
 use crate::error::{self, EventLoopError, NotSupportedError};
 use crate::event::{self, Force, InnerSizeWriter, StartCause};
 use crate::event_loop::{
@@ -82,7 +82,6 @@ pub struct EventLoop<T: 'static> {
     window_target: event_loop::ActiveEventLoop,
     running: bool,
     cause: StartCause,
-    combining_accent: Option<char>,
     user_events_sender: mpsc::Sender<T>,
     user_events_receiver: PeekableReceiver<T>,
 }
@@ -121,7 +120,6 @@ impl<T: 'static> EventLoop<T> {
             },
             running: false,
             cause: StartCause::Init,
-            combining_accent: None,
             user_events_sender,
             user_events_receiver: PeekableReceiver::from_recv(user_events_receiver),
         })
@@ -131,12 +129,8 @@ impl<T: 'static> EventLoop<T> {
         &self.window_target
     }
 
-    fn handle_input_event<F>(
-        &mut self,
-        openharmony_app: &OpenHarmonyApp,
-        event: &InputEvent,
-        callback: &mut F,
-    ) where
+    fn handle_input_event<F>(&mut self, event: &InputEvent, callback: &mut F)
+    where
         F: FnMut(event::Event<T>, &RootAEL),
     {
         match event {
@@ -157,103 +151,24 @@ impl<T: 'static> EventLoop<T> {
 
                 if let Some(phase) = phase {
                     for pointer in motion_event.touch_points.iter() {
-                        // TODO
                         let tool_type = "unknown";
                         let position = PhysicalPosition { x: pointer.x as _, y: pointer.y as _ };
                         trace!(
                             "Input event {device_id:?}, {action:?}, loc={position:?}, \
                                  pointer={pointer:?}, tool_type={tool_type:?}"
                         );
-                        let force = Some(Force::Normalized(pointer.force as f64));
-    
-                        match action {
-                            TouchEvent::Down => {
-                                let event = event::Event::WindowEvent {
-                                    window_id,
-                                    event: event::WindowEvent::Touch(
-                                        event::Touch {
-                                            device_id,
-                                            phase,
-                                            location,
-                                            id: pointer.id as u64,
-                                            force: Some(Force::Normalized(pointer.force as f64)),
-                                        })
-                                    };
-                                app.window_event(&self.window_target, GLOBAL_WINDOW, event);
-                                let event = event::WindowEvent::PointerButton {
-                                    device_id,
-                                    state: event::ElementState::Pressed,
-                                    position,
-                                    primary,
-                                    button: match tool_type {
-                                        // TODO
-                                        // android_activity::input::ToolType::Finger => {
-                                        //     event::ButtonSource::Touch { finger_id, force }
-                                        // },
-                                        // // TODO mouse events
-                                        // android_activity::input::ToolType::Mouse => continue,
-                                        _ => event::ButtonSource::Unknown(0),
-                                    },
-                                };
-                                app.window_event(&self.window_target, GLOBAL_WINDOW, event);
-                            },
-                            TouchEvent::Move => {
-                                let primary = self.primary_pointer == Some(finger_id);
-                                let event = event::WindowEvent::PointerMoved {
-                                    device_id,
-                                    position,
-                                    primary,
-                                    source: match tool_type {
-                                        // TODO
-                                        // android_activity::input::ToolType::Finger => {
-                                        //     event::PointerSource::Touch { finger_id, force }
-                                        // },
-                                        // // TODO mouse events
-                                        // android_activity::input::ToolType::Mouse => continue,
-                                        _ => event::PointerSource::Unknown,
-                                    },
-                                };
-                                app.window_event(&self.window_target, GLOBAL_WINDOW, event);
-                            },
-                            TouchEvent::Up | TouchEvent::Cancel => {
-                                let primary = self.primary_pointer == Some(finger_id);
-                                if let TouchEvent::Up = action {
-                                    let event = event::WindowEvent::PointerButton {
-                                        device_id,
-                                        state: event::ElementState::Released,
-                                        position,
-                                        primary,
-                                        button: match tool_type {
-                                            //
-                                            // android_activity::input::ToolType::Finger => {
-                                            //     event::ButtonSource::Touch { finger_id, force }
-                                            // },
-                                            // // TODO mouse events
-                                            // android_activity::input::ToolType::Mouse => continue,
-                                            _ => event::ButtonSource::Unknown(0),
-                                        },
-                                    };
-                                    app.window_event(&self.window_target, GLOBAL_WINDOW, event);
-                                }
-    
-                                let event = event::WindowEvent::PointerLeft {
-                                    device_id,
-                                    primary,
-                                    position: Some(position),
-                                    kind: match tool_type {
-                                        // TODO
-                                        // android_activity::input::ToolType::Finger => {
-                                        //     event::PointerKind::Touch(finger_id)
-                                        // },
-                                        // // TODO mouse events
-                                        // android_activity::input::ToolType::Mouse => continue,
-                                        _ => event::PointerKind::Unknown,
-                                    },
-                                };
-                                app.window_event(&self.window_target, GLOBAL_WINDOW, event);
-                            },
-                            _ => unreachable!(),
-                        }
+
+                        let event = event::Event::WindowEvent {
+                            window_id,
+                            event: event::WindowEvent::Touch(event::Touch {
+                                device_id,
+                                phase,
+                                location: position,
+                                id: pointer.id as u64,
+                                force: Some(Force::Normalized(pointer.force as f64)),
+                            }),
+                        };
+                        callback(event, self.window_target());
                     }
                 }
             },
@@ -276,22 +191,24 @@ impl<T: 'static> EventLoop<T> {
                             _ => event::ElementState::Released,
                         };
 
-                        let event = event::WindowEvent::KeyboardInput {
-                            device_id: Some(DeviceId::from_raw(key.device_id as i64)),
-                            event: event::KeyEvent {
-                                state,
-                                physical_key: keycodes::to_physical_key(keycode),
-                                logical_key: keycodes::to_logical(keycode),
-                                location: keycodes::to_location(keycode),
-                                // TODO
-                                repeat: false,
-                                text: None,
-                                platform_specific: KeyEventExtra {},
+                        let event = event::Event::WindowEvent {
+                            window_id: window::WindowId(WindowId),
+                            event: event::WindowEvent::KeyboardInput {
+                                device_id: event::DeviceId(DeviceId(key.device_id as _)),
+                                event: event::KeyEvent {
+                                    state,
+                                    physical_key: keycodes::to_physical_key(keycode),
+                                    logical_key: keycodes::to_logical(keycode),
+                                    location: keycodes::to_location(keycode),
+                                    // TODO
+                                    repeat: false,
+                                    text: None,
+                                    platform_specific: KeyEventExtra {},
+                                },
+                                is_synthetic: false,
                             },
-                            is_synthetic: false,
                         };
-
-                        app.window_event(&self.window_target, GLOBAL_WINDOW, event);
+                        callback(event, self.window_target());
                     },
                 }
             },
@@ -314,11 +231,11 @@ impl<T: 'static> EventLoop<T> {
         callback(event::Event::NewEvents(cause), self.window_target());
 
         let openharmony_app = self.openharmony_app.clone();
-        let input_app = self.openharmony_app.clone();
 
         openharmony_app.run_loop(|event| {
             match event {
                 MainEvent::SurfaceCreate { .. } => {
+                    let ap = openharmony_app.clone();
                     callback(event::Event::Resumed, self.window_target());
                 },
                 MainEvent::SurfaceDestroy { .. } => {
@@ -419,7 +336,7 @@ impl<T: 'static> EventLoop<T> {
                 MainEvent::Input(e) => {
                     warn!("TODO: forward onDestroy notification to application");
                     // let openharmony_app = self.openharmony_app.clone();
-                    self.handle_input_event(&input_app, &e, &mut callback)
+                    self.handle_input_event(&e, &mut callback)
                 },
                 unknown => {
                     trace!("Unknown MainEvent {unknown:?} (ignored)");
@@ -430,12 +347,19 @@ impl<T: 'static> EventLoop<T> {
         Ok(())
     }
 
-    fn control_flow(&self) -> ControlFlow {
-        self.window_target.control_flow()
+    pub fn create_proxy(&self) -> EventLoopProxy<T> {
+        EventLoopProxy {
+            user_events_sender: self.user_events_sender.clone(),
+            waker: self.openharmony_app.create_waker(),
+        }
+    }
+
+    pub fn control_flow(&self) -> ControlFlow {
+        self.window_target.p.control_flow()
     }
 
     fn exiting(&self) -> bool {
-        self.window_target.exiting()
+        self.window_target.p.exiting()
     }
 }
 
@@ -468,19 +392,19 @@ pub struct ActiveEventLoop {
 }
 
 impl ActiveEventLoop {
-    fn create_custom_cursor(&self, source: CustomCursorSource) -> CustomCursor {
+    pub fn create_custom_cursor(&self, source: CustomCursorSource) -> CustomCursor {
         let _ = source.inner;
         CustomCursor { inner: PlatformCustomCursor }
     }
 
-    fn available_monitors(&self) -> VecDeque<MonitorHandle> {
+    pub fn available_monitors(&self) -> VecDeque<MonitorHandle> {
         let mut v = VecDeque::with_capacity(1);
         v.push_back(MonitorHandle::new(self.app.clone()));
         v
     }
 
-    fn primary_monitor(&self) -> Option<RootMonitorHandle> {
-        None
+    pub fn primary_monitor(&self) -> Option<MonitorHandle> {
+        Some(MonitorHandle::new(self.app.clone()))
     }
 
     #[cfg(feature = "rwh_05")]
@@ -489,25 +413,25 @@ impl ActiveEventLoop {
         unreachable!("rwh_05 is not supported on OpenHarmony");
     }
 
-    fn system_theme(&self) -> Option<Theme> {
+    pub fn system_theme(&self) -> Option<Theme> {
         None
     }
 
-    fn listen_device_events(&self, _allowed: DeviceEvents) {}
+    pub fn listen_device_events(&self, _allowed: DeviceEvents) {}
 
-    fn set_control_flow(&self, control_flow: ControlFlow) {
+    pub fn set_control_flow(&self, control_flow: ControlFlow) {
         self.control_flow.set(control_flow)
     }
 
-    fn control_flow(&self) -> ControlFlow {
+    pub fn control_flow(&self) -> ControlFlow {
         self.control_flow.get()
     }
 
-    fn exit(&self) {
+    pub fn exit(&self) {
         self.exit.set(true)
     }
 
-    fn exiting(&self) -> bool {
+    pub fn exiting(&self) -> bool {
         self.exit.get()
     }
 
@@ -515,15 +439,12 @@ impl ActiveEventLoop {
         OwnedDisplayHandle
     }
 
-    fn rwh_06_handle(&self) -> &dyn rwh_06::HasDisplayHandle {
-        self
-    }
-}
-
-impl rwh_06::HasDisplayHandle for ActiveEventLoop {
-    fn display_handle(&self) -> Result<rwh_06::DisplayHandle<'_>, rwh_06::HandleError> {
-        let raw = rwh_06::OhosDisplayHandle::new();
-        Ok(unsafe { rwh_06::DisplayHandle::borrow_raw(raw.into()) })
+    #[cfg(feature = "rwh_06")]
+    #[inline]
+    pub fn raw_display_handle_rwh_06(
+        &self,
+    ) -> Result<rwh_06::RawDisplayHandle, rwh_06::HandleError> {
+        Ok(rwh_06::RawDisplayHandle::Ohos(rwh_06::OhosDisplayHandle::new()))
     }
 }
 
@@ -583,20 +504,6 @@ pub(crate) struct Window {
     app: OpenHarmonyApp,
 }
 
-impl rwh_06::HasDisplayHandle for Window {
-    fn display_handle(&self) -> Result<rwh_06::DisplayHandle<'_>, rwh_06::HandleError> {
-        let raw = self.raw_display_handle_rwh_06()?;
-        unsafe { Ok(rwh_06::DisplayHandle::borrow_raw(raw)) }
-    }
-}
-
-impl rwh_06::HasWindowHandle for Window {
-    fn window_handle(&self) -> Result<rwh_06::WindowHandle<'_>, rwh_06::HandleError> {
-        let raw = self.raw_window_handle_rwh_06()?;
-        unsafe { Ok(rwh_06::WindowHandle::borrow_raw(raw)) }
-    }
-}
-
 impl Window {
     pub(crate) fn new(
         el: &ActiveEventLoop,
@@ -606,6 +513,8 @@ impl Window {
 
         Ok(Self { app: el.app.clone() })
     }
+
+    pub fn request_redraw(&self) {}
 
     pub(crate) fn maybe_queue_on_main(&self, f: impl FnOnce(&Self) + Send + 'static) {
         f(self)
@@ -619,133 +528,142 @@ impl Window {
         WindowId
     }
 
-    fn scale_factor(&self) -> f64 {
+    pub fn scale_factor(&self) -> f64 {
         1.0
     }
 
-    fn surface_position(&self) -> PhysicalPosition<i32> {
+    pub fn surface_position(&self) -> PhysicalPosition<i32> {
         PhysicalPosition::new(0, 0)
     }
 
-    fn safe_area(&self) -> PhysicalInsets<u32> {
-        PhysicalInsets::new(0, 0, 0, 0)
+    pub fn primary_monitor(&self) -> Option<MonitorHandle> {
+        Some(MonitorHandle::new(self.app.clone()))
     }
 
-    fn primary_monitor(&self) -> Option<RootMonitorHandle> {
-        None
+    pub fn available_monitors(&self) -> VecDeque<MonitorHandle> {
+        let mut v = VecDeque::with_capacity(1);
+        v.push_back(MonitorHandle::new(self.app.clone()));
+        v
+    }
+    pub fn current_monitor(&self) -> Option<MonitorHandle> {
+        Some(MonitorHandle::new(self.app.clone()))
     }
 
-    fn available_monitors(&self) -> Box<dyn Iterator<Item = RootMonitorHandle>> {
-        Box::new(std::iter::empty())
-    }
-
-    fn current_monitor(&self) -> Option<RootMonitorHandle> {
-        None
-    }
-
-    fn pre_present_notify(&self) {}
+    pub fn pre_present_notify(&self) {}
 
     pub fn inner_position(&self) -> Result<PhysicalPosition<i32>, error::NotSupportedError> {
         Err(error::NotSupportedError::new())
+    }
+
+    pub fn inner_size(&self) -> PhysicalSize<u32> {
+        self.outer_size()
     }
 
     pub fn outer_position(&self) -> Result<PhysicalPosition<i32>, error::NotSupportedError> {
         Err(error::NotSupportedError::new())
     }
 
-    fn set_outer_position(&self, _position: Position) {
+    pub fn set_outer_position(&self, _position: Position) {
         // no effect
     }
 
-    fn surface_size(&self) -> PhysicalSize<u32> {
+    pub fn surface_size(&self) -> PhysicalSize<u32> {
         // self.outer_size()
         PhysicalSize { width: 1080, height: 2720 }
     }
 
-    fn request_surface_size(&self, _size: Size) -> Option<PhysicalSize<u32>> {
+    pub fn request_inner_size(&self, _size: Size) -> Option<PhysicalSize<u32>> {
+        Some(self.inner_size())
+    }
+
+    pub fn request_surface_size(&self, _size: Size) -> Option<PhysicalSize<u32>> {
         // Some(self.surface_size())
         None
     }
 
-    fn outer_size(&self) -> PhysicalSize<u32> {
+    pub fn outer_size(&self) -> PhysicalSize<u32> {
         PhysicalSize { width: 1080, height: 2720 }
     }
 
-    fn set_min_surface_size(&self, _: Option<Size>) {}
+    pub fn set_min_surface_size(&self, _: Option<Size>) {}
 
-    fn set_max_surface_size(&self, _: Option<Size>) {}
+    pub fn set_max_surface_size(&self, _: Option<Size>) {}
 
-    fn surface_resize_increments(&self) -> Option<PhysicalSize<u32>> {
+    pub fn set_min_inner_size(&self, _: Option<Size>) {}
+
+    pub fn set_max_inner_size(&self, _: Option<Size>) {}
+
+    pub fn resize_increments(&self) -> Option<PhysicalSize<u32>> {
         None
     }
 
-    fn set_surface_resize_increments(&self, _increments: Option<Size>) {}
+    pub fn set_resize_increments(&self, _increments: Option<Size>) {}
 
-    fn set_title(&self, _title: &str) {}
+    pub fn set_title(&self, _title: &str) {}
 
-    fn set_transparent(&self, _transparent: bool) {}
+    pub fn set_transparent(&self, _transparent: bool) {}
 
-    fn set_blur(&self, _blur: bool) {}
+    pub fn set_blur(&self, _blur: bool) {}
 
-    fn set_visible(&self, _visibility: bool) {}
+    pub fn set_visible(&self, _visibility: bool) {}
 
-    fn is_visible(&self) -> Option<bool> {
+    pub fn is_visible(&self) -> Option<bool> {
         None
     }
 
-    fn set_resizable(&self, _resizeable: bool) {}
+    pub fn set_resizable(&self, _resizeable: bool) {}
 
-    fn is_resizable(&self) -> bool {
+    pub fn is_resizable(&self) -> bool {
         false
     }
 
-    fn set_enabled_buttons(&self, _buttons: WindowButtons) {}
+    pub fn set_enabled_buttons(&self, _buttons: WindowButtons) {}
 
-    fn enabled_buttons(&self) -> WindowButtons {
+    pub fn enabled_buttons(&self) -> WindowButtons {
         WindowButtons::all()
     }
 
-    fn set_minimized(&self, _minimized: bool) {}
+    pub fn set_minimized(&self, _minimized: bool) {}
 
-    fn is_minimized(&self) -> Option<bool> {
+    pub fn is_minimized(&self) -> Option<bool> {
         None
     }
 
-    fn set_maximized(&self, _maximized: bool) {}
+    pub fn set_maximized(&self, _maximized: bool) {}
 
-    fn is_maximized(&self) -> bool {
+    pub fn is_maximized(&self) -> bool {
         false
     }
 
-    fn set_fullscreen(&self, _monitor: Option<Fullscreen>) {
-        warn!("Cannot set fullscreen on Android");
+    pub fn set_fullscreen(&self, _monitor: Option<Fullscreen>) {
+        warn!("Cannot set fullscreen on HarmonyOS");
     }
 
-    fn fullscreen(&self) -> Option<Fullscreen> {
+    pub fn fullscreen(&self) -> Option<Fullscreen> {
         None
     }
 
-    fn set_decorations(&self, _decorations: bool) {}
+    pub fn set_decorations(&self, _decorations: bool) {}
 
-    fn is_decorated(&self) -> bool {
+    pub fn is_decorated(&self) -> bool {
         true
     }
 
-    fn set_window_level(&self, _level: WindowLevel) {}
+    pub fn set_window_level(&self, _level: WindowLevel) {}
 
-    fn set_window_icon(&self, _window_icon: Option<crate::icon::Icon>) {}
+    pub fn set_window_icon(&self, _window_icon: Option<crate::icon::Icon>) {}
 
-    fn set_ime_cursor_area(&self, _position: Position, _size: Size) {}
+    pub fn set_ime_cursor_area(&self, _position: Position, _size: Size) {}
 
-    fn set_ime_allowed(&self, _allowed: bool) {}
+    pub fn set_ime_allowed(&self, _allowed: bool) {}
 
-    fn set_ime_purpose(&self, _purpose: ImePurpose) {}
+    pub fn set_ime_purpose(&self, _purpose: ImePurpose) {}
 
-    fn focus_window(&self) {}
+    pub fn focus_window(&self) {}
 
-    fn request_user_attention(&self, _request_type: Option<window::UserAttentionType>) {}
+    pub fn request_user_attention(&self, _request_type: Option<window::UserAttentionType>) {}
 
-    fn set_cursor(&self, _: Cursor) {}
+    pub fn set_cursor(&self, _: Cursor) {}
 
     pub fn set_cursor_position(&self, _: Position) -> Result<(), error::ExternalError> {
         Err(error::ExternalError::NotSupported(error::NotSupportedError::new()))
@@ -755,7 +673,7 @@ impl Window {
         Err(error::ExternalError::NotSupported(error::NotSupportedError::new()))
     }
 
-    fn set_cursor_visible(&self, _: bool) {}
+    pub fn set_cursor_visible(&self, _: bool) {}
     pub fn drag_window(&self) -> Result<(), error::ExternalError> {
         Err(error::ExternalError::NotSupported(error::NotSupportedError::new()))
     }
@@ -768,29 +686,29 @@ impl Window {
     }
 
     #[inline]
-    fn show_window_menu(&self, _position: Position) {}
+    pub fn show_window_menu(&self, _position: Position) {}
 
     pub fn set_cursor_hittest(&self, _hittest: bool) -> Result<(), error::ExternalError> {
         Err(error::ExternalError::NotSupported(error::NotSupportedError::new()))
     }
 
-    fn set_theme(&self, _theme: Option<Theme>) {}
+    pub fn set_theme(&self, _theme: Option<Theme>) {}
 
-    fn theme(&self) -> Option<Theme> {
+    pub fn theme(&self) -> Option<Theme> {
         None
     }
 
-    fn set_content_protected(&self, _protected: bool) {}
+    pub fn set_content_protected(&self, _protected: bool) {}
 
-    fn has_focus(&self) -> bool {
+    pub fn has_focus(&self) -> bool {
         HAS_FOCUS.load(Ordering::Relaxed)
     }
 
-    fn title(&self) -> String {
+    pub fn title(&self) -> String {
         String::new()
     }
 
-    fn reset_dead_keys(&self) {}
+    pub fn reset_dead_keys(&self) {}
 
     #[cfg(feature = "rwh_04")]
     pub fn raw_window_handle_rwh_04(&self) -> rwh_04::RawWindowHandle {
@@ -830,7 +748,7 @@ impl Window {
     pub fn raw_display_handle_rwh_06(
         &self,
     ) -> Result<rwh_06::RawDisplayHandle, rwh_06::HandleError> {
-        Ok(rwh_06::RawDisplayHandle::Android(rwh_06::AndroidDisplayHandle::new()))
+        Ok(rwh_06::RawDisplayHandle::Ohos(rwh_06::OhosDisplayHandle::new()))
     }
 
     pub fn config(&self) -> Configuration {
@@ -863,7 +781,7 @@ impl MonitorHandle {
     }
 
     pub fn name(&self) -> Option<String> {
-        Some("Android Device".to_owned())
+        Some("OpenHarmony Device".to_owned())
     }
 
     pub fn size(&self) -> PhysicalSize<u32> {

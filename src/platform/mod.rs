@@ -20,6 +20,8 @@ pub mod web;
 pub mod windows;
 #[cfg(any(x11_platform, docsrs))]
 pub mod x11;
+#[cfg(any(ohos_platform, docsrs))]
+pub mod ohos;
 
 #[cfg(any(
     windows_platform,
