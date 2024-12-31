@@ -47,3 +47,4 @@ changelog entry.
 ### Fixed
 
 - On Windows, fixed the event loop not waking on accessibility requests.
+- On X11, fixed cursor grab mode state tracking on error.
