@@ -42,6 +42,7 @@ changelog entry.
 
 ### Added
 
+- `ActivationToken::from_raw` and `ActivationToken::into_raw`.
 - On X11, add a workaround for disabling IME on GNOME.
 
 ### Fixed

@@ -531,7 +531,7 @@ impl<T: 'static> EventLoop<T> {
                         window_id: crate::window::WindowId(window_id),
                         event: WindowEvent::ActivationTokenDone {
                             serial,
-                            token: crate::window::ActivationToken::_new(token),
+                            token: crate::window::ActivationToken::from_raw(token),
                         },
                     };
                     callback(event, &self.event_processor.target)
