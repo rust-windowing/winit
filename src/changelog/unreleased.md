@@ -202,3 +202,4 @@ changelog entry.
 - On macOS, fixed the scancode conversion for `IntlBackslash`.
 - On macOS, fixed redundant `SurfaceResized` event at window creation.
 - On Windows, fixed the event loop not waking on accessibility requests.
+- On X11, fixed cursor grab mode state tracking on error.
