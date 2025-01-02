@@ -879,7 +879,7 @@ impl UnownedWindow {
 
         // Remove the startup notification if we have one.
         if let Some(startup) = window_attrs.platform_specific.activation_token.as_ref() {
-            leap!(xconn.remove_activation_token(xwindow, &startup._token));
+            leap!(xconn.remove_activation_token(xwindow, &startup.token));
         }
 
         // We never want to give the user a broken window, since by then, it's too late to handle.
@@ -1831,6 +1831,11 @@ impl UnownedWindow {
 
     #[inline]
     pub fn set_cursor_grab(&self, mode: CursorGrabMode) -> Result<(), RequestError> {
+        // We don't support the locked cursor yet, so ignore it early on.
+        if mode == CursorGrabMode::Locked {
+            return Err(NotSupportedError::new("locked cursor is not implemented on X11").into());
+        }
+
         let mut grabbed_lock = self.cursor_grabbed_mode.lock().unwrap();
         if mode == *grabbed_lock {
             return Ok(());
@@ -1842,6 +1847,7 @@ impl UnownedWindow {
             .xcb_connection()
             .ungrab_pointer(x11rb::CURRENT_TIME)
             .expect_then_ignore_error("Failed to call `xcb_ungrab_pointer`");
+        *grabbed_lock = CursorGrabMode::None;
 
         let result = match mode {
             CursorGrabMode::None => self
@@ -1849,34 +1855,33 @@ impl UnownedWindow {
                 .flush_requests()
                 .map_err(|err| RequestError::Os(os_error!(X11Error::Xlib(err)))),
             CursorGrabMode::Confined => {
-                let result = {
-                    self.xconn
-                        .xcb_connection()
-                        .grab_pointer(
-                            true as _,
-                            self.xwindow,
-                            xproto::EventMask::BUTTON_PRESS
-                                | xproto::EventMask::BUTTON_RELEASE
-                                | xproto::EventMask::ENTER_WINDOW
-                                | xproto::EventMask::LEAVE_WINDOW
-                                | xproto::EventMask::POINTER_MOTION
-                                | xproto::EventMask::POINTER_MOTION_HINT
-                                | xproto::EventMask::BUTTON1_MOTION
-                                | xproto::EventMask::BUTTON2_MOTION
-                                | xproto::EventMask::BUTTON3_MOTION
-                                | xproto::EventMask::BUTTON4_MOTION
-                                | xproto::EventMask::BUTTON5_MOTION
-                                | xproto::EventMask::KEYMAP_STATE,
-                            xproto::GrabMode::ASYNC,
-                            xproto::GrabMode::ASYNC,
-                            self.xwindow,
-                            0u32,
-                            x11rb::CURRENT_TIME,
-                        )
-                        .expect("Failed to call `grab_pointer`")
-                        .reply()
-                        .expect("Failed to receive reply from `grab_pointer`")
-                };
+                let result = self
+                    .xconn
+                    .xcb_connection()
+                    .grab_pointer(
+                        true as _,
+                        self.xwindow,
+                        xproto::EventMask::BUTTON_PRESS
+                            | xproto::EventMask::BUTTON_RELEASE
+                            | xproto::EventMask::ENTER_WINDOW
+                            | xproto::EventMask::LEAVE_WINDOW
+                            | xproto::EventMask::POINTER_MOTION
+                            | xproto::EventMask::POINTER_MOTION_HINT
+                            | xproto::EventMask::BUTTON1_MOTION
+                            | xproto::EventMask::BUTTON2_MOTION
+                            | xproto::EventMask::BUTTON3_MOTION
+                            | xproto::EventMask::BUTTON4_MOTION
+                            | xproto::EventMask::BUTTON5_MOTION
+                            | xproto::EventMask::KEYMAP_STATE,
+                        xproto::GrabMode::ASYNC,
+                        xproto::GrabMode::ASYNC,
+                        self.xwindow,
+                        0u32,
+                        x11rb::CURRENT_TIME,
+                    )
+                    .expect("Failed to call `grab_pointer`")
+                    .reply()
+                    .expect("Failed to receive reply from `grab_pointer`");
 
                 match result.status {
                     xproto::GrabStatus::SUCCESS => Ok(()),
@@ -1896,11 +1901,7 @@ impl UnownedWindow {
                 }
                 .map_err(|err| RequestError::Os(os_error!(err)))
             },
-            CursorGrabMode::Locked => {
-                return Err(
-                    NotSupportedError::new("locked cursor is not implemented on X11").into()
-                );
-            },
+            CursorGrabMode::Locked => return Ok(()),
         };
 
         if result.is_ok() {
