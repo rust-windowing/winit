@@ -609,7 +609,7 @@ impl Shared {
         self.apply_control_flow();
         // We don't call `handle_loop_destroyed` here because we don't need to
         // perform cleanup when the Web browser is going to destroy the page.
-        self.handle_event(Event::LoopExiting);
+        todo!("drop the application handler");
     }
 
     // handle_event takes in events and either queues them or applies a callback
@@ -713,7 +713,7 @@ impl Shared {
     }
 
     fn handle_loop_destroyed(&self) {
-        self.handle_event(Event::LoopExiting);
+        todo!("drop the application handler");
         let all_canvases = std::mem::take(&mut *self.0.all_canvases.borrow_mut());
         *self.0.page_transition_event_handle.borrow_mut() = None;
         *self.0.on_mouse_move.borrow_mut() = None;

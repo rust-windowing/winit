@@ -8,7 +8,7 @@ fn main() -> std::process::ExitCode {
     use std::time::Duration;
 
     use winit::application::ApplicationHandler;
-    use winit::event::WindowEvent;
+    use winit::event::{StartCause, WindowEvent};
     use winit::event_loop::{ActiveEventLoop, EventLoop};
     use winit::platform::pump_events::{EventLoopExtPumpEvents, PumpStatus};
     use winit::window::{Window, WindowAttributes, WindowId};
@@ -22,9 +22,12 @@ fn main() -> std::process::ExitCode {
     }
 
     impl ApplicationHandler for PumpDemo {
-        fn can_create_surfaces(&mut self, event_loop: &dyn ActiveEventLoop) {
-            let window_attributes = WindowAttributes::default().with_title("A fantastic window!");
-            self.window = Some(event_loop.create_window(window_attributes).unwrap());
+        fn new_events(&mut self, event_loop: &dyn ActiveEventLoop, cause: StartCause) {
+            if matches!(cause, StartCause::Init) && self.window.is_none() {
+                let window_attributes =
+                    WindowAttributes::default().with_title("A fantastic window!");
+                self.window = Some(event_loop.create_window(window_attributes).unwrap());
+            }
         }
 
         fn window_event(
