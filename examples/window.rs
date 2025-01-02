@@ -540,12 +540,18 @@ impl ApplicationHandler for Application {
             WindowEvent::DoubleTapGesture { .. } => {
                 info!("Smart zoom");
             },
+            WindowEvent::HoveredFile(path) => {
+                info!("File hover initiated: {path:?}");
+            },
+            WindowEvent::HoveredFileCancelled => {
+                info!("File hover canceled");
+            },
+            WindowEvent::DroppedFile(path) => {
+                info!("File dropped: {path:?}");
+            },
             WindowEvent::TouchpadPressure { .. }
-            | WindowEvent::HoveredFileCancelled
             | WindowEvent::KeyboardInput { .. }
             | WindowEvent::PointerEntered { .. }
-            | WindowEvent::DroppedFile(_)
-            | WindowEvent::HoveredFile(_)
             | WindowEvent::Destroyed
             | WindowEvent::Moved(_) => (),
         }
