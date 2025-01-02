@@ -334,7 +334,7 @@ impl Window {
 impl Drop for Window {
     fn drop(&mut self) {
         // Restore fullscreen video mode on exit.
-        if matches!(self.fullscreen(), Some(CoreFullscreen::Exclusive(_))) {
+        if matches!(self.fullscreen(), Some(CoreFullscreen::Exclusive(_, _))) {
             self.set_fullscreen(None);
         }
 
@@ -771,9 +771,13 @@ impl CoreWindow for Window {
             // Change video mode if we're transitioning to or from exclusive
             // fullscreen
             match (&old_fullscreen, &fullscreen) {
-                (_, Some(Fullscreen::Exclusive(video_mode))) => {
-                    let monitor = video_mode.monitor();
+                (_, Some(Fullscreen::Exclusive(monitor, video_mode))) => {
                     let monitor_info = monitor::get_monitor_info(monitor.hmonitor()).unwrap();
+                    let video_mode =
+                        match monitor.video_mode_handles().find(|mode| &mode.mode == video_mode) {
+                            Some(monitor) => monitor,
+                            None => return,
+                        };
 
                     let res = unsafe {
                         ChangeDisplaySettingsExW(
@@ -791,7 +795,7 @@ impl CoreWindow for Window {
                     debug_assert!(res != DISP_CHANGE_FAILED);
                     assert_eq!(res, DISP_CHANGE_SUCCESSFUL);
                 },
-                (Some(Fullscreen::Exclusive(_)), _) => {
+                (Some(Fullscreen::Exclusive(..)), _) => {
                     let res = unsafe {
                         ChangeDisplaySettingsExW(
                             ptr::null(),
@@ -828,7 +832,7 @@ impl CoreWindow for Window {
             WindowState::set_window_flags(window_state.lock().unwrap(), window, |f| {
                 f.set(
                     WindowFlags::MARKER_EXCLUSIVE_FULLSCREEN,
-                    matches!(fullscreen, Some(Fullscreen::Exclusive(_))),
+                    matches!(fullscreen, Some(Fullscreen::Exclusive(_, _))),
                 );
                 f.set(
                     WindowFlags::MARKER_BORDERLESS_FULLSCREEN,
@@ -858,7 +862,7 @@ impl CoreWindow for Window {
                     window_state.lock().unwrap().saved_window = Some(SavedWindow { placement });
 
                     let monitor = match &fullscreen {
-                        Fullscreen::Exclusive(video_mode) => video_mode.monitor(),
+                        Fullscreen::Exclusive(monitor, _) => monitor.clone(),
                         Fullscreen::Borderless(Some(monitor)) => monitor.clone(),
                         Fullscreen::Borderless(None) => monitor::current_monitor(window),
                     };

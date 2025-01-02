@@ -162,6 +162,8 @@ changelog entry.
 - On macOS, no longer emit `Focused` upon window creation.
 - On iOS, emit more events immediately, instead of queuing them.
 - Update `smol_str` to version `0.3`
+- Rename `VideoModeHandle` to `VideoMode`, now it only stores plain data.
+- Make `Fullscreen::Exclusive` contain `(MonitorHandle, VideoMode)`.
 
 ### Removed
 

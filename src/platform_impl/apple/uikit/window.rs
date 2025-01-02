@@ -91,10 +91,13 @@ impl WinitUIWindow {
         this.setRootViewController(Some(view_controller));
 
         match window_attributes.fullscreen.clone().map(Into::into) {
-            Some(Fullscreen::Exclusive(ref video_mode)) => {
-                let monitor = video_mode.monitor();
+            Some(Fullscreen::Exclusive(ref monitor, ref video_mode)) => {
                 let screen = monitor.ui_screen(mtm);
-                screen.setCurrentMode(Some(video_mode.screen_mode(mtm)));
+                if let Some(video_mode) =
+                    monitor.video_modes_handles().find(|mode| &mode.mode == video_mode)
+                {
+                    screen.setCurrentMode(Some(video_mode.screen_mode(mtm)));
+                }
                 this.setScreen(screen);
             },
             Some(Fullscreen::Borderless(Some(ref monitor))) => {
@@ -312,9 +315,13 @@ impl Inner {
     pub(crate) fn set_fullscreen(&self, monitor: Option<Fullscreen>) {
         let mtm = MainThreadMarker::new().unwrap();
         let uiscreen = match &monitor {
-            Some(Fullscreen::Exclusive(video_mode)) => {
-                let uiscreen = video_mode.monitor.ui_screen(mtm);
-                uiscreen.setCurrentMode(Some(video_mode.screen_mode(mtm)));
+            Some(Fullscreen::Exclusive(monitor, video_mode)) => {
+                let uiscreen = monitor.ui_screen(mtm);
+                if let Some(video_mode) =
+                    monitor.video_modes_handles().find(|mode| &mode.mode == video_mode)
+                {
+                    uiscreen.setCurrentMode(Some(video_mode.screen_mode(mtm)));
+                }
                 uiscreen.clone()
             },
             Some(Fullscreen::Borderless(Some(monitor))) => monitor.ui_screen(mtm).clone(),
@@ -489,7 +496,7 @@ impl Window {
         let main_screen = UIScreen::mainScreen(mtm);
         let fullscreen = window_attributes.fullscreen.clone().map(Into::into);
         let screen = match fullscreen {
-            Some(Fullscreen::Exclusive(ref video_mode)) => video_mode.monitor.ui_screen(mtm),
+            Some(Fullscreen::Exclusive(ref monitor, _)) => monitor.ui_screen(mtm),
             Some(Fullscreen::Borderless(Some(ref monitor))) => monitor.ui_screen(mtm),
             Some(Fullscreen::Borderless(None)) | None => &main_screen,
         };

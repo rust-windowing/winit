@@ -10,7 +10,7 @@ pub use crate::cursor::{BadImage, Cursor, CustomCursor, CustomCursorSource, MAX_
 use crate::dpi::{PhysicalInsets, PhysicalPosition, PhysicalSize, Position, Size};
 use crate::error::RequestError;
 pub use crate::icon::{BadIcon, Icon};
-use crate::monitor::{MonitorHandle, VideoModeHandle};
+use crate::monitor::{MonitorHandle, VideoMode};
 use crate::platform_impl::PlatformSpecificWindowAttributes;
 use crate::utils::AsAny;
 
@@ -963,7 +963,7 @@ pub trait Window: AsAny + Send + Sync {
     /// - **Wayland:** Does not support exclusive fullscreen mode and will no-op a request.
     /// - **Windows:** Screen saver is disabled in fullscreen mode.
     /// - **Android / Orbital:** Unsupported.
-    /// - **Web:** Passing a [`MonitorHandle`] or [`VideoModeHandle`] that was not created with
+    /// - **Web:** Passing a [`MonitorHandle`] or [`VideoMode`] that was not created with
     #[cfg_attr(
         any(web_platform, docsrs),
         doc = "  [detailed monitor permissions][crate::platform::web::ActiveEventLoopExtWeb::request_detailed_monitor_permission]"
@@ -1436,7 +1436,7 @@ pub enum Fullscreen {
     /// This changes the video mode of the monitor for fullscreen windows and,
     /// if applicable, captures the monitor for exclusive use by this
     /// application.
-    Exclusive(VideoModeHandle),
+    Exclusive(MonitorHandle, VideoMode),
 
     /// Providing `None` to `Borderless` will fullscreen on the current monitor.
     Borderless(Option<MonitorHandle>),
