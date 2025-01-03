@@ -64,7 +64,7 @@ impl EventLoopExtStartupNotify for ActiveEventLoop {
             crate::platform_impl::ActiveEventLoop::X(_) => env::var(X11_VAR),
         }
         .ok()
-        .map(ActivationToken::_new)
+        .map(ActivationToken::from_raw)
     }
 }
 
@@ -94,6 +94,6 @@ pub fn reset_activation_token_env() {
 ///
 /// This could be used before running daemon processes.
 pub fn set_activation_token_env(token: ActivationToken) {
-    env::set_var(X11_VAR, &token._token);
-    env::set_var(WAYLAND_VAR, token._token);
+    env::set_var(X11_VAR, &token.token);
+    env::set_var(WAYLAND_VAR, token.token);
 }
