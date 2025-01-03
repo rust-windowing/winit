@@ -39,13 +39,3 @@ The migration guide could reference other migration examples in the current
 changelog entry.
 
 ## Unreleased
-
-### Added
-
-- `ActivationToken::from_raw` and `ActivationToken::into_raw`.
-- On X11, add a workaround for disabling IME on GNOME.
-
-### Fixed
-
-- On Windows, fixed the event loop not waking on accessibility requests.
-- On X11, fixed cursor grab mode state tracking on error.
