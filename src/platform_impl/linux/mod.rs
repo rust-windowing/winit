@@ -9,6 +9,8 @@ use std::time::Duration;
 #[cfg(x11_platform)]
 use std::{ffi::CStr, mem::MaybeUninit, os::raw::*, sync::Arc, sync::Mutex};
 
+use dpi::{LogicalPosition, LogicalSize};
+use sctk::shell::wlr_layer::{Anchor, KeyboardInteractivity, Layer};
 use smol_str::SmolStr;
 
 pub(crate) use self::common::xkb::{physicalkey_to_scancode, scancode_to_physicalkey};
@@ -69,6 +71,8 @@ pub struct PlatformSpecificWindowAttributes {
     pub activation_token: Option<ActivationToken>,
     #[cfg(x11_platform)]
     pub x11: X11WindowAttributes,
+    #[cfg(wayland_platform)]
+    pub wayland: WaylandWindowAttributes,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -82,6 +86,18 @@ pub struct X11WindowAttributes {
 
     /// The parent window to embed this window into.
     pub embed_window: Option<x11rb::protocol::xproto::Window>,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+#[cfg(wayland_platform)]
+pub struct WaylandWindowAttributes {
+    pub layer: Option<Layer>,
+    pub anchor: Option<Anchor>,
+    pub output: Option<u32>,
+    pub region: Option<(LogicalPosition<i32>, LogicalSize<i32>)>,
+    pub exclusive_zone: Option<i32>,
+    pub margin: Option<(i32, i32, i32, i32)>,
+    pub keyboard_interactivity: Option<KeyboardInteractivity>,
 }
 
 #[cfg_attr(not(x11_platform), allow(clippy::derivable_impls))]
@@ -98,6 +114,16 @@ impl Default for PlatformSpecificWindowAttributes {
                 override_redirect: false,
                 x11_window_types: vec![XWindowType::Normal],
                 embed_window: None,
+            },
+            #[cfg(wayland_platform)]
+            wayland: WaylandWindowAttributes {
+                layer: None,
+                margin: None,
+                anchor: None,
+                output: None,
+                region: None,
+                exclusive_zone: None,
+                keyboard_interactivity: None,
             },
         }
     }
