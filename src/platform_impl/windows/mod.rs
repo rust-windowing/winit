@@ -6,7 +6,7 @@ pub(crate) use self::event_loop::{EventLoop, PlatformSpecificEventLoopAttributes
 pub use self::icon::WinIcon as PlatformIcon;
 pub(crate) use self::icon::{SelectedCursor, WinCursor as PlatformCustomCursor, WinIcon};
 pub(crate) use self::keyboard::{physicalkey_to_scancode, scancode_to_physicalkey};
-pub(crate) use self::monitor::{MonitorHandle, VideoModeHandle};
+pub(crate) use self::monitor::MonitorHandle;
 pub(crate) use self::window::Window;
 pub(crate) use crate::cursor::OnlyCursorImageSource as PlatformCustomCursorSource;
 use crate::event::DeviceId;

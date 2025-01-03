@@ -1311,8 +1311,8 @@ unsafe fn public_window_callback_inner(
                                 *fullscreen_monitor = Some(MonitorHandle::new(new_monitor));
                             }
                         },
-                        Fullscreen::Exclusive(ref video_mode) => {
-                            let old_monitor = video_mode.monitor.hmonitor();
+                        Fullscreen::Exclusive(ref monitor, _) => {
+                            let old_monitor = monitor.hmonitor();
                             if let Ok(old_monitor_info) = monitor::get_monitor_info(old_monitor) {
                                 let old_monitor_rect = old_monitor_info.monitorInfo.rcMonitor;
                                 window_pos.x = old_monitor_rect.left;

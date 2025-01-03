@@ -71,6 +71,8 @@ changelog entry.
 - Added `Window::safe_area`, which describes the area of the surface that is unobstructed.
 - On X11, Wayland, Windows and macOS, improved scancode conversions for more obscure key codes.
 - Add ability to make non-activating window on macOS using `NSPanel` with `NSWindowStyleMask::NonactivatingPanel`.
+- `ActivationToken::from_raw` and `ActivationToken::into_raw`.
+- On X11, add a workaround for disabling IME on GNOME.
 
 ### Changed
 
@@ -160,6 +162,8 @@ changelog entry.
 - On macOS, no longer emit `Focused` upon window creation.
 - On iOS, emit more events immediately, instead of queuing them.
 - Update `smol_str` to version `0.3`
+- Rename `VideoModeHandle` to `VideoMode`, now it only stores plain data.
+- Make `Fullscreen::Exclusive` contain `(MonitorHandle, VideoMode)`.
 
 ### Removed
 
@@ -201,3 +205,4 @@ changelog entry.
 - On macOS, fixed the scancode conversion for `IntlBackslash`.
 - On macOS, fixed redundant `SurfaceResized` event at window creation.
 - On Windows, fixed the event loop not waking on accessibility requests.
+- On X11, fixed cursor grab mode state tracking on error.

@@ -7,7 +7,6 @@ use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 
 use core_graphics::display::CGDisplay;
-use monitor::VideoModeHandle;
 use objc2::rc::{autoreleasepool, Retained};
 use objc2::runtime::{AnyObject, ProtocolObject};
 use objc2::{declare_class, msg_send_id, mutability, sel, ClassType, DeclaredClass};
@@ -247,7 +246,7 @@ declare_class!(
                 // Exclusive mode sets the state in `set_fullscreen` as the user
                 // can't enter exclusive mode by other means (like the
                 // fullscreen button on the window decorations)
-                Some(Fullscreen::Exclusive(_)) => (),
+                Some(Fullscreen::Exclusive(_, _)) => (),
                 // `window_will_enter_fullscreen` was triggered and we're already
                 // in fullscreen, so we must've reached here by `set_fullscreen`
                 // as it updates the state
@@ -287,7 +286,7 @@ declare_class!(
             // user-provided options are ignored in exclusive fullscreen.
             let mut options = proposed_options;
             let fullscreen = self.ivars().fullscreen.borrow();
-            if let Some(Fullscreen::Exclusive(_)) = &*fullscreen {
+            if let Some(Fullscreen::Exclusive(_, _)) = &*fullscreen {
                 options = NSApplicationPresentationOptions::NSApplicationPresentationFullScreen
                     | NSApplicationPresentationOptions::NSApplicationPresentationHideDock
                     | NSApplicationPresentationOptions::NSApplicationPresentationHideMenuBar;
@@ -507,7 +506,7 @@ fn new_window(
     autoreleasepool(|_| {
         let screen = match attrs.fullscreen.clone().map(Into::into) {
             Some(Fullscreen::Borderless(Some(monitor)))
-            | Some(Fullscreen::Exclusive(VideoModeHandle { monitor, .. })) => {
+            | Some(Fullscreen::Exclusive(monitor, _)) => {
                 monitor.ns_screen(mtm).or_else(|| NSScreen::mainScreen(mtm))
             },
             Some(Fullscreen::Borderless(None)) => NSScreen::mainScreen(mtm),
@@ -1426,7 +1425,7 @@ impl WindowDelegate {
                         return;
                     }
                 },
-                Fullscreen::Exclusive(video_mode) => video_mode.monitor(),
+                Fullscreen::Exclusive(monitor, _) => monitor.clone(),
             }
             .ns_screen(mtm)
             .unwrap();
@@ -1437,7 +1436,7 @@ impl WindowDelegate {
             }
         }
 
-        if let Some(Fullscreen::Exclusive(ref video_mode)) = fullscreen {
+        if let Some(Fullscreen::Exclusive(ref monitor, ref video_mode)) = fullscreen {
             // Note: `enterFullScreenMode:withOptions:` seems to do the exact
             // same thing as we're doing here (captures the display, sets the
             // video mode, and hides the menu bar and dock), with the exception
@@ -1450,7 +1449,7 @@ impl WindowDelegate {
             // parameter, which is not consistent with the docs saying that it
             // takes a `NSDictionary`..
 
-            let display_id = video_mode.monitor().native_identifier();
+            let display_id = monitor.native_identifier();
 
             let mut fade_token = ffi::kCGDisplayFadeReservationInvalidToken;
 
@@ -1478,6 +1477,12 @@ impl WindowDelegate {
 
                 assert_eq!(ffi::CGDisplayCapture(display_id), ffi::kCGErrorSuccess);
             }
+
+            let video_mode =
+                match monitor.video_modes_handles().find(|mode| &mode.mode == video_mode) {
+                    Some(video_mode) => video_mode,
+                    None => return,
+                };
 
             unsafe {
                 let result = ffi::CGDisplaySetDisplayMode(
@@ -1543,11 +1548,11 @@ impl WindowDelegate {
                 // State is restored by `window_did_exit_fullscreen`
                 toggle_fullscreen(self.window());
             },
-            (Some(Fullscreen::Exclusive(ref video_mode)), None) => {
-                restore_and_release_display(&video_mode.monitor());
+            (Some(Fullscreen::Exclusive(ref monitor, _)), None) => {
+                restore_and_release_display(monitor);
                 toggle_fullscreen(self.window());
             },
-            (Some(Fullscreen::Borderless(_)), Some(Fullscreen::Exclusive(_))) => {
+            (Some(Fullscreen::Borderless(_)), Some(Fullscreen::Exclusive(..))) => {
                 // If we're already in fullscreen mode, calling
                 // `CGDisplayCapture` will place the shielding window on top of
                 // our window, which results in a black display and is not what
@@ -1567,7 +1572,7 @@ impl WindowDelegate {
                 let window_level = unsafe { ffi::CGShieldingWindowLevel() } as NSWindowLevel + 1;
                 self.window().setLevel(window_level);
             },
-            (Some(Fullscreen::Exclusive(ref video_mode)), Some(Fullscreen::Borderless(_))) => {
+            (Some(Fullscreen::Exclusive(ref monitor, _)), Some(Fullscreen::Borderless(_))) => {
                 let presentation_options = self.ivars().save_presentation_opts.get().unwrap_or(
                     NSApplicationPresentationOptions::NSApplicationPresentationFullScreen
                         | NSApplicationPresentationOptions::NSApplicationPresentationAutoHideDock
@@ -1575,7 +1580,7 @@ impl WindowDelegate {
                 );
                 app.setPresentationOptions(presentation_options);
 
-                restore_and_release_display(&video_mode.monitor());
+                restore_and_release_display(monitor);
 
                 // Restore the normal window level following the Borderless fullscreen
                 // `CGShieldingWindowLevel() + 1` hack.

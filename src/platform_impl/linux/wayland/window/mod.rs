@@ -139,7 +139,7 @@ impl Window {
 
         // Set startup mode.
         match attributes.fullscreen.map(Into::into) {
-            Some(Fullscreen::Exclusive(_)) => {
+            Some(Fullscreen::Exclusive(..)) => {
                 warn!("`Fullscreen::Exclusive` is ignored on Wayland");
             },
             #[cfg_attr(not(x11_platform), allow(clippy::bind_instead_of_map))]
@@ -165,7 +165,7 @@ impl Window {
         if let (Some(xdg_activation), Some(token)) =
             (xdg_activation.as_ref(), attributes.platform_specific.activation_token)
         {
-            xdg_activation.activate(token._token, &surface);
+            xdg_activation.activate(token.token, &surface);
         }
 
         // XXX Do initial commit.
@@ -438,7 +438,7 @@ impl CoreWindow for Window {
 
     fn set_fullscreen(&self, fullscreen: Option<CoreFullscreen>) {
         match fullscreen {
-            Some(CoreFullscreen::Exclusive(_)) => {
+            Some(CoreFullscreen::Exclusive(..)) => {
                 warn!("`Fullscreen::Exclusive` is ignored on Wayland");
             },
             #[cfg_attr(not(x11_platform), allow(clippy::bind_instead_of_map))]
