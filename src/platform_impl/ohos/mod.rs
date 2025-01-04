@@ -1,11 +1,11 @@
-use std::cell::Cell;
+use std::cell::{Cell, RefCell};
 use std::collections::VecDeque;
 use std::hash::Hash;
 use std::marker::PhantomData;
 use std::num::{NonZeroU16, NonZeroU32};
 use std::rc::Rc;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{mpsc, Arc, Mutex, RwLock};
+use std::sync::{mpsc, Arc, LazyLock, Mutex, RwLock};
 use std::time::{Duration, Instant};
 
 use openharmony_ability::xcomponent::{Action, KeyCode, TouchEvent};
@@ -38,6 +38,10 @@ pub(crate) use crate::cursor::{
 pub(crate) use crate::icon::NoIcon as PlatformIcon;
 
 static HAS_FOCUS: AtomicBool = AtomicBool::new(true);
+
+static EVENT: LazyLock<
+    Arc<Mutex<Option<Box<dyn FnMut(event::Event<()>, &RootAEL) + Send + Sync>>>>,
+> = LazyLock::new(|| Arc::new(Mutex::new(None)));
 
 struct PeekableReceiver<T> {
     recv: mpsc::Receiver<T>,
@@ -218,28 +222,42 @@ impl<T: 'static> EventLoop<T> {
         }
     }
 
-    pub fn run<F>(mut self, event_handle: F) -> Result<(), EventLoopError>
+    pub fn run<F>(self, event_handle: F) -> Result<(), EventLoopError>
     where
         F: FnMut(event::Event<T>, &RootAEL),
     {
         trace!("Mainloop iteration");
-
         let cause = self.cause;
 
-        let mut callback = event_handle;
+        {
+            let mut guard = EVENT.lock().unwrap();
+            let handle = unsafe {
+                std::mem::transmute::<
+                    Box<dyn FnMut(event::Event<T>, &RootAEL)>,
+                    Box<dyn FnMut(event::Event<()>, &RootAEL) + Sync + Send>,
+                >(Box::new(event_handle))
+            };
+            *guard = Some(handle);
+            if let Some(ref mut h) = *guard {
+                h(event::Event::NewEvents(cause), self.window_target());
+            }
+        }
 
-        callback(event::Event::NewEvents(cause), self.window_target());
+        let app = self.openharmony_app.clone();
 
-        let openharmony_app = self.openharmony_app.clone();
-
-        openharmony_app.run_loop(|event| {
+        app.run_loop(|event| {
             match event {
                 MainEvent::SurfaceCreate { .. } => {
-                    let ap = openharmony_app.clone();
-                    callback(event::Event::Resumed, self.window_target());
+                    let mut guard = EVENT.lock().unwrap();
+                    if let Some(ref mut h) = *guard {
+                        h(event::Event::Resumed, self.window_target());
+                    }
                 },
                 MainEvent::SurfaceDestroy { .. } => {
-                    callback(event::Event::Suspended, self.window_target());
+                    let mut guard = EVENT.lock().unwrap();
+                    if let Some(ref mut h) = *guard {
+                        h(event::Event::Suspended, self.window_target());
+                    }
                 },
                 MainEvent::WindowResize { .. } => {
                     let win = self.openharmony_app.native_window();
@@ -252,37 +270,49 @@ impl<T: 'static> EventLoop<T> {
                         window_id: window::WindowId(WindowId),
                         event: event::WindowEvent::Resized(size),
                     };
-                    callback(event, self.window_target());
+                    let mut guard = EVENT.lock().unwrap();
+                    if let Some(ref mut h) = *guard {
+                        h(event, self.window_target());
+                    }
                 },
                 MainEvent::WindowRedraw { .. } => {
                     let event = event::Event::WindowEvent {
                         window_id: window::WindowId(WindowId),
                         event: event::WindowEvent::RedrawRequested,
                     };
-                    callback(event, self.window_target());
+                    let mut guard = EVENT.lock().unwrap();
+                    if let Some(ref mut h) = *guard {
+                        h(event, self.window_target());
+                    }
                 },
                 MainEvent::ContentRectChange { .. } => {
                     warn!("TODO: find a way to notify application of content rect change");
                 },
                 MainEvent::GainedFocus => {
                     HAS_FOCUS.store(true, Ordering::Relaxed);
-                    callback(
-                        event::Event::WindowEvent {
-                            window_id: window::WindowId(WindowId),
-                            event: event::WindowEvent::Focused(true),
-                        },
-                        self.window_target(),
-                    );
+                    let mut guard = EVENT.lock().unwrap();
+                    if let Some(ref mut h) = *guard {
+                        h(
+                            event::Event::WindowEvent {
+                                window_id: window::WindowId(WindowId),
+                                event: event::WindowEvent::Focused(true),
+                            },
+                            self.window_target(),
+                        );
+                    }
                 },
                 MainEvent::LostFocus => {
                     HAS_FOCUS.store(false, Ordering::Relaxed);
-                    callback(
-                        event::Event::WindowEvent {
-                            window_id: window::WindowId(WindowId),
-                            event: event::WindowEvent::Focused(true),
-                        },
-                        self.window_target(),
-                    );
+                    let mut guard = EVENT.lock().unwrap();
+                    if let Some(ref mut h) = *guard {
+                        h(
+                            event::Event::WindowEvent {
+                                window_id: window::WindowId(WindowId),
+                                event: event::WindowEvent::Focused(true),
+                            },
+                            self.window_target(),
+                        );
+                    }
                 },
                 MainEvent::ConfigChanged { .. } => {
                     let win = self.openharmony_app.native_window();
@@ -301,11 +331,17 @@ impl<T: 'static> EventLoop<T> {
                                 scale_factor: scale as _,
                             },
                         };
-                        callback(event, self.window_target());
+                        let mut guard = EVENT.lock().unwrap();
+                        if let Some(ref mut h) = *guard {
+                            h(event, self.window_target());
+                        }
                     }
                 },
                 MainEvent::LowMemory => {
-                    callback(event::Event::MemoryWarning, self.window_target());
+                    let mut guard = EVENT.lock().unwrap();
+                    if let Some(ref mut h) = *guard {
+                        h(event::Event::MemoryWarning, self.window_target());
+                    }
                 },
                 MainEvent::Start => {
                     // app.resumed(self.window_target());
@@ -326,24 +362,27 @@ impl<T: 'static> EventLoop<T> {
                     // self.running = false;
                 },
                 MainEvent::Stop => {
-                    callback(event::Event::Suspended, self.window_target());
+                    let mut guard = EVENT.lock().unwrap();
+                    if let Some(ref mut h) = *guard {
+                        h(event::Event::Suspended, self.window_target());
+                    }
                 },
                 MainEvent::Destroy => {
                     // XXX: maybe exit mainloop to drop things before being
                     // killed by the OS?
                     warn!("TODO: forward onDestroy notification to application");
                 },
-                MainEvent::Input(e) => {
+                MainEvent::Input(ee) => {
                     warn!("TODO: forward onDestroy notification to application");
                     // let openharmony_app = self.openharmony_app.clone();
-                    self.handle_input_event(&e, &mut callback)
+                    // let mut callback = callback.borrow_mut();
+                    // self.handle_input_event(&ee, &mut *callback);
                 },
                 unknown => {
                     trace!("Unknown MainEvent {unknown:?} (ignored)");
                 },
             }
         });
-
         Ok(())
     }
 
@@ -733,6 +772,11 @@ impl Window {
             if let Some(win) = native_window.raw_window_handle() {
                 return Ok(win);
             }
+            tracing::error!(
+                "Cannot get the native window, it's null and will always be null before \
+                 Event::Resumed and after Event::Suspended. Make sure you only call this function \
+                 between those events."
+            );
             Err(rwh_06::HandleError::Unavailable)
         } else {
             tracing::error!(
