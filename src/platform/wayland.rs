@@ -13,6 +13,12 @@
 //! * `wayland-csd-adwaita` (default).
 //! * `wayland-csd-adwaita-crossfont`.
 //! * `wayland-csd-adwaita-notitle`.
+
+use std::ffi::c_void;
+use std::ptr::null_mut;
+
+use sctk::reexports::client::Proxy;
+
 use crate::event_loop::{ActiveEventLoop, EventLoop, EventLoopBuilder};
 use crate::monitor::MonitorHandle;
 pub use crate::window::Theme;
@@ -73,9 +79,20 @@ impl EventLoopBuilderExtWayland for EventLoopBuilder {
 /// Additional methods on [`Window`] that are specific to Wayland.
 ///
 /// [`Window`]: crate::window::Window
-pub trait WindowExtWayland {}
+pub trait WindowExtWayland {
+    /// Returns `xdg_toplevel` of the window or null if the window is X11 window.
+    fn xdg_toplevel(&self) -> *mut c_void;
+}
 
-impl WindowExtWayland for dyn CoreWindow + '_ {}
+impl WindowExtWayland for dyn CoreWindow + '_ {
+    #[inline]
+    fn xdg_toplevel(&self) -> *mut c_void {
+        self.as_any()
+            .downcast_ref::<crate::platform_impl::wayland::Window>()
+            .map(|w| w.xdg_toplevel().id().as_ptr().cast())
+            .unwrap_or(null_mut())
+    }
+}
 
 /// Additional methods on [`WindowAttributes`] that are specific to Wayland.
 pub trait WindowAttributesExtWayland {
