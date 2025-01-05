@@ -8,6 +8,7 @@ use sctk::reexports::client::protocol::wl_display::WlDisplay;
 use sctk::reexports::client::protocol::wl_surface::WlSurface;
 use sctk::reexports::client::{Proxy, QueueHandle};
 use sctk::reexports::protocols::xdg::activation::v1::client::xdg_activation_v1::XdgActivationV1;
+use sctk::reexports::protocols::xdg::shell::client::xdg_toplevel::XdgToplevel;
 use sctk::shell::xdg::window::{Window as SctkWindow, WindowDecorations};
 use sctk::shell::WaylandSurface;
 use tracing::warn;
@@ -238,6 +239,11 @@ impl Window {
     #[inline]
     pub fn surface(&self) -> &WlSurface {
         self.window.wl_surface()
+    }
+
+    #[inline]
+    pub fn xdg_toplevel(&self) -> &XdgToplevel {
+        self.window.xdg_toplevel()
     }
 }
 
