@@ -206,3 +206,4 @@ changelog entry.
 - On macOS, fixed redundant `SurfaceResized` event at window creation.
 - On Windows, fixed the event loop not waking on accessibility requests.
 - On X11, fixed cursor grab mode state tracking on error.
+- On Windows, fix `Window::inner_size` of undecorated window with shadows, reporting a size bigger than what's visible.
