@@ -508,14 +508,21 @@ impl CoreWindow for Window {
             if unsafe { ClientToScreen(self.hwnd(), &mut pt) } == true.into() {
                 let mut window_rc: RECT = unsafe { mem::zeroed() };
                 if unsafe { GetWindowRect(self.hwnd(), &mut window_rc) } == true.into() {
-                    let left_b = pt.x - window_rc.left;
-                    let right_b = pt.x + physical_size.width as i32 - window_rc.right;
-                    let top_b = pt.y - window_rc.top;
-                    let bottom_b = pt.y + physical_size.height as i32 - window_rc.bottom;
+                    let mut client_rc: RECT = unsafe { mem::zeroed() };
+                    if unsafe { GetClientRect(self.hwnd(), &mut client_rc) } == true.into() {
+                        let curr_width = client_rc.right - client_rc.left;
+                        let curr_height = client_rc.bottom - client_rc.top;
 
-                    physical_size.width = (physical_size.width as i32 + (left_b - right_b)) as u32;
-                    physical_size.height =
-                        (physical_size.height as i32 + (top_b - bottom_b)) as u32;
+                        let left_b = pt.x - window_rc.left;
+                        let right_b: i32 = (pt.x + curr_width) - window_rc.right;
+                        let top_b = pt.y - window_rc.top;
+                        let bottom_b: i32 = (pt.y + curr_height) - window_rc.bottom;
+
+                        physical_size.width =
+                            (physical_size.width as i32 + (left_b - right_b)) as u32;
+                        physical_size.height =
+                            (physical_size.height as i32 + (top_b - bottom_b)) as u32;
+                    }
                 }
             }
         }
