@@ -7,10 +7,10 @@ pub use cursor_icon::{CursorIcon, ParseError as CursorIconParseError};
 use serde::{Deserialize, Serialize};
 
 pub use crate::cursor::{BadImage, Cursor, CustomCursor, CustomCursorSource, MAX_CURSOR_SIZE};
-use crate::dpi::{PhysicalPosition, PhysicalSize, Position, Size};
+use crate::dpi::{PhysicalInsets, PhysicalPosition, PhysicalSize, Position, Size};
 use crate::error::RequestError;
 pub use crate::icon::{BadIcon, Icon};
-use crate::monitor::{MonitorHandle, VideoModeHandle};
+use crate::monitor::{MonitorHandle, VideoMode};
 use crate::platform_impl::PlatformSpecificWindowAttributes;
 use crate::utils::AsAny;
 
@@ -574,41 +574,51 @@ pub trait Window: AsAny + Send + Sync {
     // extension trait
     fn reset_dead_keys(&self);
 
-    /// Returns the position of the top-left hand corner of the window's client area relative to the
-    /// top-left hand corner of the desktop.
+    /// The position of the top-left hand corner of the surface relative to the top-left hand corner
+    /// of the window.
     ///
-    /// The same conditions that apply to [`Window::outer_position`] apply to this method.
+    /// This, combined with [`outer_position`], can be useful for calculating the position of the
+    /// surface relative to the desktop.
     ///
-    /// ## Platform-specific
+    /// This may also be useful for figuring out the size of the window's decorations (such as
+    /// buttons, title, etc.), but may also not correspond to that (e.g. if the title bar is made
+    /// transparent using [`with_titlebar_transparent`] on macOS, or your are drawing window
+    /// decorations yourself).
     ///
-    /// - **iOS:** Returns the top left coordinates of the window's [safe area] in the screen space
-    ///   coordinate system.
-    /// - **Web:** Returns the top-left coordinates relative to the viewport. _Note: this returns
-    ///   the same value as [`Window::outer_position`]._
-    /// - **Android / Wayland:** Always returns [`RequestError::NotSupported`].
+    /// This may be negative.
     ///
-    /// [safe area]: https://developer.apple.com/documentation/uikit/uiview/2891103-safeareainsets?language=objc
-    fn inner_position(&self) -> Result<PhysicalPosition<i32>, RequestError>;
+    /// If the window does not have any decorations, and the surface is in the exact same position
+    /// as the window itself, this simply returns `(0, 0)`.
+    ///
+    /// [`outer_position`]: Self::outer_position
+    #[cfg_attr(
+        any(macos_platform, docsrs),
+        doc = "[`with_titlebar_transparent`]: \
+               crate::platform::macos::WindowAttributesExtMacOS::with_titlebar_transparent"
+    )]
+    #[cfg_attr(
+        not(any(macos_platform, docsrs)),
+        doc = "[`with_titlebar_transparent`]: #only-available-on-macos"
+    )]
+    fn surface_position(&self) -> PhysicalPosition<i32>;
 
-    /// Returns the position of the top-left hand corner of the window relative to the
-    /// top-left hand corner of the desktop.
+    /// The position of the top-left hand corner of the window relative to the top-left hand corner
+    /// of the desktop.
     ///
     /// Note that the top-left hand corner of the desktop is not necessarily the same as
     /// the screen. If the user uses a desktop with multiple monitors, the top-left hand corner
-    /// of the desktop is the top-left hand corner of the monitor at the top-left of the desktop.
+    /// of the desktop is the top-left hand corner of the primary monitor of the desktop.
     ///
     /// The coordinates can be negative if the top-left hand corner of the window is outside
-    /// of the visible screen region.
+    /// of the visible screen region, or on another monitor than the primary.
     ///
     /// ## Platform-specific
     ///
-    /// - **iOS:** Returns the top left coordinates of the window in the screen space coordinate
-    ///   system.
     /// - **Web:** Returns the top-left coordinates relative to the viewport.
     /// - **Android / Wayland:** Always returns [`RequestError::NotSupported`].
     fn outer_position(&self) -> Result<PhysicalPosition<i32>, RequestError>;
 
-    /// Modifies the position of the window.
+    /// Sets the position of the window on the desktop.
     ///
     /// See [`Window::outer_position`] for more information about the coordinates.
     /// This automatically un-maximizes the window if it's maximized.
@@ -638,16 +648,21 @@ pub trait Window: AsAny + Send + Sync {
 
     /// Returns the size of the window's render-able surface.
     ///
-    /// This is the dimensions you should pass to things like Wgpu or Glutin when configuring.
+    /// This is the dimensions you should pass to things like Wgpu or Glutin when configuring the
+    /// surface for drawing. See [`WindowEvent::SurfaceResized`] for listening to changes to this
+    /// field.
+    ///
+    /// Note that to ensure that your content is not obscured by things such as notches or the title
+    /// bar, you will likely want to only draw important content inside a specific area of the
+    /// surface, see [`safe_area()`] for details.
     ///
     /// ## Platform-specific
     ///
-    /// - **iOS:** Returns the `PhysicalSize` of the window's [safe area] in screen space
-    ///   coordinates.
     /// - **Web:** Returns the size of the canvas element. Doesn't account for CSS [`transform`].
     ///
-    /// [safe area]: https://developer.apple.com/documentation/uikit/uiview/2891103-safeareainsets?language=objc
     /// [`transform`]: https://developer.mozilla.org/en-US/docs/Web/CSS/transform
+    /// [`WindowEvent::SurfaceResized`]: crate::event::WindowEvent::SurfaceResized
+    /// [`safe_area()`]: Window::safe_area
     fn surface_size(&self) -> PhysicalSize<u32>;
 
     /// Request the new size for the surface.
@@ -694,10 +709,52 @@ pub trait Window: AsAny + Send + Sync {
     ///
     /// ## Platform-specific
     ///
-    /// - **iOS:** Returns the [`PhysicalSize`] of the window in screen space coordinates.
     /// - **Web:** Returns the size of the canvas element. _Note: this returns the same value as
     ///   [`Window::surface_size`]._
     fn outer_size(&self) -> PhysicalSize<u32>;
+
+    /// The inset area of the surface that is unobstructed.
+    ///
+    /// On some devices, especially mobile devices, the screen is not a perfect rectangle, and may
+    /// have rounded corners, notches, bezels, and so on. When drawing your content, you usually
+    /// want to draw your background and other such unimportant content on the entire surface, while
+    /// you will want to restrict important content such as text, interactable or visual indicators
+    /// to the part of the screen that is actually visible; for this, you use the safe area.
+    ///
+    /// The safe area is a rectangle that is defined relative to the origin at the top-left corner
+    /// of the surface, and the size extending downwards to the right. The area will not extend
+    /// beyond [the bounds of the surface][Window::surface_size].
+    ///
+    /// Note that the safe area does not take occlusion from other windows into account; in a way,
+    /// it is only a "hardware"-level occlusion.
+    ///
+    /// If the entire content of the surface is visible, this returns `(0, 0, 0, 0)`.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **Android / Orbital / Wayland / Windows / X11:** Unimplemented, returns `(0, 0, 0, 0)`.
+    ///
+    /// ## Examples
+    ///
+    /// Convert safe area insets to a size and a position.
+    ///
+    /// ```
+    /// use winit::dpi::{PhysicalPosition, PhysicalSize};
+    ///
+    /// # let surface_size = dpi::PhysicalSize::new(0, 0);
+    /// # #[cfg(requires_window)]
+    /// let surface_size = window.surface_size();
+    /// # let insets = dpi::PhysicalInsets::new(0, 0, 0, 0);
+    /// # #[cfg(requires_window)]
+    /// let insets = window.safe_area();
+    ///
+    /// let origin = PhysicalPosition::new(insets.left, insets.top);
+    /// let size = PhysicalSize::new(
+    ///     surface_size.width - insets.left - insets.right,
+    ///     surface_size.height - insets.top - insets.bottom,
+    /// );
+    /// ```
+    fn safe_area(&self) -> PhysicalInsets<u32>;
 
     /// Sets a minimum dimensions of the window's surface.
     ///
@@ -852,7 +909,7 @@ pub trait Window: AsAny + Send + Sync {
     /// - **Web / iOS / Android:** Unsupported. Always returns [`WindowButtons::all`].
     fn enabled_buttons(&self) -> WindowButtons;
 
-    /// Sets the window to minimized or back
+    /// Minimize the window, or put it back from the minimized state.
     ///
     /// ## Platform-specific
     ///
@@ -888,7 +945,7 @@ pub trait Window: AsAny + Send + Sync {
     /// - **iOS / Android / Web:** Unsupported.
     fn is_maximized(&self) -> bool;
 
-    /// Sets the window to fullscreen or back.
+    /// Set the window's fullscreen state.
     ///
     /// ## Platform-specific
     ///
@@ -906,7 +963,7 @@ pub trait Window: AsAny + Send + Sync {
     /// - **Wayland:** Does not support exclusive fullscreen mode and will no-op a request.
     /// - **Windows:** Screen saver is disabled in fullscreen mode.
     /// - **Android / Orbital:** Unsupported.
-    /// - **Web:** Passing a [`MonitorHandle`] or [`VideoModeHandle`] that was not created with
+    /// - **Web:** Passing a [`MonitorHandle`] or [`VideoMode`] that was not created with
     #[cfg_attr(
         any(web_platform, docsrs),
         doc = "  [detailed monitor permissions][crate::platform::web::ActiveEventLoopExtWeb::request_detailed_monitor_permission]"
@@ -971,8 +1028,8 @@ pub trait Window: AsAny + Send + Sync {
     fn set_window_icon(&self, window_icon: Option<Icon>);
 
     /// Set the IME cursor editing area, where the `position` is the top left corner of that area
-    /// and `size` is the size of this area starting from the position. An example of such area
-    /// could be a input field in the UI or line in the editor.
+    /// in surface coordinates and `size` is the size of this area starting from the position. An
+    /// example of such area could be a input field in the UI or line in the editor.
     ///
     /// The windowing system could place a candidate box close to that area, but try to not obscure
     /// the specified area, so the user input to it stays visible.
@@ -1005,7 +1062,8 @@ pub trait Window: AsAny + Send + Sync {
     ///
     /// ## Platform-specific
     ///
-    /// - **X11:** - area is not supported, only position.
+    /// - **X11:** Area is not supported, only position. The bottom-right corner of the provided
+    ///   area is reported as the position.
     /// - **iOS / Android / Web / Orbital:** Unsupported.
     ///
     /// [chinese]: https://support.apple.com/guide/chinese-input-method/use-the-candidate-window-cim12992/104/mac/12.0
@@ -1028,8 +1086,8 @@ pub trait Window: AsAny + Send + Sync {
     ///
     /// - **macOS:** IME must be enabled to receive text-input where dead-key sequences are
     ///   combined.
-    /// - **iOS:** This will show / hide the soft keyboard.
-    /// - **Android / Web / Orbital:** Unsupported.
+    /// - **iOS / Android:** This will show / hide the soft keyboard.
+    /// - **Web / Orbital:** Unsupported.
     /// - **X11**: Enabling IME will disable dead keys reporting during compose.
     ///
     /// [`Ime`]: crate::event::WindowEvent::Ime
@@ -1202,7 +1260,7 @@ pub trait Window: AsAny + Send + Sync {
     /// - **iOS / Android / Web:** Always returns an [`RequestError::NotSupported`].
     fn drag_resize_window(&self, direction: ResizeDirection) -> Result<(), RequestError>;
 
-    /// Show [window menu] at a specified position .
+    /// Show [window menu] at a specified position in surface coordinates.
     ///
     /// This is the context menu that is normally shown when interacting with
     /// the title bar. This is useful when implementing custom decorations.
@@ -1375,7 +1433,10 @@ impl From<ResizeDirection> for CursorIcon {
 /// Fullscreen modes.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum Fullscreen {
-    Exclusive(VideoModeHandle),
+    /// This changes the video mode of the monitor for fullscreen windows and,
+    /// if applicable, captures the monitor for exclusive use by this
+    /// application.
+    Exclusive(MonitorHandle, VideoMode),
 
     /// Providing `None` to `Borderless` will fullscreen on the current monitor.
     Borderless(Option<MonitorHandle>),
@@ -1483,11 +1544,34 @@ impl Default for ImePurpose {
 /// [`Window`]: crate::window::Window
 #[derive(Debug, PartialEq, Eq, Clone, Hash)]
 pub struct ActivationToken {
-    pub(crate) _token: String,
+    pub(crate) token: String,
 }
 
 impl ActivationToken {
-    pub(crate) fn _new(_token: String) -> Self {
-        Self { _token }
+    /// Make an [`ActivationToken`] from a string.
+    ///
+    /// This method should be used to wrap tokens passed by side channels to your application, like
+    /// dbus.
+    ///
+    /// The validity of the token is ensured by the windowing system. Using the invalid token will
+    /// only result in the side effect of the operation involving it being ignored (e.g. window
+    /// won't get focused automatically), but won't yield any errors.
+    ///
+    /// To obtain a valid token, use
+    #[cfg_attr(any(x11_platform, wayland_platform, docsrs), doc = " [`request_activation_token`].")]
+    #[cfg_attr(
+        not(any(x11_platform, wayland_platform, docsrs)),
+        doc = " `request_activation_token`."
+    )]
+    ///
+    #[rustfmt::skip]
+    /// [`request_activation_token`]: crate::platform::startup_notify::WindowExtStartupNotify::request_activation_token
+    pub fn from_raw(token: String) -> Self {
+        Self { token }
+    }
+
+    /// Convert the token to its string representation to later pass via IPC.
+    pub fn into_raw(self) -> String {
+        self.token
     }
 }

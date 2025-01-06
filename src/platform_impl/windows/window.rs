@@ -46,7 +46,7 @@ use windows_sys::Win32::UI::WindowsAndMessaging::{
 };
 
 use crate::cursor::Cursor;
-use crate::dpi::{PhysicalPosition, PhysicalSize, Position, Size};
+use crate::dpi::{PhysicalInsets, PhysicalPosition, PhysicalSize, Position, Size};
 use crate::error::{NotSupportedError, RequestError};
 use crate::icon::Icon;
 use crate::monitor::MonitorHandle as CoreMonitorHandle;
@@ -334,7 +334,7 @@ impl Window {
 impl Drop for Window {
     fn drop(&mut self) {
         // Restore fullscreen video mode on exit.
-        if matches!(self.fullscreen(), Some(CoreFullscreen::Exclusive(_))) {
+        if matches!(self.fullscreen(), Some(CoreFullscreen::Exclusive(_, _))) {
             self.set_fullscreen(None);
         }
 
@@ -416,15 +416,15 @@ impl CoreWindow for Window {
             )
     }
 
-    fn inner_position(&self) -> Result<PhysicalPosition<i32>, RequestError> {
-        let mut position: POINT = unsafe { mem::zeroed() };
-        if unsafe { ClientToScreen(self.hwnd(), &mut position) } == false.into() {
+    fn surface_position(&self) -> PhysicalPosition<i32> {
+        let mut rect: RECT = unsafe { mem::zeroed() };
+        if unsafe { GetClientRect(self.hwnd(), &mut rect) } == false.into() {
             panic!(
-                "Unexpected ClientToScreen failure: please report this error to \
+                "Unexpected GetClientRect failure: please report this error to \
                  rust-windowing/winit"
             )
         }
-        Ok(PhysicalPosition::new(position.x, position.y))
+        PhysicalPosition::new(rect.left, rect.top)
     }
 
     fn set_outer_position(&self, position: Position) {
@@ -541,6 +541,10 @@ impl CoreWindow for Window {
         }
 
         None
+    }
+
+    fn safe_area(&self) -> PhysicalInsets<u32> {
+        PhysicalInsets::new(0, 0, 0, 0)
     }
 
     fn set_min_surface_size(&self, size: Option<Size>) {
@@ -816,9 +820,13 @@ impl CoreWindow for Window {
             // Change video mode if we're transitioning to or from exclusive
             // fullscreen
             match (&old_fullscreen, &fullscreen) {
-                (_, Some(Fullscreen::Exclusive(video_mode))) => {
-                    let monitor = video_mode.monitor();
+                (_, Some(Fullscreen::Exclusive(monitor, video_mode))) => {
                     let monitor_info = monitor::get_monitor_info(monitor.hmonitor()).unwrap();
+                    let video_mode =
+                        match monitor.video_mode_handles().find(|mode| &mode.mode == video_mode) {
+                            Some(monitor) => monitor,
+                            None => return,
+                        };
 
                     let res = unsafe {
                         ChangeDisplaySettingsExW(
@@ -836,7 +844,7 @@ impl CoreWindow for Window {
                     debug_assert!(res != DISP_CHANGE_FAILED);
                     assert_eq!(res, DISP_CHANGE_SUCCESSFUL);
                 },
-                (Some(Fullscreen::Exclusive(_)), _) => {
+                (Some(Fullscreen::Exclusive(..)), _) => {
                     let res = unsafe {
                         ChangeDisplaySettingsExW(
                             ptr::null(),
@@ -873,7 +881,7 @@ impl CoreWindow for Window {
             WindowState::set_window_flags(window_state.lock().unwrap(), window, |f| {
                 f.set(
                     WindowFlags::MARKER_EXCLUSIVE_FULLSCREEN,
-                    matches!(fullscreen, Some(Fullscreen::Exclusive(_))),
+                    matches!(fullscreen, Some(Fullscreen::Exclusive(_, _))),
                 );
                 f.set(
                     WindowFlags::MARKER_BORDERLESS_FULLSCREEN,
@@ -903,7 +911,7 @@ impl CoreWindow for Window {
                     window_state.lock().unwrap().saved_window = Some(SavedWindow { placement });
 
                     let monitor = match &fullscreen {
-                        Fullscreen::Exclusive(video_mode) => video_mode.monitor(),
+                        Fullscreen::Exclusive(monitor, _) => monitor.clone(),
                         Fullscreen::Borderless(Some(monitor)) => monitor.clone(),
                         Fullscreen::Borderless(None) => monitor::current_monitor(window),
                     };
@@ -1116,7 +1124,7 @@ pub(super) struct InitData<'a> {
     pub window: Option<Window>,
 }
 
-impl<'a> InitData<'a> {
+impl InitData<'_> {
     unsafe fn create_window(&self, window: HWND) -> Window {
         // Register for touch events if applicable
         {

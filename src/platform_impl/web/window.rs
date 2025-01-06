@@ -2,13 +2,14 @@ use std::cell::Ref;
 use std::rc::Rc;
 use std::sync::Arc;
 
+use dpi::{LogicalPosition, LogicalSize};
 use web_sys::HtmlCanvasElement;
 
 use super::main_thread::{MainThreadMarker, MainThreadSafe};
 use super::monitor::MonitorHandler;
 use super::r#async::Dispatcher;
 use super::{backend, lock, ActiveEventLoop};
-use crate::dpi::{PhysicalPosition, PhysicalSize, Position, Size};
+use crate::dpi::{LogicalInsets, PhysicalInsets, PhysicalPosition, PhysicalSize, Position, Size};
 use crate::error::{NotSupportedError, RequestError};
 use crate::icon::Icon;
 use crate::monitor::MonitorHandle as RootMonitorHandle;
@@ -26,6 +27,7 @@ pub struct Inner {
     id: WindowId,
     pub window: web_sys::Window,
     monitor: Rc<MonitorHandler>,
+    safe_area: Rc<backend::SafeAreaHandle>,
     canvas: Rc<backend::Canvas>,
     destroy_fn: Option<Box<dyn FnOnce()>>,
 }
@@ -59,6 +61,7 @@ impl Window {
             id,
             window: window.clone(),
             monitor: Rc::clone(target.runner.monitor()),
+            safe_area: Rc::clone(target.runner.safe_area()),
             canvas,
             destroy_fn: Some(destroy_fn),
         };
@@ -109,9 +112,9 @@ impl RootWindow for Window {
         // Not supported
     }
 
-    fn inner_position(&self) -> Result<PhysicalPosition<i32>, RequestError> {
-        // Note: the canvas element has no window decorations, so this is equal to `outer_position`.
-        self.outer_position()
+    fn surface_position(&self) -> PhysicalPosition<i32> {
+        // Note: the canvas element has no window decorations.
+        (0, 0).into()
     }
 
     fn outer_position(&self) -> Result<PhysicalPosition<i32>, RequestError> {
@@ -150,6 +153,34 @@ impl RootWindow for Window {
     fn outer_size(&self) -> PhysicalSize<u32> {
         // Note: the canvas element has no window decorations, so this is equal to `surface_size`.
         self.surface_size()
+    }
+
+    fn safe_area(&self) -> PhysicalInsets<u32> {
+        self.inner.queue(|inner| {
+            let (safe_start_pos, safe_size) = inner.safe_area.get();
+            let safe_end_pos = LogicalPosition::new(
+                safe_start_pos.x + safe_size.width,
+                safe_start_pos.y + safe_size.height,
+            );
+
+            let surface_start_pos = inner.canvas.position();
+            let surface_size = LogicalSize::new(
+                backend::style_size_property(inner.canvas.style(), "width"),
+                backend::style_size_property(inner.canvas.style(), "height"),
+            );
+            let surface_end_pos = LogicalPosition::new(
+                surface_start_pos.x + surface_size.width,
+                surface_start_pos.y + surface_size.height,
+            );
+
+            let top = f64::max(safe_start_pos.y - surface_start_pos.y, 0.);
+            let left = f64::max(safe_start_pos.x - surface_start_pos.x, 0.);
+            let bottom = f64::max(surface_end_pos.y - safe_end_pos.y, 0.);
+            let right = f64::max(surface_end_pos.x - safe_end_pos.x, 0.);
+
+            let insets = LogicalInsets::new(top, left, bottom, right);
+            insets.to_physical(inner.scale_factor())
+        })
     }
 
     fn set_min_surface_size(&self, min_size: Option<Size>) {

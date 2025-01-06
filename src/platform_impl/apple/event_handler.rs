@@ -106,7 +106,6 @@ impl EventHandler {
         self.inner.try_borrow().is_err()
     }
 
-    #[cfg(target_os = "macos")]
     pub(crate) fn ready(&self) -> bool {
         matches!(self.inner.try_borrow().as_deref(), Ok(Some(_)))
     }

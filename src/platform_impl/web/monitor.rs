@@ -3,9 +3,8 @@ use std::cmp::Ordering;
 use std::fmt::{self, Debug, Formatter};
 use std::future::Future;
 use std::hash::{Hash, Hasher};
-use std::iter::{self, Once};
 use std::mem;
-use std::num::{NonZeroU16, NonZeroU32};
+use std::num::NonZeroU16;
 use std::ops::{Deref, DerefMut};
 use std::pin::Pin;
 use std::rc::{Rc, Weak};
@@ -29,7 +28,7 @@ use super::main_thread::MainThreadMarker;
 use super::r#async::{Dispatcher, Notified, Notifier};
 use super::web_sys::{Engine, EventListenerHandle};
 use crate::dpi::{PhysicalPosition, PhysicalSize};
-use crate::monitor::MonitorHandle as RootMonitorHandle;
+use crate::monitor::{MonitorHandle as RootMonitorHandle, VideoMode};
 use crate::platform::web::{
     MonitorPermissionError, Orientation, OrientationData, OrientationLock, OrientationLockError,
 };
@@ -59,12 +58,16 @@ impl MonitorHandle {
         self.inner.queue(|inner| inner.name())
     }
 
-    pub fn current_video_mode(&self) -> Option<VideoModeHandle> {
-        Some(VideoModeHandle(self.clone()))
+    pub fn current_video_mode(&self) -> Option<VideoMode> {
+        Some(VideoMode {
+            size: self.inner.queue(|inner| inner.size()),
+            bit_depth: self.inner.queue(|inner| inner.bit_depth()),
+            refresh_rate_millihertz: None,
+        })
     }
 
-    pub fn video_modes(&self) -> Once<VideoModeHandle> {
-        iter::once(VideoModeHandle(self.clone()))
+    pub fn video_modes(&self) -> impl Iterator<Item = VideoMode> {
+        self.current_video_mode().into_iter()
     }
 
     pub fn orientation(&self) -> OrientationData {
@@ -249,35 +252,6 @@ impl OrientationLockError {
         } else {
             OrientationLockError::Unsupported
         }
-    }
-}
-
-#[derive(Clone, Eq, Hash, PartialEq)]
-pub struct VideoModeHandle(MonitorHandle);
-
-impl VideoModeHandle {
-    pub fn size(&self) -> PhysicalSize<u32> {
-        self.0.inner.queue(|inner| inner.size())
-    }
-
-    pub fn bit_depth(&self) -> Option<NonZeroU16> {
-        self.0.inner.queue(|inner| inner.bit_depth())
-    }
-
-    pub fn refresh_rate_millihertz(&self) -> Option<NonZeroU32> {
-        None
-    }
-
-    pub fn monitor(&self) -> MonitorHandle {
-        self.0.clone()
-    }
-}
-
-impl Debug for VideoModeHandle {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        let (size, bit_depth) = self.0.inner.queue(|this| (this.size(), this.bit_depth()));
-
-        f.debug_struct("MonitorHandle").field("size", &size).field("bit_depth", &bit_depth).finish()
     }
 }
 

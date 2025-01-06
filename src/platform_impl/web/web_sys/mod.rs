@@ -7,6 +7,7 @@ mod intersection_handle;
 mod media_query_handle;
 mod pointer;
 mod resize_scaling;
+mod safe_area;
 mod schedule;
 
 use std::cell::OnceCell;
@@ -20,6 +21,7 @@ use web_sys::{Document, HtmlCanvasElement, Navigator, PageTransitionEvent, Visib
 pub use self::canvas::{Canvas, Style};
 pub use self::event_handle::EventListenerHandle;
 pub use self::resize_scaling::ResizeScaleHandle;
+pub use self::safe_area::SafeAreaHandle;
 pub use self::schedule::Schedule;
 use crate::dpi::{LogicalPosition, LogicalSize};
 

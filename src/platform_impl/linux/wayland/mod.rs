@@ -1,7 +1,7 @@
 //! Winit's Wayland backend.
 
-pub use event_loop::{ActiveEventLoop, EventLoop, EventLoopProxy};
-pub use output::{MonitorHandle, VideoModeHandle};
+pub use event_loop::{ActiveEventLoop, EventLoop};
+pub use output::MonitorHandle;
 use sctk::reexports::client::protocol::wl_surface::WlSurface;
 use sctk::reexports::client::Proxy;
 pub use window::Window;

@@ -1,10 +1,5 @@
 //! Types useful for interacting with a user's monitors.
-//!
-//! If you want to get basic information about a monitor, you can use the
-//! [`MonitorHandle`] type. This is retrieved from one of the following
-//! methods, which return an iterator of [`MonitorHandle`]:
-//! - [`ActiveEventLoop::available_monitors`][crate::event_loop::ActiveEventLoop::available_monitors].
-//! - [`Window::available_monitors`][crate::window::Window::available_monitors].
+use std::fmt;
 use std::num::{NonZeroU16, NonZeroU32};
 
 use crate::dpi::{PhysicalPosition, PhysicalSize};
@@ -12,87 +7,63 @@ use crate::platform_impl;
 
 /// Describes a fullscreen video mode of a monitor.
 ///
-/// Can be acquired with [`MonitorHandle::video_modes`].
-#[derive(Clone, PartialEq, Eq, Hash)]
-pub struct VideoModeHandle {
-    pub(crate) video_mode: platform_impl::VideoModeHandle,
+/// Can be retrieved with [`MonitorHandle::video_modes()`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct VideoMode {
+    pub(crate) size: PhysicalSize<u32>,
+    pub(crate) bit_depth: Option<NonZeroU16>,
+    pub(crate) refresh_rate_millihertz: Option<NonZeroU32>,
 }
 
-impl std::fmt::Debug for VideoModeHandle {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        self.video_mode.fmt(f)
-    }
-}
-
-impl PartialOrd for VideoModeHandle {
-    fn partial_cmp(&self, other: &VideoModeHandle) -> Option<std::cmp::Ordering> {
-        Some(self.cmp(other))
-    }
-}
-
-impl Ord for VideoModeHandle {
-    fn cmp(&self, other: &VideoModeHandle) -> std::cmp::Ordering {
-        self.monitor().cmp(&other.monitor()).then(
-            self.size()
-                .cmp(&other.size())
-                .then(
-                    self.refresh_rate_millihertz()
-                        .cmp(&other.refresh_rate_millihertz())
-                        .then(self.bit_depth().cmp(&other.bit_depth())),
-                )
-                .reverse(),
-        )
-    }
-}
-
-impl VideoModeHandle {
+impl VideoMode {
     /// Returns the resolution of this video mode. This **must not** be used to create your
     /// rendering surface. Use [`Window::surface_size()`] instead.
     ///
     /// [`Window::surface_size()`]: crate::window::Window::surface_size
-    #[inline]
     pub fn size(&self) -> PhysicalSize<u32> {
-        self.video_mode.size()
+        self.size
     }
 
     /// Returns the bit depth of this video mode, as in how many bits you have
     /// available per color. This is generally 24 bits or 32 bits on modern
     /// systems, depending on whether the alpha channel is counted or not.
-    #[inline]
     pub fn bit_depth(&self) -> Option<NonZeroU16> {
-        self.video_mode.bit_depth()
+        self.bit_depth
     }
 
     /// Returns the refresh rate of this video mode in mHz.
-    #[inline]
     pub fn refresh_rate_millihertz(&self) -> Option<NonZeroU32> {
-        self.video_mode.refresh_rate_millihertz()
-    }
-
-    /// Returns the monitor that this video mode is valid for. Each monitor has
-    /// a separate set of valid video modes.
-    #[inline]
-    pub fn monitor(&self) -> MonitorHandle {
-        MonitorHandle { inner: self.video_mode.monitor() }
+        self.refresh_rate_millihertz
     }
 }
 
-impl std::fmt::Display for VideoModeHandle {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "{}x{} {}{}",
-            self.size().width,
-            self.size().height,
-            self.refresh_rate_millihertz().map(|rate| format!("@ {rate} mHz ")).unwrap_or_default(),
-            self.bit_depth().map(|bit_depth| format!("({bit_depth} bpp)")).unwrap_or_default(),
-        )
+impl fmt::Display for VideoMode {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}x{}", self.size.width, self.size.height)?;
+
+        if let Some(refresh_rate) = self.refresh_rate_millihertz {
+            write!(f, "@{refresh_rate}mHz")?;
+        }
+
+        if let Some(bit_depth) = self.bit_depth {
+            write!(f, " ({bit_depth} bpp)")?;
+        }
+
+        Ok(())
     }
 }
 
 /// Handle to a monitor.
 ///
-/// Allows you to retrieve information about a given monitor and can be used in [`Window`] creation.
+/// Allows you to retrieve basic information and metadata about a monitor.
+///
+/// Can be used in [`Window`] creation to place the window on a specific
+/// monitor.
+///
+/// This can be retrieved from one of the following methods, which return an
+/// iterator of [`MonitorHandle`]s:
+/// - [`ActiveEventLoop::available_monitors`](crate::event_loop::ActiveEventLoop::available_monitors).
+/// - [`Window::available_monitors`](crate::window::Window::available_monitors).
 ///
 /// ## Platform-specific
 ///
@@ -141,8 +112,11 @@ impl MonitorHandle {
         self.inner.name()
     }
 
-    /// Returns the top-left corner position of the monitor relative to the larger full
-    /// screen area.
+    /// Returns the top-left corner position of the monitor in desktop coordinates.
+    ///
+    /// This position is in the same coordinate system as [`Window::outer_position`].
+    ///
+    /// [`Window::outer_position`]: crate::window::Window::outer_position
     ///
     /// ## Platform-specific
     ///
@@ -183,13 +157,13 @@ impl MonitorHandle {
 
     /// Returns the currently active video mode of this monitor.
     #[inline]
-    pub fn current_video_mode(&self) -> Option<VideoModeHandle> {
-        self.inner.current_video_mode().map(|video_mode| VideoModeHandle { video_mode })
+    pub fn current_video_mode(&self) -> Option<VideoMode> {
+        self.inner.current_video_mode()
     }
 
     /// Returns all fullscreen video modes supported by this monitor.
     #[inline]
-    pub fn video_modes(&self) -> impl Iterator<Item = VideoModeHandle> {
-        self.inner.video_modes().map(|video_mode| VideoModeHandle { video_mode })
+    pub fn video_modes(&self) -> impl Iterator<Item = VideoMode> {
+        self.inner.video_modes()
     }
 }

@@ -21,7 +21,7 @@ use super::{
     ffi, ActiveEventLoop, CookieResultExt, ImeRequest, ImeSender, VoidCookie, XConnection,
 };
 use crate::cursor::{Cursor, CustomCursor as RootCustomCursor};
-use crate::dpi::{PhysicalPosition, PhysicalSize, Position, Size};
+use crate::dpi::{PhysicalInsets, PhysicalPosition, PhysicalSize, Position, Size};
 use crate::error::{NotSupportedError, RequestError};
 use crate::event::{Event, SurfaceSizeWriter, WindowEvent};
 use crate::event_loop::AsyncRequestSerial;
@@ -32,7 +32,6 @@ use crate::platform_impl::x11::{
 };
 use crate::platform_impl::{
     common, Fullscreen, MonitorHandle as PlatformMonitorHandle, PlatformCustomCursor, PlatformIcon,
-    VideoModeHandle as PlatformVideoModeHandle,
 };
 use crate::window::{
     CursorGrabMode, ImePurpose, ResizeDirection, Theme, UserAttentionType, Window as CoreWindow,
@@ -82,8 +81,8 @@ impl CoreWindow for Window {
         common::xkb::reset_dead_keys();
     }
 
-    fn inner_position(&self) -> Result<PhysicalPosition<i32>, RequestError> {
-        self.0.inner_position()
+    fn surface_position(&self) -> PhysicalPosition<i32> {
+        self.0.surface_position()
     }
 
     fn outer_position(&self) -> Result<PhysicalPosition<i32>, RequestError> {
@@ -104,6 +103,10 @@ impl CoreWindow for Window {
 
     fn outer_size(&self) -> PhysicalSize<u32> {
         self.0.outer_size()
+    }
+
+    fn safe_area(&self) -> PhysicalInsets<u32> {
+        self.0.safe_area()
     }
 
     fn set_min_surface_size(&self, min_size: Option<Size>) {
@@ -323,7 +326,7 @@ impl Drop for Window {
         let xconn = &window.xconn;
 
         // Restore the video mode on drop.
-        if let Some(Fullscreen::Exclusive(_)) = window.fullscreen() {
+        if let Some(Fullscreen::Exclusive(..)) = window.fullscreen() {
             window.set_fullscreen(None);
         }
 
@@ -805,6 +808,20 @@ impl UnownedWindow {
                 leap!(result).ignore_error();
             }
 
+            // Select XInput2 events
+            let mask = xinput::XIEventMask::MOTION
+                | xinput::XIEventMask::BUTTON_PRESS
+                | xinput::XIEventMask::BUTTON_RELEASE
+                | xinput::XIEventMask::ENTER
+                | xinput::XIEventMask::LEAVE
+                | xinput::XIEventMask::FOCUS_IN
+                | xinput::XIEventMask::FOCUS_OUT
+                | xinput::XIEventMask::TOUCH_BEGIN
+                | xinput::XIEventMask::TOUCH_UPDATE
+                | xinput::XIEventMask::TOUCH_END;
+            leap!(xconn.select_xinput_events(window.xwindow, super::ALL_MASTER_DEVICES, mask))
+                .ignore_error();
+
             // Set visibility (map window)
             if window_attrs.visible {
                 leap!(xconn.xcb_connection().map_window(window.xwindow)).ignore_error();
@@ -827,20 +844,6 @@ impl UnownedWindow {
                     return Err(os_error!("`XkbSetDetectableAutoRepeat` failed").into());
                 }
             }
-
-            // Select XInput2 events
-            let mask = xinput::XIEventMask::MOTION
-                | xinput::XIEventMask::BUTTON_PRESS
-                | xinput::XIEventMask::BUTTON_RELEASE
-                | xinput::XIEventMask::ENTER
-                | xinput::XIEventMask::LEAVE
-                | xinput::XIEventMask::FOCUS_IN
-                | xinput::XIEventMask::FOCUS_OUT
-                | xinput::XIEventMask::TOUCH_BEGIN
-                | xinput::XIEventMask::TOUCH_UPDATE
-                | xinput::XIEventMask::TOUCH_END;
-            leap!(xconn.select_xinput_events(window.xwindow, super::ALL_MASTER_DEVICES, mask))
-                .ignore_error();
 
             // Try to create input context for the window.
             if let Some(ime) = event_loop.ime.as_ref() {
@@ -876,7 +879,7 @@ impl UnownedWindow {
 
         // Remove the startup notification if we have one.
         if let Some(startup) = window_attrs.platform_specific.activation_token.as_ref() {
-            leap!(xconn.remove_activation_token(xwindow, &startup._token));
+            leap!(xconn.remove_activation_token(xwindow, &startup.token));
         }
 
         // We never want to give the user a broken window, since by then, it's too late to handle.
@@ -1031,20 +1034,17 @@ impl UnownedWindow {
             // fullscreen, so we can restore it upon exit, as XRandR does not
             // provide a mechanism to set this per app-session or restore this
             // to the desktop video mode as macOS and Windows do
-            (&None, &Some(Fullscreen::Exclusive(PlatformVideoModeHandle::X(ref video_mode))))
-            | (
-                &Some(Fullscreen::Borderless(_)),
-                &Some(Fullscreen::Exclusive(PlatformVideoModeHandle::X(ref video_mode))),
-            ) => {
-                let monitor = video_mode.monitor.as_ref().unwrap();
+            (&None, &Some(Fullscreen::Exclusive(ref monitor, _)))
+            | (&Some(Fullscreen::Borderless(_)), &Some(Fullscreen::Exclusive(ref monitor, _))) => {
+                let id = monitor.native_identifier();
                 shared_state_lock.desktop_video_mode = Some((
-                    monitor.id,
-                    self.xconn.get_crtc_mode(monitor.id).expect("Failed to get desktop video mode"),
+                    id,
+                    self.xconn.get_crtc_mode(id).expect("Failed to get desktop video mode"),
                 ));
             },
             // Restore desktop video mode upon exiting exclusive fullscreen
-            (&Some(Fullscreen::Exclusive(_)), &None)
-            | (&Some(Fullscreen::Exclusive(_)), &Some(Fullscreen::Borderless(_))) => {
+            (&Some(Fullscreen::Exclusive(..)), &None)
+            | (&Some(Fullscreen::Exclusive(..)), &Some(Fullscreen::Borderless(_))) => {
                 let (monitor_id, mode_id) = shared_state_lock.desktop_video_mode.take().unwrap();
                 self.xconn
                     .set_crtc_config(monitor_id, mode_id)
@@ -1068,8 +1068,8 @@ impl UnownedWindow {
             },
             Some(fullscreen) => {
                 let (video_mode, monitor) = match fullscreen {
-                    Fullscreen::Exclusive(PlatformVideoModeHandle::X(ref video_mode)) => {
-                        (Some(video_mode), video_mode.monitor.clone().unwrap())
+                    Fullscreen::Exclusive(PlatformMonitorHandle::X(monitor), video_mode) => {
+                        (Some(video_mode), monitor.clone())
                     },
                     Fullscreen::Borderless(Some(PlatformMonitorHandle::X(monitor))) => {
                         (None, monitor)
@@ -1086,7 +1086,15 @@ impl UnownedWindow {
                     return Ok(None);
                 }
 
-                if let Some(video_mode) = video_mode {
+                if let Some(native_mode) = video_mode.and_then(|requested| {
+                    monitor.video_modes.iter().find_map(|mode| {
+                        if mode.mode == requested {
+                            Some(mode.native_mode)
+                        } else {
+                            None
+                        }
+                    })
+                }) {
                     // FIXME: this is actually not correct if we're setting the
                     // video mode to a resolution higher than the current
                     // desktop resolution, because XRandR does not automatically
@@ -1113,7 +1121,7 @@ impl UnownedWindow {
                     // this will make someone unhappy, but it's very unusual for
                     // games to want to do this anyway).
                     self.xconn
-                        .set_crtc_config(monitor.id, video_mode.native_mode)
+                        .set_crtc_config(monitor.id, native_mode)
                         .expect("failed to set video mode");
                 }
 
@@ -1508,7 +1516,7 @@ impl UnownedWindow {
         }
     }
 
-    pub(crate) fn inner_position_physical(&self) -> (i32, i32) {
+    fn inner_position_physical(&self) -> (i32, i32) {
         // This should be okay to unwrap since the only error XTranslateCoordinates can return
         // is BadWindow, and if the window handle is bad we have bigger problems.
         self.xconn
@@ -1518,8 +1526,14 @@ impl UnownedWindow {
     }
 
     #[inline]
-    pub fn inner_position(&self) -> Result<PhysicalPosition<i32>, RequestError> {
-        Ok(self.inner_position_physical().into())
+    pub fn surface_position(&self) -> PhysicalPosition<i32> {
+        let extents = self.shared_state_lock().frame_extents.clone();
+        if let Some(extents) = extents {
+            extents.surface_position().into()
+        } else {
+            self.update_cached_frame_extents();
+            self.surface_position()
+        }
     }
 
     pub(crate) fn set_position_inner(
@@ -1580,6 +1594,10 @@ impl UnownedWindow {
             self.update_cached_frame_extents();
             self.outer_size()
         }
+    }
+
+    fn safe_area(&self) -> PhysicalInsets<u32> {
+        PhysicalInsets::new(0, 0, 0, 0)
     }
 
     pub(crate) fn request_surface_size_physical(&self, width: u32, height: u32) {
@@ -1813,6 +1831,11 @@ impl UnownedWindow {
 
     #[inline]
     pub fn set_cursor_grab(&self, mode: CursorGrabMode) -> Result<(), RequestError> {
+        // We don't support the locked cursor yet, so ignore it early on.
+        if mode == CursorGrabMode::Locked {
+            return Err(NotSupportedError::new("locked cursor is not implemented on X11").into());
+        }
+
         let mut grabbed_lock = self.cursor_grabbed_mode.lock().unwrap();
         if mode == *grabbed_lock {
             return Ok(());
@@ -1824,6 +1847,7 @@ impl UnownedWindow {
             .xcb_connection()
             .ungrab_pointer(x11rb::CURRENT_TIME)
             .expect_then_ignore_error("Failed to call `xcb_ungrab_pointer`");
+        *grabbed_lock = CursorGrabMode::None;
 
         let result = match mode {
             CursorGrabMode::None => self
@@ -1831,34 +1855,33 @@ impl UnownedWindow {
                 .flush_requests()
                 .map_err(|err| RequestError::Os(os_error!(X11Error::Xlib(err)))),
             CursorGrabMode::Confined => {
-                let result = {
-                    self.xconn
-                        .xcb_connection()
-                        .grab_pointer(
-                            true as _,
-                            self.xwindow,
-                            xproto::EventMask::BUTTON_PRESS
-                                | xproto::EventMask::BUTTON_RELEASE
-                                | xproto::EventMask::ENTER_WINDOW
-                                | xproto::EventMask::LEAVE_WINDOW
-                                | xproto::EventMask::POINTER_MOTION
-                                | xproto::EventMask::POINTER_MOTION_HINT
-                                | xproto::EventMask::BUTTON1_MOTION
-                                | xproto::EventMask::BUTTON2_MOTION
-                                | xproto::EventMask::BUTTON3_MOTION
-                                | xproto::EventMask::BUTTON4_MOTION
-                                | xproto::EventMask::BUTTON5_MOTION
-                                | xproto::EventMask::KEYMAP_STATE,
-                            xproto::GrabMode::ASYNC,
-                            xproto::GrabMode::ASYNC,
-                            self.xwindow,
-                            0u32,
-                            x11rb::CURRENT_TIME,
-                        )
-                        .expect("Failed to call `grab_pointer`")
-                        .reply()
-                        .expect("Failed to receive reply from `grab_pointer`")
-                };
+                let result = self
+                    .xconn
+                    .xcb_connection()
+                    .grab_pointer(
+                        true as _,
+                        self.xwindow,
+                        xproto::EventMask::BUTTON_PRESS
+                            | xproto::EventMask::BUTTON_RELEASE
+                            | xproto::EventMask::ENTER_WINDOW
+                            | xproto::EventMask::LEAVE_WINDOW
+                            | xproto::EventMask::POINTER_MOTION
+                            | xproto::EventMask::POINTER_MOTION_HINT
+                            | xproto::EventMask::BUTTON1_MOTION
+                            | xproto::EventMask::BUTTON2_MOTION
+                            | xproto::EventMask::BUTTON3_MOTION
+                            | xproto::EventMask::BUTTON4_MOTION
+                            | xproto::EventMask::BUTTON5_MOTION
+                            | xproto::EventMask::KEYMAP_STATE,
+                        xproto::GrabMode::ASYNC,
+                        xproto::GrabMode::ASYNC,
+                        self.xwindow,
+                        0u32,
+                        x11rb::CURRENT_TIME,
+                    )
+                    .expect("Failed to call `grab_pointer`")
+                    .reply()
+                    .expect("Failed to receive reply from `grab_pointer`");
 
                 match result.status {
                     xproto::GrabStatus::SUCCESS => Ok(()),
@@ -1878,11 +1901,7 @@ impl UnownedWindow {
                 }
                 .map_err(|err| RequestError::Os(os_error!(err)))
             },
-            CursorGrabMode::Locked => {
-                return Err(
-                    NotSupportedError::new("locked cursor is not implemented on X11").into()
-                );
-            },
+            CursorGrabMode::Locked => return Ok(()),
         };
 
         if result.is_ok() {
@@ -1989,7 +2008,7 @@ impl UnownedWindow {
             .query_pointer(self.xwindow, util::VIRTUAL_CORE_POINTER)
             .map_err(|err| os_error!(err))?;
 
-        let window_position = self.inner_position()?;
+        let window_position = self.inner_position_physical();
 
         let atoms = self.xconn.atoms();
         let message = atoms[_NET_WM_MOVERESIZE];
@@ -2016,8 +2035,8 @@ impl UnownedWindow {
                         | xproto::EventMask::SUBSTRUCTURE_NOTIFY,
                 ),
                 [
-                    (window_position.x + xinput_fp1616_to_float(pointer.win_x) as i32) as u32,
-                    (window_position.y + xinput_fp1616_to_float(pointer.win_y) as i32) as u32,
+                    (window_position.0 + xinput_fp1616_to_float(pointer.win_x) as i32) as u32,
+                    (window_position.1 + xinput_fp1616_to_float(pointer.win_y) as i32) as u32,
                     action.try_into().unwrap(),
                     1, // Button 1
                     1,
@@ -2031,12 +2050,19 @@ impl UnownedWindow {
     }
 
     #[inline]
-    pub fn set_ime_cursor_area(&self, spot: Position, _size: Size) {
-        let (x, y) = spot.to_physical::<i32>(self.scale_factor()).into();
+    pub fn set_ime_cursor_area(&self, spot: Position, size: Size) {
+        let PhysicalPosition { x, y } = spot.to_physical::<i16>(self.scale_factor());
+        let PhysicalSize { width, height } = size.to_physical::<i16>(self.scale_factor());
+        // We only currently support reporting a caret position via XIM.
+        // No IM servers currently process preedit area information from XIM clients
+        // and it is unclear this is even part of the standard protocol.
+        // Fcitx and iBus both assume that the position reported is at the insertion
+        // caret, and by default will place the candidate window under and to the
+        // right of the reported point.
         let _ = self.ime_sender.lock().unwrap().send(ImeRequest::Position(
             self.xwindow as ffi::Window,
-            x,
-            y,
+            x.saturating_add(width),
+            y.saturating_add(height),
         ));
     }
 

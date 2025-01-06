@@ -2,13 +2,13 @@
 
 [![Crates.io](https://img.shields.io/crates/v/winit.svg)](https://crates.io/crates/winit)
 [![Docs.rs](https://docs.rs/winit/badge.svg)](https://docs.rs/winit)
-[![Master Docs](https://img.shields.io/github/actions/workflow/status/rust-windowing/winit/docs.yml?branch=master&label=master%20docs
+[![UNSTABLE docs](https://img.shields.io/github/actions/workflow/status/rust-windowing/winit/docs.yml?branch=master&label=UNSTABLE%20docs
 )](https://rust-windowing.github.io/winit/winit/index.html)
 [![CI Status](https://github.com/rust-windowing/winit/workflows/CI/badge.svg)](https://github.com/rust-windowing/winit/actions)
 
 ```toml
 [dependencies]
-winit = "0.30.5"
+winit = "0.30.7"
 ```
 
 ## [Documentation](https://docs.rs/winit)
@@ -66,4 +66,4 @@ same MSRV policy.
 
 ### Platform-specific usage
 
-Check out the [`winit::platform`](https://rust-windowing.github.io/winit/winit/platform/index.html) module for platform-specific usage.
+Check out the [`winit::platform`](https://docs.rs/winit/latest/winit/platform/index.html) module for platform-specific usage.

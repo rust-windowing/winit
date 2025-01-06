@@ -4,7 +4,6 @@
 compile_error!("Please select a feature to build for unix: `x11`, `wayland`");
 
 use std::env;
-use std::num::{NonZeroU16, NonZeroU32};
 use std::os::unix::io::{AsFd, AsRawFd, BorrowedFd, RawFd};
 use std::time::Duration;
 #[cfg(x11_platform)]
@@ -17,13 +16,14 @@ pub(crate) use self::common::xkb::{physicalkey_to_scancode, scancode_to_physical
 use self::x11::{XConnection, XError, XNotSupported};
 use crate::application::ApplicationHandler;
 pub(crate) use crate::cursor::OnlyCursorImageSource as PlatformCustomCursorSource;
+use crate::dpi::PhysicalPosition;
 #[cfg(x11_platform)]
 use crate::dpi::Size;
-use crate::dpi::{PhysicalPosition, PhysicalSize};
 use crate::error::{EventLoopError, NotSupportedError};
 use crate::event_loop::ActiveEventLoop;
 pub(crate) use crate::icon::RgbaIcon as PlatformIcon;
 use crate::keyboard::Key;
+use crate::monitor::VideoMode;
 use crate::platform::pump_events::PumpStatus;
 #[cfg(x11_platform)]
 use crate::platform::x11::{WindowType as XWindowType, XlibErrorHook};
@@ -165,43 +165,13 @@ impl MonitorHandle {
     }
 
     #[inline]
-    pub fn current_video_mode(&self) -> Option<VideoModeHandle> {
+    pub fn current_video_mode(&self) -> Option<VideoMode> {
         x11_or_wayland!(match self; MonitorHandle(m) => m.current_video_mode())
     }
 
     #[inline]
-    pub fn video_modes(&self) -> Box<dyn Iterator<Item = VideoModeHandle>> {
+    pub fn video_modes(&self) -> Box<dyn Iterator<Item = VideoMode>> {
         x11_or_wayland!(match self; MonitorHandle(m) => Box::new(m.video_modes()))
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub enum VideoModeHandle {
-    #[cfg(x11_platform)]
-    X(x11::VideoModeHandle),
-    #[cfg(wayland_platform)]
-    Wayland(wayland::VideoModeHandle),
-}
-
-impl VideoModeHandle {
-    #[inline]
-    pub fn size(&self) -> PhysicalSize<u32> {
-        x11_or_wayland!(match self; VideoModeHandle(m) => m.size())
-    }
-
-    #[inline]
-    pub fn bit_depth(&self) -> Option<NonZeroU16> {
-        x11_or_wayland!(match self; VideoModeHandle(m) => m.bit_depth())
-    }
-
-    #[inline]
-    pub fn refresh_rate_millihertz(&self) -> Option<NonZeroU32> {
-        x11_or_wayland!(match self; VideoModeHandle(m) => m.refresh_rate_millihertz())
-    }
-
-    #[inline]
-    pub fn monitor(&self) -> MonitorHandle {
-        x11_or_wayland!(match self; VideoModeHandle(m) => m.monitor(); as MonitorHandle)
     }
 }
 
@@ -275,14 +245,6 @@ pub enum EventLoop {
     Wayland(Box<wayland::EventLoop>),
     #[cfg(x11_platform)]
     X(x11::EventLoop),
-}
-
-#[derive(Clone)]
-pub enum EventLoopProxy {
-    #[cfg(x11_platform)]
-    X(x11::EventLoopProxy),
-    #[cfg(wayland_platform)]
-    Wayland(wayland::EventLoopProxy),
 }
 
 impl EventLoop {
@@ -403,64 +365,6 @@ impl AsRawFd for EventLoop {
         x11_or_wayland!(match self; EventLoop(evlp) => evlp.as_raw_fd())
     }
 }
-
-impl EventLoopProxy {
-    pub fn wake_up(&self) {
-        x11_or_wayland!(match self; EventLoopProxy(proxy) => proxy.wake_up())
-    }
-}
-
-#[derive(Clone)]
-#[allow(dead_code)]
-pub(crate) enum OwnedDisplayHandle {
-    #[cfg(x11_platform)]
-    X(Arc<XConnection>),
-    #[cfg(wayland_platform)]
-    Wayland(wayland_client::Connection),
-}
-
-impl OwnedDisplayHandle {
-    #[inline]
-    pub fn raw_display_handle_rwh_06(
-        &self,
-    ) -> Result<rwh_06::RawDisplayHandle, rwh_06::HandleError> {
-        use std::ptr::NonNull;
-
-        match self {
-            #[cfg(x11_platform)]
-            Self::X(xconn) => Ok(rwh_06::XlibDisplayHandle::new(
-                NonNull::new(xconn.display.cast()),
-                xconn.default_screen_index() as _,
-            )
-            .into()),
-
-            #[cfg(wayland_platform)]
-            Self::Wayland(conn) => {
-                use sctk::reexports::client::Proxy;
-
-                Ok(rwh_06::WaylandDisplayHandle::new(
-                    NonNull::new(conn.display().id().as_ptr().cast()).unwrap(),
-                )
-                .into())
-            },
-        }
-    }
-}
-
-impl PartialEq for OwnedDisplayHandle {
-    fn eq(&self, other: &Self) -> bool {
-        match (self, other) {
-            #[cfg(x11_platform)]
-            (Self::X(this), Self::X(other)) => Arc::as_ptr(this).eq(&Arc::as_ptr(other)),
-            #[cfg(wayland_platform)]
-            (Self::Wayland(this), Self::Wayland(other)) => this.eq(other),
-            #[cfg(all(x11_platform, wayland_platform))]
-            _ => false,
-        }
-    }
-}
-
-impl Eq for OwnedDisplayHandle {}
 
 /// Returns the minimum `Option<Duration>`, taking into account that `None`
 /// equates to an infinite timeout, not a zero timeout (so can't just use

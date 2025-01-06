@@ -3,7 +3,7 @@
 use dpi::{Position, Size};
 use objc2::rc::{autoreleasepool, Retained};
 use objc2::{declare_class, mutability, ClassType, DeclaredClass};
-use objc2_app_kit::{NSResponder, NSWindow};
+use objc2_app_kit::{NSPanel, NSResponder, NSWindow};
 use objc2_foundation::{MainThreadBound, MainThreadMarker, NSObject};
 
 use super::event_loop::ActiveEventLoop;
@@ -16,7 +16,7 @@ use crate::window::{
 };
 
 pub(crate) struct Window {
-    window: MainThreadBound<Retained<WinitWindow>>,
+    window: MainThreadBound<Retained<NSWindow>>,
     /// The window only keeps a weak reference to this, so we must keep it around here.
     delegate: MainThreadBound<Retained<WindowDelegate>>,
 }
@@ -64,7 +64,7 @@ impl Window {
 impl Drop for Window {
     fn drop(&mut self) {
         // Restore the video mode.
-        if matches!(self.fullscreen(), Some(Fullscreen::Exclusive(_))) {
+        if matches!(self.fullscreen(), Some(Fullscreen::Exclusive(_, _))) {
             self.set_fullscreen(None);
         }
 
@@ -107,12 +107,12 @@ impl CoreWindow for Window {
         self.maybe_wait_on_main(|delegate| delegate.reset_dead_keys());
     }
 
-    fn inner_position(&self) -> Result<dpi::PhysicalPosition<i32>, RequestError> {
-        Ok(self.maybe_wait_on_main(|delegate| delegate.inner_position()))
+    fn surface_position(&self) -> dpi::PhysicalPosition<i32> {
+        self.maybe_wait_on_main(|delegate| delegate.surface_position())
     }
 
     fn outer_position(&self) -> Result<dpi::PhysicalPosition<i32>, RequestError> {
-        Ok(self.maybe_wait_on_main(|delegate| delegate.outer_position()))
+        self.maybe_wait_on_main(|delegate| delegate.outer_position())
     }
 
     fn set_outer_position(&self, position: Position) {
@@ -129,6 +129,10 @@ impl CoreWindow for Window {
 
     fn outer_size(&self) -> dpi::PhysicalSize<u32> {
         self.maybe_wait_on_main(|delegate| delegate.outer_size())
+    }
+
+    fn safe_area(&self) -> dpi::PhysicalInsets<u32> {
+        self.maybe_wait_on_main(|delegate| delegate.safe_area())
     }
 
     fn set_min_surface_size(&self, min_size: Option<Size>) {
@@ -356,8 +360,30 @@ declare_class!(
     }
 );
 
-impl WinitWindow {
-    pub(super) fn id(&self) -> WindowId {
-        WindowId::from_raw(self as *const Self as usize)
+declare_class!(
+    #[derive(Debug)]
+    pub struct WinitPanel;
+
+    unsafe impl ClassType for WinitPanel {
+        #[inherits(NSWindow, NSResponder, NSObject)]
+        type Super = NSPanel;
+        type Mutability = mutability::MainThreadOnly;
+        const NAME: &'static str = "WinitPanel";
     }
+
+    impl DeclaredClass for WinitPanel {}
+
+    unsafe impl WinitPanel {
+        // although NSPanel can become key window
+        // it doesn't if window doesn't have NSWindowStyleMask::Titled
+        #[method(canBecomeKeyWindow)]
+        fn can_become_key_window(&self) -> bool {
+            trace_scope!("canBecomeKeyWindow");
+            true
+        }
+    }
+);
+
+pub(super) fn window_id(window: &NSWindow) -> WindowId {
+    WindowId::from_raw(window as *const _ as usize)
 }
