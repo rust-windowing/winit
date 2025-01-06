@@ -46,7 +46,7 @@ impl ApplicationHandler for App {
             WindowEvent::KeyboardInput {
                 event: KeyEvent { logical_key: Key::Character(c), state: ElementState::Pressed, .. },
                 ..
-            } if c.as_ref() == "x" => {
+            } if c == "x" => {
                 self.shadow = !self.shadow;
                 self.window.as_ref().unwrap().set_undecorated_shadow(self.shadow);
             },
