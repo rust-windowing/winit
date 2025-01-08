@@ -383,11 +383,40 @@ declare_class!(
             let pb: Retained<NSPasteboard> = unsafe { msg_send_id![sender, draggingPasteboard] };
             let filenames = pb.propertyListForType(unsafe { NSFilenamesPboardType }).unwrap();
             let filenames: Retained<NSArray<NSString>> = unsafe { Retained::cast(filenames) };
+            let paths = filenames
+                .into_iter()
+                .map(|file| PathBuf::from(file.to_string()))
+                .collect();
 
-            filenames.into_iter().for_each(|file| {
-                let path = PathBuf::from(file.to_string());
-                self.queue_event(WindowEvent::HoveredFile(path));
-            });
+            let dl: NSPoint = unsafe { msg_send![sender, draggingLocation] };
+            let y = self.window.frame().size.height - dl.y;
+
+            let scale_factor = self.window.scale_factor();
+            let position = LogicalPosition::<f64>::from((dl.x, y)).to_physical(scale_factor);
+
+            self.queue_event(WindowEvent::DragEnter { paths, position });
+
+            true
+        }
+
+        #[sel(wantsPeriodicDraggingUpdates)]
+        fn wants_periodic_dragging_updates(&self) -> bool {
+            trace_scope!("wantsPeriodicDraggingUpdates:");
+            true
+        }
+
+        /// Invoked periodically as the image is held within the destination area, allowing modification of the dragging operation or mouse-pointer position.
+        #[sel(draggingUpdated:)]
+        fn dragging_updated(&self, sender: *mut Object) -> bool {
+            trace_scope!("draggingUpdated:");
+
+            let dl: NSPoint = unsafe { msg_send![sender, draggingLocation] };
+            let y = self.window.frame().size.height - dl.y;
+
+            let scale_factor = self.window.scale_factor();
+            let position = LogicalPosition::<f64>::from((dl.x, y)).to_physical(scale_factor);
+
+            self.queue_event(WindowEvent::DragOver { position });
 
             true
         }
@@ -409,11 +438,18 @@ declare_class!(
             let pb: Retained<NSPasteboard> = unsafe { msg_send_id![sender, draggingPasteboard] };
             let filenames = pb.propertyListForType(unsafe { NSFilenamesPboardType }).unwrap();
             let filenames: Retained<NSArray<NSString>> = unsafe { Retained::cast(filenames) };
+            let paths = filenames
+                .into_iter()
+                .map(|file| PathBuf::from(file.to_string()))
+                .collect();
 
-            filenames.into_iter().for_each(|file| {
-                let path = PathBuf::from(file.to_string());
-                self.queue_event(WindowEvent::DroppedFile(path));
-            });
+            let dl: NSPoint = unsafe { msg_send![sender, draggingLocation] };
+            let y = self.window.frame().size.height - dl.y;
+
+            let scale_factor = self.window.scale_factor();
+            let position = LogicalPosition::<f64>::from((dl.x, y)).to_physical(scale_factor);
+
+            self.queue_event(WindowEvent::DragDrop { paths, position });
 
             true
         }
@@ -428,7 +464,7 @@ declare_class!(
         #[method(draggingExited:)]
         fn dragging_exited(&self, _sender: Option<&NSObject>) {
             trace_scope!("draggingExited:");
-            self.queue_event(WindowEvent::HoveredFileCancelled);
+            self.queue_event(WindowEvent::DragLeave);
         }
     }
 

@@ -1,7 +1,7 @@
 use std::cell::{Cell, RefCell};
 use std::collections::{HashMap, VecDeque};
 use std::os::raw::{c_char, c_int, c_long, c_ulong};
-use std::slice;
+use std::{mem, slice};
 use std::sync::{Arc, Mutex};
 
 use x11_dl::xinput2::{
@@ -474,10 +474,11 @@ impl EventProcessor {
             // where `shift = mem::size_of::<c_short>() * 8`
             // Note that coordinates are in "desktop space", not "window space"
             // (in X11 parlance, they're root window coordinates)
-            // let packed_coordinates = xev.data.get_long(2);
-            // let shift = mem::size_of::<libc::c_short>() * 8;
-            // let x = packed_coordinates >> shift;
-            // let y = packed_coordinates & !(x << shift);
+            let packed_coordinates = xev.data.get_long(2);
+            let shift = mem::size_of::<libc::c_short>() * 8;
+            let x = packed_coordinates >> shift;
+            let y = packed_coordinates & !(x << shift);
+            self.dnd.position = (x, y);
 
             // By our own state flow, `version` should never be `None` at this point.
             let version = self.dnd.version.unwrap_or(5);
@@ -502,21 +503,19 @@ impl EventProcessor {
             }
 
             self.dnd.source_window = Some(source_window);
-            if self.dnd.result.is_none() {
-                let time = if version >= 1 {
-                    xev.data.get_long(3) as xproto::Timestamp
-                } else {
-                    // In version 0, time isn't specified
-                    x11rb::CURRENT_TIME
-                };
+            let time = if version >= 1 {
+                xev.data.get_long(3) as xproto::Timestamp
+            } else {
+                // In version 0, time isn't specified
+                x11rb::CURRENT_TIME
+            };
 
-                // Log this timestamp.
-                self.target.xconn.set_timestamp(time);
+            // Log this timestamp.
+            self.target.xconn.set_timestamp(time);
 
-                // This results in the `SelectionNotify` event below
-                unsafe {
-                    self.dnd.convert_selection(window, time);
-                }
+            // This results in the `SelectionNotify` event below
+            unsafe {
+                self.dnd.convert_selection(window, time);
             }
 
             unsafe {
@@ -530,13 +529,29 @@ impl EventProcessor {
         if xev.message_type == atoms[XdndDrop] as c_ulong {
             let (source_window, state) = if let Some(source_window) = self.dnd.source_window {
                 if let Some(Ok(ref path_list)) = self.dnd.result {
-                    for path in path_list {
-                        let event = Event::WindowEvent {
+                    let coords = self
+                        .target
+                        .xconn
+                        .translate_coords(
+                            source_window,
+                            window,
+                            self.dnd.position.0 as _,
+                            self.dnd.position.1 as _,
+                        )
+                        .expect("Failed to translate window coordinates");
+
+                    let position = PhysicalPosition::new(coords.dst_x as f64, coords.dst_y as f64);
+
+                    callback(
+                        &self.target,
+                        Event::WindowEvent {
                             window_id,
-                            event: WindowEvent::DroppedFile(path.clone()),
-                        };
-                        callback(&self.target, event);
-                    }
+                            event: WindowEvent::DragDrop {
+                                paths: path_list.iter().map(Into::into).collect(),
+                                position,
+                            },
+                        },
+                    );
                 }
                 (source_window, DndState::Accepted)
             } else {
@@ -558,7 +573,7 @@ impl EventProcessor {
 
         if xev.message_type == atoms[XdndLeave] as c_ulong {
             self.dnd.reset();
-            let event = Event::WindowEvent { window_id, event: WindowEvent::HoveredFileCancelled };
+            let event = Event::WindowEvent { window_id, event: WindowEvent::DragLeave };
             callback(&self.target, event);
         }
     }
@@ -583,15 +598,41 @@ impl EventProcessor {
         self.dnd.result = None;
         if let Ok(mut data) = unsafe { self.dnd.read_data(window) } {
             let parse_result = self.dnd.parse_data(&mut data);
+
             if let Ok(ref path_list) = parse_result {
-                for path in path_list {
-                    let event = Event::WindowEvent {
-                        window_id,
-                        event: WindowEvent::HoveredFile(path.clone()),
-                    };
-                    callback(&self.target, event);
+                let source_window = self.dnd.source_window.unwrap_or(self.target.root);
+
+                let coords = self
+                    .target
+                    .xconn
+                    .translate_coords(
+                        source_window,
+                        window,
+                        self.dnd.position.0 as _,
+                        self.dnd.position.1 as _,
+                    )
+                    .expect("Failed to translate window coordinates");
+
+                let position = PhysicalPosition::new(coords.dst_x as f64, coords.dst_y as f64);
+
+                if self.dnd.has_entered {
+                    callback(
+                        &self.target,
+                        Event::WindowEvent { window_id, event: WindowEvent::DragOver { position } },
+                    );
+                } else {
+                    let paths = path_list.iter().map(Into::into).collect();
+                    self.dnd.has_entered = true;
+                    callback(
+                        &self.target,
+                        Event::WindowEvent {
+                            window_id,
+                            event: WindowEvent::DragEnter { paths, position },
+                        },
+                    );
                 }
             }
+
             self.dnd.result = Some(parse_result);
         }
     }
@@ -717,11 +758,11 @@ impl EventProcessor {
 
                 let surface_size = Arc::new(Mutex::new(new_surface_size));
                 callback(&self.target, Event::WindowEvent {
-                    window_id,
-                    event: WindowEvent::ScaleFactorChanged {
-                        scale_factor: new_scale_factor,
+                        window_id,
+                        event: WindowEvent::ScaleFactorChanged {
+                            scale_factor: new_scale_factor,
                         surface_size_writer: SurfaceSizeWriter::new(Arc::downgrade(&surface_size)),
-                    },
+                        },
                 });
 
                 let new_surface_size = *surface_size.lock().unwrap();
@@ -773,8 +814,8 @@ impl EventProcessor {
 
         if resized {
             callback(&self.target, Event::WindowEvent {
-                window_id,
-                event: WindowEvent::SurfaceResized(new_surface_size.into()),
+                    window_id,
+                    event: WindowEvent::SurfaceResized(new_surface_size.into()),
             });
         }
     }
@@ -1549,8 +1590,8 @@ impl EventProcessor {
         let physical_key = xkb::raw_keycode_to_physicalkey(keycode);
 
         callback(&self.target, Event::DeviceEvent {
-            device_id,
-            event: DeviceEvent::Key(RawKeyEvent { physical_key, state }),
+                device_id,
+                event: DeviceEvent::Key(RawKeyEvent { physical_key, state }),
         });
     }
 

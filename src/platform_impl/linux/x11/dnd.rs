@@ -45,13 +45,25 @@ pub struct Dnd {
     pub type_list: Option<Vec<xproto::Atom>>,
     // Populated by XdndPosition event handler
     pub source_window: Option<xproto::Window>,
+    // Populated by XdndPosition event handler
+    pub position: (c_long, c_long),
     // Populated by SelectionNotify event handler (triggered by XdndPosition event handler)
     pub result: Option<Result<Vec<PathBuf>, DndDataParseError>>,
+    // Populated by SelectionNotify event handler (triggered by XdndPosition event handler)
+    pub has_entered: bool,
 }
 
 impl Dnd {
     pub fn new(xconn: Arc<XConnection>) -> Result<Self, X11Error> {
-        Ok(Dnd { xconn, version: None, type_list: None, source_window: None, result: None })
+        Ok(Dnd {
+            xconn,
+            version: None,
+            type_list: None,
+            source_window: None,
+            position: (0, 0),
+            result: None,
+            has_entered: false,
+        })
     }
 
     pub fn reset(&mut self) {
@@ -59,6 +71,7 @@ impl Dnd {
         self.type_list = None;
         self.source_window = None;
         self.result = None;
+        self.has_entered = false;
     }
 
     pub unsafe fn send_status(
@@ -73,13 +86,13 @@ impl Dnd {
             DndState::Rejected => (0, atoms[DndNone]),
         };
         self.xconn
-            .send_client_msg(target_window, target_window, atoms[XdndStatus] as _, None, [
-                this_window,
-                accepted,
-                0,
-                0,
-                action as _,
-            ])?
+            .send_client_msg(
+                target_window,
+                target_window,
+                atoms[XdndStatus] as _,
+                None,
+                [this_window, accepted, 0, 0, action as _],
+            )?
             .ignore_error();
 
         Ok(())
@@ -97,13 +110,13 @@ impl Dnd {
             DndState::Rejected => (0, atoms[DndNone]),
         };
         self.xconn
-            .send_client_msg(target_window, target_window, atoms[XdndFinished] as _, None, [
-                this_window,
-                accepted,
-                action as _,
-                0,
-                0,
-            ])?
+            .send_client_msg(
+                target_window,
+                target_window,
+                atoms[XdndFinished] as _,
+                None,
+                [this_window, accepted, action as _, 0, 0],
+            )?
             .ignore_error();
 
         Ok(())

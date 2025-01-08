@@ -175,28 +175,27 @@ pub enum WindowEvent {
     /// The window has been destroyed.
     Destroyed,
 
-    /// A file is being hovered over the window.
-    ///
-    /// When the user hovers multiple files at once, this event will be emitted for each file
-    /// separately.
-    HoveredFile(PathBuf),
-
-    /// A file has been dropped into the window.
-    ///
-    /// When the user drops multiple files at once, this event will be emitted for each file
-    /// separately.
-    ///
-    /// The support for this is known to be incomplete, see [#720] for more
-    /// information.
-    ///
-    /// [#720]: https://github.com/rust-windowing/winit/issues/720
-    DroppedFile(PathBuf),
-
-    /// A file was hovered, but has exited the window.
-    ///
-    /// There will be a single `HoveredFileCancelled` event triggered even if multiple files were
-    /// hovered.
-    HoveredFileCancelled,
+    /// A drag operation has entered the window.
+    DragEnter {
+        /// List of paths that are being dragged onto the window.
+        paths: Vec<PathBuf>,
+        /// Position of the drag operation.
+        position: PhysicalPosition<f64>,
+    },
+    /// A drag operation is moving over the window.
+    DragOver {
+        /// Position of the drag operation.
+        position: PhysicalPosition<f64>,
+    },
+    /// The drag operation has dropped file(s) on the window.
+    DragDrop {
+        /// List of paths that are being dragged onto the window.
+        paths: Vec<PathBuf>,
+        /// Position of the drag operation.
+        position: PhysicalPosition<f64>,
+    },
+    /// The drag operation has been cancelled or left the window.
+    DragLeave,
 
     /// The window gained or lost focus.
     ///
@@ -1221,9 +1220,16 @@ mod tests {
                 with_window_event(Focused(true));
                 with_window_event(Moved((0, 0).into()));
                 with_window_event(SurfaceResized((0, 0).into()));
-                with_window_event(DroppedFile("x.txt".into()));
-                with_window_event(HoveredFile("x.txt".into()));
-                with_window_event(HoveredFileCancelled);
+                with_window_event(DragEnter {
+                    paths: vec!["x.txt".into()],
+                    position: (0, 0).into(),
+                });
+                with_window_event(DragOver { position: (0, 0).into() });
+                with_window_event(DragDrop {
+                    paths: vec!["x.txt".into()],
+                    position: (0, 0).into(),
+                });
+                with_window_event(DragLeave);
                 with_window_event(Ime(Enabled));
                 with_window_event(PointerMoved {
                     device_id: None,

@@ -73,6 +73,7 @@ changelog entry.
 - Add ability to make non-activating window on macOS using `NSPanel` with `NSWindowStyleMask::NonactivatingPanel`.
 - `ActivationToken::from_raw` and `ActivationToken::into_raw`.
 - On X11, add a workaround for disabling IME on GNOME.
+- Add `WindowEvent::DragEnter`, `WindowEvent::DragOver`, `WindowEvent::DragDrop` and `WindowEvent::DragLeave` events.
 
 ### Changed
 
@@ -197,6 +198,7 @@ changelog entry.
  `ButtonSource` as part of the new pointer event overhaul.
 - Remove `Force::altitude_angle`.
 - Removed `Window::inner_position`, use the new `Window::surface_position` instead.
+- Removed `WindowEvent::DroppedFile`, `WindowEvent::HoveredFile` and `WindowEvent::HoveredFileCancelled` events.
 
 ### Fixed
 
