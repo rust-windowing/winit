@@ -9,7 +9,7 @@ use std::sync::{Arc, Mutex};
 use core_graphics::display::CGDisplay;
 use objc2::rc::{autoreleasepool, Retained};
 use objc2::runtime::{AnyObject, ProtocolObject};
-use objc2::{declare_class, msg_send_id, mutability, sel, ClassType, DeclaredClass};
+use objc2::{declare_class, msg_send, msg_send_id, mutability, sel, ClassType, DeclaredClass};
 use objc2_app_kit::{
     NSAppKitVersionNumber, NSAppKitVersionNumber10_12, NSAppearance, NSAppearanceCustomization,
     NSAppearanceNameAqua, NSApplication, NSApplicationPresentationOptions, NSBackingStoreType,
@@ -389,32 +389,29 @@ declare_class!(
                 .collect();
 
             let dl: NSPoint = unsafe { msg_send![sender, draggingLocation] };
-            let y = self.window.frame().size.height - dl.y;
+            let dl = self.view().convertPoint_fromView(dl, None);
+            let position = LogicalPosition::<f64>::from((dl.x, dl.y)).to_physical(self.scale_factor());
 
-            let scale_factor = self.window.scale_factor();
-            let position = LogicalPosition::<f64>::from((dl.x, y)).to_physical(scale_factor);
 
             self.queue_event(WindowEvent::DragEnter { paths, position });
 
             true
         }
 
-        #[sel(wantsPeriodicDraggingUpdates)]
+        #[method(wantsPeriodicDraggingUpdates)]
         fn wants_periodic_dragging_updates(&self) -> bool {
             trace_scope!("wantsPeriodicDraggingUpdates:");
             true
         }
 
         /// Invoked periodically as the image is held within the destination area, allowing modification of the dragging operation or mouse-pointer position.
-        #[sel(draggingUpdated:)]
-        fn dragging_updated(&self, sender: *mut Object) -> bool {
+        #[method(draggingUpdated:)]
+        fn dragging_updated(&self, sender: &NSObject) -> bool {
             trace_scope!("draggingUpdated:");
 
             let dl: NSPoint = unsafe { msg_send![sender, draggingLocation] };
-            let y = self.window.frame().size.height - dl.y;
-
-            let scale_factor = self.window.scale_factor();
-            let position = LogicalPosition::<f64>::from((dl.x, y)).to_physical(scale_factor);
+            let dl = self.view().convertPoint_fromView(dl, None);
+            let position = LogicalPosition::<f64>::from((dl.x, dl.y)).to_physical(self.scale_factor());
 
             self.queue_event(WindowEvent::DragOver { position });
 
@@ -444,10 +441,8 @@ declare_class!(
                 .collect();
 
             let dl: NSPoint = unsafe { msg_send![sender, draggingLocation] };
-            let y = self.window.frame().size.height - dl.y;
-
-            let scale_factor = self.window.scale_factor();
-            let position = LogicalPosition::<f64>::from((dl.x, y)).to_physical(scale_factor);
+            let dl = self.view().convertPoint_fromView(dl, None);
+            let position = LogicalPosition::<f64>::from((dl.x, dl.y)).to_physical(self.scale_factor());
 
             self.queue_event(WindowEvent::DragDrop { paths, position });
 
