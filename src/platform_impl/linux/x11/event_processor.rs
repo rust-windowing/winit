@@ -533,7 +533,7 @@ impl EventProcessor {
                         .target
                         .xconn
                         .translate_coords(
-                            source_window,
+                            self.target.root,
                             window,
                             self.dnd.position.0 as _,
                             self.dnd.position.1 as _,
@@ -600,13 +600,11 @@ impl EventProcessor {
             let parse_result = self.dnd.parse_data(&mut data);
 
             if let Ok(ref path_list) = parse_result {
-                let source_window = self.dnd.source_window.unwrap_or(self.target.root);
-
                 let coords = self
                     .target
                     .xconn
                     .translate_coords(
-                        source_window,
+                        self.target.root,
                         window,
                         self.dnd.position.0 as _,
                         self.dnd.position.1 as _,
