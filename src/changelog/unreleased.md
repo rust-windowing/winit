@@ -73,7 +73,6 @@ changelog entry.
 - Add ability to make non-activating window on macOS using `NSPanel` with `NSWindowStyleMask::NonactivatingPanel`.
 - `ActivationToken::from_raw` and `ActivationToken::into_raw`.
 - On X11, add a workaround for disabling IME on GNOME.
-- Add `WindowEvent::DragEnter`, `WindowEvent::DragOver`, `WindowEvent::DragDrop` and `WindowEvent::DragLeave` events.
 
 ### Changed
 
@@ -166,6 +165,25 @@ changelog entry.
 - Rename `VideoModeHandle` to `VideoMode`, now it only stores plain data.
 - Make `Fullscreen::Exclusive` contain `(MonitorHandle, VideoMode)`.
 - On Wayland, no longer send an explicit clearing `Ime::Preedit` just prior to a new `Ime::Preedit`.
+- Reworked the file drag-and-drop API.
+
+  The `WindowEvent::DroppedFile`, `WindowEvent::HoveredFile` and `WindowEvent::HoveredFileCancelled`
+  events have been removed, and replaced with `WindowEvent::DragEnter`, `WindowEvent::DragOver`,
+  `WindowEvent::DragDrop` and `WindowEvent::DragLeave`.
+
+  The old drag-and-drop events were emitted once per file. This occurred when files were *first*
+  hovered over the window, dropped, or left the window. The new drag-and-drop events are emitted
+  once per set of files dragged, and include a list of all dragged files. They also include the
+  pointer position.
+
+  The rough correspondence is:
+  - `WindowEvent::HoveredFile` -> `WindowEvent::DragEnter`
+  - `WindowEvent::DroppedFile` -> `WindowEvent::DragDrop`
+  - `WindowEvent::HoveredFileCancelled` -> `WindowEvent::DragLeave`
+
+  The `WindowEvent::DragOver` event is entirely new, and is emitted whenever the pointer moves
+  whilst files are being dragged over the window. It doesn't contain any file paths, just the
+  pointer position.
 
 ### Removed
 
@@ -198,7 +216,6 @@ changelog entry.
  `ButtonSource` as part of the new pointer event overhaul.
 - Remove `Force::altitude_angle`.
 - Removed `Window::inner_position`, use the new `Window::surface_position` instead.
-- Removed `WindowEvent::DroppedFile`, `WindowEvent::HoveredFile` and `WindowEvent::HoveredFileCancelled` events.
 
 ### Fixed
 
