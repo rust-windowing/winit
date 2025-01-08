@@ -1,8 +1,8 @@
 use std::cell::{Cell, RefCell};
 use std::collections::{HashMap, VecDeque};
 use std::os::raw::{c_char, c_int, c_long, c_ulong};
-use std::{mem, slice};
 use std::sync::{Arc, Mutex};
+use std::{mem, slice};
 
 use x11_dl::xinput2::{
     self, XIDeviceEvent, XIEnterEvent, XIFocusInEvent, XIFocusOutEvent, XIHierarchyEvent,
@@ -542,16 +542,13 @@ impl EventProcessor {
 
                     let position = PhysicalPosition::new(coords.dst_x as f64, coords.dst_y as f64);
 
-                    callback(
-                        &self.target,
-                        Event::WindowEvent {
-                            window_id,
-                            event: WindowEvent::DragDrop {
-                                paths: path_list.iter().map(Into::into).collect(),
-                                position,
-                            },
+                    callback(&self.target, Event::WindowEvent {
+                        window_id,
+                        event: WindowEvent::DragDrop {
+                            paths: path_list.iter().map(Into::into).collect(),
+                            position,
                         },
-                    );
+                    });
                 }
                 (source_window, DndState::Accepted)
             } else {
@@ -614,20 +611,17 @@ impl EventProcessor {
                 let position = PhysicalPosition::new(coords.dst_x as f64, coords.dst_y as f64);
 
                 if self.dnd.has_entered {
-                    callback(
-                        &self.target,
-                        Event::WindowEvent { window_id, event: WindowEvent::DragOver { position } },
-                    );
+                    callback(&self.target, Event::WindowEvent {
+                        window_id,
+                        event: WindowEvent::DragOver { position },
+                    });
                 } else {
                     let paths = path_list.iter().map(Into::into).collect();
                     self.dnd.has_entered = true;
-                    callback(
-                        &self.target,
-                        Event::WindowEvent {
-                            window_id,
-                            event: WindowEvent::DragEnter { paths, position },
-                        },
-                    );
+                    callback(&self.target, Event::WindowEvent {
+                        window_id,
+                        event: WindowEvent::DragEnter { paths, position },
+                    });
                 }
             }
 
@@ -756,11 +750,11 @@ impl EventProcessor {
 
                 let surface_size = Arc::new(Mutex::new(new_surface_size));
                 callback(&self.target, Event::WindowEvent {
-                        window_id,
-                        event: WindowEvent::ScaleFactorChanged {
-                            scale_factor: new_scale_factor,
+                    window_id,
+                    event: WindowEvent::ScaleFactorChanged {
+                        scale_factor: new_scale_factor,
                         surface_size_writer: SurfaceSizeWriter::new(Arc::downgrade(&surface_size)),
-                        },
+                    },
                 });
 
                 let new_surface_size = *surface_size.lock().unwrap();
@@ -812,8 +806,8 @@ impl EventProcessor {
 
         if resized {
             callback(&self.target, Event::WindowEvent {
-                    window_id,
-                    event: WindowEvent::SurfaceResized(new_surface_size.into()),
+                window_id,
+                event: WindowEvent::SurfaceResized(new_surface_size.into()),
             });
         }
     }
@@ -1588,8 +1582,8 @@ impl EventProcessor {
         let physical_key = xkb::raw_keycode_to_physicalkey(keycode);
 
         callback(&self.target, Event::DeviceEvent {
-                device_id,
-                event: DeviceEvent::Key(RawKeyEvent { physical_key, state }),
+            device_id,
+            event: DeviceEvent::Key(RawKeyEvent { physical_key, state }),
         });
     }
 

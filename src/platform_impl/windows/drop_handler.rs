@@ -26,7 +26,8 @@ pub struct FileDropHandlerData {
     window: HWND,
     send_event: Box<dyn Fn(Event)>,
     cursor_effect: u32,
-    enter_is_valid: bool, /* If the currently hovered item is not valid there must not be any `DragLeave` emitted */
+    enter_is_valid: bool, /* If the currently hovered item is not valid there must not be any
+                           * `DragLeave` emitted */
 }
 
 pub struct FileDropHandler {
