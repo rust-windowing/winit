@@ -179,22 +179,26 @@ pub enum WindowEvent {
     DragEnter {
         /// List of paths that are being dragged onto the window.
         paths: Vec<PathBuf>,
-        /// Position of the drag operation.
+        /// Position of the drag operation. May be negative on some platforms if something is
+        /// dragged over a window's decorations (title bar, frame, etc).
         position: PhysicalPosition<f64>,
     },
     /// A drag operation is moving over the window.
     DragOver {
-        /// Position of the drag operation.
+        /// Position of the drag operation. May be negative on some platforms if something is
+        /// dragged over a window's decorations (title bar, frame, etc).
         position: PhysicalPosition<f64>,
     },
     /// The drag operation has dropped file(s) on the window.
     DragDrop {
         /// List of paths that are being dragged onto the window.
         paths: Vec<PathBuf>,
-        /// Position of the drag operation.
+        /// Position of the drag operation. May be negative on some platforms if something is
+        /// dragged over a window's decorations (title bar, frame, etc).
         position: PhysicalPosition<f64>,
     },
-    /// The drag operation has been cancelled or left the window.
+    /// The drag operation has been cancelled or left the window. On some platforms, this may occur
+    /// even if no other drag events have occurred.
     DragLeave,
 
     /// The window gained or lost focus.
