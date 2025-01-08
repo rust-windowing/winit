@@ -1,8 +1,8 @@
 use std::cell::{Cell, RefCell};
 use std::collections::{HashMap, VecDeque};
 use std::os::raw::{c_char, c_int, c_long, c_ulong};
+use std::slice;
 use std::sync::{Arc, Mutex};
-use std::{mem, slice};
 
 use x11_dl::xinput2::{
     self, XIDeviceEvent, XIEnterEvent, XIFocusInEvent, XIFocusOutEvent, XIHierarchyEvent,
@@ -470,14 +470,15 @@ impl EventProcessor {
 
             let source_window = xev.data.get_long(0) as xproto::Window;
 
-            // Equivalent to `(x << shift) | y`
-            // where `shift = mem::size_of::<c_short>() * 8`
+            // https://www.freedesktop.org/wiki/Specifications/XDND/#xdndposition
+            // "data.l[2] contains the coordinates of the mouse position relative to the root
+            // window."
+            // "data.l[2] = (x << 16) | y"
             // Note that coordinates are in "desktop space", not "window space"
             // (in X11 parlance, they're root window coordinates)
             let packed_coordinates = xev.data.get_long(2);
-            let shift = mem::size_of::<libc::c_short>() * 8;
-            let x = packed_coordinates >> shift;
-            let y = packed_coordinates & !(x << shift);
+            let x = (packed_coordinates >> 16) as i16;
+            let y = (packed_coordinates & 0xffff) as i16;
             self.dnd.position = (x, y);
 
             // By our own state flow, `version` should never be `None` at this point.
@@ -535,8 +536,8 @@ impl EventProcessor {
                         .translate_coords(
                             self.target.root,
                             window,
-                            self.dnd.position.0 as _,
-                            self.dnd.position.1 as _,
+                            self.dnd.position.0,
+                            self.dnd.position.1,
                         )
                         .expect("Failed to translate window coordinates");
 
@@ -603,8 +604,8 @@ impl EventProcessor {
                     .translate_coords(
                         self.target.root,
                         window,
-                        self.dnd.position.0 as _,
-                        self.dnd.position.1 as _,
+                        self.dnd.position.0,
+                        self.dnd.position.1,
                     )
                     .expect("Failed to translate window coordinates");
 

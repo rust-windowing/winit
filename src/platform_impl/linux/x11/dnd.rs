@@ -46,7 +46,7 @@ pub struct Dnd {
     // Populated by XdndPosition event handler
     pub source_window: Option<xproto::Window>,
     // Populated by XdndPosition event handler
-    pub position: (c_long, c_long),
+    pub position: (i16, i16),
     // Populated by SelectionNotify event handler (triggered by XdndPosition event handler)
     pub result: Option<Result<Vec<PathBuf>, DndDataParseError>>,
     // Populated by SelectionNotify event handler (triggered by XdndPosition event handler)
