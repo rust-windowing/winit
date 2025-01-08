@@ -9,11 +9,11 @@ use std::sync::{Arc, Mutex};
 use core_graphics::display::CGDisplay;
 use objc2::rc::{autoreleasepool, Retained};
 use objc2::runtime::{AnyObject, ProtocolObject};
-use objc2::{declare_class, msg_send, msg_send_id, mutability, sel, ClassType, DeclaredClass};
+use objc2::{declare_class, msg_send_id, mutability, sel, ClassType, DeclaredClass};
 use objc2_app_kit::{
     NSAppKitVersionNumber, NSAppKitVersionNumber10_12, NSAppearance, NSAppearanceCustomization,
     NSAppearanceNameAqua, NSApplication, NSApplicationPresentationOptions, NSBackingStoreType,
-    NSColor, NSDraggingDestination, NSFilenamesPboardType, NSPasteboard,
+    NSColor, NSDraggingDestination, NSDraggingInfo, NSFilenamesPboardType,
     NSRequestUserAttentionType, NSScreen, NSToolbar, NSView, NSViewFrameDidChangeNotification,
     NSWindow, NSWindowButton, NSWindowDelegate, NSWindowFullScreenButton, NSWindowLevel,
     NSWindowOcclusionState, NSWindowOrderingMode, NSWindowSharingType, NSWindowStyleMask,
@@ -375,12 +375,12 @@ declare_class!(
     unsafe impl NSDraggingDestination for WindowDelegate {
         /// Invoked when the dragged image enters destination bounds or frame
         #[method(draggingEntered:)]
-        fn dragging_entered(&self, sender: &NSObject) -> bool {
+        fn dragging_entered(&self, info: &ProtocolObject<dyn NSDraggingInfo>) -> bool {
             trace_scope!("draggingEntered:");
 
             use std::path::PathBuf;
 
-            let pb: Retained<NSPasteboard> = unsafe { msg_send_id![sender, draggingPasteboard] };
+            let pb = unsafe { info.draggingPasteboard() };
             let filenames = pb.propertyListForType(unsafe { NSFilenamesPboardType }).unwrap();
             let filenames: Retained<NSArray<NSString>> = unsafe { Retained::cast(filenames) };
             let paths = filenames
@@ -388,7 +388,7 @@ declare_class!(
                 .map(|file| PathBuf::from(file.to_string()))
                 .collect();
 
-            let dl: NSPoint = unsafe { msg_send![sender, draggingLocation] };
+            let dl = unsafe { info.draggingLocation() };
             let dl = self.view().convertPoint_fromView(dl, None);
             let position = LogicalPosition::<f64>::from((dl.x, dl.y)).to_physical(self.scale_factor());
 
@@ -406,10 +406,10 @@ declare_class!(
 
         /// Invoked periodically as the image is held within the destination area, allowing modification of the dragging operation or mouse-pointer position.
         #[method(draggingUpdated:)]
-        fn dragging_updated(&self, sender: &NSObject) -> bool {
+        fn dragging_updated(&self, info: &ProtocolObject<dyn NSDraggingInfo>) -> bool {
             trace_scope!("draggingUpdated:");
 
-            let dl: NSPoint = unsafe { msg_send![sender, draggingLocation] };
+            let dl = unsafe { info.draggingLocation() };
             let dl = self.view().convertPoint_fromView(dl, None);
             let position = LogicalPosition::<f64>::from((dl.x, dl.y)).to_physical(self.scale_factor());
 
@@ -427,12 +427,12 @@ declare_class!(
 
         /// Invoked after the released image has been removed from the screen
         #[method(performDragOperation:)]
-        fn perform_drag_operation(&self, sender: &NSObject) -> bool {
+        fn perform_drag_operation(&self, info: &ProtocolObject<dyn NSDraggingInfo>) -> bool {
             trace_scope!("performDragOperation:");
 
             use std::path::PathBuf;
 
-            let pb: Retained<NSPasteboard> = unsafe { msg_send_id![sender, draggingPasteboard] };
+            let pb = unsafe { info.draggingPasteboard() };
             let filenames = pb.propertyListForType(unsafe { NSFilenamesPboardType }).unwrap();
             let filenames: Retained<NSArray<NSString>> = unsafe { Retained::cast(filenames) };
             let paths = filenames
@@ -440,7 +440,7 @@ declare_class!(
                 .map(|file| PathBuf::from(file.to_string()))
                 .collect();
 
-            let dl: NSPoint = unsafe { msg_send![sender, draggingLocation] };
+            let dl = unsafe { info.draggingLocation() };
             let dl = self.view().convertPoint_fromView(dl, None);
             let position = LogicalPosition::<f64>::from((dl.x, dl.y)).to_physical(self.scale_factor());
 
