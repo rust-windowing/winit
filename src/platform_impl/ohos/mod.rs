@@ -222,7 +222,7 @@ impl<T: 'static> EventLoop<T> {
         }
     }
 
-    pub fn run<F>(self, event_handle: F) -> Result<(), EventLoopError>
+    pub fn run<F>(&mut self, event_handle: F) -> Result<(), EventLoopError>
     where
         F: FnMut(event::Event<T>, &RootAEL),
     {
@@ -243,9 +243,7 @@ impl<T: 'static> EventLoop<T> {
             }
         }
 
-        let app = self.openharmony_app.clone();
-
-        app.run_loop(|event| {
+        self.openharmony_app.clone().run_loop(|event| {
             match event {
                 MainEvent::SurfaceCreate { .. } => {
                     let mut guard = EVENT.lock().unwrap();
@@ -283,6 +281,7 @@ impl<T: 'static> EventLoop<T> {
                     let mut guard = EVENT.lock().unwrap();
                     if let Some(ref mut h) = *guard {
                         h(event, self.window_target());
+                        h(event::Event::AboutToWait, self.window_target());
                     }
                 },
                 MainEvent::ContentRectChange { .. } => {
@@ -361,10 +360,14 @@ impl<T: 'static> EventLoop<T> {
                     // TODO: This is incorrect - will be solved in https://github.com/rust-windowing/winit/pull/3897
                     // self.running = false;
                 },
-                MainEvent::Stop => {
+                MainEvent::WindowDestroy => {
                     let mut guard = EVENT.lock().unwrap();
                     if let Some(ref mut h) = *guard {
-                        h(event::Event::Suspended, self.window_target());
+                        let e = event::Event::WindowEvent {
+                            window_id: window::WindowId(WindowId),
+                            event: event::WindowEvent::CloseRequested,
+                        };
+                        h(e, self.window_target());
                     }
                 },
                 MainEvent::Destroy => {
