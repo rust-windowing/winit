@@ -535,7 +535,7 @@ impl EventProcessor {
                 if let Some(Ok(ref path_list)) = self.dnd.result {
                     callback(&self.target, Event::WindowEvent {
                         window_id,
-                        event: WindowEvent::DragDrop {
+                        event: WindowEvent::DragDropped {
                             paths: path_list.iter().map(Into::into).collect(),
                             position: self.dnd.position,
                         },

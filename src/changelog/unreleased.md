@@ -169,7 +169,7 @@ changelog entry.
 
   The `WindowEvent::DroppedFile`, `WindowEvent::HoveredFile` and `WindowEvent::HoveredFileCancelled`
   events have been removed, and replaced with `WindowEvent::DragEntered`, `WindowEvent::DragMoved`,
-  `WindowEvent::DragDrop` and `WindowEvent::DragLeft`.
+  `WindowEvent::DragDropped` and `WindowEvent::DragLeft`.
 
   The old drag-and-drop events were emitted once per file. This occurred when files were *first*
   hovered over the window, dropped, or left the window. The new drag-and-drop events are emitted
@@ -178,7 +178,7 @@ changelog entry.
 
   The rough correspondence is:
   - `WindowEvent::HoveredFile` -> `WindowEvent::DragEntered`
-  - `WindowEvent::DroppedFile` -> `WindowEvent::DragDrop`
+  - `WindowEvent::DroppedFile` -> `WindowEvent::DragDropped`
   - `WindowEvent::HoveredFileCancelled` -> `WindowEvent::DragLeft`
 
   The `WindowEvent::DragMoved` event is entirely new, and is emitted whenever the pointer moves

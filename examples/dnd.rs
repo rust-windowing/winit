@@ -45,7 +45,7 @@ impl ApplicationHandler for Application {
             WindowEvent::DragLeft { .. }
             | WindowEvent::DragEntered { .. }
             | WindowEvent::DragMoved { .. }
-            | WindowEvent::DragDrop { .. } => {
+            | WindowEvent::DragDropped { .. } => {
                 println!("{:?}", event);
             },
             WindowEvent::CloseRequested => {

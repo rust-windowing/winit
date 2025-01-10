@@ -546,7 +546,7 @@ impl ApplicationHandler for Application {
             | WindowEvent::PointerEntered { .. }
             | WindowEvent::DragEntered { .. }
             | WindowEvent::DragMoved { .. }
-            | WindowEvent::DragDrop { .. }
+            | WindowEvent::DragDropped { .. }
             | WindowEvent::Destroyed
             | WindowEvent::Moved(_) => (),
         }

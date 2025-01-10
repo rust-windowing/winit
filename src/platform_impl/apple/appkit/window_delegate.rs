@@ -444,7 +444,7 @@ declare_class!(
             let dl = self.view().convertPoint_fromView(dl, None);
             let position = LogicalPosition::<f64>::from((dl.x, dl.y)).to_physical(self.scale_factor());
 
-            self.queue_event(WindowEvent::DragDrop { paths, position });
+            self.queue_event(WindowEvent::DragDropped { paths, position });
 
             true
         }

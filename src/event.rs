@@ -192,7 +192,7 @@ pub enum WindowEvent {
         position: PhysicalPosition<f64>,
     },
     /// The drag operation has dropped file(s) on the window.
-    DragDrop {
+    DragDropped {
         /// List of paths that are being dragged onto the window.
         paths: Vec<PathBuf>,
         /// (x,y) coordinates in pixels relative to the top-left corner of the window. May be
@@ -1241,7 +1241,7 @@ mod tests {
                     position: (0, 0).into(),
                 });
                 with_window_event(DragMoved { position: (0, 0).into() });
-                with_window_event(DragDrop {
+                with_window_event(DragDropped {
                     paths: vec!["x.txt".into()],
                     position: (0, 0).into(),
                 });

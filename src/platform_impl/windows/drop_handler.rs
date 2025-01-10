@@ -152,7 +152,7 @@ impl FileDropHandler {
         pt: POINTL,
         _pdwEffect: *mut u32,
     ) -> HRESULT {
-        use crate::event::WindowEvent::DragDrop;
+        use crate::event::WindowEvent::DragDropped;
         let drop_handler = unsafe { Self::from_interface(this) };
         if drop_handler.enter_is_valid {
             let mut pt = POINT { x: pt.x, y: pt.y };
@@ -164,7 +164,7 @@ impl FileDropHandler {
             let hdrop = unsafe { Self::iterate_filenames(pDataObj, |path| paths.push(path)) };
             drop_handler.send_event(Event::WindowEvent {
                 window_id: WindowId::from_raw(drop_handler.window as usize),
-                event: DragDrop { paths, position },
+                event: DragDropped { paths, position },
             });
             if let Some(hdrop) = hdrop {
                 unsafe {
