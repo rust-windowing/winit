@@ -175,7 +175,7 @@ pub enum WindowEvent {
     /// The window has been destroyed.
     Destroyed,
 
-    /// A drag operation has entered the window.
+    /// A file drag operation has entered the window.
     DragEntered {
         /// List of paths that are being dragged onto the window.
         paths: Vec<PathBuf>,
@@ -184,14 +184,14 @@ pub enum WindowEvent {
         /// bar, frame, etc).
         position: PhysicalPosition<f64>,
     },
-    /// A drag operation has moved over the window.
+    /// A file drag operation has moved over the window.
     DragMoved {
         /// (x,y) coordinates in pixels relative to the top-left corner of the window. May be
         /// negative on some platforms if something is dragged over a window's decorations (title
         /// bar, frame, etc).
         position: PhysicalPosition<f64>,
     },
-    /// The drag operation has dropped file(s) on the window.
+    /// The file drag operation has dropped file(s) on the window.
     DragDropped {
         /// List of paths that are being dragged onto the window.
         paths: Vec<PathBuf>,
@@ -200,8 +200,7 @@ pub enum WindowEvent {
         /// bar, frame, etc).
         position: PhysicalPosition<f64>,
     },
-    /// The drag operation has been cancelled or left the window. On some platforms, this may occur
-    /// even if no other drag events have occurred.
+    /// The file drag operation has been cancelled or left the window.
     DragLeft {
         /// (x,y) coordinates in pixels relative to the top-left corner of the window. May be
         /// negative on some platforms if something is dragged over a window's decorations (title
