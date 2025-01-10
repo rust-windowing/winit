@@ -457,9 +457,16 @@ declare_class!(
 
         /// Invoked when the dragging operation is cancelled
         #[method(draggingExited:)]
-        fn dragging_exited(&self, _sender: Option<&NSObject>) {
+        fn dragging_exited(&self, info: Option<&ProtocolObject<dyn NSDraggingInfo>>) {
             trace_scope!("draggingExited:");
-            self.queue_event(WindowEvent::DragLeft { position: None } );
+
+            let position = info.map(|info| {
+                let dl = unsafe { info.draggingLocation() };
+                let dl = self.view().convertPoint_fromView(dl, None);
+                LogicalPosition::<f64>::from((dl.x, dl.y)).to_physical(self.scale_factor())
+            });
+
+            self.queue_event(WindowEvent::DragLeft { position } );
         }
     }
 
