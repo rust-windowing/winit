@@ -42,7 +42,7 @@ impl ApplicationHandler for Application {
         event: WindowEvent,
     ) {
         match event {
-            WindowEvent::DragLeft
+            WindowEvent::DragLeft { .. }
             | WindowEvent::DragEntered { .. }
             | WindowEvent::DragMoved { .. }
             | WindowEvent::DragDrop { .. } => {

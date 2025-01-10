@@ -138,7 +138,7 @@ impl FileDropHandler {
         if drop_handler.enter_is_valid {
             drop_handler.send_event(Event::WindowEvent {
                 window_id: WindowId::from_raw(drop_handler.window as usize),
-                event: DragLeft,
+                event: DragLeft { position: None },
             });
         }
 

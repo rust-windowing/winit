@@ -202,7 +202,16 @@ pub enum WindowEvent {
     },
     /// The drag operation has been cancelled or left the window. On some platforms, this may occur
     /// even if no other drag events have occurred.
-    DragLeft,
+    DragLeft {
+        /// (x,y) coordinates in pixels relative to the top-left corner of the window. May be
+        /// negative on some platforms if something is dragged over a window's decorations (title
+        /// bar, frame, etc).
+        ///
+        /// ## Platform-specific
+        ///
+        /// - **Windows:** Always emits [`None`].
+        position: Option<PhysicalPosition<f64>>,
+    },
 
     /// The window gained or lost focus.
     ///
@@ -1236,7 +1245,7 @@ mod tests {
                     paths: vec!["x.txt".into()],
                     position: (0, 0).into(),
                 });
-                with_window_event(DragLeft);
+                with_window_event(DragLeft { position: Some((0, 0).into()) });
                 with_window_event(Ime(Enabled));
                 with_window_event(PointerMoved {
                     device_id: None,

@@ -561,7 +561,10 @@ impl EventProcessor {
 
         if xev.message_type == atoms[XdndLeave] as c_ulong {
             if self.dnd.has_entered {
-                let event = Event::WindowEvent { window_id, event: WindowEvent::DragLeft };
+                let event = Event::WindowEvent {
+                    window_id,
+                    event: WindowEvent::DragLeft { position: Some(self.dnd.position) },
+                };
                 callback(&self.target, event);
             }
             self.dnd.reset();

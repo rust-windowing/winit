@@ -541,7 +541,7 @@ impl ApplicationHandler for Application {
                 info!("Smart zoom");
             },
             WindowEvent::TouchpadPressure { .. }
-            | WindowEvent::DragLeft
+            | WindowEvent::DragLeft { .. }
             | WindowEvent::KeyboardInput { .. }
             | WindowEvent::PointerEntered { .. }
             | WindowEvent::DragEntered { .. }

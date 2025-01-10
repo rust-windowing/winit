@@ -459,7 +459,7 @@ declare_class!(
         #[method(draggingExited:)]
         fn dragging_exited(&self, _sender: Option<&NSObject>) {
             trace_scope!("draggingExited:");
-            self.queue_event(WindowEvent::DragLeft);
+            self.queue_event(WindowEvent::DragLeft { position: None } );
         }
     }
 
