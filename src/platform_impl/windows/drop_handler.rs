@@ -91,11 +91,13 @@ impl FileDropHandler {
         let position = PhysicalPosition::new(pt.x as f64, pt.y as f64);
         let mut paths = Vec::new();
         let hdrop = unsafe { Self::iterate_filenames(pDataObj, |path| paths.push(path)) };
-        drop_handler.send_event(Event::WindowEvent {
-            window_id: WindowId::from_raw(drop_handler.window as usize),
-            event: DragEnter { paths, position },
-        });
         drop_handler.enter_is_valid = hdrop.is_some();
+        if drop_handler.enter_is_valid {
+            drop_handler.send_event(Event::WindowEvent {
+                window_id: WindowId::from_raw(drop_handler.window as usize),
+                event: DragEnter { paths, position },
+            });
+        }
         drop_handler.cursor_effect =
             if drop_handler.enter_is_valid { DROPEFFECT_COPY } else { DROPEFFECT_NONE };
         unsafe {
