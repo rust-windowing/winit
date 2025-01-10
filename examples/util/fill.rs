@@ -9,7 +9,10 @@
 
 #[allow(unused_imports)]
 pub use platform::cleanup_window;
+#[allow(unused_imports)]
 pub use platform::fill_window;
+#[allow(unused_imports)]
+pub use platform::fill_window_with_color;
 
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
 mod platform {
@@ -70,7 +73,7 @@ mod platform {
         }
     }
 
-    pub fn fill_window(window: &dyn Window) {
+    pub fn fill_window_with_color(window: &dyn Window, color: u32) {
         GC.with(|gc| {
             let size = window.surface_size();
             let (Some(width), Some(height)) =
@@ -84,15 +87,19 @@ mod platform {
             let surface =
                 gc.get_or_insert_with(|| GraphicsContext::new(window)).create_surface(window);
 
-            // Fill a buffer with a solid color.
-            const DARK_GRAY: u32 = 0xff181818;
+            // Fill a buffer with a solid color
 
             surface.resize(width, height).expect("Failed to resize the softbuffer surface");
 
             let mut buffer = surface.buffer_mut().expect("Failed to get the softbuffer buffer");
-            buffer.fill(DARK_GRAY);
+            buffer.fill(color);
             buffer.present().expect("Failed to present the softbuffer buffer");
         })
+    }
+
+    #[allow(dead_code)]
+    pub fn fill_window(window: &dyn Window) {
+        fill_window_with_color(window, 0xff181818);
     }
 
     #[allow(dead_code)]
@@ -109,6 +116,11 @@ mod platform {
 #[cfg(any(target_os = "android", target_os = "ios"))]
 mod platform {
     pub fn fill_window(_window: &dyn winit::window::Window) {
+        // No-op on mobile platforms.
+    }
+
+    #[allow(dead_code)]
+    pub fn fill_window_with_color(_window: &dyn winit::window::Window, _color: u32) {
         // No-op on mobile platforms.
     }
 
