@@ -561,7 +561,7 @@ impl EventProcessor {
 
         if xev.message_type == atoms[XdndLeave] as c_ulong {
             if self.dnd.has_entered {
-                let event = Event::WindowEvent { window_id, event: WindowEvent::DragLeave };
+                let event = Event::WindowEvent { window_id, event: WindowEvent::DragLeft };
                 callback(&self.target, event);
             }
             self.dnd.reset();
@@ -593,14 +593,14 @@ impl EventProcessor {
                 if self.dnd.has_entered {
                     callback(&self.target, Event::WindowEvent {
                         window_id,
-                        event: WindowEvent::DragOver { position: self.dnd.position },
+                        event: WindowEvent::DragMoved { position: self.dnd.position },
                     });
                 } else {
                     let paths = path_list.iter().map(Into::into).collect();
                     self.dnd.has_entered = true;
                     callback(&self.target, Event::WindowEvent {
                         window_id,
-                        event: WindowEvent::DragEnter { paths, position: self.dnd.position },
+                        event: WindowEvent::DragEntered { paths, position: self.dnd.position },
                     });
                 }
             }

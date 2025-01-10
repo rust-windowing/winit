@@ -541,11 +541,11 @@ impl ApplicationHandler for Application {
                 info!("Smart zoom");
             },
             WindowEvent::TouchpadPressure { .. }
-            | WindowEvent::DragLeave
+            | WindowEvent::DragLeft
             | WindowEvent::KeyboardInput { .. }
             | WindowEvent::PointerEntered { .. }
-            | WindowEvent::DragEnter { .. }
-            | WindowEvent::DragOver { .. }
+            | WindowEvent::DragEntered { .. }
+            | WindowEvent::DragMoved { .. }
             | WindowEvent::DragDrop { .. }
             | WindowEvent::Destroyed
             | WindowEvent::Moved(_) => (),

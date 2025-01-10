@@ -393,7 +393,7 @@ declare_class!(
             let position = LogicalPosition::<f64>::from((dl.x, dl.y)).to_physical(self.scale_factor());
 
 
-            self.queue_event(WindowEvent::DragEnter { paths, position });
+            self.queue_event(WindowEvent::DragEntered { paths, position });
 
             true
         }
@@ -413,7 +413,7 @@ declare_class!(
             let dl = self.view().convertPoint_fromView(dl, None);
             let position = LogicalPosition::<f64>::from((dl.x, dl.y)).to_physical(self.scale_factor());
 
-            self.queue_event(WindowEvent::DragOver { position });
+            self.queue_event(WindowEvent::DragMoved { position });
 
             true
         }
@@ -459,7 +459,7 @@ declare_class!(
         #[method(draggingExited:)]
         fn dragging_exited(&self, _sender: Option<&NSObject>) {
             trace_scope!("draggingExited:");
-            self.queue_event(WindowEvent::DragLeave);
+            self.queue_event(WindowEvent::DragLeft);
         }
     }
 

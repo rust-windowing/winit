@@ -176,30 +176,33 @@ pub enum WindowEvent {
     Destroyed,
 
     /// A drag operation has entered the window.
-    DragEnter {
+    DragEntered {
         /// List of paths that are being dragged onto the window.
         paths: Vec<PathBuf>,
-        /// Position of the drag operation. May be negative on some platforms if something is
-        /// dragged over a window's decorations (title bar, frame, etc).
+        /// (x,y) coordinates in pixels relative to the top-left corner of the window. May be
+        /// negative on some platforms if something is dragged over a window's decorations (title
+        /// bar, frame, etc).
         position: PhysicalPosition<f64>,
     },
-    /// A drag operation is moving over the window.
-    DragOver {
-        /// Position of the drag operation. May be negative on some platforms if something is
-        /// dragged over a window's decorations (title bar, frame, etc).
+    /// A drag operation has moved over the window.
+    DragMoved {
+        /// (x,y) coordinates in pixels relative to the top-left corner of the window. May be
+        /// negative on some platforms if something is dragged over a window's decorations (title
+        /// bar, frame, etc).
         position: PhysicalPosition<f64>,
     },
     /// The drag operation has dropped file(s) on the window.
     DragDrop {
         /// List of paths that are being dragged onto the window.
         paths: Vec<PathBuf>,
-        /// Position of the drag operation. May be negative on some platforms if something is
-        /// dragged over a window's decorations (title bar, frame, etc).
+        /// (x,y) coordinates in pixels relative to the top-left corner of the window. May be
+        /// negative on some platforms if something is dragged over a window's decorations (title
+        /// bar, frame, etc).
         position: PhysicalPosition<f64>,
     },
     /// The drag operation has been cancelled or left the window. On some platforms, this may occur
     /// even if no other drag events have occurred.
-    DragLeave,
+    DragLeft,
 
     /// The window gained or lost focus.
     ///
@@ -1224,16 +1227,16 @@ mod tests {
                 with_window_event(Focused(true));
                 with_window_event(Moved((0, 0).into()));
                 with_window_event(SurfaceResized((0, 0).into()));
-                with_window_event(DragEnter {
+                with_window_event(DragEntered {
                     paths: vec!["x.txt".into()],
                     position: (0, 0).into(),
                 });
-                with_window_event(DragOver { position: (0, 0).into() });
+                with_window_event(DragMoved { position: (0, 0).into() });
                 with_window_event(DragDrop {
                     paths: vec!["x.txt".into()],
                     position: (0, 0).into(),
                 });
-                with_window_event(DragLeave);
+                with_window_event(DragLeft);
                 with_window_event(Ime(Enabled));
                 with_window_event(PointerMoved {
                     device_id: None,
