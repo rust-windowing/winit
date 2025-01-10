@@ -4,6 +4,7 @@ use std::path::{Path, PathBuf};
 use std::str::Utf8Error;
 use std::sync::Arc;
 
+use dpi::PhysicalPosition;
 use percent_encoding::percent_decode;
 use x11rb::protocol::xproto::{self, ConnectionExt};
 
@@ -46,7 +47,7 @@ pub struct Dnd {
     // Populated by XdndPosition event handler
     pub source_window: Option<xproto::Window>,
     // Populated by XdndPosition event handler
-    pub position: (i16, i16),
+    pub position: PhysicalPosition<f64>,
     // Populated by SelectionNotify event handler (triggered by XdndPosition event handler)
     pub result: Option<Result<Vec<PathBuf>, DndDataParseError>>,
     // Populated by SelectionNotify event handler (triggered by XdndPosition event handler)
@@ -60,7 +61,7 @@ impl Dnd {
             version: None,
             type_list: None,
             source_window: None,
-            position: (0, 0),
+            position: PhysicalPosition::default(),
             result: None,
             has_entered: false,
         })

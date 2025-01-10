@@ -471,15 +471,18 @@ impl EventProcessor {
             let source_window = xev.data.get_long(0) as xproto::Window;
 
             // https://www.freedesktop.org/wiki/Specifications/XDND/#xdndposition
-            // "data.l[2] contains the coordinates of the mouse position relative to the root
-            // window."
-            // "data.l[2] = (x << 16) | y"
             // Note that coordinates are in "desktop space", not "window space"
             // (in X11 parlance, they're root window coordinates)
             let packed_coordinates = xev.data.get_long(2);
             let x = (packed_coordinates >> 16) as i16;
             let y = (packed_coordinates & 0xffff) as i16;
-            self.dnd.position = (x, y);
+
+            let coords = self
+                .target
+                .xconn
+                .translate_coords(self.target.root, window, x, y)
+                .expect("Failed to translate window coordinates");
+            self.dnd.position = PhysicalPosition::new(coords.dst_x as f64, coords.dst_y as f64);
 
             // By our own state flow, `version` should never be `None` at this point.
             let version = self.dnd.version.unwrap_or(5);
@@ -530,24 +533,11 @@ impl EventProcessor {
         if xev.message_type == atoms[XdndDrop] as c_ulong {
             let (source_window, state) = if let Some(source_window) = self.dnd.source_window {
                 if let Some(Ok(ref path_list)) = self.dnd.result {
-                    let coords = self
-                        .target
-                        .xconn
-                        .translate_coords(
-                            self.target.root,
-                            window,
-                            self.dnd.position.0,
-                            self.dnd.position.1,
-                        )
-                        .expect("Failed to translate window coordinates");
-
-                    let position = PhysicalPosition::new(coords.dst_x as f64, coords.dst_y as f64);
-
                     callback(&self.target, Event::WindowEvent {
                         window_id,
                         event: WindowEvent::DragDrop {
                             paths: path_list.iter().map(Into::into).collect(),
-                            position,
+                            position: self.dnd.position,
                         },
                     });
                 }
@@ -598,30 +588,17 @@ impl EventProcessor {
             let parse_result = self.dnd.parse_data(&mut data);
 
             if let Ok(ref path_list) = parse_result {
-                let coords = self
-                    .target
-                    .xconn
-                    .translate_coords(
-                        self.target.root,
-                        window,
-                        self.dnd.position.0,
-                        self.dnd.position.1,
-                    )
-                    .expect("Failed to translate window coordinates");
-
-                let position = PhysicalPosition::new(coords.dst_x as f64, coords.dst_y as f64);
-
                 if self.dnd.has_entered {
                     callback(&self.target, Event::WindowEvent {
                         window_id,
-                        event: WindowEvent::DragOver { position },
+                        event: WindowEvent::DragOver { position: self.dnd.position },
                     });
                 } else {
                     let paths = path_list.iter().map(Into::into).collect();
                     self.dnd.has_entered = true;
                     callback(&self.target, Event::WindowEvent {
                         window_id,
-                        event: WindowEvent::DragEnter { paths, position },
+                        event: WindowEvent::DragEnter { paths, position: self.dnd.position },
                     });
                 }
             }
