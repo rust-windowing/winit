@@ -560,9 +560,11 @@ impl EventProcessor {
         }
 
         if xev.message_type == atoms[XdndLeave] as c_ulong {
+            if self.dnd.has_entered {
+                let event = Event::WindowEvent { window_id, event: WindowEvent::DragLeave };
+                callback(&self.target, event);
+            }
             self.dnd.reset();
-            let event = Event::WindowEvent { window_id, event: WindowEvent::DragLeave };
-            callback(&self.target, event);
         }
     }
 
