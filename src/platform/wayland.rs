@@ -17,6 +17,7 @@
 use std::ffi::c_void;
 use std::ptr::null_mut;
 
+#[cfg(wayland_platform)]
 use sctk::reexports::client::Proxy;
 
 use crate::event_loop::{ActiveEventLoop, EventLoop, EventLoopBuilder};
@@ -84,6 +85,7 @@ pub trait WindowExtWayland {
     fn xdg_toplevel(&self) -> *mut c_void;
 }
 
+#[cfg(wayland_platform)]
 impl WindowExtWayland for dyn CoreWindow + '_ {
     #[inline]
     fn xdg_toplevel(&self) -> *mut c_void {
