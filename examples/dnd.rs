@@ -5,6 +5,8 @@ use winit::event::WindowEvent;
 use winit::event_loop::{ActiveEventLoop, EventLoop};
 use winit::window::{Window, WindowAttributes, WindowId};
 
+#[path = "util/fill.rs"]
+mod fill;
 #[path = "util/tracing.rs"]
 mod tracing;
 
@@ -47,6 +49,11 @@ impl ApplicationHandler for Application {
             | WindowEvent::DragMoved { .. }
             | WindowEvent::DragDropped { .. } => {
                 println!("{:?}", event);
+            },
+            WindowEvent::RedrawRequested => {
+                let window = self.window.as_ref().unwrap();
+                window.pre_present_notify();
+                fill::fill_window(window.as_ref());
             },
             WindowEvent::CloseRequested => {
                 event_loop.exit();
