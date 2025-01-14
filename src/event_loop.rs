@@ -221,8 +221,8 @@ impl<T> EventLoop<T> {
     /// [`run_app`]: Self::run_app
     #[inline]
     #[deprecated = "use `EventLoop::run_app` instead"]
-    #[cfg(not(all(web_platform, target_feature = "exception-handling")))]
-    pub fn run<F>(&mut self, event_handler: F) -> Result<(), EventLoopError>
+    #[cfg(not(any(all(web_platform, target_feature = "exception-handling"), target_env = "ohos")))]
+    pub fn run<F>(self, event_handler: F) -> Result<(), EventLoopError>
     where
         F: FnMut(Event<T>, &ActiveEventLoop),
     {
@@ -260,8 +260,8 @@ impl<T> EventLoop<T> {
     /// [`run_app()`]: Self::run_app()
     /// [^1]: `EventLoopExtWebSys::spawn_app()` is only available on Web.
     #[inline]
-    #[cfg(not(all(web_platform, target_feature = "exception-handling")))]
-    pub fn run_app<A: ApplicationHandler<T>>(&mut self, app: &mut A) -> Result<(), EventLoopError> {
+    #[cfg(not(any(all(web_platform, target_feature = "exception-handling"), target_env = "ohos")))]
+    pub fn run_app<A: ApplicationHandler<T>>(self, app: &mut A) -> Result<(), EventLoopError> {
         self.event_loop.run(|event, event_loop| dispatch_event_for_app(app, event_loop, event))
     }
 

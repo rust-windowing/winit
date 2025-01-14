@@ -17,16 +17,40 @@
 //!
 
 use self::ability::{Configuration, OpenHarmonyApp, Rect};
-use crate::event_loop::{ActiveEventLoop, EventLoop, EventLoopBuilder};
+use crate::application::ApplicationHandler;
+use crate::event_loop::{self, ActiveEventLoop, EventLoop, EventLoopBuilder};
 use crate::window::{Window, WindowAttributes};
 
 /// Additional methods on [`EventLoop`] that are specific to OpenHarmony.
 pub trait EventLoopExtOpenHarmony {
+    /// A type provided by the user that can be passed through `Event::UserEvent`.
+    type UserEvent: 'static;
+
+    ///
+    #[cfg_attr(
+        not(all(web_platform, target_feature = "exception-handling")),
+        doc = "[`run_app()`]: EventLoop::run_app()"
+    )]
+
+    /// [^1]: `run_app()` is _not_ available on WASM when the target supports `exception-handling`.
+    fn spawn_app<A: ApplicationHandler<Self::UserEvent> + 'static>(self, app: A);
+
     /// Get the [`OpenHarmonyApp`] which was used to create this event loop.
     fn openharmony_app(&self) -> &OpenHarmonyApp;
 }
 
 impl<T> EventLoopExtOpenHarmony for EventLoop<T> {
+    type UserEvent = T;
+
+    fn spawn_app<A: ApplicationHandler<Self::UserEvent> + 'static>(self, app: A) {
+        let app = Box::leak(Box::new(app));
+        let event_looper = Box::leak(Box::new(self));
+
+        event_looper
+            .event_loop
+            .run(|event, event_loop| event_loop::dispatch_event_for_app(app, event_loop, event));
+    }
+
     fn openharmony_app(&self) -> &OpenHarmonyApp {
         &self.event_loop.openharmony_app
     }
@@ -71,7 +95,6 @@ pub trait EventLoopBuilderExtOpenHarmony {
     ///
     /// This must be called on OpenHarmony since the [`OpenHarmonyApp`] is not global state.
     fn with_openharmony_app(&mut self, app: OpenHarmonyApp) -> &mut Self;
-
 }
 
 impl<T> EventLoopBuilderExtOpenHarmony for EventLoopBuilder<T> {
