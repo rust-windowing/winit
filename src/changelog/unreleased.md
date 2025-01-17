@@ -39,3 +39,7 @@ The migration guide could reference other migration examples in the current
 changelog entry.
 
 ## Unreleased
+
+### Changed
+
+- On Wayland, no longer send an explicit clearing `Ime::Preedit` just prior to a new `Ime::Preedit`.
