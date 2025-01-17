@@ -534,7 +534,7 @@ impl rwh_06::HasDisplayHandle for ActiveEventLoop {
 
 impl rwh_06::HasWindowHandle for ActiveEventLoop {
     fn window_handle(&self) -> Result<rwh_06::WindowHandle<'_>, rwh_06::HandleError> {
-        let hwnd = unsafe { std::num::NonZero::new_unchecked(self.thread_msg_target) };
+        let hwnd = unsafe { std::num::NonZeroIsize::new_unchecked(self.thread_msg_target) };
         let win32 = rwh_06::Win32WindowHandle::new(hwnd);
         let raw = rwh_06::RawWindowHandle::Win32(win32);
         unsafe { Ok(rwh_06::WindowHandle::borrow_raw(raw)) }
