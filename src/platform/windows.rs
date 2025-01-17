@@ -234,10 +234,12 @@ impl EventLoopBuilderExtWindows for EventLoopBuilder {
 }
 
 pub trait ActiveEventLoopExtWindows {
+    /// Get the raw-window-handle HWND used by the event loop window target .
     fn rwh_06_window_handle(&self) -> &dyn rwh_06::HasWindowHandle;
 }
 
 impl ActiveEventLoopExtWindows for dyn ActiveEventLoop + '_ {
+    /// Get the raw-window-handle HWND used by the event loop window target .
     fn rwh_06_window_handle(&self) -> &dyn rwh_06::HasWindowHandle {
         let event_loop = self
             .as_any()
