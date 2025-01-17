@@ -13,7 +13,7 @@ use windows_sys::Win32::System::Ole::{CF_HDROP, DROPEFFECT_COPY, DROPEFFECT_NONE
 use windows_sys::Win32::UI::Shell::{DragFinish, DragQueryFileW, HDROP};
 
 use crate::dpi::PhysicalPosition;
-use crate::event::Event;
+use crate::event::{Event, WindowEvent};
 use crate::platform_impl::platform::definitions::{
     IDataObjectVtbl, IDropTarget, IDropTargetVtbl, IUnknownVtbl,
 };
@@ -82,7 +82,6 @@ impl FileDropHandler {
         pt: POINTL,
         pdwEffect: *mut u32,
     ) -> HRESULT {
-        use crate::event::WindowEvent::DragEntered;
         let drop_handler = unsafe { Self::from_interface(this) };
         let mut pt = POINT { x: pt.x, y: pt.y };
         unsafe {
@@ -95,7 +94,7 @@ impl FileDropHandler {
         if drop_handler.enter_is_valid {
             drop_handler.send_event(Event::WindowEvent {
                 window_id: WindowId::from_raw(drop_handler.window as usize),
-                event: DragEntered { paths, position },
+                event: WindowEvent::DragEntered { paths, position },
             });
         }
         drop_handler.cursor_effect =
@@ -113,7 +112,6 @@ impl FileDropHandler {
         pt: POINTL,
         pdwEffect: *mut u32,
     ) -> HRESULT {
-        use crate::event::WindowEvent::DragMoved;
         let drop_handler = unsafe { Self::from_interface(this) };
         if drop_handler.enter_is_valid {
             let mut pt = POINT { x: pt.x, y: pt.y };
@@ -123,7 +121,7 @@ impl FileDropHandler {
             let position = PhysicalPosition::new(pt.x as f64, pt.y as f64);
             drop_handler.send_event(Event::WindowEvent {
                 window_id: WindowId::from_raw(drop_handler.window as usize),
-                event: DragMoved { position },
+                event: WindowEvent::DragMoved { position },
             });
         }
         unsafe {
@@ -133,12 +131,11 @@ impl FileDropHandler {
     }
 
     pub unsafe extern "system" fn DragLeave(this: *mut IDropTarget) -> HRESULT {
-        use crate::event::WindowEvent::DragLeft;
         let drop_handler = unsafe { Self::from_interface(this) };
         if drop_handler.enter_is_valid {
             drop_handler.send_event(Event::WindowEvent {
                 window_id: WindowId::from_raw(drop_handler.window as usize),
-                event: DragLeft { position: None },
+                event: WindowEvent::DragLeft { position: None },
             });
         }
 
@@ -152,7 +149,6 @@ impl FileDropHandler {
         pt: POINTL,
         _pdwEffect: *mut u32,
     ) -> HRESULT {
-        use crate::event::WindowEvent::DragDropped;
         let drop_handler = unsafe { Self::from_interface(this) };
         if drop_handler.enter_is_valid {
             let mut pt = POINT { x: pt.x, y: pt.y };
@@ -164,7 +160,7 @@ impl FileDropHandler {
             let hdrop = unsafe { Self::iterate_filenames(pDataObj, |path| paths.push(path)) };
             drop_handler.send_event(Event::WindowEvent {
                 window_id: WindowId::from_raw(drop_handler.window as usize),
-                event: DragDropped { paths, position },
+                event: WindowEvent::DragDropped { paths, position },
             });
             if let Some(hdrop) = hdrop {
                 unsafe {
