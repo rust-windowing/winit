@@ -51,7 +51,7 @@ pub struct Dnd {
     // Populated by SelectionNotify event handler (triggered by XdndPosition event handler)
     pub result: Option<Result<Vec<PathBuf>, DndDataParseError>>,
     // Populated by SelectionNotify event handler (triggered by XdndPosition event handler)
-    pub has_entered: bool,
+    pub dragging: bool,
 }
 
 impl Dnd {
@@ -63,7 +63,7 @@ impl Dnd {
             source_window: None,
             position: PhysicalPosition::default(),
             result: None,
-            has_entered: false,
+            dragging: false,
         })
     }
 
@@ -72,7 +72,7 @@ impl Dnd {
         self.type_list = None;
         self.source_window = None;
         self.result = None;
-        self.has_entered = false;
+        self.dragging = false;
     }
 
     pub unsafe fn send_status(

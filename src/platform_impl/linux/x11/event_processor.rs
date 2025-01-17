@@ -507,11 +507,11 @@ impl EventProcessor {
             }
 
             self.dnd.source_window = Some(source_window);
-            let time = if version >= 1 {
-                xev.data.get_long(3) as xproto::Timestamp
-            } else {
+            let time = if version == 0 {
                 // In version 0, time isn't specified
                 x11rb::CURRENT_TIME
+            } else {
+                xev.data.get_long(3) as xproto::Timestamp
             };
 
             // Log this timestamp.
@@ -533,13 +533,12 @@ impl EventProcessor {
         if xev.message_type == atoms[XdndDrop] as c_ulong {
             let (source_window, state) = if let Some(source_window) = self.dnd.source_window {
                 if let Some(Ok(ref path_list)) = self.dnd.result {
-                    callback(&self.target, Event::WindowEvent {
-                        window_id,
-                        event: WindowEvent::DragDropped {
-                            paths: path_list.iter().map(Into::into).collect(),
-                            position: self.dnd.position,
-                        },
-                    });
+                    let event = WindowEvent::DragDropped {
+                        paths: path_list.iter().map(Into::into).collect(),
+                        position: self.dnd.position,
+                    };
+
+                    callback(&self.target, Event::WindowEvent { window_id, event });
                 }
                 (source_window, DndState::Accepted)
             } else {
@@ -560,7 +559,7 @@ impl EventProcessor {
         }
 
         if xev.message_type == atoms[XdndLeave] as c_ulong {
-            if self.dnd.has_entered {
+            if self.dnd.dragging {
                 let event = Event::WindowEvent {
                     window_id,
                     event: WindowEvent::DragLeft { position: Some(self.dnd.position) },
@@ -593,19 +592,15 @@ impl EventProcessor {
             let parse_result = self.dnd.parse_data(&mut data);
 
             if let Ok(ref path_list) = parse_result {
-                if self.dnd.has_entered {
-                    callback(&self.target, Event::WindowEvent {
-                        window_id,
-                        event: WindowEvent::DragMoved { position: self.dnd.position },
-                    });
+                let event = if self.dnd.dragging {
+                    WindowEvent::DragMoved { position: self.dnd.position }
                 } else {
                     let paths = path_list.iter().map(Into::into).collect();
-                    self.dnd.has_entered = true;
-                    callback(&self.target, Event::WindowEvent {
-                        window_id,
-                        event: WindowEvent::DragEntered { paths, position: self.dnd.position },
-                    });
-                }
+                    self.dnd.dragging = true;
+                    WindowEvent::DragEntered { paths, position: self.dnd.position }
+                };
+
+                callback(&self.target, Event::WindowEvent { window_id, event });
             }
 
             self.dnd.result = Some(parse_result);
