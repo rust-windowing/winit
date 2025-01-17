@@ -26,8 +26,8 @@ pub struct FileDropHandlerData {
     window: HWND,
     send_event: Box<dyn Fn(Event)>,
     cursor_effect: u32,
-    enter_is_valid: bool, /* If the currently hovered item is not valid there must not be any
-                           * `DragLeft` emitted */
+    valid: bool, /* If the currently hovered item is not valid there must not be any
+                  * `DragLeft` emitted */
 }
 
 pub struct FileDropHandler {
@@ -43,7 +43,7 @@ impl FileDropHandler {
             window,
             send_event,
             cursor_effect: DROPEFFECT_NONE,
-            enter_is_valid: false,
+            valid: false,
         });
         FileDropHandler { data: Box::into_raw(data) }
     }
@@ -90,15 +90,15 @@ impl FileDropHandler {
         let position = PhysicalPosition::new(pt.x as f64, pt.y as f64);
         let mut paths = Vec::new();
         let hdrop = unsafe { Self::iterate_filenames(pDataObj, |path| paths.push(path)) };
-        drop_handler.enter_is_valid = hdrop.is_some();
-        if drop_handler.enter_is_valid {
+        drop_handler.valid = hdrop.is_some();
+        if drop_handler.valid {
             drop_handler.send_event(Event::WindowEvent {
                 window_id: WindowId::from_raw(drop_handler.window as usize),
                 event: WindowEvent::DragEntered { paths, position },
             });
         }
         drop_handler.cursor_effect =
-            if drop_handler.enter_is_valid { DROPEFFECT_COPY } else { DROPEFFECT_NONE };
+            if drop_handler.valid { DROPEFFECT_COPY } else { DROPEFFECT_NONE };
         unsafe {
             *pdwEffect = drop_handler.cursor_effect;
         }
@@ -113,7 +113,7 @@ impl FileDropHandler {
         pdwEffect: *mut u32,
     ) -> HRESULT {
         let drop_handler = unsafe { Self::from_interface(this) };
-        if drop_handler.enter_is_valid {
+        if drop_handler.valid {
             let mut pt = POINT { x: pt.x, y: pt.y };
             unsafe {
                 ScreenToClient(drop_handler.window, &mut pt);
@@ -132,7 +132,7 @@ impl FileDropHandler {
 
     pub unsafe extern "system" fn DragLeave(this: *mut IDropTarget) -> HRESULT {
         let drop_handler = unsafe { Self::from_interface(this) };
-        if drop_handler.enter_is_valid {
+        if drop_handler.valid {
             drop_handler.send_event(Event::WindowEvent {
                 window_id: WindowId::from_raw(drop_handler.window as usize),
                 event: WindowEvent::DragLeft { position: None },
@@ -150,7 +150,7 @@ impl FileDropHandler {
         _pdwEffect: *mut u32,
     ) -> HRESULT {
         let drop_handler = unsafe { Self::from_interface(this) };
-        if drop_handler.enter_is_valid {
+        if drop_handler.valid {
             let mut pt = POINT { x: pt.x, y: pt.y };
             unsafe {
                 ScreenToClient(drop_handler.window, &mut pt);
