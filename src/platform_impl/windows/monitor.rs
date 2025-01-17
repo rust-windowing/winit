@@ -1,4 +1,4 @@
-use std::collections::{BTreeSet, VecDeque};
+use std::collections::{HashSet, VecDeque};
 use std::hash::Hash;
 use std::num::{NonZeroU16, NonZeroU32};
 use std::{io, mem, ptr};
@@ -13,26 +13,20 @@ use windows_sys::Win32::Graphics::Gdi::{
 
 use super::util::decode_wide;
 use crate::dpi::{PhysicalPosition, PhysicalSize};
-use crate::monitor::VideoModeHandle as RootVideoModeHandle;
+use crate::monitor::VideoMode;
 use crate::platform_impl::platform::dpi::{dpi_to_scale_factor, get_monitor_dpi};
 use crate::platform_impl::platform::util::has_flag;
 
 #[derive(Clone)]
 pub struct VideoModeHandle {
-    pub(crate) size: (u32, u32),
-    pub(crate) bit_depth: Option<NonZeroU16>,
-    pub(crate) refresh_rate_millihertz: Option<NonZeroU32>,
-    pub(crate) monitor: MonitorHandle,
+    pub(crate) mode: VideoMode,
     // DEVMODEW is huge so we box it to avoid blowing up the size of winit::window::Fullscreen
     pub(crate) native_video_mode: Box<DEVMODEW>,
 }
 
 impl PartialEq for VideoModeHandle {
     fn eq(&self, other: &Self) -> bool {
-        self.size == other.size
-            && self.bit_depth == other.bit_depth
-            && self.refresh_rate_millihertz == other.refresh_rate_millihertz
-            && self.monitor == other.monitor
+        self.mode == other.mode
     }
 }
 
@@ -40,53 +34,29 @@ impl Eq for VideoModeHandle {}
 
 impl std::hash::Hash for VideoModeHandle {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        self.size.hash(state);
-        self.bit_depth.hash(state);
-        self.refresh_rate_millihertz.hash(state);
-        self.monitor.hash(state);
+        self.mode.hash(state);
     }
 }
 
 impl std::fmt::Debug for VideoModeHandle {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("VideoModeHandle")
-            .field("size", &self.size)
-            .field("bit_depth", &self.bit_depth)
-            .field("refresh_rate_millihertz", &self.refresh_rate_millihertz)
-            .field("monitor", &self.monitor)
-            .finish()
+        f.debug_struct("VideoMode").field("mode", &self.mode).finish()
     }
 }
 
 impl VideoModeHandle {
-    fn new(monitor: MonitorHandle, mode: DEVMODEW) -> Self {
+    fn new(native_video_mode: DEVMODEW) -> Self {
         const REQUIRED_FIELDS: u32 =
             DM_BITSPERPEL | DM_PELSWIDTH | DM_PELSHEIGHT | DM_DISPLAYFREQUENCY;
-        assert!(has_flag(mode.dmFields, REQUIRED_FIELDS));
+        assert!(has_flag(native_video_mode.dmFields, REQUIRED_FIELDS));
 
-        VideoModeHandle {
-            size: (mode.dmPelsWidth, mode.dmPelsHeight),
-            bit_depth: NonZeroU16::new(mode.dmBitsPerPel as u16),
-            refresh_rate_millihertz: NonZeroU32::new(mode.dmDisplayFrequency * 1000),
-            monitor,
-            native_video_mode: Box::new(mode),
-        }
-    }
+        let mode = VideoMode {
+            size: (native_video_mode.dmPelsWidth, native_video_mode.dmPelsHeight).into(),
+            bit_depth: NonZeroU16::new(native_video_mode.dmBitsPerPel as u16),
+            refresh_rate_millihertz: NonZeroU32::new(native_video_mode.dmDisplayFrequency * 1000),
+        };
 
-    pub fn size(&self) -> PhysicalSize<u32> {
-        self.size.into()
-    }
-
-    pub fn bit_depth(&self) -> Option<NonZeroU16> {
-        self.bit_depth
-    }
-
-    pub fn refresh_rate_millihertz(&self) -> Option<NonZeroU32> {
-        self.refresh_rate_millihertz
-    }
-
-    pub fn monitor(&self) -> MonitorHandle {
-        self.monitor.clone()
+        VideoModeHandle { mode, native_video_mode: Box::new(native_video_mode) }
     }
 }
 
@@ -193,7 +163,7 @@ impl MonitorHandle {
     }
 
     #[inline]
-    pub fn current_video_mode(&self) -> Option<VideoModeHandle> {
+    pub fn current_video_mode(&self) -> Option<VideoMode> {
         let monitor_info = get_monitor_info(self.0).ok()?;
         let device_name = monitor_info.szDevice.as_ptr();
         unsafe {
@@ -204,29 +174,26 @@ impl MonitorHandle {
             {
                 None
             } else {
-                Some(VideoModeHandle::new(self.clone(), mode))
+                Some(VideoModeHandle::new(mode).mode)
             }
         }
     }
 
-    #[inline]
-    pub fn video_modes(&self) -> impl Iterator<Item = VideoModeHandle> {
+    pub(crate) fn video_mode_handles(&self) -> impl Iterator<Item = VideoModeHandle> {
         // EnumDisplaySettingsExW can return duplicate values (or some of the
         // fields are probably changing, but we aren't looking at those fields
         // anyway), so we're using a BTreeSet deduplicate
-        let mut modes = BTreeSet::<RootVideoModeHandle>::new();
-        let mod_map = |mode: RootVideoModeHandle| mode.video_mode;
+        let mut modes = HashSet::<VideoModeHandle>::new();
 
         let monitor_info = match get_monitor_info(self.0) {
             Ok(monitor_info) => monitor_info,
             Err(error) => {
                 tracing::warn!("Error from get_monitor_info: {error}");
-                return modes.into_iter().map(mod_map);
+                return modes.into_iter();
             },
         };
 
         let device_name = monitor_info.szDevice.as_ptr();
-
         let mut i = 0;
         loop {
             let mut mode: DEVMODEW = unsafe { mem::zeroed() };
@@ -236,13 +203,15 @@ impl MonitorHandle {
             }
 
             // Use Ord impl of RootVideoModeHandle
-            modes.insert(RootVideoModeHandle {
-                video_mode: VideoModeHandle::new(self.clone(), mode),
-            });
+            modes.insert(VideoModeHandle::new(mode));
 
             i += 1;
         }
 
-        modes.into_iter().map(mod_map)
+        modes.into_iter()
+    }
+
+    pub fn video_modes(&self) -> impl Iterator<Item = VideoMode> {
+        self.video_mode_handles().map(|mode| mode.mode)
     }
 }

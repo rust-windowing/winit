@@ -1,7 +1,7 @@
 #![allow(clippy::unnecessary_cast)]
 
-use std::collections::{BTreeSet, VecDeque};
-use std::num::{NonZeroU16, NonZeroU32};
+use std::collections::VecDeque;
+use std::num::NonZeroU32;
 use std::{fmt, hash, ptr};
 
 use objc2::mutability::IsRetainable;
@@ -11,8 +11,8 @@ use objc2_foundation::{run_on_main, MainThreadBound, MainThreadMarker, NSInteger
 use objc2_ui_kit::{UIScreen, UIScreenMode};
 
 use super::app_state;
-use crate::dpi::{PhysicalPosition, PhysicalSize};
-use crate::monitor::VideoModeHandle as RootVideoModeHandle;
+use crate::dpi::PhysicalPosition;
+use crate::monitor::VideoMode;
 
 // Workaround for `MainThreadBound` implementing almost no traits
 #[derive(Debug)]
@@ -44,10 +44,8 @@ impl<T: IsRetainable + Message> Eq for MainThreadBoundDelegateImpls<T> {}
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
 pub struct VideoModeHandle {
-    pub(crate) size: (u32, u32),
-    pub(crate) refresh_rate_millihertz: Option<NonZeroU32>,
+    pub(crate) mode: VideoMode,
     screen_mode: MainThreadBoundDelegateImpls<UIScreenMode>,
-    pub(crate) monitor: MonitorHandle,
 }
 
 impl VideoModeHandle {
@@ -58,28 +56,16 @@ impl VideoModeHandle {
     ) -> VideoModeHandle {
         let refresh_rate_millihertz = refresh_rate_millihertz(&uiscreen);
         let size = screen_mode.size();
-        VideoModeHandle {
-            size: (size.width as u32, size.height as u32),
+        let mode = VideoMode {
+            size: (size.width as u32, size.height as u32).into(),
+            bit_depth: None,
             refresh_rate_millihertz,
+        };
+
+        VideoModeHandle {
+            mode,
             screen_mode: MainThreadBoundDelegateImpls(MainThreadBound::new(screen_mode, mtm)),
-            monitor: MonitorHandle::new(uiscreen),
         }
-    }
-
-    pub fn size(&self) -> PhysicalSize<u32> {
-        self.size.into()
-    }
-
-    pub fn bit_depth(&self) -> Option<NonZeroU16> {
-        None
-    }
-
-    pub fn refresh_rate_millihertz(&self) -> Option<NonZeroU32> {
-        self.refresh_rate_millihertz
-    }
-
-    pub fn monitor(&self) -> MonitorHandle {
-        self.monitor.clone()
     }
 
     pub(super) fn screen_mode(&self, mtm: MainThreadMarker) -> &Retained<UIScreenMode> {
@@ -179,44 +165,46 @@ impl MonitorHandle {
         self.ui_screen.get_on_main(|ui_screen| ui_screen.nativeScale()) as f64
     }
 
-    pub fn current_video_mode(&self) -> Option<VideoModeHandle> {
+    pub fn current_video_mode(&self) -> Option<VideoMode> {
         Some(run_on_main(|mtm| {
             VideoModeHandle::new(
                 self.ui_screen(mtm).clone(),
                 self.ui_screen(mtm).currentMode().unwrap(),
                 mtm,
             )
+            .mode
         }))
     }
 
-    pub fn video_modes(&self) -> impl Iterator<Item = VideoModeHandle> {
+    pub fn video_modes_handles(&self) -> impl Iterator<Item = VideoModeHandle> {
         run_on_main(|mtm| {
             let ui_screen = self.ui_screen(mtm);
-            // Use Ord impl of RootVideoModeHandle
 
-            let modes: BTreeSet<_> = ui_screen
+            ui_screen
                 .availableModes()
                 .into_iter()
-                .map(|mode| RootVideoModeHandle {
-                    video_mode: VideoModeHandle::new(ui_screen.clone(), mode, mtm),
-                })
-                .collect();
-
-            modes.into_iter().map(|mode| mode.video_mode)
+                .map(|mode| VideoModeHandle::new(ui_screen.clone(), mode, mtm))
+                .collect::<Vec<_>>()
+                .into_iter()
         })
+    }
+
+    pub fn video_modes(&self) -> impl Iterator<Item = VideoMode> {
+        self.video_modes_handles().map(|handle| handle.mode)
     }
 
     pub(crate) fn ui_screen(&self, mtm: MainThreadMarker) -> &Retained<UIScreen> {
         self.ui_screen.get(mtm)
     }
 
-    pub fn preferred_video_mode(&self) -> VideoModeHandle {
+    pub fn preferred_video_mode(&self) -> VideoMode {
         run_on_main(|mtm| {
             VideoModeHandle::new(
                 self.ui_screen(mtm).clone(),
                 self.ui_screen(mtm).preferredMode().unwrap(),
                 mtm,
             )
+            .mode
         })
     }
 }

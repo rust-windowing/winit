@@ -10,7 +10,7 @@ pub use crate::cursor::{BadImage, Cursor, CustomCursor, CustomCursorSource, MAX_
 use crate::dpi::{PhysicalInsets, PhysicalPosition, PhysicalSize, Position, Size};
 use crate::error::RequestError;
 pub use crate::icon::{BadIcon, Icon};
-use crate::monitor::{MonitorHandle, VideoModeHandle};
+use crate::monitor::{MonitorHandle, VideoMode};
 use crate::platform_impl::PlatformSpecificWindowAttributes;
 use crate::utils::AsAny;
 
@@ -963,7 +963,7 @@ pub trait Window: AsAny + Send + Sync {
     /// - **Wayland:** Does not support exclusive fullscreen mode and will no-op a request.
     /// - **Windows:** Screen saver is disabled in fullscreen mode.
     /// - **Android / Orbital:** Unsupported.
-    /// - **Web:** Passing a [`MonitorHandle`] or [`VideoModeHandle`] that was not created with
+    /// - **Web:** Passing a [`MonitorHandle`] or [`VideoMode`] that was not created with
     #[cfg_attr(
         any(web_platform, docsrs),
         doc = "  [detailed monitor permissions][crate::platform::web::ActiveEventLoopExtWeb::request_detailed_monitor_permission]"
@@ -1436,7 +1436,7 @@ pub enum Fullscreen {
     /// This changes the video mode of the monitor for fullscreen windows and,
     /// if applicable, captures the monitor for exclusive use by this
     /// application.
-    Exclusive(VideoModeHandle),
+    Exclusive(MonitorHandle, VideoMode),
 
     /// Providing `None` to `Borderless` will fullscreen on the current monitor.
     Borderless(Option<MonitorHandle>),
@@ -1544,11 +1544,34 @@ impl Default for ImePurpose {
 /// [`Window`]: crate::window::Window
 #[derive(Debug, PartialEq, Eq, Clone, Hash)]
 pub struct ActivationToken {
-    pub(crate) _token: String,
+    pub(crate) token: String,
 }
 
 impl ActivationToken {
-    pub(crate) fn _new(_token: String) -> Self {
-        Self { _token }
+    /// Make an [`ActivationToken`] from a string.
+    ///
+    /// This method should be used to wrap tokens passed by side channels to your application, like
+    /// dbus.
+    ///
+    /// The validity of the token is ensured by the windowing system. Using the invalid token will
+    /// only result in the side effect of the operation involving it being ignored (e.g. window
+    /// won't get focused automatically), but won't yield any errors.
+    ///
+    /// To obtain a valid token, use
+    #[cfg_attr(any(x11_platform, wayland_platform, docsrs), doc = " [`request_activation_token`].")]
+    #[cfg_attr(
+        not(any(x11_platform, wayland_platform, docsrs)),
+        doc = " `request_activation_token`."
+    )]
+    ///
+    #[rustfmt::skip]
+    /// [`request_activation_token`]: crate::platform::startup_notify::WindowExtStartupNotify::request_activation_token
+    pub fn from_raw(token: String) -> Self {
+        Self { token }
+    }
+
+    /// Convert the token to its string representation to later pass via IPC.
+    pub fn into_raw(self) -> String {
+        self.token
     }
 }

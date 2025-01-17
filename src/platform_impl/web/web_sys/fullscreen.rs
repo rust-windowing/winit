@@ -55,7 +55,7 @@ pub(crate) fn request_fullscreen(
     let canvas: &RequestFullscreen = canvas.unchecked_ref();
 
     match fullscreen {
-        Fullscreen::Exclusive(_) => error!("Exclusive full screen mode is not supported"),
+        Fullscreen::Exclusive(..) => error!("Exclusive full screen mode is not supported"),
         Fullscreen::Borderless(Some(monitor)) => {
             if !monitor::has_screen_details_support(window) {
                 error!(

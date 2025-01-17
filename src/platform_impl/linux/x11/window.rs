@@ -32,7 +32,6 @@ use crate::platform_impl::x11::{
 };
 use crate::platform_impl::{
     common, Fullscreen, MonitorHandle as PlatformMonitorHandle, PlatformCustomCursor, PlatformIcon,
-    VideoModeHandle as PlatformVideoModeHandle,
 };
 use crate::window::{
     CursorGrabMode, ImePurpose, ResizeDirection, Theme, UserAttentionType, Window as CoreWindow,
@@ -327,7 +326,7 @@ impl Drop for Window {
         let xconn = &window.xconn;
 
         // Restore the video mode on drop.
-        if let Some(Fullscreen::Exclusive(_)) = window.fullscreen() {
+        if let Some(Fullscreen::Exclusive(..)) = window.fullscreen() {
             window.set_fullscreen(None);
         }
 
@@ -880,7 +879,7 @@ impl UnownedWindow {
 
         // Remove the startup notification if we have one.
         if let Some(startup) = window_attrs.platform_specific.activation_token.as_ref() {
-            leap!(xconn.remove_activation_token(xwindow, &startup._token));
+            leap!(xconn.remove_activation_token(xwindow, &startup.token));
         }
 
         // We never want to give the user a broken window, since by then, it's too late to handle.
@@ -1035,20 +1034,17 @@ impl UnownedWindow {
             // fullscreen, so we can restore it upon exit, as XRandR does not
             // provide a mechanism to set this per app-session or restore this
             // to the desktop video mode as macOS and Windows do
-            (&None, &Some(Fullscreen::Exclusive(PlatformVideoModeHandle::X(ref video_mode))))
-            | (
-                &Some(Fullscreen::Borderless(_)),
-                &Some(Fullscreen::Exclusive(PlatformVideoModeHandle::X(ref video_mode))),
-            ) => {
-                let monitor = video_mode.monitor.as_ref().unwrap();
+            (&None, &Some(Fullscreen::Exclusive(ref monitor, _)))
+            | (&Some(Fullscreen::Borderless(_)), &Some(Fullscreen::Exclusive(ref monitor, _))) => {
+                let id = monitor.native_identifier();
                 shared_state_lock.desktop_video_mode = Some((
-                    monitor.id,
-                    self.xconn.get_crtc_mode(monitor.id).expect("Failed to get desktop video mode"),
+                    id,
+                    self.xconn.get_crtc_mode(id).expect("Failed to get desktop video mode"),
                 ));
             },
             // Restore desktop video mode upon exiting exclusive fullscreen
-            (&Some(Fullscreen::Exclusive(_)), &None)
-            | (&Some(Fullscreen::Exclusive(_)), &Some(Fullscreen::Borderless(_))) => {
+            (&Some(Fullscreen::Exclusive(..)), &None)
+            | (&Some(Fullscreen::Exclusive(..)), &Some(Fullscreen::Borderless(_))) => {
                 let (monitor_id, mode_id) = shared_state_lock.desktop_video_mode.take().unwrap();
                 self.xconn
                     .set_crtc_config(monitor_id, mode_id)
@@ -1072,8 +1068,8 @@ impl UnownedWindow {
             },
             Some(fullscreen) => {
                 let (video_mode, monitor) = match fullscreen {
-                    Fullscreen::Exclusive(PlatformVideoModeHandle::X(ref video_mode)) => {
-                        (Some(video_mode), video_mode.monitor.clone().unwrap())
+                    Fullscreen::Exclusive(PlatformMonitorHandle::X(monitor), video_mode) => {
+                        (Some(video_mode), monitor.clone())
                     },
                     Fullscreen::Borderless(Some(PlatformMonitorHandle::X(monitor))) => {
                         (None, monitor)
@@ -1090,7 +1086,15 @@ impl UnownedWindow {
                     return Ok(None);
                 }
 
-                if let Some(video_mode) = video_mode {
+                if let Some(native_mode) = video_mode.and_then(|requested| {
+                    monitor.video_modes.iter().find_map(|mode| {
+                        if mode.mode == requested {
+                            Some(mode.native_mode)
+                        } else {
+                            None
+                        }
+                    })
+                }) {
                     // FIXME: this is actually not correct if we're setting the
                     // video mode to a resolution higher than the current
                     // desktop resolution, because XRandR does not automatically
@@ -1117,7 +1121,7 @@ impl UnownedWindow {
                     // this will make someone unhappy, but it's very unusual for
                     // games to want to do this anyway).
                     self.xconn
-                        .set_crtc_config(monitor.id, video_mode.native_mode)
+                        .set_crtc_config(monitor.id, native_mode)
                         .expect("failed to set video mode");
                 }
 
@@ -1827,6 +1831,11 @@ impl UnownedWindow {
 
     #[inline]
     pub fn set_cursor_grab(&self, mode: CursorGrabMode) -> Result<(), RequestError> {
+        // We don't support the locked cursor yet, so ignore it early on.
+        if mode == CursorGrabMode::Locked {
+            return Err(NotSupportedError::new("locked cursor is not implemented on X11").into());
+        }
+
         let mut grabbed_lock = self.cursor_grabbed_mode.lock().unwrap();
         if mode == *grabbed_lock {
             return Ok(());
@@ -1838,6 +1847,7 @@ impl UnownedWindow {
             .xcb_connection()
             .ungrab_pointer(x11rb::CURRENT_TIME)
             .expect_then_ignore_error("Failed to call `xcb_ungrab_pointer`");
+        *grabbed_lock = CursorGrabMode::None;
 
         let result = match mode {
             CursorGrabMode::None => self
@@ -1845,34 +1855,33 @@ impl UnownedWindow {
                 .flush_requests()
                 .map_err(|err| RequestError::Os(os_error!(X11Error::Xlib(err)))),
             CursorGrabMode::Confined => {
-                let result = {
-                    self.xconn
-                        .xcb_connection()
-                        .grab_pointer(
-                            true as _,
-                            self.xwindow,
-                            xproto::EventMask::BUTTON_PRESS
-                                | xproto::EventMask::BUTTON_RELEASE
-                                | xproto::EventMask::ENTER_WINDOW
-                                | xproto::EventMask::LEAVE_WINDOW
-                                | xproto::EventMask::POINTER_MOTION
-                                | xproto::EventMask::POINTER_MOTION_HINT
-                                | xproto::EventMask::BUTTON1_MOTION
-                                | xproto::EventMask::BUTTON2_MOTION
-                                | xproto::EventMask::BUTTON3_MOTION
-                                | xproto::EventMask::BUTTON4_MOTION
-                                | xproto::EventMask::BUTTON5_MOTION
-                                | xproto::EventMask::KEYMAP_STATE,
-                            xproto::GrabMode::ASYNC,
-                            xproto::GrabMode::ASYNC,
-                            self.xwindow,
-                            0u32,
-                            x11rb::CURRENT_TIME,
-                        )
-                        .expect("Failed to call `grab_pointer`")
-                        .reply()
-                        .expect("Failed to receive reply from `grab_pointer`")
-                };
+                let result = self
+                    .xconn
+                    .xcb_connection()
+                    .grab_pointer(
+                        true as _,
+                        self.xwindow,
+                        xproto::EventMask::BUTTON_PRESS
+                            | xproto::EventMask::BUTTON_RELEASE
+                            | xproto::EventMask::ENTER_WINDOW
+                            | xproto::EventMask::LEAVE_WINDOW
+                            | xproto::EventMask::POINTER_MOTION
+                            | xproto::EventMask::POINTER_MOTION_HINT
+                            | xproto::EventMask::BUTTON1_MOTION
+                            | xproto::EventMask::BUTTON2_MOTION
+                            | xproto::EventMask::BUTTON3_MOTION
+                            | xproto::EventMask::BUTTON4_MOTION
+                            | xproto::EventMask::BUTTON5_MOTION
+                            | xproto::EventMask::KEYMAP_STATE,
+                        xproto::GrabMode::ASYNC,
+                        xproto::GrabMode::ASYNC,
+                        self.xwindow,
+                        0u32,
+                        x11rb::CURRENT_TIME,
+                    )
+                    .expect("Failed to call `grab_pointer`")
+                    .reply()
+                    .expect("Failed to receive reply from `grab_pointer`");
 
                 match result.status {
                     xproto::GrabStatus::SUCCESS => Ok(()),
@@ -1892,11 +1901,7 @@ impl UnownedWindow {
                 }
                 .map_err(|err| RequestError::Os(os_error!(err)))
             },
-            CursorGrabMode::Locked => {
-                return Err(
-                    NotSupportedError::new("locked cursor is not implemented on X11").into()
-                );
-            },
+            CursorGrabMode::Locked => return Ok(()),
         };
 
         if result.is_ok() {

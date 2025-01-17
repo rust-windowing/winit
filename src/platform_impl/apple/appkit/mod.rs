@@ -19,7 +19,7 @@ pub(crate) use self::event::{physicalkey_to_scancode, scancode_to_physicalkey, K
 pub(crate) use self::event_loop::{
     ActiveEventLoop, EventLoop, PlatformSpecificEventLoopAttributes,
 };
-pub(crate) use self::monitor::{MonitorHandle, VideoModeHandle};
+pub(crate) use self::monitor::MonitorHandle;
 pub(crate) use self::window::Window;
 pub(crate) use self::window_delegate::PlatformSpecificWindowAttributes;
 pub(crate) use crate::cursor::OnlyCursorImageSource as PlatformCustomCursorSource;

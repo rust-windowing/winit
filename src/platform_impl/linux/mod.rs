@@ -4,7 +4,6 @@
 compile_error!("Please select a feature to build for unix: `x11`, `wayland`");
 
 use std::env;
-use std::num::{NonZeroU16, NonZeroU32};
 use std::os::unix::io::{AsFd, AsRawFd, BorrowedFd, RawFd};
 use std::time::Duration;
 #[cfg(x11_platform)]
@@ -17,13 +16,14 @@ pub(crate) use self::common::xkb::{physicalkey_to_scancode, scancode_to_physical
 use self::x11::{XConnection, XError, XNotSupported};
 use crate::application::ApplicationHandler;
 pub(crate) use crate::cursor::OnlyCursorImageSource as PlatformCustomCursorSource;
+use crate::dpi::PhysicalPosition;
 #[cfg(x11_platform)]
 use crate::dpi::Size;
-use crate::dpi::{PhysicalPosition, PhysicalSize};
 use crate::error::{EventLoopError, NotSupportedError};
 use crate::event_loop::ActiveEventLoop;
 pub(crate) use crate::icon::RgbaIcon as PlatformIcon;
 use crate::keyboard::Key;
+use crate::monitor::VideoMode;
 use crate::platform::pump_events::PumpStatus;
 #[cfg(x11_platform)]
 use crate::platform::x11::{WindowType as XWindowType, XlibErrorHook};
@@ -165,43 +165,13 @@ impl MonitorHandle {
     }
 
     #[inline]
-    pub fn current_video_mode(&self) -> Option<VideoModeHandle> {
+    pub fn current_video_mode(&self) -> Option<VideoMode> {
         x11_or_wayland!(match self; MonitorHandle(m) => m.current_video_mode())
     }
 
     #[inline]
-    pub fn video_modes(&self) -> Box<dyn Iterator<Item = VideoModeHandle>> {
+    pub fn video_modes(&self) -> Box<dyn Iterator<Item = VideoMode>> {
         x11_or_wayland!(match self; MonitorHandle(m) => Box::new(m.video_modes()))
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub enum VideoModeHandle {
-    #[cfg(x11_platform)]
-    X(x11::VideoModeHandle),
-    #[cfg(wayland_platform)]
-    Wayland(wayland::VideoModeHandle),
-}
-
-impl VideoModeHandle {
-    #[inline]
-    pub fn size(&self) -> PhysicalSize<u32> {
-        x11_or_wayland!(match self; VideoModeHandle(m) => m.size())
-    }
-
-    #[inline]
-    pub fn bit_depth(&self) -> Option<NonZeroU16> {
-        x11_or_wayland!(match self; VideoModeHandle(m) => m.bit_depth())
-    }
-
-    #[inline]
-    pub fn refresh_rate_millihertz(&self) -> Option<NonZeroU32> {
-        x11_or_wayland!(match self; VideoModeHandle(m) => m.refresh_rate_millihertz())
-    }
-
-    #[inline]
-    pub fn monitor(&self) -> MonitorHandle {
-        x11_or_wayland!(match self; VideoModeHandle(m) => m.monitor(); as MonitorHandle)
     }
 }
 
