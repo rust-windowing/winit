@@ -127,6 +127,7 @@ impl FileDropHandler {
         unsafe {
             *pdwEffect = drop_handler.cursor_effect;
         }
+
         S_OK
     }
 
@@ -147,7 +148,7 @@ impl FileDropHandler {
         pDataObj: *const IDataObject,
         _grfKeyState: u32,
         pt: POINTL,
-        _pdwEffect: *mut u32,
+        pdwEffect: *mut u32,
     ) -> HRESULT {
         let drop_handler = unsafe { Self::from_interface(this) };
         if drop_handler.valid {
@@ -167,6 +168,9 @@ impl FileDropHandler {
                     DragFinish(hdrop);
                 }
             }
+        }
+        unsafe {
+            *pdwEffect = drop_handler.cursor_effect;
         }
 
         S_OK
