@@ -132,7 +132,7 @@ pub(crate) enum ProcResult {
 }
 
 pub struct EventLoop {
-    window_target: ActiveEventLoop,
+    pub window_target: ActiveEventLoop,
     msg_hook: Option<Box<dyn FnMut(*const c_void) -> bool + 'static>>,
     // It is a timer used on timed waits.
     // It is created lazily in case if we have `ControlFlow::WaitUntil`.
@@ -529,6 +529,15 @@ impl rwh_06::HasDisplayHandle for ActiveEventLoop {
     fn display_handle(&self) -> Result<rwh_06::DisplayHandle<'_>, rwh_06::HandleError> {
         let raw = rwh_06::RawDisplayHandle::Windows(rwh_06::WindowsDisplayHandle::new());
         unsafe { Ok(rwh_06::DisplayHandle::borrow_raw(raw)) }
+    }
+}
+
+impl rwh_06::HasWindowHandle for ActiveEventLoop {
+    fn window_handle(&self) -> Result<rwh_06::WindowHandle<'_>, rwh_06::HandleError> {
+        let hwnd = unsafe { std::num::NonZero::new_unchecked(self.thread_msg_target) };
+        let win32 = rwh_06::Win32WindowHandle::new(hwnd);
+        let raw = rwh_06::RawWindowHandle::Win32(win32);
+        unsafe { Ok(rwh_06::WindowHandle::borrow_raw(raw)) }
     }
 }
 

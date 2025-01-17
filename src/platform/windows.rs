@@ -14,7 +14,7 @@ use windows_sys::Win32::Foundation::HANDLE;
 
 use crate::dpi::PhysicalSize;
 use crate::event::DeviceId;
-use crate::event_loop::EventLoopBuilder;
+use crate::event_loop::{ActiveEventLoop, EventLoopBuilder};
 use crate::monitor::MonitorHandle;
 use crate::window::{BadIcon, Icon, Window, WindowAttributes};
 
@@ -230,6 +230,20 @@ impl EventLoopBuilderExtWindows for EventLoopBuilder {
     {
         self.platform_specific.msg_hook = Some(Box::new(callback));
         self
+    }
+}
+
+pub trait ActiveEventLoopExtWindows {
+    fn rwh_06_window_handle(&self) -> &dyn rwh_06::HasWindowHandle;
+}
+
+impl ActiveEventLoopExtWindows for dyn ActiveEventLoop + '_ {
+    fn rwh_06_window_handle(&self) -> &dyn rwh_06::HasWindowHandle {
+        let event_loop = self
+            .as_any()
+            .downcast_ref::<crate::platform_impl::ActiveEventLoop>()
+            .expect("non Windows event loop on Windows");
+        event_loop
     }
 }
 
