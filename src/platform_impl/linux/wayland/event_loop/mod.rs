@@ -63,7 +63,7 @@ pub struct EventLoop {
 }
 
 impl EventLoop {
-    pub fn new() -> Result<EventLoop, EventLoopError> {
+    pub fn new(session_id: Option<String>) -> Result<EventLoop, EventLoopError> {
         let connection = Connection::connect_to_env().map_err(|err| os_error!(err))?;
 
         let (globals, mut event_queue) =
@@ -73,7 +73,8 @@ impl EventLoop {
         let event_loop =
             calloop::EventLoop::<WinitState>::try_new().map_err(|err| os_error!(err))?;
 
-        let mut winit_state = WinitState::new(&globals, &queue_handle, event_loop.handle())?;
+        let mut winit_state =
+            WinitState::new(&globals, &queue_handle, event_loop.handle(), session_id)?;
 
         // NOTE: do a roundtrip after binding the globals to prevent potential
         // races with the server.
