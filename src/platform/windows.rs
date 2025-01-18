@@ -234,18 +234,18 @@ impl EventLoopBuilderExtWindows for EventLoopBuilder {
 }
 
 pub trait ActiveEventLoopExtWindows {
-    /// Get the raw-window-handle HWND used by the event loop window target .
-    fn rwh_06_window_handle(&self) -> &dyn rwh_06::HasWindowHandle;
+    /// Get the HWND for the window target used by the event loop.
+    fn target_window_hwnd(&self) -> HWND;
 }
 
 impl ActiveEventLoopExtWindows for dyn ActiveEventLoop + '_ {
-    /// Get the raw-window-handle HWND used by the event loop window target .
-    fn rwh_06_window_handle(&self) -> &dyn rwh_06::HasWindowHandle {
+    /// Get the HWND for the window target used by the event loop.
+    fn target_window_hwnd(&self) -> HWND {
         let event_loop = self
             .as_any()
             .downcast_ref::<crate::platform_impl::ActiveEventLoop>()
             .expect("non Windows event loop on Windows");
-        event_loop
+        event_loop.thread_msg_target
     }
 }
 
