@@ -2,32 +2,24 @@ use std::cell::{Cell, RefCell};
 use std::collections::VecDeque;
 use std::hash::Hash;
 use std::marker::PhantomData;
-use std::num::{NonZeroU16, NonZeroU32};
-use std::rc::Rc;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{mpsc, Arc, LazyLock, Mutex, RwLock};
-use std::time::{Duration, Instant};
+use std::sync::{mpsc, Arc, Mutex};
 
-use openharmony_ability::xcomponent::{Action, KeyCode, TouchEvent};
+use openharmony_ability::xcomponent::{Action, TouchEvent};
 use tracing::{debug, trace, warn};
 
 use openharmony_ability::{
     Configuration, Event as MainEvent, InputEvent, OpenHarmonyApp, OpenHarmonyWaker, Rect,
 };
 
-use crate::application::ApplicationHandler;
 use crate::cursor::Cursor;
 use crate::dpi::{PhysicalPosition, PhysicalSize, Position, Size};
-use crate::error::{self, EventLoopError, NotSupportedError};
+use crate::error::{self, EventLoopError};
 use crate::event::{self, Force, InnerSizeWriter, StartCause};
-use crate::event_loop::{
-    self, ActiveEventLoop as RootAEL, ControlFlow, DeviceEvents,
-    EventLoopProxy as CoreEventLoopProxy, OwnedDisplayHandle as CoreOwnedDisplayHandle,
-};
-use crate::monitor::MonitorHandle as RootMonitorHandle;
+use crate::event_loop::{self, ActiveEventLoop as RootAEL, ControlFlow, DeviceEvents};
 use crate::window::{
     self, CursorGrabMode, CustomCursor, CustomCursorSource, Fullscreen, ImePurpose,
-    ResizeDirection, Theme, Window as CoreWindow, WindowAttributes, WindowButtons, WindowLevel,
+    ResizeDirection, Theme, WindowButtons, WindowLevel,
 };
 
 mod keycodes;
@@ -38,9 +30,7 @@ pub(crate) use crate::cursor::{
 pub(crate) use crate::icon::NoIcon as PlatformIcon;
 
 static HAS_FOCUS: AtomicBool = AtomicBool::new(true);
-
-static EVENT: LazyLock<Arc<Mutex<Option<Box<dyn FnMut(event::Event<()>) + Send + Sync>>>>> =
-    LazyLock::new(|| Arc::new(Mutex::new(None)));
+static HAS_EVENT: AtomicBool = AtomicBool::new(false);
 
 struct PeekableReceiver<T> {
     recv: mpsc::Receiver<T>,
@@ -83,10 +73,10 @@ pub struct KeyEventExtra {}
 pub struct EventLoop<T: 'static> {
     pub(crate) openharmony_app: OpenHarmonyApp,
     window_target: event_loop::ActiveEventLoop,
-    running: bool,
     cause: StartCause,
     user_events_sender: mpsc::Sender<T>,
     user_events_receiver: PeekableReceiver<T>,
+    event_loop: RefCell<Option<Box<dyn FnMut(event::Event<T>)>>>,
 }
 
 #[derive(Clone, PartialEq, Eq, Hash)]
@@ -121,10 +111,10 @@ impl<T: 'static> EventLoop<T> {
                 },
                 _marker: PhantomData,
             },
-            running: false,
             cause: StartCause::Init,
             user_events_sender,
             user_events_receiver: PeekableReceiver::from_recv(user_events_receiver),
+            event_loop: RefCell::new(None),
         })
     }
 
@@ -132,10 +122,7 @@ impl<T: 'static> EventLoop<T> {
         &self.window_target
     }
 
-    fn handle_input_event<F>(&mut self, event: &InputEvent, callback: &mut F)
-    where
-        F: FnMut(event::Event<T>, &RootAEL),
-    {
+    fn handle_input_event(&self, event: &InputEvent) {
         match event {
             InputEvent::TouchEvent(motion_event) => {
                 let window_id = window::WindowId(WindowId);
@@ -171,7 +158,9 @@ impl<T: 'static> EventLoop<T> {
                                 force: Some(Force::Normalized(pointer.force as f64)),
                             }),
                         };
-                        callback(event, &self.window_target());
+                        if let Some(ref mut h) = *self.event_loop.borrow_mut() {
+                            h(event);
+                        }
                     }
                 }
             },
@@ -211,7 +200,9 @@ impl<T: 'static> EventLoop<T> {
                                 is_synthetic: false,
                             },
                         };
-                        callback(event, &self.window_target());
+                        if let Some(ref mut h) = *self.event_loop.borrow_mut() {
+                            h(event);
+                        }
                     },
                 }
             },
@@ -221,24 +212,26 @@ impl<T: 'static> EventLoop<T> {
         }
     }
 
-    pub fn run<F>(&mut self, mut event_handle: F) -> Result<(), EventLoopError>
+    pub fn run<F>(&mut self, mut event_handle: F) -> !
     where
         F: FnMut(event::Event<T>, &RootAEL),
     {
+        if HAS_EVENT.load(Ordering::SeqCst) {
+            trace!("EventLoop is already running");
+        }
         trace!("Mainloop iteration");
         let cause = self.cause;
         let target = RootAEL { p: self.window_target.p.clone(), _marker: PhantomData };
 
         {
-            let mut guard = EVENT.lock().unwrap();
             let handle = unsafe {
                 std::mem::transmute::<
                     Box<dyn FnMut(event::Event<T>)>,
-                    Box<dyn FnMut(event::Event<()>) + Sync + Send>,
+                    Box<dyn FnMut(event::Event<T>)>,
                 >(Box::new(move |e| event_handle(e, &target)))
             };
-            *guard = Some(handle);
-            if let Some(ref mut h) = *guard {
+            self.event_loop.replace(Some(handle));
+            if let Some(ref mut h) = *self.event_loop.borrow_mut() {
                 h(event::Event::NewEvents(cause));
             }
         }
@@ -246,14 +239,12 @@ impl<T: 'static> EventLoop<T> {
         self.openharmony_app.clone().run_loop(|event| {
             match event {
                 MainEvent::SurfaceCreate { .. } => {
-                    let mut guard = EVENT.lock().unwrap();
-                    if let Some(ref mut h) = *guard {
+                    if let Some(ref mut h) = *self.event_loop.borrow_mut() {
                         h(event::Event::Resumed);
                     }
                 },
                 MainEvent::SurfaceDestroy { .. } => {
-                    let mut guard = EVENT.lock().unwrap();
-                    if let Some(ref mut h) = *guard {
+                    if let Some(ref mut h) = *self.event_loop.borrow_mut() {
                         h(event::Event::Suspended);
                     }
                 },
@@ -268,8 +259,8 @@ impl<T: 'static> EventLoop<T> {
                         window_id: window::WindowId(WindowId),
                         event: event::WindowEvent::Resized(size),
                     };
-                    let mut guard = EVENT.lock().unwrap();
-                    if let Some(ref mut h) = *guard {
+
+                    if let Some(ref mut h) = *self.event_loop.borrow_mut() {
                         h(event);
                     }
                 },
@@ -278,8 +269,8 @@ impl<T: 'static> EventLoop<T> {
                         window_id: window::WindowId(WindowId),
                         event: event::WindowEvent::RedrawRequested,
                     };
-                    let mut guard = EVENT.lock().unwrap();
-                    if let Some(ref mut h) = *guard {
+
+                    if let Some(ref mut h) = *self.event_loop.borrow_mut() {
                         h(event);
                         h(event::Event::AboutToWait);
                     }
@@ -289,8 +280,8 @@ impl<T: 'static> EventLoop<T> {
                 },
                 MainEvent::GainedFocus => {
                     HAS_FOCUS.store(true, Ordering::Relaxed);
-                    let mut guard = EVENT.lock().unwrap();
-                    if let Some(ref mut h) = *guard {
+
+                    if let Some(ref mut h) = *self.event_loop.borrow_mut() {
                         h(event::Event::WindowEvent {
                             window_id: window::WindowId(WindowId),
                             event: event::WindowEvent::Focused(true),
@@ -299,8 +290,8 @@ impl<T: 'static> EventLoop<T> {
                 },
                 MainEvent::LostFocus => {
                     HAS_FOCUS.store(false, Ordering::Relaxed);
-                    let mut guard = EVENT.lock().unwrap();
-                    if let Some(ref mut h) = *guard {
+
+                    if let Some(ref mut h) = *self.event_loop.borrow_mut() {
                         h(event::Event::WindowEvent {
                             window_id: window::WindowId(WindowId),
                             event: event::WindowEvent::Focused(true),
@@ -324,25 +315,26 @@ impl<T: 'static> EventLoop<T> {
                                 scale_factor: scale as _,
                             },
                         };
-                        let mut guard = EVENT.lock().unwrap();
-                        if let Some(ref mut h) = *guard {
+
+                        if let Some(ref mut h) = *self.event_loop.borrow_mut() {
                             h(event);
                         }
                     }
                 },
                 MainEvent::LowMemory => {
-                    let mut guard = EVENT.lock().unwrap();
-                    if let Some(ref mut h) = *guard {
+                    if let Some(ref mut h) = *self.event_loop.borrow_mut() {
                         h(event::Event::MemoryWarning);
                     }
                 },
                 MainEvent::Start => {
-                    // app.resumed(self.window_target());
+                    if let Some(ref mut h) = *self.event_loop.borrow_mut() {
+                        h(event::Event::Resumed);
+                    }
                 },
                 MainEvent::Resume { .. } => {
-                    debug!("App Resumed - is running");
-                    // TODO: This is incorrect - will be solved in https://github.com/rust-windowing/winit/pull/3897
-                    // self.running = true;
+                    if let Some(ref mut h) = *self.event_loop.borrow_mut() {
+                        h(event::Event::Resumed);
+                    }
                 },
                 MainEvent::SaveState { .. } => {
                     // XXX: how to forward this state to applications?
@@ -355,8 +347,7 @@ impl<T: 'static> EventLoop<T> {
                     // self.running = false;
                 },
                 MainEvent::WindowDestroy => {
-                    let mut guard = EVENT.lock().unwrap();
-                    if let Some(ref mut h) = *guard {
+                    if let Some(ref mut h) = *self.event_loop.borrow_mut() {
                         let e = event::Event::WindowEvent {
                             window_id: window::WindowId(WindowId),
                             event: event::WindowEvent::CloseRequested,
@@ -370,22 +361,14 @@ impl<T: 'static> EventLoop<T> {
                     warn!("TODO: forward onDestroy notification to application");
                 },
                 MainEvent::Input(input_event) => {
-                    warn!("TODO: forward onDestroy notification to application");
-                    // let mut guard = EVENT.lock().unwrap();
-                    // if let Some(ref mut h) = *guard {
-                    //     let e = event::Event::WindowEvent {
-                    //         window_id: window::WindowId(WindowId),
-                    //         event: event::WindowEvent::CloseRequested,
-                    //     };
-                    //     self.handle_input_event(&input_event, h);
-                    // }
+                    self.handle_input_event(&input_event);
                 },
                 unknown => {
                     trace!("Unknown MainEvent {unknown:?} (ignored)");
                 },
             }
         });
-        Ok(())
+        unreachable!();
     }
 
     pub fn create_proxy(&self) -> EventLoopProxy<T> {
