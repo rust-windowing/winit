@@ -105,6 +105,7 @@ impl<T: 'static> EventLoop<T> {
         &self.window_target
     }
 
+    // TODO: For input event, we need some real examples to test it
     fn handle_input_event(&self, event: &InputEvent) {
         match event {
             InputEvent::TouchEvent(motion_event) => {
@@ -124,11 +125,10 @@ impl<T: 'static> EventLoop<T> {
 
                 if let Some(phase) = phase {
                     for pointer in motion_event.touch_points.iter() {
-                        let tool_type = "unknown";
                         let position = PhysicalPosition { x: pointer.x as _, y: pointer.y as _ };
                         trace!(
                             "Input event {device_id:?}, {action:?}, loc={position:?}, \
-                                 pointer={pointer:?}, tool_type={tool_type:?}"
+                                 pointer={pointer:?}"
                         );
 
                         let event = event::Event::WindowEvent {
@@ -149,16 +149,6 @@ impl<T: 'static> EventLoop<T> {
             },
             InputEvent::KeyEvent(key) => {
                 match key.code {
-                    // Flag keys related to volume as unhandled. While winit does not have a way for
-                    // applications to configure what keys to flag as handled,
-                    // this appears to be a good default until winit
-                    // can be configured.
-                    // TODO
-                    // KeyCode::VolumeUp | KeyCode::VolumeDown | KeyCode::VolumeMute
-                    //     if self.ignore_volume_keys =>
-                    // {
-                    //     input_status = InputStatus::Unhandled
-                    // },
                     keycode => {
                         let state = match key.action {
                             Action::Down => event::ElementState::Pressed,
