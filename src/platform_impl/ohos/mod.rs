@@ -42,23 +42,6 @@ impl<T> PeekableReceiver<T> {
         Self { recv, first: None }
     }
 
-    pub fn has_incoming(&mut self) -> bool {
-        if self.first.is_some() {
-            return true;
-        }
-        match self.recv.try_recv() {
-            Ok(v) => {
-                self.first = Some(v);
-                true
-            },
-            Err(mpsc::TryRecvError::Empty) => false,
-            Err(mpsc::TryRecvError::Disconnected) => {
-                warn!("Channel was disconnected when checking incoming");
-                false
-            },
-        }
-    }
-
     pub fn try_recv(&mut self) -> Result<T, mpsc::TryRecvError> {
         if let Some(first) = self.first.take() {
             return Ok(first);
@@ -228,7 +211,11 @@ impl<T: 'static> EventLoop<T> {
                 std::mem::transmute::<
                     Box<dyn FnMut(event::Event<T>)>,
                     Box<dyn FnMut(event::Event<T>)>,
-                >(Box::new(move |e| event_handle(e, &target)))
+                >(Box::new(move |e| {
+                    event_handle(e, &target);
+                    // We need to dispatch it after every event callbacks.
+                    event_handle(event::Event::AboutToWait, &target);
+                }))
             };
             self.event_loop.replace(Some(handle));
             if let Some(ref mut h) = *self.event_loop.borrow_mut() {
@@ -272,7 +259,6 @@ impl<T: 'static> EventLoop<T> {
 
                     if let Some(ref mut h) = *self.event_loop.borrow_mut() {
                         h(event);
-                        h(event::Event::AboutToWait);
                     }
                 },
                 MainEvent::ContentRectChange { .. } => {
@@ -363,6 +349,14 @@ impl<T: 'static> EventLoop<T> {
                 MainEvent::Input(input_event) => {
                     self.handle_input_event(&input_event);
                 },
+                MainEvent::UserEvent { .. } => {
+                    if let Some(ref mut h) = *self.event_loop.borrow_mut() {
+                        if let Ok(event) = self.user_events_receiver.try_recv() {
+                            let event = event::Event::UserEvent(event);
+                            h(event);
+                        }                        
+                    }
+                },
                 unknown => {
                     trace!("Unknown MainEvent {unknown:?} (ignored)");
                 },
@@ -376,14 +370,6 @@ impl<T: 'static> EventLoop<T> {
             user_events_sender: self.user_events_sender.clone(),
             waker: self.openharmony_app.create_waker(),
         }
-    }
-
-    pub fn control_flow(&self) -> ControlFlow {
-        self.window_target.p.control_flow()
-    }
-
-    fn exiting(&self) -> bool {
-        self.window_target.p.exiting()
     }
 }
 
@@ -554,11 +540,7 @@ impl Window {
     }
 
     pub fn scale_factor(&self) -> f64 {
-        1.0
-    }
-
-    pub fn surface_position(&self) -> PhysicalPosition<i32> {
-        PhysicalPosition::new(0, 0)
+        self.app.scale() as f64
     }
 
     pub fn primary_monitor(&self) -> Option<MonitorHandle> {
@@ -592,27 +574,13 @@ impl Window {
         // no effect
     }
 
-    pub fn surface_size(&self) -> PhysicalSize<u32> {
-        // self.outer_size()
-        PhysicalSize { width: 1080, height: 2720 }
-    }
-
     pub fn request_inner_size(&self, _size: Size) -> Option<PhysicalSize<u32>> {
         Some(self.inner_size())
     }
 
-    pub fn request_surface_size(&self, _size: Size) -> Option<PhysicalSize<u32>> {
-        // Some(self.surface_size())
-        None
-    }
-
     pub fn outer_size(&self) -> PhysicalSize<u32> {
-        PhysicalSize { width: 1080, height: 2720 }
+        MonitorHandle::new(self.app.clone()).size()
     }
-
-    pub fn set_min_surface_size(&self, _: Option<Size>) {}
-
-    pub fn set_max_surface_size(&self, _: Option<Size>) {}
 
     pub fn set_min_inner_size(&self, _: Option<Size>) {}
 
