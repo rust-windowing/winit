@@ -165,6 +165,7 @@ changelog entry.
 - Rename `VideoModeHandle` to `VideoMode`, now it only stores plain data.
 - Make `Fullscreen::Exclusive` contain `(MonitorHandle, VideoMode)`.
 - On Wayland, no longer send an explicit clearing `Ime::Preedit` just prior to a new `Ime::Preedit`.
+- On macOS, IME management is improved. As a result, more key events will be forwarded to IME when IME is allowed.
 
 ### Removed
 
