@@ -55,7 +55,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        toolchain: [stable, nightly, '1.73']
+        toolchain: [stable, nightly, '1.83']
         platform:
           # Note: Make sure that we test all the `docs.rs` targets defined in Cargo.toml!
           - { name: 'Windows 64bit MSVC', target: x86_64-pc-windows-msvc,   os: windows-latest,  }
@@ -78,13 +78,13 @@ jobs:
           - toolchain: nightly
             platform: { name: 'Web', target: wasm32-unknown-unknown, os: ubuntu-latest }
           # Android is tested on stable-3
-          - toolchain: '1.73'
+          - toolchain: '1.83'
             platform: { name: 'Android', target: aarch64-linux-android, os: ubuntu-latest, options: '--package=winit --features=android-native-activity', cmd: 'apk --' }
           # Redox OS doesn't follow MSRV
-          - toolchain: '1.73'
+          - toolchain: '1.83'
             platform: { name: 'Redox OS', target: x86_64-unknown-redox, os: ubuntu-latest }
         include:
-          - toolchain: '1.73'
+          - toolchain: '1.83'
             platform: { name: 'Android', target: aarch64-linux-android, os: ubuntu-latest, options: '--package=winit --features=android-native-activity', cmd: 'apk --' }
           - toolchain: 'nightly'
             platform: { name: 'Web', target: wasm32-unknown-unknown, os: ubuntu-latest, test-options: -Zdoctest-xcompile }
@@ -179,13 +179,13 @@ jobs:
     - name: Test dpi crate
       if: >
         contains(matrix.platform.name, 'Linux 64bit') &&
-        matrix.toolchain != '1.73'
+        matrix.toolchain != '1.83'
       run: cargo test -p dpi
 
     - name: Build tests
       if: >
         !contains(matrix.platform.target, 'redox') &&
-        matrix.toolchain != '1.73'
+        matrix.toolchain != '1.83'
       run: cargo $CMD test --no-run $OPTIONS
 
     - name: Run tests
@@ -194,7 +194,7 @@ jobs:
         !contains(matrix.platform.target, 'ios') &&
         (!contains(matrix.platform.target, 'wasm32') || matrix.toolchain == 'nightly') &&
         !contains(matrix.platform.target, 'redox') &&
-        matrix.toolchain != '1.73'
+        matrix.toolchain != '1.83'
       run: cargo $CMD test $OPTIONS
 
     - name: Lint with clippy
@@ -204,7 +204,7 @@ jobs:
     - name: Build tests with serde enabled
       if: >
         !contains(matrix.platform.target, 'redox') &&
-        matrix.toolchain != '1.73'
+        matrix.toolchain != '1.83'
       run: cargo $CMD test --no-run $OPTIONS $TEST_OPTIONS --features serde
 
     - name: Run tests with serde enabled
@@ -213,7 +213,7 @@ jobs:
         !contains(matrix.platform.target, 'ios') &&
         (!contains(matrix.platform.target, 'wasm32') || matrix.toolchain == 'nightly') &&
         !contains(matrix.platform.target, 'redox') &&
-        matrix.toolchain != '1.73'
+        matrix.toolchain != '1.83'
       run: cargo $CMD test $OPTIONS $TEST_OPTIONS --features serde
 
     - name: Check docs.rs documentation

@@ -1,120 +1,87 @@
-use std::ops::Deref;
-use std::os::raw::c_char;
 #[cfg(wayland_platform)]
 use std::os::unix::io::OwnedFd;
-use std::ptr::{self, NonNull};
 use std::sync::atomic::{AtomicBool, Ordering};
 
+use kbvm::xkb::compose;
+use kbvm::xkb::compose::{ComposeTable, FeedResult};
+use kbvm::xkb::diagnostic::WriteToLog;
+use kbvm::{xkb, Keycode, Keysym};
 use smol_str::SmolStr;
 use tracing::warn;
-use xkbcommon_dl::{
-    self as xkb, xkb_compose_status, xkb_context, xkb_context_flags, xkbcommon_compose_handle,
-    xkbcommon_handle, XkbCommon, XkbCommonCompose,
-};
 #[cfg(x11_platform)]
-use {x11_dl::xlib_xcb::xcb_connection_t, xkbcommon_dl::x11::xkbcommon_x11_handle};
+use {kbvm::xkb::x11::KbvmX11Ext, x11rb::xcb_ffi::XCBConnection};
 
 use crate::event::{ElementState, KeyEvent};
 use crate::keyboard::{Key, KeyLocation};
 use crate::platform_impl::KeyEventExtra;
-use crate::utils::Lazy;
 
-mod compose;
 mod keymap;
 mod state;
 
-use compose::{ComposeStatus, XkbComposeState, XkbComposeTable};
-#[cfg(x11_platform)]
-pub use keymap::raw_keycode_to_physicalkey;
 use keymap::XkbKeymap;
-pub use keymap::{physicalkey_to_scancode, scancode_to_physicalkey};
+pub use keymap::{keycode_to_physicalkey, physicalkey_to_scancode, scancode_to_physicalkey};
 pub use state::XkbState;
 
 // TODO: Wire this up without using a static `AtomicBool`.
 static RESET_DEAD_KEYS: AtomicBool = AtomicBool::new(false);
-
-static XKBH: Lazy<&'static XkbCommon> = Lazy::new(xkbcommon_handle);
-static XKBCH: Lazy<&'static XkbCommonCompose> = Lazy::new(xkbcommon_compose_handle);
-#[cfg(feature = "x11")]
-static XKBXH: Lazy<&'static xkb::x11::XkbCommonX11> = Lazy::new(xkbcommon_x11_handle);
 
 #[inline(always)]
 pub fn reset_dead_keys() {
     RESET_DEAD_KEYS.store(true, Ordering::SeqCst);
 }
 
+#[cfg(x11_platform)]
 #[derive(Debug)]
 pub enum Error {
-    /// libxkbcommon is not available
-    XKBNotFound,
+    /// Could not initialize XKB
+    InitializeXkb,
+}
+
+#[derive(Debug)]
+struct ComposeContext {
+    table: ComposeTable,
+    state: compose::State,
 }
 
 #[derive(Debug)]
 pub struct Context {
     // NOTE: field order matters.
     #[cfg(x11_platform)]
-    pub core_keyboard_id: i32,
+    pub core_keyboard_id: u16,
     state: Option<XkbState>,
     keymap: Option<XkbKeymap>,
-    compose_state1: Option<XkbComposeState>,
-    compose_state2: Option<XkbComposeState>,
-    _compose_table: Option<XkbComposeTable>,
-    context: XkbContext,
-    scratch_buffer: Vec<u8>,
+    compose: Option<ComposeContext>,
+    #[cfg(wayland_platform)]
+    context: xkb::Context,
+    scratch_buffer: String,
 }
 
 impl Context {
-    pub fn new() -> Result<Self, Error> {
-        if xkb::xkbcommon_option().is_none() {
-            return Err(Error::XKBNotFound);
-        }
+    pub fn new() -> Self {
+        let context = xkb::Context::default();
+        let compose = context
+            .compose_table_builder()
+            .build(WriteToLog)
+            .map(|table| ComposeContext { state: table.create_state(), table });
 
-        let context = XkbContext::new()?;
-        let mut compose_table = XkbComposeTable::new(&context);
-        let mut compose_state1 = compose_table.as_ref().and_then(|table| table.new_state());
-        let mut compose_state2 = compose_table.as_ref().and_then(|table| table.new_state());
-
-        // Disable compose if anything compose related failed to initialize.
-        if compose_table.is_none() || compose_state1.is_none() || compose_state2.is_none() {
-            compose_state2 = None;
-            compose_state1 = None;
-            compose_table = None;
-        }
-
-        Ok(Self {
+        Self {
             state: None,
             keymap: None,
-            compose_state1,
-            compose_state2,
             #[cfg(x11_platform)]
             core_keyboard_id: 0,
-            _compose_table: compose_table,
+            compose,
+            #[cfg(wayland_platform)]
             context,
-            scratch_buffer: Vec::with_capacity(8),
-        })
+            scratch_buffer: String::with_capacity(8),
+        }
     }
 
     #[cfg(feature = "x11")]
-    pub fn from_x11_xkb(xcb: *mut xcb_connection_t) -> Result<Self, Error> {
-        let result = unsafe {
-            (XKBXH.xkb_x11_setup_xkb_extension)(
-                xcb,
-                1,
-                2,
-                xkbcommon_dl::x11::xkb_x11_setup_xkb_extension_flags::XKB_X11_SETUP_XKB_EXTENSION_NO_FLAGS,
-                ptr::null_mut(),
-                ptr::null_mut(),
-                ptr::null_mut(),
-                ptr::null_mut(),
-            )
-        };
+    pub fn from_x11_xkb(xcb: &XCBConnection) -> Result<Self, Error> {
+        xcb.setup_xkb_extension().map_err(|_| Error::InitializeXkb)?;
 
-        if result != 1 {
-            return Err(Error::XKBNotFound);
-        }
-
-        let mut this = Self::new()?;
-        this.core_keyboard_id = unsafe { (XKBXH.xkb_x11_get_core_keyboard_device_id)(xcb) };
+        let mut this = Self::new();
+        this.core_keyboard_id = xcb.get_xkb_core_device_id().map_err(|_| Error::InitializeXkb)?;
         this.set_keymap_from_x11(xcb);
         Ok(this)
     }
@@ -130,7 +97,7 @@ impl Context {
     #[cfg(wayland_platform)]
     pub fn set_keymap_from_fd(&mut self, fd: OwnedFd, size: usize) {
         let keymap = XkbKeymap::from_fd(&self.context, fd, size);
-        let state = keymap.as_ref().and_then(XkbState::new_wayland);
+        let state = keymap.as_ref().map(XkbState::new_wayland);
         if keymap.is_none() || state.is_none() {
             warn!("failed to update xkb keymap");
         }
@@ -139,8 +106,8 @@ impl Context {
     }
 
     #[cfg(x11_platform)]
-    pub fn set_keymap_from_x11(&mut self, xcb: *mut xcb_connection_t) {
-        let keymap = XkbKeymap::from_x11_keymap(&self.context, xcb, self.core_keyboard_id);
+    pub fn set_keymap_from_x11(&mut self, xcb: &XCBConnection) {
+        let keymap = XkbKeymap::from_x11_keymap(xcb, self.core_keyboard_id);
         let state = keymap.as_ref().and_then(|keymap| XkbState::new_x11(xcb, keymap));
         if keymap.is_none() || state.is_none() {
             warn!("failed to update xkb keymap");
@@ -150,13 +117,15 @@ impl Context {
     }
 
     /// Key builder context with the user provided xkb state.
-    pub fn key_context(&mut self) -> Option<KeyContext<'_>> {
+    pub fn key_context(&mut self) -> Option<KeyContext<'_, '_>> {
         let state = self.state.as_mut()?;
         let keymap = self.keymap.as_mut()?;
-        let compose_state1 = self.compose_state1.as_mut();
-        let compose_state2 = self.compose_state2.as_mut();
+        let compose = self
+            .compose
+            .as_mut()
+            .map(|c| KeyComposeContext { table: &c.table, state: &mut c.state });
         let scratch_buffer = &mut self.scratch_buffer;
-        Some(KeyContext { state, keymap, compose_state1, compose_state2, scratch_buffer })
+        Some(KeyContext { state, keymap, compose, scratch_buffer })
     }
 
     /// Key builder context with the user provided xkb state.
@@ -166,33 +135,39 @@ impl Context {
     pub fn key_context_with_state<'a>(
         &'a mut self,
         state: &'a mut XkbState,
-    ) -> Option<KeyContext<'a>> {
+    ) -> Option<KeyContext<'a, 'a>> {
         let keymap = self.keymap.as_mut()?;
-        let compose_state1 = self.compose_state1.as_mut();
-        let compose_state2 = self.compose_state2.as_mut();
+        let compose = self
+            .compose
+            .as_mut()
+            .map(|c| KeyComposeContext { table: &c.table, state: &mut c.state });
         let scratch_buffer = &mut self.scratch_buffer;
-        Some(KeyContext { state, keymap, compose_state1, compose_state2, scratch_buffer })
+        Some(KeyContext { state, keymap, compose, scratch_buffer })
     }
 }
 
-pub struct KeyContext<'a> {
-    pub state: &'a mut XkbState,
-    pub keymap: &'a mut XkbKeymap,
-    compose_state1: Option<&'a mut XkbComposeState>,
-    compose_state2: Option<&'a mut XkbComposeState>,
-    scratch_buffer: &'a mut Vec<u8>,
+struct KeyComposeContext<'a, 'b> {
+    table: &'b ComposeTable,
+    state: &'a mut compose::State,
 }
 
-impl KeyContext<'_> {
+pub struct KeyContext<'a, 'b> {
+    pub state: &'a mut XkbState,
+    pub keymap: &'a mut XkbKeymap,
+    compose: Option<KeyComposeContext<'a, 'b>>,
+    scratch_buffer: &'a mut String,
+}
+
+impl KeyContext<'_, '_> {
     pub fn process_key_event(
         &mut self,
-        keycode: u32,
+        keycode: Keycode,
         state: ElementState,
         repeat: bool,
     ) -> KeyEvent {
         let mut event =
             KeyEventResults::new(self, keycode, !repeat && state == ElementState::Pressed);
-        let physical_key = keymap::raw_keycode_to_physicalkey(keycode);
+        let physical_key = keycode_to_physicalkey(keycode);
         let (logical_key, location) = event.key();
         let text = event.text();
         let (key_without_modifiers, _) = event.key_without_modifiers();
@@ -203,55 +178,33 @@ impl KeyContext<'_> {
         KeyEvent { physical_key, logical_key, text, location, state, repeat, platform_specific }
     }
 
-    fn keysym_to_utf8_raw(&mut self, keysym: u32) -> Option<SmolStr> {
-        self.scratch_buffer.clear();
-        self.scratch_buffer.reserve(8);
-        loop {
-            let bytes_written = unsafe {
-                (XKBH.xkb_keysym_to_utf8)(
-                    keysym,
-                    self.scratch_buffer.as_mut_ptr().cast(),
-                    self.scratch_buffer.capacity(),
-                )
-            };
-            if bytes_written == 0 {
-                return None;
-            } else if bytes_written == -1 {
-                self.scratch_buffer.reserve(8);
-            } else {
-                unsafe { self.scratch_buffer.set_len(bytes_written.try_into().unwrap()) };
-                break;
-            }
-        }
-
-        // Remove the null-terminator
-        self.scratch_buffer.pop();
-        byte_slice_to_smol_str(self.scratch_buffer)
+    fn keysym_to_utf8_raw(&mut self, keysym: Keysym) -> Option<SmolStr> {
+        let c = keysym.char()?;
+        Some(char_to_smol_str(c))
     }
 }
 
-struct KeyEventResults<'a, 'b> {
-    context: &'a mut KeyContext<'b>,
-    keycode: u32,
-    keysym: u32,
-    compose: ComposeStatus,
+struct KeyEventResults<'a, 'b, 'c> {
+    context: &'a mut KeyContext<'b, 'c>,
+    keycode: Keycode,
+    keysym: Keysym,
+    feed_result: Option<FeedResult<'c>>,
 }
 
-impl<'a, 'b> KeyEventResults<'a, 'b> {
-    fn new(context: &'a mut KeyContext<'b>, keycode: u32, compose: bool) -> Self {
+impl<'a, 'b, 'c> KeyEventResults<'a, 'b, 'c> {
+    fn new(context: &'a mut KeyContext<'b, 'c>, keycode: Keycode, compose: bool) -> Self {
         let keysym = context.state.get_one_sym_raw(keycode);
 
-        let compose = if let Some(state) = context.compose_state1.as_mut().filter(|_| compose) {
+        let feed_result = if let Some(state) = context.compose.as_mut().filter(|_| compose) {
             if RESET_DEAD_KEYS.swap(false, Ordering::SeqCst) {
-                state.reset();
-                context.compose_state2.as_mut().unwrap().reset();
+                *state.state = state.table.create_state();
             }
-            state.feed(keysym)
+            state.table.feed(state.state, keysym)
         } else {
-            ComposeStatus::None
+            None
         };
 
-        KeyEventResults { context, keycode, keysym, compose }
+        KeyEventResults { context, keycode, keysym, feed_result }
     }
 
     pub fn key(&mut self) -> (Key, KeyLocation) {
@@ -260,23 +213,20 @@ impl<'a, 'b> KeyEventResults<'a, 'b> {
             Err(undefined) => undefined,
         };
 
-        if let ComposeStatus::Accepted(xkb_compose_status::XKB_COMPOSE_COMPOSING) = self.compose {
-            let compose_state = self.context.compose_state2.as_mut().unwrap();
+        if let Some(FeedResult::Pending) = &self.feed_result {
             // When pressing a dead key twice, the non-combining variant of that character will
             // be produced. Since this function only concerns itself with a single keypress, we
             // simulate this double press here by feeding the keysym to the compose state
             // twice.
 
-            compose_state.feed(self.keysym);
-            if matches!(compose_state.feed(self.keysym), ComposeStatus::Accepted(_)) {
-                // Extracting only a single `char` here *should* be fine, assuming that no
-                // dead key's non-combining variant ever occupies more than one `char`.
-                let text = compose_state.get_string(self.context.scratch_buffer);
-                let key = Key::Dead(text.and_then(|s| s.chars().next()));
-                (key, location)
-            } else {
-                (key, location)
-            }
+            let compose = self.context.compose.as_ref().unwrap();
+            let mut state = compose.state.clone();
+            let res = compose.table.feed(&mut state, self.keysym);
+            // Extracting only a single `char` here *should* be fine, assuming that no
+            // dead key's non-combining variant ever occupies more than one `char`.
+            let text = composed_text(res.as_ref()).ok().flatten();
+            let key = Key::Dead(text.and_then(|s| s.chars().next()));
+            (key, location)
         } else {
             let key = self
                 .composed_text()
@@ -303,7 +253,7 @@ impl<'a, 'b> KeyEventResults<'a, 'b> {
         }
     }
 
-    fn keysym_to_key(&self, keysym: u32) -> Result<(Key, KeyLocation), (Key, KeyLocation)> {
+    fn keysym_to_key(&self, keysym: Keysym) -> Result<(Key, KeyLocation), (Key, KeyLocation)> {
         let location = keymap::keysym_location(keysym);
         let key = keymap::keysym_to_key(keysym);
         if matches!(key, Key::Unidentified(_)) {
@@ -328,88 +278,29 @@ impl<'a, 'b> KeyEventResults<'a, 'b> {
     }
 
     fn composed_text(&mut self) -> Result<Option<SmolStr>, ()> {
-        match self.compose {
-            ComposeStatus::Accepted(status) => match status {
-                xkb_compose_status::XKB_COMPOSE_COMPOSED => {
-                    let state = self.context.compose_state1.as_mut().unwrap();
-                    Ok(state.get_string(self.context.scratch_buffer))
-                },
-                xkb_compose_status::XKB_COMPOSE_COMPOSING
-                | xkb_compose_status::XKB_COMPOSE_CANCELLED => Ok(None),
-                xkb_compose_status::XKB_COMPOSE_NOTHING => Err(()),
-            },
-            _ => Err(()),
-        }
+        composed_text(self.feed_result.as_ref())
     }
 }
 
-#[derive(Debug)]
-pub struct XkbContext {
-    context: NonNull<xkb_context>,
+fn char_to_smol_str(c: char) -> SmolStr {
+    let mut buf = [0; 4];
+    SmolStr::new(c.encode_utf8(&mut buf))
 }
 
-impl XkbContext {
-    pub fn new() -> Result<Self, Error> {
-        let context = unsafe { (XKBH.xkb_context_new)(xkb_context_flags::XKB_CONTEXT_NO_FLAGS) };
-
-        let context = match NonNull::new(context) {
-            Some(context) => context,
-            None => return Err(Error::XKBNotFound),
-        };
-
-        Ok(Self { context })
-    }
-}
-
-impl Drop for XkbContext {
-    fn drop(&mut self) {
-        unsafe {
-            (XKBH.xkb_context_unref)(self.context.as_ptr());
-        }
-    }
-}
-
-impl Deref for XkbContext {
-    type Target = NonNull<xkb_context>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.context
-    }
-}
-
-/// Shared logic for constructing a string with `xkb_compose_state_get_utf8` and
-/// `xkb_state_key_get_utf8`.
-fn make_string_with<F>(scratch_buffer: &mut Vec<u8>, mut f: F) -> Option<SmolStr>
-where
-    F: FnMut(*mut c_char, usize) -> i32,
-{
-    let size = f(ptr::null_mut(), 0);
-    if size == 0 {
-        return None;
-    }
-    let size = usize::try_from(size).unwrap();
-    scratch_buffer.clear();
-    // The allocated buffer must include space for the null-terminator.
-    scratch_buffer.reserve(size + 1);
-    unsafe {
-        let written = f(scratch_buffer.as_mut_ptr().cast(), scratch_buffer.capacity());
-        if usize::try_from(written).unwrap() != size {
-            // This will likely never happen.
-            return None;
-        }
-        scratch_buffer.set_len(size);
+fn composed_text(feed_result: Option<&FeedResult<'_>>) -> Result<Option<SmolStr>, ()> {
+    let Some(feed_result) = feed_result else {
+        return Err(());
     };
-
-    byte_slice_to_smol_str(scratch_buffer)
-}
-
-// NOTE: This is track_caller so we can have more informative line numbers when logging
-#[track_caller]
-fn byte_slice_to_smol_str(bytes: &[u8]) -> Option<SmolStr> {
-    std::str::from_utf8(bytes)
-        .map(SmolStr::new)
-        .map_err(|e| {
-            tracing::warn!("UTF-8 received from libxkbcommon ({:?}) was invalid: {e}", bytes)
-        })
-        .ok()
+    let FeedResult::Composed { string, keysym } = feed_result else {
+        return Ok(None);
+    };
+    if let Some(s) = string {
+        return Ok(Some(SmolStr::new(s)));
+    }
+    if let Some(keysym) = keysym {
+        if let Some(c) = keysym.char() {
+            return Ok(Some(char_to_smol_str(c)));
+        }
+    }
+    Ok(Some(SmolStr::default()))
 }

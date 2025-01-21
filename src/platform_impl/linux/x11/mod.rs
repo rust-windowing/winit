@@ -185,7 +185,7 @@ impl EventLoop {
             // Remember default locale to restore it if target locale is unsupported
             // by Xlib
             let default_locale = setlocale(LC_CTYPE, ptr::null());
-            setlocale(LC_CTYPE, b"\0".as_ptr() as *const _);
+            setlocale(LC_CTYPE, c"".as_ptr() as *const _);
 
             // Check if set locale is supported by Xlib.
             // If not, calls to some Xlib functions like `XSetLocaleModifiers`
@@ -282,8 +282,7 @@ impl EventLoop {
             .expect("Failed to register the event loop waker source");
         let event_loop_proxy = EventLoopProxy::new(user_waker);
 
-        let xkb_context =
-            Context::from_x11_xkb(xconn.xcb_connection().get_raw_xcb_connection()).unwrap();
+        let xkb_context = Context::from_x11_xkb(xconn.xcb_connection()).unwrap();
 
         let mut xmodmap = util::ModifierKeymap::new();
         xmodmap.reload_from_x_connection(&xconn);

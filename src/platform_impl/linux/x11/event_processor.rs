@@ -4,6 +4,7 @@ use std::os::raw::{c_char, c_int, c_long, c_ulong};
 use std::slice;
 use std::sync::{Arc, Mutex};
 
+use kbvm::Keycode;
 use x11_dl::xinput2::{
     self, XIDeviceEvent, XIEnterEvent, XIFocusInEvent, XIFocusOutEvent, XIHierarchyEvent,
     XILeaveEvent, XIModifierState, XIRawEvent,
@@ -16,9 +17,8 @@ use x11_dl::xlib::{
 use x11rb::protocol::sync::{ConnectionExt, Int64};
 use x11rb::protocol::xinput;
 use x11rb::protocol::xkb::ID as XkbId;
-use x11rb::protocol::xproto::{self, ConnectionExt as _, ModMask};
+use x11rb::protocol::xproto::{self, ConnectionExt as _};
 use x11rb::x11_utils::{ExtensionInformation, Serialize};
-use xkbcommon_dl::xkb_mod_mask_t;
 
 use crate::dpi::{PhysicalPosition, PhysicalSize};
 use crate::event::{
@@ -42,7 +42,7 @@ use crate::platform_impl::x11::{
 pub const MAX_MOD_REPLAY_LEN: usize = 32;
 
 /// The X11 documentation states: "Keycodes lie in the inclusive range `[8, 255]`".
-const KEYCODE_OFFSET: u8 = 8;
+const KEYCODE_OFFSET: u32 = 8;
 
 pub struct EventProcessor {
     pub dnd: Dnd,
@@ -60,7 +60,7 @@ pub struct EventProcessor {
     // released).
     //
     // Used to detect key repeats.
-    pub held_key_press: Option<u32>,
+    pub held_key_press: Option<Keycode>,
     pub first_touch: Option<u32>,
     // Currently focused window belonging to this process
     pub active_window: Option<xproto::Window>,
@@ -893,7 +893,7 @@ impl EventProcessor {
 
         let window_id = mkwid(window);
 
-        let keycode = xev.keycode as _;
+        let keycode = Keycode::from_x11(xev.keycode as _);
 
         // Update state to track key repeats and determine whether this key was a repeat.
         //
@@ -945,7 +945,7 @@ impl EventProcessor {
             self.update_mods_from_core_event(window_id, xev.state as u16, &mut callback);
         }
 
-        if keycode != 0 && !self.is_composing {
+        if keycode.to_x11() != 0 && !self.is_composing {
             // Don't alter the modifiers state from replaying.
             if replay {
                 self.send_synthic_modifier_from_core(window_id, xev.state as u16, &mut callback);
@@ -1005,7 +1005,7 @@ impl EventProcessor {
             None => return,
         };
 
-        let xcb = self.target.xconn.xcb_connection().get_raw_xcb_connection();
+        let xcb = self.target.xconn.xcb_connection();
 
         // Use synthetic state since we're replaying the modifier. The user modifier state
         // will be restored later.
@@ -1014,7 +1014,7 @@ impl EventProcessor {
             None => return,
         };
 
-        let mask = self.xkb_mod_mask_from_core(state);
+        let mask = Self::xkb_mod_mask_from_core(state);
         xkb_state.update_modifiers(mask, 0, 0, 0, 0, Self::core_keyboard_group(state));
         let mods: ModifiersState = xkb_state.modifiers().into();
 
@@ -1542,11 +1542,11 @@ impl EventProcessor {
         self.target.xconn.set_timestamp(xev.time as xproto::Timestamp);
 
         let device_id = Some(mkdid(xev.sourceid as xinput::DeviceId));
-        let keycode = xev.detail as u32;
-        if keycode < KEYCODE_OFFSET as u32 {
+        if (xev.detail as u32) < KEYCODE_OFFSET {
             return;
         }
-        let physical_key = xkb::raw_keycode_to_physicalkey(keycode);
+        let keycode = Keycode::from_x11(xev.detail as u32);
+        let physical_key = xkb::keycode_to_physicalkey(keycode);
 
         callback(&self.target, Event::DeviceEvent {
             device_id,
@@ -1585,10 +1585,10 @@ impl EventProcessor {
                 let keycodes_changed = util::has_flag(xev.changed, keycodes_changed_flag);
                 let geometry_changed = util::has_flag(xev.changed, geometry_changed_flag);
 
-                if xev.device == self.xkb_context.core_keyboard_id
+                if xev.device == self.xkb_context.core_keyboard_id as c_int
                     && (keycodes_changed || geometry_changed)
                 {
-                    let xcb = self.target.xconn.xcb_connection().get_raw_xcb_connection();
+                    let xcb = self.target.xconn.xcb_connection();
                     self.xkb_context.set_keymap_from_x11(xcb);
                     self.xmodmap.reload_from_x_connection(&self.target.xconn);
 
@@ -1604,7 +1604,7 @@ impl EventProcessor {
                 }
             },
             xlib::XkbMapNotify => {
-                let xcb = self.target.xconn.xcb_connection().get_raw_xcb_connection();
+                let xcb = self.target.xconn.xcb_connection();
                 self.xkb_context.set_keymap_from_x11(xcb);
                 self.xmodmap.reload_from_x_connection(&self.target.xconn);
                 let window_id = match self.active_window.map(super::mkwid) {
@@ -1717,7 +1717,7 @@ impl EventProcessor {
     ) where
         F: FnMut(&ActiveEventLoop, Event),
     {
-        let xkb_mask = self.xkb_mod_mask_from_core(state);
+        let xkb_mask = Self::xkb_mod_mask_from_core(state);
         let xkb_state = match self.xkb_context.state_mut() {
             Some(xkb_state) => xkb_state,
             None => return,
@@ -1748,40 +1748,8 @@ impl EventProcessor {
         ((state >> 13) & 3) as u32
     }
 
-    pub fn xkb_mod_mask_from_core(&mut self, state: u16) -> xkb_mod_mask_t {
-        let mods_indices = match self.xkb_context.keymap_mut() {
-            Some(keymap) => keymap.mods_indices(),
-            None => return 0,
-        };
-
-        // Build the XKB modifiers from the regular state.
-        let mut depressed = 0u32;
-        if let Some(shift) = mods_indices.shift.filter(|_| ModMask::SHIFT.intersects(state)) {
-            depressed |= 1 << shift;
-        }
-        if let Some(caps) = mods_indices.caps.filter(|_| ModMask::LOCK.intersects(state)) {
-            depressed |= 1 << caps;
-        }
-        if let Some(ctrl) = mods_indices.ctrl.filter(|_| ModMask::CONTROL.intersects(state)) {
-            depressed |= 1 << ctrl;
-        }
-        if let Some(alt) = mods_indices.alt.filter(|_| ModMask::M1.intersects(state)) {
-            depressed |= 1 << alt;
-        }
-        if let Some(num) = mods_indices.num.filter(|_| ModMask::M2.intersects(state)) {
-            depressed |= 1 << num;
-        }
-        if let Some(mod3) = mods_indices.mod3.filter(|_| ModMask::M3.intersects(state)) {
-            depressed |= 1 << mod3;
-        }
-        if let Some(logo) = mods_indices.logo.filter(|_| ModMask::M4.intersects(state)) {
-            depressed |= 1 << logo;
-        }
-        if let Some(mod5) = mods_indices.mod5.filter(|_| ModMask::M5.intersects(state)) {
-            depressed |= 1 << mod5;
-        }
-
-        depressed
+    pub fn xkb_mod_mask_from_core(state: u16) -> u32 {
+        state as u8 as u32
     }
 
     /// Send modifiers for the active window.
@@ -1816,7 +1784,7 @@ impl EventProcessor {
         F: FnMut(&ActiveEventLoop, Event),
     {
         // Update modifiers state and emit key events based on which keys are currently pressed.
-        let xcb = target.xconn.xcb_connection().get_raw_xcb_connection();
+        let xcb = target.xconn.xcb_connection();
 
         let keymap = match xkb_context.keymap_mut() {
             Some(keymap) => keymap,
@@ -1833,8 +1801,11 @@ impl EventProcessor {
             None => return,
         };
 
-        for keycode in target.xconn.query_keymap().into_iter().filter(|k| *k >= KEYCODE_OFFSET) {
-            let event = key_processor.process_key_event(keycode as u32, state, false);
+        for keycode in
+            target.xconn.query_keymap().into_iter().filter(|k| *k as u32 >= KEYCODE_OFFSET)
+        {
+            let event =
+                key_processor.process_key_event(Keycode::from_x11(keycode as u32), state, false);
             let event = Event::WindowEvent {
                 window_id,
                 event: WindowEvent::KeyboardInput { device_id: None, event, is_synthetic: true },

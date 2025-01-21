@@ -70,7 +70,7 @@ wayland-csd-adwaita = ["sctk-adwaita", "sctk-adwaita/ab_glyph"]
 wayland-csd-adwaita-crossfont = ["sctk-adwaita", "sctk-adwaita/crossfont"]
 wayland-csd-adwaita-notitle = ["sctk-adwaita"]
 wayland-dlopen = ["wayland-backend/dlopen"]
-x11 = ["x11-dl", "bytemuck", "percent-encoding", "xkbcommon-dl/x11", "x11rb"]
+x11 = ["x11-dl", "bytemuck", "percent-encoding", "kbvm/x11", "x11rb"]
 
 [build-dependencies]
 cfg_aliases = "0.2.1"
@@ -267,7 +267,7 @@ x11rb = { version = "0.13.0", default-features = false, features = [
     "xinput",
     "xkb",
 ], optional = true }
-xkbcommon-dl = "0.4.2"
+kbvm = { version = "0.1.0", features = ["compose"] }
 
 # Orbital
 [target.'cfg(target_os = "redox")'.dependencies]
@@ -358,7 +358,7 @@ resolver = "2"
 edition = "2021"
 license = "Apache-2.0"
 repository = "https://github.com/rust-windowing/winit"
-rust-version = "1.73"
+rust-version = "1.83"
 
 [workspace.dependencies]
 mint = "0.5.6"

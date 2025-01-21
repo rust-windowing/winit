@@ -5,6 +5,7 @@ use std::time::Duration;
 
 use calloop::timer::{TimeoutAction, Timer};
 use calloop::{LoopHandle, RegistrationToken};
+use kbvm::Keycode;
 use sctk::reexports::client::protocol::wl_keyboard::{
     Event as WlKeyboardEvent, KeyState as WlKeyState, KeymapFormat as WlKeymapFormat, WlKeyboard,
 };
@@ -130,7 +131,7 @@ impl Dispatch<WlKeyboard, KeyboardData, WinitState> for WinitState {
                 }
             },
             WlKeyboardEvent::Key { key, state: WEnum::Value(WlKeyState::Pressed), .. } => {
-                let key = key + 8;
+                let key = Keycode::from_evdev(key);
 
                 key_input(
                     keyboard_state,
@@ -202,7 +203,7 @@ impl Dispatch<WlKeyboard, KeyboardData, WinitState> for WinitState {
                     .ok();
             },
             WlKeyboardEvent::Key { key, state: WEnum::Value(WlKeyState::Released), .. } => {
-                let key = key + 8;
+                let key = Keycode::from_evdev(key);
 
                 key_input(
                     keyboard_state,
@@ -287,7 +288,7 @@ pub struct KeyboardState {
     pub repeat_token: Option<RegistrationToken>,
 
     /// The current repeat raw key.
-    pub current_repeat: Option<u32>,
+    pub current_repeat: Option<Keycode>,
 }
 
 impl KeyboardState {
@@ -295,7 +296,7 @@ impl KeyboardState {
         Self {
             keyboard,
             loop_handle,
-            xkb_context: Context::new().unwrap(),
+            xkb_context: Context::new(),
             repeat_info: RepeatInfo::default(),
             repeat_token: None,
             current_repeat: None,
@@ -360,7 +361,7 @@ fn key_input(
     keyboard_state: &mut KeyboardState,
     event_sink: &mut EventSink,
     data: &KeyboardData,
-    keycode: u32,
+    keycode: Keycode,
     state: ElementState,
     repeat: bool,
 ) {
