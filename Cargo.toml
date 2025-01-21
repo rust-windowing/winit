@@ -396,7 +396,7 @@ resolver = "2"
 edition = "2021"
 license = "Apache-2.0"
 repository = "https://github.com/rust-windowing/winit"
-rust-version = "1.73"
+rust-version = "1.83"
 
 [workspace.dependencies]
 mint = "0.5.6"
