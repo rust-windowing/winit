@@ -33,6 +33,10 @@ Winit is designed to be a low-level brick in a hierarchy of libraries. Consequen
 show something on the window you need to use the platform-specific getters provided by winit, or
 another library.
 
+## CONTRIBUING
+
+For contributing guidelines see (CONTRIBUTING.md)[./CONTRIBUTING.md].
+
 ## MSRV Policy
 
 This crate's Minimum Supported Rust Version (MSRV) is **1.73**. Changes to
