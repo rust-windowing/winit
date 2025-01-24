@@ -14,12 +14,13 @@ use core_foundation::runloop::{
     CFRunLoopSourceCreate, CFRunLoopSourceRef, CFRunLoopSourceSignal, CFRunLoopWakeUp,
 };
 use objc2::rc::{autoreleasepool, Retained};
-use objc2::{msg_send_id, sel, ClassType};
+use objc2::runtime::ProtocolObject;
+use objc2::{msg_send, sel, ClassType, MainThreadMarker};
 use objc2_app_kit::{
     NSApplication, NSApplicationActivationPolicy, NSApplicationDidFinishLaunchingNotification,
     NSApplicationWillTerminateNotification, NSWindow,
 };
-use objc2_foundation::{MainThreadMarker, NSNotificationCenter, NSObject, NSObjectProtocol};
+use objc2_foundation::{NSNotificationCenter, NSObjectProtocol};
 use rwh_06::HasDisplayHandle;
 
 use super::super::notification_center::create_observer;
@@ -183,8 +184,8 @@ pub struct EventLoop {
     // the system instead cleans it up next time it would have posted a notification to it.
     //
     // Though we do still need to keep the observers around to prevent them from being deallocated.
-    _did_finish_launching_observer: Retained<NSObject>,
-    _will_terminate_observer: Retained<NSObject>,
+    _did_finish_launching_observer: Retained<ProtocolObject<dyn NSObjectProtocol>>,
+    _will_terminate_observer: Retained<ProtocolObject<dyn NSObjectProtocol>>,
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
@@ -208,9 +209,9 @@ impl EventLoop {
             .expect("on macOS, `EventLoop` must be created on the main thread!");
 
         let app: Retained<NSApplication> =
-            unsafe { msg_send_id![WinitApplication::class(), sharedApplication] };
+            unsafe { msg_send![WinitApplication::class(), sharedApplication] };
 
-        if !app.is_kind_of::<WinitApplication>() {
+        if !app.isKindOfClass(WinitApplication::class()) {
             panic!(
                 "`winit` requires control over the principal class. You must create the event \
                  loop before other parts of your application initialize NSApplication"
@@ -301,8 +302,8 @@ impl EventLoop {
                     self.app_state.dispatch_init_events();
                 }
 
-                // SAFETY: We do not run the application re-entrantly
-                unsafe { self.app.run() };
+                // NOTE: Make sure to not run the application re-entrantly, as that'd be confusing.
+                self.app.run();
 
                 // While the app is running it's possible that we catch a panic
                 // to avoid unwinding across an objective-c ffi boundary, which
@@ -333,8 +334,7 @@ impl EventLoop {
                     debug_assert!(!self.app_state.is_running());
 
                     self.app_state.set_stop_on_launch();
-                    // SAFETY: We do not run the application re-entrantly
-                    unsafe { self.app.run() };
+                    self.app.run();
 
                     // Note: we dispatch `NewEvents(Init)` + `Resumed` events after the application
                     // has launched
@@ -366,8 +366,7 @@ impl EventLoop {
                         },
                     }
                     self.app_state.set_stop_on_redraw(true);
-                    // SAFETY: We do not run the application re-entrantly
-                    unsafe { self.app.run() };
+                    self.app.run();
                 }
 
                 // While the app is running it's possible that we catch a panic

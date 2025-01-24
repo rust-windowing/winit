@@ -1,8 +1,8 @@
 use std::cell::Cell;
 
 use objc2::rc::Retained;
-use objc2::{declare_class, msg_send_id, mutability, ClassType, DeclaredClass};
-use objc2_foundation::{MainThreadMarker, NSObject};
+use objc2::{define_class, msg_send, DefinedClass, MainThreadMarker};
+use objc2_foundation::NSObject;
 use objc2_ui_kit::{
     UIDevice, UIInterfaceOrientationMask, UIRectEdge, UIResponder, UIStatusBarStyle,
     UIUserInterfaceIdiom, UIView, UIViewController,
@@ -20,51 +20,42 @@ pub struct ViewControllerState {
     preferred_screen_edges_deferring_system_gestures: Cell<UIRectEdge>,
 }
 
-declare_class!(
+define_class!(
+    #[unsafe(super(UIViewController, UIResponder, NSObject))]
+    #[name = "WinitUIViewController"]
+    #[ivars = ViewControllerState]
     pub(crate) struct WinitViewController;
 
-    unsafe impl ClassType for WinitViewController {
-        #[inherits(UIResponder, NSObject)]
-        type Super = UIViewController;
-        type Mutability = mutability::MainThreadOnly;
-        const NAME: &'static str = "WinitUIViewController";
-    }
-
-    impl DeclaredClass for WinitViewController {
-        type Ivars = ViewControllerState;
-    }
-
-    unsafe impl WinitViewController {
-        #[method(shouldAutorotate)]
+    /// This documentation attribute makes rustfmt work for some reason?
+    impl WinitViewController {
+        #[unsafe(method(shouldAutorotate))]
         fn should_autorotate(&self) -> bool {
             true
         }
 
-        #[method(prefersStatusBarHidden)]
+        #[unsafe(method(prefersStatusBarHidden))]
         fn prefers_status_bar_hidden(&self) -> bool {
             self.ivars().prefers_status_bar_hidden.get()
         }
 
-        #[method(preferredStatusBarStyle)]
+        #[unsafe(method(preferredStatusBarStyle))]
         fn preferred_status_bar_style(&self) -> UIStatusBarStyle {
             self.ivars().preferred_status_bar_style.get()
         }
 
-        #[method(prefersHomeIndicatorAutoHidden)]
+        #[unsafe(method(prefersHomeIndicatorAutoHidden))]
         fn prefers_home_indicator_auto_hidden(&self) -> bool {
             self.ivars().prefers_home_indicator_auto_hidden.get()
         }
 
-        #[method(supportedInterfaceOrientations)]
+        #[unsafe(method(supportedInterfaceOrientations))]
         fn supported_orientations(&self) -> UIInterfaceOrientationMask {
             self.ivars().supported_orientations.get()
         }
 
-        #[method(preferredScreenEdgesDeferringSystemGestures)]
+        #[unsafe(method(preferredScreenEdgesDeferringSystemGestures))]
         fn preferred_screen_edges_deferring_system_gestures(&self) -> UIRectEdge {
-            self.ivars()
-                .preferred_screen_edges_deferring_system_gestures
-                .get()
+            self.ivars().preferred_screen_edges_deferring_system_gestures.get()
         }
     }
 );
@@ -146,7 +137,7 @@ impl WinitViewController {
             supported_orientations: Cell::new(UIInterfaceOrientationMask::All),
             preferred_screen_edges_deferring_system_gestures: Cell::new(UIRectEdge::empty()),
         });
-        let this: Retained<Self> = unsafe { msg_send_id![super(this), init] };
+        let this: Retained<Self> = unsafe { msg_send![super(this), init] };
 
         this.set_prefers_status_bar_hidden(
             window_attributes.platform_specific.prefers_status_bar_hidden,

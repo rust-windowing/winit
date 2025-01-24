@@ -1,8 +1,8 @@
 use objc2::rc::Retained;
 use objc2::runtime::Sel;
-use objc2::sel;
+use objc2::{sel, MainThreadMarker};
 use objc2_app_kit::{NSApplication, NSEventModifierFlags, NSMenu, NSMenuItem};
-use objc2_foundation::{ns_string, MainThreadMarker, NSProcessInfo, NSString};
+use objc2_foundation::{ns_string, NSProcessInfo, NSString};
 
 struct KeyEquivalent<'a> {
     key: &'a NSString,
@@ -48,10 +48,7 @@ pub fn initialize(app: &NSApplication) {
         Some(sel!(hideOtherApplications:)),
         Some(KeyEquivalent {
             key: ns_string!("h"),
-            masks: Some(
-                NSEventModifierFlags::NSEventModifierFlagOption
-                    | NSEventModifierFlags::NSEventModifierFlagCommand,
-            ),
+            masks: Some(NSEventModifierFlags::Option | NSEventModifierFlags::Command),
         }),
     );
 

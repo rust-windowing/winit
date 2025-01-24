@@ -19,7 +19,7 @@ use core_foundation::runloop::{
     CFRunLoopObserverRef, CFRunLoopRef, CFRunLoopTimerCreate, CFRunLoopTimerInvalidate,
     CFRunLoopTimerRef, CFRunLoopTimerSetNextFireDate, CFRunLoopWakeUp,
 };
-use objc2_foundation::MainThreadMarker;
+use objc2::MainThreadMarker;
 use tracing::error;
 
 use super::app_state::AppState;

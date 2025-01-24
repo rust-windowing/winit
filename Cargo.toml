@@ -104,14 +104,21 @@ ndk = { version = "0.9.0", features = ["rwh_06"], default-features = false }
 
 # AppKit or UIKit
 [target.'cfg(target_vendor = "apple")'.dependencies]
-block2 = "0.5.1"
+block2 = "0.6.0"
 core-foundation = "0.9.3"
-objc2 = "0.5.2"
+dispatch2 = { version = "0.2.0", default-features = false, features = ["std", "objc2"] }
+objc2 = "0.6.0"
+objc2-core-foundation = { version = "0.3.0", default-features = false, features = [
+    "std",
+    "CFCGTypes",
+] }
 
 # AppKit
 [target.'cfg(target_os = "macos")'.dependencies]
 core-graphics = "0.23.1"
-objc2-app-kit = { version = "0.2.2", features = [
+objc2-app-kit = { version = "0.3.0", default-features = false, features = [
+    "std",
+    "objc2-core-foundation",
     "NSAppearance",
     "NSApplication",
     "NSBitmapImageRep",
@@ -141,9 +148,10 @@ objc2-app-kit = { version = "0.2.2", features = [
     "NSWindowScripting",
     "NSWindowTabGroup",
 ] }
-objc2-foundation = { version = "0.2.2", features = [
+objc2-foundation = { version = "0.3.0", default-features = false, features = [
+    "std",
     "block2",
-    "dispatch",
+    "objc2-core-foundation",
     "NSArray",
     "NSAttributedString",
     "NSData",
@@ -165,9 +173,10 @@ objc2-foundation = { version = "0.2.2", features = [
 
 # UIKit
 [target.'cfg(all(target_vendor = "apple", not(target_os = "macos")))'.dependencies]
-objc2-foundation = { version = "0.2.2", features = [
+objc2-foundation = { version = "0.3.0", default-features = false, features = [
+    "std",
     "block2",
-    "dispatch",
+    "objc2-core-foundation",
     "NSArray",
     "NSEnumerator",
     "NSGeometry",
@@ -178,7 +187,9 @@ objc2-foundation = { version = "0.2.2", features = [
     "NSThread",
     "NSSet",
 ] }
-objc2-ui-kit = { version = "0.2.2", features = [
+objc2-ui-kit = { version = "0.3.0", default-features = false, features = [
+    "std",
+    "objc2-core-foundation",
     "UIApplication",
     "UIDevice",
     "UIEvent",

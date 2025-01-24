@@ -15,12 +15,10 @@ use core_foundation::runloop::{
     CFRunLoopTimerInvalidate, CFRunLoopTimerRef, CFRunLoopTimerSetNextFireDate,
 };
 use objc2::rc::Retained;
-use objc2::sel;
-use objc2_foundation::{
-    CGRect, CGSize, MainThreadMarker, NSInteger, NSObjectProtocol, NSOperatingSystemVersion,
-    NSProcessInfo,
-};
-use objc2_ui_kit::{UIApplication, UICoordinateSpace, UIView, UIWindow};
+use objc2::{sel, MainThreadMarker};
+use objc2_core_foundation::{CGRect, CGSize};
+use objc2_foundation::{NSInteger, NSObjectProtocol, NSOperatingSystemVersion, NSProcessInfo};
+use objc2_ui_kit::{UIApplication, UICoordinateSpace, UIView};
 
 use super::super::event_handler::EventHandler;
 use super::window::WinitUIWindow;
@@ -440,13 +438,7 @@ pub(crate) fn send_occluded_event_for_all_windows(application: &UIApplication, o
     let mut events = Vec::new();
     #[allow(deprecated)]
     for window in application.windows().iter() {
-        if window.is_kind_of::<WinitUIWindow>() {
-            // SAFETY: We just checked that the window is a `winit` window
-            let window = unsafe {
-                let ptr: *const UIWindow = window;
-                let ptr: *const WinitUIWindow = ptr.cast();
-                &*ptr
-            };
+        if let Ok(window) = window.downcast::<WinitUIWindow>() {
             events.push(EventWrapper::Window {
                 window_id: window.id(),
                 event: WindowEvent::Occluded(occluded),
@@ -510,13 +502,7 @@ pub(crate) fn terminated(application: &UIApplication) {
     let mut events = Vec::new();
     #[allow(deprecated)]
     for window in application.windows().iter() {
-        if window.is_kind_of::<WinitUIWindow>() {
-            // SAFETY: We just checked that the window is a `winit` window
-            let window = unsafe {
-                let ptr: *const UIWindow = window;
-                let ptr: *const WinitUIWindow = ptr.cast();
-                &*ptr
-            };
+        if let Ok(window) = window.downcast::<WinitUIWindow>() {
             events.push(EventWrapper::Window {
                 window_id: window.id(),
                 event: WindowEvent::Destroyed,

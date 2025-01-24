@@ -11,10 +11,11 @@ use core_foundation::uuid::{CFUUIDGetUUIDBytes, CFUUID};
 use core_graphics::display::{
     CGDirectDisplayID, CGDisplay, CGDisplayBounds, CGDisplayCopyDisplayMode,
 };
+use dispatch2::run_on_main;
 use objc2::rc::Retained;
-use objc2::runtime::AnyObject;
+use objc2::MainThreadMarker;
 use objc2_app_kit::NSScreen;
-use objc2_foundation::{ns_string, run_on_main, MainThreadMarker, NSNumber, NSPoint, NSRect};
+use objc2_foundation::{ns_string, NSNumber, NSPoint, NSRect};
 
 use super::ffi;
 use crate::dpi::{LogicalPosition, PhysicalPosition, PhysicalSize};
@@ -307,15 +308,14 @@ pub(crate) fn get_display_id(screen: &NSScreen) -> u32 {
 
         // Retrieve the CGDirectDisplayID associated with this screen
         //
-        // SAFETY: The value from @"NSScreenNumber" in deviceDescription is guaranteed
-        // to be an NSNumber. See documentation for `deviceDescription` for details:
+        // The value from @"NSScreenNumber" in deviceDescription is guaranteed
+        // to be an NSNumber. See documentation for details:
         // <https://developer.apple.com/documentation/appkit/nsscreen/1388360-devicedescription?language=objc>
         let obj = device_description
-            .get(key)
-            .expect("failed getting screen display id from device description");
-        let obj: *const AnyObject = obj;
-        let obj: *const NSNumber = obj.cast();
-        let obj: &NSNumber = unsafe { &*obj };
+            .objectForKey(key)
+            .expect("failed getting screen display id from device description")
+            .downcast::<NSNumber>()
+            .expect("NSScreenNumber must be NSNumber");
 
         obj.as_u32()
     })

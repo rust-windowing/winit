@@ -4,10 +4,10 @@ use std::collections::VecDeque;
 use std::num::NonZeroU32;
 use std::{fmt, hash, ptr};
 
-use objc2::mutability::IsRetainable;
+use dispatch2::{run_on_main, MainThreadBound};
 use objc2::rc::Retained;
-use objc2::Message;
-use objc2_foundation::{run_on_main, MainThreadBound, MainThreadMarker, NSInteger};
+use objc2::{MainThreadMarker, Message};
+use objc2_foundation::NSInteger;
 use objc2_ui_kit::{UIScreen, UIScreenMode};
 
 use super::app_state;
@@ -18,13 +18,13 @@ use crate::monitor::VideoMode;
 #[derive(Debug)]
 struct MainThreadBoundDelegateImpls<T>(MainThreadBound<Retained<T>>);
 
-impl<T: IsRetainable + Message> Clone for MainThreadBoundDelegateImpls<T> {
+impl<T: Message> Clone for MainThreadBoundDelegateImpls<T> {
     fn clone(&self) -> Self {
         Self(run_on_main(|mtm| MainThreadBound::new(Retained::clone(self.0.get(mtm)), mtm)))
     }
 }
 
-impl<T: IsRetainable + Message> hash::Hash for MainThreadBoundDelegateImpls<T> {
+impl<T: Message> hash::Hash for MainThreadBoundDelegateImpls<T> {
     fn hash<H: hash::Hasher>(&self, state: &mut H) {
         // SAFETY: Marker only used to get the pointer
         let mtm = unsafe { MainThreadMarker::new_unchecked() };
@@ -32,7 +32,7 @@ impl<T: IsRetainable + Message> hash::Hash for MainThreadBoundDelegateImpls<T> {
     }
 }
 
-impl<T: IsRetainable + Message> PartialEq for MainThreadBoundDelegateImpls<T> {
+impl<T: Message> PartialEq for MainThreadBoundDelegateImpls<T> {
     fn eq(&self, other: &Self) -> bool {
         // SAFETY: Marker only used to get the pointer
         let mtm = unsafe { MainThreadMarker::new_unchecked() };
@@ -40,7 +40,7 @@ impl<T: IsRetainable + Message> PartialEq for MainThreadBoundDelegateImpls<T> {
     }
 }
 
-impl<T: IsRetainable + Message> Eq for MainThreadBoundDelegateImpls<T> {}
+impl<T: Message> Eq for MainThreadBoundDelegateImpls<T> {}
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
 pub struct VideoModeHandle {
@@ -150,7 +150,7 @@ impl MonitorHandle {
                 #[allow(deprecated)]
                 UIScreen::screens(mtm)
                     .iter()
-                    .position(|rhs| rhs == &**self.ui_screen(mtm))
+                    .position(|rhs| rhs == *self.ui_screen(mtm))
                     .map(|idx| idx.to_string())
             }
         })
@@ -254,7 +254,7 @@ mod tests {
         assert!(ptr::eq(&*UIScreen::mainScreen(mtm), &*UIScreen::mainScreen(mtm)));
 
         let main = UIScreen::mainScreen(mtm);
-        assert!(UIScreen::screens(mtm).iter().any(|screen| ptr::eq(screen, &*main)));
+        assert!(UIScreen::screens(mtm).iter().any(|screen| ptr::eq(&*screen, &*main)));
 
         assert!(unsafe {
             NSSet::setWithArray(&UIScreen::screens(mtm)).containsObject(&UIScreen::mainScreen(mtm))

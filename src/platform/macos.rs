@@ -21,26 +21,21 @@
 #![cfg_attr(not(target_os = "macos"), doc = "```ignore")]
 //! use objc2::rc::Retained;
 //! use objc2::runtime::ProtocolObject;
-//! use objc2::{declare_class, msg_send_id, mutability, ClassType, DeclaredClass};
+//! use objc2::{define_class, msg_send, DefinedClass, MainThreadMarker, MainThreadOnly};
 //! use objc2_app_kit::{NSApplication, NSApplicationDelegate};
-//! use objc2_foundation::{NSArray, NSURL, MainThreadMarker, NSObject, NSObjectProtocol};
+//! use objc2_foundation::{NSArray, NSURL, NSObject, NSObjectProtocol};
 //! use winit::event_loop::EventLoop;
 //!
-//! declare_class!(
+//! define_class!(
+//!     #[unsafe(super(NSObject))]
+//!     #[thread_kind = MainThreadOnly]
+//!     #[name = "AppDelegate"]
 //!     struct AppDelegate;
-//!
-//!     unsafe impl ClassType for AppDelegate {
-//!         type Super = NSObject;
-//!         type Mutability = mutability::MainThreadOnly;
-//!         const NAME: &'static str = "MyAppDelegate";
-//!     }
-//!
-//!     impl DeclaredClass for AppDelegate {}
 //!
 //!     unsafe impl NSObjectProtocol for AppDelegate {}
 //!
 //!     unsafe impl NSApplicationDelegate for AppDelegate {
-//!         #[method(application:openURLs:)]
+//!         #[unsafe(method(application:openURLs:))]
 //!         fn application_openURLs(&self, application: &NSApplication, urls: &NSArray<NSURL>) {
 //!             // Note: To specifically get `application:openURLs:` to work, you _might_
 //!             // have to bundle your application. This is not done in this example.
@@ -51,7 +46,7 @@
 //!
 //! impl AppDelegate {
 //!     fn new(mtm: MainThreadMarker) -> Retained<Self> {
-//!         unsafe { msg_send_id![super(mtm.alloc().set_ivars(())), init] }
+//!         unsafe { msg_send![super(Self::alloc(mtm).set_ivars(())), init] }
 //!     }
 //! }
 //!
@@ -518,7 +513,7 @@ impl MonitorHandleExtMacOS for MonitorHandle {
 
     fn ns_screen(&self) -> Option<*mut c_void> {
         // SAFETY: We only use the marker to get a pointer
-        let mtm = unsafe { objc2_foundation::MainThreadMarker::new_unchecked() };
+        let mtm = unsafe { objc2::MainThreadMarker::new_unchecked() };
         self.inner.ns_screen(mtm).map(|s| objc2::rc::Retained::as_ptr(&s) as _)
     }
 }

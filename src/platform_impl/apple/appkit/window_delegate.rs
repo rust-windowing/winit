@@ -9,7 +9,9 @@ use std::sync::{Arc, Mutex};
 use core_graphics::display::CGDisplay;
 use objc2::rc::{autoreleasepool, Retained};
 use objc2::runtime::{AnyObject, ProtocolObject};
-use objc2::{declare_class, msg_send_id, mutability, sel, ClassType, DeclaredClass};
+use objc2::{
+    define_class, msg_send, sel, ClassType, DefinedClass, MainThreadMarker, MainThreadOnly, Message,
+};
 use objc2_app_kit::{
     NSAppKitVersionNumber, NSAppKitVersionNumber10_12, NSAppearance, NSAppearanceCustomization,
     NSAppearanceNameAqua, NSApplication, NSApplicationPresentationOptions, NSBackingStoreType,
@@ -19,11 +21,12 @@ use objc2_app_kit::{
     NSWindowOcclusionState, NSWindowOrderingMode, NSWindowSharingType, NSWindowStyleMask,
     NSWindowTabbingMode, NSWindowTitleVisibility, NSWindowToolbarStyle,
 };
+use objc2_core_foundation::CGFloat;
 use objc2_foundation::{
-    ns_string, CGFloat, MainThreadMarker, NSArray, NSCopying, NSDictionary, NSEdgeInsets,
-    NSKeyValueChangeKey, NSKeyValueChangeNewKey, NSKeyValueChangeOldKey,
-    NSKeyValueObservingOptions, NSNotificationCenter, NSObject, NSObjectNSDelayedPerforming,
-    NSObjectNSKeyValueObserverRegistration, NSObjectProtocol, NSPoint, NSRect, NSSize, NSString,
+    ns_string, NSArray, NSDictionary, NSEdgeInsets, NSKeyValueChangeKey, NSKeyValueChangeNewKey,
+    NSKeyValueChangeOldKey, NSKeyValueObservingOptions, NSNotificationCenter, NSObject,
+    NSObjectNSDelayedPerforming, NSObjectNSKeyValueObserverRegistration, NSObjectProtocol, NSPoint,
+    NSRect, NSSize, NSString,
 };
 use tracing::{trace, warn};
 
@@ -133,30 +136,24 @@ pub(crate) struct State {
     is_borderless_game: Cell<bool>,
 }
 
-declare_class!(
+define_class!(
+    #[unsafe(super(NSObject))]
+    #[thread_kind = MainThreadOnly]
+    #[name = "WinitWindowDelegate"]
+    #[ivars = State]
     pub(crate) struct WindowDelegate;
-
-    unsafe impl ClassType for WindowDelegate {
-        type Super = NSObject;
-        type Mutability = mutability::MainThreadOnly;
-        const NAME: &'static str = "WinitWindowDelegate";
-    }
-
-    impl DeclaredClass for WindowDelegate {
-        type Ivars = State;
-    }
 
     unsafe impl NSObjectProtocol for WindowDelegate {}
 
     unsafe impl NSWindowDelegate for WindowDelegate {
-        #[method(windowShouldClose:)]
+        #[unsafe(method(windowShouldClose:))]
         fn window_should_close(&self, _: Option<&AnyObject>) -> bool {
             trace_scope!("windowShouldClose:");
             self.queue_event(WindowEvent::CloseRequested);
             false
         }
 
-        #[method(windowWillClose:)]
+        #[unsafe(method(windowWillClose:))]
         fn window_will_close(&self, _: Option<&AnyObject>) {
             trace_scope!("windowWillClose:");
             // `setDelegate:` retains the previous value and then autoreleases it
@@ -168,14 +165,14 @@ declare_class!(
             self.queue_event(WindowEvent::Destroyed);
         }
 
-        #[method(windowDidResize:)]
+        #[unsafe(method(windowDidResize:))]
         fn window_did_resize(&self, _: Option<&AnyObject>) {
             trace_scope!("windowDidResize:");
             // NOTE: WindowEvent::SurfaceResized is reported using NSViewFrameDidChangeNotification.
             self.emit_move_event();
         }
 
-        #[method(windowWillStartLiveResize:)]
+        #[unsafe(method(windowWillStartLiveResize:))]
         fn window_will_start_live_resize(&self, _: Option<&AnyObject>) {
             trace_scope!("windowWillStartLiveResize:");
 
@@ -183,20 +180,20 @@ declare_class!(
             self.set_resize_increments_inner(increments);
         }
 
-        #[method(windowDidEndLiveResize:)]
+        #[unsafe(method(windowDidEndLiveResize:))]
         fn window_did_end_live_resize(&self, _: Option<&AnyObject>) {
             trace_scope!("windowDidEndLiveResize:");
             self.set_resize_increments_inner(NSSize::new(1., 1.));
         }
 
         // This won't be triggered if the move was part of a resize.
-        #[method(windowDidMove:)]
+        #[unsafe(method(windowDidMove:))]
         fn window_did_move(&self, _: Option<&AnyObject>) {
             trace_scope!("windowDidMove:");
             self.emit_move_event();
         }
 
-        #[method(windowDidChangeBackingProperties:)]
+        #[unsafe(method(windowDidChangeBackingProperties:))]
         fn window_did_change_backing_properties(&self, _: Option<&AnyObject>) {
             trace_scope!("windowDidChangeBackingProperties:");
             let scale_factor = self.scale_factor();
@@ -212,7 +209,7 @@ declare_class!(
             });
         }
 
-        #[method(windowDidBecomeKey:)]
+        #[unsafe(method(windowDidBecomeKey:))]
         fn window_did_become_key(&self, _: Option<&AnyObject>) {
             trace_scope!("windowDidBecomeKey:");
             // TODO: center the cursor if the window had mouse grab when it
@@ -220,7 +217,7 @@ declare_class!(
             self.queue_event(WindowEvent::Focused(true));
         }
 
-        #[method(windowDidResignKey:)]
+        #[unsafe(method(windowDidResignKey:))]
         fn window_did_resign_key(&self, _: Option<&AnyObject>) {
             trace_scope!("windowDidResignKey:");
             // It happens rather often, e.g. when the user is Cmd+Tabbing, that the
@@ -236,7 +233,7 @@ declare_class!(
         }
 
         /// Invoked when before enter fullscreen
-        #[method(windowWillEnterFullScreen:)]
+        #[unsafe(method(windowWillEnterFullScreen:))]
         fn window_will_enter_fullscreen(&self, _: Option<&AnyObject>) {
             trace_scope!("windowWillEnterFullScreen:");
 
@@ -246,7 +243,7 @@ declare_class!(
                 // Exclusive mode sets the state in `set_fullscreen` as the user
                 // can't enter exclusive mode by other means (like the
                 // fullscreen button on the window decorations)
-                Some(Fullscreen::Exclusive(_, _)) => (),
+                Some(Fullscreen::Exclusive(..)) => (),
                 // `window_will_enter_fullscreen` was triggered and we're already
                 // in fullscreen, so we must've reached here by `set_fullscreen`
                 // as it updates the state
@@ -262,14 +259,14 @@ declare_class!(
         }
 
         /// Invoked when before exit fullscreen
-        #[method(windowWillExitFullScreen:)]
+        #[unsafe(method(windowWillExitFullScreen:))]
         fn window_will_exit_fullscreen(&self, _: Option<&AnyObject>) {
             trace_scope!("windowWillExitFullScreen:");
 
             self.ivars().in_fullscreen_transition.set(true);
         }
 
-        #[method(window:willUseFullScreenPresentationOptions:)]
+        #[unsafe(method(window:willUseFullScreenPresentationOptions:))]
         fn window_will_use_fullscreen_presentation_options(
             &self,
             _: Option<&AnyObject>,
@@ -286,17 +283,17 @@ declare_class!(
             // user-provided options are ignored in exclusive fullscreen.
             let mut options = proposed_options;
             let fullscreen = self.ivars().fullscreen.borrow();
-            if let Some(Fullscreen::Exclusive(_, _)) = &*fullscreen {
-                options = NSApplicationPresentationOptions::NSApplicationPresentationFullScreen
-                    | NSApplicationPresentationOptions::NSApplicationPresentationHideDock
-                    | NSApplicationPresentationOptions::NSApplicationPresentationHideMenuBar;
+            if let Some(Fullscreen::Exclusive(..)) = &*fullscreen {
+                options = NSApplicationPresentationOptions::FullScreen
+                    | NSApplicationPresentationOptions::HideDock
+                    | NSApplicationPresentationOptions::HideMenuBar;
             }
 
             options
         }
 
         /// Invoked when entered fullscreen
-        #[method(windowDidEnterFullScreen:)]
+        #[unsafe(method(windowDidEnterFullScreen:))]
         fn window_did_enter_fullscreen(&self, _: Option<&AnyObject>) {
             trace_scope!("windowDidEnterFullScreen:");
             self.ivars().initial_fullscreen.set(false);
@@ -307,7 +304,7 @@ declare_class!(
         }
 
         /// Invoked when exited fullscreen
-        #[method(windowDidExitFullScreen:)]
+        #[unsafe(method(windowDidExitFullScreen:))]
         fn window_did_exit_fullscreen(&self, _: Option<&AnyObject>) {
             trace_scope!("windowDidExitFullScreen:");
 
@@ -334,7 +331,7 @@ declare_class!(
         /// due to being in the midst of handling some other animation or user gesture.
         /// This method indicates that there was an error, and you should clean up any
         /// work you may have done to prepare to enter full-screen mode.
-        #[method(windowDidFailToEnterFullScreen:)]
+        #[unsafe(method(windowDidFailToEnterFullScreen:))]
         fn window_did_fail_to_enter_fullscreen(&self, _: Option<&AnyObject>) {
             trace_scope!("windowDidFailToEnterFullScreen:");
             self.ivars().in_fullscreen_transition.set(false);
@@ -353,14 +350,14 @@ declare_class!(
         }
 
         // Invoked when the occlusion state of the window changes
-        #[method(windowDidChangeOcclusionState:)]
+        #[unsafe(method(windowDidChangeOcclusionState:))]
         fn window_did_change_occlusion_state(&self, _: Option<&AnyObject>) {
             trace_scope!("windowDidChangeOcclusionState:");
             let visible = self.window().occlusionState().contains(NSWindowOcclusionState::Visible);
             self.queue_event(WindowEvent::Occluded(!visible));
         }
 
-        #[method(windowDidChangeScreen:)]
+        #[unsafe(method(windowDidChangeScreen:))]
         fn window_did_change_screen(&self, _: Option<&AnyObject>) {
             trace_scope!("windowDidChangeScreen:");
             let is_simple_fullscreen = self.ivars().is_simple_fullscreen.get();
@@ -374,44 +371,49 @@ declare_class!(
 
     unsafe impl NSDraggingDestination for WindowDelegate {
         /// Invoked when the dragged image enters destination bounds or frame
-        #[method(draggingEntered:)]
+        #[unsafe(method(draggingEntered:))]
         fn dragging_entered(&self, sender: &ProtocolObject<dyn NSDraggingInfo>) -> bool {
             trace_scope!("draggingEntered:");
 
             use std::path::PathBuf;
 
             let pb = unsafe { sender.draggingPasteboard() };
-            let filenames = pb.propertyListForType(unsafe { NSFilenamesPboardType }).unwrap();
-            let filenames: Retained<NSArray<NSString>> = unsafe { Retained::cast(filenames) };
+            let filenames = pb
+                .propertyListForType(unsafe { NSFilenamesPboardType })
+                .unwrap()
+                .downcast::<NSArray>()
+                .unwrap();
             let paths = filenames
                 .into_iter()
-                .map(|file| PathBuf::from(file.to_string()))
+                .map(|file| PathBuf::from(file.downcast::<NSString>().unwrap().to_string()))
                 .collect();
 
             let dl = unsafe { sender.draggingLocation() };
             let dl = self.view().convertPoint_fromView(dl, None);
-            let position = LogicalPosition::<f64>::from((dl.x, dl.y)).to_physical(self.scale_factor());
-
+            let position =
+                LogicalPosition::<f64>::from((dl.x, dl.y)).to_physical(self.scale_factor());
 
             self.queue_event(WindowEvent::DragEntered { paths, position });
 
             true
         }
 
-        #[method(wantsPeriodicDraggingUpdates)]
+        #[unsafe(method(wantsPeriodicDraggingUpdates))]
         fn wants_periodic_dragging_updates(&self) -> bool {
             trace_scope!("wantsPeriodicDraggingUpdates:");
             true
         }
 
-        /// Invoked periodically as the image is held within the destination area, allowing modification of the dragging operation or mouse-pointer position.
-        #[method(draggingUpdated:)]
+        /// Invoked periodically as the image is held within the destination area, allowing
+        /// modification of the dragging operation or mouse-pointer position.
+        #[unsafe(method(draggingUpdated:))]
         fn dragging_updated(&self, sender: &ProtocolObject<dyn NSDraggingInfo>) -> bool {
             trace_scope!("draggingUpdated:");
 
             let dl = unsafe { sender.draggingLocation() };
             let dl = self.view().convertPoint_fromView(dl, None);
-            let position = LogicalPosition::<f64>::from((dl.x, dl.y)).to_physical(self.scale_factor());
+            let position =
+                LogicalPosition::<f64>::from((dl.x, dl.y)).to_physical(self.scale_factor());
 
             self.queue_event(WindowEvent::DragMoved { position });
 
@@ -419,30 +421,34 @@ declare_class!(
         }
 
         /// Invoked when the image is released
-        #[method(prepareForDragOperation:)]
+        #[unsafe(method(prepareForDragOperation:))]
         fn prepare_for_drag_operation(&self, _sender: &NSObject) -> bool {
             trace_scope!("prepareForDragOperation:");
             true
         }
 
         /// Invoked after the released image has been removed from the screen
-        #[method(performDragOperation:)]
+        #[unsafe(method(performDragOperation:))]
         fn perform_drag_operation(&self, sender: &ProtocolObject<dyn NSDraggingInfo>) -> bool {
             trace_scope!("performDragOperation:");
 
             use std::path::PathBuf;
 
             let pb = unsafe { sender.draggingPasteboard() };
-            let filenames = pb.propertyListForType(unsafe { NSFilenamesPboardType }).unwrap();
-            let filenames: Retained<NSArray<NSString>> = unsafe { Retained::cast(filenames) };
+            let filenames = pb
+                .propertyListForType(unsafe { NSFilenamesPboardType })
+                .unwrap()
+                .downcast::<NSArray>()
+                .unwrap();
             let paths = filenames
                 .into_iter()
-                .map(|file| PathBuf::from(file.to_string()))
+                .map(|file| PathBuf::from(file.downcast::<NSString>().unwrap().to_string()))
                 .collect();
 
             let dl = unsafe { sender.draggingLocation() };
             let dl = self.view().convertPoint_fromView(dl, None);
-            let position = LogicalPosition::<f64>::from((dl.x, dl.y)).to_physical(self.scale_factor());
+            let position =
+                LogicalPosition::<f64>::from((dl.x, dl.y)).to_physical(self.scale_factor());
 
             self.queue_event(WindowEvent::DragDropped { paths, position });
 
@@ -450,29 +456,29 @@ declare_class!(
         }
 
         /// Invoked when the dragging operation is complete
-        #[method(concludeDragOperation:)]
+        #[unsafe(method(concludeDragOperation:))]
         fn conclude_drag_operation(&self, _sender: Option<&NSObject>) {
             trace_scope!("concludeDragOperation:");
         }
 
         /// Invoked when the dragging operation is cancelled
-        #[method(draggingExited:)]
-        fn dragging_exited(&self, info: Option<&ProtocolObject<dyn NSDraggingInfo>>) {
+        #[unsafe(method(draggingExited:))]
+        fn dragging_exited(&self, sender: Option<&ProtocolObject<dyn NSDraggingInfo>>) {
             trace_scope!("draggingExited:");
 
-            let position = info.map(|info| {
-                let dl = unsafe { info.draggingLocation() };
+            let position = sender.map(|sender| {
+                let dl = unsafe { sender.draggingLocation() };
                 let dl = self.view().convertPoint_fromView(dl, None);
                 LogicalPosition::<f64>::from((dl.x, dl.y)).to_physical(self.scale_factor())
             });
 
-            self.queue_event(WindowEvent::DragLeft { position } );
+            self.queue_event(WindowEvent::DragLeft { position });
         }
     }
 
-    // Key-Value Observing
-    unsafe impl WindowDelegate {
-        #[method(observeValueForKeyPath:ofObject:change:context:)]
+    /// Key-Value Observing
+    impl WindowDelegate {
+        #[unsafe(method(observeValueForKeyPath:ofObject:change:context:))]
         fn observe_value(
             &self,
             key_path: Option<&NSString>,
@@ -488,19 +494,15 @@ declare_class!(
                     "requested a change dictionary in `addObserver`, but none was provided",
                 );
                 let old = change
-                    .get(unsafe { NSKeyValueChangeOldKey })
+                    .objectForKey(unsafe { NSKeyValueChangeOldKey })
                     .expect("requested change dictionary did not contain `NSKeyValueChangeOldKey`");
                 let new = change
-                    .get(unsafe { NSKeyValueChangeNewKey })
+                    .objectForKey(unsafe { NSKeyValueChangeNewKey })
                     .expect("requested change dictionary did not contain `NSKeyValueChangeNewKey`");
 
-                // SAFETY: The value of `effectiveAppearance` is `NSAppearance`
-                let old: *const AnyObject = old;
-                let old: *const NSAppearance = old.cast();
-                let old: &NSAppearance = unsafe { &*old };
-                let new: *const AnyObject = new;
-                let new: *const NSAppearance = new.cast();
-                let new: &NSAppearance = unsafe { &*new };
+                // The value of `effectiveAppearance` is `NSAppearance`
+                let old = old.downcast::<NSAppearance>().unwrap();
+                let new = new.downcast::<NSAppearance>().unwrap();
 
                 trace!(old = %unsafe { old.name() }, new = %unsafe { new.name() }, "effectiveAppearance changed");
 
@@ -511,8 +513,8 @@ declare_class!(
                     return;
                 }
 
-                let old = appearance_to_theme(old);
-                let new = appearance_to_theme(new);
+                let old = appearance_to_theme(&old);
+                let new = appearance_to_theme(&new);
                 // Check that the theme changed in Winit's terms (the theme might have changed on
                 // other parameters, such as level of contrast, but the event should not be emitted
                 // in those cases).
@@ -627,11 +629,11 @@ fn new_window(
             masks |= NSWindowStyleMask::NonactivatingPanel;
 
             let window: Option<Retained<WinitPanel>> = unsafe {
-                msg_send_id![
+                msg_send![
                     super(mtm.alloc().set_ivars(())),
                     initWithContentRect: frame,
                     styleMask: masks,
-                    backing: NSBackingStoreType::NSBackingStoreBuffered,
+                    backing: NSBackingStoreType::Buffered,
                     defer: false,
                 ]
             };
@@ -639,11 +641,11 @@ fn new_window(
             window?.as_super().as_super().retain()
         } else {
             let window: Option<Retained<WinitWindow>> = unsafe {
-                msg_send_id![
+                msg_send![
                     super(mtm.alloc().set_ivars(())),
                     initWithContentRect: frame,
                     styleMask: masks,
-                    backing: NSBackingStoreType::NSBackingStoreBuffered,
+                    backing: NSBackingStoreType::Buffered,
                     defer: false,
                 ]
             };
@@ -665,22 +667,22 @@ fn new_window(
         }
 
         if attrs.content_protected {
-            window.setSharingType(NSWindowSharingType::NSWindowSharingNone);
+            window.setSharingType(NSWindowSharingType::None);
         }
 
         if attrs.platform_specific.titlebar_transparent {
             window.setTitlebarAppearsTransparent(true);
         }
         if attrs.platform_specific.title_hidden {
-            window.setTitleVisibility(NSWindowTitleVisibility::NSWindowTitleHidden);
+            window.setTitleVisibility(NSWindowTitleVisibility::Hidden);
         }
         if attrs.platform_specific.titlebar_buttons_hidden {
             for titlebar_button in &[
                 #[allow(deprecated)]
                 NSWindowFullScreenButton,
-                NSWindowButton::NSWindowMiniaturizeButton,
-                NSWindowButton::NSWindowCloseButton,
-                NSWindowButton::NSWindowZoomButton,
+                NSWindowButton::MiniaturizeButton,
+                NSWindowButton::CloseButton,
+                NSWindowButton::ZoomButton,
             ] {
                 if let Some(button) = window.standardWindowButton(*titlebar_button) {
                     button.setHidden(true);
@@ -700,7 +702,7 @@ fn new_window(
         }
 
         if !attrs.enabled_buttons.contains(WindowButtons::MAXIMIZE) {
-            if let Some(button) = window.standardWindowButton(NSWindowButton::NSWindowZoomButton) {
+            if let Some(button) = window.standardWindowButton(NSWindowButton::ZoomButton) {
                 button.setEnabled(false);
             }
         }
@@ -762,10 +764,7 @@ fn new_window(
         }
 
         // register for drag and drop operations.
-        window
-            .registerForDraggedTypes(&NSArray::from_id_slice(&[
-                unsafe { NSFilenamesPboardType }.copy()
-            ]));
+        window.registerForDraggedTypes(&NSArray::from_slice(&[unsafe { NSFilenamesPboardType }]));
 
         Some(window)
     })
@@ -793,9 +792,7 @@ impl WindowDelegate {
                 // SAFETY: We know that there are no parent -> child -> parent cycles since the only
                 // place in `winit` where we allow making a window a child window is
                 // right here, just after it's been created.
-                unsafe {
-                    parent.addChildWindow_ordered(&window, NSWindowOrderingMode::NSWindowAbove)
-                };
+                unsafe { parent.addChildWindow_ordered(&window, NSWindowOrderingMode::Above) };
             },
             Some(raw) => panic!("invalid raw window handle {raw:?} on macOS"),
             None => (),
@@ -836,7 +833,7 @@ impl WindowDelegate {
             saved_style: Cell::new(None),
             is_borderless_game: Cell::new(attrs.platform_specific.borderless_game),
         });
-        let delegate: Retained<WindowDelegate> = unsafe { msg_send_id![super(delegate), init] };
+        let delegate: Retained<WindowDelegate> = unsafe { msg_send![super(delegate), init] };
 
         window.setDelegate(Some(ProtocolObject::from_ref(&*delegate)));
 
@@ -847,8 +844,7 @@ impl WindowDelegate {
             window.addObserver_forKeyPath_options_context(
                 &delegate,
                 ns_string!("effectiveAppearance"),
-                NSKeyValueObservingOptions::NSKeyValueObservingOptionNew
-                    | NSKeyValueObservingOptions::NSKeyValueObservingOptionOld,
+                NSKeyValueObservingOptions::New | NSKeyValueObservingOptions::Old,
                 ptr::null_mut(),
             )
         };
@@ -892,8 +888,8 @@ impl WindowDelegate {
 
     #[track_caller]
     pub(super) fn view(&self) -> Retained<WinitView> {
-        // SAFETY: The view inside WinitWindow is always `WinitView`
-        unsafe { Retained::cast(self.window().contentView().unwrap()) }
+        // The view inside WinitWindow should always be set and be `WinitView`.
+        self.window().contentView().unwrap().downcast().unwrap()
     }
 
     #[track_caller]
@@ -1213,8 +1209,7 @@ impl WindowDelegate {
         // We edit the button directly instead of using `NSResizableWindowMask`,
         // since that mask also affect the resizability of the window (which is
         // controllable by other means in `winit`).
-        if let Some(button) = self.window().standardWindowButton(NSWindowButton::NSWindowZoomButton)
-        {
+        if let Some(button) = self.window().standardWindowButton(NSWindowButton::ZoomButton) {
             button.setEnabled(buttons.contains(WindowButtons::MAXIMIZE));
         }
     }
@@ -1227,7 +1222,7 @@ impl WindowDelegate {
         }
         if self
             .window()
-            .standardWindowButton(NSWindowButton::NSWindowZoomButton)
+            .standardWindowButton(NSWindowButton::ZoomButton)
             .map(|b| b.isEnabled())
             .unwrap_or(true)
         {
@@ -1575,8 +1570,8 @@ impl WindowDelegate {
                 // `window:willUseFullScreenPresentationOptions` because for some reason
                 // the menu bar remains interactable despite being hidden.
                 if self.is_borderless_game() && matches!(fullscreen, Fullscreen::Borderless(_)) {
-                    let presentation_options = NSApplicationPresentationOptions::NSApplicationPresentationHideDock
-                            | NSApplicationPresentationOptions::NSApplicationPresentationHideMenuBar;
+                    let presentation_options = NSApplicationPresentationOptions::HideDock
+                        | NSApplicationPresentationOptions::HideMenuBar;
                     app.setPresentationOptions(presentation_options);
                 }
 
@@ -1601,10 +1596,9 @@ impl WindowDelegate {
                 // delegate in `window:willUseFullScreenPresentationOptions:`.
                 self.ivars().save_presentation_opts.set(Some(app.presentationOptions()));
 
-                let presentation_options =
-                    NSApplicationPresentationOptions::NSApplicationPresentationFullScreen
-                        | NSApplicationPresentationOptions::NSApplicationPresentationHideDock
-                        | NSApplicationPresentationOptions::NSApplicationPresentationHideMenuBar;
+                let presentation_options = NSApplicationPresentationOptions::FullScreen
+                    | NSApplicationPresentationOptions::HideDock
+                    | NSApplicationPresentationOptions::HideMenuBar;
                 app.setPresentationOptions(presentation_options);
 
                 let window_level = unsafe { ffi::CGShieldingWindowLevel() } as NSWindowLevel + 1;
@@ -1612,9 +1606,9 @@ impl WindowDelegate {
             },
             (Some(Fullscreen::Exclusive(ref monitor, _)), Some(Fullscreen::Borderless(_))) => {
                 let presentation_options = self.ivars().save_presentation_opts.get().unwrap_or(
-                    NSApplicationPresentationOptions::NSApplicationPresentationFullScreen
-                        | NSApplicationPresentationOptions::NSApplicationPresentationAutoHideDock
-                        | NSApplicationPresentationOptions::NSApplicationPresentationAutoHideMenuBar
+                    NSApplicationPresentationOptions::FullScreen
+                        | NSApplicationPresentationOptions::AutoHideDock
+                        | NSApplicationPresentationOptions::AutoHideMenuBar,
                 );
                 app.setPresentationOptions(presentation_options);
 
@@ -1726,8 +1720,8 @@ impl WindowDelegate {
     pub fn request_user_attention(&self, request_type: Option<UserAttentionType>) {
         let mtm = MainThreadMarker::from(self);
         let ns_request_type = request_type.map(|ty| match ty {
-            UserAttentionType::Critical => NSRequestUserAttentionType::NSCriticalRequest,
-            UserAttentionType::Informational => NSRequestUserAttentionType::NSInformationalRequest,
+            UserAttentionType::Critical => NSRequestUserAttentionType::CriticalRequest,
+            UserAttentionType::Informational => NSRequestUserAttentionType::InformationalRequest,
         });
         if let Some(ty) = ns_request_type {
             NSApplication::sharedApplication(mtm).requestUserAttention(ty);
@@ -1802,9 +1796,9 @@ impl WindowDelegate {
     #[inline]
     pub fn set_content_protected(&self, protected: bool) {
         self.window().setSharingType(if protected {
-            NSWindowSharingType::NSWindowSharingNone
+            NSWindowSharingType::None
         } else {
-            NSWindowSharingType::NSWindowSharingReadOnly
+            NSWindowSharingType::ReadOnly
         })
     }
 
@@ -1867,9 +1861,8 @@ impl WindowExtMacOS for WindowDelegate {
             self.ivars().is_simple_fullscreen.set(true);
 
             // Simulate pre-Lion fullscreen by hiding the dock and menu bar
-            let presentation_options =
-                NSApplicationPresentationOptions::NSApplicationPresentationAutoHideDock
-                    | NSApplicationPresentationOptions::NSApplicationPresentationAutoHideMenuBar;
+            let presentation_options = NSApplicationPresentationOptions::AutoHideDock
+                | NSApplicationPresentationOptions::AutoHideMenuBar;
             app.setPresentationOptions(presentation_options);
 
             // Hide the titlebar
@@ -1953,7 +1946,7 @@ impl WindowExtMacOS for WindowDelegate {
         if let Some(group) = self.window().tabGroup() {
             if let Some(windows) = unsafe { self.window().tabbedWindows() } {
                 if index < windows.len() {
-                    group.setSelectedWindow(Some(&windows[index]));
+                    group.setSelectedWindow(Some(&windows.objectAtIndex(index)));
                 }
             }
         }
@@ -2026,9 +2019,9 @@ fn dark_appearance_name() -> &'static NSString {
 }
 
 pub fn appearance_to_theme(appearance: &NSAppearance) -> Theme {
-    let best_match = appearance.bestMatchFromAppearancesWithNames(&NSArray::from_id_slice(&[
-        unsafe { NSAppearanceNameAqua.copy() },
-        dark_appearance_name().copy(),
+    let best_match = appearance.bestMatchFromAppearancesWithNames(&NSArray::from_slice(&[
+        unsafe { NSAppearanceNameAqua },
+        dark_appearance_name(),
     ]));
     if let Some(best_match) = best_match {
         if *best_match == *dark_appearance_name() {

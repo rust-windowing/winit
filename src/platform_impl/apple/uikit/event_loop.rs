@@ -11,8 +11,9 @@ use core_foundation::runloop::{
     CFRunLoopSourceInvalidate, CFRunLoopSourceRef, CFRunLoopSourceSignal, CFRunLoopWakeUp,
 };
 use objc2::rc::Retained;
-use objc2::{msg_send_id, ClassType};
-use objc2_foundation::{MainThreadMarker, NSNotificationCenter, NSObject};
+use objc2::runtime::ProtocolObject;
+use objc2::{msg_send, ClassType, MainThreadMarker};
+use objc2_foundation::{NSNotificationCenter, NSObjectProtocol};
 use objc2_ui_kit::{
     UIApplication, UIApplicationDidBecomeActiveNotification,
     UIApplicationDidEnterBackgroundNotification, UIApplicationDidFinishLaunchingNotification,
@@ -128,13 +129,13 @@ pub struct EventLoop {
     // system instead cleans it up next time it would have posted a notification to it.
     //
     // Though we do still need to keep the observers around to prevent them from being deallocated.
-    _did_finish_launching_observer: Retained<NSObject>,
-    _did_become_active_observer: Retained<NSObject>,
-    _will_resign_active_observer: Retained<NSObject>,
-    _will_enter_foreground_observer: Retained<NSObject>,
-    _did_enter_background_observer: Retained<NSObject>,
-    _will_terminate_observer: Retained<NSObject>,
-    _did_receive_memory_warning_observer: Retained<NSObject>,
+    _did_finish_launching_observer: Retained<ProtocolObject<dyn NSObjectProtocol>>,
+    _did_become_active_observer: Retained<ProtocolObject<dyn NSObjectProtocol>>,
+    _will_resign_active_observer: Retained<ProtocolObject<dyn NSObjectProtocol>>,
+    _will_enter_foreground_observer: Retained<ProtocolObject<dyn NSObjectProtocol>>,
+    _did_enter_background_observer: Retained<ProtocolObject<dyn NSObjectProtocol>>,
+    _will_terminate_observer: Retained<ProtocolObject<dyn NSObjectProtocol>>,
+    _did_receive_memory_warning_observer: Retained<ProtocolObject<dyn NSObjectProtocol>>,
 }
 
 #[derive(Default, Debug, Copy, Clone, PartialEq, Eq, Hash)]
@@ -189,9 +190,9 @@ impl EventLoop {
                 let app = unsafe { notification.object() }.expect(
                     "UIApplicationWillEnterForegroundNotification to have application object",
                 );
-                // SAFETY: The `object` in `UIApplicationWillEnterForegroundNotification` is
-                // documented to be `UIApplication`.
-                let app: Retained<UIApplication> = unsafe { Retained::cast(app) };
+                // The `object` in `UIApplicationWillEnterForegroundNotification` is documented to
+                // be `UIApplication`.
+                let app = app.downcast::<UIApplication>().unwrap();
                 send_occluded_event_for_all_windows(&app, false);
             },
         );
@@ -203,9 +204,9 @@ impl EventLoop {
                 let app = unsafe { notification.object() }.expect(
                     "UIApplicationDidEnterBackgroundNotification to have application object",
                 );
-                // SAFETY: The `object` in `UIApplicationDidEnterBackgroundNotification` is
-                // documented to be `UIApplication`.
-                let app: Retained<UIApplication> = unsafe { Retained::cast(app) };
+                // The `object` in `UIApplicationDidEnterBackgroundNotification` is documented to be
+                // `UIApplication`.
+                let app = app.downcast::<UIApplication>().unwrap();
                 send_occluded_event_for_all_windows(&app, true);
             },
         );
@@ -216,9 +217,9 @@ impl EventLoop {
             move |notification| {
                 let app = unsafe { notification.object() }
                     .expect("UIApplicationWillTerminateNotification to have application object");
-                // SAFETY: The `object` in `UIApplicationWillTerminateNotification` is
-                // (somewhat) documented to be `UIApplication`.
-                let app: Retained<UIApplication> = unsafe { Retained::cast(app) };
+                // The `object` in `UIApplicationWillTerminateNotification` is (somewhat) documented
+                // to be `UIApplication`.
+                let app = app.downcast::<UIApplication>().unwrap();
                 app_state::terminated(&app);
             },
         );
@@ -244,7 +245,7 @@ impl EventLoop {
 
     pub fn run_app<A: ApplicationHandler>(self, mut app: A) -> ! {
         let application: Option<Retained<UIApplication>> =
-            unsafe { msg_send_id![UIApplication::class(), sharedApplication] };
+            unsafe { msg_send![UIApplication::class(), sharedApplication] };
         assert!(
             application.is_none(),
             "\
