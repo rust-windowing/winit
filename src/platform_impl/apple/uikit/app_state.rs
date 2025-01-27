@@ -8,6 +8,7 @@ use std::sync::{Arc, Mutex};
 use std::time::Instant;
 use std::{mem, ptr};
 
+use dispatch2::MainThreadBound;
 use objc2::rc::Retained;
 use objc2::MainThreadMarker;
 use objc2_core_foundation::{
@@ -43,22 +44,10 @@ macro_rules! bug_assert {
 /// This is stored separately from AppState, since AppState needs to be accessible while the handler
 /// is executing.
 fn get_handler(mtm: MainThreadMarker) -> &'static EventHandler {
-    // TODO(madsmtm): Use `MainThreadBound` once that is possible in `static`s.
-    struct StaticMainThreadBound<T>(T);
-
-    impl<T> StaticMainThreadBound<T> {
-        const fn get(&self, _mtm: MainThreadMarker) -> &T {
-            &self.0
-        }
-    }
-
-    unsafe impl<T> Send for StaticMainThreadBound<T> {}
-    unsafe impl<T> Sync for StaticMainThreadBound<T> {}
-
     // SAFETY: Creating `StaticMainThreadBound` in a `const` context, where there is no concept
     // of the main thread.
-    static GLOBAL: StaticMainThreadBound<OnceCell<EventHandler>> =
-        StaticMainThreadBound(OnceCell::new());
+    static GLOBAL: MainThreadBound<OnceCell<EventHandler>> =
+        MainThreadBound::new(OnceCell::new(), unsafe { MainThreadMarker::new_unchecked() });
 
     GLOBAL.get(mtm).get_or_init(EventHandler::new)
 }

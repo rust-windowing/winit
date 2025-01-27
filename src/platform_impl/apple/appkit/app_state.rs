@@ -5,6 +5,7 @@ use std::sync::atomic::Ordering as AtomicOrdering;
 use std::sync::Arc;
 use std::time::Instant;
 
+use dispatch2::MainThreadBound;
 use objc2::MainThreadMarker;
 use objc2_app_kit::{NSApplication, NSApplicationActivationPolicy, NSRunningApplication};
 use objc2_foundation::NSNotification;
@@ -46,22 +47,10 @@ pub(super) struct AppState {
     // as such should be careful to not add fields that, in turn, strongly reference those.
 }
 
-// TODO(madsmtm): Use `MainThreadBound` once that is possible in `static`s.
-struct StaticMainThreadBound<T>(T);
-
-impl<T> StaticMainThreadBound<T> {
-    const fn get(&self, _mtm: MainThreadMarker) -> &T {
-        &self.0
-    }
-}
-
-unsafe impl<T> Send for StaticMainThreadBound<T> {}
-unsafe impl<T> Sync for StaticMainThreadBound<T> {}
-
-// SAFETY: Creating `StaticMainThreadBound` in a `const` context, where there is no concept of the
+// SAFETY: Creating `MainThreadBound` in a `const` context, where there is no concept of the
 // main thread.
-static GLOBAL: StaticMainThreadBound<OnceCell<Rc<AppState>>> =
-    StaticMainThreadBound(OnceCell::new());
+static GLOBAL: MainThreadBound<OnceCell<Rc<AppState>>> =
+    MainThreadBound::new(OnceCell::new(), unsafe { MainThreadMarker::new_unchecked() });
 
 impl AppState {
     pub(super) fn setup_global(
