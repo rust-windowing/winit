@@ -120,7 +120,6 @@ pub struct ViewState {
     phys_modifiers: RefCell<HashMap<Key, ModLocationMask>>,
     tracking_rect: Cell<Option<NSTrackingRectTag>>,
     ime_state: Cell<ImeState>,
-    input_source: RefCell<String>,
 
     /// True iff the application wants IME events.
     ///
@@ -293,12 +292,6 @@ declare_class!(
             // Update marked text.
             *self.ivars().marked_text.borrow_mut() = marked_text;
 
-            // Notify IME is active if application still doesn't know it.
-            if self.ivars().ime_state.get() == ImeState::Disabled {
-                *self.ivars().input_source.borrow_mut() = self.current_input_source();
-                self.queue_event(WindowEvent::Ime(Ime::Enabled));
-            }
-
             if unsafe { self.hasMarkedText() } {
                 self.ivars().ime_state.set(ImeState::Preedit);
             } else {
@@ -396,8 +389,7 @@ declare_class!(
 
             let is_control = string.chars().next().is_some_and(|c| c.is_control());
 
-            // Commit only if we have marked text.
-            if unsafe { self.hasMarkedText() } && self.is_ime_enabled() && !is_control {
+            if self.is_ime_enabled() && !is_control {
                 self.queue_event(WindowEvent::Ime(Ime::Preedit(String::new(), None)));
                 self.queue_event(WindowEvent::Ime(Ime::Commit(string)));
                 self.ivars().ime_state.set(ImeState::Committed);
@@ -406,16 +398,10 @@ declare_class!(
 
         // Basically, we're sent this message whenever a keyboard event that doesn't generate a "human
         // readable" character happens, i.e. newlines, tabs, and Ctrl+C.
+        // In this case, forward the key event to the app.
         #[method(doCommandBySelector:)]
         fn do_command_by_selector(&self, command: Sel) {
             trace_scope!("doCommandBySelector:");
-
-            // We shouldn't forward any character from just committed text, since we'll end up sending
-            // it twice with some IMEs like Korean one. We'll also always send `Enter` in that case,
-            // which is not desired given it was used to confirm IME input.
-            if self.ivars().ime_state.get() == ImeState::Committed {
-                return;
-            }
 
             self.ivars().forward_key_to_app.set(true);
 
@@ -443,19 +429,8 @@ declare_class!(
         #[method(keyDown:)]
         fn key_down(&self, event: &NSEvent) {
             trace_scope!("keyDown:");
-            {
-                let mut prev_input_source = self.ivars().input_source.borrow_mut();
-                let current_input_source = self.current_input_source();
-                if *prev_input_source != current_input_source && self.is_ime_enabled() {
-                    *prev_input_source = current_input_source;
-                    drop(prev_input_source);
-                    self.ivars().ime_state.set(ImeState::Disabled);
-                    self.queue_event(WindowEvent::Ime(Ime::Disabled));
-                }
-            }
 
             // Get the characters from the event.
-            let old_ime_state = self.ivars().ime_state.get();
             self.ivars().forward_key_to_app.set(false);
             let event = replace_event(event, self.option_as_alt());
 
@@ -478,18 +453,12 @@ declare_class!(
 
             self.update_modifiers(&event, false);
 
-            let had_ime_input = match self.ivars().ime_state.get() {
-                ImeState::Committed => {
-                    // Allow normal input after the commit.
-                    self.ivars().ime_state.set(ImeState::Ground);
-                    true
-                }
-                ImeState::Preedit => true,
-                // `key_down` could result in preedit clear, so compare old and current state.
-                _ => old_ime_state != self.ivars().ime_state.get(),
-            };
+            // Allow normal input after the commit.
+            if self.ivars().ime_state.get() == ImeState::Committed {
+                self.ivars().ime_state.set(ImeState::Ground);
+            }
 
-            if !had_ime_input || self.ivars().forward_key_to_app.get() {
+            if !self.is_ime_enabled() || self.ivars().forward_key_to_app.get() {
                 let key_event = create_key_event(&event, true, unsafe { event.isARepeat() });
                 self.queue_event(WindowEvent::KeyboardInput {
                     device_id: None,
@@ -814,7 +783,6 @@ impl WinitView {
             phys_modifiers: Default::default(),
             tracking_rect: Default::default(),
             ime_state: Default::default(),
-            input_source: Default::default(),
             ime_allowed: Default::default(),
             forward_key_to_app: Default::default(),
             marked_text: Default::default(),
@@ -822,8 +790,6 @@ impl WinitView {
             option_as_alt: Cell::new(option_as_alt),
         });
         let this: Retained<Self> = unsafe { msg_send_id![super(this), init] };
-
-        *this.ivars().input_source.borrow_mut() = this.current_input_source();
 
         this
     }
@@ -845,14 +811,6 @@ impl WinitView {
 
     fn is_ime_enabled(&self) -> bool {
         !matches!(self.ivars().ime_state.get(), ImeState::Disabled)
-    }
-
-    fn current_input_source(&self) -> String {
-        self.inputContext()
-            .expect("input context")
-            .selectedKeyboardInputSource()
-            .map(|input_source| input_source.to_string())
-            .unwrap_or_default()
     }
 
     pub(super) fn cursor_icon(&self) -> Retained<NSCursor> {
@@ -882,16 +840,19 @@ impl WinitView {
             return;
         }
         self.ivars().ime_allowed.set(ime_allowed);
-        if self.ivars().ime_allowed.get() {
-            return;
-        }
+        if ime_allowed {
+            if self.ivars().ime_state.get() == ImeState::Disabled {
+                self.ivars().ime_state.set(ImeState::Ground);
+                self.queue_event(WindowEvent::Ime(Ime::Enabled));
+            }
+        } else {
+            // Clear markedText
+            *self.ivars().marked_text.borrow_mut() = NSMutableAttributedString::new();
 
-        // Clear markedText
-        *self.ivars().marked_text.borrow_mut() = NSMutableAttributedString::new();
-
-        if self.ivars().ime_state.get() != ImeState::Disabled {
-            self.ivars().ime_state.set(ImeState::Disabled);
-            self.queue_event(WindowEvent::Ime(Ime::Disabled));
+            if self.ivars().ime_state.get() != ImeState::Disabled {
+                self.ivars().ime_state.set(ImeState::Disabled);
+                self.queue_event(WindowEvent::Ime(Ime::Disabled));
+            }
         }
     }
 

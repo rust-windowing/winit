@@ -165,6 +165,7 @@ changelog entry.
 - Rename `VideoModeHandle` to `VideoMode`, now it only stores plain data.
 - Make `Fullscreen::Exclusive` contain `(MonitorHandle, VideoMode)`.
 - On Wayland, no longer send an explicit clearing `Ime::Preedit` just prior to a new `Ime::Preedit`.
+- On macOS, always forwards keys to IME if IME is allowed via `set_ime_allowed`.
 
 ### Removed
 
@@ -207,3 +208,4 @@ changelog entry.
 - On macOS, fixed redundant `SurfaceResized` event at window creation.
 - On Windows, fixed the event loop not waking on accessibility requests.
 - On X11, fixed cursor grab mode state tracking on error.
+- On macOS, fixed handling of CJK full-width punctuation and SKK Japanese IME.
