@@ -6,11 +6,10 @@ use std::{fmt, hash, ptr};
 
 use dispatch2::{run_on_main, MainThreadBound};
 use objc2::rc::Retained;
-use objc2::{MainThreadMarker, Message};
+use objc2::{available, MainThreadMarker, Message};
 use objc2_foundation::NSInteger;
 use objc2_ui_kit::{UIScreen, UIScreenMode};
 
-use super::app_state;
 use crate::dpi::PhysicalPosition;
 use crate::monitor::VideoMode;
 
@@ -211,8 +210,7 @@ impl MonitorHandle {
 
 fn refresh_rate_millihertz(uiscreen: &UIScreen) -> Option<NonZeroU32> {
     let refresh_rate_millihertz: NSInteger = {
-        let os_capabilities = app_state::os_capabilities();
-        if os_capabilities.maximum_frames_per_second {
+        if available!(ios = 10.3, tvos = 10.2) {
             uiscreen.maximumFramesPerSecond()
         } else {
             // https://developer.apple.com/library/archive/technotes/tn2460/_index.html
@@ -225,7 +223,9 @@ fn refresh_rate_millihertz(uiscreen: &UIScreen) -> Option<NonZeroU32> {
             //
             // FIXME: earlier OSs could calculate the refresh rate using
             // `-[CADisplayLink duration]`.
-            os_capabilities.maximum_frames_per_second_err_msg("defaulting to 60 fps");
+            tracing::warn!(
+                "`maximumFramesPerSecond` requires iOS 10.3+ or tvOS 10.2+. Defaulting to 60 fps"
+            );
             60
         }
     };

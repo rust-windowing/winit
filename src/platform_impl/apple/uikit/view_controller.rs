@@ -1,14 +1,13 @@
 use std::cell::Cell;
 
 use objc2::rc::Retained;
-use objc2::{define_class, msg_send, DefinedClass, MainThreadMarker};
+use objc2::{available, define_class, msg_send, DefinedClass, MainThreadMarker};
 use objc2_foundation::NSObject;
 use objc2_ui_kit::{
     UIDevice, UIInterfaceOrientationMask, UIRectEdge, UIResponder, UIStatusBarStyle,
     UIUserInterfaceIdiom, UIView, UIViewController,
 };
 
-use super::app_state::{self};
 use crate::platform::ios::{ScreenEdge, StatusBarStyle, ValidOrientations};
 use crate::window::WindowAttributes;
 
@@ -78,11 +77,13 @@ impl WinitViewController {
 
     pub(crate) fn set_prefers_home_indicator_auto_hidden(&self, val: bool) {
         self.ivars().prefers_home_indicator_auto_hidden.set(val);
-        let os_capabilities = app_state::os_capabilities();
-        if os_capabilities.home_indicator_hidden {
+        if available!(ios = 11.0, visionos = 1.0) {
             self.setNeedsUpdateOfHomeIndicatorAutoHidden();
         } else {
-            os_capabilities.home_indicator_hidden_err_msg("ignoring")
+            tracing::warn!(
+                "`setNeedsUpdateOfHomeIndicatorAutoHidden` requires iOS 11.0+ or visionOS. \
+                 Ignoring"
+            );
         }
     }
 
@@ -92,11 +93,13 @@ impl WinitViewController {
             UIRectEdge(val.bits().into())
         };
         self.ivars().preferred_screen_edges_deferring_system_gestures.set(val);
-        let os_capabilities = app_state::os_capabilities();
-        if os_capabilities.defer_system_gestures {
+        if available!(ios = 11.0, visionos = 1.0) {
             self.setNeedsUpdateOfScreenEdgesDeferringSystemGestures();
         } else {
-            os_capabilities.defer_system_gestures_err_msg("ignoring")
+            tracing::warn!(
+                "`setNeedsUpdateOfScreenEdgesDeferringSystemGestures` requires iOS 11.0+ or \
+                 visionOS. Ignoring"
+            );
         }
     }
 

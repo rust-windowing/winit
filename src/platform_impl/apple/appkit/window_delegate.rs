@@ -10,7 +10,8 @@ use core_graphics::display::CGDisplay;
 use objc2::rc::{autoreleasepool, Retained};
 use objc2::runtime::{AnyObject, ProtocolObject};
 use objc2::{
-    define_class, msg_send, sel, ClassType, DefinedClass, MainThreadMarker, MainThreadOnly, Message,
+    available, define_class, msg_send, sel, ClassType, DefinedClass, MainThreadMarker,
+    MainThreadOnly, Message,
 };
 use objc2_app_kit::{
     NSAppKitVersionNumber, NSAppKitVersionNumber10_12, NSAppearance, NSAppearanceCustomization,
@@ -1781,7 +1782,7 @@ impl WindowDelegate {
                 let mtm = MainThreadMarker::from(self);
                 let app = NSApplication::sharedApplication(mtm);
 
-                if app.respondsToSelector(sel!(effectiveAppearance)) {
+                if available!(macos = 10.14) {
                     Some(super::window_delegate::appearance_to_theme(&app.effectiveAppearance()))
                 } else {
                     Some(Theme::Light)
@@ -1943,6 +1944,10 @@ impl WindowExtMacOS for WindowDelegate {
 
     #[inline]
     fn select_tab_at_index(&self, index: usize) {
+        if !available!(macos = 10.13) {
+            tracing::warn!("window tab groups are only available on macOS 10.13+");
+            return;
+        }
         if let Some(group) = self.window().tabGroup() {
             if let Some(windows) = unsafe { self.window().tabbedWindows() } {
                 if index < windows.len() {

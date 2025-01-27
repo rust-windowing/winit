@@ -183,7 +183,6 @@ objc2-foundation = { version = "0.3.0", default-features = false, features = [
     "NSObjCRuntime",
     "NSOperation",
     "NSString",
-    "NSProcessInfo",
     "NSThread",
     "NSSet",
 ] }

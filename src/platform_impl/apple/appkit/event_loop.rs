@@ -15,7 +15,7 @@ use core_foundation::runloop::{
 };
 use objc2::rc::{autoreleasepool, Retained};
 use objc2::runtime::ProtocolObject;
-use objc2::{msg_send, sel, ClassType, MainThreadMarker};
+use objc2::{available, msg_send, ClassType, MainThreadMarker};
 use objc2_app_kit::{
     NSApplication, NSApplicationActivationPolicy, NSApplicationDidFinishLaunchingNotification,
     NSApplicationWillTerminateNotification, NSWindow,
@@ -130,7 +130,8 @@ impl RootActiveEventLoop for ActiveEventLoop {
     fn system_theme(&self) -> Option<Theme> {
         let app = NSApplication::sharedApplication(self.mtm);
 
-        if app.respondsToSelector(sel!(effectiveAppearance)) {
+        // Dark appearance was introduced in macOS 10.14
+        if available!(macos = 10.14) {
             Some(super::window_delegate::appearance_to_theme(&app.effectiveAppearance()))
         } else {
             Some(Theme::Light)

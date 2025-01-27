@@ -4,7 +4,7 @@ use std::sync::OnceLock;
 
 use objc2::rc::Retained;
 use objc2::runtime::Sel;
-use objc2::{msg_send, sel, AllocAnyThread, ClassType};
+use objc2::{available, msg_send, sel, AllocAnyThread, ClassType};
 use objc2_app_kit::{NSBitmapImageRep, NSCursor, NSDeviceRGBColorSpace, NSImage};
 use objc2_foundation::{
     ns_string, NSData, NSDictionary, NSNumber, NSObject, NSPoint, NSSize, NSString,
@@ -204,7 +204,9 @@ pub(crate) fn cursor_from_icon(icon: CursorIcon) -> Retained<NSCursor> {
         CursorIcon::EwResize | CursorIcon::ColResize => NSCursor::resizeLeftRightCursor(),
         CursorIcon::NsResize | CursorIcon::RowResize => NSCursor::resizeUpDownCursor(),
         CursorIcon::Help => _helpCursor(),
+        CursorIcon::ZoomIn if available!(macos = 15.0) => unsafe { NSCursor::zoomInCursor() },
         CursorIcon::ZoomIn => _zoomInCursor(),
+        CursorIcon::ZoomOut if available!(macos = 15.0) => unsafe { NSCursor::zoomOutCursor() },
         CursorIcon::ZoomOut => _zoomOutCursor(),
         CursorIcon::NeResize => _windowResizeNorthEastCursor(),
         CursorIcon::NwResize => _windowResizeNorthWestCursor(),

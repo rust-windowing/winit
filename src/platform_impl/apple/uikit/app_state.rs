@@ -4,7 +4,7 @@ use std::cell::{OnceCell, RefCell, RefMut};
 use std::collections::HashSet;
 use std::os::raw::c_void;
 use std::sync::atomic::Ordering;
-use std::sync::{Arc, Mutex, OnceLock};
+use std::sync::{Arc, Mutex};
 use std::time::Instant;
 use std::{mem, ptr};
 
@@ -15,9 +15,8 @@ use core_foundation::runloop::{
     CFRunLoopTimerInvalidate, CFRunLoopTimerRef, CFRunLoopTimerSetNextFireDate,
 };
 use objc2::rc::Retained;
-use objc2::{sel, MainThreadMarker};
+use objc2::MainThreadMarker;
 use objc2_core_foundation::{CGRect, CGSize};
-use objc2_foundation::{NSInteger, NSObjectProtocol, NSOperatingSystemVersion, NSProcessInfo};
 use objc2_ui_kit::{UIApplication, UICoordinateSpace, UIView};
 
 use super::super::event_handler::EventHandler;
@@ -611,90 +610,4 @@ impl EventLoopWaker {
             }
         }
     }
-}
-
-macro_rules! os_capabilities {
-    (
-        $(
-            $(#[$attr:meta])*
-            $error_name:ident: $objc_call:literal,
-            $name:ident: $major:literal-$minor:literal
-        ),*
-        $(,)*
-    ) => {
-        #[derive(Clone, Debug)]
-        pub struct OSCapabilities {
-            $(
-                pub $name: bool,
-            )*
-
-            os_version: NSOperatingSystemVersion,
-        }
-
-        impl OSCapabilities {
-            fn from_os_version(os_version: NSOperatingSystemVersion) -> Self {
-                $(let $name = meets_requirements(os_version, $major, $minor);)*
-                Self { $($name,)* os_version, }
-            }
-        }
-
-        impl OSCapabilities {$(
-            $(#[$attr])*
-            pub fn $error_name(&self, extra_msg: &str) {
-                tracing::warn!(
-                    concat!("`", $objc_call, "` requires iOS {}.{}+. This device is running iOS {}.{}.{}. {}"),
-                    $major, $minor, self.os_version.majorVersion, self.os_version.minorVersion, self.os_version.patchVersion,
-                    extra_msg
-                )
-            }
-        )*}
-    };
-}
-
-os_capabilities! {
-    /// <https://developer.apple.com/documentation/uikit/uiview/2891103-safeareainsets?language=objc>
-    #[allow(unused)] // error message unused
-    safe_area_err_msg: "-[UIView safeAreaInsets]",
-    safe_area: 11-0,
-    /// <https://developer.apple.com/documentation/uikit/uiviewcontroller/2887509-setneedsupdateofhomeindicatoraut?language=objc>
-    home_indicator_hidden_err_msg: "-[UIViewController setNeedsUpdateOfHomeIndicatorAutoHidden]",
-    home_indicator_hidden: 11-0,
-    /// <https://developer.apple.com/documentation/uikit/uiviewcontroller/2887507-setneedsupdateofscreenedgesdefer?language=objc>
-    defer_system_gestures_err_msg: "-[UIViewController setNeedsUpdateOfScreenEdgesDeferringSystem]",
-    defer_system_gestures: 11-0,
-    /// <https://developer.apple.com/documentation/uikit/uiscreen/2806814-maximumframespersecond?language=objc>
-    maximum_frames_per_second_err_msg: "-[UIScreen maximumFramesPerSecond]",
-    maximum_frames_per_second: 10-3,
-    /// <https://developer.apple.com/documentation/uikit/uitouch/1618110-force?language=objc>
-    #[allow(unused)] // error message unused
-    force_touch_err_msg: "-[UITouch force]",
-    force_touch: 9-0,
-}
-
-fn meets_requirements(
-    version: NSOperatingSystemVersion,
-    required_major: NSInteger,
-    required_minor: NSInteger,
-) -> bool {
-    (version.majorVersion, version.minorVersion) >= (required_major, required_minor)
-}
-
-fn get_version() -> NSOperatingSystemVersion {
-    let process_info = NSProcessInfo::processInfo();
-    let atleast_ios_8 = process_info.respondsToSelector(sel!(operatingSystemVersion));
-    // Winit requires atleast iOS 8 because no one has put the time into supporting earlier os
-    // versions. Older iOS versions are increasingly difficult to test. For example, Xcode 11 does
-    // not support debugging on devices with an iOS version of less than 8. Another example, in
-    // order to use an iOS simulator older than iOS 8, you must download an older version of Xcode
-    // (<9), and at least Xcode 7 has been tested to not even run on macOS 10.15 - Xcode 8 might?
-    //
-    // The minimum required iOS version is likely to grow in the future.
-    assert!(atleast_ios_8, "`winit` requires iOS version 8 or greater");
-    process_info.operatingSystemVersion()
-}
-
-pub fn os_capabilities() -> OSCapabilities {
-    // Cache the version lookup for efficiency
-    static OS_CAPABILITIES: OnceLock<OSCapabilities> = OnceLock::new();
-    OS_CAPABILITIES.get_or_init(|| OSCapabilities::from_os_version(get_version())).clone()
 }

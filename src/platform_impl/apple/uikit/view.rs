@@ -3,7 +3,7 @@ use std::cell::{Cell, RefCell};
 
 use objc2::rc::Retained;
 use objc2::runtime::{NSObjectProtocol, ProtocolObject};
-use objc2::{define_class, msg_send, sel, DefinedClass, MainThreadMarker};
+use objc2::{available, define_class, msg_send, sel, DefinedClass, MainThreadMarker};
 use objc2_core_foundation::{CGFloat, CGPoint, CGRect};
 use objc2_foundation::{NSObject, NSSet, NSString};
 use objc2_ui_kit::{
@@ -462,13 +462,12 @@ impl WinitView {
     fn handle_touches(&self, touches: &NSSet<UITouch>) {
         let window = self.window().unwrap();
         let mut touch_events = Vec::new();
-        let os_supports_force = app_state::os_capabilities().force_touch;
         for touch in touches {
             let logical_location = touch.locationInView(None);
             let touch_type = touch.r#type();
             let force = if let UITouchType::Pencil = touch_type {
                 None
-            } else if os_supports_force {
+            } else if available!(ios = 9.0, tvos = 9.0, visionos = 1.0) {
                 let trait_collection = self.traitCollection();
                 let touch_capability = trait_collection.forceTouchCapability();
                 // Both the OS _and_ the device need to be checked for force touch support.

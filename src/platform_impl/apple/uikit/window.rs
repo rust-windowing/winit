@@ -4,7 +4,7 @@ use std::collections::VecDeque;
 
 use dispatch2::MainThreadBound;
 use objc2::rc::Retained;
-use objc2::{class, define_class, msg_send, MainThreadMarker};
+use objc2::{available, class, define_class, msg_send, MainThreadMarker};
 use objc2_core_foundation::{CGFloat, CGPoint, CGRect, CGSize};
 use objc2_foundation::{NSObject, NSObjectProtocol};
 use objc2_ui_kit::{
@@ -196,8 +196,7 @@ impl Inner {
     }
 
     pub fn safe_area(&self) -> PhysicalInsets<u32> {
-        // Only available on iOS 11.0
-        let insets = if app_state::os_capabilities().safe_area {
+        let insets = if available!(ios = 11.0, tvos = 11.0, visionos = 1.0) {
             self.view.safeAreaInsets()
         } else {
             // Assume the status bar frame is the only thing that obscures the view
