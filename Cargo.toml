@@ -105,17 +105,11 @@ ndk = { version = "0.9.0", features = ["rwh_06"], default-features = false }
 # AppKit or UIKit
 [target.'cfg(target_vendor = "apple")'.dependencies]
 block2 = "0.6.0"
-core-foundation = "0.9.3"
 dispatch2 = { version = "0.2.0", default-features = false, features = ["std", "objc2"] }
 objc2 = "0.6.0"
-objc2-core-foundation = { version = "0.3.0", default-features = false, features = [
-    "std",
-    "CFCGTypes",
-] }
 
 # AppKit
 [target.'cfg(target_os = "macos")'.dependencies]
-core-graphics = "0.23.1"
 objc2-app-kit = { version = "0.3.0", default-features = false, features = [
     "std",
     "objc2-core-foundation",
@@ -148,6 +142,33 @@ objc2-app-kit = { version = "0.3.0", default-features = false, features = [
     "NSWindowScripting",
     "NSWindowTabGroup",
 ] }
+objc2-core-foundation = { version = "0.3.0", default-features = false, features = [
+    "std",
+    "block2",
+    "CFBase",
+    "CFCGTypes",
+    "CFData",
+    "CFRunLoop",
+    "CFString",
+    "CFUUID",
+] }
+objc2-core-graphics = { version = "0.3.0", default-features = false, features = [
+    "std",
+    "libc",
+    "CGDirectDisplay",
+    "CGDisplayConfiguration",
+    "CGDisplayFade",
+    "CGError",
+    "CGRemoteOperation",
+    "CGWindowLevel",
+] }
+objc2-core-video = { version = "0.3.0", default-features = false, features = [
+    "std",
+    "objc2-core-graphics",
+    "CVBase",
+    "CVReturn",
+    "CVDisplayLink",
+] }
 objc2-foundation = { version = "0.3.0", default-features = false, features = [
     "std",
     "block2",
@@ -173,6 +194,13 @@ objc2-foundation = { version = "0.3.0", default-features = false, features = [
 
 # UIKit
 [target.'cfg(all(target_vendor = "apple", not(target_os = "macos")))'.dependencies]
+objc2-core-foundation = { version = "0.3.0", default-features = false, features = [
+    "std",
+    "CFCGTypes",
+    "CFBase",
+    "CFRunLoop",
+    "CFString",
+] }
 objc2-foundation = { version = "0.3.0", default-features = false, features = [
     "std",
     "block2",

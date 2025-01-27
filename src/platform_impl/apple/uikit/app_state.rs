@@ -8,15 +8,13 @@ use std::sync::{Arc, Mutex};
 use std::time::Instant;
 use std::{mem, ptr};
 
-use core_foundation::base::CFRelease;
-use core_foundation::date::CFAbsoluteTimeGetCurrent;
-use core_foundation::runloop::{
-    kCFRunLoopCommonModes, CFRunLoopAddTimer, CFRunLoopGetMain, CFRunLoopRef, CFRunLoopTimerCreate,
-    CFRunLoopTimerInvalidate, CFRunLoopTimerRef, CFRunLoopTimerSetNextFireDate,
-};
 use objc2::rc::Retained;
 use objc2::MainThreadMarker;
-use objc2_core_foundation::{CGRect, CGSize};
+use objc2_core_foundation::{
+    kCFRunLoopCommonModes, CFAbsoluteTimeGetCurrent, CFRetained, CFRunLoop, CFRunLoopAddTimer,
+    CFRunLoopGetMain, CFRunLoopTimer, CFRunLoopTimerCreate, CFRunLoopTimerInvalidate,
+    CFRunLoopTimerSetNextFireDate, CGRect, CGSize,
+};
 use objc2_ui_kit::{UIApplication, UICoordinateSpace, UIView};
 
 use super::super::event_handler::EventHandler;
@@ -128,7 +126,7 @@ impl AppState {
             #[inline(never)]
             #[cold]
             fn init_guard(guard: &mut RefMut<'static, Option<AppState>>) {
-                let waker = EventLoopWaker::new(unsafe { CFRunLoopGetMain() });
+                let waker = EventLoopWaker::new(unsafe { CFRunLoopGetMain().unwrap() });
                 **guard = Some(AppState {
                     app_state: Some(AppStateImpl::Initial { queued_gpu_redraws: HashSet::new() }),
                     control_flow: ControlFlow::default(),
@@ -554,46 +552,46 @@ fn get_view_and_screen_frame(window: &WinitUIWindow) -> (Retained<UIView>, CGRec
 }
 
 struct EventLoopWaker {
-    timer: CFRunLoopTimerRef,
+    timer: CFRetained<CFRunLoopTimer>,
 }
 
 impl Drop for EventLoopWaker {
     fn drop(&mut self) {
         unsafe {
-            CFRunLoopTimerInvalidate(self.timer);
-            CFRelease(self.timer as _);
+            CFRunLoopTimerInvalidate(&self.timer);
         }
     }
 }
 
 impl EventLoopWaker {
-    fn new(rl: CFRunLoopRef) -> EventLoopWaker {
-        extern "C" fn wakeup_main_loop(_timer: CFRunLoopTimerRef, _info: *mut c_void) {}
+    fn new(rl: CFRetained<CFRunLoop>) -> EventLoopWaker {
+        extern "C-unwind" fn wakeup_main_loop(_timer: *mut CFRunLoopTimer, _info: *mut c_void) {}
         unsafe {
             // Create a timer with a 0.1µs interval (1ns does not work) to mimic polling.
             // It is initially setup with a first fire time really far into the
             // future, but that gets changed to fire immediately in did_finish_launching
             let timer = CFRunLoopTimerCreate(
-                ptr::null_mut(),
+                None,
                 f64::MAX,
                 0.000_000_1,
                 0,
                 0,
-                wakeup_main_loop,
+                Some(wakeup_main_loop),
                 ptr::null_mut(),
-            );
-            CFRunLoopAddTimer(rl, timer, kCFRunLoopCommonModes);
+            )
+            .unwrap();
+            CFRunLoopAddTimer(&rl, Some(&timer), kCFRunLoopCommonModes);
 
             EventLoopWaker { timer }
         }
     }
 
     fn stop(&mut self) {
-        unsafe { CFRunLoopTimerSetNextFireDate(self.timer, f64::MAX) }
+        unsafe { CFRunLoopTimerSetNextFireDate(&self.timer, f64::MAX) }
     }
 
     fn start(&mut self) {
-        unsafe { CFRunLoopTimerSetNextFireDate(self.timer, f64::MIN) }
+        unsafe { CFRunLoopTimerSetNextFireDate(&self.timer, f64::MIN) }
     }
 
     fn start_at(&mut self, instant: Instant) {
@@ -606,7 +604,7 @@ impl EventLoopWaker {
                 let duration = instant - now;
                 let fsecs =
                     duration.subsec_nanos() as f64 / 1_000_000_000.0 + duration.as_secs() as f64;
-                CFRunLoopTimerSetNextFireDate(self.timer, current + fsecs)
+                CFRunLoopTimerSetNextFireDate(&self.timer, current + fsecs);
             }
         }
     }

@@ -8,17 +8,17 @@ use std::sync::atomic::{AtomicBool, Ordering as AtomicOrdering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use core_foundation::base::{CFIndex, CFRelease};
-use core_foundation::runloop::{
-    kCFRunLoopCommonModes, CFRunLoopAddSource, CFRunLoopGetMain, CFRunLoopSourceContext,
-    CFRunLoopSourceCreate, CFRunLoopSourceRef, CFRunLoopSourceSignal, CFRunLoopWakeUp,
-};
 use objc2::rc::{autoreleasepool, Retained};
 use objc2::runtime::ProtocolObject;
 use objc2::{available, msg_send, ClassType, MainThreadMarker};
 use objc2_app_kit::{
     NSApplication, NSApplicationActivationPolicy, NSApplicationDidFinishLaunchingNotification,
     NSApplicationWillTerminateNotification, NSWindow,
+};
+use objc2_core_foundation::{
+    kCFRunLoopCommonModes, CFIndex, CFRetained, CFRunLoopAddSource, CFRunLoopGetMain,
+    CFRunLoopSource, CFRunLoopSourceContext, CFRunLoopSourceCreate, CFRunLoopSourceSignal,
+    CFRunLoopWakeUp,
 };
 use objc2_foundation::{NSNotificationCenter, NSObjectProtocol};
 use rwh_06::HasDisplayHandle;
@@ -437,29 +437,21 @@ pub fn stop_app_on_panic<F: FnOnce() -> R + UnwindSafe, R>(
 #[derive(Debug)]
 pub struct EventLoopProxy {
     pub(crate) wake_up: AtomicBool,
-    source: CFRunLoopSourceRef,
+    source: CFRetained<CFRunLoopSource>,
 }
 
 unsafe impl Send for EventLoopProxy {}
 unsafe impl Sync for EventLoopProxy {}
 
-impl Drop for EventLoopProxy {
-    fn drop(&mut self) {
-        unsafe {
-            CFRelease(self.source as _);
-        }
-    }
-}
-
 impl EventLoopProxy {
     pub(crate) fn new() -> Self {
         unsafe {
             // just wake up the eventloop
-            extern "C" fn event_loop_proxy_handler(_: *const c_void) {}
+            extern "C-unwind" fn event_loop_proxy_handler(_context: *mut c_void) {}
 
             // adding a Source to the main CFRunLoop lets us wake it up and
             // process user events through the normal OS EventLoop mechanisms.
-            let rl = CFRunLoopGetMain();
+            let rl = CFRunLoopGetMain().unwrap();
             let mut context = CFRunLoopSourceContext {
                 version: 0,
                 info: ptr::null_mut(),
@@ -470,11 +462,11 @@ impl EventLoopProxy {
                 hash: None,
                 schedule: None,
                 cancel: None,
-                perform: event_loop_proxy_handler,
+                perform: Some(event_loop_proxy_handler),
             };
-            let source = CFRunLoopSourceCreate(ptr::null_mut(), CFIndex::MAX - 1, &mut context);
-            CFRunLoopAddSource(rl, source, kCFRunLoopCommonModes);
-            CFRunLoopWakeUp(rl);
+            let source = CFRunLoopSourceCreate(None, CFIndex::MAX - 1, &mut context).unwrap();
+            CFRunLoopAddSource(&rl, Some(&source), kCFRunLoopCommonModes);
+            CFRunLoopWakeUp(&rl);
 
             EventLoopProxy { wake_up: AtomicBool::new(false), source }
         }
@@ -486,9 +478,9 @@ impl EventLoopProxyProvider for EventLoopProxy {
         self.wake_up.store(true, AtomicOrdering::Relaxed);
         unsafe {
             // Let the main thread know there's a new event.
-            CFRunLoopSourceSignal(self.source);
-            let rl = CFRunLoopGetMain();
-            CFRunLoopWakeUp(rl);
+            CFRunLoopSourceSignal(&self.source);
+            let rl = CFRunLoopGetMain().unwrap();
+            CFRunLoopWakeUp(&rl);
         }
     }
 }

@@ -6,7 +6,6 @@ use std::ptr;
 use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 
-use core_graphics::display::CGDisplay;
 use objc2::rc::{autoreleasepool, Retained};
 use objc2::runtime::{AnyObject, ProtocolObject};
 use objc2::{
@@ -22,7 +21,12 @@ use objc2_app_kit::{
     NSWindowOcclusionState, NSWindowOrderingMode, NSWindowSharingType, NSWindowStyleMask,
     NSWindowTabbingMode, NSWindowTitleVisibility, NSWindowToolbarStyle,
 };
-use objc2_core_foundation::CGFloat;
+use objc2_core_foundation::{CGFloat, CGPoint};
+use objc2_core_graphics::{
+    CGAcquireDisplayFadeReservation, CGAssociateMouseAndMouseCursorPosition, CGDisplayCapture,
+    CGDisplayFade, CGDisplayRelease, CGDisplaySetDisplayMode, CGReleaseDisplayFadeReservation,
+    CGRestorePermanentDisplayConfiguration, CGShieldingWindowLevel, CGWarpMouseCursorPosition,
+};
 use objc2_foundation::{
     ns_string, NSArray, NSDictionary, NSEdgeInsets, NSKeyValueChangeKey, NSKeyValueChangeNewKey,
     NSKeyValueChangeOldKey, NSKeyValueObservingOptions, NSNotificationCenter, NSObject,
@@ -35,6 +39,7 @@ use super::app_state::AppState;
 use super::cursor::cursor_from_icon;
 use super::monitor::{self, flip_window_screen_coordinates, get_display_id};
 use super::observer::RunLoop;
+use super::util::cgerr;
 use super::view::WinitView;
 use super::window::{window_id, WinitPanel, WinitWindow};
 use super::{ffi, Fullscreen, MonitorHandle};
@@ -1262,8 +1267,9 @@ impl WindowDelegate {
         };
 
         // TODO: Do this for real https://stackoverflow.com/a/40922095/5435443
-        CGDisplay::associate_mouse_and_mouse_cursor_position(associate_mouse_cursor)
-            .map_err(|status| os_error!(format!("CGError {status}")).into())
+        cgerr(unsafe { CGAssociateMouseAndMouseCursorPosition(associate_mouse_cursor) })?;
+
+        Ok(())
     }
 
     #[inline]
@@ -1285,14 +1291,12 @@ impl WindowDelegate {
         let content_rect = self.window().contentRectForFrameRect(self.window().frame());
         let window_position = flip_window_screen_coordinates(content_rect);
         let cursor_position = cursor_position.to_logical::<CGFloat>(self.scale_factor());
-        let point = core_graphics::display::CGPoint {
+        let point = CGPoint {
             x: window_position.x + cursor_position.x,
             y: window_position.y + cursor_position.y,
         };
-        CGDisplay::warp_mouse_cursor_position(point)
-            .map_err(|status| os_error!(format!("CGError {status}")))?;
-        CGDisplay::associate_mouse_and_mouse_cursor_position(true)
-            .map_err(|status| os_error!(format!("CGError {status}")))?;
+        cgerr(unsafe { CGWarpMouseCursorPosition(point) })?;
+        cgerr(unsafe { CGAssociateMouseAndMouseCursorPosition(true) })?;
 
         Ok(())
     }
@@ -1494,10 +1498,8 @@ impl WindowDelegate {
             unsafe {
                 // Fade to black (and wait for the fade to complete) to hide the
                 // flicker from capturing the display and switching display mode
-                if ffi::CGAcquireDisplayFadeReservation(5.0, &mut fade_token)
-                    == ffi::kCGErrorSuccess
-                {
-                    ffi::CGDisplayFade(
+                if cgerr(CGAcquireDisplayFadeReservation(5.0, &mut fade_token)).is_ok() {
+                    CGDisplayFade(
                         fade_token,
                         0.3,
                         ffi::kCGDisplayBlendNormal,
@@ -1505,11 +1507,11 @@ impl WindowDelegate {
                         0.0,
                         0.0,
                         0.0,
-                        ffi::TRUE,
+                        true,
                     );
                 }
 
-                assert_eq!(ffi::CGDisplayCapture(display_id), ffi::kCGErrorSuccess);
+                cgerr(CGDisplayCapture(display_id)).unwrap();
             }
 
             let video_mode =
@@ -1519,17 +1521,13 @@ impl WindowDelegate {
                 };
 
             unsafe {
-                let result = ffi::CGDisplaySetDisplayMode(
-                    display_id,
-                    video_mode.native_mode.0,
-                    std::ptr::null(),
-                );
-                assert!(result == ffi::kCGErrorSuccess, "failed to set video mode");
+                cgerr(CGDisplaySetDisplayMode(display_id, Some(&video_mode.native_mode.0), None))
+                    .expect("failed to set video mode");
 
                 // After the display has been configured, fade back in
                 // asynchronously
                 if fade_token != ffi::kCGDisplayFadeReservationInvalidToken {
-                    ffi::CGDisplayFade(
+                    CGDisplayFade(
                         fade_token,
                         0.6,
                         ffi::kCGDisplayBlendSolidColor,
@@ -1537,9 +1535,9 @@ impl WindowDelegate {
                         0.0,
                         0.0,
                         0.0,
-                        ffi::FALSE,
+                        false,
                     );
-                    ffi::CGReleaseDisplayFadeReservation(fade_token);
+                    CGReleaseDisplayFadeReservation(fade_token);
                 }
             }
         }
@@ -1602,7 +1600,7 @@ impl WindowDelegate {
                     | NSApplicationPresentationOptions::HideMenuBar;
                 app.setPresentationOptions(presentation_options);
 
-                let window_level = unsafe { ffi::CGShieldingWindowLevel() } as NSWindowLevel + 1;
+                let window_level = unsafe { CGShieldingWindowLevel() } as NSWindowLevel + 1;
                 self.window().setLevel(window_level);
             },
             (Some(Fullscreen::Exclusive(ref monitor, _)), Some(Fullscreen::Borderless(_))) => {
@@ -1816,8 +1814,8 @@ fn restore_and_release_display(monitor: &MonitorHandle) {
     let available_monitors = monitor::available_monitors();
     if available_monitors.contains(monitor) {
         unsafe {
-            ffi::CGRestorePermanentDisplayConfiguration();
-            assert_eq!(ffi::CGDisplayRelease(monitor.native_identifier()), ffi::kCGErrorSuccess);
+            CGRestorePermanentDisplayConfiguration();
+            cgerr(CGDisplayRelease(monitor.native_identifier())).unwrap();
         };
     } else {
         warn!(
