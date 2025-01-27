@@ -120,7 +120,6 @@ pub struct ViewState {
     phys_modifiers: RefCell<HashMap<Key, ModLocationMask>>,
     tracking_rect: Cell<Option<NSTrackingRectTag>>,
     ime_state: Cell<ImeState>,
-    input_source: RefCell<String>,
 
     /// True iff the application wants IME events.
     ///
@@ -430,10 +429,6 @@ declare_class!(
         #[method(keyDown:)]
         fn key_down(&self, event: &NSEvent) {
             trace_scope!("keyDown:");
-            {
-                let mut input_source = self.ivars().input_source.borrow_mut();
-                *input_source = self.current_input_source();
-            }
 
             // Get the characters from the event.
             self.ivars().forward_key_to_app.set(false);
@@ -788,7 +783,6 @@ impl WinitView {
             phys_modifiers: Default::default(),
             tracking_rect: Default::default(),
             ime_state: Default::default(),
-            input_source: Default::default(),
             ime_allowed: Default::default(),
             forward_key_to_app: Default::default(),
             marked_text: Default::default(),
@@ -796,8 +790,6 @@ impl WinitView {
             option_as_alt: Cell::new(option_as_alt),
         });
         let this: Retained<Self> = unsafe { msg_send_id![super(this), init] };
-
-        *this.ivars().input_source.borrow_mut() = this.current_input_source();
 
         this
     }
@@ -819,14 +811,6 @@ impl WinitView {
 
     fn is_ime_enabled(&self) -> bool {
         !matches!(self.ivars().ime_state.get(), ImeState::Disabled)
-    }
-
-    fn current_input_source(&self) -> String {
-        self.inputContext()
-            .expect("input context")
-            .selectedKeyboardInputSource()
-            .map(|input_source| input_source.to_string())
-            .unwrap_or_default()
     }
 
     pub(super) fn cursor_icon(&self) -> Retained<NSCursor> {
