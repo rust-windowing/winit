@@ -9,22 +9,18 @@ use std::ptr;
 use std::rc::Weak;
 use std::time::Instant;
 
-use block2::Block;
-use core_foundation::base::{CFIndex, CFOptionFlags, CFRelease, CFTypeRef};
-use core_foundation::date::CFAbsoluteTimeGetCurrent;
-use core_foundation::runloop::{
-    kCFRunLoopAfterWaiting, kCFRunLoopBeforeWaiting, kCFRunLoopCommonModes, kCFRunLoopDefaultMode,
-    kCFRunLoopExit, CFRunLoopActivity, CFRunLoopAddObserver, CFRunLoopAddTimer, CFRunLoopGetMain,
-    CFRunLoopObserverCallBack, CFRunLoopObserverContext, CFRunLoopObserverCreate,
-    CFRunLoopObserverRef, CFRunLoopRef, CFRunLoopTimerCreate, CFRunLoopTimerInvalidate,
-    CFRunLoopTimerRef, CFRunLoopTimerSetNextFireDate, CFRunLoopWakeUp,
+use objc2::MainThreadMarker;
+use objc2_core_foundation::{
+    kCFRunLoopCommonModes, kCFRunLoopDefaultMode, CFAbsoluteTimeGetCurrent, CFIndex, CFRetained,
+    CFRunLoop, CFRunLoopActivity, CFRunLoopAddObserver, CFRunLoopAddTimer, CFRunLoopGetMain,
+    CFRunLoopObserver, CFRunLoopObserverCallBack, CFRunLoopObserverContext,
+    CFRunLoopObserverCreate, CFRunLoopPerformBlock, CFRunLoopTimer, CFRunLoopTimerCreate,
+    CFRunLoopTimerInvalidate, CFRunLoopTimerSetNextFireDate, CFRunLoopWakeUp,
 };
-use objc2_foundation::MainThreadMarker;
 use tracing::error;
 
 use super::app_state::AppState;
 use super::event_loop::{stop_app_on_panic, PanicInfo};
-use super::ffi;
 
 unsafe fn control_flow_handler<F>(panic_info: *mut c_void, f: F)
 where
@@ -48,8 +44,8 @@ where
 }
 
 // begin is queued with the highest priority to ensure it is processed before other observers
-extern "C" fn control_flow_begin_handler(
-    _: CFRunLoopObserverRef,
+extern "C-unwind" fn control_flow_begin_handler(
+    _: *mut CFRunLoopObserver,
     activity: CFRunLoopActivity,
     panic_info: *mut c_void,
 ) {
@@ -57,7 +53,7 @@ extern "C" fn control_flow_begin_handler(
         control_flow_handler(panic_info, |panic_info| {
             #[allow(non_upper_case_globals)]
             match activity {
-                kCFRunLoopAfterWaiting => {
+                CFRunLoopActivity::AfterWaiting => {
                     // trace!("Triggered `CFRunLoopAfterWaiting`");
                     AppState::get(MainThreadMarker::new().unwrap()).wakeup(panic_info);
                     // trace!("Completed `CFRunLoopAfterWaiting`");
@@ -70,8 +66,8 @@ extern "C" fn control_flow_begin_handler(
 
 // end is queued with the lowest priority to ensure it is processed after other observers
 // without that, LoopExiting would  get sent after AboutToWait
-extern "C" fn control_flow_end_handler(
-    _: CFRunLoopObserverRef,
+extern "C-unwind" fn control_flow_end_handler(
+    _: *mut CFRunLoopObserver,
     activity: CFRunLoopActivity,
     panic_info: *mut c_void,
 ) {
@@ -79,12 +75,12 @@ extern "C" fn control_flow_end_handler(
         control_flow_handler(panic_info, |panic_info| {
             #[allow(non_upper_case_globals)]
             match activity {
-                kCFRunLoopBeforeWaiting => {
+                CFRunLoopActivity::BeforeWaiting => {
                     // trace!("Triggered `CFRunLoopBeforeWaiting`");
                     AppState::get(MainThreadMarker::new().unwrap()).cleared(panic_info);
                     // trace!("Completed `CFRunLoopBeforeWaiting`");
                 },
-                kCFRunLoopExit => (), // unimplemented!(), // not expected to ever happen
+                CFRunLoopActivity::Exit => (), /* unimplemented!(), // not expected to ever happen */
                 _ => unreachable!(),
             }
         });
@@ -92,44 +88,32 @@ extern "C" fn control_flow_end_handler(
 }
 
 #[derive(Debug)]
-pub struct RunLoop(CFRunLoopRef);
-
-impl Default for RunLoop {
-    fn default() -> Self {
-        Self(ptr::null_mut())
-    }
-}
+pub struct RunLoop(CFRetained<CFRunLoop>);
 
 impl RunLoop {
     pub fn main(mtm: MainThreadMarker) -> Self {
         // SAFETY: We have a MainThreadMarker here, which means we know we're on the main thread, so
         // scheduling (and scheduling a non-`Send` block) to that thread is allowed.
         let _ = mtm;
-        RunLoop(unsafe { CFRunLoopGetMain() })
+        RunLoop(unsafe { CFRunLoopGetMain() }.unwrap())
     }
 
     pub fn wakeup(&self) {
-        unsafe { CFRunLoopWakeUp(self.0) }
+        unsafe { CFRunLoopWakeUp(&self.0) }
     }
 
     unsafe fn add_observer(
         &self,
-        flags: CFOptionFlags,
+        flags: CFRunLoopActivity,
+        // The lower the value, the sooner this will run
         priority: CFIndex,
         handler: CFRunLoopObserverCallBack,
         context: *mut CFRunLoopObserverContext,
     ) {
-        let observer = unsafe {
-            CFRunLoopObserverCreate(
-                ptr::null_mut(),
-                flags,
-                ffi::TRUE, // Indicates we want this to run repeatedly
-                priority,  // The lower the value, the sooner this will run
-                handler,
-                context,
-            )
-        };
-        unsafe { CFRunLoopAddObserver(self.0, observer, kCFRunLoopCommonModes) };
+        let observer =
+            unsafe { CFRunLoopObserverCreate(None, flags.0, true, priority, handler, context) }
+                .unwrap();
+        unsafe { CFRunLoopAddObserver(&self.0, Some(&observer), kCFRunLoopCommonModes) };
     }
 
     /// Submit a closure to run on the main thread as the next step in the run loop, before other
@@ -166,10 +150,6 @@ impl RunLoop {
     /// put the event at the very front of the queue, to be handled as soon as possible after
     /// handling whatever event it's currently handling.
     pub fn queue_closure(&self, closure: impl FnOnce() + 'static) {
-        extern "C" {
-            fn CFRunLoopPerformBlock(rl: CFRunLoopRef, mode: CFTypeRef, block: &Block<dyn Fn()>);
-        }
-
         // Convert `FnOnce()` to `Block<dyn Fn()>`.
         let closure = Cell::new(Some(closure));
         let block = block2::RcBlock::new(move || {
@@ -195,10 +175,10 @@ impl RunLoop {
         // and be delivered to the application afterwards.
         //
         // [#1779]: https://github.com/rust-windowing/winit/issues/1779
-        let mode = unsafe { kCFRunLoopDefaultMode as CFTypeRef };
+        let mode = unsafe { kCFRunLoopDefaultMode.unwrap() };
 
         // SAFETY: The runloop is valid, the mode is a `CFStringRef`, and the block is `'static`.
-        unsafe { CFRunLoopPerformBlock(self.0, mode, &block) }
+        unsafe { CFRunLoopPerformBlock(&self.0, Some(mode), Some(&block)) }
     }
 }
 
@@ -213,15 +193,15 @@ pub fn setup_control_flow_observers(mtm: MainThreadMarker, panic_info: Weak<Pani
             copyDescription: None,
         };
         run_loop.add_observer(
-            kCFRunLoopAfterWaiting,
+            CFRunLoopActivity::AfterWaiting,
             CFIndex::MIN,
-            control_flow_begin_handler,
+            Some(control_flow_begin_handler),
             &mut context as *mut _,
         );
         run_loop.add_observer(
-            kCFRunLoopExit | kCFRunLoopBeforeWaiting,
+            CFRunLoopActivity::Exit | CFRunLoopActivity::BeforeWaiting,
             CFIndex::MAX,
-            control_flow_end_handler,
+            Some(control_flow_end_handler),
             &mut context as *mut _,
         );
     }
@@ -229,7 +209,7 @@ pub fn setup_control_flow_observers(mtm: MainThreadMarker, panic_info: Weak<Pani
 
 #[derive(Debug)]
 pub struct EventLoopWaker {
-    timer: CFRunLoopTimerRef,
+    timer: CFRetained<CFRunLoopTimer>,
 
     /// An arbitrary instant in the past, that will trigger an immediate wake
     /// We save this as the `next_fire_date` for consistency so we can
@@ -244,30 +224,28 @@ pub struct EventLoopWaker {
 
 impl Drop for EventLoopWaker {
     fn drop(&mut self) {
-        unsafe {
-            CFRunLoopTimerInvalidate(self.timer);
-            CFRelease(self.timer as _);
-        }
+        unsafe { CFRunLoopTimerInvalidate(&self.timer) };
     }
 }
 
 impl EventLoopWaker {
     pub(crate) fn new() -> Self {
-        extern "C" fn wakeup_main_loop(_timer: CFRunLoopTimerRef, _info: *mut c_void) {}
+        extern "C-unwind" fn wakeup_main_loop(_timer: *mut CFRunLoopTimer, _info: *mut c_void) {}
         unsafe {
             // Create a timer with a 0.1µs interval (1ns does not work) to mimic polling.
             // It is initially setup with a first fire time really far into the
             // future, but that gets changed to fire immediately in did_finish_launching
             let timer = CFRunLoopTimerCreate(
-                ptr::null_mut(),
+                None,
                 f64::MAX,
                 0.000_000_1,
                 0,
                 0,
-                wakeup_main_loop,
+                Some(wakeup_main_loop),
                 ptr::null_mut(),
-            );
-            CFRunLoopAddTimer(CFRunLoopGetMain(), timer, kCFRunLoopCommonModes);
+            )
+            .unwrap();
+            CFRunLoopAddTimer(&CFRunLoopGetMain().unwrap(), Some(&timer), kCFRunLoopCommonModes);
             Self { timer, start_instant: Instant::now(), next_fire_date: None }
         }
     }
@@ -275,14 +253,14 @@ impl EventLoopWaker {
     pub fn stop(&mut self) {
         if self.next_fire_date.is_some() {
             self.next_fire_date = None;
-            unsafe { CFRunLoopTimerSetNextFireDate(self.timer, f64::MAX) }
+            unsafe { CFRunLoopTimerSetNextFireDate(&self.timer, f64::MAX) };
         }
     }
 
     pub fn start(&mut self) {
         if self.next_fire_date != Some(self.start_instant) {
             self.next_fire_date = Some(self.start_instant);
-            unsafe { CFRunLoopTimerSetNextFireDate(self.timer, f64::MIN) }
+            unsafe { CFRunLoopTimerSetNextFireDate(&self.timer, f64::MIN) };
         }
     }
 
@@ -300,7 +278,7 @@ impl EventLoopWaker {
                         let duration = instant - now;
                         let fsecs = duration.subsec_nanos() as f64 / 1_000_000_000.0
                             + duration.as_secs() as f64;
-                        CFRunLoopTimerSetNextFireDate(self.timer, current + fsecs)
+                        CFRunLoopTimerSetNextFireDate(&self.timer, current + fsecs);
                     }
                 }
             },

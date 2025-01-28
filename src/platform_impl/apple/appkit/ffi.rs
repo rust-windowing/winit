@@ -4,40 +4,16 @@
 
 use std::ffi::c_void;
 
-use core_foundation::array::CFArrayRef;
-use core_foundation::dictionary::CFDictionaryRef;
-use core_foundation::string::CFStringRef;
-use core_foundation::uuid::CFUUIDRef;
-use core_graphics::base::CGError;
-use core_graphics::display::{CGDirectDisplayID, CGDisplayConfigRef};
 use objc2::ffi::NSInteger;
 use objc2::runtime::AnyObject;
-
-pub type CGDisplayFadeInterval = f32;
-pub type CGDisplayReservationInterval = f32;
-pub type CGDisplayBlendFraction = f32;
+use objc2_core_foundation::{cf_type, CFString, CFUUID};
+use objc2_core_graphics::CGDirectDisplayID;
 
 pub const kCGDisplayBlendNormal: f32 = 0.0;
 pub const kCGDisplayBlendSolidColor: f32 = 1.0;
 
 pub type CGDisplayFadeReservationToken = u32;
 pub const kCGDisplayFadeReservationInvalidToken: CGDisplayFadeReservationToken = 0;
-
-pub type Boolean = u8;
-pub const FALSE: Boolean = 0;
-pub const TRUE: Boolean = 1;
-
-pub const kCGErrorSuccess: i32 = 0;
-pub const kCGErrorFailure: i32 = 1000;
-pub const kCGErrorIllegalArgument: i32 = 1001;
-pub const kCGErrorInvalidConnection: i32 = 1002;
-pub const kCGErrorInvalidContext: i32 = 1003;
-pub const kCGErrorCannotComplete: i32 = 1004;
-pub const kCGErrorNotImplemented: i32 = 1006;
-pub const kCGErrorRangeCheck: i32 = 1007;
-pub const kCGErrorTypeCheck: i32 = 1008;
-pub const kCGErrorInvalidOperation: i32 = 1010;
-pub const kCGErrorNoneAvailable: i32 = 1011;
 
 pub const IO1BitIndexedPixels: &str = "P";
 pub const IO2BitIndexedPixels: &str = "PP";
@@ -55,9 +31,6 @@ pub const kIO32BitFloatPixels: &str = "-32FR32FG32FB32";
 pub const IOYUV422Pixels: &str = "Y4U2V2";
 pub const IO8BitOverlayPixels: &str = "O8";
 
-pub type CGWindowLevel = i32;
-pub type CGDisplayModeRef = *mut c_void;
-
 // `CGDisplayCreateUUIDFromDisplayID` comes from the `ColorSync` framework.
 // However, that framework was only introduced "publicly" in macOS 10.13.
 //
@@ -67,54 +40,11 @@ pub type CGDisplayModeRef = *mut c_void;
 // https://developer.apple.com/library/archive/documentation/MacOSX/Conceptual/OSX_Technology_Overview/SystemFrameworks/SystemFrameworks.html#//apple_ref/doc/uid/TP40001067-CH210-BBCFFIEG
 #[link(name = "ApplicationServices", kind = "framework")]
 extern "C" {
-    pub fn CGDisplayCreateUUIDFromDisplayID(display: CGDirectDisplayID) -> CFUUIDRef;
+    pub fn CGDisplayCreateUUIDFromDisplayID(display: CGDirectDisplayID) -> *mut CFUUID;
 }
 
 #[link(name = "CoreGraphics", kind = "framework")]
 extern "C" {
-    pub fn CGRestorePermanentDisplayConfiguration();
-    pub fn CGDisplayCapture(display: CGDirectDisplayID) -> CGError;
-    pub fn CGDisplayRelease(display: CGDirectDisplayID) -> CGError;
-    pub fn CGConfigureDisplayFadeEffect(
-        config: CGDisplayConfigRef,
-        fadeOutSeconds: CGDisplayFadeInterval,
-        fadeInSeconds: CGDisplayFadeInterval,
-        fadeRed: f32,
-        fadeGreen: f32,
-        fadeBlue: f32,
-    ) -> CGError;
-    pub fn CGAcquireDisplayFadeReservation(
-        seconds: CGDisplayReservationInterval,
-        token: *mut CGDisplayFadeReservationToken,
-    ) -> CGError;
-    pub fn CGDisplayFade(
-        token: CGDisplayFadeReservationToken,
-        duration: CGDisplayFadeInterval,
-        startBlend: CGDisplayBlendFraction,
-        endBlend: CGDisplayBlendFraction,
-        redBlend: f32,
-        greenBlend: f32,
-        blueBlend: f32,
-        synchronous: Boolean,
-    ) -> CGError;
-    pub fn CGReleaseDisplayFadeReservation(token: CGDisplayFadeReservationToken) -> CGError;
-    pub fn CGShieldingWindowLevel() -> CGWindowLevel;
-    pub fn CGDisplaySetDisplayMode(
-        display: CGDirectDisplayID,
-        mode: CGDisplayModeRef,
-        options: CFDictionaryRef,
-    ) -> CGError;
-    pub fn CGDisplayCopyAllDisplayModes(
-        display: CGDirectDisplayID,
-        options: CFDictionaryRef,
-    ) -> CFArrayRef;
-    pub fn CGDisplayModeGetPixelWidth(mode: CGDisplayModeRef) -> usize;
-    pub fn CGDisplayModeGetPixelHeight(mode: CGDisplayModeRef) -> usize;
-    pub fn CGDisplayModeGetRefreshRate(mode: CGDisplayModeRef) -> f64;
-    pub fn CGDisplayModeCopyPixelEncoding(mode: CGDisplayModeRef) -> CFStringRef;
-    pub fn CGDisplayModeRetain(mode: CGDisplayModeRef);
-    pub fn CGDisplayModeRelease(mode: CGDisplayModeRef);
-
     // Wildly used private APIs; Apple uses them for their Terminal.app.
     pub fn CGSMainConnectionID() -> *mut AnyObject;
     pub fn CGSSetWindowBackgroundBlurRadius(
@@ -124,50 +54,13 @@ extern "C" {
     ) -> i32;
 }
 
-mod core_video {
-    use super::*;
-
-    #[link(name = "CoreVideo", kind = "framework")]
-    extern "C" {}
-
-    // CVBase.h
-
-    pub type CVTimeFlags = i32; // int32_t
-    pub const kCVTimeIsIndefinite: CVTimeFlags = 1 << 0;
-
-    #[repr(C)]
-    #[derive(Debug, Clone)]
-    pub struct CVTime {
-        pub time_value: i64, // int64_t
-        pub time_scale: i32, // int32_t
-        pub flags: i32,      // int32_t
-    }
-
-    // CVReturn.h
-
-    pub type CVReturn = i32; // int32_t
-    pub const kCVReturnSuccess: CVReturn = 0;
-
-    // CVDisplayLink.h
-
-    pub type CVDisplayLinkRef = *mut c_void;
-
-    extern "C" {
-        pub fn CVDisplayLinkCreateWithCGDisplay(
-            displayID: CGDirectDisplayID,
-            displayLinkOut: *mut CVDisplayLinkRef,
-        ) -> CVReturn;
-        pub fn CVDisplayLinkGetNominalOutputVideoRefreshPeriod(
-            displayLink: CVDisplayLinkRef,
-        ) -> CVTime;
-        pub fn CVDisplayLinkRelease(displayLink: CVDisplayLinkRef);
-    }
-}
-
-pub use core_video::*;
 #[repr(transparent)]
 pub struct TISInputSource(std::ffi::c_void);
-pub type TISInputSourceRef = *mut TISInputSource;
+
+cf_type!(
+    #[encoding_name = "__TISInputSource"]
+    unsafe impl TISInputSource {}
+);
 
 #[repr(transparent)]
 pub struct UCKeyboardLayout(std::ffi::c_void);
@@ -184,15 +77,15 @@ pub const kUCKeyTranslateNoDeadKeysMask: OptionBits = 1;
 
 #[link(name = "Carbon", kind = "framework")]
 extern "C" {
-    pub static kTISPropertyUnicodeKeyLayoutData: CFStringRef;
+    pub static kTISPropertyUnicodeKeyLayoutData: &'static CFString;
 
     #[allow(non_snake_case)]
     pub fn TISGetInputSourceProperty(
-        inputSource: TISInputSourceRef,
-        propertyKey: CFStringRef,
+        inputSource: &TISInputSource,
+        propertyKey: &CFString,
     ) -> *mut c_void;
 
-    pub fn TISCopyCurrentKeyboardLayoutInputSource() -> TISInputSourceRef;
+    pub fn TISCopyCurrentKeyboardLayoutInputSource() -> *mut TISInputSource;
 
     pub fn LMGetKbdType() -> u8;
 

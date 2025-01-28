@@ -2,11 +2,11 @@
 
 use std::collections::VecDeque;
 
+use dispatch2::MainThreadBound;
 use objc2::rc::Retained;
-use objc2::{class, declare_class, msg_send, msg_send_id, mutability, ClassType, DeclaredClass};
-use objc2_foundation::{
-    CGFloat, CGPoint, CGRect, CGSize, MainThreadBound, MainThreadMarker, NSObject, NSObjectProtocol,
-};
+use objc2::{available, class, define_class, msg_send, MainThreadMarker};
+use objc2_core_foundation::{CGFloat, CGPoint, CGRect, CGSize};
+use objc2_foundation::{NSObject, NSObjectProtocol};
 use objc2_ui_kit::{
     UIApplication, UICoordinateSpace, UIEdgeInsets, UIResponder, UIScreen,
     UIScreenOverscanCompensation, UIViewController, UIWindow,
@@ -32,43 +32,31 @@ use crate::window::{
     WindowAttributes, WindowButtons, WindowId, WindowLevel,
 };
 
-declare_class!(
+define_class!(
+    #[unsafe(super(UIWindow, UIResponder, NSObject))]
+    #[name = "WinitUIWindow"]
     #[derive(Debug, PartialEq, Eq, Hash)]
     pub(crate) struct WinitUIWindow;
 
-    unsafe impl ClassType for WinitUIWindow {
-        #[inherits(UIResponder, NSObject)]
-        type Super = UIWindow;
-        type Mutability = mutability::MainThreadOnly;
-        const NAME: &'static str = "WinitUIWindow";
-    }
-
-    impl DeclaredClass for WinitUIWindow {}
-
-    unsafe impl WinitUIWindow {
-        #[method(becomeKeyWindow)]
+    /// This documentation attribute makes rustfmt work for some reason?
+    impl WinitUIWindow {
+        #[unsafe(method(becomeKeyWindow))]
         fn become_key_window(&self) {
             let mtm = MainThreadMarker::new().unwrap();
-            app_state::handle_nonuser_event(
-                mtm,
-                EventWrapper::Window {
-                    window_id: self.id(),
-                    event: WindowEvent::Focused(true),
-                },
-            );
+            app_state::handle_nonuser_event(mtm, EventWrapper::Window {
+                window_id: self.id(),
+                event: WindowEvent::Focused(true),
+            });
             let _: () = unsafe { msg_send![super(self), becomeKeyWindow] };
         }
 
-        #[method(resignKeyWindow)]
+        #[unsafe(method(resignKeyWindow))]
         fn resign_key_window(&self) {
             let mtm = MainThreadMarker::new().unwrap();
-            app_state::handle_nonuser_event(
-                mtm,
-                EventWrapper::Window {
-                    window_id: self.id(),
-                    event: WindowEvent::Focused(false),
-                },
-            );
+            app_state::handle_nonuser_event(mtm, EventWrapper::Window {
+                window_id: self.id(),
+                event: WindowEvent::Focused(false),
+            });
             let _: () = unsafe { msg_send![super(self), resignKeyWindow] };
         }
     }
@@ -86,7 +74,7 @@ impl WinitUIWindow {
         // into very confusing issues with the window not being properly activated.
         //
         // Winit ensures this by not allowing access to `ActiveEventLoop` before handling events.
-        let this: Retained<Self> = unsafe { msg_send_id![mtm.alloc(), initWithFrame: frame] };
+        let this: Retained<Self> = unsafe { msg_send![mtm.alloc(), initWithFrame: frame] };
 
         this.setRootViewController(Some(view_controller));
 
@@ -208,8 +196,7 @@ impl Inner {
     }
 
     pub fn safe_area(&self) -> PhysicalInsets<u32> {
-        // Only available on iOS 11.0
-        let insets = if app_state::os_capabilities().safe_area {
+        let insets = if available!(ios = 11.0, tvos = 11.0, visionos = 1.0) {
             self.view.safeAreaInsets()
         } else {
             // Assume the status bar frame is the only thing that obscures the view

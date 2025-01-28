@@ -3,16 +3,16 @@ use std::ptr::{self, NonNull};
 use std::sync::atomic::{AtomicBool, Ordering as AtomicOrdering};
 use std::sync::Arc;
 
-use core_foundation::base::{CFIndex, CFRelease};
-use core_foundation::runloop::{
-    kCFRunLoopAfterWaiting, kCFRunLoopBeforeWaiting, kCFRunLoopCommonModes, kCFRunLoopDefaultMode,
-    kCFRunLoopExit, CFRunLoopActivity, CFRunLoopAddObserver, CFRunLoopAddSource, CFRunLoopGetMain,
-    CFRunLoopObserverCreate, CFRunLoopObserverRef, CFRunLoopSourceContext, CFRunLoopSourceCreate,
-    CFRunLoopSourceInvalidate, CFRunLoopSourceRef, CFRunLoopSourceSignal, CFRunLoopWakeUp,
-};
 use objc2::rc::Retained;
-use objc2::{msg_send_id, ClassType};
-use objc2_foundation::{MainThreadMarker, NSNotificationCenter, NSObject};
+use objc2::runtime::ProtocolObject;
+use objc2::{msg_send, ClassType, MainThreadMarker};
+use objc2_core_foundation::{
+    kCFRunLoopCommonModes, kCFRunLoopDefaultMode, CFIndex, CFRetained, CFRunLoopActivity,
+    CFRunLoopAddObserver, CFRunLoopAddSource, CFRunLoopGetMain, CFRunLoopObserver,
+    CFRunLoopObserverCreate, CFRunLoopSource, CFRunLoopSourceContext, CFRunLoopSourceCreate,
+    CFRunLoopSourceInvalidate, CFRunLoopSourceSignal, CFRunLoopWakeUp,
+};
+use objc2_foundation::{NSNotificationCenter, NSObjectProtocol};
 use objc2_ui_kit::{
     UIApplication, UIApplicationDidBecomeActiveNotification,
     UIApplicationDidEnterBackgroundNotification, UIApplicationDidFinishLaunchingNotification,
@@ -128,13 +128,13 @@ pub struct EventLoop {
     // system instead cleans it up next time it would have posted a notification to it.
     //
     // Though we do still need to keep the observers around to prevent them from being deallocated.
-    _did_finish_launching_observer: Retained<NSObject>,
-    _did_become_active_observer: Retained<NSObject>,
-    _will_resign_active_observer: Retained<NSObject>,
-    _will_enter_foreground_observer: Retained<NSObject>,
-    _did_enter_background_observer: Retained<NSObject>,
-    _will_terminate_observer: Retained<NSObject>,
-    _did_receive_memory_warning_observer: Retained<NSObject>,
+    _did_finish_launching_observer: Retained<ProtocolObject<dyn NSObjectProtocol>>,
+    _did_become_active_observer: Retained<ProtocolObject<dyn NSObjectProtocol>>,
+    _will_resign_active_observer: Retained<ProtocolObject<dyn NSObjectProtocol>>,
+    _will_enter_foreground_observer: Retained<ProtocolObject<dyn NSObjectProtocol>>,
+    _did_enter_background_observer: Retained<ProtocolObject<dyn NSObjectProtocol>>,
+    _will_terminate_observer: Retained<ProtocolObject<dyn NSObjectProtocol>>,
+    _did_receive_memory_warning_observer: Retained<ProtocolObject<dyn NSObjectProtocol>>,
 }
 
 #[derive(Default, Debug, Copy, Clone, PartialEq, Eq, Hash)]
@@ -189,9 +189,9 @@ impl EventLoop {
                 let app = unsafe { notification.object() }.expect(
                     "UIApplicationWillEnterForegroundNotification to have application object",
                 );
-                // SAFETY: The `object` in `UIApplicationWillEnterForegroundNotification` is
-                // documented to be `UIApplication`.
-                let app: Retained<UIApplication> = unsafe { Retained::cast(app) };
+                // The `object` in `UIApplicationWillEnterForegroundNotification` is documented to
+                // be `UIApplication`.
+                let app = app.downcast::<UIApplication>().unwrap();
                 send_occluded_event_for_all_windows(&app, false);
             },
         );
@@ -203,9 +203,9 @@ impl EventLoop {
                 let app = unsafe { notification.object() }.expect(
                     "UIApplicationDidEnterBackgroundNotification to have application object",
                 );
-                // SAFETY: The `object` in `UIApplicationDidEnterBackgroundNotification` is
-                // documented to be `UIApplication`.
-                let app: Retained<UIApplication> = unsafe { Retained::cast(app) };
+                // The `object` in `UIApplicationDidEnterBackgroundNotification` is documented to be
+                // `UIApplication`.
+                let app = app.downcast::<UIApplication>().unwrap();
                 send_occluded_event_for_all_windows(&app, true);
             },
         );
@@ -216,9 +216,9 @@ impl EventLoop {
             move |notification| {
                 let app = unsafe { notification.object() }
                     .expect("UIApplicationWillTerminateNotification to have application object");
-                // SAFETY: The `object` in `UIApplicationWillTerminateNotification` is
-                // (somewhat) documented to be `UIApplication`.
-                let app: Retained<UIApplication> = unsafe { Retained::cast(app) };
+                // The `object` in `UIApplicationWillTerminateNotification` is (somewhat) documented
+                // to be `UIApplication`.
+                let app = app.downcast::<UIApplication>().unwrap();
                 app_state::terminated(&app);
             },
         );
@@ -244,7 +244,7 @@ impl EventLoop {
 
     pub fn run_app<A: ApplicationHandler>(self, mut app: A) -> ! {
         let application: Option<Retained<UIApplication>> =
-            unsafe { msg_send_id![UIApplication::class(), sharedApplication] };
+            unsafe { msg_send![UIApplication::class(), sharedApplication] };
         assert!(
             application.is_none(),
             "\
@@ -279,7 +279,7 @@ impl EventLoop {
 
 pub struct EventLoopProxy {
     pub(crate) wake_up: AtomicBool,
-    source: CFRunLoopSourceRef,
+    source: CFRetained<CFRunLoopSource>,
 }
 
 unsafe impl Send for EventLoopProxy {}
@@ -287,10 +287,7 @@ unsafe impl Sync for EventLoopProxy {}
 
 impl Drop for EventLoopProxy {
     fn drop(&mut self) {
-        unsafe {
-            CFRunLoopSourceInvalidate(self.source);
-            CFRelease(self.source as _);
-        }
+        unsafe { CFRunLoopSourceInvalidate(&self.source) };
     }
 }
 
@@ -298,11 +295,11 @@ impl EventLoopProxy {
     pub(crate) fn new() -> EventLoopProxy {
         unsafe {
             // just wake up the eventloop
-            extern "C" fn event_loop_proxy_handler(_: *const c_void) {}
+            extern "C-unwind" fn event_loop_proxy_handler(_: *mut c_void) {}
 
             // adding a Source to the main CFRunLoop lets us wake it up and
             // process user events through the normal OS EventLoop mechanisms.
-            let rl = CFRunLoopGetMain();
+            let rl = CFRunLoopGetMain().unwrap();
             let mut context = CFRunLoopSourceContext {
                 version: 0,
                 info: ptr::null_mut(),
@@ -313,11 +310,11 @@ impl EventLoopProxy {
                 hash: None,
                 schedule: None,
                 cancel: None,
-                perform: event_loop_proxy_handler,
+                perform: Some(event_loop_proxy_handler),
             };
-            let source = CFRunLoopSourceCreate(ptr::null_mut(), CFIndex::MAX - 1, &mut context);
-            CFRunLoopAddSource(rl, source, kCFRunLoopCommonModes);
-            CFRunLoopWakeUp(rl);
+            let source = CFRunLoopSourceCreate(None, CFIndex::MAX - 1, &mut context).unwrap();
+            CFRunLoopAddSource(&rl, Some(&source), kCFRunLoopCommonModes);
+            CFRunLoopWakeUp(&rl);
 
             EventLoopProxy { wake_up: AtomicBool::new(false), source }
         }
@@ -329,9 +326,9 @@ impl EventLoopProxyProvider for EventLoopProxy {
         self.wake_up.store(true, AtomicOrdering::Relaxed);
         unsafe {
             // let the main thread know there's a new event
-            CFRunLoopSourceSignal(self.source);
-            let rl = CFRunLoopGetMain();
-            CFRunLoopWakeUp(rl);
+            CFRunLoopSourceSignal(&self.source);
+            let rl = CFRunLoopGetMain().unwrap();
+            CFRunLoopWakeUp(&rl);
         }
     }
 }
@@ -340,15 +337,15 @@ fn setup_control_flow_observers() {
     unsafe {
         // begin is queued with the highest priority to ensure it is processed before other
         // observers
-        extern "C" fn control_flow_begin_handler(
-            _: CFRunLoopObserverRef,
+        extern "C-unwind" fn control_flow_begin_handler(
+            _: *mut CFRunLoopObserver,
             activity: CFRunLoopActivity,
             _: *mut c_void,
         ) {
             let mtm = MainThreadMarker::new().unwrap();
             #[allow(non_upper_case_globals)]
             match activity {
-                kCFRunLoopAfterWaiting => app_state::handle_wakeup_transition(mtm),
+                CFRunLoopActivity::AfterWaiting => app_state::handle_wakeup_transition(mtm),
                 _ => unreachable!(),
             }
         }
@@ -364,65 +361,68 @@ fn setup_control_flow_observers() {
         // registers for every `CFRunLoopAddObserver` call on an iPad Air 2 running iOS 11.4.
         //
         // Also tested to be `0x1e8480` on iPhone 8, iOS 13 beta 4.
-        extern "C" fn control_flow_main_end_handler(
-            _: CFRunLoopObserverRef,
+        extern "C-unwind" fn control_flow_main_end_handler(
+            _: *mut CFRunLoopObserver,
             activity: CFRunLoopActivity,
             _: *mut c_void,
         ) {
             let mtm = MainThreadMarker::new().unwrap();
             #[allow(non_upper_case_globals)]
             match activity {
-                kCFRunLoopBeforeWaiting => app_state::handle_main_events_cleared(mtm),
-                kCFRunLoopExit => {}, // may happen when running on macOS
+                CFRunLoopActivity::BeforeWaiting => app_state::handle_main_events_cleared(mtm),
+                CFRunLoopActivity::Exit => {}, // may happen when running on macOS
                 _ => unreachable!(),
             }
         }
 
         // end is queued with the lowest priority to ensure it is processed after other observers
-        extern "C" fn control_flow_end_handler(
-            _: CFRunLoopObserverRef,
+        extern "C-unwind" fn control_flow_end_handler(
+            _: *mut CFRunLoopObserver,
             activity: CFRunLoopActivity,
             _: *mut c_void,
         ) {
             let mtm = MainThreadMarker::new().unwrap();
             #[allow(non_upper_case_globals)]
             match activity {
-                kCFRunLoopBeforeWaiting => app_state::handle_events_cleared(mtm),
-                kCFRunLoopExit => {}, // may happen when running on macOS
+                CFRunLoopActivity::BeforeWaiting => app_state::handle_events_cleared(mtm),
+                CFRunLoopActivity::Exit => {}, // may happen when running on macOS
                 _ => unreachable!(),
             }
         }
 
-        let main_loop = CFRunLoopGetMain();
+        let main_loop = CFRunLoopGetMain().unwrap();
 
         let begin_observer = CFRunLoopObserverCreate(
-            ptr::null_mut(),
-            kCFRunLoopAfterWaiting,
-            1, // repeat = true
+            None,
+            CFRunLoopActivity::AfterWaiting.0,
+            true,
             CFIndex::MIN,
-            control_flow_begin_handler,
+            Some(control_flow_begin_handler),
             ptr::null_mut(),
-        );
-        CFRunLoopAddObserver(main_loop, begin_observer, kCFRunLoopDefaultMode);
+        )
+        .unwrap();
+        CFRunLoopAddObserver(&main_loop, Some(&begin_observer), kCFRunLoopDefaultMode);
 
         let main_end_observer = CFRunLoopObserverCreate(
-            ptr::null_mut(),
-            kCFRunLoopExit | kCFRunLoopBeforeWaiting,
-            1, // repeat = true
+            None,
+            (CFRunLoopActivity::Exit | CFRunLoopActivity::BeforeWaiting).0,
+            true,
             0, // see comment on `control_flow_main_end_handler`
-            control_flow_main_end_handler,
+            Some(control_flow_main_end_handler),
             ptr::null_mut(),
-        );
-        CFRunLoopAddObserver(main_loop, main_end_observer, kCFRunLoopDefaultMode);
+        )
+        .unwrap();
+        CFRunLoopAddObserver(&main_loop, Some(&main_end_observer), kCFRunLoopDefaultMode);
 
         let end_observer = CFRunLoopObserverCreate(
-            ptr::null_mut(),
-            kCFRunLoopExit | kCFRunLoopBeforeWaiting,
-            1, // repeat = true
+            None,
+            (CFRunLoopActivity::Exit | CFRunLoopActivity::BeforeWaiting).0,
+            true,
             CFIndex::MAX,
-            control_flow_end_handler,
+            Some(control_flow_end_handler),
             ptr::null_mut(),
-        );
-        CFRunLoopAddObserver(main_loop, end_observer, kCFRunLoopDefaultMode);
+        )
+        .unwrap();
+        CFRunLoopAddObserver(&main_loop, Some(&end_observer), kCFRunLoopDefaultMode);
     }
 }

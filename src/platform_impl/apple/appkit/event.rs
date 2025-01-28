@@ -1,10 +1,10 @@
-use std::ffi::c_void;
+use std::ptr::NonNull;
 
-use core_foundation::base::CFRelease;
-use core_foundation::data::{CFDataGetBytePtr, CFDataRef};
+use dispatch2::run_on_main;
 use objc2::rc::Retained;
 use objc2_app_kit::{NSEvent, NSEventModifierFlags, NSEventSubtype, NSEventType};
-use objc2_foundation::{run_on_main, NSPoint};
+use objc2_core_foundation::{CFData, CFDataGetBytePtr, CFRetained};
+use objc2_foundation::NSPoint;
 use smol_str::SmolStr;
 
 use super::ffi;
@@ -22,29 +22,27 @@ pub struct KeyEventExtra {
 
 /// Ignores ALL modifiers.
 pub fn get_modifierless_char(scancode: u16) -> Key {
-    let mut string = [0; 16];
-    let input_source;
-    let layout;
-    unsafe {
-        input_source = ffi::TISCopyCurrentKeyboardLayoutInputSource();
-        if input_source.is_null() {
-            tracing::error!("`TISCopyCurrentKeyboardLayoutInputSource` returned null ptr");
-            return Key::Unidentified(NativeKey::MacOS(scancode));
-        }
-        let layout_data =
-            ffi::TISGetInputSourceProperty(input_source, ffi::kTISPropertyUnicodeKeyLayoutData);
-        if layout_data.is_null() {
-            CFRelease(input_source as *mut c_void);
-            tracing::error!("`TISGetInputSourceProperty` returned null ptr");
-            return Key::Unidentified(NativeKey::MacOS(scancode));
-        }
-        layout = CFDataGetBytePtr(layout_data as CFDataRef) as *const ffi::UCKeyboardLayout;
-    }
+    let Some(ptr) = NonNull::new(unsafe { ffi::TISCopyCurrentKeyboardLayoutInputSource() }) else {
+        tracing::error!("`TISCopyCurrentKeyboardLayoutInputSource` returned null ptr");
+        return Key::Unidentified(NativeKey::MacOS(scancode));
+    };
+    let input_source = unsafe { CFRetained::from_raw(ptr) };
+
+    let layout_data = unsafe {
+        ffi::TISGetInputSourceProperty(&input_source, ffi::kTISPropertyUnicodeKeyLayoutData)
+    };
+    let Some(layout_data) = (unsafe { layout_data.cast::<CFData>().as_ref() }) else {
+        tracing::error!("`TISGetInputSourceProperty` returned null ptr");
+        return Key::Unidentified(NativeKey::MacOS(scancode));
+    };
+
+    let layout = unsafe { CFDataGetBytePtr(layout_data).cast() };
     let keyboard_type = run_on_main(|_mtm| unsafe { ffi::LMGetKbdType() });
 
     let mut result_len = 0;
     let mut dead_keys = 0;
     let modifiers = 0;
+    let mut string = [0; 16];
     let translate_result = unsafe {
         ffi::UCKeyTranslate(
             layout,
@@ -59,9 +57,6 @@ pub fn get_modifierless_char(scancode: u16) -> Key {
             string.as_mut_ptr(),
         )
     };
-    unsafe {
-        CFRelease(input_source as *mut c_void);
-    }
     if translate_result != 0 {
         tracing::error!("`UCKeyTranslate` returned with the non-zero value: {}", translate_result);
         return Key::Unidentified(NativeKey::MacOS(scancode));
@@ -123,8 +118,8 @@ pub(crate) fn create_key_event(ns_event: &NSEvent, is_press: bool, is_repeat: bo
         let key_without_modifiers = get_modifierless_char(scancode);
 
         let modifiers = unsafe { ns_event.modifierFlags() };
-        let has_ctrl = modifiers.contains(NSEventModifierFlags::NSEventModifierFlagControl);
-        let has_cmd = modifiers.contains(NSEventModifierFlags::NSEventModifierFlagCommand);
+        let has_ctrl = modifiers.contains(NSEventModifierFlags::Control);
+        let has_cmd = modifiers.contains(NSEventModifierFlags::Command);
 
         let logical_key = match text_with_all_modifiers.as_ref() {
             // Only checking for ctrl and cmd here, not checking for alt because we DO want to
@@ -308,26 +303,19 @@ pub(super) fn event_mods(event: &NSEvent) -> Modifiers {
     let mut state = ModifiersState::empty();
     let mut pressed_mods = ModifiersKeys::empty();
 
-    state
-        .set(ModifiersState::SHIFT, flags.contains(NSEventModifierFlags::NSEventModifierFlagShift));
+    state.set(ModifiersState::SHIFT, flags.contains(NSEventModifierFlags::Shift));
     pressed_mods.set(ModifiersKeys::LSHIFT, flags.contains(NX_DEVICELSHIFTKEYMASK));
     pressed_mods.set(ModifiersKeys::RSHIFT, flags.contains(NX_DEVICERSHIFTKEYMASK));
 
-    state.set(
-        ModifiersState::CONTROL,
-        flags.contains(NSEventModifierFlags::NSEventModifierFlagControl),
-    );
+    state.set(ModifiersState::CONTROL, flags.contains(NSEventModifierFlags::Control));
     pressed_mods.set(ModifiersKeys::LCONTROL, flags.contains(NX_DEVICELCTLKEYMASK));
     pressed_mods.set(ModifiersKeys::RCONTROL, flags.contains(NX_DEVICERCTLKEYMASK));
 
-    state.set(ModifiersState::ALT, flags.contains(NSEventModifierFlags::NSEventModifierFlagOption));
+    state.set(ModifiersState::ALT, flags.contains(NSEventModifierFlags::Option));
     pressed_mods.set(ModifiersKeys::LALT, flags.contains(NX_DEVICELALTKEYMASK));
     pressed_mods.set(ModifiersKeys::RALT, flags.contains(NX_DEVICERALTKEYMASK));
 
-    state.set(
-        ModifiersState::SUPER,
-        flags.contains(NSEventModifierFlags::NSEventModifierFlagCommand),
-    );
+    state.set(ModifiersState::SUPER, flags.contains(NSEventModifierFlags::Command));
     pressed_mods.set(ModifiersKeys::LSUPER, flags.contains(NX_DEVICELCMDKEYMASK));
     pressed_mods.set(ModifiersKeys::RSUPER, flags.contains(NX_DEVICERCMDKEYMASK));
 

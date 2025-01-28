@@ -2,30 +2,23 @@
 
 use std::rc::Rc;
 
-use objc2::{declare_class, msg_send, mutability, ClassType, DeclaredClass};
+use objc2::{define_class, msg_send, MainThreadMarker};
 use objc2_app_kit::{NSApplication, NSEvent, NSEventModifierFlags, NSEventType, NSResponder};
-use objc2_foundation::{MainThreadMarker, NSObject};
+use objc2_foundation::NSObject;
 
 use super::app_state::AppState;
 use crate::event::{DeviceEvent, ElementState};
 
-declare_class!(
+define_class!(
+    #[unsafe(super(NSApplication, NSResponder, NSObject))]
+    #[name = "WinitApplication"]
     pub(super) struct WinitApplication;
 
-    unsafe impl ClassType for WinitApplication {
-        #[inherits(NSResponder, NSObject)]
-        type Super = NSApplication;
-        type Mutability = mutability::MainThreadOnly;
-        const NAME: &'static str = "WinitApplication";
-    }
-
-    impl DeclaredClass for WinitApplication {}
-
-    unsafe impl WinitApplication {
+    impl WinitApplication {
         // Normally, holding Cmd + any key never sends us a `keyUp` event for that key.
         // Overriding `sendEvent:` like this fixes that. (https://stackoverflow.com/a/15294196)
         // Fun fact: Firefox still has this bug! (https://bugzilla.mozilla.org/show_bug.cgi?id=1299553)
-        #[method(sendEvent:)]
+        #[unsafe(method(sendEvent:))]
         fn send_event(&self, event: &NSEvent) {
             // For posterity, there are some undocumented event types
             // (https://github.com/servo/cocoa-rs/issues/155)
@@ -33,7 +26,7 @@ declare_class!(
             let event_type = unsafe { event.r#type() };
             let modifier_flags = unsafe { event.modifierFlags() };
             if event_type == NSEventType::KeyUp
-                && modifier_flags.contains(NSEventModifierFlags::NSEventModifierFlagCommand)
+                && modifier_flags.contains(NSEventModifierFlags::Command)
             {
                 if let Some(key_window) = self.keyWindow() {
                     key_window.sendEvent(event);

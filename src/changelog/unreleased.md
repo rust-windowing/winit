@@ -184,6 +184,7 @@ changelog entry.
   The `WindowEvent::DragMoved` event is entirely new, and is emitted whenever the pointer moves
   whilst files are being dragged over the window. It doesn't contain any file paths, just the
   pointer position.
+- Updated `objc2` to `v0.6`.
 
 ### Removed
 

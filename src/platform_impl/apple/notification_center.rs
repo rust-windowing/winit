@@ -2,7 +2,10 @@ use std::ptr::NonNull;
 
 use block2::RcBlock;
 use objc2::rc::Retained;
-use objc2_foundation::{NSNotification, NSNotificationCenter, NSNotificationName, NSObject};
+use objc2::runtime::ProtocolObject;
+use objc2_foundation::{
+    NSNotification, NSNotificationCenter, NSNotificationName, NSObjectProtocol,
+};
 
 /// Observe the given notification.
 ///
@@ -12,7 +15,7 @@ pub fn create_observer(
     center: &NSNotificationCenter,
     name: &NSNotificationName,
     handler: impl Fn(&NSNotification) + 'static,
-) -> Retained<NSObject> {
+) -> Retained<ProtocolObject<dyn NSObjectProtocol>> {
     let block = RcBlock::new(move |notification: NonNull<NSNotification>| {
         handler(unsafe { notification.as_ref() });
     });
