@@ -375,12 +375,12 @@ declare_class!(
     unsafe impl NSDraggingDestination for WindowDelegate {
         /// Invoked when the dragged image enters destination bounds or frame
         #[method(draggingEntered:)]
-        fn dragging_entered(&self, info: &ProtocolObject<dyn NSDraggingInfo>) -> bool {
+        fn dragging_entered(&self, sender: &ProtocolObject<dyn NSDraggingInfo>) -> bool {
             trace_scope!("draggingEntered:");
 
             use std::path::PathBuf;
 
-            let pb = unsafe { info.draggingPasteboard() };
+            let pb = unsafe { sender.draggingPasteboard() };
             let filenames = pb.propertyListForType(unsafe { NSFilenamesPboardType }).unwrap();
             let filenames: Retained<NSArray<NSString>> = unsafe { Retained::cast(filenames) };
             let paths = filenames
@@ -388,7 +388,7 @@ declare_class!(
                 .map(|file| PathBuf::from(file.to_string()))
                 .collect();
 
-            let dl = unsafe { info.draggingLocation() };
+            let dl = unsafe { sender.draggingLocation() };
             let dl = self.view().convertPoint_fromView(dl, None);
             let position = LogicalPosition::<f64>::from((dl.x, dl.y)).to_physical(self.scale_factor());
 
@@ -406,10 +406,10 @@ declare_class!(
 
         /// Invoked periodically as the image is held within the destination area, allowing modification of the dragging operation or mouse-pointer position.
         #[method(draggingUpdated:)]
-        fn dragging_updated(&self, info: &ProtocolObject<dyn NSDraggingInfo>) -> bool {
+        fn dragging_updated(&self, sender: &ProtocolObject<dyn NSDraggingInfo>) -> bool {
             trace_scope!("draggingUpdated:");
 
-            let dl = unsafe { info.draggingLocation() };
+            let dl = unsafe { sender.draggingLocation() };
             let dl = self.view().convertPoint_fromView(dl, None);
             let position = LogicalPosition::<f64>::from((dl.x, dl.y)).to_physical(self.scale_factor());
 
@@ -427,12 +427,12 @@ declare_class!(
 
         /// Invoked after the released image has been removed from the screen
         #[method(performDragOperation:)]
-        fn perform_drag_operation(&self, info: &ProtocolObject<dyn NSDraggingInfo>) -> bool {
+        fn perform_drag_operation(&self, sender: &ProtocolObject<dyn NSDraggingInfo>) -> bool {
             trace_scope!("performDragOperation:");
 
             use std::path::PathBuf;
 
-            let pb = unsafe { info.draggingPasteboard() };
+            let pb = unsafe { sender.draggingPasteboard() };
             let filenames = pb.propertyListForType(unsafe { NSFilenamesPboardType }).unwrap();
             let filenames: Retained<NSArray<NSString>> = unsafe { Retained::cast(filenames) };
             let paths = filenames
@@ -440,7 +440,7 @@ declare_class!(
                 .map(|file| PathBuf::from(file.to_string()))
                 .collect();
 
-            let dl = unsafe { info.draggingLocation() };
+            let dl = unsafe { sender.draggingLocation() };
             let dl = self.view().convertPoint_fromView(dl, None);
             let position = LogicalPosition::<f64>::from((dl.x, dl.y)).to_physical(self.scale_factor());
 
