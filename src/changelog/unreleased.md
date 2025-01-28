@@ -165,6 +165,25 @@ changelog entry.
 - Rename `VideoModeHandle` to `VideoMode`, now it only stores plain data.
 - Make `Fullscreen::Exclusive` contain `(MonitorHandle, VideoMode)`.
 - On Wayland, no longer send an explicit clearing `Ime::Preedit` just prior to a new `Ime::Preedit`.
+- Reworked the file drag-and-drop API.
+
+  The `WindowEvent::DroppedFile`, `WindowEvent::HoveredFile` and `WindowEvent::HoveredFileCancelled`
+  events have been removed, and replaced with `WindowEvent::DragEntered`, `WindowEvent::DragMoved`,
+  `WindowEvent::DragDropped` and `WindowEvent::DragLeft`.
+
+  The old drag-and-drop events were emitted once per file. This occurred when files were *first*
+  hovered over the window, dropped, or left the window. The new drag-and-drop events are emitted
+  once per set of files dragged, and include a list of all dragged files. They also include the
+  pointer position.
+
+  The rough correspondence is:
+  - `WindowEvent::HoveredFile` -> `WindowEvent::DragEntered`
+  - `WindowEvent::DroppedFile` -> `WindowEvent::DragDropped`
+  - `WindowEvent::HoveredFileCancelled` -> `WindowEvent::DragLeft`
+
+  The `WindowEvent::DragMoved` event is entirely new, and is emitted whenever the pointer moves
+  whilst files are being dragged over the window. It doesn't contain any file paths, just the
+  pointer position.
 
 ### Removed
 

@@ -1520,7 +1520,7 @@ impl UnownedWindow {
         // This should be okay to unwrap since the only error XTranslateCoordinates can return
         // is BadWindow, and if the window handle is bad we have bigger problems.
         self.xconn
-            .translate_coords(self.xwindow, self.root)
+            .translate_coords_root(self.xwindow, self.root)
             .map(|coords| (coords.dst_x.into(), coords.dst_y.into()))
             .unwrap()
     }

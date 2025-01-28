@@ -13,7 +13,7 @@ use objc2::{declare_class, msg_send_id, mutability, sel, ClassType, DeclaredClas
 use objc2_app_kit::{
     NSAppKitVersionNumber, NSAppKitVersionNumber10_12, NSAppearance, NSAppearanceCustomization,
     NSAppearanceNameAqua, NSApplication, NSApplicationPresentationOptions, NSBackingStoreType,
-    NSColor, NSDraggingDestination, NSFilenamesPboardType, NSPasteboard,
+    NSColor, NSDraggingDestination, NSDraggingInfo, NSFilenamesPboardType,
     NSRequestUserAttentionType, NSScreen, NSToolbar, NSView, NSViewFrameDidChangeNotification,
     NSWindow, NSWindowButton, NSWindowDelegate, NSWindowFullScreenButton, NSWindowLevel,
     NSWindowOcclusionState, NSWindowOrderingMode, NSWindowSharingType, NSWindowStyleMask,
@@ -375,19 +375,45 @@ declare_class!(
     unsafe impl NSDraggingDestination for WindowDelegate {
         /// Invoked when the dragged image enters destination bounds or frame
         #[method(draggingEntered:)]
-        fn dragging_entered(&self, sender: &NSObject) -> bool {
+        fn dragging_entered(&self, sender: &ProtocolObject<dyn NSDraggingInfo>) -> bool {
             trace_scope!("draggingEntered:");
 
             use std::path::PathBuf;
 
-            let pb: Retained<NSPasteboard> = unsafe { msg_send_id![sender, draggingPasteboard] };
+            let pb = unsafe { sender.draggingPasteboard() };
             let filenames = pb.propertyListForType(unsafe { NSFilenamesPboardType }).unwrap();
             let filenames: Retained<NSArray<NSString>> = unsafe { Retained::cast(filenames) };
+            let paths = filenames
+                .into_iter()
+                .map(|file| PathBuf::from(file.to_string()))
+                .collect();
 
-            filenames.into_iter().for_each(|file| {
-                let path = PathBuf::from(file.to_string());
-                self.queue_event(WindowEvent::HoveredFile(path));
-            });
+            let dl = unsafe { sender.draggingLocation() };
+            let dl = self.view().convertPoint_fromView(dl, None);
+            let position = LogicalPosition::<f64>::from((dl.x, dl.y)).to_physical(self.scale_factor());
+
+
+            self.queue_event(WindowEvent::DragEntered { paths, position });
+
+            true
+        }
+
+        #[method(wantsPeriodicDraggingUpdates)]
+        fn wants_periodic_dragging_updates(&self) -> bool {
+            trace_scope!("wantsPeriodicDraggingUpdates:");
+            true
+        }
+
+        /// Invoked periodically as the image is held within the destination area, allowing modification of the dragging operation or mouse-pointer position.
+        #[method(draggingUpdated:)]
+        fn dragging_updated(&self, sender: &ProtocolObject<dyn NSDraggingInfo>) -> bool {
+            trace_scope!("draggingUpdated:");
+
+            let dl = unsafe { sender.draggingLocation() };
+            let dl = self.view().convertPoint_fromView(dl, None);
+            let position = LogicalPosition::<f64>::from((dl.x, dl.y)).to_physical(self.scale_factor());
+
+            self.queue_event(WindowEvent::DragMoved { position });
 
             true
         }
@@ -401,19 +427,24 @@ declare_class!(
 
         /// Invoked after the released image has been removed from the screen
         #[method(performDragOperation:)]
-        fn perform_drag_operation(&self, sender: &NSObject) -> bool {
+        fn perform_drag_operation(&self, sender: &ProtocolObject<dyn NSDraggingInfo>) -> bool {
             trace_scope!("performDragOperation:");
 
             use std::path::PathBuf;
 
-            let pb: Retained<NSPasteboard> = unsafe { msg_send_id![sender, draggingPasteboard] };
+            let pb = unsafe { sender.draggingPasteboard() };
             let filenames = pb.propertyListForType(unsafe { NSFilenamesPboardType }).unwrap();
             let filenames: Retained<NSArray<NSString>> = unsafe { Retained::cast(filenames) };
+            let paths = filenames
+                .into_iter()
+                .map(|file| PathBuf::from(file.to_string()))
+                .collect();
 
-            filenames.into_iter().for_each(|file| {
-                let path = PathBuf::from(file.to_string());
-                self.queue_event(WindowEvent::DroppedFile(path));
-            });
+            let dl = unsafe { sender.draggingLocation() };
+            let dl = self.view().convertPoint_fromView(dl, None);
+            let position = LogicalPosition::<f64>::from((dl.x, dl.y)).to_physical(self.scale_factor());
+
+            self.queue_event(WindowEvent::DragDropped { paths, position });
 
             true
         }
@@ -426,9 +457,16 @@ declare_class!(
 
         /// Invoked when the dragging operation is cancelled
         #[method(draggingExited:)]
-        fn dragging_exited(&self, _sender: Option<&NSObject>) {
+        fn dragging_exited(&self, info: Option<&ProtocolObject<dyn NSDraggingInfo>>) {
             trace_scope!("draggingExited:");
-            self.queue_event(WindowEvent::HoveredFileCancelled);
+
+            let position = info.map(|info| {
+                let dl = unsafe { info.draggingLocation() };
+                let dl = self.view().convertPoint_fromView(dl, None);
+                LogicalPosition::<f64>::from((dl.x, dl.y)).to_physical(self.scale_factor())
+            });
+
+            self.queue_event(WindowEvent::DragLeft { position } );
         }
     }
 
