@@ -73,6 +73,7 @@ changelog entry.
 - Add ability to make non-activating window on macOS using `NSPanel` with `NSWindowStyleMask::NonactivatingPanel`.
 - `ActivationToken::from_raw` and `ActivationToken::into_raw`.
 - On X11, add a workaround for disabling IME on GNOME.
+- Added `ActiveEventLoopExtWindows::target_window_hwnd` to get access the event loop window target HWND.
 
 ### Changed
 
