@@ -182,6 +182,9 @@ changelog entry.
   whilst files are being dragged over the window. It doesn't contain any file paths, just the
   pointer position.
 - Updated `objc2` to `v0.6`.
+- Updated `windows-sys` to `v0.59`.
+  - To match the corresponding changes in `windows-sys`, the `HWND`, `HMONITOR`, and `HMENU` types
+    now alias to `*mut c_void` instead of `isize`.
 
 ### Removed
 
