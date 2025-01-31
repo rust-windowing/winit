@@ -291,6 +291,15 @@ pub trait WindowExtWindows {
     /// Returns `true` when windows have a titlebar (server-side or by Winit).
     fn is_titlebar(&self) -> bool;
 
+    /// Turn window top resize border on or off (for windows without a title bar).
+    /// By default this is enabled.
+    fn set_top_resize_border(&self, top_resize_border: bool);
+
+    /// Gets the window's current top resize border state (for windows without a title bar).
+    ///
+    /// Returns `true` when windows have a top resize border.
+    fn is_top_resize_border(&self) -> bool;
+
     /// Sets the preferred style of the window corners.
     ///
     /// Supported starting with Windows 11 Build 22000.
@@ -416,6 +425,18 @@ impl WindowExtWindows for dyn Window + '_ {
     }
 
     #[inline]
+    fn set_top_resize_border(&self, top_resize_border: bool) {
+        let window = self.as_any().downcast_ref::<crate::platform_impl::Window>().unwrap();
+        window.set_top_resize_border(top_resize_border)
+    }
+
+    #[inline]
+    fn is_top_resize_border(&self) -> bool {
+        let window = self.as_any().downcast_ref::<crate::platform_impl::Window>().unwrap();
+        window.is_top_resize_border()
+    }
+
+    #[inline]
     fn set_corner_preference(&self, preference: CornerPreference) {
         let window = self.as_any().downcast_ref::<crate::platform_impl::Window>().unwrap();
         window.set_corner_preference(preference)
@@ -508,6 +529,10 @@ pub trait WindowAttributesExtWindows {
     /// Enables/disables the window titlebar by setting `WS_CAPTION`.
     fn with_titlebar(self, titlebar: bool) -> Self;
 
+    /// Enables/disables the window's top resize border by setting its height to 0.
+    /// Only for windows without a title bar.
+    fn with_top_resize_border(self, top_resize_border: bool) -> Self;
+
     /// Enables or disables drag and drop support (enabled by default). Will interfere with other
     /// crates that use multi-threaded COM API (`CoInitializeEx` with `COINIT_MULTITHREADED`
     /// instead of `COINIT_APARTMENTTHREADED`) on the same thread. Note that winit may still
@@ -585,6 +610,12 @@ impl WindowAttributesExtWindows for WindowAttributes {
     #[inline]
     fn with_titlebar(mut self, titlebar: bool) -> Self {
         self.platform_specific.titlebar = titlebar;
+        self
+    }
+
+    #[inline]
+    fn with_top_resize_border(mut self, top_resize_border: bool) -> Self {
+        self.platform_specific.top_resize_border = top_resize_border;
         self
     }
 
