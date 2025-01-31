@@ -1034,7 +1034,7 @@ unsafe fn public_window_callback_inner(
     window: HWND,
     msg: u32,
     wparam: WPARAM,
-    lparam: LPARAM,
+    mut lparam: LPARAM,
     userdata: &WindowData,
 ) -> LRESULT {
     let mut result = ProcResult::DefWindowProc(wparam);
@@ -2149,6 +2149,12 @@ unsafe fn public_window_callback_inner(
         },
 
         WM_NCACTIVATE => {
+            let window_flags = userdata.window_state_lock().window_flags;
+            if   !window_flags.contains(WindowFlags::TITLE_BAR)
+              && !window_flags.contains(WindowFlags::TOP_RESIZE_BORDER)
+              &&  window_flags.contains(WindowFlags::RESIZABLE) {
+                lparam = -1;
+            }
             let is_active = wparam != false.into();
             let active_focus_changed = userdata.window_state_lock().set_active(is_active);
             if active_focus_changed {
