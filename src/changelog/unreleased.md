@@ -37,6 +37,10 @@ with it, the migration guide should be added below the entry, like:
 
 ```
 
+```md
+- (WindowsOS) Fixed (removed) an invisible gap between the screen border and the window's visible border at 0 `x`/`y` coordinates due to the fact that window's invisible resize borders are considered part of a window box for positioning win32 APIs (`SetWindowPos`). Now an invisible resize border is treated the same as a shadow and `with_position` and `set_position` APIs are updated to offset the coordinates before communicating with win32 APIs. In some cases (when a window has no title bar, but does have resize borders), the top resize border becomes visible, but it's still ignored for consistency.
+```
+
 The migration guide could reference other migration examples in the current
 changelog entry.
 
