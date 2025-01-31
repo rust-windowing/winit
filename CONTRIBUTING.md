@@ -19,6 +19,9 @@ All patches have to be sent on Github as [pull requests][prs]. To simplify your
 life during review it's recommended to check the "give contributors write access
 to the branch" checkbox.
 
+We use unstable Rustfmt options across the project, so please run
+`cargo +nightly fmt` before submitting your work.
+
 #### Handling review
 
 During the review process certain events could require an action from your side,
