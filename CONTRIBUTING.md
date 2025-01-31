@@ -20,7 +20,9 @@ life during review it's recommended to check the "give contributors write access
 to the branch" checkbox.
 
 We use unstable Rustfmt options across the project, so please run
-`cargo +nightly fmt` before submitting your work.
+`cargo +nightly fmt` before submitting your work. If you are unable to do so,
+the maintainers can do it for you before merging, just state so in your pull
+request description.
 
 #### Handling review
 
