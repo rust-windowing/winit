@@ -10,13 +10,12 @@ use std::sync::Arc;
 
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
-use tracing::debug;
 
 use self::callbacks::*;
 use self::context::ImeContext;
 pub use self::context::ImeContextCreationError;
 use self::inner::{close_im, ImeInner};
-use self::input_method::{PotentialInputMethods, Style};
+use self::input_method::PotentialInputMethods;
 use super::{ffi, util, XConnection, XError};
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -113,39 +112,26 @@ impl Ime {
     pub fn create_context(
         &mut self,
         window: ffi::Window,
-        with_preedit: bool,
+        with_ime: bool,
     ) -> Result<bool, ImeContextCreationError> {
         let context = if self.is_destroyed() {
             // Create empty entry in map, so that when IME is rebuilt, this window has a context.
             None
         } else {
             let im = self.inner.im.as_ref().unwrap();
-            let style = if with_preedit { im.preedit_style } else { im.none_style };
 
             let context = unsafe {
                 ImeContext::new(
                     &self.inner.xconn,
-                    im.im,
-                    style,
+                    im,
                     window,
                     None,
                     self.inner.event_sender.clone(),
+                    with_ime,
                 )?
             };
 
-            // Check the state on the context, since it could fail to enable or disable preedit.
-            let event = if matches!(style, Style::None(_)) {
-                if with_preedit {
-                    debug!("failed to create IME context with preedit support.")
-                }
-                ImeEvent::Disabled
-            } else {
-                if !with_preedit {
-                    debug!("failed to create IME context without preedit support.")
-                }
-                ImeEvent::Enabled
-            };
-
+            let event = if context.is_allowed() { ImeEvent::Enabled } else { ImeEvent::Disabled };
             self.inner.event_sender.send((window, event)).expect("Failed to send enabled event");
 
             Some(context)
