@@ -185,6 +185,7 @@ changelog entry.
   whilst files are being dragged over the window. It doesn't contain any file paths, just the
   pointer position.
 - Updated `objc2` to `v0.6`.
+- Updated `unicode-segmentation` to `1.12.0`
 
 ### Removed
 
