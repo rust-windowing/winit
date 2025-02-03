@@ -122,19 +122,15 @@ unsafe fn replace_im(inner: *mut ImeInner) -> Result<(), ReplaceImError> {
         let is_allowed =
             old_context.as_ref().map(|old_context| old_context.is_allowed()).unwrap_or_default();
 
-        // We can't use the style from the old context here, since it may change on reload, so
-        // pick style from the new XIM based on the old state.
-        let style = if is_allowed { new_im.preedit_style } else { new_im.none_style };
-
         let new_context = {
             let result = unsafe {
                 ImeContext::new(
                     xconn,
-                    new_im.im,
-                    style,
+                    &new_im,
                     *window,
                     spot,
                     (*inner).event_sender.clone(),
+                    is_allowed,
                 )
             };
             if result.is_err() {
