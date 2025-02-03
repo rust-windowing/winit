@@ -76,9 +76,16 @@ impl EventLoopBuilderExtWayland for EventLoopBuilder {
 /// Additional methods on [`Window`] that are specific to Wayland.
 ///
 /// [`Window`]: crate::window::Window
-pub trait WindowExtWayland {}
+pub trait WindowExtWayland {
+    fn set_region(&self, region: Option<(LogicalPosition<i32>, LogicalSize<i32>)>);
+}
 
-impl WindowExtWayland for dyn CoreWindow + '_ {}
+impl WindowExtWayland for dyn CoreWindow + '_ {
+    fn set_region(&self, region: Option<(LogicalPosition<i32>, LogicalSize<i32>)>) {
+        let window = self.as_any().downcast_ref::<crate::platform_impl::wayland::Window>().unwrap();
+        window.set_region(region);
+    }
+}
 
 /// Additional methods on [`WindowAttributes`] that are specific to Wayland.
 pub trait WindowAttributesExtWayland {
