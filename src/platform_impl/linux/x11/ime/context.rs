@@ -5,10 +5,9 @@ use std::{mem, ptr};
 
 use x11_dl::xlib::{XIMCallback, XIMPreeditCaretCallbackStruct, XIMPreeditDrawCallbackStruct};
 
-use crate::platform_impl::platform::x11::ime::input_method::{Style, XIMStyle};
-use crate::platform_impl::platform::x11::ime::{ImeEvent, ImeEventSender};
-
 use super::{ffi, util, XConnection, XError};
+use crate::platform_impl::platform::x11::ime::input_method::{InputMethod, Style, XIMStyle};
+use crate::platform_impl::platform::x11::ime::{ImeEvent, ImeEventSender};
 
 /// IME creation error.
 #[derive(Debug)]
@@ -184,7 +183,7 @@ struct ImeContextClientData {
 pub struct ImeContext {
     pub(crate) ic: ffi::XIC,
     pub(crate) ic_spot: ffi::XPoint,
-    pub(crate) style: Style,
+    pub(crate) allowed: bool,
     // Since the data is passed shared between X11 XIM callbacks, but couldn't be directly free
     // from there we keep the pointer to automatically deallocate it.
     _client_data: Box<ImeContextClientData>,
@@ -193,11 +192,11 @@ pub struct ImeContext {
 impl ImeContext {
     pub(crate) unsafe fn new(
         xconn: &Arc<XConnection>,
-        im: ffi::XIM,
-        style: Style,
+        im: &InputMethod,
         window: ffi::Window,
         ic_spot: Option<ffi::XPoint>,
         event_sender: ImeEventSender,
+        allowed: bool,
     ) -> Result<Self, ImeContextCreationError> {
         let client_data = Box::into_raw(Box::new(ImeContextClientData {
             window,
@@ -206,20 +205,24 @@ impl ImeContext {
             cursor_pos: 0,
         }));
 
+        let style = if allowed { im.preedit_style } else { im.none_style };
+
         let ic = match style as _ {
             Style::Preedit(style) => unsafe {
                 ImeContext::create_preedit_ic(
                     xconn,
-                    im,
+                    im.im,
                     style,
                     window,
                     client_data as ffi::XPointer,
                 )
             },
             Style::Nothing(style) => unsafe {
-                ImeContext::create_nothing_ic(xconn, im, style, window)
+                ImeContext::create_nothing_ic(xconn, im.im, style, window)
             },
-            Style::None(style) => unsafe { ImeContext::create_none_ic(xconn, im, style, window) },
+            Style::None(style) => unsafe {
+                ImeContext::create_none_ic(xconn, im.im, style, window)
+            },
         }
         .ok_or(ImeContextCreationError::Null)?;
 
@@ -228,7 +231,7 @@ impl ImeContext {
         let mut context = ImeContext {
             ic,
             ic_spot: ffi::XPoint { x: 0, y: 0 },
-            style,
+            allowed,
             _client_data: unsafe { Box::from_raw(client_data) },
         };
 
@@ -335,7 +338,7 @@ impl ImeContext {
     }
 
     pub fn is_allowed(&self) -> bool {
-        !matches!(self.style, Style::None(_))
+        self.allowed
     }
 
     // Set the spot for preedit text. Setting spot isn't working with libX11 when preedit callbacks
