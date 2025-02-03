@@ -43,3 +43,7 @@ changelog entry.
 ### Changed
 
 - On Wayland, no longer send an explicit clearing `Ime::Preedit` just prior to a new `Ime::Preedit`.
+
+### Fixed
+
+- On X11, fixed crash with uim
