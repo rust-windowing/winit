@@ -46,4 +46,5 @@ changelog entry.
 
 ### Fixed
 
-- On X11, fixed crash with uim
+- On X11, fix crash with uim.
+- On X11, fix modifiers for keys that were sent by the same X11 request.
