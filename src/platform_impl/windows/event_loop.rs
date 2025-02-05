@@ -132,7 +132,7 @@ pub(crate) enum ProcResult {
 }
 
 pub struct EventLoop {
-    window_target: ActiveEventLoop,
+    pub window_target: ActiveEventLoop,
     msg_hook: Option<Box<dyn FnMut(*const c_void) -> bool + 'static>>,
     // It is a timer used on timed waits.
     // It is created lazily in case if we have `ControlFlow::WaitUntil`.
@@ -176,7 +176,7 @@ impl std::hash::Hash for PlatformSpecificEventLoopAttributes {
 
 pub struct ActiveEventLoop {
     thread_id: u32,
-    thread_msg_target: HWND,
+    pub(crate) thread_msg_target: HWND,
     pub(crate) runner_shared: Rc<EventLoopRunner>,
 }
 
