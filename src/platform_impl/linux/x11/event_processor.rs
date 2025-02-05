@@ -66,7 +66,10 @@ pub struct EventProcessor {
     pub active_window: Option<xproto::Window>,
     /// Latest modifiers we've sent for the user to trigger change in event.
     pub modifiers: Cell<ModifiersState>,
-    pub xfiltered_modifiers: VecDeque<c_ulong>,
+    // Track modifiers based on keycodes. NOTE: that serials generally don't work for tracking
+    // since they are not unique and could be duplicated in case of sequence of key events is
+    // delivered at near the same time.
+    pub xfiltered_modifiers: VecDeque<u8>,
     pub xmodmap: util::ModifierKeymap,
     pub is_composing: bool,
 }
@@ -163,13 +166,11 @@ impl EventProcessor {
                 let xev: &XKeyEvent = xev.as_ref();
                 if self.xmodmap.is_modifier(xev.keycode as u8) {
                     // Don't grow the buffer past the `MAX_MOD_REPLAY_LEN`. This could happen
-                    // when the modifiers are consumed entirely or serials are altered.
-                    //
-                    // Both cases shouldn't happen in well behaving clients.
+                    // when the modifiers are consumed entirely.
                     if self.xfiltered_modifiers.len() == MAX_MOD_REPLAY_LEN {
                         self.xfiltered_modifiers.pop_back();
                     }
-                    self.xfiltered_modifiers.push_front(xev.serial);
+                    self.xfiltered_modifiers.push_front(xev.keycode as u8);
                 }
             }
 
@@ -950,7 +951,7 @@ impl EventProcessor {
         // itself are out of sync due to XkbState being delivered before XKeyEvent, since it's
         // being replayed by the XIM, thus we should replay ourselves.
         let replay = if let Some(position) =
-            self.xfiltered_modifiers.iter().rev().position(|&s| s == xev.serial)
+            self.xfiltered_modifiers.iter().rev().position(|&s| s == xev.keycode as u8)
         {
             // We don't have to replay modifiers pressed before the current event if some events
             // were not forwarded to us, since their state is irrelevant.
