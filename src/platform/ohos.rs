@@ -1,19 +1,13 @@
 //! # OpenHarmony
 //!
-//! The OpenHarmony backend builds on (and exposes types from) the [`ndk`](https://docs.rs/ndk/) crate.
+//! The OpenHarmony backend builds on (and exposes types from) the [`ohos-rs`](https://docs.rs/ohos-rs/) crate.
 //!
 //! Native OpenHarmony applications need some form of "glue" crate that is responsible
 //! for defining the main entry point for your Rust application as well as tracking
-//! various life-cycle events and synchronizing with the main JVM thread.
+//! various life-cycle events and synchronizing with the main thread.
 //!
 //! Winit uses the [openharmony-ability](https://docs.rs/openharmony-ability/) as a
-//! glue crate (prior to `0.28` it used
-//! [ndk-glue](https://github.com/rust-windowing/android-ndk-rs/tree/master/ndk-glue)).
-//!
-//! The version of the glue crate that your application depends on _must_ match the
-//! version that Winit depends on because the glue crate is responsible for your
-//! application's main entry point. If Cargo resolves multiple versions, they will
-//! clash.
+//! glue crate.
 //!
 
 use self::ability::{Configuration, OpenHarmonyApp, Rect};
@@ -26,13 +20,9 @@ pub trait EventLoopExtOpenHarmony {
     /// A type provided by the user that can be passed through `Event::UserEvent`.
     type UserEvent: 'static;
 
-    ///
-    #[cfg_attr(
-        not(all(web_platform, target_feature = "exception-handling")),
-        doc = "[`run_app()`]: EventLoop::run_app()"
-    )]
-
-    /// [^1]: `run_app()` is _not_ available on WASM when the target supports `exception-handling`.
+    /// Initializes the winit event loop.
+    /// Unlike [`run_app()`] this method return immediately.
+    /// [^1]: `run_app()` is _not_ available on OpnHarmony
     fn spawn_app<A: ApplicationHandler<Self::UserEvent> + 'static>(self, app: A);
 
     /// Get the [`OpenHarmonyApp`] which was used to create this event loop.
@@ -56,13 +46,13 @@ impl<T> EventLoopExtOpenHarmony for EventLoop<T> {
     }
 }
 
-/// Additional methods on [`ActiveEventLoop`] that are specific to Android.
+/// Additional methods on [`ActiveEventLoop`] that are specific to OpenHarmony.
 pub trait ActiveEventLoopExtOpenHarmony {
-    /// Get the [`AndroidApp`] which was used to create this event loop.
+    /// Get the [`OpenHarmonyApp`] which was used to create this event loop.
     fn openharmony_app(&self) -> &OpenHarmonyApp;
 }
 
-/// Additional methods on [`Window`] that are specific to Android.
+/// Additional methods on [`Window`] that are specific to OpenHarmony.
 pub trait WindowExtOpenHarmony {
     fn content_rect(&self) -> Rect;
 
@@ -85,7 +75,7 @@ impl ActiveEventLoopExtOpenHarmony for ActiveEventLoop {
     }
 }
 
-/// Additional methods on [`WindowAttributes`] that are specific to Android.
+/// Additional methods on [`WindowAttributes`] that are specific to OpenHarmony.
 pub trait WindowAttributesExtOpenHarmony {}
 
 impl WindowAttributesExtOpenHarmony for WindowAttributes {}
@@ -111,26 +101,21 @@ impl<T> EventLoopBuilderExtOpenHarmony for EventLoopBuilder<T> {
 /// `openharmony-ability` and avoid any chance of a conflict between Winit and the
 /// application crate.
 ///
-/// Unlike most libraries there can only be a single implementation
-/// of the `openharmony-ability` glue crate linked with an application because
-/// it is responsible for the application's `android_main()` entry point.
-///
-/// Since Winit depends on a specific version of `android_activity` the simplest
-/// way to avoid creating a conflict is for applications to avoid explicitly
-/// depending on the `android_activity` crate, and instead consume the API that
-/// is re-exported by Winit.
 ///
 /// For compatibility applications should then import the [`OpenHarmonyApp`] type for
-/// their `init(app: OpenHarmonyApp)` function like:
+/// their `init(app: OpenHarmonyApp)` function and use `openharmony-ability-derive` to
+/// implement entry like:
 /// ```rust
 /// #[cfg(target_env = "ohos")]
 /// use winit::platform::ohos::ability::OpenHarmonyApp;
+/// use openharmony_ability_derive::ability;
+/// 
+/// #[ability]
+/// fn init(app: OpenHarmonyApp) {
+///     // ...
+/// }
 /// ```
 pub mod ability {
-    // We enable the `"native-activity"` feature just so that we can build the
-    // docs, but it'll be very confusing for users to see the docs with that
-    // feature enabled, so we avoid inlining it so that they're forced to view
-    // it on the crate's own docs.rs page.
     #[doc(no_inline)]
     #[cfg(ohos_platform)]
     pub use openharmony_ability::*;

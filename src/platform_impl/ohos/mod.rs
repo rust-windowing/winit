@@ -344,12 +344,19 @@ impl<T: 'static> EventLoop<T> {
                         if let Ok(event) = self.user_events_receiver.try_recv() {
                             let event = event::Event::UserEvent(event);
                             h(event);
-                        }                        
+                        }
                     }
                 },
                 unknown => {
                     trace!("Unknown MainEvent {unknown:?} (ignored)");
                 },
+            };
+
+            if self.window_target.p.exit.get() {
+                if let Some(ref mut h) = *self.event_loop.borrow_mut() {
+                    h(event::Event::LoopExiting);
+                    self.openharmony_app.exit(0);
+                }
             }
         });
         unreachable!();
