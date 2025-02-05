@@ -107,7 +107,12 @@ jobs:
 
     - name: Generate lockfile
       # Also updates the crates.io index
-      run: cargo generate-lockfile && cargo update -p ahash --precise 0.8.7 && cargo update -p bumpalo --precise 3.14.0
+      run: |
+           cargo generate-lockfile
+           cargo update -p ahash --precise 0.8.7
+           cargo update -p bumpalo --precise 3.14.0
+           cargo update -p objc2-encode --precise 4.0.3
+           cargo update -p orbclient --precise 0.3.47
 
     - name: Install GCC Multilib
       if: (matrix.platform.os == 'ubuntu-latest') && contains(matrix.platform.target, 'i686')
