@@ -39,13 +39,3 @@ The migration guide could reference other migration examples in the current
 changelog entry.
 
 ## Unreleased
-
-### Changed
-
-- On Wayland, no longer send an explicit clearing `Ime::Preedit` just prior to a new `Ime::Preedit`.
-
-### Fixed
-
-- On X11, fix crash with uim.
-- On X11, fix modifiers for keys that were sent by the same X11 request.
-- On iOS, fix high CPU usage even when using `ControlFlow::Wait`.
