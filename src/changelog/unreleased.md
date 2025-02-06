@@ -48,3 +48,4 @@ changelog entry.
 
 - On X11, fix crash with uim.
 - On X11, fix modifiers for keys that were sent by the same X11 request.
+- On iOS, fix high CPU usage even when using `ControlFlow::Wait`.
