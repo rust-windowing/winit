@@ -6,6 +6,7 @@ mod fullscreen;
 mod intersection_handle;
 mod media_query_handle;
 mod pointer;
+mod touch;
 mod resize_scaling;
 mod safe_area;
 mod schedule;

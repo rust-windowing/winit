@@ -11,7 +11,7 @@ use super::super::{lock, KeyEventExtra};
 use super::runner::EventWrapper;
 use super::{backend, runner};
 use crate::error::{NotSupportedError, RequestError};
-use crate::event::{ElementState, Event, KeyEvent, TouchPhase, WindowEvent};
+use crate::event::{ButtonSource, ElementState, Event, KeyEvent, PointerKind, PointerSource, TouchPhase, WindowEvent};
 use crate::event_loop::{
     ActiveEventLoop as RootActiveEventLoop, ControlFlow, DeviceEvents,
     EventLoopProxy as RootEventLoopProxy, OwnedDisplayHandle as CoreOwnedDisplayHandle,
@@ -73,8 +73,6 @@ impl ActiveEventLoop {
 
     pub fn register(&self, canvas: &Rc<backend::Canvas>, window_id: WindowId) {
         let canvas_clone = canvas.clone();
-
-        canvas.on_touch_start();
 
         let runner = self.runner.clone();
         let has_focus = canvas.has_focus.clone();
@@ -244,23 +242,71 @@ impl ActiveEventLoop {
             {
                 let runner = self.runner.clone();
 
-                move |device_id, events| {
-                    runner.send_events(events.into_iter().map(
-                        |(position, pointer_source)| {
-                            Event::WindowEvent {
-                                window_id,
-                                event: WindowEvent::PointerMoved {
-                                    device_id,
-                                    position,
-                                    primary: false, // TODO: find out when this should be true
-                                    source: pointer_source,
-                                }
-                            }
+                move |device_id, primary, position, finger_id, force| {
+                    runner.send_event(Event::WindowEvent {
+                        window_id,
+                        event: WindowEvent::PointerMoved {
+                            device_id,
+                            position,
+                            primary,
+                            source: PointerSource::Touch {
+                                finger_id,
+                                force,
+                            },
                         },
-                    ));
+                    });
                 }
             },
         );
+        canvas.on_touch_start({
+            let runner = self.runner.clone();
+
+            move |device_id, primary, position, finger_id, force| {
+                runner.send_event(Event::WindowEvent {
+                    window_id,
+                    event: WindowEvent::PointerButton {
+                        device_id,
+                        state: ElementState::Pressed,
+                        position,
+                        primary,
+                        button: ButtonSource::Touch {
+                            finger_id,
+                            force,
+                        }
+                    },
+                });
+            }
+        });
+        canvas.on_touch_end({
+            let runner = self.runner.clone();
+
+            move |device_id, primary, position, finger_id| {
+                runner.send_event(Event::WindowEvent {
+                    window_id,
+                    event: WindowEvent::PointerLeft {
+                        device_id,
+                        position: Some(position),
+                        primary,
+                        kind: PointerKind::Touch(finger_id),
+                    },
+                });
+            }
+        });
+        canvas.on_touch_cancel({
+            let runner = self.runner.clone();
+
+            move |device_id, primary, position, finger_id| {
+                runner.send_event(Event::WindowEvent {
+                    window_id,
+                    event: WindowEvent::PointerLeft {
+                        device_id,
+                        position: Some(position),
+                        primary,
+                        kind: PointerKind::Touch(finger_id),
+                    },
+                });
+            }
+        });
 
         canvas.on_pointer_move(
             {

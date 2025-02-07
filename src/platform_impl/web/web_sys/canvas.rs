@@ -18,13 +18,11 @@ use super::event_handle::EventListenerHandle;
 use super::intersection_handle::IntersectionObserverHandle;
 use super::media_query_handle::MediaQueryListHandle;
 use super::pointer::PointerHandler;
+use super::touch::TouchHandler;
 use super::{event, fullscreen, ResizeScaleHandle};
 use crate::dpi::{LogicalPosition, PhysicalPosition, PhysicalSize};
 use crate::error::RequestError;
-use crate::event::{
-    ButtonSource, DeviceId, ElementState, MouseScrollDelta, PointerKind, PointerSource,
-    SurfaceSizeWriter,
-};
+use crate::event::{ButtonSource, DeviceId, ElementState, FingerId, Force, MouseScrollDelta, PointerKind, PointerSource, SurfaceSizeWriter};
 use crate::keyboard::{Key, KeyLocation, ModifiersState, PhysicalKey};
 use crate::platform_impl::Fullscreen;
 use crate::window::{WindowAttributes, WindowId};
@@ -51,6 +49,7 @@ struct Handlers {
     on_mouse_wheel: Option<EventListenerHandle<dyn FnMut(WheelEvent)>>,
     on_dark_mode: Option<MediaQueryListHandle>,
     pointer_handler: PointerHandler,
+    touch_handler: TouchHandler,
     on_resize_scale: Option<ResizeScaleHandle>,
     on_intersect: Option<IntersectionObserverHandle>,
     on_touch_end: Option<EventListenerHandle<dyn FnMut(Event)>>,
@@ -179,6 +178,7 @@ impl Canvas {
                 on_mouse_wheel: None,
                 on_dark_mode: None,
                 pointer_handler: PointerHandler::new(),
+                touch_handler: TouchHandler::new(),
                 on_resize_scale: None,
                 on_intersect: None,
                 on_touch_end: None,
@@ -251,16 +251,6 @@ impl Canvas {
     #[inline]
     pub fn style(&self) -> &Style {
         &self.common.style
-    }
-
-    pub fn on_touch_start(&self) {
-        let prevent_default = Rc::clone(&self.prevent_default);
-        self.handlers.borrow_mut().on_touch_start =
-            Some(self.common.add_event("touchstart", move |event: Event| {
-                if prevent_default.get() {
-                    event.prevent_default();
-                }
-            }));
     }
 
     pub fn on_blur<F>(&self, mut handler: F)
@@ -391,16 +381,48 @@ impl Canvas {
             Rc::clone(&self.prevent_default),
         )
     }
-    
-    pub fn on_touch_move<C>(&self, cursor_handler: C)
+
+    pub fn on_touch_start<T>(&self, cursor_handler: T)
     where
-        C: 'static
-        + FnMut(
-            Option<DeviceId>,
-            Vec<(PhysicalPosition<f64>, PointerSource)> // TODO: change to &mut dyn Iterator
-        ),
+        T: 'static
+        + FnMut(Option<DeviceId>, bool, PhysicalPosition<f64>, FingerId, Option<Force>),
     {
-        self.handlers.borrow_mut().pointer_handler.on_touch_move(
+        self.handlers.borrow_mut().touch_handler.on_touch_start(
+            &self.common,
+            cursor_handler,
+            Rc::clone(&self.prevent_default),
+        )
+    }
+
+    pub fn on_touch_cancel<T>(&self, cursor_handler: T)
+    where
+        T: 'static
+        + FnMut(Option<DeviceId>, bool, PhysicalPosition<f64>, FingerId),
+    {
+        self.handlers.borrow_mut().touch_handler.on_touch_cancel(
+            &self.common,
+            cursor_handler,
+            Rc::clone(&self.prevent_default),
+        )
+    }
+
+    pub fn on_touch_end<T>(&self, cursor_handler: T)
+    where
+        T: 'static
+        + FnMut(Option<DeviceId>, bool, PhysicalPosition<f64>, FingerId),
+    {
+        self.handlers.borrow_mut().touch_handler.on_touch_end(
+            &self.common,
+            cursor_handler,
+        )
+    }
+
+    pub fn on_touch_move<T>(&self, cursor_handler: T)
+    where
+        T: 'static
+        + FnMut(Option<DeviceId>, bool, PhysicalPosition<f64>, FingerId, Option<Force>),
+    {
+        self.handlers.borrow_mut().touch_handler.on_touch_move(
             &self.common,
             cursor_handler,
             Rc::clone(&self.prevent_default),

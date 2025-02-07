@@ -2,13 +2,15 @@ use std::cell::OnceCell;
 
 use dpi::{LogicalPosition, PhysicalPosition, Position};
 use smol_str::SmolStr;
+use tracing::error;
 use wasm_bindgen::prelude::wasm_bindgen;
 use wasm_bindgen::{JsCast, JsValue};
-use web_sys::{KeyboardEvent, MouseEvent, Navigator, PointerEvent, WheelEvent};
+use web_sys::{KeyboardEvent, MouseEvent, Navigator, PointerEvent, Touch, TouchEvent, WheelEvent};
 
 use super::Engine;
-use crate::event::{FingerId, MouseButton, MouseScrollDelta, PointerKind};
+use crate::event::{FingerId, Force, MouseButton, MouseScrollDelta, PointerKind, PointerSource};
 use crate::keyboard::{Key, KeyLocation, ModifiersState, NamedKey, PhysicalKey};
+use crate::platform_impl::platform::event::mkdid;
 
 bitflags::bitflags! {
     // https://www.w3.org/TR/pointerevents3/#the-buttons-property
@@ -253,6 +255,37 @@ pub fn pointer_move_event(event: PointerEvent) -> impl Iterator<Item = PointerEv
         Some(event).into_iter().chain(None.into_iter().flatten())
     }
 }
+
+pub fn changed_touches(event: TouchEvent) -> Vec<Touch> {
+    let mut changed_touches = vec![];
+    let mut i = 0;
+    loop {
+        if let Some(touch) = event.changed_touches().get(i) {
+            i += 1;
+            changed_touches.push(touch);
+        } else {
+            break;
+        }
+    }
+    changed_touches
+}
+
+pub fn finger_position(touch: &Touch) -> LogicalPosition<f64> {
+    // TODO: this seems to be correct but I should check
+    LogicalPosition::new(
+        touch.client_x() as f64,
+        touch.client_y() as f64,
+    )
+}
+
+pub fn finger_id(touch: &Touch) -> FingerId {
+    FingerId(touch.identifier() as usize)
+}
+
+pub fn finger_force(touch: &Touch) -> Option<Force> {
+    Some(Force::Normalized(touch.force() as f64))
+}
+
 
 // TODO: Remove when Safari supports `getCoalescedEvents`.
 // See <https://bugs.webkit.org/show_bug.cgi?id=210454>.
