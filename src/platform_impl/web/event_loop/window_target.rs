@@ -237,27 +237,25 @@ impl ActiveEventLoop {
                 })))
             }
         });
-        
-        canvas.on_touch_move(
-            {
-                let runner = self.runner.clone();
 
-                move |device_id, primary, position, finger_id, force| {
-                    runner.send_event(Event::WindowEvent {
-                        window_id,
-                        event: WindowEvent::PointerMoved {
-                            device_id,
-                            position,
-                            primary,
-                            source: PointerSource::Touch {
-                                finger_id,
-                                force,
-                            },
+        canvas.on_touch_move({
+            let runner = self.runner.clone();
+
+            move |device_id, primary, position, finger_id, force| {
+                runner.send_event(Event::WindowEvent {
+                    window_id,
+                    event: WindowEvent::PointerMoved {
+                        device_id,
+                        position,
+                        primary,
+                        source: PointerSource::Touch {
+                            finger_id,
+                            force,
                         },
-                    });
-                }
-            },
-        );
+                    },
+                });
+            }
+        });
         canvas.on_touch_start({
             let runner = self.runner.clone();
 
