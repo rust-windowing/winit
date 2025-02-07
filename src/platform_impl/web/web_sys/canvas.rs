@@ -391,6 +391,21 @@ impl Canvas {
             Rc::clone(&self.prevent_default),
         )
     }
+    
+    pub fn on_touch_move<C>(&self, cursor_handler: C)
+    where
+        C: 'static
+        + FnMut(
+            Option<DeviceId>,
+            Vec<(PhysicalPosition<f64>, PointerSource)> // TODO: change to &mut dyn Iterator
+        ),
+    {
+        self.handlers.borrow_mut().pointer_handler.on_touch_move(
+            &self.common,
+            cursor_handler,
+            Rc::clone(&self.prevent_default),
+        )
+    }
 
     pub fn on_mouse_wheel<F>(&self, mut handler: F)
     where

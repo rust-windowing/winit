@@ -319,7 +319,7 @@ pin-project = "1"
 wasm-bindgen = "0.2.93"
 wasm-bindgen-futures = "0.4.43"
 web-time = "1"
-web_sys = { package = "web-sys", version = "0.3.70", features = [
+web-sys = { version = "0.3.70", features = [
     "AbortController",
     "AbortSignal",
     "Blob",
@@ -365,6 +365,9 @@ web_sys = { package = "web-sys", version = "0.3.70", features = [
     "ResizeObserverSize",
     "Screen",
     "ScreenOrientation",
+    "Touch",
+    "TouchEvent",
+    "TouchList",
     "Url",
     "VisibilityState",
     "WheelEvent",

@@ -239,6 +239,28 @@ impl ActiveEventLoop {
                 })))
             }
         });
+        
+        canvas.on_touch_move(
+            {
+                let runner = self.runner.clone();
+
+                move |device_id, events| {
+                    runner.send_events(events.into_iter().map(
+                        |(position, pointer_source)| {
+                            Event::WindowEvent {
+                                window_id,
+                                event: WindowEvent::PointerMoved {
+                                    device_id,
+                                    position,
+                                    primary: false, // TODO: find out when this should be true
+                                    source: pointer_source,
+                                }
+                            }
+                        },
+                    ));
+                }
+            },
+        );
 
         canvas.on_pointer_move(
             {

@@ -1,13 +1,13 @@
 use std::cell::Cell;
 use std::rc::Rc;
-
-use web_sys::PointerEvent;
-
+use tracing::{error, info};
+use web_sys::{PointerEvent, TouchEvent};
+use dpi::LogicalPosition;
 use super::canvas::Common;
 use super::event;
 use super::event_handle::EventListenerHandle;
 use crate::dpi::PhysicalPosition;
-use crate::event::{ButtonSource, DeviceId, ElementState, Force, PointerKind, PointerSource};
+use crate::event::{ButtonSource, DeviceId, ElementState, FingerId, Force, PointerKind, PointerSource};
 use crate::keyboard::ModifiersState;
 use crate::platform_impl::web::event::mkdid;
 
@@ -19,6 +19,7 @@ pub(super) struct PointerHandler {
     on_pointer_press: Option<EventListenerHandle<dyn FnMut(PointerEvent)>>,
     on_pointer_release: Option<EventListenerHandle<dyn FnMut(PointerEvent)>>,
     on_touch_cancel: Option<EventListenerHandle<dyn FnMut(PointerEvent)>>,
+    on_touch_move: Option<EventListenerHandle<dyn FnMut(TouchEvent)>>,
 }
 
 impl PointerHandler {
@@ -30,6 +31,7 @@ impl PointerHandler {
             on_pointer_press: None,
             on_pointer_release: None,
             on_touch_cancel: None,
+            on_touch_move: None,
         }
     }
 
@@ -186,6 +188,11 @@ impl PointerHandler {
                 let pointer_id = event.pointer_id();
                 let device_id = mkdid(pointer_id);
                 let kind = event::pointer_type(&event, pointer_id);
+                if let PointerKind::Touch(_) = kind {
+                    return; // We handle touch events with touchmove
+                    // TODO: Perhaps this should be a toggleable option. 
+                    // If not, then remove the touch related code below
+                }
                 let primary = event.is_primary();
 
                 // chorded button event
@@ -252,6 +259,56 @@ impl PointerHandler {
                             },
                         )
                     }),
+                );
+            }));
+    }
+    
+    pub fn on_touch_move<C>(
+        &mut self,
+        canvas_common: &Common,
+        mut cursor_handler: C,
+        prevent_default: Rc<Cell<bool>>,
+    ) where
+        C: 'static
+        + FnMut(
+            Option<DeviceId>,
+            Vec<(PhysicalPosition<f64>, PointerSource)> // TODO: change to &mut dyn Iterator
+        ),
+    {
+        let window = canvas_common.window.clone();
+        let canvas = canvas_common.raw().clone();
+        self.on_touch_move =
+            Some(canvas_common.add_event("touchmove", move |event: TouchEvent| {
+                if prevent_default.get() {
+                    // prevent text selection
+                    event.prevent_default();
+                    // but still focus element
+                    let _ = canvas.focus();
+                }
+                let mut i = 0;
+                let mut event_items = vec![];
+                let mut device_id = None;
+                loop {
+                    if let Some(touch) = event.changed_touches().get(i) {
+                        i += 1;
+                        let position = LogicalPosition::new(
+                            touch.client_x() as f64,
+                            touch.client_y() as f64,
+                        ).to_physical(super::scale_factor(&window));
+                        let source = PointerSource::Touch { 
+                            finger_id: FingerId(touch.identifier() as usize), 
+                            force: Some(Force::Normalized(touch.force() as f64)) 
+                        };
+                        device_id = mkdid(touch.identifier());
+                        error!("Hello sailor!");
+                        event_items.push((position, source));
+                    } else {
+                        break;
+                    }
+                }
+                cursor_handler(
+                    device_id, // TODO: Not sure how to get the device ID
+                    event_items
                 );
             }));
     }
