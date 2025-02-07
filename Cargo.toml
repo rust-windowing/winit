@@ -318,7 +318,6 @@ js-sys = "0.3.70"
 pin-project = "1"
 wasm-bindgen = "0.2.93"
 wasm-bindgen-futures = "0.4.43"
-web-time = "1"
 web-sys = { version = "0.3.70", features = [
     "AbortController",
     "AbortSignal",
@@ -374,6 +373,7 @@ web-sys = { version = "0.3.70", features = [
     "Window",
     "Worker",
 ] }
+web-time = "1"
 
 [target.'cfg(all(target_family = "wasm", target_feature = "atomics"))'.dependencies]
 atomic-waker = "1"
