@@ -573,6 +573,7 @@ impl Canvas {
         handlers.on_mouse_wheel.take();
         handlers.on_dark_mode.take();
         handlers.pointer_handler.remove_listeners();
+        handlers.touch_handler.remove_listeners();
         handlers.on_resize_scale = None;
         handlers.on_intersect = None;
         handlers.animation_frame_handler.cancel();
