@@ -120,6 +120,10 @@ pub mod ability {
     #[cfg(ohos_platform)]
     pub use openharmony_ability::*;
 
+    #[doc(no_inline)]
+    #[cfg(ohos_platform)]
+    pub use openharmony_ability_derive::*;
+
     #[cfg(not(ohos_platform))]
     #[doc(hidden)]
     pub struct Rect;
