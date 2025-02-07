@@ -12,7 +12,7 @@ use super::runner::EventWrapper;
 use super::{backend, runner};
 use crate::error::{NotSupportedError, RequestError};
 use crate::event::{
-    ButtonSource, ElementState, Event, KeyEvent, PointerKind, PointerSource, TouchPhase,
+    ElementState, Event, KeyEvent, TouchPhase,
     WindowEvent,
 };
 use crate::event_loop::{
@@ -244,14 +244,14 @@ impl ActiveEventLoop {
         canvas.on_touch_move({
             let runner = self.runner.clone();
 
-            move |device_id, primary, position, finger_id, force| {
+            move |finger| {
                 runner.send_event(Event::WindowEvent {
                     window_id,
                     event: WindowEvent::PointerMoved {
-                        device_id,
-                        position,
-                        primary,
-                        source: PointerSource::Touch { finger_id, force },
+                        device_id: finger.device_id,
+                        position: finger.position,
+                        primary: finger.primary,
+                        source: finger.pointer_source(),
                     },
                 });
             }
@@ -259,15 +259,15 @@ impl ActiveEventLoop {
         canvas.on_touch_start({
             let runner = self.runner.clone();
 
-            move |device_id, primary, position, finger_id, force| {
+            move |finger| {
                 runner.send_event(Event::WindowEvent {
                     window_id,
                     event: WindowEvent::PointerButton {
-                        device_id,
+                        device_id: finger.device_id,
                         state: ElementState::Pressed,
-                        position,
-                        primary,
-                        button: ButtonSource::Touch { finger_id, force },
+                        position: finger.position,
+                        primary: finger.primary,
+                        button: finger.button_source(),
                     },
                 });
             }
@@ -275,14 +275,14 @@ impl ActiveEventLoop {
         canvas.on_touch_end({
             let runner = self.runner.clone();
 
-            move |device_id, primary, position, finger_id| {
+            move |finger| {
                 runner.send_event(Event::WindowEvent {
                     window_id,
                     event: WindowEvent::PointerLeft {
-                        device_id,
-                        position: Some(position),
-                        primary,
-                        kind: PointerKind::Touch(finger_id),
+                        device_id: finger.device_id,
+                        position: Some(finger.position),
+                        primary: finger.primary,
+                        kind: finger.pointer_kind(),
                     },
                 });
             }
@@ -290,14 +290,14 @@ impl ActiveEventLoop {
         canvas.on_touch_cancel({
             let runner = self.runner.clone();
 
-            move |device_id, primary, position, finger_id| {
+            move |finger| {
                 runner.send_event(Event::WindowEvent {
                     window_id,
                     event: WindowEvent::PointerLeft {
-                        device_id,
-                        position: Some(position),
-                        primary,
-                        kind: PointerKind::Touch(finger_id),
+                        device_id: finger.device_id,
+                        position: Some(finger.position),
+                        primary: finger.primary,
+                        kind: finger.pointer_kind(),
                     },
                 });
             }

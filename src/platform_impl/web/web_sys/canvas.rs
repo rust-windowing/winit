@@ -18,12 +18,12 @@ use super::event_handle::EventListenerHandle;
 use super::intersection_handle::IntersectionObserverHandle;
 use super::media_query_handle::MediaQueryListHandle;
 use super::pointer::PointerHandler;
-use super::touch::TouchHandler;
+use super::touch::{Finger, TouchHandler};
 use super::{event, fullscreen, ResizeScaleHandle};
 use crate::dpi::{LogicalPosition, PhysicalPosition, PhysicalSize};
 use crate::error::RequestError;
 use crate::event::{
-    ButtonSource, DeviceId, ElementState, FingerId, Force, MouseScrollDelta, PointerKind,
+    ButtonSource, DeviceId, ElementState, MouseScrollDelta, PointerKind,
     PointerSource, SurfaceSizeWriter,
 };
 use crate::keyboard::{Key, KeyLocation, ModifiersState, PhysicalKey};
@@ -387,7 +387,7 @@ impl Canvas {
 
     pub fn on_touch_start<T>(&self, cursor_handler: T)
     where
-        T: 'static + FnMut(Option<DeviceId>, bool, PhysicalPosition<f64>, FingerId, Option<Force>),
+        T: 'static + FnMut(Finger),
     {
         self.handlers.borrow_mut().touch_handler.on_touch_start(
             &self.common,
@@ -398,7 +398,7 @@ impl Canvas {
 
     pub fn on_touch_cancel<T>(&self, cursor_handler: T)
     where
-        T: 'static + FnMut(Option<DeviceId>, bool, PhysicalPosition<f64>, FingerId),
+        T: 'static + FnMut(Finger),
     {
         self.handlers.borrow_mut().touch_handler.on_touch_cancel(
             &self.common,
@@ -409,14 +409,14 @@ impl Canvas {
 
     pub fn on_touch_end<T>(&self, cursor_handler: T)
     where
-        T: 'static + FnMut(Option<DeviceId>, bool, PhysicalPosition<f64>, FingerId),
+        T: 'static + FnMut(Finger),
     {
         self.handlers.borrow_mut().touch_handler.on_touch_end(&self.common, cursor_handler)
     }
 
     pub fn on_touch_move<T>(&self, cursor_handler: T)
     where
-        T: 'static + FnMut(Option<DeviceId>, bool, PhysicalPosition<f64>, FingerId, Option<Force>),
+        T: 'static + FnMut(Finger),
     {
         self.handlers.borrow_mut().touch_handler.on_touch_move(
             &self.common,

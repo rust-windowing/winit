@@ -5,11 +5,9 @@ use crate::dpi::PhysicalPosition;
 use crate::event::{ButtonSource, DeviceId, ElementState, Force, PointerKind, PointerSource};
 use crate::keyboard::ModifiersState;
 use crate::platform_impl::web::event::mkdid;
-use dpi::LogicalPosition;
 use std::cell::Cell;
 use std::rc::Rc;
-use tracing::{error, info};
-use web_sys::{PointerEvent, TouchEvent};
+use web_sys::{PointerEvent};
 
 #[allow(dead_code)]
 pub(super) struct PointerHandler {
