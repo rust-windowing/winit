@@ -5,6 +5,7 @@ use dpi::{LogicalPosition, PhysicalPosition};
 use std::cell::Cell;
 use std::rc::Rc;
 use web_sys::{Touch, TouchEvent};
+use crate::platform_impl::web::event::mkdid;
 
 #[allow(dead_code)]
 pub(super) struct TouchHandler {
@@ -137,7 +138,7 @@ impl Finger {
             finger_id,
             force,
             primary: finger_id.0 == 0, // TODO: is there a more accurate way to get this?
-            device_id: None, // TODO: how to get device ID?
+            device_id: mkdid(touch.identifier()) // TODO: I'm not sure if this is right
         }
     }
     
