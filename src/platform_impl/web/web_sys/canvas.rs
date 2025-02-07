@@ -22,7 +22,10 @@ use super::touch::TouchHandler;
 use super::{event, fullscreen, ResizeScaleHandle};
 use crate::dpi::{LogicalPosition, PhysicalPosition, PhysicalSize};
 use crate::error::RequestError;
-use crate::event::{ButtonSource, DeviceId, ElementState, FingerId, Force, MouseScrollDelta, PointerKind, PointerSource, SurfaceSizeWriter};
+use crate::event::{
+    ButtonSource, DeviceId, ElementState, FingerId, Force, MouseScrollDelta, PointerKind,
+    PointerSource, SurfaceSizeWriter,
+};
 use crate::keyboard::{Key, KeyLocation, ModifiersState, PhysicalKey};
 use crate::platform_impl::Fullscreen;
 use crate::window::{WindowAttributes, WindowId};
@@ -384,8 +387,7 @@ impl Canvas {
 
     pub fn on_touch_start<T>(&self, cursor_handler: T)
     where
-        T: 'static
-        + FnMut(Option<DeviceId>, bool, PhysicalPosition<f64>, FingerId, Option<Force>),
+        T: 'static + FnMut(Option<DeviceId>, bool, PhysicalPosition<f64>, FingerId, Option<Force>),
     {
         self.handlers.borrow_mut().touch_handler.on_touch_start(
             &self.common,
@@ -396,8 +398,7 @@ impl Canvas {
 
     pub fn on_touch_cancel<T>(&self, cursor_handler: T)
     where
-        T: 'static
-        + FnMut(Option<DeviceId>, bool, PhysicalPosition<f64>, FingerId),
+        T: 'static + FnMut(Option<DeviceId>, bool, PhysicalPosition<f64>, FingerId),
     {
         self.handlers.borrow_mut().touch_handler.on_touch_cancel(
             &self.common,
@@ -408,19 +409,14 @@ impl Canvas {
 
     pub fn on_touch_end<T>(&self, cursor_handler: T)
     where
-        T: 'static
-        + FnMut(Option<DeviceId>, bool, PhysicalPosition<f64>, FingerId),
+        T: 'static + FnMut(Option<DeviceId>, bool, PhysicalPosition<f64>, FingerId),
     {
-        self.handlers.borrow_mut().touch_handler.on_touch_end(
-            &self.common,
-            cursor_handler,
-        )
+        self.handlers.borrow_mut().touch_handler.on_touch_end(&self.common, cursor_handler)
     }
 
     pub fn on_touch_move<T>(&self, cursor_handler: T)
     where
-        T: 'static
-        + FnMut(Option<DeviceId>, bool, PhysicalPosition<f64>, FingerId, Option<Force>),
+        T: 'static + FnMut(Option<DeviceId>, bool, PhysicalPosition<f64>, FingerId, Option<Force>),
     {
         self.handlers.borrow_mut().touch_handler.on_touch_move(
             &self.common,

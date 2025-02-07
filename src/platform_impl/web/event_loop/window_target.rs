@@ -11,7 +11,10 @@ use super::super::{lock, KeyEventExtra};
 use super::runner::EventWrapper;
 use super::{backend, runner};
 use crate::error::{NotSupportedError, RequestError};
-use crate::event::{ButtonSource, ElementState, Event, KeyEvent, PointerKind, PointerSource, TouchPhase, WindowEvent};
+use crate::event::{
+    ButtonSource, ElementState, Event, KeyEvent, PointerKind, PointerSource, TouchPhase,
+    WindowEvent,
+};
 use crate::event_loop::{
     ActiveEventLoop as RootActiveEventLoop, ControlFlow, DeviceEvents,
     EventLoopProxy as RootEventLoopProxy, OwnedDisplayHandle as CoreOwnedDisplayHandle,
@@ -248,10 +251,7 @@ impl ActiveEventLoop {
                         device_id,
                         position,
                         primary,
-                        source: PointerSource::Touch {
-                            finger_id,
-                            force,
-                        },
+                        source: PointerSource::Touch { finger_id, force },
                     },
                 });
             }
@@ -267,10 +267,7 @@ impl ActiveEventLoop {
                         state: ElementState::Pressed,
                         position,
                         primary,
-                        button: ButtonSource::Touch {
-                            finger_id,
-                            force,
-                        }
+                        button: ButtonSource::Touch { finger_id, force },
                     },
                 });
             }

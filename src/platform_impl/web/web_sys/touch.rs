@@ -27,22 +27,20 @@ impl TouchHandler {
 
     pub fn on_touch_end<T>(&mut self, canvas_common: &Common, mut handler: T)
     where
-        T: 'static
-        + FnMut(Option<DeviceId>, bool, PhysicalPosition<f64>, FingerId),
+        T: 'static + FnMut(Option<DeviceId>, bool, PhysicalPosition<f64>, FingerId),
     {
         let window = canvas_common.window.clone();
-        self.on_touch_end =
-            Some(canvas_common.add_event("touchend", move |event: TouchEvent| {
-                let changed_touches = event::changed_touches(event);
-                for touch in changed_touches {
-                    handler(
-                        None, // TODO: how to get device ID?
-                        touch.identifier() == 0, // TODO: this is probably not an accurate way to check if it's the primary finger
-                        event::finger_position(&touch).to_physical(super::scale_factor(&window)),
-                        event::finger_id(&touch),
-                    )
-                }
-            }));
+        self.on_touch_end = Some(canvas_common.add_event("touchend", move |event: TouchEvent| {
+            let changed_touches = event::changed_touches(event);
+            for touch in changed_touches {
+                handler(
+                    None,                    // TODO: how to get device ID?
+                    touch.identifier() == 0, // TODO: this is probably not an accurate way to check if it's the primary finger
+                    event::finger_position(&touch).to_physical(super::scale_factor(&window)),
+                    event::finger_id(&touch),
+                )
+            }
+        }));
     }
 
     pub fn on_touch_start<T>(
@@ -51,8 +49,7 @@ impl TouchHandler {
         mut handler: T,
         prevent_default: Rc<Cell<bool>>,
     ) where
-        T: 'static
-        + FnMut(Option<DeviceId>, bool, PhysicalPosition<f64>, FingerId, Option<Force>),
+        T: 'static + FnMut(Option<DeviceId>, bool, PhysicalPosition<f64>, FingerId, Option<Force>),
     {
         let window = canvas_common.window.clone();
         let canvas = canvas_common.raw().clone();
@@ -66,7 +63,7 @@ impl TouchHandler {
                 }
                 for touch in event::changed_touches(event) {
                     handler(
-                        None, // TODO: how to get device ID?
+                        None,                    // TODO: how to get device ID?
                         touch.identifier() == 0, // TODO: this is probably not an accurate way to check if it's the primary finger
                         event::finger_position(&touch).to_physical(super::scale_factor(&window)),
                         event::finger_id(&touch),
@@ -82,8 +79,7 @@ impl TouchHandler {
         mut handler: T,
         prevent_default: Rc<Cell<bool>>,
     ) where
-        T: 'static
-        + FnMut(Option<DeviceId>, bool, PhysicalPosition<f64>, FingerId, Option<Force>),
+        T: 'static + FnMut(Option<DeviceId>, bool, PhysicalPosition<f64>, FingerId, Option<Force>),
     {
         let window = canvas_common.window.clone();
         let canvas = canvas_common.raw().clone();
@@ -97,7 +93,7 @@ impl TouchHandler {
                 }
                 for touch in event::changed_touches(event) {
                     handler(
-                        None, // TODO: how to get device ID?
+                        None,                    // TODO: how to get device ID?
                         touch.identifier() == 0, // TODO: this is probably not an accurate way to check if it's the primary finger
                         event::finger_position(&touch).to_physical(super::scale_factor(&window)),
                         event::finger_id(&touch),
@@ -106,15 +102,14 @@ impl TouchHandler {
                 }
             }));
     }
-    
+
     pub fn on_touch_cancel<T>(
         &mut self,
         canvas_common: &Common,
         mut handler: T,
         prevent_default: Rc<Cell<bool>>,
     ) where
-        T: 'static
-        + FnMut(Option<DeviceId>, bool, PhysicalPosition<f64>, FingerId),
+        T: 'static + FnMut(Option<DeviceId>, bool, PhysicalPosition<f64>, FingerId),
     {
         let window = canvas_common.window.clone();
         let canvas = canvas_common.raw().clone();
@@ -128,7 +123,7 @@ impl TouchHandler {
                 }
                 for touch in event::changed_touches(event) {
                     handler(
-                        None, // TODO: how to get device ID?
+                        None,                    // TODO: how to get device ID?
                         touch.identifier() == 0, // TODO: this is probably not an accurate way to check if it's the primary finger
                         event::finger_position(&touch).to_physical(super::scale_factor(&window)),
                         event::finger_id(&touch),
@@ -136,7 +131,7 @@ impl TouchHandler {
                 }
             }));
     }
-    
+
     pub fn remove_listeners(&mut self) {
         self.on_touch_move = None;
         self.on_touch_end = None;

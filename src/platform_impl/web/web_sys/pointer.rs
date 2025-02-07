@@ -1,8 +1,3 @@
-use std::cell::Cell;
-use std::rc::Rc;
-use tracing::{error, info};
-use web_sys::{PointerEvent, TouchEvent};
-use dpi::LogicalPosition;
 use super::canvas::Common;
 use super::event;
 use super::event_handle::EventListenerHandle;
@@ -10,6 +5,11 @@ use crate::dpi::PhysicalPosition;
 use crate::event::{ButtonSource, DeviceId, ElementState, Force, PointerKind, PointerSource};
 use crate::keyboard::ModifiersState;
 use crate::platform_impl::web::event::mkdid;
+use dpi::LogicalPosition;
+use std::cell::Cell;
+use std::rc::Rc;
+use tracing::{error, info};
+use web_sys::{PointerEvent, TouchEvent};
 
 #[allow(dead_code)]
 pub(super) struct PointerHandler {
@@ -80,8 +80,8 @@ impl PointerHandler {
                 let kind = event::pointer_type(&event, pointer_id);
                 if let PointerKind::Touch(_) = kind {
                     return; // We handle touch events with touchmove
-                    // TODO: Perhaps this should be a toggleable option. 
-                    // If not, then remove the touch related code below
+                            // TODO: Perhaps this should be a toggleable option.
+                            // If not, then remove the touch related code below
                 }
 
                 let button = event::mouse_button(&event).expect("no mouse button pressed");
@@ -131,8 +131,8 @@ impl PointerHandler {
                 let button = event::mouse_button(&event).expect("no mouse button pressed");
                 if let PointerKind::Touch(_) = kind {
                     return; // We handle touch events with touchmove
-                    // TODO: Perhaps this should be a toggleable option. 
-                    // If not, then remove the touch related code below
+                            // TODO: Perhaps this should be a toggleable option.
+                            // If not, then remove the touch related code below
                 }
 
                 let source = match kind {
@@ -196,8 +196,8 @@ impl PointerHandler {
                 let kind = event::pointer_type(&event, pointer_id);
                 if let PointerKind::Touch(_) = kind {
                     return; // We handle touch events with touchmove
-                    // TODO: Perhaps this should be a toggleable option. 
-                    // If not, then remove the touch related code below
+                            // TODO: Perhaps this should be a toggleable option.
+                            // If not, then remove the touch related code below
                 }
                 let primary = event.is_primary();
 
@@ -268,7 +268,7 @@ impl PointerHandler {
                 );
             }));
     }
-    
+
     pub fn remove_listeners(&mut self) {
         self.on_cursor_leave = None;
         self.on_cursor_enter = None;
