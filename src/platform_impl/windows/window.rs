@@ -480,7 +480,7 @@ impl CoreWindow for Window {
                     length: std::mem::size_of::<WINDOWPLACEMENT>() as u32,
                     ..std::mem::zeroed()
                 };
-                GetWindowPlacement(self.hwnd(), &mut placement);
+                GetWindowPlacement(hwnd, &mut placement);
                 placement
             };
             let window_rect = unsafe {
