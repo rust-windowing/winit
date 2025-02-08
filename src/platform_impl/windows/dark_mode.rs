@@ -9,15 +9,15 @@ use windows_sys::Win32::UI::Accessibility::{HCF_HIGHCONTRASTON, HIGHCONTRASTA};
 use windows_sys::Win32::UI::Controls::SetWindowTheme;
 use windows_sys::Win32::UI::WindowsAndMessaging::{SystemParametersInfoA, SPI_GETHIGHCONTRAST};
 
-use super::util::{self, WIN_BUILD_VERSION};
+use super::util::{self, WIN_VERSION};
 use crate::utils::Lazy;
 use crate::window::Theme;
 
 static DARK_MODE_SUPPORTED: Lazy<bool> = Lazy::new(|| {
     // We won't try to do anything for windows versions < 17763
     // (Windows 10 October 2018 update)
-    match *WIN_BUILD_VERSION {
-        Some(v) => v >= 17763,
+    match *WIN_VERSION {
+        Some(v) => v.dwMajorVersion == 10 && v.dwMinorVersion == 0 && v.dwBuildNumber >= 17763,
         None => false,
     }
 });

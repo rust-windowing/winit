@@ -268,7 +268,7 @@ pub(crate) static GET_POINTER_DEVICE_RECTS: Lazy<Option<GetPointerDeviceRects>> 
 pub(crate) static GET_POINTER_TOUCH_INFO: Lazy<Option<GetPointerTouchInfo>> =
     Lazy::new(|| get_function!("user32.dll", GetPointerTouchInfo));
 
-pub(crate) static WIN_BUILD_VERSION: Lazy<Option<u32>> = Lazy::new(|| {
+pub(crate) static WIN_VERSION: Lazy<Option<OSVERSIONINFOW>> = Lazy::new(|| {
     type RtlGetVersion = unsafe extern "system" fn(*mut OSVERSIONINFOW) -> NTSTATUS;
     let handle = get_function!("ntdll.dll", RtlGetVersion);
 
@@ -286,7 +286,7 @@ pub(crate) static WIN_BUILD_VERSION: Lazy<Option<u32>> = Lazy::new(|| {
             let status = (rtl_get_version)(&mut vi);
 
             if status >= 0 {
-                Some(vi.dwBuildNumber)
+                Some(vi)
             } else {
                 None
             }
@@ -319,8 +319,10 @@ pub fn calculate_window_insets(window: HWND) -> RECT {
 
     let frame_thickness = get_frame_thickness(dpi);
 
-    let top_inset = match *WIN_BUILD_VERSION {
-        Some(v) if v >= 2200 => (dpi as f32 / USER_DEFAULT_SCREEN_DPI as f32).round() as i32,
+    let top_inset = match *WIN_VERSION {
+        Some(v) if v.dwBuildNumber >= 2200 => {
+            (dpi as f32 / USER_DEFAULT_SCREEN_DPI as f32).round() as i32
+        },
         _ => 0,
     };
 
