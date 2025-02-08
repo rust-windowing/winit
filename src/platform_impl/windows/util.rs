@@ -326,3 +326,29 @@ pub fn calculate_window_insets(window: HWND) -> RECT {
 
     RECT { left: frame_thickness, top: top_inset, right: frame_thickness, bottom: frame_thickness }
 }
+
+pub fn window_rect(hwnd: HWND) -> RECT {
+    unsafe {
+        let mut rect = std::mem::zeroed();
+        if GetWindowRect(hwnd, &mut rect) == false.into() {
+            panic!(
+                "Unexpected GetWindowRect failure: please report this error to \
+                 rust-windowing/winit"
+            )
+        }
+        rect
+    }
+}
+
+pub fn client_rect(hwnd: HWND) -> RECT {
+    unsafe {
+        let mut rect = std::mem::zeroed();
+        if GetClientRect(hwnd, &mut rect) == false.into() {
+            panic!(
+                "Unexpected GetClientRect failure: please report this error to \
+                 rust-windowing/winit"
+            )
+        }
+        rect
+    }
+}

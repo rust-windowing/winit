@@ -9,7 +9,7 @@ use std::{io, panic, ptr};
 
 use tracing::warn;
 use windows_sys::Win32::Foundation::{
-    HWND, LPARAM, OLE_E_WRONGCOMPOBJ, POINT, POINTS, RECT, RPC_E_CHANGED_MODE, S_OK, WPARAM,
+    HWND, LPARAM, OLE_E_WRONGCOMPOBJ, POINT, POINTS, RPC_E_CHANGED_MODE, S_OK, WPARAM,
 };
 use windows_sys::Win32::Graphics::Dwm::{
     DwmEnableBlurBehindWindow, DwmSetWindowAttribute, DWMWA_BORDER_COLOR, DWMWA_CAPTION_COLOR,
@@ -32,18 +32,18 @@ use windows_sys::Win32::UI::Input::KeyboardAndMouse::{
 };
 use windows_sys::Win32::UI::Input::Touch::{RegisterTouchWindow, TWF_WANTPALM};
 use windows_sys::Win32::UI::WindowsAndMessaging::{
-    CreateWindowExW, EnableMenuItem, FlashWindowEx, GetClientRect, GetCursorPos,
-    GetForegroundWindow, GetSystemMenu, GetSystemMetrics, GetWindowPlacement, GetWindowRect,
-    GetWindowTextLengthW, GetWindowTextW, IsWindowVisible, LoadCursorW, PeekMessageW, PostMessageW,
-    RegisterClassExW, SetCursor, SetCursorPos, SetForegroundWindow, SetMenuDefaultItem,
-    SetWindowDisplayAffinity, SetWindowPlacement, SetWindowPos, SetWindowTextW, TrackPopupMenu,
-    CS_HREDRAW, CS_VREDRAW, CW_USEDEFAULT, FLASHWINFO, FLASHW_ALL, FLASHW_STOP, FLASHW_TIMERNOFG,
-    FLASHW_TRAY, GWLP_HINSTANCE, HTBOTTOM, HTBOTTOMLEFT, HTBOTTOMRIGHT, HTCAPTION, HTLEFT, HTRIGHT,
-    HTTOP, HTTOPLEFT, HTTOPRIGHT, MENU_ITEM_STATE, MFS_DISABLED, MFS_ENABLED, MF_BYCOMMAND,
-    NID_READY, PM_NOREMOVE, SC_CLOSE, SC_MAXIMIZE, SC_MINIMIZE, SC_MOVE, SC_RESTORE, SC_SIZE,
-    SM_DIGITIZER, SWP_ASYNCWINDOWPOS, SWP_NOACTIVATE, SWP_NOSIZE, SWP_NOZORDER, TPM_LEFTALIGN,
-    TPM_RETURNCMD, WDA_EXCLUDEFROMCAPTURE, WDA_NONE, WINDOWPLACEMENT, WM_NCLBUTTONDOWN,
-    WM_SYSCOMMAND, WNDCLASSEXW,
+    CreateWindowExW, EnableMenuItem, FlashWindowEx, GetCursorPos, GetForegroundWindow,
+    GetSystemMenu, GetSystemMetrics, GetWindowPlacement, GetWindowTextLengthW, GetWindowTextW,
+    IsWindowVisible, LoadCursorW, PeekMessageW, PostMessageW, RegisterClassExW, SetCursor,
+    SetCursorPos, SetForegroundWindow, SetMenuDefaultItem, SetWindowDisplayAffinity,
+    SetWindowPlacement, SetWindowPos, SetWindowTextW, TrackPopupMenu, CS_HREDRAW, CS_VREDRAW,
+    CW_USEDEFAULT, FLASHWINFO, FLASHW_ALL, FLASHW_STOP, FLASHW_TIMERNOFG, FLASHW_TRAY,
+    GWLP_HINSTANCE, HTBOTTOM, HTBOTTOMLEFT, HTBOTTOMRIGHT, HTCAPTION, HTLEFT, HTRIGHT, HTTOP,
+    HTTOPLEFT, HTTOPRIGHT, MENU_ITEM_STATE, MFS_DISABLED, MFS_ENABLED, MF_BYCOMMAND, NID_READY,
+    PM_NOREMOVE, SC_CLOSE, SC_MAXIMIZE, SC_MINIMIZE, SC_MOVE, SC_RESTORE, SC_SIZE, SM_DIGITIZER,
+    SWP_ASYNCWINDOWPOS, SWP_NOACTIVATE, SWP_NOSIZE, SWP_NOZORDER, TPM_LEFTALIGN, TPM_RETURNCMD,
+    WDA_EXCLUDEFROMCAPTURE, WDA_NONE, WINDOWPLACEMENT, WM_NCLBUTTONDOWN, WM_SYSCOMMAND,
+    WNDCLASSEXW,
 };
 
 use crate::cursor::Cursor;
@@ -418,14 +418,8 @@ impl CoreWindow for Window {
     }
 
     fn surface_position(&self) -> PhysicalPosition<i32> {
-        let mut rect: RECT = unsafe { mem::zeroed() };
-        if unsafe { GetClientRect(self.hwnd(), &mut rect) } == false.into() {
-            panic!(
-                "Unexpected GetClientRect failure: please report this error to \
-                 rust-windowing/winit"
-            )
-        }
-        PhysicalPosition::new(rect.left, rect.top)
+        let client_rect = util::client_rect(self.hwnd());
+        PhysicalPosition::new(client_rect.left, client_rect.top)
     }
 
     fn set_outer_position(&self, position: Position) {
@@ -457,24 +451,23 @@ impl CoreWindow for Window {
     fn surface_size(&self) -> PhysicalSize<u32> {
         let hwnd = self.hwnd();
 
-        let client_rect = unsafe {
-            let mut rect = std::mem::zeroed();
-            if GetClientRect(hwnd, &mut rect) == false.into() {
-                panic!(
-                    "Unexpected GetClientRect failure: please report this error to \
-                     rust-windowing/winit"
-                )
-            }
-            rect
-        };
+        let client_rect = util::client_rect(hwnd);
 
         let mut width = client_rect.right - client_rect.left;
         let mut height = client_rect.bottom - client_rect.top;
 
         let window_flags = self.window_state_lock().window_flags;
-        if window_flags.contains(WindowFlags::MARKER_UNDECORATED_SHADOW)
-            && !window_flags.contains(WindowFlags::MARKER_DECORATIONS)
-        {
+
+        // undecorated windows with shadows have hidden offsets
+        // we need to calculate them and account for them in returned size
+        if window_flags.undecorated_with_shadows() {
+            let window_rect = util::window_rect(hwnd);
+
+            let width_offset =
+                (window_rect.right - window_rect.left) - (client_rect.right - client_rect.left);
+            let height_offset =
+                (window_rect.bottom - window_rect.top) - (client_rect.bottom - client_rect.top);
+
             let placement = unsafe {
                 let mut placement = WINDOWPLACEMENT {
                     length: std::mem::size_of::<WINDOWPLACEMENT>() as u32,
@@ -483,21 +476,6 @@ impl CoreWindow for Window {
                 GetWindowPlacement(hwnd, &mut placement);
                 placement
             };
-            let window_rect = unsafe {
-                let mut rect = std::mem::zeroed();
-                if GetWindowRect(hwnd, &mut rect) == false.into() {
-                    panic!(
-                        "Unexpected GetWindowRect failure: please report this error to \
-                         rust-windowing/winit"
-                    )
-                }
-                rect
-            };
-
-            let width_offset =
-                (window_rect.right - window_rect.left) - (client_rect.right - client_rect.left);
-            let height_offset =
-                (window_rect.bottom - window_rect.top) - (client_rect.bottom - client_rect.top);
 
             let rect = placement.rcNormalPosition;
 
@@ -530,32 +508,13 @@ impl CoreWindow for Window {
 
         let window_flags = self.window_state_lock().window_flags;
 
-        if window_flags.contains(WindowFlags::MARKER_UNDECORATED_SHADOW)
-            && !window_flags.contains(WindowFlags::MARKER_DECORATIONS)
-        {
+        // undecorated windows with shadows have hidden offsets
+        // we need to calculate them and account for them in new size
+        if window_flags.undecorated_with_shadows() {
             let hwnd = self.hwnd();
 
-            let client_rect = unsafe {
-                let mut rect = std::mem::zeroed();
-                if GetClientRect(hwnd, &mut rect) == false.into() {
-                    panic!(
-                        "Unexpected GetClientRect failure: please report this error to \
-                         rust-windowing/winit"
-                    )
-                }
-                rect
-            };
-
-            let window_rect = unsafe {
-                let mut rect = std::mem::zeroed();
-                if GetWindowRect(hwnd, &mut rect) == false.into() {
-                    panic!(
-                        "Unexpected GetWindowRect failure: please report this error to \
-                         rust-windowing/winit"
-                    )
-                }
-                rect
-            };
+            let client_rect = util::client_rect(hwnd);
+            let window_rect = util::window_rect(hwnd);
 
             let width_offset =
                 (window_rect.right - window_rect.left) - (client_rect.right - client_rect.left);

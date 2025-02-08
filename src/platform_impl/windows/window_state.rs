@@ -362,20 +362,26 @@ impl WindowFlags {
 
         if diff.contains(WindowFlags::MAXIMIZED) || new.contains(WindowFlags::MAXIMIZED) {
             unsafe {
-                ShowWindow(window, match new.contains(WindowFlags::MAXIMIZED) {
-                    true => SW_MAXIMIZE,
-                    false => SW_RESTORE,
-                });
+                ShowWindow(
+                    window,
+                    match new.contains(WindowFlags::MAXIMIZED) {
+                        true => SW_MAXIMIZE,
+                        false => SW_RESTORE,
+                    },
+                );
             }
         }
 
         // Minimize operations should execute after maximize for proper window animations
         if diff.contains(WindowFlags::MINIMIZED) {
             unsafe {
-                ShowWindow(window, match new.contains(WindowFlags::MINIMIZED) {
-                    true => SW_MINIMIZE,
-                    false => SW_RESTORE,
-                });
+                ShowWindow(
+                    window,
+                    match new.contains(WindowFlags::MINIMIZED) {
+                        true => SW_MINIMIZE,
+                        false => SW_RESTORE,
+                    },
+                );
             }
 
             diff.remove(WindowFlags::MINIMIZED);
@@ -477,6 +483,11 @@ impl WindowFlags {
             );
             InvalidateRgn(hwnd, 0, false.into());
         }
+    }
+
+    pub fn undecorated_with_shadows(&self) -> bool {
+        self.contains(WindowFlags::MARKER_UNDECORATED_SHADOW)
+            && !self.contains(WindowFlags::MARKER_DECORATIONS)
     }
 }
 
