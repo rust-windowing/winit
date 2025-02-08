@@ -400,11 +400,7 @@ impl Canvas {
     where
         T: 'static + FnMut(Finger),
     {
-        self.handlers.borrow_mut().touch_handler.on_touch_cancel(
-            &self.common,
-            cursor_handler,
-            Rc::clone(&self.prevent_default),
-        )
+        self.handlers.borrow_mut().touch_handler.on_touch_cancel(&self.common, cursor_handler)
     }
 
     pub fn on_touch_end<T>(&self, cursor_handler: T)
