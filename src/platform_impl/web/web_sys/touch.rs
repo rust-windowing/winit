@@ -1,11 +1,11 @@
 use super::canvas::Common;
 use super::event_handle::EventListenerHandle;
 use crate::event::{ButtonSource, DeviceId, FingerId, Force, PointerKind, PointerSource};
+use crate::platform_impl::web::event::mkdid;
 use dpi::{LogicalPosition, PhysicalPosition};
 use std::cell::Cell;
 use std::rc::Rc;
 use web_sys::{Touch, TouchEvent};
-use crate::platform_impl::web::event::mkdid;
 
 #[allow(dead_code)]
 pub(super) struct TouchHandler {
@@ -26,7 +26,8 @@ impl TouchHandler {
     }
 
     pub fn on_touch_end<T>(&mut self, canvas_common: &Common, mut handler: T)
-    where T: 'static + FnMut(Finger),
+    where
+        T: 'static + FnMut(Finger),
     {
         let window = canvas_common.window.clone();
         self.on_touch_end = Some(canvas_common.add_event("touchend", move |event: TouchEvent| {
@@ -126,10 +127,8 @@ pub(crate) struct Finger {
 
 impl Finger {
     pub(crate) fn from(touch: Touch, window: &web_sys::Window) -> Self {
-        let position = LogicalPosition::new(
-                touch.client_x() as f64,
-                touch.client_y() as f64,
-            ).to_physical(super::scale_factor(window));
+        let position = LogicalPosition::new(touch.client_x() as f64, touch.client_y() as f64)
+            .to_physical(super::scale_factor(window));
         let finger_id = FingerId(touch.identifier() as usize);
         let force = Some(Force::Normalized(touch.force() as f64));
 
@@ -138,24 +137,18 @@ impl Finger {
             finger_id,
             force,
             primary: finger_id.0 == 0, // TODO: is there a more accurate way to get this?
-            device_id: mkdid(touch.identifier()) // TODO: I'm not sure if this is right
+            device_id: mkdid(touch.identifier()), // TODO: I'm not sure if this is right
         }
     }
-    
+
     pub(crate) fn pointer_source(&self) -> PointerSource {
-        PointerSource::Touch {
-            finger_id: self.finger_id,
-            force: self.force,
-        }
+        PointerSource::Touch { finger_id: self.finger_id, force: self.force }
     }
-    
+
     pub(crate) fn button_source(&self) -> ButtonSource {
-        ButtonSource::Touch {
-            finger_id: self.finger_id,
-            force: self.force,
-        }
+        ButtonSource::Touch { finger_id: self.finger_id, force: self.force }
     }
-    
+
     pub(crate) fn pointer_kind(&self) -> PointerKind {
         PointerKind::Touch(self.finger_id)
     }
@@ -168,12 +161,8 @@ struct ChangedTouches {
 }
 
 impl ChangedTouches {
-    pub(super) fn new<'a>(event: TouchEvent, window: &web_sys::Window) -> Self {
-        Self {
-            index: 0,
-            event,
-            window: window.clone(),
-        }
+    pub(super) fn new(event: TouchEvent, window: &web_sys::Window) -> Self {
+        Self { index: 0, event, window: window.clone() }
     }
 }
 
@@ -186,7 +175,7 @@ impl Iterator for ChangedTouches {
             Some(touch) => {
                 self.index += 1;
                 Some(Finger::from(touch, &self.window))
-            }
+            },
         }
     }
 }
