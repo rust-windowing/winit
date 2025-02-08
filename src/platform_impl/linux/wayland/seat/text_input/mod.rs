@@ -119,11 +119,15 @@ impl Dispatch<ZwpTextInputV3, TextInputData, WinitState> for TextInputState {
                     None => return,
                 };
 
-                // Clear preedit at the start of `Done`.
-                state.events_sink.push_window_event(
-                    WindowEvent::Ime(Ime::Preedit(String::new(), None)),
-                    window_id,
-                );
+                // Clear preedit, unless all we'll be doing next is sending a new preedit.
+                if text_input_data.pending_commit.is_some()
+                    || text_input_data.pending_preedit.is_none()
+                {
+                    state.events_sink.push_window_event(
+                        WindowEvent::Ime(Ime::Preedit(String::new(), None)),
+                        window_id,
+                    );
+                }
 
                 // Send `Commit`.
                 if let Some(text) = text_input_data.pending_commit.take() {

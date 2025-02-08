@@ -175,28 +175,42 @@ pub enum WindowEvent {
     /// The window has been destroyed.
     Destroyed,
 
-    /// A file is being hovered over the window.
-    ///
-    /// When the user hovers multiple files at once, this event will be emitted for each file
-    /// separately.
-    HoveredFile(PathBuf),
-
-    /// A file has been dropped into the window.
-    ///
-    /// When the user drops multiple files at once, this event will be emitted for each file
-    /// separately.
-    ///
-    /// The support for this is known to be incomplete, see [#720] for more
-    /// information.
-    ///
-    /// [#720]: https://github.com/rust-windowing/winit/issues/720
-    DroppedFile(PathBuf),
-
-    /// A file was hovered, but has exited the window.
-    ///
-    /// There will be a single `HoveredFileCancelled` event triggered even if multiple files were
-    /// hovered.
-    HoveredFileCancelled,
+    /// A file drag operation has entered the window.
+    DragEntered {
+        /// List of paths that are being dragged onto the window.
+        paths: Vec<PathBuf>,
+        /// (x,y) coordinates in pixels relative to the top-left corner of the window. May be
+        /// negative on some platforms if something is dragged over a window's decorations (title
+        /// bar, frame, etc).
+        position: PhysicalPosition<f64>,
+    },
+    /// A file drag operation has moved over the window.
+    DragMoved {
+        /// (x,y) coordinates in pixels relative to the top-left corner of the window. May be
+        /// negative on some platforms if something is dragged over a window's decorations (title
+        /// bar, frame, etc).
+        position: PhysicalPosition<f64>,
+    },
+    /// The file drag operation has dropped file(s) on the window.
+    DragDropped {
+        /// List of paths that are being dragged onto the window.
+        paths: Vec<PathBuf>,
+        /// (x,y) coordinates in pixels relative to the top-left corner of the window. May be
+        /// negative on some platforms if something is dragged over a window's decorations (title
+        /// bar, frame, etc).
+        position: PhysicalPosition<f64>,
+    },
+    /// The file drag operation has been cancelled or left the window.
+    DragLeft {
+        /// (x,y) coordinates in pixels relative to the top-left corner of the window. May be
+        /// negative on some platforms if something is dragged over a window's decorations (title
+        /// bar, frame, etc).
+        ///
+        /// ## Platform-specific
+        ///
+        /// - **Windows:** Always emits [`None`].
+        position: Option<PhysicalPosition<f64>>,
+    },
 
     /// The window gained or lost focus.
     ///
@@ -1221,9 +1235,16 @@ mod tests {
                 with_window_event(Focused(true));
                 with_window_event(Moved((0, 0).into()));
                 with_window_event(SurfaceResized((0, 0).into()));
-                with_window_event(DroppedFile("x.txt".into()));
-                with_window_event(HoveredFile("x.txt".into()));
-                with_window_event(HoveredFileCancelled);
+                with_window_event(DragEntered {
+                    paths: vec!["x.txt".into()],
+                    position: (0, 0).into(),
+                });
+                with_window_event(DragMoved { position: (0, 0).into() });
+                with_window_event(DragDropped {
+                    paths: vec!["x.txt".into()],
+                    position: (0, 0).into(),
+                });
+                with_window_event(DragLeft { position: Some((0, 0).into()) });
                 with_window_event(Ime(Enabled));
                 with_window_event(PointerMoved {
                     device_id: None,

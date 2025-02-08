@@ -66,7 +66,10 @@ pub struct EventProcessor {
     pub active_window: Option<xproto::Window>,
     /// Latest modifiers we've sent for the user to trigger change in event.
     pub modifiers: Cell<ModifiersState>,
-    pub xfiltered_modifiers: VecDeque<c_ulong>,
+    // Track modifiers based on keycodes. NOTE: that serials generally don't work for tracking
+    // since they are not unique and could be duplicated in case of sequence of key events is
+    // delivered at near the same time.
+    pub xfiltered_modifiers: VecDeque<u8>,
     pub xmodmap: util::ModifierKeymap,
     pub is_composing: bool,
 }
@@ -160,13 +163,11 @@ impl EventProcessor {
                 let xev: &XKeyEvent = xev.as_ref();
                 if self.xmodmap.is_modifier(xev.keycode as u8) {
                     // Don't grow the buffer past the `MAX_MOD_REPLAY_LEN`. This could happen
-                    // when the modifiers are consumed entirely or serials are altered.
-                    //
-                    // Both cases shouldn't happen in well behaving clients.
+                    // when the modifiers are consumed entirely.
                     if self.xfiltered_modifiers.len() == MAX_MOD_REPLAY_LEN {
                         self.xfiltered_modifiers.pop_back();
                     }
-                    self.xfiltered_modifiers.push_front(xev.serial);
+                    self.xfiltered_modifiers.push_front(xev.keycode as u8);
                 }
             }
 
@@ -470,14 +471,19 @@ impl EventProcessor {
 
             let source_window = xev.data.get_long(0) as xproto::Window;
 
-            // Equivalent to `(x << shift) | y`
-            // where `shift = mem::size_of::<c_short>() * 8`
+            // https://www.freedesktop.org/wiki/Specifications/XDND/#xdndposition
             // Note that coordinates are in "desktop space", not "window space"
             // (in X11 parlance, they're root window coordinates)
-            // let packed_coordinates = xev.data.get_long(2);
-            // let shift = mem::size_of::<libc::c_short>() * 8;
-            // let x = packed_coordinates >> shift;
-            // let y = packed_coordinates & !(x << shift);
+            let packed_coordinates = xev.data.get_long(2);
+            let x = (packed_coordinates >> 16) as i16;
+            let y = (packed_coordinates & 0xffff) as i16;
+
+            let coords = self
+                .target
+                .xconn
+                .translate_coords(self.target.root, window, x, y)
+                .expect("Failed to translate window coordinates");
+            self.dnd.position = PhysicalPosition::new(coords.dst_x as f64, coords.dst_y as f64);
 
             // By our own state flow, `version` should never be `None` at this point.
             let version = self.dnd.version.unwrap_or(5);
@@ -502,21 +508,19 @@ impl EventProcessor {
             }
 
             self.dnd.source_window = Some(source_window);
-            if self.dnd.result.is_none() {
-                let time = if version >= 1 {
-                    xev.data.get_long(3) as xproto::Timestamp
-                } else {
-                    // In version 0, time isn't specified
-                    x11rb::CURRENT_TIME
-                };
+            let time = if version == 0 {
+                // In version 0, time isn't specified
+                x11rb::CURRENT_TIME
+            } else {
+                xev.data.get_long(3) as xproto::Timestamp
+            };
 
-                // Log this timestamp.
-                self.target.xconn.set_timestamp(time);
+            // Log this timestamp.
+            self.target.xconn.set_timestamp(time);
 
-                // This results in the `SelectionNotify` event below
-                unsafe {
-                    self.dnd.convert_selection(window, time);
-                }
+            // This results in the `SelectionNotify` event below
+            unsafe {
+                self.dnd.convert_selection(window, time);
             }
 
             unsafe {
@@ -530,13 +534,12 @@ impl EventProcessor {
         if xev.message_type == atoms[XdndDrop] as c_ulong {
             let (source_window, state) = if let Some(source_window) = self.dnd.source_window {
                 if let Some(Ok(ref path_list)) = self.dnd.result {
-                    for path in path_list {
-                        let event = Event::WindowEvent {
-                            window_id,
-                            event: WindowEvent::DroppedFile(path.clone()),
-                        };
-                        callback(&self.target, event);
-                    }
+                    let event = WindowEvent::DragDropped {
+                        paths: path_list.iter().map(Into::into).collect(),
+                        position: self.dnd.position,
+                    };
+
+                    callback(&self.target, Event::WindowEvent { window_id, event });
                 }
                 (source_window, DndState::Accepted)
             } else {
@@ -557,9 +560,14 @@ impl EventProcessor {
         }
 
         if xev.message_type == atoms[XdndLeave] as c_ulong {
+            if self.dnd.dragging {
+                let event = Event::WindowEvent {
+                    window_id,
+                    event: WindowEvent::DragLeft { position: Some(self.dnd.position) },
+                };
+                callback(&self.target, event);
+            }
             self.dnd.reset();
-            let event = Event::WindowEvent { window_id, event: WindowEvent::HoveredFileCancelled };
-            callback(&self.target, event);
         }
     }
 
@@ -583,15 +591,19 @@ impl EventProcessor {
         self.dnd.result = None;
         if let Ok(mut data) = unsafe { self.dnd.read_data(window) } {
             let parse_result = self.dnd.parse_data(&mut data);
+
             if let Ok(ref path_list) = parse_result {
-                for path in path_list {
-                    let event = Event::WindowEvent {
-                        window_id,
-                        event: WindowEvent::HoveredFile(path.clone()),
-                    };
-                    callback(&self.target, event);
-                }
+                let event = if self.dnd.dragging {
+                    WindowEvent::DragMoved { position: self.dnd.position }
+                } else {
+                    let paths = path_list.iter().map(Into::into).collect();
+                    self.dnd.dragging = true;
+                    WindowEvent::DragEntered { paths, position: self.dnd.position }
+                };
+
+                callback(&self.target, Event::WindowEvent { window_id, event });
             }
+
             self.dnd.result = Some(parse_result);
         }
     }
@@ -930,7 +942,7 @@ impl EventProcessor {
         // itself are out of sync due to XkbState being delivered before XKeyEvent, since it's
         // being replayed by the XIM, thus we should replay ourselves.
         let replay = if let Some(position) =
-            self.xfiltered_modifiers.iter().rev().position(|&s| s == xev.serial)
+            self.xfiltered_modifiers.iter().rev().position(|&s| s == xev.keycode as u8)
         {
             // We don't have to replay modifiers pressed before the current event if some events
             // were not forwarded to us, since their state is irrelevant.

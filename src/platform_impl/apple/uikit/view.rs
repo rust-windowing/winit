@@ -3,8 +3,9 @@ use std::cell::{Cell, RefCell};
 
 use objc2::rc::Retained;
 use objc2::runtime::{NSObjectProtocol, ProtocolObject};
-use objc2::{declare_class, msg_send, msg_send_id, mutability, sel, ClassType, DeclaredClass};
-use objc2_foundation::{CGFloat, CGPoint, CGRect, MainThreadMarker, NSObject, NSSet, NSString};
+use objc2::{available, define_class, msg_send, sel, DefinedClass, MainThreadMarker};
+use objc2_core_foundation::{CGFloat, CGPoint, CGRect};
+use objc2_foundation::{NSObject, NSSet, NSString};
 use objc2_ui_kit::{
     UIEvent, UIForceTouchCapability, UIGestureRecognizer, UIGestureRecognizerDelegate,
     UIGestureRecognizerState, UIKeyInput, UIPanGestureRecognizer, UIPinchGestureRecognizer,
@@ -39,36 +40,26 @@ pub struct WinitViewState {
     fingers: Cell<u8>,
 }
 
-declare_class!(
+define_class!(
+    #[unsafe(super(UIView, UIResponder, NSObject))]
+    #[name = "WinitUIView"]
+    #[ivars = WinitViewState]
     pub(crate) struct WinitView;
 
-    unsafe impl ClassType for WinitView {
-        #[inherits(UIResponder, NSObject)]
-        type Super = UIView;
-        type Mutability = mutability::MainThreadOnly;
-        const NAME: &'static str = "WinitUIView";
-    }
-
-    impl DeclaredClass for WinitView {
-        type Ivars = WinitViewState;
-    }
-
-    unsafe impl WinitView {
-        #[method(drawRect:)]
+    /// This documentation attribute makes rustfmt work for some reason?
+    impl WinitView {
+        #[unsafe(method(drawRect:))]
         fn draw_rect(&self, rect: CGRect) {
             let mtm = MainThreadMarker::new().unwrap();
             let window = self.window().unwrap();
-            app_state::handle_nonuser_event(
-                mtm,
-                EventWrapper::Window {
-                    window_id: window.id(),
-                    event: WindowEvent::RedrawRequested,
-                },
-            );
+            app_state::handle_nonuser_event(mtm, EventWrapper::Window {
+                window_id: window.id(),
+                event: WindowEvent::RedrawRequested,
+            });
             let _: () = unsafe { msg_send![super(self), drawRect: rect] };
         }
 
-        #[method(layoutSubviews)]
+        #[unsafe(method(layoutSubviews))]
         fn layout_subviews(&self) {
             let mtm = MainThreadMarker::new().unwrap();
             let _: () = unsafe { msg_send![super(self), layoutSubviews] };
@@ -82,16 +73,13 @@ declare_class!(
             .to_physical(scale_factor);
 
             let window = self.window().unwrap();
-            app_state::handle_nonuser_event(
-                mtm,
-                EventWrapper::Window {
-                    window_id: window.id(),
-                    event: WindowEvent::SurfaceResized(size),
-                },
-            );
+            app_state::handle_nonuser_event(mtm, EventWrapper::Window {
+                window_id: window.id(),
+                event: WindowEvent::SurfaceResized(size),
+            });
         }
 
-        #[method(setContentScaleFactor:)]
+        #[unsafe(method(setContentScaleFactor:))]
         fn set_content_scale_factor(&self, untrusted_scale_factor: CGFloat) {
             let mtm = MainThreadMarker::new().unwrap();
             let _: () =
@@ -124,49 +112,46 @@ declare_class!(
             let window_id = window.id();
             app_state::handle_nonuser_events(
                 mtm,
-                std::iter::once(EventWrapper::ScaleFactorChanged(
-                    app_state::ScaleFactorChanged {
-                        window,
-                        scale_factor,
-                        suggested_size: size.to_physical(scale_factor),
-                    },
-                ))
+                std::iter::once(EventWrapper::ScaleFactorChanged(app_state::ScaleFactorChanged {
+                    window,
+                    scale_factor,
+                    suggested_size: size.to_physical(scale_factor),
+                }))
                 .chain(std::iter::once(EventWrapper::Window {
-                        window_id,
-                        event: WindowEvent::SurfaceResized(size.to_physical(scale_factor)),
-                    },
-                )),
+                    window_id,
+                    event: WindowEvent::SurfaceResized(size.to_physical(scale_factor)),
+                })),
             );
         }
 
-        #[method(safeAreaInsetsDidChange)]
+        #[unsafe(method(safeAreaInsetsDidChange))]
         fn safe_area_changed(&self) {
             debug!("safeAreaInsetsDidChange was called, requesting redraw");
             // When the safe area changes we want to make sure to emit a redraw event
             self.setNeedsDisplay();
         }
 
-        #[method(touchesBegan:withEvent:)]
+        #[unsafe(method(touchesBegan:withEvent:))]
         fn touches_began(&self, touches: &NSSet<UITouch>, _event: Option<&UIEvent>) {
             self.handle_touches(touches)
         }
 
-        #[method(touchesMoved:withEvent:)]
+        #[unsafe(method(touchesMoved:withEvent:))]
         fn touches_moved(&self, touches: &NSSet<UITouch>, _event: Option<&UIEvent>) {
             self.handle_touches(touches)
         }
 
-        #[method(touchesEnded:withEvent:)]
+        #[unsafe(method(touchesEnded:withEvent:))]
         fn touches_ended(&self, touches: &NSSet<UITouch>, _event: Option<&UIEvent>) {
             self.handle_touches(touches)
         }
 
-        #[method(touchesCancelled:withEvent:)]
+        #[unsafe(method(touchesCancelled:withEvent:))]
         fn touches_cancelled(&self, touches: &NSSet<UITouch>, _event: Option<&UIEvent>) {
             self.handle_touches(touches)
         }
 
-        #[method(pinchGesture:)]
+        #[unsafe(method(pinchGesture:))]
         fn pinch_gesture(&self, recognizer: &UIPinchGestureRecognizer) {
             let window = self.window().unwrap();
 
@@ -174,46 +159,40 @@ declare_class!(
                 UIGestureRecognizerState::Began => {
                     self.ivars().pinch_last_delta.set(recognizer.scale());
                     (TouchPhase::Started, 0.0)
-                }
+                },
                 UIGestureRecognizerState::Changed => {
                     let last_scale: f64 = self.ivars().pinch_last_delta.replace(recognizer.scale());
                     (TouchPhase::Moved, recognizer.scale() - last_scale)
-                }
+                },
                 UIGestureRecognizerState::Ended => {
                     let last_scale: f64 = self.ivars().pinch_last_delta.replace(0.0);
                     (TouchPhase::Moved, recognizer.scale() - last_scale)
-                }
+                },
                 UIGestureRecognizerState::Cancelled | UIGestureRecognizerState::Failed => {
                     self.ivars().rotation_last_delta.set(0.0);
                     // Pass -delta so that action is reversed
                     (TouchPhase::Cancelled, -recognizer.scale())
-                }
+                },
                 state => panic!("unexpected recognizer state: {state:?}"),
             };
 
             let gesture_event = EventWrapper::Window {
                 window_id: window.id(),
-                event: WindowEvent::PinchGesture {
-                    device_id: None,
-                    delta: delta as f64,
-                    phase,
-                },
+                event: WindowEvent::PinchGesture { device_id: None, delta: delta as f64, phase },
             };
 
             let mtm = MainThreadMarker::new().unwrap();
             app_state::handle_nonuser_event(mtm, gesture_event);
         }
 
-        #[method(doubleTapGesture:)]
+        #[unsafe(method(doubleTapGesture:))]
         fn double_tap_gesture(&self, recognizer: &UITapGestureRecognizer) {
             let window = self.window().unwrap();
 
             if recognizer.state() == UIGestureRecognizerState::Ended {
                 let gesture_event = EventWrapper::Window {
                     window_id: window.id(),
-                    event: WindowEvent::DoubleTapGesture {
-                        device_id: None,
-                    },
+                    event: WindowEvent::DoubleTapGesture { device_id: None },
                 };
 
                 let mtm = MainThreadMarker::new().unwrap();
@@ -221,7 +200,7 @@ declare_class!(
             }
         }
 
-        #[method(rotationGesture:)]
+        #[unsafe(method(rotationGesture:))]
         fn rotation_gesture(&self, recognizer: &UIRotationGestureRecognizer) {
             let window = self.window().unwrap();
 
@@ -230,23 +209,24 @@ declare_class!(
                     self.ivars().rotation_last_delta.set(0.0);
 
                     (TouchPhase::Started, 0.0)
-                }
+                },
                 UIGestureRecognizerState::Changed => {
-                    let last_rotation = self.ivars().rotation_last_delta.replace(recognizer.rotation());
+                    let last_rotation =
+                        self.ivars().rotation_last_delta.replace(recognizer.rotation());
 
                     (TouchPhase::Moved, recognizer.rotation() - last_rotation)
-                }
+                },
                 UIGestureRecognizerState::Ended => {
                     let last_rotation = self.ivars().rotation_last_delta.replace(0.0);
 
                     (TouchPhase::Ended, recognizer.rotation() - last_rotation)
-                }
+                },
                 UIGestureRecognizerState::Cancelled | UIGestureRecognizerState::Failed => {
                     self.ivars().rotation_last_delta.set(0.0);
 
                     // Pass -delta so that action is reversed
                     (TouchPhase::Cancelled, -recognizer.rotation())
-                }
+                },
                 state => panic!("unexpected recognizer state: {state:?}"),
             };
 
@@ -264,7 +244,7 @@ declare_class!(
             app_state::handle_nonuser_event(mtm, gesture_event);
         }
 
-        #[method(panGesture:)]
+        #[unsafe(method(panGesture:))]
         fn pan_gesture(&self, recognizer: &UIPanGestureRecognizer) {
             let window = self.window().unwrap();
 
@@ -275,7 +255,7 @@ declare_class!(
                     self.ivars().pan_last_delta.set(translation);
 
                     (TouchPhase::Started, 0.0, 0.0)
-                }
+                },
                 UIGestureRecognizerState::Changed => {
                     let last_pan: CGPoint = self.ivars().pan_last_delta.replace(translation);
 
@@ -283,24 +263,25 @@ declare_class!(
                     let dy = translation.y - last_pan.y;
 
                     (TouchPhase::Moved, dx, dy)
-                }
+                },
                 UIGestureRecognizerState::Ended => {
-                    let last_pan: CGPoint = self.ivars().pan_last_delta.replace(CGPoint{x:0.0, y:0.0});
+                    let last_pan: CGPoint =
+                        self.ivars().pan_last_delta.replace(CGPoint { x: 0.0, y: 0.0 });
 
                     let dx = translation.x - last_pan.x;
                     let dy = translation.y - last_pan.y;
 
                     (TouchPhase::Ended, dx, dy)
-                }
+                },
                 UIGestureRecognizerState::Cancelled | UIGestureRecognizerState::Failed => {
-                    let last_pan: CGPoint = self.ivars().pan_last_delta.replace(CGPoint{x:0.0, y:0.0});
+                    let last_pan: CGPoint =
+                        self.ivars().pan_last_delta.replace(CGPoint { x: 0.0, y: 0.0 });
 
                     // Pass -delta so that action is reversed
                     (TouchPhase::Cancelled, -last_pan.x, -last_pan.y)
-                }
+                },
                 state => panic!("unexpected recognizer state: {state:?}"),
             };
-
 
             let gesture_event = EventWrapper::Window {
                 window_id: window.id(),
@@ -315,7 +296,7 @@ declare_class!(
             app_state::handle_nonuser_event(mtm, gesture_event);
         }
 
-        #[method(canBecomeFirstResponder)]
+        #[unsafe(method(canBecomeFirstResponder))]
         fn can_become_first_responder(&self) -> bool {
             true
         }
@@ -324,27 +305,30 @@ declare_class!(
     unsafe impl NSObjectProtocol for WinitView {}
 
     unsafe impl UIGestureRecognizerDelegate for WinitView {
-        #[method(gestureRecognizer:shouldRecognizeSimultaneouslyWithGestureRecognizer:)]
-        fn should_recognize_simultaneously(&self, _gesture_recognizer: &UIGestureRecognizer, _other_gesture_recognizer: &UIGestureRecognizer) -> bool {
+        #[unsafe(method(gestureRecognizer:shouldRecognizeSimultaneouslyWithGestureRecognizer:))]
+        fn should_recognize_simultaneously(
+            &self,
+            _gesture_recognizer: &UIGestureRecognizer,
+            _other_gesture_recognizer: &UIGestureRecognizer,
+        ) -> bool {
             true
         }
     }
 
-    unsafe impl UITextInputTraits for WinitView {
-    }
+    unsafe impl UITextInputTraits for WinitView {}
 
     unsafe impl UIKeyInput for WinitView {
-        #[method(hasText)]
+        #[unsafe(method(hasText))]
         fn has_text(&self) -> bool {
             true
         }
 
-        #[method(insertText:)]
+        #[unsafe(method(insertText:))]
         fn insert_text(&self, text: &NSString) {
             self.handle_insert_text(text)
         }
 
-        #[method(deleteBackward)]
+        #[unsafe(method(deleteBackward))]
         fn delete_backward(&self) {
             self.handle_delete_backward()
         }
@@ -370,7 +354,7 @@ impl WinitView {
             primary_finger: Cell::new(None),
             fingers: Cell::new(0),
         });
-        let this: Retained<Self> = unsafe { msg_send_id![super(this), initWithFrame: frame] };
+        let this: Retained<Self> = unsafe { msg_send![super(this), initWithFrame: frame] };
 
         this.setMultipleTouchEnabled(true);
 
@@ -382,8 +366,8 @@ impl WinitView {
     }
 
     fn window(&self) -> Option<Retained<WinitUIWindow>> {
-        // SAFETY: `WinitView`s are always installed in a `WinitUIWindow`
-        (**self).window().map(|window| unsafe { Retained::cast(window) })
+        // `WinitView`s should always be installed in a `WinitUIWindow`
+        (**self).window().map(|window| window.downcast().unwrap())
     }
 
     pub(crate) fn recognize_pinch_gesture(&self, should_recognize: bool) {
@@ -478,13 +462,12 @@ impl WinitView {
     fn handle_touches(&self, touches: &NSSet<UITouch>) {
         let window = self.window().unwrap();
         let mut touch_events = Vec::new();
-        let os_supports_force = app_state::os_capabilities().force_touch;
         for touch in touches {
             let logical_location = touch.locationInView(None);
             let touch_type = touch.r#type();
             let force = if let UITouchType::Pencil = touch_type {
                 None
-            } else if os_supports_force {
+            } else if available!(ios = 9.0, tvos = 9.0, visionos = 1.0) {
                 let trait_collection = self.traitCollection();
                 let touch_capability = trait_collection.forceTouchCapability();
                 // Both the OS _and_ the device need to be checked for force touch support.
@@ -501,7 +484,7 @@ impl WinitView {
             } else {
                 None
             };
-            let touch_id = touch as *const UITouch as usize;
+            let touch_id = Retained::as_ptr(&touch) as usize;
             let phase = touch.phase();
             let position = {
                 let scale_factor = self.contentScaleFactor();

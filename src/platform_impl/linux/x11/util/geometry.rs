@@ -95,12 +95,25 @@ impl FrameExtentsHeuristic {
 
 impl XConnection {
     // This is adequate for inner_position
-    pub fn translate_coords(
+    pub fn translate_coords_root(
         &self,
         window: xproto::Window,
         root: xproto::Window,
     ) -> Result<xproto::TranslateCoordinatesReply, X11Error> {
         self.xcb_connection().translate_coordinates(window, root, 0, 0)?.reply().map_err(Into::into)
+    }
+
+    pub fn translate_coords(
+        &self,
+        src_w: xproto::Window,
+        dst_w: xproto::Window,
+        src_x: i16,
+        src_y: i16,
+    ) -> Result<xproto::TranslateCoordinatesReply, X11Error> {
+        self.xcb_connection()
+            .translate_coordinates(src_w, dst_w, src_x, src_y)?
+            .reply()
+            .map_err(Into::into)
     }
 
     // This is adequate for surface_size
@@ -189,7 +202,7 @@ impl XConnection {
         // that, fullscreen windows often aren't nested.
         let (inner_y_rel_root, child) = {
             let coords = self
-                .translate_coords(window, root)
+                .translate_coords_root(window, root)
                 .expect("Failed to translate window coordinates");
             (coords.dst_y, coords.child)
         };

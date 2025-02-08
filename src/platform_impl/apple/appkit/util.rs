@@ -1,4 +1,7 @@
+use objc2_core_graphics::CGError;
 use tracing::trace;
+
+use crate::error::OsError;
 
 macro_rules! trace_scope {
     ($s:literal) => {
@@ -24,5 +27,14 @@ impl Drop for TraceGuard {
     #[inline]
     fn drop(&mut self) {
         trace!(target = self.module_path, "Completed `{}`", self.called_from_fn);
+    }
+}
+
+#[track_caller]
+pub(crate) fn cgerr(err: CGError) -> Result<(), OsError> {
+    if err == CGError::Success {
+        Ok(())
+    } else {
+        Err(os_error!(format!("CGError {err:?}")))
     }
 }
