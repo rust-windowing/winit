@@ -23,8 +23,8 @@ use super::{event, fullscreen, ResizeScaleHandle};
 use crate::dpi::{LogicalPosition, PhysicalPosition, PhysicalSize};
 use crate::error::RequestError;
 use crate::event::{
-    ButtonSource, DeviceId, ElementState, MouseScrollDelta, PointerKind,
-    PointerSource, SurfaceSizeWriter,
+    ButtonSource, DeviceId, ElementState, MouseScrollDelta, PointerKind, PointerSource,
+    SurfaceSizeWriter,
 };
 use crate::keyboard::{Key, KeyLocation, ModifiersState, PhysicalKey};
 use crate::platform_impl::Fullscreen;

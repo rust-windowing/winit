@@ -1,13 +1,15 @@
+use std::cell::Cell;
+use std::rc::Rc;
+
+use dpi::PhysicalPosition;
+use web_sys::PointerEvent;
+
 use super::canvas::Common;
 use super::event;
 use super::event_handle::EventListenerHandle;
-use crate::dpi::PhysicalPosition;
 use crate::event::{ButtonSource, DeviceId, ElementState, Force, PointerKind, PointerSource};
 use crate::keyboard::ModifiersState;
 use crate::platform_impl::web::event::mkdid;
-use std::cell::Cell;
-use std::rc::Rc;
-use web_sys::{PointerEvent};
 
 #[allow(dead_code)]
 pub(super) struct PointerHandler {

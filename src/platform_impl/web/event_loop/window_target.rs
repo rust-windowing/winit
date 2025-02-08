@@ -11,10 +11,7 @@ use super::super::{lock, KeyEventExtra};
 use super::runner::EventWrapper;
 use super::{backend, runner};
 use crate::error::{NotSupportedError, RequestError};
-use crate::event::{
-    ElementState, Event, KeyEvent, TouchPhase,
-    WindowEvent,
-};
+use crate::event::{ElementState, Event, KeyEvent, TouchPhase, WindowEvent};
 use crate::event_loop::{
     ActiveEventLoop as RootActiveEventLoop, ControlFlow, DeviceEvents,
     EventLoopProxy as RootEventLoopProxy, OwnedDisplayHandle as CoreOwnedDisplayHandle,

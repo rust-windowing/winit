@@ -1,11 +1,13 @@
+use std::cell::Cell;
+use std::rc::Rc;
+
+use dpi::{LogicalPosition, PhysicalPosition};
+use web_sys::{Touch, TouchEvent};
+
 use super::canvas::Common;
 use super::event_handle::EventListenerHandle;
 use crate::event::{ButtonSource, DeviceId, FingerId, Force, PointerKind, PointerSource};
 use crate::platform_impl::web::event::mkdid;
-use dpi::{LogicalPosition, PhysicalPosition};
-use std::cell::Cell;
-use std::rc::Rc;
-use web_sys::{Touch, TouchEvent};
 
 #[allow(dead_code)]
 pub(super) struct TouchHandler {
