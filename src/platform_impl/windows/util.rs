@@ -320,7 +320,7 @@ pub fn calculate_window_insets(window: HWND) -> RECT {
     let frame_thickness = get_frame_thickness(dpi);
 
     let top_inset = match *WIN_VERSION {
-        Some(v) if v.dwBuildNumber >= 2200 => {
+        Some(v) if v.dwBuildNumber >= 22000 => {
             (dpi as f32 / USER_DEFAULT_SCREEN_DPI as f32).round() as i32
         },
         _ => 0,
