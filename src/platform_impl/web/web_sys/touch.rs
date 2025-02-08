@@ -14,7 +14,7 @@ use crate::platform_impl::web::event::mkdid;
 /// caller of this code to define handlers for each of the events, which are of type
 /// `T: 'static + FnMut(Finger)`.
 ///
-/// Touch Events are defined in the W3C spec here: https://www.w3.org/TR/touch-events
+/// Touch Events are defined in the W3C spec here: <https://www.w3.org/TR/touch-events>
 /// I reference parts of this document in the documentation of this module.
 
 #[allow(dead_code)]
