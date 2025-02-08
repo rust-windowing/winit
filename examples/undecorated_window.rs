@@ -2,6 +2,7 @@
 
 use std::sync::Arc;
 
+use dpi::LogicalSize;
 use winit::application::ApplicationHandler;
 use winit::event::{ElementState, KeyEvent, WindowEvent};
 use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
@@ -26,7 +27,10 @@ impl Default for App {
 
 impl ApplicationHandler for App {
     fn can_create_surfaces(&mut self, event_loop: &dyn ActiveEventLoop) {
-        let mut attrs = WindowAttributes::default().with_decorations(false);
+        let mut attrs = WindowAttributes::default()
+            .with_surface_size(LogicalSize::new(500, 500))
+            .with_decorations(false);
+
         #[cfg(windows)]
         {
             attrs = attrs.with_undecorated_shadow(true);

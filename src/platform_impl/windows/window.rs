@@ -42,7 +42,8 @@ use windows_sys::Win32::UI::WindowsAndMessaging::{
     HTTOP, HTTOPLEFT, HTTOPRIGHT, MENU_ITEM_STATE, MFS_DISABLED, MFS_ENABLED, MF_BYCOMMAND,
     NID_READY, PM_NOREMOVE, SC_CLOSE, SC_MAXIMIZE, SC_MINIMIZE, SC_MOVE, SC_RESTORE, SC_SIZE,
     SM_DIGITIZER, SWP_ASYNCWINDOWPOS, SWP_NOACTIVATE, SWP_NOSIZE, SWP_NOZORDER, TPM_LEFTALIGN,
-    TPM_RETURNCMD, WDA_EXCLUDEFROMCAPTURE, WDA_NONE, WM_NCLBUTTONDOWN, WM_SYSCOMMAND, WNDCLASSEXW,
+    TPM_RETURNCMD, WDA_EXCLUDEFROMCAPTURE, WDA_NONE, WINDOWPLACEMENT, WM_NCLBUTTONDOWN,
+    WM_SYSCOMMAND, WNDCLASSEXW,
 };
 
 use crate::cursor::Cursor;
@@ -454,34 +455,61 @@ impl CoreWindow for Window {
     }
 
     fn surface_size(&self) -> PhysicalSize<u32> {
-        let mut rect: RECT = unsafe { mem::zeroed() };
-        if unsafe { GetClientRect(self.hwnd(), &mut rect) } == false.into() {
-            panic!(
-                "Unexpected GetClientRect failure: please report this error to \
-                 rust-windowing/winit"
-            )
-        }
+        let hwnd = self.hwnd();
 
-        let mut width = rect.right - rect.left;
-        let mut height = rect.bottom - rect.top;
+        let client_rect = unsafe {
+            let mut rect = std::mem::zeroed();
+            if GetClientRect(hwnd, &mut rect) == false.into() {
+                panic!(
+                    "Unexpected GetClientRect failure: please report this error to \
+                     rust-windowing/winit"
+                )
+            }
+            rect
+        };
+
+        let mut width = client_rect.right - client_rect.left;
+        let mut height = client_rect.bottom - client_rect.top;
 
         let window_flags = self.window_state_lock().window_flags;
         if window_flags.contains(WindowFlags::MARKER_UNDECORATED_SHADOW)
             && !window_flags.contains(WindowFlags::MARKER_DECORATIONS)
         {
-            let mut pt: POINT = unsafe { mem::zeroed() };
-            if unsafe { ClientToScreen(self.hwnd(), &mut pt) } == true.into() {
-                let mut window_rc: RECT = unsafe { mem::zeroed() };
-                if unsafe { GetWindowRect(self.hwnd(), &mut window_rc) } == true.into() {
-                    let left_b = pt.x - window_rc.left;
-                    let right_b = pt.x + width - window_rc.right;
-                    let top_b = pt.y - window_rc.top;
-                    let bottom_b = pt.y + height - window_rc.bottom;
-
-                    width = width - left_b - right_b;
-                    height = height - top_b - bottom_b;
+            let placement = unsafe {
+                let mut placement = WINDOWPLACEMENT {
+                    length: std::mem::size_of::<WINDOWPLACEMENT>() as u32,
+                    ..std::mem::zeroed()
+                };
+                GetWindowPlacement(self.hwnd(), &mut placement);
+                placement
+            };
+            let window_rect = unsafe {
+                let mut rect = std::mem::zeroed();
+                if GetWindowRect(hwnd, &mut rect) == false.into() {
+                    panic!(
+                        "Unexpected GetWindowRect failure: please report this error to \
+                         rust-windowing/winit"
+                    )
                 }
-            }
+                rect
+            };
+
+            let width_offset =
+                (window_rect.right - window_rect.left) - (client_rect.right - client_rect.left);
+            let height_offset =
+                (window_rect.bottom - window_rect.top) - (client_rect.bottom - client_rect.top);
+
+            let rect = placement.rcNormalPosition;
+
+            let left_offset = width_offset / 2;
+            let top_offset = height_offset / 2;
+            let right_offset = width_offset - left_offset;
+            let bottom_offset = height_offset - top_offset;
+            let left = rect.left + left_offset;
+            let top = rect.top + top_offset;
+            let right = rect.right - right_offset;
+            let bottom = rect.bottom - bottom_offset;
+            (width, height) = (right - left, bottom - top);
         }
 
         PhysicalSize::new(width as u32, height as u32)
