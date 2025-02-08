@@ -119,7 +119,7 @@ impl TouchHandler {
     }
 }
 
-pub(crate) struct Finger {
+pub struct Finger {
     pub position: PhysicalPosition<f64>,
     pub finger_id: FingerId,
     pub force: Option<Force>,
@@ -143,15 +143,15 @@ impl Finger {
         }
     }
 
-    pub(crate) fn pointer_source(&self) -> PointerSource {
+    pub fn pointer_source(&self) -> PointerSource {
         PointerSource::Touch { finger_id: self.finger_id, force: self.force }
     }
 
-    pub(crate) fn button_source(&self) -> ButtonSource {
+    pub fn button_source(&self) -> ButtonSource {
         ButtonSource::Touch { finger_id: self.finger_id, force: self.force }
     }
 
-    pub(crate) fn pointer_kind(&self) -> PointerKind {
+    pub fn pointer_kind(&self) -> PointerKind {
         PointerKind::Touch(self.finger_id)
     }
 }
