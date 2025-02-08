@@ -460,6 +460,9 @@ impl CoreWindow for Window {
 
         // undecorated windows with shadows have hidden offsets
         // we need to calculate them and account for them in returned size
+        //
+        // implementation derived from GPUI
+        // see <https://github.com/zed-industries/zed/blob/7bddb390cabefb177d9996dc580749d64e6ca3b6/crates/gpui/src/platform/windows/window.rs#L1167-L1180>
         if window_flags.undecorated_with_shadows() {
             let window_rect = util::window_rect(hwnd);
 
@@ -510,6 +513,9 @@ impl CoreWindow for Window {
 
         // undecorated windows with shadows have hidden offsets
         // we need to calculate them and account for them in new size
+        //
+        // implementation derived from GPUI
+        // see <https://github.com/zed-industries/zed/blob/7bddb390cabefb177d9996dc580749d64e6ca3b6/crates/gpui/src/platform/windows/window.rs#L1167-L1180>
         if window_flags.undecorated_with_shadows() {
             let hwnd = self.hwnd();
 
