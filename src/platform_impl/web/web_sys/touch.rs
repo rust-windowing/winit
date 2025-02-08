@@ -16,7 +16,6 @@ use crate::platform_impl::web::event::mkdid;
 ///
 /// Touch Events are defined in the W3C spec here: <https://www.w3.org/TR/touch-events>
 /// I reference parts of this document in the documentation of this module.
-
 #[allow(dead_code)]
 pub(super) struct TouchHandler {
     on_touch_start: Option<EventListenerHandle<dyn FnMut(TouchEvent)>>,
@@ -117,6 +116,7 @@ impl TouchHandler {
     }
 }
 
+/// Information about a finger in a touch event, converted to winit's native types.
 pub struct Finger {
     pub position: PhysicalPosition<f64>,
     pub finger_id: FingerId,
@@ -126,7 +126,7 @@ pub struct Finger {
 }
 
 impl Finger {
-    pub(crate) fn from(touch: Touch, window: &web_sys::Window, primary: bool) -> Self {
+    fn from(touch: Touch, window: &web_sys::Window, primary: bool) -> Self {
         let position = LogicalPosition::new(touch.client_x() as f64, touch.client_y() as f64)
             .to_physical(super::scale_factor(window));
         let finger_id = FingerId(touch.identifier() as usize);
