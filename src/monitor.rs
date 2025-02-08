@@ -30,17 +30,17 @@ use crate::utils::AsAny;
 ///
 /// **Web:** A [`MonitorHandle`] created without
 #[cfg_attr(
-    any(web_platform, docsrs),
+    web_platform,
     doc = "[detailed monitor permissions][crate::platform::web::ActiveEventLoopExtWeb::request_detailed_monitor_permission]."
 )]
-#[cfg_attr(not(any(web_platform, docsrs)), doc = "detailed monitor permissions.")]
+#[cfg_attr(not(web_platform), doc = "detailed monitor permissions.")]
 /// will always represent the current monitor the browser window is in instead of a specific
 /// monitor. See
 #[cfg_attr(
-    any(web_platform, docsrs),
+    web_platform,
     doc = "[`MonitorHandleExtWeb::is_detailed()`][crate::platform::web::MonitorHandleExtWeb::is_detailed]"
 )]
-#[cfg_attr(not(any(web_platform, docsrs)), doc = "`MonitorHandleExtWeb::is_detailed()`")]
+#[cfg_attr(not(web_platform), doc = "`MonitorHandleExtWeb::is_detailed()`")]
 /// to check.
 ///
 /// [`Window`]: crate::window::Window
@@ -76,10 +76,10 @@ pub trait MonitorHandleProvider: AsAny + fmt::Debug + Send + Sync {
     ///
     /// **Web:** Always returns [`None`] without
     #[cfg_attr(
-        any(web_platform, docsrs),
+        web_platform,
         doc = "[detailed monitor permissions][crate::platform::web::ActiveEventLoopExtWeb::request_detailed_monitor_permission]."
     )]
-    #[cfg_attr(not(any(web_platform, docsrs)), doc = "detailed monitor permissions.")]
+    #[cfg_attr(not(web_platform), doc = "detailed monitor permissions.")]
     fn name(&self) -> Option<Cow<'_, str>>;
 
     /// Returns the top-left corner position of the monitor in desktop coordinates.
@@ -92,10 +92,10 @@ pub trait MonitorHandleProvider: AsAny + fmt::Debug + Send + Sync {
     ///
     /// **Web:** Always returns [`None`] without
     #[cfg_attr(
-        any(web_platform, docsrs),
+        web_platform,
         doc = "[detailed monitor permissions][crate::platform::web::ActiveEventLoopExtWeb::request_detailed_monitor_permission]."
     )]
-    #[cfg_attr(not(any(web_platform, docsrs)), doc = "detailed monitor permissions.")]
+    #[cfg_attr(not(web_platform), doc = "detailed monitor permissions.")]
     fn position(&self) -> Option<PhysicalPosition<i32>>;
 
     /// Returns the scale factor of the underlying monitor. To map logical pixels to physical
@@ -110,10 +110,10 @@ pub trait MonitorHandleProvider: AsAny + fmt::Debug + Send + Sync {
     /// - **Android:** Always returns 1.0.
     /// - **Web:** Always returns `0.0` without
     #[cfg_attr(
-        any(web_platform, docsrs),
+        web_platform,
         doc = "  [detailed monitor permissions][crate::platform::web::ActiveEventLoopExtWeb::request_detailed_monitor_permission]."
     )]
-    #[cfg_attr(not(any(web_platform, docsrs)), doc = "  detailed monitor permissions.")]
+    #[cfg_attr(not(web_platform), doc = "  detailed monitor permissions.")]
     ///
     #[rustfmt::skip]
     /// [`Window::scale_factor`]: crate::window::Window::scale_factor
