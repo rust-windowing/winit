@@ -593,12 +593,12 @@ pub trait Window: AsAny + Send + Sync + fmt::Debug {
     ///
     /// [`outer_position`]: Self::outer_position
     #[cfg_attr(
-        any(macos_platform, docsrs),
+        macos_platform,
         doc = "[`with_titlebar_transparent`]: \
                crate::platform::macos::WindowAttributesExtMacOS::with_titlebar_transparent"
     )]
     #[cfg_attr(
-        not(any(macos_platform, docsrs)),
+        not(macos_platform),
         doc = "[`with_titlebar_transparent`]: #only-available-on-macos"
     )]
     fn surface_position(&self) -> PhysicalPosition<i32>;
@@ -966,10 +966,10 @@ pub trait Window: AsAny + Send + Sync + fmt::Debug {
     /// - **Android / Orbital:** Unsupported.
     /// - **Web:** Passing a [`MonitorHandle`] or [`VideoMode`] that was not created with
     #[cfg_attr(
-        any(web_platform, docsrs),
+        web_platform,
         doc = "  [detailed monitor permissions][crate::platform::web::ActiveEventLoopExtWeb::request_detailed_monitor_permission]"
     )]
-    #[cfg_attr(not(any(web_platform, docsrs)), doc = "  detailed monitor permissions")]
+    #[cfg_attr(not(web_platform), doc = "  detailed monitor permissions")]
     ///   or calling without a [transient activation] does nothing.
     ///
     /// [transient activation]: https://developer.mozilla.org/en-US/docs/Glossary/Transient_activation
@@ -1299,10 +1299,10 @@ pub trait Window: AsAny + Send + Sync + fmt::Debug {
     ///
     /// **Web:** Only returns the current monitor without
     #[cfg_attr(
-        any(web_platform, docsrs),
+        web_platform,
         doc = "[detailed monitor permissions][crate::platform::web::ActiveEventLoopExtWeb::request_detailed_monitor_permission]."
     )]
-    #[cfg_attr(not(any(web_platform, docsrs)), doc = "detailed monitor permissions.")]
+    #[cfg_attr(not(any(web_platform,)), doc = "detailed monitor permissions.")]
     ///
     #[rustfmt::skip]
     /// [`ActiveEventLoop::available_monitors`]: crate::event_loop::ActiveEventLoop::available_monitors
@@ -1319,10 +1319,10 @@ pub trait Window: AsAny + Send + Sync + fmt::Debug {
     /// - **Wayland:** Always returns `None`.
     /// - **Web:** Always returns `None` without
     #[cfg_attr(
-        any(web_platform, docsrs),
+        web_platform,
         doc = "  [detailed monitor permissions][crate::platform::web::ActiveEventLoopExtWeb::request_detailed_monitor_permission]."
     )]
-    #[cfg_attr(not(any(web_platform, docsrs)), doc = "  detailed monitor permissions.")]
+    #[cfg_attr(not(web_platform), doc = "  detailed monitor permissions.")]
     ///
     #[rustfmt::skip]
     /// [`ActiveEventLoop::primary_monitor`]: crate::event_loop::ActiveEventLoop::primary_monitor
@@ -1549,13 +1549,10 @@ impl ActivationToken {
     ///
     /// To obtain a valid token, use
     #[cfg_attr(
-        any(x11_platform, wayland_platform, docsrs),
+        any(x11_platform, wayland_platform),
         doc = " [`request_activation_token`](crate::platform::startup_notify::WindowExtStartupNotify::request_activation_token)."
     )]
-    #[cfg_attr(
-        not(any(x11_platform, wayland_platform, docsrs)),
-        doc = " `request_activation_token`."
-    )]
+    #[cfg_attr(not(any(x11_platform, wayland_platform)), doc = " `request_activation_token`.")]
     pub fn from_raw(token: String) -> Self {
         Self { token }
     }
