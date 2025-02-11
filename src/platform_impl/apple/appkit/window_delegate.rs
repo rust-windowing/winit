@@ -1011,6 +1011,15 @@ impl WindowDelegate {
         Some(self.window().isVisible())
     }
 
+    pub fn set_focusable(&self, focusable: bool) {
+        warn!("`Window::set_focusable` is ignored on macOS");
+    }
+
+    pub fn is_focusable(&self) -> Option<bool> {
+        warn!("`Window::is_focusable` is ignored on macOS");
+        None
+    }
+
     pub fn request_redraw(&self) {
         self.ivars().app_state.queue_redraw(window_id(self.window()));
     }

@@ -11,7 +11,7 @@ use windows_sys::Win32::UI::WindowsAndMessaging::{
     SWP_FRAMECHANGED, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOREPOSITION, SWP_NOSIZE, SWP_NOZORDER,
     SW_HIDE, SW_MAXIMIZE, SW_MINIMIZE, SW_RESTORE, SW_SHOW, SW_SHOWNOACTIVATE, WINDOWPLACEMENT,
     WINDOW_EX_STYLE, WINDOW_STYLE, WS_BORDER, WS_CAPTION, WS_CHILD, WS_CLIPCHILDREN,
-    WS_CLIPSIBLINGS, WS_EX_ACCEPTFILES, WS_EX_APPWINDOW, WS_EX_LAYERED, WS_EX_NOREDIRECTIONBITMAP,
+    WS_CLIPSIBLINGS, WS_EX_ACCEPTFILES, WS_EX_APPWINDOW, WS_EX_LAYERED, WS_EX_NOACTIVATE, WS_EX_NOREDIRECTIONBITMAP,
     WS_EX_TOPMOST, WS_EX_TRANSPARENT, WS_EX_WINDOWEDGE, WS_MAXIMIZE, WS_MAXIMIZEBOX, WS_MINIMIZE,
     WS_MINIMIZEBOX, WS_OVERLAPPEDWINDOW, WS_POPUP, WS_SIZEBOX, WS_SYSMENU, WS_VISIBLE,
 };
@@ -105,33 +105,34 @@ bitflags! {
         const CHILD             = 1 << 10;
         const MAXIMIZED         = 1 << 11;
         const POPUP             = 1 << 12;
+        const FOCUSABLE         = 1 << 14;
 
         /// Marker flag for fullscreen. Should always match `WindowState::fullscreen`, but is
         /// included here to make masking easier.
-        const MARKER_EXCLUSIVE_FULLSCREEN = 1 << 13;
-        const MARKER_BORDERLESS_FULLSCREEN = 1 << 14;
+        const MARKER_EXCLUSIVE_FULLSCREEN = 1 << 15;
+        const MARKER_BORDERLESS_FULLSCREEN = 1 << 16;
 
         /// The `WM_SIZE` event contains some parameters that can effect the state of `WindowFlags`.
         /// In most cases, it's okay to let those parameters change the state. However, when we're
         /// running the `WindowFlags::apply_diff` function, we *don't* want those parameters to
         /// effect our stored state, because the purpose of `apply_diff` is to update the actual
         /// window's state to match our stored state. This controls whether to accept those changes.
-        const MARKER_RETAIN_STATE_ON_SIZE = 1 << 15;
+        const MARKER_RETAIN_STATE_ON_SIZE = 1 << 17;
 
-        const MARKER_IN_SIZE_MOVE = 1 << 16;
+        const MARKER_IN_SIZE_MOVE = 1 << 18;
 
-        const MINIMIZED = 1 << 17;
+        const MINIMIZED = 1 << 19;
 
-        const IGNORE_CURSOR_EVENT = 1 << 18;
+        const IGNORE_CURSOR_EVENT = 1 << 20;
 
         /// Fully decorated window (incl. caption, border and drop shadow).
-        const MARKER_DECORATIONS = 1 << 19;
+        const MARKER_DECORATIONS = 1 << 21;
         /// Drop shadow for undecorated windows.
-        const MARKER_UNDECORATED_SHADOW = 1 << 20;
+        const MARKER_UNDECORATED_SHADOW = 1 << 22;
 
-        const MARKER_ACTIVATE = 1 << 21;
+        const MARKER_ACTIVATE = 1 << 23;
 
-        const CLIP_CHILDREN = 1 << 22;
+        const CLIP_CHILDREN = 1 << 24;
 
         const EXCLUSIVE_FULLSCREEN_OR_MASK = WindowFlags::ALWAYS_ON_TOP.bits();
     }
@@ -300,6 +301,9 @@ impl WindowFlags {
         if self.contains(WindowFlags::POPUP) {
             style |= WS_POPUP;
         }
+        if !self.contains(WindowFlags::FOCUSABLE) {
+            style_ex |= WS_EX_NOACTIVATE;
+        }
         if self.contains(WindowFlags::MINIMIZED) {
             style |= WS_MINIMIZE;
         }
@@ -334,7 +338,9 @@ impl WindowFlags {
         }
 
         if new.contains(WindowFlags::VISIBLE) {
-            let flag = if !self.contains(WindowFlags::MARKER_ACTIVATE) {
+            let flag = if !new.contains(WindowFlags::FOCUSABLE) {
+                SW_SHOWNOACTIVATE
+            } else if !self.contains(WindowFlags::MARKER_ACTIVATE) {
                 self.set(WindowFlags::MARKER_ACTIVATE, true);
                 SW_SHOWNOACTIVATE
             } else {

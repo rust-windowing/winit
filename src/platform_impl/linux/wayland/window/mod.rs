@@ -385,6 +385,13 @@ impl CoreWindow for Window {
         None
     }
 
+    pub fn set_focusable(&self, focusable: bool) {
+    }
+
+    pub fn is_focusable(&self) -> Option<bool> {
+        None
+    }
+
     fn set_resizable(&self, resizable: bool) {
         if self.window_state.lock().unwrap().set_resizable(resizable) {
             // NOTE: Requires commit to be applied.
