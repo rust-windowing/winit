@@ -132,6 +132,7 @@ pub struct ViewState {
 
     marked_text: RefCell<Retained<NSMutableAttributedString>>,
     accepts_first_mouse: bool,
+    focusable: Cell<bool>,
 
     /// The state of the `Option` as `Alt`.
     option_as_alt: Cell<OptionAsAlt>,
@@ -777,6 +778,12 @@ define_class!(
             trace_scope!("acceptsFirstMouse:");
             self.ivars().accepts_first_mouse
         }
+
+        #[method(shouldDelayWindowOrderingForEvent:)]
+        fn should_delay_window_ordering_for_event(&self, _event: &NSEvent) -> bool {
+            trace_scope!("shouldDelayWindowOrderingForEvent:");
+            !self.ivars().focusable.get()
+        }
     }
 );
 
@@ -784,6 +791,7 @@ impl WinitView {
     pub(super) fn new(
         app_state: &Rc<AppState>,
         accepts_first_mouse: bool,
+        focusable: bool,
         option_as_alt: OptionAsAlt,
         mtm: MainThreadMarker,
     ) -> Retained<Self> {
@@ -801,6 +809,7 @@ impl WinitView {
             forward_key_to_app: Default::default(),
             marked_text: Default::default(),
             accepts_first_mouse,
+            focusable: focusable.into(),
             option_as_alt: Cell::new(option_as_alt),
         });
         let this: Retained<Self> = unsafe { msg_send![super(this), init] };
@@ -882,6 +891,10 @@ impl WinitView {
         self.ivars().ime_size.set(size);
         let input_context = self.inputContext().expect("input context");
         input_context.invalidateCharacterCoordinates();
+    }
+
+    pub(super) fn set_focusable(&self, focusable: bool) {
+        self.ivars().focusable.set(focusable);
     }
 
     /// Reset modifiers and emit a synthetic ModifiersChanged event if deemed necessary.
@@ -1027,6 +1040,10 @@ impl WinitView {
     }
 
     fn mouse_click(&self, event: &NSEvent, button_state: ElementState) {
+        if !self.ivars().focusable.get() {
+            let mtm = MainThreadMarker::from(self);
+            unsafe { NSApplication::sharedApplication(mtm).preventWindowOrdering(); }
+        }
         let position = self.mouse_view_point(event).to_physical(self.scale_factor());
         let button = mouse_button(event);
 
