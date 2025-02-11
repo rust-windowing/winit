@@ -116,6 +116,7 @@ pub(crate) struct State {
     decorations: Cell<bool>,
     resizable: Cell<bool>,
     maximized: Cell<bool>,
+    focusable: Cell<bool>,
 
     /// Presentation options saved before entering `set_simple_fullscreen`, and
     /// restored upon exiting it. Also used when transitioning from Borderless to
@@ -723,6 +724,7 @@ fn new_window(
         let view = WinitView::new(
             app_state,
             attrs.platform_specific.accepts_first_mouse,
+            attrs.focusable,
             attrs.platform_specific.option_as_alt,
             mtm,
         );
@@ -829,6 +831,7 @@ impl WindowDelegate {
             decorations: Cell::new(attrs.decorations),
             resizable: Cell::new(attrs.resizable),
             maximized: Cell::new(attrs.maximized),
+            focusable: Cell::new(attrs.focusable),
             save_presentation_opts: Cell::new(None),
             initial_fullscreen: Cell::new(attrs.fullscreen.is_some()),
             fullscreen: RefCell::new(None),
@@ -877,7 +880,7 @@ impl WindowDelegate {
         // state, since otherwise we'll briefly see the window at normal size
         // before it transitions.
         if attrs.visible {
-            if attrs.active {
+            if attrs.active && attrs.focusable {
                 // Tightly linked with `app_state::window_activation_hack`
                 window.makeKeyAndOrderFront(None);
             } else {
@@ -996,9 +999,14 @@ impl WindowDelegate {
     }
 
     pub fn set_visible(&self, visible: bool) {
-        match visible {
-            true => self.window().makeKeyAndOrderFront(None),
-            false => self.window().orderOut(None),
+        if visible {
+            if self.is_focusable() == Some(true) {
+                self.window().makeKeyAndOrderFront(None);
+            } else {
+                self.window().orderFront(None);
+            }
+        } else {
+            self.window().orderOut(None);
         }
     }
 
@@ -1007,13 +1015,15 @@ impl WindowDelegate {
         Some(self.window().isVisible())
     }
 
+    #[inline]
     pub fn set_focusable(&self, focusable: bool) {
-        warn!("`Window::set_focusable` is ignored on macOS");
+        self.ivars().focusable.set(focusable);
+        self.view().set_focusable(focusable);
     }
 
+    #[inline]
     pub fn is_focusable(&self) -> Option<bool> {
-        warn!("`Window::is_focusable` is ignored on macOS");
-        None
+        Some(self.ivars().focusable.get())
     }
 
     pub fn request_redraw(&self) {
