@@ -145,6 +145,14 @@ impl CoreWindow for Window {
         self.0.is_visible()
     }
 
+    fn set_focusable(&self, focusable: bool) {
+        self.0.set_focusable(focusable)
+    }
+
+    fn is_focusable(&self) -> Option<bool> {
+        self.0.is_focusable()
+    }
+
     fn set_resizable(&self, resizable: bool) {
         self.0.set_resizable(resizable);
     }
@@ -1482,6 +1490,17 @@ impl UnownedWindow {
     #[inline]
     pub fn is_visible(&self) -> Option<bool> {
         Some(self.shared_state_lock().visibility == Visibility::Yes)
+    }
+
+    #[inline]
+    pub fn set_focusable(&self, focusable: bool) {
+        warn!("`Window::set_focusable` is ignored on X11");
+    }
+
+    #[inline]
+    pub fn is_focusable(&self) -> Option<bool> {
+        warn!("`Window::is_focusable` is ignored on X11");
+        None
     }
 
     fn update_cached_frame_extents(&self) {
