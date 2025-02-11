@@ -889,8 +889,7 @@ pub trait Window: AsAny + Send + Sync + fmt::Debug {
     /// - **Windows:** Supported.
     #[inline]
     pub fn set_focusable(&self, focusable: bool) {
-        self.window
-            .maybe_queue_on_main(move |w| w.set_focusable(focusable))
+        self.window.maybe_queue_on_main(move |w| w.set_focusable(focusable))
     }
 
     /// Gets whether the window can be focused or not.

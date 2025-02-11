@@ -1042,7 +1042,9 @@ impl WinitView {
     fn mouse_click(&self, event: &NSEvent, button_state: ElementState) {
         if !self.ivars().focusable.get() {
             let mtm = MainThreadMarker::from(self);
-            unsafe { NSApplication::sharedApplication(mtm).preventWindowOrdering(); }
+            unsafe {
+                NSApplication::sharedApplication(mtm).preventWindowOrdering();
+            }
         }
         let position = self.mouse_view_point(event).to_physical(self.scale_factor());
         let button = mouse_button(event);
