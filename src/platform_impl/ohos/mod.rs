@@ -185,7 +185,7 @@ impl<T: 'static> EventLoop<T> {
         }
     }
 
-    pub fn run<F>(&mut self, mut event_handle: F) -> !
+    pub fn run<F>(&mut self, mut event_handle: F)
     where
         F: FnMut(event::Event<T>, &RootAEL),
     {
@@ -303,9 +303,8 @@ impl<T: 'static> EventLoop<T> {
                     }
                 },
                 MainEvent::Start => {
-                    if let Some(ref mut h) = *self.event_loop.borrow_mut() {
-                        h(event::Event::Resumed);
-                    }
+                    // XXX: how to forward this state to applications?
+                    warn!("TODO: forward onStart notification to application");
                 },
                 MainEvent::Resume { .. } => {
                     if let Some(ref mut h) = *self.event_loop.borrow_mut() {
@@ -359,7 +358,6 @@ impl<T: 'static> EventLoop<T> {
                 }
             }
         });
-        unreachable!();
     }
 
     pub fn create_proxy(&self) -> EventLoopProxy<T> {
