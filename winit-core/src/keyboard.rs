@@ -1,7 +1,7 @@
 //! Types related to the keyboard.
 
 use bitflags::bitflags;
-pub use keyboard_types::{Code as KeyCode, NamedKey};
+pub use keyboard_types::{Code as KeyCode, Location as KeyLocation, NamedKey};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 pub use smol_str::SmolStr;
@@ -358,85 +358,6 @@ impl Key {
             _ => None,
         }
     }
-}
-
-/// The location of the key on the keyboard.
-///
-/// Certain physical keys on the keyboard can have the same value, but are in different locations.
-/// For instance, the Shift key can be on the left or right side of the keyboard, or the number
-/// keys can be above the letters or on the numpad. This enum allows the user to differentiate
-/// them.
-///
-/// See the documentation for the [`location`] field on the [`KeyEvent`] struct for more
-/// information.
-///
-/// [`location`]: ../event/struct.KeyEvent.html#structfield.location
-/// [`KeyEvent`]: crate::event::KeyEvent
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub enum KeyLocation {
-    /// The key is in its "normal" location on the keyboard.
-    ///
-    /// For instance, the "1" key above the "Q" key on a QWERTY keyboard will use this location.
-    /// This invariant is also returned when the location of the key cannot be identified.
-    ///
-    /// ![Standard 1 key](https://raw.githubusercontent.com/rust-windowing/winit/master/docs/res/keyboard_standard_1_key.svg)
-    ///
-    /// <sub>
-    ///   For image attribution, see the
-    ///   <a href="https://github.com/rust-windowing/winit/blob/master/docs/res/ATTRIBUTION.md">
-    ///     ATTRIBUTION.md
-    ///   </a>
-    ///   file.
-    /// </sub>
-    Standard,
-
-    /// The key is on the left side of the keyboard.
-    ///
-    /// For instance, the left Shift key below the Caps Lock key on a QWERTY keyboard will use this
-    /// location.
-    ///
-    /// ![Left Shift key](https://raw.githubusercontent.com/rust-windowing/winit/master/docs/res/keyboard_left_shift_key.svg)
-    ///
-    /// <sub>
-    ///   For image attribution, see the
-    ///   <a href="https://github.com/rust-windowing/winit/blob/master/docs/res/ATTRIBUTION.md">
-    ///     ATTRIBUTION.md
-    ///   </a>
-    ///   file.
-    /// </sub>
-    Left,
-
-    /// The key is on the right side of the keyboard.
-    ///
-    /// For instance, the right Shift key below the Enter key on a QWERTY keyboard will use this
-    /// location.
-    ///
-    /// ![Right Shift key](https://raw.githubusercontent.com/rust-windowing/winit/master/docs/res/keyboard_right_shift_key.svg)
-    ///
-    /// <sub>
-    ///   For image attribution, see the
-    ///   <a href="https://github.com/rust-windowing/winit/blob/master/docs/res/ATTRIBUTION.md">
-    ///     ATTRIBUTION.md
-    ///   </a>
-    ///   file.
-    /// </sub>
-    Right,
-
-    /// The key is on the numpad.
-    ///
-    /// For instance, the "1" key on the numpad will use this location.
-    ///
-    /// ![Numpad 1 key](https://raw.githubusercontent.com/rust-windowing/winit/master/docs/res/keyboard_numpad_1_key.svg)
-    ///
-    /// <sub>
-    ///   For image attribution, see the
-    ///   <a href="https://github.com/rust-windowing/winit/blob/master/docs/res/ATTRIBUTION.md">
-    ///     ATTRIBUTION.md
-    ///   </a>
-    ///   file.
-    /// </sub>
-    Numpad,
 }
 
 bitflags! {
