@@ -196,7 +196,7 @@ changelog entry.
 - Move `window::Fullscreen` to `monitor::Fullscreen`.
 - Renamed "super" key to "meta", to match the naming in the W3C specification.
   `NamedKey::Super` still exists, but it's non-functional and deprecated, `NamedKey::Meta` should be used instead.
-- Use `NamedKey` and `Code` from the `keyboard-types` v0.8 crate.
+- Use `NamedKey`, `Code` and `Location` from the `keyboard-types` v0.8 crate.
 
 ### Removed
 
