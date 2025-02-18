@@ -15,7 +15,7 @@
 //! * `wayland-csd-adwaita-notitle`.
 
 use std::ffi::c_void;
-use std::ptr::null_mut;
+use std::ptr::NonNull;
 
 #[cfg(wayland_platform)]
 use sctk::reexports::client::Proxy;
@@ -81,18 +81,19 @@ impl EventLoopBuilderExtWayland for EventLoopBuilder {
 ///
 /// [`Window`]: crate::window::Window
 pub trait WindowExtWayland {
-    /// Returns `xdg_toplevel` of the window or null if the window is X11 window.
-    fn xdg_toplevel(&self) -> *mut c_void;
+    /// Returns `xdg_toplevel` of the window or [`None`] if the window is X11 window.
+    fn xdg_toplevel(&self) -> Option<NonNull<c_void>>;
 }
 
 #[cfg(wayland_platform)]
 impl WindowExtWayland for dyn CoreWindow + '_ {
     #[inline]
-    fn xdg_toplevel(&self) -> *mut c_void {
-        self.as_any()
-            .downcast_ref::<crate::platform_impl::wayland::Window>()
-            .map(|w| w.xdg_toplevel().id().as_ptr().cast())
-            .unwrap_or(null_mut())
+    fn xdg_toplevel(&self) -> Option<NonNull<c_void>> {
+        let w = self.as_any().downcast_ref::<crate::platform_impl::wayland::Window>()?;
+        let id = w.xdg_toplevel().id();
+        let ptr = NonNull::new(id.as_ptr().cast()).expect("xdg_toplevel should not be null");
+
+        Some(ptr)
     }
 }
 
