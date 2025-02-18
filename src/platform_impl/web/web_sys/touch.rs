@@ -57,7 +57,7 @@ impl TouchHandler {
         let window = canvas_common.window.clone();
         let canvas = canvas_common.raw().clone();
         self.on_touch_start =
-            Some(canvas_common.add_event("touchdown", move |event: TouchEvent| {
+            Some(canvas_common.add_event("touchstart", move |event: TouchEvent| {
                 // From w3.org: If the preventDefault method is called on this event, it should
                 // prevent any default actions caused by any touch events associated with the same
                 // active touch point, including mouse events or scrolling.
