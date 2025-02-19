@@ -151,6 +151,12 @@ impl Application {
             window_attributes = window_attributes.with_activation_token(token);
         }
 
+        #[cfg(wayland_platform)]
+        {
+            window_attributes =
+                window_attributes.with_name("io.github.rust-windowing.winit", "main-window");
+        }
+
         #[cfg(x11_platform)]
         match std::env::var("X11_VISUAL_ID") {
             Ok(visual_id_str) => {
