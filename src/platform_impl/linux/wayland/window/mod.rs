@@ -1,5 +1,7 @@
 //! The Wayland window.
 
+use std::ffi::c_void;
+use std::ptr::NonNull;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 
@@ -8,7 +10,6 @@ use sctk::reexports::client::protocol::wl_display::WlDisplay;
 use sctk::reexports::client::protocol::wl_surface::WlSurface;
 use sctk::reexports::client::{Proxy, QueueHandle};
 use sctk::reexports::protocols::xdg::activation::v1::client::xdg_activation_v1::XdgActivationV1;
-use sctk::reexports::protocols::xdg::shell::client::xdg_toplevel::XdgToplevel;
 use sctk::shell::xdg::window::{Window as SctkWindow, WindowDecorations};
 use sctk::shell::WaylandSurface;
 use tracing::warn;
@@ -23,6 +24,7 @@ use crate::error::{NotSupportedError, RequestError};
 use crate::event::{Ime, WindowEvent};
 use crate::event_loop::AsyncRequestSerial;
 use crate::monitor::MonitorHandle as CoreMonitorHandle;
+use crate::platform::wayland::WindowExtWayland;
 use crate::platform_impl::{Fullscreen, MonitorHandle as PlatformMonitorHandle};
 use crate::window::{
     Cursor, CursorGrabMode, Fullscreen as CoreFullscreen, ImePurpose, ResizeDirection, Theme,
@@ -239,11 +241,6 @@ impl Window {
     #[inline]
     pub fn surface(&self) -> &WlSurface {
         self.window.wl_surface()
-    }
-
-    #[inline]
-    pub fn xdg_toplevel(&self) -> &XdgToplevel {
-        self.window.xdg_toplevel()
     }
 }
 
@@ -662,6 +659,17 @@ impl CoreWindow for Window {
     /// Get the raw-window-handle v0.6 window handle.
     fn rwh_06_window_handle(&self) -> &dyn rwh_06::HasWindowHandle {
         self
+    }
+}
+
+impl WindowExtWayland for dyn CoreWindow + '_ {
+    #[inline]
+    fn xdg_toplevel(&self) -> Option<NonNull<c_void>> {
+        let w = self.as_any().downcast_ref::<Window>()?;
+        let id = w.window.xdg_toplevel().id();
+        let ptr = NonNull::new(id.as_ptr().cast()).expect("xdg_toplevel should not be null");
+
+        Some(ptr)
     }
 }
 

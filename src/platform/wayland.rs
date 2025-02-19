@@ -17,13 +17,10 @@
 use std::ffi::c_void;
 use std::ptr::NonNull;
 
-#[cfg(wayland_platform)]
-use sctk::reexports::client::Proxy;
-
 use crate::event_loop::{ActiveEventLoop, EventLoop, EventLoopBuilder};
 use crate::monitor::MonitorHandle;
 pub use crate::window::Theme;
-use crate::window::{Window as CoreWindow, WindowAttributes};
+use crate::window::WindowAttributes;
 
 /// Additional methods on [`ActiveEventLoop`] that are specific to Wayland.
 pub trait ActiveEventLoopExtWayland {
@@ -83,18 +80,6 @@ impl EventLoopBuilderExtWayland for EventLoopBuilder {
 pub trait WindowExtWayland {
     /// Returns `xdg_toplevel` of the window or [`None`] if the window is X11 window.
     fn xdg_toplevel(&self) -> Option<NonNull<c_void>>;
-}
-
-#[cfg(wayland_platform)]
-impl WindowExtWayland for dyn CoreWindow + '_ {
-    #[inline]
-    fn xdg_toplevel(&self) -> Option<NonNull<c_void>> {
-        let w = self.as_any().downcast_ref::<crate::platform_impl::wayland::Window>()?;
-        let id = w.xdg_toplevel().id();
-        let ptr = NonNull::new(id.as_ptr().cast()).expect("xdg_toplevel should not be null");
-
-        Some(ptr)
-    }
 }
 
 /// Additional methods on [`WindowAttributes`] that are specific to Wayland.
