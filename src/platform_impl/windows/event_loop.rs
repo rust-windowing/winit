@@ -73,7 +73,7 @@ use crate::event_loop::{
     OwnedDisplayHandle as CoreOwnedDisplayHandle,
 };
 use crate::keyboard::ModifiersState;
-use crate::monitor::MonitorHandle as RootMonitorHandle;
+use crate::monitor::{Fullscreen, MonitorHandle as CoreMonitorHandle};
 use crate::platform::pump_events::PumpStatus;
 use crate::platform_impl::platform::dark_mode::try_theme;
 use crate::platform_impl::platform::dpi::{become_dpi_aware, dpi_to_scale_factor};
@@ -87,7 +87,7 @@ use crate::platform_impl::platform::window::InitData;
 use crate::platform_impl::platform::window_state::{
     CursorFlags, ImeState, WindowFlags, WindowState,
 };
-use crate::platform_impl::platform::{raw_input, util, wrap_device_id, Fullscreen};
+use crate::platform_impl::platform::{raw_input, util, wrap_device_id};
 use crate::platform_impl::Window;
 use crate::utils::Lazy;
 use crate::window::{
@@ -480,16 +480,16 @@ impl RootActiveEventLoop for ActiveEventLoop {
         Ok(RootCustomCursor { inner: WinCursor::new(&source.inner.0)? })
     }
 
-    fn available_monitors(&self) -> Box<dyn Iterator<Item = crate::monitor::MonitorHandle>> {
+    fn available_monitors(&self) -> Box<dyn Iterator<Item = CoreMonitorHandle>> {
         Box::new(
             monitor::available_monitors()
                 .into_iter()
-                .map(|inner| crate::monitor::MonitorHandle { inner }),
+                .map(|monitor| CoreMonitorHandle(Arc::new(monitor))),
         )
     }
 
-    fn primary_monitor(&self) -> Option<crate::monitor::MonitorHandle> {
-        Some(RootMonitorHandle { inner: monitor::primary_monitor() })
+    fn primary_monitor(&self) -> Option<CoreMonitorHandle> {
+        Some(CoreMonitorHandle(Arc::new(monitor::primary_monitor())))
     }
 
     fn exiting(&self) -> bool {
@@ -1297,7 +1297,7 @@ unsafe fn public_window_callback_inner(
                             if new_monitor != 0
                                 && fullscreen_monitor
                                     .as_ref()
-                                    .map(|monitor| new_monitor != monitor.hmonitor())
+                                    .map(|monitor| new_monitor != monitor.native_id() as _)
                                     .unwrap_or(true)
                             {
                                 if let Ok(new_monitor_info) = monitor::get_monitor_info(new_monitor)
@@ -1308,12 +1308,15 @@ unsafe fn public_window_callback_inner(
                                     window_pos.cx = new_monitor_rect.right - new_monitor_rect.left;
                                     window_pos.cy = new_monitor_rect.bottom - new_monitor_rect.top;
                                 }
-                                *fullscreen_monitor = Some(MonitorHandle::new(new_monitor));
+                                *fullscreen_monitor = Some(CoreMonitorHandle(Arc::new(
+                                    MonitorHandle::new(new_monitor),
+                                )));
                             }
                         },
-                        Fullscreen::Exclusive(ref monitor, _) => {
-                            let old_monitor = monitor.hmonitor();
-                            if let Ok(old_monitor_info) = monitor::get_monitor_info(old_monitor) {
+                        Fullscreen::Exclusive(monitor, _) => {
+                            if let Ok(old_monitor_info) =
+                                monitor::get_monitor_info(monitor.native_id() as _)
+                            {
                                 let old_monitor_rect = old_monitor_info.monitorInfo.rcMonitor;
                                 window_pos.x = old_monitor_rect.left;
                                 window_pos.y = old_monitor_rect.top;

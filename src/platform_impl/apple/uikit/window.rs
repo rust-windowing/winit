@@ -1,6 +1,7 @@
 #![allow(clippy::unnecessary_cast)]
 
 use std::collections::VecDeque;
+use std::sync::Arc;
 
 use dispatch2::MainThreadBound;
 use objc2::rc::Retained;
@@ -16,7 +17,7 @@ use tracing::{debug, warn};
 use super::app_state::EventWrapper;
 use super::view::WinitView;
 use super::view_controller::WinitViewController;
-use super::{app_state, monitor, ActiveEventLoop, Fullscreen, MonitorHandle};
+use super::{app_state, monitor, ActiveEventLoop, MonitorHandle};
 use crate::cursor::Cursor;
 use crate::dpi::{
     LogicalInsets, LogicalPosition, LogicalSize, PhysicalInsets, PhysicalPosition, PhysicalSize,
@@ -25,7 +26,7 @@ use crate::dpi::{
 use crate::error::{NotSupportedError, RequestError};
 use crate::event::WindowEvent;
 use crate::icon::Icon;
-use crate::monitor::MonitorHandle as CoreMonitorHandle;
+use crate::monitor::{Fullscreen, MonitorHandle as CoreMonitorHandle};
 use crate::platform::ios::{ScreenEdge, StatusBarStyle, ValidOrientations};
 use crate::window::{
     CursorGrabMode, ImePurpose, ResizeDirection, Theme, UserAttentionType, Window as CoreWindow,
@@ -79,7 +80,8 @@ impl WinitUIWindow {
         this.setRootViewController(Some(view_controller));
 
         match window_attributes.fullscreen.clone().map(Into::into) {
-            Some(Fullscreen::Exclusive(ref monitor, ref video_mode)) => {
+            Some(Fullscreen::Exclusive(monitor, ref video_mode)) => {
+                let monitor = monitor.as_any().downcast_ref::<MonitorHandle>().unwrap();
                 let screen = monitor.ui_screen(mtm);
                 if let Some(video_mode) =
                     monitor.video_modes_handles().find(|mode| &mode.mode == video_mode)
@@ -89,6 +91,7 @@ impl WinitUIWindow {
                 this.setScreen(screen);
             },
             Some(Fullscreen::Borderless(Some(ref monitor))) => {
+                let monitor = monitor.as_any().downcast_ref::<MonitorHandle>().unwrap();
                 let screen = monitor.ui_screen(mtm);
                 this.setScreen(screen);
             },
@@ -303,6 +306,7 @@ impl Inner {
         let mtm = MainThreadMarker::new().unwrap();
         let uiscreen = match &monitor {
             Some(Fullscreen::Exclusive(monitor, video_mode)) => {
+                let monitor = monitor.as_any().downcast_ref::<MonitorHandle>().unwrap();
                 let uiscreen = monitor.ui_screen(mtm);
                 if let Some(video_mode) =
                     monitor.video_modes_handles().find(|mode| &mode.mode == video_mode)
@@ -311,7 +315,9 @@ impl Inner {
                 }
                 uiscreen.clone()
             },
-            Some(Fullscreen::Borderless(Some(monitor))) => monitor.ui_screen(mtm).clone(),
+            Some(Fullscreen::Borderless(Some(monitor))) => {
+                monitor.as_any().downcast_ref::<MonitorHandle>().unwrap().ui_screen(mtm).clone()
+            },
             Some(Fullscreen::Borderless(None)) => {
                 self.current_monitor_inner().ui_screen(mtm).clone()
             },
@@ -349,7 +355,7 @@ impl Inner {
             && screen_space_bounds.size.width == screen_bounds.size.width
             && screen_space_bounds.size.height == screen_bounds.size.height
         {
-            Some(Fullscreen::Borderless(Some(monitor)))
+            Some(Fullscreen::Borderless(Some(CoreMonitorHandle(Arc::new(monitor)))))
         } else {
             None
         }
@@ -483,8 +489,11 @@ impl Window {
         let main_screen = UIScreen::mainScreen(mtm);
         let fullscreen = window_attributes.fullscreen.clone().map(Into::into);
         let screen = match fullscreen {
-            Some(Fullscreen::Exclusive(ref monitor, _)) => monitor.ui_screen(mtm),
-            Some(Fullscreen::Borderless(Some(ref monitor))) => monitor.ui_screen(mtm),
+            Some(Fullscreen::Exclusive(ref monitor, _))
+            | Some(Fullscreen::Borderless(Some(ref monitor))) => {
+                let monitor = monitor.as_any().downcast_ref::<MonitorHandle>().unwrap();
+                monitor.ui_screen(mtm)
+            },
             Some(Fullscreen::Borderless(None)) | None => &main_screen,
         };
 
@@ -669,11 +678,11 @@ impl CoreWindow for Window {
         self.maybe_wait_on_main(|delegate| delegate.is_maximized())
     }
 
-    fn set_fullscreen(&self, fullscreen: Option<crate::window::Fullscreen>) {
+    fn set_fullscreen(&self, fullscreen: Option<Fullscreen>) {
         self.maybe_wait_on_main(|delegate| delegate.set_fullscreen(fullscreen.map(Into::into)))
     }
 
-    fn fullscreen(&self) -> Option<crate::window::Fullscreen> {
+    fn fullscreen(&self) -> Option<Fullscreen> {
         self.maybe_wait_on_main(|delegate| delegate.fullscreen().map(Into::into))
     }
 
@@ -770,21 +779,24 @@ impl CoreWindow for Window {
 
     fn current_monitor(&self) -> Option<CoreMonitorHandle> {
         self.maybe_wait_on_main(|delegate| {
-            delegate.current_monitor().map(|inner| CoreMonitorHandle { inner })
+            delegate.current_monitor().map(|monitor| CoreMonitorHandle(Arc::new(monitor)))
         })
     }
 
     fn available_monitors(&self) -> Box<dyn Iterator<Item = CoreMonitorHandle>> {
         self.maybe_wait_on_main(|delegate| {
             Box::new(
-                delegate.available_monitors().into_iter().map(|inner| CoreMonitorHandle { inner }),
+                delegate
+                    .available_monitors()
+                    .into_iter()
+                    .map(|monitor| CoreMonitorHandle(Arc::new(monitor))),
             )
         })
     }
 
     fn primary_monitor(&self) -> Option<CoreMonitorHandle> {
         self.maybe_wait_on_main(|delegate| {
-            delegate.primary_monitor().map(|inner| CoreMonitorHandle { inner })
+            delegate.primary_monitor().map(|monitor| CoreMonitorHandle(Arc::new(monitor)))
         })
     }
 

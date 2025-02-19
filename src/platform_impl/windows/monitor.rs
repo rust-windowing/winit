@@ -1,7 +1,7 @@
 use std::collections::{HashSet, VecDeque};
 use std::hash::Hash;
 use std::num::{NonZeroU16, NonZeroU32};
-use std::{io, mem, ptr};
+use std::{io, iter, mem, ptr};
 
 use windows_sys::Win32::Foundation::{BOOL, HWND, LPARAM, POINT, RECT};
 use windows_sys::Win32::Graphics::Gdi::{
@@ -13,7 +13,7 @@ use windows_sys::Win32::Graphics::Gdi::{
 
 use super::util::decode_wide;
 use crate::dpi::{PhysicalPosition, PhysicalSize};
-use crate::monitor::VideoMode;
+use crate::monitor::{MonitorHandleProvider, VideoMode};
 use crate::platform_impl::platform::dpi::{dpi_to_scale_factor, get_monitor_dpi};
 use crate::platform_impl::platform::util::has_flag;
 
@@ -59,16 +59,6 @@ impl VideoModeHandle {
         VideoModeHandle { mode, native_video_mode: Box::new(native_video_mode) }
     }
 }
-
-#[derive(Debug, Clone, Eq, PartialEq, Hash, PartialOrd, Ord)]
-pub struct MonitorHandle(HMONITOR);
-
-// Send is not implemented for HMONITOR, we have to wrap it and implement it manually.
-// For more info see:
-// https://github.com/retep998/winapi-rs/issues/360
-// https://github.com/retep998/winapi-rs/issues/396
-
-unsafe impl Send for MonitorHandle {}
 
 unsafe extern "system" fn monitor_enum_proc(
     hmonitor: HMONITOR,
@@ -118,25 +108,19 @@ pub(crate) fn get_monitor_info(hmonitor: HMONITOR) -> Result<MONITORINFOEXW, io:
     }
 }
 
+#[derive(Debug, Clone, Eq, PartialEq, Hash, PartialOrd, Ord)]
+pub struct MonitorHandle(HMONITOR);
+
+// Send is not implemented for HMONITOR, we have to wrap it and implement it manually.
+// For more info see:
+// https://github.com/retep998/winapi-rs/issues/360
+// https://github.com/retep998/winapi-rs/issues/396
+
+unsafe impl Send for MonitorHandle {}
+
 impl MonitorHandle {
     pub(crate) fn new(hmonitor: HMONITOR) -> Self {
         MonitorHandle(hmonitor)
-    }
-
-    #[inline]
-    pub fn name(&self) -> Option<String> {
-        let monitor_info = get_monitor_info(self.0).unwrap();
-        Some(decode_wide(&monitor_info.szDevice).to_string_lossy().to_string())
-    }
-
-    #[inline]
-    pub fn native_identifier(&self) -> String {
-        self.name().unwrap()
-    }
-
-    #[inline]
-    pub fn hmonitor(&self) -> HMONITOR {
-        self.0
     }
 
     pub(crate) fn size(&self) -> PhysicalSize<u32> {
@@ -147,39 +131,7 @@ impl MonitorHandle {
         }
     }
 
-    #[inline]
-    pub fn position(&self) -> Option<PhysicalPosition<i32>> {
-        get_monitor_info(self.0)
-            .map(|info| {
-                let rc_monitor = info.monitorInfo.rcMonitor;
-                PhysicalPosition { x: rc_monitor.left, y: rc_monitor.top }
-            })
-            .ok()
-    }
-
-    #[inline]
-    pub fn scale_factor(&self) -> f64 {
-        dpi_to_scale_factor(get_monitor_dpi(self.0).unwrap_or(96))
-    }
-
-    #[inline]
-    pub fn current_video_mode(&self) -> Option<VideoMode> {
-        let monitor_info = get_monitor_info(self.0).ok()?;
-        let device_name = monitor_info.szDevice.as_ptr();
-        unsafe {
-            let mut mode: DEVMODEW = mem::zeroed();
-            mode.dmSize = mem::size_of_val(&mode) as u16;
-            if EnumDisplaySettingsExW(device_name, ENUM_CURRENT_SETTINGS, &mut mode, 0)
-                == false.into()
-            {
-                None
-            } else {
-                Some(VideoModeHandle::new(mode).mode)
-            }
-        }
-    }
-
-    pub(crate) fn video_mode_handles(&self) -> impl Iterator<Item = VideoModeHandle> {
+    pub(crate) fn video_mode_handles(&self) -> Box<dyn Iterator<Item = VideoModeHandle>> {
         // EnumDisplaySettingsExW can return duplicate values (or some of the
         // fields are probably changing, but we aren't looking at those fields
         // anyway), so we're using a BTreeSet deduplicate
@@ -189,7 +141,7 @@ impl MonitorHandle {
             Ok(monitor_info) => monitor_info,
             Err(error) => {
                 tracing::warn!("Error from get_monitor_info: {error}");
-                return modes.into_iter();
+                return Box::new(iter::empty());
             },
         };
 
@@ -208,10 +160,50 @@ impl MonitorHandle {
             i += 1;
         }
 
-        modes.into_iter()
+        Box::new(modes.into_iter())
+    }
+}
+
+impl MonitorHandleProvider for MonitorHandle {
+    fn native_id(&self) -> u64 {
+        self.0 as _
     }
 
-    pub fn video_modes(&self) -> impl Iterator<Item = VideoMode> {
-        self.video_mode_handles().map(|mode| mode.mode)
+    fn name(&self) -> Option<std::borrow::Cow<'_, str>> {
+        let monitor_info = get_monitor_info(self.0).unwrap();
+        Some(decode_wide(&monitor_info.szDevice).to_string_lossy().to_string().into())
+    }
+
+    fn position(&self) -> Option<PhysicalPosition<i32>> {
+        get_monitor_info(self.0)
+            .map(|info| {
+                let rc_monitor = info.monitorInfo.rcMonitor;
+                PhysicalPosition { x: rc_monitor.left, y: rc_monitor.top }
+            })
+            .ok()
+    }
+
+    fn scale_factor(&self) -> f64 {
+        dpi_to_scale_factor(get_monitor_dpi(self.0).unwrap_or(96))
+    }
+
+    fn current_video_mode(&self) -> Option<crate::monitor::VideoMode> {
+        let monitor_info = get_monitor_info(self.0).ok()?;
+        let device_name = monitor_info.szDevice.as_ptr();
+        unsafe {
+            let mut mode: DEVMODEW = mem::zeroed();
+            mode.dmSize = mem::size_of_val(&mode) as u16;
+            if EnumDisplaySettingsExW(device_name, ENUM_CURRENT_SETTINGS, &mut mode, 0)
+                == false.into()
+            {
+                None
+            } else {
+                Some(VideoModeHandle::new(mode).mode)
+            }
+        }
+    }
+
+    fn video_modes(&self) -> Box<dyn Iterator<Item = VideoMode>> {
+        Box::new(self.video_mode_handles().map(|mode| mode.mode))
     }
 }

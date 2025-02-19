@@ -12,11 +12,10 @@ use super::{backend, lock, ActiveEventLoop};
 use crate::dpi::{LogicalInsets, PhysicalInsets, PhysicalPosition, PhysicalSize, Position, Size};
 use crate::error::{NotSupportedError, RequestError};
 use crate::icon::Icon;
-use crate::monitor::MonitorHandle as RootMonitorHandle;
+use crate::monitor::{Fullscreen, MonitorHandle as RootMonitorHandle};
 use crate::window::{
-    Cursor, CursorGrabMode, Fullscreen as RootFullscreen, ImePurpose, ResizeDirection, Theme,
-    UserAttentionType, Window as RootWindow, WindowAttributes, WindowButtons, WindowId,
-    WindowLevel,
+    Cursor, CursorGrabMode, ImePurpose, ResizeDirection, Theme, UserAttentionType,
+    Window as RootWindow, WindowAttributes, WindowButtons, WindowId, WindowLevel,
 };
 
 pub struct Window {
@@ -263,20 +262,20 @@ impl RootWindow for Window {
         false
     }
 
-    fn set_fullscreen(&self, fullscreen: Option<RootFullscreen>) {
+    fn set_fullscreen(&self, fullscreen: Option<Fullscreen>) {
         self.inner.dispatch(move |inner| {
             if let Some(fullscreen) = fullscreen {
-                inner.canvas.request_fullscreen(fullscreen.into());
+                inner.canvas.request_fullscreen(fullscreen);
             } else {
                 inner.canvas.exit_fullscreen()
             }
         })
     }
 
-    fn fullscreen(&self) -> Option<RootFullscreen> {
+    fn fullscreen(&self) -> Option<Fullscreen> {
         self.inner.queue(|inner| {
             if inner.canvas.is_fullscreen() {
-                Some(RootFullscreen::Borderless(None))
+                Some(Fullscreen::Borderless(None))
             } else {
                 None
             }

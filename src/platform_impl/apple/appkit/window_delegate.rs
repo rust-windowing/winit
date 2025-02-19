@@ -42,13 +42,14 @@ use super::observer::RunLoop;
 use super::util::cgerr;
 use super::view::WinitView;
 use super::window::{window_id, WinitPanel, WinitWindow};
-use super::{ffi, Fullscreen, MonitorHandle};
+use super::{ffi, MonitorHandle};
 use crate::dpi::{
     LogicalInsets, LogicalPosition, LogicalSize, PhysicalInsets, PhysicalPosition, PhysicalSize,
     Position, Size,
 };
 use crate::error::{NotSupportedError, RequestError};
 use crate::event::{SurfaceSizeWriter, WindowEvent};
+use crate::monitor::{Fullscreen, MonitorHandle as CoreMonitorHandle, MonitorHandleProvider};
 use crate::platform::macos::{OptionAsAlt, WindowExtMacOS};
 use crate::window::{
     Cursor, CursorGrabMode, Icon, ImePurpose, ResizeDirection, Theme, UserAttentionType,
@@ -257,7 +258,9 @@ define_class!(
                 // Otherwise, we must've reached fullscreen by the user clicking
                 // on the green fullscreen button. Update state!
                 None => {
-                    let current_monitor = self.current_monitor_inner();
+                    let current_monitor = self
+                        .current_monitor_inner()
+                        .map(|monitor| CoreMonitorHandle(Arc::new(monitor)));
                     *fullscreen = Some(Fullscreen::Borderless(current_monitor));
                 },
             }
@@ -553,6 +556,7 @@ fn new_window(
         let screen = match attrs.fullscreen.clone().map(Into::into) {
             Some(Fullscreen::Borderless(Some(monitor)))
             | Some(Fullscreen::Exclusive(monitor, _)) => {
+                let monitor = monitor.as_any().downcast_ref::<MonitorHandle>().unwrap();
                 monitor.ns_screen(mtm).or_else(|| NSScreen::mainScreen(mtm))
             },
             Some(Fullscreen::Borderless(None)) => NSScreen::mainScreen(mtm),
@@ -1455,17 +1459,18 @@ impl WindowDelegate {
         // does not take a screen parameter, but uses the current screen)
         if let Some(ref fullscreen) = fullscreen {
             let new_screen = match fullscreen {
-                Fullscreen::Borderless(Some(monitor)) => monitor.clone(),
+                Fullscreen::Borderless(Some(monitor)) | Fullscreen::Exclusive(monitor, _) => {
+                    let monitor = monitor.as_any().downcast_ref::<MonitorHandle>().unwrap();
+                    monitor.ns_screen(mtm)
+                },
                 Fullscreen::Borderless(None) => {
                     if let Some(monitor) = self.current_monitor_inner() {
-                        monitor
+                        monitor.ns_screen(mtm)
                     } else {
                         return;
                     }
                 },
-                Fullscreen::Exclusive(monitor, _) => monitor.clone(),
             }
-            .ns_screen(mtm)
             .unwrap();
 
             let old_screen = self.window().screen().unwrap();
@@ -1487,7 +1492,7 @@ impl WindowDelegate {
             // parameter, which is not consistent with the docs saying that it
             // takes a `NSDictionary`..
 
-            let display_id = monitor.native_identifier();
+            let display_id = monitor.native_id() as _;
 
             let mut fade_token = ffi::kCGDisplayFadeReservationInvalidToken;
 
@@ -1514,8 +1519,9 @@ impl WindowDelegate {
                 cgerr(CGDisplayCapture(display_id)).unwrap();
             }
 
+            let monitor = monitor.as_any().downcast_ref::<MonitorHandle>().unwrap();
             let video_mode =
-                match monitor.video_modes_handles().find(|mode| &mode.mode == video_mode) {
+                match monitor.video_mode_handles().find(|mode| &mode.mode == video_mode) {
                     Some(video_mode) => video_mode,
                     None => return,
                 };
@@ -1580,7 +1586,8 @@ impl WindowDelegate {
                 // State is restored by `window_did_exit_fullscreen`
                 toggle_fullscreen(self.window());
             },
-            (Some(Fullscreen::Exclusive(ref monitor, _)), None) => {
+            (Some(Fullscreen::Exclusive(monitor, _)), None) => {
+                let monitor = monitor.as_any().downcast_ref::<MonitorHandle>().unwrap();
                 restore_and_release_display(monitor);
                 toggle_fullscreen(self.window());
             },
@@ -1603,7 +1610,7 @@ impl WindowDelegate {
                 let window_level = unsafe { CGShieldingWindowLevel() } as NSWindowLevel + 1;
                 self.window().setLevel(window_level);
             },
-            (Some(Fullscreen::Exclusive(ref monitor, _)), Some(Fullscreen::Borderless(_))) => {
+            (Some(Fullscreen::Exclusive(monitor, _)), Some(Fullscreen::Borderless(_))) => {
                 let presentation_options = self.ivars().save_presentation_opts.get().unwrap_or(
                     NSApplicationPresentationOptions::FullScreen
                         | NSApplicationPresentationOptions::AutoHideDock
@@ -1611,6 +1618,7 @@ impl WindowDelegate {
                 );
                 app.setPresentationOptions(presentation_options);
 
+                let monitor = monitor.as_any().downcast_ref::<MonitorHandle>().unwrap();
                 restore_and_release_display(monitor);
 
                 // Restore the normal window level following the Borderless fullscreen
@@ -1815,11 +1823,11 @@ fn restore_and_release_display(monitor: &MonitorHandle) {
     if available_monitors.contains(monitor) {
         unsafe {
             CGRestorePermanentDisplayConfiguration();
-            cgerr(CGDisplayRelease(monitor.native_identifier())).unwrap();
+            cgerr(CGDisplayRelease(monitor.native_id() as _)).unwrap();
         };
     } else {
         warn!(
-            monitor = monitor.name(),
+            monitor = monitor.name().map(|name| name.to_string()),
             "Tried to restore exclusive fullscreen on a monitor that is no longer available"
         );
     }

@@ -83,19 +83,14 @@ impl XConnection {
             // XRROutputInfo contains an array of mode ids that correspond to
             // modes in the array in XRRScreenResources
             .filter(|x| output_modes.iter().any(|id| x.id == *id))
-            .map(|mode| {
-                VideoModeHandle {
-                    current: mode.id == current_mode,
-                    mode: VideoMode {
-                        size: (mode.width as u32, mode.height as u32).into(),
-                        refresh_rate_millihertz: monitor::mode_refresh_rate_millihertz(mode),
-                        bit_depth: NonZeroU16::new(bit_depth as u16),
-                    },
-                    native_mode: mode.id,
-                    // This is populated in `MonitorHandle::video_modes` as the
-                    // video mode is returned to the user
-                    monitor: None,
-                }
+            .map(|mode| VideoModeHandle {
+                current: mode.id == current_mode,
+                mode: VideoMode {
+                    size: (mode.width as u32, mode.height as u32).into(),
+                    refresh_rate_millihertz: monitor::mode_refresh_rate_millihertz(mode),
+                    bit_depth: NonZeroU16::new(bit_depth as u16),
+                },
+                native_mode: mode.id,
             })
             .collect();
 

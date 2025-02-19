@@ -21,6 +21,7 @@ use winit::error::RequestError;
 use winit::event::{DeviceEvent, DeviceId, Ime, MouseButton, MouseScrollDelta, WindowEvent};
 use winit::event_loop::{ActiveEventLoop, EventLoop};
 use winit::keyboard::{Key, ModifiersState};
+use winit::monitor::Fullscreen;
 #[cfg(macos_platform)]
 use winit::platform::macos::{
     ApplicationHandlerExtMacOS, OptionAsAlt, WindowAttributesExtMacOS, WindowExtMacOS,
@@ -34,8 +35,8 @@ use winit::platform::web::{ActiveEventLoopExtWeb, CustomCursorExtWeb, WindowAttr
 #[cfg(x11_platform)]
 use winit::platform::x11::WindowAttributesExtX11;
 use winit::window::{
-    Cursor, CursorGrabMode, CustomCursor, CustomCursorSource, Fullscreen, Icon, ResizeDirection,
-    Theme, Window, WindowAttributes, WindowId,
+    Cursor, CursorGrabMode, CustomCursor, CustomCursorSource, Icon, ResizeDirection, Theme, Window,
+    WindowAttributes, WindowId,
 };
 
 #[path = "util/tracing.rs"]

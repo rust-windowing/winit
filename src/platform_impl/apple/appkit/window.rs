@@ -1,5 +1,7 @@
 #![allow(clippy::unnecessary_cast)]
 
+use std::sync::Arc;
+
 use dispatch2::MainThreadBound;
 use dpi::{Position, Size};
 use objc2::rc::{autoreleasepool, Retained};
@@ -10,10 +12,10 @@ use objc2_foundation::NSObject;
 use super::event_loop::ActiveEventLoop;
 use super::window_delegate::WindowDelegate;
 use crate::error::RequestError;
-use crate::monitor::MonitorHandle as CoreMonitorHandle;
+use crate::monitor::{Fullscreen, MonitorHandle as CoreMonitorHandle};
 use crate::window::{
-    Cursor, Fullscreen, Icon, ImePurpose, Theme, UserAttentionType, Window as CoreWindow,
-    WindowAttributes, WindowButtons, WindowId, WindowLevel,
+    Cursor, Icon, ImePurpose, Theme, UserAttentionType, Window as CoreWindow, WindowAttributes,
+    WindowButtons, WindowId, WindowLevel,
 };
 
 pub(crate) struct Window {
@@ -306,21 +308,24 @@ impl CoreWindow for Window {
 
     fn current_monitor(&self) -> Option<CoreMonitorHandle> {
         self.maybe_wait_on_main(|delegate| {
-            delegate.current_monitor().map(|inner| CoreMonitorHandle { inner })
+            delegate.current_monitor().map(|monitor| CoreMonitorHandle(Arc::new(monitor)))
         })
     }
 
     fn available_monitors(&self) -> Box<dyn Iterator<Item = CoreMonitorHandle>> {
         self.maybe_wait_on_main(|delegate| {
             Box::new(
-                delegate.available_monitors().into_iter().map(|inner| CoreMonitorHandle { inner }),
+                delegate
+                    .available_monitors()
+                    .into_iter()
+                    .map(|monitor| CoreMonitorHandle(Arc::new(monitor))),
             )
         })
     }
 
     fn primary_monitor(&self) -> Option<CoreMonitorHandle> {
         self.maybe_wait_on_main(|delegate| {
-            delegate.primary_monitor().map(|inner| CoreMonitorHandle { inner })
+            delegate.primary_monitor().map(|monitor| CoreMonitorHandle(Arc::new(monitor)))
         })
     }
 
