@@ -667,9 +667,8 @@ impl WindowExtWayland for dyn CoreWindow + '_ {
     fn xdg_toplevel(&self) -> Option<NonNull<c_void>> {
         let w = self.as_any().downcast_ref::<Window>()?;
         let id = w.window.xdg_toplevel().id();
-        let ptr = NonNull::new(id.as_ptr().cast()).expect("xdg_toplevel should not be null");
 
-        Some(ptr)
+        NonNull::new(id.as_ptr().cast())
     }
 }
 
