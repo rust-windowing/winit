@@ -104,6 +104,7 @@ changelog entry.
 - On Web, `Window::canvas()` now returns a reference.
 - On Web, `CursorGrabMode::Locked` now lets `DeviceEvent::MouseMotion` return raw data, not OS
   accelerated, if the browser supports it.
+- On Android, when `keycode` can be represented as character, its textual representation is provided in `KeyEvent::text`.
 - `(Active)EventLoop::create_custom_cursor()` now returns a `Result<CustomCursor, ExternalError>`.
 - Changed how `ModifiersState` is serialized by Serde.
 - `VideoModeHandle::refresh_rate_millihertz()` and `bit_depth()` now return a `Option<NonZero*>`.
