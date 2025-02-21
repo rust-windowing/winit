@@ -257,12 +257,10 @@
 //! [`Window`]: window::Window
 //! [`WindowId`]: window::WindowId
 //! [`WindowAttributes`]: window::WindowAttributes
-//! [window_new]: window::Window::new
 //! [`create_window`]: event_loop::ActiveEventLoop::create_window
 //! [`Window::id()`]: window::Window::id
 //! [`WindowEvent`]: event::WindowEvent
 //! [`DeviceEvent`]: event::DeviceEvent
-//! [`Event::UserEvent`]: event::Event::UserEvent
 //! [`exiting()`]: crate::application::ApplicationHandler::exiting
 //! [`raw_window_handle`]: ./window/struct.Window.html#method.raw_window_handle
 //! [`raw_display_handle`]: ./window/struct.Window.html#method.raw_display_handle
