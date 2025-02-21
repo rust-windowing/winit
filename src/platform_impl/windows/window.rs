@@ -1341,7 +1341,7 @@ unsafe fn init(
     // This is because if the size is changed in WM_CREATE, the restored size will be stored in that
     // size.
     if fullscreen.is_some() {
-        win.set_fullscreen(fullscreen.map(Into::into));
+        win.set_fullscreen(fullscreen);
         unsafe { force_window_active(win.window) };
     } else if maximized {
         win.set_maximized(true);
