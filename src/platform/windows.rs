@@ -679,6 +679,15 @@ pub trait IconExtWindows: Sized {
     /// In cases where the specified size does not exist in the file, Windows may perform scaling
     /// to get an icon of the desired size.
     fn from_resource(ordinal: u16, size: Option<PhysicalSize<u32>>) -> Result<Self, BadIcon>;
+
+    /// Create an icon from a resource embedded in this executable or library.
+    ///
+    /// Specify `size` to load a specific icon size from the file, or `None` to load the default
+    /// icon size from the file.
+    ///
+    /// In cases where the specified size does not exist in the file, Windows may perform scaling
+    /// to get an icon of the desired size.
+    fn from_resource_name(name: &str, size: Option<PhysicalSize<u32>>) -> Result<Self, BadIcon>;
 }
 
 impl IconExtWindows for Icon {
@@ -692,6 +701,11 @@ impl IconExtWindows for Icon {
 
     fn from_resource(ordinal: u16, size: Option<PhysicalSize<u32>>) -> Result<Self, BadIcon> {
         let win_icon = crate::platform_impl::WinIcon::from_resource(ordinal, size)?;
+        Ok(Icon { inner: win_icon })
+    }
+
+    fn from_resource_name(name: &str, size: Option<PhysicalSize<u32>>) -> Result<Self, BadIcon> {
+        let win_icon = crate::platform_impl::WinIcon::from_resource_name(name, size)?;
         Ok(Icon { inner: win_icon })
     }
 }
