@@ -184,10 +184,12 @@ impl WindowAttributes {
     ///   position the top left corner of the whole window you have to use
     ///   [`Window::set_outer_position`] after creating the window.
     /// - **Windows:** The top left corner position of the window title bar, the window's "outer"
-    ///   position. There may be a small gap between this position and the window due to the
-    ///   specifics of the Window Manager.
+    ///   position. Ignores the invisible resize borders (as well as the top visible resize border
+    ///   that appears if a window has no title bar) on Windows 10. Thin borders are not ignored,
+    ///   though they may also be invisible (and if resize borders exist, also resize).
     /// - **X11:** The top left corner of the window, the window's "outer" position.
     /// - **Others:** Ignored.
+    // TODO: document Windows 11 if it's also part of the limit?
     #[inline]
     pub fn with_position<P: Into<Position>>(mut self, position: P) -> Self {
         self.position = Some(position.into());
@@ -615,7 +617,11 @@ pub trait Window: AsAny + Send + Sync {
     /// ## Platform-specific
     ///
     /// - **Web:** Returns the top-left coordinates relative to the viewport.
+    /// - **Windows:** Ignores the invisible resize borders (as well as the top visible resize
+    ///   border that appears if a window has no title bar) on Windows 10. Thin borders are not
+    ///   ignored, though they may also be invisible (and if resize borders exist, also resize).
     /// - **Android / Wayland:** Always returns [`RequestError::NotSupported`].
+    // TODO: document Windows 11 if it's also part of the limit?
     fn outer_position(&self) -> Result<PhysicalPosition<i32>, RequestError>;
 
     /// Sets the position of the window on the desktop.

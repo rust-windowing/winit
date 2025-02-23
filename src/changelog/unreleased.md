@@ -16,6 +16,8 @@ on how to add them:
 - On X11, add `Window::even_more_rare_api`.
 - On Wayland, add `Window::common_api`.
 - On Windows, add `Window::some_rare_api`.
+- On Windows, add `WindowAttributesExtWindows::with_titlebar`, `Window::set_titlebar` to allow enabling/disabling titlebar separately from the resize border (currently combined in decorations).
+- On Windows, add `WindowAttributesExtWindows::is_top_resize_border`, `Window::set_top_resize_border` to allow enabling/disabling the top resize border when title bar is disabled. Allows implementing custom title bars that should handle the top resizing themselves.
 ```
 
 When the change requires non-trivial amount of work for users to comply
@@ -33,6 +35,10 @@ with it, the migration guide should be added below the entry, like:
 
   // Code snippet.
 
+```
+
+```md
+- (WindowsOS) Fixed (removed) an invisible gap between the screen border and the window's visible border at 0 `x`/`y` coordinates due to the fact that window's invisible resize borders are considered part of a window box for positioning win32 APIs (`SetWindowPos`). Now an invisible resize border is treated the same as a shadow and `with_position` and `set_position` APIs are updated to offset the coordinates before communicating with win32 APIs. In some cases (when a window has no title bar, but does have resize borders), the top resize border becomes visible, but it's still ignored for consistency.
 ```
 
 The migration guide could reference other migration examples in the current
