@@ -1135,6 +1135,8 @@ unsafe fn public_window_callback_inner(
 
         WM_NCLBUTTONDOWN => {
             if wparam == HTCAPTION as _ {
+                // lparam must be zero to prevent the pause when clicking the title bar to drag
+                let lparam = 0;
                 unsafe { PostMessageW(window, WM_MOUSEMOVE, 0, lparam) };
             }
             result = ProcResult::DefWindowProc(wparam);
