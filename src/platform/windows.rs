@@ -671,7 +671,7 @@ pub trait IconExtWindows: Sized {
     fn from_path<P: AsRef<Path>>(path: P, size: Option<PhysicalSize<u32>>)
         -> Result<Self, BadIcon>;
 
-    /// Create an icon from a resource embedded in this executable or library.
+    /// Create an icon from a resource embedded in this executable or library by its ordinal id.
     ///
     /// Specify `size` to load a specific icon size from the file, or `None` to load the default
     /// icon size from the file.
@@ -680,7 +680,7 @@ pub trait IconExtWindows: Sized {
     /// to get an icon of the desired size.
     fn from_resource(ordinal: u16, size: Option<PhysicalSize<u32>>) -> Result<Self, BadIcon>;
 
-    /// Create an icon from a resource embedded in this executable or library.
+    /// Create an icon from a resource embedded in this executable or library by its name.
     ///
     /// Specify `size` to load a specific icon size from the file, or `None` to load the default
     /// icon size from the file.
