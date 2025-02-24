@@ -59,14 +59,15 @@ use windows_sys::Win32::UI::WindowsAndMessaging::{
     WS_EX_TRANSPARENT, WS_OVERLAPPED, WS_POPUP, WS_VISIBLE,
 };
 
-pub(super) use self::runner::EventLoopRunner;
+pub(super) use self::runner::{Event, EventLoopRunner};
 use super::window::set_skip_taskbar;
 use super::SelectedCursor;
 use crate::application::ApplicationHandler;
 use crate::dpi::{PhysicalPosition, PhysicalSize};
 use crate::error::{EventLoopError, RequestError};
 use crate::event::{
-    Event, FingerId, Force, Ime, RawKeyEvent, SurfaceSizeWriter, TouchPhase, WindowEvent,
+    DeviceEvent, DeviceId, FingerId, Force, Ime, RawKeyEvent, SurfaceSizeWriter, TouchPhase,
+    WindowEvent,
 };
 use crate::event_loop::{
     ActiveEventLoop as RootActiveEventLoop, ControlFlow, DeviceEvents,
@@ -106,8 +107,9 @@ pub(crate) struct WindowData {
 }
 
 impl WindowData {
-    fn send_event(&self, event: Event) {
-        self.event_loop_runner.send_event(event);
+    fn send_window_event(&self, window: HWND, event: WindowEvent) {
+        let window_id = WindowId::from_raw(window as usize);
+        self.event_loop_runner.send_event(Event::Window { window_id, event });
     }
 
     fn window_state_lock(&self) -> MutexGuard<'_, WindowState> {
@@ -120,8 +122,12 @@ struct ThreadMsgTargetData {
 }
 
 impl ThreadMsgTargetData {
-    fn send_event(&self, event: Event) {
-        self.event_loop_runner.send_event(event);
+    fn send_wakeup(&self) {
+        self.event_loop_runner.send_event(Event::WakeUp);
+    }
+
+    fn send_device_event(&self, device_id: DeviceId, event: DeviceEvent) {
+        self.event_loop_runner.send_event(Event::Device { device_id, event });
     }
 }
 
@@ -224,30 +230,9 @@ impl EventLoop {
         mut app: A,
     ) -> Result<(), EventLoopError> {
         self.runner.clear_exit();
-        {
-            let event_loop_windows_ref = ActiveEventLoop::from_ref(&self.runner);
-            // # Safety
-            // We make sure to call runner.clear_event_handler() before
-            // returning
-            unsafe {
-                self.runner.set_event_handler(move |event| match event {
-                    Event::NewEvents(cause) => app.new_events(event_loop_windows_ref, cause),
-                    Event::WindowEvent { window_id, event } => {
-                        app.window_event(event_loop_windows_ref, window_id, event)
-                    },
-                    Event::DeviceEvent { device_id, event } => {
-                        app.device_event(event_loop_windows_ref, device_id, event)
-                    },
-                    Event::UserWakeUp => app.proxy_wake_up(event_loop_windows_ref),
-                    Event::Suspended => app.suspended(event_loop_windows_ref),
-                    Event::Resumed => app.resumed(event_loop_windows_ref),
-                    Event::CreateSurfaces => app.can_create_surfaces(event_loop_windows_ref),
-                    Event::AboutToWait => app.about_to_wait(event_loop_windows_ref),
-                    Event::LoopExiting => app.exiting(event_loop_windows_ref),
-                    Event::MemoryWarning => app.memory_warning(event_loop_windows_ref),
-                });
-            }
-        }
+
+        // SAFETY: The resetter is not leaked.
+        let _app_resetter = unsafe { self.runner.set_app(&mut app) };
 
         let exit_code = loop {
             self.wait_for_messages(None);
@@ -266,9 +251,6 @@ impl EventLoop {
 
         self.runner.loop_destroyed();
 
-        // # Safety
-        // We assume that this will effectively call `runner.clear_event_handler()`
-        // to meet the safety requirements for calling `runner.set_event_handler()` above.
         self.runner.reset_runner();
 
         if exit_code == 0 {
@@ -283,36 +265,8 @@ impl EventLoop {
         timeout: Option<Duration>,
         mut app: A,
     ) -> PumpStatus {
-        {
-            let event_loop_windows_ref = ActiveEventLoop::from_ref(&self.runner);
-            // let user_event_receiver = &self.user_event_receiver;
-
-            // # Safety
-            // We make sure to call runner.clear_event_handler() before
-            // returning
-            //
-            // Note: we're currently assuming nothing can panic and unwind
-            // to leave the runner in an unsound state with an associated
-            // event handler.
-            unsafe {
-                self.runner.set_event_handler(move |event| match event {
-                    Event::NewEvents(cause) => app.new_events(event_loop_windows_ref, cause),
-                    Event::WindowEvent { window_id, event } => {
-                        app.window_event(event_loop_windows_ref, window_id, event)
-                    },
-                    Event::DeviceEvent { device_id, event } => {
-                        app.device_event(event_loop_windows_ref, device_id, event)
-                    },
-                    Event::UserWakeUp => app.proxy_wake_up(event_loop_windows_ref),
-                    Event::Suspended => app.suspended(event_loop_windows_ref),
-                    Event::Resumed => app.resumed(event_loop_windows_ref),
-                    Event::CreateSurfaces => app.can_create_surfaces(event_loop_windows_ref),
-                    Event::AboutToWait => app.about_to_wait(event_loop_windows_ref),
-                    Event::LoopExiting => app.exiting(event_loop_windows_ref),
-                    Event::MemoryWarning => app.memory_warning(event_loop_windows_ref),
-                });
-            }
-        }
+        // SAFETY: The resetter is not leaked.
+        let _app_resetter = unsafe { self.runner.set_app(&mut app) };
 
         self.runner.wakeup();
 
@@ -325,7 +279,7 @@ impl EventLoop {
             self.dispatch_peeked_messages();
         }
 
-        let status = if let Some(code) = self.runner.exit_code() {
+        if let Some(code) = self.runner.exit_code() {
             self.runner.loop_destroyed();
 
             // Immediately reset the internal state for the loop to allow
@@ -335,17 +289,7 @@ impl EventLoop {
         } else {
             self.runner.prepare_wait();
             PumpStatus::Continue
-        };
-
-        // We wait until we've checked for an exit status before clearing the
-        // application callback, in case we need to dispatch a LoopExiting event
-        //
-        // # Safety
-        // This pairs up with our call to `runner.set_event_handler` and ensures
-        // the application's callback can't be held beyond its lifetime.
-        self.runner.clear_event_handler();
-
-        status
+        }
     }
 
     /// Waits until new event messages arrive to be peeked.
@@ -978,10 +922,7 @@ fn update_modifiers(window: HWND, userdata: &WindowData) {
         // Drop lock
         drop(window_state);
 
-        userdata.send_event(Event::WindowEvent {
-            window_id: WindowId::from_raw(window as usize),
-            event: ModifiersChanged(modifiers.into()),
-        });
+        userdata.send_window_event(window, ModifiersChanged(modifiers.into()));
     }
 }
 
@@ -990,25 +931,16 @@ unsafe fn gain_active_focus(window: HWND, userdata: &WindowData) {
 
     update_modifiers(window, userdata);
 
-    userdata.send_event(Event::WindowEvent {
-        window_id: WindowId::from_raw(window as usize),
-        event: Focused(true),
-    });
+    userdata.send_window_event(window, Focused(true));
 }
 
 unsafe fn lose_active_focus(window: HWND, userdata: &WindowData) {
     use crate::event::WindowEvent::{Focused, ModifiersChanged};
 
     userdata.window_state_lock().modifiers_state = ModifiersState::empty();
-    userdata.send_event(Event::WindowEvent {
-        window_id: WindowId::from_raw(window as usize),
-        event: ModifiersChanged(ModifiersState::empty().into()),
-    });
+    userdata.send_window_event(window, ModifiersChanged(ModifiersState::empty().into()));
 
-    userdata.send_event(Event::WindowEvent {
-        window_id: WindowId::from_raw(window as usize),
-        event: Focused(false),
-    });
+    userdata.send_window_event(window, Focused(false));
 }
 
 /// Any window whose callback is configured to this function will have its events propagated
@@ -1103,13 +1035,10 @@ unsafe fn public_window_callback_inner(
         let events =
             userdata.key_event_builder.process_message(window, msg, wparam, lparam, &mut result);
         for event in events {
-            userdata.send_event(Event::WindowEvent {
-                window_id: WindowId::from_raw(window as usize),
-                event: KeyboardInput {
-                    device_id: None,
-                    event: event.event,
-                    is_synthetic: event.is_synthetic,
-                },
+            userdata.send_window_event(window, KeyboardInput {
+                device_id: None,
+                event: event.event,
+                is_synthetic: event.is_synthetic,
             });
         }
     };
@@ -1188,20 +1117,14 @@ unsafe fn public_window_callback_inner(
 
         WM_CLOSE => {
             use crate::event::WindowEvent::CloseRequested;
-            userdata.send_event(Event::WindowEvent {
-                window_id: WindowId::from_raw(window as usize),
-                event: CloseRequested,
-            });
+            userdata.send_window_event(window, CloseRequested);
             result = ProcResult::Value(0);
         },
 
         WM_DESTROY => {
             use crate::event::WindowEvent::Destroyed;
             unsafe { RevokeDragDrop(window) };
-            userdata.send_event(Event::WindowEvent {
-                window_id: WindowId::from_raw(window as usize),
-                event: Destroyed,
-            });
+            userdata.send_window_event(window, Destroyed);
             result = ProcResult::Value(0);
         },
 
@@ -1219,10 +1142,7 @@ unsafe fn public_window_callback_inner(
             // window outside the normal flow of the event loop. This way mark event as handled
             // and request a normal redraw with `RedrawWindow`.
             if !userdata.event_loop_runner.should_buffer() {
-                userdata.send_event(Event::WindowEvent {
-                    window_id: WindowId::from_raw(window as usize),
-                    event: WindowEvent::RedrawRequested,
-                });
+                userdata.send_window_event(window, WindowEvent::RedrawRequested);
             }
 
             // NOTE: calling `RedrawWindow` during `WM_PAINT` does nothing, since to mark
@@ -1322,10 +1242,7 @@ unsafe fn public_window_callback_inner(
             if unsafe { (*windowpos).flags & SWP_NOMOVE != SWP_NOMOVE } {
                 let physical_position =
                     unsafe { PhysicalPosition::new((*windowpos).x, (*windowpos).y) };
-                userdata.send_event(Event::WindowEvent {
-                    window_id: WindowId::from_raw(window as usize),
-                    event: Moved(physical_position),
-                });
+                userdata.send_window_event(window, Moved(physical_position));
             }
 
             // This is necessary for us to still get sent WM_SIZE.
@@ -1338,10 +1255,6 @@ unsafe fn public_window_callback_inner(
             let h = super::hiword(lparam as u32) as u32;
 
             let physical_size = PhysicalSize::new(w, h);
-            let event = Event::WindowEvent {
-                window_id: WindowId::from_raw(window as usize),
-                event: SurfaceResized(physical_size),
-            };
 
             {
                 let mut w = userdata.window_state_lock();
@@ -1352,7 +1265,7 @@ unsafe fn public_window_callback_inner(
                     w.set_window_flags_in_place(|f| f.set(WindowFlags::MAXIMIZED, maximized));
                 }
             }
-            userdata.send_event(event);
+            userdata.send_window_event(window, SurfaceResized(physical_size));
             result = ProcResult::Value(0);
         },
 
@@ -1453,10 +1366,7 @@ unsafe fn public_window_callback_inner(
             if ime_allowed {
                 userdata.window_state_lock().ime_state = ImeState::Enabled;
 
-                userdata.send_event(Event::WindowEvent {
-                    window_id: WindowId::from_raw(window as usize),
-                    event: WindowEvent::Ime(Ime::Enabled),
-                });
+                userdata.send_window_event(window, WindowEvent::Ime(Ime::Enabled));
             }
 
             result = ProcResult::DefWindowProc(wparam);
@@ -1473,10 +1383,10 @@ unsafe fn public_window_callback_inner(
                 let ime_context = unsafe { ImeContext::current(window) };
 
                 if lparam == 0 {
-                    userdata.send_event(Event::WindowEvent {
-                        window_id: WindowId::from_raw(window as usize),
-                        event: WindowEvent::Ime(Ime::Preedit(String::new(), None)),
-                    });
+                    userdata.send_window_event(
+                        window,
+                        WindowEvent::Ime(Ime::Preedit(String::new(), None)),
+                    );
                 }
 
                 // Google Japanese Input and ATOK have both flags, so
@@ -1485,14 +1395,11 @@ unsafe fn public_window_callback_inner(
                     if let Some(text) = unsafe { ime_context.get_composed_text() } {
                         userdata.window_state_lock().ime_state = ImeState::Enabled;
 
-                        userdata.send_event(Event::WindowEvent {
-                            window_id: WindowId::from_raw(window as usize),
-                            event: WindowEvent::Ime(Ime::Preedit(String::new(), None)),
-                        });
-                        userdata.send_event(Event::WindowEvent {
-                            window_id: WindowId::from_raw(window as usize),
-                            event: WindowEvent::Ime(Ime::Commit(text)),
-                        });
+                        userdata.send_window_event(
+                            window,
+                            WindowEvent::Ime(Ime::Preedit(String::new(), None)),
+                        );
+                        userdata.send_window_event(window, WindowEvent::Ime(Ime::Commit(text)));
                     }
                 }
 
@@ -1504,10 +1411,10 @@ unsafe fn public_window_callback_inner(
                         userdata.window_state_lock().ime_state = ImeState::Preedit;
                         let cursor_range = first.map(|f| (f, last.unwrap_or(f)));
 
-                        userdata.send_event(Event::WindowEvent {
-                            window_id: WindowId::from_raw(window as usize),
-                            event: WindowEvent::Ime(Ime::Preedit(text, cursor_range)),
-                        });
+                        userdata.send_window_event(
+                            window,
+                            WindowEvent::Ime(Ime::Preedit(text, cursor_range)),
+                        );
                     }
                 }
             }
@@ -1527,23 +1434,17 @@ unsafe fn public_window_callback_inner(
                     // trying receiving composing result and commit if exists.
                     let ime_context = unsafe { ImeContext::current(window) };
                     if let Some(text) = unsafe { ime_context.get_composed_text() } {
-                        userdata.send_event(Event::WindowEvent {
-                            window_id: WindowId::from_raw(window as usize),
-                            event: WindowEvent::Ime(Ime::Preedit(String::new(), None)),
-                        });
-                        userdata.send_event(Event::WindowEvent {
-                            window_id: WindowId::from_raw(window as usize),
-                            event: WindowEvent::Ime(Ime::Commit(text)),
-                        });
+                        userdata.send_window_event(
+                            window,
+                            WindowEvent::Ime(Ime::Preedit(String::new(), None)),
+                        );
+                        userdata.send_window_event(window, WindowEvent::Ime(Ime::Commit(text)));
                     }
                 }
 
                 userdata.window_state_lock().ime_state = ImeState::Disabled;
 
-                userdata.send_event(Event::WindowEvent {
-                    window_id: WindowId::from_raw(window as usize),
-                    event: WindowEvent::Ime(Ime::Disabled),
-                });
+                userdata.send_window_event(window, WindowEvent::Ime(Ime::Disabled));
             }
 
             result = ProcResult::DefWindowProc(wparam);
@@ -1599,14 +1500,11 @@ unsafe fn public_window_callback_inner(
                             .ok();
 
                         drop(w);
-                        userdata.send_event(Event::WindowEvent {
-                            window_id: WindowId::from_raw(window as usize),
-                            event: PointerEntered {
-                                device_id: None,
-                                primary: true,
-                                position,
-                                kind: PointerKind::Mouse,
-                            },
+                        userdata.send_window_event(window, PointerEntered {
+                            device_id: None,
+                            primary: true,
+                            position,
+                            kind: PointerKind::Mouse,
                         });
 
                         // Calling TrackMouseEvent in order to receive mouse leave events.
@@ -1625,14 +1523,11 @@ unsafe fn public_window_callback_inner(
                             .ok();
 
                         drop(w);
-                        userdata.send_event(Event::WindowEvent {
-                            window_id: WindowId::from_raw(window as usize),
-                            event: PointerLeft {
-                                device_id: None,
-                                primary: true,
-                                position: Some(position),
-                                kind: PointerKind::Mouse,
-                            },
+                        userdata.send_window_event(window, PointerLeft {
+                            device_id: None,
+                            primary: true,
+                            position: Some(position),
+                            kind: PointerKind::Mouse,
                         });
                     },
                     PointerMoveKind::None => drop(w),
@@ -1649,14 +1544,11 @@ unsafe fn public_window_callback_inner(
             if cursor_moved {
                 update_modifiers(window, userdata);
 
-                userdata.send_event(Event::WindowEvent {
-                    window_id: WindowId::from_raw(window as usize),
-                    event: PointerMoved {
-                        device_id: None,
-                        primary: true,
-                        position,
-                        source: PointerSource::Mouse,
-                    },
+                userdata.send_window_event(window, PointerMoved {
+                    device_id: None,
+                    primary: true,
+                    position,
+                    source: PointerSource::Mouse,
                 });
             }
 
@@ -1672,9 +1564,11 @@ unsafe fn public_window_callback_inner(
                 w.mouse.set_cursor_flags(window, |f| f.set(CursorFlags::IN_WINDOW, false)).ok();
             }
 
-            userdata.send_event(Event::WindowEvent {
-                window_id: WindowId::from_raw(window as usize),
-                event: PointerLeft { device_id: None, primary: true, position: None, kind: Mouse },
+            userdata.send_window_event(window, PointerLeft {
+                device_id: None,
+                primary: true,
+                position: None,
+                kind: Mouse,
             });
 
             result = ProcResult::Value(0);
@@ -1688,13 +1582,10 @@ unsafe fn public_window_callback_inner(
 
             update_modifiers(window, userdata);
 
-            userdata.send_event(Event::WindowEvent {
-                window_id: WindowId::from_raw(window as usize),
-                event: WindowEvent::MouseWheel {
-                    device_id: None,
-                    delta: LineDelta(0.0, value),
-                    phase: TouchPhase::Moved,
-                },
+            userdata.send_window_event(window, WindowEvent::MouseWheel {
+                device_id: None,
+                delta: LineDelta(0.0, value),
+                phase: TouchPhase::Moved,
             });
 
             result = ProcResult::Value(0);
@@ -1708,13 +1599,10 @@ unsafe fn public_window_callback_inner(
 
             update_modifiers(window, userdata);
 
-            userdata.send_event(Event::WindowEvent {
-                window_id: WindowId::from_raw(window as usize),
-                event: WindowEvent::MouseWheel {
-                    device_id: None,
-                    delta: LineDelta(value, 0.0),
-                    phase: TouchPhase::Moved,
-                },
+            userdata.send_window_event(window, WindowEvent::MouseWheel {
+                device_id: None,
+                delta: LineDelta(value, 0.0),
+                phase: TouchPhase::Moved,
             });
 
             result = ProcResult::Value(0);
@@ -1747,15 +1635,12 @@ unsafe fn public_window_callback_inner(
             let y = super::get_y_lparam(lparam as u32) as i32;
             let position = PhysicalPosition::new(x as f64, y as f64);
 
-            userdata.send_event(Event::WindowEvent {
-                window_id: WindowId::from_raw(window as usize),
-                event: PointerButton {
-                    device_id: None,
-                    primary: true,
-                    state: Pressed,
-                    position,
-                    button: Left.into(),
-                },
+            userdata.send_window_event(window, PointerButton {
+                device_id: None,
+                primary: true,
+                state: Pressed,
+                position,
+                button: Left.into(),
             });
             result = ProcResult::Value(0);
         },
@@ -1773,15 +1658,12 @@ unsafe fn public_window_callback_inner(
             let y = super::get_y_lparam(lparam as u32) as i32;
             let position = PhysicalPosition::new(x as f64, y as f64);
 
-            userdata.send_event(Event::WindowEvent {
-                window_id: WindowId::from_raw(window as usize),
-                event: PointerButton {
-                    device_id: None,
-                    primary: true,
-                    state: Released,
-                    position,
-                    button: Left.into(),
-                },
+            userdata.send_window_event(window, PointerButton {
+                device_id: None,
+                primary: true,
+                state: Released,
+                position,
+                button: Left.into(),
             });
             result = ProcResult::Value(0);
         },
@@ -1799,15 +1681,12 @@ unsafe fn public_window_callback_inner(
             let y = super::get_y_lparam(lparam as u32) as i32;
             let position = PhysicalPosition::new(x as f64, y as f64);
 
-            userdata.send_event(Event::WindowEvent {
-                window_id: WindowId::from_raw(window as usize),
-                event: PointerButton {
-                    device_id: None,
-                    primary: true,
-                    state: Pressed,
-                    position,
-                    button: Right.into(),
-                },
+            userdata.send_window_event(window, PointerButton {
+                device_id: None,
+                primary: true,
+                state: Pressed,
+                position,
+                button: Right.into(),
             });
             result = ProcResult::Value(0);
         },
@@ -1825,15 +1704,12 @@ unsafe fn public_window_callback_inner(
             let y = super::get_y_lparam(lparam as u32) as i32;
             let position = PhysicalPosition::new(x as f64, y as f64);
 
-            userdata.send_event(Event::WindowEvent {
-                window_id: WindowId::from_raw(window as usize),
-                event: PointerButton {
-                    device_id: None,
-                    primary: true,
-                    state: Released,
-                    position,
-                    button: Right.into(),
-                },
+            userdata.send_window_event(window, PointerButton {
+                device_id: None,
+                primary: true,
+                state: Released,
+                position,
+                button: Right.into(),
             });
             result = ProcResult::Value(0);
         },
@@ -1851,15 +1727,12 @@ unsafe fn public_window_callback_inner(
             let y = super::get_y_lparam(lparam as u32) as i32;
             let position = PhysicalPosition::new(x as f64, y as f64);
 
-            userdata.send_event(Event::WindowEvent {
-                window_id: WindowId::from_raw(window as usize),
-                event: PointerButton {
-                    device_id: None,
-                    primary: true,
-                    state: Pressed,
-                    position,
-                    button: Middle.into(),
-                },
+            userdata.send_window_event(window, PointerButton {
+                device_id: None,
+                primary: true,
+                state: Pressed,
+                position,
+                button: Middle.into(),
             });
             result = ProcResult::Value(0);
         },
@@ -1877,15 +1750,12 @@ unsafe fn public_window_callback_inner(
             let y = super::get_y_lparam(lparam as u32) as i32;
             let position = PhysicalPosition::new(x as f64, y as f64);
 
-            userdata.send_event(Event::WindowEvent {
-                window_id: WindowId::from_raw(window as usize),
-                event: PointerButton {
-                    device_id: None,
-                    primary: true,
-                    state: Released,
-                    position,
-                    button: Middle.into(),
-                },
+            userdata.send_window_event(window, PointerButton {
+                device_id: None,
+                primary: true,
+                state: Released,
+                position,
+                button: Middle.into(),
             });
             result = ProcResult::Value(0);
         },
@@ -1904,20 +1774,17 @@ unsafe fn public_window_callback_inner(
             let y = super::get_y_lparam(lparam as u32) as i32;
             let position = PhysicalPosition::new(x as f64, y as f64);
 
-            userdata.send_event(Event::WindowEvent {
-                window_id: WindowId::from_raw(window as usize),
-                event: PointerButton {
-                    device_id: None,
-                    primary: true,
-                    state: Pressed,
-                    position,
-                    button: match xbutton {
-                        1 => Back,
-                        2 => Forward,
-                        _ => Other(xbutton),
-                    }
-                    .into(),
-                },
+            userdata.send_window_event(window, PointerButton {
+                device_id: None,
+                primary: true,
+                state: Pressed,
+                position,
+                button: match xbutton {
+                    1 => Back,
+                    2 => Forward,
+                    _ => Other(xbutton),
+                }
+                .into(),
             });
             result = ProcResult::Value(0);
         },
@@ -1936,20 +1803,17 @@ unsafe fn public_window_callback_inner(
             let y = super::get_y_lparam(lparam as u32) as i32;
             let position = PhysicalPosition::new(x as f64, y as f64);
 
-            userdata.send_event(Event::WindowEvent {
-                window_id: WindowId::from_raw(window as usize),
-                event: PointerButton {
-                    device_id: None,
-                    primary: true,
-                    state: Released,
-                    position,
-                    button: match xbutton {
-                        1 => Back,
-                        2 => Forward,
-                        _ => Other(xbutton),
-                    }
-                    .into(),
-                },
+            userdata.send_window_event(window, PointerButton {
+                device_id: None,
+                primary: true,
+                state: Released,
+                position,
+                button: match xbutton {
+                    1 => Back,
+                    2 => Forward,
+                    _ => Other(xbutton),
+                }
+                .into(),
             });
             result = ProcResult::Value(0);
         },
@@ -1993,59 +1857,43 @@ unsafe fn public_window_callback_inner(
                     let y = position.y as f64 + (input.y % 100) as f64 / 100f64;
                     let position = PhysicalPosition::new(x, y);
 
-                    let window_id = WindowId::from_raw(window as usize);
                     let finger_id = FingerId::from_raw(input.dwID as usize);
                     let primary = util::has_flag(input.dwFlags, TOUCHEVENTF_PRIMARY);
 
                     if util::has_flag(input.dwFlags, TOUCHEVENTF_DOWN) {
-                        userdata.send_event(Event::WindowEvent {
-                            window_id,
-                            event: WindowEvent::PointerEntered {
-                                device_id: None,
-                                primary,
-                                position,
-                                kind: PointerKind::Touch(finger_id),
-                            },
+                        userdata.send_window_event(window, WindowEvent::PointerEntered {
+                            device_id: None,
+                            primary,
+                            position,
+                            kind: PointerKind::Touch(finger_id),
                         });
-                        userdata.send_event(Event::WindowEvent {
-                            window_id,
-                            event: WindowEvent::PointerButton {
-                                device_id: None,
-                                primary,
-                                state: Pressed,
-                                position,
-                                button: Touch { finger_id, force: None },
-                            },
+                        userdata.send_window_event(window, WindowEvent::PointerButton {
+                            device_id: None,
+                            primary,
+                            state: Pressed,
+                            position,
+                            button: Touch { finger_id, force: None },
                         });
                     } else if util::has_flag(input.dwFlags, TOUCHEVENTF_UP) {
-                        userdata.send_event(Event::WindowEvent {
-                            window_id,
-                            event: WindowEvent::PointerButton {
-                                device_id: None,
-                                primary,
-                                state: Released,
-                                position,
-                                button: Touch { finger_id, force: None },
-                            },
+                        userdata.send_window_event(window, WindowEvent::PointerButton {
+                            device_id: None,
+                            primary,
+                            state: Released,
+                            position,
+                            button: Touch { finger_id, force: None },
                         });
-                        userdata.send_event(Event::WindowEvent {
-                            window_id,
-                            event: WindowEvent::PointerLeft {
-                                device_id: None,
-                                primary,
-                                position: Some(position),
-                                kind: PointerKind::Touch(finger_id),
-                            },
+                        userdata.send_window_event(window, WindowEvent::PointerLeft {
+                            device_id: None,
+                            primary,
+                            position: Some(position),
+                            kind: PointerKind::Touch(finger_id),
                         });
                     } else if util::has_flag(input.dwFlags, TOUCHEVENTF_MOVE) {
-                        userdata.send_event(Event::WindowEvent {
-                            window_id,
-                            event: WindowEvent::PointerMoved {
-                                device_id: None,
-                                primary,
-                                position,
-                                source: PointerSource::Touch { finger_id, force: None },
-                            },
+                        userdata.send_window_event(window, WindowEvent::PointerMoved {
+                            device_id: None,
+                            primary,
+                            position,
+                            source: PointerSource::Touch { finger_id, force: None },
                         });
                     } else {
                         continue;
@@ -2164,78 +2012,62 @@ unsafe fn public_window_callback_inner(
                     let y = location.y as f64 + y.fract();
                     let position = PhysicalPosition::new(x, y);
 
-                    let window_id = WindowId::from_raw(window as usize);
                     let finger_id = FingerId::from_raw(pointer_info.pointerId as usize);
                     let primary = util::has_flag(pointer_info.pointerFlags, POINTER_FLAG_PRIMARY);
 
                     if util::has_flag(pointer_info.pointerFlags, POINTER_FLAG_DOWN) {
-                        userdata.send_event(Event::WindowEvent {
-                            window_id,
-                            event: WindowEvent::PointerEntered {
-                                device_id: None,
-                                primary,
-                                position,
-                                kind: if let PT_TOUCH = pointer_info.pointerType {
-                                    PointerKind::Touch(finger_id)
-                                } else {
-                                    PointerKind::Unknown
-                                },
+                        userdata.send_window_event(window, WindowEvent::PointerEntered {
+                            device_id: None,
+                            primary,
+                            position,
+                            kind: if let PT_TOUCH = pointer_info.pointerType {
+                                PointerKind::Touch(finger_id)
+                            } else {
+                                PointerKind::Unknown
                             },
                         });
-                        userdata.send_event(Event::WindowEvent {
-                            window_id,
-                            event: WindowEvent::PointerButton {
-                                device_id: None,
-                                primary,
-                                state: Pressed,
-                                position,
-                                button: if let PT_TOUCH = pointer_info.pointerType {
-                                    ButtonSource::Touch { finger_id, force }
-                                } else {
-                                    ButtonSource::Unknown(0)
-                                },
+                        userdata.send_window_event(window, WindowEvent::PointerButton {
+                            device_id: None,
+                            primary,
+                            state: Pressed,
+                            position,
+                            button: if let PT_TOUCH = pointer_info.pointerType {
+                                ButtonSource::Touch { finger_id, force }
+                            } else {
+                                ButtonSource::Unknown(0)
                             },
                         });
                     } else if util::has_flag(pointer_info.pointerFlags, POINTER_FLAG_UP) {
-                        userdata.send_event(Event::WindowEvent {
-                            window_id,
-                            event: WindowEvent::PointerButton {
-                                device_id: None,
-                                primary,
-                                state: Released,
-                                position,
-                                button: if let PT_TOUCH = pointer_info.pointerType {
-                                    ButtonSource::Touch { finger_id, force }
-                                } else {
-                                    ButtonSource::Unknown(0)
-                                },
+                        userdata.send_window_event(window, WindowEvent::PointerButton {
+                            device_id: None,
+                            primary,
+                            state: Released,
+                            position,
+                            button: if let PT_TOUCH = pointer_info.pointerType {
+                                ButtonSource::Touch { finger_id, force }
+                            } else {
+                                ButtonSource::Unknown(0)
                             },
                         });
-                        userdata.send_event(Event::WindowEvent {
-                            window_id,
-                            event: WindowEvent::PointerLeft {
-                                device_id: None,
-                                primary,
-                                position: Some(position),
-                                kind: if let PT_TOUCH = pointer_info.pointerType {
-                                    PointerKind::Touch(finger_id)
-                                } else {
-                                    PointerKind::Unknown
-                                },
+                        userdata.send_window_event(window, WindowEvent::PointerLeft {
+                            device_id: None,
+                            primary,
+                            position: Some(position),
+                            kind: if let PT_TOUCH = pointer_info.pointerType {
+                                PointerKind::Touch(finger_id)
+                            } else {
+                                PointerKind::Unknown
                             },
                         });
                     } else if util::has_flag(pointer_info.pointerFlags, POINTER_FLAG_UPDATE) {
-                        userdata.send_event(Event::WindowEvent {
-                            window_id,
-                            event: WindowEvent::PointerMoved {
-                                device_id: None,
-                                primary,
-                                position,
-                                source: if let PT_TOUCH = pointer_info.pointerType {
-                                    PointerSource::Touch { finger_id, force }
-                                } else {
-                                    PointerSource::Unknown
-                                },
+                        userdata.send_window_event(window, WindowEvent::PointerMoved {
+                            device_id: None,
+                            primary,
+                            position,
+                            source: if let PT_TOUCH = pointer_info.pointerType {
+                                PointerSource::Touch { finger_id, force }
+                            } else {
+                                PointerSource::Unknown
                             },
                         });
                     } else {
@@ -2399,12 +2231,9 @@ unsafe fn public_window_callback_inner(
             };
 
             let new_surface_size = Arc::new(Mutex::new(new_physical_surface_size));
-            userdata.send_event(Event::WindowEvent {
-                window_id: WindowId::from_raw(window as usize),
-                event: ScaleFactorChanged {
-                    scale_factor: new_scale_factor,
-                    surface_size_writer: SurfaceSizeWriter::new(Arc::downgrade(&new_surface_size)),
-                },
+            userdata.send_window_event(window, ScaleFactorChanged {
+                scale_factor: new_scale_factor,
+                surface_size_writer: SurfaceSizeWriter::new(Arc::downgrade(&new_surface_size)),
             });
 
             let new_physical_surface_size = *new_surface_size.lock().unwrap();
@@ -2551,10 +2380,7 @@ unsafe fn public_window_callback_inner(
                 if window_state.current_theme != new_theme {
                     window_state.current_theme = new_theme;
                     drop(window_state);
-                    userdata.send_event(Event::WindowEvent {
-                        window_id: WindowId::from_raw(window as usize),
-                        event: ThemeChanged(new_theme),
-                    });
+                    userdata.send_window_event(window, ThemeChanged(new_theme));
                 }
             }
             result = ProcResult::DefWindowProc(wparam);
@@ -2641,7 +2467,7 @@ unsafe extern "system" fn thread_event_target_callback(
             // user event is still in the mpsc channel and will be pulled
             // once the placeholder event is delivered to the wrapper
             // `event_handler`
-            userdata.send_event(Event::UserWakeUp);
+            userdata.send_wakeup();
             0
         },
         _ if msg == EXEC_MSG_ID.get() => {
@@ -2666,7 +2492,7 @@ unsafe fn handle_raw_input(userdata: &ThreadMsgTargetData, data: RAWINPUT) {
     use crate::event::ElementState::{Pressed, Released};
     use crate::event::MouseScrollDelta::LineDelta;
 
-    let device_id = Some(wrap_device_id(data.header.hDevice as _));
+    let device_id = wrap_device_id(data.header.hDevice as _);
 
     if data.header.dwType == RIM_TYPEMOUSE {
         let mouse = unsafe { data.data.mouse };
@@ -2676,10 +2502,7 @@ unsafe fn handle_raw_input(userdata: &ThreadMsgTargetData, data: RAWINPUT) {
             let y = mouse.lLastY as f64;
 
             if x != 0.0 || y != 0.0 {
-                userdata.send_event(Event::DeviceEvent {
-                    device_id,
-                    event: PointerMotion { delta: (x, y) },
-                });
+                userdata.send_device_event(device_id, PointerMotion { delta: (x, y) });
             }
         }
 
@@ -2687,27 +2510,18 @@ unsafe fn handle_raw_input(userdata: &ThreadMsgTargetData, data: RAWINPUT) {
         if util::has_flag(button_flags as u32, RI_MOUSE_WHEEL) {
             let button_data = unsafe { mouse.Anonymous.Anonymous.usButtonData } as i16;
             let delta = button_data as f32 / WHEEL_DELTA as f32;
-            userdata.send_event(Event::DeviceEvent {
-                device_id,
-                event: MouseWheel { delta: LineDelta(0.0, delta) },
-            });
+            userdata.send_device_event(device_id, MouseWheel { delta: LineDelta(0.0, delta) });
         }
         if util::has_flag(button_flags as u32, RI_MOUSE_HWHEEL) {
             let button_data = unsafe { mouse.Anonymous.Anonymous.usButtonData } as i16;
             let delta = -button_data as f32 / WHEEL_DELTA as f32;
-            userdata.send_event(Event::DeviceEvent {
-                device_id,
-                event: MouseWheel { delta: LineDelta(delta, 0.0) },
-            });
+            userdata.send_device_event(device_id, MouseWheel { delta: LineDelta(delta, 0.0) });
         }
 
         let button_state = raw_input::get_raw_mouse_button_state(button_flags as u32);
         for (button, state) in button_state.iter().enumerate() {
             if let Some(state) = *state {
-                userdata.send_event(Event::DeviceEvent {
-                    device_id,
-                    event: Button { button: button as _, state },
-                });
+                userdata.send_device_event(device_id, Button { button: button as _, state });
             }
         }
     } else if data.header.dwType == RIM_TYPEKEYBOARD {
@@ -2723,10 +2537,7 @@ unsafe fn handle_raw_input(userdata: &ThreadMsgTargetData, data: RAWINPUT) {
         if let Some(physical_key) = raw_input::get_keyboard_physical_key(keyboard) {
             let state = if pressed { Pressed } else { Released };
 
-            userdata.send_event(Event::DeviceEvent {
-                device_id,
-                event: Key(RawKeyEvent { physical_key, state }),
-            });
+            userdata.send_device_event(device_id, Key(RawKeyEvent { physical_key, state }));
         }
     }
 }

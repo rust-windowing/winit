@@ -61,7 +61,7 @@ use crate::platform_impl::platform::dpi::{
 };
 use crate::platform_impl::platform::drop_handler::FileDropHandler;
 use crate::platform_impl::platform::event_loop::{
-    self, ActiveEventLoop, EventLoopRunner, DESTROY_MSG_ID,
+    self, ActiveEventLoop, Event, EventLoopRunner, DESTROY_MSG_ID,
 };
 use crate::platform_impl::platform::icon::{self, IconType};
 use crate::platform_impl::platform::ime::ImeContext;
@@ -1151,9 +1151,12 @@ impl InitData<'_> {
             }
 
             let file_drop_runner = self.runner.clone();
+            let window_id = win.id();
             let file_drop_handler = FileDropHandler::new(
                 win.window.hwnd(),
-                Box::new(move |event| file_drop_runner.send_event(event)),
+                Box::new(move |event| {
+                    file_drop_runner.send_event(Event::Window { window_id, event })
+                }),
             );
 
             let handler_interface_ptr =
