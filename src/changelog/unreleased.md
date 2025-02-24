@@ -71,6 +71,7 @@ changelog entry.
 - Added `Window::safe_area`, which describes the area of the surface that is unobstructed.
 - On X11, Wayland, Windows and macOS, improved scancode conversions for more obscure key codes.
 - Add ability to make non-activating window on macOS using `NSPanel` with `NSWindowStyleMask::NonactivatingPanel`.
+- On Windows, add `WindowAttributesExtWindows::with_tool_window` to create a window with the `WS_EX_TOOLWINDOW` ex\_style.
 
 ### Changed
 
