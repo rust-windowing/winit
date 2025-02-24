@@ -3,6 +3,7 @@
 use std::cell::Cell;
 use std::ffi::c_void;
 use std::mem::{self, MaybeUninit};
+use std::rc::Rc;
 use std::sync::mpsc::channel;
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::{io, panic, ptr};
@@ -59,7 +60,9 @@ use crate::platform_impl::platform::dpi::{
     dpi_to_scale_factor, enable_non_client_dpi_scaling, hwnd_dpi,
 };
 use crate::platform_impl::platform::drop_handler::FileDropHandler;
-use crate::platform_impl::platform::event_loop::{self, ActiveEventLoop, DESTROY_MSG_ID};
+use crate::platform_impl::platform::event_loop::{
+    self, ActiveEventLoop, Event, EventLoopRunner, DESTROY_MSG_ID,
+};
 use crate::platform_impl::platform::icon::{self, IconType};
 use crate::platform_impl::platform::ime::ImeContext;
 use crate::platform_impl::platform::keyboard::KeyEventBuilder;
@@ -109,7 +112,7 @@ impl Window {
         // First person to remove the need for cloning here gets a cookie!
         //
         // done. you owe me -- ossi
-        unsafe { init(w_attr, event_loop) }
+        unsafe { init(w_attr, &event_loop.0) }
     }
 
     fn window_state_lock(&self) -> MutexGuard<'_, WindowState> {
@@ -1082,7 +1085,7 @@ impl CoreWindow for Window {
 
 pub(super) struct InitData<'a> {
     // inputs
-    pub event_loop: &'a ActiveEventLoop,
+    pub runner: &'a Rc<EventLoopRunner>,
     pub attributes: WindowAttributes,
     pub window_flags: WindowFlags,
     // outputs
@@ -1128,7 +1131,7 @@ impl InitData<'_> {
         Window {
             window: SyncWindowHandle(window),
             window_state,
-            thread_executor: self.event_loop.create_thread_executor(),
+            thread_executor: self.runner.create_thread_executor(),
         }
     }
 
@@ -1147,10 +1150,13 @@ impl InitData<'_> {
                 );
             }
 
-            let file_drop_runner = self.event_loop.runner_shared.clone();
+            let file_drop_runner = self.runner.clone();
+            let window_id = win.id();
             let file_drop_handler = FileDropHandler::new(
                 win.window.hwnd(),
-                Box::new(move |event| file_drop_runner.send_event(event)),
+                Box::new(move |event| {
+                    file_drop_runner.send_event(Event::Window { window_id, event })
+                }),
             );
 
             let handler_interface_ptr =
@@ -1164,7 +1170,7 @@ impl InitData<'_> {
 
         event_loop::WindowData {
             window_state: win.window_state.clone(),
-            event_loop_runner: self.event_loop.runner_shared.clone(),
+            event_loop_runner: self.runner.clone(),
             key_event_builder: KeyEventBuilder::default(),
             _file_drop_handler: file_drop_handler,
             userdata_removed: Cell::new(false),
@@ -1176,7 +1182,7 @@ impl InitData<'_> {
     // The user data will be registered for the window and can be accessed within the window event
     // callback.
     pub unsafe fn on_nccreate(&mut self, window: HWND) -> Option<isize> {
-        let runner = self.event_loop.runner_shared.clone();
+        let runner = self.runner.clone();
         let result = runner.catch_unwind(|| {
             let window = unsafe { self.create_window(window) };
             let window_data = unsafe { self.create_window_data(&window) };
@@ -1268,7 +1274,7 @@ impl InitData<'_> {
 }
 unsafe fn init(
     attributes: WindowAttributes,
-    event_loop: &ActiveEventLoop,
+    runner: &Rc<EventLoopRunner>,
 ) -> Result<Window, RequestError> {
     let title = util::encode_wide(&attributes.title);
 
@@ -1322,7 +1328,7 @@ unsafe fn init(
     let menu = attributes.platform_specific.menu;
     let fullscreen = attributes.fullscreen.clone();
     let maximized = attributes.maximized;
-    let mut initdata = InitData { event_loop, attributes, window_flags, window: None };
+    let mut initdata = InitData { runner, attributes, window_flags, window: None };
 
     let (style, ex_style) = window_flags.to_window_styles();
     let handle = unsafe {
@@ -1343,7 +1349,7 @@ unsafe fn init(
     };
 
     // If the window creation in `InitData` panicked, then should resume panicking here
-    if let Err(panic_error) = event_loop.runner_shared.take_panic_error() {
+    if let Err(panic_error) = runner.take_panic_error() {
         panic::resume_unwind(panic_error)
     }
 
