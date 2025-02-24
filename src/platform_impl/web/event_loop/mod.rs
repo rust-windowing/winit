@@ -1,7 +1,6 @@
 use super::{backend, HasMonitorPermissionFuture, MonitorPermissionFuture};
 use crate::application::ApplicationHandler;
 use crate::error::{EventLoopError, NotSupportedError};
-use crate::event::Event;
 use crate::event_loop::ActiveEventLoop as RootActiveEventLoop;
 use crate::platform::web::{PollStrategy, WaitUntilStrategy};
 
@@ -24,20 +23,20 @@ impl EventLoop {
         Ok(EventLoop { elw: ActiveEventLoop::new() })
     }
 
-    pub fn run_app<A: ApplicationHandler>(self, mut app: A) -> ! {
-        let event_loop = self.elw.clone();
-
-        // SAFETY: Don't use `move` to make sure we leak the `event_handler` and `target`.
-        let handler: Box<dyn FnMut(Event)> =
-            Box::new(|event| handle_event(&mut app, &event_loop, event));
+    pub fn run_app<A: ApplicationHandler>(self, app: A) -> ! {
+        let app = Box::new(app);
 
         // SAFETY: The `transmute` is necessary because `run()` requires `'static`. This is safe
         // because this function will never return and all resources not cleaned up by the point we
         // `throw` will leak, making this actually `'static`.
-        let handler = unsafe {
-            std::mem::transmute::<Box<dyn FnMut(Event)>, Box<dyn FnMut(Event) + 'static>>(handler)
+        let app = unsafe {
+            std::mem::transmute::<
+                Box<dyn ApplicationHandler + '_>,
+                Box<dyn ApplicationHandler + 'static>,
+            >(app)
         };
-        self.elw.run(handler, false);
+
+        self.elw.run(app, false);
 
         // Throw an exception to break out of Rust execution and use unreachable to tell the
         // compiler this function won't return, giving it a return type of '!'
@@ -48,9 +47,8 @@ impl EventLoop {
         unreachable!();
     }
 
-    pub fn spawn_app<A: ApplicationHandler + 'static>(self, mut app: A) {
-        let event_loop = self.elw.clone();
-        self.elw.run(Box::new(move |event| handle_event(&mut app, &event_loop, event)), true);
+    pub fn spawn_app<A: ApplicationHandler + 'static>(self, app: A) {
+        self.elw.run(Box::new(app), true);
     }
 
     pub fn window_target(&self) -> &dyn RootActiveEventLoop {
@@ -83,20 +81,5 @@ impl EventLoop {
 
     pub fn has_detailed_monitor_permission(&self) -> HasMonitorPermissionFuture {
         self.elw.runner.monitor().has_detailed_monitor_permission_async()
-    }
-}
-
-fn handle_event<A: ApplicationHandler>(app: &mut A, target: &ActiveEventLoop, event: Event) {
-    match event {
-        Event::NewEvents(cause) => app.new_events(target, cause),
-        Event::WindowEvent { window_id, event } => app.window_event(target, window_id, event),
-        Event::DeviceEvent { device_id, event } => app.device_event(target, device_id, event),
-        Event::UserWakeUp => app.proxy_wake_up(target),
-        Event::Suspended => app.suspended(target),
-        Event::Resumed => app.resumed(target),
-        Event::CreateSurfaces => app.can_create_surfaces(target),
-        Event::AboutToWait => app.about_to_wait(target),
-        Event::LoopExiting => app.exiting(target),
-        Event::MemoryWarning => app.memory_warning(target),
     }
 }
