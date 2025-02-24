@@ -73,21 +73,21 @@ wayland-dlopen = ["wayland-backend/dlopen"]
 x11 = ["x11-dl", "bytemuck", "percent-encoding", "xkbcommon-dl/x11", "x11rb"]
 
 [build-dependencies]
-cfg_aliases = "0.2.1"
+cfg_aliases = { workspace = true }
 
 [dependencies]
-bitflags = "2"
-cursor-icon = "1.1.0"
-dpi = { version = "0.1.1", path = "dpi" }
+bitflags = { workspace = true }
+cursor-icon = { workspace = true }
+dpi = { workspace = true }
 rwh_06 = { package = "raw-window-handle", version = "0.6", features = ["std"] }
 serde = { workspace = true, optional = true }
-smol_str = "0.3"
-tracing = { version = "0.1.40", default-features = false }
+smol_str = { workspace = true }
+tracing = { workspace = true }
 
 [dev-dependencies]
-image = { version = "0.25.0", default-features = false, features = ["png"] }
-tracing = { version = "0.1.40", default-features = false, features = ["log"] }
-tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
+image = { workspace = true, features = ["png"] }
+tracing = { workspace = true, features = ["log"] }
+tracing-subscriber = { workspace = true, features = ["env-filter"] }
 
 [target.'cfg(not(target_os = "android"))'.dev-dependencies]
 softbuffer = { version = "0.4.6", default-features = false, features = [
@@ -399,5 +399,14 @@ repository = "https://github.com/rust-windowing/winit"
 rust-version = "1.73"
 
 [workspace.dependencies]
+bitflags = "2"
+cfg_aliases = "0.2.1"
+cursor-icon = "1.1.0"
+dpi = { version = "0.1.1", path = "dpi" }
+image = { version = "0.25.0", default-features = false }
 mint = "0.5.6"
+rwh_06 = "0.6"
 serde = { version = "1", features = ["serde_derive"] }
+smol_str = "0.3"
+tracing = { version = "0.1.40", default-features = false }
+tracing-subscriber = "0.3.18"
