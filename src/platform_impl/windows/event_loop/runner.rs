@@ -7,7 +7,7 @@ use std::{mem, panic};
 
 use windows_sys::Win32::Foundation::HWND;
 
-use super::ControlFlow;
+use super::{ControlFlow, EventLoopThreadExecutor};
 use crate::dpi::PhysicalSize;
 use crate::event::{Event, StartCause, SurfaceSizeWriter, WindowEvent};
 use crate::platform_impl::platform::event_loop::{WindowData, GWL_USERDATA};
@@ -17,6 +17,8 @@ use crate::window::WindowId;
 type EventHandler = Cell<Option<Box<dyn FnMut(Event)>>>;
 
 pub(crate) struct EventLoopRunner {
+    pub(super) thread_id: u32,
+
     // The event loop's win32 handles
     pub(super) thread_msg_target: HWND,
 
@@ -57,8 +59,9 @@ enum BufferedEvent {
 }
 
 impl EventLoopRunner {
-    pub(crate) fn new(thread_msg_target: HWND) -> EventLoopRunner {
-        EventLoopRunner {
+    pub(crate) fn new(thread_id: u32, thread_msg_target: HWND) -> Self {
+        Self {
+            thread_id,
             thread_msg_target,
             interrupt_msg_dispatch: Cell::new(false),
             runner_state: Cell::new(RunnerState::Uninitialized),
@@ -99,7 +102,8 @@ impl EventLoopRunner {
     }
 
     pub(crate) fn reset_runner(&self) {
-        let EventLoopRunner {
+        let Self {
+            thread_id: _,
             thread_msg_target: _,
             interrupt_msg_dispatch,
             runner_state,
@@ -187,6 +191,11 @@ impl EventLoopRunner {
             self.panic_error.set(panic_error);
             None
         }
+    }
+
+    #[inline(always)]
+    pub(crate) fn create_thread_executor(&self) -> EventLoopThreadExecutor {
+        EventLoopThreadExecutor { thread_id: self.thread_id, target_window: self.thread_msg_target }
     }
 }
 

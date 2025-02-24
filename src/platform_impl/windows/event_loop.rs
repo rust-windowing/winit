@@ -11,7 +11,6 @@ use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::{Duration, Instant};
 use std::{mem, panic, ptr};
 
-use runner::EventLoopRunner;
 use windows_sys::Win32::Foundation::{
     GetLastError, FALSE, HANDLE, HWND, LPARAM, LRESULT, POINT, RECT, WAIT_FAILED, WPARAM,
 };
@@ -60,6 +59,7 @@ use windows_sys::Win32::UI::WindowsAndMessaging::{
     WS_EX_TRANSPARENT, WS_OVERLAPPED, WS_POPUP, WS_VISIBLE,
 };
 
+pub(super) use self::runner::EventLoopRunner;
 use super::window::set_skip_taskbar;
 use super::SelectedCursor;
 use crate::application::ApplicationHandler;
@@ -133,7 +133,7 @@ pub(crate) enum ProcResult {
 }
 
 pub struct EventLoop {
-    window_target: ActiveEventLoop,
+    runner: Rc<EventLoopRunner>,
     msg_hook: Option<Box<dyn FnMut(*const c_void) -> bool + 'static>>,
     // It is a timer used on timed waits.
     // It is created lazily in case if we have `ControlFlow::WaitUntil`.
@@ -175,12 +175,6 @@ impl std::hash::Hash for PlatformSpecificEventLoopAttributes {
     }
 }
 
-pub struct ActiveEventLoop {
-    thread_id: u32,
-    thread_msg_target: HWND,
-    pub(crate) runner_shared: Rc<EventLoopRunner>,
-}
-
 impl EventLoop {
     pub(crate) fn new(
         attributes: &mut PlatformSpecificEventLoopAttributes,
@@ -202,7 +196,7 @@ impl EventLoop {
 
         let thread_msg_target = create_event_target_window();
 
-        let runner_shared = Rc::new(EventLoopRunner::new(thread_msg_target));
+        let runner_shared = Rc::new(EventLoopRunner::new(thread_id, thread_msg_target));
 
         insert_event_target_window_data(thread_msg_target, runner_shared.clone());
         raw_input::register_all_mice_and_keyboards_for_raw_input(
@@ -211,14 +205,14 @@ impl EventLoop {
         );
 
         Ok(EventLoop {
-            window_target: ActiveEventLoop { thread_id, thread_msg_target, runner_shared },
+            runner: runner_shared,
             msg_hook: attributes.msg_hook.take(),
             high_resolution_timer: None,
         })
     }
 
     pub fn window_target(&self) -> &dyn RootActiveEventLoop {
-        &self.window_target
+        ActiveEventLoop::from_ref(&self.runner)
     }
 
     pub fn run_app<A: ApplicationHandler>(mut self, app: A) -> Result<(), EventLoopError> {
@@ -229,16 +223,14 @@ impl EventLoop {
         &mut self,
         mut app: A,
     ) -> Result<(), EventLoopError> {
-        self.window_target.clear_exit();
+        self.runner.clear_exit();
         {
-            let runner = &self.window_target.runner_shared;
-
-            let event_loop_windows_ref = &self.window_target;
+            let event_loop_windows_ref = ActiveEventLoop::from_ref(&self.runner);
             // # Safety
             // We make sure to call runner.clear_event_handler() before
             // returning
             unsafe {
-                runner.set_event_handler(move |event| match event {
+                self.runner.set_event_handler(move |event| match event {
                     Event::NewEvents(cause) => app.new_events(event_loop_windows_ref, cause),
                     Event::WindowEvent { window_id, event } => {
                         app.window_event(event_loop_windows_ref, window_id, event)
@@ -272,13 +264,12 @@ impl EventLoop {
             }
         };
 
-        let runner = &self.window_target.runner_shared;
-        runner.loop_destroyed();
+        self.runner.loop_destroyed();
 
         // # Safety
         // We assume that this will effectively call `runner.clear_event_handler()`
         // to meet the safety requirements for calling `runner.set_event_handler()` above.
-        runner.reset_runner();
+        self.runner.reset_runner();
 
         if exit_code == 0 {
             Ok(())
@@ -293,8 +284,7 @@ impl EventLoop {
         mut app: A,
     ) -> PumpStatus {
         {
-            let runner = &self.window_target.runner_shared;
-            let event_loop_windows_ref = &self.window_target;
+            let event_loop_windows_ref = ActiveEventLoop::from_ref(&self.runner);
             // let user_event_receiver = &self.user_event_receiver;
 
             // # Safety
@@ -305,7 +295,7 @@ impl EventLoop {
             // to leave the runner in an unsound state with an associated
             // event handler.
             unsafe {
-                runner.set_event_handler(move |event| match event {
+                self.runner.set_event_handler(move |event| match event {
                     Event::NewEvents(cause) => app.new_events(event_loop_windows_ref, cause),
                     Event::WindowEvent { window_id, event } => {
                         app.window_event(event_loop_windows_ref, window_id, event)
@@ -321,10 +311,10 @@ impl EventLoop {
                     Event::LoopExiting => app.exiting(event_loop_windows_ref),
                     Event::MemoryWarning => app.memory_warning(event_loop_windows_ref),
                 });
-
-                runner.wakeup();
             }
         }
+
+        self.runner.wakeup();
 
         if self.exit_code().is_none() {
             self.wait_for_messages(timeout);
@@ -335,17 +325,15 @@ impl EventLoop {
             self.dispatch_peeked_messages();
         }
 
-        let runner = &self.window_target.runner_shared;
-
-        let status = if let Some(code) = runner.exit_code() {
-            runner.loop_destroyed();
+        let status = if let Some(code) = self.runner.exit_code() {
+            self.runner.loop_destroyed();
 
             // Immediately reset the internal state for the loop to allow
             // the loop to be run more than once.
-            runner.reset_runner();
+            self.runner.reset_runner();
             PumpStatus::Exit(code)
         } else {
-            runner.prepare_wait();
+            self.runner.prepare_wait();
             PumpStatus::Continue
         };
 
@@ -355,7 +343,7 @@ impl EventLoop {
         // # Safety
         // This pairs up with our call to `runner.set_event_handler` and ensures
         // the application's callback can't be held beyond its lifetime.
-        runner.clear_event_handler();
+        self.runner.clear_event_handler();
 
         status
     }
@@ -366,8 +354,6 @@ impl EventLoop {
     /// Parameter timeout is optional. This method would wait for the smaller timeout
     /// between the argument and a timeout from control flow.
     fn wait_for_messages(&mut self, timeout: Option<Duration>) {
-        let runner = &self.window_target.runner_shared;
-
         // We aim to be consistent with the MacOS backend which has a RunLoop
         // observer that will dispatch AboutToWait when about to wait for
         // events, and NewEvents after the RunLoop wakes up.
@@ -377,22 +363,24 @@ impl EventLoop {
         // pending messages via `PeekMessage` until we come back to "wait" via
         // `MsgWaitForMultipleObjectsEx`.
         //
-        runner.prepare_wait();
-        wait_for_messages_impl(&mut self.high_resolution_timer, runner.control_flow(), timeout);
+        self.runner.prepare_wait();
+        wait_for_messages_impl(
+            &mut self.high_resolution_timer,
+            self.runner.control_flow(),
+            timeout,
+        );
         // Before we potentially exit, make sure to consistently emit an event for the wake up
-        runner.wakeup();
+        self.runner.wakeup();
     }
 
     /// Dispatch all queued messages via `PeekMessageW`
     fn dispatch_peeked_messages(&mut self) {
-        let runner = &self.window_target.runner_shared;
-
         // We generally want to continue dispatching all pending messages
         // but we also allow dispatching to be interrupted as a means to
         // ensure the `pump_events` won't indefinitely block an external
         // event loop if there are too many pending events. This interrupt
         // flag will be set after dispatching `RedrawRequested` events.
-        runner.interrupt_msg_dispatch.set(false);
+        self.runner.interrupt_msg_dispatch.set(false);
 
         // # Safety
         // The Windows API has no documented requirement for bitwise
@@ -418,52 +406,48 @@ impl EventLoop {
                 }
             }
 
-            if let Err(payload) = runner.take_panic_error() {
-                runner.reset_runner();
+            if let Err(payload) = self.runner.take_panic_error() {
+                self.runner.reset_runner();
                 panic::resume_unwind(payload);
             }
 
-            if let Some(_code) = runner.exit_code() {
+            if let Some(_code) = self.runner.exit_code() {
                 break;
             }
 
-            if runner.interrupt_msg_dispatch.get() {
+            if self.runner.interrupt_msg_dispatch.get() {
                 break;
             }
         }
     }
 
     fn exit_code(&self) -> Option<i32> {
-        self.window_target.exit_code()
+        self.runner.exit_code()
     }
 }
 
 impl Drop for EventLoop {
     fn drop(&mut self) {
         unsafe {
-            DestroyWindow(self.window_target.thread_msg_target);
+            DestroyWindow(self.runner.thread_msg_target);
         }
     }
 }
 
+#[repr(transparent)]
+pub(crate) struct ActiveEventLoop(pub Rc<EventLoopRunner>);
+
 impl ActiveEventLoop {
-    #[inline(always)]
-    pub(crate) fn create_thread_executor(&self) -> EventLoopThreadExecutor {
-        EventLoopThreadExecutor { thread_id: self.thread_id, target_window: self.thread_msg_target }
-    }
-
-    pub(crate) fn clear_exit(&self) {
-        self.runner_shared.clear_exit();
-    }
-
-    fn exit_code(&self) -> Option<i32> {
-        self.runner_shared.exit_code()
+    fn from_ref(shared_runner: &Rc<EventLoopRunner>) -> &Self {
+        // SAFETY: `ActiveEventLoop` is `#[repr(transparent)]` over `Rc<EventLoopRunner>`.
+        // FIXME(madsmtm): Implement `ActiveEventLoop` for `Rc<EventLoopRunner>` directly.
+        unsafe { mem::transmute::<&Rc<EventLoopRunner>, &Self>(shared_runner) }
     }
 }
 
 impl RootActiveEventLoop for ActiveEventLoop {
     fn create_proxy(&self) -> RootEventLoopProxy {
-        let event_loop_proxy = EventLoopProxy { target_window: self.thread_msg_target };
+        let event_loop_proxy = EventLoopProxy { target_window: self.0.thread_msg_target };
         RootEventLoopProxy::new(Arc::new(event_loop_proxy))
     }
 
@@ -494,7 +478,7 @@ impl RootActiveEventLoop for ActiveEventLoop {
     }
 
     fn exiting(&self) -> bool {
-        self.runner_shared.exit_code().is_some()
+        self.0.exit_code().is_some()
     }
 
     fn system_theme(&self) -> Option<Theme> {
@@ -502,19 +486,19 @@ impl RootActiveEventLoop for ActiveEventLoop {
     }
 
     fn listen_device_events(&self, allowed: DeviceEvents) {
-        raw_input::register_all_mice_and_keyboards_for_raw_input(self.thread_msg_target, allowed);
+        raw_input::register_all_mice_and_keyboards_for_raw_input(self.0.thread_msg_target, allowed);
     }
 
     fn set_control_flow(&self, control_flow: ControlFlow) {
-        self.runner_shared.set_control_flow(control_flow)
+        self.0.set_control_flow(control_flow)
     }
 
     fn control_flow(&self) -> ControlFlow {
-        self.runner_shared.control_flow()
+        self.0.control_flow()
     }
 
     fn exit(&self) {
-        self.runner_shared.set_exit_code(0)
+        self.0.set_exit_code(0)
     }
 
     fn owned_display_handle(&self) -> CoreOwnedDisplayHandle {
