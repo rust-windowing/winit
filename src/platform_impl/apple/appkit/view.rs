@@ -20,7 +20,7 @@ use super::app_state::AppState;
 use super::cursor::{default_cursor, invisible_cursor};
 use super::event::{
     code_to_key, code_to_location, create_key_event, event_mods, lalt_pressed, ralt_pressed,
-    scancode_to_physicalkey, KeyEventExtra,
+    scancode_to_physicalkey,
 };
 use super::window::window_id;
 use crate::dpi::{LogicalPosition, LogicalSize};
@@ -940,10 +940,8 @@ impl WinitView {
                     // We'll correct this later.
                     state: Pressed,
                     text: None,
-                    platform_specific: KeyEventExtra {
-                        text_with_all_modifiers: None,
-                        key_without_modifiers: logical_key.clone(),
-                    },
+                    text_with_all_modifiers: None,
+                    key_without_modifiers: logical_key.clone(),
                 };
 
                 let location_mask = ModLocationMask::from_location(event.location);

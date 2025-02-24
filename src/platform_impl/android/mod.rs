@@ -96,9 +96,6 @@ impl RedrawRequester {
     }
 }
 
-#[derive(Debug, Clone, Eq, PartialEq, Hash)]
-pub struct KeyEventExtra {}
-
 pub struct EventLoop {
     pub(crate) android_app: AndroidApp,
     window_target: ActiveEventLoop,
@@ -478,7 +475,8 @@ impl EventLoop {
                                 location: keycodes::to_location(keycode),
                                 repeat: key.repeat_count() > 0,
                                 text: None,
-                                platform_specific: KeyEventExtra {},
+                                text_with_all_modifiers: None,
+                                key_without_modifiers: keycodes::to_logical(key_char, keycode),
                             },
                             is_synthetic: false,
                         };

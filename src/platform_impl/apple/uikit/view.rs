@@ -22,7 +22,6 @@ use crate::event::{
     WindowEvent,
 };
 use crate::keyboard::{Key, KeyCode, KeyLocation, NamedKey, NativeKeyCode, PhysicalKey};
-use crate::platform_impl::KeyEventExtra;
 use crate::window::WindowAttributes;
 
 pub struct WinitViewState {
@@ -644,7 +643,12 @@ impl WinitView {
                             repeat: false,
                             logical_key: Key::Character(text.clone()),
                             physical_key: PhysicalKey::Unidentified(NativeKeyCode::Unidentified),
-                            platform_specific: KeyEventExtra {},
+                            text_with_all_modifiers: if state == ElementState::Pressed {
+                                Some(text.clone())
+                            } else {
+                                None
+                            },
+                            key_without_modifiers: Key::Character(text.clone()),
                         },
                         is_synthetic: false,
                     },
@@ -667,10 +671,11 @@ impl WinitView {
                         state,
                         logical_key: Key::Named(NamedKey::Backspace),
                         physical_key: PhysicalKey::Code(KeyCode::Backspace),
-                        platform_specific: KeyEventExtra {},
                         repeat: false,
                         location: KeyLocation::Standard,
                         text: None,
+                        text_with_all_modifiers: None,
+                        key_without_modifiers: Key::Named(NamedKey::Backspace),
                     },
                     is_synthetic: false,
                 },

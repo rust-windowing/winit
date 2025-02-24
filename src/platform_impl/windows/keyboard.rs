@@ -32,7 +32,7 @@ use crate::platform_impl::platform::event_loop::ProcResult;
 use crate::platform_impl::platform::keyboard_layout::{
     Layout, LayoutCache, WindowsModifiers, LAYOUT_CACHE,
 };
-use crate::platform_impl::platform::{loword, primarylangid, KeyEventExtra};
+use crate::platform_impl::platform::{loword, primarylangid};
 
 pub type ExScancode = u16;
 
@@ -452,7 +452,7 @@ impl KeyEventBuilder {
 
         let mut event = event_info.finalize();
         event.logical_key = logical_key;
-        event.platform_specific.text_with_all_modifiers = text;
+        event.text_with_all_modifiers = text;
         Some(MessageAsKeyEvent { event, is_synthetic: true })
     }
 }
@@ -630,10 +630,8 @@ impl PartialKeyEventInfo {
             location: self.location,
             state: self.key_state,
             repeat: self.is_repeat,
-            platform_specific: KeyEventExtra {
-                text_with_all_modifiers: char_with_all_modifiers,
-                key_without_modifiers: self.key_without_modifiers,
-            },
+            text_with_all_modifiers: char_with_all_modifiers,
+            key_without_modifiers: self.key_without_modifiers,
         }
     }
 }

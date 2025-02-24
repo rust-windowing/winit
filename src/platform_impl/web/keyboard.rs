@@ -2,9 +2,6 @@ use smol_str::SmolStr;
 
 use crate::keyboard::{Key, KeyCode, NamedKey, NativeKey, NativeKeyCode, PhysicalKey};
 
-#[derive(Debug, Clone, Eq, PartialEq, Hash)]
-pub(crate) struct KeyEventExtra;
-
 impl Key {
     pub(crate) fn from_key_attribute_value(kav: &str) -> Self {
         Key::Named(match kav {
