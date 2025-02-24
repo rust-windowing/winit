@@ -120,8 +120,10 @@ impl AppState {
             }
         }
 
-        #[allow(deprecated)]
-        app.activateIgnoringOtherApps(self.activate_ignoring_other_apps);
+        if self.activation_policy != Some(NSApplicationActivationPolicy::Prohibited) {
+            #[allow(deprecated)]
+            app.activateIgnoringOtherApps(self.activate_ignoring_other_apps);
+        }
 
         if self.default_menu {
             // The menubar initialization should be before the `NewEvents` event, to allow
