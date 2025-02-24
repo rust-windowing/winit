@@ -1,13 +1,13 @@
 use std::cell::Cell;
 use std::rc::Rc;
 
+use dpi::PhysicalPosition;
 use web_sys::PointerEvent;
 
 use super::canvas::Common;
 use super::event;
 use super::event_handle::EventListenerHandle;
-use crate::dpi::PhysicalPosition;
-use crate::event::{ButtonSource, DeviceId, ElementState, Force, PointerKind, PointerSource};
+use crate::event::{ButtonSource, DeviceId, ElementState, PointerKind, PointerSource};
 use crate::keyboard::ModifiersState;
 use crate::platform_impl::web::event::mkdid;
 
@@ -18,7 +18,6 @@ pub(super) struct PointerHandler {
     on_cursor_move: Option<EventListenerHandle<dyn FnMut(PointerEvent)>>,
     on_pointer_press: Option<EventListenerHandle<dyn FnMut(PointerEvent)>>,
     on_pointer_release: Option<EventListenerHandle<dyn FnMut(PointerEvent)>>,
-    on_touch_cancel: Option<EventListenerHandle<dyn FnMut(PointerEvent)>>,
 }
 
 impl PointerHandler {
@@ -29,7 +28,6 @@ impl PointerHandler {
             on_cursor_move: None,
             on_pointer_press: None,
             on_pointer_release: None,
-            on_touch_cancel: None,
         }
     }
 
@@ -81,14 +79,16 @@ impl PointerHandler {
                 let pointer_id = event.pointer_id();
                 let kind = event::pointer_type(&event, pointer_id);
 
+                // Touch events are handled separately, so return here to avoid duplicate events:
+                if let PointerKind::Touch(_) = kind {
+                    return;
+                }
+
                 let button = event::mouse_button(&event).expect("no mouse button pressed");
 
                 let source = match kind {
                     PointerKind::Mouse => ButtonSource::Mouse(button),
-                    PointerKind::Touch(finger_id) => ButtonSource::Touch {
-                        finger_id,
-                        force: Some(Force::Normalized(event.pressure().into())),
-                    },
+                    PointerKind::Touch(_) => unreachable!("Touch events are handled elsewhere"),
                     PointerKind::Unknown => ButtonSource::Unknown(button.to_id()),
                 };
 
@@ -127,6 +127,11 @@ impl PointerHandler {
                 let kind = event::pointer_type(&event, pointer_id);
                 let button = event::mouse_button(&event).expect("no mouse button pressed");
 
+                // Touch events are handled separately, so return here to avoid duplicate events:
+                if let PointerKind::Touch(_) = kind {
+                    return;
+                }
+
                 let source = match kind {
                     PointerKind::Mouse => {
                         // Error is swallowed here since the error would occur every time the
@@ -138,10 +143,7 @@ impl PointerHandler {
 
                         ButtonSource::Mouse(button)
                     },
-                    PointerKind::Touch(finger_id) => ButtonSource::Touch {
-                        finger_id,
-                        force: Some(Force::Normalized(event.pressure().into())),
-                    },
+                    PointerKind::Touch(_) => unreachable!("Touch events are handled elsewhere"),
                     PointerKind::Unknown => ButtonSource::Unknown(button.to_id()),
                 };
 
@@ -186,6 +188,12 @@ impl PointerHandler {
                 let pointer_id = event.pointer_id();
                 let device_id = mkdid(pointer_id);
                 let kind = event::pointer_type(&event, pointer_id);
+
+                // Touch events are handled separately, so return here to avoid duplicate events:
+                if let PointerKind::Touch(_) = kind {
+                    return;
+                }
+
                 let primary = event.is_primary();
 
                 // chorded button event
@@ -205,18 +213,7 @@ impl PointerHandler {
 
                     let button = match kind {
                         PointerKind::Mouse => ButtonSource::Mouse(button),
-                        PointerKind::Touch(finger_id) => {
-                            let button_id = button.to_id();
-
-                            if button_id != 1 {
-                                tracing::error!("unexpected touch button id: {button_id}");
-                            }
-
-                            ButtonSource::Touch {
-                                finger_id,
-                                force: Some(Force::Normalized(event.pressure().into())),
-                            }
-                        },
+                        PointerKind::Touch(_) => unreachable!("Touch events are handled elsewhere"),
                         PointerKind::Unknown => todo!(),
                     };
 
@@ -244,9 +241,8 @@ impl PointerHandler {
                             event::mouse_position(&event).to_physical(scale),
                             match kind {
                                 PointerKind::Mouse => PointerSource::Mouse,
-                                PointerKind::Touch(finger_id) => PointerSource::Touch {
-                                    finger_id,
-                                    force: Some(Force::Normalized(event.pressure().into())),
+                                PointerKind::Touch(_) => {
+                                    unreachable!("Touch events are handled elsewhere")
                                 },
                                 PointerKind::Unknown => PointerSource::Unknown,
                             },
@@ -262,6 +258,5 @@ impl PointerHandler {
         self.on_cursor_move = None;
         self.on_pointer_press = None;
         self.on_pointer_release = None;
-        self.on_touch_cancel = None;
     }
 }

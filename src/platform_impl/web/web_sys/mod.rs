@@ -9,6 +9,7 @@ mod pointer;
 mod resize_scaling;
 mod safe_area;
 mod schedule;
+mod touch;
 
 use std::cell::OnceCell;
 
