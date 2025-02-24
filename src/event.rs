@@ -583,7 +583,7 @@ pub enum PointerSource {
         /// - **MacOS / Orbital / Wayland / X11:** Always emits [`None`].
         /// - **Android:** Will never be [`None`]. If the device doesn't support pressure
         ///   sensitivity, force will either be 0.0 or 1.0. Also see the
-        ///   [android documentation](https://developer.android.com/reference/android/view/MotionEvent#AXIS_PRESSURE).#[derive(Debug, Clone, Copy, PartialEq)]
+        ///   [android documentation](https://developer.android.com/reference/android/view/MotionEvent#AXIS_PRESSURE).
         /// - **Web:** Will never be [`None`]. If the device doesn't support pressure sensitivity,
         ///   force will be 0.5 when a button is pressed or 0.0 otherwise.
         force: Option<Force>,

@@ -1360,7 +1360,7 @@ unsafe fn init(
     // size.
     if fullscreen.is_some() {
         win.set_fullscreen(fullscreen.map(Into::into));
-        unsafe { force_window_active(win.window.hwnd()) };
+        unsafe { force_window_active(win.window) };
     } else if maximized {
         win.set_maximized(true);
     }
