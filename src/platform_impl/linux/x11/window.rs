@@ -20,10 +20,11 @@ use super::util::{self, SelectedCursor};
 use super::{
     ffi, ActiveEventLoop, CookieResultExt, ImeRequest, ImeSender, VoidCookie, XConnection,
 };
+use crate::application::ApplicationHandler;
 use crate::cursor::{Cursor, CustomCursor as RootCustomCursor};
 use crate::dpi::{PhysicalInsets, PhysicalPosition, PhysicalSize, Position, Size};
 use crate::error::{NotSupportedError, RequestError};
-use crate::event::{Event, SurfaceSizeWriter, WindowEvent};
+use crate::event::{SurfaceSizeWriter, WindowEvent};
 use crate::event_loop::AsyncRequestSerial;
 use crate::platform::x11::WindowType;
 use crate::platform_impl::x11::atoms::*;
@@ -1211,7 +1212,8 @@ impl UnownedWindow {
         &self,
         new_monitor: &X11MonitorHandle,
         maybe_prev_scale_factor: Option<f64>,
-        mut callback: impl FnMut(Event),
+        app: &mut dyn ApplicationHandler,
+        event_loop: &ActiveEventLoop,
     ) {
         // Check if the self is on this monitor
         let monitor = self.shared_state_lock().last_monitor.clone();
@@ -1231,12 +1233,9 @@ impl UnownedWindow {
 
             let old_surface_size = PhysicalSize::new(width, height);
             let surface_size = Arc::new(Mutex::new(PhysicalSize::new(new_width, new_height)));
-            callback(Event::WindowEvent {
-                window_id: self.id(),
-                event: WindowEvent::ScaleFactorChanged {
-                    scale_factor: new_monitor.scale_factor,
-                    surface_size_writer: SurfaceSizeWriter::new(Arc::downgrade(&surface_size)),
-                },
+            app.window_event(event_loop, self.id(), WindowEvent::ScaleFactorChanged {
+                scale_factor: new_monitor.scale_factor,
+                surface_size_writer: SurfaceSizeWriter::new(Arc::downgrade(&surface_size)),
             });
 
             let new_surface_size = *surface_size.lock().unwrap();

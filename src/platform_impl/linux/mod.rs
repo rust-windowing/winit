@@ -299,9 +299,9 @@ impl EventLoop {
         // Create the display based on the backend.
         match backend {
             #[cfg(wayland_platform)]
-            Backend::Wayland => EventLoop::new_wayland_any_thread().map_err(Into::into),
+            Backend::Wayland => EventLoop::new_wayland_any_thread(),
             #[cfg(x11_platform)]
-            Backend::X => EventLoop::new_x11_any_thread().map_err(Into::into),
+            Backend::X => EventLoop::new_x11_any_thread(),
         }
     }
 

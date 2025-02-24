@@ -12,6 +12,7 @@ use web_sys::{
 };
 
 use super::super::cursor::CursorHandler;
+use super::super::event_loop::runner;
 use super::super::main_thread::MainThreadMarker;
 use super::animation_frame::AnimationFrameHandler;
 use super::event_handle::EventListenerHandle;
@@ -23,7 +24,7 @@ use crate::dpi::{LogicalPosition, PhysicalPosition, PhysicalSize};
 use crate::error::RequestError;
 use crate::event::{
     ButtonSource, DeviceId, ElementState, MouseScrollDelta, PointerKind, PointerSource,
-    SurfaceSizeWriter,
+    SurfaceSizeWriter, WindowEvent,
 };
 use crate::keyboard::{Key, KeyLocation, ModifiersState, PhysicalKey};
 use crate::platform_impl::Fullscreen;
@@ -487,7 +488,7 @@ impl Canvas {
     pub(crate) fn handle_scale_change(
         &self,
         runner: &super::super::event_loop::runner::Shared,
-        event_handler: impl FnOnce(crate::event::Event),
+        event_handler: impl FnOnce(WindowId, WindowEvent),
         current_size: PhysicalSize<u32>,
         scale: f64,
     ) {
@@ -495,12 +496,9 @@ impl Canvas {
         self.set_current_size(current_size);
         let new_size = {
             let new_size = Arc::new(Mutex::new(current_size));
-            event_handler(crate::event::Event::WindowEvent {
-                window_id: self.id,
-                event: crate::event::WindowEvent::ScaleFactorChanged {
-                    scale_factor: scale,
-                    surface_size_writer: SurfaceSizeWriter::new(Arc::downgrade(&new_size)),
-                },
+            event_handler(self.id, WindowEvent::ScaleFactorChanged {
+                scale_factor: scale,
+                surface_size_writer: SurfaceSizeWriter::new(Arc::downgrade(&new_size)),
             });
 
             let new_size = *new_size.lock().unwrap();
@@ -523,7 +521,7 @@ impl Canvas {
         } else if self.old_size() != new_size {
             // Then we at least send a resized event.
             self.set_old_size(new_size);
-            runner.send_event(crate::event::Event::WindowEvent {
+            runner.send_event(runner::Event::WindowEvent {
                 window_id: self.id,
                 event: crate::event::WindowEvent::SurfaceResized(new_size),
             })

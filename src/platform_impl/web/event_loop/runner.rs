@@ -13,11 +13,12 @@ use web_time::{Duration, Instant};
 use super::super::event;
 use super::super::main_thread::MainThreadMarker;
 use super::super::monitor::MonitorHandler;
-use super::backend;
 use super::proxy::EventLoopProxy;
 use super::state::State;
+use super::{backend, ActiveEventLoop};
+use crate::application::ApplicationHandler;
 use crate::dpi::PhysicalSize;
-use crate::event::{DeviceEvent, ElementState, Event, RawKeyEvent, StartCause, WindowEvent};
+use crate::event::{DeviceEvent, DeviceId, ElementState, RawKeyEvent, StartCause, WindowEvent};
 use crate::event_loop::{ControlFlow, DeviceEvents};
 use crate::platform::web::{PollStrategy, WaitUntilStrategy};
 use crate::platform_impl::platform::backend::{EventListenerHandle, SafeAreaHandle};
@@ -26,8 +27,6 @@ use crate::platform_impl::platform::window::Inner;
 use crate::window::WindowId;
 
 pub struct Shared(Rc<Execution>);
-
-pub(super) type EventHandler = dyn FnMut(Event);
 
 impl Clone for Shared {
     fn clone(&self) -> Self {
@@ -47,7 +46,7 @@ struct Execution {
     runner: RefCell<RunnerEnum>,
     suspended: Cell<bool>,
     event_loop_recreation: Cell<bool>,
-    events: RefCell<VecDeque<EventWrapper>>,
+    events: RefCell<VecDeque<Event>>,
     id: Cell<usize>,
     window: web_sys::Window,
     navigator: Navigator,
@@ -93,12 +92,13 @@ impl RunnerEnum {
 
 struct Runner {
     state: State,
-    event_handler: Box<EventHandler>,
+    app: Box<dyn ApplicationHandler>,
+    event_loop: ActiveEventLoop,
 }
 
 impl Runner {
-    pub fn new(event_handler: Box<EventHandler>) -> Self {
-        Runner { state: State::Init, event_handler }
+    pub fn new(app: Box<dyn ApplicationHandler>, event_loop: ActiveEventLoop) -> Self {
+        Runner { state: State::Init, app, event_loop }
     }
 
     /// Returns the corresponding `StartCause` for the current `state`, or `None`
@@ -115,19 +115,33 @@ impl Runner {
         })
     }
 
-    fn handle_single_event(&mut self, runner: &Shared, event: impl Into<EventWrapper>) {
-        match event.into() {
-            EventWrapper::Event(event) => (self.event_handler)(event),
-            EventWrapper::ScaleChange { canvas, size, scale } => {
+    fn handle_single_event(&mut self, runner: &Shared, event: Event) {
+        match event {
+            Event::NewEvents(cause) => self.app.new_events(&self.event_loop, cause),
+            Event::WindowEvent { window_id, event } => {
+                self.app.window_event(&self.event_loop, window_id, event)
+            },
+            Event::ScaleChange { canvas, size, scale } => {
                 if let Some(canvas) = canvas.upgrade() {
                     canvas.handle_scale_change(
                         runner,
-                        |event| (self.event_handler)(event),
+                        |window_id, event| {
+                            self.app.window_event(&self.event_loop, window_id, event);
+                        },
                         size,
                         scale,
                     )
                 }
             },
+            Event::DeviceEvent { device_id, event } => {
+                self.app.device_event(&self.event_loop, device_id, event)
+            },
+            Event::UserWakeUp => self.app.proxy_wake_up(&self.event_loop),
+            Event::Suspended => self.app.suspended(&self.event_loop),
+            Event::Resumed => self.app.resumed(&self.event_loop),
+            Event::CreateSurfaces => self.app.can_create_surfaces(&self.event_loop),
+            Event::AboutToWait => self.app.about_to_wait(&self.event_loop),
+            Event::LoopExiting => self.app.exiting(&self.event_loop),
         }
     }
 }
@@ -216,13 +230,13 @@ impl Shared {
         self.0.destroy_pending.borrow_mut().push_back(id);
     }
 
-    pub(crate) fn start(&self, event_handler: Box<EventHandler>) {
+    pub(crate) fn start(&self, app: Box<dyn ApplicationHandler>, event_loop: ActiveEventLoop) {
         let mut runner = self.0.runner.borrow_mut();
         assert!(matches!(*runner, RunnerEnum::Pending));
         if self.0.monitor.is_initializing() {
-            *runner = RunnerEnum::Initializing(Runner::new(event_handler));
+            *runner = RunnerEnum::Initializing(Runner::new(app, event_loop));
         } else {
-            *runner = RunnerEnum::Running(Runner::new(event_handler));
+            *runner = RunnerEnum::Running(Runner::new(app, event_loop));
 
             drop(runner);
 
@@ -445,7 +459,7 @@ impl Shared {
 
     pub fn request_redraw(&self, id: WindowId) {
         self.0.redraw_pending.borrow_mut().insert(id);
-        self.send_events::<EventWrapper>(iter::empty());
+        self.send_events([]);
     }
 
     fn init(&self) {
@@ -473,7 +487,7 @@ impl Shared {
     // Add an event to the event loop runner, from the user or an event handler
     //
     // It will determine if the event should be immediately sent to the user or buffered for later
-    pub(crate) fn send_event<E: Into<EventWrapper>>(&self, event: E) {
+    pub(crate) fn send_event(&self, event: Event) {
         self.send_events(iter::once(event));
     }
 
@@ -514,7 +528,7 @@ impl Shared {
     // Add a series of events to the event loop runner
     //
     // It will determine if the event should be immediately sent to the user or buffered for later
-    pub(crate) fn send_events<E: Into<EventWrapper>>(&self, events: impl IntoIterator<Item = E>) {
+    pub(crate) fn send_events(&self, events: impl IntoIterator<Item = Event>) {
         // If the event loop is closed, it should discard any new events
         if self.is_closed() {
             return;
@@ -539,7 +553,7 @@ impl Shared {
         }
         if !process_immediately {
             // Queue these events to look at later
-            self.0.events.borrow_mut().extend(events.into_iter().map(Into::into));
+            self.0.events.borrow_mut().extend(events);
             return;
         }
         // At this point, we know this is a fresh set of events
@@ -557,8 +571,7 @@ impl Shared {
         // Take the start event, then the events provided to this function, and run an iteration of
         // the event loop
         let start_event = Event::NewEvents(start_cause);
-        let events =
-            iter::once(EventWrapper::from(start_event)).chain(events.into_iter().map(Into::into));
+        let events = iter::once(start_event).chain(events);
         self.run_until_cleared(events);
     }
 
@@ -579,9 +592,9 @@ impl Shared {
     // cleared
     //
     // This will also process any events that have been queued or that are queued during processing
-    fn run_until_cleared<E: Into<EventWrapper>>(&self, events: impl Iterator<Item = E>) {
+    fn run_until_cleared(&self, events: impl Iterator<Item = Event>) {
         for event in events {
-            self.handle_event(event.into());
+            self.handle_event(event);
         }
         self.process_destroy_pending_windows();
 
@@ -615,7 +628,7 @@ impl Shared {
     // handle_event takes in events and either queues them or applies a callback
     //
     // It should only ever be called from `run_until_cleared`.
-    fn handle_event(&self, event: impl Into<EventWrapper>) {
+    fn handle_event(&self, event: Event) {
         if self.is_closed() {
             self.exit();
         }
@@ -625,7 +638,7 @@ impl Shared {
             },
             // If an event is being handled without a runner somehow, add it to the event queue so
             // it will eventually be processed
-            RunnerEnum::Pending => self.0.events.borrow_mut().push_back(event.into()),
+            RunnerEnum::Pending => self.0.events.borrow_mut().push_back(event),
             // If the Runner has been destroyed, there is nothing to do.
             RunnerEnum::Destroyed => return,
             // This function should never be called if we are still waiting for something.
@@ -652,13 +665,7 @@ impl Shared {
                 let mut events = self.0.events.borrow_mut();
 
                 // Pre-fetch `UserEvent`s to avoid having to wait until the next event loop cycle.
-                events.extend(
-                    self.0
-                        .event_loop_proxy
-                        .take()
-                        .then_some(Event::UserWakeUp)
-                        .map(EventWrapper::from),
-                );
+                events.extend(self.0.event_loop_proxy.take().then_some(Event::UserWakeUp));
 
                 events.pop_front()
             };
@@ -845,13 +852,16 @@ impl WeakShared {
     }
 }
 
-pub(crate) enum EventWrapper {
-    Event(Event),
+#[allow(clippy::enum_variant_names)]
+pub(crate) enum Event {
+    NewEvents(StartCause),
+    WindowEvent { window_id: WindowId, event: WindowEvent },
     ScaleChange { canvas: Weak<backend::Canvas>, size: PhysicalSize<u32>, scale: f64 },
-}
-
-impl From<Event> for EventWrapper {
-    fn from(value: Event) -> Self {
-        Self::Event(value)
-    }
+    DeviceEvent { device_id: Option<DeviceId>, event: DeviceEvent },
+    Suspended,
+    CreateSurfaces,
+    Resumed,
+    AboutToWait,
+    LoopExiting,
+    UserWakeUp,
 }
