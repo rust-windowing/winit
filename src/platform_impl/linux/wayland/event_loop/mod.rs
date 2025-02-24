@@ -15,7 +15,7 @@ use crate::application::ApplicationHandler;
 use crate::cursor::OnlyCursorImage;
 use crate::dpi::LogicalSize;
 use crate::error::{EventLoopError, OsError, RequestError};
-use crate::event::{Event, StartCause, SurfaceSizeWriter, WindowEvent};
+use crate::event::{DeviceEvent, StartCause, SurfaceSizeWriter, WindowEvent};
 use crate::event_loop::{
     ActiveEventLoop as RootActiveEventLoop, ControlFlow, DeviceEvents,
     OwnedDisplayHandle as CoreOwnedDisplayHandle,
@@ -37,6 +37,12 @@ use super::{logical_to_physical_rounded, WindowId};
 pub use crate::event_loop::EventLoopProxy as CoreEventLoopProxy;
 
 type WaylandDispatcher = calloop::Dispatcher<'static, WaylandSource<WinitState>, WinitState>;
+
+#[derive(Debug)]
+pub(crate) enum Event {
+    WindowEvent { window_id: WindowId, event: WindowEvent },
+    DeviceEvent { event: DeviceEvent },
+}
 
 /// The Wayland event loop.
 pub struct EventLoop {
@@ -383,10 +389,9 @@ impl EventLoop {
                 Event::WindowEvent { window_id, event } => {
                     app.window_event(&self.active_event_loop, window_id, event)
                 },
-                Event::DeviceEvent { device_id, event } => {
-                    app.device_event(&self.active_event_loop, device_id, event)
+                Event::DeviceEvent { event } => {
+                    app.device_event(&self.active_event_loop, None, event)
                 },
-                _ => unreachable!("event which is neither device nor window event."),
             }
         }
 
@@ -399,10 +404,9 @@ impl EventLoop {
                 Event::WindowEvent { window_id, event } => {
                     app.window_event(&self.active_event_loop, window_id, event)
                 },
-                Event::DeviceEvent { device_id, event } => {
-                    app.device_event(&self.active_event_loop, device_id, event)
+                Event::DeviceEvent { event } => {
+                    app.device_event(&self.active_event_loop, None, event)
                 },
-                _ => unreachable!("event which is neither device nor window event."),
             }
         }
 
