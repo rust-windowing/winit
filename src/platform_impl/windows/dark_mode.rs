@@ -133,7 +133,7 @@ fn should_apps_use_dark_mode() -> bool {
 
         let module = LoadLibraryA("uxtheme.dll\0".as_ptr());
 
-        if module == 0 {
+        if module.is_null() {
             return None;
         }
 
