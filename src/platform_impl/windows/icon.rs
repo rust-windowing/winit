@@ -113,12 +113,27 @@ impl WinIcon {
         resource_id: u16,
         size: Option<PhysicalSize<u32>>,
     ) -> Result<Self, BadIcon> {
+        Self::from_resource_ptr(resource_id as PCWSTR, size)
+    }
+
+    pub fn from_resource_name(
+        resource_name: &str,
+        size: Option<PhysicalSize<u32>>,
+    ) -> Result<Self, BadIcon> {
+        let wide_name = util::encode_wide(resource_name);
+        Self::from_resource_ptr(wide_name.as_ptr(), size)
+    }
+
+    fn from_resource_ptr(
+        resource: PCWSTR,
+        size: Option<PhysicalSize<u32>>,
+    ) -> Result<Self, BadIcon> {
         // width / height of 0 along with LR_DEFAULTSIZE tells windows to load the default icon size
         let (width, height) = size.map(Into::into).unwrap_or((0, 0));
         let handle = unsafe {
             LoadImageW(
                 util::get_instance_handle(),
-                resource_id as PCWSTR,
+                resource,
                 IMAGE_ICON,
                 width,
                 height,
