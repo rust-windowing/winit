@@ -660,6 +660,17 @@ impl DeviceIdExtWindows for DeviceId {
 }
 
 /// Additional methods on `Icon` that are specific to Windows.
+///
+/// Windows icons can be created from files, or from the [`embedded resources`](https://learn.microsoft.com/en-us/windows/win32/menurc/about-resource-files).
+///
+/// The `ICON` resource definition statement use the following syntax:
+/// ```rc
+/// nameID ICON filename
+/// ```
+/// `nameID` is a unique name or a 16-bit unsigned integer value identifying the resource,
+/// `filename` is the name of the file that contains the resource.
+///
+/// More information about the `ICON` resource can be found at [`Microsoft Learn`](https://learn.microsoft.com/en-us/windows/win32/menurc/icon-resource) portal.
 pub trait IconExtWindows: Sized {
     /// Create an icon from a file path.
     ///
@@ -672,6 +683,11 @@ pub trait IconExtWindows: Sized {
         -> Result<Self, BadIcon>;
 
     /// Create an icon from a resource embedded in this executable or library by its ordinal id.
+    ///
+    /// The valid `ordinal` values range from 1 to [`u16::MAX`] (inclusive). The value `0` is an
+    /// invalid ordinal id, but it can be used with [`from_resource_name`] as `"0"`.
+    ///
+    /// [`from_resource_name`]: IconExtWindows::from_resource_name
     ///
     /// Specify `size` to load a specific icon size from the file, or `None` to load the default
     /// icon size from the file.
@@ -687,6 +703,46 @@ pub trait IconExtWindows: Sized {
     ///
     /// In cases where the specified size does not exist in the file, Windows may perform scaling
     /// to get an icon of the desired size.
+    ///
+    /// # Notes
+    ///
+    /// Consider the following resource definition statements:
+    /// ```rc
+    /// app     ICON "app.ico"
+    /// 1       ICON "a.ico"
+    /// 0027    ICON "custom.ico"
+    /// 0       ICON "alt.ico"
+    /// ```
+    ///
+    /// Due to some internal implementation details of the resource embedding/loading process on
+    /// Windows platform, strings that can be interpreted as 16-bit unsigned integers (`"1"`,
+    /// `"002"`, etc.) cannot be used as valid resource names, and instead should be passed into
+    /// [`from_resource`]:
+    ///
+    /// [`from_resource`]: IconExtWindows::from_resource
+    ///
+    /// ```rust,no_run
+    /// use winit::platform::windows::IconExtWindows;
+    /// use winit::window::Icon;
+    ///
+    /// assert!(Icon::from_resource_name("app", None).is_ok());
+    /// assert!(Icon::from_resource(1, None).is_ok());
+    /// assert!(Icon::from_resource(27, None).is_ok());
+    /// assert!(Icon::from_resource_name("27", None).is_err());
+    /// assert!(Icon::from_resource_name("0027", None).is_err());
+    /// ```
+    ///
+    /// While `0` cannot be used as an ordinal id (see [`from_resource`]), it can be used as a
+    /// name:
+    ///
+    /// [`from_resource`]: IconExtWindows::from_resource
+    ///
+    /// ```rust,no_run
+    /// # use winit::platform::windows::IconExtWindows;
+    /// # use winit::window::Icon;
+    /// assert!(Icon::from_resource_name("0", None).is_ok());
+    /// assert!(Icon::from_resource(0, None).is_err());
+    /// ```
     fn from_resource_name(name: &str, size: Option<PhysicalSize<u32>>) -> Result<Self, BadIcon>;
 }
 
