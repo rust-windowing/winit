@@ -186,6 +186,7 @@ changelog entry.
   - To match the corresponding changes in `windows-sys`, the `HWND`, `HMONITOR`, and `HMENU` types
     now alias to `*mut c_void` instead of `isize`.
 - On macOS, no longer need control of the main `NSApplication` class (which means you can now override it yourself).
+- On Windows, prevent incorrect shifting when dragging window onto a monitor with different DPI.
 
 ### Removed
 
