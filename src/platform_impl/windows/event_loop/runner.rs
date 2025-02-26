@@ -62,6 +62,7 @@ pub(crate) enum Event {
     Window { window_id: WindowId, event: WindowEvent },
     BufferedScaleFactorChanged(HWND, f64, PhysicalSize<u32>),
     // FIXME(madsmtm): Coalesce these into a flag (or similar) instead of handling them as events.
+    // https://github.com/rust-windowing/winit/pull/3687
     WakeUp,
 }
 
