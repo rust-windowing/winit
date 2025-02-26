@@ -78,7 +78,9 @@ pub struct MonitorHandle {
 
 impl MonitorHandleProvider for MonitorHandle {
     fn native_id(&self) -> u64 {
-        todo!()
+        // SAFETY: Only getting the pointer.
+        let mtm = unsafe { MainThreadMarker::new_unchecked() };
+        Retained::as_ptr(self.ui_screen.get(mtm)) as u64
     }
 
     fn name(&self) -> Option<std::borrow::Cow<'_, str>> {
