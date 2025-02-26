@@ -16,14 +16,12 @@ pub(crate) use self::common::xkb::{physicalkey_to_scancode, scancode_to_physical
 use self::x11::{XConnection, XError, XNotSupported};
 use crate::application::ApplicationHandler;
 pub(crate) use crate::cursor::OnlyCursorImageSource as PlatformCustomCursorSource;
-use crate::dpi::PhysicalPosition;
 #[cfg(x11_platform)]
 use crate::dpi::Size;
 use crate::error::{EventLoopError, NotSupportedError};
 use crate::event_loop::ActiveEventLoop;
 pub(crate) use crate::icon::RgbaIcon as PlatformIcon;
 use crate::keyboard::Key;
-use crate::monitor::VideoMode;
 use crate::platform::pump_events::PumpStatus;
 #[cfg(x11_platform)]
 use crate::platform::x11::{WindowType as XWindowType, XlibErrorHook};
@@ -107,14 +105,6 @@ impl Default for PlatformSpecificWindowAttributes {
 pub(crate) static X11_BACKEND: Lazy<Mutex<Result<Arc<XConnection>, XNotSupported>>> =
     Lazy::new(|| Mutex::new(XConnection::new(Some(x_error_callback)).map(Arc::new)));
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub enum MonitorHandle {
-    #[cfg(x11_platform)]
-    X(x11::MonitorHandle),
-    #[cfg(wayland_platform)]
-    Wayland(wayland::MonitorHandle),
-}
-
 /// `x11_or_wayland!(match expr; Enum(foo) => foo.something())`
 /// expands to the equivalent of
 /// ```ignore
@@ -141,38 +131,6 @@ macro_rules! x11_or_wayland {
             $enum::Wayland($($c1)*) => $x,
         }
     };
-}
-
-impl MonitorHandle {
-    #[inline]
-    pub fn name(&self) -> Option<String> {
-        x11_or_wayland!(match self; MonitorHandle(m) => m.name())
-    }
-
-    #[inline]
-    pub fn native_identifier(&self) -> u32 {
-        x11_or_wayland!(match self; MonitorHandle(m) => m.native_identifier())
-    }
-
-    #[inline]
-    pub fn position(&self) -> Option<PhysicalPosition<i32>> {
-        x11_or_wayland!(match self; MonitorHandle(m) => m.position())
-    }
-
-    #[inline]
-    pub fn scale_factor(&self) -> f64 {
-        x11_or_wayland!(match self; MonitorHandle(m) => m.scale_factor() as _)
-    }
-
-    #[inline]
-    pub fn current_video_mode(&self) -> Option<VideoMode> {
-        x11_or_wayland!(match self; MonitorHandle(m) => m.current_video_mode())
-    }
-
-    #[inline]
-    pub fn video_modes(&self) -> Box<dyn Iterator<Item = VideoMode>> {
-        x11_or_wayland!(match self; MonitorHandle(m) => Box::new(m.video_modes()))
-    }
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]

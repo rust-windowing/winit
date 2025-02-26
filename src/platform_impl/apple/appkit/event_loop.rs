@@ -37,7 +37,7 @@ use crate::event_loop::{
     EventLoopProxy as CoreEventLoopProxy, EventLoopProxyProvider,
     OwnedDisplayHandle as CoreOwnedDisplayHandle,
 };
-use crate::monitor::MonitorHandle as RootMonitorHandle;
+use crate::monitor::MonitorHandle as CoreMonitorHandle;
 use crate::platform::macos::ActivationPolicy;
 use crate::platform::pump_events::PumpStatus;
 use crate::platform_impl::Window;
@@ -116,13 +116,17 @@ impl RootActiveEventLoop for ActiveEventLoop {
         Ok(RootCustomCursor { inner: CustomCursor::new(source.inner)? })
     }
 
-    fn available_monitors(&self) -> Box<dyn Iterator<Item = RootMonitorHandle>> {
-        Box::new(monitor::available_monitors().into_iter().map(|inner| RootMonitorHandle { inner }))
+    fn available_monitors(&self) -> Box<dyn Iterator<Item = CoreMonitorHandle>> {
+        Box::new(
+            monitor::available_monitors()
+                .into_iter()
+                .map(|monitor| CoreMonitorHandle(Arc::new(monitor))),
+        )
     }
 
     fn primary_monitor(&self) -> Option<crate::monitor::MonitorHandle> {
         let monitor = monitor::primary_monitor();
-        Some(RootMonitorHandle { inner: monitor })
+        Some(CoreMonitorHandle(Arc::new(monitor)))
     }
 
     fn listen_device_events(&self, _allowed: DeviceEvents) {}

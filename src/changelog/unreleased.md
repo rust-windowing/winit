@@ -71,6 +71,7 @@ changelog entry.
 - Added `Window::safe_area`, which describes the area of the surface that is unobstructed.
 - On X11, Wayland, Windows and macOS, improved scancode conversions for more obscure key codes.
 - Add ability to make non-activating window on macOS using `NSPanel` with `NSWindowStyleMask::NonactivatingPanel`.
+- Implement `MonitorHandleProvider` for `MonitorHandle` to access common monitor API.
 
 ### Changed
 
@@ -186,6 +187,7 @@ changelog entry.
   - To match the corresponding changes in `windows-sys`, the `HWND`, `HMONITOR`, and `HMENU` types
     now alias to `*mut c_void` instead of `isize`.
 - On macOS, no longer need control of the main `NSApplication` class (which means you can now override it yourself).
+- Move `window::Fullscreen` to `monitor::Fullscreen`.
 
 ### Removed
 

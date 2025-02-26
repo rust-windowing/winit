@@ -209,10 +209,10 @@ impl EventLoop {
     ///
     ///   Web applications are recommended to use
     #[cfg_attr(
-        any(web_platform, docsrs),
+        web_platform,
         doc = "  [`EventLoopExtWeb::spawn_app()`][crate::platform::web::EventLoopExtWeb::spawn_app()]"
     )]
-    #[cfg_attr(not(any(web_platform, docsrs)), doc = "  `EventLoopExtWeb::spawn_app()`")]
+    #[cfg_attr(not(web_platform), doc = "  `EventLoopExtWeb::spawn_app()`")]
     ///   [^1] instead of [`run_app()`] to avoid the need for the Javascript exception trick, and to
     ///   make   it clearer that the event loop runs asynchronously (via the browser's own,
     ///   internal, event   loop) and doesn't block the current thread of execution like it does
@@ -343,10 +343,10 @@ pub trait ActiveEventLoop: AsAny {
     ///
     /// **Web:** Only returns the current monitor without
     #[cfg_attr(
-        any(web_platform, docsrs),
+        web_platform,
         doc = "[detailed monitor permissions][crate::platform::web::ActiveEventLoopExtWeb::request_detailed_monitor_permission]."
     )]
-    #[cfg_attr(not(any(web_platform, docsrs)), doc = "detailed monitor permissions.")]
+    #[cfg_attr(not(web_platform), doc = "detailed monitor permissions.")]
     fn available_monitors(&self) -> Box<dyn Iterator<Item = MonitorHandle>>;
 
     /// Returns the primary monitor of the system.
@@ -358,10 +358,10 @@ pub trait ActiveEventLoop: AsAny {
     /// - **Wayland:** Always returns `None`.
     /// - **Web:** Always returns `None` without
     #[cfg_attr(
-        any(web_platform, docsrs),
+        web_platform,
         doc = "  [detailed monitor permissions][crate::platform::web::ActiveEventLoopExtWeb::request_detailed_monitor_permission]."
     )]
-    #[cfg_attr(not(any(web_platform, docsrs)), doc = "  detailed monitor permissions.")]
+    #[cfg_attr(not(web_platform), doc = "  detailed monitor permissions.")]
     fn primary_monitor(&self) -> Option<MonitorHandle>;
 
     /// Change if or when [`DeviceEvent`]s are captured.

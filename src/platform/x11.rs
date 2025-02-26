@@ -4,7 +4,6 @@ use serde::{Deserialize, Serialize};
 
 use crate::dpi::Size;
 use crate::event_loop::{ActiveEventLoop, EventLoop, EventLoopBuilder};
-use crate::monitor::MonitorHandle;
 use crate::window::{Window as CoreWindow, WindowAttributes};
 
 /// X window type. Maps directly to
@@ -238,18 +237,5 @@ impl WindowAttributesExtX11 for WindowAttributes {
     fn with_embed_parent_window(mut self, parent_window_id: XWindow) -> Self {
         self.platform_specific.x11.embed_window = Some(parent_window_id);
         self
-    }
-}
-
-/// Additional methods on `MonitorHandle` that are specific to X11.
-pub trait MonitorHandleExtX11 {
-    /// Returns the inner identifier of the monitor.
-    fn native_id(&self) -> u32;
-}
-
-impl MonitorHandleExtX11 for MonitorHandle {
-    #[inline]
-    fn native_id(&self) -> u32 {
-        self.inner.native_identifier()
     }
 }
