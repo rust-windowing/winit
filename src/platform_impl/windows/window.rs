@@ -42,8 +42,7 @@ use windows_sys::Win32::UI::WindowsAndMessaging::{
     HTTOPLEFT, HTTOPRIGHT, MENU_ITEM_STATE, MFS_DISABLED, MFS_ENABLED, MF_BYCOMMAND, NID_READY,
     PM_NOREMOVE, SC_CLOSE, SC_MAXIMIZE, SC_MINIMIZE, SC_MOVE, SC_RESTORE, SC_SIZE, SM_DIGITIZER,
     SWP_ASYNCWINDOWPOS, SWP_NOACTIVATE, SWP_NOSIZE, SWP_NOZORDER, TPM_LEFTALIGN, TPM_RETURNCMD,
-    WDA_EXCLUDEFROMCAPTURE, WDA_NONE, WINDOWPLACEMENT, WM_NCLBUTTONDOWN, WM_SYSCOMMAND,
-    WNDCLASSEXW,
+    WDA_EXCLUDEFROMCAPTURE, WDA_NONE, WM_NCLBUTTONDOWN, WM_SYSCOMMAND, WNDCLASSEXW,
 };
 
 use crate::cursor::Cursor;
@@ -453,45 +452,8 @@ impl CoreWindow for Window {
 
         let client_rect = util::client_rect(hwnd);
 
-        let mut width = client_rect.right - client_rect.left;
-        let mut height = client_rect.bottom - client_rect.top;
-
-        let window_flags = self.window_state_lock().window_flags;
-
-        // undecorated windows with shadows have hidden offsets
-        // we need to calculate them and account for them in returned size
-        //
-        // implementation derived from GPUI
-        // see <https://github.com/zed-industries/zed/blob/7bddb390cabefb177d9996dc580749d64e6ca3b6/crates/gpui/src/platform/windows/window.rs#L1167-L1180>
-        if window_flags.undecorated_with_shadows() {
-            let window_rect = util::window_rect(hwnd);
-
-            let width_offset =
-                (window_rect.right - window_rect.left) - (client_rect.right - client_rect.left);
-            let height_offset =
-                (window_rect.bottom - window_rect.top) - (client_rect.bottom - client_rect.top);
-
-            let placement = unsafe {
-                let mut placement = WINDOWPLACEMENT {
-                    length: std::mem::size_of::<WINDOWPLACEMENT>() as u32,
-                    ..std::mem::zeroed()
-                };
-                GetWindowPlacement(hwnd, &mut placement);
-                placement
-            };
-
-            let rect = placement.rcNormalPosition;
-
-            let left_offset = width_offset / 2;
-            let top_offset = height_offset / 2;
-            let right_offset = width_offset - left_offset;
-            let bottom_offset = height_offset - top_offset;
-            let left = rect.left + left_offset;
-            let top = rect.top + top_offset;
-            let right = rect.right - right_offset;
-            let bottom = rect.bottom - bottom_offset;
-            (width, height) = (right - left, bottom - top);
-        }
+        let width = client_rect.right - client_rect.left;
+        let height = client_rect.bottom - client_rect.top;
 
         PhysicalSize::new(width as u32, height as u32)
     }
