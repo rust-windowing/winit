@@ -6,12 +6,13 @@ use std::sync::Arc;
 
 use web_sys::Element;
 
+use super::super::lock;
 use super::super::monitor::MonitorPermissionFuture;
-use super::super::{lock, KeyEventExtra};
-use super::runner::EventWrapper;
+use super::runner::Event;
 use super::{backend, runner};
+use crate::application::ApplicationHandler;
 use crate::error::{NotSupportedError, RequestError};
-use crate::event::{ElementState, Event, KeyEvent, TouchPhase, WindowEvent};
+use crate::event::{ElementState, KeyEvent, TouchPhase, WindowEvent};
 use crate::event_loop::{
     ActiveEventLoop as RootActiveEventLoop, ControlFlow, DeviceEvents,
     EventLoopProxy as RootEventLoopProxy, OwnedDisplayHandle as CoreOwnedDisplayHandle,
@@ -54,13 +55,9 @@ impl ActiveEventLoop {
         Self { runner: runner::Shared::new(), modifiers: ModifiersShared::default() }
     }
 
-    pub(crate) fn run(
-        &self,
-        event_handler: Box<runner::EventHandler>,
-        event_loop_recreation: bool,
-    ) {
+    pub(crate) fn run(&self, app: Box<dyn ApplicationHandler>, event_loop_recreation: bool) {
         self.runner.event_loop_recreation(event_loop_recreation);
-        self.runner.start(event_handler);
+        self.runner.start(app, self.clone());
     }
 
     pub fn generate_id(&self) -> WindowId {
@@ -143,12 +140,13 @@ impl ActiveEventLoop {
                             device_id: None,
                             event: KeyEvent {
                                 physical_key,
-                                logical_key,
-                                text,
+                                logical_key: logical_key.clone(),
+                                text: text.clone(),
                                 location,
                                 state: ElementState::Pressed,
                                 repeat,
-                                platform_specific: KeyEventExtra,
+                                text_with_all_modifiers: text,
+                                key_without_modifiers: logical_key,
                             },
                             is_synthetic: false,
                         },
@@ -177,12 +175,13 @@ impl ActiveEventLoop {
                             device_id: None,
                             event: KeyEvent {
                                 physical_key,
-                                logical_key,
-                                text,
+                                logical_key: logical_key.clone(),
+                                text: text.clone(),
                                 location,
                                 state: ElementState::Released,
                                 repeat,
-                                platform_specific: KeyEventExtra,
+                                text_with_all_modifiers: text,
+                                key_without_modifiers: logical_key,
                             },
                             is_synthetic: false,
                         },
@@ -396,7 +395,7 @@ impl ActiveEventLoop {
                 let canvas = canvas_clone.clone();
 
                 move |size, scale| {
-                    runner.send_event(EventWrapper::ScaleChange {
+                    runner.send_event(Event::ScaleChange {
                         canvas: Rc::downgrade(&canvas),
                         size,
                         scale,

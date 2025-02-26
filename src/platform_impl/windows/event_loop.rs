@@ -12,7 +12,6 @@ use std::time::{Duration, Instant};
 use std::{mem, panic, ptr};
 
 use runner::EventLoopRunner;
-use windows_sys::Win32::Devices::HumanInterfaceDevice::MOUSE_MOVE_RELATIVE;
 use windows_sys::Win32::Foundation::{
     GetLastError, FALSE, HANDLE, HWND, LPARAM, LRESULT, POINT, RECT, WAIT_FAILED, WPARAM,
 };
@@ -37,7 +36,9 @@ use windows_sys::Win32::UI::Input::Touch::{
     CloseTouchInputHandle, GetTouchInputInfo, TOUCHEVENTF_DOWN, TOUCHEVENTF_MOVE,
     TOUCHEVENTF_PRIMARY, TOUCHEVENTF_UP, TOUCHINPUT,
 };
-use windows_sys::Win32::UI::Input::{RAWINPUT, RIM_TYPEKEYBOARD, RIM_TYPEMOUSE};
+use windows_sys::Win32::UI::Input::{
+    MOUSE_MOVE_RELATIVE, RAWINPUT, RIM_TYPEKEYBOARD, RIM_TYPEMOUSE,
+};
 use windows_sys::Win32::UI::WindowsAndMessaging::{
     CreateWindowExW, DefWindowProcW, DestroyWindow, DispatchMessageW, GetClientRect, GetCursorPos,
     GetMenu, LoadCursorW, MsgWaitForMultipleObjectsEx, PeekMessageW, PostMessageW,
@@ -402,7 +403,7 @@ impl EventLoop {
 
         loop {
             unsafe {
-                if PeekMessageW(&mut msg, 0, 0, 0, PM_REMOVE) == false.into() {
+                if PeekMessageW(&mut msg, ptr::null_mut(), 0, 0, PM_REMOVE) == false.into() {
                     break;
                 }
 
@@ -634,10 +635,10 @@ fn create_high_resolution_timer() -> Option<OwnedHandle> {
         // CREATE_WAITABLE_TIMER_HIGH_RESOLUTION is supported only after
         // Win10 1803 but it is already default option for rustc
         // (std uses it to implement `std::thread::sleep`).
-        if handle == 0 {
+        if handle.is_null() {
             None
         } else {
-            Some(OwnedHandle::from_raw_handle(handle as *mut c_void))
+            Some(OwnedHandle::from_raw_handle(handle))
         }
     }
 }
@@ -807,6 +808,7 @@ pub struct EventLoopProxy {
 }
 
 unsafe impl Send for EventLoopProxy {}
+unsafe impl Sync for EventLoopProxy {}
 
 impl EventLoopProxyProvider for EventLoopProxy {
     fn wake_up(&self) {
@@ -894,12 +896,12 @@ fn create_event_target_window() -> HWND {
             cbClsExtra: 0,
             cbWndExtra: 0,
             hInstance: util::get_instance_handle(),
-            hIcon: 0,
-            hCursor: 0, // must be null in order for cursor state to work properly
-            hbrBackground: 0,
+            hIcon: ptr::null_mut(),
+            hCursor: ptr::null_mut(), // must be null in order for cursor state to work properly
+            hbrBackground: ptr::null_mut(),
             lpszMenuName: ptr::null(),
             lpszClassName: THREAD_EVENT_TARGET_WINDOW_CLASS.as_ptr(),
-            hIconSm: 0,
+            hIconSm: ptr::null_mut(),
         };
 
         RegisterClassExW(&class);
@@ -922,8 +924,8 @@ fn create_event_target_window() -> HWND {
             0,
             0,
             0,
-            0,
-            0,
+            ptr::null_mut(),
+            ptr::null_mut(),
             util::get_instance_handle(),
             ptr::null(),
         );
@@ -1250,7 +1252,7 @@ unsafe fn public_window_callback_inner(
             // after marking `WM_PAINT` as handled.
             result = ProcResult::Value(unsafe { DefWindowProcW(window, msg, wparam, lparam) });
             if std::mem::take(&mut userdata.window_state_lock().redraw_requested) {
-                unsafe { RedrawWindow(window, ptr::null(), 0, RDW_INTERNALPAINT) };
+                unsafe { RedrawWindow(window, ptr::null(), ptr::null_mut(), RDW_INTERNALPAINT) };
             }
         },
         WM_WINDOWPOSCHANGING => {
@@ -1299,7 +1301,7 @@ unsafe fn public_window_callback_inner(
                     let new_monitor = unsafe { MonitorFromRect(&new_rect, MONITOR_DEFAULTTONULL) };
                     match fullscreen {
                         Fullscreen::Borderless(ref mut fullscreen_monitor) => {
-                            if new_monitor != 0
+                            if !new_monitor.is_null()
                                 && fullscreen_monitor
                                     .as_ref()
                                     .map(|monitor| new_monitor != monitor.hmonitor())
@@ -1746,7 +1748,7 @@ unsafe fn public_window_callback_inner(
         },
 
         WM_KEYUP | WM_SYSKEYUP => {
-            if msg == WM_SYSKEYUP && unsafe { GetMenu(window) != 0 } {
+            if msg == WM_SYSKEYUP && unsafe { !GetMenu(window).is_null() } {
                 // let Windows handle event if the window has a native menu, a modal event loop
                 // is started here on Alt key up.
                 result = ProcResult::DefWindowProc(wparam);
@@ -1978,7 +1980,7 @@ unsafe fn public_window_callback_inner(
             // If it is the same as our window, then we're essentially retaining the capture. This
             // can happen if `SetCapture` is called on our window when it already has the mouse
             // capture.
-            if lparam != window {
+            if lparam != window as isize {
                 userdata.window_state_lock().mouse.capture_count = 0;
             }
             result = ProcResult::Value(0);
@@ -1991,7 +1993,7 @@ unsafe fn public_window_callback_inner(
 
             let pcount = super::loword(wparam as u32) as usize;
             let mut inputs = Vec::with_capacity(pcount);
-            let htouch = lparam;
+            let htouch = lparam as *mut _;
             if unsafe {
                 GetTouchInputInfo(
                     htouch,
@@ -2314,7 +2316,7 @@ unsafe fn public_window_callback_inner(
                 Some(selected_cursor) => {
                     let hcursor = match selected_cursor {
                         SelectedCursor::Named(cursor_icon) => unsafe {
-                            LoadCursorW(0, util::to_windows_cursor(cursor_icon))
+                            LoadCursorW(ptr::null_mut(), util::to_windows_cursor(cursor_icon))
                         },
                         SelectedCursor::Custom(cursor) => cursor.as_raw_handle(),
                     };
@@ -2546,7 +2548,7 @@ unsafe fn public_window_callback_inner(
             unsafe {
                 SetWindowPos(
                     window,
-                    0,
+                    ptr::null_mut(),
                     new_outer_rect.left,
                     new_outer_rect.top,
                     new_outer_rect.right - new_outer_rect.left,
@@ -2626,7 +2628,7 @@ unsafe extern "system" fn thread_event_target_callback(
     let userdata = unsafe { Box::from_raw(userdata_ptr) };
 
     if msg != WM_PAINT {
-        unsafe { RedrawWindow(window, ptr::null(), 0, RDW_INTERNALPAINT) };
+        unsafe { RedrawWindow(window, ptr::null(), ptr::null_mut(), RDW_INTERNALPAINT) };
     }
 
     let mut userdata_removed = false;
@@ -2690,7 +2692,7 @@ unsafe fn handle_raw_input(userdata: &ThreadMsgTargetData, data: RAWINPUT) {
     if data.header.dwType == RIM_TYPEMOUSE {
         let mouse = unsafe { data.data.mouse };
 
-        if util::has_flag(mouse.usFlags as u32, MOUSE_MOVE_RELATIVE) {
+        if util::has_flag(mouse.usFlags, MOUSE_MOVE_RELATIVE) {
             let x = mouse.lLastX as f64;
             let y = mouse.lLastY as f64;
 

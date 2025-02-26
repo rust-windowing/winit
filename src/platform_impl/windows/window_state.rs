@@ -1,5 +1,5 @@
-use std::io;
 use std::sync::MutexGuard;
+use std::{io, ptr};
 
 use bitflags::bitflags;
 use windows_sys::Win32::Foundation::{HWND, RECT};
@@ -356,7 +356,7 @@ impl WindowFlags {
                     0,
                     SWP_ASYNCWINDOWPOS | SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE,
                 );
-                InvalidateRgn(window, 0, false.into());
+                InvalidateRgn(window, ptr::null_mut(), false.into());
             }
         }
 
@@ -420,7 +420,7 @@ impl WindowFlags {
                 }
 
                 // Refresh the window frame
-                SetWindowPos(window, 0, 0, 0, 0, 0, flags);
+                SetWindowPos(window, ptr::null_mut(), 0, 0, 0, 0, flags);
                 SendMessageW(window, event_loop::SET_RETAIN_STATE_ON_SIZE_MSG_ID.get(), 0, 0);
             }
         }
@@ -438,7 +438,7 @@ impl WindowFlags {
             }
 
             util::win_to_err({
-                let b_menu = GetMenu(hwnd) != 0;
+                let b_menu = !GetMenu(hwnd).is_null();
                 if let (Some(get_dpi_for_window), Some(adjust_window_rect_ex_for_dpi)) =
                     (*util::GET_DPI_FOR_WINDOW, *util::ADJUST_WINDOW_RECT_EX_FOR_DPI)
                 {
@@ -468,14 +468,14 @@ impl WindowFlags {
             let (width, height): (u32, u32) = self.adjust_size(hwnd, size).into();
             SetWindowPos(
                 hwnd,
-                0,
+                ptr::null_mut(),
                 0,
                 0,
                 width as _,
                 height as _,
                 SWP_ASYNCWINDOWPOS | SWP_NOZORDER | SWP_NOREPOSITION | SWP_NOMOVE | SWP_NOACTIVATE,
             );
-            InvalidateRgn(hwnd, 0, false.into());
+            InvalidateRgn(hwnd, ptr::null_mut(), false.into());
         }
     }
 
