@@ -20,9 +20,6 @@ pub(crate) use crate::cursor::{
 pub(crate) use crate::icon::NoIcon as PlatformIcon;
 pub(crate) use crate::platform_impl::Fullscreen;
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct KeyEventExtra {}
-
 #[derive(Debug)]
 pub enum OsError {}
 

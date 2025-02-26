@@ -6,8 +6,8 @@ use std::sync::Arc;
 
 use web_sys::Element;
 
+use super::super::lock;
 use super::super::monitor::MonitorPermissionFuture;
-use super::super::{lock, KeyEventExtra};
 use super::runner::Event;
 use super::{backend, runner};
 use crate::application::ApplicationHandler;
@@ -140,12 +140,13 @@ impl ActiveEventLoop {
                             device_id: None,
                             event: KeyEvent {
                                 physical_key,
-                                logical_key,
-                                text,
+                                logical_key: logical_key.clone(),
+                                text: text.clone(),
                                 location,
                                 state: ElementState::Pressed,
                                 repeat,
-                                platform_specific: KeyEventExtra,
+                                text_with_all_modifiers: text,
+                                key_without_modifiers: logical_key,
                             },
                             is_synthetic: false,
                         },
@@ -174,12 +175,13 @@ impl ActiveEventLoop {
                             device_id: None,
                             event: KeyEvent {
                                 physical_key,
-                                logical_key,
-                                text,
+                                logical_key: logical_key.clone(),
+                                text: text.clone(),
                                 location,
                                 state: ElementState::Released,
                                 repeat,
-                                platform_specific: KeyEventExtra,
+                                text_with_all_modifiers: text,
+                                key_without_modifiers: logical_key,
                             },
                             is_synthetic: false,
                         },

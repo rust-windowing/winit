@@ -186,6 +186,8 @@ changelog entry.
   - To match the corresponding changes in `windows-sys`, the `HWND`, `HMONITOR`, and `HMENU` types
     now alias to `*mut c_void` instead of `isize`.
 - On macOS, no longer need control of the main `NSApplication` class (which means you can now override it yourself).
+- Removed `KeyEventExtModifierSupplement`, and made the fields `text_with_all_modifiers` and
+  `key_without_modifiers` public on `KeyEvent` instead.
 
 ### Removed
 
