@@ -26,9 +26,8 @@
 //! Some user activity, like mouse movement, can generate both a [`WindowEvent`] *and* a
 //! [`DeviceEvent`].
 //!
-//! You can retrieve events by calling [`EventLoop::run_app()`]. This function will
-//! dispatch events for every [`Window`] that was created with that particular [`EventLoop`], and
-//! will run until [`exit()`] is used, at which point [`exiting()`] is called.
+//! You can retrieve events by calling [`EventLoop::run_app()`]. This function will dispatch events
+//! for every [`Window`] that was created with that particular [`EventLoop`].
 //!
 //! Winit no longer uses a `EventLoop::poll_events() -> impl Iterator<Event>`-based event loop
 //! model, since that can't be implemented properly on some platforms (e.g Web, iOS) and works
@@ -58,10 +57,19 @@
 //!
 //! impl ApplicationHandler for App {
 //!     fn can_create_surfaces(&mut self, event_loop: &dyn ActiveEventLoop) {
+//!         // The event loop has launched, and we can initialize our UI state.
+//!
+//!         // Create a simple window with default attributes.
 //!         self.window = Some(event_loop.create_window(WindowAttributes::default()).unwrap());
 //!     }
 //!
-//!     fn window_event(&mut self, event_loop: &dyn ActiveEventLoop, id: WindowId, event: WindowEvent) {
+//!     fn window_event(
+//!         &mut self,
+//!         event_loop: &dyn ActiveEventLoop,
+//!         id: WindowId,
+//!         event: WindowEvent,
+//!     ) {
+//!         // Called by `EventLoop::run_app` when a new event happens on the window.
 //!         match event {
 //!             WindowEvent::CloseRequested => {
 //!                 println!("The close button was pressed; stopping");
@@ -82,15 +90,18 @@
 //!                 // applications which do not always need to. Applications that redraw continuously
 //!                 // can render here instead.
 //!                 self.window.as_ref().unwrap().request_redraw();
-//!             }
+//!             },
 //!             _ => (),
 //!         }
 //!     }
 //! }
 //!
 //! # // Intentionally use `fn main` for clarity
-//! fn main() {
-//!     let event_loop = EventLoop::new().unwrap();
+//! fn main() -> Result<(), Box<dyn std::error::Error>> {
+//!     // Create a new event loop.
+//!     let event_loop = EventLoop::new()?;
+//!
+//!     // Configure settings before launching.
 //!
 //!     // ControlFlow::Poll continuously runs the event loop, even if the OS hasn't
 //!     // dispatched any events. This is ideal for games and similar applications.
@@ -101,8 +112,10 @@
 //!     // input, and uses significantly less power/CPU time than ControlFlow::Poll.
 //!     event_loop.set_control_flow(ControlFlow::Wait);
 //!
-//!     let mut app = App::default();
-//!     event_loop.run_app(&mut app);
+//!     // Launch and begin running the event loop.
+//!     event_loop.run_app(App::default())?;
+//!
+//!     Ok(())
 //! }
 //! ```
 //!
@@ -261,7 +274,6 @@
 //! [`Window::id()`]: window::Window::id
 //! [`WindowEvent`]: event::WindowEvent
 //! [`DeviceEvent`]: event::DeviceEvent
-//! [`exiting()`]: crate::application::ApplicationHandler::exiting
 //! [`raw_window_handle`]: ./window/struct.Window.html#method.raw_window_handle
 //! [`raw_display_handle`]: ./window/struct.Window.html#method.raw_display_handle
 //! [^1]: `EventLoopExtPumpEvents::pump_app_events()` is only available on Windows, macOS, Android, X11 and Wayland.

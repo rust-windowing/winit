@@ -186,7 +186,56 @@ impl EventLoop {
 impl EventLoop {
     /// Run the application with the event loop on the calling thread.
     ///
-    /// See the [`set_control_flow()`] docs on how to change the event loop's behavior.
+    /// ## Event loop flow
+    ///
+    /// This function internally handles the different parts of a traditional event-handling loop.
+    /// You can imagine this method as being implemented like this:
+    ///
+    /// ```rust,ignore
+    /// let mut start_cause = StartCause::Init;
+    ///
+    /// // Run the event loop.
+    /// while !event_loop.exiting() {
+    ///     // Wake up.
+    ///     app.new_events(event_loop, start_cause);
+    ///
+    ///     // Indicate that surfaces can now safely be created.
+    ///     if start_cause == StartCause::Init {
+    ///         app.can_create_surfaces(event_loop);
+    ///     }
+    ///
+    ///     // Handle proxy wake-up event.
+    ///     if event_loop.proxy_wake_up_set() {
+    ///         event_loop.proxy_wake_up_clear();
+    ///         app.proxy_wake_up(event_loop);
+    ///     }
+    ///
+    ///     // Handle actions done by the user / system such as moving the cursor, resizing the
+    ///     // window, changing the window theme, etc.
+    ///     for event in event_loop.events() {
+    ///         match event {
+    ///             window event => app.window_event(event_loop, window_id, event),
+    ///             device event => app.device_event(event_loop, device_id, event),
+    ///         }
+    ///     }
+    ///
+    ///     // Handle redraws.
+    ///     for window_id in event_loop.pending_redraws() {
+    ///         app.window_event(event_loop, window_id, WindowEvent::RedrawRequested);
+    ///     }
+    ///
+    ///     // Done handling events, wait until we're woken up again.
+    ///     app.about_to_wait(event_loop);
+    ///     start_cause = event_loop.wait_if_necessary();
+    /// }
+    ///
+    /// // Finished running, drop application state.
+    /// drop(app);
+    /// ```
+    ///
+    /// This is of course a very coarse-grained overview, and leaves out timing details like
+    /// [`ControlFlow::WaitUntil`] and life-cycle methods like [`ApplicationHandler::resumed`], but
+    /// it should give you an idea of how things fit together.
     ///
     /// ## Platform-specific
     ///
@@ -381,14 +430,21 @@ pub trait ActiveEventLoop: AsAny + fmt::Debug {
     /// Gets the current [`ControlFlow`].
     fn control_flow(&self) -> ControlFlow;
 
-    /// This exits the event loop.
+    /// Stop the event loop.
     ///
-    /// See [`exiting`][crate::application::ApplicationHandler::exiting].
+    /// ## Platform-specific
+    ///
+    /// ### iOS
+    ///
+    /// It is not possible to programmatically exit/quit an application on iOS, so this function is
+    /// a no-op there. See also [this technical Q&A][qa1561].
+    ///
+    /// [qa1561]: https://developer.apple.com/library/archive/qa/qa1561/_index.html
     fn exit(&self);
 
-    /// Returns if the [`EventLoop`] is about to stop.
+    /// Returns whether the [`EventLoop`] is about to stop.
     ///
-    /// See [`exit()`][Self::exit].
+    /// Set by [`exit()`][Self::exit].
     fn exiting(&self) -> bool;
 
     /// Gets a persistent reference to the underlying platform display.

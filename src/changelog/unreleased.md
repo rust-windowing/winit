@@ -228,6 +228,8 @@ changelog entry.
 - Remove `Window::inner_position`, use the new `Window::surface_position` instead.
 - Remove `CustomCursorExtWeb`, use the `CustomCursorSource`.
 - Remove `CustomCursor::from_rgba`, use `CustomCursorSource` instead.
+- Removed `ApplicationHandler::exited`, the event loop being shut down can now be listened to in
+  the `Drop` impl on the application handler.
 
 ### Fixed
 
