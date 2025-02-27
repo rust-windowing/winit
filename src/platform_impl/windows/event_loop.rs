@@ -251,7 +251,6 @@ impl EventLoop {
                     Event::Resumed => app.resumed(event_loop_windows_ref),
                     Event::CreateSurfaces => app.can_create_surfaces(event_loop_windows_ref),
                     Event::AboutToWait => app.about_to_wait(event_loop_windows_ref),
-                    Event::LoopExiting => app.exiting(event_loop_windows_ref),
                     Event::MemoryWarning => app.memory_warning(event_loop_windows_ref),
                 });
             }
@@ -318,7 +317,6 @@ impl EventLoop {
                     Event::Resumed => app.resumed(event_loop_windows_ref),
                     Event::CreateSurfaces => app.can_create_surfaces(event_loop_windows_ref),
                     Event::AboutToWait => app.about_to_wait(event_loop_windows_ref),
-                    Event::LoopExiting => app.exiting(event_loop_windows_ref),
                     Event::MemoryWarning => app.memory_warning(event_loop_windows_ref),
                 });
 
@@ -349,8 +347,8 @@ impl EventLoop {
             PumpStatus::Continue
         };
 
-        // We wait until we've checked for an exit status before clearing the
-        // application callback, in case we need to dispatch a LoopExiting event
+        // We wait until the very end before clearing the application handler,
+        // in case we need to dispatch an extra event somewhere.
         //
         // # Safety
         // This pairs up with our call to `runner.set_event_handler` and ensures

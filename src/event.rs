@@ -1,39 +1,4 @@
 //! The event enums and assorted supporting types.
-//!
-//! These are sent to the closure given to [`EventLoop::run_app(...)`], where they get
-//! processed and used to modify the program state. For more details, see the root-level
-//! documentation.
-//!
-//! Some of these events represent different "parts" of a traditional event-handling loop. You could
-//! approximate the basic ordering loop of [`EventLoop::run_app(...)`] like this:
-//!
-//! ```rust,ignore
-//! let mut start_cause = StartCause::Init;
-//!
-//! while !elwt.exiting() {
-//!     app.new_events(event_loop, start_cause);
-//!
-//!     for event in (window events, user events, device events) {
-//!         // This will pick the right method on the application based on the event.
-//!         app.handle_event(event_loop, event);
-//!     }
-//!
-//!     for window_id in (redraw windows) {
-//!         app.window_event(event_loop, window_id, RedrawRequested);
-//!     }
-//!
-//!     app.about_to_wait(event_loop);
-//!     start_cause = wait_if_necessary();
-//! }
-//!
-//! app.exiting(event_loop);
-//! ```
-//!
-//! This leaves out timing details like [`ControlFlow::WaitUntil`] but hopefully
-//! describes what happens in what order.
-//!
-//! [`EventLoop::run_app(...)`]: crate::event_loop::EventLoop::run_app
-//! [`ControlFlow::WaitUntil`]: crate::event_loop::ControlFlow::WaitUntil
 use std::path::PathBuf;
 use std::sync::{Mutex, Weak};
 #[cfg(not(web_platform))]
@@ -98,11 +63,6 @@ pub(crate) enum Event {
     ///
     /// [`ApplicationHandler::about_to_wait()`]: crate::application::ApplicationHandler::about_to_wait()
     AboutToWait,
-
-    /// See [`ApplicationHandler::exiting()`] for details.
-    ///
-    /// [`ApplicationHandler::exiting()`]: crate::application::ApplicationHandler::exiting()
-    LoopExiting,
 
     /// See [`ApplicationHandler::memory_warning()`] for details.
     ///
@@ -701,10 +661,12 @@ impl FingerId {
 ///
 /// Useful for interactions that diverge significantly from a conventional 2D GUI, such as 3D camera
 /// or first-person game controls. Many physical actions, such as mouse movement, can produce both
-/// device and window events. Because window events typically arise from virtual devices
+/// device and [window events]. Because window events typically arise from virtual devices
 /// (corresponding to GUI pointers and keyboard focus) the device IDs may not match.
 ///
 /// Note that these events are delivered regardless of input focus.
+///
+/// [window events]: WindowEvent
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum DeviceEvent {
     /// Change in physical position of a pointing device.
@@ -1236,7 +1198,6 @@ mod tests {
                 let wid = WindowId::from_raw(0);
                 x(NewEvents(event::StartCause::Init));
                 x(AboutToWait);
-                x(LoopExiting);
                 x(Suspended);
                 x(Resumed);
 

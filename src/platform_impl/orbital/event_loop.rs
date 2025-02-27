@@ -651,8 +651,6 @@ impl EventLoop {
             }
         }
 
-        app.exiting(&self.window_target);
-
         Ok(())
     }
 
