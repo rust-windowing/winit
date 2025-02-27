@@ -2,6 +2,7 @@ use std::any::Any;
 use std::cell::{Cell, RefCell};
 use std::collections::VecDeque;
 use std::rc::Rc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
 use std::{mem, panic};
@@ -29,6 +30,8 @@ pub(crate) struct EventLoopRunner {
     // loop asap. E.g. set after each RedrawRequested to ensure pump_events
     // can't stall an external loop beyond a frame
     pub(super) interrupt_msg_dispatch: Cell<bool>,
+
+    pub(super) has_sent_wakeup_msg: Arc<AtomicBool>,
 
     control_flow: Cell<ControlFlow>,
     exit: Cell<Option<i32>>,
@@ -61,8 +64,6 @@ pub(crate) enum Event {
     Device { device_id: DeviceId, event: DeviceEvent },
     Window { window_id: WindowId, event: WindowEvent },
     BufferedScaleFactorChanged(HWND, f64, PhysicalSize<u32>),
-    // FIXME(madsmtm): Coalesce these into a flag (or similar) instead of handling them as events.
-    // https://github.com/rust-windowing/winit/pull/3687
     WakeUp,
 }
 
@@ -72,6 +73,7 @@ impl EventLoopRunner {
             thread_id,
             thread_msg_target,
             interrupt_msg_dispatch: Cell::new(false),
+            has_sent_wakeup_msg: Arc::new(AtomicBool::new(false)),
             runner_state: Cell::new(RunnerState::Uninitialized),
             control_flow: Cell::new(ControlFlow::default()),
             exit: Cell::new(None),
@@ -123,6 +125,7 @@ impl EventLoopRunner {
             thread_id: _,
             thread_msg_target: _,
             interrupt_msg_dispatch,
+            has_sent_wakeup_msg,
             runner_state,
             panic_error,
             control_flow: _,
@@ -132,6 +135,7 @@ impl EventLoopRunner {
             event_buffer: _,
         } = self;
         interrupt_msg_dispatch.set(false);
+        has_sent_wakeup_msg.store(false, Ordering::Release);
         runner_state.set(RunnerState::Uninitialized);
         panic_error.set(None);
         exit.set(None);

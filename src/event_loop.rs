@@ -490,12 +490,6 @@ impl EventLoopProxy {
     /// If the event loop is no longer running, this is a no-op.
     ///
     /// [`proxy_wake_up`]: ApplicationHandler::proxy_wake_up
-    ///
-    /// # Platform-specific
-    ///
-    /// - **Windows**: The wake-up may be ignored under high contention, see [#3687].
-    ///
-    /// [#3687]: https://github.com/rust-windowing/winit/pull/3687
     pub fn wake_up(&self) {
         self.proxy.wake_up();
     }
