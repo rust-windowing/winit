@@ -157,6 +157,7 @@ impl AppState {
     pub fn will_terminate(self: &Rc<Self>, _notification: &NSNotification) {
         trace_scope!("NSApplicationWillTerminateNotification");
         // TODO: Notify every window that it will be destroyed, like done in iOS?
+        self.event_handler.terminate();
         self.internal_exit();
     }
 
@@ -164,10 +165,10 @@ impl AppState {
     /// of the given closure.
     pub fn set_event_handler<R>(
         &self,
-        handler: &mut dyn ApplicationHandler,
+        handler: impl ApplicationHandler,
         closure: impl FnOnce() -> R,
     ) -> R {
-        self.event_handler.set(handler, closure)
+        self.event_handler.set(Box::new(handler), closure)
     }
 
     pub fn event_loop_proxy(&self) -> &Arc<EventLoopProxy> {
@@ -202,10 +203,6 @@ impl AppState {
     /// NOTE: that if the `NSApplication` has been launched then that state is preserved,
     /// and we won't need to re-launch the app if subsequent EventLoops are run.
     pub fn internal_exit(self: &Rc<Self>) {
-        self.with_handler(|app, event_loop| {
-            app.exiting(event_loop);
-        });
-
         self.set_is_running(false);
         self.set_stop_on_redraw(false);
         self.set_stop_before_wait(false);
