@@ -294,7 +294,6 @@ impl EventLoopRunner {
                 self.call_new_events(true);
                 self.call_event_handler(Event::AboutToWait);
                 self.last_events_cleared.set(Instant::now());
-                self.call_event_handler(Event::LoopExiting);
             },
             (_, Uninitialized) => panic!("cannot move state to Uninitialized"),
 
@@ -302,9 +301,7 @@ impl EventLoopRunner {
             (Idle, HandlingMainEvents) => {
                 self.call_new_events(false);
             },
-            (Idle, Destroyed) => {
-                self.call_event_handler(Event::LoopExiting);
-            },
+            (Idle, Destroyed) => {},
 
             (HandlingMainEvents, Idle) => {
                 // This is always the last event we dispatch before waiting for new events
@@ -314,7 +311,6 @@ impl EventLoopRunner {
             (HandlingMainEvents, Destroyed) => {
                 self.call_event_handler(Event::AboutToWait);
                 self.last_events_cleared.set(Instant::now());
-                self.call_event_handler(Event::LoopExiting);
             },
 
             (Destroyed, _) => panic!("cannot move state from Destroyed"),
