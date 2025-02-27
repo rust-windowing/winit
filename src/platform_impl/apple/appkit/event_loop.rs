@@ -1,10 +1,7 @@
 use std::any::Any;
 use std::cell::Cell;
-use std::os::raw::c_void;
 use std::panic::{catch_unwind, resume_unwind, RefUnwindSafe, UnwindSafe};
-use std::ptr;
 use std::rc::{Rc, Weak};
-use std::sync::atomic::{AtomicBool, Ordering as AtomicOrdering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
@@ -14,11 +11,6 @@ use objc2::{available, MainThreadMarker};
 use objc2_app_kit::{
     NSApplication, NSApplicationActivationPolicy, NSApplicationDidFinishLaunchingNotification,
     NSApplicationWillTerminateNotification, NSWindow,
-};
-use objc2_core_foundation::{
-    kCFRunLoopCommonModes, CFIndex, CFRetained, CFRunLoopAddSource, CFRunLoopGetMain,
-    CFRunLoopSource, CFRunLoopSourceContext, CFRunLoopSourceCreate, CFRunLoopSourceSignal,
-    CFRunLoopWakeUp,
 };
 use objc2_foundation::{NSNotificationCenter, NSObjectProtocol};
 use rwh_06::HasDisplayHandle;
@@ -34,8 +26,7 @@ use crate::application::ApplicationHandler;
 use crate::error::{EventLoopError, RequestError};
 use crate::event_loop::{
     ActiveEventLoop as RootActiveEventLoop, ControlFlow, DeviceEvents,
-    EventLoopProxy as CoreEventLoopProxy, EventLoopProxyProvider,
-    OwnedDisplayHandle as CoreOwnedDisplayHandle,
+    EventLoopProxy as CoreEventLoopProxy, OwnedDisplayHandle as CoreOwnedDisplayHandle,
 };
 use crate::monitor::MonitorHandle as RootMonitorHandle;
 use crate::platform::macos::ActivationPolicy;
@@ -427,56 +418,5 @@ pub fn stop_app_on_panic<F: FnOnce() -> R + UnwindSafe, R>(
             stop_app_immediately(&app);
             None
         },
-    }
-}
-
-#[derive(Debug)]
-pub struct EventLoopProxy {
-    pub(crate) wake_up: AtomicBool,
-    source: CFRetained<CFRunLoopSource>,
-}
-
-unsafe impl Send for EventLoopProxy {}
-unsafe impl Sync for EventLoopProxy {}
-
-impl EventLoopProxy {
-    pub(crate) fn new() -> Self {
-        unsafe {
-            // just wake up the eventloop
-            extern "C-unwind" fn event_loop_proxy_handler(_context: *mut c_void) {}
-
-            // adding a Source to the main CFRunLoop lets us wake it up and
-            // process user events through the normal OS EventLoop mechanisms.
-            let rl = CFRunLoopGetMain().unwrap();
-            let mut context = CFRunLoopSourceContext {
-                version: 0,
-                info: ptr::null_mut(),
-                retain: None,
-                release: None,
-                copyDescription: None,
-                equal: None,
-                hash: None,
-                schedule: None,
-                cancel: None,
-                perform: Some(event_loop_proxy_handler),
-            };
-            let source = CFRunLoopSourceCreate(None, CFIndex::MAX - 1, &mut context).unwrap();
-            CFRunLoopAddSource(&rl, Some(&source), kCFRunLoopCommonModes);
-            CFRunLoopWakeUp(&rl);
-
-            EventLoopProxy { wake_up: AtomicBool::new(false), source }
-        }
-    }
-}
-
-impl EventLoopProxyProvider for EventLoopProxy {
-    fn wake_up(&self) {
-        self.wake_up.store(true, AtomicOrdering::Relaxed);
-        unsafe {
-            // Let the main thread know there's a new event.
-            CFRunLoopSourceSignal(&self.source);
-            let rl = CFRunLoopGetMain().unwrap();
-            CFRunLoopWakeUp(&rl);
-        }
     }
 }

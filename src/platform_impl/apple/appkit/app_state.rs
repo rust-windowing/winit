@@ -1,7 +1,6 @@
 use std::cell::{Cell, OnceCell, RefCell};
 use std::mem;
 use std::rc::{Rc, Weak};
-use std::sync::atomic::Ordering as AtomicOrdering;
 use std::sync::Arc;
 use std::time::Instant;
 
@@ -11,7 +10,8 @@ use objc2_app_kit::{NSApplication, NSApplicationActivationPolicy, NSRunningAppli
 use objc2_foundation::NSNotification;
 
 use super::super::event_handler::EventHandler;
-use super::event_loop::{stop_app_immediately, ActiveEventLoop, EventLoopProxy, PanicInfo};
+use super::super::event_loop_proxy::EventLoopProxy;
+use super::event_loop::{stop_app_immediately, ActiveEventLoop, PanicInfo};
 use super::menu;
 use super::observer::{EventLoopWaker, RunLoop};
 use crate::application::ApplicationHandler;
@@ -59,13 +59,17 @@ impl AppState {
         default_menu: bool,
         activate_ignoring_other_apps: bool,
     ) -> Rc<Self> {
-        let this = Rc::new(AppState {
+        let event_loop_proxy = Arc::new(EventLoopProxy::new(mtm, move || {
+            Self::get(mtm).with_handler(|app, event_loop| app.proxy_wake_up(event_loop));
+        }));
+
+        let this = Rc::new(Self {
             mtm,
             activation_policy,
-            event_loop_proxy: Arc::new(EventLoopProxy::new()),
             default_menu,
             activate_ignoring_other_apps,
             run_loop: RunLoop::main(mtm),
+            event_loop_proxy,
             event_handler: EventHandler::new(),
             stop_on_launch: Cell::new(false),
             stop_before_wait: Cell::new(false),
@@ -349,10 +353,6 @@ impl AppState {
         // we're about to return to the `CFRunLoop` to poll for new events?
         if panic_info.is_panicking() || !self.event_handler.ready() || !self.is_running() {
             return;
-        }
-
-        if self.event_loop_proxy.wake_up.swap(false, AtomicOrdering::Relaxed) {
-            self.with_handler(|app, event_loop| app.proxy_wake_up(event_loop));
         }
 
         let redraw = mem::take(&mut *self.pending_redraw.borrow_mut());

@@ -162,8 +162,6 @@ pub trait ApplicationHandler {
     ///
     ///     let (sender, receiver) = mpsc::channel();
     ///
-    ///     let mut app = MyApp { receiver };
-    ///
     ///     // Send an event in a loop
     ///     let proxy = event_loop.create_proxy();
     ///     let background_thread = thread::spawn(move || {
@@ -182,9 +180,8 @@ pub trait ApplicationHandler {
     ///         }
     ///     });
     ///
-    ///     event_loop.run_app(&mut app)?;
+    ///     event_loop.run_app(MyApp { receiver })?;
     ///
-    ///     drop(app);
     ///     background_thread.join().unwrap();
     ///
     ///     Ok(())
