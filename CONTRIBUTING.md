@@ -54,6 +54,22 @@ close your PR in order to prevent work being done on it.
 [issues]: https://github.com/rust-windowing/winit/issues
 [matrix]: https://matrix.to/#/#rust-windowing:matrix.org
 
+### Formatting
+
+Winit relies on nightly `rustfmt`. A PR will usually not get reviewed if the
+nightly `cargo-fmt` check did not pass. If you have `rustup` installed you can
+install the nightly toolchain using `rustup toolchain install nightly`.
+
+Then to format the code you can run `cargo +nightly fmt`.
+
+For more on how to manage toolchains, see [the documentation](https://rust-lang.github.io/rustup/concepts/toolchains.html).
+
+If you feel uncomfortable using a `nightly` toolchain, ensure that CI passes
+with the exception of formatting, and ask the maintainers on your PR to format
+the code before merge.
+
+When editing markdown files (`.md`) they must be wrapped at **80** characters.
+
 ## Maintainers
 
 Winit has plenty of maintainers with different backgrounds, different time
