@@ -162,6 +162,9 @@ pub fn code_to_key(key: PhysicalKey, scancode: u16) -> Key {
         PhysicalKey::Unidentified(code) => return Key::Unidentified(code.into()),
     };
 
+    // Roughly same handling as Firefox and Chromium:
+    // https://searchfox.org/mozilla-central/rev/c597e9c789ad36af84a0370d395be066b7dc94f4/widget/NativeKeyToDOMKeyName.h
+    // https://chromium.googlesource.com/chromium/src.git/+/010a75a426c4a2292955a52f480e9251cacf750e/ui/events/keycodes/keyboard_code_conversion_mac.mm#100
     Key::Named(match code {
         KeyCode::Enter => NamedKey::Enter,
         KeyCode::Tab => NamedKey::Tab,
@@ -176,14 +179,17 @@ pub fn code_to_key(key: PhysicalKey, scancode: u16) -> Key {
         KeyCode::ShiftRight => NamedKey::Shift,
         KeyCode::AltRight => NamedKey::Alt,
         KeyCode::ControlRight => NamedKey::Control,
+        KeyCode::CapsLock => NamedKey::CapsLock,
 
         KeyCode::NumLock => NamedKey::NumLock,
         KeyCode::AudioVolumeUp => NamedKey::AudioVolumeUp,
         KeyCode::AudioVolumeDown => NamedKey::AudioVolumeDown,
+        KeyCode::AudioVolumeMute => NamedKey::AudioVolumeMute,
 
         // Other numpad keys all generate text on macOS (if I understand correctly)
         KeyCode::NumpadEnter => NamedKey::Enter,
 
+        KeyCode::Fn => NamedKey::Fn,
         KeyCode::F1 => NamedKey::F1,
         KeyCode::F2 => NamedKey::F2,
         KeyCode::F3 => NamedKey::F3,
@@ -204,17 +210,27 @@ pub fn code_to_key(key: PhysicalKey, scancode: u16) -> Key {
         KeyCode::F18 => NamedKey::F18,
         KeyCode::F19 => NamedKey::F19,
         KeyCode::F20 => NamedKey::F20,
+        KeyCode::F21 => NamedKey::F21,
+        KeyCode::F22 => NamedKey::F22,
+        KeyCode::F23 => NamedKey::F23,
+        KeyCode::F24 => NamedKey::F24,
 
         KeyCode::Insert => NamedKey::Insert,
         KeyCode::Home => NamedKey::Home,
         KeyCode::PageUp => NamedKey::PageUp,
         KeyCode::Delete => NamedKey::Delete,
         KeyCode::End => NamedKey::End,
+        KeyCode::Help => NamedKey::Help,
         KeyCode::PageDown => NamedKey::PageDown,
         KeyCode::ArrowLeft => NamedKey::ArrowLeft,
         KeyCode::ArrowRight => NamedKey::ArrowRight,
         KeyCode::ArrowDown => NamedKey::ArrowDown,
         KeyCode::ArrowUp => NamedKey::ArrowUp,
+        KeyCode::ContextMenu => NamedKey::ContextMenu,
+
+        KeyCode::Lang2 => NamedKey::Eisu,
+        KeyCode::Lang1 => NamedKey::KanjiMode,
+
         _ => return Key::Unidentified(NativeKey::MacOS(scancode)),
     })
 }
