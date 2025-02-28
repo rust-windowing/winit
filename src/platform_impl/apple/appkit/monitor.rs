@@ -246,7 +246,7 @@ impl MonitorHandle {
                 let modes: Vec<_> = (0..array_count)
                     .map(move |i| {
                         let mode = CFArrayGetValueAtIndex(&array, i) as *mut CGDisplayMode;
-                        CFRetained::from_raw(NonNull::new(mode).unwrap())
+                        CFRetained::retain(NonNull::new(mode).unwrap())
                     })
                     .collect();
                 modes
