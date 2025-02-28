@@ -5,6 +5,7 @@ mod context;
 mod inner;
 mod input_method;
 
+use std::fmt;
 use std::sync::mpsc::{Receiver, Sender};
 use std::sync::Arc;
 
@@ -54,6 +55,12 @@ pub(crate) struct Ime {
     // The actual meat of this struct is boxed away, since it needs to have a fixed location in
     // memory so we can pass a pointer to it around.
     inner: Box<ImeInner>,
+}
+
+impl fmt::Debug for Ime {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Ime").finish_non_exhaustive()
+    }
 }
 
 impl Ime {

@@ -16,6 +16,7 @@ use crate::window::{
     WindowAttributes, WindowButtons, WindowId, WindowLevel,
 };
 
+#[derive(Debug)]
 pub(crate) struct Window {
     window: MainThreadBound<Retained<NSWindow>>,
     /// The window only keeps a weak reference to this, so we must keep it around here.

@@ -45,6 +45,7 @@ pub(crate) enum Event {
 }
 
 /// The Wayland event loop.
+#[derive(Debug)]
 pub struct EventLoop {
     /// Has `run` or `run_on_demand` been called or a call to `pump_events` that starts the loop
     loop_running: bool,
@@ -546,6 +547,7 @@ impl AsRawFd for EventLoop {
     }
 }
 
+#[derive(Debug)]
 pub struct ActiveEventLoop {
     /// Event loop proxy
     event_loop_proxy: CoreEventLoopProxy,
@@ -665,6 +667,7 @@ impl rwh_06::HasDisplayHandle for ActiveEventLoop {
     }
 }
 
+#[derive(Debug)]
 pub struct OwnedDisplayHandle {
     pub(crate) connection: Connection,
 }

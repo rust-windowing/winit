@@ -14,7 +14,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     #[path = "util/fill.rs"]
     mod fill;
 
-    #[derive(Default)]
+    #[derive(Default, Debug)]
     struct App {
         idx: usize,
         window_id: Option<WindowId>,

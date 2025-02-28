@@ -16,6 +16,7 @@ use crate::event::DeviceEvent;
 use crate::platform_impl::wayland::state::WinitState;
 
 /// Wrapper around the relative pointer.
+#[derive(Debug)]
 pub struct RelativePointerState {
     manager: ZwpRelativePointerManagerV1,
 }

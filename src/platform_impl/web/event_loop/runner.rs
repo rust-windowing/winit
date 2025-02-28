@@ -1,9 +1,9 @@
 use std::cell::{Cell, RefCell};
 use std::collections::{HashSet, VecDeque};
-use std::iter;
 use std::ops::Deref;
 use std::rc::{Rc, Weak};
 use std::sync::Arc;
+use std::{fmt, iter};
 
 use wasm_bindgen::prelude::Closure;
 use wasm_bindgen::JsCast;
@@ -26,6 +26,7 @@ use crate::platform_impl::platform::r#async::DispatchRunner;
 use crate::platform_impl::platform::window::Inner;
 use crate::window::WindowId;
 
+#[derive(Debug)]
 pub struct Shared(Rc<Execution>);
 
 impl Clone for Shared {
@@ -68,6 +69,12 @@ struct Execution {
     on_visibility_change: OnEventHandle<web_sys::Event>,
 }
 
+impl fmt::Debug for Execution {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Execution").finish_non_exhaustive()
+    }
+}
+
 enum RunnerEnum {
     /// The `EventLoop` is created but not being run.
     Pending,
@@ -94,6 +101,16 @@ struct Runner {
     state: State,
     app: Box<dyn ApplicationHandler>,
     event_loop: ActiveEventLoop,
+}
+
+impl fmt::Debug for Runner {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Runner")
+            .field("state", &self.state)
+            .field("app", &"<ApplicationHandler>")
+            .field("event_loop", &self.event_loop)
+            .finish()
+    }
 }
 
 impl Runner {

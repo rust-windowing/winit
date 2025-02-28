@@ -14,6 +14,7 @@ use crate::platform_impl::wayland;
 use crate::platform_impl::wayland::state::WinitState;
 use crate::window::ImePurpose;
 
+#[derive(Debug)]
 pub struct TextInputState {
     text_input_manager: ZwpTextInputManagerV3,
 }

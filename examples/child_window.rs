@@ -13,6 +13,7 @@ fn main() -> Result<(), impl std::error::Error> {
     #[path = "util/fill.rs"]
     mod fill;
 
+    #[derive(Debug)]
     struct WindowData {
         window: Box<dyn Window>,
         color: u32,
@@ -24,7 +25,7 @@ fn main() -> Result<(), impl std::error::Error> {
         }
     }
 
-    #[derive(Default)]
+    #[derive(Default, Debug)]
     struct Application {
         parent_window_id: Option<WindowId>,
         windows: HashMap<WindowId, WindowData>,

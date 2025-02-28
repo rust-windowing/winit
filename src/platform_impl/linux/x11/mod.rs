@@ -71,6 +71,7 @@ type X11rbConnection = x11rb::xcb_ffi::XCBConnection;
 
 type X11Source = Generic<BorrowedFd<'static>>;
 
+#[derive(Debug)]
 struct WakeSender<T> {
     sender: Sender<T>,
     waker: Ping,
@@ -91,6 +92,7 @@ impl<T> WakeSender<T> {
     }
 }
 
+#[derive(Debug)]
 struct PeekableReceiver<T> {
     recv: Receiver<T>,
     first: Option<T>,
@@ -127,6 +129,7 @@ impl<T> PeekableReceiver<T> {
     }
 }
 
+#[derive(Debug)]
 pub struct ActiveEventLoop {
     xconn: Arc<XConnection>,
     wm_delete_window: xproto::Atom,
@@ -144,6 +147,7 @@ pub struct ActiveEventLoop {
     device_events: Cell<DeviceEvents>,
 }
 
+#[derive(Debug)]
 pub struct EventLoop {
     loop_running: bool,
     event_loop: Loop<'static, EventLoopState>,
@@ -157,6 +161,7 @@ pub struct EventLoop {
 
 type ActivationToken = (WindowId, crate::event_loop::AsyncRequestSerial);
 
+#[derive(Debug)]
 struct EventLoopState {
     /// The latest readiness state for the x11 file descriptor
     x11_readiness: Readiness,
@@ -762,7 +767,7 @@ impl Deref for DeviceInfo<'_> {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct EventLoopProxy {
     ping: Ping,
 }

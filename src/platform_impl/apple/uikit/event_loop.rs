@@ -120,6 +120,7 @@ impl HasDisplayHandle for OwnedDisplayHandle {
     }
 }
 
+#[derive(Debug)]
 pub struct EventLoop {
     mtm: MainThreadMarker,
     window_target: ActiveEventLoop,
@@ -277,6 +278,7 @@ impl EventLoop {
     }
 }
 
+#[derive(Debug)]
 pub struct EventLoopProxy {
     pub(crate) wake_up: AtomicBool,
     source: CFRetained<CFRunLoopSource>,

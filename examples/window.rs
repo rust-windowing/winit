@@ -12,7 +12,7 @@ use winit::window::{Window, WindowAttributes, WindowId};
 #[path = "util/fill.rs"]
 mod fill;
 
-#[derive(Default)]
+#[derive(Default, Debug)]
 struct App {
     window: Option<Box<dyn Window>>,
 }

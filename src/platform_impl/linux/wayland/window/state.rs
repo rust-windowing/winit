@@ -51,6 +51,7 @@ pub type WinitFrame = sctk::shell::xdg::fallback_frame::FallbackFrame<WinitState
 const MIN_WINDOW_SIZE: LogicalSize<u32> = LogicalSize::new(2, 1);
 
 /// The state of the window which is being updated from the [`WinitState`].
+#[derive(Debug)]
 pub struct WindowState {
     /// The connection to Wayland server.
     pub handle: Arc<OwnedDisplayHandle>,
@@ -1097,7 +1098,7 @@ impl Drop for WindowState {
 }
 
 /// The state of the cursor grabs.
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 struct GrabState {
     /// The grab mode requested by the user.
     user_grab_mode: CursorGrabMode,

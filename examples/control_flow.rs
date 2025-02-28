@@ -46,7 +46,7 @@ fn main() -> Result<(), impl std::error::Error> {
     event_loop.run_app(ControlFlowDemo::default())
 }
 
-#[derive(Default)]
+#[derive(Default, Debug)]
 struct ControlFlowDemo {
     mode: Mode,
     request_redraw: bool,

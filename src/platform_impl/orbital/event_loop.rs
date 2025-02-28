@@ -165,7 +165,7 @@ bitflags! {
     }
 }
 
-#[derive(Default)]
+#[derive(Default, Debug)]
 struct EventState {
     keyboard: KeyboardModifierState,
     mouse: MouseButtonState,
@@ -274,6 +274,7 @@ impl EventState {
     }
 }
 
+#[derive(Debug)]
 pub struct EventLoop {
     windows: Vec<(Arc<RedoxSocket>, EventState)>,
     window_target: ActiveEventLoop,
@@ -661,6 +662,7 @@ impl EventLoop {
     }
 }
 
+#[derive(Debug)]
 pub struct EventLoopProxy {
     user_events_sender: mpsc::SyncSender<()>,
     pub(super) wake_socket: TimeSocket,
@@ -678,6 +680,7 @@ impl EventLoopProxyProvider for EventLoopProxy {
 
 impl Unpin for EventLoopProxy {}
 
+#[derive(Debug)]
 pub struct ActiveEventLoop {
     control_flow: Cell<ControlFlow>,
     exit: Cell<bool>,
