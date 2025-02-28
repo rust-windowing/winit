@@ -43,6 +43,7 @@ use crate::window::{CustomCursor, CustomCursorSource, Theme, Window, WindowAttri
 /// [`EventLoopProxy`] allows you to wake up an `EventLoop` from another thread.
 ///
 /// [`Window`]: crate::window::Window
+#[derive(Debug)]
 pub struct EventLoop {
     pub(crate) event_loop: platform_impl::EventLoop,
     pub(crate) _marker: PhantomData<*mut ()>, // Not Send nor Sync
@@ -54,7 +55,7 @@ pub struct EventLoop {
 /// easier. But note that constructing multiple event loops is not supported.
 ///
 /// This can be created using [`EventLoop::builder`].
-#[derive(Default, PartialEq, Eq, Hash)]
+#[derive(Default, Debug, PartialEq, Eq, Hash)]
 pub struct EventLoopBuilder {
     pub(crate) platform_specific: platform_impl::PlatformSpecificEventLoopAttributes,
 }
@@ -114,18 +115,6 @@ impl EventLoopBuilder {
     #[cfg(web_platform)]
     pub(crate) fn allow_event_loop_recreation() {
         EVENT_LOOP_CREATED.store(false, Ordering::Relaxed);
-    }
-}
-
-impl fmt::Debug for EventLoopBuilder {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("EventLoopBuilder").finish_non_exhaustive()
-    }
-}
-
-impl fmt::Debug for EventLoop {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("EventLoop").finish_non_exhaustive()
     }
 }
 
@@ -309,7 +298,7 @@ impl AsRawFd for EventLoop {
     }
 }
 
-pub trait ActiveEventLoop: AsAny {
+pub trait ActiveEventLoop: AsAny + fmt::Debug {
     /// Creates an [`EventLoopProxy`] that can be used to dispatch user events
     /// to the main event loop, possibly from another thread.
     fn create_proxy(&self) -> EventLoopProxy;
@@ -463,21 +452,15 @@ impl PartialEq for OwnedDisplayHandle {
 
 impl Eq for OwnedDisplayHandle {}
 
-pub(crate) trait EventLoopProxyProvider: Send + Sync {
+pub(crate) trait EventLoopProxyProvider: Send + Sync + fmt::Debug {
     /// See [`EventLoopProxy::wake_up`] for details.
     fn wake_up(&self);
 }
 
 /// Control the [`EventLoop`], possibly from a different thread, without referencing it directly.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct EventLoopProxy {
     pub(crate) proxy: Arc<dyn EventLoopProxyProvider>,
-}
-
-impl fmt::Debug for EventLoopProxy {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("EventLoopProxy").finish_non_exhaustive()
-    }
 }
 
 impl EventLoopProxy {

@@ -16,7 +16,7 @@ fn main() -> std::process::ExitCode {
     #[path = "util/fill.rs"]
     mod fill;
 
-    #[derive(Default)]
+    #[derive(Default, Debug)]
     struct PumpDemo {
         window: Option<Box<dyn Window>>,
     }

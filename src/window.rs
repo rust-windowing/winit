@@ -431,7 +431,7 @@ impl WindowAttributes {
 ///
 /// **Web:** The [`Window`], which is represented by a `HTMLElementCanvas`, can
 /// not be closed by dropping the [`Window`].
-pub trait Window: AsAny + Send + Sync {
+pub trait Window: AsAny + Send + Sync + fmt::Debug {
     /// Returns an identifier unique to the window.
     fn id(&self) -> WindowId;
 

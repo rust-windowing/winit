@@ -36,6 +36,7 @@ use crate::platform_impl::wayland::window::{WindowRequests, WindowState};
 use crate::platform_impl::wayland::WindowId;
 
 /// Winit's Wayland state.
+#[derive(Debug)]
 pub struct WinitState {
     /// The WlRegistry.
     pub registry_state: RegistryState,

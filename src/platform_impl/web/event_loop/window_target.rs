@@ -25,7 +25,7 @@ use crate::platform_impl::web::event_loop::proxy::EventLoopProxy;
 use crate::platform_impl::Window;
 use crate::window::{CustomCursor as RootCustomCursor, CustomCursorSource, Theme, WindowId};
 
-#[derive(Default)]
+#[derive(Default, Debug)]
 struct ModifiersShared(Rc<Cell<ModifiersState>>);
 
 impl ModifiersShared {
@@ -44,7 +44,7 @@ impl Clone for ModifiersShared {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct ActiveEventLoop {
     pub(crate) runner: runner::Shared,
     modifiers: ModifiersShared,

@@ -34,6 +34,7 @@ pub(crate) mod state;
 pub use state::WindowState;
 
 /// The Wayland window.
+#[derive(Debug)]
 pub struct Window {
     /// Reference to the underlying SCTK window.
     window: SctkWindow,

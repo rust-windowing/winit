@@ -20,6 +20,7 @@ const ORBITAL_FLAG_MAXIMIZED: char = 'm';
 const ORBITAL_FLAG_RESIZABLE: char = 'r';
 const ORBITAL_FLAG_TRANSPARENT: char = 't';
 
+#[derive(Debug)]
 pub struct Window {
     window_socket: Arc<RedoxSocket>,
     redraws: Arc<Mutex<VecDeque<WindowId>>>,

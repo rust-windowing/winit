@@ -20,6 +20,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 }
 
 /// Application state and event handling.
+#[derive(Debug)]
 struct Application {
     window: Option<Box<dyn Window>>,
 }
