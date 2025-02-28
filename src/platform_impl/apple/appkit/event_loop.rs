@@ -1,5 +1,6 @@
 use std::any::Any;
 use std::cell::Cell;
+use std::fmt;
 use std::panic::{catch_unwind, resume_unwind, RefUnwindSafe, UnwindSafe};
 use std::rc::{Rc, Weak};
 use std::sync::Arc;
@@ -37,6 +38,12 @@ use crate::window::{CustomCursor as RootCustomCursor, CustomCursorSource, Theme}
 #[derive(Default)]
 pub struct PanicInfo {
     inner: Cell<Option<Box<dyn Any + Send + 'static>>>,
+}
+
+impl fmt::Debug for PanicInfo {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("PanicInfo").finish_non_exhaustive()
+    }
 }
 
 // WARNING:
@@ -161,6 +168,7 @@ impl rwh_06::HasDisplayHandle for ActiveEventLoop {
     }
 }
 
+#[derive(Debug)]
 pub struct EventLoop {
     /// Store a reference to the application for convenience.
     ///

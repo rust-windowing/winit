@@ -44,7 +44,7 @@ fn min_timeout(a: Option<Duration>, b: Option<Duration>) -> Option<Duration> {
     a.map_or(b, |a_timeout| b.map_or(Some(a_timeout), |b_timeout| Some(a_timeout.min(b_timeout))))
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 struct SharedFlagSetter {
     flag: Arc<AtomicBool>,
 }
@@ -54,6 +54,7 @@ impl SharedFlagSetter {
     }
 }
 
+#[derive(Debug)]
 struct SharedFlag {
     flag: Arc<AtomicBool>,
 }
@@ -82,6 +83,12 @@ pub struct RedrawRequester {
     waker: AndroidAppWaker,
 }
 
+impl fmt::Debug for RedrawRequester {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("RedrawRequester").field("flag", &self.flag).finish_non_exhaustive()
+    }
+}
+
 impl RedrawRequester {
     fn new(flag: &SharedFlag, waker: AndroidAppWaker) -> Self {
         RedrawRequester { flag: flag.setter(), waker }
@@ -96,6 +103,7 @@ impl RedrawRequester {
     }
 }
 
+#[derive(Debug)]
 pub struct EventLoop {
     pub(crate) android_app: AndroidApp,
     window_target: ActiveEventLoop,
@@ -639,6 +647,12 @@ pub struct EventLoopProxy {
     waker: AndroidAppWaker,
 }
 
+impl fmt::Debug for EventLoopProxy {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("EventLoopProxy").field("wake_up", &self.wake_up).finish_non_exhaustive()
+    }
+}
+
 impl EventLoopProxy {
     fn new(waker: AndroidAppWaker) -> Self {
         Self { wake_up: AtomicBool::new(false), waker }
@@ -652,6 +666,7 @@ impl EventLoopProxyProvider for EventLoopProxy {
     }
 }
 
+#[derive(Debug)]
 pub struct ActiveEventLoop {
     pub(crate) app: AndroidApp,
     control_flow: Cell<ControlFlow>,
@@ -744,6 +759,7 @@ impl rwh_06::HasDisplayHandle for OwnedDisplayHandle {
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub struct PlatformSpecificWindowAttributes;
 
+#[derive(Debug)]
 pub(crate) struct Window {
     app: AndroidApp,
     redraw_requester: RedrawRequester,

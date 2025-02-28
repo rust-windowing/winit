@@ -39,6 +39,7 @@ use crate::window::{
     WindowAttributes, WindowButtons, WindowId, WindowLevel,
 };
 
+#[derive(Debug)]
 pub(crate) struct Window(Arc<UnownedWindow>);
 
 impl Deref for Window {
@@ -411,6 +412,7 @@ impl SharedState {
 unsafe impl Send for UnownedWindow {}
 unsafe impl Sync for UnownedWindow {}
 
+#[derive(Debug)]
 pub struct UnownedWindow {
     pub(crate) xconn: Arc<XConnection>, // never changes
     xwindow: xproto::Window,            // never changes

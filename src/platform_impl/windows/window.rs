@@ -76,7 +76,7 @@ use crate::window::{
     WindowLevel,
 };
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 #[repr(transparent)]
 /// We need to pass the window handle to the event loop thread, which means it needs to be
 /// Send+Sync.
@@ -92,6 +92,7 @@ impl SyncWindowHandle {
 }
 
 /// The Win32 implementation of the main `Window` object.
+#[derive(Debug)]
 pub(crate) struct Window {
     /// Main handle for the window.
     window: SyncWindowHandle,

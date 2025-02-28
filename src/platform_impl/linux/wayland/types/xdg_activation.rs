@@ -16,6 +16,7 @@ use crate::event_loop::AsyncRequestSerial;
 use crate::platform_impl::wayland::state::WinitState;
 use crate::window::{ActivationToken, WindowId};
 
+#[derive(Debug)]
 pub struct XdgActivationState {
     xdg_activation: XdgActivationV1,
 }

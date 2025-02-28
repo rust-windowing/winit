@@ -9,7 +9,7 @@ use std::rc::Rc;
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::{Duration, Instant};
-use std::{mem, panic, ptr};
+use std::{fmt, mem, panic, ptr};
 
 use windows_sys::Win32::Foundation::{
     GetLastError, FALSE, HANDLE, HWND, LPARAM, LRESULT, POINT, RECT, WAIT_FAILED, WPARAM,
@@ -147,10 +147,25 @@ pub struct EventLoop {
     high_resolution_timer: Option<OwnedHandle>,
 }
 
+impl fmt::Debug for EventLoop {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("EventLoop").finish_non_exhaustive()
+    }
+}
+
 pub(crate) struct PlatformSpecificEventLoopAttributes {
     pub(crate) any_thread: bool,
     pub(crate) dpi_aware: bool,
     pub(crate) msg_hook: Option<Box<dyn FnMut(*const c_void) -> bool + 'static>>,
+}
+
+impl fmt::Debug for PlatformSpecificEventLoopAttributes {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("PlatformSpecificEventLoopAttributes")
+            .field("any_thread", &self.any_thread)
+            .field("dpi_aware", &self.dpi_aware)
+            .finish_non_exhaustive()
+    }
 }
 
 impl Default for PlatformSpecificEventLoopAttributes {
@@ -379,6 +394,7 @@ impl Drop for EventLoop {
 }
 
 #[repr(transparent)]
+#[derive(Debug)]
 pub(crate) struct ActiveEventLoop(pub Rc<EventLoopRunner>);
 
 impl ActiveEventLoop {
@@ -681,6 +697,7 @@ fn wait_for_messages_impl(
     }
 }
 
+#[derive(Debug)]
 pub(crate) struct EventLoopThreadExecutor {
     thread_id: u32,
     target_window: HWND,
@@ -731,6 +748,7 @@ impl EventLoopThreadExecutor {
 
 type ThreadExecFn = Box<Box<dyn FnMut()>>;
 
+#[derive(Debug)]
 pub struct EventLoopProxy {
     target_window: HWND,
 }

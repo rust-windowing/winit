@@ -231,6 +231,7 @@ unsafe extern "C" fn x_error_callback(
     0
 }
 
+#[derive(Debug)]
 pub enum EventLoop {
     #[cfg(wayland_platform)]
     Wayland(Box<wayland::EventLoop>),
