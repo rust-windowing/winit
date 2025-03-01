@@ -229,3 +229,4 @@ changelog entry.
 - On macOS, fixed the scancode conversion for audio volume keys.
 - On macOS, fixed the scancode conversion for `IntlBackslash`.
 - On macOS, fixed redundant `SurfaceResized` event at window creation.
+- On macOS, fixed the behaviour of `pump_app_events` to match what the system expects.
