@@ -3,7 +3,6 @@
 use std::cell::{OnceCell, RefCell, RefMut};
 use std::collections::HashSet;
 use std::os::raw::c_void;
-use std::sync::atomic::Ordering;
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
 use std::{mem, ptr};
@@ -19,8 +18,9 @@ use objc2_core_foundation::{
 use objc2_ui_kit::{UIApplication, UICoordinateSpace, UIView};
 
 use super::super::event_handler::EventHandler;
+use super::super::event_loop_proxy::EventLoopProxy;
 use super::window::WinitUIWindow;
-use super::{ActiveEventLoop, EventLoopProxy};
+use super::ActiveEventLoop;
 use crate::application::ApplicationHandler;
 use crate::dpi::PhysicalSize;
 use crate::event::{StartCause, SurfaceSizeWriter, WindowEvent};
@@ -102,7 +102,7 @@ pub(crate) struct AppState {
 }
 
 impl AppState {
-    pub(crate) fn get_mut(_mtm: MainThreadMarker) -> RefMut<'static, AppState> {
+    pub(crate) fn get_mut(mtm: MainThreadMarker) -> RefMut<'static, AppState> {
         // basically everything in UIKit requires the main thread, so it's pointless to use the
         // std::sync APIs.
         // must be mut because plain `static` requires `Sync`
@@ -114,17 +114,21 @@ impl AppState {
         if guard.is_none() {
             #[inline(never)]
             #[cold]
-            fn init_guard(guard: &mut RefMut<'static, Option<AppState>>) {
+            fn init_guard(guard: &mut RefMut<'static, Option<AppState>>, mtm: MainThreadMarker) {
                 let waker = EventLoopWaker::new(unsafe { CFRunLoopGetMain().unwrap() });
+                let event_loop_proxy = Arc::new(EventLoopProxy::new(mtm, move || {
+                    get_handler(mtm).handle(|app| app.proxy_wake_up(&ActiveEventLoop { mtm }));
+                }));
+
                 **guard = Some(AppState {
                     app_state: Some(AppStateImpl::Initial { queued_gpu_redraws: HashSet::new() }),
                     control_flow: ControlFlow::default(),
                     waker,
-                    event_loop_proxy: Arc::new(EventLoopProxy::new()),
+                    event_loop_proxy,
                     queued_events: Vec::new(),
                 });
             }
-            init_guard(&mut guard);
+            init_guard(&mut guard, mtm);
         }
         RefMut::map(guard, |state| state.as_mut().unwrap())
     }
@@ -394,12 +398,7 @@ fn handle_user_events(mtm: MainThreadMarker) {
     if matches!(this.state(), AppStateImpl::ProcessingRedraws { .. }) {
         bug!("user events attempted to be sent out while `ProcessingRedraws`");
     }
-    let event_loop_proxy = this.event_loop_proxy().clone();
     drop(this);
-
-    if event_loop_proxy.wake_up.swap(false, Ordering::Relaxed) {
-        get_handler(mtm).handle(|app| app.proxy_wake_up(&ActiveEventLoop { mtm }));
-    }
 
     loop {
         let mut this = AppState::get_mut(mtm);
@@ -411,10 +410,6 @@ fn handle_user_events(mtm: MainThreadMarker) {
 
         for event in queued_events {
             handle_wrapped_event(mtm, event);
-        }
-
-        if event_loop_proxy.wake_up.swap(false, Ordering::Relaxed) {
-            get_handler(mtm).handle(|app| app.proxy_wake_up(&ActiveEventLoop { mtm }));
         }
     }
 }
@@ -503,6 +498,10 @@ pub(crate) fn terminated(application: &UIApplication) {
     drop(this);
 
     get_handler(mtm).handle(|app| app.exiting(&ActiveEventLoop { mtm }));
+
+    let this = AppState::get_mut(mtm);
+    // Prevent EventLoopProxy from firing again.
+    this.event_loop_proxy.invalidate();
 }
 
 fn handle_wrapped_event(mtm: MainThreadMarker, event: EventWrapper) {

@@ -10,7 +10,7 @@ mod window;
 use std::fmt;
 
 pub(crate) use self::event_loop::{
-    ActiveEventLoop, EventLoop, EventLoopProxy, PlatformSpecificEventLoopAttributes,
+    ActiveEventLoop, EventLoop, PlatformSpecificEventLoopAttributes,
 };
 pub(crate) use self::monitor::MonitorHandle;
 pub(crate) use self::window::{PlatformSpecificWindowAttributes, Window};
