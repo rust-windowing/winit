@@ -71,6 +71,7 @@ changelog entry.
 - Added `Window::safe_area`, which describes the area of the surface that is unobstructed.
 - On X11, Wayland, Windows and macOS, improved scancode conversions for more obscure key codes.
 - Add ability to make non-activating window on macOS using `NSPanel` with `NSWindowStyleMask::NonactivatingPanel`.
+- On Windows, add `IconExtWindows::from_resource_name`.
 
 ### Changed
 
@@ -185,6 +186,9 @@ changelog entry.
 - Updated `windows-sys` to `v0.59`.
   - To match the corresponding changes in `windows-sys`, the `HWND`, `HMONITOR`, and `HMENU` types
     now alias to `*mut c_void` instead of `isize`.
+- On macOS, no longer need control of the main `NSApplication` class (which means you can now override it yourself).
+- Removed `KeyEventExtModifierSupplement`, and made the fields `text_with_all_modifiers` and
+  `key_without_modifiers` public on `KeyEvent` instead.
 
 ### Removed
 

@@ -12,8 +12,7 @@ use orbclient::{
 use smol_str::SmolStr;
 
 use super::{
-    KeyEventExtra, MonitorHandle, PlatformSpecificEventLoopAttributes, RedoxSocket, TimeSocket,
-    WindowProperties,
+    MonitorHandle, PlatformSpecificEventLoopAttributes, RedoxSocket, TimeSocket, WindowProperties,
 };
 use crate::application::ApplicationHandler;
 use crate::error::{EventLoopError, NotSupportedError, RequestError};
@@ -372,10 +371,8 @@ impl EventLoop {
                         state: element_state(pressed),
                         repeat: false,
                         text,
-                        platform_specific: KeyEventExtra {
-                            key_without_modifiers,
-                            text_with_all_modifiers,
-                        },
+                        key_without_modifiers,
+                        text_with_all_modifiers,
                     },
                     is_synthetic: false,
                 };

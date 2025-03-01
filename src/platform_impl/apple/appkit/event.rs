@@ -14,12 +14,6 @@ use crate::keyboard::{
     PhysicalKey,
 };
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct KeyEventExtra {
-    pub text_with_all_modifiers: Option<SmolStr>,
-    pub key_without_modifiers: Key,
-}
-
 /// Ignores ALL modifiers.
 pub fn get_modifierless_char(scancode: u16) -> Key {
     let Some(ptr) = NonNull::new(unsafe { ffi::TISCopyCurrentKeyboardLayoutInputSource() }) else {
@@ -157,7 +151,8 @@ pub(crate) fn create_key_event(ns_event: &NSEvent, is_press: bool, is_repeat: bo
         repeat: is_repeat,
         state,
         text,
-        platform_specific: KeyEventExtra { text_with_all_modifiers, key_without_modifiers },
+        text_with_all_modifiers,
+        key_without_modifiers,
     }
 }
 
