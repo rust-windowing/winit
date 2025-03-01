@@ -28,20 +28,13 @@ pub(super) struct AppState {
     run_loop: RunLoop,
     event_loop_proxy: Arc<EventLoopProxy>,
     event_handler: EventHandler,
-    stop_on_launch: Cell<bool>,
-    stop_before_wait: Cell<bool>,
-    stop_after_wait: Cell<bool>,
-    stop_on_redraw: Cell<bool>,
-    /// Whether `applicationDidFinishLaunching:` has been run or not.
+    /// Whether `NSApplicationDidFinishLaunchingNotification` has been sent.
     is_launched: Cell<bool>,
-    /// Whether an `EventLoop` is currently running.
-    is_running: Cell<bool>,
     /// Whether the user has requested the event loop to exit.
     exit: Cell<bool>,
     control_flow: Cell<ControlFlow>,
     waker: RefCell<EventLoopWaker>,
     start_time: Cell<Option<Instant>>,
-    wait_timeout: Cell<Option<Instant>>,
     pending_redraw: RefCell<Vec<WindowId>>,
     // NOTE: This is strongly referenced by our `NSWindowDelegate` and our `NSView` subclass, and
     // as such should be careful to not add fields that, in turn, strongly reference those.
@@ -71,17 +64,11 @@ impl AppState {
             run_loop: RunLoop::main(mtm),
             event_loop_proxy,
             event_handler: EventHandler::new(),
-            stop_on_launch: Cell::new(false),
-            stop_before_wait: Cell::new(false),
-            stop_after_wait: Cell::new(false),
-            stop_on_redraw: Cell::new(false),
             is_launched: Cell::new(false),
-            is_running: Cell::new(false),
             exit: Cell::new(false),
             control_flow: Cell::new(ControlFlow::default()),
             waker: RefCell::new(EventLoopWaker::new()),
             start_time: Cell::new(None),
-            wait_timeout: Cell::new(None),
             pending_redraw: RefCell::new(vec![]),
         });
 
@@ -97,15 +84,17 @@ impl AppState {
             .clone()
     }
 
-    // NOTE: This notification will, globally, only be emitted once,
-    // no matter how many `EventLoop`s the user creates.
     pub fn did_finish_launching(self: &Rc<Self>, _notification: &NSNotification) {
         trace_scope!("NSApplicationDidFinishLaunchingNotification");
+        // NOTE: This notification will, globally, only be emitted once,
+        // no matter how many `EventLoop`s the user creates. There is no other
+        // way to know this information, other than to keep track of it
+        // ourselves.
         self.is_launched.set(true);
 
         let app = NSApplication::sharedApplication(self.mtm);
-        // We need to delay setting the activation policy and activating the app
-        // until `applicationDidFinishLaunching` has been called. Otherwise the
+        // We need to delay setting the activation policy and activating the app until
+        // `NSApplicationDidFinishLaunchingNotification` has been sent. Otherwise the
         // menu bar is initially unresponsive on macOS 10.15.
         if let Some(activation_policy) = self.activation_policy {
             app.setActivationPolicy(activation_policy);
@@ -135,23 +124,7 @@ impl AppState {
 
         self.waker.borrow_mut().start();
 
-        self.set_is_running(true);
         self.dispatch_init_events();
-
-        // If the application is being launched via `EventLoop::pump_app_events()` then we'll
-        // want to stop the app once it is launched (and return to the external loop)
-        //
-        // In this case we still want to consider Winit's `EventLoop` to be "running",
-        // so we call `start_running()` above.
-        if self.stop_on_launch.get() {
-            // NOTE: the original idea had been to only stop the underlying `RunLoop`
-            // for the app but that didn't work as expected (`-[NSApplication run]`
-            // effectively ignored the attempt to stop the RunLoop and re-started it).
-            //
-            // So we return from `pump_events` by stopping the application.
-            let app = NSApplication::sharedApplication(self.mtm);
-            stop_app_immediately(&app);
-        }
     }
 
     pub fn will_terminate(self: &Rc<Self>, _notification: &NSNotification) {
@@ -174,55 +147,14 @@ impl AppState {
         &self.event_loop_proxy
     }
 
-    /// If `pump_events` is called to progress the event loop then we
-    /// bootstrap the event loop via `-[NSApplication run]` but will use
-    /// `CFRunLoopRunInMode` for subsequent calls to `pump_events`.
-    pub fn set_stop_on_launch(&self) {
-        self.stop_on_launch.set(true);
-    }
-
-    pub fn set_stop_before_wait(&self, value: bool) {
-        self.stop_before_wait.set(value)
-    }
-
-    pub fn set_stop_after_wait(&self, value: bool) {
-        self.stop_after_wait.set(value)
-    }
-
-    pub fn set_stop_on_redraw(&self, value: bool) {
-        self.stop_on_redraw.set(value)
-    }
-
-    pub fn set_wait_timeout(&self, value: Option<Instant>) {
-        self.wait_timeout.set(value)
-    }
-
-    /// Clears the `running` state and resets the `control_flow` state when an `EventLoop` exits.
-    ///
-    /// NOTE: that if the `NSApplication` has been launched then that state is preserved,
-    /// and we won't need to re-launch the app if subsequent EventLoops are run.
     pub fn internal_exit(self: &Rc<Self>) {
         self.with_handler(|app, event_loop| {
             app.exiting(event_loop);
         });
-
-        self.set_is_running(false);
-        self.set_stop_on_redraw(false);
-        self.set_stop_before_wait(false);
-        self.set_stop_after_wait(false);
-        self.set_wait_timeout(None);
     }
 
     pub fn is_launched(&self) -> bool {
         self.is_launched.get()
-    }
-
-    pub fn set_is_running(&self, value: bool) {
-        self.is_running.set(value)
-    }
-
-    pub fn is_running(&self) -> bool {
-        self.is_running.get()
     }
 
     pub fn exit(&self) {
@@ -252,14 +184,6 @@ impl AppState {
             self.with_handler(|app, event_loop| {
                 app.window_event(event_loop, window_id, WindowEvent::RedrawRequested);
             });
-
-            // `pump_events` will request to stop immediately _after_ dispatching RedrawRequested
-            // events as a way to ensure that `pump_events` can't block an external loop
-            // indefinitely
-            if self.stop_on_redraw.get() {
-                let app = NSApplication::sharedApplication(self.mtm);
-                stop_app_immediately(&app);
-            }
         }
     }
 
@@ -313,13 +237,8 @@ impl AppState {
     // Called by RunLoopObserver after finishing waiting for new events
     pub fn wakeup(self: &Rc<Self>) {
         // Return when in event handler due to https://github.com/rust-windowing/winit/issues/1779
-        if !self.event_handler.ready() || !self.is_running() {
+        if !self.event_handler.ready() {
             return;
-        }
-
-        if self.stop_after_wait.get() {
-            let app = NSApplication::sharedApplication(self.mtm);
-            stop_app_immediately(&app);
         }
 
         let start = self.start_time.get().unwrap();
@@ -343,7 +262,7 @@ impl AppState {
         // Return when in event handler due to https://github.com/rust-windowing/winit/issues/1779
         // XXX: how does it make sense that `event_handler.ready()` can ever return `false` here if
         // we're about to return to the `CFRunLoop` to poll for new events?
-        if !self.event_handler.ready() || !self.is_running() {
+        if !self.event_handler.ready() {
             return;
         }
 
@@ -362,24 +281,12 @@ impl AppState {
             stop_app_immediately(&app);
         }
 
-        if self.stop_before_wait.get() {
-            let app = NSApplication::sharedApplication(self.mtm);
-            stop_app_immediately(&app);
-        }
         self.start_time.set(Some(Instant::now()));
-        let wait_timeout = self.wait_timeout.get(); // configured by pump_events
         let app_timeout = match self.control_flow() {
             ControlFlow::Wait => None,
             ControlFlow::Poll => Some(Instant::now()),
             ControlFlow::WaitUntil(instant) => Some(instant),
         };
-        self.waker.borrow_mut().start_at(min_timeout(wait_timeout, app_timeout));
+        self.waker.borrow_mut().start_at(app_timeout);
     }
-}
-
-/// Returns the minimum `Option<Instant>`, taking into account that `None`
-/// equates to an infinite timeout, not a zero timeout (so can't just use
-/// `Option::min`)
-fn min_timeout(a: Option<Instant>, b: Option<Instant>) -> Option<Instant> {
-    a.map_or(b, |a_timeout| b.map_or(Some(a_timeout), |b_timeout| Some(a_timeout.min(b_timeout))))
 }
