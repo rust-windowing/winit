@@ -1,5 +1,7 @@
 //! The Wayland window.
 
+use std::ffi::c_void;
+use std::ptr::NonNull;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 
@@ -22,6 +24,7 @@ use crate::error::{NotSupportedError, RequestError};
 use crate::event::{Ime, WindowEvent};
 use crate::event_loop::AsyncRequestSerial;
 use crate::monitor::MonitorHandle as CoreMonitorHandle;
+use crate::platform::wayland::WindowExtWayland;
 use crate::platform_impl::{Fullscreen, MonitorHandle as PlatformMonitorHandle};
 use crate::window::{
     Cursor, CursorGrabMode, Fullscreen as CoreFullscreen, ImePurpose, ResizeDirection, Theme,
@@ -656,6 +659,16 @@ impl CoreWindow for Window {
     /// Get the raw-window-handle v0.6 window handle.
     fn rwh_06_window_handle(&self) -> &dyn rwh_06::HasWindowHandle {
         self
+    }
+}
+
+impl WindowExtWayland for dyn CoreWindow + '_ {
+    #[inline]
+    fn xdg_toplevel(&self) -> Option<NonNull<c_void>> {
+        let w = self.as_any().downcast_ref::<Window>()?;
+        let id = w.window.xdg_toplevel().id();
+
+        NonNull::new(id.as_ptr().cast())
     }
 }
 
