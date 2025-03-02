@@ -1,15 +1,17 @@
 use std::rc::Rc;
 use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use objc2::rc::{autoreleasepool, Retained};
 use objc2::runtime::ProtocolObject;
 use objc2::{available, MainThreadMarker};
 use objc2_app_kit::{
     NSApplication, NSApplicationActivationPolicy, NSApplicationDidFinishLaunchingNotification,
-    NSApplicationWillTerminateNotification, NSWindow,
+    NSApplicationWillTerminateNotification, NSEventMask, NSWindow,
 };
-use objc2_foundation::{NSNotificationCenter, NSObjectProtocol};
+use objc2_foundation::{
+    NSDate, NSDefaultRunLoopMode, NSNotificationCenter, NSObjectProtocol, NSTimeInterval,
+};
 use rwh_06::HasDisplayHandle;
 
 use super::super::notification_center::create_observer;
@@ -136,6 +138,9 @@ pub struct EventLoop {
     app: Retained<NSApplication>,
     app_state: Rc<AppState>,
 
+    /// Whether an outer event loop is running.
+    pump_has_sent_init: bool,
+
     window_target: ActiveEventLoop,
 
     // Since macOS 10.11, we no longer need to remove the observers before they are deallocated;
@@ -186,6 +191,15 @@ impl EventLoop {
         // Override `sendEvent:` on the application to forward to our application state.
         override_send_event(&app);
 
+        // Queue `NSApplicationDidFinishLaunchingNotification` and generally
+        // make sure the application is fully initialized (once the run loop
+        // starts).
+        //
+        // This is technically only necessary when using `pump_app_events`
+        // (`app.run()` will do it for us in `run_app_on_demand`), but we
+        // might as well do it everywhere.
+        unsafe { app.finishLaunching() };
+
         let center = unsafe { NSNotificationCenter::defaultCenter() };
 
         let weak_app_state = Rc::downgrade(&app_state);
@@ -217,6 +231,7 @@ impl EventLoop {
         Ok(EventLoop {
             app,
             app_state: app_state.clone(),
+            pump_has_sent_init: false,
             window_target: ActiveEventLoop { app_state, mtm },
             _did_finish_launching_observer,
             _will_terminate_observer,
@@ -231,10 +246,6 @@ impl EventLoop {
         self.run_app_on_demand(app)
     }
 
-    // NB: we don't base this on `pump_events` because for `MacOs` we can't support
-    // `pump_events` elegantly (we just ask to run the loop for a "short" amount of
-    // time and so a layered implementation would end up using a lot of CPU due to
-    // redundant wake ups.
     pub fn run_app_on_demand<A: ApplicationHandler>(
         &mut self,
         mut app: A,
@@ -242,18 +253,19 @@ impl EventLoop {
         self.app_state.clear_exit();
         self.app_state.set_event_handler(&mut app, || {
             autoreleasepool(|_| {
-                // clear / normalize pump_events state
-                self.app_state.set_wait_timeout(None);
-                self.app_state.set_stop_before_wait(false);
-                self.app_state.set_stop_after_wait(false);
-                self.app_state.set_stop_on_redraw(false);
-
                 if self.app_state.is_launched() {
-                    debug_assert!(!self.app_state.is_running());
-                    self.app_state.set_is_running(true);
+                    // The `NSApplicationDidFinishLaunchingNotification` notification is globally
+                    // only delivered once, but for the purpose of our events, we want to act
+                    // as-if an entirely new event loop has been started on each invocation of
+                    // `run_app_on_demand`.
                     self.app_state.dispatch_init_events();
                 }
 
+                // NOTE: We don't base this on `pump_events` because
+                // `nextEventMatchingMask:untilDate:inMode:dequeue:` is worse supported,
+                // especially as the top-level handler. In part because this sets the `isRunning`
+                // flag (which is used by crates like `rfd`), while `nextEventMatchingMask` won't.
+                //
                 // NOTE: Make sure to not run the application re-entrantly, as that'd be confusing.
                 self.app.run();
 
@@ -271,49 +283,43 @@ impl EventLoop {
     ) -> PumpStatus {
         self.app_state.set_event_handler(&mut app, || {
             autoreleasepool(|_| {
-                // As a special case, if the application hasn't been launched yet then we at least
-                // run the loop until it has fully launched.
-                if !self.app_state.is_launched() {
-                    debug_assert!(!self.app_state.is_running());
-
-                    self.app_state.set_stop_on_launch();
-                    self.app.run();
-
-                    // Note: we dispatch `NewEvents(Init)` + `Resumed` events after the application
-                    // has launched
-                } else if !self.app_state.is_running() {
-                    // Even though the application may have been launched, it's possible we aren't
-                    // running if the `EventLoop` was run before and has since
-                    // exited. This indicates that we just starting to re-run
-                    // the same `EventLoop` again.
-                    self.app_state.set_is_running(true);
+                if self.app_state.is_launched() && !self.pump_has_sent_init {
+                    // If the application is already launched, we won't get the re-initialization
+                    // events. Dispatch them here instead.
                     self.app_state.dispatch_init_events();
-                } else {
-                    // Only run for as long as the given `Duration` allows so we don't block the
-                    // external loop.
-                    match timeout {
-                        Some(Duration::ZERO) => {
-                            self.app_state.set_wait_timeout(None);
-                            self.app_state.set_stop_before_wait(true);
-                        },
-                        Some(duration) => {
-                            self.app_state.set_stop_before_wait(false);
-                            let timeout = Instant::now() + duration;
-                            self.app_state.set_wait_timeout(Some(timeout));
-                            self.app_state.set_stop_after_wait(true);
-                        },
-                        None => {
-                            self.app_state.set_wait_timeout(None);
-                            self.app_state.set_stop_before_wait(false);
-                            self.app_state.set_stop_after_wait(true);
-                        },
-                    }
-                    self.app_state.set_stop_on_redraw(true);
-                    self.app.run();
+                }
+                self.pump_has_sent_init = true;
+
+                // Only run for as long as the given `Duration` allows so we don't block the
+                // external loop.
+                let expiration_date = match timeout {
+                    Some(Duration::ZERO) => unsafe { NSDate::distantPast() },
+                    Some(duration) => unsafe {
+                        NSDate::dateWithTimeIntervalSinceNow(
+                            duration.as_secs_f64() as NSTimeInterval
+                        )
+                    },
+                    None => unsafe { NSDate::distantFuture() },
+                };
+
+                // Wait for an event to arrive within the specified duration,
+                // and let the application handle it if one did.
+                let event = unsafe {
+                    self.app.nextEventMatchingMask_untilDate_inMode_dequeue(
+                        NSEventMask::Any,
+                        Some(&expiration_date),
+                        NSDefaultRunLoopMode,
+                        true,
+                    )
+                };
+                if let Some(event) = event {
+                    unsafe { self.app.sendEvent(&event) };
                 }
 
                 if self.app_state.exiting() {
                     self.app_state.internal_exit();
+                    // If we start again, we'll emit a new set of initialization events.
+                    self.pump_has_sent_init = false;
                     PumpStatus::Exit(0)
                 } else {
                     PumpStatus::Continue
