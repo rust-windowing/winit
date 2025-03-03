@@ -134,7 +134,7 @@ impl MonitorHandle {
                 let modes: Vec<_> = (0..array_count)
                     .map(move |i| {
                         let mode = CFArrayGetValueAtIndex(&array, i) as *mut CGDisplayMode;
-                        CFRetained::from_raw(NonNull::new(mode).unwrap())
+                        CFRetained::retain(NonNull::new(mode).unwrap())
                     })
                     .collect();
                 modes
@@ -179,6 +179,9 @@ impl MonitorHandleProvider for MonitorHandle {
         self.0 as _
     }
 
+    // TODO: Be smarter about this:
+    //
+    // <https://github.com/glfw/glfw/blob/57cbded0760a50b9039ee0cb3f3c14f60145567c/src/cocoa_monitor.m#L44-L126>
     fn name(&self) -> Option<std::borrow::Cow<'_, str>> {
         let screen_num = unsafe { CGDisplayModelNumber(self.0) };
         Some(format!("Monitor #{screen_num}").into())

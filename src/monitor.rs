@@ -72,6 +72,15 @@ pub trait MonitorHandleProvider: AsAny + fmt::Debug + Send + Sync {
     fn id(&self) -> u128;
 
     /// Native platform identifier of this monitor.
+    ///
+    /// # Platform-specific
+    ///
+    /// - **Windows**: This is `HMONITOR`.
+    /// - **macOS**: This is `CGDirectDisplayID`.
+    /// - **iOS**: This is `UIScreen*`.
+    /// - **Wayland**: This is the ID of the `wl_output` device.
+    /// - **X11**: This is the ID of the CRTC.
+    /// - **Web**: This is an internal ID not meant for consumption.
     fn native_id(&self) -> u64;
 
     /// Returns a human-readable name of the monitor.
