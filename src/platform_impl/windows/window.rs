@@ -1,5 +1,6 @@
 #![cfg(windows_platform)]
 
+use std::borrow::Cow;
 use std::cell::Cell;
 use std::ffi::c_void;
 use std::mem::{self, MaybeUninit};
@@ -46,11 +47,12 @@ use windows_sys::Win32::UI::WindowsAndMessaging::{
     WDA_EXCLUDEFROMCAPTURE, WDA_NONE, WM_NCLBUTTONDOWN, WM_SYSCOMMAND, WNDCLASSEXW,
 };
 
+use super::MonitorHandle;
 use crate::cursor::Cursor;
 use crate::dpi::{PhysicalInsets, PhysicalPosition, PhysicalSize, Position, Size};
 use crate::error::{NotSupportedError, RequestError};
 use crate::icon::Icon;
-use crate::monitor::MonitorHandle as CoreMonitorHandle;
+use crate::monitor::{Fullscreen, MonitorHandle as CoreMonitorHandle, MonitorHandleProvider};
 use crate::platform::windows::{BackdropType, Color, CornerPreference};
 use crate::platform_impl::platform::dark_mode::try_theme;
 use crate::platform_impl::platform::definitions::{
@@ -69,11 +71,10 @@ use crate::platform_impl::platform::keyboard::KeyEventBuilder;
 use crate::platform_impl::platform::window_state::{
     CursorFlags, SavedWindow, WindowFlags, WindowState,
 };
-use crate::platform_impl::platform::{monitor, util, Fullscreen, SelectedCursor};
+use crate::platform_impl::platform::{monitor, util, SelectedCursor};
 use crate::window::{
-    CursorGrabMode, Fullscreen as CoreFullscreen, ImePurpose, ResizeDirection, Theme,
-    UserAttentionType, Window as CoreWindow, WindowAttributes, WindowButtons, WindowId,
-    WindowLevel,
+    CursorGrabMode, ImePurpose, ResizeDirection, Theme, UserAttentionType, Window as CoreWindow,
+    WindowAttributes, WindowButtons, WindowId, WindowLevel,
 };
 
 #[derive(Clone, Copy, Debug)]
@@ -352,7 +353,7 @@ impl Window {
 impl Drop for Window {
     fn drop(&mut self) {
         // Restore fullscreen video mode on exit.
-        if matches!(self.fullscreen(), Some(CoreFullscreen::Exclusive(_, _))) {
+        if matches!(self.fullscreen(), Some(Fullscreen::Exclusive(_, _))) {
             self.set_fullscreen(None);
         }
 
@@ -755,13 +756,12 @@ impl CoreWindow for Window {
         window_state.window_flags.contains(WindowFlags::MAXIMIZED)
     }
 
-    fn fullscreen(&self) -> Option<CoreFullscreen> {
+    fn fullscreen(&self) -> Option<Fullscreen> {
         let window_state = self.window_state_lock();
-        window_state.fullscreen.clone().map(Into::into)
+        window_state.fullscreen.clone()
     }
 
-    fn set_fullscreen(&self, fullscreen: Option<CoreFullscreen>) {
-        let fullscreen = fullscreen.map(Into::into);
+    fn set_fullscreen(&self, fullscreen: Option<Fullscreen>) {
         let window = self.window;
         let window_state = Arc::clone(&self.window_state);
 
@@ -774,7 +774,7 @@ impl CoreWindow for Window {
             // Return if saved Borderless(monitor) is the same as current monitor when requested
             // fullscreen is Borderless(None)
             (Some(Fullscreen::Borderless(Some(monitor))), Some(Fullscreen::Borderless(None)))
-                if *monitor == monitor::current_monitor(window.hwnd()) =>
+                if monitor.native_id() == monitor::current_monitor(window.hwnd()).native_id() =>
             {
                 return
             },
@@ -790,12 +790,13 @@ impl CoreWindow for Window {
             // fullscreen
             match (&old_fullscreen, &fullscreen) {
                 (_, Some(Fullscreen::Exclusive(monitor, video_mode))) => {
-                    let monitor_info = monitor::get_monitor_info(monitor.hmonitor()).unwrap();
+                    let monitor = monitor.as_any().downcast_ref::<MonitorHandle>().unwrap();
                     let video_mode =
                         match monitor.video_mode_handles().find(|mode| &mode.mode == video_mode) {
                             Some(monitor) => monitor,
                             None => return,
                         };
+                    let monitor_info = monitor::get_monitor_info(monitor.native_id() as _).unwrap();
 
                     let res = unsafe {
                         ChangeDisplaySettingsExW(
@@ -880,10 +881,15 @@ impl CoreWindow for Window {
                     window_state.lock().unwrap().saved_window = Some(SavedWindow { placement });
 
                     let monitor = match &fullscreen {
-                        Fullscreen::Exclusive(monitor, _) => monitor.clone(),
-                        Fullscreen::Borderless(Some(monitor)) => monitor.clone(),
-                        Fullscreen::Borderless(None) => monitor::current_monitor(window.hwnd()),
+                        Fullscreen::Exclusive(monitor, _)
+                        | Fullscreen::Borderless(Some(monitor)) => Some(Cow::Borrowed(
+                            monitor.as_any().downcast_ref::<MonitorHandle>().unwrap(),
+                        )),
+                        Fullscreen::Borderless(None) => None,
                     };
+
+                    let monitor = monitor
+                        .unwrap_or_else(|| Cow::Owned(monitor::current_monitor(window.hwnd())));
 
                     let position: (i32, i32) = monitor.position().unwrap_or_default().into();
                     let size: (u32, u32) = monitor.size().into();
@@ -946,15 +952,19 @@ impl CoreWindow for Window {
     }
 
     fn current_monitor(&self) -> Option<CoreMonitorHandle> {
-        Some(CoreMonitorHandle { inner: monitor::current_monitor(self.hwnd()) })
+        Some(CoreMonitorHandle(Arc::new(monitor::current_monitor(self.hwnd()))))
     }
 
     fn available_monitors(&self) -> Box<dyn Iterator<Item = CoreMonitorHandle>> {
-        Box::new(monitor::available_monitors().into_iter().map(|inner| CoreMonitorHandle { inner }))
+        Box::new(
+            monitor::available_monitors()
+                .into_iter()
+                .map(|monitor| CoreMonitorHandle(Arc::new(monitor))),
+        )
     }
 
     fn primary_monitor(&self) -> Option<CoreMonitorHandle> {
-        Some(CoreMonitorHandle { inner: monitor::primary_monitor() })
+        Some(CoreMonitorHandle(Arc::new(monitor::primary_monitor())))
     }
 
     fn set_window_icon(&self, window_icon: Option<Icon>) {
