@@ -83,22 +83,18 @@ pub trait EventLoopExtPumpEvents {
     /// - **Windows**: The implementation will use `PeekMessage` when checking for window messages
     ///   to avoid blocking your external event loop.
     ///
-    /// - **MacOS**: The implementation works in terms of stopping the global application whenever
-    ///   the application `RunLoop` indicates that it is preparing to block and wait for new events.
+    /// - **MacOS**: Certain actions like resizing the window will enter a "modal" state, where
+    ///   `pump_app_events` will process events internally, and block until the resize is over.
     ///
-    ///   This is very different to the polling APIs that are available on other
-    ///   platforms (the lower level polling primitives on MacOS are private
-    ///   implementation details for `NSApplication` which aren't accessible to
-    ///   application developers)
+    ///   Thus, if you render or run your game code outside of `ApplicationHandler`, your
+    ///   application will freeze while the window resizes. The recommended approach is to render
+    ///   inside [`WindowEvent::RedrawRequested`] instead.
     ///
-    ///   It's likely this will be less efficient than polling on other OSs and
-    ///   it also means the `NSApplication` is stopped while outside of the Winit
-    ///   event loop - and that's observable (for example to crates like `rfd`)
-    ///   because the `NSApplication` is global state.
+    ///   Furthermore, when pumping events the `NSApplication` is still considered stopped to
+    ///   crates like `rfd` that inspect [`-[NSApplication isRunning]`][isrunning].
     ///
-    ///   If you render outside of Winit you are likely to see window resizing artifacts
-    ///   since MacOS expects applications to render synchronously during any `drawRect`
-    ///   callback.
+    /// [`WindowEvent::RedrawRequested`]: crate::event::WindowEvent::RedrawRequested
+    /// [isrunning]: https://developer.apple.com/documentation/appkit/nsapplication/isrunning?language=objc
     fn pump_app_events<A: ApplicationHandler>(
         &mut self,
         timeout: Option<Duration>,
