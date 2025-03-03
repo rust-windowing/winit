@@ -21,6 +21,10 @@ impl MonitorHandle {
 }
 
 impl CoreMonitorHandle for MonitorHandle {
+    fn id(&self) -> u128 {
+        self.native_id() as _
+    }
+
     fn native_id(&self) -> u64 {
         let output_data = self.proxy.data::<OutputData>().unwrap();
         output_data.with_output_info(|info| info.id as u64)

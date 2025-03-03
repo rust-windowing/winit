@@ -65,6 +65,12 @@ impl Eq for MonitorHandle {}
 
 /// Provider of the [`MonitorHandle`].
 pub trait MonitorHandleProvider: AsAny + fmt::Debug + Send + Sync {
+    /// Identifier for this monitor.
+    ///
+    /// The representation of this modifier is not guaranteed and should be used only to compare
+    /// monitors.
+    fn id(&self) -> u128;
+
     /// Native platform identifier of this monitor.
     fn native_id(&self) -> u64;
 
@@ -127,7 +133,7 @@ pub trait MonitorHandleProvider: AsAny + fmt::Debug + Send + Sync {
 
 impl PartialEq for dyn MonitorHandleProvider + '_ {
     fn eq(&self, other: &Self) -> bool {
-        self.native_id() == other.native_id()
+        self.id() == other.id()
     }
 }
 

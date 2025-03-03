@@ -120,6 +120,10 @@ impl MonitorHandle {
 }
 
 impl MonitorHandleProvider for MonitorHandle {
+    fn id(&self) -> u128 {
+        self.native_id() as _
+    }
+
     fn native_id(&self) -> u64 {
         self.id.unwrap_or_default()
     }

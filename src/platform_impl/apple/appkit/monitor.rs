@@ -106,10 +106,10 @@ pub struct MonitorHandle(CGDirectDisplayID);
 
 impl MonitorHandle {
     /// Internal comparisons of [`MonitorHandle`]s are done first requesting a UUID for the handle.
-    fn uuid(&self) -> [u8; 16] {
+    fn uuid(&self) -> u128 {
         let ptr = unsafe { ffi::CGDisplayCreateUUIDFromDisplayID(self.0) };
         let cf_uuid = unsafe { CFRetained::from_raw(NonNull::new(ptr).unwrap()) };
-        unsafe { CFUUIDGetUUIDBytes(&cf_uuid) }.into()
+        u128::from_ne_bytes(unsafe { CFUUIDGetUUIDBytes(&cf_uuid) }.into())
     }
 
     pub fn new(id: CGDirectDisplayID) -> Self {
@@ -171,6 +171,10 @@ impl MonitorHandle {
 }
 
 impl MonitorHandleProvider for MonitorHandle {
+    fn id(&self) -> u128 {
+        self.uuid()
+    }
+
     fn native_id(&self) -> u64 {
         self.0 as _
     }
