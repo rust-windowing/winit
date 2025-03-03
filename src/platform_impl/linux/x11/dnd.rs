@@ -39,6 +39,7 @@ impl From<io::Error> for DndDataParseError {
     }
 }
 
+#[derive(Debug)]
 pub struct Dnd {
     xconn: Arc<XConnection>,
     // Populated by XdndEnter event handler

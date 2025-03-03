@@ -116,6 +116,7 @@ impl HasDisplayHandle for OwnedDisplayHandle {
     }
 }
 
+#[derive(Debug)]
 pub struct EventLoop {
     mtm: MainThreadMarker,
     window_target: ActiveEventLoop,

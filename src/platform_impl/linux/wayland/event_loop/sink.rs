@@ -8,7 +8,7 @@ use crate::window::WindowId;
 
 /// An event loop's sink to deliver events from the Wayland event callbacks
 /// to the winit's user.
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct EventSink {
     pub(crate) window_events: Vec<Event>,
 }

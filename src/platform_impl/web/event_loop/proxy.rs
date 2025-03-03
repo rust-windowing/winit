@@ -8,8 +8,10 @@ use crate::event_loop::EventLoopProxyProvider;
 use crate::platform_impl::web::event_loop::runner::WeakShared;
 use crate::platform_impl::web::r#async::{AtomicWaker, Wrapper};
 
+#[derive(Debug)]
 pub struct EventLoopProxy(Wrapper<WeakShared, Arc<State>, ()>);
 
+#[derive(Debug)]
 struct State {
     awoken: AtomicBool,
     waker: AtomicWaker,

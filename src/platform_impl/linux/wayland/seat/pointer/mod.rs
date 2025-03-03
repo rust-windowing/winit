@@ -414,6 +414,7 @@ impl WinitPointerDataExt for WlPointer {
     }
 }
 
+#[derive(Debug)]
 pub struct PointerConstraintsState {
     pointer_constraints: ZwpPointerConstraintsV1,
 }

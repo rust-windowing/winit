@@ -1,4 +1,5 @@
 use std::cell::Ref;
+use std::fmt;
 use std::rc::Rc;
 use std::sync::Arc;
 
@@ -21,6 +22,12 @@ use crate::window::{
 
 pub struct Window {
     inner: Dispatcher<Inner>,
+}
+
+impl fmt::Debug for Window {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Window").finish_non_exhaustive()
+    }
 }
 
 pub struct Inner {

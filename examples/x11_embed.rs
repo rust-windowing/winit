@@ -12,6 +12,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     #[path = "util/fill.rs"]
     mod fill;
 
+    #[derive(Debug)]
     pub struct XEmbedDemo {
         parent_window_id: u32,
         window: Option<Box<dyn Window>>,

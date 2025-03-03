@@ -4,7 +4,7 @@ use std::collections::VecDeque;
 use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
-use std::{mem, panic};
+use std::{fmt, mem, panic};
 
 use windows_sys::Win32::Foundation::HWND;
 
@@ -38,6 +38,14 @@ pub(crate) struct EventLoopRunner {
     event_buffer: RefCell<VecDeque<Event>>,
 
     panic_error: Cell<Option<PanicError>>,
+}
+
+impl fmt::Debug for EventLoopRunner {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("EventLoopRunner")
+            .field("thread_msg_target", &self.thread_msg_target)
+            .finish_non_exhaustive()
+    }
 }
 
 pub type PanicError = Box<dyn Any + Send + 'static>;

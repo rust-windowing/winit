@@ -459,6 +459,7 @@ impl Inner {
     }
 }
 
+#[derive(Debug)]
 pub struct Window {
     inner: MainThreadBound<Inner>,
 }

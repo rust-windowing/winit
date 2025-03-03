@@ -15,6 +15,7 @@ pub(crate) use crate::cursor::{
 };
 pub(crate) use crate::icon::NoIcon as PlatformIcon;
 
+#[derive(Debug)]
 struct RedoxSocket {
     fd: usize,
 }
@@ -67,6 +68,7 @@ impl Drop for RedoxSocket {
     }
 }
 
+#[derive(Debug)]
 pub struct TimeSocket(RedoxSocket);
 
 impl TimeSocket {

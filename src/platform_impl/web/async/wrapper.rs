@@ -9,6 +9,7 @@ use super::super::main_thread::MainThreadMarker;
 
 // Unsafe wrapper type that allows us to use `T` when it's not `Send` from other threads.
 // `value` **must** only be accessed on the main thread.
+#[derive(Debug)]
 pub struct Wrapper<V: 'static, S: Clone + Send, E> {
     value: Value<V>,
     handler: fn(&RefCell<Option<V>>, E),
@@ -16,6 +17,7 @@ pub struct Wrapper<V: 'static, S: Clone + Send, E> {
     sender_handler: fn(&S, E),
 }
 
+#[derive(Debug)]
 struct Value<V> {
     // SAFETY:
     // This value must not be accessed if not on the main thread.
