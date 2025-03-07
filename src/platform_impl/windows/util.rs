@@ -6,12 +6,13 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::{io, mem, ptr};
 
 use windows_sys::core::{HRESULT, PCWSTR};
-use windows_sys::Win32::Foundation::{BOOL, HANDLE, HMODULE, HWND, RECT};
+use windows_sys::Win32::Foundation::{BOOL, HANDLE, HMODULE, HWND, NTSTATUS, RECT};
 use windows_sys::Win32::Graphics::Gdi::{ClientToScreen, HMONITOR};
 use windows_sys::Win32::System::LibraryLoader::{GetProcAddress, LoadLibraryA};
+use windows_sys::Win32::System::SystemInformation::OSVERSIONINFOW;
 use windows_sys::Win32::System::SystemServices::IMAGE_DOS_HEADER;
 use windows_sys::Win32::UI::HiDpi::{
-    DPI_AWARENESS_CONTEXT, MONITOR_DPI_TYPE, PROCESS_DPI_AWARENESS,
+    GetSystemMetricsForDpi, DPI_AWARENESS_CONTEXT, MONITOR_DPI_TYPE, PROCESS_DPI_AWARENESS,
 };
 use windows_sys::Win32::UI::Input::KeyboardAndMouse::GetActiveWindow;
 use windows_sys::Win32::UI::Input::Pointer::{POINTER_INFO, POINTER_TOUCH_INFO};
@@ -19,8 +20,8 @@ use windows_sys::Win32::UI::WindowsAndMessaging::{
     ClipCursor, GetClientRect, GetClipCursor, GetSystemMetrics, GetWindowPlacement, GetWindowRect,
     IsIconic, ShowCursor, IDC_APPSTARTING, IDC_ARROW, IDC_CROSS, IDC_HAND, IDC_HELP, IDC_IBEAM,
     IDC_NO, IDC_SIZEALL, IDC_SIZENESW, IDC_SIZENS, IDC_SIZENWSE, IDC_SIZEWE, IDC_WAIT,
-    SM_CXVIRTUALSCREEN, SM_CYVIRTUALSCREEN, SM_XVIRTUALSCREEN, SM_YVIRTUALSCREEN, SW_MAXIMIZE,
-    WINDOWPLACEMENT,
+    SM_CXPADDEDBORDER, SM_CXSIZEFRAME, SM_CXVIRTUALSCREEN, SM_CYVIRTUALSCREEN, SM_XVIRTUALSCREEN,
+    SM_YVIRTUALSCREEN, SW_MAXIMIZE, USER_DEFAULT_SCREEN_DPI, WINDOWPLACEMENT,
 };
 
 use crate::utils::Lazy;
@@ -266,3 +267,90 @@ pub(crate) static GET_POINTER_DEVICE_RECTS: Lazy<Option<GetPointerDeviceRects>> 
     Lazy::new(|| get_function!("user32.dll", GetPointerDeviceRects));
 pub(crate) static GET_POINTER_TOUCH_INFO: Lazy<Option<GetPointerTouchInfo>> =
     Lazy::new(|| get_function!("user32.dll", GetPointerTouchInfo));
+
+pub(crate) static WIN_VERSION: Lazy<Option<OSVERSIONINFOW>> = Lazy::new(|| {
+    type RtlGetVersion = unsafe extern "system" fn(*mut OSVERSIONINFOW) -> NTSTATUS;
+    let handle = get_function!("ntdll.dll", RtlGetVersion);
+
+    if let Some(rtl_get_version) = handle {
+        unsafe {
+            let mut vi = OSVERSIONINFOW {
+                dwOSVersionInfoSize: 0,
+                dwMajorVersion: 0,
+                dwMinorVersion: 0,
+                dwBuildNumber: 0,
+                dwPlatformId: 0,
+                szCSDVersion: [0; 128],
+            };
+
+            let status = (rtl_get_version)(&mut vi);
+
+            if status >= 0 {
+                Some(vi)
+            } else {
+                None
+            }
+        }
+    } else {
+        None
+    }
+});
+
+pub fn get_frame_thickness(dpi: u32) -> i32 {
+    let resize_frame_thickness = unsafe { GetSystemMetricsForDpi(SM_CXSIZEFRAME, dpi) };
+    let padding_thickness = unsafe { GetSystemMetricsForDpi(SM_CXPADDEDBORDER, dpi) };
+    resize_frame_thickness + padding_thickness
+}
+
+/// Calcuclate window insets, used in WM_NCCALCSIZE
+///
+/// Derived of GPUI implementation
+/// see <https://github.com/zed-industries/zed/blob/7bddb390cabefb177d9996dc580749d64e6ca3b6/crates/gpui/src/platform/windows/events.rs#L1418-L1454>
+pub fn calculate_window_insets(window: HWND) -> RECT {
+    // - On Windows 10
+    // The top inset must be zero, since if there is any nonclient area, Windows will draw
+    // a full native titlebar outside the client area. (This doesn't occur in the maximized
+    // case.)
+    //
+    // - On Windows 11
+    // The top inset is calculated using an empirical formula that I derived through various
+    // tests. Without this, the top 1-2 rows of pixels in our window would be obscured.
+    let dpi = unsafe { super::dpi::hwnd_dpi(window) };
+
+    let frame_thickness = get_frame_thickness(dpi);
+
+    let top_inset = match *WIN_VERSION {
+        Some(v) if v.dwBuildNumber >= 22000 => {
+            (dpi as f32 / USER_DEFAULT_SCREEN_DPI as f32).round() as i32
+        },
+        _ => 0,
+    };
+
+    RECT { left: frame_thickness, top: top_inset, right: frame_thickness, bottom: frame_thickness }
+}
+
+pub fn window_rect(hwnd: HWND) -> RECT {
+    unsafe {
+        let mut rect = std::mem::zeroed();
+        if GetWindowRect(hwnd, &mut rect) == false.into() {
+            panic!(
+                "Unexpected GetWindowRect failure: please report this error to \
+                 rust-windowing/winit"
+            )
+        }
+        rect
+    }
+}
+
+pub fn client_rect(hwnd: HWND) -> RECT {
+    unsafe {
+        let mut rect = std::mem::zeroed();
+        if GetClientRect(hwnd, &mut rect) == false.into() {
+            panic!(
+                "Unexpected GetClientRect failure: please report this error to \
+                 rust-windowing/winit"
+            )
+        }
+        rect
+    }
+}
