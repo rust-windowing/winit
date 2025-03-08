@@ -116,7 +116,7 @@ unsafe fn replace_im(inner: *mut ImeInner) -> Result<(), ReplaceImError> {
 
     let mut new_contexts = HashMap::new();
     for (window, old_context) in unsafe { (*inner).contexts.iter() } {
-        let spot = old_context.as_ref().map(|old_context| old_context.ic_spot);
+        let area = old_context.as_ref().map(|old_context| old_context.ic_area);
 
         // Check if the IME was allowed on that context.
         let is_allowed =
@@ -128,7 +128,7 @@ unsafe fn replace_im(inner: *mut ImeInner) -> Result<(), ReplaceImError> {
                     xconn,
                     &new_im,
                     *window,
-                    spot,
+                    area,
                     (*inner).event_sender.clone(),
                     is_allowed,
                 )
