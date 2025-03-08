@@ -415,6 +415,22 @@ impl CoreWindow for Window {
         Some(unsafe { IsWindowVisible(self.window.hwnd()) == 1 })
     }
 
+    pub fn set_focusable(&self, focusable: bool) {
+        let window = self.window.clone();
+        let window_state = Arc::clone(&self.window_state);
+        self.thread_executor.execute_in_thread(move || {
+            let _ = &window;
+            WindowState::set_window_flags(window_state.lock().unwrap(), window, |f| {
+                f.set(WindowFlags::FOCUSABLE, focusable)
+            });
+        });
+    }
+
+    pub fn is_focusable(&self) -> Option<bool> {
+        let window_flags = self.window_state_lock().window_flags;
+        Some(window_flags.contains(WindowFlags::FOCUSABLE))
+    }
+
     fn request_redraw(&self) {
         // NOTE: mark that we requested a redraw to handle requests during `WM_PAINT` handling.
         self.window_state.lock().unwrap().redraw_requested = true;
@@ -1293,6 +1309,7 @@ unsafe fn init(
     unsafe { register_window_class(&class_name) };
 
     let mut window_flags = WindowFlags::empty();
+    window_flags.set(WindowFlags::FOCUSABLE, attributes.focusable);
     window_flags.set(WindowFlags::MARKER_DECORATIONS, attributes.decorations);
     window_flags.set(
         WindowFlags::MARKER_UNDECORATED_SHADOW,

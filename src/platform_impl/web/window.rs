@@ -237,6 +237,15 @@ impl RootWindow for Window {
         None
     }
 
+    pub fn set_focusable(&self, focusable: bool) {
+        warn!("`Window::set_focusable` is ignored on Web");
+    }
+
+    pub fn is_focusable(&self) -> Option<bool> {
+        warn!("`Window::is_focusable` is ignored on Web");
+        None
+    }
+
     fn set_resizable(&self, _: bool) {
         // Intentionally a no-op: users can't resize canvas elements
     }
