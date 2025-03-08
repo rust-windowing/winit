@@ -7,6 +7,7 @@ use sctk::reexports::client::Proxy;
 
 use crate::dpi::{LogicalPosition, PhysicalPosition};
 use crate::monitor::{MonitorHandleProvider as CoreMonitorHandle, VideoMode};
+use crate::utils::OpaqueObject;
 
 #[derive(Clone, Debug)]
 pub struct MonitorHandle {
@@ -80,6 +81,8 @@ impl PartialEq for MonitorHandle {
 }
 
 impl Eq for MonitorHandle {}
+
+impl OpaqueObject for MonitorHandle {}
 
 /// Convert the wayland's [`Mode`] to winit's [`VideoMode`].
 fn wayland_mode_to_core_mode(mode: Mode) -> VideoMode {

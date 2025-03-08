@@ -30,6 +30,7 @@ use super::ffi;
 use super::util::cgerr;
 use crate::dpi::{LogicalPosition, PhysicalPosition, PhysicalSize};
 use crate::monitor::{MonitorHandleProvider, VideoMode};
+use crate::utils::OpaqueObject;
 
 #[derive(Clone)]
 pub struct VideoModeHandle {
@@ -215,6 +216,8 @@ impl MonitorHandleProvider for MonitorHandle {
         Box::new(self.video_mode_handles().map(|mode| mode.mode))
     }
 }
+
+impl OpaqueObject for MonitorHandle {}
 
 // `CGDirectDisplayID` changes on video mode change, so we cannot rely on that
 // for comparisons, but we can use `CGDisplayCreateUUIDFromDisplayID` to get an

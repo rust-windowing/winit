@@ -33,6 +33,7 @@ use crate::monitor::MonitorHandle as CoreMonitorHandle;
 use crate::platform::macos::ActivationPolicy;
 use crate::platform::pump_events::PumpStatus;
 use crate::platform_impl::Window;
+use crate::utils::OpaqueObject;
 use crate::window::{CustomCursor as RootCustomCursor, CustomCursorSource, Theme};
 
 #[derive(Default)]
@@ -164,6 +165,8 @@ impl RootActiveEventLoop for ActiveEventLoop {
         self
     }
 }
+
+impl OpaqueObject for ActiveEventLoop {}
 
 impl rwh_06::HasDisplayHandle for ActiveEventLoop {
     fn display_handle(&self) -> Result<rwh_06::DisplayHandle<'_>, rwh_06::HandleError> {

@@ -14,9 +14,10 @@ use crate::dpi::{LogicalInsets, PhysicalInsets, PhysicalPosition, PhysicalSize, 
 use crate::error::{NotSupportedError, RequestError};
 use crate::icon::Icon;
 use crate::monitor::{Fullscreen, MonitorHandle as CoremMonitorHandle};
+use crate::utils::OpaqueObject;
 use crate::window::{
     Cursor, CursorGrabMode, ImePurpose, ResizeDirection, Theme, UserAttentionType,
-    Window as RootWindow, WindowAttributes, WindowButtons, WindowId, WindowLevel,
+    Window as CoreWindow, WindowAttributes, WindowButtons, WindowId, WindowLevel,
 };
 
 pub struct Window {
@@ -99,7 +100,7 @@ impl Window {
     }
 }
 
-impl RootWindow for Window {
+impl CoreWindow for Window {
     fn id(&self) -> WindowId {
         self.inner.queue(|inner| inner.id)
     }
@@ -420,6 +421,8 @@ impl RootWindow for Window {
         self
     }
 }
+
+impl OpaqueObject for Window {}
 
 impl rwh_06::HasWindowHandle for Window {
     fn window_handle(&self) -> Result<rwh_06::WindowHandle<'_>, rwh_06::HandleError> {

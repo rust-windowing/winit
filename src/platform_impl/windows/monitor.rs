@@ -16,6 +16,7 @@ use crate::dpi::{PhysicalPosition, PhysicalSize};
 use crate::monitor::{MonitorHandleProvider, VideoMode};
 use crate::platform_impl::platform::dpi::{dpi_to_scale_factor, get_monitor_dpi};
 use crate::platform_impl::platform::util::has_flag;
+use crate::utils::OpaqueObject;
 
 #[derive(Clone)]
 pub struct VideoModeHandle {
@@ -209,3 +210,5 @@ impl MonitorHandleProvider for MonitorHandle {
         Box::new(self.video_mode_handles().map(|mode| mode.mode))
     }
 }
+
+impl OpaqueObject for MonitorHandle {}

@@ -37,7 +37,7 @@ use crate::platform_impl::common::xkb::Context;
 use crate::platform_impl::platform::min_timeout;
 use crate::platform_impl::x11::window::Window;
 use crate::platform_impl::PlatformCustomCursor;
-use crate::utils::Lazy;
+use crate::utils::{Lazy, OpaqueObject};
 use crate::window::{
     CustomCursor as RootCustomCursor, CustomCursorSource, Theme, Window as CoreWindow,
     WindowAttributes, WindowId,
@@ -789,6 +789,8 @@ impl rwh_06::HasDisplayHandle for ActiveEventLoop {
         self.xconn.display_handle()
     }
 }
+
+impl OpaqueObject for ActiveEventLoop {}
 
 struct DeviceInfo<'a> {
     xconn: &'a XConnection,

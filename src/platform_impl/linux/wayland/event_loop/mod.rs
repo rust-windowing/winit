@@ -24,6 +24,7 @@ use crate::monitor::MonitorHandle as CoreMonitorHandle;
 use crate::platform::pump_events::PumpStatus;
 use crate::platform_impl::platform::min_timeout;
 use crate::platform_impl::PlatformCustomCursor;
+use crate::utils::OpaqueObject;
 use crate::window::{CustomCursor as RootCustomCursor, CustomCursorSource, Theme};
 
 mod proxy;
@@ -647,6 +648,8 @@ impl RootActiveEventLoop for ActiveEventLoop {
         self
     }
 }
+
+impl OpaqueObject for ActiveEventLoop {}
 
 impl ActiveEventLoop {
     fn clear_exit(&self) {

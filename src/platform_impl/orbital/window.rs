@@ -8,6 +8,7 @@ use crate::cursor::Cursor;
 use crate::dpi::{PhysicalInsets, PhysicalPosition, PhysicalSize, Position, Size};
 use crate::error::{NotSupportedError, RequestError};
 use crate::monitor::{Fullscreen, MonitorHandle as CoreMonitorHandle};
+use crate::utils::OpaqueObject;
 use crate::window::{self, ImePurpose, Window as CoreWindow, WindowId};
 
 // These values match the values uses in the `window_new` function in orbital:
@@ -460,6 +461,8 @@ impl CoreWindow for Window {
         self
     }
 }
+
+impl OpaqueObject for Window {}
 
 impl rwh_06::HasWindowHandle for Window {
     fn window_handle(&self) -> Result<rwh_06::WindowHandle<'_>, rwh_06::HandleError> {

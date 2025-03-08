@@ -28,6 +28,7 @@ use crate::event::WindowEvent;
 use crate::icon::Icon;
 use crate::monitor::{Fullscreen, MonitorHandle as CoreMonitorHandle};
 use crate::platform::ios::{ScreenEdge, StatusBarStyle, ValidOrientations};
+use crate::utils::OpaqueObject;
 use crate::window::{
     CursorGrabMode, ImePurpose, ResizeDirection, Theme, UserAttentionType, Window as CoreWindow,
     WindowAttributes, WindowButtons, WindowId, WindowLevel,
@@ -809,6 +810,8 @@ impl CoreWindow for Window {
         self
     }
 }
+
+impl OpaqueObject for Window {}
 
 // WindowExtIOS
 impl Inner {

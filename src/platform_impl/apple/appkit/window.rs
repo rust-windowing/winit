@@ -13,6 +13,7 @@ use super::event_loop::ActiveEventLoop;
 use super::window_delegate::WindowDelegate;
 use crate::error::RequestError;
 use crate::monitor::{Fullscreen, MonitorHandle as CoreMonitorHandle};
+use crate::utils::OpaqueObject;
 use crate::window::{
     Cursor, Icon, ImePurpose, Theme, UserAttentionType, Window as CoreWindow, WindowAttributes,
     WindowButtons, WindowId, WindowLevel,
@@ -338,6 +339,8 @@ impl CoreWindow for Window {
         self
     }
 }
+
+impl OpaqueObject for Window {}
 
 define_class!(
     #[unsafe(super(NSWindow, NSResponder, NSObject))]
