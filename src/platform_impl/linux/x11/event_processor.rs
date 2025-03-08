@@ -89,8 +89,8 @@ impl EventProcessor {
 
             let ime = ime.get_mut();
             match request {
-                ImeRequest::Position(window_id, x, y) => {
-                    ime.send_xim_spot(window_id, x, y);
+                ImeRequest::Area(window_id, x, y, w, h) => {
+                    ime.send_xim_area(window_id, x, y, w, h);
                 },
                 ImeRequest::Allow(window_id, allowed) => {
                     ime.set_ime_allowed(window_id, allowed);
