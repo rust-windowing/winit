@@ -72,6 +72,7 @@ use crate::platform_impl::platform::window_state::{
     CursorFlags, SavedWindow, WindowFlags, WindowState,
 };
 use crate::platform_impl::platform::{monitor, util, SelectedCursor};
+use crate::utils::OpaqueObject;
 use crate::window::{
     CursorGrabMode, ImePurpose, ResizeDirection, Theme, UserAttentionType, Window as CoreWindow,
     WindowAttributes, WindowButtons, WindowId, WindowLevel,
@@ -1093,6 +1094,8 @@ impl CoreWindow for Window {
         self
     }
 }
+
+impl OpaqueObject for Window {}
 
 pub(super) struct InitData<'a> {
     // inputs

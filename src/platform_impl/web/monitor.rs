@@ -32,6 +32,7 @@ use crate::monitor::{MonitorHandle as CoreMonitorHandle, MonitorHandleProvider, 
 use crate::platform::web::{
     MonitorPermissionError, Orientation, OrientationData, OrientationLock, OrientationLockError,
 };
+use crate::utils::OpaqueObject;
 
 #[derive(Clone, Eq)]
 pub struct MonitorHandle {
@@ -152,6 +153,8 @@ impl MonitorHandleProvider for MonitorHandle {
         Box::new(self.current_video_mode().into_iter())
     }
 }
+
+impl OpaqueObject for MonitorHandle {}
 
 impl Debug for MonitorHandle {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {

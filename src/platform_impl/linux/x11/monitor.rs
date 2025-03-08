@@ -7,6 +7,7 @@ use x11rb::protocol::xproto;
 use super::{util, X11Error, XConnection};
 use crate::dpi::PhysicalPosition;
 use crate::monitor::{MonitorHandleProvider, VideoMode};
+use crate::utils::OpaqueObject;
 
 // Used for testing. This should always be committed as false.
 const DISABLE_MONITOR_LIST_CACHING: bool = false;
@@ -78,6 +79,8 @@ impl MonitorHandleProvider for MonitorHandle {
         Box::new(self.video_modes.clone().into_iter().map(|mode| mode.into()))
     }
 }
+
+impl OpaqueObject for MonitorHandle {}
 
 impl PartialEq for MonitorHandle {
     fn eq(&self, other: &Self) -> bool {

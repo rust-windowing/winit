@@ -30,6 +30,7 @@ use crate::event_loop::{
 };
 use crate::monitor::MonitorHandle as CoreMonitorHandle;
 use crate::platform_impl::Window;
+use crate::utils::OpaqueObject;
 use crate::window::{CustomCursor, CustomCursorSource, Theme, Window as CoreWindow};
 
 #[derive(Debug)]
@@ -102,6 +103,8 @@ impl RootActiveEventLoop for ActiveEventLoop {
         self
     }
 }
+
+impl OpaqueObject for ActiveEventLoop {}
 
 impl rwh_06::HasDisplayHandle for ActiveEventLoop {
     fn display_handle(&self) -> Result<rwh_06::DisplayHandle<'_>, rwh_06::HandleError> {

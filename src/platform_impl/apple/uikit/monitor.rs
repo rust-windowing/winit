@@ -12,6 +12,7 @@ use objc2_ui_kit::{UIScreen, UIScreenMode};
 
 use crate::dpi::PhysicalPosition;
 use crate::monitor::{MonitorHandleProvider, VideoMode};
+use crate::utils::OpaqueObject;
 
 // Workaround for `MainThreadBound` implementing almost no traits
 #[derive(Debug)]
@@ -129,6 +130,8 @@ impl MonitorHandleProvider for MonitorHandle {
         Box::new(self.video_modes())
     }
 }
+
+impl OpaqueObject for MonitorHandle {}
 
 impl Clone for MonitorHandle {
     fn clone(&self) -> Self {

@@ -91,7 +91,7 @@ use crate::platform_impl::platform::window_state::{
 };
 use crate::platform_impl::platform::{raw_input, util, wrap_device_id};
 use crate::platform_impl::Window;
-use crate::utils::Lazy;
+use crate::utils::{Lazy, OpaqueObject};
 use crate::window::{
     CustomCursor as RootCustomCursor, CustomCursorSource, Theme, Window as CoreWindow,
     WindowAttributes, WindowId,
@@ -469,6 +469,8 @@ impl RootActiveEventLoop for ActiveEventLoop {
         self
     }
 }
+
+impl OpaqueObject for ActiveEventLoop {}
 
 impl rwh_06::HasDisplayHandle for ActiveEventLoop {
     fn display_handle(&self) -> Result<rwh_06::DisplayHandle<'_>, rwh_06::HandleError> {

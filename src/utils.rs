@@ -33,7 +33,7 @@ pub trait AsAny {
     fn as_any_mut(&mut self) -> &mut dyn Any;
 }
 
-impl<T: Any> AsAny for T {
+impl<T: OpaqueObject> AsAny for T {
     #[inline(always)]
     fn as_any(&self) -> &dyn Any {
         self
@@ -44,3 +44,6 @@ impl<T: Any> AsAny for T {
         self
     }
 }
+
+/// Marker to help ensure that dynamic casting is performed on the right object.
+pub trait OpaqueObject: 'static {}

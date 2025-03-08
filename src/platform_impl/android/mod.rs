@@ -22,6 +22,7 @@ use crate::event_loop::{
 };
 use crate::monitor::{Fullscreen, MonitorHandle as CoreMonitorHandle};
 use crate::platform::pump_events::PumpStatus;
+use crate::utils::OpaqueObject;
 use crate::window::{
     self, CursorGrabMode, CustomCursor, CustomCursorSource, ImePurpose, ResizeDirection, Theme,
     Window as CoreWindow, WindowAttributes, WindowButtons, WindowId, WindowLevel,
@@ -738,6 +739,8 @@ impl RootActiveEventLoop for ActiveEventLoop {
     }
 }
 
+impl OpaqueObject for ActiveEventLoop {}
+
 impl rwh_06::HasDisplayHandle for ActiveEventLoop {
     fn display_handle(&self) -> Result<rwh_06::DisplayHandle<'_>, rwh_06::HandleError> {
         let raw = rwh_06::AndroidDisplayHandle::new();
@@ -1006,6 +1009,8 @@ impl CoreWindow for Window {
         self
     }
 }
+
+impl OpaqueObject for Window {}
 
 #[derive(Default, Clone, Debug)]
 pub struct OsError;
