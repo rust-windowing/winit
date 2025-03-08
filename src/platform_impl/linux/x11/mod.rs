@@ -6,7 +6,7 @@ use std::ops::Deref;
 use std::os::raw::*;
 use std::os::unix::io::{AsFd, AsRawFd, BorrowedFd, RawFd};
 use std::sync::mpsc::{self, Receiver, Sender, TryRecvError};
-use std::sync::{Arc, Weak};
+use std::sync::{Arc, Mutex, Weak};
 use std::time::{Duration, Instant};
 use std::{fmt, mem, ptr, slice, str};
 
@@ -32,10 +32,12 @@ use crate::event_loop::{
 };
 use crate::monitor::MonitorHandle as CoreMonitorHandle;
 use crate::platform::pump_events::PumpStatus;
+use crate::platform::x11::XlibErrorHook;
 use crate::platform_impl::common::xkb::Context;
 use crate::platform_impl::platform::min_timeout;
 use crate::platform_impl::x11::window::Window;
 use crate::platform_impl::PlatformCustomCursor;
+use crate::utils::Lazy;
 use crate::window::{
     CustomCursor as RootCustomCursor, CustomCursorSource, Theme, Window as CoreWindow,
     WindowAttributes, WindowId,
@@ -71,6 +73,61 @@ const ICONIC_STATE: u32 = 3;
 type X11rbConnection = x11rb::xcb_ffi::XCBConnection;
 
 type X11Source = Generic<BorrowedFd<'static>>;
+
+#[cfg(x11_platform)]
+pub(crate) static X11_BACKEND: Lazy<Mutex<Result<Arc<XConnection>, XNotSupported>>> =
+    Lazy::new(|| Mutex::new(XConnection::new(Some(x_error_callback)).map(Arc::new)));
+
+/// Hooks for X11 errors.
+#[cfg(x11_platform)]
+pub(crate) static XLIB_ERROR_HOOKS: Mutex<Vec<XlibErrorHook>> = Mutex::new(Vec::new());
+
+#[cfg(x11_platform)]
+unsafe extern "C" fn x_error_callback(
+    display: *mut ffi::Display,
+    event: *mut ffi::XErrorEvent,
+) -> c_int {
+    let xconn_lock = X11_BACKEND.lock().unwrap_or_else(|e| e.into_inner());
+    if let Ok(ref xconn) = *xconn_lock {
+        // Call all the hooks.
+        let mut error_handled = false;
+        for hook in XLIB_ERROR_HOOKS.lock().unwrap().iter() {
+            error_handled |= hook(display as *mut _, event as *mut _);
+        }
+
+        // `assume_init` is safe here because the array consists of `MaybeUninit` values,
+        // which do not require initialization.
+        let mut buf: [MaybeUninit<c_char>; 1024] = unsafe { MaybeUninit::uninit().assume_init() };
+        unsafe {
+            (xconn.xlib.XGetErrorText)(
+                display,
+                (*event).error_code as c_int,
+                buf.as_mut_ptr() as *mut c_char,
+                buf.len() as c_int,
+            )
+        };
+        let description =
+            unsafe { CStr::from_ptr(buf.as_ptr() as *const c_char) }.to_string_lossy();
+
+        let error = unsafe {
+            XError {
+                description: description.into_owned(),
+                error_code: (*event).error_code,
+                request_code: (*event).request_code,
+                minor_code: (*event).minor_code,
+            }
+        };
+
+        // Don't log error.
+        if !error_handled {
+            tracing::error!("X11 error: {:#?}", error);
+            // XXX only update the error, if it wasn't handled by any of the hooks.
+            *xconn.latest_error.lock().unwrap() = Some(error);
+        }
+    }
+    // Fun fact: this return value is completely ignored.
+    0
+}
 
 #[derive(Debug)]
 struct WakeSender<T> {
@@ -172,7 +229,12 @@ struct EventLoopState {
 }
 
 impl EventLoop {
-    pub(crate) fn new(xconn: Arc<XConnection>) -> EventLoop {
+    pub(crate) fn new() -> Result<EventLoop, EventLoopError> {
+        let xconn = match X11_BACKEND.lock().unwrap_or_else(|e| e.into_inner()).as_ref() {
+            Ok(xconn) => xconn.clone(),
+            Err(err) => return Err(os_error!(err.clone()).into()),
+        };
+
         let root = xconn.default_root().root;
         let atoms = xconn.atoms();
 
@@ -365,14 +427,16 @@ impl EventLoop {
 
         event_processor.init_device(ALL_DEVICES);
 
-        EventLoop {
+        let event_loop = EventLoop {
             loop_running: false,
             event_loop,
             event_processor,
             redraw_receiver: PeekableReceiver::from_recv(redraw_channel),
             activation_receiver: PeekableReceiver::from_recv(activation_token_channel),
             state: EventLoopState { x11_readiness: Readiness::EMPTY, proxy_wake_up: false },
-        }
+        };
+
+        Ok(event_loop)
     }
 
     pub(crate) fn window_target(&self) -> &dyn RootActiveEventLoop {

@@ -79,7 +79,7 @@ pub type XWindow = u32;
 #[inline]
 pub fn register_xlib_error_hook(hook: XlibErrorHook) {
     // Append new hook.
-    crate::platform_impl::XLIB_ERROR_HOOKS.lock().unwrap().push(hook);
+    crate::platform_impl::x11::XLIB_ERROR_HOOKS.lock().unwrap().push(hook);
 }
 
 /// Additional methods on [`ActiveEventLoop`] that are specific to X11.
