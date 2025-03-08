@@ -36,7 +36,7 @@ use objc2_foundation::{
 use tracing::{trace, warn};
 
 use super::app_state::AppState;
-use super::cursor::cursor_from_icon;
+use super::cursor::{cursor_from_icon, CustomCursor};
 use super::monitor::{self, flip_window_screen_coordinates, get_display_id};
 use super::observer::RunLoop;
 use super::util::cgerr;
@@ -1249,7 +1249,13 @@ impl WindowDelegate {
 
         let cursor = match cursor {
             Cursor::Icon(icon) => cursor_from_icon(icon),
-            Cursor::Custom(cursor) => cursor.inner.0,
+            Cursor::Custom(cursor) => match cursor.cast_ref::<CustomCursor>() {
+                Some(cursor) => cursor.0.clone(),
+                None => {
+                    tracing::error!("unrecognized cursor passed to Wayland backend");
+                    return;
+                },
+            },
         };
 
         if view.cursor_icon() == cursor {

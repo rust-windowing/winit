@@ -31,7 +31,7 @@ use winit::platform::startup_notify::{
     self, EventLoopExtStartupNotify, WindowAttributesExtStartupNotify, WindowExtStartupNotify,
 };
 #[cfg(web_platform)]
-use winit::platform::web::{ActiveEventLoopExtWeb, CustomCursorExtWeb, WindowAttributesExtWeb};
+use winit::platform::web::{ActiveEventLoopExtWeb, WindowAttributesExtWeb};
 #[cfg(x11_platform)]
 use winit::platform::x11::WindowAttributesExtX11;
 use winit::window::{
@@ -836,7 +836,7 @@ impl WindowState {
             custom_cursors[1].clone(),
             event_loop.create_custom_cursor(url_custom_cursor())?,
         ];
-        let cursor = CustomCursor::from_animation(Duration::from_secs(3), cursors).unwrap();
+        let cursor = CustomCursorSource::from_animation(Duration::from_secs(3), cursors).unwrap();
         let cursor = event_loop.create_custom_cursor(cursor)?;
 
         self.window.set_cursor(cursor.into());
@@ -1097,7 +1097,7 @@ fn decode_cursor(bytes: &[u8]) -> CustomCursorSource {
     let samples = img.into_flat_samples();
     let (_, w, h) = samples.extents();
     let (w, h) = (w as u16, h as u16);
-    CustomCursor::from_rgba(samples.samples, w, h, w / 2, h / 2).unwrap()
+    CustomCursorSource::from_rgba(samples.samples, w, h, w / 2, h / 2).unwrap()
 }
 
 #[cfg(web_platform)]
@@ -1106,11 +1106,14 @@ fn url_custom_cursor() -> CustomCursorSource {
 
     static URL_COUNTER: AtomicU64 = AtomicU64::new(0);
 
-    CustomCursor::from_url(
-        format!("https://picsum.photos/128?random={}", URL_COUNTER.fetch_add(1, Ordering::Relaxed)),
-        64,
-        64,
-    )
+    CustomCursorSource::Url {
+        hotspot_x: 64,
+        hotspot_y: 64,
+        url: format!(
+            "https://picsum.photos/128?random={}",
+            URL_COUNTER.fetch_add(1, Ordering::Relaxed)
+        ),
+    }
 }
 
 fn load_icon(bytes: &[u8]) -> Icon {

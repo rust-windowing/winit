@@ -24,49 +24,16 @@ use super::backend::Style;
 use super::main_thread::{MainThreadMarker, MainThreadSafe};
 use super::r#async::{AbortHandle, Abortable, DropAbortHandle, Notified, Notifier};
 use super::ActiveEventLoop;
-use crate::cursor::{BadImage, Cursor, CursorImage, CustomCursor as RootCustomCursor};
+use crate::cursor::{
+    Cursor, CursorAnimation, CursorImage, CustomCursorProvider, CustomCursorSource,
+};
 use crate::platform::web::CustomCursorError;
-
-#[derive(Clone, Debug, Eq, Hash, PartialEq)]
-pub(crate) enum CustomCursorSource {
-    Image(CursorImage),
-    Url { url: String, hotspot_x: u16, hotspot_y: u16 },
-    Animation { duration: Duration, cursors: Vec<RootCustomCursor> },
-}
-
-impl CustomCursorSource {
-    pub fn from_rgba(
-        rgba: Vec<u8>,
-        width: u16,
-        height: u16,
-        hotspot_x: u16,
-        hotspot_y: u16,
-    ) -> Result<CustomCursorSource, BadImage> {
-        Ok(CustomCursorSource::Image(CursorImage::from_rgba(
-            rgba, width, height, hotspot_x, hotspot_y,
-        )?))
-    }
-}
 
 #[derive(Clone, Debug)]
 pub struct CustomCursor {
     pub(crate) animation: bool,
     state: Arc<MainThreadSafe<RefCell<ImageState>>>,
 }
-
-impl Hash for CustomCursor {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        Arc::as_ptr(&self.state).hash(state);
-    }
-}
-
-impl PartialEq for CustomCursor {
-    fn eq(&self, other: &Self) -> bool {
-        Arc::ptr_eq(&self.state, &other.state)
-    }
-}
-
-impl Eq for CustomCursor {}
 
 impl CustomCursor {
     pub(crate) fn new(event_loop: &ActiveEventLoop, source: CustomCursorSource) -> Self {
@@ -81,15 +48,13 @@ impl CustomCursor {
                 from_url(UrlType::Plain(url), hotspot_x, hotspot_y),
                 false,
             ),
-            CustomCursorSource::Animation { duration, cursors } => Self::build_spawn(
-                event_loop,
-                from_animation(
-                    event_loop.runner.main_thread(),
-                    duration,
-                    cursors.into_iter().map(|cursor| cursor.inner),
-                ),
-                true,
-            ),
+            CustomCursorSource::Animation(CursorAnimation { duration, cursors }) => {
+                Self::build_spawn(
+                    event_loop,
+                    from_animation(event_loop.runner.main_thread(), duration, cursors.into_iter()),
+                    true,
+                )
+            },
         }
     }
 
@@ -163,6 +128,26 @@ impl CustomCursor {
     }
 }
 
+impl Hash for CustomCursor {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        Arc::as_ptr(&self.state).hash(state);
+    }
+}
+
+impl PartialEq for CustomCursor {
+    fn eq(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.state, &other.state)
+    }
+}
+
+impl Eq for CustomCursor {}
+
+impl CustomCursorProvider for CustomCursor {
+    fn is_animated(&self) -> bool {
+        self.animation
+    }
+}
+
 #[derive(Debug)]
 pub struct CustomCursorFuture {
     notified: Notified<Result<(), CustomCursorError>>,
@@ -230,13 +215,16 @@ impl CursorHandler {
                 this.set_style();
             },
             Cursor::Custom(cursor) => {
-                let cursor = cursor.inner;
+                let cursor = match cursor.cast_ref::<CustomCursor>() {
+                    Some(cursor) => cursor,
+                    None => todo!(),
+                };
 
                 if let SelectedCursor::Loading { cursor: old_cursor, .. }
                 | SelectedCursor::Image(old_cursor)
                 | SelectedCursor::Animation { cursor: old_cursor, .. } = &this.cursor
                 {
-                    if *old_cursor == cursor {
+                    if old_cursor == cursor {
                         return;
                     }
                 }
@@ -263,7 +251,7 @@ impl CursorHandler {
 
                         drop(state);
                         this.cursor = SelectedCursor::Loading {
-                            cursor,
+                            cursor: cursor.clone(),
                             previous: mem::take(&mut this.cursor).into(),
                             _handle: handle,
                         };
@@ -275,7 +263,7 @@ impl CursorHandler {
                     },
                     ImageState::Image(_) => {
                         drop(state);
-                        this.cursor = SelectedCursor::Image(cursor);
+                        this.cursor = SelectedCursor::Image(cursor.clone());
                         this.set_style();
                     },
                     ImageState::Animation(animation) => {
@@ -292,7 +280,7 @@ impl CursorHandler {
 
                         this.cursor = SelectedCursor::Animation {
                             animation: AnimationDropper(animation),
-                            cursor,
+                            cursor: cursor.clone(),
                         };
                         this.set_style();
                     },
@@ -650,12 +638,13 @@ async fn from_url(
 async fn from_animation(
     main_thread: MainThreadMarker,
     duration: Duration,
-    cursors: impl ExactSizeIterator<Item = CustomCursor>,
+    cursors: impl ExactSizeIterator<Item = crate::cursor::CustomCursor>,
 ) -> Result<Animation, CustomCursorError> {
     let keyframes = Array::new();
     let mut images = Vec::with_capacity(cursors.len());
 
     for cursor in cursors {
+        let cursor = cursor.cast_ref::<CustomCursor>().unwrap();
         let state = cursor.state.get(main_thread).borrow();
 
         match state.deref() {
@@ -680,7 +669,7 @@ async fn from_animation(
         keyframes.push(&keyframe);
         drop(state);
 
-        images.push(cursor);
+        images.push(cursor.clone());
     }
 
     keyframes.push(&keyframes.get(0));

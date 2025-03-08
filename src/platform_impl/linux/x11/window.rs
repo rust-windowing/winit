@@ -19,10 +19,11 @@ use x11rb::protocol::{randr, xinput};
 
 use super::util::{self, SelectedCursor};
 use super::{
-    ffi, ActiveEventLoop, CookieResultExt, ImeRequest, ImeSender, VoidCookie, XConnection,
+    ffi, ActiveEventLoop, CookieResultExt, CustomCursor, ImeRequest, ImeSender, VoidCookie,
+    XConnection,
 };
 use crate::application::ApplicationHandler;
-use crate::cursor::{Cursor, CustomCursor as RootCustomCursor};
+use crate::cursor::Cursor;
 use crate::dpi::{PhysicalInsets, PhysicalPosition, PhysicalSize, Position, Size};
 use crate::error::{NotSupportedError, RequestError};
 use crate::event::{SurfaceSizeWriter, WindowEvent};
@@ -35,7 +36,7 @@ use crate::platform_impl::x11::atoms::*;
 use crate::platform_impl::x11::{
     xinput_fp1616_to_float, MonitorHandle as X11MonitorHandle, WakeSender, X11Error,
 };
-use crate::platform_impl::{common, PlatformCustomCursor, PlatformIcon};
+use crate::platform_impl::{common, PlatformIcon};
 use crate::window::{
     CursorGrabMode, ImePurpose, ResizeDirection, Theme, UserAttentionType, Window as CoreWindow,
     WindowAttributes, WindowButtons, WindowId, WindowLevel,
@@ -1808,19 +1809,23 @@ impl UnownedWindow {
                     }
                 }
             },
-            Cursor::Custom(RootCustomCursor { inner: PlatformCustomCursor::X(cursor) }) => {
+            Cursor::Custom(cursor) => {
+                let cursor = match cursor.cast_ref::<CustomCursor>() {
+                    Some(cursor) => cursor,
+                    None => {
+                        tracing::error!("unrecognized cursor passed to X11 backend");
+                        return;
+                    },
+                };
+
                 #[allow(clippy::mutex_atomic)]
                 if *self.cursor_visible.lock().unwrap() {
-                    if let Err(err) = self.xconn.set_custom_cursor(self.xwindow, &cursor) {
+                    if let Err(err) = self.xconn.set_custom_cursor(self.xwindow, cursor) {
                         tracing::error!("failed to set window icon: {err}");
                     }
                 }
 
-                *self.selected_cursor.lock().unwrap() = SelectedCursor::Custom(cursor);
-            },
-            #[cfg(wayland_platform)]
-            Cursor::Custom(RootCustomCursor { inner: PlatformCustomCursor::Wayland(_) }) => {
-                tracing::error!("passed a Wayland cursor to X11 backend")
+                *self.selected_cursor.lock().unwrap() = SelectedCursor::Custom(cursor.clone());
             },
         }
     }

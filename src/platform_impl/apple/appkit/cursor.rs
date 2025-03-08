@@ -10,12 +10,18 @@ use objc2_foundation::{
     ns_string, NSData, NSDictionary, NSNumber, NSObject, NSPoint, NSSize, NSString,
 };
 
-use crate::cursor::{CursorImage, OnlyCursorImageSource};
-use crate::error::RequestError;
+use crate::cursor::{CursorImage, CustomCursorProvider, CustomCursorSource};
+use crate::error::{NotSupportedError, RequestError};
 use crate::window::CursorIcon;
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct CustomCursor(pub(crate) Retained<NSCursor>);
+
+impl CustomCursorProvider for CustomCursor {
+    fn is_animated(&self) -> bool {
+        false
+    }
+}
 
 // SAFETY: NSCursor is immutable and thread-safe
 // TODO(madsmtm): Put this logic in objc2-app-kit itself
@@ -23,8 +29,15 @@ unsafe impl Send for CustomCursor {}
 unsafe impl Sync for CustomCursor {}
 
 impl CustomCursor {
-    pub(crate) fn new(cursor: OnlyCursorImageSource) -> Result<CustomCursor, RequestError> {
-        cursor_from_image(&cursor.0).map(Self)
+    pub(crate) fn new(cursor: CustomCursorSource) -> Result<CustomCursor, RequestError> {
+        let cursor = match cursor {
+            CustomCursorSource::Image(cursor_image) => cursor_image,
+            CustomCursorSource::Animation { .. } | CustomCursorSource::Url { .. } => {
+                return Err(NotSupportedError::new("not supported cursor format.").into())
+            },
+        };
+
+        cursor_from_image(&cursor).map(Self)
     }
 }
 

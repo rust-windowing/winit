@@ -2,7 +2,16 @@ use cursor_icon::CursorIcon;
 use sctk::reexports::client::protocol::wl_shm::Format;
 use sctk::shm::slot::{Buffer, SlotPool};
 
-use crate::cursor::CursorImage;
+use crate::cursor::{CursorImage, CustomCursorProvider};
+
+// Wrap in our own type to not impl trait on global type.
+#[derive(Debug)]
+pub struct WaylandCustomCursor(pub(crate) CursorImage);
+impl CustomCursorProvider for WaylandCustomCursor {
+    fn is_animated(&self) -> bool {
+        false
+    }
+}
 
 #[derive(Debug)]
 pub enum SelectedCursor {
@@ -26,7 +35,8 @@ pub struct CustomCursor {
 }
 
 impl CustomCursor {
-    pub(crate) fn new(pool: &mut SlotPool, image: &CursorImage) -> Self {
+    pub(crate) fn new(pool: &mut SlotPool, image: &WaylandCustomCursor) -> Self {
+        let image = &image.0;
         let (buffer, canvas) = pool
             .create_buffer(
                 image.width as i32,

@@ -74,6 +74,8 @@ changelog entry.
 - On Windows, add `IconExtWindows::from_resource_name`.
 - Implement `MonitorHandleProvider` for `MonitorHandle` to access common monitor API.
 - On X11, set an "area" attribute on XIM input connection to convey the cursor area.
+- Implement `CustomCursorProvider` for `CustomCursor` to access cursor API.
+- Add `CustomCursorSource::Url`, `CustomCursorSource::from_animation`.
 
 ### Changed
 
@@ -223,7 +225,9 @@ changelog entry.
 - Remove `WindowEvent::Touch` and `Touch` in favor of the new `PointerKind`, `PointerSource` and
  `ButtonSource` as part of the new pointer event overhaul.
 - Remove `Force::altitude_angle`.
-- Removed `Window::inner_position`, use the new `Window::surface_position` instead.
+- Remove `Window::inner_position`, use the new `Window::surface_position` instead.
+- Remove `CustomCursorExtWeb`, use the `CustomCursorSource`.
+- Remove `CustomCursor::from_rgba`, use `CustomCursorSource` instead.
 
 ### Fixed
 

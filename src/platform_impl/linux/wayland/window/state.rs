@@ -28,7 +28,7 @@ use sctk::subcompositor::SubcompositorState;
 use tracing::{info, warn};
 use wayland_protocols_plasma::blur::client::org_kde_kwin_blur::OrgKdeKwinBlur;
 
-use crate::cursor::CustomCursor as RootCustomCursor;
+use crate::cursor::CustomCursor as CoreCustomCursor;
 use crate::dpi::{LogicalPosition, LogicalSize, PhysicalSize, Size};
 use crate::error::{NotSupportedError, RequestError};
 use crate::platform_impl::wayland::event_loop::OwnedDisplayHandle;
@@ -37,9 +37,10 @@ use crate::platform_impl::wayland::seat::{
     PointerConstraintsState, WinitPointerData, WinitPointerDataExt, ZwpTextInputV3Ext,
 };
 use crate::platform_impl::wayland::state::{WindowCompositorUpdate, WinitState};
-use crate::platform_impl::wayland::types::cursor::{CustomCursor, SelectedCursor};
+use crate::platform_impl::wayland::types::cursor::{
+    CustomCursor, SelectedCursor, WaylandCustomCursor,
+};
 use crate::platform_impl::wayland::types::kwin_blur::KWinBlurManager;
-use crate::platform_impl::PlatformCustomCursor;
 use crate::window::{CursorGrabMode, CursorIcon, ImePurpose, ResizeDirection, Theme, WindowId};
 
 #[cfg(feature = "sctk-adwaita")]
@@ -702,19 +703,18 @@ impl WindowState {
     }
 
     /// Set the custom cursor icon.
-    pub(crate) fn set_custom_cursor(&mut self, cursor: RootCustomCursor) {
-        let cursor = match cursor {
-            RootCustomCursor { inner: PlatformCustomCursor::Wayland(cursor) } => cursor.0,
-            #[cfg(x11_platform)]
-            RootCustomCursor { inner: PlatformCustomCursor::X(_) } => {
-                tracing::error!("passed a X11 cursor to Wayland backend");
+    pub(crate) fn set_custom_cursor(&mut self, cursor: CoreCustomCursor) {
+        let cursor = match cursor.cast_ref::<WaylandCustomCursor>() {
+            Some(cursor) => cursor,
+            None => {
+                tracing::error!("unrecognized cursor passed to Wayland backend");
                 return;
             },
         };
 
         let cursor = {
             let mut pool = self.custom_cursor_pool.lock().unwrap();
-            CustomCursor::new(&mut pool, &cursor)
+            CustomCursor::new(&mut pool, cursor)
         };
 
         if self.cursor_visible {

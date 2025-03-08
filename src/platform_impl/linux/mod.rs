@@ -9,7 +9,6 @@ use std::time::Duration;
 
 pub(crate) use self::common::xkb::{physicalkey_to_scancode, scancode_to_physicalkey};
 use crate::application::ApplicationHandler;
-pub(crate) use crate::cursor::OnlyCursorImageSource as PlatformCustomCursorSource;
 #[cfg(x11_platform)]
 use crate::dpi::Size;
 use crate::error::{EventLoopError, NotSupportedError};
@@ -118,14 +117,6 @@ macro_rules! x11_or_wayland {
             $enum::Wayland($($c1)*) => $x,
         }
     };
-}
-
-#[derive(Clone, Debug, Eq, Hash, PartialEq)]
-pub(crate) enum PlatformCustomCursor {
-    #[cfg(wayland_platform)]
-    Wayland(wayland::CustomCursor),
-    #[cfg(x11_platform)]
-    X(x11::CustomCursor),
 }
 
 #[derive(Debug)]
