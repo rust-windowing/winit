@@ -85,12 +85,9 @@
 //!
 //!  - applicationDidBecomeActive is Resumed
 //!  - applicationWillResignActive is Suspended
-//!  - applicationWillTerminate is LoopExiting
+//!  - applicationWillTerminate corresponds to `Drop`ping the application handler.
 //!
-//! Keep in mind that after LoopExiting event is received every attempt to draw with
-//! opengl will result in segfault.
-//!
-//! Also note that app may not receive the LoopExiting event if suspended; it might be SIGKILL'ed.
+//! Note that an app may not receive the `Drop` event if suspended; it might be SIGKILL'ed.
 //!
 //! ## Custom `UIApplicationDelegate`
 //!

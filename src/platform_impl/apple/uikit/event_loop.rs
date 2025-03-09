@@ -243,7 +243,7 @@ impl EventLoop {
         })
     }
 
-    pub fn run_app<A: ApplicationHandler>(self, mut app: A) -> ! {
+    pub fn run_app<A: ApplicationHandler>(self, app: A) -> ! {
         let application: Option<Retained<UIApplication>> =
             unsafe { msg_send![UIApplication::class(), sharedApplication] };
         assert!(
@@ -259,7 +259,7 @@ impl EventLoop {
             fn _NSGetArgv() -> *mut *mut *mut c_char;
         }
 
-        app_state::launch(self.mtm, &mut app, || unsafe {
+        app_state::launch(self.mtm, app, || unsafe {
             UIApplicationMain(
                 *_NSGetArgc(),
                 NonNull::new(*_NSGetArgv()).unwrap(),
