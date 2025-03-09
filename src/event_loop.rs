@@ -8,6 +8,7 @@
 //!
 //! See the root-level documentation for information on how to create and use an event loop to
 //! handle events.
+use std::any::Any;
 use std::fmt;
 use std::marker::PhantomData;
 #[cfg(any(x11_platform, wayland_platform))]
@@ -403,6 +404,16 @@ pub trait ActiveEventLoop: AsAny + fmt::Debug {
 impl HasDisplayHandle for dyn ActiveEventLoop + '_ {
     fn display_handle(&self) -> Result<DisplayHandle<'_>, HandleError> {
         self.rwh_06_handle().display_handle()
+    }
+}
+
+impl dyn ActiveEventLoop + '_ {
+    /// Downcast to the backend active event loop type.
+    ///
+    /// Returns `None` if the active event loop was not from that backend.
+    pub fn as_inner<T: ActiveEventLoop>(&self) -> Option<&T> {
+        let this: &dyn Any = self.as_any();
+        this.downcast_ref::<T>()
     }
 }
 

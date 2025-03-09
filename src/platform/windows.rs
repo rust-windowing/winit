@@ -343,37 +343,37 @@ pub trait WindowExtWindows {
 impl WindowExtWindows for dyn Window + '_ {
     #[inline]
     fn set_enable(&self, enabled: bool) {
-        let window = self.as_any().downcast_ref::<crate::platform_impl::Window>().unwrap();
+        let window = self.as_inner::<crate::platform_impl::Window>().unwrap();
         window.set_enable(enabled)
     }
 
     #[inline]
     fn set_taskbar_icon(&self, taskbar_icon: Option<Icon>) {
-        let window = self.as_any().downcast_ref::<crate::platform_impl::Window>().unwrap();
+        let window = self.as_inner::<crate::platform_impl::Window>().unwrap();
         window.set_taskbar_icon(taskbar_icon)
     }
 
     #[inline]
     fn set_skip_taskbar(&self, skip: bool) {
-        let window = self.as_any().downcast_ref::<crate::platform_impl::Window>().unwrap();
+        let window = self.as_inner::<crate::platform_impl::Window>().unwrap();
         window.set_skip_taskbar(skip)
     }
 
     #[inline]
     fn set_undecorated_shadow(&self, shadow: bool) {
-        let window = self.as_any().downcast_ref::<crate::platform_impl::Window>().unwrap();
+        let window = self.as_inner::<crate::platform_impl::Window>().unwrap();
         window.set_undecorated_shadow(shadow)
     }
 
     #[inline]
     fn set_system_backdrop(&self, backdrop_type: BackdropType) {
-        let window = self.as_any().downcast_ref::<crate::platform_impl::Window>().unwrap();
+        let window = self.as_inner::<crate::platform_impl::Window>().unwrap();
         window.set_system_backdrop(backdrop_type)
     }
 
     #[inline]
     fn set_border_color(&self, color: Option<Color>) {
-        let window = self.as_any().downcast_ref::<crate::platform_impl::Window>().unwrap();
+        let window = self.as_inner::<crate::platform_impl::Window>().unwrap();
         window.set_border_color(color.unwrap_or(Color::NONE))
     }
 
@@ -382,26 +382,26 @@ impl WindowExtWindows for dyn Window + '_ {
         // The windows docs don't mention NONE as a valid options but it works in practice and is
         // useful to circumvent the Windows option "Show accent color on title bars and
         // window borders"
-        let window = self.as_any().downcast_ref::<crate::platform_impl::Window>().unwrap();
+        let window = self.as_inner::<crate::platform_impl::Window>().unwrap();
         window.set_title_background_color(color.unwrap_or(Color::NONE))
     }
 
     #[inline]
     fn set_title_text_color(&self, color: Color) {
-        let window = self.as_any().downcast_ref::<crate::platform_impl::Window>().unwrap();
+        let window = self.as_inner::<crate::platform_impl::Window>().unwrap();
         window.set_title_text_color(color)
     }
 
     #[inline]
     fn set_corner_preference(&self, preference: CornerPreference) {
-        let window = self.as_any().downcast_ref::<crate::platform_impl::Window>().unwrap();
+        let window = self.as_inner::<crate::platform_impl::Window>().unwrap();
         window.set_corner_preference(preference)
     }
 
     unsafe fn window_handle_any_thread(
         &self,
     ) -> Result<rwh_06::WindowHandle<'_>, rwh_06::HandleError> {
-        let window = self.as_any().downcast_ref::<crate::platform_impl::Window>().unwrap();
+        let window = self.as_inner::<crate::platform_impl::Window>().unwrap();
         unsafe {
             let handle = window.rwh_06_no_thread_check()?;
 

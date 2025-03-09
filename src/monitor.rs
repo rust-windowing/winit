@@ -5,6 +5,7 @@
 //! methods, which return an iterator of [`MonitorHandle`]:
 //! - [`ActiveEventLoop::available_monitors`][crate::event_loop::ActiveEventLoop::available_monitors].
 //! - [`Window::available_monitors`][crate::window::Window::available_monitors].
+use std::any::Any;
 use std::borrow::Cow;
 use std::fmt;
 use std::num::{NonZeroU16, NonZeroU32};
@@ -147,6 +148,16 @@ impl PartialEq for dyn MonitorHandleProvider + '_ {
 }
 
 impl Eq for dyn MonitorHandleProvider + '_ {}
+
+impl dyn MonitorHandleProvider + '_ {
+    /// Downcast to the backend monitor handle type.
+    ///
+    /// Returns `None` if the monitor handle was not from that backend.
+    pub fn as_inner<T: MonitorHandleProvider>(&self) -> Option<&T> {
+        let this: &dyn Any = self.as_any();
+        this.downcast_ref::<T>()
+    }
+}
 
 /// Describes a fullscreen video mode of a monitor.
 ///
