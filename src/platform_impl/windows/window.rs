@@ -790,7 +790,7 @@ impl CoreWindow for Window {
             // fullscreen
             match (&old_fullscreen, &fullscreen) {
                 (_, Some(Fullscreen::Exclusive(monitor, video_mode))) => {
-                    let monitor = monitor.as_any().downcast_ref::<MonitorHandle>().unwrap();
+                    let monitor = monitor.as_inner::<MonitorHandle>().unwrap();
                     let video_mode =
                         match monitor.video_mode_handles().find(|mode| &mode.mode == video_mode) {
                             Some(monitor) => monitor,
@@ -882,9 +882,9 @@ impl CoreWindow for Window {
 
                     let monitor = match &fullscreen {
                         Fullscreen::Exclusive(monitor, _)
-                        | Fullscreen::Borderless(Some(monitor)) => Some(Cow::Borrowed(
-                            monitor.as_any().downcast_ref::<MonitorHandle>().unwrap(),
-                        )),
+                        | Fullscreen::Borderless(Some(monitor)) => {
+                            Some(Cow::Borrowed(monitor.as_inner::<MonitorHandle>().unwrap()))
+                        },
                         Fullscreen::Borderless(None) => None,
                     };
 

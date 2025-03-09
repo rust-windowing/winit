@@ -23,7 +23,6 @@ use crate::event::{Ime, WindowEvent};
 use crate::event_loop::AsyncRequestSerial;
 use crate::monitor::{Fullscreen, MonitorHandle as CoreMonitorHandle};
 use crate::platform_impl::wayland::output;
-use crate::utils::AsAny;
 use crate::window::{
     Cursor, CursorGrabMode, ImePurpose, ResizeDirection, Theme, UserAttentionType,
     Window as CoreWindow, WindowAttributes, WindowButtons, WindowId, WindowLevel,
@@ -146,10 +145,7 @@ impl Window {
             #[cfg_attr(not(x11_platform), allow(clippy::bind_instead_of_map))]
             Some(Fullscreen::Borderless(monitor)) => {
                 let output = monitor.as_ref().and_then(|monitor| {
-                    monitor
-                        .as_any()
-                        .downcast_ref::<output::MonitorHandle>()
-                        .map(|handle| &handle.proxy)
+                    monitor.as_inner::<output::MonitorHandle>().map(|handle| &handle.proxy)
                 });
 
                 window.set_fullscreen(output)
@@ -446,10 +442,7 @@ impl CoreWindow for Window {
             #[cfg_attr(not(x11_platform), allow(clippy::bind_instead_of_map))]
             Some(Fullscreen::Borderless(monitor)) => {
                 let output = monitor.as_ref().and_then(|monitor| {
-                    monitor
-                        .as_any()
-                        .downcast_ref::<output::MonitorHandle>()
-                        .map(|handle| &handle.proxy)
+                    monitor.as_inner::<output::MonitorHandle>().map(|handle| &handle.proxy)
                 });
 
                 self.window.set_fullscreen(output)

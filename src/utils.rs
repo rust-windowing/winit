@@ -28,7 +28,8 @@ impl<T> Deref for Lazy<T> {
     }
 }
 
-pub trait AsAny {
+// FIXME: Remove and replace with a coercion once rust-lang/rust#65991 is in MSRV (1.86).
+pub trait AsAny: Any {
     fn as_any(&self) -> &dyn Any;
     fn as_any_mut(&mut self) -> &mut dyn Any;
 }

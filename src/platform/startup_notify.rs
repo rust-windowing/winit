@@ -75,15 +75,12 @@ impl EventLoopExtStartupNotify for dyn ActiveEventLoop + '_ {
 impl WindowExtStartupNotify for dyn Window + '_ {
     fn request_activation_token(&self) -> Result<AsyncRequestSerial, RequestError> {
         #[cfg(wayland_platform)]
-        if let Some(window) = self.as_any().downcast_ref::<crate::platform_impl::wayland::Window>()
-        {
+        if let Some(window) = self.as_inner::<crate::platform_impl::wayland::Window>() {
             return window.request_activation_token();
         }
 
         #[cfg(x11_platform)]
-        if let Some(window) =
-            self.as_any().downcast_ref::<crate::platform_impl::x11::window::Window>()
-        {
+        if let Some(window) = self.as_inner::<crate::platform_impl::x11::window::Window>() {
             return window.request_activation_token();
         }
 

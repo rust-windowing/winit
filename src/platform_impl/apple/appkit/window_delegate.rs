@@ -556,7 +556,7 @@ fn new_window(
         let screen = match attrs.fullscreen.clone() {
             Some(Fullscreen::Borderless(Some(monitor)))
             | Some(Fullscreen::Exclusive(monitor, _)) => {
-                let monitor = monitor.as_any().downcast_ref::<MonitorHandle>().unwrap();
+                let monitor = monitor.as_inner::<MonitorHandle>().unwrap();
                 monitor.ns_screen(mtm).or_else(|| NSScreen::mainScreen(mtm))
             },
             Some(Fullscreen::Borderless(None)) => NSScreen::mainScreen(mtm),
@@ -1460,7 +1460,7 @@ impl WindowDelegate {
         if let Some(ref fullscreen) = fullscreen {
             let new_screen = match fullscreen {
                 Fullscreen::Borderless(Some(monitor)) | Fullscreen::Exclusive(monitor, _) => {
-                    let monitor = monitor.as_any().downcast_ref::<MonitorHandle>().unwrap();
+                    let monitor = monitor.as_inner::<MonitorHandle>().unwrap();
                     monitor.ns_screen(mtm)
                 },
                 Fullscreen::Borderless(None) => {
@@ -1519,7 +1519,7 @@ impl WindowDelegate {
                 cgerr(CGDisplayCapture(display_id)).unwrap();
             }
 
-            let monitor = monitor.as_any().downcast_ref::<MonitorHandle>().unwrap();
+            let monitor = monitor.as_inner::<MonitorHandle>().unwrap();
             let video_mode =
                 match monitor.video_mode_handles().find(|mode| &mode.mode == video_mode) {
                     Some(video_mode) => video_mode,
@@ -1587,7 +1587,7 @@ impl WindowDelegate {
                 toggle_fullscreen(self.window());
             },
             (Some(Fullscreen::Exclusive(monitor, _)), None) => {
-                let monitor = monitor.as_any().downcast_ref::<MonitorHandle>().unwrap();
+                let monitor = monitor.as_inner::<MonitorHandle>().unwrap();
                 restore_and_release_display(monitor);
                 toggle_fullscreen(self.window());
             },
@@ -1618,7 +1618,7 @@ impl WindowDelegate {
                 );
                 app.setPresentationOptions(presentation_options);
 
-                let monitor = monitor.as_any().downcast_ref::<MonitorHandle>().unwrap();
+                let monitor = monitor.as_inner::<MonitorHandle>().unwrap();
                 restore_and_release_display(monitor);
 
                 // Restore the normal window level following the Borderless fullscreen

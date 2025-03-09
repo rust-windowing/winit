@@ -1,4 +1,5 @@
 //! The [`Window`] struct and associated types.
+use std::any::Any;
 use std::fmt;
 
 #[doc(inline)]
@@ -1335,11 +1336,19 @@ pub trait Window: AsAny + Send + Sync + fmt::Debug {
     fn rwh_06_window_handle(&self) -> &dyn rwh_06::HasWindowHandle;
 }
 
-impl dyn Window {
+impl dyn Window + '_ {
     /// Create a new [`WindowAttributes`] which allows modifying the window's attributes before
     /// creation.
     pub fn default_attributes() -> WindowAttributes {
         WindowAttributes::default()
+    }
+
+    /// Downcast to the backend window type.
+    ///
+    /// Returns `None` if the window was not from that backend.
+    pub fn as_inner<T: Window>(&self) -> Option<&T> {
+        let this: &dyn Any = self.as_any();
+        this.downcast_ref::<T>()
     }
 }
 
