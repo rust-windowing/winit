@@ -781,6 +781,8 @@ define_class!(
 
         #[unsafe(method(shouldDelayWindowOrderingForEvent:))]
         fn should_delay_window_ordering_for_event(&self, _event: &NSEvent) -> bool {
+            // TODO: emit an event allowing the app to call set_focusable before we check it:
+            // https://developer.apple.com/documentation/appkit/nsview/shoulddelaywindowordering(for:)
             trace_scope!("shouldDelayWindowOrderingForEvent:");
             !self.focusable()
         }

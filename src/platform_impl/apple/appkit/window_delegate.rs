@@ -882,6 +882,7 @@ impl WindowDelegate {
         // state, since otherwise we'll briefly see the window at normal size
         // before it transitions.
         if attrs.visible {
+            // if !attrs.focusable, we shouldn't steal keyboard focus when showing
             if attrs.active && attrs.focusable {
                 // Tightly linked with `app_state::window_activation_hack`
                 window.makeKeyAndOrderFront(None);
