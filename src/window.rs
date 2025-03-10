@@ -1350,6 +1350,14 @@ impl dyn Window + '_ {
         let this: &dyn Any = self.as_any();
         this.downcast_ref::<T>()
     }
+
+    /// Mutable downcast to the backend window type.
+    ///
+    /// Returns `None` if the window was not from that backend.
+    pub fn as_inner_mut<T: Window>(&mut self) -> Option<&mut T> {
+        let this: &mut dyn Any = self.as_any_mut();
+        this.downcast_mut::<T>()
+    }
 }
 
 impl PartialEq for dyn Window + '_ {

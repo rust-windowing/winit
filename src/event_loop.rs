@@ -415,6 +415,14 @@ impl dyn ActiveEventLoop + '_ {
         let this: &dyn Any = self.as_any();
         this.downcast_ref::<T>()
     }
+
+    /// Mutable downcast to the backend active event loop type.
+    ///
+    /// Returns `None` if the active event loop was not from that backend.
+    pub fn as_inner_mut<T: ActiveEventLoop>(&mut self) -> Option<&mut T> {
+        let this: &mut dyn Any = self.as_any_mut();
+        this.downcast_mut::<T>()
+    }
 }
 
 /// A proxy for the underlying display handle.

@@ -157,6 +157,14 @@ impl dyn MonitorHandleProvider + '_ {
         let this: &dyn Any = self.as_any();
         this.downcast_ref::<T>()
     }
+
+    /// Mutable downcast to the backend monitor handle type.
+    ///
+    /// Returns `None` if the monitor handle was not from that backend.
+    pub fn as_inner_mut<T: MonitorHandleProvider>(&mut self) -> Option<&mut T> {
+        let this: &mut dyn Any = self.as_any_mut();
+        this.downcast_mut::<T>()
+    }
 }
 
 /// Describes a fullscreen video mode of a monitor.

@@ -76,8 +76,8 @@ changelog entry.
 
 ### Changed
 
-- Change `ActiveEventLoop` and `Window` to be traits, and added `as_inner` methods to extract the
-  backend type from those.
+- Change `ActiveEventLoop` and `Window` to be traits, and added `as_inner`/`as_inner_mut` methods
+  to extract the backend type from those.
 - `ActiveEventLoop::create_window` now returns `Box<dyn Window>`.
 - `ApplicationHandler` now uses `dyn ActiveEventLoop`.
 - On Web, let events wake up event loop immediately when using `ControlFlow::Poll`.
