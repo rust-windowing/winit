@@ -76,7 +76,7 @@ changelog entry.
 
 ### Changed
 
-- Change `ActiveEventLoop` and `Window` to be traits, and added `as_inner`/`as_inner_mut`/`into_inner`
+- Change `ActiveEventLoop` and `Window` to be traits, and added `cast_ref`/`cast_mut`/`cast`
   methods to extract the backend type from those.
 - `ActiveEventLoop::create_window` now returns `Box<dyn Window>`.
 - `ApplicationHandler` now uses `dyn ActiveEventLoop`.

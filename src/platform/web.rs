@@ -105,23 +105,23 @@ pub trait WindowExtWeb {
 impl WindowExtWeb for dyn Window + '_ {
     #[inline]
     fn canvas(&self) -> Option<Ref<'_, HtmlCanvasElement>> {
-        self.as_inner::<crate::platform_impl::Window>().expect("non Web window on Web").canvas()
+        self.cast_ref::<crate::platform_impl::Window>().expect("non Web window on Web").canvas()
     }
 
     fn prevent_default(&self) -> bool {
-        self.as_inner::<crate::platform_impl::Window>()
+        self.cast_ref::<crate::platform_impl::Window>()
             .expect("non Web window on Web")
             .prevent_default()
     }
 
     fn set_prevent_default(&self, prevent_default: bool) {
-        self.as_inner::<crate::platform_impl::Window>()
+        self.cast_ref::<crate::platform_impl::Window>()
             .expect("non Web window on Web")
             .set_prevent_default(prevent_default)
     }
 
     fn is_cursor_lock_raw(&self) -> bool {
-        self.as_inner::<crate::platform_impl::Window>()
+        self.cast_ref::<crate::platform_impl::Window>()
             .expect("non Web window on Web")
             .is_cursor_lock_raw()
     }
@@ -365,7 +365,7 @@ impl ActiveEventLoopExtWeb for dyn ActiveEventLoop + '_ {
     #[inline]
     fn create_custom_cursor_async(&self, source: CustomCursorSource) -> CustomCursorFuture {
         let event_loop = self
-            .as_inner::<crate::platform_impl::ActiveEventLoop>()
+            .cast_ref::<crate::platform_impl::ActiveEventLoop>()
             .expect("non Web event loop on Web");
         event_loop.create_custom_cursor_async(source)
     }
@@ -373,7 +373,7 @@ impl ActiveEventLoopExtWeb for dyn ActiveEventLoop + '_ {
     #[inline]
     fn set_poll_strategy(&self, strategy: PollStrategy) {
         let event_loop = self
-            .as_inner::<crate::platform_impl::ActiveEventLoop>()
+            .cast_ref::<crate::platform_impl::ActiveEventLoop>()
             .expect("non Web event loop on Web");
         event_loop.set_poll_strategy(strategy);
     }
@@ -381,7 +381,7 @@ impl ActiveEventLoopExtWeb for dyn ActiveEventLoop + '_ {
     #[inline]
     fn poll_strategy(&self) -> PollStrategy {
         let event_loop = self
-            .as_inner::<crate::platform_impl::ActiveEventLoop>()
+            .cast_ref::<crate::platform_impl::ActiveEventLoop>()
             .expect("non Web event loop on Web");
         event_loop.poll_strategy()
     }
@@ -389,7 +389,7 @@ impl ActiveEventLoopExtWeb for dyn ActiveEventLoop + '_ {
     #[inline]
     fn set_wait_until_strategy(&self, strategy: WaitUntilStrategy) {
         let event_loop = self
-            .as_inner::<crate::platform_impl::ActiveEventLoop>()
+            .cast_ref::<crate::platform_impl::ActiveEventLoop>()
             .expect("non Web event loop on Web");
         event_loop.set_wait_until_strategy(strategy);
     }
@@ -397,7 +397,7 @@ impl ActiveEventLoopExtWeb for dyn ActiveEventLoop + '_ {
     #[inline]
     fn wait_until_strategy(&self) -> WaitUntilStrategy {
         let event_loop = self
-            .as_inner::<crate::platform_impl::ActiveEventLoop>()
+            .cast_ref::<crate::platform_impl::ActiveEventLoop>()
             .expect("non Web event loop on Web");
         event_loop.wait_until_strategy()
     }
@@ -405,7 +405,7 @@ impl ActiveEventLoopExtWeb for dyn ActiveEventLoop + '_ {
     #[inline]
     fn is_cursor_lock_raw(&self) -> bool {
         let event_loop = self
-            .as_inner::<crate::platform_impl::ActiveEventLoop>()
+            .cast_ref::<crate::platform_impl::ActiveEventLoop>()
             .expect("non Web event loop on Web");
         event_loop.is_cursor_lock_raw()
     }
@@ -413,7 +413,7 @@ impl ActiveEventLoopExtWeb for dyn ActiveEventLoop + '_ {
     #[inline]
     fn has_multiple_screens(&self) -> Result<bool, NotSupportedError> {
         let event_loop = self
-            .as_inner::<crate::platform_impl::ActiveEventLoop>()
+            .cast_ref::<crate::platform_impl::ActiveEventLoop>()
             .expect("non Web event loop on Web");
         event_loop.has_multiple_screens()
     }
@@ -421,7 +421,7 @@ impl ActiveEventLoopExtWeb for dyn ActiveEventLoop + '_ {
     #[inline]
     fn request_detailed_monitor_permission(&self) -> MonitorPermissionFuture {
         let event_loop = self
-            .as_inner::<crate::platform_impl::ActiveEventLoop>()
+            .cast_ref::<crate::platform_impl::ActiveEventLoop>()
             .expect("non Web event loop on Web");
         MonitorPermissionFuture(event_loop.request_detailed_monitor_permission())
     }
@@ -429,7 +429,7 @@ impl ActiveEventLoopExtWeb for dyn ActiveEventLoop + '_ {
     #[inline]
     fn has_detailed_monitor_permission(&self) -> bool {
         let event_loop = self
-            .as_inner::<crate::platform_impl::ActiveEventLoop>()
+            .cast_ref::<crate::platform_impl::ActiveEventLoop>()
             .expect("non Web event loop on Web");
         event_loop.has_detailed_monitor_permission()
     }
@@ -681,24 +681,24 @@ pub trait MonitorHandleExtWeb {
 
 impl MonitorHandleExtWeb for dyn MonitorHandleProvider + '_ {
     fn is_internal(&self) -> Option<bool> {
-        self.as_inner::<WebMonitorHandle>().unwrap().is_internal()
+        self.cast_ref::<WebMonitorHandle>().unwrap().is_internal()
     }
 
     fn orientation(&self) -> OrientationData {
-        self.as_inner::<WebMonitorHandle>().unwrap().orientation()
+        self.cast_ref::<WebMonitorHandle>().unwrap().orientation()
     }
 
     fn request_lock(&self, orientation_lock: OrientationLock) -> OrientationLockFuture {
-        let future = self.as_inner::<WebMonitorHandle>().unwrap().request_lock(orientation_lock);
+        let future = self.cast_ref::<WebMonitorHandle>().unwrap().request_lock(orientation_lock);
         OrientationLockFuture(future)
     }
 
     fn unlock(&self) -> Result<(), OrientationLockError> {
-        self.as_inner::<WebMonitorHandle>().unwrap().unlock()
+        self.cast_ref::<WebMonitorHandle>().unwrap().unlock()
     }
 
     fn is_detailed(&self) -> bool {
-        self.as_inner::<WebMonitorHandle>().unwrap().is_detailed()
+        self.cast_ref::<WebMonitorHandle>().unwrap().is_detailed()
     }
 }
 

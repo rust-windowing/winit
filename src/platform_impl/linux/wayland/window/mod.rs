@@ -145,7 +145,7 @@ impl Window {
             #[cfg_attr(not(x11_platform), allow(clippy::bind_instead_of_map))]
             Some(Fullscreen::Borderless(monitor)) => {
                 let output = monitor.as_ref().and_then(|monitor| {
-                    monitor.as_inner::<output::MonitorHandle>().map(|handle| &handle.proxy)
+                    monitor.cast_ref::<output::MonitorHandle>().map(|handle| &handle.proxy)
                 });
 
                 window.set_fullscreen(output)
@@ -442,7 +442,7 @@ impl CoreWindow for Window {
             #[cfg_attr(not(x11_platform), allow(clippy::bind_instead_of_map))]
             Some(Fullscreen::Borderless(monitor)) => {
                 let output = monitor.as_ref().and_then(|monitor| {
-                    monitor.as_inner::<output::MonitorHandle>().map(|handle| &handle.proxy)
+                    monitor.cast_ref::<output::MonitorHandle>().map(|handle| &handle.proxy)
                 });
 
                 self.window.set_fullscreen(output)

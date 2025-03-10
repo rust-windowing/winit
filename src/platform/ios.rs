@@ -214,25 +214,25 @@ pub trait WindowExtIOS {
 impl WindowExtIOS for dyn Window + '_ {
     #[inline]
     fn set_scale_factor(&self, scale_factor: f64) {
-        let window = self.as_inner::<crate::platform_impl::Window>().unwrap();
+        let window = self.cast_ref::<crate::platform_impl::Window>().unwrap();
         window.maybe_wait_on_main(move |w| w.set_scale_factor(scale_factor));
     }
 
     #[inline]
     fn set_valid_orientations(&self, valid_orientations: ValidOrientations) {
-        let window = self.as_inner::<crate::platform_impl::Window>().unwrap();
+        let window = self.cast_ref::<crate::platform_impl::Window>().unwrap();
         window.maybe_wait_on_main(move |w| w.set_valid_orientations(valid_orientations));
     }
 
     #[inline]
     fn set_prefers_home_indicator_hidden(&self, hidden: bool) {
-        let window = self.as_inner::<crate::platform_impl::Window>().unwrap();
+        let window = self.cast_ref::<crate::platform_impl::Window>().unwrap();
         window.maybe_wait_on_main(move |w| w.set_prefers_home_indicator_hidden(hidden));
     }
 
     #[inline]
     fn set_preferred_screen_edges_deferring_system_gestures(&self, edges: ScreenEdge) {
-        let window = self.as_inner::<crate::platform_impl::Window>().unwrap();
+        let window = self.cast_ref::<crate::platform_impl::Window>().unwrap();
         window.maybe_wait_on_main(move |w| {
             w.set_preferred_screen_edges_deferring_system_gestures(edges)
         });
@@ -240,19 +240,19 @@ impl WindowExtIOS for dyn Window + '_ {
 
     #[inline]
     fn set_prefers_status_bar_hidden(&self, hidden: bool) {
-        let window = self.as_inner::<crate::platform_impl::Window>().unwrap();
+        let window = self.cast_ref::<crate::platform_impl::Window>().unwrap();
         window.maybe_wait_on_main(move |w| w.set_prefers_status_bar_hidden(hidden));
     }
 
     #[inline]
     fn set_preferred_status_bar_style(&self, status_bar_style: StatusBarStyle) {
-        let window = self.as_inner::<crate::platform_impl::Window>().unwrap();
+        let window = self.cast_ref::<crate::platform_impl::Window>().unwrap();
         window.maybe_wait_on_main(move |w| w.set_preferred_status_bar_style(status_bar_style))
     }
 
     #[inline]
     fn recognize_pinch_gesture(&self, should_recognize: bool) {
-        let window = self.as_inner::<crate::platform_impl::Window>().unwrap();
+        let window = self.cast_ref::<crate::platform_impl::Window>().unwrap();
         window.maybe_wait_on_main(move |w| w.recognize_pinch_gesture(should_recognize));
     }
 
@@ -263,7 +263,7 @@ impl WindowExtIOS for dyn Window + '_ {
         minimum_number_of_touches: u8,
         maximum_number_of_touches: u8,
     ) {
-        let window = self.as_inner::<crate::platform_impl::Window>().unwrap();
+        let window = self.cast_ref::<crate::platform_impl::Window>().unwrap();
         window.maybe_wait_on_main(move |w| {
             w.recognize_pan_gesture(
                 should_recognize,
@@ -275,13 +275,13 @@ impl WindowExtIOS for dyn Window + '_ {
 
     #[inline]
     fn recognize_doubletap_gesture(&self, should_recognize: bool) {
-        let window = self.as_inner::<crate::platform_impl::Window>().unwrap();
+        let window = self.cast_ref::<crate::platform_impl::Window>().unwrap();
         window.maybe_wait_on_main(move |w| w.recognize_doubletap_gesture(should_recognize));
     }
 
     #[inline]
     fn recognize_rotation_gesture(&self, should_recognize: bool) {
-        let window = self.as_inner::<crate::platform_impl::Window>().unwrap();
+        let window = self.cast_ref::<crate::platform_impl::Window>().unwrap();
         window.maybe_wait_on_main(move |w| w.recognize_rotation_gesture(should_recognize));
     }
 }
@@ -398,13 +398,13 @@ impl MonitorHandleExtIOS for MonitorHandle {
     fn ui_screen(&self) -> *mut c_void {
         // SAFETY: The marker is only used to get the pointer of the screen
         let mtm = unsafe { objc2::MainThreadMarker::new_unchecked() };
-        let monitor = self.as_inner::<IosMonitorHandle>().unwrap();
+        let monitor = self.cast_ref::<IosMonitorHandle>().unwrap();
         objc2::rc::Retained::as_ptr(monitor.ui_screen(mtm)) as *mut c_void
     }
 
     #[inline]
     fn preferred_video_mode(&self) -> VideoMode {
-        let monitor = self.as_inner::<IosMonitorHandle>().unwrap();
+        let monitor = self.cast_ref::<IosMonitorHandle>().unwrap();
         monitor.preferred_video_mode()
     }
 }

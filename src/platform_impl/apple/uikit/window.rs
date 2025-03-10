@@ -81,7 +81,7 @@ impl WinitUIWindow {
 
         match window_attributes.fullscreen.clone() {
             Some(Fullscreen::Exclusive(monitor, ref video_mode)) => {
-                let monitor = monitor.as_inner::<MonitorHandle>().unwrap();
+                let monitor = monitor.cast_ref::<MonitorHandle>().unwrap();
                 let screen = monitor.ui_screen(mtm);
                 if let Some(video_mode) =
                     monitor.video_modes_handles().find(|mode| &mode.mode == video_mode)
@@ -91,7 +91,7 @@ impl WinitUIWindow {
                 this.setScreen(screen);
             },
             Some(Fullscreen::Borderless(Some(ref monitor))) => {
-                let monitor = monitor.as_inner::<MonitorHandle>().unwrap();
+                let monitor = monitor.cast_ref::<MonitorHandle>().unwrap();
                 let screen = monitor.ui_screen(mtm);
                 this.setScreen(screen);
             },
@@ -306,7 +306,7 @@ impl Inner {
         let mtm = MainThreadMarker::new().unwrap();
         let uiscreen = match &monitor {
             Some(Fullscreen::Exclusive(monitor, video_mode)) => {
-                let monitor = monitor.as_inner::<MonitorHandle>().unwrap();
+                let monitor = monitor.cast_ref::<MonitorHandle>().unwrap();
                 let uiscreen = monitor.ui_screen(mtm);
                 if let Some(video_mode) =
                     monitor.video_modes_handles().find(|mode| &mode.mode == video_mode)
@@ -316,7 +316,7 @@ impl Inner {
                 uiscreen.clone()
             },
             Some(Fullscreen::Borderless(Some(monitor))) => {
-                monitor.as_inner::<MonitorHandle>().unwrap().ui_screen(mtm).clone()
+                monitor.cast_ref::<MonitorHandle>().unwrap().ui_screen(mtm).clone()
             },
             Some(Fullscreen::Borderless(None)) => {
                 self.current_monitor_inner().ui_screen(mtm).clone()
@@ -492,7 +492,7 @@ impl Window {
         let screen = match fullscreen {
             Some(Fullscreen::Exclusive(ref monitor, _))
             | Some(Fullscreen::Borderless(Some(ref monitor))) => {
-                let monitor = monitor.as_inner::<MonitorHandle>().unwrap();
+                let monitor = monitor.cast_ref::<MonitorHandle>().unwrap();
                 monitor.ui_screen(mtm)
             },
             Some(Fullscreen::Borderless(None)) | None => &main_screen,

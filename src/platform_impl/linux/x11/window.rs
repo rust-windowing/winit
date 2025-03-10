@@ -1067,11 +1067,11 @@ impl UnownedWindow {
                 let (monitor, video_mode): (Cow<'_, X11MonitorHandle>, Option<&VideoMode>) =
                     match &fullscreen {
                         Fullscreen::Exclusive(monitor, video_mode) => {
-                            let monitor = monitor.as_inner::<X11MonitorHandle>().unwrap();
+                            let monitor = monitor.cast_ref::<X11MonitorHandle>().unwrap();
                             (Cow::Borrowed(monitor), Some(video_mode))
                         },
                         Fullscreen::Borderless(Some(monitor)) => {
-                            let monitor = monitor.as_inner::<X11MonitorHandle>().unwrap();
+                            let monitor = monitor.cast_ref::<X11MonitorHandle>().unwrap();
                             (Cow::Borrowed(monitor), None)
                         },
                         Fullscreen::Borderless(None) => {
