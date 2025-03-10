@@ -137,9 +137,18 @@ impl EventLoopBuilderExtX11 for EventLoopBuilder {
 /// Additional methods on [`Window`] that are specific to X11.
 ///
 /// [`Window`]: crate::window::Window
-pub trait WindowExtX11 {}
+pub trait WindowExtX11 {
+    /// Modify override-redirect flag.
+    fn set_override_redirect(&self, value: bool);
+}
 
-impl WindowExtX11 for dyn CoreWindow {}
+impl WindowExtX11 for dyn CoreWindow {
+    fn set_override_redirect(&self, value: bool) {
+        let window =
+            self.as_any().downcast_ref::<crate::platform_impl::x11::window::Window>().unwrap();
+        window.set_override_redirect(value);
+    }
+}
 
 /// Additional methods on [`WindowAttributes`] that are specific to X11.
 pub trait WindowAttributesExtX11 {
