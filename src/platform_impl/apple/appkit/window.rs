@@ -183,6 +183,14 @@ impl CoreWindow for Window {
         self.maybe_wait_on_main(|delegate| delegate.is_resizable())
     }
 
+    fn set_focusable(&self, focusable: bool) {
+        self.maybe_wait_on_main(|delegate| delegate.set_focusable(focusable))
+    }
+
+    fn is_focusable(&self) -> Option<bool> {
+        self.maybe_wait_on_main(|delegate| delegate.is_focusable())
+    }
+
     fn set_enabled_buttons(&self, buttons: WindowButtons) {
         self.maybe_wait_on_main(|delegate| delegate.set_enabled_buttons(buttons))
     }

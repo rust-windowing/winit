@@ -282,15 +282,6 @@ impl CoreWindow for Window {
         Some(!self.get_flag(ORBITAL_FLAG_HIDDEN).unwrap_or(false))
     }
 
-    pub fn set_focusable(&self, focusable: bool) {
-        warn!("`Window::set_focusable` is ignored on Orbital");
-    }
-
-    pub fn is_focusable(&self) -> Option<bool> {
-        warn!("`Window::is_focusable` is ignored on Orbital");
-        None
-    }
-
     #[inline]
     fn surface_resize_increments(&self) -> Option<PhysicalSize<u32>> {
         None
@@ -307,6 +298,14 @@ impl CoreWindow for Window {
     #[inline]
     fn is_resizable(&self) -> bool {
         self.get_flag(ORBITAL_FLAG_RESIZABLE).unwrap_or(false)
+    }
+
+    #[inline]
+    fn set_focusable(&self, _focusable: bool) {}
+
+    #[inline]
+    fn is_focusable(&self) -> Option<bool> {
+        None
     }
 
     #[inline]

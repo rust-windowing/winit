@@ -901,6 +901,12 @@ impl CoreWindow for Window {
         false
     }
 
+    fn set_focusable(&self, _focusable: bool) {}
+
+    fn is_focusable(&self) -> Option<bool> {
+        None
+    }
+
     fn set_enabled_buttons(&self, _buttons: WindowButtons) {}
 
     fn enabled_buttons(&self) -> WindowButtons {

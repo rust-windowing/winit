@@ -415,22 +415,6 @@ impl CoreWindow for Window {
         Some(unsafe { IsWindowVisible(self.window.hwnd()) == 1 })
     }
 
-    pub fn set_focusable(&self, focusable: bool) {
-        let window = self.window.clone();
-        let window_state = Arc::clone(&self.window_state);
-        self.thread_executor.execute_in_thread(move || {
-            let _ = &window;
-            WindowState::set_window_flags(window_state.lock().unwrap(), window, |f| {
-                f.set(WindowFlags::FOCUSABLE, focusable)
-            });
-        });
-    }
-
-    pub fn is_focusable(&self) -> Option<bool> {
-        let window_flags = self.window_state_lock().window_flags;
-        Some(window_flags.contains(WindowFlags::FOCUSABLE))
-    }
-
     fn request_redraw(&self) {
         // NOTE: mark that we requested a redraw to handle requests during `WM_PAINT` handling.
         self.window_state.lock().unwrap().redraw_requested = true;
@@ -572,6 +556,23 @@ impl CoreWindow for Window {
     fn is_resizable(&self) -> bool {
         let window_state = self.window_state_lock();
         window_state.window_flags.contains(WindowFlags::RESIZABLE)
+    }
+
+    fn set_focusable(&self, focusable: bool) {
+        let window = self.window;
+        let window_state = Arc::clone(&self.window_state);
+
+        self.thread_executor.execute_in_thread(move || {
+            let _ = &window;
+            WindowState::set_window_flags(window_state.lock().unwrap(), window.hwnd(), |f| {
+                f.set(WindowFlags::FOCUSABLE, focusable)
+            });
+        });
+    }
+
+    fn is_focusable(&self) -> Option<bool> {
+        let window_state = self.window_state_lock();
+        Some(window_state.window_flags.contains(WindowFlags::FOCUSABLE))
     }
 
     fn set_enabled_buttons(&self, buttons: WindowButtons) {

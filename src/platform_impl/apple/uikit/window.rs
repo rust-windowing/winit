@@ -135,15 +135,6 @@ impl Inner {
         None
     }
 
-    pub fn set_focusable(&self, focusable: bool) {
-        warn!("`Window::set_focusable` is ignored on iOS");
-    }
-
-    pub fn is_focusable(&self) -> Option<bool> {
-        warn!("`Window::is_focusable` is ignored on iOS");
-        None
-    }
-
     pub fn request_redraw(&self) {
         if self.gl_or_metal_backed {
             let mtm = MainThreadMarker::new().unwrap();
@@ -245,6 +236,15 @@ impl Inner {
     pub fn is_resizable(&self) -> bool {
         warn!("`Window::is_resizable` is ignored on iOS");
         false
+    }
+
+    pub fn set_focusable(&self, _focusable: bool) {
+        warn!("`Window::set_focusable` is ignored on iOS")
+    }
+
+    pub fn is_focusable(&self) -> Option<bool> {
+        warn!("`Window::is_focusable` is ignored on iOS");
+        None
     }
 
     #[inline]
@@ -662,6 +662,14 @@ impl CoreWindow for Window {
 
     fn is_resizable(&self) -> bool {
         self.maybe_wait_on_main(|delegate| delegate.is_resizable())
+    }
+
+    fn set_focusable(&self, focusable: bool) {
+        self.maybe_wait_on_main(|delegate| delegate.set_resizable(focusable))
+    }
+
+    fn is_focusable(&self) -> bool {
+        self.maybe_wait_on_main(|delegate| delegate.is_focusable())
     }
 
     fn set_enabled_buttons(&self, buttons: WindowButtons) {

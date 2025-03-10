@@ -883,22 +883,24 @@ pub trait Window: AsAny + Send + Sync + fmt::Debug {
     fn is_visible(&self) -> Option<bool>;
 
     /// Sets whether the window can be focused or not.
+    /// If `false`, the window can still accept mouse clicks but won't take keyboard focus on click.
+    /// This is useful for toolbar windows or accessibility tools such as on-screen keyboards.
     ///
     /// The default is `true`.
     ///
-    /// - **Windows:** Supported.
-    #[inline]
-    pub fn set_focusable(&self, focusable: bool) {
-        self.window.maybe_queue_on_main(move |w| w.set_focusable(focusable))
-    }
+    /// ## Platform-specific
+    ///
+    /// - **Windows / macOS / X11:** Supported.
+    fn set_focusable(&self, focusable: bool);
 
     /// Gets whether the window can be focused or not.
     ///
-    /// - **Windows:** Supported.
-    #[inline]
-    pub fn is_focusable(&self) -> Option<bool> {
-        self.window.maybe_wait_on_main(|w| w.is_focusable())
-    }
+    /// See [`Window::set_focusable`] for details.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **Windows / macOS / X11:** Supported.
+    fn is_focusable(&self) -> Option<bool>;
 
     /// Sets whether the window is resizable or not.
     ///
