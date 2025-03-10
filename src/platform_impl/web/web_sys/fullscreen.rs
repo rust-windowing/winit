@@ -65,7 +65,7 @@ pub(crate) fn request_fullscreen(
                 return;
             }
 
-            let monitor = monitor.as_any().downcast_ref::<MonitorHandle>().unwrap();
+            let monitor = monitor.cast_ref::<MonitorHandle>().unwrap();
 
             if let Some(monitor) = monitor.detailed(main_thread) {
                 let options: FullscreenOptions = Object::new().unchecked_into();
