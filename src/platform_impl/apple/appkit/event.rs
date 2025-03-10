@@ -168,7 +168,7 @@ pub fn code_to_key(key: PhysicalKey, scancode: u16) -> Key {
     Key::Named(match code {
         KeyCode::Enter => NamedKey::Enter,
         KeyCode::Tab => NamedKey::Tab,
-        KeyCode::Space => NamedKey::Space,
+        KeyCode::Space => return Key::Character(" ".into()),
         KeyCode::Backspace => NamedKey::Backspace,
         KeyCode::Escape => NamedKey::Escape,
         KeyCode::SuperRight => NamedKey::Super,

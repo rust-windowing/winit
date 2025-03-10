@@ -787,7 +787,7 @@ fn vkey_to_non_char_key(
         VK_NONCONVERT => Key::Named(NamedKey::NonConvert),
         VK_ACCEPT => Key::Named(NamedKey::Accept),
         VK_MODECHANGE => Key::Named(NamedKey::ModeChange),
-        VK_SPACE => Key::Named(NamedKey::Space),
+        VK_SPACE => Key::Character(" ".into()),
         VK_PRIOR => Key::Named(NamedKey::PageUp),
         VK_NEXT => Key::Named(NamedKey::PageDown),
         VK_END => Key::Named(NamedKey::End),

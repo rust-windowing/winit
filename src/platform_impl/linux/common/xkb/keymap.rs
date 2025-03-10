@@ -724,7 +724,7 @@ pub fn keysym_to_key(keysym: u32) -> Key {
         keysyms::_3270_PrintScreen => NamedKey::PrintScreen,
         keysyms::_3270_Enter => NamedKey::Enter,
 
-        keysyms::space => NamedKey::Space,
+        keysyms::space => return Key::Character(" ".into()),
         // exclam..Sinh_kunddaliya
 
         // XFree86

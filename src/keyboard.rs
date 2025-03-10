@@ -745,8 +745,6 @@ pub enum KeyCode {
 /// exceptions:
 /// - The `Super` variant here, is named `Meta` in the aforementioned specification. (There's
 ///   another key which the specification calls `Super`. That does not exist here.)
-/// - The `Space` variant here, can be identified by the character it generates in the
-///   specification.
 ///
 /// [`KeyboardEvent.key`]: https://w3c.github.io/uievents-key/
 #[non_exhaustive]
@@ -807,8 +805,6 @@ pub enum NamedKey {
     Enter,
     /// The Horizontal Tabulation `Tab` key.
     Tab,
-    /// Used in text to insert a space between words. Usually located below the character keys.
-    Space,
     /// Navigate or traverse downward. (`KEYCODE_DPAD_DOWN`)
     ArrowDown,
     /// Navigate or traverse leftward. (`KEYCODE_DPAD_LEFT`)
@@ -1583,7 +1579,6 @@ impl NamedKey {
             NamedKey::Enter => Some("\r"),
             NamedKey::Backspace => Some("\x08"),
             NamedKey::Tab => Some("\t"),
-            NamedKey::Space => Some(" "),
             NamedKey::Escape => Some("\x1b"),
             _ => None,
         }

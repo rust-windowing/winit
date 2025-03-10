@@ -22,7 +22,6 @@ impl Key {
             "Meta" => NamedKey::Super,
             "Enter" => NamedKey::Enter,
             "Tab" => NamedKey::Tab,
-            " " => NamedKey::Space,
             "ArrowDown" => NamedKey::ArrowDown,
             "ArrowLeft" => NamedKey::ArrowLeft,
             "ArrowRight" => NamedKey::ArrowRight,

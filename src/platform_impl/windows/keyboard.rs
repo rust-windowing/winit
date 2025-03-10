@@ -535,7 +535,8 @@ impl PartialKeyEventInfo {
 
         let preliminary_logical_key =
             layout.get_key(mods_without_ctrl, num_lock_on, vkey, &physical_key);
-        let key_is_char = matches!(preliminary_logical_key, Key::Character(_));
+        // FIXME(madsmtm): Is the `chars != " "` check desired here?
+        let key_is_char = matches!(&preliminary_logical_key, Key::Character(chars) if chars != " ");
         let is_pressed = state == ElementState::Pressed;
 
         let logical_key = if let Some(key) = code_as_key.clone() {

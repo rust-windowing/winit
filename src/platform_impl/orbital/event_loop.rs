@@ -118,7 +118,7 @@ fn convert_scancode(scancode: u8) -> (PhysicalKey, Option<NamedKey>) {
         orbclient::K_RIGHT_SHIFT => (KeyCode::ShiftRight, Some(NamedKey::Shift)),
         orbclient::K_SEMICOLON => (KeyCode::Semicolon, None),
         orbclient::K_SLASH => (KeyCode::Slash, None),
-        orbclient::K_SPACE => (KeyCode::Space, Some(NamedKey::Space)),
+        orbclient::K_SPACE => (KeyCode::Space, None),
         orbclient::K_SUPER => (KeyCode::SuperLeft, Some(NamedKey::Super)),
         orbclient::K_TAB => (KeyCode::Tab, Some(NamedKey::Tab)),
         orbclient::K_TICK => (KeyCode::Backquote, None),

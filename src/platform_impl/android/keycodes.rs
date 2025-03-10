@@ -309,7 +309,7 @@ pub fn to_logical(key_char: Option<KeyMapChar>, keycode: Keycode) -> Key {
             ShiftLeft => Key::Named(NamedKey::Shift),
             ShiftRight => Key::Named(NamedKey::Shift),
             Tab => Key::Named(NamedKey::Tab),
-            Space => Key::Named(NamedKey::Space),
+            Space => Key::Character(" ".into()),
             Sym => Key::Named(NamedKey::Symbol),
             Explorer => Key::Named(NamedKey::LaunchWebBrowser),
             Envelope => Key::Named(NamedKey::LaunchMail),

@@ -223,6 +223,7 @@ changelog entry.
  `ButtonSource` as part of the new pointer event overhaul.
 - Remove `Force::altitude_angle`.
 - Removed `Window::inner_position`, use the new `Window::surface_position` instead.
+- Removed `NamedKey::Space`, match on `Key::Character(" ")` instead.
 
 ### Fixed
 
