@@ -423,6 +423,20 @@ impl dyn ActiveEventLoop + '_ {
         let this: &mut dyn Any = self.as_any_mut();
         this.downcast_mut::<T>()
     }
+
+    /// Owned downcast to the backend active event loop type.
+    ///
+    /// Returns `Err` with `self` if the active event loop was not from that backend.
+    pub fn into_inner<T: ActiveEventLoop>(self: Box<Self>) -> Result<Box<T>, Box<Self>> {
+        let reference: &dyn Any = self.as_any();
+        if reference.is::<T>() {
+            let this: Box<dyn Any> = self.into_any();
+            // Unwrap is okay, we just checked the type of `self` is `T`.
+            Ok(this.downcast::<T>().unwrap())
+        } else {
+            Err(self)
+        }
+    }
 }
 
 /// A proxy for the underlying display handle.

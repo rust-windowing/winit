@@ -165,6 +165,20 @@ impl dyn MonitorHandleProvider + '_ {
         let this: &mut dyn Any = self.as_any_mut();
         this.downcast_mut::<T>()
     }
+
+    /// Owned downcast to the backend monitor handle type.
+    ///
+    /// Returns `Err` with `self` if the monitor handle was not from that backend.
+    pub fn into_inner<T: MonitorHandleProvider>(self: Box<Self>) -> Result<Box<T>, Box<Self>> {
+        let reference: &dyn Any = self.as_any();
+        if reference.is::<T>() {
+            let this: Box<dyn Any> = self.into_any();
+            // Unwrap is okay, we just checked the type of `self` is `T`.
+            Ok(this.downcast::<T>().unwrap())
+        } else {
+            Err(self)
+        }
+    }
 }
 
 /// Describes a fullscreen video mode of a monitor.

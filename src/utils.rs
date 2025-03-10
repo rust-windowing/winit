@@ -33,6 +33,7 @@ impl<T> Deref for Lazy<T> {
 pub trait AsAny: Any {
     fn as_any(&self) -> &dyn Any;
     fn as_any_mut(&mut self) -> &mut dyn Any;
+    fn into_any(self: Box<Self>) -> Box<dyn Any>;
 }
 
 impl<T: Any> AsAny for T {
@@ -43,6 +44,11 @@ impl<T: Any> AsAny for T {
 
     #[inline(always)]
     fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
+    }
+
+    #[inline(always)]
+    fn into_any(self: Box<Self>) -> Box<dyn Any> {
         self
     }
 }
