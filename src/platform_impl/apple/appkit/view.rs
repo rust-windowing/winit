@@ -779,10 +779,10 @@ define_class!(
             self.ivars().accepts_first_mouse
         }
 
-        #[method(shouldDelayWindowOrderingForEvent:)]
+        #[unsafe(method(shouldDelayWindowOrderingForEvent:))]
         fn should_delay_window_ordering_for_event(&self, _event: &NSEvent) -> bool {
             trace_scope!("shouldDelayWindowOrderingForEvent:");
-            !self.ivars().focusable.get()
+            !self.focusable()
         }
     }
 );
@@ -809,7 +809,7 @@ impl WinitView {
             forward_key_to_app: Default::default(),
             marked_text: Default::default(),
             accepts_first_mouse,
-            focusable: focusable.into(),
+            focusable: Cell::new(focusable),
             option_as_alt: Cell::new(option_as_alt),
         });
         let this: Retained<Self> = unsafe { msg_send![super(this), init] };
@@ -895,6 +895,10 @@ impl WinitView {
 
     pub(super) fn set_focusable(&self, focusable: bool) {
         self.ivars().focusable.set(focusable);
+    }
+
+    pub(super) fn focusable(&self) -> bool {
+        self.ivars().focusable.get()
     }
 
     /// Reset modifiers and emit a synthetic ModifiersChanged event if deemed necessary.
@@ -1040,7 +1044,9 @@ impl WinitView {
     }
 
     fn mouse_click(&self, event: &NSEvent, button_state: ElementState) {
-        if !self.ivars().focusable.get() {
+        if !self.focusable() {
+            // when focusable=false, NSApplication::preventWindowOrdering()
+            // "Suppresses the usual window ordering in handling the most recent mouse-down event"
             let mtm = MainThreadMarker::from(self);
             unsafe {
                 NSApplication::sharedApplication(mtm).preventWindowOrdering();

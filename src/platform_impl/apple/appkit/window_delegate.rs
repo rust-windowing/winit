@@ -117,7 +117,6 @@ pub(crate) struct State {
     decorations: Cell<bool>,
     resizable: Cell<bool>,
     maximized: Cell<bool>,
-    focusable: Cell<bool>,
 
     /// Presentation options saved before entering `set_simple_fullscreen`, and
     /// restored upon exiting it. Also used when transitioning from Borderless to
@@ -835,7 +834,6 @@ impl WindowDelegate {
             decorations: Cell::new(attrs.decorations),
             resizable: Cell::new(attrs.resizable),
             maximized: Cell::new(attrs.maximized),
-            focusable: Cell::new(attrs.focusable),
             save_presentation_opts: Cell::new(None),
             initial_fullscreen: Cell::new(attrs.fullscreen.is_some()),
             fullscreen: RefCell::new(None),
@@ -1021,13 +1019,12 @@ impl WindowDelegate {
 
     #[inline]
     pub fn set_focusable(&self, focusable: bool) {
-        self.ivars().focusable.set(focusable);
         self.view().set_focusable(focusable);
     }
 
     #[inline]
     pub fn is_focusable(&self) -> Option<bool> {
-        Some(self.ivars().focusable.get())
+        Some(self.view().focusable())
     }
 
     pub fn request_redraw(&self) {
