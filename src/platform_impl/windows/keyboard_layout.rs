@@ -670,7 +670,9 @@ fn keycode_to_vkey(keycode: KeyCode, hkl: u64) -> VIRTUAL_KEY {
         KeyCode::AudioVolumeMute => VK_VOLUME_MUTE,
         KeyCode::AudioVolumeUp => VK_VOLUME_UP,
         KeyCode::WakeUp => 0,
+        #[allow(deprecated)]
         KeyCode::Hyper => 0,
+        #[allow(deprecated)]
         KeyCode::Turbo => 0,
         KeyCode::Abort => 0,
         KeyCode::Resume => 0,

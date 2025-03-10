@@ -1,4 +1,5 @@
 //! Types related to the keyboard.
+#![cfg_attr(feature = "serde", allow(deprecated))] // https://github.com/serde-rs/serde/issues/2195
 
 // This file contains a substantial portion of the UI Events Specification by the W3C. In
 // particular, the variant names within `Key` and `KeyCode` and their documentation are modified
@@ -610,8 +611,10 @@ pub enum KeyCode {
     AudioVolumeUp,
     WakeUp,
     // Legacy modifier key.
+    #[deprecated = "marked as legacy in the spec, use Meta instead"]
     Super,
     // Legacy modifier key.
+    #[deprecated = "marked as legacy in the spec, use Meta instead"]
     Hyper,
     Turbo,
     Abort,
@@ -783,8 +786,10 @@ pub enum NamedKey {
     Symbol,
     SymbolLock,
     // Legacy modifier key.
+    #[deprecated = "marked as legacy in the spec, use Meta instead"]
     Super,
     // Legacy modifier key.
+    #[deprecated = "marked as legacy in the spec, use Meta instead"]
     Hyper,
     /// Used to enable "meta" modifier function for interpreting concurrent or subsequent keyboard
     /// input. This key value is used for the "Windows Logo" key and the Apple `Command` or `⌘`

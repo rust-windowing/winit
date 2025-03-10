@@ -18,7 +18,9 @@ impl Key {
             "Shift" => NamedKey::Shift,
             "Symbol" => NamedKey::Symbol,
             "SymbolLock" => NamedKey::SymbolLock,
+            #[allow(deprecated)]
             "Super" => NamedKey::Super,
+            #[allow(deprecated)]
             "Hyper" => NamedKey::Hyper,
             "Meta" => NamedKey::Meta,
             "Enter" => NamedKey::Enter,
@@ -462,8 +464,11 @@ impl PhysicalKey {
             "AudioVolumeMute" => KeyCode::AudioVolumeMute,
             "AudioVolumeUp" => KeyCode::AudioVolumeUp,
             "WakeUp" => KeyCode::WakeUp,
+            #[allow(deprecated)]
             "Super" => KeyCode::Super,
+            #[allow(deprecated)]
             "Hyper" => KeyCode::Hyper,
+            #[allow(deprecated)]
             "Turbo" => KeyCode::Turbo,
             "Abort" => KeyCode::Abort,
             "Resume" => KeyCode::Resume,

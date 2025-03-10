@@ -624,7 +624,9 @@ pub fn keysym_to_key(keysym: u32) -> Key {
         // keysyms::Shift_Lock => NamedKey::ShiftLock,
         keysyms::Alt_L => NamedKey::Alt,
         keysyms::Alt_R => NamedKey::Alt,
+        #[allow(deprecated)]
         keysyms::Hyper_L => NamedKey::Hyper,
+        #[allow(deprecated)]
         keysyms::Hyper_R => NamedKey::Hyper,
 
         // Browsers map X11's Super keys to Meta, so we do that as well.
