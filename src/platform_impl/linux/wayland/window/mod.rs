@@ -387,8 +387,8 @@ impl CoreWindow for Window {
 
     fn set_focusable(&self, focusable: bool) {}
 
-    fn is_focusable(&self) -> Option<bool> {
-        None
+    fn is_focusable(&self) -> bool {
+        true
     }
 
     fn set_resizable(&self, resizable: bool) {

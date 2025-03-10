@@ -900,7 +900,7 @@ pub trait Window: AsAny + Send + Sync + fmt::Debug {
     /// ## Platform-specific
     ///
     /// - **Windows / macOS / X11:** Supported.
-    fn is_focusable(&self) -> Option<bool>;
+    fn is_focusable(&self) -> bool;
 
     /// Sets whether the window is resizable or not.
     ///

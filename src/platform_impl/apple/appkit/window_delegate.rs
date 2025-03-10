@@ -1002,7 +1002,7 @@ impl WindowDelegate {
 
     pub fn set_visible(&self, visible: bool) {
         if visible {
-            if self.is_focusable() == Some(true) {
+            if self.is_focusable() {
                 self.window().makeKeyAndOrderFront(None);
             } else {
                 self.window().orderFront(None);
@@ -1023,8 +1023,8 @@ impl WindowDelegate {
     }
 
     #[inline]
-    pub fn is_focusable(&self) -> Option<bool> {
-        Some(self.view().focusable())
+    pub fn is_focusable(&self) -> bool {
+        self.view().focusable()
     }
 
     pub fn request_redraw(&self) {

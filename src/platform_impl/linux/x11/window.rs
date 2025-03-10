@@ -153,7 +153,7 @@ impl CoreWindow for Window {
         self.0.set_focusable(focusable)
     }
 
-    fn is_focusable(&self) -> Option<bool> {
+    fn is_focusable(&self) -> bool {
         self.0.is_focusable()
     }
 
@@ -1503,8 +1503,8 @@ impl UnownedWindow {
     }
 
     #[inline]
-    pub fn is_focusable(&self) -> Option<bool> {
-        Some(self.shared_state_lock().is_focusable)
+    pub fn is_focusable(&self) -> bool {
+        self.shared_state_lock().is_focusable
     }
 
     fn update_cached_frame_extents(&self) {

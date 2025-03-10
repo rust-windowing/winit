@@ -242,9 +242,8 @@ impl Inner {
         warn!("`Window::set_focusable` is ignored on iOS")
     }
 
-    pub fn is_focusable(&self) -> Option<bool> {
-        warn!("`Window::is_focusable` is ignored on iOS");
-        None
+    pub fn is_focusable(&self) -> bool {
+        true
     }
 
     #[inline]

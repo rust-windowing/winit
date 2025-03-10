@@ -241,9 +241,8 @@ impl RootWindow for Window {
         warn!("`Window::set_focusable` is ignored on Web");
     }
 
-    pub fn is_focusable(&self) -> Option<bool> {
-        warn!("`Window::is_focusable` is ignored on Web");
-        None
+    pub fn is_focusable(&self) -> bool {
+        true
     }
 
     fn set_resizable(&self, _: bool) {

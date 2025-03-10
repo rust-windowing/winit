@@ -570,9 +570,9 @@ impl CoreWindow for Window {
         });
     }
 
-    fn is_focusable(&self) -> Option<bool> {
+    fn is_focusable(&self) -> bool {
         let window_state = self.window_state_lock();
-        Some(window_state.window_flags.contains(WindowFlags::FOCUSABLE))
+        window_state.window_flags.contains(WindowFlags::FOCUSABLE)
     }
 
     fn set_enabled_buttons(&self, buttons: WindowButtons) {

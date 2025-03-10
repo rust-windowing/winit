@@ -187,7 +187,7 @@ impl CoreWindow for Window {
         self.maybe_wait_on_main(|delegate| delegate.set_focusable(focusable))
     }
 
-    fn is_focusable(&self) -> Option<bool> {
+    fn is_focusable(&self) -> bool {
         self.maybe_wait_on_main(|delegate| delegate.is_focusable())
     }
 

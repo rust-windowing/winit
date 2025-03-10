@@ -304,8 +304,8 @@ impl CoreWindow for Window {
     fn set_focusable(&self, _focusable: bool) {}
 
     #[inline]
-    fn is_focusable(&self) -> Option<bool> {
-        None
+    fn is_focusable(&self) -> bool {
+        true
     }
 
     #[inline]
