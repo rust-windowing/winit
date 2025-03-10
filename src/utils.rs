@@ -28,6 +28,7 @@ impl<T> Deref for Lazy<T> {
     }
 }
 
+// NOTE: This is `pub`, but isn't actually exposed outside the crate.
 // FIXME: Remove and replace with a coercion once rust-lang/rust#65991 is in MSRV (1.86).
 pub trait AsAny: Any {
     fn as_any(&self) -> &dyn Any;
