@@ -664,7 +664,7 @@ impl CoreWindow for Window {
     }
 
     fn set_focusable(&self, focusable: bool) {
-        self.maybe_wait_on_main(|delegate| delegate.set_resizable(focusable))
+        self.maybe_wait_on_main(|delegate| delegate.set_focusable(focusable))
     }
 
     fn is_focusable(&self) -> bool {
