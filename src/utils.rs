@@ -29,26 +29,32 @@ impl<T> Deref for Lazy<T> {
 }
 
 // NOTE: This is `pub`, but isn't actually exposed outside the crate.
+// NOTE: Marked as `#[doc(hidden)]` and underscored, because they can be quite difficult to use
+// correctly, see discussion in #4160.
 // FIXME: Remove and replace with a coercion once rust-lang/rust#65991 is in MSRV (1.86).
+#[doc(hidden)]
 pub trait AsAny: Any {
-    fn as_any(&self) -> &dyn Any;
-    fn as_any_mut(&mut self) -> &mut dyn Any;
-    fn into_any(self: Box<Self>) -> Box<dyn Any>;
+    #[doc(hidden)]
+    fn __as_any(&self) -> &dyn Any;
+    #[doc(hidden)]
+    fn __as_any_mut(&mut self) -> &mut dyn Any;
+    #[doc(hidden)]
+    fn __into_any(self: Box<Self>) -> Box<dyn Any>;
 }
 
 impl<T: Any> AsAny for T {
     #[inline(always)]
-    fn as_any(&self) -> &dyn Any {
+    fn __as_any(&self) -> &dyn Any {
         self
     }
 
     #[inline(always)]
-    fn as_any_mut(&mut self) -> &mut dyn Any {
+    fn __as_any_mut(&mut self) -> &mut dyn Any {
         self
     }
 
     #[inline(always)]
-    fn into_any(self: Box<Self>) -> Box<dyn Any> {
+    fn __into_any(self: Box<Self>) -> Box<dyn Any> {
         self
     }
 }

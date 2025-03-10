@@ -154,7 +154,7 @@ impl dyn MonitorHandleProvider + '_ {
     ///
     /// Returns `None` if the monitor handle was not from that backend.
     pub fn as_inner<T: MonitorHandleProvider>(&self) -> Option<&T> {
-        let this: &dyn Any = self.as_any();
+        let this: &dyn Any = self.__as_any();
         this.downcast_ref::<T>()
     }
 
@@ -162,7 +162,7 @@ impl dyn MonitorHandleProvider + '_ {
     ///
     /// Returns `None` if the monitor handle was not from that backend.
     pub fn as_inner_mut<T: MonitorHandleProvider>(&mut self) -> Option<&mut T> {
-        let this: &mut dyn Any = self.as_any_mut();
+        let this: &mut dyn Any = self.__as_any_mut();
         this.downcast_mut::<T>()
     }
 
@@ -170,9 +170,9 @@ impl dyn MonitorHandleProvider + '_ {
     ///
     /// Returns `Err` with `self` if the monitor handle was not from that backend.
     pub fn into_inner<T: MonitorHandleProvider>(self: Box<Self>) -> Result<Box<T>, Box<Self>> {
-        let reference: &dyn Any = self.as_any();
+        let reference: &dyn Any = self.__as_any();
         if reference.is::<T>() {
-            let this: Box<dyn Any> = self.into_any();
+            let this: Box<dyn Any> = self.__into_any();
             // Unwrap is okay, we just checked the type of `self` is `T`.
             Ok(this.downcast::<T>().unwrap())
         } else {
