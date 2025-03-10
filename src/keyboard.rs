@@ -1701,6 +1701,8 @@ bitflags! {
         const ALT = 0b100 << 6;
         /// This is the "windows" key on PC and "command" key on Mac.
         const META = 0b100 << 9;
+        #[deprecated = "use META instead"]
+        const SUPER = Self::META.bits();
     }
 }
 
@@ -1757,5 +1759,9 @@ bitflags! {
         const RALT     = 0b0010_0000;
         const LMETA    = 0b0100_0000;
         const RMETA    = 0b1000_0000;
+        #[deprecated = "use LMETA instead"]
+        const LSUPER   = Self::LMETA.bits();
+        #[deprecated = "use RMETA instead"]
+        const RSUPER   = Self::RMETA.bits();
     }
 }
