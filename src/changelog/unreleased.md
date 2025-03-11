@@ -73,6 +73,7 @@ changelog entry.
 - Add ability to make non-activating window on macOS using `NSPanel` with `NSWindowStyleMask::NonactivatingPanel`.
 - On Windows, add `IconExtWindows::from_resource_name`.
 - Implement `MonitorHandleProvider` for `MonitorHandle` to access common monitor API.
+- On X11, set an "area" attribute on XIM input connection to convey the cursor area.
 
 ### Changed
 

@@ -1064,8 +1064,6 @@ pub trait Window: AsAny + Send + Sync + fmt::Debug {
     ///
     /// ## Platform-specific
     ///
-    /// - **X11:** Area is not supported, only position. The bottom-right corner of the provided
-    ///   area is reported as the position.
     /// - **iOS / Android / Web / Orbital:** Unsupported.
     ///
     /// [chinese]: https://support.apple.com/guide/chinese-input-method/use-the-candidate-window-cim12992/104/mac/12.0
