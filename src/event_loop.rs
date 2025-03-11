@@ -25,7 +25,7 @@ use crate::application::ApplicationHandler;
 use crate::error::{EventLoopError, RequestError};
 use crate::monitor::MonitorHandle;
 use crate::platform_impl;
-use crate::utils::AsAny;
+use crate::utils::{impl_dyn_casting, AsAny};
 use crate::window::{CustomCursor, CustomCursorSource, Theme, Window, WindowAttributes};
 
 /// Provides a way to retrieve events from the system and from the windows that were registered to
@@ -405,6 +405,8 @@ impl HasDisplayHandle for dyn ActiveEventLoop + '_ {
         self.rwh_06_handle().display_handle()
     }
 }
+
+impl_dyn_casting!(ActiveEventLoop);
 
 /// A proxy for the underlying display handle.
 ///

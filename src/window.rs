@@ -12,7 +12,7 @@ use crate::error::RequestError;
 pub use crate::icon::{BadIcon, Icon};
 use crate::monitor::{Fullscreen, MonitorHandle};
 use crate::platform_impl::PlatformSpecificWindowAttributes;
-use crate::utils::AsAny;
+use crate::utils::{impl_dyn_casting, AsAny};
 
 /// Identifier of a window. Unique for each window.
 ///
@@ -1335,13 +1335,15 @@ pub trait Window: AsAny + Send + Sync + fmt::Debug {
     fn rwh_06_window_handle(&self) -> &dyn rwh_06::HasWindowHandle;
 }
 
-impl dyn Window {
+impl dyn Window + '_ {
     /// Create a new [`WindowAttributes`] which allows modifying the window's attributes before
     /// creation.
     pub fn default_attributes() -> WindowAttributes {
         WindowAttributes::default()
     }
 }
+
+impl_dyn_casting!(Window);
 
 impl PartialEq for dyn Window + '_ {
     fn eq(&self, other: &dyn Window) -> bool {
