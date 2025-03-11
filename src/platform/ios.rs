@@ -109,6 +109,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::monitor::{MonitorHandle, VideoMode};
 use crate::platform_impl::MonitorHandle as IosMonitorHandle;
+use crate::utils::OpaqueObject;
 use crate::window::{Window, WindowAttributes};
 
 /// Additional methods on [`Window`] that are specific to iOS.

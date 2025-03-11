@@ -1,5 +1,4 @@
 //! The [`Window`] struct and associated types.
-use std::any::Any;
 use std::fmt;
 
 #[doc(inline)]
@@ -13,7 +12,7 @@ use crate::error::RequestError;
 pub use crate::icon::{BadIcon, Icon};
 use crate::monitor::{Fullscreen, MonitorHandle};
 use crate::platform_impl::PlatformSpecificWindowAttributes;
-use crate::utils::AsAny;
+use crate::utils::{AsAny, OpaqueObject};
 
 /// Identifier of a window. Unique for each window.
 ///
@@ -1342,37 +1341,9 @@ impl dyn Window + '_ {
     pub fn default_attributes() -> WindowAttributes {
         WindowAttributes::default()
     }
-
-    /// Downcast to the backend window type.
-    ///
-    /// Returns `None` if the window was not from that backend.
-    pub fn cast_ref<T: Window>(&self) -> Option<&T> {
-        let this: &dyn Any = self.__as_any();
-        this.downcast_ref::<T>()
-    }
-
-    /// Mutable downcast to the backend window type.
-    ///
-    /// Returns `None` if the window was not from that backend.
-    pub fn cast_mut<T: Window>(&mut self) -> Option<&mut T> {
-        let this: &mut dyn Any = self.__as_any_mut();
-        this.downcast_mut::<T>()
-    }
-
-    /// Owned downcast to the backend window type.
-    ///
-    /// Returns `Err` with `self` if the window was not from that backend.
-    pub fn cast<T: Window>(self: Box<Self>) -> Result<Box<T>, Box<Self>> {
-        let reference: &dyn Any = self.__as_any();
-        if reference.is::<T>() {
-            let this: Box<dyn Any> = self.__into_any();
-            // Unwrap is okay, we just checked the type of `self` is `T`.
-            Ok(this.downcast::<T>().unwrap())
-        } else {
-            Err(self)
-        }
-    }
 }
+
+impl OpaqueObject for dyn Window + '_ {}
 
 impl PartialEq for dyn Window + '_ {
     fn eq(&self, other: &dyn Window) -> bool {

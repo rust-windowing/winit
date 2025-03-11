@@ -74,6 +74,7 @@ use crate::application::ApplicationHandler;
 use crate::event_loop::{ActiveEventLoop, EventLoopBuilder};
 use crate::monitor::MonitorHandle;
 use crate::platform_impl::MonitorHandle as MacOsMonitorHandle;
+use crate::utils::OpaqueObject;
 use crate::window::{Window, WindowAttributes, WindowId};
 
 /// Additional methods on [`Window`] that are specific to MacOS.

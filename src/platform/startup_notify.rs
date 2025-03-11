@@ -27,6 +27,7 @@ use crate::error::{NotSupportedError, RequestError};
 use crate::event_loop::{ActiveEventLoop, AsyncRequestSerial};
 #[cfg(wayland_platform)]
 use crate::platform::wayland::ActiveEventLoopExtWayland;
+use crate::utils::OpaqueObject;
 use crate::window::{ActivationToken, Window, WindowAttributes};
 
 /// The variable which is used mostly on X11.

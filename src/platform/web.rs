@@ -67,6 +67,7 @@ use crate::platform_impl::{
     OrientationLockFuture as PlatformOrientationLockFuture,
 };
 use crate::platform_impl::{MonitorHandle as WebMonitorHandle, PlatformCustomCursorSource};
+use crate::utils::OpaqueObject;
 use crate::window::{CustomCursor, Window, WindowAttributes};
 
 #[cfg(not(web_platform))]

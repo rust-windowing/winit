@@ -5,7 +5,6 @@
 //! methods, which return an iterator of [`MonitorHandle`]:
 //! - [`ActiveEventLoop::available_monitors`][crate::event_loop::ActiveEventLoop::available_monitors].
 //! - [`Window::available_monitors`][crate::window::Window::available_monitors].
-use std::any::Any;
 use std::borrow::Cow;
 use std::fmt;
 use std::num::{NonZeroU16, NonZeroU32};
@@ -13,7 +12,7 @@ use std::ops::Deref;
 use std::sync::Arc;
 
 use crate::dpi::{PhysicalPosition, PhysicalSize};
-use crate::utils::AsAny;
+use crate::utils::{AsAny, OpaqueObject};
 
 /// Handle to a monitor.
 ///
@@ -149,37 +148,7 @@ impl PartialEq for dyn MonitorHandleProvider + '_ {
 
 impl Eq for dyn MonitorHandleProvider + '_ {}
 
-impl dyn MonitorHandleProvider + '_ {
-    /// Downcast to the backend monitor handle type.
-    ///
-    /// Returns `None` if the monitor handle was not from that backend.
-    pub fn cast_ref<T: MonitorHandleProvider>(&self) -> Option<&T> {
-        let this: &dyn Any = self.__as_any();
-        this.downcast_ref::<T>()
-    }
-
-    /// Mutable downcast to the backend monitor handle type.
-    ///
-    /// Returns `None` if the monitor handle was not from that backend.
-    pub fn cast_mut<T: MonitorHandleProvider>(&mut self) -> Option<&mut T> {
-        let this: &mut dyn Any = self.__as_any_mut();
-        this.downcast_mut::<T>()
-    }
-
-    /// Owned downcast to the backend monitor handle type.
-    ///
-    /// Returns `Err` with `self` if the monitor handle was not from that backend.
-    pub fn cast<T: MonitorHandleProvider>(self: Box<Self>) -> Result<Box<T>, Box<Self>> {
-        let reference: &dyn Any = self.__as_any();
-        if reference.is::<T>() {
-            let this: Box<dyn Any> = self.__into_any();
-            // Unwrap is okay, we just checked the type of `self` is `T`.
-            Ok(this.downcast::<T>().unwrap())
-        } else {
-            Err(self)
-        }
-    }
-}
+impl OpaqueObject for dyn MonitorHandleProvider + '_ {}
 
 /// Describes a fullscreen video mode of a monitor.
 ///

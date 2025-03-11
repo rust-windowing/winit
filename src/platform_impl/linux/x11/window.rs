@@ -36,6 +36,7 @@ use crate::platform_impl::x11::{
     xinput_fp1616_to_float, MonitorHandle as X11MonitorHandle, WakeSender, X11Error,
 };
 use crate::platform_impl::{common, PlatformCustomCursor, PlatformIcon};
+use crate::utils::OpaqueObject;
 use crate::window::{
     CursorGrabMode, ImePurpose, ResizeDirection, Theme, UserAttentionType, Window as CoreWindow,
     WindowAttributes, WindowButtons, WindowId, WindowLevel,

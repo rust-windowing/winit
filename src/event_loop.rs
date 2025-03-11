@@ -8,7 +8,6 @@
 //!
 //! See the root-level documentation for information on how to create and use an event loop to
 //! handle events.
-use std::any::Any;
 use std::fmt;
 use std::marker::PhantomData;
 #[cfg(any(x11_platform, wayland_platform))]
@@ -26,7 +25,7 @@ use crate::application::ApplicationHandler;
 use crate::error::{EventLoopError, RequestError};
 use crate::monitor::MonitorHandle;
 use crate::platform_impl;
-use crate::utils::AsAny;
+use crate::utils::{AsAny, OpaqueObject};
 use crate::window::{CustomCursor, CustomCursorSource, Theme, Window, WindowAttributes};
 
 /// Provides a way to retrieve events from the system and from the windows that were registered to
@@ -407,37 +406,7 @@ impl HasDisplayHandle for dyn ActiveEventLoop + '_ {
     }
 }
 
-impl dyn ActiveEventLoop + '_ {
-    /// Downcast to the backend active event loop type.
-    ///
-    /// Returns `None` if the active event loop was not from that backend.
-    pub fn cast_ref<T: ActiveEventLoop>(&self) -> Option<&T> {
-        let this: &dyn Any = self.__as_any();
-        this.downcast_ref::<T>()
-    }
-
-    /// Mutable downcast to the backend active event loop type.
-    ///
-    /// Returns `None` if the active event loop was not from that backend.
-    pub fn cast_mut<T: ActiveEventLoop>(&mut self) -> Option<&mut T> {
-        let this: &mut dyn Any = self.__as_any_mut();
-        this.downcast_mut::<T>()
-    }
-
-    /// Owned downcast to the backend active event loop type.
-    ///
-    /// Returns `Err` with `self` if the active event loop was not from that backend.
-    pub fn cast<T: ActiveEventLoop>(self: Box<Self>) -> Result<Box<T>, Box<Self>> {
-        let reference: &dyn Any = self.__as_any();
-        if reference.is::<T>() {
-            let this: Box<dyn Any> = self.__into_any();
-            // Unwrap is okay, we just checked the type of `self` is `T`.
-            Ok(this.downcast::<T>().unwrap())
-        } else {
-            Err(self)
-        }
-    }
-}
+impl OpaqueObject for dyn ActiveEventLoop + '_ {}
 
 /// A proxy for the underlying display handle.
 ///

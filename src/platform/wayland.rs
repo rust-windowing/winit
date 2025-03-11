@@ -14,6 +14,7 @@
 //! * `wayland-csd-adwaita-crossfont`.
 //! * `wayland-csd-adwaita-notitle`.
 use crate::event_loop::{ActiveEventLoop, EventLoop, EventLoopBuilder};
+use crate::utils::OpaqueObject;
 pub use crate::window::Theme;
 use crate::window::{Window as CoreWindow, WindowAttributes};
 
