@@ -72,7 +72,7 @@ macro_rules! impl_dyn_casting {
 
             /// Mutable downcast to the backend concrete type.
             ///
-            /// Returns `None` if the window was not from that backend.
+            /// Returns `None` if the object was not from that backend.
             pub fn cast_mut<T: $trait>(&mut self) -> Option<&mut T> {
                 let this: &mut dyn std::any::Any = self.__as_any_mut();
                 this.downcast_mut::<T>()
@@ -80,7 +80,7 @@ macro_rules! impl_dyn_casting {
 
             /// Owned downcast to the backend concrete type.
             ///
-            /// Returns `Err` with `self` if the concrete was not from that backend.
+            /// Returns `Err` with `self` if the object was not from that backend.
             pub fn cast<T: $trait>(self: Box<Self>) -> Result<Box<T>, Box<Self>> {
                 let reference: &dyn std::any::Any = self.__as_any();
                 if reference.is::<T>() {
