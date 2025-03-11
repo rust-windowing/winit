@@ -12,7 +12,7 @@ use std::ops::Deref;
 use std::sync::Arc;
 
 use crate::dpi::{PhysicalPosition, PhysicalSize};
-use crate::utils::{AsAny, OpaqueObject};
+use crate::utils::{impl_dyn_casting, AsAny};
 
 /// Handle to a monitor.
 ///
@@ -148,7 +148,7 @@ impl PartialEq for dyn MonitorHandleProvider + '_ {
 
 impl Eq for dyn MonitorHandleProvider + '_ {}
 
-impl OpaqueObject for dyn MonitorHandleProvider + '_ {}
+impl_dyn_casting!(MonitorHandleProvider);
 
 /// Describes a fullscreen video mode of a monitor.
 ///

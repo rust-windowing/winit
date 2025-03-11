@@ -12,7 +12,7 @@ use crate::error::RequestError;
 pub use crate::icon::{BadIcon, Icon};
 use crate::monitor::{Fullscreen, MonitorHandle};
 use crate::platform_impl::PlatformSpecificWindowAttributes;
-use crate::utils::{AsAny, OpaqueObject};
+use crate::utils::{impl_dyn_casting, AsAny};
 
 /// Identifier of a window. Unique for each window.
 ///
@@ -1343,7 +1343,7 @@ impl dyn Window + '_ {
     }
 }
 
-impl OpaqueObject for dyn Window + '_ {}
+impl_dyn_casting!(Window);
 
 impl PartialEq for dyn Window + '_ {
     fn eq(&self, other: &dyn Window) -> bool {

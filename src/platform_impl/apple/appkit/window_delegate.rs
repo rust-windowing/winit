@@ -51,7 +51,6 @@ use crate::error::{NotSupportedError, RequestError};
 use crate::event::{SurfaceSizeWriter, WindowEvent};
 use crate::monitor::{Fullscreen, MonitorHandle as CoreMonitorHandle, MonitorHandleProvider};
 use crate::platform::macos::{OptionAsAlt, WindowExtMacOS};
-use crate::utils::OpaqueObject;
 use crate::window::{
     Cursor, CursorGrabMode, Icon, ImePurpose, ResizeDirection, Theme, UserAttentionType,
     WindowAttributes, WindowButtons, WindowId, WindowLevel,

@@ -15,7 +15,6 @@ use windows_sys::Win32::Foundation::HANDLE;
 use crate::dpi::PhysicalSize;
 use crate::event::DeviceId;
 use crate::event_loop::EventLoopBuilder;
-use crate::utils::OpaqueObject;
 use crate::window::{BadIcon, Icon, Window, WindowAttributes};
 
 /// Window Handle type used by Win32 API

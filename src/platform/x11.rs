@@ -4,7 +4,6 @@ use serde::{Deserialize, Serialize};
 
 use crate::dpi::Size;
 use crate::event_loop::{ActiveEventLoop, EventLoop, EventLoopBuilder};
-use crate::utils::OpaqueObject;
 use crate::window::{Window as CoreWindow, WindowAttributes};
 
 /// X window type. Maps directly to

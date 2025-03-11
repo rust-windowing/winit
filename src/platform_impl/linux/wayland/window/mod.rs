@@ -23,7 +23,6 @@ use crate::event::{Ime, WindowEvent};
 use crate::event_loop::AsyncRequestSerial;
 use crate::monitor::{Fullscreen, MonitorHandle as CoreMonitorHandle};
 use crate::platform_impl::wayland::output;
-use crate::utils::OpaqueObject;
 use crate::window::{
     Cursor, CursorGrabMode, ImePurpose, ResizeDirection, Theme, UserAttentionType,
     Window as CoreWindow, WindowAttributes, WindowButtons, WindowId, WindowLevel,

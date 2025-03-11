@@ -72,7 +72,6 @@
 
 use self::activity::{AndroidApp, ConfigurationRef, Rect};
 use crate::event_loop::{ActiveEventLoop, EventLoop, EventLoopBuilder};
-use crate::utils::OpaqueObject;
 use crate::window::{Window, WindowAttributes};
 
 /// Additional methods on [`EventLoop`] that are specific to Android.

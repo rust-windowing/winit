@@ -59,38 +59,40 @@ impl<T: Any> AsAny for T {
     }
 }
 
-/// Marker for top-level traits to bring in more type safe casting methods.
-pub trait OpaqueObject
-where
-    Self: 'static + AsAny,
-{
-    /// Downcast to the backend concrete type.
-    ///
-    /// Returns `None` if the object was not from that backend.
-    fn cast_ref<T: 'static>(&self) -> Option<&T> {
-        let this: &dyn Any = self.__as_any();
-        this.downcast_ref::<T>()
-    }
+macro_rules! impl_dyn_casting {
+    ($trait:ident) => {
+        impl dyn $trait + '_ {
+            /// Downcast to the backend concrete type.
+            ///
+            /// Returns `None` if the object was not from that backend.
+            pub fn cast_ref<T: $trait>(&self) -> Option<&T> {
+                let this: &dyn std::any::Any = self.__as_any();
+                this.downcast_ref::<T>()
+            }
 
-    /// Mutable downcast to the backend concrete type.
-    ///
-    /// Returns `None` if the window was not from that backend.
-    fn cast_mut<T: 'static>(&mut self) -> Option<&mut T> {
-        let this: &mut dyn Any = self.__as_any_mut();
-        this.downcast_mut::<T>()
-    }
+            /// Mutable downcast to the backend concrete type.
+            ///
+            /// Returns `None` if the window was not from that backend.
+            pub fn cast_mut<T: $trait>(&mut self) -> Option<&mut T> {
+                let this: &mut dyn std::any::Any = self.__as_any_mut();
+                this.downcast_mut::<T>()
+            }
 
-    /// Owned downcast to the backend concrete type.
-    ///
-    /// Returns `Err` with `self` if the concrete was not from that backend.
-    fn cast<T: 'static>(self: Box<Self>) -> Result<Box<T>, Box<Self>> {
-        let reference: &dyn Any = self.__as_any();
-        if reference.is::<T>() {
-            let this: Box<dyn Any> = self.__into_any();
-            // Unwrap is okay, we just checked the type of `self` is `T`.
-            Ok(this.downcast::<T>().unwrap())
-        } else {
-            Err(self)
+            /// Owned downcast to the backend concrete type.
+            ///
+            /// Returns `Err` with `self` if the concrete was not from that backend.
+            pub fn cast<T: $trait>(self: Box<Self>) -> Result<Box<T>, Box<Self>> {
+                let reference: &dyn std::any::Any = self.__as_any();
+                if reference.is::<T>() {
+                    let this: Box<dyn std::any::Any> = self.__into_any();
+                    // Unwrap is okay, we just checked the type of `self` is `T`.
+                    Ok(this.downcast::<T>().unwrap())
+                } else {
+                    Err(self)
+                }
+            }
         }
-    }
+    };
 }
+
+pub(crate) use impl_dyn_casting;

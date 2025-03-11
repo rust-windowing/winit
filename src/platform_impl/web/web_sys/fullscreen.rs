@@ -11,7 +11,6 @@ use super::super::main_thread::MainThreadMarker;
 use super::super::monitor::{self, ScreenDetailed};
 use crate::monitor::Fullscreen;
 use crate::platform_impl::MonitorHandle;
-use crate::utils::OpaqueObject;
 
 pub(crate) fn request_fullscreen(
     main_thread: MainThreadMarker,
