@@ -224,6 +224,8 @@ changelog entry.
  `ButtonSource` as part of the new pointer event overhaul.
 - Remove `Force::altitude_angle`.
 - Removed `Window::inner_position`, use the new `Window::surface_position` instead.
+- Removed `ApplicationHandler::exited`, the event loop being shut down can now be listened to in
+  the `Drop` impl on the application handler.
 
 ### Fixed
 

@@ -8,10 +8,10 @@ use crate::application::ApplicationHandler;
 #[derive(Default)]
 pub(crate) struct EventHandler {
     /// This can be in the following states:
-    /// - Not registered by the event loop (None).
+    /// - Not registered by the event loop, or terminated (None).
     /// - Present (Some(handler)).
     /// - Currently executing the handler / in use (RefCell borrowed).
-    inner: RefCell<Option<&'static mut dyn ApplicationHandler>>,
+    inner: RefCell<Option<Box<dyn ApplicationHandler + 'static>>>,
 }
 
 impl fmt::Debug for EventHandler {
@@ -37,7 +37,7 @@ impl EventHandler {
     /// from within the closure.
     pub(crate) fn set<'handler, R>(
         &self,
-        app: &'handler mut dyn ApplicationHandler,
+        app: Box<dyn ApplicationHandler + 'handler>,
         closure: impl FnOnce() -> R,
     ) -> R {
         // SAFETY: We extend the lifetime of the handler here so that we can
@@ -48,8 +48,8 @@ impl EventHandler {
         // extended beyond `'handler`.
         let handler = unsafe {
             mem::transmute::<
-                &'handler mut dyn ApplicationHandler,
-                &'static mut dyn ApplicationHandler,
+                Box<dyn ApplicationHandler + 'handler>,
+                Box<dyn ApplicationHandler + 'static>,
             >(app)
         };
 
@@ -71,10 +71,13 @@ impl EventHandler {
             fn drop(&mut self) {
                 match self.0.inner.try_borrow_mut().as_deref_mut() {
                     Ok(data @ Some(_)) => {
-                        *data = None;
+                        let handler = data.take();
+                        // Explicitly `Drop` the application handler.
+                        drop(handler);
                     },
                     Ok(None) => {
-                        tracing::error!("tried to clear handler, but no handler was set");
+                        // Allowed, happens if the handler was cleared manually
+                        // elsewhere (such as in `applicationWillTerminate:`).
                     },
                     Err(_) => {
                         // Note: This is not expected to ever happen, this
@@ -110,16 +113,16 @@ impl EventHandler {
         matches!(self.inner.try_borrow().as_deref(), Ok(Some(_)))
     }
 
-    pub(crate) fn handle(&self, callback: impl FnOnce(&mut dyn ApplicationHandler)) {
+    pub(crate) fn handle(&self, callback: impl FnOnce(&mut (dyn ApplicationHandler + '_))) {
         match self.inner.try_borrow_mut().as_deref_mut() {
-            Ok(Some(user_app)) => {
+            Ok(Some(ref mut user_app)) => {
                 // It is important that we keep the reference borrowed here,
                 // so that `in_use` can properly detect that the handler is
                 // still in use.
                 //
                 // If the handler unwinds, the `RefMut` will ensure that the
                 // handler is no longer borrowed.
-                callback(*user_app);
+                callback(&mut **user_app);
             },
             Ok(None) => {
                 // `NSApplication`, our app state and this handler are all
@@ -130,6 +133,23 @@ impl EventHandler {
             Err(_) => {
                 // Prevent re-entrancy.
                 panic!("tried to handle event while another event is currently being handled");
+            },
+        }
+    }
+
+    pub(crate) fn terminate(&self) {
+        match self.inner.try_borrow_mut().as_deref_mut() {
+            Ok(data @ Some(_)) => {
+                let handler = data.take();
+                // Explicitly `Drop` the application handler.
+                drop(handler);
+            },
+            Ok(None) => {
+                // When terminating, we expect the application handler to still be registered.
+                tracing::error!("tried to clear handler, but no handler was set");
+            },
+            Err(_) => {
+                panic!("tried to clear handler while an event is currently being handled");
             },
         }
     }
