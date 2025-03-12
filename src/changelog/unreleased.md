@@ -192,6 +192,8 @@ changelog entry.
 - Removed `KeyEventExtModifierSupplement`, and made the fields `text_with_all_modifiers` and
   `key_without_modifiers` public on `KeyEvent` instead.
 - Move `window::Fullscreen` to `monitor::Fullscreen`.
+- Renamed "super" key to "meta", to match the naming in the W3C specification.
+  `NamedKey::Super` still exists, but it's non-functional and deprecated, `NamedKey::Meta` should be used instead.
 
 ### Removed
 
@@ -224,6 +226,7 @@ changelog entry.
  `ButtonSource` as part of the new pointer event overhaul.
 - Remove `Force::altitude_angle`.
 - Removed `Window::inner_position`, use the new `Window::surface_position` instead.
+- Removed `NamedKey::Space`, match on `Key::Character(" ")` instead.
 
 ### Fixed
 

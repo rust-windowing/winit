@@ -166,8 +166,8 @@ pub fn scancode_to_physicalkey(scancode: u32) -> PhysicalKey {
         122 => KeyCode::Lang1,
         123 => KeyCode::Lang2,
         124 => KeyCode::IntlYen,
-        125 => KeyCode::SuperLeft,
-        126 => KeyCode::SuperRight,
+        125 => KeyCode::MetaLeft,
+        126 => KeyCode::MetaRight,
         127 => KeyCode::ContextMenu,
         128 => KeyCode::BrowserStop,
         129 => KeyCode::Again,
@@ -419,8 +419,8 @@ pub fn physicalkey_to_scancode(key: PhysicalKey) -> Option<u32> {
         KeyCode::Lang1 => Some(122),
         KeyCode::Lang2 => Some(123),
         KeyCode::IntlYen => Some(124),
-        KeyCode::SuperLeft => Some(125),
-        KeyCode::SuperRight => Some(126),
+        KeyCode::MetaLeft => Some(125),
+        KeyCode::MetaRight => Some(126),
         KeyCode::ContextMenu => Some(127),
         KeyCode::BrowserStop => Some(128),
         KeyCode::Again => Some(129),
@@ -622,15 +622,19 @@ pub fn keysym_to_key(keysym: u32) -> Key {
         keysyms::Control_R => NamedKey::Control,
         keysyms::Caps_Lock => NamedKey::CapsLock,
         // keysyms::Shift_Lock => NamedKey::ShiftLock,
-
-        // keysyms::Meta_L => NamedKey::Meta,
-        // keysyms::Meta_R => NamedKey::Meta,
         keysyms::Alt_L => NamedKey::Alt,
         keysyms::Alt_R => NamedKey::Alt,
-        keysyms::Super_L => NamedKey::Super,
-        keysyms::Super_R => NamedKey::Super,
+        #[allow(deprecated)]
         keysyms::Hyper_L => NamedKey::Hyper,
+        #[allow(deprecated)]
         keysyms::Hyper_R => NamedKey::Hyper,
+
+        // Browsers map X11's Super keys to Meta, so we do that as well.
+        keysyms::Super_L => NamedKey::Meta,
+        keysyms::Super_R => NamedKey::Meta,
+        // The actual Meta keys do not seem to be used by browsers, so we don't do that either.
+        // keysyms::Meta_L => NamedKey::Super,
+        // keysyms::Meta_R => NamedKey::Super,
 
         // XKB function and modifier keys
         // keysyms::ISO_Lock => NamedKey::IsoLock,
@@ -724,7 +728,7 @@ pub fn keysym_to_key(keysym: u32) -> Key {
         keysyms::_3270_PrintScreen => NamedKey::PrintScreen,
         keysyms::_3270_Enter => NamedKey::Enter,
 
-        keysyms::space => NamedKey::Space,
+        keysyms::space => return Key::Character(" ".into()),
         // exclam..Sinh_kunddaliya
 
         // XFree86

@@ -535,7 +535,8 @@ impl PartialKeyEventInfo {
 
         let preliminary_logical_key =
             layout.get_key(mods_without_ctrl, num_lock_on, vkey, &physical_key);
-        let key_is_char = matches!(preliminary_logical_key, Key::Character(_));
+        // FIXME(madsmtm): Is the `chars != " "` check desired here?
+        let key_is_char = matches!(&preliminary_logical_key, Key::Character(chars) if chars != " ");
         let is_pressed = state == ElementState::Pressed;
 
         let logical_key = if let Some(key) = code_as_key.clone() {
@@ -975,8 +976,8 @@ pub(crate) fn physicalkey_to_scancode(physical_key: PhysicalKey) -> Option<u32> 
         KeyCode::ControlLeft => Some(0x001d),
         KeyCode::ControlRight => Some(0xe01d),
         KeyCode::Enter => Some(0x001c),
-        KeyCode::SuperLeft => Some(0xe05b),
-        KeyCode::SuperRight => Some(0xe05c),
+        KeyCode::MetaLeft => Some(0xe05b),
+        KeyCode::MetaRight => Some(0xe05c),
         KeyCode::ShiftLeft => Some(0x002a),
         KeyCode::ShiftRight => Some(0x0036),
         KeyCode::Space => Some(0x0039),
@@ -1158,8 +1159,8 @@ pub(crate) fn scancode_to_physicalkey(scancode: u32) -> PhysicalKey {
         0x001d => KeyCode::ControlLeft,
         0xe01d => KeyCode::ControlRight,
         0x001c => KeyCode::Enter,
-        0xe05b => KeyCode::SuperLeft,
-        0xe05c => KeyCode::SuperRight,
+        0xe05b => KeyCode::MetaLeft,
+        0xe05c => KeyCode::MetaRight,
         0x002a => KeyCode::ShiftLeft,
         0x0036 => KeyCode::ShiftRight,
         0x0039 => KeyCode::Space,
