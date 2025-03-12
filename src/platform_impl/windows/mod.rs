@@ -28,6 +28,8 @@ pub struct PlatformSpecificWindowAttributes {
     pub title_background_color: Option<Color>,
     pub title_text_color: Option<Color>,
     pub corner_preference: Option<CornerPreference>,
+    pub titlebar: bool,
+    pub top_resize_border: bool,
 }
 
 impl Default for PlatformSpecificWindowAttributes {
@@ -47,6 +49,8 @@ impl Default for PlatformSpecificWindowAttributes {
             title_background_color: None,
             title_text_color: None,
             corner_preference: None,
+            titlebar: true,
+            top_resize_border: true,
         }
     }
 }
