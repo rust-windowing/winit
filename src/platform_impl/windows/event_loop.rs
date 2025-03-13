@@ -425,7 +425,7 @@ impl RootActiveEventLoop for ActiveEventLoop {
         let cursor = match source {
             CustomCursorSource::Image(cursor) => cursor,
             CustomCursorSource::Animation { .. } | CustomCursorSource::Url { .. } => {
-                return Err(NotSupportedError::new("not supported cursor format.").into())
+                return Err(NotSupportedError::new("unsupported cursor kind").into())
             },
         };
 

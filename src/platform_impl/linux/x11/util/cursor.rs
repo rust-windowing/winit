@@ -203,7 +203,7 @@ impl CustomCursor {
         let mut cursor = match cursor {
             CustomCursorSource::Image(cursor_image) => cursor_image,
             CustomCursorSource::Animation { .. } | CustomCursorSource::Url { .. } => {
-                return Err(NotSupportedError::new("not supported cursor format.").into())
+                return Err(NotSupportedError::new("unsupported cursor kind").into())
             },
         };
 

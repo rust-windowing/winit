@@ -1252,7 +1252,7 @@ impl WindowDelegate {
             Cursor::Custom(cursor) => match cursor.cast_ref::<CustomCursor>() {
                 Some(cursor) => cursor.0.clone(),
                 None => {
-                    tracing::error!("unrecognized cursor passed to Wayland backend");
+                    tracing::error!("unrecognized cursor passed to macOS backend");
                     return;
                 },
             },

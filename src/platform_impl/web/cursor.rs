@@ -128,6 +128,12 @@ impl CustomCursor {
     }
 }
 
+impl CustomCursorProvider for CustomCursor {
+    fn is_animated(&self) -> bool {
+        self.animation
+    }
+}
+
 impl Hash for CustomCursor {
     fn hash<H: Hasher>(&self, state: &mut H) {
         Arc::as_ptr(&self.state).hash(state);
@@ -141,12 +147,6 @@ impl PartialEq for CustomCursor {
 }
 
 impl Eq for CustomCursor {}
-
-impl CustomCursorProvider for CustomCursor {
-    fn is_animated(&self) -> bool {
-        self.animation
-    }
-}
 
 #[derive(Debug)]
 pub struct CustomCursorFuture {
