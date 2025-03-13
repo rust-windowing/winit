@@ -1,11 +1,7 @@
-use crate::dpi::{PhysicalPosition, PhysicalSize, Size};
-use crate::icon::Icon;
-use crate::keyboard::ModifiersState;
-use crate::platform_impl::platform::{event_loop, util, Fullscreen, SelectedCursor};
-use crate::window::{Theme, WindowAttributes};
-use bitflags::bitflags;
-use std::io;
 use std::sync::MutexGuard;
+use std::{fmt, io, ptr};
+
+use bitflags::bitflags;
 use windows_sys::Win32::Foundation::{HWND, RECT};
 use windows_sys::Win32::Graphics::Gdi::InvalidateRgn;
 use windows_sys::Win32::UI::WindowsAndMessaging::{
@@ -20,7 +16,15 @@ use windows_sys::Win32::UI::WindowsAndMessaging::{
     WS_MINIMIZEBOX, WS_OVERLAPPEDWINDOW, WS_POPUP, WS_SIZEBOX, WS_SYSMENU, WS_VISIBLE,
 };
 
+use crate::dpi::{PhysicalPosition, PhysicalSize, Size};
+use crate::icon::Icon;
+use crate::keyboard::ModifiersState;
+use crate::monitor::Fullscreen;
+use crate::platform_impl::platform::{event_loop, util, SelectedCursor};
+use crate::window::{Theme, WindowAttributes};
+
 /// Contains information about states and the window that the callback is going to use.
+#[derive(Debug)]
 pub(crate) struct WindowState {
     pub mouse: MouseProperties,
 
@@ -28,7 +32,7 @@ pub(crate) struct WindowState {
     pub min_size: Option<Size>,
     pub max_size: Option<Size>,
 
-    pub resize_increments: Option<Size>,
+    pub surface_resize_increments: Option<Size>,
 
     pub window_icon: Option<Icon>,
     pub taskbar_icon: Option<Icon>,
@@ -63,7 +67,13 @@ pub struct SavedWindow {
     pub placement: WINDOWPLACEMENT,
 }
 
-#[derive(Clone)]
+impl fmt::Debug for SavedWindow {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("SavedWindow").finish_non_exhaustive()
+    }
+}
+
+#[derive(Clone, Debug)]
 pub struct MouseProperties {
     pub(crate) selected_cursor: SelectedCursor,
     pub capture_count: u32,
@@ -127,7 +137,7 @@ bitflags! {
     }
 }
 
-#[derive(Eq, PartialEq)]
+#[derive(Debug, Eq, PartialEq, Hash)]
 pub enum ImeState {
     Disabled,
     Enabled,
@@ -149,10 +159,10 @@ impl WindowState {
                 last_position: None,
             },
 
-            min_size: attributes.min_inner_size,
-            max_size: attributes.max_inner_size,
+            min_size: attributes.min_surface_size,
+            max_size: attributes.max_surface_size,
 
-            resize_increments: attributes.resize_increments,
+            surface_resize_increments: attributes.surface_resize_increments,
 
             window_icon: attributes.window_icon.clone(),
             taskbar_icon: None,
@@ -354,7 +364,7 @@ impl WindowFlags {
                     0,
                     SWP_ASYNCWINDOWPOS | SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE,
                 );
-                InvalidateRgn(window, 0, false.into());
+                InvalidateRgn(window, ptr::null_mut(), false.into());
             }
         }
 
@@ -418,7 +428,7 @@ impl WindowFlags {
                 }
 
                 // Refresh the window frame
-                SetWindowPos(window, 0, 0, 0, 0, 0, flags);
+                SetWindowPos(window, ptr::null_mut(), 0, 0, 0, 0, flags);
                 SendMessageW(window, event_loop::SET_RETAIN_STATE_ON_SIZE_MSG_ID.get(), 0, 0);
             }
         }
@@ -436,7 +446,7 @@ impl WindowFlags {
             }
 
             util::win_to_err({
-                let b_menu = GetMenu(hwnd) != 0;
+                let b_menu = !GetMenu(hwnd).is_null();
                 if let (Some(get_dpi_for_window), Some(adjust_window_rect_ex_for_dpi)) =
                     (*util::GET_DPI_FOR_WINDOW, *util::ADJUST_WINDOW_RECT_EX_FOR_DPI)
                 {
@@ -466,14 +476,14 @@ impl WindowFlags {
             let (width, height): (u32, u32) = self.adjust_size(hwnd, size).into();
             SetWindowPos(
                 hwnd,
-                0,
+                ptr::null_mut(),
                 0,
                 0,
                 width as _,
                 height as _,
                 SWP_ASYNCWINDOWPOS | SWP_NOZORDER | SWP_NOREPOSITION | SWP_NOMOVE | SWP_NOACTIVATE,
             );
-            InvalidateRgn(hwnd, 0, false.into());
+            InvalidateRgn(hwnd, ptr::null_mut(), false.into());
         }
     }
 }

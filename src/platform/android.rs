@@ -62,7 +62,7 @@
 //! If your application is currently based on `NativeActivity` via the `ndk-glue` crate and building
 //! with `cargo apk`, then the minimal changes would be:
 //! 1. Remove `ndk-glue` from your `Cargo.toml`
-//! 2. Enable the `"android-native-activity"` feature for Winit: `winit = { version = "0.30.0",
+//! 2. Enable the `"android-native-activity"` feature for Winit: `winit = { version = "0.30.9",
 //!    features = [ "android-native-activity" ] }`
 //! 3. Add an `android_main` entrypoint (as above), instead of using the '`[ndk_glue::main]` proc
 //!    macro from `ndk-macros` (optionally add a dependency on `android_logger` and initialize
@@ -70,18 +70,27 @@
 //! 4. Pass a clone of the `AndroidApp` that your application receives to Winit when building your
 //!    event loop (as shown above).
 
+use self::activity::{AndroidApp, ConfigurationRef, Rect};
 use crate::event_loop::{ActiveEventLoop, EventLoop, EventLoopBuilder};
 use crate::window::{Window, WindowAttributes};
 
-use self::activity::{AndroidApp, ConfigurationRef, Rect};
-
 /// Additional methods on [`EventLoop`] that are specific to Android.
-pub trait EventLoopExtAndroid {}
+pub trait EventLoopExtAndroid {
+    /// Get the [`AndroidApp`] which was used to create this event loop.
+    fn android_app(&self) -> &AndroidApp;
+}
 
-impl<T> EventLoopExtAndroid for EventLoop<T> {}
+impl EventLoopExtAndroid for EventLoop {
+    fn android_app(&self) -> &AndroidApp {
+        &self.event_loop.android_app
+    }
+}
 
 /// Additional methods on [`ActiveEventLoop`] that are specific to Android.
-pub trait ActiveEventLoopExtAndroid {}
+pub trait ActiveEventLoopExtAndroid {
+    /// Get the [`AndroidApp`] which was used to create this event loop.
+    fn android_app(&self) -> &AndroidApp;
+}
 
 /// Additional methods on [`Window`] that are specific to Android.
 pub trait WindowExtAndroid {
@@ -90,17 +99,24 @@ pub trait WindowExtAndroid {
     fn config(&self) -> ConfigurationRef;
 }
 
-impl WindowExtAndroid for Window {
+impl WindowExtAndroid for dyn Window + '_ {
     fn content_rect(&self) -> Rect {
-        self.window.content_rect()
+        let window = self.cast_ref::<crate::platform_impl::Window>().unwrap();
+        window.content_rect()
     }
 
     fn config(&self) -> ConfigurationRef {
-        self.window.config()
+        let window = self.cast_ref::<crate::platform_impl::Window>().unwrap();
+        window.config()
     }
 }
 
-impl ActiveEventLoopExtAndroid for ActiveEventLoop {}
+impl ActiveEventLoopExtAndroid for dyn ActiveEventLoop + '_ {
+    fn android_app(&self) -> &AndroidApp {
+        let event_loop = self.cast_ref::<crate::platform_impl::ActiveEventLoop>().unwrap();
+        &event_loop.app
+    }
+}
 
 /// Additional methods on [`WindowAttributes`] that are specific to Android.
 pub trait WindowAttributesExtAndroid {}
@@ -108,9 +124,9 @@ pub trait WindowAttributesExtAndroid {}
 impl WindowAttributesExtAndroid for WindowAttributes {}
 
 pub trait EventLoopBuilderExtAndroid {
-    /// Associates the `AndroidApp` that was passed to `android_main()` with the event loop
+    /// Associates the [`AndroidApp`] that was passed to `android_main()` with the event loop
     ///
-    /// This must be called on Android since the `AndroidApp` is not global state.
+    /// This must be called on Android since the [`AndroidApp`] is not global state.
     fn with_android_app(&mut self, app: AndroidApp) -> &mut Self;
 
     /// Calling this will mark the volume keys to be manually handled by the application
@@ -119,7 +135,7 @@ pub trait EventLoopBuilderExtAndroid {
     fn handle_volume_keys(&mut self) -> &mut Self;
 }
 
-impl<T> EventLoopBuilderExtAndroid for EventLoopBuilder<T> {
+impl EventLoopBuilderExtAndroid for EventLoopBuilder {
     fn with_android_app(&mut self, app: AndroidApp) -> &mut Self {
         self.platform_specific.android_app = Some(app);
         self
@@ -147,7 +163,7 @@ impl<T> EventLoopBuilderExtAndroid for EventLoopBuilder<T> {
 /// depending on the `android_activity` crate, and instead consume the API that
 /// is re-exported by Winit.
 ///
-/// For compatibility applications should then import the `AndroidApp` type for
+/// For compatibility applications should then import the [`AndroidApp`] type for
 /// their `android_main(app: AndroidApp)` function like:
 /// ```rust
 /// #[cfg(target_os = "android")]

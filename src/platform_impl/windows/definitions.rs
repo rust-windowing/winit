@@ -3,11 +3,15 @@
 
 use std::ffi::c_void;
 
-use windows_sys::core::{IUnknown, GUID, HRESULT};
+use windows_sys::core::{GUID, HRESULT};
 use windows_sys::Win32::Foundation::{BOOL, HWND, POINTL};
-use windows_sys::Win32::System::Com::{
-    IAdviseSink, IDataObject, IEnumFORMATETC, IEnumSTATDATA, FORMATETC, STGMEDIUM,
-};
+use windows_sys::Win32::System::Com::{FORMATETC, STGMEDIUM};
+
+pub type IUnknown = *mut c_void;
+pub type IAdviseSink = *mut c_void;
+pub type IDataObject = *mut c_void;
+pub type IEnumFORMATETC = *mut c_void;
+pub type IEnumSTATDATA = *mut c_void;
 
 #[repr(C)]
 pub struct IUnknownVtbl {
@@ -72,13 +76,13 @@ pub struct IDropTargetVtbl {
         This: *mut IDropTarget,
         pDataObj: *const IDataObject,
         grfKeyState: u32,
-        pt: *const POINTL,
+        pt: POINTL,
         pdwEffect: *mut u32,
     ) -> HRESULT,
     pub DragOver: unsafe extern "system" fn(
         This: *mut IDropTarget,
         grfKeyState: u32,
-        pt: *const POINTL,
+        pt: POINTL,
         pdwEffect: *mut u32,
     ) -> HRESULT,
     pub DragLeave: unsafe extern "system" fn(This: *mut IDropTarget) -> HRESULT,
@@ -86,7 +90,7 @@ pub struct IDropTargetVtbl {
         This: *mut IDropTarget,
         pDataObj: *const IDataObject,
         grfKeyState: u32,
-        pt: *const POINTL,
+        pt: POINTL,
         pdwEffect: *mut u32,
     ) -> HRESULT,
 }

@@ -1,14 +1,13 @@
+use std::error::Error;
 use std::ffi::CStr;
-use std::os::raw::c_short;
 use std::sync::Arc;
-use std::{mem, ptr};
+use std::{fmt, mem, ptr};
 
 use x11_dl::xlib::{XIMCallback, XIMPreeditCaretCallbackStruct, XIMPreeditDrawCallbackStruct};
 
-use crate::platform_impl::platform::x11::ime::input_method::{Style, XIMStyle};
-use crate::platform_impl::platform::x11::ime::{ImeEvent, ImeEventSender};
-
 use super::{ffi, util, XConnection, XError};
+use crate::platform_impl::platform::x11::ime::input_method::{InputMethod, Style, XIMStyle};
+use crate::platform_impl::platform::x11::ime::{ImeEvent, ImeEventSender};
 
 /// IME creation error.
 #[derive(Debug)]
@@ -19,6 +18,19 @@ pub enum ImeContextCreationError {
     /// Got null pointer from Xlib but without exact reason.
     Null,
 }
+
+impl fmt::Display for ImeContextCreationError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            ImeContextCreationError::XError(err) => err.fmt(f),
+            ImeContextCreationError::Null => {
+                write!(f, "got null pointer from Xlib without exact reason")
+            },
+        }
+    }
+}
+
+impl Error for ImeContextCreationError {}
 
 /// The callback used by XIM preedit functions.
 type XIMProcNonnull = unsafe extern "C" fn(ffi::XIM, ffi::XPointer, ffi::XPointer);
@@ -158,7 +170,9 @@ struct PreeditCallbacks {
 impl PreeditCallbacks {
     pub fn new(client_data: ffi::XPointer) -> PreeditCallbacks {
         let start_callback = create_xim_callback(client_data, unsafe {
-            mem::transmute(preedit_start_callback as usize)
+            mem::transmute::<usize, unsafe extern "C" fn(ffi::XIM, ffi::XPointer, ffi::XPointer)>(
+                preedit_start_callback as usize,
+            )
         });
         let done_callback = create_xim_callback(client_data, preedit_done_callback);
         let caret_callback = create_xim_callback(client_data, preedit_caret_callback);
@@ -181,8 +195,8 @@ struct ImeContextClientData {
 // through `ImeInner`.
 pub struct ImeContext {
     pub(crate) ic: ffi::XIC,
-    pub(crate) ic_spot: ffi::XPoint,
-    pub(crate) style: Style,
+    pub(crate) ic_area: ffi::XRectangle,
+    pub(crate) allowed: bool,
     // Since the data is passed shared between X11 XIM callbacks, but couldn't be directly free
     // from there we keep the pointer to automatically deallocate it.
     _client_data: Box<ImeContextClientData>,
@@ -191,11 +205,11 @@ pub struct ImeContext {
 impl ImeContext {
     pub(crate) unsafe fn new(
         xconn: &Arc<XConnection>,
-        im: ffi::XIM,
-        style: Style,
+        im: &InputMethod,
         window: ffi::Window,
-        ic_spot: Option<ffi::XPoint>,
+        ic_area: Option<ffi::XRectangle>,
         event_sender: ImeEventSender,
+        allowed: bool,
     ) -> Result<Self, ImeContextCreationError> {
         let client_data = Box::into_raw(Box::new(ImeContextClientData {
             window,
@@ -204,20 +218,24 @@ impl ImeContext {
             cursor_pos: 0,
         }));
 
+        let style = if allowed { im.preedit_style } else { im.none_style };
+
         let ic = match style as _ {
             Style::Preedit(style) => unsafe {
                 ImeContext::create_preedit_ic(
                     xconn,
-                    im,
+                    im.im,
                     style,
                     window,
                     client_data as ffi::XPointer,
                 )
             },
             Style::Nothing(style) => unsafe {
-                ImeContext::create_nothing_ic(xconn, im, style, window)
+                ImeContext::create_nothing_ic(xconn, im.im, style, window)
             },
-            Style::None(style) => unsafe { ImeContext::create_none_ic(xconn, im, style, window) },
+            Style::None(style) => unsafe {
+                ImeContext::create_none_ic(xconn, im.im, style, window)
+            },
         }
         .ok_or(ImeContextCreationError::Null)?;
 
@@ -225,14 +243,14 @@ impl ImeContext {
 
         let mut context = ImeContext {
             ic,
-            ic_spot: ffi::XPoint { x: 0, y: 0 },
-            style,
+            ic_area: ffi::XRectangle { x: 0, y: 0, width: 0, height: 0 },
+            allowed,
             _client_data: unsafe { Box::from_raw(client_data) },
         };
 
-        // Set the spot location, if it's present.
-        if let Some(ic_spot) = ic_spot {
-            context.set_spot(xconn, ic_spot.x, ic_spot.y)
+        // Set the preedit cursor area, if it's present.
+        if let Some(ic_area) = ic_area {
+            context.set_area(xconn, ic_area.x, ic_area.y, ic_area.width, ic_area.height);
         }
 
         Ok(context)
@@ -333,20 +351,34 @@ impl ImeContext {
     }
 
     pub fn is_allowed(&self) -> bool {
-        !matches!(self.style, Style::None(_))
+        self.allowed
     }
 
-    // Set the spot for preedit text. Setting spot isn't working with libX11 when preedit callbacks
-    // are being used. Certain IMEs do show selection window, but it's placed in bottom left of the
-    // window and couldn't be changed.
-    //
-    // For me see: https://bugs.freedesktop.org/show_bug.cgi?id=1580.
-    pub(crate) fn set_spot(&mut self, xconn: &Arc<XConnection>, x: c_short, y: c_short) {
-        if !self.is_allowed() || self.ic_spot.x == x && self.ic_spot.y == y {
+    /// Set the spot and area for preedit text.
+    ///
+    /// This functionality depends on the libx11 version.
+    ///  - Until libx11 1.8.2, XNSpotLocation was blocked by libx11 in On-The-Spot mode.
+    ///  - Until libx11 1.8.11, XNArea was blocked by libx11 in On-The-Spot mode.
+    ///
+    /// Use of this information is discretionary by input method servers,
+    /// and some may not use it by default, even if they have support.
+    pub(crate) fn set_area(
+        &mut self,
+        xconn: &Arc<XConnection>,
+        x: i16,
+        y: i16,
+        width: u16,
+        height: u16,
+    ) {
+        let ic_area = ffi::XRectangle { x, y, width, height };
+
+        if !self.is_allowed() || self.ic_area == ic_area {
             return;
         }
 
-        self.ic_spot = ffi::XPoint { x, y };
+        self.ic_area = ic_area;
+        let ic_spot =
+            ffi::XPoint { x: x.saturating_add(width as i16), y: y.saturating_add(height as i16) };
 
         unsafe {
             let preedit_attr = util::memory::XSmartPointer::new(
@@ -354,7 +386,9 @@ impl ImeContext {
                 (xconn.xlib.XVaCreateNestedList)(
                     0,
                     ffi::XNSpotLocation_0.as_ptr(),
-                    &self.ic_spot,
+                    &ic_spot,
+                    ffi::XNArea_0.as_ptr(),
+                    &self.ic_area,
                     ptr::null_mut::<()>(),
                 ),
             )

@@ -1,14 +1,10 @@
 use std::time::Duration;
 
 use crate::application::ApplicationHandler;
-use crate::event::Event;
-use crate::event_loop::{self, ActiveEventLoop, EventLoop};
+use crate::event_loop::EventLoop;
 
 /// Additional methods on [`EventLoop`] for pumping events within an external event loop
 pub trait EventLoopExtPumpEvents {
-    /// A type provided by the user that can be passed through [`Event::UserEvent`].
-    type UserEvent: 'static;
-
     /// Pump the `EventLoop` to check for and dispatch pending events.
     ///
     /// This API is designed to enable applications to integrate Winit into an
@@ -52,18 +48,18 @@ pub trait EventLoopExtPumpEvents {
     /// - `RedrawRequested` events, used to schedule rendering.
     ///
     ///     macOS for example uses a `drawRect` callback to drive rendering
-    /// within applications and expects rendering to be finished before
-    /// the `drawRect` callback returns.
+    ///     within applications and expects rendering to be finished before
+    ///     the `drawRect` callback returns.
     ///
     ///     For portability it's strongly recommended that applications should
-    /// keep their rendering inside the closure provided to Winit.
+    ///     keep their rendering inside the closure provided to Winit.
     /// - Any lifecycle events, such as `Suspended` / `Resumed`.
     ///
     ///     The handling of these events needs to be synchronized with the
-    /// operating system and it would never be appropriate to buffer a
-    /// notification that your application has been suspended or resumed and
-    /// then handled that later since there would always be a chance that
-    /// other lifecycle events occur while the event is buffered.
+    ///     operating system and it would never be appropriate to buffer a
+    ///     notification that your application has been suspended or resumed and
+    ///     then handled that later since there would always be a chance that
+    ///     other lifecycle events occur while the event is buffered.
     ///
     /// ## Supported Platforms
     ///
@@ -74,13 +70,13 @@ pub trait EventLoopExtPumpEvents {
     ///
     /// ## Unsupported Platforms
     ///
-    /// - **Web:**  This API is fundamentally incompatible with the event-based way in which
-    /// Web browsers work because it's not possible to have a long-running external
-    /// loop that would block the browser and there is nothing that can be
-    /// polled to ask for new new events. Events are delivered via callbacks based
-    /// on an event loop that is internal to the browser itself.
+    /// - **Web:**  This API is fundamentally incompatible with the event-based way in which Web
+    ///   browsers work because it's not possible to have a long-running external loop that would
+    ///   block the browser and there is nothing that can be polled to ask for new new events.
+    ///   Events are delivered via callbacks based on an event loop that is internal to the browser
+    ///   itself.
     /// - **iOS:** It's not possible to stop and start an `NSApplication` repeatedly on iOS so
-    /// there's no way to support the same approach to polling as on MacOS.
+    ///   there's no way to support the same approach to polling as on MacOS.
     ///
     /// ## Platform-specific
     ///
@@ -103,38 +99,25 @@ pub trait EventLoopExtPumpEvents {
     ///   If you render outside of Winit you are likely to see window resizing artifacts
     ///   since MacOS expects applications to render synchronously during any `drawRect`
     ///   callback.
-    fn pump_app_events<A: ApplicationHandler<Self::UserEvent>>(
+    fn pump_app_events<A: ApplicationHandler>(
         &mut self,
         timeout: Option<Duration>,
-        app: &mut A,
-    ) -> PumpStatus {
-        #[allow(deprecated)]
-        self.pump_events(timeout, |event, event_loop| {
-            event_loop::dispatch_event_for_app(app, event_loop, event)
-        })
-    }
-
-    /// See [`pump_app_events`].
-    ///
-    /// [`pump_app_events`]: Self::pump_app_events
-    #[deprecated = "use EventLoopExtPumpEvents::pump_app_events"]
-    fn pump_events<F>(&mut self, timeout: Option<Duration>, event_handler: F) -> PumpStatus
-    where
-        F: FnMut(Event<Self::UserEvent>, &ActiveEventLoop);
+        app: A,
+    ) -> PumpStatus;
 }
 
-impl<T> EventLoopExtPumpEvents for EventLoop<T> {
-    type UserEvent = T;
-
-    fn pump_events<F>(&mut self, timeout: Option<Duration>, event_handler: F) -> PumpStatus
-    where
-        F: FnMut(Event<Self::UserEvent>, &ActiveEventLoop),
-    {
-        self.event_loop.pump_events(timeout, event_handler)
+impl EventLoopExtPumpEvents for EventLoop {
+    fn pump_app_events<A: ApplicationHandler>(
+        &mut self,
+        timeout: Option<Duration>,
+        app: A,
+    ) -> PumpStatus {
+        self.event_loop.pump_app_events(timeout, app)
     }
 }
 
 /// The return status for `pump_events`
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum PumpStatus {
     /// Continue running external loop.
     Continue,

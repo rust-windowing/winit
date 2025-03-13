@@ -1,12 +1,11 @@
 use std::ops::Deref;
 use std::os::raw::c_char;
+#[cfg(wayland_platform)]
+use std::os::unix::io::OwnedFd;
 use std::ptr::{self, NonNull};
 use std::sync::atomic::{AtomicBool, Ordering};
 
-use crate::utils::Lazy;
 use smol_str::SmolStr;
-#[cfg(wayland_platform)]
-use std::os::unix::io::OwnedFd;
 use tracing::warn;
 use xkbcommon_dl::{
     self as xkb, xkb_compose_status, xkb_context, xkb_context_flags, xkbcommon_compose_handle,
@@ -17,17 +16,16 @@ use {x11_dl::xlib_xcb::xcb_connection_t, xkbcommon_dl::x11::xkbcommon_x11_handle
 
 use crate::event::{ElementState, KeyEvent};
 use crate::keyboard::{Key, KeyLocation};
-use crate::platform_impl::KeyEventExtra;
+use crate::utils::Lazy;
 
 mod compose;
 mod keymap;
 mod state;
 
 use compose::{ComposeStatus, XkbComposeState, XkbComposeTable};
-use keymap::XkbKeymap;
-
 #[cfg(x11_platform)]
 pub use keymap::raw_keycode_to_physicalkey;
+use keymap::XkbKeymap;
 pub use keymap::{physicalkey_to_scancode, scancode_to_physicalkey};
 pub use state::XkbState;
 
@@ -184,7 +182,7 @@ pub struct KeyContext<'a> {
     scratch_buffer: &'a mut Vec<u8>,
 }
 
-impl<'a> KeyContext<'a> {
+impl KeyContext<'_> {
     pub fn process_key_event(
         &mut self,
         keycode: u32,
@@ -199,9 +197,16 @@ impl<'a> KeyContext<'a> {
         let (key_without_modifiers, _) = event.key_without_modifiers();
         let text_with_all_modifiers = event.text_with_all_modifiers();
 
-        let platform_specific = KeyEventExtra { text_with_all_modifiers, key_without_modifiers };
-
-        KeyEvent { physical_key, logical_key, text, location, state, repeat, platform_specific }
+        KeyEvent {
+            physical_key,
+            logical_key,
+            text,
+            location,
+            state,
+            repeat,
+            text_with_all_modifiers,
+            key_without_modifiers,
+        }
     }
 
     fn keysym_to_utf8_raw(&mut self, keysym: u32) -> Option<SmolStr> {

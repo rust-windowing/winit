@@ -17,12 +17,6 @@ impl<T: Clone> Notifier<T> {
         if self.0.value.set(value).is_err() {
             unreachable!("value set before")
         }
-
-        self.0.queue.close();
-
-        while let Ok(waker) = self.0.queue.pop() {
-            waker.wake()
-        }
     }
 
     pub fn notified(&self) -> Notified<T> {
@@ -30,11 +24,21 @@ impl<T: Clone> Notifier<T> {
     }
 }
 
+impl<T: Clone> Drop for Notifier<T> {
+    fn drop(&mut self) {
+        self.0.queue.close();
+
+        while let Ok(waker) = self.0.queue.pop() {
+            waker.wake()
+        }
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct Notified<T: Clone>(Option<Arc<Inner<T>>>);
 
 impl<T: Clone> Future for Notified<T> {
-    type Output = T;
+    type Output = Option<T>;
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let this = self.0.take().expect("`Receiver` polled after completion");
@@ -54,14 +58,13 @@ impl<T: Clone> Future for Notified<T> {
             }
         }
 
-        let (Ok(Some(value)) | Err(Some(value))) = Arc::try_unwrap(this)
+        match Arc::try_unwrap(this)
             .map(|mut inner| inner.value.take())
             .map_err(|this| this.value.get().cloned())
-        else {
-            unreachable!("found no value despite being ready")
-        };
-
-        Poll::Ready(value)
+        {
+            Ok(Some(value)) | Err(Some(value)) => Poll::Ready(Some(value)),
+            _ => Poll::Ready(None),
+        }
     }
 }
 

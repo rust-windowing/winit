@@ -1,12 +1,15 @@
-use js_sys::{Function, Object, Promise, Reflect};
 use std::cell::OnceCell;
 use std::time::Duration;
+
+use js_sys::{Array, Function, Object, Promise};
 use wasm_bindgen::closure::Closure;
 use wasm_bindgen::prelude::wasm_bindgen;
 use wasm_bindgen::{JsCast, JsValue};
-use web_sys::{AbortController, AbortSignal, MessageChannel, MessagePort};
+use web_sys::{
+    AbortController, AbortSignal, Blob, BlobPropertyBag, MessageChannel, MessagePort, Url, Worker,
+};
 
-use crate::platform::web::PollStrategy;
+use crate::platform::web::{PollStrategy, WaitUntilStrategy};
 
 #[derive(Debug)]
 pub struct Schedule {
@@ -29,6 +32,7 @@ enum Inner {
         port: MessagePort,
         _timeout_closure: Closure<dyn FnMut()>,
     },
+    Worker(MessagePort),
 }
 
 impl Schedule {
@@ -45,14 +49,24 @@ impl Schedule {
         }
     }
 
-    pub fn new_with_duration<F>(window: &web_sys::Window, f: F, duration: Duration) -> Schedule
+    pub fn new_with_duration<F>(
+        strategy: WaitUntilStrategy,
+        window: &web_sys::Window,
+        f: F,
+        duration: Duration,
+    ) -> Schedule
     where
         F: 'static + FnMut(),
     {
-        if has_scheduler_support(window) {
-            Self::new_scheduler(window, f, Some(duration))
-        } else {
-            Self::new_timeout(window.clone(), f, Some(duration))
+        match strategy {
+            WaitUntilStrategy::Scheduler => {
+                if has_scheduler_support(window) {
+                    Self::new_scheduler(window, f, Some(duration))
+                } else {
+                    Self::new_timeout(window.clone(), f, Some(duration))
+                }
+            },
+            WaitUntilStrategy::Worker => Self::new_worker(f, duration),
         }
     }
 
@@ -64,9 +78,9 @@ impl Schedule {
         let scheduler = window.scheduler();
 
         let closure = Closure::new(f);
-        let mut options = SchedulerPostTaskOptions::new();
+        let options: SchedulerPostTaskOptions = Object::new().unchecked_into();
         let controller = AbortController::new().expect("Failed to create `AbortController`");
-        options.signal(&controller.signal());
+        options.set_signal(&controller.signal());
 
         if let Some(duration) = duration {
             // `Duration::as_millis()` always rounds down (because of truncation), we want to round
@@ -74,10 +88,10 @@ impl Schedule {
             let duration = duration
                 .as_secs()
                 .checked_mul(1000)
-                .and_then(|secs| secs.checked_add(duration_millis_ceil(duration).into()))
+                .and_then(|secs| secs.checked_add(duration.subsec_micros().div_ceil(1000).into()))
                 .unwrap_or(u64::MAX);
 
-            options.delay(duration as f64);
+            options.set_delay(duration as f64);
         }
 
         thread_local! {
@@ -127,7 +141,9 @@ impl Schedule {
                 .ok()
                 .and_then(|secs: i32| secs.checked_mul(1000))
                 .and_then(|secs: i32| {
-                    let millis: i32 = duration_millis_ceil(duration)
+                    let millis: i32 = duration
+                        .subsec_micros()
+                        .div_ceil(1000)
                         .try_into()
                         .expect("millis are somehow bigger then 1K");
                     secs.checked_add(millis)
@@ -153,6 +169,44 @@ impl Schedule {
             },
         }
     }
+
+    fn new_worker<F>(f: F, duration: Duration) -> Schedule
+    where
+        F: 'static + FnMut(),
+    {
+        thread_local! {
+            static URL: ScriptUrl = ScriptUrl::new(include_str!("../script/worker.min.js"));
+            static WORKER: Worker = URL.with(|url| Worker::new(&url.0)).expect("`new Worker()` is not expected to fail with a local script");
+        }
+
+        let channel = MessageChannel::new().unwrap();
+        let closure = Closure::new(f);
+        let port_1 = channel.port1();
+        port_1.set_onmessage(Some(closure.as_ref().unchecked_ref()));
+        port_1.start();
+
+        // `Duration::as_millis()` always rounds down (because of truncation), we want to round
+        // up instead. This makes sure that the we never wake up **before** the given time.
+        let duration = duration
+            .as_secs()
+            .try_into()
+            .ok()
+            .and_then(|secs: u32| secs.checked_mul(1000))
+            .and_then(|secs| secs.checked_add(duration.subsec_micros().div_ceil(1000)))
+            .unwrap_or(u32::MAX);
+
+        WORKER
+            .with(|worker| {
+                let port_2 = channel.port2();
+                worker.post_message_with_transfer(
+                    &Array::of2(&port_2, &duration.into()),
+                    &Array::of1(&port_2).into(),
+                )
+            })
+            .expect("`Worker.postMessage()` is not expected to fail");
+
+        Schedule { _closure: closure, inner: Inner::Worker(port_1) }
+    }
 }
 
 impl Drop for Schedule {
@@ -165,21 +219,11 @@ impl Drop for Schedule {
                 port.close();
                 port.set_onmessage(None);
             },
+            Inner::Worker(port) => {
+                port.close();
+                port.set_onmessage(None);
+            },
         }
-    }
-}
-
-// TODO: Replace with `u32::div_ceil()` when we hit Rust v1.73.
-fn duration_millis_ceil(duration: Duration) -> u32 {
-    let micros = duration.subsec_micros();
-
-    // From <https://doc.rust-lang.org/1.73.0/src/core/num/uint_macros.rs.html#2086-2094>.
-    let d = micros / 1000;
-    let r = micros % 1000;
-    if r > 0 && 1000 > 0 {
-        d + 1
-    } else {
-        d
     }
 }
 
@@ -226,6 +270,29 @@ fn has_idle_callback_support(window: &web_sys::Window) -> bool {
     })
 }
 
+struct ScriptUrl(String);
+
+impl ScriptUrl {
+    fn new(script: &str) -> Self {
+        let sequence = Array::of1(&script.into());
+        let property = BlobPropertyBag::new();
+        property.set_type("text/javascript");
+        let blob = Blob::new_with_str_sequence_and_options(&sequence, &property)
+            .expect("`new Blob()` should never throw");
+
+        let url = Url::create_object_url_with_blob(&blob)
+            .expect("`URL.createObjectURL()` should never throw");
+
+        Self(url)
+    }
+}
+
+impl Drop for ScriptUrl {
+    fn drop(&mut self) {
+        Url::revoke_object_url(&self.0).expect("`URL.revokeObjectURL()` should never throw");
+    }
+}
+
 #[wasm_bindgen]
 extern "C" {
     type WindowSupportExt;
@@ -243,22 +310,10 @@ extern "C" {
     ) -> Promise;
 
     type SchedulerPostTaskOptions;
-}
 
-impl SchedulerPostTaskOptions {
-    fn new() -> Self {
-        Object::new().unchecked_into()
-    }
+    #[wasm_bindgen(method, setter, js_name = delay)]
+    fn set_delay(this: &SchedulerPostTaskOptions, value: f64);
 
-    fn delay(&mut self, val: f64) -> &mut Self {
-        let r = Reflect::set(self, &JsValue::from("delay"), &val.into());
-        debug_assert!(r.is_ok(), "Failed to set `delay` property");
-        self
-    }
-
-    fn signal(&mut self, val: &AbortSignal) -> &mut Self {
-        let r = Reflect::set(self, &JsValue::from("signal"), &val.into());
-        debug_assert!(r.is_ok(), "Failed to set `signal` property");
-        self
-    }
+    #[wasm_bindgen(method, setter, js_name = signal)]
+    fn set_signal(this: &SchedulerPostTaskOptions, value: &AbortSignal);
 }

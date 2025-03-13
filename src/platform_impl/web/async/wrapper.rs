@@ -1,11 +1,15 @@
-use super::super::main_thread::MainThreadMarker;
 use std::cell::{Ref, RefCell};
+use std::cmp;
 use std::future::Future;
+use std::hash::{Hash, Hasher};
 use std::marker::PhantomData;
 use std::sync::Arc;
 
+use super::super::main_thread::MainThreadMarker;
+
 // Unsafe wrapper type that allows us to use `T` when it's not `Send` from other threads.
 // `value` **must** only be accessed on the main thread.
+#[derive(Debug)]
 pub struct Wrapper<V: 'static, S: Clone + Send, E> {
     value: Value<V>,
     handler: fn(&RefCell<Option<V>>, E),
@@ -13,6 +17,7 @@ pub struct Wrapper<V: 'static, S: Clone + Send, E> {
     sender_handler: fn(&S, E),
 }
 
+#[derive(Debug)]
 struct Value<V> {
     // SAFETY:
     // This value must not be accessed if not on the main thread.
@@ -32,7 +37,6 @@ unsafe impl<V> Send for Value<V> {}
 unsafe impl<V> Sync for Value<V> {}
 
 impl<V, S: Clone + Send, E> Wrapper<V, S, E> {
-    #[track_caller]
     pub fn new<R: Future<Output = ()>>(
         _: MainThreadMarker,
         value: V,
@@ -40,7 +44,7 @@ impl<V, S: Clone + Send, E> Wrapper<V, S, E> {
         receiver: impl 'static + FnOnce(Arc<RefCell<Option<V>>>) -> R,
         sender_data: S,
         sender_handler: fn(&S, E),
-    ) -> Option<Self> {
+    ) -> Self {
         let value = Arc::new(RefCell::new(Some(value)));
 
         wasm_bindgen_futures::spawn_local({
@@ -51,12 +55,7 @@ impl<V, S: Clone + Send, E> Wrapper<V, S, E> {
             }
         });
 
-        Some(Self {
-            value: Value { value, local: PhantomData },
-            handler,
-            sender_data,
-            sender_handler,
-        })
+        Self { value: Value { value, local: PhantomData }, handler, sender_data, sender_handler }
     }
 
     pub fn send(&self, event: E) {
@@ -67,9 +66,8 @@ impl<V, S: Clone + Send, E> Wrapper<V, S, E> {
         }
     }
 
-    pub fn value(&self) -> Option<Ref<'_, V>> {
-        MainThreadMarker::new()
-            .map(|_| Ref::map(self.value.value.borrow(), |value| value.as_ref().unwrap()))
+    pub fn value(&self, _: MainThreadMarker) -> Ref<'_, V> {
+        Ref::map(self.value.value.borrow(), |value| value.as_ref().unwrap())
     }
 
     pub fn with_sender_data<T>(&self, f: impl FnOnce(&S) -> T) -> T {
@@ -85,5 +83,31 @@ impl<V, S: Clone + Send, E> Clone for Wrapper<V, S, E> {
             sender_data: self.sender_data.clone(),
             sender_handler: self.sender_handler,
         }
+    }
+}
+
+impl<V, S: Clone + Send, E> Eq for Wrapper<V, S, E> {}
+
+impl<V, S: Clone + Send, E> Hash for Wrapper<V, S, E> {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        Arc::as_ptr(&self.value.value).hash(state)
+    }
+}
+
+impl<V, S: Clone + Send, E> Ord for Wrapper<V, S, E> {
+    fn cmp(&self, other: &Self) -> cmp::Ordering {
+        Arc::as_ptr(&self.value.value).cmp(&Arc::as_ptr(&other.value.value))
+    }
+}
+
+impl<V, S: Clone + Send, E> PartialOrd for Wrapper<V, S, E> {
+    fn partial_cmp(&self, other: &Self) -> Option<cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl<V, S: Clone + Send, E> PartialEq for Wrapper<V, S, E> {
+    fn eq(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.value.value, &other.value.value)
     }
 }

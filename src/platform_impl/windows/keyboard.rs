@@ -6,10 +6,13 @@ use std::sync::atomic::AtomicU32;
 use std::sync::atomic::Ordering::Relaxed;
 use std::sync::{Mutex, MutexGuard};
 
+use smol_str::SmolStr;
+use tracing::{trace, warn};
+use unicode_segmentation::UnicodeSegmentation;
 use windows_sys::Win32::Foundation::{HWND, LPARAM, WPARAM};
 use windows_sys::Win32::System::SystemServices::LANG_KOREAN;
 use windows_sys::Win32::UI::Input::KeyboardAndMouse::{
-    GetAsyncKeyState, GetKeyState, GetKeyboardLayout, GetKeyboardState, MapVirtualKeyExW,
+    GetAsyncKeyState, GetKeyState, GetKeyboardLayout, GetKeyboardState, MapVirtualKeyExW, HKL,
     MAPVK_VK_TO_VSC_EX, MAPVK_VSC_TO_VK_EX, VIRTUAL_KEY, VK_ABNT_C2, VK_ADD, VK_CAPITAL, VK_CLEAR,
     VK_CONTROL, VK_DECIMAL, VK_DELETE, VK_DIVIDE, VK_DOWN, VK_END, VK_F4, VK_HOME, VK_INSERT,
     VK_LCONTROL, VK_LEFT, VK_LMENU, VK_LSHIFT, VK_LWIN, VK_MENU, VK_MULTIPLY, VK_NEXT, VK_NUMLOCK,
@@ -17,15 +20,10 @@ use windows_sys::Win32::UI::Input::KeyboardAndMouse::{
     VK_NUMPAD8, VK_NUMPAD9, VK_PRIOR, VK_RCONTROL, VK_RETURN, VK_RIGHT, VK_RMENU, VK_RSHIFT,
     VK_RWIN, VK_SCROLL, VK_SHIFT, VK_SUBTRACT, VK_UP,
 };
-use windows_sys::Win32::UI::TextServices::HKL;
 use windows_sys::Win32::UI::WindowsAndMessaging::{
     PeekMessageW, MSG, PM_NOREMOVE, WM_CHAR, WM_DEADCHAR, WM_KEYDOWN, WM_KEYFIRST, WM_KEYLAST,
     WM_KEYUP, WM_KILLFOCUS, WM_SETFOCUS, WM_SYSCHAR, WM_SYSDEADCHAR, WM_SYSKEYDOWN, WM_SYSKEYUP,
 };
-
-use smol_str::SmolStr;
-use tracing::{trace, warn};
-use unicode_segmentation::UnicodeSegmentation;
 
 use crate::event::{ElementState, KeyEvent};
 use crate::keyboard::{Key, KeyCode, KeyLocation, NamedKey, NativeKey, NativeKeyCode, PhysicalKey};
@@ -33,7 +31,7 @@ use crate::platform_impl::platform::event_loop::ProcResult;
 use crate::platform_impl::platform::keyboard_layout::{
     Layout, LayoutCache, WindowsModifiers, LAYOUT_CACHE,
 };
-use crate::platform_impl::platform::{loword, primarylangid, KeyEventExtra};
+use crate::platform_impl::platform::{loword, primarylangid};
 
 pub type ExScancode = u16;
 
@@ -98,7 +96,7 @@ impl KeyEventBuilder {
                     MatchResult::MessagesToDispatch(self.pending.complete_multi(key_events))
                 },
                 WM_KILLFOCUS => {
-                    // sythesize keyup events
+                    // synthesize keyup events
                     let kbd_state = get_kbd_state();
                     let key_events = Self::synthesize_kbd_state(ElementState::Released, &kbd_state);
                     MatchResult::MessagesToDispatch(self.pending.complete_multi(key_events))
@@ -334,11 +332,11 @@ impl KeyEventBuilder {
         // We are synthesizing the press event for caps-lock first for the following reasons:
         // 1. If caps-lock is *not* held down but *is* active, then we have to synthesize all
         //    printable keys, respecting the caps-lock state.
-        // 2. If caps-lock is held down, we could choose to sythesize its keypress after every other
-        //    key, in which case all other keys *must* be sythesized as if the caps-lock state was
-        //    be the opposite of what it currently is.
+        // 2. If caps-lock is held down, we could choose to synthesize its keypress after every
+        //    other key, in which case all other keys *must* be sythesized as if the caps-lock state
+        //    was be the opposite of what it currently is.
         // --
-        // For the sake of simplicity we are choosing to always sythesize
+        // For the sake of simplicity we are choosing to always synthesize
         // caps-lock first, and always use the current caps-lock state
         // to determine the produced text
         if is_key_pressed!(VK_CAPITAL) {
@@ -453,7 +451,7 @@ impl KeyEventBuilder {
 
         let mut event = event_info.finalize();
         event.logical_key = logical_key;
-        event.platform_specific.text_with_all_modifiers = text;
+        event.text_with_all_modifiers = text;
         Some(MessageAsKeyEvent { event, is_synthetic: true })
     }
 }
@@ -556,7 +554,7 @@ impl PartialKeyEventInfo {
                 // We convert dead keys into their character.
                 // The reason for this is that `key_without_modifiers` is designed for key-bindings,
                 // but the US International layout treats `'` (apostrophe) as a dead key and the
-                // reguar US layout treats it a character. In order for a single binding
+                // regular US layout treats it a character. In order for a single binding
                 // configuration to work with both layouts, we forward each dead key as a character.
                 Key::Dead(k) => {
                     if let Some(ch) = k {
@@ -631,10 +629,8 @@ impl PartialKeyEventInfo {
             location: self.location,
             state: self.key_state,
             repeat: self.is_repeat,
-            platform_specific: KeyEventExtra {
-                text_with_all_modifiers: char_with_all_modifiers,
-                key_without_modifiers: self.key_without_modifiers,
-            },
+            text_with_all_modifiers: char_with_all_modifiers,
+            key_without_modifiers: self.key_without_modifiers,
         }
     }
 }
@@ -1080,6 +1076,20 @@ pub(crate) fn physicalkey_to_scancode(physical_key: PhysicalKey) -> Option<u32> 
         KeyCode::AudioVolumeDown => Some(0xe02e),
         KeyCode::AudioVolumeMute => Some(0xe020),
         KeyCode::AudioVolumeUp => Some(0xe030),
+
+        // Extra from Chromium sources:
+        // https://chromium.googlesource.com/chromium/src.git/+/3e1a26c44c024d97dc9a4c09bbc6a2365398ca2c/ui/events/keycodes/dom/dom_code_data.inc
+        KeyCode::Lang4 => Some(0x0077),
+        KeyCode::Lang3 => Some(0x0078),
+        KeyCode::Undo => Some(0xe008),
+        KeyCode::Paste => Some(0xe00a),
+        KeyCode::Cut => Some(0xe017),
+        KeyCode::Copy => Some(0xe018),
+        KeyCode::Eject => Some(0xe02c),
+        KeyCode::Help => Some(0xe03b),
+        KeyCode::Sleep => Some(0xe05f),
+        KeyCode::WakeUp => Some(0xe063),
+
         _ => None,
     }
 }
@@ -1239,6 +1249,20 @@ pub(crate) fn scancode_to_physicalkey(scancode: u32) -> PhysicalKey {
         0xe02e => KeyCode::AudioVolumeDown,
         0xe020 => KeyCode::AudioVolumeMute,
         0xe030 => KeyCode::AudioVolumeUp,
+
+        // Extra from Chromium sources:
+        // https://chromium.googlesource.com/chromium/src.git/+/3e1a26c44c024d97dc9a4c09bbc6a2365398ca2c/ui/events/keycodes/dom/dom_code_data.inc
+        0x0077 => KeyCode::Lang4,
+        0x0078 => KeyCode::Lang3,
+        0xe008 => KeyCode::Undo,
+        0xe00a => KeyCode::Paste,
+        0xe017 => KeyCode::Cut,
+        0xe018 => KeyCode::Copy,
+        0xe02c => KeyCode::Eject,
+        0xe03b => KeyCode::Help,
+        0xe05f => KeyCode::Sleep,
+        0xe063 => KeyCode::WakeUp,
+
         _ => return PhysicalKey::Unidentified(NativeKeyCode::Windows(scancode as u16)),
     })
 }

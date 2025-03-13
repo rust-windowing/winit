@@ -1,51 +1,79 @@
 //! # iOS / UIKit
 //!
-//! Winit has an OS requirement of iOS 8 or higher, and is regularly tested on
-//! iOS 9.3.
+//! Winit has [the same iOS version requirements as `rustc`][rustc-ios-version], although it's
+//! frequently only tested on newer iOS versions.
 //!
-//! iOS's main `UIApplicationMain` does some init work that's required by all
-//! UI-related code (see issue [#1705]). It is best to create your windows
-//! inside `Event::Resumed`.
+//! [rustc-ios-version]: https://doc.rust-lang.org/rustc/platform-support/apple-ios.html#os-version
 //!
-//! [#1705]: https://github.com/rust-windowing/winit/issues/1705
+//! ## Running on Mac Catalyst
 //!
-//! ## Building app
+//! Mac Catalyst allows running applications using UIKit on macOS, which can be very useful for
+//! testing. See [`rustc`'s documentation on Mac Catalyst][rustc-mac-catalyst] for details on how to
+//! use these targets. To use these with Winit, you'll need to bundle your application before
+//! running it, otherwise UIKit will exit with an error.
 //!
-//! To build ios app you will need rustc built for this targets:
+//! To run e.g. the `window` example in the Winit repository, you can use [`cargo-bundle`] as
+//! follows:
 //!
-//!  - armv7-apple-ios
-//!  - armv7s-apple-ios
-//!  - i386-apple-ios
-//!  - aarch64-apple-ios
-//!  - x86_64-apple-ios
-//!
-//! Then
-//!
-//! ```
-//! cargo build --target=...
-//! ```
-//! The simplest way to integrate your app into xcode environment is to build it
-//! as a static library. Wrap your main function and export it.
-//!
-//! ```rust, ignore
-//! #[no_mangle]
-//! pub extern fn start_winit_app() {
-//!     start_inner()
-//! }
-//!
-//! fn start_inner() {
-//!    ...
-//! }
+//! ```console
+//! $ cargo +nightly bundle --format=ios --target=aarch64-apple-ios-macabi --example=window
+//! $ ./target/aarch64-apple-ios-macabi/debug/examples/bundle/ios/winit.app/window
 //! ```
 //!
-//! Compile project and then drag resulting .a into Xcode project. Add winit.h to xcode.
+//! [rustc-mac-catalyst]: https://doc.rust-lang.org/rustc/platform-support/apple-ios-macabi.html
+//! [`cargo-bundle`]: https://github.com/burtonageo/cargo-bundle
 //!
-//! ```ignore
-//! void start_winit_app();
+//! ## Introduction to building an app
+//!
+//! Building and running your application in the iOS simulator, or on a real device, is a bit more
+//! complicated than Mac Catalyst - fundamentally, you must use Xcode, since the binary needs to be
+//! bundled, signed, notarized and uploaded to the device (there is [an open source work-in-progress
+//! on re-implementing parts of this][apple-platform-rs], but the user-story around it is not yet
+//! clear).
+//!
+//! This means that you're left with effectively two options: Use a tool that manages the Xcode
+//! configuration for you, or use Xcode directly. [`cargo-dinghy`] and [`cargo-mobile2`] are notable
+//! projects in the ecosystem that attempt the former, and [`cargo-xcode`] is an excellent project
+//! that attempts the latter. We will also attempt to describe here how you would go about using
+//! Xcode directly:
+//!
+//! First off, you'll need the correct Rust targets, see [`rustc`'s documentation on iOS][rustc-ios]
+//! for details. Nowadays, the correct targets are usually `aarch64-apple-ios-sim` for the
+//! simulator, and `aarch64-apple-ios` for the actual device.
+//!
+//! Next, create a new Xcode project using the "App" template. The exact configuration does not
+//! really matter, as we're going to delete most of it, since it's tailored for Objective-C and/or
+//! Swift, and Rust/Winit is neither. Specifically, we need to delete:
+//! - Everything relating to storyboards (unless you want to use e.g. a launch screen). This
+//!   includes the relevant keys in `Info.plist`.
+//! - All the generated C header, Objective-C and/or Swift files.
+//!
+//! Now that we have a fairly clean slate that we can build upon, you can add a "run script" build
+//! phase to your Xcode target, which will get invoked instead of the "compile sources" and "link
+//! binary" steps. The basic script should look something like:
+//!
+//! ```sh
+//! # Build desired targets based on `ARCHS` environment variable
+//! cargo build --target=aarch64-apple-ios --target=armv7s-apple-ios
+//! # Merge these with `lipo`, and place the result in "$TARGET_BUILD_DIR/$EXECUTABLE_PATH", which
+//! # is understood by Xcode
+//! lipo "$TARGET_BUILD_DIR/$EXECUTABLE_PATH" target/aarch64-apple-ios/debug/my_app target/armv7s-apple-ios/debug/my_app
 //! ```
 //!
-//! Use start_winit_app inside your xcode's main function.
+//! Note that this is very much the overall idea; the script needs to be much more involved to
+//! properly deal with different target architectures, invoking `lipo` when needed, incremental
+//! rebuild change detection, and so on. `cargo-xcode` has a script [here][cargo-xcode-script] that
+//! handles most of this complexity, you might be able to build upon that.
 //!
+//! Apologies that we're not able to provide you with more than this; work is in-progress on
+//! improving the situation, but it's slow-going.
+//!
+//! [apple-platform-rs]: https://github.com/indygreg/apple-platform-rs
+//! [`cargo-dinghy`]: https://github.com/sonos/dinghy
+//! [`cargo-mobile2`]: https://github.com/tauri-apps/cargo-mobile2
+//! [`cargo-xcode`]: https://crates.io/crates/cargo-xcode
+//! [rustc-ios]: https://doc.rust-lang.org/rustc/platform-support/apple-ios.html
+//! [cargo-xcode-script]: https://gitlab.com/kornelski/cargo-xcode/-/blob/main/src/xcodebuild.sh
 //!
 //! ## App lifecycle and events
 //!
@@ -63,34 +91,36 @@
 //! opengl will result in segfault.
 //!
 //! Also note that app may not receive the LoopExiting event if suspended; it might be SIGKILL'ed.
+//!
+//! ## Custom `UIApplicationDelegate`
+//!
+//! Winit usually handles everything related to the lifecycle events of the application. Sometimes,
+//! though, you might want to access some of the more niche stuff that [the application
+//! delegate][app-delegate] provides. This functionality is not exposed directly in Winit, since it
+//! would increase the API surface by quite a lot. Instead, Winit guarantees that it will not
+//! register an application delegate, so you can set up a custom one in a nib file instead.
+//!
+//! [app-delegate]: https://developer.apple.com/documentation/uikit/uiapplicationdelegate?language=objc
 
 use std::os::raw::c_void;
 
-use crate::event_loop::EventLoop;
-use crate::monitor::{MonitorHandle, VideoModeHandle};
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
+
+use crate::monitor::{MonitorHandle, VideoMode};
+use crate::platform_impl::MonitorHandle as IosMonitorHandle;
 use crate::window::{Window, WindowAttributes};
-
-/// Additional methods on [`EventLoop`] that are specific to iOS.
-pub trait EventLoopExtIOS {
-    /// Returns the [`Idiom`] (phone/tablet/tv/etc) for the current device.
-    fn idiom(&self) -> Idiom;
-}
-
-impl<T: 'static> EventLoopExtIOS for EventLoop<T> {
-    fn idiom(&self) -> Idiom {
-        self.event_loop.idiom()
-    }
-}
 
 /// Additional methods on [`Window`] that are specific to iOS.
 pub trait WindowExtIOS {
     /// Sets the [`contentScaleFactor`] of the underlying [`UIWindow`] to `scale_factor`.
     ///
     /// The default value is device dependent, and it's recommended GLES or Metal applications set
-    /// this to [`MonitorHandle::scale_factor()`].
+    /// this to [`MonitorHandleProvider::scale_factor()`].
     ///
     /// [`UIWindow`]: https://developer.apple.com/documentation/uikit/uiwindow?language=objc
     /// [`contentScaleFactor`]: https://developer.apple.com/documentation/uikit/uiview/1622657-contentscalefactor?language=objc
+    /// [`MonitorHandleProvider::scale_factor()`]: crate::monitor::MonitorHandleProvider::scale_factor()
     fn set_scale_factor(&self, scale_factor: f64);
 
     /// Sets the valid orientations for the [`Window`].
@@ -181,42 +211,49 @@ pub trait WindowExtIOS {
     fn recognize_rotation_gesture(&self, should_recognize: bool);
 }
 
-impl WindowExtIOS for Window {
+impl WindowExtIOS for dyn Window + '_ {
     #[inline]
     fn set_scale_factor(&self, scale_factor: f64) {
-        self.window.maybe_queue_on_main(move |w| w.set_scale_factor(scale_factor))
+        let window = self.cast_ref::<crate::platform_impl::Window>().unwrap();
+        window.maybe_wait_on_main(move |w| w.set_scale_factor(scale_factor));
     }
 
     #[inline]
     fn set_valid_orientations(&self, valid_orientations: ValidOrientations) {
-        self.window.maybe_queue_on_main(move |w| w.set_valid_orientations(valid_orientations))
+        let window = self.cast_ref::<crate::platform_impl::Window>().unwrap();
+        window.maybe_wait_on_main(move |w| w.set_valid_orientations(valid_orientations));
     }
 
     #[inline]
     fn set_prefers_home_indicator_hidden(&self, hidden: bool) {
-        self.window.maybe_queue_on_main(move |w| w.set_prefers_home_indicator_hidden(hidden))
+        let window = self.cast_ref::<crate::platform_impl::Window>().unwrap();
+        window.maybe_wait_on_main(move |w| w.set_prefers_home_indicator_hidden(hidden));
     }
 
     #[inline]
     fn set_preferred_screen_edges_deferring_system_gestures(&self, edges: ScreenEdge) {
-        self.window.maybe_queue_on_main(move |w| {
+        let window = self.cast_ref::<crate::platform_impl::Window>().unwrap();
+        window.maybe_wait_on_main(move |w| {
             w.set_preferred_screen_edges_deferring_system_gestures(edges)
-        })
+        });
     }
 
     #[inline]
     fn set_prefers_status_bar_hidden(&self, hidden: bool) {
-        self.window.maybe_queue_on_main(move |w| w.set_prefers_status_bar_hidden(hidden))
+        let window = self.cast_ref::<crate::platform_impl::Window>().unwrap();
+        window.maybe_wait_on_main(move |w| w.set_prefers_status_bar_hidden(hidden));
     }
 
     #[inline]
     fn set_preferred_status_bar_style(&self, status_bar_style: StatusBarStyle) {
-        self.window.maybe_queue_on_main(move |w| w.set_preferred_status_bar_style(status_bar_style))
+        let window = self.cast_ref::<crate::platform_impl::Window>().unwrap();
+        window.maybe_wait_on_main(move |w| w.set_preferred_status_bar_style(status_bar_style))
     }
 
     #[inline]
     fn recognize_pinch_gesture(&self, should_recognize: bool) {
-        self.window.maybe_queue_on_main(move |w| w.recognize_pinch_gesture(should_recognize));
+        let window = self.cast_ref::<crate::platform_impl::Window>().unwrap();
+        window.maybe_wait_on_main(move |w| w.recognize_pinch_gesture(should_recognize));
     }
 
     #[inline]
@@ -226,7 +263,8 @@ impl WindowExtIOS for Window {
         minimum_number_of_touches: u8,
         maximum_number_of_touches: u8,
     ) {
-        self.window.maybe_queue_on_main(move |w| {
+        let window = self.cast_ref::<crate::platform_impl::Window>().unwrap();
+        window.maybe_wait_on_main(move |w| {
             w.recognize_pan_gesture(
                 should_recognize,
                 minimum_number_of_touches,
@@ -237,12 +275,14 @@ impl WindowExtIOS for Window {
 
     #[inline]
     fn recognize_doubletap_gesture(&self, should_recognize: bool) {
-        self.window.maybe_queue_on_main(move |w| w.recognize_doubletap_gesture(should_recognize));
+        let window = self.cast_ref::<crate::platform_impl::Window>().unwrap();
+        window.maybe_wait_on_main(move |w| w.recognize_doubletap_gesture(should_recognize));
     }
 
     #[inline]
     fn recognize_rotation_gesture(&self, should_recognize: bool) {
-        self.window.maybe_queue_on_main(move |w| w.recognize_rotation_gesture(should_recognize));
+        let window = self.cast_ref::<crate::platform_impl::Window>().unwrap();
+        window.maybe_wait_on_main(move |w| w.recognize_rotation_gesture(should_recognize));
     }
 }
 
@@ -251,10 +291,11 @@ pub trait WindowAttributesExtIOS {
     /// Sets the [`contentScaleFactor`] of the underlying [`UIWindow`] to `scale_factor`.
     ///
     /// The default value is device dependent, and it's recommended GLES or Metal applications set
-    /// this to [`MonitorHandle::scale_factor()`].
+    /// this to [`MonitorHandleProvider::scale_factor()`].
     ///
     /// [`UIWindow`]: https://developer.apple.com/documentation/uikit/uiwindow?language=objc
     /// [`contentScaleFactor`]: https://developer.apple.com/documentation/uikit/uiview/1622657-contentscalefactor?language=objc
+    /// [`MonitorHandleProvider::scale_factor()`]: crate::monitor::MonitorHandleProvider::scale_factor()
     fn with_scale_factor(self, scale_factor: f64) -> Self;
 
     /// Sets the valid orientations for the [`Window`].
@@ -346,28 +387,31 @@ pub trait MonitorHandleExtIOS {
     /// [`UIScreen`]: https://developer.apple.com/documentation/uikit/uiscreen?language=objc
     fn ui_screen(&self) -> *mut c_void;
 
-    /// Returns the preferred [`VideoModeHandle`] for this monitor.
+    /// Returns the preferred [`VideoMode`] for this monitor.
     ///
     /// This translates to a call to [`-[UIScreen preferredMode]`](https://developer.apple.com/documentation/uikit/uiscreen/1617823-preferredmode?language=objc).
-    fn preferred_video_mode(&self) -> VideoModeHandle;
+    fn preferred_video_mode(&self) -> VideoMode;
 }
 
 impl MonitorHandleExtIOS for MonitorHandle {
     #[inline]
     fn ui_screen(&self) -> *mut c_void {
         // SAFETY: The marker is only used to get the pointer of the screen
-        let mtm = unsafe { objc2_foundation::MainThreadMarker::new_unchecked() };
-        objc2::rc::Id::as_ptr(self.inner.ui_screen(mtm)) as *mut c_void
+        let mtm = unsafe { objc2::MainThreadMarker::new_unchecked() };
+        let monitor = self.cast_ref::<IosMonitorHandle>().unwrap();
+        objc2::rc::Retained::as_ptr(monitor.ui_screen(mtm)) as *mut c_void
     }
 
     #[inline]
-    fn preferred_video_mode(&self) -> VideoModeHandle {
-        VideoModeHandle { video_mode: self.inner.preferred_video_mode() }
+    fn preferred_video_mode(&self) -> VideoMode {
+        let monitor = self.cast_ref::<IosMonitorHandle>().unwrap();
+        monitor.preferred_video_mode()
     }
 }
 
 /// Valid orientations for a particular [`Window`].
 #[derive(Default, Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum ValidOrientations {
     /// Excludes `PortraitUpsideDown` on iphone
     #[default]
@@ -379,29 +423,12 @@ pub enum ValidOrientations {
     Portrait,
 }
 
-/// The device [idiom].
-///
-/// [idiom]: https://developer.apple.com/documentation/uikit/uidevice/1620037-userinterfaceidiom?language=objc
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum Idiom {
-    Unspecified,
-
-    /// iPhone and iPod touch.
-    Phone,
-
-    /// iPad.
-    Pad,
-
-    /// tvOS and Apple TV.
-    TV,
-    CarPlay,
-}
-
 bitflags::bitflags! {
     /// The [edges] of a screen.
     ///
     /// [edges]: https://developer.apple.com/documentation/uikit/uirectedge?language=objc
     #[derive(Default, Debug, Clone, Copy, PartialEq, Eq, Hash)]
+    #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
     pub struct ScreenEdge: u8 {
         const NONE   = 0;
         const TOP    = 1 << 0;
@@ -413,7 +440,8 @@ bitflags::bitflags! {
     }
 }
 
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum StatusBarStyle {
     #[default]
     Default,

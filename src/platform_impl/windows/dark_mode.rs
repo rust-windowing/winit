@@ -2,7 +2,6 @@
 /// which is inspired by the solution in https://github.com/ysc3839/win32-darkmode
 use std::{ffi::c_void, ptr};
 
-use crate::utils::Lazy;
 use windows_sys::core::PCSTR;
 use windows_sys::Win32::Foundation::{BOOL, HWND, NTSTATUS, S_OK};
 use windows_sys::Win32::System::LibraryLoader::{GetProcAddress, LoadLibraryA};
@@ -11,9 +10,9 @@ use windows_sys::Win32::UI::Accessibility::{HCF_HIGHCONTRASTON, HIGHCONTRASTA};
 use windows_sys::Win32::UI::Controls::SetWindowTheme;
 use windows_sys::Win32::UI::WindowsAndMessaging::{SystemParametersInfoA, SPI_GETHIGHCONTRAST};
 
-use crate::window::Theme;
-
 use super::util;
+use crate::utils::Lazy;
+use crate::window::Theme;
 
 static WIN10_BUILD_VERSION: Lazy<Option<u32>> = Lazy::new(|| {
     type RtlGetVersion = unsafe extern "system" fn(*mut OSVERSIONINFOW) -> NTSTATUS;
@@ -123,7 +122,7 @@ fn set_dark_mode_for_window(hwnd: HWND, is_dark_mode: bool) -> bool {
     }
 }
 
-fn should_use_dark_mode() -> bool {
+pub fn should_use_dark_mode() -> bool {
     should_apps_use_dark_mode() && !is_high_contrast()
 }
 
@@ -134,7 +133,7 @@ fn should_apps_use_dark_mode() -> bool {
 
         let module = LoadLibraryA("uxtheme.dll\0".as_ptr());
 
-        if module == 0 {
+        if module.is_null() {
             return None;
         }
 

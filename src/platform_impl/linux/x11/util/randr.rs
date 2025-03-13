@@ -1,12 +1,14 @@
+use std::num::NonZeroU16;
 use std::str::FromStr;
 use std::{env, str};
 
-use super::*;
-use crate::dpi::validate_scale_factor;
-use crate::platform_impl::platform::x11::{monitor, VideoModeHandle};
-
 use tracing::warn;
 use x11rb::protocol::randr::{self, ConnectionExt as _};
+
+use super::*;
+use crate::dpi::validate_scale_factor;
+use crate::monitor::VideoMode;
+use crate::platform_impl::platform::x11::{monitor, VideoModeHandle};
 
 /// Represents values of `WINIT_HIDPI_FACTOR`.
 pub enum EnvVarDPI {
@@ -74,23 +76,21 @@ impl XConnection {
         let bit_depth = self.default_root().root_depth;
         let output_modes = &output_info.modes;
         let resource_modes = resources.modes();
+        let current_mode = crtc.mode;
 
         let modes = resource_modes
             .iter()
             // XRROutputInfo contains an array of mode ids that correspond to
             // modes in the array in XRRScreenResources
             .filter(|x| output_modes.iter().any(|id| x.id == *id))
-            .map(|mode| {
-                VideoModeHandle {
-                    size: (mode.width.into(), mode.height.into()),
-                    refresh_rate_millihertz: monitor::mode_refresh_rate_millihertz(mode)
-                        .unwrap_or(0),
-                    bit_depth: bit_depth as u16,
-                    native_mode: mode.id,
-                    // This is populated in `MonitorHandle::video_modes` as the
-                    // video mode is returned to the user
-                    monitor: None,
-                }
+            .map(|mode| VideoModeHandle {
+                current: mode.id == current_mode,
+                mode: VideoMode {
+                    size: (mode.width as u32, mode.height as u32).into(),
+                    refresh_rate_millihertz: monitor::mode_refresh_rate_millihertz(mode),
+                    bit_depth: NonZeroU16::new(bit_depth as u16),
+                },
+                native_mode: mode.id,
             })
             .collect();
 

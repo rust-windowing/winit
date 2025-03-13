@@ -1,9 +1,12 @@
-use super::{util, X11Error, XConnection};
-use crate::dpi::{PhysicalPosition, PhysicalSize};
-use crate::platform_impl::VideoModeHandle as PlatformVideoModeHandle;
+use std::num::NonZeroU32;
+
 use x11rb::connection::RequestConnection;
 use x11rb::protocol::randr::{self, ConnectionExt as _};
 use x11rb::protocol::xproto;
+
+use super::{util, X11Error, XConnection};
+use crate::dpi::PhysicalPosition;
+use crate::monitor::{MonitorHandleProvider, VideoMode};
 
 // Used for testing. This should always be committed as false.
 const DISABLE_MONITOR_LIST_CACHING: bool = false;
@@ -17,32 +20,14 @@ impl XConnection {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct VideoModeHandle {
-    pub(crate) size: (u32, u32),
-    pub(crate) bit_depth: u16,
-    pub(crate) refresh_rate_millihertz: u32,
+    pub(crate) current: bool,
+    pub(crate) mode: VideoMode,
     pub(crate) native_mode: randr::Mode,
-    pub(crate) monitor: Option<MonitorHandle>,
 }
 
-impl VideoModeHandle {
-    #[inline]
-    pub fn size(&self) -> PhysicalSize<u32> {
-        self.size.into()
-    }
-
-    #[inline]
-    pub fn bit_depth(&self) -> u16 {
-        self.bit_depth
-    }
-
-    #[inline]
-    pub fn refresh_rate_millihertz(&self) -> u32 {
-        self.refresh_rate_millihertz
-    }
-
-    #[inline]
-    pub fn monitor(&self) -> MonitorHandle {
-        self.monitor.clone().unwrap()
+impl From<VideoModeHandle> for VideoMode {
+    fn from(handle: VideoModeHandle) -> Self {
+        handle.mode
     }
 }
 
@@ -52,20 +37,46 @@ pub struct MonitorHandle {
     pub(crate) id: randr::Crtc,
     /// The name of the monitor
     pub(crate) name: String,
-    /// The size of the monitor
-    dimensions: (u32, u32),
     /// The position of the monitor in the X screen
-    position: (i32, i32),
+    pub(crate) position: (i32, i32),
     /// If the monitor is the primary one
     primary: bool,
-    /// The refresh rate used by monitor.
-    refresh_rate_millihertz: Option<u32>,
     /// The DPI scale factor
     pub(crate) scale_factor: f64,
     /// Used to determine which windows are on this monitor
     pub(crate) rect: util::AaRect,
     /// Supported video modes on this monitor
-    video_modes: Vec<VideoModeHandle>,
+    pub(crate) video_modes: Vec<VideoModeHandle>,
+}
+
+impl MonitorHandleProvider for MonitorHandle {
+    fn id(&self) -> u128 {
+        self.native_id() as _
+    }
+
+    fn native_id(&self) -> u64 {
+        self.id as _
+    }
+
+    fn name(&self) -> Option<std::borrow::Cow<'_, str>> {
+        Some(self.name.as_str().into())
+    }
+
+    fn position(&self) -> Option<PhysicalPosition<i32>> {
+        Some(self.position.into())
+    }
+
+    fn scale_factor(&self) -> f64 {
+        self.scale_factor
+    }
+
+    fn current_video_mode(&self) -> Option<VideoMode> {
+        self.video_modes.iter().find_map(|mode| mode.current.then(|| mode.clone().into()))
+    }
+
+    fn video_modes(&self) -> Box<dyn Iterator<Item = VideoMode>> {
+        Box::new(self.video_modes.clone().into_iter().map(|mode| mode.into()))
+    }
 }
 
 impl PartialEq for MonitorHandle {
@@ -95,10 +106,12 @@ impl std::hash::Hash for MonitorHandle {
 }
 
 #[inline]
-pub fn mode_refresh_rate_millihertz(mode: &randr::ModeInfo) -> Option<u32> {
+pub fn mode_refresh_rate_millihertz(mode: &randr::ModeInfo) -> Option<NonZeroU32> {
     if mode.dot_clock > 0 && mode.htotal > 0 && mode.vtotal > 0 {
         #[allow(clippy::unnecessary_cast)]
-        Some((mode.dot_clock as u64 * 1000 / (mode.htotal as u64 * mode.vtotal as u64)) as u32)
+        NonZeroU32::new(
+            (mode.dot_clock as u64 * 1000 / (mode.htotal as u64 * mode.vtotal as u64)) as u32,
+        )
     } else {
         None
     }
@@ -116,27 +129,9 @@ impl MonitorHandle {
         let dimensions = (crtc.width as u32, crtc.height as u32);
         let position = (crtc.x as i32, crtc.y as i32);
 
-        // Get the refresh rate of the current video mode.
-        let current_mode = crtc.mode;
-        let screen_modes = resources.modes();
-        let refresh_rate_millihertz = screen_modes
-            .iter()
-            .find(|mode| mode.id == current_mode)
-            .and_then(mode_refresh_rate_millihertz);
-
         let rect = util::AaRect::new(position, dimensions);
 
-        Some(MonitorHandle {
-            id,
-            name,
-            refresh_rate_millihertz,
-            scale_factor,
-            dimensions,
-            position,
-            primary,
-            rect,
-            video_modes,
-        })
+        Some(MonitorHandle { id, name, scale_factor, position, primary, rect, video_modes })
     }
 
     pub fn dummy() -> Self {
@@ -144,9 +139,7 @@ impl MonitorHandle {
             id: 0,
             name: "<dummy monitor>".into(),
             scale_factor: 1.0,
-            dimensions: (1, 1),
             position: (0, 0),
-            refresh_rate_millihertz: None,
             primary: true,
             rect: util::AaRect::new((0, 0), (1, 1)),
             video_modes: Vec::new(),
@@ -156,41 +149,6 @@ impl MonitorHandle {
     pub(crate) fn is_dummy(&self) -> bool {
         // Zero is an invalid XID value; no real monitor will have it
         self.id == 0
-    }
-
-    pub fn name(&self) -> Option<String> {
-        Some(self.name.clone())
-    }
-
-    #[inline]
-    pub fn native_identifier(&self) -> u32 {
-        self.id as _
-    }
-
-    pub fn size(&self) -> PhysicalSize<u32> {
-        self.dimensions.into()
-    }
-
-    pub fn position(&self) -> PhysicalPosition<i32> {
-        self.position.into()
-    }
-
-    pub fn refresh_rate_millihertz(&self) -> Option<u32> {
-        self.refresh_rate_millihertz
-    }
-
-    #[inline]
-    pub fn scale_factor(&self) -> f64 {
-        self.scale_factor
-    }
-
-    #[inline]
-    pub fn video_modes(&self) -> impl Iterator<Item = PlatformVideoModeHandle> {
-        let monitor = self.clone();
-        self.video_modes.clone().into_iter().map(move |mut x| {
-            x.monitor = Some(monitor.clone());
-            PlatformVideoModeHandle::X(x)
-        })
     }
 }
 
@@ -301,7 +259,7 @@ impl XConnection {
         let info = self
             .xcb_connection()
             .extension_information(randr::X11_EXTENSION_NAME)?
-            .ok_or_else(|| X11Error::MissingExtension(randr::X11_EXTENSION_NAME))?;
+            .ok_or(X11Error::MissingExtension(randr::X11_EXTENSION_NAME))?;
 
         // Select input data.
         let event_mask =

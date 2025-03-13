@@ -3,11 +3,10 @@ use std::os::raw::c_char;
 use std::ptr;
 use std::sync::Arc;
 
-use super::{ffi, XConnection, XError};
-
 use super::context::{ImeContext, ImeContextCreationError};
 use super::inner::{close_im, ImeInner};
 use super::input_method::PotentialInputMethods;
+use super::{ffi, XConnection, XError};
 
 pub(crate) unsafe fn xim_set_callback(
     xconn: &Arc<XConnection>,
@@ -117,25 +116,21 @@ unsafe fn replace_im(inner: *mut ImeInner) -> Result<(), ReplaceImError> {
 
     let mut new_contexts = HashMap::new();
     for (window, old_context) in unsafe { (*inner).contexts.iter() } {
-        let spot = old_context.as_ref().map(|old_context| old_context.ic_spot);
+        let area = old_context.as_ref().map(|old_context| old_context.ic_area);
 
         // Check if the IME was allowed on that context.
         let is_allowed =
             old_context.as_ref().map(|old_context| old_context.is_allowed()).unwrap_or_default();
 
-        // We can't use the style from the old context here, since it may change on reload, so
-        // pick style from the new XIM based on the old state.
-        let style = if is_allowed { new_im.preedit_style } else { new_im.none_style };
-
         let new_context = {
             let result = unsafe {
                 ImeContext::new(
                     xconn,
-                    new_im.im,
-                    style,
+                    &new_im,
                     *window,
-                    spot,
+                    area,
                     (*inner).event_sender.clone(),
+                    is_allowed,
                 )
             };
             if result.is_err() {

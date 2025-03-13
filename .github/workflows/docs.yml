@@ -29,10 +29,10 @@ jobs:
         env:
           RUSTDOCFLAGS: --crate-version master --cfg=docsrs --cfg=unreleased_changelogs
         run: |
-          cargo doc --no-deps -Z rustdoc-map -Z rustdoc-scrape-examples --features=rwh_04,rwh_05,rwh_06,serde,mint,android-native-activity
+          cargo doc --no-deps -Z rustdoc-map -Z rustdoc-scrape-examples --features=serde,mint,android-native-activity
 
       - name: Setup Pages
-        uses: actions/configure-pages@v4
+        uses: actions/configure-pages@v5
 
       - name: Fix permissions
         run: |

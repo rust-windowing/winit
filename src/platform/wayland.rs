@@ -13,11 +13,9 @@
 //! * `wayland-csd-adwaita` (default).
 //! * `wayland-csd-adwaita-crossfont`.
 //! * `wayland-csd-adwaita-notitle`.
-use crate::event_loop::{ActiveEventLoop, EventLoopBuilder};
-use crate::monitor::MonitorHandle;
-use crate::window::{Window, WindowAttributes};
-
+use crate::event_loop::{ActiveEventLoop, EventLoop, EventLoopBuilder};
 pub use crate::window::Theme;
+use crate::window::{Window as CoreWindow, WindowAttributes};
 
 /// Additional methods on [`ActiveEventLoop`] that are specific to Wayland.
 pub trait ActiveEventLoopExtWayland {
@@ -25,10 +23,23 @@ pub trait ActiveEventLoopExtWayland {
     fn is_wayland(&self) -> bool;
 }
 
-impl ActiveEventLoopExtWayland for ActiveEventLoop {
+impl ActiveEventLoopExtWayland for dyn ActiveEventLoop + '_ {
     #[inline]
     fn is_wayland(&self) -> bool {
-        self.p.is_wayland()
+        self.cast_ref::<crate::platform_impl::wayland::ActiveEventLoop>().is_some()
+    }
+}
+
+/// Additional methods on [`EventLoop`] that are specific to Wayland.
+pub trait EventLoopExtWayland {
+    /// True if the [`EventLoop`] uses Wayland.
+    fn is_wayland(&self) -> bool;
+}
+
+impl EventLoopExtWayland for EventLoop {
+    #[inline]
+    fn is_wayland(&self) -> bool {
+        self.event_loop.is_wayland()
     }
 }
 
@@ -44,7 +55,7 @@ pub trait EventLoopBuilderExtWayland {
     fn with_any_thread(&mut self, any_thread: bool) -> &mut Self;
 }
 
-impl<T> EventLoopBuilderExtWayland for EventLoopBuilder<T> {
+impl EventLoopBuilderExtWayland for EventLoopBuilder {
     #[inline]
     fn with_wayland(&mut self) -> &mut Self {
         self.platform_specific.forced_backend = Some(crate::platform_impl::Backend::Wayland);
@@ -59,9 +70,11 @@ impl<T> EventLoopBuilderExtWayland for EventLoopBuilder<T> {
 }
 
 /// Additional methods on [`Window`] that are specific to Wayland.
+///
+/// [`Window`]: crate::window::Window
 pub trait WindowExtWayland {}
 
-impl WindowExtWayland for Window {}
+impl WindowExtWayland for dyn CoreWindow + '_ {}
 
 /// Additional methods on [`WindowAttributes`] that are specific to Wayland.
 pub trait WindowAttributesExtWayland {
@@ -81,18 +94,5 @@ impl WindowAttributesExtWayland for WindowAttributes {
         self.platform_specific.name =
             Some(crate::platform_impl::ApplicationName::new(general.into(), instance.into()));
         self
-    }
-}
-
-/// Additional methods on `MonitorHandle` that are specific to Wayland.
-pub trait MonitorHandleExtWayland {
-    /// Returns the inner identifier of the monitor.
-    fn native_id(&self) -> u32;
-}
-
-impl MonitorHandleExtWayland for MonitorHandle {
-    #[inline]
-    fn native_id(&self) -> u32 {
-        self.inner.native_identifier()
     }
 }

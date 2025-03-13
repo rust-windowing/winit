@@ -1,24 +1,26 @@
 use std::collections::HashMap;
 use std::error::Error;
+use std::ffi::c_int;
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::{Arc, Mutex, RwLock, RwLockReadGuard};
 use std::{fmt, ptr};
 
-use crate::window::CursorIcon;
-
-use super::atoms::Atoms;
-use super::ffi;
-use super::monitor::MonitorHandle;
+use rwh_06::HasDisplayHandle;
 use x11rb::connection::Connection;
 use x11rb::protocol::randr::ConnectionExt as _;
+use x11rb::protocol::render;
 use x11rb::protocol::xproto::{self, ConnectionExt};
 use x11rb::resource_manager;
 use x11rb::xcb_ffi::XCBConnection;
 
+use super::atoms::Atoms;
+use super::ffi;
+use super::monitor::MonitorHandle;
+use crate::window::CursorIcon;
+
 /// A connection to an X server.
 pub struct XConnection {
     pub xlib: ffi::Xlib,
-    pub xcursor: ffi::Xcursor,
 
     // TODO(notgull): I'd like to remove this, but apparently Xlib and Xinput2 are tied together
     // for some reason.
@@ -55,8 +57,18 @@ pub struct XConnection {
     /// Atom for the XSettings screen.
     xsettings_screen: Option<xproto::Atom>,
 
+    /// XRender format information.
+    render_formats: render::QueryPictFormatsReply,
+
     pub latest_error: Mutex<Option<XError>>,
-    pub cursor_cache: Mutex<HashMap<Option<CursorIcon>, ffi::Cursor>>,
+    pub cursor_cache: Mutex<HashMap<Option<CursorIcon>, xproto::Cursor>>,
+}
+
+impl HasDisplayHandle for XConnection {
+    fn display_handle(&self) -> Result<rwh_06::DisplayHandle<'_>, rwh_06::HandleError> {
+        let raw = self.raw_display_handle()?;
+        unsafe { Ok(rwh_06::DisplayHandle::borrow_raw(raw)) }
+    }
 }
 
 unsafe impl Send for XConnection {}
@@ -69,7 +81,6 @@ impl XConnection {
     pub fn new(error_handler: XErrorHandler) -> Result<XConnection, XNotSupported> {
         // opening the libraries
         let xlib = ffi::Xlib::open()?;
-        let xcursor = ffi::Xcursor::open()?;
         let xlib_xcb = ffi::Xlib_xcb::open()?;
         let xinput2 = ffi::XInput2::open()?;
 
@@ -118,15 +129,22 @@ impl XConnection {
             tracing::warn!("error setting XSETTINGS; Xft options won't reload automatically")
         }
 
+        // Start getting the XRender formats.
+        let formats_cookie = render::query_pict_formats(&xcb)
+            .map_err(|e| XNotSupported::XcbConversionError(Arc::new(e)))?;
+
         // Fetch atoms.
         let atoms = Atoms::new(&xcb)
             .map_err(|e| XNotSupported::XcbConversionError(Arc::new(e)))?
             .reply()
             .map_err(|e| XNotSupported::XcbConversionError(Arc::new(e)))?;
 
+        // Finish getting everything else.
+        let formats =
+            formats_cookie.reply().map_err(|e| XNotSupported::XcbConversionError(Arc::new(e)))?;
+
         Ok(XConnection {
             xlib,
-            xcursor,
             xinput2,
             display,
             xcb: Some(xcb),
@@ -138,6 +156,7 @@ impl XConnection {
             database: RwLock::new(database),
             cursor_cache: Default::default(),
             randr_version: (randr_version.major_version, randr_version.minor_version),
+            render_formats: formats,
             xsettings_screen,
         })
     }
@@ -145,7 +164,7 @@ impl XConnection {
     fn new_xsettings_screen(xcb: &XCBConnection, default_screen: usize) -> Option<xproto::Atom> {
         // Fetch the _XSETTINGS_S[screen number] atom.
         let xsettings_screen = xcb
-            .intern_atom(false, format!("_XSETTINGS_S{}", default_screen).as_bytes())
+            .intern_atom(false, format!("_XSETTINGS_S{default_screen}").as_bytes())
             .ok()?
             .reply()
             .ok()?
@@ -256,6 +275,36 @@ impl XConnection {
     #[inline]
     pub fn xsettings_screen(&self) -> Option<xproto::Atom> {
         self.xsettings_screen
+    }
+
+    /// Get the data containing our rendering formats.
+    #[inline]
+    pub fn render_formats(&self) -> &render::QueryPictFormatsReply {
+        &self.render_formats
+    }
+
+    /// Do we need to do an endian swap?
+    #[inline]
+    pub fn needs_endian_swap(&self) -> bool {
+        #[cfg(target_endian = "big")]
+        let endian = xproto::ImageOrder::MSB_FIRST;
+        #[cfg(not(target_endian = "big"))]
+        let endian = xproto::ImageOrder::LSB_FIRST;
+
+        self.xcb_connection().setup().image_byte_order != endian
+    }
+
+    pub fn raw_display_handle(&self) -> Result<rwh_06::RawDisplayHandle, rwh_06::HandleError> {
+        let display_handle = rwh_06::XlibDisplayHandle::new(
+            // SAFETY: display will never be null
+            Some(
+                std::ptr::NonNull::new(self.display as *mut _)
+                    .expect("X11 display should never be null"),
+            ),
+            self.default_screen_index() as c_int,
+        );
+
+        Ok(display_handle.into())
     }
 }
 

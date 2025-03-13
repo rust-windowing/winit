@@ -5,13 +5,12 @@ use std::sync::{Arc, Mutex, Weak};
 use std::time::Duration;
 
 use ahash::HashSet;
-use tracing::{info, warn};
-
+use sctk::compositor::{CompositorState, Region, SurfaceData, SurfaceDataExt};
 use sctk::reexports::client::backend::ObjectId;
 use sctk::reexports::client::protocol::wl_seat::WlSeat;
 use sctk::reexports::client::protocol::wl_shm::WlShm;
 use sctk::reexports::client::protocol::wl_surface::WlSurface;
-use sctk::reexports::client::{Connection, Proxy, QueueHandle};
+use sctk::reexports::client::{Proxy, QueueHandle};
 use sctk::reexports::csd_frame::{
     DecorationsFrame, FrameAction, FrameClick, ResizeEdge, WindowState as XdgWindowState,
 };
@@ -19,8 +18,6 @@ use sctk::reexports::protocols::wp::fractional_scale::v1::client::wp_fractional_
 use sctk::reexports::protocols::wp::text_input::zv3::client::zwp_text_input_v3::ZwpTextInputV3;
 use sctk::reexports::protocols::wp::viewporter::client::wp_viewport::WpViewport;
 use sctk::reexports::protocols::xdg::shell::client::xdg_toplevel::ResizeEdge as XdgResizeEdge;
-
-use sctk::compositor::{CompositorState, Region, SurfaceData, SurfaceDataExt};
 use sctk::seat::pointer::{PointerDataExt, ThemedPointer};
 use sctk::shell::xdg::window::{DecorationMode, Window, WindowConfigure};
 use sctk::shell::xdg::XdgSurface;
@@ -28,34 +25,36 @@ use sctk::shell::WaylandSurface;
 use sctk::shm::slot::SlotPool;
 use sctk::shm::Shm;
 use sctk::subcompositor::SubcompositorState;
+use tracing::{info, warn};
 use wayland_protocols_plasma::blur::client::org_kde_kwin_blur::OrgKdeKwinBlur;
 
 use crate::cursor::CustomCursor as RootCustomCursor;
 use crate::dpi::{LogicalPosition, LogicalSize, PhysicalSize, Size};
-use crate::error::{ExternalError, NotSupportedError};
+use crate::error::{NotSupportedError, RequestError};
+use crate::platform_impl::wayland::event_loop::OwnedDisplayHandle;
 use crate::platform_impl::wayland::logical_to_physical_rounded;
-use crate::platform_impl::wayland::types::cursor::{CustomCursor, SelectedCursor};
-use crate::platform_impl::wayland::types::kwin_blur::KWinBlurManager;
-use crate::platform_impl::{PlatformCustomCursor, WindowId};
-use crate::window::{CursorGrabMode, CursorIcon, ImePurpose, ResizeDirection, Theme};
-
 use crate::platform_impl::wayland::seat::{
     PointerConstraintsState, WinitPointerData, WinitPointerDataExt, ZwpTextInputV3Ext,
 };
 use crate::platform_impl::wayland::state::{WindowCompositorUpdate, WinitState};
+use crate::platform_impl::wayland::types::cursor::{CustomCursor, SelectedCursor};
+use crate::platform_impl::wayland::types::kwin_blur::KWinBlurManager;
+use crate::platform_impl::PlatformCustomCursor;
+use crate::window::{CursorGrabMode, CursorIcon, ImePurpose, ResizeDirection, Theme, WindowId};
 
 #[cfg(feature = "sctk-adwaita")]
 pub type WinitFrame = sctk_adwaita::AdwaitaFrame<WinitState>;
 #[cfg(not(feature = "sctk-adwaita"))]
 pub type WinitFrame = sctk::shell::xdg::fallback_frame::FallbackFrame<WinitState>;
 
-// Minimum window inner size.
+// Minimum window surface size.
 const MIN_WINDOW_SIZE: LogicalSize<u32> = LogicalSize::new(2, 1);
 
 /// The state of the window which is being updated from the [`WinitState`].
+#[derive(Debug)]
 pub struct WindowState {
     /// The connection to Wayland server.
-    pub connection: Connection,
+    pub handle: Arc<OwnedDisplayHandle>,
 
     /// The `Shm` to set cursor.
     pub shm: WlShm,
@@ -115,7 +114,7 @@ pub struct WindowState {
     /// The text inputs observed on the window.
     text_inputs: Vec<ZwpTextInputV3>,
 
-    /// The inner size of the window, as in without client side decorations.
+    /// The surface size of the window, as in without client side decorations.
     size: LogicalSize<u32>,
 
     /// Whether the CSD fail to create, so we don't try to create them on each iteration.
@@ -125,8 +124,8 @@ pub struct WindowState {
     decorate: bool,
 
     /// Min size.
-    min_inner_size: LogicalSize<u32>,
-    max_inner_size: Option<LogicalSize<u32>>,
+    min_surface_size: LogicalSize<u32>,
+    max_surface_size: Option<LogicalSize<u32>>,
 
     /// The size of the window when no states were applied to it. The primary use for it
     /// is to fallback to original window size, before it was maximized, if the compositor
@@ -164,7 +163,7 @@ pub struct WindowState {
 impl WindowState {
     /// Create new window state.
     pub fn new(
-        connection: Connection,
+        handle: Arc<OwnedDisplayHandle>,
         queue_handle: &QueueHandle<WinitState>,
         winit_state: &WinitState,
         initial_size: Size,
@@ -186,7 +185,7 @@ impl WindowState {
             blur: None,
             blur_manager: winit_state.kwin_blur_manager.clone(),
             compositor,
-            connection,
+            handle,
             csd_fails: false,
             cursor_grab_mode: GrabState::new(),
             selected_cursor: Default::default(),
@@ -200,8 +199,8 @@ impl WindowState {
             ime_allowed: false,
             ime_purpose: ImePurpose::Normal,
             last_configure: None,
-            max_inner_size: None,
-            min_inner_size: MIN_WINDOW_SIZE,
+            max_surface_size: None,
+            min_surface_size: MIN_WINDOW_SIZE,
             pointer_constraints,
             pointers: Default::default(),
             queue_handle: queue_handle.clone(),
@@ -331,7 +330,7 @@ impl WindowState {
 
         // Apply configure bounds only when compositor let the user decide what size to pick.
         if constrain {
-            let bounds = self.inner_size_bounds(&configure);
+            let bounds = self.surface_size_bounds(&configure);
             new_size.width =
                 bounds.0.map(|bound_w| new_size.width.min(bound_w.get())).unwrap_or(new_size.width);
             new_size.height = bounds
@@ -356,7 +355,7 @@ impl WindowState {
         // NOTE: Set the configure before doing a resize, since we query it during it.
         self.last_configure = Some(configure);
 
-        if state_change_requires_resize || new_size != self.inner_size() {
+        if state_change_requires_resize || new_size != self.surface_size() {
             self.resize(new_size);
             true
         } else {
@@ -364,8 +363,8 @@ impl WindowState {
         }
     }
 
-    /// Compute the bounds for the inner size of the surface.
-    fn inner_size_bounds(
+    /// Compute the bounds for the surface size of the surface.
+    fn surface_size_bounds(
         &self,
         configure: &WindowConfigure,
     ) -> (Option<NonZeroU32>, Option<NonZeroU32>) {
@@ -391,7 +390,7 @@ impl WindowState {
     }
 
     /// Start interacting drag resize.
-    pub fn drag_resize_window(&self, direction: ResizeDirection) -> Result<(), ExternalError> {
+    pub fn drag_resize_window(&self, direction: ResizeDirection) -> Result<(), RequestError> {
         let xdg_toplevel = self.window.xdg_toplevel();
 
         // TODO(kchibisov) handle touch serials.
@@ -405,7 +404,7 @@ impl WindowState {
     }
 
     /// Start the window drag.
-    pub fn drag_window(&self) -> Result<(), ExternalError> {
+    pub fn drag_window(&self) -> Result<(), RequestError> {
         let xdg_toplevel = self.window.xdg_toplevel();
         // TODO(kchibisov) handle touch serials.
         self.apply_on_pointer(|_, data| {
@@ -510,8 +509,8 @@ impl WindowState {
             // Restore min/max sizes of the window.
             self.reload_min_max_hints();
         } else {
-            self.set_min_inner_size(Some(self.size));
-            self.set_max_inner_size(Some(self.size));
+            self.set_min_surface_size(Some(self.size));
+            self.set_max_surface_size(Some(self.size));
         }
 
         // Reload the state on the frame as well.
@@ -536,7 +535,7 @@ impl WindowState {
 
     /// Get the size of the window.
     #[inline]
-    pub fn inner_size(&self) -> LogicalSize<u32> {
+    pub fn surface_size(&self) -> LogicalSize<u32> {
         self.size
     }
 
@@ -631,21 +630,21 @@ impl WindowState {
     }
 
     /// Try to resize the window when the user can do so.
-    pub fn request_inner_size(&mut self, inner_size: Size) -> PhysicalSize<u32> {
+    pub fn request_surface_size(&mut self, surface_size: Size) -> PhysicalSize<u32> {
         if self.last_configure.as_ref().map(Self::is_stateless).unwrap_or(true) {
-            self.resize(inner_size.to_logical(self.scale_factor()))
+            self.resize(surface_size.to_logical(self.scale_factor()))
         }
 
-        logical_to_physical_rounded(self.inner_size(), self.scale_factor())
+        logical_to_physical_rounded(self.surface_size(), self.scale_factor())
     }
 
-    /// Resize the window to the new inner size.
-    fn resize(&mut self, inner_size: LogicalSize<u32>) {
-        self.size = inner_size;
+    /// Resize the window to the new surface size.
+    fn resize(&mut self, surface_size: LogicalSize<u32>) {
+        self.size = surface_size;
 
         // Update the stateless size.
         if Some(true) == self.last_configure.as_ref().map(Self::is_stateless) {
-            self.stateless_size = inner_size;
+            self.stateless_size = surface_size;
         }
 
         // Update the inner frame.
@@ -676,7 +675,7 @@ impl WindowState {
 
         // Update the target viewport, this is used if and only if fractional scaling is in use.
         if let Some(viewport) = self.viewport.as_ref() {
-            // Set inner size without the borders.
+            // Set surface size without the borders.
             viewport.set_destination(self.size.width as _, self.size.height as _);
         }
     }
@@ -696,7 +695,7 @@ impl WindowState {
         }
 
         self.apply_on_pointer(|pointer, _| {
-            if pointer.set_cursor(&self.connection, cursor_icon).is_err() {
+            if pointer.set_cursor(&self.handle.connection, cursor_icon).is_err() {
                 warn!("Failed to set cursor to {:?}", cursor_icon);
             }
         })
@@ -756,7 +755,7 @@ impl WindowState {
     }
 
     /// Set maximum inner window size.
-    pub fn set_min_inner_size(&mut self, size: Option<LogicalSize<u32>>) {
+    pub fn set_min_surface_size(&mut self, size: Option<LogicalSize<u32>>) {
         // Ensure that the window has the right minimum size.
         let mut size = size.unwrap_or(MIN_WINDOW_SIZE);
         size.width = size.width.max(MIN_WINDOW_SIZE.width);
@@ -769,12 +768,12 @@ impl WindowState {
             .map(|frame| frame.add_borders(size.width, size.height).into())
             .unwrap_or(size);
 
-        self.min_inner_size = size;
+        self.min_surface_size = size;
         self.window.set_min_size(Some(size.into()));
     }
 
     /// Set maximum inner window size.
-    pub fn set_max_inner_size(&mut self, size: Option<LogicalSize<u32>>) {
+    pub fn set_max_surface_size(&mut self, size: Option<LogicalSize<u32>>) {
         let size = size.map(|size| {
             self.frame
                 .as_ref()
@@ -782,7 +781,7 @@ impl WindowState {
                 .unwrap_or(size)
         });
 
-        self.max_inner_size = size;
+        self.max_surface_size = size;
         self.window.set_max_size(size.map(Into::into));
     }
 
@@ -802,7 +801,7 @@ impl WindowState {
     }
 
     /// Set the cursor grabbing state on the top-level.
-    pub fn set_cursor_grab(&mut self, mode: CursorGrabMode) -> Result<(), ExternalError> {
+    pub fn set_cursor_grab(&mut self, mode: CursorGrabMode) -> Result<(), RequestError> {
         if self.cursor_grab_mode.user_grab_mode == mode {
             return Ok(());
         }
@@ -815,16 +814,20 @@ impl WindowState {
 
     /// Reload the hints for minimum and maximum sizes.
     pub fn reload_min_max_hints(&mut self) {
-        self.set_min_inner_size(Some(self.min_inner_size));
-        self.set_max_inner_size(self.max_inner_size);
+        self.set_min_surface_size(Some(self.min_surface_size));
+        self.set_max_surface_size(self.max_surface_size);
     }
 
     /// Set the grabbing state on the surface.
-    fn set_cursor_grab_inner(&mut self, mode: CursorGrabMode) -> Result<(), ExternalError> {
+    fn set_cursor_grab_inner(&mut self, mode: CursorGrabMode) -> Result<(), RequestError> {
         let pointer_constraints = match self.pointer_constraints.as_ref() {
             Some(pointer_constraints) => pointer_constraints,
             None if mode == CursorGrabMode::None => return Ok(()),
-            None => return Err(ExternalError::NotSupported(NotSupportedError::new())),
+            None => {
+                return Err(
+                    NotSupportedError::new("zwp_pointer_constraints is not available").into()
+                )
+            },
         };
 
         // Replace the current mode.
@@ -868,16 +871,17 @@ impl WindowState {
     }
 
     /// Set the position of the cursor.
-    pub fn set_cursor_position(&self, position: LogicalPosition<f64>) -> Result<(), ExternalError> {
+    pub fn set_cursor_position(&self, position: LogicalPosition<f64>) -> Result<(), RequestError> {
         if self.pointer_constraints.is_none() {
-            return Err(ExternalError::NotSupported(NotSupportedError::new()));
+            return Err(NotSupportedError::new("zwp_pointer_constraints is not available").into());
         }
 
         // Position can be set only for locked cursor.
         if self.cursor_grab_mode.current_grab_mode != CursorGrabMode::Locked {
-            return Err(ExternalError::Os(os_error!(crate::platform_impl::OsError::Misc(
-                "cursor position can be set only for locked cursor."
-            ))));
+            return Err(NotSupportedError::new(
+                "cursor position could only be changed for locked pointer",
+            )
+            .into());
         }
 
         self.apply_on_pointer(|_, data| {
@@ -1094,7 +1098,7 @@ impl Drop for WindowState {
 }
 
 /// The state of the cursor grabs.
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 struct GrabState {
     /// The grab mode requested by the user.
     user_grab_mode: CursorGrabMode,

@@ -3,9 +3,10 @@ use std::os::raw::{c_char, c_ulong, c_ushort};
 use std::sync::{Arc, Mutex};
 use std::{env, fmt, ptr};
 
+use x11rb::protocol::xproto;
+
 use super::super::atoms::*;
 use super::{ffi, util, XConnection, XError};
-use x11rb::protocol::xproto;
 
 static GLOBAL_LOCK: Mutex<()> = Mutex::new(());
 
@@ -176,7 +177,7 @@ unsafe fn get_xim_servers(xconn: &Arc<XConnection>) -> Result<Vec<String>, GetXi
         )
         .map_err(GetXimServersError::GetPropertyError)?
         .into_iter()
-        .map(ffi::Atom::from)
+        .map(|atom| atom as _)
         .collect::<Vec<_>>();
 
     let mut names: Vec<*const c_char> = Vec::with_capacity(atoms.len());

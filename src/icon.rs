@@ -1,6 +1,7 @@
-use crate::platform_impl::PlatformIcon;
 use std::error::Error;
 use std::{fmt, io, mem};
+
+use crate::platform_impl::PlatformIcon;
 
 #[repr(C)]
 #[derive(Debug)]
@@ -49,15 +50,15 @@ impl fmt::Display for BadIcon {
 
 impl Error for BadIcon {}
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub(crate) struct RgbaIcon {
     pub(crate) rgba: Vec<u8>,
     pub(crate) width: u32,
     pub(crate) height: u32,
 }
 
-/// For platforms which don't have window icons (e.g. web)
-#[derive(Debug, Clone, PartialEq, Eq)]
+/// For platforms which don't have window icons (e.g. Web)
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub(crate) struct NoIcon;
 
 #[allow(dead_code)] // These are not used on every platform
@@ -93,7 +94,7 @@ mod constructors {
 }
 
 /// An icon used for the window titlebar, taskbar, etc.
-#[derive(Clone)]
+#[derive(Clone, Eq, Hash, PartialEq)]
 pub struct Icon {
     pub(crate) inner: PlatformIcon,
 }

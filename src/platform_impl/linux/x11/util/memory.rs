@@ -19,7 +19,7 @@ impl<'a, T> XSmartPointer<'a, T> {
     }
 }
 
-impl<'a, T> Deref for XSmartPointer<'a, T> {
+impl<T> Deref for XSmartPointer<'_, T> {
     type Target = T;
 
     fn deref(&self) -> &T {
@@ -27,13 +27,13 @@ impl<'a, T> Deref for XSmartPointer<'a, T> {
     }
 }
 
-impl<'a, T> DerefMut for XSmartPointer<'a, T> {
+impl<T> DerefMut for XSmartPointer<'_, T> {
     fn deref_mut(&mut self) -> &mut T {
         unsafe { &mut *self.ptr }
     }
 }
 
-impl<'a, T> Drop for XSmartPointer<'a, T> {
+impl<T> Drop for XSmartPointer<'_, T> {
     fn drop(&mut self) {
         unsafe {
             (self.xconn.xlib.XFree)(self.ptr as *mut _);

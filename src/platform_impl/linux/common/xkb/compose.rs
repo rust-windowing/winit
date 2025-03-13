@@ -6,12 +6,13 @@ use std::ops::Deref;
 use std::os::unix::ffi::OsStringExt;
 use std::ptr::NonNull;
 
-use super::{XkbContext, XKBCH};
 use smol_str::SmolStr;
 use xkbcommon_dl::{
     xkb_compose_compile_flags, xkb_compose_feed_result, xkb_compose_state, xkb_compose_state_flags,
     xkb_compose_status, xkb_compose_table, xkb_keysym_t,
 };
+
+use super::{XkbContext, XKBCH};
 
 #[derive(Debug)]
 pub struct XkbComposeTable {

@@ -1,0 +1,22 @@
+version: 2
+
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+        interval: daily
+    groups:
+        github-actions:
+            patterns:
+                - "*"
+
+  - package-ecosystem: npm
+    directory: src/platform_impl/web/script
+    schedule:
+        interval: daily
+    groups:
+        github-actions:
+            patterns:
+                - '*'
+    labels:
+        - "DS - web"

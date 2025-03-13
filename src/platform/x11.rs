@@ -2,11 +2,9 @@
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
-use crate::event_loop::{ActiveEventLoop, EventLoopBuilder};
-use crate::monitor::MonitorHandle;
-use crate::window::{Window, WindowAttributes};
-
 use crate::dpi::Size;
+use crate::event_loop::{ActiveEventLoop, EventLoop, EventLoopBuilder};
+use crate::window::{Window as CoreWindow, WindowAttributes};
 
 /// X window type. Maps directly to
 /// [`_NET_WM_WINDOW_TYPE`](https://specifications.freedesktop.org/wm-spec/wm-spec-1.5.html).
@@ -81,9 +79,7 @@ pub type XWindow = u32;
 #[inline]
 pub fn register_xlib_error_hook(hook: XlibErrorHook) {
     // Append new hook.
-    unsafe {
-        crate::platform_impl::XLIB_ERROR_HOOKS.lock().unwrap().push(hook);
-    }
+    crate::platform_impl::x11::XLIB_ERROR_HOOKS.lock().unwrap().push(hook);
 }
 
 /// Additional methods on [`ActiveEventLoop`] that are specific to X11.
@@ -92,10 +88,23 @@ pub trait ActiveEventLoopExtX11 {
     fn is_x11(&self) -> bool;
 }
 
-impl ActiveEventLoopExtX11 for ActiveEventLoop {
+impl ActiveEventLoopExtX11 for dyn ActiveEventLoop + '_ {
     #[inline]
     fn is_x11(&self) -> bool {
-        !self.p.is_wayland()
+        self.cast_ref::<crate::platform_impl::x11::ActiveEventLoop>().is_some()
+    }
+}
+
+/// Additional methods on [`EventLoop`] that are specific to X11.
+pub trait EventLoopExtX11 {
+    /// True if the [`EventLoop`] uses X11.
+    fn is_x11(&self) -> bool;
+}
+
+impl EventLoopExtX11 for EventLoop {
+    #[inline]
+    fn is_x11(&self) -> bool {
+        !self.event_loop.is_wayland()
     }
 }
 
@@ -111,7 +120,7 @@ pub trait EventLoopBuilderExtX11 {
     fn with_any_thread(&mut self, any_thread: bool) -> &mut Self;
 }
 
-impl<T> EventLoopBuilderExtX11 for EventLoopBuilder<T> {
+impl EventLoopBuilderExtX11 for EventLoopBuilder {
     #[inline]
     fn with_x11(&mut self) -> &mut Self {
         self.platform_specific.forced_backend = Some(crate::platform_impl::Backend::X);
@@ -126,9 +135,11 @@ impl<T> EventLoopBuilderExtX11 for EventLoopBuilder<T> {
 }
 
 /// Additional methods on [`Window`] that are specific to X11.
+///
+/// [`Window`]: crate::window::Window
 pub trait WindowExtX11 {}
 
-impl WindowExtX11 for Window {}
+impl WindowExtX11 for dyn CoreWindow {}
 
 /// Additional methods on [`WindowAttributes`] that are specific to X11.
 pub trait WindowAttributesExtX11 {
@@ -157,13 +168,13 @@ pub trait WindowAttributesExtX11 {
     ///
     /// ```
     /// # use winit::dpi::{LogicalSize, PhysicalSize};
-    /// # use winit::window::Window;
+    /// # use winit::window::{Window, WindowAttributes};
     /// # use winit::platform::x11::WindowAttributesExtX11;
     /// // Specify the size in logical dimensions like this:
-    /// Window::default_attributes().with_base_size(LogicalSize::new(400.0, 200.0));
+    /// WindowAttributes::default().with_base_size(LogicalSize::new(400.0, 200.0));
     ///
     /// // Or specify the size in physical dimensions like this:
-    /// Window::default_attributes().with_base_size(PhysicalSize::new(400, 200));
+    /// WindowAttributes::default().with_base_size(PhysicalSize::new(400, 200));
     /// ```
     fn with_base_size<S: Into<Size>>(self, base_size: S) -> Self;
 
@@ -172,12 +183,12 @@ pub trait WindowAttributesExtX11 {
     /// # Example
     ///
     /// ```no_run
-    /// use winit::window::Window;
+    /// use winit::window::{Window, WindowAttributes};
     /// use winit::event_loop::ActiveEventLoop;
     /// use winit::platform::x11::{XWindow, WindowAttributesExtX11};
-    /// # fn create_window(event_loop: &ActiveEventLoop) -> Result<(), Box<dyn std::error::Error>> {
+    /// # fn create_window(event_loop: &dyn ActiveEventLoop) -> Result<(), Box<dyn std::error::Error>> {
     /// let parent_window_id = std::env::args().nth(1).unwrap().parse::<XWindow>()?;
-    /// let window_attributes = Window::default_attributes().with_embed_parent_window(parent_window_id);
+    /// let window_attributes = WindowAttributes::default().with_embed_parent_window(parent_window_id);
     /// let window = event_loop.create_window(window_attributes)?;
     /// # Ok(()) }
     /// ```
@@ -226,18 +237,5 @@ impl WindowAttributesExtX11 for WindowAttributes {
     fn with_embed_parent_window(mut self, parent_window_id: XWindow) -> Self {
         self.platform_specific.x11.embed_window = Some(parent_window_id);
         self
-    }
-}
-
-/// Additional methods on `MonitorHandle` that are specific to X11.
-pub trait MonitorHandleExtX11 {
-    /// Returns the inner identifier of the monitor.
-    fn native_id(&self) -> u32;
-}
-
-impl MonitorHandleExtX11 for MonitorHandle {
-    #[inline]
-    fn native_id(&self) -> u32 {
-        self.inner.native_identifier()
     }
 }

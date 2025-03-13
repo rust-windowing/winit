@@ -1,4 +1,4 @@
-//! The [`Event`] enum and assorted supporting types.
+//! The event enums and assorted supporting types.
 //!
 //! These are sent to the closure given to [`EventLoop::run_app(...)`], where they get
 //! processed and used to modify the program state. For more details, see the root-level
@@ -46,85 +46,15 @@ use smol_str::SmolStr;
 use web_time::Instant;
 
 use crate::dpi::{PhysicalPosition, PhysicalSize};
-use crate::error::ExternalError;
+use crate::error::RequestError;
 use crate::event_loop::AsyncRequestSerial;
 use crate::keyboard::{self, ModifiersKeyState, ModifiersKeys, ModifiersState};
-use crate::platform_impl;
 #[cfg(doc)]
 use crate::window::Window;
-use crate::window::{ActivationToken, Theme, WindowId};
-
-/// Describes a generic event.
-///
-/// See the module-level docs for more information on the event loop manages each event.
-#[derive(Debug, Clone, PartialEq)]
-pub enum Event<T: 'static> {
-    /// See [`ApplicationHandler::new_events`] for details.
-    ///
-    /// [`ApplicationHandler::new_events`]: crate::application::ApplicationHandler::new_events
-    NewEvents(StartCause),
-
-    /// See [`ApplicationHandler::window_event`] for details.
-    ///
-    /// [`ApplicationHandler::window_event`]: crate::application::ApplicationHandler::window_event
-    WindowEvent { window_id: WindowId, event: WindowEvent },
-
-    /// See [`ApplicationHandler::device_event`] for details.
-    ///
-    /// [`ApplicationHandler::device_event`]: crate::application::ApplicationHandler::device_event
-    DeviceEvent { device_id: DeviceId, event: DeviceEvent },
-
-    /// See [`ApplicationHandler::user_event`] for details.
-    ///
-    /// [`ApplicationHandler::user_event`]: crate::application::ApplicationHandler::user_event
-    UserEvent(T),
-
-    /// See [`ApplicationHandler::suspended`] for details.
-    ///
-    /// [`ApplicationHandler::suspended`]: crate::application::ApplicationHandler::suspended
-    Suspended,
-
-    /// See [`ApplicationHandler::resumed`] for details.
-    ///
-    /// [`ApplicationHandler::resumed`]: crate::application::ApplicationHandler::resumed
-    Resumed,
-
-    /// See [`ApplicationHandler::about_to_wait`] for details.
-    ///
-    /// [`ApplicationHandler::about_to_wait`]: crate::application::ApplicationHandler::about_to_wait
-    AboutToWait,
-
-    /// See [`ApplicationHandler::exiting`] for details.
-    ///
-    /// [`ApplicationHandler::exiting`]: crate::application::ApplicationHandler::exiting
-    LoopExiting,
-
-    /// See [`ApplicationHandler::memory_warning`] for details.
-    ///
-    /// [`ApplicationHandler::memory_warning`]: crate::application::ApplicationHandler::memory_warning
-    MemoryWarning,
-}
-
-impl<T> Event<T> {
-    #[allow(clippy::result_large_err)]
-    pub fn map_nonuser_event<U>(self) -> Result<Event<U>, Event<T>> {
-        use self::Event::*;
-        match self {
-            UserEvent(_) => Err(self),
-            WindowEvent { window_id, event } => Ok(WindowEvent { window_id, event }),
-            DeviceEvent { device_id, event } => Ok(DeviceEvent { device_id, event }),
-            NewEvents(cause) => Ok(NewEvents(cause)),
-            AboutToWait => Ok(AboutToWait),
-            LoopExiting => Ok(LoopExiting),
-            Suspended => Ok(Suspended),
-            Resumed => Ok(Resumed),
-            MemoryWarning => Ok(MemoryWarning),
-        }
-    }
-}
+use crate::window::{ActivationToken, Theme};
 
 /// Describes the reason the event loop is resuming.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum StartCause {
     /// Sent if the time specified by [`ControlFlow::WaitUntil`] has been reached. Contains the
     /// moment the timeout was requested and the requested resume time. The actual resume time is
@@ -157,10 +87,21 @@ pub enum WindowEvent {
     /// [`request_activation_token`]: crate::platform::startup_notify::WindowExtStartupNotify::request_activation_token
     ActivationTokenDone { serial: AsyncRequestSerial, token: ActivationToken },
 
-    /// The size of the window has changed. Contains the client area's new dimensions.
-    Resized(PhysicalSize<u32>),
+    /// The size of the window's surface has changed.
+    ///
+    /// Contains the new dimensions of the surface (can also be retrieved with
+    /// [`Window::surface_size`]).
+    ///
+    /// This event will not necessarily be emitted upon window creation, query
+    /// [`Window::surface_size`] if you need to determine the surface's initial size.
+    ///
+    /// [`Window::surface_size`]: crate::window::Window::surface_size
+    SurfaceResized(PhysicalSize<u32>),
 
-    /// The position of the window has changed. Contains the window's new position.
+    /// The position of the window has changed.
+    ///
+    /// Contains the window's new position in desktop coordinates (can also be retrieved with
+    /// [`Window::outer_position`]).
     ///
     /// ## Platform-specific
     ///
@@ -173,27 +114,49 @@ pub enum WindowEvent {
     /// The window has been destroyed.
     Destroyed,
 
-    /// A file has been dropped into the window.
-    ///
-    /// When the user drops multiple files at once, this event will be emitted for each file
-    /// separately.
-    DroppedFile(PathBuf),
-
-    /// A file is being hovered over the window.
-    ///
-    /// When the user hovers multiple files at once, this event will be emitted for each file
-    /// separately.
-    HoveredFile(PathBuf),
-
-    /// A file was hovered, but has exited the window.
-    ///
-    /// There will be a single `HoveredFileCancelled` event triggered even if multiple files were
-    /// hovered.
-    HoveredFileCancelled,
+    /// A file drag operation has entered the window.
+    DragEntered {
+        /// List of paths that are being dragged onto the window.
+        paths: Vec<PathBuf>,
+        /// (x,y) coordinates in pixels relative to the top-left corner of the window. May be
+        /// negative on some platforms if something is dragged over a window's decorations (title
+        /// bar, frame, etc).
+        position: PhysicalPosition<f64>,
+    },
+    /// A file drag operation has moved over the window.
+    DragMoved {
+        /// (x,y) coordinates in pixels relative to the top-left corner of the window. May be
+        /// negative on some platforms if something is dragged over a window's decorations (title
+        /// bar, frame, etc).
+        position: PhysicalPosition<f64>,
+    },
+    /// The file drag operation has dropped file(s) on the window.
+    DragDropped {
+        /// List of paths that are being dragged onto the window.
+        paths: Vec<PathBuf>,
+        /// (x,y) coordinates in pixels relative to the top-left corner of the window. May be
+        /// negative on some platforms if something is dragged over a window's decorations (title
+        /// bar, frame, etc).
+        position: PhysicalPosition<f64>,
+    },
+    /// The file drag operation has been cancelled or left the window.
+    DragLeft {
+        /// (x,y) coordinates in pixels relative to the top-left corner of the window. May be
+        /// negative on some platforms if something is dragged over a window's decorations (title
+        /// bar, frame, etc).
+        ///
+        /// ## Platform-specific
+        ///
+        /// - **Windows:** Always emits [`None`].
+        position: Option<PhysicalPosition<f64>>,
+    },
 
     /// The window gained or lost focus.
     ///
     /// The parameter is true if the window has gained focus, and false if it has lost focus.
+    ///
+    /// Windows are unfocused upon creation, but will usually be focused by the system soon
+    /// afterwards.
     Focused(bool),
 
     /// An event from the keyboard has been received.
@@ -202,8 +165,9 @@ pub enum WindowEvent {
     /// - **Windows:** The shift key overrides NumLock. In other words, while shift is held down,
     ///   numpad keys act as if NumLock wasn't active. When this is used, the OS sends fake key
     ///   events which are not marked as `is_synthetic`.
+    /// - **iOS:** Unsupported.
     KeyboardInput {
-        device_id: DeviceId,
+        device_id: Option<DeviceId>,
         event: KeyEvent,
 
         /// If `true`, the event was generated synthetically by winit
@@ -230,52 +194,113 @@ pub enum WindowEvent {
     /// - **iOS / Android / Web / Orbital:** Unsupported.
     Ime(Ime),
 
-    /// The cursor has moved on the window.
-    ///
-    /// ## Platform-specific
-    ///
-    /// - **Web:** Doesn't take into account CSS [`border`], [`padding`], or [`transform`].
-    ///
-    /// [`border`]: https://developer.mozilla.org/en-US/docs/Web/CSS/border
-    /// [`padding`]: https://developer.mozilla.org/en-US/docs/Web/CSS/padding
-    /// [`transform`]: https://developer.mozilla.org/en-US/docs/Web/CSS/transform
-    CursorMoved {
-        device_id: DeviceId,
+    /// The pointer has moved on the window.
+    PointerMoved {
+        device_id: Option<DeviceId>,
 
-        /// (x,y) coords in pixels relative to the top-left corner of the window. Because the range
-        /// of this data is limited by the display area and it may have been transformed by
-        /// the OS to implement effects such as cursor acceleration, it should not be used
-        /// to implement non-cursor-like interactions such as 3D camera control.
+        /// (x,y) coordinates in pixels relative to the top-left corner of the window. Because the
+        /// range of this data is limited by the display area and it may have been
+        /// transformed by the OS to implement effects such as pointer acceleration, it
+        /// should not be used to implement non-pointer-like interactions such as 3D camera
+        /// control. For that, consider [`DeviceEvent::PointerMotion`].
+        ///
+        /// ## Platform-specific
+        ///
+        /// **Web:** Doesn't take into account CSS [`border`], [`padding`], or [`transform`].
+        ///
+        /// [`border`]: https://developer.mozilla.org/en-US/docs/Web/CSS/border
+        /// [`padding`]: https://developer.mozilla.org/en-US/docs/Web/CSS/padding
+        /// [`transform`]: https://developer.mozilla.org/en-US/docs/Web/CSS/transform
         position: PhysicalPosition<f64>,
+
+        /// Indicates whether the event is created by a primary pointer.
+        ///
+        /// A pointer is considered primary when it's a mouse, the first finger in a multi-touch
+        /// interaction, or an unknown pointer source.
+        primary: bool,
+
+        source: PointerSource,
     },
 
-    /// The cursor has entered the window.
-    ///
-    /// ## Platform-specific
-    ///
-    /// - **Web:** Doesn't take into account CSS [`border`], [`padding`], or [`transform`].
-    ///
-    /// [`border`]: https://developer.mozilla.org/en-US/docs/Web/CSS/border
-    /// [`padding`]: https://developer.mozilla.org/en-US/docs/Web/CSS/padding
-    /// [`transform`]: https://developer.mozilla.org/en-US/docs/Web/CSS/transform
-    CursorEntered { device_id: DeviceId },
+    /// The pointer has entered the window.
+    PointerEntered {
+        device_id: Option<DeviceId>,
 
-    /// The cursor has left the window.
-    ///
-    /// ## Platform-specific
-    ///
-    /// - **Web:** Doesn't take into account CSS [`border`], [`padding`], or [`transform`].
-    ///
-    /// [`border`]: https://developer.mozilla.org/en-US/docs/Web/CSS/border
-    /// [`padding`]: https://developer.mozilla.org/en-US/docs/Web/CSS/padding
-    /// [`transform`]: https://developer.mozilla.org/en-US/docs/Web/CSS/transform
-    CursorLeft { device_id: DeviceId },
+        /// The position of the pointer when it entered the window.
+        ///
+        /// ## Platform-specific
+        ///
+        /// - **Orbital: Always emits `(0., 0.)`.
+        /// - **Web:** Doesn't take into account CSS [`border`], [`padding`], or [`transform`].
+        ///
+        /// [`border`]: https://developer.mozilla.org/en-US/docs/Web/CSS/border
+        /// [`padding`]: https://developer.mozilla.org/en-US/docs/Web/CSS/padding
+        /// [`transform`]: https://developer.mozilla.org/en-US/docs/Web/CSS/transform
+        position: PhysicalPosition<f64>,
+
+        /// Indicates whether the event is created by a primary pointer.
+        ///
+        /// A pointer is considered primary when it's a mouse, the first finger in a multi-touch
+        /// interaction, or an unknown pointer source.
+        primary: bool,
+
+        kind: PointerKind,
+    },
+
+    /// The pointer has left the window.
+    PointerLeft {
+        device_id: Option<DeviceId>,
+
+        /// The position of the pointer when it left the window. The position reported can be
+        /// outside the bounds of the window.
+        ///
+        /// ## Platform-specific
+        ///
+        /// - **Orbital/Windows:** Always emits [`None`].
+        /// - **Web:** Doesn't take into account CSS [`border`], [`padding`], or [`transform`].
+        ///
+        /// [`border`]: https://developer.mozilla.org/en-US/docs/Web/CSS/border
+        /// [`padding`]: https://developer.mozilla.org/en-US/docs/Web/CSS/padding
+        /// [`transform`]: https://developer.mozilla.org/en-US/docs/Web/CSS/transform
+        position: Option<PhysicalPosition<f64>>,
+
+        /// Indicates whether the event is created by a primary pointer.
+        ///
+        /// A pointer is considered primary when it's a mouse, the first finger in a multi-touch
+        /// interaction, or an unknown pointer source.
+        primary: bool,
+
+        kind: PointerKind,
+    },
 
     /// A mouse wheel movement or touchpad scroll occurred.
-    MouseWheel { device_id: DeviceId, delta: MouseScrollDelta, phase: TouchPhase },
+    MouseWheel { device_id: Option<DeviceId>, delta: MouseScrollDelta, phase: TouchPhase },
 
     /// An mouse button press has been received.
-    MouseInput { device_id: DeviceId, state: ElementState, button: MouseButton },
+    PointerButton {
+        device_id: Option<DeviceId>,
+        state: ElementState,
+
+        /// The position of the pointer when the button was pressed.
+        ///
+        /// ## Platform-specific
+        ///
+        /// - **Orbital: Always emits `(0., 0.)`.
+        /// - **Web:** Doesn't take into account CSS [`border`], [`padding`], or [`transform`].
+        ///
+        /// [`border`]: https://developer.mozilla.org/en-US/docs/Web/CSS/border
+        /// [`padding`]: https://developer.mozilla.org/en-US/docs/Web/CSS/padding
+        /// [`transform`]: https://developer.mozilla.org/en-US/docs/Web/CSS/transform
+        position: PhysicalPosition<f64>,
+
+        /// Indicates whether the event is created by a primary pointer.
+        ///
+        /// A pointer is considered primary when it's a mouse, the first finger in a multi-touch
+        /// interaction, or an unknown pointer source.
+        primary: bool,
+
+        button: ButtonSource,
+    },
 
     /// Two-finger pinch gesture, often used for magnification.
     ///
@@ -284,7 +309,7 @@ pub enum WindowEvent {
     /// - Only available on **macOS** and **iOS**.
     /// - On iOS, not recognized by default. It must be enabled when needed.
     PinchGesture {
-        device_id: DeviceId,
+        device_id: Option<DeviceId>,
         /// Positive values indicate magnification (zooming in) and  negative
         /// values indicate shrinking (zooming out).
         ///
@@ -300,7 +325,7 @@ pub enum WindowEvent {
     /// - Only available on **iOS**.
     /// - On iOS, not recognized by default. It must be enabled when needed.
     PanGesture {
-        device_id: DeviceId,
+        device_id: Option<DeviceId>,
         /// Change in pixels of pan gesture from last update.
         delta: PhysicalPosition<f32>,
         phase: TouchPhase,
@@ -324,7 +349,7 @@ pub enum WindowEvent {
     ///
     /// - Only available on **macOS 10.8** and later, and **iOS**.
     /// - On iOS, not recognized by default. It must be enabled when needed.
-    DoubleTapGesture { device_id: DeviceId },
+    DoubleTapGesture { device_id: Option<DeviceId> },
 
     /// Two-finger rotation gesture.
     ///
@@ -336,7 +361,7 @@ pub enum WindowEvent {
     /// - Only available on **macOS** and **iOS**.
     /// - On iOS, not recognized by default. It must be enabled when needed.
     RotationGesture {
-        device_id: DeviceId,
+        device_id: Option<DeviceId>,
         /// change in rotation in degrees
         delta: f32,
         phase: TouchPhase,
@@ -344,25 +369,18 @@ pub enum WindowEvent {
 
     /// Touchpad pressure event.
     ///
-    /// At the moment, only supported on Apple forcetouch-capable macbooks.
-    /// The parameters are: pressure level (value between 0 and 1 representing how hard the
-    /// touchpad is being pressed) and stage (integer representing the click level).
-    TouchpadPressure { device_id: DeviceId, pressure: f32, stage: i64 },
-
-    /// Motion on some analog axis. May report data redundant to other, more specific events.
-    AxisMotion { device_id: DeviceId, axis: AxisId, value: f64 },
-
-    /// Touch event has been received
-    ///
     /// ## Platform-specific
     ///
-    /// - **Web:** Doesn't take into account CSS [`border`], [`padding`], or [`transform`].
-    /// - **macOS:** Unsupported.
-    ///
-    /// [`border`]: https://developer.mozilla.org/en-US/docs/Web/CSS/border
-    /// [`padding`]: https://developer.mozilla.org/en-US/docs/Web/CSS/padding
-    /// [`transform`]: https://developer.mozilla.org/en-US/docs/Web/CSS/transform
-    Touch(Touch),
+    /// - **macOS**: Only supported on Apple forcetouch-capable macbooks.
+    /// - **Android / iOS / Wayland / X11 / Windows / Orbital / Web:** Unsupported.
+    TouchpadPressure {
+        device_id: Option<DeviceId>,
+        /// Value between 0 and 1 representing how hard the touchpad is being
+        /// pressed.
+        pressure: f32,
+        /// Represents the click level.
+        stage: i64,
+    },
 
     /// The window's scale factor has changed.
     ///
@@ -372,22 +390,29 @@ pub enum WindowEvent {
     /// * Changing the display's scale factor (e.g. in Control Panel on Windows).
     /// * Moving the window to a display with a different scale factor.
     ///
-    /// To update the window size, use the provided [`InnerSizeWriter`] handle. By default, the
+    /// To update the window size, use the provided [`SurfaceSizeWriter`] handle. By default, the
     /// window is resized to the value suggested by the OS, but it can be changed to any value.
     ///
+    /// This event will not necessarily be emitted upon window creation, query
+    /// [`Window::scale_factor`] if you need to determine the window's initial scale factor.
+    ///
     /// For more information about DPI in general, see the [`dpi`] crate.
+    ///
+    /// [`Window::scale_factor`]: crate::window::Window::scale_factor
     ScaleFactorChanged {
         scale_factor: f64,
-        /// Handle to update inner size during scale changes.
+        /// Handle to update surface size during scale changes.
         ///
-        /// See [`InnerSizeWriter`] docs for more details.
-        inner_size_writer: InnerSizeWriter,
+        /// See [`SurfaceSizeWriter`] docs for more details.
+        surface_size_writer: SurfaceSizeWriter,
     },
 
     /// The system window theme has changed.
     ///
     /// Applications might wish to react to this to change the theme of the content of the window
     /// when the system changes the window theme.
+    ///
+    /// This only reports a change if the window theme was not overridden by [`Window::set_theme`].
     ///
     /// ## Platform-specific
     ///
@@ -425,14 +450,139 @@ pub enum WindowEvent {
 
     /// Emitted when a window should be redrawn.
     ///
-    /// This gets triggered in two scenarios:
+    /// This gets triggered in a few scenarios:
     /// - The OS has performed an operation that's invalidated the window's contents (such as
-    ///   resizing the window).
+    ///   resizing the window, or changing [the safe area]).
     /// - The application has explicitly requested a redraw via [`Window::request_redraw`].
     ///
     /// Winit will aggregate duplicate redraw requests into a single event, to
     /// help avoid duplicating rendering work.
+    ///
+    /// [the safe area]: crate::window::Window::safe_area
     RedrawRequested,
+}
+
+/// Represents the kind type of a pointer event.
+///
+/// ## Platform-specific
+///
+/// **Wayland/X11:** [`Unknown`](Self::Unknown) device types are converted to known variants by the
+/// system.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum PointerKind {
+    Mouse,
+    /// See [`PointerSource::Touch`] for more details.
+    ///
+    /// ## Platform-specific
+    ///
+    /// **macOS:** Unsupported.
+    Touch(FingerId),
+    Unknown,
+}
+
+/// Represents the pointer type and its data for a pointer event.
+///
+/// **Wayland/X11:** [`Unknown`](Self::Unknown) device types are converted to known variants by the
+/// system.
+#[derive(Clone, Debug, PartialEq)]
+pub enum PointerSource {
+    Mouse,
+    /// Represents a touch event.
+    ///
+    /// Every time the user touches the screen, a [`WindowEvent::PointerEntered`] and a
+    /// [`WindowEvent::PointerButton`] with [`ElementState::Pressed`] event with an unique
+    /// identifier for the finger is emitted. When a finger is lifted, a
+    /// [`WindowEvent::PointerButton`] with [`ElementState::Released`] and a
+    /// [`WindowEvent::PointerLeft`] event is generated with the same [`FingerId`].
+    ///
+    /// After a [`WindowEvent::PointerEntered`] event has been emitted, there may be zero or more
+    /// [`WindowEvent::PointerMoved`] events when the finger is moved or the touch pressure
+    /// changes.
+    ///
+    /// A [`WindowEvent::PointerLeft`] without a [`WindowEvent::PointerButton`] with
+    /// [`ElementState::Released`] event is emitted when the system has canceled tracking this
+    /// touch, such as when the window loses focus, or on mobile devices if the user moves the
+    /// device against their face.
+    ///
+    /// The [`FingerId`] may be reused by the system after a [`WindowEvent::PointerLeft`] event.
+    /// The user should assume that a new [`WindowEvent::PointerEntered`] event received with the
+    /// same ID has nothing to do with the old finger and is a new finger.
+    ///
+    /// ## Platform-specific
+    ///
+    /// **macOS:** Unsupported.
+    Touch {
+        finger_id: FingerId,
+
+        /// Describes how hard the screen was pressed. May be [`None`] if the hardware does not
+        /// support pressure sensitivity.
+        ///
+        /// ## Platform-specific
+        ///
+        /// - **MacOS / Orbital / Wayland / X11:** Always emits [`None`].
+        /// - **Android:** Will never be [`None`]. If the device doesn't support pressure
+        ///   sensitivity, force will either be 0.0 or 1.0. Also see the
+        ///   [android documentation](https://developer.android.com/reference/android/view/MotionEvent#AXIS_PRESSURE).
+        /// - **Web:** Will never be [`None`]. If the device doesn't support pressure sensitivity,
+        ///   force will be 0.5 when a button is pressed or 0.0 otherwise.
+        force: Option<Force>,
+    },
+    Unknown,
+}
+
+impl From<PointerSource> for PointerKind {
+    fn from(source: PointerSource) -> Self {
+        match source {
+            PointerSource::Mouse => Self::Mouse,
+            PointerSource::Touch { finger_id, .. } => Self::Touch(finger_id),
+            PointerSource::Unknown => Self::Unknown,
+        }
+    }
+}
+
+/// Represents the pointer type of a [`WindowEvent::PointerButton`].
+///
+/// **Wayland/X11:** [`Unknown`](Self::Unknown) device types are converted to known variants by the
+/// system.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum ButtonSource {
+    Mouse(MouseButton),
+    /// See [`PointerSource::Touch`] for more details.
+    ///
+    /// ## Platform-specific
+    ///
+    /// **macOS:** Unsupported.
+    Touch {
+        finger_id: FingerId,
+        force: Option<Force>,
+    },
+    Unknown(u16),
+}
+
+impl ButtonSource {
+    /// Convert any [`ButtonSource`] to an equivalent [`MouseButton`]. If a pointer type has no
+    /// special handling in an application, this method can be used to handle it like any generic
+    /// mouse input.
+    pub fn mouse_button(self) -> MouseButton {
+        match self {
+            ButtonSource::Mouse(mouse) => mouse,
+            ButtonSource::Touch { .. } => MouseButton::Left,
+            ButtonSource::Unknown(button) => match button {
+                0 => MouseButton::Left,
+                1 => MouseButton::Middle,
+                2 => MouseButton::Right,
+                3 => MouseButton::Back,
+                4 => MouseButton::Forward,
+                _ => MouseButton::Other(button),
+            },
+        }
+    }
+}
+
+impl From<MouseButton> for ButtonSource {
+    fn from(mouse: MouseButton) -> Self {
+        Self::Mouse(mouse)
+    }
 }
 
 /// Identifier of an input device.
@@ -442,21 +592,48 @@ pub enum WindowEvent {
 /// on-screen cursor and keyboard focus) or physical. Virtual devices typically aggregate inputs
 /// from multiple physical devices.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct DeviceId(pub(crate) platform_impl::DeviceId);
+pub struct DeviceId(i64);
 
 impl DeviceId {
-    /// Returns a dummy id, useful for unit testing.
+    /// Convert the [`DeviceId`] into the underlying integer.
     ///
-    /// # Safety
+    /// This is useful if you need to pass the ID across an FFI boundary, or store it in an atomic.
+    #[allow(dead_code)]
+    pub(crate) const fn into_raw(self) -> i64 {
+        self.0
+    }
+
+    /// Construct a [`DeviceId`] from the underlying integer.
     ///
-    /// The only guarantee made about the return value of this function is that
-    /// it will always be equal to itself and to future values returned by this function.
-    /// No other guarantees are made. This may be equal to a real `DeviceId`.
+    /// This should only be called with integers returned from [`DeviceId::into_raw`].
+    #[allow(dead_code)]
+    pub(crate) const fn from_raw(id: i64) -> Self {
+        Self(id)
+    }
+}
+
+/// Identifier of a finger in a touch event.
+///
+/// Whenever a touch event is received it contains a `FingerId` which uniquely identifies the finger
+/// used for the current interaction.
+#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct FingerId(pub(crate) usize);
+
+impl FingerId {
+    /// Convert the [`FingerId`] into the underlying integer.
     ///
-    /// **Passing this into a winit function will result in undefined behavior.**
-    pub const unsafe fn dummy() -> Self {
-        #[allow(unused_unsafe)]
-        DeviceId(unsafe { platform_impl::DeviceId::dummy() })
+    /// This is useful if you need to pass the ID across an FFI boundary, or store it in an atomic.
+    #[allow(dead_code)]
+    pub(crate) const fn into_raw(self) -> usize {
+        self.0
+    }
+
+    /// Construct a [`FingerId`] from the underlying integer.
+    ///
+    /// This should only be called with integers returned from [`FingerId::into_raw`].
+    #[allow(dead_code)]
+    pub(crate) const fn from_raw(id: usize) -> Self {
+        Self(id)
     }
 }
 
@@ -465,19 +642,32 @@ impl DeviceId {
 /// Useful for interactions that diverge significantly from a conventional 2D GUI, such as 3D camera
 /// or first-person game controls. Many physical actions, such as mouse movement, can produce both
 /// device and window events. Because window events typically arise from virtual devices
-/// (corresponding to GUI cursors and keyboard focus) the device IDs may not match.
+/// (corresponding to GUI pointers and keyboard focus) the device IDs may not match.
 ///
 /// Note that these events are delivered regardless of input focus.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum DeviceEvent {
-    Added,
-    Removed,
-
     /// Change in physical position of a pointing device.
     ///
     /// This represents raw, unfiltered physical motion. Not to be confused with
-    /// [`WindowEvent::CursorMoved`].
-    MouseMotion {
+    /// [`WindowEvent::PointerMoved`].
+    ///
+    /// ## Platform-specific
+    ///
+    /// **Web:** Only returns raw data, not OS accelerated, if [`CursorGrabMode::Locked`] is used
+    /// and browser support is available, see
+    #[cfg_attr(
+        web_platform,
+        doc = "[`ActiveEventLoopExtWeb::is_cursor_lock_raw()`][crate::platform::web::ActiveEventLoopExtWeb::is_cursor_lock_raw()]."
+    )]
+    #[cfg_attr(
+        not(web_platform),
+        doc = "`ActiveEventLoopExtWeb::is_cursor_lock_raw()`."
+    )]
+    ///
+    #[rustfmt::skip]
+    /// [`CursorGrabMode::Locked`]: crate::window::CursorGrabMode::Locked
+    PointerMotion {
         /// (x, y) change in position in unspecified units.
         ///
         /// Different devices may use different units.
@@ -487,14 +677,6 @@ pub enum DeviceEvent {
     /// Physical scroll event
     MouseWheel {
         delta: MouseScrollDelta,
-    },
-
-    /// Motion on some analog axis. This event will be reported for all arbitrary input devices
-    /// that winit supports on this platform, including mouse devices.  If the device is a mouse
-    /// device then this will be reported alongside the MouseMotion event.
-    Motion {
-        axis: AxisId,
-        value: f64,
     },
 
     Button {
@@ -512,7 +694,7 @@ pub enum DeviceEvent {
 /// repeat or the initial keypress. An application may emulate this by, for
 /// example keeping a Map/Set of pressed keys and determining whether a keypress
 /// corresponds to an already pressed key.
-#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct RawKeyEvent {
     pub physical_key: keyboard::PhysicalKey,
@@ -533,11 +715,11 @@ pub struct KeyEvent {
     /// ## Caveats
     ///
     /// - Certain niche hardware will shuffle around physical key positions, e.g. a keyboard that
-    /// implements DVORAK in hardware (or firmware)
+    ///   implements DVORAK in hardware (or firmware)
     /// - Your application will likely have to handle keyboards which are missing keys that your
-    /// own keyboard has.
+    ///   own keyboard has.
     /// - Certain `KeyCode`s will move between a couple of different positions depending on what
-    /// layout the keyboard was manufactured to support.
+    ///   layout the keyboard was manufactured to support.
     ///
     ///  **Because of these caveats, it is important that you provide users with a way to configure
     ///  most (if not all) keybinds in your application.**
@@ -549,18 +731,11 @@ pub struct KeyEvent {
     /// you somehow see this in the wild, we'd like to know :)
     pub physical_key: keyboard::PhysicalKey,
 
-    // Allowing `broken_intra_doc_links` for `logical_key`, because
-    // `key_without_modifiers` is not available on all platforms
-    #[cfg_attr(
-        not(any(windows_platform, macos_platform, x11_platform, wayland_platform)),
-        allow(rustdoc::broken_intra_doc_links)
-    )]
     /// This value is affected by all modifiers except <kbd>Ctrl</kbd>.
     ///
     /// This has two use cases:
     /// - Allows querying whether the current input is a Dead key.
-    /// - Allows handling key-bindings on platforms which don't
-    /// support [`key_without_modifiers`].
+    /// - Allows handling key-bindings on platforms which don't support [`key_without_modifiers`].
     ///
     /// If you use this field (or [`key_without_modifiers`] for that matter) for keyboard
     /// shortcuts, **it is important that you provide users with a way to configure your
@@ -568,10 +743,10 @@ pub struct KeyEvent {
     /// incompatible keyboard layout.**
     ///
     /// ## Platform-specific
-    /// - **Web:** Dead keys might be reported as the real key instead
-    /// of `Dead` depending on the browser/OS.
+    /// - **Web:** Dead keys might be reported as the real key instead of `Dead` depending on the
+    ///   browser/OS.
     ///
-    /// [`key_without_modifiers`]: crate::platform::modifier_supplement::KeyEventExtModifierSupplement::key_without_modifiers
+    /// [`key_without_modifiers`]: Self::key_without_modifiers
     pub logical_key: keyboard::Key,
 
     /// Contains the text produced by this keypress.
@@ -592,7 +767,7 @@ pub struct KeyEvent {
     /// This is `None` if the current keypress cannot
     /// be interpreted as text.
     ///
-    /// See also: `text_with_all_modifiers()`
+    /// See also [`text_with_all_modifiers`][Self::text_with_all_modifiers].
     pub text: Option<SmolStr>,
 
     /// Contains the location of this key on the keyboard.
@@ -626,7 +801,7 @@ pub struct KeyEvent {
     /// In games, you often want to ignore repated key events - this can be
     /// done by ignoring events where this property is set.
     ///
-    /// ```
+    /// ```no_run
     /// use winit::event::{ElementState, KeyEvent, WindowEvent};
     /// use winit::keyboard::{KeyCode, PhysicalKey};
     /// # let window_event = WindowEvent::RedrawRequested; // To make the example compile
@@ -648,17 +823,38 @@ pub struct KeyEvent {
     /// ```
     pub repeat: bool,
 
-    /// Platform-specific key event information.
+    /// Similar to [`text`][Self::text], except that this is affected by <kbd>Ctrl</kbd>.
     ///
-    /// On Windows, Linux and macOS, this type contains the key without modifiers and the text with
-    /// all modifiers applied.
+    /// For example, pressing <kbd>Ctrl</kbd>+<kbd>a</kbd> produces `Some("\x01")`.
     ///
-    /// On Android, iOS, Redox and Web, this type is a no-op.
-    pub(crate) platform_specific: platform_impl::KeyEventExtra,
+    /// ## Platform-specific
+    ///
+    /// - **Android:** Unimplemented, this field is always the same value as `text`.
+    /// - **iOS:** Unimplemented, this field is always the same value as `text`.
+    /// - **Web:** Unsupported, this field is always the same value as `text`.
+    pub text_with_all_modifiers: Option<SmolStr>,
+
+    /// This value ignores all modifiers including, but not limited to <kbd>Shift</kbd>,
+    /// <kbd>Caps Lock</kbd>, and <kbd>Ctrl</kbd>. In most cases this means that the
+    /// unicode character in the resulting string is lowercase.
+    ///
+    /// This is useful for key-bindings / shortcut key combinations.
+    ///
+    /// In case [`logical_key`][Self::logical_key] reports [`Dead`][keyboard::Key::Dead],
+    /// this will still report the key as `Character` according to the current keyboard
+    /// layout. This value cannot be `Dead`.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **Android:** Unimplemented, this field is always the same value as `logical_key`.
+    /// - **iOS:** Unimplemented, this field is always the same value as `logical_key`.
+    /// - **Web:** Unsupported, this field is always the same value as `logical_key`.
+    pub key_without_modifiers: keyboard::Key,
 }
 
 /// Describes keyboard modifiers event.
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Modifiers {
     pub(crate) state: ModifiersState,
 
@@ -814,52 +1010,9 @@ pub enum TouchPhase {
     Cancelled,
 }
 
-/// Represents a touch event
-///
-/// Every time the user touches the screen, a new [`TouchPhase::Started`] event with an unique
-/// identifier for the finger is generated. When the finger is lifted, an [`TouchPhase::Ended`]
-/// event is generated with the same finger id.
-///
-/// After a `Started` event has been emitted, there may be zero or more `Move`
-/// events when the finger is moved or the touch pressure changes.
-///
-/// The finger id may be reused by the system after an `Ended` event. The user
-/// should assume that a new `Started` event received with the same id has nothing
-/// to do with the old finger and is a new finger.
-///
-/// A [`TouchPhase::Cancelled`] event is emitted when the system has canceled tracking this
-/// touch, such as when the window loses focus, or on iOS if the user moves the
-/// device against their face.
-///
-/// ## Platform-specific
-///
-/// - **Web:** Doesn't take into account CSS [`border`], [`padding`], or [`transform`].
-/// - **macOS:** Unsupported.
-///
-/// [`border`]: https://developer.mozilla.org/en-US/docs/Web/CSS/border
-/// [`padding`]: https://developer.mozilla.org/en-US/docs/Web/CSS/padding
-/// [`transform`]: https://developer.mozilla.org/en-US/docs/Web/CSS/transform
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct Touch {
-    pub device_id: DeviceId,
-    pub phase: TouchPhase,
-    pub location: PhysicalPosition<f64>,
-    /// Describes how hard the screen was pressed. May be `None` if the platform
-    /// does not support pressure sensitivity.
-    ///
-    /// ## Platform-specific
-    ///
-    /// - Only available on **iOS** 9.0+, **Windows** 8+, **Web**, and **Android**.
-    /// - **Android**: This will never be [None]. If the device doesn't support pressure
-    /// sensitivity, force will either be 0.0 or 1.0. Also see the
-    /// [android documentation](https://developer.android.com/reference/android/view/MotionEvent#AXIS_PRESSURE).
-    pub force: Option<Force>,
-    /// Unique identifier of a finger.
-    pub id: u64,
-}
-
 /// Describes the force of a touch event
 #[derive(Debug, Clone, Copy, PartialEq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum Force {
     /// On iOS, the force is calibrated so that the same number corresponds to
     /// roughly the same amount of pressure on the screen regardless of the
@@ -877,12 +1030,6 @@ pub enum Force {
         /// The value of this field is sufficiently high to provide a wide
         /// dynamic range for values of the `force` field.
         max_possible_force: f64,
-        /// The altitude (in radians) of the stylus.
-        ///
-        /// A value of 0 radians indicates that the stylus is parallel to the
-        /// surface. The value of this property is Pi/2 when the stylus is
-        /// perpendicular to the surface.
-        altitude_angle: Option<f64>,
     },
     /// If the platform reports the force as normalized, we have no way of
     /// knowing how much pressure 1.0 corresponds to – we know it's the maximum
@@ -899,13 +1046,7 @@ impl Force {
     /// consistent across devices.
     pub fn normalized(&self) -> f64 {
         match self {
-            Force::Calibrated { force, max_possible_force, altitude_angle } => {
-                let force = match altitude_angle {
-                    Some(altitude_angle) => force / altitude_angle.sin(),
-                    None => *force,
-                };
-                force / max_possible_force
-            },
+            Force::Calibrated { force, max_possible_force } => force / max_possible_force,
             Force::Normalized(force) => *force,
         }
     }
@@ -976,161 +1117,151 @@ pub enum MouseScrollDelta {
     PixelDelta(PhysicalPosition<f64>),
 }
 
-/// Handle to synchronously change the size of the window from the
-/// [`WindowEvent`].
+/// Handle to synchronously change the size of the window from the [`WindowEvent`].
 #[derive(Debug, Clone)]
-pub struct InnerSizeWriter {
-    pub(crate) new_inner_size: Weak<Mutex<PhysicalSize<u32>>>,
+pub struct SurfaceSizeWriter {
+    pub(crate) new_surface_size: Weak<Mutex<PhysicalSize<u32>>>,
 }
 
-impl InnerSizeWriter {
+impl SurfaceSizeWriter {
     #[cfg(not(orbital_platform))]
-    pub(crate) fn new(new_inner_size: Weak<Mutex<PhysicalSize<u32>>>) -> Self {
-        Self { new_inner_size }
+    pub(crate) fn new(new_surface_size: Weak<Mutex<PhysicalSize<u32>>>) -> Self {
+        Self { new_surface_size }
     }
 
-    /// Try to request inner size which will be set synchronously on the window.
-    pub fn request_inner_size(
+    /// Try to request surface size which will be set synchronously on the window.
+    pub fn request_surface_size(
         &mut self,
-        new_inner_size: PhysicalSize<u32>,
-    ) -> Result<(), ExternalError> {
-        if let Some(inner) = self.new_inner_size.upgrade() {
-            *inner.lock().unwrap() = new_inner_size;
+        new_surface_size: PhysicalSize<u32>,
+    ) -> Result<(), RequestError> {
+        if let Some(inner) = self.new_surface_size.upgrade() {
+            *inner.lock().unwrap() = new_surface_size;
             Ok(())
         } else {
-            Err(ExternalError::Ignored)
+            Err(RequestError::Ignored)
         }
     }
 }
 
-impl PartialEq for InnerSizeWriter {
+impl PartialEq for SurfaceSizeWriter {
     fn eq(&self, other: &Self) -> bool {
-        self.new_inner_size.as_ptr() == other.new_inner_size.as_ptr()
+        self.new_surface_size.as_ptr() == other.new_surface_size.as_ptr()
     }
 }
 
+impl Eq for SurfaceSizeWriter {}
+
 #[cfg(test)]
 mod tests {
+    use std::collections::{BTreeSet, HashSet};
+
     use crate::dpi::PhysicalPosition;
     use crate::event;
-    use std::collections::{BTreeSet, HashSet};
 
     macro_rules! foreach_event {
         ($closure:expr) => {{
+            foreach_event!(window: $closure);
+            foreach_event!(device: $closure);
+        }};
+        (window: $closure:expr) => {{
             #[allow(unused_mut)]
-            let mut x = $closure;
-            let did = unsafe { event::DeviceId::dummy() };
+            let mut with_window_event: &mut dyn FnMut(event::WindowEvent) = &mut $closure;
+            let fid = event::FingerId::from_raw(0);
 
-            #[allow(deprecated)]
-            {
-                use crate::event::Event::*;
-                use crate::event::Ime::Enabled;
-                use crate::event::WindowEvent::*;
-                use crate::window::WindowId;
+            use crate::event::Ime::Enabled;
+            use crate::event::WindowEvent::*;
+            use crate::event::{PointerKind, PointerSource};
 
-                // Mainline events.
-                let wid = unsafe { WindowId::dummy() };
-                x(UserEvent(()));
-                x(NewEvents(event::StartCause::Init));
-                x(AboutToWait);
-                x(LoopExiting);
-                x(Suspended);
-                x(Resumed);
-
-                // Window events.
-                let with_window_event = |wev| x(WindowEvent { window_id: wid, event: wev });
-
-                with_window_event(CloseRequested);
-                with_window_event(Destroyed);
-                with_window_event(Focused(true));
-                with_window_event(Moved((0, 0).into()));
-                with_window_event(Resized((0, 0).into()));
-                with_window_event(DroppedFile("x.txt".into()));
-                with_window_event(HoveredFile("x.txt".into()));
-                with_window_event(HoveredFileCancelled);
-                with_window_event(Ime(Enabled));
-                with_window_event(CursorMoved { device_id: did, position: (0, 0).into() });
-                with_window_event(ModifiersChanged(event::Modifiers::default()));
-                with_window_event(CursorEntered { device_id: did });
-                with_window_event(CursorLeft { device_id: did });
-                with_window_event(MouseWheel {
-                    device_id: did,
-                    delta: event::MouseScrollDelta::LineDelta(0.0, 0.0),
-                    phase: event::TouchPhase::Started,
-                });
-                with_window_event(MouseInput {
-                    device_id: did,
-                    state: event::ElementState::Pressed,
-                    button: event::MouseButton::Other(0),
-                });
-                with_window_event(PinchGesture {
-                    device_id: did,
-                    delta: 0.0,
-                    phase: event::TouchPhase::Started,
-                });
-                with_window_event(DoubleTapGesture { device_id: did });
-                with_window_event(RotationGesture {
-                    device_id: did,
-                    delta: 0.0,
-                    phase: event::TouchPhase::Started,
-                });
-                with_window_event(PanGesture {
-                    device_id: did,
-                    delta: PhysicalPosition::<f32>::new(0.0, 0.0),
-                    phase: event::TouchPhase::Started,
-                });
-                with_window_event(TouchpadPressure { device_id: did, pressure: 0.0, stage: 0 });
-                with_window_event(AxisMotion { device_id: did, axis: 0, value: 0.0 });
-                with_window_event(Touch(event::Touch {
-                    device_id: did,
-                    phase: event::TouchPhase::Started,
-                    location: (0.0, 0.0).into(),
-                    id: 0,
+            with_window_event(CloseRequested);
+            with_window_event(Destroyed);
+            with_window_event(Focused(true));
+            with_window_event(Moved((0, 0).into()));
+            with_window_event(SurfaceResized((0, 0).into()));
+            with_window_event(DragEntered { paths: vec!["x.txt".into()], position: (0, 0).into() });
+            with_window_event(DragMoved { position: (0, 0).into() });
+            with_window_event(DragDropped { paths: vec!["x.txt".into()], position: (0, 0).into() });
+            with_window_event(DragLeft { position: Some((0, 0).into()) });
+            with_window_event(Ime(Enabled));
+            with_window_event(PointerMoved {
+                device_id: None,
+                primary: true,
+                position: (0, 0).into(),
+                source: PointerSource::Mouse,
+            });
+            with_window_event(ModifiersChanged(event::Modifiers::default()));
+            with_window_event(PointerEntered {
+                device_id: None,
+                primary: true,
+                position: (0, 0).into(),
+                kind: PointerKind::Mouse,
+            });
+            with_window_event(PointerLeft {
+                primary: true,
+                device_id: None,
+                position: Some((0, 0).into()),
+                kind: PointerKind::Mouse,
+            });
+            with_window_event(MouseWheel {
+                device_id: None,
+                delta: event::MouseScrollDelta::LineDelta(0.0, 0.0),
+                phase: event::TouchPhase::Started,
+            });
+            with_window_event(PointerButton {
+                device_id: None,
+                primary: true,
+                state: event::ElementState::Pressed,
+                position: (0, 0).into(),
+                button: event::MouseButton::Other(0).into(),
+            });
+            with_window_event(PointerButton {
+                device_id: None,
+                primary: true,
+                state: event::ElementState::Released,
+                position: (0, 0).into(),
+                button: event::ButtonSource::Touch {
+                    finger_id: fid,
                     force: Some(event::Force::Normalized(0.0)),
-                }));
-                with_window_event(ThemeChanged(crate::window::Theme::Light));
-                with_window_event(Occluded(true));
-            }
+                },
+            });
+            with_window_event(PinchGesture {
+                device_id: None,
+                delta: 0.0,
+                phase: event::TouchPhase::Started,
+            });
+            with_window_event(DoubleTapGesture { device_id: None });
+            with_window_event(RotationGesture {
+                device_id: None,
+                delta: 0.0,
+                phase: event::TouchPhase::Started,
+            });
+            with_window_event(PanGesture {
+                device_id: None,
+                delta: PhysicalPosition::<f32>::new(0.0, 0.0),
+                phase: event::TouchPhase::Started,
+            });
+            with_window_event(TouchpadPressure { device_id: None, pressure: 0.0, stage: 0 });
+            with_window_event(ThemeChanged(crate::window::Theme::Light));
+            with_window_event(Occluded(true));
+        }};
+        (device: $closure:expr) => {{
+            use event::DeviceEvent::*;
 
-            #[allow(deprecated)]
-            {
-                use event::DeviceEvent::*;
+            #[allow(unused_mut)]
+            let mut with_device_event: &mut dyn FnMut(event::DeviceEvent) = &mut $closure;
 
-                let with_device_event =
-                    |dev_ev| x(event::Event::DeviceEvent { device_id: did, event: dev_ev });
-
-                with_device_event(Added);
-                with_device_event(Removed);
-                with_device_event(MouseMotion { delta: (0.0, 0.0).into() });
-                with_device_event(MouseWheel {
-                    delta: event::MouseScrollDelta::LineDelta(0.0, 0.0),
-                });
-                with_device_event(Motion { axis: 0, value: 0.0 });
-                with_device_event(Button { button: 0, state: event::ElementState::Pressed });
-            }
+            with_device_event(PointerMotion { delta: (0.0, 0.0).into() });
+            with_device_event(MouseWheel { delta: event::MouseScrollDelta::LineDelta(0.0, 0.0) });
+            with_device_event(Button { button: 0, state: event::ElementState::Pressed });
         }};
     }
 
-    #[allow(clippy::redundant_clone)]
+    #[allow(clippy::clone_on_copy)]
     #[test]
     fn test_event_clone() {
-        foreach_event!(|event: event::Event<()>| {
+        foreach_event!(|event| {
             let event2 = event.clone();
             assert_eq!(event, event2);
-        })
-    }
-
-    #[test]
-    fn test_map_nonuser_event() {
-        foreach_event!(|event: event::Event<()>| {
-            let is_user = matches!(event, event::Event::UserEvent(()));
-            let event2 = event.map_nonuser_event::<()>();
-            if is_user {
-                assert_eq!(event2, Err(event::Event::UserEvent(())));
-            } else {
-                assert!(event2.is_ok());
-            }
-        })
+        });
     }
 
     #[test]
@@ -1138,48 +1269,33 @@ mod tests {
         let force = event::Force::Normalized(0.0);
         assert_eq!(force.normalized(), 0.0);
 
-        let force2 =
-            event::Force::Calibrated { force: 5.0, max_possible_force: 2.5, altitude_angle: None };
+        let force2 = event::Force::Calibrated { force: 5.0, max_possible_force: 2.5 };
         assert_eq!(force2.normalized(), 2.0);
 
-        let force3 = event::Force::Calibrated {
-            force: 5.0,
-            max_possible_force: 2.5,
-            altitude_angle: Some(std::f64::consts::PI / 2.0),
-        };
+        let force3 = event::Force::Calibrated { force: 5.0, max_possible_force: 2.5 };
         assert_eq!(force3.normalized(), 2.0);
     }
 
     #[allow(clippy::clone_on_copy)]
     #[test]
     fn ensure_attrs_do_not_panic() {
-        foreach_event!(|event: event::Event<()>| {
-            let _ = format!("{:?}", event);
+        foreach_event!(|event| {
+            let _ = format!("{event:?}");
         });
         let _ = event::StartCause::Init.clone();
 
-        let did = unsafe { crate::event::DeviceId::dummy() }.clone();
-        HashSet::new().insert(did);
-        let mut set = [did, did, did];
+        let fid = crate::event::FingerId::from_raw(0).clone();
+        HashSet::new().insert(fid);
+        let mut set = [fid, fid, fid];
         set.sort_unstable();
         let mut set2 = BTreeSet::new();
-        set2.insert(did);
-        set2.insert(did);
+        set2.insert(fid);
+        set2.insert(fid);
 
         HashSet::new().insert(event::TouchPhase::Started.clone());
         HashSet::new().insert(event::MouseButton::Left.clone());
         HashSet::new().insert(event::Ime::Enabled);
 
-        let _ = event::Touch {
-            device_id: did,
-            phase: event::TouchPhase::Started,
-            location: (0.0, 0.0).into(),
-            id: 0,
-            force: Some(event::Force::Normalized(0.0)),
-        }
-        .clone();
-        let _ =
-            event::Force::Calibrated { force: 0.0, max_possible_force: 0.0, altitude_angle: None }
-                .clone();
+        let _ = event::Force::Calibrated { force: 0.0, max_possible_force: 0.0 }.clone();
     }
 }

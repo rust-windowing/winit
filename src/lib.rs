@@ -7,7 +7,12 @@
 //!
 //! ```no_run
 //! use winit::event_loop::EventLoop;
-//! let event_loop = EventLoop::new().unwrap();
+//!
+//! # // Intentionally use `fn main` for clarity
+//! fn main() {
+//!     let event_loop = EventLoop::new().unwrap();
+//!     // ...
+//! }
 //! ```
 //!
 //! Then you create a [`Window`] with [`create_window`].
@@ -19,15 +24,14 @@
 //! window or a key getting pressed while the window is focused. Devices can generate
 //! [`DeviceEvent`]s, which contain unfiltered event data that isn't specific to a certain window.
 //! Some user activity, like mouse movement, can generate both a [`WindowEvent`] *and* a
-//! [`DeviceEvent`]. You can also create and handle your own custom [`Event::UserEvent`]s, if
-//! desired.
+//! [`DeviceEvent`].
 //!
 //! You can retrieve events by calling [`EventLoop::run_app()`]. This function will
 //! dispatch events for every [`Window`] that was created with that particular [`EventLoop`], and
-//! will run until [`exit()`] is used, at which point [`Event::LoopExiting`].
+//! will run until [`exit()`] is used, at which point [`exiting()`] is called.
 //!
 //! Winit no longer uses a `EventLoop::poll_events() -> impl Iterator<Event>`-based event loop
-//! model, since that can't be implemented properly on some platforms (e.g web, iOS) and works
+//! model, since that can't be implemented properly on some platforms (e.g Web, iOS) and works
 //! poorly on most other platforms. However, this model can be re-implemented to an extent with
 #![cfg_attr(
     any(windows_platform, macos_platform, android_platform, x11_platform, wayland_platform),
@@ -45,19 +49,19 @@
 //! use winit::application::ApplicationHandler;
 //! use winit::event::WindowEvent;
 //! use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
-//! use winit::window::{Window, WindowId};
+//! use winit::window::{Window, WindowId, WindowAttributes};
 //!
 //! #[derive(Default)]
 //! struct App {
-//!     window: Option<Window>,
+//!     window: Option<Box<dyn Window>>,
 //! }
 //!
 //! impl ApplicationHandler for App {
-//!     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
-//!         self.window = Some(event_loop.create_window(Window::default_attributes()).unwrap());
+//!     fn can_create_surfaces(&mut self, event_loop: &dyn ActiveEventLoop) {
+//!         self.window = Some(event_loop.create_window(WindowAttributes::default()).unwrap());
 //!     }
 //!
-//!     fn window_event(&mut self, event_loop: &ActiveEventLoop, id: WindowId, event: WindowEvent) {
+//!     fn window_event(&mut self, event_loop: &dyn ActiveEventLoop, id: WindowId, event: WindowEvent) {
 //!         match event {
 //!             WindowEvent::CloseRequested => {
 //!                 println!("The close button was pressed; stopping");
@@ -84,19 +88,22 @@
 //!     }
 //! }
 //!
-//! let event_loop = EventLoop::new().unwrap();
+//! # // Intentionally use `fn main` for clarity
+//! fn main() {
+//!     let event_loop = EventLoop::new().unwrap();
 //!
-//! // ControlFlow::Poll continuously runs the event loop, even if the OS hasn't
-//! // dispatched any events. This is ideal for games and similar applications.
-//! event_loop.set_control_flow(ControlFlow::Poll);
+//!     // ControlFlow::Poll continuously runs the event loop, even if the OS hasn't
+//!     // dispatched any events. This is ideal for games and similar applications.
+//!     event_loop.set_control_flow(ControlFlow::Poll);
 //!
-//! // ControlFlow::Wait pauses the event loop if no events are available to process.
-//! // This is ideal for non-game applications that only update in response to user
-//! // input, and uses significantly less power/CPU time than ControlFlow::Poll.
-//! event_loop.set_control_flow(ControlFlow::Wait);
+//!     // ControlFlow::Wait pauses the event loop if no events are available to process.
+//!     // This is ideal for non-game applications that only update in response to user
+//!     // input, and uses significantly less power/CPU time than ControlFlow::Poll.
+//!     event_loop.set_control_flow(ControlFlow::Wait);
 //!
-//! let mut app = App::default();
-//! event_loop.run_app(&mut app);
+//!     let mut app = App::default();
+//!     event_loop.run_app(&mut app);
+//! }
 //! ```
 //!
 //! [`WindowEvent`] has a [`WindowId`] member. In multi-window environments, it should be
@@ -115,6 +122,45 @@
 //! display the window to the user. If you notice this happening, you should create the window with
 //! [`visible` set to `false`][crate::window::WindowAttributes::with_visible] and explicitly make
 //! the window visible only once you're ready to render into it.
+//!
+//! There is another important concept you need to know about when drawing: the "safe area". This
+//! can be accessed with [`Window::safe_area`], and describes a rectangle in the surface that is not
+//! obscured by notches, the status bar, and so on. You should be drawing your background and
+//! non-important content on the entire surface, but restrict important content (such as
+//! interactable UIs, text, etc.) to only being drawn inside the safe area.
+//!
+//! [`Window::safe_area`]: crate::window::Window::safe_area
+//!
+//! # Coordinate systems
+//!
+//! Windowing systems use many different coordinate systems, and this is reflected in Winit as well;
+//! there are "desktop coordinates", which is the coordinates of a window or monitor relative to the
+//! desktop at large, "window coordinates" which is the coordinates of the surface, relative to the
+//! window, and finally "surface coordinates", which is the coordinates relative to the drawn
+//! surface. All of these coordinates are relative to the top-left corner of their respective
+//! origin.
+//!
+//! Most of the functionality in Winit works with surface coordinates, so usually you only need to
+//! concern yourself with those. In case you need to convert to some other coordinate system, Winit
+//! provides [`Window::surface_position`] and [`Window::surface_size`] to describe the surface's
+//! location in window coordinates, and Winit provides [`Window::outer_position`] and
+//! [`Window::outer_size`] to describe the window's location in desktop coordinates. Using these
+//! methods, you should be able to convert a position in one coordinate system to another.
+//!
+//! An overview of how these four methods fit together can be seen in the image below:
+#![doc = concat!("\n\n", include_str!("../docs/res/coordinate-systems-desktop.svg"), "\n\n")] // Rustfmt removes \n, adding them like this works around that.
+//! On mobile, the situation is usually a bit different; because of the smaller screen space,
+//! windows usually fill the whole screen at a time, and as such there is _rarely_ a difference
+//! between these three coordinate systems, although you should still strive to handle this, as
+//! they're still relevant in more niche area such as Mac Catalyst, or multi-tasking on tablets.
+//!
+//! This is illustrated in the image below, along with the safe area since it's often relevant on
+//! mobile.
+#![doc = concat!("\n\n", include_str!("../docs/res/coordinate-systems-mobile.svg"), "\n\n")] // Rustfmt removes \n, adding them like this works around that.
+//! [`Window::surface_position`]: crate::window::Window::surface_position
+//! [`Window::surface_size`]: crate::window::Window::surface_size
+//! [`Window::outer_position`]: crate::window::Window::outer_position
+//! [`Window::outer_size`]: crate::window::Window::outer_size
 //!
 //! # UI scaling
 //!
@@ -141,14 +187,68 @@
 //!
 //! * `x11` (enabled by default): On Unix platforms, enables the X11 backend.
 //! * `wayland` (enabled by default): On Unix platforms, enables the Wayland backend.
-//! * `rwh_04`: Implement `raw-window-handle v0.4` traits.
-//! * `rwh_05`: Implement `raw-window-handle v0.5` traits.
 //! * `rwh_06`: Implement `raw-window-handle v0.6` traits.
 //! * `serde`: Enables serialization/deserialization of certain types with [Serde](https://crates.io/crates/serde).
 //! * `mint`: Enables mint (math interoperability standard types) conversions.
 //!
 //! See the [`platform`] module for documentation on platform-specific cargo
 //! features.
+//!
+//! # Platform/Architecture Support
+//!
+//! Platform support on `winit` has two tiers: Tier 1 and Tier 2.
+//!
+//! - Tier 1 is **guaranteed to work**. Targets in this tier are actively tested both in CI and by
+//!   maintainers.
+//! - Tier 2 is **guaranteed to build**. Code compilation is tested in CI, but deeper testing is not
+//!   done.
+//!
+//! Please open an issue if you would like to add a Tier 2 target, or if you would
+//! like a Tier 2 target moved to Tier 1.
+//!
+//! ## Tier 1 Targets
+//!
+//! |Target Name                    |Target Triple                       |APIs           |
+//! |-------------------------------|------------------------------------|---------------|
+//! |32-Bit x86 Windows with MSVC   |`i686-pc-windows-msvc`              |Win32          |
+//! |64-Bit x86 Windows with MSVC   |`x86_64-pc-windows-msvc`            |Win32          |
+//! |32-Bit x86 Windows with glibc  |`i686-pc-windows-gnu`               |Win32          |
+//! |64-Bit x86 Windows with glibc  |`x86_64-pc-windows-gnu`             |Win32          |
+//! |32-Bit x86 Linux with glibc    |`i686-unknown-linux-gnu`            |X11, Wayland   |
+//! |64-Bit x86 Linux with glibc    |`x86_64-unknown-linux-gnu`          |X11, Wayland   |
+//! |64-Bit ARM Android             |`aarch64-linux-android`             |Android        |
+//! |64-Bit x86 Redox OS            |`x86_64-unknown-redox`              |Orbital        |
+//! |32-Bit x86 Redox OS            |`i686-unknown-redox`                |Orbital        |
+//! |64-Bit ARM Redox OS            |`aarch64-unknown-redox`             |Orbital        |
+//! |64-bit x64 macOS               |`x86_64-apple-darwin`               |AppKit         |
+//! |64-bit ARM macOS               |`aarch64-apple-darwin`              |AppKit         |
+//! |32-bit Wasm Web browser        |`wasm32-unknown-unknown`            |`wasm-bindgen` |
+//!
+//! ## Tier 2 Targets
+//!
+//! |Target Name                         |Target Triple                       |APIs           |
+//! |------------------------------------|------------------------------------|---------------|
+//! |64-Bit ARM Windows with MSVC        |`aarch64-pc-windows-msvc`           |Win32          |
+//! |32-Bit x86 Windows 7 with MSVC      |`i686-win7-windows-msvc`            |Win32          |
+//! |64-Bit x86 Windows 7 with MSVC      |`x86_64-win7-windows-msvc`          |Win32          |
+//! |64-bit x86 Linux with Musl          |`x86_64-unknown-linux-musl`         |X11, Wayland   |
+//! |64-bit x86 Linux with 32-bit glibc  |`x86_64-unknown-linux-gnux32`       |X11, Wayland   |
+//! |64-bit x86 Android                  |`x86_64-linux-android`              |Android        |
+//! |64-bit x64 iOS                      |`x86_64-apple-ios`                  |UIKit          |
+//! |64-bit ARM iOS                      |`aarch64-apple-ios`                 |UIKit          |
+//! |64-bit ARM Mac Catalyst             |`aarch64-apple-ios-macabi`          |UIKit          |
+//! |32-bit x86 Android                  |`i686-linux-android`                |Android        |
+//! |64-bit x86 FreeBSD                  |`x86_64-unknown-freebsd`            |X11, Wayland   |
+//! |64-bit x86 NetBSD                   |`x86_64-unknown-netbsd`             |X11            |
+//! |32-bit x86 Linux with Musl          |`i686-unknown-linux-musl`           |X11, Wayland   |
+//! |64-bit RISC-V Linux with glibc      |`riscv64gc-unknown-linux-gnu`       |X11, Wayland   |
+//! |64-bit ARM Linux with glibc         |`aarch64-unknown-linux-gnu`         |X11, Wayland   |
+//! |64-bit ARM Linux with Musl          |`aarch64-unknown-linux-musl`        |X11, Wayland   |
+//! |64-bit PowerPC Linux with glibc     |`powerpc64le-unknown-linux-gnu`     |X11, Wayland   |
+//! |32-Bit ARM Linux with glibc         |`armv5te-unknown-linux-gnueabi`     |X11, Wayland   |
+//! |64-Bit Linux on IBM Supercomputers  |`s390x-unknown-linux-gnu`           |X11, Wayland   |
+//! |32-bit ARM Android                  |`arm-linux-androideabi`             |Android        |
+//! |64-bit SPARC Linux with glibc       |`sparc64-unknown-linux-gnu`         |X11, Wayland   |
 //!
 //! [`EventLoop`]: event_loop::EventLoop
 //! [`EventLoop::new()`]: event_loop::EventLoop::new
@@ -157,13 +257,11 @@
 //! [`Window`]: window::Window
 //! [`WindowId`]: window::WindowId
 //! [`WindowAttributes`]: window::WindowAttributes
-//! [window_new]: window::Window::new
 //! [`create_window`]: event_loop::ActiveEventLoop::create_window
 //! [`Window::id()`]: window::Window::id
 //! [`WindowEvent`]: event::WindowEvent
 //! [`DeviceEvent`]: event::DeviceEvent
-//! [`Event::UserEvent`]: event::Event::UserEvent
-//! [`Event::LoopExiting`]: event::Event::LoopExiting
+//! [`exiting()`]: crate::application::ApplicationHandler::exiting
 //! [`raw_window_handle`]: ./window/struct.Window.html#method.raw_window_handle
 //! [`raw_display_handle`]: ./window/struct.Window.html#method.raw_display_handle
 //! [^1]: `EventLoopExtPumpEvents::pump_app_events()` is only available on Windows, macOS, Android, X11 and Wayland.
@@ -177,13 +275,12 @@
 // doc
 #![cfg_attr(docsrs, feature(doc_auto_cfg, doc_cfg_hide), doc(cfg_hide(doc, docsrs)))]
 #![allow(clippy::missing_safety_doc)]
-
-#[cfg(feature = "rwh_06")]
-pub use rwh_06 as raw_window_handle;
+#![warn(clippy::uninlined_format_args)]
 
 // Re-export DPI types so that users don't have to put it in Cargo.toml.
 #[doc(inline)]
 pub use dpi;
+pub use rwh_06 as raw_window_handle;
 
 pub mod application;
 #[cfg(any(doc, doctest, test))]

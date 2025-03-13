@@ -5,7 +5,6 @@ use std::os::windows::prelude::{OsStrExt, OsStringExt};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::{io, mem, ptr};
 
-use crate::utils::Lazy;
 use windows_sys::core::{HRESULT, PCWSTR};
 use windows_sys::Win32::Foundation::{BOOL, HANDLE, HMODULE, HWND, RECT};
 use windows_sys::Win32::Graphics::Gdi::{ClientToScreen, HMONITOR};
@@ -15,7 +14,7 @@ use windows_sys::Win32::UI::HiDpi::{
     DPI_AWARENESS_CONTEXT, MONITOR_DPI_TYPE, PROCESS_DPI_AWARENESS,
 };
 use windows_sys::Win32::UI::Input::KeyboardAndMouse::GetActiveWindow;
-use windows_sys::Win32::UI::Input::Pointer::{POINTER_INFO, POINTER_PEN_INFO, POINTER_TOUCH_INFO};
+use windows_sys::Win32::UI::Input::Pointer::{POINTER_INFO, POINTER_TOUCH_INFO};
 use windows_sys::Win32::UI::WindowsAndMessaging::{
     ClipCursor, GetClientRect, GetClipCursor, GetSystemMetrics, GetWindowPlacement, GetWindowRect,
     IsIconic, ShowCursor, IDC_APPSTARTING, IDC_ARROW, IDC_CROSS, IDC_HAND, IDC_HELP, IDC_IBEAM,
@@ -24,6 +23,7 @@ use windows_sys::Win32::UI::WindowsAndMessaging::{
     WINDOWPLACEMENT,
 };
 
+use crate::utils::Lazy;
 use crate::window::CursorIcon;
 
 pub fn encode_wide(string: impl AsRef<OsStr>) -> Vec<u16> {
@@ -189,7 +189,7 @@ pub(super) fn get_function_impl(library: &str, function: &str) -> Option<*const 
 
     // Library names we will use are ASCII so we can use the A version to avoid string conversion.
     let module = unsafe { LoadLibraryA(library.as_ptr()) };
-    if module == 0 {
+    if module.is_null() {
         return None;
     }
 
@@ -244,9 +244,6 @@ pub type GetPointerDeviceRects = unsafe extern "system" fn(
 pub type GetPointerTouchInfo =
     unsafe extern "system" fn(pointerId: u32, touchInfo: *mut POINTER_TOUCH_INFO) -> BOOL;
 
-pub type GetPointerPenInfo =
-    unsafe extern "system" fn(pointId: u32, penInfo: *mut POINTER_PEN_INFO) -> BOOL;
-
 pub(crate) static GET_DPI_FOR_WINDOW: Lazy<Option<GetDpiForWindow>> =
     Lazy::new(|| get_function!("user32.dll", GetDpiForWindow));
 pub(crate) static ADJUST_WINDOW_RECT_EX_FOR_DPI: Lazy<Option<AdjustWindowRectExForDpi>> =
@@ -269,5 +266,3 @@ pub(crate) static GET_POINTER_DEVICE_RECTS: Lazy<Option<GetPointerDeviceRects>> 
     Lazy::new(|| get_function!("user32.dll", GetPointerDeviceRects));
 pub(crate) static GET_POINTER_TOUCH_INFO: Lazy<Option<GetPointerTouchInfo>> =
     Lazy::new(|| get_function!("user32.dll", GetPointerTouchInfo));
-pub(crate) static GET_POINTER_PEN_INFO: Lazy<Option<GetPointerPenInfo>> =
-    Lazy::new(|| get_function!("user32.dll", GetPointerPenInfo));

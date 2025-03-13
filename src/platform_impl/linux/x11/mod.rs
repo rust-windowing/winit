@@ -1,42 +1,47 @@
-#![cfg(x11_platform)]
-
 use std::cell::{Cell, RefCell};
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::ffi::CStr;
-use std::marker::PhantomData;
 use std::mem::MaybeUninit;
 use std::ops::Deref;
 use std::os::raw::*;
 use std::os::unix::io::{AsFd, AsRawFd, BorrowedFd, RawFd};
 use std::sync::mpsc::{self, Receiver, Sender, TryRecvError};
-use std::sync::{Arc, Weak};
+use std::sync::{Arc, Mutex, Weak};
 use std::time::{Duration, Instant};
-use std::{fmt, ptr, slice, str};
+use std::{fmt, mem, ptr, slice, str};
 
 use calloop::generic::Generic;
 use calloop::ping::Ping;
 use calloop::{EventLoop as Loop, Readiness};
 use libc::{setlocale, LC_CTYPE};
 use tracing::warn;
-
 use x11rb::connection::RequestConnection;
 use x11rb::errors::{ConnectError, ConnectionError, IdsExhausted, ReplyError};
 use x11rb::protocol::xinput::{self, ConnectionExt as _};
-use x11rb::protocol::xkb;
-use x11rb::protocol::xproto::{self, ConnectionExt as _};
+use x11rb::protocol::{xkb, xproto};
 use x11rb::x11_utils::X11Error as LogicalError;
 use x11rb::xcb_ffi::ReplyOrIdError;
 
-use crate::error::{EventLoopError, OsError as RootOsError};
-use crate::event::{Event, StartCause, WindowEvent};
-use crate::event_loop::{ActiveEventLoop as RootAEL, ControlFlow, DeviceEvents, EventLoopClosed};
-use crate::platform::pump_events::PumpStatus;
-use crate::platform_impl::common::xkb::Context;
-use crate::platform_impl::platform::{min_timeout, WindowId};
-use crate::platform_impl::{
-    ActiveEventLoop as PlatformActiveEventLoop, OsError, PlatformCustomCursor,
+use crate::application::ApplicationHandler;
+use crate::error::{EventLoopError, RequestError};
+use crate::event::{DeviceId, StartCause, WindowEvent};
+use crate::event_loop::{
+    ActiveEventLoop as RootActiveEventLoop, ControlFlow, DeviceEvents,
+    EventLoopProxy as CoreEventLoopProxy, EventLoopProxyProvider,
+    OwnedDisplayHandle as CoreOwnedDisplayHandle,
 };
-use crate::window::{CustomCursor as RootCustomCursor, CustomCursorSource, WindowAttributes};
+use crate::monitor::MonitorHandle as CoreMonitorHandle;
+use crate::platform::pump_events::PumpStatus;
+use crate::platform::x11::XlibErrorHook;
+use crate::platform_impl::common::xkb::Context;
+use crate::platform_impl::platform::min_timeout;
+use crate::platform_impl::x11::window::Window;
+use crate::platform_impl::PlatformCustomCursor;
+use crate::utils::Lazy;
+use crate::window::{
+    CustomCursor as RootCustomCursor, CustomCursorSource, Theme, Window as CoreWindow,
+    WindowAttributes, WindowId,
+};
 
 mod activation;
 mod atoms;
@@ -46,17 +51,16 @@ pub mod ffi;
 mod ime;
 mod monitor;
 mod util;
-mod window;
+pub(crate) mod window;
 mod xdisplay;
 mod xsettings;
-
-pub use util::CustomCursor;
 
 use atoms::*;
 use dnd::{Dnd, DndState};
 use event_processor::{EventProcessor, MAX_MOD_REPLAY_LEN};
 use ime::{Ime, ImeCreationError, ImeReceiver, ImeRequest, ImeSender};
 pub(crate) use monitor::{MonitorHandle, VideoModeHandle};
+pub use util::CustomCursor;
 use window::UnownedWindow;
 pub(crate) use xdisplay::{XConnection, XError, XNotSupported};
 
@@ -70,6 +74,62 @@ type X11rbConnection = x11rb::xcb_ffi::XCBConnection;
 
 type X11Source = Generic<BorrowedFd<'static>>;
 
+#[cfg(x11_platform)]
+pub(crate) static X11_BACKEND: Lazy<Mutex<Result<Arc<XConnection>, XNotSupported>>> =
+    Lazy::new(|| Mutex::new(XConnection::new(Some(x_error_callback)).map(Arc::new)));
+
+/// Hooks for X11 errors.
+#[cfg(x11_platform)]
+pub(crate) static XLIB_ERROR_HOOKS: Mutex<Vec<XlibErrorHook>> = Mutex::new(Vec::new());
+
+#[cfg(x11_platform)]
+unsafe extern "C" fn x_error_callback(
+    display: *mut ffi::Display,
+    event: *mut ffi::XErrorEvent,
+) -> c_int {
+    let xconn_lock = X11_BACKEND.lock().unwrap_or_else(|e| e.into_inner());
+    if let Ok(ref xconn) = *xconn_lock {
+        // Call all the hooks.
+        let mut error_handled = false;
+        for hook in XLIB_ERROR_HOOKS.lock().unwrap().iter() {
+            error_handled |= hook(display as *mut _, event as *mut _);
+        }
+
+        // `assume_init` is safe here because the array consists of `MaybeUninit` values,
+        // which do not require initialization.
+        let mut buf: [MaybeUninit<c_char>; 1024] = unsafe { MaybeUninit::uninit().assume_init() };
+        unsafe {
+            (xconn.xlib.XGetErrorText)(
+                display,
+                (*event).error_code as c_int,
+                buf.as_mut_ptr() as *mut c_char,
+                buf.len() as c_int,
+            )
+        };
+        let description =
+            unsafe { CStr::from_ptr(buf.as_ptr() as *const c_char) }.to_string_lossy();
+
+        let error = unsafe {
+            XError {
+                description: description.into_owned(),
+                error_code: (*event).error_code,
+                request_code: (*event).request_code,
+                minor_code: (*event).minor_code,
+            }
+        };
+
+        // Don't log error.
+        if !error_handled {
+            tracing::error!("X11 error: {:#?}", error);
+            // XXX only update the error, if it wasn't handled by any of the hooks.
+            *xconn.latest_error.lock().unwrap() = Some(error);
+        }
+    }
+    // Fun fact: this return value is completely ignored.
+    0
+}
+
+#[derive(Debug)]
 struct WakeSender<T> {
     sender: Sender<T>,
     waker: Ping,
@@ -82,15 +142,15 @@ impl<T> Clone for WakeSender<T> {
 }
 
 impl<T> WakeSender<T> {
-    pub fn send(&self, t: T) -> Result<(), EventLoopClosed<T>> {
-        let res = self.sender.send(t).map_err(|e| EventLoopClosed(e.0));
+    pub fn send(&self, t: T) {
+        let res = self.sender.send(t);
         if res.is_ok() {
             self.waker.ping();
         }
-        res
     }
 }
 
+#[derive(Debug)]
 struct PeekableReceiver<T> {
     recv: Receiver<T>,
     first: Option<T>,
@@ -127,10 +187,12 @@ impl<T> PeekableReceiver<T> {
     }
 }
 
+#[derive(Debug)]
 pub struct ActiveEventLoop {
     xconn: Arc<XConnection>,
     wm_delete_window: xproto::Atom,
     net_wm_ping: xproto::Atom,
+    net_wm_sync_request: xproto::Atom,
     ime_sender: ImeSender,
     control_flow: Cell<ControlFlow>,
     exit: Cell<Option<i32>>,
@@ -139,18 +201,17 @@ pub struct ActiveEventLoop {
     windows: RefCell<HashMap<WindowId, Weak<UnownedWindow>>>,
     redraw_sender: WakeSender<WindowId>,
     activation_sender: WakeSender<ActivationToken>,
+    event_loop_proxy: CoreEventLoopProxy,
     device_events: Cell<DeviceEvents>,
 }
 
-pub struct EventLoop<T: 'static> {
+#[derive(Debug)]
+pub struct EventLoop {
     loop_running: bool,
     event_loop: Loop<'static, EventLoopState>,
-    waker: calloop::ping::Ping,
     event_processor: EventProcessor,
     redraw_receiver: PeekableReceiver<WindowId>,
-    user_receiver: PeekableReceiver<T>,
     activation_receiver: PeekableReceiver<ActivationToken>,
-    user_sender: Sender<T>,
 
     /// The current state of the event loop.
     state: EventLoopState,
@@ -158,28 +219,28 @@ pub struct EventLoop<T: 'static> {
 
 type ActivationToken = (WindowId, crate::event_loop::AsyncRequestSerial);
 
+#[derive(Debug)]
 struct EventLoopState {
     /// The latest readiness state for the x11 file descriptor
     x11_readiness: Readiness,
+
+    /// User requested a wake up.
+    proxy_wake_up: bool,
 }
 
-pub struct EventLoopProxy<T: 'static> {
-    user_sender: WakeSender<T>,
-}
+impl EventLoop {
+    pub(crate) fn new() -> Result<EventLoop, EventLoopError> {
+        let xconn = match X11_BACKEND.lock().unwrap_or_else(|e| e.into_inner()).as_ref() {
+            Ok(xconn) => xconn.clone(),
+            Err(err) => return Err(os_error!(err.clone()).into()),
+        };
 
-impl<T: 'static> Clone for EventLoopProxy<T> {
-    fn clone(&self) -> Self {
-        EventLoopProxy { user_sender: self.user_sender.clone() }
-    }
-}
-
-impl<T: 'static> EventLoop<T> {
-    pub(crate) fn new(xconn: Arc<XConnection>) -> EventLoop<T> {
         let root = xconn.default_root().root;
         let atoms = xconn.atoms();
 
         let wm_delete_window = atoms[WM_DELETE_WINDOW];
         let net_wm_ping = atoms[_NET_WM_PING];
+        let net_wm_sync_request = atoms[_NET_WM_SYNC_REQUEST];
 
         let dnd = Dnd::new(Arc::clone(&xconn))
             .expect("Failed to call XInternAtoms when initializing drag and drop");
@@ -278,7 +339,16 @@ impl<T: 'static> EventLoop<T> {
         let (activation_token_sender, activation_token_channel) = mpsc::channel();
 
         // Create a channel for sending user events.
-        let (user_sender, user_channel) = mpsc::channel();
+        let (user_waker, user_waker_source) =
+            calloop::ping::make_ping().expect("Failed to create user event loop waker.");
+        event_loop
+            .handle()
+            .insert_source(user_waker_source, move |_, _, state| {
+                // No extra handling is required, we just need to wake-up.
+                state.proxy_wake_up = true;
+            })
+            .expect("Failed to register the event loop waker source");
+        let event_loop_proxy = EventLoopProxy::new(user_waker);
 
         let xkb_context =
             Context::from_x11_xkb(xconn.xcb_connection().get_raw_xcb_connection()).unwrap();
@@ -296,6 +366,7 @@ impl<T: 'static> EventLoop<T> {
             xconn,
             wm_delete_window,
             net_wm_ping,
+            net_wm_sync_request,
             redraw_sender: WakeSender {
                 sender: redraw_sender, // not used again so no clone
                 waker: waker.clone(),
@@ -304,17 +375,15 @@ impl<T: 'static> EventLoop<T> {
                 sender: activation_token_sender, // not used again so no clone
                 waker: waker.clone(),
             },
+            event_loop_proxy: event_loop_proxy.into(),
             device_events: Default::default(),
         };
 
         // Set initial device event filter.
         window_target.update_listen_device_events(true);
 
-        let root_window_target =
-            RootAEL { p: PlatformActiveEventLoop::X(window_target), _marker: PhantomData };
-
         let event_processor = EventProcessor {
-            target: root_window_target,
+            target: window_target,
             dnd,
             devices: Default::default(),
             randr_event_offset,
@@ -335,9 +404,9 @@ impl<T: 'static> EventLoop<T> {
 
         // Register for device hotplug events
         // (The request buffer is flushed during `init_device`)
-        let xconn = &EventProcessor::window_target(&event_processor.target).xconn;
-
-        xconn
+        event_processor
+            .target
+            .xconn
             .select_xinput_events(
                 root,
                 ALL_DEVICES,
@@ -345,7 +414,9 @@ impl<T: 'static> EventLoop<T> {
             )
             .expect_then_ignore_error("Failed to register for XInput2 device hotplug events");
 
-        xconn
+        event_processor
+            .target
+            .xconn
             .select_xkb_events(
                 0x100, // Use the "core keyboard device"
                 xkb::EventType::NEW_KEYBOARD_NOTIFY
@@ -356,35 +427,33 @@ impl<T: 'static> EventLoop<T> {
 
         event_processor.init_device(ALL_DEVICES);
 
-        EventLoop {
+        let event_loop = EventLoop {
             loop_running: false,
             event_loop,
-            waker,
             event_processor,
             redraw_receiver: PeekableReceiver::from_recv(redraw_channel),
             activation_receiver: PeekableReceiver::from_recv(activation_token_channel),
-            user_receiver: PeekableReceiver::from_recv(user_channel),
-            user_sender,
-            state: EventLoopState { x11_readiness: Readiness::EMPTY },
-        }
+            state: EventLoopState { x11_readiness: Readiness::EMPTY, proxy_wake_up: false },
+        };
+
+        Ok(event_loop)
     }
 
-    pub fn create_proxy(&self) -> EventLoopProxy<T> {
-        EventLoopProxy {
-            user_sender: WakeSender { sender: self.user_sender.clone(), waker: self.waker.clone() },
-        }
-    }
-
-    pub(crate) fn window_target(&self) -> &RootAEL {
+    pub(crate) fn window_target(&self) -> &dyn RootActiveEventLoop {
         &self.event_processor.target
     }
 
-    pub fn run_on_demand<F>(&mut self, mut event_handler: F) -> Result<(), EventLoopError>
-    where
-        F: FnMut(Event<T>, &RootAEL),
-    {
+    pub fn run_app<A: ApplicationHandler>(mut self, app: A) -> Result<(), EventLoopError> {
+        self.run_app_on_demand(app)
+    }
+
+    pub fn run_app_on_demand<A: ApplicationHandler>(
+        &mut self,
+        mut app: A,
+    ) -> Result<(), EventLoopError> {
+        self.event_processor.target.clear_exit();
         let exit = loop {
-            match self.pump_events(None, &mut event_handler) {
+            match self.pump_app_events(None, &mut app) {
                 PumpStatus::Exit(0) => {
                     break Ok(());
                 },
@@ -401,34 +470,36 @@ impl<T: 'static> EventLoop<T> {
         // `run_on_demand` calls but if they have only just dropped their
         // windows we need to make sure those last requests are sent to the
         // X Server.
-        let wt = EventProcessor::window_target(&self.event_processor.target);
-        wt.x_connection().sync_with_server().map_err(|x_err| {
-            EventLoopError::Os(os_error!(OsError::XError(Arc::new(X11Error::Xlib(x_err)))))
-        })?;
+        self.event_processor
+            .target
+            .x_connection()
+            .sync_with_server()
+            .map_err(|x_err| EventLoopError::Os(os_error!(X11Error::Xlib(x_err))))?;
 
         exit
     }
 
-    pub fn pump_events<F>(&mut self, timeout: Option<Duration>, mut callback: F) -> PumpStatus
-    where
-        F: FnMut(Event<T>, &RootAEL),
-    {
+    pub fn pump_app_events<A: ApplicationHandler>(
+        &mut self,
+        timeout: Option<Duration>,
+        mut app: A,
+    ) -> PumpStatus {
         if !self.loop_running {
             self.loop_running = true;
 
             // run the initial loop iteration
-            self.single_iteration(&mut callback, StartCause::Init);
+            self.single_iteration(&mut app, StartCause::Init);
         }
 
         // Consider the possibility that the `StartCause::Init` iteration could
         // request to Exit.
         if !self.exiting() {
-            self.poll_events_with_timeout(timeout, &mut callback);
+            self.poll_events_with_timeout(timeout, &mut app);
         }
         if let Some(code) = self.exit_code() {
             self.loop_running = false;
 
-            callback(Event::LoopExiting, self.window_target());
+            app.exiting(self.window_target());
 
             PumpStatus::Exit(code)
         } else {
@@ -438,14 +509,15 @@ impl<T: 'static> EventLoop<T> {
 
     fn has_pending(&mut self) -> bool {
         self.event_processor.poll()
-            || self.user_receiver.has_incoming()
+            || self.state.proxy_wake_up
             || self.redraw_receiver.has_incoming()
     }
 
-    pub fn poll_events_with_timeout<F>(&mut self, mut timeout: Option<Duration>, mut callback: F)
-    where
-        F: FnMut(Event<T>, &RootAEL),
-    {
+    fn poll_events_with_timeout<A: ApplicationHandler>(
+        &mut self,
+        mut timeout: Option<Duration>,
+        app: &mut A,
+    ) {
         let start = Instant::now();
 
         let has_pending = self.has_pending();
@@ -503,40 +575,36 @@ impl<T: 'static> EventLoop<T> {
             return;
         }
 
-        self.single_iteration(&mut callback, cause);
+        self.single_iteration(app, cause);
     }
 
-    fn single_iteration<F>(&mut self, callback: &mut F, cause: StartCause)
-    where
-        F: FnMut(Event<T>, &RootAEL),
-    {
-        callback(Event::NewEvents(cause), &self.event_processor.target);
+    fn single_iteration<A: ApplicationHandler>(&mut self, app: &mut A, cause: StartCause) {
+        app.new_events(&self.event_processor.target, cause);
 
-        // NB: For consistency all platforms must emit a 'resumed' event even though X11
-        // applications don't themselves have a formal suspend/resume lifecycle.
+        // NB: For consistency all platforms must call `can_create_surfaces` even though X11
+        // applications don't themselves have a formal surface destroy/create lifecycle.
         if cause == StartCause::Init {
-            callback(Event::Resumed, &self.event_processor.target);
+            app.can_create_surfaces(&self.event_processor.target)
         }
 
         // Process all pending events
-        self.drain_events(callback);
+        self.drain_events(app);
 
         // Empty activation tokens.
         while let Ok((window_id, serial)) = self.activation_receiver.try_recv() {
-            let token = self.event_processor.with_window(window_id.0 as xproto::Window, |window| {
-                window.generate_activation_token()
-            });
+            let token = self
+                .event_processor
+                .with_window(window_id.into_raw() as xproto::Window, |window| {
+                    window.generate_activation_token()
+                });
 
             match token {
                 Some(Ok(token)) => {
-                    let event = Event::WindowEvent {
-                        window_id: crate::window::WindowId(window_id),
-                        event: WindowEvent::ActivationTokenDone {
-                            serial,
-                            token: crate::window::ActivationToken::_new(token),
-                        },
+                    let event = WindowEvent::ActivationTokenDone {
+                        serial,
+                        token: crate::window::ActivationToken::from_raw(token),
                     };
-                    callback(event, &self.event_processor.target)
+                    app.window_event(&self.event_processor.target, window_id, event);
                 },
                 Some(Err(e)) => {
                     tracing::error!("Failed to get activation token: {}", e);
@@ -546,10 +614,8 @@ impl<T: 'static> EventLoop<T> {
         }
 
         // Empty the user event buffer
-        {
-            while let Ok(event) = self.user_receiver.try_recv() {
-                callback(Event::UserEvent(event), &self.event_processor.target);
-            }
+        if mem::take(&mut self.state.proxy_wake_up) {
+            app.proxy_wake_up(&self.event_processor.target);
         }
 
         // Empty the redraw requests
@@ -561,71 +627,51 @@ impl<T: 'static> EventLoop<T> {
             }
 
             for window_id in windows {
-                let window_id = crate::window::WindowId(window_id);
-                callback(
-                    Event::WindowEvent { window_id, event: WindowEvent::RedrawRequested },
+                app.window_event(
                     &self.event_processor.target,
+                    window_id,
+                    WindowEvent::RedrawRequested,
                 );
             }
         }
 
         // This is always the last event we dispatch before poll again
-        {
-            callback(Event::AboutToWait, &self.event_processor.target);
-        }
+        app.about_to_wait(&self.event_processor.target);
     }
 
-    fn drain_events<F>(&mut self, callback: &mut F)
-    where
-        F: FnMut(Event<T>, &RootAEL),
-    {
+    fn drain_events<A: ApplicationHandler>(&mut self, app: &mut A) {
         let mut xev = MaybeUninit::uninit();
 
         while unsafe { self.event_processor.poll_one_event(xev.as_mut_ptr()) } {
             let mut xev = unsafe { xev.assume_init() };
-            self.event_processor.process_event(&mut xev, |window_target, event| {
-                if let Event::WindowEvent {
-                    window_id: crate::window::WindowId(wid),
-                    event: WindowEvent::RedrawRequested,
-                } = event
-                {
-                    let window_target = EventProcessor::window_target(window_target);
-                    window_target.redraw_sender.send(wid).unwrap();
-                } else {
-                    callback(event, window_target);
-                }
-            });
+            self.event_processor.process_event(&mut xev, app);
         }
     }
 
     fn control_flow(&self) -> ControlFlow {
-        let window_target = EventProcessor::window_target(&self.event_processor.target);
-        window_target.control_flow()
+        self.event_processor.target.control_flow()
     }
 
     fn exiting(&self) -> bool {
-        let window_target = EventProcessor::window_target(&self.event_processor.target);
-        window_target.exiting()
+        self.event_processor.target.exiting()
     }
 
     fn set_exit_code(&self, code: i32) {
-        let window_target = EventProcessor::window_target(&self.event_processor.target);
-        window_target.set_exit_code(code);
+        self.event_processor.target.set_exit_code(code);
     }
 
     fn exit_code(&self) -> Option<i32> {
-        let window_target = EventProcessor::window_target(&self.event_processor.target);
-        window_target.exit_code()
+        self.event_processor.target.exit_code()
     }
 }
 
-impl<T> AsFd for EventLoop<T> {
+impl AsFd for EventLoop {
     fn as_fd(&self) -> BorrowedFd<'_> {
         self.event_loop.as_fd()
     }
 }
 
-impl<T> AsRawFd for EventLoop<T> {
+impl AsRawFd for EventLoop {
     fn as_raw_fd(&self) -> RawFd {
         self.event_loop.as_raw_fd()
     }
@@ -636,22 +682,6 @@ impl ActiveEventLoop {
     #[inline]
     pub(crate) fn x_connection(&self) -> &Arc<XConnection> {
         &self.xconn
-    }
-
-    pub fn available_monitors(&self) -> impl Iterator<Item = MonitorHandle> {
-        self.xconn.available_monitors().into_iter().flatten()
-    }
-
-    pub fn primary_monitor(&self) -> Option<MonitorHandle> {
-        self.xconn.primary_monitor().ok()
-    }
-
-    pub(crate) fn create_custom_cursor(&self, cursor: CustomCursorSource) -> RootCustomCursor {
-        RootCustomCursor { inner: PlatformCustomCursor::X(CustomCursor::new(self, cursor.inner)) }
-    }
-
-    pub fn listen_device_events(&self, allowed: DeviceEvents) {
-        self.device_events.set(allowed);
     }
 
     /// Update the device event based on window focus.
@@ -673,47 +703,8 @@ impl ActiveEventLoop {
             .expect_then_ignore_error("Failed to update device event filter");
     }
 
-    #[cfg(feature = "rwh_05")]
-    pub fn raw_display_handle_rwh_05(&self) -> rwh_05::RawDisplayHandle {
-        let mut display_handle = rwh_05::XlibDisplayHandle::empty();
-        display_handle.display = self.xconn.display as *mut _;
-        display_handle.screen = self.xconn.default_screen_index() as c_int;
-        display_handle.into()
-    }
-
-    #[cfg(feature = "rwh_06")]
-    pub fn raw_display_handle_rwh_06(
-        &self,
-    ) -> Result<rwh_06::RawDisplayHandle, rwh_06::HandleError> {
-        let display_handle = rwh_06::XlibDisplayHandle::new(
-            // SAFETY: display will never be null
-            Some(
-                std::ptr::NonNull::new(self.xconn.display as *mut _)
-                    .expect("X11 display should never be null"),
-            ),
-            self.xconn.default_screen_index() as c_int,
-        );
-        Ok(display_handle.into())
-    }
-
-    pub(crate) fn set_control_flow(&self, control_flow: ControlFlow) {
-        self.control_flow.set(control_flow)
-    }
-
-    pub(crate) fn control_flow(&self) -> ControlFlow {
-        self.control_flow.get()
-    }
-
-    pub(crate) fn exit(&self) {
-        self.exit.set(Some(0))
-    }
-
     pub(crate) fn clear_exit(&self) {
         self.exit.set(None)
-    }
-
-    pub(crate) fn exiting(&self) -> bool {
-        self.exit.get().is_some()
     }
 
     pub(crate) fn set_exit_code(&self, code: i32) {
@@ -725,9 +716,77 @@ impl ActiveEventLoop {
     }
 }
 
-impl<T: 'static> EventLoopProxy<T> {
-    pub fn send_event(&self, event: T) -> Result<(), EventLoopClosed<T>> {
-        self.user_sender.send(event).map_err(|e| EventLoopClosed(e.0))
+impl RootActiveEventLoop for ActiveEventLoop {
+    fn create_proxy(&self) -> CoreEventLoopProxy {
+        self.event_loop_proxy.clone()
+    }
+
+    fn create_window(
+        &self,
+        window_attributes: WindowAttributes,
+    ) -> Result<Box<dyn CoreWindow>, RequestError> {
+        Ok(Box::new(Window::new(self, window_attributes)?))
+    }
+
+    fn create_custom_cursor(
+        &self,
+        custom_cursor: CustomCursorSource,
+    ) -> Result<RootCustomCursor, RequestError> {
+        Ok(RootCustomCursor {
+            inner: PlatformCustomCursor::X(CustomCursor::new(self, custom_cursor.inner)?),
+        })
+    }
+
+    fn available_monitors(&self) -> Box<dyn Iterator<Item = CoreMonitorHandle>> {
+        Box::new(
+            self.xconn
+                .available_monitors()
+                .into_iter()
+                .flatten()
+                .map(|monitor| CoreMonitorHandle(Arc::new(monitor))),
+        )
+    }
+
+    fn primary_monitor(&self) -> Option<CoreMonitorHandle> {
+        self.xconn.primary_monitor().ok().map(|monitor| CoreMonitorHandle(Arc::new(monitor)))
+    }
+
+    fn system_theme(&self) -> Option<Theme> {
+        None
+    }
+
+    fn listen_device_events(&self, allowed: DeviceEvents) {
+        self.device_events.set(allowed);
+    }
+
+    fn set_control_flow(&self, control_flow: ControlFlow) {
+        self.control_flow.set(control_flow)
+    }
+
+    fn control_flow(&self) -> ControlFlow {
+        self.control_flow.get()
+    }
+
+    fn exit(&self) {
+        self.exit.set(Some(0))
+    }
+
+    fn exiting(&self) -> bool {
+        self.exit.get().is_some()
+    }
+
+    fn owned_display_handle(&self) -> CoreOwnedDisplayHandle {
+        CoreOwnedDisplayHandle::new(self.x_connection().clone())
+    }
+
+    fn rwh_06_handle(&self) -> &dyn rwh_06::HasDisplayHandle {
+        self
+    }
+}
+
+impl rwh_06::HasDisplayHandle for ActiveEventLoop {
+    fn display_handle(&self) -> Result<rwh_06::DisplayHandle<'_>, rwh_06::HandleError> {
+        self.xconn.display_handle()
     }
 }
 
@@ -753,14 +812,14 @@ impl<'a> DeviceInfo<'a> {
     }
 }
 
-impl<'a> Drop for DeviceInfo<'a> {
+impl Drop for DeviceInfo<'_> {
     fn drop(&mut self) {
         assert!(!self.info.is_null());
         unsafe { (self.xconn.xinput2.XIFreeDeviceInfo)(self.info as *mut _) };
     }
 }
 
-impl<'a> Deref for DeviceInfo<'a> {
+impl Deref for DeviceInfo<'_> {
     type Target = [ffi::XIDeviceInfo];
 
     fn deref(&self) -> &Self::Target {
@@ -768,46 +827,26 @@ impl<'a> Deref for DeviceInfo<'a> {
     }
 }
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct DeviceId(xinput::DeviceId);
+#[derive(Clone, Debug)]
+pub struct EventLoopProxy {
+    ping: Ping,
+}
 
-impl DeviceId {
-    #[allow(unused)]
-    pub const unsafe fn dummy() -> Self {
-        DeviceId(0)
+impl EventLoopProxyProvider for EventLoopProxy {
+    fn wake_up(&self) {
+        self.ping.ping();
     }
 }
 
-pub(crate) struct Window(Arc<UnownedWindow>);
-
-impl Deref for Window {
-    type Target = UnownedWindow;
-
-    #[inline]
-    fn deref(&self) -> &UnownedWindow {
-        &self.0
+impl EventLoopProxy {
+    fn new(ping: Ping) -> Self {
+        Self { ping }
     }
 }
 
-impl Window {
-    pub(crate) fn new(
-        event_loop: &ActiveEventLoop,
-        attribs: WindowAttributes,
-    ) -> Result<Self, RootOsError> {
-        let window = Arc::new(UnownedWindow::new(event_loop, attribs)?);
-        event_loop.windows.borrow_mut().insert(window.id(), Arc::downgrade(&window));
-        Ok(Window(window))
-    }
-}
-
-impl Drop for Window {
-    fn drop(&mut self) {
-        let window = self.deref();
-        let xconn = &window.xconn;
-
-        if let Ok(c) = xconn.xcb_connection().destroy_window(window.id().0 as xproto::Window) {
-            c.ignore_error();
-        }
+impl From<EventLoopProxy> for CoreEventLoopProxy {
+    fn from(value: EventLoopProxy) -> Self {
+        CoreEventLoopProxy::new(Arc::new(value))
     }
 }
 
@@ -846,29 +885,35 @@ pub enum X11Error {
 
     /// Failed to get property.
     GetProperty(util::GetPropertyError),
+
+    /// Could not find an ARGB32 pict format.
+    NoArgb32Format,
 }
 
 impl fmt::Display for X11Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            X11Error::Xlib(e) => write!(f, "Xlib error: {}", e),
-            X11Error::Connect(e) => write!(f, "X11 connection error: {}", e),
-            X11Error::Connection(e) => write!(f, "X11 connection error: {}", e),
-            X11Error::XidsExhausted(e) => write!(f, "XID range exhausted: {}", e),
-            X11Error::GetProperty(e) => write!(f, "Failed to get X property {}", e),
-            X11Error::X11(e) => write!(f, "X11 error: {:?}", e),
-            X11Error::UnexpectedNull(s) => write!(f, "Xlib function returned null: {}", s),
+            X11Error::Xlib(e) => write!(f, "Xlib error: {e}"),
+            X11Error::Connect(e) => write!(f, "X11 connection error: {e}"),
+            X11Error::Connection(e) => write!(f, "X11 connection error: {e}"),
+            X11Error::XidsExhausted(e) => write!(f, "XID range exhausted: {e}"),
+            X11Error::GetProperty(e) => write!(f, "Failed to get X property {e}"),
+            X11Error::X11(e) => write!(f, "X11 error: {e:?}"),
+            X11Error::UnexpectedNull(s) => write!(f, "Xlib function returned null: {s}"),
             X11Error::InvalidActivationToken(s) => write!(
                 f,
                 "Invalid activation token: {}",
                 std::str::from_utf8(s).unwrap_or("<invalid utf8>")
             ),
-            X11Error::MissingExtension(s) => write!(f, "Missing X11 extension: {}", s),
+            X11Error::MissingExtension(s) => write!(f, "Missing X11 extension: {s}"),
             X11Error::NoSuchVisual(visualid) => {
-                write!(f, "Could not find a matching X11 visual for ID `{:x}`", visualid)
+                write!(f, "Could not find a matching X11 visual for ID `{visualid:x}`")
             },
             X11Error::XsettingsParse(err) => {
-                write!(f, "Failed to parse xsettings: {:?}", err)
+                write!(f, "Failed to parse xsettings: {err:?}")
+            },
+            X11Error::NoArgb32Format => {
+                f.write_str("winit only supports X11 displays with ARGB32 picture formats")
             },
         }
     }
@@ -959,17 +1004,17 @@ trait CookieResultExt {
     fn expect_then_ignore_error(self, msg: &str);
 }
 
-impl<'a, E: fmt::Debug> CookieResultExt for Result<VoidCookie<'a>, E> {
+impl<E: fmt::Debug> CookieResultExt for Result<VoidCookie<'_>, E> {
     fn expect_then_ignore_error(self, msg: &str) {
         self.expect(msg).ignore_error()
     }
 }
 
 fn mkwid(w: xproto::Window) -> crate::window::WindowId {
-    crate::window::WindowId(crate::platform_impl::platform::WindowId(w as _))
+    crate::window::WindowId::from_raw(w as _)
 }
-fn mkdid(w: xinput::DeviceId) -> crate::event::DeviceId {
-    crate::event::DeviceId(crate::platform_impl::DeviceId::X(DeviceId(w)))
+fn mkdid(w: xinput::DeviceId) -> DeviceId {
+    DeviceId::from_raw(w as i64)
 }
 
 #[derive(Debug)]

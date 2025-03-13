@@ -4,6 +4,8 @@ use std::ops::Deref;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
+use tracing::warn;
+
 use sctk::reexports::client::delegate_dispatch;
 use sctk::reexports::client::protocol::wl_pointer::WlPointer;
 use sctk::reexports::client::protocol::wl_seat::WlSeat;
@@ -25,10 +27,13 @@ use sctk::seat::pointer::{
 use sctk::seat::SeatState;
 
 use crate::dpi::{LogicalPosition, PhysicalPosition};
-use crate::event::{ElementState, MouseButton, MouseScrollDelta, TouchPhase, WindowEvent};
+use crate::event::{
+    ElementState, MouseButton, MouseScrollDelta, PointerKind, PointerSource, TouchPhase,
+    WindowEvent,
+};
 
 use crate::platform_impl::wayland::state::WinitState;
-use crate::platform_impl::wayland::{self, DeviceId, WindowId};
+use crate::platform_impl::wayland::{self, WindowId};
 
 pub mod relative_pointer;
 
@@ -41,9 +46,21 @@ impl PointerHandler for WinitState {
         events: &[PointerEvent],
     ) {
         let seat = pointer.winit_data().seat();
-        let seat_state = self.seats.get(&seat.id()).unwrap();
+        let seat_state = match self.seats.get(&seat.id()) {
+            Some(seat_state) => seat_state,
+            None => {
+                warn!("Received pointer event without seat");
+                return;
+            },
+        };
 
-        let device_id = crate::event::DeviceId(crate::platform_impl::DeviceId::Wayland(DeviceId));
+        let themed_pointer = match seat_state.pointer.as_ref() {
+            Some(pointer) => pointer,
+            None => {
+                warn!("Received pointer event without pointer");
+                return;
+            },
+        };
 
         for event in events {
             let surface = &event.surface;
@@ -78,9 +95,7 @@ impl PointerHandler for WinitState {
                         event.position.0,
                         event.position.1,
                     ) {
-                        if let Some(pointer) = seat_state.pointer.as_ref() {
-                            let _ = pointer.set_cursor(connection, icon);
-                        }
+                        let _ = themed_pointer.set_cursor(connection, icon);
                     }
                 },
                 PointerEventKind::Leave { .. } if parent_surface != surface => {
@@ -110,35 +125,45 @@ impl PointerHandler for WinitState {
                 },
                 // Regular events on the main surface.
                 PointerEventKind::Enter { .. } => {
-                    self.events_sink
-                        .push_window_event(WindowEvent::CursorEntered { device_id }, window_id);
+                    self.events_sink.push_window_event(
+                        WindowEvent::PointerEntered {
+                            primary: true,
+                            device_id: None,
+                            position,
+                            kind: PointerKind::Mouse,
+                        },
+                        window_id,
+                    );
 
-                    if let Some(pointer) = seat_state.pointer.as_ref().map(Arc::downgrade) {
-                        window.pointer_entered(pointer);
-                    }
+                    window.pointer_entered(Arc::downgrade(themed_pointer));
 
                     // Set the currently focused surface.
                     pointer.winit_data().inner.lock().unwrap().surface = Some(window_id);
-
-                    self.events_sink.push_window_event(
-                        WindowEvent::CursorMoved { device_id, position },
-                        window_id,
-                    );
                 },
                 PointerEventKind::Leave { .. } => {
-                    if let Some(pointer) = seat_state.pointer.as_ref().map(Arc::downgrade) {
-                        window.pointer_left(pointer);
-                    }
+                    window.pointer_left(Arc::downgrade(themed_pointer));
 
                     // Remove the active surface.
                     pointer.winit_data().inner.lock().unwrap().surface = None;
 
-                    self.events_sink
-                        .push_window_event(WindowEvent::CursorLeft { device_id }, window_id);
+                    self.events_sink.push_window_event(
+                        WindowEvent::PointerLeft {
+                            primary: true,
+                            device_id: None,
+                            position: Some(position),
+                            kind: PointerKind::Mouse,
+                        },
+                        window_id,
+                    );
                 },
                 PointerEventKind::Motion { .. } => {
                     self.events_sink.push_window_event(
-                        WindowEvent::CursorMoved { device_id, position },
+                        WindowEvent::PointerMoved {
+                            primary: true,
+                            device_id: None,
+                            position,
+                            source: PointerSource::Mouse,
+                        },
                         window_id,
                     );
                 },
@@ -154,7 +179,13 @@ impl PointerHandler for WinitState {
                         ElementState::Released
                     };
                     self.events_sink.push_window_event(
-                        WindowEvent::MouseInput { device_id, state, button },
+                        WindowEvent::PointerButton {
+                            primary: true,
+                            device_id: None,
+                            state,
+                            position,
+                            button: button.into(),
+                        },
                         window_id,
                     );
                 },
@@ -185,13 +216,13 @@ impl PointerHandler for WinitState {
                     // Mice events have both pixel and discrete delta's at the same time. So prefer
                     // the descrite values if they are present.
                     let delta = if has_discrete_scroll {
-                        // XXX Wayland sign convention is the inverse of winit.
+                        // NOTE: Wayland sign convention is the inverse of winit.
                         MouseScrollDelta::LineDelta(
                             (-horizontal.discrete) as f32,
                             (-vertical.discrete) as f32,
                         )
                     } else {
-                        // XXX Wayland sign convention is the inverse of winit.
+                        // NOTE: Wayland sign convention is the inverse of winit.
                         MouseScrollDelta::PixelDelta(
                             LogicalPosition::new(-horizontal.absolute, -vertical.absolute)
                                 .to_physical(scale_factor),
@@ -199,7 +230,7 @@ impl PointerHandler for WinitState {
                     };
 
                     self.events_sink.push_window_event(
-                        WindowEvent::MouseWheel { device_id, delta, phase },
+                        WindowEvent::MouseWheel { device_id: None, delta, phase },
                         window_id,
                     )
                 },
@@ -383,6 +414,7 @@ impl WinitPointerDataExt for WlPointer {
     }
 }
 
+#[derive(Debug)]
 pub struct PointerConstraintsState {
     pointer_constraints: ZwpPointerConstraintsV1,
 }

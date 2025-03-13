@@ -5,20 +5,19 @@ mod context;
 mod inner;
 mod input_method;
 
+use std::fmt;
 use std::sync::mpsc::{Receiver, Sender};
 use std::sync::Arc;
 
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
-use tracing::debug;
-
-use super::{ffi, util, XConnection, XError};
 
 use self::callbacks::*;
 use self::context::ImeContext;
 pub use self::context::ImeContextCreationError;
 use self::inner::{close_im, ImeInner};
-use self::input_method::{PotentialInputMethods, Style};
+use self::input_method::PotentialInputMethods;
+use super::{ffi, util, XConnection, XError};
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
@@ -37,8 +36,8 @@ pub type ImeEventSender = Sender<(ffi::Window, ImeEvent)>;
 
 /// Request to control XIM handler from the window.
 pub enum ImeRequest {
-    /// Set IME spot position for given `window_id`.
-    Position(ffi::Window, i16, i16),
+    /// Set IME preedit area for given `window_id`.
+    Area(ffi::Window, i16, i16, u16, u16),
 
     /// Allow IME input for the given `window_id`.
     Allow(ffi::Window, bool),
@@ -56,6 +55,12 @@ pub(crate) struct Ime {
     // The actual meat of this struct is boxed away, since it needs to have a fixed location in
     // memory so we can pass a pointer to it around.
     inner: Box<ImeInner>,
+}
+
+impl fmt::Debug for Ime {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Ime").finish_non_exhaustive()
+    }
 }
 
 impl Ime {
@@ -114,39 +119,26 @@ impl Ime {
     pub fn create_context(
         &mut self,
         window: ffi::Window,
-        with_preedit: bool,
+        with_ime: bool,
     ) -> Result<bool, ImeContextCreationError> {
         let context = if self.is_destroyed() {
             // Create empty entry in map, so that when IME is rebuilt, this window has a context.
             None
         } else {
             let im = self.inner.im.as_ref().unwrap();
-            let style = if with_preedit { im.preedit_style } else { im.none_style };
 
             let context = unsafe {
                 ImeContext::new(
                     &self.inner.xconn,
-                    im.im,
-                    style,
+                    im,
                     window,
                     None,
                     self.inner.event_sender.clone(),
+                    with_ime,
                 )?
             };
 
-            // Check the state on the context, since it could fail to enable or disable preedit.
-            let event = if matches!(style, Style::None(_)) {
-                if with_preedit {
-                    debug!("failed to create IME context with preedit support.")
-                }
-                ImeEvent::Disabled
-            } else {
-                if !with_preedit {
-                    debug!("failed to create IME context without preedit support.")
-                }
-                ImeEvent::Enabled
-            };
-
+            let event = if context.is_allowed() { ImeEvent::Enabled } else { ImeEvent::Disabled };
             self.inner.event_sender.send((window, event)).expect("Failed to send enabled event");
 
             Some(context)
@@ -200,12 +192,12 @@ impl Ime {
         }
     }
 
-    pub fn send_xim_spot(&mut self, window: ffi::Window, x: i16, y: i16) {
+    pub fn send_xim_area(&mut self, window: ffi::Window, x: i16, y: i16, w: u16, h: u16) {
         if self.is_destroyed() {
             return;
         }
         if let Some(&mut Some(ref mut context)) = self.inner.contexts.get_mut(&window) {
-            context.set_spot(&self.xconn, x as _, y as _);
+            context.set_area(&self.xconn, x as _, y as _, w as _, h as _);
         }
     }
 
@@ -225,6 +217,16 @@ impl Ime {
 
         // Create new context supporting IME input.
         let _ = self.create_context(window, allowed);
+    }
+
+    pub fn is_ime_allowed(&self, window: ffi::Window) -> bool {
+        if self.is_destroyed() {
+            false
+        } else if let Some(Some(context)) = self.inner.contexts.get(&window) {
+            context.is_allowed()
+        } else {
+            false
+        }
     }
 }
 

@@ -1,11 +1,9 @@
 use std::ops::Deref;
 
 use sctk::globals::GlobalData;
-use sctk::reexports::client::{Connection, Proxy, QueueHandle};
-
 use sctk::reexports::client::globals::{BindError, GlobalList};
 use sctk::reexports::client::protocol::wl_surface::WlSurface;
-use sctk::reexports::client::{delegate_dispatch, Dispatch};
+use sctk::reexports::client::{delegate_dispatch, Connection, Dispatch, Proxy, QueueHandle};
 use sctk::reexports::protocols::wp::text_input::zv3::client::zwp_text_input_manager_v3::ZwpTextInputManagerV3;
 use sctk::reexports::protocols::wp::text_input::zv3::client::zwp_text_input_v3::{
     ContentHint, ContentPurpose, Event as TextInputEvent, ZwpTextInputV3,
@@ -16,6 +14,7 @@ use crate::platform_impl::wayland;
 use crate::platform_impl::wayland::state::WinitState;
 use crate::window::ImePurpose;
 
+#[derive(Debug)]
 pub struct TextInputState {
     text_input_manager: ZwpTextInputManagerV3,
 }
@@ -121,11 +120,15 @@ impl Dispatch<ZwpTextInputV3, TextInputData, WinitState> for TextInputState {
                     None => return,
                 };
 
-                // Clear preedit at the start of `Done`.
-                state.events_sink.push_window_event(
-                    WindowEvent::Ime(Ime::Preedit(String::new(), None)),
-                    window_id,
-                );
+                // Clear preedit, unless all we'll be doing next is sending a new preedit.
+                if text_input_data.pending_commit.is_some()
+                    || text_input_data.pending_preedit.is_none()
+                {
+                    state.events_sink.push_window_event(
+                        WindowEvent::Ime(Ime::Preedit(String::new(), None)),
+                        window_id,
+                    );
+                }
 
                 // Send `Commit`.
                 if let Some(text) = text_input_data.pending_commit.take() {
