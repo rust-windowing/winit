@@ -14,9 +14,6 @@ pub(crate) use self::event_loop::{
 };
 pub(crate) use self::monitor::MonitorHandle;
 pub(crate) use self::window::{PlatformSpecificWindowAttributes, Window};
-pub(crate) use crate::cursor::{
-    NoCustomCursor as PlatformCustomCursor, NoCustomCursor as PlatformCustomCursorSource,
-};
 pub(crate) use crate::icon::NoIcon as PlatformIcon;
 
 #[derive(Debug)]

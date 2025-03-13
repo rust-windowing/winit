@@ -32,10 +32,7 @@ mod monitor;
 mod web_sys;
 mod window;
 
-pub(crate) use cursor::{
-    CustomCursor as PlatformCustomCursor, CustomCursorFuture,
-    CustomCursorSource as PlatformCustomCursorSource,
-};
+pub(crate) use cursor::CustomCursorFuture;
 
 pub(crate) use self::event_loop::{
     ActiveEventLoop, EventLoop, PlatformSpecificEventLoopAttributes,

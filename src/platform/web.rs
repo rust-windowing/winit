@@ -46,8 +46,8 @@ use std::error::Error;
 use std::fmt::{self, Display, Formatter};
 use std::future::Future;
 use std::pin::Pin;
+use std::sync::Arc;
 use std::task::{Context, Poll};
-use std::time::Duration;
 
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
@@ -59,6 +59,7 @@ use crate::cursor::CustomCursorSource;
 use crate::error::NotSupportedError;
 use crate::event_loop::{ActiveEventLoop, EventLoop};
 use crate::monitor::MonitorHandleProvider;
+use crate::platform_impl::MonitorHandle as WebMonitorHandle;
 #[cfg(web_platform)]
 use crate::platform_impl::{
     CustomCursorFuture as PlatformCustomCursorFuture,
@@ -66,7 +67,6 @@ use crate::platform_impl::{
     MonitorPermissionFuture as PlatformMonitorPermissionFuture,
     OrientationLockFuture as PlatformOrientationLockFuture,
 };
-use crate::platform_impl::{MonitorHandle as WebMonitorHandle, PlatformCustomCursorSource};
 use crate::window::{CustomCursor, Window, WindowAttributes};
 
 #[cfg(not(web_platform))]
@@ -486,73 +486,6 @@ pub enum WaitUntilStrategy {
     Worker,
 }
 
-pub trait CustomCursorExtWeb {
-    /// Returns if this cursor is an animation.
-    fn is_animation(&self) -> bool;
-
-    /// Creates a new cursor from a URL pointing to an image.
-    /// It uses the [url css function](https://developer.mozilla.org/en-US/docs/Web/CSS/url),
-    /// but browser support for image formats is inconsistent. Using [PNG] is recommended.
-    ///
-    /// [PNG]: https://en.wikipedia.org/wiki/PNG
-    fn from_url(url: String, hotspot_x: u16, hotspot_y: u16) -> CustomCursorSource;
-
-    /// Crates a new animated cursor from multiple [`CustomCursor`]s.
-    /// Supplied `cursors` can't be empty or other animations.
-    fn from_animation(
-        duration: Duration,
-        cursors: Vec<CustomCursor>,
-    ) -> Result<CustomCursorSource, BadAnimation>;
-}
-
-impl CustomCursorExtWeb for CustomCursor {
-    fn is_animation(&self) -> bool {
-        self.inner.animation
-    }
-
-    fn from_url(url: String, hotspot_x: u16, hotspot_y: u16) -> CustomCursorSource {
-        CustomCursorSource { inner: PlatformCustomCursorSource::Url { url, hotspot_x, hotspot_y } }
-    }
-
-    fn from_animation(
-        duration: Duration,
-        cursors: Vec<CustomCursor>,
-    ) -> Result<CustomCursorSource, BadAnimation> {
-        if cursors.is_empty() {
-            return Err(BadAnimation::Empty);
-        }
-
-        if cursors.iter().any(CustomCursor::is_animation) {
-            return Err(BadAnimation::Animation);
-        }
-
-        Ok(CustomCursorSource {
-            inner: PlatformCustomCursorSource::Animation { duration, cursors },
-        })
-    }
-}
-
-/// An error produced when using [`CustomCursor::from_animation`] with invalid arguments.
-#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub enum BadAnimation {
-    /// Produced when no cursors were supplied.
-    Empty,
-    /// Produced when a supplied cursor is an animation.
-    Animation,
-}
-
-impl fmt::Display for BadAnimation {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Empty => write!(f, "No cursors supplied"),
-            Self::Animation => write!(f, "A supplied cursor is an animation"),
-        }
-    }
-}
-
-impl Error for BadAnimation {}
-
 #[cfg(not(web_platform))]
 struct PlatformCustomCursorFuture;
 
@@ -563,7 +496,7 @@ impl Future for CustomCursorFuture {
     type Output = Result<CustomCursor, CustomCursorError>;
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        Pin::new(&mut self.0).poll(cx).map_ok(|cursor| CustomCursor { inner: cursor })
+        Pin::new(&mut self.0).poll(cx).map_ok(|cursor| CustomCursor(Arc::new(cursor)))
     }
 }
 

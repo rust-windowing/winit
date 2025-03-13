@@ -33,7 +33,7 @@ use crate::monitor::MonitorHandle as CoreMonitorHandle;
 use crate::platform::macos::ActivationPolicy;
 use crate::platform::pump_events::PumpStatus;
 use crate::platform_impl::Window;
-use crate::window::{CustomCursor as RootCustomCursor, CustomCursorSource, Theme};
+use crate::window::{CustomCursor as CoreCustomCursor, CustomCursorSource, Theme};
 
 #[derive(Default)]
 pub struct PanicInfo {
@@ -110,8 +110,8 @@ impl RootActiveEventLoop for ActiveEventLoop {
     fn create_custom_cursor(
         &self,
         source: CustomCursorSource,
-    ) -> Result<RootCustomCursor, RequestError> {
-        Ok(RootCustomCursor { inner: CustomCursor::new(source.inner)? })
+    ) -> Result<CoreCustomCursor, RequestError> {
+        Ok(CoreCustomCursor(Arc::new(CustomCursor::new(source)?)))
     }
 
     fn available_monitors(&self) -> Box<dyn Iterator<Item = CoreMonitorHandle>> {
