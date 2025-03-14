@@ -11,7 +11,7 @@ use std::{io, panic, ptr};
 
 use tracing::warn;
 use windows_sys::Win32::Foundation::{
-    HWND, LPARAM, OLE_E_WRONGCOMPOBJ, POINT, POINTS, RECT, RPC_E_CHANGED_MODE, S_OK, WPARAM,
+    HWND, LPARAM, OLE_E_WRONGCOMPOBJ, POINT, POINTS, RPC_E_CHANGED_MODE, S_OK, WPARAM,
 };
 use windows_sys::Win32::Graphics::Dwm::{
     DwmEnableBlurBehindWindow, DwmSetWindowAttribute, DWMWA_BORDER_COLOR, DWMWA_CAPTION_COLOR,
@@ -34,10 +34,10 @@ use windows_sys::Win32::UI::Input::KeyboardAndMouse::{
 };
 use windows_sys::Win32::UI::Input::Touch::{RegisterTouchWindow, TWF_WANTPALM};
 use windows_sys::Win32::UI::WindowsAndMessaging::{
-    CreateWindowExW, EnableMenuItem, FlashWindowEx, GetClientRect, GetCursorPos,
-    GetForegroundWindow, GetSystemMenu, GetSystemMetrics, GetWindowPlacement, GetWindowTextLengthW,
-    GetWindowTextW, IsWindowVisible, LoadCursorW, PeekMessageW, PostMessageW, RegisterClassExW,
-    SetCursor, SetCursorPos, SetForegroundWindow, SetMenuDefaultItem, SetWindowDisplayAffinity,
+    CreateWindowExW, EnableMenuItem, FlashWindowEx, GetCursorPos, GetForegroundWindow,
+    GetSystemMenu, GetSystemMetrics, GetWindowPlacement, GetWindowTextLengthW, GetWindowTextW,
+    IsWindowVisible, LoadCursorW, PeekMessageW, PostMessageW, RegisterClassExW, SetCursor,
+    SetCursorPos, SetForegroundWindow, SetMenuDefaultItem, SetWindowDisplayAffinity,
     SetWindowPlacement, SetWindowPos, SetWindowTextW, TrackPopupMenu, CS_HREDRAW, CS_VREDRAW,
     CW_USEDEFAULT, FLASHWINFO, FLASHW_ALL, FLASHW_STOP, FLASHW_TIMERNOFG, FLASHW_TRAY,
     GWLP_HINSTANCE, HTBOTTOM, HTBOTTOMLEFT, HTBOTTOMRIGHT, HTCAPTION, HTLEFT, HTRIGHT, HTTOP,
@@ -437,14 +437,8 @@ impl CoreWindow for Window {
     }
 
     fn surface_position(&self) -> PhysicalPosition<i32> {
-        let mut rect: RECT = unsafe { mem::zeroed() };
-        if unsafe { GetClientRect(self.hwnd(), &mut rect) } == false.into() {
-            panic!(
-                "Unexpected GetClientRect failure: please report this error to \
-                 rust-windowing/winit"
-            )
-        }
-        PhysicalPosition::new(rect.left, rect.top)
+        let client_rect = util::client_rect(self.hwnd());
+        PhysicalPosition::new(client_rect.left, client_rect.top)
     }
 
     fn set_outer_position(&self, position: Position) {
@@ -474,14 +468,14 @@ impl CoreWindow for Window {
     }
 
     fn surface_size(&self) -> PhysicalSize<u32> {
-        let mut rect: RECT = unsafe { mem::zeroed() };
-        if unsafe { GetClientRect(self.hwnd(), &mut rect) } == false.into() {
-            panic!(
-                "Unexpected GetClientRect failure: please report this error to \
-                 rust-windowing/winit"
-            )
-        }
-        PhysicalSize::new((rect.right - rect.left) as u32, (rect.bottom - rect.top) as u32)
+        let hwnd = self.hwnd();
+
+        let client_rect = util::client_rect(hwnd);
+
+        let width = client_rect.right - client_rect.left;
+        let height = client_rect.bottom - client_rect.top;
+
+        PhysicalSize::new(width as u32, height as u32)
     }
 
     fn outer_size(&self) -> PhysicalSize<u32> {
@@ -495,9 +489,30 @@ impl CoreWindow for Window {
 
     fn request_surface_size(&self, size: Size) -> Option<PhysicalSize<u32>> {
         let scale_factor = self.scale_factor();
-        let physical_size = size.to_physical::<u32>(scale_factor);
+        let mut physical_size = size.to_physical::<u32>(scale_factor);
 
         let window_flags = self.window_state_lock().window_flags;
+
+        // undecorated windows with shadows have hidden offsets
+        // we need to calculate them and account for them in new size
+        //
+        // implementation derived from GPUI
+        // see <https://github.com/zed-industries/zed/blob/7bddb390cabefb177d9996dc580749d64e6ca3b6/crates/gpui/src/platform/windows/window.rs#L1167-L1180>
+        if window_flags.undecorated_with_shadows() {
+            let hwnd = self.hwnd();
+
+            let client_rect = util::client_rect(hwnd);
+            let window_rect = util::window_rect(hwnd);
+
+            let width_offset =
+                (window_rect.right - window_rect.left) - (client_rect.right - client_rect.left);
+            let height_offset =
+                (window_rect.bottom - window_rect.top) - (client_rect.bottom - client_rect.top);
+
+            physical_size.width += width_offset as u32;
+            physical_size.height += height_offset as u32;
+        }
+
         window_flags.set_size(self.hwnd(), physical_size);
 
         if physical_size != self.surface_size() {
