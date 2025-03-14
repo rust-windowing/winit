@@ -12,9 +12,17 @@ use winit::window::{Window, WindowAttributes, WindowId};
 #[path = "util/fill.rs"]
 mod fill;
 
-#[derive(Default, Debug)]
+#[derive(Debug)]
 struct App {
     window: Option<Box<dyn Window>>,
+    start_time: std::time::Instant,
+    continuous_redraw: bool,
+}
+
+impl App {
+    fn new(continuous_redraw: bool) -> App {
+        App { window: None, start_time: std::time::Instant::now(), continuous_redraw }
+    }
 }
 
 impl ApplicationHandler for App {
@@ -55,11 +63,18 @@ impl ApplicationHandler for App {
                 // Notify that you're about to draw.
                 window.pre_present_notify();
 
-                // Draw.
-                fill::fill_window(window.as_ref());
+                if self.continuous_redraw {
+                    // Animate the fill color. This may be used to demonstrate smooth window
+                    // resizing and movement when interacting with the window
+                    // frame or title bar.
+                    fill::fill_window_with_animated_color(window.as_ref(), self.start_time);
 
-                // For contiguous redraw loop you can request a redraw from here.
-                // window.request_redraw();
+                    // For contiguous redraw loop you can request a redraw from here.
+                    window.request_redraw();
+                } else {
+                    // Draw.
+                    fill::fill_window(window.as_ref());
+                }
             },
             _ => (),
         }
@@ -71,7 +86,11 @@ fn main() -> Result<(), Box<dyn Error>> {
     console_error_panic_hook::set_once();
 
     let event_loop = EventLoop::new()?;
-    let mut app = App::default();
+
+    // Set to true to continuously redraw the window which will also animate the fill color.
+    let continuous_redraw = false;
+
+    let mut app = App::new(continuous_redraw);
 
     // For alternative loop run options see `pump_events` and `run_on_demand` examples.
     event_loop.run_app(&mut app).map_err(Into::into)
