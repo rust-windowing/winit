@@ -1874,8 +1874,13 @@ impl WindowExtMacOS for WindowDelegate {
             self.ivars().is_simple_fullscreen.set(true);
 
             // Simulate pre-Lion fullscreen by hiding the dock and menu bar
-            let presentation_options = NSApplicationPresentationOptions::AutoHideDock
-                | NSApplicationPresentationOptions::AutoHideMenuBar;
+            let presentation_options = if self.is_borderless_game() {
+                NSApplicationPresentationOptions::HideDock
+                    | NSApplicationPresentationOptions::HideMenuBar
+            } else {
+                NSApplicationPresentationOptions::AutoHideDock
+                    | NSApplicationPresentationOptions::AutoHideMenuBar
+            };
             app.setPresentationOptions(presentation_options);
 
             // Hide the titlebar
