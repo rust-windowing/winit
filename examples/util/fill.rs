@@ -127,6 +127,7 @@ mod platform {
 
 #[cfg(any(target_os = "android", target_os = "ios"))]
 mod platform {
+    #[allow(dead_code)]
     pub fn fill_window(_window: &dyn winit::window::Window) {
         // No-op on mobile platforms.
     }

@@ -1158,7 +1158,7 @@ unsafe fn public_window_callback_inner(
                 //
                 // When right-click the title bar, the system window menu is presented to the user,
                 // and the modal event loop begins. This dummy event does *not* prevent the freeze
-                // in the main event loop imposed caused by that popup menu.
+                // in the main event loop caused by that popup menu.
                 let lparam = 0;
                 unsafe { PostMessageW(window, WM_MOUSEMOVE, 0, lparam) };
             }
