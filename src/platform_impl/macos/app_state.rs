@@ -11,7 +11,7 @@ use objc2_app_kit::{
 use objc2_foundation::{MainThreadMarker, NSNotification, NSObject, NSObjectProtocol};
 
 use super::event_handler::EventHandler;
-use super::event_loop::{stop_app_immediately, ActiveEventLoop, PanicInfo};
+use super::event_loop::{notify_windows_of_exit, stop_app_immediately, ActiveEventLoop, PanicInfo};
 use super::observer::{EventLoopWaker, RunLoop};
 use super::{menu, WindowId, DEVICE_ID};
 use crate::event::{DeviceEvent, Event, StartCause, WindowEvent};
@@ -165,7 +165,9 @@ impl ApplicationDelegate {
 
     fn will_terminate(&self, _notification: &NSNotification) {
         trace_scope!("applicationWillTerminate:");
-        // TODO: Notify every window that it will be destroyed, like done in iOS?
+        let mtm = MainThreadMarker::from(self);
+        let app = NSApplication::sharedApplication(mtm);
+        notify_windows_of_exit(&app);
         self.internal_exit();
     }
 
@@ -392,6 +394,7 @@ impl ApplicationDelegate {
         if self.exiting() {
             let app = NSApplication::sharedApplication(mtm);
             stop_app_immediately(&app);
+            notify_windows_of_exit(&app);
         }
 
         if self.ivars().stop_before_wait.get() {
