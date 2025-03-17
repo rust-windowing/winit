@@ -285,7 +285,10 @@ impl<T: 'static> EventLoop<T> {
 
             // Reduce spurious wake-ups.
             let dispatched_events = self.with_state(|state| state.dispatched_events);
-            if matches!(cause, StartCause::WaitCancelled { .. }) && !dispatched_events {
+            if matches!(cause, StartCause::WaitCancelled { .. })
+                && !dispatched_events
+                && timeout.is_none()
+            {
                 continue;
             }
 

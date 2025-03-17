@@ -497,6 +497,7 @@ impl<T: 'static> EventLoop<T> {
         // If we don't have any pending `_receiver`
         if !self.has_pending()
             && !matches!(&cause, StartCause::ResumeTimeReached { .. } | StartCause::Poll)
+            && timeout.is_none()
         {
             return;
         }
