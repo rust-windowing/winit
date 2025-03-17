@@ -68,6 +68,8 @@ pub type CGDisplayModeRef = *mut c_void;
 #[link(name = "ApplicationServices", kind = "framework")]
 extern "C" {
     pub fn CGDisplayCreateUUIDFromDisplayID(display: CGDirectDisplayID) -> CFUUIDRef;
+
+    pub fn CGDisplayGetDisplayIDFromUUID(uuid: CFUUIDRef) -> CGDirectDisplayID;
 }
 
 #[link(name = "CoreGraphics", kind = "framework")]
