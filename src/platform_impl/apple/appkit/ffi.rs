@@ -41,6 +41,8 @@ pub const IO8BitOverlayPixels: &str = "O8";
 #[link(name = "ApplicationServices", kind = "framework")]
 extern "C" {
     pub fn CGDisplayCreateUUIDFromDisplayID(display: CGDirectDisplayID) -> *mut CFUUID;
+
+    pub fn CGDisplayGetDisplayIDFromUUID(uuid: &CFUUID) -> CGDirectDisplayID;
 }
 
 #[link(name = "CoreGraphics", kind = "framework")]
