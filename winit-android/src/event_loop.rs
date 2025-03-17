@@ -500,10 +500,6 @@ impl EventLoop {
         input_status
     }
 
-    pub fn run_app<A: ApplicationHandler>(mut self, app: A) -> Result<(), EventLoopError> {
-        self.run_app_on_demand(app)
-    }
-
     pub fn run_app_on_demand<A: ApplicationHandler>(
         &mut self,
         mut app: A,

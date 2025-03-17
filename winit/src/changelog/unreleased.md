@@ -40,6 +40,11 @@ changelog entry.
 
 ## Unreleased
 
+### Added
+
+- Add `EventLoopExtRegister::register_app` for being explicit about how the event loop runs on Web.
+- Add `EventLoopExtNeverReturn::run_app_never_return` for being explicit about how the event loop runs on iOS.
+
 ### Changed
 
 - On Web, avoid throwing an exception in `EventLoop::run_app`, instead preferring to return to the caller.
