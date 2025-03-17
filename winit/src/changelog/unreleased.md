@@ -39,3 +39,9 @@ The migration guide could reference other migration examples in the current
 changelog entry.
 
 ## Unreleased
+
+### Changed
+
+- On Web, avoid throwing an exception in `EventLoop::run_app`, instead preferring to return to the caller.
+  This requires passing a `'static` application to ensure that the application state will live as long as necessary.
+- On Web, the event loop can now always be re-created once it has finished running.
