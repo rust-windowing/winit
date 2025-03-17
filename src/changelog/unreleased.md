@@ -39,3 +39,7 @@ The migration guide could reference other migration examples in the current
 changelog entry.
 
 ## Unreleased
+
+### Fixed
+
+- On macOS, store monitor handle to avoid panics after going in/out of sleep.

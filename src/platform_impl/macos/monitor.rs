@@ -14,6 +14,7 @@ use objc2::rc::Retained;
 use objc2::runtime::AnyObject;
 use objc2_app_kit::NSScreen;
 use objc2_foundation::{ns_string, run_on_main, MainThreadMarker, NSNumber, NSPoint, NSRect};
+use tracing::warn;
 
 use super::ffi;
 use crate::dpi::{LogicalPosition, PhysicalPosition, PhysicalSize};
@@ -98,18 +99,29 @@ impl VideoModeHandle {
     }
 }
 
+/// `CGDirectDisplayID` is documented as:
+/// > a framebuffer, a color correction (gamma) table, and possibly an attached monitor.
+///
+/// That is, it doesn't actually represent the monitor itself. Instead, we use the UUID of the
+/// monitor, as retrieved from `CGDisplayCreateUUIDFromDisplayID` (this makes the monitor ID stable,
+/// even across reboots and video mode changes).
+///
+/// NOTE: I'd be perfectly valid to store `[u8; 16]` in here instead, we only store `CFUUID` to
+/// avoid having to re-create it when we want to fetch the display ID.
 #[derive(Clone)]
-pub struct MonitorHandle(CGDirectDisplayID);
+pub struct MonitorHandle(CFUUID);
+
+// SAFETY: CFUUID is immutable.
+// FIXME(madsmtm): Upstream this into `objc2-core-foundation`.
+unsafe impl Send for MonitorHandle {}
+unsafe impl Sync for MonitorHandle {}
 
 type MonitorUuid = [u8; 16];
 
 impl MonitorHandle {
     /// Internal comparisons of [`MonitorHandle`]s are done first requesting a UUID for the handle.
     fn uuid(&self) -> MonitorUuid {
-        let cf_uuid = unsafe {
-            CFUUID::wrap_under_create_rule(ffi::CGDisplayCreateUUIDFromDisplayID(self.0))
-        };
-        let uuid = unsafe { CFUUIDGetUUIDBytes(cf_uuid.as_concrete_TypeRef()) };
+        let uuid = unsafe { CFUUIDGetUUIDBytes(self.0.as_concrete_TypeRef()) };
         MonitorUuid::from([
             uuid.byte0,
             uuid.byte1,
@@ -129,11 +141,26 @@ impl MonitorHandle {
             uuid.byte15,
         ])
     }
+
+    fn display_id(&self) -> CGDirectDisplayID {
+        unsafe { ffi::CGDisplayGetDisplayIDFromUUID(self.0.as_concrete_TypeRef()) }
+    }
+
+    #[track_caller]
+    pub(crate) fn new(display_id: CGDirectDisplayID) -> Option<Self> {
+        // kCGNullDirectDisplay
+        if display_id == 0 {
+            // `CGDisplayCreateUUIDFromDisplayID` checks kCGNullDirectDisplay internally.
+            warn!("constructing monitor from invalid display ID 0; falling back to main monitor");
+        }
+        let ptr = unsafe { ffi::CGDisplayCreateUUIDFromDisplayID(display_id) };
+        if ptr.is_null() {
+            return None;
+        }
+        Some(Self(unsafe { CFUUID::wrap_under_create_rule(ptr) }))
+    }
 }
 
-// `CGDirectDisplayID` changes on video mode change, so we cannot rely on that
-// for comparisons, but we can use `CGDisplayCreateUUIDFromDisplayID` to get an
-// unique identifier that persists even across system reboots
 impl PartialEq for MonitorHandle {
     fn eq(&self, other: &Self) -> bool {
         self.uuid() == other.uuid()
@@ -164,7 +191,8 @@ pub fn available_monitors() -> VecDeque<MonitorHandle> {
     if let Ok(displays) = CGDisplay::active_displays() {
         let mut monitors = VecDeque::with_capacity(displays.len());
         for display in displays {
-            monitors.push_back(MonitorHandle(display));
+            // Display ID just fetched from `CGGetActiveDisplayList`, should be fine to unwrap.
+            monitors.push_back(MonitorHandle::new(display).expect("invalid display ID"));
         }
         monitors
     } else {
@@ -173,7 +201,8 @@ pub fn available_monitors() -> VecDeque<MonitorHandle> {
 }
 
 pub fn primary_monitor() -> MonitorHandle {
-    MonitorHandle(CGDisplay::main().id)
+    // Display ID just fetched from `CGMainDisplayID`, should be fine to unwrap.
+    MonitorHandle::new(CGDisplay::main().id).expect("invalid display ID")
 }
 
 impl fmt::Debug for MonitorHandle {
@@ -190,26 +219,20 @@ impl fmt::Debug for MonitorHandle {
 }
 
 impl MonitorHandle {
-    pub fn new(id: CGDirectDisplayID) -> Self {
-        MonitorHandle(id)
-    }
-
     // TODO: Be smarter about this:
     // <https://github.com/glfw/glfw/blob/57cbded0760a50b9039ee0cb3f3c14f60145567c/src/cocoa_monitor.m#L44-L126>
     pub fn name(&self) -> Option<String> {
-        let MonitorHandle(display_id) = *self;
-        let screen_num = CGDisplay::new(display_id).model_number();
+        let screen_num = CGDisplay::new(self.display_id()).model_number();
         Some(format!("Monitor #{screen_num}"))
     }
 
     #[inline]
     pub fn native_identifier(&self) -> u32 {
-        self.0
+        self.display_id()
     }
 
     pub fn size(&self) -> PhysicalSize<u32> {
-        let MonitorHandle(display_id) = *self;
-        let display = CGDisplay::new(display_id);
+        let display = CGDisplay::new(self.display_id());
         let height = display.pixels_high();
         let width = display.pixels_wide();
         PhysicalSize::from_logical::<_, f64>((width as f64, height as f64), self.scale_factor())
@@ -236,14 +259,15 @@ impl MonitorHandle {
 
     pub fn refresh_rate_millihertz(&self) -> Option<u32> {
         unsafe {
-            let current_display_mode = NativeDisplayMode(CGDisplayCopyDisplayMode(self.0) as _);
+            let current_display_mode =
+                NativeDisplayMode(CGDisplayCopyDisplayMode(self.display_id()) as _);
             let refresh_rate = ffi::CGDisplayModeGetRefreshRate(current_display_mode.0);
             if refresh_rate > 0.0 {
                 return Some((refresh_rate * 1000.0).round() as u32);
             }
 
             let mut display_link = std::ptr::null_mut();
-            if ffi::CVDisplayLinkCreateWithCGDisplay(self.0, &mut display_link)
+            if ffi::CVDisplayLinkCreateWithCGDisplay(self.display_id(), &mut display_link)
                 != ffi::kCVReturnSuccess
             {
                 return None;
@@ -266,7 +290,7 @@ impl MonitorHandle {
 
         unsafe {
             let modes = {
-                let array = ffi::CGDisplayCopyAllDisplayModes(self.0, std::ptr::null());
+                let array = ffi::CGDisplayCopyAllDisplayModes(self.display_id(), std::ptr::null());
                 assert!(!array.is_null(), "failed to get list of display modes");
                 let array_count = CFArrayGetCount(array);
                 let modes: Vec<_> = (0..array_count)
@@ -322,7 +346,8 @@ impl MonitorHandle {
         let uuid = self.uuid();
         NSScreen::screens(mtm).into_iter().find(|screen| {
             let other_native_id = get_display_id(screen);
-            let other = MonitorHandle::new(other_native_id);
+            // Display ID just fetched from live NSScreen, should be fine to unwrap.
+            let other = MonitorHandle::new(other_native_id).expect("invalid display ID");
             uuid == other.uuid()
         })
     }
