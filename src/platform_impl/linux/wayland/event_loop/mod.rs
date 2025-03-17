@@ -203,10 +203,9 @@ impl EventLoop {
         if !self.exiting() {
             self.poll_events_with_timeout(timeout, &mut app);
         }
+
         if let Some(code) = self.exit_code() {
             self.loop_running = false;
-
-            app.exiting(&self.active_event_loop);
 
             PumpStatus::Exit(code)
         } else {

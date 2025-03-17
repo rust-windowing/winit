@@ -546,8 +546,6 @@ impl EventLoop {
         if self.exiting() {
             self.loop_running = false;
 
-            app.exiting(&self.window_target);
-
             PumpStatus::Exit(0)
         } else {
             PumpStatus::Continue

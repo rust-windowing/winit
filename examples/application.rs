@@ -592,15 +592,15 @@ impl ApplicationHandler for Application {
         }
     }
 
-    #[cfg(not(android_platform))]
-    fn exiting(&mut self, _event_loop: &dyn ActiveEventLoop) {
-        // We must drop the context here.
-        self.context = None;
-    }
-
     #[cfg(target_os = "macos")]
     fn macos_handler(&mut self) -> Option<&mut dyn ApplicationHandlerExtMacOS> {
         Some(self)
+    }
+}
+
+impl Drop for Application {
+    fn drop(&mut self) {
+        info!("Application exited");
     }
 }
 

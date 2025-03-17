@@ -285,10 +285,10 @@ impl EventLoop {
     // redundant wake ups.
     pub fn run_app_on_demand<A: ApplicationHandler>(
         &mut self,
-        mut app: A,
+        app: A,
     ) -> Result<(), EventLoopError> {
         self.app_state.clear_exit();
-        self.app_state.set_event_handler(&mut app, || {
+        self.app_state.set_event_handler(app, || {
             autoreleasepool(|_| {
                 // clear / normalize pump_events state
                 self.app_state.set_wait_timeout(None);
@@ -324,9 +324,9 @@ impl EventLoop {
     pub fn pump_app_events<A: ApplicationHandler>(
         &mut self,
         timeout: Option<Duration>,
-        mut app: A,
+        app: A,
     ) -> PumpStatus {
-        self.app_state.set_event_handler(&mut app, || {
+        self.app_state.set_event_handler(app, || {
             autoreleasepool(|_| {
                 // As a special case, if the application hasn't been launched yet then we at least
                 // run the loop until it has fully launched.
