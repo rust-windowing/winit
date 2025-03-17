@@ -6,15 +6,13 @@ use crate::{
     window::Window,
 };
 
-#[allow(rustdoc::broken_intra_doc_links)] // FIXME(madsmtm): Fix these.
 /// Additional methods on [`EventLoop`] to return control flow to the caller.
 pub trait EventLoopExtRunOnDemand {
     /// Run the application with the event loop on the calling thread.
     ///
     /// Unlike [`EventLoop::run_app`], this function accepts non-`'static` (i.e. non-`move`)
-    /// state and it is possible to return control back to the caller without
-    /// consuming the `EventLoop` (by using [`exit()`]) and
-    /// so the event loop can be re-run after it has exit.
+    /// state and it is possible to return control back to the caller without consuming the
+    /// `EventLoop` (by using [`exit()`]) and so the event loop can be re-run after it has exit.
     ///
     /// It's expected that each run of the loop will be for orthogonal instantiations of your
     /// Winit application, but internally each instantiation may re-use some common window
