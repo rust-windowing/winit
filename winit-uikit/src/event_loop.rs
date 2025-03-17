@@ -239,7 +239,7 @@ impl EventLoop {
     }
 
     // Require `'static` for correctness, we won't be able to `Drop` the user's state otherwise.
-    pub fn run_app<A: ApplicationHandler + 'static>(self, app: A) -> ! {
+    pub fn run_app_never_return<A: ApplicationHandler + 'static>(self, app: A) -> ! {
         let application: Option<Retained<UIApplication>> =
             unsafe { msg_send![UIApplication::class(), sharedApplication] };
         assert!(

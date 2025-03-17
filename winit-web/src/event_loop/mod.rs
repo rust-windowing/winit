@@ -39,9 +39,8 @@ impl EventLoop {
         EVENT_LOOP_CREATED.store(false, Ordering::Relaxed);
     }
 
-    pub fn run_app<A: ApplicationHandler + 'static>(self, app: A) -> Result<(), EventLoopError> {
+    pub fn register_app<A: ApplicationHandler + 'static>(self, app: A) {
         self.elw.run(Box::new(app));
-        Ok(())
     }
 
     pub fn window_target(&self) -> &dyn RootActiveEventLoop {

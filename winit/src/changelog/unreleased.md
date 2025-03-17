@@ -88,6 +88,8 @@ changelog entry.
 - Add more `ImePurpose` values.
 - Add `ImeHints` to request particular IME behaviour.
 - Add Pen input support on Wayland, Windows, and Web via new Pointer event.
+- Add `EventLoopExtRegister::register_app` for being explicit about how the event loop runs on Web.
+- Add `EventLoopExtNeverReturn::run_app_never_return` for being explicit about how the event loop runs on iOS.
 
 ### Changed
 
