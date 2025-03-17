@@ -1216,6 +1216,31 @@ unsafe fn public_window_callback_inner(
 
         WM_NCLBUTTONDOWN => {
             if wparam == HTCAPTION as _ {
+                // Prevent the user event loop from pausing when left clicking the title bar.
+                //
+                // When the user interacts with the title bar, Windows enters the modal event
+                // loop. Currently, a left click causes a pause for about 500ms. Sending a dummy
+                // mouse-move event seems to cancel the modal loop early, preventing the pause.
+                // The application will never see this dummy event.
+                //
+                // The mouse coordinates are encoded into the lparam value, however the WM_MOUSEMOVE
+                // event is not using the same coordinate system of the WM_NCLBUTTONDOWN event.
+                // One uses client-area coordinates and the other is screen-coordinates. In any
+                // case, passing the lparam as-is with the dummy event does not seem the cancel
+                // the modal loop.
+                //
+                // However, passing in a value of 0 has been observed to always cancel the pause.
+                //
+                // Other notes:
+                //
+                // For some unknown reason, the cursor will blink when clicking the title bar.
+                // Cancelling the modal loop early causes the blink to happen *immediately*.
+                // Otherwise, the blank happens *after* the pause.
+                //
+                // When right-click the title bar, the system window menu is presented to the user,
+                // and the modal event loop begins. This dummy event does *not* prevent the freeze
+                // in the main event loop caused by that popup menu.
+                let lparam = 0;
                 unsafe { PostMessageW(window, WM_MOUSEMOVE, 0, lparam) };
             }
             result = ProcResult::DefWindowProc(wparam);
