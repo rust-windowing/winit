@@ -43,3 +43,7 @@ changelog entry.
 ### Added
 
 - On Windows, add `IconExtWindows::from_resource_name`.
+
+### Fixed
+
+- On Windows, fixed ~500 ms pause when clicking the title bar during continuous redraw.
