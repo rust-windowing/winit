@@ -498,8 +498,6 @@ impl EventLoop {
         if let Some(code) = self.exit_code() {
             self.loop_running = false;
 
-            app.exiting(self.window_target());
-
             PumpStatus::Exit(code)
         } else {
             PumpStatus::Continue
