@@ -22,7 +22,12 @@ to the branch" checkbox.
 We use unstable Rustfmt options across the project, so please run
 `cargo +nightly fmt` before submitting your work. If you are unable to do so,
 the maintainers can do it for you before merging, just state so in your pull
-request description.
+request description. For details on how to use nightly, consult [the
+documentation][toolchains].
+
+When editing markdown files (`.md`) they must be wrapped at 80 characters.
+
+[toolchains]: https://rust-lang.github.io/rustup/concepts/toolchains.html
 
 #### Handling review
 
