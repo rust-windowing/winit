@@ -84,6 +84,8 @@ changelog entry.
 - On Wayland, added implementation for `Window::set_window_icon`
 - Add `Window::request_ime_update` to atomically apply set of IME changes.
 - Add `Ime::DeleteSurrounding` to let the input method delete text.
+- Add `EventLoopExtRegister::register_app` for being explicit about how the event loop runs on Web.
+- Add `EventLoopExtNeverReturn::run_app_never_return` for being explicit about how the event loop runs on iOS.
 
 ### Changed
 
