@@ -240,4 +240,5 @@ changelog entry.
 - On macOS, fixed redundant `SurfaceResized` event at window creation.
 - On Windows, fixed ~500 ms pause when clicking the title bar during continuous redraw.
 - On macos, `WindowExtMacOS::set_simple_fullscreen` now honors `WindowExtMacOS::set_borderless_game`
+- On X11 and Wayland, fixed pump_events with `Some(Duration::Zero)` blocking with `Wait` polling mode
 - On macOS, fixed `run_app_on_demand` returning without closing open windows.
