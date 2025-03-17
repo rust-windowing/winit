@@ -95,7 +95,9 @@ pub trait WindowExtMacOS {
     /// Getter for the [`WindowExtMacOS::set_option_as_alt`].
     fn option_as_alt(&self) -> OptionAsAlt;
 
-    /// Disable the Menu Bar and Dock in Borderless Fullscreen mode. Useful for games.
+    /// Disable the Menu Bar and Dock in Simple or Borderless Fullscreen mode. Useful for games.
+    /// The effect is applied when [`WindowExtMacOS::set_simple_fullscreen`] or
+    /// [`Window::set_fullscreen`] is called.
     fn set_borderless_game(&self, borderless_game: bool);
 
     /// Getter for the [`WindowExtMacOS::set_borderless_game`].

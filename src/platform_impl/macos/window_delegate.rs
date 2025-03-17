@@ -1746,9 +1746,13 @@ impl WindowExtMacOS for WindowDelegate {
             self.ivars().is_simple_fullscreen.set(true);
 
             // Simulate pre-Lion fullscreen by hiding the dock and menu bar
-            let presentation_options =
+            let presentation_options = if self.is_borderless_game() {
+                NSApplicationPresentationOptions::NSApplicationPresentationHideDock
+                    | NSApplicationPresentationOptions::NSApplicationPresentationHideMenuBar
+            } else {
                 NSApplicationPresentationOptions::NSApplicationPresentationAutoHideDock
-                    | NSApplicationPresentationOptions::NSApplicationPresentationAutoHideMenuBar;
+                    | NSApplicationPresentationOptions::NSApplicationPresentationAutoHideMenuBar
+            };
             app.setPresentationOptions(presentation_options);
 
             // Hide the titlebar
@@ -1762,11 +1766,8 @@ impl WindowExtMacOS for WindowDelegate {
             self.toggle_style_mask(NSWindowStyleMask::Miniaturizable, false);
             self.toggle_style_mask(NSWindowStyleMask::Resizable, false);
             self.window().setMovable(false);
-
-            true
         } else {
             let new_mask = self.saved_style();
-            self.set_style_mask(new_mask);
             self.ivars().is_simple_fullscreen.set(false);
 
             let save_presentation_opts = self.ivars().save_presentation_opts.get();
@@ -1778,9 +1779,10 @@ impl WindowExtMacOS for WindowDelegate {
 
             self.window().setFrame_display(frame, true);
             self.window().setMovable(true);
-
-            true
+            self.set_style_mask(new_mask);
         }
+
+        true
     }
 
     #[inline]
