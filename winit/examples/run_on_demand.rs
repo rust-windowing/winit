@@ -1,7 +1,7 @@
 #![allow(clippy::single_match)]
 
 // Limit this example to only compatible platforms.
-#[cfg(any(windows_platform, macos_platform, x11_platform, wayland_platform,))]
+#[cfg(any(windows_platform, macos_platform, x11_platform, wayland_platform, orbital_platform))]
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     use std::time::Duration;
 
@@ -93,7 +93,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-#[cfg(not(any(windows_platform, macos_platform, x11_platform, wayland_platform,)))]
+#[cfg(not(any(
+    windows_platform,
+    macos_platform,
+    x11_platform,
+    wayland_platform,
+    orbital_platform
+)))]
 fn main() {
     println!("This example is not supported on this platform");
 }

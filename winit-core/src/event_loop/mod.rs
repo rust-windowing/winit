@@ -1,4 +1,6 @@
+pub mod never_return;
 pub mod pump_events;
+pub mod register;
 pub mod run_on_demand;
 
 use std::fmt::{self, Debug};
