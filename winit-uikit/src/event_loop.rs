@@ -238,7 +238,8 @@ impl EventLoop {
         })
     }
 
-    pub fn run_app<A: ApplicationHandler>(self, app: A) -> ! {
+    // Require `'static` for correctness, we won't be able to `Drop` the user's state otherwise.
+    pub fn run_app<A: ApplicationHandler + 'static>(self, app: A) -> ! {
         let application: Option<Retained<UIApplication>> =
             unsafe { msg_send![UIApplication::class(), sharedApplication] };
         assert!(
@@ -250,6 +251,10 @@ impl EventLoop {
 
         // We intentionally override neither the application nor the delegate,
         // to allow the user to do so themselves!
+        //
+        // NOTE: `UIApplicationMain` is _the only way_ to start the event loop on iOS/UIKit, there
+        // are no other feasible options. See also:
+        // <https://github.com/rust-windowing/winit/pull/4165#issuecomment-2760514167>
         app_state::launch(self.mtm, app, || UIApplication::main(None, None, self.mtm))
     }
 
