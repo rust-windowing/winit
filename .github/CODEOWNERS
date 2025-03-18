@@ -32,3 +32,7 @@
 # Orbital (Redox OS)
 /src/platform/orbital.rs            @jackpot51
 /src/platform_impl/orbital          @jackpot51
+
+# OpenHarmony
+/src/platform/ohos.rs               @richerfu @jschwe
+/src/platform_impl/ohos             @richerfu @jschwe

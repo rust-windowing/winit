@@ -144,6 +144,8 @@ pub enum NativeKey {
     Unidentified,
     /// An Android "keycode", which is similar to a "virtual-key code" on Windows.
     Android(u32),
+    // An OpenHarmony "keycode".
+    Ohos(u32),
     /// A macOS "scancode". There does not appear to be any direct analogue to either keysyms or
     /// "virtual-key" codes in macOS, so we report the scancode instead.
     MacOS(u16),
@@ -157,7 +159,7 @@ pub enum NativeKey {
 
 impl std::fmt::Debug for NativeKey {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        use NativeKey::{Android, MacOS, Unidentified, Web, Windows, Xkb};
+        use NativeKey::{Android, MacOS, Unidentified, Web, Windows, Xkb, Ohos};
         let mut debug_tuple;
         match self {
             Unidentified => {
@@ -167,6 +169,10 @@ impl std::fmt::Debug for NativeKey {
                 debug_tuple = f.debug_tuple("Android");
                 debug_tuple.field(&format_args!("0x{code:04X}"));
             },
+            Ohos(code) => {
+                debug_tuple = f.debug_tuple("Ohos");
+                debug_tuple.field(&format_args!("0x{code:04X}"));
+            }
             MacOS(code) => {
                 debug_tuple = f.debug_tuple("MacOS");
                 debug_tuple.field(&format_args!("0x{code:04X}"));
