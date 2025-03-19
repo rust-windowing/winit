@@ -14,9 +14,13 @@
 //! * `wayland-csd-adwaita-crossfont`.
 //! * `wayland-csd-adwaita-notitle`.
 #[cfg(wayland_platform)]
-use sctk::shell::wlr_layer::{Anchor, KeyboardInteractivity, Layer};
+pub use sctk::{
+    compositor::Region,
+    shell::wlr_layer::{Anchor, KeyboardInteractivity, Layer},
+};
 
 use crate::dpi::{LogicalPosition, LogicalSize};
+use crate::error::RequestError;
 use crate::event_loop::{ActiveEventLoop, EventLoop, EventLoopBuilder};
 pub use crate::window::Theme;
 use crate::window::{Window as CoreWindow, WindowAttributes};
@@ -77,12 +81,28 @@ impl EventLoopBuilderExtWayland for EventLoopBuilder {
 ///
 /// [`Window`]: crate::window::Window
 pub trait WindowExtWayland {
-    fn set_region(&self, region: Option<(LogicalPosition<i32>, LogicalSize<i32>)>);
+    fn create_region(
+        &self,
+        position: LogicalPosition<i32>,
+        size: LogicalSize<i32>,
+    ) -> Result<Region, RequestError>;
+    fn set_region(&self, region: Option<&Region>);
 }
 
 impl WindowExtWayland for dyn CoreWindow + '_ {
-    fn set_region(&self, region: Option<(LogicalPosition<i32>, LogicalSize<i32>)>) {
-        let window = self.as_any().downcast_ref::<crate::platform_impl::wayland::Window>().unwrap();
+    fn create_region(
+        &self,
+        pos: LogicalPosition<i32>,
+        size: LogicalSize<i32>,
+    ) -> Result<Region, RequestError> {
+        let window = self.cast_ref::<crate::platform_impl::wayland::Window>().unwrap();
+        let region = window.create_region()?;
+        region.add(pos.x, pos.y, size.width, size.height);
+        Ok(region)
+    }
+
+    fn set_region(&self, region: Option<&Region>) {
+        let window = self.cast_ref::<crate::platform_impl::wayland::Window>().unwrap();
         window.set_region(region);
     }
 }

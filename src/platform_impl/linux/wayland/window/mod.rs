@@ -3,7 +3,6 @@
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 
-use dpi::LogicalPosition;
 use sctk::compositor::{CompositorState, Region, SurfaceData};
 use sctk::reexports::client::protocol::wl_display::WlDisplay;
 use sctk::reexports::client::protocol::wl_surface::WlSurface;
@@ -333,16 +332,15 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_region(&self, region: Option<(LogicalPosition<i32>, LogicalSize<i32>)>) {
+    pub fn create_region(&self) -> Result<Region, RequestError> {
+        Ok(Region::new(&*self.compositor).map_err(|err| os_error!(err))?)
+    }
+
+    #[inline]
+    pub fn set_region(&self, region: Option<&Region>) {
         match &self.window {
             WindowShell::WlrLayer { surface } => {
-                if let Some((pos, size)) = region {
-                    let region = Region::new(self.compositor.as_ref()).unwrap();
-                    region.add(pos.x, pos.y, size.width, size.height);
-                    surface.set_input_region(Some(region.wl_region()));
-                } else {
-                    surface.set_input_region(None);
-                }
+                surface.set_input_region(region.map(|r| r.wl_region()));
             },
             WindowShell::Xdg { .. } => warn!("Region is ignored for XDG windows"),
         }
