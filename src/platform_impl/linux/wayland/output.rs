@@ -1,7 +1,7 @@
 use std::borrow::Cow;
 use std::num::NonZeroU32;
 
-use sctk::output::{Mode, OutputData};
+use sctk::output::OutputData;
 use sctk::reexports::client::protocol::wl_output::WlOutput;
 use sctk::reexports::client::Proxy;
 
@@ -61,15 +61,33 @@ impl CoreMonitorHandle for MonitorHandle {
         output_data.with_output_info(|info| {
             let mode = info.modes.iter().find(|mode| mode.current).cloned();
 
-            mode.map(wayland_mode_to_core_mode)
+            mode.map(|mode| VideoMode {
+                size: info
+                    .logical_size
+                    .map(|(x, y)| (x as u32, y as u32))
+                    .unwrap_or_else(|| (mode.dimensions.0 as u32, mode.dimensions.1 as u32))
+                    .into(),
+                bit_depth: None,
+                refresh_rate_millihertz: NonZeroU32::new(mode.refresh_rate as u32),
+            })
         })
     }
 
     fn video_modes(&self) -> Box<dyn Iterator<Item = VideoMode>> {
         let output_data = self.proxy.data::<OutputData>().unwrap();
-        let modes = output_data.with_output_info(|info| info.modes.clone());
+        let (size, modes) =
+            output_data.with_output_info(|info| (info.logical_size, info.modes.clone()));
 
-        Box::new(modes.into_iter().map(wayland_mode_to_core_mode))
+        Box::new(modes.into_iter().map(move |mode| {
+            VideoMode {
+                size: size
+                    .map(|(x, y)| (x as u32, y as u32))
+                    .unwrap_or_else(|| (mode.dimensions.0 as u32, mode.dimensions.1 as u32))
+                    .into(),
+                bit_depth: None,
+                refresh_rate_millihertz: NonZeroU32::new(mode.refresh_rate as u32),
+            }
+        }))
     }
 }
 
@@ -81,11 +99,20 @@ impl PartialEq for MonitorHandle {
 
 impl Eq for MonitorHandle {}
 
-/// Convert the wayland's [`Mode`] to winit's [`VideoMode`].
-fn wayland_mode_to_core_mode(mode: Mode) -> VideoMode {
-    VideoMode {
-        size: (mode.dimensions.0, mode.dimensions.1).into(),
-        bit_depth: None,
-        refresh_rate_millihertz: NonZeroU32::new(mode.refresh_rate as u32),
+impl PartialOrd for MonitorHandle {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for MonitorHandle {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.native_id().cmp(&other.native_id())
+    }
+}
+
+impl std::hash::Hash for MonitorHandle {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.native_id().hash(state);
     }
 }
