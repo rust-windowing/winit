@@ -479,7 +479,7 @@ impl ApplicationHandler for Application {
 
                 // Dispatch actions only on press.
                 if event.state.is_pressed() {
-                    let action = if let Key::Character(ch) = event.logical_key.as_ref() {
+                    let action = if let Key::Character(ch) = event.key_without_modifiers.as_ref() {
                         Self::process_key_binding(&ch.to_uppercase(), &mods)
                     } else {
                         None
