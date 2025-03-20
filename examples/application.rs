@@ -976,37 +976,12 @@ impl WindowState {
             return Ok(());
         }
 
-        let mut buffer = self.surface.buffer_mut()?;
-
-        // Draw a different color inside the safe area
-        let surface_size = self.window.surface_size();
-        let insets = self.window.safe_area();
-        for y in 0..surface_size.height {
-            for x in 0..surface_size.width {
-                let index = y as usize * surface_size.width as usize + x as usize;
-                if insets.left <= x
-                    && x <= (surface_size.width - insets.right)
-                    && insets.top <= y
-                    && y <= (surface_size.height - insets.bottom)
-                {
-                    // In safe area
-                    buffer[index] = match self.theme {
-                        Theme::Light => 0xffe8e8e8, // Light gray
-                        Theme::Dark => 0xff525252,  // Medium gray
-                    };
-                } else {
-                    // Outside safe area
-                    buffer[index] = match self.theme {
-                        Theme::Light => 0xffffffff, // White
-                        Theme::Dark => 0xff181818,  // Dark gray
-                    };
-                }
-            }
+        match self.theme {
+            // Light gray
+            Theme::Light => fill::fill_window_with_color(&*self.window, 0xffe8e8e8),
+            // Medium gray
+            Theme::Dark => fill::fill_window_with_color(&*self.window, 0xff525252),
         }
-
-        // Present the buffer
-        self.window.pre_present_notify();
-        buffer.present()?;
 
         Ok(())
     }
