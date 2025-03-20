@@ -976,6 +976,13 @@ impl WindowState {
             return Ok(());
         }
 
+        let size = self.window.surface_size();
+        if let (Some(width), Some(height)) =
+            (NonZeroU32::new(size.width), NonZeroU32::new(size.height))
+        {
+            self.surface.resize(width, height)?;
+        }
+
         let mut buffer = self.surface.buffer_mut()?;
 
         // Draw a different color inside the safe area
