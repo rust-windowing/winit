@@ -612,7 +612,6 @@ impl CoreWindow for Window {
         }
     }
 
-    #[inline]
     fn set_cursor_grab(&self, mode: CursorGrabMode) -> Result<(), RequestError> {
         let (grabbed, locked) = match mode {
             CursorGrabMode::None => (false, false),
