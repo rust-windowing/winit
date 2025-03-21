@@ -75,68 +75,80 @@ extern crate std;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
-pub trait Pixel: Copy + Into<f64> {
+pub trait Pixel: ToPixel {
     fn from_f64(f: f64) -> Self;
+}
+
+pub trait ToPixel: Copy + Into<f64> {
     fn cast<P: Pixel>(self) -> P {
         P::from_f64(self.into())
     }
 }
 
+impl ToPixel for u8 {}
+#[cfg(any(feature = "std", feature = "libm"))]
 impl Pixel for u8 {
     fn from_f64(f: f64) -> Self {
         round(f) as u8
     }
 }
+impl ToPixel for u16 {}
+#[cfg(any(feature = "std", feature = "libm"))]
 impl Pixel for u16 {
     fn from_f64(f: f64) -> Self {
         round(f) as u16
     }
 }
+impl ToPixel for u32 {}
+#[cfg(any(feature = "std", feature = "libm"))]
 impl Pixel for u32 {
     fn from_f64(f: f64) -> Self {
         round(f) as u32
     }
 }
+impl ToPixel for i8 {}
+#[cfg(any(feature = "std", feature = "libm"))]
 impl Pixel for i8 {
     fn from_f64(f: f64) -> Self {
         round(f) as i8
     }
 }
+impl ToPixel for i16 {}
+#[cfg(any(feature = "std", feature = "libm"))]
 impl Pixel for i16 {
     fn from_f64(f: f64) -> Self {
         round(f) as i16
     }
 }
+impl ToPixel for i32 {}
+#[cfg(any(feature = "std", feature = "libm"))]
 impl Pixel for i32 {
     fn from_f64(f: f64) -> Self {
         round(f) as i32
     }
 }
+impl ToPixel for f32 {}
 impl Pixel for f32 {
     fn from_f64(f: f64) -> Self {
         f as f32
     }
 }
+impl ToPixel for f64 {}
 impl Pixel for f64 {
     fn from_f64(f: f64) -> Self {
         f
     }
 }
 
-#[cfg(not(any(feature = "std", feature = "libm")))]
-compile_error!("Please select a feature to build DPI: `std`, `libm`.");
-
 #[allow(unreachable_code/* , reason = "These are intentional short-circuits" */)]
 /// Round f to the closest integer, roudning away from `0.0``
 #[inline]
+#[cfg(any(feature = "std", feature = "libm"))]
 fn round(f: f64) -> f64 {
     #[cfg(feature = "std")]
     return f.round();
     #[cfg(feature = "libm")]
     return libm::round(f);
-    unreachable!(
-        "This library fails to compile if neither of the `std` or `libm` features are enabled"
-    )
 }
 
 /// Checks that the scale factor is a normal positive `f64`.
@@ -168,12 +180,15 @@ impl<P> LogicalUnit<P> {
     }
 }
 
-impl<P: Pixel> LogicalUnit<P> {
+impl<P: ToPixel> LogicalUnit<P> {
     #[inline]
-    pub fn from_physical<T: Into<PhysicalUnit<X>>, X: Pixel>(
+    pub fn from_physical<T: Into<PhysicalUnit<X>>, X: ToPixel>(
         physical: T,
         scale_factor: f64,
-    ) -> Self {
+    ) -> Self
+    where
+        P: Pixel,
+    {
         physical.into().to_logical(scale_factor)
     }
 
@@ -189,55 +204,55 @@ impl<P: Pixel> LogicalUnit<P> {
     }
 }
 
-impl<P: Pixel, X: Pixel> From<X> for LogicalUnit<P> {
+impl<P: Pixel, X: ToPixel> From<X> for LogicalUnit<P> {
     fn from(v: X) -> LogicalUnit<P> {
         LogicalUnit::new(v.cast())
     }
 }
-
-impl<P: Pixel> From<LogicalUnit<P>> for u8 {
+#[cfg(any(feature = "std", feature = "libm"))]
+impl<P: ToPixel> From<LogicalUnit<P>> for u8 {
     fn from(v: LogicalUnit<P>) -> u8 {
         v.0.cast()
     }
 }
-
-impl<P: Pixel> From<LogicalUnit<P>> for u16 {
+#[cfg(any(feature = "std", feature = "libm"))]
+impl<P: ToPixel> From<LogicalUnit<P>> for u16 {
     fn from(v: LogicalUnit<P>) -> u16 {
         v.0.cast()
     }
 }
-
-impl<P: Pixel> From<LogicalUnit<P>> for u32 {
+#[cfg(any(feature = "std", feature = "libm"))]
+impl<P: ToPixel> From<LogicalUnit<P>> for u32 {
     fn from(v: LogicalUnit<P>) -> u32 {
         v.0.cast()
     }
 }
-
-impl<P: Pixel> From<LogicalUnit<P>> for i8 {
+#[cfg(any(feature = "std", feature = "libm"))]
+impl<P: ToPixel> From<LogicalUnit<P>> for i8 {
     fn from(v: LogicalUnit<P>) -> i8 {
         v.0.cast()
     }
 }
-
-impl<P: Pixel> From<LogicalUnit<P>> for i16 {
+#[cfg(any(feature = "std", feature = "libm"))]
+impl<P: ToPixel> From<LogicalUnit<P>> for i16 {
     fn from(v: LogicalUnit<P>) -> i16 {
         v.0.cast()
     }
 }
-
-impl<P: Pixel> From<LogicalUnit<P>> for i32 {
+#[cfg(any(feature = "std", feature = "libm"))]
+impl<P: ToPixel> From<LogicalUnit<P>> for i32 {
     fn from(v: LogicalUnit<P>) -> i32 {
         v.0.cast()
     }
 }
 
-impl<P: Pixel> From<LogicalUnit<P>> for f32 {
+impl<P: ToPixel> From<LogicalUnit<P>> for f32 {
     fn from(v: LogicalUnit<P>) -> f32 {
         v.0.cast()
     }
 }
 
-impl<P: Pixel> From<LogicalUnit<P>> for f64 {
+impl<P: ToPixel> From<LogicalUnit<P>> for f64 {
     fn from(v: LogicalUnit<P>) -> f64 {
         v.0.cast()
     }
@@ -262,9 +277,12 @@ impl<P> PhysicalUnit<P> {
     }
 }
 
-impl<P: Pixel> PhysicalUnit<P> {
+impl<P: ToPixel> PhysicalUnit<P> {
     #[inline]
-    pub fn from_logical<T: Into<LogicalUnit<X>>, X: Pixel>(logical: T, scale_factor: f64) -> Self {
+    pub fn from_logical<T: Into<LogicalUnit<X>>, X: ToPixel>(logical: T, scale_factor: f64) -> Self
+    where
+        P: Pixel,
+    {
         logical.into().to_physical(scale_factor)
     }
 
@@ -280,55 +298,61 @@ impl<P: Pixel> PhysicalUnit<P> {
     }
 }
 
-impl<P: Pixel, X: Pixel> From<X> for PhysicalUnit<P> {
+impl<P: Pixel, X: ToPixel> From<X> for PhysicalUnit<P> {
     fn from(v: X) -> PhysicalUnit<P> {
         PhysicalUnit::new(v.cast())
     }
 }
 
-impl<P: Pixel> From<PhysicalUnit<P>> for u8 {
+#[cfg(any(feature = "std", feature = "libm"))]
+impl<P: ToPixel> From<PhysicalUnit<P>> for u8 {
     fn from(v: PhysicalUnit<P>) -> u8 {
         v.0.cast()
     }
 }
 
-impl<P: Pixel> From<PhysicalUnit<P>> for u16 {
+#[cfg(any(feature = "std", feature = "libm"))]
+impl<P: ToPixel> From<PhysicalUnit<P>> for u16 {
     fn from(v: PhysicalUnit<P>) -> u16 {
         v.0.cast()
     }
 }
 
-impl<P: Pixel> From<PhysicalUnit<P>> for u32 {
+#[cfg(any(feature = "std", feature = "libm"))]
+impl<P: ToPixel> From<PhysicalUnit<P>> for u32 {
     fn from(v: PhysicalUnit<P>) -> u32 {
         v.0.cast()
     }
 }
 
-impl<P: Pixel> From<PhysicalUnit<P>> for i8 {
+#[cfg(any(feature = "std", feature = "libm"))]
+impl<P: ToPixel> From<PhysicalUnit<P>> for i8 {
     fn from(v: PhysicalUnit<P>) -> i8 {
         v.0.cast()
     }
 }
 
-impl<P: Pixel> From<PhysicalUnit<P>> for i16 {
+#[cfg(any(feature = "std", feature = "libm"))]
+impl<P: ToPixel> From<PhysicalUnit<P>> for i16 {
     fn from(v: PhysicalUnit<P>) -> i16 {
         v.0.cast()
     }
 }
 
-impl<P: Pixel> From<PhysicalUnit<P>> for i32 {
+#[cfg(any(feature = "std", feature = "libm"))]
+impl<P: ToPixel> From<PhysicalUnit<P>> for i32 {
     fn from(v: PhysicalUnit<P>) -> i32 {
         v.0.cast()
     }
 }
 
-impl<P: Pixel> From<PhysicalUnit<P>> for f32 {
+impl<P: ToPixel> From<PhysicalUnit<P>> for f32 {
     fn from(v: PhysicalUnit<P>) -> f32 {
         v.0.cast()
     }
 }
 
-impl<P: Pixel> From<PhysicalUnit<P>> for f64 {
+impl<P: ToPixel> From<PhysicalUnit<P>> for f64 {
     fn from(v: PhysicalUnit<P>) -> f64 {
         v.0.cast()
     }
@@ -369,6 +393,7 @@ impl PixelUnit {
     }
 }
 
+#[cfg(any(feature = "std", feature = "libm"))]
 impl<P: Pixel> From<PhysicalUnit<P>> for PixelUnit {
     #[inline]
     fn from(unit: PhysicalUnit<P>) -> PixelUnit {
@@ -376,7 +401,7 @@ impl<P: Pixel> From<PhysicalUnit<P>> for PixelUnit {
     }
 }
 
-impl<P: Pixel> From<LogicalUnit<P>> for PixelUnit {
+impl<P: ToPixel> From<LogicalUnit<P>> for PixelUnit {
     #[inline]
     fn from(unit: LogicalUnit<P>) -> PixelUnit {
         PixelUnit::Logical(unit.cast())
@@ -402,12 +427,15 @@ impl<P> LogicalPosition<P> {
     }
 }
 
-impl<P: Pixel> LogicalPosition<P> {
+impl<P: ToPixel> LogicalPosition<P> {
     #[inline]
-    pub fn from_physical<T: Into<PhysicalPosition<X>>, X: Pixel>(
+    pub fn from_physical<T: Into<PhysicalPosition<X>>, X: ToPixel>(
         physical: T,
         scale_factor: f64,
-    ) -> Self {
+    ) -> Self
+    where
+        P: Pixel,
+    {
         physical.into().to_logical(scale_factor)
     }
 
@@ -425,39 +453,39 @@ impl<P: Pixel> LogicalPosition<P> {
     }
 }
 
-impl<P: Pixel, X: Pixel> From<(X, X)> for LogicalPosition<P> {
+impl<P: Pixel, X: ToPixel> From<(X, X)> for LogicalPosition<P> {
     fn from((x, y): (X, X)) -> LogicalPosition<P> {
         LogicalPosition::new(x.cast(), y.cast())
     }
 }
 
-impl<P: Pixel, X: Pixel> From<LogicalPosition<P>> for (X, X) {
+impl<P: ToPixel, X: Pixel> From<LogicalPosition<P>> for (X, X) {
     fn from(p: LogicalPosition<P>) -> (X, X) {
         (p.x.cast(), p.y.cast())
     }
 }
 
-impl<P: Pixel, X: Pixel> From<[X; 2]> for LogicalPosition<P> {
+impl<P: Pixel, X: ToPixel> From<[X; 2]> for LogicalPosition<P> {
     fn from([x, y]: [X; 2]) -> LogicalPosition<P> {
         LogicalPosition::new(x.cast(), y.cast())
     }
 }
 
-impl<P: Pixel, X: Pixel> From<LogicalPosition<P>> for [X; 2] {
+impl<P: ToPixel, X: Pixel> From<LogicalPosition<P>> for [X; 2] {
     fn from(p: LogicalPosition<P>) -> [X; 2] {
         [p.x.cast(), p.y.cast()]
     }
 }
 
 #[cfg(feature = "mint")]
-impl<P: Pixel> From<mint::Point2<P>> for LogicalPosition<P> {
+impl<P> From<mint::Point2<P>> for LogicalPosition<P> {
     fn from(p: mint::Point2<P>) -> Self {
         Self::new(p.x, p.y)
     }
 }
 
 #[cfg(feature = "mint")]
-impl<P: Pixel> From<LogicalPosition<P>> for mint::Point2<P> {
+impl<P> From<LogicalPosition<P>> for mint::Point2<P> {
     fn from(p: LogicalPosition<P>) -> Self {
         mint::Point2 { x: p.x, y: p.y }
     }
@@ -478,12 +506,15 @@ impl<P> PhysicalPosition<P> {
     }
 }
 
-impl<P: Pixel> PhysicalPosition<P> {
+impl<P: ToPixel> PhysicalPosition<P> {
     #[inline]
-    pub fn from_logical<T: Into<LogicalPosition<X>>, X: Pixel>(
+    pub fn from_logical<T: Into<LogicalPosition<X>>, X: ToPixel>(
         logical: T,
         scale_factor: f64,
-    ) -> Self {
+    ) -> Self
+    where
+        P: Pixel,
+    {
         logical.into().to_physical(scale_factor)
     }
 
@@ -501,39 +532,39 @@ impl<P: Pixel> PhysicalPosition<P> {
     }
 }
 
-impl<P: Pixel, X: Pixel> From<(X, X)> for PhysicalPosition<P> {
+impl<P: Pixel, X: ToPixel> From<(X, X)> for PhysicalPosition<P> {
     fn from((x, y): (X, X)) -> PhysicalPosition<P> {
         PhysicalPosition::new(x.cast(), y.cast())
     }
 }
 
-impl<P: Pixel, X: Pixel> From<PhysicalPosition<P>> for (X, X) {
+impl<P: ToPixel, X: Pixel> From<PhysicalPosition<P>> for (X, X) {
     fn from(p: PhysicalPosition<P>) -> (X, X) {
         (p.x.cast(), p.y.cast())
     }
 }
 
-impl<P: Pixel, X: Pixel> From<[X; 2]> for PhysicalPosition<P> {
+impl<P: Pixel, X: ToPixel> From<[X; 2]> for PhysicalPosition<P> {
     fn from([x, y]: [X; 2]) -> PhysicalPosition<P> {
         PhysicalPosition::new(x.cast(), y.cast())
     }
 }
 
-impl<P: Pixel, X: Pixel> From<PhysicalPosition<P>> for [X; 2] {
+impl<P: ToPixel, X: Pixel> From<PhysicalPosition<P>> for [X; 2] {
     fn from(p: PhysicalPosition<P>) -> [X; 2] {
         [p.x.cast(), p.y.cast()]
     }
 }
 
 #[cfg(feature = "mint")]
-impl<P: Pixel> From<mint::Point2<P>> for PhysicalPosition<P> {
+impl<P> From<mint::Point2<P>> for PhysicalPosition<P> {
     fn from(p: mint::Point2<P>) -> Self {
         Self::new(p.x, p.y)
     }
 }
 
 #[cfg(feature = "mint")]
-impl<P: Pixel> From<PhysicalPosition<P>> for mint::Point2<P> {
+impl<P> From<PhysicalPosition<P>> for mint::Point2<P> {
     fn from(p: PhysicalPosition<P>) -> Self {
         mint::Point2 { x: p.x, y: p.y }
     }
@@ -554,12 +585,15 @@ impl<P> LogicalSize<P> {
     }
 }
 
-impl<P: Pixel> LogicalSize<P> {
+impl<P: ToPixel> LogicalSize<P> {
     #[inline]
-    pub fn from_physical<T: Into<PhysicalSize<X>>, X: Pixel>(
+    pub fn from_physical<T: Into<PhysicalSize<X>>, X: ToPixel>(
         physical: T,
         scale_factor: f64,
-    ) -> Self {
+    ) -> Self
+    where
+        P: Pixel,
+    {
         physical.into().to_logical(scale_factor)
     }
 
@@ -577,39 +611,39 @@ impl<P: Pixel> LogicalSize<P> {
     }
 }
 
-impl<P: Pixel, X: Pixel> From<(X, X)> for LogicalSize<P> {
+impl<P: Pixel, X: ToPixel> From<(X, X)> for LogicalSize<P> {
     fn from((x, y): (X, X)) -> LogicalSize<P> {
         LogicalSize::new(x.cast(), y.cast())
     }
 }
 
-impl<P: Pixel, X: Pixel> From<LogicalSize<P>> for (X, X) {
+impl<P: ToPixel, X: Pixel> From<LogicalSize<P>> for (X, X) {
     fn from(s: LogicalSize<P>) -> (X, X) {
         (s.width.cast(), s.height.cast())
     }
 }
 
-impl<P: Pixel, X: Pixel> From<[X; 2]> for LogicalSize<P> {
+impl<P: Pixel, X: ToPixel> From<[X; 2]> for LogicalSize<P> {
     fn from([x, y]: [X; 2]) -> LogicalSize<P> {
         LogicalSize::new(x.cast(), y.cast())
     }
 }
 
-impl<P: Pixel, X: Pixel> From<LogicalSize<P>> for [X; 2] {
+impl<P: ToPixel, X: Pixel> From<LogicalSize<P>> for [X; 2] {
     fn from(s: LogicalSize<P>) -> [X; 2] {
         [s.width.cast(), s.height.cast()]
     }
 }
 
 #[cfg(feature = "mint")]
-impl<P: Pixel> From<mint::Vector2<P>> for LogicalSize<P> {
+impl<P> From<mint::Vector2<P>> for LogicalSize<P> {
     fn from(v: mint::Vector2<P>) -> Self {
         Self::new(v.x, v.y)
     }
 }
 
 #[cfg(feature = "mint")]
-impl<P: Pixel> From<LogicalSize<P>> for mint::Vector2<P> {
+impl<P> From<LogicalSize<P>> for mint::Vector2<P> {
     fn from(s: LogicalSize<P>) -> Self {
         mint::Vector2 { x: s.width, y: s.height }
     }
@@ -630,9 +664,12 @@ impl<P> PhysicalSize<P> {
     }
 }
 
-impl<P: Pixel> PhysicalSize<P> {
+impl<P: ToPixel> PhysicalSize<P> {
     #[inline]
-    pub fn from_logical<T: Into<LogicalSize<X>>, X: Pixel>(logical: T, scale_factor: f64) -> Self {
+    pub fn from_logical<T: Into<LogicalSize<X>>, X: ToPixel>(logical: T, scale_factor: f64) -> Self
+    where
+        P: Pixel,
+    {
         logical.into().to_physical(scale_factor)
     }
 
@@ -650,39 +687,39 @@ impl<P: Pixel> PhysicalSize<P> {
     }
 }
 
-impl<P: Pixel, X: Pixel> From<(X, X)> for PhysicalSize<P> {
+impl<P: Pixel, X: ToPixel> From<(X, X)> for PhysicalSize<P> {
     fn from((x, y): (X, X)) -> PhysicalSize<P> {
         PhysicalSize::new(x.cast(), y.cast())
     }
 }
 
-impl<P: Pixel, X: Pixel> From<PhysicalSize<P>> for (X, X) {
+impl<P: ToPixel, X: Pixel> From<PhysicalSize<P>> for (X, X) {
     fn from(s: PhysicalSize<P>) -> (X, X) {
         (s.width.cast(), s.height.cast())
     }
 }
 
-impl<P: Pixel, X: Pixel> From<[X; 2]> for PhysicalSize<P> {
+impl<P: Pixel, X: ToPixel> From<[X; 2]> for PhysicalSize<P> {
     fn from([x, y]: [X; 2]) -> PhysicalSize<P> {
         PhysicalSize::new(x.cast(), y.cast())
     }
 }
 
-impl<P: Pixel, X: Pixel> From<PhysicalSize<P>> for [X; 2] {
+impl<P: ToPixel, X: Pixel> From<PhysicalSize<P>> for [X; 2] {
     fn from(s: PhysicalSize<P>) -> [X; 2] {
         [s.width.cast(), s.height.cast()]
     }
 }
 
 #[cfg(feature = "mint")]
-impl<P: Pixel> From<mint::Vector2<P>> for PhysicalSize<P> {
+impl<P> From<mint::Vector2<P>> for PhysicalSize<P> {
     fn from(v: mint::Vector2<P>) -> Self {
         Self::new(v.x, v.y)
     }
 }
 
 #[cfg(feature = "mint")]
-impl<P: Pixel> From<PhysicalSize<P>> for mint::Vector2<P> {
+impl<P> From<PhysicalSize<P>> for mint::Vector2<P> {
     fn from(s: PhysicalSize<P>) -> Self {
         mint::Vector2 { x: s.width, y: s.height }
     }
@@ -714,7 +751,7 @@ impl Size {
             Size::Logical(size) => size.to_physical(scale_factor),
         }
     }
-
+    #[cfg(any(feature = "std", feature = "libm"))]
     pub fn clamp<S: Into<Size>>(input: S, min: S, max: S, scale_factor: f64) -> Size {
         let (input, min, max) = (
             input.into().to_physical::<f64>(scale_factor),
@@ -729,14 +766,15 @@ impl Size {
     }
 }
 
-impl<P: Pixel> From<PhysicalSize<P>> for Size {
+#[cfg(any(feature = "std", feature = "libm"))]
+impl<P: ToPixel> From<PhysicalSize<P>> for Size {
     #[inline]
     fn from(size: PhysicalSize<P>) -> Size {
         Size::Physical(size.cast())
     }
 }
 
-impl<P: Pixel> From<LogicalSize<P>> for Size {
+impl<P: ToPixel> From<LogicalSize<P>> for Size {
     #[inline]
     fn from(size: LogicalSize<P>) -> Size {
         Size::Logical(size.cast())
@@ -771,14 +809,15 @@ impl Position {
     }
 }
 
-impl<P: Pixel> From<PhysicalPosition<P>> for Position {
+#[cfg(any(feature = "std", feature = "libm"))]
+impl<P: ToPixel> From<PhysicalPosition<P>> for Position {
     #[inline]
     fn from(position: PhysicalPosition<P>) -> Position {
         Position::Physical(position.cast())
     }
 }
 
-impl<P: Pixel> From<LogicalPosition<P>> for Position {
+impl<P: ToPixel> From<LogicalPosition<P>> for Position {
     #[inline]
     fn from(position: LogicalPosition<P>) -> Position {
         Position::Logical(position.cast())
@@ -806,12 +845,15 @@ impl<P> LogicalInsets<P> {
     }
 }
 
-impl<P: Pixel> LogicalInsets<P> {
+impl<P: ToPixel> LogicalInsets<P> {
     #[inline]
-    pub fn from_physical<T: Into<PhysicalInsets<X>>, X: Pixel>(
+    pub fn from_physical<T: Into<PhysicalInsets<X>>, X: ToPixel>(
         physical: T,
         scale_factor: f64,
-    ) -> Self {
+    ) -> Self
+    where
+        P: Pixel,
+    {
         physical.into().to_logical(scale_factor)
     }
 
@@ -857,12 +899,15 @@ impl<P> PhysicalInsets<P> {
     }
 }
 
-impl<P: Pixel> PhysicalInsets<P> {
+impl<P: ToPixel> PhysicalInsets<P> {
     #[inline]
-    pub fn from_logical<T: Into<LogicalInsets<X>>, X: Pixel>(
+    pub fn from_logical<T: Into<LogicalInsets<X>>, X: ToPixel>(
         logical: T,
         scale_factor: f64,
-    ) -> Self {
+    ) -> Self
+    where
+        P: Pixel,
+    {
         logical.into().to_physical(scale_factor)
     }
 
@@ -915,14 +960,15 @@ impl Insets {
     }
 }
 
-impl<P: Pixel> From<PhysicalInsets<P>> for Insets {
+#[cfg(any(feature = "std", feature = "libm"))]
+impl<P: ToPixel> From<PhysicalInsets<P>> for Insets {
     #[inline]
     fn from(insets: PhysicalInsets<P>) -> Self {
         Self::Physical(insets.cast())
     }
 }
 
-impl<P: Pixel> From<LogicalInsets<P>> for Insets {
+impl<P: ToPixel> From<LogicalInsets<P>> for Insets {
     #[inline]
     fn from(insets: LogicalInsets<P>) -> Self {
         Self::Logical(insets.cast())
@@ -957,27 +1003,27 @@ mod tests {
                 );
 
                 assert_eq!(
-                    <$ty as Pixel>::cast::<u8>(37),
+                    <$ty as ToPixel>::cast::<u8>(37),
                     37,
                 );
                 assert_eq!(
-                    <$ty as Pixel>::cast::<u16>(37),
+                    <$ty as ToPixel>::cast::<u16>(37),
                     37,
                 );
                 assert_eq!(
-                    <$ty as Pixel>::cast::<u32>(37),
+                    <$ty as ToPixel>::cast::<u32>(37),
                     37,
                 );
                 assert_eq!(
-                    <$ty as Pixel>::cast::<i8>(37),
+                    <$ty as ToPixel>::cast::<i8>(37),
                     37,
                 );
                 assert_eq!(
-                    <$ty as Pixel>::cast::<i16>(37),
+                    <$ty as ToPixel>::cast::<i16>(37),
                     37,
                 );
                 assert_eq!(
-                    <$ty as Pixel>::cast::<i32>(37),
+                    <$ty as ToPixel>::cast::<i32>(37),
                     37,
                 );
             }
@@ -1020,67 +1066,67 @@ mod tests {
             );
 
             assert_eq!(
-                <$ty as Pixel>::cast::<u8>(37.0),
+                <$ty as ToPixel>::cast::<u8>(37.0),
                 37,
             );
             assert_eq!(
-                <$ty as Pixel>::cast::<u8>(37.4),
+                <$ty as ToPixel>::cast::<u8>(37.4),
                 37,
             );
             assert_eq!(
-                <$ty as Pixel>::cast::<u8>(37.5),
+                <$ty as ToPixel>::cast::<u8>(37.5),
                 38,
             );
 
             assert_eq!(
-                <$ty as Pixel>::cast::<u16>(37.0),
+                <$ty as ToPixel>::cast::<u16>(37.0),
                 37,
             );
             assert_eq!(
-                <$ty as Pixel>::cast::<u16>(37.4),
+                <$ty as ToPixel>::cast::<u16>(37.4),
                 37,
             );
             assert_eq!(
-                <$ty as Pixel>::cast::<u16>(37.5),
+                <$ty as ToPixel>::cast::<u16>(37.5),
                 38,
             );
 
             assert_eq!(
-                <$ty as Pixel>::cast::<u32>(37.0),
+                <$ty as ToPixel>::cast::<u32>(37.0),
                 37,
             );
             assert_eq!(
-                <$ty as Pixel>::cast::<u32>(37.4),
+                <$ty as ToPixel>::cast::<u32>(37.4),
                 37,
             );
             assert_eq!(
-                <$ty as Pixel>::cast::<u32>(37.5),
+                <$ty as ToPixel>::cast::<u32>(37.5),
                 38,
             );
 
             assert_eq!(
-                <$ty as Pixel>::cast::<i8>(37.0),
+                <$ty as ToPixel>::cast::<i8>(37.0),
                 37,
             );
             assert_eq!(
-                <$ty as Pixel>::cast::<i8>(37.4),
+                <$ty as ToPixel>::cast::<i8>(37.4),
                 37,
             );
             assert_eq!(
-                <$ty as Pixel>::cast::<i8>(37.5),
+                <$ty as ToPixel>::cast::<i8>(37.5),
                 38,
             );
 
             assert_eq!(
-                <$ty as Pixel>::cast::<i16>(37.0),
+                <$ty as ToPixel>::cast::<i16>(37.0),
                 37,
             );
             assert_eq!(
-                <$ty as Pixel>::cast::<i16>(37.4),
+                <$ty as ToPixel>::cast::<i16>(37.4),
                 37,
             );
             assert_eq!(
-                <$ty as Pixel>::cast::<i16>(37.5),
+                <$ty as ToPixel>::cast::<i16>(37.5),
                 38,
             );
         }
