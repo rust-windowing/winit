@@ -428,12 +428,10 @@ impl Window {
 
     #[inline]
     pub fn set_cursor_grab(&self, mode: CursorGrabMode) -> Result<(), ExternalError> {
-        let confine = match mode {
-            CursorGrabMode::None => false,
-            CursorGrabMode::Confined => true,
-            CursorGrabMode::Locked => {
-                return Err(ExternalError::NotSupported(NotSupportedError::new()))
-            },
+        let (grabbed, locked) = match mode {
+            CursorGrabMode::None => (false, false),
+            CursorGrabMode::Confined => (true, false),
+            CursorGrabMode::Locked => (true, true),
         };
 
         let window = self.window;
@@ -446,7 +444,10 @@ impl Window {
                 .lock()
                 .unwrap()
                 .mouse
-                .set_cursor_flags(window, |f| f.set(CursorFlags::GRABBED, confine))
+                .set_cursor_flags(window, |f| {
+                    f.set(CursorFlags::GRABBED, grabbed);
+                    f.set(CursorFlags::LOCKED, locked);
+                })
                 .map_err(|e| ExternalError::Os(os_error!(e)));
             let _ = tx.send(result);
         });

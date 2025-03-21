@@ -6,7 +6,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::{io, mem, ptr};
 
 use crate::utils::Lazy;
-use windows_sys::core::{HRESULT, PCWSTR};
+use windows_sys::{core::{HRESULT, PCWSTR}, Win32::{Foundation::POINT, UI::WindowsAndMessaging::GetCursorPos}};
 use windows_sys::Win32::Foundation::{BOOL, HANDLE, HMODULE, HWND, RECT};
 use windows_sys::Win32::Graphics::Gdi::{ClientToScreen, HMONITOR};
 use windows_sys::Win32::System::LibraryLoader::{GetProcAddress, LoadLibraryA};
@@ -96,6 +96,13 @@ pub fn set_cursor_hidden(hidden: bool) {
     let changed = HIDDEN.swap(hidden, Ordering::SeqCst) ^ hidden;
     if changed {
         unsafe { ShowCursor(BOOL::from(!hidden)) };
+    }
+}
+
+pub fn get_cursor_position() -> Result<POINT, io::Error> {
+    unsafe {
+        let mut point: POINT = mem::zeroed();
+        win_to_err(GetCursorPos(&mut point)).map(|_| point)
     }
 }
 
