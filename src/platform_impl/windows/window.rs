@@ -624,10 +624,7 @@ impl CoreWindow for Window {
                 .unwrap()
                 .mouse
                 .set_cursor_flags(window.hwnd(), |f| {
-                    f.set(
-                        CursorFlags::GRABBED,
-                        mode != CursorGrabMode::None,
-                    );
+                    f.set(CursorFlags::GRABBED, mode != CursorGrabMode::None);
                     f.set(CursorFlags::LOCKED, mode == CursorGrabMode::Locked);
                 })
                 .map_err(|err| os_error!(err).into());
