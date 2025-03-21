@@ -613,12 +613,6 @@ impl CoreWindow for Window {
     }
 
     fn set_cursor_grab(&self, mode: CursorGrabMode) -> Result<(), RequestError> {
-        let (grabbed, locked) = match mode {
-            CursorGrabMode::None => (false, false),
-            CursorGrabMode::Confined => (true, false),
-            CursorGrabMode::Locked => (true, true),
-        };
-
         let window = self.window;
         let window_state = Arc::clone(&self.window_state);
         let (tx, rx) = channel();
@@ -630,8 +624,11 @@ impl CoreWindow for Window {
                 .unwrap()
                 .mouse
                 .set_cursor_flags(window.hwnd(), |f| {
-                    f.set(CursorFlags::GRABBED, grabbed);
-                    f.set(CursorFlags::LOCKED, locked);
+                    f.set(
+                        CursorFlags::GRABBED,
+                        mode == CursorGrabMode::Confined || mode == CursorGrabMode::Locked,
+                    );
+                    f.set(CursorFlags::LOCKED, mode == CursorGrabMode::Locked);
                 })
                 .map_err(|err| os_error!(err).into());
             let _ = tx.send(result);
