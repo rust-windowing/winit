@@ -3,7 +3,7 @@ use std::ptr::NonNull;
 use dispatch2::run_on_main;
 use objc2::rc::Retained;
 use objc2_app_kit::{NSEvent, NSEventModifierFlags, NSEventSubtype, NSEventType};
-use objc2_core_foundation::{CFData, CFDataGetBytePtr, CFRetained};
+use objc2_core_foundation::{CFData, CFRetained};
 use objc2_foundation::NSPoint;
 use smol_str::SmolStr;
 
@@ -30,7 +30,7 @@ pub fn get_modifierless_char(scancode: u16) -> Key {
         return Key::Unidentified(NativeKey::MacOS(scancode));
     };
 
-    let layout = unsafe { CFDataGetBytePtr(layout_data).cast() };
+    let layout = layout_data.byte_ptr().cast();
     let keyboard_type = run_on_main(|_mtm| unsafe { ffi::LMGetKbdType() });
 
     let mut result_len = 0;

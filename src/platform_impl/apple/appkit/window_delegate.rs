@@ -23,8 +23,10 @@ use objc2_app_kit::{
 };
 use objc2_core_foundation::{CGFloat, CGPoint};
 use objc2_core_graphics::{
-    CGAcquireDisplayFadeReservation, CGAssociateMouseAndMouseCursorPosition, CGDisplayCapture,
-    CGDisplayFade, CGDisplayRelease, CGDisplaySetDisplayMode, CGReleaseDisplayFadeReservation,
+    kCGDisplayBlendNormal, kCGDisplayBlendSolidColor, kCGDisplayFadeReservationInvalidToken,
+    kCGFloatingWindowLevel, kCGNormalWindowLevel, CGAcquireDisplayFadeReservation,
+    CGAssociateMouseAndMouseCursorPosition, CGDisplayCapture, CGDisplayFade, CGDisplayRelease,
+    CGDisplaySetDisplayMode, CGReleaseDisplayFadeReservation,
     CGRestorePermanentDisplayConfiguration, CGShieldingWindowLevel, CGWarpMouseCursorPosition,
 };
 use objc2_foundation::{
@@ -1500,7 +1502,7 @@ impl WindowDelegate {
 
             let display_id = monitor.native_id() as _;
 
-            let mut fade_token = ffi::kCGDisplayFadeReservationInvalidToken;
+            let mut fade_token = kCGDisplayFadeReservationInvalidToken;
 
             if matches!(old_fullscreen, Some(Fullscreen::Borderless(_))) {
                 self.ivars().save_presentation_opts.replace(Some(app.presentationOptions()));
@@ -1513,8 +1515,8 @@ impl WindowDelegate {
                     CGDisplayFade(
                         fade_token,
                         0.3,
-                        ffi::kCGDisplayBlendNormal,
-                        ffi::kCGDisplayBlendSolidColor,
+                        kCGDisplayBlendNormal,
+                        kCGDisplayBlendSolidColor,
                         0.0,
                         0.0,
                         0.0,
@@ -1538,12 +1540,12 @@ impl WindowDelegate {
 
                 // After the display has been configured, fade back in
                 // asynchronously
-                if fade_token != ffi::kCGDisplayFadeReservationInvalidToken {
+                if fade_token != kCGDisplayFadeReservationInvalidToken {
                     CGDisplayFade(
                         fade_token,
                         0.6,
-                        ffi::kCGDisplayBlendSolidColor,
-                        ffi::kCGDisplayBlendNormal,
+                        kCGDisplayBlendSolidColor,
+                        kCGDisplayBlendNormal,
                         0.0,
                         0.0,
                         0.0,
@@ -1560,7 +1562,7 @@ impl WindowDelegate {
             // Window level must be restored from `CGShieldingWindowLevel()
             // + 1` back to normal in order for `toggleFullScreen` to do
             // anything
-            window.setLevel(ffi::kCGNormalWindowLevel as NSWindowLevel);
+            window.setLevel(kCGNormalWindowLevel as NSWindowLevel);
             window.toggleFullScreen(None);
         }
 
@@ -1629,7 +1631,7 @@ impl WindowDelegate {
 
                 // Restore the normal window level following the Borderless fullscreen
                 // `CGShieldingWindowLevel() + 1` hack.
-                self.window().setLevel(ffi::kCGNormalWindowLevel as NSWindowLevel);
+                self.window().setLevel(kCGNormalWindowLevel as NSWindowLevel);
             },
             _ => {},
         };
@@ -1676,10 +1678,19 @@ impl WindowDelegate {
 
     #[inline]
     pub fn set_window_level(&self, level: WindowLevel) {
+        // Note: There are two different things at play here:
+        // `CGWindowLevel` and `CGWindowLevelKey`.
+        //
+        // It seems like there was a push towards using "key" values instead of the
+        // raw window level values, and then you were supposed to use
+        // `CGWindowLevelForKey` to get the actual level.
+        //
+        // But the values that `NSWindowLevel` has are compiled in, and as such has
+        // to remain ABI compatible, so they're safe for us to hardcode as well.
         let level = match level {
-            WindowLevel::AlwaysOnTop => ffi::kCGFloatingWindowLevel as NSWindowLevel,
-            WindowLevel::AlwaysOnBottom => (ffi::kCGNormalWindowLevel - 1) as NSWindowLevel,
-            WindowLevel::Normal => ffi::kCGNormalWindowLevel as NSWindowLevel,
+            WindowLevel::AlwaysOnTop => kCGFloatingWindowLevel as NSWindowLevel,
+            WindowLevel::AlwaysOnBottom => (kCGNormalWindowLevel - 1) as NSWindowLevel,
+            WindowLevel::Normal => kCGNormalWindowLevel as NSWindowLevel,
         };
         self.window().setLevel(level);
     }
