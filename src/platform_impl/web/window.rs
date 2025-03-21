@@ -4,6 +4,7 @@ use std::rc::Rc;
 use std::sync::Arc;
 
 use dpi::{LogicalPosition, LogicalSize};
+use tracing::warn;
 use web_sys::HtmlCanvasElement;
 
 use super::main_thread::{MainThreadMarker, MainThreadSafe};
@@ -235,6 +236,14 @@ impl RootWindow for Window {
 
     fn is_visible(&self) -> Option<bool> {
         None
+    }
+
+    fn set_focusable(&self, _focusable: bool) {
+        warn!("`Window::set_focusable` is ignored on Web");
+    }
+
+    fn is_focusable(&self) -> bool {
+        true
     }
 
     fn set_resizable(&self, _: bool) {
