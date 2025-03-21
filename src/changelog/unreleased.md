@@ -76,6 +76,7 @@ changelog entry.
 - On X11, set an "area" attribute on XIM input connection to convey the cursor area.
 - Implement `CustomCursorProvider` for `CustomCursor` to access cursor API.
 - Add `CustomCursorSource::Url`, `CustomCursorSource::from_animation`.
+- On Windows, add `CursorGrabMode::Locked`.
 
 ### Changed
 
