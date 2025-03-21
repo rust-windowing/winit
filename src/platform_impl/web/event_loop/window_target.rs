@@ -55,8 +55,7 @@ impl ActiveEventLoop {
         Self { runner: runner::Shared::new(), modifiers: ModifiersShared::default() }
     }
 
-    pub(crate) fn run(&self, app: Box<dyn ApplicationHandler>, event_loop_recreation: bool) {
-        self.runner.event_loop_recreation(event_loop_recreation);
+    pub(crate) fn run(&self, app: Box<dyn ApplicationHandler>) {
         self.runner.start(app, self.clone());
     }
 

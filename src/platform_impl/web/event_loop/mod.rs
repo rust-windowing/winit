@@ -24,32 +24,9 @@ impl EventLoop {
         Ok(EventLoop { elw: ActiveEventLoop::new() })
     }
 
-    pub fn run_app<A: ApplicationHandler>(self, app: A) -> ! {
-        let app = Box::new(app);
-
-        // SAFETY: The `transmute` is necessary because `run()` requires `'static`. This is safe
-        // because this function will never return and all resources not cleaned up by the point we
-        // `throw` will leak, making this actually `'static`.
-        let app = unsafe {
-            std::mem::transmute::<
-                Box<dyn ApplicationHandler + '_>,
-                Box<dyn ApplicationHandler + 'static>,
-            >(app)
-        };
-
-        self.elw.run(app, false);
-
-        // Throw an exception to break out of Rust execution and use unreachable to tell the
-        // compiler this function won't return, giving it a return type of '!'
-        backend::throw(
-            "Using exceptions for control flow, don't mind me. This isn't actually an error!",
-        );
-
-        unreachable!();
-    }
-
-    pub fn spawn_app<A: ApplicationHandler + 'static>(self, app: A) {
-        self.elw.run(Box::new(app), true);
+    pub fn run_app<A: ApplicationHandler + 'static>(self, app: A) -> Result<(), EventLoopError> {
+        self.elw.run(Box::new(app));
+        Ok(())
     }
 
     pub fn window_target(&self) -> &dyn RootActiveEventLoop {

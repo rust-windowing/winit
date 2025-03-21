@@ -11,8 +11,7 @@ use crate::window::WindowId;
 /// See [the top-level docs] for example usage, and [`EventLoop::run_app`] for an overview of when
 /// events are delivered.
 ///
-/// This is [dropped] when the event loop is shut down. Note that this only works if you're passing
-/// the entire state to [`EventLoop::run_app`] (passing `&mut app` won't work).
+/// This is [dropped] when the event loop is shut down.
 ///
 /// [the top-level docs]: crate
 /// [`EventLoop::run_app`]: crate::event_loop::EventLoop::run_app

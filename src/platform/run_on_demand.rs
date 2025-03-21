@@ -11,7 +11,7 @@ pub trait EventLoopExtRunOnDemand {
     /// Run the application with the event loop on the calling thread.
     ///
     /// Unlike [`EventLoop::run_app`], this function accepts non-`'static` (i.e. non-`move`)
-    /// closures and it is possible to return control back to the caller without
+    /// state and it is possible to return control back to the caller without
     /// consuming the `EventLoop` (by using [`exit()`]) and
     /// so the event loop can be re-run after it has exit.
     ///
@@ -30,14 +30,7 @@ pub trait EventLoopExtRunOnDemand {
     ///
     /// # Caveats
     /// - This extension isn't available on all platforms, since it's not always possible to return
-    ///   to the caller (specifically this is impossible on iOS and Web - though with the Web
-    ///   backend it is possible to use
-    #[cfg_attr(
-        web_platform,
-        doc = "  [`EventLoopExtWeb::spawn_app()`][crate::platform::web::EventLoopExtWeb::spawn_app()]"
-    )]
-    #[cfg_attr(not(web_platform), doc = "  `EventLoopExtWeb::spawn_app()`")]
-    ///   [^1] more than once instead).
+    ///   to the caller (specifically this is impossible on iOS and Web).
     /// - No [`Window`] state can be carried between separate runs of the event loop.
     ///
     /// You are strongly encouraged to use [`EventLoop::run_app()`] for portability, unless you
@@ -55,8 +48,6 @@ pub trait EventLoopExtRunOnDemand {
     ///   block the browser and there is nothing that can be polled to ask for new events. Events
     ///   are delivered via callbacks based on an event loop that is internal to the browser itself.
     /// - **iOS:** It's not possible to stop and start an `UIApplication` repeatedly on iOS.
-    ///
-    /// [^1]: `spawn_app()` is only available on the Web platforms.
     ///
     /// [`exit()`]: ActiveEventLoop::exit()
     /// [`set_control_flow()`]: ActiveEventLoop::set_control_flow()

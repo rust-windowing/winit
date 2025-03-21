@@ -184,7 +184,7 @@ impl EventLoop {
 }
 
 impl EventLoop {
-    /// Run the application with the event loop on the calling thread.
+    /// Run the event loop with the given application on the calling thread.
     ///
     /// ## Event loop flow
     ///
@@ -237,34 +237,70 @@ impl EventLoop {
     /// [`ControlFlow::WaitUntil`] and life-cycle methods like [`ApplicationHandler::resumed`], but
     /// it should give you an idea of how things fit together.
     ///
+    /// ## Returns
+    ///
+    /// The semantics of this function can be a bit confusing, because the way different platforms
+    /// control their event loop varies significantly.
+    ///
+    /// On most platforms (Android, X11, Wayland, Windows, macOS), this blocks the caller, runs the
+    /// event loop internally, and then returns once [`ActiveEventLoop::exit`] is called.
+    ///
+    /// On iOS, this will register the application handler, and then call [`UIApplicationMain`]
+    /// (which is the only way to run the system event loop), which never returns to the caller
+    /// (the process instead exits after the handler has been dropped).
+    ///
+    /// On the web, this works by registering the application handler, and then immediately
+    /// returning to the caller. This is necessary because WebAssembly (and JavaScript) is always
+    /// executed in the context of the browser's own (internal) event loop, and thus we need to
+    /// return to avoid blocking that and allow events to later be delivered asynchronously.
+    ///
+    /// If you call this function inside `fn main`, you usually do not need to think about these
+    /// details.
+    ///
+    /// [`UIApplicationMain`]: https://developer.apple.com/documentation/uikit/uiapplicationmain(_:_:_:_:)-1yub7?language=objc
+    ///
+    /// ## Static
+    ///
+    /// To alleviate the issues noted above, this function requires that you pass in a `'static`
+    /// handler, to ensure that any state your application uses will be alive as long as the
+    /// application is running.
+    ///
+    /// To be clear, you should avoid doing e.g. `event_loop.run_app(&mut app)?`, and prefer
+    /// `event_loop.run_app(app)?` instead.
+    ///
+    /// If this requirement is prohibitive for you, consider using
+    #[cfg_attr(
+        any(
+            windows_platform,
+            macos_platform,
+            android_platform,
+            x11_platform,
+            wayland_platform,
+            docsrs,
+        ),
+        doc = "[`EventLoopExtRunOnDemand::run_app_on_demand`](crate::platform::run_on_demand::EventLoopExtRunOnDemand::run_app_on_demand)"
+    )]
+    #[cfg_attr(
+        not(any(
+            windows_platform,
+            macos_platform,
+            android_platform,
+            x11_platform,
+            wayland_platform,
+            docsrs,
+        )),
+        doc = "`EventLoopExtRunOnDemand::run_app_on_demand`"
+    )]
+    /// instead (though note that this is not available on iOS and web).
+    ///
     /// ## Platform-specific
     ///
-    /// - **iOS:** Will never return to the caller and so values not passed to this function will
-    ///   *not* be dropped before the process exits.
-    /// - **Web:** Will _act_ as if it never returns to the caller by throwing a Javascript
-    ///   exception (that Rust doesn't see) that will also mean that the rest of the function is
-    ///   never executed and any values not passed to this function will *not* be dropped.
-    ///
-    ///   Web applications are recommended to use
-    #[cfg_attr(
-        web_platform,
-        doc = "  [`EventLoopExtWeb::spawn_app()`][crate::platform::web::EventLoopExtWeb::spawn_app()]"
-    )]
-    #[cfg_attr(not(web_platform), doc = "  `EventLoopExtWeb::spawn_app()`")]
-    ///   [^1] instead of [`run_app()`] to avoid the need for the Javascript exception trick, and to
-    ///   make   it clearer that the event loop runs asynchronously (via the browser's own,
-    ///   internal, event   loop) and doesn't block the current thread of execution like it does
-    ///   on other platforms.
-    ///
-    ///   This function won't be available with `target_feature = "exception-handling"`.
-    ///
-    /// [^1]: `spawn_app()` is only available on the Web platform.
-    ///
-    /// [`set_control_flow()`]: ActiveEventLoop::set_control_flow()
-    /// [`run_app()`]: Self::run_app()
+    /// - **Web** Once your handler has been dropped, it's possible to reinitialize another event
+    ///   loop by calling this function again. This can be useful if you want to recreate the event
+    ///   loop while the WebAssembly module is still loaded. For example, this can be used to
+    ///   recreate the event loop when switching between tabs on a single page application.
     #[inline]
-    #[cfg(not(all(web_platform, target_feature = "exception-handling")))]
-    pub fn run_app<A: ApplicationHandler>(self, app: A) -> Result<(), EventLoopError> {
+    pub fn run_app<A: ApplicationHandler + 'static>(self, app: A) -> Result<(), EventLoopError> {
         self.event_loop.run_app(app)
     }
 

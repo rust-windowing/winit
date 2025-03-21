@@ -46,7 +46,6 @@ struct Execution {
     exit: Cell<bool>,
     runner: RefCell<RunnerEnum>,
     suspended: Cell<bool>,
-    event_loop_recreation: Cell<bool>,
     events: RefCell<VecDeque<Event>>,
     id: Cell<usize>,
     window: web_sys::Window,
@@ -193,7 +192,6 @@ impl Shared {
                 exit: Cell::new(false),
                 runner: RefCell::new(RunnerEnum::Pending),
                 suspended: Cell::new(false),
-                event_loop_recreation: Cell::new(false),
                 events: RefCell::new(VecDeque::new()),
                 window,
                 navigator,
@@ -766,9 +764,7 @@ impl Shared {
         // * For each undropped `Window`:
         //     * The `register_redraw_request` closure.
         //     * The `destroy_fn` closure.
-        if self.0.event_loop_recreation.get() {
-            crate::event_loop::EventLoopBuilder::allow_event_loop_recreation();
-        }
+        crate::event_loop::EventLoopBuilder::allow_event_loop_recreation();
     }
 
     // Check if the event loop is currently closed
@@ -805,10 +801,6 @@ impl Shared {
             },
             DeviceEvents::Never => false,
         }
-    }
-
-    pub fn event_loop_recreation(&self, allow: bool) {
-        self.0.event_loop_recreation.set(allow)
     }
 
     pub(crate) fn control_flow(&self) -> ControlFlow {

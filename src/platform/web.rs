@@ -54,7 +54,6 @@ use serde::{Deserialize, Serialize};
 #[cfg(web_platform)]
 use web_sys::HtmlCanvasElement;
 
-use crate::application::ApplicationHandler;
 use crate::cursor::CustomCursorSource;
 use crate::error::NotSupportedError;
 use crate::event_loop::{ActiveEventLoop, EventLoop};
@@ -181,30 +180,6 @@ impl WindowAttributesExtWeb for WindowAttributes {
 
 /// Additional methods on `EventLoop` that are specific to the Web.
 pub trait EventLoopExtWeb {
-    /// Initializes the winit event loop.
-    ///
-    /// Unlike
-    #[cfg_attr(all(web_platform, target_feature = "exception-handling"), doc = "`run_app()`")]
-    #[cfg_attr(
-        not(all(web_platform, target_feature = "exception-handling")),
-        doc = "[`run_app()`]"
-    )]
-    /// [^1], this returns immediately, and doesn't throw an exception in order to
-    /// satisfy its [`!`] return type.
-    ///
-    /// Once the event loop has been destroyed, it's possible to reinitialize another event loop
-    /// by calling this function again. This can be useful if you want to recreate the event loop
-    /// while the WebAssembly module is still loaded. For example, this can be used to recreate the
-    /// event loop when switching between tabs on a single page application.
-    #[rustfmt::skip]
-    ///
-    #[cfg_attr(
-        not(all(web_platform, target_feature = "exception-handling")),
-        doc = "[`run_app()`]: EventLoop::run_app()"
-    )]
-    /// [^1]: `run_app()` is _not_ available on Wasm when the target supports `exception-handling`.
-    fn spawn_app<A: ApplicationHandler + 'static>(self, app: A);
-
     /// Sets the strategy for [`ControlFlow::Poll`].
     ///
     /// See [`PollStrategy`].
@@ -263,10 +238,6 @@ pub trait EventLoopExtWeb {
 }
 
 impl EventLoopExtWeb for EventLoop {
-    fn spawn_app<A: ApplicationHandler + 'static>(self, app: A) {
-        self.event_loop.spawn_app(app);
-    }
-
     fn set_poll_strategy(&self, strategy: PollStrategy) {
         self.event_loop.set_poll_strategy(strategy);
     }

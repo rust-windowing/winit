@@ -194,6 +194,8 @@ changelog entry.
 - Removed `KeyEventExtModifierSupplement`, and made the fields `text_with_all_modifiers` and
   `key_without_modifiers` public on `KeyEvent` instead.
 - Move `window::Fullscreen` to `monitor::Fullscreen`.
+- On web, avoid throwing an exception in `EventLoop::run_app`, instead preferring to return to the caller.
+  This requires passing a `'static` application to ensure that the application state will live as long as necessary.
 
 ### Removed
 
@@ -230,6 +232,8 @@ changelog entry.
 - Remove `CustomCursor::from_rgba`, use `CustomCursorSource` instead.
 - Removed `ApplicationHandler::exited`, the event loop being shut down can now be listened to in
   the `Drop` impl on the application handler.
+- Removed `EventLoopExtWeb::spawn_app`, the exception throwing that made this workaround necessary
+  has been removed from `EventLoop::run_app`.
 
 ### Fixed
 
