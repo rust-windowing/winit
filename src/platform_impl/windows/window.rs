@@ -626,7 +626,7 @@ impl CoreWindow for Window {
                 .set_cursor_flags(window.hwnd(), |f| {
                     f.set(
                         CursorFlags::GRABBED,
-                        mode == CursorGrabMode::Confined || mode == CursorGrabMode::Locked,
+                        mode != CursorGrabMode::None,
                     );
                     f.set(CursorFlags::LOCKED, mode == CursorGrabMode::Locked);
                 })
