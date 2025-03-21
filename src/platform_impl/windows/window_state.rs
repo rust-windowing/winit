@@ -489,13 +489,13 @@ impl CursorFlags {
                     if self.contains(CursorFlags::LOCKED) {
                         if let Ok(pos) = util::get_cursor_position() {
                             Some(RECT { 
-                                left: pos.x, 
-                                right: pos.x + 1, 
-                                top: pos.y, 
+                                left: pos.x,
+                                right: pos.x + 1,
+                                top: pos.y,
                                 bottom: pos.y + 1,
                             })
                         } else {
-                            // If lock is applied while the cursor is not available, lock it to the 
+                            // If lock is applied while the cursor is not available, lock it to the
                             // middle of the window.
                             let cx = (client_rect.left + client_rect.right) / 2;
                             let cy = (client_rect.top + client_rect.bottom) / 2;
