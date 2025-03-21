@@ -399,5 +399,6 @@ repository = "https://github.com/rust-windowing/winit"
 rust-version = "1.73"
 
 [workspace.dependencies]
+libm = "0.2.11"
 mint = "0.5.6"
 serde = { version = "1", features = ["serde_derive"] }
