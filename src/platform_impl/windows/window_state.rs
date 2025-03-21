@@ -488,7 +488,7 @@ impl CursorFlags {
                 true => {
                     if self.contains(CursorFlags::LOCKED) {
                         if let Ok(pos) = util::get_cursor_position() {
-                            Some(RECT { 
+                            Some(RECT {
                                 left: pos.x,
                                 right: pos.x + 1,
                                 top: pos.y,
