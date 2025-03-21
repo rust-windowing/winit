@@ -11,6 +11,7 @@ on how to add them:
 ```md
 ### Added
 
+- On Windows, add `CursorGrabMode::Locked`.
 - Add `Window::turbo()`, implemented on X11, Wayland, and Web.
 - On X11, add `Window::some_rare_api`.
 - On X11, add `Window::even_more_rare_api`.
