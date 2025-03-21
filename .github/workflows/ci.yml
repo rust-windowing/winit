@@ -185,6 +185,12 @@ jobs:
         contains(matrix.platform.name, 'Linux 64bit') &&
         matrix.toolchain != '1.73'
       run: cargo test -p dpi
+      
+    - name: Check dpi crate (no_std)
+      if: >
+        contains(matrix.platform.name, 'Linux 64bit') &&
+        matrix.toolchain != '1.73'
+      run: cargo check -p dpi --no-default-features --features libm
 
     - name: Build tests
       if: >

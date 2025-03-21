@@ -12,6 +12,7 @@ Unreleased` header.
 ## Unreleased
 
 - Added `Insets`, `LogicalInsets` and `PhysicalInsets` types.
+- Make `no_std` compatible.
 
 ## 0.1.1
 
