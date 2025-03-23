@@ -1108,8 +1108,10 @@ unsafe fn public_window_callback_inner(
                 // Unfortunately this results in janky resize behavior, where the compositor is
                 // ahead of the window surface. Currently, there seems no option to achieve this
                 // with the Windows API.
-                params.rgrc[0].top += 1;
-                params.rgrc[0].bottom += 1;
+
+                params.rgrc[0].bottom -= 2;
+                params.rgrc[0].left += 2;
+                params.rgrc[0].right -= 2;
             }
 
             result = ProcResult::Value(0);
