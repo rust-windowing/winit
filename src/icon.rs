@@ -1,7 +1,20 @@
 use std::error::Error;
+use std::sync::Arc;
 use std::{fmt, io, mem};
 
-use crate::platform_impl::PlatformIcon;
+use crate::utils::{impl_dyn_casting, AsAny};
+
+pub(crate) const PIXEL_SIZE: usize = mem::size_of::<Pixel>();
+
+/// An icon used for the window titlebar, taskbar, etc.
+#[allow(dead_code)]
+#[derive(Debug, Clone)]
+pub struct Icon(pub(crate) Arc<dyn IconProvider>);
+
+// TODO remove that once split.
+pub trait IconProvider: AsAny + fmt::Debug + Send + Sync {}
+
+impl_dyn_casting!(IconProvider);
 
 #[repr(C)]
 #[derive(Debug)]
@@ -12,10 +25,8 @@ pub(crate) struct Pixel {
     pub(crate) a: u8,
 }
 
-pub(crate) const PIXEL_SIZE: usize = mem::size_of::<Pixel>();
-
 #[derive(Debug)]
-/// An error produced when using [`Icon::from_rgba`] with invalid arguments.
+/// An error produced when using [`RgbaIcon::new`] with invalid arguments.
 pub enum BadIcon {
     /// Produced when the length of the `rgba` argument isn't divisible by 4, thus `rgba` can't be
     /// safely interpreted as 32bpp RGBA pixels.
@@ -50,69 +61,48 @@ impl fmt::Display for BadIcon {
 
 impl Error for BadIcon {}
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub(crate) struct RgbaIcon {
-    pub(crate) rgba: Vec<u8>,
+#[derive(Debug, Clone)]
+pub struct RgbaIcon {
     pub(crate) width: u32,
     pub(crate) height: u32,
+    pub(crate) rgba: Vec<u8>,
 }
 
-/// For platforms which don't have window icons (e.g. Web)
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub(crate) struct NoIcon;
-
-#[allow(dead_code)] // These are not used on every platform
-mod constructors {
-    use super::*;
-
-    impl RgbaIcon {
-        pub fn from_rgba(rgba: Vec<u8>, width: u32, height: u32) -> Result<Self, BadIcon> {
-            if rgba.len() % PIXEL_SIZE != 0 {
-                return Err(BadIcon::ByteCountNotDivisibleBy4 { byte_count: rgba.len() });
-            }
-            let pixel_count = rgba.len() / PIXEL_SIZE;
-            if pixel_count != (width * height) as usize {
-                Err(BadIcon::DimensionsVsPixelCount {
-                    width,
-                    height,
-                    width_x_height: (width * height) as usize,
-                    pixel_count,
-                })
-            } else {
-                Ok(RgbaIcon { rgba, width, height })
-            }
+impl RgbaIcon {
+    pub fn new(rgba: Vec<u8>, width: u32, height: u32) -> Result<Self, BadIcon> {
+        if rgba.len() % PIXEL_SIZE != 0 {
+            return Err(BadIcon::ByteCountNotDivisibleBy4 { byte_count: rgba.len() });
+        }
+        let pixel_count = rgba.len() / PIXEL_SIZE;
+        if pixel_count != (width * height) as usize {
+            Err(BadIcon::DimensionsVsPixelCount {
+                width,
+                height,
+                width_x_height: (width * height) as usize,
+                pixel_count,
+            })
+        } else {
+            Ok(RgbaIcon { rgba, width, height })
         }
     }
 
-    impl NoIcon {
-        pub fn from_rgba(rgba: Vec<u8>, width: u32, height: u32) -> Result<Self, BadIcon> {
-            // Create the rgba icon anyway to validate the input
-            let _ = RgbaIcon::from_rgba(rgba, width, height)?;
-            Ok(NoIcon)
-        }
+    pub fn width(&self) -> u32 {
+        self.width
+    }
+
+    pub fn height(&self) -> u32 {
+        self.height
+    }
+
+    pub fn buffer(&self) -> &[u8] {
+        self.rgba.as_slice()
     }
 }
 
-/// An icon used for the window titlebar, taskbar, etc.
-#[derive(Clone, Eq, Hash, PartialEq)]
-pub struct Icon {
-    pub(crate) inner: PlatformIcon,
-}
+impl IconProvider for RgbaIcon {}
 
-impl fmt::Debug for Icon {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
-        fmt::Debug::fmt(&self.inner, formatter)
-    }
-}
-
-impl Icon {
-    /// Creates an icon from 32bpp RGBA data.
-    ///
-    /// The length of `rgba` must be divisible by 4, and `width * height` must equal
-    /// `rgba.len() / 4`. Otherwise, this will return a `BadIcon` error.
-    pub fn from_rgba(rgba: Vec<u8>, width: u32, height: u32) -> Result<Self, BadIcon> {
-        let _span = tracing::debug_span!("winit::Icon::from_rgba", width, height).entered();
-
-        Ok(Icon { inner: PlatformIcon::from_rgba(rgba, width, height)? })
+impl From<RgbaIcon> for Icon {
+    fn from(value: RgbaIcon) -> Self {
+        Self(Arc::new(value))
     }
 }

@@ -2,7 +2,7 @@ use windows_sys::Win32::Foundation::HWND;
 use windows_sys::Win32::UI::WindowsAndMessaging::{HMENU, WINDOW_LONG_PTR_INDEX};
 
 pub(crate) use self::event_loop::{EventLoop, PlatformSpecificEventLoopAttributes};
-pub(crate) use self::icon::{SelectedCursor, WinIcon as PlatformIcon, WinIcon};
+pub(crate) use self::icon::{RaiiIcon, SelectedCursor};
 pub(crate) use self::keyboard::{physicalkey_to_scancode, scancode_to_physicalkey};
 pub(crate) use self::monitor::MonitorHandle;
 pub(crate) use self::window::Window;
@@ -10,7 +10,7 @@ use crate::event::DeviceId;
 use crate::icon::Icon;
 use crate::platform::windows::{BackdropType, Color, CornerPreference};
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug)]
 pub struct PlatformSpecificWindowAttributes {
     pub owner: Option<HWND>,
     pub menu: Option<HMENU>,
