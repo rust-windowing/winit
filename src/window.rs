@@ -46,7 +46,7 @@ impl fmt::Debug for WindowId {
 }
 
 /// Attributes used when creating a window.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone)]
 pub struct WindowAttributes {
     pub surface_size: Option<Size>,
     pub min_surface_size: Option<Size>,

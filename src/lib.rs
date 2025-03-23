@@ -302,7 +302,7 @@ pub mod error;
 mod cursor;
 pub mod event;
 pub mod event_loop;
-mod icon;
+pub mod icon;
 pub mod keyboard;
 pub mod monitor;
 mod platform_impl;

@@ -4,7 +4,6 @@ use std::{fmt, str};
 
 pub(crate) use self::event_loop::{ActiveEventLoop, EventLoop};
 pub use self::window::Window;
-pub(crate) use crate::icon::NoIcon as PlatformIcon;
 
 mod event_loop;
 mod window;

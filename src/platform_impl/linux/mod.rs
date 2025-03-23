@@ -13,7 +13,6 @@ use crate::application::ApplicationHandler;
 use crate::dpi::Size;
 use crate::error::{EventLoopError, NotSupportedError};
 use crate::event_loop::ActiveEventLoop;
-pub(crate) use crate::icon::RgbaIcon as PlatformIcon;
 use crate::platform::pump_events::PumpStatus;
 #[cfg(x11_platform)]
 use crate::platform::x11::WindowType as XWindowType;

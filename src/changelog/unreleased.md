@@ -76,6 +76,8 @@ changelog entry.
 - On X11, set an "area" attribute on XIM input connection to convey the cursor area.
 - Implement `CustomCursorProvider` for `CustomCursor` to access cursor API.
 - Add `CustomCursorSource::Url`, `CustomCursorSource::from_animation`.
+- Implement `CustomIconProvider` for `RgbaIcon`.
+- Add `icon` module that exposes winit's icon API.
 
 ### Changed
 
@@ -196,6 +198,7 @@ changelog entry.
 - Move `window::Fullscreen` to `monitor::Fullscreen`.
 - Renamed "super" key to "meta", to match the naming in the W3C specification.
   `NamedKey::Super` still exists, but it's non-functional and deprecated, `NamedKey::Meta` should be used instead.
+- Move `IconExtWindows` into `WinIcon`.
 
 ### Removed
 
@@ -230,9 +233,10 @@ changelog entry.
 - Remove `Window::inner_position`, use the new `Window::surface_position` instead.
 - Remove `CustomCursorExtWeb`, use the `CustomCursorSource`.
 - Remove `CustomCursor::from_rgba`, use `CustomCursorSource` instead.
-- Removed `ApplicationHandler::exited`, the event loop being shut down can now be listened to in
+- Remove `ApplicationHandler::exited`, the event loop being shut down can now be listened to in
   the `Drop` impl on the application handler.
-- Removed `NamedKey::Space`, match on `Key::Character(" ")` instead.
+- Remove `NamedKey::Space`, match on `Key::Character(" ")` instead.
+- Remove `PartialEq` impl for `WindowAttributes`.
 
 ### Fixed
 
