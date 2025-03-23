@@ -5,13 +5,12 @@ use std::{fmt, io, mem, ptr};
 
 use cursor_icon::CursorIcon;
 use windows_sys::core::PCWSTR;
-use windows_sys::Win32::Foundation::HWND;
 use windows_sys::Win32::Graphics::Gdi::{
     CreateBitmap, CreateCompatibleBitmap, DeleteObject, GetDC, ReleaseDC, SetBitmapBits,
 };
 use windows_sys::Win32::UI::WindowsAndMessaging::{
-    CreateIcon, CreateIconIndirect, DestroyCursor, DestroyIcon, LoadImageW, SendMessageW, HCURSOR,
-    HICON, ICONINFO, ICON_BIG, ICON_SMALL, IMAGE_ICON, LR_DEFAULTSIZE, LR_LOADFROMFILE, WM_SETICON,
+    CreateIcon, CreateIconIndirect, DestroyCursor, DestroyIcon, LoadImageW, HCURSOR, HICON,
+    ICONINFO, ICON_BIG, ICON_SMALL, IMAGE_ICON, LR_DEFAULTSIZE, LR_LOADFROMFILE,
 };
 
 use super::util;
@@ -19,70 +18,18 @@ use crate::cursor::{CursorImage, CustomCursorProvider};
 use crate::dpi::PhysicalSize;
 use crate::error::RequestError;
 use crate::icon::*;
-
-impl Pixel {
-    fn convert_to_bgra(&mut self) {
-        mem::swap(&mut self.r, &mut self.b);
-    }
-}
-
-impl RgbaIcon {
-    fn into_windows_icon(self) -> Result<WinIcon, BadIcon> {
-        let rgba = self.rgba;
-        let pixel_count = rgba.len() / PIXEL_SIZE;
-        let mut and_mask = Vec::with_capacity(pixel_count);
-        let pixels =
-            unsafe { std::slice::from_raw_parts_mut(rgba.as_ptr() as *mut Pixel, pixel_count) };
-        for pixel in pixels {
-            and_mask.push(pixel.a.wrapping_sub(u8::MAX)); // invert alpha channel
-            pixel.convert_to_bgra();
-        }
-        assert_eq!(and_mask.len(), pixel_count);
-        let handle = unsafe {
-            CreateIcon(
-                ptr::null_mut(),
-                self.width as i32,
-                self.height as i32,
-                1,
-                (PIXEL_SIZE * 8) as u8,
-                and_mask.as_ptr(),
-                rgba.as_ptr(),
-            )
-        };
-        if !handle.is_null() {
-            Ok(WinIcon::from_handle(handle))
-        } else {
-            Err(BadIcon::OsError(io::Error::last_os_error()))
-        }
-    }
-}
-
-#[derive(Debug)]
-pub enum IconType {
-    Small = ICON_SMALL as isize,
-    Big = ICON_BIG as isize,
-}
-
-#[derive(Debug, PartialEq, Eq, Hash)]
-struct RaiiIcon {
-    handle: HICON,
-}
-
-unsafe impl Send for RaiiIcon {}
-unsafe impl Sync for RaiiIcon {}
-
-#[derive(Clone, PartialEq, Eq, Hash)]
-pub struct WinIcon {
-    inner: Arc<RaiiIcon>,
-}
+use crate::platform::windows::WinIcon;
 
 unsafe impl Send for WinIcon {}
 
 impl WinIcon {
-    pub fn as_raw_handle(&self) -> HICON {
-        self.inner.handle
-    }
-
+    /// Create an icon from a file path.
+    ///
+    /// Specify `size` to load a specific icon size from the file, or `None` to load the default
+    /// icon size from the file.
+    ///
+    /// In cases where the specified size does not exist in the file, Windows may perform scaling
+    /// to get an icon of the desired size.
     pub fn from_path<P: AsRef<Path>>(
         path: P,
         size: Option<PhysicalSize<u32>>,
@@ -109,6 +56,18 @@ impl WinIcon {
         }
     }
 
+    /// Create an icon from a resource embedded in this executable or library by its ordinal id.
+    ///
+    /// The valid `ordinal` values range from 1 to [`u16::MAX`] (inclusive). The value `0` is an
+    /// invalid ordinal id, but it can be used with [`from_resource_name`] as `"0"`.
+    ///
+    /// [`from_resource_name`]: Self::from_resource_name
+    ///
+    /// Specify `size` to load a specific icon size from the file, or `None` to load the default
+    /// icon size from the file.
+    ///
+    /// In cases where the specified size does not exist in the file, Windows may perform scaling
+    /// to get an icon of the desired size.
     pub fn from_resource(
         resource_id: u16,
         size: Option<PhysicalSize<u32>>,
@@ -116,6 +75,53 @@ impl WinIcon {
         Self::from_resource_ptr(resource_id as PCWSTR, size)
     }
 
+    /// Create an icon from a resource embedded in this executable or library by its name.
+    ///
+    /// Specify `size` to load a specific icon size from the file, or `None` to load the default
+    /// icon size from the file.
+    ///
+    /// In cases where the specified size does not exist in the file, Windows may perform scaling
+    /// to get an icon of the desired size.
+    ///
+    /// # Notes
+    ///
+    /// Consider the following resource definition statements:
+    /// ```rc
+    /// app     ICON "app.ico"
+    /// 1       ICON "a.ico"
+    /// 0027    ICON "custom.ico"
+    /// 0       ICON "alt.ico"
+    /// ```
+    ///
+    /// Due to some internal implementation details of the resource embedding/loading process on
+    /// Windows platform, strings that can be interpreted as 16-bit unsigned integers (`"1"`,
+    /// `"002"`, etc.) cannot be used as valid resource names, and instead should be passed into
+    /// [`from_resource`]:
+    ///
+    /// [`from_resource`]: Self::from_resource
+    ///
+    /// ```rust,no_run
+    /// use winit::platform::windows::IconExtWindows;
+    /// use winit::window::Icon;
+    ///
+    /// assert!(Icon::from_resource_name("app", None).is_ok());
+    /// assert!(Icon::from_resource(1, None).is_ok());
+    /// assert!(Icon::from_resource(27, None).is_ok());
+    /// assert!(Icon::from_resource_name("27", None).is_err());
+    /// assert!(Icon::from_resource_name("0027", None).is_err());
+    /// ```
+    ///
+    /// While `0` cannot be used as an ordinal id (see [`from_resource`]), it can be used as a
+    /// name:
+    ///
+    /// [`from_resource`]: IconExtWindows::from_resource
+    ///
+    /// ```rust,no_run
+    /// # use winit::platform::windows::IconExtWindows;
+    /// # use winit::window::Icon;
+    /// assert!(Icon::from_resource_name("0", None).is_ok());
+    /// assert!(Icon::from_resource(0, None).is_err());
+    /// ```
     pub fn from_resource_name(
         resource_name: &str,
         size: Option<PhysicalSize<u32>>,
@@ -147,14 +153,36 @@ impl WinIcon {
         }
     }
 
-    pub fn from_rgba(rgba: Vec<u8>, width: u32, height: u32) -> Result<Self, BadIcon> {
-        let rgba_icon = RgbaIcon::from_rgba(rgba, width, height)?;
-        rgba_icon.into_windows_icon()
+    pub(crate) fn as_raw_handle(&self) -> HICON {
+        self.inner.handle
     }
 
-    pub fn set_for_window(&self, hwnd: HWND, icon_type: IconType) {
-        unsafe {
-            SendMessageW(hwnd, WM_SETICON, icon_type as usize, self.as_raw_handle() as isize);
+    pub(crate) fn from_rgba(rgba: &RgbaIcon) -> Result<Self, BadIcon> {
+        let pixel_count = rgba.rgba.len() / PIXEL_SIZE;
+        let mut and_mask = Vec::with_capacity(pixel_count);
+        let pixels = unsafe {
+            std::slice::from_raw_parts_mut(rgba.rgba.as_ptr() as *mut Pixel, pixel_count)
+        };
+        for pixel in pixels {
+            and_mask.push(pixel.a.wrapping_sub(u8::MAX)); // invert alpha channel
+            pixel.convert_to_bgra();
+        }
+        assert_eq!(and_mask.len(), pixel_count);
+        let handle = unsafe {
+            CreateIcon(
+                ptr::null_mut(),
+                rgba.width as i32,
+                rgba.height as i32,
+                1,
+                (PIXEL_SIZE * 8) as u8,
+                and_mask.as_ptr(),
+                rgba.rgba.as_ptr(),
+            )
+        };
+        if !handle.is_null() {
+            Ok(WinIcon::from_handle(handle))
+        } else {
+            Err(BadIcon::OsError(io::Error::last_os_error()))
         }
     }
 
@@ -163,11 +191,7 @@ impl WinIcon {
     }
 }
 
-impl Drop for RaiiIcon {
-    fn drop(&mut self) {
-        unsafe { DestroyIcon(self.handle) };
-    }
-}
+impl IconProvider for WinIcon {}
 
 impl fmt::Debug for WinIcon {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
@@ -175,9 +199,29 @@ impl fmt::Debug for WinIcon {
     }
 }
 
-pub fn unset_for_window(hwnd: HWND, icon_type: IconType) {
-    unsafe {
-        SendMessageW(hwnd, WM_SETICON, icon_type as usize, 0);
+impl Pixel {
+    fn convert_to_bgra(&mut self) {
+        mem::swap(&mut self.r, &mut self.b);
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub enum IconType {
+    Small = ICON_SMALL as isize,
+    Big = ICON_BIG as isize,
+}
+
+#[derive(Debug, PartialEq, Eq, Hash)]
+pub(crate) struct RaiiIcon {
+    handle: HICON,
+}
+
+unsafe impl Send for RaiiIcon {}
+unsafe impl Sync for RaiiIcon {}
+
+impl Drop for RaiiIcon {
+    fn drop(&mut self) {
+        unsafe { DestroyIcon(self.handle) };
     }
 }
 

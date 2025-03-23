@@ -20,6 +20,7 @@ use winit::dpi::{LogicalSize, PhysicalPosition, PhysicalSize};
 use winit::error::RequestError;
 use winit::event::{DeviceEvent, DeviceId, Ime, MouseButton, MouseScrollDelta, WindowEvent};
 use winit::event_loop::{ActiveEventLoop, EventLoop};
+use winit::icon::RgbaIcon;
 use winit::keyboard::{Key, ModifiersState};
 use winit::monitor::Fullscreen;
 #[cfg(macos_platform)]
@@ -1156,7 +1157,7 @@ fn load_icon(bytes: &[u8]) -> Icon {
         let rgba = image.into_raw();
         (rgba, width, height)
     };
-    Icon::from_rgba(icon_rgba, icon_width, icon_height).expect("Failed to open icon")
+    RgbaIcon::new(icon_rgba, icon_width, icon_height).expect("Failed to open icon").into()
 }
 
 fn modifiers_to_string(mods: ModifiersState) -> String {
