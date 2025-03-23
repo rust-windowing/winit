@@ -194,6 +194,7 @@ changelog entry.
 - Removed `KeyEventExtModifierSupplement`, and made the fields `text_with_all_modifiers` and
   `key_without_modifiers` public on `KeyEvent` instead.
 - Move `window::Fullscreen` to `monitor::Fullscreen`.
+- On Windows, adjusted the border size in undecorated shadow mode to improve gripability.
 
 ### Removed
 
