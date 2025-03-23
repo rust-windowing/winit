@@ -25,7 +25,6 @@ mod cursor;
 mod error;
 mod event;
 pub(crate) mod event_loop;
-mod keyboard;
 mod lock;
 pub(crate) mod main_thread;
 mod monitor;
