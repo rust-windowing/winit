@@ -151,7 +151,9 @@ pub trait WindowExtMacOS {
     /// Getter for the [`WindowExtMacOS::set_option_as_alt`].
     fn option_as_alt(&self) -> OptionAsAlt;
 
-    /// Disable the Menu Bar and Dock in Borderless Fullscreen mode. Useful for games.
+    /// Disable the Menu Bar and Dock in Simple or Borderless Fullscreen mode. Useful for games.
+    /// The effect is applied when [`WindowExtMacOS::set_simple_fullscreen`] or
+    /// [`Window::set_fullscreen`] is called.
     fn set_borderless_game(&self, borderless_game: bool);
 
     /// Getter for the [`WindowExtMacOS::set_borderless_game`].
@@ -168,109 +170,109 @@ pub trait WindowExtMacOS {
 impl WindowExtMacOS for dyn Window + '_ {
     #[inline]
     fn simple_fullscreen(&self) -> bool {
-        let window = self.as_any().downcast_ref::<crate::platform_impl::Window>().unwrap();
+        let window = self.cast_ref::<crate::platform_impl::Window>().unwrap();
         window.maybe_wait_on_main(|w| w.simple_fullscreen())
     }
 
     #[inline]
     fn set_simple_fullscreen(&self, fullscreen: bool) -> bool {
-        let window = self.as_any().downcast_ref::<crate::platform_impl::Window>().unwrap();
+        let window = self.cast_ref::<crate::platform_impl::Window>().unwrap();
         window.maybe_wait_on_main(move |w| w.set_simple_fullscreen(fullscreen))
     }
 
     #[inline]
     fn has_shadow(&self) -> bool {
-        let window = self.as_any().downcast_ref::<crate::platform_impl::Window>().unwrap();
+        let window = self.cast_ref::<crate::platform_impl::Window>().unwrap();
         window.maybe_wait_on_main(|w| w.has_shadow())
     }
 
     #[inline]
     fn set_has_shadow(&self, has_shadow: bool) {
-        let window = self.as_any().downcast_ref::<crate::platform_impl::Window>().unwrap();
+        let window = self.cast_ref::<crate::platform_impl::Window>().unwrap();
         window.maybe_wait_on_main(move |w| w.set_has_shadow(has_shadow));
     }
 
     #[inline]
     fn set_tabbing_identifier(&self, identifier: &str) {
-        let window = self.as_any().downcast_ref::<crate::platform_impl::Window>().unwrap();
+        let window = self.cast_ref::<crate::platform_impl::Window>().unwrap();
         window.maybe_wait_on_main(|w| w.set_tabbing_identifier(identifier))
     }
 
     #[inline]
     fn tabbing_identifier(&self) -> String {
-        let window = self.as_any().downcast_ref::<crate::platform_impl::Window>().unwrap();
+        let window = self.cast_ref::<crate::platform_impl::Window>().unwrap();
         window.maybe_wait_on_main(|w| w.tabbing_identifier())
     }
 
     #[inline]
     fn select_next_tab(&self) {
-        let window = self.as_any().downcast_ref::<crate::platform_impl::Window>().unwrap();
+        let window = self.cast_ref::<crate::platform_impl::Window>().unwrap();
         window.maybe_wait_on_main(|w| w.select_next_tab());
     }
 
     #[inline]
     fn select_previous_tab(&self) {
-        let window = self.as_any().downcast_ref::<crate::platform_impl::Window>().unwrap();
+        let window = self.cast_ref::<crate::platform_impl::Window>().unwrap();
         window.maybe_wait_on_main(|w| w.select_previous_tab());
     }
 
     #[inline]
     fn select_tab_at_index(&self, index: usize) {
-        let window = self.as_any().downcast_ref::<crate::platform_impl::Window>().unwrap();
+        let window = self.cast_ref::<crate::platform_impl::Window>().unwrap();
         window.maybe_wait_on_main(move |w| w.select_tab_at_index(index));
     }
 
     #[inline]
     fn num_tabs(&self) -> usize {
-        let window = self.as_any().downcast_ref::<crate::platform_impl::Window>().unwrap();
+        let window = self.cast_ref::<crate::platform_impl::Window>().unwrap();
         window.maybe_wait_on_main(|w| w.num_tabs())
     }
 
     #[inline]
     fn is_document_edited(&self) -> bool {
-        let window = self.as_any().downcast_ref::<crate::platform_impl::Window>().unwrap();
+        let window = self.cast_ref::<crate::platform_impl::Window>().unwrap();
         window.maybe_wait_on_main(|w| w.is_document_edited())
     }
 
     #[inline]
     fn set_document_edited(&self, edited: bool) {
-        let window = self.as_any().downcast_ref::<crate::platform_impl::Window>().unwrap();
+        let window = self.cast_ref::<crate::platform_impl::Window>().unwrap();
         window.maybe_wait_on_main(move |w| w.set_document_edited(edited));
     }
 
     #[inline]
     fn set_option_as_alt(&self, option_as_alt: OptionAsAlt) {
-        let window = self.as_any().downcast_ref::<crate::platform_impl::Window>().unwrap();
+        let window = self.cast_ref::<crate::platform_impl::Window>().unwrap();
         window.maybe_wait_on_main(move |w| w.set_option_as_alt(option_as_alt));
     }
 
     #[inline]
     fn option_as_alt(&self) -> OptionAsAlt {
-        let window = self.as_any().downcast_ref::<crate::platform_impl::Window>().unwrap();
+        let window = self.cast_ref::<crate::platform_impl::Window>().unwrap();
         window.maybe_wait_on_main(|w| w.option_as_alt())
     }
 
     #[inline]
     fn set_borderless_game(&self, borderless_game: bool) {
-        let window = self.as_any().downcast_ref::<crate::platform_impl::Window>().unwrap();
+        let window = self.cast_ref::<crate::platform_impl::Window>().unwrap();
         window.maybe_wait_on_main(|w| w.set_borderless_game(borderless_game))
     }
 
     #[inline]
     fn is_borderless_game(&self) -> bool {
-        let window = self.as_any().downcast_ref::<crate::platform_impl::Window>().unwrap();
+        let window = self.cast_ref::<crate::platform_impl::Window>().unwrap();
         window.maybe_wait_on_main(|w| w.is_borderless_game())
     }
 
     #[inline]
     fn set_unified_titlebar(&self, unified_titlebar: bool) {
-        let window = self.as_any().downcast_ref::<crate::platform_impl::Window>().unwrap();
+        let window = self.cast_ref::<crate::platform_impl::Window>().unwrap();
         window.maybe_wait_on_main(|w| w.set_unified_titlebar(unified_titlebar))
     }
 
     #[inline]
     fn unified_titlebar(&self) -> bool {
-        let window = self.as_any().downcast_ref::<crate::platform_impl::Window>().unwrap();
+        let window = self.cast_ref::<crate::platform_impl::Window>().unwrap();
         window.maybe_wait_on_main(|w| w.unified_titlebar())
     }
 }
@@ -506,7 +508,7 @@ pub trait MonitorHandleExtMacOS {
 
 impl MonitorHandleExtMacOS for MonitorHandle {
     fn ns_screen(&self) -> Option<*mut c_void> {
-        let monitor = self.as_any().downcast_ref::<MacOsMonitorHandle>().unwrap();
+        let monitor = self.cast_ref::<MacOsMonitorHandle>().unwrap();
         // SAFETY: We only use the marker to get a pointer
         let mtm = unsafe { objc2::MainThreadMarker::new_unchecked() };
         monitor.ns_screen(mtm).map(|s| objc2::rc::Retained::as_ptr(&s) as _)
@@ -532,32 +534,28 @@ pub trait ActiveEventLoopExtMacOS {
 impl ActiveEventLoopExtMacOS for dyn ActiveEventLoop + '_ {
     fn hide_application(&self) {
         let event_loop = self
-            .as_any()
-            .downcast_ref::<crate::platform_impl::ActiveEventLoop>()
+            .cast_ref::<crate::platform_impl::ActiveEventLoop>()
             .expect("non macOS event loop on macOS");
         event_loop.hide_application()
     }
 
     fn hide_other_applications(&self) {
         let event_loop = self
-            .as_any()
-            .downcast_ref::<crate::platform_impl::ActiveEventLoop>()
+            .cast_ref::<crate::platform_impl::ActiveEventLoop>()
             .expect("non macOS event loop on macOS");
         event_loop.hide_other_applications()
     }
 
     fn set_allows_automatic_window_tabbing(&self, enabled: bool) {
         let event_loop = self
-            .as_any()
-            .downcast_ref::<crate::platform_impl::ActiveEventLoop>()
+            .cast_ref::<crate::platform_impl::ActiveEventLoop>()
             .expect("non macOS event loop on macOS");
         event_loop.set_allows_automatic_window_tabbing(enabled);
     }
 
     fn allows_automatic_window_tabbing(&self) -> bool {
         let event_loop = self
-            .as_any()
-            .downcast_ref::<crate::platform_impl::ActiveEventLoop>()
+            .cast_ref::<crate::platform_impl::ActiveEventLoop>()
             .expect("non macOS event loop on macOS");
         event_loop.allows_automatic_window_tabbing()
     }

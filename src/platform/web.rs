@@ -46,8 +46,8 @@ use std::error::Error;
 use std::fmt::{self, Display, Formatter};
 use std::future::Future;
 use std::pin::Pin;
+use std::sync::Arc;
 use std::task::{Context, Poll};
-use std::time::Duration;
 
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
@@ -59,6 +59,7 @@ use crate::cursor::CustomCursorSource;
 use crate::error::NotSupportedError;
 use crate::event_loop::{ActiveEventLoop, EventLoop};
 use crate::monitor::MonitorHandleProvider;
+use crate::platform_impl::MonitorHandle as WebMonitorHandle;
 #[cfg(web_platform)]
 use crate::platform_impl::{
     CustomCursorFuture as PlatformCustomCursorFuture,
@@ -66,7 +67,6 @@ use crate::platform_impl::{
     MonitorPermissionFuture as PlatformMonitorPermissionFuture,
     OrientationLockFuture as PlatformOrientationLockFuture,
 };
-use crate::platform_impl::{MonitorHandle as WebMonitorHandle, PlatformCustomCursorSource};
 use crate::window::{CustomCursor, Window, WindowAttributes};
 
 #[cfg(not(web_platform))]
@@ -105,29 +105,23 @@ pub trait WindowExtWeb {
 impl WindowExtWeb for dyn Window + '_ {
     #[inline]
     fn canvas(&self) -> Option<Ref<'_, HtmlCanvasElement>> {
-        self.as_any()
-            .downcast_ref::<crate::platform_impl::Window>()
-            .expect("non Web window on Web")
-            .canvas()
+        self.cast_ref::<crate::platform_impl::Window>().expect("non Web window on Web").canvas()
     }
 
     fn prevent_default(&self) -> bool {
-        self.as_any()
-            .downcast_ref::<crate::platform_impl::Window>()
+        self.cast_ref::<crate::platform_impl::Window>()
             .expect("non Web window on Web")
             .prevent_default()
     }
 
     fn set_prevent_default(&self, prevent_default: bool) {
-        self.as_any()
-            .downcast_ref::<crate::platform_impl::Window>()
+        self.cast_ref::<crate::platform_impl::Window>()
             .expect("non Web window on Web")
             .set_prevent_default(prevent_default)
     }
 
     fn is_cursor_lock_raw(&self) -> bool {
-        self.as_any()
-            .downcast_ref::<crate::platform_impl::Window>()
+        self.cast_ref::<crate::platform_impl::Window>()
             .expect("non Web window on Web")
             .is_cursor_lock_raw()
     }
@@ -371,8 +365,7 @@ impl ActiveEventLoopExtWeb for dyn ActiveEventLoop + '_ {
     #[inline]
     fn create_custom_cursor_async(&self, source: CustomCursorSource) -> CustomCursorFuture {
         let event_loop = self
-            .as_any()
-            .downcast_ref::<crate::platform_impl::ActiveEventLoop>()
+            .cast_ref::<crate::platform_impl::ActiveEventLoop>()
             .expect("non Web event loop on Web");
         event_loop.create_custom_cursor_async(source)
     }
@@ -380,8 +373,7 @@ impl ActiveEventLoopExtWeb for dyn ActiveEventLoop + '_ {
     #[inline]
     fn set_poll_strategy(&self, strategy: PollStrategy) {
         let event_loop = self
-            .as_any()
-            .downcast_ref::<crate::platform_impl::ActiveEventLoop>()
+            .cast_ref::<crate::platform_impl::ActiveEventLoop>()
             .expect("non Web event loop on Web");
         event_loop.set_poll_strategy(strategy);
     }
@@ -389,8 +381,7 @@ impl ActiveEventLoopExtWeb for dyn ActiveEventLoop + '_ {
     #[inline]
     fn poll_strategy(&self) -> PollStrategy {
         let event_loop = self
-            .as_any()
-            .downcast_ref::<crate::platform_impl::ActiveEventLoop>()
+            .cast_ref::<crate::platform_impl::ActiveEventLoop>()
             .expect("non Web event loop on Web");
         event_loop.poll_strategy()
     }
@@ -398,8 +389,7 @@ impl ActiveEventLoopExtWeb for dyn ActiveEventLoop + '_ {
     #[inline]
     fn set_wait_until_strategy(&self, strategy: WaitUntilStrategy) {
         let event_loop = self
-            .as_any()
-            .downcast_ref::<crate::platform_impl::ActiveEventLoop>()
+            .cast_ref::<crate::platform_impl::ActiveEventLoop>()
             .expect("non Web event loop on Web");
         event_loop.set_wait_until_strategy(strategy);
     }
@@ -407,8 +397,7 @@ impl ActiveEventLoopExtWeb for dyn ActiveEventLoop + '_ {
     #[inline]
     fn wait_until_strategy(&self) -> WaitUntilStrategy {
         let event_loop = self
-            .as_any()
-            .downcast_ref::<crate::platform_impl::ActiveEventLoop>()
+            .cast_ref::<crate::platform_impl::ActiveEventLoop>()
             .expect("non Web event loop on Web");
         event_loop.wait_until_strategy()
     }
@@ -416,8 +405,7 @@ impl ActiveEventLoopExtWeb for dyn ActiveEventLoop + '_ {
     #[inline]
     fn is_cursor_lock_raw(&self) -> bool {
         let event_loop = self
-            .as_any()
-            .downcast_ref::<crate::platform_impl::ActiveEventLoop>()
+            .cast_ref::<crate::platform_impl::ActiveEventLoop>()
             .expect("non Web event loop on Web");
         event_loop.is_cursor_lock_raw()
     }
@@ -425,8 +413,7 @@ impl ActiveEventLoopExtWeb for dyn ActiveEventLoop + '_ {
     #[inline]
     fn has_multiple_screens(&self) -> Result<bool, NotSupportedError> {
         let event_loop = self
-            .as_any()
-            .downcast_ref::<crate::platform_impl::ActiveEventLoop>()
+            .cast_ref::<crate::platform_impl::ActiveEventLoop>()
             .expect("non Web event loop on Web");
         event_loop.has_multiple_screens()
     }
@@ -434,8 +421,7 @@ impl ActiveEventLoopExtWeb for dyn ActiveEventLoop + '_ {
     #[inline]
     fn request_detailed_monitor_permission(&self) -> MonitorPermissionFuture {
         let event_loop = self
-            .as_any()
-            .downcast_ref::<crate::platform_impl::ActiveEventLoop>()
+            .cast_ref::<crate::platform_impl::ActiveEventLoop>()
             .expect("non Web event loop on Web");
         MonitorPermissionFuture(event_loop.request_detailed_monitor_permission())
     }
@@ -443,8 +429,7 @@ impl ActiveEventLoopExtWeb for dyn ActiveEventLoop + '_ {
     #[inline]
     fn has_detailed_monitor_permission(&self) -> bool {
         let event_loop = self
-            .as_any()
-            .downcast_ref::<crate::platform_impl::ActiveEventLoop>()
+            .cast_ref::<crate::platform_impl::ActiveEventLoop>()
             .expect("non Web event loop on Web");
         event_loop.has_detailed_monitor_permission()
     }
@@ -501,73 +486,6 @@ pub enum WaitUntilStrategy {
     Worker,
 }
 
-pub trait CustomCursorExtWeb {
-    /// Returns if this cursor is an animation.
-    fn is_animation(&self) -> bool;
-
-    /// Creates a new cursor from a URL pointing to an image.
-    /// It uses the [url css function](https://developer.mozilla.org/en-US/docs/Web/CSS/url),
-    /// but browser support for image formats is inconsistent. Using [PNG] is recommended.
-    ///
-    /// [PNG]: https://en.wikipedia.org/wiki/PNG
-    fn from_url(url: String, hotspot_x: u16, hotspot_y: u16) -> CustomCursorSource;
-
-    /// Crates a new animated cursor from multiple [`CustomCursor`]s.
-    /// Supplied `cursors` can't be empty or other animations.
-    fn from_animation(
-        duration: Duration,
-        cursors: Vec<CustomCursor>,
-    ) -> Result<CustomCursorSource, BadAnimation>;
-}
-
-impl CustomCursorExtWeb for CustomCursor {
-    fn is_animation(&self) -> bool {
-        self.inner.animation
-    }
-
-    fn from_url(url: String, hotspot_x: u16, hotspot_y: u16) -> CustomCursorSource {
-        CustomCursorSource { inner: PlatformCustomCursorSource::Url { url, hotspot_x, hotspot_y } }
-    }
-
-    fn from_animation(
-        duration: Duration,
-        cursors: Vec<CustomCursor>,
-    ) -> Result<CustomCursorSource, BadAnimation> {
-        if cursors.is_empty() {
-            return Err(BadAnimation::Empty);
-        }
-
-        if cursors.iter().any(CustomCursor::is_animation) {
-            return Err(BadAnimation::Animation);
-        }
-
-        Ok(CustomCursorSource {
-            inner: PlatformCustomCursorSource::Animation { duration, cursors },
-        })
-    }
-}
-
-/// An error produced when using [`CustomCursor::from_animation`] with invalid arguments.
-#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub enum BadAnimation {
-    /// Produced when no cursors were supplied.
-    Empty,
-    /// Produced when a supplied cursor is an animation.
-    Animation,
-}
-
-impl fmt::Display for BadAnimation {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Empty => write!(f, "No cursors supplied"),
-            Self::Animation => write!(f, "A supplied cursor is an animation"),
-        }
-    }
-}
-
-impl Error for BadAnimation {}
-
 #[cfg(not(web_platform))]
 struct PlatformCustomCursorFuture;
 
@@ -578,7 +496,7 @@ impl Future for CustomCursorFuture {
     type Output = Result<CustomCursor, CustomCursorError>;
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        Pin::new(&mut self.0).poll(cx).map_ok(|cursor| CustomCursor { inner: cursor })
+        Pin::new(&mut self.0).poll(cx).map_ok(|cursor| CustomCursor(Arc::new(cursor)))
     }
 }
 
@@ -696,28 +614,24 @@ pub trait MonitorHandleExtWeb {
 
 impl MonitorHandleExtWeb for dyn MonitorHandleProvider + '_ {
     fn is_internal(&self) -> Option<bool> {
-        self.as_any().downcast_ref::<WebMonitorHandle>().unwrap().is_internal()
+        self.cast_ref::<WebMonitorHandle>().unwrap().is_internal()
     }
 
     fn orientation(&self) -> OrientationData {
-        self.as_any().downcast_ref::<WebMonitorHandle>().unwrap().orientation()
+        self.cast_ref::<WebMonitorHandle>().unwrap().orientation()
     }
 
     fn request_lock(&self, orientation_lock: OrientationLock) -> OrientationLockFuture {
-        let future = self
-            .as_any()
-            .downcast_ref::<WebMonitorHandle>()
-            .unwrap()
-            .request_lock(orientation_lock);
+        let future = self.cast_ref::<WebMonitorHandle>().unwrap().request_lock(orientation_lock);
         OrientationLockFuture(future)
     }
 
     fn unlock(&self) -> Result<(), OrientationLockError> {
-        self.as_any().downcast_ref::<WebMonitorHandle>().unwrap().unlock()
+        self.cast_ref::<WebMonitorHandle>().unwrap().unlock()
     }
 
     fn is_detailed(&self) -> bool {
-        self.as_any().downcast_ref::<WebMonitorHandle>().unwrap().is_detailed()
+        self.cast_ref::<WebMonitorHandle>().unwrap().is_detailed()
     }
 }
 

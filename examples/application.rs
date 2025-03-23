@@ -31,7 +31,7 @@ use winit::platform::startup_notify::{
     self, EventLoopExtStartupNotify, WindowAttributesExtStartupNotify, WindowExtStartupNotify,
 };
 #[cfg(web_platform)]
-use winit::platform::web::{ActiveEventLoopExtWeb, CustomCursorExtWeb, WindowAttributesExtWeb};
+use winit::platform::web::{ActiveEventLoopExtWeb, WindowAttributesExtWeb};
 #[cfg(x11_platform)]
 use winit::platform::x11::WindowAttributesExtX11;
 use winit::window::{
@@ -41,6 +41,9 @@ use winit::window::{
 
 #[path = "util/tracing.rs"]
 mod tracing;
+
+#[path = "util/fill.rs"]
+mod fill;
 
 /// The amount of points to around the window for drag resize direction calculations.
 const BORDER_SIZE: f64 = 20.;
@@ -314,6 +317,13 @@ impl Application {
                 self.sender.send(Action::Message).unwrap();
                 event_loop.create_proxy().wake_up();
             },
+            Action::ToggleAnimatedFillColor => {
+                window.animated_fill_color = !window.animated_fill_color;
+            },
+            Action::ToggleContinuousRedraw => {
+                window.continuous_redraw = !window.continuous_redraw;
+                window.window.request_redraw();
+            },
         }
     }
 
@@ -441,6 +451,9 @@ impl ApplicationHandler for Application {
                 if let Err(err) = window.draw() {
                     error!("Error drawing window: {err}");
                 }
+                if window.continuous_redraw {
+                    window.window.request_redraw();
+                }
             },
             WindowEvent::Occluded(occluded) => {
                 window.set_occluded(occluded);
@@ -466,7 +479,7 @@ impl ApplicationHandler for Application {
 
                 // Dispatch actions only on press.
                 if event.state.is_pressed() {
-                    let action = if let Key::Character(ch) = event.logical_key.as_ref() {
+                    let action = if let Key::Character(ch) = event.key_without_modifiers.as_ref() {
                         Self::process_key_binding(&ch.to_uppercase(), &mods)
                     } else {
                         None
@@ -579,15 +592,15 @@ impl ApplicationHandler for Application {
         }
     }
 
-    #[cfg(not(android_platform))]
-    fn exiting(&mut self, _event_loop: &dyn ActiveEventLoop) {
-        // We must drop the context here.
-        self.context = None;
-    }
-
     #[cfg(target_os = "macos")]
     fn macos_handler(&mut self) -> Option<&mut dyn ApplicationHandlerExtMacOS> {
         Some(self)
+    }
+}
+
+impl Drop for Application {
+    fn drop(&mut self) {
+        info!("Application exited");
     }
 }
 
@@ -616,6 +629,13 @@ struct WindowState {
     window: Arc<dyn Window>,
     /// The window theme we're drawing with.
     theme: Theme,
+    /// Fill the window with animated color
+    animated_fill_color: bool,
+    /// The application start time. Used for color fill animation
+    #[cfg(not(android_platform))]
+    start_time: std::time::Instant,
+    /// Redraw continuously
+    continuous_redraw: bool,
     /// Cursor position over the window.
     cursor_position: Option<PhysicalPosition<f64>>,
     /// Window modifiers state.
@@ -669,6 +689,10 @@ impl WindowState {
             surface,
             window,
             theme,
+            animated_fill_color: false,
+            continuous_redraw: false,
+            #[cfg(not(android_platform))]
+            start_time: std::time::Instant::now(),
             ime,
             cursor_position: Default::default(),
             cursor_hidden: Default::default(),
@@ -836,7 +860,7 @@ impl WindowState {
             custom_cursors[1].clone(),
             event_loop.create_custom_cursor(url_custom_cursor())?,
         ];
-        let cursor = CustomCursor::from_animation(Duration::from_secs(3), cursors).unwrap();
+        let cursor = CustomCursorSource::from_animation(Duration::from_secs(3), cursors).unwrap();
         let cursor = event_loop.create_custom_cursor(cursor)?;
 
         self.window.set_cursor(cursor.into());
@@ -947,6 +971,11 @@ impl WindowState {
             return Ok(());
         }
 
+        if self.animated_fill_color {
+            fill::fill_window_with_animated_color(&*self.window, self.start_time);
+            return Ok(());
+        }
+
         let mut buffer = self.surface.buffer_mut()?;
 
         // Draw a different color inside the safe area
@@ -1038,6 +1067,8 @@ enum Action {
     RequestResize,
     DumpMonitors,
     Message,
+    ToggleAnimatedFillColor,
+    ToggleContinuousRedraw,
 }
 
 impl Action {
@@ -1082,6 +1113,8 @@ impl Action {
                  information"
             },
             Action::Message => "Prints a message through a user wake up",
+            Action::ToggleAnimatedFillColor => "Toggle animated fill color",
+            Action::ToggleContinuousRedraw => "Toggle continuous redraw",
         }
     }
 }
@@ -1097,7 +1130,7 @@ fn decode_cursor(bytes: &[u8]) -> CustomCursorSource {
     let samples = img.into_flat_samples();
     let (_, w, h) = samples.extents();
     let (w, h) = (w as u16, h as u16);
-    CustomCursor::from_rgba(samples.samples, w, h, w / 2, h / 2).unwrap()
+    CustomCursorSource::from_rgba(samples.samples, w, h, w / 2, h / 2).unwrap()
 }
 
 #[cfg(web_platform)]
@@ -1106,11 +1139,14 @@ fn url_custom_cursor() -> CustomCursorSource {
 
     static URL_COUNTER: AtomicU64 = AtomicU64::new(0);
 
-    CustomCursor::from_url(
-        format!("https://picsum.photos/128?random={}", URL_COUNTER.fetch_add(1, Ordering::Relaxed)),
-        64,
-        64,
-    )
+    CustomCursorSource::Url {
+        hotspot_x: 64,
+        hotspot_y: 64,
+        url: format!(
+            "https://picsum.photos/128?random={}",
+            URL_COUNTER.fetch_add(1, Ordering::Relaxed)
+        ),
+    }
 }
 
 fn load_icon(bytes: &[u8]) -> Icon {
@@ -1202,6 +1238,7 @@ const CURSORS: &[CursorIcon] = &[
 const KEY_BINDINGS: &[Binding<&'static str>] = &[
     Binding::new("Q", ModifiersState::CONTROL, Action::CloseWindow),
     Binding::new("H", ModifiersState::CONTROL, Action::PrintHelp),
+    Binding::new("F", ModifiersState::SHIFT, Action::ToggleAnimatedFillColor),
     Binding::new("F", ModifiersState::CONTROL, Action::ToggleFullscreen),
     #[cfg(macos_platform)]
     Binding::new("F", ModifiersState::ALT, Action::ToggleSimpleFullscreen),
@@ -1211,6 +1248,7 @@ const KEY_BINDINGS: &[Binding<&'static str>] = &[
     Binding::new("P", ModifiersState::CONTROL, Action::ToggleResizeIncrements),
     Binding::new("R", ModifiersState::CONTROL, Action::ToggleResizable),
     Binding::new("R", ModifiersState::ALT, Action::RequestResize),
+    Binding::new("R", ModifiersState::SHIFT, Action::ToggleContinuousRedraw),
     // M.
     Binding::new("M", ModifiersState::CONTROL.union(ModifiersState::ALT), Action::DumpMonitors),
     Binding::new("M", ModifiersState::CONTROL, Action::ToggleMaximize),

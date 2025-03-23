@@ -73,11 +73,14 @@ changelog entry.
 - Add ability to make non-activating window on macOS using `NSPanel` with `NSWindowStyleMask::NonactivatingPanel`.
 - On Windows, add `IconExtWindows::from_resource_name`.
 - Implement `MonitorHandleProvider` for `MonitorHandle` to access common monitor API.
+- On X11, set an "area" attribute on XIM input connection to convey the cursor area.
+- Implement `CustomCursorProvider` for `CustomCursor` to access cursor API.
+- Add `CustomCursorSource::Url`, `CustomCursorSource::from_animation`.
 
 ### Changed
 
-- Change `ActiveEventLoop` to be a trait.
-- Change `Window` to be a trait.
+- Change `ActiveEventLoop` and `Window` to be traits, and added `cast_ref`/`cast_mut`/`cast`
+  methods to extract the backend type from those.
 - `ActiveEventLoop::create_window` now returns `Box<dyn Window>`.
 - `ApplicationHandler` now uses `dyn ActiveEventLoop`.
 - On Web, let events wake up event loop immediately when using `ControlFlow::Poll`.
@@ -224,7 +227,11 @@ changelog entry.
 - Remove `WindowEvent::Touch` and `Touch` in favor of the new `PointerKind`, `PointerSource` and
  `ButtonSource` as part of the new pointer event overhaul.
 - Remove `Force::altitude_angle`.
-- Removed `Window::inner_position`, use the new `Window::surface_position` instead.
+- Remove `Window::inner_position`, use the new `Window::surface_position` instead.
+- Remove `CustomCursorExtWeb`, use the `CustomCursorSource`.
+- Remove `CustomCursor::from_rgba`, use `CustomCursorSource` instead.
+- Removed `ApplicationHandler::exited`, the event loop being shut down can now be listened to in
+  the `Drop` impl on the application handler.
 - Removed `NamedKey::Space`, match on `Key::Character(" ")` instead.
 
 ### Fixed
@@ -234,3 +241,7 @@ changelog entry.
 - On macOS, fixed the scancode conversion for audio volume keys.
 - On macOS, fixed the scancode conversion for `IntlBackslash`.
 - On macOS, fixed redundant `SurfaceResized` event at window creation.
+- On Windows, fixed ~500 ms pause when clicking the title bar during continuous redraw.
+- On macos, `WindowExtMacOS::set_simple_fullscreen` now honors `WindowExtMacOS::set_borderless_game`
+- On X11 and Wayland, fixed pump_events with `Some(Duration::Zero)` blocking with `Wait` polling mode
+- On macOS, fixed `run_app_on_demand` returning without closing open windows.

@@ -305,8 +305,8 @@ pub(crate) fn queue_gl_or_metal_redraw(mtm: MainThreadMarker, window: Retained<W
     }
 }
 
-pub(crate) fn launch(mtm: MainThreadMarker, app: &mut dyn ApplicationHandler, run: impl FnOnce()) {
-    get_handler(mtm).set(app, run)
+pub(crate) fn launch(mtm: MainThreadMarker, app: impl ApplicationHandler, run: impl FnOnce()) {
+    get_handler(mtm).set(Box::new(app), run)
 }
 
 pub fn did_finish_launching(mtm: MainThreadMarker) {
@@ -495,13 +495,11 @@ pub(crate) fn terminated(application: &UIApplication) {
 
     let mut this = AppState::get_mut(mtm);
     this.terminated_transition();
-    drop(this);
-
-    get_handler(mtm).handle(|app| app.exiting(&ActiveEventLoop { mtm }));
-
-    let this = AppState::get_mut(mtm);
     // Prevent EventLoopProxy from firing again.
     this.event_loop_proxy.invalidate();
+    drop(this);
+
+    get_handler(mtm).terminate();
 }
 
 fn handle_wrapped_event(mtm: MainThreadMarker, event: EventWrapper) {

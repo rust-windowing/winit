@@ -20,6 +20,7 @@ use crate::event_loop::{
     EventLoopProxy as CoreEventLoopProxy, EventLoopProxyProvider,
     OwnedDisplayHandle as CoreOwnedDisplayHandle,
 };
+pub(crate) use crate::icon::NoIcon as PlatformIcon;
 use crate::monitor::{Fullscreen, MonitorHandle as CoreMonitorHandle};
 use crate::platform::pump_events::PumpStatus;
 use crate::window::{
@@ -28,11 +29,6 @@ use crate::window::{
 };
 
 mod keycodes;
-
-pub(crate) use crate::cursor::{
-    NoCustomCursor as PlatformCustomCursor, NoCustomCursor as PlatformCustomCursorSource,
-};
-pub(crate) use crate::icon::NoIcon as PlatformIcon;
 
 static HAS_FOCUS: AtomicBool = AtomicBool::new(true);
 
@@ -549,8 +545,6 @@ impl EventLoop {
         }
         if self.exiting() {
             self.loop_running = false;
-
-            app.exiting(&self.window_target);
 
             PumpStatus::Exit(0)
         } else {

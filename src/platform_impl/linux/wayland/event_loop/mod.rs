@@ -12,9 +12,8 @@ use sctk::reexports::calloop_wayland_source::WaylandSource;
 use sctk::reexports::client::{globals, Connection, QueueHandle};
 
 use crate::application::ApplicationHandler;
-use crate::cursor::OnlyCursorImage;
 use crate::dpi::LogicalSize;
-use crate::error::{EventLoopError, OsError, RequestError};
+use crate::error::{EventLoopError, NotSupportedError, OsError, RequestError};
 use crate::event::{DeviceEvent, StartCause, SurfaceSizeWriter, WindowEvent};
 use crate::event_loop::{
     ActiveEventLoop as RootActiveEventLoop, ControlFlow, DeviceEvents,
@@ -23,8 +22,8 @@ use crate::event_loop::{
 use crate::monitor::MonitorHandle as CoreMonitorHandle;
 use crate::platform::pump_events::PumpStatus;
 use crate::platform_impl::platform::min_timeout;
-use crate::platform_impl::PlatformCustomCursor;
-use crate::window::{CustomCursor as RootCustomCursor, CustomCursorSource, Theme};
+use crate::platform_impl::wayland::types::cursor::WaylandCustomCursor;
+use crate::window::{CustomCursor as CoreCustomCursor, CustomCursorSource, Theme};
 
 mod proxy;
 pub mod sink;
@@ -204,10 +203,9 @@ impl EventLoop {
         if !self.exiting() {
             self.poll_events_with_timeout(timeout, &mut app);
         }
+
         if let Some(code) = self.exit_code() {
             self.loop_running = false;
-
-            app.exiting(&self.active_event_loop);
 
             PumpStatus::Exit(code)
         } else {
@@ -274,7 +272,10 @@ impl EventLoop {
 
             // Reduce spurious wake-ups.
             let dispatched_events = self.with_state(|state| state.dispatched_events);
-            if matches!(cause, StartCause::WaitCancelled { .. }) && !dispatched_events {
+            if matches!(cause, StartCause::WaitCancelled { .. })
+                && !dispatched_events
+                && timeout.is_none()
+            {
                 continue;
             }
 
@@ -604,10 +605,15 @@ impl RootActiveEventLoop for ActiveEventLoop {
     fn create_custom_cursor(
         &self,
         cursor: CustomCursorSource,
-    ) -> Result<RootCustomCursor, RequestError> {
-        Ok(RootCustomCursor {
-            inner: PlatformCustomCursor::Wayland(OnlyCursorImage(Arc::from(cursor.inner.0))),
-        })
+    ) -> Result<CoreCustomCursor, RequestError> {
+        let cursor_image = match cursor {
+            CustomCursorSource::Image(cursor_image) => cursor_image,
+            CustomCursorSource::Animation { .. } | CustomCursorSource::Url { .. } => {
+                return Err(NotSupportedError::new("unsupported cursor kind").into())
+            },
+        };
+
+        Ok(CoreCustomCursor(Arc::new(WaylandCustomCursor(cursor_image))))
     }
 
     #[inline]

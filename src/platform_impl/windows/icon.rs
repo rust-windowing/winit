@@ -15,7 +15,7 @@ use windows_sys::Win32::UI::WindowsAndMessaging::{
 };
 
 use super::util;
-use crate::cursor::CursorImage;
+use crate::cursor::{CursorImage, CustomCursorProvider};
 use crate::dpi::PhysicalSize;
 use crate::error::RequestError;
 use crate::icon::*;
@@ -195,6 +195,12 @@ impl Default for SelectedCursor {
 
 #[derive(Clone, Debug, Hash, Eq, PartialEq)]
 pub struct WinCursor(pub(super) Arc<RaiiCursor>);
+
+impl CustomCursorProvider for WinCursor {
+    fn is_animated(&self) -> bool {
+        false
+    }
+}
 
 impl WinCursor {
     pub(crate) fn new(image: &CursorImage) -> Result<Self, RequestError> {

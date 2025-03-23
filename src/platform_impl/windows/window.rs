@@ -47,6 +47,7 @@ use windows_sys::Win32::UI::WindowsAndMessaging::{
     WDA_EXCLUDEFROMCAPTURE, WDA_NONE, WM_NCLBUTTONDOWN, WM_SYSCOMMAND, WNDCLASSEXW,
 };
 
+use super::icon::WinCursor;
 use super::MonitorHandle;
 use crate::cursor::Cursor;
 use crate::dpi::{PhysicalInsets, PhysicalPosition, PhysicalSize, Position, Size};
@@ -597,10 +598,15 @@ impl CoreWindow for Window {
                 });
             },
             Cursor::Custom(cursor) => {
+                let cursor = match cursor.cast_ref::<WinCursor>() {
+                    Some(cursor) => cursor,
+                    None => return,
+                };
                 self.window_state_lock().mouse.selected_cursor =
-                    SelectedCursor::Custom(cursor.inner.0.clone());
+                    SelectedCursor::Custom(cursor.0.clone());
+                let handle = cursor.0.clone();
                 self.thread_executor.execute_in_thread(move || unsafe {
-                    SetCursor(cursor.inner.0.as_raw_handle());
+                    SetCursor(handle.as_raw_handle());
                 });
             },
         }
@@ -790,7 +796,7 @@ impl CoreWindow for Window {
             // fullscreen
             match (&old_fullscreen, &fullscreen) {
                 (_, Some(Fullscreen::Exclusive(monitor, video_mode))) => {
-                    let monitor = monitor.as_any().downcast_ref::<MonitorHandle>().unwrap();
+                    let monitor = monitor.cast_ref::<MonitorHandle>().unwrap();
                     let video_mode =
                         match monitor.video_mode_handles().find(|mode| &mode.mode == video_mode) {
                             Some(monitor) => monitor,
@@ -882,9 +888,9 @@ impl CoreWindow for Window {
 
                     let monitor = match &fullscreen {
                         Fullscreen::Exclusive(monitor, _)
-                        | Fullscreen::Borderless(Some(monitor)) => Some(Cow::Borrowed(
-                            monitor.as_any().downcast_ref::<MonitorHandle>().unwrap(),
-                        )),
+                        | Fullscreen::Borderless(Some(monitor)) => {
+                            Some(Cow::Borrowed(monitor.cast_ref::<MonitorHandle>().unwrap()))
+                        },
                         Fullscreen::Borderless(None) => None,
                     };
 

@@ -33,7 +33,7 @@ use crate::monitor::MonitorHandle as CoreMonitorHandle;
 use crate::platform::macos::ActivationPolicy;
 use crate::platform::pump_events::PumpStatus;
 use crate::platform_impl::Window;
-use crate::window::{CustomCursor as RootCustomCursor, CustomCursorSource, Theme};
+use crate::window::{CustomCursor as CoreCustomCursor, CustomCursorSource, Theme};
 
 #[derive(Default)]
 pub struct PanicInfo {
@@ -110,8 +110,8 @@ impl RootActiveEventLoop for ActiveEventLoop {
     fn create_custom_cursor(
         &self,
         source: CustomCursorSource,
-    ) -> Result<RootCustomCursor, RequestError> {
-        Ok(RootCustomCursor { inner: CustomCursor::new(source.inner)? })
+    ) -> Result<CoreCustomCursor, RequestError> {
+        Ok(CoreCustomCursor(Arc::new(CustomCursor::new(source)?)))
     }
 
     fn available_monitors(&self) -> Box<dyn Iterator<Item = CoreMonitorHandle>> {
@@ -285,10 +285,10 @@ impl EventLoop {
     // redundant wake ups.
     pub fn run_app_on_demand<A: ApplicationHandler>(
         &mut self,
-        mut app: A,
+        app: A,
     ) -> Result<(), EventLoopError> {
         self.app_state.clear_exit();
-        self.app_state.set_event_handler(&mut app, || {
+        self.app_state.set_event_handler(app, || {
             autoreleasepool(|_| {
                 // clear / normalize pump_events state
                 self.app_state.set_wait_timeout(None);
@@ -324,9 +324,9 @@ impl EventLoop {
     pub fn pump_app_events<A: ApplicationHandler>(
         &mut self,
         timeout: Option<Duration>,
-        mut app: A,
+        app: A,
     ) -> PumpStatus {
-        self.app_state.set_event_handler(&mut app, || {
+        self.app_state.set_event_handler(app, || {
             autoreleasepool(|_| {
                 // As a special case, if the application hasn't been launched yet then we at least
                 // run the loop until it has fully launched.
@@ -405,6 +405,22 @@ pub(super) fn stop_app_immediately(app: &NSApplication) {
         // See: https://stackoverflow.com/questions/48041279/stopping-the-nsapplication-main-event-loop/48064752#48064752
         app.postEvent_atStart(&dummy_event().unwrap(), true);
     });
+}
+
+/// Tell all windows to close.
+///
+/// This will synchronously trigger `WindowEvent::Destroyed` within
+/// `windowWillClose:`, giving the application one last chance to handle
+/// those events. It doesn't matter if the user also ends up closing the
+/// windows in `Window`'s `Drop` impl, once a window has been closed once, it
+/// stays closed.
+///
+/// This ensures that no windows linger on after the event loop has exited,
+/// see <https://github.com/rust-windowing/winit/issues/4135>.
+pub(super) fn notify_windows_of_exit(app: &NSApplication) {
+    for window in app.windows() {
+        window.close();
+    }
 }
 
 /// Catches panics that happen inside `f` and when a panic

@@ -36,10 +36,9 @@ use crate::platform::x11::XlibErrorHook;
 use crate::platform_impl::common::xkb::Context;
 use crate::platform_impl::platform::min_timeout;
 use crate::platform_impl::x11::window::Window;
-use crate::platform_impl::PlatformCustomCursor;
 use crate::utils::Lazy;
 use crate::window::{
-    CustomCursor as RootCustomCursor, CustomCursorSource, Theme, Window as CoreWindow,
+    CustomCursor as CoreCustomCursor, CustomCursorSource, Theme, Window as CoreWindow,
     WindowAttributes, WindowId,
 };
 
@@ -499,8 +498,6 @@ impl EventLoop {
         if let Some(code) = self.exit_code() {
             self.loop_running = false;
 
-            app.exiting(self.window_target());
-
             PumpStatus::Exit(code)
         } else {
             PumpStatus::Continue
@@ -571,6 +568,7 @@ impl EventLoop {
         // If we don't have any pending `_receiver`
         if !self.has_pending()
             && !matches!(&cause, StartCause::ResumeTimeReached { .. } | StartCause::Poll)
+            && timeout.is_none()
         {
             return;
         }
@@ -731,10 +729,8 @@ impl RootActiveEventLoop for ActiveEventLoop {
     fn create_custom_cursor(
         &self,
         custom_cursor: CustomCursorSource,
-    ) -> Result<RootCustomCursor, RequestError> {
-        Ok(RootCustomCursor {
-            inner: PlatformCustomCursor::X(CustomCursor::new(self, custom_cursor.inner)?),
-        })
+    ) -> Result<CoreCustomCursor, RequestError> {
+        Ok(CoreCustomCursor(Arc::new(CustomCursor::new(self, custom_cursor)?)))
     }
 
     fn available_monitors(&self) -> Box<dyn Iterator<Item = CoreMonitorHandle>> {

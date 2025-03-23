@@ -23,7 +23,7 @@ use crate::platform::web::{CustomCursorFuture, PollStrategy, WaitUntilStrategy};
 use crate::platform_impl::platform::cursor::CustomCursor;
 use crate::platform_impl::web::event_loop::proxy::EventLoopProxy;
 use crate::platform_impl::Window;
-use crate::window::{CustomCursor as RootCustomCursor, CustomCursorSource, Theme, WindowId};
+use crate::window::{CustomCursor as CoreCustomCursor, CustomCursorSource, Theme, WindowId};
 
 #[derive(Default, Debug)]
 struct ModifiersShared(Rc<Cell<ModifiersState>>);
@@ -65,7 +65,7 @@ impl ActiveEventLoop {
     }
 
     pub fn create_custom_cursor_async(&self, source: CustomCursorSource) -> CustomCursorFuture {
-        CustomCursorFuture(CustomCursor::new_async(self, source.inner))
+        CustomCursorFuture(CustomCursor::new_async(self, source))
     }
 
     pub fn register(&self, canvas: &Rc<backend::Canvas>, window_id: WindowId) {
@@ -498,8 +498,8 @@ impl RootActiveEventLoop for ActiveEventLoop {
     fn create_custom_cursor(
         &self,
         source: CustomCursorSource,
-    ) -> Result<RootCustomCursor, RequestError> {
-        Ok(RootCustomCursor { inner: CustomCursor::new(self, source.inner) })
+    ) -> Result<CoreCustomCursor, RequestError> {
+        Ok(CoreCustomCursor(Arc::new(CustomCursor::new(self, source))))
     }
 
     fn available_monitors(&self) -> Box<dyn Iterator<Item = CoremMonitorHandle>> {
