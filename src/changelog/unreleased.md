@@ -39,3 +39,5 @@ The migration guide could reference other migration examples in the current
 changelog entry.
 
 ## Unreleased
+
+- On Windows, adjusted the border size in undecorated shadow mode to improve gripability.
