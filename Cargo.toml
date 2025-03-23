@@ -86,7 +86,7 @@ cfg_aliases = "0.2.1"
 bitflags = "2"
 cursor-icon = "1.1.0"
 dpi = { version = "0.1.1", path = "dpi" }
-keyboard-types = "0.8.0"
+keyboard-types = { git = "https://github.com/pyfisch/keyboard-types.git", branch = "main" }
 rwh_06 = { package = "raw-window-handle", version = "0.6", features = ["std"] }
 serde = { workspace = true, optional = true }
 smol_str = "0.3"
