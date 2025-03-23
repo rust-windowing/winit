@@ -25,7 +25,6 @@ mod cursor;
 mod error;
 mod event;
 mod event_loop;
-mod keyboard;
 mod lock;
 mod main_thread;
 mod monitor;
