@@ -118,8 +118,8 @@ fn convert_scancode(scancode: u8) -> (PhysicalKey, Option<NamedKey>) {
         orbclient::K_RIGHT_SHIFT => (KeyCode::ShiftRight, Some(NamedKey::Shift)),
         orbclient::K_SEMICOLON => (KeyCode::Semicolon, None),
         orbclient::K_SLASH => (KeyCode::Slash, None),
-        orbclient::K_SPACE => (KeyCode::Space, Some(NamedKey::Space)),
-        orbclient::K_SUPER => (KeyCode::SuperLeft, Some(NamedKey::Super)),
+        orbclient::K_SPACE => (KeyCode::Space, None),
+        orbclient::K_SUPER => (KeyCode::MetaLeft, Some(NamedKey::Meta)),
         orbclient::K_TAB => (KeyCode::Tab, Some(NamedKey::Tab)),
         orbclient::K_TICK => (KeyCode::Backquote, None),
         orbclient::K_UP => (KeyCode::ArrowUp, Some(NamedKey::ArrowUp)),
@@ -149,8 +149,8 @@ bitflags! {
         const RCTRL = 1 << 3;
         const LALT = 1 << 4;
         const RALT = 1 << 5;
-        const LSUPER = 1 << 6;
-        const RSUPER = 1 << 7;
+        const LMETA = 1 << 6;
+        const RMETA = 1 << 7;
     }
 }
 
@@ -200,8 +200,8 @@ impl EventState {
             KeyCode::ControlRight => self.keyboard.set(KeyboardModifierState::RCTRL, pressed),
             KeyCode::AltLeft => self.keyboard.set(KeyboardModifierState::LALT, pressed),
             KeyCode::AltRight => self.keyboard.set(KeyboardModifierState::RALT, pressed),
-            KeyCode::SuperLeft => self.keyboard.set(KeyboardModifierState::LSUPER, pressed),
-            KeyCode::SuperRight => self.keyboard.set(KeyboardModifierState::RSUPER, pressed),
+            KeyCode::MetaLeft => self.keyboard.set(KeyboardModifierState::LMETA, pressed),
+            KeyCode::MetaRight => self.keyboard.set(KeyboardModifierState::RMETA, pressed),
             _ => (),
         }
     }
@@ -259,14 +259,14 @@ impl EventState {
         pressed_mods.set(ModifiersKeys::LALT, self.keyboard.contains(KeyboardModifierState::LALT));
         pressed_mods.set(ModifiersKeys::RALT, self.keyboard.contains(KeyboardModifierState::RALT));
 
-        if self.keyboard.intersects(KeyboardModifierState::LSUPER | KeyboardModifierState::RSUPER) {
-            state |= ModifiersState::SUPER
+        if self.keyboard.intersects(KeyboardModifierState::LMETA | KeyboardModifierState::RMETA) {
+            state |= ModifiersState::META
         }
 
         pressed_mods
-            .set(ModifiersKeys::LSUPER, self.keyboard.contains(KeyboardModifierState::LSUPER));
+            .set(ModifiersKeys::LMETA, self.keyboard.contains(KeyboardModifierState::LMETA));
         pressed_mods
-            .set(ModifiersKeys::RSUPER, self.keyboard.contains(KeyboardModifierState::RSUPER));
+            .set(ModifiersKeys::RMETA, self.keyboard.contains(KeyboardModifierState::RMETA));
 
         Modifiers { state, pressed_mods }
     }
