@@ -32,7 +32,6 @@ with it, the migration guide should be added below the entry, like:
   To migrate it we should do X, Y, and then Z, for example:
 
   // Code snippet.
-
 ```
 
 The migration guide could reference other migration examples in the current
@@ -56,6 +55,7 @@ changelog entry.
 
   Keep in mind that handles do not auto-upgrade after permissions are granted and have to be
   re-created to make full use of this feature.
+
 - Implement `Clone`, `Copy`, `Debug`, `Deserialize`, `Eq`, `Hash`, `Ord`, `PartialEq`, `PartialOrd`
   and `Serialize` on many types.
 - Add `MonitorHandle::current_video_mode()`.
@@ -91,6 +91,7 @@ changelog entry.
   Winit will now only indicate that wake up happened, you will have to pair
   this with an external mechanism like `std::sync::mpsc::channel` if you want
   to send specific data to be processed on the main thread.
+
 - Changed `EventLoopProxy::send_event` to `EventLoopProxy::wake_up`, it now
   only wakes up the loop.
 - On X11, implement smooth resizing through the sync extension API.
@@ -102,6 +103,7 @@ changelog entry.
 
   `ApplicationHandler::resumed/suspended()` are now only emitted by iOS, Web
   and Android, and now signify actually resuming/suspending the application.
+
 - Rename `platform::web::*ExtWebSys` to `*ExtWeb`.
 - Change signature of `EventLoop::run_app`, `EventLoopExtPumpEvents::pump_app_events` and
   `EventLoopExtRunOnDemand::run_app_on_demand` to accept a `impl ApplicationHandler` directly,
@@ -119,6 +121,7 @@ changelog entry.
   `application:didFinishLaunchingWithOptions:` and provide the desired behaviour yourself.
 - On X11, remove our dependency on libXcursor. (#3749)
 - Renamed the following APIs to make it clearer that the sizes apply to the underlying surface:
+
   - `WindowEvent::Resized` to `SurfaceResized`.
   - `InnerSizeWriter` to `SurfaceSizeWriter`.
   - `WindowAttributes.inner_size` to `surface_size`.
@@ -135,6 +138,7 @@ changelog entry.
   - `Window::set_max_inner_size` to `set_max_surface_size`.
 
   To migrate, you can probably just replace all instances of `inner_size` with `surface_size` in your codebase.
+
 - Every event carrying a `DeviceId` now uses `Option<DeviceId>` instead. A `None` value signifies that the
   device can't be uniquely identified.
 - Pointer `WindowEvent`s were overhauled. The new events can handle any type of pointer, serving as
@@ -173,12 +177,13 @@ changelog entry.
   events have been removed, and replaced with `WindowEvent::DragEntered`, `WindowEvent::DragMoved`,
   `WindowEvent::DragDropped` and `WindowEvent::DragLeft`.
 
-  The old drag-and-drop events were emitted once per file. This occurred when files were *first*
+  The old drag-and-drop events were emitted once per file. This occurred when files were _first_
   hovered over the window, dropped, or left the window. The new drag-and-drop events are emitted
   once per set of files dragged, and include a list of all dragged files. They also include the
   pointer position.
 
   The rough correspondence is:
+
   - `WindowEvent::HoveredFile` -> `WindowEvent::DragEntered`
   - `WindowEvent::DroppedFile` -> `WindowEvent::DragDropped`
   - `WindowEvent::HoveredFileCancelled` -> `WindowEvent::DragLeft`
@@ -186,6 +191,7 @@ changelog entry.
   The `WindowEvent::DragMoved` event is entirely new, and is emitted whenever the pointer moves
   whilst files are being dragged over the window. It doesn't contain any file paths, just the
   pointer position.
+
 - Updated `objc2` to `v0.6`.
 - Updated `windows-sys` to `v0.59`.
   - To match the corresponding changes in `windows-sys`, the `HWND`, `HMONITOR`, and `HMENU` types
@@ -213,6 +219,7 @@ changelog entry.
 
   This feature was incomplete, and the equivalent functionality can be trivially achieved outside
   of `winit` using `objc2-ui-kit` and calling `UIDevice::currentDevice().userInterfaceIdiom()`.
+
 - On Web, remove unused `platform::web::CustomCursorError::Animation`.
 - Remove the `rwh_04` and `rwh_05` cargo feature and the corresponding `raw-window-handle` v0.4 and
   v0.5 support. v0.6 remains in place and is enabled by default.
@@ -225,7 +232,7 @@ changelog entry.
   `WindowId::into_raw()` and `from_raw()`.
 - Remove `dummy()` from `WindowId` and `DeviceId`.
 - Remove `WindowEvent::Touch` and `Touch` in favor of the new `PointerKind`, `PointerSource` and
- `ButtonSource` as part of the new pointer event overhaul.
+  `ButtonSource` as part of the new pointer event overhaul.
 - Remove `Force::altitude_angle`.
 - Remove `Window::inner_position`, use the new `Window::surface_position` instead.
 - Remove `CustomCursorExtWeb`, use the `CustomCursorSource`.
@@ -245,3 +252,4 @@ changelog entry.
 - On macos, `WindowExtMacOS::set_simple_fullscreen` now honors `WindowExtMacOS::set_borderless_game`
 - On X11 and Wayland, fixed pump_events with `Some(Duration::Zero)` blocking with `Wait` polling mode
 - On macOS, fixed `run_app_on_demand` returning without closing open windows.
+- On Windows, fix `Window::surface_size` of undecorated window with shadows, reporting a size bigger than what's visible.

@@ -1100,16 +1100,30 @@ unsafe fn public_window_callback_inner(
                 // Extend the client area to cover the whole non-client area.
                 // https://docs.microsoft.com/en-us/windows/win32/winmsg/wm-nccalcsize#remarks
                 //
-                // HACK(msiglreith): To add the drop shadow we slightly tweak the non-client area.
-                // This leads to a small black 1px border on the top. Adding a margin manually
-                // on all 4 borders would result in the caption getting drawn by the DWM.
+                // HACK(msiglreith): To add the drop shadow we slightly add some insets to the
+                // client area. This leads to a small 1px border around the window
+                // which can be black (or whatever accent color Windows uses if
+                // relevant option is active).
                 //
-                // Another option would be to allow the DWM to paint inside the client area.
-                // Unfortunately this results in janky resize behavior, where the compositor is
-                // ahead of the window surface. Currently, there seems no option to achieve this
-                // with the Windows API.
-                params.rgrc[0].top += 1;
-                params.rgrc[0].bottom += 1;
+                // see `util::calculate_window_insets` for more information on how we calculate
+                // insets.
+                //
+                // Because the 1px border around the window is visible, an undecorated window can
+                // be resized without handling WM_NCHITTEST except on the top border which doesn't
+                // seem to work.
+                //
+                // if resizing from top is needed, we should handle WM_NCHITTEST and return HTTOP
+                // in the few pixels at the top of the client area. This would disable clicking in
+                // these few pixels, but this area is usually occupied by a custom
+                // titlebar so it would be fine.
+                //
+                // see https://github.com/zed-industries/zed/blob/7bddb390cabefb177d9996dc580749d64e6ca3b6/crates/gpui/src/platform/windows/events.rs#L919-L927
+                let insets = util::calculate_window_insets(window);
+
+                params.rgrc[0].left += insets.left;
+                params.rgrc[0].top += insets.top;
+                params.rgrc[0].right -= insets.right;
+                params.rgrc[0].bottom -= insets.bottom;
             }
 
             result = ProcResult::Value(0);
