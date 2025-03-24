@@ -45,6 +45,7 @@ pub const MAX_MOD_REPLAY_LEN: usize = 32;
 /// The X11 documentation states: "Keycodes lie in the inclusive range `[8, 255]`".
 const KEYCODE_OFFSET: u8 = 8;
 
+#[derive(Debug)]
 pub struct EventProcessor {
     pub dnd: Dnd,
     pub ime_receiver: ImeReceiver,
@@ -88,8 +89,8 @@ impl EventProcessor {
 
             let ime = ime.get_mut();
             match request {
-                ImeRequest::Position(window_id, x, y) => {
-                    ime.send_xim_spot(window_id, x, y);
+                ImeRequest::Area(window_id, x, y, w, h) => {
+                    ime.send_xim_area(window_id, x, y, w, h);
                 },
                 ImeRequest::Allow(window_id, allowed) => {
                     ime.set_ime_allowed(window_id, allowed);

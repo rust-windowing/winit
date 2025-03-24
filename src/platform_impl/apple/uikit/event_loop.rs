@@ -1,16 +1,13 @@
 use std::ffi::{c_char, c_int, c_void};
 use std::ptr::{self, NonNull};
-use std::sync::atomic::{AtomicBool, Ordering as AtomicOrdering};
 use std::sync::Arc;
 
 use objc2::rc::Retained;
 use objc2::runtime::ProtocolObject;
 use objc2::{msg_send, ClassType, MainThreadMarker};
 use objc2_core_foundation::{
-    kCFRunLoopCommonModes, kCFRunLoopDefaultMode, CFIndex, CFRetained, CFRunLoopActivity,
-    CFRunLoopAddObserver, CFRunLoopAddSource, CFRunLoopGetMain, CFRunLoopObserver,
-    CFRunLoopObserverCreate, CFRunLoopSource, CFRunLoopSourceContext, CFRunLoopSourceCreate,
-    CFRunLoopSourceInvalidate, CFRunLoopSourceSignal, CFRunLoopWakeUp,
+    kCFRunLoopDefaultMode, CFIndex, CFRunLoopActivity, CFRunLoopAddObserver, CFRunLoopGetMain,
+    CFRunLoopObserver, CFRunLoopObserverCreate,
 };
 use objc2_foundation::{NSNotificationCenter, NSObjectProtocol};
 use objc2_ui_kit::{
@@ -29,10 +26,9 @@ use crate::application::ApplicationHandler;
 use crate::error::{EventLoopError, NotSupportedError, RequestError};
 use crate::event_loop::{
     ActiveEventLoop as RootActiveEventLoop, ControlFlow, DeviceEvents,
-    EventLoopProxy as CoreEventLoopProxy, EventLoopProxyProvider,
-    OwnedDisplayHandle as CoreOwnedDisplayHandle,
+    EventLoopProxy as CoreEventLoopProxy, OwnedDisplayHandle as CoreOwnedDisplayHandle,
 };
-use crate::monitor::MonitorHandle as RootMonitorHandle;
+use crate::monitor::MonitorHandle as CoreMonitorHandle;
 use crate::platform_impl::Window;
 use crate::window::{CustomCursor, CustomCursorSource, Theme, Window as CoreWindow};
 
@@ -60,14 +56,18 @@ impl RootActiveEventLoop for ActiveEventLoop {
         Err(NotSupportedError::new("create_custom_cursor is not supported").into())
     }
 
-    fn available_monitors(&self) -> Box<dyn Iterator<Item = RootMonitorHandle>> {
-        Box::new(monitor::uiscreens(self.mtm).into_iter().map(|inner| RootMonitorHandle { inner }))
+    fn available_monitors(&self) -> Box<dyn Iterator<Item = CoreMonitorHandle>> {
+        Box::new(
+            monitor::uiscreens(self.mtm)
+                .into_iter()
+                .map(|monitor| CoreMonitorHandle(Arc::new(monitor))),
+        )
     }
 
     fn primary_monitor(&self) -> Option<crate::monitor::MonitorHandle> {
         #[allow(deprecated)]
         let monitor = MonitorHandle::new(UIScreen::mainScreen(self.mtm));
-        Some(RootMonitorHandle { inner: monitor })
+        Some(CoreMonitorHandle(Arc::new(monitor)))
     }
 
     fn listen_device_events(&self, _allowed: DeviceEvents) {}
@@ -120,6 +120,7 @@ impl HasDisplayHandle for OwnedDisplayHandle {
     }
 }
 
+#[derive(Debug)]
 pub struct EventLoop {
     mtm: MainThreadMarker,
     window_target: ActiveEventLoop,
@@ -242,7 +243,7 @@ impl EventLoop {
         })
     }
 
-    pub fn run_app<A: ApplicationHandler>(self, mut app: A) -> ! {
+    pub fn run_app<A: ApplicationHandler>(self, app: A) -> ! {
         let application: Option<Retained<UIApplication>> =
             unsafe { msg_send![UIApplication::class(), sharedApplication] };
         assert!(
@@ -258,7 +259,7 @@ impl EventLoop {
             fn _NSGetArgv() -> *mut *mut *mut c_char;
         }
 
-        app_state::launch(self.mtm, &mut app, || unsafe {
+        app_state::launch(self.mtm, app, || unsafe {
             UIApplicationMain(
                 *_NSGetArgc(),
                 NonNull::new(*_NSGetArgv()).unwrap(),
@@ -274,62 +275,6 @@ impl EventLoop {
 
     pub fn window_target(&self) -> &dyn RootActiveEventLoop {
         &self.window_target
-    }
-}
-
-pub struct EventLoopProxy {
-    pub(crate) wake_up: AtomicBool,
-    source: CFRetained<CFRunLoopSource>,
-}
-
-unsafe impl Send for EventLoopProxy {}
-unsafe impl Sync for EventLoopProxy {}
-
-impl Drop for EventLoopProxy {
-    fn drop(&mut self) {
-        unsafe { CFRunLoopSourceInvalidate(&self.source) };
-    }
-}
-
-impl EventLoopProxy {
-    pub(crate) fn new() -> EventLoopProxy {
-        unsafe {
-            // just wake up the eventloop
-            extern "C-unwind" fn event_loop_proxy_handler(_: *mut c_void) {}
-
-            // adding a Source to the main CFRunLoop lets us wake it up and
-            // process user events through the normal OS EventLoop mechanisms.
-            let rl = CFRunLoopGetMain().unwrap();
-            let mut context = CFRunLoopSourceContext {
-                version: 0,
-                info: ptr::null_mut(),
-                retain: None,
-                release: None,
-                copyDescription: None,
-                equal: None,
-                hash: None,
-                schedule: None,
-                cancel: None,
-                perform: Some(event_loop_proxy_handler),
-            };
-            let source = CFRunLoopSourceCreate(None, CFIndex::MAX - 1, &mut context).unwrap();
-            CFRunLoopAddSource(&rl, Some(&source), kCFRunLoopCommonModes);
-            CFRunLoopWakeUp(&rl);
-
-            EventLoopProxy { wake_up: AtomicBool::new(false), source }
-        }
-    }
-}
-
-impl EventLoopProxyProvider for EventLoopProxy {
-    fn wake_up(&self) {
-        self.wake_up.store(true, AtomicOrdering::Relaxed);
-        unsafe {
-            // let the main thread know there's a new event
-            CFRunLoopSourceSignal(&self.source);
-            let rl = CFRunLoopGetMain().unwrap();
-            CFRunLoopWakeUp(&rl);
-        }
     }
 }
 

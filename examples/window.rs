@@ -11,8 +11,10 @@ use winit::window::{Window, WindowAttributes, WindowId};
 
 #[path = "util/fill.rs"]
 mod fill;
+#[path = "util/tracing.rs"]
+mod tracing;
 
-#[derive(Default)]
+#[derive(Default, Debug)]
 struct App {
     window: Option<Box<dyn Window>>,
 }
@@ -70,9 +72,12 @@ fn main() -> Result<(), Box<dyn Error>> {
     #[cfg(web_platform)]
     console_error_panic_hook::set_once();
 
+    tracing::init();
+
     let event_loop = EventLoop::new()?;
-    let mut app = App::default();
 
     // For alternative loop run options see `pump_events` and `run_on_demand` examples.
-    event_loop.run_app(&mut app).map_err(Into::into)
+    event_loop.run_app(App::default())?;
+
+    Ok(())
 }

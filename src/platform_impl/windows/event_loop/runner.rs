@@ -1,22 +1,27 @@
 use std::any::Any;
 use std::cell::{Cell, RefCell};
 use std::collections::VecDeque;
+use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
-use std::{mem, panic};
+use std::{fmt, mem, panic};
 
 use windows_sys::Win32::Foundation::HWND;
 
-use super::ControlFlow;
+use super::{ActiveEventLoop, ControlFlow, EventLoopThreadExecutor};
+use crate::application::ApplicationHandler;
 use crate::dpi::PhysicalSize;
-use crate::event::{Event, StartCause, SurfaceSizeWriter, WindowEvent};
+use crate::event::{DeviceEvent, DeviceId, StartCause, SurfaceSizeWriter, WindowEvent};
+use crate::event_loop::ActiveEventLoop as RootActiveEventLoop;
 use crate::platform_impl::platform::event_loop::{WindowData, GWL_USERDATA};
 use crate::platform_impl::platform::get_window_long;
 use crate::window::WindowId;
 
-type EventHandler = Cell<Option<Box<dyn FnMut(Event)>>>;
+type EventHandler = Cell<Option<&'static mut (dyn ApplicationHandler + 'static)>>;
 
 pub(crate) struct EventLoopRunner {
+    pub(super) thread_id: u32,
+
     // The event loop's win32 handles
     pub(super) thread_msg_target: HWND,
 
@@ -29,10 +34,18 @@ pub(crate) struct EventLoopRunner {
     exit: Cell<Option<i32>>,
     runner_state: Cell<RunnerState>,
     last_events_cleared: Cell<Instant>,
-    event_handler: EventHandler,
-    event_buffer: RefCell<VecDeque<BufferedEvent>>,
+    event_handler: Rc<EventHandler>,
+    event_buffer: RefCell<VecDeque<Event>>,
 
     panic_error: Cell<Option<PanicError>>,
+}
+
+impl fmt::Debug for EventLoopRunner {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("EventLoopRunner")
+            .field("thread_msg_target", &self.thread_msg_target)
+            .finish_non_exhaustive()
+    }
 }
 
 pub type PanicError = Box<dyn Any + Send + 'static>;
@@ -51,14 +64,20 @@ pub(crate) enum RunnerState {
     Destroyed,
 }
 
-enum BufferedEvent {
-    Event(Event),
-    ScaleFactorChanged(HWND, f64, PhysicalSize<u32>),
+#[derive(Debug, Clone)]
+pub(crate) enum Event {
+    Device { device_id: DeviceId, event: DeviceEvent },
+    Window { window_id: WindowId, event: WindowEvent },
+    BufferedScaleFactorChanged(HWND, f64, PhysicalSize<u32>),
+    // FIXME(madsmtm): Coalesce these into a flag (or similar) instead of handling them as events.
+    // https://github.com/rust-windowing/winit/pull/3687
+    WakeUp,
 }
 
 impl EventLoopRunner {
-    pub(crate) fn new(thread_msg_target: HWND) -> EventLoopRunner {
-        EventLoopRunner {
+    pub(crate) fn new(thread_id: u32, thread_msg_target: HWND) -> Self {
+        Self {
+            thread_id,
             thread_msg_target,
             interrupt_msg_dispatch: Cell::new(false),
             runner_state: Cell::new(RunnerState::Uninitialized),
@@ -66,40 +85,50 @@ impl EventLoopRunner {
             exit: Cell::new(None),
             panic_error: Cell::new(None),
             last_events_cleared: Cell::new(Instant::now()),
-            event_handler: Cell::new(None),
+            event_handler: Rc::new(Cell::new(None)),
             event_buffer: RefCell::new(VecDeque::new()),
         }
     }
 
-    /// Associate the application's event handler with the runner
+    /// Associate the application's event handler with the runner.
     ///
     /// # Safety
-    /// This is ignoring the lifetime of the application handler (which may not
-    /// outlive the EventLoopRunner) and can lead to undefined behaviour if
-    /// the handler is not cleared before the end of real lifetime.
     ///
-    /// All public APIs that take an event handler (`run`, `run_on_demand`,
-    /// `pump_events`) _must_ pair a call to `set_event_handler` with
-    /// a call to `clear_event_handler` before returning to avoid
-    /// undefined behaviour.
-    pub(crate) unsafe fn set_event_handler<F>(&self, f: F)
-    where
-        F: FnMut(Event),
-    {
-        // Erase closure lifetime.
-        // SAFETY: Caller upholds that the lifetime of the closure is upheld.
-        let f =
-            unsafe { mem::transmute::<Box<dyn FnMut(Event)>, Box<dyn FnMut(Event)>>(Box::new(f)) };
-        let old_event_handler = self.event_handler.replace(Some(f));
-        assert!(old_event_handler.is_none());
-    }
+    /// The returned type must not be leaked (as that would allow the application to be associated
+    /// with the runner for too long).
+    pub(crate) unsafe fn set_app<'app>(
+        &self,
+        app: &'app mut (dyn ApplicationHandler + 'app),
+    ) -> impl Drop + 'app {
+        // Erase app lifetime, to allow storing on the event loop runner.
+        //
+        // SAFETY: Caller upholds that the lifetime of the closure is upheld, by not dropping the
+        // return type which resets it.
+        let f = unsafe {
+            mem::transmute::<
+                &'app mut (dyn ApplicationHandler + 'app),
+                &'static mut (dyn ApplicationHandler + 'static),
+            >(app)
+        };
 
-    pub(crate) fn clear_event_handler(&self) {
-        self.event_handler.set(None);
+        let old_event_handler = self.event_handler.replace(Some(f));
+
+        assert!(old_event_handler.is_none());
+
+        struct Resetter(Rc<EventHandler>);
+
+        impl Drop for Resetter {
+            fn drop(&mut self) {
+                self.0.set(None);
+            }
+        }
+
+        Resetter(self.event_handler.clone())
     }
 
     pub(crate) fn reset_runner(&self) {
-        let EventLoopRunner {
+        let Self {
+            thread_id: _,
             thread_msg_target: _,
             interrupt_msg_dispatch,
             runner_state,
@@ -188,21 +217,26 @@ impl EventLoopRunner {
             None
         }
     }
+
+    #[inline(always)]
+    pub(crate) fn create_thread_executor(&self) -> EventLoopThreadExecutor {
+        EventLoopThreadExecutor { thread_id: self.thread_id, target_window: self.thread_msg_target }
+    }
 }
 
 /// Event dispatch functions.
 impl EventLoopRunner {
-    pub(crate) fn prepare_wait(&self) {
+    pub(crate) fn prepare_wait(self: &Rc<Self>) {
         self.move_state_to(RunnerState::Idle);
     }
 
-    pub(crate) fn wakeup(&self) {
+    pub(crate) fn wakeup(self: &Rc<Self>) {
         self.move_state_to(RunnerState::HandlingMainEvents);
     }
 
-    pub(crate) fn send_event(&self, event: Event) {
-        if let Event::WindowEvent { event: WindowEvent::RedrawRequested, .. } = event {
-            self.call_event_handler(event);
+    pub(crate) fn send_event(self: &Rc<Self>, event: Event) {
+        if let Event::Window { event: WindowEvent::RedrawRequested, .. } = event {
+            self.call_event_handler(|app, event_loop| event.dispatch_event(app, event_loop));
             // As a rule, to ensure that `pump_events` can't block an external event loop
             // for too long, we always guarantee that `pump_events` will return control to
             // the external loop asap after a `RedrawRequested` event is dispatched.
@@ -210,31 +244,34 @@ impl EventLoopRunner {
         } else if self.should_buffer() {
             // If the runner is already borrowed, we're in the middle of an event loop invocation.
             // Add the event to a buffer to be processed later.
-            self.event_buffer.borrow_mut().push_back(BufferedEvent::from_event(event))
+            self.event_buffer.borrow_mut().push_back(event.buffer_scale_factor())
         } else {
-            self.call_event_handler(event);
+            self.call_event_handler(|app, event_loop| event.dispatch_event(app, event_loop));
             self.dispatch_buffered_events();
         }
     }
 
-    pub(crate) fn loop_destroyed(&self) {
+    pub(crate) fn loop_destroyed(self: &Rc<Self>) {
         self.move_state_to(RunnerState::Destroyed);
     }
 
-    fn call_event_handler(&self, event: Event) {
+    fn call_event_handler(
+        self: &Rc<Self>,
+        closure: impl FnOnce(&mut dyn ApplicationHandler, &dyn RootActiveEventLoop),
+    ) {
         self.catch_unwind(|| {
-            let mut event_handler = self.event_handler.take().expect(
+            let event_handler = self.event_handler.take().expect(
                 "either event handler is re-entrant (likely), or no event handler is registered \
                  (very unlikely)",
             );
 
-            event_handler(event);
+            closure(event_handler, ActiveEventLoop::from_ref(self));
 
             assert!(self.event_handler.replace(Some(event_handler)).is_none());
         });
     }
 
-    fn dispatch_buffered_events(&self) {
+    fn dispatch_buffered_events(self: &Rc<Self>) {
         loop {
             // We do this instead of using a `while let` loop because if we use a `while let`
             // loop the reference returned `borrow_mut()` doesn't get dropped until the end
@@ -242,7 +279,9 @@ impl EventLoopRunner {
             // `process_event` will fail.
             let buffered_event_opt = self.event_buffer.borrow_mut().pop_front();
             match buffered_event_opt {
-                Some(e) => e.dispatch_event(|e| self.call_event_handler(e)),
+                Some(e) => {
+                    self.call_event_handler(|app, event_loop| e.dispatch_event(app, event_loop))
+                },
                 None => break,
             }
         }
@@ -272,7 +311,7 @@ impl EventLoopRunner {
     /// state is a no-op. Even if the `new_runner_state` isn't the immediate next state in the
     /// runner state machine (e.g. `self.runner_state == HandlingMainEvents` and
     /// `new_runner_state == Idle`), the intermediate state transitions will still be executed.
-    fn move_state_to(&self, new_runner_state: RunnerState) {
+    fn move_state_to(self: &Rc<Self>, new_runner_state: RunnerState) {
         use RunnerState::{Destroyed, HandlingMainEvents, Idle, Uninitialized};
 
         match (self.runner_state.replace(new_runner_state), new_runner_state) {
@@ -287,14 +326,13 @@ impl EventLoopRunner {
             },
             (Uninitialized, Idle) => {
                 self.call_new_events(true);
-                self.call_event_handler(Event::AboutToWait);
+                self.call_event_handler(|app, event_loop| app.about_to_wait(event_loop));
                 self.last_events_cleared.set(Instant::now());
             },
             (Uninitialized, Destroyed) => {
                 self.call_new_events(true);
-                self.call_event_handler(Event::AboutToWait);
+                self.call_event_handler(|app, event_loop| app.about_to_wait(event_loop));
                 self.last_events_cleared.set(Instant::now());
-                self.call_event_handler(Event::LoopExiting);
             },
             (_, Uninitialized) => panic!("cannot move state to Uninitialized"),
 
@@ -302,26 +340,23 @@ impl EventLoopRunner {
             (Idle, HandlingMainEvents) => {
                 self.call_new_events(false);
             },
-            (Idle, Destroyed) => {
-                self.call_event_handler(Event::LoopExiting);
-            },
+            (Idle, Destroyed) => {},
 
             (HandlingMainEvents, Idle) => {
                 // This is always the last event we dispatch before waiting for new events
-                self.call_event_handler(Event::AboutToWait);
+                self.call_event_handler(|app, event_loop| app.about_to_wait(event_loop));
                 self.last_events_cleared.set(Instant::now());
             },
             (HandlingMainEvents, Destroyed) => {
-                self.call_event_handler(Event::AboutToWait);
+                self.call_event_handler(|app, event_loop| app.about_to_wait(event_loop));
                 self.last_events_cleared.set(Instant::now());
-                self.call_event_handler(Event::LoopExiting);
             },
 
             (Destroyed, _) => panic!("cannot move state from Destroyed"),
         }
     }
 
-    fn call_new_events(&self, init: bool) {
+    fn call_new_events(self: &Rc<Self>, init: bool) {
         let start_cause = match (init, self.control_flow(), self.exit.get()) {
             (true, ..) => StartCause::Init,
             (false, ControlFlow::Poll, None) => StartCause::Poll,
@@ -343,45 +378,55 @@ impl EventLoopRunner {
                 }
             },
         };
-        self.call_event_handler(Event::NewEvents(start_cause));
+        self.call_event_handler(|app, event_loop| app.new_events(event_loop, start_cause));
         // NB: For consistency all platforms must call `can_create_surfaces` even though Windows
         // applications don't themselves have a formal surface destroy/create lifecycle.
         if init {
-            self.call_event_handler(Event::CreateSurfaces);
+            self.call_event_handler(|app, event_loop| app.can_create_surfaces(event_loop));
         }
         self.dispatch_buffered_events();
     }
 }
 
-impl BufferedEvent {
-    pub fn from_event(event: Event) -> BufferedEvent {
-        match event {
-            Event::WindowEvent {
+impl Event {
+    /// Mark ScaleFactorChanged as being buffered (which forces us to re-handle when the user set a
+    /// new size).
+    pub fn buffer_scale_factor(self) -> Self {
+        match self {
+            Self::Window {
                 event: WindowEvent::ScaleFactorChanged { scale_factor, surface_size_writer },
                 window_id,
-            } => BufferedEvent::ScaleFactorChanged(
+            } => Event::BufferedScaleFactorChanged(
                 window_id.into_raw() as HWND,
                 scale_factor,
                 *surface_size_writer.new_surface_size.upgrade().unwrap().lock().unwrap(),
             ),
-            event => BufferedEvent::Event(event),
+            event => event,
         }
     }
 
-    pub fn dispatch_event(self, dispatch: impl FnOnce(Event)) {
+    pub fn dispatch_event(
+        self,
+        app: &mut dyn ApplicationHandler,
+        event_loop: &dyn RootActiveEventLoop,
+    ) {
         match self {
-            Self::Event(event) => dispatch(event),
-            Self::ScaleFactorChanged(window, scale_factor, new_surface_size) => {
+            Self::Window { window_id, event } => app.window_event(event_loop, window_id, event),
+            Self::Device { device_id, event } => {
+                app.device_event(event_loop, Some(device_id), event)
+            },
+            Self::BufferedScaleFactorChanged(window, scale_factor, new_surface_size) => {
                 let user_new_surface_size = Arc::new(Mutex::new(new_surface_size));
-                dispatch(Event::WindowEvent {
-                    window_id: WindowId::from_raw(window as usize),
-                    event: WindowEvent::ScaleFactorChanged {
+                app.window_event(
+                    event_loop,
+                    WindowId::from_raw(window as usize),
+                    WindowEvent::ScaleFactorChanged {
                         scale_factor,
                         surface_size_writer: SurfaceSizeWriter::new(Arc::downgrade(
                             &user_new_surface_size,
                         )),
                     },
-                });
+                );
                 let surface_size = *user_new_surface_size.lock().unwrap();
 
                 drop(user_new_surface_size);
@@ -395,6 +440,7 @@ impl BufferedEvent {
                     window_flags.set_size(window, surface_size);
                 }
             },
+            Self::WakeUp => app.proxy_wake_up(event_loop),
         }
     }
 }

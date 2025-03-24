@@ -1,9 +1,9 @@
 use std::cell::{Cell, RefCell};
 use std::collections::{HashSet, VecDeque};
-use std::iter;
 use std::ops::Deref;
 use std::rc::{Rc, Weak};
 use std::sync::Arc;
+use std::{fmt, iter};
 
 use wasm_bindgen::prelude::Closure;
 use wasm_bindgen::JsCast;
@@ -26,6 +26,7 @@ use crate::platform_impl::platform::r#async::DispatchRunner;
 use crate::platform_impl::platform::window::Inner;
 use crate::window::WindowId;
 
+#[derive(Debug)]
 pub struct Shared(Rc<Execution>);
 
 impl Clone for Shared {
@@ -68,6 +69,12 @@ struct Execution {
     on_visibility_change: OnEventHandle<web_sys::Event>,
 }
 
+impl fmt::Debug for Execution {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Execution").finish_non_exhaustive()
+    }
+}
+
 enum RunnerEnum {
     /// The `EventLoop` is created but not being run.
     Pending,
@@ -94,6 +101,16 @@ struct Runner {
     state: State,
     app: Box<dyn ApplicationHandler>,
     event_loop: ActiveEventLoop,
+}
+
+impl fmt::Debug for Runner {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Runner")
+            .field("state", &self.state)
+            .field("app", &"<ApplicationHandler>")
+            .field("event_loop", &self.event_loop)
+            .finish()
+    }
 }
 
 impl Runner {
@@ -141,7 +158,6 @@ impl Runner {
             Event::Resumed => self.app.resumed(&self.event_loop),
             Event::CreateSurfaces => self.app.can_create_surfaces(&self.event_loop),
             Event::AboutToWait => self.app.about_to_wait(&self.event_loop),
-            Event::LoopExiting => self.app.exiting(&self.event_loop),
         }
     }
 }
@@ -622,7 +638,9 @@ impl Shared {
         self.apply_control_flow();
         // We don't call `handle_loop_destroyed` here because we don't need to
         // perform cleanup when the Web browser is going to destroy the page.
-        self.handle_event(Event::LoopExiting);
+        //
+        // We do want to run the application handler's `Drop` impl.
+        *self.0.runner.borrow_mut() = RunnerEnum::Destroyed;
     }
 
     // handle_event takes in events and either queues them or applies a callback
@@ -720,7 +738,6 @@ impl Shared {
     }
 
     fn handle_loop_destroyed(&self) {
-        self.handle_event(Event::LoopExiting);
         let all_canvases = std::mem::take(&mut *self.0.all_canvases.borrow_mut());
         *self.0.page_transition_event_handle.borrow_mut() = None;
         *self.0.on_mouse_move.borrow_mut() = None;
@@ -862,6 +879,5 @@ pub(crate) enum Event {
     CreateSurfaces,
     Resumed,
     AboutToWait,
-    LoopExiting,
     UserWakeUp,
 }

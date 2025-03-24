@@ -10,15 +10,11 @@ mod window;
 use std::fmt;
 
 pub(crate) use self::event_loop::{
-    ActiveEventLoop, EventLoop, EventLoopProxy, PlatformSpecificEventLoopAttributes,
+    ActiveEventLoop, EventLoop, PlatformSpecificEventLoopAttributes,
 };
 pub(crate) use self::monitor::MonitorHandle;
 pub(crate) use self::window::{PlatformSpecificWindowAttributes, Window};
-pub(crate) use crate::cursor::{
-    NoCustomCursor as PlatformCustomCursor, NoCustomCursor as PlatformCustomCursorSource,
-};
 pub(crate) use crate::icon::NoIcon as PlatformIcon;
-pub(crate) use crate::platform_impl::Fullscreen;
 
 #[derive(Debug)]
 pub enum OsError {}

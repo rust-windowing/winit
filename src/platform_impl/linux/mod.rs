@@ -6,26 +6,17 @@ compile_error!("Please select a feature to build for unix: `x11`, `wayland`");
 use std::env;
 use std::os::unix::io::{AsFd, AsRawFd, BorrowedFd, RawFd};
 use std::time::Duration;
-#[cfg(x11_platform)]
-use std::{ffi::CStr, mem::MaybeUninit, os::raw::*, sync::Arc, sync::Mutex};
 
 pub(crate) use self::common::xkb::{physicalkey_to_scancode, scancode_to_physicalkey};
-#[cfg(x11_platform)]
-use self::x11::{XConnection, XError, XNotSupported};
 use crate::application::ApplicationHandler;
-pub(crate) use crate::cursor::OnlyCursorImageSource as PlatformCustomCursorSource;
-use crate::dpi::PhysicalPosition;
 #[cfg(x11_platform)]
 use crate::dpi::Size;
 use crate::error::{EventLoopError, NotSupportedError};
 use crate::event_loop::ActiveEventLoop;
 pub(crate) use crate::icon::RgbaIcon as PlatformIcon;
-use crate::monitor::VideoMode;
 use crate::platform::pump_events::PumpStatus;
 #[cfg(x11_platform)]
-use crate::platform::x11::{WindowType as XWindowType, XlibErrorHook};
-#[cfg(x11_platform)]
-use crate::utils::Lazy;
+use crate::platform::x11::WindowType as XWindowType;
 use crate::window::ActivationToken;
 
 pub(crate) mod common;
@@ -100,18 +91,6 @@ impl Default for PlatformSpecificWindowAttributes {
     }
 }
 
-#[cfg(x11_platform)]
-pub(crate) static X11_BACKEND: Lazy<Mutex<Result<Arc<XConnection>, XNotSupported>>> =
-    Lazy::new(|| Mutex::new(XConnection::new(Some(x_error_callback)).map(Arc::new)));
-
-#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub enum MonitorHandle {
-    #[cfg(x11_platform)]
-    X(x11::MonitorHandle),
-    #[cfg(wayland_platform)]
-    Wayland(wayland::MonitorHandle),
-}
-
 /// `x11_or_wayland!(match expr; Enum(foo) => foo.something())`
 /// expands to the equivalent of
 /// ```ignore
@@ -140,97 +119,7 @@ macro_rules! x11_or_wayland {
     };
 }
 
-impl MonitorHandle {
-    #[inline]
-    pub fn name(&self) -> Option<String> {
-        x11_or_wayland!(match self; MonitorHandle(m) => m.name())
-    }
-
-    #[inline]
-    pub fn native_identifier(&self) -> u32 {
-        x11_or_wayland!(match self; MonitorHandle(m) => m.native_identifier())
-    }
-
-    #[inline]
-    pub fn position(&self) -> Option<PhysicalPosition<i32>> {
-        x11_or_wayland!(match self; MonitorHandle(m) => m.position())
-    }
-
-    #[inline]
-    pub fn scale_factor(&self) -> f64 {
-        x11_or_wayland!(match self; MonitorHandle(m) => m.scale_factor() as _)
-    }
-
-    #[inline]
-    pub fn current_video_mode(&self) -> Option<VideoMode> {
-        x11_or_wayland!(match self; MonitorHandle(m) => m.current_video_mode())
-    }
-
-    #[inline]
-    pub fn video_modes(&self) -> Box<dyn Iterator<Item = VideoMode>> {
-        x11_or_wayland!(match self; MonitorHandle(m) => Box::new(m.video_modes()))
-    }
-}
-
-#[derive(Clone, Debug, Eq, Hash, PartialEq)]
-pub(crate) enum PlatformCustomCursor {
-    #[cfg(wayland_platform)]
-    Wayland(wayland::CustomCursor),
-    #[cfg(x11_platform)]
-    X(x11::CustomCursor),
-}
-
-/// Hooks for X11 errors.
-#[cfg(x11_platform)]
-pub(crate) static XLIB_ERROR_HOOKS: Mutex<Vec<XlibErrorHook>> = Mutex::new(Vec::new());
-
-#[cfg(x11_platform)]
-unsafe extern "C" fn x_error_callback(
-    display: *mut x11::ffi::Display,
-    event: *mut x11::ffi::XErrorEvent,
-) -> c_int {
-    let xconn_lock = X11_BACKEND.lock().unwrap_or_else(|e| e.into_inner());
-    if let Ok(ref xconn) = *xconn_lock {
-        // Call all the hooks.
-        let mut error_handled = false;
-        for hook in XLIB_ERROR_HOOKS.lock().unwrap().iter() {
-            error_handled |= hook(display as *mut _, event as *mut _);
-        }
-
-        // `assume_init` is safe here because the array consists of `MaybeUninit` values,
-        // which do not require initialization.
-        let mut buf: [MaybeUninit<c_char>; 1024] = unsafe { MaybeUninit::uninit().assume_init() };
-        unsafe {
-            (xconn.xlib.XGetErrorText)(
-                display,
-                (*event).error_code as c_int,
-                buf.as_mut_ptr() as *mut c_char,
-                buf.len() as c_int,
-            )
-        };
-        let description =
-            unsafe { CStr::from_ptr(buf.as_ptr() as *const c_char) }.to_string_lossy();
-
-        let error = unsafe {
-            XError {
-                description: description.into_owned(),
-                error_code: (*event).error_code,
-                request_code: (*event).request_code,
-                minor_code: (*event).minor_code,
-            }
-        };
-
-        // Don't log error.
-        if !error_handled {
-            tracing::error!("X11 error: {:#?}", error);
-            // XXX only update the error, if it wasn't handled by any of the hooks.
-            *xconn.latest_error.lock().unwrap() = Some(error);
-        }
-    }
-    // Fun fact: this return value is completely ignored.
-    0
-}
-
+#[derive(Debug)]
 pub enum EventLoop {
     #[cfg(wayland_platform)]
     Wayland(Box<wayland::EventLoop>),
@@ -303,12 +192,7 @@ impl EventLoop {
 
     #[cfg(x11_platform)]
     fn new_x11_any_thread() -> Result<EventLoop, EventLoopError> {
-        let xconn = match X11_BACKEND.lock().unwrap_or_else(|e| e.into_inner()).as_ref() {
-            Ok(xconn) => xconn.clone(),
-            Err(err) => return Err(os_error!(err.clone()).into()),
-        };
-
-        Ok(EventLoop::X(x11::EventLoop::new(xconn)))
+        x11::EventLoop::new().map(EventLoop::X)
     }
 
     #[inline]

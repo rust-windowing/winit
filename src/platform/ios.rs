@@ -85,12 +85,9 @@
 //!
 //!  - applicationDidBecomeActive is Resumed
 //!  - applicationWillResignActive is Suspended
-//!  - applicationWillTerminate is LoopExiting
+//!  - applicationWillTerminate corresponds to `Drop`ping the application handler.
 //!
-//! Keep in mind that after LoopExiting event is received every attempt to draw with
-//! opengl will result in segfault.
-//!
-//! Also note that app may not receive the LoopExiting event if suspended; it might be SIGKILL'ed.
+//! Note that an app may not receive the `Drop` event if suspended; it might be SIGKILL'ed.
 //!
 //! ## Custom `UIApplicationDelegate`
 //!
@@ -108,6 +105,7 @@ use std::os::raw::c_void;
 use serde::{Deserialize, Serialize};
 
 use crate::monitor::{MonitorHandle, VideoMode};
+use crate::platform_impl::MonitorHandle as IosMonitorHandle;
 use crate::window::{Window, WindowAttributes};
 
 /// Additional methods on [`Window`] that are specific to iOS.
@@ -115,10 +113,11 @@ pub trait WindowExtIOS {
     /// Sets the [`contentScaleFactor`] of the underlying [`UIWindow`] to `scale_factor`.
     ///
     /// The default value is device dependent, and it's recommended GLES or Metal applications set
-    /// this to [`MonitorHandle::scale_factor()`].
+    /// this to [`MonitorHandleProvider::scale_factor()`].
     ///
     /// [`UIWindow`]: https://developer.apple.com/documentation/uikit/uiwindow?language=objc
     /// [`contentScaleFactor`]: https://developer.apple.com/documentation/uikit/uiview/1622657-contentscalefactor?language=objc
+    /// [`MonitorHandleProvider::scale_factor()`]: crate::monitor::MonitorHandleProvider::scale_factor()
     fn set_scale_factor(&self, scale_factor: f64);
 
     /// Sets the valid orientations for the [`Window`].
@@ -212,25 +211,25 @@ pub trait WindowExtIOS {
 impl WindowExtIOS for dyn Window + '_ {
     #[inline]
     fn set_scale_factor(&self, scale_factor: f64) {
-        let window = self.as_any().downcast_ref::<crate::platform_impl::Window>().unwrap();
+        let window = self.cast_ref::<crate::platform_impl::Window>().unwrap();
         window.maybe_wait_on_main(move |w| w.set_scale_factor(scale_factor));
     }
 
     #[inline]
     fn set_valid_orientations(&self, valid_orientations: ValidOrientations) {
-        let window = self.as_any().downcast_ref::<crate::platform_impl::Window>().unwrap();
+        let window = self.cast_ref::<crate::platform_impl::Window>().unwrap();
         window.maybe_wait_on_main(move |w| w.set_valid_orientations(valid_orientations));
     }
 
     #[inline]
     fn set_prefers_home_indicator_hidden(&self, hidden: bool) {
-        let window = self.as_any().downcast_ref::<crate::platform_impl::Window>().unwrap();
+        let window = self.cast_ref::<crate::platform_impl::Window>().unwrap();
         window.maybe_wait_on_main(move |w| w.set_prefers_home_indicator_hidden(hidden));
     }
 
     #[inline]
     fn set_preferred_screen_edges_deferring_system_gestures(&self, edges: ScreenEdge) {
-        let window = self.as_any().downcast_ref::<crate::platform_impl::Window>().unwrap();
+        let window = self.cast_ref::<crate::platform_impl::Window>().unwrap();
         window.maybe_wait_on_main(move |w| {
             w.set_preferred_screen_edges_deferring_system_gestures(edges)
         });
@@ -238,19 +237,19 @@ impl WindowExtIOS for dyn Window + '_ {
 
     #[inline]
     fn set_prefers_status_bar_hidden(&self, hidden: bool) {
-        let window = self.as_any().downcast_ref::<crate::platform_impl::Window>().unwrap();
+        let window = self.cast_ref::<crate::platform_impl::Window>().unwrap();
         window.maybe_wait_on_main(move |w| w.set_prefers_status_bar_hidden(hidden));
     }
 
     #[inline]
     fn set_preferred_status_bar_style(&self, status_bar_style: StatusBarStyle) {
-        let window = self.as_any().downcast_ref::<crate::platform_impl::Window>().unwrap();
+        let window = self.cast_ref::<crate::platform_impl::Window>().unwrap();
         window.maybe_wait_on_main(move |w| w.set_preferred_status_bar_style(status_bar_style))
     }
 
     #[inline]
     fn recognize_pinch_gesture(&self, should_recognize: bool) {
-        let window = self.as_any().downcast_ref::<crate::platform_impl::Window>().unwrap();
+        let window = self.cast_ref::<crate::platform_impl::Window>().unwrap();
         window.maybe_wait_on_main(move |w| w.recognize_pinch_gesture(should_recognize));
     }
 
@@ -261,7 +260,7 @@ impl WindowExtIOS for dyn Window + '_ {
         minimum_number_of_touches: u8,
         maximum_number_of_touches: u8,
     ) {
-        let window = self.as_any().downcast_ref::<crate::platform_impl::Window>().unwrap();
+        let window = self.cast_ref::<crate::platform_impl::Window>().unwrap();
         window.maybe_wait_on_main(move |w| {
             w.recognize_pan_gesture(
                 should_recognize,
@@ -273,13 +272,13 @@ impl WindowExtIOS for dyn Window + '_ {
 
     #[inline]
     fn recognize_doubletap_gesture(&self, should_recognize: bool) {
-        let window = self.as_any().downcast_ref::<crate::platform_impl::Window>().unwrap();
+        let window = self.cast_ref::<crate::platform_impl::Window>().unwrap();
         window.maybe_wait_on_main(move |w| w.recognize_doubletap_gesture(should_recognize));
     }
 
     #[inline]
     fn recognize_rotation_gesture(&self, should_recognize: bool) {
-        let window = self.as_any().downcast_ref::<crate::platform_impl::Window>().unwrap();
+        let window = self.cast_ref::<crate::platform_impl::Window>().unwrap();
         window.maybe_wait_on_main(move |w| w.recognize_rotation_gesture(should_recognize));
     }
 }
@@ -289,10 +288,11 @@ pub trait WindowAttributesExtIOS {
     /// Sets the [`contentScaleFactor`] of the underlying [`UIWindow`] to `scale_factor`.
     ///
     /// The default value is device dependent, and it's recommended GLES or Metal applications set
-    /// this to [`MonitorHandle::scale_factor()`].
+    /// this to [`MonitorHandleProvider::scale_factor()`].
     ///
     /// [`UIWindow`]: https://developer.apple.com/documentation/uikit/uiwindow?language=objc
     /// [`contentScaleFactor`]: https://developer.apple.com/documentation/uikit/uiview/1622657-contentscalefactor?language=objc
+    /// [`MonitorHandleProvider::scale_factor()`]: crate::monitor::MonitorHandleProvider::scale_factor()
     fn with_scale_factor(self, scale_factor: f64) -> Self;
 
     /// Sets the valid orientations for the [`Window`].
@@ -395,12 +395,14 @@ impl MonitorHandleExtIOS for MonitorHandle {
     fn ui_screen(&self) -> *mut c_void {
         // SAFETY: The marker is only used to get the pointer of the screen
         let mtm = unsafe { objc2::MainThreadMarker::new_unchecked() };
-        objc2::rc::Retained::as_ptr(self.inner.ui_screen(mtm)) as *mut c_void
+        let monitor = self.cast_ref::<IosMonitorHandle>().unwrap();
+        objc2::rc::Retained::as_ptr(monitor.ui_screen(mtm)) as *mut c_void
     }
 
     #[inline]
     fn preferred_video_mode(&self) -> VideoMode {
-        self.inner.preferred_video_mode()
+        let monitor = self.cast_ref::<IosMonitorHandle>().unwrap();
+        monitor.preferred_video_mode()
     }
 }
 

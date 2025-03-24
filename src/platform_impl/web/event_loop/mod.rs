@@ -11,6 +11,7 @@ mod window_target;
 
 pub(crate) use window_target::ActiveEventLoop;
 
+#[derive(Debug)]
 pub struct EventLoop {
     elw: ActiveEventLoop,
 }

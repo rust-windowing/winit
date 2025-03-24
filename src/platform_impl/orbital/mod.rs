@@ -4,17 +4,12 @@ use std::{fmt, str};
 
 pub(crate) use self::event_loop::{ActiveEventLoop, EventLoop};
 pub use self::window::Window;
-use crate::dpi::PhysicalPosition;
-use crate::monitor::VideoMode;
+pub(crate) use crate::icon::NoIcon as PlatformIcon;
 
 mod event_loop;
 mod window;
 
-pub(crate) use crate::cursor::{
-    NoCustomCursor as PlatformCustomCursor, NoCustomCursor as PlatformCustomCursorSource,
-};
-pub(crate) use crate::icon::NoIcon as PlatformIcon;
-
+#[derive(Debug)]
 struct RedoxSocket {
     fd: usize,
 }
@@ -67,6 +62,7 @@ impl Drop for RedoxSocket {
     }
 }
 
+#[derive(Debug)]
 pub struct TimeSocket(RedoxSocket);
 
 impl TimeSocket {
@@ -129,31 +125,5 @@ impl fmt::Display for WindowProperties<'_> {
             "orbital:{}/{}/{}/{}/{}/{}",
             self.flags, self.x, self.y, self.w, self.h, self.title
         )
-    }
-}
-
-#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
-pub struct MonitorHandle;
-
-impl MonitorHandle {
-    pub fn name(&self) -> Option<String> {
-        None
-    }
-
-    pub fn position(&self) -> Option<PhysicalPosition<i32>> {
-        None
-    }
-
-    pub fn scale_factor(&self) -> f64 {
-        1.0 // TODO
-    }
-
-    pub fn current_video_mode(&self) -> Option<VideoMode> {
-        // (it is guaranteed to support 32 bit color though)
-        None
-    }
-
-    pub fn video_modes(&self) -> impl Iterator<Item = VideoMode> {
-        std::iter::empty()
     }
 }

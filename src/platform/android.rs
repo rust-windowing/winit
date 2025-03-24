@@ -101,20 +101,19 @@ pub trait WindowExtAndroid {
 
 impl WindowExtAndroid for dyn Window + '_ {
     fn content_rect(&self) -> Rect {
-        let window = self.as_any().downcast_ref::<crate::platform_impl::Window>().unwrap();
+        let window = self.cast_ref::<crate::platform_impl::Window>().unwrap();
         window.content_rect()
     }
 
     fn config(&self) -> ConfigurationRef {
-        let window = self.as_any().downcast_ref::<crate::platform_impl::Window>().unwrap();
+        let window = self.cast_ref::<crate::platform_impl::Window>().unwrap();
         window.config()
     }
 }
 
 impl ActiveEventLoopExtAndroid for dyn ActiveEventLoop + '_ {
     fn android_app(&self) -> &AndroidApp {
-        let event_loop =
-            self.as_any().downcast_ref::<crate::platform_impl::ActiveEventLoop>().unwrap();
+        let event_loop = self.cast_ref::<crate::platform_impl::ActiveEventLoop>().unwrap();
         &event_loop.app
     }
 }

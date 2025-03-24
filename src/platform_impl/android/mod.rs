@@ -20,20 +20,15 @@ use crate::event_loop::{
     EventLoopProxy as CoreEventLoopProxy, EventLoopProxyProvider,
     OwnedDisplayHandle as CoreOwnedDisplayHandle,
 };
-use crate::monitor::{MonitorHandle as RootMonitorHandle, VideoMode};
+pub(crate) use crate::icon::NoIcon as PlatformIcon;
+use crate::monitor::{Fullscreen, MonitorHandle as CoreMonitorHandle};
 use crate::platform::pump_events::PumpStatus;
 use crate::window::{
-    self, CursorGrabMode, CustomCursor, CustomCursorSource, Fullscreen, ImePurpose,
-    ResizeDirection, Theme, Window as CoreWindow, WindowAttributes, WindowButtons, WindowId,
-    WindowLevel,
+    self, CursorGrabMode, CustomCursor, CustomCursorSource, ImePurpose, ResizeDirection, Theme,
+    Window as CoreWindow, WindowAttributes, WindowButtons, WindowId, WindowLevel,
 };
 
 mod keycodes;
-
-pub(crate) use crate::cursor::{
-    NoCustomCursor as PlatformCustomCursor, NoCustomCursor as PlatformCustomCursorSource,
-};
-pub(crate) use crate::icon::NoIcon as PlatformIcon;
 
 static HAS_FOCUS: AtomicBool = AtomicBool::new(true);
 
@@ -44,7 +39,7 @@ fn min_timeout(a: Option<Duration>, b: Option<Duration>) -> Option<Duration> {
     a.map_or(b, |a_timeout| b.map_or(Some(a_timeout), |b_timeout| Some(a_timeout.min(b_timeout))))
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 struct SharedFlagSetter {
     flag: Arc<AtomicBool>,
 }
@@ -54,6 +49,7 @@ impl SharedFlagSetter {
     }
 }
 
+#[derive(Debug)]
 struct SharedFlag {
     flag: Arc<AtomicBool>,
 }
@@ -82,6 +78,12 @@ pub struct RedrawRequester {
     waker: AndroidAppWaker,
 }
 
+impl fmt::Debug for RedrawRequester {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("RedrawRequester").field("flag", &self.flag).finish_non_exhaustive()
+    }
+}
+
 impl RedrawRequester {
     fn new(flag: &SharedFlag, waker: AndroidAppWaker) -> Self {
         RedrawRequester { flag: flag.setter(), waker }
@@ -96,6 +98,7 @@ impl RedrawRequester {
     }
 }
 
+#[derive(Debug)]
 pub struct EventLoop {
     pub(crate) android_app: AndroidApp,
     window_target: ActiveEventLoop,
@@ -543,8 +546,6 @@ impl EventLoop {
         if self.exiting() {
             self.loop_running = false;
 
-            app.exiting(&self.window_target);
-
             PumpStatus::Exit(0)
         } else {
             PumpStatus::Continue
@@ -639,6 +640,12 @@ pub struct EventLoopProxy {
     waker: AndroidAppWaker,
 }
 
+impl fmt::Debug for EventLoopProxy {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("EventLoopProxy").field("wake_up", &self.wake_up).finish_non_exhaustive()
+    }
+}
+
 impl EventLoopProxy {
     fn new(waker: AndroidAppWaker) -> Self {
         Self { wake_up: AtomicBool::new(false), waker }
@@ -652,6 +659,7 @@ impl EventLoopProxyProvider for EventLoopProxy {
     }
 }
 
+#[derive(Debug)]
 pub struct ActiveEventLoop {
     pub(crate) app: AndroidApp,
     control_flow: Cell<ControlFlow>,
@@ -685,11 +693,11 @@ impl RootActiveEventLoop for ActiveEventLoop {
         Err(NotSupportedError::new("create_custom_cursor is not supported").into())
     }
 
-    fn available_monitors(&self) -> Box<dyn Iterator<Item = RootMonitorHandle>> {
+    fn available_monitors(&self) -> Box<dyn Iterator<Item = CoreMonitorHandle>> {
         Box::new(std::iter::empty())
     }
 
-    fn primary_monitor(&self) -> Option<RootMonitorHandle> {
+    fn primary_monitor(&self) -> Option<CoreMonitorHandle> {
         None
     }
 
@@ -744,6 +752,7 @@ impl rwh_06::HasDisplayHandle for OwnedDisplayHandle {
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub struct PlatformSpecificWindowAttributes;
 
+#[derive(Debug)]
 pub(crate) struct Window {
     app: AndroidApp,
     redraw_requester: RedrawRequester,
@@ -808,15 +817,15 @@ impl CoreWindow for Window {
         GLOBAL_WINDOW
     }
 
-    fn primary_monitor(&self) -> Option<RootMonitorHandle> {
+    fn primary_monitor(&self) -> Option<CoreMonitorHandle> {
         None
     }
 
-    fn available_monitors(&self) -> Box<dyn Iterator<Item = RootMonitorHandle>> {
+    fn available_monitors(&self) -> Box<dyn Iterator<Item = CoreMonitorHandle>> {
         Box::new(std::iter::empty())
     }
 
-    fn current_monitor(&self) -> Option<RootMonitorHandle> {
+    fn current_monitor(&self) -> Option<CoreMonitorHandle> {
         None
     }
 
@@ -999,31 +1008,6 @@ use std::fmt::{self, Display, Formatter};
 impl Display for OsError {
     fn fmt(&self, fmt: &mut Formatter<'_>) -> Result<(), fmt::Error> {
         write!(fmt, "Android OS Error")
-    }
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct MonitorHandle;
-
-impl MonitorHandle {
-    pub fn name(&self) -> Option<String> {
-        unreachable!()
-    }
-
-    pub fn position(&self) -> Option<PhysicalPosition<i32>> {
-        unreachable!()
-    }
-
-    pub fn scale_factor(&self) -> f64 {
-        unreachable!()
-    }
-
-    pub fn current_video_mode(&self) -> Option<VideoMode> {
-        unreachable!()
-    }
-
-    pub fn video_modes(&self) -> std::iter::Empty<VideoMode> {
-        unreachable!()
     }
 }
 

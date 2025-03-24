@@ -1,39 +1,4 @@
 //! The event enums and assorted supporting types.
-//!
-//! These are sent to the closure given to [`EventLoop::run_app(...)`], where they get
-//! processed and used to modify the program state. For more details, see the root-level
-//! documentation.
-//!
-//! Some of these events represent different "parts" of a traditional event-handling loop. You could
-//! approximate the basic ordering loop of [`EventLoop::run_app(...)`] like this:
-//!
-//! ```rust,ignore
-//! let mut start_cause = StartCause::Init;
-//!
-//! while !elwt.exiting() {
-//!     app.new_events(event_loop, start_cause);
-//!
-//!     for event in (window events, user events, device events) {
-//!         // This will pick the right method on the application based on the event.
-//!         app.handle_event(event_loop, event);
-//!     }
-//!
-//!     for window_id in (redraw windows) {
-//!         app.window_event(event_loop, window_id, RedrawRequested);
-//!     }
-//!
-//!     app.about_to_wait(event_loop);
-//!     start_cause = wait_if_necessary();
-//! }
-//!
-//! app.exiting(event_loop);
-//! ```
-//!
-//! This leaves out timing details like [`ControlFlow::WaitUntil`] but hopefully
-//! describes what happens in what order.
-//!
-//! [`EventLoop::run_app(...)`]: crate::event_loop::EventLoop::run_app
-//! [`ControlFlow::WaitUntil`]: crate::event_loop::ControlFlow::WaitUntil
 use std::path::PathBuf;
 use std::sync::{Mutex, Weak};
 #[cfg(not(web_platform))]
@@ -51,67 +16,7 @@ use crate::event_loop::AsyncRequestSerial;
 use crate::keyboard::{self, ModifiersKeyState, ModifiersKeys, ModifiersState};
 #[cfg(doc)]
 use crate::window::Window;
-use crate::window::{ActivationToken, Theme, WindowId};
-
-// TODO: Remove once the backends can call `ApplicationHandler` methods directly. For now backends
-// like Windows and Web require `Event` to wire user events, otherwise each backend will have to
-// wrap `Event` in some other structure.
-/// Describes a generic event.
-///
-/// See the module-level docs for more information on the event loop manages each event.
-#[allow(dead_code)]
-#[derive(Debug, Clone, PartialEq)]
-pub(crate) enum Event {
-    /// See [`ApplicationHandler::new_events()`] for details.
-    ///
-    /// [`ApplicationHandler::new_events()`]: crate::application::ApplicationHandler::new_events()
-    NewEvents(StartCause),
-
-    /// See [`ApplicationHandler::window_event()`] for details.
-    ///
-    /// [`ApplicationHandler::window_event()`]: crate::application::ApplicationHandler::window_event()
-    #[allow(clippy::enum_variant_names)]
-    WindowEvent { window_id: WindowId, event: WindowEvent },
-
-    /// See [`ApplicationHandler::device_event()`] for details.
-    ///
-    /// [`ApplicationHandler::device_event()`]: crate::application::ApplicationHandler::device_event()
-    #[allow(clippy::enum_variant_names)]
-    DeviceEvent { device_id: Option<DeviceId>, event: DeviceEvent },
-
-    /// See [`ApplicationHandler::suspended()`] for details.
-    ///
-    /// [`ApplicationHandler::suspended()`]: crate::application::ApplicationHandler::suspended()
-    Suspended,
-
-    /// See [`ApplicationHandler::can_create_surfaces()`] for details.
-    ///
-    /// [`ApplicationHandler::can_create_surfaces()`]: crate::application::ApplicationHandler::can_create_surfaces()
-    CreateSurfaces,
-
-    /// See [`ApplicationHandler::resumed()`] for details.
-    ///
-    /// [`ApplicationHandler::resumed()`]: crate::application::ApplicationHandler::resumed()
-    Resumed,
-
-    /// See [`ApplicationHandler::about_to_wait()`] for details.
-    ///
-    /// [`ApplicationHandler::about_to_wait()`]: crate::application::ApplicationHandler::about_to_wait()
-    AboutToWait,
-
-    /// See [`ApplicationHandler::exiting()`] for details.
-    ///
-    /// [`ApplicationHandler::exiting()`]: crate::application::ApplicationHandler::exiting()
-    LoopExiting,
-
-    /// See [`ApplicationHandler::memory_warning()`] for details.
-    ///
-    /// [`ApplicationHandler::memory_warning()`]: crate::application::ApplicationHandler::memory_warning()
-    MemoryWarning,
-
-    /// User requested a wake up.
-    UserWakeUp,
-}
+use crate::window::{ActivationToken, Theme};
 
 /// Describes the reason the event loop is resuming.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -701,10 +606,12 @@ impl FingerId {
 ///
 /// Useful for interactions that diverge significantly from a conventional 2D GUI, such as 3D camera
 /// or first-person game controls. Many physical actions, such as mouse movement, can produce both
-/// device and window events. Because window events typically arise from virtual devices
+/// device and [window events]. Because window events typically arise from virtual devices
 /// (corresponding to GUI pointers and keyboard focus) the device IDs may not match.
 ///
 /// Note that these events are delivered regardless of input focus.
+///
+/// [window events]: WindowEvent
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum DeviceEvent {
     /// Change in physical position of a pointing device.
@@ -717,11 +624,11 @@ pub enum DeviceEvent {
     /// **Web:** Only returns raw data, not OS accelerated, if [`CursorGrabMode::Locked`] is used
     /// and browser support is available, see
     #[cfg_attr(
-        any(web_platform, docsrs),
+        web_platform,
         doc = "[`ActiveEventLoopExtWeb::is_cursor_lock_raw()`][crate::platform::web::ActiveEventLoopExtWeb::is_cursor_lock_raw()]."
     )]
     #[cfg_attr(
-        not(any(web_platform, docsrs)),
+        not(web_platform),
         doc = "`ActiveEventLoopExtWeb::is_cursor_lock_raw()`."
     )]
     ///
@@ -962,12 +869,12 @@ impl Modifiers {
 
     /// The state of the left super key.
     pub fn lsuper_state(&self) -> ModifiersKeyState {
-        self.mod_state(ModifiersKeys::LSUPER)
+        self.mod_state(ModifiersKeys::LMETA)
     }
 
     /// The state of the right super key.
     pub fn rsuper_state(&self) -> ModifiersKeyState {
-        self.mod_state(ModifiersKeys::RSUPER)
+        self.mod_state(ModifiersKeys::RMETA)
     }
 
     fn mod_state(&self, modifier: ModifiersKeys) -> ModifiersKeyState {
@@ -1220,130 +1127,108 @@ mod tests {
 
     macro_rules! foreach_event {
         ($closure:expr) => {{
+            foreach_event!(window: $closure);
+            foreach_event!(device: $closure);
+        }};
+        (window: $closure:expr) => {{
             #[allow(unused_mut)]
-            let mut x = $closure;
+            let mut with_window_event: &mut dyn FnMut(event::WindowEvent) = &mut $closure;
             let fid = event::FingerId::from_raw(0);
 
-            #[allow(deprecated)]
-            {
-                use crate::event::Event::*;
-                use crate::event::Ime::Enabled;
-                use crate::event::WindowEvent::*;
-                use crate::event::{PointerKind, PointerSource};
-                use crate::window::WindowId;
+            use crate::event::Ime::Enabled;
+            use crate::event::WindowEvent::*;
+            use crate::event::{PointerKind, PointerSource};
 
-                // Mainline events.
-                let wid = WindowId::from_raw(0);
-                x(NewEvents(event::StartCause::Init));
-                x(AboutToWait);
-                x(LoopExiting);
-                x(Suspended);
-                x(Resumed);
+            with_window_event(CloseRequested);
+            with_window_event(Destroyed);
+            with_window_event(Focused(true));
+            with_window_event(Moved((0, 0).into()));
+            with_window_event(SurfaceResized((0, 0).into()));
+            with_window_event(DragEntered { paths: vec!["x.txt".into()], position: (0, 0).into() });
+            with_window_event(DragMoved { position: (0, 0).into() });
+            with_window_event(DragDropped { paths: vec!["x.txt".into()], position: (0, 0).into() });
+            with_window_event(DragLeft { position: Some((0, 0).into()) });
+            with_window_event(Ime(Enabled));
+            with_window_event(PointerMoved {
+                device_id: None,
+                primary: true,
+                position: (0, 0).into(),
+                source: PointerSource::Mouse,
+            });
+            with_window_event(ModifiersChanged(event::Modifiers::default()));
+            with_window_event(PointerEntered {
+                device_id: None,
+                primary: true,
+                position: (0, 0).into(),
+                kind: PointerKind::Mouse,
+            });
+            with_window_event(PointerLeft {
+                primary: true,
+                device_id: None,
+                position: Some((0, 0).into()),
+                kind: PointerKind::Mouse,
+            });
+            with_window_event(MouseWheel {
+                device_id: None,
+                delta: event::MouseScrollDelta::LineDelta(0.0, 0.0),
+                phase: event::TouchPhase::Started,
+            });
+            with_window_event(PointerButton {
+                device_id: None,
+                primary: true,
+                state: event::ElementState::Pressed,
+                position: (0, 0).into(),
+                button: event::MouseButton::Other(0).into(),
+            });
+            with_window_event(PointerButton {
+                device_id: None,
+                primary: true,
+                state: event::ElementState::Released,
+                position: (0, 0).into(),
+                button: event::ButtonSource::Touch {
+                    finger_id: fid,
+                    force: Some(event::Force::Normalized(0.0)),
+                },
+            });
+            with_window_event(PinchGesture {
+                device_id: None,
+                delta: 0.0,
+                phase: event::TouchPhase::Started,
+            });
+            with_window_event(DoubleTapGesture { device_id: None });
+            with_window_event(RotationGesture {
+                device_id: None,
+                delta: 0.0,
+                phase: event::TouchPhase::Started,
+            });
+            with_window_event(PanGesture {
+                device_id: None,
+                delta: PhysicalPosition::<f32>::new(0.0, 0.0),
+                phase: event::TouchPhase::Started,
+            });
+            with_window_event(TouchpadPressure { device_id: None, pressure: 0.0, stage: 0 });
+            with_window_event(ThemeChanged(crate::window::Theme::Light));
+            with_window_event(Occluded(true));
+        }};
+        (device: $closure:expr) => {{
+            use event::DeviceEvent::*;
 
-                // Window events.
-                let with_window_event = |wev| x(WindowEvent { window_id: wid, event: wev });
+            #[allow(unused_mut)]
+            let mut with_device_event: &mut dyn FnMut(event::DeviceEvent) = &mut $closure;
 
-                with_window_event(CloseRequested);
-                with_window_event(Destroyed);
-                with_window_event(Focused(true));
-                with_window_event(Moved((0, 0).into()));
-                with_window_event(SurfaceResized((0, 0).into()));
-                with_window_event(DragEntered {
-                    paths: vec!["x.txt".into()],
-                    position: (0, 0).into(),
-                });
-                with_window_event(DragMoved { position: (0, 0).into() });
-                with_window_event(DragDropped {
-                    paths: vec!["x.txt".into()],
-                    position: (0, 0).into(),
-                });
-                with_window_event(DragLeft { position: Some((0, 0).into()) });
-                with_window_event(Ime(Enabled));
-                with_window_event(PointerMoved {
-                    device_id: None,
-                    primary: true,
-                    position: (0, 0).into(),
-                    source: PointerSource::Mouse,
-                });
-                with_window_event(ModifiersChanged(event::Modifiers::default()));
-                with_window_event(PointerEntered {
-                    device_id: None,
-                    primary: true,
-                    position: (0, 0).into(),
-                    kind: PointerKind::Mouse,
-                });
-                with_window_event(PointerLeft {
-                    primary: true,
-                    device_id: None,
-                    position: Some((0, 0).into()),
-                    kind: PointerKind::Mouse,
-                });
-                with_window_event(MouseWheel {
-                    device_id: None,
-                    delta: event::MouseScrollDelta::LineDelta(0.0, 0.0),
-                    phase: event::TouchPhase::Started,
-                });
-                with_window_event(PointerButton {
-                    device_id: None,
-                    primary: true,
-                    state: event::ElementState::Pressed,
-                    position: (0, 0).into(),
-                    button: event::MouseButton::Other(0).into(),
-                });
-                with_window_event(PointerButton {
-                    device_id: None,
-                    primary: true,
-                    state: event::ElementState::Released,
-                    position: (0, 0).into(),
-                    button: event::ButtonSource::Touch {
-                        finger_id: fid,
-                        force: Some(event::Force::Normalized(0.0)),
-                    },
-                });
-                with_window_event(PinchGesture {
-                    device_id: None,
-                    delta: 0.0,
-                    phase: event::TouchPhase::Started,
-                });
-                with_window_event(DoubleTapGesture { device_id: None });
-                with_window_event(RotationGesture {
-                    device_id: None,
-                    delta: 0.0,
-                    phase: event::TouchPhase::Started,
-                });
-                with_window_event(PanGesture {
-                    device_id: None,
-                    delta: PhysicalPosition::<f32>::new(0.0, 0.0),
-                    phase: event::TouchPhase::Started,
-                });
-                with_window_event(TouchpadPressure { device_id: None, pressure: 0.0, stage: 0 });
-                with_window_event(ThemeChanged(crate::window::Theme::Light));
-                with_window_event(Occluded(true));
-            }
-
-            #[allow(deprecated)]
-            {
-                use event::DeviceEvent::*;
-
-                let with_device_event =
-                    |dev_ev| x(event::Event::DeviceEvent { device_id: None, event: dev_ev });
-
-                with_device_event(PointerMotion { delta: (0.0, 0.0).into() });
-                with_device_event(MouseWheel {
-                    delta: event::MouseScrollDelta::LineDelta(0.0, 0.0),
-                });
-                with_device_event(Button { button: 0, state: event::ElementState::Pressed });
-            }
+            with_device_event(PointerMotion { delta: (0.0, 0.0).into() });
+            with_device_event(MouseWheel { delta: event::MouseScrollDelta::LineDelta(0.0, 0.0) });
+            with_device_event(Button { button: 0, state: event::ElementState::Pressed });
         }};
     }
 
-    #[allow(clippy::redundant_clone)]
+    #[allow(clippy::clone_on_copy)]
     #[test]
     fn test_event_clone() {
-        foreach_event!(|event: event::Event| {
+        foreach_event!(|event| {
             let event2 = event.clone();
             assert_eq!(event, event2);
-        })
+        });
     }
 
     #[test]
@@ -1361,7 +1246,7 @@ mod tests {
     #[allow(clippy::clone_on_copy)]
     #[test]
     fn ensure_attrs_do_not_panic() {
-        foreach_event!(|event: event::Event| {
+        foreach_event!(|event| {
             let _ = format!("{event:?}");
         });
         let _ = event::StartCause::Init.clone();

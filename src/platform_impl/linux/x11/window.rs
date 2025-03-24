@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::ffi::CString;
 use std::mem::replace;
 use std::num::NonZeroU32;
@@ -18,27 +19,30 @@ use x11rb::protocol::{randr, xinput};
 
 use super::util::{self, SelectedCursor};
 use super::{
-    ffi, ActiveEventLoop, CookieResultExt, ImeRequest, ImeSender, VoidCookie, XConnection,
+    ffi, ActiveEventLoop, CookieResultExt, CustomCursor, ImeRequest, ImeSender, VoidCookie,
+    XConnection,
 };
 use crate::application::ApplicationHandler;
-use crate::cursor::{Cursor, CustomCursor as RootCustomCursor};
+use crate::cursor::Cursor;
 use crate::dpi::{PhysicalInsets, PhysicalPosition, PhysicalSize, Position, Size};
 use crate::error::{NotSupportedError, RequestError};
 use crate::event::{SurfaceSizeWriter, WindowEvent};
 use crate::event_loop::AsyncRequestSerial;
+use crate::monitor::{
+    Fullscreen, MonitorHandle as CoreMonitorHandle, MonitorHandleProvider, VideoMode,
+};
 use crate::platform::x11::WindowType;
 use crate::platform_impl::x11::atoms::*;
 use crate::platform_impl::x11::{
     xinput_fp1616_to_float, MonitorHandle as X11MonitorHandle, WakeSender, X11Error,
 };
-use crate::platform_impl::{
-    common, Fullscreen, MonitorHandle as PlatformMonitorHandle, PlatformCustomCursor, PlatformIcon,
-};
+use crate::platform_impl::{common, PlatformIcon};
 use crate::window::{
     CursorGrabMode, ImePurpose, ResizeDirection, Theme, UserAttentionType, Window as CoreWindow,
     WindowAttributes, WindowButtons, WindowId, WindowLevel,
 };
 
+#[derive(Debug)]
 pub(crate) struct Window(Arc<UnownedWindow>);
 
 impl Deref for Window {
@@ -178,12 +182,12 @@ impl CoreWindow for Window {
         self.0.is_maximized()
     }
 
-    fn set_fullscreen(&self, fullscreen: Option<crate::window::Fullscreen>) {
-        self.0.set_fullscreen(fullscreen.map(Into::into))
+    fn set_fullscreen(&self, fullscreen: Option<Fullscreen>) {
+        self.0.set_fullscreen(fullscreen)
     }
 
-    fn fullscreen(&self) -> Option<crate::window::Fullscreen> {
-        self.0.fullscreen().map(Into::into)
+    fn fullscreen(&self) -> Option<Fullscreen> {
+        self.0.fullscreen()
     }
 
     fn set_decorations(&self, decorations: bool) {
@@ -274,28 +278,21 @@ impl CoreWindow for Window {
         self.0.set_cursor_hittest(hittest)
     }
 
-    fn current_monitor(&self) -> Option<crate::monitor::MonitorHandle> {
-        self.0
-            .current_monitor()
-            .map(crate::platform_impl::MonitorHandle::X)
-            .map(|inner| crate::monitor::MonitorHandle { inner })
+    fn current_monitor(&self) -> Option<CoreMonitorHandle> {
+        self.0.current_monitor().map(|monitor| CoreMonitorHandle(Arc::new(monitor)))
     }
 
-    fn available_monitors(&self) -> Box<dyn Iterator<Item = crate::monitor::MonitorHandle>> {
+    fn available_monitors(&self) -> Box<dyn Iterator<Item = CoreMonitorHandle>> {
         Box::new(
             self.0
                 .available_monitors()
                 .into_iter()
-                .map(crate::platform_impl::MonitorHandle::X)
-                .map(|inner| crate::monitor::MonitorHandle { inner }),
+                .map(|monitor| CoreMonitorHandle(Arc::new(monitor))),
         )
     }
 
-    fn primary_monitor(&self) -> Option<crate::monitor::MonitorHandle> {
-        self.0
-            .primary_monitor()
-            .map(crate::platform_impl::MonitorHandle::X)
-            .map(|inner| crate::monitor::MonitorHandle { inner })
+    fn primary_monitor(&self) -> Option<CoreMonitorHandle> {
+        self.0.primary_monitor().map(|monitor| CoreMonitorHandle(Arc::new(monitor)))
     }
 
     fn rwh_06_display_handle(&self) -> &dyn rwh_06::HasDisplayHandle {
@@ -411,6 +408,7 @@ impl SharedState {
 unsafe impl Send for UnownedWindow {}
 unsafe impl Sync for UnownedWindow {}
 
+#[derive(Debug)]
 pub struct UnownedWindow {
     pub(crate) xconn: Arc<XConnection>, // never changes
     xwindow: xproto::Window,            // never changes
@@ -860,8 +858,7 @@ impl UnownedWindow {
 
             if window_attrs.fullscreen.is_some() {
                 if let Some(flusher) =
-                    leap!(window
-                        .set_fullscreen_inner(window_attrs.fullscreen.clone().map(Into::into)))
+                    leap!(window.set_fullscreen_inner(window_attrs.fullscreen.clone()))
                 {
                     flusher.ignore_error()
                 }
@@ -1037,7 +1034,7 @@ impl UnownedWindow {
             // to the desktop video mode as macOS and Windows do
             (&None, &Some(Fullscreen::Exclusive(ref monitor, _)))
             | (&Some(Fullscreen::Borderless(_)), &Some(Fullscreen::Exclusive(ref monitor, _))) => {
-                let id = monitor.native_identifier();
+                let id = monitor.native_id() as _;
                 shared_state_lock.desktop_video_mode = Some((
                     id,
                     self.xconn.get_crtc_mode(id).expect("Failed to get desktop video mode"),
@@ -1068,19 +1065,20 @@ impl UnownedWindow {
                 flusher.map(Some)
             },
             Some(fullscreen) => {
-                let (video_mode, monitor) = match fullscreen {
-                    Fullscreen::Exclusive(PlatformMonitorHandle::X(monitor), video_mode) => {
-                        (Some(video_mode), monitor.clone())
-                    },
-                    Fullscreen::Borderless(Some(PlatformMonitorHandle::X(monitor))) => {
-                        (None, monitor)
-                    },
-                    Fullscreen::Borderless(None) => {
-                        (None, self.shared_state_lock().last_monitor.clone())
-                    },
-                    #[cfg(wayland_platform)]
-                    _ => unreachable!(),
-                };
+                let (monitor, video_mode): (Cow<'_, X11MonitorHandle>, Option<&VideoMode>) =
+                    match &fullscreen {
+                        Fullscreen::Exclusive(monitor, video_mode) => {
+                            let monitor = monitor.cast_ref::<X11MonitorHandle>().unwrap();
+                            (Cow::Borrowed(monitor), Some(video_mode))
+                        },
+                        Fullscreen::Borderless(Some(monitor)) => {
+                            let monitor = monitor.cast_ref::<X11MonitorHandle>().unwrap();
+                            (Cow::Borrowed(monitor), None)
+                        },
+                        Fullscreen::Borderless(None) => {
+                            (Cow::Owned(self.shared_state_lock().last_monitor.clone()), None)
+                        },
+                    };
 
                 // Don't set fullscreen on an invalid dummy monitor handle
                 if monitor.is_dummy() {
@@ -1089,7 +1087,7 @@ impl UnownedWindow {
 
                 if let Some(native_mode) = video_mode.and_then(|requested| {
                     monitor.video_modes.iter().find_map(|mode| {
-                        if mode.mode == requested {
+                        if &mode.mode == requested {
                             Some(mode.native_mode)
                         } else {
                             None
@@ -1122,7 +1120,7 @@ impl UnownedWindow {
                     // this will make someone unhappy, but it's very unusual for
                     // games to want to do this anyway).
                     self.xconn
-                        .set_crtc_config(monitor.id, native_mode)
+                        .set_crtc_config(monitor.native_id() as _, native_mode)
                         .expect("failed to set video mode");
                 }
 
@@ -1811,19 +1809,23 @@ impl UnownedWindow {
                     }
                 }
             },
-            Cursor::Custom(RootCustomCursor { inner: PlatformCustomCursor::X(cursor) }) => {
+            Cursor::Custom(cursor) => {
+                let cursor = match cursor.cast_ref::<CustomCursor>() {
+                    Some(cursor) => cursor,
+                    None => {
+                        tracing::error!("unrecognized cursor passed to X11 backend");
+                        return;
+                    },
+                };
+
                 #[allow(clippy::mutex_atomic)]
                 if *self.cursor_visible.lock().unwrap() {
-                    if let Err(err) = self.xconn.set_custom_cursor(self.xwindow, &cursor) {
+                    if let Err(err) = self.xconn.set_custom_cursor(self.xwindow, cursor) {
                         tracing::error!("failed to set window icon: {err}");
                     }
                 }
 
-                *self.selected_cursor.lock().unwrap() = SelectedCursor::Custom(cursor);
-            },
-            #[cfg(wayland_platform)]
-            Cursor::Custom(RootCustomCursor { inner: PlatformCustomCursor::Wayland(_) }) => {
-                tracing::error!("passed a Wayland cursor to X11 backend")
+                *self.selected_cursor.lock().unwrap() = SelectedCursor::Custom(cursor.clone());
             },
         }
     }
@@ -2051,17 +2053,13 @@ impl UnownedWindow {
     #[inline]
     pub fn set_ime_cursor_area(&self, spot: Position, size: Size) {
         let PhysicalPosition { x, y } = spot.to_physical::<i16>(self.scale_factor());
-        let PhysicalSize { width, height } = size.to_physical::<i16>(self.scale_factor());
-        // We only currently support reporting a caret position via XIM.
-        // No IM servers currently process preedit area information from XIM clients
-        // and it is unclear this is even part of the standard protocol.
-        // Fcitx and iBus both assume that the position reported is at the insertion
-        // caret, and by default will place the candidate window under and to the
-        // right of the reported point.
-        let _ = self.ime_sender.lock().unwrap().send(ImeRequest::Position(
+        let PhysicalSize { width, height } = size.to_physical::<u16>(self.scale_factor());
+        let _ = self.ime_sender.lock().unwrap().send(ImeRequest::Area(
             self.xwindow as ffi::Window,
-            x.saturating_add(width),
-            y.saturating_add(height),
+            x,
+            y,
+            width,
+            height,
         ));
     }
 

@@ -14,7 +14,6 @@
 //! * `wayland-csd-adwaita-crossfont`.
 //! * `wayland-csd-adwaita-notitle`.
 use crate::event_loop::{ActiveEventLoop, EventLoop, EventLoopBuilder};
-use crate::monitor::MonitorHandle;
 pub use crate::window::Theme;
 use crate::window::{Window as CoreWindow, WindowAttributes};
 
@@ -27,7 +26,7 @@ pub trait ActiveEventLoopExtWayland {
 impl ActiveEventLoopExtWayland for dyn ActiveEventLoop + '_ {
     #[inline]
     fn is_wayland(&self) -> bool {
-        self.as_any().downcast_ref::<crate::platform_impl::wayland::ActiveEventLoop>().is_some()
+        self.cast_ref::<crate::platform_impl::wayland::ActiveEventLoop>().is_some()
     }
 }
 
@@ -95,18 +94,5 @@ impl WindowAttributesExtWayland for WindowAttributes {
         self.platform_specific.name =
             Some(crate::platform_impl::ApplicationName::new(general.into(), instance.into()));
         self
-    }
-}
-
-/// Additional methods on `MonitorHandle` that are specific to Wayland.
-pub trait MonitorHandleExtWayland {
-    /// Returns the inner identifier of the monitor.
-    fn native_id(&self) -> u32;
-}
-
-impl MonitorHandleExtWayland for MonitorHandle {
-    #[inline]
-    fn native_id(&self) -> u32 {
-        self.inner.native_identifier()
     }
 }

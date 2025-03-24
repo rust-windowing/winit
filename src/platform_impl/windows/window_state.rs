@@ -1,5 +1,5 @@
 use std::sync::MutexGuard;
-use std::{io, ptr};
+use std::{fmt, io, ptr};
 
 use bitflags::bitflags;
 use windows_sys::Win32::Foundation::{HWND, RECT};
@@ -19,10 +19,12 @@ use windows_sys::Win32::UI::WindowsAndMessaging::{
 use crate::dpi::{PhysicalPosition, PhysicalSize, Size};
 use crate::icon::Icon;
 use crate::keyboard::ModifiersState;
-use crate::platform_impl::platform::{event_loop, util, Fullscreen, SelectedCursor};
+use crate::monitor::Fullscreen;
+use crate::platform_impl::platform::{event_loop, util, SelectedCursor};
 use crate::window::{Theme, WindowAttributes};
 
 /// Contains information about states and the window that the callback is going to use.
+#[derive(Debug)]
 pub(crate) struct WindowState {
     pub mouse: MouseProperties,
 
@@ -65,7 +67,13 @@ pub struct SavedWindow {
     pub placement: WINDOWPLACEMENT,
 }
 
-#[derive(Clone)]
+impl fmt::Debug for SavedWindow {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("SavedWindow").finish_non_exhaustive()
+    }
+}
+
+#[derive(Clone, Debug)]
 pub struct MouseProperties {
     pub(crate) selected_cursor: SelectedCursor,
     pub capture_count: u32,
@@ -129,7 +137,7 @@ bitflags! {
     }
 }
 
-#[derive(Eq, PartialEq)]
+#[derive(Debug, Eq, PartialEq, Hash)]
 pub enum ImeState {
     Disabled,
     Enabled,

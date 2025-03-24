@@ -1,13 +1,15 @@
 use core::fmt;
 use std::error::Error;
-use std::hash::{Hash, Hasher};
+use std::hash::Hash;
+use std::ops::Deref;
 use std::sync::Arc;
+use std::time::Duration;
 
 use cursor_icon::CursorIcon;
 
-use crate::platform_impl::{PlatformCustomCursor, PlatformCustomCursorSource};
+use crate::utils::{impl_dyn_casting, AsAny};
 
-/// The maximum width and height for a cursor when using [`CustomCursor::from_rgba`].
+/// The maximum width and height for a cursor when using [`CustomCursorSource::from_rgba`].
 pub const MAX_CURSOR_SIZE: u16 = 2048;
 
 const PIXEL_SIZE: usize = 4;
@@ -51,19 +53,20 @@ impl From<CustomCursor> for Cursor {
 /// # use winit::event_loop::ActiveEventLoop;
 /// # use winit::window::Window;
 /// # fn scope(event_loop: &dyn ActiveEventLoop, window: &dyn Window) {
-/// use winit::window::CustomCursor;
+/// use winit::window::CustomCursorSource;
 ///
 /// let w = 10;
 /// let h = 10;
 /// let rgba = vec![255; (w * h * 4) as usize];
 ///
 /// #[cfg(not(target_family = "wasm"))]
-/// let source = CustomCursor::from_rgba(rgba, w, h, w / 2, h / 2).unwrap();
+/// let source = CustomCursorSource::from_rgba(rgba, w, h, w / 2, h / 2).unwrap();
 ///
 /// #[cfg(target_family = "wasm")]
-/// let source = {
-///     use winit::platform::web::CustomCursorExtWeb;
-///     CustomCursor::from_url(String::from("http://localhost:3000/cursor.png"), 0, 0)
+/// let source = CustomCursorSource::Url {
+///     url: String::from("http://localhost:3000/cursor.png"),
+///     hotspot_x: 0,
+///     hotspot_y: 0,
 /// };
 ///
 /// if let Ok(custom_cursor) = event_loop.create_custom_cursor(source) {
@@ -71,50 +74,96 @@ impl From<CustomCursor> for Cursor {
 /// }
 /// # }
 /// ```
-#[derive(Clone, Debug, Eq, Hash, PartialEq)]
-pub struct CustomCursor {
-    /// Platforms should make sure this is cheap to clone.
-    pub(crate) inner: PlatformCustomCursor,
+#[derive(Clone, Debug)]
+pub struct CustomCursor(pub(crate) Arc<dyn CustomCursorProvider>);
+
+pub trait CustomCursorProvider: AsAny + fmt::Debug + Send + Sync {
+    /// Whether a cursor was backed by animation.
+    fn is_animated(&self) -> bool;
 }
 
-impl CustomCursor {
-    /// Creates a new cursor from an rgba buffer.
-    ///
-    /// The alpha channel is assumed to be **not** premultiplied.
-    pub fn from_rgba(
-        rgba: impl Into<Vec<u8>>,
-        width: u16,
-        height: u16,
-        hotspot_x: u16,
-        hotspot_y: u16,
-    ) -> Result<CustomCursorSource, BadImage> {
-        let _span =
-            tracing::debug_span!("winit::Cursor::from_rgba", width, height, hotspot_x, hotspot_y)
-                .entered();
-
-        Ok(CustomCursorSource {
-            inner: PlatformCustomCursorSource::from_rgba(
-                rgba.into(),
-                width,
-                height,
-                hotspot_x,
-                hotspot_y,
-            )?,
-        })
+impl PartialEq for CustomCursor {
+    fn eq(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.0, &other.0)
     }
 }
+
+impl Eq for CustomCursor {}
+
+impl Hash for CustomCursor {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        Arc::as_ptr(&self.0).hash(state);
+    }
+}
+
+impl Deref for CustomCursor {
+    type Target = dyn CustomCursorProvider;
+
+    fn deref(&self) -> &Self::Target {
+        self.0.deref()
+    }
+}
+
+impl_dyn_casting!(CustomCursorProvider);
 
 /// Source for [`CustomCursor`].
 ///
 /// See [`CustomCursor`] for more details.
 #[derive(Debug, Clone, Eq, Hash, PartialEq)]
-pub struct CustomCursorSource {
-    // Some platforms don't support custom cursors.
-    #[allow(dead_code)]
-    pub(crate) inner: PlatformCustomCursorSource,
+pub enum CustomCursorSource {
+    /// Cursor that is backed by RGBA image.
+    ///
+    /// See [CustomCursorSource::from_rgba] for more.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **iOS / Android / Orbital:** Unsupported
+    Image(CursorImage),
+    /// Animated cursor.
+    ///
+    /// See [CustomCursorSource::from_animation] for more.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **iOS / Android / Wayland / Windows / X11 / macOS / Orbital:** Unsupported
+    Animation(CursorAnimation),
+    /// Creates a new cursor from a URL pointing to an image.
+    /// It uses the [url css function](https://developer.mozilla.org/en-US/docs/Web/CSS/url),
+    /// but browser support for image formats is inconsistent. Using [PNG] is recommended.
+    ///
+    /// [PNG]: https://en.wikipedia.org/wiki/PNG
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **iOS / Android / Wayland / Windows / X11 / macOS / Orbital:** Unsupported
+    Url { hotspot_x: u16, hotspot_y: u16, url: String },
 }
 
-/// An error produced when using [`CustomCursor::from_rgba`] with invalid arguments.
+impl CustomCursorSource {
+    /// Creates a new cursor from an rgba buffer.
+    ///
+    /// The alpha channel is assumed to be **not** premultiplied.
+    pub fn from_rgba(
+        rgba: Vec<u8>,
+        width: u16,
+        height: u16,
+        hotspot_x: u16,
+        hotspot_y: u16,
+    ) -> Result<Self, BadImage> {
+        CursorImage::from_rgba(rgba, width, height, hotspot_x, hotspot_y).map(Self::Image)
+    }
+
+    /// Crates a new animated cursor from multiple [`CustomCursor`]s
+    /// Supplied `cursors` can't be empty or other animations.
+    pub fn from_animation(
+        duration: Duration,
+        cursors: Vec<CustomCursor>,
+    ) -> Result<Self, BadAnimation> {
+        CursorAnimation::new(duration, cursors).map(Self::Animation)
+    }
+}
+
+/// An error produced when using [`CustomCursorSource::from_rgba`] with invalid arguments.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum BadImage {
@@ -164,47 +213,30 @@ impl fmt::Display for BadImage {
 
 impl Error for BadImage {}
 
-/// Platforms export this directly as `PlatformCustomCursorSource` if they need to only work with
-/// images.
-#[allow(dead_code)]
-#[derive(Debug, Clone, Eq, Hash, PartialEq)]
-pub(crate) struct OnlyCursorImageSource(pub(crate) CursorImage);
+/// An error produced when using [`CustomCursorSource::from_animation`] with invalid arguments.
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub enum BadAnimation {
+    /// Produced when no cursors were supplied.
+    Empty,
+    /// Produced when a supplied cursor is an animation.
+    Animation,
+}
 
-#[allow(dead_code)]
-impl OnlyCursorImageSource {
-    pub(crate) fn from_rgba(
-        rgba: Vec<u8>,
-        width: u16,
-        height: u16,
-        hotspot_x: u16,
-        hotspot_y: u16,
-    ) -> Result<Self, BadImage> {
-        CursorImage::from_rgba(rgba, width, height, hotspot_x, hotspot_y).map(Self)
+impl fmt::Display for BadAnimation {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Empty => write!(f, "No cursors supplied"),
+            Self::Animation => write!(f, "A supplied cursor is an animation"),
+        }
     }
 }
 
-/// Platforms export this directly as `PlatformCustomCursor` if they don't implement caching.
-#[allow(dead_code)]
-#[derive(Debug, Clone)]
-pub(crate) struct OnlyCursorImage(pub(crate) Arc<CursorImage>);
-
-impl Hash for OnlyCursorImage {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        Arc::as_ptr(&self.0).hash(state);
-    }
-}
-
-impl PartialEq for OnlyCursorImage {
-    fn eq(&self, other: &Self) -> bool {
-        Arc::ptr_eq(&self.0, &other.0)
-    }
-}
-
-impl Eq for OnlyCursorImage {}
+impl Error for BadAnimation {}
 
 #[derive(Debug, Clone, Eq, Hash, PartialEq)]
 #[allow(dead_code)]
-pub(crate) struct CursorImage {
+pub struct CursorImage {
     pub(crate) rgba: Vec<u8>,
     pub(crate) width: u16,
     pub(crate) height: u16,
@@ -247,20 +279,22 @@ impl CursorImage {
     }
 }
 
-// Platforms that don't support cursors will export this as `PlatformCustomCursor`.
-#[derive(Debug, Clone, Hash, PartialEq, Eq)]
-pub(crate) struct NoCustomCursor;
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct CursorAnimation {
+    pub(crate) duration: Duration,
+    pub(crate) cursors: Vec<CustomCursor>,
+}
 
-#[allow(dead_code)]
-impl NoCustomCursor {
-    pub(crate) fn from_rgba(
-        rgba: Vec<u8>,
-        width: u16,
-        height: u16,
-        hotspot_x: u16,
-        hotspot_y: u16,
-    ) -> Result<Self, BadImage> {
-        CursorImage::from_rgba(rgba, width, height, hotspot_x, hotspot_y)?;
-        Ok(Self)
+impl CursorAnimation {
+    pub fn new(duration: Duration, cursors: Vec<CustomCursor>) -> Result<Self, BadAnimation> {
+        if cursors.is_empty() {
+            return Err(BadAnimation::Empty);
+        }
+
+        if cursors.iter().any(|cursor| cursor.is_animated()) {
+            return Err(BadAnimation::Animation);
+        }
+
+        Ok(Self { duration, cursors })
     }
 }

@@ -18,14 +18,14 @@ use crate::event_loop::{
     EventLoopProxy as RootEventLoopProxy, OwnedDisplayHandle as CoreOwnedDisplayHandle,
 };
 use crate::keyboard::ModifiersState;
-use crate::monitor::MonitorHandle as RootMonitorHandle;
+use crate::monitor::MonitorHandle as CoremMonitorHandle;
 use crate::platform::web::{CustomCursorFuture, PollStrategy, WaitUntilStrategy};
 use crate::platform_impl::platform::cursor::CustomCursor;
 use crate::platform_impl::web::event_loop::proxy::EventLoopProxy;
 use crate::platform_impl::Window;
-use crate::window::{CustomCursor as RootCustomCursor, CustomCursorSource, Theme, WindowId};
+use crate::window::{CustomCursor as CoreCustomCursor, CustomCursorSource, Theme, WindowId};
 
-#[derive(Default)]
+#[derive(Default, Debug)]
 struct ModifiersShared(Rc<Cell<ModifiersState>>);
 
 impl ModifiersShared {
@@ -44,7 +44,7 @@ impl Clone for ModifiersShared {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct ActiveEventLoop {
     pub(crate) runner: runner::Shared,
     modifiers: ModifiersShared,
@@ -65,7 +65,7 @@ impl ActiveEventLoop {
     }
 
     pub fn create_custom_cursor_async(&self, source: CustomCursorSource) -> CustomCursorFuture {
-        CustomCursorFuture(CustomCursor::new_async(self, source.inner))
+        CustomCursorFuture(CustomCursor::new_async(self, source))
     }
 
     pub fn register(&self, canvas: &Rc<backend::Canvas>, window_id: WindowId) {
@@ -498,22 +498,22 @@ impl RootActiveEventLoop for ActiveEventLoop {
     fn create_custom_cursor(
         &self,
         source: CustomCursorSource,
-    ) -> Result<RootCustomCursor, RequestError> {
-        Ok(RootCustomCursor { inner: CustomCursor::new(self, source.inner) })
+    ) -> Result<CoreCustomCursor, RequestError> {
+        Ok(CoreCustomCursor(Arc::new(CustomCursor::new(self, source))))
     }
 
-    fn available_monitors(&self) -> Box<dyn Iterator<Item = RootMonitorHandle>> {
+    fn available_monitors(&self) -> Box<dyn Iterator<Item = CoremMonitorHandle>> {
         Box::new(
             self.runner
                 .monitor()
                 .available_monitors()
                 .into_iter()
-                .map(|inner| RootMonitorHandle { inner }),
+                .map(|monitor| CoremMonitorHandle(Arc::new(monitor))),
         )
     }
 
-    fn primary_monitor(&self) -> Option<RootMonitorHandle> {
-        self.runner.monitor().primary_monitor().map(|inner| RootMonitorHandle { inner })
+    fn primary_monitor(&self) -> Option<CoremMonitorHandle> {
+        self.runner.monitor().primary_monitor().map(|monitor| CoremMonitorHandle(Arc::new(monitor)))
     }
 
     fn listen_device_events(&self, allowed: DeviceEvents) {

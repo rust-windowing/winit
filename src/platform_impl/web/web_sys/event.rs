@@ -184,7 +184,6 @@ pub fn key_text(event: &KeyboardEvent) -> Option<SmolStr> {
         Key::Character(text) => Some(text.clone()),
         Key::Named(NamedKey::Tab) => Some(SmolStr::new("\t")),
         Key::Named(NamedKey::Enter) => Some(SmolStr::new("\r")),
-        Key::Named(NamedKey::Space) => Some(SmolStr::new(" ")),
         _ => None,
     }
     .map(SmolStr::new)
@@ -216,7 +215,7 @@ pub fn keyboard_modifiers(event: &KeyboardEvent) -> ModifiersState {
         state |= ModifiersState::ALT;
     }
     if event.meta_key() {
-        state |= ModifiersState::SUPER;
+        state |= ModifiersState::META;
     }
 
     state
@@ -235,7 +234,7 @@ pub fn mouse_modifiers(event: &MouseEvent) -> ModifiersState {
         state |= ModifiersState::ALT;
     }
     if event.meta_key() {
-        state |= ModifiersState::SUPER;
+        state |= ModifiersState::META;
     }
 
     state

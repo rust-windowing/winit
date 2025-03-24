@@ -2,7 +2,7 @@ use std::cell::Cell;
 use std::collections::VecDeque;
 use std::sync::{mpsc, Arc, Mutex};
 use std::time::Instant;
-use std::{mem, slice};
+use std::{iter, mem, slice};
 
 use bitflags::bitflags;
 use orbclient::{
@@ -11,9 +11,7 @@ use orbclient::{
 };
 use smol_str::SmolStr;
 
-use super::{
-    MonitorHandle, PlatformSpecificEventLoopAttributes, RedoxSocket, TimeSocket, WindowProperties,
-};
+use super::{PlatformSpecificEventLoopAttributes, RedoxSocket, TimeSocket, WindowProperties};
 use crate::application::ApplicationHandler;
 use crate::error::{EventLoopError, NotSupportedError, RequestError};
 use crate::event::{self, Ime, Modifiers, StartCause};
@@ -120,8 +118,8 @@ fn convert_scancode(scancode: u8) -> (PhysicalKey, Option<NamedKey>) {
         orbclient::K_RIGHT_SHIFT => (KeyCode::ShiftRight, Some(NamedKey::Shift)),
         orbclient::K_SEMICOLON => (KeyCode::Semicolon, None),
         orbclient::K_SLASH => (KeyCode::Slash, None),
-        orbclient::K_SPACE => (KeyCode::Space, Some(NamedKey::Space)),
-        orbclient::K_SUPER => (KeyCode::SuperLeft, Some(NamedKey::Super)),
+        orbclient::K_SPACE => (KeyCode::Space, None),
+        orbclient::K_SUPER => (KeyCode::MetaLeft, Some(NamedKey::Meta)),
         orbclient::K_TAB => (KeyCode::Tab, Some(NamedKey::Tab)),
         orbclient::K_TICK => (KeyCode::Backquote, None),
         orbclient::K_UP => (KeyCode::ArrowUp, Some(NamedKey::ArrowUp)),
@@ -151,8 +149,8 @@ bitflags! {
         const RCTRL = 1 << 3;
         const LALT = 1 << 4;
         const RALT = 1 << 5;
-        const LSUPER = 1 << 6;
-        const RSUPER = 1 << 7;
+        const LMETA = 1 << 6;
+        const RMETA = 1 << 7;
     }
 }
 
@@ -165,7 +163,7 @@ bitflags! {
     }
 }
 
-#[derive(Default)]
+#[derive(Default, Debug)]
 struct EventState {
     keyboard: KeyboardModifierState,
     mouse: MouseButtonState,
@@ -202,8 +200,8 @@ impl EventState {
             KeyCode::ControlRight => self.keyboard.set(KeyboardModifierState::RCTRL, pressed),
             KeyCode::AltLeft => self.keyboard.set(KeyboardModifierState::LALT, pressed),
             KeyCode::AltRight => self.keyboard.set(KeyboardModifierState::RALT, pressed),
-            KeyCode::SuperLeft => self.keyboard.set(KeyboardModifierState::LSUPER, pressed),
-            KeyCode::SuperRight => self.keyboard.set(KeyboardModifierState::RSUPER, pressed),
+            KeyCode::MetaLeft => self.keyboard.set(KeyboardModifierState::LMETA, pressed),
+            KeyCode::MetaRight => self.keyboard.set(KeyboardModifierState::RMETA, pressed),
             _ => (),
         }
     }
@@ -261,19 +259,20 @@ impl EventState {
         pressed_mods.set(ModifiersKeys::LALT, self.keyboard.contains(KeyboardModifierState::LALT));
         pressed_mods.set(ModifiersKeys::RALT, self.keyboard.contains(KeyboardModifierState::RALT));
 
-        if self.keyboard.intersects(KeyboardModifierState::LSUPER | KeyboardModifierState::RSUPER) {
-            state |= ModifiersState::SUPER
+        if self.keyboard.intersects(KeyboardModifierState::LMETA | KeyboardModifierState::RMETA) {
+            state |= ModifiersState::META
         }
 
         pressed_mods
-            .set(ModifiersKeys::LSUPER, self.keyboard.contains(KeyboardModifierState::LSUPER));
+            .set(ModifiersKeys::LMETA, self.keyboard.contains(KeyboardModifierState::LMETA));
         pressed_mods
-            .set(ModifiersKeys::RSUPER, self.keyboard.contains(KeyboardModifierState::RSUPER));
+            .set(ModifiersKeys::RMETA, self.keyboard.contains(KeyboardModifierState::RMETA));
 
         Modifiers { state, pressed_mods }
     }
 }
 
+#[derive(Debug)]
 pub struct EventLoop {
     windows: Vec<(Arc<RedoxSocket>, EventState)>,
     window_target: ActiveEventLoop,
@@ -651,8 +650,6 @@ impl EventLoop {
             }
         }
 
-        app.exiting(&self.window_target);
-
         Ok(())
     }
 
@@ -661,6 +658,7 @@ impl EventLoop {
     }
 }
 
+#[derive(Debug)]
 pub struct EventLoopProxy {
     user_events_sender: mpsc::SyncSender<()>,
     pub(super) wake_socket: TimeSocket,
@@ -678,6 +676,7 @@ impl EventLoopProxyProvider for EventLoopProxy {
 
 impl Unpin for EventLoopProxy {}
 
+#[derive(Debug)]
 pub struct ActiveEventLoop {
     control_flow: Cell<ControlFlow>,
     exit: Cell<bool>,
@@ -708,9 +707,7 @@ impl RootActiveEventLoop for ActiveEventLoop {
     }
 
     fn available_monitors(&self) -> Box<dyn Iterator<Item = crate::monitor::MonitorHandle>> {
-        let mut v = VecDeque::with_capacity(1);
-        v.push_back(crate::monitor::MonitorHandle { inner: MonitorHandle });
-        Box::new(v.into_iter())
+        Box::new(iter::empty())
     }
 
     fn system_theme(&self) -> Option<Theme> {
@@ -718,7 +715,7 @@ impl RootActiveEventLoop for ActiveEventLoop {
     }
 
     fn primary_monitor(&self) -> Option<crate::monitor::MonitorHandle> {
-        Some(crate::monitor::MonitorHandle { inner: MonitorHandle })
+        None
     }
 
     fn listen_device_events(&self, _allowed: DeviceEvents) {}

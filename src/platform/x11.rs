@@ -4,7 +4,6 @@ use serde::{Deserialize, Serialize};
 
 use crate::dpi::Size;
 use crate::event_loop::{ActiveEventLoop, EventLoop, EventLoopBuilder};
-use crate::monitor::MonitorHandle;
 use crate::window::{Window as CoreWindow, WindowAttributes};
 
 /// X window type. Maps directly to
@@ -80,7 +79,7 @@ pub type XWindow = u32;
 #[inline]
 pub fn register_xlib_error_hook(hook: XlibErrorHook) {
     // Append new hook.
-    crate::platform_impl::XLIB_ERROR_HOOKS.lock().unwrap().push(hook);
+    crate::platform_impl::x11::XLIB_ERROR_HOOKS.lock().unwrap().push(hook);
 }
 
 /// Additional methods on [`ActiveEventLoop`] that are specific to X11.
@@ -92,7 +91,7 @@ pub trait ActiveEventLoopExtX11 {
 impl ActiveEventLoopExtX11 for dyn ActiveEventLoop + '_ {
     #[inline]
     fn is_x11(&self) -> bool {
-        self.as_any().downcast_ref::<crate::platform_impl::x11::ActiveEventLoop>().is_some()
+        self.cast_ref::<crate::platform_impl::x11::ActiveEventLoop>().is_some()
     }
 }
 
@@ -238,18 +237,5 @@ impl WindowAttributesExtX11 for WindowAttributes {
     fn with_embed_parent_window(mut self, parent_window_id: XWindow) -> Self {
         self.platform_specific.x11.embed_window = Some(parent_window_id);
         self
-    }
-}
-
-/// Additional methods on `MonitorHandle` that are specific to X11.
-pub trait MonitorHandleExtX11 {
-    /// Returns the inner identifier of the monitor.
-    fn native_id(&self) -> u32;
-}
-
-impl MonitorHandleExtX11 for MonitorHandle {
-    #[inline]
-    fn native_id(&self) -> u32 {
-        self.inner.native_identifier()
     }
 }

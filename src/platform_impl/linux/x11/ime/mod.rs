@@ -5,6 +5,7 @@ mod context;
 mod inner;
 mod input_method;
 
+use std::fmt;
 use std::sync::mpsc::{Receiver, Sender};
 use std::sync::Arc;
 
@@ -35,8 +36,8 @@ pub type ImeEventSender = Sender<(ffi::Window, ImeEvent)>;
 
 /// Request to control XIM handler from the window.
 pub enum ImeRequest {
-    /// Set IME spot position for given `window_id`.
-    Position(ffi::Window, i16, i16),
+    /// Set IME preedit area for given `window_id`.
+    Area(ffi::Window, i16, i16, u16, u16),
 
     /// Allow IME input for the given `window_id`.
     Allow(ffi::Window, bool),
@@ -54,6 +55,12 @@ pub(crate) struct Ime {
     // The actual meat of this struct is boxed away, since it needs to have a fixed location in
     // memory so we can pass a pointer to it around.
     inner: Box<ImeInner>,
+}
+
+impl fmt::Debug for Ime {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Ime").finish_non_exhaustive()
+    }
 }
 
 impl Ime {
@@ -185,12 +192,12 @@ impl Ime {
         }
     }
 
-    pub fn send_xim_spot(&mut self, window: ffi::Window, x: i16, y: i16) {
+    pub fn send_xim_area(&mut self, window: ffi::Window, x: i16, y: i16, w: u16, h: u16) {
         if self.is_destroyed() {
             return;
         }
         if let Some(&mut Some(ref mut context)) = self.inner.contexts.get_mut(&window) {
-            context.set_spot(&self.xconn, x as _, y as _);
+            context.set_area(&self.xconn, x as _, y as _, w as _, h as _);
         }
     }
 

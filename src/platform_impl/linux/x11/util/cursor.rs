@@ -9,8 +9,8 @@ use x11rb::protocol::xproto;
 
 use super::super::ActiveEventLoop;
 use super::*;
-use crate::error::RequestError;
-use crate::platform_impl::PlatformCustomCursorSource;
+use crate::cursor::{CustomCursorProvider, CustomCursorSource};
+use crate::error::{NotSupportedError, RequestError};
 use crate::window::CursorIcon;
 
 impl XConnection {
@@ -36,7 +36,7 @@ impl XConnection {
         window: xproto::Window,
         cursor: &CustomCursor,
     ) -> Result<(), X11Error> {
-        self.update_cursor(window, cursor.inner.cursor)
+        self.update_cursor(window, cursor.cursor)
     }
 
     /// Create a cursor from an image.
@@ -170,32 +170,45 @@ pub enum SelectedCursor {
     Named(CursorIcon),
 }
 
+impl Default for SelectedCursor {
+    fn default() -> Self {
+        SelectedCursor::Named(Default::default())
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct CustomCursor {
-    inner: Arc<CustomCursorInner>,
+    xconn: Arc<XConnection>,
+    cursor: xproto::Cursor,
 }
 
 impl Hash for CustomCursor {
     fn hash<H: Hasher>(&self, state: &mut H) {
-        Arc::as_ptr(&self.inner).hash(state);
+        self.cursor.hash(state);
     }
 }
 
 impl PartialEq for CustomCursor {
     fn eq(&self, other: &Self) -> bool {
-        Arc::ptr_eq(&self.inner, &other.inner)
+        self.cursor == other.cursor
     }
 }
-
 impl Eq for CustomCursor {}
 
 impl CustomCursor {
     pub(crate) fn new(
         event_loop: &ActiveEventLoop,
-        mut cursor: PlatformCustomCursorSource,
+        cursor: CustomCursorSource,
     ) -> Result<CustomCursor, RequestError> {
+        let mut cursor = match cursor {
+            CustomCursorSource::Image(cursor_image) => cursor_image,
+            CustomCursorSource::Animation { .. } | CustomCursorSource::Url { .. } => {
+                return Err(NotSupportedError::new("unsupported cursor kind").into())
+            },
+        };
+
         // Reverse RGBA order to BGRA.
-        cursor.0.rgba.chunks_mut(4).for_each(|chunk| {
+        cursor.rgba.chunks_mut(4).for_each(|chunk| {
             let chunk: &mut [u8; 4] = chunk.try_into().unwrap();
             chunk[0..3].reverse();
 
@@ -209,32 +222,26 @@ impl CustomCursor {
         let cursor = event_loop
             .xconn
             .create_cursor_from_image(
-                cursor.0.width,
-                cursor.0.height,
-                cursor.0.hotspot_x,
-                cursor.0.hotspot_y,
-                &cursor.0.rgba,
+                cursor.width,
+                cursor.height,
+                cursor.hotspot_x,
+                cursor.hotspot_y,
+                &cursor.rgba,
             )
             .map_err(|err| os_error!(err))?;
 
-        Ok(Self { inner: Arc::new(CustomCursorInner { xconn: event_loop.xconn.clone(), cursor }) })
+        Ok(Self { xconn: event_loop.xconn.clone(), cursor })
     }
 }
 
-#[derive(Debug)]
-struct CustomCursorInner {
-    xconn: Arc<XConnection>,
-    cursor: xproto::Cursor,
-}
-
-impl Drop for CustomCursorInner {
+impl Drop for CustomCursor {
     fn drop(&mut self) {
         self.xconn.xcb_connection().free_cursor(self.cursor).map(|r| r.ignore_error()).ok();
     }
 }
 
-impl Default for SelectedCursor {
-    fn default() -> Self {
-        SelectedCursor::Named(Default::default())
+impl CustomCursorProvider for CustomCursor {
+    fn is_animated(&self) -> bool {
+        false
     }
 }

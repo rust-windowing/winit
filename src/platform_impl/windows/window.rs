@@ -1,8 +1,10 @@
 #![cfg(windows_platform)]
 
+use std::borrow::Cow;
 use std::cell::Cell;
 use std::ffi::c_void;
 use std::mem::{self, MaybeUninit};
+use std::rc::Rc;
 use std::sync::mpsc::channel;
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::{io, panic, ptr};
@@ -45,11 +47,13 @@ use windows_sys::Win32::UI::WindowsAndMessaging::{
     WDA_EXCLUDEFROMCAPTURE, WDA_NONE, WM_NCLBUTTONDOWN, WM_SYSCOMMAND, WNDCLASSEXW,
 };
 
+use super::icon::WinCursor;
+use super::MonitorHandle;
 use crate::cursor::Cursor;
 use crate::dpi::{PhysicalInsets, PhysicalPosition, PhysicalSize, Position, Size};
 use crate::error::{NotSupportedError, RequestError};
 use crate::icon::Icon;
-use crate::monitor::MonitorHandle as CoreMonitorHandle;
+use crate::monitor::{Fullscreen, MonitorHandle as CoreMonitorHandle, MonitorHandleProvider};
 use crate::platform::windows::{BackdropType, Color, CornerPreference};
 use crate::platform_impl::platform::dark_mode::try_theme;
 use crate::platform_impl::platform::definitions::{
@@ -59,21 +63,22 @@ use crate::platform_impl::platform::dpi::{
     dpi_to_scale_factor, enable_non_client_dpi_scaling, hwnd_dpi,
 };
 use crate::platform_impl::platform::drop_handler::FileDropHandler;
-use crate::platform_impl::platform::event_loop::{self, ActiveEventLoop, DESTROY_MSG_ID};
+use crate::platform_impl::platform::event_loop::{
+    self, ActiveEventLoop, Event, EventLoopRunner, DESTROY_MSG_ID,
+};
 use crate::platform_impl::platform::icon::{self, IconType};
 use crate::platform_impl::platform::ime::ImeContext;
 use crate::platform_impl::platform::keyboard::KeyEventBuilder;
 use crate::platform_impl::platform::window_state::{
     CursorFlags, SavedWindow, WindowFlags, WindowState,
 };
-use crate::platform_impl::platform::{monitor, util, Fullscreen, SelectedCursor};
+use crate::platform_impl::platform::{monitor, util, SelectedCursor};
 use crate::window::{
-    CursorGrabMode, Fullscreen as CoreFullscreen, ImePurpose, ResizeDirection, Theme,
-    UserAttentionType, Window as CoreWindow, WindowAttributes, WindowButtons, WindowId,
-    WindowLevel,
+    CursorGrabMode, ImePurpose, ResizeDirection, Theme, UserAttentionType, Window as CoreWindow,
+    WindowAttributes, WindowButtons, WindowId, WindowLevel,
 };
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 #[repr(transparent)]
 /// We need to pass the window handle to the event loop thread, which means it needs to be
 /// Send+Sync.
@@ -89,6 +94,7 @@ impl SyncWindowHandle {
 }
 
 /// The Win32 implementation of the main `Window` object.
+#[derive(Debug)]
 pub(crate) struct Window {
     /// Main handle for the window.
     window: SyncWindowHandle,
@@ -109,7 +115,7 @@ impl Window {
         // First person to remove the need for cloning here gets a cookie!
         //
         // done. you owe me -- ossi
-        unsafe { init(w_attr, event_loop) }
+        unsafe { init(w_attr, &event_loop.0) }
     }
 
     fn window_state_lock(&self) -> MutexGuard<'_, WindowState> {
@@ -348,7 +354,7 @@ impl Window {
 impl Drop for Window {
     fn drop(&mut self) {
         // Restore fullscreen video mode on exit.
-        if matches!(self.fullscreen(), Some(CoreFullscreen::Exclusive(_, _))) {
+        if matches!(self.fullscreen(), Some(Fullscreen::Exclusive(_, _))) {
             self.set_fullscreen(None);
         }
 
@@ -607,10 +613,15 @@ impl CoreWindow for Window {
                 });
             },
             Cursor::Custom(cursor) => {
+                let cursor = match cursor.cast_ref::<WinCursor>() {
+                    Some(cursor) => cursor,
+                    None => return,
+                };
                 self.window_state_lock().mouse.selected_cursor =
-                    SelectedCursor::Custom(cursor.inner.0.clone());
+                    SelectedCursor::Custom(cursor.0.clone());
+                let handle = cursor.0.clone();
                 self.thread_executor.execute_in_thread(move || unsafe {
-                    SetCursor(cursor.inner.0.as_raw_handle());
+                    SetCursor(handle.as_raw_handle());
                 });
             },
         }
@@ -766,13 +777,12 @@ impl CoreWindow for Window {
         window_state.window_flags.contains(WindowFlags::MAXIMIZED)
     }
 
-    fn fullscreen(&self) -> Option<CoreFullscreen> {
+    fn fullscreen(&self) -> Option<Fullscreen> {
         let window_state = self.window_state_lock();
-        window_state.fullscreen.clone().map(Into::into)
+        window_state.fullscreen.clone()
     }
 
-    fn set_fullscreen(&self, fullscreen: Option<CoreFullscreen>) {
-        let fullscreen = fullscreen.map(Into::into);
+    fn set_fullscreen(&self, fullscreen: Option<Fullscreen>) {
         let window = self.window;
         let window_state = Arc::clone(&self.window_state);
 
@@ -785,7 +795,7 @@ impl CoreWindow for Window {
             // Return if saved Borderless(monitor) is the same as current monitor when requested
             // fullscreen is Borderless(None)
             (Some(Fullscreen::Borderless(Some(monitor))), Some(Fullscreen::Borderless(None)))
-                if *monitor == monitor::current_monitor(window.hwnd()) =>
+                if monitor.native_id() == monitor::current_monitor(window.hwnd()).native_id() =>
             {
                 return
             },
@@ -801,12 +811,13 @@ impl CoreWindow for Window {
             // fullscreen
             match (&old_fullscreen, &fullscreen) {
                 (_, Some(Fullscreen::Exclusive(monitor, video_mode))) => {
-                    let monitor_info = monitor::get_monitor_info(monitor.hmonitor()).unwrap();
+                    let monitor = monitor.cast_ref::<MonitorHandle>().unwrap();
                     let video_mode =
                         match monitor.video_mode_handles().find(|mode| &mode.mode == video_mode) {
                             Some(monitor) => monitor,
                             None => return,
                         };
+                    let monitor_info = monitor::get_monitor_info(monitor.native_id() as _).unwrap();
 
                     let res = unsafe {
                         ChangeDisplaySettingsExW(
@@ -891,10 +902,15 @@ impl CoreWindow for Window {
                     window_state.lock().unwrap().saved_window = Some(SavedWindow { placement });
 
                     let monitor = match &fullscreen {
-                        Fullscreen::Exclusive(monitor, _) => monitor.clone(),
-                        Fullscreen::Borderless(Some(monitor)) => monitor.clone(),
-                        Fullscreen::Borderless(None) => monitor::current_monitor(window.hwnd()),
+                        Fullscreen::Exclusive(monitor, _)
+                        | Fullscreen::Borderless(Some(monitor)) => {
+                            Some(Cow::Borrowed(monitor.cast_ref::<MonitorHandle>().unwrap()))
+                        },
+                        Fullscreen::Borderless(None) => None,
                     };
+
+                    let monitor = monitor
+                        .unwrap_or_else(|| Cow::Owned(monitor::current_monitor(window.hwnd())));
 
                     let position: (i32, i32) = monitor.position().unwrap_or_default().into();
                     let size: (u32, u32) = monitor.size().into();
@@ -957,15 +973,19 @@ impl CoreWindow for Window {
     }
 
     fn current_monitor(&self) -> Option<CoreMonitorHandle> {
-        Some(CoreMonitorHandle { inner: monitor::current_monitor(self.hwnd()) })
+        Some(CoreMonitorHandle(Arc::new(monitor::current_monitor(self.hwnd()))))
     }
 
     fn available_monitors(&self) -> Box<dyn Iterator<Item = CoreMonitorHandle>> {
-        Box::new(monitor::available_monitors().into_iter().map(|inner| CoreMonitorHandle { inner }))
+        Box::new(
+            monitor::available_monitors()
+                .into_iter()
+                .map(|monitor| CoreMonitorHandle(Arc::new(monitor))),
+        )
     }
 
     fn primary_monitor(&self) -> Option<CoreMonitorHandle> {
-        Some(CoreMonitorHandle { inner: monitor::primary_monitor() })
+        Some(CoreMonitorHandle(Arc::new(monitor::primary_monitor())))
     }
 
     fn set_window_icon(&self, window_icon: Option<Icon>) {
@@ -1097,7 +1117,7 @@ impl CoreWindow for Window {
 
 pub(super) struct InitData<'a> {
     // inputs
-    pub event_loop: &'a ActiveEventLoop,
+    pub runner: &'a Rc<EventLoopRunner>,
     pub attributes: WindowAttributes,
     pub window_flags: WindowFlags,
     // outputs
@@ -1143,7 +1163,7 @@ impl InitData<'_> {
         Window {
             window: SyncWindowHandle(window),
             window_state,
-            thread_executor: self.event_loop.create_thread_executor(),
+            thread_executor: self.runner.create_thread_executor(),
         }
     }
 
@@ -1162,10 +1182,13 @@ impl InitData<'_> {
                 );
             }
 
-            let file_drop_runner = self.event_loop.runner_shared.clone();
+            let file_drop_runner = self.runner.clone();
+            let window_id = win.id();
             let file_drop_handler = FileDropHandler::new(
                 win.window.hwnd(),
-                Box::new(move |event| file_drop_runner.send_event(event)),
+                Box::new(move |event| {
+                    file_drop_runner.send_event(Event::Window { window_id, event })
+                }),
             );
 
             let handler_interface_ptr =
@@ -1179,7 +1202,7 @@ impl InitData<'_> {
 
         event_loop::WindowData {
             window_state: win.window_state.clone(),
-            event_loop_runner: self.event_loop.runner_shared.clone(),
+            event_loop_runner: self.runner.clone(),
             key_event_builder: KeyEventBuilder::default(),
             _file_drop_handler: file_drop_handler,
             userdata_removed: Cell::new(false),
@@ -1191,7 +1214,7 @@ impl InitData<'_> {
     // The user data will be registered for the window and can be accessed within the window event
     // callback.
     pub unsafe fn on_nccreate(&mut self, window: HWND) -> Option<isize> {
-        let runner = self.event_loop.runner_shared.clone();
+        let runner = self.runner.clone();
         let result = runner.catch_unwind(|| {
             let window = unsafe { self.create_window(window) };
             let window_data = unsafe { self.create_window_data(&window) };
@@ -1283,7 +1306,7 @@ impl InitData<'_> {
 }
 unsafe fn init(
     attributes: WindowAttributes,
-    event_loop: &ActiveEventLoop,
+    runner: &Rc<EventLoopRunner>,
 ) -> Result<Window, RequestError> {
     let title = util::encode_wide(&attributes.title);
 
@@ -1337,7 +1360,7 @@ unsafe fn init(
     let menu = attributes.platform_specific.menu;
     let fullscreen = attributes.fullscreen.clone();
     let maximized = attributes.maximized;
-    let mut initdata = InitData { event_loop, attributes, window_flags, window: None };
+    let mut initdata = InitData { runner, attributes, window_flags, window: None };
 
     let (style, ex_style) = window_flags.to_window_styles();
     let handle = unsafe {
@@ -1358,7 +1381,7 @@ unsafe fn init(
     };
 
     // If the window creation in `InitData` panicked, then should resume panicking here
-    if let Err(panic_error) = event_loop.runner_shared.take_panic_error() {
+    if let Err(panic_error) = runner.take_panic_error() {
         panic::resume_unwind(panic_error)
     }
 

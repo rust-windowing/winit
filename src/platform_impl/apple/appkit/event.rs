@@ -162,28 +162,34 @@ pub fn code_to_key(key: PhysicalKey, scancode: u16) -> Key {
         PhysicalKey::Unidentified(code) => return Key::Unidentified(code.into()),
     };
 
+    // Roughly same handling as Firefox and Chromium:
+    // https://searchfox.org/mozilla-central/rev/c597e9c789ad36af84a0370d395be066b7dc94f4/widget/NativeKeyToDOMKeyName.h
+    // https://chromium.googlesource.com/chromium/src.git/+/010a75a426c4a2292955a52f480e9251cacf750e/ui/events/keycodes/keyboard_code_conversion_mac.mm#100
     Key::Named(match code {
         KeyCode::Enter => NamedKey::Enter,
         KeyCode::Tab => NamedKey::Tab,
-        KeyCode::Space => NamedKey::Space,
+        KeyCode::Space => return Key::Character(" ".into()),
         KeyCode::Backspace => NamedKey::Backspace,
         KeyCode::Escape => NamedKey::Escape,
-        KeyCode::SuperRight => NamedKey::Super,
-        KeyCode::SuperLeft => NamedKey::Super,
+        KeyCode::MetaRight => NamedKey::Meta,
+        KeyCode::MetaLeft => NamedKey::Meta,
         KeyCode::ShiftLeft => NamedKey::Shift,
         KeyCode::AltLeft => NamedKey::Alt,
         KeyCode::ControlLeft => NamedKey::Control,
         KeyCode::ShiftRight => NamedKey::Shift,
         KeyCode::AltRight => NamedKey::Alt,
         KeyCode::ControlRight => NamedKey::Control,
+        KeyCode::CapsLock => NamedKey::CapsLock,
 
         KeyCode::NumLock => NamedKey::NumLock,
         KeyCode::AudioVolumeUp => NamedKey::AudioVolumeUp,
         KeyCode::AudioVolumeDown => NamedKey::AudioVolumeDown,
+        KeyCode::AudioVolumeMute => NamedKey::AudioVolumeMute,
 
         // Other numpad keys all generate text on macOS (if I understand correctly)
         KeyCode::NumpadEnter => NamedKey::Enter,
 
+        KeyCode::Fn => NamedKey::Fn,
         KeyCode::F1 => NamedKey::F1,
         KeyCode::F2 => NamedKey::F2,
         KeyCode::F3 => NamedKey::F3,
@@ -204,17 +210,27 @@ pub fn code_to_key(key: PhysicalKey, scancode: u16) -> Key {
         KeyCode::F18 => NamedKey::F18,
         KeyCode::F19 => NamedKey::F19,
         KeyCode::F20 => NamedKey::F20,
+        KeyCode::F21 => NamedKey::F21,
+        KeyCode::F22 => NamedKey::F22,
+        KeyCode::F23 => NamedKey::F23,
+        KeyCode::F24 => NamedKey::F24,
 
         KeyCode::Insert => NamedKey::Insert,
         KeyCode::Home => NamedKey::Home,
         KeyCode::PageUp => NamedKey::PageUp,
         KeyCode::Delete => NamedKey::Delete,
         KeyCode::End => NamedKey::End,
+        KeyCode::Help => NamedKey::Help,
         KeyCode::PageDown => NamedKey::PageDown,
         KeyCode::ArrowLeft => NamedKey::ArrowLeft,
         KeyCode::ArrowRight => NamedKey::ArrowRight,
         KeyCode::ArrowDown => NamedKey::ArrowDown,
         KeyCode::ArrowUp => NamedKey::ArrowUp,
+        KeyCode::ContextMenu => NamedKey::ContextMenu,
+
+        KeyCode::Lang2 => NamedKey::Eisu,
+        KeyCode::Lang1 => NamedKey::KanjiMode,
+
         _ => return Key::Unidentified(NativeKey::MacOS(scancode)),
     })
 }
@@ -226,8 +242,8 @@ pub fn code_to_location(key: PhysicalKey) -> KeyLocation {
     };
 
     match code {
-        KeyCode::SuperRight => KeyLocation::Right,
-        KeyCode::SuperLeft => KeyLocation::Left,
+        KeyCode::MetaRight => KeyLocation::Right,
+        KeyCode::MetaLeft => KeyLocation::Left,
         KeyCode::ShiftLeft => KeyLocation::Left,
         KeyCode::AltLeft => KeyLocation::Left,
         KeyCode::ControlLeft => KeyLocation::Left,
@@ -310,9 +326,9 @@ pub(super) fn event_mods(event: &NSEvent) -> Modifiers {
     pressed_mods.set(ModifiersKeys::LALT, flags.contains(NX_DEVICELALTKEYMASK));
     pressed_mods.set(ModifiersKeys::RALT, flags.contains(NX_DEVICERALTKEYMASK));
 
-    state.set(ModifiersState::SUPER, flags.contains(NSEventModifierFlags::Command));
-    pressed_mods.set(ModifiersKeys::LSUPER, flags.contains(NX_DEVICELCMDKEYMASK));
-    pressed_mods.set(ModifiersKeys::RSUPER, flags.contains(NX_DEVICERCMDKEYMASK));
+    state.set(ModifiersState::META, flags.contains(NSEventModifierFlags::Command));
+    pressed_mods.set(ModifiersKeys::LMETA, flags.contains(NX_DEVICELCMDKEYMASK));
+    pressed_mods.set(ModifiersKeys::RMETA, flags.contains(NX_DEVICERCMDKEYMASK));
 
     Modifiers { state, pressed_mods }
 }
@@ -393,8 +409,8 @@ pub(crate) fn physicalkey_to_scancode(physical_key: PhysicalKey) -> Option<u32> 
         KeyCode::Backquote => Some(0x32),
         KeyCode::Backspace => Some(0x33),
         KeyCode::Escape => Some(0x35),
-        KeyCode::SuperRight => Some(0x36),
-        KeyCode::SuperLeft => Some(0x37),
+        KeyCode::MetaRight => Some(0x36),
+        KeyCode::MetaLeft => Some(0x37),
         KeyCode::ShiftLeft => Some(0x38),
         KeyCode::CapsLock => Some(0x39),
         KeyCode::AltLeft => Some(0x3a),
@@ -539,8 +555,8 @@ pub(crate) fn scancode_to_physicalkey(scancode: u32) -> PhysicalKey {
         0x33 => KeyCode::Backspace,
         // 0x34 => unknown, // kVK_Powerbook_KeypadEnter
         0x35 => KeyCode::Escape,
-        0x36 => KeyCode::SuperRight,
-        0x37 => KeyCode::SuperLeft,
+        0x36 => KeyCode::MetaRight,
+        0x37 => KeyCode::MetaLeft,
         0x38 => KeyCode::ShiftLeft,
         0x39 => KeyCode::CapsLock,
         0x3a => KeyCode::AltLeft,

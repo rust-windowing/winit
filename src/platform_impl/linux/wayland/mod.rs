@@ -1,12 +1,8 @@
 //! Winit's Wayland backend.
 
-pub use event_loop::{ActiveEventLoop, EventLoop};
-pub use output::MonitorHandle;
 use sctk::reexports::client::protocol::wl_surface::WlSurface;
 use sctk::reexports::client::Proxy;
-pub use window::Window;
 
-pub(super) use crate::cursor::OnlyCursorImage as CustomCursor;
 use crate::dpi::{LogicalSize, PhysicalSize};
 use crate::window::WindowId;
 
@@ -16,6 +12,9 @@ mod seat;
 mod state;
 mod types;
 mod window;
+
+pub use event_loop::{ActiveEventLoop, EventLoop};
+pub use window::Window;
 
 /// Get the WindowId out of the surface.
 #[inline]

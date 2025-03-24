@@ -33,10 +33,10 @@ pub trait EventLoopExtRunOnDemand {
     ///   to the caller (specifically this is impossible on iOS and Web - though with the Web
     ///   backend it is possible to use
     #[cfg_attr(
-        any(web_platform, docsrs),
+        web_platform,
         doc = "  [`EventLoopExtWeb::spawn_app()`][crate::platform::web::EventLoopExtWeb::spawn_app()]"
     )]
-    #[cfg_attr(not(any(web_platform, docsrs)), doc = "  `EventLoopExtWeb::spawn_app()`")]
+    #[cfg_attr(not(web_platform), doc = "  `EventLoopExtWeb::spawn_app()`")]
     ///   [^1] more than once instead).
     /// - No [`Window`] state can be carried between separate runs of the event loop.
     ///
