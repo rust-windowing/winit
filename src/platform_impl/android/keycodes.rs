@@ -108,6 +108,7 @@ pub fn to_physical_key(keycode: Keycode) -> PhysicalKey {
         Keycode::MediaStop => KeyCode::MediaStop,
         Keycode::MediaNext => KeyCode::MediaTrackNext,
         Keycode::MediaPrevious => KeyCode::MediaTrackPrevious,
+        Keycode::MediaEject => KeyCode::Eject,
 
         Keycode::Plus => KeyCode::Equal,
         Keycode::Minus => KeyCode::Minus,
@@ -130,7 +131,11 @@ pub fn to_physical_key(keycode: Keycode) -> PhysicalKey {
         // These are exactly the same
         Keycode::ScrollLock => KeyCode::ScrollLock,
 
+        Keycode::Eisu => KeyCode::Lang2,
+        Keycode::Muhenkan => KeyCode::NonConvert,
+        Keycode::Henkan => KeyCode::Convert,
         Keycode::Yen => KeyCode::IntlYen,
+        Keycode::Ro => KeyCode::IntlRo,
         Keycode::Kana => KeyCode::Lang1,
         Keycode::KatakanaHiragana => KeyCode::KanaMode,
 
@@ -152,6 +157,14 @@ pub fn to_physical_key(keycode: Keycode) -> PhysicalKey {
         Keycode::Power => KeyCode::Power,
         Keycode::Sleep => KeyCode::Sleep, // what about SoftSleep?
         Keycode::Wakeup => KeyCode::WakeUp,
+
+        Keycode::CapsLock => KeyCode::CapsLock,
+        Keycode::Help => KeyCode::Help,
+
+        Keycode::Back => KeyCode::BrowserBack,
+        Keycode::Forward => KeyCode::BrowserForward,
+        Keycode::Refresh => KeyCode::BrowserRefresh,
+        Keycode::Search => KeyCode::BrowserSearch,
 
         keycode => return PhysicalKey::Unidentified(NativeKeyCode::Android(keycode.into())),
     })
