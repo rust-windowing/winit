@@ -3,13 +3,19 @@
 use std::cell::{Cell, RefCell};
 use std::io::Result as IOResult;
 use std::mem;
+use std::os::fd::OwnedFd;
 use std::os::unix::io::{AsFd, AsRawFd, BorrowedFd, RawFd};
 use std::sync::atomic::Ordering;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Condvar, Mutex};
+use std::thread::JoinHandle;
 use std::time::{Duration, Instant};
 
+use calloop::ping::Ping;
+use rustix::event::{PollFd, PollFlags};
+use rustix::pipe::{self, PipeFlags};
 use sctk::reexports::calloop_wayland_source::WaylandSource;
 use sctk::reexports::client::{globals, Connection, QueueHandle};
+use tracing::warn;
 
 use crate::application::ApplicationHandler;
 use crate::dpi::LogicalSize;
@@ -68,6 +74,8 @@ pub struct EventLoop {
     // XXX drop after everything else, just to be safe.
     /// Calloop's event loop.
     event_loop: calloop::EventLoop<'static, WinitState>,
+
+    pump_event_notifier: Option<PumpEventNotifier>,
 }
 
 impl EventLoop {
@@ -149,6 +157,7 @@ impl EventLoop {
             wayland_dispatcher,
             event_loop,
             active_event_loop,
+            pump_event_notifier: None,
         };
 
         Ok(event_loop)
@@ -209,6 +218,21 @@ impl EventLoop {
 
             PumpStatus::Exit(code)
         } else {
+            // NOTE: spawn a wake-up thread, thus if we have code reading the wayland connection
+            // in parallel to winit, we ensure that the loop itself is marked as having events.
+            if timeout.is_some() && self.pump_event_notifier.is_none() {
+                self.pump_event_notifier = Some(PumpEventNotifier::spawn(
+                    self.active_event_loop.handle.connection.clone(),
+                    self.active_event_loop.event_loop_awakener.clone(),
+                ));
+            }
+
+            if let Some(pump_event_notifier) = self.pump_event_notifier.as_ref() {
+                // Notify that we don't have to wait, since we're out of winit.
+                *pump_event_notifier.control.0.lock().unwrap() = PumpEventNotifierAction::Monitor;
+                pump_event_notifier.control.1.notify_one();
+            }
+
             PumpStatus::Continue
         }
     }
@@ -556,7 +580,7 @@ pub struct ActiveEventLoop {
     event_loop_proxy: CoreEventLoopProxy,
 
     /// The event loop wakeup source.
-    pub event_loop_awakener: calloop::ping::Ping,
+    pub event_loop_awakener: Ping,
 
     /// The main queue used by the event loop.
     pub queue_handle: QueueHandle<WinitState>,
@@ -696,4 +720,85 @@ impl rwh_06::HasDisplayHandle for OwnedDisplayHandle {
 
         Ok(unsafe { rwh_06::DisplayHandle::borrow_raw(raw.into()) })
     }
+}
+
+#[derive(Debug)]
+struct PumpEventNotifier {
+    /// Whether we're in winit or not.
+    control: Arc<(Mutex<PumpEventNotifierAction>, Condvar)>,
+    /// Waker handle for the working thread.
+    worker_waker: Option<OwnedFd>,
+    /// Thread handle.
+    handle: Option<JoinHandle<()>>,
+}
+
+impl Drop for PumpEventNotifier {
+    fn drop(&mut self) {
+        // Wake-up the thread.
+        if let Some(worker_waker) = self.worker_waker.as_ref() {
+            let _ = rustix::io::write(worker_waker.as_fd(), &[0u8]);
+        }
+        *self.control.0.lock().unwrap() = PumpEventNotifierAction::Monitor;
+        self.control.1.notify_one();
+
+        if let Some(handle) = self.handle.take() {
+            let _ = handle.join();
+        }
+    }
+}
+
+impl PumpEventNotifier {
+    fn spawn(connection: Connection, awakener: Ping) -> Self {
+        // Start from the waiting state.
+        let control = Arc::new((Mutex::new(PumpEventNotifierAction::Pause), Condvar::new()));
+        let control_thread = Arc::clone(&control);
+
+        let (read, write) = match pipe::pipe_with(PipeFlags::CLOEXEC | PipeFlags::NONBLOCK) {
+            Ok((read, write)) => (read, write),
+            Err(_) => return Self { control, handle: None, worker_waker: None },
+        };
+
+        let handle =
+            std::thread::Builder::new().name(String::from("pump_events mon")).spawn(move || {
+                let (lock, cvar) = &*control_thread;
+                'outer: loop {
+                    let mut wait = lock.lock().unwrap();
+                    while *wait == PumpEventNotifierAction::Pause {
+                        wait = cvar.wait(wait).unwrap();
+                    }
+                    // Wake-up the main loop and put this one back to sleep.
+                    *wait = PumpEventNotifierAction::Pause;
+                    drop(wait);
+
+                    while let Some(read_guard) = connection.prepare_read() {
+                        let _ = connection.flush();
+                        let poll_fd = PollFd::from_borrowed_fd(connection.as_fd(), PollFlags::IN);
+                        let pipe_poll_fd = PollFd::from_borrowed_fd(read.as_fd(), PollFlags::IN);
+                        // Read from the `fd` before going back to poll.
+                        if Ok(1) == rustix::io::read(read.as_fd(), &mut [0u8; 1]) {
+                            break 'outer;
+                        }
+                        let _ = rustix::event::poll(&mut [poll_fd, pipe_poll_fd], -1);
+                        // Non-blocking read the connection.
+                        let _ = read_guard.read_without_dispatch();
+                    }
+
+                    awakener.ping();
+                }
+            });
+
+        if let Some(err) = handle.as_ref().err() {
+            warn!("failed to spawn pump_events wake-up thread: {err}");
+        }
+
+        PumpEventNotifier { control, handle: handle.ok(), worker_waker: Some(write) }
+    }
+}
+
+#[derive(Debug, PartialEq, Eq)]
+enum PumpEventNotifierAction {
+    /// Monitor the wayland queue.
+    Monitor,
+    /// Pause monitoring.
+    Pause,
 }
