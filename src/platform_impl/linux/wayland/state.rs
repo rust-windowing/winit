@@ -20,6 +20,7 @@ use sctk::shell::WaylandSurface;
 use sctk::shm::slot::SlotPool;
 use sctk::shm::{Shm, ShmHandler};
 use sctk::subcompositor::SubcompositorState;
+use wayland_client::{DispatchError, EventQueue};
 
 use crate::error::OsError;
 use crate::platform_impl::wayland::event_loop::sink::EventSink;
@@ -251,6 +252,19 @@ impl WinitState {
         };
 
         updates[pos].close_window = true;
+    }
+
+    pub fn dispatch_pending(
+        &mut self,
+        queue: &mut EventQueue<Self>,
+    ) -> std::result::Result<usize, DispatchError> {
+        let result = queue.dispatch_pending(self);
+        if result.is_ok()
+            && (!self.events_sink.is_empty() || !self.window_compositor_updates.is_empty())
+        {
+            self.dispatched_events = true;
+        }
+        result
     }
 }
 
