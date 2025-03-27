@@ -91,15 +91,16 @@ fn spawn_wakeup_thread(
     let control = Arc::new((Mutex::new(true), Condvar::new()));
     let control_thread = Arc::clone(&control);
 
-    let handle = std::thread::Builder::new()
-        .name(String::from("wayland pump_events wake-up notify"))
-        .spawn(move || {
+    let handle =
+        std::thread::Builder::new().name(String::from("pump_events wake-up")).spawn(move || {
             let (lock, cvar) = &*control_thread;
             loop {
                 let mut wait = lock.lock().unwrap();
                 while *wait {
                     wait = cvar.wait(wait).unwrap();
                 }
+                *wait = true;
+                drop(wait);
 
                 if let Some(read_guard) = connection.prepare_read() {
                     let _ = connection.flush();
@@ -109,7 +110,6 @@ fn spawn_wakeup_thread(
                 }
 
                 // Wake-up the main loop and put this one back to sleep.
-                *wait = true;
                 awakener.ping();
             }
         });
@@ -238,12 +238,6 @@ impl EventLoop {
         timeout: Option<Duration>,
         mut app: A,
     ) -> PumpStatus {
-        if let Some(pump_event_notifier) = self.pump_event_notifier.as_ref() {
-            // Notify that we should start waiting, since we're in winit.
-            *pump_event_notifier.control.0.lock().unwrap() = true;
-            pump_event_notifier.control.1.notify_one();
-        }
-
         if !self.loop_running {
             self.loop_running = true;
 
