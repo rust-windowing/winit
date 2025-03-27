@@ -77,8 +77,6 @@ pub struct EventLoop {
 
 #[derive(Debug)]
 struct PumpEventNotifier {
-    /// Whether we're in winit or not.
-    control: Arc<(Mutex<bool>, Condvar)>,
     /// Thread handle.
     _handle: JoinHandle<()>,
 }
@@ -87,35 +85,32 @@ fn spawn_wakeup_thread(
     connection: Connection,
     awakener: calloop::ping::Ping,
 ) -> Option<PumpEventNotifier> {
-    // Start from the waiting state.
-    let control = Arc::new((Mutex::new(true), Condvar::new()));
-    let control_thread = Arc::clone(&control);
-
     let handle =
         std::thread::Builder::new().name(String::from("pump_events wake-up")).spawn(move || {
-            let (lock, cvar) = &*control_thread;
             loop {
-                let mut wait = lock.lock().unwrap();
-                while *wait {
-                    wait = cvar.wait(wait).unwrap();
-                }
-                *wait = true;
-                drop(wait);
+                let read_guard = match connection.prepare_read() {
+                    Some(read_guard) => read_guard,
+                    None => {
+                        awakener.ping();
+                        continue;
+                    },
+                };
 
-                if let Some(read_guard) = connection.prepare_read() {
-                    let _ = connection.flush();
-                    let poll_fd = PollFd::from_borrowed_fd(connection.as_fd(), PollFlags::IN);
-                    if rustix::event::poll(&mut [poll_fd], -1).is_err() {}
-                    let _ = read_guard.read();
+                let _ = connection.flush();
+                let poll_fd = PollFd::from_borrowed_fd(connection.as_fd(), PollFlags::IN);
+                if rustix::event::poll(&mut [poll_fd], -1).is_err() {
+                    continue;
                 }
 
                 // Wake-up the main loop and put this one back to sleep.
-                awakener.ping();
+                if let Ok(_) = read_guard.read() {
+                    awakener.ping();
+                }
             }
         });
 
     match handle {
-        Ok(_handle) => Some(PumpEventNotifier { control, _handle }),
+        Ok(_handle) => Some(PumpEventNotifier { _handle }),
         Err(err) => {
             warn!("failed to spawn pump_events wake-up thread: {err}");
             None
@@ -264,7 +259,7 @@ impl EventLoop {
 
                 self.pump_event_notifier = spawn_wakeup_thread(
                     self.active_event_loop.handle.connection.clone(),
-                    event_loop_awakener,
+                    event_loop_awakener.clone(),
                 );
 
                 if self.pump_event_notifier.is_some() {
@@ -280,13 +275,11 @@ impl EventLoop {
                         )
                         .unwrap();
                 }
+
+                // Do an extra wake-up to kick-off the loop.
+                event_loop_awakener.ping();
             }
 
-            if let Some(pump_event_notifier) = self.pump_event_notifier.as_ref() {
-                // Notify that we don't have to wait, since we're out of winit.
-                *pump_event_notifier.control.0.lock().unwrap() = false;
-                pump_event_notifier.control.1.notify_one();
-            }
             PumpStatus::Continue
         }
     }
