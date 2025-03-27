@@ -5,11 +5,14 @@ use std::io::Result as IOResult;
 use std::mem;
 use std::os::unix::io::{AsFd, AsRawFd, BorrowedFd, RawFd};
 use std::sync::atomic::Ordering;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Condvar, Mutex};
+use std::thread::JoinHandle;
 use std::time::{Duration, Instant};
 
+use rustix::event::{PollFd, PollFlags};
 use sctk::reexports::calloop_wayland_source::WaylandSource;
 use sctk::reexports::client::{globals, Connection, QueueHandle};
+use tracing::warn;
 
 use crate::application::ApplicationHandler;
 use crate::dpi::LogicalSize;
@@ -68,6 +71,51 @@ pub struct EventLoop {
     // XXX drop after everything else, just to be safe.
     /// Calloop's event loop.
     event_loop: calloop::EventLoop<'static, WinitState>,
+
+    pump_event_notifier: Option<PumpEventNotifier>,
+}
+
+#[derive(Debug)]
+struct PumpEventNotifier {
+    /// Thread handle.
+    _handle: JoinHandle<()>,
+}
+
+fn spawn_wakeup_thread(
+    connection: Connection,
+    awakener: calloop::ping::Ping,
+) -> Option<PumpEventNotifier> {
+    let handle =
+        std::thread::Builder::new().name(String::from("pump_events wake-up")).spawn(move || {
+            loop {
+                let read_guard = match connection.prepare_read() {
+                    Some(read_guard) => read_guard,
+                    None => {
+                        awakener.ping();
+                        continue;
+                    },
+                };
+
+                let _ = connection.flush();
+                let poll_fd = PollFd::from_borrowed_fd(connection.as_fd(), PollFlags::IN);
+                if rustix::event::poll(&mut [poll_fd], -1).is_err() {
+                    continue;
+                }
+
+                // Wake-up the main loop and put this one back to sleep.
+                if let Ok(_) = read_guard.read() {
+                    awakener.ping();
+                }
+            }
+        });
+
+    match handle {
+        Ok(_handle) => Some(PumpEventNotifier { _handle }),
+        Err(err) => {
+            warn!("failed to spawn pump_events wake-up thread: {err}");
+            None
+        },
+    }
 }
 
 impl EventLoop {
@@ -91,14 +139,7 @@ impl EventLoop {
         let wayland_source = WaylandSource::new(connection.clone(), event_queue);
         let wayland_dispatcher =
             calloop::Dispatcher::new(wayland_source, |_, queue, winit_state: &mut WinitState| {
-                let result = queue.dispatch_pending(winit_state);
-                if result.is_ok()
-                    && (!winit_state.events_sink.is_empty()
-                        || !winit_state.window_compositor_updates.is_empty())
-                {
-                    winit_state.dispatched_events = true;
-                }
-                result
+                winit_state.dispatch_pending(queue)
             });
 
         event_loop
@@ -149,6 +190,7 @@ impl EventLoop {
             wayland_dispatcher,
             event_loop,
             active_event_loop,
+            pump_event_notifier: None,
         };
 
         Ok(event_loop)
@@ -209,6 +251,35 @@ impl EventLoop {
 
             PumpStatus::Exit(code)
         } else {
+            // NOTE: spawn a wake-up thread, thus if we have code reading the wayland connection
+            // in parallel to winit, we ensure that the loop itself is marked as having events.
+            if timeout.is_some() && self.pump_event_notifier.is_none() {
+                let (event_loop_awakener, event_loop_awakener_source) =
+                    calloop::ping::make_ping().map_err(|err| os_error!(err)).unwrap();
+
+                self.pump_event_notifier = spawn_wakeup_thread(
+                    self.active_event_loop.handle.connection.clone(),
+                    event_loop_awakener.clone(),
+                );
+
+                if self.pump_event_notifier.is_some() {
+                    let wayland_dispatcher = self.wayland_dispatcher.clone();
+                    self.event_loop
+                        .handle()
+                        .insert_source(
+                            event_loop_awakener_source,
+                            move |_, _, winit_state: &mut WinitState| {
+                                let mut source = wayland_dispatcher.as_source_mut();
+                                let _ = winit_state.dispatch_pending(source.queue());
+                            },
+                        )
+                        .unwrap();
+                }
+
+                // Do an extra wake-up to kick-off the loop.
+                event_loop_awakener.ping();
+            }
+
             PumpStatus::Continue
         }
     }
