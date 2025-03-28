@@ -55,19 +55,21 @@
 //! * `serde`: Enables serialization/deserialization of certain types with [Serde](https://crates.io/crates/serde).
 //! * `mint`: Enables mint (math interoperability standard types) conversions.
 //! * `std` (enabled by default): Uses the standard library mathematical functions (normally through
-//!   your target platform's libm).
-//! * `libm`: Uses the Rust implementations of mathematical functions provided by [libm].
+//!   your target platform's libm). This feature also changes the library's license from `Apache-2.0 AND MIT` to `APACHE-2.0` (only).
+//!   For full details, see the package README.
 //!
-//! At least one of `std` and `libm` is required to compile DPI.
 //! To use this library on a target without the standard library available, you should disable
-//! default features and enable `libm`.
+//! default features (thus disabling the `std` feature, with the license consequences thereof).
 //!
 //! [points]: https://en.wikipedia.org/wiki/Point_(typography)
 //! [picas]: https://en.wikipedia.org/wiki/Pica_(typography)
 
 #![cfg_attr(docsrs, feature(doc_auto_cfg, doc_cfg_hide), doc(cfg_hide(doc, docsrs)))]
-#![forbid(unsafe_code)]
+#![cfg_attr(feature = "std", forbid(unsafe_code))]
 #![no_std]
+
+#[cfg(not(feature = "std"))]
+mod libm;
 
 #[cfg(any(feature = "std", test))]
 extern crate std;
@@ -123,20 +125,13 @@ impl Pixel for f64 {
     }
 }
 
-#[cfg(not(any(feature = "std", feature = "libm")))]
-compile_error!("Please select a feature to build DPI: `std`, `libm`.");
-
-#[allow(unreachable_code/* , reason = "These are intentional short-circuits" */)]
-/// Round f to the closest integer, roudning away from `0.0``
+/// Round f to the closest integer, rounding away from `0.0`
 #[inline]
 fn round(f: f64) -> f64 {
     #[cfg(feature = "std")]
     return f.round();
-    #[cfg(feature = "libm")]
+    #[cfg(not(feature = "std"))]
     return libm::round(f);
-    unreachable!(
-        "This library fails to compile if neither of the `std` or `libm` features are enabled"
-    )
 }
 
 /// Checks that the scale factor is a normal positive `f64`.

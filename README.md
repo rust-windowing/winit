@@ -71,3 +71,9 @@ same MSRV policy.
 ### Platform-specific usage
 
 Check out the [`winit::platform`](https://docs.rs/winit/latest/winit/platform/index.html) module for platform-specific usage.
+
+### Repository License
+
+Note that the license in `LICENSE` doesn't apply in full to the DPI package [./dpi](./dpi).
+Full details can be found in that folder's README.
+<!-- This doesn't apply to users of the Winit crate, but this is also the repository level README -->
