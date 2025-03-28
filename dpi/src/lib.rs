@@ -55,8 +55,8 @@
 //! * `serde`: Enables serialization/deserialization of certain types with [Serde](https://crates.io/crates/serde).
 //! * `mint`: Enables mint (math interoperability standard types) conversions.
 //! * `std` (enabled by default): Uses the standard library mathematical functions (normally through
-//!   your target platform's libm). This feature also changes the library's license from `Apache-2.0 AND MIT` to `APACHE-2.0` (only).
-//!   For full details, see the package README.
+//!   your target platform's libm). This feature also changes the library's license from `Apache-2.0
+//!   AND MIT` to `APACHE-2.0` (only). For full details, see the package README.
 //!
 //! To use this library on a target without the standard library available, you should disable
 //! default features (thus disabling the `std` feature, with the license consequences thereof).

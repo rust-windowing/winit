@@ -24,7 +24,7 @@ mint = { workspace = true, optional = true }
 serde = { workspace = true, optional = true }
 
 [package.metadata.docs.rs]
-features = ["mint", "serde", "libm"]
+features = ["mint", "serde"]
 # These are all tested in CI
 rustdoc-args = ["--cfg", "docsrs"]
 targets = [
