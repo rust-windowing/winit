@@ -14,7 +14,7 @@ use windows_sys::Win32::Foundation::{
 };
 use windows_sys::Win32::Graphics::Dwm::{
     DWM_BB_BLURREGION, DWM_BB_ENABLE, DWM_BLURBEHIND, DWM_SYSTEMBACKDROP_TYPE,
-    DWM_WINDOW_CORNER_PREFERENCE, DWMWA_BORDER_COLOR, DWMWA_CAPTION_COLOR,
+    DWM_WINDOW_CORNER_PREFERENCE, DWMWA_BORDER_COLOR, DWMWA_CAPTION_COLOR, DWMWA_CLOAK,
     DWMWA_SYSTEMBACKDROP_TYPE, DWMWA_TEXT_COLOR, DWMWA_WINDOW_CORNER_PREFERENCE,
     DwmEnableBlurBehindWindow, DwmSetWindowAttribute,
 };
@@ -382,6 +382,17 @@ impl Window {
         match icon_type {
             IconType::Small => self.window_state_lock().window_icon = None,
             IconType::Big => self.window_state_lock().taskbar_icon = None,
+        }
+    }
+
+    pub fn set_cloaked(&self, cloaked: bool) {
+        unsafe {
+            DwmSetWindowAttribute(
+                self.hwnd(),
+                DWMWA_CLOAK.try_into().unwrap(),
+                &cloaked as *const bool as *const _,
+                mem::size_of::<bool>() as u32,
+            );
         }
     }
 }
@@ -1349,6 +1360,9 @@ impl InitData<'_> {
         }
         if let Some(corner) = self.win_attributes.corner_preference {
             win.set_corner_preference(corner);
+        }
+        if self.win_attributes.cloaked {
+            win.set_cloaked(true);
         }
     }
 }

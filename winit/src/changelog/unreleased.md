@@ -50,6 +50,8 @@ changelog entry.
 - On Android, added scancode conversions for more obscure key codes.
 - On Wayland, added `HoldGesture` event for multi-finger hold gestures
 - On Wayland, added ext-background-effect-v1 support.
+- On Windows, add `WindowExtWindows::set_cloaked` and
+  `WindowAttributesWindows::with_cloaked` to cloak a window via `DWMWA_CLOAK`.
 
 ### Changed
 
