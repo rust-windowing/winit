@@ -32,7 +32,7 @@ pub trait EventLoopExtOpenHarmony {
 impl<T> EventLoopExtOpenHarmony for EventLoop<T> {
     type UserEvent = T;
 
-    fn spawn_app<A: ApplicationHandler<Self::UserEvent> + 'static>(self, app: A) {
+    fn spawn_app<A: ApplicationHandler<Self::UserEvent>>(self, app: A) {
         let app = Box::leak(Box::new(app));
         let event_looper = Box::leak(Box::new(self));
 
