@@ -245,3 +245,4 @@ changelog entry.
 - On macos, `WindowExtMacOS::set_simple_fullscreen` now honors `WindowExtMacOS::set_borderless_game`
 - On X11 and Wayland, fixed pump_events with `Some(Duration::Zero)` blocking with `Wait` polling mode
 - On macOS, fixed `run_app_on_demand` returning without closing open windows.
+- On Windows, fixed window resizing with decorated shadow disabled.
