@@ -63,8 +63,8 @@ pub trait EventLoopExtRunOnDemand {
     ///   are delivered via callbacks based on an event loop that is internal to the browser itself.
     /// - **iOS:** It's not possible to stop and start an `UIApplication` repeatedly on iOS.
     #[cfg_attr(not(web_platform), doc = "[^1]: `spawn()` is only available on `wasm` platforms.")]
-    #[rustfmt::skip]
     ///
+    #[rustfmt::skip]
     /// [`exit()`]: ActiveEventLoop::exit()
     /// [`set_control_flow()`]: ActiveEventLoop::set_control_flow()
     fn run_app_on_demand<A: ApplicationHandler<Self::UserEvent>>(

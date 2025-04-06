@@ -165,7 +165,6 @@
 //! [`Window`]: window::Window
 //! [`WindowId`]: window::WindowId
 //! [`WindowAttributes`]: window::WindowAttributes
-//! [window_new]: window::Window::new
 //! [`create_window`]: event_loop::ActiveEventLoop::create_window
 //! [`Window::id()`]: window::Window::id
 //! [`WindowEvent`]: event::WindowEvent
@@ -185,6 +184,9 @@
 // doc
 #![cfg_attr(docsrs, feature(doc_auto_cfg, doc_cfg_hide), doc(cfg_hide(doc, docsrs)))]
 #![allow(clippy::missing_safety_doc)]
+#![warn(clippy::uninlined_format_args)]
+// TODO: wasm-binding needs to be updated for that to be resolved, for now just silence it.
+#![cfg_attr(web_platform, allow(unknown_lints, wasm_c_abi))]
 
 #[cfg(feature = "rwh_04")]
 pub use rwh_04 as raw_window_handle_04;

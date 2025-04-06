@@ -190,7 +190,7 @@ declare_class!(
                     // Pass -delta so that action is reversed
                     (TouchPhase::Cancelled, -recognizer.scale())
                 }
-                state => panic!("unexpected recognizer state: {:?}", state),
+                state => panic!("unexpected recognizer state: {state:?}"),
             };
 
             let gesture_event = EventWrapper::StaticEvent(Event::WindowEvent {
@@ -249,7 +249,7 @@ declare_class!(
                     // Pass -delta so that action is reversed
                     (TouchPhase::Cancelled, -recognizer.rotation())
                 }
-                state => panic!("unexpected recognizer state: {:?}", state),
+                state => panic!("unexpected recognizer state: {state:?}"),
             };
 
             // Make delta negative to match macos, convert to degrees
@@ -300,7 +300,7 @@ declare_class!(
                     // Pass -delta so that action is reversed
                     (TouchPhase::Cancelled, -last_pan.x, -last_pan.y)
                 }
-                state => panic!("unexpected recognizer state: {:?}", state),
+                state => panic!("unexpected recognizer state: {state:?}"),
             };
 
 

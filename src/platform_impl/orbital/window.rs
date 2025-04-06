@@ -420,7 +420,7 @@ impl Window {
             window::ResizeDirection::West => "L",
         };
         self.window_socket
-            .write(format!("D,{}", arg).as_bytes())
+            .write(format!("D,{arg}").as_bytes())
             .map_err(|err| error::ExternalError::Os(os_error!(OsError::new(err))))?;
         Ok(())
     }

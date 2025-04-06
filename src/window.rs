@@ -1864,14 +1864,14 @@ impl ActivationToken {
     /// won't get focused automatically), but won't yield any errors.
     ///
     /// To obtain a valid token, use
-    #[cfg_attr(any(x11_platform, wayland_platform, docsrs), doc = " [`request_activation_token`].")]
+    #[cfg_attr(
+        any(x11_platform, wayland_platform, docsrs),
+        doc = " [`request_activation_token`](crate::platform::startup_notify::WindowExtStartupNotify::request_activation_token)."
+    )]
     #[cfg_attr(
         not(any(x11_platform, wayland_platform, docsrs)),
         doc = " `request_activation_token`."
     )]
-    ///
-    #[rustfmt::skip]
-    /// [`request_activation_token`]: crate::platform::startup_notify::WindowExtStartupNotify::request_activation_token
     pub fn from_raw(token: String) -> Self {
         Self { token }
     }
