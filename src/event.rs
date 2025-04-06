@@ -1152,7 +1152,7 @@ mod tests {
     #[test]
     fn ensure_attrs_do_not_panic() {
         foreach_event!(|event: event::Event<()>| {
-            let _ = format!("{:?}", event);
+            let _ = format!("{event:?}");
         });
         let _ = event::StartCause::Init.clone();
 

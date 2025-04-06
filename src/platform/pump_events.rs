@@ -51,19 +51,19 @@ pub trait EventLoopExtPumpEvents {
     /// buffered and handled outside of Winit include:
     /// - `RedrawRequested` events, used to schedule rendering.
     ///
-    ///     macOS for example uses a `drawRect` callback to drive rendering
-    ///     within applications and expects rendering to be finished before
-    ///     the `drawRect` callback returns.
+    ///   macOS for example uses a `drawRect` callback to drive rendering
+    ///   within applications and expects rendering to be finished before
+    ///   the `drawRect` callback returns.
     ///
-    ///     For portability it's strongly recommended that applications should
-    ///     keep their rendering inside the closure provided to Winit.
+    ///   For portability it's strongly recommended that applications should
+    ///   keep their rendering inside the closure provided to Winit.
     /// - Any lifecycle events, such as `Suspended` / `Resumed`.
     ///
-    ///     The handling of these events needs to be synchronized with the
-    ///     operating system and it would never be appropriate to buffer a
-    ///     notification that your application has been suspended or resumed and
-    ///     then handled that later since there would always be a chance that
-    ///     other lifecycle events occur while the event is buffered.
+    ///   The handling of these events needs to be synchronized with the
+    ///   operating system and it would never be appropriate to buffer a
+    ///   notification that your application has been suspended or resumed and
+    ///   then handled that later since there would always be a chance that
+    ///   other lifecycle events occur while the event is buffered.
     ///
     /// ## Supported Platforms
     ///
