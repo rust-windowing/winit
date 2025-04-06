@@ -1096,7 +1096,9 @@ unsafe fn public_window_callback_inner(
                 if let Ok(monitor_info) = monitor::get_monitor_info(monitor) {
                     params.rgrc[0] = monitor_info.monitorInfo.rcWork;
                 }
-            } else if !window_flags.contains(WindowFlags::MARKER_DECORATIONS) || window_flags.contains(WindowFlags::MARKER_UNDECORATED_SHADOW) {
+            } else if !window_flags.contains(WindowFlags::MARKER_DECORATIONS)
+                || window_flags.contains(WindowFlags::MARKER_UNDECORATED_SHADOW)
+            {
                 // Extend the client area to cover the whole non-client area.
                 // https://docs.microsoft.com/en-us/windows/win32/winmsg/wm-nccalcsize#remarks
                 //
