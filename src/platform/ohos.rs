@@ -32,13 +32,13 @@ pub trait EventLoopExtOpenHarmony {
 impl<T> EventLoopExtOpenHarmony for EventLoop<T> {
     type UserEvent = T;
 
-    fn spawn_app<A: ApplicationHandler<Self::UserEvent>>(self, app: A) {
+    fn spawn_app<A: ApplicationHandler<Self::UserEvent> + 'static>(self, app: A) {
         let app = Box::leak(Box::new(app));
         let event_looper = Box::leak(Box::new(self));
 
-        event_looper
-            .event_loop
-            .run(|event, event_loop| event_loop::dispatch_event_for_app(app, event_loop, event));
+        let _ = event_looper.event_loop.run_on_demand(|event, event_loop| {
+            event_loop::dispatch_event_for_app(app, event_loop, event)
+        });
     }
 
     fn openharmony_app(&self) -> &OpenHarmonyApp {
@@ -109,7 +109,7 @@ impl<T> EventLoopBuilderExtOpenHarmony for EventLoopBuilder<T> {
 /// #[cfg(target_env = "ohos")]
 /// use winit::platform::ohos::ability::OpenHarmonyApp;
 /// use openharmony_ability_derive::ability;
-/// 
+///
 /// #[ability]
 /// fn init(app: OpenHarmonyApp) {
 ///     // ...

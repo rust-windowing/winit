@@ -30,6 +30,7 @@ pub mod ohos;
     x11_platform,
     wayland_platform,
     docsrs,
+    ohos_platform
 ))]
 pub mod run_on_demand;
 
@@ -39,6 +40,7 @@ pub mod run_on_demand;
     android_platform,
     x11_platform,
     wayland_platform,
+    ohos_platform,
     docsrs,
 ))]
 pub mod pump_events;

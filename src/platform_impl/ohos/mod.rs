@@ -4,6 +4,7 @@ use std::hash::Hash;
 use std::marker::PhantomData;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{mpsc, Arc, Mutex};
+use std::time::Duration;
 
 use openharmony_ability::xcomponent::{Action, TouchEvent};
 use tracing::{debug, trace, warn};
@@ -17,6 +18,7 @@ use crate::dpi::{PhysicalPosition, PhysicalSize, Position, Size};
 use crate::error::{self, EventLoopError};
 use crate::event::{self, Force, InnerSizeWriter, StartCause};
 use crate::event_loop::{self, ActiveEventLoop as RootAEL, ControlFlow, DeviceEvents};
+use crate::platform::pump_events::PumpStatus;
 use crate::window::{
     self, CursorGrabMode, CustomCursor, CustomCursorSource, Fullscreen, ImePurpose,
     ResizeDirection, Theme, WindowButtons, WindowLevel,
@@ -185,7 +187,25 @@ impl<T: 'static> EventLoop<T> {
         }
     }
 
-    pub fn run<F>(&mut self, mut event_handle: F)
+    pub fn run<F>(self, event_handler: F) -> Result<(), EventLoopError>
+    where
+        F: FnMut(event::Event<T>, &event_loop::ActiveEventLoop),
+    {
+        let event_looper = Box::leak(Box::new(self));
+        event_looper.run_on_demand(event_handler)
+    }
+
+    pub fn run_on_demand<F>(&mut self, event_handler: F) -> Result<(), EventLoopError>
+    where
+        F: FnMut(event::Event<T>, &event_loop::ActiveEventLoop),
+    {
+        match self.pump_events(None, event_handler) {
+            PumpStatus::Continue => Ok(()),
+            PumpStatus::Exit(code) => Err(EventLoopError::ExitFailure(code)),
+        }
+    }
+
+    pub fn pump_events<F>(&mut self, _timeout: Option<Duration>, mut event_handle: F) -> PumpStatus
     where
         F: FnMut(event::Event<T>, &RootAEL),
     {
@@ -358,6 +378,8 @@ impl<T: 'static> EventLoop<T> {
                 }
             }
         });
+
+        PumpStatus::Continue
     }
 
     pub fn create_proxy(&self) -> EventLoopProxy<T> {
@@ -435,6 +457,10 @@ impl ActiveEventLoop {
 
     pub fn exit(&self) {
         self.exit.set(true)
+    }
+
+    pub fn clear_exit(&self) {
+        self.exit.set(false)
     }
 
     pub fn exiting(&self) -> bool {
