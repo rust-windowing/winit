@@ -129,6 +129,13 @@ pub struct WindowAttributes {
     pub(crate) platform_specific: PlatformSpecificWindowAttributes,
 }
 
+
+impl Drop for WindowAttributes {
+    fn drop(&mut self) {
+        println!("drop")
+    }
+}
+
 impl Default for WindowAttributes {
     #[inline]
     fn default() -> WindowAttributes {
