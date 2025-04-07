@@ -1111,14 +1111,17 @@ unsafe fn public_window_callback_inner(
                 // with the Windows API.
                 //
                 // HACK(sout233):
-                // We now preserve three sides of the border (left, right, and bottom) with a DPI-aware
-                // margin to maintain correct window resizing and dragging behavior.
-                // However, the top border is intentionally left untouched. Even a 1px margin on top
-                // will cause Windows to start rendering the title bar, which breaks the frameless look.
-                // This approach strikes a balance between native shadow rendering and custom window chrome.
+                // We now preserve three sides of the border (left, right, and bottom) with a
+                // DPI-aware margin to maintain correct window resizing and dragging
+                // behavior. However, the top border is intentionally left
+                // untouched. Even a 1px margin on top will cause Windows to start
+                // rendering the title bar, which breaks the frameless look.
+                // This approach strikes a balance between native shadow rendering and custom window
+                // chrome.
                 let dpi = unsafe { GetDpiForWindow(window) };
                 let border_physical_pixels = 4;
-                let border_size = (border_physical_pixels as f32 * dpi as f32 / 96.0).round() as i32;
+                let border_size =
+                    (border_physical_pixels as f32 * dpi as f32 / 96.0).round() as i32;
 
                 params.rgrc[0].bottom -= border_size;
                 params.rgrc[0].left += border_size;
