@@ -196,6 +196,7 @@ changelog entry.
 - Move `window::Fullscreen` to `monitor::Fullscreen`.
 - Renamed "super" key to "meta", to match the naming in the W3C specification.
   `NamedKey::Super` still exists, but it's non-functional and deprecated, `NamedKey::Meta` should be used instead.
+- On Windows, adjusted the border size in undecorated shadow mode to improve gripability.
 
 ### Removed
 

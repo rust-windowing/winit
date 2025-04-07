@@ -24,6 +24,7 @@ use windows_sys::Win32::System::Threading::{
     CREATE_WAITABLE_TIMER_HIGH_RESOLUTION, INFINITE, TIMER_ALL_ACCESS,
 };
 use windows_sys::Win32::UI::Controls::{HOVER_DEFAULT, WM_MOUSELEAVE};
+use windows_sys::Win32::UI::HiDpi::GetDpiForWindow;
 use windows_sys::Win32::UI::Input::Ime::{GCS_COMPSTR, GCS_RESULTSTR, ISC_SHOWUICOMPOSITIONWINDOW};
 use windows_sys::Win32::UI::Input::KeyboardAndMouse::{
     ReleaseCapture, SetCapture, TrackMouseEvent, TME_LEAVE, TRACKMOUSEEVENT,
@@ -1108,8 +1109,23 @@ unsafe fn public_window_callback_inner(
                 // Unfortunately this results in janky resize behavior, where the compositor is
                 // ahead of the window surface. Currently, there seems no option to achieve this
                 // with the Windows API.
-                params.rgrc[0].top += 1;
-                params.rgrc[0].bottom += 1;
+                //
+                // HACK(sout233):
+                // We now preserve three sides of the border (left, right, and bottom) with a
+                // DPI-aware margin to maintain correct window resizing and dragging
+                // behavior. However, the top border is intentionally left
+                // untouched. Even a 1px margin on top will cause Windows to start
+                // rendering the title bar, which breaks the frameless look.
+                // This approach strikes a balance between native shadow rendering and custom window
+                // chrome.
+                let dpi = unsafe { GetDpiForWindow(window) };
+                let border_physical_pixels = 4;
+                let border_size =
+                    (border_physical_pixels as f32 * dpi as f32 / 96.0).round() as i32;
+
+                params.rgrc[0].bottom -= border_size;
+                params.rgrc[0].left += border_size;
+                params.rgrc[0].right -= border_size;
             }
 
             result = ProcResult::Value(0);
