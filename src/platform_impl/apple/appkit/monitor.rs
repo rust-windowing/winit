@@ -25,6 +25,7 @@ use objc2_core_video::{
     CVDisplayLinkGetNominalOutputVideoRefreshPeriod, CVTimeFlags,
 };
 use objc2_foundation::{ns_string, NSNumber, NSPoint, NSRect};
+use tracing::warn;
 
 use super::ffi;
 use super::util::cgerr;
@@ -74,17 +75,21 @@ impl VideoModeHandle {
         refresh_rate_millihertz: Option<NonZeroU32>,
     ) -> Self {
         unsafe {
+            // The bit-depth is basically always 32 since macOS 10.12.
             #[allow(deprecated)]
             let pixel_encoding =
                 CGDisplayModeCopyPixelEncoding(Some(&native_mode.0)).unwrap().to_string();
             let bit_depth = if pixel_encoding.eq_ignore_ascii_case(ffi::IO32BitDirectPixels) {
-                32
+                NonZeroU16::new(32)
             } else if pixel_encoding.eq_ignore_ascii_case(ffi::IO16BitDirectPixels) {
-                16
+                NonZeroU16::new(16)
             } else if pixel_encoding.eq_ignore_ascii_case(ffi::kIO30BitDirectPixels) {
-                30
+                NonZeroU16::new(30)
+            } else if pixel_encoding.eq_ignore_ascii_case(ffi::kIO64BitDirectPixels) {
+                NonZeroU16::new(64)
             } else {
-                unimplemented!()
+                warn!(?pixel_encoding, "unknown bit depth");
+                None
             };
 
             let mode = VideoMode {
@@ -93,7 +98,7 @@ impl VideoModeHandle {
                     CGDisplayModeGetPixelHeight(Some(&native_mode.0)) as u32,
                 ),
                 refresh_rate_millihertz,
-                bit_depth: NonZeroU16::new(bit_depth),
+                bit_depth,
             };
 
             VideoModeHandle { mode, monitor: monitor.clone(), native_mode }

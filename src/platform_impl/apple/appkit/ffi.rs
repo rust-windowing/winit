@@ -15,21 +15,10 @@ pub const kCGDisplayBlendSolidColor: f32 = 1.0;
 pub type CGDisplayFadeReservationToken = u32;
 pub const kCGDisplayFadeReservationInvalidToken: CGDisplayFadeReservationToken = 0;
 
-pub const IO1BitIndexedPixels: &str = "P";
-pub const IO2BitIndexedPixels: &str = "PP";
-pub const IO4BitIndexedPixels: &str = "PPPP";
-pub const IO8BitIndexedPixels: &str = "PPPPPPPP";
 pub const IO16BitDirectPixels: &str = "-RRRRRGGGGGBBBBB";
 pub const IO32BitDirectPixels: &str = "--------RRRRRRRRGGGGGGGGBBBBBBBB";
-
 pub const kIO30BitDirectPixels: &str = "--RRRRRRRRRRGGGGGGGGGGBBBBBBBBBB";
 pub const kIO64BitDirectPixels: &str = "-16R16G16B16";
-
-pub const kIO16BitFloatPixels: &str = "-16FR16FG16FB16";
-pub const kIO32BitFloatPixels: &str = "-32FR32FG32FB32";
-
-pub const IOYUV422Pixels: &str = "Y4U2V2";
-pub const IO8BitOverlayPixels: &str = "O8";
 
 // `CGDisplayCreateUUIDFromDisplayID` comes from the `ColorSync` framework.
 // However, that framework was only introduced "publicly" in macOS 10.13.

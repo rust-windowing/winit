@@ -172,6 +172,13 @@ impl VideoMode {
     /// Returns the bit depth of this video mode, as in how many bits you have
     /// available per color. This is generally 24 bits or 32 bits on modern
     /// systems, depending on whether the alpha channel is counted or not.
+    ///
+    /// # Platform-specific
+    ///
+    /// - **macOS**: Video modes do not control the bit depth of the monitor, so this often defaults
+    ///   to 32.
+    /// - **iOS**: Always returns `None`.
+    /// - **Wayland**: Always returns `None`.
     pub fn bit_depth(&self) -> Option<NonZeroU16> {
         self.bit_depth
     }
