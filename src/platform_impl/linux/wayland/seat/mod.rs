@@ -96,8 +96,12 @@ impl SeatHandler for WinitState {
             },
             SeatCapability::Pointer if seat_state.pointer.is_none() => {
                 let surface = self.compositor_state.create_surface(queue_handle);
+                let viewport = self
+                    .viewporter_state
+                    .as_ref()
+                    .map(|state| state.get_viewport(&surface, queue_handle));
                 let surface_id = surface.id();
-                let pointer_data = WinitPointerData::new(seat.clone());
+                let pointer_data = WinitPointerData::new(seat.clone(), viewport);
                 let themed_pointer = self
                     .seat_state
                     .get_pointer_with_theme_and_data(
