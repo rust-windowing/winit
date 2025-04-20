@@ -3,15 +3,21 @@ categories = ["gui"]
 description = "Types for handling UI scaling"
 edition.workspace = true
 keywords = ["DPI", "HiDPI", "scale-factor"]
-license.workspace = true
+# N.B. This is "AND", because of the imported libm code.
+license = "Apache-2.0 AND MIT"
 name = "dpi"
 repository.workspace = true
 rust-version.workspace = true
 version = "0.1.1"
 
 [features]
+default = ["std"]
+
 mint = ["dep:mint"]
 serde = ["dep:serde"]
+
+# Access mathematical functions using the standard library implementations
+std = []
 
 [dependencies]
 mint = { workspace = true, optional = true }
