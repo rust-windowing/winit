@@ -3,6 +3,8 @@ use std::fmt;
 
 #[doc(inline)]
 pub use cursor_icon::{CursorIcon, ParseError as CursorIconParseError};
+#[cfg(wayland_platform)]
+use sctk::shell::wlr_layer::Layer;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
@@ -1499,6 +1501,17 @@ pub enum WindowLevel {
 
     /// The window will always be on top of normal windows.
     AlwaysOnTop,
+}
+
+#[cfg(wayland_platform)]
+impl From<WindowLevel> for Layer {
+    fn from(value: WindowLevel) -> Self {
+        match value {
+            WindowLevel::AlwaysOnBottom => Layer::Bottom,
+            WindowLevel::Normal => Layer::Top,
+            WindowLevel::AlwaysOnTop => Layer::Overlay,
+        }
+    }
 }
 
 /// Generic IME purposes for use in [`Window::set_ime_purpose`].
