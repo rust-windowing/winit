@@ -288,6 +288,8 @@
 #![cfg_attr(docsrs, feature(doc_auto_cfg, doc_cfg_hide), doc(cfg_hide(doc, docsrs)))]
 #![allow(clippy::missing_safety_doc)]
 #![warn(clippy::uninlined_format_args)]
+// TODO: wasm-binding needs to be updated for that to be resolved, for now just silence it.
+#![cfg_attr(web_platform, allow(unknown_lints, wasm_c_abi))]
 
 // Re-export DPI types so that users don't have to put it in Cargo.toml.
 #[doc(inline)]
@@ -302,7 +304,7 @@ pub mod error;
 mod cursor;
 pub mod event;
 pub mod event_loop;
-mod icon;
+pub mod icon;
 pub mod keyboard;
 pub mod monitor;
 mod platform_impl;

@@ -6,6 +6,7 @@ use std::borrow::Borrow;
 use std::ffi::c_void;
 use std::ops::Deref;
 use std::path::Path;
+use std::sync::Arc;
 
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
@@ -15,7 +16,9 @@ use windows_sys::Win32::Foundation::HANDLE;
 use crate::dpi::PhysicalSize;
 use crate::event::DeviceId;
 use crate::event_loop::EventLoopBuilder;
-use crate::window::{BadIcon, Icon, Window, WindowAttributes};
+use crate::icon::BadIcon;
+use crate::platform_impl::RaiiIcon;
+use crate::window::{Icon, Window, WindowAttributes};
 
 /// Window Handle type used by Win32 API
 pub type HWND = *mut c_void;
@@ -637,7 +640,7 @@ impl DeviceIdExtWindows for DeviceId {
     }
 }
 
-/// Additional methods on `Icon` that are specific to Windows.
+/// Windows specific `Icon`.
 ///
 /// Windows icons can be created from files, or from the [`embedded resources`](https://learn.microsoft.com/en-us/windows/win32/menurc/about-resource-files).
 ///
@@ -649,7 +652,12 @@ impl DeviceIdExtWindows for DeviceId {
 /// `filename` is the name of the file that contains the resource.
 ///
 /// More information about the `ICON` resource can be found at [`Microsoft Learn`](https://learn.microsoft.com/en-us/windows/win32/menurc/icon-resource) portal.
-pub trait IconExtWindows: Sized {
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub struct WinIcon {
+    pub(crate) inner: Arc<RaiiIcon>,
+}
+
+impl WinIcon {
     /// Create an icon from a file path.
     ///
     /// Specify `size` to load a specific icon size from the file, or `None` to load the default
@@ -657,22 +665,31 @@ pub trait IconExtWindows: Sized {
     ///
     /// In cases where the specified size does not exist in the file, Windows may perform scaling
     /// to get an icon of the desired size.
-    fn from_path<P: AsRef<Path>>(path: P, size: Option<PhysicalSize<u32>>)
-        -> Result<Self, BadIcon>;
+    pub fn from_path<P: AsRef<Path>>(
+        path: P,
+        size: Option<PhysicalSize<u32>>,
+    ) -> Result<Self, BadIcon> {
+        Self::from_path_impl(path, size)
+    }
 
     /// Create an icon from a resource embedded in this executable or library by its ordinal id.
     ///
     /// The valid `ordinal` values range from 1 to [`u16::MAX`] (inclusive). The value `0` is an
     /// invalid ordinal id, but it can be used with [`from_resource_name`] as `"0"`.
     ///
-    /// [`from_resource_name`]: IconExtWindows::from_resource_name
+    /// [`from_resource_name`]: Self::from_resource_name
     ///
     /// Specify `size` to load a specific icon size from the file, or `None` to load the default
     /// icon size from the file.
     ///
     /// In cases where the specified size does not exist in the file, Windows may perform scaling
     /// to get an icon of the desired size.
-    fn from_resource(ordinal: u16, size: Option<PhysicalSize<u32>>) -> Result<Self, BadIcon>;
+    pub fn from_resource(
+        resource_id: u16,
+        size: Option<PhysicalSize<u32>>,
+    ) -> Result<Self, BadIcon> {
+        Self::from_resource_impl(resource_id, size)
+    }
 
     /// Create an icon from a resource embedded in this executable or library by its name.
     ///
@@ -697,17 +714,16 @@ pub trait IconExtWindows: Sized {
     /// `"002"`, etc.) cannot be used as valid resource names, and instead should be passed into
     /// [`from_resource`]:
     ///
-    /// [`from_resource`]: IconExtWindows::from_resource
+    /// [`from_resource`]: Self::from_resource
     ///
     /// ```rust,no_run
-    /// use winit::platform::windows::IconExtWindows;
-    /// use winit::window::Icon;
+    /// use winit::platform::windows::WinIcon;
     ///
-    /// assert!(Icon::from_resource_name("app", None).is_ok());
-    /// assert!(Icon::from_resource(1, None).is_ok());
-    /// assert!(Icon::from_resource(27, None).is_ok());
-    /// assert!(Icon::from_resource_name("27", None).is_err());
-    /// assert!(Icon::from_resource_name("0027", None).is_err());
+    /// assert!(WinIcon::from_resource_name("app", None).is_ok());
+    /// assert!(WinIcon::from_resource(1, None).is_ok());
+    /// assert!(WinIcon::from_resource(27, None).is_ok());
+    /// assert!(WinIcon::from_resource_name("27", None).is_err());
+    /// assert!(WinIcon::from_resource_name("0027", None).is_err());
     /// ```
     ///
     /// While `0` cannot be used as an ordinal id (see [`from_resource`]), it can be used as a
@@ -716,30 +732,21 @@ pub trait IconExtWindows: Sized {
     /// [`from_resource`]: IconExtWindows::from_resource
     ///
     /// ```rust,no_run
-    /// # use winit::platform::windows::IconExtWindows;
+    /// # use winit::platform::windows::WinIcon;
     /// # use winit::window::Icon;
-    /// assert!(Icon::from_resource_name("0", None).is_ok());
-    /// assert!(Icon::from_resource(0, None).is_err());
+    /// assert!(WinIcon::from_resource_name("0", None).is_ok());
+    /// assert!(WinIcon::from_resource(0, None).is_err());
     /// ```
-    fn from_resource_name(name: &str, size: Option<PhysicalSize<u32>>) -> Result<Self, BadIcon>;
-}
-
-impl IconExtWindows for Icon {
-    fn from_path<P: AsRef<Path>>(
-        path: P,
+    pub fn from_resource_name(
+        resource_name: &str,
         size: Option<PhysicalSize<u32>>,
     ) -> Result<Self, BadIcon> {
-        let win_icon = crate::platform_impl::WinIcon::from_path(path, size)?;
-        Ok(Icon { inner: win_icon })
+        Self::from_resource_name_impl(resource_name, size)
     }
+}
 
-    fn from_resource(ordinal: u16, size: Option<PhysicalSize<u32>>) -> Result<Self, BadIcon> {
-        let win_icon = crate::platform_impl::WinIcon::from_resource(ordinal, size)?;
-        Ok(Icon { inner: win_icon })
-    }
-
-    fn from_resource_name(name: &str, size: Option<PhysicalSize<u32>>) -> Result<Self, BadIcon> {
-        let win_icon = crate::platform_impl::WinIcon::from_resource_name(name, size)?;
-        Ok(Icon { inner: win_icon })
+impl From<WinIcon> for Icon {
+    fn from(value: WinIcon) -> Self {
+        Self(Arc::new(value))
     }
 }
