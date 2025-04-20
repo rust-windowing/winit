@@ -222,9 +222,9 @@ impl WindowState {
     }
 
     /// Apply closure on the given pointer.
-    fn apply_on_pointer<F: Fn(&ThemedPointer<WinitPointerData>, &WinitPointerData)>(
+    fn apply_on_pointer<F: FnMut(&ThemedPointer<WinitPointerData>, &WinitPointerData)>(
         &self,
-        callback: F,
+        mut callback: F,
     ) {
         self.pointers.iter().filter_map(Weak::upgrade).for_each(|pointer| {
             let data = pointer.pointer().winit_data();
@@ -830,32 +830,49 @@ impl WindowState {
             },
         };
 
-        // Replace the current mode.
-        let old_mode = std::mem::replace(&mut self.cursor_grab_mode.current_grab_mode, mode);
-
-        match old_mode {
-            CursorGrabMode::None => (),
+        let mut unset_old = false;
+        match self.cursor_grab_mode.current_grab_mode {
+            CursorGrabMode::None => unset_old = true,
             CursorGrabMode::Confined => self.apply_on_pointer(|_, data| {
                 data.unconfine_pointer();
+                unset_old = true;
             }),
             CursorGrabMode::Locked => {
-                self.apply_on_pointer(|_, data| data.unlock_pointer());
+                self.apply_on_pointer(|_, data| {
+                    data.unlock_pointer();
+                    unset_old = true;
+                });
             },
         }
 
+        // In case we haven't unset the old mode, it means that we don't have a cursor above
+        // the window, thus just wait for it to re-appear.
+        if !unset_old {
+            return Ok(());
+        }
+
+        let mut set_mode = false;
         let surface = self.window.wl_surface();
         match mode {
             CursorGrabMode::Locked => self.apply_on_pointer(|pointer, data| {
                 let pointer = pointer.pointer();
-                data.lock_pointer(pointer_constraints, surface, pointer, &self.queue_handle)
+                data.lock_pointer(pointer_constraints, surface, pointer, &self.queue_handle);
+                set_mode = true;
             }),
             CursorGrabMode::Confined => self.apply_on_pointer(|pointer, data| {
                 let pointer = pointer.pointer();
-                data.confine_pointer(pointer_constraints, surface, pointer, &self.queue_handle)
+                data.confine_pointer(pointer_constraints, surface, pointer, &self.queue_handle);
+                set_mode = true;
             }),
             CursorGrabMode::None => {
                 // Current lock/confine was already removed.
+                set_mode = true;
             },
+        }
+
+        // Replace the current grab mode after we've ensure that it got updated.
+        if set_mode {
+            self.cursor_grab_mode.current_grab_mode = mode;
         }
 
         Ok(())
