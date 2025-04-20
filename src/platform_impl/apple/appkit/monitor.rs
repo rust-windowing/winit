@@ -9,21 +9,12 @@ use dispatch2::run_on_main;
 use objc2::rc::Retained;
 use objc2::MainThreadMarker;
 use objc2_app_kit::NSScreen;
-use objc2_core_foundation::{
-    CFArrayGetCount, CFArrayGetValueAtIndex, CFRetained, CFUUIDGetUUIDBytes,
-};
-#[allow(deprecated)]
+use objc2_core_foundation::{CFArray, CFRetained};
 use objc2_core_graphics::{
     CGDirectDisplayID, CGDisplayBounds, CGDisplayCopyAllDisplayModes, CGDisplayCopyDisplayMode,
-    CGDisplayMode, CGDisplayModeCopyPixelEncoding, CGDisplayModeGetPixelHeight,
-    CGDisplayModeGetPixelWidth, CGDisplayModeGetRefreshRate, CGDisplayModelNumber,
-    CGGetActiveDisplayList, CGMainDisplayID,
+    CGDisplayMode, CGDisplayModelNumber, CGGetActiveDisplayList, CGMainDisplayID,
 };
-#[allow(deprecated)]
-use objc2_core_video::{
-    kCVReturnSuccess, CVDisplayLinkCreateWithCGDisplay,
-    CVDisplayLinkGetNominalOutputVideoRefreshPeriod, CVTimeFlags,
-};
+use objc2_core_video::{kCVReturnSuccess, CVDisplayLink, CVTimeFlags};
 use objc2_foundation::{ns_string, NSNumber, NSPoint, NSRect};
 
 use super::ffi;
@@ -76,7 +67,7 @@ impl VideoModeHandle {
         unsafe {
             #[allow(deprecated)]
             let pixel_encoding =
-                CGDisplayModeCopyPixelEncoding(Some(&native_mode.0)).unwrap().to_string();
+                CGDisplayMode::pixel_encoding(Some(&native_mode.0)).unwrap().to_string();
             let bit_depth = if pixel_encoding.eq_ignore_ascii_case(ffi::IO32BitDirectPixels) {
                 32
             } else if pixel_encoding.eq_ignore_ascii_case(ffi::IO16BitDirectPixels) {
@@ -89,8 +80,8 @@ impl VideoModeHandle {
 
             let mode = VideoMode {
                 size: PhysicalSize::new(
-                    CGDisplayModeGetPixelWidth(Some(&native_mode.0)) as u32,
-                    CGDisplayModeGetPixelHeight(Some(&native_mode.0)) as u32,
+                    CGDisplayMode::pixel_width(Some(&native_mode.0)) as u32,
+                    CGDisplayMode::pixel_height(Some(&native_mode.0)) as u32,
                 ),
                 refresh_rate_millihertz,
                 bit_depth: NonZeroU16::new(bit_depth),
@@ -107,9 +98,12 @@ pub struct MonitorHandle(CGDirectDisplayID);
 impl MonitorHandle {
     /// Internal comparisons of [`MonitorHandle`]s are done first requesting a UUID for the handle.
     fn uuid(&self) -> u128 {
+        // SAFETY: Valid to call.
         let ptr = unsafe { ffi::CGDisplayCreateUUIDFromDisplayID(self.0) };
+        // SAFETY: `CGDisplayCreateUUIDFromDisplayID` is a "create" function, so the pointer has
+        // +1 retain count.
         let cf_uuid = unsafe { CFRetained::from_raw(NonNull::new(ptr).unwrap()) };
-        u128::from_ne_bytes(unsafe { CFUUIDGetUUIDBytes(&cf_uuid) }.into())
+        u128::from_ne_bytes(cf_uuid.uuid_bytes().into())
     }
 
     pub fn new(id: CGDirectDisplayID) -> Self {
@@ -126,38 +120,25 @@ impl MonitorHandle {
         let refresh_rate_millihertz = self.refresh_rate_millihertz();
         let monitor = self.clone();
 
-        unsafe {
-            let modes = {
-                let array = CGDisplayCopyAllDisplayModes(self.0, None)
-                    .expect("failed to get list of display modes");
-                let array_count = CFArrayGetCount(&array);
-                let modes: Vec<_> = (0..array_count)
-                    .map(move |i| {
-                        let mode = CFArrayGetValueAtIndex(&array, i) as *mut CGDisplayMode;
-                        CFRetained::retain(NonNull::new(mode).unwrap())
-                    })
-                    .collect();
-                modes
+        let array = unsafe { CGDisplayCopyAllDisplayModes(self.0, None) }
+            .expect("failed to get list of display modes");
+        // SAFETY: `CGDisplayCopyAllDisplayModes` is documented to return an array of display modes.
+        let modes = unsafe { CFRetained::cast_unchecked::<CFArray<CGDisplayMode>>(array) };
+
+        modes.into_iter().map(move |mode| {
+            let cg_refresh_rate_hertz =
+                unsafe { CGDisplayMode::refresh_rate(Some(&mode)) }.round() as i64;
+
+            // CGDisplayModeGetRefreshRate returns 0.0 for any display that
+            // isn't a CRT
+            let refresh_rate_millihertz = if cg_refresh_rate_hertz > 0 {
+                NonZeroU32::new((cg_refresh_rate_hertz * 1000) as u32)
+            } else {
+                refresh_rate_millihertz
             };
 
-            modes.into_iter().map(move |mode| {
-                let cg_refresh_rate_hertz = CGDisplayModeGetRefreshRate(Some(&mode)).round() as i64;
-
-                // CGDisplayModeGetRefreshRate returns 0.0 for any display that
-                // isn't a CRT
-                let refresh_rate_millihertz = if cg_refresh_rate_hertz > 0 {
-                    NonZeroU32::new((cg_refresh_rate_hertz * 1000) as u32)
-                } else {
-                    refresh_rate_millihertz
-                };
-
-                VideoModeHandle::new(
-                    monitor.clone(),
-                    NativeDisplayMode(mode),
-                    refresh_rate_millihertz,
-                )
-            })
-        }
+            VideoModeHandle::new(monitor.clone(), NativeDisplayMode(mode), refresh_rate_millihertz)
+        })
     }
 
     pub(crate) fn ns_screen(&self, mtm: MainThreadMarker) -> Option<Retained<NSScreen>> {
@@ -329,21 +310,21 @@ pub(crate) fn flip_window_screen_coordinates(frame: NSRect) -> NSPoint {
 
 fn refresh_rate_millihertz(id: CGDirectDisplayID, mode: &NativeDisplayMode) -> Option<NonZeroU32> {
     unsafe {
-        let refresh_rate = CGDisplayModeGetRefreshRate(Some(&mode.0));
+        let refresh_rate = CGDisplayMode::refresh_rate(Some(&mode.0));
         if refresh_rate > 0.0 {
             return NonZeroU32::new((refresh_rate * 1000.0).round() as u32);
         }
 
         let mut display_link = std::ptr::null_mut();
         #[allow(deprecated)]
-        if CVDisplayLinkCreateWithCGDisplay(id, NonNull::from(&mut display_link))
+        if CVDisplayLink::create_with_cg_display(id, NonNull::from(&mut display_link))
             != kCVReturnSuccess
         {
             return None;
         }
         let display_link = CFRetained::from_raw(NonNull::new(display_link).unwrap());
         #[allow(deprecated)]
-        let time = CVDisplayLinkGetNominalOutputVideoRefreshPeriod(&display_link);
+        let time = display_link.nominal_output_video_refresh_period();
 
         // This value is indefinite if an invalid display link was specified
         if time.flags & CVTimeFlags::IsIndefinite.0 != 0 {

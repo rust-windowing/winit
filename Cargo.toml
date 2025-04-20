@@ -104,13 +104,13 @@ ndk = { version = "0.9.0", features = ["rwh_06"], default-features = false }
 
 # AppKit or UIKit
 [target.'cfg(target_vendor = "apple")'.dependencies]
-block2 = "0.6.0"
-dispatch2 = { version = "0.2.0", default-features = false, features = ["std", "objc2"] }
-objc2 = "0.6.0"
+block2 = "0.6.1"
+dispatch2 = { version = "0.3.0", default-features = false, features = ["std", "objc2"] }
+objc2 = "0.6.1"
 
 # AppKit
 [target.'cfg(target_os = "macos")'.dependencies]
-objc2-app-kit = { version = "0.3.0", default-features = false, features = [
+objc2-app-kit = { version = "0.3.1", default-features = false, features = [
     "std",
     "objc2-core-foundation",
     "NSAppearance",
@@ -142,7 +142,7 @@ objc2-app-kit = { version = "0.3.0", default-features = false, features = [
     "NSWindowScripting",
     "NSWindowTabGroup",
 ] }
-objc2-core-foundation = { version = "0.3.0", default-features = false, features = [
+objc2-core-foundation = { version = "0.3.1", default-features = false, features = [
     "std",
     "block2",
     "CFBase",
@@ -152,7 +152,7 @@ objc2-core-foundation = { version = "0.3.0", default-features = false, features 
     "CFString",
     "CFUUID",
 ] }
-objc2-core-graphics = { version = "0.3.0", default-features = false, features = [
+objc2-core-graphics = { version = "0.3.1", default-features = false, features = [
     "std",
     "libc",
     "CGDirectDisplay",
@@ -162,14 +162,14 @@ objc2-core-graphics = { version = "0.3.0", default-features = false, features = 
     "CGRemoteOperation",
     "CGWindowLevel",
 ] }
-objc2-core-video = { version = "0.3.0", default-features = false, features = [
+objc2-core-video = { version = "0.3.1", default-features = false, features = [
     "std",
     "objc2-core-graphics",
     "CVBase",
     "CVReturn",
     "CVDisplayLink",
 ] }
-objc2-foundation = { version = "0.3.0", default-features = false, features = [
+objc2-foundation = { version = "0.3.1", default-features = false, features = [
     "std",
     "block2",
     "objc2-core-foundation",
@@ -194,14 +194,14 @@ objc2-foundation = { version = "0.3.0", default-features = false, features = [
 
 # UIKit
 [target.'cfg(all(target_vendor = "apple", not(target_os = "macos")))'.dependencies]
-objc2-core-foundation = { version = "0.3.0", default-features = false, features = [
+objc2-core-foundation = { version = "0.3.1", default-features = false, features = [
     "std",
     "CFCGTypes",
     "CFBase",
     "CFRunLoop",
     "CFString",
 ] }
-objc2-foundation = { version = "0.3.0", default-features = false, features = [
+objc2-foundation = { version = "0.3.1", default-features = false, features = [
     "std",
     "block2",
     "objc2-core-foundation",
@@ -214,7 +214,7 @@ objc2-foundation = { version = "0.3.0", default-features = false, features = [
     "NSThread",
     "NSSet",
 ] }
-objc2-ui-kit = { version = "0.3.0", default-features = false, features = [
+objc2-ui-kit = { version = "0.3.1", default-features = false, features = [
     "std",
     "objc2-core-foundation",
     "UIApplication",
