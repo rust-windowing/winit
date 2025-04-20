@@ -1,21 +1,19 @@
-use std::ffi::{c_char, c_int, c_void};
-use std::ptr::{self, NonNull};
+use std::ffi::c_void;
+use std::ptr;
 use std::sync::Arc;
 
 use objc2::rc::Retained;
 use objc2::runtime::ProtocolObject;
 use objc2::{msg_send, ClassType, MainThreadMarker};
 use objc2_core_foundation::{
-    kCFRunLoopDefaultMode, CFIndex, CFRunLoopActivity, CFRunLoopAddObserver, CFRunLoopGetMain,
-    CFRunLoopObserver, CFRunLoopObserverCreate,
+    kCFRunLoopDefaultMode, CFIndex, CFRunLoop, CFRunLoopActivity, CFRunLoopObserver,
 };
 use objc2_foundation::{NSNotificationCenter, NSObjectProtocol};
 use objc2_ui_kit::{
     UIApplication, UIApplicationDidBecomeActiveNotification,
     UIApplicationDidEnterBackgroundNotification, UIApplicationDidFinishLaunchingNotification,
-    UIApplicationDidReceiveMemoryWarningNotification, UIApplicationMain,
-    UIApplicationWillEnterForegroundNotification, UIApplicationWillResignActiveNotification,
-    UIApplicationWillTerminateNotification, UIScreen,
+    UIApplicationDidReceiveMemoryWarningNotification, UIApplicationWillEnterForegroundNotification,
+    UIApplicationWillResignActiveNotification, UIApplicationWillTerminateNotification, UIScreen,
 };
 use rwh_06::HasDisplayHandle;
 
@@ -253,24 +251,9 @@ impl EventLoop {
              `EventLoop::run_app` calls `UIApplicationMain` on iOS",
         );
 
-        extern "C" {
-            // These functions are in crt_externs.h.
-            fn _NSGetArgc() -> *mut c_int;
-            fn _NSGetArgv() -> *mut *mut *mut c_char;
-        }
-
-        app_state::launch(self.mtm, app, || unsafe {
-            UIApplicationMain(
-                *_NSGetArgc(),
-                NonNull::new(*_NSGetArgv()).unwrap(),
-                // We intentionally override neither the application nor the delegate, to allow
-                // the user to do so themselves!
-                None,
-                None,
-            );
-        });
-
-        unreachable!()
+        // We intentionally override neither the application nor the delegate,
+        // to allow the user to do so themselves!
+        app_state::launch(self.mtm, app, || UIApplication::main(None, None, self.mtm))
     }
 
     pub fn window_target(&self) -> &dyn RootActiveEventLoop {
@@ -335,9 +318,9 @@ fn setup_control_flow_observers() {
             }
         }
 
-        let main_loop = CFRunLoopGetMain().unwrap();
+        let main_loop = CFRunLoop::main().unwrap();
 
-        let begin_observer = CFRunLoopObserverCreate(
+        let begin_observer = CFRunLoopObserver::new(
             None,
             CFRunLoopActivity::AfterWaiting.0,
             true,
@@ -346,9 +329,9 @@ fn setup_control_flow_observers() {
             ptr::null_mut(),
         )
         .unwrap();
-        CFRunLoopAddObserver(&main_loop, Some(&begin_observer), kCFRunLoopDefaultMode);
+        main_loop.add_observer(Some(&begin_observer), kCFRunLoopDefaultMode);
 
-        let main_end_observer = CFRunLoopObserverCreate(
+        let main_end_observer = CFRunLoopObserver::new(
             None,
             (CFRunLoopActivity::Exit | CFRunLoopActivity::BeforeWaiting).0,
             true,
@@ -357,9 +340,9 @@ fn setup_control_flow_observers() {
             ptr::null_mut(),
         )
         .unwrap();
-        CFRunLoopAddObserver(&main_loop, Some(&main_end_observer), kCFRunLoopDefaultMode);
+        main_loop.add_observer(Some(&main_end_observer), kCFRunLoopDefaultMode);
 
-        let end_observer = CFRunLoopObserverCreate(
+        let end_observer = CFRunLoopObserver::new(
             None,
             (CFRunLoopActivity::Exit | CFRunLoopActivity::BeforeWaiting).0,
             true,
@@ -368,6 +351,6 @@ fn setup_control_flow_observers() {
             ptr::null_mut(),
         )
         .unwrap();
-        CFRunLoopAddObserver(&main_loop, Some(&end_observer), kCFRunLoopDefaultMode);
+        main_loop.add_observer(Some(&end_observer), kCFRunLoopDefaultMode);
     }
 }
