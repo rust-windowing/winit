@@ -3,9 +3,7 @@ use std::sync::Arc;
 
 use objc2::MainThreadMarker;
 use objc2_core_foundation::{
-    kCFRunLoopCommonModes, CFIndex, CFRetained, CFRunLoop, CFRunLoopAddSource, CFRunLoopGetMain,
-    CFRunLoopSource, CFRunLoopSourceContext, CFRunLoopSourceCreate, CFRunLoopSourceInvalidate,
-    CFRunLoopSourceSignal, CFRunLoopWakeUp,
+    kCFRunLoopCommonModes, CFIndex, CFRetained, CFRunLoop, CFRunLoopSource, CFRunLoopSourceContext,
 };
 
 use crate::event_loop::EventLoopProxyProvider;
@@ -90,12 +88,12 @@ impl EventLoopProxy {
         // Keeping the closure alive beyond this scope is fine, because `F: 'static`.
         let source = unsafe {
             let _ = mtm;
-            CFRunLoopSourceCreate(None, order, &mut context).unwrap()
+            CFRunLoopSource::new(None, order, &mut context).unwrap()
         };
 
         // Register the source to be performed on the main thread.
-        let main_loop = unsafe { CFRunLoopGetMain() }.unwrap();
-        unsafe { CFRunLoopAddSource(&main_loop, Some(&source), kCFRunLoopCommonModes) };
+        let main_loop = CFRunLoop::main().unwrap();
+        unsafe { CFRunLoop::add_source(&main_loop, Some(&source), kCFRunLoopCommonModes) };
 
         Self { source, main_loop }
     }
@@ -106,7 +104,7 @@ impl EventLoopProxy {
     pub(crate) fn invalidate(&self) {
         // NOTE: We do NOT fire this on `Drop`, since we want the proxy to be cloneable, such that
         // we only need to register a single source even if there's multiple proxies in use.
-        unsafe { CFRunLoopSourceInvalidate(&self.source) };
+        CFRunLoopSource::invalidate(&self.source);
     }
 }
 
@@ -115,12 +113,12 @@ impl EventLoopProxyProvider for EventLoopProxy {
         // Signal the source, which ends up later invoking `perform` on the main thread.
         //
         // Multiple signals in quick succession are automatically coalesced into a single signal.
-        unsafe { CFRunLoopSourceSignal(&self.source) };
+        CFRunLoopSource::signal(&self.source);
 
         // Let the main thread know there's a new event.
         //
         // This is required since we may be (probably are) running on a different thread, and the
         // main loop may be sleeping (and `CFRunLoopSourceSignal` won't wake it).
-        unsafe { CFRunLoopWakeUp(&self.main_loop) };
+        CFRunLoop::wake_up(&self.main_loop);
     }
 }

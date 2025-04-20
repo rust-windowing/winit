@@ -9,15 +9,12 @@ use dispatch2::run_on_main;
 use objc2::rc::Retained;
 use objc2::MainThreadMarker;
 use objc2_app_kit::NSScreen;
-use objc2_core_foundation::{
-    CFArrayGetCount, CFArrayGetValueAtIndex, CFRetained, CFUUIDGetUUIDBytes,
-};
+use objc2_core_foundation::{CFArray, CFRetained, CFUUID};
 #[allow(deprecated)]
 use objc2_core_graphics::{
     CGDirectDisplayID, CGDisplayBounds, CGDisplayCopyAllDisplayModes, CGDisplayCopyDisplayMode,
-    CGDisplayMode, CGDisplayModeCopyPixelEncoding, CGDisplayModeGetPixelHeight,
-    CGDisplayModeGetPixelWidth, CGDisplayModeGetRefreshRate, CGDisplayModelNumber,
-    CGGetActiveDisplayList, CGMainDisplayID,
+    CGDisplayMode, CGDisplayModeCopyPixelEncoding, CGDisplayModelNumber, CGGetActiveDisplayList,
+    CGMainDisplayID,
 };
 #[allow(deprecated)]
 use objc2_core_video::{
@@ -89,8 +86,8 @@ impl VideoModeHandle {
 
             let mode = VideoMode {
                 size: PhysicalSize::new(
-                    CGDisplayModeGetPixelWidth(Some(&native_mode.0)) as u32,
-                    CGDisplayModeGetPixelHeight(Some(&native_mode.0)) as u32,
+                    CGDisplayMode::pixel_width(Some(&native_mode.0)) as u32,
+                    CGDisplayMode::pixel_height(Some(&native_mode.0)) as u32,
                 ),
                 refresh_rate_millihertz,
                 bit_depth: NonZeroU16::new(bit_depth),
@@ -109,7 +106,7 @@ impl MonitorHandle {
     fn uuid(&self) -> u128 {
         let ptr = unsafe { ffi::CGDisplayCreateUUIDFromDisplayID(self.0) };
         let cf_uuid = unsafe { CFRetained::from_raw(NonNull::new(ptr).unwrap()) };
-        u128::from_ne_bytes(unsafe { CFUUIDGetUUIDBytes(&cf_uuid) }.into())
+        u128::from_ne_bytes(CFUUID::uuid_bytes(&cf_uuid).into())
     }
 
     pub fn new(id: CGDirectDisplayID) -> Self {
@@ -130,10 +127,10 @@ impl MonitorHandle {
             let modes = {
                 let array = CGDisplayCopyAllDisplayModes(self.0, None)
                     .expect("failed to get list of display modes");
-                let array_count = CFArrayGetCount(&array);
+                let array_count = CFArray::count(&array);
                 let modes: Vec<_> = (0..array_count)
                     .map(move |i| {
-                        let mode = CFArrayGetValueAtIndex(&array, i) as *mut CGDisplayMode;
+                        let mode = CFArray::value_at_index(&array, i) as *mut CGDisplayMode;
                         CFRetained::retain(NonNull::new(mode).unwrap())
                     })
                     .collect();
@@ -141,7 +138,7 @@ impl MonitorHandle {
             };
 
             modes.into_iter().map(move |mode| {
-                let cg_refresh_rate_hertz = CGDisplayModeGetRefreshRate(Some(&mode)).round() as i64;
+                let cg_refresh_rate_hertz = CGDisplayMode::refresh_rate(Some(&mode)).round() as i64;
 
                 // CGDisplayModeGetRefreshRate returns 0.0 for any display that
                 // isn't a CRT
@@ -329,7 +326,7 @@ pub(crate) fn flip_window_screen_coordinates(frame: NSRect) -> NSPoint {
 
 fn refresh_rate_millihertz(id: CGDirectDisplayID, mode: &NativeDisplayMode) -> Option<NonZeroU32> {
     unsafe {
-        let refresh_rate = CGDisplayModeGetRefreshRate(Some(&mode.0));
+        let refresh_rate = CGDisplayMode::refresh_rate(Some(&mode.0));
         if refresh_rate > 0.0 {
             return NonZeroU32::new((refresh_rate * 1000.0).round() as u32);
         }
