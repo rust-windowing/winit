@@ -35,7 +35,7 @@ another library.
 
 ## CONTRIBUING
 
-For contributing guidelines see (CONTRIBUTING.md)[./CONTRIBUTING.md].
+For contributing guidelines see [CONTRIBUTING.md](./CONTRIBUTING.md).
 
 ## MSRV Policy
 
