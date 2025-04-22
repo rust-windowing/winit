@@ -1380,6 +1380,11 @@ unsafe fn init(
         None => fallback_parent(),
     };
 
+    if attributes.platform_specific.tool_window {
+        window_flags.set(WindowFlags::TOOL, true);
+        window_flags.set(WindowFlags::ON_TASKBAR, false);
+    }
+
     let menu = attributes.platform_specific.menu;
     let fullscreen = attributes.fullscreen.clone();
     let maximized = attributes.maximized;
