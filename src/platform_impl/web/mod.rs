@@ -42,4 +42,3 @@ pub(crate) use self::monitor::{
 };
 use self::web_sys as backend;
 pub use self::window::{PlatformSpecificWindowAttributes, Window};
-pub(crate) use crate::icon::NoIcon as PlatformIcon;

@@ -37,14 +37,15 @@ use windows_sys::Win32::UI::WindowsAndMessaging::{
     CreateWindowExW, EnableMenuItem, FlashWindowEx, GetClientRect, GetCursorPos,
     GetForegroundWindow, GetSystemMenu, GetSystemMetrics, GetWindowPlacement, GetWindowTextLengthW,
     GetWindowTextW, IsWindowVisible, LoadCursorW, PeekMessageW, PostMessageW, RegisterClassExW,
-    SetCursor, SetCursorPos, SetForegroundWindow, SetMenuDefaultItem, SetWindowDisplayAffinity,
-    SetWindowPlacement, SetWindowPos, SetWindowTextW, TrackPopupMenu, CS_HREDRAW, CS_VREDRAW,
-    CW_USEDEFAULT, FLASHWINFO, FLASHW_ALL, FLASHW_STOP, FLASHW_TIMERNOFG, FLASHW_TRAY,
-    GWLP_HINSTANCE, HTBOTTOM, HTBOTTOMLEFT, HTBOTTOMRIGHT, HTCAPTION, HTLEFT, HTRIGHT, HTTOP,
-    HTTOPLEFT, HTTOPRIGHT, MENU_ITEM_STATE, MFS_DISABLED, MFS_ENABLED, MF_BYCOMMAND, NID_READY,
-    PM_NOREMOVE, SC_CLOSE, SC_MAXIMIZE, SC_MINIMIZE, SC_MOVE, SC_RESTORE, SC_SIZE, SM_DIGITIZER,
-    SWP_ASYNCWINDOWPOS, SWP_NOACTIVATE, SWP_NOSIZE, SWP_NOZORDER, TPM_LEFTALIGN, TPM_RETURNCMD,
-    WDA_EXCLUDEFROMCAPTURE, WDA_NONE, WM_NCLBUTTONDOWN, WM_SYSCOMMAND, WNDCLASSEXW,
+    SendMessageW, SetCursor, SetCursorPos, SetForegroundWindow, SetMenuDefaultItem,
+    SetWindowDisplayAffinity, SetWindowPlacement, SetWindowPos, SetWindowTextW, TrackPopupMenu,
+    CS_HREDRAW, CS_VREDRAW, CW_USEDEFAULT, FLASHWINFO, FLASHW_ALL, FLASHW_STOP, FLASHW_TIMERNOFG,
+    FLASHW_TRAY, GWLP_HINSTANCE, HTBOTTOM, HTBOTTOMLEFT, HTBOTTOMRIGHT, HTCAPTION, HTLEFT, HTRIGHT,
+    HTTOP, HTTOPLEFT, HTTOPRIGHT, MENU_ITEM_STATE, MFS_DISABLED, MFS_ENABLED, MF_BYCOMMAND,
+    NID_READY, PM_NOREMOVE, SC_CLOSE, SC_MAXIMIZE, SC_MINIMIZE, SC_MOVE, SC_RESTORE, SC_SIZE,
+    SM_DIGITIZER, SWP_ASYNCWINDOWPOS, SWP_NOACTIVATE, SWP_NOSIZE, SWP_NOZORDER, TPM_LEFTALIGN,
+    TPM_RETURNCMD, WDA_EXCLUDEFROMCAPTURE, WDA_NONE, WM_NCLBUTTONDOWN, WM_SETICON, WM_SYSCOMMAND,
+    WNDCLASSEXW,
 };
 
 use super::icon::WinCursor;
@@ -52,9 +53,9 @@ use super::MonitorHandle;
 use crate::cursor::Cursor;
 use crate::dpi::{PhysicalInsets, PhysicalPosition, PhysicalSize, Position, Size};
 use crate::error::RequestError;
-use crate::icon::Icon;
+use crate::icon::{Icon, RgbaIcon};
 use crate::monitor::{Fullscreen, MonitorHandle as CoreMonitorHandle, MonitorHandleProvider};
-use crate::platform::windows::{BackdropType, Color, CornerPreference};
+use crate::platform::windows::{BackdropType, Color, CornerPreference, WinIcon};
 use crate::platform_impl::platform::dark_mode::try_theme;
 use crate::platform_impl::platform::definitions::{
     CLSID_TaskbarList, IID_ITaskbarList, IID_ITaskbarList2, ITaskbarList, ITaskbarList2,
@@ -66,7 +67,7 @@ use crate::platform_impl::platform::drop_handler::FileDropHandler;
 use crate::platform_impl::platform::event_loop::{
     self, ActiveEventLoop, Event, EventLoopRunner, DESTROY_MSG_ID,
 };
-use crate::platform_impl::platform::icon::{self, IconType};
+use crate::platform_impl::platform::icon::IconType;
 use crate::platform_impl::platform::ime::ImeContext;
 use crate::platform_impl::platform::keyboard::KeyEventBuilder;
 use crate::platform_impl::platform::window_state::{
@@ -189,12 +190,11 @@ impl Window {
     }
 
     pub fn set_taskbar_icon(&self, taskbar_icon: Option<Icon>) {
-        if let Some(ref taskbar_icon) = taskbar_icon {
-            taskbar_icon.inner.set_for_window(self.hwnd(), IconType::Big);
+        if let Some(taskbar_icon) = taskbar_icon {
+            self.set_icon(taskbar_icon, IconType::Big);
         } else {
-            icon::unset_for_window(self.hwnd(), IconType::Big);
+            self.unset_icon(IconType::Big);
         }
-        self.window_state_lock().taskbar_icon = taskbar_icon;
     }
 
     unsafe fn handle_os_dragging(&self, wparam: WPARAM) {
@@ -347,6 +347,45 @@ impl Window {
                 &(preference as DWM_WINDOW_CORNER_PREFERENCE) as *const _ as _,
                 mem::size_of::<DWM_WINDOW_CORNER_PREFERENCE>() as _,
             );
+        }
+    }
+
+    fn set_icon(&self, mut new_icon: Icon, icon_type: IconType) {
+        if let Some(icon) = new_icon.0.cast_ref::<RgbaIcon>() {
+            let icon = match WinIcon::from_rgba(icon) {
+                Ok(icon) => icon,
+                Err(err) => {
+                    warn!("{}", err);
+                    return;
+                },
+            };
+            new_icon = Icon(Arc::new(icon));
+        }
+
+        if let Some(icon) = new_icon.0.cast_ref::<WinIcon>() {
+            unsafe {
+                SendMessageW(
+                    self.hwnd(),
+                    WM_SETICON,
+                    icon_type as usize,
+                    icon.as_raw_handle() as isize,
+                );
+            }
+
+            match icon_type {
+                IconType::Small => self.window_state_lock().window_icon = Some(new_icon),
+                IconType::Big => self.window_state_lock().taskbar_icon = Some(new_icon),
+            }
+        }
+    }
+
+    fn unset_icon(&self, icon_type: IconType) {
+        unsafe {
+            SendMessageW(self.hwnd(), WM_SETICON, icon_type as usize, 0);
+        }
+        match icon_type {
+            IconType::Small => self.window_state_lock().window_icon = None,
+            IconType::Big => self.window_state_lock().taskbar_icon = None,
         }
     }
 }
@@ -969,12 +1008,11 @@ impl CoreWindow for Window {
     }
 
     fn set_window_icon(&self, window_icon: Option<Icon>) {
-        if let Some(ref window_icon) = window_icon {
-            window_icon.inner.set_for_window(self.hwnd(), IconType::Small);
+        if let Some(window_icon) = window_icon {
+            self.set_icon(window_icon, IconType::Small);
         } else {
-            icon::unset_for_window(self.hwnd(), IconType::Small);
+            self.unset_icon(IconType::Small);
         }
-        self.window_state_lock().window_icon = window_icon;
     }
 
     fn set_ime_cursor_area(&self, spot: Position, size: Size) {

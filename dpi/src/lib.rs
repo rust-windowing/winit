@@ -54,13 +54,25 @@
 //!
 //! * `serde`: Enables serialization/deserialization of certain types with [Serde](https://crates.io/crates/serde).
 //! * `mint`: Enables mint (math interoperability standard types) conversions.
+//! * `std` (enabled by default): Uses the standard library mathematical functions (normally through
+//!   your target platform's libm). This feature also changes the library's license from `Apache-2.0
+//!   AND MIT` to `APACHE-2.0` (only). For full details, see the package README.
 //!
+//! To use this library on a target without the standard library available, you should disable
+//! default features (thus disabling the `std` feature, with the license consequences thereof).
 //!
 //! [points]: https://en.wikipedia.org/wiki/Point_(typography)
 //! [picas]: https://en.wikipedia.org/wiki/Pica_(typography)
 
 #![cfg_attr(docsrs, feature(doc_auto_cfg, doc_cfg_hide), doc(cfg_hide(doc, docsrs)))]
-#![forbid(unsafe_code)]
+#![cfg_attr(feature = "std", forbid(unsafe_code))]
+#![no_std]
+
+#[cfg(not(feature = "std"))]
+mod libm;
+
+#[cfg(any(feature = "std", test))]
+extern crate std;
 
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
@@ -74,32 +86,32 @@ pub trait Pixel: Copy + Into<f64> {
 
 impl Pixel for u8 {
     fn from_f64(f: f64) -> Self {
-        f.round() as u8
+        round(f) as u8
     }
 }
 impl Pixel for u16 {
     fn from_f64(f: f64) -> Self {
-        f.round() as u16
+        round(f) as u16
     }
 }
 impl Pixel for u32 {
     fn from_f64(f: f64) -> Self {
-        f.round() as u32
+        round(f) as u32
     }
 }
 impl Pixel for i8 {
     fn from_f64(f: f64) -> Self {
-        f.round() as i8
+        round(f) as i8
     }
 }
 impl Pixel for i16 {
     fn from_f64(f: f64) -> Self {
-        f.round() as i16
+        round(f) as i16
     }
 }
 impl Pixel for i32 {
     fn from_f64(f: f64) -> Self {
-        f.round() as i32
+        round(f) as i32
     }
 }
 impl Pixel for f32 {
@@ -111,6 +123,15 @@ impl Pixel for f64 {
     fn from_f64(f: f64) -> Self {
         f
     }
+}
+
+/// Round f to the closest integer, rounding away from `0.0`
+#[inline]
+fn round(f: f64) -> f64 {
+    #[cfg(feature = "std")]
+    return f.round();
+    #[cfg(not(feature = "std"))]
+    return libm::round(f);
 }
 
 /// Checks that the scale factor is a normal positive `f64`.
@@ -1270,20 +1291,20 @@ mod tests {
     // Eat coverage for the Debug impls et al
     #[test]
     fn ensure_attrs_do_not_panic() {
-        let _ = format!("{:?}", LogicalPosition::<u32>::default().clone());
+        let _ = std::format!("{:?}", LogicalPosition::<u32>::default().clone());
         HashSet::new().insert(LogicalPosition::<u32>::default());
 
-        let _ = format!("{:?}", PhysicalPosition::<u32>::default().clone());
+        let _ = std::format!("{:?}", PhysicalPosition::<u32>::default().clone());
         HashSet::new().insert(PhysicalPosition::<u32>::default());
 
-        let _ = format!("{:?}", LogicalSize::<u32>::default().clone());
+        let _ = std::format!("{:?}", LogicalSize::<u32>::default().clone());
         HashSet::new().insert(LogicalSize::<u32>::default());
 
-        let _ = format!("{:?}", PhysicalSize::<u32>::default().clone());
+        let _ = std::format!("{:?}", PhysicalSize::<u32>::default().clone());
         HashSet::new().insert(PhysicalSize::<u32>::default());
 
-        let _ = format!("{:?}", Size::Physical((1, 2).into()).clone());
-        let _ = format!("{:?}", Position::Physical((1, 2).into()).clone());
+        let _ = std::format!("{:?}", Size::Physical((1, 2).into()).clone());
+        let _ = std::format!("{:?}", Position::Physical((1, 2).into()).clone());
     }
 
     #[test]
