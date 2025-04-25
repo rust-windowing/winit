@@ -77,6 +77,7 @@ bitflags! {
         const GRABBED   = 1 << 0;
         const HIDDEN    = 1 << 1;
         const IN_WINDOW = 1 << 2;
+        const LOCKED    = 1 << 3;
     }
 }
 bitflags! {
@@ -485,7 +486,22 @@ impl CursorFlags {
         if util::is_focused(window) {
             let cursor_clip = match self.contains(CursorFlags::GRABBED) {
                 true => {
-                    if self.contains(CursorFlags::HIDDEN) {
+                    if self.contains(CursorFlags::LOCKED) {
+                        if let Ok(pos) = util::get_cursor_position() {
+                            Some(RECT {
+                                left: pos.x,
+                                right: pos.x + 1,
+                                top: pos.y,
+                                bottom: pos.y + 1,
+                            })
+                        } else {
+                            // If lock is applied while the cursor is not available, lock it to the
+                            // middle of the window.
+                            let cx = (client_rect.left + client_rect.right) / 2;
+                            let cy = (client_rect.top + client_rect.bottom) / 2;
+                            Some(RECT { left: cx, right: cx + 1, top: cy, bottom: cy + 1 })
+                        }
+                    } else if self.contains(CursorFlags::HIDDEN) {
                         // Confine the cursor to the center of the window if the cursor is hidden.
                         // This avoids problems with the cursor activating
                         // the taskbar if the window borders or overlaps that.

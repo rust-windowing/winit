@@ -43,6 +43,7 @@ changelog entry.
 ### Added
 
 - On Windows, add `IconExtWindows::from_resource_name`.
+- On Windows, add `CursorGrabMode::Locked`.
 
 ### Fixed
 
