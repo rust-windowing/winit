@@ -52,7 +52,7 @@ use super::icon::WinCursor;
 use super::MonitorHandle;
 use crate::cursor::Cursor;
 use crate::dpi::{PhysicalInsets, PhysicalPosition, PhysicalSize, Position, Size};
-use crate::error::{NotSupportedError, RequestError};
+use crate::error::RequestError;
 use crate::icon::{Icon, RgbaIcon};
 use crate::monitor::{Fullscreen, MonitorHandle as CoreMonitorHandle, MonitorHandleProvider};
 use crate::platform::windows::{BackdropType, Color, CornerPreference, WinIcon};
@@ -652,14 +652,6 @@ impl CoreWindow for Window {
     }
 
     fn set_cursor_grab(&self, mode: CursorGrabMode) -> Result<(), RequestError> {
-        let confine = match mode {
-            CursorGrabMode::None => false,
-            CursorGrabMode::Confined => true,
-            CursorGrabMode::Locked => {
-                return Err(NotSupportedError::new("locked cursor is not supported").into())
-            },
-        };
-
         let window = self.window;
         let window_state = Arc::clone(&self.window_state);
         let (tx, rx) = channel();
@@ -670,7 +662,10 @@ impl CoreWindow for Window {
                 .lock()
                 .unwrap()
                 .mouse
-                .set_cursor_flags(window.hwnd(), |f| f.set(CursorFlags::GRABBED, confine))
+                .set_cursor_flags(window.hwnd(), |f| {
+                    f.set(CursorFlags::GRABBED, mode != CursorGrabMode::None);
+                    f.set(CursorFlags::LOCKED, mode == CursorGrabMode::Locked);
+                })
                 .map_err(|err| os_error!(err).into());
             let _ = tx.send(result);
         });

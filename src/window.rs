@@ -1396,8 +1396,7 @@ pub enum CursorGrabMode {
     ///
     /// ## Platform-specific
     ///
-    /// - **X11 / Windows:** Not implemented. Always returns [`RequestError::NotSupported`] for
-    ///   now.
+    /// - **X11:** Not implemented. Always returns [`RequestError::NotSupported`] for now.
     /// - **iOS / Android:** Always returns an [`RequestError::NotSupported`].
     Locked,
 }
