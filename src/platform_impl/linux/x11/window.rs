@@ -14,7 +14,7 @@ use x11rb::properties::{WmHints, WmSizeHints, WmSizeHintsSpecification};
 use x11rb::protocol::shape::SK;
 use x11rb::protocol::sync::{ConnectionExt as _, Int64};
 use x11rb::protocol::xfixes::{ConnectionExt, RegionWrapper};
-use x11rb::protocol::xproto::{self, ConnectionExt as _, Rectangle};
+use x11rb::protocol::xproto::{self, ChangeWindowAttributesAux, ConnectionExt as _, Rectangle};
 use x11rb::protocol::{randr, xinput};
 
 use super::util::{self, SelectedCursor};
@@ -1834,6 +1834,20 @@ impl UnownedWindow {
 
                 *self.selected_cursor.lock().unwrap() = SelectedCursor::Custom(cursor.clone());
             },
+        }
+    }
+
+    #[inline]
+    pub fn set_override_redirect(&self, value: bool) {
+        let mut swa = ChangeWindowAttributesAux::new();
+        swa.override_redirect = Some(value as u32);
+        if let Err(err) = self
+            .xconn
+            .xcb_connection()
+            .change_window_attributes(self.xwindow, &swa)
+            .map(|cookie| cookie.ignore_error())
+        {
+            tracing::error!("failed to set override-redirect: {err}");
         }
     }
 

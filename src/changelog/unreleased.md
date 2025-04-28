@@ -71,6 +71,7 @@ changelog entry.
 - Added `Window::safe_area`, which describes the area of the surface that is unobstructed.
 - On X11, Wayland, Windows and macOS, improved scancode conversions for more obscure key codes.
 - Add ability to make non-activating window on macOS using `NSPanel` with `NSWindowStyleMask::NonactivatingPanel`.
+- Add ability to set `override_redirect` on X11 windows after creation with `WindowExtX11::set_override_redirect`.
 - On Windows, add `IconExtWindows::from_resource_name`.
 - Implement `MonitorHandleProvider` for `MonitorHandle` to access common monitor API.
 - On X11, set an "area" attribute on XIM input connection to convey the cursor area.
