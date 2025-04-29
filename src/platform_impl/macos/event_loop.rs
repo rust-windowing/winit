@@ -16,11 +16,11 @@ use core_foundation::runloop::{
 };
 use objc2::rc::{autoreleasepool, Retained};
 use objc2::runtime::ProtocolObject;
-use objc2::{msg_send_id, sel, ClassType};
+use objc2::sel;
 use objc2_app_kit::{NSApplication, NSApplicationActivationPolicy, NSWindow};
 use objc2_foundation::{MainThreadMarker, NSObjectProtocol};
 
-use super::app::WinitApplication;
+use super::app::override_send_event;
 use super::app_state::{ApplicationDelegate, HandlePendingUserEvents};
 use super::event::dummy_event;
 use super::monitor::{self, MonitorHandle};
@@ -220,15 +220,8 @@ impl<T> EventLoop<T> {
         let mtm = MainThreadMarker::new()
             .expect("on macOS, `EventLoop` must be created on the main thread!");
 
-        let app: Retained<NSApplication> =
-            unsafe { msg_send_id![WinitApplication::class(), sharedApplication] };
-
-        if !app.is_kind_of::<WinitApplication>() {
-            panic!(
-                "`winit` requires control over the principal class. You must create the event \
-                 loop before other parts of your application initialize NSApplication"
-            );
-        }
+        // Initialize the application (if it has not already been).
+        let app = NSApplication::sharedApplication(mtm);
 
         let activation_policy = match attributes.activation_policy {
             None => None,
@@ -246,6 +239,9 @@ impl<T> EventLoop<T> {
         autoreleasepool(|_| {
             app.setDelegate(Some(ProtocolObject::from_ref(&*delegate)));
         });
+
+        // Override `sendEvent:` on the application to forward to our application state.
+        override_send_event(&app);
 
         let panic_info: Rc<PanicInfo> = Default::default();
         setup_control_flow_observers(mtm, Rc::downgrade(&panic_info));
