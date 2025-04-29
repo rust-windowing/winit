@@ -254,3 +254,4 @@ changelog entry.
 - On Wayland, fixed a crash when consequently calling `set_cursor_grab` without pointer focus.
 - On Wayland, ensure that external event loop is woken-up when using pump_events and integrating via `FD`.
 - On Wayland, apply fractional scaling to custom cursors.
+- On macOS, fixed `VideoMode::refresh_rate_millihertz` for fractional refresh rates.
