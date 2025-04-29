@@ -13,6 +13,10 @@
 //! * `wayland-csd-adwaita` (default).
 //! * `wayland-csd-adwaita-crossfont`.
 //! * `wayland-csd-adwaita-notitle`.
+
+use std::ffi::c_void;
+use std::ptr::NonNull;
+
 use crate::event_loop::{ActiveEventLoop, EventLoop, EventLoopBuilder};
 use crate::monitor::MonitorHandle;
 use crate::window::{Window, WindowAttributes};
@@ -72,9 +76,25 @@ impl<T> EventLoopBuilderExtWayland for EventLoopBuilder<T> {
 }
 
 /// Additional methods on [`Window`] that are specific to Wayland.
-pub trait WindowExtWayland {}
+///
+/// [`Window`]: crate::window::Window
+pub trait WindowExtWayland {
+    /// Returns `xdg_toplevel` of the window or [`None`] if the window is X11 window.
+    fn xdg_toplevel(&self) -> Option<NonNull<c_void>>;
+}
 
-impl WindowExtWayland for Window {}
+impl WindowExtWayland for Window {
+    #[inline]
+    fn xdg_toplevel(&self) -> Option<NonNull<c_void>> {
+        #[allow(clippy::single_match)]
+        match &self.window {
+            #[cfg(x11_platform)]
+            crate::platform_impl::Window::X(_) => None,
+            #[cfg(wayland_platform)]
+            crate::platform_impl::Window::Wayland(window) => window.xdg_toplevel(),
+        }
+    }
+}
 
 /// Additional methods on [`WindowAttributes`] that are specific to Wayland.
 pub trait WindowAttributesExtWayland {
