@@ -46,6 +46,10 @@ changelog entry.
 - On Windows, add `CursorGrabMode::Locked`.
 - On Wayland, add `WindowExtWayland::xdg_toplevel`.
 
+### Changed
+
+- On macOS, no longer need control of the main `NSApplication` class (which means you can now override it yourself).
+
 ### Fixed
 
 - On Windows, fixed ~500 ms pause when clicking the title bar during continuous redraw.
