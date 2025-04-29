@@ -256,3 +256,4 @@ changelog entry.
 - On Wayland, apply fractional scaling to custom cursors.
 - On macOS, fixed `VideoMode::refresh_rate_millihertz` for fractional refresh rates.
 - On macOS, store monitor handle to avoid panics after going in/out of sleep.
+- On Windows, fixed `Ime::Preedit` cursor offset calculation.
