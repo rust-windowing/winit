@@ -141,10 +141,18 @@ impl MonitorHandle {
         let refresh_rate_millihertz = self.refresh_rate_millihertz();
         let monitor = self.clone();
 
-        let array = unsafe { CGDisplayCopyAllDisplayModes(self.display_id(), None) }
-            .expect("failed to get list of display modes");
-        // SAFETY: `CGDisplayCopyAllDisplayModes` is documented to return an array of display modes.
-        let modes = unsafe { CFRetained::cast_unchecked::<CFArray<CGDisplayMode>>(array) };
+        let array = unsafe { CGDisplayCopyAllDisplayModes(self.display_id(), None) };
+        let modes = if let Some(array) = array {
+            // SAFETY: `CGDisplayCopyAllDisplayModes` is documented to return an array of
+            // display modes.
+            unsafe { CFRetained::cast_unchecked::<CFArray<CGDisplayMode>>(array) }
+        } else {
+            // Occasionally, certain CalDigit Thunderbolt Hubs report a spurious monitor during
+            // sleep/wake/cycling monitors. It tends to have null or 1 video mode only.
+            // See <https://github.com/bevyengine/bevy/issues/17827>.
+            warn!(monitor = ?self, "failed to get a list of display modes");
+            CFArray::empty()
+        };
 
         modes.into_iter().map(move |mode| {
             let cg_refresh_rate_hertz = unsafe { CGDisplayMode::refresh_rate(Some(&mode)) };
@@ -165,9 +173,14 @@ impl MonitorHandle {
         let uuid = self.uuid();
         NSScreen::screens(mtm).into_iter().find(|screen| {
             let other_native_id = get_display_id(screen);
-            // Display ID just fetched from live NSScreen, should be fine to unwrap.
-            let other = MonitorHandle::new(other_native_id).expect("invalid display ID");
-            uuid == other.uuid()
+            if let Some(other) = MonitorHandle::new(other_native_id) {
+                uuid == other.uuid()
+            } else {
+                // Display ID was just fetched from live NSScreen, but can still result in `None`
+                // with certain Thunderbolt docked monitors.
+                warn!(other_native_id, "comparing against screen with invalid display ID");
+                false
+            }
         })
     }
 }
