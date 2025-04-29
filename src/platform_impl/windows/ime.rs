@@ -34,8 +34,13 @@ impl ImeContext {
         let mut first = None;
         let mut last = None;
         let mut boundary_before_char = 0;
+        let mut attr_idx = 0;
 
-        for (attr, chr) in attrs.into_iter().zip(text.chars()) {
+        for chr in text.chars() {
+            let Some(attr) = attrs.get(attr_idx).copied() else {
+                break;
+            };
+
             let char_is_targeted =
                 attr as u32 == ATTR_TARGET_CONVERTED || attr as u32 == ATTR_TARGET_NOTCONVERTED;
 
@@ -46,6 +51,7 @@ impl ImeContext {
             }
 
             boundary_before_char += chr.len_utf8();
+            attr_idx += chr.len_utf16();
         }
 
         if first.is_some() && last.is_none() {
