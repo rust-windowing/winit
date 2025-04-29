@@ -1592,8 +1592,14 @@ impl WindowDelegate {
     // Allow directly accessing the current monitor internally without unwrapping.
     pub(crate) fn current_monitor_inner(&self) -> Option<MonitorHandle> {
         let display_id = get_display_id(&*self.window().screen()?);
-        // Display ID just fetched from live NSScreen, should be fine to unwrap.
-        Some(MonitorHandle::new(display_id).expect("invalid display ID"))
+        if let Some(monitor) = MonitorHandle::new(display_id) {
+            Some(monitor)
+        } else {
+            // NOTE: Display ID was just fetched from live NSScreen, but can still result in `None`
+            // with certain Thunderbolt docked monitors.
+            warn!(display_id, "got screen with invalid display ID");
+            None
+        }
     }
 
     #[inline]
