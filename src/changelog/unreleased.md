@@ -44,6 +44,7 @@ changelog entry.
 
 - On Windows, add `IconExtWindows::from_resource_name`.
 - On Windows, add `CursorGrabMode::Locked`.
+- On Wayland, add `WindowExtWayland::xdg_toplevel`.
 
 ### Fixed
 

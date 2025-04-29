@@ -1,5 +1,7 @@
 //! The Wayland window.
 
+use std::ffi::c_void;
+use std::ptr::NonNull;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 
@@ -222,6 +224,10 @@ impl Window {
             window_requests,
             window_events_sink,
         })
+    }
+
+    pub(crate) fn xdg_toplevel(&self) -> Option<NonNull<c_void>> {
+        NonNull::new(self.window.xdg_toplevel().id().as_ptr().cast())
     }
 }
 
