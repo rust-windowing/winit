@@ -201,6 +201,7 @@ changelog entry.
 - Renamed "super" key to "meta", to match the naming in the W3C specification.
   `NamedKey::Super` still exists, but it's non-functional and deprecated, `NamedKey::Meta` should be used instead.
 - Move `IconExtWindows` into `WinIcon`.
+- Use `NamedKey`, `Code` and `Location` from the `keyboard-types` v0.8 crate.
 
 ### Removed
 

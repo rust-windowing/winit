@@ -56,7 +56,14 @@ android-game-activity = ["android-activity/game-activity"]
 android-native-activity = ["android-activity/native-activity"]
 default = ["x11", "wayland", "wayland-dlopen", "wayland-csd-adwaita"]
 mint = ["dpi/mint"]
-serde = ["dep:serde", "cursor-icon/serde", "smol_str/serde", "dpi/serde", "bitflags/serde"]
+serde = [
+    "dep:serde",
+    "cursor-icon/serde",
+    "smol_str/serde",
+    "dpi/serde",
+    "bitflags/serde",
+    "keyboard-types/serde",
+]
 wayland = [
     "wayland-client",
     "wayland-backend",
@@ -79,6 +86,7 @@ cfg_aliases = "0.2.1"
 bitflags = "2"
 cursor-icon = "1.1.0"
 dpi = { version = "0.1.1", path = "dpi" }
+keyboard-types = "0.8.0"
 rwh_06 = { package = "raw-window-handle", version = "0.6", features = ["std"] }
 serde = { workspace = true, optional = true }
 smol_str = "0.3"
