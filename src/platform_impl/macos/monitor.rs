@@ -281,12 +281,12 @@ impl MonitorHandle {
             };
 
             modes.into_iter().map(move |mode| {
-                let cg_refresh_rate_hertz = ffi::CGDisplayModeGetRefreshRate(mode).round() as i64;
+                let cg_refresh_rate_hertz = ffi::CGDisplayModeGetRefreshRate(mode);
 
                 // CGDisplayModeGetRefreshRate returns 0.0 for any display that
                 // isn't a CRT
-                let refresh_rate_millihertz = if cg_refresh_rate_hertz > 0 {
-                    (cg_refresh_rate_hertz * 1000) as u32
+                let refresh_rate_millihertz = if cg_refresh_rate_hertz > 0.0 {
+                    (cg_refresh_rate_hertz * 1000.0).round() as u32
                 } else {
                     refresh_rate_millihertz
                 };

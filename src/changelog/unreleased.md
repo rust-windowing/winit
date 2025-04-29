@@ -59,3 +59,4 @@ changelog entry.
 - On Wayland, ensure that external event loop is woken-up when using pump_events and integrating via `FD`.
 - On Wayland, apply fractional scaling to custom cursors.
 - On macOS, fixed `run_app_on_demand` returning without closing open windows.
+- On macOS, fixed `VideoMode::refresh_rate_millihertz` for fractional refresh rates.
