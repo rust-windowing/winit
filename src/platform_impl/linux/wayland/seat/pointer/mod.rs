@@ -18,6 +18,7 @@ use sctk::reexports::protocols::wp::cursor_shape::v1::client::wp_cursor_shape_ma
 use sctk::reexports::protocols::wp::pointer_constraints::zv1::client::zwp_pointer_constraints_v1::{Lifetime, ZwpPointerConstraintsV1};
 use sctk::reexports::client::globals::{BindError, GlobalList};
 use sctk::reexports::csd_frame::FrameClick;
+use sctk::reexports::protocols::wp::viewporter::client::wp_viewport::WpViewport;
 
 use sctk::compositor::SurfaceData;
 use sctk::globals::GlobalData;
@@ -246,13 +247,17 @@ pub struct WinitPointerData {
 
     /// The data required by the sctk.
     sctk_data: PointerData,
+
+    /// Viewport for fractional cursor.
+    viewport: Option<WpViewport>,
 }
 
 impl WinitPointerData {
-    pub fn new(seat: WlSeat) -> Self {
+    pub fn new(seat: WlSeat, viewport: Option<WpViewport>) -> Self {
         Self {
             inner: Mutex::new(WinitPointerDataInner::default()),
             sctk_data: PointerData::new(seat),
+            viewport,
         }
     }
 
@@ -331,6 +336,18 @@ impl WinitPointerData {
         let inner = self.inner.lock().unwrap();
         if let Some(locked_pointer) = inner.locked_pointer.as_ref() {
             locked_pointer.set_cursor_position_hint(surface_x, surface_y);
+        }
+    }
+
+    pub fn viewport(&self) -> Option<&WpViewport> {
+        self.viewport.as_ref()
+    }
+}
+
+impl Drop for WinitPointerData {
+    fn drop(&mut self) {
+        if let Some(viewport) = self.viewport.take() {
+            viewport.destroy();
         }
     }
 }
