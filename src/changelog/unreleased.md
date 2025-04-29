@@ -51,3 +51,4 @@ changelog entry.
 - On macos, `WindowExtMacOS::set_simple_fullscreen` now honors `WindowExtMacOS::set_borderless_game`
 - On X11 and Wayland, fixed pump_events with `Some(Duration::Zero)` blocking with `Wait` polling mode
 - On Wayland, fixed a crash when consequently calling `set_cursor_grab` without pointer focus.
+- On Wayland, ensure that external event loop is woken-up when using pump_events and integrating via `FD`.
