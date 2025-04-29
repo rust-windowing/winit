@@ -65,3 +65,4 @@ changelog entry.
 - On macOS, fixed `run_app_on_demand` returning without closing open windows.
 - On macOS, fixed `VideoMode::refresh_rate_millihertz` for fractional refresh rates.
 - On macOS, store monitor handle to avoid panics after going in/out of sleep.
+- On macOS, allow certain invalid monitor handles and return `None` instead of panicking.

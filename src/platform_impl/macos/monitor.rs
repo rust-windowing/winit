@@ -291,17 +291,24 @@ impl MonitorHandle {
         unsafe {
             let modes = {
                 let array = ffi::CGDisplayCopyAllDisplayModes(self.display_id(), std::ptr::null());
-                assert!(!array.is_null(), "failed to get list of display modes");
-                let array_count = CFArrayGetCount(array);
-                let modes: Vec<_> = (0..array_count)
-                    .map(move |i| {
-                        let mode = CFArrayGetValueAtIndex(array, i) as *mut _;
-                        ffi::CGDisplayModeRetain(mode);
-                        mode
-                    })
-                    .collect();
-                CFRelease(array as *const _);
-                modes
+                if array.is_null() {
+                    // Occasionally, certain CalDigit Thunderbolt Hubs report a spurious monitor
+                    // during sleep/wake/cycling monitors. It tends to have null
+                    // or 1 video mode only. See <https://github.com/bevyengine/bevy/issues/17827>.
+                    warn!(monitor = ?self, "failed to get a list of display modes");
+                    Vec::new()
+                } else {
+                    let array_count = CFArrayGetCount(array);
+                    let modes: Vec<_> = (0..array_count)
+                        .map(move |i| {
+                            let mode = CFArrayGetValueAtIndex(array, i) as *mut _;
+                            ffi::CGDisplayModeRetain(mode);
+                            mode
+                        })
+                        .collect();
+                    CFRelease(array as *const _);
+                    modes
+                }
             };
 
             modes.into_iter().map(move |mode| {
@@ -346,9 +353,14 @@ impl MonitorHandle {
         let uuid = self.uuid();
         NSScreen::screens(mtm).into_iter().find(|screen| {
             let other_native_id = get_display_id(screen);
-            // Display ID just fetched from live NSScreen, should be fine to unwrap.
-            let other = MonitorHandle::new(other_native_id).expect("invalid display ID");
-            uuid == other.uuid()
+            if let Some(other) = MonitorHandle::new(other_native_id) {
+                uuid == other.uuid()
+            } else {
+                // Display ID was just fetched from live NSScreen, but can still result in `None`
+                // with certain Thunderbolt docked monitors.
+                warn!(other_native_id, "comparing against screen with invalid display ID");
+                false
+            }
         })
     }
 }
