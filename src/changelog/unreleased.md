@@ -70,16 +70,13 @@ changelog entry.
 - Added `Window::surface_position`, which is the position of the surface inside the window.
 - Added `Window::safe_area`, which describes the area of the surface that is unobstructed.
 - On X11, Wayland, Windows and macOS, improved scancode conversions for more obscure key codes.
-- On Wayland, add `WindowExtWayland::xdg_toplevel`.
 - Add ability to make non-activating window on macOS using `NSPanel` with `NSWindowStyleMask::NonactivatingPanel`.
-- On Windows, add `IconExtWindows::from_resource_name`.
 - Implement `MonitorHandleProvider` for `MonitorHandle` to access common monitor API.
 - On X11, set an "area" attribute on XIM input connection to convey the cursor area.
 - Implement `CustomCursorProvider` for `CustomCursor` to access cursor API.
 - Add `CustomCursorSource::Url`, `CustomCursorSource::from_animation`.
 - Implement `CustomIconProvider` for `RgbaIcon`.
 - Add `icon` module that exposes winit's icon API.
-- On Windows, add `CursorGrabMode::Locked`.
 
 ### Changed
 
@@ -117,10 +114,8 @@ changelog entry.
 - Changed how `ModifiersState` is serialized by Serde.
 - `VideoModeHandle::refresh_rate_millihertz()` and `bit_depth()` now return a `Option<NonZero*>`.
 - `MonitorHandle::position()` now returns an `Option`.
-- On iOS and macOS, remove custom application delegates. You are now allowed to override the
+- On macOS, remove custom application delegates. You are now allowed to override the
   application delegate yourself.
-- On iOS, no longer act as-if the application successfully open all URLs. Override
-  `application:didFinishLaunchingWithOptions:` and provide the desired behaviour yourself.
 - On X11, remove our dependency on libXcursor. (#3749)
 - Renamed the following APIs to make it clearer that the sizes apply to the underlying surface:
   - `WindowEvent::Resized` to `SurfaceResized`.
@@ -194,7 +189,6 @@ changelog entry.
 - Updated `windows-sys` to `v0.59`.
   - To match the corresponding changes in `windows-sys`, the `HWND`, `HMONITOR`, and `HMENU` types
     now alias to `*mut c_void` instead of `isize`.
-- On macOS, no longer need control of the main `NSApplication` class (which means you can now override it yourself).
 - Removed `KeyEventExtModifierSupplement`, and made the fields `text_with_all_modifiers` and
   `key_without_modifiers` public on `KeyEvent` instead.
 - Move `window::Fullscreen` to `monitor::Fullscreen`.
@@ -247,14 +241,3 @@ changelog entry.
 - On macOS, fixed the scancode conversion for audio volume keys.
 - On macOS, fixed the scancode conversion for `IntlBackslash`.
 - On macOS, fixed redundant `SurfaceResized` event at window creation.
-- On Windows, fixed ~500 ms pause when clicking the title bar during continuous redraw.
-- On macOS, `WindowExtMacOS::set_simple_fullscreen` now honors `WindowExtMacOS::set_borderless_game`
-- On X11 and Wayland, fixed pump_events with `Some(Duration::Zero)` blocking with `Wait` polling mode
-- On macOS, fixed `run_app_on_demand` returning without closing open windows.
-- On Wayland, fixed a crash when consequently calling `set_cursor_grab` without pointer focus.
-- On Wayland, ensure that external event loop is woken-up when using pump_events and integrating via `FD`.
-- On Wayland, apply fractional scaling to custom cursors.
-- On macOS, fixed `VideoMode::refresh_rate_millihertz` for fractional refresh rates.
-- On macOS, store monitor handle to avoid panics after going in/out of sleep.
-- On macOS, allow certain invalid monitor handles and return `None` instead of panicking.
-- On Windows, fixed `Ime::Preedit` cursor offset calculation.
