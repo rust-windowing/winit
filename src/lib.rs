@@ -308,7 +308,7 @@ pub mod icon;
 pub mod keyboard;
 pub mod monitor;
 mod platform_impl;
-mod utils;
+use winit_core::as_any as utils;
 pub mod window;
 
 pub mod platform;
