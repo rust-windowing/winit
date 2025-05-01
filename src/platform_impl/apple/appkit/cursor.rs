@@ -42,8 +42,8 @@ impl CustomCursor {
 }
 
 pub(crate) fn cursor_from_image(cursor: &CursorImage) -> Result<Retained<NSCursor>, RequestError> {
-    let width = cursor.width;
-    let height = cursor.height;
+    let width = cursor.width();
+    let height = cursor.height();
 
     let bitmap = unsafe {
         NSBitmapImageRep::initWithBitmapDataPlanes_pixelsWide_pixelsHigh_bitsPerSample_samplesPerPixel_hasAlpha_isPlanar_colorSpaceName_bytesPerRow_bitsPerPixel(
@@ -60,15 +60,16 @@ pub(crate) fn cursor_from_image(cursor: &CursorImage) -> Result<Retained<NSCurso
             32,
         )
     }.ok_or_else(|| os_error!("parent view should be installed in a window"))?;
-    let bitmap_data = unsafe { slice::from_raw_parts_mut(bitmap.bitmapData(), cursor.rgba.len()) };
-    bitmap_data.copy_from_slice(&cursor.rgba);
+    let bitmap_data =
+        unsafe { slice::from_raw_parts_mut(bitmap.bitmapData(), cursor.buffer().len()) };
+    bitmap_data.copy_from_slice(cursor.buffer());
 
     let image = unsafe {
         NSImage::initWithSize(NSImage::alloc(), NSSize::new(width.into(), height.into()))
     };
     unsafe { image.addRepresentation(&bitmap) };
 
-    let hotspot = NSPoint::new(cursor.hotspot_x as f64, cursor.hotspot_y as f64);
+    let hotspot = NSPoint::new(cursor.hotspot_x() as f64, cursor.hotspot_y() as f64);
 
     Ok(NSCursor::initWithImage_hotSpot(NSCursor::alloc(), &image, hotspot))
 }

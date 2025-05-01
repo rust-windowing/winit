@@ -39,14 +39,14 @@ impl CustomCursor {
         let image = &image.0;
         let (buffer, canvas) = pool
             .create_buffer(
-                image.width as i32,
-                image.height as i32,
-                4 * (image.width as i32),
+                image.width() as i32,
+                image.height() as i32,
+                4 * (image.width() as i32),
                 Format::Argb8888,
             )
             .unwrap();
 
-        for (canvas_chunk, rgba) in canvas.chunks_exact_mut(4).zip(image.rgba.chunks_exact(4)) {
+        for (canvas_chunk, rgba) in canvas.chunks_exact_mut(4).zip(image.buffer().chunks_exact(4)) {
             // Alpha in buffer is premultiplied.
             let alpha = rgba[3] as f32 / 255.;
             let r = (rgba[0] as f32 * alpha) as u32;
@@ -59,10 +59,10 @@ impl CustomCursor {
 
         CustomCursor {
             buffer,
-            w: image.width as i32,
-            h: image.height as i32,
-            hotspot_x: image.hotspot_x as i32,
-            hotspot_y: image.hotspot_y as i32,
+            w: image.width() as i32,
+            h: image.height() as i32,
+            hotspot_x: image.hotspot_x() as i32,
+            hotspot_y: image.hotspot_y() as i32,
         }
     }
 }

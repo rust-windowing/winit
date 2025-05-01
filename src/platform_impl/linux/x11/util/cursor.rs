@@ -208,7 +208,7 @@ impl CustomCursor {
         };
 
         // Reverse RGBA order to BGRA.
-        cursor.rgba.chunks_mut(4).for_each(|chunk| {
+        cursor.buffer_mut().chunks_mut(4).for_each(|chunk| {
             let chunk: &mut [u8; 4] = chunk.try_into().unwrap();
             chunk[0..3].reverse();
 
@@ -222,11 +222,11 @@ impl CustomCursor {
         let cursor = event_loop
             .xconn
             .create_cursor_from_image(
-                cursor.width,
-                cursor.height,
-                cursor.hotspot_x,
-                cursor.hotspot_y,
-                &cursor.rgba,
+                cursor.width(),
+                cursor.height(),
+                cursor.hotspot_x(),
+                cursor.hotspot_y(),
+                cursor.buffer(),
             )
             .map_err(|err| os_error!(err))?;
 
