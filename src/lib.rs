@@ -306,7 +306,7 @@ pub mod event;
 pub mod event_loop;
 pub mod icon;
 pub mod keyboard;
-pub mod monitor;
+pub use winit_core::monitor;
 mod platform_impl;
 use winit_core::as_any as utils;
 pub mod window;

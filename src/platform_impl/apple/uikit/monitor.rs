@@ -55,11 +55,11 @@ impl VideoModeHandle {
     ) -> VideoModeHandle {
         let refresh_rate_millihertz = refresh_rate_millihertz(&uiscreen);
         let size = screen_mode.size();
-        let mode = VideoMode {
-            size: (size.width as u32, size.height as u32).into(),
-            bit_depth: None,
+        let mode = VideoMode::new(
+            (size.width as u32, size.height as u32).into(),
+            None,
             refresh_rate_millihertz,
-        };
+        );
 
         VideoModeHandle {
             mode,
