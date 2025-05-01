@@ -4,6 +4,7 @@ use std::os::raw::c_char;
 use std::os::unix::io::OwnedFd;
 use std::ptr::{self, NonNull};
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::LazyLock;
 
 use smol_str::SmolStr;
 use tracing::warn;
@@ -16,7 +17,6 @@ use {x11_dl::xlib_xcb::xcb_connection_t, xkbcommon_dl::x11::xkbcommon_x11_handle
 
 use crate::event::{ElementState, KeyEvent};
 use crate::keyboard::{Key, KeyLocation};
-use crate::utils::Lazy;
 
 mod compose;
 mod keymap;
@@ -32,10 +32,10 @@ pub use state::XkbState;
 // TODO: Wire this up without using a static `AtomicBool`.
 static RESET_DEAD_KEYS: AtomicBool = AtomicBool::new(false);
 
-static XKBH: Lazy<&'static XkbCommon> = Lazy::new(xkbcommon_handle);
-static XKBCH: Lazy<&'static XkbCommonCompose> = Lazy::new(xkbcommon_compose_handle);
+static XKBH: LazyLock<&'static XkbCommon> = LazyLock::new(xkbcommon_handle);
+static XKBCH: LazyLock<&'static XkbCommonCompose> = LazyLock::new(xkbcommon_compose_handle);
 #[cfg(feature = "x11")]
-static XKBXH: Lazy<&'static xkb::x11::XkbCommonX11> = Lazy::new(xkbcommon_x11_handle);
+static XKBXH: LazyLock<&'static xkb::x11::XkbCommonX11> = LazyLock::new(xkbcommon_x11_handle);
 
 #[inline(always)]
 pub fn reset_dead_keys() {

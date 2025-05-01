@@ -7,7 +7,7 @@ use std::ffi::c_void;
 use std::os::windows::io::{AsRawHandle as _, FromRawHandle as _, OwnedHandle, RawHandle};
 use std::rc::Rc;
 use std::sync::atomic::{AtomicU32, Ordering};
-use std::sync::{Arc, Mutex, MutexGuard};
+use std::sync::{Arc, LazyLock, Mutex, MutexGuard};
 use std::time::{Duration, Instant};
 use std::{fmt, mem, panic, ptr};
 
@@ -91,7 +91,6 @@ use crate::platform_impl::platform::window_state::{
 };
 use crate::platform_impl::platform::{raw_input, util, wrap_device_id};
 use crate::platform_impl::Window;
-use crate::utils::Lazy;
 use crate::window::{
     CustomCursor as CoreCustomCursor, CustomCursorSource, Theme, Window as CoreWindow,
     WindowAttributes, WindowId,
@@ -833,8 +832,8 @@ pub(crate) static DESTROY_MSG_ID: LazyMessageId = LazyMessageId::new("Winit::Des
 // documentation in the `window_state` module for more information.
 pub(crate) static SET_RETAIN_STATE_ON_SIZE_MSG_ID: LazyMessageId =
     LazyMessageId::new("Winit::SetRetainMaximized\0");
-static THREAD_EVENT_TARGET_WINDOW_CLASS: Lazy<Vec<u16>> =
-    Lazy::new(|| util::encode_wide("Winit Thread Event Target"));
+static THREAD_EVENT_TARGET_WINDOW_CLASS: LazyLock<Vec<u16>> =
+    LazyLock::new(|| util::encode_wide("Winit Thread Event Target"));
 /// When the taskbar is created, it registers a message with the "TaskbarCreated" string and then
 /// broadcasts this message to all top-level windows <https://docs.microsoft.com/en-us/windows/win32/shell/taskbar#taskbar-creation-notification>
 pub(crate) static TASKBAR_CREATED: LazyMessageId = LazyMessageId::new("TaskbarCreated\0");
