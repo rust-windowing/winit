@@ -56,7 +56,14 @@ android-game-activity = ["android-activity/game-activity"]
 android-native-activity = ["android-activity/native-activity"]
 default = ["x11", "wayland", "wayland-dlopen", "wayland-csd-adwaita"]
 mint = ["dpi/mint"]
-serde = ["dep:serde", "cursor-icon/serde", "smol_str/serde", "dpi/serde", "bitflags/serde"]
+serde = [
+    "dep:serde",
+    "cursor-icon/serde",
+    "smol_str/serde",
+    "dpi/serde",
+    "bitflags/serde",
+    "winit-core/serde",
+]
 wayland = [
     "wayland-client",
     "wayland-backend",
@@ -83,6 +90,7 @@ rwh_06 = { package = "raw-window-handle", version = "0.6", features = ["std"] }
 serde = { workspace = true, optional = true }
 smol_str = "0.3"
 tracing = { version = "0.1.40", default-features = false }
+winit-core = { version = "0.0.0", path = "winit-core" }
 
 [dev-dependencies]
 image = { version = "0.25.0", default-features = false, features = ["png"] }
@@ -389,7 +397,7 @@ name = "window"
 name = "child_window"
 
 [workspace]
-members = ["dpi"]
+members = ["dpi", "winit-core"]
 resolver = "2"
 
 [workspace.package]
