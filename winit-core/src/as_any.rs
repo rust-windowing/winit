@@ -31,6 +31,7 @@ impl<T: Any> AsAny for T {
     }
 }
 
+#[macro_export]
 macro_rules! impl_dyn_casting {
     ($trait:ident) => {
         impl dyn $trait + '_ {
@@ -67,4 +68,4 @@ macro_rules! impl_dyn_casting {
     };
 }
 
-pub(crate) use impl_dyn_casting;
+pub use impl_dyn_casting;
