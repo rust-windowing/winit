@@ -301,7 +301,7 @@ pub mod application;
 pub mod changelog;
 #[macro_use]
 pub mod error;
-mod cursor;
+use winit_core::cursor;
 pub mod event;
 pub mod event_loop;
 pub use winit_core::{icon, keyboard, monitor};
