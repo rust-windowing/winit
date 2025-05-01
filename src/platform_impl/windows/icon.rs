@@ -184,11 +184,11 @@ impl CustomCursorProvider for WinCursor {
 
 impl WinCursor {
     pub(crate) fn new(image: &CursorImage) -> Result<Self, RequestError> {
-        let mut bgra = image.rgba.clone();
+        let mut bgra = Vec::from(image.buffer());
         bgra.chunks_exact_mut(4).for_each(|chunk| chunk.swap(0, 2));
 
-        let w = image.width as i32;
-        let h = image.height as i32;
+        let w = image.width() as i32;
+        let h = image.height() as i32;
 
         unsafe {
             let hdc_screen = GetDC(ptr::null_mut());
@@ -215,8 +215,8 @@ impl WinCursor {
 
             let icon_info = ICONINFO {
                 fIcon: 0,
-                xHotspot: image.hotspot_x as u32,
-                yHotspot: image.hotspot_y as u32,
+                xHotspot: image.hotspot_x() as u32,
+                yHotspot: image.hotspot_y() as u32,
                 hbmMask: hbm_mask,
                 hbmColor: hbm_color,
             };
