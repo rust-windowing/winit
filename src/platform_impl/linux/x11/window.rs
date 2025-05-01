@@ -35,6 +35,7 @@ use crate::monitor::{
 use crate::platform::x11::WindowType;
 use crate::platform_impl::common;
 use crate::platform_impl::x11::atoms::*;
+use crate::platform_impl::x11::util::rgba_to_cardinals;
 use crate::platform_impl::x11::{
     xinput_fp1616_to_float, MonitorHandle as X11MonitorHandle, WakeSender, X11Error,
 };
@@ -205,7 +206,7 @@ impl CoreWindow for Window {
 
     fn set_window_icon(&self, window_icon: Option<crate::window::Icon>) {
         let icon = match window_icon.as_ref() {
-            Some(icon) => icon.0.cast_ref::<RgbaIcon>(),
+            Some(icon) => icon.cast_ref::<RgbaIcon>(),
             None => None,
         };
         self.0.set_window_icon(icon)
@@ -771,7 +772,7 @@ impl UnownedWindow {
 
             // Set window icons
             if let Some(icon) =
-                window_attrs.window_icon.as_ref().and_then(|icon| icon.0.cast_ref::<RgbaIcon>())
+                window_attrs.window_icon.as_ref().and_then(|icon| icon.cast_ref::<RgbaIcon>())
             {
                 leap!(window.set_icon_inner(icon)).ignore_error();
             }
@@ -1414,7 +1415,7 @@ impl UnownedWindow {
     fn set_icon_inner(&self, icon: &RgbaIcon) -> Result<VoidCookie<'_>, X11Error> {
         let atoms = self.xconn.atoms();
         let icon_atom = atoms[_NET_WM_ICON];
-        let data = icon.to_cardinals();
+        let data = rgba_to_cardinals(icon);
         self.xconn.change_property(
             self.xwindow,
             icon_atom,
