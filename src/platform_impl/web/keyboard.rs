@@ -2,8 +2,14 @@ use smol_str::SmolStr;
 
 use crate::keyboard::{Key, KeyCode, NamedKey, NativeKey, NativeKeyCode, PhysicalKey};
 
-impl Key {
-    pub(crate) fn from_key_attribute_value(kav: &str) -> Self {
+pub trait FromAttributeValue {
+    fn from_attribute_value(kav: &str) -> Self
+    where
+        Self: Sized;
+}
+
+impl FromAttributeValue for Key {
+    fn from_attribute_value(kav: &str) -> Self {
         Key::Named(match kav {
             "Unidentified" => return Key::Unidentified(NativeKey::Web(SmolStr::new(kav))),
             "Dead" => return Key::Dead(None),
@@ -319,8 +325,8 @@ impl Key {
     }
 }
 
-impl PhysicalKey {
-    pub fn from_key_code_attribute_value(kcav: &str) -> Self {
+impl FromAttributeValue for PhysicalKey {
+    fn from_attribute_value(kcav: &str) -> Self {
         PhysicalKey::Code(match kcav {
             "Backquote" => KeyCode::Backquote,
             "Backslash" => KeyCode::Backslash,
