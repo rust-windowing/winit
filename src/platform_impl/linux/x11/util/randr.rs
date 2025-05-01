@@ -85,11 +85,11 @@ impl XConnection {
             .filter(|x| output_modes.iter().any(|id| x.id == *id))
             .map(|mode| VideoModeHandle {
                 current: mode.id == current_mode,
-                mode: VideoMode {
-                    size: (mode.width as u32, mode.height as u32).into(),
-                    refresh_rate_millihertz: monitor::mode_refresh_rate_millihertz(mode),
-                    bit_depth: NonZeroU16::new(bit_depth as u16),
-                },
+                mode: VideoMode::new(
+                    (mode.width as u32, mode.height as u32).into(),
+                    NonZeroU16::new(bit_depth as u16),
+                    monitor::mode_refresh_rate_millihertz(mode),
+                ),
                 native_mode: mode.id,
             })
             .collect();
