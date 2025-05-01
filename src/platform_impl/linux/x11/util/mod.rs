@@ -25,6 +25,7 @@ use x11rb::protocol::xproto::{self, ConnectionExt as _};
 pub use self::cursor::*;
 pub use self::geometry::*;
 pub use self::hint::*;
+pub(crate) use self::icon::rgba_to_cardinals;
 pub use self::input::*;
 pub use self::mouse::*;
 pub use self::window_property::*;

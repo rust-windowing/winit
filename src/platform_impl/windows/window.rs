@@ -351,7 +351,7 @@ impl Window {
     }
 
     fn set_icon(&self, mut new_icon: Icon, icon_type: IconType) {
-        if let Some(icon) = new_icon.0.cast_ref::<RgbaIcon>() {
+        if let Some(icon) = new_icon.cast_ref::<RgbaIcon>() {
             let icon = match WinIcon::from_rgba(icon) {
                 Ok(icon) => icon,
                 Err(err) => {
@@ -362,7 +362,7 @@ impl Window {
             new_icon = Icon(Arc::new(icon));
         }
 
-        if let Some(icon) = new_icon.0.cast_ref::<WinIcon>() {
+        if let Some(icon) = new_icon.cast_ref::<WinIcon>() {
             unsafe {
                 SendMessageW(
                     self.hwnd(),

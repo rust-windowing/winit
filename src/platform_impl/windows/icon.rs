@@ -20,6 +20,8 @@ use crate::error::RequestError;
 use crate::icon::*;
 use crate::platform::windows::WinIcon;
 
+pub(crate) const PIXEL_SIZE: usize = mem::size_of::<Pixel>();
+
 unsafe impl Send for WinIcon {}
 
 impl WinIcon {
@@ -92,10 +94,10 @@ impl WinIcon {
     }
 
     pub(crate) fn from_rgba(rgba: &RgbaIcon) -> Result<Self, BadIcon> {
-        let pixel_count = rgba.rgba.len() / PIXEL_SIZE;
+        let pixel_count = rgba.buffer().len() / PIXEL_SIZE;
         let mut and_mask = Vec::with_capacity(pixel_count);
         let pixels = unsafe {
-            std::slice::from_raw_parts_mut(rgba.rgba.as_ptr() as *mut Pixel, pixel_count)
+            std::slice::from_raw_parts_mut(rgba.buffer().as_ptr() as *mut Pixel, pixel_count)
         };
         for pixel in pixels {
             and_mask.push(pixel.a.wrapping_sub(u8::MAX)); // invert alpha channel
@@ -105,12 +107,12 @@ impl WinIcon {
         let handle = unsafe {
             CreateIcon(
                 ptr::null_mut(),
-                rgba.width as i32,
-                rgba.height as i32,
+                rgba.width() as i32,
+                rgba.height() as i32,
                 1,
                 (PIXEL_SIZE * 8) as u8,
                 and_mask.as_ptr(),
-                rgba.rgba.as_ptr(),
+                rgba.buffer().as_ptr(),
             )
         };
         if !handle.is_null() {
@@ -249,4 +251,13 @@ impl RaiiCursor {
     pub fn as_raw_handle(&self) -> HICON {
         self.handle
     }
+}
+
+#[repr(C)]
+#[derive(Debug)]
+pub(crate) struct Pixel {
+    pub(crate) r: u8,
+    pub(crate) g: u8,
+    pub(crate) b: u8,
+    pub(crate) a: u8,
 }
