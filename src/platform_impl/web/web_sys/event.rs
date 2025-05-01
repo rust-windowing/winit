@@ -9,6 +9,7 @@ use web_sys::{KeyboardEvent, MouseEvent, Navigator, PointerEvent, WheelEvent};
 use super::Engine;
 use crate::event::{FingerId, MouseButton, MouseScrollDelta, PointerKind};
 use crate::keyboard::{Key, KeyLocation, ModifiersState, NamedKey, PhysicalKey};
+use crate::platform_impl::web::keyboard::FromAttributeValue;
 
 bitflags::bitflags! {
     // https://www.w3.org/TR/pointerevents3/#the-buttons-property
@@ -170,16 +171,16 @@ pub fn pointer_type(event: &PointerEvent, pointer_id: i32) -> PointerKind {
 
 pub fn key_code(event: &KeyboardEvent) -> PhysicalKey {
     let code = event.code();
-    PhysicalKey::from_key_code_attribute_value(&code)
+    PhysicalKey::from_attribute_value(&code)
 }
 
 pub fn key(event: &KeyboardEvent) -> Key {
-    Key::from_key_attribute_value(&event.key())
+    Key::from_attribute_value(&event.key())
 }
 
 pub fn key_text(event: &KeyboardEvent) -> Option<SmolStr> {
     let key = event.key();
-    let key = Key::from_key_attribute_value(&key);
+    let key = Key::from_attribute_value(&key);
     match &key {
         Key::Character(text) => Some(text.clone()),
         Key::Named(NamedKey::Tab) => Some(SmolStr::new("\t")),

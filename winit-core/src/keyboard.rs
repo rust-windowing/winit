@@ -1750,7 +1750,7 @@ pub enum ModifiersKeyState {
 bitflags! {
     #[derive(Default, Debug, Clone, Copy, PartialEq, Eq, Hash)]
     #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-    pub(crate) struct ModifiersKeys: u8 {
+    pub struct ModifiersKeys: u8 {
         const LSHIFT   = 0b0000_0001;
         const RSHIFT   = 0b0000_0010;
         const LCONTROL = 0b0000_0100;
