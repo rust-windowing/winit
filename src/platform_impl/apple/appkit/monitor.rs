@@ -79,14 +79,14 @@ impl VideoModeHandle {
                 unimplemented!()
             };
 
-            let mode = VideoMode {
-                size: PhysicalSize::new(
+            let mode = VideoMode::new(
+                PhysicalSize::new(
                     CGDisplayMode::pixel_width(Some(&native_mode.0)) as u32,
                     CGDisplayMode::pixel_height(Some(&native_mode.0)) as u32,
                 ),
+                NonZeroU16::new(bit_depth),
                 refresh_rate_millihertz,
-                bit_depth: NonZeroU16::new(bit_depth),
-            };
+            );
 
             VideoModeHandle { mode, monitor: monitor.clone(), native_mode }
         }

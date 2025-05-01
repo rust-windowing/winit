@@ -11,8 +11,9 @@ use std::num::{NonZeroU16, NonZeroU32};
 use std::ops::Deref;
 use std::sync::Arc;
 
-use crate::dpi::{PhysicalPosition, PhysicalSize};
-use crate::utils::{impl_dyn_casting, AsAny};
+use dpi::{PhysicalPosition, PhysicalSize};
+
+use crate::as_any::{impl_dyn_casting, AsAny};
 
 /// Handle to a monitor.
 ///
@@ -45,7 +46,7 @@ use crate::utils::{impl_dyn_casting, AsAny};
 ///
 /// [`Window`]: crate::window::Window
 #[derive(Debug, Clone)]
-pub struct MonitorHandle(pub(crate) Arc<dyn MonitorHandleProvider>);
+pub struct MonitorHandle(pub Arc<dyn MonitorHandleProvider>);
 
 impl Deref for MonitorHandle {
     type Target = dyn MonitorHandleProvider;
@@ -161,6 +162,14 @@ pub struct VideoMode {
 }
 
 impl VideoMode {
+    pub fn new(
+        size: PhysicalSize<u32>,
+        bit_depth: Option<NonZeroU16>,
+        refresh_rate_millihertz: Option<NonZeroU32>,
+    ) -> Self {
+        Self { size, bit_depth, refresh_rate_millihertz }
+    }
+
     /// Returns the resolution of this video mode. This **must not** be used to create your
     /// rendering surface. Use [`Window::surface_size()`] instead.
     ///

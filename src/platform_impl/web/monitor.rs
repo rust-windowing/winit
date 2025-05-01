@@ -141,11 +141,11 @@ impl MonitorHandleProvider for MonitorHandle {
     }
 
     fn current_video_mode(&self) -> Option<VideoMode> {
-        Some(VideoMode {
-            size: self.inner.queue(|inner| inner.size()),
-            bit_depth: self.inner.queue(|inner| inner.bit_depth()),
-            refresh_rate_millihertz: None,
-        })
+        Some(VideoMode::new(
+            self.inner.queue(|inner| inner.size()),
+            self.inner.queue(|inner| inner.bit_depth()),
+            None,
+        ))
     }
 
     fn video_modes(&self) -> Box<dyn Iterator<Item = VideoMode>> {

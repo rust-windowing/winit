@@ -77,6 +77,7 @@ changelog entry.
 - Add `CustomCursorSource::Url`, `CustomCursorSource::from_animation`.
 - Implement `CustomIconProvider` for `RgbaIcon`.
 - Add `icon` module that exposes winit's icon API.
+- `VideoMode::new` to create a `VideoMode`.
 
 ### Changed
 
