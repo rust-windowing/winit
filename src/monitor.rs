@@ -113,6 +113,27 @@ pub trait MonitorHandleProvider: AsAny + fmt::Debug + Send + Sync {
     #[cfg_attr(not(web_platform), doc = "detailed monitor permissions.")]
     fn position(&self) -> Option<PhysicalPosition<i32>>;
 
+    /// Returns physical size of monitor in millimeters, where the
+    /// first field of a tuple is width and the second is height.
+    ///
+    /// Returns `None` if the size of the monitor could not be determined.
+    ///
+    /// Should be used with care, since not all corner cases may be handled.
+    ///
+    /// If monitor is rotated by 90° or 270°, width and height will be swapped.
+    ///
+    /// Every major platform gets this data from
+    /// [EDID](https://en.wikipedia.org/wiki/Extended_Display_Identification_Data),
+    /// which contains display dimensions in centimeters, and
+    /// optionally higher precision in millimeters. Therefore, by
+    /// convention, we also return millimeters.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **Wayland:** Has centimeter precision.
+    /// - **iOS / Web / Android / Redox:** Unimplemented, always returns [`None`].
+    fn physical_size(&self) -> Option<(NonZeroU32, NonZeroU32)>;
+
     /// Returns the scale factor of the underlying monitor. To map logical pixels to physical
     /// pixels and vice versa, use [`Window::scale_factor`].
     ///

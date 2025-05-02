@@ -12,7 +12,8 @@ use objc2_app_kit::NSScreen;
 use objc2_core_foundation::{CFArray, CFRetained, CFUUID};
 use objc2_core_graphics::{
     CGDirectDisplayID, CGDisplayBounds, CGDisplayCopyAllDisplayModes, CGDisplayCopyDisplayMode,
-    CGDisplayMode, CGDisplayModelNumber, CGGetActiveDisplayList, CGMainDisplayID,
+    CGDisplayMode, CGDisplayModelNumber, CGDisplayScreenSize, CGGetActiveDisplayList,
+    CGMainDisplayID,
 };
 use objc2_core_video::{kCVReturnSuccess, CVDisplayLink, CVTimeFlags};
 use objc2_foundation::{ns_string, NSNumber, NSPoint, NSRect};
@@ -209,6 +210,18 @@ impl MonitorHandleProvider for MonitorHandle {
         let bounds = unsafe { CGDisplayBounds(self.display_id()) };
         let position = LogicalPosition::new(bounds.origin.x, bounds.origin.y);
         Some(position.to_physical(self.scale_factor()))
+    }
+
+    fn physical_size(&self) -> Option<(NonZeroU32, NonZeroU32)> {
+        let size_float = unsafe { CGDisplayScreenSize(self.display_id()) };
+        if size_float.width > 0.0 && size_float.height > 0.0 {
+            Some((
+                NonZeroU32::new(size_float.width.round() as u32)?,
+                NonZeroU32::new(size_float.height.round() as u32)?,
+            ))
+        } else {
+            None
+        }
     }
 
     fn scale_factor(&self) -> f64 {

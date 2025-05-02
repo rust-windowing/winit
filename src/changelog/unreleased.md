@@ -42,6 +42,7 @@ changelog entry.
 
 ### Added
 
+- Add `MonitorHandle::physical_size()` that returns monitor physical size in millimeters.
 - Add `ActiveEventLoop::create_proxy()`.
 - On Web, add `ActiveEventLoopExtWeb::is_cursor_lock_raw()` to determine if
   `DeviceEvent::MouseMotion` is returning raw data, not OS accelerated, when using
