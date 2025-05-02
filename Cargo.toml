@@ -78,7 +78,7 @@ cfg_aliases = "0.2.1"
 [dependencies]
 bitflags = "2"
 cursor-icon = "1.1.0"
-dpi = { version = "0.1.1", path = "dpi" }
+dpi = { version = "0.1.2", path = "dpi" }
 rwh_06 = { package = "raw-window-handle", version = "0.6", features = ["std"] }
 serde = { workspace = true, optional = true }
 smol_str = "0.3"
