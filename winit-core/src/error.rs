@@ -100,7 +100,7 @@ pub struct NotSupportedError {
 }
 
 impl NotSupportedError {
-    pub(crate) fn new(reason: &'static str) -> Self {
+    pub fn new(reason: &'static str) -> Self {
         Self { reason }
     }
 }
@@ -121,8 +121,7 @@ pub struct OsError {
 }
 
 impl OsError {
-    #[allow(dead_code)]
-    pub(crate) fn new(
+    pub fn new(
         line: u32,
         file: &'static str,
         error: impl Into<Box<dyn Error + Send + Sync + 'static>>,
