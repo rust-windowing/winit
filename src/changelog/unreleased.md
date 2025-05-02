@@ -195,6 +195,7 @@ changelog entry.
 - Renamed "super" key to "meta", to match the naming in the W3C specification.
   `NamedKey::Super` still exists, but it's non-functional and deprecated, `NamedKey::Meta` should be used instead.
 - Move `IconExtWindows` into `WinIcon`.
+- On Windows, prevent incorrect shifting when dragging window onto a monitor with different DPI.
 
 ### Removed
 
