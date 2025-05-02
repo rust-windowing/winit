@@ -11,6 +11,8 @@ Unreleased` header.
 
 ## Unreleased
 
+## 0.1.2
+
 - Added `Insets`, `LogicalInsets` and `PhysicalInsets` types.
 - Make `no_std` compatible. If you use this functionality, DPI's license has changed.
 
