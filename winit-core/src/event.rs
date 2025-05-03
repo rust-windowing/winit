@@ -46,10 +46,6 @@ pub enum StartCause {
 #[derive(Debug, Clone, PartialEq)]
 pub enum WindowEvent {
     /// The activation token was delivered back and now could be used.
-    #[cfg_attr(not(any(x11_platform, wayland_platform)), allow(rustdoc::broken_intra_doc_links))]
-    /// Delivered in response to [`request_activation_token`].
-    ///
-    /// [`request_activation_token`]: crate::platform::startup_notify::WindowExtStartupNotify::request_activation_token
     ActivationTokenDone { serial: AsyncRequestSerial, token: ActivationToken },
 
     /// The size of the window's surface has changed.
@@ -1083,7 +1079,6 @@ pub struct SurfaceSizeWriter {
 }
 
 impl SurfaceSizeWriter {
-    #[cfg(not(orbital_platform))]
     pub fn new(new_surface_size: Weak<Mutex<PhysicalSize<u32>>>) -> Self {
         Self { new_surface_size }
     }
