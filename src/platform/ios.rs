@@ -284,6 +284,7 @@ impl WindowExtIOS for dyn Window + '_ {
     }
 }
 
+/// Ios specific window attributes.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct WindowAttributesIos {
     pub(crate) scale_factor: Option<f64>,
@@ -294,7 +295,6 @@ pub struct WindowAttributesIos {
     pub(crate) preferred_screen_edges_deferring_system_gestures: ScreenEdge,
 }
 
-/// Additional methods on [`WindowAttributes`] that are specific to iOS.
 impl WindowAttributesIos {
     /// Sets the [`contentScaleFactor`] of the underlying [`UIWindow`] to `scale_factor`.
     ///

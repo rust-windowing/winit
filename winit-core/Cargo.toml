@@ -28,3 +28,6 @@ web-time = "1"
 
 [build-dependencies]
 cfg_aliases = "0.2.1"
+
+[dev-dependencies]
+winit = { path = ".." }

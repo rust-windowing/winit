@@ -13,9 +13,9 @@
 //! yourself.
 //!
 //! [canvas]: https://developer.mozilla.org/en-US/docs/Web/API/HTMLCanvasElement
-//! [with_canvas]: WindowAttributesExtWeb::with_canvas
+//! [with_canvas]: WindowAttributesWeb::with_canvas
 //! [get]: WindowExtWeb::canvas
-//! [insert]: WindowAttributesExtWeb::with_append
+//! [insert]: WindowAttributesWeb::with_append
 #![cfg_attr(not(web_platform), doc = "[wasm_bindgen]: https://docs.rs/wasm-bindgen")]
 //! [Rust and WebAssembly book]: https://rustwasm.github.io/book
 //!
@@ -139,7 +139,7 @@ pub struct WindowAttributesWeb {
 
 impl WindowAttributesWeb {
     /// Pass an [`HtmlCanvasElement`] to be used for this [`Window`]. If [`None`],
-    /// [`WindowAttributes::default()`] will create one.
+    /// the default one will be created.
     ///
     /// In any case, the canvas won't be automatically inserted into the Web page.
     ///

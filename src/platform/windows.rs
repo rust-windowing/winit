@@ -242,7 +242,7 @@ pub trait WindowExtWindows {
     ///
     /// A window must be enabled before it can be activated.
     /// If an application has create a modal dialog box by disabling its owner window
-    /// (as described in [`WindowAttributesExtWindows::with_owner_window`]), the application must
+    /// (as described in [`WindowAttributesWindows::with_owner_window`]), the application must
     /// enable the owner window before destroying the dialog box.
     /// Otherwise, another window will receive the keyboard focus and be activated.
     ///
@@ -502,6 +502,8 @@ impl WindowAttributesWindows {
     /// - An owned window is hidden when its owner is minimized.
     ///
     /// For more information, see <https://docs.microsoft.com/en-us/windows/win32/winmsg/window-features#owned-windows>
+    ///
+    /// [`WindowAttributes::with_parent_window`]: crate::window::WindowAttributes::with_parent_window
     pub fn with_owner_window(mut self, parent: HWND) -> Self {
         self.owner = Some(parent);
         self
@@ -516,6 +518,8 @@ impl WindowAttributesWindows {
     /// Note: Dark mode cannot be supported for win32 menus, it's simply not possible to change how
     /// the menus look. If you use this, it is recommended that you combine it with
     /// `with_theme(Some(Theme::Light))` to avoid a jarring effect.
+    #[rustfmt::skip]
+    ///
     #[cfg_attr(
         windows_platform,
         doc = "[`CreateMenu`]: windows_sys::Win32::UI::WindowsAndMessaging::CreateMenu"
