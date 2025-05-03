@@ -25,9 +25,7 @@ use winit::icon::{Icon, RgbaIcon};
 use winit::keyboard::{Key, ModifiersState};
 use winit::monitor::Fullscreen;
 #[cfg(macos_platform)]
-use winit::platform::macos::{
-    ApplicationHandlerExtMacOS, OptionAsAlt, WindowAttributesMacOS, WindowExtMacOS,
-};
+use winit::platform::macos::{OptionAsAlt, WindowAttributesMacOS, WindowExtMacOS};
 #[cfg(any(x11_platform, wayland_platform))]
 use winit::platform::startup_notify::{self, EventLoopExtStartupNotify, WindowExtStartupNotify};
 #[cfg(wayland_platform)]
@@ -37,6 +35,7 @@ use winit::platform::web::{ActiveEventLoopExtWeb, WindowAttributesWeb};
 #[cfg(x11_platform)]
 use winit::platform::x11::{ActiveEventLoopExtX11, WindowAttributesX11};
 use winit::window::{CursorGrabMode, ResizeDirection, Theme, Window, WindowAttributes, WindowId};
+use winit_core::application::macos::ApplicationHandlerExtMacOS;
 
 #[path = "util/tracing.rs"]
 mod tracing;
@@ -577,7 +576,6 @@ impl ApplicationHandler for Application {
         }
     }
 
-    #[cfg(target_os = "macos")]
     fn macos_handler(&mut self) -> Option<&mut dyn ApplicationHandlerExtMacOS> {
         Some(self)
     }
@@ -589,7 +587,6 @@ impl Drop for Application {
     }
 }
 
-#[cfg(target_os = "macos")]
 impl ApplicationHandlerExtMacOS for Application {
     fn standard_key_binding(
         &mut self,
