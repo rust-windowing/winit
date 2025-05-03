@@ -1,5 +1,3 @@
-use std::ops::{Deref, DerefMut};
-
 use super::*;
 
 pub(crate) struct XSmartPointer<'a, T> {
@@ -16,20 +14,6 @@ impl<'a, T> XSmartPointer<'a, T> {
         } else {
             None
         }
-    }
-}
-
-impl<T> Deref for XSmartPointer<'_, T> {
-    type Target = T;
-
-    fn deref(&self) -> &T {
-        unsafe { &*self.ptr }
-    }
-}
-
-impl<T> DerefMut for XSmartPointer<'_, T> {
-    fn deref_mut(&mut self) -> &mut T {
-        unsafe { &mut *self.ptr }
     }
 }
 
