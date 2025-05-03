@@ -45,58 +45,20 @@ use super::util::cgerr;
 use super::view::WinitView;
 use super::window::{window_id, WinitPanel, WinitWindow};
 use super::{ffi, MonitorHandle};
+use crate::cursor::Cursor;
 use crate::dpi::{
     LogicalInsets, LogicalPosition, LogicalSize, PhysicalInsets, PhysicalPosition, PhysicalSize,
     Position, Size,
 };
 use crate::error::{NotSupportedError, RequestError};
 use crate::event::{SurfaceSizeWriter, WindowEvent};
+use crate::icon::Icon;
 use crate::monitor::{Fullscreen, MonitorHandle as CoreMonitorHandle, MonitorHandleProvider};
-use crate::platform::macos::{OptionAsAlt, WindowExtMacOS};
+use crate::platform::macos::{OptionAsAlt, WindowAttributesMacOS, WindowExtMacOS};
 use crate::window::{
-    Cursor, CursorGrabMode, Icon, ImePurpose, ResizeDirection, Theme, UserAttentionType,
-    WindowAttributes, WindowButtons, WindowId, WindowLevel,
+    CursorGrabMode, ImePurpose, ResizeDirection, Theme, UserAttentionType, WindowAttributes,
+    WindowButtons, WindowId, WindowLevel,
 };
-
-#[derive(Clone, Debug, PartialEq)]
-pub struct PlatformSpecificWindowAttributes {
-    pub movable_by_window_background: bool,
-    pub titlebar_transparent: bool,
-    pub title_hidden: bool,
-    pub titlebar_hidden: bool,
-    pub titlebar_buttons_hidden: bool,
-    pub fullsize_content_view: bool,
-    pub disallow_hidpi: bool,
-    pub has_shadow: bool,
-    pub accepts_first_mouse: bool,
-    pub tabbing_identifier: Option<String>,
-    pub option_as_alt: OptionAsAlt,
-    pub borderless_game: bool,
-    pub unified_titlebar: bool,
-    pub panel: bool,
-}
-
-impl Default for PlatformSpecificWindowAttributes {
-    #[inline]
-    fn default() -> Self {
-        Self {
-            movable_by_window_background: false,
-            titlebar_transparent: false,
-            title_hidden: false,
-            titlebar_hidden: false,
-            titlebar_buttons_hidden: false,
-            fullsize_content_view: false,
-            disallow_hidpi: false,
-            has_shadow: true,
-            accepts_first_mouse: true,
-            tabbing_identifier: None,
-            option_as_alt: Default::default(),
-            borderless_game: false,
-            unified_titlebar: false,
-            panel: false,
-        }
-    }
-}
 
 #[derive(Debug)]
 pub(crate) struct State {
@@ -552,6 +514,7 @@ impl Drop for WindowDelegate {
 fn new_window(
     app_state: &Rc<AppState>,
     attrs: &WindowAttributes,
+    macos_attrs: &WindowAttributesMacOS,
     mtm: MainThreadMarker,
 ) -> Option<Retained<NSWindow>> {
     autoreleasepool(|_| {
@@ -592,9 +555,7 @@ fn new_window(
             },
         };
 
-        let mut masks = if (!attrs.decorations && screen.is_none())
-            || attrs.platform_specific.titlebar_hidden
-        {
+        let mut masks = if (!attrs.decorations && screen.is_none()) || macos_attrs.titlebar_hidden {
             // Resizable without a titlebar or borders
             // if decorations is set to false, ignore pl_attrs
             //
@@ -622,7 +583,7 @@ fn new_window(
             masks &= !NSWindowStyleMask::Closable;
         }
 
-        if attrs.platform_specific.fullsize_content_view {
+        if macos_attrs.fullsize_content_view {
             // NOTE: If we decide to add an option to change this at runtime, we must emit a
             // `SurfaceResized` event to let applications know that the safe area changed.
             //
@@ -637,7 +598,7 @@ fn new_window(
         // confusing issues with the window not being properly activated.
         //
         // Winit ensures this by not allowing access to `ActiveEventLoop` before handling events.
-        let window: Retained<NSWindow> = if attrs.platform_specific.panel {
+        let window: Retained<NSWindow> = if macos_attrs.panel {
             masks |= NSWindowStyleMask::NonactivatingPanel;
 
             let window: Option<Retained<WinitPanel>> = unsafe {
@@ -673,7 +634,7 @@ fn new_window(
         window.setTitle(&NSString::from_str(&attrs.title));
         window.setAcceptsMouseMovedEvents(true);
 
-        if let Some(identifier) = &attrs.platform_specific.tabbing_identifier {
+        if let Some(identifier) = &macos_attrs.tabbing_identifier {
             window.setTabbingIdentifier(&NSString::from_str(identifier));
             window.setTabbingMode(NSWindowTabbingMode::Preferred);
         }
@@ -682,13 +643,13 @@ fn new_window(
             window.setSharingType(NSWindowSharingType::None);
         }
 
-        if attrs.platform_specific.titlebar_transparent {
+        if macos_attrs.titlebar_transparent {
             window.setTitlebarAppearsTransparent(true);
         }
-        if attrs.platform_specific.title_hidden {
+        if macos_attrs.title_hidden {
             window.setTitleVisibility(NSWindowTitleVisibility::Hidden);
         }
-        if attrs.platform_specific.titlebar_buttons_hidden {
+        if macos_attrs.titlebar_buttons_hidden {
             for titlebar_button in &[
                 #[allow(deprecated)]
                 NSWindowFullScreenButton,
@@ -701,10 +662,10 @@ fn new_window(
                 }
             }
         }
-        if attrs.platform_specific.movable_by_window_background {
+        if macos_attrs.movable_by_window_background {
             window.setMovableByWindowBackground(true);
         }
-        if attrs.platform_specific.unified_titlebar {
+        if macos_attrs.unified_titlebar {
             unsafe {
                 // The toolbar style is ignored if there is no toolbar, so it is
                 // necessary to add one.
@@ -719,7 +680,7 @@ fn new_window(
             }
         }
 
-        if !attrs.platform_specific.has_shadow {
+        if !macos_attrs.has_shadow {
             window.setHasShadow(false);
         }
         if attrs.position.is_none() {
@@ -728,8 +689,8 @@ fn new_window(
 
         let view = WinitView::new(
             app_state,
-            attrs.platform_specific.accepts_first_mouse,
-            attrs.platform_specific.option_as_alt,
+            macos_attrs.accepts_first_mouse,
+            macos_attrs.option_as_alt,
             mtm,
         );
 
@@ -737,7 +698,7 @@ fn new_window(
         // macos 10.14 and `true` after 10.15, we should set it to `YES` or `NO` to avoid
         // always the default system value in favour of the user's code
         #[allow(deprecated)]
-        view.setWantsBestResolutionOpenGLSurface(!attrs.platform_specific.disallow_hidpi);
+        view.setWantsBestResolutionOpenGLSurface(!macos_attrs.disallow_hidpi);
 
         // On Mojave, views automatically become layer-backed shortly after being added to
         // a window. Changing the layer-backedness of a view breaks the association between
@@ -785,13 +746,19 @@ fn new_window(
 impl WindowDelegate {
     pub(super) fn new(
         app_state: &Rc<AppState>,
-        attrs: WindowAttributes,
+        mut attrs: WindowAttributes,
         mtm: MainThreadMarker,
     ) -> Result<Retained<Self>, RequestError> {
-        let window = new_window(app_state, &attrs, mtm)
+        let macos_attrs = attrs
+            .platform
+            .take()
+            .and_then(|attrs| attrs.cast::<WindowAttributesMacOS>().ok())
+            .unwrap_or_default();
+
+        let window = new_window(app_state, &attrs, &macos_attrs, mtm)
             .ok_or_else(|| os_error!("couldn't create `NSWindow`"))?;
 
-        match attrs.parent_window.map(|handle| handle.0) {
+        match attrs.parent_window() {
             Some(rwh_06::RawWindowHandle::AppKit(handle)) => {
                 // SAFETY: Caller ensures the pointer is valid or NULL
                 // Unwrap is fine, since the pointer comes from `NonNull`.
@@ -843,7 +810,7 @@ impl WindowDelegate {
             standard_frame: Cell::new(None),
             is_simple_fullscreen: Cell::new(false),
             saved_style: Cell::new(None),
-            is_borderless_game: Cell::new(attrs.platform_specific.borderless_game),
+            is_borderless_game: Cell::new(macos_attrs.borderless_game),
         });
         let delegate: Retained<WindowDelegate> = unsafe { msg_send![super(delegate), init] };
 

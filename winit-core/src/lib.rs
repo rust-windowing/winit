@@ -7,3 +7,4 @@ pub mod event_loop;
 pub mod icon;
 pub mod keyboard;
 pub mod monitor;
+pub mod window;

@@ -19,15 +19,17 @@ use super::output::MonitorHandle;
 use super::state::WinitState;
 use super::types::xdg_activation::XdgActivationTokenData;
 use super::ActiveEventLoop;
+use crate::cursor::Cursor;
 use crate::dpi::{LogicalSize, PhysicalInsets, PhysicalPosition, PhysicalSize, Position, Size};
 use crate::error::{NotSupportedError, RequestError};
 use crate::event::{Ime, WindowEvent};
 use crate::event_loop::AsyncRequestSerial;
 use crate::monitor::{Fullscreen, MonitorHandle as CoreMonitorHandle};
+use crate::platform::wayland::WindowAttributesWayland;
 use crate::platform_impl::wayland::output;
 use crate::window::{
-    Cursor, CursorGrabMode, ImePurpose, ResizeDirection, Theme, UserAttentionType,
-    Window as CoreWindow, WindowAttributes, WindowButtons, WindowId, WindowLevel,
+    CursorGrabMode, ImePurpose, ResizeDirection, Theme, UserAttentionType, Window as CoreWindow,
+    WindowAttributes, WindowButtons, WindowId, WindowLevel,
 };
 
 pub(crate) mod state;
@@ -78,7 +80,7 @@ pub struct Window {
 impl Window {
     pub(crate) fn new(
         event_loop_window_target: &ActiveEventLoop,
-        attributes: WindowAttributes,
+        mut attributes: WindowAttributes,
     ) -> Result<Self, RequestError> {
         let queue_handle = event_loop_window_target.queue_handle.clone();
         let mut state = event_loop_window_target.state.borrow_mut();
@@ -121,8 +123,15 @@ impl Window {
         // Set the decorations hint.
         window_state.set_decorate(attributes.decorations);
 
+        let (app_name, activation_token) =
+            match attributes.platform.take().and_then(|p| p.cast::<WindowAttributesWayland>().ok())
+            {
+                Some(attrs) => (attrs.name, attrs.activation_token),
+                None => (None, None),
+            };
+
         // Set the app_id.
-        if let Some(name) = attributes.platform_specific.name.map(|name| name.general) {
+        if let Some(name) = app_name.map(|name| name.general) {
             window.set_app_id(name);
         }
 
@@ -162,10 +171,8 @@ impl Window {
         }
 
         // Activate the window when the token is passed.
-        if let (Some(xdg_activation), Some(token)) =
-            (xdg_activation.as_ref(), attributes.platform_specific.activation_token)
-        {
-            xdg_activation.activate(token.token, &surface);
+        if let (Some(xdg_activation), Some(token)) = (xdg_activation.as_ref(), activation_token) {
+            xdg_activation.activate(token.into_raw(), &surface);
         }
 
         // XXX Do initial commit.
@@ -497,7 +504,7 @@ impl CoreWindow for Window {
 
     fn set_window_level(&self, _level: WindowLevel) {}
 
-    fn set_window_icon(&self, _window_icon: Option<crate::window::Icon>) {}
+    fn set_window_icon(&self, _window_icon: Option<crate::icon::Icon>) {}
 
     #[inline]
     fn set_ime_cursor_area(&self, position: Position, size: Size) {
@@ -676,25 +683,5 @@ impl WindowRequests {
 
     pub fn take_redraw_requested(&self) -> bool {
         self.redraw_requested.swap(false, Ordering::Relaxed)
-    }
-}
-
-impl TryFrom<&str> for Theme {
-    type Error = ();
-
-    /// ```
-    /// use winit::window::Theme;
-    ///
-    /// assert_eq!("dark".try_into(), Ok(Theme::Dark));
-    /// assert_eq!("lIghT".try_into(), Ok(Theme::Light));
-    /// ```
-    fn try_from(theme: &str) -> Result<Self, Self::Error> {
-        if theme.eq_ignore_ascii_case("dark") {
-            Ok(Self::Dark)
-        } else if theme.eq_ignore_ascii_case("light") {
-            Ok(Self::Light)
-        } else {
-            Err(())
-        }
     }
 }

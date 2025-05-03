@@ -5,7 +5,8 @@ use std::ops::Deref;
 use std::sync::Arc;
 use std::time::Duration;
 
-use cursor_icon::CursorIcon;
+#[doc(inline)]
+pub use cursor_icon::CursorIcon;
 
 use crate::as_any::{impl_dyn_casting, AsAny};
 

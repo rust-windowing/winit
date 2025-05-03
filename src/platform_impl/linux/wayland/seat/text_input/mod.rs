@@ -163,9 +163,9 @@ pub trait ZwpTextInputV3Ext {
 impl ZwpTextInputV3Ext for ZwpTextInputV3 {
     fn set_content_type_by_purpose(&self, purpose: ImePurpose) {
         let (hint, purpose) = match purpose {
-            ImePurpose::Normal => (ContentHint::None, ContentPurpose::Normal),
             ImePurpose::Password => (ContentHint::SensitiveData, ContentPurpose::Password),
             ImePurpose::Terminal => (ContentHint::None, ContentPurpose::Terminal),
+            _ => (ContentHint::None, ContentPurpose::Normal),
         };
         self.set_content_type(hint, purpose);
     }

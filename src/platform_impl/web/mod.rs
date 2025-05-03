@@ -24,13 +24,13 @@ mod r#async;
 mod cursor;
 mod error;
 mod event;
-mod event_loop;
+pub(crate) mod event_loop;
 mod keyboard;
 mod lock;
-mod main_thread;
+pub(crate) mod main_thread;
 mod monitor;
-mod web_sys;
-mod window;
+pub(crate) mod web_sys;
+pub(crate) mod window;
 
 pub(crate) use cursor::CustomCursorFuture;
 
@@ -41,4 +41,4 @@ pub(crate) use self::monitor::{
     HasMonitorPermissionFuture, MonitorHandle, MonitorPermissionFuture, OrientationLockFuture,
 };
 use self::web_sys as backend;
-pub use self::window::{PlatformSpecificWindowAttributes, Window};
+pub use self::window::Window;

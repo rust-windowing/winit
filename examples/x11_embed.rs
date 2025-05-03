@@ -6,7 +6,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     use winit::application::ApplicationHandler;
     use winit::event::WindowEvent;
     use winit::event_loop::{ActiveEventLoop, EventLoop};
-    use winit::platform::x11::WindowAttributesExtX11;
+    use winit::platform::x11::WindowAttributesX11;
     use winit::window::{Window, WindowAttributes, WindowId};
 
     #[path = "util/fill.rs"]
@@ -20,10 +20,12 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     impl ApplicationHandler for XEmbedDemo {
         fn can_create_surfaces(&mut self, event_loop: &dyn ActiveEventLoop) {
-            let window_attributes = WindowAttributes::default()
+            let mut window_attributes = WindowAttributes::default()
                 .with_title("An embedded window!")
-                .with_surface_size(winit::dpi::LogicalSize::new(128.0, 128.0))
-                .with_embed_parent_window(self.parent_window_id);
+                .with_surface_size(winit::dpi::LogicalSize::new(128.0, 128.0));
+            let x11_attrs =
+                WindowAttributesX11::default().with_embed_parent_window(self.parent_window_id);
+            window_attributes = window_attributes.with_platform_attributes(Box::new(x11_attrs));
 
             self.window = Some(event_loop.create_window(window_attributes).unwrap());
         }

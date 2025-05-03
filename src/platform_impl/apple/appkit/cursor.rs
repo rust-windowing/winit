@@ -10,9 +10,8 @@ use objc2_foundation::{
     ns_string, NSData, NSDictionary, NSNumber, NSObject, NSPoint, NSSize, NSString,
 };
 
-use crate::cursor::{CursorImage, CustomCursorProvider, CustomCursorSource};
+use crate::cursor::{CursorIcon, CursorImage, CustomCursorProvider, CustomCursorSource};
 use crate::error::{NotSupportedError, RequestError};
-use crate::window::CursorIcon;
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct CustomCursor(pub(crate) Retained<NSCursor>);

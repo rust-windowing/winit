@@ -21,6 +21,7 @@ use super::super::notification_center::create_observer;
 use super::app_state::{send_occluded_event_for_all_windows, AppState};
 use super::{app_state, monitor, MonitorHandle};
 use crate::application::ApplicationHandler;
+use crate::cursor::{CustomCursor, CustomCursorSource};
 use crate::error::{EventLoopError, NotSupportedError, RequestError};
 use crate::event_loop::{
     ActiveEventLoop as RootActiveEventLoop, ControlFlow, DeviceEvents,
@@ -28,7 +29,7 @@ use crate::event_loop::{
 };
 use crate::monitor::MonitorHandle as CoreMonitorHandle;
 use crate::platform_impl::Window;
-use crate::window::{CustomCursor, CustomCursorSource, Theme, Window as CoreWindow};
+use crate::window::{Theme, Window as CoreWindow};
 
 #[derive(Debug)]
 pub(crate) struct ActiveEventLoop {

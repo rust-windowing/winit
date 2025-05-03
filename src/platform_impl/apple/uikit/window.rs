@@ -27,7 +27,7 @@ use crate::error::{NotSupportedError, RequestError};
 use crate::event::WindowEvent;
 use crate::icon::Icon;
 use crate::monitor::{Fullscreen, MonitorHandle as CoreMonitorHandle};
-use crate::platform::ios::{ScreenEdge, StatusBarStyle, ValidOrientations};
+use crate::platform::ios::{ScreenEdge, StatusBarStyle, ValidOrientations, WindowAttributesIos};
 use crate::window::{
     CursorGrabMode, ImePurpose, ResizeDirection, Theme, UserAttentionType, Window as CoreWindow,
     WindowAttributes, WindowButtons, WindowId, WindowLevel,
@@ -473,7 +473,7 @@ pub struct Window {
 impl Window {
     pub(crate) fn new(
         event_loop: &ActiveEventLoop,
-        window_attributes: WindowAttributes,
+        mut window_attributes: WindowAttributes,
     ) -> Result<Window, RequestError> {
         let mtm = event_loop.mtm;
 
@@ -483,6 +483,12 @@ impl Window {
         if window_attributes.max_surface_size.is_some() {
             warn!("`WindowAttributes::max_surface_size` is ignored on iOS");
         }
+
+        let ios_attributes = window_attributes
+            .platform
+            .take()
+            .and_then(|attrs| attrs.cast::<WindowAttributesIos>().ok())
+            .unwrap_or_default();
 
         // TODO: transparency, visible
 
@@ -512,12 +518,12 @@ impl Window {
             None => screen_bounds,
         };
 
-        let view = WinitView::new(mtm, &window_attributes, frame);
+        let view = WinitView::new(mtm, ios_attributes.scale_factor, frame);
 
         let gl_or_metal_backed =
             view.isKindOfClass(class!(CAMetalLayer)) || view.isKindOfClass(class!(CAEAGLLayer));
 
-        let view_controller = WinitViewController::new(mtm, &window_attributes, &view);
+        let view_controller = WinitViewController::new(mtm, &ios_attributes, &view);
         let window = WinitUIWindow::new(mtm, &window_attributes, frame, &view_controller);
         window.makeKeyAndVisible();
 
@@ -884,14 +890,4 @@ impl Inner {
         let screen_space = self.window.screen().coordinateSpace();
         self.window.convertRect_fromCoordinateSpace(rect, &screen_space)
     }
-}
-
-#[derive(Clone, Debug, Default, PartialEq)]
-pub struct PlatformSpecificWindowAttributes {
-    pub scale_factor: Option<f64>,
-    pub valid_orientations: ValidOrientations,
-    pub prefers_home_indicator_hidden: bool,
-    pub prefers_status_bar_hidden: bool,
-    pub preferred_status_bar_style: StatusBarStyle,
-    pub preferred_screen_edges_deferring_system_gestures: ScreenEdge,
 }

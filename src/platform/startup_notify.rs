@@ -27,7 +27,7 @@ use crate::error::{NotSupportedError, RequestError};
 use crate::event_loop::{ActiveEventLoop, AsyncRequestSerial};
 #[cfg(wayland_platform)]
 use crate::platform::wayland::ActiveEventLoopExtWayland;
-use crate::window::{ActivationToken, Window, WindowAttributes};
+use crate::window::{ActivationToken, Window};
 
 /// The variable which is used mostly on X11.
 const X11_VAR: &str = "DESKTOP_STARTUP_ID";
@@ -88,13 +88,6 @@ impl WindowExtStartupNotify for dyn Window + '_ {
     }
 }
 
-impl WindowAttributesExtStartupNotify for WindowAttributes {
-    fn with_activation_token(mut self, token: ActivationToken) -> Self {
-        self.platform_specific.activation_token = Some(token);
-        self
-    }
-}
-
 /// Remove the activation environment variables from the current process.
 ///
 /// This is wise to do before running child processes,
@@ -108,6 +101,7 @@ pub fn reset_activation_token_env() {
 ///
 /// This could be used before running daemon processes.
 pub fn set_activation_token_env(token: ActivationToken) {
-    env::set_var(X11_VAR, &token.token);
-    env::set_var(WAYLAND_VAR, token.token);
+    let token = token.into_raw();
+    env::set_var(X11_VAR, &token);
+    env::set_var(WAYLAND_VAR, token);
 }

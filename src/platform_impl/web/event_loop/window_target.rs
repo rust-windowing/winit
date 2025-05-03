@@ -11,6 +11,7 @@ use super::super::monitor::MonitorPermissionFuture;
 use super::runner::Event;
 use super::{backend, runner};
 use crate::application::ApplicationHandler;
+use crate::cursor::{CustomCursor as CoreCustomCursor, CustomCursorSource};
 use crate::error::{NotSupportedError, RequestError};
 use crate::event::{ElementState, KeyEvent, TouchPhase, WindowEvent};
 use crate::event_loop::{
@@ -23,7 +24,7 @@ use crate::platform::web::{CustomCursorFuture, PollStrategy, WaitUntilStrategy};
 use crate::platform_impl::platform::cursor::CustomCursor;
 use crate::platform_impl::web::event_loop::proxy::EventLoopProxy;
 use crate::platform_impl::Window;
-use crate::window::{CustomCursor as CoreCustomCursor, CustomCursorSource, Theme, WindowId};
+use crate::window::{Theme, WindowId};
 
 #[derive(Default, Debug)]
 struct ModifiersShared(Rc<Cell<ModifiersState>>);

@@ -1,10 +1,11 @@
 //! # X11
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
+use winit_core::window::{ActivationToken, PlatformWindowAttributes, Window as CoreWindow};
 
 use crate::dpi::Size;
 use crate::event_loop::{ActiveEventLoop, EventLoop, EventLoopBuilder};
-use crate::window::{Window as CoreWindow, WindowAttributes};
+use crate::platform_impl::ApplicationName;
 
 /// X window type. Maps directly to
 /// [`_NET_WM_WINDOW_TYPE`](https://specifications.freedesktop.org/wm-spec/wm-spec-1.5.html).
@@ -141,12 +142,46 @@ pub trait WindowExtX11 {}
 
 impl WindowExtX11 for dyn CoreWindow {}
 
-/// Additional methods on [`WindowAttributes`] that are specific to X11.
-pub trait WindowAttributesExtX11 {
-    /// Create this window with a specific X11 visual.
-    fn with_x11_visual(self, visual_id: XVisualID) -> Self;
+#[derive(Clone, Debug)]
+pub struct WindowAttributesX11 {
+    pub(crate) name: Option<ApplicationName>,
+    pub(crate) activation_token: Option<ActivationToken>,
+    pub(crate) visual_id: Option<XVisualID>,
+    pub(crate) screen_id: Option<i32>,
+    pub(crate) base_size: Option<Size>,
+    pub(crate) override_redirect: bool,
+    pub(crate) x11_window_types: Vec<WindowType>,
 
-    fn with_x11_screen(self, screen_id: i32) -> Self;
+    /// The parent window to embed this window into.
+    pub(crate) embed_window: Option<XWindow>,
+}
+
+impl Default for WindowAttributesX11 {
+    fn default() -> Self {
+        Self {
+            name: None,
+            activation_token: None,
+            visual_id: None,
+            screen_id: None,
+            base_size: None,
+            override_redirect: false,
+            x11_window_types: vec![WindowType::Normal],
+            embed_window: None,
+        }
+    }
+}
+
+impl WindowAttributesX11 {
+    /// Create this window with a specific X11 visual.
+    pub fn with_x11_visual(mut self, visual_id: XVisualID) -> Self {
+        self.visual_id = Some(visual_id);
+        self
+    }
+
+    pub fn with_x11_screen(mut self, screen_id: i32) -> Self {
+        self.screen_id = Some(screen_id);
+        self
+    }
 
     /// Build window with the given `general` and `instance` names.
     ///
@@ -156,27 +191,40 @@ pub trait WindowAttributesExtX11 {
     ///
     /// For details about application ID conventions, see the
     /// [Desktop Entry Spec](https://specifications.freedesktop.org/desktop-entry-spec/desktop-entry-spec-latest.html#desktop-file-id)
-    fn with_name(self, general: impl Into<String>, instance: impl Into<String>) -> Self;
+    pub fn with_name(mut self, general: impl Into<String>, instance: impl Into<String>) -> Self {
+        self.name =
+            Some(crate::platform_impl::ApplicationName::new(general.into(), instance.into()));
+        self
+    }
 
     /// Build window with override-redirect flag; defaults to false.
-    fn with_override_redirect(self, override_redirect: bool) -> Self;
+    pub fn with_override_redirect(mut self, override_redirect: bool) -> Self {
+        self.override_redirect = override_redirect;
+        self
+    }
 
     /// Build window with `_NET_WM_WINDOW_TYPE` hints; defaults to `Normal`.
-    fn with_x11_window_type(self, x11_window_type: Vec<WindowType>) -> Self;
+    pub fn with_x11_window_type(mut self, x11_window_types: Vec<WindowType>) -> Self {
+        self.x11_window_types = x11_window_types;
+        self
+    }
 
     /// Build window with base size hint.
     ///
     /// ```
     /// # use winit::dpi::{LogicalSize, PhysicalSize};
     /// # use winit::window::{Window, WindowAttributes};
-    /// # use winit::platform::x11::WindowAttributesExtX11;
+    /// # use winit::platform::x11::WindowAttributesX11;
     /// // Specify the size in logical dimensions like this:
-    /// WindowAttributes::default().with_base_size(LogicalSize::new(400.0, 200.0));
+    /// WindowAttributesX11::default().with_base_size(LogicalSize::new(400.0, 200.0));
     ///
     /// // Or specify the size in physical dimensions like this:
-    /// WindowAttributes::default().with_base_size(PhysicalSize::new(400, 200));
+    /// WindowAttributesX11::default().with_base_size(PhysicalSize::new(400, 200));
     /// ```
-    fn with_base_size<S: Into<Size>>(self, base_size: S) -> Self;
+    pub fn with_base_size<S: Into<Size>>(mut self, base_size: S) -> Self {
+        self.base_size = Some(base_size.into());
+        self
+    }
 
     /// Embed this window into another parent window.
     ///
@@ -185,57 +233,28 @@ pub trait WindowAttributesExtX11 {
     /// ```no_run
     /// use winit::window::{Window, WindowAttributes};
     /// use winit::event_loop::ActiveEventLoop;
-    /// use winit::platform::x11::{XWindow, WindowAttributesExtX11};
+    /// use winit::platform::x11::{XWindow, WindowAttributesX11};
     /// # fn create_window(event_loop: &dyn ActiveEventLoop) -> Result<(), Box<dyn std::error::Error>> {
     /// let parent_window_id = std::env::args().nth(1).unwrap().parse::<XWindow>()?;
-    /// let window_attributes = WindowAttributes::default().with_embed_parent_window(parent_window_id);
+    /// let window_x11_attributes = WindowAttributesX11::default().with_embed_parent_window(parent_window_id);
+    /// let window_attributes = WindowAttributes::default().with_platform_attributes(Box::new(window_x11_attributes));
     /// let window = event_loop.create_window(window_attributes)?;
     /// # Ok(()) }
     /// ```
-    fn with_embed_parent_window(self, parent_window_id: XWindow) -> Self;
+    pub fn with_embed_parent_window(mut self, parent_window_id: XWindow) -> Self {
+        self.embed_window = Some(parent_window_id);
+        self
+    }
+
+    #[inline]
+    pub fn with_activation_token(mut self, token: ActivationToken) -> Self {
+        self.activation_token = Some(token);
+        self
+    }
 }
 
-impl WindowAttributesExtX11 for WindowAttributes {
-    #[inline]
-    fn with_x11_visual(mut self, visual_id: XVisualID) -> Self {
-        self.platform_specific.x11.visual_id = Some(visual_id);
-        self
-    }
-
-    #[inline]
-    fn with_x11_screen(mut self, screen_id: i32) -> Self {
-        self.platform_specific.x11.screen_id = Some(screen_id);
-        self
-    }
-
-    #[inline]
-    fn with_name(mut self, general: impl Into<String>, instance: impl Into<String>) -> Self {
-        self.platform_specific.name =
-            Some(crate::platform_impl::ApplicationName::new(general.into(), instance.into()));
-        self
-    }
-
-    #[inline]
-    fn with_override_redirect(mut self, override_redirect: bool) -> Self {
-        self.platform_specific.x11.override_redirect = override_redirect;
-        self
-    }
-
-    #[inline]
-    fn with_x11_window_type(mut self, x11_window_types: Vec<WindowType>) -> Self {
-        self.platform_specific.x11.x11_window_types = x11_window_types;
-        self
-    }
-
-    #[inline]
-    fn with_base_size<S: Into<Size>>(mut self, base_size: S) -> Self {
-        self.platform_specific.x11.base_size = Some(base_size.into());
-        self
-    }
-
-    #[inline]
-    fn with_embed_parent_window(mut self, parent_window_id: XWindow) -> Self {
-        self.platform_specific.x11.embed_window = Some(parent_window_id);
-        self
+impl PlatformWindowAttributes for WindowAttributesX11 {
+    fn box_clone(&self) -> Box<dyn PlatformWindowAttributes> {
+        Box::from(self.clone())
     }
 }

@@ -79,6 +79,7 @@ changelog entry.
 - Add `icon` module that exposes winit's icon API.
 - `VideoMode::new` to create a `VideoMode`.
 - `keyboard::ModifiersKey` to track which modifier is exactly pressed.
+- `ActivationToken::as_raw` to get a ref to raw token.
 
 ### Changed
 
