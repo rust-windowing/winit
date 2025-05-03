@@ -103,10 +103,11 @@ use std::os::raw::c_void;
 
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
+use winit_core::window::PlatformWindowAttributes;
 
 use crate::monitor::{MonitorHandle, VideoMode};
 use crate::platform_impl::MonitorHandle as IosMonitorHandle;
-use crate::window::{Window, WindowAttributes};
+use crate::window::Window;
 
 /// Additional methods on [`Window`] that are specific to iOS.
 pub trait WindowExtIOS {
@@ -283,8 +284,18 @@ impl WindowExtIOS for dyn Window + '_ {
     }
 }
 
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct WindowAttributesIos {
+    pub(crate) scale_factor: Option<f64>,
+    pub(crate) valid_orientations: ValidOrientations,
+    pub(crate) prefers_home_indicator_hidden: bool,
+    pub(crate) prefers_status_bar_hidden: bool,
+    pub(crate) preferred_status_bar_style: StatusBarStyle,
+    pub(crate) preferred_screen_edges_deferring_system_gestures: ScreenEdge,
+}
+
 /// Additional methods on [`WindowAttributes`] that are specific to iOS.
-pub trait WindowAttributesExtIOS {
+impl WindowAttributesIos {
     /// Sets the [`contentScaleFactor`] of the underlying [`UIWindow`] to `scale_factor`.
     ///
     /// The default value is device dependent, and it's recommended GLES or Metal applications set
@@ -293,7 +304,10 @@ pub trait WindowAttributesExtIOS {
     /// [`UIWindow`]: https://developer.apple.com/documentation/uikit/uiwindow?language=objc
     /// [`contentScaleFactor`]: https://developer.apple.com/documentation/uikit/uiview/1622657-contentscalefactor?language=objc
     /// [`MonitorHandleProvider::scale_factor()`]: crate::monitor::MonitorHandleProvider::scale_factor()
-    fn with_scale_factor(self, scale_factor: f64) -> Self;
+    pub fn with_scale_factor(mut self, scale_factor: f64) -> Self {
+        self.scale_factor = Some(scale_factor);
+        self
+    }
 
     /// Sets the valid orientations for the [`Window`].
     ///
@@ -301,7 +315,10 @@ pub trait WindowAttributesExtIOS {
     ///
     /// This sets the initial value returned by
     /// [`-[UIViewController supportedInterfaceOrientations]`](https://developer.apple.com/documentation/uikit/uiviewcontroller/1621435-supportedinterfaceorientations?language=objc).
-    fn with_valid_orientations(self, valid_orientations: ValidOrientations) -> Self;
+    pub fn with_valid_orientations(mut self, valid_orientations: ValidOrientations) -> Self {
+        self.valid_orientations = valid_orientations;
+        self
+    }
 
     /// Sets whether the [`Window`] prefers the home indicator hidden.
     ///
@@ -311,7 +328,10 @@ pub trait WindowAttributesExtIOS {
     /// [`-[UIViewController prefersHomeIndicatorAutoHidden]`](https://developer.apple.com/documentation/uikit/uiviewcontroller/2887510-prefershomeindicatorautohidden?language=objc).
     ///
     /// This only has an effect on iOS 11.0+.
-    fn with_prefers_home_indicator_hidden(self, hidden: bool) -> Self;
+    pub fn with_prefers_home_indicator_hidden(mut self, hidden: bool) -> Self {
+        self.prefers_home_indicator_hidden = hidden;
+        self
+    }
 
     /// Sets the screen edges for which the system gestures will take a lower priority than the
     /// application's touch handling.
@@ -320,7 +340,13 @@ pub trait WindowAttributesExtIOS {
     /// [`-[UIViewController preferredScreenEdgesDeferringSystemGestures]`](https://developer.apple.com/documentation/uikit/uiviewcontroller/2887512-preferredscreenedgesdeferringsys?language=objc).
     ///
     /// This only has an effect on iOS 11.0+.
-    fn with_preferred_screen_edges_deferring_system_gestures(self, edges: ScreenEdge) -> Self;
+    pub fn with_preferred_screen_edges_deferring_system_gestures(
+        mut self,
+        edges: ScreenEdge,
+    ) -> Self {
+        self.preferred_screen_edges_deferring_system_gestures = edges;
+        self
+    }
 
     /// Sets whether the [`Window`] prefers the status bar hidden.
     ///
@@ -328,7 +354,10 @@ pub trait WindowAttributesExtIOS {
     ///
     /// This sets the initial value returned by
     /// [`-[UIViewController prefersStatusBarHidden]`](https://developer.apple.com/documentation/uikit/uiviewcontroller/1621440-prefersstatusbarhidden?language=objc).
-    fn with_prefers_status_bar_hidden(self, hidden: bool) -> Self;
+    pub fn with_prefers_status_bar_hidden(mut self, hidden: bool) -> Self {
+        self.prefers_status_bar_hidden = hidden;
+        self
+    }
 
     /// Sets the style of the [`Window`]'s status bar.
     ///
@@ -336,44 +365,15 @@ pub trait WindowAttributesExtIOS {
     ///
     /// This sets the initial value returned by
     /// [`-[UIViewController preferredStatusBarStyle]`](https://developer.apple.com/documentation/uikit/uiviewcontroller/1621416-preferredstatusbarstyle?language=objc),
-    fn with_preferred_status_bar_style(self, status_bar_style: StatusBarStyle) -> Self;
+    pub fn with_preferred_status_bar_style(mut self, status_bar_style: StatusBarStyle) -> Self {
+        self.preferred_status_bar_style = status_bar_style;
+        self
+    }
 }
 
-impl WindowAttributesExtIOS for WindowAttributes {
-    #[inline]
-    fn with_scale_factor(mut self, scale_factor: f64) -> Self {
-        self.platform_specific.scale_factor = Some(scale_factor);
-        self
-    }
-
-    #[inline]
-    fn with_valid_orientations(mut self, valid_orientations: ValidOrientations) -> Self {
-        self.platform_specific.valid_orientations = valid_orientations;
-        self
-    }
-
-    #[inline]
-    fn with_prefers_home_indicator_hidden(mut self, hidden: bool) -> Self {
-        self.platform_specific.prefers_home_indicator_hidden = hidden;
-        self
-    }
-
-    #[inline]
-    fn with_preferred_screen_edges_deferring_system_gestures(mut self, edges: ScreenEdge) -> Self {
-        self.platform_specific.preferred_screen_edges_deferring_system_gestures = edges;
-        self
-    }
-
-    #[inline]
-    fn with_prefers_status_bar_hidden(mut self, hidden: bool) -> Self {
-        self.platform_specific.prefers_status_bar_hidden = hidden;
-        self
-    }
-
-    #[inline]
-    fn with_preferred_status_bar_style(mut self, status_bar_style: StatusBarStyle) -> Self {
-        self.platform_specific.preferred_status_bar_style = status_bar_style;
-        self
+impl PlatformWindowAttributes for WindowAttributesIos {
+    fn box_clone(&self) -> Box<dyn PlatformWindowAttributes> {
+        Box::from(self.clone())
     }
 }
 

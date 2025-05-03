@@ -9,9 +9,8 @@ use x11rb::protocol::xproto;
 
 use super::super::ActiveEventLoop;
 use super::*;
-use crate::cursor::{CustomCursorProvider, CustomCursorSource};
+use crate::cursor::{CursorIcon, CustomCursorProvider, CustomCursorSource};
 use crate::error::{NotSupportedError, RequestError};
-use crate::window::CursorIcon;
 
 impl XConnection {
     pub fn set_cursor_icon(

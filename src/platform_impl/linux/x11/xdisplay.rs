@@ -16,7 +16,7 @@ use x11rb::xcb_ffi::XCBConnection;
 use super::atoms::Atoms;
 use super::ffi;
 use super::monitor::MonitorHandle;
-use crate::window::CursorIcon;
+use crate::cursor::CursorIcon;
 
 /// A connection to an X server.
 pub struct XConnection {

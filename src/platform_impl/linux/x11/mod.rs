@@ -23,6 +23,7 @@ use x11rb::x11_utils::X11Error as LogicalError;
 use x11rb::xcb_ffi::ReplyOrIdError;
 
 use crate::application::ApplicationHandler;
+use crate::cursor::{CustomCursor as CoreCustomCursor, CustomCursorSource};
 use crate::error::{EventLoopError, RequestError};
 use crate::event::{DeviceId, StartCause, WindowEvent};
 use crate::event_loop::{
@@ -36,10 +37,7 @@ use crate::platform::x11::XlibErrorHook;
 use crate::platform_impl::common::xkb::Context;
 use crate::platform_impl::platform::min_timeout;
 use crate::platform_impl::x11::window::Window;
-use crate::window::{
-    CustomCursor as CoreCustomCursor, CustomCursorSource, Theme, Window as CoreWindow,
-    WindowAttributes, WindowId,
-};
+use crate::window::{Theme, Window as CoreWindow, WindowAttributes, WindowId};
 
 mod activation;
 mod atoms;

@@ -13,6 +13,7 @@ use smol_str::SmolStr;
 
 use super::{PlatformSpecificEventLoopAttributes, RedoxSocket, TimeSocket, WindowProperties};
 use crate::application::ApplicationHandler;
+use crate::cursor::{CustomCursor, CustomCursorSource};
 use crate::error::{EventLoopError, NotSupportedError, RequestError};
 use crate::event::{self, Ime, Modifiers, StartCause};
 use crate::event_loop::{
@@ -25,9 +26,7 @@ use crate::keyboard::{
     PhysicalKey,
 };
 use crate::platform_impl::Window;
-use crate::window::{
-    CustomCursor as RootCustomCursor, CustomCursorSource, Theme, Window as CoreWindow, WindowId,
-};
+use crate::window::{Theme, Window as CoreWindow, WindowId};
 
 fn convert_scancode(scancode: u8) -> (PhysicalKey, Option<NamedKey>) {
     // Key constants from https://docs.rs/orbclient/latest/orbclient/event/index.html
@@ -699,10 +698,7 @@ impl RootActiveEventLoop for ActiveEventLoop {
         Ok(Box::new(Window::new(self, window_attributes)?))
     }
 
-    fn create_custom_cursor(
-        &self,
-        _: CustomCursorSource,
-    ) -> Result<RootCustomCursor, RequestError> {
+    fn create_custom_cursor(&self, _: CustomCursorSource) -> Result<CustomCursor, RequestError> {
         Err(NotSupportedError::new("create_custom_cursor is not supported").into())
     }
 

@@ -18,11 +18,12 @@ use rwh_06::{DisplayHandle, HandleError, HasDisplayHandle};
 pub use winit_core::event_loop::*;
 
 use crate::application::ApplicationHandler;
+use crate::cursor::{CustomCursor, CustomCursorSource};
 use crate::error::{EventLoopError, RequestError};
 use crate::monitor::MonitorHandle;
 use crate::platform_impl;
 use crate::utils::{impl_dyn_casting, AsAny};
-use crate::window::{CustomCursor, CustomCursorSource, Theme, Window, WindowAttributes};
+use crate::window::{Theme, Window, WindowAttributes};
 
 /// Provides a way to retrieve events from the system and from the windows that were registered to
 /// the events loop.

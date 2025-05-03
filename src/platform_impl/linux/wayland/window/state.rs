@@ -28,7 +28,7 @@ use sctk::subcompositor::SubcompositorState;
 use tracing::{info, warn};
 use wayland_protocols_plasma::blur::client::org_kde_kwin_blur::OrgKdeKwinBlur;
 
-use crate::cursor::CustomCursor as CoreCustomCursor;
+use crate::cursor::{CursorIcon, CustomCursor as CoreCustomCursor};
 use crate::dpi::{LogicalPosition, LogicalSize, PhysicalPosition, PhysicalSize, Size};
 use crate::error::{NotSupportedError, RequestError};
 use crate::platform_impl::wayland::event_loop::OwnedDisplayHandle;
@@ -41,7 +41,7 @@ use crate::platform_impl::wayland::types::cursor::{
     CustomCursor, SelectedCursor, WaylandCustomCursor,
 };
 use crate::platform_impl::wayland::types::kwin_blur::KWinBlurManager;
-use crate::window::{CursorGrabMode, CursorIcon, ImePurpose, ResizeDirection, Theme, WindowId};
+use crate::window::{CursorGrabMode, ImePurpose, ResizeDirection, Theme, WindowId};
 
 #[cfg(feature = "sctk-adwaita")]
 pub type WinitFrame = sctk_adwaita::AdwaitaFrame<WinitState>;
@@ -398,7 +398,7 @@ impl WindowState {
         self.apply_on_pointer(|_, data| {
             let serial = data.latest_button_serial();
             let seat = data.seat();
-            xdg_toplevel.resize(seat, serial, direction.into());
+            xdg_toplevel.resize(seat, serial, resize_direction_to_xdg(direction));
         });
 
         Ok(())
@@ -1148,18 +1148,16 @@ pub enum FrameCallbackState {
     Received,
 }
 
-impl From<ResizeDirection> for XdgResizeEdge {
-    fn from(value: ResizeDirection) -> Self {
-        match value {
-            ResizeDirection::North => XdgResizeEdge::Top,
-            ResizeDirection::West => XdgResizeEdge::Left,
-            ResizeDirection::NorthWest => XdgResizeEdge::TopLeft,
-            ResizeDirection::NorthEast => XdgResizeEdge::TopRight,
-            ResizeDirection::East => XdgResizeEdge::Right,
-            ResizeDirection::SouthWest => XdgResizeEdge::BottomLeft,
-            ResizeDirection::SouthEast => XdgResizeEdge::BottomRight,
-            ResizeDirection::South => XdgResizeEdge::Bottom,
-        }
+fn resize_direction_to_xdg(direction: ResizeDirection) -> XdgResizeEdge {
+    match direction {
+        ResizeDirection::North => XdgResizeEdge::Top,
+        ResizeDirection::West => XdgResizeEdge::Left,
+        ResizeDirection::NorthWest => XdgResizeEdge::TopLeft,
+        ResizeDirection::NorthEast => XdgResizeEdge::TopRight,
+        ResizeDirection::East => XdgResizeEdge::Right,
+        ResizeDirection::SouthWest => XdgResizeEdge::BottomLeft,
+        ResizeDirection::SouthEast => XdgResizeEdge::BottomRight,
+        ResizeDirection::South => XdgResizeEdge::Bottom,
     }
 }
 

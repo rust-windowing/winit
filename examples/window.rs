@@ -6,7 +6,7 @@ use winit::application::ApplicationHandler;
 use winit::event::WindowEvent;
 use winit::event_loop::{ActiveEventLoop, EventLoop};
 #[cfg(web_platform)]
-use winit::platform::web::WindowAttributesExtWeb;
+use winit::platform::web::WindowAttributesWeb;
 use winit::window::{Window, WindowAttributes, WindowId};
 
 #[path = "util/fill.rs"]
@@ -24,7 +24,8 @@ impl ApplicationHandler for App {
         #[cfg(not(web_platform))]
         let window_attributes = WindowAttributes::default();
         #[cfg(web_platform)]
-        let window_attributes = WindowAttributes::default().with_append(true);
+        let window_attributes = WindowAttributes::default()
+            .with_platform_attributes(Box::new(WindowAttributesWeb::default().with_append(true)));
         self.window = match event_loop.create_window(window_attributes) {
             Ok(window) => Some(window),
             Err(err) => {

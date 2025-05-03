@@ -28,6 +28,7 @@ use crate::event::{
 };
 use crate::keyboard::{Key, KeyLocation, ModifiersState, PhysicalKey};
 use crate::monitor::Fullscreen;
+use crate::platform::web::WindowAttributesWeb;
 use crate::window::{WindowAttributes, WindowId};
 
 #[allow(dead_code)]
@@ -84,9 +85,15 @@ impl Canvas {
         window: web_sys::Window,
         navigator: Navigator,
         document: Document,
-        attr: WindowAttributes,
+        mut attr: WindowAttributes,
     ) -> Result<Self, RequestError> {
-        let canvas = match attr.platform_specific.canvas.map(Arc::try_unwrap) {
+        let web_attributes = attr
+            .platform
+            .take()
+            .and_then(|attrs| attrs.cast::<WindowAttributesWeb>().ok())
+            .unwrap_or_default();
+
+        let canvas = match web_attributes.canvas.map(Arc::try_unwrap) {
             Some(Ok(canvas)) => canvas.into_inner(main_thread),
             Some(Err(canvas)) => canvas.get(main_thread).clone(),
             None => document
@@ -95,7 +102,7 @@ impl Canvas {
                 .unchecked_into(),
         };
 
-        if attr.platform_specific.append && !document.contains(Some(&canvas)) {
+        if web_attributes.append && !document.contains(Some(&canvas)) {
             document
                 .body()
                 .expect("Failed to get body from document")
@@ -108,7 +115,7 @@ impl Canvas {
         // sequential keyboard navigation, but its order is defined by the
         // document's source order.
         // https://developer.mozilla.org/en-US/docs/Web/HTML/Global_attributes/tabindex
-        if attr.platform_specific.focusable {
+        if web_attributes.focusable {
             canvas
                 .set_attribute("tabindex", "0")
                 .map_err(|_| os_error!("Failed to set a tabindex"))?;
@@ -161,7 +168,7 @@ impl Canvas {
             common,
             id,
             has_focus: Rc::new(Cell::new(false)),
-            prevent_default: Rc::new(Cell::new(attr.platform_specific.prevent_default)),
+            prevent_default: Rc::new(Cell::new(web_attributes.prevent_default)),
             is_intersecting: Cell::new(None),
             cursor,
             handlers: RefCell::new(Handlers {
@@ -517,7 +524,7 @@ impl Canvas {
             self.set_old_size(new_size);
             runner.send_event(runner::Event::WindowEvent {
                 window_id: self.id,
-                event: crate::event::WindowEvent::SurfaceResized(new_size),
+                event: WindowEvent::SurfaceResized(new_size),
             })
         }
     }

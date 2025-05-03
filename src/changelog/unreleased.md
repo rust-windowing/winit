@@ -61,7 +61,7 @@ changelog entry.
 - Add `MonitorHandle::current_video_mode()`.
 - Add `ApplicationHandlerExtMacOS` trait, and a `macos_handler` method to `ApplicationHandler` which returns a `dyn ApplicationHandlerExtMacOS` which allows for macOS specific extensions to winit.
 - Add a `standard_key_binding` method to the `ApplicationHandlerExtMacOS` trait. This allows handling of standard keybindings such as "go to end of line" on macOS.
-- On macOS, add `WindowExtMacOS::set_unified_titlebar` and `WindowAttributesExtMacOS::with_unified_titlebar`
+- On macOS, add `WindowExtMacOS::set_unified_titlebar` and `WindowAttributesMacOS::with_unified_titlebar`
   to use a larger style of titlebar.
 - Add `WindowId::into_raw()` and `from_raw()`.
 - Add `PointerKind`, `PointerSource`, `ButtonSource`, `FingerId`, `primary` and `position` to all
@@ -79,6 +79,8 @@ changelog entry.
 - Add `icon` module that exposes winit's icon API.
 - `VideoMode::new` to create a `VideoMode`.
 - `keyboard::ModifiersKey` to track which modifier is exactly pressed.
+- `ActivationToken::as_raw` to get a ref to raw token.
+- Each platform now has corresponding `WindowAttributes` struct instead of trait extension.
 
 ### Changed
 
@@ -235,6 +237,7 @@ changelog entry.
   the `Drop` impl on the application handler.
 - Remove `NamedKey::Space`, match on `Key::Character(" ")` instead.
 - Remove `PartialEq` impl for `WindowAttributes`.
+- `WindowAttributesExt*` platform extensions; use `WindowAttributes*` instead.
 
 ### Fixed
 

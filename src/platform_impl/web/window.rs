@@ -1,22 +1,22 @@
 use std::cell::Ref;
 use std::fmt;
 use std::rc::Rc;
-use std::sync::Arc;
 
 use dpi::{LogicalPosition, LogicalSize};
 use web_sys::HtmlCanvasElement;
 
-use super::main_thread::{MainThreadMarker, MainThreadSafe};
+use super::main_thread::MainThreadMarker;
 use super::monitor::MonitorHandler;
 use super::r#async::Dispatcher;
 use super::{backend, lock, ActiveEventLoop};
+use crate::cursor::Cursor;
 use crate::dpi::{LogicalInsets, PhysicalInsets, PhysicalPosition, PhysicalSize, Position, Size};
 use crate::error::{NotSupportedError, RequestError};
 use crate::icon::Icon;
 use crate::monitor::{Fullscreen, MonitorHandle as CoremMonitorHandle};
 use crate::window::{
-    Cursor, CursorGrabMode, ImePurpose, ResizeDirection, Theme, UserAttentionType,
-    Window as RootWindow, WindowAttributes, WindowButtons, WindowId, WindowLevel,
+    CursorGrabMode, ImePurpose, ResizeDirection, Theme, UserAttentionType, Window as RootWindow,
+    WindowAttributes, WindowButtons, WindowId, WindowLevel,
 };
 
 pub struct Window {
@@ -460,44 +460,5 @@ impl Drop for Inner {
         if let Some(destroy_fn) = self.destroy_fn.take() {
             destroy_fn();
         }
-    }
-}
-#[derive(Clone, Debug)]
-pub struct PlatformSpecificWindowAttributes {
-    pub(crate) canvas: Option<Arc<MainThreadSafe<backend::RawCanvasType>>>,
-    pub(crate) prevent_default: bool,
-    pub(crate) focusable: bool,
-    pub(crate) append: bool,
-}
-
-impl PartialEq for PlatformSpecificWindowAttributes {
-    fn eq(&self, other: &Self) -> bool {
-        (match (&self.canvas, &other.canvas) {
-            (Some(this), Some(other)) => Arc::ptr_eq(this, other),
-            (None, None) => true,
-            _ => false,
-        }) && self.prevent_default.eq(&other.prevent_default)
-            && self.focusable.eq(&other.focusable)
-            && self.append.eq(&other.append)
-    }
-}
-
-impl PlatformSpecificWindowAttributes {
-    pub(crate) fn set_canvas(&mut self, canvas: Option<backend::RawCanvasType>) {
-        let Some(canvas) = canvas else {
-            self.canvas = None;
-            return;
-        };
-
-        let main_thread = MainThreadMarker::new()
-            .expect("received a `HtmlCanvasElement` outside the window context");
-
-        self.canvas = Some(Arc::new(MainThreadSafe::new(main_thread, canvas)));
-    }
-}
-
-impl Default for PlatformSpecificWindowAttributes {
-    fn default() -> Self {
-        Self { canvas: None, prevent_default: true, focusable: true, append: false }
     }
 }
