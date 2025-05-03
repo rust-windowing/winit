@@ -215,7 +215,7 @@ impl PointerHandler for WinitState {
                     pointer_data.phase = phase;
 
                     // Mice events have both pixel and discrete delta's at the same time. So prefer
-                    // the descrite values if they are present.
+                    // the discrete values if they are present.
                     let delta = if has_discrete_scroll {
                         // NOTE: Wayland sign convention is the inverse of winit.
                         MouseScrollDelta::LineDelta(

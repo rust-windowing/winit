@@ -325,7 +325,7 @@ impl<'a, 'b> KeyEventResults<'a, 'b> {
 
     // The current behaviour makes it so composing a character overrides attempts to input a
     // control character with the `Ctrl` key. We can potentially add a configuration option
-    // if someone specifically wants the oppsite behaviour.
+    // if someone specifically wants the opposite behaviour.
     pub fn text_with_all_modifiers(&mut self) -> Option<SmolStr> {
         match self.composed_text() {
             Ok(text) => text,

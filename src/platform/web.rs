@@ -656,7 +656,7 @@ pub enum Orientation {
     Portrait,
 }
 
-/// Screen orientation lock options. Reoresents which orientations a user can use.
+/// Screen orientation lock options. Represents which orientations a user can use.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum OrientationLock {
     /// User is free to use any orientation.
