@@ -306,6 +306,5 @@ pub use winit_core::{error, icon, keyboard, monitor, window};
 #[macro_use]
 mod os_error;
 mod platform_impl;
-use winit_core::as_any as utils;
 
 pub mod platform;
