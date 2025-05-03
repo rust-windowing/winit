@@ -581,7 +581,7 @@ pub trait Window: AsAny + Send + Sync + fmt::Debug {
     /// APIs and software rendering.
     ///
     /// ```no_run
-    /// # use winit::window::Window;
+    /// # use winit_core::window::Window;
     /// # fn swap_buffers() {}
     /// # fn scope(window: &dyn Window) {
     /// // Do the actual drawing with OpenGL.
@@ -657,8 +657,8 @@ pub trait Window: AsAny + Send + Sync + fmt::Debug {
     /// This automatically un-maximizes the window if it's maximized.
     ///
     /// ```no_run
-    /// # use winit::dpi::{LogicalPosition, PhysicalPosition};
-    /// # use winit::window::Window;
+    /// # use dpi::{LogicalPosition, PhysicalPosition};
+    /// # use winit_core::window::Window;
     /// # fn scope(window: &dyn Window) {
     /// // Specify the position in logical dimensions like this:
     /// window.set_outer_position(LogicalPosition::new(400.0, 200.0).into());
@@ -715,8 +715,8 @@ pub trait Window: AsAny + Send + Sync + fmt::Debug {
     /// The request could automatically un-maximize the window if it's maximized.
     ///
     /// ```no_run
-    /// # use winit::dpi::{LogicalSize, PhysicalSize};
-    /// # use winit::window::Window;
+    /// # use dpi::{LogicalSize, PhysicalSize};
+    /// # use winit_core::window::Window;
     /// # fn scope(window: &dyn Window) {
     /// // Specify the size in logical dimensions like this:
     /// let _ = window.request_surface_size(LogicalSize::new(400.0, 200.0).into());
@@ -772,7 +772,7 @@ pub trait Window: AsAny + Send + Sync + fmt::Debug {
     /// Convert safe area insets to a size and a position.
     ///
     /// ```
-    /// use winit::dpi::{PhysicalPosition, PhysicalSize};
+    /// use dpi::{PhysicalPosition, PhysicalSize};
     ///
     /// # let surface_size = dpi::PhysicalSize::new(0, 0);
     /// # #[cfg(requires_window)]
@@ -792,8 +792,8 @@ pub trait Window: AsAny + Send + Sync + fmt::Debug {
     /// Sets a minimum dimensions of the window's surface.
     ///
     /// ```no_run
-    /// # use winit::dpi::{LogicalSize, PhysicalSize};
-    /// # use winit::window::Window;
+    /// # use dpi::{LogicalSize, PhysicalSize};
+    /// # use winit_core::window::Window;
     /// # fn scope(window: &dyn Window) {
     /// // Specify the size in logical dimensions like this:
     /// window.set_min_surface_size(Some(LogicalSize::new(400.0, 200.0).into()));
@@ -811,8 +811,8 @@ pub trait Window: AsAny + Send + Sync + fmt::Debug {
     /// Sets a maximum dimensions of the window's surface.
     ///
     /// ```no_run
-    /// # use winit::dpi::{LogicalSize, PhysicalSize};
-    /// # use winit::window::Window;
+    /// # use dpi::{LogicalSize, PhysicalSize};
+    /// # use winit_core::window::Window;
     /// # fn scope(window: &dyn Window) {
     /// // Specify the size in logical dimensions like this:
     /// window.set_max_surface_size(Some(LogicalSize::new(400.0, 200.0).into()));
@@ -1071,8 +1071,8 @@ pub trait Window: AsAny + Send + Sync + fmt::Debug {
     /// ## Example
     ///
     /// ```no_run
-    /// # use winit::dpi::{LogicalPosition, PhysicalPosition, LogicalSize, PhysicalSize};
-    /// # use winit::window::Window;
+    /// # use dpi::{LogicalPosition, PhysicalPosition, LogicalSize, PhysicalSize};
+    /// # use winit_core::window::Window;
     /// # fn scope(window: &dyn Window) {
     /// // Specify the position in logical dimensions like this:
     /// window.set_ime_cursor_area(
@@ -1214,8 +1214,8 @@ pub trait Window: AsAny + Send + Sync + fmt::Debug {
     /// Changes the position of the cursor in window coordinates.
     ///
     /// ```no_run
-    /// # use winit::dpi::{LogicalPosition, PhysicalPosition};
-    /// # use winit::window::Window;
+    /// # use dpi::{LogicalPosition, PhysicalPosition};
+    /// # use winit_core::window::Window;
     /// # fn scope(window: &dyn Window) {
     /// // Specify the position in logical dimensions like this:
     /// window.set_cursor_position(LogicalPosition::new(400.0, 200.0).into());
@@ -1238,7 +1238,7 @@ pub trait Window: AsAny + Send + Sync + fmt::Debug {
     /// First try confining the cursor, and if that fails, try locking it instead.
     ///
     /// ```no_run
-    /// # use winit::window::{CursorGrabMode, Window};
+    /// # use winit_core::window::{CursorGrabMode, Window};
     /// # fn scope(window: &dyn Window) {
     /// window
     ///     .set_cursor_grab(CursorGrabMode::Confined)
