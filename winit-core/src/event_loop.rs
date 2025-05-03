@@ -109,7 +109,7 @@ pub trait ActiveEventLoop: AsAny + fmt::Debug {
     /// [qa1561]: https://developer.apple.com/library/archive/qa/qa1561/_index.html
     fn exit(&self);
 
-    /// Returns whether the [`EventLoop`] is about to stop.
+    /// Returns whether the [`ActiveEventLoop`] is about to stop.
     ///
     /// Set by [`exit()`][Self::exit].
     fn exiting(&self) -> bool;
@@ -131,14 +131,15 @@ impl HasDisplayHandle for dyn ActiveEventLoop + '_ {
 
 impl_dyn_casting!(ActiveEventLoop);
 
-/// Control the [`EventLoop`], possibly from a different thread, without referencing it directly.
+/// Control the [`ActiveEventLoop`], possibly from a different thread, without referencing it
+/// directly.
 #[derive(Clone, Debug)]
 pub struct EventLoopProxy {
     pub(crate) proxy: Arc<dyn EventLoopProxyProvider>,
 }
 
 impl EventLoopProxy {
-    /// Wake up the [`EventLoop`], resulting in [`ApplicationHandler::proxy_wake_up()`] being
+    /// Wake up the [`ActiveEventLoop`], resulting in [`ApplicationHandler::proxy_wake_up()`] being
     /// called.
     ///
     /// Calls to this method are coalesced into a single call to [`proxy_wake_up`], see the
@@ -146,7 +147,8 @@ impl EventLoopProxy {
     ///
     /// If the event loop is no longer running, this is a no-op.
     ///
-    /// [`proxy_wake_up`]: ApplicationHandler::proxy_wake_up
+    /// [`proxy_wake_up`]: crate::application::ApplicationHandler::proxy_wake_up
+    /// [`ApplicationHandler::proxy_wake_up()`]: crate::application::ApplicationHandler::proxy_wake_up
     ///
     /// # Platform-specific
     ///
@@ -171,7 +173,7 @@ pub trait EventLoopProxyProvider: Send + Sync + Debug {
 ///
 /// The purpose of this type is to provide a cheaply cloneable handle to the underlying
 /// display handle. This is often used by graphics APIs to connect to the underlying APIs.
-/// It is difficult to keep a handle to the [`EventLoop`] type or the [`ActiveEventLoop`]
+/// It is difficult to keep a handle to the underlying event loop type or the [`ActiveEventLoop`]
 /// type. In contrast, this type involves no lifetimes and can be persisted for as long as
 /// needed.
 ///
