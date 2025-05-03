@@ -294,7 +294,7 @@ pub enum ActivationPolicy {
     Prohibited,
 }
 
-/// [`WindowAttributes`] that are specific to MacOS.
+/// Window attributes that are specific to MacOS.
 ///
 /// **Note:** Properties dealing with the titlebar will be overwritten by the
 /// [`WindowAttributes::with_decorations`] method:
@@ -303,6 +303,8 @@ pub enum ActivationPolicy {
 /// - `with_titlebar_hidden`
 /// - `with_titlebar_buttons_hidden`
 /// - `with_fullsize_content_view`
+///
+/// [`WindowAttributes::with_decorations`]: crate::window::WindowAttributes::with_decorations
 #[derive(Clone, Debug, PartialEq)]
 pub struct WindowAttributesMacOS {
     pub(crate) movable_by_window_background: bool,

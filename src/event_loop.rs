@@ -132,6 +132,8 @@ impl EventLoop {
 
     /// Run the application with the event loop on the calling thread.
     ///
+    /// The `app` is dropped when the event loop is shut down.
+    ///
     /// ## Event loop flow
     ///
     /// This function internally handles the different parts of a traditional event-handling loop.

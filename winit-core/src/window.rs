@@ -624,7 +624,7 @@ pub trait Window: AsAny + Send + Sync + fmt::Debug {
     ///
     /// This may also be useful for figuring out the size of the window's decorations (such as
     /// buttons, title, etc.), but may also not correspond to that (e.g. if the title bar is made
-    /// transparent using [`with_titlebar_transparent`] on macOS, or your are drawing window
+    /// transparent on macOS, or your are drawing window
     /// decorations yourself).
     ///
     /// This may be negative.
@@ -633,15 +633,6 @@ pub trait Window: AsAny + Send + Sync + fmt::Debug {
     /// as the window itself, this simply returns `(0, 0)`.
     ///
     /// [`outer_position`]: Self::outer_position
-    #[cfg_attr(
-        macos_platform,
-        doc = "[`with_titlebar_transparent`]: \
-               crate::platform::macos::WindowAttributesExtMacOS::with_titlebar_transparent"
-    )]
-    #[cfg_attr(
-        not(macos_platform),
-        doc = "[`with_titlebar_transparent`]: #only-available-on-macos"
-    )]
     fn surface_position(&self) -> PhysicalPosition<i32>;
 
     /// The position of the top-left hand corner of the window relative to the top-left hand corner
@@ -1004,14 +995,8 @@ pub trait Window: AsAny + Send + Sync + fmt::Debug {
     ///   The dock and the menu bar are disabled in exclusive fullscreen mode.
     /// - **Wayland:** Does not support exclusive fullscreen mode and will no-op a request.
     /// - **Windows:** Screen saver is disabled in fullscreen mode.
-    /// - **Android / Orbital:** Unsupported.
-    /// - **Web:** Passing a [`MonitorHandle`] or [`VideoMode`] that was not created with
-    #[cfg_attr(
-        web_platform,
-        doc = "  [detailed monitor permissions][crate::platform::web::ActiveEventLoopExtWeb::request_detailed_monitor_permission]"
-    )]
-    #[cfg_attr(not(web_platform), doc = "  detailed monitor permissions")]
-    ///   or calling without a [transient activation] does nothing.
+    /// - **Web:** Passing a [`MonitorHandle`] or [`VideoMode`] that was not created with detailed
+    ///   monitor permissions or calling without a [transient activation] does nothing.
     ///
     /// [transient activation]: https://developer.mozilla.org/en-US/docs/Glossary/Transient_activation
     /// [`VideoMode`]: crate::monitor::VideoMode
@@ -1333,17 +1318,6 @@ pub trait Window: AsAny + Send + Sync + fmt::Debug {
     /// This is the same as [`ActiveEventLoop::available_monitors`], and is provided for
     /// convenience.
     ///
-    ///
-    /// ## Platform-specific
-    ///
-    /// **Web:** Only returns the current monitor without
-    #[cfg_attr(
-        web_platform,
-        doc = "[detailed monitor permissions][crate::platform::web::ActiveEventLoopExtWeb::request_detailed_monitor_permission]."
-    )]
-    #[cfg_attr(not(any(web_platform,)), doc = "detailed monitor permissions.")]
-    ///
-    #[rustfmt::skip]
     /// [`ActiveEventLoop::available_monitors`]: crate::event_loop::ActiveEventLoop::available_monitors
     fn available_monitors(&self) -> Box<dyn Iterator<Item = MonitorHandle>>;
 
@@ -1356,14 +1330,7 @@ pub trait Window: AsAny + Send + Sync + fmt::Debug {
     /// ## Platform-specific
     ///
     /// - **Wayland:** Always returns `None`.
-    /// - **Web:** Always returns `None` without
-    #[cfg_attr(
-        web_platform,
-        doc = "  [detailed monitor permissions][crate::platform::web::ActiveEventLoopExtWeb::request_detailed_monitor_permission]."
-    )]
-    #[cfg_attr(not(web_platform), doc = "  detailed monitor permissions.")]
     ///
-    #[rustfmt::skip]
     /// [`ActiveEventLoop::primary_monitor`]: crate::event_loop::ActiveEventLoop::primary_monitor
     fn primary_monitor(&self) -> Option<MonitorHandle>;
 

@@ -618,17 +618,8 @@ pub enum DeviceEvent {
     /// ## Platform-specific
     ///
     /// **Web:** Only returns raw data, not OS accelerated, if [`CursorGrabMode::Locked`] is used
-    /// and browser support is available, see
-    #[cfg_attr(
-        web_platform,
-        doc = "[`ActiveEventLoopExtWeb::is_cursor_lock_raw()`][crate::platform::web::ActiveEventLoopExtWeb::is_cursor_lock_raw()]."
-    )]
-    #[cfg_attr(
-        not(web_platform),
-        doc = "`ActiveEventLoopExtWeb::is_cursor_lock_raw()`."
-    )]
+    /// and browser support is available.
     ///
-    #[rustfmt::skip]
     /// [`CursorGrabMode::Locked`]: crate::window::CursorGrabMode::Locked
     PointerMotion {
         /// (x, y) change in position in unspecified units.
