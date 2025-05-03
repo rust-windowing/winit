@@ -51,10 +51,10 @@ impl From<CustomCursor> for Cursor {
 /// # Example
 ///
 /// ```no_run
-/// # use winit::event_loop::ActiveEventLoop;
-/// # use winit::window::Window;
+/// # use winit_core::event_loop::ActiveEventLoop;
+/// # use winit_core::window::Window;
 /// # fn scope(event_loop: &dyn ActiveEventLoop, window: &dyn Window) {
-/// use winit::window::CustomCursorSource;
+/// use winit_core::cursor::CustomCursorSource;
 ///
 /// let w = 10;
 /// let h = 10;
