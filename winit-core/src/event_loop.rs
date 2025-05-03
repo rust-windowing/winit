@@ -46,12 +46,7 @@ pub trait ActiveEventLoop: AsAny + fmt::Debug {
     ///
     /// ## Platform-specific
     ///
-    /// **Web:** Only returns the current monitor without
-    #[cfg_attr(
-        web_platform,
-        doc = "[detailed monitor permissions][crate::platform::web::ActiveEventLoopExtWeb::request_detailed_monitor_permission]."
-    )]
-    #[cfg_attr(not(web_platform), doc = "detailed monitor permissions.")]
+    /// **Web:** Only returns the current monitor without `detailed monitor permissions`.
     fn available_monitors(&self) -> Box<dyn Iterator<Item = MonitorHandle>>;
 
     /// Returns the primary monitor of the system.
@@ -61,12 +56,7 @@ pub trait ActiveEventLoop: AsAny + fmt::Debug {
     /// ## Platform-specific
     ///
     /// - **Wayland:** Always returns `None`.
-    /// - **Web:** Always returns `None` without
-    #[cfg_attr(
-        web_platform,
-        doc = "  [detailed monitor permissions][crate::platform::web::ActiveEventLoopExtWeb::request_detailed_monitor_permission]."
-    )]
-    #[cfg_attr(not(web_platform), doc = "  detailed monitor permissions.")]
+    /// - **Web:** Always returns `None` without `detailed monitor permissions`.
     fn primary_monitor(&self) -> Option<MonitorHandle>;
 
     /// Change if or when [`DeviceEvent`]s are captured.
