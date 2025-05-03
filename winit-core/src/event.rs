@@ -1133,6 +1133,7 @@ mod tests {
     use std::collections::{BTreeSet, HashSet};
 
     use dpi::PhysicalPosition;
+
     use crate::event;
 
     macro_rules! foreach_event {
