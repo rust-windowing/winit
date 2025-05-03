@@ -10,6 +10,7 @@ use crate::dpi::PhysicalPosition;
 use crate::event::{ButtonSource, DeviceId, ElementState, Force, PointerKind, PointerSource};
 use crate::keyboard::ModifiersState;
 use crate::platform_impl::web::event::mkdid;
+use crate::platform_impl::web::web_sys::event::mouse_button_to_id;
 
 #[allow(dead_code)]
 pub(super) struct PointerHandler {
@@ -89,7 +90,7 @@ impl PointerHandler {
                         finger_id,
                         force: Some(Force::Normalized(event.pressure().into())),
                     },
-                    PointerKind::Unknown => ButtonSource::Unknown(button.to_id()),
+                    PointerKind::Unknown => ButtonSource::Unknown(mouse_button_to_id(button)),
                 };
 
                 handler(
@@ -142,7 +143,7 @@ impl PointerHandler {
                         finger_id,
                         force: Some(Force::Normalized(event.pressure().into())),
                     },
-                    PointerKind::Unknown => ButtonSource::Unknown(button.to_id()),
+                    PointerKind::Unknown => ButtonSource::Unknown(mouse_button_to_id(button)),
                 };
 
                 handler(
@@ -206,7 +207,7 @@ impl PointerHandler {
                     let button = match kind {
                         PointerKind::Mouse => ButtonSource::Mouse(button),
                         PointerKind::Touch(finger_id) => {
-                            let button_id = button.to_id();
+                            let button_id = mouse_button_to_id(button);
 
                             if button_id != 1 {
                                 tracing::error!("unexpected touch button id: {button_id}");
