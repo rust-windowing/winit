@@ -24,6 +24,7 @@ use crate::platform::web::{PollStrategy, WaitUntilStrategy};
 use crate::platform_impl::platform::backend::{EventListenerHandle, SafeAreaHandle};
 use crate::platform_impl::platform::r#async::DispatchRunner;
 use crate::platform_impl::platform::window::Inner;
+use crate::platform_impl::web::web_sys::event::mouse_button_to_id;
 use crate::window::WindowId;
 
 #[derive(Debug)]
@@ -325,7 +326,10 @@ impl Shared {
 
                     runner.send_event(Event::DeviceEvent {
                         device_id,
-                        event: DeviceEvent::Button { button: button.to_id().into(), state },
+                        event: DeviceEvent::Button {
+                            button: mouse_button_to_id(button).into(),
+                            state,
+                        },
                     });
 
                     return;
@@ -374,7 +378,7 @@ impl Shared {
                 runner.send_event(Event::DeviceEvent {
                     device_id: event::mkdid(event.pointer_id()),
                     event: DeviceEvent::Button {
-                        button: button.to_id().into(),
+                        button: mouse_button_to_id(button).into(),
                         state: ElementState::Pressed,
                     },
                 });
@@ -393,7 +397,7 @@ impl Shared {
                 runner.send_event(Event::DeviceEvent {
                     device_id: event::mkdid(event.pointer_id()),
                     event: DeviceEvent::Button {
-                        button: button.to_id().into(),
+                        button: mouse_button_to_id(button).into(),
                         state: ElementState::Released,
                     },
                 });
