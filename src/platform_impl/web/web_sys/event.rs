@@ -68,16 +68,14 @@ pub fn mouse_button(event: &MouseEvent) -> Option<MouseButton> {
     }
 }
 
-impl MouseButton {
-    pub fn to_id(self) -> u16 {
-        match self {
-            MouseButton::Left => 0,
-            MouseButton::Right => 1,
-            MouseButton::Middle => 2,
-            MouseButton::Back => 3,
-            MouseButton::Forward => 4,
-            MouseButton::Other(value) => value,
-        }
+pub fn mouse_button_to_id(button: MouseButton) -> u16 {
+    match button {
+        MouseButton::Left => 0,
+        MouseButton::Right => 1,
+        MouseButton::Middle => 2,
+        MouseButton::Back => 3,
+        MouseButton::Forward => 4,
+        MouseButton::Other(value) => value,
     }
 }
 

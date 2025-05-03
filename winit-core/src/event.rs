@@ -4,13 +4,13 @@ use std::sync::{Mutex, Weak};
 #[cfg(not(web_platform))]
 use std::time::Instant;
 
+use dpi::{PhysicalPosition, PhysicalSize};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 use smol_str::SmolStr;
 #[cfg(web_platform)]
 use web_time::Instant;
 
-use crate::dpi::{PhysicalPosition, PhysicalSize};
 use crate::error::RequestError;
 use crate::event_loop::AsyncRequestSerial;
 use crate::keyboard::{self, ModifiersKeyState, ModifiersKeys, ModifiersState};
@@ -563,16 +563,14 @@ impl DeviceId {
     /// Convert the [`DeviceId`] into the underlying integer.
     ///
     /// This is useful if you need to pass the ID across an FFI boundary, or store it in an atomic.
-    #[allow(dead_code)]
-    pub(crate) const fn into_raw(self) -> i64 {
+    pub const fn into_raw(self) -> i64 {
         self.0
     }
 
     /// Construct a [`DeviceId`] from the underlying integer.
     ///
     /// This should only be called with integers returned from [`DeviceId::into_raw`].
-    #[allow(dead_code)]
-    pub(crate) const fn from_raw(id: i64) -> Self {
+    pub const fn from_raw(id: i64) -> Self {
         Self(id)
     }
 }
@@ -588,16 +586,14 @@ impl FingerId {
     /// Convert the [`FingerId`] into the underlying integer.
     ///
     /// This is useful if you need to pass the ID across an FFI boundary, or store it in an atomic.
-    #[allow(dead_code)]
-    pub(crate) const fn into_raw(self) -> usize {
+    pub const fn into_raw(self) -> usize {
         self.0
     }
 
     /// Construct a [`FingerId`] from the underlying integer.
     ///
     /// This should only be called with integers returned from [`FingerId::into_raw`].
-    #[allow(dead_code)]
-    pub(crate) const fn from_raw(id: usize) -> Self {
+    pub const fn from_raw(id: usize) -> Self {
         Self(id)
     }
 }
@@ -832,6 +828,11 @@ pub struct Modifiers {
 }
 
 impl Modifiers {
+    /// Create a new modifiers from state and pressed mods.
+    pub fn new(state: ModifiersState, pressed_mods: ModifiersKeys) -> Self {
+        Self { state, pressed_mods }
+    }
+
     /// The state of the modifiers.
     pub fn state(&self) -> ModifiersState {
         self.state
@@ -1092,7 +1093,7 @@ pub struct SurfaceSizeWriter {
 
 impl SurfaceSizeWriter {
     #[cfg(not(orbital_platform))]
-    pub(crate) fn new(new_surface_size: Weak<Mutex<PhysicalSize<u32>>>) -> Self {
+    pub fn new(new_surface_size: Weak<Mutex<PhysicalSize<u32>>>) -> Self {
         Self { new_surface_size }
     }
 
@@ -1104,6 +1105,15 @@ impl SurfaceSizeWriter {
         if let Some(inner) = self.new_surface_size.upgrade() {
             *inner.lock().unwrap() = new_surface_size;
             Ok(())
+        } else {
+            Err(RequestError::Ignored)
+        }
+    }
+
+    /// Get the currently stashed surface size.
+    pub fn surface_size(&self) -> Result<PhysicalSize<u32>, RequestError> {
+        if let Some(inner) = self.new_surface_size.upgrade() {
+            Ok(*inner.lock().unwrap())
         } else {
             Err(RequestError::Ignored)
         }
@@ -1122,7 +1132,7 @@ impl Eq for SurfaceSizeWriter {}
 mod tests {
     use std::collections::{BTreeSet, HashSet};
 
-    use crate::dpi::PhysicalPosition;
+    use dpi::PhysicalPosition;
     use crate::event;
 
     macro_rules! foreach_event {

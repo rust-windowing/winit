@@ -267,7 +267,7 @@ impl EventState {
         pressed_mods
             .set(ModifiersKeys::RMETA, self.keyboard.contains(KeyboardModifierState::RMETA));
 
-        Modifiers { state, pressed_mods }
+        Modifiers::new(state, pressed_mods)
     }
 }
 

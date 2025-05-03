@@ -286,8 +286,6 @@ pub struct AsyncRequestSerial {
 }
 
 impl AsyncRequestSerial {
-    // TODO(kchibisov): Remove `cfg` when the clipboard will be added.
-    #[allow(dead_code)]
     pub fn get() -> Self {
         static CURRENT_SERIAL: AtomicUsize = AtomicUsize::new(0);
         // NOTE: We rely on wrap around here, while the user may just request
