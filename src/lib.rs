@@ -296,11 +296,10 @@
 pub use dpi;
 pub use rwh_06 as raw_window_handle;
 
-pub mod application;
 #[cfg(any(doc, doctest, test))]
 pub mod changelog;
 pub mod event_loop;
-pub use winit_core::{cursor, error, event, icon, keyboard, monitor, window};
+pub use winit_core::{application, cursor, error, event, icon, keyboard, monitor, window};
 #[macro_use]
 mod os_error;
 mod platform_impl;
