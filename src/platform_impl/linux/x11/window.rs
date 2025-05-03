@@ -32,7 +32,7 @@ use crate::icon::RgbaIcon;
 use crate::monitor::{
     Fullscreen, MonitorHandle as CoreMonitorHandle, MonitorHandleProvider, VideoMode,
 };
-use crate::platform::x11::WindowType;
+use crate::platform::x11::{WindowAttributesX11, WindowType};
 use crate::platform_impl::common;
 use crate::platform_impl::x11::atoms::*;
 use crate::platform_impl::x11::util::rgba_to_cardinals;
@@ -204,7 +204,7 @@ impl CoreWindow for Window {
         self.0.set_window_level(level);
     }
 
-    fn set_window_icon(&self, window_icon: Option<crate::window::Icon>) {
+    fn set_window_icon(&self, window_icon: Option<crate::icon::Icon>) {
         let icon = match window_icon.as_ref() {
             Some(icon) => icon.cast_ref::<RgbaIcon>(),
             None => None,
@@ -443,12 +443,18 @@ impl UnownedWindow {
     #[allow(clippy::unnecessary_cast)]
     pub(crate) fn new(
         event_loop: &ActiveEventLoop,
-        window_attrs: WindowAttributes,
+        mut window_attrs: WindowAttributes,
     ) -> Result<UnownedWindow, RequestError> {
         let xconn = &event_loop.xconn;
         let atoms = xconn.atoms();
 
-        let screen_id = match window_attrs.platform_specific.x11.screen_id {
+        let x11_attributes = window_attrs
+            .platform
+            .take()
+            .and_then(|attrs| attrs.cast::<WindowAttributesX11>().ok())
+            .unwrap_or_default();
+
+        let screen_id = match x11_attributes.screen_id {
             Some(id) => id,
             None => xconn.default_screen_index() as c_int,
         };
@@ -461,7 +467,7 @@ impl UnownedWindow {
             )?
         };
 
-        let root = match window_attrs.parent_window.as_ref().map(|handle| handle.0) {
+        let root = match window_attrs.parent_window() {
             Some(rwh_06::RawWindowHandle::Xlib(handle)) => handle.window as xproto::Window,
             Some(rwh_06::RawWindowHandle::Xcb(handle)) => handle.window.get(),
             Some(raw) => unreachable!("Invalid raw window handle {raw:?} on X11"),
@@ -528,33 +534,32 @@ impl UnownedWindow {
             .flat_map(|depth| depth.visuals.iter().map(move |visual| (visual, depth.depth)));
 
         // creating
-        let (visualtype, depth, require_colormap) =
-            match window_attrs.platform_specific.x11.visual_id {
-                Some(vi) => {
-                    // Find this specific visual.
-                    let (visualtype, depth) = all_visuals
-                        .find(|(visual, _)| visual.visual_id == vi)
-                        .ok_or_else(|| os_error!(X11Error::NoSuchVisual(vi)))?;
+        let (visualtype, depth, require_colormap) = match x11_attributes.visual_id {
+            Some(vi) => {
+                // Find this specific visual.
+                let (visualtype, depth) = all_visuals
+                    .find(|(visual, _)| visual.visual_id == vi)
+                    .ok_or_else(|| os_error!(X11Error::NoSuchVisual(vi)))?;
 
-                    (Some(visualtype), depth, true)
-                },
-                None if window_attrs.transparent => {
-                    // Find a suitable visual, true color with 32 bits of depth.
-                    all_visuals
-                        .find_map(|(visual, depth)| {
-                            (depth == 32 && visual.class == xproto::VisualClass::TRUE_COLOR)
-                                .then_some((Some(visual), depth, true))
-                        })
-                        .unwrap_or_else(|| {
-                            debug!(
-                                "Could not set transparency, because XMatchVisualInfo returned \
-                                 zero for the required parameters"
-                            );
-                            (None as _, x11rb::COPY_FROM_PARENT as _, false)
-                        })
-                },
-                _ => (None, x11rb::COPY_FROM_PARENT as _, false),
-            };
+                (Some(visualtype), depth, true)
+            },
+            None if window_attrs.transparent => {
+                // Find a suitable visual, true color with 32 bits of depth.
+                all_visuals
+                    .find_map(|(visual, depth)| {
+                        (depth == 32 && visual.class == xproto::VisualClass::TRUE_COLOR)
+                            .then_some((Some(visual), depth, true))
+                    })
+                    .unwrap_or_else(|| {
+                        debug!(
+                            "Could not set transparency, because XMatchVisualInfo returned zero \
+                             for the required parameters"
+                        );
+                        (None as _, x11rb::COPY_FROM_PARENT as _, false)
+                    })
+            },
+            _ => (None, x11rb::COPY_FROM_PARENT as _, false),
+        };
         let mut visual = visualtype.map_or(x11rb::COPY_FROM_PARENT, |v| v.visual_id);
 
         let window_attributes = {
@@ -574,12 +579,12 @@ impl UnownedWindow {
 
             aux = aux.event_mask(event_mask).border_pixel(0);
 
-            if window_attrs.platform_specific.x11.override_redirect {
+            if x11_attributes.override_redirect {
                 aux = aux.override_redirect(true as u32);
             }
 
             // Add a colormap if needed.
-            let colormap_visual = match window_attrs.platform_specific.x11.visual_id {
+            let colormap_visual = match x11_attributes.visual_id {
                 Some(vi) => Some(vi),
                 None if require_colormap => Some(visual),
                 _ => None,
@@ -602,7 +607,7 @@ impl UnownedWindow {
         };
 
         // Figure out the window's parent.
-        let parent = window_attrs.platform_specific.x11.embed_window.unwrap_or(root);
+        let parent = x11_attributes.embed_window.unwrap_or(root);
 
         // finally creating the window
         let xwindow = {
@@ -665,7 +670,7 @@ impl UnownedWindow {
         }
 
         // Embed the window if needed.
-        if window_attrs.platform_specific.x11.embed_window.is_some() {
+        if x11_attributes.embed_window.is_some() {
             window.embed_window()?;
         }
 
@@ -686,7 +691,7 @@ impl UnownedWindow {
 
             // WM_CLASS must be set *before* mapping the window, as per ICCCM!
             {
-                let (instance, class) = if let Some(name) = window_attrs.platform_specific.name {
+                let (instance, class) = if let Some(name) = x11_attributes.name {
                     (name.instance, name.general)
                 } else {
                     let class = env::args_os()
@@ -717,8 +722,7 @@ impl UnownedWindow {
                 flusher.ignore_error()
             }
 
-            leap!(window.set_window_types(window_attrs.platform_specific.x11.x11_window_types))
-                .ignore_error();
+            leap!(window.set_window_types(x11_attributes.x11_window_types)).ignore_error();
 
             // Set size hints.
             let mut min_surface_size =
@@ -739,7 +743,7 @@ impl UnownedWindow {
             shared_state.min_surface_size = min_surface_size.map(Into::into);
             shared_state.max_surface_size = max_surface_size.map(Into::into);
             shared_state.surface_resize_increments = window_attrs.surface_resize_increments;
-            shared_state.base_size = window_attrs.platform_specific.x11.base_size;
+            shared_state.base_size = x11_attributes.base_size;
 
             let normal_hints = WmSizeHints {
                 position: position.map(|PhysicalPosition { x, y }| {
@@ -755,9 +759,7 @@ impl UnownedWindow {
                 size_increment: window_attrs
                     .surface_resize_increments
                     .map(|size| cast_size_to_hint(size, scale_factor)),
-                base_size: window_attrs
-                    .platform_specific
-                    .x11
+                base_size: x11_attributes
                     .base_size
                     .map(|size| cast_size_to_hint(size, scale_factor)),
                 aspect: None,
@@ -884,8 +886,8 @@ impl UnownedWindow {
         window.set_cursor(window_attrs.cursor);
 
         // Remove the startup notification if we have one.
-        if let Some(startup) = window_attrs.platform_specific.activation_token.as_ref() {
-            leap!(xconn.remove_activation_token(xwindow, &startup.token));
+        if let Some(startup) = x11_attributes.activation_token.as_ref() {
+            leap!(xconn.remove_activation_token(xwindow, startup.as_raw()));
         }
 
         // We never want to give the user a broken window, since by then, it's too late to handle.

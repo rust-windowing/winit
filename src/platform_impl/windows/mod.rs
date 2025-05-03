@@ -1,5 +1,5 @@
 use windows_sys::Win32::Foundation::HWND;
-use windows_sys::Win32::UI::WindowsAndMessaging::{HMENU, WINDOW_LONG_PTR_INDEX};
+use windows_sys::Win32::UI::WindowsAndMessaging::WINDOW_LONG_PTR_INDEX;
 
 pub(crate) use self::event_loop::{EventLoop, PlatformSpecificEventLoopAttributes};
 pub(crate) use self::icon::{RaiiIcon, SelectedCursor};
@@ -7,50 +7,6 @@ pub(crate) use self::keyboard::{physicalkey_to_scancode, scancode_to_physicalkey
 pub(crate) use self::monitor::MonitorHandle;
 pub(crate) use self::window::Window;
 use crate::event::DeviceId;
-use crate::icon::Icon;
-use crate::platform::windows::{BackdropType, Color, CornerPreference};
-
-#[derive(Clone, Debug)]
-pub struct PlatformSpecificWindowAttributes {
-    pub owner: Option<HWND>,
-    pub menu: Option<HMENU>,
-    pub taskbar_icon: Option<Icon>,
-    pub no_redirection_bitmap: bool,
-    pub drag_and_drop: bool,
-    pub skip_taskbar: bool,
-    pub class_name: String,
-    pub decoration_shadow: bool,
-    pub backdrop_type: BackdropType,
-    pub clip_children: bool,
-    pub border_color: Option<Color>,
-    pub title_background_color: Option<Color>,
-    pub title_text_color: Option<Color>,
-    pub corner_preference: Option<CornerPreference>,
-}
-
-impl Default for PlatformSpecificWindowAttributes {
-    fn default() -> Self {
-        Self {
-            owner: None,
-            menu: None,
-            taskbar_icon: None,
-            no_redirection_bitmap: false,
-            drag_and_drop: true,
-            skip_taskbar: false,
-            class_name: "Window Class".to_string(),
-            decoration_shadow: false,
-            backdrop_type: BackdropType::default(),
-            clip_children: true,
-            border_color: None,
-            title_background_color: None,
-            title_text_color: None,
-            corner_preference: None,
-        }
-    }
-}
-
-unsafe impl Send for PlatformSpecificWindowAttributes {}
-unsafe impl Sync for PlatformSpecificWindowAttributes {}
 
 fn wrap_device_id(id: u32) -> DeviceId {
     DeviceId::from_raw(id as i64)

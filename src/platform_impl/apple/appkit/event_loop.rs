@@ -24,6 +24,7 @@ use super::event::dummy_event;
 use super::monitor;
 use super::observer::setup_control_flow_observers;
 use crate::application::ApplicationHandler;
+use crate::cursor::{CustomCursor as CoreCustomCursor, CustomCursorSource};
 use crate::error::{EventLoopError, RequestError};
 use crate::event_loop::{
     ActiveEventLoop as RootActiveEventLoop, ControlFlow, DeviceEvents,
@@ -33,7 +34,7 @@ use crate::monitor::MonitorHandle as CoreMonitorHandle;
 use crate::platform::macos::ActivationPolicy;
 use crate::platform::pump_events::PumpStatus;
 use crate::platform_impl::Window;
-use crate::window::{CustomCursor as CoreCustomCursor, CustomCursorSource, Theme};
+use crate::window::Theme;
 
 #[derive(Default)]
 pub struct PanicInfo {

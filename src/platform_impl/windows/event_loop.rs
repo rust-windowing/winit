@@ -63,6 +63,7 @@ pub(super) use self::runner::{Event, EventLoopRunner};
 use super::window::set_skip_taskbar;
 use super::SelectedCursor;
 use crate::application::ApplicationHandler;
+use crate::cursor::{CustomCursor, CustomCursorSource};
 use crate::dpi::{PhysicalPosition, PhysicalSize};
 use crate::error::{EventLoopError, NotSupportedError, RequestError};
 use crate::event::{
@@ -91,10 +92,7 @@ use crate::platform_impl::platform::window_state::{
 };
 use crate::platform_impl::platform::{raw_input, util, wrap_device_id};
 use crate::platform_impl::Window;
-use crate::window::{
-    CustomCursor as CoreCustomCursor, CustomCursorSource, Theme, Window as CoreWindow,
-    WindowAttributes, WindowId,
-};
+use crate::window::{Theme, Window as CoreWindow, WindowAttributes, WindowId};
 
 pub(crate) struct WindowData {
     pub window_state: Arc<Mutex<WindowState>>,
@@ -420,7 +418,7 @@ impl RootActiveEventLoop for ActiveEventLoop {
     fn create_custom_cursor(
         &self,
         source: CustomCursorSource,
-    ) -> Result<CoreCustomCursor, RequestError> {
+    ) -> Result<CustomCursor, RequestError> {
         let cursor = match source {
             CustomCursorSource::Image(cursor) => cursor,
             CustomCursorSource::Animation { .. } | CustomCursorSource::Url { .. } => {
@@ -428,7 +426,7 @@ impl RootActiveEventLoop for ActiveEventLoop {
             },
         };
 
-        Ok(CoreCustomCursor(Arc::new(WinCursor::new(&cursor)?)))
+        Ok(CustomCursor(Arc::new(WinCursor::new(&cursor)?)))
     }
 
     fn available_monitors(&self) -> Box<dyn Iterator<Item = CoreMonitorHandle>> {

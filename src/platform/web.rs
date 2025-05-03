@@ -53,13 +53,15 @@ use std::task::{Context, Poll};
 use serde::{Deserialize, Serialize};
 #[cfg(web_platform)]
 use web_sys::HtmlCanvasElement;
+use winit_core::window::PlatformWindowAttributes;
 
 use crate::application::ApplicationHandler;
-use crate::cursor::CustomCursorSource;
+use crate::cursor::{CustomCursor, CustomCursorSource};
 use crate::error::NotSupportedError;
 use crate::event_loop::{ActiveEventLoop, EventLoop};
 use crate::monitor::MonitorHandleProvider;
-use crate::platform_impl::MonitorHandle as WebMonitorHandle;
+use crate::platform_impl::main_thread::{MainThreadMarker, MainThreadSafe};
+use crate::platform_impl::{web_sys as backend, MonitorHandle as WebMonitorHandle};
 #[cfg(web_platform)]
 use crate::platform_impl::{
     CustomCursorFuture as PlatformCustomCursorFuture,
@@ -67,7 +69,7 @@ use crate::platform_impl::{
     MonitorPermissionFuture as PlatformMonitorPermissionFuture,
     OrientationLockFuture as PlatformOrientationLockFuture,
 };
-use crate::window::{CustomCursor, Window, WindowAttributes};
+use crate::window::Window;
 
 #[cfg(not(web_platform))]
 #[doc(hidden)]
@@ -127,7 +129,15 @@ impl WindowExtWeb for dyn Window + '_ {
     }
 }
 
-pub trait WindowAttributesExtWeb {
+#[derive(Clone, Debug)]
+pub struct WindowAttributesWeb {
+    pub(crate) canvas: Option<Arc<MainThreadSafe<backend::RawCanvasType>>>,
+    pub(crate) prevent_default: bool,
+    pub(crate) focusable: bool,
+    pub(crate) append: bool,
+}
+
+impl WindowAttributesWeb {
     /// Pass an [`HtmlCanvasElement`] to be used for this [`Window`]. If [`None`],
     /// [`WindowAttributes::default()`] will create one.
     ///
@@ -135,7 +145,18 @@ pub trait WindowAttributesExtWeb {
     ///
     /// [`None`] by default.
     #[cfg_attr(not(web_platform), doc = "", doc = "[`HtmlCanvasElement`]: #only-available-on-wasm")]
-    fn with_canvas(self, canvas: Option<HtmlCanvasElement>) -> Self;
+    pub fn with_canvas(mut self, canvas: Option<HtmlCanvasElement>) -> Self {
+        match canvas {
+            Some(canvas) => {
+                let main_thread = MainThreadMarker::new()
+                    .expect("received a `HtmlCanvasElement` outside the window context");
+                self.canvas = Some(Arc::new(MainThreadSafe::new(main_thread, canvas)));
+            },
+            None => self.canvas = None,
+        }
+
+        self
+    }
 
     /// Sets whether `event.preventDefault()` should be called on events on the
     /// canvas that have side effects.
@@ -143,39 +164,50 @@ pub trait WindowAttributesExtWeb {
     /// See [`WindowExtWeb::set_prevent_default()`] for more details.
     ///
     /// Enabled by default.
-    fn with_prevent_default(self, prevent_default: bool) -> Self;
+    pub fn with_prevent_default(mut self, prevent_default: bool) -> Self {
+        self.prevent_default = prevent_default;
+        self
+    }
 
     /// Whether the canvas should be focusable using the tab key. This is necessary to capture
     /// canvas keyboard events.
     ///
     /// Enabled by default.
-    fn with_focusable(self, focusable: bool) -> Self;
+    pub fn with_focusable(mut self, focusable: bool) -> Self {
+        self.focusable = focusable;
+        self
+    }
 
     /// On window creation, append the canvas element to the Web page if it isn't already.
     ///
     /// Disabled by default.
-    fn with_append(self, append: bool) -> Self;
+    pub fn with_append(mut self, append: bool) -> Self {
+        self.append = append;
+        self
+    }
 }
 
-impl WindowAttributesExtWeb for WindowAttributes {
-    fn with_canvas(mut self, canvas: Option<HtmlCanvasElement>) -> Self {
-        self.platform_specific.set_canvas(canvas);
-        self
+impl PlatformWindowAttributes for WindowAttributesWeb {
+    fn box_clone(&self) -> Box<dyn PlatformWindowAttributes> {
+        Box::from(self.clone())
     }
+}
 
-    fn with_prevent_default(mut self, prevent_default: bool) -> Self {
-        self.platform_specific.prevent_default = prevent_default;
-        self
+impl PartialEq for WindowAttributesWeb {
+    fn eq(&self, other: &Self) -> bool {
+        (match (&self.canvas, &other.canvas) {
+            (Some(this), Some(other)) => Arc::ptr_eq(this, other),
+            (None, None) => true,
+            _ => false,
+        }) && self.prevent_default.eq(&other.prevent_default)
+            && self.focusable.eq(&other.focusable)
+            && self.append.eq(&other.append)
     }
+}
 
-    fn with_focusable(mut self, focusable: bool) -> Self {
-        self.platform_specific.focusable = focusable;
-        self
-    }
-
-    fn with_append(mut self, append: bool) -> Self {
-        self.platform_specific.append = append;
-        self
+impl Default for WindowAttributesWeb {
+    fn default() -> Self {
+        Self { canvas: None, prevent_default: true, focusable: true, append: false }
     }
 }
 
