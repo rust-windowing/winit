@@ -139,11 +139,12 @@ pub enum ControlFlow {
     /// When the current loop iteration finishes, suspend the thread until either another event
     /// arrives or the given time is reached.
     ///
-    /// Useful for implementing efficient timers. Applications which want to render at the
-    /// display's native refresh rate should instead use [`Poll`] and the VSync functionality
-    /// of a graphics API to reduce odds of missed frames.
+    /// Useful for implementing efficient timers, but should not be relied on for real-time needs
+    /// like rendering (VSync) or audio. Applications which want to render at the display's native
+    /// refresh rate should instead issue a [`Window::request_redraw`] at the end of
+    /// [`WindowEvent::RedrawRequested`].
     ///
-    /// [`Poll`]: Self::Poll
+    /// [`WindowEvent::RedrawRequested`]: crate::event::WindowEvent::RedrawRequested
     WaitUntil(Instant),
 }
 
