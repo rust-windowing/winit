@@ -238,6 +238,14 @@ impl Inner {
         false
     }
 
+    pub fn set_focusable(&self, _focusable: bool) {
+        warn!("`Window::set_focusable` is ignored on iOS")
+    }
+
+    pub fn is_focusable(&self) -> bool {
+        true
+    }
+
     #[inline]
     pub fn set_enabled_buttons(&self, _buttons: WindowButtons) {
         warn!("`Window::set_enabled_buttons` is ignored on iOS");
@@ -653,6 +661,14 @@ impl CoreWindow for Window {
 
     fn is_resizable(&self) -> bool {
         self.maybe_wait_on_main(|delegate| delegate.is_resizable())
+    }
+
+    fn set_focusable(&self, focusable: bool) {
+        self.maybe_wait_on_main(|delegate| delegate.set_focusable(focusable))
+    }
+
+    fn is_focusable(&self) -> bool {
+        self.maybe_wait_on_main(|delegate| delegate.is_focusable())
     }
 
     fn set_enabled_buttons(&self, buttons: WindowButtons) {

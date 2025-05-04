@@ -729,6 +729,7 @@ fn new_window(
         let view = WinitView::new(
             app_state,
             attrs.platform_specific.accepts_first_mouse,
+            attrs.focusable,
             attrs.platform_specific.option_as_alt,
             mtm,
         );
@@ -883,7 +884,8 @@ impl WindowDelegate {
         // state, since otherwise we'll briefly see the window at normal size
         // before it transitions.
         if attrs.visible {
-            if attrs.active {
+            // if !attrs.focusable, we shouldn't steal keyboard focus when showing
+            if attrs.active && attrs.focusable {
                 // Tightly linked with `app_state::window_activation_hack`
                 window.makeKeyAndOrderFront(None);
             } else {
@@ -1002,15 +1004,30 @@ impl WindowDelegate {
     }
 
     pub fn set_visible(&self, visible: bool) {
-        match visible {
-            true => self.window().makeKeyAndOrderFront(None),
-            false => self.window().orderOut(None),
+        if visible {
+            if self.is_focusable() {
+                self.window().makeKeyAndOrderFront(None);
+            } else {
+                self.window().orderFront(None);
+            }
+        } else {
+            self.window().orderOut(None);
         }
     }
 
     #[inline]
     pub fn is_visible(&self) -> Option<bool> {
         Some(self.window().isVisible())
+    }
+
+    #[inline]
+    pub fn set_focusable(&self, focusable: bool) {
+        self.view().set_focusable(focusable);
+    }
+
+    #[inline]
+    pub fn is_focusable(&self) -> bool {
+        self.view().focusable()
     }
 
     pub fn request_redraw(&self) {
