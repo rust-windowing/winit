@@ -35,8 +35,9 @@ pub fn scancode_to_physicalkey(scancode: u32) -> PhysicalKey {
     // are defined by the Linux kernel. If Winit programs end up being run on other Unix-likes,
     // I can only hope they agree on what the keycodes mean.
     //
-    // The mapping here is heavily influenced by Firefox' source:
-    // https://searchfox.org/mozilla-central/rev/c597e9c789ad36af84a0370d395be066b7dc94f4/widget/NativeKeyToDOMCodeName.h
+    // The mapping here is heavily influenced by Firefox' and Chromium's sources:
+    // - https://searchfox.org/mozilla-central/rev/c597e9c789ad36af84a0370d395be066b7dc94f4/widget/NativeKeyToDOMCodeName.h
+    // - https://chromium.googlesource.com/chromium/src.git/+/3e1a26c44c024d97dc9a4c09bbc6a2365398ca2c/ui/events/keycodes/dom/dom_code_data.inc
     //
     // Some of the keycodes are likely superfluous for our purposes, and some are ones which are
     // difficult to test the correctness of, or discover the purpose of. Because of this, they've
@@ -157,11 +158,11 @@ pub fn scancode_to_physicalkey(scancode: u32) -> PhysicalKey {
         113 => KeyCode::AudioVolumeMute,
         114 => KeyCode::AudioVolumeDown,
         115 => KeyCode::AudioVolumeUp,
-        // 116 => KeyCode::POWER,
+        116 => KeyCode::Power,
         117 => KeyCode::NumpadEqual,
         // 118 => KeyCode::KPPLUSMINUS,
         119 => KeyCode::Pause,
-        // 120 => KeyCode::SCALE,
+        120 => KeyCode::ShowAllWindows,
         121 => KeyCode::NumpadComma,
         122 => KeyCode::Lang1,
         123 => KeyCode::Lang2,
@@ -183,7 +184,7 @@ pub fn scancode_to_physicalkey(scancode: u32) -> PhysicalKey {
         // 139 => KeyCode::MENU,
         140 => KeyCode::LaunchApp2, // CALC
         // 141 => KeyCode::SETUP,
-        // 142 => KeyCode::SLEEP,
+        142 => KeyCode::Sleep,
         143 => KeyCode::WakeUp,
         144 => KeyCode::LaunchApp1, // FILE
         // 145 => KeyCode::SENDFILE,
@@ -208,8 +209,8 @@ pub fn scancode_to_physicalkey(scancode: u32) -> PhysicalKey {
         164 => KeyCode::MediaPlayPause,
         165 => KeyCode::MediaTrackPrevious,
         166 => KeyCode::MediaStop,
-        // 167 => KeyCode::RECORD,
-        // 168 => KeyCode::REWIND,
+        167 => KeyCode::MediaRecord,
+        168 => KeyCode::MediaRewind,
         // 169 => KeyCode::PHONE,
         // 170 => KeyCode::ISO,
         171 => KeyCode::MediaSelect, // CONFIG
@@ -220,8 +221,8 @@ pub fn scancode_to_physicalkey(scancode: u32) -> PhysicalKey {
         // 176 => KeyCode::EDIT,
         // 177 => KeyCode::SCROLLUP,
         // 178 => KeyCode::SCROLLDOWN,
-        // 179 => KeyCode::KPLEFTPAREN,
-        // 180 => KeyCode::KPRIGHTPAREN,
+        179 => KeyCode::NumpadParenLeft,
+        180 => KeyCode::NumpadParenRight,
         // 181 => KeyCode::NEW,
         // 182 => KeyCode::REDO,
         183 => KeyCode::F13,
@@ -237,14 +238,14 @@ pub fn scancode_to_physicalkey(scancode: u32) -> PhysicalKey {
         193 => KeyCode::F23,
         194 => KeyCode::F24,
         // 200 => KeyCode::PLAYCD,
-        // 201 => KeyCode::PAUSECD,
+        201 => KeyCode::MediaPause,
         // 202 => KeyCode::PROG3,
         // 203 => KeyCode::PROG4,
         // 204 => KeyCode::DASHBOARD,
         // 205 => KeyCode::SUSPEND,
         // 206 => KeyCode::CLOSE,
-        // 207 => KeyCode::PLAY,
-        // 208 => KeyCode::FASTFORWARD,
+        207 => KeyCode::MediaPlay,
+        208 => KeyCode::MediaFastForward,
         // 209 => KeyCode::BASSBOOST,
         // 210 => KeyCode::PRINT,
         // 211 => KeyCode::HP,
@@ -260,16 +261,16 @@ pub fn scancode_to_physicalkey(scancode: u32) -> PhysicalKey {
         // 221 => KeyCode::SHOP,
         // 222 => KeyCode::ALTERASE,
         // 223 => KeyCode::CANCEL,
-        // 224 => KeyCode::BRIGHTNESSDOW,
-        // 225 => KeyCode::BRIGHTNESSU,
+        224 => KeyCode::BrightnessDown,
+        225 => KeyCode::BrightnessUp,
         // 226 => KeyCode::MEDIA,
-        // 227 => KeyCode::SWITCHVIDEOMODE,
-        // 228 => KeyCode::KBDILLUMTOGGLE,
+        227 => KeyCode::DisplayToggleIntExt,
+        228 => KeyCode::KeyboardBacklightToggle,
         // 229 => KeyCode::KBDILLUMDOWN,
         // 230 => KeyCode::KBDILLUMUP,
-        // 231 => KeyCode::SEND,
-        // 232 => KeyCode::REPLY,
-        // 233 => KeyCode::FORWARDMAIL,
+        231 => KeyCode::MailSend,
+        232 => KeyCode::MailReply,
+        233 => KeyCode::MailForward,
         // 234 => KeyCode::SAVE,
         // 235 => KeyCode::DOCUMENTS,
         // 236 => KeyCode::BATTERY,
@@ -284,7 +285,14 @@ pub fn scancode_to_physicalkey(scancode: u32) -> PhysicalKey {
         // 245 => KeyCode::DISPLAY_OFF,
         // 246 => KeyCode::WWAN,
         // 247 => KeyCode::RFKILL,
-        // 248 => KeyCode::KEY_MICMUTE,
+        248 => KeyCode::MicrophoneMuteToggle,
+        372 => KeyCode::ZoomToggle,
+        579 => KeyCode::LaunchControlPanel,
+        580 => KeyCode::SelectTask,
+        581 => KeyCode::LaunchScreenSaver,
+        583 => KeyCode::LaunchAssistant,
+        584 => KeyCode::KeyboardLayoutSelect,
+        633 => KeyCode::PrivacyScreenToggle,
         _ => return PhysicalKey::Unidentified(NativeKeyCode::Xkb(scancode)),
     })
 }
