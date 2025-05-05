@@ -50,11 +50,11 @@ impl VideoModeHandle {
             DM_BITSPERPEL | DM_PELSWIDTH | DM_PELSHEIGHT | DM_DISPLAYFREQUENCY;
         assert!(has_flag(native_video_mode.dmFields, REQUIRED_FIELDS));
 
-        let mode = VideoMode {
-            size: (native_video_mode.dmPelsWidth, native_video_mode.dmPelsHeight).into(),
-            bit_depth: NonZeroU16::new(native_video_mode.dmBitsPerPel as u16),
-            refresh_rate_millihertz: NonZeroU32::new(native_video_mode.dmDisplayFrequency * 1000),
-        };
+        let mode = VideoMode::new(
+            (native_video_mode.dmPelsWidth, native_video_mode.dmPelsHeight).into(),
+            NonZeroU16::new(native_video_mode.dmBitsPerPel as u16),
+            NonZeroU32::new(native_video_mode.dmDisplayFrequency * 1000),
+        );
 
         VideoModeHandle { mode, native_video_mode: Box::new(native_video_mode) }
     }

@@ -55,7 +55,9 @@ use crate::dpi::{PhysicalInsets, PhysicalPosition, PhysicalSize, Position, Size}
 use crate::error::RequestError;
 use crate::icon::{Icon, RgbaIcon};
 use crate::monitor::{Fullscreen, MonitorHandle as CoreMonitorHandle, MonitorHandleProvider};
-use crate::platform::windows::{BackdropType, Color, CornerPreference, WinIcon};
+use crate::platform::windows::{
+    BackdropType, Color, CornerPreference, WinIcon, WindowAttributesWindows,
+};
 use crate::platform_impl::platform::dark_mode::try_theme;
 use crate::platform_impl::platform::definitions::{
     CLSID_TaskbarList, IID_ITaskbarList, IID_ITaskbarList2, ITaskbarList, ITaskbarList2,
@@ -351,7 +353,7 @@ impl Window {
     }
 
     fn set_icon(&self, mut new_icon: Icon, icon_type: IconType) {
-        if let Some(icon) = new_icon.0.cast_ref::<RgbaIcon>() {
+        if let Some(icon) = new_icon.cast_ref::<RgbaIcon>() {
             let icon = match WinIcon::from_rgba(icon) {
                 Ok(icon) => icon,
                 Err(err) => {
@@ -362,7 +364,7 @@ impl Window {
             new_icon = Icon(Arc::new(icon));
         }
 
-        if let Some(icon) = new_icon.0.cast_ref::<WinIcon>() {
+        if let Some(icon) = new_icon.cast_ref::<WinIcon>() {
             unsafe {
                 SendMessageW(
                     self.hwnd(),
@@ -1137,6 +1139,7 @@ pub(super) struct InitData<'a> {
     // inputs
     pub runner: &'a Rc<EventLoopRunner>,
     pub attributes: WindowAttributes,
+    pub win_attributes: Box<WindowAttributesWindows>,
     pub window_flags: WindowFlags,
     // outputs
     pub window: Option<Window>,
@@ -1186,7 +1189,7 @@ impl InitData<'_> {
     }
 
     unsafe fn create_window_data(&self, win: &Window) -> event_loop::WindowData {
-        let file_drop_handler = if self.attributes.platform_specific.drag_and_drop {
+        let file_drop_handler = if self.win_attributes.drag_and_drop {
             let ole_init_result = unsafe { OleInitialize(ptr::null_mut()) };
             // It is ok if the initialize result is `S_FALSE` because it might happen that
             // multiple windows are created on the same thread.
@@ -1250,7 +1253,7 @@ impl InitData<'_> {
         let win = self.window.as_mut().expect("failed window creation");
 
         // making the window transparent
-        if self.attributes.transparent && !self.attributes.platform_specific.no_redirection_bitmap {
+        if self.attributes.transparent && !self.win_attributes.no_redirection_bitmap {
             // Empty region for the blur effect, so the window is fully transparent
             let region = unsafe { CreateRectRgn(0, 0, -1, -1) };
 
@@ -1267,9 +1270,9 @@ impl InitData<'_> {
             unsafe { DeleteObject(region) };
         }
 
-        win.set_skip_taskbar(self.attributes.platform_specific.skip_taskbar);
+        win.set_skip_taskbar(self.win_attributes.skip_taskbar);
         win.set_window_icon(self.attributes.window_icon.clone());
-        win.set_taskbar_icon(self.attributes.platform_specific.taskbar_icon.clone());
+        win.set_taskbar_icon(self.win_attributes.taskbar_icon.clone());
 
         let attributes = self.attributes.clone();
 
@@ -1306,43 +1309,45 @@ impl InitData<'_> {
             win.set_outer_position(position);
         }
 
-        win.set_system_backdrop(self.attributes.platform_specific.backdrop_type);
+        win.set_system_backdrop(self.win_attributes.backdrop_type);
 
-        if let Some(color) = self.attributes.platform_specific.border_color {
+        if let Some(color) = self.win_attributes.border_color {
             win.set_border_color(color);
         }
-        if let Some(color) = self.attributes.platform_specific.title_background_color {
+        if let Some(color) = self.win_attributes.title_background_color {
             win.set_title_background_color(color);
         }
-        if let Some(color) = self.attributes.platform_specific.title_text_color {
+        if let Some(color) = self.win_attributes.title_text_color {
             win.set_title_text_color(color);
         }
-        if let Some(corner) = self.attributes.platform_specific.corner_preference {
+        if let Some(corner) = self.win_attributes.corner_preference {
             win.set_corner_preference(corner);
         }
     }
 }
 unsafe fn init(
-    attributes: WindowAttributes,
+    mut attributes: WindowAttributes,
     runner: &Rc<EventLoopRunner>,
 ) -> Result<Window, RequestError> {
     let title = util::encode_wide(&attributes.title);
 
-    let class_name = util::encode_wide(&attributes.platform_specific.class_name);
+    let win_attributes = attributes
+        .platform
+        .take()
+        .and_then(|attrs| attrs.cast::<WindowAttributesWindows>().ok())
+        .unwrap_or_default();
+
+    let class_name = util::encode_wide(&win_attributes.class_name);
     unsafe { register_window_class(&class_name) };
 
     let mut window_flags = WindowFlags::empty();
     window_flags.set(WindowFlags::MARKER_DECORATIONS, attributes.decorations);
-    window_flags.set(
-        WindowFlags::MARKER_UNDECORATED_SHADOW,
-        attributes.platform_specific.decoration_shadow,
-    );
+    window_flags.set(WindowFlags::MARKER_UNDECORATED_SHADOW, win_attributes.decoration_shadow);
     window_flags
         .set(WindowFlags::ALWAYS_ON_TOP, attributes.window_level == WindowLevel::AlwaysOnTop);
     window_flags
         .set(WindowFlags::ALWAYS_ON_BOTTOM, attributes.window_level == WindowLevel::AlwaysOnBottom);
-    window_flags
-        .set(WindowFlags::NO_BACK_BUFFER, attributes.platform_specific.no_redirection_bitmap);
+    window_flags.set(WindowFlags::NO_BACK_BUFFER, win_attributes.no_redirection_bitmap);
     window_flags.set(WindowFlags::MARKER_ACTIVATE, attributes.active);
     window_flags.set(WindowFlags::TRANSPARENT, attributes.transparent);
     // WindowFlags::VISIBLE and MAXIMIZED are set down below after the window has been configured.
@@ -1350,9 +1355,9 @@ unsafe fn init(
     // Will be changed later using `window.set_enabled_buttons` but we need to set a default here
     // so the diffing later can work.
     window_flags.set(WindowFlags::CLOSABLE, true);
-    window_flags.set(WindowFlags::CLIP_CHILDREN, attributes.platform_specific.clip_children);
+    window_flags.set(WindowFlags::CLIP_CHILDREN, win_attributes.clip_children);
 
-    let mut fallback_parent = || match attributes.platform_specific.owner {
+    let mut fallback_parent = || match win_attributes.owner {
         Some(parent) => {
             window_flags.set(WindowFlags::POPUP, true);
             Some(parent)
@@ -1363,10 +1368,10 @@ unsafe fn init(
         },
     };
 
-    let parent = match attributes.parent_window.as_ref().map(|handle| handle.0) {
+    let parent = match attributes.parent_window() {
         Some(rwh_06::RawWindowHandle::Win32(handle)) => {
             window_flags.set(WindowFlags::CHILD, true);
-            if attributes.platform_specific.menu.is_some() {
+            if win_attributes.menu.is_some() {
                 warn!("Setting a menu on a child window is unsupported");
             }
             Some(handle.hwnd.get() as HWND)
@@ -1375,10 +1380,10 @@ unsafe fn init(
         None => fallback_parent(),
     };
 
-    let menu = attributes.platform_specific.menu;
+    let menu = win_attributes.menu;
     let fullscreen = attributes.fullscreen.clone();
     let maximized = attributes.maximized;
-    let mut initdata = InitData { runner, attributes, window_flags, window: None };
+    let mut initdata = InitData { runner, attributes, win_attributes, window_flags, window: None };
 
     let (style, ex_style) = window_flags.to_window_styles();
     let handle = unsafe {

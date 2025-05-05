@@ -2,21 +2,11 @@
 
 use crate::event::{DeviceEvent, DeviceId, StartCause, WindowEvent};
 use crate::event_loop::ActiveEventLoop;
-#[cfg(macos_platform)]
-use crate::platform::macos::ApplicationHandlerExtMacOS;
 use crate::window::WindowId;
 
+pub mod macos;
+
 /// The handler of application-level events.
-///
-/// See [the top-level docs] for example usage, and [`EventLoop::run_app`] for an overview of when
-/// events are delivered.
-///
-/// This is [dropped] when the event loop is shut down. Note that this only works if you're passing
-/// the entire state to [`EventLoop::run_app`] (passing `&mut app` won't work).
-///
-/// [the top-level docs]: crate
-/// [`EventLoop::run_app`]: crate::event_loop::EventLoop::run_app
-/// [dropped]: std::ops::Drop
 pub trait ApplicationHandler {
     /// Emitted when new events arrive from the OS to be processed.
     ///
@@ -125,77 +115,6 @@ pub trait ApplicationHandler {
     /// between [`EventLoopProxy::wake_up()`] being called and the event being delivered.
     ///
     /// [`EventLoopProxy::wake_up()`]: crate::event_loop::EventLoopProxy::wake_up
-    ///
-    /// # Example
-    ///
-    /// Use a [`std::sync::mpsc`] channel to handle events from a different thread.
-    ///
-    /// ```no_run
-    /// use std::sync::mpsc;
-    /// use std::thread;
-    /// use std::time::Duration;
-    ///
-    /// use winit::application::ApplicationHandler;
-    /// use winit::event_loop::{ActiveEventLoop, EventLoop};
-    ///
-    /// struct MyApp {
-    ///     receiver: mpsc::Receiver<u64>,
-    /// }
-    ///
-    /// impl ApplicationHandler for MyApp {
-    ///     # fn window_event(
-    ///     #     &mut self,
-    ///     #     _event_loop: &dyn ActiveEventLoop,
-    ///     #     _window_id: winit::window::WindowId,
-    ///     #     _event: winit::event::WindowEvent,
-    ///     # ) {
-    ///     # }
-    ///     #
-    ///     # fn can_create_surfaces(&mut self, _event_loop: &dyn ActiveEventLoop) {}
-    ///     #
-    ///     fn proxy_wake_up(&mut self, _event_loop: &dyn ActiveEventLoop) {
-    ///         // Iterate current events, since wake-ups may have been merged.
-    ///         //
-    ///         // Note: We take care not to use `recv` or `iter` here, as those are blocking,
-    ///         // and that would be bad for performance and might lead to a deadlock.
-    ///         for i in self.receiver.try_iter() {
-    ///             println!("received: {i}");
-    ///         }
-    ///     }
-    ///
-    ///     // Rest of `ApplicationHandler`
-    /// }
-    ///
-    /// fn main() -> Result<(), Box<dyn std::error::Error>> {
-    ///     let event_loop = EventLoop::new()?;
-    ///
-    ///     let (sender, receiver) = mpsc::channel();
-    ///
-    ///     // Send an event in a loop
-    ///     let proxy = event_loop.create_proxy();
-    ///     let background_thread = thread::spawn(move || {
-    ///         let mut i = 0;
-    ///         loop {
-    ///             println!("sending: {i}");
-    ///             if sender.send(i).is_err() {
-    ///                 // Stop sending once the receiver is dropped
-    ///                 break;
-    ///             }
-    ///             // Trigger the wake-up _after_ we placed the event in the channel.
-    ///             // Otherwise, `proxy_wake_up` might be triggered prematurely.
-    ///             proxy.wake_up();
-    ///             i += 1;
-    ///             thread::sleep(Duration::from_secs(1));
-    ///         }
-    ///     });
-    ///
-    ///     event_loop.run_app(MyApp { receiver })?;
-    ///
-    ///     background_thread.join().unwrap();
-    ///
-    ///     Ok(())
-    /// }
-    /// ```
     fn proxy_wake_up(&mut self, event_loop: &dyn ActiveEventLoop) {
         let _ = event_loop;
     }
@@ -210,9 +129,7 @@ pub trait ApplicationHandler {
 
     /// Emitted when the OS sends an event to a device.
     ///
-    /// For this to be called, it must be enabled with [`EventLoop::listen_device_events`].
-    ///
-    /// [`EventLoop::listen_device_events`]: crate::event_loop::EventLoop::listen_device_events
+    /// Whether device events are delivered depends on the backend in use.
     fn device_event(
         &mut self,
         event_loop: &dyn ActiveEventLoop,
@@ -350,9 +267,8 @@ pub trait ApplicationHandler {
     /// The macOS-specific handler.
     ///
     /// The return value from this should not change at runtime.
-    #[cfg(macos_platform)]
     #[inline(always)]
-    fn macos_handler(&mut self) -> Option<&mut dyn ApplicationHandlerExtMacOS> {
+    fn macos_handler(&mut self) -> Option<&mut dyn macos::ApplicationHandlerExtMacOS> {
         None
     }
 }
@@ -419,9 +335,8 @@ impl<A: ?Sized + ApplicationHandler> ApplicationHandler for &mut A {
         (**self).memory_warning(event_loop);
     }
 
-    #[cfg(macos_platform)]
     #[inline]
-    fn macos_handler(&mut self) -> Option<&mut dyn ApplicationHandlerExtMacOS> {
+    fn macos_handler(&mut self) -> Option<&mut dyn macos::ApplicationHandlerExtMacOS> {
         (**self).macos_handler()
     }
 }
@@ -488,9 +403,8 @@ impl<A: ?Sized + ApplicationHandler> ApplicationHandler for Box<A> {
         (**self).memory_warning(event_loop);
     }
 
-    #[cfg(macos_platform)]
     #[inline]
-    fn macos_handler(&mut self) -> Option<&mut dyn ApplicationHandlerExtMacOS> {
+    fn macos_handler(&mut self) -> Option<&mut dyn macos::ApplicationHandlerExtMacOS> {
         (**self).macos_handler()
     }
 }

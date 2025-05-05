@@ -399,7 +399,7 @@ impl Event {
             } => Event::BufferedScaleFactorChanged(
                 window_id.into_raw() as HWND,
                 scale_factor,
-                *surface_size_writer.new_surface_size.upgrade().unwrap().lock().unwrap(),
+                surface_size_writer.surface_size().unwrap(),
             ),
             event => event,
         }

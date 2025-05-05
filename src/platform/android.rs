@@ -72,7 +72,7 @@
 
 use self::activity::{AndroidApp, ConfigurationRef, Rect};
 use crate::event_loop::{ActiveEventLoop, EventLoop, EventLoopBuilder};
-use crate::window::{Window, WindowAttributes};
+use crate::window::Window;
 
 /// Additional methods on [`EventLoop`] that are specific to Android.
 pub trait EventLoopExtAndroid {
@@ -117,11 +117,6 @@ impl ActiveEventLoopExtAndroid for dyn ActiveEventLoop + '_ {
         &event_loop.app
     }
 }
-
-/// Additional methods on [`WindowAttributes`] that are specific to Android.
-pub trait WindowAttributesExtAndroid {}
-
-impl WindowAttributesExtAndroid for WindowAttributes {}
 
 pub trait EventLoopBuilderExtAndroid {
     /// Associates the [`AndroidApp`] that was passed to `android_main()` with the event loop

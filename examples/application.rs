@@ -16,29 +16,26 @@ use rwh_06::{DisplayHandle, HasDisplayHandle};
 #[cfg(not(android_platform))]
 use softbuffer::{Context, Surface};
 use winit::application::ApplicationHandler;
+use winit::cursor::{Cursor, CustomCursor, CustomCursorSource};
 use winit::dpi::{LogicalSize, PhysicalPosition, PhysicalSize};
 use winit::error::RequestError;
 use winit::event::{DeviceEvent, DeviceId, Ime, MouseButton, MouseScrollDelta, WindowEvent};
 use winit::event_loop::{ActiveEventLoop, EventLoop};
-use winit::icon::RgbaIcon;
+use winit::icon::{Icon, RgbaIcon};
 use winit::keyboard::{Key, ModifiersState};
 use winit::monitor::Fullscreen;
 #[cfg(macos_platform)]
-use winit::platform::macos::{
-    ApplicationHandlerExtMacOS, OptionAsAlt, WindowAttributesExtMacOS, WindowExtMacOS,
-};
+use winit::platform::macos::{OptionAsAlt, WindowAttributesMacOS, WindowExtMacOS};
 #[cfg(any(x11_platform, wayland_platform))]
-use winit::platform::startup_notify::{
-    self, EventLoopExtStartupNotify, WindowAttributesExtStartupNotify, WindowExtStartupNotify,
-};
+use winit::platform::startup_notify::{self, EventLoopExtStartupNotify, WindowExtStartupNotify};
+#[cfg(wayland_platform)]
+use winit::platform::wayland::{ActiveEventLoopExtWayland, WindowAttributesWayland};
 #[cfg(web_platform)]
-use winit::platform::web::{ActiveEventLoopExtWeb, WindowAttributesExtWeb};
+use winit::platform::web::{ActiveEventLoopExtWeb, WindowAttributesWeb};
 #[cfg(x11_platform)]
-use winit::platform::x11::WindowAttributesExtX11;
-use winit::window::{
-    Cursor, CursorGrabMode, CustomCursor, CustomCursorSource, Icon, ResizeDirection, Theme, Window,
-    WindowAttributes, WindowId,
-};
+use winit::platform::x11::{ActiveEventLoopExtX11, WindowAttributesX11};
+use winit::window::{CursorGrabMode, ResizeDirection, Theme, Window, WindowAttributes, WindowId};
+use winit_core::application::macos::ApplicationHandlerExtMacOS;
 
 #[path = "util/tracing.rs"]
 mod tracing;
@@ -149,43 +146,29 @@ impl Application {
             .with_transparent(true)
             .with_window_icon(Some(self.icon.clone()));
 
-        #[cfg(any(x11_platform, wayland_platform))]
-        if let Some(token) = event_loop.read_token_from_env() {
-            startup_notify::reset_activation_token_env();
-            info!("Using token {:?} to activate a window", token);
-            window_attributes = window_attributes.with_activation_token(token);
+        #[cfg(x11_platform)]
+        if event_loop.is_x11() {
+            window_attributes = window_attributes
+                .with_platform_attributes(Box::new(window_attributes_x11(event_loop)?));
         }
 
-        #[cfg(x11_platform)]
-        match std::env::var("X11_VISUAL_ID") {
-            Ok(visual_id_str) => {
-                info!("Using X11 visual id {visual_id_str}");
-                let visual_id = visual_id_str.parse()?;
-                window_attributes = window_attributes.with_x11_visual(visual_id);
-            },
-            Err(_) => info!("Set the X11_VISUAL_ID env variable to request specific X11 visual"),
-        }
-
-        #[cfg(x11_platform)]
-        match std::env::var("X11_SCREEN_ID") {
-            Ok(screen_id_str) => {
-                info!("Placing the window on X11 screen {screen_id_str}");
-                let screen_id = screen_id_str.parse()?;
-                window_attributes = window_attributes.with_x11_screen(screen_id);
-            },
-            Err(_) => info!(
-                "Set the X11_SCREEN_ID env variable to place the window on non-default screen"
-            ),
+        #[cfg(wayland_platform)]
+        if event_loop.is_wayland() {
+            window_attributes = window_attributes
+                .with_platform_attributes(Box::new(window_attributes_wayland(event_loop)));
         }
 
         #[cfg(macos_platform)]
         if let Some(tab_id) = _tab_id {
-            window_attributes = window_attributes.with_tabbing_identifier(&tab_id);
+            let window_attributes_macos =
+                Box::new(WindowAttributesMacOS::default().with_tabbing_identifier(&tab_id));
+            window_attributes = window_attributes.with_platform_attributes(window_attributes_macos);
         }
 
         #[cfg(web_platform)]
         {
-            window_attributes = window_attributes.with_append(true);
+            window_attributes =
+                window_attributes.with_platform_attributes(Box::new(window_attributes_web()));
         }
 
         let window = event_loop.create_window(window_attributes)?;
@@ -593,7 +576,6 @@ impl ApplicationHandler for Application {
         }
     }
 
-    #[cfg(target_os = "macos")]
     fn macos_handler(&mut self) -> Option<&mut dyn ApplicationHandlerExtMacOS> {
         Some(self)
     }
@@ -605,7 +587,6 @@ impl Drop for Application {
     }
 }
 
-#[cfg(target_os = "macos")]
 impl ApplicationHandlerExtMacOS for Application {
     fn standard_key_binding(
         &mut self,
@@ -1196,6 +1177,60 @@ fn mouse_button_to_string(button: MouseButton) -> &'static str {
         MouseButton::Forward => "Forward",
         MouseButton::Other(_) => "",
     }
+}
+
+#[cfg(web_platform)]
+fn window_attributes_web() -> WindowAttributesWeb {
+    WindowAttributesWeb::default().with_append(true)
+}
+
+#[cfg(wayland_platform)]
+fn window_attributes_wayland(event_loop: &dyn ActiveEventLoop) -> WindowAttributesWayland {
+    let mut window_attributes = WindowAttributesWayland::default();
+
+    if let Some(token) = event_loop.read_token_from_env() {
+        startup_notify::reset_activation_token_env();
+        info!("Using token {:?} to activate a window", token);
+        window_attributes = window_attributes.with_activation_token(token);
+    }
+
+    window_attributes
+}
+
+#[cfg(x11_platform)]
+fn window_attributes_x11(
+    event_loop: &dyn ActiveEventLoop,
+) -> Result<WindowAttributesX11, Box<dyn Error>> {
+    let mut window_attributes = WindowAttributesX11::default();
+
+    #[cfg(any(x11_platform, wayland_platform))]
+    if let Some(token) = event_loop.read_token_from_env() {
+        startup_notify::reset_activation_token_env();
+        info!("Using token {:?} to activate a window", token);
+        window_attributes = window_attributes.with_activation_token(token);
+    }
+
+    match std::env::var("X11_VISUAL_ID") {
+        Ok(visual_id_str) => {
+            info!("Using X11 visual id {visual_id_str}");
+            let visual_id = visual_id_str.parse()?;
+            window_attributes = window_attributes.with_x11_visual(visual_id);
+        },
+        Err(_) => info!("Set the X11_VISUAL_ID env variable to request specific X11 visual"),
+    }
+
+    match std::env::var("X11_SCREEN_ID") {
+        Ok(screen_id_str) => {
+            info!("Placing the window on X11 screen {screen_id_str}");
+            let screen_id = screen_id_str.parse()?;
+            window_attributes = window_attributes.with_x11_screen(screen_id);
+        },
+        Err(_) => {
+            info!("Set the X11_SCREEN_ID env variable to place the window on non-default screen")
+        },
+    }
+
+    Ok(window_attributes)
 }
 
 /// Cursor list to cycle through.

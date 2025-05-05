@@ -11,7 +11,7 @@ use android_activity::{
 use tracing::{debug, trace, warn};
 
 use crate::application::ApplicationHandler;
-use crate::cursor::Cursor;
+use crate::cursor::{Cursor, CustomCursor, CustomCursorSource};
 use crate::dpi::{PhysicalInsets, PhysicalPosition, PhysicalSize, Position, Size};
 use crate::error::{EventLoopError, NotSupportedError, RequestError};
 use crate::event::{self, DeviceId, FingerId, Force, StartCause, SurfaceSizeWriter};
@@ -23,8 +23,8 @@ use crate::event_loop::{
 use crate::monitor::{Fullscreen, MonitorHandle as CoreMonitorHandle};
 use crate::platform::pump_events::PumpStatus;
 use crate::window::{
-    self, CursorGrabMode, CustomCursor, CustomCursorSource, ImePurpose, ResizeDirection, Theme,
-    Window as CoreWindow, WindowAttributes, WindowButtons, WindowId, WindowLevel,
+    self, CursorGrabMode, ImePurpose, ResizeDirection, Theme, Window as CoreWindow,
+    WindowAttributes, WindowButtons, WindowId, WindowLevel,
 };
 
 mod keycodes;

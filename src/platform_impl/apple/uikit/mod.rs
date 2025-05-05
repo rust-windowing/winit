@@ -13,7 +13,7 @@ pub(crate) use self::event_loop::{
     ActiveEventLoop, EventLoop, PlatformSpecificEventLoopAttributes,
 };
 pub(crate) use self::monitor::MonitorHandle;
-pub(crate) use self::window::{PlatformSpecificWindowAttributes, Window};
+pub(crate) use self::window::Window;
 
 #[derive(Debug)]
 pub enum OsError {}

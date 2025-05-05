@@ -22,7 +22,6 @@ use crate::event::{
     WindowEvent,
 };
 use crate::keyboard::{Key, KeyCode, KeyLocation, NamedKey, NativeKeyCode, PhysicalKey};
-use crate::window::WindowAttributes;
 
 pub struct WinitViewState {
     pinch_gesture_recognizer: RefCell<Option<Retained<UIPinchGestureRecognizer>>>,
@@ -337,7 +336,7 @@ define_class!(
 impl WinitView {
     pub(crate) fn new(
         mtm: MainThreadMarker,
-        window_attributes: &WindowAttributes,
+        scale_factor: Option<f64>,
         frame: CGRect,
     ) -> Retained<Self> {
         let this = mtm.alloc().set_ivars(WinitViewState {
@@ -357,7 +356,7 @@ impl WinitView {
 
         this.setMultipleTouchEnabled(true);
 
-        if let Some(scale_factor) = window_attributes.platform_specific.scale_factor {
+        if let Some(scale_factor) = scale_factor {
             this.setContentScaleFactor(scale_factor as _);
         }
 

@@ -18,6 +18,7 @@ use sctk::reexports::client::{globals, Connection, QueueHandle};
 use tracing::warn;
 
 use crate::application::ApplicationHandler;
+use crate::cursor::{CustomCursor as CoreCustomCursor, CustomCursorSource};
 use crate::dpi::LogicalSize;
 use crate::error::{EventLoopError, NotSupportedError, OsError, RequestError};
 use crate::event::{DeviceEvent, StartCause, SurfaceSizeWriter, WindowEvent};
@@ -29,7 +30,7 @@ use crate::monitor::MonitorHandle as CoreMonitorHandle;
 use crate::platform::pump_events::PumpStatus;
 use crate::platform_impl::platform::min_timeout;
 use crate::platform_impl::wayland::types::cursor::WaylandCustomCursor;
-use crate::window::{CustomCursor as CoreCustomCursor, CustomCursorSource, Theme};
+use crate::window::Theme;
 
 mod proxy;
 pub mod sink;

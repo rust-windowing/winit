@@ -8,8 +8,7 @@ use objc2_ui_kit::{
     UIUserInterfaceIdiom, UIView, UIViewController,
 };
 
-use crate::platform::ios::{ScreenEdge, StatusBarStyle, ValidOrientations};
-use crate::window::WindowAttributes;
+use crate::platform::ios::{ScreenEdge, StatusBarStyle, ValidOrientations, WindowAttributesIos};
 
 pub struct ViewControllerState {
     prefers_status_bar_hidden: Cell<bool>,
@@ -129,7 +128,7 @@ impl WinitViewController {
 
     pub(crate) fn new(
         mtm: MainThreadMarker,
-        window_attributes: &WindowAttributes,
+        ios_attributes: &WindowAttributesIos,
         view: &UIView,
     ) -> Retained<Self> {
         // These are set properly below, we just to set them to something in the meantime.
@@ -142,25 +141,16 @@ impl WinitViewController {
         });
         let this: Retained<Self> = unsafe { msg_send![super(this), init] };
 
-        this.set_prefers_status_bar_hidden(
-            window_attributes.platform_specific.prefers_status_bar_hidden,
-        );
+        this.set_prefers_status_bar_hidden(ios_attributes.prefers_status_bar_hidden);
 
-        this.set_preferred_status_bar_style(
-            window_attributes.platform_specific.preferred_status_bar_style,
-        );
+        this.set_preferred_status_bar_style(ios_attributes.preferred_status_bar_style);
 
-        this.set_supported_interface_orientations(
-            mtm,
-            window_attributes.platform_specific.valid_orientations,
-        );
+        this.set_supported_interface_orientations(mtm, ios_attributes.valid_orientations);
 
-        this.set_prefers_home_indicator_auto_hidden(
-            window_attributes.platform_specific.prefers_home_indicator_hidden,
-        );
+        this.set_prefers_home_indicator_auto_hidden(ios_attributes.prefers_home_indicator_hidden);
 
         this.set_preferred_screen_edges_deferring_system_gestures(
-            window_attributes.platform_specific.preferred_screen_edges_deferring_system_gestures,
+            ios_attributes.preferred_screen_edges_deferring_system_gestures,
         );
 
         this.setView(Some(view));

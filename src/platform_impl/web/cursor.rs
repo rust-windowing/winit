@@ -24,9 +24,7 @@ use super::backend::Style;
 use super::main_thread::{MainThreadMarker, MainThreadSafe};
 use super::r#async::{AbortHandle, Abortable, DropAbortHandle, Notified, Notifier};
 use super::ActiveEventLoop;
-use crate::cursor::{
-    Cursor, CursorAnimation, CursorImage, CustomCursorProvider, CustomCursorSource,
-};
+use crate::cursor::{Cursor, CursorImage, CustomCursorProvider, CustomCursorSource};
 use crate::platform::web::CustomCursorError;
 
 #[derive(Clone, Debug)]
@@ -48,7 +46,8 @@ impl CustomCursor {
                 from_url(UrlType::Plain(url), hotspot_x, hotspot_y),
                 false,
             ),
-            CustomCursorSource::Animation(CursorAnimation { duration, cursors }) => {
+            CustomCursorSource::Animation(animation) => {
+                let (duration, cursors) = animation.into_raw();
                 Self::build_spawn(
                     event_loop,
                     from_animation(event_loop.runner.main_thread(), duration, cursors.into_iter()),
@@ -512,17 +511,17 @@ fn from_rgba(
             fn new(array: Uint8ClampedArray, sw: u32) -> Result<ImageDataExt, JsValue>;
         }
 
-        let array = Uint8Array::new_with_length(image.rgba.len() as u32);
-        array.copy_from(&image.rgba);
+        let array = Uint8Array::new_with_length(image.buffer().len() as u32);
+        array.copy_from(image.buffer());
         let array = Uint8ClampedArray::new(&array);
-        ImageDataExt::new(array, image.width as u32)
+        ImageDataExt::new(array, image.width() as u32)
             .map(JsValue::from)
             .map(ImageData::unchecked_from_js)
     };
     #[cfg(not(target_feature = "atomics"))]
     let result = ImageData::new_with_u8_clamped_array(
-        wasm_bindgen::Clamped(&image.rgba),
-        image.width as u32,
+        wasm_bindgen::Clamped(image.buffer()),
+        image.width() as u32,
     );
     let image_data = result.expect("found wrong image size");
 
@@ -538,7 +537,10 @@ fn from_rgba(
             .expect("unexpected exception in `createImageBitmap()`"),
     );
 
-    let CursorImage { width, height, hotspot_x, hotspot_y, .. } = *image;
+    let width = image.width();
+    let height = image.height();
+    let hotspot_x = image.hotspot_x();
+    let hotspot_y = image.hotspot_y();
     async move {
         let bitmap: ImageBitmap =
             bitmap.await.expect("found invalid state in `ImageData`").unchecked_into();

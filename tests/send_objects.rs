@@ -25,6 +25,6 @@ fn ids_send() {
 
 #[test]
 fn custom_cursor_send() {
-    needs_send::<winit::window::CustomCursorSource>();
-    needs_send::<winit::window::CustomCursor>();
+    needs_send::<winit::cursor::CustomCursorSource>();
+    needs_send::<winit::cursor::CustomCursor>();
 }
