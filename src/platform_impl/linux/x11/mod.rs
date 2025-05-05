@@ -6,7 +6,7 @@ use std::ops::Deref;
 use std::os::raw::*;
 use std::os::unix::io::{AsFd, AsRawFd, BorrowedFd, RawFd};
 use std::sync::mpsc::{self, Receiver, Sender, TryRecvError};
-use std::sync::{Arc, Mutex, Weak};
+use std::sync::{Arc, LazyLock, Mutex, Weak};
 use std::time::{Duration, Instant};
 use std::{fmt, mem, ptr, slice, str};
 
@@ -36,7 +36,6 @@ use crate::platform::x11::XlibErrorHook;
 use crate::platform_impl::common::xkb::Context;
 use crate::platform_impl::platform::min_timeout;
 use crate::platform_impl::x11::window::Window;
-use crate::utils::Lazy;
 use crate::window::{
     CustomCursor as CoreCustomCursor, CustomCursorSource, Theme, Window as CoreWindow,
     WindowAttributes, WindowId,
@@ -74,8 +73,8 @@ type X11rbConnection = x11rb::xcb_ffi::XCBConnection;
 type X11Source = Generic<BorrowedFd<'static>>;
 
 #[cfg(x11_platform)]
-pub(crate) static X11_BACKEND: Lazy<Mutex<Result<Arc<XConnection>, XNotSupported>>> =
-    Lazy::new(|| Mutex::new(XConnection::new(Some(x_error_callback)).map(Arc::new)));
+pub(crate) static X11_BACKEND: LazyLock<Mutex<Result<Arc<XConnection>, XNotSupported>>> =
+    LazyLock::new(|| Mutex::new(XConnection::new(Some(x_error_callback)).map(Arc::new)));
 
 /// Hooks for X11 errors.
 #[cfg(x11_platform)]
@@ -252,7 +251,7 @@ impl EventLoop {
             // Remember default locale to restore it if target locale is unsupported
             // by Xlib
             let default_locale = setlocale(LC_CTYPE, ptr::null());
-            setlocale(LC_CTYPE, b"\0".as_ptr() as *const _);
+            setlocale(LC_CTYPE, c"".as_ptr() as *const _);
 
             // Check if set locale is supported by Xlib.
             // If not, calls to some Xlib functions like `XSetLocaleModifiers`

@@ -3,6 +3,7 @@ use std::iter::once;
 use std::ops::BitAnd;
 use std::os::windows::prelude::{OsStrExt, OsStringExt};
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::LazyLock;
 use std::{io, mem, ptr};
 
 use windows_sys::core::{HRESULT, PCWSTR};
@@ -23,7 +24,6 @@ use windows_sys::Win32::UI::WindowsAndMessaging::{
     WINDOWPLACEMENT,
 };
 
-use crate::utils::Lazy;
 use crate::window::CursorIcon;
 
 pub fn encode_wide(string: impl AsRef<OsStr>) -> Vec<u16> {
@@ -251,25 +251,26 @@ pub type GetPointerDeviceRects = unsafe extern "system" fn(
 pub type GetPointerTouchInfo =
     unsafe extern "system" fn(pointer_id: u32, touch_info: *mut POINTER_TOUCH_INFO) -> BOOL;
 
-pub(crate) static GET_DPI_FOR_WINDOW: Lazy<Option<GetDpiForWindow>> =
-    Lazy::new(|| get_function!("user32.dll", GetDpiForWindow));
-pub(crate) static ADJUST_WINDOW_RECT_EX_FOR_DPI: Lazy<Option<AdjustWindowRectExForDpi>> =
-    Lazy::new(|| get_function!("user32.dll", AdjustWindowRectExForDpi));
-pub(crate) static GET_DPI_FOR_MONITOR: Lazy<Option<GetDpiForMonitor>> =
-    Lazy::new(|| get_function!("shcore.dll", GetDpiForMonitor));
-pub(crate) static ENABLE_NON_CLIENT_DPI_SCALING: Lazy<Option<EnableNonClientDpiScaling>> =
-    Lazy::new(|| get_function!("user32.dll", EnableNonClientDpiScaling));
-pub(crate) static SET_PROCESS_DPI_AWARENESS_CONTEXT: Lazy<Option<SetProcessDpiAwarenessContext>> =
-    Lazy::new(|| get_function!("user32.dll", SetProcessDpiAwarenessContext));
-pub(crate) static SET_PROCESS_DPI_AWARENESS: Lazy<Option<SetProcessDpiAwareness>> =
-    Lazy::new(|| get_function!("shcore.dll", SetProcessDpiAwareness));
-pub(crate) static SET_PROCESS_DPI_AWARE: Lazy<Option<SetProcessDPIAware>> =
-    Lazy::new(|| get_function!("user32.dll", SetProcessDPIAware));
-pub(crate) static GET_POINTER_FRAME_INFO_HISTORY: Lazy<Option<GetPointerFrameInfoHistory>> =
-    Lazy::new(|| get_function!("user32.dll", GetPointerFrameInfoHistory));
-pub(crate) static SKIP_POINTER_FRAME_MESSAGES: Lazy<Option<SkipPointerFrameMessages>> =
-    Lazy::new(|| get_function!("user32.dll", SkipPointerFrameMessages));
-pub(crate) static GET_POINTER_DEVICE_RECTS: Lazy<Option<GetPointerDeviceRects>> =
-    Lazy::new(|| get_function!("user32.dll", GetPointerDeviceRects));
-pub(crate) static GET_POINTER_TOUCH_INFO: Lazy<Option<GetPointerTouchInfo>> =
-    Lazy::new(|| get_function!("user32.dll", GetPointerTouchInfo));
+pub(crate) static GET_DPI_FOR_WINDOW: LazyLock<Option<GetDpiForWindow>> =
+    LazyLock::new(|| get_function!("user32.dll", GetDpiForWindow));
+pub(crate) static ADJUST_WINDOW_RECT_EX_FOR_DPI: LazyLock<Option<AdjustWindowRectExForDpi>> =
+    LazyLock::new(|| get_function!("user32.dll", AdjustWindowRectExForDpi));
+pub(crate) static GET_DPI_FOR_MONITOR: LazyLock<Option<GetDpiForMonitor>> =
+    LazyLock::new(|| get_function!("shcore.dll", GetDpiForMonitor));
+pub(crate) static ENABLE_NON_CLIENT_DPI_SCALING: LazyLock<Option<EnableNonClientDpiScaling>> =
+    LazyLock::new(|| get_function!("user32.dll", EnableNonClientDpiScaling));
+pub(crate) static SET_PROCESS_DPI_AWARENESS_CONTEXT: LazyLock<
+    Option<SetProcessDpiAwarenessContext>,
+> = LazyLock::new(|| get_function!("user32.dll", SetProcessDpiAwarenessContext));
+pub(crate) static SET_PROCESS_DPI_AWARENESS: LazyLock<Option<SetProcessDpiAwareness>> =
+    LazyLock::new(|| get_function!("shcore.dll", SetProcessDpiAwareness));
+pub(crate) static SET_PROCESS_DPI_AWARE: LazyLock<Option<SetProcessDPIAware>> =
+    LazyLock::new(|| get_function!("user32.dll", SetProcessDPIAware));
+pub(crate) static GET_POINTER_FRAME_INFO_HISTORY: LazyLock<Option<GetPointerFrameInfoHistory>> =
+    LazyLock::new(|| get_function!("user32.dll", GetPointerFrameInfoHistory));
+pub(crate) static SKIP_POINTER_FRAME_MESSAGES: LazyLock<Option<SkipPointerFrameMessages>> =
+    LazyLock::new(|| get_function!("user32.dll", SkipPointerFrameMessages));
+pub(crate) static GET_POINTER_DEVICE_RECTS: LazyLock<Option<GetPointerDeviceRects>> =
+    LazyLock::new(|| get_function!("user32.dll", GetPointerDeviceRects));
+pub(crate) static GET_POINTER_TOUCH_INFO: LazyLock<Option<GetPointerTouchInfo>> =
+    LazyLock::new(|| get_function!("user32.dll", GetPointerTouchInfo));
