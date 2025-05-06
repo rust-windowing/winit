@@ -110,6 +110,13 @@ impl MonitorHandleProvider for MonitorHandle {
         Some((bounds.origin.x as f64, bounds.origin.y as f64).into())
     }
 
+    fn physical_size(&self) -> Option<(NonZeroU32, NonZeroU32)> {
+        // NOTE: There is no way to query the PPI on iOS.
+        // TODO(madsmtm): Use a hardcoded mapping of device models to PPI.
+        // <https://stackoverflow.com/a/28573791>
+        None
+    }
+
     fn scale_factor(&self) -> f64 {
         self.ui_screen.get_on_main(|ui_screen| ui_screen.nativeScale()) as f64
     }

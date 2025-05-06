@@ -1,4 +1,4 @@
-use std::num::NonZeroU16;
+use std::num::{NonZeroU16, NonZeroU32};
 use std::str::FromStr;
 use std::{env, str};
 
@@ -9,6 +9,8 @@ use super::*;
 use crate::dpi::validate_scale_factor;
 use crate::monitor::VideoMode;
 use crate::platform_impl::platform::x11::{monitor, VideoModeHandle};
+
+pub type OutputInfo = (String, Option<(NonZeroU32, NonZeroU32)>, f64, Vec<VideoModeHandle>);
 
 /// Represents values of `WINIT_HIDPI_FACTOR`.
 pub enum EnvVarDPI {
@@ -59,7 +61,7 @@ impl XConnection {
         &self,
         resources: &monitor::ScreenResources,
         crtc: &randr::GetCrtcInfoReply,
-    ) -> Option<(String, f64, Vec<VideoModeHandle>)> {
+    ) -> Option<OutputInfo> {
         let output_info = match self
             .xcb_connection()
             .randr_get_output_info(crtc.outputs[0], x11rb::CURRENT_TIME)
@@ -127,6 +129,10 @@ impl XConnection {
             },
         );
 
+        let physical_size = NonZeroU32::new(output_info.mm_width).and_then(|mm_width| {
+            NonZeroU32::new(output_info.mm_height).map(|mm_height| (mm_width, mm_height))
+        });
+
         let scale_factor = match dpi_env {
             EnvVarDPI::Randr => calc_dpi_factor(
                 (crtc.width.into(), crtc.height.into()),
@@ -153,7 +159,7 @@ impl XConnection {
             },
         };
 
-        Some((name, scale_factor, modes))
+        Some((name, physical_size, scale_factor, modes))
     }
 
     pub fn set_crtc_config(

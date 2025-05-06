@@ -51,6 +51,16 @@ impl CoreMonitorHandle for MonitorHandle {
         }))
     }
 
+    fn physical_size(&self) -> Option<(NonZeroU32, NonZeroU32)> {
+        let output_data = self.proxy.data::<OutputData>().unwrap();
+        let (width_mm, height_mm) = output_data.with_output_info(|oi| oi.physical_size);
+
+        Some((
+            NonZeroU32::new(width_mm.try_into().ok()?)?,
+            NonZeroU32::new(height_mm.try_into().ok()?)?,
+        ))
+    }
+
     fn scale_factor(&self) -> f64 {
         let output_data = self.proxy.data::<OutputData>().unwrap();
         output_data.scale_factor() as f64

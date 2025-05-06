@@ -1,7 +1,7 @@
 use std::num::NonZeroU32;
 
 use x11rb::connection::RequestConnection;
-use x11rb::protocol::randr::{self, ConnectionExt as _};
+use x11rb::protocol::randr::{self, ConnectionExt as _, Rotation};
 use x11rb::protocol::xproto;
 
 use super::{util, X11Error, XConnection};
@@ -41,6 +41,8 @@ pub struct MonitorHandle {
     pub(crate) position: (i32, i32),
     /// If the monitor is the primary one
     primary: bool,
+    /// The physical size of a monitor in millimeters.
+    pub(crate) physical_size: Option<(NonZeroU32, NonZeroU32)>,
     /// The DPI scale factor
     pub(crate) scale_factor: f64,
     /// Used to determine which windows are on this monitor
@@ -64,6 +66,10 @@ impl MonitorHandleProvider for MonitorHandle {
 
     fn position(&self) -> Option<PhysicalPosition<i32>> {
         Some(self.position.into())
+    }
+
+    fn physical_size(&self) -> Option<(NonZeroU32, NonZeroU32)> {
+        self.physical_size
     }
 
     fn scale_factor(&self) -> f64 {
@@ -125,19 +131,46 @@ impl MonitorHandle {
         crtc: &randr::GetCrtcInfoReply,
         primary: bool,
     ) -> Option<Self> {
-        let (name, scale_factor, video_modes) = xconn.get_output_info(resources, crtc)?;
+        let (name, mut physical_size, scale_factor, video_modes) =
+            xconn.get_output_info(resources, crtc)?;
+
+        let rotation = xconn
+            .xcb_connection()
+            .randr_get_crtc_info(id, x11rb::CURRENT_TIME)
+            .ok()?
+            .reply()
+            .ok()?
+            .rotation;
+
+        // By default, X11 window system is the only that does not
+        // swap width and height when display is rotated. To match
+        // behaviour with Windows and MacOS we do this manually.
+        if matches!(rotation, Rotation::ROTATE90 | Rotation::ROTATE270) {
+            physical_size = physical_size.map(|(width_mm, height_mm)| (height_mm, width_mm));
+        }
+
         let dimensions = (crtc.width as u32, crtc.height as u32);
         let position = (crtc.x as i32, crtc.y as i32);
 
         let rect = util::AaRect::new(position, dimensions);
 
-        Some(MonitorHandle { id, name, scale_factor, position, primary, rect, video_modes })
+        Some(MonitorHandle {
+            id,
+            name,
+            physical_size,
+            scale_factor,
+            position,
+            primary,
+            rect,
+            video_modes,
+        })
     }
 
     pub fn dummy() -> Self {
         MonitorHandle {
             id: 0,
             name: "<dummy monitor>".into(),
+            physical_size: None,
             scale_factor: 1.0,
             position: (0, 0),
             primary: true,

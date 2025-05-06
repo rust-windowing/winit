@@ -241,6 +241,7 @@ objc2-ui-kit = { version = "0.3.1", default-features = false, features = [
 
 # Windows
 [target.'cfg(target_os = "windows")'.dependencies]
+scopeguard = "1.2.0"
 unicode-segmentation = "1.7.1"
 windows-sys = { version = "0.59.0", features = [
     "Win32_Devices_HumanInterfaceDevice",
@@ -254,6 +255,7 @@ windows-sys = { version = "0.59.0", features = [
     "Win32_System_LibraryLoader",
     "Win32_System_Ole",
     "Win32_Security",
+    "Win32_System_Registry",
     "Win32_System_SystemInformation",
     "Win32_System_SystemServices",
     "Win32_System_Threading",

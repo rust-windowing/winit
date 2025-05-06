@@ -4,7 +4,7 @@ use std::fmt::{self, Debug, Formatter};
 use std::future::Future;
 use std::hash::{Hash, Hasher};
 use std::mem;
-use std::num::NonZeroU16;
+use std::num::{NonZeroU16, NonZeroU32};
 use std::ops::{Deref, DerefMut};
 use std::pin::Pin;
 use std::rc::{Rc, Weak};
@@ -126,6 +126,21 @@ impl MonitorHandleProvider for MonitorHandle {
 
     fn native_id(&self) -> u64 {
         self.id.unwrap_or_default()
+    }
+
+    fn physical_size(&self) -> Option<(NonZeroU32, NonZeroU32)> {
+        // NOTE: Browsers expose only CSS-pixel which is different
+        // from the actual pixel. CSS mm also means logical
+        // millimeters, and not an actual millimeter and equivalent to
+        // approximately 3.78px. There are couple of ways to solve
+        // this problem. First one is to stick with approximation, and
+        // other is to explicitly ask user. Both are non-ideal, so no
+        // implementation provided.
+        // References:
+        //
+        //   [1] <https://developer.mozilla.org/en-US/docs/Web/CSS/length#px>
+        //   [2] <https://stackoverflow.com/questions/75533347/how-can-i-get-the-physical-size-of-a-pixel-in-millimeters-at-a-specific-window>
+        None
     }
 
     fn scale_factor(&self) -> f64 {
