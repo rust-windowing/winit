@@ -134,6 +134,12 @@ bitflags! {
 
         const CLIP_CHILDREN = 1 << 22;
 
+        const TITLE_BAR = 1 << 23; //0x__800000 on Windows sets WS_CAPTION (0x__C00000)
+
+        /// Unset to signal that a window without a title bar, eg, with a custom one,
+        /// does not need a ~6px resize border at the top. No effect on a titled window.
+        const TOP_RESIZE_BORDER = 1 << 24; //0x_1000000
+
         const EXCLUSIVE_FULLSCREEN_OR_MASK = WindowFlags::ALWAYS_ON_TOP.bits();
     }
 }
@@ -297,6 +303,9 @@ impl WindowFlags {
                 style &= !(WS_CAPTION | WS_BORDER);
                 style_ex &= !WS_EX_WINDOWEDGE;
             }
+            if !self.contains(WindowFlags::TITLE_BAR) {
+                style &= !WS_CAPTION;
+            }
         }
         if self.contains(WindowFlags::POPUP) {
             style |= WS_POPUP;
@@ -312,6 +321,11 @@ impl WindowFlags {
         }
         if self.contains(WindowFlags::CLIP_CHILDREN) {
             style |= WS_CLIPCHILDREN;
+        }
+        if self.contains(WindowFlags::TITLE_BAR) {
+            style |= WS_CAPTION;
+        } else {
+            style &= !WS_CAPTION;
         }
 
         if self.intersects(
@@ -444,6 +458,9 @@ impl WindowFlags {
             // `WM_NCCALCSIZE`.
             if !self.contains(WindowFlags::MARKER_DECORATIONS) {
                 style &= !(WS_CAPTION | WS_SIZEBOX);
+            }
+            if !self.contains(WindowFlags::TITLE_BAR) {
+                style &= !WS_CAPTION;
             }
 
             util::win_to_err({
