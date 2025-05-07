@@ -135,6 +135,13 @@ impl ApplicationHandler for App {
                 let rects_ref = &mut rects;
                 // Draw.
                 fill::fill_window_with_fn(&**window, |frame, stride, scale, frame_w, frame_h| {
+                    // Clear the top left 50x50 rect, we'll put an animation there.
+                    for y in 0..50 {
+                        for x in 0..50 {
+                            frame[y * stride + x] = 0xff181818;
+                        }
+                    }
+
                     let extent = draw_text(
                         frame,
                         stride,
@@ -156,9 +163,10 @@ impl ApplicationHandler for App {
                         }
                         let len = (xoff * xoff + yoff * yoff).sqrt();
                         let norm = 1.0 / xoff.abs().max(yoff.abs());
-                        let mut xo_small = xoff * norm;
-                        let mut yo_small = yoff * norm;
-                        for i in 0..=len as usize {
+                        let xo_small = xoff * norm;
+                        let yo_small = yoff * norm;
+                        let antinorm = 1.0 / (xo_small * xo_small + yo_small * yo_small).sqrt();
+                        for i in 0..=(len * antinorm) as usize {
                             let i = i as f32;
 
                             let x = (xpos as f32 + xo_small * i) / scale as f32;
@@ -170,6 +178,21 @@ impl ApplicationHandler for App {
                         }
                     };
 
+                    // Animation.
+                    let x = 25.0;
+                    let y = 25.0;
+
+                    static START: std::sync::OnceLock<web_time::Instant> =
+                        std::sync::OnceLock::new();
+                    let start = START.get_or_init(web_time::Instant::now);
+                    let time = web_time::Instant::now().duration_since(*start).as_secs_f32();
+
+                    let xo = (time).sin() * 25.0;
+                    let yo = (time).cos() * 25.0;
+                    draw_line(x, y, xo, yo);
+                    draw_line(x, y, -xo, -yo);
+
+                    // Any new lines to draw fron input?
                     if self.drawing {
                         draw_line(
                             self.old_posx,
@@ -184,7 +207,8 @@ impl ApplicationHandler for App {
                     let w = self.posx.max(self.old_posx) - x + 1.0;
                     let h = self.posy.max(self.old_posy) - y + 1.0;
 
-                    *rects_ref = vec![rect1, [x as u32, y as u32, w as u32, h as u32]];
+                    *rects_ref =
+                        vec![[0, 0, 50, 50], rect1, [x as u32, y as u32, w as u32, h as u32]];
                     let mut damaged = rects_ref.clone();
                     damaged.extend_from_slice(&self.last_draw);
                     damaged
