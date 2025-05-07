@@ -1,6 +1,8 @@
 Cargo.lock
 target/
 rls/
+# pkg: Often used for temporary wasm debug builds
+pkg/
 .vscode/
 *~
 #*#
