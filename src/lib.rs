@@ -1,5 +1,59 @@
 //! Winit is a cross-platform window creation and event loop management library.
 //!
+//! # Usage
+//!
+//! `winit` can be added to `Cargo.toml` as a dependency. It can be added via `cargo add`.
+//!
+//! ```bash
+//! $ cargo add winit
+//! ```
+//!
+//! To only enable the X11 backend on Free Unix[^unix] systems, disable default features
+//! and enable the `x11` feature.
+//!
+//! ```bash
+//! $ cargo add winit --no-default-features --features x11
+//! ```
+//!
+//! To only enable the Wayland backend on Free Unix systems, disable default features
+//! and enable the `wayland` feature.
+//!
+//! ```bash
+//! $ cargo add winit --no-default-features --features wayland
+//! ```
+//!
+//! These features have no effect on systems that are not Free Unix.
+//!
+//! ## Dependencies
+//!
+//! Dependencies on non-system libraries is managed through Cargo. For the X11
+//! backend, the following Ubuntu packages or their equivalents must[^must] be installed.
+//!
+//! - `libx11-dev`
+//! - `libxcb1-dev`
+//! - `libxi-dev`
+//! - `libxcbcommon-dev`
+//! - `libxcbcommon-x11-dev`
+//!
+//! For the Wayland backend, the following Ubuntu packages or their equivalents
+//! must be installed.
+//!
+//! - `libwayland-dev`
+//! - `libxcbcommon-dev`
+//! - `libfontconfig` (only with `sctk-adwaita` feature)
+//! - `freetype` (only with `sctk-adwaita` feature)
+//!
+//! The "dev" packages are only needed for building binaries that use `winit`. On
+//! deployed system the non-`dev` equivalents need to be installed.
+//!
+//! The other backends (Windows, macOS, etc) do not have any dependencies on system libraries
+//! that don't already come with the operating system. However, note that the Windows backend
+//! only supports Windows 10 and above, and the macOS backend only supports macOS
+//! 10.14 and above.
+//!
+//! [^unix]: Unix systems outside of Android and Apple, like Linux or FreeBSD.
+//! [^must]: This is not a "must" when the "dlopen" features are enabled
+//!
 //! # Building windows
 //!
 //! Before you can create a [`Window`], you first need to build an [`EventLoop`]. This is done with
