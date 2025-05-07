@@ -669,7 +669,13 @@ impl Window {
 
     pub fn set_ime_cursor_area(&self, _position: Position, _size: Size) {}
 
-    pub fn set_ime_allowed(&self, _allowed: bool) {}
+    pub fn set_ime_allowed(&self, allowed: bool) {
+        if allowed {
+            self.app.show_keyboard();
+        } else {
+            self.app.hide_keyboard();
+        }
+    }
 
     pub fn set_ime_purpose(&self, _purpose: ImePurpose) {}
 
