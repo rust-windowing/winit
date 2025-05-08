@@ -77,6 +77,7 @@ mod platform {
         }
     }
 
+    #[allow(dead_code)]
     pub fn fill_window_with_fn(
         window: &dyn Window,
         f: impl FnOnce(&mut [u32], usize, f64, u32, u32) -> Vec<[u32; 4]>,

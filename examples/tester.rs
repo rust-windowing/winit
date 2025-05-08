@@ -233,7 +233,7 @@ impl ApplicationHandler for App {
                     draw_line(x, y, xo, yo, 1);
                     draw_line(x, y, -xo, -yo, 1);
 
-                    // Any new lines to draw fron input?
+                    // Any new lines to draw from input?
                     let diameter = self.has_pressure.map(|x| x * 10.0).unwrap_or(0.0).ceil();
                     if self.drawing {
                         draw_line(
