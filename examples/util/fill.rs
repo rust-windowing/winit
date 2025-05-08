@@ -179,6 +179,14 @@ mod platform {
     }
 
     #[allow(dead_code)]
+    pub fn fill_window_with_fn(
+        _window: &dyn winit::window::Window,
+        _f: impl FnOnce(&mut [u32], usize, f64, u32, u32) -> Vec<[u32; 4]>,
+    ) {
+        // No-op on mobile platforms.
+    }
+
+    #[allow(dead_code)]
     pub fn fill_window_with_animated_color(
         _window: &dyn winit::window::Window,
         _start: std::time::Instant,
