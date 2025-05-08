@@ -85,10 +85,10 @@ smol_str = "0.3"
 tracing = { version = "0.1.40", default-features = false }
 
 [dev-dependencies]
+font8x8 = "0.3.1"
 image = { version = "0.25.0", default-features = false, features = ["png"] }
 tracing = { version = "0.1.40", default-features = false, features = ["log"] }
 tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
-font8x8 = "0.3.1"
 
 [target.'cfg(not(target_os = "android"))'.dev-dependencies]
 softbuffer = { version = "0.4.6", default-features = false, features = [

@@ -141,13 +141,10 @@ impl ApplicationHandler for App {
                     self.posx = position.x as f32;
                     self.posy = position.y as f32;
                 }
-                match source {
-                    PointerSource::Touch { force, .. } => {
-                        if self.has_pressure.is_some() {
-                            self.has_pressure = force.map(|x| x.normalized() as f32);
-                        }
-                    },
-                    _ => {},
+                if let PointerSource::Touch { force, .. } = source {
+                    if self.has_pressure.is_some() {
+                        self.has_pressure = force.map(|x| x.normalized() as f32);
+                    }
                 }
             },
             WindowEvent::RedrawRequested => {
