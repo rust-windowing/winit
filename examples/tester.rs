@@ -1,10 +1,17 @@
 //! Basic winit interactivity example.
 
+//! Web compilation and testing example:
+//!     cargo build --release --target wasm32-unknown-unknown --example tester && \
+//!      wasm-bindgen target/wasm32-unknown-unknown/release/examples/tester.wasm \
+//!      --out-dir pkg --target web
+//!     python3 -m http.server
+//! Then navigate to http://localhost:8000/examples/tester.html
+
 use std::error::Error;
 
 use font8x8::legacy::BASIC_LEGACY;
 use winit::application::ApplicationHandler;
-use winit::event::{ButtonSource, MouseButton, WindowEvent};
+use winit::event::{ButtonSource, MouseButton, PointerSource, WindowEvent};
 use winit::event_loop::{ActiveEventLoop, EventLoop};
 #[cfg(web_platform)]
 use winit::platform::web::WindowAttributesExtWeb;
@@ -65,6 +72,7 @@ struct App {
     old_posy: f32,
     posx: f32,
     posy: f32,
+    has_pressure: Option<f32>,
     drawing: bool,
     last_draw: Vec<[u32; 4]>,
 }
@@ -97,26 +105,49 @@ impl ApplicationHandler for App {
                 event_loop.exit();
             },
             WindowEvent::SurfaceResized(_) => {
-                self.window.as_ref().expect("resize event without a window").request_redraw();
+                let window = self.window.as_ref().expect("resize event without a window");
+                window.pre_present_notify();
+                fill::fill_window_with_color(&**window, 0xff181818);
+                window.request_redraw();
             },
-            WindowEvent::PointerButton { position, state, button, .. } => {
-                if matches!(button, ButtonSource::Mouse(MouseButton::Left)) {
-                    self.posx = position.x as f32;
-                    self.posy = position.y as f32;
-                    self.old_posx = position.x as f32;
-                    self.old_posy = position.y as f32;
-                    self.drawing = state == winit::event::ElementState::Pressed;
-                } else {
-                    let window = self.window.as_ref().unwrap();
-                    window.pre_present_notify();
-                    fill::fill_window_with_color(&**window, 0xff181818);
-                    window.request_redraw();
+            WindowEvent::PointerButton { primary, position, state, button, .. } => {
+                match (primary, button) {
+                    (true, ButtonSource::Mouse(MouseButton::Left)) => {
+                        self.posx = position.x as f32;
+                        self.posy = position.y as f32;
+                        self.old_posx = position.x as f32;
+                        self.old_posy = position.y as f32;
+                        self.drawing = state == winit::event::ElementState::Pressed;
+                        self.has_pressure = None;
+                    },
+                    (true, ButtonSource::Touch { force, .. }) => {
+                        self.posx = position.x as f32;
+                        self.posy = position.y as f32;
+                        self.old_posx = position.x as f32;
+                        self.old_posy = position.y as f32;
+                        self.drawing = state == winit::event::ElementState::Pressed;
+                        self.has_pressure = force.map(|x| x.normalized() as f32);
+                    },
+                    _ => {
+                        let window = self.window.as_ref().unwrap();
+                        window.pre_present_notify();
+                        fill::fill_window_with_color(&**window, 0xff181818);
+                        window.request_redraw();
+                    },
                 }
             },
-            WindowEvent::PointerMoved { position, .. } => {
+            WindowEvent::PointerMoved { position, source, .. } => {
                 if self.drawing {
                     self.posx = position.x as f32;
                     self.posy = position.y as f32;
+                }
+                match source {
+                    PointerSource::Touch { force, .. } => {
+                        if self.has_pressure.is_some() {
+                            self.has_pressure = force.map(|x| x.normalized() as f32);
+                        }
+                    },
+                    _ => {},
                 }
             },
             WindowEvent::RedrawRequested => {
@@ -136,8 +167,8 @@ impl ApplicationHandler for App {
                 // Draw.
                 fill::fill_window_with_fn(&**window, |frame, stride, scale, frame_w, frame_h| {
                     // Clear the top left 50x50 rect, we'll put an animation there.
-                    for y in 0..50 {
-                        for x in 0..50 {
+                    for y in 0..50.min(frame_h as usize) {
+                        for x in 0..50.min(frame_w as usize) {
                             frame[y * stride + x] = 0xff181818;
                         }
                     }
@@ -149,34 +180,44 @@ impl ApplicationHandler for App {
                         50,
                         &format!(
                             "Input tester.\nLeft click to draw, right click to clear.\nx: {}\ny: \
-                             {}",
-                            self.posx, self.posy
+                             {}\npressure: {:?}",
+                            self.posx, self.posy, self.has_pressure
                         ),
                         0xffffffff,
                         0xff181818,
                     );
                     let rect1 = [20, 50, extent.0 - 20, extent.1 - 50];
 
-                    let mut draw_line = |xpos: f32, ypos: f32, xoff: f32, yoff: f32| {
-                        if xoff == 0.0 && yoff == 0.0 {
-                            return;
-                        }
-                        let len = (xoff * xoff + yoff * yoff).sqrt();
-                        let norm = 1.0 / xoff.abs().max(yoff.abs());
-                        let xo_small = xoff * norm;
-                        let yo_small = yoff * norm;
-                        let antinorm = 1.0 / (xo_small * xo_small + yo_small * yo_small).sqrt();
-                        for i in 0..=(len * antinorm) as usize {
-                            let i = i as f32;
+                    let mut draw_line =
+                        |xpos: f32, ypos: f32, xoff: f32, yoff: f32, thickness: u32| {
+                            if xoff == 0.0 && yoff == 0.0 {
+                                return;
+                            }
+                            let len = (xoff * xoff + yoff * yoff).sqrt();
+                            let norm = 1.0 / xoff.abs().max(yoff.abs());
+                            let xo_small = xoff * norm;
+                            let yo_small = yoff * norm;
+                            let spacing = (thickness as f32 * 0.25).max(1.0);
+                            let antinorm =
+                                1.0 / (xo_small * xo_small + yo_small * yo_small).sqrt() / spacing;
+                            for i in 0..=(len * antinorm) as usize {
+                                let i = i as f32;
 
-                            let x = (xpos as f32 + xo_small * i) / scale as f32;
-                            let y = (ypos as f32 + yo_small * i) / scale as f32;
+                                for _y in -(thickness as i32) / 2..(thickness as i32 + 1) / 2 {
+                                    for _x in -(thickness as i32) / 2..(thickness as i32 + 1) / 2 {
+                                        let x = (xpos + _x as f32 + xo_small * i * spacing)
+                                            / scale as f32;
+                                        let y = (ypos + _y as f32 + yo_small * i * spacing)
+                                            / scale as f32;
 
-                            let xpart = x.clamp(0.0, frame_w as f32 - 1.0) as usize;
-                            let ypart = y.clamp(0.0, frame_h as f32 - 1.0) as usize * stride;
-                            frame[ypart + xpart] = 0xffffffff;
-                        }
-                    };
+                                        let xpart = x.clamp(0.0, frame_w as f32 - 1.0) as usize;
+                                        let ypart =
+                                            y.clamp(0.0, frame_h as f32 - 1.0) as usize * stride;
+                                        frame[ypart + xpart] = 0xffffffff;
+                                    }
+                                }
+                            }
+                        };
 
                     // Animation.
                     let x = 25.0;
@@ -189,23 +230,28 @@ impl ApplicationHandler for App {
 
                     let xo = (time).sin() * 25.0;
                     let yo = (time).cos() * 25.0;
-                    draw_line(x, y, xo, yo);
-                    draw_line(x, y, -xo, -yo);
+                    draw_line(x, y, xo, yo, 1);
+                    draw_line(x, y, -xo, -yo, 1);
 
                     // Any new lines to draw fron input?
+                    let diameter = self.has_pressure.map(|x| x * 10.0).unwrap_or(0.0).ceil();
                     if self.drawing {
                         draw_line(
                             self.old_posx,
                             self.old_posy,
                             self.posx - self.old_posx,
                             self.posy - self.old_posy,
+                            diameter as u32 + 1,
                         );
                     }
+                    let radius = (diameter * 0.5).ceil();
 
-                    let x = self.posx.min(self.old_posx);
-                    let y = self.posy.min(self.old_posy);
-                    let w = self.posx.max(self.old_posx) - x + 1.0;
-                    let h = self.posy.max(self.old_posy) - y + 1.0;
+                    let x = (self.posx.min(self.old_posx) - radius).max(0.0);
+                    let y = (self.posy.min(self.old_posy) - radius).max(0.0);
+                    let w =
+                        (self.posx.max(self.old_posx) - x + 1.0 + radius).min(frame_w as f32 - x);
+                    let h =
+                        (self.posy.max(self.old_posy) - y + 1.0 + radius).min(frame_h as f32 - y);
 
                     *rects_ref =
                         vec![[0, 0, 50, 50], rect1, [x as u32, y as u32, w as u32, h as u32]];
