@@ -429,7 +429,7 @@ impl WindowAttributes {
 ///
 /// ## Platform-specific
 ///
-/// **Web:** The [`Window`], which is represented by a `HTMLElementCanvas`, can
+/// **Web:** The [`Window`], which is represented by a `HTMLCanvasElement`, can
 /// not be closed by dropping the [`Window`].
 pub trait Window: AsAny + Send + Sync + fmt::Debug {
     /// Returns an identifier unique to the window.
