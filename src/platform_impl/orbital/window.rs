@@ -301,6 +301,14 @@ impl CoreWindow for Window {
     }
 
     #[inline]
+    fn set_focusable(&self, _focusable: bool) {}
+
+    #[inline]
+    fn is_focusable(&self) -> bool {
+        true
+    }
+
+    #[inline]
     fn set_minimized(&self, _minimized: bool) {}
 
     #[inline]

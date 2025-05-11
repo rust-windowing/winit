@@ -151,6 +151,14 @@ impl CoreWindow for Window {
         self.0.is_visible()
     }
 
+    fn set_focusable(&self, focusable: bool) {
+        self.0.set_focusable(focusable)
+    }
+
+    fn is_focusable(&self) -> bool {
+        self.0.is_focusable()
+    }
+
     fn set_resizable(&self, resizable: bool) {
         self.0.set_resizable(resizable);
     }
@@ -349,6 +357,7 @@ pub struct SharedState {
     pub inner_position: Option<(i32, i32)>,
     pub inner_position_rel_parent: Option<(i32, i32)>,
     pub is_resizable: bool,
+    pub is_focusable: bool,
     pub is_decorated: bool,
     pub last_monitor: X11MonitorHandle,
     pub dpi_adjusted: Option<(u32, u32)>,
@@ -388,6 +397,7 @@ impl SharedState {
             visibility,
 
             is_resizable: window_attributes.resizable,
+            is_focusable: true,
             is_decorated: window_attributes.decorations,
             cursor_pos: None,
             size: None,
@@ -1486,6 +1496,21 @@ impl UnownedWindow {
     #[inline]
     pub fn is_visible(&self) -> Option<bool> {
         Some(self.shared_state_lock().visibility == Visibility::Yes)
+    }
+
+    #[inline]
+    pub fn set_focusable(&self, focusable: bool) {
+        let mut hints = WmHints::new();
+        hints.input = Some(focusable);
+        if let Ok(cookie) = hints.set(self.xconn.xcb_connection(), self.xwindow) {
+            cookie.ignore_error();
+        }
+        self.shared_state_lock().is_focusable = focusable;
+    }
+
+    #[inline]
+    pub fn is_focusable(&self) -> bool {
+        self.shared_state_lock().is_focusable
     }
 
     fn update_cached_frame_extents(&self) {

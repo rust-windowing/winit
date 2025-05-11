@@ -66,6 +66,7 @@ pub struct WindowAttributes {
     pub content_protected: bool,
     pub window_level: WindowLevel,
     pub active: bool,
+    pub focusable: bool,
     pub cursor: Cursor,
     pub(crate) parent_window: Option<SendSyncRawWindowHandle>,
     pub fullscreen: Option<Fullscreen>,
@@ -99,6 +100,7 @@ impl Default for WindowAttributes {
             cursor: Cursor::default(),
             parent_window: None,
             active: true,
+            focusable: true,
             platform_specific: Default::default(),
         }
     }
@@ -257,6 +259,17 @@ impl WindowAttributes {
     #[inline]
     pub fn with_visible(mut self, visible: bool) -> Self {
         self.visible = visible;
+        self
+    }
+
+    /// Whether the window can be focused or not.
+    ///
+    /// The default is `true`.
+    ///
+    /// See [`Window::set_focusable`] for details.
+    #[inline]
+    pub fn with_focusable(mut self, focusable: bool) -> Self {
+        self.focusable = focusable;
         self
     }
 
@@ -868,6 +881,26 @@ pub trait Window: AsAny + Send + Sync + fmt::Debug {
     /// - **X11:** Not implemented.
     /// - **Wayland / iOS / Android / Web:** Unsupported.
     fn is_visible(&self) -> Option<bool>;
+
+    /// Sets whether the window can be focused or not.
+    /// If `false`, the window can still accept mouse clicks but won't take keyboard focus on click.
+    /// This is useful for toolbar windows or accessibility tools such as on-screen keyboards.
+    ///
+    /// The default is `true`.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **Windows / macOS / X11:** Supported.
+    fn set_focusable(&self, focusable: bool);
+
+    /// Gets whether the window can be focused or not.
+    ///
+    /// See [`Window::set_focusable`] for details.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **Windows / macOS / X11:** Supported.
+    fn is_focusable(&self) -> bool;
 
     /// Sets whether the window is resizable or not.
     ///

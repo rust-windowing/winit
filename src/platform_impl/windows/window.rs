@@ -598,6 +598,23 @@ impl CoreWindow for Window {
         window_state.window_flags.contains(WindowFlags::RESIZABLE)
     }
 
+    fn set_focusable(&self, focusable: bool) {
+        let window = self.window;
+        let window_state = Arc::clone(&self.window_state);
+
+        self.thread_executor.execute_in_thread(move || {
+            let _ = &window;
+            WindowState::set_window_flags(window_state.lock().unwrap(), window.hwnd(), |f| {
+                f.set(WindowFlags::FOCUSABLE, focusable)
+            });
+        });
+    }
+
+    fn is_focusable(&self) -> bool {
+        let window_state = self.window_state_lock();
+        window_state.window_flags.contains(WindowFlags::FOCUSABLE)
+    }
+
     fn set_enabled_buttons(&self, buttons: WindowButtons) {
         let window = self.window;
         let window_state = Arc::clone(&self.window_state);
@@ -1332,6 +1349,7 @@ unsafe fn init(
     unsafe { register_window_class(&class_name) };
 
     let mut window_flags = WindowFlags::empty();
+    window_flags.set(WindowFlags::FOCUSABLE, attributes.focusable);
     window_flags.set(WindowFlags::MARKER_DECORATIONS, attributes.decorations);
     window_flags.set(
         WindowFlags::MARKER_UNDECORATED_SHADOW,
