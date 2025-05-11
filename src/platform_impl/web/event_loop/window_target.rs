@@ -71,8 +71,6 @@ impl ActiveEventLoop {
     pub fn register(&self, canvas: &Rc<backend::Canvas>, window_id: WindowId) {
         let canvas_clone = canvas.clone();
 
-        canvas.on_touch_start();
-
         let runner = self.runner.clone();
         let has_focus = canvas.has_focus.clone();
         let modifiers = self.modifiers.clone();
@@ -236,6 +234,68 @@ impl ActiveEventLoop {
                     window_id,
                     event: WindowEvent::PointerEntered { device_id, primary, position, kind },
                 })))
+            }
+        });
+
+        canvas.on_touch_move({
+            let runner = self.runner.clone();
+
+            move |finger| {
+                runner.send_event(Event::WindowEvent {
+                    window_id,
+                    event: WindowEvent::PointerMoved {
+                        device_id: finger.device_id,
+                        position: finger.position,
+                        primary: finger.primary,
+                        source: finger.pointer_source(),
+                    },
+                });
+            }
+        });
+        canvas.on_touch_start({
+            let runner = self.runner.clone();
+
+            move |finger| {
+                runner.send_event(Event::WindowEvent {
+                    window_id,
+                    event: WindowEvent::PointerButton {
+                        device_id: finger.device_id,
+                        state: ElementState::Pressed,
+                        position: finger.position,
+                        primary: finger.primary,
+                        button: finger.button_source(),
+                    },
+                });
+            }
+        });
+        canvas.on_touch_end({
+            let runner = self.runner.clone();
+
+            move |finger| {
+                runner.send_event(Event::WindowEvent {
+                    window_id,
+                    event: WindowEvent::PointerLeft {
+                        device_id: finger.device_id,
+                        position: Some(finger.position),
+                        primary: finger.primary,
+                        kind: finger.pointer_kind(),
+                    },
+                });
+            }
+        });
+        canvas.on_touch_cancel({
+            let runner = self.runner.clone();
+
+            move |finger| {
+                runner.send_event(Event::WindowEvent {
+                    window_id,
+                    event: WindowEvent::PointerLeft {
+                        device_id: finger.device_id,
+                        position: Some(finger.position),
+                        primary: finger.primary,
+                        kind: finger.pointer_kind(),
+                    },
+                });
             }
         });
 
