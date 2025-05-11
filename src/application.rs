@@ -8,14 +8,14 @@ use crate::window::WindowId;
 
 /// The handler of application-level events.
 ///
-/// See [the top-level docs] for example usage, and [`EventLoop::run_app`] for an overview of when
-/// events are delivered.
+/// See [the top-level docs] for example usage, and [`EventLoopProvider::run_app`] for an overview
+/// of when events are delivered.
 ///
 /// This is [dropped] when the event loop is shut down. Note that this only works if you're passing
-/// the entire state to [`EventLoop::run_app`] (passing `&mut app` won't work).
+/// the entire state to [`EventLoopProvider::run_app`] (passing `&mut app` won't work).
 ///
 /// [the top-level docs]: crate
-/// [`EventLoop::run_app`]: crate::event_loop::EventLoop::run_app
+/// [`EventLoopProvider::run_app`]: crate::event_loop::EventLoopProvider::run_app
 /// [dropped]: std::ops::Drop
 pub trait ApplicationHandler {
     /// Emitted when new events arrive from the OS to be processed.
@@ -136,7 +136,7 @@ pub trait ApplicationHandler {
     /// use std::time::Duration;
     ///
     /// use winit::application::ApplicationHandler;
-    /// use winit::event_loop::{ActiveEventLoop, EventLoop};
+    /// use winit::event_loop::{ActiveEventLoop, EventLoop, EventLoopProvider};
     ///
     /// struct MyApp {
     ///     receiver: mpsc::Receiver<u64>,
@@ -210,9 +210,9 @@ pub trait ApplicationHandler {
 
     /// Emitted when the OS sends an event to a device.
     ///
-    /// For this to be called, it must be enabled with [`EventLoop::listen_device_events`].
+    /// For this to be called, it must be enabled with [`EventLoopProvider::listen_device_events`].
     ///
-    /// [`EventLoop::listen_device_events`]: crate::event_loop::EventLoop::listen_device_events
+    /// [`EventLoopProvider::listen_device_events`]: crate::event_loop::EventLoopProvider::listen_device_events
     fn device_event(
         &mut self,
         event_loop: &dyn ActiveEventLoop,

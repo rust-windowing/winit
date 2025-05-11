@@ -10,8 +10,8 @@ use crate::{
 pub trait EventLoopExtRunOnDemand {
     /// Run the application with the event loop on the calling thread.
     ///
-    /// Unlike [`EventLoop::run_app`], this function accepts non-`'static` (i.e. non-`move`)
-    /// closures and it is possible to return control back to the caller without
+    /// Unlike [`EventLoopProvider::run_app()`], this function accepts non-`'static` (i.e.
+    /// non-`move`) closures and it is possible to return control back to the caller without
     /// consuming the `EventLoop` (by using [`exit()`]) and
     /// so the event loop can be re-run after it has exit.
     ///
@@ -40,8 +40,8 @@ pub trait EventLoopExtRunOnDemand {
     ///   [^1] more than once instead).
     /// - No [`Window`] state can be carried between separate runs of the event loop.
     ///
-    /// You are strongly encouraged to use [`EventLoop::run_app()`] for portability, unless you
-    /// specifically need the ability to re-run a single event loop more than once
+    /// You are strongly encouraged to use [`EventLoopProvider::run_app()`] for portability, unless
+    /// you specifically need the ability to re-run a single event loop more than once
     ///
     /// # Supported Platforms
     /// - Windows
@@ -60,11 +60,14 @@ pub trait EventLoopExtRunOnDemand {
     ///
     /// [`exit()`]: ActiveEventLoop::exit()
     /// [`set_control_flow()`]: ActiveEventLoop::set_control_flow()
-    fn run_app_on_demand<A: ApplicationHandler>(&mut self, app: A) -> Result<(), EventLoopError>;
+    /// [`EventLoopProvider::run_app()`]: crate::event_loop::EventLoopProvider::run_app
+    fn run_app_on_demand(&mut self, app: impl ApplicationHandler) -> Result<(), EventLoopError>
+    where
+        Self: Sized;
 }
 
 impl EventLoopExtRunOnDemand for EventLoop {
-    fn run_app_on_demand<A: ApplicationHandler>(&mut self, app: A) -> Result<(), EventLoopError> {
+    fn run_app_on_demand(&mut self, app: impl ApplicationHandler) -> Result<(), EventLoopError> {
         self.event_loop.run_app_on_demand(app)
     }
 }

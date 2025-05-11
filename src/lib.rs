@@ -26,8 +26,8 @@
 //! Some user activity, like mouse movement, can generate both a [`WindowEvent`] *and* a
 //! [`DeviceEvent`].
 //!
-//! You can retrieve events by calling [`EventLoop::run_app()`]. This function will dispatch events
-//! for every [`Window`] that was created with that particular [`EventLoop`].
+//! You can retrieve events by calling [`EventLoopProvider::run_app()`]. This function will dispatch
+//! events for every [`Window`] that was created with that particular [`EventLoop`].
 //!
 //! Winit no longer uses a `EventLoop::poll_events() -> impl Iterator<Event>`-based event loop
 //! model, since that can't be implemented properly on some platforms (e.g Web, iOS) and works
@@ -47,7 +47,7 @@
 //! ```no_run
 //! use winit::application::ApplicationHandler;
 //! use winit::event::WindowEvent;
-//! use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
+//! use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop, EventLoopProvider};
 //! use winit::window::{Window, WindowId, WindowAttributes};
 //!
 //! #[derive(Default)]
@@ -69,7 +69,7 @@
 //!         id: WindowId,
 //!         event: WindowEvent,
 //!     ) {
-//!         // Called by `EventLoop::run_app` when a new event happens on the window.
+//!         // Called by `EventLoopProvider::run_app` when a new event happens on the window.
 //!         match event {
 //!             WindowEvent::CloseRequested => {
 //!                 println!("The close button was pressed; stopping");
@@ -265,7 +265,7 @@
 //!
 //! [`EventLoop`]: event_loop::EventLoop
 //! [`EventLoop::new()`]: event_loop::EventLoop::new
-//! [`EventLoop::run_app()`]: event_loop::EventLoop::run_app
+//! [`EventLoopProvider::run_app()`]: event_loop::EventLoopProvider::run_app
 //! [`exit()`]: event_loop::ActiveEventLoop::exit
 //! [`Window`]: window::Window
 //! [`WindowId`]: window::WindowId

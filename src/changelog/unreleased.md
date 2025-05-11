@@ -195,6 +195,10 @@ changelog entry.
 - Renamed "super" key to "meta", to match the naming in the W3C specification.
   `NamedKey::Super` still exists, but it's non-functional and deprecated, `NamedKey::Meta` should be used instead.
 - Move `IconExtWindows` into `WinIcon`.
+- `run_app_on_demand`/`pump_app_events` now accept `&mut dyn ApplicationHandler` instead of generic.
+- Moved common `EventLoop` methods like `run_app` into `EventLoopProvider` trait.
+- Moved `event_loop::EventLoop` into `platform::event_loop::EventLoop` keeping the old re-export in place.
+- `EventLoopProvider::run_app` now takes `Box<dyn ApplicationHandler` instead of owned generic.
 
 ### Removed
 
