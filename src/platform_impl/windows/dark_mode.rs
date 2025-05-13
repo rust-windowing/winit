@@ -133,6 +133,12 @@ fn should_apps_use_dark_mode() -> bool {
         LazyLock::new(|| unsafe {
             const UXTHEME_SHOULDAPPSUSEDARKMODE_ORDINAL: PCSTR = 132 as PCSTR;
 
+            // We won't try to do anything for windows versions < 17763
+            // (Windows 10 October 2018 update)
+            if !*DARK_MODE_SUPPORTED {
+                return None;
+            }
+
             let module = LoadLibraryA(c"uxtheme.dll".as_ptr().cast());
 
             if module.is_null() {
