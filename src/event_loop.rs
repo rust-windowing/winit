@@ -9,10 +9,7 @@
 //! See the root-level documentation for information on how to create and use an event loop to
 //! handle events.
 use std::fmt;
-use std::marker::PhantomData;
-#[cfg(any(x11_platform, wayland_platform))]
-use std::os::unix::io::{AsFd, AsRawFd, BorrowedFd, RawFd};
-use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 #[cfg(not(web_platform))]
 use std::time::{Duration, Instant};
@@ -24,166 +21,12 @@ use web_time::{Duration, Instant};
 use crate::application::ApplicationHandler;
 use crate::error::{EventLoopError, RequestError};
 use crate::monitor::MonitorHandle;
-use crate::platform_impl;
+pub use crate::platform::event_loop::*;
 use crate::utils::{impl_dyn_casting, AsAny};
 use crate::window::{CustomCursor, CustomCursorSource, Theme, Window, WindowAttributes};
 
-/// Provides a way to retrieve events from the system and from the windows that were registered to
-/// the events loop.
-///
-/// An `EventLoop` can be seen more or less as a "context". Calling [`EventLoop::new`]
-/// initializes everything that will be required to create windows. For example on Linux creating
-/// an event loop opens a connection to the X or Wayland server.
-///
-/// To wake up an `EventLoop` from a another thread, see the [`EventLoopProxy`] docs.
-///
-/// Note that this cannot be shared across threads (due to platform-dependant logic
-/// forbidding it), as such it is neither [`Send`] nor [`Sync`]. If you need cross-thread access,
-/// the [`Window`] created from this _can_ be sent to an other thread, and the
-/// [`EventLoopProxy`] allows you to wake up an `EventLoop` from another thread.
-///
-/// [`Window`]: crate::window::Window
-#[derive(Debug)]
-pub struct EventLoop {
-    pub(crate) event_loop: platform_impl::EventLoop,
-    pub(crate) _marker: PhantomData<*mut ()>, // Not Send nor Sync
-}
-
-/// Object that allows building the event loop.
-///
-/// This is used to make specifying options that affect the whole application
-/// easier. But note that constructing multiple event loops is not supported.
-///
-/// This can be created using [`EventLoop::builder`].
-#[derive(Default, Debug, PartialEq, Eq, Hash)]
-pub struct EventLoopBuilder {
-    pub(crate) platform_specific: platform_impl::PlatformSpecificEventLoopAttributes,
-}
-
-static EVENT_LOOP_CREATED: AtomicBool = AtomicBool::new(false);
-
-impl EventLoopBuilder {
-    /// Builds a new event loop.
-    ///
-    /// ***For cross-platform compatibility, the [`EventLoop`] must be created on the main thread,
-    /// and only once per application.***
-    ///
-    /// Calling this function will result in display backend initialisation.
-    ///
-    /// ## Panics
-    ///
-    /// Attempting to create the event loop off the main thread will panic. This
-    /// restriction isn't strictly necessary on all platforms, but is imposed to
-    /// eliminate any nasty surprises when porting to platforms that require it.
-    /// `EventLoopBuilderExt::with_any_thread` functions are exposed in the relevant
-    /// [`platform`] module if the target platform supports creating an event
-    /// loop on any thread.
-    ///
-    /// ## Platform-specific
-    ///
-    /// - **Wayland/X11:** to prevent running under `Wayland` or `X11` unset `WAYLAND_DISPLAY` or
-    ///   `DISPLAY` respectively when building the event loop.
-    /// - **Android:** must be configured with an `AndroidApp` from `android_main()` by calling
-    ///   [`.with_android_app(app)`] before calling `.build()`, otherwise it'll panic.
-    ///
-    /// [`platform`]: crate::platform
-    #[cfg_attr(
-        android_platform,
-        doc = "[`.with_android_app(app)`]: \
-               crate::platform::android::EventLoopBuilderExtAndroid::with_android_app"
-    )]
-    #[cfg_attr(
-        not(android_platform),
-        doc = "[`.with_android_app(app)`]: #only-available-on-android"
-    )]
-    #[inline]
-    pub fn build(&mut self) -> Result<EventLoop, EventLoopError> {
-        let _span = tracing::debug_span!("winit::EventLoopBuilder::build").entered();
-
-        if EVENT_LOOP_CREATED.swap(true, Ordering::Relaxed) {
-            return Err(EventLoopError::RecreationAttempt);
-        }
-
-        // Certain platforms accept a mutable reference in their API.
-        #[allow(clippy::unnecessary_mut_passed)]
-        Ok(EventLoop {
-            event_loop: platform_impl::EventLoop::new(&mut self.platform_specific)?,
-            _marker: PhantomData,
-        })
-    }
-
-    #[cfg(web_platform)]
-    pub(crate) fn allow_event_loop_recreation() {
-        EVENT_LOOP_CREATED.store(false, Ordering::Relaxed);
-    }
-}
-
-/// Set through [`ActiveEventLoop::set_control_flow()`].
-///
-/// Indicates the desired behavior of the event loop after [`about_to_wait`] is called.
-///
-/// Defaults to [`Wait`].
-///
-/// [`Wait`]: Self::Wait
-/// [`about_to_wait`]: crate::application::ApplicationHandler::about_to_wait
-#[derive(Copy, Clone, Debug, Default, PartialEq, Eq, Hash)]
-pub enum ControlFlow {
-    /// When the current loop iteration finishes, immediately begin a new iteration regardless of
-    /// whether or not new events are available to process.
-    Poll,
-
-    /// When the current loop iteration finishes, suspend the thread until another event arrives.
-    #[default]
-    Wait,
-
-    /// When the current loop iteration finishes, suspend the thread until either another event
-    /// arrives or the given time is reached.
-    ///
-    /// Useful for implementing efficient timers. Applications which want to render at the
-    /// display's native refresh rate should instead use [`Poll`] and the VSync functionality
-    /// of a graphics API to reduce odds of missed frames.
-    ///
-    /// [`Poll`]: Self::Poll
-    WaitUntil(Instant),
-}
-
-impl ControlFlow {
-    /// Creates a [`ControlFlow`] that waits until a timeout has expired.
-    ///
-    /// In most cases, this is set to [`WaitUntil`]. However, if the timeout overflows, it is
-    /// instead set to [`Wait`].
-    ///
-    /// [`WaitUntil`]: Self::WaitUntil
-    /// [`Wait`]: Self::Wait
-    pub fn wait_duration(timeout: Duration) -> Self {
-        match Instant::now().checked_add(timeout) {
-            Some(instant) => Self::WaitUntil(instant),
-            None => Self::Wait,
-        }
-    }
-}
-
-impl EventLoop {
-    /// Create the event loop.
-    ///
-    /// This is an alias of `EventLoop::builder().build()`.
-    #[inline]
-    pub fn new() -> Result<EventLoop, EventLoopError> {
-        Self::builder().build()
-    }
-
-    /// Start building a new event loop.
-    ///
-    /// This returns an [`EventLoopBuilder`], to allow configuring the event loop before creation.
-    ///
-    /// To get the actual event loop, call [`build`][EventLoopBuilder::build] on that.
-    #[inline]
-    pub fn builder() -> EventLoopBuilder {
-        EventLoopBuilder { platform_specific: Default::default() }
-    }
-}
-
-impl EventLoop {
+/// Common interface to describe event loop.
+pub trait EventLoopProvider: AsAny + fmt::Debug {
     /// Run the application with the event loop on the calling thread.
     ///
     /// ## Event loop flow
@@ -262,88 +105,84 @@ impl EventLoop {
     ///
     /// [`set_control_flow()`]: ActiveEventLoop::set_control_flow()
     /// [`run_app()`]: Self::run_app()
-    #[inline]
-    #[cfg(not(all(web_platform, target_feature = "exception-handling")))]
-    pub fn run_app<A: ApplicationHandler>(self, app: A) -> Result<(), EventLoopError> {
-        self.event_loop.run_app(app)
-    }
+    fn run_app(self, app: impl ApplicationHandler) -> Result<(), EventLoopError>
+    where
+        Self: Sized;
 
     /// Creates an [`EventLoopProxy`] that can be used to dispatch user events
     /// to the main event loop, possibly from another thread.
-    pub fn create_proxy(&self) -> EventLoopProxy {
-        self.event_loop.window_target().create_proxy()
-    }
+    fn create_proxy(&self) -> EventLoopProxy;
 
     /// Gets a persistent reference to the underlying platform display.
     ///
     /// See the [`OwnedDisplayHandle`] type for more information.
-    pub fn owned_display_handle(&self) -> OwnedDisplayHandle {
-        self.event_loop.window_target().owned_display_handle()
-    }
+    fn owned_display_handle(&self) -> OwnedDisplayHandle;
 
     /// Change if or when [`DeviceEvent`]s are captured.
     ///
     /// See [`ActiveEventLoop::listen_device_events`] for details.
     ///
     /// [`DeviceEvent`]: crate::event::DeviceEvent
-    pub fn listen_device_events(&self, allowed: DeviceEvents) {
-        let _span = tracing::debug_span!(
-            "winit::EventLoop::listen_device_events",
-            allowed = ?allowed
-        )
-        .entered();
-        self.event_loop.window_target().listen_device_events(allowed)
-    }
+    fn listen_device_events(&self, allowed: DeviceEvents);
 
     /// Sets the [`ControlFlow`].
-    pub fn set_control_flow(&self, control_flow: ControlFlow) {
-        self.event_loop.window_target().set_control_flow(control_flow);
-    }
+    fn set_control_flow(&self, control_flow: ControlFlow);
 
     /// Create custom cursor.
     ///
     /// ## Platform-specific
     ///
     /// **iOS / Android / Orbital:** Unsupported.
-    pub fn create_custom_cursor(
+    fn create_custom_cursor(
         &self,
         custom_cursor: CustomCursorSource,
-    ) -> Result<CustomCursor, RequestError> {
-        self.event_loop.window_target().create_custom_cursor(custom_cursor)
-    }
+    ) -> Result<CustomCursor, RequestError>;
 }
 
-impl HasDisplayHandle for EventLoop {
-    fn display_handle(&self) -> Result<DisplayHandle<'_>, HandleError> {
-        HasDisplayHandle::display_handle(self.event_loop.window_target().rwh_06_handle())
-    }
-}
+impl_dyn_casting!(EventLoopProvider);
 
-#[cfg(any(x11_platform, wayland_platform))]
-impl AsFd for EventLoop {
-    /// Get the underlying [EventLoop]'s `fd` which you can register
-    /// into other event loop, like [`calloop`] or [`mio`]. When doing so, the
-    /// loop must be polled with the [`pump_app_events`] API.
+/// Set through [`ActiveEventLoop::set_control_flow()`].
+///
+/// Indicates the desired behavior of the event loop after [`about_to_wait`] is called.
+///
+/// Defaults to [`Wait`].
+///
+/// [`Wait`]: Self::Wait
+/// [`about_to_wait`]: crate::application::ApplicationHandler::about_to_wait
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq, Hash)]
+pub enum ControlFlow {
+    /// When the current loop iteration finishes, immediately begin a new iteration regardless of
+    /// whether or not new events are available to process.
+    Poll,
+
+    /// When the current loop iteration finishes, suspend the thread until another event arrives.
+    #[default]
+    Wait,
+
+    /// When the current loop iteration finishes, suspend the thread until either another event
+    /// arrives or the given time is reached.
     ///
-    /// [`calloop`]: https://crates.io/crates/calloop
-    /// [`mio`]: https://crates.io/crates/mio
-    /// [`pump_app_events`]: crate::platform::pump_events::EventLoopExtPumpEvents::pump_app_events
-    fn as_fd(&self) -> BorrowedFd<'_> {
-        self.event_loop.as_fd()
-    }
+    /// Useful for implementing efficient timers. Applications which want to render at the
+    /// display's native refresh rate should instead use [`Poll`] and the VSync functionality
+    /// of a graphics API to reduce odds of missed frames.
+    ///
+    /// [`Poll`]: Self::Poll
+    WaitUntil(Instant),
 }
 
-#[cfg(any(x11_platform, wayland_platform))]
-impl AsRawFd for EventLoop {
-    /// Get the underlying [EventLoop]'s raw `fd` which you can register
-    /// into other event loop, like [`calloop`] or [`mio`]. When doing so, the
-    /// loop must be polled with the [`pump_app_events`] API.
+impl ControlFlow {
+    /// Creates a [`ControlFlow`] that waits until a timeout has expired.
     ///
-    /// [`calloop`]: https://crates.io/crates/calloop
-    /// [`mio`]: https://crates.io/crates/mio
-    /// [`pump_app_events`]: crate::platform::pump_events::EventLoopExtPumpEvents::pump_app_events
-    fn as_raw_fd(&self) -> RawFd {
-        self.event_loop.as_raw_fd()
+    /// In most cases, this is set to [`WaitUntil`]. However, if the timeout overflows, it is
+    /// instead set to [`Wait`].
+    ///
+    /// [`WaitUntil`]: Self::WaitUntil
+    /// [`Wait`]: Self::Wait
+    pub fn wait_duration(timeout: Duration) -> Self {
+        match Instant::now().checked_add(timeout) {
+            Some(instant) => Self::WaitUntil(instant),
+            None => Self::Wait,
+        }
     }
 }
 

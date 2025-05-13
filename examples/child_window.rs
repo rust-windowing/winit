@@ -6,7 +6,7 @@ fn main() -> Result<(), impl std::error::Error> {
     use winit::application::ApplicationHandler;
     use winit::dpi::{LogicalPosition, LogicalSize, Position};
     use winit::event::{ElementState, KeyEvent, WindowEvent};
-    use winit::event_loop::{ActiveEventLoop, EventLoop};
+    use winit::event_loop::{ActiveEventLoop, EventLoop, EventLoopProvider};
     use winit::raw_window_handle::HasRawWindowHandle;
     use winit::window::{Window, WindowAttributes, WindowId};
 

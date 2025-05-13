@@ -2,7 +2,7 @@ use std::error::Error;
 
 use winit::application::ApplicationHandler;
 use winit::event::WindowEvent;
-use winit::event_loop::{ActiveEventLoop, EventLoop};
+use winit::event_loop::{ActiveEventLoop, EventLoop, EventLoopProvider};
 use winit::window::{Window, WindowAttributes, WindowId};
 
 #[path = "util/fill.rs"]

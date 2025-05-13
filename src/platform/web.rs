@@ -200,7 +200,7 @@ pub trait EventLoopExtWeb {
     ///
     #[cfg_attr(
         not(all(web_platform, target_feature = "exception-handling")),
-        doc = "[`run_app()`]: EventLoop::run_app()"
+        doc = "[`run_app()`]: crate::event_loop::EventLoopProvider::run_app()"
     )]
     /// [^1]: `run_app()` is _not_ available on Wasm when the target supports `exception-handling`.
     fn spawn_app<A: ApplicationHandler + 'static>(self, app: A);

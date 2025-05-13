@@ -4,7 +4,7 @@ use std::error::Error;
 
 use winit::application::ApplicationHandler;
 use winit::event::WindowEvent;
-use winit::event_loop::{ActiveEventLoop, EventLoop};
+use winit::event_loop::{ActiveEventLoop, EventLoop, EventLoopProvider};
 #[cfg(web_platform)]
 use winit::platform::web::WindowAttributesExtWeb;
 use winit::window::{Window, WindowAttributes, WindowId};

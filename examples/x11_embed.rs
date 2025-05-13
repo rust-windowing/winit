@@ -5,7 +5,7 @@ use std::error::Error;
 fn main() -> Result<(), Box<dyn Error>> {
     use winit::application::ApplicationHandler;
     use winit::event::WindowEvent;
-    use winit::event_loop::{ActiveEventLoop, EventLoop};
+    use winit::event_loop::{ActiveEventLoop, EventLoop, EventLoopProvider};
     use winit::platform::x11::WindowAttributesExtX11;
     use winit::window::{Window, WindowAttributes, WindowId};
 
