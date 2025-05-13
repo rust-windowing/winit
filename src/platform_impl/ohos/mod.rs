@@ -10,14 +10,16 @@ use openharmony_ability::xcomponent::{Action, TouchEvent};
 use tracing::{debug, trace, warn};
 
 use openharmony_ability::{
-    Configuration, Event as MainEvent, InputEvent, OpenHarmonyApp, OpenHarmonyWaker, Rect,
+    ime::KeyboardStatus, Configuration, Event as MainEvent, ImeEvent, InputEvent, OpenHarmonyApp,
+    OpenHarmonyWaker, Rect,
 };
 
 use crate::cursor::Cursor;
 use crate::dpi::{PhysicalPosition, PhysicalSize, Position, Size};
 use crate::error::{self, EventLoopError};
-use crate::event::{self, Force, InnerSizeWriter, StartCause};
+use crate::event::{self, ElementState, Force, Ime, InnerSizeWriter, StartCause};
 use crate::event_loop::{self, ActiveEventLoop as RootAEL, ControlFlow, DeviceEvents};
+use crate::keyboard::{Key, KeyCode, KeyLocation, NamedKey, PhysicalKey};
 use crate::platform::pump_events::PumpStatus;
 use crate::window::{
     self, CursorGrabMode, CustomCursor, CustomCursorSource, Fullscreen, ImePurpose,
@@ -180,6 +182,80 @@ impl<T: 'static> EventLoop<T> {
                         }
                     },
                 }
+            },
+            InputEvent::ImeEvent(data) => match data {
+                ImeEvent::TextInputEvent(s) => {
+                    let pre_edit = Ime::Preedit(s.text.clone(), Some((s.text.len(), s.text.len())));
+
+                    if let Some(ref mut h) = *self.event_loop.borrow_mut() {
+                        h(event::Event::WindowEvent {
+                            window_id: window::WindowId(WindowId),
+                            event: event::WindowEvent::Ime(pre_edit),
+                        });
+
+                        h(event::Event::WindowEvent {
+                            window_id: window::WindowId(WindowId),
+                            event: event::WindowEvent::Ime(Ime::Commit(s.text.clone())),
+                        });
+                    }
+                },
+                ImeEvent::BackspaceEvent(_) => {
+                    if let Some(ref mut h) = *self.event_loop.borrow_mut() {
+                        // Mock keyboard input event
+                        [ElementState::Pressed, ElementState::Released].map(|state| {
+                            h(event::Event::WindowEvent {
+                                window_id: window::WindowId(WindowId),
+                                event: event::WindowEvent::KeyboardInput {
+                                    device_id: event::DeviceId(DeviceId(0)),
+                                    event: event::KeyEvent {
+                                        state,
+                                        logical_key: Key::Named(NamedKey::Backspace),
+                                        physical_key: PhysicalKey::Code(KeyCode::Backspace),
+                                        platform_specific: KeyEventExtra {},
+                                        repeat: false,
+                                        location: KeyLocation::Standard,
+                                        text: None,
+                                    },
+                                    is_synthetic: false,
+                                },
+                            });
+                        });
+                    }
+                },
+
+                ImeEvent::ImeStatusEvent(s) => match s {
+                    KeyboardStatus::Hide => {
+                        if let Some(ref mut h) = *self.event_loop.borrow_mut() {
+                            // Mock keyboard input event that make sure egui can receive the event and trigger onblur event
+                            [ElementState::Pressed, ElementState::Released].map(|state| {
+                                h(event::Event::WindowEvent {
+                                    window_id: window::WindowId(WindowId),
+                                    event: event::WindowEvent::KeyboardInput {
+                                        device_id: event::DeviceId(DeviceId(0)),
+                                        event: event::KeyEvent {
+                                            state,
+                                            logical_key: Key::Named(NamedKey::Enter),
+                                            physical_key: PhysicalKey::Code(KeyCode::Enter),
+                                            platform_specific: KeyEventExtra {},
+                                            repeat: false,
+                                            location: KeyLocation::Standard,
+                                            text: None,
+                                        },
+                                        is_synthetic: false,
+                                    },
+                                });
+                            });
+
+                            h(event::Event::WindowEvent {
+                                window_id: window::WindowId(WindowId),
+                                event: event::WindowEvent::Ime(Ime::Disabled),
+                            });
+                        }
+                    },
+                    _ => {
+                        warn!("Unknown openharmony_ability ime status event {s:?}")
+                    },
+                },
             },
             _ => {
                 warn!("Unknown openharmony_ability input event {event:?}")
