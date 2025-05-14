@@ -2,21 +2,11 @@
 
 use crate::event::{DeviceEvent, DeviceId, StartCause, WindowEvent};
 use crate::event_loop::ActiveEventLoop;
-#[cfg(macos_platform)]
-use crate::platform::macos::ApplicationHandlerExtMacOS;
 use crate::window::WindowId;
 
+pub mod macos;
+
 /// The handler of application-level events.
-///
-/// See [the top-level docs] for example usage, and [`EventLoop::run_app`] for an overview of when
-/// events are delivered.
-///
-/// This is [dropped] when the event loop is shut down. Note that this only works if you're passing
-/// the entire state to [`EventLoop::run_app`] (passing `&mut app` won't work).
-///
-/// [the top-level docs]: crate
-/// [`EventLoop::run_app`]: crate::event_loop::EventLoop::run_app
-/// [dropped]: std::ops::Drop
 pub trait ApplicationHandler {
     /// Emitted when new events arrive from the OS to be processed.
     ///
@@ -135,8 +125,9 @@ pub trait ApplicationHandler {
     /// use std::thread;
     /// use std::time::Duration;
     ///
-    /// use winit::application::ApplicationHandler;
-    /// use winit::event_loop::{ActiveEventLoop, EventLoop};
+    /// use winit::event_loop::EventLoop;
+    /// use winit_core::application::ApplicationHandler;
+    /// use winit_core::event_loop::ActiveEventLoop;
     ///
     /// struct MyApp {
     ///     receiver: mpsc::Receiver<u64>,
@@ -210,9 +201,7 @@ pub trait ApplicationHandler {
 
     /// Emitted when the OS sends an event to a device.
     ///
-    /// For this to be called, it must be enabled with [`EventLoop::listen_device_events`].
-    ///
-    /// [`EventLoop::listen_device_events`]: crate::event_loop::EventLoop::listen_device_events
+    /// Whether device events are delivered depends on the backend in use.
     fn device_event(
         &mut self,
         event_loop: &dyn ActiveEventLoop,
@@ -350,9 +339,8 @@ pub trait ApplicationHandler {
     /// The macOS-specific handler.
     ///
     /// The return value from this should not change at runtime.
-    #[cfg(macos_platform)]
     #[inline(always)]
-    fn macos_handler(&mut self) -> Option<&mut dyn ApplicationHandlerExtMacOS> {
+    fn macos_handler(&mut self) -> Option<&mut dyn macos::ApplicationHandlerExtMacOS> {
         None
     }
 }
@@ -419,9 +407,8 @@ impl<A: ?Sized + ApplicationHandler> ApplicationHandler for &mut A {
         (**self).memory_warning(event_loop);
     }
 
-    #[cfg(macos_platform)]
     #[inline]
-    fn macos_handler(&mut self) -> Option<&mut dyn ApplicationHandlerExtMacOS> {
+    fn macos_handler(&mut self) -> Option<&mut dyn macos::ApplicationHandlerExtMacOS> {
         (**self).macos_handler()
     }
 }
@@ -488,9 +475,8 @@ impl<A: ?Sized + ApplicationHandler> ApplicationHandler for Box<A> {
         (**self).memory_warning(event_loop);
     }
 
-    #[cfg(macos_platform)]
     #[inline]
-    fn macos_handler(&mut self) -> Option<&mut dyn ApplicationHandlerExtMacOS> {
+    fn macos_handler(&mut self) -> Option<&mut dyn macos::ApplicationHandlerExtMacOS> {
         (**self).macos_handler()
     }
 }

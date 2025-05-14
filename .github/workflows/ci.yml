@@ -179,13 +179,16 @@ jobs:
     - name: Build crate
       run: cargo $CMD build $OPTIONS
 
+    - name: Test winit core
+      run: cargo test -p winit-core
+
     # Test only on Linux x86_64, so we avoid spending unnecessary CI hours.
     - name: Test dpi crate
       if: >
         contains(matrix.platform.name, 'Linux 64bit') &&
         matrix.toolchain != '1.80'
       run: cargo test -p dpi
-      
+
     - name: Check dpi crate (no_std)
       if: >
         contains(matrix.platform.name, 'Linux 64bit') &&

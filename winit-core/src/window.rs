@@ -1,18 +1,16 @@
-//! The [`Window`] struct and associated types.
+//! The [`Window`] trait and associated types.
 use std::fmt;
 
-#[doc(inline)]
-pub use cursor_icon::{CursorIcon, ParseError as CursorIconParseError};
+use cursor_icon::CursorIcon;
+use dpi::{PhysicalInsets, PhysicalPosition, PhysicalSize, Position, Size};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
-pub use crate::cursor::{BadImage, Cursor, CustomCursor, CustomCursorSource, MAX_CURSOR_SIZE};
-use crate::dpi::{PhysicalInsets, PhysicalPosition, PhysicalSize, Position, Size};
+use crate::as_any::AsAny;
+use crate::cursor::Cursor;
 use crate::error::RequestError;
-pub use crate::icon::{BadIcon, Icon};
+use crate::icon::Icon;
 use crate::monitor::{Fullscreen, MonitorHandle};
-use crate::platform_impl::PlatformSpecificWindowAttributes;
-use crate::utils::{impl_dyn_casting, AsAny};
 
 /// Identifier of a window. Unique for each window.
 ///
@@ -46,7 +44,8 @@ impl fmt::Debug for WindowId {
 }
 
 /// Attributes used when creating a window.
-#[derive(Debug, Clone)]
+#[derive(Debug)]
+#[non_exhaustive]
 pub struct WindowAttributes {
     pub surface_size: Option<Size>,
     pub min_surface_size: Option<Size>,
@@ -69,52 +68,8 @@ pub struct WindowAttributes {
     pub cursor: Cursor,
     pub(crate) parent_window: Option<SendSyncRawWindowHandle>,
     pub fullscreen: Option<Fullscreen>,
-    // Platform-specific configuration.
-    #[allow(dead_code)]
-    pub(crate) platform_specific: PlatformSpecificWindowAttributes,
+    pub platform: Option<Box<dyn PlatformWindowAttributes>>,
 }
-
-impl Default for WindowAttributes {
-    #[inline]
-    fn default() -> WindowAttributes {
-        WindowAttributes {
-            surface_size: None,
-            min_surface_size: None,
-            max_surface_size: None,
-            surface_resize_increments: None,
-            position: None,
-            resizable: true,
-            enabled_buttons: WindowButtons::all(),
-            title: "winit window".to_owned(),
-            maximized: false,
-            fullscreen: None,
-            visible: true,
-            transparent: false,
-            blur: false,
-            decorations: true,
-            window_level: Default::default(),
-            window_icon: None,
-            preferred_theme: None,
-            content_protected: false,
-            cursor: Cursor::default(),
-            parent_window: None,
-            active: true,
-            platform_specific: Default::default(),
-        }
-    }
-}
-
-/// Wrapper for [`rwh_06::RawWindowHandle`] for [`WindowAttributes::parent_window`].
-///
-/// # Safety
-///
-/// The user has to account for that when using [`WindowAttributes::with_parent_window()`],
-/// which is `unsafe`.
-#[derive(Debug, Clone, PartialEq)]
-pub(crate) struct SendSyncRawWindowHandle(pub(crate) rwh_06::RawWindowHandle);
-
-unsafe impl Send for SendSyncRawWindowHandle {}
-unsafe impl Sync for SendSyncRawWindowHandle {}
 
 impl WindowAttributes {
     /// Get the parent window stored on the attributes.
@@ -411,7 +366,93 @@ impl WindowAttributes {
         self.parent_window = parent_window.map(SendSyncRawWindowHandle);
         self
     }
+
+    /// Set the platform specific opaque attribute object.
+    ///
+    /// The interpretation will depend on the underlying backend that will be used.
+    #[inline]
+    pub fn with_platform_attributes(mut self, platform: Box<dyn PlatformWindowAttributes>) -> Self {
+        self.platform = Some(platform);
+        self
+    }
 }
+
+impl Clone for WindowAttributes {
+    fn clone(&self) -> Self {
+        Self {
+            surface_size: self.surface_size,
+            min_surface_size: self.min_surface_size,
+            max_surface_size: self.max_surface_size,
+            surface_resize_increments: self.surface_resize_increments,
+            position: self.position,
+            resizable: self.resizable,
+            enabled_buttons: self.enabled_buttons,
+            title: self.title.clone(),
+            maximized: self.maximized,
+            visible: self.visible,
+            transparent: self.transparent,
+            blur: self.blur,
+            decorations: self.decorations,
+            window_icon: self.window_icon.clone(),
+            preferred_theme: self.preferred_theme,
+            content_protected: self.content_protected,
+            window_level: self.window_level,
+            active: self.active,
+            cursor: self.cursor.clone(),
+            parent_window: self.parent_window.clone(),
+            fullscreen: self.fullscreen.clone(),
+            platform: self.platform.as_ref().map(|platform| platform.box_clone()),
+        }
+    }
+}
+
+impl Default for WindowAttributes {
+    #[inline]
+    fn default() -> WindowAttributes {
+        WindowAttributes {
+            enabled_buttons: WindowButtons::all(),
+            title: String::from("winit window"),
+            decorations: true,
+            resizable: true,
+            visible: true,
+            active: true,
+            surface_resize_increments: Default::default(),
+            content_protected: Default::default(),
+            min_surface_size: Default::default(),
+            max_surface_size: Default::default(),
+            preferred_theme: Default::default(),
+            parent_window: Default::default(),
+            surface_size: Default::default(),
+            window_level: Default::default(),
+            window_icon: Default::default(),
+            transparent: Default::default(),
+            fullscreen: Default::default(),
+            maximized: Default::default(),
+            position: Default::default(),
+            platform: Default::default(),
+            cursor: Cursor::default(),
+            blur: Default::default(),
+        }
+    }
+}
+
+/// Wrapper for [`rwh_06::RawWindowHandle`] for [`WindowAttributes::parent_window`].
+///
+/// # Safety
+///
+/// The user has to account for that when using [`WindowAttributes::with_parent_window()`],
+/// which is `unsafe`.
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) struct SendSyncRawWindowHandle(pub(crate) rwh_06::RawWindowHandle);
+
+unsafe impl Send for SendSyncRawWindowHandle {}
+unsafe impl Sync for SendSyncRawWindowHandle {}
+
+pub trait PlatformWindowAttributes: AsAny + std::fmt::Debug + Send + Sync {
+    fn box_clone(&self) -> Box<dyn PlatformWindowAttributes>;
+}
+
+impl_dyn_casting!(PlatformWindowAttributes);
 
 /// Represents a window.
 ///
@@ -540,7 +581,7 @@ pub trait Window: AsAny + Send + Sync + fmt::Debug {
     /// APIs and software rendering.
     ///
     /// ```no_run
-    /// # use winit::window::Window;
+    /// # use winit_core::window::Window;
     /// # fn swap_buffers() {}
     /// # fn scope(window: &dyn Window) {
     /// // Do the actual drawing with OpenGL.
@@ -583,7 +624,7 @@ pub trait Window: AsAny + Send + Sync + fmt::Debug {
     ///
     /// This may also be useful for figuring out the size of the window's decorations (such as
     /// buttons, title, etc.), but may also not correspond to that (e.g. if the title bar is made
-    /// transparent using [`with_titlebar_transparent`] on macOS, or your are drawing window
+    /// transparent on macOS, or your are drawing window
     /// decorations yourself).
     ///
     /// This may be negative.
@@ -592,15 +633,6 @@ pub trait Window: AsAny + Send + Sync + fmt::Debug {
     /// as the window itself, this simply returns `(0, 0)`.
     ///
     /// [`outer_position`]: Self::outer_position
-    #[cfg_attr(
-        macos_platform,
-        doc = "[`with_titlebar_transparent`]: \
-               crate::platform::macos::WindowAttributesExtMacOS::with_titlebar_transparent"
-    )]
-    #[cfg_attr(
-        not(macos_platform),
-        doc = "[`with_titlebar_transparent`]: #only-available-on-macos"
-    )]
     fn surface_position(&self) -> PhysicalPosition<i32>;
 
     /// The position of the top-left hand corner of the window relative to the top-left hand corner
@@ -625,8 +657,8 @@ pub trait Window: AsAny + Send + Sync + fmt::Debug {
     /// This automatically un-maximizes the window if it's maximized.
     ///
     /// ```no_run
-    /// # use winit::dpi::{LogicalPosition, PhysicalPosition};
-    /// # use winit::window::Window;
+    /// # use dpi::{LogicalPosition, PhysicalPosition};
+    /// # use winit_core::window::Window;
     /// # fn scope(window: &dyn Window) {
     /// // Specify the position in logical dimensions like this:
     /// window.set_outer_position(LogicalPosition::new(400.0, 200.0).into());
@@ -683,8 +715,8 @@ pub trait Window: AsAny + Send + Sync + fmt::Debug {
     /// The request could automatically un-maximize the window if it's maximized.
     ///
     /// ```no_run
-    /// # use winit::dpi::{LogicalSize, PhysicalSize};
-    /// # use winit::window::Window;
+    /// # use dpi::{LogicalSize, PhysicalSize};
+    /// # use winit_core::window::Window;
     /// # fn scope(window: &dyn Window) {
     /// // Specify the size in logical dimensions like this:
     /// let _ = window.request_surface_size(LogicalSize::new(400.0, 200.0).into());
@@ -740,7 +772,7 @@ pub trait Window: AsAny + Send + Sync + fmt::Debug {
     /// Convert safe area insets to a size and a position.
     ///
     /// ```
-    /// use winit::dpi::{PhysicalPosition, PhysicalSize};
+    /// use dpi::{PhysicalPosition, PhysicalSize};
     ///
     /// # let surface_size = dpi::PhysicalSize::new(0, 0);
     /// # #[cfg(requires_window)]
@@ -760,8 +792,8 @@ pub trait Window: AsAny + Send + Sync + fmt::Debug {
     /// Sets a minimum dimensions of the window's surface.
     ///
     /// ```no_run
-    /// # use winit::dpi::{LogicalSize, PhysicalSize};
-    /// # use winit::window::Window;
+    /// # use dpi::{LogicalSize, PhysicalSize};
+    /// # use winit_core::window::Window;
     /// # fn scope(window: &dyn Window) {
     /// // Specify the size in logical dimensions like this:
     /// window.set_min_surface_size(Some(LogicalSize::new(400.0, 200.0).into()));
@@ -779,8 +811,8 @@ pub trait Window: AsAny + Send + Sync + fmt::Debug {
     /// Sets a maximum dimensions of the window's surface.
     ///
     /// ```no_run
-    /// # use winit::dpi::{LogicalSize, PhysicalSize};
-    /// # use winit::window::Window;
+    /// # use dpi::{LogicalSize, PhysicalSize};
+    /// # use winit_core::window::Window;
     /// # fn scope(window: &dyn Window) {
     /// // Specify the size in logical dimensions like this:
     /// window.set_max_surface_size(Some(LogicalSize::new(400.0, 200.0).into()));
@@ -963,14 +995,8 @@ pub trait Window: AsAny + Send + Sync + fmt::Debug {
     ///   The dock and the menu bar are disabled in exclusive fullscreen mode.
     /// - **Wayland:** Does not support exclusive fullscreen mode and will no-op a request.
     /// - **Windows:** Screen saver is disabled in fullscreen mode.
-    /// - **Android / Orbital:** Unsupported.
-    /// - **Web:** Passing a [`MonitorHandle`] or [`VideoMode`] that was not created with
-    #[cfg_attr(
-        web_platform,
-        doc = "  [detailed monitor permissions][crate::platform::web::ActiveEventLoopExtWeb::request_detailed_monitor_permission]"
-    )]
-    #[cfg_attr(not(web_platform), doc = "  detailed monitor permissions")]
-    ///   or calling without a [transient activation] does nothing.
+    /// - **Web:** Passing a [`MonitorHandle`] or [`VideoMode`] that was not created with detailed
+    ///   monitor permissions or calling without a [transient activation] does nothing.
     ///
     /// [transient activation]: https://developer.mozilla.org/en-US/docs/Glossary/Transient_activation
     /// [`VideoMode`]: crate::monitor::VideoMode
@@ -1045,8 +1071,8 @@ pub trait Window: AsAny + Send + Sync + fmt::Debug {
     /// ## Example
     ///
     /// ```no_run
-    /// # use winit::dpi::{LogicalPosition, PhysicalPosition, LogicalSize, PhysicalSize};
-    /// # use winit::window::Window;
+    /// # use dpi::{LogicalPosition, PhysicalPosition, LogicalSize, PhysicalSize};
+    /// # use winit_core::window::Window;
     /// # fn scope(window: &dyn Window) {
     /// // Specify the position in logical dimensions like this:
     /// window.set_ime_cursor_area(
@@ -1188,8 +1214,8 @@ pub trait Window: AsAny + Send + Sync + fmt::Debug {
     /// Changes the position of the cursor in window coordinates.
     ///
     /// ```no_run
-    /// # use winit::dpi::{LogicalPosition, PhysicalPosition};
-    /// # use winit::window::Window;
+    /// # use dpi::{LogicalPosition, PhysicalPosition};
+    /// # use winit_core::window::Window;
     /// # fn scope(window: &dyn Window) {
     /// // Specify the position in logical dimensions like this:
     /// window.set_cursor_position(LogicalPosition::new(400.0, 200.0).into());
@@ -1212,7 +1238,7 @@ pub trait Window: AsAny + Send + Sync + fmt::Debug {
     /// First try confining the cursor, and if that fails, try locking it instead.
     ///
     /// ```no_run
-    /// # use winit::window::{CursorGrabMode, Window};
+    /// # use winit_core::window::{CursorGrabMode, Window};
     /// # fn scope(window: &dyn Window) {
     /// window
     ///     .set_cursor_grab(CursorGrabMode::Confined)
@@ -1292,17 +1318,6 @@ pub trait Window: AsAny + Send + Sync + fmt::Debug {
     /// This is the same as [`ActiveEventLoop::available_monitors`], and is provided for
     /// convenience.
     ///
-    ///
-    /// ## Platform-specific
-    ///
-    /// **Web:** Only returns the current monitor without
-    #[cfg_attr(
-        web_platform,
-        doc = "[detailed monitor permissions][crate::platform::web::ActiveEventLoopExtWeb::request_detailed_monitor_permission]."
-    )]
-    #[cfg_attr(not(any(web_platform,)), doc = "detailed monitor permissions.")]
-    ///
-    #[rustfmt::skip]
     /// [`ActiveEventLoop::available_monitors`]: crate::event_loop::ActiveEventLoop::available_monitors
     fn available_monitors(&self) -> Box<dyn Iterator<Item = MonitorHandle>>;
 
@@ -1315,14 +1330,7 @@ pub trait Window: AsAny + Send + Sync + fmt::Debug {
     /// ## Platform-specific
     ///
     /// - **Wayland:** Always returns `None`.
-    /// - **Web:** Always returns `None` without
-    #[cfg_attr(
-        web_platform,
-        doc = "  [detailed monitor permissions][crate::platform::web::ActiveEventLoopExtWeb::request_detailed_monitor_permission]."
-    )]
-    #[cfg_attr(not(web_platform), doc = "  detailed monitor permissions.")]
     ///
-    #[rustfmt::skip]
     /// [`ActiveEventLoop::primary_monitor`]: crate::event_loop::ActiveEventLoop::primary_monitor
     fn primary_monitor(&self) -> Option<MonitorHandle>;
 
@@ -1331,14 +1339,6 @@ pub trait Window: AsAny + Send + Sync + fmt::Debug {
 
     /// Get the raw-window-handle v0.6 window handle.
     fn rwh_06_window_handle(&self) -> &dyn rwh_06::HasWindowHandle;
-}
-
-impl dyn Window + '_ {
-    /// Create a new [`WindowAttributes`] which allows modifying the window's attributes before
-    /// creation.
-    pub fn default_attributes() -> WindowAttributes {
-        WindowAttributes::default()
-    }
 }
 
 impl_dyn_casting!(Window);
@@ -1546,12 +1546,7 @@ impl ActivationToken {
     /// only result in the side effect of the operation involving it being ignored (e.g. window
     /// won't get focused automatically), but won't yield any errors.
     ///
-    /// To obtain a valid token, use
-    #[cfg_attr(
-        any(x11_platform, wayland_platform),
-        doc = " [`request_activation_token`](crate::platform::startup_notify::WindowExtStartupNotify::request_activation_token)."
-    )]
-    #[cfg_attr(not(any(x11_platform, wayland_platform)), doc = " `request_activation_token`.")]
+    /// To obtain a valid token consult the backend implementation.
     pub fn from_raw(token: String) -> Self {
         Self { token }
     }
@@ -1559,5 +1554,10 @@ impl ActivationToken {
     /// Convert the token to its string representation to later pass via IPC.
     pub fn into_raw(self) -> String {
         self.token
+    }
+
+    /// Get a reference to a raw token.
+    pub fn as_raw(&self) -> &str {
+        &self.token
     }
 }

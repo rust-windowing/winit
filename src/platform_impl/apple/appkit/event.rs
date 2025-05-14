@@ -330,7 +330,7 @@ pub(super) fn event_mods(event: &NSEvent) -> Modifiers {
     pressed_mods.set(ModifiersKeys::LMETA, flags.contains(NX_DEVICELCMDKEYMASK));
     pressed_mods.set(ModifiersKeys::RMETA, flags.contains(NX_DEVICERCMDKEYMASK));
 
-    Modifiers { state, pressed_mods }
+    Modifiers::new(state, pressed_mods)
 }
 
 pub(super) fn dummy_event() -> Option<Retained<NSEvent>> {

@@ -1564,7 +1564,7 @@ impl NamedKey {
     /// # wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
     /// # #[cfg_attr(web_platform, wasm_bindgen_test::wasm_bindgen_test)]
     /// # fn main() {
-    /// use winit::keyboard::NamedKey;
+    /// use winit_core::keyboard::NamedKey;
     ///
     /// assert_eq!(NamedKey::Enter.to_text(), Some("\r"));
     /// assert_eq!(NamedKey::F20.to_text(), None);
@@ -1591,7 +1591,7 @@ impl Key {
     /// # wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
     /// # #[cfg_attr(web_platform, wasm_bindgen_test::wasm_bindgen_test)]
     /// # fn main() {
-    /// use winit::keyboard::{Key, NamedKey};
+    /// use winit_core::keyboard::{Key, NamedKey};
     ///
     /// assert_eq!(Key::Character("a".into()).to_text(), Some("a"));
     /// assert_eq!(Key::Named(NamedKey::Enter).to_text(), Some("\r"));
@@ -1750,7 +1750,7 @@ pub enum ModifiersKeyState {
 bitflags! {
     #[derive(Default, Debug, Clone, Copy, PartialEq, Eq, Hash)]
     #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-    pub(crate) struct ModifiersKeys: u8 {
+    pub struct ModifiersKeys: u8 {
         const LSHIFT   = 0b0000_0001;
         const RSHIFT   = 0b0000_0010;
         const LCONTROL = 0b0000_0100;

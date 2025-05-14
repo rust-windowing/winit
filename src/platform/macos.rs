@@ -69,12 +69,14 @@ use std::os::raw::c_void;
 
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
+#[doc(inline)]
+pub use winit_core::application::macos::ApplicationHandlerExtMacOS;
+use winit_core::window::PlatformWindowAttributes;
 
-use crate::application::ApplicationHandler;
 use crate::event_loop::{ActiveEventLoop, EventLoopBuilder};
 use crate::monitor::MonitorHandle;
 use crate::platform_impl::MonitorHandle as MacOsMonitorHandle;
-use crate::window::{Window, WindowAttributes, WindowId};
+use crate::window::Window;
 
 /// Additional methods on [`Window`] that are specific to MacOS.
 pub trait WindowExtMacOS {
@@ -292,7 +294,7 @@ pub enum ActivationPolicy {
     Prohibited,
 }
 
-/// Additional methods on [`WindowAttributes`] that are specific to MacOS.
+/// Window attributes that are specific to MacOS.
 ///
 /// **Note:** Properties dealing with the titlebar will be overwritten by the
 /// [`WindowAttributes::with_decorations`] method:
@@ -301,127 +303,158 @@ pub enum ActivationPolicy {
 /// - `with_titlebar_hidden`
 /// - `with_titlebar_buttons_hidden`
 /// - `with_fullsize_content_view`
-pub trait WindowAttributesExtMacOS {
+///
+/// [`WindowAttributes::with_decorations`]: crate::window::WindowAttributes::with_decorations
+#[derive(Clone, Debug, PartialEq)]
+pub struct WindowAttributesMacOS {
+    pub(crate) movable_by_window_background: bool,
+    pub(crate) titlebar_transparent: bool,
+    pub(crate) title_hidden: bool,
+    pub(crate) titlebar_hidden: bool,
+    pub(crate) titlebar_buttons_hidden: bool,
+    pub(crate) fullsize_content_view: bool,
+    pub(crate) disallow_hidpi: bool,
+    pub(crate) has_shadow: bool,
+    pub(crate) accepts_first_mouse: bool,
+    pub(crate) tabbing_identifier: Option<String>,
+    pub(crate) option_as_alt: OptionAsAlt,
+    pub(crate) borderless_game: bool,
+    pub(crate) unified_titlebar: bool,
+    pub(crate) panel: bool,
+}
+
+impl WindowAttributesMacOS {
     /// Enables click-and-drag behavior for the entire window, not just the titlebar.
-    fn with_movable_by_window_background(self, movable_by_window_background: bool) -> Self;
+    #[inline]
+    pub fn with_movable_by_window_background(mut self, movable_by_window_background: bool) -> Self {
+        self.movable_by_window_background = movable_by_window_background;
+        self
+    }
+
     /// Makes the titlebar transparent and allows the content to appear behind it.
-    fn with_titlebar_transparent(self, titlebar_transparent: bool) -> Self;
-    /// Hides the window title.
-    fn with_title_hidden(self, title_hidden: bool) -> Self;
+    #[inline]
+    pub fn with_titlebar_transparent(mut self, titlebar_transparent: bool) -> Self {
+        self.titlebar_transparent = titlebar_transparent;
+        self
+    }
+
     /// Hides the window titlebar.
-    fn with_titlebar_hidden(self, titlebar_hidden: bool) -> Self;
+    #[inline]
+    pub fn with_titlebar_hidden(mut self, titlebar_hidden: bool) -> Self {
+        self.titlebar_hidden = titlebar_hidden;
+        self
+    }
+
     /// Hides the window titlebar buttons.
-    fn with_titlebar_buttons_hidden(self, titlebar_buttons_hidden: bool) -> Self;
+    #[inline]
+    pub fn with_titlebar_buttons_hidden(mut self, titlebar_buttons_hidden: bool) -> Self {
+        self.titlebar_buttons_hidden = titlebar_buttons_hidden;
+        self
+    }
+
+    /// Hides the window title.
+    #[inline]
+    pub fn with_title_hidden(mut self, title_hidden: bool) -> Self {
+        self.title_hidden = title_hidden;
+        self
+    }
+
     /// Makes the window content appear behind the titlebar.
-    fn with_fullsize_content_view(self, fullsize_content_view: bool) -> Self;
-    fn with_disallow_hidpi(self, disallow_hidpi: bool) -> Self;
-    fn with_has_shadow(self, has_shadow: bool) -> Self;
+    #[inline]
+    pub fn with_fullsize_content_view(mut self, fullsize_content_view: bool) -> Self {
+        self.fullsize_content_view = fullsize_content_view;
+        self
+    }
+
+    #[inline]
+    pub fn with_disallow_hidpi(mut self, disallow_hidpi: bool) -> Self {
+        self.disallow_hidpi = disallow_hidpi;
+        self
+    }
+
+    #[inline]
+    pub fn with_has_shadow(mut self, has_shadow: bool) -> Self {
+        self.has_shadow = has_shadow;
+        self
+    }
+
     /// Window accepts click-through mouse events.
-    fn with_accepts_first_mouse(self, accepts_first_mouse: bool) -> Self;
+    #[inline]
+    pub fn with_accepts_first_mouse(mut self, accepts_first_mouse: bool) -> Self {
+        self.accepts_first_mouse = accepts_first_mouse;
+        self
+    }
+
     /// Defines the window tabbing identifier.
     ///
     /// <https://developer.apple.com/documentation/appkit/nswindow/1644704-tabbingidentifier>
-    fn with_tabbing_identifier(self, identifier: &str) -> Self;
+    #[inline]
+    pub fn with_tabbing_identifier(mut self, tabbing_identifier: &str) -> Self {
+        self.tabbing_identifier.replace(tabbing_identifier.to_string());
+        self
+    }
+
     /// Set how the <kbd>Option</kbd> keys are interpreted.
     ///
     /// See [`WindowExtMacOS::set_option_as_alt`] for details on what this means if set.
-    fn with_option_as_alt(self, option_as_alt: OptionAsAlt) -> Self;
+    #[inline]
+    pub fn with_option_as_alt(mut self, option_as_alt: OptionAsAlt) -> Self {
+        self.option_as_alt = option_as_alt;
+        self
+    }
+
     /// See [`WindowExtMacOS::set_borderless_game`] for details on what this means if set.
-    fn with_borderless_game(self, borderless_game: bool) -> Self;
+    #[inline]
+    pub fn with_borderless_game(mut self, borderless_game: bool) -> Self {
+        self.borderless_game = borderless_game;
+        self
+    }
+
     /// See [`WindowExtMacOS::set_unified_titlebar`] for details on what this means if set.
-    fn with_unified_titlebar(self, unified_titlebar: bool) -> Self;
+    #[inline]
+    pub fn with_unified_titlebar(mut self, unified_titlebar: bool) -> Self {
+        self.unified_titlebar = unified_titlebar;
+        self
+    }
+
     /// Use [`NSPanel`] window with [`NonactivatingPanel`] window style mask instead of
     /// [`NSWindow`].
     ///
     /// [`NSWindow`]: https://developer.apple.com/documentation/appkit/NSWindow?language=objc
     /// [`NSPanel`]: https://developer.apple.com/documentation/appkit/NSPanel?language=objc
     /// [`NonactivatingPanel`]: https://developer.apple.com/documentation/appkit/nswindow/stylemask-swift.struct/nonactivatingpanel?language=objc
-    fn with_panel(self, panel: bool) -> Self;
+    #[inline]
+    pub fn with_panel(mut self, panel: bool) -> Self {
+        self.panel = panel;
+        self
+    }
 }
 
-impl WindowAttributesExtMacOS for WindowAttributes {
+impl Default for WindowAttributesMacOS {
     #[inline]
-    fn with_movable_by_window_background(mut self, movable_by_window_background: bool) -> Self {
-        self.platform_specific.movable_by_window_background = movable_by_window_background;
-        self
+    fn default() -> Self {
+        Self {
+            movable_by_window_background: false,
+            titlebar_transparent: false,
+            title_hidden: false,
+            titlebar_hidden: false,
+            titlebar_buttons_hidden: false,
+            fullsize_content_view: false,
+            disallow_hidpi: false,
+            has_shadow: true,
+            accepts_first_mouse: true,
+            tabbing_identifier: None,
+            option_as_alt: Default::default(),
+            borderless_game: false,
+            unified_titlebar: false,
+            panel: false,
+        }
     }
+}
 
-    #[inline]
-    fn with_titlebar_transparent(mut self, titlebar_transparent: bool) -> Self {
-        self.platform_specific.titlebar_transparent = titlebar_transparent;
-        self
-    }
-
-    #[inline]
-    fn with_titlebar_hidden(mut self, titlebar_hidden: bool) -> Self {
-        self.platform_specific.titlebar_hidden = titlebar_hidden;
-        self
-    }
-
-    #[inline]
-    fn with_titlebar_buttons_hidden(mut self, titlebar_buttons_hidden: bool) -> Self {
-        self.platform_specific.titlebar_buttons_hidden = titlebar_buttons_hidden;
-        self
-    }
-
-    #[inline]
-    fn with_title_hidden(mut self, title_hidden: bool) -> Self {
-        self.platform_specific.title_hidden = title_hidden;
-        self
-    }
-
-    #[inline]
-    fn with_fullsize_content_view(mut self, fullsize_content_view: bool) -> Self {
-        self.platform_specific.fullsize_content_view = fullsize_content_view;
-        self
-    }
-
-    #[inline]
-    fn with_disallow_hidpi(mut self, disallow_hidpi: bool) -> Self {
-        self.platform_specific.disallow_hidpi = disallow_hidpi;
-        self
-    }
-
-    #[inline]
-    fn with_has_shadow(mut self, has_shadow: bool) -> Self {
-        self.platform_specific.has_shadow = has_shadow;
-        self
-    }
-
-    #[inline]
-    fn with_accepts_first_mouse(mut self, accepts_first_mouse: bool) -> Self {
-        self.platform_specific.accepts_first_mouse = accepts_first_mouse;
-        self
-    }
-
-    #[inline]
-    fn with_tabbing_identifier(mut self, tabbing_identifier: &str) -> Self {
-        self.platform_specific.tabbing_identifier.replace(tabbing_identifier.to_string());
-        self
-    }
-
-    #[inline]
-    fn with_option_as_alt(mut self, option_as_alt: OptionAsAlt) -> Self {
-        self.platform_specific.option_as_alt = option_as_alt;
-        self
-    }
-
-    #[inline]
-    fn with_borderless_game(mut self, borderless_game: bool) -> Self {
-        self.platform_specific.borderless_game = borderless_game;
-        self
-    }
-
-    #[inline]
-    fn with_unified_titlebar(mut self, unified_titlebar: bool) -> Self {
-        self.platform_specific.unified_titlebar = unified_titlebar;
-        self
-    }
-
-    #[inline]
-    fn with_panel(mut self, panel: bool) -> Self {
-        self.platform_specific.panel = panel;
-        self
+impl PlatformWindowAttributes for WindowAttributesMacOS {
+    fn box_clone(&self) -> Box<dyn PlatformWindowAttributes> {
+        Box::from(self.clone())
     }
 }
 
@@ -579,53 +612,4 @@ pub enum OptionAsAlt {
     /// No special handling is applied for `Option` key.
     #[default]
     None,
-}
-
-/// Additional events on [`ApplicationHandler`] that are specific to macOS.
-///
-/// This can be registered with [`ApplicationHandler::macos_handler`].
-pub trait ApplicationHandlerExtMacOS: ApplicationHandler {
-    /// The system interpreted a keypress as a standard key binding command.
-    ///
-    /// Examples include inserting tabs and newlines, or moving the insertion point, see
-    /// [`NSStandardKeyBindingResponding`] for the full list of key bindings. They are often text
-    /// editing related.
-    ///
-    /// This corresponds to the [`doCommandBySelector:`] method on `NSTextInputClient`.
-    ///
-    /// The `action` parameter contains the string representation of the selector. Examples include
-    /// `"insertBacktab:"`, `"indent:"` and `"noop:"`.
-    ///
-    /// # Example
-    ///
-    /// ```ignore
-    /// impl ApplicationHandlerExtMacOS for App {
-    ///     fn standard_key_binding(
-    ///         &mut self,
-    ///         event_loop: &dyn ActiveEventLoop,
-    ///         window_id: WindowId,
-    ///         action: &str,
-    ///     ) {
-    ///         match action {
-    ///             "moveBackward:" => self.cursor.position -= 1,
-    ///             "moveForward:" => self.cursor.position += 1,
-    ///             _ => {} // Ignore other actions
-    ///         }
-    ///     }
-    /// }
-    /// ```
-    ///
-    /// [`NSStandardKeyBindingResponding`]: https://developer.apple.com/documentation/appkit/nsstandardkeybindingresponding?language=objc
-    /// [`doCommandBySelector:`]: https://developer.apple.com/documentation/appkit/nstextinputclient/1438256-docommandbyselector?language=objc
-    #[doc(alias = "doCommandBySelector:")]
-    fn standard_key_binding(
-        &mut self,
-        event_loop: &dyn ActiveEventLoop,
-        window_id: WindowId,
-        action: &str,
-    ) {
-        let _ = event_loop;
-        let _ = window_id;
-        let _ = action;
-    }
 }

@@ -11,11 +11,13 @@ use objc2_foundation::NSObject;
 
 use super::event_loop::ActiveEventLoop;
 use super::window_delegate::WindowDelegate;
+use crate::cursor::Cursor;
 use crate::error::RequestError;
+use crate::icon::Icon;
 use crate::monitor::{Fullscreen, MonitorHandle as CoreMonitorHandle};
 use crate::window::{
-    Cursor, Icon, ImePurpose, Theme, UserAttentionType, Window as CoreWindow, WindowAttributes,
-    WindowButtons, WindowId, WindowLevel,
+    ImePurpose, Theme, UserAttentionType, Window as CoreWindow, WindowAttributes, WindowButtons,
+    WindowId, WindowLevel,
 };
 
 #[derive(Debug)]

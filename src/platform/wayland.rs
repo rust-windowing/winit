@@ -13,14 +13,15 @@
 //! * `wayland-csd-adwaita` (default).
 //! * `wayland-csd-adwaita-crossfont`.
 //! * `wayland-csd-adwaita-notitle`.
-
 use std::ffi::c_void;
 use std::ptr::NonNull;
 
+use winit_core::window::PlatformWindowAttributes;
+
 use crate::event_loop::{ActiveEventLoop, EventLoop, EventLoopBuilder};
 use crate::platform_impl::wayland::Window;
-pub use crate::window::Theme;
-use crate::window::{Window as CoreWindow, WindowAttributes};
+use crate::platform_impl::ApplicationName;
+use crate::window::{ActivationToken, Window as CoreWindow};
 
 /// Additional methods on [`ActiveEventLoop`] that are specific to Wayland.
 pub trait ActiveEventLoopExtWayland {
@@ -89,8 +90,14 @@ impl WindowExtWayland for dyn CoreWindow + '_ {
     }
 }
 
-/// Additional methods on [`WindowAttributes`] that are specific to Wayland.
-pub trait WindowAttributesExtWayland {
+/// Window attributes methods specific to Wayland.
+#[derive(Debug, Default, Clone)]
+pub struct WindowAttributesWayland {
+    pub(crate) name: Option<ApplicationName>,
+    pub(crate) activation_token: Option<ActivationToken>,
+}
+
+impl WindowAttributesWayland {
     /// Build window with the given name.
     ///
     /// The `general` name sets an application ID, which should match the `.desktop`
@@ -98,14 +105,22 @@ pub trait WindowAttributesExtWayland {
     ///
     /// For details about application ID conventions, see the
     /// [Desktop Entry Spec](https://specifications.freedesktop.org/desktop-entry-spec/desktop-entry-spec-latest.html#desktop-file-id)
-    fn with_name(self, general: impl Into<String>, instance: impl Into<String>) -> Self;
-}
-
-impl WindowAttributesExtWayland for WindowAttributes {
     #[inline]
-    fn with_name(mut self, general: impl Into<String>, instance: impl Into<String>) -> Self {
-        self.platform_specific.name =
+    pub fn with_name(mut self, general: impl Into<String>, instance: impl Into<String>) -> Self {
+        self.name =
             Some(crate::platform_impl::ApplicationName::new(general.into(), instance.into()));
         self
+    }
+
+    #[inline]
+    pub fn with_activation_token(mut self, token: ActivationToken) -> Self {
+        self.activation_token = Some(token);
+        self
+    }
+}
+
+impl PlatformWindowAttributes for WindowAttributesWayland {
+    fn box_clone(&self) -> Box<dyn PlatformWindowAttributes> {
+        Box::from(self.clone())
     }
 }

@@ -1,29 +1,28 @@
 use std::error::Error;
+use std::ops::Deref;
 use std::sync::Arc;
 use std::{fmt, io, mem};
 
-use crate::utils::{impl_dyn_casting, AsAny};
+use crate::as_any::{impl_dyn_casting, AsAny};
 
-pub(crate) const PIXEL_SIZE: usize = mem::size_of::<Pixel>();
+pub(crate) const PIXEL_SIZE: usize = mem::size_of::<u32>();
 
 /// An icon used for the window titlebar, taskbar, etc.
-#[allow(dead_code)]
 #[derive(Debug, Clone)]
-pub struct Icon(pub(crate) Arc<dyn IconProvider>);
+pub struct Icon(pub Arc<dyn IconProvider>);
 
 // TODO remove that once split.
 pub trait IconProvider: AsAny + fmt::Debug + Send + Sync {}
 
-impl_dyn_casting!(IconProvider);
+impl Deref for Icon {
+    type Target = dyn IconProvider;
 
-#[repr(C)]
-#[derive(Debug)]
-pub(crate) struct Pixel {
-    pub(crate) r: u8,
-    pub(crate) g: u8,
-    pub(crate) b: u8,
-    pub(crate) a: u8,
+    fn deref(&self) -> &Self::Target {
+        self.0.as_ref()
+    }
 }
+
+impl_dyn_casting!(IconProvider);
 
 #[derive(Debug)]
 /// An error produced when using [`RgbaIcon::new`] with invalid arguments.

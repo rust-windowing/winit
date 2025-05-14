@@ -5,9 +5,10 @@ use std::ops::Deref;
 use std::sync::Arc;
 use std::time::Duration;
 
-use cursor_icon::CursorIcon;
+#[doc(inline)]
+pub use cursor_icon::CursorIcon;
 
-use crate::utils::{impl_dyn_casting, AsAny};
+use crate::as_any::{impl_dyn_casting, AsAny};
 
 /// The maximum width and height for a cursor when using [`CustomCursorSource::from_rgba`].
 pub const MAX_CURSOR_SIZE: u16 = 2048;
@@ -50,10 +51,10 @@ impl From<CustomCursor> for Cursor {
 /// # Example
 ///
 /// ```no_run
-/// # use winit::event_loop::ActiveEventLoop;
-/// # use winit::window::Window;
+/// # use winit_core::event_loop::ActiveEventLoop;
+/// # use winit_core::window::Window;
 /// # fn scope(event_loop: &dyn ActiveEventLoop, window: &dyn Window) {
-/// use winit::window::CustomCursorSource;
+/// use winit_core::cursor::CustomCursorSource;
 ///
 /// let w = 10;
 /// let h = 10;
@@ -75,7 +76,7 @@ impl From<CustomCursor> for Cursor {
 /// # }
 /// ```
 #[derive(Clone, Debug)]
-pub struct CustomCursor(pub(crate) Arc<dyn CustomCursorProvider>);
+pub struct CustomCursor(pub Arc<dyn CustomCursorProvider>);
 
 pub trait CustomCursorProvider: AsAny + fmt::Debug + Send + Sync {
     /// Whether a cursor was backed by animation.
@@ -235,7 +236,6 @@ impl fmt::Display for BadAnimation {
 impl Error for BadAnimation {}
 
 #[derive(Debug, Clone, Eq, Hash, PartialEq)]
-#[allow(dead_code)]
 pub struct CursorImage {
     pub(crate) rgba: Vec<u8>,
     pub(crate) width: u16,
@@ -277,6 +277,30 @@ impl CursorImage {
 
         Ok(CursorImage { rgba, width, height, hotspot_x, hotspot_y })
     }
+
+    pub fn buffer(&self) -> &[u8] {
+        self.rgba.as_slice()
+    }
+
+    pub fn buffer_mut(&mut self) -> &mut [u8] {
+        self.rgba.as_mut_slice()
+    }
+
+    pub fn width(&self) -> u16 {
+        self.width
+    }
+
+    pub fn height(&self) -> u16 {
+        self.height
+    }
+
+    pub fn hotspot_x(&self) -> u16 {
+        self.hotspot_x
+    }
+
+    pub fn hotspot_y(&self) -> u16 {
+        self.hotspot_y
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -296,5 +320,17 @@ impl CursorAnimation {
         }
 
         Ok(Self { duration, cursors })
+    }
+
+    pub fn duration(&self) -> Duration {
+        self.duration
+    }
+
+    pub fn cursors(&self) -> &[CustomCursor] {
+        self.cursors.as_slice()
+    }
+
+    pub fn into_raw(self) -> (Duration, Vec<CustomCursor>) {
+        (self.duration, self.cursors)
     }
 }

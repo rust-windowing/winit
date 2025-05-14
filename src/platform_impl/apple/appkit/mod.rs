@@ -20,4 +20,3 @@ pub(crate) use self::event_loop::{
 };
 pub(crate) use self::monitor::MonitorHandle;
 pub(crate) use self::window::Window;
-pub(crate) use self::window_delegate::PlatformSpecificWindowAttributes;
