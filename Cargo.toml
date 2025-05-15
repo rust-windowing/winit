@@ -111,96 +111,8 @@ softbuffer = { version = "0.4.6", default-features = false, features = [
 android-activity = "0.6.0"
 ndk = { version = "0.9.0", features = ["rwh_06"], default-features = false }
 
-# AppKit or UIKit
-[target.'cfg(target_vendor = "apple")'.dependencies]
-block2.workspace = true
-dispatch2 = { workspace = true, features = ["std", "objc2"] }
-objc2.workspace = true
-winit-apple.workspace = true
-
-# AppKit
 [target.'cfg(target_os = "macos")'.dependencies]
-objc2-app-kit = { workspace = true, features = [
-    "std",
-    "objc2-core-foundation",
-    "NSAppearance",
-    "NSApplication",
-    "NSBitmapImageRep",
-    "NSButton",
-    "NSColor",
-    "NSControl",
-    "NSCursor",
-    "NSDragging",
-    "NSEvent",
-    "NSGraphics",
-    "NSGraphicsContext",
-    "NSImage",
-    "NSImageRep",
-    "NSMenu",
-    "NSMenuItem",
-    "NSOpenGLView",
-    "NSPanel",
-    "NSPasteboard",
-    "NSResponder",
-    "NSRunningApplication",
-    "NSScreen",
-    "NSTextInputClient",
-    "NSTextInputContext",
-    "NSToolbar",
-    "NSView",
-    "NSWindow",
-    "NSWindowScripting",
-    "NSWindowTabGroup",
-] }
-objc2-core-foundation = { workspace = true, features = [
-    "std",
-    "block2",
-    "CFBase",
-    "CFCGTypes",
-    "CFData",
-    "CFRunLoop",
-    "CFString",
-    "CFUUID",
-] }
-objc2-core-graphics = { workspace = true, features = [
-    "std",
-    "libc",
-    "CGDirectDisplay",
-    "CGDisplayConfiguration",
-    "CGDisplayFade",
-    "CGError",
-    "CGRemoteOperation",
-    "CGWindowLevel",
-] }
-objc2-core-video = { workspace = true, features = [
-    "std",
-    "objc2-core-graphics",
-    "CVBase",
-    "CVReturn",
-    "CVDisplayLink",
-] }
-objc2-foundation = { workspace = true, features = [
-    "std",
-    "block2",
-    "objc2-core-foundation",
-    "NSArray",
-    "NSAttributedString",
-    "NSData",
-    "NSDictionary",
-    "NSDistributedNotificationCenter",
-    "NSEnumerator",
-    "NSGeometry",
-    "NSKeyValueObserving",
-    "NSNotification",
-    "NSObjCRuntime",
-    "NSOperation",
-    "NSPathUtilities",
-    "NSProcessInfo",
-    "NSRunLoop",
-    "NSString",
-    "NSThread",
-    "NSValue",
-] }
+winit-appkit.workspace = true
 
 [target.'cfg(all(target_vendor = "apple", not(target_os = "macos")))'.dependencies]
 winit-uikit.workspace = true
@@ -355,7 +267,7 @@ name = "window"
 name = "child_window"
 
 [workspace]
-members = ["dpi", "winit-apple", "winit-core", "winit-uikit"]
+members = ["dpi", "winit-apple", "winit-core", "winit-uikit", "winit-appkit"]
 resolver = "2"
 
 [workspace.package]
@@ -375,6 +287,7 @@ smol_str = "0.3"
 tracing = { version = "0.1.40", default-features = false }
 
 # Winit crates
+winit-appkit = { version = "0.0.0", path = "winit-appkit" }
 winit-apple = { version = "0.0.0", path = "winit-apple" }
 winit-core = { version = "0.0.0", path = "winit-core" }
 winit-uikit = { version = "0.0.0", path = "winit-uikit" }

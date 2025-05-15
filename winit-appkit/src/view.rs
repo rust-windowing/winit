@@ -29,7 +29,7 @@ use super::event::{
     scancode_to_physicalkey,
 };
 use super::window::window_id;
-use crate::platform::macos::OptionAsAlt;
+use crate::OptionAsAlt;
 
 #[derive(Debug)]
 struct CursorState {

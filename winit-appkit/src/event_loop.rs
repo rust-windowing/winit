@@ -32,9 +32,9 @@ use super::cursor::CustomCursor;
 use super::event::dummy_event;
 use super::monitor;
 use super::observer::setup_control_flow_observers;
-use crate::platform::macos::ActivationPolicy;
 use crate::platform::pump_events::PumpStatus;
-use crate::platform_impl::Window;
+use crate::window::Window;
+use crate::ActivationPolicy;
 
 #[derive(Default)]
 pub struct PanicInfo {
@@ -194,7 +194,7 @@ pub struct EventLoop {
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
-pub(crate) struct PlatformSpecificEventLoopAttributes {
+pub struct PlatformSpecificEventLoopAttributes {
     pub(crate) activation_policy: Option<ActivationPolicy>,
     pub(crate) default_menu: bool,
     pub(crate) activate_ignoring_other_apps: bool,
@@ -207,9 +207,7 @@ impl Default for PlatformSpecificEventLoopAttributes {
 }
 
 impl EventLoop {
-    pub(crate) fn new(
-        attributes: &PlatformSpecificEventLoopAttributes,
-    ) -> Result<Self, EventLoopError> {
+    pub fn new(attributes: &PlatformSpecificEventLoopAttributes) -> Result<Self, EventLoopError> {
         let mtm = MainThreadMarker::new()
             .expect("on macOS, `EventLoop` must be created on the main thread!");
 

@@ -4,10 +4,10 @@
 
 #[cfg(android_platform)]
 pub mod android;
+#[cfg(macos_platform)]
+pub use winit_appkit as macos;
 #[cfg(ios_platform)]
 pub use winit_uikit as ios;
-#[cfg(macos_platform)]
-pub mod macos;
 #[cfg(orbital_platform)]
 pub mod orbital;
 #[cfg(any(x11_platform, wayland_platform))]
