@@ -773,7 +773,7 @@ impl Shared {
         //     * The `register_redraw_request` closure.
         //     * The `destroy_fn` closure.
         if self.0.event_loop_recreation.get() {
-            winit_core::event_loop::EventLoopBuilder::allow_event_loop_recreation();
+            crate::event_loop::EventLoopBuilder::allow_event_loop_recreation();
         }
     }
 
