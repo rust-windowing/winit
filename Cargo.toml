@@ -13,6 +13,7 @@ rust-version = "1.80"
 # `winit` has no version here to allow using it in dev deps for docs.
 winit = { path = "." }
 winit-android = { version = "0.0.0", path = "winit-android" }
+winit-appkit = { version = "0.0.0", path = "winit-appkit" }
 winit-common = { version = "0.0.0", path = "winit-common" }
 winit-core = { version = "0.0.0", path = "winit-core" }
 winit-orbital = { version = "0.0.0", path = "winit-orbital" }
@@ -199,96 +200,8 @@ softbuffer.workspace = true
 [target.'cfg(target_os = "android")'.dependencies]
 winit-android.workspace = true
 
-# AppKit or UIKit
-[target.'cfg(target_vendor = "apple")'.dependencies]
-block2.workspace = true
-dispatch2.workspace = true
-objc2.workspace = true
-winit-common = { workspace = true, features = ["core-foundation", "event-handler"] }
-
-# AppKit
 [target.'cfg(target_os = "macos")'.dependencies]
-objc2-app-kit = { workspace = true, features = [
-    "std",
-    "objc2-core-foundation",
-    "NSAppearance",
-    "NSApplication",
-    "NSBitmapImageRep",
-    "NSButton",
-    "NSColor",
-    "NSControl",
-    "NSCursor",
-    "NSDragging",
-    "NSEvent",
-    "NSGraphics",
-    "NSGraphicsContext",
-    "NSImage",
-    "NSImageRep",
-    "NSMenu",
-    "NSMenuItem",
-    "NSOpenGLView",
-    "NSPanel",
-    "NSPasteboard",
-    "NSResponder",
-    "NSRunningApplication",
-    "NSScreen",
-    "NSTextInputClient",
-    "NSTextInputContext",
-    "NSToolbar",
-    "NSView",
-    "NSWindow",
-    "NSWindowScripting",
-    "NSWindowTabGroup",
-] }
-objc2-core-foundation = { workspace = true, features = [
-    "std",
-    "block2",
-    "CFBase",
-    "CFCGTypes",
-    "CFData",
-    "CFRunLoop",
-    "CFString",
-    "CFUUID",
-] }
-objc2-core-graphics = { workspace = true, features = [
-    "std",
-    "libc",
-    "CGDirectDisplay",
-    "CGDisplayConfiguration",
-    "CGDisplayFade",
-    "CGError",
-    "CGRemoteOperation",
-    "CGWindowLevel",
-] }
-objc2-core-video = { workspace = true, features = [
-    "std",
-    "objc2-core-graphics",
-    "CVBase",
-    "CVReturn",
-    "CVDisplayLink",
-] }
-objc2-foundation = { workspace = true, features = [
-    "std",
-    "block2",
-    "objc2-core-foundation",
-    "NSArray",
-    "NSAttributedString",
-    "NSData",
-    "NSDictionary",
-    "NSDistributedNotificationCenter",
-    "NSEnumerator",
-    "NSGeometry",
-    "NSKeyValueObserving",
-    "NSNotification",
-    "NSObjCRuntime",
-    "NSOperation",
-    "NSPathUtilities",
-    "NSProcessInfo",
-    "NSRunLoop",
-    "NSString",
-    "NSThread",
-    "NSValue",
-] }
+winit-appkit.workspace = true
 
 [target.'cfg(all(target_vendor = "apple", not(target_os = "macos")))'.dependencies]
 winit-uikit.workspace = true

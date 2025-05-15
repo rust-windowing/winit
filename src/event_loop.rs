@@ -348,6 +348,30 @@ impl winit_android::EventLoopBuilderExtAndroid for EventLoopBuilder {
     }
 }
 
+#[cfg(macos_platform)]
+impl winit_appkit::EventLoopBuilderExtMacOS for EventLoopBuilder {
+    #[inline]
+    fn with_activation_policy(
+        &mut self,
+        activation_policy: winit_appkit::ActivationPolicy,
+    ) -> &mut Self {
+        self.platform_specific.activation_policy = Some(activation_policy);
+        self
+    }
+
+    #[inline]
+    fn with_default_menu(&mut self, enable: bool) -> &mut Self {
+        self.platform_specific.default_menu = enable;
+        self
+    }
+
+    #[inline]
+    fn with_activate_ignoring_other_apps(&mut self, ignore: bool) -> &mut Self {
+        self.platform_specific.activate_ignoring_other_apps = ignore;
+        self
+    }
+}
+
 #[cfg(wayland_platform)]
 impl winit_wayland::EventLoopExtWayland for EventLoop {
     #[inline]

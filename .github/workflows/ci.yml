@@ -197,6 +197,10 @@ jobs:
       if: contains(matrix.platform.target, 'linux-gnu')
       run: cargo $CMD test -p winit-common --features xkb,x11,wayland --no-run
 
+    - name: Test winit AppKit
+      if: contains(matrix.platform.target, 'macos')
+      run: cargo test -p winit-appkit
+
     - name: Test winit Orbital
       if: contains(matrix.platform.target, 'redox')
       run: cargo test -p winit-orbital

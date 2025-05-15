@@ -1,1 +1,1 @@
-../../src/platform_impl/apple/appkit/notification_center.rs
+../../winit-appkit/src/notification_center.rs
