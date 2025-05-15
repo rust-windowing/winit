@@ -1,24 +1,22 @@
-#![cfg(target_os = "redox")]
-
 use std::{fmt, str};
 
-pub(crate) use self::event_loop::{ActiveEventLoop, EventLoop};
-pub use self::window::Window;
-
-mod event_loop;
-mod window;
+macro_rules! os_error {
+    ($error:expr) => {{
+        winit_core::error::OsError::new(line!(), file!(), $error)
+    }};
+}
 
 #[derive(Debug)]
-struct RedoxSocket {
-    fd: usize,
+pub(crate) struct RedoxSocket {
+    pub fd: usize,
 }
 
 impl RedoxSocket {
-    fn event() -> syscall::Result<Self> {
+    pub fn event() -> syscall::Result<Self> {
         Self::open_raw("event:")
     }
 
-    fn orbital(properties: &WindowProperties<'_>) -> syscall::Result<Self> {
+    pub fn orbital(properties: &WindowProperties<'_>) -> syscall::Result<Self> {
         Self::open_raw(&format!("{properties}"))
     }
 
@@ -31,7 +29,7 @@ impl RedoxSocket {
         Ok(Self { fd })
     }
 
-    fn read(&self, buf: &mut [u8]) -> syscall::Result<()> {
+    pub fn read(&self, buf: &mut [u8]) -> syscall::Result<()> {
         let count = syscall::read(self.fd, buf)?;
         if count == buf.len() {
             Ok(())
@@ -40,7 +38,7 @@ impl RedoxSocket {
         }
     }
 
-    fn write(&self, buf: &[u8]) -> syscall::Result<()> {
+    pub fn write(&self, buf: &[u8]) -> syscall::Result<()> {
         let count = syscall::write(self.fd, buf)?;
         if count == buf.len() {
             Ok(())
@@ -49,7 +47,7 @@ impl RedoxSocket {
         }
     }
 
-    fn fpath<'a>(&self, buf: &'a mut [u8]) -> syscall::Result<&'a str> {
+    pub fn fpath<'a>(&self, buf: &'a mut [u8]) -> syscall::Result<&'a str> {
         let count = syscall::fpath(self.fd, buf)?;
         str::from_utf8(&buf[..count]).map_err(|_err| syscall::Error::new(syscall::EINVAL))
     }
@@ -62,49 +60,43 @@ impl Drop for RedoxSocket {
 }
 
 #[derive(Debug)]
-pub struct TimeSocket(RedoxSocket);
+pub(crate) struct TimeSocket(pub RedoxSocket);
 
 impl TimeSocket {
-    fn open() -> syscall::Result<Self> {
+    pub fn open() -> syscall::Result<Self> {
         RedoxSocket::open_raw("time:4").map(Self)
     }
 
     // Read current time.
-    fn current_time(&self) -> syscall::Result<syscall::TimeSpec> {
+    pub fn current_time(&self) -> syscall::Result<syscall::TimeSpec> {
         let mut timespec = syscall::TimeSpec::default();
         self.0.read(&mut timespec)?;
         Ok(timespec)
     }
 
     // Write a timeout.
-    fn timeout(&self, timespec: &syscall::TimeSpec) -> syscall::Result<()> {
+    pub fn timeout(&self, timespec: &syscall::TimeSpec) -> syscall::Result<()> {
         self.0.write(timespec)
     }
 
     // Wake immediately.
-    fn wake(&self) -> syscall::Result<()> {
+    pub fn wake(&self) -> syscall::Result<()> {
         // Writing a default TimeSpec will always trigger a time event.
         self.timeout(&syscall::TimeSpec::default())
     }
 }
 
-#[derive(Default, Debug, Copy, Clone, PartialEq, Eq, Hash)]
-pub(crate) struct PlatformSpecificEventLoopAttributes {}
-
-#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
-pub struct PlatformSpecificWindowAttributes;
-
-struct WindowProperties<'a> {
-    flags: &'a str,
-    x: i32,
-    y: i32,
-    w: u32,
-    h: u32,
-    title: &'a str,
+pub(crate) struct WindowProperties<'a> {
+    pub flags: &'a str,
+    pub x: i32,
+    pub y: i32,
+    pub w: u32,
+    pub h: u32,
+    pub title: &'a str,
 }
 
 impl<'a> WindowProperties<'a> {
-    fn new(path: &'a str) -> Self {
+    pub fn new(path: &'a str) -> Self {
         // orbital:flags/x/y/w/h/t
         let mut parts = path.splitn(6, '/');
         let flags = parts.next().unwrap_or("");

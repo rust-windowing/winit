@@ -185,10 +185,8 @@ x11rb = { version = "0.13.0", default-features = false, features = [
 ], optional = true }
 xkbcommon-dl = "0.4.2"
 
-# Orbital
 [target.'cfg(target_os = "redox")'.dependencies]
-orbclient = { version = "0.3.47", default-features = false }
-redox_syscall = "0.5.7"
+winit-orbital.workspace = true
 
 # Web
 [target.'cfg(target_family = "wasm")'.dependencies]
@@ -267,7 +265,7 @@ name = "window"
 name = "child_window"
 
 [workspace]
-members = ["dpi", "winit-apple", "winit-core", "winit-uikit", "winit-appkit"]
+members = ["dpi", "winit-apple", "winit-core", "winit-uikit", "winit-appkit", "winit-orbital"]
 resolver = "2"
 
 [workspace.package]
@@ -290,6 +288,7 @@ tracing = { version = "0.1.40", default-features = false }
 winit-appkit = { version = "0.0.0", path = "winit-appkit" }
 winit-apple = { version = "0.0.0", path = "winit-apple" }
 winit-core = { version = "0.0.0", path = "winit-core" }
+winit-orbital = { version = "0.0.0", path = "winit-orbital" }
 winit-uikit = { version = "0.0.0", path = "winit-uikit" }
 
 # Apple dependencies
@@ -302,3 +301,7 @@ objc2-core-graphics = { version = "0.3.1", default-features = false }
 objc2-core-video = { version = "0.3.1", default-features = false }
 objc2-foundation = { version = "0.3.1", default-features = false }
 objc2-ui-kit = { version = "0.3.1", default-features = false }
+
+# Orbital/Redox dependencies
+orbclient = { version = "0.3.47", default-features = false }
+redox_syscall = "0.5.7"

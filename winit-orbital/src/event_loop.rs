@@ -25,8 +25,8 @@ use winit_core::keyboard::{
 };
 use winit_core::window::{Theme, Window as CoreWindow, WindowId};
 
-use super::{PlatformSpecificEventLoopAttributes, RedoxSocket, TimeSocket, WindowProperties};
-use crate::platform_impl::Window;
+use crate::util::{RedoxSocket, TimeSocket, WindowProperties};
+use crate::window::Window;
 
 fn convert_scancode(scancode: u8) -> (PhysicalKey, Option<NamedKey>) {
     // Key constants from https://docs.rs/orbclient/latest/orbclient/event/index.html
@@ -279,7 +279,7 @@ pub struct EventLoop {
 }
 
 impl EventLoop {
-    pub(crate) fn new(_: &PlatformSpecificEventLoopAttributes) -> Result<Self, EventLoopError> {
+    pub fn new(_: &PlatformSpecificEventLoopAttributes) -> Result<Self, EventLoopError> {
         // NOTE: Create a channel which can hold only one event to automatically _squash_ user
         // events.
         let (user_events_sender, user_events_receiver) = mpsc::sync_channel(1);
@@ -757,3 +757,6 @@ impl rwh_06::HasDisplayHandle for OwnedDisplayHandle {
         unsafe { Ok(rwh_06::DisplayHandle::borrow_raw(raw)) }
     }
 }
+
+#[derive(Default, Debug, Copy, Clone, PartialEq, Eq, Hash)]
+pub struct PlatformSpecificEventLoopAttributes {}
