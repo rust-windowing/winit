@@ -285,7 +285,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: ./src/platform_impl/web/script
+        working-directory: ./winit-web/src/script
 
     steps:
       - uses: taiki-e/checkout-action@v1
@@ -300,7 +300,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: ./src/platform_impl/web/script
+        working-directory: ./winit-web/src/script
 
     steps:
       - uses: taiki-e/checkout-action@v1
