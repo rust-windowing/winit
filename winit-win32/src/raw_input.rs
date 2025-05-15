@@ -75,7 +75,7 @@ impl From<RID_DEVICE_INFO> for RawDeviceInfo {
 }
 
 #[allow(dead_code)]
-pub fn get_raw_input_device_info(handle: HANDLE) -> Option<RawDeviceInfo> {
+pub(crate) fn get_raw_input_device_info(handle: HANDLE) -> Option<RawDeviceInfo> {
     let mut info: RID_DEVICE_INFO = unsafe { mem::zeroed() };
     let info_size = size_of::<RID_DEVICE_INFO>() as u32;
 
@@ -95,7 +95,7 @@ pub fn get_raw_input_device_info(handle: HANDLE) -> Option<RawDeviceInfo> {
     Some(info.into())
 }
 
-pub fn get_raw_input_device_name(handle: HANDLE) -> Option<String> {
+pub(crate) fn get_raw_input_device_name(handle: HANDLE) -> Option<String> {
     let mut minimum_size = 0;
     let status = unsafe {
         GetRawInputDeviceInfoW(handle, RIDI_DEVICENAME, ptr::null_mut(), &mut minimum_size)
@@ -164,7 +164,7 @@ pub fn register_all_mice_and_keyboards_for_raw_input(
     register_raw_input_devices(&devices)
 }
 
-pub fn get_raw_input_data(handle: HRAWINPUT) -> Option<RAWINPUT> {
+pub(crate) fn get_raw_input_data(handle: HRAWINPUT) -> Option<RAWINPUT> {
     let mut data: RAWINPUT = unsafe { mem::zeroed() };
     let mut data_size = size_of::<RAWINPUT>() as u32;
     let header_size = size_of::<RAWINPUTHEADER>() as u32;
