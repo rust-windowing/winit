@@ -30,8 +30,10 @@ use winit_core::window::{
 use super::app_state::EventWrapper;
 use super::view::WinitView;
 use super::view_controller::WinitViewController;
-use super::{app_state, monitor, ActiveEventLoop, MonitorHandle};
-use crate::platform::ios::{ScreenEdge, StatusBarStyle, ValidOrientations, WindowAttributesIos};
+use super::{app_state, monitor};
+use crate::event_loop::ActiveEventLoop;
+use crate::monitor::MonitorHandle;
+use crate::{ScreenEdge, StatusBarStyle, ValidOrientations, WindowAttributesIos};
 
 define_class!(
     #[unsafe(super(UIWindow, UIResponder, NSObject))]

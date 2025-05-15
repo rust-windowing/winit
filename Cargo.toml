@@ -63,6 +63,7 @@ serde = [
     "dpi/serde",
     "bitflags/serde",
     "winit-core/serde",
+    "winit-uikit/serde",
 ]
 wayland = [
     "wayland-client",
@@ -83,12 +84,12 @@ x11 = ["x11-dl", "bytemuck", "percent-encoding", "xkbcommon-dl/x11", "x11rb"]
 cfg_aliases = "0.2.1"
 
 [dependencies]
-bitflags = "2"
-cursor-icon = "1.1.0"
-dpi = { version = "0.1.2", path = "dpi" }
-rwh_06 = { package = "raw-window-handle", version = "0.6", features = ["std"] }
+bitflags.workspace = true
+cursor-icon.workspace = true
+dpi.workspace = true
+rwh_06.workspace = true
 serde = { workspace = true, optional = true }
-smol_str = "0.3"
+smol_str.workspace = true
 tracing.workspace = true
 winit-core.workspace = true
 
@@ -201,52 +202,8 @@ objc2-foundation = { workspace = true, features = [
     "NSValue",
 ] }
 
-# UIKit
 [target.'cfg(all(target_vendor = "apple", not(target_os = "macos")))'.dependencies]
-objc2-core-foundation = { workspace = true, features = [
-    "std",
-    "CFCGTypes",
-    "CFBase",
-    "CFRunLoop",
-    "CFString",
-] }
-objc2-foundation = { workspace = true, features = [
-    "std",
-    "block2",
-    "objc2-core-foundation",
-    "NSArray",
-    "NSEnumerator",
-    "NSGeometry",
-    "NSObjCRuntime",
-    "NSOperation",
-    "NSString",
-    "NSThread",
-    "NSSet",
-] }
-objc2-ui-kit = { workspace = true, features = [
-    "std",
-    "objc2-core-foundation",
-    "UIApplication",
-    "UIDevice",
-    "UIEvent",
-    "UIGeometry",
-    "UIGestureRecognizer",
-    "UITextInput",
-    "UITextInputTraits",
-    "UIOrientation",
-    "UIPanGestureRecognizer",
-    "UIPinchGestureRecognizer",
-    "UIResponder",
-    "UIRotationGestureRecognizer",
-    "UIScreen",
-    "UIScreenMode",
-    "UITapGestureRecognizer",
-    "UITouch",
-    "UITraitCollection",
-    "UIView",
-    "UIViewController",
-    "UIWindow",
-] }
+winit-uikit.workspace = true
 
 # Windows
 [target.'cfg(target_os = "windows")'.dependencies]
@@ -398,7 +355,7 @@ name = "window"
 name = "child_window"
 
 [workspace]
-members = ["dpi", "winit-apple", "winit-core"]
+members = ["dpi", "winit-apple", "winit-core", "winit-uikit"]
 resolver = "2"
 
 [workspace.package]
@@ -408,11 +365,19 @@ repository = "https://github.com/rust-windowing/winit"
 rust-version = "1.80"
 
 [workspace.dependencies]
+bitflags = "2"
+cursor-icon = "1.1.0"
+dpi = { version = "0.1.2", path = "dpi" }
 mint = "0.5.6"
+rwh_06 = { package = "raw-window-handle", version = "0.6", features = ["std"] }
 serde = { version = "1", features = ["serde_derive"] }
+smol_str = "0.3"
 tracing = { version = "0.1.40", default-features = false }
+
+# Winit crates
 winit-apple = { version = "0.0.0", path = "winit-apple" }
 winit-core = { version = "0.0.0", path = "winit-core" }
+winit-uikit = { version = "0.0.0", path = "winit-uikit" }
 
 # Apple dependencies
 block2 = "0.6.1"

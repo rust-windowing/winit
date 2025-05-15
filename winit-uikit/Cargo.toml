@@ -1,0 +1,71 @@
+[package]
+description = "Winit's UIKit (iOS/tvOS/visionOS) backend"
+documentation = "https://docs.rs/winit-uikit"
+edition.workspace = true
+license.workspace = true
+name = "winit-uikit"
+repository.workspace = true
+rust-version.workspace = true
+version = "0.0.0"
+
+[features]
+serde = ["dep:serde", "bitflags/serde", "smol_str/serde", "dpi/serde"]
+
+[dependencies]
+bitflags.workspace = true
+dpi.workspace = true
+rwh_06.workspace = true
+serde = { workspace = true, optional = true }
+smol_str.workspace = true
+tracing.workspace = true
+winit-apple.workspace = true
+winit-core.workspace = true
+
+# Platform-specific
+block2.workspace = true
+dispatch2 = { workspace = true, features = ["std", "objc2"] }
+objc2.workspace = true
+objc2-core-foundation = { workspace = true, features = [
+    "std",
+    "CFCGTypes",
+    "CFBase",
+    "CFRunLoop",
+    "CFString",
+] }
+objc2-foundation = { workspace = true, features = [
+    "std",
+    "block2",
+    "objc2-core-foundation",
+    "NSArray",
+    "NSEnumerator",
+    "NSGeometry",
+    "NSObjCRuntime",
+    "NSOperation",
+    "NSString",
+    "NSThread",
+    "NSSet",
+] }
+objc2-ui-kit = { workspace = true, features = [
+    "std",
+    "objc2-core-foundation",
+    "UIApplication",
+    "UIDevice",
+    "UIEvent",
+    "UIGeometry",
+    "UIGestureRecognizer",
+    "UITextInput",
+    "UITextInputTraits",
+    "UIOrientation",
+    "UIPanGestureRecognizer",
+    "UIPinchGestureRecognizer",
+    "UIResponder",
+    "UIRotationGestureRecognizer",
+    "UIScreen",
+    "UIScreenMode",
+    "UITapGestureRecognizer",
+    "UITouch",
+    "UITraitCollection",
+    "UIView",
+    "UIViewController",
+    "UIWindow",
+] }

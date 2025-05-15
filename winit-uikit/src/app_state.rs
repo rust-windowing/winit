@@ -22,8 +22,8 @@ use winit_core::event::{StartCause, SurfaceSizeWriter, WindowEvent};
 use winit_core::event_loop::ControlFlow;
 use winit_core::window::WindowId;
 
-use super::window::WinitUIWindow;
-use super::ActiveEventLoop;
+use crate::event_loop::ActiveEventLoop;
+use crate::window::WinitUIWindow;
 
 macro_rules! bug {
     ($($msg:tt)*) => {

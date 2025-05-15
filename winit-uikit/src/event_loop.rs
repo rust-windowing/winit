@@ -28,11 +28,12 @@ use winit_core::monitor::MonitorHandle as CoreMonitorHandle;
 use winit_core::window::{Theme, Window as CoreWindow};
 
 use super::app_state::{send_occluded_event_for_all_windows, AppState};
-use super::{app_state, monitor, MonitorHandle};
-use crate::platform_impl::Window;
+use super::{app_state, monitor};
+use crate::monitor::MonitorHandle;
+use crate::window::Window;
 
 #[derive(Debug)]
-pub(crate) struct ActiveEventLoop {
+pub struct ActiveEventLoop {
     pub(super) mtm: MainThreadMarker,
 }
 
@@ -138,12 +139,10 @@ pub struct EventLoop {
 }
 
 #[derive(Default, Debug, Copy, Clone, PartialEq, Eq, Hash)]
-pub(crate) struct PlatformSpecificEventLoopAttributes {}
+pub struct PlatformSpecificEventLoopAttributes {}
 
 impl EventLoop {
-    pub(crate) fn new(
-        _: &PlatformSpecificEventLoopAttributes,
-    ) -> Result<EventLoop, EventLoopError> {
+    pub fn new(_: &PlatformSpecificEventLoopAttributes) -> Result<EventLoop, EventLoopError> {
         let mtm = MainThreadMarker::new()
             .expect("On iOS, `EventLoop` must be created on the main thread");
 
