@@ -1,12 +1,12 @@
 use crate::application::ApplicationHandler;
 use crate::error::EventLoopError;
-use crate::event_loop::EventLoop;
 #[cfg(doc)]
 use crate::{
     event_loop::{pump_events::EventLoopExtPumpEvents, ActiveEventLoop},
     window::Window,
 };
 
+#[allow(rustdoc::broken_intra_doc_links)] // FIXME(madsmtm): Fix these.
 /// Additional methods on [`EventLoop`] to return control flow to the caller.
 pub trait EventLoopExtRunOnDemand {
     /// Run the application with the event loop on the calling thread.
@@ -63,22 +63,3 @@ pub trait EventLoopExtRunOnDemand {
     /// [`set_control_flow()`]: ActiveEventLoop::set_control_flow()
     fn run_app_on_demand<A: ApplicationHandler>(&mut self, app: A) -> Result<(), EventLoopError>;
 }
-
-impl EventLoopExtRunOnDemand for EventLoop {
-    fn run_app_on_demand<A: ApplicationHandler>(&mut self, app: A) -> Result<(), EventLoopError> {
-        self.event_loop.run_app_on_demand(app)
-    }
-}
-
-/// ```compile_fail
-/// use winit::event_loop::EventLoop;
-/// use winit::platform::run_on_demand::EventLoopExtRunOnDemand;
-///
-/// let mut event_loop = EventLoop::new().unwrap();
-/// event_loop.run_on_demand(|_, _| {
-///     // Attempt to run the event loop re-entrantly; this must fail.
-///     event_loop.run_on_demand(|_, _| {});
-/// });
-/// ```
-#[allow(dead_code)]
-fn test_run_on_demand_cannot_access_event_loop() {}

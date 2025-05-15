@@ -21,16 +21,5 @@ pub mod windows;
 #[cfg(x11_platform)]
 pub mod x11;
 
-#[allow(unused_imports)]
-#[cfg(any(
-    windows_platform,
-    macos_platform,
-    android_platform,
-    x11_platform,
-    wayland_platform,
-    docsrs,
-))]
-pub mod run_on_demand;
-
 #[cfg(any(windows_platform, macos_platform, x11_platform, wayland_platform, docsrs))]
 pub mod scancode;

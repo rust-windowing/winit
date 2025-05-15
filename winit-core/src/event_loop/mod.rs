@@ -1,4 +1,5 @@
 pub mod pump_events;
+pub mod run_on_demand;
 
 use std::fmt::{self, Debug};
 use std::sync::atomic::{AtomicUsize, Ordering};

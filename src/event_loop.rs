@@ -312,3 +312,31 @@ impl winit_core::event_loop::pump_events::EventLoopExtPumpEvents for EventLoop {
         self.event_loop.pump_app_events(timeout, app)
     }
 }
+
+#[allow(unused_imports)]
+#[cfg(any(
+    windows_platform,
+    macos_platform,
+    android_platform,
+    x11_platform,
+    wayland_platform,
+    docsrs,
+))]
+impl winit_core::event_loop::run_on_demand::EventLoopExtRunOnDemand for EventLoop {
+    fn run_app_on_demand<A: ApplicationHandler>(&mut self, app: A) -> Result<(), EventLoopError> {
+        self.event_loop.run_app_on_demand(app)
+    }
+}
+
+/// ```compile_error
+/// use winit::event_loop::run_on_demand::EventLoopExtRunOnDemand;
+/// use winit::event_loop::EventLoop;
+///
+/// let mut event_loop = EventLoop::new().unwrap();
+/// event_loop.run_app_on_demand(|_, _| {
+///     // Attempt to run the event loop re-entrantly; this must fail.
+///     event_loop.run_app_on_demand(|_, _| {});
+/// });
+/// ```
+#[allow(dead_code)]
+fn test_run_on_demand_cannot_access_event_loop() {}
