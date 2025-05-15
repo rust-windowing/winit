@@ -28,7 +28,7 @@ use super::event_loop::runner::WeakShared;
 use super::main_thread::MainThreadMarker;
 use super::r#async::{Dispatcher, Notified, Notifier};
 use super::web_sys::{Engine, EventListenerHandle};
-use crate::platform::web::{
+use crate::{
     MonitorPermissionError, Orientation, OrientationData, OrientationLock, OrientationLockError,
 };
 

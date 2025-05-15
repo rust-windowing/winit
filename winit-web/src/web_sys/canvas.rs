@@ -29,7 +29,7 @@ use super::intersection_handle::IntersectionObserverHandle;
 use super::media_query_handle::MediaQueryListHandle;
 use super::pointer::PointerHandler;
 use super::{event, fullscreen, ResizeScaleHandle};
-use crate::platform::web::WindowAttributesWeb;
+use crate::WindowAttributesWeb;
 
 #[allow(dead_code)]
 pub struct Canvas {

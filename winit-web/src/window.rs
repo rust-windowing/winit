@@ -16,10 +16,11 @@ use winit_core::window::{
     WindowAttributes, WindowButtons, WindowId, WindowLevel,
 };
 
-use super::main_thread::MainThreadMarker;
-use super::monitor::MonitorHandler;
-use super::r#async::Dispatcher;
-use super::{backend, lock, ActiveEventLoop};
+use crate::event_loop::ActiveEventLoop;
+use crate::main_thread::MainThreadMarker;
+use crate::monitor::MonitorHandler;
+use crate::r#async::Dispatcher;
+use crate::{backend, lock};
 
 pub struct Window {
     inner: Dispatcher<Inner>,

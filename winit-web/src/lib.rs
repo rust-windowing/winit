@@ -16,7 +16,7 @@
 //! [with_canvas]: WindowAttributesWeb::with_canvas
 //! [get]: WindowExtWeb::canvas
 //! [insert]: WindowAttributesWeb::with_append
-#![cfg_attr(not(web_platform), doc = "[wasm_bindgen]: https://docs.rs/wasm-bindgen")]
+//! [wasm_bindgen]: https://docs.rs/wasm-bindgen
 //! [Rust and WebAssembly book]: https://rustwasm.github.io/book
 //!
 //! ## CSS properties
@@ -41,6 +41,42 @@
 //! [`WindowEvent::PointerLeft`]: crate::event::WindowEvent::PointerLeft
 //! [`Window::set_outer_position()`]: crate::window::Window::set_outer_position
 
+// Brief introduction to the internals of the Web backend:
+// The Web backend used to support both wasm-bindgen and stdweb as methods of binding to the
+// environment. Because they are both supporting the same underlying APIs, the actual Web bindings
+// are cordoned off into backend abstractions, which present the thinnest unifying layer possible.
+//
+// When adding support for new events or interactions with the browser, first consult trusted
+// documentation (such as MDN) to ensure it is well-standardised and supported across many browsers.
+// Once you have decided on the relevant Web APIs, add support to both backends.
+//
+// The backend is used by the rest of the module to implement Winit's business logic, which forms
+// the rest of the code. 'device', 'error', 'monitor', and 'window' define Web-specific structures
+// for winit's cross-platform structures. They are all relatively simple translations.
+//
+// The event_loop module handles listening for and processing events. 'Proxy' implements
+// EventLoopProxy and 'WindowTarget' implements ActiveEventLoop. WindowTarget also handles
+// registering the event handlers. The 'Execution' struct in the 'runner' module handles taking
+// incoming events (from the registered handlers) and ensuring they are passed to the user in a
+// compliant way.
+
+// TODO: FP, remove when <https://github.com/rust-lang/rust-clippy/issues/12377> is fixed.
+#![allow(clippy::empty_docs)]
+
+#[macro_use]
+mod os_error_macro;
+mod r#async;
+mod cursor;
+mod error;
+mod event;
+pub(crate) mod event_loop;
+mod keyboard;
+mod lock;
+pub(crate) mod main_thread;
+mod monitor;
+pub(crate) mod web_sys;
+pub(crate) mod window;
+
 use std::cell::Ref;
 use std::error::Error;
 use std::fmt::{self, Display, Formatter};
@@ -49,31 +85,27 @@ use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{Context, Poll};
 
+use ::web_sys::HtmlCanvasElement;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
-#[cfg(web_platform)]
-use web_sys::HtmlCanvasElement;
-use winit_core::window::PlatformWindowAttributes;
+use winit_core::application::ApplicationHandler;
+use winit_core::cursor::{CustomCursor, CustomCursorSource};
+use winit_core::error::NotSupportedError;
+use winit_core::event_loop::ActiveEventLoop;
+use winit_core::monitor::MonitorHandleProvider;
+use winit_core::window::{PlatformWindowAttributes, Window};
 
-use crate::application::ApplicationHandler;
-use crate::cursor::{CustomCursor, CustomCursorSource};
-use crate::error::NotSupportedError;
-use crate::event_loop::{ActiveEventLoop, EventLoop};
-use crate::monitor::MonitorHandleProvider;
-use crate::platform_impl::main_thread::{MainThreadMarker, MainThreadSafe};
-use crate::platform_impl::{web_sys as backend, MonitorHandle as WebMonitorHandle};
-#[cfg(web_platform)]
-use crate::platform_impl::{
-    CustomCursorFuture as PlatformCustomCursorFuture,
+pub use self::event_loop::{EventLoop, PlatformSpecificEventLoopAttributes};
+use self::web_sys as backend;
+use self::window::Window as WebWindow;
+use crate::cursor::CustomCursorFuture as PlatformCustomCursorFuture;
+use crate::event_loop::ActiveEventLoop as WebActiveEventLoop;
+use crate::main_thread::{MainThreadMarker, MainThreadSafe};
+use crate::monitor::{
     HasMonitorPermissionFuture as PlatformHasMonitorPermissionFuture,
-    MonitorPermissionFuture as PlatformMonitorPermissionFuture,
+    MonitorHandle as WebMonitorHandle, MonitorPermissionFuture as PlatformMonitorPermissionFuture,
     OrientationLockFuture as PlatformOrientationLockFuture,
 };
-use crate::window::Window;
-
-#[cfg(not(web_platform))]
-#[doc(hidden)]
-pub struct HtmlCanvasElement;
 
 pub trait WindowExtWeb {
     /// Only returns the canvas if called from inside the window context (the
@@ -107,25 +139,21 @@ pub trait WindowExtWeb {
 impl WindowExtWeb for dyn Window + '_ {
     #[inline]
     fn canvas(&self) -> Option<Ref<'_, HtmlCanvasElement>> {
-        self.cast_ref::<crate::platform_impl::Window>().expect("non Web window on Web").canvas()
+        self.cast_ref::<WebWindow>().expect("non Web window on Web").canvas()
     }
 
     fn prevent_default(&self) -> bool {
-        self.cast_ref::<crate::platform_impl::Window>()
-            .expect("non Web window on Web")
-            .prevent_default()
+        self.cast_ref::<WebWindow>().expect("non Web window on Web").prevent_default()
     }
 
     fn set_prevent_default(&self, prevent_default: bool) {
-        self.cast_ref::<crate::platform_impl::Window>()
+        self.cast_ref::<WebWindow>()
             .expect("non Web window on Web")
             .set_prevent_default(prevent_default)
     }
 
     fn is_cursor_lock_raw(&self) -> bool {
-        self.cast_ref::<crate::platform_impl::Window>()
-            .expect("non Web window on Web")
-            .is_cursor_lock_raw()
+        self.cast_ref::<WebWindow>().expect("non Web window on Web").is_cursor_lock_raw()
     }
 }
 
@@ -144,7 +172,6 @@ impl WindowAttributesWeb {
     /// In any case, the canvas won't be automatically inserted into the Web page.
     ///
     /// [`None`] by default.
-    #[cfg_attr(not(web_platform), doc = "", doc = "[`HtmlCanvasElement`]: #only-available-on-wasm")]
     pub fn with_canvas(mut self, canvas: Option<HtmlCanvasElement>) -> Self {
         match canvas {
             Some(canvas) => {
@@ -216,9 +243,9 @@ pub trait EventLoopExtWeb {
     /// Initializes the winit event loop.
     ///
     /// Unlike
-    #[cfg_attr(all(web_platform, target_feature = "exception-handling"), doc = "`run_app()`")]
+    #[cfg_attr(target_feature = "exception-handling", doc = "`run_app()`")]
     #[cfg_attr(
-        not(all(web_platform, target_feature = "exception-handling")),
+        not(target_feature = "exception-handling"),
         doc = "[`run_app()`]"
     )]
     /// [^1], this returns immediately, and doesn't throw an exception in order to
@@ -231,7 +258,7 @@ pub trait EventLoopExtWeb {
     #[rustfmt::skip]
     ///
     #[cfg_attr(
-        not(all(web_platform, target_feature = "exception-handling")),
+        not(target_feature = "exception-handling"),
         doc = "[`run_app()`]: EventLoop::run_app()"
     )]
     /// [^1]: `run_app()` is _not_ available on Wasm when the target supports `exception-handling`.
@@ -396,73 +423,55 @@ pub trait ActiveEventLoopExtWeb {
 impl ActiveEventLoopExtWeb for dyn ActiveEventLoop + '_ {
     #[inline]
     fn create_custom_cursor_async(&self, source: CustomCursorSource) -> CustomCursorFuture {
-        let event_loop = self
-            .cast_ref::<crate::platform_impl::ActiveEventLoop>()
-            .expect("non Web event loop on Web");
+        let event_loop = self.cast_ref::<WebActiveEventLoop>().expect("non Web event loop on Web");
         event_loop.create_custom_cursor_async(source)
     }
 
     #[inline]
     fn set_poll_strategy(&self, strategy: PollStrategy) {
-        let event_loop = self
-            .cast_ref::<crate::platform_impl::ActiveEventLoop>()
-            .expect("non Web event loop on Web");
+        let event_loop = self.cast_ref::<WebActiveEventLoop>().expect("non Web event loop on Web");
         event_loop.set_poll_strategy(strategy);
     }
 
     #[inline]
     fn poll_strategy(&self) -> PollStrategy {
-        let event_loop = self
-            .cast_ref::<crate::platform_impl::ActiveEventLoop>()
-            .expect("non Web event loop on Web");
+        let event_loop = self.cast_ref::<WebActiveEventLoop>().expect("non Web event loop on Web");
         event_loop.poll_strategy()
     }
 
     #[inline]
     fn set_wait_until_strategy(&self, strategy: WaitUntilStrategy) {
-        let event_loop = self
-            .cast_ref::<crate::platform_impl::ActiveEventLoop>()
-            .expect("non Web event loop on Web");
+        let event_loop = self.cast_ref::<WebActiveEventLoop>().expect("non Web event loop on Web");
         event_loop.set_wait_until_strategy(strategy);
     }
 
     #[inline]
     fn wait_until_strategy(&self) -> WaitUntilStrategy {
-        let event_loop = self
-            .cast_ref::<crate::platform_impl::ActiveEventLoop>()
-            .expect("non Web event loop on Web");
+        let event_loop = self.cast_ref::<WebActiveEventLoop>().expect("non Web event loop on Web");
         event_loop.wait_until_strategy()
     }
 
     #[inline]
     fn is_cursor_lock_raw(&self) -> bool {
-        let event_loop = self
-            .cast_ref::<crate::platform_impl::ActiveEventLoop>()
-            .expect("non Web event loop on Web");
+        let event_loop = self.cast_ref::<WebActiveEventLoop>().expect("non Web event loop on Web");
         event_loop.is_cursor_lock_raw()
     }
 
     #[inline]
     fn has_multiple_screens(&self) -> Result<bool, NotSupportedError> {
-        let event_loop = self
-            .cast_ref::<crate::platform_impl::ActiveEventLoop>()
-            .expect("non Web event loop on Web");
+        let event_loop = self.cast_ref::<WebActiveEventLoop>().expect("non Web event loop on Web");
         event_loop.has_multiple_screens()
     }
 
     #[inline]
     fn request_detailed_monitor_permission(&self) -> MonitorPermissionFuture {
-        let event_loop = self
-            .cast_ref::<crate::platform_impl::ActiveEventLoop>()
-            .expect("non Web event loop on Web");
+        let event_loop = self.cast_ref::<WebActiveEventLoop>().expect("non Web event loop on Web");
         MonitorPermissionFuture(event_loop.request_detailed_monitor_permission())
     }
 
     #[inline]
     fn has_detailed_monitor_permission(&self) -> bool {
-        let event_loop = self
-            .cast_ref::<crate::platform_impl::ActiveEventLoop>()
-            .expect("non Web event loop on Web");
+        let event_loop = self.cast_ref::<WebActiveEventLoop>().expect("non Web event loop on Web");
         event_loop.has_detailed_monitor_permission()
     }
 }
@@ -518,9 +527,6 @@ pub enum WaitUntilStrategy {
     Worker,
 }
 
-#[cfg(not(web_platform))]
-struct PlatformCustomCursorFuture;
-
 #[derive(Debug)]
 pub struct CustomCursorFuture(pub(crate) PlatformCustomCursorFuture);
 
@@ -549,9 +555,6 @@ impl Display for CustomCursorError {
 }
 
 impl Error for CustomCursorError {}
-
-#[cfg(not(web_platform))]
-struct PlatformMonitorPermissionFuture;
 
 /// Can be dropped without aborting the request for detailed monitor permissions.
 #[derive(Debug)]
@@ -594,9 +597,6 @@ impl Display for MonitorPermissionError {
 }
 
 impl Error for MonitorPermissionError {}
-
-#[cfg(not(web_platform))]
-struct PlatformHasMonitorPermissionFuture;
 
 #[derive(Debug)]
 pub struct HasMonitorPermissionFuture(PlatformHasMonitorPermissionFuture);
@@ -712,9 +712,6 @@ pub enum OrientationLock {
         flipped: Option<bool>,
     },
 }
-
-#[cfg(not(web_platform))]
-struct PlatformOrientationLockFuture;
 
 /// Can be dropped without aborting the request to lock the screen.
 #[derive(Debug)]

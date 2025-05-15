@@ -9,7 +9,7 @@ use winit_core::event::{FingerId, MouseButton, MouseScrollDelta, PointerKind};
 use winit_core::keyboard::{Key, KeyLocation, ModifiersState, NamedKey, PhysicalKey};
 
 use super::Engine;
-use crate::platform_impl::web::keyboard::FromAttributeValue;
+use crate::keyboard::FromAttributeValue;
 
 bitflags::bitflags! {
     // https://www.w3.org/TR/pointerevents3/#the-buttons-property
