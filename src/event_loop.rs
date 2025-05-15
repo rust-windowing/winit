@@ -328,6 +328,41 @@ impl winit_core::event_loop::run_on_demand::EventLoopExtRunOnDemand for EventLoo
     }
 }
 
+#[cfg(web_platform)]
+impl winit_web::EventLoopExtWeb for EventLoop {
+    fn spawn_app<A: ApplicationHandler + 'static>(self, app: A) {
+        self.event_loop.spawn_app(app);
+    }
+
+    fn set_poll_strategy(&self, strategy: PollStrategy) {
+        self.event_loop.set_poll_strategy(strategy);
+    }
+
+    fn poll_strategy(&self) -> PollStrategy {
+        self.event_loop.poll_strategy()
+    }
+
+    fn set_wait_until_strategy(&self, strategy: WaitUntilStrategy) {
+        self.event_loop.set_wait_until_strategy(strategy);
+    }
+
+    fn wait_until_strategy(&self) -> WaitUntilStrategy {
+        self.event_loop.wait_until_strategy()
+    }
+
+    fn has_multiple_screens(&self) -> Result<bool, NotSupportedError> {
+        self.event_loop.has_multiple_screens()
+    }
+
+    fn request_detailed_monitor_permission(&self) -> MonitorPermissionFuture {
+        MonitorPermissionFuture(self.event_loop.request_detailed_monitor_permission())
+    }
+
+    fn has_detailed_monitor_permission(&self) -> HasMonitorPermissionFuture {
+        HasMonitorPermissionFuture(self.event_loop.has_detailed_monitor_permission())
+    }
+}
+
 /// ```compile_error
 /// use winit::event_loop::run_on_demand::EventLoopExtRunOnDemand;
 /// use winit::event_loop::EventLoop;

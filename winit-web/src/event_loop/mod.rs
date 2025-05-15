@@ -2,8 +2,8 @@ use winit_core::application::ApplicationHandler;
 use winit_core::error::{EventLoopError, NotSupportedError};
 use winit_core::event_loop::ActiveEventLoop as RootActiveEventLoop;
 
-use super::{backend, HasMonitorPermissionFuture, MonitorPermissionFuture};
-use crate::platform::web::{PollStrategy, WaitUntilStrategy};
+use crate::monitor::{HasMonitorPermissionFuture, MonitorPermissionFuture};
+use crate::{backend, PollStrategy, WaitUntilStrategy};
 
 mod proxy;
 pub(crate) mod runner;
@@ -18,10 +18,10 @@ pub struct EventLoop {
 }
 
 #[derive(Default, Debug, Copy, Clone, PartialEq, Eq, Hash)]
-pub(crate) struct PlatformSpecificEventLoopAttributes {}
+pub struct PlatformSpecificEventLoopAttributes {}
 
 impl EventLoop {
-    pub(crate) fn new(_: &PlatformSpecificEventLoopAttributes) -> Result<Self, EventLoopError> {
+    pub fn new(_: &PlatformSpecificEventLoopAttributes) -> Result<Self, EventLoopError> {
         Ok(EventLoop { elw: ActiveEventLoop::new() })
     }
 

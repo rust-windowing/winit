@@ -21,11 +21,11 @@ use web_sys::{
 };
 use winit_core::cursor::{Cursor, CursorImage, CustomCursorProvider, CustomCursorSource};
 
-use super::backend::Style;
-use super::main_thread::{MainThreadMarker, MainThreadSafe};
-use super::r#async::{AbortHandle, Abortable, DropAbortHandle, Notified, Notifier};
-use super::ActiveEventLoop;
-use crate::platform::web::CustomCursorError;
+use crate::backend::Style;
+use crate::event_loop::ActiveEventLoop;
+use crate::main_thread::{MainThreadMarker, MainThreadSafe};
+use crate::r#async::{AbortHandle, Abortable, DropAbortHandle, Notified, Notifier};
+use crate::CustomCursorError;
 
 #[derive(Clone, Debug)]
 pub struct CustomCursor {

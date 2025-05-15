@@ -8,9 +8,8 @@ use wasm_bindgen::{JsCast, JsValue};
 use web_sys::{console, Document, Element, HtmlCanvasElement, Window};
 use winit_core::monitor::Fullscreen;
 
-use super::super::main_thread::MainThreadMarker;
-use super::super::monitor::{self, ScreenDetailed};
-use crate::platform_impl::MonitorHandle;
+use crate::main_thread::MainThreadMarker;
+use crate::monitor::{self, MonitorHandle, ScreenDetailed};
 
 pub(crate) fn request_fullscreen(
     main_thread: MainThreadMarker,
