@@ -199,7 +199,7 @@ jobs:
 
     - name: Test winit AppKit
       if: contains(matrix.platform.target, 'macos')
-      run: cargo $CMD test -p winit-appkit --target=${{ matrix.platform.target }}
+      run: cargo $CMD test -p winit-appkit $OPTIONS
 
     - name: Test winit Orbital
       if: contains(matrix.platform.target, 'redox')
@@ -208,11 +208,15 @@ jobs:
     - name: Test winit UIKit
       if: contains(matrix.platform.target, 'ios')
       # TODO: Run on Simulator
-      run: cargo $CMD test -p winit-uikit --target=${{ matrix.platform.target }} --no-run
+      run: cargo $CMD test -p winit-uikit $OPTIONS --no-run
+
+    - name: Test winit Web
+      if: contains(matrix.platform.target, 'wasm')
+      run: cargo $CMD test -p winit-web $OPTIONS --no-run
 
     - name: Test winit Win32
       if: contains(matrix.platform.target, 'windows')
-      run: cargo $CMD test -p winit-win32 --target=${{ matrix.platform.target }}
+      run: cargo $CMD test -p winit-win32 $OPTIONS
 
     - name: Test winit X11
       if: contains(matrix.platform.target, 'linux-gnu')
@@ -317,7 +321,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: ./src/platform_impl/web/script
+        working-directory: ./winit-web/src/script
 
     steps:
       - uses: taiki-e/checkout-action@v1
@@ -332,7 +336,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: ./src/platform_impl/web/script
+        working-directory: ./winit-web/src/script
 
     steps:
       - uses: taiki-e/checkout-action@v1

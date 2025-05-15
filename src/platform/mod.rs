@@ -15,7 +15,7 @@ pub mod startup_notify;
 #[cfg(wayland_platform)]
 pub use winit_wayland as wayland;
 #[cfg(web_platform)]
-pub mod web;
+pub use winit_web as web;
 #[cfg(windows_platform)]
 pub use winit_win32 as windows;
 #[cfg(x11_platform)]

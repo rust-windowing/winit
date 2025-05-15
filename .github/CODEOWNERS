@@ -17,8 +17,7 @@
 /winit-x11                          @kchibisov @notgull
 
 # Web
-/src/platform/web.rs                @daxpedda
-/src/platform_impl/web              @daxpedda
+/winit-web                          @daxpedda
 
 # Windows (Win32)
 /winit-win32                        @notgull

@@ -9,7 +9,7 @@ pub(crate) use winit_orbital as platform;
 #[cfg(ios_platform)]
 pub(crate) use winit_uikit as platform;
 #[cfg(web_platform)]
-mod web;
+pub(crate) use winit_web as platform;
 #[cfg(windows_platform)]
 pub(crate) use winit_win32 as platform;
 
@@ -17,8 +17,6 @@ pub(crate) use winit_win32 as platform;
 use self::linux as platform;
 #[allow(unused_imports)]
 pub use self::platform::*;
-#[cfg(web_platform)]
-use self::web as platform;
 
 #[cfg(all(
     not(ios_platform),
