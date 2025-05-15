@@ -89,12 +89,12 @@ dpi = { version = "0.1.2", path = "dpi" }
 rwh_06 = { package = "raw-window-handle", version = "0.6", features = ["std"] }
 serde = { workspace = true, optional = true }
 smol_str = "0.3"
-tracing = { version = "0.1.40", default-features = false }
-winit-core = { version = "0.0.0", path = "winit-core" }
+tracing.workspace = true
+winit-core.workspace = true
 
 [dev-dependencies]
 image = { version = "0.25.0", default-features = false, features = ["png"] }
-tracing = { version = "0.1.40", default-features = false, features = ["log"] }
+tracing = { workspace = true, features = ["log"] }
 tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
 
 [target.'cfg(not(target_os = "android"))'.dev-dependencies]
@@ -112,13 +112,14 @@ ndk = { version = "0.9.0", features = ["rwh_06"], default-features = false }
 
 # AppKit or UIKit
 [target.'cfg(target_vendor = "apple")'.dependencies]
-block2 = "0.6.1"
-dispatch2 = { version = "0.3.0", default-features = false, features = ["std", "objc2"] }
-objc2 = "0.6.1"
+block2.workspace = true
+dispatch2 = { workspace = true, features = ["std", "objc2"] }
+objc2.workspace = true
+winit-apple.workspace = true
 
 # AppKit
 [target.'cfg(target_os = "macos")'.dependencies]
-objc2-app-kit = { version = "0.3.1", default-features = false, features = [
+objc2-app-kit = { workspace = true, features = [
     "std",
     "objc2-core-foundation",
     "NSAppearance",
@@ -150,7 +151,7 @@ objc2-app-kit = { version = "0.3.1", default-features = false, features = [
     "NSWindowScripting",
     "NSWindowTabGroup",
 ] }
-objc2-core-foundation = { version = "0.3.1", default-features = false, features = [
+objc2-core-foundation = { workspace = true, features = [
     "std",
     "block2",
     "CFBase",
@@ -160,7 +161,7 @@ objc2-core-foundation = { version = "0.3.1", default-features = false, features 
     "CFString",
     "CFUUID",
 ] }
-objc2-core-graphics = { version = "0.3.1", default-features = false, features = [
+objc2-core-graphics = { workspace = true, features = [
     "std",
     "libc",
     "CGDirectDisplay",
@@ -170,14 +171,14 @@ objc2-core-graphics = { version = "0.3.1", default-features = false, features = 
     "CGRemoteOperation",
     "CGWindowLevel",
 ] }
-objc2-core-video = { version = "0.3.1", default-features = false, features = [
+objc2-core-video = { workspace = true, features = [
     "std",
     "objc2-core-graphics",
     "CVBase",
     "CVReturn",
     "CVDisplayLink",
 ] }
-objc2-foundation = { version = "0.3.1", default-features = false, features = [
+objc2-foundation = { workspace = true, features = [
     "std",
     "block2",
     "objc2-core-foundation",
@@ -202,14 +203,14 @@ objc2-foundation = { version = "0.3.1", default-features = false, features = [
 
 # UIKit
 [target.'cfg(all(target_vendor = "apple", not(target_os = "macos")))'.dependencies]
-objc2-core-foundation = { version = "0.3.1", default-features = false, features = [
+objc2-core-foundation = { workspace = true, features = [
     "std",
     "CFCGTypes",
     "CFBase",
     "CFRunLoop",
     "CFString",
 ] }
-objc2-foundation = { version = "0.3.1", default-features = false, features = [
+objc2-foundation = { workspace = true, features = [
     "std",
     "block2",
     "objc2-core-foundation",
@@ -222,7 +223,7 @@ objc2-foundation = { version = "0.3.1", default-features = false, features = [
     "NSThread",
     "NSSet",
 ] }
-objc2-ui-kit = { version = "0.3.1", default-features = false, features = [
+objc2-ui-kit = { workspace = true, features = [
     "std",
     "objc2-core-foundation",
     "UIApplication",
@@ -397,7 +398,7 @@ name = "window"
 name = "child_window"
 
 [workspace]
-members = ["dpi", "winit-core"]
+members = ["dpi", "winit-apple", "winit-core"]
 resolver = "2"
 
 [workspace.package]
@@ -409,3 +410,17 @@ rust-version = "1.80"
 [workspace.dependencies]
 mint = "0.5.6"
 serde = { version = "1", features = ["serde_derive"] }
+tracing = { version = "0.1.40", default-features = false }
+winit-apple = { version = "0.0.0", path = "winit-apple" }
+winit-core = { version = "0.0.0", path = "winit-core" }
+
+# Apple dependencies
+block2 = "0.6.1"
+dispatch2 = { version = "0.3.0", default-features = false }
+objc2 = "0.6.1"
+objc2-app-kit = { version = "0.3.1", default-features = false }
+objc2-core-foundation = { version = "0.3.1", default-features = false }
+objc2-core-graphics = { version = "0.3.1", default-features = false }
+objc2-core-video = { version = "0.3.1", default-features = false }
+objc2-foundation = { version = "0.3.1", default-features = false }
+objc2-ui-kit = { version = "0.3.1", default-features = false }

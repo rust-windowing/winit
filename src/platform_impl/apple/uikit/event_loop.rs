@@ -16,6 +16,7 @@ use objc2_ui_kit::{
     UIApplicationWillResignActiveNotification, UIApplicationWillTerminateNotification, UIScreen,
 };
 use rwh_06::HasDisplayHandle;
+use winit_apple::create_observer;
 use winit_core::application::ApplicationHandler;
 use winit_core::cursor::{CustomCursor, CustomCursorSource};
 use winit_core::error::{EventLoopError, NotSupportedError, RequestError};
@@ -26,7 +27,6 @@ use winit_core::event_loop::{
 use winit_core::monitor::MonitorHandle as CoreMonitorHandle;
 use winit_core::window::{Theme, Window as CoreWindow};
 
-use super::super::notification_center::create_observer;
 use super::app_state::{send_occluded_event_for_all_windows, AppState};
 use super::{app_state, monitor, MonitorHandle};
 use crate::platform_impl::Window;

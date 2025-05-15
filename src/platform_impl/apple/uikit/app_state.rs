@@ -16,13 +16,12 @@ use objc2_core_foundation::{
     CGSize,
 };
 use objc2_ui_kit::{UIApplication, UICoordinateSpace, UIView};
+use winit_apple::{EventHandler, EventLoopProxy};
 use winit_core::application::ApplicationHandler;
 use winit_core::event::{StartCause, SurfaceSizeWriter, WindowEvent};
 use winit_core::event_loop::ControlFlow;
 use winit_core::window::WindowId;
 
-use super::super::event_handler::EventHandler;
-use super::super::event_loop_proxy::EventLoopProxy;
 use super::window::WinitUIWindow;
 use super::ActiveEventLoop;
 

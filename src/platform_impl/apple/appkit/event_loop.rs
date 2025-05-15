@@ -15,6 +15,7 @@ use objc2_app_kit::{
 };
 use objc2_foundation::{NSNotificationCenter, NSObjectProtocol};
 use rwh_06::HasDisplayHandle;
+use winit_apple::create_observer;
 use winit_core::application::ApplicationHandler;
 use winit_core::cursor::{CustomCursor as CoreCustomCursor, CustomCursorSource};
 use winit_core::error::{EventLoopError, RequestError};
@@ -25,7 +26,6 @@ use winit_core::event_loop::{
 use winit_core::monitor::MonitorHandle as CoreMonitorHandle;
 use winit_core::window::Theme;
 
-use super::super::notification_center::create_observer;
 use super::app::override_send_event;
 use super::app_state::AppState;
 use super::cursor::CustomCursor;

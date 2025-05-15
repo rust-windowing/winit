@@ -182,6 +182,10 @@ jobs:
     - name: Test winit core
       run: cargo test -p winit-core
 
+    - name: Test winit Apple
+      if: contains(matrix.platform.target, 'apple')
+      run: cargo test -p winit-apple
+
     # Test only on Linux x86_64, so we avoid spending unnecessary CI hours.
     - name: Test dpi crate
       if: >
