@@ -12,7 +12,7 @@ use windows_sys::Win32::UI::Input::Ime::{
 };
 use windows_sys::Win32::UI::WindowsAndMessaging::{GetSystemMetrics, SM_IMMENABLED};
 
-use crate::platform::windows::HWND;
+use crate::HWND;
 
 pub struct ImeContext {
     hwnd: HWND,

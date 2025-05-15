@@ -1,5 +1,5 @@
 [workspace]
-members = ["dpi", "winit-core", "winit-orbital"]
+members = ["dpi", "winit-*"]
 resolver = "2"
 
 [workspace.package]
@@ -14,6 +14,7 @@ rust-version = "1.80"
 winit = { path = "." }
 winit-core = { version = "0.0.0", path = "winit-core" }
 winit-orbital = { version = "0.0.0", path = "winit-orbital" }
+winit-win32 = { version = "0.0.0", path = "winit-win32" }
 
 # Core dependencies.
 bitflags = "2"
@@ -339,36 +340,8 @@ objc2-ui-kit = { workspace = true, features = [
     "UIWindow",
 ] }
 
-# Windows
 [target.'cfg(target_os = "windows")'.dependencies]
-unicode-segmentation.workspace = true
-windows-sys = { workspace = true, features = [
-    "Win32_Devices_HumanInterfaceDevice",
-    "Win32_Foundation",
-    "Win32_Globalization",
-    "Win32_Graphics_Dwm",
-    "Win32_Graphics_Gdi",
-    "Win32_Media",
-    "Win32_System_Com_StructuredStorage",
-    "Win32_System_Com",
-    "Win32_System_LibraryLoader",
-    "Win32_System_Ole",
-    "Win32_Security",
-    "Win32_System_SystemInformation",
-    "Win32_System_SystemServices",
-    "Win32_System_Threading",
-    "Win32_System_WindowsProgramming",
-    "Win32_UI_Accessibility",
-    "Win32_UI_Controls",
-    "Win32_UI_HiDpi",
-    "Win32_UI_Input_Ime",
-    "Win32_UI_Input_KeyboardAndMouse",
-    "Win32_UI_Input_Pointer",
-    "Win32_UI_Input_Touch",
-    "Win32_UI_Shell",
-    "Win32_UI_TextServices",
-    "Win32_UI_WindowsAndMessaging",
-] }
+winit-win32.workspace = true
 
 # Linux
 [target.'cfg(all(unix, not(any(target_os = "redox", target_family = "wasm", target_os = "android", target_vendor = "apple"))))'.dependencies]

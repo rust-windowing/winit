@@ -1,0 +1,55 @@
+[package]
+description = "Winit's Win32/Windows backend"
+documentation = "https://docs.rs/winit-win32"
+edition.workspace = true
+license.workspace = true
+name = "winit-win32"
+repository.workspace = true
+rust-version.workspace = true
+version = "0.0.0"
+
+[features]
+serde = ["dep:serde", "bitflags/serde", "smol_str/serde", "dpi/serde"]
+
+[dependencies]
+bitflags.workspace = true
+cursor-icon.workspace = true
+dpi.workspace = true
+rwh_06.workspace = true
+serde = { workspace = true, optional = true }
+smol_str.workspace = true
+tracing.workspace = true
+winit-core.workspace = true
+
+# Platform-specific
+unicode-segmentation.workspace = true
+windows-sys = { workspace = true, features = [
+    "Win32_Devices_HumanInterfaceDevice",
+    "Win32_Foundation",
+    "Win32_Globalization",
+    "Win32_Graphics_Dwm",
+    "Win32_Graphics_Gdi",
+    "Win32_Media",
+    "Win32_System_Com_StructuredStorage",
+    "Win32_System_Com",
+    "Win32_System_LibraryLoader",
+    "Win32_System_Ole",
+    "Win32_Security",
+    "Win32_System_SystemInformation",
+    "Win32_System_SystemServices",
+    "Win32_System_Threading",
+    "Win32_System_WindowsProgramming",
+    "Win32_UI_Accessibility",
+    "Win32_UI_Controls",
+    "Win32_UI_HiDpi",
+    "Win32_UI_Input_Ime",
+    "Win32_UI_Input_KeyboardAndMouse",
+    "Win32_UI_Input_Pointer",
+    "Win32_UI_Input_Touch",
+    "Win32_UI_Shell",
+    "Win32_UI_TextServices",
+    "Win32_UI_WindowsAndMessaging",
+] }
+
+[dev-dependencies]
+winit.workspace = true

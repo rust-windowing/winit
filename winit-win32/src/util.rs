@@ -21,9 +21,16 @@ use windows_sys::Win32::UI::WindowsAndMessaging::{
     GetWindowRect, IsIconic, ShowCursor, IDC_APPSTARTING, IDC_ARROW, IDC_CROSS, IDC_HAND, IDC_HELP,
     IDC_IBEAM, IDC_NO, IDC_SIZEALL, IDC_SIZENESW, IDC_SIZENS, IDC_SIZENWSE, IDC_SIZEWE, IDC_WAIT,
     SM_CXVIRTUALSCREEN, SM_CYVIRTUALSCREEN, SM_XVIRTUALSCREEN, SM_YVIRTUALSCREEN, SW_MAXIMIZE,
-    WINDOWPLACEMENT,
+    WINDOWPLACEMENT, WINDOW_LONG_PTR_INDEX,
 };
 use winit_core::cursor::CursorIcon;
+use winit_core::event::DeviceId;
+
+macro_rules! os_error {
+    ($error:expr) => {{
+        winit_core::error::OsError::new(line!(), file!(), $error)
+    }};
+}
 
 pub fn encode_wide(string: impl AsRef<OsStr>) -> Vec<u16> {
     string.as_ref().encode_wide().chain(once(0)).collect()
@@ -204,11 +211,8 @@ pub(super) fn get_function_impl(library: &str, function: &str) -> Option<*const 
 
 macro_rules! get_function {
     ($lib:expr, $func:ident) => {
-        crate::platform_impl::platform::util::get_function_impl(
-            concat!($lib, '\0'),
-            concat!(stringify!($func), '\0'),
-        )
-        .map(|f| unsafe { std::mem::transmute::<*const _, $func>(f) })
+        crate::util::get_function_impl(concat!($lib, '\0'), concat!(stringify!($func), '\0'))
+            .map(|f| unsafe { std::mem::transmute::<*const _, $func>(f) })
     };
 }
 
@@ -273,3 +277,64 @@ pub(crate) static GET_POINTER_DEVICE_RECTS: LazyLock<Option<GetPointerDeviceRect
     LazyLock::new(|| get_function!("user32.dll", GetPointerDeviceRects));
 pub(crate) static GET_POINTER_TOUCH_INFO: LazyLock<Option<GetPointerTouchInfo>> =
     LazyLock::new(|| get_function!("user32.dll", GetPointerTouchInfo));
+
+pub(crate) fn wrap_device_id(id: u32) -> DeviceId {
+    DeviceId::from_raw(id as i64)
+}
+
+#[inline(always)]
+pub(crate) const fn get_xbutton_wparam(x: u32) -> u16 {
+    hiword(x)
+}
+
+#[inline(always)]
+pub(crate) const fn get_x_lparam(x: u32) -> i16 {
+    loword(x) as _
+}
+
+#[inline(always)]
+pub(crate) const fn get_y_lparam(x: u32) -> i16 {
+    hiword(x) as _
+}
+
+#[inline(always)]
+pub(crate) const fn primarylangid(lgid: u16) -> u16 {
+    lgid & 0x3ff
+}
+
+#[inline(always)]
+pub(crate) const fn loword(x: u32) -> u16 {
+    (x & 0xffff) as u16
+}
+
+#[inline(always)]
+pub(crate) const fn hiword(x: u32) -> u16 {
+    ((x >> 16) & 0xffff) as u16
+}
+
+#[inline(always)]
+pub(crate) unsafe fn get_window_long(hwnd: HWND, nindex: WINDOW_LONG_PTR_INDEX) -> isize {
+    #[cfg(target_pointer_width = "64")]
+    return unsafe { windows_sys::Win32::UI::WindowsAndMessaging::GetWindowLongPtrW(hwnd, nindex) };
+    #[cfg(target_pointer_width = "32")]
+    return unsafe {
+        windows_sys::Win32::UI::WindowsAndMessaging::GetWindowLongW(hwnd, nindex) as isize
+    };
+}
+
+#[inline(always)]
+pub(crate) unsafe fn set_window_long(
+    hwnd: HWND,
+    nindex: WINDOW_LONG_PTR_INDEX,
+    dwnewlong: isize,
+) -> isize {
+    #[cfg(target_pointer_width = "64")]
+    return unsafe {
+        windows_sys::Win32::UI::WindowsAndMessaging::SetWindowLongPtrW(hwnd, nindex, dwnewlong)
+    };
+    #[cfg(target_pointer_width = "32")]
+    return unsafe {
+        windows_sys::Win32::UI::WindowsAndMessaging::SetWindowLongW(hwnd, nindex, dwnewlong as i32)
+            as isize
+    };
+}

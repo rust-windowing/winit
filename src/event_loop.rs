@@ -328,6 +328,30 @@ impl winit_core::event_loop::run_on_demand::EventLoopExtRunOnDemand for EventLoo
     }
 }
 
+#[cfg(windows_platform)]
+impl winit_win32::EventLoopBuilderExtWindows for EventLoopBuilder {
+    #[inline]
+    fn with_any_thread(&mut self, any_thread: bool) -> &mut Self {
+        self.platform_specific.any_thread = any_thread;
+        self
+    }
+
+    #[inline]
+    fn with_dpi_aware(&mut self, dpi_aware: bool) -> &mut Self {
+        self.platform_specific.dpi_aware = dpi_aware;
+        self
+    }
+
+    #[inline]
+    fn with_msg_hook<F>(&mut self, callback: F) -> &mut Self
+    where
+        F: FnMut(*const core::ffi::c_void) -> bool + 'static,
+    {
+        self.platform_specific.msg_hook = Some(Box::new(callback));
+        self
+    }
+}
+
 /// ```compile_error
 /// use winit::event_loop::run_on_demand::EventLoopExtRunOnDemand;
 /// use winit::event_loop::EventLoop;

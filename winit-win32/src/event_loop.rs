@@ -79,20 +79,18 @@ use winit_core::window::{Theme, Window as CoreWindow, WindowAttributes, WindowId
 pub(super) use self::runner::{Event, EventLoopRunner};
 use super::window::set_skip_taskbar;
 use super::SelectedCursor;
-use crate::platform_impl::platform::dark_mode::try_theme;
-use crate::platform_impl::platform::dpi::{become_dpi_aware, dpi_to_scale_factor};
-use crate::platform_impl::platform::drop_handler::FileDropHandler;
-use crate::platform_impl::platform::icon::WinCursor;
-use crate::platform_impl::platform::ime::ImeContext;
-use crate::platform_impl::platform::keyboard::KeyEventBuilder;
-use crate::platform_impl::platform::keyboard_layout::LAYOUT_CACHE;
-use crate::platform_impl::platform::monitor::{self, MonitorHandle};
-use crate::platform_impl::platform::window::InitData;
-use crate::platform_impl::platform::window_state::{
-    CursorFlags, ImeState, WindowFlags, WindowState,
-};
-use crate::platform_impl::platform::{raw_input, util, wrap_device_id};
-use crate::platform_impl::Window;
+use crate::dark_mode::try_theme;
+use crate::dpi::{become_dpi_aware, dpi_to_scale_factor};
+use crate::drop_handler::FileDropHandler;
+use crate::icon::WinCursor;
+use crate::ime::ImeContext;
+use crate::keyboard::KeyEventBuilder;
+use crate::keyboard_layout::LAYOUT_CACHE;
+use crate::monitor::{self, MonitorHandle};
+use crate::util::wrap_device_id;
+use crate::window::{InitData, Window};
+use crate::window_state::{CursorFlags, ImeState, WindowFlags, WindowState};
+use crate::{raw_input, util};
 
 pub(crate) struct WindowData {
     pub window_state: Arc<Mutex<WindowState>>,
@@ -150,10 +148,10 @@ impl fmt::Debug for EventLoop {
     }
 }
 
-pub(crate) struct PlatformSpecificEventLoopAttributes {
-    pub(crate) any_thread: bool,
-    pub(crate) dpi_aware: bool,
-    pub(crate) msg_hook: Option<Box<dyn FnMut(*const c_void) -> bool + 'static>>,
+pub struct PlatformSpecificEventLoopAttributes {
+    pub any_thread: bool,
+    pub dpi_aware: bool,
+    pub msg_hook: Option<Box<dyn FnMut(*const c_void) -> bool + 'static>>,
 }
 
 impl fmt::Debug for PlatformSpecificEventLoopAttributes {
@@ -194,7 +192,7 @@ impl std::hash::Hash for PlatformSpecificEventLoopAttributes {
 }
 
 impl EventLoop {
-    pub(crate) fn new(
+    pub fn new(
         attributes: &mut PlatformSpecificEventLoopAttributes,
     ) -> Result<Self, EventLoopError> {
         let thread_id = unsafe { GetCurrentThreadId() };
@@ -880,7 +878,7 @@ fn create_event_target_window() -> HWND {
             ptr::null(),
         );
 
-        super::set_window_long(
+        util::set_window_long(
             window,
             GWL_STYLE,
             // The window technically has to be visible to receive WM_PAINT messages (which are
@@ -899,7 +897,7 @@ fn insert_event_target_window_data(
     let userdata = ThreadMsgTargetData { event_loop_runner };
     let input_ptr = Box::into_raw(Box::new(userdata));
 
-    unsafe { super::set_window_long(thread_msg_target, GWL_USERDATA, input_ptr as isize) };
+    unsafe { util::set_window_long(thread_msg_target, GWL_USERDATA, input_ptr as isize) };
 }
 
 /// Capture mouse input, allowing `window` to receive mouse events when the cursor is outside of
@@ -977,7 +975,7 @@ pub(super) unsafe extern "system" fn public_window_callback(
     wparam: WPARAM,
     lparam: LPARAM,
 ) -> LRESULT {
-    let userdata = unsafe { super::get_window_long(window, GWL_USERDATA) };
+    let userdata = unsafe { util::get_window_long(window, GWL_USERDATA) };
 
     let userdata_ptr = match (userdata, msg) {
         (0, WM_NCCREATE) => {
@@ -986,7 +984,7 @@ pub(super) unsafe extern "system" fn public_window_callback(
 
             let result = match unsafe { initdata.on_nccreate(window) } {
                 Some(userdata) => unsafe {
-                    super::set_window_long(window, GWL_USERDATA, userdata as _);
+                    util::set_window_long(window, GWL_USERDATA, userdata as _);
                     DefWindowProcW(window, msg, wparam, lparam)
                 },
                 None => -1, // failed to create the window
@@ -1176,7 +1174,7 @@ unsafe fn public_window_callback_inner(
         },
 
         WM_NCDESTROY => {
-            unsafe { super::set_window_long(window, GWL_USERDATA, 0) };
+            unsafe { util::set_window_long(window, GWL_USERDATA, 0) };
             userdata.userdata_removed.set(true);
             result = ProcResult::Value(0);
         },
@@ -1301,8 +1299,8 @@ unsafe fn public_window_callback_inner(
 
         WM_SIZE => {
             use winit_core::event::WindowEvent::SurfaceResized;
-            let w = super::loword(lparam as u32) as u32;
-            let h = super::hiword(lparam as u32) as u32;
+            let w = util::loword(lparam as u32) as u32;
+            let h = util::hiword(lparam as u32) as u32;
 
             let physical_size = PhysicalSize::new(w, h);
 
@@ -1533,8 +1531,8 @@ unsafe fn public_window_callback_inner(
             use winit_core::event::WindowEvent::{PointerEntered, PointerLeft, PointerMoved};
             use winit_core::event::{PointerKind, PointerSource};
 
-            let x = super::get_x_lparam(lparam as u32) as i32;
-            let y = super::get_y_lparam(lparam as u32) as i32;
+            let x = util::get_x_lparam(lparam as u32) as i32;
+            let y = util::get_y_lparam(lparam as u32) as i32;
             let position = PhysicalPosition::new(x as f64, y as f64);
 
             let cursor_moved;
@@ -1681,8 +1679,8 @@ unsafe fn public_window_callback_inner(
 
             update_modifiers(window, userdata);
 
-            let x = super::get_x_lparam(lparam as u32) as i32;
-            let y = super::get_y_lparam(lparam as u32) as i32;
+            let x = util::get_x_lparam(lparam as u32) as i32;
+            let y = util::get_y_lparam(lparam as u32) as i32;
             let position = PhysicalPosition::new(x as f64, y as f64);
 
             userdata.send_window_event(window, PointerButton {
@@ -1704,8 +1702,8 @@ unsafe fn public_window_callback_inner(
 
             update_modifiers(window, userdata);
 
-            let x = super::get_x_lparam(lparam as u32) as i32;
-            let y = super::get_y_lparam(lparam as u32) as i32;
+            let x = util::get_x_lparam(lparam as u32) as i32;
+            let y = util::get_y_lparam(lparam as u32) as i32;
             let position = PhysicalPosition::new(x as f64, y as f64);
 
             userdata.send_window_event(window, PointerButton {
@@ -1727,8 +1725,8 @@ unsafe fn public_window_callback_inner(
 
             update_modifiers(window, userdata);
 
-            let x = super::get_x_lparam(lparam as u32) as i32;
-            let y = super::get_y_lparam(lparam as u32) as i32;
+            let x = util::get_x_lparam(lparam as u32) as i32;
+            let y = util::get_y_lparam(lparam as u32) as i32;
             let position = PhysicalPosition::new(x as f64, y as f64);
 
             userdata.send_window_event(window, PointerButton {
@@ -1750,8 +1748,8 @@ unsafe fn public_window_callback_inner(
 
             update_modifiers(window, userdata);
 
-            let x = super::get_x_lparam(lparam as u32) as i32;
-            let y = super::get_y_lparam(lparam as u32) as i32;
+            let x = util::get_x_lparam(lparam as u32) as i32;
+            let y = util::get_y_lparam(lparam as u32) as i32;
             let position = PhysicalPosition::new(x as f64, y as f64);
 
             userdata.send_window_event(window, PointerButton {
@@ -1773,8 +1771,8 @@ unsafe fn public_window_callback_inner(
 
             update_modifiers(window, userdata);
 
-            let x = super::get_x_lparam(lparam as u32) as i32;
-            let y = super::get_y_lparam(lparam as u32) as i32;
+            let x = util::get_x_lparam(lparam as u32) as i32;
+            let y = util::get_y_lparam(lparam as u32) as i32;
             let position = PhysicalPosition::new(x as f64, y as f64);
 
             userdata.send_window_event(window, PointerButton {
@@ -1796,8 +1794,8 @@ unsafe fn public_window_callback_inner(
 
             update_modifiers(window, userdata);
 
-            let x = super::get_x_lparam(lparam as u32) as i32;
-            let y = super::get_y_lparam(lparam as u32) as i32;
+            let x = util::get_x_lparam(lparam as u32) as i32;
+            let y = util::get_y_lparam(lparam as u32) as i32;
             let position = PhysicalPosition::new(x as f64, y as f64);
 
             userdata.send_window_event(window, PointerButton {
@@ -1814,14 +1812,14 @@ unsafe fn public_window_callback_inner(
             use winit_core::event::ElementState::Pressed;
             use winit_core::event::MouseButton::{Back, Forward, Other};
             use winit_core::event::WindowEvent::PointerButton;
-            let xbutton = super::get_xbutton_wparam(wparam as u32);
+            let xbutton = util::get_xbutton_wparam(wparam as u32);
 
             unsafe { capture_mouse(window, &mut userdata.window_state_lock()) };
 
             update_modifiers(window, userdata);
 
-            let x = super::get_x_lparam(lparam as u32) as i32;
-            let y = super::get_y_lparam(lparam as u32) as i32;
+            let x = util::get_x_lparam(lparam as u32) as i32;
+            let y = util::get_y_lparam(lparam as u32) as i32;
             let position = PhysicalPosition::new(x as f64, y as f64);
 
             userdata.send_window_event(window, PointerButton {
@@ -1843,14 +1841,14 @@ unsafe fn public_window_callback_inner(
             use winit_core::event::ElementState::Released;
             use winit_core::event::MouseButton::{Back, Forward, Other};
             use winit_core::event::WindowEvent::PointerButton;
-            let xbutton = super::get_xbutton_wparam(wparam as u32);
+            let xbutton = util::get_xbutton_wparam(wparam as u32);
 
             unsafe { release_mouse(userdata.window_state_lock()) };
 
             update_modifiers(window, userdata);
 
-            let x = super::get_x_lparam(lparam as u32) as i32;
-            let y = super::get_y_lparam(lparam as u32) as i32;
+            let x = util::get_x_lparam(lparam as u32) as i32;
+            let y = util::get_y_lparam(lparam as u32) as i32;
             let position = PhysicalPosition::new(x as f64, y as f64);
 
             userdata.send_window_event(window, PointerButton {
@@ -1884,7 +1882,7 @@ unsafe fn public_window_callback_inner(
             use winit_core::event::ElementState::{Pressed, Released};
             use winit_core::event::{PointerKind, PointerSource};
 
-            let pcount = super::loword(wparam as u32) as usize;
+            let pcount = util::loword(wparam as u32) as usize;
             let mut inputs = Vec::with_capacity(pcount);
             let htouch = lparam as *mut _;
             if unsafe {
@@ -1967,7 +1965,7 @@ unsafe fn public_window_callback_inner(
                 *util::SKIP_POINTER_FRAME_MESSAGES,
                 *util::GET_POINTER_DEVICE_RECTS,
             ) {
-                let pointer_id = super::loword(wparam as u32) as u32;
+                let pointer_id = util::loword(wparam as u32) as u32;
                 let mut entries_count = 0u32;
                 let mut pointers_count = 0u32;
                 if unsafe {
@@ -2165,7 +2163,7 @@ unsafe fn public_window_callback_inner(
                 // The return value for the preceding `WM_NCHITTEST` message is conveniently
                 // provided through the low-order word of lParam. We use that here since
                 // `WM_MOUSEMOVE` seems to come after `WM_SETCURSOR` for a given cursor movement.
-                let in_client_area = super::loword(lparam as u32) as u32 == HTCLIENT;
+                let in_client_area = util::loword(lparam as u32) as u32 == HTCLIENT;
                 if in_client_area {
                     Some(window_state.mouse.selected_cursor.clone())
                 } else {
@@ -2221,7 +2219,7 @@ unsafe fn public_window_callback_inner(
             // "you only need to use either the X-axis or the Y-axis value when scaling your
             // application since they are the same".
             // https://msdn.microsoft.com/en-us/library/windows/desktop/dn312083(v=vs.85).aspx
-            let new_dpi_x = super::loword(wparam as u32) as u32;
+            let new_dpi_x = util::loword(wparam as u32) as u32;
             let new_scale_factor = dpi_to_scale_factor(new_dpi_x);
             let old_scale_factor: f64;
 
@@ -2474,7 +2472,7 @@ unsafe extern "system" fn thread_event_target_callback(
     lparam: LPARAM,
 ) -> LRESULT {
     let userdata_ptr =
-        unsafe { super::get_window_long(window, GWL_USERDATA) } as *mut ThreadMsgTargetData;
+        unsafe { util::get_window_long(window, GWL_USERDATA) } as *mut ThreadMsgTargetData;
     if userdata_ptr.is_null() {
         // `userdata_ptr` will always be null for the first `WM_GETMINMAXINFO`, as well as
         // `WM_NCCREATE` and `WM_CREATE`.
@@ -2493,7 +2491,7 @@ unsafe extern "system" fn thread_event_target_callback(
     // the git blame and history would be preserved.
     let callback = || match msg {
         WM_NCDESTROY => {
-            unsafe { super::set_window_long(window, GWL_USERDATA, 0) };
+            unsafe { util::set_window_long(window, GWL_USERDATA, 0) };
             userdata_removed = true;
             0
         },

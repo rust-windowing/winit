@@ -1,5 +1,3 @@
-#![cfg(windows_platform)]
-
 use std::borrow::Cow;
 use std::cell::Cell;
 use std::ffi::c_void;
@@ -57,29 +55,22 @@ use winit_core::window::{
     WindowAttributes, WindowButtons, WindowId, WindowLevel,
 };
 
-use super::icon::WinCursor;
-use super::MonitorHandle;
-use crate::platform::windows::{
-    BackdropType, Color, CornerPreference, WinIcon, WindowAttributesWindows,
-};
-use crate::platform_impl::platform::dark_mode::try_theme;
-use crate::platform_impl::platform::definitions::{
+use crate::dark_mode::try_theme;
+use crate::definitions::{
     CLSID_TaskbarList, IID_ITaskbarList, IID_ITaskbarList2, ITaskbarList, ITaskbarList2,
 };
-use crate::platform_impl::platform::dpi::{
-    dpi_to_scale_factor, enable_non_client_dpi_scaling, hwnd_dpi,
+use crate::dpi::{dpi_to_scale_factor, enable_non_client_dpi_scaling, hwnd_dpi};
+use crate::drop_handler::FileDropHandler;
+use crate::event_loop::{self, ActiveEventLoop, Event, EventLoopRunner, DESTROY_MSG_ID};
+use crate::icon::{IconType, WinCursor};
+use crate::ime::ImeContext;
+use crate::keyboard::KeyEventBuilder;
+use crate::monitor::MonitorHandle;
+use crate::window_state::{CursorFlags, SavedWindow, WindowFlags, WindowState};
+use crate::{
+    monitor, util, BackdropType, Color, CornerPreference, SelectedCursor, WinIcon,
+    WindowAttributesWindows,
 };
-use crate::platform_impl::platform::drop_handler::FileDropHandler;
-use crate::platform_impl::platform::event_loop::{
-    self, ActiveEventLoop, Event, EventLoopRunner, DESTROY_MSG_ID,
-};
-use crate::platform_impl::platform::icon::IconType;
-use crate::platform_impl::platform::ime::ImeContext;
-use crate::platform_impl::platform::keyboard::KeyEventBuilder;
-use crate::platform_impl::platform::window_state::{
-    CursorFlags, SavedWindow, WindowFlags, WindowState,
-};
-use crate::platform_impl::platform::{monitor, util, SelectedCursor};
 
 #[derive(Clone, Copy, Debug)]
 #[repr(transparent)]
@@ -137,7 +128,7 @@ impl Window {
             // SAFETY: Handle will never be zero.
             std::num::NonZeroIsize::new_unchecked(self.window.hwnd() as isize)
         });
-        let hinstance = unsafe { super::get_window_long(self.hwnd(), GWLP_HINSTANCE) };
+        let hinstance = unsafe { super::util::get_window_long(self.hwnd(), GWLP_HINSTANCE) };
         window_handle.hinstance = std::num::NonZeroIsize::new(hinstance);
         Ok(rwh_06::RawWindowHandle::Win32(window_handle))
     }
