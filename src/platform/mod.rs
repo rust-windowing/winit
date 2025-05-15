@@ -17,7 +17,7 @@ pub mod wayland;
 #[cfg(web_platform)]
 pub mod web;
 #[cfg(windows_platform)]
-pub mod windows;
+pub use winit_windows as windows;
 #[cfg(x11_platform)]
 pub mod x11;
 

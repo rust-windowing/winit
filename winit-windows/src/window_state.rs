@@ -21,7 +21,7 @@ use winit_core::keyboard::ModifiersState;
 use winit_core::monitor::Fullscreen;
 use winit_core::window::{Theme, WindowAttributes};
 
-use crate::platform_impl::platform::{event_loop, util, SelectedCursor};
+use crate::{event_loop, util, SelectedCursor};
 
 /// Contains information about states and the window that the callback is going to use.
 #[derive(Debug)]

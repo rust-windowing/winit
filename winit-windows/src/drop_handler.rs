@@ -1,5 +1,4 @@
-use std::ffi::{c_void, OsString};
-use std::os::windows::ffi::OsStringExt;
+use std::ffi::c_void;
 use std::path::PathBuf;
 use std::ptr;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -14,7 +13,7 @@ use windows_sys::Win32::System::Ole::{CF_HDROP, DROPEFFECT_COPY, DROPEFFECT_NONE
 use windows_sys::Win32::UI::Shell::{DragFinish, DragQueryFileW, HDROP};
 use winit_core::event::WindowEvent;
 
-use crate::platform_impl::platform::definitions::{
+use crate::definitions::{
     IDataObject, IDataObjectVtbl, IDropTarget, IDropTargetVtbl, IUnknown, IUnknownVtbl,
 };
 
@@ -203,7 +202,16 @@ impl FileDropHandler {
                     path_buf.set_len(str_len);
                 }
 
-                callback(OsString::from_wide(&path_buf[0..character_count]).into());
+                #[cfg(target_os = "windows")]
+                {
+                    use std::os::windows::ffi::OsStringExt;
+                    callback(std::ffi::OsString::from_wide(&path_buf[0..character_count]).into());
+                }
+                #[cfg(not(target_os = "windows"))]
+                {
+                    let _ = &mut callback;
+                    unimplemented!();
+                }
             }
 
             Some(hdrop)

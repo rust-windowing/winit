@@ -117,36 +117,8 @@ winit-appkit.workspace = true
 [target.'cfg(all(target_vendor = "apple", not(target_os = "macos")))'.dependencies]
 winit-uikit.workspace = true
 
-# Windows
 [target.'cfg(target_os = "windows")'.dependencies]
-unicode-segmentation = "1.7.1"
-windows-sys = { version = "0.59.0", features = [
-    "Win32_Devices_HumanInterfaceDevice",
-    "Win32_Foundation",
-    "Win32_Globalization",
-    "Win32_Graphics_Dwm",
-    "Win32_Graphics_Gdi",
-    "Win32_Media",
-    "Win32_System_Com_StructuredStorage",
-    "Win32_System_Com",
-    "Win32_System_LibraryLoader",
-    "Win32_System_Ole",
-    "Win32_Security",
-    "Win32_System_SystemInformation",
-    "Win32_System_SystemServices",
-    "Win32_System_Threading",
-    "Win32_System_WindowsProgramming",
-    "Win32_UI_Accessibility",
-    "Win32_UI_Controls",
-    "Win32_UI_HiDpi",
-    "Win32_UI_Input_Ime",
-    "Win32_UI_Input_KeyboardAndMouse",
-    "Win32_UI_Input_Pointer",
-    "Win32_UI_Input_Touch",
-    "Win32_UI_Shell",
-    "Win32_UI_TextServices",
-    "Win32_UI_WindowsAndMessaging",
-] }
+winit-windows.workspace = true
 
 # Linux
 [target.'cfg(all(unix, not(any(target_os = "redox", target_family = "wasm", target_os = "android", target_vendor = "apple"))))'.dependencies]
@@ -265,7 +237,15 @@ name = "window"
 name = "child_window"
 
 [workspace]
-members = ["dpi", "winit-apple", "winit-core", "winit-uikit", "winit-appkit", "winit-orbital"]
+members = [
+    "dpi",
+    "winit-appkit",
+    "winit-apple",
+    "winit-core",
+    "winit-orbital",
+    "winit-uikit",
+    "winit-windows",
+]
 resolver = "2"
 
 [workspace.package]
@@ -290,6 +270,7 @@ winit-apple = { version = "0.0.0", path = "winit-apple" }
 winit-core = { version = "0.0.0", path = "winit-core" }
 winit-orbital = { version = "0.0.0", path = "winit-orbital" }
 winit-uikit = { version = "0.0.0", path = "winit-uikit" }
+winit-windows = { version = "0.0.0", path = "winit-windows" }
 
 # Apple dependencies
 block2 = "0.6.1"
@@ -301,6 +282,10 @@ objc2-core-graphics = { version = "0.3.1", default-features = false }
 objc2-core-video = { version = "0.3.1", default-features = false }
 objc2-foundation = { version = "0.3.1", default-features = false }
 objc2-ui-kit = { version = "0.3.1", default-features = false }
+
+# Windows dependencies
+unicode-segmentation = "1.7.1"
+windows-sys = "0.59.0"
 
 # Orbital/Redox dependencies
 orbclient = { version = "0.3.47", default-features = false }

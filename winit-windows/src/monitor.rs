@@ -14,8 +14,8 @@ use windows_sys::Win32::Graphics::Gdi::{
 use winit_core::monitor::{MonitorHandleProvider, VideoMode};
 
 use super::util::decode_wide;
-use crate::platform_impl::platform::dpi::{dpi_to_scale_factor, get_monitor_dpi};
-use crate::platform_impl::platform::util::has_flag;
+use crate::dpi::{dpi_to_scale_factor, get_monitor_dpi};
+use crate::util::has_flag;
 
 #[derive(Clone)]
 pub struct VideoModeHandle {
