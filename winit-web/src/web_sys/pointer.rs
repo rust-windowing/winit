@@ -9,8 +9,8 @@ use winit_core::keyboard::ModifiersState;
 use super::canvas::Common;
 use super::event;
 use super::event_handle::EventListenerHandle;
-use crate::platform_impl::web::event::mkdid;
-use crate::platform_impl::web::web_sys::event::mouse_button_to_id;
+use crate::event::mkdid;
+use crate::web_sys::event::mouse_button_to_id;
 
 #[allow(dead_code)]
 pub(super) struct PointerHandler {

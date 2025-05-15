@@ -21,10 +21,10 @@ use super::super::lock;
 use super::super::monitor::MonitorPermissionFuture;
 use super::runner::Event;
 use super::{backend, runner};
-use crate::platform::web::{CustomCursorFuture, PollStrategy, WaitUntilStrategy};
-use crate::platform_impl::platform::cursor::CustomCursor;
-use crate::platform_impl::web::event_loop::proxy::EventLoopProxy;
-use crate::platform_impl::Window;
+use crate::cursor::CustomCursor;
+use crate::event_loop::proxy::EventLoopProxy;
+use crate::window::Window;
+use crate::{CustomCursorFuture, PollStrategy, WaitUntilStrategy};
 
 #[derive(Default, Debug)]
 struct ModifiersShared(Rc<Cell<ModifiersState>>);

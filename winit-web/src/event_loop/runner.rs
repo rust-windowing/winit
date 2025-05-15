@@ -17,17 +17,16 @@ use winit_core::event::{
 use winit_core::event_loop::{ControlFlow, DeviceEvents};
 use winit_core::window::WindowId;
 
-use super::super::event;
-use super::super::main_thread::MainThreadMarker;
-use super::super::monitor::MonitorHandler;
 use super::proxy::EventLoopProxy;
 use super::state::State;
-use super::{backend, ActiveEventLoop, EventLoop};
-use crate::platform::web::{PollStrategy, WaitUntilStrategy};
-use crate::platform_impl::platform::backend::{EventListenerHandle, SafeAreaHandle};
-use crate::platform_impl::platform::r#async::DispatchRunner;
-use crate::platform_impl::platform::window::Inner;
-use crate::platform_impl::web::web_sys::event::mouse_button_to_id;
+use crate::backend::{EventListenerHandle, SafeAreaHandle};
+use crate::event_loop::ActiveEventLoop;
+use crate::main_thread::MainThreadMarker;
+use crate::monitor::MonitorHandler;
+use crate::r#async::DispatchRunner;
+use crate::web_sys::event::mouse_button_to_id;
+use crate::window::Inner;
+use crate::{backend, event, EventLoop, PollStrategy, WaitUntilStrategy};
 
 #[derive(Debug)]
 pub struct Shared(Rc<Execution>);

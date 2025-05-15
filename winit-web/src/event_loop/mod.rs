@@ -4,8 +4,9 @@ use winit_core::application::ApplicationHandler;
 use winit_core::error::{EventLoopError, NotSupportedError};
 use winit_core::event_loop::ActiveEventLoop as RootActiveEventLoop;
 
-use super::{backend, HasMonitorPermissionFuture, MonitorPermissionFuture};
-use crate::platform::web::{PollStrategy, WaitUntilStrategy};
+use crate::{
+    backend, HasMonitorPermissionFuture, MonitorPermissionFuture, PollStrategy, WaitUntilStrategy,
+};
 
 mod proxy;
 pub(crate) mod runner;
@@ -20,12 +21,12 @@ pub struct EventLoop {
 }
 
 #[derive(Default, Debug, Copy, Clone, PartialEq, Eq, Hash)]
-pub(crate) struct PlatformSpecificEventLoopAttributes {}
+pub struct PlatformSpecificEventLoopAttributes {}
 
 static EVENT_LOOP_CREATED: AtomicBool = AtomicBool::new(false);
 
 impl EventLoop {
-    pub(crate) fn new(_: &PlatformSpecificEventLoopAttributes) -> Result<Self, EventLoopError> {
+    pub fn new(_: &PlatformSpecificEventLoopAttributes) -> Result<Self, EventLoopError> {
         if EVENT_LOOP_CREATED.swap(true, Ordering::Relaxed) {
             // For better cross-platformness.
             return Err(EventLoopError::RecreationAttempt);
@@ -90,11 +91,13 @@ impl EventLoop {
         self.elw.has_multiple_screens()
     }
 
-    pub(crate) fn request_detailed_monitor_permission(&self) -> MonitorPermissionFuture {
-        self.elw.request_detailed_monitor_permission()
+    pub fn request_detailed_monitor_permission(&self) -> MonitorPermissionFuture {
+        MonitorPermissionFuture(self.elw.request_detailed_monitor_permission())
     }
 
     pub fn has_detailed_monitor_permission(&self) -> HasMonitorPermissionFuture {
-        self.elw.runner.monitor().has_detailed_monitor_permission_async()
+        HasMonitorPermissionFuture(
+            self.elw.runner.monitor().has_detailed_monitor_permission_async(),
+        )
     }
 }

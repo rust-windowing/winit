@@ -19,6 +19,7 @@ winit-core = { version = "0.0.0", path = "winit-core" }
 winit-orbital = { version = "0.0.0", path = "winit-orbital" }
 winit-uikit = { version = "0.0.0", path = "winit-uikit" }
 winit-wayland = { version = "0.0.0", path = "winit-wayland", default-features = false }
+winit-web = { version = "0.0.0", path = "winit-web" }
 winit-win32 = { version = "0.0.0", path = "winit-win32" }
 winit-x11 = { version = "0.0.0", path = "winit-x11" }
 
@@ -108,17 +109,7 @@ categories = ["gui"]
 description = "Cross-platform window creation library."
 documentation = "https://docs.rs/winit"
 edition.workspace = true
-include = [
-    "/build.rs",
-    "/docs",
-    "/examples",
-    "/FEATURES.md",
-    "/LICENSE",
-    "/src",
-    "!/src/platform_impl/web/script",
-    "/src/platform_impl/web/script/**/*.min.js",
-    "/tests",
-]
+include = ["/build.rs", "/docs", "/examples", "/FEATURES.md", "/LICENSE", "/src", "/tests"]
 keywords = ["windowing"]
 license.workspace = true
 name = "winit"
@@ -221,74 +212,15 @@ winit-x11 = { workspace = true, optional = true }
 [target.'cfg(target_os = "redox")'.dependencies]
 winit-orbital.workspace = true
 
-# Web
 [target.'cfg(target_family = "wasm")'.dependencies]
-js-sys.workspace = true
-pin-project.workspace = true
-wasm-bindgen.workspace = true
-wasm-bindgen-futures.workspace = true
-web-time.workspace = true
-web_sys = { workspace = true, features = [
-    "AbortController",
-    "AbortSignal",
-    "Blob",
-    "BlobPropertyBag",
-    "console",
-    "CssStyleDeclaration",
-    "Document",
-    "DomException",
-    "DomRect",
-    "DomRectReadOnly",
-    "Element",
-    "Event",
-    "EventTarget",
-    "FocusEvent",
-    "HtmlCanvasElement",
-    "HtmlElement",
-    "HtmlHtmlElement",
-    "HtmlImageElement",
-    "ImageBitmap",
-    "ImageBitmapOptions",
-    "ImageBitmapRenderingContext",
-    "ImageData",
-    "IntersectionObserver",
-    "IntersectionObserverEntry",
-    "KeyboardEvent",
-    "MediaQueryList",
-    "MessageChannel",
-    "MessagePort",
-    "Navigator",
-    "Node",
-    "OrientationLockType",
-    "OrientationType",
-    "PageTransitionEvent",
-    "Permissions",
-    "PermissionState",
-    "PermissionStatus",
-    "PointerEvent",
-    "PremultiplyAlpha",
-    "ResizeObserver",
-    "ResizeObserverBoxOptions",
-    "ResizeObserverEntry",
-    "ResizeObserverOptions",
-    "ResizeObserverSize",
-    "Screen",
-    "ScreenOrientation",
-    "Url",
-    "VisibilityState",
-    "WheelEvent",
-    "Window",
-    "Worker",
-] }
-
-[target.'cfg(all(target_family = "wasm", target_feature = "atomics"))'.dependencies]
-atomic-waker.workspace = true
-concurrent-queue.workspace = true
+winit-web.workspace = true
 
 [target.'cfg(target_family = "wasm")'.dev-dependencies]
 console_error_panic_hook.workspace = true
 tracing-web.workspace = true
+wasm-bindgen-futures.workspace = true
 wasm-bindgen-test.workspace = true
+web-time.workspace = true
 
 [[example]]
 doc-scrape-examples = true
