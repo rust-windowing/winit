@@ -1,7 +1,7 @@
 #[cfg(android_platform)]
 mod android;
 #[cfg(macos_platform)]
-mod apple;
+pub(crate) use winit_appkit as platform;
 #[cfg(any(x11_platform, wayland_platform))]
 mod linux;
 #[cfg(orbital_platform)]
@@ -15,8 +15,6 @@ pub(crate) use winit_uikit as platform;
 
 #[cfg(android_platform)]
 use self::android as platform;
-#[cfg(macos_platform)]
-use self::apple as platform;
 #[cfg(any(x11_platform, wayland_platform))]
 use self::linux as platform;
 #[allow(unused_imports)]

@@ -186,6 +186,10 @@ jobs:
       if: contains(matrix.platform.target, 'apple')
       run: cargo test -p winit-apple-common
 
+    - name: Test winit AppKit
+      if: contains(matrix.platform.target, 'macos')
+      run: cargo test -p winit-appkit
+
     - name: Test winit Orbital
       if: contains(matrix.platform.target, 'redox')
       run: cargo test -p winit-orbital
