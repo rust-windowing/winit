@@ -177,13 +177,13 @@ pub struct ModifiersState {
     pub num_lock: bool,
 }
 
-impl From<ModifiersState> for crate::keyboard::ModifiersState {
-    fn from(mods: ModifiersState) -> crate::keyboard::ModifiersState {
-        let mut to_mods = crate::keyboard::ModifiersState::empty();
-        to_mods.set(crate::keyboard::ModifiersState::SHIFT, mods.shift);
-        to_mods.set(crate::keyboard::ModifiersState::CONTROL, mods.ctrl);
-        to_mods.set(crate::keyboard::ModifiersState::ALT, mods.alt);
-        to_mods.set(crate::keyboard::ModifiersState::META, mods.logo);
+impl From<ModifiersState> for winit_core::keyboard::ModifiersState {
+    fn from(mods: ModifiersState) -> winit_core::keyboard::ModifiersState {
+        let mut to_mods = winit_core::keyboard::ModifiersState::empty();
+        to_mods.set(winit_core::keyboard::ModifiersState::SHIFT, mods.shift);
+        to_mods.set(winit_core::keyboard::ModifiersState::CONTROL, mods.ctrl);
+        to_mods.set(winit_core::keyboard::ModifiersState::ALT, mods.alt);
+        to_mods.set(winit_core::keyboard::ModifiersState::META, mods.logo);
         to_mods
     }
 }

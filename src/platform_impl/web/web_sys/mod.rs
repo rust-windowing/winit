@@ -12,6 +12,7 @@ mod schedule;
 
 use std::cell::OnceCell;
 
+use dpi::{LogicalPosition, LogicalSize};
 use js_sys::Array;
 use wasm_bindgen::closure::Closure;
 use wasm_bindgen::prelude::wasm_bindgen;
@@ -23,7 +24,6 @@ pub use self::event_handle::EventListenerHandle;
 pub use self::resize_scaling::ResizeScaleHandle;
 pub use self::safe_area::SafeAreaHandle;
 pub use self::schedule::Schedule;
-use crate::dpi::{LogicalPosition, LogicalSize};
 
 pub fn throw(msg: &str) {
     wasm_bindgen::throw_str(msg);

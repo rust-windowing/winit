@@ -8,6 +8,7 @@ use std::time::Instant;
 use std::{mem, ptr};
 
 use dispatch2::MainThreadBound;
+use dpi::PhysicalSize;
 use objc2::rc::Retained;
 use objc2::MainThreadMarker;
 use objc2_core_foundation::{
@@ -15,16 +16,15 @@ use objc2_core_foundation::{
     CGSize,
 };
 use objc2_ui_kit::{UIApplication, UICoordinateSpace, UIView};
+use winit_core::application::ApplicationHandler;
+use winit_core::event::{StartCause, SurfaceSizeWriter, WindowEvent};
+use winit_core::event_loop::ControlFlow;
+use winit_core::window::WindowId;
 
 use super::super::event_handler::EventHandler;
 use super::super::event_loop_proxy::EventLoopProxy;
 use super::window::WinitUIWindow;
 use super::ActiveEventLoop;
-use crate::application::ApplicationHandler;
-use crate::dpi::PhysicalSize;
-use crate::event::{StartCause, SurfaceSizeWriter, WindowEvent};
-use crate::event_loop::ControlFlow;
-use crate::window::WindowId;
 
 macro_rules! bug {
     ($($msg:tt)*) => {

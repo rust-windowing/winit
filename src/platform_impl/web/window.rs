@@ -2,22 +2,24 @@ use std::cell::Ref;
 use std::fmt;
 use std::rc::Rc;
 
-use dpi::{LogicalPosition, LogicalSize};
+use dpi::{
+    LogicalInsets, LogicalPosition, LogicalSize, PhysicalInsets, PhysicalPosition, PhysicalSize,
+    Position, Size,
+};
 use web_sys::HtmlCanvasElement;
+use winit_core::cursor::Cursor;
+use winit_core::error::{NotSupportedError, RequestError};
+use winit_core::icon::Icon;
+use winit_core::monitor::{Fullscreen, MonitorHandle as CoremMonitorHandle};
+use winit_core::window::{
+    CursorGrabMode, ImePurpose, ResizeDirection, Theme, UserAttentionType, Window as RootWindow,
+    WindowAttributes, WindowButtons, WindowId, WindowLevel,
+};
 
 use super::main_thread::MainThreadMarker;
 use super::monitor::MonitorHandler;
 use super::r#async::Dispatcher;
 use super::{backend, lock, ActiveEventLoop};
-use crate::cursor::Cursor;
-use crate::dpi::{LogicalInsets, PhysicalInsets, PhysicalPosition, PhysicalSize, Position, Size};
-use crate::error::{NotSupportedError, RequestError};
-use crate::icon::Icon;
-use crate::monitor::{Fullscreen, MonitorHandle as CoremMonitorHandle};
-use crate::window::{
-    CursorGrabMode, ImePurpose, ResizeDirection, Theme, UserAttentionType, Window as RootWindow,
-    WindowAttributes, WindowButtons, WindowId, WindowLevel,
-};
 
 pub struct Window {
     inner: Dispatcher<Inner>,

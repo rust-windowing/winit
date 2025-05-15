@@ -3,8 +3,9 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::task::Poll;
 
+use winit_core::event_loop::EventLoopProxyProvider;
+
 use super::super::main_thread::MainThreadMarker;
-use crate::event_loop::EventLoopProxyProvider;
 use crate::platform_impl::web::event_loop::runner::WeakShared;
 use crate::platform_impl::web::r#async::{AtomicWaker, Wrapper};
 

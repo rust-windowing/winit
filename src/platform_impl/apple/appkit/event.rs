@@ -6,13 +6,13 @@ use objc2_app_kit::{NSEvent, NSEventModifierFlags, NSEventSubtype, NSEventType};
 use objc2_core_foundation::{CFData, CFRetained};
 use objc2_foundation::NSPoint;
 use smol_str::SmolStr;
-
-use super::ffi;
-use crate::event::{ElementState, KeyEvent, Modifiers};
-use crate::keyboard::{
+use winit_core::event::{ElementState, KeyEvent, Modifiers};
+use winit_core::keyboard::{
     Key, KeyCode, KeyLocation, ModifiersKeys, ModifiersState, NamedKey, NativeKey, NativeKeyCode,
     PhysicalKey,
 };
+
+use super::ffi;
 
 /// Ignores ALL modifiers.
 pub fn get_modifierless_char(scancode: u16) -> Key {

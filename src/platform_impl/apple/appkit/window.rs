@@ -8,17 +8,17 @@ use objc2::rc::{autoreleasepool, Retained};
 use objc2::{define_class, MainThreadMarker, Message};
 use objc2_app_kit::{NSPanel, NSResponder, NSWindow};
 use objc2_foundation::NSObject;
-
-use super::event_loop::ActiveEventLoop;
-use super::window_delegate::WindowDelegate;
-use crate::cursor::Cursor;
-use crate::error::RequestError;
-use crate::icon::Icon;
-use crate::monitor::{Fullscreen, MonitorHandle as CoreMonitorHandle};
-use crate::window::{
+use winit_core::cursor::Cursor;
+use winit_core::error::RequestError;
+use winit_core::icon::Icon;
+use winit_core::monitor::{Fullscreen, MonitorHandle as CoreMonitorHandle};
+use winit_core::window::{
     ImePurpose, Theme, UserAttentionType, Window as CoreWindow, WindowAttributes, WindowButtons,
     WindowId, WindowLevel,
 };
+
+use super::event_loop::ActiveEventLoop;
+use super::window_delegate::WindowDelegate;
 
 #[derive(Debug)]
 pub(crate) struct Window {
@@ -93,7 +93,7 @@ impl rwh_06::HasWindowHandle for Window {
 }
 
 impl CoreWindow for Window {
-    fn id(&self) -> crate::window::WindowId {
+    fn id(&self) -> winit_core::window::WindowId {
         self.maybe_wait_on_main(|delegate| delegate.id())
     }
 
@@ -281,7 +281,10 @@ impl CoreWindow for Window {
         self.maybe_wait_on_main(|delegate| delegate.set_cursor_position(position))
     }
 
-    fn set_cursor_grab(&self, mode: crate::window::CursorGrabMode) -> Result<(), RequestError> {
+    fn set_cursor_grab(
+        &self,
+        mode: winit_core::window::CursorGrabMode,
+    ) -> Result<(), RequestError> {
         self.maybe_wait_on_main(|delegate| delegate.set_cursor_grab(mode))
     }
 
@@ -295,7 +298,7 @@ impl CoreWindow for Window {
 
     fn drag_resize_window(
         &self,
-        direction: crate::window::ResizeDirection,
+        direction: winit_core::window::ResizeDirection,
     ) -> Result<(), RequestError> {
         Ok(self.maybe_wait_on_main(|delegate| delegate.drag_resize_window(direction))?)
     }

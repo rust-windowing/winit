@@ -19,12 +19,12 @@ use web_sys::{
     Blob, Document, DomException, HtmlCanvasElement, HtmlImageElement, ImageBitmap,
     ImageBitmapOptions, ImageBitmapRenderingContext, ImageData, PremultiplyAlpha, Url, Window,
 };
+use winit_core::cursor::{Cursor, CursorImage, CustomCursorProvider, CustomCursorSource};
 
 use super::backend::Style;
 use super::main_thread::{MainThreadMarker, MainThreadSafe};
 use super::r#async::{AbortHandle, Abortable, DropAbortHandle, Notified, Notifier};
 use super::ActiveEventLoop;
-use crate::cursor::{Cursor, CursorImage, CustomCursorProvider, CustomCursorSource};
 use crate::platform::web::CustomCursorError;
 
 #[derive(Clone, Debug)]
@@ -640,7 +640,7 @@ async fn from_url(
 async fn from_animation(
     main_thread: MainThreadMarker,
     duration: Duration,
-    cursors: impl ExactSizeIterator<Item = crate::cursor::CustomCursor>,
+    cursors: impl ExactSizeIterator<Item = winit_core::cursor::CustomCursor>,
 ) -> Result<Animation, CustomCursorError> {
     let keyframes = Array::new();
     let mut images = Vec::with_capacity(cursors.len());

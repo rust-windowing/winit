@@ -5,13 +5,12 @@ use std::num::NonZeroU32;
 use std::{fmt, hash, ptr};
 
 use dispatch2::{run_on_main, MainThreadBound};
+use dpi::PhysicalPosition;
 use objc2::rc::Retained;
 use objc2::{available, MainThreadMarker, Message};
 use objc2_foundation::NSInteger;
 use objc2_ui_kit::{UIScreen, UIScreenMode};
-
-use crate::dpi::PhysicalPosition;
-use crate::monitor::{MonitorHandleProvider, VideoMode};
+use winit_core::monitor::{MonitorHandleProvider, VideoMode};
 
 // Workaround for `MainThreadBound` implementing almost no traits
 #[derive(Debug)]

@@ -4,6 +4,14 @@ use std::os::raw::{c_char, c_int, c_long, c_ulong};
 use std::slice;
 use std::sync::{Arc, Mutex};
 
+use dpi::{PhysicalPosition, PhysicalSize};
+use winit_core::application::ApplicationHandler;
+use winit_core::event::{
+    ButtonSource, DeviceEvent, DeviceId, ElementState, FingerId, Ime, MouseButton,
+    MouseScrollDelta, PointerKind, PointerSource, RawKeyEvent, SurfaceSizeWriter, TouchPhase,
+    WindowEvent,
+};
+use winit_core::keyboard::ModifiersState;
 use x11_dl::xinput2::{
     self, XIDeviceEvent, XIEnterEvent, XIFocusInEvent, XIFocusOutEvent, XIHierarchyEvent,
     XILeaveEvent, XIModifierState, XIRawEvent,
@@ -20,14 +28,6 @@ use x11rb::protocol::xproto::{self, ConnectionExt as _, ModMask};
 use x11rb::x11_utils::{ExtensionInformation, Serialize};
 use xkbcommon_dl::xkb_mod_mask_t;
 
-use crate::application::ApplicationHandler;
-use crate::dpi::{PhysicalPosition, PhysicalSize};
-use crate::event::{
-    ButtonSource, DeviceEvent, DeviceId, ElementState, FingerId, Ime, MouseButton,
-    MouseScrollDelta, PointerKind, PointerSource, RawKeyEvent, SurfaceSizeWriter, TouchPhase,
-    WindowEvent,
-};
-use crate::keyboard::ModifiersState;
 use crate::platform_impl::common::xkb::{self, XkbState};
 use crate::platform_impl::platform::common::xkb::Context;
 use crate::platform_impl::platform::x11::ime::{ImeEvent, ImeEventReceiver, ImeRequest};
@@ -934,7 +934,7 @@ impl EventProcessor {
 
     fn send_synthic_modifier_from_core(
         &mut self,
-        window_id: crate::window::WindowId,
+        window_id: winit_core::window::WindowId,
         state: u16,
         app: &mut dyn ApplicationHandler,
     ) {
@@ -1551,7 +1551,7 @@ impl EventProcessor {
 
     fn update_mods_from_query(
         &mut self,
-        window_id: crate::window::WindowId,
+        window_id: winit_core::window::WindowId,
         app: &mut dyn ApplicationHandler,
     ) {
         let xkb_state = match self.xkb_context.state_mut() {
@@ -1584,7 +1584,7 @@ impl EventProcessor {
 
     pub(crate) fn update_mods_from_core_event(
         &mut self,
-        window_id: crate::window::WindowId,
+        window_id: winit_core::window::WindowId,
         state: u16,
         app: &mut dyn ApplicationHandler,
     ) {
@@ -1661,7 +1661,7 @@ impl EventProcessor {
     /// unless `force` is passed. The `force` should be passed when the active window changes.
     fn send_modifiers(
         &self,
-        window_id: crate::window::WindowId,
+        window_id: winit_core::window::WindowId,
         modifiers: ModifiersState,
         force: bool,
         app: &mut dyn ApplicationHandler,
@@ -1676,7 +1676,7 @@ impl EventProcessor {
 
     fn handle_pressed_keys(
         target: &ActiveEventLoop,
-        window_id: crate::window::WindowId,
+        window_id: winit_core::window::WindowId,
         state: ElementState,
         xkb_context: &mut Context,
         app: &mut dyn ApplicationHandler,

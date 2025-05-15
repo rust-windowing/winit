@@ -1,7 +1,8 @@
+use winit_core::application::ApplicationHandler;
+use winit_core::error::{EventLoopError, NotSupportedError};
+use winit_core::event_loop::ActiveEventLoop as RootActiveEventLoop;
+
 use super::{backend, HasMonitorPermissionFuture, MonitorPermissionFuture};
-use crate::application::ApplicationHandler;
-use crate::error::{EventLoopError, NotSupportedError};
-use crate::event_loop::ActiveEventLoop as RootActiveEventLoop;
 use crate::platform::web::{PollStrategy, WaitUntilStrategy};
 
 mod proxy;

@@ -5,6 +5,7 @@ use std::ptr::NonNull;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 
+use dpi::{LogicalSize, PhysicalInsets, PhysicalPosition, PhysicalSize, Position, Size};
 use sctk::compositor::{CompositorState, Region, SurfaceData};
 use sctk::reexports::client::protocol::wl_display::WlDisplay;
 use sctk::reexports::client::protocol::wl_surface::WlSurface;
@@ -13,24 +14,23 @@ use sctk::reexports::protocols::xdg::activation::v1::client::xdg_activation_v1::
 use sctk::shell::xdg::window::{Window as SctkWindow, WindowDecorations};
 use sctk::shell::WaylandSurface;
 use tracing::warn;
+use winit_core::cursor::Cursor;
+use winit_core::error::{NotSupportedError, RequestError};
+use winit_core::event::{Ime, WindowEvent};
+use winit_core::event_loop::AsyncRequestSerial;
+use winit_core::monitor::{Fullscreen, MonitorHandle as CoreMonitorHandle};
+use winit_core::window::{
+    CursorGrabMode, ImePurpose, ResizeDirection, Theme, UserAttentionType, Window as CoreWindow,
+    WindowAttributes, WindowButtons, WindowId, WindowLevel,
+};
 
 use super::event_loop::sink::EventSink;
 use super::output::MonitorHandle;
 use super::state::WinitState;
 use super::types::xdg_activation::XdgActivationTokenData;
 use super::ActiveEventLoop;
-use crate::cursor::Cursor;
-use crate::dpi::{LogicalSize, PhysicalInsets, PhysicalPosition, PhysicalSize, Position, Size};
-use crate::error::{NotSupportedError, RequestError};
-use crate::event::{Ime, WindowEvent};
-use crate::event_loop::AsyncRequestSerial;
-use crate::monitor::{Fullscreen, MonitorHandle as CoreMonitorHandle};
 use crate::platform::wayland::WindowAttributesWayland;
 use crate::platform_impl::wayland::output;
-use crate::window::{
-    CursorGrabMode, ImePurpose, ResizeDirection, Theme, UserAttentionType, Window as CoreWindow,
-    WindowAttributes, WindowButtons, WindowId, WindowLevel,
-};
 
 pub(crate) mod state;
 
@@ -504,7 +504,7 @@ impl CoreWindow for Window {
 
     fn set_window_level(&self, _level: WindowLevel) {}
 
-    fn set_window_icon(&self, _window_icon: Option<crate::icon::Icon>) {}
+    fn set_window_icon(&self, _window_icon: Option<winit_core::icon::Icon>) {}
 
     #[inline]
     fn set_ime_cursor_area(&self, position: Position, size: Size) {

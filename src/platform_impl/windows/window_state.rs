@@ -2,6 +2,7 @@ use std::sync::MutexGuard;
 use std::{fmt, io, ptr};
 
 use bitflags::bitflags;
+use dpi::{PhysicalPosition, PhysicalSize, Size};
 use windows_sys::Win32::Foundation::{HWND, RECT};
 use windows_sys::Win32::Graphics::Gdi::InvalidateRgn;
 use windows_sys::Win32::UI::WindowsAndMessaging::{
@@ -15,13 +16,12 @@ use windows_sys::Win32::UI::WindowsAndMessaging::{
     WS_EX_TOPMOST, WS_EX_TRANSPARENT, WS_EX_WINDOWEDGE, WS_MAXIMIZE, WS_MAXIMIZEBOX, WS_MINIMIZE,
     WS_MINIMIZEBOX, WS_OVERLAPPEDWINDOW, WS_POPUP, WS_SIZEBOX, WS_SYSMENU, WS_VISIBLE,
 };
+use winit_core::icon::Icon;
+use winit_core::keyboard::ModifiersState;
+use winit_core::monitor::Fullscreen;
+use winit_core::window::{Theme, WindowAttributes};
 
-use crate::dpi::{PhysicalPosition, PhysicalSize, Size};
-use crate::icon::Icon;
-use crate::keyboard::ModifiersState;
-use crate::monitor::Fullscreen;
 use crate::platform_impl::platform::{event_loop, util, SelectedCursor};
-use crate::window::{Theme, WindowAttributes};
 
 /// Contains information about states and the window that the callback is going to use.
 #[derive(Debug)]

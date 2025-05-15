@@ -1,6 +1,7 @@
 #![allow(clippy::unnecessary_cast)]
 use std::cell::{Cell, RefCell};
 
+use dpi::PhysicalPosition;
 use objc2::rc::Retained;
 use objc2::runtime::{NSObjectProtocol, ProtocolObject};
 use objc2::{available, define_class, msg_send, sel, DefinedClass, MainThreadMarker};
@@ -13,15 +14,14 @@ use objc2_ui_kit::{
     UITouchPhase, UITouchType, UITraitEnvironment, UIView,
 };
 use tracing::debug;
-
-use super::app_state::{self, EventWrapper};
-use super::window::WinitUIWindow;
-use crate::dpi::PhysicalPosition;
-use crate::event::{
+use winit_core::event::{
     ButtonSource, ElementState, FingerId, Force, KeyEvent, PointerKind, PointerSource, TouchPhase,
     WindowEvent,
 };
-use crate::keyboard::{Key, KeyCode, KeyLocation, NamedKey, NativeKeyCode, PhysicalKey};
+use winit_core::keyboard::{Key, KeyCode, KeyLocation, NamedKey, NativeKeyCode, PhysicalKey};
+
+use super::app_state::{self, EventWrapper};
+use super::window::WinitUIWindow;
 
 pub struct WinitViewState {
     pinch_gesture_recognizer: RefCell<Option<Retained<UIPinchGestureRecognizer>>>,
@@ -64,7 +64,7 @@ define_class!(
 
             let frame = self.frame();
             let scale_factor = self.contentScaleFactor() as f64;
-            let size = crate::dpi::LogicalSize {
+            let size = dpi::LogicalSize {
                 width: frame.size.width as f64,
                 height: frame.size.height as f64,
             }
@@ -103,7 +103,7 @@ define_class!(
             );
             let scale_factor = scale_factor as f64;
             let frame = self.frame();
-            let size = crate::dpi::LogicalSize {
+            let size = dpi::LogicalSize {
                 width: frame.size.width as f64,
                 height: frame.size.height as f64,
             };

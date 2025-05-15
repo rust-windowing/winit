@@ -24,9 +24,11 @@ use windows_sys::Win32::UI::WindowsAndMessaging::{
     PeekMessageW, MSG, PM_NOREMOVE, WM_CHAR, WM_DEADCHAR, WM_KEYDOWN, WM_KEYFIRST, WM_KEYLAST,
     WM_KEYUP, WM_KILLFOCUS, WM_SETFOCUS, WM_SYSCHAR, WM_SYSDEADCHAR, WM_SYSKEYDOWN, WM_SYSKEYUP,
 };
+use winit_core::event::{ElementState, KeyEvent};
+use winit_core::keyboard::{
+    Key, KeyCode, KeyLocation, NamedKey, NativeKey, NativeKeyCode, PhysicalKey,
+};
 
-use crate::event::{ElementState, KeyEvent};
-use crate::keyboard::{Key, KeyCode, KeyLocation, NamedKey, NativeKey, NativeKeyCode, PhysicalKey};
 use crate::platform_impl::platform::event_loop::ProcResult;
 use crate::platform_impl::platform::keyboard_layout::{
     Layout, LayoutCache, WindowsModifiers, LAYOUT_CACHE,

@@ -3,8 +3,7 @@
 use std::sync::Arc;
 
 use sctk::reexports::calloop::ping::Ping;
-
-use crate::event_loop::{EventLoopProxy as CoreEventLoopProxy, EventLoopProxyProvider};
+use winit_core::event_loop::{EventLoopProxy as CoreEventLoopProxy, EventLoopProxyProvider};
 
 /// A handle that can be sent across the threads and used to wake up the `EventLoop`.
 #[derive(Debug)]

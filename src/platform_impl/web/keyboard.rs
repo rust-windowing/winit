@@ -1,6 +1,5 @@
 use smol_str::SmolStr;
-
-use crate::keyboard::{Key, KeyCode, NamedKey, NativeKey, NativeKeyCode, PhysicalKey};
+use winit_core::keyboard::{Key, KeyCode, NamedKey, NativeKey, NativeKeyCode, PhysicalKey};
 
 pub trait FromAttributeValue {
     fn from_attribute_value(kav: &str) -> Self

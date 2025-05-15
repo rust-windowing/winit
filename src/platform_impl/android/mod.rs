@@ -8,24 +8,24 @@ use android_activity::input::{InputEvent, KeyAction, Keycode, MotionAction};
 use android_activity::{
     AndroidApp, AndroidAppWaker, ConfigurationRef, InputStatus, MainEvent, Rect,
 };
+use dpi::{PhysicalInsets, PhysicalPosition, PhysicalSize, Position, Size};
 use tracing::{debug, trace, warn};
-
-use crate::application::ApplicationHandler;
-use crate::cursor::{Cursor, CustomCursor, CustomCursorSource};
-use crate::dpi::{PhysicalInsets, PhysicalPosition, PhysicalSize, Position, Size};
-use crate::error::{EventLoopError, NotSupportedError, RequestError};
-use crate::event::{self, DeviceId, FingerId, Force, StartCause, SurfaceSizeWriter};
-use crate::event_loop::{
+use winit_core::application::ApplicationHandler;
+use winit_core::cursor::{Cursor, CustomCursor, CustomCursorSource};
+use winit_core::error::{EventLoopError, NotSupportedError, RequestError};
+use winit_core::event::{self, DeviceId, FingerId, Force, StartCause, SurfaceSizeWriter};
+use winit_core::event_loop::{
     ActiveEventLoop as RootActiveEventLoop, ControlFlow, DeviceEvents,
     EventLoopProxy as CoreEventLoopProxy, EventLoopProxyProvider,
     OwnedDisplayHandle as CoreOwnedDisplayHandle,
 };
-use crate::monitor::{Fullscreen, MonitorHandle as CoreMonitorHandle};
-use crate::platform::pump_events::PumpStatus;
-use crate::window::{
+use winit_core::monitor::{Fullscreen, MonitorHandle as CoreMonitorHandle};
+use winit_core::window::{
     self, CursorGrabMode, ImePurpose, ResizeDirection, Theme, Window as CoreWindow,
     WindowAttributes, WindowButtons, WindowId, WindowLevel,
 };
+
+use crate::platform::pump_events::PumpStatus;
 
 mod keycodes;
 
@@ -928,7 +928,7 @@ impl CoreWindow for Window {
 
     fn set_window_level(&self, _level: WindowLevel) {}
 
-    fn set_window_icon(&self, _window_icon: Option<crate::icon::Icon>) {}
+    fn set_window_icon(&self, _window_icon: Option<winit_core::icon::Icon>) {}
 
     fn set_ime_cursor_area(&self, _position: Position, _size: Size) {}
 

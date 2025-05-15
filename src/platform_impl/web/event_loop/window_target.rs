@@ -5,26 +5,26 @@ use std::rc::Rc;
 use std::sync::Arc;
 
 use web_sys::Element;
+use winit_core::application::ApplicationHandler;
+use winit_core::cursor::{CustomCursor as CoreCustomCursor, CustomCursorSource};
+use winit_core::error::{NotSupportedError, RequestError};
+use winit_core::event::{ElementState, KeyEvent, TouchPhase, WindowEvent};
+use winit_core::event_loop::{
+    ActiveEventLoop as RootActiveEventLoop, ControlFlow, DeviceEvents,
+    EventLoopProxy as RootEventLoopProxy, OwnedDisplayHandle as CoreOwnedDisplayHandle,
+};
+use winit_core::keyboard::ModifiersState;
+use winit_core::monitor::MonitorHandle as CoremMonitorHandle;
+use winit_core::window::{Theme, WindowId};
 
 use super::super::lock;
 use super::super::monitor::MonitorPermissionFuture;
 use super::runner::Event;
 use super::{backend, runner};
-use crate::application::ApplicationHandler;
-use crate::cursor::{CustomCursor as CoreCustomCursor, CustomCursorSource};
-use crate::error::{NotSupportedError, RequestError};
-use crate::event::{ElementState, KeyEvent, TouchPhase, WindowEvent};
-use crate::event_loop::{
-    ActiveEventLoop as RootActiveEventLoop, ControlFlow, DeviceEvents,
-    EventLoopProxy as RootEventLoopProxy, OwnedDisplayHandle as CoreOwnedDisplayHandle,
-};
-use crate::keyboard::ModifiersState;
-use crate::monitor::MonitorHandle as CoremMonitorHandle;
 use crate::platform::web::{CustomCursorFuture, PollStrategy, WaitUntilStrategy};
 use crate::platform_impl::platform::cursor::CustomCursor;
 use crate::platform_impl::web::event_loop::proxy::EventLoopProxy;
 use crate::platform_impl::Window;
-use crate::window::{Theme, WindowId};
 
 #[derive(Default, Debug)]
 struct ModifiersShared(Rc<Cell<ModifiersState>>);
@@ -490,8 +490,8 @@ impl RootActiveEventLoop for ActiveEventLoop {
 
     fn create_window(
         &self,
-        window_attributes: crate::window::WindowAttributes,
-    ) -> Result<Box<dyn crate::window::Window>, RequestError> {
+        window_attributes: winit_core::window::WindowAttributes,
+    ) -> Result<Box<dyn winit_core::window::Window>, RequestError> {
         let window = Window::new(self, window_attributes)?;
         Ok(Box::new(window))
     }

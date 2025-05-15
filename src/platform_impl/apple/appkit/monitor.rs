@@ -6,6 +6,7 @@ use std::ptr::NonNull;
 use std::{fmt, ptr};
 
 use dispatch2::run_on_main;
+use dpi::{LogicalPosition, PhysicalPosition, PhysicalSize};
 use objc2::rc::Retained;
 use objc2::MainThreadMarker;
 use objc2_app_kit::NSScreen;
@@ -17,11 +18,10 @@ use objc2_core_graphics::{
 use objc2_core_video::{kCVReturnSuccess, CVDisplayLink, CVTimeFlags};
 use objc2_foundation::{ns_string, NSNumber, NSPoint, NSRect};
 use tracing::warn;
+use winit_core::monitor::{MonitorHandleProvider, VideoMode};
 
 use super::ffi;
 use super::util::cgerr;
-use crate::dpi::{LogicalPosition, PhysicalPosition, PhysicalSize};
-use crate::monitor::{MonitorHandleProvider, VideoMode};
 
 #[derive(Clone)]
 pub struct VideoModeHandle {

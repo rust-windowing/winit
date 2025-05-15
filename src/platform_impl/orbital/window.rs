@@ -2,13 +2,14 @@ use std::collections::VecDeque;
 use std::iter;
 use std::sync::{Arc, Mutex};
 
+use dpi::{PhysicalInsets, PhysicalPosition, PhysicalSize, Position, Size};
+use winit_core::cursor::Cursor;
+use winit_core::error::{NotSupportedError, RequestError};
+use winit_core::monitor::{Fullscreen, MonitorHandle as CoreMonitorHandle};
+use winit_core::window::{self, ImePurpose, Window as CoreWindow, WindowId};
+
 use super::event_loop::EventLoopProxy;
 use super::{ActiveEventLoop, RedoxSocket, WindowProperties};
-use crate::cursor::Cursor;
-use crate::dpi::{PhysicalInsets, PhysicalPosition, PhysicalSize, Position, Size};
-use crate::error::{NotSupportedError, RequestError};
-use crate::monitor::{Fullscreen, MonitorHandle as CoreMonitorHandle};
-use crate::window::{self, ImePurpose, Window as CoreWindow, WindowId};
 
 // These values match the values uses in the `window_new` function in orbital:
 // https://gitlab.redox-os.org/redox-os/orbital/-/blob/master/src/scheme.rs
@@ -351,7 +352,7 @@ impl CoreWindow for Window {
     }
 
     #[inline]
-    fn set_window_icon(&self, _window_icon: Option<crate::icon::Icon>) {}
+    fn set_window_icon(&self, _window_icon: Option<winit_core::icon::Icon>) {}
 
     #[inline]
     fn set_ime_cursor_area(&self, _position: Position, _size: Size) {}

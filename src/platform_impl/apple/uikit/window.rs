@@ -4,6 +4,10 @@ use std::collections::VecDeque;
 use std::sync::Arc;
 
 use dispatch2::MainThreadBound;
+use dpi::{
+    LogicalInsets, LogicalPosition, LogicalSize, PhysicalInsets, PhysicalPosition, PhysicalSize,
+    Position, Size,
+};
 use objc2::rc::Retained;
 use objc2::{available, class, define_class, msg_send, MainThreadMarker};
 use objc2_core_foundation::{CGFloat, CGPoint, CGRect, CGSize};
@@ -13,25 +17,21 @@ use objc2_ui_kit::{
     UIScreenOverscanCompensation, UIViewController, UIWindow,
 };
 use tracing::{debug, warn};
+use winit_core::cursor::Cursor;
+use winit_core::error::{NotSupportedError, RequestError};
+use winit_core::event::WindowEvent;
+use winit_core::icon::Icon;
+use winit_core::monitor::{Fullscreen, MonitorHandle as CoreMonitorHandle};
+use winit_core::window::{
+    CursorGrabMode, ImePurpose, ResizeDirection, Theme, UserAttentionType, Window as CoreWindow,
+    WindowAttributes, WindowButtons, WindowId, WindowLevel,
+};
 
 use super::app_state::EventWrapper;
 use super::view::WinitView;
 use super::view_controller::WinitViewController;
 use super::{app_state, monitor, ActiveEventLoop, MonitorHandle};
-use crate::cursor::Cursor;
-use crate::dpi::{
-    LogicalInsets, LogicalPosition, LogicalSize, PhysicalInsets, PhysicalPosition, PhysicalSize,
-    Position, Size,
-};
-use crate::error::{NotSupportedError, RequestError};
-use crate::event::WindowEvent;
-use crate::icon::Icon;
-use crate::monitor::{Fullscreen, MonitorHandle as CoreMonitorHandle};
 use crate::platform::ios::{ScreenEdge, StatusBarStyle, ValidOrientations, WindowAttributesIos};
-use crate::window::{
-    CursorGrabMode, ImePurpose, ResizeDirection, Theme, UserAttentionType, Window as CoreWindow,
-    WindowAttributes, WindowButtons, WindowId, WindowLevel,
-};
 
 define_class!(
     #[unsafe(super(UIWindow, UIResponder, NSObject))]
@@ -569,7 +569,7 @@ impl rwh_06::HasWindowHandle for Window {
 }
 
 impl CoreWindow for Window {
-    fn id(&self) -> crate::window::WindowId {
+    fn id(&self) -> winit_core::window::WindowId {
         self.maybe_wait_on_main(|delegate| delegate.id())
     }
 
@@ -757,7 +757,10 @@ impl CoreWindow for Window {
         Ok(self.maybe_wait_on_main(|delegate| delegate.set_cursor_position(position))?)
     }
 
-    fn set_cursor_grab(&self, mode: crate::window::CursorGrabMode) -> Result<(), RequestError> {
+    fn set_cursor_grab(
+        &self,
+        mode: winit_core::window::CursorGrabMode,
+    ) -> Result<(), RequestError> {
         Ok(self.maybe_wait_on_main(|delegate| delegate.set_cursor_grab(mode))?)
     }
 
@@ -771,7 +774,7 @@ impl CoreWindow for Window {
 
     fn drag_resize_window(
         &self,
-        direction: crate::window::ResizeDirection,
+        direction: winit_core::window::ResizeDirection,
     ) -> Result<(), RequestError> {
         Ok(self.maybe_wait_on_main(|delegate| delegate.drag_resize_window(direction))?)
     }

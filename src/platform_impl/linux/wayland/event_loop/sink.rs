@@ -2,9 +2,10 @@
 
 use std::vec::Drain;
 
+use winit_core::event::{DeviceEvent, WindowEvent};
+use winit_core::window::WindowId;
+
 use super::Event;
-use crate::event::{DeviceEvent, WindowEvent};
-use crate::window::WindowId;
 
 /// An event loop's sink to deliver events from the Wayland event callbacks
 /// to the winit's user.

@@ -1,7 +1,7 @@
 use std::cell::RefCell;
 use std::{fmt, mem};
 
-use crate::application::ApplicationHandler;
+use winit_core::application::ApplicationHandler;
 
 /// A helper type for storing a reference to `ApplicationHandler`, allowing interior mutable access
 /// to it within the execution of a closure.

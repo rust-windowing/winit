@@ -5,8 +5,7 @@ use objc2::MainThreadMarker;
 use objc2_core_foundation::{
     kCFRunLoopCommonModes, CFIndex, CFRetained, CFRunLoop, CFRunLoopSource, CFRunLoopSourceContext,
 };
-
-use crate::event_loop::EventLoopProxyProvider;
+use winit_core::event_loop::EventLoopProxyProvider;
 
 /// A waker that signals a `CFRunLoopSource` on the main thread.
 ///

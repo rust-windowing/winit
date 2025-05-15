@@ -9,6 +9,7 @@ use std::sync::mpsc::channel;
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::{io, panic, ptr};
 
+use dpi::{PhysicalInsets, PhysicalPosition, PhysicalSize, Position, Size};
 use tracing::warn;
 use windows_sys::Win32::Foundation::{
     HWND, LPARAM, OLE_E_WRONGCOMPOBJ, POINT, POINTS, RECT, RPC_E_CHANGED_MODE, S_OK, WPARAM,
@@ -47,14 +48,17 @@ use windows_sys::Win32::UI::WindowsAndMessaging::{
     TPM_RETURNCMD, WDA_EXCLUDEFROMCAPTURE, WDA_NONE, WM_NCLBUTTONDOWN, WM_SETICON, WM_SYSCOMMAND,
     WNDCLASSEXW,
 };
+use winit_core::cursor::Cursor;
+use winit_core::error::RequestError;
+use winit_core::icon::{Icon, RgbaIcon};
+use winit_core::monitor::{Fullscreen, MonitorHandle as CoreMonitorHandle, MonitorHandleProvider};
+use winit_core::window::{
+    CursorGrabMode, ImePurpose, ResizeDirection, Theme, UserAttentionType, Window as CoreWindow,
+    WindowAttributes, WindowButtons, WindowId, WindowLevel,
+};
 
 use super::icon::WinCursor;
 use super::MonitorHandle;
-use crate::cursor::Cursor;
-use crate::dpi::{PhysicalInsets, PhysicalPosition, PhysicalSize, Position, Size};
-use crate::error::RequestError;
-use crate::icon::{Icon, RgbaIcon};
-use crate::monitor::{Fullscreen, MonitorHandle as CoreMonitorHandle, MonitorHandleProvider};
 use crate::platform::windows::{
     BackdropType, Color, CornerPreference, WinIcon, WindowAttributesWindows,
 };
@@ -76,10 +80,6 @@ use crate::platform_impl::platform::window_state::{
     CursorFlags, SavedWindow, WindowFlags, WindowState,
 };
 use crate::platform_impl::platform::{monitor, util, SelectedCursor};
-use crate::window::{
-    CursorGrabMode, ImePurpose, ResizeDirection, Theme, UserAttentionType, Window as CoreWindow,
-    WindowAttributes, WindowButtons, WindowId, WindowLevel,
-};
 
 #[derive(Clone, Copy, Debug)]
 #[repr(transparent)]

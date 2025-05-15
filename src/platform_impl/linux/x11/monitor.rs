@@ -1,12 +1,12 @@
 use std::num::NonZeroU32;
 
+use dpi::PhysicalPosition;
+use winit_core::monitor::{MonitorHandleProvider, VideoMode};
 use x11rb::connection::RequestConnection;
 use x11rb::protocol::randr::{self, ConnectionExt as _};
 use x11rb::protocol::xproto;
 
 use super::{util, X11Error, XConnection};
-use crate::dpi::PhysicalPosition;
-use crate::monitor::{MonitorHandleProvider, VideoMode};
 
 // Used for testing. This should always be committed as false.
 const DISABLE_MONITOR_LIST_CACHING: bool = false;

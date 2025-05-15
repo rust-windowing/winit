@@ -8,16 +8,16 @@ use dispatch2::MainThreadBound;
 use objc2::MainThreadMarker;
 use objc2_app_kit::{NSApplication, NSApplicationActivationPolicy, NSRunningApplication};
 use objc2_foundation::NSNotification;
+use winit_core::application::ApplicationHandler;
+use winit_core::event::{StartCause, WindowEvent};
+use winit_core::event_loop::ControlFlow;
+use winit_core::window::WindowId;
 
 use super::super::event_handler::EventHandler;
 use super::super::event_loop_proxy::EventLoopProxy;
 use super::event_loop::{notify_windows_of_exit, stop_app_immediately, ActiveEventLoop, PanicInfo};
 use super::menu;
 use super::observer::{EventLoopWaker, RunLoop};
-use crate::application::ApplicationHandler;
-use crate::event::{StartCause, WindowEvent};
-use crate::event_loop::ControlFlow;
-use crate::window::WindowId;
 
 #[derive(Debug)]
 pub(super) struct AppState {

@@ -1,12 +1,12 @@
 use windows_sys::Win32::Foundation::HWND;
 use windows_sys::Win32::UI::WindowsAndMessaging::WINDOW_LONG_PTR_INDEX;
+use winit_core::event::DeviceId;
 
 pub(crate) use self::event_loop::{EventLoop, PlatformSpecificEventLoopAttributes};
 pub(crate) use self::icon::{RaiiIcon, SelectedCursor};
 pub(crate) use self::keyboard::{physicalkey_to_scancode, scancode_to_physicalkey};
 pub(crate) use self::monitor::MonitorHandle;
 pub(crate) use self::window::Window;
-use crate::event::DeviceId;
 
 fn wrap_device_id(id: u32) -> DeviceId {
     DeviceId::from_raw(id as i64)

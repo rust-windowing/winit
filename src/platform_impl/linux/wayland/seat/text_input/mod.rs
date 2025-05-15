@@ -8,11 +8,11 @@ use sctk::reexports::protocols::wp::text_input::zv3::client::zwp_text_input_mana
 use sctk::reexports::protocols::wp::text_input::zv3::client::zwp_text_input_v3::{
     ContentHint, ContentPurpose, Event as TextInputEvent, ZwpTextInputV3,
 };
+use winit_core::event::{Ime, WindowEvent};
+use winit_core::window::ImePurpose;
 
-use crate::event::{Ime, WindowEvent};
 use crate::platform_impl::wayland;
 use crate::platform_impl::wayland::state::WinitState;
-use crate::window::ImePurpose;
 
 #[derive(Debug)]
 pub struct TextInputState {

@@ -1,4 +1,4 @@
-use crate::event::DeviceId;
+use winit_core::event::DeviceId;
 
 pub(crate) fn mkdid(pointer_id: i32) -> Option<DeviceId> {
     if let Ok(pointer_id) = u32::try_from(pointer_id) {
