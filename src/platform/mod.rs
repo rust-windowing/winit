@@ -9,7 +9,7 @@ pub mod ios;
 #[cfg(macos_platform)]
 pub mod macos;
 #[cfg(orbital_platform)]
-pub mod orbital;
+pub use winit_orbital as orbital;
 #[cfg(any(x11_platform, wayland_platform))]
 pub mod startup_notify;
 #[cfg(wayland_platform)]

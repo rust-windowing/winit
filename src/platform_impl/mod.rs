@@ -5,7 +5,7 @@ mod apple;
 #[cfg(any(x11_platform, wayland_platform))]
 mod linux;
 #[cfg(orbital_platform)]
-mod orbital;
+pub(crate) use winit_orbital as platform;
 #[cfg(web_platform)]
 mod web;
 #[cfg(windows_platform)]
@@ -17,8 +17,6 @@ use self::android as platform;
 use self::apple as platform;
 #[cfg(any(x11_platform, wayland_platform))]
 use self::linux as platform;
-#[cfg(orbital_platform)]
-use self::orbital as platform;
 #[allow(unused_imports)]
 pub use self::platform::*;
 #[cfg(web_platform)]
