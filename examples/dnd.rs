@@ -49,7 +49,7 @@ impl ApplicationHandler for Application {
             | WindowEvent::DragEntered { .. }
             | WindowEvent::DragMoved { .. }
             | WindowEvent::DragDropped { .. } => {
-                println!("{:?}", event);
+                println!("{event:?}");
             },
             WindowEvent::RedrawRequested => {
                 let window = self.window.as_ref().unwrap();

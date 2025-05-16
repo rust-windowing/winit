@@ -119,6 +119,7 @@ macro_rules! x11_or_wayland {
 }
 
 #[derive(Debug)]
+#[allow(clippy::large_enum_variant)]
 pub enum EventLoop {
     #[cfg(wayland_platform)]
     Wayland(Box<wayland::EventLoop>),
