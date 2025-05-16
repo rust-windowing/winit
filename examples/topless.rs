@@ -61,20 +61,21 @@ impl Application {
 use winit::event::ElementState;
 use winit::keyboard::{Key, ModifiersState};
 #[cfg(windows_platform)]
-use winit::platform::modifier_supplement::KeyEventExtModifierSupplement;
-#[cfg(windows_platform)]
-use winit::platform::windows::WindowAttributesExtWindows;
+use winit::platform::windows::WindowAttributesWindows;
 #[cfg(windows_platform)]
 use winit::platform::windows::WindowExtWindows;
 #[cfg(windows_platform)]
 impl ApplicationHandler for Application {
     fn can_create_surfaces(&mut self, event_loop: &dyn ActiveEventLoop) {
+        let window_attributes_win = Box::new(WindowAttributesWindows::default()
+            .with_titlebar(false) //         titlebar          ≝true
+            .with_top_resize_border(false) // top_resize_border ≝true
+            );
         let window_attributes = WindowAttributes::default()
             .with_title("Topless (unless you see this)!")
             .with_decorations(true) //       decorations       ≝true
-            .with_titlebar(false) //         titlebar          ≝true
             .with_resizable(true) //         resizable         ≝true
-            .with_top_resize_border(false) // top_resize_border ≝true
+            .with_platform_attributes(window_attributes_win) //
             .with_position(dpi::Position::Logical(dpi::LogicalPosition::new(0.0, 0.0)));
         self.window = Some(event_loop.create_window(window_attributes).unwrap());
     }
