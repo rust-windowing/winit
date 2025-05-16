@@ -284,6 +284,16 @@ pub trait WindowExtWindows {
     /// Supported starting with Windows 11 Build 22000.
     fn set_title_text_color(&self, color: Color);
 
+    /// Turn window title bar on or off by setting `WS_CAPTION`.
+    /// By default this is enabled. Note that fullscreen windows
+    /// naturally do not have title bar.
+    fn set_titlebar(&self, titlebar: bool);
+
+    /// Gets the window's current titlebar state.
+    ///
+    /// Returns `true` when windows have a titlebar (server-side or by Winit).
+    fn is_titlebar(&self) -> bool;
+
     /// Sets the preferred style of the window corners.
     ///
     /// Supported starting with Windows 11 Build 22000.
@@ -397,6 +407,18 @@ impl WindowExtWindows for dyn Window + '_ {
     }
 
     #[inline]
+    fn set_titlebar(&self, titlebar: bool) {
+        let window = self.as_any().downcast_ref::<crate::platform_impl::Window>().unwrap();
+        window.set_titlebar(titlebar)
+    }
+
+    #[inline]
+    fn is_titlebar(&self) -> bool {
+        let window = self.as_any().downcast_ref::<crate::platform_impl::Window>().unwrap();
+        window.is_titlebar()
+    }
+
+    #[inline]
     fn set_corner_preference(&self, preference: CornerPreference) {
         let window = self.cast_ref::<crate::platform_impl::Window>().unwrap();
         window.set_corner_preference(preference)
@@ -463,6 +485,7 @@ pub struct WindowAttributesWindows {
     pub(crate) title_background_color: Option<Color>,
     pub(crate) title_text_color: Option<Color>,
     pub(crate) corner_preference: Option<CornerPreference>,
+    pub(crate) titlebar: bool,
 }
 
 impl Default for WindowAttributesWindows {
@@ -482,6 +505,7 @@ impl Default for WindowAttributesWindows {
             title_background_color: None,
             title_text_color: None,
             corner_preference: None,
+            titlebar: true,
         }
     }
 }
@@ -539,6 +563,12 @@ impl WindowAttributesWindows {
     /// This sets `WS_EX_NOREDIRECTIONBITMAP`.
     pub fn with_no_redirection_bitmap(mut self, flag: bool) -> Self {
         self.no_redirection_bitmap = flag;
+        self
+    }
+
+    /// Enables/disables the window titlebar by setting `WS_CAPTION`.
+    pub fn with_titlebar(mut self, titlebar: bool) -> Self {
+        self.titlebar = titlebar;
         self
     }
 

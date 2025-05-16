@@ -16,6 +16,7 @@ on how to add them:
 - On X11, add `Window::even_more_rare_api`.
 - On Wayland, add `Window::common_api`.
 - On Windows, add `Window::some_rare_api`.
+- On Windows, add `WindowAttributesExtWindows::with_titlebar`, `Window::set_titlebar` to allow enabling/disabling titlebar separately from the resize border (currently combined in decorations).
 ```
 
 When the change requires non-trivial amount of work for users to comply
