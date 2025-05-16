@@ -111,20 +111,22 @@ impl ApplicationHandler for App {
                 window.request_redraw();
             },
             WindowEvent::PointerButton { primary, position, state, button, .. } => {
+                let window = self.window.as_ref().expect("resize event without a window");
+                let scale = window.scale_factor();
                 match (primary, button) {
                     (true, ButtonSource::Mouse(MouseButton::Left)) => {
-                        self.posx = position.x as f32;
-                        self.posy = position.y as f32;
-                        self.old_posx = position.x as f32;
-                        self.old_posy = position.y as f32;
+                        self.posx = position.to_logical::<f32>(scale).x;
+                        self.posy = position.to_logical::<f32>(scale).y;
+                        self.old_posx = position.to_logical::<f32>(scale).x;
+                        self.old_posy = position.to_logical::<f32>(scale).y;
                         self.drawing = state == winit::event::ElementState::Pressed;
                         self.has_pressure = None;
                     },
                     (true, ButtonSource::Touch { force, .. }) => {
-                        self.posx = position.x as f32;
-                        self.posy = position.y as f32;
-                        self.old_posx = position.x as f32;
-                        self.old_posy = position.y as f32;
+                        self.posx = position.to_logical::<f32>(scale).x;
+                        self.posy = position.to_logical::<f32>(scale).y;
+                        self.old_posx = position.to_logical::<f32>(scale).x;
+                        self.old_posy = position.to_logical::<f32>(scale).y;
                         self.drawing = state == winit::event::ElementState::Pressed;
                         self.has_pressure = force.map(|x| x.normalized() as f32);
                     },
@@ -137,9 +139,11 @@ impl ApplicationHandler for App {
                 }
             },
             WindowEvent::PointerMoved { position, source, .. } => {
+                let window = self.window.as_ref().expect("resize event without a window");
+                let scale = window.scale_factor();
                 if self.drawing {
-                    self.posx = position.x as f32;
-                    self.posy = position.y as f32;
+                    self.posx = position.to_logical::<f32>(scale).x;
+                    self.posy = position.to_logical::<f32>(scale).y;
                 }
                 if let PointerSource::Touch { force, .. } = source {
                     if self.has_pressure.is_some() {
@@ -164,8 +168,8 @@ impl ApplicationHandler for App {
                 // Draw.
                 fill::fill_window_with_fn(&**window, |frame, stride, scale, frame_w, frame_h| {
                     // Clear the top left 50x50 rect, we'll put an animation there.
-                    for y in 0..50.min(frame_h as usize) {
-                        for x in 0..50.min(frame_w as usize) {
+                    for y in 0..((50.0 * scale) as usize).min(frame_h as usize) {
+                        for x in 0..((50.0 * scale) as usize).min(frame_w as usize) {
                             frame[y * stride + x] = 0xff181818;
                         }
                     }
@@ -173,8 +177,8 @@ impl ApplicationHandler for App {
                     let extent = draw_text(
                         frame,
                         stride,
-                        20,
-                        50,
+                        (20.0 * scale) as u32,
+                        (50.0 * scale) as u32,
                         &format!(
                             "Input tester.\nLeft click to draw, right click to clear.\nx: {}\ny: \
                              {}\npressure: {:?}",
@@ -203,9 +207,9 @@ impl ApplicationHandler for App {
                                 for _y in -(thickness as i32) / 2..(thickness as i32 + 1) / 2 {
                                     for _x in -(thickness as i32) / 2..(thickness as i32 + 1) / 2 {
                                         let x = (xpos + _x as f32 + xo_small * i * spacing)
-                                            / scale as f32;
+                                            * scale as f32;
                                         let y = (ypos + _y as f32 + yo_small * i * spacing)
-                                            / scale as f32;
+                                            * scale as f32;
 
                                         let xpart = x.clamp(0.0, frame_w as f32 - 1.0) as usize;
                                         let ypart =

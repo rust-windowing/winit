@@ -80,7 +80,7 @@ mod platform {
     #[allow(dead_code)]
     pub fn fill_window_with_fn(
         window: &dyn Window,
-        f: impl FnOnce(&mut [u32], usize, f64, u32, u32) -> Vec<[u32; 4]>,
+        f: impl FnOnce(&mut [u32], usize, f32, u32, u32) -> Vec<[u32; 4]>,
     ) {
         GC.with(|gc| {
             let size = window.surface_size();
@@ -99,8 +99,13 @@ mod platform {
 
             // Run a function on the buffer.
             let mut buffer = surface.buffer_mut().expect("Failed to get the softbuffer buffer");
-            // TODO: Figure out the correct scale factor to pass in for hidpi environments.
-            let rects = f(&mut buffer, u32::from(width) as usize, 1.0, width.into(), height.into());
+            let rects = f(
+                &mut buffer,
+                u32::from(width) as usize,
+                window.scale_factor() as f32,
+                width.into(),
+                height.into(),
+            );
             // Collect only valid rects, and as softbuffer's expected type.
             let rects = rects
                 .iter()
