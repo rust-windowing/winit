@@ -199,6 +199,7 @@ changelog entry.
 - Renamed "super" key to "meta", to match the naming in the W3C specification.
   `NamedKey::Super` still exists, but it's non-functional and deprecated, `NamedKey::Meta` should be used instead.
 - Move `IconExtWindows` into `WinIcon`.
+- Move `EventLoopExtPumpEvents` and `PumpStatus` from platform module to `winit::event_loop::pump_events`.
 
 ### Removed
 

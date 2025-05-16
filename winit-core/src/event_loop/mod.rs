@@ -1,3 +1,5 @@
+pub mod pump_events;
+
 use std::fmt::{self, Debug};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;

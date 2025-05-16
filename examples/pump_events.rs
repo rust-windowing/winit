@@ -9,8 +9,8 @@ fn main() -> std::process::ExitCode {
 
     use winit::application::ApplicationHandler;
     use winit::event::WindowEvent;
+    use winit::event_loop::pump_events::{EventLoopExtPumpEvents, PumpStatus};
     use winit::event_loop::{ActiveEventLoop, EventLoop};
-    use winit::platform::pump_events::{EventLoopExtPumpEvents, PumpStatus};
     use winit::window::{Window, WindowAttributes, WindowId};
 
     #[path = "util/fill.rs"]

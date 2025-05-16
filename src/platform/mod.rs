@@ -32,15 +32,5 @@ pub mod x11;
 ))]
 pub mod run_on_demand;
 
-#[cfg(any(
-    windows_platform,
-    macos_platform,
-    android_platform,
-    x11_platform,
-    wayland_platform,
-    docsrs,
-))]
-pub mod pump_events;
-
 #[cfg(any(windows_platform, macos_platform, x11_platform, wayland_platform, docsrs))]
 pub mod scancode;

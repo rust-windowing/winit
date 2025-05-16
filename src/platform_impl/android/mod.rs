@@ -14,6 +14,7 @@ use winit_core::application::ApplicationHandler;
 use winit_core::cursor::{Cursor, CustomCursor, CustomCursorSource};
 use winit_core::error::{EventLoopError, NotSupportedError, RequestError};
 use winit_core::event::{self, DeviceId, FingerId, Force, StartCause, SurfaceSizeWriter};
+use winit_core::event_loop::pump_events::PumpStatus;
 use winit_core::event_loop::{
     ActiveEventLoop as RootActiveEventLoop, ControlFlow, DeviceEvents,
     EventLoopProxy as CoreEventLoopProxy, EventLoopProxyProvider,
@@ -24,8 +25,6 @@ use winit_core::window::{
     self, CursorGrabMode, ImePurpose, ResizeDirection, Theme, Window as CoreWindow,
     WindowAttributes, WindowButtons, WindowId, WindowLevel,
 };
-
-use crate::platform::pump_events::PumpStatus;
 
 mod keycodes;
 

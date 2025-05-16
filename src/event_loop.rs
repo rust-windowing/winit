@@ -275,7 +275,7 @@ impl AsFd for EventLoop {
     ///
     /// [`calloop`]: https://crates.io/crates/calloop
     /// [`mio`]: https://crates.io/crates/mio
-    /// [`pump_app_events`]: crate::platform::pump_events::EventLoopExtPumpEvents::pump_app_events
+    /// [`pump_app_events`]: crate::event_loop::pump_events::EventLoopExtPumpEvents::pump_app_events
     fn as_fd(&self) -> BorrowedFd<'_> {
         self.event_loop.as_fd()
     }
@@ -289,8 +289,26 @@ impl AsRawFd for EventLoop {
     ///
     /// [`calloop`]: https://crates.io/crates/calloop
     /// [`mio`]: https://crates.io/crates/mio
-    /// [`pump_app_events`]: crate::platform::pump_events::EventLoopExtPumpEvents::pump_app_events
+    /// [`pump_app_events`]: crate::event_loop::pump_events::EventLoopExtPumpEvents::pump_app_events
     fn as_raw_fd(&self) -> RawFd {
         self.event_loop.as_raw_fd()
+    }
+}
+
+#[cfg(any(
+    windows_platform,
+    macos_platform,
+    android_platform,
+    x11_platform,
+    wayland_platform,
+    docsrs,
+))]
+impl winit_core::event_loop::pump_events::EventLoopExtPumpEvents for EventLoop {
+    fn pump_app_events<A: ApplicationHandler>(
+        &mut self,
+        timeout: Option<std::time::Duration>,
+        app: A,
+    ) -> winit_core::event_loop::pump_events::PumpStatus {
+        self.event_loop.pump_app_events(timeout, app)
     }
 }

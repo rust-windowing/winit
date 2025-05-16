@@ -3,7 +3,8 @@ use crate::error::EventLoopError;
 use crate::event_loop::EventLoop;
 #[cfg(doc)]
 use crate::{
-    event_loop::ActiveEventLoop, platform::pump_events::EventLoopExtPumpEvents, window::Window,
+    event_loop::{pump_events::EventLoopExtPumpEvents, ActiveEventLoop},
+    window::Window,
 };
 
 /// Additional methods on [`EventLoop`] to return control flow to the caller.
