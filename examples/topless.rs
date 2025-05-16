@@ -93,7 +93,7 @@ impl ApplicationHandler for Application {
         match event {
             WindowEvent::KeyboardInput { event, .. } => {
                 if event.state == ElementState::Pressed && !event.repeat {
-                    match event.key_without_modifiers().as_ref() {
+                    match event.key_without_modifiers.as_ref() {
                         Key::Character("q") => {
                             win.set_titlebar(true);
                             info!("set_titlebar         → true")

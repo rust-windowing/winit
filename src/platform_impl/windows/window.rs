@@ -347,7 +347,7 @@ impl Window {
 
         self.thread_executor.execute_in_thread(move || {
             let _ = &window;
-            WindowState::set_window_flags(window_state.lock().unwrap(), window, |f| {
+            WindowState::set_window_flags(window_state.lock().unwrap(), window.hwnd(), |f| {
                 f.set(WindowFlags::TITLE_BAR, titlebar)
             });
         });
@@ -366,7 +366,7 @@ impl Window {
 
         self.thread_executor.execute_in_thread(move || {
             let _ = &window;
-            WindowState::set_window_flags(window_state.lock().unwrap(), window, |f| {
+            WindowState::set_window_flags(window_state.lock().unwrap(), window.hwnd(), |f| {
                 f.set(WindowFlags::TOP_RESIZE_BORDER, top_resize_border)
             });
         });

@@ -417,25 +417,25 @@ impl WindowExtWindows for dyn Window + '_ {
 
     #[inline]
     fn set_titlebar(&self, titlebar: bool) {
-        let window = self.as_any().downcast_ref::<crate::platform_impl::Window>().unwrap();
+        let window = self.cast_ref::<crate::platform_impl::Window>().unwrap();
         window.set_titlebar(titlebar)
     }
 
     #[inline]
     fn is_titlebar(&self) -> bool {
-        let window = self.as_any().downcast_ref::<crate::platform_impl::Window>().unwrap();
+        let window = self.cast_ref::<crate::platform_impl::Window>().unwrap();
         window.is_titlebar()
     }
 
     #[inline]
     fn set_top_resize_border(&self, top_resize_border: bool) {
-        let window = self.as_any().downcast_ref::<crate::platform_impl::Window>().unwrap();
+        let window = self.cast_ref::<crate::platform_impl::Window>().unwrap();
         window.set_top_resize_border(top_resize_border)
     }
 
     #[inline]
     fn is_top_resize_border(&self) -> bool {
-        let window = self.as_any().downcast_ref::<crate::platform_impl::Window>().unwrap();
+        let window = self.cast_ref::<crate::platform_impl::Window>().unwrap();
         window.is_top_resize_border()
     }
 
