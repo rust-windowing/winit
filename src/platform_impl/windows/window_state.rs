@@ -136,6 +136,10 @@ bitflags! {
 
         const TITLE_BAR = 1 << 23; //0x__800000 on Windows sets WS_CAPTION (0x__C00000)
 
+        /// Unset to signal that a window without a title bar, eg, with a custom one,
+        /// does not need a ~6px resize border at the top. No effect on a titled window.
+        const TOP_RESIZE_BORDER = 1 << 24; //0x_1000000
+
         const EXCLUSIVE_FULLSCREEN_OR_MASK = WindowFlags::ALWAYS_ON_TOP.bits();
     }
 }

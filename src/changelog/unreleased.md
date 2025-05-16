@@ -17,6 +17,7 @@ on how to add them:
 - On Wayland, add `Window::common_api`.
 - On Windows, add `Window::some_rare_api`.
 - On Windows, add `WindowAttributesExtWindows::with_titlebar`, `Window::set_titlebar` to allow enabling/disabling titlebar separately from the resize border (currently combined in decorations).
+- On Windows, add `WindowAttributesExtWindows::is_top_resize_border`, `Window::set_top_resize_border` to allow enabling/disabling the top resize border when title bar is disabled. Allows implementing custom title bars that should handle the top resizing themselves.
 ```
 
 When the change requires non-trivial amount of work for users to comply

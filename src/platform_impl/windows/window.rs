@@ -360,6 +360,25 @@ impl Window {
     }
 
     #[inline]
+    pub fn set_top_resize_border(&self, top_resize_border: bool) {
+        let window = self.window;
+        let window_state = Arc::clone(&self.window_state);
+
+        self.thread_executor.execute_in_thread(move || {
+            let _ = &window;
+            WindowState::set_window_flags(window_state.lock().unwrap(), window, |f| {
+                f.set(WindowFlags::TOP_RESIZE_BORDER, top_resize_border)
+            });
+        });
+    }
+
+    #[inline]
+    pub fn is_top_resize_border(&self) -> bool {
+        let window_state = self.window_state_lock();
+        window_state.window_flags.contains(WindowFlags::TOP_RESIZE_BORDER)
+    }
+
+    #[inline]
     pub fn set_corner_preference(&self, preference: CornerPreference) {
         unsafe {
             DwmSetWindowAttribute(
@@ -1362,6 +1381,7 @@ unsafe fn init(
     let mut window_flags = WindowFlags::empty();
     window_flags.set(WindowFlags::MARKER_DECORATIONS, attributes.decorations);
     window_flags.set(WindowFlags::TITLE_BAR, win_attributes.titlebar);
+    window_flags.set(WindowFlags::TOP_RESIZE_BORDER, win_attributes.top_resize_border);
     window_flags.set(WindowFlags::MARKER_UNDECORATED_SHADOW, win_attributes.decoration_shadow);
     window_flags
         .set(WindowFlags::ALWAYS_ON_TOP, attributes.window_level == WindowLevel::AlwaysOnTop);

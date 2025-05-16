@@ -294,6 +294,15 @@ pub trait WindowExtWindows {
     /// Returns `true` when windows have a titlebar (server-side or by Winit).
     fn is_titlebar(&self) -> bool;
 
+    /// Turn window top resize border on or off (for windows without a title bar).
+    /// By default this is enabled.
+    fn set_top_resize_border(&self, top_resize_border: bool);
+
+    /// Gets the window's current top resize border state (for windows without a title bar).
+    ///
+    /// Returns `true` when windows have a top resize border.
+    fn is_top_resize_border(&self) -> bool;
+
     /// Sets the preferred style of the window corners.
     ///
     /// Supported starting with Windows 11 Build 22000.
@@ -419,6 +428,18 @@ impl WindowExtWindows for dyn Window + '_ {
     }
 
     #[inline]
+    fn set_top_resize_border(&self, top_resize_border: bool) {
+        let window = self.as_any().downcast_ref::<crate::platform_impl::Window>().unwrap();
+        window.set_top_resize_border(top_resize_border)
+    }
+
+    #[inline]
+    fn is_top_resize_border(&self) -> bool {
+        let window = self.as_any().downcast_ref::<crate::platform_impl::Window>().unwrap();
+        window.is_top_resize_border()
+    }
+
+    #[inline]
     fn set_corner_preference(&self, preference: CornerPreference) {
         let window = self.cast_ref::<crate::platform_impl::Window>().unwrap();
         window.set_corner_preference(preference)
@@ -486,6 +507,7 @@ pub struct WindowAttributesWindows {
     pub(crate) title_text_color: Option<Color>,
     pub(crate) corner_preference: Option<CornerPreference>,
     pub(crate) titlebar: bool,
+    pub(crate) top_resize_border: bool,
 }
 
 impl Default for WindowAttributesWindows {
@@ -506,6 +528,7 @@ impl Default for WindowAttributesWindows {
             title_text_color: None,
             corner_preference: None,
             titlebar: true,
+            top_resize_border: true,
         }
     }
 }
@@ -569,6 +592,13 @@ impl WindowAttributesWindows {
     /// Enables/disables the window titlebar by setting `WS_CAPTION`.
     pub fn with_titlebar(mut self, titlebar: bool) -> Self {
         self.titlebar = titlebar;
+        self
+    }
+
+    /// Enables/disables the window's top resize border by setting its height to 0.
+    /// Only for windows without a title bar.
+    pub fn with_top_resize_border(mut self, top_resize_border: bool) -> Self {
+        self.top_resize_border = top_resize_border;
         self
     }
 
