@@ -8,6 +8,7 @@
 )]
 use std::error::Error;
 
+use winit_core::keyboard::NamedKey;
 use winit::application::ApplicationHandler;
 use winit::event::WindowEvent;
 use winit::event_loop::{ActiveEventLoop, EventLoop};
@@ -143,6 +144,9 @@ impl ApplicationHandler for Application {
                         Key::Character("v") => {
                             let is = win.is_top_resize_border();
                             info!("is_top_resize_border = {is}")
+                        },
+                        Key::Named(NamedKey::Escape) => {
+                            event_loop.exit();
                         },
                         _ => (),
                     }
