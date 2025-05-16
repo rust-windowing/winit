@@ -23,19 +23,22 @@ use ::tracing::info;
 fn main() -> Result<(), Box<dyn Error>> {
     tracing::init();
 
-    println!("Topless mode (Windows only):
+    println!(
+        "Topless mode (Windows only):
       − title bar         (WS_CAPTION) via with_titlebar         (false)
       + resize border     (WS_SIZEBOX) via with_resizable        (true ) ≝
       − top resize border              via with_top_resize_border(false)
         ├ not a separate WS_ window style, 'manual' removal on NonClientArea events
-        └ only implemented for windows without a title bar, eg, with a custom title bar handling resizing from the top
+        └ only implemented for windows without a title bar, eg, with a custom title bar handling \
+         resizing from the top
     ——————————————————————————————
     Press a key for (un)setting/querying a specific parameter (modifiers are ignored):
                          on  off  toggle  status
     title bar            q    w     e        r
     resize border        a    s     d        f
     ─ top resize border  z    x     c        v
-    ");
+    "
+    );
 
     let event_loop = EventLoop::new()?;
 
@@ -65,14 +68,13 @@ use winit::platform::windows::WindowExtWindows;
 #[cfg(windows_platform)]
 impl ApplicationHandler for Application {
     fn can_create_surfaces(&mut self, event_loop: &dyn ActiveEventLoop) {
-        let window_attributes =
-            WindowAttributes::default().with_title("Topless (unless you see this)!")
-            .with_decorations      (true )// decorations       ≝true
-            .with_titlebar         (false)// titlebar          ≝true
-            .with_resizable        (true )// resizable         ≝true
-            .with_top_resize_border(false)// top_resize_border ≝true
-            .with_position(dpi::Position::Logical(dpi::LogicalPosition::new(0.0,0.0)))// position: Option<Position>
-            ;
+        let window_attributes = WindowAttributes::default()
+            .with_title("Topless (unless you see this)!")
+            .with_decorations(true) //       decorations       ≝true
+            .with_titlebar(false) //         titlebar          ≝true
+            .with_resizable(true) //         resizable         ≝true
+            .with_top_resize_border(false) // top_resize_border ≝true
+            .with_position(dpi::Position::Logical(dpi::LogicalPosition::new(0.0, 0.0)));
         self.window = Some(event_loop.create_window(window_attributes).unwrap());
     }
 
@@ -84,25 +86,64 @@ impl ApplicationHandler for Application {
     ) {
         let win = match self.window.as_ref() {
             Some(win) => win,
-            None      => return,
+            None => return,
         };
         let _modi = ModifiersState::default();
         match event {
             WindowEvent::KeyboardInput { event, .. } => {
                 if event.state == ElementState::Pressed && !event.repeat {
                     match event.key_without_modifiers().as_ref() {
-                        Key::Character("q") => {win.set_titlebar(true )                                                	;info!("set_titlebar         → true")}
-                        Key::Character("w") => {win.set_titlebar(false)                                                	;info!("set_titlebar         → false")}
-                        Key::Character("e") => {let flip = !win.is_titlebar()         ; win.set_titlebar         (flip)	;info!("set_titlebar         → {flip}")}
-                        Key::Character("r") => {let is   =  win.is_titlebar()                                          	;info!("is_titlebar          = {is}")}
-                        Key::Character("a") => {win.set_resizable(true )                                               	;info!("set_resizable        → true")}
-                        Key::Character("s") => {win.set_resizable(false)                                               	;info!("set_resizable        → false")}
-                        Key::Character("d") => {let flip = !win.is_resizable()        ; win.set_resizable        (flip)	;info!("set_resizable        → {flip}")}
-                        Key::Character("f") => {let is   =  win.is_resizable()                                         	;info!("is_resizable         = {is}")}
-                        Key::Character("z") => {win.set_top_resize_border(true )                                       	;info!("set_top_resize_border→ true")}
-                        Key::Character("x") => {win.set_top_resize_border(false)                                       	;info!("set_top_resize_border→ false")}
-                        Key::Character("c") => {let flip = !win.is_top_resize_border(); win.set_top_resize_border(flip)	;info!("set_top_resize_border→ {flip}")}
-                        Key::Character("v") => {let is   =  win.is_top_resize_border()                                 	;info!("is_top_resize_border = {is}")}
+                        Key::Character("q") => {
+                            win.set_titlebar(true);
+                            info!("set_titlebar         → true")
+                        },
+                        Key::Character("w") => {
+                            win.set_titlebar(false);
+                            info!("set_titlebar         → false")
+                        },
+                        Key::Character("e") => {
+                            let flip = !win.is_titlebar();
+                            win.set_titlebar(flip);
+                            info!("set_titlebar         → {flip}")
+                        },
+                        Key::Character("r") => {
+                            let is = win.is_titlebar();
+                            info!("is_titlebar          = {is}")
+                        },
+                        Key::Character("a") => {
+                            win.set_resizable(true);
+                            info!("set_resizable        → true")
+                        },
+                        Key::Character("s") => {
+                            win.set_resizable(false);
+                            info!("set_resizable        → false")
+                        },
+                        Key::Character("d") => {
+                            let flip = !win.is_resizable();
+                            win.set_resizable(flip);
+                            info!("set_resizable        → {flip}")
+                        },
+                        Key::Character("f") => {
+                            let is = win.is_resizable();
+                            info!("is_resizable         = {is}")
+                        },
+                        Key::Character("z") => {
+                            win.set_top_resize_border(true);
+                            info!("set_top_resize_border→ true")
+                        },
+                        Key::Character("x") => {
+                            win.set_top_resize_border(false);
+                            info!("set_top_resize_border→ false")
+                        },
+                        Key::Character("c") => {
+                            let flip = !win.is_top_resize_border();
+                            win.set_top_resize_border(flip);
+                            info!("set_top_resize_border→ {flip}")
+                        },
+                        Key::Character("v") => {
+                            let is = win.is_top_resize_border();
+                            info!("is_top_resize_border = {is}")
+                        },
                         _ => (),
                     }
                 }
