@@ -247,3 +247,4 @@ changelog entry.
 - On macOS, fixed the scancode conversion for `IntlBackslash`.
 - On macOS, fixed redundant `SurfaceResized` event at window creation.
 - On Windows, fixed crash in should_apps_use_dark_mode() for Windows versions < 17763.
+- On Wayland, fixed `pump_events` driven loop deadlocking when loop was not drained before exit.

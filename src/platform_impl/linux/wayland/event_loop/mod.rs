@@ -739,7 +739,7 @@ impl Drop for PumpEventNotifier {
         if let Some(worker_waker) = self.worker_waker.as_ref() {
             let _ = rustix::io::write(worker_waker.as_fd(), &[0u8]);
         }
-        *self.control.0.lock().unwrap() = PumpEventNotifierAction::Monitor;
+        *self.control.0.lock().unwrap() = PumpEventNotifierAction::Shutdown;
         self.control.1.notify_one();
 
         if let Some(handle) = self.handle.take() {
@@ -767,6 +767,14 @@ impl PumpEventNotifier {
                     while *wait == PumpEventNotifierAction::Pause {
                         wait = cvar.wait(wait).unwrap();
                     }
+
+                    // Exit the loop when we're asked to. Given that we poll
+                    // only once we can take the `prepare_read`, but in some cases
+                    // it could be not possible, we may block on `join`.
+                    if *wait == PumpEventNotifierAction::Shutdown {
+                        break 'outer;
+                    }
+
                     // Wake-up the main loop and put this one back to sleep.
                     *wait = PumpEventNotifierAction::Pause;
                     drop(wait);
@@ -802,4 +810,6 @@ enum PumpEventNotifierAction {
     Monitor,
     /// Pause monitoring.
     Pause,
+    /// Shutdown the thread.
+    Shutdown,
 }
