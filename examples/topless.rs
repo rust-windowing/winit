@@ -8,11 +8,11 @@
 )]
 use std::error::Error;
 
-use winit_core::keyboard::NamedKey;
 use winit::application::ApplicationHandler;
 use winit::event::WindowEvent;
 use winit::event_loop::{ActiveEventLoop, EventLoop};
 use winit::window::{Window, WindowAttributes, WindowId};
+use winit_core::keyboard::NamedKey;
 
 #[path = "util/fill.rs"]
 mod fill;
@@ -67,10 +67,11 @@ use winit::platform::windows::WindowExtWindows;
 #[cfg(windows_platform)]
 impl ApplicationHandler for Application {
     fn can_create_surfaces(&mut self, event_loop: &dyn ActiveEventLoop) {
-        let window_attributes_win = Box::new(WindowAttributesWindows::default()
-            .with_titlebar(false) //         titlebar          ≝true
-            .with_top_resize_border(false) // top_resize_border ≝true
-            );
+        let window_attributes_win = Box::new(
+            WindowAttributesWindows::default()
+                .with_titlebar(false) //         titlebar          ≝true
+                .with_top_resize_border(false), // top_resize_border ≝true
+        );
         let window_attributes = WindowAttributes::default()
             .with_title("Topless (unless you see this)!")
             .with_decorations(true) //       decorations       ≝true
