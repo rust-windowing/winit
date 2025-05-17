@@ -508,7 +508,13 @@ impl CoreWindow for Window {
     fn outer_position(&self) -> Result<PhysicalPosition<i32>, RequestError> {
         util::WindowArea::Outer
             .get_rect(self.hwnd())
-            .map(|rect| Ok(PhysicalPosition::new(rect.left, rect.top)))
+            .map(|rect| {
+                if let Ok(offset) = util::get_offset_resize_border(self.hwnd(), self.window_state_lock().window_flags) {
+                    Ok(PhysicalPosition::new(rect.left + offset.left, rect.top + offset.top))
+                } else {
+                    Ok(PhysicalPosition::new(rect.left              , rect.top             ))
+                }
+            })
             .expect(
                 "Unexpected GetWindowRect failure; please report this error to \
                  rust-windowing/winit",
@@ -528,6 +534,11 @@ impl CoreWindow for Window {
 
     fn set_outer_position(&self, position: Position) {
         let (x, y): (i32, i32) = position.to_physical::<i32>(self.scale_factor()).into();
+        let (x_off, y_off) = if let Ok(offset) = util::get_offset_resize_border(self.hwnd(), self.window_state_lock().window_flags) {
+            (offset.left, offset.top)
+        } else {
+            (0,0)
+        };
 
         let window_state = Arc::clone(&self.window_state);
         let window = self.window;
@@ -542,8 +553,8 @@ impl CoreWindow for Window {
             SetWindowPos(
                 self.hwnd(),
                 ptr::null_mut(),
-                x,
-                y,
+                x - x_off,
+                y - y_off,
                 0,
                 0,
                 SWP_ASYNCWINDOWPOS | SWP_NOZORDER | SWP_NOSIZE | SWP_NOACTIVATE,
