@@ -7,16 +7,17 @@ use std::env;
 use std::os::unix::io::{AsFd, AsRawFd, BorrowedFd, RawFd};
 use std::time::Duration;
 
-pub(crate) use self::common::xkb::{physicalkey_to_scancode, scancode_to_physicalkey};
-use crate::application::ApplicationHandler;
 #[cfg(x11_platform)]
-use crate::dpi::Size;
-use crate::error::{EventLoopError, NotSupportedError};
-use crate::event_loop::ActiveEventLoop;
+use dpi::Size;
+use winit_core::application::ApplicationHandler;
+use winit_core::error::{EventLoopError, NotSupportedError};
+use winit_core::event_loop::ActiveEventLoop;
+use winit_core::window::ActivationToken;
+
+pub(crate) use self::common::xkb::{physicalkey_to_scancode, scancode_to_physicalkey};
 use crate::platform::pump_events::PumpStatus;
 #[cfg(x11_platform)]
 use crate::platform::x11::WindowType as XWindowType;
-use crate::window::ActivationToken;
 
 pub(crate) mod common;
 #[cfg(wayland_platform)]

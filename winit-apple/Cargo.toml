@@ -1,0 +1,25 @@
+[package]
+description = "Apple/Darwin-specific Winit helpers"
+documentation = "https://docs.rs/winit-apple"
+edition.workspace = true
+license.workspace = true
+name = "winit-apple"
+repository.workspace = true
+rust-version.workspace = true
+version = "0.0.0"
+
+[dependencies]
+tracing.workspace = true
+winit-core.workspace = true
+
+# Apple-specific
+block2.workspace = true
+objc2.workspace = true
+objc2-core-foundation = { workspace = true, features = ["std", "CFRunLoop", "CFString"] }
+objc2-foundation = { workspace = true, features = [
+    "std",
+    "block2",
+    "NSNotification",
+    "NSOperation",
+    "NSString",
+] }

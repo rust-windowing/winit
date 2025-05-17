@@ -1,14 +1,16 @@
 //! Touch handling.
 
+use dpi::LogicalPosition;
 use sctk::reexports::client::protocol::wl_seat::WlSeat;
 use sctk::reexports::client::protocol::wl_surface::WlSurface;
 use sctk::reexports::client::protocol::wl_touch::WlTouch;
 use sctk::reexports::client::{Connection, Proxy, QueueHandle};
 use sctk::seat::touch::{TouchData, TouchHandler};
 use tracing::warn;
+use winit_core::event::{
+    ButtonSource, ElementState, FingerId, PointerKind, PointerSource, WindowEvent,
+};
 
-use crate::dpi::LogicalPosition;
-use crate::event::{ButtonSource, ElementState, FingerId, PointerKind, PointerSource, WindowEvent};
 use crate::platform_impl::wayland;
 use crate::platform_impl::wayland::state::WinitState;
 

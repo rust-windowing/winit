@@ -8,15 +8,14 @@ use std::sync::LazyLock;
 
 use smol_str::SmolStr;
 use tracing::warn;
+use winit_core::event::{ElementState, KeyEvent};
+use winit_core::keyboard::{Key, KeyLocation};
 use xkbcommon_dl::{
     self as xkb, xkb_compose_status, xkb_context, xkb_context_flags, xkbcommon_compose_handle,
     xkbcommon_handle, XkbCommon, XkbCommonCompose,
 };
 #[cfg(x11_platform)]
 use {x11_dl::xlib_xcb::xcb_connection_t, xkbcommon_dl::x11::xkbcommon_x11_handle};
-
-use crate::event::{ElementState, KeyEvent};
-use crate::keyboard::{Key, KeyLocation};
 
 mod compose;
 mod keymap;

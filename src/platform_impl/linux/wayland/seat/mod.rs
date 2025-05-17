@@ -12,9 +12,9 @@ use sctk::reexports::protocols::wp::text_input::zv3::client::zwp_text_input_v3::
 use sctk::seat::pointer::{ThemeSpec, ThemedPointer};
 use sctk::seat::{Capability as SeatCapability, SeatHandler, SeatState};
 use tracing::warn;
+use winit_core::event::WindowEvent;
+use winit_core::keyboard::ModifiersState;
 
-use crate::event::WindowEvent;
-use crate::keyboard::ModifiersState;
 use crate::platform_impl::wayland::state::WinitState;
 
 mod keyboard;

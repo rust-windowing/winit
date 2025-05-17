@@ -8,7 +8,21 @@ use std::path::Path;
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::{cmp, env};
 
+use dpi::{PhysicalInsets, PhysicalPosition, PhysicalSize, Position, Size};
 use tracing::{debug, info, warn};
+use winit_core::application::ApplicationHandler;
+use winit_core::cursor::Cursor;
+use winit_core::error::{NotSupportedError, RequestError};
+use winit_core::event::{SurfaceSizeWriter, WindowEvent};
+use winit_core::event_loop::AsyncRequestSerial;
+use winit_core::icon::RgbaIcon;
+use winit_core::monitor::{
+    Fullscreen, MonitorHandle as CoreMonitorHandle, MonitorHandleProvider, VideoMode,
+};
+use winit_core::window::{
+    CursorGrabMode, ImePurpose, ResizeDirection, Theme, UserAttentionType, Window as CoreWindow,
+    WindowAttributes, WindowButtons, WindowId, WindowLevel,
+};
 use x11rb::connection::{Connection, RequestConnection};
 use x11rb::properties::{WmHints, WmSizeHints, WmSizeHintsSpecification};
 use x11rb::protocol::shape::SK;
@@ -22,26 +36,12 @@ use super::{
     ffi, ActiveEventLoop, CookieResultExt, CustomCursor, ImeRequest, ImeSender, VoidCookie,
     XConnection,
 };
-use crate::application::ApplicationHandler;
-use crate::cursor::Cursor;
-use crate::dpi::{PhysicalInsets, PhysicalPosition, PhysicalSize, Position, Size};
-use crate::error::{NotSupportedError, RequestError};
-use crate::event::{SurfaceSizeWriter, WindowEvent};
-use crate::event_loop::AsyncRequestSerial;
-use crate::icon::RgbaIcon;
-use crate::monitor::{
-    Fullscreen, MonitorHandle as CoreMonitorHandle, MonitorHandleProvider, VideoMode,
-};
 use crate::platform::x11::{WindowAttributesX11, WindowType};
 use crate::platform_impl::common;
 use crate::platform_impl::x11::atoms::*;
 use crate::platform_impl::x11::util::rgba_to_cardinals;
 use crate::platform_impl::x11::{
     xinput_fp1616_to_float, MonitorHandle as X11MonitorHandle, WakeSender, X11Error,
-};
-use crate::window::{
-    CursorGrabMode, ImePurpose, ResizeDirection, Theme, UserAttentionType, Window as CoreWindow,
-    WindowAttributes, WindowButtons, WindowId, WindowLevel,
 };
 
 #[derive(Debug)]
@@ -204,7 +204,7 @@ impl CoreWindow for Window {
         self.0.set_window_level(level);
     }
 
-    fn set_window_icon(&self, window_icon: Option<crate::icon::Icon>) {
+    fn set_window_icon(&self, window_icon: Option<winit_core::icon::Icon>) {
         let icon = match window_icon.as_ref() {
             Some(icon) => icon.cast_ref::<RgbaIcon>(),
             None => None,

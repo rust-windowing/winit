@@ -27,8 +27,8 @@ use sctk::seat::pointer::{
 };
 use sctk::seat::SeatState;
 
-use crate::dpi::{LogicalPosition, PhysicalPosition};
-use crate::event::{
+use dpi::{LogicalPosition, PhysicalPosition};
+use winit_core::event::{
     ElementState, MouseButton, MouseScrollDelta, PointerKind, PointerSource, TouchPhase,
     WindowEvent,
 };

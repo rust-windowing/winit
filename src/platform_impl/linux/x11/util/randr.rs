@@ -2,12 +2,12 @@ use std::num::NonZeroU16;
 use std::str::FromStr;
 use std::{env, str};
 
+use dpi::validate_scale_factor;
 use tracing::warn;
+use winit_core::monitor::VideoMode;
 use x11rb::protocol::randr::{self, ConnectionExt as _};
 
 use super::*;
-use crate::dpi::validate_scale_factor;
-use crate::monitor::VideoMode;
 use crate::platform_impl::platform::x11::{monitor, VideoModeHandle};
 
 /// Represents values of `WINIT_HIDPI_FACTOR`.

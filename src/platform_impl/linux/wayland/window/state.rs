@@ -5,6 +5,7 @@ use std::sync::{Arc, Mutex, Weak};
 use std::time::Duration;
 
 use ahash::HashSet;
+use dpi::{LogicalPosition, LogicalSize, PhysicalPosition, PhysicalSize, Size};
 use sctk::compositor::{CompositorState, Region, SurfaceData, SurfaceDataExt};
 use sctk::reexports::client::backend::ObjectId;
 use sctk::reexports::client::protocol::wl_seat::WlSeat;
@@ -27,10 +28,10 @@ use sctk::shm::Shm;
 use sctk::subcompositor::SubcompositorState;
 use tracing::{info, warn};
 use wayland_protocols_plasma::blur::client::org_kde_kwin_blur::OrgKdeKwinBlur;
+use winit_core::cursor::{CursorIcon, CustomCursor as CoreCustomCursor};
+use winit_core::error::{NotSupportedError, RequestError};
+use winit_core::window::{CursorGrabMode, ImePurpose, ResizeDirection, Theme, WindowId};
 
-use crate::cursor::{CursorIcon, CustomCursor as CoreCustomCursor};
-use crate::dpi::{LogicalPosition, LogicalSize, PhysicalPosition, PhysicalSize, Size};
-use crate::error::{NotSupportedError, RequestError};
 use crate::platform_impl::wayland::event_loop::OwnedDisplayHandle;
 use crate::platform_impl::wayland::logical_to_physical_rounded;
 use crate::platform_impl::wayland::seat::{
@@ -41,7 +42,6 @@ use crate::platform_impl::wayland::types::cursor::{
     CustomCursor, SelectedCursor, WaylandCustomCursor,
 };
 use crate::platform_impl::wayland::types::kwin_blur::KWinBlurManager;
-use crate::window::{CursorGrabMode, ImePurpose, ResizeDirection, Theme, WindowId};
 
 #[cfg(feature = "sctk-adwaita")]
 pub type WinitFrame = sctk_adwaita::AdwaitaFrame<WinitState>;

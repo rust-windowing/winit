@@ -1,7 +1,8 @@
 #![allow(clippy::assertions_on_constants)]
 
+use winit_core::icon::RgbaIcon;
+
 use super::*;
-use crate::icon::RgbaIcon;
 
 pub(crate) const PIXEL_SIZE: usize = mem::size_of::<Pixel>();
 

@@ -11,38 +11,38 @@ use std::thread::JoinHandle;
 use std::time::{Duration, Instant};
 
 use calloop::ping::Ping;
+use dpi::LogicalSize;
 use rustix::event::{PollFd, PollFlags};
 use rustix::pipe::{self, PipeFlags};
 use sctk::reexports::calloop_wayland_source::WaylandSource;
 use sctk::reexports::client::{globals, Connection, QueueHandle};
 use tracing::warn;
-
-use crate::application::ApplicationHandler;
-use crate::cursor::{CustomCursor as CoreCustomCursor, CustomCursorSource};
-use crate::dpi::LogicalSize;
-use crate::error::{EventLoopError, NotSupportedError, OsError, RequestError};
-use crate::event::{DeviceEvent, StartCause, SurfaceSizeWriter, WindowEvent};
-use crate::event_loop::{
+use winit_core::application::ApplicationHandler;
+use winit_core::cursor::{CustomCursor as CoreCustomCursor, CustomCursorSource};
+use winit_core::error::{EventLoopError, NotSupportedError, OsError, RequestError};
+use winit_core::event::{DeviceEvent, StartCause, SurfaceSizeWriter, WindowEvent};
+use winit_core::event_loop::{
     ActiveEventLoop as RootActiveEventLoop, ControlFlow, DeviceEvents,
     OwnedDisplayHandle as CoreOwnedDisplayHandle,
 };
-use crate::monitor::MonitorHandle as CoreMonitorHandle;
+use winit_core::monitor::MonitorHandle as CoreMonitorHandle;
+use winit_core::window::Theme;
+
 use crate::platform::pump_events::PumpStatus;
 use crate::platform_impl::platform::min_timeout;
 use crate::platform_impl::wayland::types::cursor::WaylandCustomCursor;
-use crate::window::Theme;
 
 mod proxy;
 pub mod sink;
 
 use proxy::EventLoopProxy;
 use sink::EventSink;
+pub use winit_core::event_loop::EventLoopProxy as CoreEventLoopProxy;
 
 use super::output::MonitorHandle;
 use super::state::{WindowCompositorUpdate, WinitState};
 use super::window::state::FrameCallbackState;
 use super::{logical_to_physical_rounded, WindowId};
-pub use crate::event_loop::EventLoopProxy as CoreEventLoopProxy;
 
 type WaylandDispatcher = calloop::Dispatcher<'static, WaylandSource<WinitState>, WinitState>;
 
@@ -648,8 +648,8 @@ impl RootActiveEventLoop for ActiveEventLoop {
 
     fn create_window(
         &self,
-        window_attributes: crate::window::WindowAttributes,
-    ) -> Result<Box<dyn crate::window::Window>, RequestError> {
+        window_attributes: winit_core::window::WindowAttributes,
+    ) -> Result<Box<dyn winit_core::window::Window>, RequestError> {
         let window = crate::platform_impl::wayland::Window::new(self, window_attributes)?;
         Ok(Box::new(window))
     }

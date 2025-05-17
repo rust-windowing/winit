@@ -15,6 +15,17 @@ use calloop::ping::Ping;
 use calloop::{EventLoop as Loop, Readiness};
 use libc::{setlocale, LC_CTYPE};
 use tracing::warn;
+use winit_core::application::ApplicationHandler;
+use winit_core::cursor::{CustomCursor as CoreCustomCursor, CustomCursorSource};
+use winit_core::error::{EventLoopError, RequestError};
+use winit_core::event::{DeviceId, StartCause, WindowEvent};
+use winit_core::event_loop::{
+    ActiveEventLoop as RootActiveEventLoop, ControlFlow, DeviceEvents,
+    EventLoopProxy as CoreEventLoopProxy, EventLoopProxyProvider,
+    OwnedDisplayHandle as CoreOwnedDisplayHandle,
+};
+use winit_core::monitor::MonitorHandle as CoreMonitorHandle;
+use winit_core::window::{Theme, Window as CoreWindow, WindowAttributes, WindowId};
 use x11rb::connection::RequestConnection;
 use x11rb::errors::{ConnectError, ConnectionError, IdsExhausted, ReplyError};
 use x11rb::protocol::xinput::{self, ConnectionExt as _};
@@ -22,22 +33,11 @@ use x11rb::protocol::{xkb, xproto};
 use x11rb::x11_utils::X11Error as LogicalError;
 use x11rb::xcb_ffi::ReplyOrIdError;
 
-use crate::application::ApplicationHandler;
-use crate::cursor::{CustomCursor as CoreCustomCursor, CustomCursorSource};
-use crate::error::{EventLoopError, RequestError};
-use crate::event::{DeviceId, StartCause, WindowEvent};
-use crate::event_loop::{
-    ActiveEventLoop as RootActiveEventLoop, ControlFlow, DeviceEvents,
-    EventLoopProxy as CoreEventLoopProxy, EventLoopProxyProvider,
-    OwnedDisplayHandle as CoreOwnedDisplayHandle,
-};
-use crate::monitor::MonitorHandle as CoreMonitorHandle;
 use crate::platform::pump_events::PumpStatus;
 use crate::platform::x11::XlibErrorHook;
 use crate::platform_impl::common::xkb::Context;
 use crate::platform_impl::platform::min_timeout;
 use crate::platform_impl::x11::window::Window;
-use crate::window::{Theme, Window as CoreWindow, WindowAttributes, WindowId};
 
 mod activation;
 mod atoms;
@@ -213,7 +213,7 @@ pub struct EventLoop {
     state: EventLoopState,
 }
 
-type ActivationToken = (WindowId, crate::event_loop::AsyncRequestSerial);
+type ActivationToken = (WindowId, winit_core::event_loop::AsyncRequestSerial);
 
 #[derive(Debug)]
 struct EventLoopState {
@@ -597,7 +597,7 @@ impl EventLoop {
                 Some(Ok(token)) => {
                     let event = WindowEvent::ActivationTokenDone {
                         serial,
-                        token: crate::window::ActivationToken::from_raw(token),
+                        token: winit_core::window::ActivationToken::from_raw(token),
                     };
                     app.window_event(&self.event_processor.target, window_id, event);
                 },
@@ -1003,8 +1003,8 @@ impl<E: fmt::Debug> CookieResultExt for Result<VoidCookie<'_>, E> {
     }
 }
 
-fn mkwid(w: xproto::Window) -> crate::window::WindowId {
-    crate::window::WindowId::from_raw(w as _)
+fn mkwid(w: xproto::Window) -> winit_core::window::WindowId {
+    winit_core::window::WindowId::from_raw(w as _)
 }
 fn mkdid(w: xinput::DeviceId) -> DeviceId {
     DeviceId::from_raw(w as i64)

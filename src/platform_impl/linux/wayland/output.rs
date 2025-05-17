@@ -1,12 +1,11 @@
 use std::borrow::Cow;
 use std::num::NonZeroU32;
 
+use dpi::{LogicalPosition, PhysicalPosition};
 use sctk::output::{Mode, OutputData};
 use sctk::reexports::client::protocol::wl_output::WlOutput;
 use sctk::reexports::client::Proxy;
-
-use crate::dpi::{LogicalPosition, PhysicalPosition};
-use crate::monitor::{MonitorHandleProvider as CoreMonitorHandle, VideoMode};
+use winit_core::monitor::{MonitorHandleProvider as CoreMonitorHandle, VideoMode};
 
 #[derive(Clone, Debug)]
 pub struct MonitorHandle {
@@ -56,7 +55,7 @@ impl CoreMonitorHandle for MonitorHandle {
         output_data.scale_factor() as f64
     }
 
-    fn current_video_mode(&self) -> Option<crate::monitor::VideoMode> {
+    fn current_video_mode(&self) -> Option<winit_core::monitor::VideoMode> {
         let output_data = self.proxy.data::<OutputData>().unwrap();
         output_data.with_output_info(|info| {
             let mode = info.modes.iter().find(|mode| mode.current).cloned();

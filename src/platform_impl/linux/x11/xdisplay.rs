@@ -6,6 +6,7 @@ use std::sync::{Arc, Mutex, RwLock, RwLockReadGuard};
 use std::{fmt, ptr};
 
 use rwh_06::HasDisplayHandle;
+use winit_core::cursor::CursorIcon;
 use x11rb::connection::Connection;
 use x11rb::protocol::randr::ConnectionExt as _;
 use x11rb::protocol::render;
@@ -16,7 +17,6 @@ use x11rb::xcb_ffi::XCBConnection;
 use super::atoms::Atoms;
 use super::ffi;
 use super::monitor::MonitorHandle;
-use crate::cursor::CursorIcon;
 
 /// A connection to an X server.
 pub struct XConnection {

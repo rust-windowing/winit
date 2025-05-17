@@ -4,6 +4,9 @@ use std::ffi::c_char;
 use std::ops::Deref;
 use std::ptr::{self, NonNull};
 
+use winit_core::keyboard::{
+    Key, KeyCode, KeyLocation, NamedKey, NativeKey, NativeKeyCode, PhysicalKey,
+};
 #[cfg(x11_platform)]
 use x11_dl::xlib_xcb::xcb_connection_t;
 use xkb::XKB_MOD_INVALID;
@@ -14,7 +17,6 @@ use xkbcommon_dl::{
 #[cfg(wayland_platform)]
 use {memmap2::MmapOptions, std::os::unix::io::OwnedFd};
 
-use crate::keyboard::{Key, KeyCode, KeyLocation, NamedKey, NativeKey, NativeKeyCode, PhysicalKey};
 #[cfg(x11_platform)]
 use crate::platform_impl::common::xkb::XKBXH;
 use crate::platform_impl::common::xkb::{XkbContext, XKBH};

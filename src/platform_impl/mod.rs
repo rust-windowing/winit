@@ -1,30 +1,27 @@
 #[cfg(android_platform)]
 mod android;
-#[cfg(target_vendor = "apple")]
-mod apple;
 #[cfg(any(x11_platform, wayland_platform))]
 mod linux;
-#[cfg(orbital_platform)]
-mod orbital;
 #[cfg(web_platform)]
 mod web;
+
+#[cfg(macos_platform)]
+pub(crate) use winit_appkit as platform;
+#[cfg(orbital_platform)]
+pub(crate) use winit_orbital as platform;
+#[cfg(ios_platform)]
+pub(crate) use winit_uikit as platform;
 #[cfg(windows_platform)]
-mod windows;
+pub(crate) use winit_web as platform;
+#[cfg(windows_platform)]
+pub(crate) use winit_windows as platform;
 
 #[cfg(android_platform)]
 use self::android as platform;
-#[cfg(target_vendor = "apple")]
-use self::apple as platform;
 #[cfg(any(x11_platform, wayland_platform))]
 use self::linux as platform;
-#[cfg(orbital_platform)]
-use self::orbital as platform;
 #[allow(unused_imports)]
 pub use self::platform::*;
-#[cfg(web_platform)]
-use self::web as platform;
-#[cfg(windows_platform)]
-use self::windows as platform;
 
 #[cfg(all(
     not(ios_platform),
