@@ -7,13 +7,14 @@ use std::env;
 use std::os::unix::io::{AsFd, AsRawFd, BorrowedFd, RawFd};
 use std::time::Duration;
 
+use winit_core::event_loop::pump_events::PumpStatus;
+
 pub(crate) use self::common::xkb::{physicalkey_to_scancode, scancode_to_physicalkey};
 use crate::application::ApplicationHandler;
 #[cfg(x11_platform)]
 use crate::dpi::Size;
 use crate::error::{EventLoopError, NotSupportedError};
 use crate::event_loop::ActiveEventLoop;
-use crate::platform::pump_events::PumpStatus;
 #[cfg(x11_platform)]
 use crate::platform::x11::WindowType as XWindowType;
 use crate::window::ActivationToken;

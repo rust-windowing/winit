@@ -58,6 +58,7 @@ use windows_sys::Win32::UI::WindowsAndMessaging::{
     WM_XBUTTONDOWN, WM_XBUTTONUP, WNDCLASSEXW, WS_EX_LAYERED, WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW,
     WS_EX_TRANSPARENT, WS_OVERLAPPED, WS_POPUP, WS_VISIBLE,
 };
+use winit_core::event_loop::pump_events::PumpStatus;
 
 pub(super) use self::runner::{Event, EventLoopRunner};
 use super::window::set_skip_taskbar;
@@ -77,7 +78,6 @@ use crate::event_loop::{
 };
 use crate::keyboard::ModifiersState;
 use crate::monitor::{Fullscreen, MonitorHandle as CoreMonitorHandle};
-use crate::platform::pump_events::PumpStatus;
 use crate::platform_impl::platform::dark_mode::try_theme;
 use crate::platform_impl::platform::dpi::{become_dpi_aware, dpi_to_scale_factor};
 use crate::platform_impl::platform::drop_handler::FileDropHandler;

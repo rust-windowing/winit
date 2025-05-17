@@ -16,6 +16,7 @@ use rustix::pipe::{self, PipeFlags};
 use sctk::reexports::calloop_wayland_source::WaylandSource;
 use sctk::reexports::client::{globals, Connection, QueueHandle};
 use tracing::warn;
+use winit_core::event_loop::pump_events::PumpStatus;
 
 use crate::application::ApplicationHandler;
 use crate::cursor::{CustomCursor as CoreCustomCursor, CustomCursorSource};
@@ -27,7 +28,6 @@ use crate::event_loop::{
     OwnedDisplayHandle as CoreOwnedDisplayHandle,
 };
 use crate::monitor::MonitorHandle as CoreMonitorHandle;
-use crate::platform::pump_events::PumpStatus;
 use crate::platform_impl::platform::min_timeout;
 use crate::platform_impl::wayland::types::cursor::WaylandCustomCursor;
 use crate::window::Theme;

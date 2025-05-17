@@ -15,6 +15,7 @@ use objc2_app_kit::{
 };
 use objc2_foundation::{NSNotificationCenter, NSObjectProtocol};
 use rwh_06::HasDisplayHandle;
+use winit_core::event_loop::pump_events::PumpStatus;
 
 use super::super::notification_center::create_observer;
 use super::app::override_send_event;
@@ -32,7 +33,6 @@ use crate::event_loop::{
 };
 use crate::monitor::MonitorHandle as CoreMonitorHandle;
 use crate::platform::macos::ActivationPolicy;
-use crate::platform::pump_events::PumpStatus;
 use crate::platform_impl::Window;
 use crate::window::Theme;
 

@@ -9,6 +9,7 @@ use android_activity::{
     AndroidApp, AndroidAppWaker, ConfigurationRef, InputStatus, MainEvent, Rect,
 };
 use tracing::{debug, trace, warn};
+use winit_core::event_loop::pump_events::PumpStatus;
 
 use crate::application::ApplicationHandler;
 use crate::cursor::{Cursor, CustomCursor, CustomCursorSource};
@@ -21,7 +22,6 @@ use crate::event_loop::{
     OwnedDisplayHandle as CoreOwnedDisplayHandle,
 };
 use crate::monitor::{Fullscreen, MonitorHandle as CoreMonitorHandle};
-use crate::platform::pump_events::PumpStatus;
 use crate::window::{
     self, CursorGrabMode, ImePurpose, ResizeDirection, Theme, Window as CoreWindow,
     WindowAttributes, WindowButtons, WindowId, WindowLevel,

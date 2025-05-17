@@ -15,6 +15,7 @@ use calloop::ping::Ping;
 use calloop::{EventLoop as Loop, Readiness};
 use libc::{setlocale, LC_CTYPE};
 use tracing::warn;
+use winit_core::event_loop::pump_events::PumpStatus;
 use x11rb::connection::RequestConnection;
 use x11rb::errors::{ConnectError, ConnectionError, IdsExhausted, ReplyError};
 use x11rb::protocol::xinput::{self, ConnectionExt as _};
@@ -32,7 +33,6 @@ use crate::event_loop::{
     OwnedDisplayHandle as CoreOwnedDisplayHandle,
 };
 use crate::monitor::MonitorHandle as CoreMonitorHandle;
-use crate::platform::pump_events::PumpStatus;
 use crate::platform::x11::XlibErrorHook;
 use crate::platform_impl::common::xkb::Context;
 use crate::platform_impl::platform::min_timeout;
