@@ -8,7 +8,7 @@
 
 ```toml
 [dependencies]
-winit = "0.30.10"
+winit = "0.30.11"
 ```
 
 ## [Documentation](https://docs.rs/winit)
@@ -32,6 +32,10 @@ produced by the window.
 Winit is designed to be a low-level brick in a hierarchy of libraries. Consequently, in order to
 show something on the window you need to use the platform-specific getters provided by winit, or
 another library.
+
+## CONTRIBUTING
+
+For contributing guidelines see [CONTRIBUTING.md](./CONTRIBUTING.md).
 
 ## MSRV Policy
 

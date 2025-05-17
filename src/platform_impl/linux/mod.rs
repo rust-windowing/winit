@@ -696,6 +696,7 @@ unsafe extern "C" fn x_error_callback(
     0
 }
 
+#[allow(clippy::large_enum_variant)]
 pub enum EventLoop<T: 'static> {
     #[cfg(wayland_platform)]
     Wayland(Box<wayland::EventLoop<T>>),
@@ -849,6 +850,7 @@ impl<T: 'static> EventLoopProxy<T> {
     }
 }
 
+#[allow(clippy::large_enum_variant)]
 pub enum ActiveEventLoop {
     #[cfg(wayland_platform)]
     Wayland(wayland::ActiveEventLoop),

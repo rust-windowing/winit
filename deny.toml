@@ -54,6 +54,10 @@ allow = [
 crate = "android-activity"
 
 [[bans.build.bypass]]
+allow-globs = ["ci/*", "githooks/*"]
+crate = "zerocopy"
+
+[[bans.build.bypass]]
 allow-globs = ["freetype2/*"]
 crate = "freetype-sys"
 

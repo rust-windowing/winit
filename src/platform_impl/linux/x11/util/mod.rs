@@ -51,7 +51,7 @@ where
 }
 
 impl XConnection {
-    // This is impoartant, so pay attention!
+    // This is important, so pay attention!
     // Xlib has an output buffer, and tries to hide the async nature of X from you.
     // This buffer contains the requests you make, and is flushed under various circumstances:
     // 1. `XPending`, `XNextEvent`, and `XWindowEvent` flush "as needed"
