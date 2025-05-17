@@ -15,6 +15,8 @@ pub use platform::fill_window;
 pub use platform::fill_window_with_animated_color;
 #[allow(unused_imports)]
 pub use platform::fill_window_with_color;
+#[allow(unused_imports)]
+pub use platform::fill_window_with_fn;
 
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
 mod platform {
@@ -73,6 +75,50 @@ mod platform {
         fn destroy_surface(&mut self, window: &dyn Window) {
             self.surfaces.remove(&window.id());
         }
+    }
+
+    #[allow(dead_code)]
+    pub fn fill_window_with_fn(
+        window: &dyn Window,
+        f: impl FnOnce(&mut [u32], usize, f32, u32, u32) -> Vec<[u32; 4]>,
+    ) {
+        GC.with(|gc| {
+            let size = window.surface_size();
+            let (Some(width), Some(height)) =
+                (NonZeroU32::new(size.width), NonZeroU32::new(size.height))
+            else {
+                return;
+            };
+
+            // Either get the last context used or create a new one.
+            let mut gc = gc.borrow_mut();
+            let surface =
+                gc.get_or_insert_with(|| GraphicsContext::new(window)).create_surface(window);
+
+            surface.resize(width, height).expect("Failed to resize the softbuffer surface");
+
+            // Run a function on the buffer.
+            let mut buffer = surface.buffer_mut().expect("Failed to get the softbuffer buffer");
+            let rects = f(
+                &mut buffer,
+                u32::from(width) as usize,
+                window.scale_factor() as f32,
+                width.into(),
+                height.into(),
+            );
+            // Collect only valid rects, and as softbuffer's expected type.
+            let rects = rects
+                .iter()
+                .filter(|r| r[2] != 0 && r[3] != 0)
+                .map(|r| softbuffer::Rect {
+                    x: r[0],
+                    y: r[1],
+                    width: r[2].try_into().unwrap(),
+                    height: r[3].try_into().unwrap(),
+                })
+                .collect::<Vec<_>>();
+            buffer.present_with_damage(&rects).expect("Failed to present the softbuffer buffer");
+        })
     }
 
     pub fn fill_window_with_color(window: &dyn Window, color: u32) {
@@ -134,6 +180,14 @@ mod platform {
 
     #[allow(dead_code)]
     pub fn fill_window_with_color(_window: &dyn winit::window::Window, _color: u32) {
+        // No-op on mobile platforms.
+    }
+
+    #[allow(dead_code)]
+    pub fn fill_window_with_fn(
+        _window: &dyn winit::window::Window,
+        _f: impl FnOnce(&mut [u32], usize, f64, u32, u32) -> Vec<[u32; 4]>,
+    ) {
         // No-op on mobile platforms.
     }
 

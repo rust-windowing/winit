@@ -93,6 +93,7 @@ tracing = { version = "0.1.40", default-features = false }
 winit-core = { version = "0.0.0", path = "winit-core" }
 
 [dev-dependencies]
+font8x8 = "0.3.1"
 image = { version = "0.25.0", default-features = false, features = ["png"] }
 tracing = { version = "0.1.40", default-features = false, features = ["log"] }
 tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
@@ -319,6 +320,10 @@ xkbcommon-dl = "0.4.2"
 [target.'cfg(target_os = "redox")'.dependencies]
 orbclient = { version = "0.3.47", default-features = false }
 redox_syscall = "0.5.7"
+
+# We want the web-time crate on non-web clients too, for examples (hence dev-dependencies)
+[target.'cfg(not(target_family = "wasm"))'.dev-dependencies]
+web-time = "1"
 
 # Web
 [target.'cfg(target_family = "wasm")'.dependencies]
