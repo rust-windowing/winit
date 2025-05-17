@@ -39,8 +39,3 @@ The migration guide could reference other migration examples in the current
 changelog entry.
 
 ## Unreleased
-
-### Fixed
-
-- On Windows, fixed crash in should_apps_use_dark_mode() for Windows versions < 17763.
-- On Wayland, fixed `pump_events` driven loop deadlocking when loop was not drained before exit.
