@@ -82,7 +82,7 @@ impl XConnection {
             .iter()
             // XRROutputInfo contains an array of mode ids that correspond to
             // modes in the array in XRRScreenResources
-            .filter(|x| output_modes.iter().any(|id| x.id == *id))
+            .filter(|x| output_modes.contains(&x.id))
             .map(|mode| VideoModeHandle {
                 current: mode.id == current_mode,
                 mode: VideoMode::new(
