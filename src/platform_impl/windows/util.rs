@@ -137,7 +137,7 @@ pub fn get_offset_resize_border(
         if style & WS_SIZEBOX == WS_SIZEBOX {
             // ...actually exist
             if !win_flags.contains(WindowFlags::RESIZABLE) {
-                tracing::warn!("Window has resize borders, but is configured not to have them");
+                tracing::debug!("Window has resize borders, but is configured not to have them");
             }
             let border_sizing = get_border_size(hwnd, true)?;
             offset.left = border_sizing.0; // ←left: always offset
@@ -145,7 +145,7 @@ pub fn get_offset_resize_border(
             if style & WS_CAPTION != WS_CAPTION {
                 // no caption (≝title+border) exists
                 if win_flags.contains(WindowFlags::TITLE_BAR) {
-                    tracing::warn!("Window has no title bar, but is configured to have it");
+                    tracing::debug!("Window has no title bar, but is configured to have it");
                 }
                 if win_flags.contains(WindowFlags::TOP_RESIZE_BORDER) {
                     // top resize border is NOT removed "manually"
@@ -162,7 +162,7 @@ pub fn get_offset_resize_border(
             if style & WS_CAPTION != WS_CAPTION {
                 // no caption (≝title+border) exists
                 if win_flags.contains(WindowFlags::TITLE_BAR) {
-                    tracing::warn!("Window has no title bar, but is configured to have it");
+                    tracing::debug!("Window has no title bar, but is configured to have it");
                 }
                 if win_flags.contains(WindowFlags::TOP_RESIZE_BORDER) {
                     // top resize border is NOT removed "manually"

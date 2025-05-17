@@ -27,17 +27,17 @@ fn main() -> Result<(), Box<dyn Error>> {
     println!(
         "Topless mode (Windows only):
       − title bar         (WS_CAPTION) via with_titlebar         (false)
-      + resize border     (WS_SIZEBOX) via with_resizable        (true ) ≝
-      − top resize border              via with_top_resize_border(false)
+      + resize border@↓←→ (WS_SIZEBOX) via with_resizable        (true ) ≝
+      − resize border@↑                via with_top_resize_border(false)
         ├ not a separate WS_ window style, 'manual' removal on NonClientArea events
         └ only implemented for windows without a title bar, eg, with a custom title bar handling \
          resizing from the top
     ——————————————————————————————
     Press a key for (un)setting/querying a specific parameter (modifiers are ignored):
-                         on  off  toggle  status
-    title bar            q    w     e        r
-    resize border        a    s     d        f
-    ─ top resize border  z    x     c        v
+                         on  off  toggle  query
+    title bar            q    w     e       r
+    resize border@↓←→    a    s     d       f
+    resize border@↑      z    x     c       v
     "
     );
 
