@@ -509,10 +509,13 @@ impl CoreWindow for Window {
         util::WindowArea::Outer
             .get_rect(self.hwnd())
             .map(|rect| {
-                if let Ok(offset) = util::get_offset_resize_border(self.hwnd(), self.window_state_lock().window_flags) {
+                if let Ok(offset) = util::get_offset_resize_border(
+                    self.hwnd(),
+                    self.window_state_lock().window_flags,
+                ) {
                     Ok(PhysicalPosition::new(rect.left + offset.left, rect.top + offset.top))
                 } else {
-                    Ok(PhysicalPosition::new(rect.left              , rect.top             ))
+                    Ok(PhysicalPosition::new(rect.left, rect.top))
                 }
             })
             .expect(
@@ -534,10 +537,12 @@ impl CoreWindow for Window {
 
     fn set_outer_position(&self, position: Position) {
         let (x, y): (i32, i32) = position.to_physical::<i32>(self.scale_factor()).into();
-        let (x_off, y_off) = if let Ok(offset) = util::get_offset_resize_border(self.hwnd(), self.window_state_lock().window_flags) {
+        let (x_off, y_off) = if let Ok(offset) =
+            util::get_offset_resize_border(self.hwnd(), self.window_state_lock().window_flags)
+        {
             (offset.left, offset.top)
         } else {
-            (0,0)
+            (0, 0)
         };
 
         let window_state = Arc::clone(&self.window_state);
