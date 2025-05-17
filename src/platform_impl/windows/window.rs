@@ -341,6 +341,44 @@ impl Window {
     }
 
     #[inline]
+    pub fn set_titlebar(&self, titlebar: bool) {
+        let window = self.window;
+        let window_state = Arc::clone(&self.window_state);
+
+        self.thread_executor.execute_in_thread(move || {
+            let _ = &window;
+            WindowState::set_window_flags(window_state.lock().unwrap(), window.hwnd(), |f| {
+                f.set(WindowFlags::TITLE_BAR, titlebar)
+            });
+        });
+    }
+
+    #[inline]
+    pub fn is_titlebar(&self) -> bool {
+        let window_state = self.window_state_lock();
+        window_state.window_flags.contains(WindowFlags::TITLE_BAR)
+    }
+
+    #[inline]
+    pub fn set_top_resize_border(&self, top_resize_border: bool) {
+        let window = self.window;
+        let window_state = Arc::clone(&self.window_state);
+
+        self.thread_executor.execute_in_thread(move || {
+            let _ = &window;
+            WindowState::set_window_flags(window_state.lock().unwrap(), window.hwnd(), |f| {
+                f.set(WindowFlags::TOP_RESIZE_BORDER, top_resize_border)
+            });
+        });
+    }
+
+    #[inline]
+    pub fn is_top_resize_border(&self) -> bool {
+        let window_state = self.window_state_lock();
+        window_state.window_flags.contains(WindowFlags::TOP_RESIZE_BORDER)
+    }
+
+    #[inline]
     pub fn set_corner_preference(&self, preference: CornerPreference) {
         unsafe {
             DwmSetWindowAttribute(
@@ -467,10 +505,20 @@ impl CoreWindow for Window {
 
     fn pre_present_notify(&self) {}
 
+    // TODO: limit to Windows 10 (and maybe 11?)
     fn outer_position(&self) -> Result<PhysicalPosition<i32>, RequestError> {
         util::WindowArea::Outer
             .get_rect(self.hwnd())
-            .map(|rect| Ok(PhysicalPosition::new(rect.left, rect.top)))
+            .map(|rect| {
+                if let Ok(offset) = util::get_offset_resize_border(
+                    self.hwnd(),
+                    self.window_state_lock().window_flags,
+                ) {
+                    Ok(PhysicalPosition::new(rect.left + offset.left, rect.top + offset.top))
+                } else {
+                    Ok(PhysicalPosition::new(rect.left, rect.top))
+                }
+            })
             .expect(
                 "Unexpected GetWindowRect failure; please report this error to \
                  rust-windowing/winit",
@@ -488,8 +536,16 @@ impl CoreWindow for Window {
         PhysicalPosition::new(rect.left, rect.top)
     }
 
+    // TODO: limit to Windows 10 (and maybe 11?)
     fn set_outer_position(&self, position: Position) {
         let (x, y): (i32, i32) = position.to_physical::<i32>(self.scale_factor()).into();
+        let (x_off, y_off) = if let Ok(offset) =
+            util::get_offset_resize_border(self.hwnd(), self.window_state_lock().window_flags)
+        {
+            (offset.left, offset.top)
+        } else {
+            (0, 0)
+        };
 
         let window_state = Arc::clone(&self.window_state);
         let window = self.window;
@@ -504,8 +560,8 @@ impl CoreWindow for Window {
             SetWindowPos(
                 self.hwnd(),
                 ptr::null_mut(),
-                x,
-                y,
+                x - x_off,
+                y - y_off,
                 0,
                 0,
                 SWP_ASYNCWINDOWPOS | SWP_NOZORDER | SWP_NOSIZE | SWP_NOACTIVATE,
@@ -1342,6 +1398,8 @@ unsafe fn init(
 
     let mut window_flags = WindowFlags::empty();
     window_flags.set(WindowFlags::MARKER_DECORATIONS, attributes.decorations);
+    window_flags.set(WindowFlags::TITLE_BAR, win_attributes.titlebar);
+    window_flags.set(WindowFlags::TOP_RESIZE_BORDER, win_attributes.top_resize_border);
     window_flags.set(WindowFlags::MARKER_UNDECORATED_SHADOW, win_attributes.decoration_shadow);
     window_flags
         .set(WindowFlags::ALWAYS_ON_TOP, attributes.window_level == WindowLevel::AlwaysOnTop);
