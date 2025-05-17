@@ -15,6 +15,15 @@ use objc2_app_kit::{
 };
 use objc2_foundation::{NSNotificationCenter, NSObjectProtocol};
 use rwh_06::HasDisplayHandle;
+use winit_core::application::ApplicationHandler;
+use winit_core::cursor::{CustomCursor as CoreCustomCursor, CustomCursorSource};
+use winit_core::error::{EventLoopError, RequestError};
+use winit_core::event_loop::{
+    ActiveEventLoop as RootActiveEventLoop, ControlFlow, DeviceEvents,
+    EventLoopProxy as CoreEventLoopProxy, OwnedDisplayHandle as CoreOwnedDisplayHandle,
+};
+use winit_core::monitor::MonitorHandle as CoreMonitorHandle;
+use winit_core::window::Theme;
 
 use super::super::notification_center::create_observer;
 use super::app::override_send_event;
@@ -23,18 +32,9 @@ use super::cursor::CustomCursor;
 use super::event::dummy_event;
 use super::monitor;
 use super::observer::setup_control_flow_observers;
-use crate::application::ApplicationHandler;
-use crate::cursor::{CustomCursor as CoreCustomCursor, CustomCursorSource};
-use crate::error::{EventLoopError, RequestError};
-use crate::event_loop::{
-    ActiveEventLoop as RootActiveEventLoop, ControlFlow, DeviceEvents,
-    EventLoopProxy as CoreEventLoopProxy, OwnedDisplayHandle as CoreOwnedDisplayHandle,
-};
-use crate::monitor::MonitorHandle as CoreMonitorHandle;
 use crate::platform::macos::ActivationPolicy;
 use crate::platform::pump_events::PumpStatus;
 use crate::platform_impl::Window;
-use crate::window::Theme;
 
 #[derive(Default)]
 pub struct PanicInfo {
@@ -103,8 +103,8 @@ impl RootActiveEventLoop for ActiveEventLoop {
 
     fn create_window(
         &self,
-        window_attributes: crate::window::WindowAttributes,
-    ) -> Result<Box<dyn crate::window::Window>, RequestError> {
+        window_attributes: winit_core::window::WindowAttributes,
+    ) -> Result<Box<dyn winit_core::window::Window>, RequestError> {
         Ok(Box::new(Window::new(self, window_attributes)?))
     }
 
@@ -123,7 +123,7 @@ impl RootActiveEventLoop for ActiveEventLoop {
         )
     }
 
-    fn primary_monitor(&self) -> Option<crate::monitor::MonitorHandle> {
+    fn primary_monitor(&self) -> Option<winit_core::monitor::MonitorHandle> {
         let monitor = monitor::primary_monitor();
         Some(CoreMonitorHandle(Arc::new(monitor)))
     }

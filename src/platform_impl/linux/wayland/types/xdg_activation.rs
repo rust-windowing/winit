@@ -11,10 +11,10 @@ use sctk::reexports::protocols::xdg::activation::v1::client::xdg_activation_toke
     Event as ActivationTokenEvent, XdgActivationTokenV1,
 };
 use sctk::reexports::protocols::xdg::activation::v1::client::xdg_activation_v1::XdgActivationV1;
+use winit_core::event_loop::AsyncRequestSerial;
+use winit_core::window::{ActivationToken, WindowId};
 
-use crate::event_loop::AsyncRequestSerial;
 use crate::platform_impl::wayland::state::WinitState;
-use crate::window::{ActivationToken, WindowId};
 
 #[derive(Debug)]
 pub struct XdgActivationState {
@@ -77,7 +77,7 @@ impl Dispatch<XdgActivationTokenV1, XdgActivationTokenData, WinitState> for XdgA
             },
             XdgActivationTokenData::Obtain((window_id, serial)) => {
                 state.events_sink.push_window_event(
-                    crate::event::WindowEvent::ActivationTokenDone {
+                    winit_core::event::WindowEvent::ActivationTokenDone {
                         serial: *serial,
                         token: ActivationToken::from_raw(token),
                     },

@@ -2,6 +2,7 @@ use std::ffi::{c_void, OsString};
 use std::os::windows::prelude::OsStringExt;
 use std::ptr::null_mut;
 
+use dpi::{Position, Size};
 use windows_sys::Win32::Foundation::{POINT, RECT};
 use windows_sys::Win32::UI::Input::Ime::{
     ImmAssociateContextEx, ImmGetCompositionStringW, ImmGetContext, ImmReleaseContext,
@@ -11,7 +12,6 @@ use windows_sys::Win32::UI::Input::Ime::{
 };
 use windows_sys::Win32::UI::WindowsAndMessaging::{GetSystemMetrics, SM_IMMENABLED};
 
-use crate::dpi::{Position, Size};
 use crate::platform::windows::HWND;
 
 pub struct ImeContext {

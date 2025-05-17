@@ -3,14 +3,14 @@ use std::hash::{Hash, Hasher};
 use std::iter;
 use std::sync::Arc;
 
+use winit_core::cursor::{CursorIcon, CustomCursorProvider, CustomCursorSource};
+use winit_core::error::{NotSupportedError, RequestError};
 use x11rb::connection::Connection;
 use x11rb::protocol::render::{self, ConnectionExt as _};
 use x11rb::protocol::xproto;
 
 use super::super::ActiveEventLoop;
 use super::*;
-use crate::cursor::{CursorIcon, CustomCursorProvider, CustomCursorSource};
-use crate::error::{NotSupportedError, RequestError};
 
 impl XConnection {
     pub fn set_cursor_icon(

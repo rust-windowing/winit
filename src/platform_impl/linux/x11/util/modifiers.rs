@@ -2,7 +2,7 @@ use std::{collections::HashMap, slice};
 
 use super::*;
 
-use crate::event::{ElementState, ModifiersState};
+use winit_core::event::{ElementState, ModifiersState};
 
 // Offsets within XModifierKeymap to each set of keycodes.
 // We are only interested in Shift, Control, Alt, and Logo.

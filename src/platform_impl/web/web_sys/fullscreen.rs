@@ -6,10 +6,10 @@ use wasm_bindgen::closure::Closure;
 use wasm_bindgen::prelude::wasm_bindgen;
 use wasm_bindgen::{JsCast, JsValue};
 use web_sys::{console, Document, Element, HtmlCanvasElement, Window};
+use winit_core::monitor::Fullscreen;
 
 use super::super::main_thread::MainThreadMarker;
 use super::super::monitor::{self, ScreenDetailed};
-use crate::monitor::Fullscreen;
 use crate::platform_impl::MonitorHandle;
 
 pub(crate) fn request_fullscreen(

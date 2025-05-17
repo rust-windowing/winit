@@ -6,16 +6,16 @@ use std::sync::{Arc, Mutex};
 use std::time::Instant;
 use std::{fmt, mem, panic};
 
+use dpi::PhysicalSize;
 use windows_sys::Win32::Foundation::HWND;
+use winit_core::application::ApplicationHandler;
+use winit_core::event::{DeviceEvent, DeviceId, StartCause, SurfaceSizeWriter, WindowEvent};
+use winit_core::event_loop::ActiveEventLoop as RootActiveEventLoop;
+use winit_core::window::WindowId;
 
 use super::{ActiveEventLoop, ControlFlow, EventLoopThreadExecutor};
-use crate::application::ApplicationHandler;
-use crate::dpi::PhysicalSize;
-use crate::event::{DeviceEvent, DeviceId, StartCause, SurfaceSizeWriter, WindowEvent};
-use crate::event_loop::ActiveEventLoop as RootActiveEventLoop;
 use crate::platform_impl::platform::event_loop::{WindowData, GWL_USERDATA};
 use crate::platform_impl::platform::get_window_long;
-use crate::window::WindowId;
 
 type EventHandler = Cell<Option<&'static mut (dyn ApplicationHandler + 'static)>>;
 

@@ -11,7 +11,7 @@ use std::rc::{Rc, Weak};
 use std::sync::{Arc, OnceLock};
 use std::task::{ready, Context, Poll};
 
-use dpi::LogicalSize;
+use dpi::{LogicalSize, PhysicalPosition, PhysicalSize};
 use js_sys::{Object, Promise};
 use tracing::error;
 use wasm_bindgen::closure::Closure;
@@ -22,13 +22,12 @@ use web_sys::{
     console, DomException, Navigator, OrientationLockType, OrientationType, PermissionState,
     PermissionStatus, ScreenOrientation, Window,
 };
+use winit_core::monitor::{MonitorHandle as CoreMonitorHandle, MonitorHandleProvider, VideoMode};
 
 use super::event_loop::runner::WeakShared;
 use super::main_thread::MainThreadMarker;
 use super::r#async::{Dispatcher, Notified, Notifier};
 use super::web_sys::{Engine, EventListenerHandle};
-use crate::dpi::{PhysicalPosition, PhysicalSize};
-use crate::monitor::{MonitorHandle as CoreMonitorHandle, MonitorHandleProvider, VideoMode};
 use crate::platform::web::{
     MonitorPermissionError, Orientation, OrientationData, OrientationLock, OrientationLockError,
 };

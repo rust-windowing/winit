@@ -4,6 +4,7 @@ use std::collections::{HashMap, VecDeque};
 use std::ptr;
 use std::rc::Rc;
 
+use dpi::{LogicalPosition, LogicalSize};
 use objc2::rc::Retained;
 use objc2::runtime::{AnyObject, Sel};
 use objc2::{define_class, msg_send, DefinedClass, MainThreadMarker};
@@ -15,6 +16,11 @@ use objc2_foundation::{
     NSArray, NSAttributedString, NSAttributedStringKey, NSCopying, NSMutableAttributedString,
     NSNotFound, NSObject, NSPoint, NSRange, NSRect, NSSize, NSString, NSUInteger,
 };
+use winit_core::event::{
+    DeviceEvent, ElementState, Ime, KeyEvent, Modifiers, MouseButton, MouseScrollDelta,
+    PointerKind, PointerSource, TouchPhase, WindowEvent,
+};
+use winit_core::keyboard::{Key, KeyCode, KeyLocation, ModifiersState, NamedKey};
 
 use super::app_state::AppState;
 use super::cursor::{default_cursor, invisible_cursor};
@@ -23,12 +29,6 @@ use super::event::{
     scancode_to_physicalkey,
 };
 use super::window::window_id;
-use crate::dpi::{LogicalPosition, LogicalSize};
-use crate::event::{
-    DeviceEvent, ElementState, Ime, KeyEvent, Modifiers, MouseButton, MouseScrollDelta,
-    PointerKind, PointerSource, TouchPhase, WindowEvent,
-};
-use crate::keyboard::{Key, KeyCode, KeyLocation, ModifiersState, NamedKey};
 use crate::platform::macos::OptionAsAlt;
 
 #[derive(Debug)]

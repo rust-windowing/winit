@@ -5,10 +5,10 @@ use smol_str::SmolStr;
 use wasm_bindgen::prelude::wasm_bindgen;
 use wasm_bindgen::{JsCast, JsValue};
 use web_sys::{KeyboardEvent, MouseEvent, Navigator, PointerEvent, WheelEvent};
+use winit_core::event::{FingerId, MouseButton, MouseScrollDelta, PointerKind};
+use winit_core::keyboard::{Key, KeyLocation, ModifiersState, NamedKey, PhysicalKey};
 
 use super::Engine;
-use crate::event::{FingerId, MouseButton, MouseScrollDelta, PointerKind};
-use crate::keyboard::{Key, KeyLocation, ModifiersState, NamedKey, PhysicalKey};
 use crate::platform_impl::web::keyboard::FromAttributeValue;
 
 bitflags::bitflags! {

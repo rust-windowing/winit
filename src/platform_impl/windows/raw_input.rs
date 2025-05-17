@@ -20,11 +20,11 @@ use windows_sys::Win32::UI::WindowsAndMessaging::{
     RI_MOUSE_BUTTON_2_UP, RI_MOUSE_BUTTON_3_DOWN, RI_MOUSE_BUTTON_3_UP, RI_MOUSE_BUTTON_4_DOWN,
     RI_MOUSE_BUTTON_4_UP, RI_MOUSE_BUTTON_5_DOWN, RI_MOUSE_BUTTON_5_UP,
 };
+use winit_core::event::ElementState;
+use winit_core::event_loop::DeviceEvents;
+use winit_core::keyboard::{KeyCode, PhysicalKey};
 
 use super::scancode_to_physicalkey;
-use crate::event::ElementState;
-use crate::event_loop::DeviceEvents;
-use crate::keyboard::{KeyCode, PhysicalKey};
 use crate::platform_impl::platform::util;
 
 #[allow(dead_code)]

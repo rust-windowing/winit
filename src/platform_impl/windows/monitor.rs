@@ -3,6 +3,7 @@ use std::hash::Hash;
 use std::num::{NonZeroU16, NonZeroU32};
 use std::{io, iter, mem, ptr};
 
+use dpi::{PhysicalPosition, PhysicalSize};
 use windows_sys::Win32::Foundation::{BOOL, HWND, LPARAM, POINT, RECT};
 use windows_sys::Win32::Graphics::Gdi::{
     EnumDisplayMonitors, EnumDisplaySettingsExW, GetMonitorInfoW, MonitorFromPoint,
@@ -10,10 +11,9 @@ use windows_sys::Win32::Graphics::Gdi::{
     ENUM_CURRENT_SETTINGS, HDC, HMONITOR, MONITORINFO, MONITORINFOEXW, MONITOR_DEFAULTTONEAREST,
     MONITOR_DEFAULTTOPRIMARY,
 };
+use winit_core::monitor::{MonitorHandleProvider, VideoMode};
 
 use super::util::decode_wide;
-use crate::dpi::{PhysicalPosition, PhysicalSize};
-use crate::monitor::{MonitorHandleProvider, VideoMode};
 use crate::platform_impl::platform::dpi::{dpi_to_scale_factor, get_monitor_dpi};
 use crate::platform_impl::platform::util::has_flag;
 
@@ -189,7 +189,7 @@ impl MonitorHandleProvider for MonitorHandle {
         dpi_to_scale_factor(get_monitor_dpi(self.0).unwrap_or(96))
     }
 
-    fn current_video_mode(&self) -> Option<crate::monitor::VideoMode> {
+    fn current_video_mode(&self) -> Option<winit_core::monitor::VideoMode> {
         let monitor_info = get_monitor_info(self.0).ok()?;
         let device_name = monitor_info.szDevice.as_ptr();
         unsafe {

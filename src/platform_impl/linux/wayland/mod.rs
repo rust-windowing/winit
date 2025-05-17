@@ -1,10 +1,9 @@
 //! Winit's Wayland backend.
 
+use dpi::{LogicalSize, PhysicalSize};
 use sctk::reexports::client::protocol::wl_surface::WlSurface;
 use sctk::reexports::client::Proxy;
-
-use crate::dpi::{LogicalSize, PhysicalSize};
-use crate::window::WindowId;
+use winit_core::window::WindowId;
 
 mod event_loop;
 mod output;

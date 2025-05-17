@@ -1,14 +1,14 @@
 use std::cell::Cell;
 use std::rc::Rc;
 
+use dpi::PhysicalPosition;
 use web_sys::PointerEvent;
+use winit_core::event::{ButtonSource, DeviceId, ElementState, Force, PointerKind, PointerSource};
+use winit_core::keyboard::ModifiersState;
 
 use super::canvas::Common;
 use super::event;
 use super::event_handle::EventListenerHandle;
-use crate::dpi::PhysicalPosition;
-use crate::event::{ButtonSource, DeviceId, ElementState, Force, PointerKind, PointerSource};
-use crate::keyboard::ModifiersState;
 use crate::platform_impl::web::event::mkdid;
 use crate::platform_impl::web::web_sys::event::mouse_button_to_id;
 

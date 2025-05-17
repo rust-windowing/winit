@@ -16,20 +16,20 @@ use objc2_ui_kit::{
     UIApplicationWillResignActiveNotification, UIApplicationWillTerminateNotification, UIScreen,
 };
 use rwh_06::HasDisplayHandle;
+use winit_core::application::ApplicationHandler;
+use winit_core::cursor::{CustomCursor, CustomCursorSource};
+use winit_core::error::{EventLoopError, NotSupportedError, RequestError};
+use winit_core::event_loop::{
+    ActiveEventLoop as RootActiveEventLoop, ControlFlow, DeviceEvents,
+    EventLoopProxy as CoreEventLoopProxy, OwnedDisplayHandle as CoreOwnedDisplayHandle,
+};
+use winit_core::monitor::MonitorHandle as CoreMonitorHandle;
+use winit_core::window::{Theme, Window as CoreWindow};
 
 use super::super::notification_center::create_observer;
 use super::app_state::{send_occluded_event_for_all_windows, AppState};
 use super::{app_state, monitor, MonitorHandle};
-use crate::application::ApplicationHandler;
-use crate::cursor::{CustomCursor, CustomCursorSource};
-use crate::error::{EventLoopError, NotSupportedError, RequestError};
-use crate::event_loop::{
-    ActiveEventLoop as RootActiveEventLoop, ControlFlow, DeviceEvents,
-    EventLoopProxy as CoreEventLoopProxy, OwnedDisplayHandle as CoreOwnedDisplayHandle,
-};
-use crate::monitor::MonitorHandle as CoreMonitorHandle;
 use crate::platform_impl::Window;
-use crate::window::{Theme, Window as CoreWindow};
 
 #[derive(Debug)]
 pub(crate) struct ActiveEventLoop {
@@ -43,7 +43,7 @@ impl RootActiveEventLoop for ActiveEventLoop {
 
     fn create_window(
         &self,
-        window_attributes: crate::window::WindowAttributes,
+        window_attributes: winit_core::window::WindowAttributes,
     ) -> Result<Box<dyn CoreWindow>, RequestError> {
         Ok(Box::new(Window::new(self, window_attributes)?))
     }
@@ -63,7 +63,7 @@ impl RootActiveEventLoop for ActiveEventLoop {
         )
     }
 
-    fn primary_monitor(&self) -> Option<crate::monitor::MonitorHandle> {
+    fn primary_monitor(&self) -> Option<winit_core::monitor::MonitorHandle> {
         #[allow(deprecated)]
         let monitor = MonitorHandle::new(UIScreen::mainScreen(self.mtm));
         Some(CoreMonitorHandle(Arc::new(monitor)))

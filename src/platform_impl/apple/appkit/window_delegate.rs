@@ -6,6 +6,10 @@ use std::ptr;
 use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 
+use dpi::{
+    LogicalInsets, LogicalPosition, LogicalSize, PhysicalInsets, PhysicalPosition, PhysicalSize,
+    Position, Size,
+};
 use objc2::rc::{autoreleasepool, Retained};
 use objc2::runtime::{AnyObject, ProtocolObject};
 use objc2::{
@@ -36,6 +40,15 @@ use objc2_foundation::{
     NSRect, NSSize, NSString,
 };
 use tracing::{trace, warn};
+use winit_core::cursor::Cursor;
+use winit_core::error::{NotSupportedError, RequestError};
+use winit_core::event::{SurfaceSizeWriter, WindowEvent};
+use winit_core::icon::Icon;
+use winit_core::monitor::{Fullscreen, MonitorHandle as CoreMonitorHandle, MonitorHandleProvider};
+use winit_core::window::{
+    CursorGrabMode, ImePurpose, ResizeDirection, Theme, UserAttentionType, WindowAttributes,
+    WindowButtons, WindowId, WindowLevel,
+};
 
 use super::app_state::AppState;
 use super::cursor::{cursor_from_icon, CustomCursor};
@@ -45,20 +58,7 @@ use super::util::cgerr;
 use super::view::WinitView;
 use super::window::{window_id, WinitPanel, WinitWindow};
 use super::{ffi, MonitorHandle};
-use crate::cursor::Cursor;
-use crate::dpi::{
-    LogicalInsets, LogicalPosition, LogicalSize, PhysicalInsets, PhysicalPosition, PhysicalSize,
-    Position, Size,
-};
-use crate::error::{NotSupportedError, RequestError};
-use crate::event::{SurfaceSizeWriter, WindowEvent};
-use crate::icon::Icon;
-use crate::monitor::{Fullscreen, MonitorHandle as CoreMonitorHandle, MonitorHandleProvider};
 use crate::platform::macos::{OptionAsAlt, WindowAttributesMacOS, WindowExtMacOS};
-use crate::window::{
-    CursorGrabMode, ImePurpose, ResizeDirection, Theme, UserAttentionType, WindowAttributes,
-    WindowButtons, WindowId, WindowLevel,
-};
 
 #[derive(Debug)]
 pub(crate) struct State {

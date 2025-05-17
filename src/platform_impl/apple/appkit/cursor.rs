@@ -9,9 +9,8 @@ use objc2_app_kit::{NSBitmapImageRep, NSCursor, NSDeviceRGBColorSpace, NSImage};
 use objc2_foundation::{
     ns_string, NSData, NSDictionary, NSNumber, NSObject, NSPoint, NSSize, NSString,
 };
-
-use crate::cursor::{CursorIcon, CursorImage, CustomCursorProvider, CustomCursorSource};
-use crate::error::{NotSupportedError, RequestError};
+use winit_core::cursor::{CursorIcon, CursorImage, CustomCursorProvider, CustomCursorSource};
+use winit_core::error::{NotSupportedError, RequestError};
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct CustomCursor(pub(crate) Retained<NSCursor>);

@@ -9,9 +9,9 @@ use objc2::runtime::{Imp, Sel};
 use objc2::sel;
 use objc2_app_kit::{NSApplication, NSEvent, NSEventModifierFlags, NSEventType};
 use objc2_foundation::MainThreadMarker;
+use winit_core::event::{DeviceEvent, ElementState};
 
 use super::app_state::AppState;
-use crate::event::{DeviceEvent, ElementState};
 
 type SendEvent = extern "C-unwind" fn(&NSApplication, Sel, &NSEvent);
 

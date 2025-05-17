@@ -4,6 +4,7 @@ use std::sync::Arc;
 use std::{fmt, io, mem, ptr};
 
 use cursor_icon::CursorIcon;
+use dpi::PhysicalSize;
 use windows_sys::core::PCWSTR;
 use windows_sys::Win32::Graphics::Gdi::{
     CreateBitmap, CreateCompatibleBitmap, DeleteObject, GetDC, ReleaseDC, SetBitmapBits,
@@ -12,12 +13,11 @@ use windows_sys::Win32::UI::WindowsAndMessaging::{
     CreateIcon, CreateIconIndirect, DestroyCursor, DestroyIcon, LoadImageW, HCURSOR, HICON,
     ICONINFO, ICON_BIG, ICON_SMALL, IMAGE_ICON, LR_DEFAULTSIZE, LR_LOADFROMFILE,
 };
+use winit_core::cursor::{CursorImage, CustomCursorProvider};
+use winit_core::error::RequestError;
+use winit_core::icon::*;
 
 use super::util;
-use crate::cursor::{CursorImage, CustomCursorProvider};
-use crate::dpi::PhysicalSize;
-use crate::error::RequestError;
-use crate::icon::*;
 use crate::platform::windows::WinIcon;
 
 pub(crate) const PIXEL_SIZE: usize = mem::size_of::<Pixel>();

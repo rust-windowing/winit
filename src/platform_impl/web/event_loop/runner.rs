@@ -5,10 +5,17 @@ use std::rc::{Rc, Weak};
 use std::sync::Arc;
 use std::{fmt, iter};
 
+use dpi::PhysicalSize;
 use wasm_bindgen::prelude::Closure;
 use wasm_bindgen::JsCast;
 use web_sys::{Document, KeyboardEvent, Navigator, PageTransitionEvent, PointerEvent, WheelEvent};
 use web_time::{Duration, Instant};
+use winit_core::application::ApplicationHandler;
+use winit_core::event::{
+    DeviceEvent, DeviceId, ElementState, RawKeyEvent, StartCause, WindowEvent,
+};
+use winit_core::event_loop::{ControlFlow, DeviceEvents};
+use winit_core::window::WindowId;
 
 use super::super::event;
 use super::super::main_thread::MainThreadMarker;
@@ -16,16 +23,11 @@ use super::super::monitor::MonitorHandler;
 use super::proxy::EventLoopProxy;
 use super::state::State;
 use super::{backend, ActiveEventLoop};
-use crate::application::ApplicationHandler;
-use crate::dpi::PhysicalSize;
-use crate::event::{DeviceEvent, DeviceId, ElementState, RawKeyEvent, StartCause, WindowEvent};
-use crate::event_loop::{ControlFlow, DeviceEvents};
 use crate::platform::web::{PollStrategy, WaitUntilStrategy};
 use crate::platform_impl::platform::backend::{EventListenerHandle, SafeAreaHandle};
 use crate::platform_impl::platform::r#async::DispatchRunner;
 use crate::platform_impl::platform::window::Inner;
 use crate::platform_impl::web::web_sys::event::mouse_button_to_id;
-use crate::window::WindowId;
 
 #[derive(Debug)]
 pub struct Shared(Rc<Execution>);
@@ -602,7 +604,7 @@ impl Shared {
             self.0.all_canvases.borrow_mut().retain(|&(item_id, ..)| item_id != id);
             self.handle_event(Event::WindowEvent {
                 window_id: id,
-                event: crate::event::WindowEvent::Destroyed,
+                event: winit_core::event::WindowEvent::Destroyed,
             });
             self.0.redraw_pending.borrow_mut().remove(&id);
         }

@@ -1,7 +1,6 @@
 use objc2_core_graphics::CGError;
 use tracing::trace;
-
-use crate::error::OsError;
+use winit_core::error::OsError;
 
 macro_rules! trace_scope {
     ($s:literal) => {

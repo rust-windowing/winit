@@ -23,8 +23,7 @@ use windows_sys::Win32::UI::WindowsAndMessaging::{
     SM_CXVIRTUALSCREEN, SM_CYVIRTUALSCREEN, SM_XVIRTUALSCREEN, SM_YVIRTUALSCREEN, SW_MAXIMIZE,
     WINDOWPLACEMENT,
 };
-
-use crate::cursor::CursorIcon;
+use winit_core::cursor::CursorIcon;
 
 pub fn encode_wide(string: impl AsRef<OsStr>) -> Vec<u16> {
     string.as_ref().encode_wide().chain(once(0)).collect()

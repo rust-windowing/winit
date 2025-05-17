@@ -1,7 +1,8 @@
 use android_activity::input::{KeyAction, KeyEvent, KeyMapChar, Keycode};
 use android_activity::AndroidApp;
-
-use crate::keyboard::{Key, KeyCode, KeyLocation, NamedKey, NativeKey, NativeKeyCode, PhysicalKey};
+use winit_core::keyboard::{
+    Key, KeyCode, KeyLocation, NamedKey, NativeKey, NativeKeyCode, PhysicalKey,
+};
 
 pub fn to_physical_key(keycode: Keycode) -> PhysicalKey {
     PhysicalKey::Code(match keycode {

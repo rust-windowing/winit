@@ -1,8 +1,7 @@
 use cursor_icon::CursorIcon;
 use sctk::reexports::client::protocol::wl_shm::Format;
 use sctk::shm::slot::{Buffer, SlotPool};
-
-use crate::cursor::{CursorImage, CustomCursorProvider};
+use winit_core::cursor::{CursorImage, CustomCursorProvider};
 
 // Wrap in our own type to not impl trait on global type.
 #[derive(Debug)]

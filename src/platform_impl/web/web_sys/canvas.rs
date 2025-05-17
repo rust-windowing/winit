@@ -3,6 +3,7 @@ use std::ops::Deref;
 use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 
+use dpi::{LogicalPosition, PhysicalPosition, PhysicalSize};
 use smol_str::SmolStr;
 use wasm_bindgen::closure::Closure;
 use wasm_bindgen::JsCast;
@@ -10,6 +11,14 @@ use web_sys::{
     CssStyleDeclaration, Document, Event, FocusEvent, HtmlCanvasElement, KeyboardEvent, Navigator,
     PointerEvent, WheelEvent,
 };
+use winit_core::error::RequestError;
+use winit_core::event::{
+    ButtonSource, DeviceId, ElementState, MouseScrollDelta, PointerKind, PointerSource,
+    SurfaceSizeWriter, WindowEvent,
+};
+use winit_core::keyboard::{Key, KeyLocation, ModifiersState, PhysicalKey};
+use winit_core::monitor::Fullscreen;
+use winit_core::window::{WindowAttributes, WindowId};
 
 use super::super::cursor::CursorHandler;
 use super::super::event_loop::runner;
@@ -20,16 +29,7 @@ use super::intersection_handle::IntersectionObserverHandle;
 use super::media_query_handle::MediaQueryListHandle;
 use super::pointer::PointerHandler;
 use super::{event, fullscreen, ResizeScaleHandle};
-use crate::dpi::{LogicalPosition, PhysicalPosition, PhysicalSize};
-use crate::error::RequestError;
-use crate::event::{
-    ButtonSource, DeviceId, ElementState, MouseScrollDelta, PointerKind, PointerSource,
-    SurfaceSizeWriter, WindowEvent,
-};
-use crate::keyboard::{Key, KeyLocation, ModifiersState, PhysicalKey};
-use crate::monitor::Fullscreen;
 use crate::platform::web::WindowAttributesWeb;
-use crate::window::{WindowAttributes, WindowId};
 
 #[allow(dead_code)]
 pub struct Canvas {

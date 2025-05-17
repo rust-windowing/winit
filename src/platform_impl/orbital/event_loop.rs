@@ -10,23 +10,23 @@ use orbclient::{
     MoveEvent, QuitEvent, ResizeEvent, ScrollEvent, TextInputEvent,
 };
 use smol_str::SmolStr;
-
-use super::{PlatformSpecificEventLoopAttributes, RedoxSocket, TimeSocket, WindowProperties};
-use crate::application::ApplicationHandler;
-use crate::cursor::{CustomCursor, CustomCursorSource};
-use crate::error::{EventLoopError, NotSupportedError, RequestError};
-use crate::event::{self, Ime, Modifiers, StartCause};
-use crate::event_loop::{
+use winit_core::application::ApplicationHandler;
+use winit_core::cursor::{CustomCursor, CustomCursorSource};
+use winit_core::error::{EventLoopError, NotSupportedError, RequestError};
+use winit_core::event::{self, Ime, Modifiers, StartCause};
+use winit_core::event_loop::{
     ActiveEventLoop as RootActiveEventLoop, ControlFlow, DeviceEvents,
     EventLoopProxy as CoreEventLoopProxy, EventLoopProxyProvider,
     OwnedDisplayHandle as CoreOwnedDisplayHandle,
 };
-use crate::keyboard::{
+use winit_core::keyboard::{
     Key, KeyCode, KeyLocation, ModifiersKeys, ModifiersState, NamedKey, NativeKey, NativeKeyCode,
     PhysicalKey,
 };
+use winit_core::window::{Theme, Window as CoreWindow, WindowId};
+
+use super::{PlatformSpecificEventLoopAttributes, RedoxSocket, TimeSocket, WindowProperties};
 use crate::platform_impl::Window;
-use crate::window::{Theme, Window as CoreWindow, WindowId};
 
 fn convert_scancode(scancode: u8) -> (PhysicalKey, Option<NamedKey>) {
     // Key constants from https://docs.rs/orbclient/latest/orbclient/event/index.html
@@ -693,7 +693,7 @@ impl RootActiveEventLoop for ActiveEventLoop {
 
     fn create_window(
         &self,
-        window_attributes: crate::window::WindowAttributes,
+        window_attributes: winit_core::window::WindowAttributes,
     ) -> Result<Box<dyn CoreWindow>, RequestError> {
         Ok(Box::new(Window::new(self, window_attributes)?))
     }
@@ -702,7 +702,7 @@ impl RootActiveEventLoop for ActiveEventLoop {
         Err(NotSupportedError::new("create_custom_cursor is not supported").into())
     }
 
-    fn available_monitors(&self) -> Box<dyn Iterator<Item = crate::monitor::MonitorHandle>> {
+    fn available_monitors(&self) -> Box<dyn Iterator<Item = winit_core::monitor::MonitorHandle>> {
         Box::new(iter::empty())
     }
 
@@ -710,7 +710,7 @@ impl RootActiveEventLoop for ActiveEventLoop {
         None
     }
 
-    fn primary_monitor(&self) -> Option<crate::monitor::MonitorHandle> {
+    fn primary_monitor(&self) -> Option<winit_core::monitor::MonitorHandle> {
         None
     }
 
