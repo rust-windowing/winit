@@ -153,12 +153,12 @@ impl Drop for XkbState {
     }
 }
 
-/// Represents the current state of the keyboard modifiers
+/// Represents the current logical state of the keyboard modifiers
 ///
 /// Each field of this struct represents a modifier and is `true` if this modifier is active.
 ///
-/// For some modifiers, this means that the key is currently pressed, others are toggled
-/// (like caps lock).
+/// For some modifiers, this means that the key is currently logically pressed (but the physical key
+/// can be released as in the case of sticky modifiers), others are toggled (like caps lock).
 #[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
 pub struct ModifiersState {
     /// The "control" key
