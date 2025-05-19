@@ -276,7 +276,6 @@ impl LayoutCache {
 
     pub fn get_mods(&mut self) -> Modifiers {
         let (_, layout) = self.get_current_layout();
-        let filter_out_altgr = layout.has_alt_graph && key_pressed(VK_RMENU);
         let mut state = ModifiersState::empty();
         let mut pressed_mods = ModifiersKeys::empty();
 
@@ -290,20 +289,28 @@ impl LayoutCache {
             state.contains(ModifiersState::SHIFT) && key_pressed(VK_RSHIFT),
         );
 
-        pressed_mods.set(ModifiersKeys::LCONTROL, key_pressed(VK_LCONTROL) && !filter_out_altgr);
-        pressed_mods.set(ModifiersKeys::RCONTROL, key_pressed(VK_RCONTROL) && !filter_out_altgr);
-        state.set(
-            ModifiersState::CONTROL,
-            pressed_mods.contains(ModifiersKeys::LCONTROL)
-                || pressed_mods.contains(ModifiersKeys::RCONTROL),
-        );
-
-        pressed_mods.set(ModifiersKeys::LALT, key_pressed(VK_LMENU) && !filter_out_altgr);
-        pressed_mods.set(ModifiersKeys::RALT, key_pressed(VK_RMENU) && !filter_out_altgr);
+        pressed_mods.set(ModifiersKeys::LALT, key_pressed(VK_LMENU));
+        let is_ralt = key_pressed(VK_RMENU);
+        let is_altgr = layout.has_alt_graph && is_ralt;
+        pressed_mods.set(ModifiersKeys::RALT, is_ralt && !is_altgr);
         state.set(
             ModifiersState::ALT,
             pressed_mods.contains(ModifiersKeys::LALT)
                 || pressed_mods.contains(ModifiersKeys::RALT),
+        );
+        state.set(ModifiersState::ALTGR, is_altgr);
+
+        // On Windows AltGr = RAlt + LCtrl, and OS sends artificial LCtrl key event, which needs to
+        // be filtered out without touching "real" LCtrl events to allow separate bindings of
+        // LCtrl+AltGr+X and AltGr+X. TODO: this is likely only possible by tracking the
+        // physical LCtrl state via raw keyboard events as the message loop isn't capable of
+        // excluding artificial LCtrl events?
+        pressed_mods.set(ModifiersKeys::RCONTROL, key_pressed(VK_RCONTROL));
+        pressed_mods.set(ModifiersKeys::LCONTROL, key_pressed(VK_LCONTROL) && !is_altgr);
+        state.set(
+            ModifiersState::CONTROL,
+            pressed_mods.contains(ModifiersKeys::LCONTROL)
+                || pressed_mods.contains(ModifiersKeys::RCONTROL),
         );
 
         pressed_mods.set(ModifiersKeys::LMETA, key_pressed(VK_LWIN));
