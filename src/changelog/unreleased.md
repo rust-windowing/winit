@@ -201,6 +201,7 @@ changelog entry.
 - Move `IconExtWindows` into `WinIcon`.
 - Move `EventLoopExtPumpEvents` and `PumpStatus` from platform module to `winit::event_loop::pump_events`.
 - Move `EventLoopExtRunOnDemand` from platform module to `winit::event_loop::run_on_demand`.
+- On Windows, update side-aware `event::Modifiers` information on state change.
 
 ### Removed
 
