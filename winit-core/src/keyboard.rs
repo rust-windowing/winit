@@ -1705,6 +1705,8 @@ bitflags! {
         const ALT = 0b100 << 6;
         /// This is the "windows" key on PC and "command" key on Mac.
         const META = 0b100 << 9;
+        /// The "AltGraph" key, usually used to insert symbols.
+        const ALTGR = 0b100 << 10;
         #[deprecated = "use META instead"]
         const SUPER = Self::META.bits();
     }
