@@ -150,7 +150,6 @@ pub fn ev_key_s(key: &KeyEvent) -> String {
     s
 }
 
-use winit_core::keyboard::NamedKey;
 impl ApplicationHandler for App {
     fn can_create_surfaces(&mut self, event_loop: &dyn ActiveEventLoop) {
         #[cfg(not(web_platform))]
@@ -180,10 +179,6 @@ impl ApplicationHandler for App {
                 let is_synthetic_s = if is_synthetic { "⚗" } else { " " };
                 let key_event_s = ev_key_s(&event);
                 println!("🖮 {}{}", is_synthetic_s, key_event_s);
-
-                if let Key::Named(NamedKey::Escape) = event.logical_key.as_ref() {
-                    event_loop.exit();
-                }
             },
             WindowEvent::CloseRequested => {
                 event_loop.exit();
