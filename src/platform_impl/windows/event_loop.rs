@@ -1047,6 +1047,9 @@ unsafe fn public_window_callback_inner(
     let mut result = ProcResult::DefWindowProc(wparam);
 
     // Send new modifiers before sending key events.
+    // NOTE: Some modifier key presses are not reported as KeyDown/Up events when the same
+    // alternative side modifier is being held, e.g., in a sequence of ↓LShift ↓RShift ↑RShift the
+    // last event is not reported.
     let mods_changed_callback = || match msg {
         WM_KEYDOWN | WM_SYSKEYDOWN | WM_KEYUP | WM_SYSKEYUP => {
             update_modifiers(window, userdata);
