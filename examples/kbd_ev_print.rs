@@ -48,6 +48,11 @@ pub fn mod_state_side_agnostic_s(state: &ModifiersState) -> String {
     } else {
         s.push_str("   ")
     };
+    if state.contains(ModifiersState::ALTGR) {
+        s.push_str("⎇Gr")
+    } else {
+        s.push_str("   ")
+    };
     s
 }
 // https://docs.rs/winit/latest/winit/event/struct.Modifiers.html
@@ -101,6 +106,7 @@ pub fn mod_state_side_aware_s(mods: &Modifiers) -> String {
     } else {
         s.push_str("   ")
     }
+    s.push_str("   ");
     s
 }
 // pub struct KeyEvent
