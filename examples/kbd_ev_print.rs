@@ -129,18 +129,40 @@ pub fn ev_key_s(key: &KeyEvent) -> String {
     } else {
         s.push(' ')
     }; //𜱣⚛
+    s.push(' ');
     match &key.physical_key {
-        PhysicalKey::Code(key_code) => s.push_str(&format!("{:?} ", key_code)),
+        PhysicalKey::Code(key_code) => s.push_str(&format!("{:?}", key_code)),
         PhysicalKey::Unidentified(key_code_native) => {
-            s.push_str(&format!("�{:?} ", key_code_native))
+            s.push_str(&format!("�{:?}", key_code_native))
         },
     };
+    s.push(' ');
     match &key.logical_key {
-        Key::Named(key_named) => s.push_str(&format!("{:?} ", key_named)),
-        Key::Character(key_char) => s.push_str(&format!("{} ", key_char)),
-        Key::Unidentified(key_native) => s.push_str(&format!("�{:?} ", key_native)),
-        Key::Dead(maybe_char) => s.push_str(&format!("🕱{:?} ", maybe_char)),
+        Key::Named(key_named) => s.push_str(&format!("{:?}", key_named)),
+        Key::Character(key_char) => s.push_str(&format!("{}", key_char)),
+        Key::Unidentified(key_native) => s.push_str(&format!("�{:?}", key_native)),
+        Key::Dead(maybe_char) => s.push_str(&format!("🕱{:?}", maybe_char)),
     };
+    s.push_str("  ");
+    if let Some(txt) = &key.text {
+        s.push_str(&format!("{}", txt));
+    } else {
+        s.push(' ');
+    }
+    s.push(' ');
+    if let Some(txt) = &key.text_with_all_modifiers {
+        s.push_str(&format!("{}", txt));
+    } else {
+        s.push(' ');
+    }
+    s.push(' ');
+    match &key.key_without_modifiers {
+        Key::Named(key_named) => s.push_str(&format!("{:?}", key_named)),
+        Key::Character(key_char) => s.push_str(&format!("{}", key_char)),
+        Key::Unidentified(key_native) => s.push_str(&format!("�{:?}", key_native)),
+        Key::Dead(maybe_char) => s.push_str(&format!("🕱{:?}", maybe_char)),
+    };
+    s.push_str("  ");
     match &key.location {
         KeyLocation::Standard => s.push('≝'),
         KeyLocation::Left => s.push('←'),
@@ -216,6 +238,13 @@ fn main() -> Result<(), Box<dyn Error>> {
     tracing::init();
 
     let event_loop = EventLoop::new()?;
+
+    println!(
+        "Δ is ModifiersChanged event, showing (line #1) side-agnostic modifier state as well as \
+         (#2) side-aware one."
+    );
+    println!("🖮 is KeyboardInput: ⚗=synthetic, ↓↑=pressed/released 🔁=repeat");
+    println!("    phys logic txt +mod −mod location");
 
     // For alternative loop run options see `pump_events` and `run_on_demand` examples.
     event_loop.run_app(App::default())?;
