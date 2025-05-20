@@ -1735,12 +1735,14 @@ impl ModifiersState {
 #[derive(Default, Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum ModifiersKeyState {
-    /// The particular modifier is active (logically, but not necessarily physically, pressed).
+    /// The particular modifier is active or logically, but not necessarily physically, pressed.
     Pressed,
-    /// The state of the key is unknown (can also be pressed, for example, when a sticky **Shift**
+    /// The state of the key is unknown.
+    ///
+    /// Can also be pressed, for example, when a sticky **Shift**
     /// is active, the OS might not include information that it was activated by RightShift, so the
     /// [ModifiersKeyState] of [ModifiersKeys::RSHIFT] will be unknown while the [ModifiersState]
-    /// of [ModifiersState::SHIFT] will be active).
+    /// of [ModifiersState::SHIFT] will be active.
     #[default]
     Unknown,
 }
