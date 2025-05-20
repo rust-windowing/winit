@@ -6,6 +6,7 @@
 /src/platform/ios.rs                @madsmtm
 /src/platform/macos.rs              @madsmtm
 /src/platform_impl/apple            @madsmtm
+/winit-apple-common                 @madsmtm
 
 # Unix
 /src/platform_impl/linux/mod.rs     @kchibisov
