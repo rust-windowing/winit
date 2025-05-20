@@ -81,6 +81,7 @@ changelog entry.
 - `keyboard::ModifiersKey` to track which modifier is exactly pressed.
 - `ActivationToken::as_raw` to get a ref to raw token.
 - Each platform now has corresponding `WindowAttributes` struct instead of trait extension.
+- On Windows, update side-aware `event::Modifiers` information on state change.
 
 ### Changed
 
@@ -201,7 +202,6 @@ changelog entry.
 - Move `IconExtWindows` into `WinIcon`.
 - Move `EventLoopExtPumpEvents` and `PumpStatus` from platform module to `winit::event_loop::pump_events`.
 - Move `EventLoopExtRunOnDemand` from platform module to `winit::event_loop::run_on_demand`.
-- On Windows, update side-aware `event::Modifiers` information on state change.
 
 ### Removed
 
