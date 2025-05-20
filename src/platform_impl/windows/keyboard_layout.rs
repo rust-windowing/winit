@@ -280,12 +280,14 @@ impl LayoutCache {
         let mut state = ModifiersState::empty();
         let mut pressed_mods = ModifiersKeys::empty();
 
-        pressed_mods.set(ModifiersKeys::LSHIFT, key_pressed(VK_LSHIFT));
-        pressed_mods.set(ModifiersKeys::RSHIFT, key_pressed(VK_RSHIFT));
-        state.set(
-            ModifiersState::SHIFT,
-            pressed_mods.contains(ModifiersKeys::LSHIFT)
-                || pressed_mods.contains(ModifiersKeys::RSHIFT),
+        state.set(ModifiersState::SHIFT, key_pressed(VK_SHIFT));
+        pressed_mods.set(
+            ModifiersKeys::LSHIFT,
+            state.contains(ModifiersState::SHIFT) && key_pressed(VK_LSHIFT),
+        );
+        pressed_mods.set(
+            ModifiersKeys::RSHIFT,
+            state.contains(ModifiersState::SHIFT) && key_pressed(VK_RSHIFT),
         );
 
         pressed_mods.set(ModifiersKeys::LCONTROL, key_pressed(VK_LCONTROL) && !filter_out_altgr);
