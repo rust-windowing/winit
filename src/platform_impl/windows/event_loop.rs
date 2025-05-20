@@ -944,7 +944,7 @@ fn update_modifiers(window: HWND, userdata: &WindowData) {
         // Drop lock
         drop(window_state);
 
-        userdata.send_window_event(window, ModifiersChanged(modifiers));
+        userdata.send_window_event(window, ModifiersChanged(modifiers.into()));
     }
 }
 
