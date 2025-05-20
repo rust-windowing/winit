@@ -1,3 +1,99 @@
+[workspace]
+members = ["dpi", "winit-core"]
+resolver = "2"
+
+[workspace.package]
+edition = "2021"
+license = "Apache-2.0"
+repository = "https://github.com/rust-windowing/winit"
+rust-version = "1.80"
+
+[workspace.dependencies]
+# Workspace dependencies.
+# `winit` has no version here to allow using it in dev deps for docs.
+winit = { path = "." }
+winit-core = { version = "0.0.0", path = "winit-core" }
+
+# Core dependencies.
+bitflags = "2"
+cfg_aliases = "0.2.1"
+cursor-icon = "1.1.0"
+dpi = { version = "0.1.2", path = "dpi" }
+mint = "0.5.6"
+rwh_06 = { package = "raw-window-handle", version = "0.6", features = ["std"] }
+serde = { version = "1", features = ["serde_derive"] }
+smol_str = "0.3"
+tracing = { version = "0.1.40", default-features = false }
+
+# Dev dependencies.
+image = { version = "0.25.0", default-features = false }
+softbuffer = { version = "0.4.6", default-features = false, features = [
+    "x11",
+    "x11-dlopen",
+    "wayland",
+    "wayland-dlopen",
+] }
+tracing-subscriber = "0.3.18"
+
+# Android dependencies.
+android-activity = "0.6.0"
+ndk = { version = "0.9.0", features = ["rwh_06"], default-features = false }
+
+# Apple dependencies.
+block2 = "0.6.1"
+dispatch2 = { version = "0.3.0", default-features = false, features = ["std", "objc2"] }
+objc2 = "0.6.1"
+objc2-app-kit = { version = "0.3.1", default-features = false }
+objc2-core-foundation = { version = "0.3.1", default-features = false }
+objc2-core-graphics = { version = "0.3.1", default-features = false }
+objc2-core-video = { version = "0.3.1", default-features = false }
+objc2-foundation = { version = "0.3.1", default-features = false }
+objc2-ui-kit = { version = "0.3.1", default-features = false }
+
+# Windows dependencies.
+unicode-segmentation = "1.7.1"
+windows-sys = "0.59.0"
+
+# Linux dependencies.
+ahash = { version = "0.8.7", features = ["no-rng"] }
+bytemuck = { version = "1.13.1", default-features = false }
+calloop = "0.13.0"
+libc = "0.2.64"
+memmap2 = "0.9.0"
+percent-encoding = "2.0"
+rustix = { version = "0.38.4", default-features = false }
+sctk = { package = "smithay-client-toolkit", version = "0.19.2", default-features = false, features = [
+    "calloop",
+] }
+sctk-adwaita = { version = "0.10.1", default-features = false }
+wayland-backend = { version = "0.3.10", default-features = false, features = ["client_system"] }
+wayland-client = "0.31.10"
+wayland-protocols = { version = "0.32.8", features = ["staging"] }
+wayland-protocols-plasma = { version = "0.3.8", features = ["client"] }
+x11-dl = "2.19.1"
+x11rb = { version = "0.13.0", default-features = false }
+xkbcommon-dl = "0.4.2"
+
+# Orbital dependencies.
+orbclient = { version = "0.3.47", default-features = false }
+redox_syscall = "0.5.7"
+
+# Web dependencies.
+atomic-waker = "1"
+concurrent-queue = { version = "2", default-features = false }
+console_error_panic_hook = "0.1"
+js-sys = "0.3.70"
+pin-project = "1"
+tracing-web = "0.1"
+wasm-bindgen = "0.2.93"
+wasm-bindgen-futures = "0.4.43"
+wasm-bindgen-test = "0.3"
+web-time = "1"
+web_sys = { package = "web-sys", version = "0.3.70" }
+
+##
+## Top-level Winit crate.
+##
 [package]
 authors = ["The winit contributors", "Pierre Krieger <pierre.krieger1708@gmail.com>"]
 categories = ["gui"]
@@ -80,45 +176,40 @@ wayland-dlopen = ["wayland-backend/dlopen"]
 x11 = ["x11-dl", "bytemuck", "percent-encoding", "xkbcommon-dl/x11", "x11rb"]
 
 [build-dependencies]
-cfg_aliases = "0.2.1"
+cfg_aliases.workspace = true
 
 [dependencies]
-bitflags = "2"
-cursor-icon = "1.1.0"
-dpi = { version = "0.1.2", path = "dpi" }
-rwh_06 = { package = "raw-window-handle", version = "0.6", features = ["std"] }
+bitflags.workspace = true
+cursor-icon.workspace = true
+dpi.workspace = true
+rwh_06.workspace = true
 serde = { workspace = true, optional = true }
-smol_str = "0.3"
-tracing = { version = "0.1.40", default-features = false }
-winit-core = { version = "0.0.0", path = "winit-core" }
+smol_str.workspace = true
+tracing.workspace = true
+winit-core.workspace = true
 
 [dev-dependencies]
-image = { version = "0.25.0", default-features = false, features = ["png"] }
-tracing = { version = "0.1.40", default-features = false, features = ["log"] }
-tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
+image = { workspace = true, features = ["png"] }
+tracing = { workspace = true, features = ["log"] }
+tracing-subscriber = { workspace = true, features = ["env-filter"] }
 
 [target.'cfg(not(target_os = "android"))'.dev-dependencies]
-softbuffer = { version = "0.4.6", default-features = false, features = [
-    "x11",
-    "x11-dlopen",
-    "wayland",
-    "wayland-dlopen",
-] }
+softbuffer.workspace = true
 
 # Android
 [target.'cfg(target_os = "android")'.dependencies]
-android-activity = "0.6.0"
-ndk = { version = "0.9.0", features = ["rwh_06"], default-features = false }
+android-activity.workspace = true
+ndk.workspace = true
 
 # AppKit or UIKit
 [target.'cfg(target_vendor = "apple")'.dependencies]
-block2 = "0.6.1"
-dispatch2 = { version = "0.3.0", default-features = false, features = ["std", "objc2"] }
-objc2 = "0.6.1"
+block2.workspace = true
+dispatch2.workspace = true
+objc2.workspace = true
 
 # AppKit
 [target.'cfg(target_os = "macos")'.dependencies]
-objc2-app-kit = { version = "0.3.1", default-features = false, features = [
+objc2-app-kit = { workspace = true, features = [
     "std",
     "objc2-core-foundation",
     "NSAppearance",
@@ -150,7 +241,7 @@ objc2-app-kit = { version = "0.3.1", default-features = false, features = [
     "NSWindowScripting",
     "NSWindowTabGroup",
 ] }
-objc2-core-foundation = { version = "0.3.1", default-features = false, features = [
+objc2-core-foundation = { workspace = true, features = [
     "std",
     "block2",
     "CFBase",
@@ -160,7 +251,7 @@ objc2-core-foundation = { version = "0.3.1", default-features = false, features 
     "CFString",
     "CFUUID",
 ] }
-objc2-core-graphics = { version = "0.3.1", default-features = false, features = [
+objc2-core-graphics = { workspace = true, features = [
     "std",
     "libc",
     "CGDirectDisplay",
@@ -170,14 +261,14 @@ objc2-core-graphics = { version = "0.3.1", default-features = false, features = 
     "CGRemoteOperation",
     "CGWindowLevel",
 ] }
-objc2-core-video = { version = "0.3.1", default-features = false, features = [
+objc2-core-video = { workspace = true, features = [
     "std",
     "objc2-core-graphics",
     "CVBase",
     "CVReturn",
     "CVDisplayLink",
 ] }
-objc2-foundation = { version = "0.3.1", default-features = false, features = [
+objc2-foundation = { workspace = true, features = [
     "std",
     "block2",
     "objc2-core-foundation",
@@ -202,14 +293,14 @@ objc2-foundation = { version = "0.3.1", default-features = false, features = [
 
 # UIKit
 [target.'cfg(all(target_vendor = "apple", not(target_os = "macos")))'.dependencies]
-objc2-core-foundation = { version = "0.3.1", default-features = false, features = [
+objc2-core-foundation = { workspace = true, features = [
     "std",
     "CFCGTypes",
     "CFBase",
     "CFRunLoop",
     "CFString",
 ] }
-objc2-foundation = { version = "0.3.1", default-features = false, features = [
+objc2-foundation = { workspace = true, features = [
     "std",
     "block2",
     "objc2-core-foundation",
@@ -222,7 +313,7 @@ objc2-foundation = { version = "0.3.1", default-features = false, features = [
     "NSThread",
     "NSSet",
 ] }
-objc2-ui-kit = { version = "0.3.1", default-features = false, features = [
+objc2-ui-kit = { workspace = true, features = [
     "std",
     "objc2-core-foundation",
     "UIApplication",
@@ -249,8 +340,8 @@ objc2-ui-kit = { version = "0.3.1", default-features = false, features = [
 
 # Windows
 [target.'cfg(target_os = "windows")'.dependencies]
-unicode-segmentation = "1.7.1"
-windows-sys = { version = "0.59.0", features = [
+unicode-segmentation.workspace = true
+windows-sys = { workspace = true, features = [
     "Win32_Devices_HumanInterfaceDevice",
     "Win32_Foundation",
     "Win32_Globalization",
@@ -280,30 +371,21 @@ windows-sys = { version = "0.59.0", features = [
 
 # Linux
 [target.'cfg(all(unix, not(any(target_os = "redox", target_family = "wasm", target_os = "android", target_vendor = "apple"))))'.dependencies]
-ahash = { version = "0.8.7", features = ["no-rng"], optional = true }
-bytemuck = { version = "1.13.1", default-features = false, optional = true }
-calloop = "0.13.0"
-libc = "0.2.64"
-memmap2 = { version = "0.9.0", optional = true }
-percent-encoding = { version = "2.0", optional = true }
-rustix = { version = "0.38.4", default-features = false, features = [
-    "std",
-    "system",
-    "thread",
-    "process",
-] }
-sctk = { package = "smithay-client-toolkit", version = "0.19.2", default-features = false, features = [
-    "calloop",
-], optional = true }
-sctk-adwaita = { version = "0.10.1", default-features = false, optional = true }
-wayland-backend = { version = "0.3.10", default-features = false, features = [
-    "client_system",
-], optional = true }
-wayland-client = { version = "0.31.10", optional = true }
-wayland-protocols = { version = "0.32.8", features = ["staging"], optional = true }
-wayland-protocols-plasma = { version = "0.3.8", features = ["client"], optional = true }
-x11-dl = { version = "2.19.1", optional = true }
-x11rb = { version = "0.13.0", default-features = false, features = [
+ahash = { workspace = true, optional = true }
+bytemuck = { workspace = true, optional = true }
+calloop.workspace = true
+libc.workspace = true
+memmap2 = { workspace = true, optional = true }
+percent-encoding = { workspace = true, optional = true }
+rustix = { workspace = true, features = ["std", "system", "thread", "process"] }
+sctk = { workspace = true, optional = true }
+sctk-adwaita = { workspace = true, optional = true }
+wayland-backend = { workspace = true, optional = true }
+wayland-client = { workspace = true, optional = true }
+wayland-protocols = { workspace = true, optional = true }
+wayland-protocols-plasma = { workspace = true, optional = true }
+x11-dl = { workspace = true, optional = true }
+x11rb = { workspace = true, optional = true, features = [
     "allow-unsafe-code",
     "cursor",
     "dl-libxcb",
@@ -312,22 +394,22 @@ x11rb = { version = "0.13.0", default-features = false, features = [
     "sync",
     "xinput",
     "xkb",
-], optional = true }
-xkbcommon-dl = "0.4.2"
+] }
+xkbcommon-dl.workspace = true
 
 # Orbital
 [target.'cfg(target_os = "redox")'.dependencies]
-orbclient = { version = "0.3.47", default-features = false }
-redox_syscall = "0.5.7"
+orbclient.workspace = true
+redox_syscall.workspace = true
 
 # Web
 [target.'cfg(target_family = "wasm")'.dependencies]
-js-sys = "0.3.70"
-pin-project = "1"
-wasm-bindgen = "0.2.93"
-wasm-bindgen-futures = "0.4.43"
-web-time = "1"
-web_sys = { package = "web-sys", version = "0.3.70", features = [
+js-sys.workspace = true
+pin-project.workspace = true
+wasm-bindgen.workspace = true
+wasm-bindgen-futures.workspace = true
+web-time.workspace = true
+web_sys = { workspace = true, features = [
     "AbortController",
     "AbortSignal",
     "Blob",
@@ -381,13 +463,13 @@ web_sys = { package = "web-sys", version = "0.3.70", features = [
 ] }
 
 [target.'cfg(all(target_family = "wasm", target_feature = "atomics"))'.dependencies]
-atomic-waker = "1"
-concurrent-queue = { version = "2", default-features = false }
+atomic-waker.workspace = true
+concurrent-queue.workspace = true
 
 [target.'cfg(target_family = "wasm")'.dev-dependencies]
-console_error_panic_hook = "0.1"
-tracing-web = "0.1"
-wasm-bindgen-test = "0.3"
+console_error_panic_hook.workspace = true
+tracing-web.workspace = true
+wasm-bindgen-test.workspace = true
 
 [[example]]
 doc-scrape-examples = true
@@ -395,17 +477,3 @@ name = "window"
 
 [[example]]
 name = "child_window"
-
-[workspace]
-members = ["dpi", "winit-core"]
-resolver = "2"
-
-[workspace.package]
-edition = "2021"
-license = "Apache-2.0"
-repository = "https://github.com/rust-windowing/winit"
-rust-version = "1.80"
-
-[workspace.dependencies]
-mint = "0.5.6"
-serde = { version = "1", features = ["serde_derive"] }
