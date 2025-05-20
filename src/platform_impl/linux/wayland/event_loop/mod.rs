@@ -21,6 +21,7 @@ use winit_core::application::ApplicationHandler;
 use winit_core::cursor::{CustomCursor as CoreCustomCursor, CustomCursorSource};
 use winit_core::error::{EventLoopError, NotSupportedError, OsError, RequestError};
 use winit_core::event::{DeviceEvent, StartCause, SurfaceSizeWriter, WindowEvent};
+use winit_core::event_loop::pump_events::PumpStatus;
 use winit_core::event_loop::{
     ActiveEventLoop as RootActiveEventLoop, ControlFlow, DeviceEvents,
     OwnedDisplayHandle as CoreOwnedDisplayHandle,
@@ -28,7 +29,6 @@ use winit_core::event_loop::{
 use winit_core::monitor::MonitorHandle as CoreMonitorHandle;
 use winit_core::window::Theme;
 
-use crate::platform::pump_events::PumpStatus;
 use crate::platform_impl::platform::min_timeout;
 use crate::platform_impl::wayland::types::cursor::WaylandCustomCursor;
 

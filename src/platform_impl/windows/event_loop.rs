@@ -66,6 +66,7 @@ use winit_core::event::{
     DeviceEvent, DeviceId, FingerId, Force, Ime, RawKeyEvent, SurfaceSizeWriter, TouchPhase,
     WindowEvent,
 };
+use winit_core::event_loop::pump_events::PumpStatus;
 use winit_core::event_loop::{
     ActiveEventLoop as RootActiveEventLoop, ControlFlow, DeviceEvents,
     EventLoopProxy as RootEventLoopProxy, EventLoopProxyProvider,
@@ -78,7 +79,6 @@ use winit_core::window::{Theme, Window as CoreWindow, WindowAttributes, WindowId
 pub(super) use self::runner::{Event, EventLoopRunner};
 use super::window::set_skip_taskbar;
 use super::SelectedCursor;
-use crate::platform::pump_events::PumpStatus;
 use crate::platform_impl::platform::dark_mode::try_theme;
 use crate::platform_impl::platform::dpi::{become_dpi_aware, dpi_to_scale_factor};
 use crate::platform_impl::platform::drop_handler::FileDropHandler;

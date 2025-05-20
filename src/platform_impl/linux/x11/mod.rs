@@ -19,6 +19,7 @@ use winit_core::application::ApplicationHandler;
 use winit_core::cursor::{CustomCursor as CoreCustomCursor, CustomCursorSource};
 use winit_core::error::{EventLoopError, RequestError};
 use winit_core::event::{DeviceId, StartCause, WindowEvent};
+use winit_core::event_loop::pump_events::PumpStatus;
 use winit_core::event_loop::{
     ActiveEventLoop as RootActiveEventLoop, ControlFlow, DeviceEvents,
     EventLoopProxy as CoreEventLoopProxy, EventLoopProxyProvider,
@@ -33,7 +34,6 @@ use x11rb::protocol::{xkb, xproto};
 use x11rb::x11_utils::X11Error as LogicalError;
 use x11rb::xcb_ffi::ReplyOrIdError;
 
-use crate::platform::pump_events::PumpStatus;
 use crate::platform::x11::XlibErrorHook;
 use crate::platform_impl::common::xkb::Context;
 use crate::platform_impl::platform::min_timeout;

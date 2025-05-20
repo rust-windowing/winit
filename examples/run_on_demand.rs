@@ -7,8 +7,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     use winit::application::ApplicationHandler;
     use winit::event::WindowEvent;
+    use winit::event_loop::run_on_demand::EventLoopExtRunOnDemand;
     use winit::event_loop::{ActiveEventLoop, EventLoop};
-    use winit::platform::run_on_demand::EventLoopExtRunOnDemand;
     use winit::window::{Window, WindowAttributes, WindowId};
 
     #[path = "util/fill.rs"]
