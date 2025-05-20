@@ -26,7 +26,7 @@ use winit_core::window::{
     WindowAttributes, WindowButtons, WindowId, WindowLevel,
 };
 
-mod keycodes;
+use crate::keycodes;
 
 static HAS_FOCUS: AtomicBool = AtomicBool::new(true);
 

@@ -1,5 +1,5 @@
 #[cfg(android_platform)]
-mod android;
+pub(crate) use winit_android as platform;
 #[cfg(target_vendor = "apple")]
 mod apple;
 #[cfg(any(x11_platform, wayland_platform))]
@@ -11,8 +11,6 @@ mod web;
 #[cfg(windows_platform)]
 mod windows;
 
-#[cfg(android_platform)]
-use self::android as platform;
 #[cfg(target_vendor = "apple")]
 use self::apple as platform;
 #[cfg(any(x11_platform, wayland_platform))]

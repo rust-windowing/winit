@@ -62,17 +62,23 @@
 //! If your application is currently based on `NativeActivity` via the `ndk-glue` crate and building
 //! with `cargo apk`, then the minimal changes would be:
 //! 1. Remove `ndk-glue` from your `Cargo.toml`
-//! 2. Enable the `"android-native-activity"` feature for Winit: `winit = { version = "0.30.11",
+//! 2. Enable the `"android-native-activity"` feature for Winit: `winit = { version = "0.30.10",
 //!    features = [ "android-native-activity" ] }`
 //! 3. Add an `android_main` entrypoint (as above), instead of using the '`[ndk_glue::main]` proc
 //!    macro from `ndk-macros` (optionally add a dependency on `android_logger` and initialize
 //!    logging as above).
 //! 4. Pass a clone of the `AndroidApp` that your application receives to Winit when building your
 //!    event loop (as shown above).
+#![cfg(target_os = "android")]
+
+mod event_loop;
+mod keycodes;
+
+use winit_core::event_loop::{ActiveEventLoop, EventLoop, EventLoopBuilder};
+use winit_core::window::Window;
 
 use self::activity::{AndroidApp, ConfigurationRef, Rect};
-use crate::event_loop::{ActiveEventLoop, EventLoop, EventLoopBuilder};
-use crate::window::Window;
+use crate::event_loop::{ActiveEventLoop as AndroidActiveEventLoop, Window as AndroidWindow};
 
 /// Additional methods on [`EventLoop`] that are specific to Android.
 pub trait EventLoopExtAndroid {
@@ -101,19 +107,19 @@ pub trait WindowExtAndroid {
 
 impl WindowExtAndroid for dyn Window + '_ {
     fn content_rect(&self) -> Rect {
-        let window = self.cast_ref::<crate::platform_impl::Window>().unwrap();
+        let window = self.cast_ref::<AndroidWindow>().unwrap();
         window.content_rect()
     }
 
     fn config(&self) -> ConfigurationRef {
-        let window = self.cast_ref::<crate::platform_impl::Window>().unwrap();
+        let window = self.cast_ref::<AndroidWindow>().unwrap();
         window.config()
     }
 }
 
 impl ActiveEventLoopExtAndroid for dyn ActiveEventLoop + '_ {
     fn android_app(&self) -> &AndroidApp {
-        let event_loop = self.cast_ref::<crate::platform_impl::ActiveEventLoop>().unwrap();
+        let event_loop = self.cast_ref::<AndroidActiveEventLoop>().unwrap();
         &event_loop.app
     }
 }
@@ -170,16 +176,5 @@ pub mod activity {
     // feature enabled, so we avoid inlining it so that they're forced to view
     // it on the crate's own docs.rs page.
     #[doc(no_inline)]
-    #[cfg(android_platform)]
     pub use android_activity::*;
-
-    #[cfg(not(android_platform))]
-    #[doc(hidden)]
-    pub struct Rect;
-    #[cfg(not(android_platform))]
-    #[doc(hidden)]
-    pub struct ConfigurationRef;
-    #[cfg(not(android_platform))]
-    #[doc(hidden)]
-    pub struct AndroidApp;
 }
