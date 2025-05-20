@@ -825,6 +825,11 @@ impl Modifiers {
         self.state
     }
 
+    /// The logical state of the modifier keys.
+    pub fn pressed_mods(&self) -> ModifiersKeys {
+        self.pressed_mods
+    }
+
     /// The logical state of the left shift key.
     pub fn lshift_state(&self) -> ModifiersKeyState {
         self.mod_state(ModifiersKeys::LSHIFT)
