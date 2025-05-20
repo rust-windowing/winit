@@ -1707,6 +1707,12 @@ bitflags! {
         const META = 0b100 << 9;
         /// The "AltGraph" key, usually used to insert symbols.
         const ALT_GRAPH = 0b100 << 10;
+        /// The "Caps Lock" key.
+        const CAPS_LOCK = 0b100 << 11;
+        /// The "Num Lock" key.
+        const NUM_LOCK = 0b100 << 12;
+        /// The "Scroll Lock" key.
+        const SCROLL_LOCK = 0b100 << 13;
         #[deprecated = "use META instead"]
         const SUPER = Self::META.bits();
     }
