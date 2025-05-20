@@ -1689,8 +1689,10 @@ pub enum KeyLocation {
 bitflags! {
     /// Represents the current logical state of the keyboard modifiers
     ///
-    /// Each flag represents a modifier and is set if this modifier is active
-    /// (but the modifier key can be physically released as in the case of sticky modifiers).
+    /// Each flag represents a modifier and is set if this modifier is active.
+    ///
+    /// Note that the modifier key can be physically released with the modifier
+    /// still being marked as active, as in the case of sticky modifiers.
     #[derive(Default, Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
     #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
     pub struct ModifiersState: u32 {
