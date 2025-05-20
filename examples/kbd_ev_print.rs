@@ -48,7 +48,7 @@ pub fn mod_state_side_agnostic_s(state: &ModifiersState) -> String {
     } else {
         s.push_str("   ")
     };
-    if state.contains(ModifiersState::ALTGR) {
+    if state.contains(ModifiersState::ALT_GRAPH) {
         s.push_str("⎇Gr")
     } else {
         s.push_str("   ")

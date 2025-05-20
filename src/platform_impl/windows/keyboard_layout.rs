@@ -298,7 +298,7 @@ impl LayoutCache {
             pressed_mods.contains(ModifiersKeys::LALT)
                 || pressed_mods.contains(ModifiersKeys::RALT),
         );
-        state.set(ModifiersState::ALTGR, is_altgr);
+        state.set(ModifiersState::ALT_GRAPH, is_altgr);
 
         // On Windows AltGr = RAlt + LCtrl, and OS sends artificial LCtrl key event, which needs to
         // be filtered out without touching "real" LCtrl events to allow separate bindings of
