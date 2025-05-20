@@ -74,22 +74,19 @@
 mod event_loop;
 mod keycodes;
 
-use winit_core::event_loop::{ActiveEventLoop, EventLoop, EventLoopBuilder};
-use winit_core::window::Window;
+use winit_core::event_loop::ActiveEventLoop as CoreActiveEventLoop;
+use winit_core::window::Window as CoreWindow;
 
 use self::activity::{AndroidApp, ConfigurationRef, Rect};
-use crate::event_loop::{ActiveEventLoop as AndroidActiveEventLoop, Window as AndroidWindow};
+pub use crate::event_loop::{
+    ActiveEventLoop, EventLoop, EventLoopProxy, PlatformSpecificEventLoopAttributes,
+    PlatformSpecificWindowAttributes, Window,
+};
 
 /// Additional methods on [`EventLoop`] that are specific to Android.
 pub trait EventLoopExtAndroid {
     /// Get the [`AndroidApp`] which was used to create this event loop.
     fn android_app(&self) -> &AndroidApp;
-}
-
-impl EventLoopExtAndroid for EventLoop {
-    fn android_app(&self) -> &AndroidApp {
-        &self.event_loop.android_app
-    }
 }
 
 /// Additional methods on [`ActiveEventLoop`] that are specific to Android.
@@ -105,21 +102,21 @@ pub trait WindowExtAndroid {
     fn config(&self) -> ConfigurationRef;
 }
 
-impl WindowExtAndroid for dyn Window + '_ {
+impl WindowExtAndroid for dyn CoreWindow + '_ {
     fn content_rect(&self) -> Rect {
-        let window = self.cast_ref::<AndroidWindow>().unwrap();
+        let window = self.cast_ref::<Window>().unwrap();
         window.content_rect()
     }
 
     fn config(&self) -> ConfigurationRef {
-        let window = self.cast_ref::<AndroidWindow>().unwrap();
+        let window = self.cast_ref::<Window>().unwrap();
         window.config()
     }
 }
 
-impl ActiveEventLoopExtAndroid for dyn ActiveEventLoop + '_ {
+impl ActiveEventLoopExtAndroid for dyn CoreActiveEventLoop + '_ {
     fn android_app(&self) -> &AndroidApp {
-        let event_loop = self.cast_ref::<AndroidActiveEventLoop>().unwrap();
+        let event_loop = self.cast_ref::<ActiveEventLoop>().unwrap();
         &event_loop.app
     }
 }
@@ -134,18 +131,6 @@ pub trait EventLoopBuilderExtAndroid {
     ///
     /// Default is to let the operating system handle the volume keys
     fn handle_volume_keys(&mut self) -> &mut Self;
-}
-
-impl EventLoopBuilderExtAndroid for EventLoopBuilder {
-    fn with_android_app(&mut self, app: AndroidApp) -> &mut Self {
-        self.platform_specific.android_app = Some(app);
-        self
-    }
-
-    fn handle_volume_keys(&mut self) -> &mut Self {
-        self.platform_specific.ignore_volume_keys = false;
-        self
-    }
 }
 
 /// Re-export of the `android_activity` API
