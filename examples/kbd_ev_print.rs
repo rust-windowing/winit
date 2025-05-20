@@ -53,6 +53,25 @@ pub fn mod_state_side_agnostic_s(state: &ModifiersState) -> String {
     } else {
         s.push_str("   ")
     };
+    s.push(' ');
+    if state.contains(ModifiersState::CAPS_LOCK) {
+        s.push_str("⇪")
+    } else {
+        s.push_str(" ")
+    };
+    s.push(' ');
+    if state.contains(ModifiersState::NUM_LOCK) {
+        s.push_str("⇭") //🔢
+    } else {
+        s.push_str(" ")
+    };
+    s.push(' ');
+    if state.contains(ModifiersState::SCROLL_LOCK) {
+        s.push_str("⇳🔒")
+    } else {
+        s.push_str("  ")
+    };
+    s.push(' ');
     s
 }
 // https://docs.rs/winit/latest/winit/event/struct.Modifiers.html
