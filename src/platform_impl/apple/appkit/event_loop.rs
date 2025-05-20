@@ -22,12 +22,12 @@ use winit_core::event_loop::{
 use winit_core::monitor::MonitorHandle as CoreMonitorHandle;
 use winit_core::window::Theme;
 
-use super::super::notification_center::create_observer;
 use super::app::override_send_event;
 use super::app_state::AppState;
 use super::cursor::CustomCursor;
 use super::event::dummy_event;
 use super::monitor;
+use super::notification_center::create_observer;
 use super::observer::setup_control_flow_observers;
 use crate::platform::macos::ActivationPolicy;
 use crate::platform_impl::Window;

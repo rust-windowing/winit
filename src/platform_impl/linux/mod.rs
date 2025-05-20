@@ -9,17 +9,16 @@ use std::time::Duration;
 
 #[cfg(x11_platform)]
 use dpi::Size;
+pub(crate) use winit_common::xkb::{physicalkey_to_scancode, scancode_to_physicalkey};
 use winit_core::application::ApplicationHandler;
 use winit_core::error::{EventLoopError, NotSupportedError};
 use winit_core::event_loop::pump_events::PumpStatus;
 use winit_core::event_loop::ActiveEventLoop;
 use winit_core::window::ActivationToken;
 
-pub(crate) use self::common::xkb::{physicalkey_to_scancode, scancode_to_physicalkey};
 #[cfg(x11_platform)]
 use crate::platform::x11::WindowType as XWindowType;
 
-pub(crate) mod common;
 #[cfg(wayland_platform)]
 pub(crate) mod wayland;
 #[cfg(x11_platform)]
