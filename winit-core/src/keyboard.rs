@@ -1710,26 +1710,22 @@ bitflags! {
 }
 
 impl ModifiersState {
-    /// Returns `true` if the shift modifier is active (logically, but not necessarily physically,
-    /// pressed).
+    /// Returns whether the shift modifier is active.
     pub fn shift_key(&self) -> bool {
         self.intersects(Self::SHIFT)
     }
 
-    /// Returns `true` if the control modifier is active (logically, but not necessarily physically,
-    /// pressed).
+    /// Returns whether the control modifier is active.
     pub fn control_key(&self) -> bool {
         self.intersects(Self::CONTROL)
     }
 
-    /// Returns `true` if the alt modifier is active (logically, but not necessarily physically,
-    /// pressed).
+    /// Returns whether the alt modifier is active.
     pub fn alt_key(&self) -> bool {
         self.intersects(Self::ALT)
     }
 
-    /// Returns `true` if the meta modifier is active (logically, but not necessarily physically,
-    /// pressed).
+    /// Returns whether the meta modifier is active.
     pub fn meta_key(&self) -> bool {
         self.intersects(Self::META)
     }
