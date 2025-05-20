@@ -6,7 +6,7 @@ use winit_core::application::ApplicationHandler;
 /// A helper type for storing a reference to `ApplicationHandler`, allowing interior mutable access
 /// to it within the execution of a closure.
 #[derive(Default)]
-pub(crate) struct EventHandler {
+pub struct EventHandler {
     /// This can be in the following states:
     /// - Not registered by the event loop, or terminated (None).
     /// - Present (Some(handler)).
@@ -26,7 +26,7 @@ impl fmt::Debug for EventHandler {
 }
 
 impl EventHandler {
-    pub(crate) fn new() -> Self {
+    pub fn new() -> Self {
         Self { inner: RefCell::new(None) }
     }
 
@@ -35,7 +35,7 @@ impl EventHandler {
     /// This is similar to using the `scoped-tls` or `scoped-tls-hkt` crates
     /// to store the handler in a thread local, such that it can be accessed
     /// from within the closure.
-    pub(crate) fn set<'handler, R>(
+    pub fn set<'handler, R>(
         &self,
         app: Box<dyn ApplicationHandler + 'handler>,
         closure: impl FnOnce() -> R,
@@ -104,16 +104,15 @@ impl EventHandler {
         // soundness.
     }
 
-    #[cfg(target_os = "macos")]
-    pub(crate) fn in_use(&self) -> bool {
+    pub fn in_use(&self) -> bool {
         self.inner.try_borrow().is_err()
     }
 
-    pub(crate) fn ready(&self) -> bool {
+    pub fn ready(&self) -> bool {
         matches!(self.inner.try_borrow().as_deref(), Ok(Some(_)))
     }
 
-    pub(crate) fn handle(&self, callback: impl FnOnce(&mut (dyn ApplicationHandler + '_))) {
+    pub fn handle(&self, callback: impl FnOnce(&mut (dyn ApplicationHandler + '_))) {
         match self.inner.try_borrow_mut().as_deref_mut() {
             Ok(Some(ref mut user_app)) => {
                 // It is important that we keep the reference borrowed here,
@@ -137,7 +136,7 @@ impl EventHandler {
         }
     }
 
-    pub(crate) fn terminate(&self) {
+    pub fn terminate(&self) {
         match self.inner.try_borrow_mut().as_deref_mut() {
             Ok(data @ Some(_)) => {
                 let handler = data.take();

@@ -14,7 +14,7 @@ use winit_core::event_loop::EventLoopProxyProvider;
 ///
 /// See <https://developer.apple.com/documentation/corefoundation/cfrunloopsource?language=objc>.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub(crate) struct EventLoopProxy {
+pub struct EventLoopProxy {
     source: CFRetained<CFRunLoopSource>,
     /// Cached value of `CFRunLoopGetMain`.
     main_loop: CFRetained<CFRunLoop>,
@@ -28,7 +28,7 @@ impl EventLoopProxy {
     /// Create a new proxy, registering it to be performed on the main thread.
     ///
     /// The provided closure should call `proxy_wake_up` on the application.
-    pub(crate) fn new<F: Fn() + 'static>(mtm: MainThreadMarker, signaller: F) -> Self {
+    pub fn new<F: Fn() + 'static>(mtm: MainThreadMarker, signaller: F) -> Self {
         // We use an `Arc` here to make sure that the reference-counting of the signal container is
         // atomic (`Retained`/`CFRetained` would be valid alternatives too).
         let signaller = Arc::new(signaller);
@@ -99,8 +99,7 @@ impl EventLoopProxy {
 
     // FIXME(madsmtm): Use this on macOS too.
     // More difficult there, since the user can re-start the event loop.
-    #[cfg_attr(target_os = "macos", allow(dead_code))]
-    pub(crate) fn invalidate(&self) {
+    pub fn invalidate(&self) {
         // NOTE: We do NOT fire this on `Drop`, since we want the proxy to be cloneable, such that
         // we only need to register a single source even if there's multiple proxies in use.
         self.source.invalidate();

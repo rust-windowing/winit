@@ -182,6 +182,17 @@ jobs:
     - name: Test winit core
       run: cargo test -p winit-core
 
+    - name: Test winit Common (EventHandler)
+      run: cargo test -p winit-common --features event-handler
+
+    - name: Test winit Common (CF)
+      if: contains(matrix.platform.target, 'apple')
+      run: cargo test -p winit-common --features core-foundation
+
+    - name: Test winit Common (XKB)
+      if: contains(matrix.platform.target, 'linux')
+      run: cargo test -p winit-common --features xkb,x11,wayland
+
     - name: Test winit Orbital
       if: contains(matrix.platform.target, 'redox')
       run: cargo test -p winit-orbital

@@ -4,16 +4,16 @@ use std::os::raw::c_char;
 use std::ptr::NonNull;
 
 use smol_str::SmolStr;
-#[cfg(x11_platform)]
+#[cfg(feature = "x11")]
 use x11_dl::xlib_xcb::xcb_connection_t;
 use xkbcommon_dl::{
     self as xkb, xkb_keycode_t, xkb_keysym_t, xkb_layout_index_t, xkb_state, xkb_state_component,
 };
 
-use crate::platform_impl::common::xkb::keymap::XkbKeymap;
-#[cfg(x11_platform)]
-use crate::platform_impl::common::xkb::XKBXH;
-use crate::platform_impl::common::xkb::{make_string_with, XKBH};
+use super::keymap::XkbKeymap;
+#[cfg(feature = "x11")]
+use super::XKBXH;
+use super::{make_string_with, XKBH};
 
 #[derive(Debug)]
 pub struct XkbState {
@@ -22,13 +22,13 @@ pub struct XkbState {
 }
 
 impl XkbState {
-    #[cfg(wayland_platform)]
+    #[cfg(feature = "wayland")]
     pub fn new_wayland(keymap: &XkbKeymap) -> Option<Self> {
         let state = NonNull::new(unsafe { (XKBH.xkb_state_new)(keymap.as_ptr()) })?;
         Some(Self::new_inner(state))
     }
 
-    #[cfg(x11_platform)]
+    #[cfg(feature = "x11")]
     pub fn new_x11(xcb: *mut xcb_connection_t, keymap: &XkbKeymap) -> Option<Self> {
         let state = unsafe {
             (XKBXH.xkb_x11_state_new_from_device)(keymap.as_ptr(), xcb, keymap._core_keyboard_id)
@@ -52,7 +52,7 @@ impl XkbState {
         unsafe { (XKBH.xkb_state_key_get_layout)(self.state.as_ptr(), key) }
     }
 
-    #[cfg(x11_platform)]
+    #[cfg(feature = "x11")]
     pub fn depressed_modifiers(&mut self) -> xkb::xkb_mod_mask_t {
         unsafe {
             (XKBH.xkb_state_serialize_mods)(
@@ -62,7 +62,7 @@ impl XkbState {
         }
     }
 
-    #[cfg(x11_platform)]
+    #[cfg(feature = "x11")]
     pub fn latched_modifiers(&mut self) -> xkb::xkb_mod_mask_t {
         unsafe {
             (XKBH.xkb_state_serialize_mods)(
@@ -72,7 +72,7 @@ impl XkbState {
         }
     }
 
-    #[cfg(x11_platform)]
+    #[cfg(feature = "x11")]
     pub fn locked_modifiers(&mut self) -> xkb::xkb_mod_mask_t {
         unsafe {
             (XKBH.xkb_state_serialize_mods)(
