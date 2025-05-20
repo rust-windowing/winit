@@ -53,6 +53,11 @@ pub(crate) static LAYOUT_CACHE: LazyLock<Mutex<LayoutCache>> =
 fn key_pressed(vkey: VIRTUAL_KEY) -> bool {
     unsafe { (GetKeyState(vkey as i32) & (1 << 15)) == (1 << 15) }
 }
+fn key_toggled(vkey: VIRTUAL_KEY) -> bool {
+    // learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-getkeystate
+    // If the low-order bit is 1, the key is toggled. GetKeyState is SHORT = 16bit
+    unsafe { (GetKeyState(vkey as i32) & (1 << 0)) == (1 << 0) }
+}
 
 const NUMPAD_VKEYS: [VIRTUAL_KEY; 16] = [
     VK_NUMPAD0,
@@ -320,6 +325,11 @@ impl LayoutCache {
             pressed_mods.contains(ModifiersKeys::LMETA)
                 || pressed_mods.contains(ModifiersKeys::RMETA),
         );
+
+        state.set(ModifiersState::CAPS_LOCK, key_toggled(VK_CAPITAL));
+        state.set(ModifiersState::NUM_LOCK, key_toggled(VK_NUMLOCK));
+        state.set(ModifiersState::SCROLL_LOCK, key_toggled(VK_SCROLL));
+
         Modifiers::new(state, pressed_mods)
     }
 
