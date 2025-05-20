@@ -55,15 +55,15 @@ pub fn mod_state_side_agnostic_s(state: &ModifiersState) -> String {
     };
     s.push(' ');
     if state.contains(ModifiersState::CAPS_LOCK) {
-        s.push_str("⇪")
+        s.push('⇪')
     } else {
-        s.push_str(" ")
+        s.push(' ')
     };
     s.push(' ');
     if state.contains(ModifiersState::NUM_LOCK) {
-        s.push_str("⇭") //🔢
+        s.push('⇭') //🔢
     } else {
-        s.push_str(" ")
+        s.push(' ')
     };
     s.push(' ');
     if state.contains(ModifiersState::SCROLL_LOCK) {
