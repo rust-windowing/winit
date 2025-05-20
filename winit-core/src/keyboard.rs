@@ -1739,10 +1739,10 @@ pub enum ModifiersKeyState {
     Pressed,
     /// The state of the key is unknown.
     ///
-    /// Can also be pressed, for example, when a sticky **Shift**
-    /// is active, the OS might not include information that it was activated by RightShift, so the
-    /// [ModifiersKeyState] of [ModifiersKeys::RSHIFT] will be unknown while the [ModifiersState]
-    /// of [ModifiersState::SHIFT] will be active.
+    /// Can include cases when the key is active or logically pressed, for example, when a sticky
+    /// **Shift** is active, the OS might not preserve information that it was activated by
+    /// RightShift, so the state of [`ModifiersKeys::RSHIFT`] will be unknown while the state
+    /// of [`ModifiersState::SHIFT`] will be active.
     #[default]
     Unknown,
 }
