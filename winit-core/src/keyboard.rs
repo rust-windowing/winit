@@ -1739,7 +1739,7 @@ impl ModifiersState {
 ///
 /// `↓` / `↑` denote physical press/release[^1]:
 ///
-///  | Type | Activated | Deactived | Comment |
+///  | Type | Activated | Deactivated | Comment |
 ///  | -----| :----: | :------: | ------- |
 ///  |__Regular__ | `↓` | `↑`  | Active while being held |
 ///  |__Sticky__ | `↓` | `↓` unless lock is enabled<br>`↓`/`↑`[^2] __non__-sticky key | Temporarily "stuck"; other `Sticky` keys have no effect|
