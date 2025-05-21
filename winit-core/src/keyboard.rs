@@ -1735,7 +1735,9 @@ impl ModifiersState {
 /// The logical state of the particular modifiers key.
 ///
 /// NOTE: while the modifier can only be in a binary active/inactive state, it might be helpful to
-/// note the context re. how its state changes by physical key events[^1]:
+/// note the context re. how its state changes by physical key events.
+///
+/// `↓` / `↑` denote physical press/release[^1]:
 ///
 ///  | Type | Activated | Deactived | Comment |
 ///  | -----| :----: | :------: | ------- |
@@ -1752,7 +1754,7 @@ impl ModifiersState {
 ///
 /// These active states are __not__ differentiated here.
 ///
-/// [^1]: `↓` / `↑` is physically pressed/released. For virtual/on-screen keyboards physical press can be a mouse click or a finger tap or a voice command.
+/// [^1]: For virtual/on-screen keyboards physical press/release can be a mouse click or a finger tap or a voice command.
 /// [^2]: platform-dependent
 #[derive(Default, Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
