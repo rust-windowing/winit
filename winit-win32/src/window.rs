@@ -89,7 +89,7 @@ impl SyncWindowHandle {
 
 /// The Win32 implementation of the main `Window` object.
 #[derive(Debug)]
-pub(crate) struct Window {
+pub struct Window {
     /// Main handle for the window.
     window: SyncWindowHandle,
 
@@ -1462,7 +1462,7 @@ thread_local! {
     static TASKBAR_LIST2: Cell<*mut ITaskbarList2> = const { Cell::new(ptr::null_mut()) };
 }
 
-pub fn com_initialized() {
+pub(crate) fn com_initialized() {
     COM_INITIALIZED.with(|_| {});
 }
 

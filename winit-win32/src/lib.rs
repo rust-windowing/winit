@@ -16,7 +16,7 @@ mod ime;
 mod keyboard;
 mod keyboard_layout;
 mod monitor;
-pub mod raw_input;
+mod raw_input;
 mod window;
 mod window_state;
 
@@ -32,12 +32,13 @@ use serde::{Deserialize, Serialize};
 use windows_sys::Win32::Foundation::HANDLE;
 use winit_core::event::DeviceId;
 use winit_core::icon::{BadIcon, Icon};
-use winit_core::window::{PlatformWindowAttributes, Window};
+use winit_core::window::{PlatformWindowAttributes, Window as CoreWindow};
 
 pub use self::event_loop::{EventLoop, PlatformSpecificEventLoopAttributes};
 use self::icon::{RaiiIcon, SelectedCursor};
 pub use self::keyboard::{physicalkey_to_scancode, scancode_to_physicalkey};
-use self::window::Window as Win32Window;
+pub use self::monitor::{MonitorHandle, VideoModeHandle};
+pub use self::window::Window;
 
 /// Window Handle type used by Win32 API
 pub type HWND = *mut c_void;
@@ -139,24 +140,24 @@ pub enum CornerPreference {
 ///
 /// See [`WindowBorrowExtWindows::any_thread`] for more information.
 #[derive(Clone, Debug)]
-pub struct AnyThread<W: Window>(W);
+pub struct AnyThread<W: CoreWindow>(W);
 
-impl<W: Window> AnyThread<W> {
+impl<W: CoreWindow> AnyThread<W> {
     /// Get a reference to the inner window.
     #[inline]
-    pub fn get_ref(&self) -> &dyn Window {
+    pub fn get_ref(&self) -> &dyn CoreWindow {
         &self.0
     }
 }
 
-impl<W: Window> Deref for AnyThread<W> {
+impl<W: CoreWindow> Deref for AnyThread<W> {
     type Target = W;
     fn deref(&self) -> &Self::Target {
         &self.0
     }
 }
 
-impl<W: Window> rwh_06::HasWindowHandle for AnyThread<W> {
+impl<W: CoreWindow> rwh_06::HasWindowHandle for AnyThread<W> {
     fn window_handle(&self) -> Result<rwh_06::WindowHandle<'_>, rwh_06::HandleError> {
         // SAFETY: The top level user has asserted this is only used safely.
         unsafe { self.get_ref().window_handle_any_thread() }
@@ -339,40 +340,40 @@ pub trait WindowExtWindows {
     ) -> Result<rwh_06::WindowHandle<'_>, rwh_06::HandleError>;
 }
 
-impl WindowExtWindows for dyn Window + '_ {
+impl WindowExtWindows for dyn CoreWindow + '_ {
     #[inline]
     fn set_enable(&self, enabled: bool) {
-        let window = self.cast_ref::<Win32Window>().unwrap();
+        let window = self.cast_ref::<Window>().unwrap();
         window.set_enable(enabled)
     }
 
     #[inline]
     fn set_taskbar_icon(&self, taskbar_icon: Option<Icon>) {
-        let window = self.cast_ref::<Win32Window>().unwrap();
+        let window = self.cast_ref::<Window>().unwrap();
         window.set_taskbar_icon(taskbar_icon)
     }
 
     #[inline]
     fn set_skip_taskbar(&self, skip: bool) {
-        let window = self.cast_ref::<Win32Window>().unwrap();
+        let window = self.cast_ref::<Window>().unwrap();
         window.set_skip_taskbar(skip)
     }
 
     #[inline]
     fn set_undecorated_shadow(&self, shadow: bool) {
-        let window = self.cast_ref::<Win32Window>().unwrap();
+        let window = self.cast_ref::<Window>().unwrap();
         window.set_undecorated_shadow(shadow)
     }
 
     #[inline]
     fn set_system_backdrop(&self, backdrop_type: BackdropType) {
-        let window = self.cast_ref::<Win32Window>().unwrap();
+        let window = self.cast_ref::<Window>().unwrap();
         window.set_system_backdrop(backdrop_type)
     }
 
     #[inline]
     fn set_border_color(&self, color: Option<Color>) {
-        let window = self.cast_ref::<Win32Window>().unwrap();
+        let window = self.cast_ref::<Window>().unwrap();
         window.set_border_color(color.unwrap_or(Color::NONE))
     }
 
@@ -381,26 +382,26 @@ impl WindowExtWindows for dyn Window + '_ {
         // The windows docs don't mention NONE as a valid options but it works in practice and is
         // useful to circumvent the Windows option "Show accent color on title bars and
         // window borders"
-        let window = self.cast_ref::<Win32Window>().unwrap();
+        let window = self.cast_ref::<Window>().unwrap();
         window.set_title_background_color(color.unwrap_or(Color::NONE))
     }
 
     #[inline]
     fn set_title_text_color(&self, color: Color) {
-        let window = self.cast_ref::<Win32Window>().unwrap();
+        let window = self.cast_ref::<Window>().unwrap();
         window.set_title_text_color(color)
     }
 
     #[inline]
     fn set_corner_preference(&self, preference: CornerPreference) {
-        let window = self.cast_ref::<Win32Window>().unwrap();
+        let window = self.cast_ref::<Window>().unwrap();
         window.set_corner_preference(preference)
     }
 
     unsafe fn window_handle_any_thread(
         &self,
     ) -> Result<rwh_06::WindowHandle<'_>, rwh_06::HandleError> {
-        let window = self.cast_ref::<Win32Window>().unwrap();
+        let window = self.cast_ref::<Window>().unwrap();
         unsafe {
             let handle = window.rwh_06_no_thread_check()?;
 
@@ -413,7 +414,7 @@ impl WindowExtWindows for dyn Window + '_ {
 /// Additional methods for anything that dereference to [`Window`].
 ///
 /// [`Window`]: crate::window::Window
-pub trait WindowBorrowExtWindows: Borrow<dyn Window> + Sized {
+pub trait WindowBorrowExtWindows: Borrow<dyn CoreWindow> + Sized {
     /// Create an object that allows accessing the inner window handle in a thread-unsafe way.
     ///
     /// It is possible to call [`window_handle_any_thread`] to get around Windows's thread
@@ -434,13 +435,13 @@ pub trait WindowBorrowExtWindows: Borrow<dyn Window> + Sized {
     /// [`window_handle_any_thread`]: WindowExtWindows::window_handle_any_thread
     unsafe fn any_thread(self) -> AnyThread<Self>
     where
-        Self: Window,
+        Self: CoreWindow,
     {
         AnyThread(self)
     }
 }
 
-impl<W: Borrow<dyn Window> + Sized> WindowBorrowExtWindows for W {}
+impl<W: Borrow<dyn CoreWindow> + Sized> WindowBorrowExtWindows for W {}
 
 #[derive(Clone, Debug)]
 pub struct WindowAttributesWindows {
@@ -498,7 +499,7 @@ impl WindowAttributesWindows {
     ///
     /// For more information, see <https://docs.microsoft.com/en-us/windows/win32/winmsg/window-features#owned-windows>
     ///
-    /// [`WindowAttributes::with_parent_window`]: crate::window::WindowAttributes::with_parent_window
+    /// [`WindowAttributes::with_parent_window`]: winit_core::window::WindowAttributes::with_parent_window
     pub fn with_owner_window(mut self, parent: HWND) -> Self {
         self.owner = Some(parent);
         self
