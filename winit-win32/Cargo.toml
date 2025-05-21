@@ -9,7 +9,7 @@ rust-version.workspace = true
 version = "0.0.0"
 
 [features]
-serde = ["dep:serde", "bitflags/serde", "smol_str/serde", "dpi/serde"]
+serde = ["dep:serde", "bitflags/serde", "smol_str/serde", "dpi/serde", "winit-core/serde"]
 
 [dependencies]
 bitflags.workspace = true
