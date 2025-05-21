@@ -1687,9 +1687,12 @@ pub enum KeyLocation {
 }
 
 bitflags! {
-    /// Represents the current state of the keyboard modifiers
+    /// Represents the current logical state of the keyboard modifiers
     ///
     /// Each flag represents a modifier and is set if this modifier is active.
+    ///
+    /// Note that the modifier key can be physically released with the modifier
+    /// still being marked as active, as in the case of sticky modifiers.
     #[derive(Default, Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
     #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
     pub struct ModifiersState: u32 {
@@ -1707,34 +1710,39 @@ bitflags! {
 }
 
 impl ModifiersState {
-    /// Returns `true` if the shift key is pressed.
+    /// Returns whether the shift modifier is active.
     pub fn shift_key(&self) -> bool {
         self.intersects(Self::SHIFT)
     }
 
-    /// Returns `true` if the control key is pressed.
+    /// Returns whether the control modifier is active.
     pub fn control_key(&self) -> bool {
         self.intersects(Self::CONTROL)
     }
 
-    /// Returns `true` if the alt key is pressed.
+    /// Returns whether the alt modifier is active.
     pub fn alt_key(&self) -> bool {
         self.intersects(Self::ALT)
     }
 
-    /// Returns `true` if the meta key is pressed.
+    /// Returns whether the meta modifier is active.
     pub fn meta_key(&self) -> bool {
         self.intersects(Self::META)
     }
 }
 
-/// The state of the particular modifiers key.
+/// The logical state of the particular modifiers key.
 #[derive(Default, Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum ModifiersKeyState {
-    /// The particular key is pressed.
+    /// The particular modifier is active or logically, but not necessarily physically, pressed.
     Pressed,
     /// The state of the key is unknown.
+    ///
+    /// Can include cases when the key is active or logically pressed, for example, when a sticky
+    /// **Shift** is active, the OS might not preserve information that it was activated by
+    /// RightShift, so the state of [`ModifiersKeys::RSHIFT`] will be unknown while the state
+    /// of [`ModifiersState::SHIFT`] will be active.
     #[default]
     Unknown,
 }

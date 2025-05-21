@@ -808,7 +808,7 @@ pub struct KeyEvent {
 pub struct Modifiers {
     pub(crate) state: ModifiersState,
 
-    // NOTE: Currently pressed modifiers keys.
+    // NOTE: Currently active modifiers keys (logically, but not necessarily physically, pressed).
     //
     // The field providing a metadata, it shouldn't be used as a source of truth.
     pub(crate) pressed_mods: ModifiersKeys,
@@ -820,47 +820,47 @@ impl Modifiers {
         Self { state, pressed_mods }
     }
 
-    /// The state of the modifiers.
+    /// The logical state of the modifiers.
     pub fn state(&self) -> ModifiersState {
         self.state
     }
 
-    /// The state of the left shift key.
+    /// The logical state of the left shift key.
     pub fn lshift_state(&self) -> ModifiersKeyState {
         self.mod_state(ModifiersKeys::LSHIFT)
     }
 
-    /// The state of the right shift key.
+    /// The logical state of the right shift key.
     pub fn rshift_state(&self) -> ModifiersKeyState {
         self.mod_state(ModifiersKeys::RSHIFT)
     }
 
-    /// The state of the left alt key.
+    /// The logical state of the left alt key.
     pub fn lalt_state(&self) -> ModifiersKeyState {
         self.mod_state(ModifiersKeys::LALT)
     }
 
-    /// The state of the right alt key.
+    /// The logical state of the right alt key.
     pub fn ralt_state(&self) -> ModifiersKeyState {
         self.mod_state(ModifiersKeys::RALT)
     }
 
-    /// The state of the left control key.
+    /// The logical state of the left control key.
     pub fn lcontrol_state(&self) -> ModifiersKeyState {
         self.mod_state(ModifiersKeys::LCONTROL)
     }
 
-    /// The state of the right control key.
+    /// The logical state of the right control key.
     pub fn rcontrol_state(&self) -> ModifiersKeyState {
         self.mod_state(ModifiersKeys::RCONTROL)
     }
 
-    /// The state of the left super key.
+    /// The logical state of the left super key.
     pub fn lsuper_state(&self) -> ModifiersKeyState {
         self.mod_state(ModifiersKeys::LMETA)
     }
 
-    /// The state of the right super key.
+    /// The logical state of the right super key.
     pub fn rsuper_state(&self) -> ModifiersKeyState {
         self.mod_state(ModifiersKeys::RMETA)
     }
