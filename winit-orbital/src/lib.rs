@@ -1,12 +1,20 @@
-#![cfg(target_os = "redox")]
+//! # Orbital / Redox OS
+//!
+//! Redox OS has some functionality not yet present that will be implemented
+//! when its orbital display server provides it.
 
 use std::{fmt, str};
 
-pub(crate) use self::event_loop::{ActiveEventLoop, EventLoop};
-pub use self::window::Window;
+pub use self::event_loop::{EventLoop, PlatformSpecificEventLoopAttributes};
 
-mod event_loop;
-mod window;
+macro_rules! os_error {
+    ($error:expr) => {{
+        winit_core::error::OsError::new(line!(), file!(), $error)
+    }};
+}
+
+pub mod event_loop;
+pub mod window;
 
 #[derive(Debug)]
 struct RedoxSocket {
@@ -62,7 +70,7 @@ impl Drop for RedoxSocket {
 }
 
 #[derive(Debug)]
-pub struct TimeSocket(RedoxSocket);
+struct TimeSocket(RedoxSocket);
 
 impl TimeSocket {
     fn open() -> syscall::Result<Self> {
@@ -87,12 +95,6 @@ impl TimeSocket {
         self.timeout(&syscall::TimeSpec::default())
     }
 }
-
-#[derive(Default, Debug, Copy, Clone, PartialEq, Eq, Hash)]
-pub(crate) struct PlatformSpecificEventLoopAttributes {}
-
-#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
-pub struct PlatformSpecificWindowAttributes;
 
 struct WindowProperties<'a> {
     flags: &'a str,

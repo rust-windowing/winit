@@ -1,0 +1,25 @@
+[package]
+description = "Winit's Orbital/Redox backend"
+documentation = "https://docs.rs/winit-orbital"
+edition.workspace = true
+license.workspace = true
+name = "winit-orbital"
+repository.workspace = true
+rust-version.workspace = true
+version = "0.0.0"
+
+[features]
+serde = ["dep:serde", "bitflags/serde", "smol_str/serde", "dpi/serde"]
+
+[dependencies]
+bitflags.workspace = true
+dpi.workspace = true
+rwh_06.workspace = true
+serde = { workspace = true, optional = true }
+smol_str.workspace = true
+tracing.workspace = true
+winit-core.workspace = true
+
+# Platform-specific
+orbclient.workspace = true
+redox_syscall.workspace = true

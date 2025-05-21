@@ -8,8 +8,8 @@ use winit_core::error::{NotSupportedError, RequestError};
 use winit_core::monitor::{Fullscreen, MonitorHandle as CoreMonitorHandle};
 use winit_core::window::{self, ImePurpose, Window as CoreWindow, WindowId};
 
-use super::event_loop::EventLoopProxy;
-use super::{ActiveEventLoop, RedoxSocket, WindowProperties};
+use crate::event_loop::{ActiveEventLoop, EventLoopProxy};
+use crate::{RedoxSocket, WindowProperties};
 
 // These values match the values uses in the `window_new` function in orbital:
 // https://gitlab.redox-os.org/redox-os/orbital/-/blob/master/src/scheme.rs
@@ -486,3 +486,6 @@ impl Drop for Window {
         self.event_loop_proxy.wake_socket.wake().unwrap();
     }
 }
+
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub struct PlatformSpecificWindowAttributes;

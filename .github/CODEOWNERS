@@ -27,5 +27,4 @@
 /src/platform_impl/windows          @notgull
 
 # Orbital (Redox OS)
-/src/platform/orbital.rs            @jackpot51
-/src/platform_impl/orbital          @jackpot51
+/winit-orbital                      @jackpot51
