@@ -4,8 +4,7 @@
 
 # Apple (AppKit + UIKit)
 /winit-uikit                        @madsmtm
-/src/platform/macos.rs              @madsmtm
-/src/platform_impl/apple            @madsmtm
+/winit-appkit                       @madsmtm
 /winit-apple-common                 @madsmtm
 
 # Unix

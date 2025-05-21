@@ -52,13 +52,13 @@ use winit_core::window::{
 
 use super::app_state::AppState;
 use super::cursor::{cursor_from_icon, CustomCursor};
-use super::monitor::{self, flip_window_screen_coordinates, get_display_id};
+use super::ffi;
+use super::monitor::{self, flip_window_screen_coordinates, get_display_id, MonitorHandle};
 use super::observer::RunLoop;
 use super::util::cgerr;
 use super::view::WinitView;
 use super::window::{window_id, WinitPanel, WinitWindow};
-use super::{ffi, MonitorHandle};
-use crate::platform::macos::{OptionAsAlt, WindowAttributesMacOS, WindowExtMacOS};
+use crate::{OptionAsAlt, WindowAttributesMacOS, WindowExtMacOS};
 
 #[derive(Debug)]
 pub(crate) struct State {
