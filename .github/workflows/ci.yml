@@ -183,15 +183,15 @@ jobs:
       run: cargo test -p winit-core
 
     - name: Test winit Common (EventHandler)
-      run: cargo test -p winit-common --target=${{ matrix.platform.target }} --features event-handler
+      run: cargo $CMD test -p winit-common --target=${{ matrix.platform.target }} --features event-handler
 
     - name: Test winit Common (CF)
       if: contains(matrix.platform.target, 'apple')
-      run: cargo test -p winit-common --target=${{ matrix.platform.target }} --features core-foundation
+      run: cargo $CMD test -p winit-common --target=${{ matrix.platform.target }} --features core-foundation
 
     - name: Test winit Common (XKB)
       if: contains(matrix.platform.target, 'linux')
-      run: cargo test -p winit-common --target=${{ matrix.platform.target }} --features xkb,x11,wayland
+      run: cargo $CMD test -p winit-common --target=${{ matrix.platform.target }} --features xkb,x11,wayland
 
     - name: Test winit Orbital
       if: contains(matrix.platform.target, 'redox')
