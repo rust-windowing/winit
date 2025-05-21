@@ -210,6 +210,10 @@ jobs:
       if: contains(matrix.platform.target, 'windows')
       run: cargo $CMD test -p winit-win32 --target=${{ matrix.platform.target }}
 
+    - name: Test winit X11
+      if: contains(matrix.platform.target, 'linux')
+      run: cargo $CMD test -p winit-x11 --target=${{ matrix.platform.target }}
+
     - name: Test winit Wayland
       if: contains(matrix.platform.target, 'linux-gnu')
       run: cargo $CMD test -p winit-wayland --target=${{ matrix.platform.target }}

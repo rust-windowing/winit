@@ -19,6 +19,7 @@ winit-orbital = { version = "0.0.0", path = "winit-orbital" }
 winit-uikit = { version = "0.0.0", path = "winit-uikit" }
 winit-wayland = { version = "0.0.0", path = "winit-wayland", default-features = false }
 winit-win32 = { version = "0.0.0", path = "winit-win32" }
+winit-x11 = { version = "0.0.0", path = "winit-x11" }
 
 # Core dependencies.
 bitflags = "2"
@@ -173,7 +174,7 @@ wayland-csd-adwaita = ["winit-wayland/csd-adwaita"]
 wayland-csd-adwaita-crossfont = ["winit-wayland/csd-adwaita-crossfont"]
 wayland-csd-adwaita-notitle = ["winit-wayland/csd-adwaita-notitle"]
 wayland-dlopen = ["winit-wayland/dlopen"]
-x11 = ["x11-dl", "bytemuck", "percent-encoding", "xkbcommon-dl/x11", "x11rb", "winit-common/x11"]
+x11 = ["dep:winit-x11"]
 
 [build-dependencies]
 cfg_aliases.workspace = true
@@ -298,25 +299,11 @@ winit-win32.workspace = true
 
 # Linux
 [target.'cfg(all(unix, not(any(target_os = "redox", target_family = "wasm", target_os = "android", target_vendor = "apple"))))'.dependencies]
-bytemuck = { workspace = true, optional = true }
-calloop.workspace = true
 libc.workspace = true
-percent-encoding = { workspace = true, optional = true }
-rustix = { workspace = true, features = ["std", "system", "thread", "process"] }
+rustix = { workspace = true, features = ["std", "thread"] }
 winit-common = { workspace = true, features = ["xkb"] }
 winit-wayland = { workspace = true, optional = true, default-features = false }
-x11-dl = { workspace = true, optional = true }
-x11rb = { workspace = true, optional = true, features = [
-    "allow-unsafe-code",
-    "cursor",
-    "dl-libxcb",
-    "randr",
-    "resource_manager",
-    "sync",
-    "xinput",
-    "xkb",
-] }
-xkbcommon-dl.workspace = true
+winit-x11 = { workspace = true, optional = true }
 
 [target.'cfg(target_os = "redox")'.dependencies]
 winit-orbital.workspace = true

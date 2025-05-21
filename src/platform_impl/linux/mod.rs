@@ -7,21 +7,15 @@ use std::env;
 use std::os::unix::io::{AsFd, AsRawFd, BorrowedFd, RawFd};
 use std::time::Duration;
 
-#[cfg(x11_platform)]
-use dpi::Size;
 pub(crate) use winit_common::xkb::{physicalkey_to_scancode, scancode_to_physicalkey};
 use winit_core::application::ApplicationHandler;
 use winit_core::error::{EventLoopError, NotSupportedError};
 use winit_core::event_loop::pump_events::PumpStatus;
 use winit_core::event_loop::ActiveEventLoop;
-use winit_core::window::ActivationToken;
 #[cfg(wayland_platform)]
 pub(crate) use winit_wayland as wayland;
-
 #[cfg(x11_platform)]
-use crate::platform::x11::WindowType as XWindowType;
-#[cfg(x11_platform)]
-pub(crate) mod x11;
+pub(crate) use winit_x11 as x11;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub(crate) enum Backend {
@@ -35,59 +29,6 @@ pub(crate) enum Backend {
 pub(crate) struct PlatformSpecificEventLoopAttributes {
     pub(crate) forced_backend: Option<Backend>,
     pub(crate) any_thread: bool,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ApplicationName {
-    pub general: String,
-    pub instance: String,
-}
-
-impl ApplicationName {
-    #[allow(dead_code)]
-    pub fn new(general: String, instance: String) -> Self {
-        Self { general, instance }
-    }
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub struct PlatformSpecificWindowAttributes {
-    pub name: Option<ApplicationName>,
-    pub activation_token: Option<ActivationToken>,
-    #[cfg(x11_platform)]
-    pub x11: X11WindowAttributes,
-}
-
-#[derive(Clone, Debug, PartialEq)]
-#[cfg(x11_platform)]
-pub struct X11WindowAttributes {
-    pub visual_id: Option<x11rb::protocol::xproto::Visualid>,
-    pub screen_id: Option<i32>,
-    pub base_size: Option<Size>,
-    pub override_redirect: bool,
-    pub x11_window_types: Vec<XWindowType>,
-
-    /// The parent window to embed this window into.
-    pub embed_window: Option<x11rb::protocol::xproto::Window>,
-}
-
-#[cfg_attr(not(x11_platform), allow(clippy::derivable_impls))]
-impl Default for PlatformSpecificWindowAttributes {
-    fn default() -> Self {
-        Self {
-            name: None,
-            activation_token: None,
-            #[cfg(x11_platform)]
-            x11: X11WindowAttributes {
-                visual_id: None,
-                screen_id: None,
-                base_size: None,
-                override_redirect: false,
-                x11_window_types: vec![XWindowType::Normal],
-                embed_window: None,
-            },
-        }
-    }
 }
 
 /// `x11_or_wayland!(match expr; Enum(foo) => foo.something())`
@@ -240,14 +181,6 @@ impl AsRawFd for EventLoop {
     fn as_raw_fd(&self) -> RawFd {
         x11_or_wayland!(match self; EventLoop(evlp) => evlp.as_raw_fd())
     }
-}
-
-/// Returns the minimum `Option<Duration>`, taking into account that `None`
-/// equates to an infinite timeout, not a zero timeout (so can't just use
-/// `Option::min`)
-#[allow(dead_code)]
-fn min_timeout(a: Option<Duration>, b: Option<Duration>) -> Option<Duration> {
-    a.map_or(b, |a_timeout| b.map_or(Some(a_timeout), |b_timeout| Some(a_timeout.min(b_timeout))))
 }
 
 #[cfg(target_os = "linux")]

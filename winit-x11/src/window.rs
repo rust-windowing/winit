@@ -31,20 +31,19 @@ use x11rb::protocol::xfixes::{ConnectionExt, RegionWrapper};
 use x11rb::protocol::xproto::{self, ConnectionExt as _, Rectangle};
 use x11rb::protocol::{randr, xinput};
 
-use super::util::{self, SelectedCursor};
-use super::{
-    ffi, ActiveEventLoop, CookieResultExt, CustomCursor, ImeRequest, ImeSender, VoidCookie,
-    XConnection,
+use crate::atoms::*;
+use crate::event_loop::{
+    xinput_fp1616_to_float, ActivationItem, ActiveEventLoop, CookieResultExt, VoidCookie,
+    WakeSender, X11Error, ALL_MASTER_DEVICES, ICONIC_STATE,
 };
-use crate::platform::x11::{WindowAttributesX11, WindowType};
-use crate::platform_impl::x11::atoms::*;
-use crate::platform_impl::x11::util::rgba_to_cardinals;
-use crate::platform_impl::x11::{
-    xinput_fp1616_to_float, MonitorHandle as X11MonitorHandle, WakeSender, X11Error,
-};
+use crate::ime::{ImeRequest, ImeSender};
+use crate::monitor::MonitorHandle as X11MonitorHandle;
+use crate::util::{self, rgba_to_cardinals, CustomCursor, SelectedCursor};
+use crate::xdisplay::XConnection;
+use crate::{ffi, WindowAttributesX11, WindowType};
 
 #[derive(Debug)]
-pub(crate) struct Window(Arc<UnownedWindow>);
+pub struct Window(Arc<UnownedWindow>);
 
 impl Deref for Window {
     type Target = UnownedWindow;
@@ -430,7 +429,7 @@ pub struct UnownedWindow {
     ime_sender: Mutex<ImeSender>,
     pub shared_state: Mutex<SharedState>,
     redraw_sender: WakeSender<WindowId>,
-    activation_sender: WakeSender<super::ActivationToken>,
+    activation_sender: WakeSender<ActivationItem>,
 }
 macro_rules! leap {
     ($e:expr) => {
@@ -827,7 +826,7 @@ impl UnownedWindow {
                 | xinput::XIEventMask::TOUCH_BEGIN
                 | xinput::XIEventMask::TOUCH_UPDATE
                 | xinput::XIEventMask::TOUCH_END;
-            leap!(xconn.select_xinput_events(window.xwindow, super::ALL_MASTER_DEVICES, mask))
+            leap!(xconn.select_xinput_events(window.xwindow, ALL_MASTER_DEVICES, mask))
                 .ignore_error();
 
             // Set visibility (map window)
@@ -2092,7 +2091,7 @@ impl UnownedWindow {
         let is_minimized = if let Ok(state) =
             self.xconn.get_property::<u32>(self.xwindow, state_atom, state_type_atom)
         {
-            state.contains(&super::ICONIC_STATE)
+            state.contains(&ICONIC_STATE)
         } else {
             false
         };

@@ -10,8 +10,9 @@ use std::fmt::Write;
 
 use x11rb::protocol::xproto::{self, ConnectionExt as _};
 
-use super::atoms::*;
-use super::{VoidCookie, X11Error, XConnection};
+use crate::atoms::*;
+use crate::event_loop::{VoidCookie, X11Error};
+use crate::xdisplay::XConnection;
 
 impl XConnection {
     /// "Request" a new activation token from the server.

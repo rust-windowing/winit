@@ -4,9 +4,10 @@ use std::ptr;
 use std::sync::Arc;
 
 use super::context::{ImeContext, ImeContextCreationError};
+use super::ffi;
 use super::inner::{close_im, ImeInner};
 use super::input_method::PotentialInputMethods;
-use super::{ffi, XConnection, XError};
+use crate::xdisplay::{XConnection, XError};
 
 pub(crate) unsafe fn xim_set_callback(
     xconn: &Arc<XConnection>,
