@@ -74,13 +74,13 @@ pub fn mod_state_side_agnostic_s(state: &ModifiersState) -> String {
     s.push(' ');
 
     if state.contains(ModifiersState::FN) {
-        s.push('🄵')
+        s.push('ƒ')
     } else {
         s.push(' ')
     };
     s.push(' ');
     if state.contains(ModifiersState::FN_LOCK) {
-        s.push_str("🄵🔒")
+        s.push_str("ƒ🔒")
     } else {
         s.push_str("  ")
     };
@@ -309,10 +309,11 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     println!(
         "Δ is ModifiersChanged event, showing (line #1) side-agnostic modifier state as well as \
-         (#2) side-aware one."
+         (#2) side-aware one.\n   ⇧ Shift  ⎈ Control  ◆ Meta  ⎇ Alt  ⎇Gr AltGraph  ⇪ CapsLock  ⇭ \
+         NumLock  ⇳🔒 ScrollLock\n   ƒ Fn  ƒ🔒 FnLock  カナ🔒 KanaLock  ‹👍 Loya  👍› Roya  🔣 \
+         Symbol  🔣🔒 SymbolLock\n🖮 is KeyboardInput: ⚗ synthetic, ↓↑ pressed/unknown, 🔁 \
+         repeat\n   phys logic txt +mod −mod location"
     );
-    println!("🖮 is KeyboardInput: ⚗=synthetic, ↓↑=pressed/released 🔁=repeat");
-    println!("    phys logic txt +mod −mod location");
 
     // For alternative loop run options see `pump_events` and `run_on_demand` examples.
     event_loop.run_app(App::default())?;
