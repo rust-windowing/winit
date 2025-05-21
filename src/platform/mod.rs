@@ -5,7 +5,7 @@
 #[cfg(android_platform)]
 pub mod android;
 #[cfg(ios_platform)]
-pub mod ios;
+pub use winit_uikit as ios;
 #[cfg(macos_platform)]
 pub mod macos;
 #[cfg(orbital_platform)]
