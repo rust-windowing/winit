@@ -22,18 +22,18 @@ use sctk::shm::{Shm, ShmHandler};
 use sctk::subcompositor::SubcompositorState;
 use winit_core::error::OsError;
 
-use crate::platform_impl::wayland::event_loop::sink::EventSink;
-use crate::platform_impl::wayland::output::MonitorHandle;
-use crate::platform_impl::wayland::seat::{
+use crate::event_loop::sink::EventSink;
+use crate::output::MonitorHandle;
+use crate::seat::{
     PointerConstraintsState, RelativePointerState, TextInputState, WinitPointerData,
     WinitPointerDataExt, WinitSeatState,
 };
-use crate::platform_impl::wayland::types::kwin_blur::KWinBlurManager;
-use crate::platform_impl::wayland::types::wp_fractional_scaling::FractionalScalingManager;
-use crate::platform_impl::wayland::types::wp_viewporter::ViewporterState;
-use crate::platform_impl::wayland::types::xdg_activation::XdgActivationState;
-use crate::platform_impl::wayland::window::{WindowRequests, WindowState};
-use crate::platform_impl::wayland::WindowId;
+use crate::types::kwin_blur::KWinBlurManager;
+use crate::types::wp_fractional_scaling::FractionalScalingManager;
+use crate::types::wp_viewporter::ViewporterState;
+use crate::types::xdg_activation::XdgActivationState;
+use crate::window::{WindowRequests, WindowState};
+use crate::WindowId;
 
 /// Winit's Wayland state.
 #[derive(Debug)]

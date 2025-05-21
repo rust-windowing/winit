@@ -29,8 +29,7 @@ use super::output::MonitorHandle;
 use super::state::WinitState;
 use super::types::xdg_activation::XdgActivationTokenData;
 use super::ActiveEventLoop;
-use crate::platform::wayland::WindowAttributesWayland;
-use crate::platform_impl::wayland::output;
+use crate::{output, WindowAttributesWayland};
 
 pub(crate) mod state;
 
@@ -153,7 +152,6 @@ impl Window {
             Some(Fullscreen::Exclusive(..)) => {
                 warn!("`Fullscreen::Exclusive` is ignored on Wayland");
             },
-            #[cfg_attr(not(x11_platform), allow(clippy::bind_instead_of_map))]
             Some(Fullscreen::Borderless(monitor)) => {
                 let output = monitor.as_ref().and_then(|monitor| {
                     monitor.cast_ref::<output::MonitorHandle>().map(|handle| &handle.proxy)
@@ -452,7 +450,6 @@ impl CoreWindow for Window {
             Some(Fullscreen::Exclusive(..)) => {
                 warn!("`Fullscreen::Exclusive` is ignored on Wayland");
             },
-            #[cfg_attr(not(x11_platform), allow(clippy::bind_instead_of_map))]
             Some(Fullscreen::Borderless(monitor)) => {
                 let output = monitor.as_ref().and_then(|monitor| {
                     monitor.cast_ref::<output::MonitorHandle>().map(|handle| &handle.proxy)

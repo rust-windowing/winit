@@ -13,7 +13,7 @@ use sctk::reexports::protocols::wp::relative_pointer::zv1::{
 use sctk::globals::GlobalData;
 
 use winit_core::event::DeviceEvent;
-use crate::platform_impl::wayland::state::WinitState;
+use crate::state::WinitState;
 
 /// Wrapper around the relative pointer.
 #[derive(Debug)]

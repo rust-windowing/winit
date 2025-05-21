@@ -15,9 +15,9 @@ use winit_common::xkb::Context;
 use winit_core::event::{ElementState, WindowEvent};
 use winit_core::keyboard::ModifiersState;
 
-use crate::platform_impl::wayland::event_loop::sink::EventSink;
-use crate::platform_impl::wayland::state::WinitState;
-use crate::platform_impl::wayland::{self, WindowId};
+use crate::event_loop::sink::EventSink;
+use crate::state::WinitState;
+use crate::WindowId;
 
 impl Dispatch<WlKeyboard, KeyboardData, WinitState> for WinitState {
     fn event(
@@ -60,7 +60,7 @@ impl Dispatch<WlKeyboard, KeyboardData, WinitState> for WinitState {
                 },
             },
             WlKeyboardEvent::Enter { surface, .. } => {
-                let window_id = wayland::make_wid(&surface);
+                let window_id = crate::make_wid(&surface);
 
                 // Mark the window as focused.
                 let was_unfocused = match state.windows.get_mut().get(&window_id) {
@@ -95,7 +95,7 @@ impl Dispatch<WlKeyboard, KeyboardData, WinitState> for WinitState {
                 }
             },
             WlKeyboardEvent::Leave { surface, .. } => {
-                let window_id = wayland::make_wid(&surface);
+                let window_id = crate::make_wid(&surface);
 
                 // NOTE: we should drop the repeat regardless whethere it was for the present
                 // window of for the window which just went gone.

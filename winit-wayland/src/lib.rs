@@ -1,4 +1,4 @@
-//! # Wayland
+//! # Winit's Wayland backend.
 //!
 //! **Note:** Windows don't appear on Wayland until you draw/present to them.
 //!
@@ -16,12 +16,29 @@
 use std::ffi::c_void;
 use std::ptr::NonNull;
 
-use winit_core::window::PlatformWindowAttributes;
+use dpi::{LogicalSize, PhysicalSize};
+use sctk::reexports::client::protocol::wl_surface::WlSurface;
+use sctk::reexports::client::Proxy;
+use winit_core::event_loop::ActiveEventLoop as CoreActiveEventLoop;
+use winit_core::window::{
+    ActivationToken, PlatformWindowAttributes, Window as CoreWindow, WindowId,
+};
 
-use crate::event_loop::{ActiveEventLoop, EventLoop, EventLoopBuilder};
-use crate::platform_impl::wayland::Window;
-use crate::platform_impl::ApplicationName;
-use crate::window::{ActivationToken, Window as CoreWindow};
+macro_rules! os_error {
+    ($error:expr) => {{
+        winit_core::error::OsError::new(line!(), file!(), $error)
+    }};
+}
+
+mod event_loop;
+mod output;
+mod seat;
+mod state;
+mod types;
+mod window;
+
+pub use self::event_loop::{ActiveEventLoop, EventLoop};
+pub use self::window::Window;
 
 /// Additional methods on [`ActiveEventLoop`] that are specific to Wayland.
 pub trait ActiveEventLoopExtWayland {
@@ -29,10 +46,10 @@ pub trait ActiveEventLoopExtWayland {
     fn is_wayland(&self) -> bool;
 }
 
-impl ActiveEventLoopExtWayland for dyn ActiveEventLoop + '_ {
+impl ActiveEventLoopExtWayland for dyn CoreActiveEventLoop + '_ {
     #[inline]
     fn is_wayland(&self) -> bool {
-        self.cast_ref::<crate::platform_impl::wayland::ActiveEventLoop>().is_some()
+        self.cast_ref::<ActiveEventLoop>().is_some()
     }
 }
 
@@ -40,13 +57,6 @@ impl ActiveEventLoopExtWayland for dyn ActiveEventLoop + '_ {
 pub trait EventLoopExtWayland {
     /// True if the [`EventLoop`] uses Wayland.
     fn is_wayland(&self) -> bool;
-}
-
-impl EventLoopExtWayland for EventLoop {
-    #[inline]
-    fn is_wayland(&self) -> bool {
-        self.event_loop.is_wayland()
-    }
 }
 
 /// Additional methods on [`EventLoopBuilder`] that are specific to Wayland.
@@ -59,20 +69,6 @@ pub trait EventLoopBuilderExtWayland {
     /// By default, the window is only allowed to be created on the main
     /// thread, to make platform compatibility easier.
     fn with_any_thread(&mut self, any_thread: bool) -> &mut Self;
-}
-
-impl EventLoopBuilderExtWayland for EventLoopBuilder {
-    #[inline]
-    fn with_wayland(&mut self) -> &mut Self {
-        self.platform_specific.forced_backend = Some(crate::platform_impl::Backend::Wayland);
-        self
-    }
-
-    #[inline]
-    fn with_any_thread(&mut self, any_thread: bool) -> &mut Self {
-        self.platform_specific.any_thread = any_thread;
-        self
-    }
 }
 
 /// Additional methods on [`Window`] that are specific to Wayland.
@@ -88,6 +84,12 @@ impl WindowExtWayland for dyn CoreWindow + '_ {
     fn xdg_toplevel(&self) -> Option<NonNull<c_void>> {
         self.cast_ref::<Window>()?.xdg_toplevel()
     }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct ApplicationName {
+    pub(crate) general: String,
+    pub(crate) instance: String,
 }
 
 /// Window attributes methods specific to Wayland.
@@ -107,8 +109,7 @@ impl WindowAttributesWayland {
     /// [Desktop Entry Spec](https://specifications.freedesktop.org/desktop-entry-spec/desktop-entry-spec-latest.html#desktop-file-id)
     #[inline]
     pub fn with_name(mut self, general: impl Into<String>, instance: impl Into<String>) -> Self {
-        self.name =
-            Some(crate::platform_impl::ApplicationName::new(general.into(), instance.into()));
+        self.name = Some(ApplicationName { general: general.into(), instance: instance.into() });
         self
     }
 
@@ -123,4 +124,17 @@ impl PlatformWindowAttributes for WindowAttributesWayland {
     fn box_clone(&self) -> Box<dyn PlatformWindowAttributes> {
         Box::from(self.clone())
     }
+}
+
+/// Get the WindowId out of the surface.
+#[inline]
+fn make_wid(surface: &WlSurface) -> WindowId {
+    WindowId::from_raw(surface.id().as_ptr() as usize)
+}
+
+/// The default routine does floor, but we need round on Wayland.
+fn logical_to_physical_rounded(size: LogicalSize<u32>, scale_factor: f64) -> PhysicalSize<u32> {
+    let width = size.width as f64 * scale_factor;
+    let height = size.height as f64 * scale_factor;
+    (width.round(), height.round()).into()
 }
