@@ -37,3 +37,6 @@ objc2-core-foundation = { workspace = true, optional = true, features = [
     "CFRunLoop",
     "CFString",
 ] }
+
+[package.metadata.docs.rs]
+all-features = true
