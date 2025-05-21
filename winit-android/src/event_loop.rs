@@ -1,4 +1,5 @@
 use std::cell::Cell;
+use std::fmt;
 use std::hash::Hash;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
