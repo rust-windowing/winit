@@ -1713,6 +1713,21 @@ bitflags! {
         const NUM_LOCK = 0b100 << 12;
         /// The "Scroll Lock" key.
         const SCROLL_LOCK = 0b100 << 13;
+        /// The "Function" switch key. Often handled directly in the keyboard hardware and does not generate key events.
+        /// - **macOS**: Generates `ModifiersChanged` events on Apple hardware.
+        const FN = 0b100 << 14;
+        /// The "Function-Lock" key.
+        const FN_LOCK = 0b100 << 15;
+        /// The "Kana Mode" ("Kana Lock") key, typically used to enter hiragana mode (typically from romaji mode).
+        const KANA_LOCK = 0b100 << 16;
+        /// The "Left OYAYUBI" key (OEM-specific).
+        const LOYA = 0b100 << 17;
+        /// The "Right OYAYUBI" key (OEM-specific).
+        const ROYA = 0b100 << 18;
+        /// The "Symbol" modifier key used on some virtual keyboards.
+        const SYMBOL = 0b100 << 19;
+        /// The "Symbol" Lock key.
+        const SYMBOL_LOCK = 0b100 << 20;
         #[deprecated = "use META instead"]
         const SUPER = Self::META.bits();
     }
