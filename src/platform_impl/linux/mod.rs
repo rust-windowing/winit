@@ -15,12 +15,11 @@ use winit_core::error::{EventLoopError, NotSupportedError};
 use winit_core::event_loop::pump_events::PumpStatus;
 use winit_core::event_loop::ActiveEventLoop;
 use winit_core::window::ActivationToken;
+#[cfg(wayland_platform)]
+pub(crate) use winit_wayland as wayland;
 
 #[cfg(x11_platform)]
 use crate::platform::x11::WindowType as XWindowType;
-
-#[cfg(wayland_platform)]
-pub(crate) mod wayland;
 #[cfg(x11_platform)]
 pub(crate) mod x11;
 
@@ -45,6 +44,7 @@ pub struct ApplicationName {
 }
 
 impl ApplicationName {
+    #[allow(dead_code)]
     pub fn new(general: String, instance: String) -> Self {
         Self { general, instance }
     }
@@ -196,6 +196,7 @@ impl EventLoop {
     }
 
     #[inline]
+    #[allow(dead_code)]
     pub fn is_wayland(&self) -> bool {
         match *self {
             #[cfg(wayland_platform)]
@@ -244,6 +245,7 @@ impl AsRawFd for EventLoop {
 /// Returns the minimum `Option<Duration>`, taking into account that `None`
 /// equates to an infinite timeout, not a zero timeout (so can't just use
 /// `Option::min`)
+#[allow(dead_code)]
 fn min_timeout(a: Option<Duration>, b: Option<Duration>) -> Option<Duration> {
     a.map_or(b, |a_timeout| b.map_or(Some(a_timeout), |b_timeout| Some(a_timeout.min(b_timeout))))
 }

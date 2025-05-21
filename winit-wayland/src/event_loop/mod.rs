@@ -29,8 +29,7 @@ use winit_core::event_loop::{
 use winit_core::monitor::MonitorHandle as CoreMonitorHandle;
 use winit_core::window::Theme;
 
-use crate::platform_impl::platform::min_timeout;
-use crate::platform_impl::wayland::types::cursor::WaylandCustomCursor;
+use crate::types::cursor::WaylandCustomCursor;
 
 mod proxy;
 pub mod sink;
@@ -650,7 +649,7 @@ impl RootActiveEventLoop for ActiveEventLoop {
         &self,
         window_attributes: winit_core::window::WindowAttributes,
     ) -> Result<Box<dyn winit_core::window::Window>, RequestError> {
-        let window = crate::platform_impl::wayland::Window::new(self, window_attributes)?;
+        let window = crate::Window::new(self, window_attributes)?;
         Ok(Box::new(window))
     }
 
@@ -812,4 +811,11 @@ enum PumpEventNotifierAction {
     Pause,
     /// Shutdown the thread.
     Shutdown,
+}
+
+/// Returns the minimum `Option<Duration>`, taking into account that `None`
+/// equates to an infinite timeout, not a zero timeout (so can't just use
+/// `Option::min`)
+fn min_timeout(a: Option<Duration>, b: Option<Duration>) -> Option<Duration> {
+    a.map_or(b, |a_timeout| b.map_or(Some(a_timeout), |b_timeout| Some(a_timeout.min(b_timeout))))
 }

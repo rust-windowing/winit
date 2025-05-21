@@ -12,8 +12,7 @@
 /winit-common/src/xkb               @kchibisov
 
 # Wayland
-/src/platform/wayland.rs            @kchibisov
-/src/platform_impl/linux/wayland    @kchibisov
+/winit-wayland                      @kchibisov
 
 # X11
 /src/platform/x11.rs                @kchibisov @notgull

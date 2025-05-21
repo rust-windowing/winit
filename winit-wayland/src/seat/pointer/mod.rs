@@ -33,8 +33,8 @@ use winit_core::event::{
     WindowEvent,
 };
 
-use crate::platform_impl::wayland::state::WinitState;
-use crate::platform_impl::wayland::{self, WindowId};
+use crate::state::WinitState;
+use crate::WindowId;
 
 pub mod relative_pointer;
 
@@ -72,7 +72,7 @@ impl PointerHandler for WinitState {
                 None => continue,
             };
 
-            let window_id = wayland::make_wid(parent_surface);
+            let window_id = crate::make_wid(parent_surface);
 
             // Ensure that window exists.
             let mut window = match self.windows.get_mut().get_mut(&window_id) {

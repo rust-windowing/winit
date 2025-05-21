@@ -7,7 +7,7 @@ use sctk::reexports::client::{delegate_dispatch, Connection, Dispatch, Proxy, Qu
 use sctk::reexports::protocols::wp::viewporter::client::wp_viewport::WpViewport;
 use sctk::reexports::protocols::wp::viewporter::client::wp_viewporter::WpViewporter;
 
-use crate::platform_impl::wayland::state::WinitState;
+use crate::state::WinitState;
 
 /// Viewporter.
 #[derive(Debug)]

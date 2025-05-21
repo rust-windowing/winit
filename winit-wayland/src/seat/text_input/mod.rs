@@ -11,8 +11,7 @@ use sctk::reexports::protocols::wp::text_input::zv3::client::zwp_text_input_v3::
 use winit_core::event::{Ime, WindowEvent};
 use winit_core::window::ImePurpose;
 
-use crate::platform_impl::wayland;
-use crate::platform_impl::wayland::state::WinitState;
+use crate::state::WinitState;
 
 #[derive(Debug)]
 pub struct TextInputState {
@@ -62,7 +61,7 @@ impl Dispatch<ZwpTextInputV3, TextInputData, WinitState> for TextInputState {
         let mut text_input_data = data.inner.lock().unwrap();
         match event {
             TextInputEvent::Enter { surface } => {
-                let window_id = wayland::make_wid(&surface);
+                let window_id = crate::make_wid(&surface);
                 text_input_data.surface = Some(surface);
 
                 let mut window = match windows.get(&window_id) {
@@ -86,7 +85,7 @@ impl Dispatch<ZwpTextInputV3, TextInputData, WinitState> for TextInputState {
                 text_input.disable();
                 text_input.commit();
 
-                let window_id = wayland::make_wid(&surface);
+                let window_id = crate::make_wid(&surface);
 
                 // XXX this check is essential, because `leave` could have a
                 // reference to nil surface...
@@ -116,7 +115,7 @@ impl Dispatch<ZwpTextInputV3, TextInputData, WinitState> for TextInputState {
             },
             TextInputEvent::Done { .. } => {
                 let window_id = match text_input_data.surface.as_ref() {
-                    Some(surface) => wayland::make_wid(surface),
+                    Some(surface) => crate::make_wid(surface),
                     None => return,
                 };
 
