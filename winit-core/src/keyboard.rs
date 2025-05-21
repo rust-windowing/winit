@@ -1753,6 +1753,61 @@ impl ModifiersState {
     pub fn meta_key(&self) -> bool {
         self.intersects(Self::META)
     }
+
+    /// Returns `true` if the AltGraph modifier is active.
+    pub fn alt_graph_key(&self) -> bool {
+        self.contains(Self::ALT_GRAPH)
+    }
+
+    /// Returns `true` if the CapsLock modifier is active.
+    pub fn caps_lock_key(&self) -> bool {
+        self.contains(Self::CAPS_LOCK)
+    }
+
+    /// Returns `true` if the NumLock modifier is active.
+    pub fn num_lock_key(&self) -> bool {
+        self.contains(Self::NUM_LOCK)
+    }
+
+    /// Returns `true` if the ScrollLock modifier is active.
+    pub fn scroll_lock_key(&self) -> bool {
+        self.contains(Self::SCROLL_LOCK)
+    }
+
+    /// Returns `true` if the Fn modifier is active.
+    pub fn fn_key(&self) -> bool {
+        self.contains(Self::FN)
+    }
+
+    /// Returns `true` if the FnLock modifier is active.
+    pub fn fn_lock_key(&self) -> bool {
+        self.contains(Self::FN_LOCK)
+    }
+
+    /// Returns `true` if the KanaLock modifier is active.
+    pub fn kana_lock_key(&self) -> bool {
+        self.contains(Self::KANA_LOCK)
+    }
+
+    /// Returns `true` if the Loya modifier is active.
+    pub fn loya_key(&self) -> bool {
+        self.contains(Self::LOYA)
+    }
+
+    /// Returns `true` if the Roya modifier is active.
+    pub fn roya_key(&self) -> bool {
+        self.contains(Self::ROYA)
+    }
+
+    /// Returns `true` if the Symbol modifier is active.
+    pub fn symbol_key(&self) -> bool {
+        self.contains(Self::SYMBOL)
+    }
+
+    /// Returns `true` if the SymbolLock modifier is active.
+    pub fn symbol_lock_key(&self) -> bool {
+        self.contains(Self::SYMBOL_LOCK)
+    }
 }
 
 /// The logical state of the particular modifiers key.
