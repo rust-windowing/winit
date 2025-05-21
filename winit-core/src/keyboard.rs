@@ -1740,7 +1740,7 @@ impl ModifiersState {
 ///  | Type | Activated | Deactived | Comment |
 ///  | -----| :----: | :------: | ------- |
 ///  |__Regular__ | `↓` | `↑`  | Active while being held |
-///  |__Sticky__ | `↓` | `↓` unless lock is enabled</br>`↓`/`↑`[^2] __non__-sticky key | Temporarily "stuck"; other `Sticky` keys have no effect|
+///  |__Sticky__ | `↓` | `↓` unless lock is enabled<br>`↓`/`↑`[^2] __non__-sticky key | Temporarily "stuck"; other `Sticky` keys have no effect|
 ///  |__Sticky Locked__ | `↓` <br>if `Sticky` | `↓` | Similar to `Toggle`, but deactivating `↓` turns on `Regular` effect |
 ///  |__Toggle__ | `↓` | `↓` | `↑` from the activating `↓` has no effect|
 ///
