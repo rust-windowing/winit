@@ -201,6 +201,10 @@ jobs:
       if: contains(matrix.platform.target, 'redox')
       run: cargo test -p winit-orbital
 
+    - name: Test winit UIKit
+      if: contains(matrix.platform.target, 'ios') && false # TODO: Run on Simulator
+      run: cargo test -p winit-uikit
+
     - name: Test winit Win32
       if: contains(matrix.platform.target, 'windows')
       run: cargo $CMD test -p winit-win32 --target=${{ matrix.platform.target }}
