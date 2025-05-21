@@ -17,7 +17,8 @@ use self::context::ImeContext;
 pub use self::context::ImeContextCreationError;
 use self::inner::{close_im, ImeInner};
 use self::input_method::PotentialInputMethods;
-use super::{ffi, util, XConnection, XError};
+use crate::xdisplay::{XConnection, XError};
+use crate::{ffi, util};
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]

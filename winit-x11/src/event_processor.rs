@@ -13,6 +13,7 @@ use winit_core::event::{
     WindowEvent,
 };
 use winit_core::keyboard::ModifiersState;
+use winit_core::window::WindowId;
 use x11_dl::xinput2::{
     self, XIDeviceEvent, XIEnterEvent, XIFocusInEvent, XIFocusOutEvent, XIHierarchyEvent,
     XILeaveEvent, XIModifierState, XIRawEvent,
@@ -29,14 +30,16 @@ use x11rb::protocol::xproto::{self, ConnectionExt as _, ModMask};
 use x11rb::x11_utils::{ExtensionInformation, Serialize};
 use xkbcommon_dl::xkb_mod_mask_t;
 
-use crate::platform_impl::platform::x11::ime::{ImeEvent, ImeEventReceiver, ImeRequest};
-use crate::platform_impl::platform::x11::ActiveEventLoop;
-use crate::platform_impl::x11::atoms::*;
-use crate::platform_impl::x11::util::cookie::GenericEventCookie;
-use crate::platform_impl::x11::{
-    mkdid, mkwid, util, CookieResultExt, Device, DeviceInfo, Dnd, DndState, ImeReceiver,
-    ScrollOrientation, UnownedWindow, WindowId,
+use crate::atoms::*;
+use crate::dnd::{Dnd, DndState};
+use crate::event_loop::{
+    mkdid, mkwid, ActiveEventLoop, CookieResultExt, Device, DeviceInfo, ScrollOrientation,
+    ALL_DEVICES,
 };
+use crate::ime::{ImeEvent, ImeEventReceiver, ImeReceiver, ImeRequest};
+use crate::util;
+use crate::util::cookie::GenericEventCookie;
+use crate::window::UnownedWindow;
 
 /// The maximum amount of X modifiers to replay.
 pub const MAX_MOD_REPLAY_LEN: usize = 32;
@@ -1124,7 +1127,7 @@ impl EventProcessor {
         let window_id = mkwid(window);
         let device_id = mkdid(event.deviceid as xinput::DeviceId);
 
-        if let Some(all_info) = DeviceInfo::get(&self.target.xconn, super::ALL_DEVICES.into()) {
+        if let Some(all_info) = DeviceInfo::get(&self.target.xconn, ALL_DEVICES.into()) {
             let mut devices = self.devices.borrow_mut();
             for device_info in all_info.iter() {
                 // The second expression is need for resetting to work correctly on i3, and
@@ -1465,7 +1468,7 @@ impl EventProcessor {
                     self.xkb_context.set_keymap_from_x11(xcb);
                     self.xmodmap.reload_from_x_connection(&self.target.xconn);
 
-                    let window_id = match self.active_window.map(super::mkwid) {
+                    let window_id = match self.active_window.map(mkwid) {
                         Some(window_id) => window_id,
                         None => return,
                     };
@@ -1480,7 +1483,7 @@ impl EventProcessor {
                 let xcb = self.target.xconn.xcb_connection().get_raw_xcb_connection();
                 self.xkb_context.set_keymap_from_x11(xcb);
                 self.xmodmap.reload_from_x_connection(&self.target.xconn);
-                let window_id = match self.active_window.map(super::mkwid) {
+                let window_id = match self.active_window.map(mkwid) {
                     Some(window_id) => window_id,
                     None => return,
                 };
@@ -1506,7 +1509,7 @@ impl EventProcessor {
                         xev.locked_group as u32,
                     );
 
-                    let window_id = match self.active_window.map(super::mkwid) {
+                    let window_id = match self.active_window.map(mkwid) {
                         Some(window_id) => window_id,
                         None => return,
                     };
@@ -1538,7 +1541,7 @@ impl EventProcessor {
 
             // NOTE: we use active window since generally sub windows don't have keyboard input,
             // and winit assumes that unfocused window doesn't have modifiers.
-            let window_id = match self.active_window.map(super::mkwid) {
+            let window_id = match self.active_window.map(mkwid) {
                 Some(window_id) => window_id,
                 None => return,
             };

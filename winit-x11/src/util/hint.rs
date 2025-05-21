@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use super::*;
-use crate::platform::x11::WindowType;
+use crate::WindowType;
 
 #[derive(Debug)]
 #[allow(dead_code)]
