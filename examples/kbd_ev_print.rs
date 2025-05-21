@@ -72,6 +72,49 @@ pub fn mod_state_side_agnostic_s(state: &ModifiersState) -> String {
         s.push_str("  ")
     };
     s.push(' ');
+
+    if state.contains(ModifiersState::FN) {
+        s.push_str("🄵")
+    } else {
+        s.push(' ')
+    };
+    s.push(' ');
+    if state.contains(ModifiersState::FN_LOCK) {
+        s.push_str("🄵🔒")
+    } else {
+        s.push_str("  ")
+    };
+    s.push(' ');
+    if state.contains(ModifiersState::KANA_LOCK) {
+        s.push_str("カナ🔒")
+    } else {
+        s.push_str("   ")
+    };
+    s.push(' ');
+    if state.contains(ModifiersState::LOYA) {
+        s.push_str("‹👍")
+    } else {
+        s.push_str("  ")
+    };
+    s.push(' ');
+    if state.contains(ModifiersState::ROYA) {
+        s.push_str("👍›")
+    } else {
+        s.push_str("  ")
+    };
+    s.push(' ');
+    if state.contains(ModifiersState::SYMBOL) {
+        s.push_str("🔣")
+    } else {
+        s.push(' ')
+    };
+    s.push(' ');
+    if state.contains(ModifiersState::SYMBOL_LOCK) {
+        s.push_str("🔣🔒")
+    } else {
+        s.push_str("  ")
+    };
+    s.push(' ');
     s
 }
 // https://docs.rs/winit/latest/winit/event/struct.Modifiers.html
@@ -125,7 +168,7 @@ pub fn mod_state_side_aware_s(mods: &Modifiers) -> String {
     } else {
         s.push_str("   ")
     }
-    s.push_str("   ");
+    s.push_str("                          ");
     s
 }
 // pub struct KeyEvent
@@ -220,7 +263,7 @@ impl ApplicationHandler for App {
                 let state = mods.state();
                 let state_s = mod_state_side_agnostic_s(&state);
                 let pressed_mods_s = mod_state_side_aware_s(&mods);
-                println!("Δ {}\tside-agnostic\n  {}\tside-aware", state_s, pressed_mods_s);
+                println!("Δ {}\tside-agnostic (mostly)\n  {}\tside-aware", state_s, pressed_mods_s);
             },
             WindowEvent::KeyboardInput { event, is_synthetic, .. } => {
                 let is_synthetic_s = if is_synthetic { "⚗" } else { " " };
