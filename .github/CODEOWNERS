@@ -3,7 +3,7 @@
 /src/platform_impl/android          @MarijnS95
 
 # Apple (AppKit + UIKit)
-/src/platform/ios.rs                @madsmtm
+/winit-uikit                        @madsmtm
 /src/platform/macos.rs              @madsmtm
 /src/platform_impl/apple            @madsmtm
 /winit-apple-common                 @madsmtm

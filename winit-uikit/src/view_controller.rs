@@ -8,7 +8,7 @@ use objc2_ui_kit::{
     UIUserInterfaceIdiom, UIView, UIViewController,
 };
 
-use crate::platform::ios::{ScreenEdge, StatusBarStyle, ValidOrientations, WindowAttributesIos};
+use crate::{ScreenEdge, StatusBarStyle, ValidOrientations, WindowAttributesIos};
 
 pub struct ViewControllerState {
     prefers_status_bar_hidden: Cell<bool>,
