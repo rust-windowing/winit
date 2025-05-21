@@ -8,9 +8,11 @@ use dpi::PhysicalPosition;
 use percent_encoding::percent_decode;
 use x11rb::protocol::xproto::{self, ConnectionExt};
 
-use super::atoms::AtomName::None as DndNone;
-use super::atoms::*;
-use super::{util, CookieResultExt, X11Error, XConnection};
+use crate::atoms::AtomName::None as DndNone;
+use crate::atoms::*;
+use crate::event_loop::{CookieResultExt, X11Error};
+use crate::util;
+use crate::xdisplay::XConnection;
 
 #[derive(Debug, Clone, Copy)]
 pub enum DndState {

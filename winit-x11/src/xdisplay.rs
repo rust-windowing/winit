@@ -17,6 +17,7 @@ use x11rb::xcb_ffi::XCBConnection;
 use super::atoms::Atoms;
 use super::ffi;
 use super::monitor::MonitorHandle;
+use crate::event_loop::X11Error;
 
 /// A connection to an X server.
 pub struct XConnection {
@@ -235,7 +236,7 @@ impl XConnection {
 
     /// Reload the resource database.
     #[inline]
-    pub fn reload_database(&self) -> Result<(), super::X11Error> {
+    pub fn reload_database(&self) -> Result<(), X11Error> {
         let database = resource_manager::new_from_default(self.xcb_connection())?;
         *self.database.write().unwrap_or_else(|e| e.into_inner()) = database;
         Ok(())

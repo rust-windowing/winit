@@ -4,8 +4,8 @@ use std::sync::Arc;
 
 use super::context::ImeContext;
 use super::input_method::{InputMethod, PotentialInputMethods};
-use super::{ffi, XConnection, XError};
-use crate::platform_impl::platform::x11::ime::ImeEventSender;
+use super::{ffi, ImeEventSender};
+use crate::xdisplay::{XConnection, XError};
 
 pub(crate) unsafe fn close_im(xconn: &Arc<XConnection>, im: ffi::XIM) -> Result<(), XError> {
     unsafe { (xconn.xlib.XCloseIM)(im) };

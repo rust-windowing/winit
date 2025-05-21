@@ -10,7 +10,8 @@ use std::num::NonZeroUsize;
 use x11rb::protocol::xproto::{self, ConnectionExt};
 
 use super::atoms::*;
-use super::XConnection;
+use crate::event_loop::X11Error;
+use crate::xdisplay::XConnection;
 
 type Result<T> = core::result::Result<T, ParserError>;
 
@@ -24,7 +25,7 @@ impl XConnection {
     pub(crate) fn xsettings_dpi(
         &self,
         xsettings_screen: xproto::Atom,
-    ) -> core::result::Result<Option<f64>, super::X11Error> {
+    ) -> core::result::Result<Option<f64>, X11Error> {
         let atoms = self.atoms();
 
         // Get the current owner of the screen's settings.

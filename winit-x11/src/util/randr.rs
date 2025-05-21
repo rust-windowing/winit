@@ -8,7 +8,7 @@ use winit_core::monitor::VideoMode;
 use x11rb::protocol::randr::{self, ConnectionExt as _};
 
 use super::*;
-use crate::platform_impl::platform::x11::{monitor, VideoModeHandle};
+use crate::monitor::{self, VideoModeHandle};
 
 /// Represents values of `WINIT_HIDPI_FACTOR`.
 pub enum EnvVarDPI {

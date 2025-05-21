@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use x11_dl::xlib::{self, XEvent, XGenericEventCookie};
 
-use crate::platform_impl::x11::XConnection;
+use crate::xdisplay::XConnection;
 
 /// XEvents of type GenericEvent store their actual data in an XGenericEventCookie data structure.
 /// This is a wrapper to extract the cookie from a GenericEvent XEvent and release the cookie data
