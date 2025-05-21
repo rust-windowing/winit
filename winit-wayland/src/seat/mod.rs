@@ -15,7 +15,7 @@ use tracing::warn;
 use winit_core::event::WindowEvent;
 use winit_core::keyboard::ModifiersState;
 
-use crate::platform_impl::wayland::state::WinitState;
+use crate::state::WinitState;
 
 mod keyboard;
 mod pointer;

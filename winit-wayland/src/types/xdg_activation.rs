@@ -14,7 +14,7 @@ use sctk::reexports::protocols::xdg::activation::v1::client::xdg_activation_v1::
 use winit_core::event_loop::AsyncRequestSerial;
 use winit_core::window::{ActivationToken, WindowId};
 
-use crate::platform_impl::wayland::state::WinitState;
+use crate::state::WinitState;
 
 #[derive(Debug)]
 pub struct XdgActivationState {

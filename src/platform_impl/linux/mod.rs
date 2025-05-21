@@ -15,12 +15,11 @@ use winit_core::error::{EventLoopError, NotSupportedError};
 use winit_core::event_loop::pump_events::PumpStatus;
 use winit_core::event_loop::ActiveEventLoop;
 use winit_core::window::ActivationToken;
+#[cfg(wayland_platform)]
+pub(crate) use winit_wayland as wayland;
 
 #[cfg(x11_platform)]
 use crate::platform::x11::WindowType as XWindowType;
-
-#[cfg(wayland_platform)]
-pub(crate) mod wayland;
 #[cfg(x11_platform)]
 pub(crate) mod x11;
 
