@@ -29,3 +29,7 @@ ndk.workspace = true
 
 [dev-dependencies]
 winit.workspace = true
+
+[package.metadata.docs.rs]
+features = ["serde", "native-activity"]
+targets = ["aarch64-linux-android"]
