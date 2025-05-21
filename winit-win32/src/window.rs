@@ -128,7 +128,7 @@ impl Window {
             // SAFETY: Handle will never be zero.
             std::num::NonZeroIsize::new_unchecked(self.window.hwnd() as isize)
         });
-        let hinstance = unsafe { super::util::get_window_long(self.hwnd(), GWLP_HINSTANCE) };
+        let hinstance = unsafe { util::get_window_long(self.hwnd(), GWLP_HINSTANCE) };
         window_handle.hinstance = std::num::NonZeroIsize::new(hinstance);
         Ok(rwh_06::RawWindowHandle::Win32(window_handle))
     }
@@ -1462,7 +1462,7 @@ thread_local! {
     static TASKBAR_LIST2: Cell<*mut ITaskbarList2> = const { Cell::new(ptr::null_mut()) };
 }
 
-pub(crate) fn com_initialized() {
+pub fn com_initialized() {
     COM_INITIALIZED.with(|_| {});
 }
 
