@@ -1692,7 +1692,7 @@ bitflags! {
     /// Each flag represents a modifier and is set if this modifier is active.
     ///
     /// Note that the modifier key can be physically released with the modifier
-    /// still being marked as active, as in the case of sticky modifiers.
+    /// still being marked as active, as in the case of sticky modifiers. See [`ModifiersKeyState`] for more sticky details.
     #[derive(Default, Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
     #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
     pub struct ModifiersState: u32 {
@@ -1732,6 +1732,27 @@ impl ModifiersState {
 }
 
 /// The logical state of the particular modifiers key.
+///
+/// NOTE: while the modifier can only be in a binary active/inactive state, it might be helpful to
+/// note the context re. how its state changes by physical key events[^1]:
+///
+///  | Type | Activated | Deactived | Comment |
+///  | -----| :----: | :------: | ------- |
+///  |__Regular__ | `↓` | `↑`  | Active while being held |
+///  |__Sticky__ | `↓` | `↓` unless lock is enabled</br>`↓`/`↑`[^2] __non__-sticky key | Temporarily "stuck"; other `Sticky` keys have no effect|
+///  |__Sticky Locked__ | `↓` <br>if `Sticky` | `↓` | Similar to `Toggle`, but deactivating `↓` turns on `Regular` effect |
+///  |__Toggle__ | `↓` | `↓` | `↑` from the activating `↓` has no effect|
+///
+/// `Sticky` effect avoids the need to press and hold multiple modifiers for a single shortcut and
+/// is usually a platform-wide option that affects modifiers _commonly_ used in shortcuts:
+/// <kbd>Shift</kbd>, <kbd>Control</kbd>, <kbd>Alt</kbd>, <kbd>Meta</kbd>.
+///
+/// `Toggle` type is typically a property of a modifier, for example, <kbd>Caps Lock</kbd>.
+///
+/// These active states are __not__ differentiated here.
+///
+/// [^1]: `↓` / `↑` is physically pressed/released. For virtual/on-screen keyboards physical press can be a mouse click or a finger tap or a voice command.
+/// [^2]: platform-dependent
 #[derive(Default, Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum ModifiersKeyState {
