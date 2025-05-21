@@ -1,8 +1,8 @@
 use std::time::Duration;
 
 use crate::application::ApplicationHandler;
-use crate::event_loop::EventLoop;
 
+#[allow(rustdoc::broken_intra_doc_links)] // FIXME(madsmtm): Fix these.
 /// Additional methods on [`EventLoop`] for pumping events within an external event loop
 pub trait EventLoopExtPumpEvents {
     /// Pump the `EventLoop` to check for and dispatch pending events.
@@ -104,16 +104,6 @@ pub trait EventLoopExtPumpEvents {
         timeout: Option<Duration>,
         app: A,
     ) -> PumpStatus;
-}
-
-impl EventLoopExtPumpEvents for EventLoop {
-    fn pump_app_events<A: ApplicationHandler>(
-        &mut self,
-        timeout: Option<Duration>,
-        app: A,
-    ) -> PumpStatus {
-        self.event_loop.pump_app_events(timeout, app)
-    }
 }
 
 /// The return status for `pump_events`

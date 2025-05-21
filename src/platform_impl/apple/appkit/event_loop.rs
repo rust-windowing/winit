@@ -18,6 +18,7 @@ use rwh_06::HasDisplayHandle;
 use winit_core::application::ApplicationHandler;
 use winit_core::cursor::{CustomCursor as CoreCustomCursor, CustomCursorSource};
 use winit_core::error::{EventLoopError, RequestError};
+use winit_core::event_loop::pump_events::PumpStatus;
 use winit_core::event_loop::{
     ActiveEventLoop as RootActiveEventLoop, ControlFlow, DeviceEvents,
     EventLoopProxy as CoreEventLoopProxy, OwnedDisplayHandle as CoreOwnedDisplayHandle,
@@ -33,7 +34,6 @@ use super::event::dummy_event;
 use super::monitor;
 use super::observer::setup_control_flow_observers;
 use crate::platform::macos::ActivationPolicy;
-use crate::platform::pump_events::PumpStatus;
 use crate::platform_impl::Window;
 
 #[derive(Default)]

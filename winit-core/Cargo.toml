@@ -16,18 +16,18 @@ version = "0.0.0"
 serde = ["dep:serde", "cursor-icon/serde", "smol_str/serde", "dpi/serde", "bitflags/serde"]
 
 [dependencies]
-bitflags = "2"
-cursor-icon = "1.1.0"
-dpi = { version = "0.1.1", path = "../dpi" }
-rwh_06 = { package = "raw-window-handle", version = "0.6", features = ["std"] }
+bitflags.workspace = true
+cursor-icon.workspace = true
+dpi.workspace = true
+rwh_06.workspace = true
 serde = { workspace = true, optional = true }
-smol_str = "0.3"
+smol_str.workspace = true
 
 [target.'cfg(target_family = "wasm")'.dependencies]
-web-time = "1"
+web-time.workspace = true
 
 [build-dependencies]
-cfg_aliases = "0.2.1"
+cfg_aliases.workspace = true
 
 [dev-dependencies]
-winit = { path = ".." }
+winit.workspace = true
