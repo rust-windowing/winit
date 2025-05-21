@@ -330,6 +330,10 @@ impl LayoutCache {
         state.set(ModifiersState::NUM_LOCK, key_toggled(VK_NUMLOCK));
         state.set(ModifiersState::SCROLL_LOCK, key_toggled(VK_SCROLL));
 
+        state.set(ModifiersState::KANA_LOCK, key_toggled(VK_KANA));
+        state.set(ModifiersState::LOYA, key_pressed(VK_OEM_FJ_LOYA));
+        state.set(ModifiersState::ROYA, key_pressed(VK_OEM_FJ_ROYA));
+
         Modifiers::new(state, pressed_mods)
     }
 
