@@ -53,3 +53,7 @@ windows-sys = { workspace = true, features = [
 
 [dev-dependencies]
 winit.workspace = true
+
+[package.metadata.docs.rs]
+all-features = true
+targets = ["x86_64-pc-windows-msvc"]
