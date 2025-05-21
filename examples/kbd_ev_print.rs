@@ -74,7 +74,7 @@ pub fn mod_state_side_agnostic_s(state: &ModifiersState) -> String {
     s.push(' ');
 
     if state.contains(ModifiersState::FN) {
-        s.push_str("🄵")
+        s.push('🄵')
     } else {
         s.push(' ')
     };
@@ -104,7 +104,7 @@ pub fn mod_state_side_agnostic_s(state: &ModifiersState) -> String {
     };
     s.push(' ');
     if state.contains(ModifiersState::SYMBOL) {
-        s.push_str("🔣")
+        s.push('🔣')
     } else {
         s.push(' ')
     };
