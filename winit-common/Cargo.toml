@@ -10,20 +10,20 @@ version = "0.0.0"
 
 [features]
 # Event Handler
-event-handler = ["dep:winit-core", "dep:tracing"]
+event-handler = []
 
 # XKB
 wayland = ["dep:memmap2"]
 x11 = ["xkbcommon-dl?/x11", "dep:x11-dl"]
-xkb = ["dep:winit-core", "dep:xkbcommon-dl", "dep:smol_str", "dep:tracing"]
+xkb = ["dep:xkbcommon-dl", "dep:smol_str"]
 
 # CoreFoundation
-core-foundation = ["dep:winit-core", "dep:objc2", "dep:objc2-core-foundation"]
+core-foundation = ["dep:objc2", "dep:objc2-core-foundation"]
 
 [dependencies]
 smol_str = { workspace = true, optional = true }
-tracing = { workspace = true, optional = true }
-winit-core = { workspace = true, optional = true }
+tracing.workspace = true
+winit-core.workspace = true
 
 # XKB
 memmap2 = { workspace = true, optional = true }
