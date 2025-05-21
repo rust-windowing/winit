@@ -1,5 +1,5 @@
 [workspace]
-members = ["dpi", "winit-core"]
+members = ["dpi", "winit-core", "winit-orbital"]
 resolver = "2"
 
 [workspace.package]
