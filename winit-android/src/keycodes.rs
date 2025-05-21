@@ -4,7 +4,7 @@ use winit_core::keyboard::{
     Key, KeyCode, KeyLocation, NamedKey, NativeKey, NativeKeyCode, PhysicalKey,
 };
 
-pub(crate) fn to_physical_key(keycode: Keycode) -> PhysicalKey {
+pub fn to_physical_key(keycode: Keycode) -> PhysicalKey {
     PhysicalKey::Code(match keycode {
         Keycode::A => KeyCode::KeyA,
         Keycode::B => KeyCode::KeyB,
@@ -163,7 +163,7 @@ pub(crate) fn to_physical_key(keycode: Keycode) -> PhysicalKey {
 /// This takes a `KeyEvent` and looks up its corresponding `KeyCharacterMap` and
 /// uses that to try and map the `key_code` + `meta_state` to a unicode
 /// character or a dead key that can be combined with the next key press.
-pub(crate) fn character_map_and_combine_key(
+pub fn character_map_and_combine_key(
     app: &AndroidApp,
     key_event: &KeyEvent<'_>,
     combining_accent: &mut Option<char>,
@@ -222,7 +222,7 @@ pub(crate) fn character_map_and_combine_key(
     }
 }
 
-pub(crate) fn to_logical(key_char: Option<KeyMapChar>, keycode: Keycode) -> Key {
+pub fn to_logical(key_char: Option<KeyMapChar>, keycode: Keycode) -> Key {
     use android_activity::input::Keycode::*;
 
     let native = NativeKey::Android(keycode.into());
@@ -565,7 +565,7 @@ pub(crate) fn to_logical(key_char: Option<KeyMapChar>, keycode: Keycode) -> Key 
     }
 }
 
-pub(crate) fn to_location(keycode: Keycode) -> KeyLocation {
+pub fn to_location(keycode: Keycode) -> KeyLocation {
     use android_activity::input::Keycode::*;
 
     match keycode {
