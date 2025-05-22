@@ -1687,49 +1687,86 @@ pub enum KeyLocation {
 }
 
 bitflags! {
-    /// Represents the current logical state of the keyboard modifiers
+    /// Represents the current _logical_ state of keyboard modifiers.
     ///
     /// Each flag represents a modifier and is set if this modifier is active.
     ///
-    /// Note that the modifier key can be physically released with the modifier
-    /// still being marked as active, as in the case of sticky modifiers.
-    /// See [`ModifiersKeyState`] for more details on what "sticky" means.
+    /// NOTE: the _physical_ state of a modifier key doesn't necessarily match its _logical_ state, for example, <kbd>LShift</kbd> can be physically released while `LSHIFT` is active, as in the case of sticky modifiers (see below on what "sticky" means).
+    /// Even the sides can mismatch, for example, <kbd>RShift</kbd> on macOS can be used to activate a sticky Shift state, but logically the OS will report that `LSHIFT` is active. Wayland/X11 can have similar issues.
+    ///
+    /// NOTE: while the modifier can only be in a binary active/inactive state, it might be helpful to
+    /// note the context re. how its state changes by physical key events.
+    ///
+    /// `↓` / `↑` denote physical press/release[^1]:
+    ///
+    /// | Type              | Activated           | Deactivated | Comment |
+    /// | ----------------- | :-----------------: | :---------: | ------- |
+    /// | __Regular__       | `↓`                 | `↑`         | Active while being held |
+    /// | __Sticky__        | `↓`                 | `↓` unless lock is enabled<br>`↓`/`↑`[^2] __non__-sticky key | Temporarily "stuck"; other `Sticky` keys have no effect |
+    /// | __Sticky Locked__ | `↓` <br>if `Sticky` | `↓`         | Similar to `Toggle`, but deactivating `↓` turns on `Regular` effect |
+    /// | __Toggle__        | `↓`                 | `↓`         | `↑` from the activating `↓` has no effect |
+    ///
+    /// `Sticky` effect avoids the need to press and hold multiple modifiers for a single shortcut and
+    /// is usually a platform-wide option that affects modifiers _commonly_ used in shortcuts:
+    /// <kbd>Shift</kbd>, <kbd>Control</kbd>, <kbd>Alt</kbd>, <kbd>Meta</kbd>.
+    ///
+    /// `Toggle` type is typically a property of a modifier, for example, <kbd>Caps Lock</kbd>.
+    ///
+    /// These active states are __not__ differentiated here.
+    ///
+    /// [^1]: For virtual/on-screen keyboards physical press/release can be a mouse click or a finger tap or a voice command.
+    /// [^2]: platform-dependent
+
     #[derive(Default, Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
     #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-    pub struct ModifiersState: u32 {
-        /// The "shift" key.
-        const SHIFT = 0b100;
-        /// The "control" key.
-        const CONTROL = 0b100 << 3;
-        /// The "alt" key.
-        const ALT = 0b100 << 6;
-        /// This is the "windows" key on PC and "command" key on Mac.
-        const META = 0b100 << 9;
-        /// The "AltGraph" key, usually used to insert symbols.
-        const ALT_GRAPH = 0b100 << 10;
-        /// The "Caps Lock" key.
-        const CAPS_LOCK = 0b100 << 11;
-        /// The "Num Lock" key.
-        const NUM_LOCK = 0b100 << 12;
-        /// The "Scroll Lock" key.
-        const SCROLL_LOCK = 0b100 << 13;
-        /// The "Function" switch key. Often handled directly in the keyboard hardware and does not generate key events.
+    pub struct Modifiers: u32 {
+        /// The "Right Shift" modifier.
+        const RSHIFT      = 0b_1 <<  0;
+        /// The "Left Shift" modifier.
+        const LSHIFT      = 0b10 <<  0;
+        /// The "Right Control" modifier.
+        const RCONTROL    = 0b_1 <<  2;
+        /// The "Left Control" modifier.
+        const LCONTROL    = 0b10 <<  2;
+        /// The "Right Alt" modifier.
+        const RALT        = 0b_1 <<  4;
+        /// The "Left Alt" modifier.
+        const LALT        = 0b10 <<  4;
+        /// The "Right Windows" modifier on PC and "Right Command" modifier on Mac.
+        const RMETA       = 0b_1 <<  6;
+        /// The "Left Windows" modifier on PC and "Left Command" modifier on Mac.
+        const LMETA       = 0b10 <<  6;
+        /// The "Right AltGraph" modifier, typically used to insert symbols.
+        const RALT_GRAPH  = 0b_1 <<  8;
+        /// The "Left AltGraph" modifier, typically used to insert symbols.
+        const LALT_GRAPH  = 0b10 <<  8;
+
+        /// The "Caps Lock" modifier.
+        const CAPS_LOCK   = 0b_1 << 10;
+        /// The "Num Lock" modifier.
+        const NUM_LOCK    = 0b_1 << 11;
+        /// The "Scroll Lock" modifier.
+        const SCROLL_LOCK = 0b_1 << 12;
+
+        /// The "Function" switch modifier. Often handled directly in the keyboard hardware and does not generate key events.
         /// - **macOS**: Generates `ModifiersChanged` events on Apple hardware.
-        const FN = 0b100 << 14;
-        /// The "Function-Lock" key.
-        const FN_LOCK = 0b100 << 15;
-        /// The "Kana Mode" ("Kana Lock") key, typically used to enter hiragana mode (typically from romaji mode).
-        const KANA_LOCK = 0b100 << 16;
-        /// The "Left OYAYUBI" key (OEM-specific).
-        const LOYA = 0b100 << 17;
-        /// The "Right OYAYUBI" key (OEM-specific).
-        const ROYA = 0b100 << 18;
-        /// The "Symbol" modifier key used on some virtual keyboards.
-        const SYMBOL = 0b100 << 19;
-        /// The "Symbol" Lock key.
-        const SYMBOL_LOCK = 0b100 << 20;
-        #[deprecated = "use META instead"]
-        const SUPER = Self::META.bits();
+        const FN          = 0b_1 << 13;
+        /// The "Function-Lock" modifier.
+        const FN_LOCK     = 0b_1 << 14;
+        /// The "Kana Mode" ("Kana Lock") modifier, typically used to enter hiragana mode (typically from romaji mode).
+        const KANA_LOCK   = 0b_1 << 15;
+        /// The "Right OYAYUBI" modifier (OEM-specific).
+        const ROYA        = 0b_1 << 16;
+        /// The "Left OYAYUBI" modifier (OEM-specific).
+        const LOYA        = 0b10 << 16;
+        /// The "Symbol" modifier modifier used on some virtual keyboards.
+        const SYMBOL      = 0b_1 << 18;
+        /// The "Symbol" Lock modifier.
+        const SYMBOL_LOCK = 0b_1 << 19;
+        #[deprecated = "use LMETA instead"]
+        const LSUPER = Self::LMETA.bits();
+        #[deprecated = "use RMETA instead"]
+        const RSUPER = Self::RMETA.bits();
     }
 }
 
