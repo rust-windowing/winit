@@ -205,6 +205,7 @@ changelog entry.
 - Move `IconExtWindows` into `WinIcon`.
 - Move `EventLoopExtPumpEvents` and `PumpStatus` from platform module to `winit::event_loop::pump_events`.
 - Move `EventLoopExtRunOnDemand` from platform module to `winit::event_loop::run_on_demand`.
+- Replaced `winit::keyboard::ModifiersState` with the new `winit_core::keyboard::Modifiers`.
 
 ### Removed
 
@@ -244,6 +245,7 @@ changelog entry.
 - Remove `NamedKey::Space`, match on `Key::Character(" ")` instead.
 - Remove `PartialEq` impl for `WindowAttributes`.
 - `WindowAttributesExt*` platform extensions; use `WindowAttributes*` instead.
+- Remove `winit::keyboard::ModifiersKeyState`, replaced with the new `winit_core::keyboard::Modifiers` containing the same information.
 
 ### Fixed
 
