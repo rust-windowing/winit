@@ -1767,6 +1767,20 @@ bitflags! {
         const LSUPER = Self::LMETA.bits();
         #[deprecated = "use RMETA instead"]
         const RSUPER = Self::RMETA.bits();
+
+        // TODO: worth storing composite state to make user binding API a bit easier?
+        /// Either Left or Right "Shift" modifier.
+        const SHIFT       = 0b_1 << 20;
+        /// Either Left or Right "Control" modifier.
+        const CONTROL     = 0b_1 << 21;
+        /// Either Left or Right "Alt" modifier.
+        const ALT         = 0b_1 << 22;
+        /// Either Left or Right "Windows" modifier on PC and "Command" modifier on Mac.
+        const META        = 0b_1 << 23;
+        /// Either Left or Right "AltGraph" modifier.
+        const ALT_GRAPH   = 0b_1 << 24;
+        #[deprecated = "use META instead"]
+        const SUPER = Self::META.bits();
     }
 }
 
