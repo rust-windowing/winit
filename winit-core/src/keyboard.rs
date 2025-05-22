@@ -1739,12 +1739,12 @@ impl ModifiersState {
 ///
 /// `↓` / `↑` denote physical press/release[^1]:
 ///
-///  | Type | Activated | Deactivated | Comment |
-///  | -----| :----: | :------: | ------- |
-///  |__Regular__ | `↓` | `↑`  | Active while being held |
-///  |__Sticky__ | `↓` | `↓` unless lock is enabled<br>`↓`/`↑`[^2] __non__-sticky key | Temporarily "stuck"; other `Sticky` keys have no effect|
-///  |__Sticky Locked__ | `↓` <br>if `Sticky` | `↓` | Similar to `Toggle`, but deactivating `↓` turns on `Regular` effect |
-///  |__Toggle__ | `↓` | `↓` | `↑` from the activating `↓` has no effect|
+/// | Type              | Activated           | Deactivated | Comment |
+/// | ----------------- | :-----------------: | :---------: | ------- |
+/// | __Regular__       | `↓`                 | `↑`         | Active while being held |
+/// | __Sticky__        | `↓`                 | `↓` unless lock is enabled<br>`↓`/`↑`[^2] __non__-sticky key | Temporarily "stuck"; other `Sticky` keys have no effect |
+/// | __Sticky Locked__ | `↓` <br>if `Sticky` | `↓`         | Similar to `Toggle`, but deactivating `↓` turns on `Regular` effect |
+/// | __Toggle__        | `↓`                 | `↓`         | `↑` from the activating `↓` has no effect |
 ///
 /// `Sticky` effect avoids the need to press and hold multiple modifiers for a single shortcut and
 /// is usually a platform-wide option that affects modifiers _commonly_ used in shortcuts:
