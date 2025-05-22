@@ -6,10 +6,9 @@ use objc2_app_kit::{NSEvent, NSEventModifierFlags, NSEventSubtype, NSEventType};
 use objc2_core_foundation::{CFData, CFRetained};
 use objc2_foundation::NSPoint;
 use smol_str::SmolStr;
-use winit_core::event::{ElementState, KeyEvent, Modifiers};
+use winit_core::event::{ElementState, KeyEvent};
 use winit_core::keyboard::{
-    Key, KeyCode, KeyLocation, ModifiersKeys, ModifiersState, NamedKey, NativeKey, NativeKeyCode,
-    PhysicalKey,
+    Key, KeyCode, KeyLocation, Modifiers, NamedKey, NativeKey, NativeKeyCode, PhysicalKey,
 };
 
 use super::ffi;
@@ -311,26 +310,25 @@ pub(super) fn ralt_pressed(event: &NSEvent) -> bool {
 
 pub(super) fn event_mods(event: &NSEvent) -> Modifiers {
     let flags = unsafe { event.modifierFlags() };
-    let mut state = ModifiersState::empty();
-    let mut pressed_mods = ModifiersKeys::empty();
+    let mut mods = Modifiers::empty();
 
-    state.set(ModifiersState::SHIFT, flags.contains(NSEventModifierFlags::Shift));
-    pressed_mods.set(ModifiersKeys::LSHIFT, flags.contains(NX_DEVICELSHIFTKEYMASK));
-    pressed_mods.set(ModifiersKeys::RSHIFT, flags.contains(NX_DEVICERSHIFTKEYMASK));
+    mods.set(Modifiers::LSHIFT, flags.contains(NX_DEVICELSHIFTKEYMASK));
+    mods.set(Modifiers::RSHIFT, flags.contains(NX_DEVICERSHIFTKEYMASK));
+    mods.set(Modifiers::SHIFT, flags.contains(NSEventModifierFlags::Shift));
 
-    state.set(ModifiersState::CONTROL, flags.contains(NSEventModifierFlags::Control));
-    pressed_mods.set(ModifiersKeys::LCONTROL, flags.contains(NX_DEVICELCTLKEYMASK));
-    pressed_mods.set(ModifiersKeys::RCONTROL, flags.contains(NX_DEVICERCTLKEYMASK));
+    mods.set(Modifiers::LCONTROL, flags.contains(NX_DEVICELCTLKEYMASK));
+    mods.set(Modifiers::RCONTROL, flags.contains(NX_DEVICERCTLKEYMASK));
+    mods.set(Modifiers::CONTROL, flags.contains(NSEventModifierFlags::Control));
 
-    state.set(ModifiersState::ALT, flags.contains(NSEventModifierFlags::Option));
-    pressed_mods.set(ModifiersKeys::LALT, flags.contains(NX_DEVICELALTKEYMASK));
-    pressed_mods.set(ModifiersKeys::RALT, flags.contains(NX_DEVICERALTKEYMASK));
+    mods.set(Modifiers::LALT, flags.contains(NX_DEVICELALTKEYMASK));
+    mods.set(Modifiers::RALT, flags.contains(NX_DEVICERALTKEYMASK));
+    mods.set(Modifiers::ALT, flags.contains(NSEventModifierFlags::Option));
 
-    state.set(ModifiersState::META, flags.contains(NSEventModifierFlags::Command));
-    pressed_mods.set(ModifiersKeys::LMETA, flags.contains(NX_DEVICELCMDKEYMASK));
-    pressed_mods.set(ModifiersKeys::RMETA, flags.contains(NX_DEVICERCMDKEYMASK));
+    mods.set(Modifiers::LMETA, flags.contains(NX_DEVICELCMDKEYMASK));
+    mods.set(Modifiers::RMETA, flags.contains(NX_DEVICERCMDKEYMASK));
+    mods.set(Modifiers::META, flags.contains(NSEventModifierFlags::Command));
 
-    Modifiers::new(state, pressed_mods)
+    mods
 }
 
 pub(super) fn dummy_event() -> Option<Retained<NSEvent>> {
