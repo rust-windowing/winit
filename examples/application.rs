@@ -22,7 +22,8 @@ use winit::error::RequestError;
 use winit::event::{DeviceEvent, DeviceId, Ime, MouseButton, MouseScrollDelta, WindowEvent};
 use winit::event_loop::{ActiveEventLoop, EventLoop};
 use winit::icon::{Icon, RgbaIcon};
-use winit::keyboard::{Key, ModifiersState};
+use winit_core::keyboard::Modifiers;
+use winit::keyboard::Key;
 use winit::monitor::Fullscreen;
 #[cfg(macos_platform)]
 use winit::platform::macos::{OptionAsAlt, WindowAttributesMacOS, WindowExtMacOS};
@@ -358,14 +359,14 @@ impl Application {
     }
 
     /// Process the key binding.
-    fn process_key_binding(key: &str, mods: &ModifiersState) -> Option<Action> {
+    fn process_key_binding(key: &str, mods: &Modifiers) -> Option<Action> {
         KEY_BINDINGS
             .iter()
             .find_map(|binding| binding.is_triggered_by(&key, mods).then_some(binding.action))
     }
 
     /// Process mouse binding.
-    fn process_mouse_binding(button: MouseButton, mods: &ModifiersState) -> Option<Action> {
+    fn process_mouse_binding(button: MouseButton, mods: &Modifiers) -> Option<Action> {
         MOUSE_BINDINGS
             .iter()
             .find_map(|binding| binding.is_triggered_by(&button, mods).then_some(binding.action))
@@ -447,7 +448,7 @@ impl ApplicationHandler for Application {
                 self.windows.remove(&window_id);
             },
             WindowEvent::ModifiersChanged(modifiers) => {
-                window.modifiers = modifiers.state();
+                window.modifiers = modifiers;
                 info!("Modifiers changed to {:?}", window.modifiers);
             },
             WindowEvent::MouseWheel { delta, .. } => match delta {
@@ -621,7 +622,7 @@ struct WindowState {
     /// Cursor position over the window.
     cursor_position: Option<PhysicalPosition<f64>>,
     /// Window modifiers state.
-    modifiers: ModifiersState,
+    modifiers: Modifiers,
     /// Occlusion state of the window.
     occluded: bool,
     /// Current cursor grab mode.
@@ -1002,17 +1003,17 @@ impl WindowState {
 
 struct Binding<T: Eq> {
     trigger: T,
-    mods: ModifiersState,
+    mods: Modifiers,
     action: Action,
 }
 
 impl<T: Eq> Binding<T> {
-    const fn new(trigger: T, mods: ModifiersState, action: Action) -> Self {
+    const fn new(trigger: T, mods: Modifiers, action: Action) -> Self {
         Self { trigger, mods, action }
     }
 
-    fn is_triggered_by(&self, trigger: &T, mods: &ModifiersState) -> bool {
-        &self.trigger == trigger && &self.mods == mods
+    fn is_triggered_by(&self, trigger: &T, mods: &Modifiers) -> bool {
+        &self.trigger == trigger && mods.contains(self.mods)
     }
 }
 
@@ -1141,12 +1142,12 @@ fn load_icon(bytes: &[u8]) -> Icon {
     RgbaIcon::new(icon_rgba, icon_width, icon_height).expect("Failed to open icon").into()
 }
 
-fn modifiers_to_string(mods: ModifiersState) -> String {
+fn modifiers_to_string(mods: Modifiers) -> String {
     let mut mods_line = String::new();
     // Always add + since it's printed as a part of the bindings.
     for (modifier, desc) in [
         (
-            ModifiersState::META,
+            Modifiers::META,
             if cfg!(target_os = "windows") {
                 "Win+"
             } else if cfg!(target_vendor = "apple") {
@@ -1155,9 +1156,9 @@ fn modifiers_to_string(mods: ModifiersState) -> String {
                 "Super+"
             },
         ),
-        (ModifiersState::ALT, "Alt+"),
-        (ModifiersState::CONTROL, "Ctrl+"),
-        (ModifiersState::SHIFT, "Shift+"),
+        (Modifiers::ALT, "Alt+"),
+        (Modifiers::CONTROL, "Ctrl+"),
+        (Modifiers::SHIFT, "Shift+"),
     ] {
         if !mods.contains(modifier) {
             continue;
@@ -1272,54 +1273,54 @@ const CURSORS: &[CursorIcon] = &[
 ];
 
 const KEY_BINDINGS: &[Binding<&'static str>] = &[
-    Binding::new("Q", ModifiersState::CONTROL, Action::CloseWindow),
-    Binding::new("H", ModifiersState::CONTROL, Action::PrintHelp),
-    Binding::new("F", ModifiersState::SHIFT, Action::ToggleAnimatedFillColor),
-    Binding::new("F", ModifiersState::CONTROL, Action::ToggleFullscreen),
+    Binding::new("Q", Modifiers::CONTROL, Action::CloseWindow),
+    Binding::new("H", Modifiers::CONTROL, Action::PrintHelp),
+    Binding::new("F", Modifiers::SHIFT, Action::ToggleAnimatedFillColor),
+    Binding::new("F", Modifiers::CONTROL, Action::ToggleFullscreen),
     #[cfg(macos_platform)]
-    Binding::new("F", ModifiersState::ALT, Action::ToggleSimpleFullscreen),
-    Binding::new("D", ModifiersState::CONTROL, Action::ToggleDecorations),
-    Binding::new("I", ModifiersState::CONTROL, Action::ToggleImeInput),
-    Binding::new("L", ModifiersState::CONTROL, Action::CycleCursorGrab),
-    Binding::new("P", ModifiersState::CONTROL, Action::ToggleResizeIncrements),
-    Binding::new("R", ModifiersState::CONTROL, Action::ToggleResizable),
-    Binding::new("R", ModifiersState::ALT, Action::RequestResize),
-    Binding::new("R", ModifiersState::SHIFT, Action::ToggleContinuousRedraw),
+    Binding::new("F", Modifiers::ALT, Action::ToggleSimpleFullscreen),
+    Binding::new("D", Modifiers::CONTROL, Action::ToggleDecorations),
+    Binding::new("I", Modifiers::CONTROL, Action::ToggleImeInput),
+    Binding::new("L", Modifiers::CONTROL, Action::CycleCursorGrab),
+    Binding::new("P", Modifiers::CONTROL, Action::ToggleResizeIncrements),
+    Binding::new("R", Modifiers::CONTROL, Action::ToggleResizable),
+    Binding::new("R", Modifiers::ALT, Action::RequestResize),
+    Binding::new("R", Modifiers::SHIFT, Action::ToggleContinuousRedraw),
     // M.
-    Binding::new("M", ModifiersState::CONTROL.union(ModifiersState::ALT), Action::DumpMonitors),
-    Binding::new("M", ModifiersState::CONTROL, Action::ToggleMaximize),
-    Binding::new("M", ModifiersState::ALT, Action::Minimize),
+    Binding::new("M", Modifiers::CONTROL.union(Modifiers::ALT), Action::DumpMonitors),
+    Binding::new("M", Modifiers::CONTROL, Action::ToggleMaximize),
+    Binding::new("M", Modifiers::ALT, Action::Minimize),
     // N.
-    Binding::new("N", ModifiersState::CONTROL, Action::CreateNewWindow),
+    Binding::new("N", Modifiers::CONTROL, Action::CreateNewWindow),
     // C.
-    Binding::new("C", ModifiersState::CONTROL, Action::NextCursor),
-    Binding::new("C", ModifiersState::ALT, Action::NextCustomCursor),
+    Binding::new("C", Modifiers::CONTROL, Action::NextCursor),
+    Binding::new("C", Modifiers::ALT, Action::NextCustomCursor),
     #[cfg(web_platform)]
     Binding::new(
         "C",
-        ModifiersState::CONTROL.union(ModifiersState::SHIFT),
+        Modifiers::CONTROL.union(Modifiers::SHIFT),
         Action::UrlCustomCursor,
     ),
     #[cfg(web_platform)]
     Binding::new(
         "C",
-        ModifiersState::ALT.union(ModifiersState::SHIFT),
+        Modifiers::ALT.union(Modifiers::SHIFT),
         Action::AnimationCustomCursor,
     ),
-    Binding::new("Z", ModifiersState::CONTROL, Action::ToggleCursorVisibility),
+    Binding::new("Z", Modifiers::CONTROL, Action::ToggleCursorVisibility),
     // K.
-    Binding::new("K", ModifiersState::empty(), Action::SetTheme(None)),
-    Binding::new("K", ModifiersState::META, Action::SetTheme(Some(Theme::Light))),
-    Binding::new("K", ModifiersState::CONTROL, Action::SetTheme(Some(Theme::Dark))),
+    Binding::new("K", Modifiers::empty(), Action::SetTheme(None)),
+    Binding::new("K", Modifiers::META, Action::SetTheme(Some(Theme::Light))),
+    Binding::new("K", Modifiers::CONTROL, Action::SetTheme(Some(Theme::Dark))),
     #[cfg(macos_platform)]
-    Binding::new("T", ModifiersState::META, Action::CreateNewTab),
+    Binding::new("T", Modifiers::META, Action::CreateNewTab),
     #[cfg(macos_platform)]
-    Binding::new("O", ModifiersState::CONTROL, Action::CycleOptionAsAlt),
-    Binding::new("S", ModifiersState::CONTROL, Action::Message),
+    Binding::new("O", Modifiers::CONTROL, Action::CycleOptionAsAlt),
+    Binding::new("S", Modifiers::CONTROL, Action::Message),
 ];
 
 const MOUSE_BINDINGS: &[Binding<MouseButton>] = &[
-    Binding::new(MouseButton::Left, ModifiersState::ALT, Action::DragResizeWindow),
-    Binding::new(MouseButton::Left, ModifiersState::CONTROL, Action::DragWindow),
-    Binding::new(MouseButton::Right, ModifiersState::CONTROL, Action::ShowWindowMenu),
+    Binding::new(MouseButton::Left, Modifiers::ALT, Action::DragResizeWindow),
+    Binding::new(MouseButton::Left, Modifiers::CONTROL, Action::DragWindow),
+    Binding::new(MouseButton::Right, Modifiers::CONTROL, Action::ShowWindowMenu),
 ];
