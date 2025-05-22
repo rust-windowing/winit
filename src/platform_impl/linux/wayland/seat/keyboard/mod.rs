@@ -12,7 +12,7 @@ use sctk::reexports::client::protocol::wl_seat::WlSeat;
 use sctk::reexports::client::{Connection, Dispatch, Proxy, QueueHandle, WEnum};
 use tracing::warn;
 use winit_core::event::{ElementState, WindowEvent};
-use winit_core::keyboard::ModifiersState;
+use winit_core::keyboard::Modifiers;
 
 use crate::platform_impl::common::xkb::Context;
 use crate::platform_impl::wayland::event_loop::sink::EventSink;
@@ -122,7 +122,7 @@ impl Dispatch<WlKeyboard, KeyboardData, WinitState> for WinitState {
                 if !focused {
                     // Notify that no modifiers are being pressed.
                     state.events_sink.push_window_event(
-                        WindowEvent::ModifiersChanged(ModifiersState::empty().into()),
+                        WindowEvent::ModifiersChanged(Modifiers::empty().into()),
                         window_id,
                     );
 

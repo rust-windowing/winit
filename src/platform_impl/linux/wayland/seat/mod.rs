@@ -13,7 +13,7 @@ use sctk::seat::pointer::{ThemeSpec, ThemedPointer};
 use sctk::seat::{Capability as SeatCapability, SeatHandler, SeatState};
 use tracing::warn;
 use winit_core::event::WindowEvent;
-use winit_core::keyboard::ModifiersState;
+use winit_core::keyboard::Modifiers;
 
 use crate::platform_impl::wayland::state::WinitState;
 
@@ -53,7 +53,7 @@ pub struct WinitSeatState {
     keyboard_state: Option<KeyboardState>,
 
     /// The current modifiers state on the seat.
-    modifiers: ModifiersState,
+    modifiers: Modifiers,
 
     /// Whether we have pending modifiers.
     modifiers_pending: bool,
