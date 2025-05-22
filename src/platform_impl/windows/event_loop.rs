@@ -72,7 +72,7 @@ use winit_core::event_loop::{
     EventLoopProxy as RootEventLoopProxy, EventLoopProxyProvider,
     OwnedDisplayHandle as CoreOwnedDisplayHandle,
 };
-use winit_core::keyboard::ModifiersState;
+use winit_core::keyboard::Modifiers;
 use winit_core::monitor::{Fullscreen, MonitorHandle as CoreMonitorHandle};
 use winit_core::window::{Theme, Window as CoreWindow, WindowAttributes, WindowId};
 
@@ -959,8 +959,8 @@ unsafe fn gain_active_focus(window: HWND, userdata: &WindowData) {
 unsafe fn lose_active_focus(window: HWND, userdata: &WindowData) {
     use winit_core::event::WindowEvent::{Focused, ModifiersChanged};
 
-    userdata.window_state_lock().modifiers_state = ModifiersState::empty();
-    userdata.send_window_event(window, ModifiersChanged(ModifiersState::empty().into()));
+    userdata.window_state_lock().modifiers = Modifiers::empty();
+    userdata.send_window_event(window, ModifiersChanged(Modifiers::empty().into()));
 
     userdata.send_window_event(window, Focused(false));
 }
