@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use winit::cursor::CursorIcon;
 use winit::dpi::{LogicalPosition, LogicalSize, PhysicalPosition, PhysicalSize};
 use winit::event::{ElementState, MouseButton, MouseScrollDelta, TouchPhase};
-use winit::keyboard::{Key, KeyCode, KeyLocation, ModifiersState, NamedKey, PhysicalKey};
+use winit::keyboard::{Key, KeyCode, KeyLocation, Modifiers, NamedKey, PhysicalKey};
 
 #[allow(dead_code)]
 fn needs_serde<S: Serialize + Deserialize<'static>>() {}
@@ -25,7 +25,7 @@ fn events_serde() {
     needs_serde::<KeyCode>();
     needs_serde::<PhysicalKey>();
     needs_serde::<KeyLocation>();
-    needs_serde::<ModifiersState>();
+    needs_serde::<Modifiers>();
 }
 
 #[test]
