@@ -1,5 +1,5 @@
 [workspace]
-members = ["dpi", "winit-core"]
+members = ["dpi", "winit-core", "winit-orbital"]
 resolver = "2"
 
 [workspace.package]
@@ -13,6 +13,7 @@ rust-version = "1.80"
 # `winit` has no version here to allow using it in dev deps for docs.
 winit = { path = "." }
 winit-core = { version = "0.0.0", path = "winit-core" }
+winit-orbital = { version = "0.0.0", path = "winit-orbital" }
 
 # Core dependencies.
 bitflags = "2"
@@ -397,10 +398,8 @@ x11rb = { workspace = true, optional = true, features = [
 ] }
 xkbcommon-dl.workspace = true
 
-# Orbital
 [target.'cfg(target_os = "redox")'.dependencies]
-orbclient.workspace = true
-redox_syscall.workspace = true
+winit-orbital.workspace = true
 
 # Web
 [target.'cfg(target_family = "wasm")'.dependencies]
