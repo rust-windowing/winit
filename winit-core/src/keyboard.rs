@@ -1866,7 +1866,8 @@ impl Modifiers {
         self.contains(Self::KANA_LOCK)
     }
 
-    /// Returns `true` if either Loya or Roya modifier is active (provided for completeness, there is no "Oya" state similar to "Shift").
+    /// Returns `true` if either Loya or Roya modifier is active (provided for completeness, there
+    /// is no "Oya" state similar to "Shift").
     pub fn oya_state(&self) -> bool {
         self.contains(Self::LOYA) || self.contains(Self::ROYA)
     }

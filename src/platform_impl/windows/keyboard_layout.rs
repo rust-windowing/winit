@@ -40,9 +40,7 @@ use windows_sys::Win32::UI::Input::KeyboardAndMouse::{
     VK_SCROLL, VK_SELECT, VK_SEPARATOR, VK_SHIFT, VK_SLEEP, VK_SNAPSHOT, VK_SPACE, VK_SUBTRACT,
     VK_TAB, VK_UP, VK_VOLUME_DOWN, VK_VOLUME_MUTE, VK_VOLUME_UP, VK_XBUTTON1, VK_XBUTTON2, VK_ZOOM,
 };
-use winit_core::keyboard::{
-    Key, KeyCode, Modifiers, NamedKey, NativeKey, PhysicalKey,
-};
+use winit_core::keyboard::{Key, KeyCode, Modifiers, NamedKey, NativeKey, PhysicalKey};
 
 use crate::platform_impl::{loword, primarylangid, scancode_to_physicalkey};
 

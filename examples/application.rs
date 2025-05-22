@@ -22,7 +22,6 @@ use winit::error::RequestError;
 use winit::event::{DeviceEvent, DeviceId, Ime, MouseButton, MouseScrollDelta, WindowEvent};
 use winit::event_loop::{ActiveEventLoop, EventLoop};
 use winit::icon::{Icon, RgbaIcon};
-use winit_core::keyboard::Modifiers;
 use winit::keyboard::Key;
 use winit::monitor::Fullscreen;
 #[cfg(macos_platform)]
@@ -37,6 +36,7 @@ use winit::platform::web::{ActiveEventLoopExtWeb, WindowAttributesWeb};
 use winit::platform::x11::{ActiveEventLoopExtX11, WindowAttributesX11};
 use winit::window::{CursorGrabMode, ResizeDirection, Theme, Window, WindowAttributes, WindowId};
 use winit_core::application::macos::ApplicationHandlerExtMacOS;
+use winit_core::keyboard::Modifiers;
 
 #[path = "util/tracing.rs"]
 mod tracing;
@@ -1296,17 +1296,9 @@ const KEY_BINDINGS: &[Binding<&'static str>] = &[
     Binding::new("C", Modifiers::CONTROL, Action::NextCursor),
     Binding::new("C", Modifiers::ALT, Action::NextCustomCursor),
     #[cfg(web_platform)]
-    Binding::new(
-        "C",
-        Modifiers::CONTROL.union(Modifiers::SHIFT),
-        Action::UrlCustomCursor,
-    ),
+    Binding::new("C", Modifiers::CONTROL.union(Modifiers::SHIFT), Action::UrlCustomCursor),
     #[cfg(web_platform)]
-    Binding::new(
-        "C",
-        Modifiers::ALT.union(Modifiers::SHIFT),
-        Action::AnimationCustomCursor,
-    ),
+    Binding::new("C", Modifiers::ALT.union(Modifiers::SHIFT), Action::AnimationCustomCursor),
     Binding::new("Z", Modifiers::CONTROL, Action::ToggleCursorVisibility),
     // K.
     Binding::new("K", Modifiers::empty(), Action::SetTheme(None)),
