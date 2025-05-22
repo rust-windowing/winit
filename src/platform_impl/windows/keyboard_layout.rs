@@ -196,8 +196,9 @@ pub(crate) struct Layout {
     /// off. The keys of this map are identical to the keys of `numlock_on_keys`.
     pub numlock_off_keys: HashMap<VIRTUAL_KEY, Key>,
 
+    // TODO: update since Modifiers can now express caps lock
     /// Maps a modifier state to group of key strings
-    /// We're not using `ModifiersState` here because that object cannot express caps lock,
+    /// We're not using `Modifiers` here because that object cannot express caps lock,
     /// but we need to handle caps lock too.
     ///
     /// This map shouldn't need to exist.
