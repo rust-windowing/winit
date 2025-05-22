@@ -21,149 +21,55 @@ struct App {
     window: Option<Box<dyn Window>>,
 }
 
-use winit::event::{KeyEvent, Modifiers};
-// struct Modifiers
-// state       : ModifiersState,
-// pressed_mods: ModifiersKeys ,
-// https://docs.rs/winit/latest/winit/keyboard/struct.ModifiersState.html
-pub fn mod_state_side_agnostic_s(state: &ModifiersState) -> String {
-    let mut s = String::new();
-    if state.contains(ModifiersState::SHIFT) {
-        s.push_str(" ⇧ ")
-    } else {
-        s.push_str("   ")
-    };
-    if state.contains(ModifiersState::CONTROL) {
-        s.push_str(" ⎈ ")
-    } else {
-        s.push_str("   ")
-    };
-    if state.contains(ModifiersState::META) {
-        s.push_str(" ◆ ")
-    } else {
-        s.push_str("   ")
-    };
-    if state.contains(ModifiersState::ALT) {
-        s.push_str(" ⎇ ")
-    } else {
-        s.push_str("   ")
-    };
-    if state.contains(ModifiersState::ALT_GRAPH) {
-        s.push_str("⎇Gr")
-    } else {
-        s.push_str("   ")
-    };
-    s.push(' ');
-    if state.contains(ModifiersState::CAPS_LOCK) {
-        s.push('⇪')
-    } else {
-        s.push(' ')
-    };
-    s.push(' ');
-    if state.contains(ModifiersState::NUM_LOCK) {
-        s.push('⇭') //🔢
-    } else {
-        s.push(' ')
-    };
-    s.push(' ');
-    if state.contains(ModifiersState::SCROLL_LOCK) {
-        s.push_str("⇳🔒")
-    } else {
-        s.push_str("  ")
-    };
-    s.push(' ');
-
-    if state.contains(ModifiersState::FN) {
-        s.push('ƒ')
-    } else {
-        s.push(' ')
-    };
-    s.push(' ');
-    if state.contains(ModifiersState::FN_LOCK) {
-        s.push_str("ƒ🔒")
-    } else {
-        s.push_str("  ")
-    };
-    s.push(' ');
-    if state.contains(ModifiersState::KANA_LOCK) {
-        s.push_str("カナ🔒")
-    } else {
-        s.push_str("   ")
-    };
-    s.push(' ');
-    if state.contains(ModifiersState::LOYA) {
-        s.push_str("‹👍")
-    } else {
-        s.push_str("  ")
-    };
-    s.push(' ');
-    if state.contains(ModifiersState::ROYA) {
-        s.push_str("👍›")
-    } else {
-        s.push_str("  ")
-    };
-    s.push(' ');
-    if state.contains(ModifiersState::SYMBOL) {
-        s.push('🔣')
-    } else {
-        s.push(' ')
-    };
-    s.push(' ');
-    if state.contains(ModifiersState::SYMBOL_LOCK) {
-        s.push_str("🔣🔒")
-    } else {
-        s.push_str("  ")
-    };
-    s.push(' ');
-    s
-}
+use winit::event::KeyEvent;
+use winit_core::keyboard::Modifiers;
 // https://docs.rs/winit/latest/winit/event/struct.Modifiers.html
 pub fn mod_state_side_aware_s(mods: &Modifiers) -> String {
     let mut s = String::new();
-    if let ModifiersKeyState::Pressed = mods.lshift_state() {
+    if mods.lshift_state() {
         s.push_str("‹⇧");
-        if let ModifiersKeyState::Pressed = mods.rshift_state() {
+        if mods.rshift_state() {
             s.push('›')
         } else {
             s.push(' ')
         };
-    } else if let ModifiersKeyState::Pressed = mods.rshift_state() {
+    } else if mods.rshift_state() {
         s.push_str(" ⇧›")
     } else {
         s.push_str("   ")
     }
-    if let ModifiersKeyState::Pressed = mods.lcontrol_state() {
+    if mods.lcontrol_state() {
         s.push_str("‹⎈");
-        if let ModifiersKeyState::Pressed = mods.rcontrol_state() {
+        if mods.rcontrol_state() {
             s.push('›')
         } else {
             s.push(' ')
         };
-    } else if let ModifiersKeyState::Pressed = mods.rcontrol_state() {
+    } else if mods.rcontrol_state() {
         s.push_str(" ⎈›")
     } else {
         s.push_str("   ")
     }
-    if let ModifiersKeyState::Pressed = mods.lsuper_state() {
+    if mods.lmeta_state() {
         s.push_str("‹◆");
-        if let ModifiersKeyState::Pressed = mods.rsuper_state() {
+        if mods.rmeta_state() {
             s.push('›')
         } else {
             s.push(' ')
         };
-    } else if let ModifiersKeyState::Pressed = mods.rsuper_state() {
+    } else if mods.rmeta_state() {
         s.push_str(" ◆›")
     } else {
         s.push_str("   ")
     }
-    if let ModifiersKeyState::Pressed = mods.lalt_state() {
+    if mods.lalt_state() {
         s.push_str("‹⎇");
-        if let ModifiersKeyState::Pressed = mods.ralt_state() {
+        if mods.ralt_state() {
             s.push('›')
         } else {
             s.push(' ')
         };
-    } else if let ModifiersKeyState::Pressed = mods.ralt_state() {
+    } else if mods.ralt_state() {
         s.push_str(" ⎇›")
     } else {
         s.push_str("   ")
@@ -185,7 +91,7 @@ pub fn mod_state_side_aware_s(mods: &Modifiers) -> String {
 //  state   : ElementState, pressed/released
 //🔁repeat  : bool
 use winit::event::ElementState;
-use winit::keyboard::{Key, KeyLocation, ModifiersKeyState, ModifiersState, PhysicalKey};
+use winit::keyboard::{Key, KeyLocation, PhysicalKey};
 pub fn ev_key_s(key: &KeyEvent) -> String {
     let mut s = String::new();
     match &key.state {
@@ -260,10 +166,8 @@ impl ApplicationHandler for App {
     fn window_event(&mut self, event_loop: &dyn ActiveEventLoop, _: WindowId, event: WindowEvent) {
         match event {
             WindowEvent::ModifiersChanged(mods) => {
-                let state = mods.state();
-                let state_s = mod_state_side_agnostic_s(&state);
                 let pressed_mods_s = mod_state_side_aware_s(&mods);
-                println!("Δ {}\tside-agnostic (mostly)\n  {}\tside-aware", state_s, pressed_mods_s);
+                println!("Δ {}\tmodifier state", pressed_mods_s);
             },
             WindowEvent::KeyboardInput { event, is_synthetic, .. } => {
                 let is_synthetic_s = if is_synthetic { "⚗" } else { " " };
