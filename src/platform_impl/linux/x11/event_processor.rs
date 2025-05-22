@@ -11,7 +11,7 @@ use winit_core::event::{
     MouseScrollDelta, PointerKind, PointerSource, RawKeyEvent, SurfaceSizeWriter, TouchPhase,
     WindowEvent,
 };
-use winit_core::keyboard::ModifiersState;
+use winit_core::keyboard::Modifiers;
 use x11_dl::xinput2::{
     self, XIDeviceEvent, XIEnterEvent, XIFocusInEvent, XIFocusOutEvent, XIHierarchyEvent,
     XILeaveEvent, XIModifierState, XIRawEvent,
@@ -67,7 +67,7 @@ pub struct EventProcessor {
     // Currently focused window belonging to this process
     pub active_window: Option<xproto::Window>,
     /// Latest modifiers we've sent for the user to trigger change in event.
-    pub modifiers: Cell<ModifiersState>,
+    pub modifiers: Cell<Modifiers>,
     // Track modifiers based on keycodes. NOTE: that serials generally don't work for tracking
     // since they are not unique and could be duplicated in case of sequence of key events is
     // delivered at near the same time.
@@ -954,7 +954,7 @@ impl EventProcessor {
 
         let mask = self.xkb_mod_mask_from_core(state);
         xkb_state.update_modifiers(mask, 0, 0, 0, 0, Self::core_keyboard_group(state));
-        let mods: ModifiersState = xkb_state.modifiers().into();
+        let mods: Modifiers = xkb_state.modifiers().into();
 
         let event = WindowEvent::ModifiersChanged(mods.into());
         app.window_event(&self.target, window_id, event);
@@ -1662,7 +1662,7 @@ impl EventProcessor {
     fn send_modifiers(
         &self,
         window_id: winit_core::window::WindowId,
-        modifiers: ModifiersState,
+        modifiers: Modifiers,
         force: bool,
         app: &mut dyn ApplicationHandler,
     ) {
