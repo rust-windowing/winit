@@ -282,12 +282,15 @@ impl LayoutCache {
 
         mods.set(Modifiers::LSHIFT, key_pressed(VK_LSHIFT));
         mods.set(Modifiers::RSHIFT, key_pressed(VK_RSHIFT));
+        mods.set(Modifiers::SHIFT, mods.shift_state());
 
         mods.set(Modifiers::LALT, key_pressed(VK_LMENU));
         let is_ralt = key_pressed(VK_RMENU);
         let is_altgr = layout.has_alt_graph && is_ralt;
         mods.set(Modifiers::RALT, is_ralt && !is_altgr);
         mods.set(Modifiers::RALT_GRAPH, is_altgr);
+        mods.set(Modifiers::ALT, mods.alt_state());
+        mods.set(Modifiers::ALT_GRAPH, mods.alt_graph_state());
 
         // On Windows AltGr = RAlt + LCtrl, and OS sends artificial LCtrl key event, which needs to
         // be filtered out without touching "real" LCtrl events to allow separate bindings of
@@ -296,9 +299,11 @@ impl LayoutCache {
         // excluding artificial LCtrl events?
         mods.set(Modifiers::RCONTROL, key_pressed(VK_RCONTROL));
         mods.set(Modifiers::LCONTROL, key_pressed(VK_LCONTROL) && !is_altgr);
+        mods.set(Modifiers::CONTROL, mods.control_state());
 
         mods.set(Modifiers::LMETA, key_pressed(VK_LWIN));
         mods.set(Modifiers::RMETA, key_pressed(VK_RWIN));
+        mods.set(Modifiers::META, mods.meta_state());
 
         mods.set(Modifiers::CAPS_LOCK, key_toggled(VK_CAPITAL));
         mods.set(Modifiers::NUM_LOCK, key_toggled(VK_NUMLOCK));
