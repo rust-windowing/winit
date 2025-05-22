@@ -121,7 +121,7 @@ impl Window {
         self.window.hwnd()
     }
 
-    pub unsafe fn rwh_06_no_thread_check(
+    pub(crate) unsafe fn rwh_06_no_thread_check(
         &self,
     ) -> Result<rwh_06::RawWindowHandle, rwh_06::HandleError> {
         let mut window_handle = rwh_06::Win32WindowHandle::new(unsafe {
