@@ -13,15 +13,14 @@ use smol_str::SmolStr;
 use winit_core::application::ApplicationHandler;
 use winit_core::cursor::{CustomCursor, CustomCursorSource};
 use winit_core::error::{EventLoopError, NotSupportedError, RequestError};
-use winit_core::event::{self, Ime, Modifiers, StartCause};
+use winit_core::event::{self, Ime, StartCause};
 use winit_core::event_loop::{
     ActiveEventLoop as RootActiveEventLoop, ControlFlow, DeviceEvents,
     EventLoopProxy as CoreEventLoopProxy, EventLoopProxyProvider,
     OwnedDisplayHandle as CoreOwnedDisplayHandle,
 };
 use winit_core::keyboard::{
-    Key, KeyCode, KeyLocation, ModifiersKeys, ModifiersState, NamedKey, NativeKey, NativeKeyCode,
-    PhysicalKey,
+    Key, KeyCode, KeyLocation, Modifiers, NamedKey, NativeKey, NativeKeyCode, PhysicalKey,
 };
 use winit_core::window::{Theme, Window as CoreWindow, WindowId};
 
@@ -230,44 +229,24 @@ impl EventState {
     }
 
     fn modifiers(&self) -> Modifiers {
-        let mut state = ModifiersState::empty();
-        let mut pressed_mods = ModifiersKeys::empty();
+        let mut mods = Modifiers::empty();
 
-        if self.keyboard.intersects(KeyboardModifierState::LSHIFT | KeyboardModifierState::RSHIFT) {
-            state |= ModifiersState::SHIFT;
-        }
+        mods.set(Modifiers::LSHIFT, self.keyboard.contains(KeyboardModifierState::LSHIFT));
+        mods.set(Modifiers::RSHIFT, self.keyboard.contains(KeyboardModifierState::RSHIFT));
+        mods.set(Modifiers::SHIFT, mods.shift_state());
 
-        pressed_mods
-            .set(ModifiersKeys::LSHIFT, self.keyboard.contains(KeyboardModifierState::LSHIFT));
-        pressed_mods
-            .set(ModifiersKeys::RSHIFT, self.keyboard.contains(KeyboardModifierState::RSHIFT));
+        mods.set(Modifiers::LCONTROL, self.keyboard.contains(KeyboardModifierState::LCTRL));
+        mods.set(Modifiers::RCONTROL, self.keyboard.contains(KeyboardModifierState::RCTRL));
+        mods.set(Modifiers::CONTROL, mods.control_state());
 
-        if self.keyboard.intersects(KeyboardModifierState::LCTRL | KeyboardModifierState::RCTRL) {
-            state |= ModifiersState::CONTROL;
-        }
+        mods.set(Modifiers::LALT, self.keyboard.contains(KeyboardModifierState::LALT));
+        mods.set(Modifiers::RALT, self.keyboard.contains(KeyboardModifierState::RALT));
 
-        pressed_mods
-            .set(ModifiersKeys::LCONTROL, self.keyboard.contains(KeyboardModifierState::LCTRL));
-        pressed_mods
-            .set(ModifiersKeys::RCONTROL, self.keyboard.contains(KeyboardModifierState::RCTRL));
+        mods.set(Modifiers::LMETA, self.keyboard.contains(KeyboardModifierState::LMETA));
+        mods.set(Modifiers::RMETA, self.keyboard.contains(KeyboardModifierState::RMETA));
+        mods.set(Modifiers::META, mods.meta_state());
 
-        if self.keyboard.intersects(KeyboardModifierState::LALT | KeyboardModifierState::RALT) {
-            state |= ModifiersState::ALT;
-        }
-
-        pressed_mods.set(ModifiersKeys::LALT, self.keyboard.contains(KeyboardModifierState::LALT));
-        pressed_mods.set(ModifiersKeys::RALT, self.keyboard.contains(KeyboardModifierState::RALT));
-
-        if self.keyboard.intersects(KeyboardModifierState::LMETA | KeyboardModifierState::RMETA) {
-            state |= ModifiersState::META
-        }
-
-        pressed_mods
-            .set(ModifiersKeys::LMETA, self.keyboard.contains(KeyboardModifierState::LMETA));
-        pressed_mods
-            .set(ModifiersKeys::RMETA, self.keyboard.contains(KeyboardModifierState::RMETA));
-
-        Modifiers::new(state, pressed_mods)
+        mods
     }
 }
 
