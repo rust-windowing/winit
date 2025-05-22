@@ -178,13 +178,19 @@ pub struct ModifiersState {
     pub num_lock: bool,
 }
 
-impl From<ModifiersState> for winit_core::keyboard::ModifiersState {
-    fn from(mods: ModifiersState) -> winit_core::keyboard::ModifiersState {
-        let mut to_mods = winit_core::keyboard::ModifiersState::empty();
-        to_mods.set(winit_core::keyboard::ModifiersState::SHIFT, mods.shift);
-        to_mods.set(winit_core::keyboard::ModifiersState::CONTROL, mods.ctrl);
-        to_mods.set(winit_core::keyboard::ModifiersState::ALT, mods.alt);
-        to_mods.set(winit_core::keyboard::ModifiersState::META, mods.logo);
+impl From<ModifiersState> for winit_core::keyboard::Modifiers {
+    fn from(mods: ModifiersState) -> winit_core::keyboard::Modifiers {
+        let mut to_mods = winit_core::keyboard::Modifiers::empty();
+        // side-agnostic mods are stored on the left side
+        to_mods.set(winit_core::keyboard::Modifiers::LSHIFT, mods.shift);
+        to_mods.set(winit_core::keyboard::Modifiers::LCONTROL, mods.ctrl);
+        to_mods.set(winit_core::keyboard::Modifiers::LALT, mods.alt);
+        to_mods.set(winit_core::keyboard::Modifiers::LMETA, mods.logo);
+        // side-agnostic storage is a convenience dupe
+        to_mods.set(winit_core::keyboard::Modifiers::SHIFT, mods.shift);
+        to_mods.set(winit_core::keyboard::Modifiers::CONTROL, mods.ctrl);
+        to_mods.set(winit_core::keyboard::Modifiers::ALT, mods.alt);
+        to_mods.set(winit_core::keyboard::Modifiers::META, mods.logo);
         to_mods
     }
 }
