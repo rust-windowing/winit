@@ -908,7 +908,7 @@ impl WinitView {
 
     /// Reset modifiers and emit a synthetic ModifiersChanged event if deemed necessary.
     pub(super) fn reset_modifiers(&self) {
-        if !self.ivars().modifiers.get().state().is_empty() {
+        if !self.ivars().modifiers.get().is_empty() {
             self.ivars().modifiers.set(Modifiers::empty());
             self.queue_event(WindowEvent::ModifiersChanged(self.ivars().modifiers.get()));
         }
@@ -972,7 +972,7 @@ impl WinitView {
                 let phys_mod =
                     phys_mod_state.entry(logical_key).or_insert(ModLocationMask::empty());
 
-                let is_active = current_modifiers.state().contains(event_modifier);
+                let is_active = current_modifiers.contains(event_modifier);
                 let mut events = VecDeque::with_capacity(2);
 
                 // There is no API for getting whether the button was pressed or released
@@ -1118,14 +1118,14 @@ fn mouse_button(event: &NSEvent) -> MouseButton {
 // we're getting from the operating system, which makes it
 // impossible to provide such events as extra in `KeyEvent`.
 fn replace_event(event: &NSEvent, option_as_alt: OptionAsAlt) -> Retained<NSEvent> {
-    let ev_mods = event_mods(event).state();
+    let ev_mods = event_mods(event);
     let ignore_alt_characters = match option_as_alt {
         OptionAsAlt::OnlyLeft if lalt_pressed(event) => true,
         OptionAsAlt::OnlyRight if ralt_pressed(event) => true,
-        OptionAsAlt::Both if ev_mods.alt_key() => true,
+        OptionAsAlt::Both if ev_mods.alt_state() => true,
         _ => false,
-    } && !ev_mods.control_key()
-        && !ev_mods.meta_key();
+    } && !ev_mods.control_state()
+        && !ev_mods.meta_state();
 
     if ignore_alt_characters {
         let ns_chars = unsafe {

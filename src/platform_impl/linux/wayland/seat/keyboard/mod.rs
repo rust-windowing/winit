@@ -89,7 +89,7 @@ impl Dispatch<WlKeyboard, KeyboardData, WinitState> for WinitState {
                 // HACK: this is just for GNOME not fixing their ordering issue of modifiers.
                 if std::mem::take(&mut seat_state.modifiers_pending) {
                     state.events_sink.push_window_event(
-                        WindowEvent::ModifiersChanged(seat_state.modifiers.into()),
+                        WindowEvent::ModifiersChanged(seat_state.modifiers),
                         window_id,
                     );
                 }
@@ -122,7 +122,7 @@ impl Dispatch<WlKeyboard, KeyboardData, WinitState> for WinitState {
                 if !focused {
                     // Notify that no modifiers are being pressed.
                     state.events_sink.push_window_event(
-                        WindowEvent::ModifiersChanged(Modifiers::empty().into()),
+                        WindowEvent::ModifiersChanged(Modifiers::empty()),
                         window_id,
                     );
 
@@ -245,7 +245,7 @@ impl Dispatch<WlKeyboard, KeyboardData, WinitState> for WinitState {
                 };
 
                 state.events_sink.push_window_event(
-                    WindowEvent::ModifiersChanged(seat_state.modifiers.into()),
+                    WindowEvent::ModifiersChanged(seat_state.modifiers),
                     window_id,
                 );
             },

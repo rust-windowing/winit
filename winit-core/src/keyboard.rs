@@ -1723,7 +1723,7 @@ bitflags! {
         /// The "Right Shift" modifier.
         const RSHIFT      = 0b_1 <<  0;
         /// The "Left Shift" modifier.
-        const LSHIFT      = 0b10 <<  0;
+        const LSHIFT      = 0b10;
         /// The "Right Control" modifier.
         const RCONTROL    = 0b_1 <<  2;
         /// The "Left Control" modifier.

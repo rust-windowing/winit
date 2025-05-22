@@ -960,7 +960,7 @@ unsafe fn lose_active_focus(window: HWND, userdata: &WindowData) {
     use winit_core::event::WindowEvent::{Focused, ModifiersChanged};
 
     userdata.window_state_lock().modifiers = Modifiers::empty();
-    userdata.send_window_event(window, ModifiersChanged(Modifiers::empty().into()));
+    userdata.send_window_event(window, ModifiersChanged(Modifiers::empty()));
 
     userdata.send_window_event(window, Focused(false));
 }

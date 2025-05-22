@@ -956,7 +956,7 @@ impl EventProcessor {
         xkb_state.update_modifiers(mask, 0, 0, 0, 0, Self::core_keyboard_group(state));
         let mods: Modifiers = xkb_state.modifiers().into();
 
-        let event = WindowEvent::ModifiersChanged(mods.into());
+        let event = WindowEvent::ModifiersChanged(mods);
         app.window_event(&self.target, window_id, event);
     }
 
@@ -1669,7 +1669,7 @@ impl EventProcessor {
         // NOTE: Always update the modifiers to account for case when they've changed
         // and forced was `true`.
         if self.modifiers.replace(modifiers) != modifiers || force {
-            let event = WindowEvent::ModifiersChanged(self.modifiers.get().into());
+            let event = WindowEvent::ModifiersChanged(self.modifiers.get());
             app.window_event(&self.target, window_id, event);
         }
     }

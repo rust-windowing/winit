@@ -84,7 +84,7 @@ impl ActiveEventLoop {
                 modifiers.set(Modifiers::empty());
                 Event::WindowEvent {
                     window_id,
-                    event: WindowEvent::ModifiersChanged(Modifiers::empty().into()),
+                    event: WindowEvent::ModifiersChanged(Modifiers::empty()),
                 }
             });
 
@@ -130,7 +130,7 @@ impl ActiveEventLoop {
                     modifiers.set(active_modifiers);
                     Event::WindowEvent {
                         window_id,
-                        event: WindowEvent::ModifiersChanged(active_modifiers.into()),
+                        event: WindowEvent::ModifiersChanged(active_modifiers),
                     }
                 });
 
@@ -165,7 +165,7 @@ impl ActiveEventLoop {
                     modifiers.set(active_modifiers);
                     Event::WindowEvent {
                         window_id,
-                        event: WindowEvent::ModifiersChanged(active_modifiers.into()),
+                        event: WindowEvent::ModifiersChanged(active_modifiers),
                     }
                 });
 
@@ -203,7 +203,7 @@ impl ActiveEventLoop {
                     modifiers.set(active_modifiers);
                     Event::WindowEvent {
                         window_id,
-                        event: WindowEvent::ModifiersChanged(active_modifiers.into()),
+                        event: WindowEvent::ModifiersChanged(active_modifiers),
                     }
                 });
 
@@ -229,7 +229,7 @@ impl ActiveEventLoop {
                     modifiers.set(active_modifiers);
                     Event::WindowEvent {
                         window_id,
-                        event: WindowEvent::ModifiersChanged(active_modifiers.into()),
+                        event: WindowEvent::ModifiersChanged(active_modifiers),
                     }
                 });
 
@@ -255,9 +255,7 @@ impl ActiveEventLoop {
                                     modifiers.set(active_modifiers);
                                     Event::WindowEvent {
                                         window_id,
-                                        event: WindowEvent::ModifiersChanged(
-                                            active_modifiers.into(),
-                                        ),
+                                        event: WindowEvent::ModifiersChanged(active_modifiers),
                                     }
                                 });
 
@@ -285,7 +283,7 @@ impl ActiveEventLoop {
                             modifiers.set(active_modifiers);
                             Event::WindowEvent {
                                 window_id,
-                                event: WindowEvent::ModifiersChanged(active_modifiers.into()),
+                                event: WindowEvent::ModifiersChanged(active_modifiers),
                             }
                         });
 
@@ -312,7 +310,7 @@ impl ActiveEventLoop {
                     modifiers.set(active_modifiers);
                     Event::WindowEvent {
                         window_id,
-                        event: WindowEvent::ModifiersChanged(active_modifiers.into()),
+                        event: WindowEvent::ModifiersChanged(active_modifiers),
                     }
                 });
 
@@ -340,7 +338,7 @@ impl ActiveEventLoop {
                         modifiers.set(active_modifiers);
                         Event::WindowEvent {
                             window_id,
-                            event: WindowEvent::ModifiersChanged(active_modifiers.into()),
+                            event: WindowEvent::ModifiersChanged(active_modifiers),
                         }
                     });
 
@@ -365,7 +363,7 @@ impl ActiveEventLoop {
                     modifiers.set(active_modifiers);
                     Event::WindowEvent {
                         window_id,
-                        event: WindowEvent::ModifiersChanged(active_modifiers.into()),
+                        event: WindowEvent::ModifiersChanged(active_modifiers),
                     }
                 });
 

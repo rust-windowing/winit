@@ -1043,6 +1043,7 @@ mod tests {
     use dpi::PhysicalPosition;
 
     use crate::event;
+    use crate::keyboard::Modifiers;
 
     macro_rules! foreach_event {
         ($closure:expr) => {{
