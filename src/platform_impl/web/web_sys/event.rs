@@ -6,7 +6,7 @@ use wasm_bindgen::prelude::wasm_bindgen;
 use wasm_bindgen::{JsCast, JsValue};
 use web_sys::{KeyboardEvent, MouseEvent, Navigator, PointerEvent, WheelEvent};
 use winit_core::event::{FingerId, MouseButton, MouseScrollDelta, PointerKind};
-use winit_core::keyboard::{Key, KeyLocation, ModifiersState, NamedKey, PhysicalKey};
+use winit_core::keyboard::{Key, KeyLocation, Modifiers, NamedKey, PhysicalKey};
 
 use super::Engine;
 use crate::platform_impl::web::keyboard::FromAttributeValue;
@@ -201,39 +201,51 @@ pub fn key_location(event: &KeyboardEvent) -> KeyLocation {
     }
 }
 
-pub fn keyboard_modifiers(event: &KeyboardEvent) -> ModifiersState {
-    let mut state = ModifiersState::empty();
+pub fn keyboard_modifiers(event: &KeyboardEvent) -> Modifiers {
+    let mut state = Modifiers::empty();
 
+    // side-agnostic mods are stored on the left side
+    // side-agnostic storage is a convenience dupe
     if event.shift_key() {
-        state |= ModifiersState::SHIFT;
+        state |= Modifiers::LSHIFT;
+        state |= Modifiers::SHIFT;
     }
     if event.ctrl_key() {
-        state |= ModifiersState::CONTROL;
+        state |= Modifiers::LCONTROL;
+        state |= Modifiers::CONTROL;
     }
     if event.alt_key() {
-        state |= ModifiersState::ALT;
+        state |= Modifiers::LALT;
+        state |= Modifiers::ALT;
     }
     if event.meta_key() {
-        state |= ModifiersState::META;
+        state |= Modifiers::LMETA;
+        state |= Modifiers::META;
     }
 
     state
 }
 
-pub fn mouse_modifiers(event: &MouseEvent) -> ModifiersState {
-    let mut state = ModifiersState::empty();
+pub fn mouse_modifiers(event: &MouseEvent) -> Modifiers {
+    let mut state = Modifiers::empty();
 
+    // side-agnostic mods are stored on the left side
+    // side-agnostic storage is a convenience dupe
     if event.shift_key() {
-        state |= ModifiersState::SHIFT;
+        state |= Modifiers::LSHIFT;
+        state |= Modifiers::SHIFT;
     }
     if event.ctrl_key() {
-        state |= ModifiersState::CONTROL;
+        state |= Modifiers::LCONTROL;
+        state |= Modifiers::CONTROL;
     }
     if event.alt_key() {
-        state |= ModifiersState::ALT;
+        state |= Modifiers::LALT;
+        state |= Modifiers::ALT;
     }
     if event.meta_key() {
-        state |= ModifiersState::META;
+        state |= Modifiers::LMETA;
+        state |= Modifiers::META;
     }
 
     state

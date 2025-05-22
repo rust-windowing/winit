@@ -13,7 +13,7 @@ use winit_core::event_loop::{
     ActiveEventLoop as RootActiveEventLoop, ControlFlow, DeviceEvents,
     EventLoopProxy as RootEventLoopProxy, OwnedDisplayHandle as CoreOwnedDisplayHandle,
 };
-use winit_core::keyboard::ModifiersState;
+use winit_core::keyboard::Modifiers;
 use winit_core::monitor::MonitorHandle as CoremMonitorHandle;
 use winit_core::window::{Theme, WindowId};
 
@@ -27,14 +27,14 @@ use crate::platform_impl::web::event_loop::proxy::EventLoopProxy;
 use crate::platform_impl::Window;
 
 #[derive(Default, Debug)]
-struct ModifiersShared(Rc<Cell<ModifiersState>>);
+struct ModifiersShared(Rc<Cell<Modifiers>>);
 
 impl ModifiersShared {
-    fn set(&self, new: ModifiersState) {
+    fn set(&self, new: Modifiers) {
         self.0.set(new)
     }
 
-    fn get(&self) -> ModifiersState {
+    fn get(&self) -> Modifiers {
         self.0.get()
     }
 }
@@ -81,10 +81,10 @@ impl ActiveEventLoop {
             has_focus.set(false);
 
             let clear_modifiers = (!modifiers.get().is_empty()).then(|| {
-                modifiers.set(ModifiersState::empty());
+                modifiers.set(Modifiers::empty());
                 Event::WindowEvent {
                     window_id,
-                    event: WindowEvent::ModifiersChanged(ModifiersState::empty().into()),
+                    event: WindowEvent::ModifiersChanged(Modifiers::empty().into()),
                 }
             });
 
