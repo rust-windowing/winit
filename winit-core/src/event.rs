@@ -13,7 +13,7 @@ use web_time::Instant;
 
 use crate::error::RequestError;
 use crate::event_loop::AsyncRequestSerial;
-use crate::keyboard::{self, ModifiersKeyState, ModifiersKeys, ModifiersState};
+use crate::keyboard::{self, Modifiers};
 #[cfg(doc)]
 use crate::window::Window;
 use crate::window::{ActivationToken, Theme};
@@ -802,89 +802,6 @@ pub struct KeyEvent {
     pub key_without_modifiers: keyboard::Key,
 }
 
-/// Describes keyboard modifiers event.
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub struct Modifiers {
-    pub(crate) state: ModifiersState,
-
-    // NOTE: Currently active modifiers keys (logically, but not necessarily physically, pressed).
-    //
-    // The field providing a metadata, it shouldn't be used as a source of truth.
-    pub(crate) pressed_mods: ModifiersKeys,
-}
-
-impl Modifiers {
-    /// Create a new modifiers from state and pressed mods.
-    pub fn new(state: ModifiersState, pressed_mods: ModifiersKeys) -> Self {
-        Self { state, pressed_mods }
-    }
-
-    /// The logical state of the modifiers.
-    pub fn state(&self) -> ModifiersState {
-        self.state
-    }
-
-    /// The logical state of the modifier keys.
-    pub fn pressed_mods(&self) -> ModifiersKeys {
-        self.pressed_mods
-    }
-
-    /// The logical state of the left shift key.
-    pub fn lshift_state(&self) -> ModifiersKeyState {
-        self.mod_state(ModifiersKeys::LSHIFT)
-    }
-
-    /// The logical state of the right shift key.
-    pub fn rshift_state(&self) -> ModifiersKeyState {
-        self.mod_state(ModifiersKeys::RSHIFT)
-    }
-
-    /// The logical state of the left alt key.
-    pub fn lalt_state(&self) -> ModifiersKeyState {
-        self.mod_state(ModifiersKeys::LALT)
-    }
-
-    /// The logical state of the right alt key.
-    pub fn ralt_state(&self) -> ModifiersKeyState {
-        self.mod_state(ModifiersKeys::RALT)
-    }
-
-    /// The logical state of the left control key.
-    pub fn lcontrol_state(&self) -> ModifiersKeyState {
-        self.mod_state(ModifiersKeys::LCONTROL)
-    }
-
-    /// The logical state of the right control key.
-    pub fn rcontrol_state(&self) -> ModifiersKeyState {
-        self.mod_state(ModifiersKeys::RCONTROL)
-    }
-
-    /// The logical state of the left super key.
-    pub fn lsuper_state(&self) -> ModifiersKeyState {
-        self.mod_state(ModifiersKeys::LMETA)
-    }
-
-    /// The logical state of the right super key.
-    pub fn rsuper_state(&self) -> ModifiersKeyState {
-        self.mod_state(ModifiersKeys::RMETA)
-    }
-
-    fn mod_state(&self, modifier: ModifiersKeys) -> ModifiersKeyState {
-        if self.pressed_mods.contains(modifier) {
-            ModifiersKeyState::Pressed
-        } else {
-            ModifiersKeyState::Unknown
-        }
-    }
-}
-
-impl From<ModifiersState> for Modifiers {
-    fn from(value: ModifiersState) -> Self {
-        Self { state: value, pressed_mods: Default::default() }
-    }
-}
-
 /// Describes [input method](https://en.wikipedia.org/wiki/Input_method) events.
 ///
 /// This is also called a "composition event".
@@ -1157,7 +1074,7 @@ mod tests {
                 position: (0, 0).into(),
                 source: PointerSource::Mouse,
             });
-            with_window_event(ModifiersChanged(event::Modifiers::default()));
+            with_window_event(ModifiersChanged(Modifiers::default()));
             with_window_event(PointerEntered {
                 device_id: None,
                 primary: true,
