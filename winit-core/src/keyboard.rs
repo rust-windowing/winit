@@ -1770,79 +1770,122 @@ bitflags! {
     }
 }
 
-impl ModifiersState {
-    /// Returns whether the shift modifier is active.
-    pub fn shift_key(&self) -> bool {
-        self.intersects(Self::SHIFT)
+impl Modifiers {
+    /// Returns `true` if either Left or Right Shift modifier is active.
+    pub fn shift_state(&self) -> bool {
+        self.contains(Self::LSHIFT) || self.contains(Self::RSHIFT)
+    }
+    /// Returns `true` if the Left Shift modifier is active.
+    pub fn lshift_state(&self) -> bool {
+        self.contains(Self::LSHIFT)
+    }
+    /// Returns `true` if the Right Shift modifier is active.
+    pub fn rshift_state(&self) -> bool {
+        self.contains(Self::RSHIFT)
     }
 
-    /// Returns whether the control modifier is active.
-    pub fn control_key(&self) -> bool {
-        self.intersects(Self::CONTROL)
+    /// Returns `true` if either Left or Right Control modifier is active.
+    pub fn control_state(&self) -> bool {
+        self.contains(Self::LCONTROL) || self.contains(Self::RCONTROL)
+    }
+    /// Returns `true` if the Left Control modifier is active.
+    pub fn lcontrol_state(&self) -> bool {
+        self.contains(Self::LCONTROL)
+    }
+    /// Returns `true` if the Right Control modifier is active.
+    pub fn rcontrol_state(&self) -> bool {
+        self.contains(Self::RCONTROL)
     }
 
-    /// Returns whether the alt modifier is active.
-    pub fn alt_key(&self) -> bool {
-        self.intersects(Self::ALT)
+    /// Returns `true` if either Left or Right Alt modifier is active.
+    pub fn alt_state(&self) -> bool {
+        self.contains(Self::LALT) || self.contains(Self::RALT)
+    }
+    /// Returns `true` if the Left Alt modifier is active.
+    pub fn lalt_state(&self) -> bool {
+        self.contains(Self::LALT)
+    }
+    /// Returns `true` if the Right Alt modifier is active.
+    pub fn ralt_state(&self) -> bool {
+        self.contains(Self::RALT)
     }
 
-    /// Returns whether the meta modifier is active.
-    pub fn meta_key(&self) -> bool {
-        self.intersects(Self::META)
+    /// Returns `true` if either Left or Right Meta modifier is active.
+    pub fn meta_state(&self) -> bool {
+        self.contains(Self::LMETA) || self.contains(Self::RMETA)
+    }
+    /// Returns `true` if the Left Meta modifier is active.
+    pub fn lmeta_state(&self) -> bool {
+        self.contains(Self::LMETA)
+    }
+    /// Returns `true` if the Right Meta modifier is active.
+    pub fn rmeta_state(&self) -> bool {
+        self.contains(Self::RMETA)
     }
 
-    /// Returns `true` if the AltGraph modifier is active.
-    pub fn alt_graph_key(&self) -> bool {
-        self.contains(Self::ALT_GRAPH)
+    /// Returns `true` if either Left or Right AltGraph modifier is active.
+    pub fn alt_graph_state(&self) -> bool {
+        self.contains(Self::LALT_GRAPH) || self.contains(Self::RALT_GRAPH)
+    }
+    /// Returns `true` if the Left AltGraph modifier is active.
+    pub fn lalt_graph_state(&self) -> bool {
+        self.contains(Self::LALT_GRAPH)
+    }
+    /// Returns `true` if the Right AltGraph modifier is active.
+    pub fn ralt_graph_state(&self) -> bool {
+        self.contains(Self::RALT_GRAPH)
     }
 
     /// Returns `true` if the CapsLock modifier is active.
-    pub fn caps_lock_key(&self) -> bool {
+    pub fn caps_lock_state(&self) -> bool {
         self.contains(Self::CAPS_LOCK)
     }
 
     /// Returns `true` if the NumLock modifier is active.
-    pub fn num_lock_key(&self) -> bool {
+    pub fn num_lock_state(&self) -> bool {
         self.contains(Self::NUM_LOCK)
     }
 
     /// Returns `true` if the ScrollLock modifier is active.
-    pub fn scroll_lock_key(&self) -> bool {
+    pub fn scroll_lock_state(&self) -> bool {
         self.contains(Self::SCROLL_LOCK)
     }
 
     /// Returns `true` if the Fn modifier is active.
-    pub fn fn_key(&self) -> bool {
+    pub fn fn_state(&self) -> bool {
         self.contains(Self::FN)
     }
 
     /// Returns `true` if the FnLock modifier is active.
-    pub fn fn_lock_key(&self) -> bool {
+    pub fn fn_lock_state(&self) -> bool {
         self.contains(Self::FN_LOCK)
     }
 
     /// Returns `true` if the KanaLock modifier is active.
-    pub fn kana_lock_key(&self) -> bool {
+    pub fn kana_lock_state(&self) -> bool {
         self.contains(Self::KANA_LOCK)
     }
 
+    /// Returns `true` if either Loya or Roya modifier is active (provided for completeness, there is no "Oya" state similar to "Shift").
+    pub fn oya_state(&self) -> bool {
+        self.contains(Self::LOYA) || self.contains(Self::ROYA)
+    }
     /// Returns `true` if the Loya modifier is active.
-    pub fn loya_key(&self) -> bool {
+    pub fn loya_state(&self) -> bool {
         self.contains(Self::LOYA)
     }
-
     /// Returns `true` if the Roya modifier is active.
-    pub fn roya_key(&self) -> bool {
+    pub fn roya_state(&self) -> bool {
         self.contains(Self::ROYA)
     }
 
     /// Returns `true` if the Symbol modifier is active.
-    pub fn symbol_key(&self) -> bool {
+    pub fn symbol_state(&self) -> bool {
         self.contains(Self::SYMBOL)
     }
 
     /// Returns `true` if the SymbolLock modifier is active.
-    pub fn symbol_lock_key(&self) -> bool {
+    pub fn symbol_lock_state(&self) -> bool {
         self.contains(Self::SYMBOL_LOCK)
     }
 }
