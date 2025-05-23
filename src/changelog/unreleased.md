@@ -206,6 +206,7 @@ changelog entry.
 - Move `EventLoopExtPumpEvents` and `PumpStatus` from platform module to `winit::event_loop::pump_events`.
 - Move `EventLoopExtRunOnDemand` from platform module to `winit::event_loop::run_on_demand`.
 - Replaced `winit::keyboard::ModifiersState` with the new `winit_core::keyboard::Modifiers`.
+- Implement `Display` for `winit_core::keyboard::Modifiers` to print ‹⇧⎇ modifier combos, including an `:#` alternate notation to preserve modifier symbol positioning (for vertically-aligned formatting).
 
 ### Removed
 
