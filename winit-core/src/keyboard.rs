@@ -1781,6 +1781,14 @@ bitflags! {
         const ALT_GRAPH   = 0b_1 << 24;
         #[deprecated = "use META instead"]
         const SUPER = Self::META.bits();
+
+        /// Union of all modifiers commonly used in shortcuts (side-agnostic): <kbd>Shift</kbd>, <kbd>Control</kbd>, <kbd>Alt</kbd>, <kbd>Meta</kbd>
+        /// Useful to match app shortuct's modifiers against, ignoring the state of <kbd>CapsLock</kbd> etc.
+        const SHORTCUT = Self::SHIFT.bits() | Self::CONTROL.bits() | Self::META.bits() | Self::ALT.bits();
+
+        /// Same as [`SHORTCUT`], but side-aware, combines both left and right mods.
+        const SHORTCUTLR = Self::LSHIFT.bits() | Self::LCONTROL.bits() | Self::LMETA.bits() | Self::LALT.bits()
+            |              Self::RSHIFT.bits() | Self::RCONTROL.bits() | Self::RMETA.bits() | Self::RALT.bits();
     }
 }
 
@@ -1902,5 +1910,28 @@ impl Modifiers {
     /// Returns `true` if the SymbolLock modifier is active.
     pub fn symbol_lock_state(&self) -> bool {
         self.contains(Self::SYMBOL_LOCK)
+    }
+
+    /// Leave bitflags only for modifiers commonly used in shortcuts (side-agnostic):
+    /// <kbd>Shift</kbd>, <kbd>Control</kbd>, <kbd>Alt</kbd>, <kbd>Meta</kbd>
+    pub fn shortcut_mask(&self) -> Self {
+        *self & Self::SHORTCUT
+    }
+    /// Leave bitflags only for modifiers commonly used in shortcuts (side-aware): left or right
+    /// <kbd>Shift</kbd>, <kbd>Control</kbd>, <kbd>Alt</kbd>, <kbd>Meta</kbd>
+    pub fn shortcutlr_mask(&self) -> Self {
+        *self & Self::SHORTCUTLR
+    }
+    /// Returns `true` if app-defined shortcut matches the current modifier state, but only
+    /// considering the latter's modifiers commonly used in shortcuts (side-agnostic):
+    /// <kbd>Shift</kbd>, <kbd>Control</kbd>, <kbd>Alt</kbd>, <kbd>Meta</kbd>
+    pub fn shortcut_match(&self, current_mods: &Self) -> bool {
+        *self == (*current_mods & Self::SHORTCUT)
+    }
+    /// Returns `true` if app-defined shortcut matches the current modifier state, but only
+    /// considering the latter's modifiers commonly used in shortcuts (side-aware): left or right
+    /// <kbd>Shift</kbd>, <kbd>Control</kbd>, <kbd>Alt</kbd>, <kbd>Meta</kbd>
+    pub fn shortcutlr_match(&self, current_mods: &Self) -> bool {
+        *self == (*current_mods & Self::SHORTCUTLR)
     }
 }
