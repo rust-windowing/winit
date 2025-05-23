@@ -81,6 +81,8 @@ changelog entry.
 - `keyboard::ModifiersKey` to track which modifier is exactly pressed.
 - `ActivationToken::as_raw` to get a ref to raw token.
 - Each platform now has corresponding `WindowAttributes` struct instead of trait extension.
+- On Windows, update side-aware `event::Modifiers` information on state change.
+- On Windows, added <kbd>AltGr</kbd> as a separate modifier (though currently <kbd>AltGr</kbd>+<kbd>LCtrl</kbd> can't be differentiated from just <kbd>AltGr</kbd>).
 
 ### Changed
 
