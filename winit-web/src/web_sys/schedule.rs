@@ -9,7 +9,7 @@ use web_sys::{
     AbortController, AbortSignal, Blob, BlobPropertyBag, MessageChannel, MessagePort, Url, Worker,
 };
 
-use crate::platform::web::{PollStrategy, WaitUntilStrategy};
+use crate::{PollStrategy, WaitUntilStrategy};
 
 #[derive(Debug)]
 pub struct Schedule {

@@ -6,8 +6,8 @@ use std::task::Poll;
 use winit_core::event_loop::EventLoopProxyProvider;
 
 use super::super::main_thread::MainThreadMarker;
-use crate::platform_impl::web::event_loop::runner::WeakShared;
-use crate::platform_impl::web::r#async::{AtomicWaker, Wrapper};
+use crate::event_loop::runner::WeakShared;
+use crate::r#async::{AtomicWaker, Wrapper};
 
 #[derive(Debug)]
 pub struct EventLoopProxy(Wrapper<WeakShared, Arc<State>, ()>);

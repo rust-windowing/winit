@@ -186,6 +186,10 @@ jobs:
       if: contains(matrix.platform.target, 'redox')
       run: cargo test -p winit-orbital
 
+    - name: Test winit Web
+      if: contains(matrix.platform.target, 'wasm')
+      run: cargo test -p winit-web
+
     # Test only on Linux x86_64, so we avoid spending unnecessary CI hours.
     - name: Test dpi crate
       if: >
@@ -281,7 +285,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: ./src/platform_impl/web/script
+        working-directory: ./winit-web/src/script
 
     steps:
       - uses: taiki-e/checkout-action@v1
@@ -296,7 +300,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: ./src/platform_impl/web/script
+        working-directory: ./winit-web/src/script
 
     steps:
       - uses: taiki-e/checkout-action@v1
