@@ -1705,6 +1705,29 @@ bitflags! {
         const ALT = 0b100 << 6;
         /// This is the "windows" key on PC and "command" key on Mac.
         const META = 0b100 << 9;
+        /// The "AltGraph" key, usually used to insert symbols.
+        const ALT_GRAPH = 0b100 << 10;
+        /// The "Caps Lock" key.
+        const CAPS_LOCK = 0b100 << 11;
+        /// The "Num Lock" key.
+        const NUM_LOCK = 0b100 << 12;
+        /// The "Scroll Lock" key.
+        const SCROLL_LOCK = 0b100 << 13;
+        /// The "Function" switch key. Often handled directly in the keyboard hardware and does not generate key events.
+        /// - **macOS**: Generates `ModifiersChanged` events on Apple hardware.
+        const FN = 0b100 << 14;
+        /// The "Function-Lock" key.
+        const FN_LOCK = 0b100 << 15;
+        /// The "Kana Mode" ("Kana Lock") key, typically used to enter hiragana mode (typically from romaji mode).
+        const KANA_LOCK = 0b100 << 16;
+        /// The "Left OYAYUBI" key (OEM-specific).
+        const LOYA = 0b100 << 17;
+        /// The "Right OYAYUBI" key (OEM-specific).
+        const ROYA = 0b100 << 18;
+        /// The "Symbol" modifier key used on some virtual keyboards.
+        const SYMBOL = 0b100 << 19;
+        /// The "Symbol" Lock key.
+        const SYMBOL_LOCK = 0b100 << 20;
         #[deprecated = "use META instead"]
         const SUPER = Self::META.bits();
     }
@@ -1729,6 +1752,61 @@ impl ModifiersState {
     /// Returns whether the meta modifier is active.
     pub fn meta_key(&self) -> bool {
         self.intersects(Self::META)
+    }
+
+    /// Returns `true` if the AltGraph modifier is active.
+    pub fn alt_graph_key(&self) -> bool {
+        self.contains(Self::ALT_GRAPH)
+    }
+
+    /// Returns `true` if the CapsLock modifier is active.
+    pub fn caps_lock_key(&self) -> bool {
+        self.contains(Self::CAPS_LOCK)
+    }
+
+    /// Returns `true` if the NumLock modifier is active.
+    pub fn num_lock_key(&self) -> bool {
+        self.contains(Self::NUM_LOCK)
+    }
+
+    /// Returns `true` if the ScrollLock modifier is active.
+    pub fn scroll_lock_key(&self) -> bool {
+        self.contains(Self::SCROLL_LOCK)
+    }
+
+    /// Returns `true` if the Fn modifier is active.
+    pub fn fn_key(&self) -> bool {
+        self.contains(Self::FN)
+    }
+
+    /// Returns `true` if the FnLock modifier is active.
+    pub fn fn_lock_key(&self) -> bool {
+        self.contains(Self::FN_LOCK)
+    }
+
+    /// Returns `true` if the KanaLock modifier is active.
+    pub fn kana_lock_key(&self) -> bool {
+        self.contains(Self::KANA_LOCK)
+    }
+
+    /// Returns `true` if the Loya modifier is active.
+    pub fn loya_key(&self) -> bool {
+        self.contains(Self::LOYA)
+    }
+
+    /// Returns `true` if the Roya modifier is active.
+    pub fn roya_key(&self) -> bool {
+        self.contains(Self::ROYA)
+    }
+
+    /// Returns `true` if the Symbol modifier is active.
+    pub fn symbol_key(&self) -> bool {
+        self.contains(Self::SYMBOL)
+    }
+
+    /// Returns `true` if the SymbolLock modifier is active.
+    pub fn symbol_lock_key(&self) -> bool {
+        self.contains(Self::SYMBOL_LOCK)
     }
 }
 

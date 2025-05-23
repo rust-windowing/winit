@@ -40,7 +40,10 @@ use windows_sys::Win32::UI::Input::KeyboardAndMouse::{
     VK_SCROLL, VK_SELECT, VK_SEPARATOR, VK_SHIFT, VK_SLEEP, VK_SNAPSHOT, VK_SPACE, VK_SUBTRACT,
     VK_TAB, VK_UP, VK_VOLUME_DOWN, VK_VOLUME_MUTE, VK_VOLUME_UP, VK_XBUTTON1, VK_XBUTTON2, VK_ZOOM,
 };
-use winit_core::keyboard::{Key, KeyCode, ModifiersState, NamedKey, NativeKey, PhysicalKey};
+use winit_core::event::Modifiers;
+use winit_core::keyboard::{
+    Key, KeyCode, ModifiersKeys, ModifiersState, NamedKey, NativeKey, PhysicalKey,
+};
 
 use crate::platform_impl::{loword, primarylangid, scancode_to_physicalkey};
 
@@ -49,6 +52,11 @@ pub(crate) static LAYOUT_CACHE: LazyLock<Mutex<LayoutCache>> =
 
 fn key_pressed(vkey: VIRTUAL_KEY) -> bool {
     unsafe { (GetKeyState(vkey as i32) & (1 << 15)) == (1 << 15) }
+}
+fn key_toggled(vkey: VIRTUAL_KEY) -> bool {
+    // learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-getkeystate
+    // If the low-order bit is 1, the key is toggled. GetKeyState is SHORT = 16bit
+    unsafe { (GetKeyState(vkey as i32) & (1 << 0)) == (1 << 0) }
 }
 
 const NUMPAD_VKEYS: [VIRTUAL_KEY; 16] = [
@@ -271,15 +279,62 @@ impl LayoutCache {
         }
     }
 
-    pub fn get_agnostic_mods(&mut self) -> ModifiersState {
+    pub fn get_mods(&mut self) -> Modifiers {
         let (_, layout) = self.get_current_layout();
-        let filter_out_altgr = layout.has_alt_graph && key_pressed(VK_RMENU);
-        let mut mods = ModifiersState::empty();
-        mods.set(ModifiersState::SHIFT, key_pressed(VK_SHIFT));
-        mods.set(ModifiersState::CONTROL, key_pressed(VK_CONTROL) && !filter_out_altgr);
-        mods.set(ModifiersState::ALT, key_pressed(VK_MENU) && !filter_out_altgr);
-        mods.set(ModifiersState::META, key_pressed(VK_LWIN) || key_pressed(VK_RWIN));
-        mods
+        let mut state = ModifiersState::empty();
+        let mut pressed_mods = ModifiersKeys::empty();
+
+        state.set(ModifiersState::SHIFT, key_pressed(VK_SHIFT));
+        pressed_mods.set(
+            ModifiersKeys::LSHIFT,
+            state.contains(ModifiersState::SHIFT) && key_pressed(VK_LSHIFT),
+        );
+        pressed_mods.set(
+            ModifiersKeys::RSHIFT,
+            state.contains(ModifiersState::SHIFT) && key_pressed(VK_RSHIFT),
+        );
+
+        pressed_mods.set(ModifiersKeys::LALT, key_pressed(VK_LMENU));
+        let is_ralt = key_pressed(VK_RMENU);
+        let is_altgr = layout.has_alt_graph && is_ralt;
+        pressed_mods.set(ModifiersKeys::RALT, is_ralt && !is_altgr);
+        state.set(
+            ModifiersState::ALT,
+            pressed_mods.contains(ModifiersKeys::LALT)
+                || pressed_mods.contains(ModifiersKeys::RALT),
+        );
+        state.set(ModifiersState::ALT_GRAPH, is_altgr);
+
+        // On Windows AltGr = RAlt + LCtrl, and OS sends artificial LCtrl key event, which needs to
+        // be filtered out without touching "real" LCtrl events to allow separate bindings of
+        // LCtrl+AltGr+X and AltGr+X. TODO: this is likely only possible by tracking the
+        // physical LCtrl state via raw keyboard events as the message loop isn't capable of
+        // excluding artificial LCtrl events?
+        pressed_mods.set(ModifiersKeys::RCONTROL, key_pressed(VK_RCONTROL));
+        pressed_mods.set(ModifiersKeys::LCONTROL, key_pressed(VK_LCONTROL) && !is_altgr);
+        state.set(
+            ModifiersState::CONTROL,
+            pressed_mods.contains(ModifiersKeys::LCONTROL)
+                || pressed_mods.contains(ModifiersKeys::RCONTROL),
+        );
+
+        pressed_mods.set(ModifiersKeys::LMETA, key_pressed(VK_LWIN));
+        pressed_mods.set(ModifiersKeys::RMETA, key_pressed(VK_RWIN));
+        state.set(
+            ModifiersState::META,
+            pressed_mods.contains(ModifiersKeys::LMETA)
+                || pressed_mods.contains(ModifiersKeys::RMETA),
+        );
+
+        state.set(ModifiersState::CAPS_LOCK, key_toggled(VK_CAPITAL));
+        state.set(ModifiersState::NUM_LOCK, key_toggled(VK_NUMLOCK));
+        state.set(ModifiersState::SCROLL_LOCK, key_toggled(VK_SCROLL));
+
+        state.set(ModifiersState::KANA_LOCK, key_toggled(VK_KANA));
+        state.set(ModifiersState::LOYA, key_pressed(VK_OEM_FJ_LOYA));
+        state.set(ModifiersState::ROYA, key_pressed(VK_OEM_FJ_ROYA));
+
+        Modifiers::new(state, pressed_mods)
     }
 
     fn prepare_layout(locale_id: u64) -> Layout {

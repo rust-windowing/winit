@@ -934,17 +934,24 @@ fn update_modifiers(window: HWND, userdata: &WindowData) {
 
     let modifiers = {
         let mut layouts = LAYOUT_CACHE.lock().unwrap();
-        layouts.get_agnostic_mods()
+        layouts.get_mods()
     };
 
+    let mut send_event = false;
     let mut window_state = userdata.window_state.lock().unwrap();
-    if window_state.modifiers_state != modifiers {
-        window_state.modifiers_state = modifiers;
-
+    if window_state.modifiers_keys != modifiers.pressed_mods() {
+        window_state.modifiers_keys = modifiers.pressed_mods();
+        send_event = true;
+    }
+    if window_state.modifiers_state != modifiers.state() {
+        window_state.modifiers_state = modifiers.state();
+        send_event = true;
+    }
+    if send_event {
         // Drop lock
         drop(window_state);
 
-        userdata.send_window_event(window, ModifiersChanged(modifiers.into()));
+        userdata.send_window_event(window, ModifiersChanged(modifiers));
     }
 }
 
@@ -1040,6 +1047,9 @@ unsafe fn public_window_callback_inner(
     let mut result = ProcResult::DefWindowProc(wparam);
 
     // Send new modifiers before sending key events.
+    // NOTE: Some modifier key presses are not reported as KeyDown/Up events when the same
+    // alternative side modifier is being held, e.g., in a sequence of ↓LShift ↓RShift ↑RShift the
+    // last event is not reported.
     let mods_changed_callback = || match msg {
         WM_KEYDOWN | WM_SYSKEYDOWN | WM_KEYUP | WM_SYSKEYUP => {
             update_modifiers(window, userdata);
