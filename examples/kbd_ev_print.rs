@@ -21,62 +21,7 @@ struct App {
     window: Option<Box<dyn Window>>,
 }
 
-use winit::event::KeyEvent;
-use winit_core::keyboard::Modifiers;
 // https://docs.rs/winit/latest/winit/event/struct.Modifiers.html
-pub fn mod_state_side_aware_s(mods: &Modifiers) -> String {
-    let mut s = String::new();
-    if mods.lshift_state() {
-        s.push_str("‹⇧");
-        if mods.rshift_state() {
-            s.push('›')
-        } else {
-            s.push(' ')
-        };
-    } else if mods.rshift_state() {
-        s.push_str(" ⇧›")
-    } else {
-        s.push_str("   ")
-    }
-    if mods.lcontrol_state() {
-        s.push_str("‹⎈");
-        if mods.rcontrol_state() {
-            s.push('›')
-        } else {
-            s.push(' ')
-        };
-    } else if mods.rcontrol_state() {
-        s.push_str(" ⎈›")
-    } else {
-        s.push_str("   ")
-    }
-    if mods.lmeta_state() {
-        s.push_str("‹◆");
-        if mods.rmeta_state() {
-            s.push('›')
-        } else {
-            s.push(' ')
-        };
-    } else if mods.rmeta_state() {
-        s.push_str(" ◆›")
-    } else {
-        s.push_str("   ")
-    }
-    if mods.lalt_state() {
-        s.push_str("‹⎇");
-        if mods.ralt_state() {
-            s.push('›')
-        } else {
-            s.push(' ')
-        };
-    } else if mods.ralt_state() {
-        s.push_str(" ⎇›")
-    } else {
-        s.push_str("   ")
-    }
-    s.push_str("                          ");
-    s
-}
 // pub struct KeyEvent
 // physical_key: PhysicalKey, enum PhysicalKey
 //  Code        (       KeyCode)
@@ -90,7 +35,7 @@ pub fn mod_state_side_aware_s(mods: &Modifiers) -> String {
 //  location: KeyLocation, enum KeyLocation Standard,Left,Right,Numpad
 //  state   : ElementState, pressed/released
 //🔁repeat  : bool
-use winit::event::ElementState;
+use winit::event::{ElementState, KeyEvent};
 use winit::keyboard::{Key, KeyLocation, PhysicalKey};
 pub fn ev_key_s(key: &KeyEvent) -> String {
     let mut s = String::new();
@@ -166,8 +111,7 @@ impl ApplicationHandler for App {
     fn window_event(&mut self, event_loop: &dyn ActiveEventLoop, _: WindowId, event: WindowEvent) {
         match event {
             WindowEvent::ModifiersChanged(mods) => {
-                let pressed_mods_s = mod_state_side_aware_s(&mods);
-                println!("Δ {}\tmodifier state", pressed_mods_s);
+                println!("Δ {mods:#}\tmodifier state");
             },
             WindowEvent::KeyboardInput { event, is_synthetic, .. } => {
                 let is_synthetic_s = if is_synthetic { "⚗" } else { " " };
