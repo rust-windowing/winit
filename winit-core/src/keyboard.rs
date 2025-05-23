@@ -1935,3 +1935,247 @@ impl Modifiers {
         *self == (*current_mods & Self::SHORTCUTLR)
     }
 }
+
+const SYM_CONTROL: &str = "⌃"; //⎈
+const SYM_SHIFT: &str = "⇧";
+#[cfg(target_os = "windows")]
+const SYM_ALT: &str = "⎇";
+#[cfg(target_vendor = "apple")]
+const SYM_ALT: &str = "⌥";
+#[cfg(all(not(target_os = "windows"), not(target_vendor = "apple")))]
+const SYM_ALT: &str = "⎇";
+#[cfg(target_os = "windows")]
+const SYM_META: &str = "❖";
+#[cfg(target_vendor = "apple")]
+const SYM_META: &str = "⌘";
+#[cfg(all(not(target_os = "windows"), not(target_vendor = "apple")))]
+const SYM_META: &str = "◆";
+
+use std::fmt::{self, Display, Formatter};
+impl Display for Modifiers {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        if f.alternate() {
+            // {:#} "Fixed position" string output so that, e.g.,
+            // ⇧ is always the 2nd symbol as " ⇧" or "‹⇧"
+            if self.lshift_state() {
+                write!(f, "‹{SYM_SHIFT}")?;
+                if self.rshift_state() {
+                    write!(f, "›")?;
+                } else {
+                    write!(f, " ")?;
+                };
+            } else if self.rshift_state() {
+                write!(f, " {SYM_SHIFT}›")?;
+            } else if self.shift_state() {
+                write!(f, " {SYM_SHIFT} ")?;
+            } else {
+                write!(f, "   ")?;
+            }
+            if self.lcontrol_state() {
+                write!(f, "‹{SYM_CONTROL}")?;
+                if self.rcontrol_state() {
+                    write!(f, "›")?;
+                } else {
+                    write!(f, " ")?;
+                };
+            } else if self.rcontrol_state() {
+                write!(f, " {SYM_CONTROL}›")?;
+            } else if self.control_state() {
+                write!(f, " {SYM_CONTROL} ")?;
+            } else {
+                write!(f, "   ")?;
+            }
+            if self.lmeta_state() {
+                write!(f, "‹{SYM_META}")?;
+                if self.rmeta_state() {
+                    write!(f, "›")?;
+                } else {
+                    write!(f, " ")?;
+                };
+            } else if self.rmeta_state() {
+                write!(f, " {SYM_META}›")?;
+            } else if self.meta_state() {
+                write!(f, " {SYM_META} ")?;
+            } else {
+                write!(f, "   ")?;
+            }
+            if self.lalt_state() {
+                write!(f, "‹{SYM_ALT}")?;
+                if self.ralt_state() {
+                    write!(f, "›")?;
+                } else {
+                    write!(f, " ")?;
+                };
+            } else if self.ralt_state() {
+                write!(f, " {SYM_ALT}›")?;
+            } else if self.alt_state() {
+                write!(f, " {SYM_ALT} ")?;
+            } else {
+                write!(f, "   ")?;
+            }
+            if self.lalt_graph_state() {
+                write!(f, "‹{SYM_ALT}Gr")?;
+                if self.ralt_graph_state() {
+                    write!(f, "›")?;
+                } else {
+                    write!(f, " ")?;
+                };
+            } else if self.ralt_graph_state() {
+                write!(f, " {SYM_ALT}Gr›")?;
+            } else if self.alt_graph_state() {
+                write!(f, " {SYM_ALT}Gr ")?;
+            } else {
+                write!(f, "     ")?;
+            }
+
+            if self.caps_lock_state() {
+                write!(f, "⇪")?;
+            } else {
+                write!(f, " ")?;
+            }
+            if self.num_lock_state() {
+                write!(f, "⇭")?;
+            } else {
+                write!(f, " ")?;
+            }
+            if self.scroll_lock_state() {
+                write!(f, "⇳🔒")?;
+            } else {
+                write!(f, "  ")?;
+            }
+
+            if self.fn_state() {
+                write!(f, "ƒ")?;
+            } else {
+                write!(f, " ")?;
+            }
+            if self.fn_lock_state() {
+                write!(f, "ƒ🔒")?;
+            } else {
+                write!(f, "  ")?;
+            }
+            if self.kana_lock_state() {
+                write!(f, "カナ🔒")?;
+            } else {
+                write!(f, "   ")?;
+            }
+
+            if self.loya_state() {
+                write!(f, "‹👍")?;
+                if self.roya_state() {
+                    write!(f, "›")?;
+                } else {
+                    write!(f, " ")?;
+                };
+            } else if self.roya_state() {
+                write!(f, " 👍›")?;
+            } else if self.oya_state() {
+                write!(f, " 👍 ")?;
+            } else {
+                write!(f, "   ")?;
+            }
+
+            if self.symbol_state() {
+                write!(f, "🔣")?;
+            } else {
+                write!(f, " ")?;
+            }
+            if self.symbol_lock_state() {
+                write!(f, "🔣🔒")?;
+            } else {
+                write!(f, "  ")?;
+            }
+        } else {
+            // {} "Flexible position" string output, no extra space separators
+            if self.lshift_state() {
+                write!(f, "‹{SYM_SHIFT}")?;
+                if self.rshift_state() {
+                    write!(f, "›")?;
+                };
+            } else if self.rshift_state() {
+                write!(f, "{SYM_SHIFT}›")?;
+            } else if self.shift_state() {
+                write!(f, "{SYM_SHIFT}")?;
+            }
+            if self.lcontrol_state() {
+                write!(f, "‹{SYM_CONTROL}")?;
+                if self.rcontrol_state() {
+                    write!(f, "›")?;
+                };
+            } else if self.rcontrol_state() {
+                write!(f, "{SYM_CONTROL}›")?;
+            } else if self.control_state() {
+                write!(f, "{SYM_CONTROL}")?;
+            }
+            if self.lmeta_state() {
+                write!(f, "‹{SYM_META}")?;
+                if self.rmeta_state() {
+                    write!(f, "›")?;
+                };
+            } else if self.rmeta_state() {
+                write!(f, "{SYM_META}›")?;
+            } else if self.meta_state() {
+                write!(f, "{SYM_META}")?;
+            }
+            if self.lalt_state() {
+                write!(f, "‹{SYM_ALT}")?;
+                if self.ralt_state() {
+                    write!(f, "›")?;
+                };
+            } else if self.ralt_state() {
+                write!(f, "{SYM_ALT}›")?;
+            } else if self.alt_state() {
+                write!(f, "{SYM_ALT}")?;
+            }
+            if self.lalt_graph_state() {
+                write!(f, "‹{SYM_ALT}Gr")?;
+                if self.ralt_graph_state() {
+                    write!(f, "›")?;
+                };
+            } else if self.ralt_graph_state() {
+                write!(f, "{SYM_ALT}Gr›")?;
+            } else if self.alt_graph_state() {
+                write!(f, "{SYM_ALT}Gr")?;
+            }
+
+            if self.caps_lock_state() {
+                write!(f, "⇪")?;
+            }
+            if self.num_lock_state() {
+                write!(f, "⇭")?;
+            }
+            if self.scroll_lock_state() {
+                write!(f, "⇳🔒")?;
+            }
+
+            if self.fn_state() {
+                write!(f, "ƒ")?;
+            }
+            if self.fn_lock_state() {
+                write!(f, "ƒ🔒")?;
+            }
+            if self.kana_lock_state() {
+                write!(f, "カナ🔒")?;
+            }
+
+            if self.loya_state() {
+                write!(f, "‹👍")?;
+                if self.roya_state() {
+                    write!(f, "›")?;
+                };
+            } else if self.roya_state() {
+                write!(f, "👍›")?;
+            } else if self.oya_state() {
+                write!(f, "👍")?;
+            }
+
+            if self.symbol_state() {
+                write!(f, "🔣")?;
+            }
+            if self.symbol_lock_state() {
+                write!(f, "🔣🔒")?;
+            }
+        }
+        Ok(())
+    }
+}
