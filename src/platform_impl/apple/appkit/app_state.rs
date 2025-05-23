@@ -1,6 +1,6 @@
 use std::cell::{Cell, OnceCell, RefCell};
 use std::mem;
-use std::rc::{Rc, Weak};
+use std::rc::Rc;
 use std::sync::Arc;
 use std::time::Instant;
 
@@ -15,7 +15,7 @@ use winit_core::window::WindowId;
 
 use super::super::event_handler::EventHandler;
 use super::super::event_loop_proxy::EventLoopProxy;
-use super::event_loop::{notify_windows_of_exit, stop_app_immediately, ActiveEventLoop, PanicInfo};
+use super::event_loop::{notify_windows_of_exit, stop_app_immediately, ActiveEventLoop};
 use super::menu;
 use super::observer::{EventLoopWaker, RunLoop};
 
@@ -309,13 +309,9 @@ impl AppState {
     }
 
     // Called by RunLoopObserver after finishing waiting for new events
-    pub fn wakeup(self: &Rc<Self>, panic_info: Weak<PanicInfo>) {
-        let panic_info = panic_info
-            .upgrade()
-            .expect("The panic info must exist here. This failure indicates a developer error.");
-
+    pub fn wakeup(self: &Rc<Self>) {
         // Return when in event handler due to https://github.com/rust-windowing/winit/issues/1779
-        if panic_info.is_panicking() || !self.event_handler.ready() || !self.is_running() {
+        if !self.event_handler.ready() || !self.is_running() {
             return;
         }
 
@@ -341,15 +337,11 @@ impl AppState {
     }
 
     // Called by RunLoopObserver before waiting for new events
-    pub fn cleared(self: &Rc<Self>, panic_info: Weak<PanicInfo>) {
-        let panic_info = panic_info
-            .upgrade()
-            .expect("The panic info must exist here. This failure indicates a developer error.");
-
+    pub fn cleared(self: &Rc<Self>) {
         // Return when in event handler due to https://github.com/rust-windowing/winit/issues/1779
         // XXX: how does it make sense that `event_handler.ready()` can ever return `false` here if
         // we're about to return to the `CFRunLoop` to poll for new events?
-        if panic_info.is_panicking() || !self.event_handler.ready() || !self.is_running() {
+        if !self.event_handler.ready() || !self.is_running() {
             return;
         }
 
