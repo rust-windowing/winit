@@ -9,7 +9,10 @@ use winit_core::event::{FingerId, MouseButton, MouseScrollDelta, PointerKind};
 use winit_core::keyboard::{Key, KeyLocation, ModifiersState, NamedKey, PhysicalKey};
 
 use super::Engine;
-use crate::platform_impl::web::keyboard::FromAttributeValue;
+use crate::event::{FingerId, MouseButton, MouseScrollDelta, PointerKind};
+use crate::keyboard::{
+    Key, KeyCode, KeyLocation, ModifiersState, NamedKey, NativeKey, NativeKeyCode, PhysicalKey,
+};
 
 bitflags::bitflags! {
     // https://www.w3.org/TR/pointerevents3/#the-buttons-property
@@ -168,17 +171,32 @@ pub fn pointer_type(event: &PointerEvent, pointer_id: i32) -> PointerKind {
 }
 
 pub fn key_code(event: &KeyboardEvent) -> PhysicalKey {
-    let code = event.code();
-    PhysicalKey::from_attribute_value(&code)
+    // Use keyboard-types' parsing (it is based on the W3C standard).
+    match event.code().parse() {
+        Ok(KeyCode::Unidentified) => PhysicalKey::Unidentified(NativeKeyCode::Unidentified),
+        Ok(code) => PhysicalKey::Code(code),
+        Err(err) => {
+            tracing::warn!("unknown keyboard input: {err}");
+            PhysicalKey::Unidentified(NativeKeyCode::Unidentified)
+        },
+    }
 }
 
 pub fn key(event: &KeyboardEvent) -> Key {
-    Key::from_attribute_value(&event.key())
+    let key = event.key();
+    // Use keyboard-types' parsing (it is based on the W3C standard).
+    match key.parse() {
+        Ok(NamedKey::Unidentified) => {
+            Key::Unidentified(NativeKey::Web(SmolStr::new("Unidentified")))
+        },
+        Ok(NamedKey::Dead) => Key::Dead(None),
+        Ok(named) => Key::Named(named),
+        Err(_) => Key::Character(SmolStr::new(key)),
+    }
 }
 
 pub fn key_text(event: &KeyboardEvent) -> Option<SmolStr> {
-    let key = event.key();
-    let key = Key::from_attribute_value(&key);
+    let key = key(event);
     match &key {
         Key::Character(text) => Some(text.clone()),
         Key::Named(NamedKey::Tab) => Some(SmolStr::new("\t")),

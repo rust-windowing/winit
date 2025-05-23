@@ -20,6 +20,7 @@ bitflags = "2"
 cfg_aliases = "0.2.1"
 cursor-icon = "1.1.0"
 dpi = { version = "0.1.2", path = "dpi" }
+keyboard-types = "0.8.0"
 mint = "0.5.6"
 rwh_06 = { package = "raw-window-handle", version = "0.6", features = ["std"] }
 serde = { version = "1", features = ["serde_derive"] }
@@ -159,6 +160,7 @@ serde = [
     "smol_str/serde",
     "dpi/serde",
     "bitflags/serde",
+    "keyboard-types/serde",
     "winit-core/serde",
 ]
 wayland = [
@@ -183,6 +185,7 @@ cfg_aliases.workspace = true
 bitflags.workspace = true
 cursor-icon.workspace = true
 dpi.workspace = true
+keyboard-types.workspace = true
 rwh_06.workspace = true
 serde = { workspace = true, optional = true }
 smol_str.workspace = true
