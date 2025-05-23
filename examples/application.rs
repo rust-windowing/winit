@@ -1013,7 +1013,9 @@ impl<T: Eq> Binding<T> {
     }
 
     fn is_triggered_by(&self, trigger: &T, mods: &Modifiers) -> bool {
-        &self.trigger == trigger && mods.contains(self.mods)
+        // only consider common shortcut-related mods Shift, Alt, Meta, Control (side-agnostic)
+        // ignore mismatch in app's Shift+F and actual Shift+NumLock+F
+        &self.trigger == trigger && self.mods.shortcut_match(&mods)
     }
 }
 
