@@ -37,7 +37,6 @@ use super::{
     XConnection,
 };
 use crate::platform::x11::{WindowAttributesX11, WindowType};
-use crate::platform_impl::common;
 use crate::platform_impl::x11::atoms::*;
 use crate::platform_impl::x11::util::rgba_to_cardinals;
 use crate::platform_impl::x11::{
@@ -85,7 +84,7 @@ impl CoreWindow for Window {
     }
 
     fn reset_dead_keys(&self) {
-        common::xkb::reset_dead_keys();
+        winit_common::xkb::reset_dead_keys();
     }
 
     fn surface_position(&self) -> PhysicalPosition<i32> {

@@ -311,7 +311,7 @@ impl CoreWindow for Window {
     }
 
     fn reset_dead_keys(&self) {
-        crate::platform_impl::common::xkb::reset_dead_keys()
+        winit_common::xkb::reset_dead_keys()
     }
 
     fn surface_position(&self) -> PhysicalPosition<i32> {

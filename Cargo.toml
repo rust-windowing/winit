@@ -1,5 +1,5 @@
 [workspace]
-members = ["dpi", "winit-core", "winit-orbital"]
+members = ["dpi", "winit-*"]
 resolver = "2"
 
 [workspace.package]
@@ -12,6 +12,7 @@ rust-version = "1.80"
 # Workspace dependencies.
 # `winit` has no version here to allow using it in dev deps for docs.
 winit = { path = "." }
+winit-common = { version = "0.0.0", path = "winit-common" }
 winit-core = { version = "0.0.0", path = "winit-core" }
 winit-orbital = { version = "0.0.0", path = "winit-orbital" }
 
@@ -169,12 +170,13 @@ wayland = [
     "sctk",
     "ahash",
     "memmap2",
+    "winit-common/wayland",
 ]
 wayland-csd-adwaita = ["sctk-adwaita", "sctk-adwaita/ab_glyph"]
 wayland-csd-adwaita-crossfont = ["sctk-adwaita", "sctk-adwaita/crossfont"]
 wayland-csd-adwaita-notitle = ["sctk-adwaita"]
 wayland-dlopen = ["wayland-backend/dlopen"]
-x11 = ["x11-dl", "bytemuck", "percent-encoding", "xkbcommon-dl/x11", "x11rb"]
+x11 = ["x11-dl", "bytemuck", "percent-encoding", "xkbcommon-dl/x11", "x11rb", "winit-common/x11"]
 
 [build-dependencies]
 cfg_aliases.workspace = true
@@ -207,6 +209,7 @@ ndk.workspace = true
 block2.workspace = true
 dispatch2.workspace = true
 objc2.workspace = true
+winit-common = { workspace = true, features = ["core-foundation", "event-handler"] }
 
 # AppKit
 [target.'cfg(target_os = "macos")'.dependencies]
@@ -385,6 +388,7 @@ wayland-backend = { workspace = true, optional = true }
 wayland-client = { workspace = true, optional = true }
 wayland-protocols = { workspace = true, optional = true }
 wayland-protocols-plasma = { workspace = true, optional = true }
+winit-common = { workspace = true, features = ["xkb"] }
 x11-dl = { workspace = true, optional = true }
 x11rb = { workspace = true, optional = true, features = [
     "allow-unsafe-code",

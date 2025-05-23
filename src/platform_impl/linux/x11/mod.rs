@@ -15,6 +15,7 @@ use calloop::ping::Ping;
 use calloop::{EventLoop as Loop, Readiness};
 use libc::{setlocale, LC_CTYPE};
 use tracing::warn;
+use winit_common::xkb::Context;
 use winit_core::application::ApplicationHandler;
 use winit_core::cursor::{CustomCursor as CoreCustomCursor, CustomCursorSource};
 use winit_core::error::{EventLoopError, RequestError};
@@ -35,7 +36,6 @@ use x11rb::x11_utils::X11Error as LogicalError;
 use x11rb::xcb_ffi::ReplyOrIdError;
 
 use crate::platform::x11::XlibErrorHook;
-use crate::platform_impl::common::xkb::Context;
 use crate::platform_impl::platform::min_timeout;
 use crate::platform_impl::x11::window::Window;
 
