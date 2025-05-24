@@ -1740,6 +1740,16 @@ bitflags! {
         const RALT_GRAPH  = 0b_1 <<  8;
         /// The "Left AltGraph" modifier, typically used to insert symbols.
         const LALT_GRAPH  = 0b10 <<  8;
+        /// The "Right Control" modifier on PC/Linux and "Right Command" modifier on Mac.
+        #[cfg(target_vendor = "apple")]
+        const RPRIMARY = Self::RMETA.bits();
+        #[cfg(not(target_vendor = "apple"))]
+        const RPRIMARY = Self::RCONTROL.bits();
+        /// The "Left Control" modifier on PC/Linux and "Left Command" modifier on Mac.
+        #[cfg(target_vendor = "apple")]
+        const LPRIMARY = Self::LMETA.bits();
+        #[cfg(not(target_vendor = "apple"))]
+        const LPRIMARY = Self::LCONTROL.bits();
 
         /// The "Caps Lock" modifier.
         const CAPS_LOCK   = 0b_1 << 10;
@@ -1779,6 +1789,11 @@ bitflags! {
         const META        = 0b_1 << 23;
         /// Either Left or Right "AltGraph" modifier.
         const ALT_GRAPH   = 0b_1 << 24;
+        /// Either Left or Right "Control" modifier on PC/Linux and "Command" modifier on Mac.
+        #[cfg(target_vendor = "apple")]
+        const PRIMARY = Self::META.bits();
+        #[cfg(not(target_vendor = "apple"))]
+        const PRIMARY = Self::CONTROL.bits();
         #[deprecated = "use META instead"]
         const SUPER = Self::META.bits();
 
@@ -1910,6 +1925,19 @@ impl Modifiers {
     /// Returns `true` if the SymbolLock modifier is active.
     pub fn symbol_lock_state(&self) -> bool {
         self.contains(Self::SYMBOL_LOCK)
+    }
+
+    /// Returns `true` if either Left or Right Primary modifier is active.
+    pub fn primary_state(&self) -> bool {
+        self.contains(Self::LPRIMARY) || self.contains(Self::RPRIMARY)
+    }
+    /// Returns `true` if the Left Primary modifier is active.
+    pub fn lprimary_state(&self) -> bool {
+        self.contains(Self::LPRIMARY)
+    }
+    /// Returns `true` if the Right Primary modifier is active.
+    pub fn rprimary_state(&self) -> bool {
+        self.contains(Self::RPRIMARY)
     }
 
     /// Leave bitflags only for modifiers commonly used in shortcuts (side-agnostic):
