@@ -4,9 +4,7 @@
 //! <https://developer.apple.com/library/archive/documentation/Cocoa/Conceptual/Multithreading/RunLoopManagement/RunLoopManagement.html>
 use std::cell::Cell;
 use std::ffi::c_void;
-use std::panic::{AssertUnwindSafe, UnwindSafe};
 use std::ptr;
-use std::rc::Weak;
 use std::time::Instant;
 
 use objc2::MainThreadMarker;
@@ -18,47 +16,18 @@ use objc2_core_foundation::{
 use tracing::error;
 
 use super::app_state::AppState;
-use super::event_loop::{stop_app_on_panic, PanicInfo};
-
-unsafe fn control_flow_handler<F>(panic_info: *mut c_void, f: F)
-where
-    F: FnOnce(Weak<PanicInfo>) + UnwindSafe,
-{
-    let info_from_raw = unsafe { Weak::from_raw(panic_info as *mut PanicInfo) };
-    // Asserting unwind safety on this type should be fine because `PanicInfo` is
-    // `RefUnwindSafe` and `Rc<T>` is `UnwindSafe` if `T` is `RefUnwindSafe`.
-    let panic_info = AssertUnwindSafe(Weak::clone(&info_from_raw));
-    // `from_raw` takes ownership of the data behind the pointer.
-    // But if this scope takes ownership of the weak pointer, then
-    // the weak pointer will get free'd at the end of the scope.
-    // However we want to keep that weak reference around after the function.
-    std::mem::forget(info_from_raw);
-
-    let mtm = MainThreadMarker::new().unwrap();
-    stop_app_on_panic(mtm, Weak::clone(&panic_info), move || {
-        let _ = &panic_info;
-        f(panic_info.0)
-    });
-}
 
 // begin is queued with the highest priority to ensure it is processed before other observers
 extern "C-unwind" fn control_flow_begin_handler(
     _: *mut CFRunLoopObserver,
     activity: CFRunLoopActivity,
-    panic_info: *mut c_void,
+    _info: *mut c_void,
 ) {
-    unsafe {
-        control_flow_handler(panic_info, |panic_info| {
-            #[allow(non_upper_case_globals)]
-            match activity {
-                CFRunLoopActivity::AfterWaiting => {
-                    // trace!("Triggered `CFRunLoopAfterWaiting`");
-                    AppState::get(MainThreadMarker::new().unwrap()).wakeup(panic_info);
-                    // trace!("Completed `CFRunLoopAfterWaiting`");
-                },
-                _ => unreachable!(),
-            }
-        });
+    match activity {
+        CFRunLoopActivity::AfterWaiting => {
+            AppState::get(MainThreadMarker::new().unwrap()).wakeup();
+        },
+        _ => unreachable!(),
     }
 }
 
@@ -67,21 +36,14 @@ extern "C-unwind" fn control_flow_begin_handler(
 extern "C-unwind" fn control_flow_end_handler(
     _: *mut CFRunLoopObserver,
     activity: CFRunLoopActivity,
-    panic_info: *mut c_void,
+    _info: *mut c_void,
 ) {
-    unsafe {
-        control_flow_handler(panic_info, |panic_info| {
-            #[allow(non_upper_case_globals)]
-            match activity {
-                CFRunLoopActivity::BeforeWaiting => {
-                    // trace!("Triggered `CFRunLoopBeforeWaiting`");
-                    AppState::get(MainThreadMarker::new().unwrap()).cleared(panic_info);
-                    // trace!("Completed `CFRunLoopBeforeWaiting`");
-                },
-                CFRunLoopActivity::Exit => (), /* unimplemented!(), // not expected to ever happen */
-                _ => unreachable!(),
-            }
-        });
+    match activity {
+        CFRunLoopActivity::BeforeWaiting => {
+            AppState::get(MainThreadMarker::new().unwrap()).cleared();
+        },
+        CFRunLoopActivity::Exit => (), // unimplemented!(), // not expected to ever happen
+        _ => unreachable!(),
     }
 }
 
@@ -180,11 +142,11 @@ impl RunLoop {
     }
 }
 
-pub fn setup_control_flow_observers(mtm: MainThreadMarker, panic_info: Weak<PanicInfo>) {
+pub fn setup_control_flow_observers(mtm: MainThreadMarker) {
     let run_loop = RunLoop::main(mtm);
     unsafe {
         let mut context = CFRunLoopObserverContext {
-            info: Weak::into_raw(panic_info) as *mut _,
+            info: ptr::null_mut(),
             version: 0,
             retain: None,
             release: None,

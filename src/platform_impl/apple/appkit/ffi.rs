@@ -11,8 +11,8 @@ use objc2_core_graphics::CGDirectDisplayID;
 
 pub const IO16BitDirectPixels: &str = "-RRRRRGGGGGBBBBB";
 pub const IO32BitDirectPixels: &str = "--------RRRRRRRRGGGGGGGGBBBBBBBB";
-
 pub const kIO30BitDirectPixels: &str = "--RRRRRRRRRRGGGGGGGGGGBBBBBBBBBB";
+pub const kIO64BitDirectPixels: &str = "-16R16G16B16";
 
 // `CGDisplayCreateUUIDFromDisplayID` comes from the `ColorSync` framework.
 // However, that framework was only introduced "publicly" in macOS 10.13.
