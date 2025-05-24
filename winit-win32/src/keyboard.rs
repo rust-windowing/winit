@@ -29,11 +29,9 @@ use winit_core::keyboard::{
     Key, KeyCode, KeyLocation, NamedKey, NativeKey, NativeKeyCode, PhysicalKey,
 };
 
-use crate::platform_impl::platform::event_loop::ProcResult;
-use crate::platform_impl::platform::keyboard_layout::{
-    Layout, LayoutCache, WindowsModifiers, LAYOUT_CACHE,
-};
-use crate::platform_impl::platform::{loword, primarylangid};
+use crate::event_loop::ProcResult;
+use crate::keyboard_layout::{Layout, LayoutCache, WindowsModifiers, LAYOUT_CACHE};
+use crate::util::{loword, primarylangid};
 
 pub type ExScancode = u16;
 
@@ -900,7 +898,7 @@ fn get_location(scancode: ExScancode, hkl: HKL) -> KeyLocation {
     }
 }
 
-pub(crate) fn physicalkey_to_scancode(physical_key: PhysicalKey) -> Option<u32> {
+pub fn physicalkey_to_scancode(physical_key: PhysicalKey) -> Option<u32> {
     // See `scancode_to_physicalkey` for more info
 
     let hkl = unsafe { GetKeyboardLayout(0) };
@@ -1096,7 +1094,7 @@ pub(crate) fn physicalkey_to_scancode(physical_key: PhysicalKey) -> Option<u32> 
     }
 }
 
-pub(crate) fn scancode_to_physicalkey(scancode: u32) -> PhysicalKey {
+pub fn scancode_to_physicalkey(scancode: u32) -> PhysicalKey {
     // See: https://www.win.tue.nl/~aeb/linux/kbd/scancodes-1.html
     // and: https://www.w3.org/TR/uievents-code/
     // and: The widget/NativeKeyToDOMCodeName.h file in the firefox source

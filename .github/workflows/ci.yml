@@ -190,6 +190,10 @@ jobs:
       if: contains(matrix.platform.target, 'redox')
       run: cargo test -p winit-orbital
 
+    - name: Test winit Win32
+      if: contains(matrix.platform.target, 'windows')
+      run: cargo $CMD test -p winit-win32 --target=${{ matrix.platform.target }}
+
     # Test only on Linux x86_64, so we avoid spending unnecessary CI hours.
     - name: Test dpi crate
       if: >

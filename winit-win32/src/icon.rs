@@ -18,7 +18,7 @@ use winit_core::error::RequestError;
 use winit_core::icon::*;
 
 use super::util;
-use crate::platform::windows::WinIcon;
+use crate::WinIcon;
 
 pub(crate) const PIXEL_SIZE: usize = mem::size_of::<Pixel>();
 

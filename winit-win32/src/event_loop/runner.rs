@@ -14,8 +14,8 @@ use winit_core::event_loop::ActiveEventLoop as RootActiveEventLoop;
 use winit_core::window::WindowId;
 
 use super::{ActiveEventLoop, ControlFlow, EventLoopThreadExecutor};
-use crate::platform_impl::platform::event_loop::{WindowData, GWL_USERDATA};
-use crate::platform_impl::platform::get_window_long;
+use crate::event_loop::{WindowData, GWL_USERDATA};
+use crate::util::get_window_long;
 
 type EventHandler = Cell<Option<&'static mut (dyn ApplicationHandler + 'static)>>;
 

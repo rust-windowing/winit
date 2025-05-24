@@ -14,7 +14,7 @@ use windows_sys::Win32::System::Ole::{CF_HDROP, DROPEFFECT_COPY, DROPEFFECT_NONE
 use windows_sys::Win32::UI::Shell::{DragFinish, DragQueryFileW, HDROP};
 use winit_core::event::WindowEvent;
 
-use crate::platform_impl::platform::definitions::{
+use crate::definitions::{
     IDataObject, IDataObjectVtbl, IDropTarget, IDropTargetVtbl, IUnknown, IUnknownVtbl,
 };
 

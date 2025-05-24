@@ -25,7 +25,7 @@ use winit_core::event_loop::DeviceEvents;
 use winit_core::keyboard::{KeyCode, PhysicalKey};
 
 use super::scancode_to_physicalkey;
-use crate::platform_impl::platform::util;
+use crate::util;
 
 #[allow(dead_code)]
 pub fn get_raw_input_device_list() -> Option<Vec<RAWINPUTDEVICELIST>> {
