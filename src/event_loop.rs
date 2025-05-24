@@ -328,6 +328,26 @@ impl winit_core::event_loop::run_on_demand::EventLoopExtRunOnDemand for EventLoo
     }
 }
 
+#[cfg(android_platform)]
+impl winit_android::EventLoopExtAndroid for EventLoop {
+    fn android_app(&self) -> &winit_android::activity::AndroidApp {
+        &self.event_loop.android_app
+    }
+}
+
+#[cfg(android_platform)]
+impl winit_android::EventLoopBuilderExtAndroid for EventLoopBuilder {
+    fn with_android_app(&mut self, app: winit_android::activity::AndroidApp) -> &mut Self {
+        self.platform_specific.android_app = Some(app);
+        self
+    }
+
+    fn handle_volume_keys(&mut self) -> &mut Self {
+        self.platform_specific.ignore_volume_keys = false;
+        self
+    }
+}
+
 #[cfg(windows_platform)]
 impl winit_win32::EventLoopBuilderExtWindows for EventLoopBuilder {
     #[inline]

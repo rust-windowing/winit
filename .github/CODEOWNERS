@@ -1,6 +1,5 @@
 # Android
-/src/platform/android.rs            @MarijnS95
-/src/platform_impl/android          @MarijnS95
+/winit-android                      @MarijnS95
 
 # Apple (AppKit + UIKit)
 /src/platform/ios.rs                @madsmtm

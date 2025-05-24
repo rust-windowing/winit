@@ -1,8 +1,4 @@
-use std::any::Any;
-use std::cell::Cell;
-use std::fmt;
-use std::panic::{catch_unwind, resume_unwind, RefUnwindSafe, UnwindSafe};
-use std::rc::{Rc, Weak};
+use std::rc::Rc;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
@@ -35,42 +31,6 @@ use super::monitor;
 use super::observer::setup_control_flow_observers;
 use crate::platform::macos::ActivationPolicy;
 use crate::platform_impl::Window;
-
-#[derive(Default)]
-pub struct PanicInfo {
-    inner: Cell<Option<Box<dyn Any + Send + 'static>>>,
-}
-
-impl fmt::Debug for PanicInfo {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("PanicInfo").finish_non_exhaustive()
-    }
-}
-
-// WARNING:
-// As long as this struct is used through its `impl`, it is UnwindSafe.
-// (If `get_mut` is called on `inner`, unwind safety may get broken.)
-impl UnwindSafe for PanicInfo {}
-impl RefUnwindSafe for PanicInfo {}
-impl PanicInfo {
-    pub fn is_panicking(&self) -> bool {
-        let inner = self.inner.take();
-        let result = inner.is_some();
-        self.inner.set(inner);
-        result
-    }
-
-    /// Overwrites the current state if the current state is not panicking
-    pub fn set_panic(&self, p: Box<dyn Any + Send + 'static>) {
-        if !self.is_panicking() {
-            self.inner.set(Some(p));
-        }
-    }
-
-    pub fn take(&self) -> Option<Box<dyn Any + Send + 'static>> {
-        self.inner.take()
-    }
-}
 
 #[derive(Debug)]
 pub struct ActiveEventLoop {
@@ -183,7 +143,6 @@ pub struct EventLoop {
     app_state: Rc<AppState>,
 
     window_target: ActiveEventLoop,
-    panic_info: Rc<PanicInfo>,
 
     // Since macOS 10.11, we no longer need to remove the observers before they are deallocated;
     // the system instead cleans it up next time it would have posted a notification to it.
@@ -259,14 +218,12 @@ impl EventLoop {
             },
         );
 
-        let panic_info: Rc<PanicInfo> = Default::default();
-        setup_control_flow_observers(mtm, Rc::downgrade(&panic_info));
+        setup_control_flow_observers(mtm);
 
         Ok(EventLoop {
             app,
             app_state: app_state.clone(),
             window_target: ActiveEventLoop { app_state, mtm },
-            panic_info,
             _did_finish_launching_observer,
             _will_terminate_observer,
         })
@@ -305,15 +262,6 @@ impl EventLoop {
 
                 // NOTE: Make sure to not run the application re-entrantly, as that'd be confusing.
                 self.app.run();
-
-                // While the app is running it's possible that we catch a panic
-                // to avoid unwinding across an objective-c ffi boundary, which
-                // will lead to us stopping the `NSApplication` and saving the
-                // `PanicInfo` so that we can resume the unwind at a controlled,
-                // safe point in time.
-                if let Some(panic) = self.panic_info.take() {
-                    resume_unwind(panic);
-                }
 
                 self.app_state.internal_exit()
             })
@@ -370,15 +318,6 @@ impl EventLoop {
                     self.app.run();
                 }
 
-                // While the app is running it's possible that we catch a panic
-                // to avoid unwinding across an objective-c ffi boundary, which
-                // will lead to us stopping the application and saving the
-                // `PanicInfo` so that we can resume the unwind at a controlled,
-                // safe point in time.
-                if let Some(panic) = self.panic_info.take() {
-                    resume_unwind(panic);
-                }
-
                 if self.app_state.exiting() {
                     self.app_state.internal_exit();
                     PumpStatus::Exit(0)
@@ -421,31 +360,5 @@ pub(super) fn stop_app_immediately(app: &NSApplication) {
 pub(super) fn notify_windows_of_exit(app: &NSApplication) {
     for window in app.windows() {
         window.close();
-    }
-}
-
-/// Catches panics that happen inside `f` and when a panic
-/// happens, stops the `sharedApplication`
-#[inline]
-pub fn stop_app_on_panic<F: FnOnce() -> R + UnwindSafe, R>(
-    mtm: MainThreadMarker,
-    panic_info: Weak<PanicInfo>,
-    f: F,
-) -> Option<R> {
-    match catch_unwind(f) {
-        Ok(r) => Some(r),
-        Err(e) => {
-            // It's important that we set the panic before requesting a `stop`
-            // because some callback are still called during the `stop` message
-            // and we need to know in those callbacks if the application is currently
-            // panicking
-            {
-                let panic_info = panic_info.upgrade().unwrap();
-                panic_info.set_panic(e);
-            }
-            let app = NSApplication::sharedApplication(mtm);
-            stop_app_immediately(&app);
-            None
-        },
     }
 }
