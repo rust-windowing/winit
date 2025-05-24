@@ -934,17 +934,24 @@ fn update_modifiers(window: HWND, userdata: &WindowData) {
 
     let modifiers = {
         let mut layouts = LAYOUT_CACHE.lock().unwrap();
-        layouts.get_agnostic_mods()
+        layouts.get_mods()
     };
 
+    let mut send_event = false;
     let mut window_state = userdata.window_state.lock().unwrap();
-    if window_state.modifiers_state != modifiers {
-        window_state.modifiers_state = modifiers;
-
+    if window_state.modifiers_keys != modifiers.pressed_mods() {
+        window_state.modifiers_keys = modifiers.pressed_mods();
+        send_event = true;
+    }
+    if window_state.modifiers_state != modifiers.state() {
+        window_state.modifiers_state = modifiers.state();
+        send_event = true;
+    }
+    if send_event {
         // Drop lock
         drop(window_state);
 
-        userdata.send_window_event(window, ModifiersChanged(modifiers.into()));
+        userdata.send_window_event(window, ModifiersChanged(modifiers));
     }
 }
 

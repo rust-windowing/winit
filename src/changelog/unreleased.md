@@ -81,6 +81,7 @@ changelog entry.
 - `keyboard::ModifiersKey` to track which modifier is exactly pressed.
 - `ActivationToken::as_raw` to get a ref to raw token.
 - Each platform now has corresponding `WindowAttributes` struct instead of trait extension.
+- On Windows, update side-aware `event::Modifiers` information on state change.
 
 ### Changed
 
