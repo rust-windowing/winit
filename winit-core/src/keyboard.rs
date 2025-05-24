@@ -1936,7 +1936,7 @@ impl Modifiers {
     }
 }
 
-const SYM_CONTROL: &str = "⌃"; //⎈
+const SYM_CONTROL: &str = "⎈"; //‹⌃› looks too similar
 const SYM_SHIFT: &str = "⇧";
 #[cfg(target_os = "windows")]
 const SYM_ALT: &str = "⎇";
