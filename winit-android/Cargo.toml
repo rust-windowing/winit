@@ -1,0 +1,35 @@
+[package]
+description = "Winit's Android backend"
+documentation = "https://docs.rs/winit-android"
+edition.workspace = true
+license.workspace = true
+name = "winit-android"
+repository.workspace = true
+rust-version.workspace = true
+version = "0.0.0"
+
+[features]
+game-activity = ["android-activity/game-activity"]
+native-activity = ["android-activity/native-activity"]
+serde = ["dep:serde", "bitflags/serde", "smol_str/serde", "dpi/serde", "winit-core/serde"]
+
+[dependencies]
+bitflags.workspace = true
+dpi.workspace = true
+rwh_06.workspace = true
+serde = { workspace = true, optional = true }
+smol_str.workspace = true
+tracing.workspace = true
+winit-core.workspace = true
+
+# Platform-specific
+[target.'cfg(target_os = "android")'.dependencies]
+android-activity.workspace = true
+ndk.workspace = true
+
+[dev-dependencies]
+winit.workspace = true
+
+[package.metadata.docs.rs]
+features = ["serde", "native-activity"]
+targets = ["aarch64-linux-android"]

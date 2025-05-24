@@ -3,7 +3,7 @@
 //! Only the modules corresponding to the platform you're compiling to will be available.
 
 #[cfg(android_platform)]
-pub mod android;
+pub use winit_android as android;
 #[cfg(ios_platform)]
 pub mod ios;
 #[cfg(macos_platform)]

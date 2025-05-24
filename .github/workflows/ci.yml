@@ -182,6 +182,10 @@ jobs:
     - name: Test winit core
       run: cargo test -p winit-core
 
+    - name: Test winit Android
+      if: contains(matrix.platform.target, 'android')
+      run: cargo $CMD test -p winit-android --target=${{ matrix.platform.target }} --features native-activity --no-run
+
     - name: Test winit Orbital
       if: contains(matrix.platform.target, 'redox')
       run: cargo test -p winit-orbital

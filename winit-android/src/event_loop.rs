@@ -1,4 +1,5 @@
 use std::cell::Cell;
+use std::fmt;
 use std::hash::Hash;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
@@ -26,7 +27,7 @@ use winit_core::window::{
     WindowAttributes, WindowButtons, WindowId, WindowLevel,
 };
 
-mod keycodes;
+use crate::keycodes;
 
 static HAS_FOCUS: AtomicBool = AtomicBool::new(true);
 
@@ -42,7 +43,7 @@ struct SharedFlagSetter {
     flag: Arc<AtomicBool>,
 }
 impl SharedFlagSetter {
-    pub fn set(&self) -> bool {
+    fn set(&self) -> bool {
         self.flag.compare_exchange(false, true, Ordering::AcqRel, Ordering::Relaxed).is_ok()
     }
 }
@@ -57,21 +58,21 @@ struct SharedFlag {
 // we just need to know at the start of a main loop iteration if a redraw
 // was queued and be able to read and clear the state atomically)
 impl SharedFlag {
-    pub fn new() -> Self {
+    fn new() -> Self {
         Self { flag: Arc::new(AtomicBool::new(false)) }
     }
 
-    pub fn setter(&self) -> SharedFlagSetter {
+    fn setter(&self) -> SharedFlagSetter {
         SharedFlagSetter { flag: self.flag.clone() }
     }
 
-    pub fn get_and_reset(&self) -> bool {
+    fn get_and_reset(&self) -> bool {
         self.flag.swap(false, std::sync::atomic::Ordering::AcqRel)
     }
 }
 
 #[derive(Clone)]
-pub struct RedrawRequester {
+struct RedrawRequester {
     flag: SharedFlagSetter,
     waker: AndroidAppWaker,
 }
@@ -87,7 +88,7 @@ impl RedrawRequester {
         RedrawRequester { flag: flag.setter(), waker }
     }
 
-    pub fn request_redraw(&self) {
+    fn request_redraw(&self) {
         if self.flag.set() {
             // Only explicitly try to wake up the main loop when the flag
             // value changes
@@ -98,7 +99,7 @@ impl RedrawRequester {
 
 #[derive(Debug)]
 pub struct EventLoop {
-    pub(crate) android_app: AndroidApp,
+    pub android_app: AndroidApp,
     window_target: ActiveEventLoop,
     redraw_flag: SharedFlag,
     loop_running: bool, // Dispatched `NewEvents<Init>`
@@ -111,9 +112,9 @@ pub struct EventLoop {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub(crate) struct PlatformSpecificEventLoopAttributes {
-    pub(crate) android_app: Option<AndroidApp>,
-    pub(crate) ignore_volume_keys: bool,
+pub struct PlatformSpecificEventLoopAttributes {
+    pub android_app: Option<AndroidApp>,
+    pub ignore_volume_keys: bool,
 }
 
 impl Default for PlatformSpecificEventLoopAttributes {
@@ -126,9 +127,7 @@ impl Default for PlatformSpecificEventLoopAttributes {
 const GLOBAL_WINDOW: WindowId = WindowId::from_raw(0);
 
 impl EventLoop {
-    pub(crate) fn new(
-        attributes: &PlatformSpecificEventLoopAttributes,
-    ) -> Result<Self, EventLoopError> {
+    pub fn new(attributes: &PlatformSpecificEventLoopAttributes) -> Result<Self, EventLoopError> {
         let android_app = attributes.android_app.as_ref().expect(
             "An `AndroidApp` as passed to android_main() is required to create an `EventLoop` on \
              Android",
@@ -158,7 +157,7 @@ impl EventLoop {
         })
     }
 
-    pub(crate) fn window_target(&self) -> &dyn RootActiveEventLoop {
+    pub fn window_target(&self) -> &dyn RootActiveEventLoop {
         &self.window_target
     }
 
@@ -751,7 +750,7 @@ impl rwh_06::HasDisplayHandle for OwnedDisplayHandle {
 pub struct PlatformSpecificWindowAttributes;
 
 #[derive(Debug)]
-pub(crate) struct Window {
+pub struct Window {
     app: AndroidApp,
     redraw_requester: RedrawRequester,
 }
@@ -766,11 +765,11 @@ impl Window {
         Ok(Self { app: el.app.clone(), redraw_requester: el.redraw_requester.clone() })
     }
 
-    pub fn config(&self) -> ConfigurationRef {
+    pub(crate) fn config(&self) -> ConfigurationRef {
         self.app.config()
     }
 
-    pub fn content_rect(&self) -> Rect {
+    pub(crate) fn content_rect(&self) -> Rect {
         self.app.content_rect()
     }
 
@@ -996,16 +995,6 @@ impl CoreWindow for Window {
 
     fn rwh_06_window_handle(&self) -> &dyn rwh_06::HasWindowHandle {
         self
-    }
-}
-
-#[derive(Default, Clone, Debug)]
-pub struct OsError;
-
-use std::fmt::{self, Display, Formatter};
-impl Display for OsError {
-    fn fmt(&self, fmt: &mut Formatter<'_>) -> Result<(), fmt::Error> {
-        write!(fmt, "Android OS Error")
     }
 }
 

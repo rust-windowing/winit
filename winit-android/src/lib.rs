@@ -69,21 +69,24 @@
 //!    logging as above).
 //! 4. Pass a clone of the `AndroidApp` that your application receives to Winit when building your
 //!    event loop (as shown above).
+#![cfg(target_os = "android")]
+
+mod event_loop;
+mod keycodes;
+
+use winit_core::event_loop::ActiveEventLoop as CoreActiveEventLoop;
+use winit_core::window::Window as CoreWindow;
 
 use self::activity::{AndroidApp, ConfigurationRef, Rect};
-use crate::event_loop::{ActiveEventLoop, EventLoop, EventLoopBuilder};
-use crate::window::Window;
+pub use crate::event_loop::{
+    ActiveEventLoop, EventLoop, EventLoopProxy, PlatformSpecificEventLoopAttributes,
+    PlatformSpecificWindowAttributes, Window,
+};
 
 /// Additional methods on [`EventLoop`] that are specific to Android.
 pub trait EventLoopExtAndroid {
     /// Get the [`AndroidApp`] which was used to create this event loop.
     fn android_app(&self) -> &AndroidApp;
-}
-
-impl EventLoopExtAndroid for EventLoop {
-    fn android_app(&self) -> &AndroidApp {
-        &self.event_loop.android_app
-    }
 }
 
 /// Additional methods on [`ActiveEventLoop`] that are specific to Android.
@@ -99,21 +102,21 @@ pub trait WindowExtAndroid {
     fn config(&self) -> ConfigurationRef;
 }
 
-impl WindowExtAndroid for dyn Window + '_ {
+impl WindowExtAndroid for dyn CoreWindow + '_ {
     fn content_rect(&self) -> Rect {
-        let window = self.cast_ref::<crate::platform_impl::Window>().unwrap();
+        let window = self.cast_ref::<Window>().unwrap();
         window.content_rect()
     }
 
     fn config(&self) -> ConfigurationRef {
-        let window = self.cast_ref::<crate::platform_impl::Window>().unwrap();
+        let window = self.cast_ref::<Window>().unwrap();
         window.config()
     }
 }
 
-impl ActiveEventLoopExtAndroid for dyn ActiveEventLoop + '_ {
+impl ActiveEventLoopExtAndroid for dyn CoreActiveEventLoop + '_ {
     fn android_app(&self) -> &AndroidApp {
-        let event_loop = self.cast_ref::<crate::platform_impl::ActiveEventLoop>().unwrap();
+        let event_loop = self.cast_ref::<ActiveEventLoop>().unwrap();
         &event_loop.app
     }
 }
@@ -128,18 +131,6 @@ pub trait EventLoopBuilderExtAndroid {
     ///
     /// Default is to let the operating system handle the volume keys
     fn handle_volume_keys(&mut self) -> &mut Self;
-}
-
-impl EventLoopBuilderExtAndroid for EventLoopBuilder {
-    fn with_android_app(&mut self, app: AndroidApp) -> &mut Self {
-        self.platform_specific.android_app = Some(app);
-        self
-    }
-
-    fn handle_volume_keys(&mut self) -> &mut Self {
-        self.platform_specific.ignore_volume_keys = false;
-        self
-    }
 }
 
 /// Re-export of the `android_activity` API
@@ -170,16 +161,5 @@ pub mod activity {
     // feature enabled, so we avoid inlining it so that they're forced to view
     // it on the crate's own docs.rs page.
     #[doc(no_inline)]
-    #[cfg(android_platform)]
     pub use android_activity::*;
-
-    #[cfg(not(android_platform))]
-    #[doc(hidden)]
-    pub struct Rect;
-    #[cfg(not(android_platform))]
-    #[doc(hidden)]
-    pub struct ConfigurationRef;
-    #[cfg(not(android_platform))]
-    #[doc(hidden)]
-    pub struct AndroidApp;
 }

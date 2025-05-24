@@ -1,5 +1,5 @@
 [workspace]
-members = ["dpi", "winit-core", "winit-orbital"]
+members = ["dpi", "winit-*"]
 resolver = "2"
 
 [workspace.package]
@@ -12,6 +12,7 @@ rust-version = "1.80"
 # Workspace dependencies.
 # `winit` has no version here to allow using it in dev deps for docs.
 winit = { path = "." }
+winit-android = { version = "0.0.0", path = "winit-android" }
 winit-core = { version = "0.0.0", path = "winit-core" }
 winit-orbital = { version = "0.0.0", path = "winit-orbital" }
 
@@ -149,9 +150,10 @@ targets = [
 
 # Features are documented in either `lib.rs` or under `winit::platform`.
 [features]
-android-game-activity = ["android-activity/game-activity"]
-android-native-activity = ["android-activity/native-activity"]
 default = ["x11", "wayland", "wayland-dlopen", "wayland-csd-adwaita"]
+
+android-game-activity = ["winit-android/game-activity"]
+android-native-activity = ["winit-android/native-activity"]
 mint = ["dpi/mint"]
 serde = [
     "dep:serde",
@@ -197,10 +199,8 @@ tracing-subscriber = { workspace = true, features = ["env-filter"] }
 [target.'cfg(not(target_os = "android"))'.dev-dependencies]
 softbuffer.workspace = true
 
-# Android
 [target.'cfg(target_os = "android")'.dependencies]
-android-activity.workspace = true
-ndk.workspace = true
+winit-android.workspace = true
 
 # AppKit or UIKit
 [target.'cfg(target_vendor = "apple")'.dependencies]
