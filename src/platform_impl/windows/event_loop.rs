@@ -72,7 +72,7 @@ use winit_core::event_loop::{
     EventLoopProxy as RootEventLoopProxy, EventLoopProxyProvider,
     OwnedDisplayHandle as CoreOwnedDisplayHandle,
 };
-use winit_core::keyboard::ModifiersState;
+use winit_core::keyboard::Modifiers;
 use winit_core::monitor::{Fullscreen, MonitorHandle as CoreMonitorHandle};
 use winit_core::window::{Theme, Window as CoreWindow, WindowAttributes, WindowId};
 
@@ -934,17 +934,17 @@ fn update_modifiers(window: HWND, userdata: &WindowData) {
 
     let modifiers = {
         let mut layouts = LAYOUT_CACHE.lock().unwrap();
-        layouts.get_agnostic_mods()
+        layouts.get_mods()
     };
 
     let mut window_state = userdata.window_state.lock().unwrap();
-    if window_state.modifiers_state != modifiers {
-        window_state.modifiers_state = modifiers;
+    if window_state.modifiers != modifiers {
+        window_state.modifiers = modifiers;
 
         // Drop lock
         drop(window_state);
 
-        userdata.send_window_event(window, ModifiersChanged(modifiers.into()));
+        userdata.send_window_event(window, ModifiersChanged(modifiers));
     }
 }
 
@@ -959,8 +959,8 @@ unsafe fn gain_active_focus(window: HWND, userdata: &WindowData) {
 unsafe fn lose_active_focus(window: HWND, userdata: &WindowData) {
     use winit_core::event::WindowEvent::{Focused, ModifiersChanged};
 
-    userdata.window_state_lock().modifiers_state = ModifiersState::empty();
-    userdata.send_window_event(window, ModifiersChanged(ModifiersState::empty().into()));
+    userdata.window_state_lock().modifiers = Modifiers::empty();
+    userdata.send_window_event(window, ModifiersChanged(Modifiers::empty()));
 
     userdata.send_window_event(window, Focused(false));
 }
@@ -1040,6 +1040,9 @@ unsafe fn public_window_callback_inner(
     let mut result = ProcResult::DefWindowProc(wparam);
 
     // Send new modifiers before sending key events.
+    // NOTE: Some modifier key presses are not reported as KeyDown/Up events when the same
+    // alternative side modifier is being held, e.g., in a sequence of ↓LShift ↓RShift ↑RShift the
+    // last event is not reported.
     let mods_changed_callback = || match msg {
         WM_KEYDOWN | WM_SYSKEYDOWN | WM_KEYUP | WM_SYSKEYUP => {
             update_modifiers(window, userdata);

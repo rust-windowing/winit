@@ -17,10 +17,10 @@ use objc2_foundation::{
     NSNotFound, NSObject, NSPoint, NSRange, NSRect, NSSize, NSString, NSUInteger,
 };
 use winit_core::event::{
-    DeviceEvent, ElementState, Ime, KeyEvent, Modifiers, MouseButton, MouseScrollDelta,
-    PointerKind, PointerSource, TouchPhase, WindowEvent,
+    DeviceEvent, ElementState, Ime, KeyEvent, MouseButton, MouseScrollDelta, PointerKind,
+    PointerSource, TouchPhase, WindowEvent,
 };
-use winit_core::keyboard::{Key, KeyCode, KeyLocation, ModifiersState, NamedKey};
+use winit_core::keyboard::{Key, KeyCode, KeyLocation, Modifiers, NamedKey};
 
 use super::app_state::AppState;
 use super::cursor::{default_cursor, invisible_cursor};
@@ -77,12 +77,34 @@ impl ModLocationMask {
     }
 }
 
-fn key_to_modifier(key: &Key) -> Option<ModifiersState> {
+fn key_to_modifier(key: &Key) -> Option<Modifiers> {
     match key {
-        Key::Named(NamedKey::Alt) => Some(ModifiersState::ALT),
-        Key::Named(NamedKey::Control) => Some(ModifiersState::CONTROL),
-        Key::Named(NamedKey::Meta) => Some(ModifiersState::META),
-        Key::Named(NamedKey::Shift) => Some(ModifiersState::SHIFT),
+        // side-agnostic mods are stored on the left side
+        // side-agnostic storage is a convenience dupe
+        Key::Named(NamedKey::Alt) => {
+            let mut mods = Modifiers::empty();
+            mods.set(Modifiers::LALT, true);
+            mods.set(Modifiers::ALT, true);
+            Some(mods)
+        },
+        Key::Named(NamedKey::Control) => {
+            let mut mods = Modifiers::empty();
+            mods.set(Modifiers::LCONTROL, true);
+            mods.set(Modifiers::CONTROL, true);
+            Some(mods)
+        },
+        Key::Named(NamedKey::Meta) => {
+            let mut mods = Modifiers::empty();
+            mods.set(Modifiers::LMETA, true);
+            mods.set(Modifiers::META, true);
+            Some(mods)
+        },
+        Key::Named(NamedKey::Shift) => {
+            let mut mods = Modifiers::empty();
+            mods.set(Modifiers::LSHIFT, true);
+            mods.set(Modifiers::SHIFT, true);
+            Some(mods)
+        },
         _ => None,
     }
 }
@@ -886,8 +908,8 @@ impl WinitView {
 
     /// Reset modifiers and emit a synthetic ModifiersChanged event if deemed necessary.
     pub(super) fn reset_modifiers(&self) {
-        if !self.ivars().modifiers.get().state().is_empty() {
-            self.ivars().modifiers.set(Modifiers::default());
+        if !self.ivars().modifiers.get().is_empty() {
+            self.ivars().modifiers.set(Modifiers::empty());
             self.queue_event(WindowEvent::ModifiersChanged(self.ivars().modifiers.get()));
         }
     }
@@ -950,7 +972,7 @@ impl WinitView {
                 let phys_mod =
                     phys_mod_state.entry(logical_key).or_insert(ModLocationMask::empty());
 
-                let is_active = current_modifiers.state().contains(event_modifier);
+                let is_active = current_modifiers.contains(event_modifier);
                 let mut events = VecDeque::with_capacity(2);
 
                 // There is no API for getting whether the button was pressed or released
@@ -1096,14 +1118,14 @@ fn mouse_button(event: &NSEvent) -> MouseButton {
 // we're getting from the operating system, which makes it
 // impossible to provide such events as extra in `KeyEvent`.
 fn replace_event(event: &NSEvent, option_as_alt: OptionAsAlt) -> Retained<NSEvent> {
-    let ev_mods = event_mods(event).state();
+    let ev_mods = event_mods(event);
     let ignore_alt_characters = match option_as_alt {
         OptionAsAlt::OnlyLeft if lalt_pressed(event) => true,
         OptionAsAlt::OnlyRight if ralt_pressed(event) => true,
-        OptionAsAlt::Both if ev_mods.alt_key() => true,
+        OptionAsAlt::Both if ev_mods.alt_state() => true,
         _ => false,
-    } && !ev_mods.control_key()
-        && !ev_mods.meta_key();
+    } && !ev_mods.control_state()
+        && !ev_mods.meta_state();
 
     if ignore_alt_characters {
         let ns_chars = unsafe {

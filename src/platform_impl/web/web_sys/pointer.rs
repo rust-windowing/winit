@@ -4,7 +4,7 @@ use std::rc::Rc;
 use dpi::PhysicalPosition;
 use web_sys::PointerEvent;
 use winit_core::event::{ButtonSource, DeviceId, ElementState, Force, PointerKind, PointerSource};
-use winit_core::keyboard::ModifiersState;
+use winit_core::keyboard::Modifiers;
 
 use super::canvas::Common;
 use super::event;
@@ -36,8 +36,7 @@ impl PointerHandler {
 
     pub fn on_pointer_leave<F>(&mut self, canvas_common: &Common, mut handler: F)
     where
-        F: 'static
-            + FnMut(ModifiersState, Option<DeviceId>, bool, PhysicalPosition<f64>, PointerKind),
+        F: 'static + FnMut(Modifiers, Option<DeviceId>, bool, PhysicalPosition<f64>, PointerKind),
     {
         let window = canvas_common.window.clone();
         self.on_cursor_leave =
@@ -54,8 +53,7 @@ impl PointerHandler {
 
     pub fn on_pointer_enter<F>(&mut self, canvas_common: &Common, mut handler: F)
     where
-        F: 'static
-            + FnMut(ModifiersState, Option<DeviceId>, bool, PhysicalPosition<f64>, PointerKind),
+        F: 'static + FnMut(Modifiers, Option<DeviceId>, bool, PhysicalPosition<f64>, PointerKind),
     {
         let window = canvas_common.window.clone();
         self.on_cursor_enter =
@@ -72,8 +70,7 @@ impl PointerHandler {
 
     pub fn on_pointer_release<C>(&mut self, canvas_common: &Common, mut handler: C)
     where
-        C: 'static
-            + FnMut(ModifiersState, Option<DeviceId>, bool, PhysicalPosition<f64>, ButtonSource),
+        C: 'static + FnMut(Modifiers, Option<DeviceId>, bool, PhysicalPosition<f64>, ButtonSource),
     {
         let window = canvas_common.window.clone();
         self.on_pointer_release =
@@ -109,8 +106,7 @@ impl PointerHandler {
         mut handler: C,
         prevent_default: Rc<Cell<bool>>,
     ) where
-        C: 'static
-            + FnMut(ModifiersState, Option<DeviceId>, bool, PhysicalPosition<f64>, ButtonSource),
+        C: 'static + FnMut(Modifiers, Option<DeviceId>, bool, PhysicalPosition<f64>, ButtonSource),
     {
         let window = canvas_common.window.clone();
         let canvas = canvas_common.raw().clone();
@@ -166,13 +162,11 @@ impl PointerHandler {
         C: 'static
             + FnMut(
                 Option<DeviceId>,
-                &mut dyn Iterator<
-                    Item = (ModifiersState, bool, PhysicalPosition<f64>, PointerSource),
-                >,
+                &mut dyn Iterator<Item = (Modifiers, bool, PhysicalPosition<f64>, PointerSource)>,
             ),
         B: 'static
             + FnMut(
-                ModifiersState,
+                Modifiers,
                 Option<DeviceId>,
                 bool,
                 PhysicalPosition<f64>,

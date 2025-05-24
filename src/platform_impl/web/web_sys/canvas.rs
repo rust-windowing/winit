@@ -16,7 +16,7 @@ use winit_core::event::{
     ButtonSource, DeviceId, ElementState, MouseScrollDelta, PointerKind, PointerSource,
     SurfaceSizeWriter, WindowEvent,
 };
-use winit_core::keyboard::{Key, KeyLocation, ModifiersState, PhysicalKey};
+use winit_core::keyboard::{Key, KeyLocation, Modifiers, PhysicalKey};
 use winit_core::monitor::Fullscreen;
 use winit_core::window::{WindowAttributes, WindowId};
 
@@ -287,7 +287,7 @@ impl Canvas {
 
     pub fn on_keyboard_release<F>(&self, mut handler: F)
     where
-        F: 'static + FnMut(PhysicalKey, Key, Option<SmolStr>, KeyLocation, bool, ModifiersState),
+        F: 'static + FnMut(PhysicalKey, Key, Option<SmolStr>, KeyLocation, bool, Modifiers),
     {
         let prevent_default = Rc::clone(&self.prevent_default);
         self.handlers.borrow_mut().on_keyboard_release =
@@ -310,7 +310,7 @@ impl Canvas {
 
     pub fn on_keyboard_press<F>(&self, mut handler: F)
     where
-        F: 'static + FnMut(PhysicalKey, Key, Option<SmolStr>, KeyLocation, bool, ModifiersState),
+        F: 'static + FnMut(PhysicalKey, Key, Option<SmolStr>, KeyLocation, bool, Modifiers),
     {
         let prevent_default = Rc::clone(&self.prevent_default);
         self.handlers.borrow_mut().on_keyboard_press =
@@ -333,32 +333,28 @@ impl Canvas {
 
     pub fn on_pointer_leave<F>(&self, handler: F)
     where
-        F: 'static
-            + FnMut(ModifiersState, Option<DeviceId>, bool, PhysicalPosition<f64>, PointerKind),
+        F: 'static + FnMut(Modifiers, Option<DeviceId>, bool, PhysicalPosition<f64>, PointerKind),
     {
         self.handlers.borrow_mut().pointer_handler.on_pointer_leave(&self.common, handler)
     }
 
     pub fn on_pointer_enter<F>(&self, handler: F)
     where
-        F: 'static
-            + FnMut(ModifiersState, Option<DeviceId>, bool, PhysicalPosition<f64>, PointerKind),
+        F: 'static + FnMut(Modifiers, Option<DeviceId>, bool, PhysicalPosition<f64>, PointerKind),
     {
         self.handlers.borrow_mut().pointer_handler.on_pointer_enter(&self.common, handler)
     }
 
     pub fn on_pointer_release<C>(&self, handler: C)
     where
-        C: 'static
-            + FnMut(ModifiersState, Option<DeviceId>, bool, PhysicalPosition<f64>, ButtonSource),
+        C: 'static + FnMut(Modifiers, Option<DeviceId>, bool, PhysicalPosition<f64>, ButtonSource),
     {
         self.handlers.borrow_mut().pointer_handler.on_pointer_release(&self.common, handler)
     }
 
     pub fn on_pointer_press<C>(&self, handler: C)
     where
-        C: 'static
-            + FnMut(ModifiersState, Option<DeviceId>, bool, PhysicalPosition<f64>, ButtonSource),
+        C: 'static + FnMut(Modifiers, Option<DeviceId>, bool, PhysicalPosition<f64>, ButtonSource),
     {
         self.handlers.borrow_mut().pointer_handler.on_pointer_press(
             &self.common,
@@ -372,13 +368,11 @@ impl Canvas {
         C: 'static
             + FnMut(
                 Option<DeviceId>,
-                &mut dyn Iterator<
-                    Item = (ModifiersState, bool, PhysicalPosition<f64>, PointerSource),
-                >,
+                &mut dyn Iterator<Item = (Modifiers, bool, PhysicalPosition<f64>, PointerSource)>,
             ),
         B: 'static
             + FnMut(
-                ModifiersState,
+                Modifiers,
                 Option<DeviceId>,
                 bool,
                 PhysicalPosition<f64>,
@@ -396,7 +390,7 @@ impl Canvas {
 
     pub fn on_mouse_wheel<F>(&self, mut handler: F)
     where
-        F: 'static + FnMut(MouseScrollDelta, ModifiersState),
+        F: 'static + FnMut(MouseScrollDelta, Modifiers),
     {
         let window = self.common.window.clone();
         let prevent_default = Rc::clone(&self.prevent_default);

@@ -1687,113 +1687,523 @@ pub enum KeyLocation {
 }
 
 bitflags! {
-    /// Represents the current logical state of the keyboard modifiers
+    /// Represents the current _logical_ state of keyboard modifiers.
     ///
     /// Each flag represents a modifier and is set if this modifier is active.
     ///
-    /// Note that the modifier key can be physically released with the modifier
-    /// still being marked as active, as in the case of sticky modifiers.
-    /// See [`ModifiersKeyState`] for more details on what "sticky" means.
+    /// NOTE: the _physical_ state of a modifier key doesn't necessarily match its _logical_ state, for example, <kbd>LShift</kbd> can be physically released while `LSHIFT` is active, as in the case of sticky modifiers (see below on what "sticky" means).
+    /// Even the sides can mismatch, for example, <kbd>RShift</kbd> on macOS can be used to activate a sticky Shift state, but logically the OS will report that `LSHIFT` is active. Wayland/X11 can have similar issues.
+    ///
+    /// NOTE: while the modifier can only be in a binary active/inactive state, it might be helpful to
+    /// note the context re. how its state changes by physical key events.
+    ///
+    /// `↓` / `↑` denote physical press/release[^1]:
+    ///
+    /// | Type              | Activated           | Deactivated | Comment |
+    /// | ----------------- | :-----------------: | :---------: | ------- |
+    /// | __Regular__       | `↓`                 | `↑`         | Active while being held |
+    /// | __Sticky__        | `↓`                 | `↓` unless lock is enabled<br>`↓`/`↑`[^2] __non__-sticky key | Temporarily "stuck"; other `Sticky` keys have no effect |
+    /// | __Sticky Locked__ | `↓` <br>if `Sticky` | `↓`         | Similar to `Toggle`, but deactivating `↓` turns on `Regular` effect |
+    /// | __Toggle__        | `↓`                 | `↓`         | `↑` from the activating `↓` has no effect |
+    ///
+    /// `Sticky` effect avoids the need to press and hold multiple modifiers for a single shortcut and
+    /// is usually a platform-wide option that affects modifiers _commonly_ used in shortcuts:
+    /// <kbd>Shift</kbd>, <kbd>Control</kbd>, <kbd>Alt</kbd>, <kbd>Meta</kbd>.
+    ///
+    /// `Toggle` type is typically a property of a modifier, for example, <kbd>Caps Lock</kbd>.
+    ///
+    /// These active states are __not__ differentiated here.
+    ///
+    /// [^1]: For virtual/on-screen keyboards physical press/release can be a mouse click or a finger tap or a voice command.
+    /// [^2]: platform-dependent
+
     #[derive(Default, Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
     #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-    pub struct ModifiersState: u32 {
-        /// The "shift" key.
-        const SHIFT = 0b100;
-        /// The "control" key.
-        const CONTROL = 0b100 << 3;
-        /// The "alt" key.
-        const ALT = 0b100 << 6;
-        /// This is the "windows" key on PC and "command" key on Mac.
-        const META = 0b100 << 9;
+    pub struct Modifiers: u32 {
+        /// The "Right Shift" modifier.
+        const RSHIFT      = 0b_1 <<  0;
+        /// The "Left Shift" modifier.
+        const LSHIFT      = 0b10;
+        /// The "Right Control" modifier.
+        const RCONTROL    = 0b_1 <<  2;
+        /// The "Left Control" modifier.
+        const LCONTROL    = 0b10 <<  2;
+        /// The "Right Alt" modifier.
+        const RALT        = 0b_1 <<  4;
+        /// The "Left Alt" modifier.
+        const LALT        = 0b10 <<  4;
+        /// The "Right Windows" modifier on PC and "Right Command" modifier on Mac.
+        const RMETA       = 0b_1 <<  6;
+        /// The "Left Windows" modifier on PC and "Left Command" modifier on Mac.
+        const LMETA       = 0b10 <<  6;
+        /// The "Right AltGraph" modifier, typically used to insert symbols.
+        const RALT_GRAPH  = 0b_1 <<  8;
+        /// The "Left AltGraph" modifier, typically used to insert symbols.
+        const LALT_GRAPH  = 0b10 <<  8;
+        /// The "Right Control" modifier on PC/Linux and "Right Command" modifier on Mac.
+        #[cfg(target_vendor = "apple")]
+        const RPRIMARY = Self::RMETA.bits();
+        #[cfg(not(target_vendor = "apple"))]
+        const RPRIMARY = Self::RCONTROL.bits();
+        /// The "Left Control" modifier on PC/Linux and "Left Command" modifier on Mac.
+        #[cfg(target_vendor = "apple")]
+        const LPRIMARY = Self::LMETA.bits();
+        #[cfg(not(target_vendor = "apple"))]
+        const LPRIMARY = Self::LCONTROL.bits();
+
+        /// The "Caps Lock" modifier.
+        const CAPS_LOCK   = 0b_1 << 10;
+        /// The "Num Lock" modifier.
+        const NUM_LOCK    = 0b_1 << 11;
+        /// The "Scroll Lock" modifier.
+        const SCROLL_LOCK = 0b_1 << 12;
+
+        /// The "Function" switch modifier. Often handled directly in the keyboard hardware and does not generate key events.
+        /// - **macOS**: Generates `ModifiersChanged` events on Apple hardware.
+        const FN          = 0b_1 << 13;
+        /// The "Function-Lock" modifier.
+        const FN_LOCK     = 0b_1 << 14;
+        /// The "Kana Mode" ("Kana Lock") modifier, typically used to enter hiragana mode (typically from romaji mode).
+        const KANA_LOCK   = 0b_1 << 15;
+        /// The "Right OYAYUBI" modifier (OEM-specific).
+        const ROYA        = 0b_1 << 16;
+        /// The "Left OYAYUBI" modifier (OEM-specific).
+        const LOYA        = 0b10 << 16;
+        /// The "Symbol" modifier modifier used on some virtual keyboards.
+        const SYMBOL      = 0b_1 << 18;
+        /// The "Symbol" Lock modifier.
+        const SYMBOL_LOCK = 0b_1 << 19;
+        #[deprecated = "use LMETA instead"]
+        const LSUPER = Self::LMETA.bits();
+        #[deprecated = "use RMETA instead"]
+        const RSUPER = Self::RMETA.bits();
+
+        // TODO: worth storing composite state to make user binding API a bit easier?
+        /// Either Left or Right "Shift" modifier.
+        const SHIFT       = 0b_1 << 20;
+        /// Either Left or Right "Control" modifier.
+        const CONTROL     = 0b_1 << 21;
+        /// Either Left or Right "Alt" modifier.
+        const ALT         = 0b_1 << 22;
+        /// Either Left or Right "Windows" modifier on PC and "Command" modifier on Mac.
+        const META        = 0b_1 << 23;
+        /// Either Left or Right "AltGraph" modifier.
+        const ALT_GRAPH   = 0b_1 << 24;
+        /// Either Left or Right "Control" modifier on PC/Linux and "Command" modifier on Mac.
+        #[cfg(target_vendor = "apple")]
+        const PRIMARY = Self::META.bits();
+        #[cfg(not(target_vendor = "apple"))]
+        const PRIMARY = Self::CONTROL.bits();
         #[deprecated = "use META instead"]
         const SUPER = Self::META.bits();
+
+        /// Union of all modifiers commonly used in shortcuts (side-agnostic): <kbd>Shift</kbd>, <kbd>Control</kbd>, <kbd>Alt</kbd>, <kbd>Meta</kbd>
+        /// Useful to match app shortuct's modifiers against, ignoring the state of <kbd>CapsLock</kbd> etc.
+        const SHORTCUT = Self::SHIFT.bits() | Self::CONTROL.bits() | Self::META.bits() | Self::ALT.bits();
+
+        /// Same as [`SHORTCUT`], but side-aware, combines both left and right mods.
+        const SHORTCUTLR = Self::LSHIFT.bits() | Self::LCONTROL.bits() | Self::LMETA.bits() | Self::LALT.bits()
+            |              Self::RSHIFT.bits() | Self::RCONTROL.bits() | Self::RMETA.bits() | Self::RALT.bits();
     }
 }
 
-impl ModifiersState {
-    /// Returns whether the shift modifier is active.
-    pub fn shift_key(&self) -> bool {
-        self.intersects(Self::SHIFT)
+impl Modifiers {
+    /// Returns `true` if either Left or Right Shift modifier is active.
+    pub fn shift_state(&self) -> bool {
+        self.contains(Self::LSHIFT) || self.contains(Self::RSHIFT)
+    }
+    /// Returns `true` if the Left Shift modifier is active.
+    pub fn lshift_state(&self) -> bool {
+        self.contains(Self::LSHIFT)
+    }
+    /// Returns `true` if the Right Shift modifier is active.
+    pub fn rshift_state(&self) -> bool {
+        self.contains(Self::RSHIFT)
     }
 
-    /// Returns whether the control modifier is active.
-    pub fn control_key(&self) -> bool {
-        self.intersects(Self::CONTROL)
+    /// Returns `true` if either Left or Right Control modifier is active.
+    pub fn control_state(&self) -> bool {
+        self.contains(Self::LCONTROL) || self.contains(Self::RCONTROL)
+    }
+    /// Returns `true` if the Left Control modifier is active.
+    pub fn lcontrol_state(&self) -> bool {
+        self.contains(Self::LCONTROL)
+    }
+    /// Returns `true` if the Right Control modifier is active.
+    pub fn rcontrol_state(&self) -> bool {
+        self.contains(Self::RCONTROL)
     }
 
-    /// Returns whether the alt modifier is active.
-    pub fn alt_key(&self) -> bool {
-        self.intersects(Self::ALT)
+    /// Returns `true` if either Left or Right Alt modifier is active.
+    pub fn alt_state(&self) -> bool {
+        self.contains(Self::LALT) || self.contains(Self::RALT)
+    }
+    /// Returns `true` if the Left Alt modifier is active.
+    pub fn lalt_state(&self) -> bool {
+        self.contains(Self::LALT)
+    }
+    /// Returns `true` if the Right Alt modifier is active.
+    pub fn ralt_state(&self) -> bool {
+        self.contains(Self::RALT)
     }
 
-    /// Returns whether the meta modifier is active.
-    pub fn meta_key(&self) -> bool {
-        self.intersects(Self::META)
+    /// Returns `true` if either Left or Right Meta modifier is active.
+    pub fn meta_state(&self) -> bool {
+        self.contains(Self::LMETA) || self.contains(Self::RMETA)
+    }
+    /// Returns `true` if the Left Meta modifier is active.
+    pub fn lmeta_state(&self) -> bool {
+        self.contains(Self::LMETA)
+    }
+    /// Returns `true` if the Right Meta modifier is active.
+    pub fn rmeta_state(&self) -> bool {
+        self.contains(Self::RMETA)
+    }
+
+    /// Returns `true` if either Left or Right AltGraph modifier is active.
+    pub fn alt_graph_state(&self) -> bool {
+        self.contains(Self::LALT_GRAPH) || self.contains(Self::RALT_GRAPH)
+    }
+    /// Returns `true` if the Left AltGraph modifier is active.
+    pub fn lalt_graph_state(&self) -> bool {
+        self.contains(Self::LALT_GRAPH)
+    }
+    /// Returns `true` if the Right AltGraph modifier is active.
+    pub fn ralt_graph_state(&self) -> bool {
+        self.contains(Self::RALT_GRAPH)
+    }
+
+    /// Returns `true` if the CapsLock modifier is active.
+    pub fn caps_lock_state(&self) -> bool {
+        self.contains(Self::CAPS_LOCK)
+    }
+
+    /// Returns `true` if the NumLock modifier is active.
+    pub fn num_lock_state(&self) -> bool {
+        self.contains(Self::NUM_LOCK)
+    }
+
+    /// Returns `true` if the ScrollLock modifier is active.
+    pub fn scroll_lock_state(&self) -> bool {
+        self.contains(Self::SCROLL_LOCK)
+    }
+
+    /// Returns `true` if the Fn modifier is active.
+    pub fn fn_state(&self) -> bool {
+        self.contains(Self::FN)
+    }
+
+    /// Returns `true` if the FnLock modifier is active.
+    pub fn fn_lock_state(&self) -> bool {
+        self.contains(Self::FN_LOCK)
+    }
+
+    /// Returns `true` if the KanaLock modifier is active.
+    pub fn kana_lock_state(&self) -> bool {
+        self.contains(Self::KANA_LOCK)
+    }
+
+    /// Returns `true` if either Loya or Roya modifier is active (provided for completeness, there
+    /// is no "Oya" state similar to "Shift").
+    pub fn oya_state(&self) -> bool {
+        self.contains(Self::LOYA) || self.contains(Self::ROYA)
+    }
+    /// Returns `true` if the Loya modifier is active.
+    pub fn loya_state(&self) -> bool {
+        self.contains(Self::LOYA)
+    }
+    /// Returns `true` if the Roya modifier is active.
+    pub fn roya_state(&self) -> bool {
+        self.contains(Self::ROYA)
+    }
+
+    /// Returns `true` if the Symbol modifier is active.
+    pub fn symbol_state(&self) -> bool {
+        self.contains(Self::SYMBOL)
+    }
+
+    /// Returns `true` if the SymbolLock modifier is active.
+    pub fn symbol_lock_state(&self) -> bool {
+        self.contains(Self::SYMBOL_LOCK)
+    }
+
+    /// Returns `true` if either Left or Right Primary modifier is active.
+    pub fn primary_state(&self) -> bool {
+        self.contains(Self::LPRIMARY) || self.contains(Self::RPRIMARY)
+    }
+    /// Returns `true` if the Left Primary modifier is active.
+    pub fn lprimary_state(&self) -> bool {
+        self.contains(Self::LPRIMARY)
+    }
+    /// Returns `true` if the Right Primary modifier is active.
+    pub fn rprimary_state(&self) -> bool {
+        self.contains(Self::RPRIMARY)
+    }
+
+    /// Leave bitflags only for modifiers commonly used in shortcuts (side-agnostic):
+    /// <kbd>Shift</kbd>, <kbd>Control</kbd>, <kbd>Alt</kbd>, <kbd>Meta</kbd>
+    pub fn shortcut_mask(&self) -> Self {
+        *self & Self::SHORTCUT
+    }
+    /// Leave bitflags only for modifiers commonly used in shortcuts (side-aware): left or right
+    /// <kbd>Shift</kbd>, <kbd>Control</kbd>, <kbd>Alt</kbd>, <kbd>Meta</kbd>
+    pub fn shortcutlr_mask(&self) -> Self {
+        *self & Self::SHORTCUTLR
+    }
+    /// Returns `true` if app-defined shortcut matches the current modifier state, but only
+    /// considering the latter's modifiers commonly used in shortcuts (side-agnostic):
+    /// <kbd>Shift</kbd>, <kbd>Control</kbd>, <kbd>Alt</kbd>, <kbd>Meta</kbd>
+    pub fn shortcut_match(&self, current_mods: &Self) -> bool {
+        *self == (*current_mods & Self::SHORTCUT)
+    }
+    /// Returns `true` if app-defined shortcut matches the current modifier state, but only
+    /// considering the latter's modifiers commonly used in shortcuts (side-aware): left or right
+    /// <kbd>Shift</kbd>, <kbd>Control</kbd>, <kbd>Alt</kbd>, <kbd>Meta</kbd>
+    pub fn shortcutlr_match(&self, current_mods: &Self) -> bool {
+        *self == (*current_mods & Self::SHORTCUTLR)
     }
 }
 
-/// The logical state of the particular modifiers key.
-///
-/// NOTE: while the modifier can only be in a binary active/inactive state, it might be helpful to
-/// note the context re. how its state changes by physical key events.
-///
-/// `↓` / `↑` denote physical press/release[^1]:
-///
-/// | Type              | Activated           | Deactivated | Comment |
-/// | ----------------- | :-----------------: | :---------: | ------- |
-/// | __Regular__       | `↓`                 | `↑`         | Active while being held |
-/// | __Sticky__        | `↓`                 | `↓` unless lock is enabled<br>`↓`/`↑`[^2] __non__-sticky key | Temporarily "stuck"; other `Sticky` keys have no effect |
-/// | __Sticky Locked__ | `↓` <br>if `Sticky` | `↓`         | Similar to `Toggle`, but deactivating `↓` turns on `Regular` effect |
-/// | __Toggle__        | `↓`                 | `↓`         | `↑` from the activating `↓` has no effect |
-///
-/// `Sticky` effect avoids the need to press and hold multiple modifiers for a single shortcut and
-/// is usually a platform-wide option that affects modifiers _commonly_ used in shortcuts:
-/// <kbd>Shift</kbd>, <kbd>Control</kbd>, <kbd>Alt</kbd>, <kbd>Meta</kbd>.
-///
-/// `Toggle` type is typically a property of a modifier, for example, <kbd>Caps Lock</kbd>.
-///
-/// These active states are __not__ differentiated here.
-///
-/// [^1]: For virtual/on-screen keyboards physical press/release can be a mouse click or a finger tap or a voice command.
-/// [^2]: platform-dependent
-#[derive(Default, Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub enum ModifiersKeyState {
-    /// The particular modifier is active or logically, but not necessarily physically, pressed.
-    Pressed,
-    /// The state of the key is unknown.
-    ///
-    /// Can include cases when the key is active or logically pressed, for example, when a sticky
-    /// **Shift** is active, the OS might not preserve information that it was activated by
-    /// RightShift, so the state of [`ModifiersKeys::RSHIFT`] will be unknown while the state
-    /// of [`ModifiersState::SHIFT`] will be active.
-    #[default]
-    Unknown,
-}
+const SYM_CONTROL: &str = "⎈"; //‹⌃› looks too similar
+const SYM_SHIFT: &str = "⇧";
+#[cfg(target_os = "windows")]
+const SYM_ALT: &str = "⎇";
+#[cfg(target_vendor = "apple")]
+const SYM_ALT: &str = "⌥";
+#[cfg(all(not(target_os = "windows"), not(target_vendor = "apple")))]
+const SYM_ALT: &str = "⎇";
+#[cfg(target_os = "windows")]
+const SYM_META: &str = "❖";
+#[cfg(target_vendor = "apple")]
+const SYM_META: &str = "⌘";
+#[cfg(all(not(target_os = "windows"), not(target_vendor = "apple")))]
+const SYM_META: &str = "◆";
 
-// NOTE: the exact modifier key is not used to represent modifiers state in the
-// first place due to a fact that modifiers state could be changed without any
-// key being pressed and on some platforms like Wayland/X11 which key resulted
-// in modifiers change is hidden, also, not that it really matters.
-//
-// The reason this API is even exposed is mostly to provide a way for users
-// to treat modifiers differently based on their position, which is required
-// on macOS due to their AltGr/Option situation.
-bitflags! {
-    #[derive(Default, Debug, Clone, Copy, PartialEq, Eq, Hash)]
-    #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-    pub struct ModifiersKeys: u8 {
-        const LSHIFT   = 0b0000_0001;
-        const RSHIFT   = 0b0000_0010;
-        const LCONTROL = 0b0000_0100;
-        const RCONTROL = 0b0000_1000;
-        const LALT     = 0b0001_0000;
-        const RALT     = 0b0010_0000;
-        const LMETA    = 0b0100_0000;
-        const RMETA    = 0b1000_0000;
-        #[deprecated = "use LMETA instead"]
-        const LSUPER   = Self::LMETA.bits();
-        #[deprecated = "use RMETA instead"]
-        const RSUPER   = Self::RMETA.bits();
+use std::fmt::{self, Display, Formatter};
+impl Display for Modifiers {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        if f.alternate() {
+            // {:#} "Fixed position" string output so that, e.g.,
+            // ⇧ is always the 2nd symbol as " ⇧" or "‹⇧"
+            if self.lshift_state() {
+                write!(f, "‹{SYM_SHIFT}")?;
+                if self.rshift_state() {
+                    write!(f, "›")?;
+                } else {
+                    write!(f, " ")?;
+                };
+            } else if self.rshift_state() {
+                write!(f, " {SYM_SHIFT}›")?;
+            } else if self.shift_state() {
+                write!(f, " {SYM_SHIFT} ")?;
+            } else {
+                write!(f, "   ")?;
+            }
+            if self.lcontrol_state() {
+                write!(f, "‹{SYM_CONTROL}")?;
+                if self.rcontrol_state() {
+                    write!(f, "›")?;
+                } else {
+                    write!(f, " ")?;
+                };
+            } else if self.rcontrol_state() {
+                write!(f, " {SYM_CONTROL}›")?;
+            } else if self.control_state() {
+                write!(f, " {SYM_CONTROL} ")?;
+            } else {
+                write!(f, "   ")?;
+            }
+            if self.lmeta_state() {
+                write!(f, "‹{SYM_META}")?;
+                if self.rmeta_state() {
+                    write!(f, "›")?;
+                } else {
+                    write!(f, " ")?;
+                };
+            } else if self.rmeta_state() {
+                write!(f, " {SYM_META}›")?;
+            } else if self.meta_state() {
+                write!(f, " {SYM_META} ")?;
+            } else {
+                write!(f, "   ")?;
+            }
+            if self.lalt_state() {
+                write!(f, "‹{SYM_ALT}")?;
+                if self.ralt_state() {
+                    write!(f, "›")?;
+                } else {
+                    write!(f, " ")?;
+                };
+            } else if self.ralt_state() {
+                write!(f, " {SYM_ALT}›")?;
+            } else if self.alt_state() {
+                write!(f, " {SYM_ALT} ")?;
+            } else {
+                write!(f, "   ")?;
+            }
+            if self.lalt_graph_state() {
+                write!(f, "‹{SYM_ALT}Gr")?;
+                if self.ralt_graph_state() {
+                    write!(f, "›")?;
+                } else {
+                    write!(f, " ")?;
+                };
+            } else if self.ralt_graph_state() {
+                write!(f, " {SYM_ALT}Gr›")?;
+            } else if self.alt_graph_state() {
+                write!(f, " {SYM_ALT}Gr ")?;
+            } else {
+                write!(f, "     ")?;
+            }
+
+            if self.caps_lock_state() {
+                write!(f, "⇪")?;
+            } else {
+                write!(f, " ")?;
+            }
+            if self.num_lock_state() {
+                write!(f, "⇭")?;
+            } else {
+                write!(f, " ")?;
+            }
+            if self.scroll_lock_state() {
+                write!(f, "⇳🔒")?;
+            } else {
+                write!(f, "  ")?;
+            }
+
+            if self.fn_state() {
+                write!(f, "ƒ")?;
+            } else {
+                write!(f, " ")?;
+            }
+            if self.fn_lock_state() {
+                write!(f, "ƒ🔒")?;
+            } else {
+                write!(f, "  ")?;
+            }
+            if self.kana_lock_state() {
+                write!(f, "カナ🔒")?;
+            } else {
+                write!(f, "   ")?;
+            }
+
+            if self.loya_state() {
+                write!(f, "‹👍")?;
+                if self.roya_state() {
+                    write!(f, "›")?;
+                } else {
+                    write!(f, " ")?;
+                };
+            } else if self.roya_state() {
+                write!(f, " 👍›")?;
+            } else if self.oya_state() {
+                write!(f, " 👍 ")?;
+            } else {
+                write!(f, "   ")?;
+            }
+
+            if self.symbol_state() {
+                write!(f, "🔣")?;
+            } else {
+                write!(f, " ")?;
+            }
+            if self.symbol_lock_state() {
+                write!(f, "🔣🔒")?;
+            } else {
+                write!(f, "  ")?;
+            }
+        } else {
+            // {} "Flexible position" string output, no extra space separators
+            if self.lshift_state() {
+                write!(f, "‹{SYM_SHIFT}")?;
+                if self.rshift_state() {
+                    write!(f, "›")?;
+                };
+            } else if self.rshift_state() {
+                write!(f, "{SYM_SHIFT}›")?;
+            } else if self.shift_state() {
+                write!(f, "{SYM_SHIFT}")?;
+            }
+            if self.lcontrol_state() {
+                write!(f, "‹{SYM_CONTROL}")?;
+                if self.rcontrol_state() {
+                    write!(f, "›")?;
+                };
+            } else if self.rcontrol_state() {
+                write!(f, "{SYM_CONTROL}›")?;
+            } else if self.control_state() {
+                write!(f, "{SYM_CONTROL}")?;
+            }
+            if self.lmeta_state() {
+                write!(f, "‹{SYM_META}")?;
+                if self.rmeta_state() {
+                    write!(f, "›")?;
+                };
+            } else if self.rmeta_state() {
+                write!(f, "{SYM_META}›")?;
+            } else if self.meta_state() {
+                write!(f, "{SYM_META}")?;
+            }
+            if self.lalt_state() {
+                write!(f, "‹{SYM_ALT}")?;
+                if self.ralt_state() {
+                    write!(f, "›")?;
+                };
+            } else if self.ralt_state() {
+                write!(f, "{SYM_ALT}›")?;
+            } else if self.alt_state() {
+                write!(f, "{SYM_ALT}")?;
+            }
+            if self.lalt_graph_state() {
+                write!(f, "‹{SYM_ALT}Gr")?;
+                if self.ralt_graph_state() {
+                    write!(f, "›")?;
+                };
+            } else if self.ralt_graph_state() {
+                write!(f, "{SYM_ALT}Gr›")?;
+            } else if self.alt_graph_state() {
+                write!(f, "{SYM_ALT}Gr")?;
+            }
+
+            if self.caps_lock_state() {
+                write!(f, "⇪")?;
+            }
+            if self.num_lock_state() {
+                write!(f, "⇭")?;
+            }
+            if self.scroll_lock_state() {
+                write!(f, "⇳🔒")?;
+            }
+
+            if self.fn_state() {
+                write!(f, "ƒ")?;
+            }
+            if self.fn_lock_state() {
+                write!(f, "ƒ🔒")?;
+            }
+            if self.kana_lock_state() {
+                write!(f, "カナ🔒")?;
+            }
+
+            if self.loya_state() {
+                write!(f, "‹👍")?;
+                if self.roya_state() {
+                    write!(f, "›")?;
+                };
+            } else if self.roya_state() {
+                write!(f, "👍›")?;
+            } else if self.oya_state() {
+                write!(f, "👍")?;
+            }
+
+            if self.symbol_state() {
+                write!(f, "🔣")?;
+            }
+            if self.symbol_lock_state() {
+                write!(f, "🔣🔒")?;
+            }
+        }
+        Ok(())
     }
 }

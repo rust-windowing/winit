@@ -17,7 +17,7 @@ use windows_sys::Win32::UI::WindowsAndMessaging::{
     WS_MINIMIZEBOX, WS_OVERLAPPEDWINDOW, WS_POPUP, WS_SIZEBOX, WS_SYSMENU, WS_VISIBLE,
 };
 use winit_core::icon::Icon;
-use winit_core::keyboard::ModifiersState;
+use winit_core::keyboard::Modifiers;
 use winit_core::monitor::Fullscreen;
 use winit_core::window::{Theme, WindowAttributes};
 
@@ -40,7 +40,7 @@ pub(crate) struct WindowState {
     pub saved_window: Option<SavedWindow>,
     pub scale_factor: f64,
 
-    pub modifiers_state: ModifiersState,
+    pub modifiers: Modifiers,
     pub fullscreen: Option<Fullscreen>,
     pub current_theme: Theme,
     pub preferred_theme: Option<Theme>,
@@ -171,7 +171,7 @@ impl WindowState {
             saved_window: None,
             scale_factor,
 
-            modifiers_state: ModifiersState::default(),
+            modifiers: Modifiers::default(),
             fullscreen: None,
             current_theme,
             preferred_theme,

@@ -81,6 +81,10 @@ changelog entry.
 - `keyboard::ModifiersKey` to track which modifier is exactly pressed.
 - `ActivationToken::as_raw` to get a ref to raw token.
 - Each platform now has corresponding `WindowAttributes` struct instead of trait extension.
+- Added support for using <kbd>AltGr</kbd>, <kbd>CapsLock</kbd>,<kbd>NumLock</kbd>, <kbd>ScrollLock</kbd>, <kbd>Fn</kbd>, <kbd>FnLock</kbd>, <kbd>KanaLock</kbd>, <kbd>Loya</kbd>, <kbd>Roya</kbd>, <kbd>Symbol</kbd>, <kbd>SymbolLock</kbd> as separate modifiers.
+- On Windows, update side-aware `event::Modifiers` information on state change.
+- On Windows, added <kbd>AltGr</kbd> as a separate modifier (though currently <kbd>AltGr</kbd>+<kbd>LCtrl</kbd> can't be differentiated from just <kbd>AltGr</kbd>).
+- On Windows, added <kbd>CapsLock</kbd>,<kbd>NumLock</kbd>, <kbd>ScrollLock</kbd>, <kbd>KanaLock</kbd>, <kbd>Loya</kbd>, <kbd>Roya</kbd> as separate modifiers.
 
 ### Changed
 
@@ -201,6 +205,8 @@ changelog entry.
 - Move `IconExtWindows` into `WinIcon`.
 - Move `EventLoopExtPumpEvents` and `PumpStatus` from platform module to `winit::event_loop::pump_events`.
 - Move `EventLoopExtRunOnDemand` from platform module to `winit::event_loop::run_on_demand`.
+- Replaced `winit::keyboard::ModifiersState` with the new `winit_core::keyboard::Modifiers`.
+- Implement `Display` for `winit_core::keyboard::Modifiers` to print ‹⇧⎇ modifier combos, including an `:#` alternate notation to preserve modifier symbol positioning (for vertically-aligned formatting).
 
 ### Removed
 
@@ -240,6 +246,7 @@ changelog entry.
 - Remove `NamedKey::Space`, match on `Key::Character(" ")` instead.
 - Remove `PartialEq` impl for `WindowAttributes`.
 - `WindowAttributesExt*` platform extensions; use `WindowAttributes*` instead.
+- Remove `winit::keyboard::ModifiersKeyState`, replaced with the new `winit_core::keyboard::Modifiers` containing the same information.
 
 ### Fixed
 
