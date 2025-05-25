@@ -130,6 +130,7 @@ impl EventLoop {
     pub fn new(attributes: &PlatformSpecificEventLoopAttributes) -> Result<Self, EventLoopError> {
         static EVENT_LOOP_CREATED: AtomicBool = AtomicBool::new(false);
         if EVENT_LOOP_CREATED.swap(true, Ordering::Relaxed) {
+            // For better cross-platformness.
             return Err(EventLoopError::RecreationAttempt);
         }
 

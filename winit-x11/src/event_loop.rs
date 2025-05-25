@@ -210,6 +210,7 @@ impl EventLoop {
     pub fn new() -> Result<EventLoop, EventLoopError> {
         static EVENT_LOOP_CREATED: AtomicBool = AtomicBool::new(false);
         if EVENT_LOOP_CREATED.swap(true, Ordering::Relaxed) {
+            // Required?
             return Err(EventLoopError::RecreationAttempt);
         }
 

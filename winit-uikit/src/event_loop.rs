@@ -149,6 +149,7 @@ impl EventLoop {
         static mut SINGLETON_INIT: bool = false;
         unsafe {
             if SINGLETON_INIT {
+                // Required, AppState is global state, and event loop can only be run once.
                 return Err(EventLoopError::RecreationAttempt);
             }
             SINGLETON_INIT = true;
