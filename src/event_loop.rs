@@ -11,7 +11,6 @@
 use std::marker::PhantomData;
 #[cfg(any(x11_platform, wayland_platform))]
 use std::os::unix::io::{AsFd, AsRawFd, BorrowedFd, RawFd};
-use std::sync::atomic::{AtomicBool, Ordering};
 
 use rwh_06::{DisplayHandle, HandleError, HasDisplayHandle};
 pub use winit_core::event_loop::*;
@@ -53,8 +52,6 @@ pub struct EventLoopBuilder {
     pub(crate) platform_specific: platform_impl::PlatformSpecificEventLoopAttributes,
 }
 
-static EVENT_LOOP_CREATED: AtomicBool = AtomicBool::new(false);
-
 impl EventLoopBuilder {
     /// Builds a new event loop.
     ///
@@ -93,21 +90,12 @@ impl EventLoopBuilder {
     pub fn build(&mut self) -> Result<EventLoop, EventLoopError> {
         let _span = tracing::debug_span!("winit::EventLoopBuilder::build").entered();
 
-        if EVENT_LOOP_CREATED.swap(true, Ordering::Relaxed) {
-            return Err(EventLoopError::RecreationAttempt);
-        }
-
         // Certain platforms accept a mutable reference in their API.
         #[allow(clippy::unnecessary_mut_passed)]
         Ok(EventLoop {
             event_loop: platform_impl::EventLoop::new(&mut self.platform_specific)?,
             _marker: PhantomData,
         })
-    }
-
-    #[cfg(web_platform)]
-    pub(crate) fn allow_event_loop_recreation() {
-        EVENT_LOOP_CREATED.store(false, Ordering::Relaxed);
     }
 }
 

@@ -22,7 +22,7 @@ use super::super::main_thread::MainThreadMarker;
 use super::super::monitor::MonitorHandler;
 use super::proxy::EventLoopProxy;
 use super::state::State;
-use super::{backend, ActiveEventLoop};
+use super::{backend, ActiveEventLoop, EventLoop};
 use crate::platform::web::{PollStrategy, WaitUntilStrategy};
 use crate::platform_impl::platform::backend::{EventListenerHandle, SafeAreaHandle};
 use crate::platform_impl::platform::r#async::DispatchRunner;
@@ -773,7 +773,7 @@ impl Shared {
         //     * The `register_redraw_request` closure.
         //     * The `destroy_fn` closure.
         if self.0.event_loop_recreation.get() {
-            crate::event_loop::EventLoopBuilder::allow_event_loop_recreation();
+            EventLoop::allow_event_loop_recreation();
         }
     }
 

@@ -1,5 +1,6 @@
 use std::cell::Cell;
 use std::collections::VecDeque;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{mpsc, Arc, Mutex};
 use std::time::Instant;
 use std::{iter, mem, slice};
@@ -280,6 +281,11 @@ pub struct EventLoop {
 
 impl EventLoop {
     pub fn new(_: &PlatformSpecificEventLoopAttributes) -> Result<Self, EventLoopError> {
+        static EVENT_LOOP_CREATED: AtomicBool = AtomicBool::new(false);
+        if EVENT_LOOP_CREATED.swap(true, Ordering::Relaxed) {
+            return Err(EventLoopError::RecreationAttempt);
+        }
+
         // NOTE: Create a channel which can hold only one event to automatically _squash_ user
         // events.
         let (user_events_sender, user_events_receiver) = mpsc::sync_channel(1);

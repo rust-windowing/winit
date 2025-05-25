@@ -1,3 +1,5 @@
+use std::sync::atomic::{AtomicBool, Ordering};
+
 use winit_core::application::ApplicationHandler;
 use winit_core::error::{EventLoopError, NotSupportedError};
 use winit_core::event_loop::ActiveEventLoop as RootActiveEventLoop;
@@ -20,9 +22,19 @@ pub struct EventLoop {
 #[derive(Default, Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub(crate) struct PlatformSpecificEventLoopAttributes {}
 
+static EVENT_LOOP_CREATED: AtomicBool = AtomicBool::new(false);
+
 impl EventLoop {
     pub(crate) fn new(_: &PlatformSpecificEventLoopAttributes) -> Result<Self, EventLoopError> {
+        if EVENT_LOOP_CREATED.swap(true, Ordering::Relaxed) {
+            return Err(EventLoopError::RecreationAttempt);
+        }
+
         Ok(EventLoop { elw: ActiveEventLoop::new() })
+    }
+
+    fn allow_event_loop_recreation() {
+        EVENT_LOOP_CREATED.store(false, Ordering::Relaxed);
     }
 
     pub fn run_app<A: ApplicationHandler>(self, app: A) -> ! {

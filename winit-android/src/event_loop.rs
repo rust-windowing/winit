@@ -128,6 +128,11 @@ const GLOBAL_WINDOW: WindowId = WindowId::from_raw(0);
 
 impl EventLoop {
     pub fn new(attributes: &PlatformSpecificEventLoopAttributes) -> Result<Self, EventLoopError> {
+        static EVENT_LOOP_CREATED: AtomicBool = AtomicBool::new(false);
+        if EVENT_LOOP_CREATED.swap(true, Ordering::Relaxed) {
+            return Err(EventLoopError::RecreationAttempt);
+        }
+
         let android_app = attributes.android_app.as_ref().expect(
             "An `AndroidApp` as passed to android_main() is required to create an `EventLoop` on \
              Android",

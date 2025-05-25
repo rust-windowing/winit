@@ -5,6 +5,7 @@ use std::mem::MaybeUninit;
 use std::ops::Deref;
 use std::os::raw::*;
 use std::os::unix::io::{AsFd, AsRawFd, BorrowedFd, RawFd};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{self, Receiver, Sender, TryRecvError};
 use std::sync::{Arc, LazyLock, Mutex, Weak};
 use std::time::{Duration, Instant};
@@ -207,6 +208,11 @@ struct EventLoopState {
 
 impl EventLoop {
     pub fn new() -> Result<EventLoop, EventLoopError> {
+        static EVENT_LOOP_CREATED: AtomicBool = AtomicBool::new(false);
+        if EVENT_LOOP_CREATED.swap(true, Ordering::Relaxed) {
+            return Err(EventLoopError::RecreationAttempt);
+        }
+
         let xconn = match X11_BACKEND.lock().unwrap_or_else(|e| e.into_inner()).as_ref() {
             Ok(xconn) => xconn.clone(),
             Err(err) => return Err(os_error!(err.clone()).into()),

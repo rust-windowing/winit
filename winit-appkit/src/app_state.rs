@@ -58,7 +58,7 @@ impl AppState {
         activation_policy: Option<NSApplicationActivationPolicy>,
         default_menu: bool,
         activate_ignoring_other_apps: bool,
-    ) -> Rc<Self> {
+    ) -> Option<Rc<Self>> {
         let event_loop_proxy = Arc::new(EventLoopProxy::new(mtm, move || {
             Self::get(mtm).with_handler(|app, event_loop| app.proxy_wake_up(event_loop));
         }));
@@ -85,8 +85,7 @@ impl AppState {
             pending_redraw: RefCell::new(vec![]),
         });
 
-        GLOBAL.get(mtm).set(this.clone()).expect("application state can only be set once");
-        this
+        GLOBAL.get(mtm).set(this.clone()).ok().and(Some(this))
     }
 
     pub fn get(mtm: MainThreadMarker) -> Rc<Self> {

@@ -80,6 +80,11 @@ pub struct EventLoop {
 
 impl EventLoop {
     pub fn new() -> Result<EventLoop, EventLoopError> {
+        static EVENT_LOOP_CREATED: AtomicBool = AtomicBool::new(false);
+        if EVENT_LOOP_CREATED.swap(true, Ordering::Relaxed) {
+            return Err(EventLoopError::RecreationAttempt);
+        }
+
         let connection = Connection::connect_to_env().map_err(|err| os_error!(err))?;
 
         let (globals, mut event_queue) =
