@@ -23,11 +23,9 @@ rwh_06.workspace = true
 serde = { workspace = true, optional = true }
 smol_str.workspace = true
 
-[target.'cfg(target_family = "wasm")'.dependencies]
+# `wasm32-unknown-unknown` and `wasm32-none`, but not `wasm32-wasi`.
+[target.'cfg(all(target_family = "wasm", any(target_os = "unknown", target_os = "none")))'.dependencies]
 web-time.workspace = true
-
-[build-dependencies]
-cfg_aliases.workspace = true
 
 [dev-dependencies]
 winit.workspace = true

@@ -4,18 +4,16 @@ pub mod run_on_demand;
 use std::fmt::{self, Debug};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
-#[cfg(not(web_platform))]
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use rwh_06::{DisplayHandle, HandleError, HasDisplayHandle};
-#[cfg(web_platform)]
-use web_time::{Duration, Instant};
 
 use crate::as_any::AsAny;
 use crate::cursor::{CustomCursor, CustomCursorSource};
 use crate::error::RequestError;
 use crate::monitor::MonitorHandle;
 use crate::window::{Theme, Window, WindowAttributes};
+use crate::Instant;
 
 pub trait ActiveEventLoop: AsAny + fmt::Debug {
     /// Creates an [`EventLoopProxy`] that can be used to dispatch user events

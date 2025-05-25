@@ -1560,9 +1560,9 @@ impl NamedKey {
     /// # Examples
     ///
     /// ```
-    /// # #[cfg(web_platform)]
+    /// # #[cfg(target_family = "wasm")]
     /// # wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
-    /// # #[cfg_attr(web_platform, wasm_bindgen_test::wasm_bindgen_test)]
+    /// # #[cfg_attr(target_family = "wasm", wasm_bindgen_test::wasm_bindgen_test)]
     /// # fn main() {
     /// use winit_core::keyboard::NamedKey;
     ///
@@ -1587,9 +1587,9 @@ impl Key {
     /// # Examples
     ///
     /// ```
-    /// # #[cfg(web_platform)]
+    /// # #[cfg(target_family = "wasm")]
     /// # wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
-    /// # #[cfg_attr(web_platform, wasm_bindgen_test::wasm_bindgen_test)]
+    /// # #[cfg_attr(target_family = "wasm", wasm_bindgen_test::wasm_bindgen_test)]
     /// # fn main() {
     /// use winit_core::keyboard::{Key, NamedKey};
     ///
