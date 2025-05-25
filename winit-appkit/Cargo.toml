@@ -109,7 +109,7 @@ objc2-foundation = { workspace = true, features = [
 ] }
 
 [dev-dependencies]
-winit = { path = ".." }
+winit.workspace = true
 
 [package.metadata.docs.rs]
 all-features = true
