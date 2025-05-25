@@ -1,0 +1,42 @@
+[package]
+description = "Winit implementation helpers"
+documentation = "https://docs.rs/winit-common"
+edition.workspace = true
+license.workspace = true
+name = "winit-common"
+repository.workspace = true
+rust-version.workspace = true
+version = "0.0.0"
+
+[features]
+# Event Handler
+event-handler = []
+
+# XKB
+wayland = ["dep:memmap2"]
+x11 = ["xkbcommon-dl?/x11", "dep:x11-dl"]
+xkb = ["dep:xkbcommon-dl", "dep:smol_str"]
+
+# CoreFoundation
+core-foundation = ["dep:objc2", "dep:objc2-core-foundation"]
+
+[dependencies]
+smol_str = { workspace = true, optional = true }
+tracing.workspace = true
+winit-core.workspace = true
+
+# XKB
+memmap2 = { workspace = true, optional = true }
+x11-dl = { workspace = true, optional = true }
+xkbcommon-dl = { workspace = true, optional = true }
+
+# CoreFoundation
+objc2 = { workspace = true, optional = true }
+objc2-core-foundation = { workspace = true, optional = true, features = [
+    "std",
+    "CFRunLoop",
+    "CFString",
+] }
+
+[package.metadata.docs.rs]
+all-features = true

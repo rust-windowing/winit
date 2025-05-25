@@ -7,19 +7,19 @@ use std::ptr::{self, NonNull};
 use winit_core::keyboard::{
     Key, KeyCode, KeyLocation, NamedKey, NativeKey, NativeKeyCode, PhysicalKey,
 };
-#[cfg(x11_platform)]
+#[cfg(feature = "x11")]
 use x11_dl::xlib_xcb::xcb_connection_t;
 use xkb::XKB_MOD_INVALID;
 use xkbcommon_dl::{
     self as xkb, xkb_keycode_t, xkb_keymap, xkb_keymap_compile_flags, xkb_keysym_t,
     xkb_layout_index_t, xkb_mod_index_t,
 };
-#[cfg(wayland_platform)]
+#[cfg(feature = "wayland")]
 use {memmap2::MmapOptions, std::os::unix::io::OwnedFd};
 
-#[cfg(x11_platform)]
-use crate::platform_impl::common::xkb::XKBXH;
-use crate::platform_impl::common::xkb::{XkbContext, XKBH};
+#[cfg(feature = "x11")]
+use super::XKBXH;
+use super::{XkbContext, XKBH};
 
 /// Map the raw X11-style keycode to the `KeyCode` enum.
 ///
@@ -947,7 +947,7 @@ pub struct XkbKeymap {
 }
 
 impl XkbKeymap {
-    #[cfg(wayland_platform)]
+    #[cfg(feature = "wayland")]
     pub fn from_fd(context: &XkbContext, fd: OwnedFd, size: usize) -> Option<Self> {
         let map = unsafe { MmapOptions::new().len(size).map_copy_read_only(&fd).ok()? };
 
@@ -964,7 +964,7 @@ impl XkbKeymap {
         Some(Self::new_inner(keymap, 0))
     }
 
-    #[cfg(x11_platform)]
+    #[cfg(feature = "x11")]
     pub fn from_x11_keymap(
         context: &XkbContext,
         xcb: *mut xcb_connection_t,
@@ -997,7 +997,7 @@ impl XkbKeymap {
         Self { keymap, _mods_indices: mods_indices, _core_keyboard_id }
     }
 
-    #[cfg(x11_platform)]
+    #[cfg(feature = "x11")]
     pub fn mods_indices(&self) -> ModsIndices {
         self._mods_indices
     }
@@ -1049,7 +1049,7 @@ impl Deref for XkbKeymap {
 }
 
 /// Modifier index in the keymap.
-#[cfg_attr(not(x11_platform), allow(dead_code))]
+#[cfg_attr(not(feature = "x11"), allow(dead_code))]
 #[derive(Default, Debug, Clone, Copy)]
 pub struct ModsIndices {
     pub shift: Option<xkb_mod_index_t>,

@@ -1,20 +1,19 @@
 use std::ops::Deref;
 use std::os::raw::c_char;
-#[cfg(wayland_platform)]
+#[cfg(feature = "wayland")]
 use std::os::unix::io::OwnedFd;
 use std::ptr::{self, NonNull};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::LazyLock;
 
 use smol_str::SmolStr;
-use tracing::warn;
 use winit_core::event::{ElementState, KeyEvent};
 use winit_core::keyboard::{Key, KeyLocation};
 use xkbcommon_dl::{
     self as xkb, xkb_compose_status, xkb_context, xkb_context_flags, xkbcommon_compose_handle,
     xkbcommon_handle, XkbCommon, XkbCommonCompose,
 };
-#[cfg(x11_platform)]
+#[cfg(feature = "x11")]
 use {x11_dl::xlib_xcb::xcb_connection_t, xkbcommon_dl::x11::xkbcommon_x11_handle};
 
 mod compose;
@@ -22,7 +21,7 @@ mod keymap;
 mod state;
 
 use compose::{ComposeStatus, XkbComposeState, XkbComposeTable};
-#[cfg(x11_platform)]
+#[cfg(feature = "x11")]
 pub use keymap::raw_keycode_to_physicalkey;
 use keymap::XkbKeymap;
 pub use keymap::{physicalkey_to_scancode, scancode_to_physicalkey};
@@ -50,7 +49,7 @@ pub enum Error {
 #[derive(Debug)]
 pub struct Context {
     // NOTE: field order matters.
-    #[cfg(x11_platform)]
+    #[cfg(feature = "x11")]
     pub core_keyboard_id: i32,
     state: Option<XkbState>,
     keymap: Option<XkbKeymap>,
@@ -84,7 +83,7 @@ impl Context {
             keymap: None,
             compose_state1,
             compose_state2,
-            #[cfg(x11_platform)]
+            #[cfg(feature = "x11")]
             core_keyboard_id: 0,
             _compose_table: compose_table,
             context,
@@ -125,23 +124,23 @@ impl Context {
         self.keymap.as_mut()
     }
 
-    #[cfg(wayland_platform)]
+    #[cfg(feature = "wayland")]
     pub fn set_keymap_from_fd(&mut self, fd: OwnedFd, size: usize) {
         let keymap = XkbKeymap::from_fd(&self.context, fd, size);
         let state = keymap.as_ref().and_then(XkbState::new_wayland);
         if keymap.is_none() || state.is_none() {
-            warn!("failed to update xkb keymap");
+            tracing::warn!("failed to update xkb keymap");
         }
         self.state = state;
         self.keymap = keymap;
     }
 
-    #[cfg(x11_platform)]
+    #[cfg(feature = "x11")]
     pub fn set_keymap_from_x11(&mut self, xcb: *mut xcb_connection_t) {
         let keymap = XkbKeymap::from_x11_keymap(&self.context, xcb, self.core_keyboard_id);
         let state = keymap.as_ref().and_then(|keymap| XkbState::new_x11(xcb, keymap));
         if keymap.is_none() || state.is_none() {
-            warn!("failed to update xkb keymap");
+            tracing::warn!("failed to update xkb keymap");
         }
         self.state = state;
         self.keymap = keymap;
@@ -160,7 +159,7 @@ impl Context {
     /// Key builder context with the user provided xkb state.
     ///
     /// Should be used when the original context must not be altered.
-    #[cfg(x11_platform)]
+    #[cfg(feature = "x11")]
     pub fn key_context_with_state<'a>(
         &'a mut self,
         state: &'a mut XkbState,

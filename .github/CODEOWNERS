@@ -5,9 +5,11 @@
 /src/platform/ios.rs                @madsmtm
 /src/platform/macos.rs              @madsmtm
 /src/platform_impl/apple            @madsmtm
+/winit-common/src/core_foundation   @madsmtm
+/winit-common/src/event_handler.rs  @madsmtm
 
-# Unix
-/src/platform_impl/linux/mod.rs     @kchibisov
+# XKB
+/winit-common/src/xkb               @kchibisov
 
 # Wayland
 /src/platform/wayland.rs            @kchibisov
