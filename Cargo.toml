@@ -16,6 +16,7 @@ winit-android = { version = "0.0.0", path = "winit-android" }
 winit-common = { version = "0.0.0", path = "winit-common" }
 winit-core = { version = "0.0.0", path = "winit-core" }
 winit-orbital = { version = "0.0.0", path = "winit-orbital" }
+winit-uikit = { version = "0.0.0", path = "winit-uikit" }
 winit-win32 = { version = "0.0.0", path = "winit-win32" }
 
 # Core dependencies.
@@ -164,6 +165,7 @@ serde = [
     "dpi/serde",
     "bitflags/serde",
     "winit-core/serde",
+    "winit-uikit/serde",
 ]
 wayland = [
     "wayland-client",
@@ -296,52 +298,8 @@ objc2-foundation = { workspace = true, features = [
     "NSValue",
 ] }
 
-# UIKit
 [target.'cfg(all(target_vendor = "apple", not(target_os = "macos")))'.dependencies]
-objc2-core-foundation = { workspace = true, features = [
-    "std",
-    "CFCGTypes",
-    "CFBase",
-    "CFRunLoop",
-    "CFString",
-] }
-objc2-foundation = { workspace = true, features = [
-    "std",
-    "block2",
-    "objc2-core-foundation",
-    "NSArray",
-    "NSEnumerator",
-    "NSGeometry",
-    "NSObjCRuntime",
-    "NSOperation",
-    "NSString",
-    "NSThread",
-    "NSSet",
-] }
-objc2-ui-kit = { workspace = true, features = [
-    "std",
-    "objc2-core-foundation",
-    "UIApplication",
-    "UIDevice",
-    "UIEvent",
-    "UIGeometry",
-    "UIGestureRecognizer",
-    "UITextInput",
-    "UITextInputTraits",
-    "UIOrientation",
-    "UIPanGestureRecognizer",
-    "UIPinchGestureRecognizer",
-    "UIResponder",
-    "UIRotationGestureRecognizer",
-    "UIScreen",
-    "UIScreenMode",
-    "UITapGestureRecognizer",
-    "UITouch",
-    "UITraitCollection",
-    "UIView",
-    "UIViewController",
-    "UIWindow",
-] }
+winit-uikit.workspace = true
 
 [target.'cfg(target_os = "windows")'.dependencies]
 winit-win32.workspace = true
