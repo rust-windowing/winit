@@ -17,6 +17,7 @@ winit-common = { version = "0.0.0", path = "winit-common" }
 winit-core = { version = "0.0.0", path = "winit-core" }
 winit-orbital = { version = "0.0.0", path = "winit-orbital" }
 winit-uikit = { version = "0.0.0", path = "winit-uikit" }
+winit-wayland = { version = "0.0.0", path = "winit-wayland", default-features = false }
 winit-win32 = { version = "0.0.0", path = "winit-win32" }
 
 # Core dependencies.
@@ -167,20 +168,11 @@ serde = [
     "winit-core/serde",
     "winit-uikit/serde",
 ]
-wayland = [
-    "wayland-client",
-    "wayland-backend",
-    "wayland-protocols",
-    "wayland-protocols-plasma",
-    "sctk",
-    "ahash",
-    "memmap2",
-    "winit-common/wayland",
-]
-wayland-csd-adwaita = ["sctk-adwaita", "sctk-adwaita/ab_glyph"]
-wayland-csd-adwaita-crossfont = ["sctk-adwaita", "sctk-adwaita/crossfont"]
-wayland-csd-adwaita-notitle = ["sctk-adwaita"]
-wayland-dlopen = ["wayland-backend/dlopen"]
+wayland = ["winit-wayland"]
+wayland-csd-adwaita = ["winit-wayland/csd-adwaita"]
+wayland-csd-adwaita-crossfont = ["winit-wayland/csd-adwaita-crossfont"]
+wayland-csd-adwaita-notitle = ["winit-wayland/csd-adwaita-notitle"]
+wayland-dlopen = ["winit-wayland/dlopen"]
 x11 = ["x11-dl", "bytemuck", "percent-encoding", "xkbcommon-dl/x11", "x11rb", "winit-common/x11"]
 
 [build-dependencies]
@@ -306,20 +298,13 @@ winit-win32.workspace = true
 
 # Linux
 [target.'cfg(all(unix, not(any(target_os = "redox", target_family = "wasm", target_os = "android", target_vendor = "apple"))))'.dependencies]
-ahash = { workspace = true, optional = true }
 bytemuck = { workspace = true, optional = true }
 calloop.workspace = true
 libc.workspace = true
-memmap2 = { workspace = true, optional = true }
 percent-encoding = { workspace = true, optional = true }
 rustix = { workspace = true, features = ["std", "system", "thread", "process"] }
-sctk = { workspace = true, optional = true }
-sctk-adwaita = { workspace = true, optional = true }
-wayland-backend = { workspace = true, optional = true }
-wayland-client = { workspace = true, optional = true }
-wayland-protocols = { workspace = true, optional = true }
-wayland-protocols-plasma = { workspace = true, optional = true }
 winit-common = { workspace = true, features = ["xkb"] }
+winit-wayland = { workspace = true, optional = true, default-features = false }
 x11-dl = { workspace = true, optional = true }
 x11rb = { workspace = true, optional = true, features = [
     "allow-unsafe-code",

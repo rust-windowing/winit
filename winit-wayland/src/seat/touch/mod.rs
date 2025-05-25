@@ -11,8 +11,7 @@ use winit_core::event::{
     ButtonSource, ElementState, FingerId, PointerKind, PointerSource, WindowEvent,
 };
 
-use crate::platform_impl::wayland;
-use crate::platform_impl::wayland::state::WinitState;
+use crate::state::WinitState;
 
 impl TouchHandler for WinitState {
     fn down(
@@ -26,7 +25,7 @@ impl TouchHandler for WinitState {
         id: i32,
         position: (f64, f64),
     ) {
-        let window_id = wayland::make_wid(&surface);
+        let window_id = crate::make_wid(&surface);
         let scale_factor = match self.windows.get_mut().get(&window_id) {
             Some(window) => window.lock().unwrap().scale_factor(),
             None => return,
@@ -105,7 +104,7 @@ impl TouchHandler for WinitState {
             seat_state.first_touch_id = None;
         }
 
-        let window_id = wayland::make_wid(&touch_point.surface);
+        let window_id = crate::make_wid(&touch_point.surface);
         let scale_factor = match self.windows.get_mut().get(&window_id) {
             Some(window) => window.lock().unwrap().scale_factor(),
             None => return,
@@ -160,7 +159,7 @@ impl TouchHandler for WinitState {
 
         let primary = seat_state.first_touch_id == Some(id);
 
-        let window_id = wayland::make_wid(&touch_point.surface);
+        let window_id = crate::make_wid(&touch_point.surface);
         let scale_factor = match self.windows.get_mut().get(&window_id) {
             Some(window) => window.lock().unwrap().scale_factor(),
             None => return,
@@ -192,7 +191,7 @@ impl TouchHandler for WinitState {
         };
 
         for (id, touch_point) in seat_state.touch_map.drain() {
-            let window_id = wayland::make_wid(&touch_point.surface);
+            let window_id = crate::make_wid(&touch_point.surface);
             let scale_factor = match self.windows.get_mut().get(&window_id) {
                 Some(window) => window.lock().unwrap().scale_factor(),
                 None => return,

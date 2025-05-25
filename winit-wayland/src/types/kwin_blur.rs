@@ -7,7 +7,7 @@ use sctk::reexports::client::{delegate_dispatch, Connection, Dispatch, Proxy, Qu
 use wayland_protocols_plasma::blur::client::org_kde_kwin_blur::OrgKdeKwinBlur;
 use wayland_protocols_plasma::blur::client::org_kde_kwin_blur_manager::OrgKdeKwinBlurManager;
 
-use crate::platform_impl::wayland::state::WinitState;
+use crate::state::WinitState;
 
 /// KWin blur manager.
 #[derive(Debug, Clone)]

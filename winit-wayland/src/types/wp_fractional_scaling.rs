@@ -9,7 +9,7 @@ use sctk::reexports::protocols::wp::fractional_scale::v1::client::wp_fractional_
     Event as FractionalScalingEvent, WpFractionalScaleV1,
 };
 
-use crate::platform_impl::wayland::state::WinitState;
+use crate::state::WinitState;
 
 /// The scaling factor denominator.
 const SCALE_DENOMINATOR: f64 = 120.;

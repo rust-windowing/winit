@@ -348,6 +348,29 @@ impl winit_android::EventLoopBuilderExtAndroid for EventLoopBuilder {
     }
 }
 
+#[cfg(wayland_platform)]
+impl winit_wayland::EventLoopExtWayland for EventLoop {
+    #[inline]
+    fn is_wayland(&self) -> bool {
+        self.event_loop.is_wayland()
+    }
+}
+
+#[cfg(wayland_platform)]
+impl winit_wayland::EventLoopBuilderExtWayland for EventLoopBuilder {
+    #[inline]
+    fn with_wayland(&mut self) -> &mut Self {
+        self.platform_specific.forced_backend = Some(crate::platform_impl::Backend::Wayland);
+        self
+    }
+
+    #[inline]
+    fn with_any_thread(&mut self, any_thread: bool) -> &mut Self {
+        self.platform_specific.any_thread = any_thread;
+        self
+    }
+}
+
 #[cfg(windows_platform)]
 impl winit_win32::EventLoopBuilderExtWindows for EventLoopBuilder {
     #[inline]

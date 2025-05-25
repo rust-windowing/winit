@@ -32,16 +32,14 @@ use winit_core::cursor::{CursorIcon, CustomCursor as CoreCustomCursor};
 use winit_core::error::{NotSupportedError, RequestError};
 use winit_core::window::{CursorGrabMode, ImePurpose, ResizeDirection, Theme, WindowId};
 
-use crate::platform_impl::wayland::event_loop::OwnedDisplayHandle;
-use crate::platform_impl::wayland::logical_to_physical_rounded;
-use crate::platform_impl::wayland::seat::{
+use crate::event_loop::OwnedDisplayHandle;
+use crate::logical_to_physical_rounded;
+use crate::seat::{
     PointerConstraintsState, WinitPointerData, WinitPointerDataExt, ZwpTextInputV3Ext,
 };
-use crate::platform_impl::wayland::state::{WindowCompositorUpdate, WinitState};
-use crate::platform_impl::wayland::types::cursor::{
-    CustomCursor, SelectedCursor, WaylandCustomCursor,
-};
-use crate::platform_impl::wayland::types::kwin_blur::KWinBlurManager;
+use crate::state::{WindowCompositorUpdate, WinitState};
+use crate::types::cursor::{CustomCursor, SelectedCursor, WaylandCustomCursor};
+use crate::types::kwin_blur::KWinBlurManager;
 
 #[cfg(feature = "sctk-adwaita")]
 pub type WinitFrame = sctk_adwaita::AdwaitaFrame<WinitState>;

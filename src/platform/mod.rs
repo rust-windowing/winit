@@ -13,7 +13,7 @@ pub use winit_orbital as orbital;
 #[cfg(any(x11_platform, wayland_platform))]
 pub mod startup_notify;
 #[cfg(wayland_platform)]
-pub mod wayland;
+pub use winit_wayland as wayland;
 #[cfg(web_platform)]
 pub mod web;
 #[cfg(windows_platform)]

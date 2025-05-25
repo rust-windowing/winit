@@ -1,0 +1,45 @@
+[package]
+description = "Winit's Wayland backend"
+documentation = "https://docs.rs/winit-wayland"
+edition.workspace = true
+license.workspace = true
+name = "winit-wayland"
+repository.workspace = true
+rust-version.workspace = true
+version = "0.0.0"
+
+[features]
+default = ["dlopen", "csd-adwaita"]
+
+csd-adwaita = ["sctk-adwaita", "sctk-adwaita/ab_glyph"]
+csd-adwaita-crossfont = ["sctk-adwaita", "sctk-adwaita/crossfont"]
+csd-adwaita-notitle = ["sctk-adwaita"]
+dlopen = ["wayland-backend/dlopen"]
+serde = ["dep:serde", "bitflags/serde", "smol_str/serde", "dpi/serde"]
+
+[dependencies]
+bitflags.workspace = true
+cursor-icon.workspace = true
+dpi.workspace = true
+rwh_06.workspace = true
+serde = { workspace = true, optional = true }
+smol_str.workspace = true
+tracing.workspace = true
+winit-core.workspace = true
+
+# Platform-specific
+ahash.workspace = true
+calloop.workspace = true
+libc.workspace = true
+memmap2.workspace = true
+rustix = { workspace = true, features = ["std", "system", "thread", "process"] }
+sctk.workspace = true
+sctk-adwaita = { workspace = true, optional = true }
+wayland-backend.workspace = true
+wayland-client.workspace = true
+wayland-protocols.workspace = true
+wayland-protocols-plasma.workspace = true
+winit-common = { workspace = true, features = ["xkb", "wayland"] }
+
+[package.metadata.docs.rs]
+features = ["dlopen", "serde", "csd-adwaita"]
