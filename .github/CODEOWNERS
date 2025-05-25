@@ -2,9 +2,8 @@
 /winit-android                      @MarijnS95
 
 # Apple (AppKit + UIKit)
+/winit-appkit                       @madsmtm
 /winit-uikit                        @madsmtm
-/src/platform/macos.rs              @madsmtm
-/src/platform_impl/apple            @madsmtm
 /winit-common/src/core_foundation   @madsmtm
 /winit-common/src/event_handler.rs  @madsmtm
 

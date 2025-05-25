@@ -1,0 +1,116 @@
+[package]
+description = "Winit's Appkit / macOS backend"
+documentation = "https://docs.rs/winit-appkit"
+edition.workspace = true
+license.workspace = true
+name = "winit-appkit"
+repository.workspace = true
+rust-version.workspace = true
+version = "0.0.0"
+
+[features]
+serde = ["dep:serde", "bitflags/serde", "smol_str/serde", "dpi/serde"]
+
+[dependencies]
+bitflags.workspace = true
+dpi.workspace = true
+rwh_06.workspace = true
+serde = { workspace = true, optional = true }
+smol_str.workspace = true
+tracing.workspace = true
+winit-common = { workspace = true, features = ["core-foundation", "event-handler"] }
+winit-core.workspace = true
+
+# Platform-specific
+[target.'cfg(target_vendor = "apple")'.dependencies]
+block2.workspace = true
+dispatch2 = { workspace = true, features = ["std", "objc2"] }
+objc2.workspace = true
+objc2-app-kit = { workspace = true, features = [
+    "std",
+    "objc2-core-foundation",
+    "NSAppearance",
+    "NSApplication",
+    "NSBitmapImageRep",
+    "NSButton",
+    "NSColor",
+    "NSControl",
+    "NSCursor",
+    "NSDragging",
+    "NSEvent",
+    "NSGraphics",
+    "NSGraphicsContext",
+    "NSImage",
+    "NSImageRep",
+    "NSMenu",
+    "NSMenuItem",
+    "NSOpenGLView",
+    "NSPanel",
+    "NSPasteboard",
+    "NSResponder",
+    "NSRunningApplication",
+    "NSScreen",
+    "NSTextInputClient",
+    "NSTextInputContext",
+    "NSToolbar",
+    "NSView",
+    "NSWindow",
+    "NSWindowScripting",
+    "NSWindowTabGroup",
+] }
+objc2-core-foundation = { workspace = true, features = [
+    "std",
+    "block2",
+    "CFBase",
+    "CFCGTypes",
+    "CFData",
+    "CFRunLoop",
+    "CFString",
+    "CFUUID",
+] }
+objc2-core-graphics = { workspace = true, features = [
+    "std",
+    "libc",
+    "CGDirectDisplay",
+    "CGDisplayConfiguration",
+    "CGDisplayFade",
+    "CGError",
+    "CGRemoteOperation",
+    "CGWindowLevel",
+] }
+objc2-core-video = { workspace = true, features = [
+    "std",
+    "objc2-core-graphics",
+    "CVBase",
+    "CVReturn",
+    "CVDisplayLink",
+] }
+objc2-foundation = { workspace = true, features = [
+    "std",
+    "block2",
+    "objc2-core-foundation",
+    "NSArray",
+    "NSAttributedString",
+    "NSData",
+    "NSDictionary",
+    "NSDistributedNotificationCenter",
+    "NSEnumerator",
+    "NSGeometry",
+    "NSKeyValueObserving",
+    "NSNotification",
+    "NSObjCRuntime",
+    "NSOperation",
+    "NSPathUtilities",
+    "NSProcessInfo",
+    "NSRunLoop",
+    "NSString",
+    "NSThread",
+    "NSValue",
+] }
+
+[dev-dependencies]
+winit.workspace = true
+
+[package.metadata.docs.rs]
+all-features = true
+targets = ["aarch64-apple-darwin", "x86_64-apple-darwin"]

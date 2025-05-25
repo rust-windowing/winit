@@ -29,8 +29,8 @@ use super::event::dummy_event;
 use super::monitor;
 use super::notification_center::create_observer;
 use super::observer::setup_control_flow_observers;
-use crate::platform::macos::ActivationPolicy;
-use crate::platform_impl::Window;
+use crate::window::Window;
+use crate::ActivationPolicy;
 
 #[derive(Debug)]
 pub struct ActiveEventLoop {
@@ -153,10 +153,10 @@ pub struct EventLoop {
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
-pub(crate) struct PlatformSpecificEventLoopAttributes {
-    pub(crate) activation_policy: Option<ActivationPolicy>,
-    pub(crate) default_menu: bool,
-    pub(crate) activate_ignoring_other_apps: bool,
+pub struct PlatformSpecificEventLoopAttributes {
+    pub activation_policy: Option<ActivationPolicy>,
+    pub default_menu: bool,
+    pub activate_ignoring_other_apps: bool,
 }
 
 impl Default for PlatformSpecificEventLoopAttributes {
@@ -166,9 +166,7 @@ impl Default for PlatformSpecificEventLoopAttributes {
 }
 
 impl EventLoop {
-    pub(crate) fn new(
-        attributes: &PlatformSpecificEventLoopAttributes,
-    ) -> Result<Self, EventLoopError> {
+    pub fn new(attributes: &PlatformSpecificEventLoopAttributes) -> Result<Self, EventLoopError> {
         let mtm = MainThreadMarker::new()
             .expect("on macOS, `EventLoop` must be created on the main thread!");
 

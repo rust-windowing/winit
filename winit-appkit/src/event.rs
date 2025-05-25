@@ -349,7 +349,7 @@ pub(super) fn dummy_event() -> Option<Retained<NSEvent>> {
     }
 }
 
-pub(crate) fn physicalkey_to_scancode(physical_key: PhysicalKey) -> Option<u32> {
+pub fn physicalkey_to_scancode(physical_key: PhysicalKey) -> Option<u32> {
     let code = match physical_key {
         PhysicalKey::Code(code) => code,
         PhysicalKey::Unidentified(_) => return None,
@@ -481,7 +481,7 @@ pub(crate) fn physicalkey_to_scancode(physical_key: PhysicalKey) -> Option<u32> 
     }
 }
 
-pub(crate) fn scancode_to_physicalkey(scancode: u32) -> PhysicalKey {
+pub fn scancode_to_physicalkey(scancode: u32) -> PhysicalKey {
     // Follows what Chromium and Firefox do:
     // https://chromium.googlesource.com/chromium/src.git/+/3e1a26c44c024d97dc9a4c09bbc6a2365398ca2c/ui/events/keycodes/dom/dom_code_data.inc
     // https://searchfox.org/mozilla-central/rev/c597e9c789ad36af84a0370d395be066b7dc94f4/widget/NativeKeyToDOMCodeName.h

@@ -17,13 +17,12 @@
 //! Instead, Winit guarantees that it will not register an application delegate, so the solution is
 //! to register your own application delegate, as outlined in the following example (see
 //! `objc2-app-kit` for more detailed information).
-#![cfg_attr(target_os = "macos", doc = "```")]
-#![cfg_attr(not(target_os = "macos"), doc = "```ignore")]
+//! ```
 //! use objc2::rc::Retained;
 //! use objc2::runtime::ProtocolObject;
 //! use objc2::{define_class, msg_send, DefinedClass, MainThreadMarker, MainThreadOnly};
 //! use objc2_app_kit::{NSApplication, NSApplicationDelegate};
-//! use objc2_foundation::{NSArray, NSURL, NSObject, NSObjectProtocol};
+//! use objc2_foundation::{NSArray, NSObject, NSObjectProtocol, NSURL};
 //! use winit::event_loop::EventLoop;
 //!
 //! define_class!(
@@ -64,6 +63,24 @@
 //!     Ok(())
 //! }
 //! ```
+#![cfg(target_vendor = "apple")] // TODO: Remove once `objc2` allows compiling on all platforms
+
+#[macro_use]
+mod util;
+
+mod app;
+mod app_state;
+mod cursor;
+mod event;
+mod event_loop;
+mod ffi;
+mod menu;
+mod monitor;
+mod notification_center;
+mod observer;
+mod view;
+mod window;
+mod window_delegate;
 
 use std::os::raw::c_void;
 
@@ -71,12 +88,15 @@ use std::os::raw::c_void;
 use serde::{Deserialize, Serialize};
 #[doc(inline)]
 pub use winit_core::application::macos::ApplicationHandlerExtMacOS;
-use winit_core::window::PlatformWindowAttributes;
+use winit_core::event_loop::ActiveEventLoop;
+use winit_core::monitor::MonitorHandle;
+use winit_core::window::{PlatformWindowAttributes, Window};
 
-use crate::event_loop::{ActiveEventLoop, EventLoopBuilder};
-use crate::monitor::MonitorHandle;
-use crate::platform_impl::MonitorHandle as MacOsMonitorHandle;
-use crate::window::Window;
+pub use self::event::{physicalkey_to_scancode, scancode_to_physicalkey};
+use self::event_loop::ActiveEventLoop as AppKitActiveEventLoop;
+pub use self::event_loop::{EventLoop, PlatformSpecificEventLoopAttributes};
+use self::monitor::MonitorHandle as AppKitMonitorHandle;
+use self::window::Window as AppKitWindow;
 
 /// Additional methods on [`Window`] that are specific to MacOS.
 pub trait WindowExtMacOS {
@@ -172,109 +192,109 @@ pub trait WindowExtMacOS {
 impl WindowExtMacOS for dyn Window + '_ {
     #[inline]
     fn simple_fullscreen(&self) -> bool {
-        let window = self.cast_ref::<crate::platform_impl::Window>().unwrap();
+        let window = self.cast_ref::<AppKitWindow>().unwrap();
         window.maybe_wait_on_main(|w| w.simple_fullscreen())
     }
 
     #[inline]
     fn set_simple_fullscreen(&self, fullscreen: bool) -> bool {
-        let window = self.cast_ref::<crate::platform_impl::Window>().unwrap();
+        let window = self.cast_ref::<AppKitWindow>().unwrap();
         window.maybe_wait_on_main(move |w| w.set_simple_fullscreen(fullscreen))
     }
 
     #[inline]
     fn has_shadow(&self) -> bool {
-        let window = self.cast_ref::<crate::platform_impl::Window>().unwrap();
+        let window = self.cast_ref::<AppKitWindow>().unwrap();
         window.maybe_wait_on_main(|w| w.has_shadow())
     }
 
     #[inline]
     fn set_has_shadow(&self, has_shadow: bool) {
-        let window = self.cast_ref::<crate::platform_impl::Window>().unwrap();
+        let window = self.cast_ref::<AppKitWindow>().unwrap();
         window.maybe_wait_on_main(move |w| w.set_has_shadow(has_shadow));
     }
 
     #[inline]
     fn set_tabbing_identifier(&self, identifier: &str) {
-        let window = self.cast_ref::<crate::platform_impl::Window>().unwrap();
+        let window = self.cast_ref::<AppKitWindow>().unwrap();
         window.maybe_wait_on_main(|w| w.set_tabbing_identifier(identifier))
     }
 
     #[inline]
     fn tabbing_identifier(&self) -> String {
-        let window = self.cast_ref::<crate::platform_impl::Window>().unwrap();
+        let window = self.cast_ref::<AppKitWindow>().unwrap();
         window.maybe_wait_on_main(|w| w.tabbing_identifier())
     }
 
     #[inline]
     fn select_next_tab(&self) {
-        let window = self.cast_ref::<crate::platform_impl::Window>().unwrap();
+        let window = self.cast_ref::<AppKitWindow>().unwrap();
         window.maybe_wait_on_main(|w| w.select_next_tab());
     }
 
     #[inline]
     fn select_previous_tab(&self) {
-        let window = self.cast_ref::<crate::platform_impl::Window>().unwrap();
+        let window = self.cast_ref::<AppKitWindow>().unwrap();
         window.maybe_wait_on_main(|w| w.select_previous_tab());
     }
 
     #[inline]
     fn select_tab_at_index(&self, index: usize) {
-        let window = self.cast_ref::<crate::platform_impl::Window>().unwrap();
+        let window = self.cast_ref::<AppKitWindow>().unwrap();
         window.maybe_wait_on_main(move |w| w.select_tab_at_index(index));
     }
 
     #[inline]
     fn num_tabs(&self) -> usize {
-        let window = self.cast_ref::<crate::platform_impl::Window>().unwrap();
+        let window = self.cast_ref::<AppKitWindow>().unwrap();
         window.maybe_wait_on_main(|w| w.num_tabs())
     }
 
     #[inline]
     fn is_document_edited(&self) -> bool {
-        let window = self.cast_ref::<crate::platform_impl::Window>().unwrap();
+        let window = self.cast_ref::<AppKitWindow>().unwrap();
         window.maybe_wait_on_main(|w| w.is_document_edited())
     }
 
     #[inline]
     fn set_document_edited(&self, edited: bool) {
-        let window = self.cast_ref::<crate::platform_impl::Window>().unwrap();
+        let window = self.cast_ref::<AppKitWindow>().unwrap();
         window.maybe_wait_on_main(move |w| w.set_document_edited(edited));
     }
 
     #[inline]
     fn set_option_as_alt(&self, option_as_alt: OptionAsAlt) {
-        let window = self.cast_ref::<crate::platform_impl::Window>().unwrap();
+        let window = self.cast_ref::<AppKitWindow>().unwrap();
         window.maybe_wait_on_main(move |w| w.set_option_as_alt(option_as_alt));
     }
 
     #[inline]
     fn option_as_alt(&self) -> OptionAsAlt {
-        let window = self.cast_ref::<crate::platform_impl::Window>().unwrap();
+        let window = self.cast_ref::<AppKitWindow>().unwrap();
         window.maybe_wait_on_main(|w| w.option_as_alt())
     }
 
     #[inline]
     fn set_borderless_game(&self, borderless_game: bool) {
-        let window = self.cast_ref::<crate::platform_impl::Window>().unwrap();
+        let window = self.cast_ref::<AppKitWindow>().unwrap();
         window.maybe_wait_on_main(|w| w.set_borderless_game(borderless_game))
     }
 
     #[inline]
     fn is_borderless_game(&self) -> bool {
-        let window = self.cast_ref::<crate::platform_impl::Window>().unwrap();
+        let window = self.cast_ref::<AppKitWindow>().unwrap();
         window.maybe_wait_on_main(|w| w.is_borderless_game())
     }
 
     #[inline]
     fn set_unified_titlebar(&self, unified_titlebar: bool) {
-        let window = self.cast_ref::<crate::platform_impl::Window>().unwrap();
+        let window = self.cast_ref::<AppKitWindow>().unwrap();
         window.maybe_wait_on_main(|w| w.set_unified_titlebar(unified_titlebar))
     }
 
     #[inline]
     fn unified_titlebar(&self) -> bool {
-        let window = self.cast_ref::<crate::platform_impl::Window>().unwrap();
+        let window = self.cast_ref::<AppKitWindow>().unwrap();
         window.maybe_wait_on_main(|w| w.unified_titlebar())
     }
 }
@@ -513,26 +533,6 @@ pub trait EventLoopBuilderExtMacOS {
     fn with_activate_ignoring_other_apps(&mut self, ignore: bool) -> &mut Self;
 }
 
-impl EventLoopBuilderExtMacOS for EventLoopBuilder {
-    #[inline]
-    fn with_activation_policy(&mut self, activation_policy: ActivationPolicy) -> &mut Self {
-        self.platform_specific.activation_policy = Some(activation_policy);
-        self
-    }
-
-    #[inline]
-    fn with_default_menu(&mut self, enable: bool) -> &mut Self {
-        self.platform_specific.default_menu = enable;
-        self
-    }
-
-    #[inline]
-    fn with_activate_ignoring_other_apps(&mut self, ignore: bool) -> &mut Self {
-        self.platform_specific.activate_ignoring_other_apps = ignore;
-        self
-    }
-}
-
 /// Additional methods on [`MonitorHandle`] that are specific to MacOS.
 pub trait MonitorHandleExtMacOS {
     /// Returns a pointer to the NSScreen representing this monitor.
@@ -541,7 +541,7 @@ pub trait MonitorHandleExtMacOS {
 
 impl MonitorHandleExtMacOS for MonitorHandle {
     fn ns_screen(&self) -> Option<*mut c_void> {
-        let monitor = self.cast_ref::<MacOsMonitorHandle>().unwrap();
+        let monitor = self.cast_ref::<AppKitMonitorHandle>().unwrap();
         // SAFETY: We only use the marker to get a pointer
         let mtm = unsafe { objc2::MainThreadMarker::new_unchecked() };
         monitor.ns_screen(mtm).map(|s| objc2::rc::Retained::as_ptr(&s) as _)
@@ -566,30 +566,26 @@ pub trait ActiveEventLoopExtMacOS {
 
 impl ActiveEventLoopExtMacOS for dyn ActiveEventLoop + '_ {
     fn hide_application(&self) {
-        let event_loop = self
-            .cast_ref::<crate::platform_impl::ActiveEventLoop>()
-            .expect("non macOS event loop on macOS");
+        let event_loop =
+            self.cast_ref::<AppKitActiveEventLoop>().expect("non macOS event loop on macOS");
         event_loop.hide_application()
     }
 
     fn hide_other_applications(&self) {
-        let event_loop = self
-            .cast_ref::<crate::platform_impl::ActiveEventLoop>()
-            .expect("non macOS event loop on macOS");
+        let event_loop =
+            self.cast_ref::<AppKitActiveEventLoop>().expect("non macOS event loop on macOS");
         event_loop.hide_other_applications()
     }
 
     fn set_allows_automatic_window_tabbing(&self, enabled: bool) {
-        let event_loop = self
-            .cast_ref::<crate::platform_impl::ActiveEventLoop>()
-            .expect("non macOS event loop on macOS");
+        let event_loop =
+            self.cast_ref::<AppKitActiveEventLoop>().expect("non macOS event loop on macOS");
         event_loop.set_allows_automatic_window_tabbing(enabled);
     }
 
     fn allows_automatic_window_tabbing(&self) -> bool {
-        let event_loop = self
-            .cast_ref::<crate::platform_impl::ActiveEventLoop>()
-            .expect("non macOS event loop on macOS");
+        let event_loop =
+            self.cast_ref::<AppKitActiveEventLoop>().expect("non macOS event loop on macOS");
         event_loop.allows_automatic_window_tabbing()
     }
 }
