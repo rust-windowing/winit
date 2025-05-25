@@ -110,3 +110,7 @@ objc2-foundation = { workspace = true, features = [
 
 [dev-dependencies]
 winit = { path = ".." }
+
+[package.metadata.docs.rs]
+all-features = true
+targets = ["aarch64-apple-darwin", "x86_64-apple-darwin"]
