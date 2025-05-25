@@ -41,5 +41,8 @@ x11rb = { workspace = true, features = [
 ] }
 xkbcommon-dl = { workspace = true, features = ["x11"] }
 
+[dev-dependencies]
+winit.workspace = true
+
 [package.metadata.docs.rs]
 all-features = true
