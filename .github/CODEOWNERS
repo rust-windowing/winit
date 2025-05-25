@@ -15,8 +15,7 @@
 /winit-wayland                      @kchibisov
 
 # X11
-/src/platform/x11.rs                @kchibisov @notgull
-/src/platform_impl/linux/x11        @kchibisov @notgull
+/winit-x11                          @kchibisov @notgull
 
 # Web
 /src/platform/web.rs                @daxpedda
