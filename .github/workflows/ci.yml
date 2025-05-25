@@ -199,7 +199,7 @@ jobs:
 
     - name: Test winit AppKit
       if: contains(matrix.platform.target, 'macos')
-      run: cargo test -p winit-appkit
+      run: cargo $CMD test -p winit-appkit --target=${{ matrix.platform.target }}
 
     - name: Test winit Orbital
       if: contains(matrix.platform.target, 'redox')
