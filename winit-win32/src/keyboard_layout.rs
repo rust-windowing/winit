@@ -42,7 +42,8 @@ use windows_sys::Win32::UI::Input::KeyboardAndMouse::{
 };
 use winit_core::keyboard::{Key, KeyCode, ModifiersState, NamedKey, NativeKey, PhysicalKey};
 
-use crate::platform_impl::{loword, primarylangid, scancode_to_physicalkey};
+use crate::keyboard::scancode_to_physicalkey;
+use crate::util::{loword, primarylangid};
 
 pub(crate) static LAYOUT_CACHE: LazyLock<Mutex<LayoutCache>> =
     LazyLock::new(|| Mutex::new(LayoutCache::default()));

@@ -21,9 +21,8 @@
 /src/platform/web.rs                @daxpedda
 /src/platform_impl/web              @daxpedda
 
-# Windows
-/src/platform/windows.rs            @notgull
-/src/platform_impl/windows          @notgull
+# Windows (Win32)
+/winit-win32                        @notgull
 
 # Orbital (Redox OS)
 /winit-orbital                      @jackpot51

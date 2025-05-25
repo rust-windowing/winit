@@ -11,7 +11,7 @@ use winapi::{
     um::winuser,
 };
 
-use crate::platform_impl::platform::{event_loop::ProcResult, keyboard::next_kbd_msg};
+use crate::{event_loop::ProcResult, keyboard::next_kbd_msg};
 
 pub struct MinimalIme {
     // True if we're currently receiving messages belonging to a finished IME session.
