@@ -32,7 +32,9 @@ pub use self::window_property::*;
 pub use self::wm::*;
 pub use self::xmodmap::ModifierKeymap;
 use super::atoms::*;
-use super::{ffi, VoidCookie, X11Error, XConnection, XError};
+use super::ffi;
+use crate::event_loop::{VoidCookie, X11Error};
+use crate::xdisplay::{XConnection, XError};
 
 pub fn maybe_change<T: PartialEq>(field: &mut Option<T>, value: T) -> bool {
     let wrapped = Some(value);

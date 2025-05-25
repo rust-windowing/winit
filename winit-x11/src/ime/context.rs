@@ -5,9 +5,9 @@ use std::{fmt, mem, ptr};
 
 use x11_dl::xlib::{XIMCallback, XIMPreeditCaretCallbackStruct, XIMPreeditDrawCallbackStruct};
 
-use super::{ffi, util, XConnection, XError};
-use crate::platform_impl::platform::x11::ime::input_method::{InputMethod, Style, XIMStyle};
-use crate::platform_impl::platform::x11::ime::{ImeEvent, ImeEventSender};
+use super::input_method::{InputMethod, Style, XIMStyle};
+use super::{ffi, util, ImeEvent, ImeEventSender};
+use crate::xdisplay::{XConnection, XError};
 
 /// IME creation error.
 #[derive(Debug)]

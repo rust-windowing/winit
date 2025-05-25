@@ -80,7 +80,7 @@ impl WindowExtStartupNotify for dyn Window + '_ {
         }
 
         #[cfg(x11_platform)]
-        if let Some(window) = self.cast_ref::<crate::platform_impl::x11::window::Window>() {
+        if let Some(window) = self.cast_ref::<crate::platform_impl::x11::Window>() {
             return window.request_activation_token();
         }
 

@@ -1,0 +1,48 @@
+[package]
+description = "Winit's X11 backend"
+documentation = "https://docs.rs/winit-x11"
+edition.workspace = true
+license.workspace = true
+name = "winit-x11"
+repository.workspace = true
+rust-version.workspace = true
+version = "0.0.0"
+
+[features]
+serde = ["dep:serde", "bitflags/serde", "smol_str/serde", "dpi/serde"]
+
+[dependencies]
+bitflags.workspace = true
+cursor-icon.workspace = true
+dpi.workspace = true
+rwh_06.workspace = true
+serde = { workspace = true, optional = true }
+smol_str.workspace = true
+tracing.workspace = true
+winit-core.workspace = true
+
+# Platform-specific
+bytemuck.workspace = true
+calloop.workspace = true
+libc.workspace = true
+percent-encoding.workspace = true
+rustix = { workspace = true, features = ["std", "system", "thread", "process"] }
+winit-common = { workspace = true, features = ["xkb", "x11"] }
+x11-dl.workspace = true
+x11rb = { workspace = true, features = [
+    "allow-unsafe-code",
+    "cursor",
+    "dl-libxcb",
+    "randr",
+    "resource_manager",
+    "sync",
+    "xinput",
+    "xkb",
+] }
+xkbcommon-dl = { workspace = true, features = ["x11"] }
+
+[dev-dependencies]
+winit.workspace = true
+
+[package.metadata.docs.rs]
+all-features = true

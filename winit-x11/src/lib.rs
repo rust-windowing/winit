@@ -1,11 +1,32 @@
 //! # X11
+
+use dpi::Size;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
+use winit_core::event_loop::ActiveEventLoop as CoreActiveEventLoop;
 use winit_core::window::{ActivationToken, PlatformWindowAttributes, Window as CoreWindow};
 
-use crate::dpi::Size;
-use crate::event_loop::{ActiveEventLoop, EventLoop, EventLoopBuilder};
-use crate::platform_impl::ApplicationName;
+pub use crate::event_loop::{ActiveEventLoop, EventLoop};
+pub use crate::window::Window;
+
+macro_rules! os_error {
+    ($error:expr) => {{
+        winit_core::error::OsError::new(line!(), file!(), $error)
+    }};
+}
+
+mod activation;
+mod atoms;
+mod dnd;
+mod event_loop;
+mod event_processor;
+pub mod ffi;
+mod ime;
+mod monitor;
+mod util;
+mod window;
+mod xdisplay;
+mod xsettings;
 
 /// X window type. Maps directly to
 /// [`_NET_WM_WINDOW_TYPE`](https://specifications.freedesktop.org/wm-spec/wm-spec-1.5.html).
@@ -80,19 +101,21 @@ pub type XWindow = u32;
 #[inline]
 pub fn register_xlib_error_hook(hook: XlibErrorHook) {
     // Append new hook.
-    crate::platform_impl::x11::XLIB_ERROR_HOOKS.lock().unwrap().push(hook);
+    crate::event_loop::XLIB_ERROR_HOOKS.lock().unwrap().push(hook);
 }
 
 /// Additional methods on [`ActiveEventLoop`] that are specific to X11.
+///
+/// [`ActiveEventLoop`]: winit_core::event_loop::ActiveEventLoop
 pub trait ActiveEventLoopExtX11 {
-    /// True if the [`ActiveEventLoop`] uses X11.
+    /// True if the event loop uses X11.
     fn is_x11(&self) -> bool;
 }
 
-impl ActiveEventLoopExtX11 for dyn ActiveEventLoop + '_ {
+impl ActiveEventLoopExtX11 for dyn CoreActiveEventLoop + '_ {
     #[inline]
     fn is_x11(&self) -> bool {
-        self.cast_ref::<crate::platform_impl::x11::ActiveEventLoop>().is_some()
+        self.cast_ref::<ActiveEventLoop>().is_some()
     }
 }
 
@@ -100,13 +123,6 @@ impl ActiveEventLoopExtX11 for dyn ActiveEventLoop + '_ {
 pub trait EventLoopExtX11 {
     /// True if the [`EventLoop`] uses X11.
     fn is_x11(&self) -> bool;
-}
-
-impl EventLoopExtX11 for EventLoop {
-    #[inline]
-    fn is_x11(&self) -> bool {
-        !self.event_loop.is_wayland()
-    }
 }
 
 /// Additional methods on [`EventLoopBuilder`] that are specific to X11.
@@ -121,26 +137,18 @@ pub trait EventLoopBuilderExtX11 {
     fn with_any_thread(&mut self, any_thread: bool) -> &mut Self;
 }
 
-impl EventLoopBuilderExtX11 for EventLoopBuilder {
-    #[inline]
-    fn with_x11(&mut self) -> &mut Self {
-        self.platform_specific.forced_backend = Some(crate::platform_impl::Backend::X);
-        self
-    }
-
-    #[inline]
-    fn with_any_thread(&mut self, any_thread: bool) -> &mut Self {
-        self.platform_specific.any_thread = any_thread;
-        self
-    }
-}
-
 /// Additional methods on [`Window`] that are specific to X11.
 ///
 /// [`Window`]: crate::window::Window
 pub trait WindowExtX11 {}
 
 impl WindowExtX11 for dyn CoreWindow {}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct ApplicationName {
+    pub(crate) general: String,
+    pub(crate) instance: String,
+}
 
 #[derive(Clone, Debug)]
 pub struct WindowAttributesX11 {
@@ -192,8 +200,7 @@ impl WindowAttributesX11 {
     /// For details about application ID conventions, see the
     /// [Desktop Entry Spec](https://specifications.freedesktop.org/desktop-entry-spec/desktop-entry-spec-latest.html#desktop-file-id)
     pub fn with_name(mut self, general: impl Into<String>, instance: impl Into<String>) -> Self {
-        self.name =
-            Some(crate::platform_impl::ApplicationName::new(general.into(), instance.into()));
+        self.name = Some(ApplicationName { general: general.into(), instance: instance.into() });
         self
     }
 

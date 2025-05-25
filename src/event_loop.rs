@@ -419,6 +419,29 @@ impl winit_win32::EventLoopBuilderExtWindows for EventLoopBuilder {
     }
 }
 
+#[cfg(x11_platform)]
+impl winit_x11::EventLoopExtX11 for EventLoop {
+    #[inline]
+    fn is_x11(&self) -> bool {
+        !self.event_loop.is_wayland()
+    }
+}
+
+#[cfg(x11_platform)]
+impl winit_x11::EventLoopBuilderExtX11 for EventLoopBuilder {
+    #[inline]
+    fn with_x11(&mut self) -> &mut Self {
+        self.platform_specific.forced_backend = Some(crate::platform_impl::Backend::X);
+        self
+    }
+
+    #[inline]
+    fn with_any_thread(&mut self, any_thread: bool) -> &mut Self {
+        self.platform_specific.any_thread = any_thread;
+        self
+    }
+}
+
 /// ```compile_error
 /// use winit::event_loop::run_on_demand::EventLoopExtRunOnDemand;
 /// use winit::event_loop::EventLoop;

@@ -6,7 +6,8 @@ use std::{env, fmt, ptr};
 use x11rb::protocol::xproto;
 
 use super::super::atoms::*;
-use super::{ffi, util, XConnection, XError};
+use super::{ffi, util};
+use crate::xdisplay::{XConnection, XError};
 
 static GLOBAL_LOCK: Mutex<()> = Mutex::new(());
 

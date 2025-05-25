@@ -35,50 +35,31 @@ use x11rb::protocol::{xkb, xproto};
 use x11rb::x11_utils::X11Error as LogicalError;
 use x11rb::xcb_ffi::ReplyOrIdError;
 
-use crate::platform::x11::XlibErrorHook;
-use crate::platform_impl::platform::min_timeout;
-use crate::platform_impl::x11::window::Window;
-
-mod activation;
-mod atoms;
-mod dnd;
-mod event_processor;
-pub mod ffi;
-mod ime;
-mod monitor;
-mod util;
-pub(crate) mod window;
-mod xdisplay;
-mod xsettings;
-
-use atoms::*;
-use dnd::{Dnd, DndState};
-use event_processor::{EventProcessor, MAX_MOD_REPLAY_LEN};
-use ime::{Ime, ImeCreationError, ImeReceiver, ImeRequest, ImeSender};
-pub(crate) use monitor::{MonitorHandle, VideoModeHandle};
-pub use util::CustomCursor;
-use window::UnownedWindow;
-pub(crate) use xdisplay::{XConnection, XError, XNotSupported};
+use crate::atoms::*;
+use crate::dnd::Dnd;
+use crate::event_processor::{EventProcessor, MAX_MOD_REPLAY_LEN};
+use crate::ime::{self, Ime, ImeCreationError, ImeSender};
+use crate::util::{self, CustomCursor};
+use crate::window::{UnownedWindow, Window};
+use crate::xdisplay::{XConnection, XError, XNotSupported};
+use crate::{ffi, xsettings, XlibErrorHook};
 
 // Xinput constants not defined in x11rb
-const ALL_DEVICES: u16 = 0;
-const ALL_MASTER_DEVICES: u16 = 1;
-const ICONIC_STATE: u32 = 3;
+pub(crate) const ALL_DEVICES: u16 = 0;
+pub(crate) const ALL_MASTER_DEVICES: u16 = 1;
+pub(crate) const ICONIC_STATE: u32 = 3;
 
 /// The underlying x11rb connection that we are using.
 type X11rbConnection = x11rb::xcb_ffi::XCBConnection;
 
 type X11Source = Generic<BorrowedFd<'static>>;
 
-#[cfg(x11_platform)]
 pub(crate) static X11_BACKEND: LazyLock<Mutex<Result<Arc<XConnection>, XNotSupported>>> =
     LazyLock::new(|| Mutex::new(XConnection::new(Some(x_error_callback)).map(Arc::new)));
 
 /// Hooks for X11 errors.
-#[cfg(x11_platform)]
 pub(crate) static XLIB_ERROR_HOOKS: Mutex<Vec<XlibErrorHook>> = Mutex::new(Vec::new());
 
-#[cfg(x11_platform)]
 unsafe extern "C" fn x_error_callback(
     display: *mut ffi::Display,
     event: *mut ffi::XErrorEvent,
@@ -126,7 +107,7 @@ unsafe extern "C" fn x_error_callback(
 }
 
 #[derive(Debug)]
-struct WakeSender<T> {
+pub(crate) struct WakeSender<T> {
     sender: Sender<T>,
     waker: Ping,
 }
@@ -185,18 +166,18 @@ impl<T> PeekableReceiver<T> {
 
 #[derive(Debug)]
 pub struct ActiveEventLoop {
-    xconn: Arc<XConnection>,
-    wm_delete_window: xproto::Atom,
-    net_wm_ping: xproto::Atom,
-    net_wm_sync_request: xproto::Atom,
-    ime_sender: ImeSender,
+    pub(crate) xconn: Arc<XConnection>,
+    pub(crate) wm_delete_window: xproto::Atom,
+    pub(crate) net_wm_ping: xproto::Atom,
+    pub(crate) net_wm_sync_request: xproto::Atom,
+    pub(crate) ime_sender: ImeSender,
     control_flow: Cell<ControlFlow>,
     exit: Cell<Option<i32>>,
-    root: xproto::Window,
-    ime: Option<RefCell<Ime>>,
-    windows: RefCell<HashMap<WindowId, Weak<UnownedWindow>>>,
-    redraw_sender: WakeSender<WindowId>,
-    activation_sender: WakeSender<ActivationToken>,
+    pub(crate) root: xproto::Window,
+    pub(crate) ime: Option<RefCell<Ime>>,
+    pub(crate) windows: RefCell<HashMap<WindowId, Weak<UnownedWindow>>>,
+    pub(crate) redraw_sender: WakeSender<WindowId>,
+    pub(crate) activation_sender: WakeSender<ActivationItem>,
     event_loop_proxy: CoreEventLoopProxy,
     device_events: Cell<DeviceEvents>,
 }
@@ -207,13 +188,13 @@ pub struct EventLoop {
     event_loop: Loop<'static, EventLoopState>,
     event_processor: EventProcessor,
     redraw_receiver: PeekableReceiver<WindowId>,
-    activation_receiver: PeekableReceiver<ActivationToken>,
+    activation_receiver: PeekableReceiver<ActivationItem>,
 
     /// The current state of the event loop.
     state: EventLoopState,
 }
 
-type ActivationToken = (WindowId, winit_core::event_loop::AsyncRequestSerial);
+pub(crate) type ActivationItem = (WindowId, winit_core::event_loop::AsyncRequestSerial);
 
 #[derive(Debug)]
 struct EventLoopState {
@@ -225,7 +206,7 @@ struct EventLoopState {
 }
 
 impl EventLoop {
-    pub(crate) fn new() -> Result<EventLoop, EventLoopError> {
+    pub fn new() -> Result<EventLoop, EventLoopError> {
         let xconn = match X11_BACKEND.lock().unwrap_or_else(|e| e.into_inner()).as_ref() {
             Ok(xconn) => xconn.clone(),
             Err(err) => return Err(os_error!(err.clone()).into()),
@@ -435,7 +416,7 @@ impl EventLoop {
         Ok(event_loop)
     }
 
-    pub(crate) fn window_target(&self) -> &dyn RootActiveEventLoop {
+    pub fn window_target(&self) -> &dyn RootActiveEventLoop {
         &self.event_processor.target
     }
 
@@ -783,14 +764,14 @@ impl rwh_06::HasDisplayHandle for ActiveEventLoop {
     }
 }
 
-struct DeviceInfo<'a> {
+pub(crate) struct DeviceInfo<'a> {
     xconn: &'a XConnection,
     info: *const ffi::XIDeviceInfo,
     count: usize,
 }
 
 impl<'a> DeviceInfo<'a> {
-    fn get(xconn: &'a XConnection, device: c_int) -> Option<Self> {
+    pub(crate) fn get(xconn: &'a XConnection, device: c_int) -> Option<Self> {
         unsafe {
             let mut count = 0;
             let info = (xconn.xinput2.XIQueryDevice)(xconn.display, device, &mut count);
@@ -989,10 +970,10 @@ impl From<util::GetPropertyError> for X11Error {
 }
 
 /// Type alias for a void cookie.
-type VoidCookie<'a> = x11rb::cookie::VoidCookie<'a, X11rbConnection>;
+pub(crate) type VoidCookie<'a> = x11rb::cookie::VoidCookie<'a, X11rbConnection>;
 
 /// Extension trait for `Result<VoidCookie, E>`.
-trait CookieResultExt {
+pub(crate) trait CookieResultExt {
     /// Unwrap the send error and ignore the result.
     fn expect_then_ignore_error(self, msg: &str);
 }
@@ -1003,37 +984,38 @@ impl<E: fmt::Debug> CookieResultExt for Result<VoidCookie<'_>, E> {
     }
 }
 
-fn mkwid(w: xproto::Window) -> winit_core::window::WindowId {
+pub(crate) fn mkwid(w: xproto::Window) -> winit_core::window::WindowId {
     winit_core::window::WindowId::from_raw(w as _)
 }
-fn mkdid(w: xinput::DeviceId) -> DeviceId {
+
+pub(crate) fn mkdid(w: xinput::DeviceId) -> DeviceId {
     DeviceId::from_raw(w as i64)
 }
 
 #[derive(Debug)]
 pub struct Device {
     _name: String,
-    scroll_axes: Vec<(i32, ScrollAxis)>,
+    pub(crate) scroll_axes: Vec<(i32, ScrollAxis)>,
     // For master devices, this is the paired device (pointer <-> keyboard).
     // For slave devices, this is the master.
-    attachment: c_int,
+    pub(crate) attachment: c_int,
 }
 
 #[derive(Debug, Copy, Clone)]
-struct ScrollAxis {
-    increment: f64,
-    orientation: ScrollOrientation,
-    position: f64,
+pub(crate) struct ScrollAxis {
+    pub(crate) increment: f64,
+    pub(crate) orientation: ScrollOrientation,
+    pub(crate) position: f64,
 }
 
 #[derive(Debug, Copy, Clone)]
-enum ScrollOrientation {
+pub(crate) enum ScrollOrientation {
     Vertical,
     Horizontal,
 }
 
 impl Device {
-    fn new(info: &ffi::XIDeviceInfo) -> Self {
+    pub(crate) fn new(info: &ffi::XIDeviceInfo) -> Self {
         let name = unsafe { CStr::from_ptr(info.name).to_string_lossy() };
         let mut scroll_axes = Vec::new();
 
@@ -1062,7 +1044,7 @@ impl Device {
         device
     }
 
-    fn reset_scroll_position(&mut self, info: &ffi::XIDeviceInfo) {
+    pub(crate) fn reset_scroll_position(&mut self, info: &ffi::XIDeviceInfo) {
         if Device::physical_device(info) {
             for &class_ptr in Device::classes(info) {
                 let ty = unsafe { (*class_ptr)._type };
@@ -1098,6 +1080,13 @@ impl Device {
 
 /// Convert the raw X11 representation for a 32-bit floating point to a double.
 #[inline]
-fn xinput_fp1616_to_float(fp: xinput::Fp1616) -> f64 {
+pub(crate) fn xinput_fp1616_to_float(fp: xinput::Fp1616) -> f64 {
     (fp as f64) / ((1 << 16) as f64)
+}
+
+/// Returns the minimum `Option<Duration>`, taking into account that `None`
+/// equates to an infinite timeout, not a zero timeout (so can't just use
+/// `Option::min`)
+fn min_timeout(a: Option<Duration>, b: Option<Duration>) -> Option<Duration> {
+    a.map_or(b, |a_timeout| b.map_or(Some(a_timeout), |b_timeout| Some(a_timeout.min(b_timeout))))
 }
