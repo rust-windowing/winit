@@ -202,8 +202,9 @@ jobs:
       run: cargo test -p winit-orbital
 
     - name: Test winit UIKit
-      if: contains(matrix.platform.target, 'ios') && false # TODO: Run on Simulator
-      run: cargo test -p winit-uikit
+      if: contains(matrix.platform.target, 'ios')
+      # TODO: Run on Simulator
+      run: cargo $CMD test -p winit-uikit --target=${{ matrix.platform.target }} --no-run
 
     - name: Test winit Win32
       if: contains(matrix.platform.target, 'windows')
