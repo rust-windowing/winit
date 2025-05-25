@@ -5,7 +5,7 @@ use std::io::Result as IOResult;
 use std::mem;
 use std::os::fd::OwnedFd;
 use std::os::unix::io::{AsFd, AsRawFd, BorrowedFd, RawFd};
-use std::sync::atomic::Ordering;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Condvar, Mutex};
 use std::thread::JoinHandle;
 use std::time::{Duration, Instant};
