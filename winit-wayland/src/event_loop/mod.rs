@@ -5,7 +5,7 @@ use std::io::Result as IOResult;
 use std::mem;
 use std::os::fd::OwnedFd;
 use std::os::unix::io::{AsFd, AsRawFd, BorrowedFd, RawFd};
-use std::sync::atomic::Ordering;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Condvar, Mutex};
 use std::thread::JoinHandle;
 use std::time::{Duration, Instant};
@@ -80,6 +80,12 @@ pub struct EventLoop {
 
 impl EventLoop {
     pub fn new() -> Result<EventLoop, EventLoopError> {
+        static EVENT_LOOP_CREATED: AtomicBool = AtomicBool::new(false);
+        if EVENT_LOOP_CREATED.swap(true, Ordering::Relaxed) {
+            // For better cross-platformness.
+            return Err(EventLoopError::RecreationAttempt);
+        }
+
         let connection = Connection::connect_to_env().map_err(|err| os_error!(err))?;
 
         let (globals, mut event_queue) =

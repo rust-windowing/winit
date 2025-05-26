@@ -148,10 +148,10 @@ impl EventLoop {
 
         static mut SINGLETON_INIT: bool = false;
         unsafe {
-            assert!(
-                !SINGLETON_INIT,
-                "Only one `EventLoop` is supported on iOS. `EventLoopProxy` might be helpful"
-            );
+            if SINGLETON_INIT {
+                // Required, AppState is global state, and event loop can only be run once.
+                return Err(EventLoopError::RecreationAttempt);
+            }
             SINGLETON_INIT = true;
         }
 

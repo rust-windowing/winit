@@ -19,7 +19,13 @@ pub enum EventLoopError {
 impl fmt::Display for EventLoopError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::RecreationAttempt => write!(f, "EventLoop can't be recreated"),
+            Self::RecreationAttempt => {
+                write!(
+                    f,
+                    "EventLoop can't be recreated, only a single instance of it is supported (for \
+                     cross-platform compatibility)"
+                )
+            },
             Self::Os(err) => err.fmt(f),
             Self::ExitFailure(status) => write!(f, "Exit Failure: {status}"),
             Self::NotSupported(err) => err.fmt(f),

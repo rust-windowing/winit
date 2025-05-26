@@ -182,7 +182,8 @@ impl EventLoop {
             activation_policy,
             attributes.default_menu,
             attributes.activate_ignoring_other_apps,
-        );
+        )
+        .ok_or_else(|| EventLoopError::RecreationAttempt)?;
 
         // Initialize the application (if it has not already been).
         let app = NSApplication::sharedApplication(mtm);
