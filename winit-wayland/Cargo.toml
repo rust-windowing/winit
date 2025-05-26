@@ -32,7 +32,7 @@ ahash.workspace = true
 calloop.workspace = true
 libc.workspace = true
 memmap2.workspace = true
-rustix = { workspace = true, features = ["std", "system", "thread", "process"] }
+rustix = { workspace = true, features = ["std", "system", "thread", "process", "event", "pipe"] }
 sctk.workspace = true
 sctk-adwaita = { workspace = true, optional = true }
 wayland-backend.workspace = true

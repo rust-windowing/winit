@@ -70,7 +70,7 @@ calloop = "0.13.0"
 libc = "0.2.64"
 memmap2 = "0.9.0"
 percent-encoding = "2.0"
-rustix = { version = "0.38.4", default-features = false }
+rustix = { version = "1.0.7", default-features = false }
 sctk = { package = "smithay-client-toolkit", version = "0.19.2", default-features = false, features = [
     "calloop",
 ] }
