@@ -38,8 +38,12 @@ private = { ignore = true }
 
 [bans]
 multiple-versions = "deny"
-skip = [{ crate = "bitflags@1", reason = "the ecosystem is in the process of migrating" }]
-wildcards = "allow"                                                                        # at least until https://github.com/EmbarkStudios/cargo-deny/issues/241 is fixed
+skip = [
+    { crate = "bitflags@1", reason = "the ecosystem is in the process of migrating" },
+    { crate = "rustix@0.38", reason = "the ecosystem is in the process of migrating" },
+    { crate = "linux-raw-sys@0.4", reason = "the ecosystem is in the process of migrating" },
+]
+wildcards = "allow" # at least until https://github.com/EmbarkStudios/cargo-deny/issues/241 is fixed
 
 [bans.build]
 include-archives = true
