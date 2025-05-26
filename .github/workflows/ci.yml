@@ -66,7 +66,7 @@ jobs:
           - { name: 'Linux 64bit',        target: x86_64-unknown-linux-gnu, os: ubuntu-latest,   }
           - { name: 'X11',                target: x86_64-unknown-linux-gnu, os: ubuntu-latest, options: '--no-default-features --features=x11' }
           - { name: 'Wayland',            target: x86_64-unknown-linux-gnu, os: ubuntu-latest, options: '--no-default-features --features=wayland,wayland-dlopen' }
-          - { name: 'Android',            target: aarch64-linux-android,    os: ubuntu-latest, options: '--package=winit --features=android-native-activity', cmd: 'apk --' }
+          - { name: 'Android',            target: aarch64-linux-android,    os: ubuntu-latest, options: '--package winit --features=android-native-activity', cmd: 'apk -- ' }
           - { name: 'Redox OS',           target: x86_64-unknown-redox,     os: ubuntu-latest,   }
           - { name: 'macOS x86_64',       target: x86_64-apple-darwin,      os: macos-latest,    }
           - { name: 'macOS Aarch64',      target: aarch64-apple-darwin,     os: macos-latest,    }
@@ -89,7 +89,7 @@ jobs:
             platform: { name: 'Redox OS' }
         include:
           - toolchain: '1.80'
-            platform: { name: 'Android', target: aarch64-linux-android, os: ubuntu-latest, options: '--package=winit --features=android-native-activity', cmd: 'apk --' }
+            platform: { name: 'Android', target: aarch64-linux-android, os: ubuntu-latest, options: '--package winit --features=android-native-activity', cmd: 'apk -- ' }
           - toolchain: 'nightly'
             platform: { name: 'Web', target: wasm32-unknown-unknown, os: ubuntu-latest, test-options: -Zdoctest-xcompile }
           - toolchain: 'nightly'
@@ -313,6 +313,7 @@ jobs:
       with:
         command: check
         log-level: error
+        manifest-path: winit/Cargo.toml
         arguments: --all-features --target ${{ matrix.platform.target }}
 
   eslint:
