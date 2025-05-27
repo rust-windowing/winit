@@ -42,6 +42,7 @@ changelog entry.
 
 ### Added
 
+- Added `open_files_event` to `ApplicationHandler` to handle file open requests (currently only on macOS).
 - Add `ActiveEventLoop::create_proxy()`.
 - On Web, add `ActiveEventLoopExtWeb::is_cursor_lock_raw()` to determine if
   `DeviceEvent::MouseMotion` is returning raw data, not OS accelerated, when using
