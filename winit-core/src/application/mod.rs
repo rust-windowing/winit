@@ -23,7 +23,6 @@ pub trait ApplicationHandler {
         // Default implementation (optional, or leave it for implementers)
         let _ = event_loop; // Mark as used
         let _ = paths;      // Mark as used
-        tracing::warn!("ApplicationHandler::open_files_event not implemented");
     }
 
 
