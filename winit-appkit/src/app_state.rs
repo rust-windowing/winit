@@ -292,7 +292,7 @@ impl AppState {
     }
 
     #[track_caller]
-    fn with_handler(
+    pub fn with_handler(
         self: &Rc<Self>,
         callback: impl FnOnce(&mut dyn ApplicationHandler, &ActiveEventLoop),
     ) {

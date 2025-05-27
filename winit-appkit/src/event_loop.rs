@@ -165,6 +165,93 @@ impl Default for PlatformSpecificEventLoopAttributes {
     }
 }
 
+use objc2::{define_class, msg_send, MainThreadOnly};
+use objc2_app_kit::NSApplicationDelegate;
+use objc2_foundation::{NSArray, NSObject, NSURL};
+
+// Add or modify existing tracing import
+use tracing::{trace, warn};
+
+// Add PathBuf
+use std::path::PathBuf;
+
+// Add NSApplicationDelegateReply to existing objc2_app_kit import or add new
+use objc2_app_kit::{
+    NSApplicationDelegateReply, // Added this
+};
+// Ensure these are present from your existing code
+// If EventWrapper is used directly, ensure it's in scope:
+// use super::app_state::EventWrapper;
+define_class!(
+    #[unsafe(super(NSObject))]
+    #[thread_kind = MainThreadOnly]
+    #[name = "AppDelegate"]
+    struct AppDelegate;
+
+    unsafe impl NSObjectProtocol for AppDelegate {}
+
+    unsafe impl NSApplicationDelegate for AppDelegate {
+        #[unsafe(method(application:openFiles:))]
+        #[allow(non_snake_case)]
+        fn application_openFiles(&self, application: &NSApplication, files: &NSArray<NSURL>) {
+            trace!("Triggered `application:openFiles:`");
+            // Obtain MainThreadMarker. If AppDelegate stores mtm, use self.mtm.
+            // Otherwise, if AppState is already initialized and holds one, it could be fetched,
+            // or created anew if appropriate for NSURL::path.
+            // For NSURL::path, it's often fine to create one if you're sure you're on the main thread.
+            let mtm =
+                MainThreadMarker::new().expect("must be on main thread for application:openFiles:");
+
+            let mut paths: Vec<PathBuf> = Vec::new();
+            unsafe {
+                for ns_url in files {
+                    if let Some(ns_path_str) = ns_url.path() {
+                        let path_str = ns_path_str.to_string();
+                        let path_buf = PathBuf::from(path_str);
+                        if path_buf.exists() {
+                            paths.push(path_buf);
+                        } else {
+                            warn!(
+                                "Received non-existent path from application:openFiles: {:?}",
+                                path_buf
+                            );
+                        }
+                    } else {
+                        warn!(
+                            "Received non-file URL or malformed path from application:openFiles:"
+                        );
+                    }
+                }
+
+                if paths.is_empty() {
+                    // According to Apple's documentation, you should always call replyToOpenOrPrint.
+                    // NSApplicationDelegateReply::Cancel indicates failure or no action.
+                    application.replyToOpenOrPrint(NSApplicationDelegateReply::Cancel);
+                } else {
+                    application.replyToOpenOrPrint(NSApplicationDelegateReply::Success);
+
+                    let app_state = AppState::get(mtm);
+                    let cloned_paths = paths;
+
+                    app_state.with_handler(
+                        move |app_handler, active_event_loop: &ActiveEventLoop| {
+                            // This line will compile once open_files_event is added to ApplicationHandler
+                            app_handler.open_files_event(active_event_loop, cloned_paths);
+                        },
+                    );
+                }
+            }
+            trace!("Completed `application:openFiles:`");
+        }
+    }
+);
+
+impl AppDelegate {
+    fn new(mtm: MainThreadMarker) -> Retained<Self> {
+        unsafe { msg_send![super(Self::alloc(mtm).set_ivars(())), init] }
+    }
+}
+
 impl EventLoop {
     pub fn new(attributes: &PlatformSpecificEventLoopAttributes) -> Result<Self, EventLoopError> {
         let mtm = MainThreadMarker::new()
@@ -184,8 +271,12 @@ impl EventLoop {
             attributes.activate_ignoring_other_apps,
         );
 
+        let delegate = AppDelegate::new(mtm);
+
         // Initialize the application (if it has not already been).
         let app = NSApplication::sharedApplication(mtm);
+
+        app.setDelegate(Some(ProtocolObject::from_ref(&*delegate)));
 
         // Override `sendEvent:` on the application to forward to our application state.
         override_send_event(&app);

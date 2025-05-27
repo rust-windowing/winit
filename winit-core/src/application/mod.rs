@@ -1,5 +1,6 @@
 //! End user application handling.
 
+use std::path::PathBuf;
 use crate::event::{DeviceEvent, DeviceId, StartCause, WindowEvent};
 use crate::event_loop::ActiveEventLoop;
 use crate::window::WindowId;
@@ -17,6 +18,14 @@ pub trait ApplicationHandler {
     fn new_events(&mut self, event_loop: &dyn ActiveEventLoop, cause: StartCause) {
         let _ = (event_loop, cause);
     }
+
+    fn open_files_event(&mut self, event_loop: &dyn ActiveEventLoop, paths: Vec<PathBuf>) {
+        // Default implementation (optional, or leave it for implementers)
+        let _ = event_loop; // Mark as used
+        let _ = paths;      // Mark as used
+        tracing::warn!("ApplicationHandler::open_files_event not implemented");
+    }
+
 
     /// Emitted when the application has been resumed.
     ///
