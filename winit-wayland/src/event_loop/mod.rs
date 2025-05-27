@@ -792,7 +792,7 @@ impl PumpEventNotifier {
                         if Ok(1) == rustix::io::read(read.as_fd(), &mut [0u8; 1]) {
                             break 'outer;
                         }
-                        let _ = rustix::event::poll(&mut [poll_fd, pipe_poll_fd], -1);
+                        let _ = rustix::event::poll(&mut [poll_fd, pipe_poll_fd], None);
                         // Non-blocking read the connection.
                         let _ = read_guard.read_without_dispatch();
                     }
