@@ -167,21 +167,11 @@ impl Default for PlatformSpecificEventLoopAttributes {
 
 use objc2::{define_class, msg_send, MainThreadOnly};
 use objc2_app_kit::NSApplicationDelegate;
+use objc2_app_kit::NSApplicationDelegateReply;
 use objc2_foundation::{NSArray, NSObject, NSURL};
-
-// Add or modify existing tracing import
+use std::path::PathBuf;
 use tracing::{trace, warn};
 
-// Add PathBuf
-use std::path::PathBuf;
-
-// Add NSApplicationDelegateReply to existing objc2_app_kit import or add new
-use objc2_app_kit::{
-    NSApplicationDelegateReply, // Added this
-};
-// Ensure these are present from your existing code
-// If EventWrapper is used directly, ensure it's in scope:
-// use super::app_state::EventWrapper;
 define_class!(
     #[unsafe(super(NSObject))]
     #[thread_kind = MainThreadOnly]
@@ -195,10 +185,6 @@ define_class!(
         #[allow(non_snake_case)]
         fn application_openFiles(&self, application: &NSApplication, files: &NSArray<NSURL>) {
             trace!("Triggered `application:openFiles:`");
-            // Obtain MainThreadMarker. If AppDelegate stores mtm, use self.mtm.
-            // Otherwise, if AppState is already initialized and holds one, it could be fetched,
-            // or created anew if appropriate for NSURL::path.
-            // For NSURL::path, it's often fine to create one if you're sure you're on the main thread.
             let mtm =
                 MainThreadMarker::new().expect("must be on main thread for application:openFiles:");
 
@@ -235,7 +221,6 @@ define_class!(
 
                     app_state.with_handler(
                         move |app_handler, active_event_loop: &ActiveEventLoop| {
-                            // This line will compile once open_files_event is added to ApplicationHandler
                             app_handler.open_files_event(active_event_loop, cloned_paths);
                         },
                     );
