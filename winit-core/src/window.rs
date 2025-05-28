@@ -457,7 +457,7 @@ pub trait PlatformWindowAttributes: AsAny + std::fmt::Debug + Send + Sync {
 
 impl_dyn_casting!(PlatformWindowAttributes);
 
-/// Represents a window.
+/// Represents a toplevel window.
 ///
 /// The window is closed when dropped.
 ///
@@ -477,7 +477,7 @@ impl_dyn_casting!(PlatformWindowAttributes);
 /// not be closed by dropping the [`Window`].
 pub trait Window: AsAny + Send + Sync + fmt::Debug {
     /// Returns an identifier unique to the window.
-    fn id(&self) -> WindowId;
+    fn id(&self) -> WindowId; // *
 
     /// Returns the scale factor that can be used to map logical pixels to physical pixels, and
     /// vice versa.
@@ -541,7 +541,7 @@ pub trait Window: AsAny + Send + Sync + fmt::Debug {
     /// [web_1]: https://developer.mozilla.org/en-US/docs/Web/API/Window/devicePixelRatio
     /// [`contentScaleFactor`]: https://developer.apple.com/documentation/uikit/uiview/1622657-contentscalefactor?language=objc
     /// [`MonitorHandleProvider::scale_factor`]: crate::monitor::MonitorHandleProvider::scale_factor.
-    fn scale_factor(&self) -> f64;
+    fn scale_factor(&self) -> f64; // *
 
     /// Queues a [`WindowEvent::RedrawRequested`] event to be emitted that aligns with the windowing
     /// system drawing loop.
@@ -569,7 +569,7 @@ pub trait Window: AsAny + Send + Sync + fmt::Debug {
     ///   `requestAnimationFrame`.
     ///
     /// [`WindowEvent::RedrawRequested`]: crate::event::WindowEvent::RedrawRequested
-    fn request_redraw(&self);
+    fn request_redraw(&self); // *
 
     /// Notify the windowing system before presenting to the window.
     ///
@@ -603,7 +603,7 @@ pub trait Window: AsAny + Send + Sync + fmt::Debug {
     /// - **Wayland:** Schedules a frame callback to throttle [`WindowEvent::RedrawRequested`].
     ///
     /// [`WindowEvent::RedrawRequested`]: crate::event::WindowEvent::RedrawRequested
-    fn pre_present_notify(&self);
+    fn pre_present_notify(&self); // *
 
     /// Reset the dead key state of the keyboard.
     ///
@@ -636,7 +636,7 @@ pub trait Window: AsAny + Send + Sync + fmt::Debug {
     /// as the window itself, this simply returns `(0, 0)`.
     ///
     /// [`outer_position`]: Self::outer_position
-    fn surface_position(&self) -> PhysicalPosition<i32>;
+    fn surface_position(&self) -> PhysicalPosition<i32>; // *
 
     /// The position of the top-left hand corner of the window relative to the top-left hand corner
     /// of the desktop.
@@ -699,7 +699,7 @@ pub trait Window: AsAny + Send + Sync + fmt::Debug {
     /// [`transform`]: https://developer.mozilla.org/en-US/docs/Web/CSS/transform
     /// [`WindowEvent::SurfaceResized`]: crate::event::WindowEvent::SurfaceResized
     /// [`safe_area()`]: Window::safe_area
-    fn surface_size(&self) -> PhysicalSize<u32>;
+    fn surface_size(&self) -> PhysicalSize<u32>; // *
 
     /// Request the new size for the surface.
     ///
@@ -736,7 +736,7 @@ pub trait Window: AsAny + Send + Sync + fmt::Debug {
     /// [`WindowEvent::SurfaceResized`]: crate::event::WindowEvent::SurfaceResized
     /// [`transform`]: https://developer.mozilla.org/en-US/docs/Web/CSS/transform
     #[must_use]
-    fn request_surface_size(&self, size: Size) -> Option<PhysicalSize<u32>>;
+    fn request_surface_size(&self, size: Size) -> Option<PhysicalSize<u32>>; // *
 
     /// Returns the size of the entire window.
     ///
@@ -872,7 +872,7 @@ pub trait Window: AsAny + Send + Sync + fmt::Debug {
     /// - **Web / iOS / Android:** Unsupported.
     /// - **X11:** Can only be set while building the window, with
     ///   [`WindowAttributes::with_transparent`].
-    fn set_transparent(&self, transparent: bool);
+    fn set_transparent(&self, transparent: bool); // *
 
     /// Change the window blur state.
     ///

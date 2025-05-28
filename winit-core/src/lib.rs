@@ -18,6 +18,7 @@ pub mod event_loop;
 pub mod icon;
 pub mod keyboard;
 pub mod monitor;
+pub mod surface;
 pub mod window;
 
 // `Instant` is not actually available on `wasm32-unknown-unknown`, the `std` implementation there
