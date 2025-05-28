@@ -2,7 +2,7 @@
 
 use crate::event::{DeviceEvent, DeviceId, StartCause, WindowEvent};
 use crate::event_loop::ActiveEventLoop;
-use crate::window::WindowId;
+use crate::window::SurfaceId;
 
 pub mod macos;
 
@@ -195,7 +195,7 @@ pub trait ApplicationHandler {
     fn window_event(
         &mut self,
         event_loop: &dyn ActiveEventLoop,
-        window_id: WindowId,
+        window_id: SurfaceId,
         event: WindowEvent,
     );
 
@@ -371,7 +371,7 @@ impl<A: ?Sized + ApplicationHandler> ApplicationHandler for &mut A {
     fn window_event(
         &mut self,
         event_loop: &dyn ActiveEventLoop,
-        window_id: WindowId,
+        window_id: SurfaceId,
         event: WindowEvent,
     ) {
         (**self).window_event(event_loop, window_id, event);
@@ -439,7 +439,7 @@ impl<A: ?Sized + ApplicationHandler> ApplicationHandler for Box<A> {
     fn window_event(
         &mut self,
         event_loop: &dyn ActiveEventLoop,
-        window_id: WindowId,
+        window_id: SurfaceId,
         event: WindowEvent,
     ) {
         (**self).window_event(event_loop, window_id, event);

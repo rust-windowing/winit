@@ -34,7 +34,7 @@ use winit_core::event::{
 };
 
 use crate::state::WinitState;
-use crate::WindowId;
+use crate::SurfaceId;
 
 pub mod relative_pointer;
 
@@ -318,7 +318,7 @@ impl WinitPointerData {
     }
 
     /// Active window.
-    pub fn focused_window(&self) -> Option<WindowId> {
+    pub fn focused_window(&self) -> Option<SurfaceId> {
         self.inner.lock().unwrap().surface
     }
 
@@ -370,7 +370,7 @@ pub struct WinitPointerDataInner {
     latest_button_serial: u32,
 
     /// Currently focused window.
-    surface: Option<WindowId>,
+    surface: Option<SurfaceId>,
 
     /// Current axis phase.
     phase: TouchPhase,

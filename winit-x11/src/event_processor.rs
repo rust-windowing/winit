@@ -13,7 +13,7 @@ use winit_core::event::{
     WindowEvent,
 };
 use winit_core::keyboard::ModifiersState;
-use winit_core::window::WindowId;
+use winit_core::window::SurfaceId;
 use x11_dl::xinput2::{
     self, XIDeviceEvent, XIEnterEvent, XIFocusInEvent, XIFocusOutEvent, XIHierarchyEvent,
     XILeaveEvent, XIModifierState, XIRawEvent,
@@ -334,7 +334,7 @@ impl EventProcessor {
         F: Fn(&Arc<UnownedWindow>) -> Ret,
     {
         let mut deleted = false;
-        let window_id = WindowId::from_raw(window_id as _);
+        let window_id = SurfaceId::from_raw(window_id as _);
         let result = self
             .target
             .windows
@@ -784,7 +784,7 @@ impl EventProcessor {
 
         // In the event that the window's been destroyed without being dropped first, we
         // cleanup again here.
-        self.target.windows.borrow_mut().remove(&WindowId::from_raw(window as _));
+        self.target.windows.borrow_mut().remove(&SurfaceId::from_raw(window as _));
 
         // Since all XIM stuff needs to happen from the same thread, we destroy the input
         // context here instead of when dropping the window.
@@ -936,7 +936,7 @@ impl EventProcessor {
 
     fn send_synthic_modifier_from_core(
         &mut self,
-        window_id: winit_core::window::WindowId,
+        window_id: winit_core::window::SurfaceId,
         state: u16,
         app: &mut dyn ApplicationHandler,
     ) {
@@ -1553,7 +1553,7 @@ impl EventProcessor {
 
     fn update_mods_from_query(
         &mut self,
-        window_id: winit_core::window::WindowId,
+        window_id: winit_core::window::SurfaceId,
         app: &mut dyn ApplicationHandler,
     ) {
         let xkb_state = match self.xkb_context.state_mut() {
@@ -1586,7 +1586,7 @@ impl EventProcessor {
 
     pub(crate) fn update_mods_from_core_event(
         &mut self,
-        window_id: winit_core::window::WindowId,
+        window_id: winit_core::window::SurfaceId,
         state: u16,
         app: &mut dyn ApplicationHandler,
     ) {
@@ -1663,7 +1663,7 @@ impl EventProcessor {
     /// unless `force` is passed. The `force` should be passed when the active window changes.
     fn send_modifiers(
         &self,
-        window_id: winit_core::window::WindowId,
+        window_id: winit_core::window::SurfaceId,
         modifiers: ModifiersState,
         force: bool,
         app: &mut dyn ApplicationHandler,
@@ -1678,7 +1678,7 @@ impl EventProcessor {
 
     fn handle_pressed_keys(
         target: &ActiveEventLoop,
-        window_id: winit_core::window::WindowId,
+        window_id: winit_core::window::SurfaceId,
         state: ElementState,
         xkb_context: &mut Context,
         app: &mut dyn ApplicationHandler,

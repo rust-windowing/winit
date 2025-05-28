@@ -13,7 +13,7 @@ use winit_core::icon::Icon;
 use winit_core::monitor::{Fullscreen, MonitorHandle as CoremMonitorHandle};
 use winit_core::window::{
     CursorGrabMode, ImeRequestError, ResizeDirection, Theme, UserAttentionType,
-    Window as RootWindow, WindowAttributes, WindowButtons, WindowId, WindowLevel,
+    Window as RootWindow, WindowAttributes, WindowButtons, SurfaceId, WindowLevel,
 };
 
 use crate::event_loop::ActiveEventLoop;
@@ -33,7 +33,7 @@ impl fmt::Debug for Window {
 }
 
 pub struct Inner {
-    id: WindowId,
+    id: SurfaceId,
     pub window: web_sys::Window,
     monitor: Rc<MonitorHandler>,
     safe_area: Rc<backend::SafeAreaHandle>,
@@ -103,7 +103,7 @@ impl Window {
 }
 
 impl RootWindow for Window {
-    fn id(&self) -> WindowId {
+    fn id(&self) -> SurfaceId {
         self.inner.queue(|inner| inner.id)
     }
 

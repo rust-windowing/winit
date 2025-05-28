@@ -8,7 +8,7 @@ fn main() -> Result<(), impl std::error::Error> {
     use winit::event::{ElementState, KeyEvent, WindowEvent};
     use winit::event_loop::{ActiveEventLoop, EventLoop};
     use winit::raw_window_handle::HasRawWindowHandle;
-    use winit::window::{Window, WindowAttributes, WindowId};
+    use winit::window::{Window, WindowAttributes, SurfaceId};
 
     #[path = "util/fill.rs"]
     mod fill;
@@ -27,8 +27,8 @@ fn main() -> Result<(), impl std::error::Error> {
 
     #[derive(Default, Debug)]
     struct Application {
-        parent_window_id: Option<WindowId>,
-        windows: HashMap<WindowId, WindowData>,
+        parent_window_id: Option<SurfaceId>,
+        windows: HashMap<SurfaceId, WindowData>,
     }
 
     impl ApplicationHandler for Application {
@@ -47,7 +47,7 @@ fn main() -> Result<(), impl std::error::Error> {
         fn window_event(
             &mut self,
             event_loop: &dyn ActiveEventLoop,
-            window_id: winit::window::WindowId,
+            window_id: winit::window::SurfaceId,
             event: WindowEvent,
         ) {
             match event {

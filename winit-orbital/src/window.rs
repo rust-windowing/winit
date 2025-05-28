@@ -6,7 +6,7 @@ use dpi::{PhysicalInsets, PhysicalPosition, PhysicalSize, Position, Size};
 use winit_core::cursor::Cursor;
 use winit_core::error::{NotSupportedError, RequestError};
 use winit_core::monitor::{Fullscreen, MonitorHandle as CoreMonitorHandle};
-use winit_core::window::{self, Window as CoreWindow, WindowId};
+use winit_core::window::{self, Window as CoreWindow, SurfaceId};
 
 use crate::event_loop::{ActiveEventLoop, EventLoopProxy};
 use crate::{RedoxSocket, WindowProperties};
@@ -25,8 +25,8 @@ const ORBITAL_FLAG_TRANSPARENT: char = 't';
 #[derive(Debug)]
 pub struct Window {
     window_socket: Arc<RedoxSocket>,
-    redraws: Arc<Mutex<VecDeque<WindowId>>>,
-    destroys: Arc<Mutex<VecDeque<WindowId>>>,
+    redraws: Arc<Mutex<VecDeque<SurfaceId>>>,
+    destroys: Arc<Mutex<VecDeque<SurfaceId>>>,
     event_loop_proxy: Arc<EventLoopProxy>,
 }
 
@@ -157,8 +157,8 @@ impl Window {
 }
 
 impl CoreWindow for Window {
-    fn id(&self) -> WindowId {
-        WindowId::from_raw(self.window_socket.fd)
+    fn id(&self) -> SurfaceId {
+        SurfaceId::from_raw(self.window_socket.fd)
     }
 
     fn ime_capabilities(&self) -> Option<window::ImeCapabilities> {

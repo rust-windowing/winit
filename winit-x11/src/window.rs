@@ -22,7 +22,7 @@ use winit_core::monitor::{
 use winit_core::window::{
     CursorGrabMode, ImeCapabilities, ImeRequest as CoreImeRequest, ImeRequestError,
     ResizeDirection, Theme, UserAttentionType, Window as CoreWindow, WindowAttributes,
-    WindowButtons, WindowId, WindowLevel,
+    WindowButtons, SurfaceId, WindowLevel,
 };
 use x11rb::connection::{Connection, RequestConnection};
 use x11rb::properties::{WmHints, WmSizeHints, WmSizeHintsSpecification};
@@ -67,7 +67,7 @@ impl Window {
 }
 
 impl CoreWindow for Window {
-    fn id(&self) -> WindowId {
+    fn id(&self) -> SurfaceId {
         self.0.id()
     }
 
@@ -427,7 +427,7 @@ pub struct UnownedWindow {
     cursor_visible: Mutex<bool>,
     ime_sender: Mutex<ImeSender>,
     pub shared_state: Mutex<SharedState>,
-    redraw_sender: WakeSender<WindowId>,
+    redraw_sender: WakeSender<SurfaceId>,
     activation_sender: WakeSender<ActivationItem>,
 }
 macro_rules! leap {
@@ -2211,8 +2211,8 @@ impl UnownedWindow {
     }
 
     #[inline]
-    pub fn id(&self) -> WindowId {
-        WindowId::from_raw(self.xwindow as _)
+    pub fn id(&self) -> SurfaceId {
+        SurfaceId::from_raw(self.xwindow as _)
     }
 
     pub(super) fn sync_counter_id(&self) -> Option<NonZeroU32> {
@@ -2221,7 +2221,7 @@ impl UnownedWindow {
 
     #[inline]
     pub fn request_redraw(&self) {
-        self.redraw_sender.send(WindowId::from_raw(self.xwindow as _));
+        self.redraw_sender.send(SurfaceId::from_raw(self.xwindow as _));
     }
 
     #[inline]

@@ -3,7 +3,7 @@
 use std::vec::Drain;
 
 use winit_core::event::{DeviceEvent, WindowEvent};
-use winit_core::window::WindowId;
+use winit_core::window::SurfaceId;
 
 use super::Event;
 
@@ -33,7 +33,7 @@ impl EventSink {
 
     /// Add new window event to a queue.
     #[inline]
-    pub fn push_window_event(&mut self, event: WindowEvent, window_id: WindowId) {
+    pub fn push_window_event(&mut self, event: WindowEvent, window_id: SurfaceId) {
         self.window_events.push(Event::WindowEvent { event, window_id });
     }
 

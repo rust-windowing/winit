@@ -3,7 +3,7 @@ use std::error::Error;
 use winit::application::ApplicationHandler;
 use winit::event::WindowEvent;
 use winit::event_loop::{ActiveEventLoop, EventLoop};
-use winit::window::{Window, WindowAttributes, WindowId};
+use winit::window::{Window, WindowAttributes, SurfaceId};
 
 #[path = "util/fill.rs"]
 mod fill;
@@ -41,7 +41,7 @@ impl ApplicationHandler for Application {
     fn window_event(
         &mut self,
         event_loop: &dyn ActiveEventLoop,
-        _window_id: WindowId,
+        _window_id: SurfaceId,
         event: WindowEvent,
     ) {
         match event {
