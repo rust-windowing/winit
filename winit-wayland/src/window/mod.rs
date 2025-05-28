@@ -21,7 +21,7 @@ use winit_core::event_loop::AsyncRequestSerial;
 use winit_core::monitor::{Fullscreen, MonitorHandle as CoreMonitorHandle};
 use winit_core::window::{
     CursorGrabMode, ImeCapabilities, ImeRequest, ImeRequestError, ResizeDirection, Theme,
-    UserAttentionType, Window as CoreWindow, WindowAttributes, WindowButtons, SurfaceId,
+    UserAttentionType, Window as CoreWindow, Surface as CoreSurface, WindowAttributes, WindowButtons, SurfaceId,
     WindowLevel,
 };
 
@@ -282,7 +282,7 @@ impl rwh_06::HasDisplayHandle for Window {
     }
 }
 
-impl CoreWindow for Window {
+impl CoreSurface for Window {
     fn id(&self) -> SurfaceId {
         self.window_id
     }
@@ -302,13 +302,115 @@ impl CoreWindow for Window {
         }
     }
 
+    fn pre_present_notify(&self) {
+        self.window_state.lock().unwrap().request_frame_callback();
+    }
+
+    fn surface_size(&self) -> PhysicalSize<u32> {
+        let window_state = self.window_state.lock().unwrap();
+        let scale_factor = window_state.scale_factor();
+        super::logical_to_physical_rounded(window_state.surface_size(), scale_factor)
+    }
+
+    fn request_surface_size(&self, size: Size) -> Option<PhysicalSize<u32>> {
+        let mut window_state = self.window_state.lock().unwrap();
+        let new_size = window_state.request_surface_size(size);
+        self.request_redraw();
+        Some(new_size)
+    }
+
+    #[inline]
+    fn set_transparent(&self, transparent: bool) {
+        self.window_state.lock().unwrap().set_transparent(transparent);
+    }
+
+    #[inline]
+    fn scale_factor(&self) -> f64 {
+        self.window_state.lock().unwrap().scale_factor()
+    }
+
+    fn set_cursor(&self, cursor: Cursor) {
+        let window_state = &mut self.window_state.lock().unwrap();
+
+        match cursor {
+            Cursor::Icon(icon) => window_state.set_cursor(icon),
+            Cursor::Custom(cursor) => window_state.set_custom_cursor(cursor),
+        }
+    }
+
+    fn set_cursor_position(&self, position: Position) -> Result<(), RequestError> {
+        let scale_factor = self.scale_factor();
+        let position = position.to_logical(scale_factor);
+        self.window_state
+            .lock()
+            .unwrap()
+            .set_cursor_position(position)
+            // Request redraw on success, since the state is double buffered.
+            .map(|_| self.request_redraw())
+    }
+
+    fn set_cursor_grab(&self, mode: CursorGrabMode) -> Result<(), RequestError> {
+        self.window_state.lock().unwrap().set_cursor_grab(mode)
+    }
+
+    fn set_cursor_visible(&self, visible: bool) {
+        self.window_state.lock().unwrap().set_cursor_visible(visible);
+    }
+
+    fn set_cursor_hittest(&self, hittest: bool) -> Result<(), RequestError> {
+        let surface = self.window.wl_surface();
+
+        if hittest {
+            surface.set_input_region(None);
+            Ok(())
+        } else {
+            let region = Region::new(&*self.compositor).map_err(|err| os_error!(err))?;
+            region.add(0, 0, 0, 0);
+            surface.set_input_region(Some(region.wl_region()));
+            Ok(())
+        }
+    }
+
+    fn current_monitor(&self) -> Option<CoreMonitorHandle> {
+        let data = self.window.wl_surface().data::<SurfaceData>()?;
+        data.outputs()
+            .next()
+            .map(MonitorHandle::new)
+            .map(|monitor| CoreMonitorHandle(Arc::new(monitor)))
+    }
+
+    fn available_monitors(&self) -> Box<dyn Iterator<Item = CoreMonitorHandle>> {
+        Box::new(
+            self.monitors
+                .lock()
+                .unwrap()
+                .clone()
+                .into_iter()
+                .map(|inner| CoreMonitorHandle(Arc::new(inner))),
+        )
+    }
+
+    fn primary_monitor(&self) -> Option<CoreMonitorHandle> {
+        // NOTE: There's no such concept on Wayland.
+        None
+    }
+
+    /// Get the raw-window-handle v0.6 display handle.
+    fn rwh_06_display_handle(&self) -> &dyn rwh_06::HasDisplayHandle {
+        self
+    }
+
+    /// Get the raw-window-handle v0.6 window handle.
+    fn rwh_06_window_handle(&self) -> &dyn rwh_06::HasWindowHandle {
+        self
+    }
+}
+
+impl CoreWindow for Window {
+
     #[inline]
     fn title(&self) -> String {
         self.window_state.lock().unwrap().title().to_owned()
-    }
-
-    fn pre_present_notify(&self) {
-        self.window_state.lock().unwrap().request_frame_callback();
     }
 
     fn reset_dead_keys(&self) {
@@ -326,19 +428,6 @@ impl CoreWindow for Window {
 
     fn set_outer_position(&self, _position: Position) {
         // Not possible.
-    }
-
-    fn surface_size(&self) -> PhysicalSize<u32> {
-        let window_state = self.window_state.lock().unwrap();
-        let scale_factor = window_state.scale_factor();
-        super::logical_to_physical_rounded(window_state.surface_size(), scale_factor)
-    }
-
-    fn request_surface_size(&self, size: Size) -> Option<PhysicalSize<u32>> {
-        let mut window_state = self.window_state.lock().unwrap();
-        let new_size = window_state.request_surface_size(size);
-        self.request_redraw();
-        Some(new_size)
     }
 
     fn outer_size(&self) -> PhysicalSize<u32> {
@@ -380,11 +469,6 @@ impl CoreWindow for Window {
     fn set_title(&self, title: &str) {
         let new_title = title.to_string();
         self.window_state.lock().unwrap().set_title(new_title);
-    }
-
-    #[inline]
-    fn set_transparent(&self, transparent: bool) {
-        self.window_state.lock().unwrap().set_transparent(transparent);
     }
 
     fn set_visible(&self, _visible: bool) {
@@ -483,11 +567,6 @@ impl CoreWindow for Window {
     }
 
     #[inline]
-    fn scale_factor(&self) -> f64 {
-        self.window_state.lock().unwrap().scale_factor()
-    }
-
-    #[inline]
     fn set_blur(&self, blur: bool) {
         self.window_state.lock().unwrap().set_blur(blur);
     }
@@ -568,34 +647,6 @@ impl CoreWindow for Window {
 
     fn set_content_protected(&self, _protected: bool) {}
 
-    fn set_cursor(&self, cursor: Cursor) {
-        let window_state = &mut self.window_state.lock().unwrap();
-
-        match cursor {
-            Cursor::Icon(icon) => window_state.set_cursor(icon),
-            Cursor::Custom(cursor) => window_state.set_custom_cursor(cursor),
-        }
-    }
-
-    fn set_cursor_position(&self, position: Position) -> Result<(), RequestError> {
-        let scale_factor = self.scale_factor();
-        let position = position.to_logical(scale_factor);
-        self.window_state
-            .lock()
-            .unwrap()
-            .set_cursor_position(position)
-            // Request redraw on success, since the state is double buffered.
-            .map(|_| self.request_redraw())
-    }
-
-    fn set_cursor_grab(&self, mode: CursorGrabMode) -> Result<(), RequestError> {
-        self.window_state.lock().unwrap().set_cursor_grab(mode)
-    }
-
-    fn set_cursor_visible(&self, visible: bool) {
-        self.window_state.lock().unwrap().set_cursor_visible(visible);
-    }
-
     fn drag_window(&self) -> Result<(), RequestError> {
         self.window_state.lock().unwrap().drag_window()
     }
@@ -608,54 +659,6 @@ impl CoreWindow for Window {
         let scale_factor = self.scale_factor();
         let position = position.to_logical(scale_factor);
         self.window_state.lock().unwrap().show_window_menu(position);
-    }
-
-    fn set_cursor_hittest(&self, hittest: bool) -> Result<(), RequestError> {
-        let surface = self.window.wl_surface();
-
-        if hittest {
-            surface.set_input_region(None);
-            Ok(())
-        } else {
-            let region = Region::new(&*self.compositor).map_err(|err| os_error!(err))?;
-            region.add(0, 0, 0, 0);
-            surface.set_input_region(Some(region.wl_region()));
-            Ok(())
-        }
-    }
-
-    fn current_monitor(&self) -> Option<CoreMonitorHandle> {
-        let data = self.window.wl_surface().data::<SurfaceData>()?;
-        data.outputs()
-            .next()
-            .map(MonitorHandle::new)
-            .map(|monitor| CoreMonitorHandle(Arc::new(monitor)))
-    }
-
-    fn available_monitors(&self) -> Box<dyn Iterator<Item = CoreMonitorHandle>> {
-        Box::new(
-            self.monitors
-                .lock()
-                .unwrap()
-                .clone()
-                .into_iter()
-                .map(|inner| CoreMonitorHandle(Arc::new(inner))),
-        )
-    }
-
-    fn primary_monitor(&self) -> Option<CoreMonitorHandle> {
-        // NOTE: There's no such concept on Wayland.
-        None
-    }
-
-    /// Get the raw-window-handle v0.6 display handle.
-    fn rwh_06_display_handle(&self) -> &dyn rwh_06::HasDisplayHandle {
-        self
-    }
-
-    /// Get the raw-window-handle v0.6 window handle.
-    fn rwh_06_window_handle(&self) -> &dyn rwh_06::HasWindowHandle {
-        self
     }
 }
 
