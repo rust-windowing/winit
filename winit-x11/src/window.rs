@@ -16,6 +16,7 @@ use winit_core::error::{NotSupportedError, RequestError};
 use winit_core::event::{SurfaceSizeWriter, WindowEvent};
 use winit_core::event_loop::AsyncRequestSerial;
 use winit_core::icon::RgbaIcon;
+use winit_core::impl_surface_downcast;
 use winit_core::monitor::{
     Fullscreen, MonitorHandle as CoreMonitorHandle, MonitorHandleProvider, VideoMode,
 };
@@ -67,6 +68,8 @@ impl Window {
 }
 
 impl CoreSurface for Window {
+    impl_surface_downcast!(Window);
+
     fn id(&self) -> SurfaceId {
         self.0.id()
     }

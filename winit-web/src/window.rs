@@ -10,6 +10,7 @@ use web_sys::HtmlCanvasElement;
 use winit_core::cursor::Cursor;
 use winit_core::error::{NotSupportedError, RequestError};
 use winit_core::icon::Icon;
+use winit_core::impl_surface_downcast;
 use winit_core::monitor::{Fullscreen, MonitorHandle as CoremMonitorHandle};
 use winit_core::window::{
     CursorGrabMode, ImeRequestError, ResizeDirection, Surface as RootSurface, SurfaceId, Theme,
@@ -103,6 +104,8 @@ impl Window {
 }
 
 impl RootSurface for Window {
+    impl_surface_downcast!(Window);
+    
     fn id(&self) -> SurfaceId {
         self.inner.queue(|inner| inner.id)
     }

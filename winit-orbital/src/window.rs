@@ -5,6 +5,7 @@ use std::sync::{Arc, Mutex};
 use dpi::{PhysicalInsets, PhysicalPosition, PhysicalSize, Position, Size};
 use winit_core::cursor::Cursor;
 use winit_core::error::{NotSupportedError, RequestError};
+use winit_core::impl_surface_downcast;
 use winit_core::monitor::{Fullscreen, MonitorHandle as CoreMonitorHandle};
 use winit_core::window::{self, Window as CoreWindow, Surface as CoreSurface, SurfaceId};
 
@@ -157,6 +158,8 @@ impl Window {
 }
 
 impl CoreSurface for Window {
+    impl_surface_downcast!(Window);
+    
     fn id(&self) -> SurfaceId {
         SurfaceId::from_raw(self.window_socket.fd)
     }

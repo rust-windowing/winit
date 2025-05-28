@@ -461,6 +461,12 @@ impl_dyn_casting!(PlatformWindowAttributes);
 /// 
 /// The surface is closed when dropped.
 pub trait Surface: AsAny + Send + Sync + fmt::Debug {
+    /// Attempts to downcast this surface to a core surface type, e.g. [`Window`].
+    fn try_downcast(&self) -> Option<SurfaceDowncastRef<'_>>;
+
+    /// Attempts to downcast this surface mutably to a core surface type, e.g. [`Window`].
+    fn try_downcast_mut(&mut self) -> Option<SurfaceDowncastMut<'_>>;
+
     /// Returns an identifier unique to the window.
     fn id(&self) -> SurfaceId;
 
@@ -1964,4 +1970,48 @@ mod tests {
         )
         .is_some());
     }
+}
+/// Dynamic reference to one of the common surface traits.
+pub enum SurfaceDowncastRef<'a> {
+    /// A toplevel window, see [`Window`] for details.
+    Window(&'a dyn Window),
+}
+
+/// Dynamic mutable reference to one of the common surface traits.
+pub enum SurfaceDowncastMut<'a> {
+    /// A toplevel window, see [`Window`] for details.
+    Window(&'a mut dyn Window),
+}
+
+/// Helper macro for implementing [`Surface::try_downcast`] and [`Surface::try_downcast_mut`].
+/// ## Syntax
+/// Use the names of variants of [`SurfaceDowncastRef`] or [`SurfaceDowncastMut`] to return that type:
+/// ```ignore
+/// impl_surface_downcast!(Window);
+/// ```
+/// You may also use the special identifier `None` to cause the downcast to fail.
+/// ```ignore
+/// impl_surface_downcast!(None);
+/// ```
+#[macro_export]
+macro_rules! impl_surface_downcast {
+    (None) => {
+        fn try_downcast(&self) -> Option<$crate::window::SurfaceDowncastRef<'_>> {
+            None
+        }
+
+        fn try_downcast_mut(&mut self) -> Option<$crate::window::SurfaceDowncastMut<'_>> {
+            None
+        }
+    };
+    ($variant:ident) => {
+        fn try_downcast(&self) -> Option<$crate::window::SurfaceDowncastRef<'_>> {
+            Some($crate::window::SurfaceDowncastRef::$variant(self))
+        }
+
+        fn try_downcast_mut(&mut self) -> Option<$crate::window::SurfaceDowncastMut<'_>> {
+            Some($crate::window::SurfaceDowncastMut::$variant(self))
+            
+        }
+    };
 }
