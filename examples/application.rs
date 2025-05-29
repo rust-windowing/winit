@@ -11,6 +11,7 @@ use std::{fmt, mem};
 
 use ::tracing::{error, info};
 use cursor_icon::CursorIcon;
+use dpi::LogicalPosition;
 #[cfg(not(android_platform))]
 use rwh_06::{DisplayHandle, HasDisplayHandle};
 #[cfg(not(android_platform))]
@@ -34,7 +35,10 @@ use winit::platform::wayland::{ActiveEventLoopExtWayland, WindowAttributesWaylan
 use winit::platform::web::{ActiveEventLoopExtWeb, WindowAttributesWeb};
 #[cfg(x11_platform)]
 use winit::platform::x11::{ActiveEventLoopExtX11, WindowAttributesX11};
-use winit::window::{CursorGrabMode, ResizeDirection, Theme, Window, WindowAttributes, WindowId};
+use winit::window::{
+    CursorGrabMode, ImePurpose, ImeState, ResizeDirection, Theme, Window, WindowAttributes,
+    WindowId,
+};
 use winit_core::application::macos::ApplicationHandlerExtMacOS;
 
 #[path = "util/tracing.rs"]
@@ -45,6 +49,7 @@ mod fill;
 
 /// The amount of points to around the window for drag resize direction calculations.
 const BORDER_SIZE: f64 = 20.;
+const IME_CURSOR_SIZE: PhysicalSize<u32> = PhysicalSize::new(20, 20);
 
 fn main() -> Result<(), Box<dyn Error>> {
     #[cfg(web_platform)]
@@ -600,8 +605,8 @@ impl ApplicationHandlerExtMacOS for Application {
 
 /// State of the window.
 struct WindowState {
-    /// IME input.
-    ime: bool,
+    /// State of the text input exposed to IME
+    ime_state: Option<ImeState>,
     /// Render surface.
     ///
     /// NOTE: This surface must be dropped before the `Window`.
@@ -657,8 +662,14 @@ impl WindowState {
         window.set_cursor(CURSORS[named_idx].into());
 
         // Allow IME out of the box.
-        let ime = true;
-        window.set_ime_allowed(ime);
+        let ime_state = Some(
+            ImeState::new()
+                .with_purpose(ImePurpose::Normal)
+                // cursor_area must be set in the initial call to communicate text field is capable
+                // of it. If sent later, it may be ignored.
+                .with_cursor_area(LogicalPosition { x: 0, y: 0 }.into(), IME_CURSOR_SIZE.into()),
+        );
+        window.set_ime_state(ime_state.as_ref());
 
         let size = window.surface_size();
         let mut state = Self {
@@ -675,7 +686,7 @@ impl WindowState {
             continuous_redraw: false,
             #[cfg(not(android_platform))]
             start_time: std::time::Instant::now(),
-            ime,
+            ime_state,
             cursor_position: Default::default(),
             cursor_hidden: Default::default(),
             modifiers: Default::default(),
@@ -690,11 +701,23 @@ impl WindowState {
     }
 
     pub fn toggle_ime(&mut self) {
-        self.ime = !self.ime;
-        self.window.set_ime_allowed(self.ime);
-        if let Some(position) = self.ime.then_some(self.cursor_position).flatten() {
-            self.window.set_ime_cursor_area(position.into(), PhysicalSize::new(20, 20).into());
-        }
+        self.ime_state = match self.ime_state {
+            Some(_) => None,
+            None => {
+                let cursor_pos = self
+                    .cursor_position
+                    .map(Into::into)
+                    .unwrap_or(LogicalPosition { x: 0, y: 0 }.into());
+                Some(
+                    ImeState::new()
+                        .with_purpose(ImePurpose::Normal)
+                        // cursor_area must be set in the initial call to communicate text field is
+                        // capable of it. If sent later, it may be ignored.
+                        .with_cursor_area(cursor_pos, IME_CURSOR_SIZE.into()),
+                )
+            },
+        };
+        self.window.set_ime_state(self.ime_state.as_ref());
     }
 
     pub fn minimize(&mut self) {
@@ -703,9 +726,11 @@ impl WindowState {
 
     pub fn cursor_moved(&mut self, position: PhysicalPosition<f64>) {
         self.cursor_position = Some(position);
-        if self.ime {
-            self.window.set_ime_cursor_area(position.into(), PhysicalSize::new(20, 20).into());
-        }
+        self.ime_state = self
+            .ime_state
+            .clone()
+            .map(|ime| ime.with_cursor_area(position.into(), PhysicalSize::new(20, 20).into()));
+        self.window.set_ime_state(self.ime_state.as_ref());
     }
 
     pub fn cursor_left(&mut self) {
