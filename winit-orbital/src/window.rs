@@ -6,7 +6,7 @@ use dpi::{PhysicalInsets, PhysicalPosition, PhysicalSize, Position, Size};
 use winit_core::cursor::Cursor;
 use winit_core::error::{NotSupportedError, RequestError};
 use winit_core::monitor::{Fullscreen, MonitorHandle as CoreMonitorHandle};
-use winit_core::window::{self, ImePurpose, Window as CoreWindow, WindowId};
+use winit_core::window::{self, Window as CoreWindow, WindowId};
 
 use crate::event_loop::{ActiveEventLoop, EventLoopProxy};
 use crate::{RedoxSocket, WindowProperties};
@@ -159,6 +159,10 @@ impl Window {
 impl CoreWindow for Window {
     fn id(&self) -> WindowId {
         WindowId::from_raw(self.window_socket.fd)
+    }
+
+    fn ime_capabilities(&self) -> Option<window::ImeCapabilities> {
+        None
     }
 
     #[inline]
@@ -354,14 +358,9 @@ impl CoreWindow for Window {
     #[inline]
     fn set_window_icon(&self, _window_icon: Option<winit_core::icon::Icon>) {}
 
-    #[inline]
-    fn set_ime_cursor_area(&self, _position: Position, _size: Size) {}
-
-    #[inline]
-    fn set_ime_allowed(&self, _allowed: bool) {}
-
-    #[inline]
-    fn set_ime_purpose(&self, _purpose: ImePurpose) {}
+    fn request_ime_update(&self, _: window::ImeRequest) -> Result<(), window::ImeRequestError> {
+        Err(window::ImeRequestError::NotSupported)
+    }
 
     #[inline]
     fn focus_window(&self) {}

@@ -46,8 +46,8 @@ use winit_core::event::{SurfaceSizeWriter, WindowEvent};
 use winit_core::icon::Icon;
 use winit_core::monitor::{Fullscreen, MonitorHandle as CoreMonitorHandle, MonitorHandleProvider};
 use winit_core::window::{
-    CursorGrabMode, ImePurpose, ResizeDirection, Theme, UserAttentionType, WindowAttributes,
-    WindowButtons, WindowId, WindowLevel,
+    CursorGrabMode, ImeCapabilities, ImeRequest, ImeRequestError, ResizeDirection, Theme,
+    UserAttentionType, WindowAttributes, WindowButtons, WindowId, WindowLevel,
 };
 
 use super::app_state::AppState;
@@ -1674,25 +1674,49 @@ impl WindowDelegate {
         // https://developer.apple.com/library/content/documentation/Cocoa/Conceptual/WinPanel/Tasks/SettingWindowTitle.html
     }
 
-    #[inline]
-    pub fn set_ime_cursor_area(&self, spot: Position, size: Size) {
-        let scale_factor = self.scale_factor();
-        let logical_spot = spot.to_logical(scale_factor);
-        let logical_spot = NSPoint::new(logical_spot.x, logical_spot.y);
+    pub fn request_ime_update(&self, request: ImeRequest) -> Result<(), ImeRequestError> {
+        let current_caps = self.view().ime_capabilities();
+        let request_data = match request {
+            ImeRequest::Enable(enable) => {
+                let (capabilities, request_data) = enable.into_raw();
+                if current_caps.is_some() {
+                    return Err(ImeRequestError::AlreadyEnabled);
+                }
+                self.view().set_ime_allowed(Some(capabilities));
+                request_data
+            },
+            ImeRequest::Update(request_data) => {
+                if current_caps.is_none() {
+                    return Err(ImeRequestError::NotEnabled);
+                }
+                request_data
+            },
+            ImeRequest::Disable => {
+                self.view().set_ime_allowed(None);
+                return Ok(());
+            },
+        };
 
-        let size = size.to_logical(scale_factor);
-        let size = NSSize::new(size.width, size.height);
+        if let Some((spot, size)) = request_data.cursor_area {
+            if self.view().ime_capabilities().unwrap().contains(ImeCapabilities::CURSOR_AREA) {
+                let scale_factor = self.scale_factor();
+                let logical_spot = spot.to_logical(scale_factor);
+                let logical_spot = NSPoint::new(logical_spot.x, logical_spot.y);
 
-        self.view().set_ime_cursor_area(logical_spot, size);
+                let size = size.to_logical(scale_factor);
+                let size = NSSize::new(size.width, size.height);
+                self.view().set_ime_cursor_area(logical_spot, size);
+            } else {
+                warn!("discarding IME cursor area update without capability enabled.");
+            }
+        }
+
+        Ok(())
     }
 
-    #[inline]
-    pub fn set_ime_allowed(&self, allowed: bool) {
-        self.view().set_ime_allowed(allowed);
+    pub fn ime_capabilities(&self) -> Option<ImeCapabilities> {
+        self.view().ime_capabilities()
     }
-
-    #[inline]
-    pub fn set_ime_purpose(&self, _purpose: ImePurpose) {}
 
     #[inline]
     pub fn focus_window(&self) {

@@ -23,8 +23,9 @@ use winit_core::event_loop::{
 };
 use winit_core::monitor::{Fullscreen, MonitorHandle as CoreMonitorHandle};
 use winit_core::window::{
-    self, CursorGrabMode, ImePurpose, ResizeDirection, Theme, Window as CoreWindow,
-    WindowAttributes, WindowButtons, WindowId, WindowLevel,
+    self, CursorGrabMode, ImeCapabilities, ImePurpose, ImeRequest, ImeRequestError,
+    ResizeDirection, Theme, Window as CoreWindow, WindowAttributes, WindowButtons, WindowId,
+    WindowLevel,
 };
 
 use crate::keycodes;
@@ -758,6 +759,7 @@ pub struct PlatformSpecificWindowAttributes;
 #[derive(Debug)]
 pub struct Window {
     app: AndroidApp,
+    ime_capabilities: Mutex<Option<ImeCapabilities>>,
     redraw_requester: RedrawRequester,
 }
 
@@ -768,7 +770,11 @@ impl Window {
     ) -> Result<Self, RequestError> {
         // FIXME this ignores requested window attributes
 
-        Ok(Self { app: el.app.clone(), redraw_requester: el.redraw_requester.clone() })
+        Ok(Self {
+            app: el.app.clone(),
+            ime_capabilities: Default::default(),
+            redraw_requester: el.redraw_requester.clone(),
+        })
     }
 
     pub(crate) fn config(&self) -> ConfigurationRef {
@@ -936,12 +942,33 @@ impl CoreWindow for Window {
 
     fn set_ime_cursor_area(&self, _position: Position, _size: Size) {}
 
-    fn set_ime_allowed(&self, allowed: bool) {
-        if allowed {
-            self.app.show_soft_input(true);
-        } else {
-            self.app.hide_soft_input(true);
+    fn request_ime_update(&self, request: ImeRequest) -> Result<(), ImeRequestError> {
+        let mut current_caps = self.ime_capabilities.lock().unwrap();
+        match request {
+            ImeRequest::Enable(enable) => {
+                let (capabilities, _) = enable.into_raw();
+                if current_caps.is_some() {
+                    return Err(ImeRequestError::AlreadyEnabled);
+                }
+                *current_caps = Some(capabilities);
+                self.app.show_soft_input(true);
+            },
+            ImeRequest::Update(_) => {
+                if current_caps.is_none() {
+                    return Err(ImeRequestError::NotEnabled);
+                }
+            },
+            ImeRequest::Disable => {
+                *current_caps = None;
+                self.app.hide_soft_input(true);
+            },
         }
+
+        Ok(())
+    }
+
+    fn ime_capabilities(&self) -> Option<ImeCapabilities> {
+        *self.ime_capabilities.lock().unwrap()
     }
 
     fn set_ime_purpose(&self, _purpose: ImePurpose) {}

@@ -82,6 +82,7 @@ changelog entry.
 - `ActivationToken::as_raw` to get a ref to raw token.
 - Each platform now has corresponding `WindowAttributes` struct instead of trait extension.
 - On Wayland, added implementation for `Window::set_window_icon`
+- Add `Window::request_ime_update` to atomically apply set of IME changes.
 
 ### Changed
 
@@ -203,6 +204,7 @@ changelog entry.
 - Move `EventLoopExtPumpEvents` and `PumpStatus` from platform module to `winit::event_loop::pump_events`.
 - Move `EventLoopExtRunOnDemand` from platform module to `winit::event_loop::run_on_demand`.
 - Use `NamedKey`, `Code` and `Location` from the `keyboard-types` v0.8 crate.
+- Deprecate `Window::set_ime_allowed`, `Window::set_ime_cursor_area`, and `Window::set_ime_purpose`.
 
 ### Removed
 
