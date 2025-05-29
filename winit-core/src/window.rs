@@ -819,7 +819,7 @@ impl rwh_06::HasWindowHandle for dyn Surface + '_ {
 ///
 /// **Web:** The [`Window`], which is represented by a `HTMLElementCanvas`, can
 /// not be closed by dropping the [`Window`].
-pub trait Window: Surface {
+pub trait Window: AsSurface {
     /// Reset the dead key state of the keyboard.
     ///
     /// This is useful when a dead key is bound to trigger an action. Then
@@ -1971,16 +1971,63 @@ mod tests {
         .is_some());
     }
 }
+// Implementation trait to allow upcasting to [`Surface`].
+// This trait can be safely removed once MSRV hits Rust 1.86, similar to `AsAny`.
+#[doc(hidden)]
+pub trait AsSurface: Surface {
+    #[doc(hidden)]
+    fn __as_surface(&self) -> &dyn Surface;
+    #[doc(hidden)]
+    fn __as_surface_mut(&mut self) -> &mut dyn Surface;
+    #[doc(hidden)]
+    fn __into_surface(self: Box<Self>) -> Box<dyn Surface>;
+}
+
+impl<T: Surface> AsSurface for T {
+    fn __as_surface(&self) -> &dyn Surface {
+        self
+    }
+
+    fn __as_surface_mut(&mut self) -> &mut dyn Surface {
+        self
+    }
+
+    fn __into_surface(self: Box<Self>) -> Box<dyn Surface> {
+        self
+    }
+}
+
 /// Dynamic reference to one of the common surface traits.
+#[non_exhaustive]
 pub enum SurfaceDowncastRef<'a> {
     /// A toplevel window, see [`Window`] for details.
     Window(&'a dyn Window),
+}
+
+impl SurfaceDowncastRef<'_> {
+    /// Tries to cast this reference into a [`Window`].
+    pub fn as_window(&self) -> Option<&'_ dyn Window> {
+        match self {
+            Self::Window(window) => Some(*window),
+            _ => None,
+        }
+    }
 }
 
 /// Dynamic mutable reference to one of the common surface traits.
 pub enum SurfaceDowncastMut<'a> {
     /// A toplevel window, see [`Window`] for details.
     Window(&'a mut dyn Window),
+}
+
+impl SurfaceDowncastMut<'_> {
+    /// Tries to cast this reference into a [`Window`].
+    pub fn as_window(&mut self) -> Option<&'_ mut dyn Window> {
+        match self {
+            Self::Window(window) => Some(*window),
+            _ => None,
+        }
+    }
 }
 
 /// Helper macro for implementing [`Surface::try_downcast`] and [`Surface::try_downcast_mut`].
