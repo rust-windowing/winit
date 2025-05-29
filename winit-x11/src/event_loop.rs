@@ -28,7 +28,7 @@ use winit_core::event_loop::{
     OwnedDisplayHandle as CoreOwnedDisplayHandle,
 };
 use winit_core::monitor::MonitorHandle as CoreMonitorHandle;
-use winit_core::window::{Theme, Window as CoreWindow, WindowAttributes, WindowId};
+use winit_core::window::{Theme, Window as CoreWindow, WindowAttributes, SurfaceId};
 use x11rb::connection::RequestConnection;
 use x11rb::errors::{ConnectError, ConnectionError, IdsExhausted, ReplyError};
 use x11rb::protocol::xinput::{self, ConnectionExt as _};
@@ -176,8 +176,8 @@ pub struct ActiveEventLoop {
     exit: Cell<Option<i32>>,
     pub(crate) root: xproto::Window,
     pub(crate) ime: Option<RefCell<Ime>>,
-    pub(crate) windows: RefCell<HashMap<WindowId, Weak<UnownedWindow>>>,
-    pub(crate) redraw_sender: WakeSender<WindowId>,
+    pub(crate) windows: RefCell<HashMap<SurfaceId, Weak<UnownedWindow>>>,
+    pub(crate) redraw_sender: WakeSender<SurfaceId>,
     pub(crate) activation_sender: WakeSender<ActivationItem>,
     event_loop_proxy: CoreEventLoopProxy,
     device_events: Cell<DeviceEvents>,
@@ -188,14 +188,14 @@ pub struct EventLoop {
     loop_running: bool,
     event_loop: Loop<'static, EventLoopState>,
     event_processor: EventProcessor,
-    redraw_receiver: PeekableReceiver<WindowId>,
+    redraw_receiver: PeekableReceiver<SurfaceId>,
     activation_receiver: PeekableReceiver<ActivationItem>,
 
     /// The current state of the event loop.
     state: EventLoopState,
 }
 
-pub(crate) type ActivationItem = (WindowId, winit_core::event_loop::AsyncRequestSerial);
+pub(crate) type ActivationItem = (SurfaceId, winit_core::event_loop::AsyncRequestSerial);
 
 #[derive(Debug)]
 struct EventLoopState {
@@ -991,8 +991,8 @@ impl<E: fmt::Debug> CookieResultExt for Result<VoidCookie<'_>, E> {
     }
 }
 
-pub(crate) fn mkwid(w: xproto::Window) -> winit_core::window::WindowId {
-    winit_core::window::WindowId::from_raw(w as _)
+pub(crate) fn mkwid(w: xproto::Window) -> winit_core::window::SurfaceId {
+    winit_core::window::SurfaceId::from_raw(w as _)
 }
 
 pub(crate) fn mkdid(w: xinput::DeviceId) -> DeviceId {

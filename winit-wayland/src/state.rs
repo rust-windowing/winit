@@ -33,7 +33,7 @@ use crate::types::wp_fractional_scaling::FractionalScalingManager;
 use crate::types::wp_viewporter::ViewporterState;
 use crate::types::xdg_activation::XdgActivationState;
 use crate::window::{WindowRequests, WindowState};
-use crate::WindowId;
+use crate::SurfaceId;
 
 /// Winit's Wayland state.
 #[derive(Debug)]
@@ -63,10 +63,10 @@ pub struct WinitState {
     pub xdg_shell: XdgShell,
 
     /// The currently present windows.
-    pub windows: RefCell<AHashMap<WindowId, Arc<Mutex<WindowState>>>>,
+    pub windows: RefCell<AHashMap<SurfaceId, Arc<Mutex<WindowState>>>>,
 
     /// The requests from the `Window` to EventLoop, such as close operations and redraw requests.
-    pub window_requests: RefCell<AHashMap<WindowId, Arc<WindowRequests>>>,
+    pub window_requests: RefCell<AHashMap<SurfaceId, Arc<WindowRequests>>>,
 
     /// The events that were generated directly from the window.
     pub window_events_sink: Arc<Mutex<EventSink>>,
@@ -241,7 +241,7 @@ impl WinitState {
         }
     }
 
-    pub fn queue_close(updates: &mut Vec<WindowCompositorUpdate>, window_id: WindowId) {
+    pub fn queue_close(updates: &mut Vec<WindowCompositorUpdate>, window_id: SurfaceId) {
         let pos = if let Some(pos) = updates.iter().position(|update| update.window_id == window_id)
         {
             pos
@@ -411,7 +411,7 @@ impl ProvidesRegistryState for WinitState {
 #[derive(Debug, Clone, Copy)]
 pub struct WindowCompositorUpdate {
     /// The id of the window this updates belongs to.
-    pub window_id: WindowId,
+    pub window_id: SurfaceId,
 
     /// New window size.
     pub resized: bool,
@@ -424,7 +424,7 @@ pub struct WindowCompositorUpdate {
 }
 
 impl WindowCompositorUpdate {
-    fn new(window_id: WindowId) -> Self {
+    fn new(window_id: SurfaceId) -> Self {
         Self { window_id, resized: false, scale_changed: false, close_window: false }
     }
 }

@@ -17,7 +17,7 @@ use winit_core::keyboard::ModifiersState;
 
 use crate::event_loop::sink::EventSink;
 use crate::state::WinitState;
-use crate::WindowId;
+use crate::SurfaceId;
 
 impl Dispatch<WlKeyboard, KeyboardData, WinitState> for WinitState {
     fn event(
@@ -344,7 +344,7 @@ impl Default for RepeatInfo {
 #[derive(Debug)]
 pub struct KeyboardData {
     /// The currently focused window surface. Could be `None` on bugged compositors, like mutter.
-    window_id: Mutex<Option<WindowId>>,
+    window_id: Mutex<Option<SurfaceId>>,
 
     /// The seat used to create this keyboard.
     seat: WlSeat,

@@ -7,7 +7,7 @@ use winit::event::WindowEvent;
 use winit::event_loop::{ActiveEventLoop, EventLoop};
 #[cfg(web_platform)]
 use winit::platform::web::WindowAttributesWeb;
-use winit::window::{Window, WindowAttributes, WindowId};
+use winit::window::{Window, WindowAttributes, SurfaceId};
 
 #[path = "util/fill.rs"]
 mod fill;
@@ -36,7 +36,7 @@ impl ApplicationHandler for App {
         }
     }
 
-    fn window_event(&mut self, event_loop: &dyn ActiveEventLoop, _: WindowId, event: WindowEvent) {
+    fn window_event(&mut self, event_loop: &dyn ActiveEventLoop, _: SurfaceId, event: WindowEvent) {
         println!("{event:?}");
         match event {
             WindowEvent::CloseRequested => {

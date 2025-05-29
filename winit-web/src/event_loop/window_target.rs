@@ -15,7 +15,7 @@ use winit_core::event_loop::{
 };
 use winit_core::keyboard::ModifiersState;
 use winit_core::monitor::MonitorHandle as CoremMonitorHandle;
-use winit_core::window::{Theme, WindowId};
+use winit_core::window::{Theme, SurfaceId};
 
 use super::super::lock;
 use super::super::monitor::MonitorPermissionFuture;
@@ -61,15 +61,15 @@ impl ActiveEventLoop {
         self.runner.start(app, self.clone());
     }
 
-    pub fn generate_id(&self) -> WindowId {
-        WindowId::from_raw(self.runner.generate_id())
+    pub fn generate_id(&self) -> SurfaceId {
+        SurfaceId::from_raw(self.runner.generate_id())
     }
 
     pub fn create_custom_cursor_async(&self, source: CustomCursorSource) -> CustomCursorFuture {
         CustomCursorFuture(CustomCursor::new_async(self, source))
     }
 
-    pub fn register(&self, canvas: &Rc<backend::Canvas>, window_id: WindowId) {
+    pub fn register(&self, canvas: &Rc<backend::Canvas>, window_id: SurfaceId) {
         let canvas_clone = canvas.clone();
 
         canvas.on_touch_start();
