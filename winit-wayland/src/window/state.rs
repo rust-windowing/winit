@@ -30,12 +30,13 @@ use tracing::{info, warn};
 use wayland_protocols_plasma::blur::client::org_kde_kwin_blur::OrgKdeKwinBlur;
 use winit_core::cursor::{CursorIcon, CustomCursor as CoreCustomCursor};
 use winit_core::error::{NotSupportedError, RequestError};
-use winit_core::window::{CursorGrabMode, ImePurpose, ResizeDirection, Theme, WindowId};
+use winit_core::window::{CursorGrabMode, ImeState, ResizeDirection, Theme, WindowId};
 
 use crate::event_loop::OwnedDisplayHandle;
 use crate::logical_to_physical_rounded;
 use crate::seat::{
-    PointerConstraintsState, WinitPointerData, WinitPointerDataExt, ZwpTextInputV3Ext,
+    PointerConstraintsState, TextInputClientState, WinitPointerData, WinitPointerDataExt,
+    ZwpTextInputV3Ext,
 };
 use crate::state::{WindowCompositorUpdate, WinitState};
 use crate::types::cursor::{CustomCursor, SelectedCursor, WaylandCustomCursor};
@@ -104,11 +105,11 @@ pub struct WindowState {
     /// The current cursor grabbing mode.
     cursor_grab_mode: GrabState,
 
-    /// Whether the IME input is allowed for that window.
-    ime_allowed: bool,
-
-    /// The current IME purpose.
-    ime_purpose: ImePurpose,
+    /// The input method properties provided by the application to the IME.
+    ///
+    /// This state is cached here so that the window can automatically send the state to the IME as
+    /// soon as it becomes available without application involvement.
+    text_input_state: Option<TextInputClientState>,
 
     /// The text inputs observed on the window.
     text_inputs: Vec<ZwpTextInputV3>,
@@ -195,8 +196,7 @@ impl WindowState {
             frame_callback_state: FrameCallbackState::None,
             seat_focus: Default::default(),
             has_pending_move: None,
-            ime_allowed: false,
-            ime_purpose: ImePurpose::Normal,
+            text_input_state: None,
             last_configure: None,
             max_surface_size: None,
             min_surface_size: MIN_WINDOW_SIZE,
@@ -529,7 +529,7 @@ impl WindowState {
     /// Whether the IME is allowed.
     #[inline]
     pub fn ime_allowed(&self) -> bool {
-        self.ime_allowed
+        self.text_input_state.is_some()
     }
 
     /// Get the size of the window.
@@ -967,51 +967,35 @@ impl WindowState {
         self.seat_focus.remove(seat);
     }
 
-    /// Returns `true` if the requested state was applied.
-    pub fn set_ime_allowed(&mut self, allowed: bool) -> bool {
-        self.ime_allowed = allowed;
+    /// Get the requested IME state
+    pub fn text_input_state(&self) -> Option<&TextInputClientState> {
+        self.text_input_state.as_ref()
+    }
 
-        let mut applied = false;
-        for text_input in &self.text_inputs {
-            applied = true;
-            if allowed {
-                text_input.enable();
-                text_input.set_content_type_by_purpose(self.ime_purpose);
-            } else {
-                text_input.disable();
+    /// Atomically update input method state.
+    ///
+    /// Returns `true` if an input method already exists (received .enter without .leave).
+    pub fn set_ime_state(&mut self, state: Option<&ImeState>) -> bool {
+        let state = state.map(|state| TextInputClientState::new(state, self.scale_factor()));
+
+        // Only one input method may be active per (seat, surface),
+        // but there may be multiple seats focused on a surface,
+        // resulting in multiple text input objects.
+        //
+        // WARNING: this doesn't actually handle different seats with independent cursors. There's
+        // no API to set a per-seat input method state, so they all share a single state.
+        if let Some(state) = &state {
+            for text_input in &self.text_inputs {
+                text_input.set_state(Some(state.clone()), self.text_input_state.is_some());
             }
-            text_input.commit();
-        }
+        } else {
+            for text_input in &self.text_inputs {
+                text_input.set_state(None, self.text_input_state.is_some());
+            }
+        };
 
-        applied
-    }
-
-    /// Set the IME position.
-    pub fn set_ime_cursor_area(&self, position: LogicalPosition<u32>, size: LogicalSize<u32>) {
-        // FIXME: This won't fly unless user will have a way to request IME window per seat, since
-        // the ime windows will be overlapping, but winit doesn't expose API to specify for
-        // which seat we're setting IME position.
-        let (x, y) = (position.x as i32, position.y as i32);
-        let (width, height) = (size.width as i32, size.height as i32);
-        for text_input in self.text_inputs.iter() {
-            text_input.set_cursor_rectangle(x, y, width, height);
-            text_input.commit();
-        }
-    }
-
-    /// Set the IME purpose.
-    pub fn set_ime_purpose(&mut self, purpose: ImePurpose) {
-        self.ime_purpose = purpose;
-
-        for text_input in &self.text_inputs {
-            text_input.set_content_type_by_purpose(purpose);
-            text_input.commit();
-        }
-    }
-
-    /// Get the IME purpose.
-    pub fn ime_purpose(&self) -> ImePurpose {
-        self.ime_purpose
+        self.text_input_state = state;
+        self.text_inputs.is_empty()
     }
 
     /// Set the scale factor for the given window.

@@ -20,8 +20,8 @@ use winit_core::monitor::{
     Fullscreen, MonitorHandle as CoreMonitorHandle, MonitorHandleProvider, VideoMode,
 };
 use winit_core::window::{
-    CursorGrabMode, ImePurpose, ResizeDirection, Theme, UserAttentionType, Window as CoreWindow,
-    WindowAttributes, WindowButtons, WindowId, WindowLevel,
+    CursorGrabMode, ImePurpose, ImeState, ResizeDirection, Theme, UserAttentionType,
+    Window as CoreWindow, WindowAttributes, WindowButtons, WindowId, WindowLevel,
 };
 use x11rb::connection::{Connection, RequestConnection};
 use x11rb::properties::{WmHints, WmSizeHints, WmSizeHintsSpecification};
@@ -220,6 +220,10 @@ impl CoreWindow for Window {
 
     fn set_ime_purpose(&self, purpose: ImePurpose) {
         self.0.set_ime_purpose(purpose);
+    }
+
+    fn set_ime_state(&self, state: Option<&ImeState>) -> bool {
+        self.0.set_ime_state(state)
     }
 
     fn focus_window(&self) {
@@ -2082,6 +2086,23 @@ impl UnownedWindow {
 
     #[inline]
     pub fn set_ime_purpose(&self, _purpose: ImePurpose) {}
+
+    #[inline]
+    pub fn set_ime_state(&self, state: Option<&ImeState>) -> bool {
+        if let Some(state) = state {
+            // FIXME: Not sure if this can be called every time or may only be called once
+            self.set_ime_allowed(true);
+            if let Some((position, size)) = state.cursor_area {
+                self.set_ime_cursor_area(position, size);
+            }
+        } else {
+            self.set_ime_allowed(false);
+        }
+        // Pretend that there is always some input method available.
+        // Better to make an application think it has an input method and send more events when it
+        // doesn't than think there is no input method and not send any IME events.
+        true
+    }
 
     #[inline]
     pub fn focus_window(&self) {
