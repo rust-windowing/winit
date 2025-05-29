@@ -1127,6 +1127,29 @@ pub trait Window: AsAny + Send + Sync + fmt::Debug {
     /// - **iOS / Android / Web / Windows / X11 / macOS / Orbital:** Unsupported.
     fn set_ime_purpose(&self, purpose: ImePurpose);
 
+    /// Atomically sets the IME state for the window using [`ImeState`].
+    ///
+    /// If the state is Some, this requests an input method, and the window begins to receive input
+    /// method events.
+    ///
+    /// If the state is None, this disables the input method, and the window stops receiving input
+    /// method events.
+    ///
+    /// Input methods allows the user to compose text without using a keyboard. Requesting one may
+    /// be beneficial for touch screen environments or ones where, for example, East Asian scripts
+    /// may be entered.
+    ///
+    /// If the focus within the application changes from one logical text input area to another, the
+    /// application should inform the IME of the switch by disabling the IME and enabling it again
+    /// in the other area.
+    ///
+    /// IME is **not** enabled by default.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **iOS / Android / Web / Windows / X11 / macOS / Orbital:** Unsupported.
+    fn set_ime_state(&self, state: Option<&ImeState>);
+
     /// Brings the window to the front and sets input focus. Has no effect if the window is
     /// already in focus, minimized, or not visible.
     ///
@@ -1525,6 +1548,94 @@ pub enum ImePurpose {
 impl Default for ImePurpose {
     fn default() -> Self {
         Self::Normal
+    }
+}
+
+/// The IME state for use in [`Window::set_ime_state`].
+///
+/// This applies an IME state change all at once.
+///
+/// ## Platform-specific
+///
+/// - **iOS / Android / Web / Windows / X11 / macOS / Orbital:** Unsupported.
+#[non_exhaustive]
+#[derive(Debug, PartialEq, Clone)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub struct ImeState {
+    /// Text input purpose
+    pub purpose: ImePurpose,
+    /// The IME cursor area which should not be covered by the input method popup.
+    pub cursor_area: Option<(Position, Size)>,
+}
+
+impl Default for ImeState {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl ImeState {
+    /// Creates a new input method state.
+    pub fn new() -> Self {
+        Self { purpose: ImePurpose::Normal, cursor_area: None }
+    }
+
+    /// Sets the purpose hint of the current text input
+    ///
+    /// ## Platform-specific
+    ///
+    /// On Wayland, the content purpose be set from the first request.
+    /// Otherwise, the input method will consider the functionality unsupported.
+    pub fn with_purpose(self, purpose: ImePurpose) -> Self {
+        Self { purpose, ..self }
+    }
+
+    /// Sets the IME cursor editing area.
+    ///
+    /// The `position` is the top left corner of that area
+    /// in surface coordinates and `size` is the size of this area starting from the position. An
+    /// example of such area could be a input field in the UI or line in the editor.
+    ///
+    /// The windowing system could place a candidate box close to that area, but try to not obscure
+    /// the specified area, so the user input to it stays visible.
+    ///
+    /// The candidate box is the window / popup / overlay that allows you to select the desired
+    /// characters. The look of this box may differ between input devices, even on the same
+    /// platform.
+    ///
+    /// (Apple's official term is "candidate window", see their [chinese] and [japanese] guides).
+    ///
+    /// ## Example
+    ///
+    /// ```no_run
+    /// # use dpi::{LogicalPosition, PhysicalPosition, LogicalSize, PhysicalSize};
+    /// # use winit_core::window::ImeState;
+    /// # fn scope(ime_state: ImeState) {
+    /// // Specify the position in logical dimensions like this:
+    /// let ime_state = ime_state.with_cursor_area(
+    ///     LogicalPosition::new(400.0, 200.0).into(),
+    ///     LogicalSize::new(100, 100).into(),
+    /// );
+    ///
+    /// // Or specify the position in physical dimensions like this:
+    /// let ime_state = ime_state.with_cursor_area(
+    ///     PhysicalPosition::new(400, 200).into(),
+    ///     PhysicalSize::new(100, 100).into(),
+    /// );
+    /// # }
+    /// ```
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **iOS / Android / Web / Orbital:** Unsupported.
+    ///
+    /// On Wayland, the cursor area should be set from the first request. Otherwise, the input
+    /// method will consider the functionality unsupported.
+    ///
+    /// [chinese]: https://support.apple.com/guide/chinese-input-method/use-the-candidate-window-cim12992/104/mac/12.0
+    /// [japanese]: https://support.apple.com/guide/japanese-input-method/use-the-candidate-window-jpim10262/6.3/mac/12.0
+    pub fn with_cursor_area(self, position: Position, size: Size) -> Self {
+        Self { cursor_area: Some((position, size)), ..self }
     }
 }
 

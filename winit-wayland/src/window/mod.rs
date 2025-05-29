@@ -20,8 +20,8 @@ use winit_core::event::{Ime, WindowEvent};
 use winit_core::event_loop::AsyncRequestSerial;
 use winit_core::monitor::{Fullscreen, MonitorHandle as CoreMonitorHandle};
 use winit_core::window::{
-    CursorGrabMode, ImePurpose, ResizeDirection, Theme, UserAttentionType, Window as CoreWindow,
-    WindowAttributes, WindowButtons, WindowId, WindowLevel,
+    CursorGrabMode, ImePurpose, ImeState, ResizeDirection, Theme, UserAttentionType,
+    Window as CoreWindow, WindowAttributes, WindowButtons, WindowId, WindowLevel,
 };
 
 use super::event_loop::sink::EventSink;
@@ -74,6 +74,9 @@ pub struct Window {
 
     /// The event sink to deliver synthetic events.
     window_events_sink: Arc<Mutex<EventSink>>,
+
+    /// The state of the input method for the deprecated API
+    ime_state: Mutex<Option<ImeState>>,
 }
 
 impl Window {
@@ -219,6 +222,7 @@ impl Window {
             event_loop_awakener,
             window_requests,
             window_events_sink,
+            ime_state: Mutex::new(None),
         })
     }
 
@@ -505,29 +509,58 @@ impl CoreWindow for Window {
 
     #[inline]
     fn set_ime_cursor_area(&self, position: Position, size: Size) {
-        let window_state = self.window_state.lock().unwrap();
-        if window_state.ime_allowed() {
-            let scale_factor = window_state.scale_factor();
-            let position = position.to_logical(scale_factor);
-            let size = size.to_logical(scale_factor);
-            window_state.set_ime_cursor_area(position, size);
-        }
+        let new_state = {
+            let mut state = self.ime_state.lock().unwrap();
+            if let Some(state) = state.as_mut() {
+                *state = state.clone().with_cursor_area(position, size);
+            }
+            state.clone()
+        };
+        self.set_ime_state(new_state.as_ref());
     }
 
     #[inline]
     fn set_ime_allowed(&self, allowed: bool) {
-        let mut window_state = self.window_state.lock().unwrap();
-
-        if window_state.ime_allowed() != allowed && window_state.set_ime_allowed(allowed) {
-            let event = WindowEvent::Ime(if allowed { Ime::Enabled } else { Ime::Disabled });
-            self.window_events_sink.lock().unwrap().push_window_event(event, self.window_id);
-            self.event_loop_awakener.ping();
-        }
+        let new_state = {
+            let mut state = self.ime_state.lock().unwrap();
+            *state = if allowed { Some(ImeState::new()) } else { None };
+            state.clone()
+        };
+        self.set_ime_state(new_state.as_ref())
     }
 
     #[inline]
     fn set_ime_purpose(&self, purpose: ImePurpose) {
-        self.window_state.lock().unwrap().set_ime_purpose(purpose);
+        let new_state = {
+            let mut state = self.ime_state.lock().unwrap();
+            if let Some(state) = state.as_mut() {
+                *state = state.clone().with_purpose(purpose);
+            }
+            state.clone()
+        };
+        self.set_ime_state(new_state.as_ref());
+    }
+
+    #[inline]
+    fn set_ime_state(&self, state: Option<&ImeState>) {
+        // The Ime::Enabled event is sent under two circumstances:
+        // 1. An input method exists and was now allowed
+        // 2. No input method exists, then it was allowed, and it appears.
+        //
+        // The `allow` call appears in both scenarios, but in 2., ::Enable is sent from the
+        // text_input.enter handler. This means that this allow call here must send ::Enable
+        // in 1. That's why we need to know if there was an existing input method.
+        let allowed = state.is_some();
+
+        let mut window_state = self.window_state.lock().unwrap();
+        let ime_exists = window_state.set_ime_state(state);
+        let window_state = window_state;
+
+        if window_state.ime_allowed() != allowed && ime_exists {
+            let event = WindowEvent::Ime(if allowed { Ime::Enabled } else { Ime::Disabled });
+            self.window_events_sink.lock().unwrap().push_window_event(event, self.window_id);
+            self.event_loop_awakener.ping();
+        }
     }
 
     fn focus_window(&self) {}
