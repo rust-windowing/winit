@@ -57,7 +57,7 @@ pub struct WinitState {
     pub seat_state: SeatState,
 
     pub data_device_manager_state: DataDeviceManagerState,
-    pub dnd_offers: AHashMap<ObjectId, DndOfferState>,
+    pub dnd_offer: Option<DndOfferState>,
 
     /// The shm for software buffers, such as cursors.
     pub shm: Shm,
@@ -148,7 +148,6 @@ impl WinitState {
 
         let data_device_manager_state =
             DataDeviceManagerState::bind(globals, queue_handle).map_err(WaylandError::Bind)?;
-        let dnd_offers = AHashMap::default();
 
         let seat_state = SeatState::new(globals, queue_handle);
 
@@ -175,7 +174,7 @@ impl WinitState {
             seat_state,
 
             data_device_manager_state,
-            dnd_offers,
+            dnd_offer: None,
 
             shm,
             custom_cursor_pool,

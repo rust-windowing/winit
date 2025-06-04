@@ -6,7 +6,7 @@ use wayland_client::protocol::wl_data_device::WlDataDevice;
 use wayland_client::protocol::wl_data_device_manager::DndAction;
 use wayland_client::protocol::wl_data_source::WlDataSource;
 use wayland_client::protocol::wl_surface::WlSurface;
-use wayland_client::{Connection, Proxy, QueueHandle};
+use wayland_client::{Connection, QueueHandle};
 
 use crate::event::WindowEvent;
 use crate::platform_impl::wayland::state::WinitState;
@@ -44,14 +44,13 @@ impl DataDeviceHandler for WinitState {
                     offer.set_actions(DndAction::Copy, DndAction::Copy);
 
                     if let Ok(read_pipe) = offer.receive(mime_type) {
-                        let surface_id = offer.surface.id();
-                        let current_offer = offer.clone();
-                        let window_id = wayland::make_wid(&offer.surface);
+                        let surface = offer.surface;
+                        let window_id = wayland::make_wid(&surface);
 
                         self.read_file_paths(read_pipe, move |state, path| {
-                            state.dnd_offers.insert(surface_id.clone(), DndOfferState {
-                                offer: current_offer.clone(),
-                                file_path: path.clone(),
+                            state.dnd_offer = Some(DndOfferState {
+                                surface: surface.clone(),
+                                path: path.clone(),
                             });
 
                             state
@@ -64,21 +63,10 @@ impl DataDeviceHandler for WinitState {
         }
     }
 
-    fn leave(&mut self, _: &Connection, _: &QueueHandle<Self>, wl_data_device: &WlDataDevice) {
-        let data_device = self.get_data_device(wl_data_device);
-
-        if let Some(data_device) = data_device {
-            if let Some(offer) = data_device.data().drag_offer() {
-                if let Some(dnd) = self.dnd_offers.remove(&offer.surface.id()) {
-                    let window_id = wayland::make_wid(&offer.surface);
-                    self.events_sink
-                        .push_window_event(WindowEvent::HoveredFileCancelled, window_id);
-
-                    dnd.offer.destroy();
-                } else {
-                    offer.destroy();
-                }
-            }
+    fn leave(&mut self, _: &Connection, _: &QueueHandle<Self>, _: &WlDataDevice) {
+        if let Some(dnd_offer) = self.dnd_offer.take() {
+            let window_id = wayland::make_wid(&dnd_offer.surface);
+            self.events_sink.push_window_event(WindowEvent::HoveredFileCancelled, window_id);
         }
     }
 
@@ -94,12 +82,11 @@ impl DataDeviceHandler for WinitState {
 
         if let Some(data_device) = data_device {
             if let Some(offer) = data_device.data().drag_offer() {
-                let surface_id = offer.surface.id();
                 let window_id = wayland::make_wid(&offer.surface);
 
-                if let Some(dnd) = self.dnd_offers.get(&surface_id) {
+                if let Some(dnd_offer) = self.dnd_offer.as_ref() {
                     self.events_sink.push_window_event(
-                        WindowEvent::HoveredFile(dnd.file_path.clone()),
+                        WindowEvent::HoveredFile(dnd_offer.path.to_path_buf()),
                         window_id,
                     );
                 }
@@ -119,18 +106,12 @@ impl DataDeviceHandler for WinitState {
 
         if let Some(data_device) = data_device {
             if let Some(offer) = data_device.data().drag_offer() {
-                let surface_id = offer.surface.id();
                 let window_id = wayland::make_wid(&offer.surface);
 
-                if let Some(dnd) = self.dnd_offers.remove(&surface_id) {
-                    self.events_sink.push_window_event(
-                        WindowEvent::DroppedFile(dnd.file_path.clone()),
-                        window_id,
-                    );
+                if let Some(dnd_offer) = self.dnd_offer.take() {
+                    self.events_sink
+                        .push_window_event(WindowEvent::DroppedFile(dnd_offer.path), window_id);
 
-                    dnd.offer.finish();
-                    dnd.offer.destroy();
-                } else {
                     offer.finish();
                     offer.destroy();
                 }
