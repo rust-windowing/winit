@@ -1164,7 +1164,7 @@ pub trait Window: AsAny + Send + Sync + fmt::Debug {
     /// ## Platform-specific
     ///
     /// - **iOS / Android / Web / Windows / X11 / macOS / Orbital:** Unsupported.
-    fn set_ime_state(&self, state: Option<&ImeState>);
+    fn set_ime_state(&self, _state: Option<&ImeState>) {}
 
     /// Returns the current IME state, if the set_ime_state API is supported.
     fn get_ime_state(&self) -> Option<ImeState> {
