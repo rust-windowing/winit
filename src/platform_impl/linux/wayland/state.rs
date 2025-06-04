@@ -56,7 +56,10 @@ pub struct WinitState {
     /// The seat state responsible for all sorts of input.
     pub seat_state: SeatState,
 
+    // The state of the data device manager.
     pub data_device_manager_state: DataDeviceManagerState,
+
+    // The active drag and drop offers.
     pub dnd_offers: AHashMap<ObjectId, DndOfferState>,
 
     /// The shm for software buffers, such as cursors.

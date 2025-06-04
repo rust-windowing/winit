@@ -67,6 +67,7 @@ pub struct WinitSeatState {
     /// Whether we have pending modifiers.
     modifiers_pending: bool,
 
+    /// The current data device.
     data_device: Option<DataDevice>,
 }
 
