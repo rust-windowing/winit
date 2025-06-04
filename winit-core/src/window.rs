@@ -1094,6 +1094,7 @@ pub trait Window: AsAny + Send + Sync + fmt::Debug {
     ///
     /// [chinese]: https://support.apple.com/guide/chinese-input-method/use-the-candidate-window-cim12992/104/mac/12.0
     /// [japanese]: https://support.apple.com/guide/japanese-input-method/use-the-candidate-window-jpim10262/6.3/mac/12.0
+    #[deprecated = "use set_ime_state instead"]
     fn set_ime_cursor_area(&self, position: Position, size: Size);
 
     /// Sets whether the window should get IME events
@@ -1118,6 +1119,7 @@ pub trait Window: AsAny + Send + Sync + fmt::Debug {
     ///
     /// [`Ime`]: crate::event::WindowEvent::Ime
     /// [`KeyboardInput`]: crate::event::WindowEvent::KeyboardInput
+    #[deprecated = "use set_ime_state instead"]
     fn set_ime_allowed(&self, allowed: bool);
 
     /// Sets the IME purpose for the window using [`ImePurpose`].
@@ -1125,6 +1127,7 @@ pub trait Window: AsAny + Send + Sync + fmt::Debug {
     /// ## Platform-specific
     ///
     /// - **iOS / Android / Web / Windows / X11 / macOS / Orbital:** Unsupported.
+    #[deprecated = "use set_ime_state instead"]
     fn set_ime_purpose(&self, purpose: ImePurpose);
 
     /// Atomically sets the IME state for the window using [`ImeState`].
