@@ -1,21 +1,17 @@
-use sctk::data_device_manager::{
-    data_device::DataDeviceHandler,
-    data_offer::{DataOfferHandler, DragOffer},
-    data_source::DataSourceHandler,
-    WritePipe,
-};
-use wayland_client::{
-    protocol::{
-        wl_data_device::WlDataDevice, wl_data_device_manager::DndAction,
-        wl_data_source::WlDataSource, wl_surface::WlSurface,
-    },
-    Connection, Proxy, QueueHandle,
-};
+use sctk::data_device_manager::data_device::DataDeviceHandler;
+use sctk::data_device_manager::data_offer::{DataOfferHandler, DragOffer};
+use sctk::data_device_manager::data_source::DataSourceHandler;
+use sctk::data_device_manager::WritePipe;
+use wayland_client::protocol::wl_data_device::WlDataDevice;
+use wayland_client::protocol::wl_data_device_manager::DndAction;
+use wayland_client::protocol::wl_data_source::WlDataSource;
+use wayland_client::protocol::wl_surface::WlSurface;
+use wayland_client::{Connection, Proxy, QueueHandle};
 
-use crate::{
-    event::WindowEvent,
-    platform_impl::wayland::{self, state::WinitState, types::dnd::DndOfferState},
-};
+use crate::event::WindowEvent;
+use crate::platform_impl::wayland::state::WinitState;
+use crate::platform_impl::wayland::types::dnd::DndOfferState;
+use crate::platform_impl::wayland::{self};
 
 const SUPPORTED_MIME_TYPES: &[&str] = &["text/uri-list"];
 
@@ -53,13 +49,10 @@ impl DataDeviceHandler for WinitState {
                         let window_id = wayland::make_wid(&offer.surface);
 
                         self.read_file_paths(read_pipe, move |state, path| {
-                            state.dnd_offers.insert(
-                                surface_id.clone(),
-                                DndOfferState {
-                                    offer: current_offer.clone(),
-                                    file_path: path.clone(),
-                                },
-                            );
+                            state.dnd_offers.insert(surface_id.clone(), DndOfferState {
+                                offer: current_offer.clone(),
+                                file_path: path.clone(),
+                            });
 
                             state
                                 .events_sink
