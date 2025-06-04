@@ -20,8 +20,8 @@ use winit_core::event::{Ime, WindowEvent};
 use winit_core::event_loop::AsyncRequestSerial;
 use winit_core::monitor::{Fullscreen, MonitorHandle as CoreMonitorHandle};
 use winit_core::window::{
-    CursorGrabMode, ImePurpose, ImeState, ResizeDirection, Theme, UserAttentionType,
-    Window as CoreWindow, WindowAttributes, WindowButtons, WindowId, WindowLevel,
+    CursorGrabMode, ImeState, ResizeDirection, Theme, UserAttentionType, Window as CoreWindow,
+    WindowAttributes, WindowButtons, WindowId, WindowLevel,
 };
 
 use super::event_loop::sink::EventSink;
@@ -508,41 +508,8 @@ impl CoreWindow for Window {
     fn set_window_icon(&self, _window_icon: Option<winit_core::icon::Icon>) {}
 
     #[inline]
-    fn set_ime_cursor_area(&self, position: Position, size: Size) {
-        let new_state = {
-            let mut state = self.ime_state.lock().unwrap();
-            if let Some(state) = state.as_mut() {
-                *state = state.clone().with_cursor_area(position, size);
-            }
-            state.clone()
-        };
-        self.set_ime_state(new_state.as_ref());
-    }
-
-    #[inline]
-    fn set_ime_allowed(&self, allowed: bool) {
-        let new_state = {
-            let mut state = self.ime_state.lock().unwrap();
-            *state = if allowed { Some(ImeState::new()) } else { None };
-            state.clone()
-        };
-        self.set_ime_state(new_state.as_ref())
-    }
-
-    #[inline]
-    fn set_ime_purpose(&self, purpose: ImePurpose) {
-        let new_state = {
-            let mut state = self.ime_state.lock().unwrap();
-            if let Some(state) = state.as_mut() {
-                *state = state.clone().with_purpose(purpose);
-            }
-            state.clone()
-        };
-        self.set_ime_state(new_state.as_ref());
-    }
-
-    #[inline]
     fn set_ime_state(&self, state: Option<&ImeState>) {
+        *self.ime_state.lock().unwrap() = state.cloned();
         // The Ime::Enabled event is sent under two circumstances:
         // 1. An input method exists and was now allowed
         // 2. No input method exists, then it was allowed, and it appears.
@@ -561,6 +528,11 @@ impl CoreWindow for Window {
             self.window_events_sink.lock().unwrap().push_window_event(event, self.window_id);
             self.event_loop_awakener.ping();
         }
+    }
+
+    #[inline]
+    fn get_ime_state(&self) -> Option<ImeState> {
+        self.ime_state.lock().unwrap().clone()
     }
 
     fn focus_window(&self) {}

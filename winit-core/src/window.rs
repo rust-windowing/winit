@@ -1095,7 +1095,12 @@ pub trait Window: AsAny + Send + Sync + fmt::Debug {
     /// [chinese]: https://support.apple.com/guide/chinese-input-method/use-the-candidate-window-cim12992/104/mac/12.0
     /// [japanese]: https://support.apple.com/guide/japanese-input-method/use-the-candidate-window-jpim10262/6.3/mac/12.0
     #[deprecated = "use set_ime_state instead"]
-    fn set_ime_cursor_area(&self, position: Position, size: Size);
+    fn set_ime_cursor_area(&self, position: Position, size: Size) {
+        if let Some(state) = self.get_ime_state() {
+            let new_state = state.with_cursor_area(position, size);
+            self.set_ime_state(Some(&new_state));
+        }
+    }
 
     /// Sets whether the window should get IME events
     ///
@@ -1120,7 +1125,10 @@ pub trait Window: AsAny + Send + Sync + fmt::Debug {
     /// [`Ime`]: crate::event::WindowEvent::Ime
     /// [`KeyboardInput`]: crate::event::WindowEvent::KeyboardInput
     #[deprecated = "use set_ime_state instead"]
-    fn set_ime_allowed(&self, allowed: bool);
+    fn set_ime_allowed(&self, allowed: bool) {
+        let new_state = if allowed { Some(ImeState::new()) } else { None };
+        self.set_ime_state(new_state.as_ref())
+    }
 
     /// Sets the IME purpose for the window using [`ImePurpose`].
     ///
@@ -1128,7 +1136,12 @@ pub trait Window: AsAny + Send + Sync + fmt::Debug {
     ///
     /// - **iOS / Android / Web / Windows / X11 / macOS / Orbital:** Unsupported.
     #[deprecated = "use set_ime_state instead"]
-    fn set_ime_purpose(&self, purpose: ImePurpose);
+    fn set_ime_purpose(&self, purpose: ImePurpose) {
+        if let Some(state) = self.get_ime_state() {
+            let new_state = state.with_purpose(purpose);
+            self.set_ime_state(Some(&new_state));
+        }
+    }
 
     /// Atomically sets the IME state for the window using [`ImeState`].
     ///
@@ -1152,6 +1165,11 @@ pub trait Window: AsAny + Send + Sync + fmt::Debug {
     ///
     /// - **iOS / Android / Web / Windows / X11 / macOS / Orbital:** Unsupported.
     fn set_ime_state(&self, state: Option<&ImeState>);
+
+    /// Returns the current IME state, if the set_ime_state API is supported.
+    fn get_ime_state(&self) -> Option<ImeState> {
+        None
+    }
 
     /// Brings the window to the front and sets input focus. Has no effect if the window is
     /// already in focus, minimized, or not visible.

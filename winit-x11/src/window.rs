@@ -210,20 +210,12 @@ impl CoreWindow for Window {
         self.0.set_window_icon(icon)
     }
 
-    fn set_ime_cursor_area(&self, position: Position, size: Size) {
-        self.0.set_ime_cursor_area(position, size);
-    }
-
-    fn set_ime_allowed(&self, allowed: bool) {
-        self.0.set_ime_allowed(allowed);
-    }
-
-    fn set_ime_purpose(&self, purpose: ImePurpose) {
-        self.0.set_ime_purpose(purpose);
-    }
-
     fn set_ime_state(&self, state: Option<&ImeState>) {
         self.0.set_ime_state(state);
+    }
+
+    fn get_ime_state(&self) -> Option<ImeState> {
+        self.0.get_ime_state()
     }
 
     fn focus_window(&self) {
@@ -431,6 +423,8 @@ pub struct UnownedWindow {
     #[allow(clippy::mutex_atomic)]
     cursor_visible: Mutex<bool>,
     ime_sender: Mutex<ImeSender>,
+    /// Cached state for deprecated IME API.
+    ime_state: Mutex<Option<ImeState>>,
     pub shared_state: Mutex<SharedState>,
     redraw_sender: WakeSender<WindowId>,
     activation_sender: WakeSender<ActivationItem>,
@@ -656,6 +650,7 @@ impl UnownedWindow {
             cursor_grabbed_mode: Mutex::new(CursorGrabMode::None),
             cursor_visible: Mutex::new(true),
             ime_sender: Mutex::new(event_loop.ime_sender.clone()),
+            ime_state: Mutex::new(None),
             shared_state: SharedState::new(guessed_monitor, &window_attrs),
             redraw_sender: event_loop.redraw_sender.clone(),
             activation_sender: event_loop.activation_sender.clone(),
@@ -2089,6 +2084,7 @@ impl UnownedWindow {
 
     #[inline]
     pub fn set_ime_state(&self, state: Option<&ImeState>) -> bool {
+        *self.ime_state.lock().unwrap() = state.cloned();
         if let Some(state) = state {
             // FIXME: Not sure if this can be called every time or may only be called once
             self.set_ime_allowed(true);
@@ -2102,6 +2098,11 @@ impl UnownedWindow {
         // Better to make an application think it has an input method and send more events when it
         // doesn't than think there is no input method and not send any IME events.
         true
+    }
+
+    #[inline]
+    pub fn get_ime_state(&self) -> Option<ImeState> {
+        self.ime_state.lock().unwrap().clone()
     }
 
     #[inline]
