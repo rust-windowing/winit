@@ -16,6 +16,7 @@ on how to add them:
 - On X11, add `Window::even_more_rare_api`.
 - On Wayland, add `Window::common_api`.
 - On Windows, add `Window::some_rare_api`.
+- On Wayland, add support for `DroppedFile`, `HoveredFile` and `HoveredFileCancelled` window events.
 ```
 
 When the change requires non-trivial amount of work for users to comply
