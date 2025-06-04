@@ -6,7 +6,7 @@ use wayland_client::protocol::wl_data_device::WlDataDevice;
 use wayland_client::protocol::wl_data_device_manager::DndAction;
 use wayland_client::protocol::wl_data_source::WlDataSource;
 use wayland_client::protocol::wl_surface::WlSurface;
-use wayland_client::{Connection, QueueHandle};
+use wayland_client::{Connection, Proxy, QueueHandle};
 
 use crate::event::WindowEvent;
 use crate::platform_impl::wayland::state::WinitState;
@@ -44,11 +44,12 @@ impl DataDeviceHandler for WinitState {
                     offer.set_actions(DndAction::Copy, DndAction::Copy);
 
                     if let Ok(read_pipe) = offer.receive(mime_type) {
+                        let data_device_id = data_device.inner().id();
                         let surface = offer.surface;
                         let window_id = wayland::make_wid(&surface);
 
                         self.read_file_paths(read_pipe, move |state, path| {
-                            state.dnd_offer = Some(DndOfferState {
+                            state.dnd_offers.insert(data_device_id.clone(), DndOfferState {
                                 surface: surface.clone(),
                                 path: path.clone(),
                             });
@@ -63,10 +64,14 @@ impl DataDeviceHandler for WinitState {
         }
     }
 
-    fn leave(&mut self, _: &Connection, _: &QueueHandle<Self>, _: &WlDataDevice) {
-        if let Some(dnd_offer) = self.dnd_offer.take() {
-            let window_id = wayland::make_wid(&dnd_offer.surface);
-            self.events_sink.push_window_event(WindowEvent::HoveredFileCancelled, window_id);
+    fn leave(&mut self, _: &Connection, _: &QueueHandle<Self>, wl_data_device: &WlDataDevice) {
+        let data_device = self.get_data_device(wl_data_device);
+
+        if let Some(data_device) = data_device {
+            if let Some(dnd_offer) = self.dnd_offers.remove(&data_device.inner().id()) {
+                let window_id = wayland::make_wid(&dnd_offer.surface);
+                self.events_sink.push_window_event(WindowEvent::HoveredFileCancelled, window_id);
+            }
         }
     }
 
@@ -84,7 +89,7 @@ impl DataDeviceHandler for WinitState {
             if let Some(offer) = data_device.data().drag_offer() {
                 let window_id = wayland::make_wid(&offer.surface);
 
-                if let Some(dnd_offer) = self.dnd_offer.as_ref() {
+                if let Some(dnd_offer) = self.dnd_offers.get(&data_device.inner().id()) {
                     self.events_sink.push_window_event(
                         WindowEvent::HoveredFile(dnd_offer.path.to_path_buf()),
                         window_id,
@@ -108,7 +113,7 @@ impl DataDeviceHandler for WinitState {
             if let Some(offer) = data_device.data().drag_offer() {
                 let window_id = wayland::make_wid(&offer.surface);
 
-                if let Some(dnd_offer) = self.dnd_offer.take() {
+                if let Some(dnd_offer) = self.dnd_offers.remove(&data_device.inner().id()) {
                     self.events_sink
                         .push_window_event(WindowEvent::DroppedFile(dnd_offer.path), window_id);
 
