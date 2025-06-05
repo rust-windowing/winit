@@ -1,7 +1,13 @@
 #![allow(clippy::single_match)]
 
 // Limit this example to only compatible platforms.
-#[cfg(any(windows_platform, macos_platform, x11_platform, wayland_platform, android_platform,))]
+#[cfg(any(
+    target_os = "windows",
+    target_os = "macos",
+    x11_platform,
+    wayland_platform,
+    target_os = "android",
+))]
 fn main() -> std::process::ExitCode {
     use std::process::ExitCode;
     use std::thread::sleep;
@@ -77,7 +83,13 @@ fn main() -> std::process::ExitCode {
     }
 }
 
-#[cfg(any(ios_platform, web_platform, orbital_platform))]
+#[cfg(not(any(
+    target_os = "windows",
+    target_os = "macos",
+    x11_platform,
+    wayland_platform,
+    target_os = "android",
+)))]
 fn main() {
     panic!("This platform doesn't support pump_events.")
 }

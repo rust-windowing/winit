@@ -14,7 +14,7 @@ use winit::application::ApplicationHandler;
 use winit::event::{Ime, WindowEvent};
 use winit::event_loop::{ActiveEventLoop, EventLoop};
 use winit::keyboard::{Key, ModifiersState, NamedKey};
-#[cfg(web_platform)]
+#[cfg(target_family = "wasm")]
 use winit::platform::web::WindowAttributesWeb;
 use winit::window::{
     ImeCapabilities, ImeEnableRequest, ImeHint, ImePurpose, ImeRequest, ImeRequestData,
@@ -68,9 +68,9 @@ impl TextInputState {
 
 impl ApplicationHandler for App {
     fn can_create_surfaces(&mut self, event_loop: &dyn ActiveEventLoop) {
-        #[cfg(not(web_platform))]
+        #[cfg(not(target_family = "wasm"))]
         let window_attributes = WindowAttributes::default();
-        #[cfg(web_platform)]
+        #[cfg(target_family = "wasm")]
         let window_attributes = WindowAttributes::default()
             .with_platform_attributes(Box::new(WindowAttributesWeb::default().with_append(true)));
         self.window = match event_loop.create_window(window_attributes) {
@@ -339,7 +339,7 @@ fn preedit_with_cursor_checked(text: &str, cursor: usize, anchor: usize) -> Resu
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
-    #[cfg(web_platform)]
+    #[cfg(target_family = "wasm")]
     console_error_panic_hook::set_once();
 
     tracing_init::init();
