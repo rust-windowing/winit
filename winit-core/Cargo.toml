@@ -13,12 +13,20 @@ rust-version.workspace = true
 version = "0.0.0"
 
 [features]
-serde = ["dep:serde", "cursor-icon/serde", "smol_str/serde", "dpi/serde", "bitflags/serde"]
+serde = [
+    "dep:serde",
+    "bitflags/serde",
+    "cursor-icon/serde",
+    "dpi/serde",
+    "keyboard-types/serde",
+    "smol_str/serde",
+]
 
 [dependencies]
 bitflags.workspace = true
 cursor-icon.workspace = true
 dpi.workspace = true
+keyboard-types.workspace = true
 rwh_06.workspace = true
 serde = { workspace = true, optional = true }
 smol_str.workspace = true
