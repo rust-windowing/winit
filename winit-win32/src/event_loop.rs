@@ -682,7 +682,7 @@ fn wait_for_messages_impl(
 
     unsafe {
         // Either:
-        //  1. User wants to wait indefinely if timeout is not set.
+        //  1. User wants to wait indefinitely if timeout is not set.
         //  2. We failed to get and set high resolution timer and we need something instead of it.
         let wait_duration_ms = timeout.map(dur2timeout).unwrap_or(INFINITE);
 

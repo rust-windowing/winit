@@ -68,7 +68,6 @@ macro_rules! os_error {
 
 mod r#async;
 mod cursor;
-mod error;
 mod event;
 pub(crate) mod event_loop;
 mod keyboard;

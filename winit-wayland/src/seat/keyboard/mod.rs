@@ -97,7 +97,7 @@ impl Dispatch<WlKeyboard, KeyboardData, WinitState> for WinitState {
             WlKeyboardEvent::Leave { surface, .. } => {
                 let window_id = crate::make_wid(&surface);
 
-                // NOTE: we should drop the repeat regardless whethere it was for the present
+                // NOTE: we should drop the repeat regardless whether it was for the present
                 // window of for the window which just went gone.
                 keyboard_state.current_repeat = None;
                 if let Some(token) = keyboard_state.repeat_token.take() {
