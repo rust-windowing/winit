@@ -21,7 +21,7 @@ pub mod monitor;
 pub mod window;
 
 // `Instant` is not actually available on `wasm32-unknown-unknown`, the `std` implementation there
-// is a stub. Instead, we use `web_time::Instant`. And `wasm32-none` doesn't even have `std`.
+// is a stub. And `wasm32-none` doesn't even have `std`. Instead, we use `web_time::Instant`.
 #[cfg(not(all(target_family = "wasm", any(target_os = "unknown", target_os = "none"))))]
 pub(crate) use std::time::Instant;
 
