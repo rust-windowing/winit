@@ -21,7 +21,7 @@ use sctk::reexports::client::protocol::wl_surface::WlSurface;
 use sctk::reexports::client::Proxy;
 use winit_core::event_loop::ActiveEventLoop as CoreActiveEventLoop;
 use winit_core::window::{
-    ActivationToken, PlatformWindowAttributes, Window as CoreWindow, WindowId,
+    ActivationToken, PlatformWindowAttributes, Window as CoreWindow, SurfaceId,
 };
 
 macro_rules! os_error {
@@ -128,8 +128,8 @@ impl PlatformWindowAttributes for WindowAttributesWayland {
 
 /// Get the WindowId out of the surface.
 #[inline]
-fn make_wid(surface: &WlSurface) -> WindowId {
-    WindowId::from_raw(surface.id().as_ptr() as usize)
+fn make_wid(surface: &WlSurface) -> SurfaceId {
+    SurfaceId::from_raw(surface.id().as_ptr() as usize)
 }
 
 /// The default routine does floor, but we need round on Wayland.
