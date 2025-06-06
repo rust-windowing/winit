@@ -1,15 +1,11 @@
 //! The event enums and assorted supporting types.
 use std::path::PathBuf;
 use std::sync::{Mutex, Weak};
-#[cfg(not(web_platform))]
-use std::time::Instant;
 
 use dpi::{PhysicalPosition, PhysicalSize};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 use smol_str::SmolStr;
-#[cfg(web_platform)]
-use web_time::Instant;
 
 use crate::error::RequestError;
 use crate::event_loop::AsyncRequestSerial;
@@ -17,6 +13,7 @@ use crate::keyboard::{self, ModifiersKeyState, ModifiersKeys, ModifiersState};
 #[cfg(doc)]
 use crate::window::Window;
 use crate::window::{ActivationToken, Theme};
+use crate::Instant;
 
 /// Describes the reason the event loop is resuming.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
