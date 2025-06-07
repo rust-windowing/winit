@@ -1,5 +1,6 @@
 [workspace]
-members = ["dpi", "winit-*"]
+default-members = ["winit"]
+members = ["dpi", "winit*"]
 resolver = "2"
 
 [workspace.package]
@@ -11,7 +12,7 @@ rust-version = "1.80"
 [workspace.dependencies]
 # Workspace dependencies.
 # `winit` has no version here to allow using it in dev deps for docs.
-winit = { path = "." }
+winit = { path = "winit" }
 winit-android = { version = "0.0.0", path = "winit-android" }
 winit-appkit = { version = "0.0.0", path = "winit-appkit" }
 winit-common = { version = "0.0.0", path = "winit-common" }
@@ -99,132 +100,3 @@ wasm-bindgen-futures = "0.4.43"
 wasm-bindgen-test = "0.3"
 web-time = "1"
 web_sys = { package = "web-sys", version = "0.3.70" }
-
-##
-## Top-level Winit crate.
-##
-[package]
-authors = ["The winit contributors", "Pierre Krieger <pierre.krieger1708@gmail.com>"]
-categories = ["gui"]
-description = "Cross-platform window creation library."
-documentation = "https://docs.rs/winit"
-edition.workspace = true
-include = ["/build.rs", "/docs", "/examples", "/FEATURES.md", "/LICENSE", "/src", "/tests"]
-keywords = ["windowing"]
-license.workspace = true
-name = "winit"
-readme = "README.md"
-repository.workspace = true
-rust-version.workspace = true
-version = "0.30.11"
-
-[package.metadata.docs.rs]
-features = [
-    "serde",
-    "mint",
-    # Enabled to get docs to compile
-    "android-native-activity",
-]
-# These are all tested in CI
-rustdoc-args = ["--cfg", "docsrs"]
-targets = [
-    # Windows
-    "i686-pc-windows-msvc",
-    "x86_64-pc-windows-msvc",
-    # macOS
-    "aarch64-apple-darwin",
-    "x86_64-apple-darwin",
-    # Unix (X11 & Wayland)
-    "i686-unknown-linux-gnu",
-    "x86_64-unknown-linux-gnu",
-    # iOS
-    "aarch64-apple-ios",
-    # Android
-    "aarch64-linux-android",
-    # Web
-    "wasm32-unknown-unknown",
-]
-
-# Features are documented in either `lib.rs` or under `winit::platform`.
-[features]
-default = ["x11", "wayland", "wayland-dlopen", "wayland-csd-adwaita"]
-
-android-game-activity = ["winit-android/game-activity"]
-android-native-activity = ["winit-android/native-activity"]
-mint = ["dpi/mint"]
-serde = [
-    "dep:serde",
-    "cursor-icon/serde",
-    "smol_str/serde",
-    "dpi/serde",
-    "bitflags/serde",
-    "winit-core/serde",
-    "winit-uikit/serde",
-]
-wayland = ["winit-wayland"]
-wayland-csd-adwaita = ["winit-wayland/csd-adwaita"]
-wayland-csd-adwaita-crossfont = ["winit-wayland/csd-adwaita-crossfont"]
-wayland-csd-adwaita-notitle = ["winit-wayland/csd-adwaita-notitle"]
-wayland-dlopen = ["winit-wayland/dlopen"]
-x11 = ["dep:winit-x11"]
-
-[build-dependencies]
-cfg_aliases.workspace = true
-
-[dependencies]
-bitflags.workspace = true
-cursor-icon.workspace = true
-dpi.workspace = true
-rwh_06.workspace = true
-serde = { workspace = true, optional = true }
-smol_str.workspace = true
-tracing.workspace = true
-winit-core.workspace = true
-
-[dev-dependencies]
-image = { workspace = true, features = ["png"] }
-tracing = { workspace = true, features = ["log"] }
-tracing-subscriber = { workspace = true, features = ["env-filter"] }
-
-[target.'cfg(not(target_os = "android"))'.dev-dependencies]
-softbuffer.workspace = true
-
-[target.'cfg(target_os = "android")'.dependencies]
-winit-android.workspace = true
-
-[target.'cfg(target_os = "macos")'.dependencies]
-winit-appkit.workspace = true
-
-[target.'cfg(all(target_vendor = "apple", not(target_os = "macos")))'.dependencies]
-winit-uikit.workspace = true
-
-[target.'cfg(target_os = "windows")'.dependencies]
-winit-win32.workspace = true
-
-# Linux
-[target.'cfg(all(unix, not(any(target_os = "redox", target_family = "wasm", target_os = "android", target_vendor = "apple"))))'.dependencies]
-libc.workspace = true
-rustix = { workspace = true, features = ["std", "thread"] }
-winit-common = { workspace = true, features = ["xkb"] }
-winit-wayland = { workspace = true, optional = true, default-features = false }
-winit-x11 = { workspace = true, optional = true }
-
-[target.'cfg(target_os = "redox")'.dependencies]
-winit-orbital.workspace = true
-
-[target.'cfg(target_family = "wasm")'.dependencies]
-winit-web.workspace = true
-
-[target.'cfg(target_family = "wasm")'.dev-dependencies]
-console_error_panic_hook.workspace = true
-tracing-web.workspace = true
-wasm-bindgen-futures.workspace = true
-wasm-bindgen-test.workspace = true
-web-time.workspace = true
-
-[[example]]
-doc-scrape-examples = true
-name = "window"
-
-[[example]]
-name = "child_window"
