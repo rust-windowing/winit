@@ -6,7 +6,7 @@ license.workspace = true
 name = "winit-common"
 repository.workspace = true
 rust-version.workspace = true
-version = "0.0.0"
+version.workspace = true
 
 [features]
 # Event Handler

@@ -8,21 +8,22 @@ edition = "2021"
 license = "Apache-2.0"
 repository = "https://github.com/rust-windowing/winit"
 rust-version = "1.80"
+version = "0.30.11"
 
 [workspace.dependencies]
 # Workspace dependencies.
 # `winit` has no version here to allow using it in dev deps for docs.
 winit = { path = "winit" }
-winit-android = { version = "0.0.0", path = "winit-android" }
-winit-appkit = { version = "0.0.0", path = "winit-appkit" }
-winit-common = { version = "0.0.0", path = "winit-common" }
-winit-core = { version = "0.0.0", path = "winit-core" }
-winit-orbital = { version = "0.0.0", path = "winit-orbital" }
-winit-uikit = { version = "0.0.0", path = "winit-uikit" }
-winit-wayland = { version = "0.0.0", path = "winit-wayland", default-features = false }
-winit-web = { version = "0.0.0", path = "winit-web" }
-winit-win32 = { version = "0.0.0", path = "winit-win32" }
-winit-x11 = { version = "0.0.0", path = "winit-x11" }
+winit-android = { version = "0.30.11", path = "winit-android" }
+winit-appkit = { version = "0.30.11", path = "winit-appkit" }
+winit-common = { version = "0.30.11", path = "winit-common" }
+winit-core = { version = "0.30.11", path = "winit-core" }
+winit-orbital = { version = "0.30.11", path = "winit-orbital" }
+winit-uikit = { version = "0.30.11", path = "winit-uikit" }
+winit-wayland = { version = "0.30.11", path = "winit-wayland", default-features = false }
+winit-web = { version = "0.30.11", path = "winit-web" }
+winit-win32 = { version = "0.30.11", path = "winit-win32" }
+winit-x11 = { version = "0.30.11", path = "winit-x11" }
 
 # Core dependencies.
 bitflags = "2"
