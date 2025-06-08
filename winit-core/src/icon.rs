@@ -60,7 +60,7 @@ impl fmt::Display for BadIcon {
 
 impl Error for BadIcon {}
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct RgbaIcon {
     pub(crate) width: u32,
     pub(crate) height: u32,
