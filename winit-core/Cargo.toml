@@ -10,7 +10,7 @@ name = "winit-core"
 readme = "README.md"
 repository.workspace = true
 rust-version.workspace = true
-version = "0.0.0"
+version.workspace = true
 
 [features]
 serde = [
