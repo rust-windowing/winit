@@ -468,6 +468,7 @@ pub struct WindowAttributesWindows {
     pub(crate) title_background_color: Option<Color>,
     pub(crate) title_text_color: Option<Color>,
     pub(crate) corner_preference: Option<CornerPreference>,
+    pub(crate) use_system_wheel_speed: bool,
 }
 
 impl Default for WindowAttributesWindows {
@@ -487,6 +488,7 @@ impl Default for WindowAttributesWindows {
             title_background_color: None,
             title_text_color: None,
             corner_preference: None,
+            use_system_wheel_speed: true,
         }
     }
 }
@@ -617,6 +619,13 @@ impl WindowAttributesWindows {
     /// Supported starting with Windows 11 Build 22000.
     pub fn with_corner_preference(mut self, corners: CornerPreference) -> Self {
         self.corner_preference = Some(corners);
+        self
+    }
+
+    /// Sets if the reported [`winit_core::event::WindowEvent::MouseWheel`] event
+    /// should account for scroll speed system settings.
+    pub fn with_use_system_scroll_speed(mut self, should_use: bool) -> Self {
+        self.use_system_wheel_speed = should_use;
         self
     }
 }

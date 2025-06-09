@@ -1269,6 +1269,7 @@ impl InitData<'_> {
         win.set_skip_taskbar(self.win_attributes.skip_taskbar);
         win.set_window_icon(self.attributes.window_icon.clone());
         win.set_taskbar_icon(self.win_attributes.taskbar_icon.clone());
+        win.set_use_system_scroll_speed(self.win_attributes.use_system_wheel_speed);
 
         let attributes = self.attributes.clone();
 
