@@ -13,6 +13,13 @@ To save your time it's wise to check already opened [pull requests][prs] and
 accepted, however larger new API proposals should go into the issue first. When
 in doubt contact us on [Matrix][matrix] or via opening an issue.
 
+### Windows
+
+To run the examples on Windows, you must have symlinks enabled, see
+[this][git-windows-symlinks].
+
+[git-windows-symlinks]: https://gitforwindows.org/symbolic-links.html
+
 ### Submitting your work and handling review
 
 All patches have to be sent on Github as [pull requests][prs]. To simplify your
