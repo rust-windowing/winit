@@ -113,7 +113,3 @@ tracing-web.workspace = true
 wasm-bindgen-futures.workspace = true
 wasm-bindgen-test.workspace = true
 web-time.workspace = true
-
-[[example]]
-doc-scrape-examples = true
-name = "window"
