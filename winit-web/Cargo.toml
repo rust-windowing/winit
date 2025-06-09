@@ -12,7 +12,7 @@ license.workspace = true
 name = "winit-web"
 repository.workspace = true
 rust-version.workspace = true
-version = "0.0.0"
+version.workspace = true
 
 [features]
 serde = ["dep:serde", "bitflags/serde", "smol_str/serde", "dpi/serde"]
