@@ -1644,7 +1644,7 @@ unsafe fn public_window_callback_inner(
 
             update_modifiers(window, userdata);
 
-            let scroll_lines = if userdata.window_state_lock().use_system_wheel_speed {
+            let scroll_lines_multiplier = if userdata.window_state_lock().use_system_wheel_speed {
                 let mut scroll_lines = DEFAULT_SCROLL_LINES_PER_WHEEL_DELTA;
                 let _ = SystemParametersInfoW(
                     SPI_GETWHEELSCROLLLINES,
@@ -1663,7 +1663,7 @@ unsafe fn public_window_callback_inner(
 
             userdata.send_window_event(window, WindowEvent::MouseWheel {
                 device_id: None,
-                delta: LineDelta(0.0, value * scroll_lines as f32),
+                delta: LineDelta(0.0, value * scroll_lines_multiplier as f32),
                 phase: TouchPhase::Moved,
             });
 
@@ -1678,22 +1678,23 @@ unsafe fn public_window_callback_inner(
 
             update_modifiers(window, userdata);
 
-            let scroll_characters = if userdata.window_state_lock().use_system_wheel_speed {
-                let mut scroll_characters = DEFAULT_SCROLL_CHARACTERS_PER_WHEEL_DELTA;
-                let _ = SystemParametersInfoW(
-                    SPI_GETWHEELSCROLLCHARS,
-                    0,
-                    &mut scroll_characters as *mut isize as *mut c_void,
-                    0,
-                );
-                scroll_characters
-            } else {
-                1
-            };
+            let scroll_characters_multiplier =
+                if userdata.window_state_lock().use_system_wheel_speed {
+                    let mut scroll_characters = DEFAULT_SCROLL_CHARACTERS_PER_WHEEL_DELTA;
+                    let _ = SystemParametersInfoW(
+                        SPI_GETWHEELSCROLLCHARS,
+                        0,
+                        &mut scroll_characters as *mut isize as *mut c_void,
+                        0,
+                    );
+                    scroll_characters
+                } else {
+                    1
+                };
 
             userdata.send_window_event(window, WindowEvent::MouseWheel {
                 device_id: None,
-                delta: LineDelta(value * scroll_characters as f32, 0.0),
+                delta: LineDelta(value * scroll_characters_multiplier as f32, 0.0),
                 phase: TouchPhase::Moved,
             });
 
