@@ -343,6 +343,11 @@ impl Window {
         }
     }
 
+    #[inline]
+    pub fn set_use_system_scroll_speed(&self, should_use: bool) {
+        self.window_state_lock().use_system_wheel_speed = should_use;
+    }
+
     fn set_icon(&self, mut new_icon: Icon, icon_type: IconType) {
         if let Some(icon) = new_icon.cast_ref::<RgbaIcon>() {
             let icon = match WinIcon::from_rgba(icon) {

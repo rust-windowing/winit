@@ -285,6 +285,10 @@ pub trait WindowExtWindows {
     /// Supported starting with Windows 11 Build 22000.
     fn set_corner_preference(&self, preference: CornerPreference);
 
+    /// Sets if the reported [`winit_core::event::WindowEvent::MouseWheel`] event
+    /// should account for scroll speed system settings.
+    fn set_use_system_scroll_speed(&self, should_use: bool);
+
     /// Get the raw window handle for this [`Window`] without checking for thread affinity.
     ///
     /// Window handles in Win32 have a property called "thread affinity" that ties them to their
@@ -396,6 +400,11 @@ impl WindowExtWindows for dyn CoreWindow + '_ {
     fn set_corner_preference(&self, preference: CornerPreference) {
         let window = self.cast_ref::<Window>().unwrap();
         window.set_corner_preference(preference)
+    }
+
+    fn set_use_system_scroll_speed(&self, should_use: bool) {
+        let window = self.cast_ref::<Window>().unwrap();
+        window.set_use_system_scroll_speed(should_use)
     }
 
     unsafe fn window_handle_any_thread(

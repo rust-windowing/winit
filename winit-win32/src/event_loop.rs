@@ -1644,19 +1644,22 @@ unsafe fn public_window_callback_inner(
 
             update_modifiers(window, userdata);
 
-            let mut scroll_lines = DEFAULT_SCROLL_LINES_PER_WHEEL_DELTA;
-
-            let _ = SystemParametersInfoW(
-                SPI_GETWHEELSCROLLLINES,
-                0,
-                &mut scroll_lines as *mut isize as *mut c_void,
-                0,
-            );
-
-            if scroll_lines as u32 == WHEEL_PAGESCROLL {
-                // TODO: figure out how to handle page scrolls
-                scroll_lines = DEFAULT_SCROLL_LINES_PER_WHEEL_DELTA;
-            }
+            let scroll_lines = if userdata.window_state_lock().use_system_wheel_speed {
+                let mut scroll_lines = DEFAULT_SCROLL_LINES_PER_WHEEL_DELTA;
+                let _ = SystemParametersInfoW(
+                    SPI_GETWHEELSCROLLLINES,
+                    0,
+                    &mut scroll_lines as *mut isize as *mut c_void,
+                    0,
+                );
+                if scroll_lines as u32 == WHEEL_PAGESCROLL {
+                    // TODO: figure out how to handle page scrolls
+                    scroll_lines = DEFAULT_SCROLL_LINES_PER_WHEEL_DELTA;
+                }
+                scroll_lines
+            } else {
+                1
+            };
 
             userdata.send_window_event(window, WindowEvent::MouseWheel {
                 device_id: None,
@@ -1675,14 +1678,18 @@ unsafe fn public_window_callback_inner(
 
             update_modifiers(window, userdata);
 
-            let mut scroll_characters = DEFAULT_SCROLL_CHARACTERS_PER_WHEEL_DELTA;
-
-            let _ = SystemParametersInfoW(
-                SPI_GETWHEELSCROLLCHARS,
-                0,
-                &mut scroll_characters as *mut isize as *mut c_void,
-                0,
-            );
+            let scroll_characters = if userdata.window_state_lock().use_system_wheel_speed {
+                let mut scroll_characters = DEFAULT_SCROLL_CHARACTERS_PER_WHEEL_DELTA;
+                let _ = SystemParametersInfoW(
+                    SPI_GETWHEELSCROLLCHARS,
+                    0,
+                    &mut scroll_characters as *mut isize as *mut c_void,
+                    0,
+                );
+                scroll_characters
+            } else {
+                1
+            };
 
             userdata.send_window_event(window, WindowEvent::MouseWheel {
                 device_id: None,
