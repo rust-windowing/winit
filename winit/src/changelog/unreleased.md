@@ -202,6 +202,8 @@ changelog entry.
 - Move `EventLoopExtPumpEvents` and `PumpStatus` from platform module to `winit::event_loop::pump_events`.
 - Move `EventLoopExtRunOnDemand` from platform module to `winit::event_loop::run_on_demand`.
 - Use `NamedKey`, `Code` and `Location` from the `keyboard-types` v0.8 crate.
+- On Web, removed the check for EventLoop recreation, as there shouldn't be anything that stops multiple EventLoops
+  from running concurrently.
 
 ### Removed
 
