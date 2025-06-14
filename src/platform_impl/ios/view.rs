@@ -48,6 +48,11 @@ declare_class!(
     }
 
     unsafe impl WinitView {
+        #[allow(non_snake_case)]
+        #[cfg(feature="metal")]
+        #[method(layerClass)]
+        fn layerClass() -> &'static objc2::runtime::AnyClass{ objc2::class!(CAMetalLayer) }
+
         #[method(drawRect:)]
         fn draw_rect(&self, rect: CGRect) {
             let mtm = MainThreadMarker::new().unwrap();

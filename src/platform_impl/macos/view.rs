@@ -804,6 +804,16 @@ impl WinitView {
         });
         let this: Retained<Self> = unsafe { msg_send_id![super(this), init] };
 
+        if cfg!(feature = "metal") {
+            unsafe {
+                let _: () = objc2::msg_send![&this, setWantsLayer: objc2::ffi::YES];
+                let metal_layer_cls = objc2::class!(CAMetalLayer);
+                let metal_layer: *mut objc2::runtime::AnyObject =
+                    objc2::msg_send![metal_layer_cls, new];
+                let _: () = objc2::msg_send![&this, setLayer: metal_layer];
+            }
+        }
+
         this.setPostsFrameChangedNotifications(true);
         let notification_center = unsafe { NSNotificationCenter::defaultCenter() };
         unsafe {
