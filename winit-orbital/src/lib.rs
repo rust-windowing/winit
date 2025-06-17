@@ -23,7 +23,7 @@ struct RedoxSocket {
 
 impl RedoxSocket {
     fn event() -> syscall::Result<Self> {
-        Self::open_raw("event:")
+        Self::open_raw("/scheme/event")
     }
 
     fn orbital(properties: &WindowProperties<'_>) -> syscall::Result<Self> {
@@ -74,7 +74,7 @@ struct TimeSocket(RedoxSocket);
 
 impl TimeSocket {
     fn open() -> syscall::Result<Self> {
-        RedoxSocket::open_raw("time:4").map(Self)
+        RedoxSocket::open_raw("/scheme/time/4").map(Self)
     }
 
     // Read current time.
@@ -123,7 +123,7 @@ impl fmt::Display for WindowProperties<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "orbital:{}/{}/{}/{}/{}/{}",
+            "/scheme/orbital/{}/{}/{}/{}/{}/{}",
             self.flags, self.x, self.y, self.w, self.h, self.title
         )
     }
