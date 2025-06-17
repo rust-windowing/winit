@@ -25,10 +25,6 @@ pub use self::resize_scaling::ResizeScaleHandle;
 pub use self::safe_area::SafeAreaHandle;
 pub use self::schedule::Schedule;
 
-pub fn throw(msg: &str) {
-    wasm_bindgen::throw_str(msg);
-}
-
 pub struct PageTransitionEventHandle {
     _show_listener: event_handle::EventListenerHandle<dyn FnMut(PageTransitionEvent)>,
     _hide_listener: event_handle::EventListenerHandle<dyn FnMut(PageTransitionEvent)>,
