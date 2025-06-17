@@ -1,5 +1,3 @@
-use std::sync::atomic::{AtomicBool, Ordering};
-
 use winit_core::application::ApplicationHandler;
 use winit_core::error::{EventLoopError, NotSupportedError};
 use winit_core::event_loop::ActiveEventLoop as RootActiveEventLoop;
@@ -23,20 +21,9 @@ pub struct EventLoop {
 #[derive(Default, Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub struct PlatformSpecificEventLoopAttributes {}
 
-static EVENT_LOOP_CREATED: AtomicBool = AtomicBool::new(false);
-
 impl EventLoop {
     pub fn new(_: &PlatformSpecificEventLoopAttributes) -> Result<Self, EventLoopError> {
-        if EVENT_LOOP_CREATED.swap(true, Ordering::Relaxed) {
-            // For better cross-platformness.
-            return Err(EventLoopError::RecreationAttempt);
-        }
-
         Ok(EventLoop { elw: ActiveEventLoop::new() })
-    }
-
-    fn allow_event_loop_recreation() {
-        EVENT_LOOP_CREATED.store(false, Ordering::Relaxed);
     }
 
     pub fn run_app<A: ApplicationHandler>(self, app: A) -> ! {
@@ -52,7 +39,7 @@ impl EventLoop {
             >(app)
         };
 
-        self.elw.run(app, false);
+        self.elw.run(app);
 
         // Throw an exception to break out of Rust execution and use unreachable to tell the
         // compiler this function won't return, giving it a return type of '!'
@@ -64,7 +51,7 @@ impl EventLoop {
     }
 
     pub fn spawn_app<A: ApplicationHandler + 'static>(self, app: A) {
-        self.elw.run(Box::new(app), true);
+        self.elw.run(Box::new(app));
     }
 
     pub fn window_target(&self) -> &dyn RootActiveEventLoop {
