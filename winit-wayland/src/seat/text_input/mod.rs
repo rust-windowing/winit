@@ -1,5 +1,6 @@
 use std::ops::Deref;
 
+use dpi::{LogicalPosition, LogicalSize};
 use sctk::globals::GlobalData;
 use sctk::reexports::client::globals::{BindError, GlobalList};
 use sctk::reexports::client::protocol::wl_surface::WlSurface;
@@ -9,7 +10,7 @@ use sctk::reexports::protocols::wp::text_input::zv3::client::zwp_text_input_v3::
     ContentHint, ContentPurpose, Event as TextInputEvent, ZwpTextInputV3,
 };
 use winit_core::event::{Ime, WindowEvent};
-use winit_core::window::ImePurpose;
+use winit_core::window::{ImePurpose, ImeState};
 
 use crate::state::WinitState;
 
@@ -69,10 +70,10 @@ impl Dispatch<ZwpTextInputV3, TextInputData, WinitState> for TextInputState {
                     None => return,
                 };
 
-                if window.ime_allowed() {
-                    text_input.enable();
-                    text_input.set_content_type_by_purpose(window.ime_purpose());
-                    text_input.commit();
+                if let Some(im_state) = window.text_input_state() {
+                    text_input.set_state(Some(im_state.clone()), false);
+                    // The input method doesn't have to reply anything, so a synthetic event
+                    // carrying an empty state notifies the application about its presence.
                     state.events_sink.push_window_event(WindowEvent::Ime(Ime::Enabled), window_id);
                 }
 
@@ -156,17 +157,35 @@ impl Dispatch<ZwpTextInputV3, TextInputData, WinitState> for TextInputState {
 }
 
 pub trait ZwpTextInputV3Ext {
-    fn set_content_type_by_purpose(&self, purpose: ImePurpose);
+    /// Applies the entire state atomically to the input method. It will skip the "enable" request
+    /// if `already_enabled` is `true`.
+    fn set_state(&self, state: Option<ClientState>, already_enabled: bool);
 }
 
 impl ZwpTextInputV3Ext for ZwpTextInputV3 {
-    fn set_content_type_by_purpose(&self, purpose: ImePurpose) {
-        let (hint, purpose) = match purpose {
-            ImePurpose::Password => (ContentHint::SensitiveData, ContentPurpose::Password),
-            ImePurpose::Terminal => (ContentHint::None, ContentPurpose::Terminal),
-            _ => (ContentHint::None, ContentPurpose::Normal),
-        };
-        self.set_content_type(hint, purpose);
+    fn set_state(&self, state: Option<ClientState>, already_enabled: bool) {
+        if let Some(ClientState { purpose, hint, cursor_area }) = state {
+            // text_input.enabled() resets some state on every call in text_input_v3.
+            // This might be an abundance of caution, though. We do update the entire state on every
+            // call... do we? Things to watch out for: whether the enable event
+            // affects the flow of filtered keyboard events or the visible popups.
+            if !already_enabled {
+                self.enable();
+            }
+            self.set_content_type(hint, purpose);
+            if let Some((position, size)) = cursor_area {
+                let (x, y) = (position.x as i32, position.y as i32);
+                let (width, height) = (size.width as i32, size.height as i32);
+                // The same cursor can be applied on different seats.
+                // It's the compositor's responsibility to make sure that any present popups don't
+                // overlap.
+                self.set_cursor_rectangle(x, y, width, height);
+            }
+            // TODO; surrounding text
+        } else {
+            self.disable();
+        }
+        self.commit();
     }
 }
 
@@ -189,10 +208,42 @@ pub struct TextInputDataInner {
 }
 
 /// The state of the preedit.
+#[derive(Clone)]
 struct Preedit {
     text: String,
     cursor_begin: Option<usize>,
     cursor_end: Option<usize>,
+}
+
+/// State requested by the application.
+///
+/// This is a version that uses text_input abstractions translated from the ones used in
+/// winit::core::window::ImeState.
+#[derive(Debug, PartialEq, Clone)]
+pub struct ClientState {
+    /// Text input purpose
+    purpose: ContentPurpose,
+    hint: ContentHint,
+    /// The IME cursor area which should not be covered by the input method popup.
+    cursor_area: Option<(LogicalPosition<u32>, LogicalSize<u32>)>,
+}
+
+impl ClientState {
+    /// Converts the units from the windowing system into units expected by the Wayland protocol
+    pub fn new(ImeState { purpose, cursor_area, .. }: &ImeState, scale_factor: f64) -> Self {
+        let (hint, purpose) = match purpose {
+            ImePurpose::Password => (ContentHint::SensitiveData, ContentPurpose::Password),
+            ImePurpose::Terminal => (ContentHint::None, ContentPurpose::Terminal),
+            _ => (ContentHint::None, ContentPurpose::Normal),
+        };
+        let cursor_area = cursor_area.map(|(position, size)| {
+            let position: LogicalPosition<u32> = position.to_logical(scale_factor);
+            let size: LogicalSize<u32> = size.to_logical(scale_factor);
+            (position, size)
+        });
+
+        Self { hint, purpose, cursor_area }
+    }
 }
 
 delegate_dispatch!(WinitState: [ZwpTextInputManagerV3: GlobalData] => TextInputState);

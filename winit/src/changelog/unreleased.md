@@ -81,6 +81,7 @@ changelog entry.
 - `keyboard::ModifiersKey` to track which modifier is exactly pressed.
 - `ActivationToken::as_raw` to get a ref to raw token.
 - Each platform now has corresponding `WindowAttributes` struct instead of trait extension.
+- Add an atomic interface to submit input method changes, accessible through `ImeState`, available for Wayland.
 
 ### Changed
 
