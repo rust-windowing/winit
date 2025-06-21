@@ -337,14 +337,16 @@ impl Shared {
 
                 // pointer move event
                 let mut delta = backend::event::MouseDelta::init(&navigator, &event);
-                runner.send_events(backend::event::pointer_move_event(event).map(|event: web_sys::PointerEvent| {
-                    let delta = delta.delta(&event).to_physical(backend::scale_factor(&window));
+                runner.send_events(backend::event::pointer_move_event(event).map(
+                    |event: web_sys::PointerEvent| {
+                        let delta = delta.delta(&event).to_physical(backend::scale_factor(&window));
 
-                    Event::DeviceEvent {
-                        device_id,
-                        event: DeviceEvent::PointerMotion { delta: (delta.x, delta.y) },
-                    }
-                }));
+                        Event::DeviceEvent {
+                            device_id,
+                            event: DeviceEvent::PointerMotion { delta: (delta.x, delta.y) },
+                        }
+                    },
+                ));
             }),
         ));
         let runner = self.clone();

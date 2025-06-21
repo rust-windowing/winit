@@ -7,7 +7,10 @@ use tracing::warn;
 use wasm_bindgen::prelude::wasm_bindgen;
 use wasm_bindgen::{JsCast, JsValue};
 use web_sys::{Event, KeyboardEvent, MouseEvent, Navigator, PointerEvent, WheelEvent};
-use winit_core::event::{ButtonSource, FingerId, Force, MouseButton, MouseScrollDelta, PointerKind, PointerSource, ToolAngle, ToolButton, ToolState, ToolTilt};
+use winit_core::event::{
+    ButtonSource, FingerId, Force, MouseButton, MouseScrollDelta, PointerKind, PointerSource,
+    ToolAngle, ToolButton, ToolState, ToolTilt,
+};
 use winit_core::keyboard::{
     Key, KeyCode, KeyLocation, ModifiersState, NamedKey, NativeKey, NativeKeyCode, PhysicalKey,
 };
@@ -136,19 +139,18 @@ pub fn pointer_kind(event: &PointerEvent, pointer_id: i32) -> PointerKind {
     match WebPointerType::from_event(&event) {
         Some(WebPointerType::Mouse) => PointerKind::Mouse,
         Some(WebPointerType::Touch) => PointerKind::Touch(FingerId::from_raw(pointer_id as usize)),
-        Some(WebPointerType::Pen) => if pointer_buttons(&event).contains(ButtonsState::ERASER) {
-            PointerKind::Eraser
-        } else { 
-            PointerKind::Pen
-        }
+        Some(WebPointerType::Pen) => {
+            if pointer_buttons(&event).contains(ButtonsState::ERASER) {
+                PointerKind::Eraser
+            } else { 
+                PointerKind::Pen
+            }
+        },
         None => PointerKind::Unknown,
     }
 }
 
-pub fn pointer_source(
-    event: &PointerEvent,
-    kind: PointerKind,
-) -> PointerSource {
+pub fn pointer_source(event: &PointerEvent, kind: PointerKind) -> PointerSource {
     #[wasm_bindgen]
     extern "C" {
         #[wasm_bindgen(extends = PointerEvent, extends = MouseEvent, extends = Event)]
@@ -167,7 +169,7 @@ pub fn pointer_source(
         PointerKind::Mouse => PointerSource::Mouse,
         PointerKind::Touch(id) => PointerSource::Touch { 
             finger_id: id, 
-            force: Some(Force::Normalized(event.pressure().into())) 
+            force: Some(Force::Normalized(event.pressure().into())),
         },
         PointerKind::Pen | PointerKind::Eraser => {
             let state = ToolState {
@@ -178,7 +180,9 @@ pub fn pointer_source(
                     x: event.tilt_x().try_into().expect("found invalid `tiltX`"),
                     y: event.tilt_y().try_into().expect("found invalid `tiltY`"),
                 }),
-                angle: event.altitude_angle().map(|altitude| ToolAngle { altitude, azimuth: event.azimuth_angle() }),
+                angle: event
+                    .altitude_angle()
+                    .map(|altitude| ToolAngle { altitude, azimuth: event.azimuth_angle() }),
             };
 
             match kind {

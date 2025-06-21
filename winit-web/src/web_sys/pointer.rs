@@ -219,7 +219,9 @@ impl PointerHandler {
                         let _ = canvas.focus();
                     }
 
-                    let state = if event::pointer_buttons(&event).contains(ButtonsState::from_bits_retain(button)) {
+                    let state = if event::pointer_buttons(&event)
+                        .contains(ButtonsState::from_bits_retain(button))
+                    {
                         ElementState::Pressed
                     } else {
                         ElementState::Released
