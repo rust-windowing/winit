@@ -73,6 +73,7 @@ changelog entry.
 - Add ability to make non-activating window on macOS using `NSPanel` with `NSWindowStyleMask::NonactivatingPanel`.
 - Implement `MonitorHandleProvider` for `MonitorHandle` to access common monitor API.
 - On X11, set an "area" attribute on XIM input connection to convey the cursor area.
+- On Wayland, added implementation for xdg_toplevel_icon_v1 protocol
 - Implement `CustomCursorProvider` for `CustomCursor` to access cursor API.
 - Add `CustomCursorSource::Url`, `CustomCursorSource::from_animation`.
 - Implement `CustomIconProvider` for `RgbaIcon`.

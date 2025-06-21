@@ -40,6 +40,7 @@ use crate::seat::{
 use crate::state::{WindowCompositorUpdate, WinitState};
 use crate::types::cursor::{CustomCursor, SelectedCursor, WaylandCustomCursor};
 use crate::types::kwin_blur::KWinBlurManager;
+use crate::types::xdg_toplevel_icon_manager::ToplevelIcon;
 
 #[cfg(feature = "sctk-adwaita")]
 pub type WinitFrame = sctk_adwaita::AdwaitaFrame<WinitState>;
@@ -83,6 +84,12 @@ pub struct WindowState {
 
     /// The current window title.
     title: String,
+
+    /// The current window toplevel icon
+    pub(crate) toplevel_icon: Option<ToplevelIcon>,
+
+    /// A shared pool where to allocate icons
+    pub(crate) icon_pool: Arc<Mutex<SlotPool>>,
 
     /// Whether the frame is resizable.
     resizable: bool,
@@ -181,6 +188,7 @@ impl WindowState {
             .map(|fsm| fsm.fractional_scaling(window.wl_surface(), queue_handle));
 
         Self {
+            toplevel_icon: None,
             blur: None,
             blur_manager: winit_state.kwin_blur_manager.clone(),
             compositor,
@@ -207,6 +215,7 @@ impl WindowState {
             scale_factor: 1.,
             shm: winit_state.shm.wl_shm().clone(),
             custom_cursor_pool: winit_state.custom_cursor_pool.clone(),
+            icon_pool: winit_state.icon_pool.clone(),
             size: initial_size.to_logical(1.),
             stateless_size: initial_size.to_logical(1.),
             initial_size: Some(initial_size),
