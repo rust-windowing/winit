@@ -59,10 +59,8 @@ changelog entry.
 - Implement `Clone`, `Copy`, `Debug`, `Deserialize`, `Eq`, `Hash`, `Ord`, `PartialEq`, `PartialOrd`
   and `Serialize` on many types.
 - Add `MonitorHandle::current_video_mode()`.
-- Add `ApplicationHandlerExtMacOS` trait, and a `macos_handler` method to `ApplicationHandler` which returns a
-  `dyn ApplicationHandlerExtMacOS` which allows for macOS specific extensions to winit.
-- Add a `standard_key_binding` method to the `ApplicationHandlerExtMacOS` trait. This allows handling of standard
-  keybindings such as "go to end of line" on macOS.
+- Add `ApplicationHandlerExtMacOS` trait, and a `macos_handler` method to `ApplicationHandler` which returns a `dyn ApplicationHandlerExtMacOS` which allows for macOS specific extensions to winit.
+- Add a `standard_key_binding` method to the `ApplicationHandlerExtMacOS` trait. This allows handling of standard keybindings such as "go to end of line" on macOS.
 - On macOS, add `WindowExtMacOS::set_unified_titlebar` and `WindowAttributesMacOS::with_unified_titlebar`
   to use a larger style of titlebar.
 - Add `WindowId::into_raw()` and `from_raw()`.
@@ -125,20 +123,20 @@ changelog entry.
   application delegate yourself.
 - On X11, remove our dependency on libXcursor. (#3749)
 - Renamed the following APIs to make it clearer that the sizes apply to the underlying surface:
-    - `WindowEvent::Resized` to `SurfaceResized`.
-    - `InnerSizeWriter` to `SurfaceSizeWriter`.
-    - `WindowAttributes.inner_size` to `surface_size`.
-    - `WindowAttributes.min_inner_size` to `min_surface_size`.
-    - `WindowAttributes.max_inner_size` to `max_surface_size`.
-    - `WindowAttributes.resize_increments` to `surface_resize_increments`.
-    - `WindowAttributes::with_inner_size` to `with_surface_size`.
-    - `WindowAttributes::with_min_inner_size` to `with_min_surface_size`.
-    - `WindowAttributes::with_max_inner_size` to `with_max_surface_size`.
-    - `WindowAttributes::with_resize_increments` to `with_surface_resize_increments`.
-    - `Window::inner_size` to `surface_size`.
-    - `Window::request_inner_size` to `request_surface_size`.
-    - `Window::set_min_inner_size` to `set_min_surface_size`.
-    - `Window::set_max_inner_size` to `set_max_surface_size`.
+  - `WindowEvent::Resized` to `SurfaceResized`.
+  - `InnerSizeWriter` to `SurfaceSizeWriter`.
+  - `WindowAttributes.inner_size` to `surface_size`.
+  - `WindowAttributes.min_inner_size` to `min_surface_size`.
+  - `WindowAttributes.max_inner_size` to `max_surface_size`.
+  - `WindowAttributes.resize_increments` to `surface_resize_increments`.
+  - `WindowAttributes::with_inner_size` to `with_surface_size`.
+  - `WindowAttributes::with_min_inner_size` to `with_min_surface_size`.
+  - `WindowAttributes::with_max_inner_size` to `with_max_surface_size`.
+  - `WindowAttributes::with_resize_increments` to `with_surface_resize_increments`.
+  - `Window::inner_size` to `surface_size`.
+  - `Window::request_inner_size` to `request_surface_size`.
+  - `Window::set_min_inner_size` to `set_min_surface_size`.
+  - `Window::set_max_inner_size` to `set_max_surface_size`.
 
   To migrate, you can probably just replace all instances of `inner_size` with `surface_size` in your codebase.
 - Every event carrying a `DeviceId` now uses `Option<DeviceId>` instead. A `None` value signifies that the
@@ -146,26 +144,26 @@ changelog entry.
 - Pointer `WindowEvent`s were overhauled. The new events can handle any type of pointer, serving as
   a single pointer input source. Now your application can handle any pointer type without having to
   explicitly handle e.g. `Touch`:
-    - Rename `CursorMoved` to `PointerMoved`.
-    - Rename `CursorEntered` to `PointerEntered`.
-    - Rename `CursorLeft` to `PointerLeft`.
-    - Rename `MouseInput` to `PointerButton`.
-    - Add `primary` to every `PointerEvent` as a way to identify discard non-primary pointers in a
-      multi-touch interaction.
-    - Add `position` to every `PointerEvent`.
-    - `PointerMoved` is **not sent** after `PointerEntered` anymore.
-    - Remove `Touch`, which is folded into the `Pointer*` events.
-    - New `PointerKind` added to `PointerEntered` and `PointerLeft`, signifying which pointer type is
-      the source of this event.
-    - New `PointerSource` added to `PointerMoved`, similar to `PointerKind` but holding additional
-      data.
-    - New `ButtonSource` added to `PointerButton`, similar to `PointerKind` but holding pointer type
-      specific buttons. Use `ButtonSource::mouse_button()` to easily normalize any pointer button
-      type to a generic mouse button.
-    - New `FingerId` added to `PointerKind::Touch` and `PointerSource::Touch` able to uniquely
-      identify a finger in a multi-touch interaction. Replaces the old `Touch::id`.
-    - In the same spirit rename `DeviceEvent::MouseMotion` to `PointerMotion`.
-    - Remove `Force::Calibrated::altitude_angle`.
+  - Rename `CursorMoved` to `PointerMoved`.
+  - Rename `CursorEntered` to `PointerEntered`.
+  - Rename `CursorLeft` to `PointerLeft`.
+  - Rename `MouseInput` to `PointerButton`.
+  - Add `primary` to every `PointerEvent` as a way to identify discard non-primary pointers in a
+    multi-touch interaction.
+  - Add `position` to every `PointerEvent`.
+  - `PointerMoved` is **not sent** after `PointerEntered` anymore.
+  - Remove `Touch`, which is folded into the `Pointer*` events.
+  - New `PointerKind` added to `PointerEntered` and `PointerLeft`, signifying which pointer type is
+    the source of this event.
+  - New `PointerSource` added to `PointerMoved`, similar to `PointerKind` but holding additional
+    data.
+  - New `ButtonSource` added to `PointerButton`, similar to `PointerKind` but holding pointer type
+    specific buttons. Use `ButtonSource::mouse_button()` to easily normalize any pointer button
+    type to a generic mouse button.
+  - New `FingerId` added to `PointerKind::Touch` and `PointerSource::Touch` able to uniquely
+    identify a finger in a multi-touch interaction. Replaces the old `Touch::id`.
+  - In the same spirit rename `DeviceEvent::MouseMotion` to `PointerMotion`.
+  - Remove `Force::Calibrated::altitude_angle`.
 - On X11, use bottom-right corner for IME hotspot in `Window::set_ime_cursor_area`.
 - On macOS and iOS, no longer emit `ScaleFactorChanged` upon window creation.
 - On macOS, no longer emit `Focused` upon window creation.
@@ -185,17 +183,17 @@ changelog entry.
   pointer position.
 
   The rough correspondence is:
-    - `WindowEvent::HoveredFile` -> `WindowEvent::DragEntered`
-    - `WindowEvent::DroppedFile` -> `WindowEvent::DragDropped`
-    - `WindowEvent::HoveredFileCancelled` -> `WindowEvent::DragLeft`
+  - `WindowEvent::HoveredFile` -> `WindowEvent::DragEntered`
+  - `WindowEvent::DroppedFile` -> `WindowEvent::DragDropped`
+  - `WindowEvent::HoveredFileCancelled` -> `WindowEvent::DragLeft`
 
   The `WindowEvent::DragMoved` event is entirely new, and is emitted whenever the pointer moves
   whilst files are being dragged over the window. It doesn't contain any file paths, just the
   pointer position.
 - Updated `objc2` to `v0.6`.
 - Updated `windows-sys` to `v0.59`.
-    - To match the corresponding changes in `windows-sys`, the `HWND`, `HMONITOR`, and `HMENU` types
-      now alias to `*mut c_void` instead of `isize`.
+  - To match the corresponding changes in `windows-sys`, the `HWND`, `HMONITOR`, and `HMENU` types
+    now alias to `*mut c_void` instead of `isize`.
 - Removed `KeyEventExtModifierSupplement`, and made the fields `text_with_all_modifiers` and
   `key_without_modifiers` public on `KeyEvent` instead.
 - Move `window::Fullscreen` to `monitor::Fullscreen`.
@@ -210,14 +208,14 @@ changelog entry.
 
 - Remove `Event`.
 - Remove already deprecated APIs:
-    - `EventLoop::create_window()`
-    - `EventLoop::run`.
-    - `EventLoopBuilder::new()`
-    - `EventLoopExtPumpEvents::pump_events`.
-    - `EventLoopExtRunOnDemand::run_on_demand`.
-    - `VideoMode`
-    - `WindowAttributes::new()`
-    - `Window::set_cursor_icon()`
+  - `EventLoop::create_window()`
+  - `EventLoop::run`.
+  - `EventLoopBuilder::new()`
+  - `EventLoopExtPumpEvents::pump_events`.
+  - `EventLoopExtRunOnDemand::run_on_demand`.
+  - `VideoMode`
+  - `WindowAttributes::new()`
+  - `Window::set_cursor_icon()`
 - On iOS, remove `platform::ios::EventLoopExtIOS` and related `platform::ios::Idiom` type.
 
   This feature was incomplete, and the equivalent functionality can be trivially achieved outside
@@ -234,7 +232,7 @@ changelog entry.
   `WindowId::into_raw()` and `from_raw()`.
 - Remove `dummy()` from `WindowId` and `DeviceId`.
 - Remove `WindowEvent::Touch` and `Touch` in favor of the new `PointerKind`, `PointerSource` and
-  `ButtonSource` as part of the new pointer event overhaul.
+ `ButtonSource` as part of the new pointer event overhaul.
 - Remove `Force::altitude_angle`.
 - Remove `Window::inner_position`, use the new `Window::surface_position` instead.
 - Remove `CustomCursorExtWeb`, use the `CustomCursorSource`.
