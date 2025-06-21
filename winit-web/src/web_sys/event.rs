@@ -125,7 +125,7 @@ impl WebPointerType {
             "touch" => Some(Self::Touch),
             "pen" => Some(Self::Pen),
             r#type => {
-                warn!("found unknown pointer typ: {type}");
+                warn!("found unknown pointer type: {type}");
                 None
             },
         }
