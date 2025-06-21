@@ -1032,7 +1032,6 @@ pub type ButtonId = u32;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
-#[non_exhaustive]
 pub struct ToolState {
     /// The force applied to the tool against the surface.
     pub force: Force,

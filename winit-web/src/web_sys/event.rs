@@ -136,11 +136,11 @@ impl WebPointerType {
 }
 
 pub fn pointer_kind(event: &PointerEvent, pointer_id: i32) -> PointerKind {
-    match WebPointerType::from_event(&event) {
+    match WebPointerType::from_event(event) {
         Some(WebPointerType::Mouse) => PointerKind::Mouse,
         Some(WebPointerType::Touch) => PointerKind::Touch(FingerId::from_raw(pointer_id as usize)),
         Some(WebPointerType::Pen) => {
-            if pointer_buttons(&event).contains(ButtonsState::ERASER) {
+            if pointer_buttons(event).contains(ButtonsState::ERASER) {
                 PointerKind::Eraser
             } else {
                 PointerKind::Pen
