@@ -142,7 +142,7 @@ pub fn pointer_kind(event: &PointerEvent, pointer_id: i32) -> PointerKind {
         Some(WebPointerType::Pen) => {
             if pointer_buttons(&event).contains(ButtonsState::ERASER) {
                 PointerKind::Eraser
-            } else { 
+            } else {
                 PointerKind::Pen
             }
         },
@@ -167,8 +167,8 @@ pub fn pointer_source(event: &PointerEvent, kind: PointerKind) -> PointerSource 
 
     match kind {
         PointerKind::Mouse => PointerSource::Mouse,
-        PointerKind::Touch(id) => PointerSource::Touch { 
-            finger_id: id, 
+        PointerKind::Touch(id) => PointerSource::Touch {
+            finger_id: id,
             force: Some(Force::Normalized(event.pressure().into())),
         },
         PointerKind::Pen | PointerKind::Eraser => {
