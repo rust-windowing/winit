@@ -42,6 +42,7 @@ impl Dispatch<XdgToplevelIconManagerV1, GlobalData, WinitState> for XdgToplevelI
     }
 }
 
+#[allow(dead_code)]
 #[derive(Debug)]
 pub enum ToplevelIconError {
     InvalidBuffer,
