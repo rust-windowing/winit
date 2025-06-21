@@ -979,7 +979,7 @@ impl EventProcessor {
         let Some(DeviceType::Mouse) = self
             .devices
             .borrow()
-            .get(&DeviceId(event.sourceid as xinput::DeviceId))
+            .get(&mkdid(event.sourceid as xinput::DeviceId))
             .map(|device| device.r#type)
         else {
             return;
@@ -1065,7 +1065,7 @@ impl EventProcessor {
         let Some(DeviceType::Mouse) = self
             .devices
             .borrow()
-            .get(&DeviceId(event.sourceid as xinput::DeviceId))
+            .get(&mkdid(event.sourceid as xinput::DeviceId))
             .map(|device| device.r#type)
         else {
             return;
@@ -1423,7 +1423,7 @@ impl EventProcessor {
         let Some(DeviceType::Mouse) = self
             .devices
             .borrow()
-            .get(&DeviceId(xev.sourceid as xinput::DeviceId))
+            .get(&mkdid(xev.sourceid as xinput::DeviceId))
             .map(|device| device.r#type)
         else {
             return;
