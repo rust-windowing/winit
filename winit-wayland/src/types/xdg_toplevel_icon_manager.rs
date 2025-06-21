@@ -1,6 +1,5 @@
 //! Handling of xdg toplevel icon manager, which is used for icon setting requests.
 
-use crate::state::WinitState;
 use sctk::globals::GlobalData;
 use sctk::shm::slot::{Buffer, SlotPool};
 use tracing::warn;
@@ -10,6 +9,8 @@ use wayland_client::{delegate_dispatch, Connection, Dispatch, Proxy, QueueHandle
 use wayland_protocols::xdg::toplevel_icon::v1::client::xdg_toplevel_icon_manager_v1::XdgToplevelIconManagerV1;
 use wayland_protocols::xdg::toplevel_icon::v1::client::xdg_toplevel_icon_v1::XdgToplevelIconV1;
 use winit_core::icon::{Icon, RgbaIcon};
+
+use crate::state::WinitState;
 
 #[derive(Debug)]
 pub struct XdgToplevelIconManagerState {
