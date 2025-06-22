@@ -7,6 +7,7 @@ use std::time::Duration;
 use ahash::HashSet;
 use dpi::{LogicalPosition, LogicalSize, PhysicalPosition, PhysicalSize, Size};
 use sctk::compositor::{CompositorState, Region, SurfaceData, SurfaceDataExt};
+use sctk::globals::GlobalData;
 use sctk::reexports::client::backend::ObjectId;
 use sctk::reexports::client::protocol::wl_seat::WlSeat;
 use sctk::reexports::client::protocol::wl_shm::WlShm;
@@ -27,6 +28,7 @@ use sctk::shm::slot::SlotPool;
 use sctk::shm::Shm;
 use sctk::subcompositor::SubcompositorState;
 use tracing::{info, warn};
+use wayland_protocols::xdg::toplevel_icon::v1::client::xdg_toplevel_icon_manager_v1::XdgToplevelIconManagerV1;
 use wayland_protocols_plasma::blur::client::org_kde_kwin_blur::OrgKdeKwinBlur;
 use winit_core::cursor::{CursorIcon, CustomCursor as CoreCustomCursor};
 use winit_core::error::{NotSupportedError, RequestError};
@@ -82,11 +84,14 @@ pub struct WindowState {
     /// The current window title.
     title: String,
 
+    /// Xdg toplevel icon manager to request icon setting.
+    xdg_toplevel_icon_manager: Option<XdgToplevelIconManagerV1>,
+
     /// The current window toplevel icon
-    pub(crate) toplevel_icon: Option<ToplevelIcon>,
+    toplevel_icon: Option<ToplevelIcon>,
 
     /// A shared pool where to allocate images (used for window icons and custom cursors)
-    pub(crate) image_pool: Arc<Mutex<SlotPool>>,
+    image_pool: Arc<Mutex<SlotPool>>,
 
     /// Whether the frame is resizable.
     resizable: bool,
@@ -184,8 +189,14 @@ impl WindowState {
             .as_ref()
             .map(|fsm| fsm.fractional_scaling(window.wl_surface(), queue_handle));
 
+        let xdg_toplevel_icon_manager = winit_state
+            .xdg_toplevel_icon_manager
+            .as_ref()
+            .map(|toplevel_icon_manager_state| toplevel_icon_manager_state.global().clone());
+
         Self {
             toplevel_icon: None,
+            xdg_toplevel_icon_manager,
             blur: None,
             blur_manager: winit_state.kwin_blur_manager.clone(),
             compositor,
@@ -1072,6 +1083,45 @@ impl WindowState {
 
         self.window.set_title(&title);
         self.title = title;
+    }
+
+    /// Set the window's icon
+    pub fn set_window_icon(&mut self, window_icon: Option<winit_core::icon::Icon>) {
+        let xdg_toplevel_icon_manager = match self.xdg_toplevel_icon_manager.as_ref() {
+            Some(xdg_toplevel_icon_manager) => xdg_toplevel_icon_manager,
+            None => {
+                warn!("`xdg_toplevel_icon_manager_v1` is not supported");
+                return;
+            },
+        };
+
+        let toplevel_icon = match window_icon {
+            Some(icon) => {
+                let mut image_pool = self.image_pool.lock().unwrap();
+                let toplevel_icon = ToplevelIcon::new(icon, &mut image_pool);
+                if let Err(error) = toplevel_icon {
+                    warn!("Error setting window icon: {error}");
+                    return;
+                }
+                Some(toplevel_icon.unwrap())
+            },
+            None => None,
+        };
+
+        match toplevel_icon.as_ref() {
+            Some(toplevel_icon) => {
+                let xdg_toplevel_icon =
+                    xdg_toplevel_icon_manager.create_icon(&self.queue_handle, GlobalData);
+
+                toplevel_icon.add_buffer(&xdg_toplevel_icon);
+
+                xdg_toplevel_icon_manager
+                    .set_icon(self.window.xdg_toplevel(), Some(&xdg_toplevel_icon));
+            },
+            None => xdg_toplevel_icon_manager.set_icon(self.window.xdg_toplevel(), None),
+        }
+
+        self.toplevel_icon = toplevel_icon;
     }
 
     /// Mark the window as transparent.

@@ -87,6 +87,7 @@ impl Dispatch<XdgToplevelIconManagerV1, GlobalData, WinitState> for XdgToplevelI
         _conn: &Connection,
         _qhandle: &QueueHandle<WinitState>,
     ) {
+        // No events.
     }
 }
 
@@ -99,7 +100,7 @@ impl Dispatch<XdgToplevelIconV1, GlobalData, WinitState> for XdgToplevelIconMana
         _conn: &Connection,
         _qhandle: &QueueHandle<WinitState>,
     ) {
-        // No events
+        // No events.
     }
 }
 

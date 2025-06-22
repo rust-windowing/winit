@@ -81,7 +81,7 @@ changelog entry.
 - `keyboard::ModifiersKey` to track which modifier is exactly pressed.
 - `ActivationToken::as_raw` to get a ref to raw token.
 - Each platform now has corresponding `WindowAttributes` struct instead of trait extension.
-- On Wayland, added implementation for xdg_toplevel_icon_v1 protocol
+- On Wayland, added implementation for `Window::set_window_icon`
 
 ### Changed
 

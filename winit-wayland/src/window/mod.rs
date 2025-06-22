@@ -7,7 +7,6 @@ use std::sync::{Arc, Mutex};
 
 use dpi::{LogicalSize, PhysicalInsets, PhysicalPosition, PhysicalSize, Position, Size};
 use sctk::compositor::{CompositorState, Region, SurfaceData};
-use sctk::globals::GlobalData;
 use sctk::reexports::client::protocol::wl_display::WlDisplay;
 use sctk::reexports::client::protocol::wl_surface::WlSurface;
 use sctk::reexports::client::{Proxy, QueueHandle};
@@ -15,7 +14,6 @@ use sctk::reexports::protocols::xdg::activation::v1::client::xdg_activation_v1::
 use sctk::shell::xdg::window::{Window as SctkWindow, WindowDecorations};
 use sctk::shell::WaylandSurface;
 use tracing::warn;
-use wayland_protocols::xdg::toplevel_icon::v1::client::xdg_toplevel_icon_manager_v1::XdgToplevelIconManagerV1;
 use winit_core::cursor::Cursor;
 use winit_core::error::{NotSupportedError, RequestError};
 use winit_core::event::{Ime, WindowEvent};
@@ -31,7 +29,6 @@ use super::output::MonitorHandle;
 use super::state::WinitState;
 use super::types::xdg_activation::XdgActivationTokenData;
 use super::ActiveEventLoop;
-use crate::types::xdg_toplevel_icon_manager::ToplevelIcon;
 use crate::{output, WindowAttributesWayland};
 
 pub(crate) mod state;
@@ -59,9 +56,6 @@ pub struct Window {
 
     /// Xdg activation to request user attention.
     xdg_activation: Option<XdgActivationV1>,
-
-    /// Xdg toplevel icon manager to request icon setting.
-    xdg_toplevel_icon_manager: Option<XdgToplevelIconManagerV1>,
 
     /// The state of the requested attention from the `xdg_activation`.
     attention_requested: Arc<AtomicBool>,
@@ -120,35 +114,7 @@ impl Window {
             attributes.preferred_theme,
         );
 
-        let xdg_toplevel_icon_manager = state
-            .xdg_toplevel_icon_manager
-            .as_ref()
-            .map(|toplevel_icon_manager_state| toplevel_icon_manager_state.global().clone());
-
-        if let Some(icon) = attributes.window_icon {
-            if let Some(xdg_toplevel_icon_manager) = xdg_toplevel_icon_manager.as_ref() {
-                let toplevel_icon = {
-                    let mut icon_pool = window_state.image_pool.lock().unwrap();
-                    ToplevelIcon::new(icon, &mut icon_pool)
-                };
-
-                match toplevel_icon {
-                    Ok(toplevel_icon) => {
-                        let xdg_toplevel_icon =
-                            xdg_toplevel_icon_manager.create_icon(&queue_handle, GlobalData);
-
-                        toplevel_icon.add_buffer(&xdg_toplevel_icon);
-                        window_state.toplevel_icon = Some(toplevel_icon);
-
-                        xdg_toplevel_icon_manager
-                            .set_icon(window.xdg_toplevel(), Some(&xdg_toplevel_icon));
-                    },
-                    Err(error) => warn!("set window icon error: {error}"),
-                }
-            } else {
-                warn!("`xdg_toplevel_icon_manager_v1` not supported");
-            }
-        }
+        window_state.set_window_icon(attributes.window_icon);
 
         // Set transparency hint.
         window_state.set_transparent(attributes.transparent);
@@ -251,7 +217,6 @@ impl Window {
             window_state,
             queue_handle,
             xdg_activation,
-            xdg_toplevel_icon_manager,
             attention_requested: Arc::new(AtomicBool::new(false)),
             event_loop_awakener,
             window_requests,
@@ -539,39 +504,7 @@ impl CoreWindow for Window {
     fn set_window_level(&self, _level: WindowLevel) {}
 
     fn set_window_icon(&self, window_icon: Option<winit_core::icon::Icon>) {
-        let xdg_toplevel_icon_manager = match self.xdg_toplevel_icon_manager.as_ref() {
-            Some(xdg_toplevel_icon_manager) => xdg_toplevel_icon_manager,
-            None => {
-                warn!("`xdg_toplevel_icon_manager_v1` not supported");
-                return;
-            },
-        };
-
-        let icon = match window_icon {
-            Some(icon) => icon,
-            None => return,
-        };
-
-        let mut window_state = self.window_state.lock().unwrap();
-
-        let toplevel_icon = {
-            let mut icon_pool = window_state.image_pool.lock().unwrap();
-            ToplevelIcon::new(icon, &mut icon_pool)
-        };
-
-        match toplevel_icon {
-            Ok(toplevel_icon) => {
-                let xdg_toplevel_icon =
-                    xdg_toplevel_icon_manager.create_icon(&self.queue_handle, GlobalData);
-
-                toplevel_icon.add_buffer(&xdg_toplevel_icon);
-                window_state.toplevel_icon = Some(toplevel_icon);
-
-                xdg_toplevel_icon_manager
-                    .set_icon(self.window.xdg_toplevel(), Some(&xdg_toplevel_icon));
-            },
-            Err(error) => warn!("set window icon error: {error}"),
-        }
+        self.window_state.lock().unwrap().set_window_icon(window_icon)
     }
 
     #[inline]

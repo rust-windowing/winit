@@ -1054,7 +1054,7 @@ pub trait Window: AsAny + Send + Sync + fmt::Debug {
     /// - **X11:** Has no universal guidelines for icon sizes, so you're at the whims of the WM.
     ///   That said, it's usually in the same ballpark as on Windows.
     ///
-    /// - **Wayland:** The default scale is set to `1`
+    /// - **Wayland:** The compositor needs to implement `xdg_toplevel_icon`.
     fn set_window_icon(&self, window_icon: Option<Icon>);
 
     /// Set the IME cursor editing area, where the `position` is the top left corner of that area
