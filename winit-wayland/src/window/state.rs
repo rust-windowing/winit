@@ -1168,10 +1168,6 @@ impl Drop for WindowState {
             viewport.destroy();
         }
 
-        if let Some(xdg_toplevel_icon_manager) = self.xdg_toplevel_icon_manager.take() {
-            xdg_toplevel_icon_manager.destroy();
-        }
-
         // NOTE: the wl_surface used by the window is being cleaned up when
         // dropping SCTK `Window`.
     }
