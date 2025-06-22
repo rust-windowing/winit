@@ -57,9 +57,6 @@ pub struct WinitState {
     /// The shm for software buffers, such as cursors.
     pub shm: Shm,
 
-    /// The pool where custom cursors are allocated.
-    pub custom_cursor_pool: Arc<Mutex<SlotPool>>,
-
     /// The XDG shell that is used for windows.
     pub xdg_shell: XdgShell,
 
@@ -97,8 +94,8 @@ pub struct WinitState {
     /// Xdg toplevel icon manager
     pub xdg_toplevel_icon_manager: Option<XdgToplevelIconManagerState>,
 
-    /// The pool where icons are allocated
-    pub icon_pool: Arc<Mutex<SlotPool>>,
+    /// The pool where images are allocated (used for window icons and custom cursors)
+    pub image_pool: Arc<Mutex<SlotPool>>,
 
     /// Relative pointer.
     pub relative_pointer: Option<RelativePointerState>,
@@ -165,8 +162,7 @@ impl WinitState {
             };
 
         let shm = Shm::bind(globals, queue_handle).map_err(|err| os_error!(err))?;
-        let custom_cursor_pool = Arc::new(Mutex::new(SlotPool::new(2, &shm).unwrap()));
-        let icon_pool = Arc::new(Mutex::new(SlotPool::new(2, &shm).unwrap()));
+        let image_pool = Arc::new(Mutex::new(SlotPool::new(2, &shm).unwrap()));
 
         Ok(Self {
             registry_state,
@@ -175,14 +171,13 @@ impl WinitState {
             output_state,
             seat_state,
             shm,
-            custom_cursor_pool,
 
             xdg_shell: XdgShell::bind(globals, queue_handle).map_err(|err| os_error!(err))?,
             xdg_activation: XdgActivationState::bind(globals, queue_handle).ok(),
-
             xdg_toplevel_icon_manager: XdgToplevelIconManagerState::bind(globals, queue_handle)
                 .ok(),
-            icon_pool,
+
+            image_pool,
 
             windows: Default::default(),
             window_requests: Default::default(),

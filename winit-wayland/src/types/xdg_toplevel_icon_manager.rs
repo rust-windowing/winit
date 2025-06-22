@@ -1,8 +1,10 @@
 //! Handling of xdg toplevel icon manager, which is used for icon setting requests.
 
+use std::fmt;
+use std::fmt::Formatter;
+
 use sctk::globals::GlobalData;
 use sctk::shm::slot::{Buffer, SlotPool};
-use tracing::warn;
 use wayland_client::globals::{BindError, GlobalList};
 use wayland_client::protocol::wl_shm::Format;
 use wayland_client::{delegate_dispatch, Connection, Dispatch, Proxy, QueueHandle};
@@ -10,11 +12,56 @@ use wayland_protocols::xdg::toplevel_icon::v1::client::xdg_toplevel_icon_manager
 use wayland_protocols::xdg::toplevel_icon::v1::client::xdg_toplevel_icon_v1::XdgToplevelIconV1;
 use winit_core::icon::{Icon, RgbaIcon};
 
+use crate::image_to_buffer;
 use crate::state::WinitState;
 
 #[derive(Debug)]
 pub struct XdgToplevelIconManagerState {
     xdg_toplevel_icon_manager: XdgToplevelIconManagerV1,
+}
+
+#[allow(dead_code)]
+#[derive(Debug)]
+pub enum ToplevelIconError {
+    /// The icon's unsupported
+    Unsupported,
+}
+
+#[derive(Debug)]
+pub struct ToplevelIcon {
+    buffer: Buffer,
+}
+
+impl ToplevelIcon {
+    pub fn new(icon: Icon, pool: &mut SlotPool) -> Result<Self, ToplevelIconError> {
+        let icon = match icon.cast_ref::<RgbaIcon>() {
+            Some(icon) => icon,
+            None => return Err(ToplevelIconError::Unsupported),
+        };
+
+        let buffer = image_to_buffer(
+            icon.width() as i32,
+            icon.height() as i32,
+            icon.buffer(),
+            Format::Argb8888,
+            pool,
+        )
+        .unwrap();
+
+        Ok(Self { buffer })
+    }
+
+    pub fn add_buffer(&self, xdg_toplevel_icon: &XdgToplevelIconV1) {
+        xdg_toplevel_icon.add_buffer(self.buffer.wl_buffer(), 1);
+    }
+}
+
+impl fmt::Display for ToplevelIconError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        match self {
+            ToplevelIconError::Unsupported => write!(f, "this icon is unsupported on Wayland"),
+        }
+    }
 }
 
 impl XdgToplevelIconManagerState {
@@ -40,58 +87,6 @@ impl Dispatch<XdgToplevelIconManagerV1, GlobalData, WinitState> for XdgToplevelI
         _conn: &Connection,
         _qhandle: &QueueHandle<WinitState>,
     ) {
-    }
-}
-
-#[allow(dead_code)]
-#[derive(Debug)]
-pub enum ToplevelIconError {
-    InvalidBuffer,
-    Immutable,
-    NoBuffer,
-}
-
-#[derive(Debug)]
-pub struct ToplevelIcon {
-    buffer: Buffer,
-}
-
-impl ToplevelIcon {
-    pub fn new(icon: Icon, pool: &mut SlotPool) -> Result<Self, ToplevelIconError> {
-        let buffer: Buffer;
-        let canvas: &mut [u8];
-        if let Some(icon) = icon.cast_ref::<RgbaIcon>() {
-            (buffer, canvas) = pool
-                .create_buffer(
-                    icon.width() as i32,
-                    icon.height() as i32,
-                    4 * (icon.width() as i32),
-                    Format::Argb8888,
-                )
-                .unwrap();
-
-            for (canvas_chunk, rgba) in
-                canvas.chunks_exact_mut(4).zip(icon.buffer().chunks_exact(4))
-            {
-                // Alpha in buffer is premultiplied.
-                let alpha = rgba[3] as f32 / 255.;
-                let r = (rgba[0] as f32 * alpha) as u32;
-                let g = (rgba[1] as f32 * alpha) as u32;
-                let b = (rgba[2] as f32 * alpha) as u32;
-                let color = ((rgba[3] as u32) << 24) + (r << 16) + (g << 8) + b;
-                let array: &mut [u8; 4] = canvas_chunk.try_into().unwrap();
-                *array = color.to_le_bytes();
-            }
-        } else {
-            warn!("invalid icon");
-            return Err(ToplevelIconError::InvalidBuffer);
-        }
-
-        Ok(Self { buffer })
-    }
-
-    pub fn add_buffer(&self, xdg_toplevel_icon: &XdgToplevelIconV1) {
-        xdg_toplevel_icon.add_buffer(self.buffer.wl_buffer(), 1);
     }
 }
 

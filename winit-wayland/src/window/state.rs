@@ -59,9 +59,6 @@ pub struct WindowState {
     /// The `Shm` to set cursor.
     pub shm: WlShm,
 
-    // A shared pool where to allocate custom cursors.
-    custom_cursor_pool: Arc<Mutex<SlotPool>>,
-
     /// The last received configure.
     pub last_configure: Option<WindowConfigure>,
 
@@ -88,8 +85,8 @@ pub struct WindowState {
     /// The current window toplevel icon
     pub(crate) toplevel_icon: Option<ToplevelIcon>,
 
-    /// A shared pool where to allocate icons
-    pub(crate) icon_pool: Arc<Mutex<SlotPool>>,
+    /// A shared pool where to allocate images (used for window icons and custom cursors)
+    pub(crate) image_pool: Arc<Mutex<SlotPool>>,
 
     /// Whether the frame is resizable.
     resizable: bool,
@@ -214,8 +211,7 @@ impl WindowState {
             resizable: true,
             scale_factor: 1.,
             shm: winit_state.shm.wl_shm().clone(),
-            custom_cursor_pool: winit_state.custom_cursor_pool.clone(),
-            icon_pool: winit_state.icon_pool.clone(),
+            image_pool: winit_state.image_pool.clone(),
             size: initial_size.to_logical(1.),
             stateless_size: initial_size.to_logical(1.),
             initial_size: Some(initial_size),
@@ -720,7 +716,7 @@ impl WindowState {
         };
 
         let cursor = {
-            let mut pool = self.custom_cursor_pool.lock().unwrap();
+            let mut pool = self.image_pool.lock().unwrap();
             CustomCursor::new(&mut pool, cursor)
         };
 

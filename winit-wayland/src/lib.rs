@@ -19,6 +19,8 @@ use std::ptr::NonNull;
 use dpi::{LogicalSize, PhysicalSize};
 use sctk::reexports::client::protocol::wl_surface::WlSurface;
 use sctk::reexports::client::Proxy;
+use sctk::shm::slot::{Buffer, CreateBufferError, SlotPool};
+use wayland_client::protocol::wl_shm::Format;
 use winit_core::event_loop::ActiveEventLoop as CoreActiveEventLoop;
 use winit_core::window::{
     ActivationToken, PlatformWindowAttributes, Window as CoreWindow, WindowId,
@@ -137,4 +139,28 @@ fn logical_to_physical_rounded(size: LogicalSize<u32>, scale_factor: f64) -> Phy
     let width = size.width as f64 * scale_factor;
     let height = size.height as f64 * scale_factor;
     (width.round(), height.round()).into()
+}
+
+/// Converts an image buffer to a Wayland buffer (`wl_buffer`)
+fn image_to_buffer(
+    width: i32,
+    height: i32,
+    data: &[u8],
+    format: Format,
+    pool: &mut SlotPool,
+) -> Result<Buffer, CreateBufferError> {
+    let (buffer, canvas) = pool.create_buffer(width, height, 4 * width, format)?;
+
+    for (canvas_chunk, rgba) in canvas.chunks_exact_mut(4).zip(data.chunks_exact(4)) {
+        // Alpha in buffer is premultiplied.
+        let alpha = rgba[3] as f32 / 255.;
+        let r = (rgba[0] as f32 * alpha) as u32;
+        let g = (rgba[1] as f32 * alpha) as u32;
+        let b = (rgba[2] as f32 * alpha) as u32;
+        let color = ((rgba[3] as u32) << 24) + (r << 16) + (g << 8) + b;
+        let array: &mut [u8; 4] = canvas_chunk.try_into().unwrap();
+        *array = color.to_le_bytes();
+    }
+
+    Ok(buffer)
 }

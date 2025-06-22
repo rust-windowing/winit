@@ -31,7 +31,7 @@ use super::output::MonitorHandle;
 use super::state::WinitState;
 use super::types::xdg_activation::XdgActivationTokenData;
 use super::ActiveEventLoop;
-use crate::types::xdg_toplevel_icon_manager::{ToplevelIcon, ToplevelIconError};
+use crate::types::xdg_toplevel_icon_manager::ToplevelIcon;
 use crate::{output, WindowAttributesWayland};
 
 pub(crate) mod state;
@@ -124,22 +124,26 @@ impl Window {
             .xdg_toplevel_icon_manager
             .as_ref()
             .map(|toplevel_icon_manager_state| toplevel_icon_manager_state.global().clone());
-        let icon_pool = state.icon_pool.clone();
 
         if let Some(icon) = attributes.window_icon {
             if let Some(xdg_toplevel_icon_manager) = xdg_toplevel_icon_manager.as_ref() {
-                let mut icon_pool = icon_pool.lock().unwrap();
+                let toplevel_icon = {
+                    let mut icon_pool = window_state.image_pool.lock().unwrap();
+                    ToplevelIcon::new(icon, &mut icon_pool)
+                };
 
-                let toplevel_icon = ToplevelIcon::new(icon, &mut icon_pool);
-                if let Ok(toplevel_icon) = toplevel_icon {
-                    let xdg_toplevel_icon =
-                        xdg_toplevel_icon_manager.create_icon(&queue_handle, GlobalData);
+                match toplevel_icon {
+                    Ok(toplevel_icon) => {
+                        let xdg_toplevel_icon =
+                            xdg_toplevel_icon_manager.create_icon(&queue_handle, GlobalData);
 
-                    toplevel_icon.add_buffer(&xdg_toplevel_icon);
-                    window_state.toplevel_icon = Some(toplevel_icon);
+                        toplevel_icon.add_buffer(&xdg_toplevel_icon);
+                        window_state.toplevel_icon = Some(toplevel_icon);
 
-                    xdg_toplevel_icon_manager
-                        .set_icon(window.xdg_toplevel(), Some(&xdg_toplevel_icon));
+                        xdg_toplevel_icon_manager
+                            .set_icon(window.xdg_toplevel(), Some(&xdg_toplevel_icon));
+                    },
+                    Err(error) => warn!("set window icon error: {error}"),
                 }
             } else {
                 warn!("`xdg_toplevel_icon_manager_v1` not supported");
@@ -543,17 +547,20 @@ impl CoreWindow for Window {
             },
         };
 
-        if let Some(icon) = window_icon {
-            let mut window_state = self.window_state.lock().unwrap();
+        let icon = match window_icon {
+            Some(icon) => icon,
+            None => return,
+        };
 
-            let toplevel_icon: Result<ToplevelIcon, ToplevelIconError>;
+        let mut window_state = self.window_state.lock().unwrap();
 
-            {
-                let mut icon_pool = window_state.icon_pool.lock().unwrap();
-                toplevel_icon = ToplevelIcon::new(icon, &mut icon_pool);
-            }
+        let toplevel_icon = {
+            let mut icon_pool = window_state.image_pool.lock().unwrap();
+            ToplevelIcon::new(icon, &mut icon_pool)
+        };
 
-            if let Ok(toplevel_icon) = toplevel_icon {
+        match toplevel_icon {
+            Ok(toplevel_icon) => {
                 let xdg_toplevel_icon =
                     xdg_toplevel_icon_manager.create_icon(&self.queue_handle, GlobalData);
 
@@ -562,7 +569,8 @@ impl CoreWindow for Window {
 
                 xdg_toplevel_icon_manager
                     .set_icon(self.window.xdg_toplevel(), Some(&xdg_toplevel_icon));
-            }
+            },
+            Err(error) => warn!("set window icon error: {error}"),
         }
     }
 
