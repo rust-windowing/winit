@@ -89,8 +89,10 @@ impl PointerHandler {
                         finger_id,
                         force: Some(Force::Normalized(event.pressure().into())),
                     },
-                    PointerKind::Pen => ButtonSource::Pen(event::tool_button(button)),
-                    PointerKind::Eraser => ButtonSource::Eraser(event::tool_button(button)),
+                    PointerKind::Stylus(tool) => ButtonSource::Stylus {
+                        tool,
+                        button: event::stylus_button(button),
+                    },
                     PointerKind::Unknown => ButtonSource::Unknown(button),
                 };
 
@@ -144,7 +146,7 @@ impl PointerHandler {
                         finger_id,
                         force: Some(Force::Normalized(event.pressure().into())),
                     },
-                    PointerKind::Pen => {
+                    PointerKind::Stylus(tool) => {
                         // Error is swallowed here since the error would occur every time the
                         // mouse is clicked when the cursor is
                         // grabbed, and there is probably not a
@@ -152,17 +154,10 @@ impl PointerHandler {
                         // care if it fails.
                         let _e = canvas.set_pointer_capture(pointer_id);
 
-                        ButtonSource::Pen(event::tool_button(button))
-                    },
-                    PointerKind::Eraser => {
-                        // Error is swallowed here since the error would occur every time the
-                        // mouse is clicked when the cursor is
-                        // grabbed, and there is probably not a
-                        // situation where this could fail, that we
-                        // care if it fails.
-                        let _e = canvas.set_pointer_capture(pointer_id);
-
-                        ButtonSource::Eraser(event::tool_button(button))
+                        ButtonSource::Stylus {
+                            tool,
+                            button: event::stylus_button(button),
+                        }
                     },
                     PointerKind::Unknown => ButtonSource::Unknown(button),
                 };
@@ -239,8 +234,10 @@ impl PointerHandler {
                                 force: Some(Force::Normalized(event.pressure().into())),
                             }
                         },
-                        PointerKind::Pen => ButtonSource::Pen(event::tool_button(button)),
-                        PointerKind::Eraser => ButtonSource::Eraser(event::tool_button(button)),
+                        PointerKind::Stylus(tool) => ButtonSource::Stylus {
+                            tool,
+                            button: event::stylus_button(button),
+                        },
                         PointerKind::Unknown => todo!(),
                     };
 

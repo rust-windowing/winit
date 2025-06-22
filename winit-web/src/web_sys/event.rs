@@ -9,7 +9,7 @@ use wasm_bindgen::{JsCast, JsValue};
 use web_sys::{Event, KeyboardEvent, MouseEvent, Navigator, PointerEvent, WheelEvent};
 use winit_core::event::{
     ButtonSource, FingerId, Force, MouseButton, MouseScrollDelta, PointerKind, PointerSource,
-    ToolAngle, ToolButton, ToolState, ToolTilt,
+    StylusAngle, StylusButton, StylusData, StylusTilt, StylusTool,
 };
 use winit_core::keyboard::{
     Key, KeyCode, KeyLocation, ModifiersState, NamedKey, NativeKey, NativeKeyCode, PhysicalKey,
@@ -46,7 +46,7 @@ impl From<ButtonsState> for MouseButton {
 impl From<ButtonSource> for ButtonsState {
     fn from(value: ButtonSource) -> Self {
         match value {
-            ButtonSource::Pen(tool) | ButtonSource::Eraser(tool) => tool.into(),
+            ButtonSource::Stylus { button, .. } => button.into(),
             other => ButtonsState::from(other.mouse_button()),
         }
     }
@@ -65,12 +65,12 @@ impl From<MouseButton> for ButtonsState {
     }
 }
 
-impl From<ToolButton> for ButtonsState {
-    fn from(tool: ToolButton) -> Self {
+impl From<StylusButton> for ButtonsState {
+    fn from(tool: StylusButton) -> Self {
         match tool {
-            ToolButton::Contact => ButtonsState::LEFT,
-            ToolButton::Barrel => ButtonsState::RIGHT,
-            ToolButton::Other(value) => Self::from_bits_retain(value),
+            StylusButton::Contact => ButtonsState::LEFT,
+            StylusButton::Barrel => ButtonsState::RIGHT,
+            StylusButton::Other(value) => Self::from_bits_retain(value),
         }
     }
 }
@@ -103,11 +103,11 @@ pub fn mouse_button(button: u16) -> MouseButton {
     }
 }
 
-pub fn tool_button(button: u16) -> ToolButton {
+pub fn stylus_button(button: u16) -> StylusButton {
     match button {
-        0 => ToolButton::Contact,
-        2 => ToolButton::Barrel,
-        other => ToolButton::Other(other),
+        0 => StylusButton::Contact,
+        2 => StylusButton::Barrel,
+        other => StylusButton::Other(other),
     }
 }
 
@@ -139,13 +139,13 @@ pub fn pointer_kind(event: &PointerEvent, pointer_id: i32) -> PointerKind {
     match WebPointerType::from_event(event) {
         Some(WebPointerType::Mouse) => PointerKind::Mouse,
         Some(WebPointerType::Touch) => PointerKind::Touch(FingerId::from_raw(pointer_id as usize)),
-        Some(WebPointerType::Pen) => {
+        Some(WebPointerType::Pen) => PointerKind::Stylus(
             if pointer_buttons(event).contains(ButtonsState::ERASER) {
-                PointerKind::Eraser
+                StylusTool::Eraser
             } else {
-                PointerKind::Pen
+                StylusTool::Pen
             }
-        },
+        ),
         None => PointerKind::Unknown,
     }
 }
@@ -171,24 +171,23 @@ pub fn pointer_source(event: &PointerEvent, kind: PointerKind) -> PointerSource 
             finger_id: id,
             force: Some(Force::Normalized(event.pressure().into())),
         },
-        PointerKind::Pen | PointerKind::Eraser => {
-            let state = ToolState {
+        PointerKind::Stylus(tool) => {
+            let data = StylusData {
                 force: Force::Normalized(event.pressure().into()),
                 tangential_force: Some(event.tangential_pressure()),
                 twist: Some(event.twist().try_into().expect("found invalid `twist`")),
-                tilt: Some(ToolTilt {
+                tilt: Some(StylusTilt {
                     x: event.tilt_x().try_into().expect("found invalid `tiltX`"),
                     y: event.tilt_y().try_into().expect("found invalid `tiltY`"),
                 }),
                 angle: event
                     .altitude_angle()
-                    .map(|altitude| ToolAngle { altitude, azimuth: event.azimuth_angle() }),
+                    .map(|altitude| StylusAngle { altitude, azimuth: event.azimuth_angle() }),
             };
 
-            match kind {
-                PointerKind::Pen => PointerSource::Pen(state),
-                PointerKind::Eraser => PointerSource::Eraser(state),
-                _ => unreachable!(),
+            PointerSource::Stylus {
+                tool,
+                data,
             }
         },
         PointerKind::Unknown => PointerSource::Unknown,

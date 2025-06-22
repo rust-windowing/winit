@@ -438,8 +438,7 @@ pub enum PointerKind {
     ///
     /// **macOS:** Unsupported.
     Touch(FingerId),
-    Pen,
-    Eraser,
+    Stylus(StylusTool),
     Unknown,
 }
 
@@ -490,8 +489,13 @@ pub enum PointerSource {
         ///   force will be 0.5 when a button is pressed or 0.0 otherwise.
         force: Option<Force>,
     },
-    Pen(ToolState),
-    Eraser(ToolState),
+    Stylus {
+        /// Describes in which mode the stylus is.
+        tool: StylusTool, 
+
+        /// Describes how the stylus is held and used.
+        data: StylusData,
+    },
     Unknown,
 }
 
@@ -500,8 +504,7 @@ impl From<PointerSource> for PointerKind {
         match source {
             PointerSource::Mouse => Self::Mouse,
             PointerSource::Touch { finger_id, .. } => Self::Touch(finger_id),
-            PointerSource::Pen(_) => Self::Pen,
-            PointerSource::Eraser(_) => Self::Eraser,
+            PointerSource::Stylus { tool, .. } => Self::Stylus(tool),
             PointerSource::Unknown => Self::Unknown,
         }
     }
@@ -523,8 +526,10 @@ pub enum ButtonSource {
         finger_id: FingerId,
         force: Option<Force>,
     },
-    Pen(ToolButton),
-    Eraser(ToolButton),
+    Stylus {
+        tool: StylusTool, 
+        button: StylusButton,
+    },
     Unknown(u16),
 }
 
@@ -536,7 +541,7 @@ impl ButtonSource {
         match self {
             ButtonSource::Mouse(mouse) => mouse,
             ButtonSource::Touch { .. } => MouseButton::Left,
-            ButtonSource::Pen(b) | ButtonSource::Eraser(b) => b.into(),
+            ButtonSource::Stylus { button, .. } => button.into(),
             ButtonSource::Unknown(button) => match button {
                 0 => MouseButton::Left,
                 1 => MouseButton::Middle,
@@ -977,6 +982,7 @@ pub enum TouchPhase {
 /// Describes the force of a touch event
 #[derive(Debug, Clone, Copy, PartialEq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[doc(alias = "Pressure")]
 pub enum Force {
     /// On iOS, the force is calibrated so that the same number corresponds to
     /// roughly the same amount of pressure on the screen regardless of the
@@ -1010,11 +1016,11 @@ impl Force {
     /// consistent across devices.
     ///
     /// Passing in a [`ToolAngle`], returns the perpendicular force.
-    pub fn normalized(&self, angle: Option<ToolAngle>) -> f64 {
+    pub fn normalized(&self, angle: Option<StylusAngle>) -> f64 {
         match self {
             Force::Calibrated { force, max_possible_force } => {
                 let force = match angle {
-                    Some(ToolAngle { altitude, .. }) => force / altitude.sin(),
+                    Some(StylusAngle { altitude, .. }) => force / altitude.sin(),
                     None => *force,
                 };
                 force / max_possible_force
@@ -1030,9 +1036,17 @@ pub type AxisId = u32;
 /// Identifier for a specific button on some device.
 pub type ButtonId = u32;
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
+#[non_exhaustive]
+pub enum StylusTool {
+    Pen,
+    Eraser,
+}
+
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
-pub struct ToolState {
+pub struct StylusData {
     /// The force applied to the tool against the surface.
     pub force: Force,
     /// Represents normalized tangential pressure, also known as barrel pressure. In the range of
@@ -1059,40 +1073,40 @@ pub struct ToolState {
     ///
     /// **Web:** Has no mechanism to detect support, so this will always be [`Some`] with default
     /// values.
-    pub tilt: Option<ToolTilt>,
+    pub tilt: Option<StylusTilt>,
     /// The angular position in radians. [`None`] means backend or device has no support.
     ///
     /// ## Platform-specific
     ///
     /// **Web:** Has no mechanism to detect device support, so this will always be [`Some`] with
     /// default values unless browser support is lacking.
-    pub angle: Option<ToolAngle>,
+    pub angle: Option<StylusAngle>,
 }
 
-impl ToolState {
-    /// Returns [`ToolTilt`] if present or calculates it from [`ToolAngle`].
-    pub fn tilt(self) -> Option<ToolTilt> {
+impl StylusData {
+    /// Returns [`StylusTilt`] if present or calculates it from [`StylusAngle`].
+    pub fn tilt(self) -> Option<StylusTilt> {
         if let Some(tilt) = self.tilt {
             Some(tilt)
         } else {
-            self.angle.map(ToolAngle::tilt)
+            self.angle.map(StylusAngle::tilt)
         }
     }
 
-    /// Returns [`ToolAngle`] if present or calculates it from [`ToolTilt`].
-    pub fn angle(self) -> Option<ToolAngle> {
+    /// Returns [`StylusAngle`] if present or calculates it from [`StylusTilt`].
+    pub fn angle(self) -> Option<StylusAngle> {
         if let Some(angle) = self.angle {
             Some(angle)
         } else {
-            self.tilt.map(ToolTilt::angle)
+            self.tilt.map(StylusTilt::angle)
         }
     }
 }
 
-/// The plane angle in degrees of a tool.
+/// The plane angle in degrees of a stylus.
 #[derive(Clone, Copy, Debug, Default, Eq, Hash, Ord, PartialEq, PartialOrd)]
 #[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
-pub struct ToolTilt {
+pub struct StylusTilt {
     /// The plane angle in degrees between the surface Y-Z plane and the plane containing the tool
     /// and the surface Y axis. Positive values are to the right. In the range of -90 to 90. 0
     /// means the tool is perpendicular to the surface and is the default.
@@ -1123,8 +1137,8 @@ pub struct ToolTilt {
     pub y: i8,
 }
 
-impl ToolTilt {
-    pub fn angle(self) -> ToolAngle {
+impl StylusTilt {
+    pub fn angle(self) -> StylusAngle {
         // See <https://www.w3.org/TR/2024/WD-pointerevents3-20240326/#converting-between-tiltx-tilty-and-altitudeangle-azimuthangle>.
 
         use std::f64::consts::*;
@@ -1173,14 +1187,14 @@ impl ToolTilt {
             altitude = f64::atan(1. / f64::sqrt(x.tan().powi(2) + y.tan().powi(2)));
         }
 
-        ToolAngle { altitude, azimuth }
+        StylusAngle { altitude, azimuth }
     }
 }
 
-/// The angular position in radians of a tool.
+/// The angular position in radians of a stylus.
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
-pub struct ToolAngle {
+pub struct StylusAngle {
     /// The altitude angle in radians between the tools perpendicular position to the surface and
     /// the surface X-Y plane. In the range of 0, parallel to the surface, to π/2, perpendicular to
     /// the surface. π/2 means the tool is perpendicular to the surface and is the default.
@@ -1212,14 +1226,14 @@ pub struct ToolAngle {
     pub azimuth: f64,
 }
 
-impl Default for ToolAngle {
+impl Default for StylusAngle {
     fn default() -> Self {
         Self { altitude: f64::consts::FRAC_2_PI, azimuth: 0. }
     }
 }
 
-impl ToolAngle {
-    pub fn tilt(self) -> ToolTilt {
+impl StylusAngle {
+    pub fn tilt(self) -> StylusTilt {
         // See <https://www.w3.org/TR/2024/WD-pointerevents3-20240326/#converting-between-tiltx-tilty-and-altitudeangle-azimuthangle>.
 
         use std::f64::consts::*;
@@ -1262,7 +1276,7 @@ impl ToolAngle {
             y = f64::atan(f64::sin(self.azimuth) / altitude);
         }
 
-        ToolTilt { x: x.to_degrees().round() as i8, y: y.to_degrees().round() as i8 }
+        StylusTilt { x: x.to_degrees().round() as i8, y: y.to_degrees().round() as i8 }
     }
 }
 
@@ -1301,21 +1315,21 @@ pub enum MouseButton {
 /// Describes a button of a tool, e.g. a pen.
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 #[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
-pub enum ToolButton {
+pub enum StylusButton {
     Contact,
     Barrel,
     Other(u16),
 }
 
-impl From<ToolButton> for MouseButton {
-    fn from(tool: ToolButton) -> Self {
+impl From<StylusButton> for MouseButton {
+    fn from(tool: StylusButton) -> Self {
         match tool {
-            ToolButton::Contact => MouseButton::Left,
-            ToolButton::Barrel => MouseButton::Right,
-            ToolButton::Other(1) => MouseButton::Middle,
-            ToolButton::Other(3) => MouseButton::Back,
-            ToolButton::Other(4) => MouseButton::Forward,
-            ToolButton::Other(other) => MouseButton::Other(other),
+            StylusButton::Contact => MouseButton::Left,
+            StylusButton::Barrel => MouseButton::Right,
+            StylusButton::Other(1) => MouseButton::Middle,
+            StylusButton::Other(3) => MouseButton::Back,
+            StylusButton::Other(4) => MouseButton::Forward,
+            StylusButton::Other(other) => MouseButton::Other(other),
         }
     }
 }
@@ -1507,23 +1521,23 @@ mod tests {
     fn test_tilt_angle_conversions() {
         use std::f64::consts::*;
 
-        use event::{ToolAngle, ToolTilt};
+        use event::{StylusAngle, StylusTilt};
 
         // See <https://github.com/web-platform-tests/wpt/blob/5af3e9c2a2aba76ade00f0dbc3486e50a74a4506/pointerevents/pointerevent_tiltX_tiltY_to_azimuth_altitude.html#L11-L23>.
-        const TILT_TO_ANGLE: &[(ToolTilt, ToolAngle)] = &[
-            (ToolTilt { x: 0, y: 0 }, ToolAngle { altitude: FRAC_PI_2, azimuth: 0. }),
-            (ToolTilt { x: 0, y: 90 }, ToolAngle { altitude: 0., azimuth: FRAC_PI_2 }),
-            (ToolTilt { x: 0, y: -90 }, ToolAngle { altitude: 0., azimuth: 3. * FRAC_PI_2 }),
-            (ToolTilt { x: 90, y: 0 }, ToolAngle { altitude: 0., azimuth: 0. }),
-            (ToolTilt { x: 90, y: 90 }, ToolAngle { altitude: 0., azimuth: 0. }),
-            (ToolTilt { x: 90, y: -90 }, ToolAngle { altitude: 0., azimuth: 0. }),
-            (ToolTilt { x: -90, y: 0 }, ToolAngle { altitude: 0., azimuth: PI }),
-            (ToolTilt { x: -90, y: 90 }, ToolAngle { altitude: 0., azimuth: 0. }),
-            (ToolTilt { x: -90, y: -90 }, ToolAngle { altitude: 0., azimuth: 0. }),
-            (ToolTilt { x: 0, y: 45 }, ToolAngle { altitude: FRAC_PI_4, azimuth: FRAC_PI_2 }),
-            (ToolTilt { x: 0, y: -45 }, ToolAngle { altitude: FRAC_PI_4, azimuth: 3. * FRAC_PI_2 }),
-            (ToolTilt { x: 45, y: 0 }, ToolAngle { altitude: FRAC_PI_4, azimuth: 0. }),
-            (ToolTilt { x: -45, y: 0 }, ToolAngle { altitude: FRAC_PI_4, azimuth: PI }),
+        const TILT_TO_ANGLE: &[(StylusTilt, StylusAngle)] = &[
+            (StylusTilt { x: 0, y: 0 }, StylusAngle { altitude: FRAC_PI_2, azimuth: 0. }),
+            (StylusTilt { x: 0, y: 90 }, StylusAngle { altitude: 0., azimuth: FRAC_PI_2 }),
+            (StylusTilt { x: 0, y: -90 }, StylusAngle { altitude: 0., azimuth: 3. * FRAC_PI_2 }),
+            (StylusTilt { x: 90, y: 0 }, StylusAngle { altitude: 0., azimuth: 0. }),
+            (StylusTilt { x: 90, y: 90 }, StylusAngle { altitude: 0., azimuth: 0. }),
+            (StylusTilt { x: 90, y: -90 }, StylusAngle { altitude: 0., azimuth: 0. }),
+            (StylusTilt { x: -90, y: 0 }, StylusAngle { altitude: 0., azimuth: PI }),
+            (StylusTilt { x: -90, y: 90 }, StylusAngle { altitude: 0., azimuth: 0. }),
+            (StylusTilt { x: -90, y: -90 }, StylusAngle { altitude: 0., azimuth: 0. }),
+            (StylusTilt { x: 0, y: 45 }, StylusAngle { altitude: FRAC_PI_4, azimuth: FRAC_PI_2 }),
+            (StylusTilt { x: 0, y: -45 }, StylusAngle { altitude: FRAC_PI_4, azimuth: 3. * FRAC_PI_2 }),
+            (StylusTilt { x: 45, y: 0 }, StylusAngle { altitude: FRAC_PI_4, azimuth: 0. }),
+            (StylusTilt { x: -45, y: 0 }, StylusAngle { altitude: FRAC_PI_4, azimuth: PI }),
         ];
 
         for (tilt, angle) in TILT_TO_ANGLE {
@@ -1531,16 +1545,16 @@ mod tests {
         }
 
         // See <https://github.com/web-platform-tests/wpt/blob/5af3e9c2a2aba76ade00f0dbc3486e50a74a4506/pointerevents/pointerevent_tiltX_tiltY_to_azimuth_altitude.html#L38-L46>.
-        const ANGLE_TO_TILT: &[(ToolAngle, ToolTilt)] = &[
-            (ToolAngle { altitude: 0., azimuth: 0. }, ToolTilt { x: 90, y: 0 }),
-            (ToolAngle { altitude: FRAC_PI_4, azimuth: 0. }, ToolTilt { x: 45, y: 0 }),
-            (ToolAngle { altitude: FRAC_PI_2, azimuth: 0. }, ToolTilt { x: 0, y: 0 }),
-            (ToolAngle { altitude: 0., azimuth: FRAC_PI_2 }, ToolTilt { x: 0, y: 90 }),
-            (ToolAngle { altitude: FRAC_PI_4, azimuth: FRAC_PI_2 }, ToolTilt { x: 0, y: 45 }),
-            (ToolAngle { altitude: 0., azimuth: PI }, ToolTilt { x: -90, y: 0 }),
-            (ToolAngle { altitude: FRAC_PI_4, azimuth: PI }, ToolTilt { x: -45, y: 0 }),
-            (ToolAngle { altitude: 0., azimuth: 3. * FRAC_PI_2 }, ToolTilt { x: 0, y: -90 }),
-            (ToolAngle { altitude: FRAC_PI_4, azimuth: 3. * FRAC_PI_2 }, ToolTilt { x: 0, y: -45 }),
+        const ANGLE_TO_TILT: &[(StylusAngle, StylusTilt)] = &[
+            (StylusAngle { altitude: 0., azimuth: 0. }, StylusTilt { x: 90, y: 0 }),
+            (StylusAngle { altitude: FRAC_PI_4, azimuth: 0. }, StylusTilt { x: 45, y: 0 }),
+            (StylusAngle { altitude: FRAC_PI_2, azimuth: 0. }, StylusTilt { x: 0, y: 0 }),
+            (StylusAngle { altitude: 0., azimuth: FRAC_PI_2 }, StylusTilt { x: 0, y: 90 }),
+            (StylusAngle { altitude: FRAC_PI_4, azimuth: FRAC_PI_2 }, StylusTilt { x: 0, y: 45 }),
+            (StylusAngle { altitude: 0., azimuth: PI }, StylusTilt { x: -90, y: 0 }),
+            (StylusAngle { altitude: FRAC_PI_4, azimuth: PI }, StylusTilt { x: -45, y: 0 }),
+            (StylusAngle { altitude: 0., azimuth: 3. * FRAC_PI_2 }, StylusTilt { x: 0, y: -90 }),
+            (StylusAngle { altitude: FRAC_PI_4, azimuth: 3. * FRAC_PI_2 }, StylusTilt { x: 0, y: -45 }),
         ];
 
         for (angle, tilt) in ANGLE_TO_TILT {
@@ -1558,7 +1572,7 @@ mod tests {
 
         let force3 = event::Force::Calibrated { force: 5.0, max_possible_force: 2.5 };
         assert_eq!(
-            force3.normalized(Some(event::ToolAngle {
+            force3.normalized(Some(event::StylusAngle {
                 altitude: std::f64::consts::PI / 2.0,
                 azimuth: 0.
             })),
