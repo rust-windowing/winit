@@ -89,9 +89,8 @@ impl PointerHandler {
                         finger_id,
                         force: Some(Force::Normalized(event.pressure().into())),
                     },
-                    PointerKind::Stylus(tool) => ButtonSource::Stylus {
-                        tool,
-                        button: event::stylus_button(button),
+                    PointerKind::Stylus(tool) => {
+                        ButtonSource::Stylus { tool, button: event::stylus_button(button) }
                     },
                     PointerKind::Unknown => ButtonSource::Unknown(button),
                 };
@@ -154,10 +153,7 @@ impl PointerHandler {
                         // care if it fails.
                         let _e = canvas.set_pointer_capture(pointer_id);
 
-                        ButtonSource::Stylus {
-                            tool,
-                            button: event::stylus_button(button),
-                        }
+                        ButtonSource::Stylus { tool, button: event::stylus_button(button) }
                     },
                     PointerKind::Unknown => ButtonSource::Unknown(button),
                 };
@@ -234,9 +230,8 @@ impl PointerHandler {
                                 force: Some(Force::Normalized(event.pressure().into())),
                             }
                         },
-                        PointerKind::Stylus(tool) => ButtonSource::Stylus {
-                            tool,
-                            button: event::stylus_button(button),
+                        PointerKind::Stylus(tool) => {
+                            ButtonSource::Stylus { tool, button: event::stylus_button(button) }
                         },
                         PointerKind::Unknown => todo!(),
                     };

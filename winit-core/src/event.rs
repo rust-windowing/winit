@@ -491,7 +491,7 @@ pub enum PointerSource {
     },
     Stylus {
         /// Describes in which mode the stylus is.
-        tool: StylusTool, 
+        tool: StylusTool,
 
         /// Describes how the stylus is held and used.
         data: StylusData,
@@ -527,7 +527,7 @@ pub enum ButtonSource {
         force: Option<Force>,
     },
     Stylus {
-        tool: StylusTool, 
+        tool: StylusTool,
         button: StylusButton,
     },
     Unknown(u16),
@@ -1535,7 +1535,10 @@ mod tests {
             (StylusTilt { x: -90, y: 90 }, StylusAngle { altitude: 0., azimuth: 0. }),
             (StylusTilt { x: -90, y: -90 }, StylusAngle { altitude: 0., azimuth: 0. }),
             (StylusTilt { x: 0, y: 45 }, StylusAngle { altitude: FRAC_PI_4, azimuth: FRAC_PI_2 }),
-            (StylusTilt { x: 0, y: -45 }, StylusAngle { altitude: FRAC_PI_4, azimuth: 3. * FRAC_PI_2 }),
+            (StylusTilt { x: 0, y: -45 }, StylusAngle {
+                altitude: FRAC_PI_4,
+                azimuth: 3. * FRAC_PI_2,
+            }),
             (StylusTilt { x: 45, y: 0 }, StylusAngle { altitude: FRAC_PI_4, azimuth: 0. }),
             (StylusTilt { x: -45, y: 0 }, StylusAngle { altitude: FRAC_PI_4, azimuth: PI }),
         ];
@@ -1554,7 +1557,10 @@ mod tests {
             (StylusAngle { altitude: 0., azimuth: PI }, StylusTilt { x: -90, y: 0 }),
             (StylusAngle { altitude: FRAC_PI_4, azimuth: PI }, StylusTilt { x: -45, y: 0 }),
             (StylusAngle { altitude: 0., azimuth: 3. * FRAC_PI_2 }, StylusTilt { x: 0, y: -90 }),
-            (StylusAngle { altitude: FRAC_PI_4, azimuth: 3. * FRAC_PI_2 }, StylusTilt { x: 0, y: -45 }),
+            (StylusAngle { altitude: FRAC_PI_4, azimuth: 3. * FRAC_PI_2 }, StylusTilt {
+                x: 0,
+                y: -45,
+            }),
         ];
 
         for (angle, tilt) in ANGLE_TO_TILT {

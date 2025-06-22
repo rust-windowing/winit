@@ -139,13 +139,13 @@ pub fn pointer_kind(event: &PointerEvent, pointer_id: i32) -> PointerKind {
     match WebPointerType::from_event(event) {
         Some(WebPointerType::Mouse) => PointerKind::Mouse,
         Some(WebPointerType::Touch) => PointerKind::Touch(FingerId::from_raw(pointer_id as usize)),
-        Some(WebPointerType::Pen) => PointerKind::Stylus(
-            if pointer_buttons(event).contains(ButtonsState::ERASER) {
+        Some(WebPointerType::Pen) => {
+            PointerKind::Stylus(if pointer_buttons(event).contains(ButtonsState::ERASER) {
                 StylusTool::Eraser
             } else {
                 StylusTool::Pen
-            }
-        ),
+            })
+        },
         None => PointerKind::Unknown,
     }
 }
@@ -185,10 +185,7 @@ pub fn pointer_source(event: &PointerEvent, kind: PointerKind) -> PointerSource 
                     .map(|altitude| StylusAngle { altitude, azimuth: event.azimuth_angle() }),
             };
 
-            PointerSource::Stylus {
-                tool,
-                data,
-            }
+            PointerSource::Stylus { tool, data }
         },
         PointerKind::Unknown => PointerSource::Unknown,
     }
