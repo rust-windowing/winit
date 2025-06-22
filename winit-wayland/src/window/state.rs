@@ -1118,6 +1118,10 @@ impl WindowState {
 
         xdg_toplevel_icon_manager.set_icon(self.window.xdg_toplevel(), xdg_toplevel_icon.as_ref());
         self.toplevel_icon = toplevel_icon;
+
+        if let Some(xdg_toplevel_icon) = xdg_toplevel_icon {
+            xdg_toplevel_icon.destroy();
+        }
     }
 
     /// Mark the window as transparent.
@@ -1162,6 +1166,10 @@ impl Drop for WindowState {
 
         if let Some(viewport) = self.viewport.take() {
             viewport.destroy();
+        }
+
+        if let Some(xdg_toplevel_icon_manager) = self.xdg_toplevel_icon_manager.take() {
+            xdg_toplevel_icon_manager.destroy();
         }
 
         // NOTE: the wl_surface used by the window is being cleaned up when
