@@ -1111,11 +1111,11 @@ pub struct StylusTilt {
     /// and the surface Y axis. Positive values are to the right. In the range of -90 to 90. 0
     /// means the tool is perpendicular to the surface and is the default.
     ///
-    /// ![Tilt X](https://raw.githubusercontent.com/rust-windowing/winit/master/docs/res/tool_tilt_x.webp)
+    /// ![Tilt X](https://raw.githubusercontent.com/rust-windowing/winit/master/winit/docs/res/tool_tilt_x.webp)
     ///
     /// <sub>
     ///   For image attribution, see the
-    ///   <a href="https://github.com/rust-windowing/winit/blob/master/docs/res/ATTRIBUTION.md">
+    ///   <a href="https://github.com/rust-windowing/winit/blob/master/winit/docs/ATTRIBUTION.md">
     ///     ATTRIBUTION.md
     ///   </a>
     ///   file.
@@ -1125,11 +1125,11 @@ pub struct StylusTilt {
     /// and the surface X axis. Positive values are towards the user. In the range of -90 to
     /// 90. 0 means the tool is perpendicular to the surface and is the default.
     ///
-    /// ![Tilt Y](https://raw.githubusercontent.com/rust-windowing/winit/master/docs/res/tool_tilt_y.webp)
+    /// ![Tilt Y](https://raw.githubusercontent.com/rust-windowing/winit/master/winit/docs/res/tool_tilt_y.webp)
     ///
     /// <sub>
     ///   For image attribution, see the
-    ///   <a href="https://github.com/rust-windowing/winit/blob/master/docs/res/ATTRIBUTION.md">
+    ///   <a href="https://github.com/rust-windowing/winit/blob/master/winit/docs/ATTRIBUTION.md">
     ///     ATTRIBUTION.md
     ///   </a>
     ///   file.
