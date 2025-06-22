@@ -1095,7 +1095,7 @@ impl WindowState {
             },
         };
 
-        let xdg_toplevel_icon = match window_icon {
+        let (toplevel_icon, xdg_toplevel_icon) = match window_icon {
             Some(icon) => {
                 let mut image_pool = self.image_pool.lock().unwrap();
                 let toplevel_icon = match ToplevelIcon::new(icon, &mut image_pool) {
@@ -1110,17 +1110,14 @@ impl WindowState {
                     xdg_toplevel_icon_manager.create_icon(&self.queue_handle, GlobalData);
 
                 toplevel_icon.add_buffer(&xdg_toplevel_icon);
-                self.toplevel_icon = Some(toplevel_icon);
 
-                Some(xdg_toplevel_icon)
+                (Some(toplevel_icon), Some(xdg_toplevel_icon))
             },
-            None => {
-                self.toplevel_icon = None;
-                None
-            },
+            None => (None, None),
         };
 
         xdg_toplevel_icon_manager.set_icon(self.window.xdg_toplevel(), xdg_toplevel_icon.as_ref());
+        self.toplevel_icon = toplevel_icon;
     }
 
     /// Mark the window as transparent.
