@@ -1041,18 +1041,20 @@ pub trait Window: AsAny + Send + Sync + fmt::Debug {
 
     /// Sets the window icon.
     ///
-    /// On Windows and X11, this is typically the small icon in the top-left
+    /// On Windows, Wayland and X11, this is typically the small icon in the top-left
     /// corner of the titlebar.
     ///
     /// ## Platform-specific
     ///
-    /// - **iOS / Android / Web / Wayland / macOS / Orbital:** Unsupported.
+    /// - **iOS / Android / Web / / macOS / Orbital:** Unsupported.
     ///
     /// - **Windows:** Sets `ICON_SMALL`. The base size for a window icon is 16x16, but it's
     ///   recommended to account for screen scaling and pick a multiple of that, i.e. 32x32.
     ///
     /// - **X11:** Has no universal guidelines for icon sizes, so you're at the whims of the WM.
     ///   That said, it's usually in the same ballpark as on Windows.
+    ///
+    /// - **Wayland:** The compositor needs to implement `xdg_toplevel_icon`.
     fn set_window_icon(&self, window_icon: Option<Icon>);
 
     /// Set the IME cursor editing area, where the `position` is the top left corner of that area
