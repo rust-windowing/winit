@@ -1095,33 +1095,32 @@ impl WindowState {
             },
         };
 
-        let toplevel_icon = match window_icon {
+        let xdg_toplevel_icon = match window_icon {
             Some(icon) => {
                 let mut image_pool = self.image_pool.lock().unwrap();
-                let toplevel_icon = ToplevelIcon::new(icon, &mut image_pool);
-                if let Err(error) = toplevel_icon {
-                    warn!("Error setting window icon: {error}");
-                    return;
-                }
-                Some(toplevel_icon.unwrap())
-            },
-            None => None,
-        };
+                let toplevel_icon = match ToplevelIcon::new(icon, &mut image_pool) {
+                    Ok(toplevel_icon) => toplevel_icon,
+                    Err(error) => {
+                        warn!("Error setting window icon: {error}");
+                        return;
+                    },
+                };
 
-        match toplevel_icon.as_ref() {
-            Some(toplevel_icon) => {
                 let xdg_toplevel_icon =
                     xdg_toplevel_icon_manager.create_icon(&self.queue_handle, GlobalData);
 
                 toplevel_icon.add_buffer(&xdg_toplevel_icon);
+                self.toplevel_icon = Some(toplevel_icon);
 
-                xdg_toplevel_icon_manager
-                    .set_icon(self.window.xdg_toplevel(), Some(&xdg_toplevel_icon));
+                Some(xdg_toplevel_icon)
             },
-            None => xdg_toplevel_icon_manager.set_icon(self.window.xdg_toplevel(), None),
-        }
+            None => {
+                self.toplevel_icon = None;
+                None
+            },
+        };
 
-        self.toplevel_icon = toplevel_icon;
+        xdg_toplevel_icon_manager.set_icon(self.window.xdg_toplevel(), xdg_toplevel_icon.as_ref());
     }
 
     /// Mark the window as transparent.
