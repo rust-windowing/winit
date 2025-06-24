@@ -418,6 +418,15 @@ impl winit_web::EventLoopExtWeb for EventLoop {
     }
 }
 
+#[cfg(web_platform)]
+impl winit_web::EventLoopBuilderExtWeb for EventLoopBuilder {
+    #[inline]
+    fn with_skip_recreation_check(&mut self) -> &mut Self {
+        self.platform_specific.skip_recreation_check = true;
+        self
+    }
+}
+
 #[cfg(windows_platform)]
 impl winit_win32::EventLoopBuilderExtWindows for EventLoopBuilder {
     #[inline]
