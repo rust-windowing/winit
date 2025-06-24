@@ -23,8 +23,12 @@ mod platform {
     use std::mem;
     use std::mem::ManuallyDrop;
     use std::num::NonZeroU32;
+    #[cfg(all(not(android_platform), not(web_platform)))]
+    use std::time::Instant;
 
     use softbuffer::{Context, Surface};
+    #[cfg(all(web_platform, not(android_platform)))]
+    use web_time::Instant;
     use winit::window::{Window, WindowId};
 
     thread_local! {
@@ -105,7 +109,7 @@ mod platform {
     }
 
     #[allow(dead_code)]
-    pub fn fill_window_with_animated_color(window: &dyn Window, start: std::time::Instant) {
+    pub fn fill_window_with_animated_color(window: &dyn Window, start: Instant) {
         let time = start.elapsed().as_secs_f32() * 1.5;
         let blue = (time.sin() * 255.0) as u32;
         let green = ((time.cos() * 255.0) as u32) << 8;

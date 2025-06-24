@@ -7,6 +7,8 @@ use std::fmt::Debug;
 use std::num::NonZeroU32;
 use std::sync::mpsc::{self, Receiver, Sender};
 use std::sync::Arc;
+#[cfg(all(not(android_platform), not(web_platform)))]
+use std::time::Instant;
 use std::{fmt, mem};
 
 use ::tracing::{error, info};
@@ -15,6 +17,8 @@ use cursor_icon::CursorIcon;
 use rwh_06::{DisplayHandle, HasDisplayHandle};
 #[cfg(not(android_platform))]
 use softbuffer::{Context, Surface};
+#[cfg(all(web_platform, not(android_platform)))]
+use web_time::Instant;
 use winit::application::ApplicationHandler;
 use winit::cursor::{Cursor, CustomCursor, CustomCursorSource};
 use winit::dpi::{LogicalSize, PhysicalPosition, PhysicalSize};
@@ -615,7 +619,7 @@ struct WindowState {
     animated_fill_color: bool,
     /// The application start time. Used for color fill animation
     #[cfg(not(android_platform))]
-    start_time: std::time::Instant,
+    start_time: Instant,
     /// Redraw continuously
     continuous_redraw: bool,
     /// Cursor position over the window.
@@ -674,7 +678,7 @@ impl WindowState {
             animated_fill_color: false,
             continuous_redraw: false,
             #[cfg(not(android_platform))]
-            start_time: std::time::Instant::now(),
+            start_time: Instant::now(),
             ime,
             cursor_position: Default::default(),
             cursor_hidden: Default::default(),
