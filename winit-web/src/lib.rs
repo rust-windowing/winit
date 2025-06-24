@@ -320,6 +320,14 @@ pub trait EventLoopExtWeb {
     fn has_detailed_monitor_permission(&self) -> HasMonitorPermissionFuture;
 }
 
+/// Additional methods on [`EventLoopBuilder`] that are specific to Wayland.
+pub trait EventLoopBuilderExtWeb {
+    /// Skip the recreation check when building the `EventLoop`, allowing
+    /// multiple `EventLoop`s to execute concurrently.  This is a niche
+    /// usage that is only supported on Web.
+    fn with_skip_recreation_check(&mut self) -> &mut Self;
+}
+
 pub trait ActiveEventLoopExtWeb {
     /// Sets the strategy for [`ControlFlow::Poll`].
     ///
