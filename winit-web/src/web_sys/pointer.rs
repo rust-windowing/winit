@@ -89,8 +89,8 @@ impl PointerHandler {
                         finger_id,
                         force: Some(Force::Normalized(event.pressure().into())),
                     },
-                    PointerKind::Stylus(tool) => {
-                        ButtonSource::Stylus { tool, button: event::stylus_button(button) }
+                    PointerKind::Tool(tool) => {
+                        ButtonSource::Tool { tool, button: event::tool_button(button) }
                     },
                     PointerKind::Unknown => ButtonSource::Unknown(button),
                 };
@@ -145,7 +145,7 @@ impl PointerHandler {
                         finger_id,
                         force: Some(Force::Normalized(event.pressure().into())),
                     },
-                    PointerKind::Stylus(tool) => {
+                    PointerKind::Tool(tool) => {
                         // Error is swallowed here since the error would occur every time the
                         // mouse is clicked when the cursor is
                         // grabbed, and there is probably not a
@@ -153,7 +153,7 @@ impl PointerHandler {
                         // care if it fails.
                         let _e = canvas.set_pointer_capture(pointer_id);
 
-                        ButtonSource::Stylus { tool, button: event::stylus_button(button) }
+                        ButtonSource::Tool { tool, button: event::tool_button(button) }
                     },
                     PointerKind::Unknown => ButtonSource::Unknown(button),
                 };
@@ -230,8 +230,8 @@ impl PointerHandler {
                                 force: Some(Force::Normalized(event.pressure().into())),
                             }
                         },
-                        PointerKind::Stylus(tool) => {
-                            ButtonSource::Stylus { tool, button: event::stylus_button(button) }
+                        PointerKind::Tool(tool) => {
+                            ButtonSource::Tool { tool, button: event::tool_button(button) }
                         },
                         PointerKind::Unknown => todo!(),
                     };
