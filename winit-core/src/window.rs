@@ -1,6 +1,7 @@
 //! The [`Window`] trait and associated types.
 use std::fmt;
 
+use bitflags::bitflags;
 use cursor_icon::CursorIcon;
 use dpi::{
     LogicalPosition, LogicalSize, PhysicalInsets, PhysicalPosition, PhysicalSize, Position, Size,
@@ -1100,11 +1101,7 @@ pub trait Window: AsAny + Send + Sync + fmt::Debug {
     /// [japanese]: https://support.apple.com/guide/japanese-input-method/use-the-candidate-window-jpim10262/6.3/mac/12.0
     #[deprecated = "use Window::request_ime_update instead"]
     fn set_ime_cursor_area(&self, position: Position, size: Size) {
-        if self
-            .ime_capabilities()
-            .map(|caps| caps.contains(ImeCapabilities::CURSOR_AREA))
-            .unwrap_or(false)
-        {
+        if self.ime_capabilities().map(|caps| caps.cursor_area()).unwrap_or(false) {
             let _ = self.request_ime_update(ImeRequest::Update(
                 ImeRequestData::default().with_cursor_area(position, size),
             ));
@@ -1138,7 +1135,7 @@ pub trait Window: AsAny + Send + Sync + fmt::Debug {
         let action = if allowed {
             let position = LogicalPosition::new(0, 0);
             let size = LogicalSize::new(0, 0);
-            let ime_caps = ImeCapabilities::CURSOR_AREA | ImeCapabilities::PURPOSE;
+            let ime_caps = ImeCapabilities::new().with_purpose().with_cursor_area();
             let request_data = ImeRequestData {
                 purpose: Some(ImePurpose::Normal),
                 // WARNING: there's nothing sensible to use here by default.
@@ -1162,11 +1159,7 @@ pub trait Window: AsAny + Send + Sync + fmt::Debug {
     /// - **iOS / Android / Web / Windows / X11 / macOS / Orbital:** Unsupported.
     #[deprecated = "use Window::request_ime_update instead"]
     fn set_ime_purpose(&self, purpose: ImePurpose) {
-        if self
-            .ime_capabilities()
-            .map(|caps| caps.contains(ImeCapabilities::PURPOSE))
-            .unwrap_or(false)
-        {
+        if self.ime_capabilities().map(|caps| caps.purpose()).unwrap_or(false) {
             let _ = self.request_ime_update(ImeRequest::Update(ImeRequestData {
                 purpose: Some(purpose),
                 ..ImeRequestData::default()
@@ -1197,7 +1190,7 @@ pub trait Window: AsAny + Send + Sync + fmt::Debug {
     /// // Clear previous state by switching off IME
     /// window.request_ime_update(ImeRequest::Disable).expect("Disable cannot fail");
     ///
-    /// let ime_caps = ImeCapabilities::CURSOR_AREA | ImeCapabilities::PURPOSE;
+    /// let ime_caps = ImeCapabilities::new().with_cursor_area().with_purpose();
     /// let request_data = ImeRequestData::default()
     ///                          .with_purpose(ImePurpose::Normal)
     ///                          .with_cursor_area(cursor_pos, cursor_size);
@@ -1666,12 +1659,11 @@ impl ImeEnableRequest {
     /// This will return [`None`] if some capability was requested but its initial value was not
     /// set by the user or value was set by the user, but capability not requested.
     pub const fn new(capabilities: ImeCapabilities, request_data: ImeRequestData) -> Option<Self> {
-        if capabilities.contains(ImeCapabilities::CURSOR_AREA) ^ request_data.cursor_area.is_some()
-        {
+        if capabilities.cursor_area() ^ request_data.cursor_area.is_some() {
             return None;
         }
 
-        if capabilities.contains(ImeCapabilities::PURPOSE) ^ request_data.purpose.is_some() {
+        if capabilities.purpose() ^ request_data.purpose.is_some() {
             return None;
         }
 
@@ -1694,22 +1686,58 @@ impl ImeEnableRequest {
     }
 }
 
-bitflags::bitflags! {
-    /// IME capabilities supported by client.
+/// IME capabilities supported by client.
+///
+/// For example, if the client doesn't support [`ImeCapabilities::cursor_area()`], then not enabling
+/// it will make IME hide the popup window instead of placing it arbitrary over the
+/// client's window surface.
+///
+/// When the capability is not enabled or not supported by the IME, trying to update its'
+/// corresponding data with [`ImeRequest`] will be ignored.
+///
+/// New capabilities may be added to this struct in the future.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+pub struct ImeCapabilities(ImeCapabilitiesFlags);
+
+impl ImeCapabilities {
+    /// Returns a new empty set of capabilities.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Marks `purpose` as supported.
     ///
-    /// For example, if the client doesn't support [`ImeCapabilities::CURSOR_AREA`] not enabling
-    /// it will make IME hide the popup window instead of placing it arbitrary over the
-    /// client's window surface.
+    /// For more details see [`ImeRequestData::with_purpose`].
+    pub const fn with_purpose(self) -> Self {
+        Self(self.0.union(ImeCapabilitiesFlags::PURPOSE))
+    }
+
+    /// Returns `true` if `purpose` is supported.
+    pub const fn purpose(&self) -> bool {
+        self.0.contains(ImeCapabilitiesFlags::PURPOSE)
+    }
+
+    /// Marks `cursor_area` as supported.
     ///
-    /// When the capability is not enabled or not supported by the IME, trying to update its'
-    /// corresponding data with [`ImeRequest`] will be ignored.
-    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-    pub struct ImeCapabilities: u32 {
+    /// For more details see [`ImeRequestData::with_cursor_area`].
+    pub const fn with_cursor_area(self) -> Self {
+        Self(self.0.union(ImeCapabilitiesFlags::CURSOR_AREA))
+    }
+
+    /// Returns `true` if `cursor_area` is supported.
+    pub const fn cursor_area(&self) -> bool {
+        self.0.contains(ImeCapabilitiesFlags::CURSOR_AREA)
+    }
+}
+
+bitflags! {
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+    pub(crate) struct ImeCapabilitiesFlags : u8 {
         /// Client supports setting IME purpose.
-        const PURPOSE = 0b1;
+        const PURPOSE = 1 << 0;
         /// Client supports reporting cursor area for IME popup to
         /// appear.
-        const CURSOR_AREA = 0b10;
+        const CURSOR_AREA = 1 << 1;
     }
 }
 
@@ -1856,20 +1884,25 @@ mod tests {
         let position: Position = LogicalPosition::new(0, 0).into();
         let size: Size = LogicalSize::new(0, 0).into();
 
-        assert!(ImeEnableRequest::new(ImeCapabilities::CURSOR_AREA, ImeRequestData::default())
-            .is_none());
-        assert!(
-            ImeEnableRequest::new(ImeCapabilities::PURPOSE, ImeRequestData::default()).is_none()
-        );
+        assert!(ImeEnableRequest::new(
+            ImeCapabilities::new().with_cursor_area(),
+            ImeRequestData::default()
+        )
+        .is_none());
+        assert!(ImeEnableRequest::new(
+            ImeCapabilities::new().with_purpose(),
+            ImeRequestData::default()
+        )
+        .is_none());
 
         assert!(ImeEnableRequest::new(
-            ImeCapabilities::CURSOR_AREA,
+            ImeCapabilities::new().with_cursor_area(),
             ImeRequestData::default().with_purpose(ImePurpose::Normal)
         )
         .is_none());
 
         assert!(ImeEnableRequest::new(
-            ImeCapabilities::empty(),
+            ImeCapabilities::new(),
             ImeRequestData::default()
                 .with_purpose(ImePurpose::Normal)
                 .with_cursor_area(position, size)
@@ -1877,7 +1910,7 @@ mod tests {
         .is_none());
 
         assert!(ImeEnableRequest::new(
-            ImeCapabilities::CURSOR_AREA,
+            ImeCapabilities::new().with_cursor_area(),
             ImeRequestData::default()
                 .with_purpose(ImePurpose::Normal)
                 .with_cursor_area(position, size)
@@ -1885,13 +1918,13 @@ mod tests {
         .is_none());
 
         assert!(ImeEnableRequest::new(
-            ImeCapabilities::CURSOR_AREA,
+            ImeCapabilities::new().with_cursor_area(),
             ImeRequestData::default().with_cursor_area(position, size)
         )
         .is_some());
 
         assert!(ImeEnableRequest::new(
-            ImeCapabilities::all(),
+            ImeCapabilities::new().with_purpose().with_cursor_area(),
             ImeRequestData::default()
                 .with_purpose(ImePurpose::Normal)
                 .with_cursor_area(position, size)

@@ -669,7 +669,11 @@ impl WindowState {
         let request_data = ImeRequestData::default()
             .with_purpose(ImePurpose::Normal)
             .with_cursor_area(LogicalPosition { x: 0, y: 0 }.into(), IME_CURSOR_SIZE.into());
-        let enable_request = ImeEnableRequest::new(ImeCapabilities::all(), request_data).unwrap();
+        let enable_request = ImeEnableRequest::new(
+            ImeCapabilities::new().with_purpose().with_cursor_area(),
+            request_data,
+        )
+        .unwrap();
         let enable_ime = ImeRequest::Enable(enable_request);
 
         // Initial update
@@ -714,8 +718,11 @@ impl WindowState {
                 .unwrap_or(LogicalPosition { x: 0, y: 0 }.into());
             let request_data =
                 ImeRequestData::default().with_cursor_area(cursor_pos, IME_CURSOR_SIZE.into());
-            let enable_request =
-                ImeEnableRequest::new(ImeCapabilities::all(), request_data).unwrap();
+            let enable_request = ImeEnableRequest::new(
+                ImeCapabilities::new().with_purpose().with_cursor_area(),
+                request_data,
+            )
+            .unwrap();
             self.window.request_ime_update(ImeRequest::Enable(enable_request)).unwrap();
         };
 
