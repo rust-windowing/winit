@@ -1535,10 +1535,7 @@ mod tests {
             (ToolTilt { x: -90, y: 90 }, ToolAngle { altitude: 0., azimuth: 0. }),
             (ToolTilt { x: -90, y: -90 }, ToolAngle { altitude: 0., azimuth: 0. }),
             (ToolTilt { x: 0, y: 45 }, ToolAngle { altitude: FRAC_PI_4, azimuth: FRAC_PI_2 }),
-            (ToolTilt { x: 0, y: -45 }, ToolAngle {
-                altitude: FRAC_PI_4,
-                azimuth: 3. * FRAC_PI_2,
-            }),
+            (ToolTilt { x: 0, y: -45 }, ToolAngle { altitude: FRAC_PI_4, azimuth: 3. * FRAC_PI_2 }),
             (ToolTilt { x: 45, y: 0 }, ToolAngle { altitude: FRAC_PI_4, azimuth: 0. }),
             (ToolTilt { x: -45, y: 0 }, ToolAngle { altitude: FRAC_PI_4, azimuth: PI }),
         ];
@@ -1557,10 +1554,7 @@ mod tests {
             (ToolAngle { altitude: 0., azimuth: PI }, ToolTilt { x: -90, y: 0 }),
             (ToolAngle { altitude: FRAC_PI_4, azimuth: PI }, ToolTilt { x: -45, y: 0 }),
             (ToolAngle { altitude: 0., azimuth: 3. * FRAC_PI_2 }, ToolTilt { x: 0, y: -90 }),
-            (ToolAngle { altitude: FRAC_PI_4, azimuth: 3. * FRAC_PI_2 }, ToolTilt {
-                x: 0,
-                y: -45,
-            }),
+            (ToolAngle { altitude: FRAC_PI_4, azimuth: 3. * FRAC_PI_2 }, ToolTilt { x: 0, y: -45 }),
         ];
 
         for (angle, tilt) in ANGLE_TO_TILT {

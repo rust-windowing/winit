@@ -9,7 +9,7 @@ use wasm_bindgen::{JsCast, JsValue};
 use web_sys::{Event, KeyboardEvent, MouseEvent, Navigator, PointerEvent, WheelEvent};
 use winit_core::event::{
     ButtonSource, FingerId, Force, MouseButton, MouseScrollDelta, PointerKind, PointerSource,
-    ToolAngle, ToolButton, ToolData, ToolTilt, ToolKind,
+    ToolAngle, ToolButton, ToolData, ToolKind, ToolTilt,
 };
 use winit_core::keyboard::{
     Key, KeyCode, KeyLocation, ModifiersState, NamedKey, NativeKey, NativeKeyCode, PhysicalKey,
