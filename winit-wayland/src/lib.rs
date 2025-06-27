@@ -17,14 +17,14 @@
 use std::ffi::c_void;
 use std::ptr::NonNull;
 
-use dpi::{LogicalSize, PhysicalSize};
+use dpi::{LogicalPosition, LogicalSize, PhysicalSize};
 use sctk::reexports::client::Proxy;
 use sctk::reexports::client::protocol::wl_surface::WlSurface;
 use sctk::shm::slot::{Buffer, CreateBufferError, SlotPool};
 use wayland_client::protocol::wl_shm::Format;
 use winit_core::event_loop::ActiveEventLoop as CoreActiveEventLoop;
 use winit_core::window::{
-    ActivationToken, PlatformWindowAttributes, Window as CoreWindow, WindowId,
+    ActivationToken, PlatformWindowAttributes, Window as CoreWindow, WindowId, WindowLevel,
 };
 
 macro_rules! os_error {
@@ -40,6 +40,7 @@ mod window;
 
 pub use self::event_loop::{ActiveEventLoop, EventLoop};
 pub use self::window::Window;
+pub use sctk::shell::wlr_layer::{Anchor, KeyboardInteractivity, Layer};
 
 /// Additional methods on [`ActiveEventLoop`] that are specific to Wayland.
 pub trait ActiveEventLoopExtWayland {
@@ -99,6 +100,13 @@ pub struct WindowAttributesWayland {
     pub(crate) name: Option<ApplicationName>,
     pub(crate) activation_token: Option<ActivationToken>,
     pub(crate) prefer_csd: bool,
+    pub(crate) output: Option<u64>,
+    pub(crate) layer: Option<Layer>,
+    pub(crate) anchor: Option<Anchor>,
+    pub(crate) exclusive_zone: Option<i32>,
+    pub(crate) margin: Option<(i32, i32, i32, i32)>,
+    pub(crate) region: Option<(LogicalPosition<i32>, LogicalSize<i32>)>,
+    pub(crate) keyboard_interactivity: Option<KeyboardInteractivity>,
 }
 
 impl WindowAttributesWayland {
@@ -130,6 +138,51 @@ impl WindowAttributesWayland {
     #[inline]
     pub fn with_prefer_csd(mut self, prefer_csd: bool) -> Self {
         self.prefer_csd = prefer_csd;
+        self
+    }
+
+    #[inline]
+    pub fn with_anchor(mut self, anchor: Anchor) -> Self {
+        self.anchor = Some(anchor);
+        self
+    }
+
+    #[inline]
+    pub fn with_exclusive_zone(mut self, exclusive_zone: i32) -> Self {
+        self.exclusive_zone = Some(exclusive_zone);
+        self
+    }
+
+    #[inline]
+    pub fn with_margin(mut self, top: i32, right: i32, bottom: i32, left: i32) -> Self {
+        self.margin = Some((top, right, bottom, left));
+        self
+    }
+
+    #[inline]
+    pub fn with_keyboard_interactivity(
+        mut self,
+        keyboard_interactivity: KeyboardInteractivity,
+    ) -> Self {
+        self.keyboard_interactivity = Some(keyboard_interactivity);
+        self
+    }
+
+    #[inline]
+    pub fn with_layer(mut self, layer: Layer) -> Self {
+        self.layer = Some(layer);
+        self
+    }
+
+    #[inline]
+    pub fn with_region(mut self, position: LogicalPosition<i32>, size: LogicalSize<i32>) -> Self {
+        self.region = Some((position, size));
+        self
+    }
+
+    #[inline]
+    pub fn with_output(mut self, output: u64) -> Self {
+        self.output = Some(output);
         self
     }
 }
@@ -175,4 +228,12 @@ fn image_to_buffer(
     }
 
     Ok(buffer)
+}
+
+pub(crate) fn layer_from_window_level(level: WindowLevel) -> Layer {
+    match level {
+        WindowLevel::AlwaysOnBottom => Layer::Bottom,
+        WindowLevel::Normal => Layer::Top,
+        WindowLevel::AlwaysOnTop => Layer::Overlay,
+    }
 }

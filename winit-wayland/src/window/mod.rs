@@ -12,13 +12,15 @@ use sctk::reexports::client::protocol::wl_surface::WlSurface;
 use sctk::reexports::client::{Proxy, QueueHandle};
 use sctk::reexports::protocols::xdg::activation::v1::client::xdg_activation_v1::XdgActivationV1;
 use sctk::shell::WaylandSurface;
+use sctk::shell::wlr_layer::{Anchor, KeyboardInteractivity, Layer, LayerSurface};
 use sctk::shell::xdg::window::{Window as SctkWindow, WindowDecorations};
 use tracing::warn;
+use wayland_client::protocol::wl_output::WlOutput;
 use winit_core::cursor::Cursor;
 use winit_core::error::{NotSupportedError, RequestError};
 use winit_core::event::{Ime, WindowEvent};
 use winit_core::event_loop::AsyncRequestSerial;
-use winit_core::monitor::{Fullscreen, MonitorHandle as CoreMonitorHandle};
+use winit_core::monitor::{Fullscreen, MonitorHandle as CoreMonitorHandle, MonitorHandleProvider};
 use winit_core::window::{
     CursorGrabMode, ImeCapabilities, ImeRequest, ImeRequestError, ResizeDirection, Theme,
     UserAttentionType, Window as CoreWindow, WindowAttributes, WindowButtons, WindowId,
@@ -30,7 +32,7 @@ use super::event_loop::sink::EventSink;
 use super::output::MonitorHandle;
 use super::state::WinitState;
 use super::types::xdg_activation::XdgActivationTokenData;
-use crate::{WindowAttributesWayland, output};
+use crate::{WindowAttributesWayland, layer_from_window_level, output};
 
 pub(crate) mod state;
 
@@ -39,8 +41,8 @@ pub use state::WindowState;
 /// The Wayland window.
 #[derive(Debug)]
 pub struct Window {
-    /// Reference to the underlying SCTK window.
-    window: SctkWindow,
+    /// The underlying window shell and state.
+    window: WindowShell,
 
     /// Window id.
     window_id: WindowId,
@@ -84,6 +86,12 @@ impl Window {
     ) -> Result<Self, RequestError> {
         let queue_handle = event_loop_window_target.queue_handle.clone();
         let mut state = event_loop_window_target.state.borrow_mut();
+        let wl_attrs =
+            attributes.platform.take().and_then(|p| p.cast::<WindowAttributesWayland>().ok());
+        let (app_name, activation_token, prefer_csd) = match wl_attrs.clone() {
+            Some(attrs) => (attrs.name, attrs.activation_token, attrs.prefer_csd),
+            None => (None, None, false),
+        };
 
         let monitors = state.monitors.clone();
 
@@ -103,24 +111,86 @@ impl Window {
             WindowDecorations::RequestClient
         };
 
-        let window =
-            state.xdg_shell.create_window(surface.clone(), default_decorations, &queue_handle);
+        let (window, mut window_state) = if wl_attrs.is_some()
+            || attributes.window_level != WindowLevel::Normal
+        {
+            let wl_attrs = wl_attrs.unwrap();
+            let output = wl_attrs.output.and_then(|id| {
+                monitors
+                    .lock()
+                    .unwrap()
+                    .iter()
+                    .find(|m| m.native_id() == id)
+                    .map(|m| m.proxy.clone())
+            });
+            let layer_surface = state.layer_shell.create_layer_surface(
+                &queue_handle,
+                surface.clone(),
+                wl_attrs.layer.unwrap_or_else(|| layer_from_window_level(attributes.window_level)),
+                Some(attributes.title.clone()),
+                output.as_ref(),
+            );
 
-        let WindowAttributesWayland { name: app_name, activation_token, prefer_csd } = *attributes
-            .platform
-            .take()
-            .and_then(|p| p.cast::<WindowAttributesWayland>().ok())
-            .unwrap_or_default();
+            let window_state = WindowState::new_layer(
+                event_loop_window_target.handle.clone(),
+                &event_loop_window_target.queue_handle,
+                &state,
+                size,
+                layer_surface.clone(),
+                attributes.preferred_theme,
+                prefer_csd,
+            );
+            let surface_size = size.to_logical::<u32>(1.0);
+            layer_surface.set_size(surface_size.width, surface_size.height);
+            if let Some(anchor) = wl_attrs.anchor {
+                layer_surface.set_anchor(anchor);
+            }
+            if let Some(exclusive_zone) = wl_attrs.exclusive_zone {
+                layer_surface.set_exclusive_zone(exclusive_zone)
+            }
+            if let Some((top, right, bottom, left)) = wl_attrs.margin {
+                layer_surface.set_margin(top, right, bottom, left);
+            }
+            if let Some(keyboard_interactivity) = wl_attrs.keyboard_interactivity {
+                layer_surface.set_keyboard_interactivity(keyboard_interactivity);
+            }
+            if let Some((pos, size)) = wl_attrs.region {
+                let region = Region::new(compositor.as_ref()).map_err(|err| os_error!(err))?;
+                region.add(pos.x, pos.y, size.width, size.height);
+                layer_surface.set_input_region(Some(region.wl_region()));
+            }
+            (WindowShell::WlrLayer { surface: layer_surface }, window_state)
+        } else {
+            let window =
+                state.xdg_shell.create_window(surface.clone(), default_decorations, &queue_handle);
 
-        let mut window_state = WindowState::new(
-            event_loop_window_target.handle.clone(),
-            &event_loop_window_target.queue_handle,
-            &state,
-            size,
-            window.clone(),
-            attributes.preferred_theme,
-            prefer_csd,
-        );
+            let mut window_state = WindowState::new(
+                event_loop_window_target.handle.clone(),
+                &event_loop_window_target.queue_handle,
+                &state,
+                size,
+                window.clone(),
+                attributes.preferred_theme,
+                prefer_csd,
+            );
+
+            // Set the app_id.
+
+            if let Some(name) = app_name.map(|n| n.general) {
+                window.set_app_id(name);
+            }
+
+            // Set the min and max sizes.
+            window_state.set_resizable(attributes.resizable);
+            let min_size = attributes.min_surface_size.map(|size| size.to_logical(1.));
+            let max_size = attributes.max_surface_size.map(|size| size.to_logical(1.));
+            window_state.set_min_surface_size(min_size);
+            window_state.set_max_surface_size(max_size);
+
+            // Non-resizable implies that the min and max sizes are set to the same value.
+            window_state.set_resizable(attributes.resizable);
+            (WindowShell::Xdg { window }, window_state)
+        };
 
         window_state.set_window_icon(attributes.window_icon);
 
@@ -131,11 +201,6 @@ impl Window {
 
         // Set the decorations hint.
         window_state.set_decorate(attributes.decorations);
-
-        // Set the app_id.
-        if let Some(name) = app_name.map(|name| name.general) {
-            window.set_app_id(name);
-        }
 
         // Set the window title.
         window_state.set_title(attributes.title);
@@ -177,7 +242,7 @@ impl Window {
         }
 
         // XXX Do initial commit.
-        window.commit();
+        window.wl_surface().commit();
 
         // Add the window and window requests into the state.
         let window_state = Arc::new(Mutex::new(window_state));
@@ -226,7 +291,7 @@ impl Window {
     }
 
     pub(crate) fn xdg_toplevel(&self) -> Option<NonNull<c_void>> {
-        NonNull::new(self.window.xdg_toplevel().id().as_ptr().cast())
+        self.window.xdg_toplevel()
     }
 }
 
@@ -250,6 +315,46 @@ impl Window {
     #[inline]
     pub fn surface(&self) -> &WlSurface {
         self.window.wl_surface()
+    }
+
+    #[inline]
+    pub fn set_anchor(&self, anchor: Anchor) {
+        self.window.set_anchor(anchor);
+    }
+
+    #[inline]
+    pub fn set_margin(&self, top: i32, right: i32, bottom: i32, left: i32) {
+        self.window.set_margin(top, right, bottom, left);
+    }
+
+    #[inline]
+    pub fn set_exclusive_zone(&self, exclusive_zone: i32) {
+        self.window.set_exclusive_zone(exclusive_zone);
+    }
+
+    #[inline]
+    pub fn set_keyboard_interactivity(&self, keyboard_interactivity: KeyboardInteractivity) {
+        self.window.set_keyboard_interactivity(keyboard_interactivity);
+    }
+
+    #[inline]
+    pub fn set_layer(&self, layer: Layer) {
+        self.window.set_layer(layer);
+    }
+
+    #[inline]
+    pub fn create_region(&self) -> Result<Region, RequestError> {
+        Ok(Region::new(&*self.compositor).map_err(|err| os_error!(err))?)
+    }
+
+    #[inline]
+    pub fn set_region(&self, region: Option<&Region>) {
+        match &self.window {
+            WindowShell::WlrLayer { surface } => {
+                surface.set_input_region(region.map(|r| r.wl_region()));
+            },
+            WindowShell::Xdg { .. } => warn!("Region is ignored for XDG windows"),
+        }
     }
 }
 
@@ -320,12 +425,13 @@ impl CoreWindow for Window {
     }
 
     fn outer_position(&self) -> Result<PhysicalPosition<i32>, RequestError> {
-        Err(NotSupportedError::new("window position information is not available on Wayland")
-            .into())
+        // XXX just for LayerShell
+        self.window_state.lock().unwrap().outer_position()
     }
 
-    fn set_outer_position(&self, _position: Position) {
-        // Not possible.
+    fn set_outer_position(&self, position: Position) {
+        // XXX just for LayerShell
+        self.window_state.lock().unwrap().set_outer_position(position);
     }
 
     fn surface_size(&self) -> PhysicalSize<u32> {
@@ -435,13 +541,7 @@ impl CoreWindow for Window {
     }
 
     fn is_maximized(&self) -> bool {
-        self.window_state
-            .lock()
-            .unwrap()
-            .last_configure
-            .as_ref()
-            .map(|last_configure| last_configure.is_maximized())
-            .unwrap_or_default()
+        self.window_state.lock().unwrap().is_maximized()
     }
 
     fn set_fullscreen(&self, fullscreen: Option<Fullscreen>) {
@@ -461,14 +561,7 @@ impl CoreWindow for Window {
     }
 
     fn fullscreen(&self) -> Option<Fullscreen> {
-        let is_fullscreen = self
-            .window_state
-            .lock()
-            .unwrap()
-            .last_configure
-            .as_ref()
-            .map(|last_configure| last_configure.is_fullscreen())
-            .unwrap_or_default();
+        let is_fullscreen = self.window_state.lock().unwrap().is_fullscreen();
 
         if is_fullscreen {
             let current_monitor = self.current_monitor();
@@ -498,7 +591,9 @@ impl CoreWindow for Window {
         self.window_state.lock().unwrap().is_decorated()
     }
 
-    fn set_window_level(&self, _level: WindowLevel) {}
+    fn set_window_level(&self, level: WindowLevel) {
+        self.window.set_layer(layer_from_window_level(level));
+    }
 
     fn set_window_icon(&self, window_icon: Option<winit_core::icon::Icon>) {
         self.window_state.lock().unwrap().set_window_icon(window_icon)
@@ -652,6 +747,106 @@ impl CoreWindow for Window {
     /// Get the raw-window-handle v0.6 window handle.
     fn rwh_06_window_handle(&self) -> &dyn rwh_06::HasWindowHandle {
         self
+    }
+}
+
+#[derive(Debug)]
+enum WindowShell {
+    Xdg { window: SctkWindow },
+    WlrLayer { surface: LayerSurface },
+}
+
+impl WindowShell {
+    pub fn xdg_toplevel(&self) -> Option<NonNull<c_void>> {
+        match self {
+            WindowShell::Xdg { window } => NonNull::new(window.xdg_toplevel().id().as_ptr().cast()),
+            WindowShell::WlrLayer { .. } => None,
+        }
+    }
+
+    pub fn set_maximized(&self) {
+        match self {
+            WindowShell::Xdg { window } => window.set_maximized(),
+            WindowShell::WlrLayer { .. } => {
+                warn!("Maximizing is ignored for layer_shell windows")
+            },
+        }
+    }
+
+    pub fn unset_maximized(&self) {
+        match self {
+            WindowShell::Xdg { window } => window.unset_maximized(),
+            WindowShell::WlrLayer { .. } => {
+                warn!("Unset Maximize is ignored for layer_shell windows")
+            },
+        }
+    }
+
+    pub fn set_minimized(&self) {
+        match self {
+            WindowShell::Xdg { window } => window.set_minimized(),
+            WindowShell::WlrLayer { .. } => warn!("Minimizing is ignored for layer_shell windows"),
+        }
+    }
+
+    pub fn set_fullscreen(&self, output: Option<&WlOutput>) {
+        match self {
+            WindowShell::Xdg { window } => {
+                window.set_fullscreen(output);
+            },
+            WindowShell::WlrLayer { .. } => warn!("Fullscreen is ignored for layer_shell windows"),
+        }
+    }
+
+    pub fn unset_fullscreen(&self) {
+        match self {
+            WindowShell::Xdg { window } => window.unset_fullscreen(),
+            WindowShell::WlrLayer { .. } => warn!("Fullscreen is ignored for layer_shell windows"),
+        }
+    }
+
+    pub fn wl_surface(&self) -> &WlSurface {
+        match self {
+            WindowShell::Xdg { window } => window.wl_surface(),
+            WindowShell::WlrLayer { surface } => surface.wl_surface(),
+        }
+    }
+
+    pub fn set_anchor(&self, anchor: Anchor) {
+        match self {
+            WindowShell::WlrLayer { surface } => surface.set_anchor(anchor),
+            WindowShell::Xdg { .. } => warn!("Anchor is ignored for XDG windows"),
+        }
+    }
+
+    pub fn set_margin(&self, top: i32, right: i32, bottom: i32, left: i32) {
+        match self {
+            WindowShell::WlrLayer { surface } => surface.set_margin(top, right, bottom, left),
+            WindowShell::Xdg { .. } => warn!("Margin is ignored for XDG windows"),
+        }
+    }
+
+    pub fn set_exclusive_zone(&self, exclusive_zone: i32) {
+        match self {
+            WindowShell::WlrLayer { surface } => surface.set_exclusive_zone(exclusive_zone),
+            WindowShell::Xdg { .. } => warn!("Exclusive zone is ignored for XDG windows"),
+        }
+    }
+
+    pub fn set_keyboard_interactivity(&self, keyboard_interactivity: KeyboardInteractivity) {
+        match self {
+            WindowShell::WlrLayer { surface } => {
+                surface.set_keyboard_interactivity(keyboard_interactivity)
+            },
+            WindowShell::Xdg { .. } => warn!("Keyboard interactivity is ignored for XDG windows"),
+        }
+    }
+
+    pub fn set_layer(&self, layer: Layer) {
+        match self {
+            WindowShell::WlrLayer { surface } => surface.set_layer(layer),
+            WindowShell::Xdg { .. } => warn!("Layer is ignored for XDG windows"),
+        }
     }
 }
 
