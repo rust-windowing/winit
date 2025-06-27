@@ -289,7 +289,7 @@ impl Window {
     }
 
     pub(crate) fn xdg_toplevel(&self) -> Option<NonNull<c_void>> {
-        NonNull::new(self.window.xdg_toplevel())
+        self.window.xdg_toplevel()
     }
 }
 
@@ -759,10 +759,10 @@ enum WindowShell {
 }
 
 impl WindowShell {
-    pub fn xdg_toplevel(&self) -> c_void {
+    pub fn xdg_toplevel(&self) -> Option<NonNull<c_void>> {
         match self {
-            WindowShell::Xdg { window } => window.xdg_toplevel().id().as_ptr().cast(),
-            WindowShell::WlrLayer { .. } => std::ptr::null(),
+            WindowShell::Xdg { window } => NonNull::new(window.xdg_toplevel().id().as_ptr().cast()),
+            WindowShell::WlrLayer { .. } => None,
         }
     }
 
