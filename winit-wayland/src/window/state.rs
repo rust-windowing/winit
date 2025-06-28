@@ -1044,9 +1044,21 @@ impl WindowState {
     /// Set the CSD theme.
     pub fn set_theme(&mut self, theme: Option<Theme>) {
         match &mut self.shell_specific {
-            ShellSpecificState::Xdg { frame, .. } => {
+            ShellSpecificState::Xdg {
+                #[cfg(any(
+                    feature = "csd-adwaita",
+                    feature = "csd-adwaita-crossfont",
+                    feature = "csd-adwaita-notitle",
+                ))]
+                frame,
+                ..
+            } => {
                 self.theme = theme;
-                #[cfg(feature = "sctk-adwaita")]
+                #[cfg(any(
+                    feature = "csd-adwaita",
+                    feature = "csd-adwaita-crossfont",
+                    feature = "csd-adwaita-notitle",
+                ))]
                 if let Some(frame) = frame.as_mut() {
                     frame.set_config(into_sctk_adwaita_config(theme))
                 }
@@ -1318,7 +1330,7 @@ impl WindowState {
 
             // NOTE: When fractional scaling is not used update the buffer scale.
             if fractional_scale.is_none() {
-                let _ = self.wl_surface().set_buffer_scale(scale_factor as _);
+                self.wl_surface().set_buffer_scale(scale_factor as _);
             }
         }
     }
