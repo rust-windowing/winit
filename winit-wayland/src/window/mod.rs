@@ -111,7 +111,9 @@ impl Window {
             WindowDecorations::RequestClient
         };
 
-        let (window, mut window_state) = if wl_attrs.is_some()
+        let (window, mut window_state) = if wl_attrs
+            .as_ref()
+            .is_some_and(|wl_attrs| wl_attrs.is_layer_shell)
             || attributes.window_level != WindowLevel::Normal
         {
             let wl_attrs = wl_attrs.unwrap();
