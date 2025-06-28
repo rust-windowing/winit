@@ -13,8 +13,8 @@ use winit_core::error::RequestError;
 use winit_core::icon::Icon;
 use winit_core::monitor::{Fullscreen, MonitorHandle as CoreMonitorHandle};
 use winit_core::window::{
-    ImePurpose, Theme, UserAttentionType, Window as CoreWindow, WindowAttributes, WindowButtons,
-    WindowId, WindowLevel,
+    ImeCapabilities, ImeRequest, ImeRequestError, Theme, UserAttentionType, Window as CoreWindow,
+    WindowAttributes, WindowButtons, WindowId, WindowLevel,
 };
 
 use super::event_loop::ActiveEventLoop;
@@ -233,16 +233,12 @@ impl CoreWindow for Window {
         self.maybe_wait_on_main(|delegate| delegate.set_window_icon(window_icon));
     }
 
-    fn set_ime_cursor_area(&self, position: Position, size: Size) {
-        self.maybe_wait_on_main(|delegate| delegate.set_ime_cursor_area(position, size));
+    fn request_ime_update(&self, request: ImeRequest) -> Result<(), ImeRequestError> {
+        self.maybe_wait_on_main(|delegate| delegate.request_ime_update(request))
     }
 
-    fn set_ime_allowed(&self, allowed: bool) {
-        self.maybe_wait_on_main(|delegate| delegate.set_ime_allowed(allowed));
-    }
-
-    fn set_ime_purpose(&self, purpose: ImePurpose) {
-        self.maybe_wait_on_main(|delegate| delegate.set_ime_purpose(purpose));
+    fn ime_capabilities(&self) -> Option<ImeCapabilities> {
+        self.maybe_wait_on_main(|delegate| delegate.ime_capabilities())
     }
 
     fn focus_window(&self) {

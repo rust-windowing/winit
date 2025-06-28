@@ -20,8 +20,9 @@ use winit_core::monitor::{
     Fullscreen, MonitorHandle as CoreMonitorHandle, MonitorHandleProvider, VideoMode,
 };
 use winit_core::window::{
-    CursorGrabMode, ImePurpose, ResizeDirection, Theme, UserAttentionType, Window as CoreWindow,
-    WindowAttributes, WindowButtons, WindowId, WindowLevel,
+    CursorGrabMode, ImeCapabilities, ImeRequest as CoreImeRequest, ImeRequestError,
+    ResizeDirection, Theme, UserAttentionType, Window as CoreWindow, WindowAttributes,
+    WindowButtons, WindowId, WindowLevel,
 };
 use x11rb::connection::{Connection, RequestConnection};
 use x11rb::properties::{WmHints, WmSizeHints, WmSizeHintsSpecification};
@@ -210,16 +211,12 @@ impl CoreWindow for Window {
         self.0.set_window_icon(icon)
     }
 
-    fn set_ime_cursor_area(&self, position: Position, size: Size) {
-        self.0.set_ime_cursor_area(position, size);
+    fn request_ime_update(&self, action: CoreImeRequest) -> Result<(), ImeRequestError> {
+        self.0.request_ime_update(action)
     }
 
-    fn set_ime_allowed(&self, allowed: bool) {
-        self.0.set_ime_allowed(allowed);
-    }
-
-    fn set_ime_purpose(&self, purpose: ImePurpose) {
-        self.0.set_ime_purpose(purpose);
+    fn ime_capabilities(&self) -> Option<ImeCapabilities> {
+        self.0.ime_capabilities()
     }
 
     fn focus_window(&self) {
@@ -349,6 +346,7 @@ pub struct SharedState {
     pub inner_position_rel_parent: Option<(i32, i32)>,
     pub is_resizable: bool,
     pub is_decorated: bool,
+    pub ime_capabilities: Option<ImeCapabilities>,
     pub last_monitor: X11MonitorHandle,
     pub dpi_adjusted: Option<(u32, u32)>,
     pub(crate) fullscreen: Option<Fullscreen>,
@@ -392,6 +390,7 @@ impl SharedState {
             size: None,
             position: None,
             inner_position: None,
+            ime_capabilities: None,
             inner_position_rel_parent: None,
             dpi_adjusted: None,
             fullscreen: None,
@@ -2081,7 +2080,55 @@ impl UnownedWindow {
     }
 
     #[inline]
-    pub fn set_ime_purpose(&self, _purpose: ImePurpose) {}
+    pub fn request_ime_update(&self, request: CoreImeRequest) -> Result<(), ImeRequestError> {
+        let mut shared_state = self.shared_state_lock();
+        let (capabilities, state) = match request {
+            CoreImeRequest::Enable(enable) => {
+                let (capabilities, request_data) = enable.into_raw();
+
+                if shared_state.ime_capabilities.is_some() {
+                    return Err(ImeRequestError::AlreadyEnabled);
+                }
+
+                shared_state.ime_capabilities = Some(capabilities);
+                drop(shared_state);
+                self.set_ime_allowed(true);
+                (capabilities, request_data)
+            },
+            CoreImeRequest::Update(state) => {
+                if let Some(capabilities) = shared_state.ime_capabilities {
+                    (capabilities, state)
+                } else {
+                    // The IME was not yet enabled, so discard the update.
+                    return Err(ImeRequestError::NotEnabled);
+                }
+            },
+            CoreImeRequest::Disable => {
+                shared_state.ime_capabilities = None;
+                drop(shared_state);
+                self.set_ime_allowed(false);
+                return Ok(());
+            },
+        };
+
+        if let Some((position, size)) = state.cursor_area {
+            if capabilities.contains(ImeCapabilities::CURSOR_AREA) {
+                self.set_ime_cursor_area(position, size);
+            } else {
+                warn!("discarding IME cursor area update without capability enabled.");
+            }
+        }
+
+        // Pretend that there is always some input method available.
+        // Better to make an application think it has an input method and send more events when it
+        // doesn't than think there is no input method and not send any IME events.
+        Ok(())
+    }
+
+    #[inline]
+    pub fn ime_capabilities(&self) -> Option<ImeCapabilities> {
+        self.shared_state_lock().ime_capabilities
+    }
 
     #[inline]
     pub fn focus_window(&self) {

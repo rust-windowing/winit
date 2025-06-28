@@ -149,7 +149,7 @@ impl ImeContext {
         }
     }
 
-    unsafe fn system_has_ime() -> bool {
+    pub unsafe fn system_has_ime() -> bool {
         unsafe { GetSystemMetrics(SM_IMMENABLED) != 0 }
     }
 }

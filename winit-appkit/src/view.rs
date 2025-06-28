@@ -21,6 +21,7 @@ use winit_core::event::{
     PointerKind, PointerSource, TouchPhase, WindowEvent,
 };
 use winit_core::keyboard::{Key, KeyCode, KeyLocation, ModifiersState, NamedKey};
+use winit_core::window::ImeCapabilities;
 
 use super::app_state::AppState;
 use super::cursor::{default_cursor, invisible_cursor};
@@ -124,7 +125,7 @@ pub struct ViewState {
     /// True iff the application wants IME events.
     ///
     /// Can be set using `set_ime_allowed`
-    ime_allowed: Cell<bool>,
+    ime_capabilities: Cell<Option<ImeCapabilities>>,
 
     /// True if the current key event should be forwarded
     /// to the application, even during IME
@@ -456,7 +457,7 @@ define_class!(
             // we must send the `KeyboardInput` event during IME if it triggered
             // `doCommandBySelector`. (doCommandBySelector means that the keyboard input
             // is not handled by IME and should be handled by the application)
-            if self.ivars().ime_allowed.get() {
+            if self.ivars().ime_capabilities.get().is_some() {
                 let events_for_nsview = NSArray::from_slice(&[&*event]);
                 unsafe { self.interpretKeyEvents(&events_for_nsview) };
 
@@ -797,7 +798,7 @@ impl WinitView {
             tracking_rect: Default::default(),
             ime_state: Default::default(),
             input_source: Default::default(),
-            ime_allowed: Default::default(),
+            ime_capabilities: Default::default(),
             forward_key_to_app: Default::default(),
             marked_text: Default::default(),
             accepts_first_mouse,
@@ -859,12 +860,13 @@ impl WinitView {
         }
     }
 
-    pub(super) fn set_ime_allowed(&self, ime_allowed: bool) {
-        if self.ivars().ime_allowed.get() == ime_allowed {
+    pub(super) fn set_ime_allowed(&self, capabilities: Option<ImeCapabilities>) {
+        if self.ivars().ime_capabilities.get().is_some() {
             return;
         }
-        self.ivars().ime_allowed.set(ime_allowed);
-        if self.ivars().ime_allowed.get() {
+        self.ivars().ime_capabilities.set(capabilities);
+
+        if capabilities.is_some() {
             return;
         }
 
@@ -875,6 +877,10 @@ impl WinitView {
             self.ivars().ime_state.set(ImeState::Disabled);
             self.queue_event(WindowEvent::Ime(Ime::Disabled));
         }
+    }
+
+    pub(super) fn ime_capabilities(&self) -> Option<ImeCapabilities> {
+        self.ivars().ime_capabilities.get()
     }
 
     pub(super) fn set_ime_cursor_area(&self, position: NSPoint, size: NSSize) {

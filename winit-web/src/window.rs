@@ -12,8 +12,8 @@ use winit_core::error::{NotSupportedError, RequestError};
 use winit_core::icon::Icon;
 use winit_core::monitor::{Fullscreen, MonitorHandle as CoremMonitorHandle};
 use winit_core::window::{
-    CursorGrabMode, ImePurpose, ResizeDirection, Theme, UserAttentionType, Window as RootWindow,
-    WindowAttributes, WindowButtons, WindowId, WindowLevel,
+    CursorGrabMode, ImeRequestError, ResizeDirection, Theme, UserAttentionType,
+    Window as RootWindow, WindowAttributes, WindowButtons, WindowId, WindowLevel,
 };
 
 use crate::event_loop::ActiveEventLoop;
@@ -308,16 +308,12 @@ impl RootWindow for Window {
         // Currently an intentional no-op
     }
 
-    fn set_ime_cursor_area(&self, _: Position, _: Size) {
-        // Currently not implemented
+    fn ime_capabilities(&self) -> Option<winit_core::window::ImeCapabilities> {
+        None
     }
 
-    fn set_ime_allowed(&self, _: bool) {
-        // Currently not implemented
-    }
-
-    fn set_ime_purpose(&self, _: ImePurpose) {
-        // Currently not implemented
+    fn request_ime_update(&self, _: winit_core::window::ImeRequest) -> Result<(), ImeRequestError> {
+        Err(ImeRequestError::NotSupported)
     }
 
     fn focus_window(&self) {
