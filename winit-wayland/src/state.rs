@@ -63,7 +63,7 @@ pub struct WinitState {
     pub xdg_shell: XdgShell,
 
     /// The layer shell for layer surfaces
-    pub layer_shell: LayerShell,
+    pub layer_shell: Option<LayerShell>,
 
     /// The currently present windows.
     pub windows: RefCell<AHashMap<WindowId, Arc<Mutex<WindowState>>>>,
@@ -183,7 +183,10 @@ impl WinitState {
             seat_state,
             shm,
 
-            layer_shell: LayerShell::bind(globals, queue_handle).map_err(|err| os_error!(err))?,
+            layer_shell: LayerShell::bind(globals, queue_handle)
+                .map_err(|err| os_error!(err))
+                .inspect_err(|e| tracing::warn!("Error get LayerShell: {e}"))
+                .ok(),
             xdg_shell: XdgShell::bind(globals, queue_handle).map_err(|err| os_error!(err))?,
             xdg_activation: XdgActivationState::bind(globals, queue_handle).ok(),
             xdg_toplevel_icon_manager: XdgToplevelIconManagerState::bind(globals, queue_handle)
