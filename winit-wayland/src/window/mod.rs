@@ -116,6 +116,11 @@ impl Window {
             .is_some_and(|wl_attrs| wl_attrs.is_layer_shell)
             || attributes.window_level != WindowLevel::Normal
         {
+            let Some(layer_shell) = state.layer_shell.as_ref() else {
+                return Err(RequestError::NotSupported(NotSupportedError::new(
+                    "No LayerShell exists in this environment",
+                )));
+            };
             let wl_attrs = wl_attrs.unwrap();
             let output = wl_attrs.output.and_then(|id| {
                 monitors
@@ -125,7 +130,7 @@ impl Window {
                     .find(|m| m.native_id() == id)
                     .map(|m| m.proxy.clone())
             });
-            let layer_surface = state.layer_shell.create_layer_surface(
+            let layer_surface = layer_shell.create_layer_surface(
                 &queue_handle,
                 surface.clone(),
                 wl_attrs.layer.unwrap_or_else(|| layer_from_window_level(attributes.window_level)),
