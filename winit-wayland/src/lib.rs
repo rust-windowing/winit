@@ -97,6 +97,7 @@ pub(crate) struct ApplicationName {
 /// Window attributes methods specific to Wayland.
 #[derive(Debug, Default, Clone)]
 pub struct WindowAttributesWayland {
+    pub(crate) is_layer_shell: bool,
     pub(crate) name: Option<ApplicationName>,
     pub(crate) activation_token: Option<ActivationToken>,
     pub(crate) prefer_csd: bool,
@@ -110,6 +111,9 @@ pub struct WindowAttributesWayland {
 }
 
 impl WindowAttributesWayland {
+    pub fn layer_shell() -> Self {
+        Self { is_layer_shell: true, ..Default::default() }
+    }
     /// Build window with the given name.
     ///
     /// The `general` name sets an application ID, which should match the `.desktop`
