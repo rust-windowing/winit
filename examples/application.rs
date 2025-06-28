@@ -13,6 +13,7 @@ use std::{fmt, mem};
 
 use ::tracing::{error, info};
 use cursor_icon::CursorIcon;
+use dpi::LogicalPosition;
 #[cfg(not(android_platform))]
 use rwh_06::{DisplayHandle, HasDisplayHandle};
 #[cfg(not(android_platform))]
@@ -38,8 +39,12 @@ use winit::platform::wayland::{ActiveEventLoopExtWayland, WindowAttributesWaylan
 use winit::platform::web::{ActiveEventLoopExtWeb, WindowAttributesWeb};
 #[cfg(x11_platform)]
 use winit::platform::x11::{ActiveEventLoopExtX11, WindowAttributesX11};
-use winit::window::{CursorGrabMode, ResizeDirection, Theme, Window, WindowAttributes, WindowId};
+use winit::window::{
+    CursorGrabMode, ImeCapabilities, ImeEnableRequest, ImePurpose, ImeRequestData, ResizeDirection,
+    Theme, Window, WindowAttributes, WindowId,
+};
 use winit_core::application::macos::ApplicationHandlerExtMacOS;
+use winit_core::window::ImeRequest;
 
 #[path = "util/tracing.rs"]
 mod tracing;
@@ -49,6 +54,7 @@ mod fill;
 
 /// The amount of points to around the window for drag resize direction calculations.
 const BORDER_SIZE: f64 = 20.;
+const IME_CURSOR_SIZE: PhysicalSize<u32> = PhysicalSize::new(20, 20);
 
 fn main() -> Result<(), Box<dyn Error>> {
     #[cfg(web_platform)]
@@ -604,8 +610,7 @@ impl ApplicationHandlerExtMacOS for Application {
 
 /// State of the window.
 struct WindowState {
-    /// IME input.
-    ime: bool,
+    ime_enabled: bool,
     /// Render surface.
     ///
     /// NOTE: This surface must be dropped before the `Window`.
@@ -661,8 +666,14 @@ impl WindowState {
         window.set_cursor(CURSORS[named_idx].into());
 
         // Allow IME out of the box.
-        let ime = true;
-        window.set_ime_allowed(ime);
+        let request_data = ImeRequestData::default()
+            .with_purpose(ImePurpose::Normal)
+            .with_cursor_area(LogicalPosition { x: 0, y: 0 }.into(), IME_CURSOR_SIZE.into());
+        let enable_request = ImeEnableRequest::new(ImeCapabilities::all(), request_data).unwrap();
+        let enable_ime = ImeRequest::Enable(enable_request);
+
+        // Initial update
+        window.request_ime_update(enable_ime).unwrap();
 
         let size = window.surface_size();
         let mut state = Self {
@@ -679,7 +690,7 @@ impl WindowState {
             continuous_redraw: false,
             #[cfg(not(android_platform))]
             start_time: Instant::now(),
-            ime,
+            ime_enabled: true,
             cursor_position: Default::default(),
             cursor_hidden: Default::default(),
             modifiers: Default::default(),
@@ -694,11 +705,21 @@ impl WindowState {
     }
 
     pub fn toggle_ime(&mut self) {
-        self.ime = !self.ime;
-        self.window.set_ime_allowed(self.ime);
-        if let Some(position) = self.ime.then_some(self.cursor_position).flatten() {
-            self.window.set_ime_cursor_area(position.into(), PhysicalSize::new(20, 20).into());
-        }
+        if self.ime_enabled {
+            self.window.request_ime_update(ImeRequest::Disable).expect("disable can not fail");
+        } else {
+            let cursor_pos = self
+                .cursor_position
+                .map(Into::into)
+                .unwrap_or(LogicalPosition { x: 0, y: 0 }.into());
+            let request_data =
+                ImeRequestData::default().with_cursor_area(cursor_pos, IME_CURSOR_SIZE.into());
+            let enable_request =
+                ImeEnableRequest::new(ImeCapabilities::all(), request_data).unwrap();
+            self.window.request_ime_update(ImeRequest::Enable(enable_request)).unwrap();
+        };
+
+        self.ime_enabled = !self.ime_enabled;
     }
 
     pub fn minimize(&mut self) {
@@ -706,9 +727,15 @@ impl WindowState {
     }
 
     pub fn cursor_moved(&mut self, position: PhysicalPosition<f64>) {
+        // the IME really cares about the caret,
+        // but there's nothing else to demonstrate a position
         self.cursor_position = Some(position);
-        if self.ime {
-            self.window.set_ime_cursor_area(position.into(), PhysicalSize::new(20, 20).into());
+        if self.ime_enabled {
+            let request_data =
+                ImeRequestData::default().with_cursor_area(position.into(), IME_CURSOR_SIZE.into());
+            self.window
+                .request_ime_update(ImeRequest::Update(request_data))
+                .expect("A capability was not initially declared");
         }
     }
 

@@ -1,7 +1,7 @@
 #![allow(clippy::unnecessary_cast)]
 
 use std::collections::VecDeque;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use dispatch2::MainThreadBound;
 use dpi::{
@@ -23,8 +23,9 @@ use winit_core::event::WindowEvent;
 use winit_core::icon::Icon;
 use winit_core::monitor::{Fullscreen, MonitorHandle as CoreMonitorHandle};
 use winit_core::window::{
-    CursorGrabMode, ImePurpose, ResizeDirection, Theme, UserAttentionType, Window as CoreWindow,
-    WindowAttributes, WindowButtons, WindowId, WindowLevel,
+    CursorGrabMode, ImeCapabilities, ImeRequest, ImeRequestError, ResizeDirection, Theme,
+    UserAttentionType, Window as CoreWindow, WindowAttributes, WindowButtons, WindowId,
+    WindowLevel,
 };
 
 use super::app_state::EventWrapper;
@@ -113,6 +114,7 @@ pub struct Inner {
     view_controller: Retained<WinitViewController>,
     view: Retained<WinitView>,
     gl_or_metal_backed: bool,
+    ime_capabilities: Mutex<Option<ImeCapabilities>>,
 }
 
 impl Inner {
@@ -377,28 +379,42 @@ impl Inner {
         warn!("`Window::set_window_icon` is ignored on iOS")
     }
 
-    pub fn set_ime_cursor_area(&self, _position: Position, _size: Size) {
-        warn!("`Window::set_ime_cursor_area` is ignored on iOS")
-    }
-
     /// Show / hide the keyboard. To show the keyboard, we call `becomeFirstResponder`,
     /// requesting focus for the [WinitView]. Since [WinitView] implements
     /// [objc2_ui_kit::UIKeyInput], the keyboard will be shown.
     /// <https://developer.apple.com/documentation/uikit/uiresponder/1621113-becomefirstresponder>
-    pub fn set_ime_allowed(&self, allowed: bool) {
-        if allowed {
-            unsafe {
-                self.view.becomeFirstResponder();
-            }
-        } else {
-            unsafe {
-                self.view.resignFirstResponder();
-            }
+    fn request_ime_update(&self, request: ImeRequest) -> Result<(), ImeRequestError> {
+        let mut current_caps = self.ime_capabilities.lock().unwrap();
+        match request {
+            ImeRequest::Enable(enable) => {
+                let (capabilities, _) = enable.into_raw();
+                if current_caps.is_some() {
+                    return Err(ImeRequestError::AlreadyEnabled);
+                }
+                *current_caps = Some(capabilities);
+
+                unsafe {
+                    self.view.becomeFirstResponder();
+                }
+            },
+            ImeRequest::Update(_) => {
+                if current_caps.is_none() {
+                    return Err(ImeRequestError::NotEnabled);
+                }
+            },
+            ImeRequest::Disable => {
+                *current_caps = None;
+                unsafe {
+                    self.view.resignFirstResponder();
+                }
+            },
         }
+
+        Ok(())
     }
 
-    pub fn set_ime_purpose(&self, _purpose: ImePurpose) {
-        warn!("`Window::set_ime_purpose` is ignored on iOS")
+    fn ime_capabilities(&self) -> Option<ImeCapabilities> {
+        *self.ime_capabilities.lock().unwrap()
     }
 
     pub fn focus_window(&self) {
@@ -529,7 +545,13 @@ impl Window {
         let window = WinitUIWindow::new(mtm, &window_attributes, frame, &view_controller);
         window.makeKeyAndVisible();
 
-        let inner = Inner { window, view_controller, view, gl_or_metal_backed };
+        let inner = Inner {
+            window,
+            view_controller,
+            view,
+            gl_or_metal_backed,
+            ime_capabilities: Default::default(),
+        };
         Ok(Window { inner: MainThreadBound::new(inner, mtm) })
     }
 
@@ -711,16 +733,12 @@ impl CoreWindow for Window {
         self.maybe_wait_on_main(|delegate| delegate.set_window_icon(window_icon));
     }
 
-    fn set_ime_cursor_area(&self, position: Position, size: Size) {
-        self.maybe_wait_on_main(|delegate| delegate.set_ime_cursor_area(position, size));
+    fn request_ime_update(&self, request: ImeRequest) -> Result<(), ImeRequestError> {
+        self.maybe_wait_on_main(|delegate| delegate.request_ime_update(request))
     }
 
-    fn set_ime_allowed(&self, allowed: bool) {
-        self.maybe_wait_on_main(|delegate| delegate.set_ime_allowed(allowed));
-    }
-
-    fn set_ime_purpose(&self, purpose: ImePurpose) {
-        self.maybe_wait_on_main(|delegate| delegate.set_ime_purpose(purpose));
+    fn ime_capabilities(&self) -> Option<ImeCapabilities> {
+        self.maybe_wait_on_main(|delegate| delegate.ime_capabilities())
     }
 
     fn focus_window(&self) {
