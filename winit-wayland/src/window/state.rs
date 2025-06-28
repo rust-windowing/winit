@@ -80,7 +80,7 @@ pub struct WindowState {
     pub queue_handle: QueueHandle<WinitState>,
 
     /// State that differs based on being an XDG shell or a WLR layer shell
-    pub shell_specific: ShellSpecificState,
+    pub(self) shell_specific: ShellSpecificState,
 
     /// Theme variant.
     theme: Option<Theme>,
@@ -298,6 +298,7 @@ impl WindowState {
                 .as_ref()
                 .map(|toplevel_icon_manager_state| toplevel_icon_manager_state.global().clone()),
             image_pool: winit_state.image_pool.clone(),
+            text_input_state: None,
         }
     }
 

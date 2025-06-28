@@ -130,25 +130,25 @@ impl WindowAttributesWayland {
     }
 
     #[inline]
-    fn with_anchor(mut self, anchor: Anchor) -> Self {
+    pub fn with_anchor(mut self, anchor: Anchor) -> Self {
         self.anchor = Some(anchor);
         self
     }
 
     #[inline]
-    fn with_exclusive_zone(mut self, exclusive_zone: i32) -> Self {
+    pub fn with_exclusive_zone(mut self, exclusive_zone: i32) -> Self {
         self.exclusive_zone = Some(exclusive_zone);
         self
     }
 
     #[inline]
-    fn with_margin(mut self, top: i32, right: i32, bottom: i32, left: i32) -> Self {
+    pub fn with_margin(mut self, top: i32, right: i32, bottom: i32, left: i32) -> Self {
         self.margin = Some((top, right, bottom, left));
         self
     }
 
     #[inline]
-    fn with_keyboard_interactivity(
+    pub fn with_keyboard_interactivity(
         mut self,
         keyboard_interactivity: KeyboardInteractivity,
     ) -> Self {
@@ -157,19 +157,19 @@ impl WindowAttributesWayland {
     }
 
     #[inline]
-    fn with_layer(mut self, layer: Layer) -> Self {
+    pub fn with_layer(mut self, layer: Layer) -> Self {
         self.layer = Some(layer);
         self
     }
 
     #[inline]
-    fn with_region(mut self, position: LogicalPosition<i32>, size: LogicalSize<i32>) -> Self {
+    pub fn with_region(mut self, position: LogicalPosition<i32>, size: LogicalSize<i32>) -> Self {
         self.region = Some((position, size));
         self
     }
 
     #[inline]
-    fn with_output(mut self, output: u64) -> Self {
+    pub fn with_output(mut self, output: u64) -> Self {
         self.output = Some(output);
         self
     }
