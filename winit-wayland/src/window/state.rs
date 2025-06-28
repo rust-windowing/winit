@@ -1390,6 +1390,13 @@ impl WindowState {
 
     /// Set the window's icon
     pub fn set_window_icon(&mut self, window_icon: Option<winit_core::icon::Icon>) {
+        let xdg_toplevel = match &mut self.shell_specific {
+            ShellSpecificState::Xdg { window, .. } => window.xdg_toplevel(),
+            ShellSpecificState::WlrLayer { .. } => {
+                warn!("xdg_toplevel is not supported by layer_shell");
+                return;
+            },
+        };
         let xdg_toplevel_icon_manager = match self.xdg_toplevel_icon_manager.as_ref() {
             Some(xdg_toplevel_icon_manager) => xdg_toplevel_icon_manager,
             None => {
@@ -1419,8 +1426,7 @@ impl WindowState {
             None => (None, None),
         };
 
-        // TODO: set_icon
-        // xdg_toplevel_icon_manager.set_icon(self.window.xdg_toplevel(), xdg_toplevel_icon.as_ref());
+        xdg_toplevel_icon_manager.set_icon(xdg_toplevel, xdg_toplevel_icon.as_ref());
         self.toplevel_icon = toplevel_icon;
 
         if let Some(xdg_toplevel_icon) = xdg_toplevel_icon {

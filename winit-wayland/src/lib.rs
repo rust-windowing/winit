@@ -38,9 +38,10 @@ mod state;
 mod types;
 mod window;
 
+pub use sctk::shell::wlr_layer::{Anchor, KeyboardInteractivity, Layer};
+
 pub use self::event_loop::{ActiveEventLoop, EventLoop};
 pub use self::window::Window;
-pub use sctk::shell::wlr_layer::{Anchor, KeyboardInteractivity, Layer};
 
 /// Additional methods on [`ActiveEventLoop`] that are specific to Wayland.
 pub trait ActiveEventLoopExtWayland {
