@@ -80,7 +80,7 @@ pub struct WindowState {
     pub queue_handle: QueueHandle<WinitState>,
 
     /// State that differs based on being an XDG shell or a WLR layer shell
-    pub shell_specific: ShellSpecificState,
+    pub(self) shell_specific: ShellSpecificState,
 
     /// Theme variant.
     theme: Option<Theme>,
@@ -238,12 +238,7 @@ impl WindowState {
             frame_callback_state: FrameCallbackState::None,
             seat_focus: Default::default(),
             has_pending_move: None,
-            ime_allowed: false,
-            ime_purpose: ImePurpose::Normal,
             text_input_state: None,
-            last_configure: None,
-            max_surface_size: None,
-            min_surface_size: MIN_WINDOW_SIZE,
             pointer_constraints,
             pointers: Default::default(),
             queue_handle: queue_handle.clone(),
@@ -276,8 +271,6 @@ impl WindowState {
             theme,
             cursor_grab_mode: GrabState::new(),
             cursor_visible: true,
-            ime_allowed: false,
-            ime_purpose: ImePurpose::Normal,
             pointer_constraints,
             pointers: Default::default(),
             queue_handle: queue_handle.clone(),
@@ -305,6 +298,7 @@ impl WindowState {
                 .as_ref()
                 .map(|toplevel_icon_manager_state| toplevel_icon_manager_state.global().clone()),
             image_pool: winit_state.image_pool.clone(),
+            text_input_state: None,
         }
     }
 
