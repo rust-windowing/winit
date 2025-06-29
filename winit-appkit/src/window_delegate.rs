@@ -1698,7 +1698,7 @@ impl WindowDelegate {
         };
 
         if let Some((spot, size)) = request_data.cursor_area {
-            if self.view().ime_capabilities().unwrap().contains(ImeCapabilities::CURSOR_AREA) {
+            if self.view().ime_capabilities().unwrap().cursor_area() {
                 let scale_factor = self.scale_factor();
                 let logical_spot = spot.to_logical(scale_factor);
                 let logical_spot = NSPoint::new(logical_spot.x, logical_spot.y);

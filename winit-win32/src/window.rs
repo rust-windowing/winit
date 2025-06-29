@@ -1051,7 +1051,7 @@ impl CoreWindow for Window {
             };
 
             if let Some((spot, size)) = request_data.cursor_area {
-                if capabilities.contains(ImeCapabilities::CURSOR_AREA) {
+                if capabilities.cursor_area() {
                     let scale_factor = state.scale_factor;
                     ImeContext::current(window.hwnd()).set_ime_cursor_area(
                         spot,

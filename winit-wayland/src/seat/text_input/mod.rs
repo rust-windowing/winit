@@ -261,7 +261,7 @@ impl ClientState {
     /// Updates the fields of the state which are present in update_fields.
     pub fn update(&mut self, request_data: ImeRequestData, scale_factor: f64) {
         if let Some(purpose) = request_data.purpose {
-            if self.capabilities.contains(ImeCapabilities::PURPOSE) {
+            if self.capabilities.purpose() {
                 self.content_type = purpose.into();
             } else {
                 warn!("discarding ImePurpose update without capability enabled.");
@@ -269,7 +269,7 @@ impl ClientState {
         }
 
         if let Some((position, size)) = request_data.cursor_area {
-            if self.capabilities.contains(ImeCapabilities::CURSOR_AREA) {
+            if self.capabilities.cursor_area() {
                 let position: LogicalPosition<u32> = position.to_logical(scale_factor);
                 let size: LogicalSize<u32> = size.to_logical(scale_factor);
                 self.cursor_area = (position, size);
@@ -280,11 +280,11 @@ impl ClientState {
     }
 
     pub fn content_type(&self) -> Option<ContentType> {
-        self.capabilities.contains(ImeCapabilities::PURPOSE).then_some(self.content_type)
+        self.capabilities.purpose().then_some(self.content_type)
     }
 
     pub fn cursor_area(&self) -> Option<(LogicalPosition<u32>, LogicalSize<u32>)> {
-        self.capabilities.contains(ImeCapabilities::CURSOR_AREA).then_some(self.cursor_area)
+        self.capabilities.cursor_area().then_some(self.cursor_area)
     }
 }
 
