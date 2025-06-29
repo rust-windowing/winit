@@ -2112,7 +2112,7 @@ impl UnownedWindow {
         };
 
         if let Some((position, size)) = state.cursor_area {
-            if capabilities.contains(ImeCapabilities::CURSOR_AREA) {
+            if capabilities.cursor_area() {
                 self.set_ime_cursor_area(position, size);
             } else {
                 warn!("discarding IME cursor area update without capability enabled.");
