@@ -162,7 +162,7 @@ enum ShellSpecificState {
         // frame after the `window` is dropped. To achieve that we rely on rust's struct
         // field drop order guarantees.
         /// The window frame, which is created from the configure request.
-        frame: Option<WinitFrame>,
+        frame: Box<Option<WinitFrame>>,
 
         /// Whether the CSD fail to create, so we don't try to create them on each iteration.
         csd_fails: bool,
@@ -223,7 +223,7 @@ impl WindowState {
                 window,
                 last_configure: None,
                 resizable: true,
-                frame: None,
+                frame: Box::new(None),
                 csd_fails: false,
                 stateless_size: initial_size.to_logical(1.),
                 max_surface_size: None,
@@ -392,7 +392,7 @@ impl WindowState {
                     f.set_scaling_factor(self.scale_factor);
                     // Hide the frame if we were asked to not decorate.
                     f.set_hidden(!self.decorate);
-                    *frame = Some(f);
+                    **frame = Some(f);
                 },
                 Err(err) => {
                     warn!("Failed to create client side decorations frame: {err}");
@@ -401,12 +401,12 @@ impl WindowState {
             }
         } else if configure.decoration_mode == DecorationMode::Server {
             // Drop the frame for server side decorations to save resources.
-            *frame = None;
+            **frame = None;
         }
 
         let stateless = Self::is_stateless(&configure);
 
-        let (mut new_size, constrain) = if let Some(frame) = frame {
+        let (mut new_size, constrain) = if let Some(frame) = frame.as_mut() {
             // Configure the window states.
             frame.update_state(configure.state);
 
@@ -589,7 +589,7 @@ impl WindowState {
         let ShellSpecificState::Xdg { window, frame, .. } = &mut self.shell_specific else {
             return Some(false);
         };
-        match frame.as_mut()?.on_click(timestamp, click, pressed)? {
+        match (**frame).as_mut()?.on_click(timestamp, click, pressed)? {
             FrameAction::Minimize => window.set_minimized(),
             FrameAction::Maximize => window.set_maximized(),
             FrameAction::UnMaximize => window.unset_maximized(),
@@ -697,11 +697,12 @@ impl WindowState {
 
         // Reload the state on the frame as well.
         match &mut self.shell_specific {
-            ShellSpecificState::Xdg { frame: Some(frame), .. } => {
+            ShellSpecificState::Xdg { frame, .. } if frame.is_some() => {
+                let frame = (**frame).as_mut().unwrap();
                 frame.set_resizable(resizable);
                 true
             },
-            ShellSpecificState::Xdg { frame: None, .. } => false,
+            ShellSpecificState::Xdg { .. } => false,
             ShellSpecificState::WlrLayer { .. } => false,
         }
     }
@@ -747,7 +748,7 @@ impl WindowState {
             .as_ref()
             .map(|configure| configure.decoration_mode == DecorationMode::Client)
             .unwrap_or(false);
-        if let Some(frame) = csd.then_some(frame.as_ref()).flatten() {
+        if let Some(frame) = csd.then_some((**frame).as_ref()).flatten() {
             !frame.is_hidden()
         } else {
             // Server side decorations.
@@ -780,7 +781,7 @@ impl WindowState {
     #[inline]
     pub fn outer_size(&self) -> LogicalSize<u32> {
         match &self.shell_specific {
-            ShellSpecificState::Xdg { frame, .. } => frame
+            ShellSpecificState::Xdg { frame, .. } => (**frame)
                 .as_ref()
                 .map(|frame| frame.add_borders(self.size.width, self.size.height).into())
                 .unwrap_or(self.size),
@@ -877,8 +878,9 @@ impl WindowState {
         }
 
         // Update the inner frame.
-        let ((x, y), outer_size) = match self.shell_specific {
-            ShellSpecificState::Xdg { frame: Some(ref mut frame), .. } => {
+        let ((x, y), outer_size) = match &mut self.shell_specific {
+            ShellSpecificState::Xdg { frame, .. } if frame.is_some() => {
+                let frame = (**frame).as_mut().unwrap();
                 // Resize only visible frame.
                 if !frame.is_hidden() {
                     frame.resize(
@@ -1007,7 +1009,7 @@ impl WindowState {
                 size.height = size.height.max(MIN_WINDOW_SIZE.height);
 
                 // Add the borders.
-                let size = frame
+                let size = (**frame)
                     .as_ref()
                     .map(|frame| frame.add_borders(size.width, size.height).into())
                     .unwrap_or(size);
@@ -1026,7 +1028,7 @@ impl WindowState {
         match &mut self.shell_specific {
             ShellSpecificState::Xdg { window, frame, max_surface_size, .. } => {
                 let size = size.map(|size| {
-                    frame
+                    (**frame)
                         .as_ref()
                         .map(|frame| frame.add_borders(size.width, size.height).into())
                         .unwrap_or(size)
@@ -1323,9 +1325,10 @@ impl WindowState {
     pub fn set_scale_factor(&mut self, scale_factor: f64) {
         self.scale_factor = scale_factor;
 
-        if let ShellSpecificState::Xdg { frame: Some(ref mut frame), fractional_scale, .. } =
-            &mut self.shell_specific
-        {
+        if let ShellSpecificState::Xdg { frame, fractional_scale, .. } = &mut self.shell_specific {
+            let Some(frame) = (**frame).as_mut() else {
+                return;
+            };
             frame.set_scaling_factor(scale_factor);
 
             // NOTE: When fractional scaling is not used update the buffer scale.
