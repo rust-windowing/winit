@@ -40,7 +40,7 @@ use winit::platform::web::{ActiveEventLoopExtWeb, WindowAttributesWeb};
 #[cfg(x11_platform)]
 use winit::platform::x11::{ActiveEventLoopExtX11, WindowAttributesX11};
 use winit::window::{
-    CursorGrabMode, ImeCapabilities, ImeEnableRequest, ImePurpose, ImeRequestData, ResizeDirection,
+    CursorGrabMode, ImeCapabilities, ImeEnableRequest, ImePurpose, ImeRequestData, ImeSurroundingText, ResizeDirection,
     Theme, Window, WindowAttributes, WindowId,
 };
 use winit_core::application::macos::ApplicationHandlerExtMacOS;
@@ -611,6 +611,9 @@ impl ApplicationHandlerExtMacOS for Application {
 /// State of the window.
 struct WindowState {
     ime_enabled: bool,
+    /// The contents of the emulated text field for IME purposes (not displayed).
+    /// (text, cursor position in bytes).
+    text_field_contents: (String, usize),
     /// Render surface.
     ///
     /// NOTE: This surface must be dropped before the `Window`.
@@ -668,9 +671,12 @@ impl WindowState {
         // Allow IME out of the box.
         let request_data = ImeRequestData::default()
             .with_purpose(ImePurpose::Normal)
-            .with_cursor_area(LogicalPosition { x: 0, y: 0 }.into(), IME_CURSOR_SIZE.into());
+            .with_cursor_area(LogicalPosition { x: 0, y: 0 }.into(), IME_CURSOR_SIZE.into())
+            .with_surrounding_text(
+                ImeSurroundingText::new(String::new(), 0, 0).unwrap()
+             );
         let enable_request = ImeEnableRequest::new(
-            ImeCapabilities::new().with_purpose().with_cursor_area(),
+            ImeCapabilities::new().with_purpose().with_cursor_area().with_surrounding_text(),
             request_data,
         )
         .unwrap();
@@ -695,6 +701,7 @@ impl WindowState {
             #[cfg(not(android_platform))]
             start_time: Instant::now(),
             ime_enabled: true,
+            text_field_contents: (String::new(), 0),
             cursor_position: Default::default(),
             cursor_hidden: Default::default(),
             modifiers: Default::default(),
@@ -716,10 +723,26 @@ impl WindowState {
                 .cursor_position
                 .map(Into::into)
                 .unwrap_or(LogicalPosition { x: 0, y: 0 }.into());
+            // Limit text field size to 4000 bytes
+            let (text, cursor) = &self.text_field_contents;
+            let minimal_offset = cursor / 4000 * 4000;
+            let first_char_boundary = (minimal_offset..*cursor)
+                .find(|off| text.is_char_boundary(*off))
+                .unwrap_or(*cursor);
+            let last_char_boundary = (*cursor..(first_char_boundary+4000))
+                .rev()
+                .find(|off| text.is_char_boundary(*off))
+                .unwrap_or(*cursor);
+            let surrounding_text = &text[first_char_boundary..last_char_boundary];
+            let relative_cursor = cursor - first_char_boundary;
+            let surrounding_text = ImeSurroundingText::new(surrounding_text.into(), relative_cursor, relative_cursor)
+                .expect("Bug in example: bad byte calculations");
             let request_data =
-                ImeRequestData::default().with_cursor_area(cursor_pos, IME_CURSOR_SIZE.into());
+                ImeRequestData::default()
+                .with_cursor_area(cursor_pos, IME_CURSOR_SIZE.into())
+                .with_surrounding_text(surrounding_text);
             let enable_request = ImeEnableRequest::new(
-                ImeCapabilities::new().with_purpose().with_cursor_area(),
+                ImeCapabilities::new().with_purpose().with_cursor_area().with_surrounding_text(),
                 request_data,
             )
             .unwrap();
