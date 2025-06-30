@@ -716,8 +716,9 @@ impl WindowState {
                 .cursor_position
                 .map(Into::into)
                 .unwrap_or(LogicalPosition { x: 0, y: 0 }.into());
-            let request_data =
-                ImeRequestData::default().with_cursor_area(cursor_pos, IME_CURSOR_SIZE.into());
+            let request_data = ImeRequestData::default()
+                .with_purpose(ImePurpose::Normal)
+                .with_cursor_area(cursor_pos, IME_CURSOR_SIZE.into());
             let enable_request = ImeEnableRequest::new(
                 ImeCapabilities::new().with_purpose().with_cursor_area(),
                 request_data,
