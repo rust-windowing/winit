@@ -1792,6 +1792,13 @@ impl ImeCapabilities {
         Self(self.0.union(ImeCapabilitiesFlags::PURPOSE))
     }
 
+    /// Marks `purpose` as unsupported.
+    ///
+    /// For more details see [`ImeRequestData::with_purpose`].
+    pub const fn without_purpose(self) -> Self {
+        Self(self.0.difference(ImeCapabilitiesFlags::PURPOSE))
+    }
+
     /// Returns `true` if `purpose` is supported.
     pub const fn purpose(&self) -> bool {
         self.0.contains(ImeCapabilitiesFlags::PURPOSE)
@@ -1804,6 +1811,13 @@ impl ImeCapabilities {
         Self(self.0.union(ImeCapabilitiesFlags::CURSOR_AREA))
     }
 
+    /// Marks `cursor_area` as unsupported.
+    ///
+    /// For more details see [`ImeRequestData::with_cursor_area`].
+    pub const fn without_cursor_area(self) -> Self {
+        Self(self.0.difference(ImeCapabilitiesFlags::CURSOR_AREA))
+    }
+
     /// Returns `true` if `cursor_area` is supported.
     pub const fn cursor_area(&self) -> bool {
         self.0.contains(ImeCapabilitiesFlags::CURSOR_AREA)
@@ -1814,6 +1828,13 @@ impl ImeCapabilities {
     /// For more details see [`ImeRequestData::with_surrounding_text`].
     pub const fn with_surrounding_text(self) -> Self {
         Self(self.0.union(ImeCapabilitiesFlags::SURROUNDING_TEXT))
+    }
+
+    /// Marks `surrounding_text` as unsupported.
+    ///
+    /// For more details see [`ImeRequestData::with_surrounding_text`].
+    pub const fn without_surrounding_text(self) -> Self {
+        Self(self.0.difference(ImeCapabilitiesFlags::SURROUNDING_TEXT))
     }
 
     /// Returns `true` if `surrounding_text` is supported.

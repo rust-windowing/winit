@@ -250,6 +250,15 @@ impl ClientState {
             cursor_area: Default::default(),
         };
 
+        let unsupported_flags = capabilities.without_purpose().without_cursor_area();
+
+        if unsupported_flags != ImeCapabilities::new() {
+            warn!(
+                "Backend doesn't support all requested IME capabilities: {:?}.\n Ignoring.",
+                unsupported_flags
+            );
+        }
+
         this.update(request_data, scale_factor);
         this
     }
