@@ -719,11 +719,16 @@ impl WindowState {
     }
 
     pub fn get_ime_update(&self) -> ImeRequestData {
-        let cursor_pos =
-            self.cursor_position.map(Into::into).unwrap_or(LogicalPosition { x: 0, y: 0 }.into());
+        let (text, cursor) = &self.text_field_contents;
+        // A rudimentary text field emulation: the caret moves right by a constant amount for each
+        // code point.
+
+        let text_before_caret = if text.is_char_boundary(*cursor) { &text[..*cursor] } else { "" };
+        let chars_before_caret = text_before_caret.chars().count();
+        let cursor_pos = LogicalPosition { x: 10 * chars_before_caret as u32, y: 0 }.into();
+
         // Limit text field size
         const MAX_BYTES: usize = ImeSurroundingText::MAX_TEXT_BYTES;
-        let (text, cursor) = &self.text_field_contents;
         let minimal_offset = cursor / MAX_BYTES * MAX_BYTES;
         let first_char_boundary =
             (minimal_offset..*cursor).find(|off| text.is_char_boundary(*off)).unwrap_or(*cursor);
