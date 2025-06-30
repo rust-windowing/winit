@@ -1698,6 +1698,18 @@ impl ImeSurroundingText {
 
         Ok(Self { text, cursor, anchor })
     }
+
+    pub fn text(&self) -> &str {
+        &self.text
+    }
+
+    pub fn cursor(&self) -> usize {
+        self.cursor
+    }
+
+    pub fn anchor(&self) -> usize {
+        self.anchor
+    }
 }
 
 /// Request to send to IME.
