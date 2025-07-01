@@ -100,6 +100,7 @@ pub(crate) struct ApplicationName {
 pub struct WindowAttributesWayland {
     pub(crate) is_layer_shell: bool,
     pub(crate) name: Option<ApplicationName>,
+    pub(crate) namespace: Option<String>,
     pub(crate) activation_token: Option<ActivationToken>,
     pub(crate) prefer_csd: bool,
     pub(crate) output: Option<u64>,
@@ -125,6 +126,12 @@ impl WindowAttributesWayland {
     #[inline]
     pub fn with_name(mut self, general: impl Into<String>, instance: impl Into<String>) -> Self {
         self.name = Some(ApplicationName { general: general.into(), instance: instance.into() });
+        self
+    }
+
+    #[inline]
+    pub fn with_namespace(mut self, namespace: impl Into<String>) -> Self {
+        self.namespace = Some(namespace.into());
         self
     }
 

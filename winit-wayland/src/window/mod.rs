@@ -134,7 +134,7 @@ impl Window {
                 &queue_handle,
                 surface.clone(),
                 wl_attrs.layer.unwrap_or_else(|| layer_from_window_level(attributes.window_level)),
-                Some(attributes.title.clone()),
+                wl_attrs.namespace.or_else(|| Some(attributes.title.clone())),
                 output.as_ref(),
             );
 
