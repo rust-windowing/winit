@@ -109,6 +109,7 @@ pub(crate) struct ApplicationName {
 #[derive(Debug, Default, Clone)]
 pub struct WindowAttributesWayland {
     pub(crate) name: Option<ApplicationName>,
+    pub(crate) namespace: Option<String>,
     pub(crate) activation_token: Option<ActivationToken>,
     pub(crate) prefer_csd: bool,
     pub(crate) output: Option<u64>,
@@ -139,6 +140,12 @@ impl WindowAttributesWayland {
     /// The activation token allows the compositor to grant focus to the new window,
     /// overriding focus-stealing prevention. Obtain a token via
     /// [`ActiveEventLoop::request_activation_token`].
+    #[inline]
+    pub fn with_namespace(mut self, namespace: impl Into<String>) -> Self {
+        self.namespace = Some(namespace.into());
+        self
+    }
+
     #[inline]
     pub fn with_activation_token(mut self, token: ActivationToken) -> Self {
         self.activation_token = Some(token);
