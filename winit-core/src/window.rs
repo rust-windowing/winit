@@ -1699,6 +1699,12 @@ impl ImeSurroundingText {
         Ok(Self { text, cursor, anchor })
     }
 
+    /// Consumes the object, releasing the text string only.
+    /// Use this call in the backend to avoid an extra clone when submitting the surrounding text.
+    pub fn into_text(self) -> String {
+        self.text
+    }
+
     pub fn text(&self) -> &str {
         &self.text
     }
