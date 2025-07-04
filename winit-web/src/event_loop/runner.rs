@@ -15,7 +15,7 @@ use winit_core::event::{
     DeviceEvent, DeviceId, ElementState, RawKeyEvent, StartCause, WindowEvent,
 };
 use winit_core::event_loop::{ControlFlow, DeviceEvents};
-use winit_core::window::WindowId;
+use winit_core::window::SurfaceId;
 
 use super::proxy::EventLoopProxy;
 use super::state::State;
@@ -55,9 +55,9 @@ struct Execution {
     navigator: Navigator,
     document: Document,
     #[allow(clippy::type_complexity)]
-    all_canvases: RefCell<Vec<(WindowId, Weak<backend::Canvas>, DispatchRunner<Inner>)>>,
-    redraw_pending: RefCell<HashSet<WindowId>>,
-    destroy_pending: RefCell<VecDeque<WindowId>>,
+    all_canvases: RefCell<Vec<(SurfaceId, Weak<backend::Canvas>, DispatchRunner<Inner>)>>,
+    redraw_pending: RefCell<HashSet<SurfaceId>>,
+    destroy_pending: RefCell<VecDeque<SurfaceId>>,
     pub(crate) monitor: Rc<MonitorHandler>,
     safe_area: Rc<SafeAreaHandle>,
     page_transition_event_handle: RefCell<Option<backend::PageTransitionEventHandle>>,
@@ -237,14 +237,14 @@ impl Shared {
 
     pub fn add_canvas(
         &self,
-        id: WindowId,
+        id: SurfaceId,
         canvas: Weak<backend::Canvas>,
         runner: DispatchRunner<Inner>,
     ) {
         self.0.all_canvases.borrow_mut().push((id, canvas, runner));
     }
 
-    pub fn notify_destroy_window(&self, id: WindowId) {
+    pub fn notify_destroy_window(&self, id: SurfaceId) {
         self.0.destroy_pending.borrow_mut().push_back(id);
     }
 
@@ -478,7 +478,7 @@ impl Shared {
         id
     }
 
-    pub fn request_redraw(&self, id: WindowId) {
+    pub fn request_redraw(&self, id: SurfaceId) {
         self.0.redraw_pending.borrow_mut().insert(id);
         self.send_events([]);
     }
@@ -620,7 +620,7 @@ impl Shared {
         self.process_destroy_pending_windows();
 
         // Collect all of the redraw events to avoid double-locking the RefCell
-        let redraw_events: Vec<WindowId> = self.0.redraw_pending.borrow_mut().drain().collect();
+        let redraw_events: Vec<SurfaceId> = self.0.redraw_pending.borrow_mut().drain().collect();
         for window_id in redraw_events {
             self.handle_event(Event::WindowEvent {
                 window_id,
@@ -877,7 +877,7 @@ impl WeakShared {
 #[allow(clippy::enum_variant_names)]
 pub(crate) enum Event {
     NewEvents(StartCause),
-    WindowEvent { window_id: WindowId, event: WindowEvent },
+    WindowEvent { window_id: SurfaceId, event: WindowEvent },
     ScaleChange { canvas: Weak<backend::Canvas>, size: PhysicalSize<u32>, scale: f64 },
     DeviceEvent { device_id: Option<DeviceId>, event: DeviceEvent },
     Suspended,

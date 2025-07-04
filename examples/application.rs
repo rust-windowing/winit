@@ -41,7 +41,7 @@ use winit::platform::web::{ActiveEventLoopExtWeb, WindowAttributesWeb};
 use winit::platform::x11::{ActiveEventLoopExtX11, WindowAttributesX11};
 use winit::window::{
     CursorGrabMode, ImeCapabilities, ImeEnableRequest, ImePurpose, ImeRequestData, ResizeDirection,
-    Theme, Window, WindowAttributes, WindowId,
+    Theme, Window, WindowAttributes, SurfaceId,
 };
 use winit_core::application::macos::ApplicationHandlerExtMacOS;
 use winit_core::window::ImeRequest;
@@ -95,7 +95,7 @@ struct Application {
     custom_cursors: Result<Vec<CustomCursor>, RequestError>,
     /// Application icon.
     icon: Icon,
-    windows: HashMap<WindowId, WindowState>,
+    windows: HashMap<SurfaceId, WindowState>,
     /// Drawing context.
     ///
     /// With OpenGL it could be EGLDisplay.
@@ -147,7 +147,7 @@ impl Application {
         &mut self,
         event_loop: &dyn ActiveEventLoop,
         _tab_id: Option<String>,
-    ) -> Result<WindowId, Box<dyn Error>> {
+    ) -> Result<SurfaceId, Box<dyn Error>> {
         // TODO read-out activation token.
 
         #[allow(unused_mut)]
@@ -213,7 +213,7 @@ impl Application {
     fn handle_action_with_window(
         &mut self,
         event_loop: &dyn ActiveEventLoop,
-        window_id: WindowId,
+        window_id: SurfaceId,
         action: Action,
     ) {
         // let cursor_position = self.cursor_position;
@@ -415,7 +415,7 @@ impl ApplicationHandler for Application {
     fn window_event(
         &mut self,
         event_loop: &dyn ActiveEventLoop,
-        window_id: WindowId,
+        window_id: SurfaceId,
         event: WindowEvent,
     ) {
         let window = match self.windows.get_mut(&window_id) {
@@ -601,7 +601,7 @@ impl ApplicationHandlerExtMacOS for Application {
     fn standard_key_binding(
         &mut self,
         _event_loop: &dyn ActiveEventLoop,
-        window_id: WindowId,
+        window_id: SurfaceId,
         action: &str,
     ) {
         info!(?window_id, ?action, "macOS standard key binding");

@@ -12,7 +12,7 @@ use sctk::reexports::protocols::xdg::activation::v1::client::xdg_activation_toke
 };
 use sctk::reexports::protocols::xdg::activation::v1::client::xdg_activation_v1::XdgActivationV1;
 use winit_core::event_loop::AsyncRequestSerial;
-use winit_core::window::{ActivationToken, WindowId};
+use winit_core::window::{ActivationToken, SurfaceId};
 
 use crate::state::WinitState;
 
@@ -95,7 +95,7 @@ pub enum XdgActivationTokenData {
     /// Request user attention for the given surface.
     Attention((WlSurface, Weak<AtomicBool>)),
     /// Get a token to be passed outside of the winit.
-    Obtain((WindowId, AsyncRequestSerial)),
+    Obtain((SurfaceId, AsyncRequestSerial)),
 }
 
 delegate_dispatch!(WinitState: [ XdgActivationV1: GlobalData] => XdgActivationState);

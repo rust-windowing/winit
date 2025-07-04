@@ -18,7 +18,7 @@ use winit_core::event::{
 };
 use winit_core::keyboard::{Key, KeyLocation, ModifiersState, PhysicalKey};
 use winit_core::monitor::Fullscreen;
-use winit_core::window::{WindowAttributes, WindowId};
+use winit_core::window::{WindowAttributes, SurfaceId};
 
 use super::super::cursor::CursorHandler;
 use super::super::event_loop::runner;
@@ -35,7 +35,7 @@ use crate::WindowAttributesWeb;
 pub struct Canvas {
     main_thread: MainThreadMarker,
     common: Common,
-    id: WindowId,
+    id: SurfaceId,
     pub has_focus: Rc<Cell<bool>>,
     pub prevent_default: Rc<Cell<bool>>,
     pub is_intersecting: Cell<Option<bool>>,
@@ -81,7 +81,7 @@ pub struct Style {
 impl Canvas {
     pub(crate) fn create(
         main_thread: MainThreadMarker,
-        id: WindowId,
+        id: SurfaceId,
         window: web_sys::Window,
         navigator: Navigator,
         document: Document,
@@ -489,7 +489,7 @@ impl Canvas {
     pub(crate) fn handle_scale_change(
         &self,
         runner: &super::super::event_loop::runner::Shared,
-        event_handler: impl FnOnce(WindowId, WindowEvent),
+        event_handler: impl FnOnce(SurfaceId, WindowEvent),
         current_size: PhysicalSize<u32>,
         scale: f64,
     ) {
