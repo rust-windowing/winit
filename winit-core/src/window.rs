@@ -1623,6 +1623,101 @@ impl Default for ImePurpose {
     }
 }
 
+#[derive(Debug, PartialEq, Eq, Clone, Hash)]
+pub enum ImeSurroundingTextError {
+    /// Text exceeds 4000 bytes
+    TextTooLong,
+    /// Cursor not on a code point boundary, or past the end of text.
+    CursorBadPosition,
+    /// Anchor not on a code point boundary, or past the end of text.
+    AnchorBadPosition,
+}
+
+/// Defines the text surrounding the caret
+#[derive(Debug, PartialEq, Eq, Clone, Hash)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub struct ImeSurroundingText {
+    /// An excerpt of the text present in the text input field, excluding preedit.
+    text: String,
+    /// The position of the caret, in bytes from the beginning of the string
+    cursor: usize,
+    /// The position of the other end of selection, in bytes.
+    /// With no selection, it should be the same as the cursor.
+    anchor: usize,
+}
+
+impl ImeSurroundingText {
+    /// The maximum size of the text excerpt.
+    pub const MAX_TEXT_BYTES: usize = 4000;
+    /// Defines the text surroundng the cursor and the selection within it.
+    ///
+    /// `text`: An excerpt of the text present in the text input field, excluding preedit.
+    /// It must be limited to 4000 bytes due to backend constraints.
+    /// `cursor`: The position of the caret, in bytes from the beginning of the string.
+    /// `anchor: The position of the other end of selection, in bytes.
+    /// With no selection, it should be the same as the cursor.
+    ///
+    /// This may fail if the byte indices don't fall on code point boundaries,
+    /// or if the text is too long.
+    ///
+    /// ## Examples:
+    ///
+    /// A text field containing `foo|bar` where `|` denotes the caret would correspond to a value
+    /// obtained by:
+    ///
+    /// ```
+    /// # use winit_core::window::ImeSurroundingText;
+    /// let s = ImeSurroundingText::new("foobar".into(), 3, 3).unwrap();
+    /// ```
+    ///
+    /// Because preedit is excluded from the text string, a text field containing `foo[baz|]bar`
+    /// where `|` denotes the caret and [baz|] is the preedit would be created in exactly the same
+    /// way.
+    pub fn new(
+        text: String,
+        cursor: usize,
+        anchor: usize,
+    ) -> Result<Self, ImeSurroundingTextError> {
+        let text = if text.len() < 4000 {
+            text
+        } else {
+            return Err(ImeSurroundingTextError::TextTooLong);
+        };
+
+        let cursor = if text.is_char_boundary(cursor) && cursor <= text.len() {
+            cursor
+        } else {
+            return Err(ImeSurroundingTextError::CursorBadPosition);
+        };
+
+        let anchor = if text.is_char_boundary(anchor) && anchor <= text.len() {
+            anchor
+        } else {
+            return Err(ImeSurroundingTextError::AnchorBadPosition);
+        };
+
+        Ok(Self { text, cursor, anchor })
+    }
+
+    /// Consumes the object, releasing the text string only.
+    /// Use this call in the backend to avoid an extra clone when submitting the surrounding text.
+    pub fn into_text(self) -> String {
+        self.text
+    }
+
+    pub fn text(&self) -> &str {
+        &self.text
+    }
+
+    pub fn cursor(&self) -> usize {
+        self.cursor
+    }
+
+    pub fn anchor(&self) -> usize {
+        self.anchor
+    }
+}
+
 /// Request to send to IME.
 #[derive(Debug, PartialEq, Clone)]
 pub enum ImeRequest {
@@ -1658,7 +1753,7 @@ impl ImeEnableRequest {
     ///
     /// This will return [`None`] if some capability was requested but its initial value was not
     /// set by the user or value was set by the user, but capability not requested.
-    pub const fn new(capabilities: ImeCapabilities, request_data: ImeRequestData) -> Option<Self> {
+    pub fn new(capabilities: ImeCapabilities, request_data: ImeRequestData) -> Option<Self> {
         if capabilities.cursor_area() ^ request_data.cursor_area.is_some() {
             return None;
         }
@@ -1667,6 +1762,9 @@ impl ImeEnableRequest {
             return None;
         }
 
+        if capabilities.surrounding_text() ^ request_data.surrounding_text.is_some() {
+            return None;
+        }
         Some(Self { capabilities, request_data })
     }
 
@@ -1681,7 +1779,7 @@ impl ImeEnableRequest {
     }
 
     /// Destruct [`ImeEnableRequest`]  into its raw parts.
-    pub const fn into_raw(self) -> (ImeCapabilities, ImeRequestData) {
+    pub fn into_raw(self) -> (ImeCapabilities, ImeRequestData) {
         (self.capabilities, self.request_data)
     }
 }
@@ -1712,6 +1810,13 @@ impl ImeCapabilities {
         Self(self.0.union(ImeCapabilitiesFlags::PURPOSE))
     }
 
+    /// Marks `purpose` as unsupported.
+    ///
+    /// For more details see [`ImeRequestData::with_purpose`].
+    pub const fn without_purpose(self) -> Self {
+        Self(self.0.difference(ImeCapabilitiesFlags::PURPOSE))
+    }
+
     /// Returns `true` if `purpose` is supported.
     pub const fn purpose(&self) -> bool {
         self.0.contains(ImeCapabilitiesFlags::PURPOSE)
@@ -1724,9 +1829,35 @@ impl ImeCapabilities {
         Self(self.0.union(ImeCapabilitiesFlags::CURSOR_AREA))
     }
 
+    /// Marks `cursor_area` as unsupported.
+    ///
+    /// For more details see [`ImeRequestData::with_cursor_area`].
+    pub const fn without_cursor_area(self) -> Self {
+        Self(self.0.difference(ImeCapabilitiesFlags::CURSOR_AREA))
+    }
+
     /// Returns `true` if `cursor_area` is supported.
     pub const fn cursor_area(&self) -> bool {
         self.0.contains(ImeCapabilitiesFlags::CURSOR_AREA)
+    }
+
+    /// Marks `surrounding_text` as supported.
+    ///
+    /// For more details see [`ImeRequestData::with_surrounding_text`].
+    pub const fn with_surrounding_text(self) -> Self {
+        Self(self.0.union(ImeCapabilitiesFlags::SURROUNDING_TEXT))
+    }
+
+    /// Marks `surrounding_text` as unsupported.
+    ///
+    /// For more details see [`ImeRequestData::with_surrounding_text`].
+    pub const fn without_surrounding_text(self) -> Self {
+        Self(self.0.difference(ImeCapabilitiesFlags::SURROUNDING_TEXT))
+    }
+
+    /// Returns `true` if `surrounding_text` is supported.
+    pub const fn surrounding_text(&self) -> bool {
+        self.0.contains(ImeCapabilitiesFlags::SURROUNDING_TEXT)
     }
 }
 
@@ -1738,6 +1869,8 @@ bitflags! {
         /// Client supports reporting cursor area for IME popup to
         /// appear.
         const CURSOR_AREA = 1 << 1;
+        /// Client supports reporting the text around the caret
+        const SURROUNDING_TEXT = 1 << 2;
     }
 }
 
@@ -1758,6 +1891,10 @@ pub struct ImeRequestData {
     ///
     /// To support updating it, enable [`ImeCapabilities::CURSOR_AREA`].
     pub cursor_area: Option<(Position, Size)>,
+    /// The text surrounding the caret
+    ///
+    /// To support updating it, enable [`ImeCapabilities::SURROUNDING_TEXT`].
+    pub surrounding_text: Option<ImeSurroundingText>,
 }
 
 impl ImeRequestData {
@@ -1809,6 +1946,15 @@ impl ImeRequestData {
     /// [japanese]: https://support.apple.com/guide/japanese-input-method/use-the-candidate-window-jpim10262/6.3/mac/12.0
     pub fn with_cursor_area(self, position: Position, size: Size) -> Self {
         Self { cursor_area: Some((position, size)), ..self }
+    }
+
+    /// Describes the text surrounding the caret.
+    ///
+    /// The IME can then continue providing suggestions for the continuation of the existing text,
+    /// as well as can erase text more accurately, for example glyphs composed of multiple code
+    /// points.
+    pub fn with_surrounding_text(self, surrounding_text: ImeSurroundingText) -> Self {
+        Self { surrounding_text: Some(surrounding_text), ..self }
     }
 }
 
@@ -1876,7 +2022,10 @@ mod tests {
 
     use dpi::{LogicalPosition, LogicalSize, Position, Size};
 
-    use super::{ImeCapabilities, ImeEnableRequest, ImeRequestData};
+    use super::{
+        ImeCapabilities, ImeEnableRequest, ImeRequestData, ImeSurroundingText,
+        ImeSurroundingTextError,
+    };
     use crate::window::ImePurpose;
 
     #[test]
@@ -1930,5 +2079,22 @@ mod tests {
                 .with_cursor_area(position, size)
         )
         .is_some());
+
+        let text: &[u8] = ['a' as u8; 8000].as_slice();
+        let text = std::str::from_utf8(text).unwrap();
+        assert_eq!(
+            ImeSurroundingText::new(text.into(), 0, 0),
+            Err(ImeSurroundingTextError::TextTooLong),
+        );
+
+        assert_eq!(
+            ImeSurroundingText::new("short".into(), 110, 0),
+            Err(ImeSurroundingTextError::CursorBadPosition),
+        );
+
+        assert_eq!(
+            ImeSurroundingText::new("граница".into(), 1, 0),
+            Err(ImeSurroundingTextError::CursorBadPosition),
+        );
     }
 }
