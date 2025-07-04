@@ -15,14 +15,16 @@ use crate::error::RequestError;
 use crate::icon::Icon;
 use crate::monitor::{Fullscreen, MonitorHandle};
 
-/// Identifier of a window. Unique for each window.
+/// Identifier of a surface. Unique for each surface.
 ///
-/// Can be obtained with [`window.id()`][`Window::id`].
+/// Can be obtained with [`surface.id()`][`Window::id`].
 ///
-/// Whenever you receive an event specific to a window, this event contains a `WindowId` which you
+/// Whenever you receive an event specific to a surface, this event contains a `SurfaceId` which you
 /// can then compare to the ids of your windows.
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct SurfaceId(usize);
+
+pub type WindowId = SurfaceId;
 
 impl SurfaceId {
     /// Convert the `WindowId` into the underlying integer.
@@ -2009,7 +2011,7 @@ impl SurfaceDowncastRef<'_> {
     pub fn as_window(&self) -> Option<&'_ dyn Window> {
         match self {
             Self::Window(window) => Some(*window),
-            _ => None,
+            // _ => None,
         }
     }
 }
@@ -2025,7 +2027,7 @@ impl SurfaceDowncastMut<'_> {
     pub fn as_window(&mut self) -> Option<&'_ mut dyn Window> {
         match self {
             Self::Window(window) => Some(*window),
-            _ => None,
+            // _ => None,
         }
     }
 }
