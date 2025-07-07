@@ -8,7 +8,7 @@ fn main() -> Result<(), impl std::error::Error> {
     use winit::event::{ElementState, KeyEvent, WindowEvent};
     use winit::event_loop::{ActiveEventLoop, EventLoop};
     use winit::raw_window_handle::HasRawWindowHandle;
-    use winit::window::{Window, WindowAttributes, SurfaceId};
+    use winit::window::{SurfaceId, Window, WindowAttributes};
 
     #[path = "util/fill.rs"]
     mod fill;

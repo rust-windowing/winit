@@ -15,7 +15,7 @@ use winit_core::event_loop::{
 };
 use winit_core::keyboard::ModifiersState;
 use winit_core::monitor::MonitorHandle as CoremMonitorHandle;
-use winit_core::window::{Theme, SurfaceId};
+use winit_core::window::{SurfaceId, Theme};
 
 use super::super::lock;
 use super::super::monitor::MonitorPermissionFuture;

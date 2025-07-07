@@ -90,13 +90,13 @@ impl Dnd {
             DndState::Rejected => (0, atoms[DndNone]),
         };
         self.xconn
-            .send_client_msg(target_window, target_window, atoms[XdndStatus] as _, None, [
-                this_window,
-                accepted,
-                0,
-                0,
-                action as _,
-            ])?
+            .send_client_msg(
+                target_window,
+                target_window,
+                atoms[XdndStatus] as _,
+                None,
+                [this_window, accepted, 0, 0, action as _],
+            )?
             .ignore_error();
 
         Ok(())
@@ -114,13 +114,13 @@ impl Dnd {
             DndState::Rejected => (0, atoms[DndNone]),
         };
         self.xconn
-            .send_client_msg(target_window, target_window, atoms[XdndFinished] as _, None, [
-                this_window,
-                accepted,
-                action as _,
-                0,
-                0,
-            ])?
+            .send_client_msg(
+                target_window,
+                target_window,
+                atoms[XdndFinished] as _,
+                None,
+                [this_window, accepted, action as _, 0, 0],
+            )?
             .ignore_error();
 
         Ok(())

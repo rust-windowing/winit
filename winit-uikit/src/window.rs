@@ -680,7 +680,6 @@ impl CoreSurface for Window {
 }
 
 impl CoreWindow for Window {
-
     fn reset_dead_keys(&self) {
         self.maybe_wait_on_main(|delegate| delegate.reset_dead_keys());
     }

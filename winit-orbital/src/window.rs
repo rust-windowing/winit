@@ -7,7 +7,7 @@ use winit_core::cursor::Cursor;
 use winit_core::error::{NotSupportedError, RequestError};
 use winit_core::impl_surface_downcast;
 use winit_core::monitor::{Fullscreen, MonitorHandle as CoreMonitorHandle};
-use winit_core::window::{self, Window as CoreWindow, Surface as CoreSurface, SurfaceId};
+use winit_core::window::{self, Surface as CoreSurface, SurfaceId, Window as CoreWindow};
 
 use crate::event_loop::{ActiveEventLoop, EventLoopProxy};
 use crate::{RedoxSocket, WindowProperties};
@@ -159,7 +159,7 @@ impl Window {
 
 impl CoreSurface for Window {
     impl_surface_downcast!(Window);
-    
+
     fn id(&self) -> SurfaceId {
         SurfaceId::from_raw(self.window_socket.fd)
     }
@@ -262,7 +262,6 @@ impl CoreSurface for Window {
 }
 
 impl CoreWindow for Window {
-
     #[inline]
     fn reset_dead_keys(&self) {
         // TODO?

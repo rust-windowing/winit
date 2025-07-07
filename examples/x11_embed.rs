@@ -7,7 +7,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     use winit::event::WindowEvent;
     use winit::event_loop::{ActiveEventLoop, EventLoop};
     use winit::platform::x11::WindowAttributesX11;
-    use winit::window::{Window, WindowAttributes, SurfaceId};
+    use winit::window::{SurfaceId, Window, WindowAttributes};
 
     #[path = "util/fill.rs"]
     mod fill;

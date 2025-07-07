@@ -9,7 +9,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     use winit::event::WindowEvent;
     use winit::event_loop::run_on_demand::EventLoopExtRunOnDemand;
     use winit::event_loop::{ActiveEventLoop, EventLoop};
-    use winit::window::{Window, WindowAttributes, SurfaceId};
+    use winit::window::{SurfaceId, Window, WindowAttributes};
 
     #[path = "util/fill.rs"]
     mod fill;

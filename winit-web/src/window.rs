@@ -105,7 +105,7 @@ impl Window {
 
 impl RootSurface for Window {
     impl_surface_downcast!(Window);
-    
+
     fn id(&self) -> SurfaceId {
         self.inner.queue(|inner| inner.id)
     }

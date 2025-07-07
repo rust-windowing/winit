@@ -23,7 +23,7 @@ use sctk::shm::slot::{Buffer, CreateBufferError, SlotPool};
 use wayland_client::protocol::wl_shm::Format;
 use winit_core::event_loop::ActiveEventLoop as CoreActiveEventLoop;
 use winit_core::window::{
-    ActivationToken, PlatformWindowAttributes, Window as CoreWindow, SurfaceId,
+    ActivationToken, PlatformWindowAttributes, SurfaceId, Window as CoreWindow,
 };
 
 macro_rules! os_error {

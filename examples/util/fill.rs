@@ -29,7 +29,7 @@ mod platform {
     use softbuffer::{Context, Surface};
     #[cfg(all(web_platform, not(android_platform)))]
     use web_time::Instant;
-    use winit::window::{Window, SurfaceId};
+    use winit::window::{SurfaceId, Window};
 
     thread_local! {
         // NOTE: You should never do things like that, create context and drop it before

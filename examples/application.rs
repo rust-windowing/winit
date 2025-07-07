@@ -41,7 +41,7 @@ use winit::platform::web::{ActiveEventLoopExtWeb, WindowAttributesWeb};
 use winit::platform::x11::{ActiveEventLoopExtX11, WindowAttributesX11};
 use winit::window::{
     CursorGrabMode, ImeCapabilities, ImeEnableRequest, ImePurpose, ImeRequestData, ResizeDirection,
-    Theme, Window, WindowAttributes, SurfaceId,
+    SurfaceId, Theme, Window, WindowAttributes,
 };
 use winit_core::application::macos::ApplicationHandlerExtMacOS;
 use winit_core::window::ImeRequest;

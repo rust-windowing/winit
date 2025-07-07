@@ -570,7 +570,6 @@ impl CoreSurface for Window {
         WindowId::from_raw(self.hwnd() as usize)
     }
 
-
     fn current_monitor(&self) -> Option<CoreMonitorHandle> {
         Some(CoreMonitorHandle(Arc::new(monitor::current_monitor(self.hwnd()))))
     }

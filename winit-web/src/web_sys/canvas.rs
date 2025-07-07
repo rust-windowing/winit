@@ -18,7 +18,7 @@ use winit_core::event::{
 };
 use winit_core::keyboard::{Key, KeyLocation, ModifiersState, PhysicalKey};
 use winit_core::monitor::Fullscreen;
-use winit_core::window::{WindowAttributes, SurfaceId};
+use winit_core::window::{SurfaceId, WindowAttributes};
 
 use super::super::cursor::CursorHandler;
 use super::super::event_loop::runner;
@@ -497,10 +497,13 @@ impl Canvas {
         self.set_current_size(current_size);
         let new_size = {
             let new_size = Arc::new(Mutex::new(current_size));
-            event_handler(self.id, WindowEvent::ScaleFactorChanged {
-                scale_factor: scale,
-                surface_size_writer: SurfaceSizeWriter::new(Arc::downgrade(&new_size)),
-            });
+            event_handler(
+                self.id,
+                WindowEvent::ScaleFactorChanged {
+                    scale_factor: scale,
+                    surface_size_writer: SurfaceSizeWriter::new(Arc::downgrade(&new_size)),
+                },
+            );
 
             let new_size = *new_size.lock().unwrap();
             new_size

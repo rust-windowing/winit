@@ -28,7 +28,7 @@ use winit_core::event_loop::{
     OwnedDisplayHandle as CoreOwnedDisplayHandle,
 };
 use winit_core::monitor::MonitorHandle as CoreMonitorHandle;
-use winit_core::window::{Theme, Window as CoreWindow, WindowAttributes, SurfaceId};
+use winit_core::window::{SurfaceId, Theme, Window as CoreWindow, WindowAttributes};
 use x11rb::connection::RequestConnection;
 use x11rb::errors::{ConnectError, ConnectionError, IdsExhausted, ReplyError};
 use x11rb::protocol::xinput::{self, ConnectionExt as _};
@@ -1032,15 +1032,18 @@ impl Device {
                 let ty = unsafe { (*class_ptr)._type };
                 if ty == ffi::XIScrollClass {
                     let info = unsafe { &*(class_ptr as *const ffi::XIScrollClassInfo) };
-                    scroll_axes.push((info.number, ScrollAxis {
-                        increment: info.increment,
-                        orientation: match info.scroll_type {
-                            ffi::XIScrollTypeHorizontal => ScrollOrientation::Horizontal,
-                            ffi::XIScrollTypeVertical => ScrollOrientation::Vertical,
-                            _ => unreachable!(),
+                    scroll_axes.push((
+                        info.number,
+                        ScrollAxis {
+                            increment: info.increment,
+                            orientation: match info.scroll_type {
+                                ffi::XIScrollTypeHorizontal => ScrollOrientation::Horizontal,
+                                ffi::XIScrollTypeVertical => ScrollOrientation::Vertical,
+                                _ => unreachable!(),
+                            },
+                            position: 0.0,
                         },
-                        position: 0.0,
-                    }));
+                    ));
                 }
             }
         }

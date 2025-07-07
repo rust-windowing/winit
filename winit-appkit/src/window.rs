@@ -14,8 +14,8 @@ use winit_core::icon::Icon;
 use winit_core::impl_surface_downcast;
 use winit_core::monitor::{Fullscreen, MonitorHandle as CoreMonitorHandle};
 use winit_core::window::{
-    ImeCapabilities, ImeRequest, ImeRequestError, Theme, UserAttentionType, Window as CoreWindow,
-    Surface as CoreSurface, WindowAttributes, WindowButtons, WindowId, WindowLevel,
+    ImeCapabilities, ImeRequest, ImeRequestError, Surface as CoreSurface, Theme, UserAttentionType,
+    Window as CoreWindow, WindowAttributes, WindowButtons, WindowId, WindowLevel,
 };
 
 use super::event_loop::ActiveEventLoop;
@@ -181,7 +181,6 @@ impl CoreSurface for Window {
 }
 
 impl CoreWindow for Window {
-
     fn reset_dead_keys(&self) {
         self.maybe_wait_on_main(|delegate| delegate.reset_dead_keys());
     }

@@ -21,9 +21,9 @@ use winit_core::event_loop::AsyncRequestSerial;
 use winit_core::impl_surface_downcast;
 use winit_core::monitor::{Fullscreen, MonitorHandle as CoreMonitorHandle};
 use winit_core::window::{
-    CursorGrabMode, ImeCapabilities, ImeRequest, ImeRequestError, ResizeDirection, Theme,
-    UserAttentionType, Window as CoreWindow, Surface as CoreSurface, WindowAttributes, WindowButtons, SurfaceId,
-    WindowLevel,
+    CursorGrabMode, ImeCapabilities, ImeRequest, ImeRequestError, ResizeDirection,
+    Surface as CoreSurface, SurfaceId, Theme, UserAttentionType, Window as CoreWindow,
+    WindowAttributes, WindowButtons, WindowLevel,
 };
 
 use super::event_loop::sink::EventSink;
@@ -410,7 +410,6 @@ impl CoreSurface for Window {
 }
 
 impl CoreWindow for Window {
-
     #[inline]
     fn title(&self) -> String {
         self.window_state.lock().unwrap().title().to_owned()

@@ -887,7 +887,6 @@ impl CoreSurface for Window {
 }
 
 impl CoreWindow for Window {
-
     fn surface_position(&self) -> PhysicalPosition<i32> {
         (0, 0).into()
     }
