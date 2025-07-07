@@ -271,15 +271,16 @@ define_class!(
             // TODO: Use _replacement_range, requires changing the event to report surrounding text.
             trace_scope!("setMarkedText:selectedRange:replacementRange:");
 
-            let (marked_text, string) =
-                if let Some(string) = string.downcast_ref::<NSAttributedString>() {
-                    (NSMutableAttributedString::from_attributed_nsstring(string), string.string())
-                } else if let Some(string) = string.downcast_ref::<NSString>() {
-                    (NSMutableAttributedString::from_nsstring(string), string.copy())
-                } else {
-                    // This method is guaranteed to get either a `NSString` or a `NSAttributedString`.
-                    panic!("unexpected text {string:?}")
-                };
+            let (marked_text, string) = if let Some(string) =
+                string.downcast_ref::<NSAttributedString>()
+            {
+                (NSMutableAttributedString::from_attributed_nsstring(string), string.string())
+            } else if let Some(string) = string.downcast_ref::<NSString>() {
+                (NSMutableAttributedString::from_nsstring(string), string.copy())
+            } else {
+                // This method is guaranteed to get either a `NSString` or a `NSAttributedString`.
+                panic!("unexpected text {string:?}")
+            };
 
             // Update marked text.
             *self.ivars().marked_text.borrow_mut() = marked_text;

@@ -694,14 +694,10 @@ impl EventProcessor {
                 drop(shared_state_lock);
 
                 let surface_size = Arc::new(Mutex::new(new_surface_size));
-                app.window_event(
-                    &self.target,
-                    window_id,
-                    WindowEvent::ScaleFactorChanged {
-                        scale_factor: new_scale_factor,
-                        surface_size_writer: SurfaceSizeWriter::new(Arc::downgrade(&surface_size)),
-                    },
-                );
+                app.window_event(&self.target, window_id, WindowEvent::ScaleFactorChanged {
+                    scale_factor: new_scale_factor,
+                    surface_size_writer: SurfaceSizeWriter::new(Arc::downgrade(&surface_size)),
+                });
 
                 let new_surface_size = *surface_size.lock().unwrap();
                 drop(surface_size);
