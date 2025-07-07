@@ -24,17 +24,18 @@ use crate::monitor::{Fullscreen, MonitorHandle};
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct SurfaceId(usize);
 
+/// Alias to `SurfaceId` for compatibility with older versions of `winit`.
 pub type WindowId = SurfaceId;
 
 impl SurfaceId {
-    /// Convert the `WindowId` into the underlying integer.
+    /// Convert the `SurfaceId` into the underlying integer.
     ///
     /// This is useful if you need to pass the ID across an FFI boundary, or store it in an atomic.
     pub const fn into_raw(self) -> usize {
         self.0
     }
 
-    /// Construct a `WindowId` from the underlying integer.
+    /// Construct a `SurfaceId` from the underlying integer.
     ///
     /// This should only be called with integers returned from [`WindowId::into_raw`].
     pub const fn from_raw(id: usize) -> Self {
@@ -460,7 +461,7 @@ pub trait PlatformWindowAttributes: AsAny + std::fmt::Debug + Send + Sync {
 impl_dyn_casting!(PlatformWindowAttributes);
 
 /// Represents a drawable, resizable surface that is visible on-screen.
-/// 
+///
 /// The surface is closed when dropped.
 pub trait Surface: AsAny + Send + Sync + fmt::Debug {
     /// Attempts to downcast this surface to a core surface type, e.g. [`Window`].
@@ -2060,7 +2061,6 @@ macro_rules! impl_surface_downcast {
 
         fn try_downcast_mut(&mut self) -> Option<$crate::window::SurfaceDowncastMut<'_>> {
             Some($crate::window::SurfaceDowncastMut::$variant(self))
-            
         }
     };
 }

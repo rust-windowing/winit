@@ -53,7 +53,7 @@ pub enum WindowEvent {
     /// This event will not necessarily be emitted upon window creation, query
     /// [`Window::surface_size`] if you need to determine the surface's initial size.
     ///
-    /// [`Window::surface_size`]: crate::window::Window::surface_size
+    /// [`Surface::surface_size`]: crate::window::Surface::surface_size
     SurfaceResized(PhysicalSize<u32>),
 
     /// The position of the window has changed.
@@ -352,11 +352,11 @@ pub enum WindowEvent {
     /// window is resized to the value suggested by the OS, but it can be changed to any value.
     ///
     /// This event will not necessarily be emitted upon window creation, query
-    /// [`Window::scale_factor`] if you need to determine the window's initial scale factor.
+    /// [`Surface::scale_factor`] if you need to determine the window's initial scale factor.
     ///
     /// For more information about DPI in general, see the [`dpi`] crate.
     ///
-    /// [`Window::scale_factor`]: crate::window::Window::scale_factor
+    /// [`Surface::scale_factor`]: crate::window::Surface::scale_factor
     ScaleFactorChanged {
         scale_factor: f64,
         /// Handle to update surface size during scale changes.
