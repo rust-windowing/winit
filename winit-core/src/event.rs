@@ -10,9 +10,9 @@ use smol_str::SmolStr;
 use crate::error::RequestError;
 use crate::event_loop::AsyncRequestSerial;
 use crate::keyboard::{self, ModifiersKeyState, ModifiersKeys, ModifiersState};
+use crate::window::{ActivationToken, Theme};
 #[cfg(doc)]
 use crate::window::{Surface, Window};
-use crate::window::{ActivationToken, Theme};
 use crate::Instant;
 
 /// Describes the reason the event loop is resuming.

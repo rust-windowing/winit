@@ -98,7 +98,6 @@ pub use self::event_loop::{EventLoop, PlatformSpecificEventLoopAttributes};
 use self::monitor::MonitorHandle as AppKitMonitorHandle;
 use self::window::Window as AppKitWindow;
 
-
 /// Additional methods on [`Window`] that are specific to MacOS.
 pub trait WindowExtMacOS {
     /// Returns whether or not the window is in simple fullscreen mode.

@@ -2036,7 +2036,7 @@ impl SurfaceDowncastMut<'_> {
 /// Helper macro for implementing [`Surface::try_downcast`] and [`Surface::try_downcast_mut`].
 /// ## Syntax
 /// Use the names of variants of [`SurfaceDowncastRef`] or [`SurfaceDowncastMut`] to return that
-/// type: 
+/// type:
 /// ```ignore
 /// impl_surface_downcast!(Window);
 /// ``````
