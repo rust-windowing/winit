@@ -22,8 +22,8 @@ use winit_core::impl_surface_downcast;
 use winit_core::monitor::{Fullscreen, MonitorHandle as CoreMonitorHandle};
 use winit_core::window::{
     CursorGrabMode, ImeCapabilities, ImeRequest, ImeRequestError, ResizeDirection,
-    Surface as CoreSurface, SurfaceId, Theme, UserAttentionType, Window as CoreWindow,
-    WindowAttributes, WindowButtons, WindowLevel,
+    Surface as CoreSurface, Theme, UserAttentionType, Window as CoreWindow, WindowAttributes,
+    WindowButtons, WindowId, WindowLevel,
 };
 
 use super::event_loop::sink::EventSink;
@@ -44,7 +44,7 @@ pub struct Window {
     window: SctkWindow,
 
     /// Window id.
-    window_id: SurfaceId,
+    window_id: WindowId,
 
     /// The state of the window.
     window_state: Arc<Mutex<WindowState>>,
@@ -286,7 +286,7 @@ impl rwh_06::HasDisplayHandle for Window {
 impl CoreSurface for Window {
     impl_surface_downcast!(Window);
 
-    fn id(&self) -> SurfaceId {
+    fn id(&self) -> WindowId {
         self.window_id
     }
 

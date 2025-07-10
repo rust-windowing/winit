@@ -33,7 +33,7 @@ use wayland_protocols_plasma::blur::client::org_kde_kwin_blur::OrgKdeKwinBlur;
 use winit_core::cursor::{CursorIcon, CustomCursor as CoreCustomCursor};
 use winit_core::error::{NotSupportedError, RequestError};
 use winit_core::window::{
-    CursorGrabMode, ImeCapabilities, ImeRequest, ImeRequestError, ResizeDirection, SurfaceId, Theme,
+    CursorGrabMode, ImeCapabilities, ImeRequest, ImeRequestError, ResizeDirection, Theme, WindowId,
 };
 
 use crate::event_loop::OwnedDisplayHandle;
@@ -442,7 +442,7 @@ impl WindowState {
         seat: &WlSeat,
         serial: u32,
         timestamp: Duration,
-        window_id: SurfaceId,
+        window_id: WindowId,
         updates: &mut Vec<WindowCompositorUpdate>,
     ) -> Option<bool> {
         match self.frame.as_mut()?.on_click(timestamp, click, pressed)? {

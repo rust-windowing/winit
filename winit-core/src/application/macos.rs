@@ -1,6 +1,6 @@
 use crate::application::ApplicationHandler;
 use crate::event_loop::ActiveEventLoop;
-use crate::window::SurfaceId;
+use crate::window::WindowId;
 
 /// Additional events on [`ApplicationHandler`] that are specific to macOS.
 ///
@@ -42,7 +42,7 @@ pub trait ApplicationHandlerExtMacOS: ApplicationHandler {
     fn standard_key_binding(
         &mut self,
         event_loop: &dyn ActiveEventLoop,
-        window_id: SurfaceId,
+        window_id: WindowId,
         action: &str,
     ) {
         let _ = event_loop;

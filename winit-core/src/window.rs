@@ -16,26 +16,27 @@ use crate::icon::Icon;
 use crate::monitor::{Fullscreen, MonitorHandle};
 
 /// Identifier of a surface. Unique for each surface.
+/// The name has been kept as `WindowId` for backwards compatibility.
 ///
 /// Can be obtained with [`surface.id()`][`Surface::id`].
 ///
-/// Whenever you receive an event specific to a surface, this event contains a `SurfaceId` which you
+/// Whenever you receive an event specific to a surface, this event contains a `WindowId` which you
 /// can then compare to the ids of your windows.
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct SurfaceId(usize);
+pub struct WindowId(usize);
 
-/// Alias to `SurfaceId` for compatibility with older versions of `winit`.
-pub type WindowId = SurfaceId;
+// TODO: possible name change of WindowId for consistency
+// pub type WindowId = WindowId;
 
-impl SurfaceId {
-    /// Convert the `SurfaceId` into the underlying integer.
+impl WindowId {
+    /// Convert the `WindowId` into the underlying integer.
     ///
     /// This is useful if you need to pass the ID across an FFI boundary, or store it in an atomic.
     pub const fn into_raw(self) -> usize {
         self.0
     }
 
-    /// Construct a `SurfaceId` from the underlying integer.
+    /// Construct a `WindowId` from the underlying integer.
     ///
     /// This should only be called with integers returned from [`WindowId::into_raw`].
     pub const fn from_raw(id: usize) -> Self {
@@ -43,7 +44,7 @@ impl SurfaceId {
     }
 }
 
-impl fmt::Debug for SurfaceId {
+impl fmt::Debug for WindowId {
     fn fmt(&self, fmtr: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.0.fmt(fmtr)
     }
@@ -471,7 +472,7 @@ pub trait Surface: AsAny + Send + Sync + fmt::Debug {
     fn try_downcast_mut(&mut self) -> Option<SurfaceDowncastMut<'_>>;
 
     /// Returns an identifier unique to the window.
-    fn id(&self) -> SurfaceId;
+    fn id(&self) -> WindowId;
 
     /// Returns the scale factor that can be used to map logical pixels to physical pixels, and
     /// vice versa.

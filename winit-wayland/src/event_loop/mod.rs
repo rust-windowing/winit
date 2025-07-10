@@ -41,13 +41,13 @@ pub use winit_core::event_loop::EventLoopProxy as CoreEventLoopProxy;
 use super::output::MonitorHandle;
 use super::state::{WindowCompositorUpdate, WinitState};
 use super::window::state::FrameCallbackState;
-use super::{logical_to_physical_rounded, SurfaceId};
+use super::{logical_to_physical_rounded, WindowId};
 
 type WaylandDispatcher = calloop::Dispatcher<'static, WaylandSource<WinitState>, WinitState>;
 
 #[derive(Debug)]
 pub(crate) enum Event {
-    WindowEvent { window_id: SurfaceId, event: WindowEvent },
+    WindowEvent { window_id: WindowId, event: WindowEvent },
     DeviceEvent { event: DeviceEvent },
 }
 
@@ -59,7 +59,7 @@ pub struct EventLoop {
 
     buffer_sink: EventSink,
     compositor_updates: Vec<WindowCompositorUpdate>,
-    window_ids: Vec<SurfaceId>,
+    window_ids: Vec<WindowId>,
 
     /// The Wayland dispatcher to has raw access to the queue when needed, such as
     /// when creating a new window.
