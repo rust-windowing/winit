@@ -125,7 +125,7 @@ pub trait EventLoopExtX11 {
     fn is_x11(&self) -> bool;
 }
 
-/// Additional methods on [`EventLoopBuilder`] that are specific to X11.
+/// Additional methods on `winit::EventLoopBuilder` that are specific to X11.
 pub trait EventLoopBuilderExtX11 {
     /// Force using X11.
     fn with_x11(&mut self) -> &mut Self;

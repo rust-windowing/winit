@@ -17,7 +17,7 @@ use crate::monitor::{Fullscreen, MonitorHandle};
 
 /// Identifier of a surface. Unique for each surface.
 ///
-/// Can be obtained with [`surface.id()`][`Window::id`].
+/// Can be obtained with [`surface.id()`][`Surface::id`].
 ///
 /// Whenever you receive an event specific to a surface, this event contains a `SurfaceId` which you
 /// can then compare to the ids of your windows.
@@ -87,7 +87,7 @@ impl WindowAttributes {
     ///
     /// If this is not set, some platform-specific dimensions will be used.
     ///
-    /// See [`Window::request_surface_size`] for details.
+    /// See [`Surface::request_surface_size`] for details.
     #[inline]
     pub fn with_surface_size<S: Into<Size>>(mut self, size: S) -> Self {
         self.surface_size = Some(size.into());
@@ -226,7 +226,7 @@ impl WindowAttributes {
     /// If this is `true`, writing colors with alpha values different than
     /// `1.0` will produce a transparent window. On some platforms this
     /// is more of a hint for the system and you'd still have the alpha
-    /// buffer. To control it see [`Window::set_transparent`].
+    /// buffer. To control it see [`Surface::set_transparent`].
     ///
     /// The default is `false`.
     #[inline]
@@ -342,7 +342,7 @@ impl WindowAttributes {
     ///
     /// The default is [`CursorIcon::Default`].
     ///
-    /// See [`Window::set_cursor()`] for more details.
+    /// See [`Surface::set_cursor()`] for more details.
     #[inline]
     pub fn with_cursor(mut self, cursor: impl Into<Cursor>) -> Self {
         self.cursor = cursor.into();
@@ -542,7 +542,7 @@ pub trait Surface: AsAny + Send + Sync + fmt::Debug {
     ///
     /// This is the **strongly encouraged** method of redrawing windows, as it can integrate with
     /// OS-requested redraws (e.g. when a window gets resized). To improve the event delivery
-    /// consider using [`Window::pre_present_notify`] as described in docs.
+    /// consider using [`Surface::pre_present_notify`] as described in docs.
     ///
     /// Applications should always aim to redraw whenever they receive a `RedrawRequested` event.
     ///
@@ -558,7 +558,7 @@ pub trait Surface: AsAny + Send + Sync + fmt::Debug {
     /// - **Windows** This API uses `RedrawWindow` to request a `WM_PAINT` message and
     ///   `RedrawRequested` is emitted in sync with any `WM_PAINT` messages.
     /// - **Wayland:** The events are aligned with the frame callbacks when
-    ///   [`Window::pre_present_notify`] is used.
+    ///   [`Surface::pre_present_notify`] is used.
     /// - **Web:** [`WindowEvent::RedrawRequested`] will be aligned with the
     ///   `requestAnimationFrame`.
     ///
@@ -630,7 +630,7 @@ pub trait Surface: AsAny + Send + Sync + fmt::Debug {
     /// When `None` is returned, it means that the request went to the display system,
     /// and the actual size will be delivered later with the [`WindowEvent::SurfaceResized`].
     ///
-    /// See [`Window::surface_size`] for more information about the values.
+    /// See [`Surface::surface_size`] for more information about the values.
     ///
     /// The request could automatically un-maximize the window if it's maximized.
     ///
@@ -648,7 +648,7 @@ pub trait Surface: AsAny + Send + Sync + fmt::Debug {
     ///
     /// ## Platform-specific
     ///
-    /// - **Web:** Sets the size of the canvas element. Doesn't account for CSS [`trkansform`].
+    /// - **Web:** Sets the size of the canvas element. Doesn't account for CSS [`transform`].
     ///
     /// [`WindowEvent::SurfaceResized`]: crate::event::WindowEvent::SurfaceResized
     /// [`transform`]: https://developer.mozilla.org/en-US/docs/Web/CSS/transform
@@ -903,12 +903,12 @@ pub trait Window: AsSurface {
     /// Returns the size of the entire window.
     ///
     /// These dimensions include window decorations like the title bar and borders. If you don't
-    /// want that (and you usually don't), use [`Window::surface_size`] instead.
+    /// want that (and you usually don't), use [`Surface::surface_size`] instead.
     ///
     /// ## Platform-specific
     ///
     /// - **Web:** Returns the size of the canvas element. _Note: this returns the same value as
-    ///   [`Window::surface_size`]._
+    ///   [`Surface::surface_size`]._
     fn outer_size(&self) -> PhysicalSize<u32>;
 
     /// The inset area of the surface that is unobstructed.
@@ -921,7 +921,7 @@ pub trait Window: AsSurface {
     ///
     /// The safe area is a rectangle that is defined relative to the origin at the top-left corner
     /// of the surface, and the size extending downwards to the right. The area will not extend
-    /// beyond [the bounds of the surface][Window::surface_size].
+    /// beyond [the bounds of the surface][Surface::surface_size].
     ///
     /// Note that the safe area does not take occlusion from other windows into account; in a way,
     /// it is only a "hardware"-level occlusion.
@@ -1054,7 +1054,7 @@ pub trait Window: AsSurface {
     /// Note that making the window unresizable doesn't exempt you from handling
     /// [`WindowEvent::SurfaceResized`], as that event can still be triggered by DPI scaling,
     /// entering fullscreen mode, etc. Also, the window could still be resized by calling
-    /// [`Window::request_surface_size`].
+    /// [`Surface::request_surface_size`].
     ///
     /// ## Platform-specific
     ///
@@ -1508,7 +1508,7 @@ impl rwh_06::HasWindowHandle for dyn Window + '_ {
 
 /// The behavior of cursor grabbing.
 ///
-/// Use this enum with [`Window::set_cursor_grab`] to grab the cursor.
+/// Use this enum with [`Surface::set_cursor_grab`] to grab the cursor.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum CursorGrabMode {
@@ -1794,11 +1794,11 @@ bitflags! {
 pub struct ImeRequestData {
     /// Text input purpose.
     ///
-    /// To support updating it, enable [`ImeCapabilities::PURPOSE`].
+    /// To support updating it, call [`ImeCapabilities::with_purpose`].
     pub purpose: Option<ImePurpose>,
     /// The IME cursor area which should not be covered by the input method popup.
     ///
-    /// To support updating it, enable [`ImeCapabilities::CURSOR_AREA`].
+    /// To support updating it, call [`ImeCapabilities::with_cursor_area`].
     pub cursor_area: Option<(Position, Size)>,
 }
 
@@ -2036,9 +2036,10 @@ impl SurfaceDowncastMut<'_> {
 /// Helper macro for implementing [`Surface::try_downcast`] and [`Surface::try_downcast_mut`].
 /// ## Syntax
 /// Use the names of variants of [`SurfaceDowncastRef`] or [`SurfaceDowncastMut`] to return that
-/// type: ```ignore
+/// type: 
+/// ```ignore
 /// impl_surface_downcast!(Window);
-/// ```
+/// ``````
 /// You may also use the special identifier `None` to cause the downcast to fail.
 /// ```ignore
 /// impl_surface_downcast!(None);

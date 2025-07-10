@@ -61,7 +61,7 @@ pub trait EventLoopExtWayland {
     fn is_wayland(&self) -> bool;
 }
 
-/// Additional methods on [`EventLoopBuilder`] that are specific to Wayland.
+/// Additional methods on `winit::EventLoopBuilder` that are specific to Wayland.
 pub trait EventLoopBuilderExtWayland {
     /// Force using Wayland.
     fn with_wayland(&mut self) -> &mut Self;

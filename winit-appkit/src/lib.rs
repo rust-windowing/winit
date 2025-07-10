@@ -98,6 +98,7 @@ pub use self::event_loop::{EventLoop, PlatformSpecificEventLoopAttributes};
 use self::monitor::MonitorHandle as AppKitMonitorHandle;
 use self::window::Window as AppKitWindow;
 
+
 /// Additional methods on [`Window`] that are specific to MacOS.
 pub trait WindowExtMacOS {
     /// Returns whether or not the window is in simple fullscreen mode.
@@ -324,7 +325,7 @@ pub enum ActivationPolicy {
 /// - `with_titlebar_buttons_hidden`
 /// - `with_fullsize_content_view`
 ///
-/// [`WindowAttributes::with_decorations`]: crate::window::WindowAttributes::with_decorations
+/// [`WindowAttributes::with_decorations`]: winit_core::window::WindowAttributes::with_decorations
 #[derive(Clone, Debug, PartialEq)]
 pub struct WindowAttributesMacOS {
     pub(crate) movable_by_window_background: bool,

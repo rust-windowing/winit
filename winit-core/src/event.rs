@@ -11,7 +11,7 @@ use crate::error::RequestError;
 use crate::event_loop::AsyncRequestSerial;
 use crate::keyboard::{self, ModifiersKeyState, ModifiersKeys, ModifiersState};
 #[cfg(doc)]
-use crate::window::Window;
+use crate::window::{Surface, Window};
 use crate::window::{ActivationToken, Theme};
 use crate::Instant;
 
@@ -48,10 +48,10 @@ pub enum WindowEvent {
     /// The size of the window's surface has changed.
     ///
     /// Contains the new dimensions of the surface (can also be retrieved with
-    /// [`Window::surface_size`]).
+    /// [`Surface::surface_size`]).
     ///
     /// This event will not necessarily be emitted upon window creation, query
-    /// [`Window::surface_size`] if you need to determine the surface's initial size.
+    /// [`Surface::surface_size`] if you need to determine the surface's initial size.
     ///
     /// [`Surface::surface_size`]: crate::window::Surface::surface_size
     SurfaceResized(PhysicalSize<u32>),
@@ -411,7 +411,7 @@ pub enum WindowEvent {
     /// This gets triggered in a few scenarios:
     /// - The OS has performed an operation that's invalidated the window's contents (such as
     ///   resizing the window, or changing [the safe area]).
-    /// - The application has explicitly requested a redraw via [`Window::request_redraw`].
+    /// - The application has explicitly requested a redraw via [`Surface::request_redraw`].
     ///
     /// Winit will aggregate duplicate redraw requests into a single event, to
     /// help avoid duplicating rendering work.

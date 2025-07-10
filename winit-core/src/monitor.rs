@@ -4,7 +4,7 @@
 //! [`MonitorHandle`] type. This is retrieved from one of the following
 //! methods, which return an iterator of [`MonitorHandle`]:
 //! - [`ActiveEventLoop::available_monitors`][crate::event_loop::ActiveEventLoop::available_monitors].
-//! - [`Window::available_monitors`][crate::window::Window::available_monitors].
+//! - [`Surface::available_monitors`][crate::window::Surface::available_monitors].
 use std::borrow::Cow;
 use std::fmt;
 use std::num::{NonZeroU16, NonZeroU32};
@@ -25,7 +25,7 @@ use crate::as_any::{impl_dyn_casting, AsAny};
 /// This can be retrieved from one of the following methods, which return an
 /// iterator of [`MonitorHandle`]s:
 /// - [`ActiveEventLoop::available_monitors`](crate::event_loop::ActiveEventLoop::available_monitors).
-/// - [`Window::available_monitors`](crate::window::Window::available_monitors).
+/// - [`Surface::available_monitors`](crate::window::Surface::available_monitors).
 ///
 /// ## Platform-specific
 ///
@@ -95,14 +95,14 @@ pub trait MonitorHandleProvider: AsAny + fmt::Debug + Send + Sync {
     fn position(&self) -> Option<PhysicalPosition<i32>>;
 
     /// Returns the scale factor of the underlying monitor. To map logical pixels to physical
-    /// pixels and vice versa, use [`Window::scale_factor`].
+    /// pixels and vice versa, use [`Surface::scale_factor`].
     ///
     /// See the [`dpi`] module for more information.
     ///
-    /// - **Wayland:** May differ from [`Window::scale_factor`].
+    /// - **Wayland:** May differ from [`Surface::scale_factor`].
     /// - **Web:** Always returns `0.0` without `detailed_monitor_permissions`.
     ///
-    /// [`Window::scale_factor`]: crate::window::Window::scale_factor
+    /// [`Surface::scale_factor`]: crate::window::Surface::scale_factor
     fn scale_factor(&self) -> f64;
 
     fn current_video_mode(&self) -> Option<VideoMode>;
@@ -141,9 +141,9 @@ impl VideoMode {
     }
 
     /// Returns the resolution of this video mode. This **must not** be used to create your
-    /// rendering surface. Use [`Window::surface_size()`] instead.
+    /// rendering surface. Use [`Surface::surface_size()`] instead.
     ///
-    /// [`Window::surface_size()`]: crate::window::Window::surface_size
+    /// [`Surface::surface_size()`]: crate::window::Surface::surface_size
     pub fn size(&self) -> PhysicalSize<u32> {
         self.size
     }
