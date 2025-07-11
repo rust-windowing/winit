@@ -11,7 +11,7 @@ fn main() -> std::process::ExitCode {
     use winit::event::WindowEvent;
     use winit::event_loop::pump_events::{EventLoopExtPumpEvents, PumpStatus};
     use winit::event_loop::{ActiveEventLoop, EventLoop};
-    use winit::window::{SurfaceId, Window, WindowAttributes};
+    use winit::window::{WindowId, Window, WindowAttributes};
 
     #[path = "util/fill.rs"]
     mod fill;
@@ -30,7 +30,7 @@ fn main() -> std::process::ExitCode {
         fn window_event(
             &mut self,
             event_loop: &dyn ActiveEventLoop,
-            _window_id: SurfaceId,
+            _window_id: WindowId,
             event: WindowEvent,
         ) {
             println!("{event:?}");

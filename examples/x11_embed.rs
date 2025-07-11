@@ -7,7 +7,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     use winit::event::WindowEvent;
     use winit::event_loop::{ActiveEventLoop, EventLoop};
     use winit::platform::x11::WindowAttributesX11;
-    use winit::window::{SurfaceId, Window, WindowAttributes};
+    use winit::window::{WindowId, Window, WindowAttributes};
 
     #[path = "util/fill.rs"]
     mod fill;
@@ -33,7 +33,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         fn window_event(
             &mut self,
             event_loop: &dyn ActiveEventLoop,
-            _window_id: SurfaceId,
+            _window_id: WindowId,
             event: WindowEvent,
         ) {
             let window = self.window.as_ref().unwrap();

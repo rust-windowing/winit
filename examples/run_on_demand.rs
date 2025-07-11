@@ -9,7 +9,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     use winit::event::WindowEvent;
     use winit::event_loop::run_on_demand::EventLoopExtRunOnDemand;
     use winit::event_loop::{ActiveEventLoop, EventLoop};
-    use winit::window::{SurfaceId, Window, WindowAttributes};
+    use winit::window::{WindowId, Window, WindowAttributes};
 
     #[path = "util/fill.rs"]
     mod fill;
@@ -17,7 +17,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     #[derive(Default, Debug)]
     struct App {
         idx: usize,
-        window_id: Option<SurfaceId>,
+        window_id: Option<WindowId>,
         window: Option<Box<dyn Window>>,
     }
 
@@ -40,7 +40,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         fn window_event(
             &mut self,
             event_loop: &dyn ActiveEventLoop,
-            window_id: SurfaceId,
+            window_id: WindowId,
             event: WindowEvent,
         ) {
             if event == WindowEvent::Destroyed && self.window_id == Some(window_id) {

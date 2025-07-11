@@ -11,7 +11,7 @@ use winit::application::ApplicationHandler;
 use winit::event::{ElementState, KeyEvent, StartCause, WindowEvent};
 use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
 use winit::keyboard::{Key, NamedKey};
-use winit::window::{SurfaceId, Window, WindowAttributes};
+use winit::window::{WindowId, Window, WindowAttributes};
 
 #[path = "util/fill.rs"]
 mod fill;
@@ -75,7 +75,7 @@ impl ApplicationHandler for ControlFlowDemo {
     fn window_event(
         &mut self,
         _event_loop: &dyn ActiveEventLoop,
-        _window_id: SurfaceId,
+        _window_id: WindowId,
         event: WindowEvent,
     ) {
         info!("{event:?}");

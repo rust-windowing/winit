@@ -29,7 +29,7 @@ mod platform {
     use softbuffer::{Context, Surface};
     #[cfg(all(web_platform, not(android_platform)))]
     use web_time::Instant;
-    use winit::window::{SurfaceId, Window};
+    use winit::window::{WindowId, Window};
 
     thread_local! {
         // NOTE: You should never do things like that, create context and drop it before
@@ -46,7 +46,7 @@ mod platform {
         context: RefCell<Context<&'static dyn Window>>,
 
         /// The hash map of window IDs to surfaces.
-        surfaces: HashMap<SurfaceId, Surface<&'static dyn Window, &'static dyn Window>>,
+        surfaces: HashMap<WindowId, Surface<&'static dyn Window, &'static dyn Window>>,
     }
 
     impl GraphicsContext {
