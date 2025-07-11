@@ -112,7 +112,7 @@
 //! ```
 //!
 //! [`WindowEvent`] has a [`WindowId`] member. In multi-window environments, it should be
-//! compared to the value returned by [`Window::id()`] to determine which [`Window`]
+//! compared to the value returned by [`Surface::id()`] to determine which [`Window`]
 //! dispatched the event.
 //!
 //! # Drawing on the window
@@ -147,7 +147,7 @@
 //!
 //! Most of the functionality in Winit works with surface coordinates, so usually you only need to
 //! concern yourself with those. In case you need to convert to some other coordinate system, Winit
-//! provides [`Window::surface_position`] and [`Window::surface_size`] to describe the surface's
+//! provides [`Window::surface_position`] and [`Surface::surface_size`] to describe the surface's
 //! location in window coordinates, and Winit provides [`Window::outer_position`] and
 //! [`Window::outer_size`] to describe the window's location in desktop coordinates. Using these
 //! methods, you should be able to convert a position in one coordinate system to another.
@@ -163,7 +163,7 @@
 //! mobile.
 #![doc = concat!("\n\n", include_str!("../docs/res/coordinate-systems-mobile.svg"), "\n\n")] // Rustfmt removes \n, adding them like this works around that.
 //! [`Window::surface_position`]: crate::window::Window::surface_position
-//! [`Window::surface_size`]: crate::window::Window::surface_size
+//! [`Surface::surface_size`]: crate::window::Surface::surface_size
 //! [`Window::outer_position`]: crate::window::Window::outer_position
 //! [`Window::outer_size`]: crate::window::Window::outer_size
 //!
@@ -184,7 +184,7 @@
 //! can be found by calling [`window.scale_factor()`].
 //!
 //! [`ScaleFactorChanged`]: event::WindowEvent::ScaleFactorChanged
-//! [`window.scale_factor()`]: window::Window::scale_factor
+//! [`window.scale_factor()`]: window::Surface::scale_factor
 //!
 //! # Cargo Features
 //!
@@ -263,7 +263,7 @@
 //! [`WindowId`]: window::WindowId
 //! [`WindowAttributes`]: window::WindowAttributes
 //! [`create_window`]: event_loop::ActiveEventLoop::create_window
-//! [`Window::id()`]: window::Window::id
+//! [`Surface::id()`]: window::Surface::id
 //! [`WindowEvent`]: event::WindowEvent
 //! [`DeviceEvent`]: event::DeviceEvent
 //! [`raw_window_handle`]: ./window/struct.Window.html#method.raw_window_handle

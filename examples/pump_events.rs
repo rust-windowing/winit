@@ -11,7 +11,7 @@ fn main() -> std::process::ExitCode {
     use winit::event::WindowEvent;
     use winit::event_loop::pump_events::{EventLoopExtPumpEvents, PumpStatus};
     use winit::event_loop::{ActiveEventLoop, EventLoop};
-    use winit::window::{Window, WindowAttributes, WindowId};
+    use winit::window::{WindowId, Window, WindowAttributes};
 
     #[path = "util/fill.rs"]
     mod fill;

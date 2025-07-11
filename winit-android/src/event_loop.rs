@@ -21,11 +21,12 @@ use winit_core::event_loop::{
     EventLoopProxy as CoreEventLoopProxy, EventLoopProxyProvider,
     OwnedDisplayHandle as CoreOwnedDisplayHandle,
 };
+use winit_core::impl_surface_downcast;
 use winit_core::monitor::{Fullscreen, MonitorHandle as CoreMonitorHandle};
 use winit_core::window::{
     self, CursorGrabMode, ImeCapabilities, ImePurpose, ImeRequest, ImeRequestError,
-    ResizeDirection, Theme, Window as CoreWindow, WindowAttributes, WindowButtons, WindowId,
-    WindowLevel,
+    ResizeDirection, Surface as CoreSurface, Theme, Window as CoreWindow, WindowAttributes,
+    WindowButtons, WindowId, WindowLevel,
 };
 
 use crate::keycodes;
@@ -821,7 +822,9 @@ impl rwh_06::HasWindowHandle for Window {
     }
 }
 
-impl CoreWindow for Window {
+impl CoreSurface for Window {
+    impl_surface_downcast!(Window);
+
     fn id(&self) -> WindowId {
         GLOBAL_WINDOW
     }
@@ -848,6 +851,42 @@ impl CoreWindow for Window {
 
     fn pre_present_notify(&self) {}
 
+    fn surface_size(&self) -> PhysicalSize<u32> {
+        self.outer_size()
+    }
+
+    fn request_surface_size(&self, _size: Size) -> Option<PhysicalSize<u32>> {
+        Some(self.surface_size())
+    }
+
+    fn set_transparent(&self, _transparent: bool) {}
+
+    fn set_cursor(&self, _: Cursor) {}
+
+    fn set_cursor_position(&self, _: Position) -> Result<(), RequestError> {
+        Err(NotSupportedError::new("set_cursor_position is not supported").into())
+    }
+
+    fn set_cursor_grab(&self, _: CursorGrabMode) -> Result<(), RequestError> {
+        Err(NotSupportedError::new("set_cursor_grab is not supported").into())
+    }
+
+    fn set_cursor_visible(&self, _: bool) {}
+
+    fn set_cursor_hittest(&self, _hittest: bool) -> Result<(), RequestError> {
+        Err(NotSupportedError::new("set_cursor_hittest is not supported").into())
+    }
+
+    fn rwh_06_display_handle(&self) -> &dyn rwh_06::HasDisplayHandle {
+        self
+    }
+
+    fn rwh_06_window_handle(&self) -> &dyn rwh_06::HasWindowHandle {
+        self
+    }
+}
+
+impl CoreWindow for Window {
     fn surface_position(&self) -> PhysicalPosition<i32> {
         (0, 0).into()
     }
@@ -859,15 +898,6 @@ impl CoreWindow for Window {
     fn set_outer_position(&self, _position: Position) {
         // no effect
     }
-
-    fn surface_size(&self) -> PhysicalSize<u32> {
-        self.outer_size()
-    }
-
-    fn request_surface_size(&self, _size: Size) -> Option<PhysicalSize<u32>> {
-        Some(self.surface_size())
-    }
-
     fn outer_size(&self) -> PhysicalSize<u32> {
         screen_size(&self.app)
     }
@@ -887,8 +917,6 @@ impl CoreWindow for Window {
     fn set_surface_resize_increments(&self, _increments: Option<Size>) {}
 
     fn set_title(&self, _title: &str) {}
-
-    fn set_transparent(&self, _transparent: bool) {}
 
     fn set_blur(&self, _blur: bool) {}
 
@@ -977,18 +1005,6 @@ impl CoreWindow for Window {
 
     fn request_user_attention(&self, _request_type: Option<window::UserAttentionType>) {}
 
-    fn set_cursor(&self, _: Cursor) {}
-
-    fn set_cursor_position(&self, _: Position) -> Result<(), RequestError> {
-        Err(NotSupportedError::new("set_cursor_position is not supported").into())
-    }
-
-    fn set_cursor_grab(&self, _: CursorGrabMode) -> Result<(), RequestError> {
-        Err(NotSupportedError::new("set_cursor_grab is not supported").into())
-    }
-
-    fn set_cursor_visible(&self, _: bool) {}
-
     fn drag_window(&self) -> Result<(), RequestError> {
         Err(NotSupportedError::new("drag_window is not supported").into())
     }
@@ -999,10 +1015,6 @@ impl CoreWindow for Window {
 
     #[inline]
     fn show_window_menu(&self, _position: Position) {}
-
-    fn set_cursor_hittest(&self, _hittest: bool) -> Result<(), RequestError> {
-        Err(NotSupportedError::new("set_cursor_hittest is not supported").into())
-    }
 
     fn set_theme(&self, _theme: Option<Theme>) {}
 
@@ -1021,14 +1033,6 @@ impl CoreWindow for Window {
     }
 
     fn reset_dead_keys(&self) {}
-
-    fn rwh_06_display_handle(&self) -> &dyn rwh_06::HasDisplayHandle {
-        self
-    }
-
-    fn rwh_06_window_handle(&self) -> &dyn rwh_06::HasWindowHandle {
-        self
-    }
 }
 
 fn screen_size(app: &AndroidApp) -> PhysicalSize<u32> {

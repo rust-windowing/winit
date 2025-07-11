@@ -10,10 +10,12 @@ use web_sys::HtmlCanvasElement;
 use winit_core::cursor::Cursor;
 use winit_core::error::{NotSupportedError, RequestError};
 use winit_core::icon::Icon;
+use winit_core::impl_surface_downcast;
 use winit_core::monitor::{Fullscreen, MonitorHandle as CoremMonitorHandle};
 use winit_core::window::{
-    CursorGrabMode, ImeRequestError, ResizeDirection, Theme, UserAttentionType,
-    Window as RootWindow, WindowAttributes, WindowButtons, WindowId, WindowLevel,
+    CursorGrabMode, ImeRequestError, ResizeDirection, Surface as RootSurface, Theme,
+    UserAttentionType, Window as RootWindow, WindowAttributes, WindowButtons, WindowId,
+    WindowLevel,
 };
 
 use crate::event_loop::ActiveEventLoop;
@@ -102,7 +104,9 @@ impl Window {
     }
 }
 
-impl RootWindow for Window {
+impl RootSurface for Window {
+    impl_surface_downcast!(Window);
+
     fn id(&self) -> WindowId {
         self.inner.queue(|inner| inner.id)
     }
@@ -117,6 +121,86 @@ impl RootWindow for Window {
 
     fn pre_present_notify(&self) {}
 
+    fn surface_size(&self) -> PhysicalSize<u32> {
+        self.inner.queue(|inner| inner.canvas.surface_size())
+    }
+
+    fn request_surface_size(&self, size: Size) -> Option<PhysicalSize<u32>> {
+        self.inner.queue(|inner| {
+            let size = size.to_logical(self.scale_factor());
+            backend::set_canvas_size(
+                inner.canvas.document(),
+                inner.canvas.raw(),
+                inner.canvas.style(),
+                size,
+            );
+            None
+        })
+    }
+
+    fn set_transparent(&self, _: bool) {}
+
+    fn set_cursor(&self, cursor: Cursor) {
+        self.inner.dispatch(move |inner| inner.canvas.cursor.set_cursor(cursor))
+    }
+
+    fn set_cursor_position(&self, _: Position) -> Result<(), RequestError> {
+        Err(NotSupportedError::new("set_cursor_position is not supported").into())
+    }
+
+    fn set_cursor_grab(&self, mode: CursorGrabMode) -> Result<(), RequestError> {
+        Ok(self.inner.queue(|inner| {
+            match mode {
+                CursorGrabMode::None => inner.canvas.document().exit_pointer_lock(),
+                CursorGrabMode::Locked => lock::request_pointer_lock(
+                    inner.canvas.navigator(),
+                    inner.canvas.document(),
+                    inner.canvas.raw(),
+                ),
+                CursorGrabMode::Confined => {
+                    return Err(NotSupportedError::new("confined cursor mode is not supported"))
+                },
+            }
+
+            Ok(())
+        })?)
+    }
+
+    fn set_cursor_visible(&self, visible: bool) {
+        self.inner.dispatch(move |inner| inner.canvas.cursor.set_cursor_visible(visible))
+    }
+
+    fn set_cursor_hittest(&self, _: bool) -> Result<(), RequestError> {
+        Err(NotSupportedError::new("set_cursor_hittest is not supported").into())
+    }
+
+    fn current_monitor(&self) -> Option<CoremMonitorHandle> {
+        Some(self.inner.queue(|inner| inner.monitor.current_monitor()).into())
+    }
+
+    fn available_monitors(&self) -> Box<dyn Iterator<Item = CoremMonitorHandle>> {
+        Box::new(
+            self.inner
+                .queue(|inner| inner.monitor.available_monitors())
+                .into_iter()
+                .map(CoremMonitorHandle::from),
+        )
+    }
+
+    fn primary_monitor(&self) -> Option<CoremMonitorHandle> {
+        self.inner.queue(|inner| inner.monitor.primary_monitor()).map(CoremMonitorHandle::from)
+    }
+
+    fn rwh_06_display_handle(&self) -> &dyn rwh_06::HasDisplayHandle {
+        self
+    }
+
+    fn rwh_06_window_handle(&self) -> &dyn rwh_06::HasWindowHandle {
+        self
+    }
+}
+
+impl RootWindow for Window {
     fn reset_dead_keys(&self) {
         // Not supported
     }
@@ -139,23 +223,6 @@ impl RootWindow for Window {
                 inner.canvas.style(),
                 position,
             )
-        })
-    }
-
-    fn surface_size(&self) -> PhysicalSize<u32> {
-        self.inner.queue(|inner| inner.canvas.surface_size())
-    }
-
-    fn request_surface_size(&self, size: Size) -> Option<PhysicalSize<u32>> {
-        self.inner.queue(|inner| {
-            let size = size.to_logical(self.scale_factor());
-            backend::set_canvas_size(
-                inner.canvas.document(),
-                inner.canvas.raw(),
-                inner.canvas.style(),
-                size,
-            );
-            None
         })
     }
 
@@ -227,8 +294,6 @@ impl RootWindow for Window {
     fn set_title(&self, title: &str) {
         self.inner.queue(|inner| inner.canvas.set_attribute("alt", title))
     }
-
-    fn set_transparent(&self, _: bool) {}
 
     fn set_blur(&self, _: bool) {}
 
@@ -350,36 +415,6 @@ impl RootWindow for Window {
         String::new()
     }
 
-    fn set_cursor(&self, cursor: Cursor) {
-        self.inner.dispatch(move |inner| inner.canvas.cursor.set_cursor(cursor))
-    }
-
-    fn set_cursor_position(&self, _: Position) -> Result<(), RequestError> {
-        Err(NotSupportedError::new("set_cursor_position is not supported").into())
-    }
-
-    fn set_cursor_grab(&self, mode: CursorGrabMode) -> Result<(), RequestError> {
-        Ok(self.inner.queue(|inner| {
-            match mode {
-                CursorGrabMode::None => inner.canvas.document().exit_pointer_lock(),
-                CursorGrabMode::Locked => lock::request_pointer_lock(
-                    inner.canvas.navigator(),
-                    inner.canvas.document(),
-                    inner.canvas.raw(),
-                ),
-                CursorGrabMode::Confined => {
-                    return Err(NotSupportedError::new("confined cursor mode is not supported"))
-                },
-            }
-
-            Ok(())
-        })?)
-    }
-
-    fn set_cursor_visible(&self, visible: bool) {
-        self.inner.dispatch(move |inner| inner.canvas.cursor.set_cursor_visible(visible))
-    }
-
     fn drag_window(&self) -> Result<(), RequestError> {
         Err(NotSupportedError::new("drag_window is not supported").into())
     }
@@ -389,35 +424,6 @@ impl RootWindow for Window {
     }
 
     fn show_window_menu(&self, _: Position) {}
-
-    fn set_cursor_hittest(&self, _: bool) -> Result<(), RequestError> {
-        Err(NotSupportedError::new("set_cursor_hittest is not supported").into())
-    }
-
-    fn current_monitor(&self) -> Option<CoremMonitorHandle> {
-        Some(self.inner.queue(|inner| inner.monitor.current_monitor()).into())
-    }
-
-    fn available_monitors(&self) -> Box<dyn Iterator<Item = CoremMonitorHandle>> {
-        Box::new(
-            self.inner
-                .queue(|inner| inner.monitor.available_monitors())
-                .into_iter()
-                .map(CoremMonitorHandle::from),
-        )
-    }
-
-    fn primary_monitor(&self) -> Option<CoremMonitorHandle> {
-        self.inner.queue(|inner| inner.monitor.primary_monitor()).map(CoremMonitorHandle::from)
-    }
-
-    fn rwh_06_display_handle(&self) -> &dyn rwh_06::HasDisplayHandle {
-        self
-    }
-
-    fn rwh_06_window_handle(&self) -> &dyn rwh_06::HasWindowHandle {
-        self
-    }
 }
 
 impl rwh_06::HasWindowHandle for Window {

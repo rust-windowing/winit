@@ -3,7 +3,7 @@ use std::error::Error;
 use winit::application::ApplicationHandler;
 use winit::event::WindowEvent;
 use winit::event_loop::{ActiveEventLoop, EventLoop};
-use winit::window::{Window, WindowAttributes, WindowId};
+use winit::window::{WindowId, Window, WindowAttributes};
 
 #[path = "util/fill.rs"]
 mod fill;

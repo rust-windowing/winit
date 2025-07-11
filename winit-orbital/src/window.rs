@@ -5,8 +5,9 @@ use std::sync::{Arc, Mutex};
 use dpi::{PhysicalInsets, PhysicalPosition, PhysicalSize, Position, Size};
 use winit_core::cursor::Cursor;
 use winit_core::error::{NotSupportedError, RequestError};
+use winit_core::impl_surface_downcast;
 use winit_core::monitor::{Fullscreen, MonitorHandle as CoreMonitorHandle};
-use winit_core::window::{self, Window as CoreWindow, WindowId};
+use winit_core::window::{self, Surface as CoreSurface, Window as CoreWindow, WindowId};
 
 use crate::event_loop::{ActiveEventLoop, EventLoopProxy};
 use crate::{RedoxSocket, WindowProperties};
@@ -156,13 +157,11 @@ impl Window {
     }
 }
 
-impl CoreWindow for Window {
+impl CoreSurface for Window {
+    impl_surface_downcast!(Window);
+
     fn id(&self) -> WindowId {
         WindowId::from_raw(self.window_socket.fd)
-    }
-
-    fn ime_capabilities(&self) -> Option<window::ImeCapabilities> {
-        None
     }
 
     #[inline]
@@ -200,8 +199,76 @@ impl CoreWindow for Window {
     fn pre_present_notify(&self) {}
 
     #[inline]
+    fn surface_size(&self) -> PhysicalSize<u32> {
+        let mut buf: [u8; 4096] = [0; 4096];
+        let path = self.window_socket.fpath(&mut buf).expect("failed to read properties");
+        let properties = WindowProperties::new(path);
+        (properties.w, properties.h).into()
+    }
+
+    #[inline]
+    fn request_surface_size(&self, size: Size) -> Option<PhysicalSize<u32>> {
+        let (w, h): (u32, u32) = size.to_physical::<u32>(self.scale_factor()).into();
+        self.window_socket.write(format!("S,{w},{h}").as_bytes()).expect("failed to set size");
+        None
+    }
+
+    #[inline]
+    fn set_transparent(&self, transparent: bool) {
+        let _ = self.set_flag(ORBITAL_FLAG_TRANSPARENT, transparent);
+    }
+
+    #[inline]
+    fn set_cursor(&self, _: Cursor) {}
+
+    #[inline]
+    fn set_cursor_position(&self, _: Position) -> Result<(), RequestError> {
+        Err(NotSupportedError::new("set_cursor_position is not supported").into())
+    }
+
+    #[inline]
+    fn set_cursor_grab(&self, mode: window::CursorGrabMode) -> Result<(), RequestError> {
+        let (grab, relative) = match mode {
+            window::CursorGrabMode::None => (false, false),
+            window::CursorGrabMode::Confined => (true, false),
+            window::CursorGrabMode::Locked => (true, true),
+        };
+        self.window_socket
+            .write(format!("M,G,{}", if grab { 1 } else { 0 }).as_bytes())
+            .map_err(|err| os_error!(format!("{err}")))?;
+        self.window_socket
+            .write(format!("M,R,{}", if relative { 1 } else { 0 }).as_bytes())
+            .map_err(|err| os_error!(format!("{err}")))?;
+        Ok(())
+    }
+
+    #[inline]
+    fn set_cursor_visible(&self, visible: bool) {
+        let _ = self.window_socket.write(format!("M,C,{}", if visible { 1 } else { 0 }).as_bytes());
+    }
+
+    #[inline]
+    fn set_cursor_hittest(&self, _hittest: bool) -> Result<(), RequestError> {
+        Err(NotSupportedError::new("set_cursor_hittest is not supported").into())
+    }
+
+    fn rwh_06_window_handle(&self) -> &dyn rwh_06::HasWindowHandle {
+        self
+    }
+
+    fn rwh_06_display_handle(&self) -> &dyn rwh_06::HasDisplayHandle {
+        self
+    }
+}
+
+impl CoreWindow for Window {
+    #[inline]
     fn reset_dead_keys(&self) {
         // TODO?
+    }
+
+    fn ime_capabilities(&self) -> Option<window::ImeCapabilities> {
+        None
     }
 
     #[inline]
@@ -223,21 +290,6 @@ impl CoreWindow for Window {
         // TODO: adjust for window decorations
         let (x, y): (i32, i32) = position.to_physical::<i32>(self.scale_factor()).into();
         self.window_socket.write(format!("P,{x},{y}").as_bytes()).expect("failed to set position");
-    }
-
-    #[inline]
-    fn surface_size(&self) -> PhysicalSize<u32> {
-        let mut buf: [u8; 4096] = [0; 4096];
-        let path = self.window_socket.fpath(&mut buf).expect("failed to read properties");
-        let properties = WindowProperties::new(path);
-        (properties.w, properties.h).into()
-    }
-
-    #[inline]
-    fn request_surface_size(&self, size: Size) -> Option<PhysicalSize<u32>> {
-        let (w, h): (u32, u32) = size.to_physical::<u32>(self.scale_factor()).into();
-        self.window_socket.write(format!("S,{w},{h}").as_bytes()).expect("failed to set size");
-        None
     }
 
     #[inline]
@@ -267,11 +319,6 @@ impl CoreWindow for Window {
     #[inline]
     fn set_title(&self, title: &str) {
         self.window_socket.write(format!("T,{title}").as_bytes()).expect("failed to set title");
-    }
-
-    #[inline]
-    fn set_transparent(&self, transparent: bool) {
-        let _ = self.set_flag(ORBITAL_FLAG_TRANSPARENT, transparent);
     }
 
     #[inline]
@@ -369,35 +416,6 @@ impl CoreWindow for Window {
     fn request_user_attention(&self, _request_type: Option<window::UserAttentionType>) {}
 
     #[inline]
-    fn set_cursor(&self, _: Cursor) {}
-
-    #[inline]
-    fn set_cursor_position(&self, _: Position) -> Result<(), RequestError> {
-        Err(NotSupportedError::new("set_cursor_position is not supported").into())
-    }
-
-    #[inline]
-    fn set_cursor_grab(&self, mode: window::CursorGrabMode) -> Result<(), RequestError> {
-        let (grab, relative) = match mode {
-            window::CursorGrabMode::None => (false, false),
-            window::CursorGrabMode::Confined => (true, false),
-            window::CursorGrabMode::Locked => (true, true),
-        };
-        self.window_socket
-            .write(format!("M,G,{}", if grab { 1 } else { 0 }).as_bytes())
-            .map_err(|err| os_error!(format!("{err}")))?;
-        self.window_socket
-            .write(format!("M,R,{}", if relative { 1 } else { 0 }).as_bytes())
-            .map_err(|err| os_error!(format!("{err}")))?;
-        Ok(())
-    }
-
-    #[inline]
-    fn set_cursor_visible(&self, visible: bool) {
-        let _ = self.window_socket.write(format!("M,C,{}", if visible { 1 } else { 0 }).as_bytes());
-    }
-
-    #[inline]
     fn drag_window(&self) -> Result<(), RequestError> {
         self.window_socket.write(b"D").map_err(|err| os_error!(format!("{err}")))?;
         Ok(())
@@ -425,11 +443,6 @@ impl CoreWindow for Window {
     fn show_window_menu(&self, _position: Position) {}
 
     #[inline]
-    fn set_cursor_hittest(&self, _hittest: bool) -> Result<(), RequestError> {
-        Err(NotSupportedError::new("set_cursor_hittest is not supported").into())
-    }
-
-    #[inline]
     fn set_enabled_buttons(&self, _buttons: window::WindowButtons) {}
 
     #[inline]
@@ -451,14 +464,6 @@ impl CoreWindow for Window {
     fn set_theme(&self, _theme: Option<window::Theme>) {}
 
     fn set_content_protected(&self, _protected: bool) {}
-
-    fn rwh_06_window_handle(&self) -> &dyn rwh_06::HasWindowHandle {
-        self
-    }
-
-    fn rwh_06_display_handle(&self) -> &dyn rwh_06::HasDisplayHandle {
-        self
-    }
 }
 
 impl rwh_06::HasWindowHandle for Window {

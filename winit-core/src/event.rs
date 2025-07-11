@@ -10,9 +10,9 @@ use smol_str::SmolStr;
 use crate::error::RequestError;
 use crate::event_loop::AsyncRequestSerial;
 use crate::keyboard::{self, ModifiersKeyState, ModifiersKeys, ModifiersState};
-#[cfg(doc)]
-use crate::window::Window;
 use crate::window::{ActivationToken, Theme};
+#[cfg(doc)]
+use crate::window::{Surface, Window};
 use crate::Instant;
 
 /// Describes the reason the event loop is resuming.
@@ -48,12 +48,12 @@ pub enum WindowEvent {
     /// The size of the window's surface has changed.
     ///
     /// Contains the new dimensions of the surface (can also be retrieved with
-    /// [`Window::surface_size`]).
+    /// [`Surface::surface_size`]).
     ///
     /// This event will not necessarily be emitted upon window creation, query
-    /// [`Window::surface_size`] if you need to determine the surface's initial size.
+    /// [`Surface::surface_size`] if you need to determine the surface's initial size.
     ///
-    /// [`Window::surface_size`]: crate::window::Window::surface_size
+    /// [`Surface::surface_size`]: crate::window::Surface::surface_size
     SurfaceResized(PhysicalSize<u32>),
 
     /// The position of the window has changed.
@@ -352,11 +352,11 @@ pub enum WindowEvent {
     /// window is resized to the value suggested by the OS, but it can be changed to any value.
     ///
     /// This event will not necessarily be emitted upon window creation, query
-    /// [`Window::scale_factor`] if you need to determine the window's initial scale factor.
+    /// [`Surface::scale_factor`] if you need to determine the window's initial scale factor.
     ///
     /// For more information about DPI in general, see the [`dpi`] crate.
     ///
-    /// [`Window::scale_factor`]: crate::window::Window::scale_factor
+    /// [`Surface::scale_factor`]: crate::window::Surface::scale_factor
     ScaleFactorChanged {
         scale_factor: f64,
         /// Handle to update surface size during scale changes.
@@ -411,7 +411,7 @@ pub enum WindowEvent {
     /// This gets triggered in a few scenarios:
     /// - The OS has performed an operation that's invalidated the window's contents (such as
     ///   resizing the window, or changing [the safe area]).
-    /// - The application has explicitly requested a redraw via [`Window::request_redraw`].
+    /// - The application has explicitly requested a redraw via [`Surface::request_redraw`].
     ///
     /// Winit will aggregate duplicate redraw requests into a single event, to
     /// help avoid duplicating rendering work.
