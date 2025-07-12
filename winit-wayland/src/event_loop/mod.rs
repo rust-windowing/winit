@@ -12,6 +12,7 @@ use std::time::{Duration, Instant};
 
 use calloop::ping::Ping;
 use dpi::LogicalSize;
+use libc::dev_t;
 use rustix::event::{PollFd, PollFlags};
 use rustix::pipe::{self, PipeFlags};
 use sctk::reexports::calloop_wayland_source::WaylandSource;
@@ -565,6 +566,10 @@ impl EventLoop {
 
     fn exit_code(&self) -> Option<i32> {
         self.active_event_loop.exit_code()
+    }
+
+    pub fn main_drm_device(&self) -> Option<dev_t> {
+        self.active_event_loop.state.borrow().linux_dmabuf_manager.as_ref()?.device()
     }
 }
 
