@@ -205,6 +205,9 @@ changelog entry.
 - Move `EventLoopExtRunOnDemand` from platform module to `winit::event_loop::run_on_demand`.
 - Use `NamedKey`, `Code` and `Location` from the `keyboard-types` v0.8 crate.
 - Deprecate `Window::set_ime_allowed`, `Window::set_ime_cursor_area`, and `Window::set_ime_purpose`.
+- On Web, added the option when directly using `winit_web::event_loop::EventLoop` to bypass the recreation check.
+  Running multiple `EventLoop`s concurrently work on Web, but it's a niche usage and not expected when using the
+  normal `winit::event_loop::EventLoop` path.
 
 ### Removed
 
