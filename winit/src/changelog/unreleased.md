@@ -205,6 +205,8 @@ changelog entry.
 - Move `EventLoopExtRunOnDemand` from platform module to `winit::event_loop::run_on_demand`.
 - Use `NamedKey`, `Code` and `Location` from the `keyboard-types` v0.8 crate.
 - Deprecate `Window::set_ime_allowed`, `Window::set_ime_cursor_area`, and `Window::set_ime_purpose`.
+- On macOS, use the objc2 feature `relax-sign-encoding` to fix a runtime crash #4299
+  in macOS 26 with objc type checking.
 
 ### Removed
 

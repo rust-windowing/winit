@@ -54,7 +54,7 @@ ndk = { version = "0.9.0", features = ["rwh_06"], default-features = false }
 # Apple dependencies.
 block2 = "0.6.1"
 dispatch2 = { version = "0.3.0", default-features = false, features = ["std", "objc2"] }
-objc2 = "0.6.1"
+objc2 = { version = "0.6.1", features = ["relax-sign-encoding"] }
 objc2-app-kit = { version = "0.3.1", default-features = false }
 objc2-core-foundation = { version = "0.3.1", default-features = false }
 objc2-core-graphics = { version = "0.3.1", default-features = false }
