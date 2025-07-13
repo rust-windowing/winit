@@ -11,7 +11,7 @@ use sctk::reexports::protocols::wp::text_input::zv3::client::zwp_text_input_v3::
 };
 use tracing::warn;
 use winit_core::event::{Ime, WindowEvent};
-use winit_core::window::{ImeCapabilities, ImePurpose, ImeRequestData};
+use winit_core::window::{ImeCapabilities, ImePurpose, ImeRequestData, ImeSurroundingText};
 
 use crate::state::WinitState;
 
@@ -191,6 +191,14 @@ impl ZwpTextInputV3Ext for ZwpTextInputV3 {
             self.set_cursor_rectangle(x, y, width, height);
         }
 
+        if let Some(surrounding) = state.surrounding_text() {
+            self.set_surrounding_text(
+                surrounding.text().into(),
+                surrounding.cursor() as i32,
+                surrounding.anchor() as i32,
+            );
+        }
+
         self.commit();
     }
 }
@@ -236,6 +244,10 @@ pub struct ClientState {
 
     /// The IME cursor area which should not be covered by the input method popup.
     cursor_area: (LogicalPosition<u32>, LogicalSize<u32>),
+
+    /// The `ImeSurroundingText` struct is based on the Wayland model.
+    /// When this changes, another struct might be needed.
+    surrounding_text: ImeSurroundingText,
 }
 
 impl ClientState {
@@ -248,7 +260,18 @@ impl ClientState {
             capabilities,
             content_type: Default::default(),
             cursor_area: Default::default(),
+            surrounding_text: ImeSurroundingText::new(String::new(), 0, 0).unwrap(),
         };
+
+        let unsupported_flags =
+            capabilities.without_purpose().without_cursor_area().without_surrounding_text();
+
+        if unsupported_flags != ImeCapabilities::new() {
+            warn!(
+                "Backend doesn't support all requested IME capabilities: {:?}.\n Ignoring.",
+                unsupported_flags
+            );
+        }
 
         this.update(request_data, scale_factor);
         this
@@ -277,6 +300,14 @@ impl ClientState {
                 warn!("discarding IME cursor area update without capability enabled.");
             }
         }
+
+        if let Some(surrounding) = request_data.surrounding_text {
+            if self.capabilities.surrounding_text() {
+                self.surrounding_text = surrounding;
+            } else {
+                warn!("discarding IME surrounding text update without capability enabled.");
+            }
+        }
     }
 
     pub fn content_type(&self) -> Option<ContentType> {
@@ -285,6 +316,10 @@ impl ClientState {
 
     pub fn cursor_area(&self) -> Option<(LogicalPosition<u32>, LogicalSize<u32>)> {
         self.capabilities.cursor_area().then_some(self.cursor_area)
+    }
+
+    pub fn surrounding_text(&self) -> Option<&ImeSurroundingText> {
+        self.capabilities.surrounding_text().then_some(&self.surrounding_text)
     }
 }
 
