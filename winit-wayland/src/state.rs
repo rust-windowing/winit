@@ -33,6 +33,7 @@ use crate::types::wp_fractional_scaling::FractionalScalingManager;
 use crate::types::wp_viewporter::ViewporterState;
 use crate::types::xdg_activation::XdgActivationState;
 use crate::types::xdg_toplevel_icon_manager::XdgToplevelIconManagerState;
+use crate::types::zwp_linux_dmabuf::LinuxDmabufManager;
 use crate::window::{WindowRequests, WindowState};
 use crate::WindowId;
 
@@ -112,6 +113,9 @@ pub struct WinitState {
     /// KWin blur manager.
     pub kwin_blur_manager: Option<KWinBlurManager>,
 
+    /// Dmabuf manager.
+    pub linux_dmabuf_manager: Option<LinuxDmabufManager>,
+
     /// Loop handle to re-register event sources, such as keyboard repeat.
     pub loop_handle: LoopHandle<'static, Self>,
 
@@ -161,6 +165,8 @@ impl WinitState {
                 (None, None)
             };
 
+        let linux_dmabuf_manager = LinuxDmabufManager::new(globals, queue_handle).ok();
+
         let shm = Shm::bind(globals, queue_handle).map_err(|err| os_error!(err))?;
         let image_pool = Arc::new(Mutex::new(SlotPool::new(2, &shm).unwrap()));
 
@@ -186,6 +192,7 @@ impl WinitState {
             viewporter_state,
             fractional_scaling_manager,
             kwin_blur_manager: KWinBlurManager::new(globals, queue_handle).ok(),
+            linux_dmabuf_manager,
 
             seats,
             text_input_state: TextInputState::new(globals, queue_handle).ok(),
