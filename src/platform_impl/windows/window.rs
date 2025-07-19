@@ -823,6 +823,7 @@ impl Window {
                     let position: (i32, i32) = monitor.position().into();
                     let size: (u32, u32) = monitor.size().into();
 
+                    window_state.lock().unwrap().currently_repositioning = true;
                     unsafe {
                         SetWindowPos(
                             window,
@@ -835,6 +836,7 @@ impl Window {
                         );
                         InvalidateRgn(window, 0, false.into());
                     }
+                    window_state.lock().unwrap().currently_repositioning = false;
                 },
                 None => {
                     let mut window_state_lock = window_state.lock().unwrap();
