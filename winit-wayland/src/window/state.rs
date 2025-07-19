@@ -143,6 +143,8 @@ pub struct WindowState {
     ///
     /// The value is the serial of the event triggered moved.
     has_pending_move: Option<u32>,
+
+    fractional_scale: Option<WpFractionalScaleV1>,
 }
 
 #[derive(Debug)]
@@ -177,7 +179,6 @@ enum ShellSpecificState {
         max_surface_size: Option<LogicalSize<u32>>,
 
         viewport: Option<WpViewport>,
-        fractional_scale: Option<WpFractionalScaleV1>,
     },
     WlrLayer {
         surface: LayerSurface,
@@ -219,6 +220,7 @@ impl WindowState {
             blur_manager: winit_state.kwin_blur_manager.clone(),
             compositor,
             handle,
+            fractional_scale,
             shell_specific: ShellSpecificState::Xdg {
                 window,
                 last_configure: None,
@@ -229,7 +231,6 @@ impl WindowState {
                 max_surface_size: None,
                 min_surface_size: MIN_WINDOW_SIZE,
                 viewport,
-                fractional_scale,
             },
             cursor_grab_mode: GrabState::new(),
             selected_cursor: Default::default(),
@@ -265,6 +266,11 @@ impl WindowState {
         let compositor = winit_state.compositor_state.clone();
         let pointer_constraints = winit_state.pointer_constraints.clone();
 
+        let fractional_scale = winit_state
+            .fractional_scaling_manager
+            .as_ref()
+            .map(|fsm| fsm.fractional_scaling(layer_surface.wl_surface(), queue_handle));
+
         Self {
             handle,
             compositor,
@@ -276,6 +282,7 @@ impl WindowState {
             queue_handle: queue_handle.clone(),
             scale_factor: 1.,
             shm: winit_state.shm.wl_shm().clone(),
+            fractional_scale,
             shell_specific: ShellSpecificState::WlrLayer {
                 surface: layer_surface,
                 last_configure: None,
@@ -1325,14 +1332,14 @@ impl WindowState {
     pub fn set_scale_factor(&mut self, scale_factor: f64) {
         self.scale_factor = scale_factor;
 
-        if let ShellSpecificState::Xdg { frame, fractional_scale, .. } = &mut self.shell_specific {
+        if let ShellSpecificState::Xdg { frame, .. } = &mut self.shell_specific {
             let Some(frame) = (**frame).as_mut() else {
                 return;
             };
             frame.set_scaling_factor(scale_factor);
 
             // NOTE: When fractional scaling is not used update the buffer scale.
-            if fractional_scale.is_none() {
+            if self.fractional_scale.is_none() {
                 self.wl_surface().set_buffer_scale(scale_factor as _);
             }
         }
@@ -1468,9 +1475,8 @@ impl Drop for WindowState {
             blur.release();
         }
 
-        if let ShellSpecificState::Xdg { viewport, fractional_scale, .. } = &mut self.shell_specific
-        {
-            if let Some(fs) = fractional_scale.take() {
+        if let ShellSpecificState::Xdg { viewport, .. } = &mut self.shell_specific {
+            if let Some(fs) = self.fractional_scale.take() {
                 fs.destroy();
             }
 
