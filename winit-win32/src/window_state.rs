@@ -60,6 +60,8 @@ pub(crate) struct WindowState {
     pub dragging: bool,
 
     pub skip_taskbar: bool,
+
+    pub use_system_wheel_speed: bool,
 }
 
 #[derive(Clone)]
@@ -187,6 +189,8 @@ impl WindowState {
             dragging: false,
 
             skip_taskbar: false,
+
+            use_system_wheel_speed: true,
         }
     }
 
