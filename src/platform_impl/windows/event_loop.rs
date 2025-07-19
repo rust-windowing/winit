@@ -2403,17 +2403,19 @@ unsafe fn public_window_callback_inner(
                 };
             }
 
-            unsafe {
-                SetWindowPos(
-                    window,
-                    0,
-                    new_outer_rect.left,
-                    new_outer_rect.top,
-                    new_outer_rect.right - new_outer_rect.left,
-                    new_outer_rect.bottom - new_outer_rect.top,
-                    SWP_NOZORDER | SWP_NOACTIVATE,
-                )
-            };
+            if !userdata.window_state_lock().currently_repositioning {
+                unsafe {
+                    SetWindowPos(
+                        window,
+                        0,
+                        new_outer_rect.left,
+                        new_outer_rect.top,
+                        new_outer_rect.right - new_outer_rect.left,
+                        new_outer_rect.bottom - new_outer_rect.top,
+                        SWP_NOZORDER | SWP_NOACTIVATE,
+                    )
+                };
+            }
 
             result = ProcResult::Value(0);
         },
