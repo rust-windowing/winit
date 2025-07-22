@@ -943,6 +943,18 @@ pub enum Ime {
     /// Right before this event winit will send empty [`Self::Preedit`] event.
     Commit(String),
 
+    /// Delete text surrounding the cursor or selection.
+    ///
+    /// This event does not affect either the pre-edit string or the selected text.
+    /// This means that the application must first remove the pre-edit and selection, then execute
+    /// the deletion, then insert the removed text back.
+    DeleteSurrounding {
+        /// Bytes to remove before the selection
+        before_bytes: usize,
+        /// Bytes to remove after the selection
+        after_bytes: usize,
+    },
+
     /// Notifies when the IME was disabled.
     ///
     /// After receiving this event you won't get any more [`Preedit`][Self::Preedit] or
