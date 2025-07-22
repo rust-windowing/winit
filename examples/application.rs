@@ -9,7 +9,7 @@ use std::sync::mpsc::{self, Receiver, Sender};
 use std::sync::Arc;
 #[cfg(all(not(android_platform), not(web_platform)))]
 use std::time::Instant;
-use std::{fmt, mem};
+use std::{cmp, fmt, mem};
 
 use ::tracing::{error, info};
 use cursor_icon::CursorIcon;
@@ -524,6 +524,26 @@ impl ApplicationHandler for Application {
                     info!("Committed: {}", text);
                     let request_data = window.get_ime_update();
                     window.window.request_ime_update(ImeRequest::Update(request_data)).unwrap();
+                },
+                Ime::DeleteSurrounding { before_bytes, after_bytes } => {
+                    let (text, cursor) = &window.text_field_contents;
+
+                    // To anyone copying this, keep in mind that this doesn't take text selection
+                    // into account. The deletion happens *around* the pre-edit,
+                    // and may remove the whole selection or a part of it.
+                    let delete_start = cursor.saturating_sub(before_bytes);
+                    let delete_end = cmp::min(cursor.saturating_add(after_bytes), text.len());
+                    if text.is_char_boundary(delete_start) && text.is_char_boundary(delete_end) {
+                        let new_text = {
+                            let mut t = String::from(&text[..delete_start]);
+                            t.push_str(&text[delete_end..]);
+                            t
+                        };
+                        window.text_field_contents = (new_text, delete_start);
+                        info!("IME deleted bytes: {before_bytes}, {after_bytes}");
+                    } else {
+                        error!("Buggy IME tried to delete with indices not on char boundary.");
+                    }
                 },
                 Ime::Disabled => info!("IME disabled for Window={window_id:?}"),
             },
