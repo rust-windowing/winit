@@ -39,3 +39,7 @@ The migration guide could reference other migration examples in the current
 changelog entry.
 
 ## Unreleased
+
+### Fixed
+
+- On macOS, fix crash on macOS 26 by using objc2's `relax-sign-encoding` feature.

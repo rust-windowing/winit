@@ -465,7 +465,7 @@ enum PartialText {
 
 enum PartialLogicalKey {
     /// Use the text provided by the WM_CHAR messages and report that as a `Character` variant. If
-    /// the text consists of multiple grapheme clusters (user-precieved characters) that means that
+    /// the text consists of multiple grapheme clusters (user-perceived characters) that means that
     /// dead key could not be combined with the second input, and in that case we should fall back
     /// to using what would have without a dead-key input.
     TextOr(Key),

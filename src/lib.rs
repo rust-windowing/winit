@@ -186,7 +186,7 @@
 #![allow(clippy::missing_safety_doc)]
 #![warn(clippy::uninlined_format_args)]
 // TODO: wasm-binding needs to be updated for that to be resolved, for now just silence it.
-#![cfg_attr(web_platform, allow(unknown_lints, wasm_c_abi))]
+#![cfg_attr(web_platform, allow(unknown_lints, renamed_and_removed_lints, wasm_c_abi))]
 
 #[cfg(feature = "rwh_04")]
 pub use rwh_04 as raw_window_handle_04;
