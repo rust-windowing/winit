@@ -56,6 +56,8 @@ pub(crate) struct WindowState {
     pub dragging: bool,
 
     pub skip_taskbar: bool,
+
+    pub currently_repositioning: bool
 }
 
 #[derive(Clone)]
@@ -177,6 +179,8 @@ impl WindowState {
             dragging: false,
 
             skip_taskbar: false,
+
+            currently_repositioning: false
         }
     }
 
