@@ -1,6 +1,6 @@
 [package]
 name = "winit"
-version = "0.30.11"
+version = "0.30.12"
 authors = [
     "The winit contributors",
     "Pierre Krieger <pierre.krieger1708@gmail.com>",
@@ -120,7 +120,7 @@ ndk = { version = "0.9.0", default-features = false }
 [target.'cfg(any(target_os = "ios", target_os = "macos"))'.dependencies]
 block2 = "0.5.1"
 core-foundation = "0.9.3"
-objc2 = "0.5.2"
+objc2 = { version = "0.5.2", features = ["relax-sign-encoding"] }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 core-graphics = "0.23.1"
