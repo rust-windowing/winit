@@ -4,6 +4,7 @@ use std::sync::{Arc, Mutex};
 
 use ahash::AHashMap;
 
+use sctk::data_device_manager::DataDeviceManagerState;
 use sctk::reexports::calloop::LoopHandle;
 use sctk::reexports::client::backend::ObjectId;
 use sctk::reexports::client::globals::GlobalList;
@@ -29,6 +30,7 @@ use crate::platform_impl::wayland::seat::{
     PointerConstraintsState, RelativePointerState, TextInputState, WinitPointerData,
     WinitPointerDataExt, WinitSeatState,
 };
+use crate::platform_impl::wayland::types::dnd::DndOfferState;
 use crate::platform_impl::wayland::types::kwin_blur::KWinBlurManager;
 use crate::platform_impl::wayland::types::wp_fractional_scaling::FractionalScalingManager;
 use crate::platform_impl::wayland::types::wp_viewporter::ViewporterState;
@@ -53,6 +55,12 @@ pub struct WinitState {
 
     /// The seat state responsible for all sorts of input.
     pub seat_state: SeatState,
+
+    // The state of the data device manager.
+    pub data_device_manager_state: DataDeviceManagerState,
+
+    // The active drag and drop offers.
+    pub dnd_offers: AHashMap<ObjectId, DndOfferState>,
 
     /// The shm for software buffers, such as cursors.
     pub shm: Shm,
@@ -141,6 +149,9 @@ impl WinitState {
         let output_state = OutputState::new(globals, queue_handle);
         let monitors = output_state.outputs().map(MonitorHandle::new).collect();
 
+        let data_device_manager_state =
+            DataDeviceManagerState::bind(globals, queue_handle).map_err(WaylandError::Bind)?;
+
         let seat_state = SeatState::new(globals, queue_handle);
 
         let mut seats = AHashMap::default();
@@ -164,6 +175,10 @@ impl WinitState {
             subcompositor_state: subcompositor_state.map(Arc::new),
             output_state,
             seat_state,
+
+            data_device_manager_state,
+            dnd_offers: AHashMap::default(),
+
             shm,
             custom_cursor_pool,
 
