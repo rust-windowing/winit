@@ -21,18 +21,25 @@ pub struct EventLoop {
 }
 
 #[derive(Default, Debug, Copy, Clone, PartialEq, Eq, Hash)]
-pub struct PlatformSpecificEventLoopAttributes {}
+pub struct PlatformSpecificEventLoopAttributes {
+    pub skip_recreation_check: bool,
+}
 
 static EVENT_LOOP_CREATED: AtomicBool = AtomicBool::new(false);
 
 impl EventLoop {
-    pub fn new(_: &PlatformSpecificEventLoopAttributes) -> Result<Self, EventLoopError> {
-        if EVENT_LOOP_CREATED.swap(true, Ordering::Relaxed) {
+    pub fn new(attributes: &PlatformSpecificEventLoopAttributes) -> Result<Self, EventLoopError> {
+        if !attributes.skip_recreation_check && EVENT_LOOP_CREATED.swap(true, Ordering::Relaxed) {
             // For better cross-platformness.
             return Err(EventLoopError::RecreationAttempt);
         }
 
-        Ok(EventLoop { elw: ActiveEventLoop::new() })
+        let elw = ActiveEventLoop::new();
+
+        // Only reset the recreation check if it's not being skipped by this EventLoop.
+        elw.runner.event_loop_recreation(!attributes.skip_recreation_check);
+
+        Ok(EventLoop { elw })
     }
 
     fn allow_event_loop_recreation() {
@@ -52,7 +59,10 @@ impl EventLoop {
             >(app)
         };
 
-        self.elw.run(app, false);
+        // This conceptually never returns, so do not reset the recreation check.
+        self.elw.runner.event_loop_recreation(false);
+
+        self.elw.run(app);
 
         // Throw an exception to break out of Rust execution and use unreachable to tell the
         // compiler this function won't return, giving it a return type of '!'
@@ -64,7 +74,7 @@ impl EventLoop {
     }
 
     pub fn spawn_app<A: ApplicationHandler + 'static>(self, app: A) {
-        self.elw.run(Box::new(app), true);
+        self.elw.run(Box::new(app));
     }
 
     pub fn window_target(&self) -> &dyn RootActiveEventLoop {
