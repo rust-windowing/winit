@@ -1597,7 +1597,10 @@ pub enum WindowLevel {
 
 /// Generic IME purposes for use in [`Window::set_ime_purpose`].
 ///
+/// The purpose should reflect the kind of data to be entered.
 /// The purpose may improve UX by optimizing the IME for the specific use case,
+/// for example showing relevant characters and hiding unneeded ones,
+/// or changing the icon of the confrirmation button,
 /// if winit can express the purpose to the platform and the platform reacts accordingly.
 ///
 /// ## Platform-specific
@@ -1607,19 +1610,76 @@ pub enum WindowLevel {
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum ImePurpose {
-    /// No special hints for the IME (default).
+    /// No special purpose for the IME (default).
     Normal,
     /// The IME is used for password input.
+    /// The IME will treat the contents as sensitive.
     Password,
     /// The IME is used to input into a terminal.
     ///
     /// For example, that could alter OSK on Wayland to show extra buttons.
     Terminal,
+    /// Number (including decimal separator and sign)
+    Number,
+    /// Phone number
+    Phone,
+    /// URL
+    Url,
+    /// Email address
+    Email,
+    /// Password composed only of digits (treated as sensitive data)
+    Pin,
+    /// Date
+    Date,
+    /// Time
+    Time,
+    /// Date and time
+    DateTime,
 }
 
 impl Default for ImePurpose {
     fn default() -> Self {
         Self::Normal
+    }
+}
+
+bitflags! {
+    /// IME hints
+    ///
+    /// The hint should reflect the desired behaviour of the IME
+    /// while entering text.
+    /// The purpose may improve UX by optimizing the IME for the specific use case,
+    /// beyond just the general data type specified in `ImePurpose`.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **iOS / Android / Web / Windows / X11 / macOS / Orbital:** Unsupported.
+    #[non_exhaustive]
+    #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+    pub struct ImeHint: u32 {
+        /// No special behaviour
+        const NONE = 0;
+        /// Suggest word completions
+        const COMPLETION = 0x1;
+        /// Suggest word corrections
+        const SPELLCHECK = 0x2;
+        /// Switch to uppercase letters at the start of a sentence
+        const AUTO_CAPITALIZATION = 0x4;
+        /// Prefer lowercase letters
+        const LOWERCASE = 0x8;
+        /// Prefer uppercase letters
+        const UPPERCASE = 0x10;
+        /// Prefer casing for titles and headings (can be language dependent)
+        const TITLECASE = 0x20;
+        /// Characters should be hidden
+        const HIDDEN_TEXT = 0x40;
+        /// Typed text should not be stored
+        const SENSITIVE_DATA = 0x80;
+        /// Just Latin characters should be entered
+        const LATIN = 0x100;
+        /// The text input is multiline
+        const MULTILINE = 0x200;
     }
 }
 
@@ -1822,6 +1882,25 @@ impl ImeCapabilities {
         self.0.contains(ImeCapabilitiesFlags::PURPOSE)
     }
 
+    /// Marks `hint` as supported.
+    ///
+    /// For more details see [`ImeRequestData::with_hint`].
+    pub const fn with_hint(self) -> Self {
+        Self(self.0.union(ImeCapabilitiesFlags::HINT))
+    }
+
+    /// Marks `hint` as unsupported.
+    ///
+    /// For more details see [`ImeRequestData::with_hint`].
+    pub const fn without_hint(self) -> Self {
+        Self(self.0.difference(ImeCapabilitiesFlags::HINT))
+    }
+
+    /// Returns `true` if `hint` is supported.
+    pub const fn hint(&self) -> bool {
+        self.0.contains(ImeCapabilitiesFlags::HINT)
+    }
+
     /// Marks `cursor_area` as supported.
     ///
     /// For more details see [`ImeRequestData::with_cursor_area`].
@@ -1871,6 +1950,8 @@ bitflags! {
         const CURSOR_AREA = 1 << 1;
         /// Client supports reporting the text around the caret
         const SURROUNDING_TEXT = 1 << 2;
+        /// Client supports setting IME content hint.
+        const HINT = 1 << 3;
     }
 }
 
@@ -1887,6 +1968,10 @@ pub struct ImeRequestData {
     ///
     /// To support updating it, enable [`ImeCapabilities::PURPOSE`].
     pub purpose: Option<ImePurpose>,
+    /// Text input hint.
+    ///
+    /// To support updating it, enable [`ImeCapabilities::HINT`].
+    pub hint: Option<ImeHint>,
     /// The IME cursor area which should not be covered by the input method popup.
     ///
     /// To support updating it, enable [`ImeCapabilities::CURSOR_AREA`].
@@ -1898,9 +1983,14 @@ pub struct ImeRequestData {
 }
 
 impl ImeRequestData {
-    /// Sets the purpose hint of the current text input.
+    /// Sets the purpose of the current text input content.
     pub fn with_purpose(self, purpose: ImePurpose) -> Self {
         Self { purpose: Some(purpose), ..self }
+    }
+
+    /// Sets the behaviour hint of the current text input.
+    pub fn with_hint(self, hint: ImeHint) -> Self {
+        Self { hint: Some(hint), ..self }
     }
 
     /// Sets the IME cursor editing area.

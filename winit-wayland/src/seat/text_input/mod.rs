@@ -11,7 +11,9 @@ use sctk::reexports::protocols::wp::text_input::zv3::client::zwp_text_input_v3::
 };
 use tracing::warn;
 use winit_core::event::{Ime, WindowEvent};
-use winit_core::window::{ImeCapabilities, ImePurpose, ImeRequestData, ImeSurroundingText};
+use winit_core::window::{
+    ImeCapabilities, ImeHint, ImePurpose, ImeRequestData, ImeSurroundingText,
+};
 
 use crate::state::WinitState;
 
@@ -322,12 +324,23 @@ impl ClientState {
 
     /// Updates the fields of the state which are present in update_fields.
     pub fn update(&mut self, request_data: ImeRequestData, scale_factor: f64) {
-        if let Some(purpose) = request_data.purpose {
-            if self.capabilities.purpose() {
-                self.content_type = purpose.into();
-            } else {
-                warn!("discarding ImePurpose update without capability enabled.");
+        if self.capabilities.purpose() || self.capabilities.hint() {
+            // Wayland has only one message for both,
+            // so they must be handled together.
+            if request_data.purpose.is_some() && !self.capabilities.purpose() {
+                warn!(
+                    "ImePurpose capability not explicitly enabled. Using anyway because of \
+                     ImeHint."
+                );
             }
+            if request_data.hint.is_some() && !self.capabilities.hint() {
+                warn!(
+                    "ImeHint capability not explicitly enabled. Using anyway because of \
+                     ImePurpose."
+                );
+            }
+
+            self.content_type = (request_data.purpose, request_data.hint).into();
         }
 
         if let Some((position, size)) = request_data.cursor_area {
@@ -350,7 +363,7 @@ impl ClientState {
     }
 
     pub fn content_type(&self) -> Option<ContentType> {
-        self.capabilities.purpose().then_some(self.content_type)
+        (self.capabilities.purpose() || self.capabilities.hint()).then_some(self.content_type)
     }
 
     pub fn cursor_area(&self) -> Option<(LogicalPosition<u32>, LogicalSize<u32>)> {
@@ -370,13 +383,60 @@ pub struct ContentType {
     hint: ContentHint,
 }
 
-impl From<ImePurpose> for ContentType {
-    fn from(purpose: ImePurpose) -> Self {
-        let (hint, purpose) = match purpose {
-            ImePurpose::Password => (ContentHint::SensitiveData, ContentPurpose::Password),
-            ImePurpose::Terminal => (ContentHint::None, ContentPurpose::Terminal),
-            _ => return Default::default(),
-        };
+impl From<(Option<ImePurpose>, Option<ImeHint>)> for ContentType {
+    fn from((purpose, hint): (Option<ImePurpose>, Option<ImeHint>)) -> Self {
+        let purpose = purpose
+            .map(|purpose| match purpose {
+                ImePurpose::Password => ContentPurpose::Password,
+                ImePurpose::Terminal => ContentPurpose::Terminal,
+                ImePurpose::Phone => ContentPurpose::Phone,
+                ImePurpose::Number => ContentPurpose::Number,
+                ImePurpose::Url => ContentPurpose::Url,
+                ImePurpose::Email => ContentPurpose::Email,
+                ImePurpose::Pin => ContentPurpose::Pin,
+                ImePurpose::Date => ContentPurpose::Date,
+                ImePurpose::Time => ContentPurpose::Time,
+                ImePurpose::DateTime => ContentPurpose::Datetime,
+                _ => ContentPurpose::Normal,
+            })
+            .unwrap_or(ContentPurpose::Normal);
+
+        let hint = hint
+            .map(|hint| {
+                let mut new = ContentHint::None;
+                if hint.contains(ImeHint::COMPLETION) {
+                    new |= ContentHint::Completion;
+                }
+                if hint.contains(ImeHint::SPELLCHECK) {
+                    new |= ContentHint::Spellcheck;
+                }
+                if hint.contains(ImeHint::AUTO_CAPITALIZATION) {
+                    new |= ContentHint::AutoCapitalization;
+                }
+                if hint.contains(ImeHint::LOWERCASE) {
+                    new |= ContentHint::Lowercase;
+                }
+                if hint.contains(ImeHint::UPPERCASE) {
+                    new |= ContentHint::Uppercase;
+                }
+                if hint.contains(ImeHint::TITLECASE) {
+                    new |= ContentHint::Titlecase;
+                }
+                if hint.contains(ImeHint::HIDDEN_TEXT) {
+                    new |= ContentHint::HiddenText;
+                }
+                if hint.contains(ImeHint::SENSITIVE_DATA) {
+                    new |= ContentHint::SensitiveData;
+                }
+                if hint.contains(ImeHint::LATIN) {
+                    new |= ContentHint::Latin;
+                }
+                if hint.contains(ImeHint::MULTILINE) {
+                    new |= ContentHint::Multiline;
+                }
+                new
+            })
+            .unwrap_or(ContentHint::None);
 
         Self { hint, purpose }
     }
