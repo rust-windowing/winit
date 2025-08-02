@@ -1597,7 +1597,10 @@ pub enum WindowLevel {
 
 /// Generic IME purposes for use in [`Window::set_ime_purpose`].
 ///
+/// The purpose should reflect the kind of data to be entered.
 /// The purpose may improve UX by optimizing the IME for the specific use case,
+/// for example showing relevant characters and hiding unneeded ones,
+/// or changing the icon of the confrirmation button,
 /// if winit can express the purpose to the platform and the platform reacts accordingly.
 ///
 /// ## Platform-specific
@@ -1610,11 +1613,28 @@ pub enum ImePurpose {
     /// No special hints for the IME (default).
     Normal,
     /// The IME is used for password input.
+    /// The IME will treat the contents as sensitive.
     Password,
     /// The IME is used to input into a terminal.
     ///
     /// For example, that could alter OSK on Wayland to show extra buttons.
     Terminal,
+    /// Number (including decimal separator and sign)
+    Number,
+    /// Phone number
+    Phone,
+    /// URL
+    Url,
+    /// Email address
+    Email,
+    /// Password composed only of digits (treated as sensitive data)
+    Pin,
+    /// Date
+    Date,
+    /// Time
+    Time,
+    /// Date and time
+    DateTime,
 }
 
 impl Default for ImePurpose {

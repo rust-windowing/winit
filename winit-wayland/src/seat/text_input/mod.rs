@@ -375,6 +375,14 @@ impl From<ImePurpose> for ContentType {
         let (hint, purpose) = match purpose {
             ImePurpose::Password => (ContentHint::SensitiveData, ContentPurpose::Password),
             ImePurpose::Terminal => (ContentHint::None, ContentPurpose::Terminal),
+            ImePurpose::Phone => (ContentHint::None, ContentPurpose::Phone),
+            ImePurpose::Number => (ContentHint::None, ContentPurpose::Number),
+            ImePurpose::Url => (ContentHint::None, ContentPurpose::Url),
+            ImePurpose::Email => (ContentHint::None, ContentPurpose::Email),
+            ImePurpose::Pin => (ContentHint::SensitiveData, ContentPurpose::Pin),
+            ImePurpose::Date => (ContentHint::None, ContentPurpose::Date),
+            ImePurpose::Time => (ContentHint::None, ContentPurpose::Time),
+            ImePurpose::DateTime => (ContentHint::None, ContentPurpose::Datetime),
             _ => return Default::default(),
         };
 
