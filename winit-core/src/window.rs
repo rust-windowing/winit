@@ -1136,9 +1136,9 @@ pub trait Window: AsAny + Send + Sync + fmt::Debug {
         let action = if allowed {
             let position = LogicalPosition::new(0, 0);
             let size = LogicalSize::new(0, 0);
-            let ime_caps = ImeCapabilities::new().with_purpose().with_cursor_area();
+            let ime_caps = ImeCapabilities::new().without_hint_and_purpose().with_cursor_area();
             let request_data = ImeRequestData {
-                purpose: Some(ImePurpose::Normal),
+                hint_and_purpose: Some((ImeHint::NONE, ImePurpose::Normal)),
                 // WARNING: there's nothing sensible to use here by default.
                 cursor_area: Some((position.into(), size.into())),
                 ..ImeRequestData::default()
@@ -1160,9 +1160,9 @@ pub trait Window: AsAny + Send + Sync + fmt::Debug {
     /// - **iOS / Android / Web / Windows / X11 / macOS / Orbital:** Unsupported.
     #[deprecated = "use Window::request_ime_update instead"]
     fn set_ime_purpose(&self, purpose: ImePurpose) {
-        if self.ime_capabilities().map(|caps| caps.purpose()).unwrap_or(false) {
+        if self.ime_capabilities().map(|caps| caps.hint_and_purpose()).unwrap_or(false) {
             let _ = self.request_ime_update(ImeRequest::Update(ImeRequestData {
-                purpose: Some(purpose),
+                hint_and_purpose: Some((ImeHint::NONE, purpose)),
                 ..ImeRequestData::default()
             }));
         }
@@ -1186,14 +1186,14 @@ pub trait Window: AsAny + Send + Sync + fmt::Debug {
     ///
     /// ```no_run
     /// # use dpi::{Position, Size};
-    /// # use winit_core::window::{Window, ImePurpose, ImeRequest, ImeCapabilities, ImeRequestData, ImeEnableRequest};
+    /// # use winit_core::window::{Window, ImeHint, ImePurpose, ImeRequest, ImeCapabilities, ImeRequestData, ImeEnableRequest};
     /// # fn scope(window: &dyn Window, cursor_pos: Position, cursor_size: Size) {
     /// // Clear previous state by switching off IME
     /// window.request_ime_update(ImeRequest::Disable).expect("Disable cannot fail");
     ///
-    /// let ime_caps = ImeCapabilities::new().with_cursor_area().with_purpose();
+    /// let ime_caps = ImeCapabilities::new().with_cursor_area().with_hint_and_purpose();
     /// let request_data = ImeRequestData::default()
-    ///                          .with_purpose(ImePurpose::Normal)
+    ///                          .with_hint_and_purpose(ImeHint::NONE, ImePurpose::Normal)
     ///                          .with_cursor_area(cursor_pos, cursor_size);
     /// let enable_ime = ImeEnableRequest::new(ime_caps, request_data.clone()).unwrap();
     /// window.request_ime_update(ImeRequest::Enable(enable_ime)).expect("Enabling may fail if IME is not supported");
@@ -1598,7 +1598,10 @@ pub enum WindowLevel {
 
 /// Generic IME purposes for use in [`Window::set_ime_purpose`].
 ///
+/// The purpose should reflect the kind of data to be entered.
 /// The purpose may improve UX by optimizing the IME for the specific use case,
+/// for example showing relevant characters and hiding unneeded ones,
+/// or changing the icon of the confrirmation button,
 /// if winit can express the purpose to the platform and the platform reacts accordingly.
 ///
 /// ## Platform-specific
@@ -1608,19 +1611,78 @@ pub enum WindowLevel {
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum ImePurpose {
-    /// No special hints for the IME (default).
+    /// No special purpose for the IME (default).
     Normal,
     /// The IME is used for password input.
+    /// The IME will treat the contents as sensitive.
     Password,
     /// The IME is used to input into a terminal.
     ///
     /// For example, that could alter OSK on Wayland to show extra buttons.
     Terminal,
+    /// Number (including decimal separator and sign)
+    Number,
+    /// Phone number
+    Phone,
+    /// URL
+    Url,
+    /// Email address
+    Email,
+    /// Password composed only of digits (treated as sensitive data)
+    Pin,
+    /// Date
+    Date,
+    /// Time
+    Time,
+    /// Date and time
+    DateTime,
 }
 
 impl Default for ImePurpose {
     fn default() -> Self {
         Self::Normal
+    }
+}
+
+bitflags! {
+    /// IME hints
+    ///
+    /// The hint should reflect the desired behaviour of the IME
+    /// while entering text.
+    /// The purpose may improve UX by optimizing the IME for the specific use case,
+    /// beyond just the general data type specified in `ImePurpose`.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **iOS / Android / Web / Windows / X11 / macOS / Orbital:** Unsupported.
+    #[non_exhaustive]
+    #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+    pub struct ImeHint: u32 {
+        /// No special behaviour.
+        const NONE = 0;
+        /// Suggest word completions.
+        const COMPLETION = 0x1;
+        /// Suggest word corrections.
+        const SPELLCHECK = 0x2;
+        /// Switch to uppercase letters at the start of a sentence.
+        const AUTO_CAPITALIZATION = 0x4;
+        /// Prefer lowercase letters.
+        const LOWERCASE = 0x8;
+        /// Prefer uppercase letters.
+        const UPPERCASE = 0x10;
+        /// Prefer casing for titles and headings (can be language dependent).
+        const TITLECASE = 0x20;
+        /// Characters should be hidden.
+        ///
+        /// This may prevent e.g. layout switching with some IMEs, unless hint is disabled.
+        const HIDDEN_TEXT = 0x40;
+        /// Typed text should not be stored.
+        const SENSITIVE_DATA = 0x80;
+        /// Just Latin characters should be entered.
+        const LATIN = 0x100;
+        /// The text input is multiline.
+        const MULTILINE = 0x200;
     }
 }
 
@@ -1759,7 +1821,7 @@ impl ImeEnableRequest {
             return None;
         }
 
-        if capabilities.purpose() ^ request_data.purpose.is_some() {
+        if capabilities.hint_and_purpose() ^ request_data.hint_and_purpose.is_some() {
             return None;
         }
 
@@ -1804,23 +1866,23 @@ impl ImeCapabilities {
         Self::default()
     }
 
-    /// Marks `purpose` as supported.
+    /// Marks `hint and purpose` as supported.
     ///
-    /// For more details see [`ImeRequestData::with_purpose`].
-    pub const fn with_purpose(self) -> Self {
-        Self(self.0.union(ImeCapabilitiesFlags::PURPOSE))
+    /// For more details see [`ImeRequestData::with_hint_and_purpose`].
+    pub const fn with_hint_and_purpose(self) -> Self {
+        Self(self.0.union(ImeCapabilitiesFlags::HINT_AND_PURPOSE))
     }
 
-    /// Marks `purpose` as unsupported.
+    /// Marks `hint and purpose` as unsupported.
     ///
-    /// For more details see [`ImeRequestData::with_purpose`].
-    pub const fn without_purpose(self) -> Self {
-        Self(self.0.difference(ImeCapabilitiesFlags::PURPOSE))
+    /// For more details see [`ImeRequestData::with_hint_and_purpose`].
+    pub const fn without_hint_and_purpose(self) -> Self {
+        Self(self.0.difference(ImeCapabilitiesFlags::HINT_AND_PURPOSE))
     }
 
-    /// Returns `true` if `purpose` is supported.
-    pub const fn purpose(&self) -> bool {
-        self.0.contains(ImeCapabilitiesFlags::PURPOSE)
+    /// Returns `true` if `hint and purpose` is supported.
+    pub const fn hint_and_purpose(&self) -> bool {
+        self.0.contains(ImeCapabilitiesFlags::HINT_AND_PURPOSE)
     }
 
     /// Marks `cursor_area` as supported.
@@ -1865,8 +1927,8 @@ impl ImeCapabilities {
 bitflags! {
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
     pub(crate) struct ImeCapabilitiesFlags : u8 {
-        /// Client supports setting IME purpose.
-        const PURPOSE = 1 << 0;
+        /// Client supports setting IME hint and purpose.
+        const HINT_AND_PURPOSE = 1 << 0;
         /// Client supports reporting cursor area for IME popup to
         /// appear.
         const CURSOR_AREA = 1 << 1;
@@ -1884,10 +1946,10 @@ bitflags! {
 #[derive(Debug, PartialEq, Clone, Default)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct ImeRequestData {
-    /// Text input purpose.
+    /// Text input hint and purpose.
     ///
-    /// To support updating it, enable [`ImeCapabilities::PURPOSE`].
-    pub purpose: Option<ImePurpose>,
+    /// To support updating it, enable [`ImeCapabilities::HINT_AND_PURPOSE`].
+    pub hint_and_purpose: Option<(ImeHint, ImePurpose)>,
     /// The IME cursor area which should not be covered by the input method popup.
     ///
     /// To support updating it, enable [`ImeCapabilities::CURSOR_AREA`].
@@ -1899,9 +1961,9 @@ pub struct ImeRequestData {
 }
 
 impl ImeRequestData {
-    /// Sets the purpose hint of the current text input.
-    pub fn with_purpose(self, purpose: ImePurpose) -> Self {
-        Self { purpose: Some(purpose), ..self }
+    /// Sets the hint and purpose of the current text input content.
+    pub fn with_hint_and_purpose(self, hint: ImeHint, purpose: ImePurpose) -> Self {
+        Self { hint_and_purpose: Some((hint, purpose)), ..self }
     }
 
     /// Sets the IME cursor editing area.
@@ -2027,7 +2089,7 @@ mod tests {
         ImeCapabilities, ImeEnableRequest, ImeRequestData, ImeSurroundingText,
         ImeSurroundingTextError,
     };
-    use crate::window::ImePurpose;
+    use crate::window::{ImeHint, ImePurpose};
 
     #[test]
     fn ime_initial_request_caps_match() {
@@ -2040,21 +2102,21 @@ mod tests {
         )
         .is_none());
         assert!(ImeEnableRequest::new(
-            ImeCapabilities::new().with_purpose(),
+            ImeCapabilities::new().with_hint_and_purpose(),
             ImeRequestData::default()
         )
         .is_none());
 
         assert!(ImeEnableRequest::new(
             ImeCapabilities::new().with_cursor_area(),
-            ImeRequestData::default().with_purpose(ImePurpose::Normal)
+            ImeRequestData::default().with_hint_and_purpose(ImeHint::NONE, ImePurpose::Normal)
         )
         .is_none());
 
         assert!(ImeEnableRequest::new(
             ImeCapabilities::new(),
             ImeRequestData::default()
-                .with_purpose(ImePurpose::Normal)
+                .with_hint_and_purpose(ImeHint::NONE, ImePurpose::Normal)
                 .with_cursor_area(position, size)
         )
         .is_none());
@@ -2062,7 +2124,7 @@ mod tests {
         assert!(ImeEnableRequest::new(
             ImeCapabilities::new().with_cursor_area(),
             ImeRequestData::default()
-                .with_purpose(ImePurpose::Normal)
+                .with_hint_and_purpose(ImeHint::NONE, ImePurpose::Normal)
                 .with_cursor_area(position, size)
         )
         .is_none());
@@ -2074,9 +2136,9 @@ mod tests {
         .is_some());
 
         assert!(ImeEnableRequest::new(
-            ImeCapabilities::new().with_purpose().with_cursor_area(),
+            ImeCapabilities::new().with_hint_and_purpose().with_cursor_area(),
             ImeRequestData::default()
-                .with_purpose(ImePurpose::Normal)
+                .with_hint_and_purpose(ImeHint::NONE, ImePurpose::Normal)
                 .with_cursor_area(position, size)
         )
         .is_some());
