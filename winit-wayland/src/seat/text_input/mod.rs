@@ -115,11 +115,41 @@ impl Dispatch<ZwpTextInputV3, TextInputData, WinitState> for TextInputState {
                 text_input_data.pending_preedit = None;
                 text_input_data.pending_commit = text;
             },
+            TextInputEvent::DeleteSurroundingText { before_length, after_length } => {
+                text_input_data.pending_delete = Some(DeleteSurroundingText {
+                    before: before_length as usize,
+                    after: after_length as usize,
+                });
+            },
             TextInputEvent::Done { .. } => {
                 let window_id = match text_input_data.surface.as_ref() {
                     Some(surface) => crate::make_wid(surface),
                     None => return,
                 };
+
+                // The events are sent to the user separately, so
+                // CAUTION: events must always arrive in the order compatible with the application
+                // order specified by the text-input-v3 protocol:
+                //
+                // As of version 1:
+                // 1. Replace existing preedit string with the cursor.
+                // 2. Delete requested surrounding text.
+                // 3. Insert commit string with the cursor at its end.
+                // 4. Calculate surrounding text to send.
+                // 5. Insert new preedit text in cursor position.
+                // 6. Place cursor inside preedit text.
+
+                if let Some(DeleteSurroundingText { before, after }) =
+                    text_input_data.pending_delete
+                {
+                    state.events_sink.push_window_event(
+                        WindowEvent::Ime(Ime::DeleteSurrounding {
+                            before_bytes: before,
+                            after_bytes: after,
+                        }),
+                        window_id,
+                    );
+                }
 
                 // Clear preedit, unless all we'll be doing next is sending a new preedit.
                 if text_input_data.pending_commit.is_some()
@@ -148,9 +178,6 @@ impl Dispatch<ZwpTextInputV3, TextInputData, WinitState> for TextInputState {
                         window_id,
                     );
                 }
-            },
-            TextInputEvent::DeleteSurroundingText { .. } => {
-                // Not handled.
             },
             _ => {},
         }
@@ -219,6 +246,9 @@ pub struct TextInputDataInner {
 
     /// The preedit to submit on `done`.
     pending_preedit: Option<Preedit>,
+
+    /// The text around the cursor to delete on `done`
+    pending_delete: Option<DeleteSurroundingText>,
 }
 
 /// The state of the preedit.
@@ -227,6 +257,15 @@ struct Preedit {
     text: String,
     cursor_begin: Option<usize>,
     cursor_end: Option<usize>,
+}
+
+/// The delete request
+#[derive(Clone)]
+struct DeleteSurroundingText {
+    /// Bytes before cursor
+    before: usize,
+    /// Bytes after cursor
+    after: usize,
 }
 
 /// State change requested by the application.

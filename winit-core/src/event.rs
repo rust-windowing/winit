@@ -879,6 +879,8 @@ impl From<ModifiersState> for Modifiers {
 
 /// Describes [input method](https://en.wikipedia.org/wiki/Input_method) events.
 ///
+/// The `Ime` events must be applied in the order they arrive.
+///
 /// This is also called a "composition event".
 ///
 /// Most keypresses using a latin-like keyboard layout simply generate a
@@ -935,13 +937,27 @@ pub enum Ime {
     /// position. When it's `None`, the cursor should be hidden. When `String` is an empty string
     /// this indicates that preedit was cleared.
     ///
-    /// The cursor position is byte-wise indexed.
+    /// The cursor position is byte-wise indexed, assuming UTF-8.
     Preedit(String, Option<(usize, usize)>),
 
     /// Notifies when text should be inserted into the editor widget.
     ///
     /// Right before this event winit will send empty [`Self::Preedit`] event.
     Commit(String),
+
+    /// Delete text surrounding the cursor or selection.
+    ///
+    /// This event does not affect either the pre-edit string.
+    /// This means that the application must first remove the pre-edit,
+    /// then execute the deletion, then insert the removed text back.
+    ///
+    /// This event assumes text is stored in UTF-8.
+    DeleteSurrounding {
+        /// Bytes to remove before the selection
+        before_bytes: usize,
+        /// Bytes to remove after the selection
+        after_bytes: usize,
+    },
 
     /// Notifies when the IME was disabled.
     ///
