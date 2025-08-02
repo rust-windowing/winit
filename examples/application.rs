@@ -40,7 +40,7 @@ use winit::platform::web::{ActiveEventLoopExtWeb, WindowAttributesWeb};
 #[cfg(x11_platform)]
 use winit::platform::x11::{ActiveEventLoopExtX11, WindowAttributesX11};
 use winit::window::{
-    CursorGrabMode, ImeCapabilities, ImeEnableRequest, ImePurpose, ImeRequestData,
+    CursorGrabMode, ImeCapabilities, ImeEnableRequest, ImeHint, ImePurpose, ImeRequestData,
     ImeSurroundingText, ResizeDirection, Theme, Window, WindowAttributes, WindowId,
 };
 use winit_core::application::macos::ApplicationHandlerExtMacOS;
@@ -696,10 +696,16 @@ impl WindowState {
         // Allow IME out of the box.
         let request_data = ImeRequestData::default()
             .with_purpose(ImePurpose::Normal)
+            // The input field is not displayed at all in this demo
+            .with_hint(ImeHint::HIDDEN_TEXT)
             .with_cursor_area(LogicalPosition { x: 0, y: 0 }.into(), IME_CURSOR_SIZE.into())
             .with_surrounding_text(ImeSurroundingText::new(String::new(), 0, 0).unwrap());
         let enable_request = ImeEnableRequest::new(
-            ImeCapabilities::new().with_purpose().with_cursor_area().with_surrounding_text(),
+            ImeCapabilities::new()
+                .with_purpose()
+                .with_hint()
+                .with_cursor_area()
+                .with_surrounding_text(),
             request_data,
         )
         .unwrap();
@@ -763,6 +769,7 @@ impl WindowState {
                 .expect("Bug in example: bad byte calculations");
         ImeRequestData::default()
             .with_purpose(ImePurpose::Normal)
+            .with_hint(ImeHint::HIDDEN_TEXT)
             .with_cursor_area(cursor_pos, IME_CURSOR_SIZE.into())
             .with_surrounding_text(surrounding_text)
     }
@@ -772,7 +779,11 @@ impl WindowState {
             self.window.request_ime_update(ImeRequest::Disable).expect("disable can not fail");
         } else {
             let enable_request = ImeEnableRequest::new(
-                ImeCapabilities::new().with_purpose().with_cursor_area().with_surrounding_text(),
+                ImeCapabilities::new()
+                    .with_purpose()
+                    .with_hint()
+                    .with_cursor_area()
+                    .with_surrounding_text(),
                 self.get_ime_update(),
             )
             .unwrap();
