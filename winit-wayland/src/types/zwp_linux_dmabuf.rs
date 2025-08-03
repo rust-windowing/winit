@@ -8,7 +8,7 @@ use wayland_protocols::wp::linux_dmabuf::zv1::client::{
     zwp_linux_dmabuf_feedback_v1, zwp_linux_dmabuf_v1,
 };
 
-use crate::state::WinitState;
+use crate::state::{ExtensionEvents, WinitState};
 
 #[derive(Debug)]
 pub struct LinuxDmabufManager {
@@ -19,7 +19,6 @@ pub struct LinuxDmabufManager {
 #[derive(Debug)]
 pub struct LinuxDmabufFeedback {
     _feedback: ZwpLinuxDmabufFeedbackV1,
-    device: Option<dev_t>,
     pending_device: Option<dev_t>,
 }
 
@@ -30,13 +29,8 @@ impl LinuxDmabufManager {
     ) -> Result<Self, BindError> {
         let manager: ZwpLinuxDmabufV1 = globals.bind(queue_handle, 4..=5, GlobalData)?;
         let feedback = manager.get_default_feedback(queue_handle, GlobalData);
-        let feedback =
-            LinuxDmabufFeedback { _feedback: feedback, device: None, pending_device: None };
+        let feedback = LinuxDmabufFeedback { _feedback: feedback, pending_device: None };
         Ok(Self { _manager: manager, feedback })
-    }
-
-    pub fn device(&self) -> Option<dev_t> {
-        self.feedback.device
     }
 }
 
@@ -67,7 +61,7 @@ impl Dispatch<ZwpLinuxDmabufFeedbackV1, GlobalData, WinitState> for LinuxDmabufM
             Event::Done => {
                 let manager = state.linux_dmabuf_manager.as_mut().unwrap();
                 if let Some(device) = manager.feedback.pending_device.take() {
-                    manager.feedback.device = Some(device);
+                    state.extension_events.push(ExtensionEvents::LinuxMainDevice(device));
                 }
             },
             Event::MainDevice { device } => {

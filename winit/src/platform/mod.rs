@@ -37,8 +37,6 @@ pub use winit_web as web;
 pub use winit_win32 as windows;
 #[cfg(x11_platform)]
 pub use winit_x11 as x11;
-#[cfg(any(x11_platform, wayland_platform))]
-pub mod drm;
 
 #[cfg(any(windows_platform, macos_platform, x11_platform, wayland_platform, docsrs))]
 pub mod scancode;

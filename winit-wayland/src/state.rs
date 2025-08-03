@@ -3,6 +3,7 @@ use std::sync::atomic::Ordering;
 use std::sync::{Arc, Mutex};
 
 use ahash::AHashMap;
+use libc::dev_t;
 use sctk::compositor::{CompositorHandler, CompositorState};
 use sctk::output::{OutputHandler, OutputState};
 use sctk::reexports::calloop::LoopHandle;
@@ -40,6 +41,8 @@ use crate::WindowId;
 /// Winit's Wayland state.
 #[derive(Debug)]
 pub struct WinitState {
+    globals: GlobalList,
+
     /// The WlRegistry.
     pub registry_state: RegistryState,
 
@@ -125,20 +128,27 @@ pub struct WinitState {
 
     /// Whether the user initiated a wake up.
     pub proxy_wake_up: bool,
+
+    pub extension_events: Vec<ExtensionEvents>,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub enum ExtensionEvents {
+    LinuxMainDevice(dev_t),
 }
 
 impl WinitState {
     pub fn new(
-        globals: &GlobalList,
+        globals: GlobalList,
         queue_handle: &QueueHandle<Self>,
         loop_handle: LoopHandle<'static, WinitState>,
     ) -> Result<Self, OsError> {
-        let registry_state = RegistryState::new(globals);
+        let registry_state = RegistryState::new(&globals);
         let compositor_state =
-            CompositorState::bind(globals, queue_handle).map_err(|err| os_error!(err))?;
+            CompositorState::bind(&globals, queue_handle).map_err(|err| os_error!(err))?;
         let subcompositor_state = match SubcompositorState::bind(
             compositor_state.wl_compositor().clone(),
-            globals,
+            &globals,
             queue_handle,
         ) {
             Ok(c) => Some(c),
@@ -148,10 +158,10 @@ impl WinitState {
             },
         };
 
-        let output_state = OutputState::new(globals, queue_handle);
+        let output_state = OutputState::new(&globals, queue_handle);
         let monitors = output_state.outputs().map(MonitorHandle::new).collect();
 
-        let seat_state = SeatState::new(globals, queue_handle);
+        let seat_state = SeatState::new(&globals, queue_handle);
 
         let mut seats = AHashMap::default();
         for seat in seat_state.seats() {
@@ -159,15 +169,13 @@ impl WinitState {
         }
 
         let (viewporter_state, fractional_scaling_manager) =
-            if let Ok(fsm) = FractionalScalingManager::new(globals, queue_handle) {
-                (ViewporterState::new(globals, queue_handle).ok(), Some(fsm))
+            if let Ok(fsm) = FractionalScalingManager::new(&globals, queue_handle) {
+                (ViewporterState::new(&globals, queue_handle).ok(), Some(fsm))
             } else {
                 (None, None)
             };
 
-        let linux_dmabuf_manager = LinuxDmabufManager::new(globals, queue_handle).ok();
-
-        let shm = Shm::bind(globals, queue_handle).map_err(|err| os_error!(err))?;
+        let shm = Shm::bind(&globals, queue_handle).map_err(|err| os_error!(err))?;
         let image_pool = Arc::new(Mutex::new(SlotPool::new(2, &shm).unwrap()));
 
         Ok(Self {
@@ -178,9 +186,9 @@ impl WinitState {
             seat_state,
             shm,
 
-            xdg_shell: XdgShell::bind(globals, queue_handle).map_err(|err| os_error!(err))?,
-            xdg_activation: XdgActivationState::bind(globals, queue_handle).ok(),
-            xdg_toplevel_icon_manager: XdgToplevelIconManagerState::bind(globals, queue_handle)
+            xdg_shell: XdgShell::bind(&globals, queue_handle).map_err(|err| os_error!(err))?,
+            xdg_activation: XdgActivationState::bind(&globals, queue_handle).ok(),
+            xdg_toplevel_icon_manager: XdgToplevelIconManagerState::bind(&globals, queue_handle)
                 .ok(),
 
             image_pool,
@@ -191,14 +199,14 @@ impl WinitState {
             window_events_sink: Default::default(),
             viewporter_state,
             fractional_scaling_manager,
-            kwin_blur_manager: KWinBlurManager::new(globals, queue_handle).ok(),
-            linux_dmabuf_manager,
+            linux_dmabuf_manager: None,
+            kwin_blur_manager: KWinBlurManager::new(&globals, queue_handle).ok(),
 
             seats,
-            text_input_state: TextInputState::new(globals, queue_handle).ok(),
+            text_input_state: TextInputState::new(&globals, queue_handle).ok(),
 
-            relative_pointer: RelativePointerState::new(globals, queue_handle).ok(),
-            pointer_constraints: PointerConstraintsState::new(globals, queue_handle)
+            relative_pointer: RelativePointerState::new(&globals, queue_handle).ok(),
+            pointer_constraints: PointerConstraintsState::new(&globals, queue_handle)
                 .map(Arc::new)
                 .ok(),
             pointer_surfaces: Default::default(),
@@ -209,7 +217,15 @@ impl WinitState {
             // Make it true by default.
             dispatched_events: true,
             proxy_wake_up: false,
+            extension_events: Vec::new(),
+            globals,
         })
+    }
+
+    pub fn register_linux_dmabuf(&mut self, queue_handle: &QueueHandle<Self>) {
+        if self.linux_dmabuf_manager.is_none() {
+            self.linux_dmabuf_manager = LinuxDmabufManager::new(&self.globals, queue_handle).ok();
+        }
     }
 
     pub fn scale_factor_changed(

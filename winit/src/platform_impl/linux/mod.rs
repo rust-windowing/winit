@@ -7,7 +7,6 @@ use std::env;
 use std::os::unix::io::{AsFd, AsRawFd, BorrowedFd, RawFd};
 use std::time::Duration;
 
-use libc::dev_t;
 pub(crate) use winit_common::xkb::{physicalkey_to_scancode, scancode_to_physicalkey};
 use winit_core::application::ApplicationHandler;
 use winit_core::error::{EventLoopError, NotSupportedError};
@@ -169,15 +168,6 @@ impl EventLoop {
 
     pub fn window_target(&self) -> &dyn ActiveEventLoop {
         x11_or_wayland!(match self; EventLoop(evlp) => evlp.window_target())
-    }
-
-    pub fn main_drm_device(&self) -> Option<dev_t> {
-        match self {
-            #[cfg(wayland_platform)]
-            EventLoop::Wayland(evlp) => evlp.main_drm_device(),
-            #[cfg(x11_platform)]
-            EventLoop::X(_) => None,
-        }
     }
 }
 
