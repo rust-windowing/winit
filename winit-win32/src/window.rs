@@ -1094,7 +1094,7 @@ impl CoreWindow for Window {
     }
 
     fn set_theme(&self, theme: Option<Theme>) {
-        try_theme(self.window.hwnd(), theme);
+        self.window_state_lock().current_theme = try_theme(self.window.hwnd(), theme, true);
     }
 
     fn theme(&self) -> Option<Theme> {
@@ -1191,7 +1191,7 @@ impl InitData<'_> {
         // If the system theme is dark, we need to set the window theme now
         // before we update the window flags (and possibly show the
         // window for the first time).
-        let current_theme = try_theme(window, self.attributes.preferred_theme);
+        let current_theme = try_theme(window, self.attributes.preferred_theme, false);
 
         let window_state = {
             let window_state = WindowState::new(
