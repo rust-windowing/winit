@@ -7,6 +7,7 @@ use std::time::Duration;
 use ahash::HashSet;
 use dpi::{LogicalPosition, LogicalSize, PhysicalPosition, PhysicalSize, Size};
 use sctk::compositor::{CompositorState, Region, SurfaceData, SurfaceDataExt};
+use sctk::globals::GlobalData;
 use sctk::reexports::client::backend::ObjectId;
 use sctk::reexports::client::protocol::wl_seat::WlSeat;
 use sctk::reexports::client::protocol::wl_shm::WlShm;
@@ -27,19 +28,24 @@ use sctk::shm::slot::SlotPool;
 use sctk::shm::Shm;
 use sctk::subcompositor::SubcompositorState;
 use tracing::{info, warn};
+use wayland_protocols::xdg::toplevel_icon::v1::client::xdg_toplevel_icon_manager_v1::XdgToplevelIconManagerV1;
 use wayland_protocols_plasma::blur::client::org_kde_kwin_blur::OrgKdeKwinBlur;
 use winit_core::cursor::{CursorIcon, CustomCursor as CoreCustomCursor};
 use winit_core::error::{NotSupportedError, RequestError};
-use winit_core::window::{CursorGrabMode, ImePurpose, ResizeDirection, Theme, WindowId};
+use winit_core::window::{
+    CursorGrabMode, ImeCapabilities, ImeRequest, ImeRequestError, ResizeDirection, Theme, WindowId,
+};
 
 use crate::event_loop::OwnedDisplayHandle;
 use crate::logical_to_physical_rounded;
 use crate::seat::{
-    PointerConstraintsState, WinitPointerData, WinitPointerDataExt, ZwpTextInputV3Ext,
+    PointerConstraintsState, TextInputClientState, WinitPointerData, WinitPointerDataExt,
+    ZwpTextInputV3Ext,
 };
 use crate::state::{WindowCompositorUpdate, WinitState};
 use crate::types::cursor::{CustomCursor, SelectedCursor, WaylandCustomCursor};
 use crate::types::kwin_blur::KWinBlurManager;
+use crate::types::xdg_toplevel_icon_manager::ToplevelIcon;
 
 #[cfg(feature = "sctk-adwaita")]
 pub type WinitFrame = sctk_adwaita::AdwaitaFrame<WinitState>;
@@ -57,9 +63,6 @@ pub struct WindowState {
 
     /// The `Shm` to set cursor.
     pub shm: WlShm,
-
-    // A shared pool where to allocate custom cursors.
-    custom_cursor_pool: Arc<Mutex<SlotPool>>,
 
     /// The last received configure.
     pub last_configure: Option<WindowConfigure>,
@@ -84,6 +87,15 @@ pub struct WindowState {
     /// The current window title.
     title: String,
 
+    /// Xdg toplevel icon manager to request icon setting.
+    xdg_toplevel_icon_manager: Option<XdgToplevelIconManagerV1>,
+
+    /// The current window toplevel icon
+    toplevel_icon: Option<ToplevelIcon>,
+
+    /// A shared pool where to allocate images (used for window icons and custom cursors)
+    image_pool: Arc<Mutex<SlotPool>>,
+
     /// Whether the frame is resizable.
     resizable: bool,
 
@@ -104,11 +116,11 @@ pub struct WindowState {
     /// The current cursor grabbing mode.
     cursor_grab_mode: GrabState,
 
-    /// Whether the IME input is allowed for that window.
-    ime_allowed: bool,
-
-    /// The current IME purpose.
-    ime_purpose: ImePurpose,
+    /// The input method properties provided by the application to the IME.
+    ///
+    /// This state is cached here so that the window can automatically send the state to the IME as
+    /// soon as it becomes available without application involvement.
+    text_input_state: Option<TextInputClientState>,
 
     /// The text inputs observed on the window.
     text_inputs: Vec<ZwpTextInputV3>,
@@ -180,7 +192,14 @@ impl WindowState {
             .as_ref()
             .map(|fsm| fsm.fractional_scaling(window.wl_surface(), queue_handle));
 
+        let xdg_toplevel_icon_manager = winit_state
+            .xdg_toplevel_icon_manager
+            .as_ref()
+            .map(|toplevel_icon_manager_state| toplevel_icon_manager_state.global().clone());
+
         Self {
+            toplevel_icon: None,
+            xdg_toplevel_icon_manager,
             blur: None,
             blur_manager: winit_state.kwin_blur_manager.clone(),
             compositor,
@@ -195,8 +214,7 @@ impl WindowState {
             frame_callback_state: FrameCallbackState::None,
             seat_focus: Default::default(),
             has_pending_move: None,
-            ime_allowed: false,
-            ime_purpose: ImePurpose::Normal,
+            text_input_state: None,
             last_configure: None,
             max_surface_size: None,
             min_surface_size: MIN_WINDOW_SIZE,
@@ -206,7 +224,7 @@ impl WindowState {
             resizable: true,
             scale_factor: 1.,
             shm: winit_state.shm.wl_shm().clone(),
-            custom_cursor_pool: winit_state.custom_cursor_pool.clone(),
+            image_pool: winit_state.image_pool.clone(),
             size: initial_size.to_logical(1.),
             stateless_size: initial_size.to_logical(1.),
             initial_size: Some(initial_size),
@@ -528,8 +546,12 @@ impl WindowState {
 
     /// Whether the IME is allowed.
     #[inline]
-    pub fn ime_allowed(&self) -> bool {
-        self.ime_allowed
+    pub fn ime_allowed(&self) -> Option<ImeCapabilities> {
+        self.text_input_state.as_ref().map(|state| state.capabilities())
+    }
+
+    pub(crate) fn text_input_state(&self) -> Option<&TextInputClientState> {
+        self.text_input_state.as_ref()
     }
 
     /// Get the size of the window.
@@ -711,7 +733,7 @@ impl WindowState {
         };
 
         let cursor = {
-            let mut pool = self.custom_cursor_pool.lock().unwrap();
+            let mut pool = self.image_pool.lock().unwrap();
             CustomCursor::new(&mut pool, cursor)
         };
 
@@ -967,51 +989,59 @@ impl WindowState {
         self.seat_focus.remove(seat);
     }
 
-    /// Returns `true` if the requested state was applied.
-    pub fn set_ime_allowed(&mut self, allowed: bool) -> bool {
-        self.ime_allowed = allowed;
+    /// Atomically update input method state.
+    ///
+    /// Returns `None` if an input method state haven't changed. Alternatively `Some(true)` and
+    /// `Some(false)` is returned respectfully.
+    pub fn request_ime_update(
+        &mut self,
+        request: ImeRequest,
+    ) -> Result<Option<bool>, ImeRequestError> {
+        let state_change = match request {
+            ImeRequest::Enable(enable) => {
+                let (capabilities, request_data) = enable.into_raw();
 
-        let mut applied = false;
+                if self.text_input_state.is_some() {
+                    return Err(ImeRequestError::AlreadyEnabled);
+                }
+
+                self.text_input_state = Some(TextInputClientState::new(
+                    capabilities,
+                    request_data,
+                    self.scale_factor(),
+                ));
+                true
+            },
+            ImeRequest::Update(request_data) => {
+                let scale_factor = self.scale_factor();
+                if let Some(text_input_state) = self.text_input_state.as_mut() {
+                    text_input_state.update(request_data, scale_factor);
+                } else {
+                    return Err(ImeRequestError::NotEnabled);
+                }
+                false
+            },
+            ImeRequest::Disable => {
+                self.text_input_state = None;
+                true
+            },
+        };
+
+        // Only one input method may be active per (seat, surface),
+        // but there may be multiple seats focused on a surface,
+        // resulting in multiple text input objects.
+        //
+        // WARNING: this doesn't actually handle different seats with independent cursors. There's
+        // no API to set a per-seat input method state, so they all share a single state.
         for text_input in &self.text_inputs {
-            applied = true;
-            if allowed {
-                text_input.enable();
-                text_input.set_content_type_by_purpose(self.ime_purpose);
-            } else {
-                text_input.disable();
-            }
-            text_input.commit();
+            text_input.set_state(self.text_input_state.as_ref(), state_change);
         }
 
-        applied
-    }
-
-    /// Set the IME position.
-    pub fn set_ime_cursor_area(&self, position: LogicalPosition<u32>, size: LogicalSize<u32>) {
-        // FIXME: This won't fly unless user will have a way to request IME window per seat, since
-        // the ime windows will be overlapping, but winit doesn't expose API to specify for
-        // which seat we're setting IME position.
-        let (x, y) = (position.x as i32, position.y as i32);
-        let (width, height) = (size.width as i32, size.height as i32);
-        for text_input in self.text_inputs.iter() {
-            text_input.set_cursor_rectangle(x, y, width, height);
-            text_input.commit();
+        if state_change {
+            Ok(Some(self.text_input_state.is_some()))
+        } else {
+            Ok(None)
         }
-    }
-
-    /// Set the IME purpose.
-    pub fn set_ime_purpose(&mut self, purpose: ImePurpose) {
-        self.ime_purpose = purpose;
-
-        for text_input in &self.text_inputs {
-            text_input.set_content_type_by_purpose(purpose);
-            text_input.commit();
-        }
-    }
-
-    /// Get the IME purpose.
-    pub fn ime_purpose(&self) -> ImePurpose {
-        self.ime_purpose
     }
 
     /// Set the scale factor for the given window.
@@ -1067,6 +1097,45 @@ impl WindowState {
 
         self.window.set_title(&title);
         self.title = title;
+    }
+
+    /// Set the window's icon
+    pub fn set_window_icon(&mut self, window_icon: Option<winit_core::icon::Icon>) {
+        let xdg_toplevel_icon_manager = match self.xdg_toplevel_icon_manager.as_ref() {
+            Some(xdg_toplevel_icon_manager) => xdg_toplevel_icon_manager,
+            None => {
+                warn!("`xdg_toplevel_icon_manager_v1` is not supported");
+                return;
+            },
+        };
+
+        let (toplevel_icon, xdg_toplevel_icon) = match window_icon {
+            Some(icon) => {
+                let mut image_pool = self.image_pool.lock().unwrap();
+                let toplevel_icon = match ToplevelIcon::new(icon, &mut image_pool) {
+                    Ok(toplevel_icon) => toplevel_icon,
+                    Err(error) => {
+                        warn!("Error setting window icon: {error}");
+                        return;
+                    },
+                };
+
+                let xdg_toplevel_icon =
+                    xdg_toplevel_icon_manager.create_icon(&self.queue_handle, GlobalData);
+
+                toplevel_icon.add_buffer(&xdg_toplevel_icon);
+
+                (Some(toplevel_icon), Some(xdg_toplevel_icon))
+            },
+            None => (None, None),
+        };
+
+        xdg_toplevel_icon_manager.set_icon(self.window.xdg_toplevel(), xdg_toplevel_icon.as_ref());
+        self.toplevel_icon = toplevel_icon;
+
+        if let Some(xdg_toplevel_icon) = xdg_toplevel_icon {
+            xdg_toplevel_icon.destroy();
+        }
     }
 
     /// Mark the window as transparent.

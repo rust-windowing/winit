@@ -20,8 +20,9 @@ use winit_core::event::{Ime, WindowEvent};
 use winit_core::event_loop::AsyncRequestSerial;
 use winit_core::monitor::{Fullscreen, MonitorHandle as CoreMonitorHandle};
 use winit_core::window::{
-    CursorGrabMode, ImePurpose, ResizeDirection, Theme, UserAttentionType, Window as CoreWindow,
-    WindowAttributes, WindowButtons, WindowId, WindowLevel,
+    CursorGrabMode, ImeCapabilities, ImeRequest, ImeRequestError, ResizeDirection, Theme,
+    UserAttentionType, Window as CoreWindow, WindowAttributes, WindowButtons, WindowId,
+    WindowLevel,
 };
 
 use super::event_loop::sink::EventSink;
@@ -113,6 +114,8 @@ impl Window {
             window.clone(),
             attributes.preferred_theme,
         );
+
+        window_state.set_window_icon(attributes.window_icon);
 
         // Set transparency hint.
         window_state.set_transparent(attributes.transparent);
@@ -501,33 +504,26 @@ impl CoreWindow for Window {
 
     fn set_window_level(&self, _level: WindowLevel) {}
 
-    fn set_window_icon(&self, _window_icon: Option<winit_core::icon::Icon>) {}
-
-    #[inline]
-    fn set_ime_cursor_area(&self, position: Position, size: Size) {
-        let window_state = self.window_state.lock().unwrap();
-        if window_state.ime_allowed() {
-            let scale_factor = window_state.scale_factor();
-            let position = position.to_logical(scale_factor);
-            let size = size.to_logical(scale_factor);
-            window_state.set_ime_cursor_area(position, size);
-        }
+    fn set_window_icon(&self, window_icon: Option<winit_core::icon::Icon>) {
+        self.window_state.lock().unwrap().set_window_icon(window_icon)
     }
 
     #[inline]
-    fn set_ime_allowed(&self, allowed: bool) {
-        let mut window_state = self.window_state.lock().unwrap();
+    fn request_ime_update(&self, request: ImeRequest) -> Result<(), ImeRequestError> {
+        let state_changed = self.window_state.lock().unwrap().request_ime_update(request)?;
 
-        if window_state.ime_allowed() != allowed && window_state.set_ime_allowed(allowed) {
+        if let Some(allowed) = state_changed {
             let event = WindowEvent::Ime(if allowed { Ime::Enabled } else { Ime::Disabled });
             self.window_events_sink.lock().unwrap().push_window_event(event, self.window_id);
             self.event_loop_awakener.ping();
         }
+
+        Ok(())
     }
 
     #[inline]
-    fn set_ime_purpose(&self, purpose: ImePurpose) {
-        self.window_state.lock().unwrap().set_ime_purpose(purpose);
+    fn ime_capabilities(&self) -> Option<ImeCapabilities> {
+        self.window_state.lock().unwrap().ime_allowed()
     }
 
     fn focus_window(&self) {}

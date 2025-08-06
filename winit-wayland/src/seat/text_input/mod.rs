@@ -1,5 +1,6 @@
 use std::ops::Deref;
 
+use dpi::{LogicalPosition, LogicalSize};
 use sctk::globals::GlobalData;
 use sctk::reexports::client::globals::{BindError, GlobalList};
 use sctk::reexports::client::protocol::wl_surface::WlSurface;
@@ -8,8 +9,9 @@ use sctk::reexports::protocols::wp::text_input::zv3::client::zwp_text_input_mana
 use sctk::reexports::protocols::wp::text_input::zv3::client::zwp_text_input_v3::{
     ContentHint, ContentPurpose, Event as TextInputEvent, ZwpTextInputV3,
 };
+use tracing::warn;
 use winit_core::event::{Ime, WindowEvent};
-use winit_core::window::ImePurpose;
+use winit_core::window::{ImeCapabilities, ImePurpose, ImeRequestData, ImeSurroundingText};
 
 use crate::state::WinitState;
 
@@ -69,10 +71,10 @@ impl Dispatch<ZwpTextInputV3, TextInputData, WinitState> for TextInputState {
                     None => return,
                 };
 
-                if window.ime_allowed() {
-                    text_input.enable();
-                    text_input.set_content_type_by_purpose(window.ime_purpose());
-                    text_input.commit();
+                if let Some(text_input_state) = window.text_input_state() {
+                    text_input.set_state(Some(text_input_state), true);
+                    // The input method doesn't have to reply anything, so a synthetic event
+                    // carrying an empty state notifies the application about its presence.
                     state.events_sink.push_window_event(WindowEvent::Ime(Ime::Enabled), window_id);
                 }
 
@@ -113,11 +115,41 @@ impl Dispatch<ZwpTextInputV3, TextInputData, WinitState> for TextInputState {
                 text_input_data.pending_preedit = None;
                 text_input_data.pending_commit = text;
             },
+            TextInputEvent::DeleteSurroundingText { before_length, after_length } => {
+                text_input_data.pending_delete = Some(DeleteSurroundingText {
+                    before: before_length as usize,
+                    after: after_length as usize,
+                });
+            },
             TextInputEvent::Done { .. } => {
                 let window_id = match text_input_data.surface.as_ref() {
                     Some(surface) => crate::make_wid(surface),
                     None => return,
                 };
+
+                // The events are sent to the user separately, so
+                // CAUTION: events must always arrive in the order compatible with the application
+                // order specified by the text-input-v3 protocol:
+                //
+                // As of version 1:
+                // 1. Replace existing preedit string with the cursor.
+                // 2. Delete requested surrounding text.
+                // 3. Insert commit string with the cursor at its end.
+                // 4. Calculate surrounding text to send.
+                // 5. Insert new preedit text in cursor position.
+                // 6. Place cursor inside preedit text.
+
+                if let Some(DeleteSurroundingText { before, after }) =
+                    text_input_data.pending_delete
+                {
+                    state.events_sink.push_window_event(
+                        WindowEvent::Ime(Ime::DeleteSurrounding {
+                            before_bytes: before,
+                            after_bytes: after,
+                        }),
+                        window_id,
+                    );
+                }
 
                 // Clear preedit, unless all we'll be doing next is sending a new preedit.
                 if text_input_data.pending_commit.is_some()
@@ -147,26 +179,54 @@ impl Dispatch<ZwpTextInputV3, TextInputData, WinitState> for TextInputState {
                     );
                 }
             },
-            TextInputEvent::DeleteSurroundingText { .. } => {
-                // Not handled.
-            },
             _ => {},
         }
     }
 }
 
 pub trait ZwpTextInputV3Ext {
-    fn set_content_type_by_purpose(&self, purpose: ImePurpose);
+    /// Applies the entire state atomically to the input method. It will skip the "enable" request
+    /// if `already_enabled` is `true`.
+    fn set_state(&self, state: Option<&ClientState>, send_enable: bool);
 }
 
 impl ZwpTextInputV3Ext for ZwpTextInputV3 {
-    fn set_content_type_by_purpose(&self, purpose: ImePurpose) {
-        let (hint, purpose) = match purpose {
-            ImePurpose::Password => (ContentHint::SensitiveData, ContentPurpose::Password),
-            ImePurpose::Terminal => (ContentHint::None, ContentPurpose::Terminal),
-            _ => (ContentHint::None, ContentPurpose::Normal),
+    fn set_state(&self, state: Option<&ClientState>, send_enable: bool) {
+        let state = match state {
+            Some(state) => state,
+            None => {
+                self.disable();
+                self.commit();
+                return;
+            },
         };
-        self.set_content_type(hint, purpose);
+
+        if send_enable {
+            self.enable();
+        }
+
+        if let Some(content_type) = state.content_type() {
+            self.set_content_type(content_type.hint, content_type.purpose);
+        }
+
+        if let Some((position, size)) = state.cursor_area() {
+            let (x, y) = (position.x as i32, position.y as i32);
+            let (width, height) = (size.width as i32, size.height as i32);
+            // The same cursor can be applied on different seats.
+            // It's the compositor's responsibility to make sure that any present popups don't
+            // overlap.
+            self.set_cursor_rectangle(x, y, width, height);
+        }
+
+        if let Some(surrounding) = state.surrounding_text() {
+            self.set_surrounding_text(
+                surrounding.text().into(),
+                surrounding.cursor() as i32,
+                surrounding.anchor() as i32,
+            );
+        }
+
+        self.commit();
     }
 }
 
@@ -186,13 +246,146 @@ pub struct TextInputDataInner {
 
     /// The preedit to submit on `done`.
     pending_preedit: Option<Preedit>,
+
+    /// The text around the cursor to delete on `done`
+    pending_delete: Option<DeleteSurroundingText>,
 }
 
 /// The state of the preedit.
+#[derive(Clone)]
 struct Preedit {
     text: String,
     cursor_begin: Option<usize>,
     cursor_end: Option<usize>,
+}
+
+/// The delete request
+#[derive(Clone)]
+struct DeleteSurroundingText {
+    /// Bytes before cursor
+    before: usize,
+    /// Bytes after cursor
+    after: usize,
+}
+
+/// State change requested by the application.
+///
+/// This is a version that uses text_input abstractions translated from the ones used in
+/// winit::core::window::ImeStateChange.
+///
+/// Fields that are initially set to None are unsupported capabilities
+/// and trying to set them raises an error.
+#[derive(Debug, PartialEq, Clone)]
+pub struct ClientState {
+    capabilities: ImeCapabilities,
+
+    content_type: ContentType,
+
+    /// The IME cursor area which should not be covered by the input method popup.
+    cursor_area: (LogicalPosition<u32>, LogicalSize<u32>),
+
+    /// The `ImeSurroundingText` struct is based on the Wayland model.
+    /// When this changes, another struct might be needed.
+    surrounding_text: ImeSurroundingText,
+}
+
+impl ClientState {
+    pub fn new(
+        capabilities: ImeCapabilities,
+        request_data: ImeRequestData,
+        scale_factor: f64,
+    ) -> Self {
+        let mut this = Self {
+            capabilities,
+            content_type: Default::default(),
+            cursor_area: Default::default(),
+            surrounding_text: ImeSurroundingText::new(String::new(), 0, 0).unwrap(),
+        };
+
+        let unsupported_flags =
+            capabilities.without_purpose().without_cursor_area().without_surrounding_text();
+
+        if unsupported_flags != ImeCapabilities::new() {
+            warn!(
+                "Backend doesn't support all requested IME capabilities: {:?}.\n Ignoring.",
+                unsupported_flags
+            );
+        }
+
+        this.update(request_data, scale_factor);
+        this
+    }
+
+    pub fn capabilities(&self) -> ImeCapabilities {
+        self.capabilities
+    }
+
+    /// Updates the fields of the state which are present in update_fields.
+    pub fn update(&mut self, request_data: ImeRequestData, scale_factor: f64) {
+        if let Some(purpose) = request_data.purpose {
+            if self.capabilities.purpose() {
+                self.content_type = purpose.into();
+            } else {
+                warn!("discarding ImePurpose update without capability enabled.");
+            }
+        }
+
+        if let Some((position, size)) = request_data.cursor_area {
+            if self.capabilities.cursor_area() {
+                let position: LogicalPosition<u32> = position.to_logical(scale_factor);
+                let size: LogicalSize<u32> = size.to_logical(scale_factor);
+                self.cursor_area = (position, size);
+            } else {
+                warn!("discarding IME cursor area update without capability enabled.");
+            }
+        }
+
+        if let Some(surrounding) = request_data.surrounding_text {
+            if self.capabilities.surrounding_text() {
+                self.surrounding_text = surrounding;
+            } else {
+                warn!("discarding IME surrounding text update without capability enabled.");
+            }
+        }
+    }
+
+    pub fn content_type(&self) -> Option<ContentType> {
+        self.capabilities.purpose().then_some(self.content_type)
+    }
+
+    pub fn cursor_area(&self) -> Option<(LogicalPosition<u32>, LogicalSize<u32>)> {
+        self.capabilities.cursor_area().then_some(self.cursor_area)
+    }
+
+    pub fn surrounding_text(&self) -> Option<&ImeSurroundingText> {
+        self.capabilities.surrounding_text().then_some(&self.surrounding_text)
+    }
+}
+
+/// Arguments to content_type
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ContentType {
+    /// Text input purpose
+    purpose: ContentPurpose,
+    hint: ContentHint,
+}
+
+impl From<ImePurpose> for ContentType {
+    fn from(purpose: ImePurpose) -> Self {
+        let (hint, purpose) = match purpose {
+            ImePurpose::Password => (ContentHint::SensitiveData, ContentPurpose::Password),
+            ImePurpose::Terminal => (ContentHint::None, ContentPurpose::Terminal),
+            _ => return Default::default(),
+        };
+
+        Self { hint, purpose }
+    }
+}
+
+impl Default for ContentType {
+    fn default() -> Self {
+        ContentType { purpose: ContentPurpose::Normal, hint: ContentHint::None }
+    }
 }
 
 delegate_dispatch!(WinitState: [ZwpTextInputManagerV3: GlobalData] => TextInputState);

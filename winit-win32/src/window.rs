@@ -51,8 +51,9 @@ use winit_core::error::RequestError;
 use winit_core::icon::{Icon, RgbaIcon};
 use winit_core::monitor::{Fullscreen, MonitorHandle as CoreMonitorHandle, MonitorHandleProvider};
 use winit_core::window::{
-    CursorGrabMode, ImePurpose, ResizeDirection, Theme, UserAttentionType, Window as CoreWindow,
-    WindowAttributes, WindowButtons, WindowId, WindowLevel,
+    CursorGrabMode, ImeCapabilities, ImeRequest, ImeRequestError, ResizeDirection, Theme,
+    UserAttentionType, Window as CoreWindow, WindowAttributes, WindowButtons, WindowId,
+    WindowLevel,
 };
 
 use crate::dark_mode::try_theme;
@@ -1013,25 +1014,63 @@ impl CoreWindow for Window {
         }
     }
 
-    fn set_ime_cursor_area(&self, spot: Position, size: Size) {
+    fn ime_capabilities(&self) -> Option<ImeCapabilities> {
+        self.window_state.lock().unwrap().ime_capabilities
+    }
+
+    fn request_ime_update(&self, request: ImeRequest) -> Result<(), ImeRequestError> {
+        // NOTE: this is racy way of doing this, but unless we remove the `Send` from the `Window`
+        // we can not do much about that.
+        let cap = self.window_state.lock().unwrap().ime_capabilities;
+        match &request {
+            ImeRequest::Enable(..) if cap.is_some() => return Err(ImeRequestError::AlreadyEnabled),
+            ImeRequest::Update(_) if cap.is_none() => return Err(ImeRequestError::NotEnabled),
+            _ => (),
+        }
+
         let window = self.window;
         let state = self.window_state.clone();
         self.thread_executor.execute_in_thread(move || unsafe {
-            let scale_factor = state.lock().unwrap().scale_factor;
-            ImeContext::current(window.hwnd()).set_ime_cursor_area(spot, size, scale_factor);
+            let hwnd = window.hwnd();
+            let mut state = state.lock().unwrap();
+            let (capabilities, request_data) = match &request {
+                ImeRequest::Enable(enable) => {
+                    let capabilities = *enable.capabilities();
+                    state.ime_capabilities = Some(capabilities);
+                    ImeContext::set_ime_allowed(hwnd, true);
+                    (capabilities, enable.request_data())
+                },
+                ImeRequest::Update(request_data) => {
+                    if let Some(capabilities) = state.ime_capabilities {
+                        (capabilities, request_data)
+                    } else {
+                        warn!("ime update without IME enabled.");
+                        return;
+                    }
+                },
+                ImeRequest::Disable => {
+                    state.ime_capabilities = None;
+                    ImeContext::set_ime_allowed(window.hwnd(), false);
+                    return;
+                },
+            };
+
+            if let Some((spot, size)) = request_data.cursor_area {
+                if capabilities.cursor_area() {
+                    let scale_factor = state.scale_factor;
+                    ImeContext::current(window.hwnd()).set_ime_cursor_area(
+                        spot,
+                        size,
+                        scale_factor,
+                    );
+                } else {
+                    warn!("discarding IME cursor area update without capability enabled.");
+                }
+            }
         });
-    }
 
-    fn set_ime_allowed(&self, allowed: bool) {
-        let window = self.window;
-        let state = self.window_state.clone();
-        self.thread_executor.execute_in_thread(move || unsafe {
-            state.lock().unwrap().ime_allowed = allowed;
-            ImeContext::set_ime_allowed(window.hwnd(), allowed);
-        })
+        Ok(())
     }
-
-    fn set_ime_purpose(&self, _purpose: ImePurpose) {}
 
     fn request_user_attention(&self, request_type: Option<UserAttentionType>) {
         let window = self.window;

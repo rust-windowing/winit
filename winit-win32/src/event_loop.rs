@@ -1424,7 +1424,7 @@ unsafe fn public_window_callback_inner(
         },
 
         WM_IME_STARTCOMPOSITION => {
-            let ime_allowed = userdata.window_state_lock().ime_allowed;
+            let ime_allowed = userdata.window_state_lock().ime_capabilities.is_some();
             if ime_allowed {
                 userdata.window_state_lock().ime_state = ImeState::Enabled;
 
@@ -1437,7 +1437,7 @@ unsafe fn public_window_callback_inner(
         WM_IME_COMPOSITION => {
             let ime_allowed_and_composing = {
                 let w = userdata.window_state_lock();
-                w.ime_allowed && w.ime_state != ImeState::Disabled
+                w.ime_capabilities.is_some() && w.ime_state != ImeState::Disabled
             };
             // Windows Hangul IME sends WM_IME_COMPOSITION after WM_IME_ENDCOMPOSITION, so
             // check whether composing.
@@ -1488,7 +1488,7 @@ unsafe fn public_window_callback_inner(
         WM_IME_ENDCOMPOSITION => {
             let ime_allowed_or_composing = {
                 let w = userdata.window_state_lock();
-                w.ime_allowed || w.ime_state != ImeState::Disabled
+                w.ime_capabilities.is_some() || w.ime_state != ImeState::Disabled
             };
             if ime_allowed_or_composing {
                 if userdata.window_state_lock().ime_state == ImeState::Preedit {

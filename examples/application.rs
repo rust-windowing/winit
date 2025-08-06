@@ -7,14 +7,19 @@ use std::fmt::Debug;
 use std::num::NonZeroU32;
 use std::sync::mpsc::{self, Receiver, Sender};
 use std::sync::Arc;
-use std::{fmt, mem};
+#[cfg(all(not(android_platform), not(web_platform)))]
+use std::time::Instant;
+use std::{cmp, fmt, mem};
 
 use ::tracing::{error, info};
 use cursor_icon::CursorIcon;
+use dpi::LogicalPosition;
 #[cfg(not(android_platform))]
 use rwh_06::{DisplayHandle, HasDisplayHandle};
 #[cfg(not(android_platform))]
 use softbuffer::{Context, Surface};
+#[cfg(all(web_platform, not(android_platform)))]
+use web_time::Instant;
 use winit::application::ApplicationHandler;
 use winit::cursor::{Cursor, CustomCursor, CustomCursorSource};
 use winit::dpi::{LogicalSize, PhysicalPosition, PhysicalSize};
@@ -34,8 +39,12 @@ use winit::platform::wayland::{ActiveEventLoopExtWayland, WindowAttributesWaylan
 use winit::platform::web::{ActiveEventLoopExtWeb, WindowAttributesWeb};
 #[cfg(x11_platform)]
 use winit::platform::x11::{ActiveEventLoopExtX11, WindowAttributesX11};
-use winit::window::{CursorGrabMode, ResizeDirection, Theme, Window, WindowAttributes, WindowId};
+use winit::window::{
+    CursorGrabMode, ImeCapabilities, ImeEnableRequest, ImePurpose, ImeRequestData,
+    ImeSurroundingText, ResizeDirection, Theme, Window, WindowAttributes, WindowId,
+};
 use winit_core::application::macos::ApplicationHandlerExtMacOS;
+use winit_core::window::ImeRequest;
 
 #[path = "util/tracing.rs"]
 mod tracing;
@@ -45,6 +54,7 @@ mod fill;
 
 /// The amount of points to around the window for drag resize direction calculations.
 const BORDER_SIZE: f64 = 20.;
+const IME_CURSOR_SIZE: PhysicalSize<u32> = PhysicalSize::new(20, 20);
 
 fn main() -> Result<(), Box<dyn Error>> {
     #[cfg(web_platform)]
@@ -508,7 +518,32 @@ impl ApplicationHandler for Application {
                     info!("Preedit: {}, with caret at {:?}", text, caret_pos);
                 },
                 Ime::Commit(text) => {
+                    window.text_field_contents.0.push_str(&text);
+                    window.text_field_contents.1 += text.len();
+
                     info!("Committed: {}", text);
+                    let request_data = window.get_ime_update();
+                    window.window.request_ime_update(ImeRequest::Update(request_data)).unwrap();
+                },
+                Ime::DeleteSurrounding { before_bytes, after_bytes } => {
+                    let (text, cursor) = &window.text_field_contents;
+
+                    // To anyone copying this, keep in mind that this doesn't take text selection
+                    // into account. The deletion happens *around* the pre-edit,
+                    // and may remove the whole selection or a part of it.
+                    let delete_start = cursor.saturating_sub(before_bytes);
+                    let delete_end = cmp::min(cursor.saturating_add(after_bytes), text.len());
+                    if text.is_char_boundary(delete_start) && text.is_char_boundary(delete_end) {
+                        let new_text = {
+                            let mut t = String::from(&text[..delete_start]);
+                            t.push_str(&text[delete_end..]);
+                            t
+                        };
+                        window.text_field_contents = (new_text, delete_start);
+                        info!("IME deleted bytes: {before_bytes}, {after_bytes}");
+                    } else {
+                        error!("Buggy IME tried to delete with indices not on char boundary.");
+                    }
                 },
                 Ime::Disabled => info!("IME disabled for Window={window_id:?}"),
             },
@@ -600,8 +635,10 @@ impl ApplicationHandlerExtMacOS for Application {
 
 /// State of the window.
 struct WindowState {
-    /// IME input.
-    ime: bool,
+    ime_enabled: bool,
+    /// The contents of the emulated text field for IME purposes (not displayed).
+    /// (text, cursor position in bytes).
+    text_field_contents: (String, usize),
     /// Render surface.
     ///
     /// NOTE: This surface must be dropped before the `Window`.
@@ -615,7 +652,7 @@ struct WindowState {
     animated_fill_color: bool,
     /// The application start time. Used for color fill animation
     #[cfg(not(android_platform))]
-    start_time: std::time::Instant,
+    start_time: Instant,
     /// Redraw continuously
     continuous_redraw: bool,
     /// Cursor position over the window.
@@ -657,8 +694,19 @@ impl WindowState {
         window.set_cursor(CURSORS[named_idx].into());
 
         // Allow IME out of the box.
-        let ime = true;
-        window.set_ime_allowed(ime);
+        let request_data = ImeRequestData::default()
+            .with_purpose(ImePurpose::Normal)
+            .with_cursor_area(LogicalPosition { x: 0, y: 0 }.into(), IME_CURSOR_SIZE.into())
+            .with_surrounding_text(ImeSurroundingText::new(String::new(), 0, 0).unwrap());
+        let enable_request = ImeEnableRequest::new(
+            ImeCapabilities::new().with_purpose().with_cursor_area().with_surrounding_text(),
+            request_data,
+        )
+        .unwrap();
+        let enable_ime = ImeRequest::Enable(enable_request);
+
+        // Initial update
+        window.request_ime_update(enable_ime).unwrap();
 
         let size = window.surface_size();
         let mut state = Self {
@@ -674,8 +722,9 @@ impl WindowState {
             animated_fill_color: false,
             continuous_redraw: false,
             #[cfg(not(android_platform))]
-            start_time: std::time::Instant::now(),
-            ime,
+            start_time: Instant::now(),
+            ime_enabled: true,
+            text_field_contents: (String::new(), 0),
             cursor_position: Default::default(),
             cursor_hidden: Default::default(),
             modifiers: Default::default(),
@@ -689,12 +738,48 @@ impl WindowState {
         Ok(state)
     }
 
+    pub fn get_ime_update(&self) -> ImeRequestData {
+        let (text, cursor) = &self.text_field_contents;
+        // A rudimentary text field emulation: the caret moves right by a constant amount for each
+        // code point.
+
+        let text_before_caret = if text.is_char_boundary(*cursor) { &text[..*cursor] } else { "" };
+        let chars_before_caret = text_before_caret.chars().count();
+        let cursor_pos = LogicalPosition { x: 10 * chars_before_caret as u32, y: 0 }.into();
+
+        // Limit text field size
+        const MAX_BYTES: usize = ImeSurroundingText::MAX_TEXT_BYTES;
+        let minimal_offset = cursor / MAX_BYTES * MAX_BYTES;
+        let first_char_boundary =
+            (minimal_offset..*cursor).find(|off| text.is_char_boundary(*off)).unwrap_or(*cursor);
+        let last_char_boundary = (*cursor..(first_char_boundary + MAX_BYTES))
+            .rev()
+            .find(|off| text.is_char_boundary(*off))
+            .unwrap_or(*cursor);
+        let surrounding_text = &text[first_char_boundary..last_char_boundary];
+        let relative_cursor = cursor - first_char_boundary;
+        let surrounding_text =
+            ImeSurroundingText::new(surrounding_text.into(), relative_cursor, relative_cursor)
+                .expect("Bug in example: bad byte calculations");
+        ImeRequestData::default()
+            .with_purpose(ImePurpose::Normal)
+            .with_cursor_area(cursor_pos, IME_CURSOR_SIZE.into())
+            .with_surrounding_text(surrounding_text)
+    }
+
     pub fn toggle_ime(&mut self) {
-        self.ime = !self.ime;
-        self.window.set_ime_allowed(self.ime);
-        if let Some(position) = self.ime.then_some(self.cursor_position).flatten() {
-            self.window.set_ime_cursor_area(position.into(), PhysicalSize::new(20, 20).into());
-        }
+        if self.ime_enabled {
+            self.window.request_ime_update(ImeRequest::Disable).expect("disable can not fail");
+        } else {
+            let enable_request = ImeEnableRequest::new(
+                ImeCapabilities::new().with_purpose().with_cursor_area().with_surrounding_text(),
+                self.get_ime_update(),
+            )
+            .unwrap();
+            self.window.request_ime_update(ImeRequest::Enable(enable_request)).unwrap();
+        };
+
+        self.ime_enabled = !self.ime_enabled;
     }
 
     pub fn minimize(&mut self) {
@@ -702,9 +787,15 @@ impl WindowState {
     }
 
     pub fn cursor_moved(&mut self, position: PhysicalPosition<f64>) {
+        // the IME really cares about the caret,
+        // but there's nothing else to demonstrate a position
         self.cursor_position = Some(position);
-        if self.ime {
-            self.window.set_ime_cursor_area(position.into(), PhysicalSize::new(20, 20).into());
+        if self.ime_enabled {
+            let request_data =
+                ImeRequestData::default().with_cursor_area(position.into(), IME_CURSOR_SIZE.into());
+            self.window
+                .request_ime_update(ImeRequest::Update(request_data))
+                .expect("A capability was not initially declared");
         }
     }
 

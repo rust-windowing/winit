@@ -14,13 +14,13 @@
 /winit-wayland                      @kchibisov
 
 # X11
-/winit-x11                          @kchibisov @notgull
+/winit-x11                          @kchibisov
 
 # Web
 /winit-web                          @daxpedda
 
-# Windows (Win32)
-/winit-win32                        @notgull
+# Windows (Win32) (UNOWNED)
+#/winit-win32                       
 
 # Orbital (Redox OS)
 /winit-orbital                      @jackpot51
