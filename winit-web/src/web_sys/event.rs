@@ -56,17 +56,19 @@ pub fn mouse_button(event: &MouseEvent) -> Option<MouseButton> {
     event.button().try_into().ok().map(MouseButton)
 }
 
-impl From<MouseButton> for winit_core::event::MouseButton {
+impl From<MouseButton> for winit_core::event::ButtonSource {
     fn from(button: MouseButton) -> Self {
-        use winit_core::event::MouseButton as MB;
+        use winit_core::event::{ButtonSource, MouseButton as MB};
 
         match button.0 {
-            0 => MB::Left,
-            1 => MB::Middle,
-            2 => MB::Right,
-            3 => MB::Back,
-            4 => MB::Forward,
-            i => MB::Other(i),
+            0 => MB::Left.into(),
+            1 => MB::Middle.into(),
+            2 => MB::Right.into(),
+            3 => MB::Back.into(),
+            4 => MB::Forward.into(),
+            // Codes above 4 are not observed on Firefox or Chromium. 5 is defined as an eraser,
+            // which is not a mouse button. No other codes are defined.
+            i => ButtonSource::Unknown(i),
         }
     }
 }
