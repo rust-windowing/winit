@@ -214,17 +214,17 @@ impl EventState {
     ) -> Option<(event::MouseButton, event::ElementState)> {
         if self.mouse.contains(MouseButtonState::LEFT) != left {
             self.mouse.set(MouseButtonState::LEFT, left);
-            return Some((event::MouseButton::Left, element_state(left)));
+            return Some((event::MouseButton::LEFT, element_state(left)));
         }
 
         if self.mouse.contains(MouseButtonState::MIDDLE) != middle {
             self.mouse.set(MouseButtonState::MIDDLE, middle);
-            return Some((event::MouseButton::Middle, element_state(middle)));
+            return Some((event::MouseButton::MIDDLE, element_state(middle)));
         }
 
         if self.mouse.contains(MouseButtonState::RIGHT) != right {
             self.mouse.set(MouseButtonState::RIGHT, right);
-            return Some((event::MouseButton::Right, element_state(right)));
+            return Some((event::MouseButton::RIGHT, element_state(right)));
         }
 
         None

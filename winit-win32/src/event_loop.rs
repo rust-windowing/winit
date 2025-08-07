@@ -1695,9 +1695,9 @@ unsafe fn public_window_callback_inner(
                 state: Pressed,
                 position,
                 button: match msg {
-                    WM_LBUTTONDOWN => MouseButton::Left,
-                    WM_RBUTTONDOWN => MouseButton::Right,
-                    WM_MBUTTONDOWN => MouseButton::Middle,
+                    WM_LBUTTONDOWN => MouseButton::LEFT,
+                    WM_RBUTTONDOWN => MouseButton::RIGHT,
+                    WM_MBUTTONDOWN => MouseButton::MIDDLE,
                     _ => unreachable!(),
                 }
                 .into(),
@@ -1724,9 +1724,9 @@ unsafe fn public_window_callback_inner(
                 state: Released,
                 position,
                 button: match msg {
-                    WM_LBUTTONUP => MouseButton::Left,
-                    WM_RBUTTONUP => MouseButton::Right,
-                    WM_MBUTTONUP => MouseButton::Middle,
+                    WM_LBUTTONUP => MouseButton::LEFT,
+                    WM_RBUTTONUP => MouseButton::RIGHT,
+                    WM_MBUTTONUP => MouseButton::MIDDLE,
                     _ => unreachable!(),
                 }
                 .into(),
@@ -1736,7 +1736,7 @@ unsafe fn public_window_callback_inner(
 
         WM_XBUTTONDOWN => {
             use winit_core::event::ElementState::Pressed;
-            use winit_core::event::MouseButton::{Back, Forward, Other};
+            use winit_core::event::MouseButton;
             use winit_core::event::WindowEvent::PointerButton;
             let xbutton = util::get_xbutton_wparam(wparam as u32);
 
@@ -1753,20 +1753,17 @@ unsafe fn public_window_callback_inner(
                 primary: true,
                 state: Pressed,
                 position,
-                button: match xbutton {
-                    1 => Back,
-                    2 => Forward,
-                    _ => Other(xbutton),
-                }
-                .into(),
+                // 1 is defined as back, 2 as forward; other codes are unexpected.
+                button: MouseButton(xbutton as u8 + MouseButton::BACK.0 - 1).into(),
             });
             result = ProcResult::Value(0);
         },
 
         WM_XBUTTONUP => {
             use winit_core::event::ElementState::Released;
-            use winit_core::event::MouseButton::{Back, Forward, Other};
+            use winit_core::event::MouseButton;
             use winit_core::event::WindowEvent::PointerButton;
+
             let xbutton = util::get_xbutton_wparam(wparam as u32);
 
             unsafe { release_mouse(userdata.window_state_lock()) };
@@ -1782,12 +1779,8 @@ unsafe fn public_window_callback_inner(
                 primary: true,
                 state: Released,
                 position,
-                button: match xbutton {
-                    1 => Back,
-                    2 => Forward,
-                    _ => Other(xbutton),
-                }
-                .into(),
+                // 1 is defined as back, 2 as forward; other codes are unexpected.
+                button: MouseButton(xbutton as u8 + MouseButton::BACK.0 - 1).into(),
             });
             result = ProcResult::Value(0);
         },

@@ -527,8 +527,8 @@ impl ButtonSource {
     pub fn mouse_button(self) -> MouseButton {
         match self {
             ButtonSource::Mouse(mouse) => mouse,
-            ButtonSource::Touch { .. } => MouseButton::Left,
-            ButtonSource::Unknown(code) => MouseButton::Other(code),
+            ButtonSource::Touch { .. } => MouseButton::LEFT,
+            ButtonSource::Unknown(_) => MouseButton::UNKNOWN,
         }
     }
 }
@@ -1037,21 +1037,58 @@ impl ElementState {
     }
 }
 
-/// Describes a button of a mouse controller.
+/// Identifies a mouse button or similar.
 ///
 /// ## Platform-specific
 ///
-/// **macOS:** `Back` and `Forward` might not work with all hardware.
-/// **Orbital:** `Back` and `Forward` are unsupported due to orbital not supporting them.
+/// The first three buttons should be supported on all platforms.
+/// [`Self::BACK`] and [`Self::FORWARD`] are supported on most platforms
+/// (when using a compatible mouse).
+///
+/// - **Android, iOS:** Currently not supported.
+/// - **Orbital:** Only left/right/middle buttons are supported at this time.
+/// - **Web, Windows:** Supports left/right/middle/back/forward buttons.
+/// - **Wayland:** Supports buttons 0..=15.
+/// - **macOS:** Supports buttons 0..=31.
+/// - **X11:** Supports buttons 0..=250.
 #[derive(Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub enum MouseButton {
-    Left,
-    Right,
-    Middle,
-    Back,
-    Forward,
-    Other(u16),
+pub struct MouseButton(pub u8);
+
+impl MouseButton {
+    /// True if this is the primary ("left") button
+    pub fn is_primary(self) -> bool {
+        self == Self::LEFT
+    }
+
+    /// True if this is the secondary ("right") button
+    pub fn is_secondary(self) -> bool {
+        self == Self::RIGHT
+    }
+
+    /// True if this is the tertiary ("middle") button
+    pub fn is_tertiary(self) -> bool {
+        self == Self::MIDDLE
+    }
+
+    /// The primary (usually left) button
+    pub const LEFT: MouseButton = MouseButton(0);
+
+    /// The secondary (usually right) button
+    pub const RIGHT: MouseButton = MouseButton(1);
+
+    /// The tertiary (usually middle) button
+    pub const MIDDLE: MouseButton = MouseButton(2);
+
+    /// The first side button, frequently assigned a back function
+    pub const BACK: MouseButton = MouseButton(3);
+
+    /// The second side button, frequently assigned a forward function
+    pub const FORWARD: MouseButton = MouseButton(4);
+
+    /// Special code: unknown. No platform should produce this, but it may be returned by
+    /// [`ButtonSource::mouse_button`].
+    pub const UNKNOWN: MouseButton = MouseButton(0xff);
 }
 
 /// Describes a difference in the mouse scroll wheel state.
@@ -1184,7 +1221,7 @@ mod tests {
                 primary: true,
                 state: event::ElementState::Pressed,
                 position: (0, 0).into(),
-                button: event::MouseButton::Other(0).into(),
+                button: event::MouseButton::UNKNOWN.into(),
             });
             with_window_event(PointerButton {
                 device_id: None,
@@ -1266,7 +1303,7 @@ mod tests {
         set2.insert(fid);
 
         HashSet::new().insert(event::TouchPhase::Started.clone());
-        HashSet::new().insert(event::MouseButton::Left.clone());
+        HashSet::new().insert(event::MouseButton::LEFT.clone());
         HashSet::new().insert(event::Ime::Enabled);
 
         let _ = event::Force::Calibrated { force: 0.0, max_possible_force: 0.0 }.clone();
