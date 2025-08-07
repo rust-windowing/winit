@@ -5,7 +5,7 @@ use smol_str::SmolStr;
 use wasm_bindgen::prelude::wasm_bindgen;
 use wasm_bindgen::{JsCast, JsValue};
 use web_sys::{KeyboardEvent, MouseEvent, Navigator, PointerEvent, WheelEvent};
-use winit_core::event::{FingerId, MouseButton, MouseScrollDelta, PointerKind};
+use winit_core::event::{FingerId, MouseScrollDelta, PointerKind};
 use winit_core::keyboard::{
     Key, KeyCode, KeyLocation, ModifiersState, NamedKey, NativeKey, NativeKeyCode, PhysicalKey,
 };
@@ -24,59 +24,50 @@ bitflags::bitflags! {
     }
 }
 
-impl From<ButtonsState> for MouseButton {
-    fn from(value: ButtonsState) -> Self {
-        match value {
-            ButtonsState::LEFT => MouseButton::Left,
-            ButtonsState::RIGHT => MouseButton::Right,
-            ButtonsState::MIDDLE => MouseButton::Middle,
-            ButtonsState::BACK => MouseButton::Back,
-            ButtonsState::FORWARD => MouseButton::Forward,
-            _ => MouseButton::Other(value.bits()),
-        }
-    }
-}
-
-impl From<MouseButton> for ButtonsState {
-    fn from(value: MouseButton) -> Self {
-        match value {
-            MouseButton::Left => ButtonsState::LEFT,
-            MouseButton::Right => ButtonsState::RIGHT,
-            MouseButton::Middle => ButtonsState::MIDDLE,
-            MouseButton::Back => ButtonsState::BACK,
-            MouseButton::Forward => ButtonsState::FORWARD,
-            MouseButton::Other(value) => ButtonsState::from_bits_retain(value),
-        }
-    }
-}
-
 pub fn mouse_buttons(event: &MouseEvent) -> ButtonsState {
     ButtonsState::from_bits_retain(event.buttons())
 }
 
-pub fn mouse_button(event: &MouseEvent) -> Option<MouseButton> {
-    // https://www.w3.org/TR/pointerevents3/#the-button-property
-    match event.button() {
-        -1 => None,
-        0 => Some(MouseButton::Left),
-        1 => Some(MouseButton::Middle),
-        2 => Some(MouseButton::Right),
-        3 => Some(MouseButton::Back),
-        4 => Some(MouseButton::Forward),
-        i => {
-            Some(MouseButton::Other(i.try_into().expect("unexpected negative mouse button value")))
-        },
+// https://www.w3.org/TR/pointerevents3/#the-button-property
+#[derive(Clone, Copy)]
+pub struct MouseButton(u16);
+
+impl MouseButton {
+    // raw code
+    pub fn raw(self) -> u16 {
+        self.0
+    }
+
+    // Map known buttons to [`ButtonsState`], unknown to an empty state
+    pub fn state(self) -> ButtonsState {
+        match self.0 {
+            0 => ButtonsState::LEFT,
+            1 => ButtonsState::MIDDLE,
+            2 => ButtonsState::RIGHT,
+            3 => ButtonsState::BACK,
+            4 => ButtonsState::FORWARD,
+            _ => ButtonsState::empty(),
+        }
     }
 }
 
-pub fn mouse_button_to_id(button: MouseButton) -> u16 {
-    match button {
-        MouseButton::Left => 0,
-        MouseButton::Right => 1,
-        MouseButton::Middle => 2,
-        MouseButton::Back => 3,
-        MouseButton::Forward => 4,
-        MouseButton::Other(value) => value,
+pub fn mouse_button(event: &MouseEvent) -> Option<MouseButton> {
+    // NOTE: any negative value gets mapped to `None`, though only -1 is documented
+    event.button().try_into().ok().map(MouseButton)
+}
+
+impl From<MouseButton> for winit_core::event::MouseButton {
+    fn from(button: MouseButton) -> Self {
+        use winit_core::event::MouseButton as MB;
+
+        match button.0 {
+            0 => MB::Left,
+            1 => MB::Middle,
+            2 => MB::Right,
+            3 => MB::Back,
+            4 => MB::Forward,
+            i => MB::Other(i),
+        }
     }
 }
 
