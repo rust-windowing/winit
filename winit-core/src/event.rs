@@ -1,4 +1,5 @@
 //! The event enums and assorted supporting types.
+use core::fmt;
 use std::path::PathBuf;
 use std::sync::{Mutex, Weak};
 
@@ -1051,7 +1052,7 @@ impl ElementState {
 /// - **Wayland:** Supports buttons 0..=15.
 /// - **macOS:** Supports buttons 0..=31.
 /// - **X11:** Supports buttons 0..=250.
-#[derive(Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]
+#[derive(Hash, PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct MouseButton(pub u8);
 
@@ -1089,6 +1090,20 @@ impl MouseButton {
     /// Special code: unknown. No platform should produce this, but it may be returned by
     /// [`ButtonSource::mouse_button`].
     pub const UNKNOWN: MouseButton = MouseButton(0xff);
+}
+
+impl fmt::Debug for MouseButton {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("MouseButton")?;
+        match *self {
+            MouseButton::LEFT => f.write_str("::LEFT"),
+            MouseButton::RIGHT => f.write_str("::RIGHT"),
+            MouseButton::MIDDLE => f.write_str("::MIDDLE"),
+            MouseButton::BACK => f.write_str("::BACK"),
+            MouseButton::FORWARD => f.write_str("::FORWARD"),
+            x => write!(f, "({})", x.0),
+        }
+    }
 }
 
 /// Describes a difference in the mouse scroll wheel state.
