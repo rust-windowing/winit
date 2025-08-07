@@ -1035,13 +1035,15 @@ impl EventProcessor {
                 position,
                 button: MouseButton::Forward.into(),
             },
-            x => WindowEvent::PointerButton {
+            x @ 10..=0xffff => WindowEvent::PointerButton {
                 device_id,
                 primary: true,
                 state,
                 position,
-                button: MouseButton::Other(x as u16).into(),
+                // Skip named buttons (0..=4), map 10 to 5, 11 to 6, ...
+                button: MouseButton::Other((x - 5) as u16).into(),
             },
+            _ => return,
         };
 
         app.window_event(&self.target, window_id, event);

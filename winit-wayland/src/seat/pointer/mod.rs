@@ -408,16 +408,16 @@ fn wayland_button_to_winit(button: u32) -> MouseButton {
     const BTN_MIDDLE: u32 = 0x112;
     const BTN_SIDE: u32 = 0x113;
     const BTN_EXTRA: u32 = 0x114;
-    const BTN_FORWARD: u32 = 0x115;
-    const BTN_BACK: u32 = 0x116;
 
     match button {
         BTN_LEFT => MouseButton::Left,
         BTN_RIGHT => MouseButton::Right,
         BTN_MIDDLE => MouseButton::Middle,
-        BTN_BACK | BTN_SIDE => MouseButton::Back,
-        BTN_FORWARD | BTN_EXTRA => MouseButton::Forward,
-        button => MouseButton::Other(button as u16),
+        // Note that apps routinely handle BTN_SIDE/BTN_EXTRA as back/forward
+        BTN_SIDE => MouseButton::Back,
+        BTN_EXTRA => MouseButton::Forward,
+        // Skip named buttons (0..=4); map others to 5..
+        button => MouseButton::Other(button.wrapping_sub(0x110) as u16),
     }
 }
 
