@@ -3,6 +3,7 @@
 //! Note that a real application accepting text input **should** support
 //! the IME interface. See the `ime` example.
 
+use std::borrow::Cow;
 use std::collections::HashMap;
 use std::error::Error;
 use std::fmt::Debug;
@@ -485,8 +486,9 @@ impl ApplicationHandler for Application {
                 let mods = window.modifiers;
                 if let Some(action) = state
                     .is_pressed()
-                    .then(|| Self::process_mouse_binding(button.mouse_button(), &mods))
+                    .then(|| button.mouse_button())
                     .flatten()
+                    .and_then(|button| Self::process_mouse_binding(button, &mods))
                 {
                     self.handle_action_with_window(event_loop, window_id, action);
                 }
@@ -1145,15 +1147,16 @@ fn modifiers_to_string(mods: ModifiersState) -> String {
     mods_line
 }
 
-fn mouse_button_to_string(button: MouseButton) -> &'static str {
+fn mouse_button_to_string(button: MouseButton) -> Cow<'static, str> {
     match button {
         MouseButton::Left => "LMB",
         MouseButton::Right => "RMB",
         MouseButton::Middle => "MMB",
         MouseButton::Back => "Back",
         MouseButton::Forward => "Forward",
-        MouseButton::Other(_) => "",
+        other => return format!("button {}", other as u8 + 1).into(),
     }
+    .into()
 }
 
 #[cfg(web_platform)]

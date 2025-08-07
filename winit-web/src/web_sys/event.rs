@@ -27,43 +27,7 @@ bitflags::bitflags! {
         const BACK    = 0b001000;
         const FORWARD = 0b010000;
         const ERASER  = 0b100000;
-    }
-}
-
-impl From<ButtonsState> for MouseButton {
-    fn from(value: ButtonsState) -> Self {
-        match value {
-            ButtonsState::LEFT => MouseButton::Left,
-            ButtonsState::RIGHT => MouseButton::Right,
-            ButtonsState::MIDDLE => MouseButton::Middle,
-            ButtonsState::BACK => MouseButton::Back,
-            ButtonsState::FORWARD => MouseButton::Forward,
-            _ => MouseButton::Other(value.bits()),
-        }
-    }
-}
-
-impl From<ButtonSource> for ButtonsState {
-    fn from(value: ButtonSource) -> Self {
-        match value {
-            ButtonSource::TabletTool { button, .. } => button.into(),
-            other => ButtonsState::from(other.mouse_button()),
-        }
-    }
-}
-
-impl From<MouseButton> for ButtonsState {
-    fn from(value: MouseButton) -> Self {
-        match value {
-            MouseButton::Left => ButtonsState::LEFT,
-            MouseButton::Right => ButtonsState::RIGHT,
-            MouseButton::Middle => ButtonsState::MIDDLE,
-            MouseButton::Back => ButtonsState::BACK,
-            MouseButton::Forward => ButtonsState::FORWARD,
-            MouseButton::Other(value) => ButtonsState::from_bits_retain(value),
-        }
-    }
-}
+}}
 
 impl From<TabletToolButton> for ButtonsState {
     fn from(tool: TabletToolButton) -> Self {
@@ -92,14 +56,16 @@ pub fn raw_button(event: &MouseEvent) -> Option<u16> {
     }
 }
 
-pub fn mouse_button(button: u16) -> MouseButton {
+pub fn mouse_button(button: u16) -> ButtonSource {
     match button {
-        0 => MouseButton::Left,
-        1 => MouseButton::Middle,
-        2 => MouseButton::Right,
-        3 => MouseButton::Back,
-        4 => MouseButton::Forward,
-        other => MouseButton::Other(other),
+        0 => MouseButton::Left.into(),
+        1 => MouseButton::Middle.into(),
+        2 => MouseButton::Right.into(),
+        3 => MouseButton::Back.into(),
+        4 => MouseButton::Forward.into(),
+        // Codes above 4 are not observed on Firefox or Chromium. 5 is defined as an eraser,
+        // which is not a mouse button. No other codes are defined.
+        i => ButtonSource::Unknown(i),
     }
 }
 

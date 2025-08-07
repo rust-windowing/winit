@@ -1095,14 +1095,11 @@ fn mouse_button(event: &NSEvent) -> MouseButton {
     // For the other events, it's always set to 0.
     // MacOS only defines the left, right and middle buttons, 3..=31 are left as generic buttons,
     // but 3 and 4 are very commonly used as Back and Forward by hardware vendors and applications.
-    match event.buttonNumber() {
-        0 => MouseButton::Left,
-        1 => MouseButton::Right,
-        2 => MouseButton::Middle,
-        3 => MouseButton::Back,
-        4 => MouseButton::Forward,
-        n => MouseButton::Other(n as u16),
-    }
+    let b: isize = event.buttonNumber();
+    b.try_into()
+        .ok()
+        .and_then(MouseButton::try_from_u8)
+        .expect("expected MacOS button number in the range 0..=31")
 }
 
 // NOTE: to get option as alt working we need to rewrite events
