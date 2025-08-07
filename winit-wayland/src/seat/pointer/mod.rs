@@ -30,7 +30,7 @@ use sctk::seat::SeatState;
 use dpi::{LogicalPosition, PhysicalPosition};
 use winit_core::event::{
     ElementState, MouseButton, MouseScrollDelta, PointerKind, PointerSource, TouchPhase,
-    WindowEvent,
+    WindowEvent, ButtonSource,
 };
 
 use crate::state::WinitState;
@@ -108,8 +108,8 @@ impl PointerHandler for WinitState {
                     if parent_surface != surface =>
                 {
                     let click = match wayland_button_to_winit(button) {
-                        MouseButton::Left => FrameClick::Normal,
-                        MouseButton::Right => FrameClick::Alternate,
+                        ButtonSource::Mouse(MouseButton::Left) => FrameClick::Normal,
+                        ButtonSource::Mouse(MouseButton::Right) => FrameClick::Alternate,
                         _ => continue,
                     };
                     let pressed = matches!(kind, PointerEventKind::Press { .. });
@@ -186,7 +186,7 @@ impl PointerHandler for WinitState {
                             device_id: None,
                             state,
                             position,
-                            button: button.into(),
+                            button,
                         },
                         window_id,
                     );
@@ -409,23 +409,16 @@ impl Default for WinitPointerDataInner {
 }
 
 /// Convert the Wayland button into winit.
-fn wayland_button_to_winit(button: u32) -> MouseButton {
+fn wayland_button_to_winit(button: u32) -> ButtonSource {
     // These values are coming from <linux/input-event-codes.h>.
-    const BTN_LEFT: u32 = 0x110;
-    const BTN_RIGHT: u32 = 0x111;
-    const BTN_MIDDLE: u32 = 0x112;
-    const BTN_SIDE: u32 = 0x113;
-    const BTN_EXTRA: u32 = 0x114;
-    const BTN_FORWARD: u32 = 0x115;
-    const BTN_BACK: u32 = 0x116;
+    const BTN_MOUSE: u32 = 0x110;
+    const BTN_JOYSTICK: u32 = 0x120;
 
-    match button {
-        BTN_LEFT => MouseButton::Left,
-        BTN_RIGHT => MouseButton::Right,
-        BTN_MIDDLE => MouseButton::Middle,
-        BTN_BACK | BTN_SIDE => MouseButton::Back,
-        BTN_FORWARD | BTN_EXTRA => MouseButton::Forward,
-        button => MouseButton::Other(button as u16),
+    if (BTN_MOUSE..BTN_JOYSTICK).contains(&button) {
+        // Mapping orders match
+        MouseButton::try_from_u8((button - BTN_MOUSE) as u8).unwrap().into()
+    } else {
+        ButtonSource::Unknown(button as u16)
     }
 }
 

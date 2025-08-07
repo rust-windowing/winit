@@ -531,26 +531,22 @@ pub enum ButtonSource {
         button: TabletToolButton,
         data: TabletToolData,
     },
+    /// A pointer button of unknown source.
+    ///
+    /// Codes are undefined and may not be reproducible across platforms or winit versions.
     Unknown(u16),
 }
 
 impl ButtonSource {
-    /// Convert any [`ButtonSource`] to an equivalent [`MouseButton`]. If a pointer type has no
+    /// Try to convert a [`ButtonSource`] to an equivalent [`MouseButton`]. If a pointer type has no
     /// special handling in an application, this method can be used to handle it like any generic
     /// mouse input.
-    pub fn mouse_button(self) -> MouseButton {
+    pub fn mouse_button(self) -> Option<MouseButton> {
         match self {
-            ButtonSource::Mouse(mouse) => mouse,
-            ButtonSource::Touch { .. } => MouseButton::Left,
+            ButtonSource::Mouse(mouse) => Some(mouse),
+            ButtonSource::Touch { .. } => Some(MouseButton::Left),
             ButtonSource::TabletTool { button, .. } => button.into(),
-            ButtonSource::Unknown(button) => match button {
-                0 => MouseButton::Left,
-                1 => MouseButton::Middle,
-                2 => MouseButton::Right,
-                3 => MouseButton::Back,
-                4 => MouseButton::Forward,
-                _ => MouseButton::Other(button),
-            },
+            ButtonSource::Unknown(_) => None,
         }
     }
 }
@@ -1323,21 +1319,114 @@ impl ElementState {
     }
 }
 
-/// Describes a button of a mouse controller.
+/// Identifies a button of a mouse controller.
 ///
 /// ## Platform-specific
 ///
-/// **macOS:** `Back` and `Forward` might not work with all hardware.
-/// **Orbital:** `Back` and `Forward` are unsupported due to orbital not supporting them.
+/// The first three buttons should be supported on all platforms.
+/// [`Self::Back`] and [`Self::Forward`] are supported on most platforms
+/// (when using a compatible mouse).
+///
+/// - **Android, iOS:** Currently not supported.
+/// - **Orbital:** Only left/right/middle buttons are supported at this time.
+/// - **Web, Windows:** Supports left/right/middle/back/forward buttons.
+/// - **Wayland:** Supports buttons 0..=15.
+/// - **macOS:** Supports all button variants.
+/// - **X11:** Technically supports further buttons than this (0..=250), these are emitted in
+///   `ButtonSource::Unknown`.
 #[derive(Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[repr(u8)]
 pub enum MouseButton {
-    Left,
-    Right,
-    Middle,
-    Back,
-    Forward,
-    Other(u16),
+    /// The primary (usually left) button
+    Left = 0,
+    /// The secondary (usually right) button
+    Right = 1,
+    /// The tertiary (usually middle) button
+    Middle = 2,
+    /// The first side button, frequently assigned a back function
+    Back = 3,
+    /// The second side button, frequently assigned a forward function
+    Forward = 4,
+    /// The sixth button
+    Button6 = 5,
+    /// The seventh button
+    Button7 = 6,
+    /// The eighth button
+    Button8 = 7,
+    /// The ninth button
+    Button9 = 8,
+    /// The tenth button
+    Button10 = 9,
+    /// The eleventh button
+    Button11 = 10,
+    /// The twelfth button
+    Button12 = 11,
+    /// The thirteenth button
+    Button13 = 12,
+    /// The fourteenth button
+    Button14 = 13,
+    /// The fifteenth button
+    Button15 = 14,
+    /// The sixteenth button
+    Button16 = 15,
+    Button17 = 16,
+    Button18 = 17,
+    Button19 = 18,
+    Button20 = 19,
+    Button21 = 20,
+    Button22 = 21,
+    Button23 = 22,
+    Button24 = 23,
+    Button25 = 24,
+    Button26 = 25,
+    Button27 = 26,
+    Button28 = 27,
+    Button29 = 28,
+    Button30 = 29,
+    Button31 = 30,
+    Button32 = 31,
+}
+
+impl MouseButton {
+    /// Construct from a `u8` if within the range `0..=31`
+    pub fn try_from_u8(b: u8) -> Option<MouseButton> {
+        Some(match b {
+            0 => MouseButton::Left,
+            1 => MouseButton::Right,
+            2 => MouseButton::Middle,
+            3 => MouseButton::Back,
+            4 => MouseButton::Forward,
+            5 => MouseButton::Button6,
+            6 => MouseButton::Button7,
+            7 => MouseButton::Button8,
+            8 => MouseButton::Button9,
+            9 => MouseButton::Button10,
+            10 => MouseButton::Button11,
+            11 => MouseButton::Button12,
+            12 => MouseButton::Button13,
+            13 => MouseButton::Button14,
+            14 => MouseButton::Button15,
+            15 => MouseButton::Button16,
+            16 => MouseButton::Button17,
+            17 => MouseButton::Button18,
+            18 => MouseButton::Button19,
+            19 => MouseButton::Button20,
+            20 => MouseButton::Button21,
+            21 => MouseButton::Button22,
+            22 => MouseButton::Button23,
+            23 => MouseButton::Button24,
+            24 => MouseButton::Button25,
+            25 => MouseButton::Button26,
+            26 => MouseButton::Button27,
+            27 => MouseButton::Button28,
+            28 => MouseButton::Button29,
+            29 => MouseButton::Button30,
+            30 => MouseButton::Button31,
+            31 => MouseButton::Button32,
+            _ => return None,
+        })
+    }
 }
 
 /// Describes a button of a tool, e.g. a pen.
@@ -1349,16 +1438,16 @@ pub enum TabletToolButton {
     Other(u16),
 }
 
-impl From<TabletToolButton> for MouseButton {
+impl From<TabletToolButton> for Option<MouseButton> {
     fn from(tool: TabletToolButton) -> Self {
-        match tool {
+        Some(match tool {
             TabletToolButton::Contact => MouseButton::Left,
             TabletToolButton::Barrel => MouseButton::Right,
             TabletToolButton::Other(1) => MouseButton::Middle,
             TabletToolButton::Other(3) => MouseButton::Back,
             TabletToolButton::Other(4) => MouseButton::Forward,
-            TabletToolButton::Other(other) => MouseButton::Other(other),
-        }
+            TabletToolButton::Other(_) => return None,
+        })
     }
 }
 
@@ -1492,7 +1581,7 @@ mod tests {
                 primary: true,
                 state: event::ElementState::Pressed,
                 position: (0, 0).into(),
-                button: event::MouseButton::Other(0).into(),
+                button: event::ButtonSource::Unknown(0),
             });
             with_window_event(PointerButton {
                 device_id: None,
