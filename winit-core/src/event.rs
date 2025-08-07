@@ -514,6 +514,9 @@ pub enum ButtonSource {
         finger_id: FingerId,
         force: Option<Force>,
     },
+    /// A pointer button of unknown source.
+    ///
+    /// Codes are undefined and may not be reproducible across platforms or winit versions.
     Unknown(u16),
 }
 
@@ -525,14 +528,7 @@ impl ButtonSource {
         match self {
             ButtonSource::Mouse(mouse) => mouse,
             ButtonSource::Touch { .. } => MouseButton::Left,
-            ButtonSource::Unknown(button) => match button {
-                0 => MouseButton::Left,
-                1 => MouseButton::Middle,
-                2 => MouseButton::Right,
-                3 => MouseButton::Back,
-                4 => MouseButton::Forward,
-                _ => MouseButton::Other(button),
-            },
+            ButtonSource::Unknown(code) => MouseButton::Other(code),
         }
     }
 }
