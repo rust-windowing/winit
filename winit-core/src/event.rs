@@ -521,14 +521,14 @@ pub enum ButtonSource {
 }
 
 impl ButtonSource {
-    /// Convert any [`ButtonSource`] to an equivalent [`MouseButton`]. If a pointer type has no
+    /// Try to convert a [`ButtonSource`] to an equivalent [`MouseButton`]. If a pointer type has no
     /// special handling in an application, this method can be used to handle it like any generic
     /// mouse input.
-    pub fn mouse_button(self) -> MouseButton {
+    pub fn mouse_button(self) -> Option<MouseButton> {
         match self {
-            ButtonSource::Mouse(mouse) => mouse,
-            ButtonSource::Touch { .. } => MouseButton::Left,
-            ButtonSource::Unknown(code) => MouseButton::Other(code),
+            ButtonSource::Mouse(mouse) => Some(mouse),
+            ButtonSource::Touch { .. } => Some(MouseButton::Left),
+            ButtonSource::Unknown(_) => None,
         }
     }
 }
@@ -1037,21 +1037,113 @@ impl ElementState {
     }
 }
 
-/// Describes a button of a mouse controller.
+/// Identifies a button of a mouse controller.
 ///
 /// ## Platform-specific
 ///
-/// **macOS:** `Back` and `Forward` might not work with all hardware.
-/// **Orbital:** `Back` and `Forward` are unsupported due to orbital not supporting them.
+/// The first three buttons should be supported on all platforms.
+/// [`Self::Back`] and [`Self::Forward`] are supported on most platforms
+/// (when using a compatible mouse).
+///
+/// - **Android, iOS:** Currently not supported.
+/// - **Orbital:** Only left/right/middle buttons are supported at this time.
+/// - **Web, Windows:** Supports left/right/middle/back/forward buttons.
+/// - **Wayland:** Supports buttons 0..=15.
+/// - **macOS, X11:** Supports all button variants.
+/// - **X11:** Supports buttons 0..=250.
 #[derive(Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[repr(u8)]
 pub enum MouseButton {
-    Left,
-    Right,
-    Middle,
-    Back,
-    Forward,
-    Other(u16),
+    /// The primary (usually left) button
+    Left = 0,
+    /// The secondary (usually right) button
+    Right = 1,
+    /// The tertiary (usually middle) button
+    Middle = 2,
+    /// The first side button, frequently assigned a back function
+    Back = 3,
+    /// The second side button, frequently assigned a forward function
+    Forward = 4,
+    /// The sixth button
+    Button5 = 5,
+    /// The seventh button
+    Button6 = 6,
+    /// The eighth button
+    Button7 = 7,
+    /// The ninth button
+    Button8 = 8,
+    /// The tenth button
+    Button9 = 9,
+    /// The eleventh button
+    Button10 = 10,
+    /// The twelfth button
+    Button11 = 11,
+    /// The thirteenth button
+    Button12 = 12,
+    /// The fourteenth button
+    Button13 = 13,
+    /// The fifteenth button
+    Button14 = 14,
+    /// The sixteenth button
+    Button15 = 15,
+    Button16 = 16,
+    Button17 = 17,
+    Button18 = 18,
+    Button19 = 19,
+    Button20 = 20,
+    Button21 = 21,
+    Button22 = 22,
+    Button23 = 23,
+    Button24 = 24,
+    Button25 = 25,
+    Button26 = 26,
+    Button27 = 27,
+    Button28 = 28,
+    Button29 = 29,
+    Button30 = 30,
+    Button31 = 31,
+}
+
+impl MouseButton {
+    /// Construct from a `u8` if within the range `0..=31`
+    pub fn try_from_u8(b: u8) -> Option<MouseButton> {
+        Some(match b {
+            0 => MouseButton::Left,
+            1 => MouseButton::Right,
+            2 => MouseButton::Middle,
+            3 => MouseButton::Back,
+            4 => MouseButton::Forward,
+            5 => MouseButton::Button5,
+            6 => MouseButton::Button6,
+            7 => MouseButton::Button7,
+            8 => MouseButton::Button8,
+            9 => MouseButton::Button9,
+            10 => MouseButton::Button10,
+            11 => MouseButton::Button11,
+            12 => MouseButton::Button12,
+            13 => MouseButton::Button13,
+            14 => MouseButton::Button14,
+            15 => MouseButton::Button15,
+            16 => MouseButton::Button16,
+            17 => MouseButton::Button17,
+            18 => MouseButton::Button18,
+            19 => MouseButton::Button19,
+            20 => MouseButton::Button20,
+            21 => MouseButton::Button21,
+            22 => MouseButton::Button22,
+            23 => MouseButton::Button23,
+            24 => MouseButton::Button24,
+            25 => MouseButton::Button25,
+            26 => MouseButton::Button26,
+            27 => MouseButton::Button27,
+            28 => MouseButton::Button28,
+            29 => MouseButton::Button29,
+            30 => MouseButton::Button30,
+            31 => MouseButton::Button31,
+            _ => return None,
+        })
+    }
 }
 
 /// Describes a difference in the mouse scroll wheel state.
@@ -1184,7 +1276,7 @@ mod tests {
                 primary: true,
                 state: event::ElementState::Pressed,
                 position: (0, 0).into(),
-                button: event::MouseButton::Other(0).into(),
+                button: event::ButtonSource::Unknown(0),
             });
             with_window_event(PointerButton {
                 device_id: None,

@@ -404,22 +404,14 @@ impl Default for WinitPointerDataInner {
 /// Convert the Wayland button into winit.
 fn wayland_button_to_winit(button: u32) -> ButtonSource {
     // These values are coming from <linux/input-event-codes.h>.
-    const BTN_LEFT: u32 = 0x110;
-    const BTN_RIGHT: u32 = 0x111;
-    const BTN_MIDDLE: u32 = 0x112;
-    const BTN_SIDE: u32 = 0x113;
-    const BTN_EXTRA: u32 = 0x114;
+    const BTN_MOUSE: u32 = 0x110;
+    const BTN_JOYSTICK: u32 = 0x120;
 
-    match button {
-        BTN_LEFT => MouseButton::Left.into(),
-        BTN_RIGHT => MouseButton::Right.into(),
-        BTN_MIDDLE => MouseButton::Middle.into(),
-        // Note that apps routinely handle BTN_SIDE/BTN_EXTRA as back/forward
-        BTN_SIDE => MouseButton::Back.into(),
-        BTN_EXTRA => MouseButton::Forward.into(),
-        // Skip named buttons (0..=4); map others to 5..
-        b @ 0x110..=0x11f => MouseButton::Other((b - 0x110) as u16).into(),
-        other => ButtonSource::Unknown(other as u16),
+    if (BTN_MOUSE..BTN_JOYSTICK).contains(&button) {
+        // Mapping orders match
+        MouseButton::try_from_u8((button - BTN_MOUSE) as u8).unwrap().into()
+    } else {
+        ButtonSource::Unknown(button as u16)
     }
 }
 

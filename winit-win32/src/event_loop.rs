@@ -1775,7 +1775,7 @@ unsafe fn public_window_callback_inner(
 
         WM_XBUTTONDOWN => {
             use winit_core::event::ElementState::Pressed;
-            use winit_core::event::MouseButton::{Back, Forward, Other};
+            use winit_core::event::MouseButton;
             use winit_core::event::WindowEvent::PointerButton;
             let xbutton = util::get_xbutton_wparam(wparam as u32);
 
@@ -1787,25 +1787,25 @@ unsafe fn public_window_callback_inner(
             let y = util::get_y_lparam(lparam as u32) as i32;
             let position = PhysicalPosition::new(x as f64, y as f64);
 
+            // 1 is defined as back, 2 as forward; other codes are unexpected.
+            let b = xbutton as u8 + MouseButton::Back as u8 - 1;
+
             userdata.send_window_event(window, PointerButton {
                 device_id: None,
                 primary: true,
                 state: Pressed,
                 position,
-                button: match xbutton {
-                    1 => Back,
-                    2 => Forward,
-                    _ => Other(xbutton),
-                }
-                .into(),
+                // 1 is defined as back, 2 as forward; other codes are unexpected.
+                button: MouseButton::try_from_u8(b).unwrap().into(),
             });
             result = ProcResult::Value(0);
         },
 
         WM_XBUTTONUP => {
             use winit_core::event::ElementState::Released;
-            use winit_core::event::MouseButton::{Back, Forward, Other};
+            use winit_core::event::MouseButton;
             use winit_core::event::WindowEvent::PointerButton;
+
             let xbutton = util::get_xbutton_wparam(wparam as u32);
 
             unsafe { release_mouse(userdata.window_state_lock()) };
@@ -1816,17 +1816,16 @@ unsafe fn public_window_callback_inner(
             let y = util::get_y_lparam(lparam as u32) as i32;
             let position = PhysicalPosition::new(x as f64, y as f64);
 
+            // 1 is defined as back, 2 as forward; other codes are unexpected.
+            let b = xbutton as u8 + MouseButton::Back as u8 - 1;
+
             userdata.send_window_event(window, PointerButton {
                 device_id: None,
                 primary: true,
                 state: Released,
                 position,
-                button: match xbutton {
-                    1 => Back,
-                    2 => Forward,
-                    _ => Other(xbutton),
-                }
-                .into(),
+                // 1 is defined as back, 2 as forward; other codes are unexpected.
+                button: MouseButton::try_from_u8(b).unwrap().into(),
             });
             result = ProcResult::Value(0);
         },
