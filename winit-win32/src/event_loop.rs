@@ -1676,9 +1676,9 @@ unsafe fn public_window_callback_inner(
             }
         },
 
-        WM_LBUTTONDOWN => {
+        WM_LBUTTONDOWN | WM_RBUTTONDOWN | WM_MBUTTONDOWN => {
             use winit_core::event::ElementState::Pressed;
-            use winit_core::event::MouseButton::Left;
+            use winit_core::event::MouseButton;
             use winit_core::event::WindowEvent::PointerButton;
 
             unsafe { capture_mouse(window, &mut userdata.window_state_lock()) };
@@ -1694,14 +1694,20 @@ unsafe fn public_window_callback_inner(
                 primary: true,
                 state: Pressed,
                 position,
-                button: Left.into(),
+                button: match msg {
+                    WM_LBUTTONDOWN => MouseButton::Left,
+                    WM_RBUTTONDOWN => MouseButton::Right,
+                    WM_MBUTTONDOWN => MouseButton::Middle,
+                    _ => unreachable!(),
+                }
+                .into(),
             });
             result = ProcResult::Value(0);
         },
 
-        WM_LBUTTONUP => {
+        WM_LBUTTONUP | WM_RBUTTONUP | WM_MBUTTONUP => {
             use winit_core::event::ElementState::Released;
-            use winit_core::event::MouseButton::Left;
+            use winit_core::event::MouseButton;
             use winit_core::event::WindowEvent::PointerButton;
 
             unsafe { release_mouse(userdata.window_state_lock()) };
@@ -1717,99 +1723,13 @@ unsafe fn public_window_callback_inner(
                 primary: true,
                 state: Released,
                 position,
-                button: Left.into(),
-            });
-            result = ProcResult::Value(0);
-        },
-
-        WM_RBUTTONDOWN => {
-            use winit_core::event::ElementState::Pressed;
-            use winit_core::event::MouseButton::Right;
-            use winit_core::event::WindowEvent::PointerButton;
-
-            unsafe { capture_mouse(window, &mut userdata.window_state_lock()) };
-
-            update_modifiers(window, userdata);
-
-            let x = util::get_x_lparam(lparam as u32) as i32;
-            let y = util::get_y_lparam(lparam as u32) as i32;
-            let position = PhysicalPosition::new(x as f64, y as f64);
-
-            userdata.send_window_event(window, PointerButton {
-                device_id: None,
-                primary: true,
-                state: Pressed,
-                position,
-                button: Right.into(),
-            });
-            result = ProcResult::Value(0);
-        },
-
-        WM_RBUTTONUP => {
-            use winit_core::event::ElementState::Released;
-            use winit_core::event::MouseButton::Right;
-            use winit_core::event::WindowEvent::PointerButton;
-
-            unsafe { release_mouse(userdata.window_state_lock()) };
-
-            update_modifiers(window, userdata);
-
-            let x = util::get_x_lparam(lparam as u32) as i32;
-            let y = util::get_y_lparam(lparam as u32) as i32;
-            let position = PhysicalPosition::new(x as f64, y as f64);
-
-            userdata.send_window_event(window, PointerButton {
-                device_id: None,
-                primary: true,
-                state: Released,
-                position,
-                button: Right.into(),
-            });
-            result = ProcResult::Value(0);
-        },
-
-        WM_MBUTTONDOWN => {
-            use winit_core::event::ElementState::Pressed;
-            use winit_core::event::MouseButton::Middle;
-            use winit_core::event::WindowEvent::PointerButton;
-
-            unsafe { capture_mouse(window, &mut userdata.window_state_lock()) };
-
-            update_modifiers(window, userdata);
-
-            let x = util::get_x_lparam(lparam as u32) as i32;
-            let y = util::get_y_lparam(lparam as u32) as i32;
-            let position = PhysicalPosition::new(x as f64, y as f64);
-
-            userdata.send_window_event(window, PointerButton {
-                device_id: None,
-                primary: true,
-                state: Pressed,
-                position,
-                button: Middle.into(),
-            });
-            result = ProcResult::Value(0);
-        },
-
-        WM_MBUTTONUP => {
-            use winit_core::event::ElementState::Released;
-            use winit_core::event::MouseButton::Middle;
-            use winit_core::event::WindowEvent::PointerButton;
-
-            unsafe { release_mouse(userdata.window_state_lock()) };
-
-            update_modifiers(window, userdata);
-
-            let x = util::get_x_lparam(lparam as u32) as i32;
-            let y = util::get_y_lparam(lparam as u32) as i32;
-            let position = PhysicalPosition::new(x as f64, y as f64);
-
-            userdata.send_window_event(window, PointerButton {
-                device_id: None,
-                primary: true,
-                state: Released,
-                position,
-                button: Middle.into(),
+                button: match msg {
+                    WM_LBUTTONUP => MouseButton::Left,
+                    WM_RBUTTONUP => MouseButton::Right,
+                    WM_MBUTTONUP => MouseButton::Middle,
+                    _ => unreachable!(),
+                }
+                .into(),
             });
             result = ProcResult::Value(0);
         },
