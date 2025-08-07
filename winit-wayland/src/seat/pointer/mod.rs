@@ -30,7 +30,7 @@ use sctk::seat::SeatState;
 use dpi::{LogicalPosition, PhysicalPosition};
 use winit_core::event::{
     ElementState, MouseButton, MouseScrollDelta, PointerKind, PointerSource, TouchPhase,
-    WindowEvent,
+    WindowEvent, ButtonSource,
 };
 
 use crate::state::WinitState;
@@ -107,8 +107,8 @@ impl PointerHandler for WinitState {
                     if parent_surface != surface =>
                 {
                     let click = match wayland_button_to_winit(button) {
-                        MouseButton::Left => FrameClick::Normal,
-                        MouseButton::Right => FrameClick::Alternate,
+                        ButtonSource::Mouse(MouseButton::Left) => FrameClick::Normal,
+                        ButtonSource::Mouse(MouseButton::Right) => FrameClick::Alternate,
                         _ => continue,
                     };
                     let pressed = matches!(kind, PointerEventKind::Press { .. });
@@ -185,7 +185,7 @@ impl PointerHandler for WinitState {
                             device_id: None,
                             state,
                             position,
-                            button: button.into(),
+                            button,
                         },
                         window_id,
                     );
@@ -401,7 +401,7 @@ impl Default for WinitPointerDataInner {
 }
 
 /// Convert the Wayland button into winit.
-fn wayland_button_to_winit(button: u32) -> MouseButton {
+fn wayland_button_to_winit(button: u32) -> ButtonSource {
     // These values are coming from <linux/input-event-codes.h>.
     const BTN_LEFT: u32 = 0x110;
     const BTN_RIGHT: u32 = 0x111;
@@ -410,14 +410,15 @@ fn wayland_button_to_winit(button: u32) -> MouseButton {
     const BTN_EXTRA: u32 = 0x114;
 
     match button {
-        BTN_LEFT => MouseButton::Left,
-        BTN_RIGHT => MouseButton::Right,
-        BTN_MIDDLE => MouseButton::Middle,
+        BTN_LEFT => MouseButton::Left.into(),
+        BTN_RIGHT => MouseButton::Right.into(),
+        BTN_MIDDLE => MouseButton::Middle.into(),
         // Note that apps routinely handle BTN_SIDE/BTN_EXTRA as back/forward
-        BTN_SIDE => MouseButton::Back,
-        BTN_EXTRA => MouseButton::Forward,
+        BTN_SIDE => MouseButton::Back.into(),
+        BTN_EXTRA => MouseButton::Forward.into(),
         // Skip named buttons (0..=4); map others to 5..
-        button => MouseButton::Other(button.wrapping_sub(0x110) as u16),
+        b @ 0x110..=0x11f => MouseButton::Other((b - 0x110) as u16).into(),
+        other => ButtonSource::Unknown(other as u16),
     }
 }
 

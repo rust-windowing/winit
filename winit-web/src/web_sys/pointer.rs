@@ -84,7 +84,7 @@ impl PointerHandler {
                 let button = event::mouse_button(&event).expect("no mouse button pressed");
 
                 let source = match kind {
-                    PointerKind::Mouse => ButtonSource::Mouse(button.into()),
+                    PointerKind::Mouse => button.into(),
                     PointerKind::Touch(finger_id) => ButtonSource::Touch {
                         finger_id,
                         force: Some(Force::Normalized(event.pressure().into())),
@@ -136,7 +136,7 @@ impl PointerHandler {
                         // care if it fails.
                         let _e = canvas.set_pointer_capture(pointer_id);
 
-                        ButtonSource::Mouse(button.into())
+                        button.into()
                     },
                     PointerKind::Touch(finger_id) => ButtonSource::Touch {
                         finger_id,
@@ -204,7 +204,7 @@ impl PointerHandler {
                     };
 
                     let button = match kind {
-                        PointerKind::Mouse => ButtonSource::Mouse(button.into()),
+                        PointerKind::Mouse => button.into(),
                         PointerKind::Touch(finger_id) => {
                             let button_id = button.raw();
                             if button_id != 1 {
