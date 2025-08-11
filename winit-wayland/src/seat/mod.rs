@@ -17,11 +17,13 @@ use winit_core::keyboard::ModifiersState;
 
 use crate::state::WinitState;
 
+pub mod data_device;
 mod keyboard;
 mod pointer;
 mod text_input;
 mod touch;
 
+use data_device::DataDeviceState;
 use keyboard::{KeyboardData, KeyboardState};
 pub use pointer::relative_pointer::RelativePointerState;
 pub use pointer::{PointerConstraintsState, WinitPointerData, WinitPointerDataExt};
@@ -53,6 +55,8 @@ pub struct WinitSeatState {
 
     /// The keyboard bound on the seat.
     keyboard_state: Option<KeyboardState>,
+
+    data_device_state: Option<DataDeviceState>,
 
     /// The current modifiers state on the seat.
     modifiers: ModifiersState,
@@ -86,6 +90,13 @@ impl SeatHandler for WinitState {
                 return;
             },
         };
+
+        if seat_state.data_device_state.is_none() {
+            if let Some(data_device_manager) = &self.data_device_manager {
+                data_device_manager.init_seat_data_device(&seat, queue_handle);
+                seat_state.data_device_state = Some(DataDeviceState::new(self.loop_handle.clone()));
+            }
+        }
 
         match capability {
             SeatCapability::Touch if seat_state.touch.is_none() => {
