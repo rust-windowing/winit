@@ -38,7 +38,10 @@ impl DataDeviceManager {
     }
 
     pub fn init_seat_data_device(&self, seat: &WlSeat, queue_handle: &QueueHandle<WinitState>) {
-        let data = DataDeviceData { seat: seat.clone(), last_pos_before_dropped: Arc::new(Mutex::new(None)) };
+        let data = DataDeviceData {
+            seat: seat.clone(),
+            last_pos_before_dropped: Arc::new(Mutex::new(None)),
+        };
         self.manager.get_data_device(seat, queue_handle, data);
     }
 }
@@ -164,12 +167,13 @@ impl Dispatch<WlDataDevice, DataDeviceData, WinitState> for DataDeviceState {
                                 if buf.is_empty() {
                                     if let Some(hovered) = data_device_state.hovered_window {
                                         data_device_state.with_file_paths(|paths| {
-                                            state
-                                                .events_sink
-                                                .push_window_event(
-                                                    WindowEvent::DragEntered { paths, position: dpi::PhysicalPosition { x, y } },
-                                                    hovered,
-                                                );
+                                            state.events_sink.push_window_event(
+                                                WindowEvent::DragEntered {
+                                                    paths,
+                                                    position: dpi::PhysicalPosition { x, y },
+                                                },
+                                                hovered,
+                                            );
                                         });
                                     } else {
                                         warn!("No window specified to push HoveredFile to");
@@ -201,12 +205,10 @@ impl Dispatch<WlDataDevice, DataDeviceData, WinitState> for DataDeviceState {
             },
             WlDataDeviceEvent::Motion { time: _, x, y } => {
                 if let Some(hovered) = data_device_state.hovered_window {
-                    state
-                        .events_sink
-                        .push_window_event(
-                            WindowEvent::DragMoved { position: dpi::PhysicalPosition { x, y } },
-                            hovered,
-                        );
+                    state.events_sink.push_window_event(
+                        WindowEvent::DragMoved { position: dpi::PhysicalPosition { x, y } },
+                        hovered,
+                    );
                     if let Ok(mut guard) = data.last_pos_before_dropped.lock() {
                         *guard = Some(dpi::PhysicalPosition { x, y });
                     }
@@ -217,12 +219,10 @@ impl Dispatch<WlDataDevice, DataDeviceData, WinitState> for DataDeviceState {
                     data_device_state.with_file_paths(|paths| {
                         if let Ok(mut guard) = data.last_pos_before_dropped.lock() {
                             if let Some(position) = guard.take() {
-                                state
-                                    .events_sink
-                                    .push_window_event(
-                                        WindowEvent::DragDropped { paths, position },
-                                        hovered,
-                                    );
+                                state.events_sink.push_window_event(
+                                    WindowEvent::DragDropped { paths, position },
+                                    hovered,
+                                );
                             }
                         }
                     });
