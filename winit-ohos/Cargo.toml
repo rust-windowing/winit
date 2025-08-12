@@ -1,0 +1,33 @@
+[package]
+description = "Winit's OpenHarmony backend"
+documentation = "https://docs.rs/winit-ohos"
+edition.workspace = true
+license.workspace = true
+name = "winit-ohos"
+repository.workspace = true
+rust-version.workspace = true
+version.workspace = true
+
+[features]
+serde = ["dep:serde", "bitflags/serde", "smol_str/serde", "dpi/serde", "winit-core/serde"]
+
+[dependencies]
+bitflags.workspace = true
+dpi.workspace = true
+rwh_06.workspace = true
+serde = { workspace = true, optional = true }
+smol_str.workspace = true
+tracing.workspace = true
+winit-core.workspace = true
+
+# Platform-specific
+[target.'cfg(target_env = "ohos")'.dependencies]
+openharmony-ability.workspace = true
+openharmony-ability-derive.workspace = true
+
+[dev-dependencies]
+winit.workspace = true
+
+[package.metadata.docs.rs]
+features = ["serde"]
+targets = ["aarch64-unknown-linux-ohos"]
