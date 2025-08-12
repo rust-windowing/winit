@@ -4,8 +4,6 @@ pub(crate) use winit_android as platform;
 pub(crate) use winit_appkit as platform;
 #[cfg(any(x11_platform, wayland_platform))]
 mod linux;
-#[cfg(any(x11_platform, wayland_platform))]
-use self::linux as platform;
 #[cfg(ohos_platform)]
 pub(crate) use winit_ohos as platform;
 #[cfg(orbital_platform)]
@@ -17,6 +15,8 @@ pub(crate) use winit_web as platform;
 #[cfg(windows_platform)]
 pub(crate) use winit_win32 as platform;
 
+#[cfg(any(x11_platform, wayland_platform))]
+use self::linux as platform;
 #[allow(unused_imports)]
 pub use self::platform::*;
 

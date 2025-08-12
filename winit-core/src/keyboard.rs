@@ -35,7 +35,7 @@ pub enum NativeKeyCode {
 
 impl std::fmt::Debug for NativeKeyCode {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        use NativeKeyCode::{Android, MacOS, Unidentified, Windows, Xkb, Ohos};
+        use NativeKeyCode::{Android, MacOS, Ohos, Unidentified, Windows, Xkb};
         let mut debug_tuple;
         match self {
             Unidentified => {
@@ -97,7 +97,7 @@ pub enum NativeKey {
 
 impl std::fmt::Debug for NativeKey {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        use NativeKey::{Android, MacOS, Unidentified, Web, Windows, Xkb, Ohos};
+        use NativeKey::{Android, MacOS, Ohos, Unidentified, Web, Windows, Xkb};
         let mut debug_tuple;
         match self {
             Unidentified => {

@@ -18,13 +18,13 @@ winit-android = { version = "0.30.12", path = "winit-android" }
 winit-appkit = { version = "0.30.12", path = "winit-appkit" }
 winit-common = { version = "0.30.12", path = "winit-common" }
 winit-core = { version = "0.30.12", path = "winit-core" }
+winit-ohos = { version = "0.30.12", path = "winit-ohos" }
 winit-orbital = { version = "0.30.12", path = "winit-orbital" }
 winit-uikit = { version = "0.30.12", path = "winit-uikit" }
 winit-wayland = { version = "0.30.12", path = "winit-wayland", default-features = false }
 winit-web = { version = "0.30.12", path = "winit-web" }
 winit-win32 = { version = "0.30.12", path = "winit-win32" }
 winit-x11 = { version = "0.30.12", path = "winit-x11" }
-winit-ohos = { version = "0.30.12", path = "winit-ohos" }
 
 # Core dependencies.
 bitflags = "2"
