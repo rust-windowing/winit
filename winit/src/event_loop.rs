@@ -340,14 +340,6 @@ impl winit_android::EventLoopBuilderExtAndroid for EventLoopBuilder {
 
 #[cfg(ohos_platform)]
 impl winit_ohos::EventLoopExtOpenHarmony for EventLoop {
-    fn spawn_app<A: ApplicationHandler + 'static>(self, app: A) {
-        use winit_core::event_loop::run_on_demand::EventLoopExtRunOnDemand;
-
-        let app = Box::leak(Box::new(app));
-        let event_looper = Box::leak(Box::new(self));
-
-        let _ = event_looper.run_app_on_demand(app);
-    }
     fn openharmony_app(&self) -> &winit_ohos::ability::OpenHarmonyApp {
         &self.event_loop.openharmony_app
     }

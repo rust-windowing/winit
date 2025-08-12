@@ -41,6 +41,7 @@ static HAS_EVENT: AtomicBool = AtomicBool::new(false);
 
 const GLOBAL_WINDOW: WindowId = WindowId::from_raw(0);
 
+#[allow(dead_code)]
 #[derive(Debug)]
 pub struct EventLoop {
     pub openharmony_app: OpenHarmonyApp,
@@ -92,7 +93,12 @@ impl EventLoop {
         &self.window_target
     }
 
-    fn handle_input_event<A: ApplicationHandler>(&mut self, event: &InputEvent, app: &mut A) {
+    fn handle_input_event<A: ApplicationHandler>(
+        &mut self,
+        event: &InputEvent,
+        app: &mut A,
+        target: &ActiveEventLoop,
+    ) {
         match event {
             InputEvent::TouchEvent(motion_event) => {
                 let device_id = Some(DeviceId::from_raw(motion_event.device_id as i64));
@@ -108,7 +114,7 @@ impl EventLoop {
                     },
                 };
 
-                if let Some(phase) = phase {
+                if let Some(_phase) = phase {
                     for pointer in motion_event.touch_points.iter() {
                         let position = PhysicalPosition { x: pointer.x as _, y: pointer.y as _ };
                         trace!(
@@ -132,7 +138,7 @@ impl EventLoop {
                                     // TODO: support mouse events
                                     kind: event::PointerKind::Touch(finger_id),
                                 };
-                                app.window_event(&self.window_target, GLOBAL_WINDOW, event);
+                                app.window_event(target, GLOBAL_WINDOW, event);
                                 let event = event::WindowEvent::PointerButton {
                                     device_id,
                                     primary,
@@ -141,7 +147,7 @@ impl EventLoop {
                                     // TODO: support mouse events
                                     button: event::ButtonSource::Touch { finger_id, force },
                                 };
-                                app.window_event(&self.window_target, GLOBAL_WINDOW, event);
+                                app.window_event(target, GLOBAL_WINDOW, event);
                             },
                             TouchEvent::Move => {
                                 let primary = self.primary_pointer == Some(finger_id);
@@ -152,7 +158,7 @@ impl EventLoop {
                                     // TODO: support mouse events
                                     source: event::PointerSource::Touch { finger_id, force },
                                 };
-                                app.window_event(&self.window_target, GLOBAL_WINDOW, event);
+                                app.window_event(target, GLOBAL_WINDOW, event);
                             },
                             TouchEvent::Up | TouchEvent::Cancel => {
                                 let primary = action == TouchEvent::Up
@@ -172,7 +178,7 @@ impl EventLoop {
                                         // TODO: support mouse events
                                         button: event::ButtonSource::Touch { finger_id, force },
                                     };
-                                    app.window_event(&self.window_target, GLOBAL_WINDOW, event);
+                                    app.window_event(target, GLOBAL_WINDOW, event);
                                 }
 
                                 let event = event::WindowEvent::PointerLeft {
@@ -182,7 +188,7 @@ impl EventLoop {
                                     // TODO: support mouse events
                                     kind: event::PointerKind::Touch(finger_id),
                                 };
-                                app.window_event(&self.window_target, GLOBAL_WINDOW, event);
+                                app.window_event(target, GLOBAL_WINDOW, event);
                             },
                             _ => unreachable!(),
                         }
@@ -213,7 +219,7 @@ impl EventLoop {
                             },
                             is_synthetic: false,
                         };
-                        app.window_event(&self.window_target, GLOBAL_WINDOW, event);
+                        app.window_event(target, GLOBAL_WINDOW, event);
                     },
                 }
             },
@@ -221,13 +227,9 @@ impl EventLoop {
                 ImeEvent::TextInputEvent(s) => {
                     let pre_edit = Ime::Preedit(s.text.clone(), Some((s.text.len(), s.text.len())));
 
+                    app.window_event(target, GLOBAL_WINDOW, event::WindowEvent::Ime(pre_edit));
                     app.window_event(
-                        &self.window_target,
-                        GLOBAL_WINDOW,
-                        event::WindowEvent::Ime(pre_edit),
-                    );
-                    app.window_event(
-                        &self.window_target,
+                        target,
                         GLOBAL_WINDOW,
                         event::WindowEvent::Ime(Ime::Commit(s.text.clone())),
                     );
@@ -249,7 +251,7 @@ impl EventLoop {
                             },
                             is_synthetic: false,
                         };
-                        app.window_event(&self.window_target, GLOBAL_WINDOW, event);
+                        app.window_event(target, GLOBAL_WINDOW, event);
                     });
                 },
 
@@ -271,32 +273,30 @@ impl EventLoop {
                                 },
                                 is_synthetic: false,
                             };
-                            app.window_event(&self.window_target, GLOBAL_WINDOW, event);
+                            app.window_event(target, GLOBAL_WINDOW, event);
                         });
 
                         let event = event::WindowEvent::Ime(Ime::Disabled);
-                        app.window_event(&self.window_target, GLOBAL_WINDOW, event);
+                        app.window_event(target, GLOBAL_WINDOW, event);
                     },
                     _ => {
                         warn!("Unknown openharmony_ability ime status event {s:?}")
                     },
                 },
             },
-            _ => {
-                warn!("Unknown openharmony_ability input event {event:?}")
-            },
         }
     }
 
-    pub fn run_app<A: ApplicationHandler>(mut self, app: A) -> Result<(), EventLoopError> {
-        self.run_app_on_demand(app)
+    pub fn run_app<A: ApplicationHandler>(self, app: A) -> Result<(), EventLoopError> {
+        let event_looper = Box::leak(Box::new(self));
+        event_looper.run_app_on_demand(app)
     }
 
     pub fn run_app_on_demand<A: ApplicationHandler>(
         &mut self,
-        mut app: A,
+        app: A,
     ) -> Result<(), EventLoopError> {
-        match self.pump_app_events(None, &mut app) {
+        match self.pump_app_events(None, app) {
             PumpStatus::Continue => Ok(()),
             PumpStatus::Exit(code) => Err(EventLoopError::ExitFailure(code)),
         }
@@ -311,18 +311,22 @@ impl EventLoop {
             trace!("EventLoop is already running");
         }
         trace!("Mainloop iteration");
-
         let event_app = Box::leak(Box::new(app));
-        let render_app = self.openharmony_app.clone();
+        let target = Box::leak(Box::new(ActiveEventLoop {
+            app: self.openharmony_app.clone(),
+            control_flow: self.window_target.control_flow.clone(),
+            exit: self.window_target.exit.clone(),
+            event_loop_proxy: self.window_target.event_loop_proxy.clone(),
+        }));
 
-        render_app.run_loop(|event| {
+        self.openharmony_app.clone().run_loop(|event| {
             match event {
                 MainEvent::SurfaceCreate { .. } => {
-                    event_app.new_events(self.window_target(), StartCause::Init);
-                    event_app.can_create_surfaces(self.window_target());
+                    event_app.new_events(target, StartCause::Init);
+                    event_app.can_create_surfaces(target);
                 },
                 MainEvent::SurfaceDestroy { .. } => {
-                    event_app.destroy_surfaces(self.window_target());
+                    event_app.destroy_surfaces(target);
                 },
                 MainEvent::WindowResize { .. } => {
                     let win = self.openharmony_app.native_window();
@@ -333,14 +337,14 @@ impl EventLoop {
                     };
 
                     event_app.window_event(
-                        self.window_target(),
+                        target,
                         GLOBAL_WINDOW,
                         event::WindowEvent::SurfaceResized(size),
                     );
                 },
                 MainEvent::WindowRedraw { .. } => {
                     event_app.window_event(
-                        self.window_target(),
+                        target,
                         GLOBAL_WINDOW,
                         event::WindowEvent::RedrawRequested,
                     );
@@ -352,7 +356,7 @@ impl EventLoop {
                     HAS_FOCUS.store(true, Ordering::Relaxed);
 
                     event_app.window_event(
-                        self.window_target(),
+                        target,
                         GLOBAL_WINDOW,
                         event::WindowEvent::Focused(true),
                     );
@@ -361,14 +365,14 @@ impl EventLoop {
                     HAS_FOCUS.store(false, Ordering::Relaxed);
 
                     event_app.window_event(
-                        self.window_target(),
+                        target,
                         GLOBAL_WINDOW,
                         event::WindowEvent::Focused(false),
                     );
                 },
                 MainEvent::ConfigChanged { .. } => {
                     let win = self.openharmony_app.native_window();
-                    if let Some(win) = win {
+                    if let Some(_win) = win {
                         let old_scale_factor = scale_factor(&self.openharmony_app);
                         let scale_factor = scale_factor(&self.openharmony_app);
                         if (scale_factor - old_scale_factor).abs() < f64::EPSILON {
@@ -381,19 +385,19 @@ impl EventLoop {
                                 scale_factor,
                             };
 
-                            event_app.window_event(self.window_target(), GLOBAL_WINDOW, event);
+                            event_app.window_event(target, GLOBAL_WINDOW, event);
                         }
                     }
                 },
                 MainEvent::LowMemory => {
-                    event_app.memory_warning(self.window_target());
+                    event_app.memory_warning(target);
                 },
                 MainEvent::Start => {
                     // XXX: how to forward this state to applications?
                     warn!("TODO: forward onStart notification to application");
                 },
                 MainEvent::Resume { .. } => {
-                    event_app.resumed(self.window_target());
+                    event_app.resumed(target);
                 },
                 MainEvent::SaveState { .. } => {
                     // XXX: how to forward this state to applications?
@@ -407,7 +411,7 @@ impl EventLoop {
                 },
                 MainEvent::WindowDestroy => {
                     event_app.window_event(
-                        self.window_target(),
+                        target,
                         GLOBAL_WINDOW,
                         event::WindowEvent::CloseRequested,
                     );
@@ -418,17 +422,17 @@ impl EventLoop {
                     warn!("TODO: forward onDestroy notification to application");
                 },
                 MainEvent::Input(input_event) => {
-                    self.handle_input_event(&input_event, event_app);
+                    self.handle_input_event(&input_event, event_app, target);
                 },
                 MainEvent::UserEvent { .. } => {
-                    warn!("TODO: forward onUserEvent notification to application");
+                    event_app.proxy_wake_up(target);
                 },
                 unknown => {
                     trace!("Unknown MainEvent {unknown:?} (ignored)");
                 },
             };
 
-            event_app.about_to_wait(self.window_target());
+            event_app.about_to_wait(target);
 
             if self.window_target.exit.get() {
                 self.openharmony_app.exit(0);
@@ -478,6 +482,7 @@ pub struct ActiveEventLoop {
     event_loop_proxy: Arc<EventLoopProxy>,
 }
 
+#[allow(dead_code)]
 impl ActiveEventLoop {
     fn clear_exit(&self) {
         self.exit.set(false);

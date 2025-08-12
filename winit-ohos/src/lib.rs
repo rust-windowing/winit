@@ -14,7 +14,6 @@
 mod event_loop;
 mod keycodes;
 
-use winit_core::application::ApplicationHandler;
 use winit_core::event_loop::ActiveEventLoop as CoreActiveEventLoop;
 use winit_core::window::Window as CoreWindow;
 
@@ -26,11 +25,6 @@ pub use crate::event_loop::{
 
 /// Additional methods on [`EventLoop`] that are specific to OpenHarmony.
 pub trait EventLoopExtOpenHarmony {
-    /// Initializes the winit event loop.
-    /// Unlike [`run_app()`] this method return immediately.
-    /// [^1]: `run_app()` is _not_ available on OpnHarmony
-    fn spawn_app<A: ApplicationHandler + 'static>(self, app: A);
-
     /// Get the [`OpenHarmonyApp`] which was used to create this event loop.
     fn openharmony_app(&self) -> &OpenHarmonyApp;
 }
