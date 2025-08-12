@@ -461,6 +461,10 @@ impl WinitView {
         let window = self.window().unwrap();
         let mut touch_events = Vec::new();
         for touch in touches {
+            if let UITouchType::Pencil = touch.r#type() {
+                continue;
+            }
+
             let logical_location = touch.locationInView(None);
             let touch_type = touch.r#type();
             let force = if let UITouchType::Pencil = touch_type {
