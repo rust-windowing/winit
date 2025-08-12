@@ -24,3 +24,6 @@
 
 # Orbital (Redox OS)
 /winit-orbital                      @jackpot51
+
+# OpenHarmony
+/winit-ohos                         @richerfu @jschwe

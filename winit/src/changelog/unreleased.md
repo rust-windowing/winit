@@ -84,6 +84,7 @@ changelog entry.
 - On Wayland, added implementation for `Window::set_window_icon`
 - Add `Window::request_ime_update` to atomically apply set of IME changes.
 - Add `Ime::DeleteSurrounding` to let the input method delete text.
+- Add OpenHarmony platform support.
 
 ### Changed
 
