@@ -364,7 +364,7 @@ define_class!(
             trace_scope!("firstRectForCharacterRange:actualRange:");
 
             // guard when the view is no longer in a window during teardown.
-             let Some(win) = self.window_optional() else {
+            let Some(win) = self.window_optional() else {
                 return CGRect::ZERO; // safe fallback
             };
 
