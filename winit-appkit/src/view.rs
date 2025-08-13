@@ -14,7 +14,7 @@ use objc2_app_kit::{
 };
 use objc2_foundation::{
     NSArray, NSAttributedString, NSAttributedStringKey, NSCopying, NSMutableAttributedString,
-    NSNotFound, NSObject, NSPoint, NSRange, NSRect, NSSize, NSString, NSUInteger,
+    NSNotFound, NSObject, NSPoint, NSRange, NSRect, NSSize, NSString, NSUInteger, NSZeroRect,
 };
 use winit_core::event::{
     DeviceEvent, ElementState, Ime, KeyEvent, Modifiers, MouseButton, MouseScrollDelta,
@@ -361,10 +361,16 @@ define_class!(
             _actual_range: *mut NSRange,
         ) -> NSRect {
             trace_scope!("firstRectForCharacterRange:actualRange:");
-            let rect = NSRect::new(self.ivars().ime_position.get(), self.ivars().ime_size.get());
+            
+            // NEW: guard when the view is no longer in a window during teardown.
+            if let Some(win) = self.window_optional() { // e.g., helper that returns Option<NSWindow>
+                let rect = NSRect::new(self.ivars().ime_position.get(), self.ivars().ime_size.get());
                 // Return value is expected to be in screen coordinates, so we need a conversion here
-            self.window().convertRectToScreen(self.convertRect_toView(rect, None))
-                    }
+                win.convertRectToScreen(self.convertRect_toView(rect, None))
+            } else {
+                NSZeroRect // safe fallback; places candidate UI offscreen / default
+            }
+        }
 
         #[unsafe(method(insertText:replacementRange:))]
         fn insert_text(&self, string: &NSObject, _replacement_range: NSRange) {
