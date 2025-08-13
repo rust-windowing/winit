@@ -362,9 +362,9 @@ define_class!(
         ) -> NSRect {
             trace_scope!("firstRectForCharacterRange:actualRange:");
             let rect = NSRect::new(self.ivars().ime_position.get(), self.ivars().ime_size.get());
-            // Return value is expected to be in screen coordinates, so we need a conversion here
+                // Return value is expected to be in screen coordinates, so we need a conversion here
             self.window().convertRectToScreen(self.convertRect_toView(rect, None))
-        }
+                    }
 
         #[unsafe(method(insertText:replacementRange:))]
         fn insert_text(&self, string: &NSObject, _replacement_range: NSRange) {
@@ -813,6 +813,10 @@ impl WinitView {
 
     fn window(&self) -> Retained<NSWindow> {
         (**self).window().expect("view must be installed in a window")
+    }
+
+    fn window_optional(&self) -> Option<Retained<NSWindow>> {
+        (**self).window()
     }
 
     fn queue_event(&self, event: WindowEvent) {
