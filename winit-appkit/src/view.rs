@@ -361,11 +361,13 @@ define_class!(
             _actual_range: *mut NSRange,
         ) -> NSRect {
             trace_scope!("firstRectForCharacterRange:actualRange:");
-            
+
             // NEW: guard when the view is no longer in a window during teardown.
-            if let Some(win) = self.window_optional() { // e.g., helper that returns Option<NSWindow>
-                let rect = NSRect::new(self.ivars().ime_position.get(), self.ivars().ime_size.get());
-                // Return value is expected to be in screen coordinates, so we need a conversion here
+            if let Some(win) = self.window_optional() {
+                // e.g., helper that returns Option<NSWindow>
+                let rect =
+                    NSRect::new(self.ivars().ime_position.get(), self.ivars().ime_size.get());
+                // Return value is expected to be in screen coordinates, so we need a conversion
                 win.convertRectToScreen(self.convertRect_toView(rect, None))
             } else {
                 NSZeroRect // safe fallback; places candidate UI offscreen / default
