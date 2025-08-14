@@ -364,7 +364,7 @@ define_class!(
             trace_scope!("firstRectForCharacterRange:actualRange:");
 
             // Guard when the view is no longer in a window during teardown.
-            let Some(window) = self.window_optional() else {
+            let Some(window) = (**self).window() else {
                 return CGRect::ZERO;
             };
 
@@ -821,10 +821,6 @@ impl WinitView {
 
     fn window(&self) -> Retained<NSWindow> {
         (**self).window().expect("view must be installed in a window")
-    }
-
-    fn window_optional(&self) -> Option<Retained<NSWindow>> {
-        (**self).window()
     }
 
     fn queue_event(&self, event: WindowEvent) {
