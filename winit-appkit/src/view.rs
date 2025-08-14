@@ -363,15 +363,15 @@ define_class!(
         ) -> NSRect {
             trace_scope!("firstRectForCharacterRange:actualRange:");
 
-            // guard when the view is no longer in a window during teardown.
-            let Some(win) = self.window_optional() else {
-                return CGRect::ZERO; // safe fallback
+            // Guard when the view is no longer in a window during teardown.
+            let Some(window) = self.window_optional() else {
+                return CGRect::ZERO;
             };
 
             // Return value is expected to be in screen coordinates, so we need a conversion
             let rect = NSRect::new(self.ivars().ime_position.get(), self.ivars().ime_size.get());
             let view_rect = self.convertRect_toView(rect, None);
-            win.convertRectToScreen(view_rect)
+            window.convertRectToScreen(view_rect)
         }
 
         #[unsafe(method(insertText:replacementRange:))]

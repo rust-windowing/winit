@@ -254,4 +254,4 @@ changelog entry.
 - On macOS, fixed the scancode conversion for `IntlBackslash`.
 - On macOS, fixed redundant `SurfaceResized` event at window creation.
 - On macOS, don't panic on monitors with unknown bit-depths.
-- On macOS, fixed `View::first_rect_for_character_range()` to not panic when window is nil during teardown.
+- On macOS, fixed crash when closing the window on macOS 26+.
