@@ -148,6 +148,7 @@ pub struct WindowState {
     has_pending_move: Option<u32>,
 
     fractional_scale: Option<WpFractionalScaleV1>,
+    viewport: Option<WpViewport>,
 }
 
 #[derive(Debug)]
@@ -180,8 +181,6 @@ enum ShellSpecificState {
         /// Min size.
         min_surface_size: LogicalSize<u32>,
         max_surface_size: Option<LogicalSize<u32>>,
-
-        viewport: Option<WpViewport>,
     },
     WlrLayer {
         surface: LayerSurface,
@@ -224,6 +223,7 @@ impl WindowState {
             blur_manager: winit_state.kwin_blur_manager.clone(),
             compositor,
             handle,
+            viewport,
             fractional_scale,
             shell_specific: ShellSpecificState::Xdg {
                 window,
@@ -234,7 +234,6 @@ impl WindowState {
                 stateless_size: initial_size.to_logical(1.),
                 max_surface_size: None,
                 min_surface_size: MIN_WINDOW_SIZE,
-                viewport,
             },
             cursor_grab_mode: GrabState::new(),
             selected_cursor: Default::default(),
@@ -277,6 +276,11 @@ impl WindowState {
             .as_ref()
             .map(|fsm| fsm.fractional_scaling(layer_surface.wl_surface(), queue_handle));
 
+        let viewport = winit_state
+            .viewporter_state
+            .as_ref()
+            .map(|state| state.get_viewport(layer_surface.wl_surface(), queue_handle));
+
         Self {
             handle,
             compositor,
@@ -289,6 +293,7 @@ impl WindowState {
             queue_handle: queue_handle.clone(),
             scale_factor: 1.,
             shm: winit_state.shm.wl_shm().clone(),
+            viewport,
             fractional_scale,
             shell_specific: ShellSpecificState::WlrLayer {
                 surface: layer_surface,
@@ -913,24 +918,24 @@ impl WindowState {
 
         // Set the window geometry.
         match &self.shell_specific {
-            ShellSpecificState::Xdg { window, viewport, .. } => {
+            ShellSpecificState::Xdg { window, .. } => {
                 window.xdg_surface().set_window_geometry(
                     x,
                     y,
                     outer_size.width as i32,
                     outer_size.height as i32,
                 );
-
-                // Update the target viewport, this is used if and only if fractional scaling is in
-                // use.
-                if let Some(viewport) = viewport.as_ref() {
-                    // Set inner size without the borders.
-                    viewport.set_destination(self.size.width as _, self.size.height as _);
-                }
             },
             ShellSpecificState::WlrLayer { surface, .. } => {
                 surface.set_size(outer_size.width, outer_size.height)
             },
+        }
+
+        // Update the target viewport, this is used if and only if fractional scaling is in
+        // use.
+        if let Some(viewport) = self.viewport.as_ref() {
+            // Set inner size without the borders.
+            viewport.set_destination(self.size.width as _, self.size.height as _);
         }
     }
 
@@ -1480,14 +1485,12 @@ impl Drop for WindowState {
             blur.release();
         }
 
-        if let ShellSpecificState::Xdg { viewport, .. } = &mut self.shell_specific {
             if let Some(fs) = self.fractional_scale.take() {
                 fs.destroy();
             }
 
-            if let Some(viewport) = viewport.take() {
-                viewport.destroy();
-            }
+        if let Some(viewport) = self.viewport.take() {
+            viewport.destroy();
         }
 
         // NOTE: the wl_surface used by the window is being cleaned up when
