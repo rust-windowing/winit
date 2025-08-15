@@ -11,9 +11,9 @@ use objc2_app_kit::{
     NSTrackingRectTag, NSView, NSViewFrameDidChangeNotification,
 };
 use objc2_foundation::{
-    MainThreadMarker, NSArray, NSAttributedString, NSAttributedStringKey, NSCopying,
+    CGRect, MainThreadMarker, NSArray, NSAttributedString, NSAttributedStringKey, NSCopying,
     NSMutableAttributedString, NSNotFound, NSNotificationCenter, NSObject, NSObjectProtocol,
-    NSPoint, NSRange, NSRect, NSSize, NSString, NSUInteger, CGRect,
+    NSPoint, NSRange, NSRect, NSSize, NSString, NSUInteger,
 };
 
 use super::app_state::ApplicationDelegate;
