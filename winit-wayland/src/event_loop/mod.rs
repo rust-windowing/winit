@@ -12,6 +12,7 @@ use std::time::{Duration, Instant};
 
 use calloop::ping::Ping;
 use dpi::LogicalSize;
+use libc::dev_t;
 use rustix::event::{PollFd, PollFlags};
 use rustix::pipe::{self, PipeFlags};
 use sctk::reexports::calloop_wayland_source::WaylandSource;
@@ -29,6 +30,7 @@ use winit_core::event_loop::{
 use winit_core::monitor::MonitorHandle as CoreMonitorHandle;
 use winit_core::window::Theme;
 
+use crate::state::ExtensionEvents;
 use crate::types::cursor::WaylandCustomCursor;
 
 mod proxy;
@@ -60,6 +62,7 @@ pub struct EventLoop {
     buffer_sink: EventSink,
     compositor_updates: Vec<WindowCompositorUpdate>,
     window_ids: Vec<WindowId>,
+    extension_events: Vec<ExtensionEvents>,
 
     /// The Wayland dispatcher to has raw access to the queue when needed, such as
     /// when creating a new window.
@@ -69,7 +72,7 @@ pub struct EventLoop {
     handle: Arc<OwnedDisplayHandle>,
 
     /// Event loop window target.
-    active_event_loop: ActiveEventLoop,
+    pub(crate) active_event_loop: ActiveEventLoop,
 
     // XXX drop after everything else, just to be safe.
     /// Calloop's event loop.
@@ -95,7 +98,7 @@ impl EventLoop {
         let event_loop =
             calloop::EventLoop::<WinitState>::try_new().map_err(|err| os_error!(err))?;
 
-        let mut winit_state = WinitState::new(&globals, &queue_handle, event_loop.handle())?;
+        let mut winit_state = WinitState::new(globals, &queue_handle, event_loop.handle())?;
 
         // NOTE: do a roundtrip after binding the globals to prevent potential
         // races with the server.
@@ -108,7 +111,8 @@ impl EventLoop {
                 let result = queue.dispatch_pending(winit_state);
                 if result.is_ok()
                     && (!winit_state.events_sink.is_empty()
-                        || !winit_state.window_compositor_updates.is_empty())
+                        || !winit_state.window_compositor_updates.is_empty()
+                        || !winit_state.extension_events.is_empty())
                 {
                     winit_state.dispatched_events = true;
                 }
@@ -152,10 +156,12 @@ impl EventLoop {
             control_flow: Cell::new(ControlFlow::default()),
             exit: Cell::new(None),
             state: RefCell::new(winit_state),
+            extensions: Default::default(),
         };
 
         let event_loop = Self {
             loop_running: false,
+            extension_events: Vec::new(),
             compositor_updates: Vec::new(),
             buffer_sink: EventSink::default(),
             window_ids: Vec::new(),
@@ -324,6 +330,7 @@ impl EventLoop {
         // when finished.
         let mut compositor_updates = std::mem::take(&mut self.compositor_updates);
         let mut buffer_sink = std::mem::take(&mut self.buffer_sink);
+        let mut extension_events = std::mem::take(&mut self.extension_events);
         let mut window_ids = std::mem::take(&mut self.window_ids);
 
         app.new_events(&self.active_event_loop, cause);
@@ -337,6 +344,15 @@ impl EventLoop {
         // Indicate user wake up.
         if self.with_state(|state| mem::take(&mut state.proxy_wake_up)) {
             app.proxy_wake_up(&self.active_event_loop);
+        }
+
+        if let Some(main_device) = self.active_event_loop.extensions.main_device {
+            self.with_state(|state| extension_events.append(&mut state.extension_events));
+
+            for extension_event in extension_events.drain(..) {
+                let ExtensionEvents::LinuxMainDevice(device) = extension_event;
+                main_device(app, device);
+            }
         }
 
         // Drain the pending compositor updates.
@@ -606,6 +622,13 @@ pub struct ActiveEventLoop {
 
     /// Handle for the underlying event loop.
     pub handle: Arc<OwnedDisplayHandle>,
+
+    pub(crate) extensions: Extensions,
+}
+
+#[derive(Default, Debug)]
+pub(crate) struct Extensions {
+    pub(crate) main_device: Option<fn(&mut dyn ApplicationHandler, dev_t)>,
 }
 
 impl RootActiveEventLoop for ActiveEventLoop {

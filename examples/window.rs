@@ -1,10 +1,12 @@
 //! Simple winit window example.
 
+use std::any::Any;
 use std::error::Error;
 
 use winit::application::ApplicationHandler;
 use winit::event::WindowEvent;
-use winit::event_loop::{ActiveEventLoop, EventLoop};
+use winit::event_loop::{ActiveEventLoop, AsWaylandEventLoop, EventLoop};
+use winit::platform::wayland::LinuxDrm;
 #[cfg(web_platform)]
 use winit::platform::web::WindowAttributesWeb;
 use winit::window::{Window, WindowAttributes, WindowId};
@@ -17,6 +19,12 @@ mod tracing;
 #[derive(Default, Debug)]
 struct App {
     window: Option<Box<dyn Window>>,
+}
+
+impl LinuxDrm for App {
+    fn main_device(&mut self, device: libc::dev_t) {
+        dbg!(device);
+    }
 }
 
 impl ApplicationHandler for App {
@@ -67,6 +75,10 @@ impl ApplicationHandler for App {
             _ => (),
         }
     }
+
+    fn as_any(&mut self) -> Option<&mut dyn Any> {
+        Some(self)
+    }
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
@@ -75,7 +87,10 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     tracing::init();
 
-    let event_loop = EventLoop::new()?;
+    let mut event_loop = EventLoop::new()?;
+    if let Some(event_loop) = event_loop.as_wayland_event_loop() {
+        event_loop.listen_linux_dmabuf::<App>();
+    }
 
     // For alternative loop run options see `pump_events` and `run_on_demand` examples.
     event_loop.run_app(App::default())?;
