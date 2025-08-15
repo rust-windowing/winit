@@ -10,7 +10,6 @@ use super::canvas::Common;
 use super::event;
 use super::event_handle::EventListenerHandle;
 use crate::event::mkdid;
-use crate::web_sys::event::mouse_button_to_id;
 
 #[allow(dead_code)]
 pub(super) struct PointerHandler {
@@ -85,12 +84,12 @@ impl PointerHandler {
                 let button = event::mouse_button(&event).expect("no mouse button pressed");
 
                 let source = match kind {
-                    PointerKind::Mouse => ButtonSource::Mouse(button),
+                    PointerKind::Mouse => button.into(),
                     PointerKind::Touch(finger_id) => ButtonSource::Touch {
                         finger_id,
                         force: Some(Force::Normalized(event.pressure().into())),
                     },
-                    PointerKind::Unknown => ButtonSource::Unknown(mouse_button_to_id(button)),
+                    PointerKind::Unknown => ButtonSource::Unknown(button.raw()),
                 };
 
                 handler(
@@ -137,13 +136,13 @@ impl PointerHandler {
                         // care if it fails.
                         let _e = canvas.set_pointer_capture(pointer_id);
 
-                        ButtonSource::Mouse(button)
+                        button.into()
                     },
                     PointerKind::Touch(finger_id) => ButtonSource::Touch {
                         finger_id,
                         force: Some(Force::Normalized(event.pressure().into())),
                     },
-                    PointerKind::Unknown => ButtonSource::Unknown(mouse_button_to_id(button)),
+                    PointerKind::Unknown => ButtonSource::Unknown(button.raw()),
                 };
 
                 handler(
@@ -198,17 +197,16 @@ impl PointerHandler {
                         let _ = canvas.focus();
                     }
 
-                    let state = if event::mouse_buttons(&event).contains(button.into()) {
+                    let state = if event::mouse_buttons(&event).contains(button.state()) {
                         ElementState::Pressed
                     } else {
                         ElementState::Released
                     };
 
                     let button = match kind {
-                        PointerKind::Mouse => ButtonSource::Mouse(button),
+                        PointerKind::Mouse => button.into(),
                         PointerKind::Touch(finger_id) => {
-                            let button_id = mouse_button_to_id(button);
-
+                            let button_id = button.raw();
                             if button_id != 1 {
                                 tracing::error!("unexpected touch button id: {button_id}");
                             }

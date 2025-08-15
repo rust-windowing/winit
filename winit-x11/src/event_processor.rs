@@ -987,22 +987,21 @@ impl EventProcessor {
                 primary: true,
                 state,
                 position,
-                button: MouseButton::Left.into(),
+                button: MouseButton::LEFT.into(),
             },
             xlib::Button2 => WindowEvent::PointerButton {
                 device_id,
                 primary: true,
                 state,
                 position,
-                button: MouseButton::Middle.into(),
+                button: MouseButton::MIDDLE.into(),
             },
-
             xlib::Button3 => WindowEvent::PointerButton {
                 device_id,
                 primary: true,
                 state,
                 position,
-                button: MouseButton::Right.into(),
+                button: MouseButton::RIGHT.into(),
             },
 
             // Suppress emulated scroll wheel clicks, since we handle the real motion events for
@@ -1020,28 +1019,17 @@ impl EventProcessor {
                 },
                 phase: TouchPhase::Moved,
             },
-            8 => WindowEvent::PointerButton {
-                device_id,
-                primary: true,
-                state,
-                position,
-                button: MouseButton::Back.into(),
-            },
 
-            9 => WindowEvent::PointerButton {
+            x @ 8..=0xff => WindowEvent::PointerButton {
                 device_id,
                 primary: true,
                 state,
                 position,
-                button: MouseButton::Forward.into(),
+                // Button 8 maps to MouseButton::BACK = 3. 255 is the largest code yielded on X11
+                // (tested).
+                button: MouseButton((x - 5) as u8).into(),
             },
-            x => WindowEvent::PointerButton {
-                device_id,
-                primary: true,
-                state,
-                position,
-                button: MouseButton::Other(x as u16).into(),
-            },
+            _ => return,
         };
 
         app.window_event(&self.target, window_id, event);
