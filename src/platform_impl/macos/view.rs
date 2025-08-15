@@ -10,11 +10,10 @@ use objc2_app_kit::{
     NSApplication, NSCursor, NSEvent, NSEventPhase, NSResponder, NSTextInputClient,
     NSTrackingRectTag, NSView, NSViewFrameDidChangeNotification,
 };
-use objc2_core_foundation::CGRect;
 use objc2_foundation::{
     MainThreadMarker, NSArray, NSAttributedString, NSAttributedStringKey, NSCopying,
     NSMutableAttributedString, NSNotFound, NSNotificationCenter, NSObject, NSObjectProtocol,
-    NSPoint, NSRange, NSRect, NSSize, NSString, NSUInteger,
+    NSPoint, NSRange, NSRect, NSSize, NSString, NSUInteger, CGRect,
 };
 
 use super::app_state::ApplicationDelegate;
