@@ -10,6 +10,7 @@ use objc2_app_kit::{
     NSApplication, NSCursor, NSEvent, NSEventPhase, NSResponder, NSTextInputClient,
     NSTrackingRectTag, NSView, NSViewFrameDidChangeNotification,
 };
+use objc2_core_foundation::CGRect;
 use objc2_foundation::{
     MainThreadMarker, NSArray, NSAttributedString, NSAttributedStringKey, NSCopying,
     NSMutableAttributedString, NSNotFound, NSNotificationCenter, NSObject, NSObjectProtocol,
@@ -374,13 +375,18 @@ declare_class!(
             _actual_range: *mut NSRange,
         ) -> NSRect {
             trace_scope!("firstRectForCharacterRange:actualRange:");
+            // Guard when the view is no longer in a window during teardown.
+            let Some(window) = (**self).window() else {
+                return CGRect::ZERO;
+            };
+            
             let rect = NSRect::new(
                 self.ivars().ime_position.get(),
                 self.ivars().ime_size.get()
             );
             // Return value is expected to be in screen coordinates, so we need a conversion here
-            self.window()
-                .convertRectToScreen(self.convertRect_toView(rect, None))
+            window.convertRectToScreen(
+                self.convertRect_toView(rect, None))
         }
 
         #[method(insertText:replacementRange:)]
