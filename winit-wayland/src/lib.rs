@@ -113,8 +113,9 @@ pub struct WindowAttributesWayland {
 }
 
 impl WindowAttributesWayland {
-    pub fn layer_shell() -> Self {
-        Self { is_layer_shell: true, ..Default::default() }
+    pub fn with_layer_shell(mut self) -> Self {
+        self.is_layer_shell = true;
+        self
     }
     /// Build window with the given name.
     ///
