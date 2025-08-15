@@ -1552,9 +1552,9 @@ impl Drop for WindowState {
             blur.release();
         }
 
-            if let Some(fs) = self.fractional_scale.take() {
-                fs.destroy();
-            }
+        if let Some(fs) = self.fractional_scale.take() {
+            fs.destroy();
+        }
 
         if let Some(viewport) = self.viewport.take() {
             viewport.destroy();
