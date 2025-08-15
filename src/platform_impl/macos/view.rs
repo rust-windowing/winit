@@ -379,7 +379,6 @@ declare_class!(
             let Some(window) = (**self).window() else {
                 return CGRect::ZERO;
             };
-            
             let rect = NSRect::new(
                 self.ivars().ime_position.get(),
                 self.ivars().ime_size.get()
