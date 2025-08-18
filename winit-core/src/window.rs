@@ -1649,7 +1649,7 @@ pub struct ImeSurroundingText {
 impl ImeSurroundingText {
     /// The maximum size of the text excerpt.
     pub const MAX_TEXT_BYTES: usize = 4000;
-    /// Defines the text surroundng the cursor and the selection within it.
+    /// Defines the text surrounding the cursor and the selection within it.
     ///
     /// `text`: An excerpt of the text present in the text input field, excluding preedit.
     /// It must be limited to 4000 bytes due to backend constraints.
