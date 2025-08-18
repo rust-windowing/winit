@@ -254,5 +254,6 @@ changelog entry.
 - On macOS, fixed the scancode conversion for `IntlBackslash`.
 - On macOS, fixed redundant `SurfaceResized` event at window creation.
 - On macOS, don't panic on monitors with unknown bit-depths.
+- On macOS, fixed crash when closing the window on macOS 26+.
 - On Windows, `Window::theme` will return the correct theme after setting it through `Window::set_theme`.
 - On Windows, `Window::set_theme` will change the title bar color immediately now.
