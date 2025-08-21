@@ -82,7 +82,7 @@ pub fn initialize(app: &NSApplication) {
     app_menu.addItem(&quit_item);
     app_menu_item.setSubmenu(Some(&app_menu));
 
-    unsafe { app.setServicesMenu(Some(&services_menu)) };
+    app.setServicesMenu(Some(&services_menu));
     app.setMainMenu(Some(&menubar));
 }
 
