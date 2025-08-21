@@ -154,7 +154,7 @@ impl EventLoop {
         // this line sets up the main run loop before `UIApplicationMain`
         setup_control_flow_observers();
 
-        let center = unsafe { NSNotificationCenter::defaultCenter() };
+        let center = NSNotificationCenter::defaultCenter();
 
         let _did_finish_launching_observer = create_observer(
             &center,
@@ -181,7 +181,7 @@ impl EventLoop {
             // `applicationWillEnterForeground:`
             unsafe { UIApplicationWillEnterForegroundNotification },
             move |notification| {
-                let app = unsafe { notification.object() }.expect(
+                let app = notification.object().expect(
                     "UIApplicationWillEnterForegroundNotification to have application object",
                 );
                 // The `object` in `UIApplicationWillEnterForegroundNotification` is documented to
@@ -195,7 +195,7 @@ impl EventLoop {
             // `applicationDidEnterBackground:`
             unsafe { UIApplicationDidEnterBackgroundNotification },
             move |notification| {
-                let app = unsafe { notification.object() }.expect(
+                let app = notification.object().expect(
                     "UIApplicationDidEnterBackgroundNotification to have application object",
                 );
                 // The `object` in `UIApplicationDidEnterBackgroundNotification` is documented to be
@@ -209,7 +209,8 @@ impl EventLoop {
             // `applicationWillTerminate:`
             unsafe { UIApplicationWillTerminateNotification },
             move |notification| {
-                let app = unsafe { notification.object() }
+                let app = notification
+                    .object()
                     .expect("UIApplicationWillTerminateNotification to have application object");
                 // The `object` in `UIApplicationWillTerminateNotification` is (somewhat) documented
                 // to be `UIApplication`.

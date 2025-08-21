@@ -161,8 +161,7 @@ impl Inner {
 
     pub fn surface_position(&self) -> PhysicalPosition<i32> {
         let view_position = self.view.frame().origin;
-        let position =
-            unsafe { self.window.convertPoint_fromView(view_position, Some(&self.view)) };
+        let position = self.window.convertPoint_fromView(view_position, Some(&self.view));
         let position = LogicalPosition::new(position.x, position.y);
         position.to_physical(self.scale_factor())
     }
@@ -393,9 +392,7 @@ impl Inner {
                 }
                 *current_caps = Some(capabilities);
 
-                unsafe {
-                    self.view.becomeFirstResponder();
-                }
+                self.view.becomeFirstResponder();
             },
             ImeRequest::Update(_) => {
                 if current_caps.is_none() {
@@ -404,9 +401,7 @@ impl Inner {
             },
             ImeRequest::Disable => {
                 *current_caps = None;
-                unsafe {
-                    self.view.resignFirstResponder();
-                }
+                self.view.resignFirstResponder();
             },
         }
 

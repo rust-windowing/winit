@@ -191,7 +191,7 @@ impl EventLoop {
         // Override `sendEvent:` on the application to forward to our application state.
         override_send_event(&app);
 
-        let center = unsafe { NSNotificationCenter::defaultCenter() };
+        let center = NSNotificationCenter::defaultCenter();
 
         let weak_app_state = Rc::downgrade(&app_state);
         let _did_finish_launching_observer = create_observer(
