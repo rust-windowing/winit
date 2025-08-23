@@ -36,6 +36,7 @@ use winit_core::event::{
 use crate::state::WinitState;
 use crate::WindowId;
 
+pub mod pointer_gesture;
 pub mod relative_pointer;
 
 impl PointerHandler for WinitState {
