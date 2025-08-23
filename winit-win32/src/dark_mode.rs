@@ -60,6 +60,11 @@ const LIGHT_THEME_NAME: PCWSTR = w!("");
 
 /// Attempt to set a theme on a window, if necessary.
 /// Returns the theme that was picked
+///
+/// `refresh_title_bar` is only needed when the system doesn't do it by itself,
+/// for cases like on window creation or system settings changes,
+/// the system will refresh the title bar automatically,
+/// if we always refresh the title bar, it will blink it on system settings changes
 pub fn try_theme(hwnd: HWND, preferred_theme: Option<Theme>, refresh_title_bar: bool) -> Theme {
     if *DARK_MODE_SUPPORTED {
         let is_dark_mode = match preferred_theme {
