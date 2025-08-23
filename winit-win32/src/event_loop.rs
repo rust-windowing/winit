@@ -2467,7 +2467,7 @@ unsafe fn public_window_callback_inner(
             let preferred_theme = userdata.window_state_lock().preferred_theme;
 
             if preferred_theme.is_none() {
-                let new_theme = try_theme(window, preferred_theme);
+                let new_theme = try_theme(window, preferred_theme, false);
                 let mut window_state = userdata.window_state_lock();
 
                 if window_state.current_theme != new_theme {

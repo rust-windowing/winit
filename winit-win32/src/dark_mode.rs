@@ -3,13 +3,17 @@ use std::sync::LazyLock;
 /// which is inspired by the solution in https://github.com/ysc3839/win32-darkmode
 use std::{ffi::c_void, ptr};
 
-use windows_sys::core::PCSTR;
-use windows_sys::Win32::Foundation::{BOOL, HWND, NTSTATUS, S_OK};
+use windows_sys::core::{PCSTR, PCWSTR};
+use windows_sys::w;
+use windows_sys::Win32::Foundation::{BOOL, HWND, LPARAM, NTSTATUS, S_OK, WPARAM};
 use windows_sys::Win32::System::LibraryLoader::{GetProcAddress, LoadLibraryA};
 use windows_sys::Win32::System::SystemInformation::OSVERSIONINFOW;
 use windows_sys::Win32::UI::Accessibility::{HCF_HIGHCONTRASTON, HIGHCONTRASTA};
 use windows_sys::Win32::UI::Controls::SetWindowTheme;
-use windows_sys::Win32::UI::WindowsAndMessaging::{SystemParametersInfoA, SPI_GETHIGHCONTRAST};
+use windows_sys::Win32::UI::Input::KeyboardAndMouse::GetActiveWindow;
+use windows_sys::Win32::UI::WindowsAndMessaging::{
+    DefWindowProcW, SystemParametersInfoA, SPI_GETHIGHCONTRAST, WM_NCACTIVATE,
+};
 use winit_core::window::Theme;
 
 use super::util;
@@ -51,13 +55,17 @@ static DARK_MODE_SUPPORTED: LazyLock<bool> = LazyLock::new(|| {
     }
 });
 
-static DARK_THEME_NAME: LazyLock<Vec<u16>> =
-    LazyLock::new(|| util::encode_wide("DarkMode_Explorer"));
-static LIGHT_THEME_NAME: LazyLock<Vec<u16>> = LazyLock::new(|| util::encode_wide(""));
+const DARK_THEME_NAME: PCWSTR = w!("DarkMode_Explorer");
+const LIGHT_THEME_NAME: PCWSTR = w!("");
 
 /// Attempt to set a theme on a window, if necessary.
 /// Returns the theme that was picked
-pub fn try_theme(hwnd: HWND, preferred_theme: Option<Theme>) -> Theme {
+///
+/// `refresh_title_bar` is only needed when the system doesn't do it by itself,
+/// for cases like on window creation or system settings changes,
+/// the system will refresh the title bar automatically,
+/// if we always refresh the title bar, it will blink it on system settings changes
+pub fn try_theme(hwnd: HWND, preferred_theme: Option<Theme>, refresh_title_bar: bool) -> Theme {
     if *DARK_MODE_SUPPORTED {
         let is_dark_mode = match preferred_theme {
             Some(theme) => theme == Theme::Dark,
@@ -66,13 +74,16 @@ pub fn try_theme(hwnd: HWND, preferred_theme: Option<Theme>) -> Theme {
 
         let theme = if is_dark_mode { Theme::Dark } else { Theme::Light };
         let theme_name = match theme {
-            Theme::Dark => DARK_THEME_NAME.as_ptr(),
-            Theme::Light => LIGHT_THEME_NAME.as_ptr(),
+            Theme::Dark => DARK_THEME_NAME,
+            Theme::Light => LIGHT_THEME_NAME,
         };
 
         let status = unsafe { SetWindowTheme(hwnd, theme_name, ptr::null()) };
 
         if status == S_OK && set_dark_mode_for_window(hwnd, is_dark_mode) {
+            if refresh_title_bar {
+                unsafe { refresh_titlebar_theme_color(hwnd) };
+            }
             return theme;
         }
     }
@@ -120,6 +131,18 @@ fn set_dark_mode_for_window(hwnd: HWND, is_dark_mode: bool) -> bool {
         }
     } else {
         false
+    }
+}
+
+unsafe fn refresh_titlebar_theme_color(hwnd: HWND) {
+    unsafe {
+        if GetActiveWindow() == hwnd {
+            DefWindowProcW(hwnd, WM_NCACTIVATE, WPARAM::default(), LPARAM::default());
+            DefWindowProcW(hwnd, WM_NCACTIVATE, true as _, LPARAM::default());
+        } else {
+            DefWindowProcW(hwnd, WM_NCACTIVATE, true as _, LPARAM::default());
+            DefWindowProcW(hwnd, WM_NCACTIVATE, WPARAM::default(), LPARAM::default());
+        }
     }
 }
 
