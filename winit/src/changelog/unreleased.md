@@ -174,6 +174,7 @@ changelog entry.
 - Rename `VideoModeHandle` to `VideoMode`, now it only stores plain data.
 - Make `Fullscreen::Exclusive` contain `(MonitorHandle, VideoMode)`.
 - Reworked the file drag-and-drop API.
+- On macOS, the default menu uses the bundle name or falls back to the process name as before.
 
   The `WindowEvent::DroppedFile`, `WindowEvent::HoveredFile` and `WindowEvent::HoveredFileCancelled`
   events have been removed, and replaced with `WindowEvent::DragEntered`, `WindowEvent::DragMoved`,
