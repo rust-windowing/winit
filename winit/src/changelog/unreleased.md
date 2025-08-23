@@ -256,3 +256,4 @@ changelog entry.
 - On macOS, fixed redundant `SurfaceResized` event at window creation.
 - On macOS, don't panic on monitors with unknown bit-depths.
 - On macOS, fixed crash when closing the window on macOS 26+.
+- On Windows, account for mouse wheel lines per scroll setting for `WindowEvent::MouseWheel`.

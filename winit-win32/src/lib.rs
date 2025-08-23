@@ -285,6 +285,15 @@ pub trait WindowExtWindows {
     /// Supported starting with Windows 11 Build 22000.
     fn set_corner_preference(&self, preference: CornerPreference);
 
+    /// Sets if the reported [`winit_core::event::WindowEvent::MouseWheel`] event
+    /// should account for scroll speed system settings.
+    ///
+    /// The default scroll speed on Windows is 3 lines/characters per scroll,
+    /// this will be 1 if you set it to false.
+    ///
+    /// The default is `true`.
+    fn set_use_system_scroll_speed(&self, should_use: bool);
+
     /// Get the raw window handle for this [`Window`] without checking for thread affinity.
     ///
     /// Window handles in Win32 have a property called "thread affinity" that ties them to their
@@ -398,6 +407,11 @@ impl WindowExtWindows for dyn CoreWindow + '_ {
         window.set_corner_preference(preference)
     }
 
+    fn set_use_system_scroll_speed(&self, should_use: bool) {
+        let window = self.cast_ref::<Window>().unwrap();
+        window.set_use_system_scroll_speed(should_use)
+    }
+
     unsafe fn window_handle_any_thread(
         &self,
     ) -> Result<rwh_06::WindowHandle<'_>, rwh_06::HandleError> {
@@ -459,6 +473,7 @@ pub struct WindowAttributesWindows {
     pub(crate) title_background_color: Option<Color>,
     pub(crate) title_text_color: Option<Color>,
     pub(crate) corner_preference: Option<CornerPreference>,
+    pub(crate) use_system_wheel_speed: bool,
 }
 
 impl Default for WindowAttributesWindows {
@@ -478,6 +493,7 @@ impl Default for WindowAttributesWindows {
             title_background_color: None,
             title_text_color: None,
             corner_preference: None,
+            use_system_wheel_speed: true,
         }
     }
 }
@@ -608,6 +624,18 @@ impl WindowAttributesWindows {
     /// Supported starting with Windows 11 Build 22000.
     pub fn with_corner_preference(mut self, corners: CornerPreference) -> Self {
         self.corner_preference = Some(corners);
+        self
+    }
+
+    /// Sets if the reported [`winit_core::event::WindowEvent::MouseWheel`] event
+    /// should account for scroll speed system settings.
+    ///
+    /// The default scroll speed on Windows is 3 lines/characters per scroll,
+    /// this will be 1 if you set it to false.
+    ///
+    /// The default is `true`.
+    pub fn with_use_system_scroll_speed(mut self, should_use: bool) -> Self {
+        self.use_system_wheel_speed = should_use;
         self
     }
 }
