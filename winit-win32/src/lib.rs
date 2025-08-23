@@ -289,7 +289,9 @@ pub trait WindowExtWindows {
     /// should account for scroll speed system settings.
     ///
     /// The default scroll speed on Windows is 3 lines/characters per scroll,
-    /// this will be 1 if you set it to false
+    /// this will be 1 if you set it to false.
+    ///
+    /// The default is `true`.
     fn set_use_system_scroll_speed(&self, should_use: bool);
 
     /// Get the raw window handle for this [`Window`] without checking for thread affinity.
@@ -629,7 +631,9 @@ impl WindowAttributesWindows {
     /// should account for scroll speed system settings.
     ///
     /// The default scroll speed on Windows is 3 lines/characters per scroll,
-    /// this will be 1 if you set it to false
+    /// this will be 1 if you set it to false.
+    ///
+    /// The default is `true`.
     pub fn with_use_system_scroll_speed(mut self, should_use: bool) -> Self {
         self.use_system_wheel_speed = should_use;
         self
