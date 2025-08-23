@@ -287,6 +287,9 @@ pub trait WindowExtWindows {
 
     /// Sets if the reported [`winit_core::event::WindowEvent::MouseWheel`] event
     /// should account for scroll speed system settings.
+    ///
+    /// The default scroll speed on Windows is 3 lines/characters per scroll,
+    /// this will be 1 if you set it to false
     fn set_use_system_scroll_speed(&self, should_use: bool);
 
     /// Get the raw window handle for this [`Window`] without checking for thread affinity.
@@ -624,6 +627,9 @@ impl WindowAttributesWindows {
 
     /// Sets if the reported [`winit_core::event::WindowEvent::MouseWheel`] event
     /// should account for scroll speed system settings.
+    ///
+    /// The default scroll speed on Windows is 3 lines/characters per scroll,
+    /// this will be 1 if you set it to false
     pub fn with_use_system_scroll_speed(mut self, should_use: bool) -> Self {
         self.use_system_wheel_speed = should_use;
         self
