@@ -25,6 +25,8 @@
 pub use winit_android as android;
 #[cfg(macos_platform)]
 pub use winit_appkit as macos;
+#[cfg(ohos_platform)]
+pub use winit_ohos as ohos;
 #[cfg(orbital_platform)]
 pub use winit_orbital as orbital;
 #[cfg(ios_platform)]

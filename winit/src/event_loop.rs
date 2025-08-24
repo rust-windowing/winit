@@ -289,6 +289,7 @@ impl AsRawFd for EventLoop {
     android_platform,
     x11_platform,
     wayland_platform,
+    ohos_platform,
     docsrs,
 ))]
 impl winit_core::event_loop::pump_events::EventLoopExtPumpEvents for EventLoop {
@@ -308,6 +309,7 @@ impl winit_core::event_loop::pump_events::EventLoopExtPumpEvents for EventLoop {
     android_platform,
     x11_platform,
     wayland_platform,
+    ohos_platform,
     docsrs,
 ))]
 impl winit_core::event_loop::run_on_demand::EventLoopExtRunOnDemand for EventLoop {
@@ -332,6 +334,21 @@ impl winit_android::EventLoopBuilderExtAndroid for EventLoopBuilder {
 
     fn handle_volume_keys(&mut self) -> &mut Self {
         self.platform_specific.ignore_volume_keys = false;
+        self
+    }
+}
+
+#[cfg(ohos_platform)]
+impl winit_ohos::EventLoopExtOpenHarmony for EventLoop {
+    fn openharmony_app(&self) -> &winit_ohos::ability::OpenHarmonyApp {
+        &self.event_loop.openharmony_app
+    }
+}
+
+#[cfg(ohos_platform)]
+impl winit_ohos::EventLoopBuilderExtOpenHarmony for EventLoopBuilder {
+    fn with_openharmony_app(&mut self, app: winit_ohos::ability::OpenHarmonyApp) -> &mut Self {
+        self.platform_specific.openharmony_app = Some(app);
         self
     }
 }
