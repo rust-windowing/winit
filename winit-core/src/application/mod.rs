@@ -1,5 +1,7 @@
 //! End user application handling.
 
+use std::any::Any;
+
 use crate::event::{DeviceEvent, DeviceId, StartCause, WindowEvent};
 use crate::event_loop::ActiveEventLoop;
 use crate::window::WindowId;
@@ -343,6 +345,11 @@ pub trait ApplicationHandler {
     fn macos_handler(&mut self) -> Option<&mut dyn macos::ApplicationHandlerExtMacOS> {
         None
     }
+
+    #[inline(always)]
+    fn as_any(&mut self) -> Option<&mut dyn Any> {
+        None
+    }
 }
 
 #[deny(clippy::missing_trait_methods)]
@@ -411,6 +418,11 @@ impl<A: ?Sized + ApplicationHandler> ApplicationHandler for &mut A {
     fn macos_handler(&mut self) -> Option<&mut dyn macos::ApplicationHandlerExtMacOS> {
         (**self).macos_handler()
     }
+
+    #[inline(always)]
+    fn as_any(&mut self) -> Option<&mut dyn Any> {
+        (**self).as_any()
+    }
 }
 
 #[deny(clippy::missing_trait_methods)]
@@ -478,5 +490,10 @@ impl<A: ?Sized + ApplicationHandler> ApplicationHandler for Box<A> {
     #[inline]
     fn macos_handler(&mut self) -> Option<&mut dyn macos::ApplicationHandlerExtMacOS> {
         (**self).macos_handler()
+    }
+
+    #[inline(always)]
+    fn as_any(&mut self) -> Option<&mut dyn Any> {
+        (**self).as_any()
     }
 }

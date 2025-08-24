@@ -255,6 +255,21 @@ impl HasDisplayHandle for EventLoop {
     }
 }
 
+#[cfg(wayland_platform)]
+pub trait AsWaylandEventLoop {
+    fn as_wayland_event_loop(&mut self) -> Option<&mut crate::platform::wayland::EventLoop>;
+}
+
+#[cfg(wayland_platform)]
+impl AsWaylandEventLoop for EventLoop {
+    fn as_wayland_event_loop(&mut self) -> Option<&mut crate::platform::wayland::EventLoop> {
+        match &mut self.event_loop {
+            platform_impl::EventLoop::Wayland(event_loop) => Some(event_loop),
+            _ => None,
+        }
+    }
+}
+
 #[cfg(any(x11_platform, wayland_platform))]
 impl AsFd for EventLoop {
     /// Get the underlying [EventLoop]'s `fd` which you can register
