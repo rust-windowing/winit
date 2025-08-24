@@ -5,9 +5,8 @@ use std::{ffi::c_void, ptr};
 
 use windows_sys::core::{PCSTR, PCWSTR};
 use windows_sys::w;
-use windows_sys::Win32::Foundation::{BOOL, HWND, LPARAM, NTSTATUS, S_OK, WPARAM};
+use windows_sys::Win32::Foundation::{BOOL, HWND, LPARAM, S_OK, WPARAM};
 use windows_sys::Win32::System::LibraryLoader::{GetProcAddress, LoadLibraryA};
-use windows_sys::Win32::System::SystemInformation::OSVERSIONINFOW;
 use windows_sys::Win32::UI::Accessibility::{HCF_HIGHCONTRASTON, HIGHCONTRASTA};
 use windows_sys::Win32::UI::Controls::SetWindowTheme;
 use windows_sys::Win32::UI::Input::KeyboardAndMouse::GetActiveWindow;
@@ -17,39 +16,10 @@ use windows_sys::Win32::UI::WindowsAndMessaging::{
 use winit_core::window::Theme;
 
 use super::util;
-
-static WIN10_BUILD_VERSION: LazyLock<Option<u32>> = LazyLock::new(|| {
-    type RtlGetVersion = unsafe extern "system" fn(*mut OSVERSIONINFOW) -> NTSTATUS;
-    let handle = get_function!("ntdll.dll", RtlGetVersion);
-
-    if let Some(rtl_get_version) = handle {
-        unsafe {
-            let mut vi = OSVERSIONINFOW {
-                dwOSVersionInfoSize: 0,
-                dwMajorVersion: 0,
-                dwMinorVersion: 0,
-                dwBuildNumber: 0,
-                dwPlatformId: 0,
-                szCSDVersion: [0; 128],
-            };
-
-            let status = (rtl_get_version)(&mut vi);
-
-            if status >= 0 && vi.dwMajorVersion == 10 && vi.dwMinorVersion == 0 {
-                Some(vi.dwBuildNumber)
-            } else {
-                None
-            }
-        }
-    } else {
-        None
-    }
-});
-
 static DARK_MODE_SUPPORTED: LazyLock<bool> = LazyLock::new(|| {
     // We won't try to do anything for windows versions < 17763
     // (Windows 10 October 2018 update)
-    match *WIN10_BUILD_VERSION {
+    match *util::WIN10_BUILD_VERSION {
         Some(v) => v >= 17763,
         None => false,
     }
