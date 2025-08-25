@@ -82,6 +82,7 @@ changelog entry.
 - `ActivationToken::as_raw` to get a ref to raw token.
 - Each platform now has corresponding `WindowAttributes` struct instead of trait extension.
 - On Wayland, added implementation for `Window::set_window_icon`
+- On Wayland, added `PanGesture`, `PinchGesture`, and `RotationGesture`
 - Add `Window::request_ime_update` to atomically apply set of IME changes.
 - Add `Ime::DeleteSurrounding` to let the input method delete text.
 
