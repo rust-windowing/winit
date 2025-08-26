@@ -11,7 +11,9 @@ use sctk::reexports::protocols::wp::text_input::zv3::client::zwp_text_input_v3::
 };
 use tracing::warn;
 use winit_core::event::{Ime, WindowEvent};
-use winit_core::window::{ImeCapabilities, ImePurpose, ImeRequestData, ImeSurroundingText};
+use winit_core::window::{
+    ImeCapabilities, ImeHint, ImePurpose, ImeRequestData, ImeSurroundingText,
+};
 
 use crate::state::WinitState;
 
@@ -279,7 +281,7 @@ struct DeleteSurroundingText {
 pub struct ClientState {
     capabilities: ImeCapabilities,
 
-    content_type: ContentType,
+    content_type: (ImePurpose, ImeHint),
 
     /// The IME cursor area which should not be covered by the input method popup.
     cursor_area: (LogicalPosition<u32>, LogicalSize<u32>),
@@ -302,8 +304,11 @@ impl ClientState {
             surrounding_text: ImeSurroundingText::new(String::new(), 0, 0).unwrap(),
         };
 
-        let unsupported_flags =
-            capabilities.without_purpose().without_cursor_area().without_surrounding_text();
+        let unsupported_flags = capabilities
+            .without_purpose()
+            .without_hint()
+            .without_cursor_area()
+            .without_surrounding_text();
 
         if unsupported_flags != ImeCapabilities::new() {
             warn!(
@@ -322,12 +327,27 @@ impl ClientState {
 
     /// Updates the fields of the state which are present in update_fields.
     pub fn update(&mut self, request_data: ImeRequestData, scale_factor: f64) {
-        if let Some(purpose) = request_data.purpose {
-            if self.capabilities.purpose() {
-                self.content_type = purpose.into();
-            } else {
-                warn!("discarding ImePurpose update without capability enabled.");
+        if self.capabilities.purpose() || self.capabilities.hint() {
+            // Wayland has only one message for both,
+            // so they must be handled together.
+            if request_data.purpose.is_some() && !self.capabilities.purpose() {
+                warn!(
+                    "ImePurpose capability not explicitly enabled. Using anyway because of \
+                     ImeHint."
+                );
             }
+            if request_data.hint.is_some() && !self.capabilities.hint() {
+                warn!(
+                    "ImeHint capability not explicitly enabled. Using anyway because of \
+                     ImePurpose."
+                );
+            }
+
+            let (prev_purpose, prev_hint) = self.content_type;
+            self.content_type = (
+                request_data.purpose.unwrap_or(prev_purpose),
+                request_data.hint.unwrap_or(prev_hint),
+            );
         }
 
         if let Some((position, size)) = request_data.cursor_area {
@@ -350,7 +370,9 @@ impl ClientState {
     }
 
     pub fn content_type(&self) -> Option<ContentType> {
-        self.capabilities.purpose().then_some(self.content_type)
+        (self.capabilities.purpose() || self.capabilities.hint())
+            .then_some(self.content_type)
+            .map(ContentType::from)
     }
 
     pub fn cursor_area(&self) -> Option<(LogicalPosition<u32>, LogicalSize<u32>)> {
@@ -370,15 +392,63 @@ pub struct ContentType {
     hint: ContentHint,
 }
 
-impl From<ImePurpose> for ContentType {
-    fn from(purpose: ImePurpose) -> Self {
-        let (hint, purpose) = match purpose {
-            ImePurpose::Password => (ContentHint::SensitiveData, ContentPurpose::Password),
-            ImePurpose::Terminal => (ContentHint::None, ContentPurpose::Terminal),
-            _ => return Default::default(),
+/// The two options influence each other, so they must be converted together.
+impl From<(ImePurpose, ImeHint)> for ContentType {
+    fn from((purpose, hint): (ImePurpose, ImeHint)) -> Self {
+        let purpose = match purpose {
+            ImePurpose::Password => ContentPurpose::Password,
+            ImePurpose::Terminal => ContentPurpose::Terminal,
+            ImePurpose::Phone => ContentPurpose::Phone,
+            ImePurpose::Number => ContentPurpose::Number,
+            ImePurpose::Url => ContentPurpose::Url,
+            ImePurpose::Email => ContentPurpose::Email,
+            ImePurpose::Pin => ContentPurpose::Pin,
+            ImePurpose::Date => ContentPurpose::Date,
+            ImePurpose::Time => ContentPurpose::Time,
+            ImePurpose::DateTime => ContentPurpose::Datetime,
+            _ => ContentPurpose::Normal,
         };
 
-        Self { hint, purpose }
+        let base_hint = match purpose {
+            // Before the hint API was introduced, password  purpose guaranteed the
+            // sensitive hint. Keep this behaviour for the sake of backwards compatibility.
+            ContentPurpose::Password | ContentPurpose::Pin => ContentHint::SensitiveData,
+            _ => ContentHint::None,
+        };
+
+        let mut new_hint = base_hint;
+        if hint.contains(ImeHint::COMPLETION) {
+            new_hint |= ContentHint::Completion;
+        }
+        if hint.contains(ImeHint::SPELLCHECK) {
+            new_hint |= ContentHint::Spellcheck;
+        }
+        if hint.contains(ImeHint::AUTO_CAPITALIZATION) {
+            new_hint |= ContentHint::AutoCapitalization;
+        }
+        if hint.contains(ImeHint::LOWERCASE) {
+            new_hint |= ContentHint::Lowercase;
+        }
+        if hint.contains(ImeHint::UPPERCASE) {
+            new_hint |= ContentHint::Uppercase;
+        }
+        if hint.contains(ImeHint::TITLECASE) {
+            new_hint |= ContentHint::Titlecase;
+        }
+        if hint.contains(ImeHint::HIDDEN_TEXT) {
+            new_hint |= ContentHint::HiddenText;
+        }
+        if hint.contains(ImeHint::SENSITIVE_DATA) {
+            new_hint |= ContentHint::SensitiveData;
+        }
+        if hint.contains(ImeHint::LATIN) {
+            new_hint |= ContentHint::Latin;
+        }
+        if hint.contains(ImeHint::MULTILINE) {
+            new_hint |= ContentHint::Multiline;
+        }
+
+        Self { hint: new_hint, purpose }
     }
 }
 
