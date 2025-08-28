@@ -19,6 +19,7 @@ const ORBITAL_FLAG_FRONT: char = 'f';
 const ORBITAL_FLAG_HIDDEN: char = 'h';
 const ORBITAL_FLAG_BORDERLESS: char = 'l';
 const ORBITAL_FLAG_MAXIMIZED: char = 'm';
+const ORBITAL_FLAG_FULLSCREEN: char = 'M';
 const ORBITAL_FLAG_RESIZABLE: char = 'r';
 const ORBITAL_FLAG_TRANSPARENT: char = 't';
 
@@ -55,15 +56,16 @@ impl Window {
         // Async by default.
         let mut flag_str = ORBITAL_FLAG_ASYNC.to_string();
 
-        if attrs.maximized {
+        // Fullscreen takes precedence over maximize
+        if let Some(Fullscreen::Borderless(_)) = attrs.fullscreen {
+            flag_str.push(ORBITAL_FLAG_FULLSCREEN);
+        } else if attrs.maximized {
             flag_str.push(ORBITAL_FLAG_MAXIMIZED);
         }
 
         if attrs.resizable {
             flag_str.push(ORBITAL_FLAG_RESIZABLE);
         }
-
-        // TODO: fullscreen
 
         if attrs.transparent {
             flag_str.push(ORBITAL_FLAG_TRANSPARENT);
@@ -323,10 +325,28 @@ impl CoreWindow for Window {
         self.get_flag(ORBITAL_FLAG_MAXIMIZED).unwrap_or(false)
     }
 
-    fn set_fullscreen(&self, _monitor: Option<Fullscreen>) {}
+    fn set_fullscreen(&self, fullscreen: Option<Fullscreen>) {
+        match fullscreen {
+            Some(Fullscreen::Exclusive(..)) => {
+                // TODO: exclusive fullscreen not supported on orbital
+            },
+            Some(Fullscreen::Borderless(_monitor)) => {
+                // TODO: monitor selection not supported on orbital
+                let _ = self.set_flag(ORBITAL_FLAG_FULLSCREEN, true);
+            },
+            None => {
+                let _ = self.set_flag(ORBITAL_FLAG_FULLSCREEN, false);
+            },
+        }
+    }
 
     fn fullscreen(&self) -> Option<Fullscreen> {
-        None
+        if self.get_flag(ORBITAL_FLAG_FULLSCREEN).unwrap_or(false) {
+            // TODO: monitor selection not supported on orbital
+            Some(Fullscreen::Borderless(None))
+        } else {
+            None
+        }
     }
 
     #[inline]
