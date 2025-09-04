@@ -31,15 +31,20 @@ impl PointerGesturesState {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct PointerGestureData {
-    window_id: Mutex<Option<WindowId>>,
-    previous_scale: Mutex<f64>,
+    inner: Mutex<PointerGestureDataInner>,
 }
 
-impl Default for PointerGestureData {
+#[derive(Debug)]
+pub struct PointerGestureDataInner {
+    window_id: Option<WindowId>,
+    previous_scale: f64,
+}
+
+impl Default for PointerGestureDataInner {
     fn default() -> Self {
-        Self { window_id: Default::default(), previous_scale: Mutex::new(1.0) }
+        Self { window_id: Default::default(), previous_scale: 1.0 }
     }
 }
 
@@ -73,6 +78,7 @@ impl Dispatch<ZwpPointerGesturePinchV1, PointerGestureData, WinitState> for Poin
         _conn: &Connection,
         _qhandle: &QueueHandle<WinitState>,
     ) {
+        let mut pointer_gesture_data = data.inner.lock().unwrap();
         let (window_id, phase, pan_delta, scale_delta, rotation_delta) = match event {
             Event::Begin { time: _, serial: _, surface, fingers } => {
                 if fingers != 2 {
@@ -87,35 +93,34 @@ impl Dispatch<ZwpPointerGesturePinchV1, PointerGestureData, WinitState> for Poin
                 let window_id = crate::make_wid(parent_surface);
 
                 let pan_delta = PhysicalPosition::new(0., 0.);
-                *data.window_id.lock().unwrap() = Some(window_id);
-                *data.previous_scale.lock().unwrap() = 1.;
+                pointer_gesture_data.window_id = Some(window_id);
+                pointer_gesture_data.previous_scale = 1.;
 
                 (window_id, TouchPhase::Started, pan_delta, 0., 0.)
             },
             Event::Update { time: _, dx, dy, scale, rotation } => {
-                let window_id = match *data.window_id.lock().unwrap() {
+                let window_id = match pointer_gesture_data.window_id {
                     Some(window_id) => window_id,
                     None => return,
                 };
-                let window = match state.windows.get_mut().get_mut(&window_id) {
-                    Some(window) => window.lock().unwrap(),
+                let scale_factor = match state.windows.get_mut().get_mut(&window_id) {
+                    Some(window) => window.lock().unwrap().scale_factor(),
                     None => return,
                 };
 
-                let scale_factor = window.scale_factor();
                 let pan_delta =
                     LogicalPosition::new(dx as f32, dy as f32).to_physical(scale_factor);
-                let scale_delta = scale - *data.previous_scale.lock().unwrap();
-                *data.previous_scale.lock().unwrap() = scale;
+                let scale_delta = scale - pointer_gesture_data.previous_scale;
+                pointer_gesture_data.previous_scale = scale;
                 (window_id, TouchPhase::Moved, pan_delta, scale_delta, -rotation as f32)
             },
             Event::End { time: _, serial: _, cancelled } => {
-                let window_id = match *data.window_id.lock().unwrap() {
+                let window_id = match pointer_gesture_data.window_id {
                     Some(window_id) => window_id,
                     None => return,
                 };
                 let pan_delta = PhysicalPosition::new(0., 0.);
-                *data.previous_scale.lock().unwrap() = 1.;
+                pointer_gesture_data.previous_scale = 1.;
                 let phase = if cancelled == 0 { TouchPhase::Ended } else { TouchPhase::Cancelled };
                 (window_id, phase, pan_delta, 0., 0.)
             },

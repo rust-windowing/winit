@@ -190,6 +190,10 @@ impl SeatHandler for WinitState {
                     relative_pointer.destroy();
                 }
 
+                if let Some(pointer_gesture_pinch) = seat_state.pointer_gesture_pinch.take() {
+                    pointer_gesture_pinch.destroy();
+                }
+
                 if let Some(pointer) = seat_state.pointer.take() {
                     let pointer_data = pointer.pointer().winit_data();
 
