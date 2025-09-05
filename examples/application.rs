@@ -515,13 +515,13 @@ impl ApplicationHandler for Application {
             WindowEvent::Ime(event) => match event {
                 Ime::Enabled => info!("IME enabled for Window={window_id:?}"),
                 Ime::Preedit(text, caret_pos) => {
-                    info!("Preedit: {}, with caret at {:?}", text, caret_pos);
+                    info!("IME Preedit: {}, with caret at {:?}", text, caret_pos);
                 },
                 Ime::Commit(text) => {
                     window.text_field_contents.0.push_str(&text);
                     window.text_field_contents.1 += text.len();
 
-                    info!("Committed: {}", text);
+                    info!("IME Committed: {}", text);
                     let request_data = window.get_ime_update();
                     window.window.request_ime_update(ImeRequest::Update(request_data)).unwrap();
                 },
