@@ -850,13 +850,6 @@ pub trait Window: AsAny + Send + Sync + fmt::Debug {
     /// - **iOS / Android / Web / Orbital:** Unsupported.
     fn set_surface_resize_increments(&self, increments: Option<Size>);
 
-    /// Modifies the title of the window.
-    ///
-    /// ## Platform-specific
-    ///
-    /// - **iOS / Android:** Unsupported.
-    fn set_title(&self, title: &str);
-
     /// Change the window transparency state.
     ///
     /// This is just a hint that may not change anything about
@@ -884,15 +877,6 @@ pub trait Window: AsAny + Send + Sync + fmt::Debug {
     /// - **Wayland:** Only works with org_kde_kwin_blur_manager protocol.
     fn set_blur(&self, blur: bool);
 
-    /// Modifies the window's visibility.
-    ///
-    /// If `false`, this will hide the window. If `true`, this will show the window.
-    ///
-    /// ## Platform-specific
-    ///
-    /// - **Android / Wayland / Web:** Unsupported.
-    fn set_visible(&self, visible: bool);
-
     /// Gets the window's current visibility state.
     ///
     /// `None` means it couldn't be determined, so it is not recommended to use this to drive your
@@ -903,6 +887,23 @@ pub trait Window: AsAny + Send + Sync + fmt::Debug {
     /// - **X11:** Not implemented.
     /// - **Wayland / iOS / Android / Web:** Unsupported.
     fn is_visible(&self) -> Option<bool>;
+
+    /// Modifies the window's visibility.
+    ///
+    /// If `false`, this will hide the window. If `true`, this will show the window.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **Android / Wayland / Web:** Unsupported.
+    fn set_visible(&self, visible: bool);
+
+    /// Gets the window's current resizable state.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **X11:** Not implemented.
+    /// - **iOS / Android / Web:** Unsupported.
+    fn is_resizable(&self) -> bool;
 
     /// Sets whether the window is resizable or not.
     ///
@@ -921,22 +922,6 @@ pub trait Window: AsAny + Send + Sync + fmt::Debug {
     /// [`WindowEvent::SurfaceResized`]: crate::event::WindowEvent::SurfaceResized
     fn set_resizable(&self, resizable: bool);
 
-    /// Gets the window's current resizable state.
-    ///
-    /// ## Platform-specific
-    ///
-    /// - **X11:** Not implemented.
-    /// - **iOS / Android / Web:** Unsupported.
-    fn is_resizable(&self) -> bool;
-
-    /// Sets the enabled window buttons.
-    ///
-    /// ## Platform-specific
-    ///
-    /// - **Wayland / X11 / Orbital:** Not implemented.
-    /// - **Web / iOS / Android:** Unsupported.
-    fn set_enabled_buttons(&self, buttons: WindowButtons);
-
     /// Gets the enabled window buttons.
     ///
     /// ## Platform-specific
@@ -945,13 +930,13 @@ pub trait Window: AsAny + Send + Sync + fmt::Debug {
     /// - **Web / iOS / Android:** Unsupported. Always returns [`WindowButtons::all`].
     fn enabled_buttons(&self) -> WindowButtons;
 
-    /// Minimize the window, or put it back from the minimized state.
+    /// Sets the enabled window buttons.
     ///
     /// ## Platform-specific
     ///
-    /// - **iOS / Android / Web / Orbital:** Unsupported.
-    /// - **Wayland:** Un-minimize is unsupported.
-    fn set_minimized(&self, minimized: bool);
+    /// - **Wayland / X11 / Orbital:** Not implemented.
+    /// - **Web / iOS / Android:** Unsupported.
+    fn set_enabled_buttons(&self, buttons: WindowButtons);
 
     /// Gets the window's current minimized state.
     ///
@@ -967,12 +952,13 @@ pub trait Window: AsAny + Send + Sync + fmt::Debug {
     /// - **iOS / Android / Web / Orbital:** Unsupported.
     fn is_minimized(&self) -> Option<bool>;
 
-    /// Sets the window to maximized or back.
+    /// Minimize the window, or put it back from the minimized state.
     ///
     /// ## Platform-specific
     ///
-    /// - **iOS / Android / Web:** Unsupported.
-    fn set_maximized(&self, maximized: bool);
+    /// - **iOS / Android / Web / Orbital:** Unsupported.
+    /// - **Wayland:** Un-minimize is unsupported.
+    fn set_minimized(&self, minimized: bool);
 
     /// Gets the window's current maximized state.
     ///
@@ -980,6 +966,22 @@ pub trait Window: AsAny + Send + Sync + fmt::Debug {
     ///
     /// - **iOS / Android / Web:** Unsupported.
     fn is_maximized(&self) -> bool;
+
+    /// Sets the window to maximized or back.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **iOS / Android / Web:** Unsupported.
+    fn set_maximized(&self, maximized: bool);
+
+    /// Gets the window's current fullscreen state.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **Android:** Will always return `None`.
+    /// - **Orbital / Web:** Can only return `None` or `Borderless(None)`.
+    /// - **Wayland:** Can return `Borderless(None)` when there are no monitors.
+    fn fullscreen(&self) -> Option<Fullscreen>;
 
     /// Set the window's fullscreen state.
     ///
@@ -1006,14 +1008,15 @@ pub trait Window: AsAny + Send + Sync + fmt::Debug {
     /// [`VideoMode`]: crate::monitor::VideoMode
     fn set_fullscreen(&self, fullscreen: Option<Fullscreen>);
 
-    /// Gets the window's current fullscreen state.
+    /// Gets the window's current decorations state.
+    ///
+    /// Returns `true` when windows are decorated (server-side or by Winit).
+    /// Also returns `true` when no decorations are required (mobile, Web).
     ///
     /// ## Platform-specific
     ///
-    /// - **Android:** Will always return `None`.
-    /// - **Orbital / Web:** Can only return `None` or `Borderless(None)`.
-    /// - **Wayland:** Can return `Borderless(None)` when there are no monitors.
-    fn fullscreen(&self) -> Option<Fullscreen>;
+    /// - **iOS / Android / Web:** Always returns `true`.
+    fn is_decorated(&self) -> bool;
 
     /// Turn window decorations on or off.
     ///
@@ -1025,16 +1028,6 @@ pub trait Window: AsAny + Send + Sync + fmt::Debug {
     ///
     /// - **iOS / Android / Web:** No effect.
     fn set_decorations(&self, decorations: bool);
-
-    /// Gets the window's current decorations state.
-    ///
-    /// Returns `true` when windows are decorated (server-side or by Winit).
-    /// Also returns `true` when no decorations are required (mobile, Web).
-    ///
-    /// ## Platform-specific
-    ///
-    /// - **iOS / Android / Web:** Always returns `true`.
-    fn is_decorated(&self) -> bool;
 
     /// Change the window level.
     ///
@@ -1223,6 +1216,13 @@ pub trait Window: AsAny + Send + Sync + fmt::Debug {
     /// By default IME is disabled, thus will return `None`.
     fn ime_capabilities(&self) -> Option<ImeCapabilities>;
 
+    /// Gets whether the window has keyboard focus.
+    ///
+    /// This queries the same state information as [`WindowEvent::Focused`].
+    ///
+    /// [`WindowEvent::Focused`]: crate::event::WindowEvent::Focused
+    fn has_focus(&self) -> bool;
+
     /// Brings the window to the front and sets input focus. Has no effect if the window is
     /// already in focus, minimized, or not visible.
     ///
@@ -1234,13 +1234,6 @@ pub trait Window: AsAny + Send + Sync + fmt::Debug {
     ///
     /// - **iOS / Android / Wayland / Orbital:** Unsupported.
     fn focus_window(&self);
-
-    /// Gets whether the window has keyboard focus.
-    ///
-    /// This queries the same state information as [`WindowEvent::Focused`].
-    ///
-    /// [`WindowEvent::Focused`]: crate::event::WindowEvent::Focused
-    fn has_focus(&self) -> bool;
 
     /// Requests user attention to the window, this has no effect if the application
     /// is already focused. How requesting for user attention manifests is platform dependent,
@@ -1257,6 +1250,16 @@ pub trait Window: AsAny + Send + Sync + fmt::Debug {
     /// - **Wayland:** Requires `xdg_activation_v1` protocol, `None` has no effect.
     fn request_user_attention(&self, request_type: Option<UserAttentionType>);
 
+    /// Returns the current window theme.
+    ///
+    /// Returns `None` if it cannot be determined on the current platform.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **iOS / Android / x11 / Orbital:** Unsupported.
+    /// - **Wayland:** Only returns theme overrides.
+    fn theme(&self) -> Option<Theme>;
+
     /// Set or override the window theme.
     ///
     /// Specify `None` to reset the theme to the system default.
@@ -1269,16 +1272,6 @@ pub trait Window: AsAny + Send + Sync + fmt::Debug {
     ///   will default to  [`Theme::Dark`].
     /// - **iOS / Android / Web / Orbital:** Unsupported.
     fn set_theme(&self, theme: Option<Theme>);
-
-    /// Returns the current window theme.
-    ///
-    /// Returns `None` if it cannot be determined on the current platform.
-    ///
-    /// ## Platform-specific
-    ///
-    /// - **iOS / Android / x11 / Orbital:** Unsupported.
-    /// - **Wayland:** Only returns theme overrides.
-    fn theme(&self) -> Option<Theme>;
 
     /// Prevents the window contents from being captured by other apps.
     ///
@@ -1297,6 +1290,13 @@ pub trait Window: AsAny + Send + Sync + fmt::Debug {
     ///
     /// - **iOS / Android / x11 / Wayland / Web:** Unsupported. Always returns an empty string.
     fn title(&self) -> String;
+
+    /// Modifies the title of the window.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **iOS / Android:** Unsupported.
+    fn set_title(&self, title: &str);
 
     /// Modifies the cursor icon of the window.
     ///
