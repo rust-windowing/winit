@@ -18,7 +18,6 @@ rwh_06.workspace = true
 serde = { workspace = true, optional = true }
 smol_str.workspace = true
 tracing.workspace = true
-winit-common = { workspace = true, features = ["core-foundation", "event-handler"] }
 winit-core.workspace = true
 
 # Platform-specific
@@ -70,6 +69,7 @@ objc2-ui-kit = { workspace = true, features = [
     "UIViewController",
     "UIWindow",
 ] }
+winit-common = { workspace = true, features = ["core-foundation", "event-handler"] }
 
 [package.metadata.docs.rs]
 all-features = true
