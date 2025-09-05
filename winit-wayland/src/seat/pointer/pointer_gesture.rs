@@ -85,12 +85,15 @@ impl Dispatch<ZwpPointerGesturePinchV1, PointerGestureData, WinitState> for Poin
                     // We only support two fingers for now.
                     return;
                 }
-                // The parent surface.
-                let parent_surface = match surface.data::<SurfaceData>() {
-                    Some(data) => data.parent_surface().unwrap_or(&surface),
-                    None => return,
-                };
-                let window_id = crate::make_wid(parent_surface);
+
+                // Verify that this event is from the top-level surface
+                if surface.data::<SurfaceData>().is_none_or(|data| data.parent_surface().is_some())
+                {
+                    // Don't handle events from a subsurface
+                    return;
+                }
+
+                let window_id = crate::make_wid(&surface);
 
                 let pan_delta = PhysicalPosition::new(0., 0.);
                 pointer_gesture_data.window_id = Some(window_id);
