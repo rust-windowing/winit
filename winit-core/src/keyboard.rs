@@ -29,11 +29,13 @@ pub enum NativeKeyCode {
     Windows(u16),
     /// An XKB "keycode".
     Xkb(u32),
+    /// An OpenHarmony "keycode".
+    Ohos(u32),
 }
 
 impl std::fmt::Debug for NativeKeyCode {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        use NativeKeyCode::{Android, MacOS, Unidentified, Windows, Xkb};
+        use NativeKeyCode::{Android, MacOS, Ohos, Unidentified, Windows, Xkb};
         let mut debug_tuple;
         match self {
             Unidentified => {
@@ -53,6 +55,10 @@ impl std::fmt::Debug for NativeKeyCode {
             },
             Xkb(code) => {
                 debug_tuple = f.debug_tuple("Xkb");
+                debug_tuple.field(&format_args!("0x{code:04X}"));
+            },
+            Ohos(code) => {
+                debug_tuple = f.debug_tuple("Ohos");
                 debug_tuple.field(&format_args!("0x{code:04X}"));
             },
         }
@@ -85,11 +91,13 @@ pub enum NativeKey {
     Xkb(u32),
     /// A "key value string".
     Web(SmolStr),
+    /// An OpenHarmony "keycode".
+    Ohos(u32),
 }
 
 impl std::fmt::Debug for NativeKey {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        use NativeKey::{Android, MacOS, Unidentified, Web, Windows, Xkb};
+        use NativeKey::{Android, MacOS, Ohos, Unidentified, Web, Windows, Xkb};
         let mut debug_tuple;
         match self {
             Unidentified => {
@@ -115,6 +123,10 @@ impl std::fmt::Debug for NativeKey {
                 debug_tuple = f.debug_tuple("Web");
                 debug_tuple.field(code);
             },
+            Ohos(code) => {
+                debug_tuple = f.debug_tuple("Ohos");
+                debug_tuple.field(&format_args!("0x{code:04X}"));
+            },
         }
         debug_tuple.finish()
     }
@@ -129,6 +141,7 @@ impl From<NativeKeyCode> for NativeKey {
             NativeKeyCode::MacOS(x) => NativeKey::MacOS(x),
             NativeKeyCode::Windows(x) => NativeKey::Windows(x),
             NativeKeyCode::Xkb(x) => NativeKey::Xkb(x),
+            NativeKeyCode::Ohos(x) => NativeKey::Ohos(x),
         }
     }
 }
