@@ -115,8 +115,16 @@ impl CoreWindow for Window {
         self.0.safe_area()
     }
 
+    fn min_surface_size(&self) -> Option<PhysicalSize<u32>> {
+        self.0.min_surface_size()
+    }
+
     fn set_min_surface_size(&self, min_size: Option<Size>) {
         self.0.set_min_surface_size(min_size)
+    }
+
+    fn max_surface_size(&self) -> Option<PhysicalSize<u32>> {
+        self.0.max_surface_size()
     }
 
     fn set_max_surface_size(&self, max_size: Option<Size>) {
@@ -135,8 +143,16 @@ impl CoreWindow for Window {
         self.0.set_title(title);
     }
 
+    fn is_transparent(&self) -> bool {
+        self.0.is_transparent()
+    }
+
     fn set_transparent(&self, transparent: bool) {
         self.0.set_transparent(transparent);
+    }
+
+    fn is_blurred(&self) -> bool {
+        self.0.is_blurred()
     }
 
     fn set_blur(&self, blur: bool) {
@@ -199,8 +215,17 @@ impl CoreWindow for Window {
         self.0.is_decorated()
     }
 
+    fn window_level(&self) -> WindowLevel {
+        self.0.window_level()
+    }
+
     fn set_window_level(&self, level: WindowLevel) {
         self.0.set_window_level(level);
+    }
+
+    fn window_icon(&self) -> Option<winit_core::icon::Icon> {
+        warn!("getting the window icon is unimplemented on X11");
+        None
     }
 
     fn set_window_icon(&self, window_icon: Option<winit_core::icon::Icon>) {
@@ -239,12 +264,20 @@ impl CoreWindow for Window {
         self.0.theme()
     }
 
+    fn content_protected(&self) -> bool {
+        self.0.content_protected()
+    }
+
     fn set_content_protected(&self, protected: bool) {
         self.0.set_content_protected(protected);
     }
 
     fn title(&self) -> String {
         self.0.title()
+    }
+
+    fn cursor(&self) -> Cursor {
+        self.0.cursor()
     }
 
     fn set_cursor(&self, cursor: Cursor) {
@@ -1357,8 +1390,17 @@ impl UnownedWindow {
         self.xconn.flush_requests().expect("Failed to set window title");
     }
 
+    fn is_transparent(&self) -> bool {
+        warn!("getting transparency state is unimplemented on X11");
+        false
+    }
+
     #[inline]
     pub fn set_transparent(&self, _transparent: bool) {}
+
+    fn is_blurred(&self) -> bool {
+        false
+    }
 
     #[inline]
     pub fn set_blur(&self, _blur: bool) {}
@@ -1402,6 +1444,11 @@ impl UnownedWindow {
     fn set_window_level_inner(&self, level: WindowLevel) -> Result<VoidCookie<'_>, X11Error> {
         self.toggle_atom(_NET_WM_STATE_ABOVE, level == WindowLevel::AlwaysOnTop)?.ignore_error();
         self.toggle_atom(_NET_WM_STATE_BELOW, level == WindowLevel::AlwaysOnBottom)
+    }
+
+    fn window_level(&self) -> WindowLevel {
+        warn!("getting the window level is unimplemented on X11");
+        WindowLevel::default()
     }
 
     #[inline]
@@ -1665,6 +1712,11 @@ impl UnownedWindow {
         .expect("Failed to call `XSetWMNormalHints`");
     }
 
+    fn min_surface_size(&self) -> Option<PhysicalSize<u32>> {
+        let size = self.shared_state_lock().min_surface_size;
+        size.map(|size| size.to_physical(self.scale_factor()))
+    }
+
     #[inline]
     pub fn set_min_surface_size(&self, dimensions: Option<Size>) {
         self.shared_state_lock().min_surface_size = dimensions;
@@ -1679,6 +1731,11 @@ impl UnownedWindow {
                 dimensions.map(|(w, h)| (cast_dimension_to_hint(w), cast_dimension_to_hint(h)))
         })
         .expect("Failed to call `XSetWMNormalHints`");
+    }
+
+    fn max_surface_size(&self) -> Option<PhysicalSize<u32>> {
+        let size = self.shared_state_lock().max_surface_size;
+        size.map(|size| size.to_physical(self.scale_factor()))
     }
 
     #[inline]
@@ -1797,6 +1854,12 @@ impl UnownedWindow {
     #[inline]
     pub fn xlib_window(&self) -> c_ulong {
         self.xwindow as ffi::Window
+    }
+
+    #[inline]
+    pub fn cursor(&self) -> Cursor {
+        warn!("getting the cursor is unimplemented on X11");
+        Cursor::default()
     }
 
     #[inline]
@@ -2253,6 +2316,10 @@ impl UnownedWindow {
     #[inline]
     pub fn theme(&self) -> Option<Theme> {
         None
+    }
+
+    pub fn content_protected(&self) -> bool {
+        false
     }
 
     pub fn set_content_protected(&self, _protected: bool) {}

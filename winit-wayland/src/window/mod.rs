@@ -351,12 +351,22 @@ impl CoreWindow for Window {
         PhysicalInsets::new(0, 0, 0, 0)
     }
 
+    fn min_surface_size(&self) -> Option<PhysicalSize<u32>> {
+        let size = self.window_state.lock().unwrap().min_surface_size();
+        size.map(|size| size.to_physical(self.scale_factor()))
+    }
+
     fn set_min_surface_size(&self, min_size: Option<Size>) {
         let scale_factor = self.scale_factor();
         let min_size = min_size.map(|size| size.to_logical(scale_factor));
         self.window_state.lock().unwrap().set_min_surface_size(min_size);
         // NOTE: Requires commit to be applied.
         self.request_redraw();
+    }
+
+    fn max_surface_size(&self) -> Option<PhysicalSize<u32>> {
+        let size = self.window_state.lock().unwrap().max_surface_size();
+        size.map(|size| size.to_physical(self.scale_factor()))
     }
 
     /// Set the maximum surface size for the window.
@@ -380,6 +390,10 @@ impl CoreWindow for Window {
     fn set_title(&self, title: &str) {
         let new_title = title.to_string();
         self.window_state.lock().unwrap().set_title(new_title);
+    }
+
+    fn is_transparent(&self) -> bool {
+        self.window_state.lock().unwrap().is_transparent()
     }
 
     #[inline]
@@ -487,6 +501,10 @@ impl CoreWindow for Window {
         self.window_state.lock().unwrap().scale_factor()
     }
 
+    fn is_blurred(&self) -> bool {
+        self.window_state.lock().unwrap().is_blurred()
+    }
+
     #[inline]
     fn set_blur(&self, blur: bool) {
         self.window_state.lock().unwrap().set_blur(blur);
@@ -502,7 +520,15 @@ impl CoreWindow for Window {
         self.window_state.lock().unwrap().is_decorated()
     }
 
+    fn window_level(&self) -> WindowLevel {
+        WindowLevel::default()
+    }
+
     fn set_window_level(&self, _level: WindowLevel) {}
+
+    fn window_icon(&self) -> Option<winit_core::icon::Icon> {
+        self.window_state.lock().unwrap().window_icon()
+    }
 
     fn set_window_icon(&self, window_icon: Option<winit_core::icon::Icon>) {
         self.window_state.lock().unwrap().set_window_icon(window_icon)
@@ -566,7 +592,16 @@ impl CoreWindow for Window {
         self.window_state.lock().unwrap().theme()
     }
 
+    fn content_protected(&self) -> bool {
+        false
+    }
+
     fn set_content_protected(&self, _protected: bool) {}
+
+    fn cursor(&self) -> Cursor {
+        warn!("getting the cursor is unimplemented on Wayland");
+        Cursor::default()
+    }
 
     fn set_cursor(&self, cursor: Cursor) {
         let window_state = &mut self.window_state.lock().unwrap();

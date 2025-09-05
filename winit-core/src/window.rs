@@ -792,6 +792,16 @@ pub trait Window: AsAny + Send + Sync + fmt::Debug {
     /// ```
     fn safe_area(&self) -> PhysicalInsets<u32>;
 
+    /// The minimum dimensions of the window's surface if it was set.
+    ///
+    /// Getter for [`set_min_surface_size`][Window::set_min_surface_size], see that for details.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **iOS / Android / Orbital:** Unsupported.
+    /// - **Web:** Unimplemented, returns `None`.
+    fn min_surface_size(&self) -> Option<PhysicalSize<u32>>;
+
     /// Sets a minimum dimensions of the window's surface.
     ///
     /// ```no_run
@@ -810,6 +820,16 @@ pub trait Window: AsAny + Send + Sync + fmt::Debug {
     ///
     /// - **iOS / Android / Orbital:** Unsupported.
     fn set_min_surface_size(&self, min_size: Option<Size>);
+
+    /// The maximum dimensions of the window's surface if it was set.
+    ///
+    /// Getter for [`set_max_surface_size`][Window::set_max_surface_size], see that for details.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **iOS / Android / Orbital:** Unsupported.
+    /// - **Web:** Unimplemented, returns `None`.
+    fn max_surface_size(&self) -> Option<PhysicalSize<u32>>;
 
     /// Sets a maximum dimensions of the window's surface.
     ///
@@ -850,6 +870,16 @@ pub trait Window: AsAny + Send + Sync + fmt::Debug {
     /// - **iOS / Android / Web / Orbital:** Unsupported.
     fn set_surface_resize_increments(&self, increments: Option<Size>);
 
+    /// The window transparency state.
+    ///
+    /// Getter for [`set_transparent`][Window::set_transparent], see that for details.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **iOS / Android / Web:** Unsupported.
+    /// - **X11:** Unimplemented, returns `false`.
+    fn is_transparent(&self) -> bool;
+
     /// Change the window transparency state.
     ///
     /// This is just a hint that may not change anything about
@@ -866,6 +896,15 @@ pub trait Window: AsAny + Send + Sync + fmt::Debug {
     /// - **X11:** Can only be set while building the window, with
     ///   [`WindowAttributes::with_transparent`].
     fn set_transparent(&self, transparent: bool);
+
+    /// The window blur state.
+    ///
+    /// Getter for [`set_blur`][Window::set_blur], see that for details.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **Android / iOS / X11 / Web / Windows / macOS:** Unsupported.
+    fn is_blurred(&self) -> bool;
 
     /// Change the window blur state.
     ///
@@ -1029,12 +1068,38 @@ pub trait Window: AsAny + Send + Sync + fmt::Debug {
     /// - **iOS / Android / Web:** No effect.
     fn set_decorations(&self, decorations: bool);
 
+    /// The window level.
+    ///
+    /// Getter for [`set_window_level`][Window::set_window_level], see that and [`WindowLevel`] for
+    /// details.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **iOS / Android / Web / Wayland:** Unsupported.
+    /// - **X11:** Unimplemented, returns the default window level.
+    fn window_level(&self) -> WindowLevel;
+
     /// Change the window level.
     ///
     /// This is just a hint to the OS, and the system could ignore it.
     ///
     /// See [`WindowLevel`] for details.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **iOS / Android / Web / Wayland:** Unsupported.
     fn set_window_level(&self, level: WindowLevel);
+
+    /// The window icon, if any was set.
+    ///
+    /// Getter for [`set_window_icon`][Window::set_window_icon], see that for details.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **iOS / Android / Web / macOS / Orbital:** Unsupported.
+    /// - **Windows:** The icon may be different from the one set with `set_window_icon`.
+    /// - **X11 / Wayland:** Unimplemented, returns `None`.
+    fn window_icon(&self) -> Option<Icon>;
 
     /// Sets the window icon.
     ///
@@ -1043,7 +1108,7 @@ pub trait Window: AsAny + Send + Sync + fmt::Debug {
     ///
     /// ## Platform-specific
     ///
-    /// - **iOS / Android / Web / / macOS / Orbital:** Unsupported.
+    /// - **iOS / Android / Web / macOS / Orbital:** Unsupported.
     ///
     /// - **Windows:** Sets `ICON_SMALL`. The base size for a window icon is 16x16, but it's
     ///   recommended to account for screen scaling and pick a multiple of that, i.e. 32x32.
@@ -1273,13 +1338,20 @@ pub trait Window: AsAny + Send + Sync + fmt::Debug {
     /// - **iOS / Android / Web / Orbital:** Unsupported.
     fn set_theme(&self, theme: Option<Theme>);
 
+    /// Whether the window's contents are prevented from being captured by other apps.
+    ///
+    /// Getter for [`set_content_protected`][Window::set_content_protected], see that for details.
+    ///
+    /// - **iOS / Android / X11 / Wayland / Web / Orbital:** Unsupported.
+    fn content_protected(&self) -> bool;
+
     /// Prevents the window contents from being captured by other apps.
     ///
     /// ## Platform-specific
     ///
     /// - **macOS**: if `false`, [`NSWindowSharingNone`] is used but doesn't completely prevent all
     ///   apps from reading the window content, for instance, QuickTime.
-    /// - **iOS / Android / x11 / Wayland / Web / Orbital:** Unsupported.
+    /// - **iOS / Android / X11 / Wayland / Web / Orbital:** Unsupported.
     ///
     /// [`NSWindowSharingNone`]: https://developer.apple.com/documentation/appkit/nswindowsharingtype/nswindowsharingnone
     fn set_content_protected(&self, protected: bool);
@@ -1297,6 +1369,16 @@ pub trait Window: AsAny + Send + Sync + fmt::Debug {
     ///
     /// - **iOS / Android:** Unsupported.
     fn set_title(&self, title: &str);
+
+    /// The cursor icon of the window.
+    ///
+    /// Getter for [`set_cursor`][Window::set_cursor], see that for details.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **iOS / Android / Orbital:** Unsupported.
+    /// - **macOS / X11 / Wayland / Web / Windows:** Unimplemented, returns the default cursor.
+    fn cursor(&self) -> Cursor;
 
     /// Modifies the cursor icon of the window.
     ///

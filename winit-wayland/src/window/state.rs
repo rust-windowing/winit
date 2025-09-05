@@ -780,6 +780,10 @@ impl WindowState {
         });
     }
 
+    pub fn min_surface_size(&self) -> Option<LogicalSize<u32>> {
+        self.min_surface_size
+    }
+
     /// Set maximum inner window size.
     pub fn set_min_surface_size(&mut self, size: Option<LogicalSize<u32>>) {
         // Ensure that the window has the right minimum size.
@@ -796,6 +800,10 @@ impl WindowState {
 
         self.min_surface_size = size;
         self.window.set_min_size(Some(size.into()));
+    }
+
+    pub fn max_surface_size(&self) -> Option<LogicalSize<u32>> {
+        self.max_surface_size
     }
 
     /// Set maximum inner window size.
@@ -1059,6 +1067,10 @@ impl WindowState {
         }
     }
 
+    pub fn is_blurred(&self) -> bool {
+        self.blur.is_some()
+    }
+
     /// Make window background blurred
     #[inline]
     pub fn set_blur(&mut self, blurred: bool) {
@@ -1099,6 +1111,11 @@ impl WindowState {
         self.title = title;
     }
 
+    pub fn window_icon(&self) -> Option<winit_core::icon::Icon> {
+        warn!("getting the window icon is unimplemented on Wayland");
+        None
+    }
+
     /// Set the window's icon
     pub fn set_window_icon(&mut self, window_icon: Option<winit_core::icon::Icon>) {
         let xdg_toplevel_icon_manager = match self.xdg_toplevel_icon_manager.as_ref() {
@@ -1136,6 +1153,10 @@ impl WindowState {
         if let Some(xdg_toplevel_icon) = xdg_toplevel_icon {
             xdg_toplevel_icon.destroy();
         }
+    }
+
+    pub fn is_transparent(&self) -> bool {
+        self.transparent
     }
 
     /// Mark the window as transparent.
