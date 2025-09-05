@@ -1261,12 +1261,12 @@ fn modifiers_to_string(mods: ModifiersState) -> String {
 
 fn mouse_button_to_string(button: MouseButton) -> &'static str {
     match button {
-        MouseButton::Left => "LMB",
-        MouseButton::Right => "RMB",
-        MouseButton::Middle => "MMB",
-        MouseButton::Back => "Back",
-        MouseButton::Forward => "Forward",
-        MouseButton::Other(_) => "",
+        MouseButton::LEFT => "LMB",
+        MouseButton::RIGHT => "RMB",
+        MouseButton::MIDDLE => "MMB",
+        MouseButton::BACK => "Back",
+        MouseButton::FORWARD => "Forward",
+        _ => "Other button",
     }
 }
 
@@ -1410,7 +1410,7 @@ const KEY_BINDINGS: &[Binding<&'static str>] = &[
 ];
 
 const MOUSE_BINDINGS: &[Binding<MouseButton>] = &[
-    Binding::new(MouseButton::Left, ModifiersState::ALT, Action::DragResizeWindow),
-    Binding::new(MouseButton::Left, ModifiersState::CONTROL, Action::DragWindow),
-    Binding::new(MouseButton::Right, ModifiersState::CONTROL, Action::ShowWindowMenu),
+    Binding::new(MouseButton::LEFT, ModifiersState::ALT, Action::DragResizeWindow),
+    Binding::new(MouseButton::LEFT, ModifiersState::CONTROL, Action::DragWindow),
+    Binding::new(MouseButton::RIGHT, ModifiersState::CONTROL, Action::ShowWindowMenu),
 ];
