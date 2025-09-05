@@ -147,10 +147,6 @@ impl EventLoop {
         }
     }
 
-    pub fn run_app<A: ApplicationHandler>(self, app: A) -> Result<(), EventLoopError> {
-        x11_or_wayland!(match self; EventLoop(evlp) => evlp.run_app(app))
-    }
-
     pub fn run_app_on_demand<A: ApplicationHandler>(
         &mut self,
         app: A,

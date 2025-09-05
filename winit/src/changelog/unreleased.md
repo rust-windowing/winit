@@ -84,6 +84,8 @@ changelog entry.
 - On Wayland, added implementation for `Window::set_window_icon`
 - Add `Window::request_ime_update` to atomically apply set of IME changes.
 - Add `Ime::DeleteSurrounding` to let the input method delete text.
+- Add `EventLoopExtRegister::register_app` for being explicit about how the event loop runs on Web.
+- Add `EventLoopExtNeverReturn::run_app_never_return` for being explicit about how the event loop runs on iOS.
 
 ### Changed
 
@@ -207,6 +209,9 @@ changelog entry.
 - Move `EventLoopExtRunOnDemand` from platform module to `winit::event_loop::run_on_demand`.
 - Use `NamedKey`, `Code` and `Location` from the `keyboard-types` v0.8 crate.
 - Deprecate `Window::set_ime_allowed`, `Window::set_ime_cursor_area`, and `Window::set_ime_purpose`.
+- On Web, avoid throwing an exception in `EventLoop::run_app`, instead preferring to return to the caller.
+  This requires passing a `'static` application to ensure that the application state will live as long as necessary.
+- On Web, the event loop can now always be re-created once it has finished running.
 
 ### Removed
 
@@ -246,6 +251,8 @@ changelog entry.
 - Remove `NamedKey::Space`, match on `Key::Character(" ")` instead.
 - Remove `PartialEq` impl for `WindowAttributes`.
 - `WindowAttributesExt*` platform extensions; use `WindowAttributes*` instead.
+- Remove `EventLoopExtWeb::spawn_app`, the exception throwing that made this workaround necessary
+  has been removed from `EventLoop::run_app`.
 
 ### Fixed
 
