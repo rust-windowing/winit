@@ -17,10 +17,12 @@ use std::ffi::c_void;
 use std::ptr::NonNull;
 
 use dpi::{LogicalSize, PhysicalSize};
+use libc::dev_t;
 use sctk::reexports::client::protocol::wl_surface::WlSurface;
 use sctk::reexports::client::Proxy;
 use sctk::shm::slot::{Buffer, CreateBufferError, SlotPool};
 use wayland_client::protocol::wl_shm::Format;
+use winit_core::application::ApplicationHandler;
 use winit_core::event_loop::ActiveEventLoop as CoreActiveEventLoop;
 use winit_core::window::{
     ActivationToken, PlatformWindowAttributes, Window as CoreWindow, WindowId,
@@ -41,6 +43,33 @@ mod window;
 
 pub use self::event_loop::{ActiveEventLoop, EventLoop};
 pub use self::window::Window;
+
+/// Listen to Linux Direct Rendering Manager (DRM) events.
+pub trait LinuxDrm: ApplicationHandler {
+    /// Returns the device that the system prefers to use.
+    ///
+    /// The EGL EGL_EXT_device_drm and Vulkan VK_EXT_physical_device_drm extensions can be
+    /// used to select a matching device for accelerated rendering.
+    ///
+    /// This function returns `None` if the device is unknown.
+    fn main_device(&mut self, device: dev_t);
+}
+
+impl EventLoop {
+    pub fn listen_linux_dmabuf<T: LinuxDrm + 'static>(&mut self) {
+        self.active_event_loop.extensions.main_device =
+            Some(|app: &mut dyn ApplicationHandler, device: dev_t| {
+                app.as_any()
+                    .expect("as_any not implemented")
+                    .downcast_mut::<T>()
+                    .unwrap()
+                    .main_device(device);
+            });
+
+        let queue_handle = &self.active_event_loop.queue_handle;
+        self.active_event_loop.state.get_mut().register_linux_dmabuf(queue_handle);
+    }
+}
 
 /// Additional methods on [`ActiveEventLoop`] that are specific to Wayland.
 pub trait ActiveEventLoopExtWayland {
