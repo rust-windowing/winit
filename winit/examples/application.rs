@@ -1,4 +1,7 @@
 //! Simple winit application.
+//!
+//! Note that a real application accepting text input **should** support
+//! the IME interface. See the `ime` example.
 
 use std::collections::HashMap;
 use std::error::Error;
@@ -9,22 +12,21 @@ use std::sync::mpsc::{self, Receiver, Sender};
 use std::sync::Arc;
 #[cfg(all(not(android_platform), not(web_platform)))]
 use std::time::Instant;
-use std::{cmp, fmt, mem};
+use std::{fmt, mem};
 
-use ::tracing::{error, info};
 use cursor_icon::CursorIcon;
-use dpi::LogicalPosition;
 #[cfg(not(android_platform))]
 use rwh_06::{DisplayHandle, HasDisplayHandle};
 #[cfg(not(android_platform))]
 use softbuffer::{Context, Surface};
+use tracing::{error, info};
 #[cfg(all(web_platform, not(android_platform)))]
 use web_time::Instant;
 use winit::application::ApplicationHandler;
 use winit::cursor::{Cursor, CustomCursor, CustomCursorSource};
 use winit::dpi::{LogicalSize, PhysicalPosition, PhysicalSize};
 use winit::error::RequestError;
-use winit::event::{DeviceEvent, DeviceId, Ime, MouseButton, MouseScrollDelta, WindowEvent};
+use winit::event::{DeviceEvent, DeviceId, MouseButton, MouseScrollDelta, WindowEvent};
 use winit::event_loop::{ActiveEventLoop, EventLoop};
 use winit::icon::{Icon, RgbaIcon};
 use winit::keyboard::{Key, ModifiersState};
@@ -39,28 +41,23 @@ use winit::platform::wayland::{ActiveEventLoopExtWayland, WindowAttributesWaylan
 use winit::platform::web::{ActiveEventLoopExtWeb, WindowAttributesWeb};
 #[cfg(x11_platform)]
 use winit::platform::x11::{ActiveEventLoopExtX11, WindowAttributesX11};
-use winit::window::{
-    CursorGrabMode, ImeCapabilities, ImeEnableRequest, ImePurpose, ImeRequestData,
-    ImeSurroundingText, ResizeDirection, Theme, Window, WindowAttributes, WindowId,
-};
+use winit::window::{CursorGrabMode, ResizeDirection, Theme, Window, WindowAttributes, WindowId};
 use winit_core::application::macos::ApplicationHandlerExtMacOS;
-use winit_core::window::ImeRequest;
 
 #[path = "util/tracing.rs"]
-mod tracing;
+mod tracing_init;
 
 #[path = "util/fill.rs"]
 mod fill;
 
 /// The amount of points to around the window for drag resize direction calculations.
 const BORDER_SIZE: f64 = 20.;
-const IME_CURSOR_SIZE: PhysicalSize<u32> = PhysicalSize::new(20, 20);
 
 fn main() -> Result<(), Box<dyn Error>> {
     #[cfg(web_platform)]
     console_error_panic_hook::set_once();
 
-    tracing::init();
+    tracing_init::init();
 
     let event_loop = EventLoop::new()?;
     let (sender, receiver) = mpsc::channel();
@@ -245,7 +242,6 @@ impl Application {
                 window.window.set_simple_fullscreen(!window.window.simple_fullscreen());
             },
             Action::ToggleMaximize => window.toggle_maximize(),
-            Action::ToggleImeInput => window.toggle_ime(),
             Action::Minimize => window.minimize(),
             Action::NextCursor => window.next_cursor(),
             Action::NextCustomCursor => {
@@ -512,41 +508,6 @@ impl ApplicationHandler for Application {
                     }
                 }
             },
-            WindowEvent::Ime(event) => match event {
-                Ime::Enabled => info!("IME enabled for Window={window_id:?}"),
-                Ime::Preedit(text, caret_pos) => {
-                    info!("Preedit: {}, with caret at {:?}", text, caret_pos);
-                },
-                Ime::Commit(text) => {
-                    window.text_field_contents.0.push_str(&text);
-                    window.text_field_contents.1 += text.len();
-
-                    info!("Committed: {}", text);
-                    let request_data = window.get_ime_update();
-                    window.window.request_ime_update(ImeRequest::Update(request_data)).unwrap();
-                },
-                Ime::DeleteSurrounding { before_bytes, after_bytes } => {
-                    let (text, cursor) = &window.text_field_contents;
-
-                    // To anyone copying this, keep in mind that this doesn't take text selection
-                    // into account. The deletion happens *around* the pre-edit,
-                    // and may remove the whole selection or a part of it.
-                    let delete_start = cursor.saturating_sub(before_bytes);
-                    let delete_end = cmp::min(cursor.saturating_add(after_bytes), text.len());
-                    if text.is_char_boundary(delete_start) && text.is_char_boundary(delete_end) {
-                        let new_text = {
-                            let mut t = String::from(&text[..delete_start]);
-                            t.push_str(&text[delete_end..]);
-                            t
-                        };
-                        window.text_field_contents = (new_text, delete_start);
-                        info!("IME deleted bytes: {before_bytes}, {after_bytes}");
-                    } else {
-                        error!("Buggy IME tried to delete with indices not on char boundary.");
-                    }
-                },
-                Ime::Disabled => info!("IME disabled for Window={window_id:?}"),
-            },
             WindowEvent::PinchGesture { delta, .. } => {
                 window.zoom += delta;
                 let zoom = window.zoom;
@@ -581,6 +542,7 @@ impl ApplicationHandler for Application {
             | WindowEvent::DragMoved { .. }
             | WindowEvent::DragDropped { .. }
             | WindowEvent::Destroyed
+            | WindowEvent::Ime(_)
             | WindowEvent::Moved(_) => (),
         }
     }
@@ -635,10 +597,6 @@ impl ApplicationHandlerExtMacOS for Application {
 
 /// State of the window.
 struct WindowState {
-    ime_enabled: bool,
-    /// The contents of the emulated text field for IME purposes (not displayed).
-    /// (text, cursor position in bytes).
-    text_field_contents: (String, usize),
     /// Render surface.
     ///
     /// NOTE: This surface must be dropped before the `Window`.
@@ -693,21 +651,6 @@ impl WindowState {
         let named_idx = 0;
         window.set_cursor(CURSORS[named_idx].into());
 
-        // Allow IME out of the box.
-        let request_data = ImeRequestData::default()
-            .with_purpose(ImePurpose::Normal)
-            .with_cursor_area(LogicalPosition { x: 0, y: 0 }.into(), IME_CURSOR_SIZE.into())
-            .with_surrounding_text(ImeSurroundingText::new(String::new(), 0, 0).unwrap());
-        let enable_request = ImeEnableRequest::new(
-            ImeCapabilities::new().with_purpose().with_cursor_area().with_surrounding_text(),
-            request_data,
-        )
-        .unwrap();
-        let enable_ime = ImeRequest::Enable(enable_request);
-
-        // Initial update
-        window.request_ime_update(enable_ime).unwrap();
-
         let size = window.surface_size();
         let mut state = Self {
             #[cfg(macos_platform)]
@@ -723,8 +666,6 @@ impl WindowState {
             continuous_redraw: false,
             #[cfg(not(android_platform))]
             start_time: Instant::now(),
-            ime_enabled: true,
-            text_field_contents: (String::new(), 0),
             cursor_position: Default::default(),
             cursor_hidden: Default::default(),
             modifiers: Default::default(),
@@ -738,65 +679,12 @@ impl WindowState {
         Ok(state)
     }
 
-    pub fn get_ime_update(&self) -> ImeRequestData {
-        let (text, cursor) = &self.text_field_contents;
-        // A rudimentary text field emulation: the caret moves right by a constant amount for each
-        // code point.
-
-        let text_before_caret = if text.is_char_boundary(*cursor) { &text[..*cursor] } else { "" };
-        let chars_before_caret = text_before_caret.chars().count();
-        let cursor_pos = LogicalPosition { x: 10 * chars_before_caret as u32, y: 0 }.into();
-
-        // Limit text field size
-        const MAX_BYTES: usize = ImeSurroundingText::MAX_TEXT_BYTES;
-        let minimal_offset = cursor / MAX_BYTES * MAX_BYTES;
-        let first_char_boundary =
-            (minimal_offset..*cursor).find(|off| text.is_char_boundary(*off)).unwrap_or(*cursor);
-        let last_char_boundary = (*cursor..(first_char_boundary + MAX_BYTES))
-            .rev()
-            .find(|off| text.is_char_boundary(*off))
-            .unwrap_or(*cursor);
-        let surrounding_text = &text[first_char_boundary..last_char_boundary];
-        let relative_cursor = cursor - first_char_boundary;
-        let surrounding_text =
-            ImeSurroundingText::new(surrounding_text.into(), relative_cursor, relative_cursor)
-                .expect("Bug in example: bad byte calculations");
-        ImeRequestData::default()
-            .with_purpose(ImePurpose::Normal)
-            .with_cursor_area(cursor_pos, IME_CURSOR_SIZE.into())
-            .with_surrounding_text(surrounding_text)
-    }
-
-    pub fn toggle_ime(&mut self) {
-        if self.ime_enabled {
-            self.window.request_ime_update(ImeRequest::Disable).expect("disable can not fail");
-        } else {
-            let enable_request = ImeEnableRequest::new(
-                ImeCapabilities::new().with_purpose().with_cursor_area().with_surrounding_text(),
-                self.get_ime_update(),
-            )
-            .unwrap();
-            self.window.request_ime_update(ImeRequest::Enable(enable_request)).unwrap();
-        };
-
-        self.ime_enabled = !self.ime_enabled;
-    }
-
     pub fn minimize(&mut self) {
         self.window.set_minimized(true);
     }
 
     pub fn cursor_moved(&mut self, position: PhysicalPosition<f64>) {
-        // the IME really cares about the caret,
-        // but there's nothing else to demonstrate a position
         self.cursor_position = Some(position);
-        if self.ime_enabled {
-            let request_data =
-                ImeRequestData::default().with_cursor_area(position.into(), IME_CURSOR_SIZE.into());
-            self.window
-                .request_ime_update(ImeRequest::Update(request_data))
-                .expect("A capability was not initially declared");
-        }
     }
 
     pub fn cursor_left(&mut self) {
@@ -1113,7 +1001,6 @@ enum Action {
     ToggleCursorVisibility,
     CreateNewWindow,
     ToggleResizeIncrements,
-    ToggleImeInput,
     ToggleDecorations,
     ToggleResizable,
     ToggleFullscreen,
@@ -1150,7 +1037,6 @@ impl Action {
             Action::CloseWindow => "Close window",
             Action::ToggleCursorVisibility => "Hide cursor",
             Action::CreateNewWindow => "Create new window",
-            Action::ToggleImeInput => "Toggle IME input",
             Action::ToggleDecorations => "Toggle decorations",
             Action::ToggleResizable => "Toggle window resizable state",
             Action::ToggleFullscreen => "Toggle fullscreen",
@@ -1370,7 +1256,6 @@ const KEY_BINDINGS: &[Binding<&'static str>] = &[
     #[cfg(macos_platform)]
     Binding::new("F", ModifiersState::ALT, Action::ToggleSimpleFullscreen),
     Binding::new("D", ModifiersState::CONTROL, Action::ToggleDecorations),
-    Binding::new("I", ModifiersState::CONTROL, Action::ToggleImeInput),
     Binding::new("L", ModifiersState::CONTROL, Action::CycleCursorGrab),
     Binding::new("P", ModifiersState::CONTROL, Action::ToggleResizeIncrements),
     Binding::new("R", ModifiersState::CONTROL, Action::ToggleResizable),
