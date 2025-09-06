@@ -344,6 +344,11 @@ impl Window {
         }
     }
 
+    #[inline]
+    pub fn set_use_system_scroll_speed(&self, should_use: bool) {
+        self.window_state_lock().use_system_wheel_speed = should_use;
+    }
+
     fn set_icon(&self, mut new_icon: Icon, icon_type: IconType) {
         if let Some(icon) = new_icon.cast_ref::<RgbaIcon>() {
             let icon = match WinIcon::from_rgba(icon) {
@@ -1094,7 +1099,7 @@ impl CoreWindow for Window {
     }
 
     fn set_theme(&self, theme: Option<Theme>) {
-        try_theme(self.window.hwnd(), theme);
+        self.window_state_lock().current_theme = try_theme(self.window.hwnd(), theme, true);
     }
 
     fn theme(&self) -> Option<Theme> {
@@ -1191,7 +1196,7 @@ impl InitData<'_> {
         // If the system theme is dark, we need to set the window theme now
         // before we update the window flags (and possibly show the
         // window for the first time).
-        let current_theme = try_theme(window, self.attributes.preferred_theme);
+        let current_theme = try_theme(window, self.attributes.preferred_theme, false);
 
         let window_state = {
             let window_state = WindowState::new(
@@ -1303,6 +1308,7 @@ impl InitData<'_> {
         win.set_skip_taskbar(self.win_attributes.skip_taskbar);
         win.set_window_icon(self.attributes.window_icon.clone());
         win.set_taskbar_icon(self.win_attributes.taskbar_icon.clone());
+        win.set_use_system_scroll_speed(self.win_attributes.use_system_wheel_speed);
 
         let attributes = self.attributes.clone();
 

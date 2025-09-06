@@ -2,7 +2,7 @@ use objc2::rc::Retained;
 use objc2::runtime::Sel;
 use objc2::{sel, MainThreadMarker};
 use objc2_app_kit::{NSApplication, NSEventModifierFlags, NSMenu, NSMenuItem};
-use objc2_foundation::{ns_string, NSProcessInfo, NSString};
+use objc2_foundation::{ns_string, NSBundle, NSProcessInfo, NSString};
 
 struct KeyEquivalent<'a> {
     key: &'a NSString,
@@ -16,7 +16,10 @@ pub fn initialize(app: &NSApplication) {
     menubar.addItem(&app_menu_item);
 
     let app_menu = NSMenu::new(mtm);
-    let process_name = NSProcessInfo::processInfo().processName();
+    let process_name = match NSBundle::mainBundle().name() {
+        Some(bundle_name) => bundle_name,
+        None => NSProcessInfo::processInfo().processName(),
+    };
 
     // About menu item
     let about_item_title = ns_string!("About ").stringByAppendingString(&process_name);

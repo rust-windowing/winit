@@ -42,22 +42,23 @@ use windows_sys::Win32::UI::Input::{
 use windows_sys::Win32::UI::WindowsAndMessaging::{
     CreateWindowExW, DefWindowProcW, DestroyWindow, DispatchMessageW, GetClientRect, GetCursorPos,
     GetMenu, LoadCursorW, MsgWaitForMultipleObjectsEx, PeekMessageW, PostMessageW,
-    RegisterClassExW, RegisterWindowMessageA, SetCursor, SetWindowPos, TranslateMessage,
-    CREATESTRUCTW, GWL_STYLE, GWL_USERDATA, HTCAPTION, HTCLIENT, MINMAXINFO, MNC_CLOSE, MSG,
-    MWMO_INPUTAVAILABLE, NCCALCSIZE_PARAMS, PM_REMOVE, PT_TOUCH, QS_ALLINPUT, RI_MOUSE_HWHEEL,
-    RI_MOUSE_WHEEL, SC_MINIMIZE, SC_RESTORE, SIZE_MAXIMIZED, SWP_NOACTIVATE, SWP_NOMOVE,
-    SWP_NOSIZE, SWP_NOZORDER, WHEEL_DELTA, WINDOWPOS, WMSZ_BOTTOM, WMSZ_BOTTOMLEFT,
-    WMSZ_BOTTOMRIGHT, WMSZ_LEFT, WMSZ_RIGHT, WMSZ_TOP, WMSZ_TOPLEFT, WMSZ_TOPRIGHT,
-    WM_CAPTURECHANGED, WM_CLOSE, WM_CREATE, WM_DESTROY, WM_DPICHANGED, WM_ENTERSIZEMOVE,
-    WM_EXITSIZEMOVE, WM_GETMINMAXINFO, WM_IME_COMPOSITION, WM_IME_ENDCOMPOSITION,
-    WM_IME_SETCONTEXT, WM_IME_STARTCOMPOSITION, WM_INPUT, WM_KEYDOWN, WM_KEYUP, WM_KILLFOCUS,
-    WM_LBUTTONDOWN, WM_LBUTTONUP, WM_MBUTTONDOWN, WM_MBUTTONUP, WM_MENUCHAR, WM_MOUSEHWHEEL,
-    WM_MOUSEMOVE, WM_MOUSEWHEEL, WM_NCACTIVATE, WM_NCCALCSIZE, WM_NCCREATE, WM_NCDESTROY,
-    WM_NCLBUTTONDOWN, WM_PAINT, WM_POINTERDOWN, WM_POINTERUP, WM_POINTERUPDATE, WM_RBUTTONDOWN,
-    WM_RBUTTONUP, WM_SETCURSOR, WM_SETFOCUS, WM_SETTINGCHANGE, WM_SIZE, WM_SIZING, WM_SYSCOMMAND,
-    WM_SYSKEYDOWN, WM_SYSKEYUP, WM_TOUCH, WM_WINDOWPOSCHANGED, WM_WINDOWPOSCHANGING,
-    WM_XBUTTONDOWN, WM_XBUTTONUP, WNDCLASSEXW, WS_EX_LAYERED, WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW,
-    WS_EX_TRANSPARENT, WS_OVERLAPPED, WS_POPUP, WS_VISIBLE,
+    RegisterClassExW, RegisterWindowMessageA, SetCursor, SetWindowPos, SystemParametersInfoW,
+    TranslateMessage, CREATESTRUCTW, GWL_STYLE, GWL_USERDATA, HTCAPTION, HTCLIENT, MINMAXINFO,
+    MNC_CLOSE, MSG, MWMO_INPUTAVAILABLE, NCCALCSIZE_PARAMS, PM_REMOVE, PT_TOUCH, QS_ALLINPUT,
+    RI_MOUSE_HWHEEL, RI_MOUSE_WHEEL, SC_MINIMIZE, SC_RESTORE, SIZE_MAXIMIZED,
+    SPI_GETWHEELSCROLLCHARS, SPI_GETWHEELSCROLLLINES, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE,
+    SWP_NOZORDER, WHEEL_DELTA, WINDOWPOS, WMSZ_BOTTOM, WMSZ_BOTTOMLEFT, WMSZ_BOTTOMRIGHT,
+    WMSZ_LEFT, WMSZ_RIGHT, WMSZ_TOP, WMSZ_TOPLEFT, WMSZ_TOPRIGHT, WM_CAPTURECHANGED, WM_CLOSE,
+    WM_CREATE, WM_DESTROY, WM_DPICHANGED, WM_ENTERSIZEMOVE, WM_EXITSIZEMOVE, WM_GETMINMAXINFO,
+    WM_IME_COMPOSITION, WM_IME_ENDCOMPOSITION, WM_IME_SETCONTEXT, WM_IME_STARTCOMPOSITION,
+    WM_INPUT, WM_KEYDOWN, WM_KEYUP, WM_KILLFOCUS, WM_LBUTTONDOWN, WM_LBUTTONUP, WM_MBUTTONDOWN,
+    WM_MBUTTONUP, WM_MENUCHAR, WM_MOUSEHWHEEL, WM_MOUSEMOVE, WM_MOUSEWHEEL, WM_NCACTIVATE,
+    WM_NCCALCSIZE, WM_NCCREATE, WM_NCDESTROY, WM_NCLBUTTONDOWN, WM_PAINT, WM_POINTERDOWN,
+    WM_POINTERUP, WM_POINTERUPDATE, WM_RBUTTONDOWN, WM_RBUTTONUP, WM_SETCURSOR, WM_SETFOCUS,
+    WM_SETTINGCHANGE, WM_SIZE, WM_SIZING, WM_SYSCOMMAND, WM_SYSKEYDOWN, WM_SYSKEYUP, WM_TOUCH,
+    WM_WINDOWPOSCHANGED, WM_WINDOWPOSCHANGING, WM_XBUTTONDOWN, WM_XBUTTONUP, WNDCLASSEXW,
+    WS_EX_LAYERED, WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW, WS_EX_TRANSPARENT, WS_OVERLAPPED, WS_POPUP,
+    WS_VISIBLE,
 };
 use winit_core::application::ApplicationHandler;
 use winit_core::cursor::{CustomCursor, CustomCursorSource};
@@ -87,10 +88,17 @@ use crate::ime::ImeContext;
 use crate::keyboard::KeyEventBuilder;
 use crate::keyboard_layout::LAYOUT_CACHE;
 use crate::monitor::{self, MonitorHandle};
-use crate::util::wrap_device_id;
+use crate::util::{wrap_device_id, WIN10_BUILD_VERSION};
 use crate::window::{InitData, Window};
 use crate::window_state::{CursorFlags, ImeState, WindowFlags, WindowState};
 use crate::{raw_input, util};
+
+// This is defined in `winuser.h` as a macro that expands to `UINT_MAX`
+const WHEEL_PAGESCROLL: u32 = u32::MAX;
+// https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-systemparametersinfoa#:~:text=SPI_GETWHEELSCROLLLINES
+const DEFAULT_SCROLL_LINES_PER_WHEEL_DELTA: isize = 3;
+// https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-systemparametersinfoa#:~:text=SPI_GETWHEELSCROLLCHARS
+const DEFAULT_SCROLL_CHARACTERS_PER_WHEEL_DELTA: isize = 3;
 
 pub(crate) struct WindowData {
     pub window_state: Arc<Mutex<WindowState>>,
@@ -1636,9 +1644,26 @@ unsafe fn public_window_callback_inner(
 
             update_modifiers(window, userdata);
 
+            let scroll_lines_multiplier = if userdata.window_state_lock().use_system_wheel_speed {
+                let mut scroll_lines = DEFAULT_SCROLL_LINES_PER_WHEEL_DELTA;
+                let _ = SystemParametersInfoW(
+                    SPI_GETWHEELSCROLLLINES,
+                    0,
+                    &mut scroll_lines as *mut isize as *mut c_void,
+                    0,
+                );
+                if scroll_lines as u32 == WHEEL_PAGESCROLL {
+                    // TODO: figure out how to handle page scrolls
+                    scroll_lines = DEFAULT_SCROLL_LINES_PER_WHEEL_DELTA;
+                }
+                scroll_lines
+            } else {
+                1
+            };
+
             userdata.send_window_event(window, WindowEvent::MouseWheel {
                 device_id: None,
-                delta: LineDelta(0.0, value),
+                delta: LineDelta(0.0, value * scroll_lines_multiplier as f32),
                 phase: TouchPhase::Moved,
             });
 
@@ -1653,9 +1678,23 @@ unsafe fn public_window_callback_inner(
 
             update_modifiers(window, userdata);
 
+            let scroll_characters_multiplier =
+                if userdata.window_state_lock().use_system_wheel_speed {
+                    let mut scroll_characters = DEFAULT_SCROLL_CHARACTERS_PER_WHEEL_DELTA;
+                    let _ = SystemParametersInfoW(
+                        SPI_GETWHEELSCROLLCHARS,
+                        0,
+                        &mut scroll_characters as *mut isize as *mut c_void,
+                        0,
+                    );
+                    scroll_characters
+                } else {
+                    1
+                };
+
             userdata.send_window_event(window, WindowEvent::MouseWheel {
                 device_id: None,
-                delta: LineDelta(value, 0.0),
+                delta: LineDelta(value * scroll_characters_multiplier as f32, 0.0),
                 phase: TouchPhase::Moved,
             });
 
@@ -2307,105 +2346,22 @@ unsafe fn public_window_callback_inner(
                 }
             }
 
-            let new_outer_rect: RECT;
+            let new_outer_rect: RECT = if WIN10_BUILD_VERSION.is_some_and(|version| version < 22000)
             {
-                let suggested_ul =
-                    (suggested_rect.left + margin_left, suggested_rect.top + margin_top);
-
-                let mut conservative_rect = RECT {
-                    left: suggested_ul.0,
-                    top: suggested_ul.1,
-                    right: suggested_ul.0 + new_physical_surface_size.width as i32,
-                    bottom: suggested_ul.1 + new_physical_surface_size.height as i32,
-                };
-
-                conservative_rect = window_flags
-                    .adjust_rect(window, conservative_rect)
-                    .unwrap_or(conservative_rect);
-
-                // If we're dragging the window, offset the window so that the cursor's
-                // relative horizontal position in the title bar is preserved.
-                if dragging_window {
-                    let bias = {
-                        let cursor_pos = {
-                            let mut pos = unsafe { mem::zeroed() };
-                            unsafe { GetCursorPos(&mut pos) };
-                            pos
-                        };
-                        let suggested_cursor_horizontal_ratio = (cursor_pos.x - suggested_rect.left)
-                            as f64
-                            / (suggested_rect.right - suggested_rect.left) as f64;
-
-                        (cursor_pos.x
-                            - (suggested_cursor_horizontal_ratio
-                                * (conservative_rect.right - conservative_rect.left) as f64)
-                                as i32)
-                            - conservative_rect.left
-                    };
-                    conservative_rect.left += bias;
-                    conservative_rect.right += bias;
-                }
-
-                // Check to see if the new window rect is on the monitor with the new DPI factor.
-                // If it isn't, offset the window so that it is.
-                let new_dpi_monitor = unsafe { MonitorFromWindow(window, MONITOR_DEFAULTTONULL) };
-                let conservative_rect_monitor =
-                    unsafe { MonitorFromRect(&conservative_rect, MONITOR_DEFAULTTONULL) };
-                new_outer_rect = if conservative_rect_monitor == new_dpi_monitor {
-                    conservative_rect
-                } else {
-                    let get_monitor_rect = |monitor| {
-                        let mut monitor_info = MONITORINFO {
-                            cbSize: mem::size_of::<MONITORINFO>() as _,
-                            ..unsafe { mem::zeroed() }
-                        };
-                        unsafe { GetMonitorInfoW(monitor, &mut monitor_info) };
-                        monitor_info.rcMonitor
-                    };
-                    let wrong_monitor = conservative_rect_monitor;
-                    let wrong_monitor_rect = get_monitor_rect(wrong_monitor);
-                    let new_monitor_rect = get_monitor_rect(new_dpi_monitor);
-
-                    // The direction to nudge the window in to get the window onto the monitor with
-                    // the new DPI factor. We calculate this by seeing which monitor edges are
-                    // shared and nudging away from the wrong monitor based on those.
-                    #[allow(clippy::bool_to_int_with_if)]
-                    let delta_nudge_to_dpi_monitor = (
-                        if wrong_monitor_rect.left == new_monitor_rect.right {
-                            -1
-                        } else if wrong_monitor_rect.right == new_monitor_rect.left {
-                            1
-                        } else {
-                            0
-                        },
-                        if wrong_monitor_rect.bottom == new_monitor_rect.top {
-                            1
-                        } else if wrong_monitor_rect.top == new_monitor_rect.bottom {
-                            -1
-                        } else {
-                            0
-                        },
-                    );
-
-                    let abort_after_iterations = new_monitor_rect.right - new_monitor_rect.left
-                        + new_monitor_rect.bottom
-                        - new_monitor_rect.top;
-                    for _ in 0..abort_after_iterations {
-                        conservative_rect.left += delta_nudge_to_dpi_monitor.0;
-                        conservative_rect.right += delta_nudge_to_dpi_monitor.0;
-                        conservative_rect.top += delta_nudge_to_dpi_monitor.1;
-                        conservative_rect.bottom += delta_nudge_to_dpi_monitor.1;
-
-                        if unsafe { MonitorFromRect(&conservative_rect, MONITOR_DEFAULTTONULL) }
-                            == new_dpi_monitor
-                        {
-                            break;
-                        }
-                    }
-
-                    conservative_rect
-                };
-            }
+                // Apply Windows 10-specific DPI adjustment workaround
+                apply_win10_dpi_adjustment(
+                    window,
+                    suggested_rect,
+                    margin_left,
+                    margin_top,
+                    new_physical_surface_size,
+                    window_flags,
+                    dragging_window,
+                )
+            } else {
+                // The suggested position is fine w/o adjustment on Windows 11+
+                suggested_rect
+            };
 
             unsafe {
                 SetWindowPos(
@@ -2428,7 +2384,7 @@ unsafe fn public_window_callback_inner(
             let preferred_theme = userdata.window_state_lock().preferred_theme;
 
             if preferred_theme.is_none() {
-                let new_theme = try_theme(window, preferred_theme);
+                let new_theme = try_theme(window, preferred_theme, false);
                 let mut window_state = userdata.window_state_lock();
 
                 if window_state.current_theme != new_theme {
@@ -2629,4 +2585,109 @@ fn get_pointer_move_kind(
     } else {
         PointerMoveKind::None
     }
+}
+
+/// Apply Windows 10-specific DPI adjustment workaround for window positioning.
+/// This fixes DPI switching issues on older Windows 10 but should not be applied on Windows 11+
+/// where it would break DPI switching.
+fn apply_win10_dpi_adjustment(
+    window: HWND,
+    suggested_rect: RECT,
+    margin_left: i32,
+    margin_top: i32,
+    new_physical_surface_size: PhysicalSize<u32>,
+    window_flags: WindowFlags,
+    dragging_window: bool,
+) -> RECT {
+    let suggested_ul = (suggested_rect.left + margin_left, suggested_rect.top + margin_top);
+
+    let mut conservative_rect = RECT {
+        left: suggested_ul.0,
+        top: suggested_ul.1,
+        right: suggested_ul.0 + new_physical_surface_size.width as i32,
+        bottom: suggested_ul.1 + new_physical_surface_size.height as i32,
+    };
+
+    conservative_rect =
+        window_flags.adjust_rect(window, conservative_rect).unwrap_or(conservative_rect);
+
+    // If we're dragging the window, offset the window so that the cursor's
+    // relative horizontal position in the title bar is preserved.
+    if dragging_window {
+        let bias = {
+            let cursor_pos = {
+                let mut pos = unsafe { mem::zeroed() };
+                unsafe { GetCursorPos(&mut pos) };
+                pos
+            };
+            let suggested_cursor_horizontal_ratio = (cursor_pos.x - suggested_rect.left) as f64
+                / (suggested_rect.right - suggested_rect.left) as f64;
+
+            (cursor_pos.x
+                - (suggested_cursor_horizontal_ratio
+                    * (conservative_rect.right - conservative_rect.left) as f64)
+                    as i32)
+                - conservative_rect.left
+        };
+        conservative_rect.left += bias;
+        conservative_rect.right += bias;
+    }
+
+    // Check to see if the new window rect is on the monitor with the new DPI factor.
+    // If it isn't, offset the window so that it is.
+    let new_dpi_monitor = unsafe { MonitorFromWindow(window, MONITOR_DEFAULTTONULL) };
+    let conservative_rect_monitor =
+        unsafe { MonitorFromRect(&conservative_rect, MONITOR_DEFAULTTONULL) };
+
+    if conservative_rect_monitor == new_dpi_monitor {
+        return conservative_rect;
+    }
+
+    let get_monitor_rect = |monitor| {
+        let mut monitor_info =
+            MONITORINFO { cbSize: mem::size_of::<MONITORINFO>() as _, ..unsafe { mem::zeroed() } };
+        unsafe { GetMonitorInfoW(monitor, &mut monitor_info) };
+        monitor_info.rcMonitor
+    };
+    let wrong_monitor = conservative_rect_monitor;
+    let wrong_monitor_rect = get_monitor_rect(wrong_monitor);
+    let new_monitor_rect = get_monitor_rect(new_dpi_monitor);
+
+    // The direction to nudge the window in to get the window onto the monitor with
+    // the new DPI factor. We calculate this by seeing which monitor edges are
+    // shared and nudging away from the wrong monitor based on those.
+    #[allow(clippy::bool_to_int_with_if)]
+    let delta_nudge_to_dpi_monitor = (
+        if wrong_monitor_rect.left == new_monitor_rect.right {
+            -1
+        } else if wrong_monitor_rect.right == new_monitor_rect.left {
+            1
+        } else {
+            0
+        },
+        if wrong_monitor_rect.bottom == new_monitor_rect.top {
+            1
+        } else if wrong_monitor_rect.top == new_monitor_rect.bottom {
+            -1
+        } else {
+            0
+        },
+    );
+
+    let abort_after_iterations = new_monitor_rect.right - new_monitor_rect.left
+        + new_monitor_rect.bottom
+        - new_monitor_rect.top;
+    for _ in 0..abort_after_iterations {
+        conservative_rect.left += delta_nudge_to_dpi_monitor.0;
+        conservative_rect.right += delta_nudge_to_dpi_monitor.0;
+        conservative_rect.top += delta_nudge_to_dpi_monitor.1;
+        conservative_rect.bottom += delta_nudge_to_dpi_monitor.1;
+
+        if unsafe { MonitorFromRect(&conservative_rect, MONITOR_DEFAULTTONULL) } == new_dpi_monitor
+        {
+            break;
+        }
+    }
+
+    conservative_rect
 }

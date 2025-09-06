@@ -85,6 +85,8 @@ changelog entry.
 - On Wayland, added `PanGesture`, `PinchGesture`, and `RotationGesture`
 - Add `Window::request_ime_update` to atomically apply set of IME changes.
 - Add `Ime::DeleteSurrounding` to let the input method delete text.
+- Add more `ImePurpose` values.
+- Add `ImeHints` to request particular IME behaviour.
 
 ### Changed
 
@@ -175,6 +177,7 @@ changelog entry.
 - Rename `VideoModeHandle` to `VideoMode`, now it only stores plain data.
 - Make `Fullscreen::Exclusive` contain `(MonitorHandle, VideoMode)`.
 - Reworked the file drag-and-drop API.
+- On macOS, the default menu uses the bundle name or falls back to the process name as before.
 
   The `WindowEvent::DroppedFile`, `WindowEvent::HoveredFile` and `WindowEvent::HoveredFileCancelled`
   events have been removed, and replaced with `WindowEvent::DragEntered`, `WindowEvent::DragMoved`,
@@ -250,9 +253,14 @@ changelog entry.
 ### Fixed
 
 - On Orbital, `MonitorHandle::name()` now returns `None` instead of a dummy name.
+- On Orbital, implement `fullscreen`.
 - On iOS, fixed `SurfaceResized` and `Window::surface_size` not reporting the size of the actual surface.
 - On macOS, fixed the scancode conversion for audio volume keys.
 - On macOS, fixed the scancode conversion for `IntlBackslash`.
 - On macOS, fixed redundant `SurfaceResized` event at window creation.
 - On macOS, don't panic on monitors with unknown bit-depths.
 - On macOS, fixed crash when closing the window on macOS 26+.
+- On Windows, account for mouse wheel lines per scroll setting for `WindowEvent::MouseWheel`.
+- On Windows, `Window::theme` will return the correct theme after setting it through `Window::set_theme`.
+- On Windows, `Window::set_theme` will change the title bar color immediately now.
+- On Windows 11, prevent incorrect shifting when dragging window onto a monitor with different DPI.
