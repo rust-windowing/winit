@@ -112,10 +112,14 @@ impl Dispatch<ZwpPointerGesturePinchV1, PointerGestureData, WinitState> for Poin
 
                 let pan_delta =
                     LogicalPosition::new(dx as f32, dy as f32).to_physical(scale_factor);
+
                 let pinch_delta = pinch - pointer_gesture_data.previous_pinch;
                 pointer_gesture_data.previous_pinch = pinch;
 
-                (window_id, TouchPhase::Moved, pan_delta, pinch_delta, -rotation as f32)
+                // Wayland provides rotation in degrees cw, opposite of winit's degrees ccw
+                let rotation_delta = -rotation as f32;
+
+                (window_id, TouchPhase::Moved, pan_delta, pinch_delta, rotation_delta)
             },
             Event::End { time: _, serial: _, cancelled } => {
                 let Some(window_id) = pointer_gesture_data.window_id else {
