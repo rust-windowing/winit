@@ -2,6 +2,7 @@ use std::cell::Cell;
 use std::collections::VecDeque;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{mpsc, Arc, Mutex};
+use std::task::Waker;
 use std::time::Instant;
 use std::{iter, mem, slice};
 
@@ -276,7 +277,6 @@ impl EventState {
 pub struct EventLoop {
     windows: Vec<(Arc<RedoxSocket>, EventState)>,
     window_target: ActiveEventLoop,
-    user_events_receiver: mpsc::Receiver<()>,
 }
 
 impl EventLoop {
@@ -577,7 +577,7 @@ impl EventLoop {
                 i += 1;
             }
 
-            while self.user_events_receiver.try_recv().is_ok() {
+            if self.wake_up.swap(false, Ordering::Relaxed) {
                 app.proxy_wake_up(&self.window_target);
             }
 
@@ -666,17 +666,26 @@ impl EventLoop {
 
 #[derive(Debug)]
 pub struct EventLoopProxy {
-    user_events_sender: mpsc::SyncSender<()>,
-    pub(super) wake_socket: TimeSocket,
+    waker: Waker,
 }
 
 impl EventLoopProxyProvider for EventLoopProxy {
     fn wake_up(&self) {
-        // When we fail to send the event it means that we haven't woken up to read the previous
-        // event.
-        if self.user_events_sender.try_send(()).is_ok() {
-            self.wake_socket.wake().unwrap();
-        }
+        self.waker.wake_by_ref();
+    }
+
+    fn into_waker(self) -> Waker {
+        self.waker
+    }
+}
+
+impl std::task::Wake for TimeSocket {
+    fn wake(self: Arc<TimeSocket>) {
+        TimeSocket::wake(&*self).unwrap();
+    }
+
+    fn wake_by_ref(self: &Arc<TimeSocket>) {
+        TimeSocket::wake(&**self).unwrap();
     }
 }
 

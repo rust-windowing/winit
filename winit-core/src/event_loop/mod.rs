@@ -4,6 +4,7 @@ pub mod run_on_demand;
 use std::fmt::{self, Debug};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
+use std::task::Waker;
 use std::time::Duration;
 
 use rwh_06::{DisplayHandle, HandleError, HasDisplayHandle};
@@ -150,6 +151,13 @@ impl EventLoopProxy {
         self.proxy.wake_up();
     }
 
+    /// Get a [`Waker`] that calls [`wake_up`] on the proxy when awoken.
+    ///
+    /// This may be useful to `async` code or otherwise interoperating with `std`.
+    pub fn waker(&self) -> Waker {
+        self.proxy.waker()
+    }
+
     pub fn new(proxy: Arc<dyn EventLoopProxyProvider>) -> Self {
         Self { proxy }
     }
@@ -158,6 +166,9 @@ impl EventLoopProxy {
 pub trait EventLoopProxyProvider: Send + Sync + Debug {
     /// See [`EventLoopProxy::wake_up`] for details.
     fn wake_up(&self);
+
+    /// See [`EventLoopProxy::waker`] for details.
+    fn waker(&self) -> Waker;
 }
 
 /// A proxy for the underlying display handle.

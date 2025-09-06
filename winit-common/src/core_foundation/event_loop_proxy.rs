@@ -1,9 +1,12 @@
 use std::os::raw::c_void;
+use std::ptr::NonNull;
 use std::sync::Arc;
+use std::task::{RawWaker, RawWakerVTable, Waker};
 
 use objc2::MainThreadMarker;
 use objc2_core_foundation::{
     kCFRunLoopCommonModes, CFIndex, CFRetained, CFRunLoop, CFRunLoopSource, CFRunLoopSourceContext,
+    Type,
 };
 use winit_core::event_loop::EventLoopProxyProvider;
 
@@ -118,5 +121,55 @@ impl EventLoopProxyProvider for EventLoopProxy {
         // This is required since we may be (probably are) running on a different thread, and the
         // main loop may be sleeping (and `CFRunLoopSourceSignal` won't wake it).
         self.main_loop.wake_up();
+    }
+
+    fn waker(&self) -> Waker {
+        const VTABLE: RawWakerVTable =
+            RawWakerVTable::new(clone_waker, wake, wake_by_ref, drop_waker);
+
+        unsafe fn clone_waker(data: *const ()) -> RawWaker {
+            // SAFETY: The poiner came from `CFRunLoopSource` and is valid and non-null.
+            let source = unsafe { &*data.cast::<CFRunLoopSource>() };
+
+            // Increment reference count.
+            let source = source.retain();
+
+            // Pass ownership to the raw waker.
+            let data: *const CFRunLoopSource = CFRetained::into_raw(source).as_ptr();
+            RawWaker::new(data.cast(), &VTABLE)
+        }
+
+        unsafe fn wake(data: *const ()) {
+            unsafe { wake_by_ref(data) };
+            unsafe { drop_waker(data) };
+        }
+
+        unsafe fn wake_by_ref(data: *const ()) {
+            // SAFETY: The poiner came from `CFRunLoopSource` and is valid and non-null.
+            let source = unsafe { &*data.cast::<CFRunLoopSource>() };
+
+            // Signal the source, which ends up later invoking `perform` on the main thread.
+            //
+            // Multiple signals in quick succession are automatically coalesced into a single
+            // signal.
+            source.signal();
+
+            let main_loop = CFRunLoop::main().unwrap();
+            // Let the main thread know there's a new event.
+            //
+            // This is required since we may be (probably are) running on a different thread, and
+            // the main loop may be sleeping (and `CFRunLoopSourceSignal` won't wake it).
+            main_loop.wake_up();
+        }
+
+        unsafe fn drop_waker(data: *const ()) {
+            let source = data.cast::<CFRunLoopSource>().cast_mut();
+            // SAFETY: The poiner came from `CFRunLoopSource` and is valid and non-null.
+            // We take ownership of a retain count here.
+            let _source = unsafe { CFRetained::from_raw(NonNull::new_unchecked(source)) };
+        }
+
+        let data: *const CFRunLoopSource = CFRetained::into_raw(self.source.clone()).as_ptr();
+        unsafe { Waker::from_raw(RawWaker::new(data.cast(), &VTABLE)) }
     }
 }
