@@ -416,7 +416,10 @@ impl ActiveEventLoop {
 
 impl RootActiveEventLoop for ActiveEventLoop {
     fn create_proxy(&self) -> RootEventLoopProxy {
-        let event_loop_proxy = EventLoopProxy { target_window: self.0.thread_msg_target };
+        let event_loop_proxy = EventLoopProxy {
+            has_sent_wakeup_msg: self.0.has_sent_wakeup_msg.clone(),
+            target_window: self.0.thread_msg_target,
+        };
         RootEventLoopProxy::new(Arc::new(event_loop_proxy))
     }
 
@@ -766,6 +769,7 @@ type ThreadExecFn = Box<Box<dyn FnMut()>>;
 
 #[derive(Debug)]
 pub struct EventLoopProxy {
+    has_sent_wakeup_msg: Arc<AtomicBool>,
     target_window: HWND,
 }
 
@@ -774,7 +778,18 @@ unsafe impl Sync for EventLoopProxy {}
 
 impl EventLoopProxyProvider for EventLoopProxy {
     fn wake_up(&self) {
-        unsafe { PostMessageW(self.target_window, USER_EVENT_MSG_ID.get(), 0, 0) };
+        if self.has_sent_wakeup_msg.swap(true, Ordering::AcqRel) {
+            // Do not send a wakeup event if one has already been sent, but hasn't been processed
+            // yet. This prevents errors when the internal message queue fills up, and effectively
+            // coalesces wakeups.
+            tracing::trace!("avoided sending wake up, previous wake-up has yet to be processed");
+            return;
+        }
+        if unsafe { PostMessageW(self.target_window, PROXY_WAKEUP_MSG_ID.get(), 0, 0) } == 0 {
+            // _can_ technically fail, but realistically won't, since we've prevented the most
+            // common case (queue full) above.
+            tracing::error!("failed waking event loop: {}", std::io::Error::last_os_error());
+        }
     }
 }
 
@@ -830,7 +845,7 @@ impl LazyMessageId {
 
 // Message sent by the `EventLoopProxy` when we want to wake up the thread.
 // WPARAM and LPARAM are unused.
-static USER_EVENT_MSG_ID: LazyMessageId = LazyMessageId::new("Winit::WakeupMsg\0");
+static PROXY_WAKEUP_MSG_ID: LazyMessageId = LazyMessageId::new("Winit::WakeupMsg\0");
 // Message sent when we want to execute a closure in the thread.
 // WPARAM contains a Box<Box<dyn FnMut()>> that must be retrieved with `Box::from_raw`,
 // and LPARAM is unused.
@@ -2471,12 +2486,9 @@ unsafe extern "system" fn thread_event_target_callback(
             unsafe { DefWindowProcW(window, msg, wparam, lparam) }
         },
 
-        _ if msg == USER_EVENT_MSG_ID.get() => {
-            // synthesis a placeholder UserEvent, so that if the callback is
-            // re-entered it can be buffered for later delivery. the real
-            // user event is still in the mpsc channel and will be pulled
-            // once the placeholder event is delivered to the wrapper
-            // `event_handler`
+        _ if msg == PROXY_WAKEUP_MSG_ID.get() => {
+            // Reset the sent state, allowing new `PROXY_WAKEUP_MSG_ID` messages to be sent.
+            userdata.event_loop_runner.has_sent_wakeup_msg.store(false, Ordering::Release);
             userdata.send_wakeup();
             0
         },
