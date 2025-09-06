@@ -25,8 +25,8 @@ use winit_core::error::OsError;
 use crate::event_loop::sink::EventSink;
 use crate::output::MonitorHandle;
 use crate::seat::{
-    PointerConstraintsState, RelativePointerState, TextInputState, WinitPointerData,
-    WinitPointerDataExt, WinitSeatState,
+    PointerConstraintsState, PointerGesturesState, RelativePointerState, TextInputState,
+    WinitPointerData, WinitPointerDataExt, WinitSeatState,
 };
 use crate::types::kwin_blur::KWinBlurManager;
 use crate::types::wp_fractional_scaling::FractionalScalingManager;
@@ -102,6 +102,9 @@ pub struct WinitState {
 
     /// Pointer constraints to handle pointer locking and confining.
     pub pointer_constraints: Option<Arc<PointerConstraintsState>>,
+
+    /// Pointer gestures to handle pinch, rotate, and pan
+    pub pointer_gestures: Option<PointerGesturesState>,
 
     /// Viewporter state on the given window.
     pub viewporter_state: Option<ViewporterState>,
@@ -195,6 +198,7 @@ impl WinitState {
                 .map(Arc::new)
                 .ok(),
             pointer_surfaces: Default::default(),
+            pointer_gestures: PointerGesturesState::new(globals, queue_handle).ok(),
 
             monitors: Arc::new(Mutex::new(monitors)),
             events_sink: EventSink::new(),
