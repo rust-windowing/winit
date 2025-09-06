@@ -1,13 +1,9 @@
-use std::ffi::c_void;
-use std::ptr;
 use std::sync::Arc;
 
 use objc2::rc::Retained;
 use objc2::runtime::ProtocolObject;
 use objc2::{msg_send, ClassType, MainThreadMarker};
-use objc2_core_foundation::{
-    kCFRunLoopDefaultMode, CFIndex, CFRunLoop, CFRunLoopActivity, CFRunLoopObserver,
-};
+use objc2_core_foundation::{kCFRunLoopDefaultMode, CFIndex, CFRunLoopActivity};
 use objc2_foundation::{NSNotificationCenter, NSObjectProtocol};
 use objc2_ui_kit::{
     UIApplication, UIApplicationDidBecomeActiveNotification,
@@ -16,6 +12,7 @@ use objc2_ui_kit::{
     UIApplicationWillResignActiveNotification, UIApplicationWillTerminateNotification, UIScreen,
 };
 use rwh_06::HasDisplayHandle;
+use winit_common::core_foundation::{MainRunLoop, MainRunLoopObserver};
 use winit_core::application::ApplicationHandler;
 use winit_core::cursor::{CustomCursor, CustomCursorSource};
 use winit_core::error::{EventLoopError, NotSupportedError, RequestError};
@@ -136,6 +133,10 @@ pub struct EventLoop {
     _did_enter_background_observer: Retained<ProtocolObject<dyn NSObjectProtocol>>,
     _will_terminate_observer: Retained<ProtocolObject<dyn NSObjectProtocol>>,
     _did_receive_memory_warning_observer: Retained<ProtocolObject<dyn NSObjectProtocol>>,
+
+    _wakeup_observer: MainRunLoopObserver,
+    _main_events_cleared_observer: MainRunLoopObserver,
+    _events_cleared_observer: MainRunLoopObserver,
 }
 
 #[derive(Default, Debug, Copy, Clone, PartialEq, Eq, Hash)]
@@ -150,9 +151,6 @@ impl EventLoop {
             // Required, AppState is global state, and event loop can only be run once.
             return Err(EventLoopError::RecreationAttempt);
         }
-
-        // this line sets up the main run loop before `UIApplicationMain`
-        setup_control_flow_observers();
 
         let center = unsafe { NSNotificationCenter::defaultCenter() };
 
@@ -224,6 +222,50 @@ impl EventLoop {
             move |_| app_state::handle_memory_warning(mtm),
         );
 
+        let main_loop = MainRunLoop::get(mtm);
+        let mode = unsafe { kCFRunLoopDefaultMode }.unwrap();
+
+        let _wakeup_observer = MainRunLoopObserver::new(
+            mtm,
+            CFRunLoopActivity::AfterWaiting,
+            true,
+            // Queued with the highest priority to ensure it is processed before other observers.
+            CFIndex::MIN,
+            move |_| app_state::handle_wakeup_transition(mtm),
+        );
+        main_loop.add_observer(&_wakeup_observer, mode);
+
+        let _main_events_cleared_observer = MainRunLoopObserver::new(
+            mtm,
+            CFRunLoopActivity::BeforeWaiting,
+            true,
+            // Core Animation registers its `CFRunLoopObserver` that performs drawing operations in
+            // `CA::Transaction::ensure_implicit` with a priority of `0x1e8480`. We set the
+            // main_end priority to be 0, in order to send `AboutToWait` before `RedrawRequested`.
+            // This value was chosen conservatively to guard against apple using different
+            // priorities for their redraw observers in different OS's or on different devices. If
+            // it so happens that it's too conservative, the main symptom would be non-redraw
+            // events coming in after `AboutToWait`.
+            //
+            // The value of `0x1e8480` was determined by inspecting stack traces and the associated
+            // registers for every `CFRunLoopAddObserver` call on an iPad Air 2 running iOS 11.4.
+            //
+            // Also tested to be `0x1e8480` on iPhone 8, iOS 13 beta 4.
+            0,
+            move |_| app_state::handle_main_events_cleared(mtm),
+        );
+        main_loop.add_observer(&_main_events_cleared_observer, mode);
+
+        let _events_cleared_observer = MainRunLoopObserver::new(
+            mtm,
+            CFRunLoopActivity::BeforeWaiting,
+            true,
+            // Queued with the lowest priority to ensure it is processed after other observers.
+            CFIndex::MAX,
+            move |_| app_state::handle_events_cleared(mtm),
+        );
+        main_loop.add_observer(&_events_cleared_observer, mode);
+
         Ok(EventLoop {
             mtm,
             window_target: ActiveEventLoop { mtm },
@@ -234,6 +276,9 @@ impl EventLoop {
             _did_enter_background_observer,
             _will_terminate_observer,
             _did_receive_memory_warning_observer,
+            _wakeup_observer,
+            _main_events_cleared_observer,
+            _events_cleared_observer,
         })
     }
 
@@ -254,99 +299,5 @@ impl EventLoop {
 
     pub fn window_target(&self) -> &dyn RootActiveEventLoop {
         &self.window_target
-    }
-}
-
-fn setup_control_flow_observers() {
-    unsafe {
-        // begin is queued with the highest priority to ensure it is processed before other
-        // observers
-        extern "C-unwind" fn control_flow_begin_handler(
-            _: *mut CFRunLoopObserver,
-            activity: CFRunLoopActivity,
-            _: *mut c_void,
-        ) {
-            let mtm = MainThreadMarker::new().unwrap();
-            #[allow(non_upper_case_globals)]
-            match activity {
-                CFRunLoopActivity::AfterWaiting => app_state::handle_wakeup_transition(mtm),
-                _ => unreachable!(),
-            }
-        }
-
-        // Core Animation registers its `CFRunLoopObserver` that performs drawing operations in
-        // `CA::Transaction::ensure_implicit` with a priority of `0x1e8480`. We set the main_end
-        // priority to be 0, in order to send AboutToWait before RedrawRequested. This value was
-        // chosen conservatively to guard against apple using different priorities for their redraw
-        // observers in different OS's or on different devices. If it so happens that it's too
-        // conservative, the main symptom would be non-redraw events coming in after `AboutToWait`.
-        //
-        // The value of `0x1e8480` was determined by inspecting stack traces and the associated
-        // registers for every `CFRunLoopAddObserver` call on an iPad Air 2 running iOS 11.4.
-        //
-        // Also tested to be `0x1e8480` on iPhone 8, iOS 13 beta 4.
-        extern "C-unwind" fn control_flow_main_end_handler(
-            _: *mut CFRunLoopObserver,
-            activity: CFRunLoopActivity,
-            _: *mut c_void,
-        ) {
-            let mtm = MainThreadMarker::new().unwrap();
-            #[allow(non_upper_case_globals)]
-            match activity {
-                CFRunLoopActivity::BeforeWaiting => app_state::handle_main_events_cleared(mtm),
-                CFRunLoopActivity::Exit => {}, // may happen when running on macOS
-                _ => unreachable!(),
-            }
-        }
-
-        // end is queued with the lowest priority to ensure it is processed after other observers
-        extern "C-unwind" fn control_flow_end_handler(
-            _: *mut CFRunLoopObserver,
-            activity: CFRunLoopActivity,
-            _: *mut c_void,
-        ) {
-            let mtm = MainThreadMarker::new().unwrap();
-            #[allow(non_upper_case_globals)]
-            match activity {
-                CFRunLoopActivity::BeforeWaiting => app_state::handle_events_cleared(mtm),
-                CFRunLoopActivity::Exit => {}, // may happen when running on macOS
-                _ => unreachable!(),
-            }
-        }
-
-        let main_loop = CFRunLoop::main().unwrap();
-
-        let begin_observer = CFRunLoopObserver::new(
-            None,
-            CFRunLoopActivity::AfterWaiting.0,
-            true,
-            CFIndex::MIN,
-            Some(control_flow_begin_handler),
-            ptr::null_mut(),
-        )
-        .unwrap();
-        main_loop.add_observer(Some(&begin_observer), kCFRunLoopDefaultMode);
-
-        let main_end_observer = CFRunLoopObserver::new(
-            None,
-            (CFRunLoopActivity::Exit | CFRunLoopActivity::BeforeWaiting).0,
-            true,
-            0, // see comment on `control_flow_main_end_handler`
-            Some(control_flow_main_end_handler),
-            ptr::null_mut(),
-        )
-        .unwrap();
-        main_loop.add_observer(Some(&main_end_observer), kCFRunLoopDefaultMode);
-
-        let end_observer = CFRunLoopObserver::new(
-            None,
-            (CFRunLoopActivity::Exit | CFRunLoopActivity::BeforeWaiting).0,
-            true,
-            CFIndex::MAX,
-            Some(control_flow_end_handler),
-            ptr::null_mut(),
-        )
-        .unwrap();
-        main_loop.add_observer(Some(&end_observer), kCFRunLoopDefaultMode);
     }
 }
