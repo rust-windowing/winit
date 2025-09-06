@@ -3,6 +3,7 @@ use std::iter;
 use std::sync::{Arc, Mutex};
 
 use dpi::{PhysicalInsets, PhysicalPosition, PhysicalSize, Position, Size};
+use tracing::warn;
 use winit_core::cursor::Cursor;
 use winit_core::error::{NotSupportedError, RequestError};
 use winit_core::monitor::{Fullscreen, MonitorHandle as CoreMonitorHandle};
@@ -252,8 +253,16 @@ impl CoreWindow for Window {
         PhysicalInsets::new(0, 0, 0, 0)
     }
 
+    fn min_surface_size(&self) -> Option<PhysicalSize<u32>> {
+        None
+    }
+
     #[inline]
     fn set_min_surface_size(&self, _: Option<Size>) {}
+
+    fn max_surface_size(&self) -> Option<PhysicalSize<u32>> {
+        None
+    }
 
     #[inline]
     fn set_max_surface_size(&self, _: Option<Size>) {}
@@ -271,9 +280,17 @@ impl CoreWindow for Window {
         self.window_socket.write(format!("T,{title}").as_bytes()).expect("failed to set title");
     }
 
+    fn is_transparent(&self) -> bool {
+        self.get_flag(ORBITAL_FLAG_TRANSPARENT).unwrap_or(false)
+    }
+
     #[inline]
     fn set_transparent(&self, transparent: bool) {
         let _ = self.set_flag(ORBITAL_FLAG_TRANSPARENT, transparent);
+    }
+
+    fn is_blurred(&self) -> bool {
+        false
     }
 
     #[inline]
@@ -359,6 +376,20 @@ impl CoreWindow for Window {
         !self.get_flag(ORBITAL_FLAG_BORDERLESS).unwrap_or(false)
     }
 
+    fn window_level(&self) -> window::WindowLevel {
+        let back = self.get_flag(ORBITAL_FLAG_BACK).unwrap_or(false);
+        let front = self.get_flag(ORBITAL_FLAG_FRONT).unwrap_or(false);
+        match (back, front) {
+            (true, false) => window::WindowLevel::AlwaysOnBottom,
+            (false, false) => window::WindowLevel::Normal,
+            (false, true) => window::WindowLevel::AlwaysOnTop,
+            (true, true) => {
+                warn!("unclear back/front window levelling");
+                window::WindowLevel::default()
+            },
+        }
+    }
+
     #[inline]
     fn set_window_level(&self, level: window::WindowLevel) {
         match level {
@@ -375,6 +406,10 @@ impl CoreWindow for Window {
         }
     }
 
+    fn window_icon(&self) -> Option<winit_core::icon::Icon> {
+        None
+    }
+
     #[inline]
     fn set_window_icon(&self, _window_icon: Option<winit_core::icon::Icon>) {}
 
@@ -387,6 +422,10 @@ impl CoreWindow for Window {
 
     #[inline]
     fn request_user_attention(&self, _request_type: Option<window::UserAttentionType>) {}
+
+    fn cursor(&self) -> Cursor {
+        Cursor::default()
+    }
 
     #[inline]
     fn set_cursor(&self, _: Cursor) {}
@@ -469,6 +508,10 @@ impl CoreWindow for Window {
 
     #[inline]
     fn set_theme(&self, _theme: Option<window::Theme>) {}
+
+    fn content_protected(&self) -> bool {
+        false
+    }
 
     fn set_content_protected(&self, _protected: bool) {}
 

@@ -6,6 +6,7 @@ use dpi::{
     LogicalInsets, LogicalPosition, LogicalSize, PhysicalInsets, PhysicalPosition, PhysicalSize,
     Position, Size,
 };
+use tracing::warn;
 use web_sys::HtmlCanvasElement;
 use winit_core::cursor::Cursor;
 use winit_core::error::{NotSupportedError, RequestError};
@@ -192,6 +193,11 @@ impl RootWindow for Window {
         })
     }
 
+    fn min_surface_size(&self) -> Option<PhysicalSize<u32>> {
+        warn!("min_surface_size is not implemented on Web");
+        None
+    }
+
     fn set_min_surface_size(&self, min_size: Option<Size>) {
         self.inner.dispatch(move |inner| {
             let dimensions = min_size.map(|min_size| min_size.to_logical(inner.scale_factor()));
@@ -202,6 +208,11 @@ impl RootWindow for Window {
                 dimensions,
             )
         })
+    }
+
+    fn max_surface_size(&self) -> Option<PhysicalSize<u32>> {
+        warn!("max_surface_size is not implemented on Web");
+        None
     }
 
     fn set_max_surface_size(&self, max_size: Option<Size>) {
@@ -228,7 +239,15 @@ impl RootWindow for Window {
         self.inner.queue(|inner| inner.canvas.set_attribute("alt", title))
     }
 
+    fn is_transparent(&self) -> bool {
+        false
+    }
+
     fn set_transparent(&self, _: bool) {}
+
+    fn is_blurred(&self) -> bool {
+        false
+    }
 
     fn set_blur(&self, _: bool) {}
 
@@ -300,8 +319,16 @@ impl RootWindow for Window {
         true
     }
 
+    fn window_level(&self) -> WindowLevel {
+        WindowLevel::default()
+    }
+
     fn set_window_level(&self, _: WindowLevel) {
         // Intentionally a no-op, no window ordering
+    }
+
+    fn window_icon(&self) -> Option<Icon> {
+        None
     }
 
     fn set_window_icon(&self, _: Option<Icon>) {
@@ -344,10 +371,19 @@ impl RootWindow for Window {
         })
     }
 
+    fn content_protected(&self) -> bool {
+        false
+    }
+
     fn set_content_protected(&self, _: bool) {}
 
     fn title(&self) -> String {
         String::new()
+    }
+
+    fn cursor(&self) -> Cursor {
+        warn!("getting the cursor is not implemented on Web");
+        Cursor::default()
     }
 
     fn set_cursor(&self, cursor: Cursor) {

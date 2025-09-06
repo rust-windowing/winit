@@ -876,7 +876,15 @@ impl CoreWindow for Window {
         PhysicalInsets::new(0, 0, 0, 0)
     }
 
+    fn min_surface_size(&self) -> Option<PhysicalSize<u32>> {
+        None
+    }
+
     fn set_min_surface_size(&self, _: Option<Size>) {}
+
+    fn max_surface_size(&self) -> Option<PhysicalSize<u32>> {
+        None
+    }
 
     fn set_max_surface_size(&self, _: Option<Size>) {}
 
@@ -888,7 +896,15 @@ impl CoreWindow for Window {
 
     fn set_title(&self, _title: &str) {}
 
+    fn is_transparent(&self) -> bool {
+        false
+    }
+
     fn set_transparent(&self, _transparent: bool) {}
+
+    fn is_blurred(&self) -> bool {
+        false
+    }
 
     fn set_blur(&self, _blur: bool) {}
 
@@ -936,7 +952,15 @@ impl CoreWindow for Window {
         true
     }
 
+    fn window_level(&self) -> WindowLevel {
+        WindowLevel::default()
+    }
+
     fn set_window_level(&self, _level: WindowLevel) {}
+
+    fn window_icon(&self) -> Option<winit_core::icon::Icon> {
+        None
+    }
 
     fn set_window_icon(&self, _window_icon: Option<winit_core::icon::Icon>) {}
 
@@ -977,6 +1001,10 @@ impl CoreWindow for Window {
 
     fn request_user_attention(&self, _request_type: Option<window::UserAttentionType>) {}
 
+    fn cursor(&self) -> Cursor {
+        Cursor::default()
+    }
+
     fn set_cursor(&self, _: Cursor) {}
 
     fn set_cursor_position(&self, _: Position) -> Result<(), RequestError> {
@@ -1008,6 +1036,10 @@ impl CoreWindow for Window {
 
     fn theme(&self) -> Option<Theme> {
         None
+    }
+
+    fn content_protected(&self) -> bool {
+        false
     }
 
     fn set_content_protected(&self, _protected: bool) {}

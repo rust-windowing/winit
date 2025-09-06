@@ -3,7 +3,7 @@
 use std::sync::Arc;
 
 use dispatch2::MainThreadBound;
-use dpi::{Position, Size};
+use dpi::{PhysicalSize, Position, Size};
 use objc2::rc::{autoreleasepool, Retained};
 use objc2::{define_class, MainThreadMarker, Message};
 use objc2_app_kit::{NSPanel, NSResponder, NSWindow};
@@ -141,8 +141,16 @@ impl CoreWindow for Window {
         self.maybe_wait_on_main(|delegate| delegate.safe_area())
     }
 
+    fn min_surface_size(&self) -> Option<PhysicalSize<u32>> {
+        self.maybe_wait_on_main(|delegate| delegate.min_surface_size())
+    }
+
     fn set_min_surface_size(&self, min_size: Option<Size>) {
         self.maybe_wait_on_main(|delegate| delegate.set_min_surface_size(min_size))
+    }
+
+    fn max_surface_size(&self) -> Option<PhysicalSize<u32>> {
+        self.maybe_wait_on_main(|delegate| delegate.max_surface_size())
     }
 
     fn set_max_surface_size(&self, max_size: Option<Size>) {
@@ -161,8 +169,16 @@ impl CoreWindow for Window {
         self.maybe_wait_on_main(|delegate| delegate.set_title(title));
     }
 
+    fn is_transparent(&self) -> bool {
+        self.maybe_wait_on_main(|delegate| delegate.is_transparent())
+    }
+
     fn set_transparent(&self, transparent: bool) {
         self.maybe_wait_on_main(|delegate| delegate.set_transparent(transparent));
+    }
+
+    fn is_blurred(&self) -> bool {
+        self.maybe_wait_on_main(|delegate| delegate.is_blurred())
     }
 
     fn set_blur(&self, blur: bool) {
@@ -225,8 +241,16 @@ impl CoreWindow for Window {
         self.maybe_wait_on_main(|delegate| delegate.is_decorated())
     }
 
+    fn window_level(&self) -> WindowLevel {
+        self.maybe_wait_on_main(|delegate| delegate.window_level())
+    }
+
     fn set_window_level(&self, level: WindowLevel) {
         self.maybe_wait_on_main(|delegate| delegate.set_window_level(level));
+    }
+
+    fn window_icon(&self) -> Option<Icon> {
+        self.maybe_wait_on_main(|delegate| delegate.window_icon())
     }
 
     fn set_window_icon(&self, window_icon: Option<Icon>) {
@@ -261,12 +285,20 @@ impl CoreWindow for Window {
         self.maybe_wait_on_main(|delegate| delegate.theme())
     }
 
+    fn content_protected(&self) -> bool {
+        self.maybe_wait_on_main(|delegate| delegate.content_protected())
+    }
+
     fn set_content_protected(&self, protected: bool) {
         self.maybe_wait_on_main(|delegate| delegate.set_content_protected(protected));
     }
 
     fn title(&self) -> String {
         self.maybe_wait_on_main(|delegate| delegate.title())
+    }
+
+    fn cursor(&self) -> Cursor {
+        self.maybe_wait_on_main(|delegate| delegate.cursor())
     }
 
     fn set_cursor(&self, cursor: Cursor) {
