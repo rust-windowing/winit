@@ -69,19 +69,11 @@ windows-sys = "0.59.0"
 # Linux dependencies.
 ahash = { version = "0.8.7", features = ["no-rng"] }
 bytemuck = { version = "1.13.1", default-features = false }
-calloop = "0.13.0"
+calloop = "0.14.3"
 libc = "0.2.64"
 memmap2 = "0.9.0"
 percent-encoding = "2.0"
 rustix = { version = "1.0.7", default-features = false }
-sctk = { package = "smithay-client-toolkit", version = "0.19.2", default-features = false, features = [
-    "calloop",
-] }
-sctk-adwaita = { version = "0.10.1", default-features = false }
-wayland-backend = { version = "0.3.10", default-features = false, features = ["client_system"] }
-wayland-client = "0.31.10"
-wayland-protocols = { version = "0.32.8", features = ["staging"] }
-wayland-protocols-plasma = { version = "0.3.8", features = ["client"] }
 x11-dl = "2.19.1"
 x11rb = { version = "0.13.0", default-features = false }
 xkbcommon-dl = "0.4.2"
