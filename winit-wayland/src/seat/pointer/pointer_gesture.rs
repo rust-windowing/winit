@@ -102,9 +102,8 @@ impl Dispatch<ZwpPointerGesturePinchV1, PointerGestureData, WinitState> for Poin
                 (window_id, TouchPhase::Started, pan_delta, 0., 0.)
             },
             Event::Update { time: _, dx, dy, scale: pinch, rotation } => {
-                let window_id = match pointer_gesture_data.window_id {
-                    Some(window_id) => window_id,
-                    None => return,
+                let Some(window_id) = pointer_gesture_data.window_id else {
+                    return;
                 };
                 let scale_factor = match state.windows.get_mut().get_mut(&window_id) {
                     Some(window) => window.lock().unwrap().scale_factor(),
@@ -115,16 +114,18 @@ impl Dispatch<ZwpPointerGesturePinchV1, PointerGestureData, WinitState> for Poin
                     LogicalPosition::new(dx as f32, dy as f32).to_physical(scale_factor);
                 let pinch_delta = pinch - pointer_gesture_data.previous_pinch;
                 pointer_gesture_data.previous_pinch = pinch;
+
                 (window_id, TouchPhase::Moved, pan_delta, pinch_delta, -rotation as f32)
             },
             Event::End { time: _, serial: _, cancelled } => {
-                let window_id = match pointer_gesture_data.window_id {
-                    Some(window_id) => window_id,
-                    None => return,
+                let Some(window_id) = pointer_gesture_data.window_id else {
+                    return;
                 };
+
                 let pan_delta = PhysicalPosition::new(0., 0.);
                 pointer_gesture_data.previous_pinch = 1.;
                 let phase = if cancelled == 0 { TouchPhase::Ended } else { TouchPhase::Cancelled };
+
                 (window_id, phase, pan_delta, 0., 0.)
             },
             _ => unreachable!("Unknown event {event:?}"),
