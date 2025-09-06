@@ -33,12 +33,14 @@ calloop.workspace = true
 libc.workspace = true
 memmap2.workspace = true
 rustix = { workspace = true, features = ["std", "system", "thread", "process", "event", "pipe"] }
-sctk.workspace = true
-sctk-adwaita = { workspace = true, optional = true }
-wayland-backend.workspace = true
-wayland-client.workspace = true
-wayland-protocols.workspace = true
-wayland-protocols-plasma.workspace = true
+sctk = { package = "smithay-client-toolkit", version = "0.20.0", default-features = false, features = [
+    "calloop",
+] }
+sctk-adwaita = { version = "0.11.0", default-features = false, optional = true }
+wayland-backend = { version = "0.3.10", default-features = false, features = ["client_system"] }
+wayland-client = "0.31.10"
+wayland-protocols = { version = "0.32.8", features = ["staging"] }
+wayland-protocols-plasma = { version = "0.3.8", features = ["client"] }
 winit-common = { workspace = true, features = ["xkb", "wayland"] }
 
 [package.metadata.docs.rs]
