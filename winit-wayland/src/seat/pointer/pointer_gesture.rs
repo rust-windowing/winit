@@ -129,6 +129,7 @@ impl Dispatch<ZwpPointerGesturePinchV1, PointerGestureData, WinitState> for Poin
                 };
 
                 let pan_delta = PhysicalPosition::new(0., 0.);
+                pointer_gesture_data.window_id = None;
                 pointer_gesture_data.previous_pinch = 1.;
                 let phase = if cancelled == 0 { TouchPhase::Ended } else { TouchPhase::Cancelled };
 
