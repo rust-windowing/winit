@@ -6,9 +6,10 @@ use sctk::compositor::SurfaceData;
 use sctk::globals::GlobalData;
 use sctk::reexports::client::globals::{BindError, GlobalList};
 use sctk::reexports::client::{delegate_dispatch, Connection, Dispatch, Proxy, QueueHandle};
-use sctk::reexports::protocols::wp::pointer_gestures::zv1::client::zwp_pointer_gesture_pinch_v1::ZwpPointerGesturePinchV1;
-use wayland_protocols::wp::pointer_gestures::zv1::client::zwp_pointer_gesture_pinch_v1::Event;
-use wayland_protocols::wp::pointer_gestures::zv1::client::zwp_pointer_gestures_v1::ZwpPointerGesturesV1;
+use sctk::reexports::protocols::wp::pointer_gestures::zv1::client::zwp_pointer_gesture_pinch_v1::{
+    Event, ZwpPointerGesturePinchV1,
+};
+use sctk::reexports::protocols::wp::pointer_gestures::zv1::client::zwp_pointer_gestures_v1::ZwpPointerGesturesV1;
 use winit_core::event::{TouchPhase, WindowEvent};
 use winit_core::window::WindowId;
 
@@ -80,33 +81,33 @@ impl Dispatch<ZwpPointerGesturePinchV1, PointerGestureData, WinitState> for Poin
     ) {
         let mut pointer_gesture_data = data.inner.lock().unwrap();
         let (window_id, phase, pan_delta, pinch_delta, rotation_delta) = match event {
-            Event::Begin { time: _, serial: _, surface, fingers } => {
+            Event::Begin { surface, fingers, .. } => {
+                // We only support two fingers for now.
                 if fingers != 2 {
-                    // We only support two fingers for now.
                     return;
                 }
 
-                // Verify that this event is from the top-level surface
+                // Don't handle events from a subsurface.
                 if !surface
                     .data::<SurfaceData>()
                     .is_some_and(|data| data.parent_surface().is_none())
                 {
-                    // Don't handle events from a subsurface
                     return;
                 }
 
                 let window_id = crate::make_wid(&surface);
 
-                let pan_delta = PhysicalPosition::new(0., 0.);
                 pointer_gesture_data.window_id = Some(window_id);
                 pointer_gesture_data.previous_pinch = 1.;
 
-                (window_id, TouchPhase::Started, pan_delta, 0., 0.)
+                (window_id, TouchPhase::Started, PhysicalPosition::new(0., 0.), 0., 0.)
             },
-            Event::Update { time: _, dx, dy, scale: pinch, rotation } => {
-                let Some(window_id) = pointer_gesture_data.window_id else {
-                    return;
+            Event::Update { dx, dy, scale: pinch, rotation, .. } => {
+                let window_id = match pointer_gesture_data.window_id {
+                    Some(window_id) => window_id,
+                    _ => return,
                 };
+
                 let scale_factor = match state.windows.get_mut().get_mut(&window_id) {
                     Some(window) => window.lock().unwrap().scale_factor(),
                     None => return,
@@ -118,25 +119,25 @@ impl Dispatch<ZwpPointerGesturePinchV1, PointerGestureData, WinitState> for Poin
                 let pinch_delta = pinch - pointer_gesture_data.previous_pinch;
                 pointer_gesture_data.previous_pinch = pinch;
 
-                // Wayland provides rotation in degrees cw, opposite of winit's degrees ccw
+                // Wayland provides rotation in degrees cw, opposite of winit's degrees ccw.
                 let rotation_delta = -rotation as f32;
-
                 (window_id, TouchPhase::Moved, pan_delta, pinch_delta, rotation_delta)
             },
-            Event::End { time: _, serial: _, cancelled } => {
-                let Some(window_id) = pointer_gesture_data.window_id else {
-                    return;
+            Event::End { cancelled, .. } => {
+                let window_id = match pointer_gesture_data.window_id {
+                    Some(window_id) => window_id,
+                    _ => return,
                 };
 
-                let pan_delta = PhysicalPosition::new(0., 0.);
-                pointer_gesture_data.window_id = None;
-                pointer_gesture_data.previous_pinch = 1.;
-                let phase = if cancelled == 0 { TouchPhase::Ended } else { TouchPhase::Cancelled };
+                // Reset the state.
+                *pointer_gesture_data = Default::default();
 
-                (window_id, phase, pan_delta, 0., 0.)
+                let phase = if cancelled == 0 { TouchPhase::Ended } else { TouchPhase::Cancelled };
+                (window_id, phase, PhysicalPosition::new(0., 0.), 0., 0.)
             },
             _ => unreachable!("Unknown event {event:?}"),
         };
+
         // The chance of only one of these events being necessary is extremely small,
         // so it is easier to just send all three
         state.events_sink.push_window_event(
