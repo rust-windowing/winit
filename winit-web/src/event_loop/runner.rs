@@ -24,7 +24,6 @@ use crate::event_loop::ActiveEventLoop;
 use crate::main_thread::MainThreadMarker;
 use crate::monitor::MonitorHandler;
 use crate::r#async::DispatchRunner;
-use crate::web_sys::event::mouse_button_to_id;
 use crate::window::Inner;
 use crate::{backend, event, EventLoop, PollStrategy, WaitUntilStrategy};
 
@@ -319,7 +318,7 @@ impl Shared {
                 let device_id = event::mkdid(event.pointer_id());
 
                 if let Some(button) = backend::event::mouse_button(&event) {
-                    let state = if backend::event::mouse_buttons(&event).contains(button.into()) {
+                    let state = if backend::event::mouse_buttons(&event).contains(button.state()) {
                         ElementState::Pressed
                     } else {
                         ElementState::Released
@@ -327,10 +326,7 @@ impl Shared {
 
                     runner.send_event(Event::DeviceEvent {
                         device_id,
-                        event: DeviceEvent::Button {
-                            button: mouse_button_to_id(button).into(),
-                            state,
-                        },
+                        event: DeviceEvent::Button { button: button.raw().into(), state },
                     });
 
                     return;
@@ -379,7 +375,7 @@ impl Shared {
                 runner.send_event(Event::DeviceEvent {
                     device_id: event::mkdid(event.pointer_id()),
                     event: DeviceEvent::Button {
-                        button: mouse_button_to_id(button).into(),
+                        button: button.raw().into(),
                         state: ElementState::Pressed,
                     },
                 });
@@ -398,7 +394,7 @@ impl Shared {
                 runner.send_event(Event::DeviceEvent {
                     device_id: event::mkdid(event.pointer_id()),
                     event: DeviceEvent::Button {
-                        button: mouse_button_to_id(button).into(),
+                        button: button.raw().into(),
                         state: ElementState::Released,
                     },
                 });
