@@ -84,6 +84,7 @@ impl Dispatch<ZwpTextInputV3, TextInputData, WinitState> for TextInputState {
             },
             TextInputEvent::Leave { surface } => {
                 text_input_data.surface = None;
+                text_input_data.last_preedit_empty = true;
 
                 // Always issue a disable.
                 text_input.disable();
@@ -129,6 +130,13 @@ impl Dispatch<ZwpTextInputV3, TextInputData, WinitState> for TextInputState {
                     None => return,
                 };
 
+                // Just in case some IME sends an event for the disabled window.
+                if let Some(window) = windows.get(&window_id) {
+                    if window.lock().unwrap().text_input_state().is_none() {
+                        return;
+                    }
+                };
+
                 // The events are sent to the user separately, so
                 // CAUTION: events must always arrive in the order compatible with the application
                 // order specified by the text-input-v3 protocol:
@@ -153,14 +161,17 @@ impl Dispatch<ZwpTextInputV3, TextInputData, WinitState> for TextInputState {
                     );
                 }
 
-                // Clear preedit, unless all we'll be doing next is sending a new preedit.
+                // Clear preedit, unless all we'll be doing next is sending a new preedit and
+                // the last preedit wasn't empty.
                 if text_input_data.pending_commit.is_some()
-                    || text_input_data.pending_preedit.is_none()
+                    || (text_input_data.pending_preedit.is_none()
+                        && !text_input_data.last_preedit_empty)
                 {
                     state.events_sink.push_window_event(
                         WindowEvent::Ime(Ime::Preedit(String::new(), None)),
                         window_id,
                     );
+                    text_input_data.last_preedit_empty = true;
                 }
 
                 // Send `Commit`.
@@ -175,6 +186,7 @@ impl Dispatch<ZwpTextInputV3, TextInputData, WinitState> for TextInputState {
                     let cursor_range =
                         preedit.cursor_begin.map(|b| (b, preedit.cursor_end.unwrap_or(b)));
 
+                    text_input_data.last_preedit_empty = false;
                     state.events_sink.push_window_event(
                         WindowEvent::Ime(Ime::Preedit(preedit.text, cursor_range)),
                         window_id,
@@ -238,7 +250,6 @@ pub struct TextInputData {
     inner: std::sync::Mutex<TextInputDataInner>,
 }
 
-#[derive(Default)]
 pub struct TextInputDataInner {
     /// The `WlSurface` we're performing input to.
     surface: Option<WlSurface>,
@@ -251,6 +262,21 @@ pub struct TextInputDataInner {
 
     /// The text around the cursor to delete on `done`
     pending_delete: Option<DeleteSurroundingText>,
+
+    /// Last preedit empty.
+    last_preedit_empty: bool,
+}
+
+impl Default for TextInputDataInner {
+    fn default() -> Self {
+        Self {
+            surface: None,
+            pending_commit: None,
+            pending_preedit: None,
+            pending_delete: None,
+            last_preedit_empty: true,
+        }
+    }
 }
 
 /// The state of the preedit.
