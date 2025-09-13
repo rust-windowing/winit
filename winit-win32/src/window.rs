@@ -8,7 +8,7 @@ use std::sync::{Arc, Mutex, MutexGuard};
 use std::{io, panic, ptr};
 
 use dpi::{PhysicalInsets, PhysicalPosition, PhysicalSize, Position, Size};
-use tracing::warn;
+use tracing::{error, warn};
 use windows_sys::Win32::Foundation::{
     HWND, LPARAM, OLE_E_WRONGCOMPOBJ, POINT, POINTS, RECT, RPC_E_CHANGED_MODE, S_OK, WPARAM,
 };
@@ -34,17 +34,17 @@ use windows_sys::Win32::UI::Input::KeyboardAndMouse::{
 use windows_sys::Win32::UI::Input::Touch::{RegisterTouchWindow, TWF_WANTPALM};
 use windows_sys::Win32::UI::WindowsAndMessaging::{
     CreateWindowExW, EnableMenuItem, FlashWindowEx, GetClientRect, GetCursorPos,
-    GetForegroundWindow, GetSystemMenu, GetSystemMetrics, GetWindowPlacement, GetWindowTextLengthW,
-    GetWindowTextW, IsWindowVisible, LoadCursorW, PeekMessageW, PostMessageW, RegisterClassExW,
-    SendMessageW, SetCursor, SetCursorPos, SetForegroundWindow, SetMenuDefaultItem,
-    SetWindowDisplayAffinity, SetWindowPlacement, SetWindowPos, SetWindowTextW, TrackPopupMenu,
-    CS_HREDRAW, CS_VREDRAW, CW_USEDEFAULT, FLASHWINFO, FLASHW_ALL, FLASHW_STOP, FLASHW_TIMERNOFG,
-    FLASHW_TRAY, GWLP_HINSTANCE, HTBOTTOM, HTBOTTOMLEFT, HTBOTTOMRIGHT, HTCAPTION, HTLEFT, HTRIGHT,
-    HTTOP, HTTOPLEFT, HTTOPRIGHT, MENU_ITEM_STATE, MFS_DISABLED, MFS_ENABLED, MF_BYCOMMAND,
-    NID_READY, PM_NOREMOVE, SC_CLOSE, SC_MAXIMIZE, SC_MINIMIZE, SC_MOVE, SC_RESTORE, SC_SIZE,
-    SM_DIGITIZER, SWP_ASYNCWINDOWPOS, SWP_NOACTIVATE, SWP_NOSIZE, SWP_NOZORDER, TPM_LEFTALIGN,
-    TPM_RETURNCMD, WDA_EXCLUDEFROMCAPTURE, WDA_NONE, WM_NCLBUTTONDOWN, WM_SETICON, WM_SYSCOMMAND,
-    WNDCLASSEXW,
+    GetForegroundWindow, GetSystemMenu, GetSystemMetrics, GetWindowDisplayAffinity,
+    GetWindowPlacement, GetWindowTextLengthW, GetWindowTextW, IsWindowVisible, LoadCursorW,
+    PeekMessageW, PostMessageW, RegisterClassExW, SendMessageW, SetCursor, SetCursorPos,
+    SetForegroundWindow, SetMenuDefaultItem, SetWindowDisplayAffinity, SetWindowPlacement,
+    SetWindowPos, SetWindowTextW, TrackPopupMenu, CS_HREDRAW, CS_VREDRAW, CW_USEDEFAULT,
+    FLASHWINFO, FLASHW_ALL, FLASHW_STOP, FLASHW_TIMERNOFG, FLASHW_TRAY, GWLP_HINSTANCE, HTBOTTOM,
+    HTBOTTOMLEFT, HTBOTTOMRIGHT, HTCAPTION, HTLEFT, HTRIGHT, HTTOP, HTTOPLEFT, HTTOPRIGHT,
+    MENU_ITEM_STATE, MFS_DISABLED, MFS_ENABLED, MF_BYCOMMAND, NID_READY, PM_NOREMOVE, SC_CLOSE,
+    SC_MAXIMIZE, SC_MINIMIZE, SC_MOVE, SC_RESTORE, SC_SIZE, SM_DIGITIZER, SWP_ASYNCWINDOWPOS,
+    SWP_NOACTIVATE, SWP_NOSIZE, SWP_NOZORDER, TPM_LEFTALIGN, TPM_RETURNCMD, WDA_EXCLUDEFROMCAPTURE,
+    WDA_NONE, WM_NCLBUTTONDOWN, WM_SETICON, WM_SYSCOMMAND, WNDCLASSEXW,
 };
 use winit_core::cursor::Cursor;
 use winit_core::error::RequestError;
@@ -426,6 +426,11 @@ impl CoreWindow for Window {
         }
     }
 
+    fn is_transparent(&self) -> bool {
+        let window_state = self.window_state.lock().unwrap();
+        window_state.window_flags().contains(WindowFlags::TRANSPARENT)
+    }
+
     fn set_transparent(&self, transparent: bool) {
         let window = self.window;
         let window_state = Arc::clone(&self.window_state);
@@ -435,6 +440,10 @@ impl CoreWindow for Window {
                 f.set(WindowFlags::TRANSPARENT, transparent)
             });
         });
+    }
+
+    fn is_blurred(&self) -> bool {
+        false
     }
 
     fn set_blur(&self, _blur: bool) {}
@@ -556,11 +565,21 @@ impl CoreWindow for Window {
         PhysicalInsets::new(0, 0, 0, 0)
     }
 
+    fn min_surface_size(&self) -> Option<PhysicalSize<u32>> {
+        let size = self.window_state_lock().min_size;
+        size.map(|size| size.to_physical(self.scale_factor()))
+    }
+
     fn set_min_surface_size(&self, size: Option<Size>) {
         self.window_state_lock().min_size = size;
         // Make windows re-check the window size bounds.
         let size = self.surface_size();
         let _ = self.request_surface_size(size.into());
+    }
+
+    fn max_surface_size(&self) -> Option<PhysicalSize<u32>> {
+        let size = self.window_state_lock().max_size;
+        size.map(|size| size.to_physical(self.scale_factor()))
     }
 
     fn set_max_surface_size(&self, size: Option<Size>) {
@@ -624,6 +643,11 @@ impl CoreWindow for Window {
             buttons |= WindowButtons::CLOSE;
         }
         buttons
+    }
+
+    fn cursor(&self) -> Cursor {
+        warn!("getting the cursor is unimplemented on Windows");
+        Cursor::default()
     }
 
     fn set_cursor(&self, cursor: Cursor) {
@@ -977,6 +1001,21 @@ impl CoreWindow for Window {
         window_state.window_flags.contains(WindowFlags::MARKER_DECORATIONS)
     }
 
+    fn window_level(&self) -> WindowLevel {
+        let flags = self.window_state_lock().window_flags();
+        let top = flags.contains(WindowFlags::ALWAYS_ON_TOP);
+        let bottom = flags.contains(WindowFlags::ALWAYS_ON_BOTTOM);
+        match (top, bottom) {
+            (true, false) => WindowLevel::AlwaysOnTop,
+            (false, false) => WindowLevel::Normal,
+            (false, true) => WindowLevel::AlwaysOnBottom,
+            (true, true) => {
+                warn!("unclear top/bottom window levelling");
+                WindowLevel::default()
+            },
+        }
+    }
+
     fn set_window_level(&self, level: WindowLevel) {
         let window = self.window;
         let window_state = Arc::clone(&self.window_state);
@@ -1004,6 +1043,10 @@ impl CoreWindow for Window {
 
     fn primary_monitor(&self) -> Option<CoreMonitorHandle> {
         Some(CoreMonitorHandle(Arc::new(monitor::primary_monitor())))
+    }
+
+    fn window_icon(&self) -> Option<Icon> {
+        self.window_state_lock().window_icon.clone()
     }
 
     fn set_window_icon(&self, window_icon: Option<Icon>) {
@@ -1129,6 +1172,17 @@ impl CoreWindow for Window {
         if is_visible && !is_minimized && !is_foreground {
             unsafe { force_window_active(self.window.hwnd()) };
         }
+    }
+
+    fn content_protected(&self) -> bool {
+        let mut affinity = WDA_NONE;
+        let res = unsafe { GetWindowDisplayAffinity(self.hwnd(), &mut affinity) };
+        if res == 0 {
+            let error = std::io::Error::last_os_error();
+            error!(?error, "failed getting content protected state");
+            return false;
+        }
+        affinity == WDA_EXCLUDEFROMCAPTURE
     }
 
     #[inline]

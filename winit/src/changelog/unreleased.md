@@ -69,6 +69,14 @@ changelog entry.
 - Add `DeviceId::into_raw()` and `from_raw()`.
 - Added `Window::surface_position`, which is the position of the surface inside the window.
 - Added `Window::safe_area`, which describes the area of the surface that is unobstructed.
+- Added `Window::min_surface_size`.
+- Added `Window::max_surface_size`.
+- Added `Window::is_transparent`.
+- Added `Window::is_blurred`.
+- Added `Window::window_level`.
+- Added `Window::window_icon`.
+- Added `Window::content_protected`.
+- Added `Window::cursor`.
 - On X11, Wayland, Windows and macOS, improved scancode conversions for more obscure key codes.
 - Add ability to make non-activating window on macOS using `NSPanel` with `NSWindowStyleMask::NonactivatingPanel`.
 - Implement `MonitorHandleProvider` for `MonitorHandle` to access common monitor API.
