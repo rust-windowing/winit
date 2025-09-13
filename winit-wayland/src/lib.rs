@@ -13,6 +13,7 @@
 //! * `wayland-csd-adwaita` (default).
 //! * `wayland-csd-adwaita-crossfont`.
 //! * `wayland-csd-adwaita-notitle`.
+//! * `wayland-csd-adwaita-notitlebar`.
 use std::ffi::c_void;
 use std::ptr::NonNull;
 

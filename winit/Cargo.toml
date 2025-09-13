@@ -57,6 +57,7 @@ wayland = ["winit-wayland"]
 wayland-csd-adwaita = ["winit-wayland/csd-adwaita"]
 wayland-csd-adwaita-crossfont = ["winit-wayland/csd-adwaita-crossfont"]
 wayland-csd-adwaita-notitle = ["winit-wayland/csd-adwaita-notitle"]
+wayland-csd-adwaita-notitlebar = ["winit-wayland/csd-adwaita-notitlebar"]
 wayland-dlopen = ["winit-wayland/dlopen"]
 x11 = ["dep:winit-x11"]
 
