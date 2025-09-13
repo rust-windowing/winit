@@ -40,6 +40,7 @@ use objc2_foundation::{
     NSRect, NSSize, NSString,
 };
 use tracing::{trace, warn};
+use winit_common::core_foundation::MainRunLoop;
 use winit_core::cursor::Cursor;
 use winit_core::error::{NotSupportedError, RequestError};
 use winit_core::event::{SurfaceSizeWriter, WindowEvent};
@@ -54,7 +55,6 @@ use super::app_state::AppState;
 use super::cursor::{cursor_from_icon, CustomCursor};
 use super::ffi;
 use super::monitor::{self, flip_window_screen_coordinates, get_display_id, MonitorHandle};
-use super::observer::RunLoop;
 use super::util::cgerr;
 use super::view::WinitView;
 use super::window::{window_id, WinitPanel, WinitWindow};
@@ -175,7 +175,7 @@ define_class!(
 
             let mtm = MainThreadMarker::from(self);
             let this = self.retain();
-            RunLoop::main(mtm).queue_closure(move || {
+            MainRunLoop::get(mtm).queue_closure(move || {
                 this.handle_scale_factor_changed(scale_factor);
             });
         }

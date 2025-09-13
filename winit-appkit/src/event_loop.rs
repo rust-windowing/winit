@@ -9,8 +9,10 @@ use objc2_app_kit::{
     NSApplication, NSApplicationActivationPolicy, NSApplicationDidFinishLaunchingNotification,
     NSApplicationWillTerminateNotification, NSWindow,
 };
+use objc2_core_foundation::{kCFRunLoopCommonModes, CFIndex, CFRunLoopActivity};
 use objc2_foundation::{NSNotificationCenter, NSObjectProtocol};
 use rwh_06::HasDisplayHandle;
+use winit_common::core_foundation::{MainRunLoop, MainRunLoopObserver};
 use winit_core::application::ApplicationHandler;
 use winit_core::cursor::{CustomCursor as CoreCustomCursor, CustomCursorSource};
 use winit_core::error::{EventLoopError, RequestError};
@@ -28,7 +30,6 @@ use super::cursor::CustomCursor;
 use super::event::dummy_event;
 use super::monitor;
 use super::notification_center::create_observer;
-use super::observer::setup_control_flow_observers;
 use crate::window::Window;
 use crate::ActivationPolicy;
 
@@ -150,6 +151,9 @@ pub struct EventLoop {
     // Though we do still need to keep the observers around to prevent them from being deallocated.
     _did_finish_launching_observer: Retained<ProtocolObject<dyn NSObjectProtocol>>,
     _will_terminate_observer: Retained<ProtocolObject<dyn NSObjectProtocol>>,
+
+    _before_waiting_observer: MainRunLoopObserver,
+    _after_waiting_observer: MainRunLoopObserver,
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
@@ -217,7 +221,31 @@ impl EventLoop {
             },
         );
 
-        setup_control_flow_observers(mtm);
+        let main_loop = MainRunLoop::get(mtm);
+        let mode = unsafe { kCFRunLoopCommonModes }.unwrap();
+
+        let app_state_clone = Rc::clone(&app_state);
+        let _before_waiting_observer = MainRunLoopObserver::new(
+            mtm,
+            CFRunLoopActivity::BeforeWaiting,
+            true,
+            // Queued with the lowest priority to ensure it is processed after other observers.
+            // Without that, we'd get a `LoopExiting` after `AboutToWait`.
+            CFIndex::MAX,
+            move |_| app_state_clone.cleared(),
+        );
+        main_loop.add_observer(&_before_waiting_observer, mode);
+
+        let app_state_clone = Rc::clone(&app_state);
+        let _after_waiting_observer = MainRunLoopObserver::new(
+            mtm,
+            CFRunLoopActivity::AfterWaiting,
+            true,
+            // Queued with the highest priority to ensure it is processed before other observers.
+            CFIndex::MIN,
+            move |_| app_state_clone.wakeup(),
+        );
+        main_loop.add_observer(&_after_waiting_observer, mode);
 
         Ok(EventLoop {
             app,
@@ -225,6 +253,8 @@ impl EventLoop {
             window_target: ActiveEventLoop { app_state, mtm },
             _did_finish_launching_observer,
             _will_terminate_observer,
+            _before_waiting_observer,
+            _after_waiting_observer,
         })
     }
 

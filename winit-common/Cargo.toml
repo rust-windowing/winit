@@ -18,7 +18,7 @@ x11 = ["xkbcommon-dl?/x11", "dep:x11-dl"]
 xkb = ["dep:xkbcommon-dl", "dep:smol_str"]
 
 # CoreFoundation
-core-foundation = ["dep:objc2", "dep:objc2-core-foundation"]
+core-foundation = ["dep:block2", "dep:objc2", "dep:objc2-core-foundation"]
 
 [dependencies]
 smol_str = { workspace = true, optional = true }
@@ -31,9 +31,11 @@ x11-dl = { workspace = true, optional = true }
 xkbcommon-dl = { workspace = true, optional = true }
 
 # CoreFoundation
+block2 = { workspace = true, optional = true }
 objc2 = { workspace = true, optional = true }
 objc2-core-foundation = { workspace = true, optional = true, features = [
     "std",
+    "block2",
     "CFRunLoop",
     "CFString",
 ] }
