@@ -295,12 +295,13 @@ impl WindowFlags {
         }
         if self.contains(WindowFlags::CHILD) {
             style |= WS_CHILD; // This is incompatible with WS_POPUP if that gets added eventually.
-
-            // Remove decorations window styles for child
-            if !self.contains(WindowFlags::MARKER_DECORATIONS) {
-                style &= !(WS_CAPTION | WS_BORDER);
-                style_ex &= !WS_EX_WINDOWEDGE;
-            }
+        }
+        if !self.contains(WindowFlags::MARKER_DECORATIONS) {
+            // WS_CAPTION is equal to (WS_BORDER | WS_DLGFRAME)
+            // The former is intended for overlapped windows,
+            // the latter are for child windows.
+            style &= !(WS_CAPTION | WS_SIZEBOX);
+            style_ex &= !WS_EX_WINDOWEDGE;
         }
         if self.contains(WindowFlags::POPUP) {
             style |= WS_POPUP;

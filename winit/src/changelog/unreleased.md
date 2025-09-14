@@ -264,3 +264,4 @@ changelog entry.
 - On Windows, `Window::theme` will return the correct theme after setting it through `Window::set_theme`.
 - On Windows, `Window::set_theme` will change the title bar color immediately now.
 - On Windows 11, prevent incorrect shifting when dragging window onto a monitor with different DPI.
+- On Windows, `with_decoration(false)` works for overlapped (non child) windows.
