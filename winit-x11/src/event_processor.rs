@@ -996,7 +996,6 @@ impl EventProcessor {
                 position,
                 button: MouseButton::Middle.into(),
             },
-
             xlib::Button3 => WindowEvent::PointerButton {
                 device_id,
                 primary: true,
@@ -1020,28 +1019,25 @@ impl EventProcessor {
                 },
                 phase: TouchPhase::Moved,
             },
-            8 => WindowEvent::PointerButton {
-                device_id,
-                primary: true,
-                state,
-                position,
-                button: MouseButton::Back.into(),
-            },
 
-            9 => WindowEvent::PointerButton {
+            x @ 8..37 => WindowEvent::PointerButton {
                 device_id,
                 primary: true,
                 state,
                 position,
-                button: MouseButton::Forward.into(),
+                // Button 8 maps to MouseButton::BACK = 3; 36 maps to MouseButton::Button::Button31.
+                // 255 is the largest code yielded on X11 (tested).
+                button: MouseButton::try_from_u8((x - 5) as u8).unwrap().into(),
             },
-            x => WindowEvent::PointerButton {
+            x @ 37..=0xff => WindowEvent::PointerButton {
                 device_id,
                 primary: true,
                 state,
                 position,
-                button: MouseButton::Other(x as u16).into(),
+                // 255 is the largest code yielded on X11 (tested).
+                button: ButtonSource::Unknown(x as u16),
             },
+            _ => return,
         };
 
         app.window_event(&self.target, window_id, event);
