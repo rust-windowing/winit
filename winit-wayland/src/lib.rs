@@ -99,6 +99,7 @@ pub(crate) struct ApplicationName {
 pub struct WindowAttributesWayland {
     pub(crate) name: Option<ApplicationName>,
     pub(crate) activation_token: Option<ActivationToken>,
+    pub(crate) prefer_csd: bool,
 }
 
 impl WindowAttributesWayland {
@@ -118,6 +119,18 @@ impl WindowAttributesWayland {
     #[inline]
     pub fn with_activation_token(mut self, token: ActivationToken) -> Self {
         self.activation_token = Some(token);
+        self
+    }
+
+    /// Builds the window with a given preference for client-side decorations.
+    ///
+    /// When set to `true`, the window will tell the compositor that it prefers
+    /// client-side decorations, even if server-side decorations are available.
+    /// When set to `false` (the default), the window will indicate a preference
+    /// for server-side decorations.
+    #[inline]
+    pub fn with_prefer_csd(mut self, prefer_csd: bool) -> Self {
+        self.prefer_csd = prefer_csd;
         self
     }
 }
