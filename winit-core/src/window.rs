@@ -328,7 +328,7 @@ impl WindowAttributes {
     ///
     /// **Android / iOS / X11 / Wayland / Orbital:** Unsupported.
     ///
-    /// [`WindowEvent::Focused`]: crate::event::WindowEvent::Focused.
+    /// [`WindowEvent::Focused`]: crate::event::WindowEvent::Focused
     #[inline]
     pub fn with_active(mut self, active: bool) -> Self {
         self.active = active;
@@ -1943,15 +1943,15 @@ bitflags! {
 pub struct ImeRequestData {
     /// Text input hint and purpose.
     ///
-    /// To support updating it, enable [`ImeCapabilities::HINT_AND_PURPOSE`].
+    /// To support updating it, enable [`ImeCapabilities::hint_and_purpose()`].
     pub hint_and_purpose: Option<(ImeHint, ImePurpose)>,
     /// The IME cursor area which should not be covered by the input method popup.
     ///
-    /// To support updating it, enable [`ImeCapabilities::CURSOR_AREA`].
+    /// To support updating it, enable [`ImeCapabilities::cursor_area()`].
     pub cursor_area: Option<(Position, Size)>,
     /// The text surrounding the caret
     ///
-    /// To support updating it, enable [`ImeCapabilities::SURROUNDING_TEXT`].
+    /// To support updating it, enable [`ImeCapabilities::surrounding_text()`].
     pub surrounding_text: Option<ImeSurroundingText>,
 }
 
