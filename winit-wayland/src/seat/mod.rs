@@ -13,6 +13,7 @@ use sctk::seat::pointer::{ThemeSpec, ThemedPointer};
 use sctk::seat::{Capability as SeatCapability, SeatHandler, SeatState};
 use tracing::warn;
 use wayland_protocols::wp::pointer_gestures::zv1::client::zwp_pointer_gesture_pinch_v1::ZwpPointerGesturePinchV1;
+use wayland_protocols::wp::tablet::zv2::client::zwp_tablet_seat_v2::ZwpTabletSeatV2;
 use winit_core::event::WindowEvent;
 use winit_core::keyboard::ModifiersState;
 
@@ -49,6 +50,9 @@ pub struct WinitSeatState {
 
     /// The text input bound on the seat.
     text_input: Option<Arc<ZwpTextInputV3>>,
+
+    /// The tablet input bound on the seat.
+    tablet: Option<Arc<ZwpTabletSeatV2>>,
 
     /// The relative pointer bound on the seat.
     relative_pointer: Option<ZwpRelativePointerV1>,
@@ -156,6 +160,12 @@ impl SeatHandler for WinitState {
                 TextInputData::default(),
             )));
         }
+
+        if let Some(tablet_state) =
+            seat_state.tablet.is_none().then_some(self.tablet_state.as_ref()).flatten()
+        {
+            seat_state.tablet = Some(Arc::new(tablet_state.get_tablet_seat(&seat, queue_handle)));
+        }
     }
 
     fn remove_capability(
@@ -175,6 +185,11 @@ impl SeatHandler for WinitState {
 
         if let Some(text_input) = seat_state.text_input.take() {
             text_input.destroy();
+        }
+
+        // NOTE: figure out when this should actually be destroyed.
+        if let Some(tablet) = seat_state.tablet.take() {
+            tablet.destroy();
         }
 
         match capability {

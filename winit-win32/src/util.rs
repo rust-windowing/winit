@@ -16,7 +16,7 @@ use windows_sys::Win32::UI::HiDpi::{
     DPI_AWARENESS_CONTEXT, MONITOR_DPI_TYPE, PROCESS_DPI_AWARENESS,
 };
 use windows_sys::Win32::UI::Input::KeyboardAndMouse::GetActiveWindow;
-use windows_sys::Win32::UI::Input::Pointer::{POINTER_INFO, POINTER_TOUCH_INFO};
+use windows_sys::Win32::UI::Input::Pointer::{POINTER_INFO, POINTER_PEN_INFO, POINTER_TOUCH_INFO};
 use windows_sys::Win32::UI::WindowsAndMessaging::{
     ClipCursor, GetClientRect, GetClipCursor, GetCursorPos, GetSystemMetrics, GetWindowPlacement,
     GetWindowRect, IsIconic, ShowCursor, IDC_APPSTARTING, IDC_ARROW, IDC_CROSS, IDC_HAND, IDC_HELP,
@@ -254,6 +254,8 @@ pub type GetPointerDeviceRects = unsafe extern "system" fn(
 
 pub type GetPointerTouchInfo =
     unsafe extern "system" fn(pointer_id: u32, touch_info: *mut POINTER_TOUCH_INFO) -> BOOL;
+pub type GetPointerPenInfo =
+    unsafe extern "system" fn(pointer_id: u32, pen_info: *mut POINTER_PEN_INFO) -> BOOL;
 
 pub(crate) static WIN10_BUILD_VERSION: LazyLock<Option<u32>> = LazyLock::new(|| {
     type RtlGetVersion = unsafe extern "system" fn(*mut OSVERSIONINFOW) -> NTSTATUS;
@@ -306,6 +308,8 @@ pub(crate) static GET_POINTER_DEVICE_RECTS: LazyLock<Option<GetPointerDeviceRect
     LazyLock::new(|| get_function!("user32.dll", GetPointerDeviceRects));
 pub(crate) static GET_POINTER_TOUCH_INFO: LazyLock<Option<GetPointerTouchInfo>> =
     LazyLock::new(|| get_function!("user32.dll", GetPointerTouchInfo));
+pub(crate) static GET_POINTER_PEN_INFO: LazyLock<Option<GetPointerPenInfo>> =
+    LazyLock::new(|| get_function!("user32.dll", GetPointerPenInfo));
 
 pub(crate) fn wrap_device_id(id: u32) -> DeviceId {
     DeviceId::from_raw(id as i64)

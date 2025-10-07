@@ -3,14 +3,14 @@ use std::rc::Rc;
 
 use dpi::PhysicalPosition;
 use web_sys::PointerEvent;
-use winit_core::event::{ButtonSource, DeviceId, ElementState, Force, PointerKind, PointerSource};
+use winit_core::event::{ButtonSource, DeviceId, ElementState, PointerKind, PointerSource};
 use winit_core::keyboard::ModifiersState;
 
 use super::canvas::Common;
 use super::event;
 use super::event_handle::EventListenerHandle;
 use crate::event::mkdid;
-use crate::web_sys::event::mouse_button_to_id;
+use crate::web_sys::event::ButtonsState;
 
 #[allow(dead_code)]
 pub(super) struct PointerHandler {
@@ -46,8 +46,8 @@ impl PointerHandler {
                 let pointer_id = event.pointer_id();
                 let device_id = mkdid(pointer_id);
                 let position =
-                    event::mouse_position(&event).to_physical(super::scale_factor(&window));
-                let kind = event::pointer_type(&event, pointer_id);
+                    event::pointer_position(&event).to_physical(super::scale_factor(&window));
+                let kind = event::pointer_kind(&event, pointer_id);
                 handler(modifiers, device_id, event.is_primary(), position, kind);
             }));
     }
@@ -64,8 +64,8 @@ impl PointerHandler {
                 let pointer_id = event.pointer_id();
                 let device_id = mkdid(pointer_id);
                 let position =
-                    event::mouse_position(&event).to_physical(super::scale_factor(&window));
-                let kind = event::pointer_type(&event, pointer_id);
+                    event::pointer_position(&event).to_physical(super::scale_factor(&window));
+                let kind = event::pointer_kind(&event, pointer_id);
                 handler(modifiers, device_id, event.is_primary(), position, kind);
             }));
     }
@@ -80,24 +80,25 @@ impl PointerHandler {
             Some(canvas_common.add_event("pointerup", move |event: PointerEvent| {
                 let modifiers = event::mouse_modifiers(&event);
                 let pointer_id = event.pointer_id();
-                let kind = event::pointer_type(&event, pointer_id);
+                let kind = event::pointer_kind(&event, pointer_id);
+                let button = event::raw_button(&event).expect("no button pressed");
 
-                let button = event::mouse_button(&event).expect("no mouse button pressed");
-
-                let source = match kind {
-                    PointerKind::Mouse => ButtonSource::Mouse(button),
-                    PointerKind::Touch(finger_id) => ButtonSource::Touch {
-                        finger_id,
-                        force: Some(Force::Normalized(event.pressure().into())),
+                let source = match event::pointer_source(&event, kind) {
+                    PointerSource::Mouse => ButtonSource::Mouse(event::mouse_button(button)),
+                    PointerSource::Touch { finger_id, force } => {
+                        ButtonSource::Touch { finger_id, force }
                     },
-                    PointerKind::Unknown => ButtonSource::Unknown(mouse_button_to_id(button)),
+                    PointerSource::TabletTool { kind, data } => {
+                        ButtonSource::TabletTool { kind, button: event::tool_button(button), data }
+                    },
+                    PointerSource::Unknown => ButtonSource::Unknown(button),
                 };
 
                 handler(
                     modifiers,
                     mkdid(pointer_id),
                     event.is_primary(),
-                    event::mouse_position(&event).to_physical(super::scale_factor(&window)),
+                    event::pointer_position(&event).to_physical(super::scale_factor(&window)),
                     source,
                 )
             }));
@@ -125,11 +126,11 @@ impl PointerHandler {
 
                 let modifiers = event::mouse_modifiers(&event);
                 let pointer_id = event.pointer_id();
-                let kind = event::pointer_type(&event, pointer_id);
-                let button = event::mouse_button(&event).expect("no mouse button pressed");
+                let kind = event::pointer_kind(&event, pointer_id);
+                let button = event::raw_button(&event).expect("no button pressed");
 
-                let source = match kind {
-                    PointerKind::Mouse => {
+                let source = match event::pointer_source(&event, kind) {
+                    PointerSource::Mouse => {
                         // Error is swallowed here since the error would occur every time the
                         // mouse is clicked when the cursor is
                         // grabbed, and there is probably not a
@@ -137,20 +138,29 @@ impl PointerHandler {
                         // care if it fails.
                         let _e = canvas.set_pointer_capture(pointer_id);
 
-                        ButtonSource::Mouse(button)
+                        ButtonSource::Mouse(event::mouse_button(button))
                     },
-                    PointerKind::Touch(finger_id) => ButtonSource::Touch {
-                        finger_id,
-                        force: Some(Force::Normalized(event.pressure().into())),
+                    PointerSource::Touch { finger_id, force } => {
+                        ButtonSource::Touch { finger_id, force }
                     },
-                    PointerKind::Unknown => ButtonSource::Unknown(mouse_button_to_id(button)),
+                    PointerSource::TabletTool { kind, data } => {
+                        // Error is swallowed here since the error would occur every time the
+                        // mouse is clicked when the cursor is
+                        // grabbed, and there is probably not a
+                        // situation where this could fail, that we
+                        // care if it fails.
+                        let _e = canvas.set_pointer_capture(pointer_id);
+
+                        ButtonSource::TabletTool { kind, button: event::tool_button(button), data }
+                    },
+                    PointerSource::Unknown => ButtonSource::Unknown(button),
                 };
 
                 handler(
                     modifiers,
                     mkdid(pointer_id),
                     event.is_primary(),
-                    event::mouse_position(&event).to_physical(super::scale_factor(&window)),
+                    event::pointer_position(&event).to_physical(super::scale_factor(&window)),
                     source,
                 )
             }));
@@ -186,11 +196,11 @@ impl PointerHandler {
             Some(canvas_common.add_event("pointermove", move |event: PointerEvent| {
                 let pointer_id = event.pointer_id();
                 let device_id = mkdid(pointer_id);
-                let kind = event::pointer_type(&event, pointer_id);
+                let kind = event::pointer_kind(&event, pointer_id);
                 let primary = event.is_primary();
 
                 // chorded button event
-                if let Some(button) = event::mouse_button(&event) {
+                if let Some(button) = event::raw_button(&event) {
                     if prevent_default.get() {
                         // prevent text selection
                         event.prevent_default();
@@ -198,34 +208,36 @@ impl PointerHandler {
                         let _ = canvas.focus();
                     }
 
-                    let state = if event::mouse_buttons(&event).contains(button.into()) {
+                    let state = if event::pointer_buttons(&event)
+                        .contains(ButtonsState::from_bits_retain(button))
+                    {
                         ElementState::Pressed
                     } else {
                         ElementState::Released
                     };
 
-                    let button = match kind {
-                        PointerKind::Mouse => ButtonSource::Mouse(button),
-                        PointerKind::Touch(finger_id) => {
-                            let button_id = mouse_button_to_id(button);
-
-                            if button_id != 1 {
-                                tracing::error!("unexpected touch button id: {button_id}");
+                    let button = match event::pointer_source(&event, kind) {
+                        PointerSource::Mouse => ButtonSource::Mouse(event::mouse_button(button)),
+                        PointerSource::Touch { finger_id, force } => {
+                            if button != 0 {
+                                tracing::error!("unexpected touch button id: {button}");
                             }
 
-                            ButtonSource::Touch {
-                                finger_id,
-                                force: Some(Force::Normalized(event.pressure().into())),
-                            }
+                            ButtonSource::Touch { finger_id, force }
                         },
-                        PointerKind::Unknown => todo!(),
+                        PointerSource::TabletTool { kind, data } => ButtonSource::TabletTool {
+                            kind,
+                            button: event::tool_button(button),
+                            data,
+                        },
+                        PointerSource::Unknown => ButtonSource::Unknown(button),
                     };
 
                     button_handler(
                         event::mouse_modifiers(&event),
                         device_id,
                         primary,
-                        event::mouse_position(&event).to_physical(super::scale_factor(&window)),
+                        event::pointer_position(&event).to_physical(super::scale_factor(&window)),
                         state,
                         button,
                     );
@@ -242,15 +254,8 @@ impl PointerHandler {
                         (
                             event::mouse_modifiers(&event),
                             event.is_primary(),
-                            event::mouse_position(&event).to_physical(scale),
-                            match kind {
-                                PointerKind::Mouse => PointerSource::Mouse,
-                                PointerKind::Touch(finger_id) => PointerSource::Touch {
-                                    finger_id,
-                                    force: Some(Force::Normalized(event.pressure().into())),
-                                },
-                                PointerKind::Unknown => PointerSource::Unknown,
-                            },
+                            event::pointer_position(&event).to_physical(scale),
+                            event::pointer_source(&event, kind),
                         )
                     }),
                 );
