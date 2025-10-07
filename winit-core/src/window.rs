@@ -1608,10 +1608,11 @@ pub enum WindowLevel {
 ///
 /// - **iOS / Android / Web / Windows / X11 / macOS / Orbital:** Unsupported.
 #[non_exhaustive]
-#[derive(Debug, PartialEq, Eq, Clone, Copy, Hash)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Hash, Default)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum ImePurpose {
     /// No special purpose for the IME (default).
+    #[default]
     Normal,
     /// The IME is used for password input.
     /// The IME will treat the contents as sensitive.
@@ -1636,12 +1637,6 @@ pub enum ImePurpose {
     Time,
     /// Date and time
     DateTime,
-}
-
-impl Default for ImePurpose {
-    fn default() -> Self {
-        Self::Normal
-    }
 }
 
 bitflags! {
