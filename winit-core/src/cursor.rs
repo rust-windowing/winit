@@ -8,7 +8,7 @@ use std::time::Duration;
 #[doc(inline)]
 pub use cursor_icon::CursorIcon;
 
-use crate::as_any::{impl_dyn_casting, AsAny};
+use crate::as_any::AsAny;
 
 /// The maximum width and height for a cursor when using [`CustomCursorSource::from_rgba`].
 pub const MAX_CURSOR_SIZE: u16 = 2048;

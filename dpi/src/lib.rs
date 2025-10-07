@@ -64,7 +64,7 @@
 //! [points]: https://en.wikipedia.org/wiki/Point_(typography)
 //! [picas]: https://en.wikipedia.org/wiki/Pica_(typography)
 
-#![cfg_attr(docsrs, feature(doc_auto_cfg, doc_cfg_hide), doc(cfg_hide(doc, docsrs)))]
+#![cfg_attr(docsrs, feature(doc_cfg), doc(auto_cfg(hide(doc, docsrs))))]
 #![cfg_attr(feature = "std", forbid(unsafe_code))]
 #![no_std]
 

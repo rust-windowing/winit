@@ -13,7 +13,7 @@ use std::sync::Arc;
 
 use dpi::{PhysicalPosition, PhysicalSize};
 
-use crate::as_any::{impl_dyn_casting, AsAny};
+use crate::as_any::AsAny;
 
 /// Handle to a monitor.
 ///
