@@ -1601,17 +1601,18 @@ pub enum WindowLevel {
 /// The purpose should reflect the kind of data to be entered.
 /// The purpose may improve UX by optimizing the IME for the specific use case,
 /// for example showing relevant characters and hiding unneeded ones,
-/// or changing the icon of the confrirmation button,
+/// or changing the icon of the confirmation button,
 /// if winit can express the purpose to the platform and the platform reacts accordingly.
 ///
 /// ## Platform-specific
 ///
 /// - **iOS / Android / Web / Windows / X11 / macOS / Orbital:** Unsupported.
 #[non_exhaustive]
-#[derive(Debug, PartialEq, Eq, Clone, Copy, Hash)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Hash, Default)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum ImePurpose {
     /// No special purpose for the IME (default).
+    #[default]
     Normal,
     /// The IME is used for password input.
     /// The IME will treat the contents as sensitive.
@@ -1636,12 +1637,6 @@ pub enum ImePurpose {
     Time,
     /// Date and time
     DateTime,
-}
-
-impl Default for ImePurpose {
-    fn default() -> Self {
-        Self::Normal
-    }
 }
 
 bitflags! {

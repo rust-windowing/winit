@@ -278,7 +278,7 @@
 #![cfg_attr(clippy, deny(warnings))]
 // Doc feature labels can be tested locally by running RUSTDOCFLAGS="--cfg=docsrs" cargo +nightly
 // doc
-#![cfg_attr(docsrs, feature(doc_auto_cfg, doc_cfg_hide), doc(cfg_hide(doc, docsrs)))]
+#![cfg_attr(docsrs, feature(doc_cfg), doc(auto_cfg(hide(doc, docsrs))))]
 #![allow(clippy::missing_safety_doc)]
 #![warn(clippy::uninlined_format_args)]
 // TODO: wasm-binding needs to be updated for that to be resolved, for now just silence it.

@@ -3,7 +3,7 @@ use std::ops::Deref;
 use std::sync::Arc;
 use std::{fmt, io, mem};
 
-use crate::as_any::{impl_dyn_casting, AsAny};
+use crate::as_any::AsAny;
 
 pub(crate) const PIXEL_SIZE: usize = mem::size_of::<u32>();
 
