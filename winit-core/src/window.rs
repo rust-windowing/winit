@@ -328,7 +328,7 @@ impl WindowAttributes {
     ///
     /// **Android / iOS / X11 / Wayland / Orbital:** Unsupported.
     ///
-    /// [`WindowEvent::Focused`]: crate::event::WindowEvent::Focused.
+    /// [`WindowEvent::Focused`]: crate::event::WindowEvent::Focused
     #[inline]
     pub fn with_active(mut self, active: bool) -> Self {
         self.active = active;
@@ -1601,17 +1601,18 @@ pub enum WindowLevel {
 /// The purpose should reflect the kind of data to be entered.
 /// The purpose may improve UX by optimizing the IME for the specific use case,
 /// for example showing relevant characters and hiding unneeded ones,
-/// or changing the icon of the confrirmation button,
+/// or changing the icon of the confirmation button,
 /// if winit can express the purpose to the platform and the platform reacts accordingly.
 ///
 /// ## Platform-specific
 ///
 /// - **iOS / Android / Web / Windows / X11 / macOS / Orbital:** Unsupported.
 #[non_exhaustive]
-#[derive(Debug, PartialEq, Eq, Clone, Copy, Hash)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Hash, Default)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum ImePurpose {
     /// No special purpose for the IME (default).
+    #[default]
     Normal,
     /// The IME is used for password input.
     /// The IME will treat the contents as sensitive.
@@ -1636,12 +1637,6 @@ pub enum ImePurpose {
     Time,
     /// Date and time
     DateTime,
-}
-
-impl Default for ImePurpose {
-    fn default() -> Self {
-        Self::Normal
-    }
 }
 
 bitflags! {
@@ -1948,15 +1943,15 @@ bitflags! {
 pub struct ImeRequestData {
     /// Text input hint and purpose.
     ///
-    /// To support updating it, enable [`ImeCapabilities::HINT_AND_PURPOSE`].
+    /// To support updating it, enable [`ImeCapabilities::hint_and_purpose()`].
     pub hint_and_purpose: Option<(ImeHint, ImePurpose)>,
     /// The IME cursor area which should not be covered by the input method popup.
     ///
-    /// To support updating it, enable [`ImeCapabilities::CURSOR_AREA`].
+    /// To support updating it, enable [`ImeCapabilities::cursor_area()`].
     pub cursor_area: Option<(Position, Size)>,
     /// The text surrounding the caret
     ///
-    /// To support updating it, enable [`ImeCapabilities::SURROUNDING_TEXT`].
+    /// To support updating it, enable [`ImeCapabilities::surrounding_text()`].
     pub surrounding_text: Option<ImeSurroundingText>,
 }
 

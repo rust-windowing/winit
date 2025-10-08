@@ -271,8 +271,8 @@ mod tests {
         let main = UIScreen::mainScreen(mtm);
         assert!(UIScreen::screens(mtm).iter().any(|screen| ptr::eq(&*screen, &*main)));
 
-        assert!(unsafe {
+        assert!(
             NSSet::setWithArray(&UIScreen::screens(mtm)).containsObject(&UIScreen::mainScreen(mtm))
-        });
+        );
     }
 }

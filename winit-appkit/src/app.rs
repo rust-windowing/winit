@@ -30,8 +30,8 @@ extern "C-unwind" fn send_event(app: &NSApplication, sel: Sel, event: &NSEvent) 
     // For posterity, there are some undocumented event types
     // (https://github.com/servo/cocoa-rs/issues/155)
     // but that doesn't really matter here.
-    let event_type = unsafe { event.r#type() };
-    let modifier_flags = unsafe { event.modifierFlags() };
+    let event_type = event.r#type();
+    let modifier_flags = event.modifierFlags();
     if event_type == NSEventType::KeyUp && modifier_flags.contains(NSEventModifierFlags::Command) {
         if let Some(key_window) = app.keyWindow() {
             key_window.sendEvent(event);
@@ -98,15 +98,15 @@ pub(crate) fn override_send_event(global_app: &NSApplication) {
 }
 
 fn maybe_dispatch_device_event(app_state: &Rc<AppState>, event: &NSEvent) {
-    let event_type = unsafe { event.r#type() };
+    let event_type = event.r#type();
     #[allow(non_upper_case_globals)]
     match event_type {
         NSEventType::MouseMoved
         | NSEventType::LeftMouseDragged
         | NSEventType::OtherMouseDragged
         | NSEventType::RightMouseDragged => {
-            let delta_x = unsafe { event.deltaX() } as f64;
-            let delta_y = unsafe { event.deltaY() } as f64;
+            let delta_x = event.deltaX() as f64;
+            let delta_y = event.deltaY() as f64;
 
             if delta_x != 0.0 || delta_y != 0.0 {
                 app_state.maybe_queue_with_handler(move |app, event_loop| {
@@ -117,7 +117,7 @@ fn maybe_dispatch_device_event(app_state: &Rc<AppState>, event: &NSEvent) {
             }
         },
         NSEventType::LeftMouseDown | NSEventType::RightMouseDown | NSEventType::OtherMouseDown => {
-            let button = unsafe { event.buttonNumber() } as u32;
+            let button = event.buttonNumber() as u32;
             app_state.maybe_queue_with_handler(move |app, event_loop| {
                 app.device_event(event_loop, None, DeviceEvent::Button {
                     button,
@@ -126,7 +126,7 @@ fn maybe_dispatch_device_event(app_state: &Rc<AppState>, event: &NSEvent) {
             });
         },
         NSEventType::LeftMouseUp | NSEventType::RightMouseUp | NSEventType::OtherMouseUp => {
-            let button = unsafe { event.buttonNumber() } as u32;
+            let button = event.buttonNumber() as u32;
             app_state.maybe_queue_with_handler(move |app, event_loop| {
                 app.device_event(event_loop, None, DeviceEvent::Button {
                     button,
@@ -153,16 +153,14 @@ mod tests {
         let Some(mtm) = MainThreadMarker::new() else { return };
 
         // Create a new application, without making it the shared application.
-        let app = unsafe { NSApplication::new(mtm) };
+        let app = NSApplication::new(mtm);
         override_send_event(&app);
         // Test calling twice works.
         override_send_event(&app);
 
         // FIXME(madsmtm): Can't test this yet, need some way to mock AppState.
-        // unsafe {
-        //     let event = super::super::event::dummy_event().unwrap();
-        //     app.sendEvent(&event)
-        // }
+        // let event = super::super::event::dummy_event().unwrap();
+        // app.sendEvent(&event)
     }
 
     #[test]

@@ -87,6 +87,7 @@ changelog entry.
 - Add `Ime::DeleteSurrounding` to let the input method delete text.
 - Add more `ImePurpose` values.
 - Add `ImeHints` to request particular IME behaviour.
+- Add Pen input support on Wayland, Windows, and Web via new Pointer event.
 
 ### Changed
 
@@ -210,6 +211,7 @@ changelog entry.
 - Move `EventLoopExtRunOnDemand` from platform module to `winit::event_loop::run_on_demand`.
 - Use `NamedKey`, `Code` and `Location` from the `keyboard-types` v0.8 crate.
 - Deprecate `Window::set_ime_allowed`, `Window::set_ime_cursor_area`, and `Window::set_ime_purpose`.
+- `Force::normalized()` now takes a `Option<ToolAngle>` to calculate the perpendicular force.
 
 ### Removed
 
@@ -249,6 +251,7 @@ changelog entry.
 - Remove `NamedKey::Space`, match on `Key::Character(" ")` instead.
 - Remove `PartialEq` impl for `WindowAttributes`.
 - `WindowAttributesExt*` platform extensions; use `WindowAttributes*` instead.
+- Remove `Force::Calibrated::altitude_angle` in favor of `ToolAngle::altitude`.
 
 ### Fixed
 
@@ -264,3 +267,5 @@ changelog entry.
 - On Windows, `Window::theme` will return the correct theme after setting it through `Window::set_theme`.
 - On Windows, `Window::set_theme` will change the title bar color immediately now.
 - On Windows 11, prevent incorrect shifting when dragging window onto a monitor with different DPI.
+- On Web, device events are emitted regardless of cursor type.
+- On Wayland, `axis_value120` scroll events now generate `MouseScrollDelta::LineDelta`

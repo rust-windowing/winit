@@ -117,7 +117,7 @@ impl AppState {
             // - https://github.com/rust-windowing/winit/issues/261
             // - https://github.com/rust-windowing/winit/issues/3958
             let is_bundled =
-                unsafe { NSRunningApplication::currentApplication().bundleIdentifier().is_some() };
+                NSRunningApplication::currentApplication().bundleIdentifier().is_some();
             if !is_bundled {
                 app.setActivationPolicy(NSApplicationActivationPolicy::Regular);
             }

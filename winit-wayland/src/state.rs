@@ -30,6 +30,7 @@ use crate::seat::{
 };
 use crate::types::kwin_blur::KWinBlurManager;
 use crate::types::wp_fractional_scaling::FractionalScalingManager;
+use crate::types::wp_tablet_input_v2::TabletManager;
 use crate::types::wp_viewporter::ViewporterState;
 use crate::types::xdg_activation::XdgActivationState;
 use crate::types::xdg_toplevel_icon_manager::XdgToplevelIconManagerState;
@@ -99,6 +100,9 @@ pub struct WinitState {
 
     /// Relative pointer.
     pub relative_pointer: Option<RelativePointerState>,
+
+    /// Tablet manager.
+    pub tablet_state: Option<TabletManager>,
 
     /// Pointer constraints to handle pointer locking and confining.
     pub pointer_constraints: Option<Arc<PointerConstraintsState>>,
@@ -194,6 +198,7 @@ impl WinitState {
             text_input_state: TextInputState::new(globals, queue_handle).ok(),
 
             relative_pointer: RelativePointerState::new(globals, queue_handle).ok(),
+            tablet_state: TabletManager::new(globals, queue_handle).ok(),
             pointer_constraints: PointerConstraintsState::new(globals, queue_handle)
                 .map(Arc::new)
                 .ok(),

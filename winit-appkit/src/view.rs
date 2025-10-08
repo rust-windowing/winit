@@ -292,7 +292,7 @@ define_class!(
                 self.queue_event(WindowEvent::Ime(Ime::Enabled));
             }
 
-            if unsafe { self.hasMarkedText() } {
+            if self.hasMarkedText() {
                 self.ivars().ime_state.set(ImeState::Preedit);
             } else {
                 // In case the preedit was cleared, set IME into the Ground state.
@@ -305,8 +305,8 @@ define_class!(
                 None
             } else {
                 // Convert the selected range from UTF-16 indices to UTF-8 indices.
-                let sub_string_a = unsafe { string.substringToIndex(selected_range.location) };
-                let sub_string_b = unsafe { string.substringToIndex(selected_range.end()) };
+                let sub_string_a = string.substringToIndex(selected_range.location);
+                let sub_string_b = string.substringToIndex(selected_range.end());
                 let lowerbound_utf8 = sub_string_a.len();
                 let upperbound_utf8 = sub_string_b.len();
                 Some((lowerbound_utf8, upperbound_utf8))
@@ -391,7 +391,7 @@ define_class!(
             let is_control = string.chars().next().is_some_and(|c| c.is_control());
 
             // Commit only if we have marked text.
-            if unsafe { self.hasMarkedText() } && self.is_ime_enabled() && !is_control {
+            if self.hasMarkedText() && self.is_ime_enabled() && !is_control {
                 self.queue_event(WindowEvent::Ime(Ime::Preedit(String::new(), None)));
                 self.queue_event(WindowEvent::Ime(Ime::Commit(string)));
                 self.ivars().ime_state.set(ImeState::Committed);
@@ -414,8 +414,7 @@ define_class!(
 
             self.ivars().forward_key_to_app.set(true);
 
-            if unsafe { self.hasMarkedText() } && self.ivars().ime_state.get() == ImeState::Preedit
-            {
+            if self.hasMarkedText() && self.ivars().ime_state.get() == ImeState::Preedit {
                 // Leave preedit so that we also report the key-up for this key.
                 self.ivars().ime_state.set(ImeState::Ground);
             }
@@ -467,7 +466,7 @@ define_class!(
             // is not handled by IME and should be handled by the application)
             if self.ivars().ime_capabilities.get().is_some() {
                 let events_for_nsview = NSArray::from_slice(&[&*event]);
-                unsafe { self.interpretKeyEvents(&events_for_nsview) };
+                self.interpretKeyEvents(&events_for_nsview);
 
                 // If the text was committed we must treat the next keyboard event as IME related.
                 if self.ivars().ime_state.get() == ImeState::Committed {
@@ -490,7 +489,7 @@ define_class!(
             };
 
             if !had_ime_input || self.ivars().forward_key_to_app.get() {
-                let key_event = create_key_event(&event, true, unsafe { event.isARepeat() });
+                let key_event = create_key_event(&event, true, event.isARepeat());
                 self.queue_event(WindowEvent::KeyboardInput {
                     device_id: None,
                     event: key_event,
@@ -557,7 +556,7 @@ define_class!(
                 .expect("could not find current event");
 
             self.update_modifiers(&event, false);
-            let event = create_key_event(&event, true, unsafe { event.isARepeat() });
+            let event = create_key_event(&event, true, event.isARepeat());
 
             self.queue_event(WindowEvent::KeyboardInput {
                 device_id: None,
@@ -676,8 +675,8 @@ define_class!(
             self.mouse_motion(event);
 
             let delta = {
-                let (x, y) = unsafe { (event.scrollingDeltaX(), event.scrollingDeltaY()) };
-                if unsafe { event.hasPreciseScrollingDeltas() } {
+                let (x, y) = (event.scrollingDeltaX(), event.scrollingDeltaY());
+                if event.hasPreciseScrollingDeltas() {
                     let delta = LogicalPosition::new(x, y).to_physical(self.scale_factor());
                     MouseScrollDelta::PixelDelta(delta)
                 } else {
@@ -690,10 +689,10 @@ define_class!(
             // momentum phase is recorded (or rather, the started/ended cases of the
             // momentum phase) then we report the touch phase.
             #[allow(non_upper_case_globals)]
-            let phase = match unsafe { event.momentumPhase() } {
+            let phase = match event.momentumPhase() {
                 NSEventPhase::MayBegin | NSEventPhase::Began => TouchPhase::Started,
                 NSEventPhase::Ended | NSEventPhase::Cancelled => TouchPhase::Ended,
-                _ => match unsafe { event.phase() } {
+                _ => match event.phase() {
                     NSEventPhase::MayBegin | NSEventPhase::Began => TouchPhase::Started,
                     NSEventPhase::Ended | NSEventPhase::Cancelled => TouchPhase::Ended,
                     _ => TouchPhase::Moved,
@@ -715,7 +714,7 @@ define_class!(
             self.mouse_motion(event);
 
             #[allow(non_upper_case_globals)]
-            let phase = match unsafe { event.phase() } {
+            let phase = match event.phase() {
                 NSEventPhase::Began => TouchPhase::Started,
                 NSEventPhase::Changed => TouchPhase::Moved,
                 NSEventPhase::Cancelled => TouchPhase::Cancelled,
@@ -725,7 +724,7 @@ define_class!(
 
             self.queue_event(WindowEvent::PinchGesture {
                 device_id: None,
-                delta: unsafe { event.magnification() },
+                delta: event.magnification(),
                 phase,
             });
         }
@@ -746,7 +745,7 @@ define_class!(
             self.mouse_motion(event);
 
             #[allow(non_upper_case_globals)]
-            let phase = match unsafe { event.phase() } {
+            let phase = match event.phase() {
                 NSEventPhase::Began => TouchPhase::Started,
                 NSEventPhase::Changed => TouchPhase::Moved,
                 NSEventPhase::Cancelled => TouchPhase::Cancelled,
@@ -756,7 +755,7 @@ define_class!(
 
             self.queue_event(WindowEvent::RotationGesture {
                 device_id: None,
-                delta: unsafe { event.rotation() },
+                delta: event.rotation(),
                 phase,
             });
         }
@@ -767,8 +766,8 @@ define_class!(
 
             self.queue_event(WindowEvent::TouchpadPressure {
                 device_id: None,
-                pressure: unsafe { event.pressure() },
-                stage: unsafe { event.stage() } as i64,
+                pressure: event.pressure(),
+                stage: event.stage() as i64,
             });
         }
 
@@ -931,8 +930,8 @@ impl WinitView {
         // later will work though, since the flags are attached to the event and contain valid
         // information.
         'send_event: {
-            if is_flags_changed_event && unsafe { ns_event.keyCode() } != 0 {
-                let scancode = unsafe { ns_event.keyCode() };
+            if is_flags_changed_event && ns_event.keyCode() != 0 {
+                let scancode = ns_event.keyCode();
                 let physical_key = scancode_to_physicalkey(scancode as u32);
 
                 let logical_key = code_to_key(physical_key, scancode);
@@ -1064,7 +1063,7 @@ impl WinitView {
             || view_point.x > frame.size.width
             || view_point.y > frame.size.height
         {
-            let mouse_buttons_down = unsafe { NSEvent::pressedMouseButtons() };
+            let mouse_buttons_down = NSEvent::pressedMouseButtons();
             if mouse_buttons_down == 0 {
                 // Point is outside of the client area (view) and no buttons are pressed
                 return;
@@ -1082,7 +1081,7 @@ impl WinitView {
     }
 
     fn mouse_view_point(&self, event: &NSEvent) -> LogicalPosition<f64> {
-        let window_point = unsafe { event.locationInWindow() };
+        let window_point = event.locationInWindow();
         let view_point = self.convertPoint_fromView(window_point, None);
 
         LogicalPosition::new(view_point.x, view_point.y)
@@ -1096,7 +1095,7 @@ fn mouse_button(event: &NSEvent) -> MouseButton {
     // For the other events, it's always set to 0.
     // MacOS only defines the left, right and middle buttons, 3..=31 are left as generic buttons,
     // but 3 and 4 are very commonly used as Back and Forward by hardware vendors and applications.
-    match unsafe { event.buttonNumber() } {
+    match event.buttonNumber() {
         0 => MouseButton::Left,
         1 => MouseButton::Right,
         2 => MouseButton::Middle,
@@ -1120,12 +1119,10 @@ fn replace_event(event: &NSEvent, option_as_alt: OptionAsAlt) -> Retained<NSEven
         && !ev_mods.meta_key();
 
     if ignore_alt_characters {
-        let ns_chars = unsafe {
-            event.charactersIgnoringModifiers().expect("expected characters to be non-null")
-        };
+        let ns_chars =
+            event.charactersIgnoringModifiers().expect("expected characters to be non-null");
 
-        unsafe {
-            NSEvent::keyEventWithType_location_modifierFlags_timestamp_windowNumber_context_characters_charactersIgnoringModifiers_isARepeat_keyCode(
+        NSEvent::keyEventWithType_location_modifierFlags_timestamp_windowNumber_context_characters_charactersIgnoringModifiers_isARepeat_keyCode(
                 event.r#type(),
                 event.locationInWindow(),
                 event.modifierFlags(),
@@ -1138,7 +1135,6 @@ fn replace_event(event: &NSEvent, option_as_alt: OptionAsAlt) -> Retained<NSEven
                 event.keyCode(),
             )
             .unwrap()
-        }
     } else {
         event.copy()
     }
