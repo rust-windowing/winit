@@ -302,7 +302,7 @@ impl WindowState {
                 subcompositor.clone(),
                 self.queue_handle.clone(),
                 #[cfg(feature = "sctk-adwaita")]
-                into_sctk_adwaita_config(self.theme),
+                create_sctk_adwaita_config(self.theme),
             ) {
                 Ok(mut frame) => {
                     frame.set_title(&self.title);
@@ -816,7 +816,7 @@ impl WindowState {
         self.theme = theme;
         #[cfg(feature = "sctk-adwaita")]
         if let Some(frame) = self.frame.as_mut() {
-            frame.set_config(into_sctk_adwaita_config(theme))
+            frame.set_config(create_sctk_adwaita_config(theme))
         }
     }
 
@@ -1228,12 +1228,14 @@ fn resize_direction_to_xdg(direction: ResizeDirection) -> XdgResizeEdge {
     }
 }
 
-// NOTE: Rust doesn't allow `From<Option<Theme>>`.
 #[cfg(feature = "sctk-adwaita")]
-fn into_sctk_adwaita_config(theme: Option<Theme>) -> sctk_adwaita::FrameConfig {
-    match theme {
+fn create_sctk_adwaita_config(theme: Option<Theme>) -> sctk_adwaita::FrameConfig {
+    let config = match theme {
         Some(Theme::Light) => sctk_adwaita::FrameConfig::light(),
         Some(Theme::Dark) => sctk_adwaita::FrameConfig::dark(),
         None => sctk_adwaita::FrameConfig::auto(),
-    }
+    };
+    #[cfg(feature = "csd-adwaita-notitlebar")]
+    let config = config.hide_titlebar(true);
+    config
 }
