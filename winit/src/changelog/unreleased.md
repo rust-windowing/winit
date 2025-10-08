@@ -268,3 +268,4 @@ changelog entry.
 - On Windows, `Window::set_theme` will change the title bar color immediately now.
 - On Windows 11, prevent incorrect shifting when dragging window onto a monitor with different DPI.
 - On Web, device events are emitted regardless of cursor type.
+- On Wayland, `axis_value120` scroll events now generate `MouseScrollDelta::LineDelta`
