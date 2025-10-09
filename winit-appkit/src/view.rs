@@ -390,9 +390,11 @@ define_class!(
 
             let is_control = string.chars().next().is_some_and(|c| c.is_control());
 
-            // Commit only if we have marked text.
-            if self.hasMarkedText() && self.is_ime_enabled() && !is_control {
-                self.queue_event(WindowEvent::Ime(Ime::Preedit(String::new(), None)));
+            if self.ivars().ime_capabilities.get().is_some() && !is_control {
+                if self.hasMarkedText() {
+                    // clear preedit only if we have marked text.
+                    self.queue_event(WindowEvent::Ime(Ime::Preedit(String::new(), None)));
+                }
                 self.queue_event(WindowEvent::Ime(Ime::Commit(string)));
                 self.ivars().ime_state.set(ImeState::Committed);
             }
