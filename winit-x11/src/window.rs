@@ -2097,6 +2097,7 @@ impl UnownedWindow {
             },
             CoreImeRequest::Update(state) => {
                 if let Some(capabilities) = shared_state.ime_capabilities {
+                    drop(shared_state);
                     (capabilities, state)
                 } else {
                     // The IME was not yet enabled, so discard the update.
