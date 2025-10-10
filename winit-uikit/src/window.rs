@@ -122,8 +122,18 @@ impl Inner {
         debug!("`Window::set_title` is ignored on iOS")
     }
 
+    pub fn is_transparent(&self) -> bool {
+        debug!("`Window::is_transparent` is ignored on iOS");
+        false
+    }
+
     pub fn set_transparent(&self, _transparent: bool) {
         debug!("`Window::set_transparent` is ignored on iOS")
+    }
+
+    pub fn is_blurred(&self) -> bool {
+        debug!("`Window::is_blurred` is ignored on iOS");
+        false
     }
 
     pub fn set_blur(&self, _blur: bool) {
@@ -215,8 +225,18 @@ impl Inner {
         insets.to_physical(self.scale_factor())
     }
 
+    pub fn min_surface_size(&self) -> Option<PhysicalSize<u32>> {
+        debug!("`Window::min_surface_size` is ignored on iOS");
+        None
+    }
+
     pub fn set_min_surface_size(&self, _dimensions: Option<Size>) {
         warn!("`Window::set_min_surface_size` is ignored on iOS")
+    }
+
+    pub fn max_surface_size(&self) -> Option<PhysicalSize<u32>> {
+        debug!("`Window::max_surface_size` is ignored on iOS");
+        None
     }
 
     pub fn set_max_surface_size(&self, _dimensions: Option<Size>) {
@@ -254,6 +274,11 @@ impl Inner {
 
     pub fn scale_factor(&self) -> f64 {
         self.view.contentScaleFactor() as _
+    }
+
+    pub fn cursor(&self) -> Cursor {
+        warn!("`Window::cursor` is ignored on iOS");
+        Cursor::default()
     }
 
     pub fn set_cursor(&self, _cursor: Cursor) {
@@ -370,8 +395,18 @@ impl Inner {
         true
     }
 
+    pub fn window_level(&self) -> WindowLevel {
+        debug!("`Window::window_level` is ignored on iOS");
+        WindowLevel::default()
+    }
+
     pub fn set_window_level(&self, _level: WindowLevel) {
         warn!("`Window::set_window_level` is ignored on iOS")
+    }
+
+    pub fn window_icon(&self) -> Option<Icon> {
+        debug!("`Window::window_icon` is ignored on iOS");
+        None
     }
 
     pub fn set_window_icon(&self, _icon: Option<Icon>) {
@@ -457,7 +492,14 @@ impl Inner {
         None
     }
 
-    pub fn set_content_protected(&self, _protected: bool) {}
+    pub fn content_protected(&self) -> bool {
+        warn!("`Window::content_protected` is ignored on iOS");
+        false
+    }
+
+    pub fn set_content_protected(&self, _protected: bool) {
+        warn!("`Window::set_content_protected` is ignored on iOS");
+    }
 
     pub fn has_focus(&self) -> bool {
         self.window.isKeyWindow()
@@ -636,8 +678,16 @@ impl CoreWindow for Window {
         self.maybe_wait_on_main(|delegate| delegate.safe_area())
     }
 
+    fn min_surface_size(&self) -> Option<PhysicalSize<u32>> {
+        self.maybe_wait_on_main(|delegate| delegate.min_surface_size())
+    }
+
     fn set_min_surface_size(&self, min_size: Option<Size>) {
         self.maybe_wait_on_main(|delegate| delegate.set_min_surface_size(min_size))
+    }
+
+    fn max_surface_size(&self) -> Option<PhysicalSize<u32>> {
+        self.maybe_wait_on_main(|delegate| delegate.max_surface_size())
     }
 
     fn set_max_surface_size(&self, max_size: Option<Size>) {
@@ -656,8 +706,16 @@ impl CoreWindow for Window {
         self.maybe_wait_on_main(|delegate| delegate.set_title(title));
     }
 
+    fn is_transparent(&self) -> bool {
+        self.maybe_wait_on_main(|delegate| delegate.is_transparent())
+    }
+
     fn set_transparent(&self, transparent: bool) {
         self.maybe_wait_on_main(|delegate| delegate.set_transparent(transparent));
+    }
+
+    fn is_blurred(&self) -> bool {
+        self.maybe_wait_on_main(|delegate| delegate.is_blurred())
     }
 
     fn set_blur(&self, blur: bool) {
@@ -720,8 +778,16 @@ impl CoreWindow for Window {
         self.maybe_wait_on_main(|delegate| delegate.is_decorated())
     }
 
+    fn window_level(&self) -> WindowLevel {
+        self.maybe_wait_on_main(|delegate| delegate.window_level())
+    }
+
     fn set_window_level(&self, level: WindowLevel) {
         self.maybe_wait_on_main(|delegate| delegate.set_window_level(level));
+    }
+
+    fn window_icon(&self) -> Option<Icon> {
+        self.maybe_wait_on_main(|delegate| delegate.window_icon())
     }
 
     fn set_window_icon(&self, window_icon: Option<Icon>) {
@@ -756,12 +822,20 @@ impl CoreWindow for Window {
         self.maybe_wait_on_main(|delegate| delegate.theme())
     }
 
+    fn content_protected(&self) -> bool {
+        self.maybe_wait_on_main(|delegate| delegate.content_protected())
+    }
+
     fn set_content_protected(&self, protected: bool) {
         self.maybe_wait_on_main(|delegate| delegate.set_content_protected(protected));
     }
 
     fn title(&self) -> String {
         self.maybe_wait_on_main(|delegate| delegate.title())
+    }
+
+    fn cursor(&self) -> Cursor {
+        self.maybe_wait_on_main(|delegate| delegate.cursor())
     }
 
     fn set_cursor(&self, cursor: Cursor) {

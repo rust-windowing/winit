@@ -935,6 +935,10 @@ impl WindowDelegate {
         self.window().setTitle(&NSString::from_str(title))
     }
 
+    pub fn is_transparent(&self) -> bool {
+        unsafe { !self.window().isOpaque() }
+    }
+
     pub fn set_transparent(&self, transparent: bool) {
         // This is just a hint for Quartz, it doesn't actually speculate with window alpha.
         // Providing a wrong value here could result in visual artifacts, when the window is
@@ -950,6 +954,12 @@ impl WindowDelegate {
             if transparent { NSColor::clearColor() } else { NSColor::windowBackgroundColor() };
 
         self.window().setBackgroundColor(Some(&color));
+    }
+
+    pub fn is_blurred(&self) -> bool {
+        // What API would we use to get this? `CGSGetWindowBackgroundBlurRadius` doesn't exist.
+        warn!("getting the background blur of the window is not supported on macOS");
+        false
     }
 
     pub fn set_blur(&self, blur: bool) {
@@ -1069,6 +1079,14 @@ impl WindowDelegate {
         None
     }
 
+    pub fn min_surface_size(&self) -> Option<PhysicalSize<u32>> {
+        let size = unsafe { self.window().contentMinSize() };
+        if size == NSSize::ZERO {
+            return None;
+        }
+        Some(LogicalSize::new(size.width, size.height).to_physical(self.scale_factor()))
+    }
+
     pub fn set_min_surface_size(&self, dimensions: Option<Size>) {
         let dimensions =
             dimensions.unwrap_or(Size::Logical(LogicalSize { width: 0.0, height: 0.0 }));
@@ -1086,6 +1104,15 @@ impl WindowDelegate {
             current_size.height = min_size.height;
         }
         self.window().setContentSize(current_size);
+    }
+
+    pub fn max_surface_size(&self) -> Option<PhysicalSize<u32>> {
+        let size = unsafe { self.window().contentMaxSize() };
+        // AppKit sets the max size to f32::MAX by default.
+        if size == NSSize::new(f32::MAX as _, f32::MAX as _) {
+            return None;
+        }
+        Some(LogicalSize::new(size.width, size.height).to_physical(self.scale_factor()))
     }
 
     pub fn set_max_surface_size(&self, dimensions: Option<Size>) {
@@ -1207,6 +1234,11 @@ impl WindowDelegate {
             buttons |= WindowButtons::CLOSE;
         }
         buttons
+    }
+
+    pub fn cursor(&self) -> Cursor {
+        warn!("getting the cursor is unimplemented on macOS");
+        Cursor::default()
     }
 
     pub fn set_cursor(&self, cursor: Cursor) {
@@ -1637,6 +1669,20 @@ impl WindowDelegate {
         self.ivars().decorations.get()
     }
 
+    pub fn window_level(&self) -> WindowLevel {
+        let level = unsafe { self.window().level() };
+        if level == kCGFloatingWindowLevel as NSWindowLevel {
+            WindowLevel::AlwaysOnTop
+        } else if level == (kCGNormalWindowLevel - 1) as NSWindowLevel {
+            WindowLevel::AlwaysOnBottom
+        } else if level == kCGNormalWindowLevel as NSWindowLevel {
+            WindowLevel::Normal
+        } else {
+            warn!(?level, "cannot determine window level, it must've been set outside of Winit");
+            WindowLevel::default()
+        }
+    }
+
     #[inline]
     pub fn set_window_level(&self, level: WindowLevel) {
         // Note: There are two different things at play here:
@@ -1654,6 +1700,11 @@ impl WindowDelegate {
             WindowLevel::Normal => kCGNormalWindowLevel as NSWindowLevel,
         };
         self.window().setLevel(level);
+    }
+
+    #[inline]
+    pub fn window_icon(&self) -> Option<Icon> {
+        None
     }
 
     #[inline]
@@ -1807,6 +1858,17 @@ impl WindowDelegate {
 
     pub fn set_theme(&self, theme: Option<Theme>) {
         self.window().setAppearance(theme_to_appearance(theme).as_deref());
+    }
+
+    pub fn content_protected(&self) -> bool {
+        match unsafe { self.window().sharingType() } {
+            NSWindowSharingType::None => true,
+            NSWindowSharingType::ReadOnly => false,
+            sharing_type => {
+                warn!(?sharing_type, "unknown sharing type");
+                false
+            },
+        }
     }
 
     #[inline]
