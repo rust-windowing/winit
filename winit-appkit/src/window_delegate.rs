@@ -13,13 +13,13 @@ use dpi::{
 use objc2::rc::{autoreleasepool, Retained};
 use objc2::runtime::{AnyObject, ProtocolObject};
 use objc2::{
-    available, define_class, msg_send, sel, ClassType, DefinedClass, MainThreadMarker,
+    available, define_class, msg_send, sel, AnyThread, ClassType, DefinedClass, MainThreadMarker,
     MainThreadOnly, Message,
 };
 use objc2_app_kit::{
     NSAppKitVersionNumber, NSAppKitVersionNumber10_12, NSAppearance, NSAppearanceCustomization,
     NSAppearanceNameAqua, NSApplication, NSApplicationPresentationOptions, NSBackingStoreType,
-    NSColor, NSDraggingDestination, NSDraggingInfo, NSRequestUserAttentionType, NSScreen,
+    NSColor, NSDraggingDestination, NSDraggingInfo, NSImage, NSRequestUserAttentionType, NSScreen,
     NSToolbar, NSView, NSViewFrameDidChangeNotification, NSWindow, NSWindowButton,
     NSWindowDelegate, NSWindowLevel, NSWindowOcclusionState, NSWindowOrderingMode,
     NSWindowSharingType, NSWindowStyleMask, NSWindowTabbingMode, NSWindowTitleVisibility,
@@ -31,9 +31,11 @@ use objc2_core_foundation::{CGFloat, CGPoint};
 use objc2_core_graphics::{
     kCGDisplayBlendNormal, kCGDisplayBlendSolidColor, kCGDisplayFadeReservationInvalidToken,
     kCGFloatingWindowLevel, kCGNormalWindowLevel, CGAcquireDisplayFadeReservation,
-    CGAssociateMouseAndMouseCursorPosition, CGDisplayCapture, CGDisplayFade, CGDisplayRelease,
-    CGDisplaySetDisplayMode, CGReleaseDisplayFadeReservation,
-    CGRestorePermanentDisplayConfiguration, CGShieldingWindowLevel, CGWarpMouseCursorPosition,
+    CGAssociateMouseAndMouseCursorPosition, CGBitmapInfo, CGColorRenderingIntent, CGColorSpace,
+    CGDataProvider, CGDataProviderReleaseDataCallback, CGDisplayCapture, CGDisplayFade,
+    CGDisplayRelease, CGDisplaySetDisplayMode, CGImage, CGImageAlphaInfo, CGImageByteOrderInfo,
+    CGReleaseDisplayFadeReservation, CGRestorePermanentDisplayConfiguration,
+    CGShieldingWindowLevel, CGWarpMouseCursorPosition,
 };
 use objc2_foundation::{
     ns_string, NSArray, NSDictionary, NSEdgeInsets, NSKeyValueChangeKey, NSKeyValueChangeNewKey,
@@ -45,7 +47,7 @@ use tracing::{trace, warn};
 use winit_core::cursor::Cursor;
 use winit_core::error::{NotSupportedError, RequestError};
 use winit_core::event::{SurfaceSizeWriter, WindowEvent};
-use winit_core::icon::Icon;
+use winit_core::icon::{Icon, RgbaIcon};
 use winit_core::monitor::{Fullscreen, MonitorHandle as CoreMonitorHandle, MonitorHandleProvider};
 use winit_core::window::{
     CursorGrabMode, ImeCapabilities, ImeRequest, ImeRequestError, ResizeDirection, Theme,
@@ -841,6 +843,8 @@ impl WindowDelegate {
         }
 
         delegate.set_window_level(attrs.window_level);
+
+        delegate.set_window_icon(attrs.window_icon);
 
         delegate.set_cursor(attrs.cursor);
 
@@ -1657,15 +1661,48 @@ impl WindowDelegate {
     }
 
     #[inline]
-    pub fn set_window_icon(&self, _icon: Option<Icon>) {
-        // macOS doesn't have window icons. Though, there is
-        // `setRepresentedFilename`, but that's semantically distinct and should
-        // only be used when the window is in some way representing a specific
-        // file/directory. For instance, Terminal.app uses this for the CWD.
-        // Anyway, that should eventually be implemented as
-        // `WindowAttributesExt::with_represented_file` or something, and doesn't
-        // have anything to do with `set_window_icon`.
-        // https://developer.apple.com/library/content/documentation/Cocoa/Conceptual/WinPanel/Tasks/SettingWindowTitle.html
+    pub fn set_window_icon(&self, icon: Option<Icon>) {
+        let icon = icon.map(|icon| {
+            let icon = icon.cast_ref::<RgbaIcon>().unwrap();
+
+            let data_provider = unsafe {
+                &CGDataProvider::with_data(
+                    ptr::null_mut(),
+                    icon.buffer().as_ptr() as _,
+                    icon.buffer().len(),
+                    CGDataProviderReleaseDataCallback::None,
+                )
+                .unwrap()
+            };
+
+            let image = unsafe {
+                CGImage::new(
+                    icon.width() as usize,
+                    icon.height() as usize,
+                    8,
+                    8 * 4,
+                    4 * icon.width() as usize,
+                    Some(&CGColorSpace::new_device_rgb().unwrap()),
+                    CGBitmapInfo(CGImageByteOrderInfo::Order32Big.0 | CGImageAlphaInfo::Last.0),
+                    Some(data_provider),
+                    ptr::null(),
+                    true,
+                    CGColorRenderingIntent::RenderingIntentDefault,
+                )
+            }
+            .unwrap();
+
+            NSImage::initWithCGImage_size(
+                NSImage::alloc(),
+                &image,
+                NSSize::new(icon.width() as f64, icon.height() as f64),
+            )
+        });
+
+        let mtm = MainThreadMarker::from(self);
+        let app = NSApplication::sharedApplication(mtm);
+
+        unsafe { app.setApplicationIconImage(icon.as_deref()) };
     }
 
     pub fn request_ime_update(&self, request: ImeRequest) -> Result<(), ImeRequestError> {
