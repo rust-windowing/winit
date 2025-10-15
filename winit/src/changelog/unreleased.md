@@ -88,6 +88,7 @@ changelog entry.
 - Add more `ImePurpose` values.
 - Add `ImeHints` to request particular IME behaviour.
 - Add Pen input support on Wayland, Windows, and Web via new Pointer event.
+- On macOS, added implementation for `Window::set_window_icon`
 
 ### Changed
 

@@ -1050,7 +1050,9 @@ pub trait Window: AsAny + Send + Sync + fmt::Debug {
     ///
     /// ## Platform-specific
     ///
-    /// - **iOS / Android / Web / / macOS / Orbital:** Unsupported.
+    /// - **iOS / Android / Web / Orbital:** Unsupported.
+    ///
+    /// - **macOS:** Sets the application icon (NSApplication.applicationIconImage).
     ///
     /// - **Windows:** Sets `ICON_SMALL`. The base size for a window icon is 16x16, but it's
     ///   recommended to account for screen scaling and pick a multiple of that, i.e. 32x32.
