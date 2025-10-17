@@ -60,6 +60,10 @@ allow-globs = ["ci/*", "githooks/*"]
 crate = "zerocopy"
 
 [[bans.build.bypass]]
+allow-globs = ["cherry-pick-stable.sh"]
+crate = "libc"
+
+[[bans.build.bypass]]
 allow-globs = ["freetype2/*"]
 crate = "freetype-sys"
 
