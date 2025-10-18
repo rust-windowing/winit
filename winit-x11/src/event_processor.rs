@@ -1020,16 +1020,19 @@ impl EventProcessor {
             // those. In practice, even clicky scroll wheels appear to be reported by
             // evdev (and XInput2 in turn) as axis motion, so we don't otherwise
             // special-case these button presses.
-            4..=7 => WindowEvent::MouseWheel {
-                device_id,
-                delta: match event.detail {
-                    4 => MouseScrollDelta::LineDelta(0.0, 1.0),
-                    5 => MouseScrollDelta::LineDelta(0.0, -1.0),
-                    6 => MouseScrollDelta::LineDelta(1.0, 0.0),
-                    7 => MouseScrollDelta::LineDelta(-1.0, 0.0),
-                    _ => unreachable!(),
+            4..=7 => match state {
+                ElementState::Pressed => WindowEvent::MouseWheel {
+                    device_id,
+                    delta: match event.detail {
+                        4 => MouseScrollDelta::LineDelta(0.0, 1.0),
+                        5 => MouseScrollDelta::LineDelta(0.0, -1.0),
+                        6 => MouseScrollDelta::LineDelta(1.0, 0.0),
+                        7 => MouseScrollDelta::LineDelta(-1.0, 0.0),
+                        _ => unreachable!(),
+                    },
+                    phase: TouchPhase::Moved,
                 },
-                phase: TouchPhase::Moved,
+                ElementState::Released => return,
             },
             8 => WindowEvent::PointerButton {
                 device_id,
