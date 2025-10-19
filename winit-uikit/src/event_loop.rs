@@ -4,9 +4,9 @@ use std::sync::Arc;
 
 use objc2::rc::Retained;
 use objc2::runtime::ProtocolObject;
-use objc2::{msg_send, ClassType, MainThreadMarker};
+use objc2::{ClassType, MainThreadMarker, msg_send};
 use objc2_core_foundation::{
-    kCFRunLoopDefaultMode, CFIndex, CFRunLoop, CFRunLoopActivity, CFRunLoopObserver,
+    CFIndex, CFRunLoop, CFRunLoopActivity, CFRunLoopObserver, kCFRunLoopDefaultMode,
 };
 use objc2_foundation::{NSNotificationCenter, NSObjectProtocol};
 use objc2_ui_kit::{
@@ -26,7 +26,7 @@ use winit_core::event_loop::{
 use winit_core::monitor::MonitorHandle as CoreMonitorHandle;
 use winit_core::window::{Theme, Window as CoreWindow};
 
-use super::app_state::{send_occluded_event_for_all_windows, AppState};
+use super::app_state::{AppState, send_occluded_event_for_all_windows};
 use super::notification_center::create_observer;
 use crate::monitor::MonitorHandle;
 use crate::window::Window;

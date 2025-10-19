@@ -15,7 +15,7 @@ use winit_core::event::{StartCause, WindowEvent};
 use winit_core::event_loop::ControlFlow;
 use winit_core::window::WindowId;
 
-use super::event_loop::{notify_windows_of_exit, stop_app_immediately, ActiveEventLoop};
+use super::event_loop::{ActiveEventLoop, notify_windows_of_exit, stop_app_immediately};
 use super::menu;
 use super::observer::{EventLoopWaker, RunLoop};
 

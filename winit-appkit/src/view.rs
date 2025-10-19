@@ -7,7 +7,7 @@ use std::rc::Rc;
 use dpi::{LogicalPosition, LogicalSize};
 use objc2::rc::Retained;
 use objc2::runtime::{AnyObject, Sel};
-use objc2::{define_class, msg_send, DefinedClass, MainThreadMarker};
+use objc2::{DefinedClass, MainThreadMarker, define_class, msg_send};
 use objc2_app_kit::{
     NSApplication, NSCursor, NSEvent, NSEventPhase, NSResponder, NSTextInputClient,
     NSTrackingRectTag, NSView, NSWindow,

@@ -10,11 +10,11 @@ use dpi::{
     LogicalInsets, LogicalPosition, LogicalSize, PhysicalInsets, PhysicalPosition, PhysicalSize,
     Position, Size,
 };
-use objc2::rc::{autoreleasepool, Retained};
+use objc2::rc::{Retained, autoreleasepool};
 use objc2::runtime::{AnyObject, ProtocolObject};
 use objc2::{
-    available, define_class, msg_send, sel, ClassType, DefinedClass, MainThreadMarker,
-    MainThreadOnly, Message,
+    ClassType, DefinedClass, MainThreadMarker, MainThreadOnly, Message, available, define_class,
+    msg_send, sel,
 };
 use objc2_app_kit::{
     NSAppKitVersionNumber, NSAppKitVersionNumber10_12, NSAppearance, NSAppearanceCustomization,
@@ -29,17 +29,17 @@ use objc2_app_kit::{
 use objc2_app_kit::{NSFilenamesPboardType, NSWindowFullScreenButton};
 use objc2_core_foundation::{CGFloat, CGPoint};
 use objc2_core_graphics::{
-    kCGDisplayBlendNormal, kCGDisplayBlendSolidColor, kCGDisplayFadeReservationInvalidToken,
-    kCGFloatingWindowLevel, kCGNormalWindowLevel, CGAcquireDisplayFadeReservation,
-    CGAssociateMouseAndMouseCursorPosition, CGDisplayCapture, CGDisplayFade, CGDisplayRelease,
-    CGDisplaySetDisplayMode, CGReleaseDisplayFadeReservation,
+    CGAcquireDisplayFadeReservation, CGAssociateMouseAndMouseCursorPosition, CGDisplayCapture,
+    CGDisplayFade, CGDisplayRelease, CGDisplaySetDisplayMode, CGReleaseDisplayFadeReservation,
     CGRestorePermanentDisplayConfiguration, CGShieldingWindowLevel, CGWarpMouseCursorPosition,
+    kCGDisplayBlendNormal, kCGDisplayBlendSolidColor, kCGDisplayFadeReservationInvalidToken,
+    kCGFloatingWindowLevel, kCGNormalWindowLevel,
 };
 use objc2_foundation::{
-    ns_string, NSArray, NSDictionary, NSEdgeInsets, NSKeyValueChangeKey, NSKeyValueChangeNewKey,
+    NSArray, NSDictionary, NSEdgeInsets, NSKeyValueChangeKey, NSKeyValueChangeNewKey,
     NSKeyValueChangeOldKey, NSKeyValueObservingOptions, NSNotificationCenter, NSObject,
     NSObjectNSDelayedPerforming, NSObjectNSKeyValueObserverRegistration, NSObjectProtocol, NSPoint,
-    NSRect, NSSize, NSString,
+    NSRect, NSSize, NSString, ns_string,
 };
 use tracing::{trace, warn};
 use winit_core::cursor::Cursor;
@@ -53,13 +53,13 @@ use winit_core::window::{
 };
 
 use super::app_state::AppState;
-use super::cursor::{cursor_from_icon, CustomCursor};
+use super::cursor::{CustomCursor, cursor_from_icon};
 use super::ffi;
-use super::monitor::{self, flip_window_screen_coordinates, get_display_id, MonitorHandle};
+use super::monitor::{self, MonitorHandle, flip_window_screen_coordinates, get_display_id};
 use super::observer::RunLoop;
 use super::util::cgerr;
 use super::view::WinitView;
-use super::window::{window_id, WinitPanel, WinitWindow};
+use super::window::{WinitPanel, WinitWindow, window_id};
 use crate::{OptionAsAlt, WindowAttributesMacOS, WindowExtMacOS};
 
 #[derive(Debug)]
@@ -1237,7 +1237,7 @@ impl WindowDelegate {
             CursorGrabMode::Locked => false,
             CursorGrabMode::None => true,
             CursorGrabMode::Confined => {
-                return Err(NotSupportedError::new("confined cursor is not supported").into())
+                return Err(NotSupportedError::new("confined cursor is not supported").into());
             },
         };
 
@@ -2039,11 +2039,7 @@ pub fn appearance_to_theme(appearance: &NSAppearance) -> Theme {
         dark_appearance_name(),
     ]));
     if let Some(best_match) = best_match {
-        if *best_match == *dark_appearance_name() {
-            Theme::Dark
-        } else {
-            Theme::Light
-        }
+        if *best_match == *dark_appearance_name() { Theme::Dark } else { Theme::Light }
     } else {
         warn!(?appearance, "failed to determine the theme of the appearance");
         // Default to light in this case

@@ -5,7 +5,7 @@ use dpi::{LogicalPosition, PhysicalPosition};
 use sctk::compositor::SurfaceData;
 use sctk::globals::GlobalData;
 use sctk::reexports::client::globals::{BindError, GlobalList};
-use sctk::reexports::client::{delegate_dispatch, Connection, Dispatch, Proxy, QueueHandle};
+use sctk::reexports::client::{Connection, Dispatch, Proxy, QueueHandle, delegate_dispatch};
 use sctk::reexports::protocols::wp::pointer_gestures::zv1::client::zwp_pointer_gesture_pinch_v1::{
     Event, ZwpPointerGesturePinchV1,
 };
@@ -88,9 +88,7 @@ impl Dispatch<ZwpPointerGesturePinchV1, PointerGestureData, WinitState> for Poin
                 }
 
                 // Don't handle events from a subsurface.
-                if !surface
-                    .data::<SurfaceData>()
-                    .is_some_and(|data| data.parent_surface().is_none())
+                if surface.data::<SurfaceData>().is_none_or(|data| data.parent_surface().is_some())
                 {
                     return;
                 }

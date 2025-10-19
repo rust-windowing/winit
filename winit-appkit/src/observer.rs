@@ -9,9 +9,9 @@ use std::time::Instant;
 
 use objc2::MainThreadMarker;
 use objc2_core_foundation::{
-    kCFRunLoopCommonModes, kCFRunLoopDefaultMode, CFAbsoluteTimeGetCurrent, CFIndex, CFRetained,
-    CFRunLoop, CFRunLoopActivity, CFRunLoopObserver, CFRunLoopObserverCallBack,
-    CFRunLoopObserverContext, CFRunLoopTimer,
+    CFAbsoluteTimeGetCurrent, CFIndex, CFRetained, CFRunLoop, CFRunLoopActivity, CFRunLoopObserver,
+    CFRunLoopObserverCallBack, CFRunLoopObserverContext, CFRunLoopTimer, kCFRunLoopCommonModes,
+    kCFRunLoopDefaultMode,
 };
 use tracing::error;
 

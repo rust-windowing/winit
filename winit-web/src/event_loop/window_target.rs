@@ -522,13 +522,8 @@ impl RootActiveEventLoop for ActiveEventLoop {
     }
 
     fn system_theme(&self) -> Option<Theme> {
-        backend::is_dark_mode(self.runner.window()).map(|is_dark_mode| {
-            if is_dark_mode {
-                Theme::Dark
-            } else {
-                Theme::Light
-            }
-        })
+        backend::is_dark_mode(self.runner.window())
+            .map(|is_dark_mode| if is_dark_mode { Theme::Dark } else { Theme::Light })
     }
 
     fn set_control_flow(&self, control_flow: ControlFlow) {

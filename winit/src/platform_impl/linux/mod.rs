@@ -10,8 +10,8 @@ use std::time::Duration;
 pub(crate) use winit_common::xkb::{physicalkey_to_scancode, scancode_to_physicalkey};
 use winit_core::application::ApplicationHandler;
 use winit_core::error::{EventLoopError, NotSupportedError};
-use winit_core::event_loop::pump_events::PumpStatus;
 use winit_core::event_loop::ActiveEventLoop;
+use winit_core::event_loop::pump_events::PumpStatus;
 #[cfg(wayland_platform)]
 pub(crate) use winit_wayland as wayland;
 #[cfg(x11_platform)]

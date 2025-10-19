@@ -1,8 +1,8 @@
 use objc2::rc::Retained;
 use objc2::runtime::Sel;
-use objc2::{sel, MainThreadMarker};
+use objc2::{MainThreadMarker, sel};
 use objc2_app_kit::{NSApplication, NSEventModifierFlags, NSMenu, NSMenuItem};
-use objc2_foundation::{ns_string, NSBundle, NSProcessInfo, NSString};
+use objc2_foundation::{NSBundle, NSProcessInfo, NSString, ns_string};
 
 struct KeyEquivalent<'a> {
     key: &'a NSString,

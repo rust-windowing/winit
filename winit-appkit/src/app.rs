@@ -141,7 +141,7 @@ fn maybe_dispatch_device_event(app_state: &Rc<AppState>, event: &NSEvent) {
 #[cfg(test)]
 mod tests {
     use objc2::rc::Retained;
-    use objc2::{define_class, msg_send, ClassType};
+    use objc2::{ClassType, define_class, msg_send};
     use objc2_app_kit::NSResponder;
     use objc2_foundation::NSObject;
 

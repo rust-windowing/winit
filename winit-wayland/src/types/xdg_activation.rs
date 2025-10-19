@@ -1,12 +1,12 @@
 //! Handling of xdg activation, which is used for user attention requests.
 
-use std::sync::atomic::AtomicBool;
 use std::sync::Weak;
+use std::sync::atomic::AtomicBool;
 
 use sctk::globals::GlobalData;
 use sctk::reexports::client::globals::{BindError, GlobalList};
 use sctk::reexports::client::protocol::wl_surface::WlSurface;
-use sctk::reexports::client::{delegate_dispatch, Connection, Dispatch, Proxy, QueueHandle};
+use sctk::reexports::client::{Connection, Dispatch, Proxy, QueueHandle, delegate_dispatch};
 use sctk::reexports::protocols::xdg::activation::v1::client::xdg_activation_token_v1::{
     Event as ActivationTokenEvent, XdgActivationTokenV1,
 };

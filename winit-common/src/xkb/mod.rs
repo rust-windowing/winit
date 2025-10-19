@@ -3,15 +3,15 @@ use std::os::raw::c_char;
 #[cfg(feature = "wayland")]
 use std::os::unix::io::OwnedFd;
 use std::ptr::{self, NonNull};
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::LazyLock;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use smol_str::SmolStr;
 use winit_core::event::{ElementState, KeyEvent};
 use winit_core::keyboard::{Key, KeyLocation};
 use xkbcommon_dl::{
-    self as xkb, xkb_compose_status, xkb_context, xkb_context_flags, xkbcommon_compose_handle,
-    xkbcommon_handle, XkbCommon, XkbCommonCompose,
+    self as xkb, XkbCommon, XkbCommonCompose, xkb_compose_status, xkb_context, xkb_context_flags,
+    xkbcommon_compose_handle, xkbcommon_handle,
 };
 #[cfg(feature = "x11")]
 use {x11_dl::xlib_xcb::xcb_connection_t, xkbcommon_dl::x11::xkbcommon_x11_handle};
@@ -21,9 +21,9 @@ mod keymap;
 mod state;
 
 use compose::{ComposeStatus, XkbComposeState, XkbComposeTable};
+use keymap::XkbKeymap;
 #[cfg(feature = "x11")]
 pub use keymap::raw_keycode_to_physicalkey;
-use keymap::XkbKeymap;
 pub use keymap::{physicalkey_to_scancode, scancode_to_physicalkey};
 pub use state::XkbState;
 
@@ -310,11 +310,7 @@ impl<'a, 'b> KeyEventResults<'a, 'b> {
     fn keysym_to_key(&self, keysym: u32) -> Result<(Key, KeyLocation), (Key, KeyLocation)> {
         let location = keymap::keysym_location(keysym);
         let key = keymap::keysym_to_key(keysym);
-        if matches!(key, Key::Unidentified(_)) {
-            Err((key, location))
-        } else {
-            Ok((key, location))
-        }
+        if matches!(key, Key::Unidentified(_)) { Err((key, location)) } else { Ok((key, location)) }
     }
 
     pub fn text(&mut self) -> Option<SmolStr> {

@@ -4,10 +4,10 @@ members = ["dpi", "winit*"]
 resolver = "2"
 
 [workspace.package]
-edition = "2021"
+edition = "2024"
 license = "Apache-2.0"
 repository = "https://github.com/rust-windowing/winit"
-rust-version = "1.80"
+rust-version = "1.85"
 version = "0.30.12"
 
 [workspace.dependencies]

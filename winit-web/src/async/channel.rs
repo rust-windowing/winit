@@ -1,7 +1,7 @@
 use std::future;
+use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{self, RecvError, SendError, TryRecvError};
-use std::sync::Arc;
 use std::task::Poll;
 
 use super::AtomicWaker;

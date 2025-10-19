@@ -15,9 +15,9 @@ use winit_common::xkb::Context;
 use winit_core::event::{ElementState, WindowEvent};
 use winit_core::keyboard::ModifiersState;
 
+use crate::WindowId;
 use crate::event_loop::sink::EventSink;
 use crate::state::WinitState;
-use crate::WindowId;
 
 impl Dispatch<WlKeyboard, KeyboardData, WinitState> for WinitState {
     fn event(

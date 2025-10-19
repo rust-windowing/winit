@@ -5,7 +5,7 @@ use winit_core::error::{EventLoopError, NotSupportedError};
 use winit_core::event_loop::ActiveEventLoop as RootActiveEventLoop;
 
 use crate::{
-    backend, HasMonitorPermissionFuture, MonitorPermissionFuture, PollStrategy, WaitUntilStrategy,
+    HasMonitorPermissionFuture, MonitorPermissionFuture, PollStrategy, WaitUntilStrategy, backend,
 };
 
 mod proxy;

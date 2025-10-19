@@ -55,7 +55,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        toolchain: [stable, nightly, '1.80']
+        toolchain: [stable, nightly, '1.85']
         platform:
           # Note: Make sure that we test all the `docs.rs` targets defined in Cargo.toml!
           - { name: 'Windows 64bit MSVC', target: x86_64-pc-windows-msvc,   os: windows-latest,  }
@@ -82,13 +82,13 @@ jobs:
           - toolchain: nightly
             platform: { name: 'Windows 32bit GNU' }
           # Android is tested on stable-3
-          - toolchain: '1.80'
+          - toolchain: '1.85'
             platform: { name: 'Android' }
           # Redox OS doesn't follow MSRV
-          - toolchain: '1.80'
+          - toolchain: '1.85'
             platform: { name: 'Redox OS' }
         include:
-          - toolchain: '1.80'
+          - toolchain: '1.85'
             platform: { name: 'Android', target: aarch64-linux-android, os: ubuntu-latest, options: '--package winit --features=android-native-activity', cmd: 'apk -- ' }
           - toolchain: 'nightly'
             platform: { name: 'Web', target: wasm32-unknown-unknown, os: ubuntu-latest, test-options: -Zdoctest-xcompile }
@@ -133,10 +133,6 @@ jobs:
           ~/.cargo/git/db/
         key: cargo-${{ matrix.toolchain }}-${{ matrix.platform.name }}-never-intended-to-be-found
         restore-keys: cargo-${{ matrix.toolchain }}-${{ matrix.platform.name }}
-
-    - name: Generate lockfile
-      # Also updates the crates.io index
-      run: cargo generate-lockfile && cargo update -p ahash --precise 0.8.7 && cargo update -p bumpalo --precise 3.14.0
 
     - name: Install GCC Multilib
       if: (matrix.platform.os == 'ubuntu-latest') && contains(matrix.platform.target, 'i686')
@@ -230,19 +226,19 @@ jobs:
     - name: Test dpi crate
       if: >
         contains(matrix.platform.name, 'Linux 64bit') &&
-        matrix.toolchain != '1.80'
+        matrix.toolchain != '1.85'
       run: cargo test -p dpi
 
     - name: Check dpi crate (no_std)
       if: >
         contains(matrix.platform.name, 'Linux 64bit') &&
-        matrix.toolchain != '1.80'
+        matrix.toolchain != '1.85'
       run: cargo check -p dpi --no-default-features
 
     - name: Build tests
       if: >
         !contains(matrix.platform.target, 'redox') &&
-        matrix.toolchain != '1.80'
+        matrix.toolchain != '1.85'
       run: cargo $CMD test --no-run $OPTIONS
 
     - name: Run tests
@@ -251,7 +247,7 @@ jobs:
         !contains(matrix.platform.target, 'ios') &&
         (!contains(matrix.platform.target, 'wasm32') || matrix.toolchain == 'nightly') &&
         !contains(matrix.platform.target, 'redox') &&
-        matrix.toolchain != '1.80'
+        matrix.toolchain != '1.85'
       run: cargo $CMD test $OPTIONS
 
     - name: Lint with clippy
@@ -261,7 +257,7 @@ jobs:
     - name: Build tests with serde enabled
       if: >
         !contains(matrix.platform.target, 'redox') &&
-        matrix.toolchain != '1.80'
+        matrix.toolchain != '1.85'
       run: cargo $CMD test --no-run $OPTIONS $TEST_OPTIONS --features serde
 
     - name: Run tests with serde enabled
@@ -270,7 +266,7 @@ jobs:
         !contains(matrix.platform.target, 'ios') &&
         (!contains(matrix.platform.target, 'wasm32') || matrix.toolchain == 'nightly') &&
         !contains(matrix.platform.target, 'redox') &&
-        matrix.toolchain != '1.80'
+        matrix.toolchain != '1.85'
       run: cargo $CMD test $OPTIONS $TEST_OPTIONS --features serde
 
     - name: Check docs.rs documentation

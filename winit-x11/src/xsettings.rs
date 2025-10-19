@@ -43,10 +43,10 @@ impl XConnection {
             let base_dpi = match dpi_setting.data {
                 SettingData::Integer(dpi) => dpi as f64,
                 SettingData::String(_) => {
-                    return Err(ParserError::BadType(SettingType::String).into())
+                    return Err(ParserError::BadType(SettingType::String).into());
                 },
                 SettingData::Color(_) => {
-                    return Err(ParserError::BadType(SettingType::Color).into())
+                    return Err(ParserError::BadType(SettingType::Color).into());
                 },
             };
 

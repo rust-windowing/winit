@@ -1,7 +1,7 @@
 use std::cell::Cell;
 use std::collections::VecDeque;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{mpsc, Arc, Mutex};
+use std::sync::{Arc, Mutex, mpsc};
 use std::time::Instant;
 use std::{iter, mem, slice};
 
@@ -133,11 +133,7 @@ fn convert_scancode(scancode: u8) -> (PhysicalKey, Option<NamedKey>) {
 }
 
 fn element_state(pressed: bool) -> event::ElementState {
-    if pressed {
-        event::ElementState::Pressed
-    } else {
-        event::ElementState::Released
-    }
+    if pressed { event::ElementState::Pressed } else { event::ElementState::Released }
 }
 
 bitflags! {

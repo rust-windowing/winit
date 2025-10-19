@@ -34,14 +34,14 @@ use x11rb::protocol::{randr, xinput};
 
 use crate::atoms::*;
 use crate::event_loop::{
-    xinput_fp1616_to_float, ActivationItem, ActiveEventLoop, CookieResultExt, VoidCookie,
-    WakeSender, X11Error, ALL_MASTER_DEVICES, ICONIC_STATE,
+    ALL_MASTER_DEVICES, ActivationItem, ActiveEventLoop, CookieResultExt, ICONIC_STATE, VoidCookie,
+    WakeSender, X11Error, xinput_fp1616_to_float,
 };
 use crate::ime::{ImeRequest, ImeSender};
 use crate::monitor::MonitorHandle as X11MonitorHandle;
-use crate::util::{self, rgba_to_cardinals, CustomCursor, SelectedCursor};
+use crate::util::{self, CustomCursor, SelectedCursor, rgba_to_cardinals};
 use crate::xdisplay::XConnection;
-use crate::{ffi, WindowAttributesX11, WindowType};
+use crate::{WindowAttributesX11, WindowType, ffi};
 
 #[derive(Debug)]
 pub struct Window(Arc<UnownedWindow>);
@@ -632,10 +632,10 @@ impl UnownedWindow {
         // the visual from the parent window, thus we have to query the visual
         // we've got when we built the window above.
         if visual == x11rb::COPY_FROM_PARENT {
-            visual = leap!(leap!(xconn
-                .xcb_connection()
-                .get_window_attributes(xwindow as xproto::Window))
-            .reply())
+            visual = leap!(
+                leap!(xconn.xcb_connection().get_window_attributes(xwindow as xproto::Window))
+                    .reply()
+            )
             .visual;
         }
 
@@ -762,12 +762,14 @@ impl UnownedWindow {
                 aspect: None,
                 win_gravity: None,
             };
-            leap!(leap!(normal_hints.set(
-                xconn.xcb_connection(),
-                window.xwindow as xproto::Window,
-                xproto::AtomEnum::WM_NORMAL_HINTS,
-            ))
-            .check());
+            leap!(
+                leap!(normal_hints.set(
+                    xconn.xcb_connection(),
+                    window.xwindow as xproto::Window,
+                    xproto::AtomEnum::WM_NORMAL_HINTS,
+                ))
+                .check()
+            );
 
             // Set window icons
             if let Some(icon) =
@@ -797,9 +799,9 @@ impl UnownedWindow {
                 let sync_counter_id = leap!(xconn.xcb_connection().generate_id());
                 window.sync_counter_id = NonZeroU32::new(sync_counter_id);
 
-                leap!(xconn
-                    .xcb_connection()
-                    .sync_create_counter(sync_counter_id, Int64::default()))
+                leap!(
+                    xconn.xcb_connection().sync_create_counter(sync_counter_id, Int64::default())
+                )
                 .ignore_error();
 
                 let result = xconn.xcb_connection().change_property(
@@ -896,14 +898,16 @@ impl UnownedWindow {
     /// Embed this window into a parent window.
     pub(super) fn embed_window(&self) -> Result<(), RequestError> {
         let atoms = self.xconn.atoms();
-        leap!(leap!(self.xconn.change_property(
-            self.xwindow,
-            atoms[_XEMBED],
-            atoms[_XEMBED],
-            xproto::PropMode::REPLACE,
-            &[0u32, 1u32],
-        ))
-        .check());
+        leap!(
+            leap!(self.xconn.change_property(
+                self.xwindow,
+                atoms[_XEMBED],
+                atoms[_XEMBED],
+                xproto::PropMode::REPLACE,
+                &[0u32, 1u32],
+            ))
+            .check()
+        );
 
         Ok(())
     }
@@ -1094,11 +1098,7 @@ impl UnownedWindow {
 
                 if let Some(native_mode) = video_mode.and_then(|requested| {
                     monitor.video_modes.iter().find_map(|mode| {
-                        if &mode.mode == requested {
-                            Some(mode.native_mode)
-                        } else {
-                            None
-                        }
+                        if &mode.mode == requested { Some(mode.native_mode) } else { None }
                     })
                 }) {
                     // FIXME: this is actually not correct if we're setting the
@@ -1454,7 +1454,7 @@ impl UnownedWindow {
 
         match (visible, shared_state.visibility) {
             (true, Visibility::Yes) | (true, Visibility::YesWait) | (false, Visibility::No) => {
-                return
+                return;
             },
             _ => (),
         }

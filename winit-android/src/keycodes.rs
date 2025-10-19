@@ -1,5 +1,5 @@
-use android_activity::input::{KeyAction, KeyEvent, KeyMapChar, Keycode};
 use android_activity::AndroidApp;
+use android_activity::input::{KeyAction, KeyEvent, KeyMapChar, Keycode};
 use winit_core::keyboard::{
     Key, KeyCode, KeyLocation, NamedKey, NativeKey, NativeKeyCode, PhysicalKey,
 };

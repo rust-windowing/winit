@@ -5,7 +5,7 @@ use tracing::error;
 use wasm_bindgen::closure::Closure;
 use wasm_bindgen::prelude::wasm_bindgen;
 use wasm_bindgen::{JsCast, JsValue};
-use web_sys::{console, Document, Element, HtmlCanvasElement, Window};
+use web_sys::{Document, Element, HtmlCanvasElement, Window, console};
 use winit_core::monitor::Fullscreen;
 
 use crate::main_thread::MainThreadMarker;

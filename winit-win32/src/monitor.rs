@@ -6,10 +6,10 @@ use std::{io, iter, mem, ptr};
 use dpi::{PhysicalPosition, PhysicalSize};
 use windows_sys::Win32::Foundation::{BOOL, HWND, LPARAM, POINT, RECT};
 use windows_sys::Win32::Graphics::Gdi::{
-    EnumDisplayMonitors, EnumDisplaySettingsExW, GetMonitorInfoW, MonitorFromPoint,
-    MonitorFromWindow, DEVMODEW, DM_BITSPERPEL, DM_DISPLAYFREQUENCY, DM_PELSHEIGHT, DM_PELSWIDTH,
-    ENUM_CURRENT_SETTINGS, HDC, HMONITOR, MONITORINFO, MONITORINFOEXW, MONITOR_DEFAULTTONEAREST,
-    MONITOR_DEFAULTTOPRIMARY,
+    DEVMODEW, DM_BITSPERPEL, DM_DISPLAYFREQUENCY, DM_PELSHEIGHT, DM_PELSWIDTH,
+    ENUM_CURRENT_SETTINGS, EnumDisplayMonitors, EnumDisplaySettingsExW, GetMonitorInfoW, HDC,
+    HMONITOR, MONITOR_DEFAULTTONEAREST, MONITOR_DEFAULTTOPRIMARY, MONITORINFO, MONITORINFOEXW,
+    MonitorFromPoint, MonitorFromWindow,
 };
 use winit_core::monitor::{MonitorHandleProvider, VideoMode};
 
@@ -101,11 +101,7 @@ pub(crate) fn get_monitor_info(hmonitor: HMONITOR) -> Result<MONITORINFOEXW, io:
     let status = unsafe {
         GetMonitorInfoW(hmonitor, &mut monitor_info as *mut MONITORINFOEXW as *mut MONITORINFO)
     };
-    if status == false.into() {
-        Err(io::Error::last_os_error())
-    } else {
-        Ok(monitor_info)
-    }
+    if status == false.into() { Err(io::Error::last_os_error()) } else { Ok(monitor_info) }
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash, PartialOrd, Ord)]
