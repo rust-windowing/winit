@@ -20,7 +20,7 @@
 //! ```
 //! use objc2::rc::Retained;
 //! use objc2::runtime::ProtocolObject;
-//! use objc2::{define_class, msg_send, DefinedClass, MainThreadMarker, MainThreadOnly};
+//! use objc2::{DefinedClass, MainThreadMarker, MainThreadOnly, define_class, msg_send};
 //! use objc2_app_kit::{NSApplication, NSApplicationDelegate};
 //! use objc2_foundation::{NSArray, NSObject, NSObjectProtocol, NSURL};
 //! use winit::event_loop::EventLoop;

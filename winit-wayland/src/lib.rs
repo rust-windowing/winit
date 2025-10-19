@@ -18,8 +18,8 @@ use std::ffi::c_void;
 use std::ptr::NonNull;
 
 use dpi::{LogicalSize, PhysicalSize};
-use sctk::reexports::client::protocol::wl_surface::WlSurface;
 use sctk::reexports::client::Proxy;
+use sctk::reexports::client::protocol::wl_surface::WlSurface;
 use sctk::shm::slot::{Buffer, CreateBufferError, SlotPool};
 use wayland_client::protocol::wl_shm::Format;
 use winit_core::event_loop::ActiveEventLoop as CoreActiveEventLoop;
@@ -28,9 +28,7 @@ use winit_core::window::{
 };
 
 macro_rules! os_error {
-    ($error:expr) => {{
-        winit_core::error::OsError::new(line!(), file!(), $error)
-    }};
+    ($error:expr) => {{ winit_core::error::OsError::new(line!(), file!(), $error) }};
 }
 
 mod event_loop;

@@ -6,8 +6,8 @@ mod inner;
 mod input_method;
 
 use std::fmt;
-use std::sync::mpsc::{Receiver, Sender};
 use std::sync::Arc;
+use std::sync::mpsc::{Receiver, Sender};
 
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
@@ -15,7 +15,7 @@ use serde::{Deserialize, Serialize};
 use self::callbacks::*;
 use self::context::ImeContext;
 pub use self::context::ImeContextCreationError;
-use self::inner::{close_im, ImeInner};
+use self::inner::{ImeInner, close_im};
 use self::input_method::PotentialInputMethods;
 use crate::xdisplay::{XConnection, XError};
 use crate::{ffi, util};

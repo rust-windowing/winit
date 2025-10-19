@@ -9,7 +9,7 @@ use std::ops::{Deref, DerefMut};
 use std::pin::Pin;
 use std::rc::{Rc, Weak};
 use std::sync::{Arc, OnceLock};
-use std::task::{ready, Context, Poll};
+use std::task::{Context, Poll, ready};
 
 use dpi::{LogicalSize, PhysicalPosition, PhysicalSize};
 use js_sys::{Object, Promise};
@@ -19,14 +19,14 @@ use wasm_bindgen::prelude::wasm_bindgen;
 use wasm_bindgen::{JsCast, JsValue};
 use wasm_bindgen_futures::JsFuture;
 use web_sys::{
-    console, DomException, Navigator, OrientationLockType, OrientationType, PermissionState,
-    PermissionStatus, ScreenOrientation, Window,
+    DomException, Navigator, OrientationLockType, OrientationType, PermissionState,
+    PermissionStatus, ScreenOrientation, Window, console,
 };
 use winit_core::monitor::{MonitorHandle as CoreMonitorHandle, MonitorHandleProvider, VideoMode};
 
+use super::r#async::{Dispatcher, Notified, Notifier};
 use super::event_loop::runner::WeakShared;
 use super::main_thread::MainThreadMarker;
-use super::r#async::{Dispatcher, Notified, Notifier};
 use super::web_sys::{Engine, EventListenerHandle};
 use crate::{
     MonitorPermissionError, Orientation, OrientationData, OrientationLock, OrientationLockError,
@@ -292,11 +292,7 @@ impl Inner {
     }
 
     fn name(&self) -> Option<String> {
-        if let Screen::Detailed { screen, .. } = &self.screen {
-            Some(screen.label())
-        } else {
-            None
-        }
+        if let Screen::Detailed { screen, .. } = &self.screen { Some(screen.label()) } else { None }
     }
 
     fn orientation_raw(&self) -> &ScreenOrientationExt {
@@ -438,11 +434,7 @@ impl Detailed {
             let internal_screen =
                 internal_screen.upgrade().expect("dropped `MonitorHandle` without cleaning up");
 
-            if *internal_screen == screen {
-                Some((*id, internal_screen))
-            } else {
-                None
-            }
+            if *internal_screen == screen { Some((*id, internal_screen)) } else { None }
         });
         let (id, screen) = if let Some((id, screen)) = found_screen {
             (id, screen)
@@ -664,7 +656,7 @@ impl MonitorHandler {
             State::Unsupported => {
                 return MonitorPermissionFuture::Ready(Some(Err(
                     MonitorPermissionError::Unsupported,
-                )))
+                )));
             },
             // If we are currently initializing, wait for initialization to finish before we do our
             // thing.
@@ -676,7 +668,7 @@ impl MonitorHandler {
                     )
                     .0,
                     notified: notified.clone(),
-                }
+                };
             },
             // If we finished initialization we at least possess `PermissionStatus`.
             State::Permission { permission, .. } => permission,
@@ -688,7 +680,7 @@ impl MonitorHandler {
         match permission.state() {
             PermissionState::Granted | PermissionState::Prompt => (),
             PermissionState::Denied => {
-                return MonitorPermissionFuture::Ready(Some(Err(MonitorPermissionError::Denied)))
+                return MonitorPermissionFuture::Ready(Some(Err(MonitorPermissionError::Denied)));
             },
             _ => {
                 error!("encountered unknown permission state: {}", permission.state_string());

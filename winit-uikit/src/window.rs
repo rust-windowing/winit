@@ -9,7 +9,7 @@ use dpi::{
     Position, Size,
 };
 use objc2::rc::Retained;
-use objc2::{available, class, define_class, msg_send, MainThreadMarker};
+use objc2::{MainThreadMarker, available, class, define_class, msg_send};
 use objc2_core_foundation::{CGFloat, CGPoint, CGRect, CGSize};
 use objc2_foundation::{NSObject, NSObjectProtocol};
 use objc2_ui_kit::{

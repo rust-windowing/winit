@@ -5,7 +5,7 @@ use std::sync::Arc;
 
 use super::context::{ImeContext, ImeContextCreationError};
 use super::ffi;
-use super::inner::{close_im, ImeInner};
+use super::inner::{ImeInner, close_im};
 use super::input_method::PotentialInputMethods;
 use crate::xdisplay::{XConnection, XError};
 

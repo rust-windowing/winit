@@ -25,11 +25,7 @@ unsafe fn open_im(xconn: &Arc<XConnection>, locale_modifiers: &CStr) -> Option<f
         (xconn.xlib.XOpenIM)(xconn.display, ptr::null_mut(), ptr::null_mut(), ptr::null_mut())
     };
 
-    if im.is_null() {
-        None
-    } else {
-        Some(im)
-    }
+    if im.is_null() { None } else { Some(im) }
 }
 
 #[derive(Debug)]

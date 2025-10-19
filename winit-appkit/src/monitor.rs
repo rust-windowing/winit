@@ -7,16 +7,16 @@ use std::{fmt, ptr};
 
 use dispatch2::run_on_main;
 use dpi::{LogicalPosition, PhysicalPosition, PhysicalSize};
-use objc2::rc::Retained;
 use objc2::MainThreadMarker;
+use objc2::rc::Retained;
 use objc2_app_kit::NSScreen;
 use objc2_core_foundation::{CFArray, CFRetained, CFUUID};
 use objc2_core_graphics::{
     CGDirectDisplayID, CGDisplayBounds, CGDisplayCopyAllDisplayModes, CGDisplayCopyDisplayMode,
     CGDisplayMode, CGDisplayModelNumber, CGGetActiveDisplayList, CGMainDisplayID,
 };
-use objc2_core_video::{kCVReturnSuccess, CVDisplayLink, CVTimeFlags};
-use objc2_foundation::{ns_string, NSNumber, NSPoint, NSRect};
+use objc2_core_video::{CVDisplayLink, CVTimeFlags, kCVReturnSuccess};
+use objc2_foundation::{NSNumber, NSPoint, NSRect, ns_string};
 use tracing::warn;
 use winit_core::monitor::{MonitorHandleProvider, VideoMode};
 
@@ -139,7 +139,7 @@ impl MonitorHandle {
         refresh_rate_millihertz(self.display_id(), &current_display_mode)
     }
 
-    pub fn video_mode_handles(&self) -> impl Iterator<Item = VideoModeHandle> {
+    pub fn video_mode_handles(&self) -> impl Iterator<Item = VideoModeHandle> + 'static {
         let refresh_rate_millihertz = self.refresh_rate_millihertz();
         let monitor = self.clone();
 

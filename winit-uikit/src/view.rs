@@ -4,7 +4,7 @@ use std::cell::{Cell, RefCell};
 use dpi::PhysicalPosition;
 use objc2::rc::Retained;
 use objc2::runtime::{NSObjectProtocol, ProtocolObject};
-use objc2::{available, define_class, msg_send, sel, DefinedClass, MainThreadMarker};
+use objc2::{DefinedClass, MainThreadMarker, available, define_class, msg_send, sel};
 use objc2_core_foundation::{CGFloat, CGPoint, CGRect};
 use objc2_foundation::{NSObject, NSSet, NSString};
 use objc2_ui_kit::{

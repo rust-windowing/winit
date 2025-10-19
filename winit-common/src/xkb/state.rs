@@ -10,10 +10,10 @@ use xkbcommon_dl::{
     self as xkb, xkb_keycode_t, xkb_keysym_t, xkb_layout_index_t, xkb_state, xkb_state_component,
 };
 
-use super::keymap::XkbKeymap;
 #[cfg(feature = "x11")]
 use super::XKBXH;
-use super::{make_string_with, XKBH};
+use super::keymap::XkbKeymap;
+use super::{XKBH, make_string_with};
 
 #[derive(Debug)]
 pub struct XkbState {

@@ -2091,52 +2091,66 @@ mod tests {
         let position: Position = LogicalPosition::new(0, 0).into();
         let size: Size = LogicalSize::new(0, 0).into();
 
-        assert!(ImeEnableRequest::new(
-            ImeCapabilities::new().with_cursor_area(),
-            ImeRequestData::default()
-        )
-        .is_none());
-        assert!(ImeEnableRequest::new(
-            ImeCapabilities::new().with_hint_and_purpose(),
-            ImeRequestData::default()
-        )
-        .is_none());
+        assert!(
+            ImeEnableRequest::new(
+                ImeCapabilities::new().with_cursor_area(),
+                ImeRequestData::default()
+            )
+            .is_none()
+        );
+        assert!(
+            ImeEnableRequest::new(
+                ImeCapabilities::new().with_hint_and_purpose(),
+                ImeRequestData::default()
+            )
+            .is_none()
+        );
 
-        assert!(ImeEnableRequest::new(
-            ImeCapabilities::new().with_cursor_area(),
-            ImeRequestData::default().with_hint_and_purpose(ImeHint::NONE, ImePurpose::Normal)
-        )
-        .is_none());
+        assert!(
+            ImeEnableRequest::new(
+                ImeCapabilities::new().with_cursor_area(),
+                ImeRequestData::default().with_hint_and_purpose(ImeHint::NONE, ImePurpose::Normal)
+            )
+            .is_none()
+        );
 
-        assert!(ImeEnableRequest::new(
-            ImeCapabilities::new(),
-            ImeRequestData::default()
-                .with_hint_and_purpose(ImeHint::NONE, ImePurpose::Normal)
-                .with_cursor_area(position, size)
-        )
-        .is_none());
+        assert!(
+            ImeEnableRequest::new(
+                ImeCapabilities::new(),
+                ImeRequestData::default()
+                    .with_hint_and_purpose(ImeHint::NONE, ImePurpose::Normal)
+                    .with_cursor_area(position, size)
+            )
+            .is_none()
+        );
 
-        assert!(ImeEnableRequest::new(
-            ImeCapabilities::new().with_cursor_area(),
-            ImeRequestData::default()
-                .with_hint_and_purpose(ImeHint::NONE, ImePurpose::Normal)
-                .with_cursor_area(position, size)
-        )
-        .is_none());
+        assert!(
+            ImeEnableRequest::new(
+                ImeCapabilities::new().with_cursor_area(),
+                ImeRequestData::default()
+                    .with_hint_and_purpose(ImeHint::NONE, ImePurpose::Normal)
+                    .with_cursor_area(position, size)
+            )
+            .is_none()
+        );
 
-        assert!(ImeEnableRequest::new(
-            ImeCapabilities::new().with_cursor_area(),
-            ImeRequestData::default().with_cursor_area(position, size)
-        )
-        .is_some());
+        assert!(
+            ImeEnableRequest::new(
+                ImeCapabilities::new().with_cursor_area(),
+                ImeRequestData::default().with_cursor_area(position, size)
+            )
+            .is_some()
+        );
 
-        assert!(ImeEnableRequest::new(
-            ImeCapabilities::new().with_hint_and_purpose().with_cursor_area(),
-            ImeRequestData::default()
-                .with_hint_and_purpose(ImeHint::NONE, ImePurpose::Normal)
-                .with_cursor_area(position, size)
-        )
-        .is_some());
+        assert!(
+            ImeEnableRequest::new(
+                ImeCapabilities::new().with_hint_and_purpose().with_cursor_area(),
+                ImeRequestData::default()
+                    .with_hint_and_purpose(ImeHint::NONE, ImePurpose::Normal)
+                    .with_cursor_area(position, size)
+            )
+            .is_some()
+        );
 
         let text: &[u8] = ['a' as u8; 8000].as_slice();
         let text = std::str::from_utf8(text).unwrap();

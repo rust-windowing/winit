@@ -93,8 +93,10 @@ impl WindowExtStartupNotify for dyn Window + '_ {
 /// This is wise to do before running child processes,
 /// which may not to support the activation token.
 pub fn reset_activation_token_env() {
-    env::remove_var(X11_VAR);
-    env::remove_var(WAYLAND_VAR);
+    unsafe {
+        env::remove_var(X11_VAR);
+        env::remove_var(WAYLAND_VAR);
+    }
 }
 
 /// Set environment variables responsible for activation token.
@@ -102,6 +104,8 @@ pub fn reset_activation_token_env() {
 /// This could be used before running daemon processes.
 pub fn set_activation_token_env(token: ActivationToken) {
     let token = token.into_raw();
-    env::set_var(X11_VAR, &token);
-    env::set_var(WAYLAND_VAR, token);
+    unsafe {
+        env::set_var(X11_VAR, &token);
+        env::set_var(WAYLAND_VAR, token);
+    }
 }

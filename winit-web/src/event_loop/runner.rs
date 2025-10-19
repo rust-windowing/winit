@@ -6,8 +6,8 @@ use std::sync::Arc;
 use std::{fmt, iter};
 
 use dpi::PhysicalSize;
-use wasm_bindgen::prelude::Closure;
 use wasm_bindgen::JsCast;
+use wasm_bindgen::prelude::Closure;
 use web_sys::{Document, KeyboardEvent, Navigator, PageTransitionEvent, PointerEvent, WheelEvent};
 use web_time::{Duration, Instant};
 use winit_core::application::ApplicationHandler;
@@ -19,14 +19,14 @@ use winit_core::window::WindowId;
 
 use super::proxy::EventLoopProxy;
 use super::state::State;
+use crate::r#async::DispatchRunner;
 use crate::backend::{EventListenerHandle, SafeAreaHandle};
 use crate::event_loop::ActiveEventLoop;
 use crate::main_thread::MainThreadMarker;
 use crate::monitor::MonitorHandler;
-use crate::r#async::DispatchRunner;
 use crate::web_sys::event::ButtonsState;
 use crate::window::Inner;
-use crate::{backend, event, EventLoop, PollStrategy, WaitUntilStrategy};
+use crate::{EventLoop, PollStrategy, WaitUntilStrategy, backend, event};
 
 #[derive(Debug)]
 pub struct Shared(Rc<Execution>);
@@ -802,11 +802,7 @@ impl Shared {
             DeviceEvents::Always => true,
             DeviceEvents::WhenFocused => {
                 self.0.all_canvases.borrow().iter().any(|(_, canvas, _)| {
-                    if let Some(canvas) = canvas.upgrade() {
-                        canvas.has_focus.get()
-                    } else {
-                        false
-                    }
+                    if let Some(canvas) = canvas.upgrade() { canvas.has_focus.get() } else { false }
                 })
             },
             DeviceEvents::Never => false,

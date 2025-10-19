@@ -6,7 +6,7 @@ use std::ffi::c_void;
 
 use objc2::ffi::NSInteger;
 use objc2::runtime::AnyObject;
-use objc2_core_foundation::{cf_type, CFString, CFUUID};
+use objc2_core_foundation::{CFString, CFUUID, cf_type};
 use objc2_core_graphics::CGDirectDisplayID;
 
 pub const IO16BitDirectPixels: &str = "-RRRRRGGGGGBBBBB";
@@ -22,14 +22,14 @@ pub const kIO64BitDirectPixels: &str = "-16R16G16B16";
 // `ApplicationServices`, see:
 // https://developer.apple.com/library/archive/documentation/MacOSX/Conceptual/OSX_Technology_Overview/SystemFrameworks/SystemFrameworks.html#//apple_ref/doc/uid/TP40001067-CH210-BBCFFIEG
 #[link(name = "ApplicationServices", kind = "framework")]
-extern "C" {
+unsafe extern "C" {
     pub fn CGDisplayCreateUUIDFromDisplayID(display: CGDirectDisplayID) -> *mut CFUUID;
 
     pub fn CGDisplayGetDisplayIDFromUUID(uuid: &CFUUID) -> CGDirectDisplayID;
 }
 
 #[link(name = "CoreGraphics", kind = "framework")]
-extern "C" {
+unsafe extern "C" {
     // Wildly used private APIs; Apple uses them for their Terminal.app.
     pub fn CGSMainConnectionID() -> *mut AnyObject;
     pub fn CGSSetWindowBackgroundBlurRadius(
@@ -60,7 +60,7 @@ pub const kUCKeyActionDisplay: u16 = 3;
 pub const kUCKeyTranslateNoDeadKeysMask: OptionBits = 1;
 
 #[link(name = "Carbon", kind = "framework")]
-extern "C" {
+unsafe extern "C" {
     pub static kTISPropertyUnicodeKeyLayoutData: &'static CFString;
 
     #[allow(non_snake_case)]

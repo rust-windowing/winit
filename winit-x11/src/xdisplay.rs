@@ -192,11 +192,7 @@ impl XConnection {
     #[inline]
     pub fn check_errors(&self) -> Result<(), XError> {
         let error = self.latest_error.lock().unwrap().take();
-        if let Some(error) = error {
-            Err(error)
-        } else {
-            Ok(())
-        }
+        if let Some(error) = error { Err(error) } else { Ok(()) }
     }
 
     #[inline]

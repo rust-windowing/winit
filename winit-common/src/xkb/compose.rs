@@ -12,7 +12,7 @@ use xkbcommon_dl::{
     xkb_compose_status, xkb_compose_table, xkb_keysym_t,
 };
 
-use super::{XkbContext, XKBCH};
+use super::{XKBCH, XkbContext};
 
 #[derive(Debug)]
 pub struct XkbComposeTable {
