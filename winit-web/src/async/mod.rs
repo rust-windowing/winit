@@ -12,7 +12,7 @@ pub(crate) use atomic_waker::AtomicWaker;
 use concurrent_queue::{ConcurrentQueue, PushError};
 
 pub use self::abortable::{AbortHandle, Abortable, DropAbortHandle};
-pub use self::channel::{channel, Receiver, Sender};
+pub use self::channel::{Receiver, Sender, channel};
 pub use self::dispatcher::{DispatchRunner, Dispatcher};
 pub use self::notifier::{Notified, Notifier};
 pub(crate) use self::wrapper::Wrapper;

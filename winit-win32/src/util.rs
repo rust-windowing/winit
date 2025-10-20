@@ -1,12 +1,11 @@
-use std::ffi::{c_void, OsStr, OsString};
+use std::ffi::{OsStr, OsString, c_void};
 use std::iter::once;
 use std::ops::BitAnd;
 use std::os::windows::prelude::{OsStrExt, OsStringExt};
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::LazyLock;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::{io, mem, ptr};
 
-use windows_sys::core::{HRESULT, PCWSTR};
 use windows_sys::Win32::Foundation::{BOOL, HANDLE, HMODULE, HWND, NTSTATUS, POINT, RECT};
 use windows_sys::Win32::Graphics::Gdi::{ClientToScreen, HMONITOR};
 use windows_sys::Win32::System::LibraryLoader::{GetProcAddress, LoadLibraryA};
@@ -19,18 +18,17 @@ use windows_sys::Win32::UI::Input::KeyboardAndMouse::GetActiveWindow;
 use windows_sys::Win32::UI::Input::Pointer::{POINTER_INFO, POINTER_PEN_INFO, POINTER_TOUCH_INFO};
 use windows_sys::Win32::UI::WindowsAndMessaging::{
     ClipCursor, GetClientRect, GetClipCursor, GetCursorPos, GetSystemMetrics, GetWindowPlacement,
-    GetWindowRect, IsIconic, ShowCursor, IDC_APPSTARTING, IDC_ARROW, IDC_CROSS, IDC_HAND, IDC_HELP,
-    IDC_IBEAM, IDC_NO, IDC_SIZEALL, IDC_SIZENESW, IDC_SIZENS, IDC_SIZENWSE, IDC_SIZEWE, IDC_WAIT,
+    GetWindowRect, IDC_APPSTARTING, IDC_ARROW, IDC_CROSS, IDC_HAND, IDC_HELP, IDC_IBEAM, IDC_NO,
+    IDC_SIZEALL, IDC_SIZENESW, IDC_SIZENS, IDC_SIZENWSE, IDC_SIZEWE, IDC_WAIT, IsIconic,
     SM_CXVIRTUALSCREEN, SM_CYVIRTUALSCREEN, SM_XVIRTUALSCREEN, SM_YVIRTUALSCREEN, SW_MAXIMIZE,
-    WINDOWPLACEMENT, WINDOW_LONG_PTR_INDEX,
+    ShowCursor, WINDOW_LONG_PTR_INDEX, WINDOWPLACEMENT,
 };
+use windows_sys::core::{HRESULT, PCWSTR};
 use winit_core::cursor::CursorIcon;
 use winit_core::event::DeviceId;
 
 macro_rules! os_error {
-    ($error:expr) => {{
-        winit_core::error::OsError::new(line!(), file!(), $error)
-    }};
+    ($error:expr) => {{ winit_core::error::OsError::new(line!(), file!(), $error) }};
 }
 
 pub fn encode_wide(string: impl AsRef<OsStr>) -> Vec<u16> {
@@ -53,11 +51,7 @@ where
 }
 
 pub(crate) fn win_to_err(result: BOOL) -> Result<(), io::Error> {
-    if result != false.into() {
-        Ok(())
-    } else {
-        Err(io::Error::last_os_error())
-    }
+    if result != false.into() { Ok(()) } else { Err(io::Error::last_os_error()) }
 }
 
 pub enum WindowArea {
@@ -159,7 +153,7 @@ pub fn get_instance_handle() -> HMODULE {
     // This is preferred over GetModuleHandle(NULL) because it also works in DLLs:
     // https://stackoverflow.com/questions/21718027/getmodulehandlenull-vs-hinstance
 
-    extern "C" {
+    unsafe extern "C" {
         static __ImageBase: IMAGE_DOS_HEADER;
     }
 

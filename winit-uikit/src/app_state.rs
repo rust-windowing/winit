@@ -9,11 +9,11 @@ use std::{fmt, ptr};
 
 use dispatch2::MainThreadBound;
 use dpi::PhysicalSize;
-use objc2::rc::Retained;
 use objc2::MainThreadMarker;
+use objc2::rc::Retained;
 use objc2_core_foundation::{
-    kCFRunLoopCommonModes, CFAbsoluteTimeGetCurrent, CFRetained, CFRunLoop, CFRunLoopTimer, CGRect,
-    CGSize,
+    CFAbsoluteTimeGetCurrent, CFRetained, CFRunLoop, CFRunLoopTimer, CGRect, CGSize,
+    kCFRunLoopCommonModes,
 };
 use objc2_ui_kit::{UIApplication, UICoordinateSpace, UIView};
 use winit_common::core_foundation::EventLoopProxy;

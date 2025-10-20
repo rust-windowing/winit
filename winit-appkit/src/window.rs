@@ -4,8 +4,8 @@ use std::sync::Arc;
 
 use dispatch2::MainThreadBound;
 use dpi::{Position, Size};
-use objc2::rc::{autoreleasepool, Retained};
-use objc2::{define_class, MainThreadMarker, Message};
+use objc2::rc::{Retained, autoreleasepool};
+use objc2::{MainThreadMarker, Message, define_class};
 use objc2_app_kit::{NSPanel, NSResponder, NSWindow};
 use objc2_foundation::NSObject;
 use winit_core::cursor::Cursor;

@@ -8,9 +8,7 @@ use std::{fmt, str};
 pub use self::event_loop::{EventLoop, PlatformSpecificEventLoopAttributes};
 
 macro_rules! os_error {
-    ($error:expr) => {{
-        winit_core::error::OsError::new(line!(), file!(), $error)
-    }};
+    ($error:expr) => {{ winit_core::error::OsError::new(line!(), file!(), $error) }};
 }
 
 pub mod event_loop;
@@ -41,20 +39,12 @@ impl RedoxSocket {
 
     fn read(&self, buf: &mut [u8]) -> syscall::Result<()> {
         let count = syscall::read(self.fd, buf)?;
-        if count == buf.len() {
-            Ok(())
-        } else {
-            Err(syscall::Error::new(syscall::EINVAL))
-        }
+        if count == buf.len() { Ok(()) } else { Err(syscall::Error::new(syscall::EINVAL)) }
     }
 
     fn write(&self, buf: &[u8]) -> syscall::Result<()> {
         let count = syscall::write(self.fd, buf)?;
-        if count == buf.len() {
-            Ok(())
-        } else {
-            Err(syscall::Error::new(syscall::EINVAL))
-        }
+        if count == buf.len() { Ok(()) } else { Err(syscall::Error::new(syscall::EINVAL)) }
     }
 
     fn fpath<'a>(&self, buf: &'a mut [u8]) -> syscall::Result<&'a str> {

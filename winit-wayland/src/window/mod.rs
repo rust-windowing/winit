@@ -11,8 +11,8 @@ use sctk::reexports::client::protocol::wl_display::WlDisplay;
 use sctk::reexports::client::protocol::wl_surface::WlSurface;
 use sctk::reexports::client::{Proxy, QueueHandle};
 use sctk::reexports::protocols::xdg::activation::v1::client::xdg_activation_v1::XdgActivationV1;
-use sctk::shell::xdg::window::{Window as SctkWindow, WindowDecorations};
 use sctk::shell::WaylandSurface;
+use sctk::shell::xdg::window::{Window as SctkWindow, WindowDecorations};
 use tracing::warn;
 use winit_core::cursor::Cursor;
 use winit_core::error::{NotSupportedError, RequestError};
@@ -25,12 +25,12 @@ use winit_core::window::{
     WindowLevel,
 };
 
+use super::ActiveEventLoop;
 use super::event_loop::sink::EventSink;
 use super::output::MonitorHandle;
 use super::state::WinitState;
 use super::types::xdg_activation::XdgActivationTokenData;
-use super::ActiveEventLoop;
-use crate::{output, WindowAttributesWayland};
+use crate::{WindowAttributesWayland, output};
 
 pub(crate) mod state;
 
@@ -431,11 +431,7 @@ impl CoreWindow for Window {
     }
 
     fn set_maximized(&self, maximized: bool) {
-        if maximized {
-            self.window.set_maximized()
-        } else {
-            self.window.unset_maximized()
-        }
+        if maximized { self.window.set_maximized() } else { self.window.unset_maximized() }
     }
 
     fn is_maximized(&self) -> bool {

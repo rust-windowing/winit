@@ -21,11 +21,11 @@ use sctk::reexports::protocols::wp::text_input::zv3::client::zwp_text_input_v3::
 use sctk::reexports::protocols::wp::viewporter::client::wp_viewport::WpViewport;
 use sctk::reexports::protocols::xdg::shell::client::xdg_toplevel::ResizeEdge as XdgResizeEdge;
 use sctk::seat::pointer::{PointerDataExt, ThemedPointer};
-use sctk::shell::xdg::window::{DecorationMode, Window, WindowConfigure};
-use sctk::shell::xdg::XdgSurface;
 use sctk::shell::WaylandSurface;
-use sctk::shm::slot::SlotPool;
+use sctk::shell::xdg::XdgSurface;
+use sctk::shell::xdg::window::{DecorationMode, Window, WindowConfigure};
 use sctk::shm::Shm;
+use sctk::shm::slot::SlotPool;
 use sctk::subcompositor::SubcompositorState;
 use tracing::{info, warn};
 use wayland_protocols::xdg::toplevel_icon::v1::client::xdg_toplevel_icon_manager_v1::XdgToplevelIconManagerV1;
@@ -852,7 +852,7 @@ impl WindowState {
             None => {
                 return Err(
                     NotSupportedError::new("zwp_pointer_constraints is not available").into()
-                )
+                );
             },
         };
 
@@ -1037,11 +1037,7 @@ impl WindowState {
             text_input.set_state(self.text_input_state.as_ref(), state_change);
         }
 
-        if state_change {
-            Ok(Some(self.text_input_state.is_some()))
-        } else {
-            Ok(None)
-        }
+        if state_change { Ok(Some(self.text_input_state.is_some())) } else { Ok(None) }
     }
 
     /// Set the scale factor for the given window.

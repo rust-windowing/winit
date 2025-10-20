@@ -97,9 +97,7 @@ impl XConnection {
     /// Find the render format that corresponds to ARGB32.
     fn find_argb32_format(&self) -> Result<render::Pictformat, X11Error> {
         macro_rules! direct {
-            ($format:expr, $shift_name:ident, $mask_name:ident, $shift:expr) => {{
-                ($format).direct.$shift_name == $shift && ($format).direct.$mask_name == 0xff
-            }};
+            ($format:expr, $shift_name:ident, $mask_name:ident, $shift:expr) => {{ ($format).direct.$shift_name == $shift && ($format).direct.$mask_name == 0xff }};
         }
 
         self.render_formats()
@@ -202,7 +200,7 @@ impl CustomCursor {
         let mut cursor = match cursor {
             CustomCursorSource::Image(cursor_image) => cursor_image,
             CustomCursorSource::Animation { .. } | CustomCursorSource::Url { .. } => {
-                return Err(NotSupportedError::new("unsupported cursor kind").into())
+                return Err(NotSupportedError::new("unsupported cursor kind").into());
             },
         };
 

@@ -33,8 +33,8 @@ use xkbcommon_dl::xkb_mod_mask_t;
 use crate::atoms::*;
 use crate::dnd::{Dnd, DndState};
 use crate::event_loop::{
-    mkdid, mkwid, ActiveEventLoop, CookieResultExt, Device, DeviceInfo, DeviceType,
-    ScrollOrientation, ALL_DEVICES,
+    ALL_DEVICES, ActiveEventLoop, CookieResultExt, Device, DeviceInfo, DeviceType,
+    ScrollOrientation, mkdid, mkwid,
 };
 use crate::ime::{ImeEvent, ImeEventReceiver, ImeReceiver, ImeRequest};
 use crate::util;

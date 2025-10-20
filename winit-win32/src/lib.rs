@@ -657,11 +657,7 @@ pub trait DeviceIdExtWindows {
 impl DeviceIdExtWindows for DeviceId {
     fn persistent_identifier(&self) -> Option<String> {
         let raw_id = self.into_raw();
-        if raw_id != 0 {
-            raw_input::get_raw_input_device_name(raw_id as HANDLE)
-        } else {
-            None
-        }
+        if raw_id != 0 { raw_input::get_raw_input_device_name(raw_id as HANDLE) } else { None }
     }
 }
 

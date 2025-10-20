@@ -1,6 +1,6 @@
 use js_sys::Array;
-use wasm_bindgen::prelude::Closure;
 use wasm_bindgen::JsCast;
+use wasm_bindgen::prelude::Closure;
 use web_sys::{Element, IntersectionObserver, IntersectionObserverEntry};
 
 pub(super) struct IntersectionObserverHandle {

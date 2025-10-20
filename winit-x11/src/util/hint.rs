@@ -13,11 +13,7 @@ pub enum StateOperation {
 
 impl From<bool> for StateOperation {
     fn from(op: bool) -> Self {
-        if op {
-            StateOperation::Add
-        } else {
-            StateOperation::Remove
-        }
+        if op { StateOperation::Add } else { StateOperation::Remove }
     }
 }
 

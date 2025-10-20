@@ -6,7 +6,7 @@ use std::rc::Rc;
 use std::sync::{Arc, Condvar, Mutex};
 
 use super::super::main_thread::MainThreadMarker;
-use super::{channel, Receiver, Sender, Wrapper};
+use super::{Receiver, Sender, Wrapper, channel};
 
 pub struct Dispatcher<T: 'static>(Wrapper<T, Arc<Sender<Closure<T>>>, Closure<T>>);
 

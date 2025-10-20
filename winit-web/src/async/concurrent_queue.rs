@@ -32,13 +32,10 @@ impl<T> ConcurrentQueue<T> {
     }
 
     pub fn pop(&self) -> Result<T, PopError> {
-        self.queue.borrow_mut().pop().ok_or_else(|| {
-            if self.closed.get() {
-                PopError::Closed
-            } else {
-                PopError::Empty
-            }
-        })
+        self.queue
+            .borrow_mut()
+            .pop()
+            .ok_or_else(|| if self.closed.get() { PopError::Closed } else { PopError::Empty })
     }
 
     pub fn close(&self) -> bool {

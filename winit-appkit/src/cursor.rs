@@ -4,10 +4,10 @@ use std::sync::OnceLock;
 
 use objc2::rc::Retained;
 use objc2::runtime::Sel;
-use objc2::{available, msg_send, sel, AllocAnyThread, ClassType};
+use objc2::{AllocAnyThread, ClassType, available, msg_send, sel};
 use objc2_app_kit::{NSBitmapImageRep, NSCursor, NSDeviceRGBColorSpace, NSImage};
 use objc2_foundation::{
-    ns_string, NSData, NSDictionary, NSNumber, NSObject, NSPoint, NSSize, NSString,
+    NSData, NSDictionary, NSNumber, NSObject, NSPoint, NSSize, NSString, ns_string,
 };
 use winit_core::cursor::{CursorIcon, CursorImage, CustomCursorProvider, CustomCursorSource};
 use winit_core::error::{NotSupportedError, RequestError};
@@ -31,7 +31,7 @@ impl CustomCursor {
         let cursor = match cursor {
             CustomCursorSource::Image(cursor_image) => cursor_image,
             CustomCursorSource::Animation { .. } | CustomCursorSource::Url { .. } => {
-                return Err(NotSupportedError::new("unsupported cursor kind").into())
+                return Err(NotSupportedError::new("unsupported cursor kind").into());
             },
         };
 

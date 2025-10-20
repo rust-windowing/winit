@@ -4,7 +4,7 @@ use std::rc::Rc;
 use dpi::{LogicalSize, PhysicalSize};
 use js_sys::{Array, Object};
 use tracing::warn;
-use wasm_bindgen::prelude::{wasm_bindgen, Closure};
+use wasm_bindgen::prelude::{Closure, wasm_bindgen};
 use wasm_bindgen::{JsCast, JsValue};
 use web_sys::{
     Document, HtmlCanvasElement, MediaQueryList, ResizeObserver, ResizeObserverBoxOptions,

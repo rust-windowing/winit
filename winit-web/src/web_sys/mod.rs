@@ -14,9 +14,9 @@ use std::cell::OnceCell;
 
 use dpi::{LogicalPosition, LogicalSize};
 use js_sys::Array;
+use wasm_bindgen::JsCast;
 use wasm_bindgen::closure::Closure;
 use wasm_bindgen::prelude::wasm_bindgen;
-use wasm_bindgen::JsCast;
 use web_sys::{Document, HtmlCanvasElement, Navigator, PageTransitionEvent, VisibilityState};
 
 pub use self::canvas::{Canvas, Style};

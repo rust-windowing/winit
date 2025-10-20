@@ -14,7 +14,7 @@ use std::{fmt, mem, ptr, slice, str};
 use calloop::generic::Generic;
 use calloop::ping::Ping;
 use calloop::{EventLoop as Loop, Readiness};
-use libc::{setlocale, LC_CTYPE};
+use libc::{LC_CTYPE, setlocale};
 use tracing::warn;
 use winit_common::xkb::Context;
 use winit_core::application::ApplicationHandler;
@@ -43,7 +43,7 @@ use crate::ime::{self, Ime, ImeCreationError, ImeSender};
 use crate::util::{self, CustomCursor};
 use crate::window::{UnownedWindow, Window};
 use crate::xdisplay::{XConnection, XError, XNotSupported};
-use crate::{ffi, xsettings, XlibErrorHook};
+use crate::{XlibErrorHook, ffi, xsettings};
 
 // Xinput constants not defined in x11rb
 pub(crate) const ALL_DEVICES: u16 = 0;

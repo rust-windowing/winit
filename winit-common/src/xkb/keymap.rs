@@ -19,7 +19,7 @@ use {memmap2::MmapOptions, std::os::unix::io::OwnedFd};
 
 #[cfg(feature = "x11")]
 use super::XKBXH;
-use super::{XkbContext, XKBH};
+use super::{XKBH, XkbContext};
 
 /// Map the raw X11-style keycode to the `KeyCode` enum.
 ///
@@ -1052,11 +1052,7 @@ impl XkbKeymap {
                 &mut keysyms,
             );
 
-            if count == 1 {
-                *keysyms
-            } else {
-                0
-            }
+            if count == 1 { *keysyms } else { 0 }
         }
     }
 
@@ -1100,10 +1096,6 @@ fn mod_index_for_name(keymap: NonNull<xkb_keymap>, name: &[u8]) -> Option<xkb_mo
     unsafe {
         let mod_index =
             (XKBH.xkb_keymap_mod_get_index)(keymap.as_ptr(), name.as_ptr() as *const c_char);
-        if mod_index == XKB_MOD_INVALID {
-            None
-        } else {
-            Some(mod_index)
-        }
+        if mod_index == XKB_MOD_INVALID { None } else { Some(mod_index) }
     }
 }

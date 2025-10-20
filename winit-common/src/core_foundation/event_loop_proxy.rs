@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use objc2::MainThreadMarker;
 use objc2_core_foundation::{
-    kCFRunLoopCommonModes, CFIndex, CFRetained, CFRunLoop, CFRunLoopSource, CFRunLoopSourceContext,
+    CFIndex, CFRetained, CFRunLoop, CFRunLoopSource, CFRunLoopSourceContext, kCFRunLoopCommonModes,
 };
 use winit_core::event_loop::EventLoopProxyProvider;
 

@@ -35,11 +35,7 @@ impl fmt::Display for EventLoopError {
 
 impl Error for EventLoopError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
-        if let Self::Os(err) = self {
-            err.source()
-        } else {
-            None
-        }
+        if let Self::Os(err) = self { err.source() } else { None }
     }
 }
 
@@ -78,11 +74,7 @@ impl Display for RequestError {
 }
 impl Error for RequestError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
-        if let Self::Os(err) = self {
-            err.source()
-        } else {
-            None
-        }
+        if let Self::Os(err) = self { err.source() } else { None }
     }
 }
 
@@ -149,7 +141,5 @@ impl Error for OsError {
 
 #[allow(unused_macros)]
 macro_rules! os_error {
-    ($error:expr) => {{
-        crate::error::OsError::new(line!(), file!(), $error)
-    }};
+    ($error:expr) => {{ crate::error::OsError::new(line!(), file!(), $error) }};
 }
