@@ -609,6 +609,29 @@ impl FingerId {
     }
 }
 
+/// Represents the pointer type of a [`DeviceEvent::PointerButton`].
+#[derive(Clone, Debug, PartialEq)]
+pub enum DeviceButtonSource {
+    Mouse(MouseButton),
+    Touch { finger_id: FingerId, force: Option<Force> },
+    TabletTool { kind: TabletToolKind, button: TabletToolButton, data: TabletToolData },
+    Unknown,
+}
+
+impl DeviceButtonSource {
+    /// Convert a [`DeviceButtonSource`] to an equivalent [`MouseButton`] if one exists. If a
+    /// pointer type has no special handling in an application, this method can be used to
+    /// attempt to handle it like any generic mouse input.
+    pub fn to_mouse_button(&self) -> Option<MouseButton> {
+        match *self {
+            DeviceButtonSource::Mouse(mouse) => Some(mouse),
+            DeviceButtonSource::Touch { .. } => Some(MouseButton::Left),
+            DeviceButtonSource::TabletTool { button, .. } => Some(button.into()),
+            DeviceButtonSource::Unknown => None,
+        }
+    }
+}
+
 /// Represents raw hardware events that are not associated with any particular window.
 ///
 /// Useful for interactions that diverge significantly from a conventional 2D GUI, such as 3D camera
@@ -619,7 +642,7 @@ impl FingerId {
 /// Note that these events are delivered regardless of input focus.
 ///
 /// [window events]: WindowEvent
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum DeviceEvent {
     /// Change in physical position of a pointing device.
     ///
@@ -644,8 +667,16 @@ pub enum DeviceEvent {
         delta: MouseScrollDelta,
     },
 
-    Button {
-        button: ButtonId,
+    /// Raw pointer button event
+    PointerButton {
+        button: DeviceButtonSource,
+        /// Button identifier provided by the platform.
+        ///
+        /// ## Platform-specific
+        ///
+        /// **Windows:** [`PointerButton::button_id`] will always be `0`, as Windows does not have
+        /// any identifiers for raw input buttons.
+        button_id: ButtonId,
         state: ElementState,
     },
 
@@ -1531,7 +1562,7 @@ mod tests {
 
             with_device_event(PointerMotion { delta: (0.0, 0.0).into() });
             with_device_event(MouseWheel { delta: event::MouseScrollDelta::LineDelta(0.0, 0.0) });
-            with_device_event(Button { button: 0, state: event::ElementState::Pressed });
+            with_device_event(PointerButton { button: event::DeviceButtonSource::Unknown, button_id: 0, state: event::ElementState::Pressed });
         }};
     }
 
