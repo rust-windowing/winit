@@ -18,8 +18,8 @@ use objc2_foundation::{
     NSNotFound, NSObject, NSPoint, NSRange, NSRect, NSSize, NSString, NSUInteger,
 };
 use winit_core::event::{
-    DeviceEvent, ElementState, Ime, KeyEvent, Modifiers, MouseButton, MouseScrollDelta,
-    PointerKind, PointerSource, TouchPhase, WindowEvent,
+    DeviceEvent, ElementState, Ime, KeyEvent, Modifiers, MouseScrollDelta, PointerKind,
+    PointerSource, TouchPhase, WindowEvent,
 };
 use winit_core::keyboard::{Key, KeyCode, KeyLocation, ModifiersState, NamedKey};
 use winit_core::window::ImeCapabilities;
@@ -27,8 +27,8 @@ use winit_core::window::ImeCapabilities;
 use super::app_state::AppState;
 use super::cursor::{default_cursor, invisible_cursor};
 use super::event::{
-    code_to_key, code_to_location, create_key_event, event_mods, lalt_pressed, ralt_pressed,
-    scancode_to_physicalkey,
+    button_number_to_mouse_button, code_to_key, code_to_location, create_key_event, event_mods,
+    lalt_pressed, ralt_pressed, scancode_to_physicalkey,
 };
 use super::window::window_id;
 use crate::OptionAsAlt;
@@ -1041,7 +1041,7 @@ impl WinitView {
 
     fn mouse_click(&self, event: &NSEvent, button_state: ElementState) {
         let position = self.mouse_view_point(event).to_physical(self.scale_factor());
-        let button = mouse_button(event);
+        let button = button_number_to_mouse_button(event.buttonNumber());
 
         self.update_modifiers(event, false);
 
@@ -1085,23 +1085,6 @@ impl WinitView {
         let view_point = self.convertPoint_fromView(window_point, None);
 
         LogicalPosition::new(view_point.x, view_point.y)
-    }
-}
-
-/// Get the mouse button from the NSEvent.
-fn mouse_button(event: &NSEvent) -> MouseButton {
-    // The buttonNumber property only makes sense for the mouse events:
-    // NSLeftMouse.../NSRightMouse.../NSOtherMouse...
-    // For the other events, it's always set to 0.
-    // MacOS only defines the left, right and middle buttons, 3..=31 are left as generic buttons,
-    // but 3 and 4 are very commonly used as Back and Forward by hardware vendors and applications.
-    match event.buttonNumber() {
-        0 => MouseButton::Left,
-        1 => MouseButton::Right,
-        2 => MouseButton::Middle,
-        3 => MouseButton::Back,
-        4 => MouseButton::Forward,
-        n => MouseButton::Other(n as u16),
     }
 }
 
