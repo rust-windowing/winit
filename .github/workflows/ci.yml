@@ -134,6 +134,10 @@ jobs:
         key: cargo-${{ matrix.toolchain }}-${{ matrix.platform.name }}-never-intended-to-be-found
         restore-keys: cargo-${{ matrix.toolchain }}-${{ matrix.platform.name }}
 
+    - name: Generate lockfile
+      # Also updates the crates.io index
+      run: cargo generate-lockfile && cargo update -p smol_str --precise 0.3.2
+
     - name: Install GCC Multilib
       if: (matrix.platform.os == 'ubuntu-latest') && contains(matrix.platform.target, 'i686')
       run: sudo apt-get update && sudo apt-get install gcc-multilib
