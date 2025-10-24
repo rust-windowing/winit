@@ -212,6 +212,7 @@ changelog entry.
 - Use `NamedKey`, `Code` and `Location` from the `keyboard-types` v0.8 crate.
 - Deprecate `Window::set_ime_allowed`, `Window::set_ime_cursor_area`, and `Window::set_ime_purpose`.
 - `Force::normalized()` now takes a `Option<ToolAngle>` to calculate the perpendicular force.
+- On Windows, don't confine cursor to center of window when grabbed and hidden.
 
 ### Removed
 
