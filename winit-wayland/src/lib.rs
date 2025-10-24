@@ -13,12 +13,13 @@
 //! * `wayland-csd-adwaita` (default).
 //! * `wayland-csd-adwaita-crossfont`.
 //! * `wayland-csd-adwaita-notitle`.
+//! * `wayland-csd-adwaita-notitlebar`.
 use std::ffi::c_void;
 use std::ptr::NonNull;
 
 use dpi::{LogicalSize, PhysicalSize};
-use sctk::reexports::client::protocol::wl_surface::WlSurface;
 use sctk::reexports::client::Proxy;
+use sctk::reexports::client::protocol::wl_surface::WlSurface;
 use sctk::shm::slot::{Buffer, CreateBufferError, SlotPool};
 use wayland_client::protocol::wl_shm::Format;
 use winit_core::event_loop::ActiveEventLoop as CoreActiveEventLoop;
@@ -27,9 +28,7 @@ use winit_core::window::{
 };
 
 macro_rules! os_error {
-    ($error:expr) => {{
-        winit_core::error::OsError::new(line!(), file!(), $error)
-    }};
+    ($error:expr) => {{ winit_core::error::OsError::new(line!(), file!(), $error) }};
 }
 
 mod event_loop;
@@ -61,7 +60,7 @@ pub trait EventLoopExtWayland {
     fn is_wayland(&self) -> bool;
 }
 
-/// Additional methods on [`EventLoopBuilder`] that are specific to Wayland.
+/// Additional methods when building event loop that are specific to Wayland.
 pub trait EventLoopBuilderExtWayland {
     /// Force using Wayland.
     fn with_wayland(&mut self) -> &mut Self;

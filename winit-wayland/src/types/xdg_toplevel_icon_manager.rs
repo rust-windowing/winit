@@ -7,7 +7,7 @@ use sctk::globals::GlobalData;
 use sctk::shm::slot::{Buffer, SlotPool};
 use wayland_client::globals::{BindError, GlobalList};
 use wayland_client::protocol::wl_shm::Format;
-use wayland_client::{delegate_dispatch, Connection, Dispatch, Proxy, QueueHandle};
+use wayland_client::{Connection, Dispatch, Proxy, QueueHandle, delegate_dispatch};
 use wayland_protocols::xdg::toplevel_icon::v1::client::xdg_toplevel_icon_manager_v1::XdgToplevelIconManagerV1;
 use wayland_protocols::xdg::toplevel_icon::v1::client::xdg_toplevel_icon_v1::XdgToplevelIconV1;
 use winit_core::icon::{Icon, RgbaIcon};

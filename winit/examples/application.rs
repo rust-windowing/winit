@@ -8,8 +8,8 @@ use std::error::Error;
 use std::fmt::Debug;
 #[cfg(not(android_platform))]
 use std::num::NonZeroU32;
-use std::sync::mpsc::{self, Receiver, Sender};
 use std::sync::Arc;
+use std::sync::mpsc::{self, Receiver, Sender};
 #[cfg(all(not(android_platform), not(web_platform)))]
 use std::time::Instant;
 use std::{fmt, mem};

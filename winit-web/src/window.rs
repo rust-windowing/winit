@@ -16,10 +16,10 @@ use winit_core::window::{
     Window as RootWindow, WindowAttributes, WindowButtons, WindowId, WindowLevel,
 };
 
+use crate::r#async::Dispatcher;
 use crate::event_loop::ActiveEventLoop;
 use crate::main_thread::MainThreadMarker;
 use crate::monitor::MonitorHandler;
-use crate::r#async::Dispatcher;
 use crate::{backend, lock};
 
 pub struct Window {
@@ -284,11 +284,7 @@ impl RootWindow for Window {
 
     fn fullscreen(&self) -> Option<Fullscreen> {
         self.inner.queue(|inner| {
-            if inner.canvas.is_fullscreen() {
-                Some(Fullscreen::Borderless(None))
-            } else {
-                None
-            }
+            if inner.canvas.is_fullscreen() { Some(Fullscreen::Borderless(None)) } else { None }
         })
     }
 
@@ -334,13 +330,8 @@ impl RootWindow for Window {
 
     fn theme(&self) -> Option<Theme> {
         self.inner.queue(|inner| {
-            backend::is_dark_mode(&inner.window).map(|is_dark_mode| {
-                if is_dark_mode {
-                    Theme::Dark
-                } else {
-                    Theme::Light
-                }
-            })
+            backend::is_dark_mode(&inner.window)
+                .map(|is_dark_mode| if is_dark_mode { Theme::Dark } else { Theme::Light })
         })
     }
 
@@ -368,7 +359,7 @@ impl RootWindow for Window {
                     inner.canvas.raw(),
                 ),
                 CursorGrabMode::Confined => {
-                    return Err(NotSupportedError::new("confined cursor mode is not supported"))
+                    return Err(NotSupportedError::new("confined cursor mode is not supported"));
                 },
             }
 

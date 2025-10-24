@@ -10,34 +10,36 @@ use dpi::{
     LogicalInsets, LogicalPosition, LogicalSize, PhysicalInsets, PhysicalPosition, PhysicalSize,
     Position, Size,
 };
-use objc2::rc::{autoreleasepool, Retained};
+use objc2::rc::{Retained, autoreleasepool};
 use objc2::runtime::{AnyObject, ProtocolObject};
 use objc2::{
-    available, define_class, msg_send, sel, ClassType, DefinedClass, MainThreadMarker,
-    MainThreadOnly, Message,
+    ClassType, DefinedClass, MainThreadMarker, MainThreadOnly, Message, available, define_class,
+    msg_send, sel,
 };
 use objc2_app_kit::{
     NSAppKitVersionNumber, NSAppKitVersionNumber10_12, NSAppearance, NSAppearanceCustomization,
     NSAppearanceNameAqua, NSApplication, NSApplicationPresentationOptions, NSBackingStoreType,
-    NSColor, NSDraggingDestination, NSDraggingInfo, NSFilenamesPboardType,
-    NSRequestUserAttentionType, NSScreen, NSToolbar, NSView, NSViewFrameDidChangeNotification,
-    NSWindow, NSWindowButton, NSWindowDelegate, NSWindowFullScreenButton, NSWindowLevel,
-    NSWindowOcclusionState, NSWindowOrderingMode, NSWindowSharingType, NSWindowStyleMask,
-    NSWindowTabbingMode, NSWindowTitleVisibility, NSWindowToolbarStyle,
+    NSColor, NSDraggingDestination, NSDraggingInfo, NSRequestUserAttentionType, NSScreen,
+    NSToolbar, NSView, NSViewFrameDidChangeNotification, NSWindow, NSWindowButton,
+    NSWindowDelegate, NSWindowLevel, NSWindowOcclusionState, NSWindowOrderingMode,
+    NSWindowSharingType, NSWindowStyleMask, NSWindowTabbingMode, NSWindowTitleVisibility,
+    NSWindowToolbarStyle,
 };
+#[allow(deprecated)]
+use objc2_app_kit::{NSFilenamesPboardType, NSWindowFullScreenButton};
 use objc2_core_foundation::{CGFloat, CGPoint};
 use objc2_core_graphics::{
-    kCGDisplayBlendNormal, kCGDisplayBlendSolidColor, kCGDisplayFadeReservationInvalidToken,
-    kCGFloatingWindowLevel, kCGNormalWindowLevel, CGAcquireDisplayFadeReservation,
-    CGAssociateMouseAndMouseCursorPosition, CGDisplayCapture, CGDisplayFade, CGDisplayRelease,
-    CGDisplaySetDisplayMode, CGReleaseDisplayFadeReservation,
+    CGAcquireDisplayFadeReservation, CGAssociateMouseAndMouseCursorPosition, CGDisplayCapture,
+    CGDisplayFade, CGDisplayRelease, CGDisplaySetDisplayMode, CGReleaseDisplayFadeReservation,
     CGRestorePermanentDisplayConfiguration, CGShieldingWindowLevel, CGWarpMouseCursorPosition,
+    kCGDisplayBlendNormal, kCGDisplayBlendSolidColor, kCGDisplayFadeReservationInvalidToken,
+    kCGFloatingWindowLevel, kCGNormalWindowLevel,
 };
 use objc2_foundation::{
-    ns_string, NSArray, NSDictionary, NSEdgeInsets, NSKeyValueChangeKey, NSKeyValueChangeNewKey,
+    NSArray, NSDictionary, NSEdgeInsets, NSKeyValueChangeKey, NSKeyValueChangeNewKey,
     NSKeyValueChangeOldKey, NSKeyValueObservingOptions, NSNotificationCenter, NSObject,
     NSObjectNSDelayedPerforming, NSObjectNSKeyValueObserverRegistration, NSObjectProtocol, NSPoint,
-    NSRect, NSSize, NSString,
+    NSRect, NSSize, NSString, ns_string,
 };
 use tracing::{trace, warn};
 use winit_core::cursor::Cursor;
@@ -51,13 +53,13 @@ use winit_core::window::{
 };
 
 use super::app_state::AppState;
-use super::cursor::{cursor_from_icon, CustomCursor};
+use super::cursor::{CustomCursor, cursor_from_icon};
 use super::ffi;
-use super::monitor::{self, flip_window_screen_coordinates, get_display_id, MonitorHandle};
+use super::monitor::{self, MonitorHandle, flip_window_screen_coordinates, get_display_id};
 use super::observer::RunLoop;
 use super::util::cgerr;
 use super::view::WinitView;
-use super::window::{window_id, WinitPanel, WinitWindow};
+use super::window::{WinitPanel, WinitWindow, window_id};
 use crate::{OptionAsAlt, WindowAttributesMacOS, WindowExtMacOS};
 
 #[derive(Debug)]
@@ -350,7 +352,8 @@ define_class!(
 
             use std::path::PathBuf;
 
-            let pb = unsafe { sender.draggingPasteboard() };
+            let pb = sender.draggingPasteboard();
+            #[allow(deprecated)]
             let filenames = pb
                 .propertyListForType(unsafe { NSFilenamesPboardType })
                 .unwrap()
@@ -361,7 +364,7 @@ define_class!(
                 .map(|file| PathBuf::from(file.downcast::<NSString>().unwrap().to_string()))
                 .collect();
 
-            let dl = unsafe { sender.draggingLocation() };
+            let dl = sender.draggingLocation();
             let dl = self.view().convertPoint_fromView(dl, None);
             let position =
                 LogicalPosition::<f64>::from((dl.x, dl.y)).to_physical(self.scale_factor());
@@ -383,7 +386,7 @@ define_class!(
         fn dragging_updated(&self, sender: &ProtocolObject<dyn NSDraggingInfo>) -> bool {
             trace_scope!("draggingUpdated:");
 
-            let dl = unsafe { sender.draggingLocation() };
+            let dl = sender.draggingLocation();
             let dl = self.view().convertPoint_fromView(dl, None);
             let position =
                 LogicalPosition::<f64>::from((dl.x, dl.y)).to_physical(self.scale_factor());
@@ -407,7 +410,8 @@ define_class!(
 
             use std::path::PathBuf;
 
-            let pb = unsafe { sender.draggingPasteboard() };
+            let pb = sender.draggingPasteboard();
+            #[allow(deprecated)]
             let filenames = pb
                 .propertyListForType(unsafe { NSFilenamesPboardType })
                 .unwrap()
@@ -418,7 +422,7 @@ define_class!(
                 .map(|file| PathBuf::from(file.downcast::<NSString>().unwrap().to_string()))
                 .collect();
 
-            let dl = unsafe { sender.draggingLocation() };
+            let dl = sender.draggingLocation();
             let dl = self.view().convertPoint_fromView(dl, None);
             let position =
                 LogicalPosition::<f64>::from((dl.x, dl.y)).to_physical(self.scale_factor());
@@ -440,7 +444,7 @@ define_class!(
             trace_scope!("draggingExited:");
 
             let position = sender.map(|sender| {
-                let dl = unsafe { sender.draggingLocation() };
+                let dl = sender.draggingLocation();
                 let dl = self.view().convertPoint_fromView(dl, None);
                 LogicalPosition::<f64>::from((dl.x, dl.y)).to_physical(self.scale_factor())
             });
@@ -477,12 +481,12 @@ define_class!(
                 let old = old.downcast::<NSAppearance>().unwrap();
                 let new = new.downcast::<NSAppearance>().unwrap();
 
-                trace!(old = %unsafe { old.name() }, new = %unsafe { new.name() }, "effectiveAppearance changed");
+                trace!(old = %old.name(), new = %new.name(), "effectiveAppearance changed");
 
                 // Ignore the change if the window's theme is customized by the user (since in that
                 // case the `effectiveAppearance` is only emitted upon said customization, and then
                 // it's triggered directly by a user action, and we don't want to emit the event).
-                if unsafe { self.window().appearance() }.is_some() {
+                if self.window().appearance().is_some() {
                     return;
                 }
 
@@ -505,9 +509,7 @@ define_class!(
 
 impl Drop for WindowDelegate {
     fn drop(&mut self) {
-        unsafe {
-            self.window().removeObserver_forKeyPath(self, ns_string!("effectiveAppearance"));
-        }
+        unsafe { self.window().removeObserver_forKeyPath(self, ns_string!("effectiveAppearance")) };
     }
 }
 
@@ -666,12 +668,10 @@ fn new_window(
             window.setMovableByWindowBackground(true);
         }
         if macos_attrs.unified_titlebar {
-            unsafe {
-                // The toolbar style is ignored if there is no toolbar, so it is
-                // necessary to add one.
-                window.setToolbar(Some(&NSToolbar::new(mtm)));
-                window.setToolbarStyle(NSWindowToolbarStyle::Unified);
-            }
+            // The toolbar style is ignored if there is no toolbar, so it is
+            // necessary to add one.
+            window.setToolbar(Some(&NSToolbar::new(mtm)));
+            window.setToolbarStyle(NSWindowToolbarStyle::Unified);
         }
 
         if !attrs.enabled_buttons.contains(WindowButtons::MAXIMIZE) {
@@ -720,7 +720,7 @@ fn new_window(
         view.setPostsFrameChangedNotifications(true);
         // `setPostsFrameChangedNotifications` posts the notification immediately, so register the
         // observer _after_, again so that the event isn't triggered initially.
-        let notification_center = unsafe { NSNotificationCenter::defaultCenter() };
+        let notification_center = NSNotificationCenter::defaultCenter();
         unsafe {
             notification_center.addObserver_selector_name_object(
                 &view,
@@ -733,10 +733,11 @@ fn new_window(
         if attrs.transparent {
             window.setOpaque(false);
             // See `set_transparent` for details on why we do this.
-            window.setBackgroundColor(unsafe { Some(&NSColor::clearColor()) });
+            window.setBackgroundColor(Some(&NSColor::clearColor()));
         }
 
         // register for drag and drop operations.
+        #[allow(deprecated)]
         window.registerForDraggedTypes(&NSArray::from_slice(&[unsafe { NSFilenamesPboardType }]));
 
         Some(window)
@@ -790,7 +791,7 @@ impl WindowDelegate {
         let scale_factor = window.backingScaleFactor() as _;
 
         if let Some(appearance) = theme_to_appearance(attrs.preferred_theme) {
-            unsafe { window.setAppearance(Some(&appearance)) };
+            window.setAppearance(Some(&appearance));
         }
 
         let delegate = mtm.alloc().set_ivars(State {
@@ -945,11 +946,8 @@ impl WindowDelegate {
         // transparent, as in that case, the transparent contents will just be drawn on top of
         // the background color. As such, to allow the window to be transparent, we must also set
         // the background color to one with an empty alpha channel.
-        let color = if transparent {
-            unsafe { NSColor::clearColor() }
-        } else {
-            unsafe { NSColor::windowBackgroundColor() }
-        };
+        let color =
+            if transparent { NSColor::clearColor() } else { NSColor::windowBackgroundColor() };
 
         self.window().setBackgroundColor(Some(&color));
     }
@@ -958,7 +956,7 @@ impl WindowDelegate {
         // NOTE: in general we want to specify the blur radius, but the choice of 80
         // should be a reasonable default.
         let radius = if blur { 80 } else { 0 };
-        let window_number = unsafe { self.window().windowNumber() };
+        let window_number = self.window().windowNumber();
         unsafe {
             ffi::CGSSetWindowBackgroundBlurRadius(
                 ffi::CGSMainConnectionID(),
@@ -1017,7 +1015,7 @@ impl WindowDelegate {
             NSPoint::new(position.x, position.y),
             self.window().frame().size,
         ));
-        unsafe { self.window().setFrameOrigin(point) };
+        self.window().setFrameOrigin(point);
     }
 
     #[inline]
@@ -1039,17 +1037,15 @@ impl WindowDelegate {
         let insets = if self.view().respondsToSelector(sel!(safeAreaInsets)) {
             // Includes NSWindowStyleMask::FullSizeContentView by default, and the notch because
             // we've set it up with `additionalSafeAreaInsets`.
-            unsafe { self.view().safeAreaInsets() }
+            self.view().safeAreaInsets()
         } else {
             // If `safeAreaInsets` is not available, we'll have to do the calculation ourselves.
 
-            let window_rect = unsafe {
-                self.window().convertRectFromScreen(
-                    self.window().contentRectForFrameRect(self.window().frame()),
-                )
-            };
+            let window_rect = self.window().convertRectFromScreen(
+                self.window().contentRectForFrameRect(self.window().frame()),
+            );
             // This includes NSWindowStyleMask::FullSizeContentView.
-            let layout_rect = unsafe { self.window().contentLayoutRect() };
+            let layout_rect = self.window().contentLayoutRect();
 
             // Calculate the insets from window coordinates in AppKit's coordinate system.
             NSEdgeInsets {
@@ -1079,7 +1075,7 @@ impl WindowDelegate {
         let min_size = dimensions.to_logical::<CGFloat>(self.scale_factor());
 
         let min_size = NSSize::new(min_size.width, min_size.height);
-        unsafe { self.window().setContentMinSize(min_size) };
+        self.window().setContentMinSize(min_size);
 
         // If necessary, resize the window to match constraint
         let mut current_size = self.window().contentRectForFrameRect(self.window().frame()).size;
@@ -1101,7 +1097,7 @@ impl WindowDelegate {
         let max_size = dimensions.to_logical::<CGFloat>(scale_factor);
 
         let max_size = NSSize::new(max_size.width, max_size.height);
-        unsafe { self.window().setContentMaxSize(max_size) };
+        self.window().setContentMaxSize(max_size);
 
         // If necessary, resize the window to match constraint
         let mut current_size = self.window().contentRectForFrameRect(self.window().frame()).size;
@@ -1241,12 +1237,12 @@ impl WindowDelegate {
             CursorGrabMode::Locked => false,
             CursorGrabMode::None => true,
             CursorGrabMode::Confined => {
-                return Err(NotSupportedError::new("confined cursor is not supported").into())
+                return Err(NotSupportedError::new("confined cursor is not supported").into());
             },
         };
 
         // TODO: Do this for real https://stackoverflow.com/a/40922095/5435443
-        cgerr(unsafe { CGAssociateMouseAndMouseCursorPosition(associate_mouse_cursor) })?;
+        cgerr(CGAssociateMouseAndMouseCursorPosition(associate_mouse_cursor))?;
 
         Ok(())
     }
@@ -1274,8 +1270,8 @@ impl WindowDelegate {
             x: window_position.x + cursor_position.x,
             y: window_position.y + cursor_position.y,
         };
-        cgerr(unsafe { CGWarpMouseCursorPosition(point) })?;
-        cgerr(unsafe { CGAssociateMouseAndMouseCursorPosition(true) })?;
+        cgerr(CGWarpMouseCursorPosition(point))?;
+        cgerr(CGAssociateMouseAndMouseCursorPosition(true))?;
 
         Ok(())
     }
@@ -1356,7 +1352,7 @@ impl WindowDelegate {
         if minimized {
             self.window().miniaturize(Some(self));
         } else {
-            unsafe { self.window().deminiaturize(Some(self)) };
+            self.window().deminiaturize(Some(self));
         }
     }
 
@@ -1450,7 +1446,7 @@ impl WindowDelegate {
 
             let old_screen = self.window().screen().unwrap();
             if old_screen != new_screen {
-                unsafe { self.window().setFrameOrigin(new_screen.frame().origin) };
+                self.window().setFrameOrigin(new_screen.frame().origin);
             }
         }
 
@@ -1475,24 +1471,22 @@ impl WindowDelegate {
                 self.ivars().save_presentation_opts.replace(Some(app.presentationOptions()));
             }
 
-            unsafe {
-                // Fade to black (and wait for the fade to complete) to hide the
-                // flicker from capturing the display and switching display mode
-                if cgerr(CGAcquireDisplayFadeReservation(5.0, &mut fade_token)).is_ok() {
-                    CGDisplayFade(
-                        fade_token,
-                        0.3,
-                        kCGDisplayBlendNormal,
-                        kCGDisplayBlendSolidColor,
-                        0.0,
-                        0.0,
-                        0.0,
-                        true,
-                    );
-                }
-
-                cgerr(CGDisplayCapture(display_id)).unwrap();
+            // Fade to black (and wait for the fade to complete) to hide the
+            // flicker from capturing the display and switching display mode
+            if cgerr(unsafe { CGAcquireDisplayFadeReservation(5.0, &mut fade_token) }).is_ok() {
+                CGDisplayFade(
+                    fade_token,
+                    0.3,
+                    kCGDisplayBlendNormal,
+                    kCGDisplayBlendSolidColor,
+                    0.0,
+                    0.0,
+                    0.0,
+                    true,
+                );
             }
+
+            cgerr(CGDisplayCapture(display_id)).unwrap();
 
             let monitor = monitor.cast_ref::<MonitorHandle>().unwrap();
             let video_mode =
@@ -1501,25 +1495,25 @@ impl WindowDelegate {
                     None => return,
                 };
 
-            unsafe {
-                cgerr(CGDisplaySetDisplayMode(display_id, Some(&video_mode.native_mode.0), None))
-                    .expect("failed to set video mode");
+            cgerr(unsafe {
+                CGDisplaySetDisplayMode(display_id, Some(&video_mode.native_mode.0), None)
+            })
+            .expect("failed to set video mode");
 
-                // After the display has been configured, fade back in
-                // asynchronously
-                if fade_token != kCGDisplayFadeReservationInvalidToken {
-                    CGDisplayFade(
-                        fade_token,
-                        0.6,
-                        kCGDisplayBlendSolidColor,
-                        kCGDisplayBlendNormal,
-                        0.0,
-                        0.0,
-                        0.0,
-                        false,
-                    );
-                    CGReleaseDisplayFadeReservation(fade_token);
-                }
+            // After the display has been configured, fade back in
+            // asynchronously
+            if fade_token != kCGDisplayFadeReservationInvalidToken {
+                CGDisplayFade(
+                    fade_token,
+                    0.6,
+                    kCGDisplayBlendSolidColor,
+                    kCGDisplayBlendNormal,
+                    0.0,
+                    0.0,
+                    0.0,
+                    false,
+                );
+                CGReleaseDisplayFadeReservation(fade_token);
             }
         }
 
@@ -1582,7 +1576,7 @@ impl WindowDelegate {
                     | NSApplicationPresentationOptions::HideMenuBar;
                 app.setPresentationOptions(presentation_options);
 
-                let window_level = unsafe { CGShieldingWindowLevel() } as NSWindowLevel + 1;
+                let window_level = CGShieldingWindowLevel() as NSWindowLevel + 1;
                 self.window().setLevel(window_level);
             },
             (Some(Fullscreen::Exclusive(monitor, _)), Some(Fullscreen::Borderless(_))) => {
@@ -1797,9 +1791,8 @@ impl WindowDelegate {
     }
 
     pub fn theme(&self) -> Option<Theme> {
-        unsafe { self.window().appearance() }
-            .map(|appearance| appearance_to_theme(&appearance))
-            .or_else(|| {
+        self.window().appearance().map(|appearance| appearance_to_theme(&appearance)).or_else(
+            || {
                 let mtm = MainThreadMarker::from(self);
                 let app = NSApplication::sharedApplication(mtm);
 
@@ -1808,11 +1801,12 @@ impl WindowDelegate {
                 } else {
                     Some(Theme::Light)
                 }
-            })
+            },
+        )
     }
 
     pub fn set_theme(&self, theme: Option<Theme>) {
-        unsafe { self.window().setAppearance(theme_to_appearance(theme).as_deref()) };
+        self.window().setAppearance(theme_to_appearance(theme).as_deref());
     }
 
     #[inline]
@@ -1836,10 +1830,8 @@ impl WindowDelegate {
 fn restore_and_release_display(monitor: &MonitorHandle) {
     let available_monitors = monitor::available_monitors();
     if available_monitors.contains(monitor) {
-        unsafe {
-            CGRestorePermanentDisplayConfiguration();
-            cgerr(CGDisplayRelease(monitor.native_id() as _)).unwrap();
-        };
+        CGRestorePermanentDisplayConfiguration();
+        cgerr(CGDisplayRelease(monitor.native_id() as _)).unwrap();
     } else {
         warn!(
             monitor = monitor.name().map(|name| name.to_string()),
@@ -1901,7 +1893,7 @@ impl WindowExtMacOS for WindowDelegate {
 
             // Configure the safe area rectangle, to ensure that we don't obscure the notch.
             if NSScreen::class().responds_to(sel!(safeAreaInsets)) {
-                unsafe { self.view().setAdditionalSafeAreaInsets(screen.safeAreaInsets()) };
+                self.view().setAdditionalSafeAreaInsets(screen.safeAreaInsets());
             }
 
             // Fullscreen windows can't be resized, minimized, or moved
@@ -1920,14 +1912,12 @@ impl WindowExtMacOS for WindowDelegate {
             }
 
             if NSScreen::class().responds_to(sel!(safeAreaInsets)) {
-                unsafe {
-                    self.view().setAdditionalSafeAreaInsets(NSEdgeInsets {
-                        top: 0.0,
-                        left: 0.0,
-                        bottom: 0.0,
-                        right: 0.0,
-                    });
-                }
+                self.view().setAdditionalSafeAreaInsets(NSEdgeInsets {
+                    top: 0.0,
+                    left: 0.0,
+                    bottom: 0.0,
+                    right: 0.0,
+                });
             }
 
             self.window().setFrame_display(frame, true);
@@ -1965,7 +1955,7 @@ impl WindowExtMacOS for WindowDelegate {
 
     #[inline]
     fn select_previous_tab(&self) {
-        unsafe { self.window().selectPreviousTab(None) }
+        self.window().selectPreviousTab(None)
     }
 
     #[inline]
@@ -1975,7 +1965,7 @@ impl WindowExtMacOS for WindowDelegate {
             return;
         }
         if let Some(group) = self.window().tabGroup() {
-            if let Some(windows) = unsafe { self.window().tabbedWindows() } {
+            if let Some(windows) = self.window().tabbedWindows() {
                 if index < windows.len() {
                     group.setSelectedWindow(Some(&windows.objectAtIndex(index)));
                 }
@@ -1985,7 +1975,7 @@ impl WindowExtMacOS for WindowDelegate {
 
     #[inline]
     fn num_tabs(&self) -> usize {
-        unsafe { self.window().tabbedWindows() }.map(|windows| windows.len()).unwrap_or(1)
+        self.window().tabbedWindows().map(|windows| windows.len()).unwrap_or(1)
     }
 
     fn is_document_edited(&self) -> bool {
@@ -2018,26 +2008,20 @@ impl WindowExtMacOS for WindowDelegate {
         if unified_titlebar {
             let mtm = MainThreadMarker::from(self);
 
-            unsafe {
-                // The toolbar style is ignored if there is no toolbar, so it is
-                // necessary to add one.
-                window.setToolbar(Some(&NSToolbar::new(mtm)));
-                window.setToolbarStyle(NSWindowToolbarStyle::Unified);
-            }
+            // The toolbar style is ignored if there is no toolbar, so it is
+            // necessary to add one.
+            window.setToolbar(Some(&NSToolbar::new(mtm)));
+            window.setToolbarStyle(NSWindowToolbarStyle::Unified);
         } else {
-            unsafe {
-                window.setToolbar(None);
-                window.setToolbarStyle(NSWindowToolbarStyle::Automatic);
-            }
+            window.setToolbar(None);
+            window.setToolbarStyle(NSWindowToolbarStyle::Automatic);
         }
     }
 
     fn unified_titlebar(&self) -> bool {
         let window = self.window();
 
-        unsafe {
-            window.toolbar().is_some() && window.toolbarStyle() == NSWindowToolbarStyle::Unified
-        }
+        window.toolbar().is_some() && window.toolbarStyle() == NSWindowToolbarStyle::Unified
     }
 }
 
@@ -2055,11 +2039,7 @@ pub fn appearance_to_theme(appearance: &NSAppearance) -> Theme {
         dark_appearance_name(),
     ]));
     if let Some(best_match) = best_match {
-        if *best_match == *dark_appearance_name() {
-            Theme::Dark
-        } else {
-            Theme::Light
-        }
+        if *best_match == *dark_appearance_name() { Theme::Dark } else { Theme::Light }
     } else {
         warn!(?appearance, "failed to determine the theme of the appearance");
         // Default to light in this case

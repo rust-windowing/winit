@@ -21,11 +21,11 @@ use sctk::reexports::protocols::wp::text_input::zv3::client::zwp_text_input_v3::
 use sctk::reexports::protocols::wp::viewporter::client::wp_viewport::WpViewport;
 use sctk::reexports::protocols::xdg::shell::client::xdg_toplevel::ResizeEdge as XdgResizeEdge;
 use sctk::seat::pointer::{PointerDataExt, ThemedPointer};
-use sctk::shell::xdg::window::{DecorationMode, Window, WindowConfigure};
-use sctk::shell::xdg::XdgSurface;
 use sctk::shell::WaylandSurface;
-use sctk::shm::slot::SlotPool;
+use sctk::shell::xdg::XdgSurface;
+use sctk::shell::xdg::window::{DecorationMode, Window, WindowConfigure};
 use sctk::shm::Shm;
+use sctk::shm::slot::SlotPool;
 use sctk::subcompositor::SubcompositorState;
 use tracing::{info, warn};
 use wayland_protocols::xdg::toplevel_icon::v1::client::xdg_toplevel_icon_manager_v1::XdgToplevelIconManagerV1;
@@ -307,7 +307,7 @@ impl WindowState {
                 subcompositor.clone(),
                 self.queue_handle.clone(),
                 #[cfg(feature = "sctk-adwaita")]
-                into_sctk_adwaita_config(self.theme),
+                create_sctk_adwaita_config(self.theme),
             ) {
                 Ok(mut frame) => {
                     frame.set_title(&self.title);
@@ -821,7 +821,7 @@ impl WindowState {
         self.theme = theme;
         #[cfg(feature = "sctk-adwaita")]
         if let Some(frame) = self.frame.as_mut() {
-            frame.set_config(into_sctk_adwaita_config(theme))
+            frame.set_config(create_sctk_adwaita_config(theme))
         }
     }
 
@@ -857,7 +857,7 @@ impl WindowState {
             None => {
                 return Err(
                     NotSupportedError::new("zwp_pointer_constraints is not available").into()
-                )
+                );
             },
         };
 
@@ -1045,11 +1045,7 @@ impl WindowState {
             text_input.set_state(self.text_input_state.as_ref(), state_change);
         }
 
-        if state_change {
-            Ok(Some(self.text_input_state.is_some()))
-        } else {
-            Ok(None)
-        }
+        if state_change { Ok(Some(self.text_input_state.is_some())) } else { Ok(None) }
     }
 
     /// Set the scale factor for the given window.
@@ -1236,12 +1232,14 @@ fn resize_direction_to_xdg(direction: ResizeDirection) -> XdgResizeEdge {
     }
 }
 
-// NOTE: Rust doesn't allow `From<Option<Theme>>`.
 #[cfg(feature = "sctk-adwaita")]
-fn into_sctk_adwaita_config(theme: Option<Theme>) -> sctk_adwaita::FrameConfig {
-    match theme {
+fn create_sctk_adwaita_config(theme: Option<Theme>) -> sctk_adwaita::FrameConfig {
+    let config = match theme {
         Some(Theme::Light) => sctk_adwaita::FrameConfig::light(),
         Some(Theme::Dark) => sctk_adwaita::FrameConfig::dark(),
         None => sctk_adwaita::FrameConfig::auto(),
-    }
+    };
+    #[cfg(feature = "csd-adwaita-notitlebar")]
+    let config = config.hide_titlebar(true);
+    config
 }

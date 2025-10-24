@@ -1,7 +1,7 @@
 use std::cell::Cell;
 
 use objc2::rc::Retained;
-use objc2::{available, define_class, msg_send, DefinedClass, MainThreadMarker};
+use objc2::{DefinedClass, MainThreadMarker, available, define_class, msg_send};
 use objc2_foundation::NSObject;
 use objc2_ui_kit::{
     UIDevice, UIInterfaceOrientationMask, UIRectEdge, UIResponder, UIStatusBarStyle,

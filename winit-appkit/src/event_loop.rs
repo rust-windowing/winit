@@ -2,9 +2,9 @@ use std::rc::Rc;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use objc2::rc::{autoreleasepool, Retained};
+use objc2::rc::{Retained, autoreleasepool};
 use objc2::runtime::ProtocolObject;
-use objc2::{available, MainThreadMarker};
+use objc2::{MainThreadMarker, available};
 use objc2_app_kit::{
     NSApplication, NSApplicationActivationPolicy, NSApplicationDidFinishLaunchingNotification,
     NSApplicationWillTerminateNotification, NSWindow,
@@ -29,8 +29,8 @@ use super::event::dummy_event;
 use super::monitor;
 use super::notification_center::create_observer;
 use super::observer::setup_control_flow_observers;
-use crate::window::Window;
 use crate::ActivationPolicy;
+use crate::window::Window;
 
 #[derive(Debug)]
 pub struct ActiveEventLoop {
@@ -191,7 +191,7 @@ impl EventLoop {
         // Override `sendEvent:` on the application to forward to our application state.
         override_send_event(&app);
 
-        let center = unsafe { NSNotificationCenter::defaultCenter() };
+        let center = NSNotificationCenter::defaultCenter();
 
         let weak_app_state = Rc::downgrade(&app_state);
         let _did_finish_launching_observer = create_observer(

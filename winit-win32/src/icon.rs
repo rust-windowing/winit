@@ -5,14 +5,14 @@ use std::{fmt, io, mem, ptr};
 
 use cursor_icon::CursorIcon;
 use dpi::PhysicalSize;
-use windows_sys::core::PCWSTR;
 use windows_sys::Win32::Graphics::Gdi::{
     CreateBitmap, CreateCompatibleBitmap, DeleteObject, GetDC, ReleaseDC, SetBitmapBits,
 };
 use windows_sys::Win32::UI::WindowsAndMessaging::{
-    CreateIcon, CreateIconIndirect, DestroyCursor, DestroyIcon, LoadImageW, HCURSOR, HICON,
-    ICONINFO, ICON_BIG, ICON_SMALL, IMAGE_ICON, LR_DEFAULTSIZE, LR_LOADFROMFILE,
+    CreateIcon, CreateIconIndirect, DestroyCursor, DestroyIcon, HCURSOR, HICON, ICON_BIG,
+    ICON_SMALL, ICONINFO, IMAGE_ICON, LR_DEFAULTSIZE, LR_LOADFROMFILE, LoadImageW,
 };
+use windows_sys::core::PCWSTR;
 use winit_core::cursor::{CursorImage, CustomCursorProvider};
 use winit_core::error::RequestError;
 use winit_core::icon::*;

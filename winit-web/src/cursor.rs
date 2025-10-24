@@ -6,14 +6,14 @@ use std::ops::{Deref, DerefMut};
 use std::pin::Pin;
 use std::rc::Rc;
 use std::sync::Arc;
-use std::task::{ready, Context, Poll, Waker};
+use std::task::{Context, Poll, Waker, ready};
 use std::time::Duration;
 
 use cursor_icon::CursorIcon;
 use js_sys::{Array, Object};
+use wasm_bindgen::JsCast;
 use wasm_bindgen::closure::Closure;
 use wasm_bindgen::prelude::wasm_bindgen;
-use wasm_bindgen::JsCast;
 use wasm_bindgen_futures::JsFuture;
 use web_sys::{
     Blob, Document, DomException, HtmlCanvasElement, HtmlImageElement, ImageBitmap,
@@ -21,11 +21,11 @@ use web_sys::{
 };
 use winit_core::cursor::{Cursor, CursorImage, CustomCursorProvider, CustomCursorSource};
 
+use crate::CustomCursorError;
+use crate::r#async::{AbortHandle, Abortable, DropAbortHandle, Notified, Notifier};
 use crate::backend::Style;
 use crate::event_loop::ActiveEventLoop;
 use crate::main_thread::{MainThreadMarker, MainThreadSafe};
-use crate::r#async::{AbortHandle, Abortable, DropAbortHandle, Notified, Notifier};
-use crate::CustomCursorError;
 
 #[derive(Clone, Debug)]
 pub struct CustomCursor {
@@ -216,7 +216,7 @@ impl CursorHandler {
             Cursor::Custom(cursor) => {
                 let cursor = match cursor.cast_ref::<CustomCursor>() {
                     Some(cursor) => cursor,
-                    None => todo!(),
+                    None => return,
                 };
 
                 if let SelectedCursor::Loading { cursor: old_cursor, .. }
@@ -487,7 +487,7 @@ fn from_rgba(
     window: &Window,
     document: Document,
     image: &CursorImage,
-) -> impl Future<Output = Result<Image, CustomCursorError>> {
+) -> impl Future<Output = Result<Image, CustomCursorError>> + use<> {
     // 1. Create an `ImageData` from the RGBA data.
     // 2. Create an `ImageBitmap` from the `ImageData`.
     // 3. Draw `ImageBitmap` on an `HTMLCanvasElement`.

@@ -5,8 +5,8 @@ use std::sync::{Arc, Mutex};
 
 use dpi::{LogicalPosition, PhysicalPosition, PhysicalSize};
 use smol_str::SmolStr;
-use wasm_bindgen::closure::Closure;
 use wasm_bindgen::JsCast;
+use wasm_bindgen::closure::Closure;
 use web_sys::{
     CssStyleDeclaration, Document, Event, FocusEvent, HtmlCanvasElement, KeyboardEvent, Navigator,
     PointerEvent, WheelEvent,
@@ -28,7 +28,7 @@ use super::event_handle::EventListenerHandle;
 use super::intersection_handle::IntersectionObserverHandle;
 use super::media_query_handle::MediaQueryListHandle;
 use super::pointer::PointerHandler;
-use super::{event, fullscreen, ResizeScaleHandle};
+use super::{ResizeScaleHandle, event, fullscreen};
 use crate::WindowAttributesWeb;
 
 #[allow(dead_code)]
@@ -502,8 +502,7 @@ impl Canvas {
                 surface_size_writer: SurfaceSizeWriter::new(Arc::downgrade(&new_size)),
             });
 
-            let new_size = *new_size.lock().unwrap();
-            new_size
+            *new_size.lock().unwrap()
         };
 
         if current_size != new_size {

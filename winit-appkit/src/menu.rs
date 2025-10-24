@@ -1,8 +1,8 @@
 use objc2::rc::Retained;
 use objc2::runtime::Sel;
-use objc2::{sel, MainThreadMarker};
+use objc2::{MainThreadMarker, sel};
 use objc2_app_kit::{NSApplication, NSEventModifierFlags, NSMenu, NSMenuItem};
-use objc2_foundation::{ns_string, NSBundle, NSProcessInfo, NSString};
+use objc2_foundation::{NSBundle, NSProcessInfo, NSString, ns_string};
 
 struct KeyEquivalent<'a> {
     key: &'a NSString,
@@ -82,7 +82,7 @@ pub fn initialize(app: &NSApplication) {
     app_menu.addItem(&quit_item);
     app_menu_item.setSubmenu(Some(&app_menu));
 
-    unsafe { app.setServicesMenu(Some(&services_menu)) };
+    app.setServicesMenu(Some(&services_menu));
     app.setMainMenu(Some(&menubar));
 }
 

@@ -15,9 +15,9 @@ use winit_common::xkb::Context;
 use winit_core::event::{ElementState, WindowEvent};
 use winit_core::keyboard::ModifiersState;
 
+use crate::WindowId;
 use crate::event_loop::sink::EventSink;
 use crate::state::WinitState;
-use crate::WindowId;
 
 impl Dispatch<WlKeyboard, KeyboardData, WinitState> for WinitState {
     fn event(
@@ -129,20 +129,23 @@ impl Dispatch<WlKeyboard, KeyboardData, WinitState> for WinitState {
                     state.events_sink.push_window_event(WindowEvent::Focused(false), window_id);
                 }
             },
-            WlKeyboardEvent::Key { key, state: WEnum::Value(WlKeyState::Pressed), .. } => {
+            WlKeyboardEvent::Key { key, state: WEnum::Value(key_state), .. }
+                if matches!(key_state, WlKeyState::Repeated | WlKeyState::Pressed) =>
+            {
                 let key = key + 8;
-
                 key_input(
                     keyboard_state,
                     &mut state.events_sink,
                     data,
                     key,
                     ElementState::Pressed,
-                    false,
+                    key_state == WlKeyState::Repeated,
                 );
 
                 let delay = match keyboard_state.repeat_info {
                     RepeatInfo::Repeat { delay, .. } => delay,
+                    // When compositor handles repeat, and thus we have `repeat = true`, we have
+                    // repeat on our side disabled, if it's not true, it's a compositor bug.
                     RepeatInfo::Disable => return,
                 };
 

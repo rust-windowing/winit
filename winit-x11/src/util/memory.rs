@@ -9,11 +9,7 @@ impl<'a, T> XSmartPointer<'a, T> {
     // You're responsible for only passing things to this that should be XFree'd.
     // Returns None if ptr is null.
     pub fn new(xconn: &'a XConnection, ptr: *mut T) -> Option<Self> {
-        if !ptr.is_null() {
-            Some(XSmartPointer { xconn, ptr })
-        } else {
-            None
-        }
+        if !ptr.is_null() { Some(XSmartPointer { xconn, ptr }) } else { None }
     }
 }
 

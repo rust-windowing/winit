@@ -33,8 +33,8 @@ use xkbcommon_dl::xkb_mod_mask_t;
 use crate::atoms::*;
 use crate::dnd::{Dnd, DndState};
 use crate::event_loop::{
-    mkdid, mkwid, ActiveEventLoop, CookieResultExt, Device, DeviceInfo, ScrollOrientation,
-    ALL_DEVICES,
+    ALL_DEVICES, ActiveEventLoop, CookieResultExt, Device, DeviceInfo, DeviceType,
+    ScrollOrientation, mkdid, mkwid,
 };
 use crate::ime::{ImeEvent, ImeEventReceiver, ImeReceiver, ImeRequest};
 use crate::util;
@@ -323,8 +323,10 @@ impl EventProcessor {
     pub fn init_device(&self, device: xinput::DeviceId) {
         let mut devices = self.devices.borrow_mut();
         if let Some(info) = DeviceInfo::get(&self.target.xconn, device as _) {
+            let atoms = self.target.x_connection().atoms();
+
             for info in info.iter() {
-                devices.insert(mkdid(info.deviceid as xinput::DeviceId), Device::new(info));
+                devices.insert(mkdid(info.deviceid as xinput::DeviceId), Device::new(info, atoms));
             }
         }
     }
@@ -974,6 +976,15 @@ impl EventProcessor {
         // Set the timestamp.
         self.target.xconn.set_timestamp(event.time as xproto::Timestamp);
 
+        let Some(DeviceType::Mouse) = self
+            .devices
+            .borrow()
+            .get(&mkdid(event.sourceid as xinput::DeviceId))
+            .map(|device| device.r#type)
+        else {
+            return;
+        };
+
         // Deliver multi-touch events instead of emulated mouse events.
         if (event.flags & xinput2::XIPointerEmulated) != 0 {
             return;
@@ -1009,16 +1020,19 @@ impl EventProcessor {
             // those. In practice, even clicky scroll wheels appear to be reported by
             // evdev (and XInput2 in turn) as axis motion, so we don't otherwise
             // special-case these button presses.
-            4..=7 => WindowEvent::MouseWheel {
-                device_id,
-                delta: match event.detail {
-                    4 => MouseScrollDelta::LineDelta(0.0, 1.0),
-                    5 => MouseScrollDelta::LineDelta(0.0, -1.0),
-                    6 => MouseScrollDelta::LineDelta(1.0, 0.0),
-                    7 => MouseScrollDelta::LineDelta(-1.0, 0.0),
-                    _ => unreachable!(),
+            4..=7 => match state {
+                ElementState::Pressed => WindowEvent::MouseWheel {
+                    device_id,
+                    delta: match event.detail {
+                        4 => MouseScrollDelta::LineDelta(0.0, 1.0),
+                        5 => MouseScrollDelta::LineDelta(0.0, -1.0),
+                        6 => MouseScrollDelta::LineDelta(1.0, 0.0),
+                        7 => MouseScrollDelta::LineDelta(-1.0, 0.0),
+                        _ => unreachable!(),
+                    },
+                    phase: TouchPhase::Moved,
                 },
-                phase: TouchPhase::Moved,
+                ElementState::Released => return,
             },
             8 => WindowEvent::PointerButton {
                 device_id,
@@ -1050,6 +1064,15 @@ impl EventProcessor {
     fn xinput2_mouse_motion(&self, event: &XIDeviceEvent, app: &mut dyn ApplicationHandler) {
         // Set the timestamp.
         self.target.xconn.set_timestamp(event.time as xproto::Timestamp);
+
+        let Some(DeviceType::Mouse) = self
+            .devices
+            .borrow()
+            .get(&mkdid(event.sourceid as xinput::DeviceId))
+            .map(|device| device.r#type)
+        else {
+            return;
+        };
 
         let device_id = Some(mkdid(event.deviceid as xinput::DeviceId));
         let window = event.event as xproto::Window;
@@ -1376,7 +1399,6 @@ impl EventProcessor {
         self.target.xconn.set_timestamp(xev.time as xproto::Timestamp);
 
         let did = Some(mkdid(xev.deviceid as xinput::DeviceId));
-
         let mask =
             unsafe { slice::from_raw_parts(xev.valuators.mask, xev.valuators.mask_len as usize) };
         let mut value = xev.raw_values;
@@ -1400,6 +1422,15 @@ impl EventProcessor {
 
             value = unsafe { value.offset(1) };
         }
+
+        let Some(DeviceType::Mouse) = self
+            .devices
+            .borrow()
+            .get(&mkdid(xev.sourceid as xinput::DeviceId))
+            .map(|device| device.r#type)
+        else {
+            return;
+        };
 
         if let Some(mouse_delta) = mouse_delta.consume() {
             app.device_event(&self.target, did, DeviceEvent::PointerMotion { delta: mouse_delta });

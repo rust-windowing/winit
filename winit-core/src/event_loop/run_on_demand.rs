@@ -2,7 +2,7 @@ use crate::application::ApplicationHandler;
 use crate::error::EventLoopError;
 #[cfg(doc)]
 use crate::{
-    event_loop::{pump_events::EventLoopExtPumpEvents, ActiveEventLoop},
+    event_loop::{ActiveEventLoop, pump_events::EventLoopExtPumpEvents},
     window::Window,
 };
 

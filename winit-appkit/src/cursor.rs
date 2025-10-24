@@ -4,10 +4,10 @@ use std::sync::OnceLock;
 
 use objc2::rc::Retained;
 use objc2::runtime::Sel;
-use objc2::{available, msg_send, sel, AllocAnyThread, ClassType};
+use objc2::{AllocAnyThread, ClassType, available, msg_send, sel};
 use objc2_app_kit::{NSBitmapImageRep, NSCursor, NSDeviceRGBColorSpace, NSImage};
 use objc2_foundation::{
-    ns_string, NSData, NSDictionary, NSNumber, NSObject, NSPoint, NSSize, NSString,
+    NSData, NSDictionary, NSNumber, NSObject, NSPoint, NSSize, NSString, ns_string,
 };
 use winit_core::cursor::{CursorIcon, CursorImage, CustomCursorProvider, CustomCursorSource};
 use winit_core::error::{NotSupportedError, RequestError};
@@ -31,7 +31,7 @@ impl CustomCursor {
         let cursor = match cursor {
             CustomCursorSource::Image(cursor_image) => cursor_image,
             CustomCursorSource::Animation { .. } | CustomCursorSource::Url { .. } => {
-                return Err(NotSupportedError::new("unsupported cursor kind").into())
+                return Err(NotSupportedError::new("unsupported cursor kind").into());
             },
         };
 
@@ -62,10 +62,8 @@ pub(crate) fn cursor_from_image(cursor: &CursorImage) -> Result<Retained<NSCurso
         unsafe { slice::from_raw_parts_mut(bitmap.bitmapData(), cursor.buffer().len()) };
     bitmap_data.copy_from_slice(cursor.buffer());
 
-    let image = unsafe {
-        NSImage::initWithSize(NSImage::alloc(), NSSize::new(width.into(), height.into()))
-    };
-    unsafe { image.addRepresentation(&bitmap) };
+    let image = NSImage::initWithSize(NSImage::alloc(), NSSize::new(width.into(), height.into()));
+    image.addRepresentation(&bitmap);
 
     let hotspot = NSPoint::new(cursor.hotspot_x() as f64, cursor.hotspot_y() as f64);
 
@@ -140,12 +138,9 @@ unsafe fn load_webkit_cursor(name: &NSString) -> Retained<NSCursor> {
 
     // TODO: Handle PLists better
     let info_path = cursor_path.stringByAppendingPathComponent(ns_string!("info.plist"));
-    let info: Retained<NSDictionary<NSObject, NSObject>> = unsafe {
-        msg_send![
-            <NSDictionary<NSObject, NSObject>>::class(),
-            dictionaryWithContentsOfFile: &*info_path,
-        ]
-    };
+    #[allow(deprecated)]
+    let info: Retained<NSDictionary<NSObject, NSObject>> =
+        unsafe { NSDictionary::dictionaryWithContentsOfFile(&info_path) }.unwrap();
     let mut x = 0.0;
     if let Some(n) = info.objectForKey(ns_string!("hotx")) {
         if let Ok(n) = n.downcast::<NSNumber>() {
@@ -216,9 +211,9 @@ pub(crate) fn cursor_from_icon(icon: CursorIcon) -> Retained<NSCursor> {
         CursorIcon::EwResize | CursorIcon::ColResize => NSCursor::resizeLeftRightCursor(),
         CursorIcon::NsResize | CursorIcon::RowResize => NSCursor::resizeUpDownCursor(),
         CursorIcon::Help => _helpCursor(),
-        CursorIcon::ZoomIn if available!(macos = 15.0) => unsafe { NSCursor::zoomInCursor() },
+        CursorIcon::ZoomIn if available!(macos = 15.0) => NSCursor::zoomInCursor(),
         CursorIcon::ZoomIn => _zoomInCursor(),
-        CursorIcon::ZoomOut if available!(macos = 15.0) => unsafe { NSCursor::zoomOutCursor() },
+        CursorIcon::ZoomOut if available!(macos = 15.0) => NSCursor::zoomOutCursor(),
         CursorIcon::ZoomOut => _zoomOutCursor(),
         CursorIcon::NeResize => _windowResizeNorthEastCursor(),
         CursorIcon::NwResize => _windowResizeNorthWestCursor(),

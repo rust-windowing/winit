@@ -3,8 +3,8 @@ use std::num::NonZeroU32;
 
 use dpi::{LogicalPosition, PhysicalPosition};
 use sctk::output::{Mode, OutputData};
-use sctk::reexports::client::protocol::wl_output::WlOutput;
 use sctk::reexports::client::Proxy;
+use sctk::reexports::client::protocol::wl_output::WlOutput;
 use winit_core::monitor::{MonitorHandleProvider as CoreMonitorHandle, VideoMode};
 
 #[derive(Clone, Debug)]

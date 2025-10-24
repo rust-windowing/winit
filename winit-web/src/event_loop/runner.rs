@@ -6,8 +6,8 @@ use std::sync::Arc;
 use std::{fmt, iter};
 
 use dpi::PhysicalSize;
-use wasm_bindgen::prelude::Closure;
 use wasm_bindgen::JsCast;
+use wasm_bindgen::prelude::Closure;
 use web_sys::{Document, KeyboardEvent, Navigator, PageTransitionEvent, PointerEvent, WheelEvent};
 use web_time::{Duration, Instant};
 use winit_core::application::ApplicationHandler;
@@ -19,14 +19,14 @@ use winit_core::window::WindowId;
 
 use super::proxy::EventLoopProxy;
 use super::state::State;
+use crate::r#async::DispatchRunner;
 use crate::backend::{EventListenerHandle, SafeAreaHandle};
 use crate::event_loop::ActiveEventLoop;
 use crate::main_thread::MainThreadMarker;
 use crate::monitor::MonitorHandler;
-use crate::r#async::DispatchRunner;
-use crate::web_sys::event::mouse_button_to_id;
+use crate::web_sys::event::ButtonsState;
 use crate::window::Inner;
-use crate::{backend, event, EventLoop, PollStrategy, WaitUntilStrategy};
+use crate::{EventLoop, PollStrategy, WaitUntilStrategy, backend, event};
 
 #[derive(Debug)]
 pub struct Shared(Rc<Execution>);
@@ -318,8 +318,10 @@ impl Shared {
                 // chorded button event
                 let device_id = event::mkdid(event.pointer_id());
 
-                if let Some(button) = backend::event::mouse_button(&event) {
-                    let state = if backend::event::mouse_buttons(&event).contains(button.into()) {
+                if let Some(button) = backend::event::raw_button(&event) {
+                    let state = if backend::event::pointer_buttons(&event)
+                        .contains(ButtonsState::from_bits_retain(button))
+                    {
                         ElementState::Pressed
                     } else {
                         ElementState::Released
@@ -327,10 +329,7 @@ impl Shared {
 
                     runner.send_event(Event::DeviceEvent {
                         device_id,
-                        event: DeviceEvent::Button {
-                            button: mouse_button_to_id(button).into(),
-                            state,
-                        },
+                        event: DeviceEvent::Button { button: button.into(), state },
                     });
 
                     return;
@@ -338,14 +337,16 @@ impl Shared {
 
                 // pointer move event
                 let mut delta = backend::event::MouseDelta::init(&navigator, &event);
-                runner.send_events(backend::event::pointer_move_event(event).map(|event| {
-                    let delta = delta.delta(&event).to_physical(backend::scale_factor(&window));
+                runner.send_events(backend::event::pointer_move_event(event).map(
+                    |event: web_sys::PointerEvent| {
+                        let delta = delta.delta(&event).to_physical(backend::scale_factor(&window));
 
-                    Event::DeviceEvent {
-                        device_id,
-                        event: DeviceEvent::PointerMotion { delta: (delta.x, delta.y) },
-                    }
-                }));
+                        Event::DeviceEvent {
+                            device_id,
+                            event: DeviceEvent::PointerMotion { delta: (delta.x, delta.y) },
+                        }
+                    },
+                ));
             }),
         ));
         let runner = self.clone();
@@ -375,11 +376,11 @@ impl Shared {
                     return;
                 }
 
-                let button = backend::event::mouse_button(&event).expect("no mouse button pressed");
+                let button = backend::event::raw_button(&event).expect("no pointer button pressed");
                 runner.send_event(Event::DeviceEvent {
                     device_id: event::mkdid(event.pointer_id()),
                     event: DeviceEvent::Button {
-                        button: mouse_button_to_id(button).into(),
+                        button: button.into(),
                         state: ElementState::Pressed,
                     },
                 });
@@ -394,11 +395,11 @@ impl Shared {
                     return;
                 }
 
-                let button = backend::event::mouse_button(&event).expect("no mouse button pressed");
+                let button = backend::event::raw_button(&event).expect("no pointer button pressed");
                 runner.send_event(Event::DeviceEvent {
                     device_id: event::mkdid(event.pointer_id()),
                     event: DeviceEvent::Button {
-                        button: mouse_button_to_id(button).into(),
+                        button: button.into(),
                         state: ElementState::Released,
                     },
                 });
@@ -801,11 +802,7 @@ impl Shared {
             DeviceEvents::Always => true,
             DeviceEvents::WhenFocused => {
                 self.0.all_canvases.borrow().iter().any(|(_, canvas, _)| {
-                    if let Some(canvas) = canvas.upgrade() {
-                        canvas.has_focus.get()
-                    } else {
-                        false
-                    }
+                    if let Some(canvas) = canvas.upgrade() { canvas.has_focus.get() } else { false }
                 })
             },
             DeviceEvents::Never => false,

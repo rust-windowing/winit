@@ -15,7 +15,7 @@ use dpi::LogicalSize;
 use rustix::event::{PollFd, PollFlags};
 use rustix::pipe::{self, PipeFlags};
 use sctk::reexports::calloop_wayland_source::WaylandSource;
-use sctk::reexports::client::{globals, Connection, QueueHandle};
+use sctk::reexports::client::{Connection, QueueHandle, globals};
 use tracing::warn;
 use winit_core::application::ApplicationHandler;
 use winit_core::cursor::{CustomCursor as CoreCustomCursor, CustomCursorSource};
@@ -41,7 +41,7 @@ pub use winit_core::event_loop::EventLoopProxy as CoreEventLoopProxy;
 use super::output::MonitorHandle;
 use super::state::{WindowCompositorUpdate, WinitState};
 use super::window::state::FrameCallbackState;
-use super::{logical_to_physical_rounded, WindowId};
+use super::{WindowId, logical_to_physical_rounded};
 
 type WaylandDispatcher = calloop::Dispatcher<'static, WaylandSource<WinitState>, WinitState>;
 
@@ -639,7 +639,7 @@ impl RootActiveEventLoop for ActiveEventLoop {
         let cursor_image = match cursor {
             CustomCursorSource::Image(cursor_image) => cursor_image,
             CustomCursorSource::Animation { .. } | CustomCursorSource::Url { .. } => {
-                return Err(NotSupportedError::new("unsupported cursor kind").into())
+                return Err(NotSupportedError::new("unsupported cursor kind").into());
             },
         };
 

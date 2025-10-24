@@ -4,9 +4,9 @@ use std::sync::Arc;
 
 use objc2::rc::Retained;
 use objc2::runtime::ProtocolObject;
-use objc2::{msg_send, ClassType, MainThreadMarker};
+use objc2::{ClassType, MainThreadMarker, msg_send};
 use objc2_core_foundation::{
-    kCFRunLoopDefaultMode, CFIndex, CFRunLoop, CFRunLoopActivity, CFRunLoopObserver,
+    CFIndex, CFRunLoop, CFRunLoopActivity, CFRunLoopObserver, kCFRunLoopDefaultMode,
 };
 use objc2_foundation::{NSNotificationCenter, NSObjectProtocol};
 use objc2_ui_kit::{
@@ -26,7 +26,7 @@ use winit_core::event_loop::{
 use winit_core::monitor::MonitorHandle as CoreMonitorHandle;
 use winit_core::window::{Theme, Window as CoreWindow};
 
-use super::app_state::{send_occluded_event_for_all_windows, AppState};
+use super::app_state::{AppState, send_occluded_event_for_all_windows};
 use super::notification_center::create_observer;
 use crate::monitor::MonitorHandle;
 use crate::window::Window;
@@ -154,7 +154,7 @@ impl EventLoop {
         // this line sets up the main run loop before `UIApplicationMain`
         setup_control_flow_observers();
 
-        let center = unsafe { NSNotificationCenter::defaultCenter() };
+        let center = NSNotificationCenter::defaultCenter();
 
         let _did_finish_launching_observer = create_observer(
             &center,
@@ -181,7 +181,7 @@ impl EventLoop {
             // `applicationWillEnterForeground:`
             unsafe { UIApplicationWillEnterForegroundNotification },
             move |notification| {
-                let app = unsafe { notification.object() }.expect(
+                let app = notification.object().expect(
                     "UIApplicationWillEnterForegroundNotification to have application object",
                 );
                 // The `object` in `UIApplicationWillEnterForegroundNotification` is documented to
@@ -195,7 +195,7 @@ impl EventLoop {
             // `applicationDidEnterBackground:`
             unsafe { UIApplicationDidEnterBackgroundNotification },
             move |notification| {
-                let app = unsafe { notification.object() }.expect(
+                let app = notification.object().expect(
                     "UIApplicationDidEnterBackgroundNotification to have application object",
                 );
                 // The `object` in `UIApplicationDidEnterBackgroundNotification` is documented to be
@@ -209,7 +209,8 @@ impl EventLoop {
             // `applicationWillTerminate:`
             unsafe { UIApplicationWillTerminateNotification },
             move |notification| {
-                let app = unsafe { notification.object() }
+                let app = notification
+                    .object()
                     .expect("UIApplicationWillTerminateNotification to have application object");
                 // The `object` in `UIApplicationWillTerminateNotification` is (somewhat) documented
                 // to be `UIApplication`.

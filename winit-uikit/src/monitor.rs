@@ -4,10 +4,10 @@ use std::collections::VecDeque;
 use std::num::NonZeroU32;
 use std::{fmt, hash, ptr};
 
-use dispatch2::{run_on_main, MainThreadBound};
+use dispatch2::{MainThreadBound, run_on_main};
 use dpi::PhysicalPosition;
 use objc2::rc::Retained;
-use objc2::{available, MainThreadMarker, Message};
+use objc2::{MainThreadMarker, Message, available};
 use objc2_foundation::NSInteger;
 use objc2_ui_kit::{UIScreen, UIScreenMode};
 use winit_core::monitor::{MonitorHandleProvider, VideoMode};
@@ -190,7 +190,7 @@ impl MonitorHandle {
         Self { ui_screen: MainThreadBound::new(ui_screen, mtm) }
     }
 
-    pub fn video_modes_handles(&self) -> impl Iterator<Item = VideoModeHandle> {
+    pub fn video_modes_handles(&self) -> impl Iterator<Item = VideoModeHandle> + 'static {
         run_on_main(|mtm| {
             let ui_screen = self.ui_screen(mtm);
 
@@ -203,7 +203,7 @@ impl MonitorHandle {
         })
     }
 
-    pub fn video_modes(&self) -> impl Iterator<Item = VideoMode> {
+    pub fn video_modes(&self) -> impl Iterator<Item = VideoMode> + 'static {
         self.video_modes_handles().map(|handle| handle.mode)
     }
 
@@ -271,8 +271,8 @@ mod tests {
         let main = UIScreen::mainScreen(mtm);
         assert!(UIScreen::screens(mtm).iter().any(|screen| ptr::eq(&*screen, &*main)));
 
-        assert!(unsafe {
+        assert!(
             NSSet::setWithArray(&UIScreen::screens(mtm)).containsObject(&UIScreen::mainScreen(mtm))
-        });
+        );
     }
 }

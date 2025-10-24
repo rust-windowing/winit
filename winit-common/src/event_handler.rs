@@ -114,7 +114,7 @@ impl EventHandler {
 
     pub fn handle(&self, callback: impl FnOnce(&mut (dyn ApplicationHandler + '_))) {
         match self.inner.try_borrow_mut().as_deref_mut() {
-            Ok(Some(ref mut user_app)) => {
+            Ok(Some(user_app)) => {
                 // It is important that we keep the reference borrowed here,
                 // so that `in_use` can properly detect that the handler is
                 // still in use.

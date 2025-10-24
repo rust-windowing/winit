@@ -5,7 +5,7 @@ use tracing::error;
 use wasm_bindgen::closure::Closure;
 use wasm_bindgen::prelude::wasm_bindgen;
 use wasm_bindgen::{JsCast, JsValue};
-use web_sys::{console, Document, DomException, Element, Navigator};
+use web_sys::{Document, DomException, Element, Navigator, console};
 
 pub(crate) fn is_cursor_lock_raw(navigator: &Navigator, document: &Document) -> bool {
     thread_local! {

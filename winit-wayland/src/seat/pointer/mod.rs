@@ -195,6 +195,7 @@ impl PointerHandler for WinitState {
                     // Get the current phase.
                     let mut pointer_data = pointer.winit_data().inner.lock().unwrap();
 
+                    let has_value120_scroll = horizontal.value120 != 0 || vertical.value120 != 0;
                     let has_discrete_scroll = horizontal.discrete != 0 || vertical.discrete != 0;
 
                     // Figure out what to do about start/ended phases here.
@@ -206,7 +207,7 @@ impl PointerHandler for WinitState {
                     } else {
                         match pointer_data.phase {
                             // Discrete scroll only results in moved events.
-                            _ if has_discrete_scroll => TouchPhase::Moved,
+                            _ if has_value120_scroll || has_discrete_scroll => TouchPhase::Moved,
                             TouchPhase::Started | TouchPhase::Moved => TouchPhase::Moved,
                             _ => TouchPhase::Started,
                         }
@@ -217,7 +218,13 @@ impl PointerHandler for WinitState {
 
                     // Mice events have both pixel and discrete delta's at the same time. So prefer
                     // the discrete values if they are present.
-                    let delta = if has_discrete_scroll {
+                    let delta = if has_value120_scroll {
+                        // NOTE: Wayland sign convention is the inverse of winit.
+                        MouseScrollDelta::LineDelta(
+                            (-horizontal.value120) as f32 / 120.,
+                            (-vertical.value120) as f32 / 120.,
+                        )
+                    } else if has_discrete_scroll {
                         // NOTE: Wayland sign convention is the inverse of winit.
                         MouseScrollDelta::LineDelta(
                             (-horizontal.discrete) as f32,

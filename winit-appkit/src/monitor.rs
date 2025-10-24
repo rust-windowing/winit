@@ -7,16 +7,16 @@ use std::{fmt, ptr};
 
 use dispatch2::run_on_main;
 use dpi::{LogicalPosition, PhysicalPosition, PhysicalSize};
-use objc2::rc::Retained;
 use objc2::MainThreadMarker;
+use objc2::rc::Retained;
 use objc2_app_kit::NSScreen;
 use objc2_core_foundation::{CFArray, CFRetained, CFUUID};
 use objc2_core_graphics::{
     CGDirectDisplayID, CGDisplayBounds, CGDisplayCopyAllDisplayModes, CGDisplayCopyDisplayMode,
     CGDisplayMode, CGDisplayModelNumber, CGGetActiveDisplayList, CGMainDisplayID,
 };
-use objc2_core_video::{kCVReturnSuccess, CVDisplayLink, CVTimeFlags};
-use objc2_foundation::{ns_string, NSNumber, NSPoint, NSRect};
+use objc2_core_video::{CVDisplayLink, CVTimeFlags, kCVReturnSuccess};
+use objc2_foundation::{NSNumber, NSPoint, NSRect, ns_string};
 use tracing::warn;
 use winit_core::monitor::{MonitorHandleProvider, VideoMode};
 
@@ -65,35 +65,33 @@ impl VideoModeHandle {
         native_mode: NativeDisplayMode,
         refresh_rate_millihertz: Option<NonZeroU32>,
     ) -> Self {
-        unsafe {
-            // The bit-depth is basically always 32 since macOS 10.12.
-            #[allow(deprecated)]
-            let pixel_encoding =
-                CGDisplayMode::pixel_encoding(Some(&native_mode.0)).unwrap().to_string();
-            let bit_depth = if pixel_encoding.eq_ignore_ascii_case(ffi::IO32BitDirectPixels) {
-                NonZeroU16::new(32)
-            } else if pixel_encoding.eq_ignore_ascii_case(ffi::IO16BitDirectPixels) {
-                NonZeroU16::new(16)
-            } else if pixel_encoding.eq_ignore_ascii_case(ffi::kIO30BitDirectPixels) {
-                NonZeroU16::new(30)
-            } else if pixel_encoding.eq_ignore_ascii_case(ffi::kIO64BitDirectPixels) {
-                NonZeroU16::new(64)
-            } else {
-                warn!(?pixel_encoding, "unknown bit depth");
-                None
-            };
+        // The bit-depth is basically always 32 since macOS 10.12.
+        #[allow(deprecated)]
+        let pixel_encoding =
+            CGDisplayMode::pixel_encoding(Some(&native_mode.0)).unwrap().to_string();
+        let bit_depth = if pixel_encoding.eq_ignore_ascii_case(ffi::IO32BitDirectPixels) {
+            NonZeroU16::new(32)
+        } else if pixel_encoding.eq_ignore_ascii_case(ffi::IO16BitDirectPixels) {
+            NonZeroU16::new(16)
+        } else if pixel_encoding.eq_ignore_ascii_case(ffi::kIO30BitDirectPixels) {
+            NonZeroU16::new(30)
+        } else if pixel_encoding.eq_ignore_ascii_case(ffi::kIO64BitDirectPixels) {
+            NonZeroU16::new(64)
+        } else {
+            warn!(?pixel_encoding, "unknown bit depth");
+            None
+        };
 
-            let mode = VideoMode::new(
-                PhysicalSize::new(
-                    CGDisplayMode::pixel_width(Some(&native_mode.0)) as u32,
-                    CGDisplayMode::pixel_height(Some(&native_mode.0)) as u32,
-                ),
-                bit_depth,
-                refresh_rate_millihertz,
-            );
+        let mode = VideoMode::new(
+            PhysicalSize::new(
+                CGDisplayMode::pixel_width(Some(&native_mode.0)) as u32,
+                CGDisplayMode::pixel_height(Some(&native_mode.0)) as u32,
+            ),
+            bit_depth,
+            refresh_rate_millihertz,
+        );
 
-            VideoModeHandle { mode, monitor: monitor.clone(), native_mode }
-        }
+        Self { mode, monitor: monitor.clone(), native_mode }
     }
 }
 
@@ -137,11 +135,11 @@ impl MonitorHandle {
 
     fn refresh_rate_millihertz(&self) -> Option<NonZeroU32> {
         let current_display_mode =
-            NativeDisplayMode(unsafe { CGDisplayCopyDisplayMode(self.display_id()) }.unwrap());
+            NativeDisplayMode(CGDisplayCopyDisplayMode(self.display_id()).unwrap());
         refresh_rate_millihertz(self.display_id(), &current_display_mode)
     }
 
-    pub fn video_mode_handles(&self) -> impl Iterator<Item = VideoModeHandle> {
+    pub fn video_mode_handles(&self) -> impl Iterator<Item = VideoModeHandle> + 'static {
         let refresh_rate_millihertz = self.refresh_rate_millihertz();
         let monitor = self.clone();
 
@@ -159,7 +157,7 @@ impl MonitorHandle {
         };
 
         modes.into_iter().map(move |mode| {
-            let cg_refresh_rate_hertz = unsafe { CGDisplayMode::refresh_rate(Some(&mode)) };
+            let cg_refresh_rate_hertz = CGDisplayMode::refresh_rate(Some(&mode));
 
             // CGDisplayModeGetRefreshRate returns 0.0 for any display that
             // isn't a CRT
@@ -202,7 +200,7 @@ impl MonitorHandleProvider for MonitorHandle {
     //
     // <https://github.com/glfw/glfw/blob/57cbded0760a50b9039ee0cb3f3c14f60145567c/src/cocoa_monitor.m#L44-L126>
     fn name(&self) -> Option<std::borrow::Cow<'_, str>> {
-        let screen_num = unsafe { CGDisplayModelNumber(self.display_id()) };
+        let screen_num = CGDisplayModelNumber(self.display_id());
         Some(format!("Monitor #{screen_num}").into())
     }
 
@@ -210,7 +208,7 @@ impl MonitorHandleProvider for MonitorHandle {
         // This is already in screen coordinates. If we were using `NSScreen`,
         // then a conversion would've been needed:
         // flip_window_screen_coordinates(self.ns_screen(mtm)?.frame())
-        let bounds = unsafe { CGDisplayBounds(self.display_id()) };
+        let bounds = CGDisplayBounds(self.display_id());
         let position = LogicalPosition::new(bounds.origin.x, bounds.origin.y);
         Some(position.to_physical(self.scale_factor()))
     }
@@ -225,8 +223,7 @@ impl MonitorHandleProvider for MonitorHandle {
     }
 
     fn current_video_mode(&self) -> Option<VideoMode> {
-        let mode =
-            NativeDisplayMode(unsafe { CGDisplayCopyDisplayMode(self.display_id()) }.unwrap());
+        let mode = NativeDisplayMode(CGDisplayCopyDisplayMode(self.display_id()).unwrap());
         let refresh_rate_millihertz = refresh_rate_millihertz(self.display_id(), &mode);
         Some(VideoModeHandle::new(self.clone(), mode, refresh_rate_millihertz).mode)
     }
@@ -264,7 +261,7 @@ pub fn available_monitors() -> VecDeque<MonitorHandle> {
 
 pub fn primary_monitor() -> MonitorHandle {
     // Display ID just fetched from `CGMainDisplayID`, should be fine to unwrap.
-    MonitorHandle::new(unsafe { CGMainDisplayID() }).expect("invalid display ID")
+    MonitorHandle::new(CGMainDisplayID()).expect("invalid display ID")
 }
 
 impl fmt::Debug for MonitorHandle {
@@ -315,40 +312,38 @@ pub(crate) fn flip_window_screen_coordinates(frame: NSRect) -> NSPoint {
     // It is intentional that we use `CGMainDisplayID` (as opposed to
     // `NSScreen::mainScreen`), because that's what the screen coordinates
     // are relative to, no matter which display the window is currently on.
-    let main_screen_height = unsafe { CGDisplayBounds(CGMainDisplayID()) }.size.height;
+    let main_screen_height = CGDisplayBounds(CGMainDisplayID()).size.height;
 
     let y = main_screen_height - frame.size.height - frame.origin.y;
     NSPoint::new(frame.origin.x, y)
 }
 
 fn refresh_rate_millihertz(id: CGDirectDisplayID, mode: &NativeDisplayMode) -> Option<NonZeroU32> {
-    unsafe {
-        let refresh_rate = CGDisplayMode::refresh_rate(Some(&mode.0));
-        if refresh_rate > 0.0 {
-            return NonZeroU32::new((refresh_rate * 1000.0).round() as u32);
-        }
-
-        let mut display_link = std::ptr::null_mut();
-        #[allow(deprecated)]
-        if CVDisplayLink::create_with_cg_display(id, NonNull::from(&mut display_link))
-            != kCVReturnSuccess
-        {
-            return None;
-        }
-        let display_link = CFRetained::from_raw(NonNull::new(display_link).unwrap());
-        #[allow(deprecated)]
-        let time = display_link.nominal_output_video_refresh_period();
-
-        // This value is indefinite if an invalid display link was specified
-        if time.flags & CVTimeFlags::IsIndefinite.0 != 0 {
-            return None;
-        }
-
-        (time.timeScale as i64)
-            .checked_div(time.timeValue)
-            .map(|v| (v * 1000) as u32)
-            .and_then(NonZeroU32::new)
+    let refresh_rate = CGDisplayMode::refresh_rate(Some(&mode.0));
+    if refresh_rate > 0.0 {
+        return NonZeroU32::new((refresh_rate * 1000.0).round() as u32);
     }
+
+    let mut display_link = std::ptr::null_mut();
+    #[allow(deprecated)]
+    if unsafe { CVDisplayLink::create_with_cg_display(id, NonNull::from(&mut display_link)) }
+        != kCVReturnSuccess
+    {
+        return None;
+    }
+    let display_link = unsafe { CFRetained::from_raw(NonNull::new(display_link).unwrap()) };
+    #[allow(deprecated)]
+    let time = display_link.nominal_output_video_refresh_period();
+
+    // This value is indefinite if an invalid display link was specified
+    if time.flags & CVTimeFlags::IsIndefinite.0 != 0 {
+        return None;
+    }
+
+    (time.timeScale as i64)
+        .checked_div(time.timeValue)
+        .map(|v| (v * 1000) as u32)
+        .and_then(NonZeroU32::new)
 }
 
 #[cfg(test)]
@@ -395,7 +390,7 @@ mod tests {
         // Assertion failed: (did_initialize), function CGS_REQUIRE_INIT, file CGInitialization.c, line 44.
         // ```
         // See https://github.com/JXA-Cookbook/JXA-Cookbook/issues/27#issuecomment-277517668
-        let _ = unsafe { CGMainDisplayID() };
+        let _ = CGMainDisplayID();
 
         let handle = MonitorHandle(CFUUID::new(None).unwrap());
         assert_eq!(handle.display_id(), 0);

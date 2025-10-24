@@ -13,21 +13,21 @@ use std::{fmt, mem, panic, ptr};
 
 use dpi::{PhysicalPosition, PhysicalSize};
 use windows_sys::Win32::Foundation::{
-    GetLastError, FALSE, HANDLE, HWND, LPARAM, LRESULT, POINT, RECT, WAIT_FAILED, WPARAM,
+    FALSE, GetLastError, HANDLE, HWND, LPARAM, LRESULT, POINT, RECT, WAIT_FAILED, WPARAM,
 };
 use windows_sys::Win32::Graphics::Gdi::{
-    GetMonitorInfoW, MonitorFromRect, MonitorFromWindow, RedrawWindow, ScreenToClient,
-    ValidateRect, MONITORINFO, MONITOR_DEFAULTTONULL, RDW_INTERNALPAINT, SC_SCREENSAVE,
+    GetMonitorInfoW, MONITOR_DEFAULTTONULL, MONITORINFO, MonitorFromRect, MonitorFromWindow,
+    RDW_INTERNALPAINT, RedrawWindow, SC_SCREENSAVE, ScreenToClient, ValidateRect,
 };
 use windows_sys::Win32::System::Ole::RevokeDragDrop;
 use windows_sys::Win32::System::Threading::{
-    CreateWaitableTimerExW, GetCurrentThreadId, SetWaitableTimer,
-    CREATE_WAITABLE_TIMER_HIGH_RESOLUTION, INFINITE, TIMER_ALL_ACCESS,
+    CREATE_WAITABLE_TIMER_HIGH_RESOLUTION, CreateWaitableTimerExW, GetCurrentThreadId, INFINITE,
+    SetWaitableTimer, TIMER_ALL_ACCESS,
 };
 use windows_sys::Win32::UI::Controls::{HOVER_DEFAULT, WM_MOUSELEAVE};
 use windows_sys::Win32::UI::Input::Ime::{GCS_COMPSTR, GCS_RESULTSTR, ISC_SHOWUICOMPOSITIONWINDOW};
 use windows_sys::Win32::UI::Input::KeyboardAndMouse::{
-    ReleaseCapture, SetCapture, TrackMouseEvent, TME_LEAVE, TRACKMOUSEEVENT,
+    ReleaseCapture, SetCapture, TME_LEAVE, TRACKMOUSEEVENT, TrackMouseEvent,
 };
 use windows_sys::Win32::UI::Input::Pointer::{
     POINTER_FLAG_DOWN, POINTER_FLAG_PRIMARY, POINTER_FLAG_UP, POINTER_FLAG_UPDATE,
@@ -40,15 +40,15 @@ use windows_sys::Win32::UI::Input::{
     MOUSE_MOVE_RELATIVE, RAWINPUT, RIM_TYPEKEYBOARD, RIM_TYPEMOUSE,
 };
 use windows_sys::Win32::UI::WindowsAndMessaging::{
-    CreateWindowExW, DefWindowProcW, DestroyWindow, DispatchMessageW, GetClientRect, GetCursorPos,
-    GetMenu, LoadCursorW, MsgWaitForMultipleObjectsEx, PeekMessageW, PostMessageW,
-    RegisterClassExW, RegisterWindowMessageA, SetCursor, SetWindowPos, SystemParametersInfoW,
-    TranslateMessage, CREATESTRUCTW, GWL_STYLE, GWL_USERDATA, HTCAPTION, HTCLIENT, MINMAXINFO,
-    MNC_CLOSE, MSG, MWMO_INPUTAVAILABLE, NCCALCSIZE_PARAMS, PM_REMOVE, PT_TOUCH, QS_ALLINPUT,
-    RI_MOUSE_HWHEEL, RI_MOUSE_WHEEL, SC_MINIMIZE, SC_RESTORE, SIZE_MAXIMIZED,
-    SPI_GETWHEELSCROLLCHARS, SPI_GETWHEELSCROLLLINES, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE,
-    SWP_NOZORDER, WHEEL_DELTA, WINDOWPOS, WMSZ_BOTTOM, WMSZ_BOTTOMLEFT, WMSZ_BOTTOMRIGHT,
-    WMSZ_LEFT, WMSZ_RIGHT, WMSZ_TOP, WMSZ_TOPLEFT, WMSZ_TOPRIGHT, WM_CAPTURECHANGED, WM_CLOSE,
+    CREATESTRUCTW, CreateWindowExW, DefWindowProcW, DestroyWindow, DispatchMessageW, GWL_STYLE,
+    GWL_USERDATA, GetClientRect, GetCursorPos, GetMenu, HTCAPTION, HTCLIENT, LoadCursorW,
+    MINMAXINFO, MNC_CLOSE, MSG, MWMO_INPUTAVAILABLE, MsgWaitForMultipleObjectsEx,
+    NCCALCSIZE_PARAMS, PEN_FLAG_BARREL, PEN_FLAG_ERASER, PEN_MASK_PRESSURE, PEN_MASK_ROTATION,
+    PEN_MASK_TILT_X, PEN_MASK_TILT_Y, PM_REMOVE, PT_PEN, PT_TOUCH, PeekMessageW, PostMessageW,
+    QS_ALLINPUT, RI_MOUSE_HWHEEL, RI_MOUSE_WHEEL, RegisterClassExW, RegisterWindowMessageA,
+    SC_MINIMIZE, SC_RESTORE, SIZE_MAXIMIZED, SPI_GETWHEELSCROLLCHARS, SPI_GETWHEELSCROLLLINES,
+    SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, SWP_NOZORDER, SetCursor, SetWindowPos,
+    SystemParametersInfoW, TranslateMessage, WHEEL_DELTA, WINDOWPOS, WM_CAPTURECHANGED, WM_CLOSE,
     WM_CREATE, WM_DESTROY, WM_DPICHANGED, WM_ENTERSIZEMOVE, WM_EXITSIZEMOVE, WM_GETMINMAXINFO,
     WM_IME_COMPOSITION, WM_IME_ENDCOMPOSITION, WM_IME_SETCONTEXT, WM_IME_STARTCOMPOSITION,
     WM_INPUT, WM_KEYDOWN, WM_KEYUP, WM_KILLFOCUS, WM_LBUTTONDOWN, WM_LBUTTONUP, WM_MBUTTONDOWN,
@@ -56,16 +56,17 @@ use windows_sys::Win32::UI::WindowsAndMessaging::{
     WM_NCCALCSIZE, WM_NCCREATE, WM_NCDESTROY, WM_NCLBUTTONDOWN, WM_PAINT, WM_POINTERDOWN,
     WM_POINTERUP, WM_POINTERUPDATE, WM_RBUTTONDOWN, WM_RBUTTONUP, WM_SETCURSOR, WM_SETFOCUS,
     WM_SETTINGCHANGE, WM_SIZE, WM_SIZING, WM_SYSCOMMAND, WM_SYSKEYDOWN, WM_SYSKEYUP, WM_TOUCH,
-    WM_WINDOWPOSCHANGED, WM_WINDOWPOSCHANGING, WM_XBUTTONDOWN, WM_XBUTTONUP, WNDCLASSEXW,
-    WS_EX_LAYERED, WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW, WS_EX_TRANSPARENT, WS_OVERLAPPED, WS_POPUP,
-    WS_VISIBLE,
+    WM_WINDOWPOSCHANGED, WM_WINDOWPOSCHANGING, WM_XBUTTONDOWN, WM_XBUTTONUP, WMSZ_BOTTOM,
+    WMSZ_BOTTOMLEFT, WMSZ_BOTTOMRIGHT, WMSZ_LEFT, WMSZ_RIGHT, WMSZ_TOP, WMSZ_TOPLEFT,
+    WMSZ_TOPRIGHT, WNDCLASSEXW, WS_EX_LAYERED, WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW,
+    WS_EX_TRANSPARENT, WS_OVERLAPPED, WS_POPUP, WS_VISIBLE,
 };
 use winit_core::application::ApplicationHandler;
 use winit_core::cursor::{CustomCursor, CustomCursorSource};
 use winit_core::error::{EventLoopError, NotSupportedError, RequestError};
 use winit_core::event::{
-    DeviceEvent, DeviceId, FingerId, Force, Ime, RawKeyEvent, SurfaceSizeWriter, TouchPhase,
-    WindowEvent,
+    DeviceEvent, DeviceId, FingerId, Force, Ime, RawKeyEvent, SurfaceSizeWriter, TabletToolButton,
+    TabletToolData, TabletToolKind, TabletToolTilt, TouchPhase, WindowEvent,
 };
 use winit_core::event_loop::pump_events::PumpStatus;
 use winit_core::event_loop::{
@@ -78,8 +79,8 @@ use winit_core::monitor::{Fullscreen, MonitorHandle as CoreMonitorHandle};
 use winit_core::window::{Theme, Window as CoreWindow, WindowAttributes, WindowId};
 
 pub(super) use self::runner::{Event, EventLoopRunner};
-use super::window::set_skip_taskbar;
 use super::SelectedCursor;
+use super::window::set_skip_taskbar;
 use crate::dark_mode::try_theme;
 use crate::dpi::{become_dpi_aware, dpi_to_scale_factor};
 use crate::drop_handler::FileDropHandler;
@@ -88,7 +89,7 @@ use crate::ime::ImeContext;
 use crate::keyboard::KeyEventBuilder;
 use crate::keyboard_layout::LAYOUT_CACHE;
 use crate::monitor::{self, MonitorHandle};
-use crate::util::{wrap_device_id, WIN10_BUILD_VERSION};
+use crate::util::{WIN10_BUILD_VERSION, wrap_device_id};
 use crate::window::{InitData, Window};
 use crate::window_state::{CursorFlags, ImeState, WindowFlags, WindowState};
 use crate::{raw_input, util};
@@ -106,6 +107,7 @@ pub(crate) struct WindowData {
     pub key_event_builder: KeyEventBuilder,
     pub _file_drop_handler: Option<FileDropHandler>,
     pub userdata_removed: Cell<bool>,
+    pub last_tablet_down_button_state: Cell<u32>,
     pub recurse_depth: Cell<u32>,
 }
 
@@ -277,11 +279,7 @@ impl EventLoop {
 
         self.runner.reset_runner();
 
-        if exit_code == 0 {
-            Ok(())
-        } else {
-            Err(EventLoopError::ExitFailure(exit_code))
-        }
+        if exit_code == 0 { Ok(()) } else { Err(EventLoopError::ExitFailure(exit_code)) }
     }
 
     pub fn pump_app_events<A: ApplicationHandler>(
@@ -434,7 +432,7 @@ impl RootActiveEventLoop for ActiveEventLoop {
         let cursor = match source {
             CustomCursorSource::Image(cursor) => cursor,
             CustomCursorSource::Animation { .. } | CustomCursorSource::Url { .. } => {
-                return Err(NotSupportedError::new("unsupported cursor kind").into())
+                return Err(NotSupportedError::new("unsupported cursor kind").into());
             },
         };
 
@@ -533,7 +531,7 @@ fn main_thread_id() -> u32 {
     // main entrypoint.
     //
     // See: https://doc.rust-lang.org/stable/reference/abi.html#the-link_section-attribute
-    #[link_section = ".CRT$XCU"]
+    #[unsafe(link_section = ".CRT$XCU")]
     static INIT_MAIN_THREAD_ID: unsafe fn() = {
         unsafe fn initer() {
             unsafe { MAIN_THREAD_ID = GetCurrentThreadId() };
@@ -564,11 +562,7 @@ fn dur2timeout(dur: Duration) -> u32 {
         .and_then(|ms| ms.checked_add((dur.subsec_nanos() as u64) / 1_000_000))
         .and_then(
             |ms| {
-                if dur.subsec_nanos() % 1_000_000 > 0 {
-                    ms.checked_add(1)
-                } else {
-                    Some(ms)
-                }
+                if dur.subsec_nanos() % 1_000_000 > 0 { ms.checked_add(1) } else { Some(ms) }
             },
         )
         .map(|ms| if ms > u32::MAX as u64 { INFINITE } else { ms as u32 })
@@ -595,11 +589,7 @@ fn create_high_resolution_timer() -> Option<OwnedHandle> {
         // CREATE_WAITABLE_TIMER_HIGH_RESOLUTION is supported only after
         // Win10 1803 but it is already default option for rustc
         // (std uses it to implement `std::thread::sleep`).
-        if handle.is_null() {
-            None
-        } else {
-            Some(OwnedHandle::from_raw_handle(handle))
-        }
+        if handle.is_null() { None } else { Some(OwnedHandle::from_raw_handle(handle)) }
     }
 }
 
@@ -621,11 +611,7 @@ unsafe fn set_high_resolution_timer(timer: RawHandle, timeout: Duration) -> Resu
     let due_time: i64 = -(intervals_to_wait as i64);
     unsafe {
         let set_result = SetWaitableTimer(timer as HANDLE, &due_time, 0, None, ptr::null(), FALSE);
-        if set_result != FALSE {
-            Ok(())
-        } else {
-            Err(GetLastError())
-        }
+        if set_result != FALSE { Ok(()) } else { Err(GetLastError()) }
     }
 }
 
@@ -1258,7 +1244,7 @@ unsafe fn public_window_callback_inner(
                 if let Some(new_rect) = new_rect {
                     let new_monitor = unsafe { MonitorFromRect(&new_rect, MONITOR_DEFAULTTONULL) };
                     match fullscreen {
-                        Fullscreen::Borderless(ref mut fullscreen_monitor) => {
+                        Fullscreen::Borderless(fullscreen_monitor) => {
                             if !new_monitor.is_null()
                                 && fullscreen_monitor
                                     .as_ref()
@@ -1646,12 +1632,14 @@ unsafe fn public_window_callback_inner(
 
             let scroll_lines_multiplier = if userdata.window_state_lock().use_system_wheel_speed {
                 let mut scroll_lines = DEFAULT_SCROLL_LINES_PER_WHEEL_DELTA;
-                let _ = SystemParametersInfoW(
-                    SPI_GETWHEELSCROLLLINES,
-                    0,
-                    &mut scroll_lines as *mut isize as *mut c_void,
-                    0,
-                );
+                let _ = unsafe {
+                    SystemParametersInfoW(
+                        SPI_GETWHEELSCROLLLINES,
+                        0,
+                        &mut scroll_lines as *mut isize as *mut c_void,
+                        0,
+                    )
+                };
                 if scroll_lines as u32 == WHEEL_PAGESCROLL {
                     // TODO: figure out how to handle page scrolls
                     scroll_lines = DEFAULT_SCROLL_LINES_PER_WHEEL_DELTA;
@@ -1681,12 +1669,14 @@ unsafe fn public_window_callback_inner(
             let scroll_characters_multiplier =
                 if userdata.window_state_lock().use_system_wheel_speed {
                     let mut scroll_characters = DEFAULT_SCROLL_CHARACTERS_PER_WHEEL_DELTA;
-                    let _ = SystemParametersInfoW(
-                        SPI_GETWHEELSCROLLCHARS,
-                        0,
-                        &mut scroll_characters as *mut isize as *mut c_void,
-                        0,
-                    );
+                    let _ = unsafe {
+                        SystemParametersInfoW(
+                            SPI_GETWHEELSCROLLCHARS,
+                            0,
+                            &mut scroll_characters as *mut isize as *mut c_void,
+                            0,
+                        )
+                    };
                     scroll_characters
                 } else {
                     1
@@ -2085,22 +2075,6 @@ unsafe fn public_window_callback_inner(
                         continue;
                     }
 
-                    let force = if let PT_TOUCH = pointer_info.pointerType {
-                        let mut touch_info = mem::MaybeUninit::uninit();
-                        util::GET_POINTER_TOUCH_INFO.and_then(|GetPointerTouchInfo| {
-                            match unsafe {
-                                GetPointerTouchInfo(pointer_info.pointerId, touch_info.as_mut_ptr())
-                            } {
-                                0 => None,
-                                _ => normalize_pointer_pressure(unsafe {
-                                    touch_info.assume_init().pressure
-                                }),
-                            }
-                        })
-                    } else {
-                        None
-                    };
-
                     let x = location.x as f64 + x.fract();
                     let y = location.y as f64 + y.fract();
                     let position = PhysicalPosition::new(x, y);
@@ -2108,60 +2082,83 @@ unsafe fn public_window_callback_inner(
                     let finger_id = FingerId::from_raw(pointer_info.pointerId as usize);
                     let primary = util::has_flag(pointer_info.pointerFlags, POINTER_FLAG_PRIMARY);
 
-                    if util::has_flag(pointer_info.pointerFlags, POINTER_FLAG_DOWN) {
-                        userdata.send_window_event(window, WindowEvent::PointerEntered {
-                            device_id: None,
-                            primary,
-                            position,
-                            kind: if let PT_TOUCH = pointer_info.pointerType {
-                                PointerKind::Touch(finger_id)
-                            } else {
-                                PointerKind::Unknown
+                    let is_down = util::has_flag(pointer_info.pointerFlags, POINTER_FLAG_DOWN);
+                    if is_down || util::has_flag(pointer_info.pointerFlags, POINTER_FLAG_UP) {
+                        let (kind, button) = match pointer_info.pointerType {
+                            PT_TOUCH => (PointerKind::Touch(finger_id), ButtonSource::Touch {
+                                finger_id,
+                                force: force_for_touch(pointer_info.pointerId),
+                            }),
+                            PT_PEN => {
+                                let kind = PointerKind::TabletTool(TabletToolKind::Pen);
+                                let (mut pen_flags, data) =
+                                    tablet_tool_info_for_pen(pointer_info.pointerId);
+                                let old_pen_flags =
+                                    userdata.last_tablet_down_button_state.replace(pen_flags);
+                                // For release, use a diff.
+                                if !is_down {
+                                    pen_flags ^= old_pen_flags;
+                                };
+
+                                let button = ButtonSource::TabletTool {
+                                    kind: TabletToolKind::Pen,
+                                    button: pen_flags_to_button(pen_flags),
+                                    data,
+                                };
+
+                                (kind, button)
                             },
-                        });
-                        userdata.send_window_event(window, WindowEvent::PointerButton {
-                            device_id: None,
-                            primary,
-                            state: Pressed,
-                            position,
-                            button: if let PT_TOUCH = pointer_info.pointerType {
-                                ButtonSource::Touch { finger_id, force }
-                            } else {
-                                ButtonSource::Unknown(0)
-                            },
-                        });
-                    } else if util::has_flag(pointer_info.pointerFlags, POINTER_FLAG_UP) {
-                        userdata.send_window_event(window, WindowEvent::PointerButton {
-                            device_id: None,
-                            primary,
-                            state: Released,
-                            position,
-                            button: if let PT_TOUCH = pointer_info.pointerType {
-                                ButtonSource::Touch { finger_id, force }
-                            } else {
-                                ButtonSource::Unknown(0)
-                            },
-                        });
-                        userdata.send_window_event(window, WindowEvent::PointerLeft {
-                            device_id: None,
-                            primary,
-                            position: Some(position),
-                            kind: if let PT_TOUCH = pointer_info.pointerType {
-                                PointerKind::Touch(finger_id)
-                            } else {
-                                PointerKind::Unknown
-                            },
-                        });
+                            _ => (PointerKind::Unknown, ButtonSource::Unknown(0)),
+                        };
+
+                        if is_down {
+                            userdata.send_window_event(window, WindowEvent::PointerEntered {
+                                device_id: None,
+                                primary,
+                                position,
+                                kind,
+                            });
+
+                            userdata.send_window_event(window, WindowEvent::PointerButton {
+                                device_id: None,
+                                primary,
+                                state: Pressed,
+                                position,
+                                button,
+                            });
+                        } else {
+                            userdata.send_window_event(window, WindowEvent::PointerButton {
+                                device_id: None,
+                                primary,
+                                state: Released,
+                                position,
+                                button,
+                            });
+                            userdata.send_window_event(window, WindowEvent::PointerLeft {
+                                device_id: None,
+                                primary,
+                                position: Some(position),
+                                kind,
+                            });
+                        }
                     } else if util::has_flag(pointer_info.pointerFlags, POINTER_FLAG_UPDATE) {
+                        let source = match pointer_info.pointerType {
+                            PT_TOUCH => PointerSource::Touch {
+                                finger_id,
+                                force: force_for_touch(pointer_info.pointerId),
+                            },
+                            PT_PEN => PointerSource::TabletTool {
+                                kind: TabletToolKind::Pen,
+                                data: tablet_tool_info_for_pen(pointer_info.pointerId).1,
+                            },
+                            _ => PointerSource::Unknown,
+                        };
+
                         userdata.send_window_event(window, WindowEvent::PointerMoved {
                             device_id: None,
                             primary,
                             position,
-                            source: if let PT_TOUCH = pointer_info.pointerType {
-                                PointerSource::Touch { finger_id, force }
-                            } else {
-                                PointerSource::Unknown
-                            },
+                            source,
                         });
                     } else {
                         continue;
@@ -2209,11 +2206,7 @@ unsafe fn public_window_callback_inner(
                 // provided through the low-order word of lParam. We use that here since
                 // `WM_MOUSEMOVE` seems to come after `WM_SETCURSOR` for a given cursor movement.
                 let in_client_area = util::loword(lparam as u32) as u32 == HTCLIENT;
-                if in_client_area {
-                    Some(window_state.mouse.selected_cursor.clone())
-                } else {
-                    None
-                }
+                if in_client_area { Some(window_state.mouse.selected_cursor.clone()) } else { None }
             };
 
             match set_cursor_to {
@@ -2690,4 +2683,58 @@ fn apply_win10_dpi_adjustment(
     }
 
     conservative_rect
+}
+
+fn force_for_touch(pointer_id: u32) -> Option<Force> {
+    let mut touch_info = mem::MaybeUninit::uninit();
+    util::GET_POINTER_TOUCH_INFO.and_then(|GetPointerTouchInfo| {
+        match unsafe { GetPointerTouchInfo(pointer_id, touch_info.as_mut_ptr()) } {
+            0 => None,
+            _ => normalize_pointer_pressure(unsafe { touch_info.assume_init().pressure }),
+        }
+    })
+}
+
+// Information is stored on the same thing, so we don't save anything by
+// splitting the functions.
+fn tablet_tool_info_for_pen(pointer_id: u32) -> (u32, TabletToolData) {
+    let mut tool_data = TabletToolData::default();
+    let mut tool_button = 0;
+
+    let mut tablet_info = mem::MaybeUninit::uninit();
+    util::GET_POINTER_PEN_INFO.map(|GetPointerPenInfo| {
+        if unsafe { GetPointerPenInfo(pointer_id, tablet_info.as_mut_ptr()) } == 0 {
+            return;
+        }
+
+        let pen_info = unsafe { tablet_info.assume_init() };
+        if pen_info.penMask & PEN_MASK_PRESSURE != 0 {
+            tool_data.force = normalize_pointer_pressure(pen_info.pressure);
+        }
+        if pen_info.penMask & (PEN_MASK_TILT_X | PEN_MASK_TILT_Y) != 0 {
+            tool_data.tilt =
+                Some(TabletToolTilt { x: pen_info.tiltX as i8, y: pen_info.tiltY as i8 });
+        }
+        if pen_info.penMask & PEN_MASK_ROTATION != 0 {
+            tool_data.twist = Some(pen_info.rotation as u16);
+        }
+
+        tool_button = pen_info.penFlags;
+    });
+
+    (tool_button, tool_data)
+}
+
+// NOTE: According to firefox, the buttons while can be combined, in
+// reality they are not.
+fn pen_flags_to_button(flags: u32) -> TabletToolButton {
+    if flags & PEN_FLAG_BARREL != 0 {
+        TabletToolButton::Barrel
+    } else if flags & PEN_FLAG_ERASER != 0 {
+        // NOTE: this is likely not a correct thing to do, but route
+        // it that way for now.
+        TabletToolButton::Other(PEN_FLAG_ERASER as u16)
+    } else {
+        TabletToolButton::Contact
+    }
 }
