@@ -168,7 +168,11 @@ changelog entry.
     type to a generic mouse button.
   - New `FingerId` added to `PointerKind::Touch` and `PointerSource::Touch` able to uniquely
     identify a finger in a multi-touch interaction. Replaces the old `Touch::id`.
-  - In the same spirit rename `DeviceEvent::MouseMotion` to `PointerMotion`.
+  - In the same spirit rename `DeviceEvent::MouseMotion` and `DeviceEvent::Button` to
+    `PointerMotion` and `PointerButton` respectively.
+  - New `DeviceButtonSource` added to `DeviceEvent::PointerButton`, similar to `ButtonSource`.
+    The `button` field from `DeviceEvent::Button` has been renamed to `button_id`.
+    - `button_id` will **always** be `0` on Windows. Use `DeviceButtonSource` instead.
   - Remove `Force::Calibrated::altitude_angle`.
 - On X11, use bottom-right corner for IME hotspot in `Window::set_ime_cursor_area`.
 - On macOS and iOS, no longer emit `ScaleFactorChanged` upon window creation.

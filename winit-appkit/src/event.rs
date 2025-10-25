@@ -4,9 +4,9 @@ use dispatch2::run_on_main;
 use objc2::rc::Retained;
 use objc2_app_kit::{NSEvent, NSEventModifierFlags, NSEventSubtype, NSEventType};
 use objc2_core_foundation::{CFData, CFRetained};
-use objc2_foundation::NSPoint;
+use objc2_foundation::{NSInteger, NSPoint};
 use smol_str::SmolStr;
-use winit_core::event::{ElementState, KeyEvent, Modifiers};
+use winit_core::event::{ElementState, KeyEvent, Modifiers, MouseButton};
 use winit_core::keyboard::{
     Key, KeyCode, KeyLocation, ModifiersKeys, ModifiersState, NamedKey, NativeKey, NativeKeyCode,
     PhysicalKey,
@@ -269,6 +269,22 @@ pub fn code_to_location(key: PhysicalKey) -> KeyLocation {
         KeyCode::Numpad9 => KeyLocation::Numpad,
 
         _ => KeyLocation::Standard,
+    }
+}
+
+pub fn button_number_to_mouse_button(button_number: NSInteger) -> MouseButton {
+    // The buttonNumber property only makes sense for the mouse events:
+    // NSLeftMouse.../NSRightMouse.../NSOtherMouse...
+    // For other events, it's always set to 0.
+    // MacOS only defines the left, right and middle buttons, 3..=31 are left as generic buttons,
+    // but 3 and 4 are very commonly used as Back and Forward by hardware vendors and applications.
+    match button_number {
+        0 => MouseButton::Left,
+        1 => MouseButton::Right,
+        2 => MouseButton::Middle,
+        3 => MouseButton::Back,
+        4 => MouseButton::Forward,
+        n => MouseButton::Other(n as u16),
     }
 }
 

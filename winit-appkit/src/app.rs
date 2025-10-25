@@ -9,9 +9,10 @@ use objc2::runtime::{Imp, Sel};
 use objc2::sel;
 use objc2_app_kit::{NSApplication, NSEvent, NSEventModifierFlags, NSEventType};
 use objc2_foundation::MainThreadMarker;
-use winit_core::event::{DeviceEvent, ElementState};
+use winit_core::event::{DeviceButtonSource, DeviceEvent, ElementState};
 
 use super::app_state::AppState;
+use super::event::button_number_to_mouse_button;
 
 type SendEvent = extern "C-unwind" fn(&NSApplication, Sel, &NSEvent);
 
@@ -117,19 +118,23 @@ fn maybe_dispatch_device_event(app_state: &Rc<AppState>, event: &NSEvent) {
             }
         },
         NSEventType::LeftMouseDown | NSEventType::RightMouseDown | NSEventType::OtherMouseDown => {
-            let button = event.buttonNumber() as u32;
+            let button_number = event.buttonNumber();
+            let source = DeviceButtonSource::Mouse(button_number_to_mouse_button(button_number));
             app_state.maybe_queue_with_handler(move |app, event_loop| {
-                app.device_event(event_loop, None, DeviceEvent::Button {
-                    button,
+                app.device_event(event_loop, None, DeviceEvent::PointerButton {
+                    button: source,
+                    button_id: button_number as u32,
                     state: ElementState::Pressed,
                 });
             });
         },
         NSEventType::LeftMouseUp | NSEventType::RightMouseUp | NSEventType::OtherMouseUp => {
-            let button = event.buttonNumber() as u32;
+            let button_number = event.buttonNumber();
+            let source = DeviceButtonSource::Mouse(button_number_to_mouse_button(button_number));
             app_state.maybe_queue_with_handler(move |app, event_loop| {
-                app.device_event(event_loop, None, DeviceEvent::Button {
-                    button,
+                app.device_event(event_loop, None, DeviceEvent::PointerButton {
+                    button: source,
+                    button_id: button_number as u32,
                     state: ElementState::Released,
                 });
             });

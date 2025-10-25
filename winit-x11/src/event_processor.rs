@@ -8,9 +8,9 @@ use dpi::{PhysicalPosition, PhysicalSize};
 use winit_common::xkb::{self, Context, XkbState};
 use winit_core::application::ApplicationHandler;
 use winit_core::event::{
-    ButtonSource, DeviceEvent, DeviceId, ElementState, FingerId, Ime, MouseButton,
-    MouseScrollDelta, PointerKind, PointerSource, RawKeyEvent, SurfaceSizeWriter, TouchPhase,
-    WindowEvent,
+    ButtonSource, DeviceButtonSource, DeviceEvent, DeviceId, ElementState, FingerId, Ime,
+    MouseButton, MouseScrollDelta, PointerKind, PointerSource, RawKeyEvent, SurfaceSizeWriter,
+    TouchPhase, WindowEvent,
 };
 use winit_core::keyboard::ModifiersState;
 use winit_core::window::WindowId;
@@ -1389,7 +1389,20 @@ impl EventProcessor {
         self.target.xconn.set_timestamp(xev.time as xproto::Timestamp);
 
         if xev.flags & xinput2::XIPointerEmulated == 0 {
-            let event = DeviceEvent::Button { state, button: xev.detail as u32 };
+            let button_id = xev.detail as u32;
+            let source = match button_id {
+                xlib::Button1 => DeviceButtonSource::Mouse(MouseButton::Left),
+                xlib::Button2 => DeviceButtonSource::Mouse(MouseButton::Middle),
+                xlib::Button3 => DeviceButtonSource::Mouse(MouseButton::Right),
+
+                // Scroll inputs
+                4..=7 => DeviceButtonSource::Unknown,
+
+                8 => DeviceButtonSource::Mouse(MouseButton::Back),
+                9 => DeviceButtonSource::Mouse(MouseButton::Forward),
+                _ => DeviceButtonSource::Mouse(MouseButton::Other(button_id as u16)),
+            };
+            let event = DeviceEvent::PointerButton { button: source, button_id, state };
             app.device_event(&self.target, Some(mkdid(xev.deviceid as xinput::DeviceId)), event);
         }
     }
