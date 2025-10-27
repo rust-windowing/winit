@@ -48,7 +48,7 @@ softbuffer = { version = "0.4.6", default-features = false, features = [
 tracing-subscriber = "0.3.18"
 
 # Android dependencies.
-android-activity = "0.6.0"
+android-activity = { version = "0.6.0", features = ["native-activity"] }
 ndk = { version = "0.9.0", features = ["rwh_06"], default-features = false }
 
 # Apple dependencies.
