@@ -255,6 +255,7 @@ changelog entry.
 
 ### Fixed
 
+- On Android you need to enable the feature `native-activity` for the package `android-activity`.
 - On Orbital, `MonitorHandle::name()` now returns `None` instead of a dummy name.
 - On Orbital, implement `fullscreen`.
 - On iOS, fixed `SurfaceResized` and `Window::surface_size` not reporting the size of the actual surface.
