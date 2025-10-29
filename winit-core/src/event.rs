@@ -788,9 +788,10 @@ pub struct KeyEvent {
     /// ```
     pub repeat: bool,
 
-    /// Similar to [`text`][Self::text], except that this is affected by <kbd>Ctrl</kbd>.
+    /// Similar to [`text`][Self::text], except that this is affected by <kbd>Ctrl</kbd> and may
+    /// produce ASCII control characters.
     ///
-    /// For example, pressing <kbd>Ctrl</kbd>+<kbd>a</kbd> produces `Some("\x01")`.
+    /// For example, pressing <kbd>Ctrl</kbd>+<kbd>space</kbd> produces `Some("\x00")`.
     ///
     /// ## Platform-specific
     ///

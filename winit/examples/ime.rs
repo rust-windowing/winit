@@ -200,7 +200,7 @@ impl App {
                 self.print_input_state();
             },
             _ => {
-                if let Some(text) = event.text_with_all_modifiers {
+                if let Some(text) = event.text {
                     self.input_state.append_text(&text);
                     if self.input_state.ime_enabled {
                         self.window()
