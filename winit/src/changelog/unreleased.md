@@ -270,3 +270,4 @@ changelog entry.
 - On Windows 11, prevent incorrect shifting when dragging window onto a monitor with different DPI.
 - On Web, device events are emitted regardless of cursor type.
 - On Wayland, `axis_value120` scroll events now generate `MouseScrollDelta::LineDelta`
+- On X11, mouse scroll button events no longer cause duplicated `WindowEvent::MouseWheel` events.

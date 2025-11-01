@@ -106,6 +106,12 @@ impl Window {
         let window =
             state.xdg_shell.create_window(surface.clone(), default_decorations, &queue_handle);
 
+        let WindowAttributesWayland { name: app_name, activation_token, prefer_csd } = *attributes
+            .platform
+            .take()
+            .and_then(|p| p.cast::<WindowAttributesWayland>().ok())
+            .unwrap_or_default();
+
         let mut window_state = WindowState::new(
             event_loop_window_target.handle.clone(),
             &event_loop_window_target.queue_handle,
@@ -113,6 +119,7 @@ impl Window {
             size,
             window.clone(),
             attributes.preferred_theme,
+            prefer_csd,
         );
 
         window_state.set_window_icon(attributes.window_icon);
@@ -124,13 +131,6 @@ impl Window {
 
         // Set the decorations hint.
         window_state.set_decorate(attributes.decorations);
-
-        let (app_name, activation_token) =
-            match attributes.platform.take().and_then(|p| p.cast::<WindowAttributesWayland>().ok())
-            {
-                Some(attrs) => (attrs.name, attrs.activation_token),
-                None => (None, None),
-            };
 
         // Set the app_id.
         if let Some(name) = app_name.map(|name| name.general) {

@@ -134,6 +134,9 @@ pub struct WindowState {
     /// Whether we should decorate the frame.
     decorate: bool,
 
+    /// Whether we should tell the compositor that we prefer drawing decorations ourself.
+    prefer_csd: bool,
+
     /// Min size.
     min_surface_size: LogicalSize<u32>,
     max_surface_size: Option<LogicalSize<u32>>,
@@ -180,6 +183,7 @@ impl WindowState {
         initial_size: Size,
         window: Window,
         theme: Option<Theme>,
+        prefer_csd: bool,
     ) -> Self {
         let compositor = winit_state.compositor_state.clone();
         let pointer_constraints = winit_state.pointer_constraints.clone();
@@ -209,6 +213,7 @@ impl WindowState {
             selected_cursor: Default::default(),
             cursor_visible: true,
             decorate: true,
+            prefer_csd,
             fractional_scale,
             frame: None,
             frame_callback_state: FrameCallbackState::None,
@@ -955,7 +960,7 @@ impl WindowState {
     /// Whether show or hide client side decorations.
     #[inline]
     pub fn set_decorate(&mut self, decorate: bool) {
-        if decorate == self.decorate {
+        if decorate == self.decorate && !self.prefer_csd {
             return;
         }
 
@@ -964,6 +969,9 @@ impl WindowState {
         match self.last_configure.as_ref().map(|configure| configure.decoration_mode) {
             Some(DecorationMode::Server) if !self.decorate => {
                 // To disable decorations we should request client and hide the frame.
+                self.window.request_decoration_mode(Some(DecorationMode::Client))
+            },
+            _ if self.decorate && self.prefer_csd => {
                 self.window.request_decoration_mode(Some(DecorationMode::Client))
             },
             _ if self.decorate => self.window.request_decoration_mode(Some(DecorationMode::Server)),
