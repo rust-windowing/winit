@@ -329,7 +329,7 @@ jobs:
       - name: Setup NPM
         run: npm install
       - name: Run ESLint
-        run: npx eslint
+        run: npx eslint@9.38.0
 
   swc:
     name: Minimize JavaScript
