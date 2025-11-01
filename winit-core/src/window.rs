@@ -1785,7 +1785,7 @@ pub enum ImeRequest {
     ///
     /// **Requesting to update data matching not enabled capabilities will result in update
     /// being ignored.** The winit backend in such cases is recommended to log a warning. This
-    /// appiles to both [`ImeRequest::Enable`] and [`ImeRequest::Update`]. For details on
+    /// applies to both [`ImeRequest::Enable`] and [`ImeRequest::Update`]. For details on
     /// capabilities refer to [`ImeCapabilities`].
     ///
     /// To update the [`ImeCapabilities`], the IME must be disabled and then re-enabled.
