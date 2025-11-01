@@ -65,8 +65,8 @@ use winit_core::application::ApplicationHandler;
 use winit_core::cursor::{CustomCursor, CustomCursorSource};
 use winit_core::error::{EventLoopError, NotSupportedError, RequestError};
 use winit_core::event::{
-    DeviceEvent, DeviceId, FingerId, Force, Ime, RawKeyEvent, SurfaceSizeWriter, TabletToolButton,
-    TabletToolData, TabletToolKind, TabletToolTilt, TouchPhase, WindowEvent,
+    ButtonSource, DeviceEvent, DeviceId, FingerId, Force, Ime, RawKeyEvent, SurfaceSizeWriter,
+    TabletToolButton, TabletToolData, TabletToolKind, TabletToolTilt, TouchPhase, WindowEvent,
 };
 use winit_core::event_loop::pump_events::PumpStatus;
 use winit_core::event_loop::{
@@ -2416,7 +2416,7 @@ unsafe extern "system" fn thread_event_target_callback(
 }
 
 unsafe fn handle_raw_input(userdata: &ThreadMsgTargetData, data: RAWINPUT) {
-    use winit_core::event::DeviceEvent::{Button, Key, MouseWheel, PointerMotion};
+    use winit_core::event::DeviceEvent::{Key, MouseWheel, PointerButton, PointerMotion};
     use winit_core::event::ElementState::{Pressed, Released};
     use winit_core::event::MouseScrollDelta::LineDelta;
 
@@ -2447,10 +2447,11 @@ unsafe fn handle_raw_input(userdata: &ThreadMsgTargetData, data: RAWINPUT) {
         }
 
         let button_state = raw_input::get_raw_mouse_button_state(button_flags as u32);
-        for (button, state) in button_state.iter().enumerate() {
-            if let Some(state) = *state {
-                userdata.send_device_event(device_id, Button { button: button as _, state });
-            }
+        for (mouse_button, state) in button_state.into_iter().flatten() {
+            userdata.send_device_event(device_id, PointerButton {
+                button: ButtonSource::Mouse(mouse_button),
+                state,
+            });
         }
     } else if data.header.dwType == RIM_TYPEKEYBOARD {
         let keyboard = unsafe { data.data.keyboard };

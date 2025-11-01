@@ -12,7 +12,8 @@ use web_sys::{Document, KeyboardEvent, Navigator, PageTransitionEvent, PointerEv
 use web_time::{Duration, Instant};
 use winit_core::application::ApplicationHandler;
 use winit_core::event::{
-    DeviceEvent, DeviceId, ElementState, RawKeyEvent, StartCause, WindowEvent,
+    ButtonSource, DeviceEvent, DeviceId, ElementState, PointerSource, RawKeyEvent, StartCause,
+    WindowEvent,
 };
 use winit_core::event_loop::{ControlFlow, DeviceEvents};
 use winit_core::window::WindowId;
@@ -315,9 +316,10 @@ impl Shared {
                     return;
                 }
 
-                // chorded button event
-                let device_id = event::mkdid(event.pointer_id());
+                let pointer_id = event.pointer_id();
+                let device_id = event::mkdid(pointer_id);
 
+                // chorded button event
                 if let Some(button) = backend::event::raw_button(&event) {
                     let state = if backend::event::pointer_buttons(&event)
                         .contains(ButtonsState::from_bits_retain(button))
@@ -327,9 +329,23 @@ impl Shared {
                         ElementState::Released
                     };
 
+                    let kind = backend::event::pointer_kind(&event, pointer_id);
+                    let source = match backend::event::pointer_source(&event, kind) {
+                        PointerSource::Mouse => backend::event::mouse_button(button),
+                        PointerSource::Touch { finger_id, force } => {
+                            ButtonSource::Touch { finger_id, force }
+                        },
+                        PointerSource::TabletTool { kind, data } => ButtonSource::TabletTool {
+                            kind,
+                            button: backend::event::tool_button(button),
+                            data,
+                        },
+                        PointerSource::Unknown => ButtonSource::Unknown(button),
+                    };
+
                     runner.send_event(Event::DeviceEvent {
                         device_id,
-                        event: DeviceEvent::Button { button: button.into(), state },
+                        event: DeviceEvent::PointerButton { button: source, state },
                     });
 
                     return;
@@ -376,11 +392,26 @@ impl Shared {
                     return;
                 }
 
+                let pointer_id = event.pointer_id();
+                let kind = backend::event::pointer_kind(&event, pointer_id);
                 let button = backend::event::raw_button(&event).expect("no pointer button pressed");
+                let source = match backend::event::pointer_source(&event, kind) {
+                    PointerSource::Mouse => backend::event::mouse_button(button),
+                    PointerSource::Touch { finger_id, force } => {
+                        ButtonSource::Touch { finger_id, force }
+                    },
+                    PointerSource::TabletTool { kind, data } => ButtonSource::TabletTool {
+                        kind,
+                        button: backend::event::tool_button(button),
+                        data,
+                    },
+                    PointerSource::Unknown => ButtonSource::Unknown(button),
+                };
+
                 runner.send_event(Event::DeviceEvent {
-                    device_id: event::mkdid(event.pointer_id()),
-                    event: DeviceEvent::Button {
-                        button: button.into(),
+                    device_id: event::mkdid(pointer_id),
+                    event: DeviceEvent::PointerButton {
+                        button: source,
                         state: ElementState::Pressed,
                     },
                 });
@@ -395,11 +426,26 @@ impl Shared {
                     return;
                 }
 
+                let pointer_id = event.pointer_id();
+                let kind = backend::event::pointer_kind(&event, pointer_id);
                 let button = backend::event::raw_button(&event).expect("no pointer button pressed");
+                let source = match backend::event::pointer_source(&event, kind) {
+                    PointerSource::Mouse => backend::event::mouse_button(button),
+                    PointerSource::Touch { finger_id, force } => {
+                        ButtonSource::Touch { finger_id, force }
+                    },
+                    PointerSource::TabletTool { kind, data } => ButtonSource::TabletTool {
+                        kind,
+                        button: backend::event::tool_button(button),
+                        data,
+                    },
+                    PointerSource::Unknown => ButtonSource::Unknown(button),
+                };
+
                 runner.send_event(Event::DeviceEvent {
                     device_id: event::mkdid(event.pointer_id()),
-                    event: DeviceEvent::Button {
-                        button: button.into(),
+                    event: DeviceEvent::PointerButton {
+                        button: source,
                         state: ElementState::Released,
                     },
                 });

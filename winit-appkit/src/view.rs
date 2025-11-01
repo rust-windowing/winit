@@ -1089,7 +1089,7 @@ impl WinitView {
 }
 
 /// Get the mouse button from the NSEvent.
-fn mouse_button(event: &NSEvent) -> MouseButton {
+pub fn mouse_button(event: &NSEvent) -> MouseButton {
     // The buttonNumber property only makes sense for the mouse events:
     // NSLeftMouse.../NSRightMouse.../NSOtherMouse...
     // For the other events, it's always set to 0.

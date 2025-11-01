@@ -20,7 +20,7 @@ use windows_sys::Win32::UI::WindowsAndMessaging::{
     RI_MOUSE_BUTTON_2_UP, RI_MOUSE_BUTTON_3_DOWN, RI_MOUSE_BUTTON_3_UP, RI_MOUSE_BUTTON_4_DOWN,
     RI_MOUSE_BUTTON_4_UP, RI_MOUSE_BUTTON_5_DOWN, RI_MOUSE_BUTTON_5_UP,
 };
-use winit_core::event::ElementState;
+use winit_core::event::{ElementState, MouseButton};
 use winit_core::event_loop::DeviceEvents;
 use winit_core::keyboard::{KeyCode, PhysicalKey};
 
@@ -180,28 +180,36 @@ pub fn get_raw_input_data(handle: HRAWINPUT) -> Option<RAWINPUT> {
     Some(data)
 }
 
-fn button_flags_to_element_state(
+fn button_flags_to_mouse_button_state(
     button_flags: u32,
-    down_flag: u32,
-    up_flag: u32,
-) -> Option<ElementState> {
+    mouse_button: MouseButton,
+) -> Option<(MouseButton, ElementState)> {
+    let (down_flag, up_flag) = match mouse_button {
+        MouseButton::Left => (RI_MOUSE_BUTTON_1_DOWN, RI_MOUSE_BUTTON_1_UP),
+        MouseButton::Right => (RI_MOUSE_BUTTON_2_DOWN, RI_MOUSE_BUTTON_2_UP),
+        MouseButton::Middle => (RI_MOUSE_BUTTON_3_DOWN, RI_MOUSE_BUTTON_3_UP),
+        MouseButton::Back => (RI_MOUSE_BUTTON_4_DOWN, RI_MOUSE_BUTTON_4_UP),
+        MouseButton::Forward => (RI_MOUSE_BUTTON_5_DOWN, RI_MOUSE_BUTTON_5_UP),
+        _ => unreachable!("only 5 mouse buttons are supported by windows raw input"),
+    };
+
     // We assume the same button won't be simultaneously pressed and released.
     if util::has_flag(button_flags, down_flag) {
-        Some(ElementState::Pressed)
+        Some((mouse_button, ElementState::Pressed))
     } else if util::has_flag(button_flags, up_flag) {
-        Some(ElementState::Released)
+        Some((mouse_button, ElementState::Released))
     } else {
         None
     }
 }
 
-pub fn get_raw_mouse_button_state(button_flags: u32) -> [Option<ElementState>; 5] {
+pub fn get_raw_mouse_button_state(button_flags: u32) -> [Option<(MouseButton, ElementState)>; 5] {
     [
-        button_flags_to_element_state(button_flags, RI_MOUSE_BUTTON_1_DOWN, RI_MOUSE_BUTTON_1_UP),
-        button_flags_to_element_state(button_flags, RI_MOUSE_BUTTON_2_DOWN, RI_MOUSE_BUTTON_2_UP),
-        button_flags_to_element_state(button_flags, RI_MOUSE_BUTTON_3_DOWN, RI_MOUSE_BUTTON_3_UP),
-        button_flags_to_element_state(button_flags, RI_MOUSE_BUTTON_4_DOWN, RI_MOUSE_BUTTON_4_UP),
-        button_flags_to_element_state(button_flags, RI_MOUSE_BUTTON_5_DOWN, RI_MOUSE_BUTTON_5_UP),
+        button_flags_to_mouse_button_state(button_flags, MouseButton::Left),
+        button_flags_to_mouse_button_state(button_flags, MouseButton::Right),
+        button_flags_to_mouse_button_state(button_flags, MouseButton::Middle),
+        button_flags_to_mouse_button_state(button_flags, MouseButton::Back),
+        button_flags_to_mouse_button_state(button_flags, MouseButton::Forward),
     ]
 }
 

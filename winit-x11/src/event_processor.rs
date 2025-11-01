@@ -1385,7 +1385,23 @@ impl EventProcessor {
         self.target.xconn.set_timestamp(xev.time as xproto::Timestamp);
 
         if xev.flags & xinput2::XIPointerEmulated == 0 {
-            let event = DeviceEvent::Button { state, button: xev.detail as u32 };
+            let button = xev.detail as u32;
+            let source = match button {
+                xlib::Button1 => ButtonSource::Mouse(MouseButton::Left),
+                xlib::Button2 => ButtonSource::Mouse(MouseButton::Middle),
+                xlib::Button3 => ButtonSource::Mouse(MouseButton::Right),
+
+                // Scroll inputs
+                4..=7 => return,
+
+                8 => ButtonSource::Mouse(MouseButton::Back),
+                9 => ButtonSource::Mouse(MouseButton::Forward),
+                _ => match MouseButton::try_from_u8(button as u8) {
+                    Some(mouse_button) => ButtonSource::Mouse(mouse_button),
+                    None => return,
+                },
+            };
+            let event = DeviceEvent::PointerButton { button: source, state };
             app.device_event(&self.target, Some(mkdid(xev.deviceid as xinput::DeviceId)), event);
         }
     }
