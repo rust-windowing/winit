@@ -7,10 +7,9 @@ use winit_core::event::{ButtonSource, DeviceId, ElementState, PointerKind, Point
 use winit_core::keyboard::ModifiersState;
 
 use super::canvas::Common;
-use super::event;
+use super::event::{self, ButtonsState};
 use super::event_handle::EventListenerHandle;
 use crate::event::mkdid;
-use crate::web_sys::event::ButtonsState;
 
 #[allow(dead_code)]
 pub(super) struct PointerHandler {
@@ -84,7 +83,7 @@ impl PointerHandler {
                 let button = event::raw_button(&event).expect("no button pressed");
 
                 let source = match event::pointer_source(&event, kind) {
-                    PointerSource::Mouse => ButtonSource::Mouse(event::mouse_button(button)),
+                    PointerSource::Mouse => event::mouse_button(button),
                     PointerSource::Touch { finger_id, force } => {
                         ButtonSource::Touch { finger_id, force }
                     },
@@ -138,7 +137,7 @@ impl PointerHandler {
                         // care if it fails.
                         let _e = canvas.set_pointer_capture(pointer_id);
 
-                        ButtonSource::Mouse(event::mouse_button(button))
+                        event::mouse_button(button)
                     },
                     PointerSource::Touch { finger_id, force } => {
                         ButtonSource::Touch { finger_id, force }
@@ -217,7 +216,7 @@ impl PointerHandler {
                     };
 
                     let button = match event::pointer_source(&event, kind) {
-                        PointerSource::Mouse => ButtonSource::Mouse(event::mouse_button(button)),
+                        PointerSource::Mouse => event::mouse_button(button),
                         PointerSource::Touch { finger_id, force } => {
                             if button != 0 {
                                 tracing::error!("unexpected touch button id: {button}");
