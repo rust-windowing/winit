@@ -2546,7 +2546,7 @@ unsafe fn handle_raw_input(userdata: &ThreadMsgTargetData, data: RAWINPUT) {
 }
 
 enum PointerMoveKind {
-    /// Pointer enterd to the window.
+    /// Pointer entered the window.
     Enter,
     /// Pointer leaved the window client area.
     Leave,
