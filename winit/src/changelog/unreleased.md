@@ -268,6 +268,7 @@ changelog entry.
 - On Windows, `Window::theme` will return the correct theme after setting it through `Window::set_theme`.
 - On Windows, `Window::set_theme` will change the title bar color immediately now.
 - On Windows 11, prevent incorrect shifting when dragging window onto a monitor with different DPI.
+- On Windows, avoid returning `SurfaceResized` with size zero when an application is minimized. Let `Window::surface_size` return the pre-minimization window size even while minimized.
 - On Web, device events are emitted regardless of cursor type.
 - On Wayland, `axis_value120` scroll events now generate `MouseScrollDelta::LineDelta`
 - On X11, mouse scroll button events no longer cause duplicated `WindowEvent::MouseWheel` events.

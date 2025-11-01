@@ -203,6 +203,15 @@ impl Application {
             Action::DumpMonitors => self.dump_monitors(_event_loop),
             Action::Message => {
                 info!("User wake up");
+                for (id, window) in self.windows.iter() {
+                    if window.emit_surface_size {
+                        let size = window.window.surface_size();
+                        info!(
+                            "Window {id:?} has physical surface size {}x{}",
+                            size.width, size.height
+                        );
+                    }
+                }
             },
             _ => unreachable!("Tried to execute invalid action without `WindowId`"),
         }
@@ -314,6 +323,9 @@ impl Application {
             Action::ToggleContinuousRedraw => {
                 window.continuous_redraw = !window.continuous_redraw;
                 window.window.request_redraw();
+            },
+            Action::EmitSurfaceSize => {
+                window.toggle_emit_surface_size();
             },
         }
     }
@@ -615,6 +627,8 @@ struct WindowState {
     start_time: Instant,
     /// Redraw continuously
     continuous_redraw: bool,
+    /// Periodically emit the surface size
+    emit_surface_size: bool,
     /// Cursor position over the window.
     cursor_position: Option<PhysicalPosition<f64>>,
     /// Window modifiers state.
@@ -666,6 +680,7 @@ impl WindowState {
             theme,
             animated_fill_color: false,
             continuous_redraw: false,
+            emit_surface_size: false,
             #[cfg(not(android_platform))]
             start_time: Instant::now(),
             cursor_position: Default::default(),
@@ -736,6 +751,10 @@ impl WindowState {
         };
 
         self.window.set_fullscreen(fullscreen);
+    }
+
+    fn toggle_emit_surface_size(&mut self) {
+        self.emit_surface_size = !self.emit_surface_size;
     }
 
     /// Cycle through the grab modes ignoring errors.
@@ -1031,6 +1050,7 @@ enum Action {
     Message,
     ToggleAnimatedFillColor,
     ToggleContinuousRedraw,
+    EmitSurfaceSize,
 }
 
 impl Action {
@@ -1076,6 +1096,7 @@ impl Action {
             Action::Message => "Prints a message through a user wake up",
             Action::ToggleAnimatedFillColor => "Toggle animated fill color",
             Action::ToggleContinuousRedraw => "Toggle continuous redraw",
+            Action::EmitSurfaceSize => "Periodically print the surface size",
         }
     }
 }
@@ -1294,6 +1315,7 @@ const KEY_BINDINGS: &[Binding<&'static str>] = &[
     Binding::new("T", ModifiersState::META, Action::CreateNewTab),
     #[cfg(macos_platform)]
     Binding::new("O", ModifiersState::CONTROL, Action::CycleOptionAsAlt),
+    Binding::new("S", ModifiersState::ALT, Action::EmitSurfaceSize),
     Binding::new("S", ModifiersState::CONTROL, Action::Message),
 ];
 

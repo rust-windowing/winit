@@ -1301,7 +1301,6 @@ unsafe fn public_window_callback_inner(
             use winit_core::event::WindowEvent::SurfaceResized;
             let w = util::loword(lparam as u32) as u32;
             let h = util::hiword(lparam as u32) as u32;
-
             let physical_size = PhysicalSize::new(w, h);
 
             {
@@ -1313,7 +1312,14 @@ unsafe fn public_window_callback_inner(
                     w.set_window_flags_in_place(|f| f.set(WindowFlags::MAXIMIZED, maximized));
                 }
             }
-            userdata.send_window_event(window, SurfaceResized(physical_size));
+
+            let mut state = userdata.window_state_lock();
+            if (w, h) != (0, 0) && physical_size != state.surface_size {
+                // WM_SIZE is received with size (0, 0) when a window is minimized; ignore.
+                state.surface_size = physical_size;
+                drop(state);
+                userdata.send_window_event(window, SurfaceResized(physical_size));
+            }
             result = ProcResult::Value(0);
         },
 

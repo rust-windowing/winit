@@ -33,6 +33,9 @@ pub(crate) struct WindowState {
     pub min_size: Option<Size>,
     pub max_size: Option<Size>,
 
+    /// The last known size of the window surface
+    pub surface_size: PhysicalSize<u32>,
+
     pub surface_resize_increments: Option<Size>,
 
     pub window_icon: Option<Icon>,
@@ -165,6 +168,8 @@ impl WindowState {
 
             min_size: attributes.min_surface_size,
             max_size: attributes.max_surface_size,
+
+            surface_size: PhysicalSize::default(),
 
             surface_resize_increments: attributes.surface_resize_increments,
 

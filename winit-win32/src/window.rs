@@ -509,14 +509,7 @@ impl CoreWindow for Window {
     }
 
     fn surface_size(&self) -> PhysicalSize<u32> {
-        let mut rect: RECT = unsafe { mem::zeroed() };
-        if unsafe { GetClientRect(self.hwnd(), &mut rect) } == false.into() {
-            panic!(
-                "Unexpected GetClientRect failure: please report this error to \
-                 rust-windowing/winit"
-            )
-        }
-        PhysicalSize::new((rect.right - rect.left) as u32, (rect.bottom - rect.top) as u32)
+        self.window_state_lock().surface_size
     }
 
     fn outer_size(&self) -> PhysicalSize<u32> {
