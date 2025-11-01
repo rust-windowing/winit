@@ -510,7 +510,8 @@ impl From<PointerSource> for PointerKind {
     }
 }
 
-/// Represents the pointer type of a [`WindowEvent::PointerButton`].
+/// Represents the pointer type of [`WindowEvent::PointerButton`] and
+/// [`DeviceEvent::PointerButton`].
 ///
 /// **Wayland/X11:** [`Unknown`](Self::Unknown) device types are converted to known variants by the
 /// system.
