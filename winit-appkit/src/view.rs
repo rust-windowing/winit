@@ -336,7 +336,10 @@ define_class!(
         #[unsafe(method_id(validAttributesForMarkedText))]
         fn valid_attributes_for_marked_text(&self) -> Retained<NSArray<NSAttributedStringKey>> {
             trace_scope!("validAttributesForMarkedText");
-            NSArray::new()
+            // Advertise the winit version so IME clients can identify us.
+            let client_identifier =
+                NSString::from_str(concat!("_rust_winit_", env!("CARGO_PKG_VERSION")));
+            NSArray::from_slice(&[client_identifier.as_ref()])
         }
 
         #[unsafe(method_id(attributedSubstringForProposedRange:actualRange:))]
