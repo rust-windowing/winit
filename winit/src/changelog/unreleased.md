@@ -178,6 +178,18 @@ changelog entry.
 - Rename `VideoModeHandle` to `VideoMode`, now it only stores plain data.
 - Make `Fullscreen::Exclusive` contain `(MonitorHandle, VideoMode)`.
 - Reworked the file drag-and-drop API.
+- On macOS, `NSTextInputClient::validAttributesForMarkedText` now automatically attaches a value
+  called `_rust_winit_\(CARGO_PKG_VERSION)`.
+
+  This allows IME devs to identify whether `winit` is used in the IMKTextInput client.
+  If identified, IME devs can introduce compatibility behaviors against such IMKTextInput client.
+  InputMethodKit casts `NSTextInputClient` to `IMKTextInput`, but `validAttributesForMarkedText`
+  is shared between these two protocols and can all be parsed as `Array<NSString>`.
+
+  `validAttributesForMarkedText` specifically returns an `NSArray<NSAttributedStringKey>` which
+  are plain NSString*; Apple treats custom keys as legal, so slipping harmless metadata like
+  `_rust_winit_\(CARGO_PKG_VERSION)` in there is the one slot where such data is piggybackable.
+
 - On macOS, the default menu uses the bundle name or falls back to the process name as before.
 
   The `WindowEvent::DroppedFile`, `WindowEvent::HoveredFile` and `WindowEvent::HoveredFileCancelled`
