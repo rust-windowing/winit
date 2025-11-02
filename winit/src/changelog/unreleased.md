@@ -197,6 +197,11 @@ changelog entry.
   The `WindowEvent::DragMoved` event is entirely new, and is emitted whenever the pointer moves
   whilst files are being dragged over the window. It doesn't contain any file paths, just the
   pointer position.
+- On macOS, NSTextInputClient protocol implementation now accepts commits even though the marked text is empty.
+
+  Most Sogou-style pinyin IME were designed to not use marked text feature when directly committing
+  punctuations. That's why this patch is necessary, allowing them to input punctuations correctly
+  without committing the character hardcoded in the base ukelele keylayout used by the input method.
 - Updated `objc2` to `v0.6`.
 - Updated `windows-sys` to `v0.59`.
   - To match the corresponding changes in `windows-sys`, the `HWND`, `HMONITOR`, and `HMENU` types
