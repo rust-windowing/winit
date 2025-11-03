@@ -87,6 +87,15 @@ impl From<OsError> for RequestError {
     }
 }
 
+impl From<RequestError> for EventLoopError {
+    fn from(value: RequestError) -> Self {
+        match value {
+            RequestError::NotSupported(err) => EventLoopError::NotSupported(err),
+            RequestError::Os(err) => EventLoopError::Os(err),
+        }
+    }
+}
+
 /// The requested operation is not supported.
 #[derive(Debug)]
 pub struct NotSupportedError {
