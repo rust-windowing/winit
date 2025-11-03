@@ -1279,8 +1279,9 @@ impl WindowDelegate {
     #[inline]
     pub fn drag_window(&self) -> Result<(), RequestError> {
         let mtm = MainThreadMarker::from(self);
-        let event =
-            NSApplication::sharedApplication(mtm).currentEvent().ok_or(RequestError::Ignored)?;
+        let event = NSApplication::sharedApplication(mtm)
+            .currentEvent()
+            .ok_or(NotSupportedError::new("event no longer current"))?;
         self.window().performWindowDragWithEvent(&event);
         Ok(())
     }

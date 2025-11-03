@@ -57,8 +57,6 @@ impl From<NotSupportedError> for EventLoopError {
 pub enum RequestError {
     /// The request is not supported.
     NotSupported(NotSupportedError),
-    /// The request was ignored by the operating system.
-    Ignored,
     /// Got unspecified OS specific error during the request.
     Os(OsError),
 }
@@ -67,7 +65,6 @@ impl Display for RequestError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::NotSupported(err) => err.fmt(f),
-            Self::Ignored => write!(f, "The request was ignored"),
             Self::Os(err) => err.fmt(f),
         }
     }

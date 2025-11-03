@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 use smol_str::SmolStr;
 
 use crate::Instant;
-use crate::error::RequestError;
+use crate::error::{NotSupportedError, RequestError};
 use crate::event_loop::AsyncRequestSerial;
 use crate::keyboard::{self, ModifiersKeyState, ModifiersKeys, ModifiersState};
 #[cfg(doc)]
@@ -1498,7 +1498,7 @@ impl SurfaceSizeWriter {
             *inner.lock().unwrap() = new_surface_size;
             Ok(())
         } else {
-            Err(RequestError::Ignored)
+            Err(NotSupportedError::new("request closed").into())
         }
     }
 
@@ -1507,7 +1507,7 @@ impl SurfaceSizeWriter {
         if let Some(inner) = self.new_surface_size.upgrade() {
             Ok(*inner.lock().unwrap())
         } else {
-            Err(RequestError::Ignored)
+            Err(NotSupportedError::new("request closed").into())
         }
     }
 }
