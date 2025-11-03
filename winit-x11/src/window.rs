@@ -1978,11 +1978,11 @@ impl UnownedWindow {
             })
         }
         let region = RegionWrapper::create_region(self.xconn.xcb_connection(), &rectangles)
-            .map_err(|_e| RequestError::Ignored)?;
+            .map_err(|err| os_error!(X11Error::from(err)))?;
         self.xconn
             .xcb_connection()
             .xfixes_set_window_shape_region(self.xwindow, SK::INPUT, 0, 0, region.region())
-            .map_err(|_e| RequestError::Ignored)?;
+            .map_err(|err| os_error!(X11Error::from(err)))?;
         self.shared_state_lock().cursor_hittest = Some(hittest);
         Ok(())
     }
