@@ -2,7 +2,7 @@
 use std::cell::{Cell, RefCell};
 use std::collections::{HashMap, VecDeque};
 use std::ptr;
-use std::rc::Rc;
+use std::rc::{Rc, Weak};
 
 use dpi::{LogicalPosition, LogicalSize};
 use objc2::rc::Retained;
@@ -17,6 +17,7 @@ use objc2_foundation::{
     NSArray, NSAttributedString, NSAttributedStringKey, NSCopying, NSMutableAttributedString,
     NSNotFound, NSObject, NSPoint, NSRange, NSRect, NSSize, NSString, NSUInteger,
 };
+use smol_str::SmolStr;
 use winit_core::event::{
     DeviceEvent, ElementState, Ime, KeyEvent, Modifiers, MouseButton, MouseScrollDelta,
     PointerKind, PointerSource, TouchPhase, WindowEvent,
@@ -43,6 +44,24 @@ impl Default for CursorState {
     fn default() -> Self {
         Self { visible: true, cursor: default_cursor() }
     }
+}
+
+#[derive(Debug)]
+struct EventFilterToken {
+    deliver: Cell<bool>,
+}
+
+impl EventFilterToken {
+    fn new() -> Self {
+        Self { deliver: Cell::new(true) }
+    }
+}
+
+#[derive(Debug)]
+struct PendingRawCharacter {
+    serial: u64,
+    text: SmolStr,
+    token: Weak<EventFilterToken>,
 }
 
 #[derive(Debug, Eq, PartialEq, Clone, Copy, Default)]
@@ -134,6 +153,10 @@ pub struct ViewState {
 
     marked_text: RefCell<Retained<NSMutableAttributedString>>,
     accepts_first_mouse: bool,
+
+    current_event_serial: Cell<u64>,
+    last_handled_event_serial: Cell<u64>,
+    pending_raw_characters: RefCell<Vec<PendingRawCharacter>>,
 
     /// The state of the `Option` as `Alt`.
     option_as_alt: Cell<OptionAsAlt>,
@@ -395,6 +418,7 @@ define_class!(
 
             // Commit only if we have marked text.
             if self.hasMarkedText() && self.is_ime_enabled() && !is_control {
+                self.drop_conflicting_raw_characters(&string);
                 self.queue_event(WindowEvent::Ime(Ime::Preedit(String::new(), None)));
                 self.queue_event(WindowEvent::Ime(Ime::Commit(string)));
                 self.ivars().ime_state.set(ImeState::Committed);
@@ -445,6 +469,8 @@ define_class!(
         #[unsafe(method(keyDown:))]
         fn key_down(&self, event: &NSEvent) {
             trace_scope!("keyDown:");
+            self.begin_key_event();
+            let mut ime_consumed_event = false;
             {
                 let mut prev_input_source = self.ivars().input_source.borrow_mut();
                 let current_input_source = self.current_input_source();
@@ -468,8 +494,11 @@ define_class!(
             // `doCommandBySelector`. (doCommandBySelector means that the keyboard input
             // is not handled by IME and should be handled by the application)
             if self.ivars().ime_capabilities.get().is_some() {
-                let events_for_nsview = NSArray::from_slice(&[&*event]);
-                self.interpretKeyEvents(&events_for_nsview);
+                ime_consumed_event = self.handle_text_input_event(&event);
+                if !ime_consumed_event {
+                    let events_for_nsview = NSArray::from_slice(&[&*event]);
+                    self.interpretKeyEvents(&events_for_nsview);
+                }
 
                 // If the text was committed we must treat the next keyboard event as IME related.
                 if self.ivars().ime_state.get() == ImeState::Committed {
@@ -491,30 +520,31 @@ define_class!(
                 _ => old_ime_state != self.ivars().ime_state.get(),
             };
 
-            if !had_ime_input || self.ivars().forward_key_to_app.get() {
+            if self.ivars().forward_key_to_app.get() || (!had_ime_input && !ime_consumed_event) {
                 let key_event = create_key_event(&event, true, event.isARepeat());
-                self.queue_event(WindowEvent::KeyboardInput {
-                    device_id: None,
-                    event: key_event,
-                    is_synthetic: false,
-                });
+                self.queue_keyboard_input_event(key_event, false);
             }
         }
 
         #[unsafe(method(keyUp:))]
         fn key_up(&self, event: &NSEvent) {
             trace_scope!("keyUp:");
+            self.begin_key_event();
+            let mut ime_consumed_event = false;
 
             let event = replace_event(event, self.option_as_alt());
             self.update_modifiers(&event, false);
 
+            if self.ivars().ime_capabilities.get().is_some() {
+                ime_consumed_event = self.handle_text_input_event(&event);
+            }
+
             // We want to send keyboard input when we are currently in the ground state.
-            if matches!(self.ivars().ime_state.get(), ImeState::Ground | ImeState::Disabled) {
-                self.queue_event(WindowEvent::KeyboardInput {
-                    device_id: None,
-                    event: create_key_event(&event, false, false),
-                    is_synthetic: false,
-                });
+            if matches!(self.ivars().ime_state.get(), ImeState::Ground | ImeState::Disabled)
+                && !ime_consumed_event
+            {
+                let key_event = create_key_event(&event, false, false);
+                self.queue_keyboard_input_event(key_event, false);
             }
         }
 
@@ -561,11 +591,7 @@ define_class!(
             self.update_modifiers(&event, false);
             let event = create_key_event(&event, true, event.isARepeat());
 
-            self.queue_event(WindowEvent::KeyboardInput {
-                device_id: None,
-                event,
-                is_synthetic: false,
-            });
+            self.queue_keyboard_input_event(event, false);
         }
 
         // In the past (?), `mouseMoved:` events were not generated when the
@@ -812,6 +838,9 @@ impl WinitView {
             forward_key_to_app: Default::default(),
             marked_text: Default::default(),
             accepts_first_mouse,
+            current_event_serial: Cell::new(0),
+            last_handled_event_serial: Cell::new(0),
+            pending_raw_characters: RefCell::new(Vec::new()),
             option_as_alt: Cell::new(option_as_alt),
         });
         let this: Retained<Self> = unsafe { msg_send![super(this), init] };
@@ -830,6 +859,98 @@ impl WinitView {
         self.ivars().app_state.maybe_queue_with_handler(move |app, event_loop| {
             app.window_event(event_loop, window_id, event);
         });
+    }
+
+    fn queue_keyboard_input_event(&self, key_event: KeyEvent, is_synthetic: bool) {
+        self.cleanup_pending_raw_characters();
+
+        let serial = self.ivars().current_event_serial.get();
+        let token = key_event.text.as_ref().map(|text| {
+            let token = Rc::new(EventFilterToken::new());
+            self.ivars().pending_raw_characters.borrow_mut().push(PendingRawCharacter {
+                serial,
+                text: text.clone(),
+                token: Rc::downgrade(&token),
+            });
+            token
+        });
+
+        let window_event =
+            WindowEvent::KeyboardInput { device_id: None, event: key_event, is_synthetic };
+        let window_id = window_id(&self.window());
+
+        if let Some(token) = token {
+            let event_to_dispatch = window_event.clone();
+            self.ivars().app_state.maybe_queue_with_handler(move |app, event_loop| {
+                if !token.deliver.get() {
+                    return;
+                }
+                app.window_event(event_loop, window_id, event_to_dispatch.clone());
+            });
+        } else {
+            let event_to_dispatch = window_event;
+            self.ivars().app_state.maybe_queue_with_handler(move |app, event_loop| {
+                app.window_event(event_loop, window_id, event_to_dispatch.clone());
+            });
+        }
+    }
+
+    fn begin_key_event(&self) {
+        let next = self.ivars().current_event_serial.get().wrapping_add(1);
+        self.ivars().current_event_serial.set(next);
+    }
+
+    fn handle_text_input_event(&self, event: &NSEvent) -> bool {
+        let Some(input_context) = self.inputContext() else {
+            return false;
+        };
+
+        let serial = self.ivars().current_event_serial.get();
+        self.ivars().last_handled_event_serial.set(serial);
+
+        input_context.handleEvent(event)
+    }
+
+    fn drop_conflicting_raw_characters(&self, commit: &str) {
+        let serial = self.ivars().last_handled_event_serial.get();
+        let mut pending = self.ivars().pending_raw_characters.borrow_mut();
+
+        let mut target: Option<(Weak<EventFilterToken>, SmolStr)> = None;
+
+        for entry in pending.iter().rev() {
+            if entry.token.upgrade().is_none() {
+                continue;
+            }
+
+            if entry.serial == serial {
+                target = Some((entry.token.clone(), entry.text.clone()));
+                break;
+            }
+        }
+
+        if target.is_none() {
+            if let Some(entry) = pending.iter().rev().find(|entry| entry.token.upgrade().is_some())
+            {
+                target = Some((entry.token.clone(), entry.text.clone()));
+            }
+        }
+
+        if let Some((token, text)) = target {
+            if text.as_str() != commit {
+                if let Some(token) = token.upgrade() {
+                    token.deliver.set(false);
+                }
+            }
+        }
+
+        pending.retain(|entry| entry.token.upgrade().is_some());
+    }
+
+    fn cleanup_pending_raw_characters(&self) {
+        self.ivars()
+            .pending_raw_characters
+            .borrow_mut()
+            .retain(|entry| entry.token.upgrade().is_some());
     }
 
     fn scale_factor(&self) -> f64 {
@@ -1030,7 +1151,12 @@ impl WinitView {
                 drop(phys_mod_state);
 
                 for event in events {
-                    self.queue_event(event);
+                    match event {
+                        WindowEvent::KeyboardInput { event: key_event, is_synthetic, .. } => {
+                            self.queue_keyboard_input_event(key_event, is_synthetic);
+                        },
+                        other => self.queue_event(other),
+                    }
                 }
             }
         }

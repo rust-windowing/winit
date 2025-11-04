@@ -276,6 +276,11 @@ changelog entry.
 - On macOS, fixed redundant `SurfaceResized` event at window creation.
 - On macOS, don't panic on monitors with unknown bit-depths.
 - On macOS, fixed crash when closing the window on macOS 26+.
+- On macOS, route IME key events through `NSTextInputContext::handleEvent` to avoid duplicate
+  punctuation and dead key commits produced by third-party input methods, aligning character
+  delivery with Cocoa.
+- On macOS, make AppKit monitor handle tests derive their reference display IDs from
+  `CGMainDisplayID`, preventing failures on systems where the primary monitor is not display `1`.
 - On Windows, account for mouse wheel lines per scroll setting for `WindowEvent::MouseWheel`.
 - On Windows, `Window::theme` will return the correct theme after setting it through `Window::set_theme`.
 - On Windows, `Window::set_theme` will change the title bar color immediately now.
