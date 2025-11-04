@@ -353,11 +353,13 @@ define_class!(
             use std::path::PathBuf;
 
             let pb = sender.draggingPasteboard();
+
             #[allow(deprecated)]
-            let Some(property_list) = pb.propertyListForType(unsafe { NSFilenamesPboardType })
-            else {
-                return false.into();
+            let property_list = match pb.propertyListForType(unsafe { NSFilenamesPboardType }) {
+                Some(property_list) => property_list,
+                None => return false.into(),
             };
+
             let paths = property_list
                 .downcast::<NSArray>()
                 .unwrap()
@@ -412,11 +414,13 @@ define_class!(
             use std::path::PathBuf;
 
             let pb = sender.draggingPasteboard();
+
             #[allow(deprecated)]
-            let Some(property_list) = pb.propertyListForType(unsafe { NSFilenamesPboardType })
-            else {
-                return false.into();
+            let property_list = match pb.propertyListForType(unsafe { NSFilenamesPboardType }) {
+                Some(property_list) => property_list,
+                None => return false.into(),
             };
+
             let paths = property_list
                 .downcast::<NSArray>()
                 .unwrap()
