@@ -354,12 +354,11 @@ define_class!(
 
             let pb = sender.draggingPasteboard();
             #[allow(deprecated)]
-            let filenames = pb
-                .propertyListForType(unsafe { NSFilenamesPboardType })
+            let Some(property_list) = pb.propertyListForType(unsafe { NSFilenamesPboardType }) else {
+                return false.into();
+            };
+            let paths = property_list.downcast::<NSArray>()
                 .unwrap()
-                .downcast::<NSArray>()
-                .unwrap();
-            let paths = filenames
                 .into_iter()
                 .map(|file| PathBuf::from(file.downcast::<NSString>().unwrap().to_string()))
                 .collect();
@@ -412,12 +411,11 @@ define_class!(
 
             let pb = sender.draggingPasteboard();
             #[allow(deprecated)]
-            let filenames = pb
-                .propertyListForType(unsafe { NSFilenamesPboardType })
+            let Some(property_list) = pb.propertyListForType(unsafe { NSFilenamesPboardType }) else {
+                return false.into();
+            };
+            let paths = property_list.downcast::<NSArray>()
                 .unwrap()
-                .downcast::<NSArray>()
-                .unwrap();
-            let paths = filenames
                 .into_iter()
                 .map(|file| PathBuf::from(file.downcast::<NSString>().unwrap().to_string()))
                 .collect();
