@@ -575,7 +575,11 @@ define_class!(
             let send_raw = if self.ivars().forward_key_to_app.get() {
                 true
             } else if self.is_ime_enabled() {
+                // Allow non-text keys through, and always pass through when Ctrl/Command is held
+                // for shortcuts.
+                let mods = self.ivars().modifiers.get().state();
                 key_event.text.is_none()
+                    || mods.intersects(ModifiersState::CONTROL | ModifiersState::META)
             } else {
                 !had_ime_input
             };
@@ -608,8 +612,13 @@ define_class!(
                 return;
             }
 
-            // Route keyUp: forward non-character releases when IME is enabled and didn't consume.
-            if !self.is_ime_enabled() || (!is_char_key && !ime_consumed_event) {
+            // Route keyUp: forward non-character releases when IME is enabled and didn't consume,
+            // or when Ctrl/Command is held (shortcuts).
+            let mods = self.ivars().modifiers.get().state();
+            if !self.is_ime_enabled()
+                || (!is_char_key && !ime_consumed_event)
+                || mods.intersects(ModifiersState::CONTROL | ModifiersState::META)
+            {
                 self.queue_keyboard_input_event(key_event, false);
             }
         }
