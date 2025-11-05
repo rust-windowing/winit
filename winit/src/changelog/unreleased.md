@@ -271,6 +271,9 @@ changelog entry.
 - On Orbital, `MonitorHandle::name()` now returns `None` instead of a dummy name.
 - On Orbital, implement `fullscreen`.
 - On iOS, fixed `SurfaceResized` and `Window::surface_size` not reporting the size of the actual surface.
+- On macOS, route keyDown through `NSTextInputContext::handleEvent` before raw dispatch,
+  suppress stray ASCII from keyUp, and drop stale raw characters when IME commits transformed text
+  (e.g. "." -> "。"), aligning character delivery with Cocoa and third‑party IMEs.
 - On macOS, fixed the scancode conversion for audio volume keys.
 - On macOS, fixed the scancode conversion for `IntlBackslash`.
 - On macOS, fixed redundant `SurfaceResized` event at window creation.
