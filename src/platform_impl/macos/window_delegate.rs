@@ -373,7 +373,10 @@ declare_class!(
             use std::path::PathBuf;
 
             let pb: Retained<NSPasteboard> = unsafe { msg_send_id![sender, draggingPasteboard] };
-            let filenames = pb.propertyListForType(unsafe { NSFilenamesPboardType }).unwrap();
+            let filenames = match pb.propertyListForType(unsafe { NSFilenamesPboardType }) {
+                Some(filenames) => filenames,
+                None => return false.into(),
+            };
             let filenames: Retained<NSArray<NSString>> = unsafe { Retained::cast(filenames) };
 
             filenames.into_iter().for_each(|file| {
@@ -399,7 +402,10 @@ declare_class!(
             use std::path::PathBuf;
 
             let pb: Retained<NSPasteboard> = unsafe { msg_send_id![sender, draggingPasteboard] };
-            let filenames = pb.propertyListForType(unsafe { NSFilenamesPboardType }).unwrap();
+            let filenames = match pb.propertyListForType(unsafe { NSFilenamesPboardType }) {
+                Some(filenames) => filenames,
+                None => return false.into(),
+            };
             let filenames: Retained<NSArray<NSString>> = unsafe { Retained::cast(filenames) };
 
             filenames.into_iter().for_each(|file| {
