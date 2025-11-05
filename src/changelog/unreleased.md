@@ -42,4 +42,4 @@ changelog entry.
 
 ### Fixed
 
-- On macOS, fix crash on macOS 26 by using objc2's `relax-sign-encoding` feature.
+- On macOS, fixed crash when dragging non-file content onto window.
