@@ -88,6 +88,8 @@ changelog entry.
 - Add more `ImePurpose` values.
 - Add `ImeHints` to request particular IME behaviour.
 - Add Pen input support on Wayland, Windows, and Web via new Pointer event.
+- Add `EventLoopExtRegister::register_app` for being explicit about how the event loop runs on Web.
+- Add `EventLoopExtNeverReturn::run_app_never_return` for being explicit about how the event loop runs on iOS.
 
 ### Changed
 
@@ -213,6 +215,9 @@ changelog entry.
 - Deprecate `Window::set_ime_allowed`, `Window::set_ime_cursor_area`, and `Window::set_ime_purpose`.
 - `Force::normalized()` now takes a `Option<ToolAngle>` to calculate the perpendicular force.
 - On Windows, don't confine cursor to center of window when grabbed and hidden.
+- On Web, avoid throwing an exception in `EventLoop::run_app`, instead preferring to return to the caller.
+  This requires passing a `'static` application to ensure that the application state will live as long as necessary.
+- On Web, the event loop can now always be re-created once it has finished running.
 
 ### Removed
 
@@ -253,6 +258,8 @@ changelog entry.
 - Remove `PartialEq` impl for `WindowAttributes`.
 - `WindowAttributesExt*` platform extensions; use `WindowAttributes*` instead.
 - Remove `Force::Calibrated::altitude_angle` in favor of `ToolAngle::altitude`.
+- Remove `EventLoopExtWeb::spawn_app`, the exception throwing that made this workaround necessary
+  has been removed from `EventLoop::run_app`.
 
 ### Fixed
 

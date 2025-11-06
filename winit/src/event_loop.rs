@@ -118,7 +118,7 @@ impl EventLoop {
         EventLoopBuilder { platform_specific: Default::default() }
     }
 
-    /// Run the application with the event loop on the calling thread.
+    /// Run the event loop with the given application on the calling thread.
     ///
     /// The `app` is dropped when the event loop is shut down.
     ///
@@ -173,35 +173,71 @@ impl EventLoop {
     /// [`ControlFlow::WaitUntil`] and life-cycle methods like [`ApplicationHandler::resumed`], but
     /// it should give you an idea of how things fit together.
     ///
-    /// ## Platform-specific
+    /// ## Returns
     ///
-    /// - **iOS:** Will never return to the caller and so values not passed to this function will
-    ///   *not* be dropped before the process exits.
-    /// - **Web:** Will _act_ as if it never returns to the caller by throwing a Javascript
-    ///   exception (that Rust doesn't see) that will also mean that the rest of the function is
-    ///   never executed and any values not passed to this function will *not* be dropped.
+    /// The semantics of this function can be a bit confusing, because the way different platforms
+    /// control their event loop varies significantly.
     ///
-    ///   Web applications are recommended to use
-    #[cfg_attr(
-        web_platform,
-        doc = "  [`EventLoopExtWeb::spawn_app()`][crate::platform::web::EventLoopExtWeb::spawn_app()]"
-    )]
-    #[cfg_attr(not(web_platform), doc = "  `EventLoopExtWeb::spawn_app()`")]
-    ///   [^1] instead of [`run_app()`] to avoid the need for the Javascript exception trick, and to
-    ///   make   it clearer that the event loop runs asynchronously (via the browser's own,
-    ///   internal, event   loop) and doesn't block the current thread of execution like it does
-    ///   on other platforms.
+    /// On most platforms (Android, macOS, Orbital, X11, Wayland, Windows), this blocks the caller,
+    /// runs the event loop internally, and then returns once [`ActiveEventLoop::exit`] is called.
+    /// See [`run_app_on_demand`] for more detailed semantics.
     ///
-    ///   This function won't be available with `target_feature = "exception-handling"`.
+    /// On iOS, this will register the application handler, and then call [`UIApplicationMain`]
+    /// (which is the only way to run the system event loop), which never returns to the caller
+    /// (the process instead exits after the handler has been dropped). See also
+    /// [`run_app_never_return`].
     ///
-    /// [^1]: `spawn_app()` is only available on the Web platform.
+    /// On the web, this works by registering the application handler, and then immediately
+    /// returning to the caller. This is necessary because WebAssembly (and JavaScript) is always
+    /// executed in the context of the browser's own (internal) event loop, and thus we need to
+    /// return to avoid blocking that and allow events to later be delivered asynchronously. See
+    /// also [`register_app`].
     ///
-    /// [`set_control_flow()`]: ActiveEventLoop::set_control_flow()
-    /// [`run_app()`]: Self::run_app()
+    /// If you call this function inside `fn main`, you usually do not need to think about these
+    /// details.
+    ///
+    /// [`UIApplicationMain`]: https://developer.apple.com/documentation/uikit/uiapplicationmain(_:_:_:_:)-1yub7?language=objc
+    /// [`run_app_on_demand`]: crate::event_loop::run_on_demand::EventLoopExtRunOnDemand::run_app_on_demand
+    /// [`run_app_never_return`]: crate::event_loop::never_return::EventLoopExtNeverReturn::run_app_never_return
+    /// [`register_app`]: crate::event_loop::register::EventLoopExtRegister::register_app
+    ///
+    /// ## Static
+    ///
+    /// To alleviate the issues noted above, this function requires that you pass in a `'static`
+    /// handler, to ensure that any state your application uses will be alive as long as the
+    /// application is running.
+    ///
+    /// To be clear, you should avoid doing e.g. `event_loop.run_app(&mut app)?`, and prefer
+    /// `event_loop.run_app(app)?` instead.
+    ///
+    /// If this requirement is prohibitive for you, consider using [`run_app_on_demand`] instead
+    /// (though note that this is not available on iOS and web).
     #[inline]
-    #[cfg(not(all(web_platform, target_feature = "exception-handling")))]
-    pub fn run_app<A: ApplicationHandler>(self, app: A) -> Result<(), EventLoopError> {
-        self.event_loop.run_app(app)
+    #[allow(unused_mut)]
+    pub fn run_app<A: ApplicationHandler + 'static>(
+        mut self,
+        app: A,
+    ) -> Result<(), EventLoopError> {
+        #[cfg(any(
+            windows_platform,
+            macos_platform,
+            android_platform,
+            orbital_platform,
+            x11_platform,
+            wayland_platform,
+        ))]
+        {
+            self.event_loop.run_app_on_demand(app)
+        }
+        #[cfg(web_platform)]
+        {
+            self.event_loop.register_app(app);
+            Ok(())
+        }
+        #[cfg(ios_platform)]
+        {
+            self.event_loop.run_app_never_return(app)
+        }
     }
 
     /// Creates an [`EventLoopProxy`] that can be used to dispatch user events
@@ -306,6 +342,7 @@ impl winit_core::event_loop::pump_events::EventLoopExtPumpEvents for EventLoop {
     windows_platform,
     macos_platform,
     android_platform,
+    orbital_platform,
     x11_platform,
     wayland_platform,
     docsrs,
@@ -313,6 +350,13 @@ impl winit_core::event_loop::pump_events::EventLoopExtPumpEvents for EventLoop {
 impl winit_core::event_loop::run_on_demand::EventLoopExtRunOnDemand for EventLoop {
     fn run_app_on_demand<A: ApplicationHandler>(&mut self, app: A) -> Result<(), EventLoopError> {
         self.event_loop.run_app_on_demand(app)
+    }
+}
+
+#[cfg(any(web_platform, docsrs))]
+impl winit_core::event_loop::register::EventLoopExtRegister for EventLoop {
+    fn register_app<A: ApplicationHandler + 'static>(self, app: A) {
+        self.event_loop.register_app(app)
     }
 }
 
@@ -385,10 +429,6 @@ impl winit_wayland::EventLoopBuilderExtWayland for EventLoopBuilder {
 
 #[cfg(web_platform)]
 impl winit_web::EventLoopExtWeb for EventLoop {
-    fn spawn_app<A: ApplicationHandler + 'static>(self, app: A) {
-        self.event_loop.spawn_app(app);
-    }
-
     fn set_poll_strategy(&self, strategy: winit_web::PollStrategy) {
         self.event_loop.set_poll_strategy(strategy);
     }

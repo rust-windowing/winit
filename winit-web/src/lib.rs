@@ -85,7 +85,6 @@ use std::task::{Context, Poll};
 use ::web_sys::HtmlCanvasElement;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
-use winit_core::application::ApplicationHandler;
 use winit_core::cursor::{CustomCursor, CustomCursorSource};
 use winit_core::error::NotSupportedError;
 use winit_core::event_loop::ActiveEventLoop;
@@ -237,30 +236,6 @@ impl Default for WindowAttributesWeb {
 
 /// Additional methods on `EventLoop` that are specific to the Web.
 pub trait EventLoopExtWeb {
-    /// Initializes the winit event loop.
-    ///
-    /// Unlike
-    #[cfg_attr(target_feature = "exception-handling", doc = "`run_app()`")]
-    #[cfg_attr(
-        not(target_feature = "exception-handling"),
-        doc = "[`run_app()`]"
-    )]
-    /// [^1], this returns immediately, and doesn't throw an exception in order to
-    /// satisfy its [`!`] return type.
-    ///
-    /// Once the event loop has been destroyed, it's possible to reinitialize another event loop
-    /// by calling this function again. This can be useful if you want to recreate the event loop
-    /// while the WebAssembly module is still loaded. For example, this can be used to recreate the
-    /// event loop when switching between tabs on a single page application.
-    #[rustfmt::skip]
-    ///
-    #[cfg_attr(
-        not(target_feature = "exception-handling"),
-        doc = "[`run_app()`]: EventLoop::run_app()"
-    )]
-    /// [^1]: `run_app()` is _not_ available on Wasm when the target supports `exception-handling`.
-    fn spawn_app<A: ApplicationHandler + 'static>(self, app: A);
-
     /// Sets the strategy for [`ControlFlow::Poll`].
     ///
     /// See [`PollStrategy`].
