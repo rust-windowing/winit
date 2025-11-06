@@ -352,8 +352,10 @@ mod tests {
 
     #[test]
     fn uuid_stable() {
-        let handle_a = MonitorHandle::new(1).unwrap();
-        let handle_b = MonitorHandle::new(1).unwrap();
+        let primary_id = CGMainDisplayID();
+
+        let handle_a = MonitorHandle::new(primary_id).unwrap();
+        let handle_b = MonitorHandle::new(primary_id).unwrap();
         assert_eq!(handle_a, handle_b);
         assert_eq!(handle_a.display_id(), handle_b.display_id());
         assert_eq!(handle_a.uuid(), handle_b.uuid());
@@ -368,8 +370,10 @@ mod tests {
     /// Test the MonitorHandle::new fallback.
     #[test]
     fn monitorhandle_from_zero() {
+        let primary_id = CGMainDisplayID();
+
         let handle0 = MonitorHandle::new(0).unwrap();
-        let handle1 = MonitorHandle::new(1).unwrap();
+        let handle1 = MonitorHandle::new(primary_id).unwrap();
         assert_eq!(handle0, handle1);
         assert_eq!(handle0.display_id(), handle1.display_id());
         assert_eq!(handle0.uuid(), handle1.uuid());
