@@ -272,3 +272,4 @@ changelog entry.
 - On Web, device events are emitted regardless of cursor type.
 - On Wayland, `axis_value120` scroll events now generate `MouseScrollDelta::LineDelta`
 - On X11, mouse scroll button events no longer cause duplicated `WindowEvent::MouseWheel` events.
+- On macOS, fixed crash when dragging non-file content onto window.
