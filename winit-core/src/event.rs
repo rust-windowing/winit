@@ -510,7 +510,8 @@ impl From<PointerSource> for PointerKind {
     }
 }
 
-/// Represents the pointer type of a [`WindowEvent::PointerButton`].
+/// Represents the pointer type of [`WindowEvent::PointerButton`] and
+/// [`DeviceEvent::PointerButton`].
 ///
 /// **Wayland/X11:** [`Unknown`](Self::Unknown) device types are converted to known variants by the
 /// system.
@@ -615,7 +616,7 @@ impl FingerId {
 /// Note that these events are delivered regardless of input focus.
 ///
 /// [window events]: WindowEvent
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum DeviceEvent {
     /// Change in physical position of a pointing device.
     ///
@@ -640,8 +641,8 @@ pub enum DeviceEvent {
         delta: MouseScrollDelta,
     },
 
-    Button {
-        button: ButtonId,
+    PointerButton {
+        button: ButtonSource,
         state: ElementState,
     },
 
@@ -1046,9 +1047,6 @@ impl Force {
 
 /// Identifier for a specific analog axis on some device.
 pub type AxisId = u32;
-
-/// Identifier for a specific button on some device.
-pub type ButtonId = u32;
 
 /// Tablet of the tablet tool.
 #[derive(Default, Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -1621,7 +1619,7 @@ mod tests {
 
             with_device_event(PointerMotion { delta: (0.0, 0.0).into() });
             with_device_event(MouseWheel { delta: event::MouseScrollDelta::LineDelta(0.0, 0.0) });
-            with_device_event(Button { button: 0, state: event::ElementState::Pressed });
+            with_device_event(PointerButton { button: event::ButtonSource::Unknown(0), state: event::ElementState::Pressed });
         }};
     }
 
