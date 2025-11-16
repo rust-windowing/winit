@@ -171,7 +171,7 @@ impl PreeditCallbacks {
     pub fn new(client_data: ffi::XPointer) -> PreeditCallbacks {
         let start_callback = create_xim_callback(client_data, unsafe {
             mem::transmute::<usize, unsafe extern "C" fn(ffi::XIM, ffi::XPointer, ffi::XPointer)>(
-                preedit_start_callback as usize,
+                preedit_start_callback as *const () as usize,
             )
         });
         let done_callback = create_xim_callback(client_data, preedit_done_callback);
