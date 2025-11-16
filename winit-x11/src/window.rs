@@ -26,10 +26,9 @@ use winit_core::window::{
 };
 use x11rb::connection::{Connection, RequestConnection};
 use x11rb::properties::{WmHints, WmSizeHints, WmSizeHintsSpecification};
-use x11rb::protocol::shape::SK;
+use x11rb::protocol::shape::{ConnectionExt as _, SK, SO};
 use x11rb::protocol::sync::{ConnectionExt as _, Int64};
-use x11rb::protocol::xfixes::{ConnectionExt, RegionWrapper};
-use x11rb::protocol::xproto::{self, ConnectionExt as _, Rectangle};
+use x11rb::protocol::xproto::{self, ClipOrdering, ConnectionExt as _, Rectangle};
 use x11rb::protocol::{randr, xinput};
 
 use crate::atoms::*;
@@ -1238,10 +1237,14 @@ impl UnownedWindow {
 
             let old_surface_size = PhysicalSize::new(width, height);
             let surface_size = Arc::new(Mutex::new(PhysicalSize::new(new_width, new_height)));
-            app.window_event(event_loop, self.id(), WindowEvent::ScaleFactorChanged {
-                scale_factor: new_monitor.scale_factor,
-                surface_size_writer: SurfaceSizeWriter::new(Arc::downgrade(&surface_size)),
-            });
+            app.window_event(
+                event_loop,
+                self.id(),
+                WindowEvent::ScaleFactorChanged {
+                    scale_factor: new_monitor.scale_factor,
+                    surface_size_writer: SurfaceSizeWriter::new(Arc::downgrade(&surface_size)),
+                },
+            );
 
             let new_surface_size = *surface_size.lock().unwrap();
             drop(surface_size);
@@ -1967,21 +1970,23 @@ impl UnownedWindow {
 
     #[inline]
     pub fn set_cursor_hittest(&self, hittest: bool) -> Result<(), RequestError> {
-        let mut rectangles: Vec<Rectangle> = Vec::new();
-        if hittest {
+        let rectangles = if hittest {
             let size = self.surface_size();
-            rectangles.push(Rectangle {
-                x: 0,
-                y: 0,
-                width: size.width as u16,
-                height: size.height as u16,
-            })
-        }
-        let region = RegionWrapper::create_region(self.xconn.xcb_connection(), &rectangles)
-            .map_err(|_e| RequestError::Ignored)?;
+            vec![Rectangle { x: 0, y: 0, width: size.width as u16, height: size.height as u16 }]
+        } else {
+            Vec::new()
+        };
         self.xconn
             .xcb_connection()
-            .xfixes_set_window_shape_region(self.xwindow, SK::INPUT, 0, 0, region.region())
+            .shape_rectangles(
+                SO::SET,
+                SK::INPUT,
+                ClipOrdering::UNSORTED,
+                self.xwindow,
+                0,
+                0,
+                &rectangles,
+            )
             .map_err(|_e| RequestError::Ignored)?;
         self.shared_state_lock().cursor_hittest = Some(hittest);
         Ok(())
