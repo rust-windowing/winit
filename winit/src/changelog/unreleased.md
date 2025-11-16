@@ -50,3 +50,7 @@ changelog entry.
 - On Web, avoid throwing an exception in `EventLoop::run_app`, instead preferring to return to the caller.
   This requires passing a `'static` application to ensure that the application state will live as long as necessary.
 - On Web, the event loop can now always be re-created once it has finished running.
+
+### Fixed
+
+- Fixed panic when calling `Window::set_ime_allowed`.
