@@ -1136,7 +1136,7 @@ pub trait Window: AsAny + Send + Sync + fmt::Debug {
         let action = if allowed {
             let position = LogicalPosition::new(0, 0);
             let size = LogicalSize::new(0, 0);
-            let ime_caps = ImeCapabilities::new().without_hint_and_purpose().with_cursor_area();
+            let ime_caps = ImeCapabilities::new().with_hint_and_purpose().with_cursor_area();
             let request_data = ImeRequestData {
                 hint_and_purpose: Some((ImeHint::NONE, ImePurpose::Normal)),
                 // WARNING: there's nothing sensible to use here by default.
