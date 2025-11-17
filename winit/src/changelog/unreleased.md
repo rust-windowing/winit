@@ -39,18 +39,3 @@ The migration guide could reference other migration examples in the current
 changelog entry.
 
 ## Unreleased
-
-### Added
-
-- Add `EventLoopExtRegister::register_app` for being explicit about how the event loop runs on Web.
-- Add `EventLoopExtNeverReturn::run_app_never_return` for being explicit about how the event loop runs on iOS.
-
-### Changed
-
-- On Web, avoid throwing an exception in `EventLoop::run_app`, instead preferring to return to the caller.
-  This requires passing a `'static` application to ensure that the application state will live as long as necessary.
-- On Web, the event loop can now always be re-created once it has finished running.
-
-### Fixed
-
-- Fixed panic when calling `Window::set_ime_allowed`.
