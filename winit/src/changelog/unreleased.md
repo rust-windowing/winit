@@ -47,6 +47,7 @@ changelog entry.
   implemented on Wayland, X11, macOS and Windows.
 - Add `ActiveEventLoop::primary_selection_ext` for interacting with
   the primary selection through the data transfer API on Wayland and X11.
+- Add `keyboard` support for OpenHarmony.
 
 ### Fixed
 
