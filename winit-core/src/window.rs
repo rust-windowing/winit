@@ -1691,6 +1691,22 @@ pub enum ImeSurroundingTextError {
     AnchorBadPosition,
 }
 
+impl fmt::Display for ImeSurroundingTextError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            ImeSurroundingTextError::TextTooLong => write!(f, "text exceeds maximum length"),
+            ImeSurroundingTextError::CursorBadPosition => {
+                write!(f, "cursor is not at a valid text index")
+            },
+            ImeSurroundingTextError::AnchorBadPosition => {
+                write!(f, "anchor is not at a valid text index")
+            },
+        }
+    }
+}
+
+impl std::error::Error for ImeSurroundingTextError {}
+
 /// Defines the text surrounding the caret
 #[derive(Debug, PartialEq, Eq, Clone, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
