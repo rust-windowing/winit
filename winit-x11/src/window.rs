@@ -26,10 +26,9 @@ use winit_core::window::{
 };
 use x11rb::connection::{Connection, RequestConnection};
 use x11rb::properties::{WmHints, WmSizeHints, WmSizeHintsSpecification};
-use x11rb::protocol::shape::SK;
+use x11rb::protocol::shape::{ConnectionExt as _, SK, SO};
 use x11rb::protocol::sync::{ConnectionExt as _, Int64};
-use x11rb::protocol::xfixes::{ConnectionExt, RegionWrapper};
-use x11rb::protocol::xproto::{self, ConnectionExt as _, Rectangle};
+use x11rb::protocol::xproto::{self, ClipOrdering, ConnectionExt as _, Rectangle};
 use x11rb::protocol::{randr, xinput};
 
 use crate::atoms::*;
@@ -1977,11 +1976,17 @@ impl UnownedWindow {
                 height: size.height as u16,
             })
         }
-        let region = RegionWrapper::create_region(self.xconn.xcb_connection(), &rectangles)
-            .map_err(|_e| RequestError::Ignored)?;
         self.xconn
             .xcb_connection()
-            .xfixes_set_window_shape_region(self.xwindow, SK::INPUT, 0, 0, region.region())
+            .shape_rectangles(
+                SO::SET,
+                SK::INPUT,
+                ClipOrdering::UNSORTED,
+                self.xwindow,
+                0,
+                0,
+                &rectangles,
+            )
             .map_err(|_e| RequestError::Ignored)?;
         self.shared_state_lock().cursor_hittest = Some(hittest);
         Ok(())
