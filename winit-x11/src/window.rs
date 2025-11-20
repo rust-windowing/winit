@@ -26,10 +26,9 @@ use winit_core::window::{
 };
 use x11rb::connection::{Connection, RequestConnection};
 use x11rb::properties::{WmHints, WmSizeHints, WmSizeHintsSpecification};
-use x11rb::protocol::shape::SK;
+use x11rb::protocol::shape::{ConnectionExt as ShapeExt, SK, SO};
 use x11rb::protocol::sync::{ConnectionExt as _, Int64};
-use x11rb::protocol::xfixes::{ConnectionExt, RegionWrapper};
-use x11rb::protocol::xproto::{self, ConnectionExt as _, Rectangle};
+use x11rb::protocol::xproto::{self, ClipOrdering, ConnectionExt as _, Rectangle};
 use x11rb::protocol::{randr, xinput};
 
 use crate::atoms::*;
@@ -1967,6 +1966,15 @@ impl UnownedWindow {
 
     #[inline]
     pub fn set_cursor_hittest(&self, hittest: bool) -> Result<(), RequestError> {
+        // Implement cursor hittest for X11 by either setting an empty or full window input shape.
+
+        // In X11, every window has two "shapes":
+        //   * Bounding shape: defines the visible outline of the window.
+        //   * Input shape: defines the region of the window that receives pointer/keyboard events.
+        // If the input shape is the full window rectangle, the window behaves normally.
+        // If the input shape is empty, the window is completely click‑through.
+        // Here, we implement hit test by mapping `hittest = true` to "restore a full input shape"
+        // and `hittest = false` to "clear the input shape" (empty list of rectangles).
         let mut rectangles: Vec<Rectangle> = Vec::new();
         if hittest {
             let size = self.surface_size();
@@ -1977,11 +1985,17 @@ impl UnownedWindow {
                 height: size.height as u16,
             })
         }
-        let region = RegionWrapper::create_region(self.xconn.xcb_connection(), &rectangles)
-            .map_err(|_e| RequestError::Ignored)?;
         self.xconn
             .xcb_connection()
-            .xfixes_set_window_shape_region(self.xwindow, SK::INPUT, 0, 0, region.region())
+            .shape_rectangles(
+                SO::SET,
+                SK::INPUT,
+                ClipOrdering::UNSORTED,
+                self.xwindow,
+                0,
+                0,
+                &rectangles,
+            )
             .map_err(|_e| RequestError::Ignored)?;
         self.shared_state_lock().cursor_hittest = Some(hittest);
         Ok(())
