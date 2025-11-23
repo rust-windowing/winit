@@ -479,6 +479,8 @@ impl EventLoop {
         if let Some(code) = self.exit_code() {
             self.loop_running = false;
 
+            app.destroy_surfaces(&self.event_processor.target);
+
             PumpStatus::Exit(code)
         } else {
             PumpStatus::Continue
