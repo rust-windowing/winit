@@ -43,3 +43,7 @@ changelog entry.
 ### Added
 
 - Add `keyboard` support for OpenHarmony.
+
+### Fixed
+
+- Use new macOS 15 cursors for resize icons.

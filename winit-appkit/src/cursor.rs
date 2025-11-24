@@ -5,7 +5,10 @@ use std::sync::OnceLock;
 use objc2::rc::Retained;
 use objc2::runtime::Sel;
 use objc2::{AllocAnyThread, ClassType, available, msg_send, sel};
-use objc2_app_kit::{NSBitmapImageRep, NSCursor, NSDeviceRGBColorSpace, NSImage};
+use objc2_app_kit::{
+    NSBitmapImageRep, NSCursor, NSCursorFrameResizeDirections, NSCursorFrameResizePosition,
+    NSDeviceRGBColorSpace, NSImage,
+};
 use objc2_foundation::{
     NSData, NSDictionary, NSNumber, NSObject, NSPoint, NSSize, NSString, ns_string,
 };
@@ -204,23 +207,99 @@ pub(crate) fn cursor_from_icon(icon: CursorIcon) -> Retained<NSCursor> {
         CursorIcon::NotAllowed | CursorIcon::NoDrop => NSCursor::operationNotAllowedCursor(),
         CursorIcon::ContextMenu => NSCursor::contextualMenuCursor(),
         CursorIcon::Crosshair => NSCursor::crosshairCursor(),
+        CursorIcon::EResize if available!(macos = 15.0) => {
+            NSCursor::frameResizeCursorFromPosition_inDirections(
+                NSCursorFrameResizePosition::Right,
+                NSCursorFrameResizeDirections::Outward,
+            )
+        },
         CursorIcon::EResize => NSCursor::resizeRightCursor(),
+        CursorIcon::NResize if available!(macos = 15.0) => {
+            NSCursor::frameResizeCursorFromPosition_inDirections(
+                NSCursorFrameResizePosition::Top,
+                NSCursorFrameResizeDirections::Outward,
+            )
+        },
         CursorIcon::NResize => NSCursor::resizeUpCursor(),
+        CursorIcon::WResize if available!(macos = 15.0) => {
+            NSCursor::frameResizeCursorFromPosition_inDirections(
+                NSCursorFrameResizePosition::Left,
+                NSCursorFrameResizeDirections::Outward,
+            )
+        },
         CursorIcon::WResize => NSCursor::resizeLeftCursor(),
+        CursorIcon::SResize if available!(macos = 15.0) => {
+            NSCursor::frameResizeCursorFromPosition_inDirections(
+                NSCursorFrameResizePosition::Bottom,
+                NSCursorFrameResizeDirections::Outward,
+            )
+        },
         CursorIcon::SResize => NSCursor::resizeDownCursor(),
-        CursorIcon::EwResize | CursorIcon::ColResize => NSCursor::resizeLeftRightCursor(),
-        CursorIcon::NsResize | CursorIcon::RowResize => NSCursor::resizeUpDownCursor(),
-        CursorIcon::Help => _helpCursor(),
+        CursorIcon::EwResize if available!(macos = 15.0) => {
+            NSCursor::frameResizeCursorFromPosition_inDirections(
+                NSCursorFrameResizePosition::Right,
+                NSCursorFrameResizeDirections::All,
+            )
+        },
+        CursorIcon::EwResize => NSCursor::resizeLeftRightCursor(),
+        CursorIcon::NsResize if available!(macos = 15.0) => {
+            NSCursor::frameResizeCursorFromPosition_inDirections(
+                NSCursorFrameResizePosition::Top,
+                NSCursorFrameResizeDirections::All,
+            )
+        },
+        CursorIcon::NsResize => NSCursor::resizeUpDownCursor(),
+        CursorIcon::NeResize if available!(macos = 15.0) => {
+            NSCursor::frameResizeCursorFromPosition_inDirections(
+                NSCursorFrameResizePosition::TopRight,
+                NSCursorFrameResizeDirections::Outward,
+            )
+        },
+        CursorIcon::NeResize => _windowResizeNorthEastCursor(),
+        CursorIcon::NwResize if available!(macos = 15.0) => {
+            NSCursor::frameResizeCursorFromPosition_inDirections(
+                NSCursorFrameResizePosition::TopLeft,
+                NSCursorFrameResizeDirections::Outward,
+            )
+        },
+        CursorIcon::NwResize => _windowResizeNorthWestCursor(),
+        CursorIcon::SeResize if available!(macos = 15.0) => {
+            NSCursor::frameResizeCursorFromPosition_inDirections(
+                NSCursorFrameResizePosition::BottomRight,
+                NSCursorFrameResizeDirections::Outward,
+            )
+        },
+        CursorIcon::SeResize => _windowResizeSouthEastCursor(),
+        CursorIcon::SwResize if available!(macos = 15.0) => {
+            NSCursor::frameResizeCursorFromPosition_inDirections(
+                NSCursorFrameResizePosition::BottomLeft,
+                NSCursorFrameResizeDirections::Outward,
+            )
+        },
+        CursorIcon::SwResize => _windowResizeSouthWestCursor(),
+        CursorIcon::NeswResize if available!(macos = 15.0) => {
+            NSCursor::frameResizeCursorFromPosition_inDirections(
+                NSCursorFrameResizePosition::TopRight,
+                NSCursorFrameResizeDirections::All,
+            )
+        },
+        CursorIcon::NeswResize => _windowResizeNorthEastSouthWestCursor(),
+        CursorIcon::NwseResize if available!(macos = 15.0) => {
+            NSCursor::frameResizeCursorFromPosition_inDirections(
+                NSCursorFrameResizePosition::TopLeft,
+                NSCursorFrameResizeDirections::All,
+            )
+        },
+        CursorIcon::NwseResize => _windowResizeNorthWestSouthEastCursor(),
+        CursorIcon::ColResize if available!(macos = 15.0) => NSCursor::columnResizeCursor(),
+        CursorIcon::ColResize => NSCursor::resizeLeftRightCursor(),
+        CursorIcon::RowResize if available!(macos = 15.0) => NSCursor::rowResizeCursor(),
+        CursorIcon::RowResize => NSCursor::resizeUpDownCursor(),
         CursorIcon::ZoomIn if available!(macos = 15.0) => NSCursor::zoomInCursor(),
         CursorIcon::ZoomIn => _zoomInCursor(),
         CursorIcon::ZoomOut if available!(macos = 15.0) => NSCursor::zoomOutCursor(),
         CursorIcon::ZoomOut => _zoomOutCursor(),
-        CursorIcon::NeResize => _windowResizeNorthEastCursor(),
-        CursorIcon::NwResize => _windowResizeNorthWestCursor(),
-        CursorIcon::SeResize => _windowResizeSouthEastCursor(),
-        CursorIcon::SwResize => _windowResizeSouthWestCursor(),
-        CursorIcon::NeswResize => _windowResizeNorthEastSouthWestCursor(),
-        CursorIcon::NwseResize => _windowResizeNorthWestSouthEastCursor(),
+        CursorIcon::Help => _helpCursor(),
         // This is the wrong semantics for `Wait`, but it's the same as
         // what's used in Safari and Chrome.
         CursorIcon::Wait | CursorIcon::Progress => busyButClickableCursor(),
