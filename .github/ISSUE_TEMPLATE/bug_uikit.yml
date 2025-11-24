@@ -1,8 +1,8 @@
-name: MacOS bug
-description: Create a macOS-specific bug report
+name: iOS bug
+description: Create an iOS/UIKit-specific bug report
 labels:
   - B - bug
-  - DS - macos
+  - DS - uikit
 body:
   - type: markdown
     attributes:
@@ -16,15 +16,15 @@ body:
     validations:
       required: true
   - type: textarea
-    id: os-version
+    id: device
     attributes:
-      label: macOS version
-      description: What version of macOS are you using? Please paste in the output of `sw_vers`.
+      label: Device and iOS version
+      description: Which devices and iOS versions are you seeing the problem on?
       placeholder: |
-        ProductName:            macOS
-        ProductVersion:         14.2.1
-        BuildVersion:           23C71
-      render: shell
+        iPhone 15 running iOS 14.0,
+        iPhone 15 running iOS 17.0,
+        MacBook Pro M2 Mac Catalyst running macOS 14.2,
+        iPhone simulator running iOS 17.0
     validations:
       required: true
   - type: textarea
