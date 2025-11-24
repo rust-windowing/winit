@@ -1,8 +1,8 @@
-name: Windows bug
-description: Create a Windows-specific bug report
+name: macOS bug
+description: Create a macOS-specific bug report
 labels:
   - B - bug
-  - DS - windows
+  - DS - appkit
 body:
   - type: markdown
     attributes:
@@ -18,10 +18,12 @@ body:
   - type: textarea
     id: os-version
     attributes:
-      label: Windows version
-      description: What version of Windows are you using? Please paste in the output of the `ver` command.
+      label: macOS version
+      description: What version of macOS are you using? Please paste in the output of `sw_vers`.
       placeholder: |
-        Microsoft Windows [Version 10.0.19042.2251]
+        ProductName:            macOS
+        ProductVersion:         14.2.1
+        BuildVersion:           23C71
       render: shell
     validations:
       required: true
