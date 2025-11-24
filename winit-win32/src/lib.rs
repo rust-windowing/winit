@@ -136,6 +136,74 @@ pub enum CornerPreference {
     RoundSmall = 3,
 }
 
+/// Describes the z-order band of a window.
+#[repr(i32)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub enum Band {
+    /// Corresponds to `ZBID_DEFAULT`
+    #[default]
+    Default = 0,
+
+    /// Corresponds to `ZBID_DESKTOP`
+    Desktop = 1,
+
+    /// Corresponds to `ZBID_UIACCESS`
+    Uiaccess = 2,
+
+    /// Corresponds to `ZBID_IMMERSIVE_IHM`
+    ImmersiveIhm = 3,
+
+    /// Corresponds to `ZBID_IMMERSIVE_NOTIFICATION`
+    ImmersiveNotification = 4,
+
+    /// Corresponds to `ZBID_IMMERSIVE_APPCHROME`
+    ImmersiveAppchrome = 5,
+
+    /// Corresponds to `ZBID_IMMERSIVE_MOGO`
+    ImmersiveMogo = 6,
+
+    /// Corresponds to `ZBID_IMMERSIVE_EDGY`
+    ImmersiveEdgy = 7,
+
+    /// Corresponds to `ZBID_IMMERSIVE_INACTIVEMOBODY`
+    ImmersiveInactivemobody = 8,
+
+    /// Corresponds to `ZBID_IMMERSIVE_INACTIVEDOCK`
+    ImmersiveInactivedock = 9,
+
+    /// Corresponds to `ZBID_IMMERSIVE_ACTIVEMOBODY`
+    ImmersiveActivemobody = 10,
+
+    /// Corresponds to `ZBID_IMMERSIVE_ACTIVEDOCK`
+    ImmersiveActivedock = 11,
+
+    /// Corresponds to `ZBID_IMMERSIVE_BACKGROUND`
+    ImmersiveBackground = 12,
+
+    /// Corresponds to `ZBID_IMMERSIVE_SEARCH`
+    ImmersiveSearch = 13,
+
+    /// Corresponds to `ZBID_GENUINE_WINDOWS`
+    GenuineWindows = 14,
+
+    /// Corresponds to `ZBID_IMMERSIVE_RESTRICTED`
+    ImmersiveRestricted = 15,
+
+    /// Corresponds to `ZBID_SYSTEM_TOOLS`
+    SystemTools = 16,
+
+    /// Corresponds to `ZBID_LOCK`
+    ///
+    /// Windows 10 or higher
+    Lock = 17,
+
+    /// Corresponds to `ZBID_ABOVELOCK_UX`
+    ///
+    /// Windows 10 or higher
+    AbovelockUx = 18,
+}
+
 /// A wrapper around a [`Window`] that ignores thread-specific window handle limitations.
 ///
 /// See [`WindowBorrowExtWindows::any_thread`] for more information.
@@ -474,6 +542,7 @@ pub struct WindowAttributesWindows {
     pub(crate) title_text_color: Option<Color>,
     pub(crate) corner_preference: Option<CornerPreference>,
     pub(crate) use_system_wheel_speed: bool,
+    pub(crate) band: Option<Band>,
 }
 
 impl Default for WindowAttributesWindows {
@@ -494,6 +563,7 @@ impl Default for WindowAttributesWindows {
             title_text_color: None,
             corner_preference: None,
             use_system_wheel_speed: true,
+            band: None,
         }
     }
 }
@@ -636,6 +706,14 @@ impl WindowAttributesWindows {
     /// The default is `true`.
     pub fn with_use_system_scroll_speed(mut self, should_use: bool) -> Self {
         self.use_system_wheel_speed = should_use;
+        self
+    }
+
+    /// Sets the z-order band of the window.
+    ///
+    /// Windows 8 or higher
+    pub fn with_band(mut self, band: Band) -> Self {
+        self.band = Some(band);
         self
     }
 }
