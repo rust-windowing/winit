@@ -17,7 +17,7 @@ use dpi::{Position, Size};
 #[non_exhaustive]
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Hash, Default)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub enum ImePurpose {
+pub enum Purpose {
     /// No special purpose for the IME (default).
     #[default]
     Normal,
@@ -52,7 +52,7 @@ bitflags! {
     /// The hint should reflect the desired behaviour of the IME
     /// while entering text.
     /// The purpose may improve UX by optimizing the IME for the specific use case,
-    /// beyond just the general data type specified in `ImePurpose`.
+    /// beyond just the general data type specified in [`Purpose`].
     ///
     /// ## Platform-specific
     ///
@@ -60,7 +60,7 @@ bitflags! {
     #[non_exhaustive]
     #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
-    pub struct ImeHint: u32 {
+    pub struct Hint: u32 {
         /// No special behaviour.
         const NONE = 0;
         /// Suggest word completions.
@@ -89,7 +89,7 @@ bitflags! {
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Hash)]
-pub enum ImeSurroundingTextError {
+pub enum SurroundingTextError {
     /// Text exceeds 4000 bytes
     TextTooLong,
     /// Cursor not on a code point boundary, or past the end of text.
@@ -98,26 +98,26 @@ pub enum ImeSurroundingTextError {
     AnchorBadPosition,
 }
 
-impl fmt::Display for ImeSurroundingTextError {
+impl fmt::Display for SurroundingTextError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            ImeSurroundingTextError::TextTooLong => write!(f, "text exceeds maximum length"),
-            ImeSurroundingTextError::CursorBadPosition => {
+            SurroundingTextError::TextTooLong => write!(f, "text exceeds maximum length"),
+            SurroundingTextError::CursorBadPosition => {
                 write!(f, "cursor is not at a valid text index")
             },
-            ImeSurroundingTextError::AnchorBadPosition => {
+            SurroundingTextError::AnchorBadPosition => {
                 write!(f, "anchor is not at a valid text index")
             },
         }
     }
 }
 
-impl std::error::Error for ImeSurroundingTextError {}
+impl std::error::Error for SurroundingTextError {}
 
 /// Defines the text surrounding the caret
 #[derive(Debug, PartialEq, Eq, Clone, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub struct ImeSurroundingText {
+pub struct SurroundingText {
     /// An excerpt of the text present in the text input field, excluding preedit.
     text: String,
     /// The position of the caret, in bytes from the beginning of the string
@@ -127,7 +127,7 @@ pub struct ImeSurroundingText {
     anchor: usize,
 }
 
-impl ImeSurroundingText {
+impl SurroundingText {
     /// The maximum size of the text excerpt.
     pub const MAX_TEXT_BYTES: usize = 4000;
     /// Defines the text surrounding the cursor and the selection within it.
@@ -147,34 +147,30 @@ impl ImeSurroundingText {
     /// obtained by:
     ///
     /// ```
-    /// # use winit_core::window::ImeSurroundingText;
-    /// let s = ImeSurroundingText::new("foobar".into(), 3, 3).unwrap();
+    /// # use winit_core::window::SurroundingText;
+    /// let s = SurroundingText::new("foobar".into(), 3, 3).unwrap();
     /// ```
     ///
     /// Because preedit is excluded from the text string, a text field containing `foo[baz|]bar`
     /// where `|` denotes the caret and [baz|] is the preedit would be created in exactly the same
     /// way.
-    pub fn new(
-        text: String,
-        cursor: usize,
-        anchor: usize,
-    ) -> Result<Self, ImeSurroundingTextError> {
+    pub fn new(text: String, cursor: usize, anchor: usize) -> Result<Self, SurroundingTextError> {
         let text = if text.len() < 4000 {
             text
         } else {
-            return Err(ImeSurroundingTextError::TextTooLong);
+            return Err(SurroundingTextError::TextTooLong);
         };
 
         let cursor = if text.is_char_boundary(cursor) && cursor <= text.len() {
             cursor
         } else {
-            return Err(ImeSurroundingTextError::CursorBadPosition);
+            return Err(SurroundingTextError::CursorBadPosition);
         };
 
         let anchor = if text.is_char_boundary(anchor) && anchor <= text.len() {
             anchor
         } else {
-            return Err(ImeSurroundingTextError::AnchorBadPosition);
+            return Err(SurroundingTextError::AnchorBadPosition);
         };
 
         Ok(Self { text, cursor, anchor })
@@ -201,36 +197,36 @@ impl ImeSurroundingText {
 
 /// Request to send to IME.
 #[derive(Debug, PartialEq, Clone)]
-pub enum ImeRequest {
-    /// Enable the IME with the [`ImeCapabilities`] and [`ImeRequestData`] as initial state. When
-    /// the [`ImeRequestData`] is **not** matching capabilities fully, the default values will be
+pub enum Request {
+    /// Enable the IME with the [`Capabilities`] and [`RequestData`] as initial state. When
+    /// the [`RequestData`] is **not** matching capabilities fully, the default values will be
     /// used instead.
     ///
     /// **Requesting to update data matching not enabled capabilities will result in update
     /// being ignored.** The winit backend in such cases is recommended to log a warning. This
-    /// applies to both [`ImeRequest::Enable`] and [`ImeRequest::Update`]. For details on
-    /// capabilities refer to [`ImeCapabilities`].
+    /// applies to both [`Request::Enable`] and [`Request::Update`]. For details on
+    /// capabilities refer to [`Capabilities`].
     ///
-    /// To update the [`ImeCapabilities`], the IME must be disabled and then re-enabled.
-    Enable(ImeEnableRequest),
-    /// Update the state of already enabled IME. Issuing this request before [`ImeRequest::Enable`]
+    /// To update the [`Capabilities`], the IME must be disabled and then re-enabled.
+    Enable(EnableRequest),
+    /// Update the state of already enabled IME. Issuing this request before [`Request::Enable`]
     /// will result in error.
-    Update(ImeRequestData),
+    Update(RequestData),
 }
 
 /// Initial IME request.
 #[derive(Debug, Clone, PartialEq)]
-pub struct ImeEnableRequest {
-    capabilities: ImeCapabilities,
-    request_data: ImeRequestData,
+pub struct EnableRequest {
+    capabilities: Capabilities,
+    request_data: RequestData,
 }
 
-impl ImeEnableRequest {
-    /// Create request for the [`ImeRequest::Enable`]
+impl EnableRequest {
+    /// Create request for the [`Request::Enable`]
     ///
     /// This will return [`None`] if some capability was requested but its initial value was not
     /// set by the user or value was set by the user, but capability not requested.
-    pub fn new(capabilities: ImeCapabilities, request_data: ImeRequestData) -> Option<Self> {
+    pub fn new(capabilities: Capabilities, request_data: RequestData) -> Option<Self> {
         if capabilities.cursor_area() ^ request_data.cursor_area.is_some() {
             return None;
         }
@@ -245,36 +241,36 @@ impl ImeEnableRequest {
         Some(Self { capabilities, request_data })
     }
 
-    /// [`ImeCapabilities`] to enable.
-    pub const fn capabilities(&self) -> &ImeCapabilities {
+    /// [`Capabilities`] to enable.
+    pub const fn capabilities(&self) -> &Capabilities {
         &self.capabilities
     }
 
     /// Request data attached to request.
-    pub const fn request_data(&self) -> &ImeRequestData {
+    pub const fn request_data(&self) -> &RequestData {
         &self.request_data
     }
 
-    /// Destruct [`ImeEnableRequest`]  into its raw parts.
-    pub fn into_raw(self) -> (ImeCapabilities, ImeRequestData) {
+    /// Destruct [`EnableRequest`]  into its raw parts.
+    pub fn into_raw(self) -> (Capabilities, RequestData) {
         (self.capabilities, self.request_data)
     }
 }
 
 /// IME capabilities supported by client.
 ///
-/// For example, if the client doesn't support [`ImeCapabilities::cursor_area()`], then not enabling
+/// For example, if the client doesn't support [`Capabilities::cursor_area()`], then not enabling
 /// it will make IME hide the popup window instead of placing it arbitrary over the
 /// client's window surface.
 ///
 /// When the capability is not enabled or not supported by the IME, trying to update its'
-/// corresponding data with [`ImeRequest`] will be ignored.
+/// corresponding data with [`Request`] will be ignored.
 ///
 /// New capabilities may be added to this struct in the future.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
-pub struct ImeCapabilities(ImeCapabilitiesFlags);
+pub struct Capabilities(CapabilitiesFlags);
 
-impl ImeCapabilities {
+impl Capabilities {
     /// Returns a new empty set of capabilities.
     pub fn new() -> Self {
         Self::default()
@@ -282,65 +278,65 @@ impl ImeCapabilities {
 
     /// Marks `hint and purpose` as supported.
     ///
-    /// For more details see [`ImeRequestData::with_hint_and_purpose`].
+    /// For more details see [`RequestData::with_hint_and_purpose`].
     pub const fn with_hint_and_purpose(self) -> Self {
-        Self(self.0.union(ImeCapabilitiesFlags::HINT_AND_PURPOSE))
+        Self(self.0.union(CapabilitiesFlags::HINT_AND_PURPOSE))
     }
 
     /// Marks `hint and purpose` as unsupported.
     ///
-    /// For more details see [`ImeRequestData::with_hint_and_purpose`].
+    /// For more details see [`RequestData::with_hint_and_purpose`].
     pub const fn without_hint_and_purpose(self) -> Self {
-        Self(self.0.difference(ImeCapabilitiesFlags::HINT_AND_PURPOSE))
+        Self(self.0.difference(CapabilitiesFlags::HINT_AND_PURPOSE))
     }
 
     /// Returns `true` if `hint and purpose` is supported.
     pub const fn hint_and_purpose(&self) -> bool {
-        self.0.contains(ImeCapabilitiesFlags::HINT_AND_PURPOSE)
+        self.0.contains(CapabilitiesFlags::HINT_AND_PURPOSE)
     }
 
     /// Marks `cursor_area` as supported.
     ///
-    /// For more details see [`ImeRequestData::with_cursor_area`].
+    /// For more details see [`RequestData::with_cursor_area`].
     pub const fn with_cursor_area(self) -> Self {
-        Self(self.0.union(ImeCapabilitiesFlags::CURSOR_AREA))
+        Self(self.0.union(CapabilitiesFlags::CURSOR_AREA))
     }
 
     /// Marks `cursor_area` as unsupported.
     ///
-    /// For more details see [`ImeRequestData::with_cursor_area`].
+    /// For more details see [`RequestData::with_cursor_area`].
     pub const fn without_cursor_area(self) -> Self {
-        Self(self.0.difference(ImeCapabilitiesFlags::CURSOR_AREA))
+        Self(self.0.difference(CapabilitiesFlags::CURSOR_AREA))
     }
 
     /// Returns `true` if `cursor_area` is supported.
     pub const fn cursor_area(&self) -> bool {
-        self.0.contains(ImeCapabilitiesFlags::CURSOR_AREA)
+        self.0.contains(CapabilitiesFlags::CURSOR_AREA)
     }
 
     /// Marks `surrounding_text` as supported.
     ///
-    /// For more details see [`ImeRequestData::with_surrounding_text`].
+    /// For more details see [`RequestData::with_surrounding_text`].
     pub const fn with_surrounding_text(self) -> Self {
-        Self(self.0.union(ImeCapabilitiesFlags::SURROUNDING_TEXT))
+        Self(self.0.union(CapabilitiesFlags::SURROUNDING_TEXT))
     }
 
     /// Marks `surrounding_text` as unsupported.
     ///
-    /// For more details see [`ImeRequestData::with_surrounding_text`].
+    /// For more details see [`RequestData::with_surrounding_text`].
     pub const fn without_surrounding_text(self) -> Self {
-        Self(self.0.difference(ImeCapabilitiesFlags::SURROUNDING_TEXT))
+        Self(self.0.difference(CapabilitiesFlags::SURROUNDING_TEXT))
     }
 
     /// Returns `true` if `surrounding_text` is supported.
     pub const fn surrounding_text(&self) -> bool {
-        self.0.contains(ImeCapabilitiesFlags::SURROUNDING_TEXT)
+        self.0.contains(CapabilitiesFlags::SURROUNDING_TEXT)
     }
 }
 
 bitflags! {
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
-    pub(crate) struct ImeCapabilitiesFlags : u8 {
+    pub(crate) struct CapabilitiesFlags : u8 {
         /// Client supports setting IME hint and purpose.
         const HINT_AND_PURPOSE = 1 << 0;
         /// Client supports reporting cursor area for IME popup to
@@ -351,7 +347,7 @@ bitflags! {
     }
 }
 
-/// The [`ImeRequest`] data to communicate to system's IME.
+/// The [`Request`] data to communicate to system's IME.
 ///
 /// This applies multiple IME state properties at once.
 /// Fields set to `None` are not updated and the previously sent
@@ -359,24 +355,24 @@ bitflags! {
 #[non_exhaustive]
 #[derive(Debug, PartialEq, Clone, Default)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub struct ImeRequestData {
+pub struct RequestData {
     /// Text input hint and purpose.
     ///
-    /// To support updating it, enable [`ImeCapabilities::hint_and_purpose()`].
-    pub hint_and_purpose: Option<(ImeHint, ImePurpose)>,
+    /// To support updating it, enable [`Capabilities::hint_and_purpose()`].
+    pub hint_and_purpose: Option<(Hint, Purpose)>,
     /// The IME cursor area which should not be covered by the input method popup.
     ///
-    /// To support updating it, enable [`ImeCapabilities::cursor_area()`].
+    /// To support updating it, enable [`Capabilities::cursor_area()`].
     pub cursor_area: Option<(Position, Size)>,
     /// The text surrounding the caret
     ///
-    /// To support updating it, enable [`ImeCapabilities::surrounding_text()`].
-    pub surrounding_text: Option<ImeSurroundingText>,
+    /// To support updating it, enable [`Capabilities::surrounding_text()`].
+    pub surrounding_text: Option<SurroundingText>,
 }
 
-impl ImeRequestData {
+impl RequestData {
     /// Sets the hint and purpose of the current text input content.
-    pub fn with_hint_and_purpose(self, hint: ImeHint, purpose: ImePurpose) -> Self {
+    pub fn with_hint_and_purpose(self, hint: Hint, purpose: Purpose) -> Self {
         Self { hint_and_purpose: Some((hint, purpose)), ..self }
     }
 
@@ -399,8 +395,8 @@ impl ImeRequestData {
     ///
     /// ```no_run
     /// # use dpi::{LogicalPosition, PhysicalPosition, LogicalSize, PhysicalSize};
-    /// # use winit_core::window::ImeRequestData;
-    /// # fn scope(ime_request_data: ImeRequestData) {
+    /// # use winit_core::window::RequestData;
+    /// # fn scope(ime_request_data: RequestData) {
     /// // Specify the position in logical dimensions like this:
     /// let ime_request_data = ime_request_data.with_cursor_area(
     ///     LogicalPosition::new(400.0, 200.0).into(),
@@ -430,7 +426,7 @@ impl ImeRequestData {
     /// The IME can then continue providing suggestions for the continuation of the existing text,
     /// as well as can erase text more accurately, for example glyphs composed of multiple code
     /// points.
-    pub fn with_surrounding_text(self, surrounding_text: ImeSurroundingText) -> Self {
+    pub fn with_surrounding_text(self, surrounding_text: SurroundingText) -> Self {
         Self { surrounding_text: Some(surrounding_text), ..self }
     }
 }
@@ -439,7 +435,7 @@ impl ImeRequestData {
 /// [`Window::request_ime_update`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[non_exhaustive]
-pub enum ImeRequestError {
+pub enum RequestError {
     /// IME is not yet enabled.
     NotEnabled,
     /// IME is already enabled.
@@ -448,25 +444,25 @@ pub enum ImeRequestError {
     NotSupported,
 }
 
-impl fmt::Display for ImeRequestError {
+impl fmt::Display for RequestError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            ImeRequestError::NotEnabled => write!(f, "ime is not enabled."),
-            ImeRequestError::AlreadyEnabled => write!(f, "ime is already enabled."),
-            ImeRequestError::NotSupported => write!(f, "ime is not supported."),
+            RequestError::NotEnabled => write!(f, "ime is not enabled."),
+            RequestError::AlreadyEnabled => write!(f, "ime is already enabled."),
+            RequestError::NotSupported => write!(f, "ime is not supported."),
         }
     }
 }
 
-impl std::error::Error for ImeRequestError {}
+impl std::error::Error for RequestError {}
 
 #[cfg(test)]
 mod tests {
     use dpi::{LogicalPosition, LogicalSize, Position, Size};
 
     use super::{
-        ImeCapabilities, ImeEnableRequest, ImeHint, ImePurpose, ImeRequestData, ImeSurroundingText,
-        ImeSurroundingTextError,
+        Capabilities, EnableRequest, Hint, Purpose, RequestData, SurroundingText,
+        SurroundingTextError,
     };
 
     #[test]
@@ -475,61 +471,55 @@ mod tests {
         let size: Size = LogicalSize::new(0, 0).into();
 
         assert!(
-            ImeEnableRequest::new(
-                ImeCapabilities::new().with_cursor_area(),
-                ImeRequestData::default()
-            )
-            .is_none()
+            EnableRequest::new(Capabilities::new().with_cursor_area(), RequestData::default())
+                .is_none()
         );
         assert!(
-            ImeEnableRequest::new(
-                ImeCapabilities::new().with_hint_and_purpose(),
-                ImeRequestData::default()
+            EnableRequest::new(Capabilities::new().with_hint_and_purpose(), RequestData::default())
+                .is_none()
+        );
+
+        assert!(
+            EnableRequest::new(
+                Capabilities::new().with_cursor_area(),
+                RequestData::default().with_hint_and_purpose(Hint::NONE, Purpose::Normal)
             )
             .is_none()
         );
 
         assert!(
-            ImeEnableRequest::new(
-                ImeCapabilities::new().with_cursor_area(),
-                ImeRequestData::default().with_hint_and_purpose(ImeHint::NONE, ImePurpose::Normal)
-            )
-            .is_none()
-        );
-
-        assert!(
-            ImeEnableRequest::new(
-                ImeCapabilities::new(),
-                ImeRequestData::default()
-                    .with_hint_and_purpose(ImeHint::NONE, ImePurpose::Normal)
+            EnableRequest::new(
+                Capabilities::new(),
+                RequestData::default()
+                    .with_hint_and_purpose(Hint::NONE, Purpose::Normal)
                     .with_cursor_area(position, size)
             )
             .is_none()
         );
 
         assert!(
-            ImeEnableRequest::new(
-                ImeCapabilities::new().with_cursor_area(),
-                ImeRequestData::default()
-                    .with_hint_and_purpose(ImeHint::NONE, ImePurpose::Normal)
+            EnableRequest::new(
+                Capabilities::new().with_cursor_area(),
+                RequestData::default()
+                    .with_hint_and_purpose(Hint::NONE, Purpose::Normal)
                     .with_cursor_area(position, size)
             )
             .is_none()
         );
 
         assert!(
-            ImeEnableRequest::new(
-                ImeCapabilities::new().with_cursor_area(),
-                ImeRequestData::default().with_cursor_area(position, size)
+            EnableRequest::new(
+                Capabilities::new().with_cursor_area(),
+                RequestData::default().with_cursor_area(position, size)
             )
             .is_some()
         );
 
         assert!(
-            ImeEnableRequest::new(
-                ImeCapabilities::new().with_hint_and_purpose().with_cursor_area(),
-                ImeRequestData::default()
-                    .with_hint_and_purpose(ImeHint::NONE, ImePurpose::Normal)
+            EnableRequest::new(
+                Capabilities::new().with_hint_and_purpose().with_cursor_area(),
+                RequestData::default()
+                    .with_hint_and_purpose(Hint::NONE, Purpose::Normal)
                     .with_cursor_area(position, size)
             )
             .is_some()
@@ -537,19 +527,16 @@ mod tests {
 
         let text: &[u8] = ['a' as u8; 8000].as_slice();
         let text = std::str::from_utf8(text).unwrap();
+        assert_eq!(SurroundingText::new(text.into(), 0, 0), Err(SurroundingTextError::TextTooLong),);
+
         assert_eq!(
-            ImeSurroundingText::new(text.into(), 0, 0),
-            Err(ImeSurroundingTextError::TextTooLong),
+            SurroundingText::new("short".into(), 110, 0),
+            Err(SurroundingTextError::CursorBadPosition),
         );
 
         assert_eq!(
-            ImeSurroundingText::new("short".into(), 110, 0),
-            Err(ImeSurroundingTextError::CursorBadPosition),
-        );
-
-        assert_eq!(
-            ImeSurroundingText::new("граница".into(), 1, 0),
-            Err(ImeSurroundingTextError::CursorBadPosition),
+            SurroundingText::new("граница".into(), 1, 0),
+            Err(SurroundingTextError::CursorBadPosition),
         );
     }
 }

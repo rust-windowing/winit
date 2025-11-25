@@ -21,7 +21,7 @@ use winit_core::event_loop::{
     EventLoopProxy as CoreEventLoopProxy, EventLoopProxyProvider,
     OwnedDisplayHandle as CoreOwnedDisplayHandle,
 };
-use winit_core::ime::{ImeCapabilities, ImePurpose, ImeRequest, ImeRequestError};
+use winit_core::ime;
 use winit_core::monitor::{Fullscreen, MonitorHandle as CoreMonitorHandle};
 use winit_core::window::{
     self, CursorGrabMode, ResizeDirection, Theme, Window as CoreWindow, WindowAttributes,
@@ -755,7 +755,7 @@ pub struct PlatformSpecificWindowAttributes;
 #[derive(Debug)]
 pub struct Window {
     app: AndroidApp,
-    ime_capabilities: Mutex<Option<ImeCapabilities>>,
+    ime_capabilities: Mutex<Option<ime::Capabilities>>,
     redraw_requester: RedrawRequester,
 }
 
@@ -938,20 +938,20 @@ impl CoreWindow for Window {
 
     fn set_ime_cursor_area(&self, _position: Position, _size: Size) {}
 
-    fn request_ime_update(&self, request: ImeRequest) -> Result<(), ImeRequestError> {
+    fn request_ime_update(&self, request: ime::Request) -> Result<(), ime::RequestError> {
         let mut current_caps = self.ime_capabilities.lock().unwrap();
         match request {
-            ImeRequest::Enable(enable) => {
+            ime::Request::Enable(enable) => {
                 let (capabilities, _) = enable.into_raw();
                 if current_caps.is_some() {
-                    return Err(ImeRequestError::AlreadyEnabled);
+                    return Err(ime::RequestError::AlreadyEnabled);
                 }
                 *current_caps = Some(capabilities);
                 self.app.show_soft_input(true);
             },
-            ImeRequest::Update(_) => {
+            ime::Request::Update(_) => {
                 if current_caps.is_none() {
-                    return Err(ImeRequestError::NotEnabled);
+                    return Err(ime::RequestError::NotEnabled);
                 }
             },
         }
@@ -964,11 +964,11 @@ impl CoreWindow for Window {
         self.app.hide_soft_input(true);
     }
 
-    fn ime_capabilities(&self) -> Option<ImeCapabilities> {
+    fn ime_capabilities(&self) -> Option<ime::Capabilities> {
         *self.ime_capabilities.lock().unwrap()
     }
 
-    fn set_ime_purpose(&self, _purpose: ImePurpose) {}
+    fn set_ime_purpose(&self, _purpose: ime::Purpose) {}
 
     fn focus_window(&self) {}
 

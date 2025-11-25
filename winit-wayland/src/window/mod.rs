@@ -18,7 +18,7 @@ use winit_core::cursor::Cursor;
 use winit_core::error::{NotSupportedError, RequestError};
 use winit_core::event::{Ime, WindowEvent};
 use winit_core::event_loop::AsyncRequestSerial;
-use winit_core::ime::{ImeCapabilities, ImeRequest, ImeRequestError};
+use winit_core::ime;
 use winit_core::monitor::{Fullscreen, MonitorHandle as CoreMonitorHandle};
 use winit_core::window::{
     CursorGrabMode, ResizeDirection, Theme, UserAttentionType, Window as CoreWindow,
@@ -505,7 +505,7 @@ impl CoreWindow for Window {
     }
 
     #[inline]
-    fn request_ime_update(&self, request: ImeRequest) -> Result<(), ImeRequestError> {
+    fn request_ime_update(&self, request: ime::Request) -> Result<(), ime::RequestError> {
         let state_changed = self.window_state.lock().unwrap().request_ime_update(request)?;
 
         if let Some(()) = state_changed {
@@ -526,7 +526,7 @@ impl CoreWindow for Window {
     }
 
     #[inline]
-    fn ime_capabilities(&self) -> Option<ImeCapabilities> {
+    fn ime_capabilities(&self) -> Option<ime::Capabilities> {
         self.window_state.lock().unwrap().ime_allowed()
     }
 

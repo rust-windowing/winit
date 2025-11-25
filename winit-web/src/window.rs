@@ -305,12 +305,12 @@ impl RootWindow for Window {
         // Currently an intentional no-op
     }
 
-    fn ime_capabilities(&self) -> Option<ime::ImeCapabilities> {
+    fn ime_capabilities(&self) -> Option<ime::Capabilities> {
         None
     }
 
-    fn request_ime_update(&self, _: ime::ImeRequest) -> Result<(), ime::ImeRequestError> {
-        Err(ime::ImeRequestError::NotSupported)
+    fn request_ime_update(&self, _: ime::Request) -> Result<(), ime::RequestError> {
+        Err(ime::RequestError::NotSupported)
     }
 
     #[inline]

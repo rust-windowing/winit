@@ -164,7 +164,7 @@ impl CoreWindow for Window {
         WindowId::from_raw(self.window_socket.fd)
     }
 
-    fn ime_capabilities(&self) -> Option<ime::ImeCapabilities> {
+    fn ime_capabilities(&self) -> Option<ime::Capabilities> {
         None
     }
 
@@ -379,8 +379,8 @@ impl CoreWindow for Window {
     #[inline]
     fn set_window_icon(&self, _window_icon: Option<winit_core::icon::Icon>) {}
 
-    fn request_ime_update(&self, _: ime::ImeRequest) -> Result<(), ime::ImeRequestError> {
-        Err(ime::ImeRequestError::NotSupported)
+    fn request_ime_update(&self, _: ime::Request) -> Result<(), ime::RequestError> {
+        Err(ime::RequestError::NotSupported)
     }
 
     #[inline]

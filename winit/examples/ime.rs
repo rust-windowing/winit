@@ -13,10 +13,7 @@ use tracing::{error, info};
 use winit::application::ApplicationHandler;
 use winit::event::{Ime, WindowEvent};
 use winit::event_loop::{ActiveEventLoop, EventLoop};
-use winit::ime::{
-    ImeCapabilities, ImeEnableRequest, ImeHint, ImePurpose, ImeRequest, ImeRequestData,
-    ImeSurroundingText,
-};
+use winit::ime;
 use winit::keyboard::{Key, ModifiersState, NamedKey};
 #[cfg(web_platform)]
 use winit::platform::web::WindowAttributesWeb;
@@ -44,9 +41,9 @@ struct TextInputState {
     /// (text, cursor position in bytes).
     contents: String,
     /// The purpose of the contents the emulated text field expects
-    purpose: ImePurpose,
+    purpose: ime::Purpose,
     /// The behaviour hints for the IME regarding the emulated text field
-    hint: ImeHint,
+    hint: ime::Hint,
 }
 
 impl TextInputState {
@@ -84,15 +81,15 @@ impl ApplicationHandler for App {
         };
 
         // Allow IME out of the box.
-        let enable_request = ImeEnableRequest::new(
-            ImeCapabilities::new()
+        let enable_request = ime::EnableRequest::new(
+            ime::Capabilities::new()
                 .with_hint_and_purpose()
                 .with_cursor_area()
                 .with_surrounding_text(),
             self.get_ime_update(),
         )
         .unwrap();
-        let enable_ime = ImeRequest::Enable(enable_request);
+        let enable_ime = ime::Request::Enable(enable_request);
 
         // Initial update
         self.window().request_ime_update(enable_ime).unwrap();
@@ -152,38 +149,38 @@ impl App {
             Key::Character("i") if mods == ModifiersState::CONTROL => self.toggle_ime(),
             Key::Character("p") if mods == ModifiersState::CONTROL => {
                 self.input_state.purpose = match self.input_state.purpose {
-                    ImePurpose::Normal => ImePurpose::Password,
-                    ImePurpose::Password => ImePurpose::Terminal,
-                    ImePurpose::Terminal => ImePurpose::Number,
-                    ImePurpose::Number => ImePurpose::Phone,
-                    ImePurpose::Phone => ImePurpose::Url,
-                    ImePurpose::Url => ImePurpose::Email,
-                    ImePurpose::Email => ImePurpose::Pin,
-                    ImePurpose::Pin => ImePurpose::Date,
-                    ImePurpose::Date => ImePurpose::Time,
-                    ImePurpose::Time => ImePurpose::DateTime,
-                    ImePurpose::DateTime => ImePurpose::Normal,
-                    _ => ImePurpose::Normal,
+                    ime::Purpose::Normal => ime::Purpose::Password,
+                    ime::Purpose::Password => ime::Purpose::Terminal,
+                    ime::Purpose::Terminal => ime::Purpose::Number,
+                    ime::Purpose::Number => ime::Purpose::Phone,
+                    ime::Purpose::Phone => ime::Purpose::Url,
+                    ime::Purpose::Url => ime::Purpose::Email,
+                    ime::Purpose::Email => ime::Purpose::Pin,
+                    ime::Purpose::Pin => ime::Purpose::Date,
+                    ime::Purpose::Date => ime::Purpose::Time,
+                    ime::Purpose::Time => ime::Purpose::DateTime,
+                    ime::Purpose::DateTime => ime::Purpose::Normal,
+                    _ => ime::Purpose::Normal,
                 };
                 if self.input_state.ime_enabled {
                     self.window()
-                        .request_ime_update(ImeRequest::Update(self.get_ime_update()))
+                        .request_ime_update(ime::Request::Update(self.get_ime_update()))
                         .unwrap();
                 }
                 info!("text input purpose now {:?}", self.input_state.purpose);
             },
             Key::Character("h") if mods == ModifiersState::CONTROL => {
-                let bump = |hint: ImeHint| {
+                let bump = |hint: ime::Hint| {
                     if hint.is_all() {
-                        ImeHint::NONE
+                        ime::Hint::NONE
                     } else {
                         // Go through all integers. We'll skip invalid ones
-                        ImeHint::from_bits_retain(hint.bits().wrapping_add(1))
+                        ime::Hint::from_bits_retain(hint.bits().wrapping_add(1))
                     }
                 };
                 let mut new_hint = bump(self.input_state.hint);
 
-                while !ImeHint::all().contains(new_hint) {
+                while !ime::Hint::all().contains(new_hint) {
                     new_hint = bump(new_hint);
                 }
 
@@ -191,7 +188,7 @@ impl App {
 
                 if self.input_state.ime_enabled {
                     self.window()
-                        .request_ime_update(ImeRequest::Update(self.get_ime_update()))
+                        .request_ime_update(ime::Request::Update(self.get_ime_update()))
                         .unwrap();
                 }
                 info!("text input IME hint now {:?}", self.input_state.hint);
@@ -205,7 +202,7 @@ impl App {
                     self.input_state.append_text(&text);
                     if self.input_state.ime_enabled {
                         self.window()
-                            .request_ime_update(ImeRequest::Update(self.get_ime_update()))
+                            .request_ime_update(ime::Request::Update(self.get_ime_update()))
                             .unwrap();
                     }
                     self.print_input_state();
@@ -222,7 +219,7 @@ impl App {
             Ime::Commit(text) => {
                 self.input_state.append_text(&text);
                 let request_data = self.get_ime_update();
-                window.request_ime_update(ImeRequest::Update(request_data)).unwrap();
+                window.request_ime_update(ime::Request::Update(request_data)).unwrap();
                 self.print_input_state();
             },
             Ime::DeleteSurrounding { before_bytes, after_bytes } => {
@@ -255,15 +252,15 @@ impl App {
         let enable = !self.input_state.ime_enabled;
 
         if enable {
-            let enable_request = ImeEnableRequest::new(
-                ImeCapabilities::new()
+            let enable_request = ime::EnableRequest::new(
+                ime::Capabilities::new()
                     .with_hint_and_purpose()
                     .with_cursor_area()
                     .with_surrounding_text(),
                 self.get_ime_update(),
             )
             .unwrap();
-            self.window().request_ime_update(ImeRequest::Enable(enable_request)).unwrap();
+            self.window().request_ime_update(ime::Request::Enable(enable_request)).unwrap();
         } else {
             self.window().disable_ime();
         };
@@ -273,7 +270,7 @@ impl App {
         info!("IME enabled now {}", self.input_state.ime_enabled);
     }
 
-    fn get_ime_update(&self) -> ImeRequestData {
+    fn get_ime_update(&self) -> ime::RequestData {
         let text = &self.input_state.contents;
         let cursor = text.len();
         // A rudimentary text field emulation: the caret moves right by a constant amount for each
@@ -284,7 +281,7 @@ impl App {
         let cursor_pos = LogicalPosition::<u32> { x: 10 * chars_before_caret as u32, y: 0 };
 
         // Limit text field size
-        const MAX_BYTES: usize = ImeSurroundingText::MAX_TEXT_BYTES;
+        const MAX_BYTES: usize = ime::SurroundingText::MAX_TEXT_BYTES;
         let minimal_offset = cursor / MAX_BYTES * MAX_BYTES;
         let first_char_boundary =
             (minimal_offset..cursor).find(|off| text.is_char_boundary(*off)).unwrap_or(cursor);
@@ -295,10 +292,10 @@ impl App {
         let surrounding_text = &text[first_char_boundary..last_char_boundary];
         let relative_cursor = cursor - first_char_boundary;
         let surrounding_text =
-            ImeSurroundingText::new(surrounding_text.into(), relative_cursor, relative_cursor)
+            ime::SurroundingText::new(surrounding_text.into(), relative_cursor, relative_cursor)
                 .expect("Bug in example: bad byte calculations");
 
-        ImeRequestData::default()
+        ime::RequestData::default()
             .with_hint_and_purpose(self.input_state.hint, self.input_state.purpose)
             .with_cursor_area(cursor_pos.into(), IME_CURSOR_SIZE.into())
             .with_surrounding_text(surrounding_text)
@@ -360,10 +357,10 @@ Use CTRL+h to cycle content hint permutations.
         input_state: TextInputState {
             ime_enabled: true,
             contents: String::new(),
-            purpose: ImePurpose::Normal,
-            // While we don't show text and thus we use ImeHint::HIDDEN
+            purpose: ime::Purpose::Normal,
+            // While we don't show text and thus we use ime::Hint::HIDDEN
             // it may cause the IME to not do layout switch, etc at all.
-            hint: ImeHint::NONE,
+            hint: ime::Hint::NONE,
         },
         modifiers: ModifiersState::default(),
     };

@@ -32,7 +32,7 @@ use wayland_protocols::xdg::toplevel_icon::v1::client::xdg_toplevel_icon_manager
 use wayland_protocols_plasma::blur::client::org_kde_kwin_blur::OrgKdeKwinBlur;
 use winit_core::cursor::{CursorIcon, CustomCursor as CoreCustomCursor};
 use winit_core::error::{NotSupportedError, RequestError};
-use winit_core::ime::{ImeCapabilities, ImeRequest, ImeRequestError};
+use winit_core::ime;
 use winit_core::window::{CursorGrabMode, ResizeDirection, Theme, WindowId};
 
 use crate::event_loop::OwnedDisplayHandle;
@@ -550,7 +550,7 @@ impl WindowState {
 
     /// Whether the IME is allowed.
     #[inline]
-    pub fn ime_allowed(&self) -> Option<ImeCapabilities> {
+    pub fn ime_allowed(&self) -> Option<ime::Capabilities> {
         self.text_input_state.as_ref().map(|state| state.capabilities())
     }
 
@@ -1002,14 +1002,14 @@ impl WindowState {
     /// Returns `Some(())` if the input state has been enabled.
     pub fn request_ime_update(
         &mut self,
-        request: ImeRequest,
-    ) -> Result<Option<()>, ImeRequestError> {
+        request: ime::Request,
+    ) -> Result<Option<()>, ime::RequestError> {
         let state_change = match request {
-            ImeRequest::Enable(enable) => {
+            ime::Request::Enable(enable) => {
                 let (capabilities, request_data) = enable.into_raw();
 
                 if self.text_input_state.is_some() {
-                    return Err(ImeRequestError::AlreadyEnabled);
+                    return Err(ime::RequestError::AlreadyEnabled);
                 }
 
                 self.text_input_state = Some(TextInputClientState::new(
@@ -1019,12 +1019,12 @@ impl WindowState {
                 ));
                 true
             },
-            ImeRequest::Update(request_data) => {
+            ime::Request::Update(request_data) => {
                 let scale_factor = self.scale_factor();
                 if let Some(text_input_state) = self.text_input_state.as_mut() {
                     text_input_state.update(request_data, scale_factor);
                 } else {
-                    return Err(ImeRequestError::NotEnabled);
+                    return Err(ime::RequestError::NotEnabled);
                 }
                 false
             },
