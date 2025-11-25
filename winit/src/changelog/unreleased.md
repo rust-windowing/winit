@@ -43,6 +43,7 @@ changelog entry.
 ### Added
 
 - Add `keyboard` support for OpenHarmony.
+- On Windows, add `WindowAttributesWindows::with_band`.
 
 ### Fixed
 

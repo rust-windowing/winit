@@ -6,7 +6,9 @@ use std::sync::LazyLock;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::{io, mem, ptr};
 
-use windows_sys::Win32::Foundation::{BOOL, HANDLE, HMODULE, HWND, NTSTATUS, POINT, RECT};
+use windows_sys::Win32::Foundation::{
+    BOOL, HANDLE, HINSTANCE, HMODULE, HWND, NTSTATUS, POINT, RECT,
+};
 use windows_sys::Win32::Graphics::Gdi::{ClientToScreen, HMONITOR};
 use windows_sys::Win32::System::LibraryLoader::{GetProcAddress, LoadLibraryA};
 use windows_sys::Win32::System::SystemInformation::OSVERSIONINFOW;
@@ -18,10 +20,10 @@ use windows_sys::Win32::UI::Input::KeyboardAndMouse::GetActiveWindow;
 use windows_sys::Win32::UI::Input::Pointer::{POINTER_INFO, POINTER_PEN_INFO, POINTER_TOUCH_INFO};
 use windows_sys::Win32::UI::WindowsAndMessaging::{
     ClipCursor, GetClientRect, GetClipCursor, GetCursorPos, GetSystemMetrics, GetWindowPlacement,
-    GetWindowRect, IDC_APPSTARTING, IDC_ARROW, IDC_CROSS, IDC_HAND, IDC_HELP, IDC_IBEAM, IDC_NO,
-    IDC_SIZEALL, IDC_SIZENESW, IDC_SIZENS, IDC_SIZENWSE, IDC_SIZEWE, IDC_WAIT, IsIconic,
+    GetWindowRect, HMENU, IDC_APPSTARTING, IDC_ARROW, IDC_CROSS, IDC_HAND, IDC_HELP, IDC_IBEAM,
+    IDC_NO, IDC_SIZEALL, IDC_SIZENESW, IDC_SIZENS, IDC_SIZENWSE, IDC_SIZEWE, IDC_WAIT, IsIconic,
     SM_CXVIRTUALSCREEN, SM_CYVIRTUALSCREEN, SM_XVIRTUALSCREEN, SM_YVIRTUALSCREEN, SW_MAXIMIZE,
-    ShowCursor, WINDOW_LONG_PTR_INDEX, WINDOWPLACEMENT,
+    ShowCursor, WINDOW_EX_STYLE, WINDOW_LONG_PTR_INDEX, WINDOW_STYLE, WINDOWPLACEMENT,
 };
 use windows_sys::core::{HRESULT, PCWSTR};
 use winit_core::cursor::CursorIcon;
@@ -251,6 +253,22 @@ pub type GetPointerTouchInfo =
 pub type GetPointerPenInfo =
     unsafe extern "system" fn(pointer_id: u32, pen_info: *mut POINTER_PEN_INFO) -> BOOL;
 
+pub type CreateWindowInBand = unsafe extern "system" fn(
+    dwexstyle: WINDOW_EX_STYLE,
+    lpclassname: PCWSTR,
+    lpwindowname: PCWSTR,
+    dwstyle: WINDOW_STYLE,
+    x: i32,
+    y: i32,
+    nwidth: i32,
+    nheight: i32,
+    hwndparent: HWND,
+    hmenu: HMENU,
+    hinstance: HINSTANCE,
+    lpparam: *const c_void,
+    dwband: u32,
+) -> HWND;
+
 pub(crate) static WIN10_BUILD_VERSION: LazyLock<Option<u32>> = LazyLock::new(|| {
     type RtlGetVersion = unsafe extern "system" fn(*mut OSVERSIONINFOW) -> NTSTATUS;
     let handle = get_function!("ntdll.dll", RtlGetVersion);
@@ -304,6 +322,8 @@ pub(crate) static GET_POINTER_TOUCH_INFO: LazyLock<Option<GetPointerTouchInfo>> 
     LazyLock::new(|| get_function!("user32.dll", GetPointerTouchInfo));
 pub(crate) static GET_POINTER_PEN_INFO: LazyLock<Option<GetPointerPenInfo>> =
     LazyLock::new(|| get_function!("user32.dll", GetPointerPenInfo));
+pub(crate) static CREATE_WINDOW_IN_BAND: LazyLock<Option<CreateWindowInBand>> =
+    LazyLock::new(|| get_function!("user32.dll", CreateWindowInBand));
 
 pub(crate) fn wrap_device_id(id: u32) -> DeviceId {
     DeviceId::from_raw(id as i64)

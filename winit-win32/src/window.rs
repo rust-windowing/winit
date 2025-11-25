@@ -48,7 +48,7 @@ use windows_sys::Win32::UI::WindowsAndMessaging::{
     WM_SYSCOMMAND, WNDCLASSEXW,
 };
 use winit_core::cursor::Cursor;
-use winit_core::error::RequestError;
+use winit_core::error::{NotSupportedError, RequestError};
 use winit_core::icon::{Icon, RgbaIcon};
 use winit_core::monitor::{Fullscreen, MonitorHandle as CoreMonitorHandle, MonitorHandleProvider};
 use winit_core::window::{
@@ -68,6 +68,7 @@ use crate::icon::{IconType, WinCursor};
 use crate::ime::ImeContext;
 use crate::keyboard::KeyEventBuilder;
 use crate::monitor::MonitorHandle;
+use crate::util::CREATE_WINDOW_IN_BAND;
 use crate::window_state::{CursorFlags, SavedWindow, WindowFlags, WindowState};
 use crate::{
     BackdropType, Color, CornerPreference, SelectedCursor, WinIcon, WindowAttributesWindows,
@@ -1408,26 +1409,53 @@ unsafe fn init(
     };
 
     let menu = win_attributes.menu;
+    let band = win_attributes.band;
     let fullscreen = attributes.fullscreen.clone();
     let maximized = attributes.maximized;
     let mut initdata = InitData { runner, attributes, win_attributes, window_flags, window: None };
 
     let (style, ex_style) = window_flags.to_window_styles();
-    let handle = unsafe {
-        CreateWindowExW(
-            ex_style,
-            class_name.as_ptr(),
-            title.as_ptr(),
-            style,
-            CW_USEDEFAULT,
-            CW_USEDEFAULT,
-            CW_USEDEFAULT,
-            CW_USEDEFAULT,
-            parent.unwrap_or(ptr::null_mut()),
-            menu.unwrap_or(ptr::null_mut()),
-            util::get_instance_handle(),
-            &mut initdata as *mut _ as *mut _,
-        )
+
+    let handle = if let Some(band) = band {
+        #[allow(non_snake_case)]
+        let Some(CreateWindowInBand) = *CREATE_WINDOW_IN_BAND else {
+            return Err(NotSupportedError::new("CreateWindowInBand is not supported").into());
+        };
+
+        unsafe {
+            CreateWindowInBand(
+                ex_style,
+                class_name.as_ptr(),
+                title.as_ptr(),
+                style,
+                CW_USEDEFAULT,
+                CW_USEDEFAULT,
+                CW_USEDEFAULT,
+                CW_USEDEFAULT,
+                parent.unwrap_or(ptr::null_mut()),
+                menu.unwrap_or(ptr::null_mut()),
+                util::get_instance_handle(),
+                &mut initdata as *mut _ as *mut _,
+                band as _,
+            )
+        }
+    } else {
+        unsafe {
+            CreateWindowExW(
+                ex_style,
+                class_name.as_ptr(),
+                title.as_ptr(),
+                style,
+                CW_USEDEFAULT,
+                CW_USEDEFAULT,
+                CW_USEDEFAULT,
+                CW_USEDEFAULT,
+                parent.unwrap_or(ptr::null_mut()),
+                menu.unwrap_or(ptr::null_mut()),
+                util::get_instance_handle(),
+                &mut initdata as *mut _ as *mut _,
+            )
+        }
     };
 
     // If the window creation in `InitData` panicked, then should resume panicking here
