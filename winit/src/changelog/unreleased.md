@@ -39,3 +39,11 @@ The migration guide could reference other migration examples in the current
 changelog entry.
 
 ## Unreleased
+
+### Added
+
+- Add `keyboard` support for OpenHarmony.
+
+### Fixed
+
+- On X11, fix `set_hittest` not working on some window managers.
