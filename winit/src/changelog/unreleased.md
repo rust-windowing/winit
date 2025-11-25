@@ -47,3 +47,9 @@ changelog entry.
 ### Fixed
 
 - On X11, fix `set_hittest` not working on some window managers.
+
+
+### Changed
+
+- On Windows, the `ApplicationHandler` passed to `EventLoop::run_app` is now dropped on receiving `WM_ENDSESSION` message in system shutdown
+- On Windows, the event loop will now exit on receiving `WM_ENDSESSION` in reaction to Restart Manager

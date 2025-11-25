@@ -17,7 +17,7 @@ use super::{ActiveEventLoop, ControlFlow, EventLoopThreadExecutor};
 use crate::event_loop::{GWL_USERDATA, WindowData};
 use crate::util::get_window_long;
 
-type EventHandler = Cell<Option<&'static mut (dyn ApplicationHandler + 'static)>>;
+type EventHandler = Cell<Option<Box<dyn ApplicationHandler>>>;
 
 pub(crate) struct EventLoopRunner {
     pub(super) thread_id: u32,
@@ -96,19 +96,16 @@ impl EventLoopRunner {
     ///
     /// The returned type must not be leaked (as that would allow the application to be associated
     /// with the runner for too long).
-    pub(crate) unsafe fn set_app<'app>(
-        &self,
-        app: &'app mut (dyn ApplicationHandler + 'app),
-    ) -> impl Drop + 'app {
+    pub(crate) unsafe fn set_app<A: ApplicationHandler>(&self, app: A) -> impl Drop + use<A> {
+        let app = Box::new(app);
         // Erase app lifetime, to allow storing on the event loop runner.
         //
         // SAFETY: Caller upholds that the lifetime of the closure is upheld, by not dropping the
         // return type which resets it.
         let f = unsafe {
-            mem::transmute::<
-                &'app mut (dyn ApplicationHandler + 'app),
-                &'static mut (dyn ApplicationHandler + 'static),
-            >(app)
+            mem::transmute::<Box<dyn ApplicationHandler>, Box<dyn ApplicationHandler + 'static>>(
+                app,
+            )
         };
 
         let old_event_handler = self.event_handler.replace(Some(f));
@@ -260,12 +257,12 @@ impl EventLoopRunner {
         closure: impl FnOnce(&mut dyn ApplicationHandler, &dyn RootActiveEventLoop),
     ) {
         self.catch_unwind(|| {
-            let event_handler = self.event_handler.take().expect(
+            let mut event_handler = self.event_handler.take().expect(
                 "either event handler is re-entrant (likely), or no event handler is registered \
                  (very unlikely)",
             );
 
-            closure(event_handler, ActiveEventLoop::from_ref(self));
+            closure(&mut event_handler, ActiveEventLoop::from_ref(self));
 
             assert!(self.event_handler.replace(Some(event_handler)).is_none());
         });
@@ -333,6 +330,7 @@ impl EventLoopRunner {
                 self.call_new_events(true);
                 self.call_event_handler(|app, event_loop| app.about_to_wait(event_loop));
                 self.last_events_cleared.set(Instant::now());
+                drop(self.event_handler.take());
             },
             (_, Uninitialized) => panic!("cannot move state to Uninitialized"),
 
@@ -340,7 +338,9 @@ impl EventLoopRunner {
             (Idle, HandlingMainEvents) => {
                 self.call_new_events(false);
             },
-            (Idle, Destroyed) => {},
+            (Idle, Destroyed) => {
+                drop(self.event_handler.take());
+            },
 
             (HandlingMainEvents, Idle) => {
                 // This is always the last event we dispatch before waiting for new events
@@ -350,6 +350,7 @@ impl EventLoopRunner {
             (HandlingMainEvents, Destroyed) => {
                 self.call_event_handler(|app, event_loop| app.about_to_wait(event_loop));
                 self.last_events_cleared.set(Instant::now());
+                drop(self.event_handler.take());
             },
 
             (Destroyed, _) => panic!("cannot move state from Destroyed"),
