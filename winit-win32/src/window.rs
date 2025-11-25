@@ -50,11 +50,11 @@ use windows_sys::Win32::UI::WindowsAndMessaging::{
 use winit_core::cursor::Cursor;
 use winit_core::error::RequestError;
 use winit_core::icon::{Icon, RgbaIcon};
+use winit_core::ime::{ImeCapabilities, ImeRequest, ImeRequestError};
 use winit_core::monitor::{Fullscreen, MonitorHandle as CoreMonitorHandle, MonitorHandleProvider};
 use winit_core::window::{
-    CursorGrabMode, ImeCapabilities, ImeRequest, ImeRequestError, ResizeDirection, Theme,
-    UserAttentionType, Window as CoreWindow, WindowAttributes, WindowButtons, WindowId,
-    WindowLevel,
+    CursorGrabMode, ResizeDirection, Theme, UserAttentionType, Window as CoreWindow,
+    WindowAttributes, WindowButtons, WindowId, WindowLevel,
 };
 
 use crate::dark_mode::try_theme;

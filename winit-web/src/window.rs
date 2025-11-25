@@ -10,10 +10,11 @@ use web_sys::HtmlCanvasElement;
 use winit_core::cursor::Cursor;
 use winit_core::error::{NotSupportedError, RequestError};
 use winit_core::icon::Icon;
+use winit_core::ime;
 use winit_core::monitor::{Fullscreen, MonitorHandle as CoremMonitorHandle};
 use winit_core::window::{
-    CursorGrabMode, ImeRequestError, ResizeDirection, Theme, UserAttentionType,
-    Window as RootWindow, WindowAttributes, WindowButtons, WindowId, WindowLevel,
+    CursorGrabMode, ResizeDirection, Theme, UserAttentionType, Window as RootWindow,
+    WindowAttributes, WindowButtons, WindowId, WindowLevel,
 };
 
 use crate::r#async::Dispatcher;
@@ -304,12 +305,12 @@ impl RootWindow for Window {
         // Currently an intentional no-op
     }
 
-    fn ime_capabilities(&self) -> Option<winit_core::window::ImeCapabilities> {
+    fn ime_capabilities(&self) -> Option<ime::ImeCapabilities> {
         None
     }
 
-    fn request_ime_update(&self, _: winit_core::window::ImeRequest) -> Result<(), ImeRequestError> {
-        Err(ImeRequestError::NotSupported)
+    fn request_ime_update(&self, _: ime::ImeRequest) -> Result<(), ime::ImeRequestError> {
+        Err(ime::ImeRequestError::NotSupported)
     }
 
     #[inline]

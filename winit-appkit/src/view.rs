@@ -21,8 +21,8 @@ use winit_core::event::{
     DeviceEvent, ElementState, Ime, KeyEvent, Modifiers, MouseButton, MouseScrollDelta,
     PointerKind, PointerSource, TouchPhase, WindowEvent,
 };
+use winit_core::ime::ImeCapabilities;
 use winit_core::keyboard::{Key, KeyCode, KeyLocation, ModifiersState, NamedKey};
-use winit_core::window::ImeCapabilities;
 
 use super::app_state::AppState;
 use super::cursor::{default_cursor, invisible_cursor};

@@ -11,9 +11,7 @@ use sctk::reexports::protocols::wp::text_input::zv3::client::zwp_text_input_v3::
 };
 use tracing::warn;
 use winit_core::event::{Ime, WindowEvent};
-use winit_core::window::{
-    ImeCapabilities, ImeHint, ImePurpose, ImeRequestData, ImeSurroundingText,
-};
+use winit_core::ime::{ImeCapabilities, ImeHint, ImePurpose, ImeRequestData, ImeSurroundingText};
 
 use crate::state::WinitState;
 

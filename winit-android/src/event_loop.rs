@@ -21,11 +21,11 @@ use winit_core::event_loop::{
     EventLoopProxy as CoreEventLoopProxy, EventLoopProxyProvider,
     OwnedDisplayHandle as CoreOwnedDisplayHandle,
 };
+use winit_core::ime::{ImeCapabilities, ImePurpose, ImeRequest, ImeRequestError};
 use winit_core::monitor::{Fullscreen, MonitorHandle as CoreMonitorHandle};
 use winit_core::window::{
-    self, CursorGrabMode, ImeCapabilities, ImePurpose, ImeRequest, ImeRequestError,
-    ResizeDirection, Theme, Window as CoreWindow, WindowAttributes, WindowButtons, WindowId,
-    WindowLevel,
+    self, CursorGrabMode, ResizeDirection, Theme, Window as CoreWindow, WindowAttributes,
+    WindowButtons, WindowId, WindowLevel,
 };
 
 use crate::keycodes;

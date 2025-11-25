@@ -5,6 +5,7 @@ use std::sync::{Arc, Mutex};
 use dpi::{PhysicalInsets, PhysicalPosition, PhysicalSize, Position, Size};
 use winit_core::cursor::Cursor;
 use winit_core::error::{NotSupportedError, RequestError};
+use winit_core::ime;
 use winit_core::monitor::{Fullscreen, MonitorHandle as CoreMonitorHandle};
 use winit_core::window::{self, Window as CoreWindow, WindowId};
 
@@ -163,7 +164,7 @@ impl CoreWindow for Window {
         WindowId::from_raw(self.window_socket.fd)
     }
 
-    fn ime_capabilities(&self) -> Option<window::ImeCapabilities> {
+    fn ime_capabilities(&self) -> Option<ime::ImeCapabilities> {
         None
     }
 
@@ -378,8 +379,8 @@ impl CoreWindow for Window {
     #[inline]
     fn set_window_icon(&self, _window_icon: Option<winit_core::icon::Icon>) {}
 
-    fn request_ime_update(&self, _: window::ImeRequest) -> Result<(), window::ImeRequestError> {
-        Err(window::ImeRequestError::NotSupported)
+    fn request_ime_update(&self, _: ime::ImeRequest) -> Result<(), ime::ImeRequestError> {
+        Err(ime::ImeRequestError::NotSupported)
     }
 
     #[inline]

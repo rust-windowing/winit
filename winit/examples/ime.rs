@@ -13,13 +13,14 @@ use tracing::{error, info};
 use winit::application::ApplicationHandler;
 use winit::event::{Ime, WindowEvent};
 use winit::event_loop::{ActiveEventLoop, EventLoop};
+use winit::ime::{
+    ImeCapabilities, ImeEnableRequest, ImeHint, ImePurpose, ImeRequest, ImeRequestData,
+    ImeSurroundingText,
+};
 use winit::keyboard::{Key, ModifiersState, NamedKey};
 #[cfg(web_platform)]
 use winit::platform::web::WindowAttributesWeb;
-use winit::window::{
-    ImeCapabilities, ImeEnableRequest, ImeHint, ImePurpose, ImeRequest, ImeRequestData,
-    ImeSurroundingText, Window, WindowAttributes, WindowId,
-};
+use winit::window::{Window, WindowAttributes, WindowId};
 
 #[path = "util/fill.rs"]
 mod fill;

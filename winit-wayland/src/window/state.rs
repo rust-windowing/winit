@@ -32,9 +32,8 @@ use wayland_protocols::xdg::toplevel_icon::v1::client::xdg_toplevel_icon_manager
 use wayland_protocols_plasma::blur::client::org_kde_kwin_blur::OrgKdeKwinBlur;
 use winit_core::cursor::{CursorIcon, CustomCursor as CoreCustomCursor};
 use winit_core::error::{NotSupportedError, RequestError};
-use winit_core::window::{
-    CursorGrabMode, ImeCapabilities, ImeRequest, ImeRequestError, ResizeDirection, Theme, WindowId,
-};
+use winit_core::ime::{ImeCapabilities, ImeRequest, ImeRequestError};
+use winit_core::window::{CursorGrabMode, ResizeDirection, Theme, WindowId};
 
 use crate::event_loop::OwnedDisplayHandle;
 use crate::logical_to_physical_rounded;

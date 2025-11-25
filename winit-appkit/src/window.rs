@@ -11,10 +11,11 @@ use objc2_foundation::NSObject;
 use winit_core::cursor::Cursor;
 use winit_core::error::RequestError;
 use winit_core::icon::Icon;
+use winit_core::ime::{ImeCapabilities, ImeRequest, ImeRequestError};
 use winit_core::monitor::{Fullscreen, MonitorHandle as CoreMonitorHandle};
 use winit_core::window::{
-    ImeCapabilities, ImeRequest, ImeRequestError, Theme, UserAttentionType, Window as CoreWindow,
-    WindowAttributes, WindowButtons, WindowId, WindowLevel,
+    Theme, UserAttentionType, Window as CoreWindow, WindowAttributes, WindowButtons, WindowId,
+    WindowLevel,
 };
 
 use super::event_loop::ActiveEventLoop;

@@ -18,9 +18,10 @@ use windows_sys::Win32::UI::WindowsAndMessaging::{
     WS_SYSMENU, WS_VISIBLE,
 };
 use winit_core::icon::Icon;
+use winit_core::ime::ImeCapabilities;
 use winit_core::keyboard::ModifiersState;
 use winit_core::monitor::Fullscreen;
-use winit_core::window::{ImeCapabilities, Theme, WindowAttributes};
+use winit_core::window::{Theme, WindowAttributes};
 
 use crate::{SelectedCursor, event_loop, util};
 
