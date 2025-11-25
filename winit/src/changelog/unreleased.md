@@ -32,6 +32,7 @@ with it, the migration guide should be added below the entry, like:
   To migrate it we should do X, Y, and then Z, for example:
 
   // Code snippet.
+
 ```
 
 The migration guide could reference other migration examples in the current
@@ -43,3 +44,7 @@ changelog entry.
 
 - Add `keyboard` support for OpenHarmony.
 - On Windows, add `WindowAttributesWindows::with_band`.
+
+### Fixed
+
+- On X11, fix `set_hittest` not working on some window managers.
