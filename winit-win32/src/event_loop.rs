@@ -40,26 +40,26 @@ use windows_sys::Win32::UI::Input::{
     MOUSE_MOVE_RELATIVE, RAWINPUT, RIM_TYPEKEYBOARD, RIM_TYPEMOUSE,
 };
 use windows_sys::Win32::UI::WindowsAndMessaging::{
-    CREATESTRUCTW, CreateWindowExW, DefWindowProcW, DestroyWindow, DispatchMessageW, GWL_STYLE,
-    GWL_USERDATA, GetClientRect, GetCursorPos, GetMenu, HTCAPTION, HTCLIENT, LoadCursorW,
-    MINMAXINFO, MNC_CLOSE, MSG, MWMO_INPUTAVAILABLE, MsgWaitForMultipleObjectsEx,
-    NCCALCSIZE_PARAMS, PEN_FLAG_BARREL, PEN_FLAG_ERASER, PEN_MASK_PRESSURE, PEN_MASK_ROTATION,
-    PEN_MASK_TILT_X, PEN_MASK_TILT_Y, PM_REMOVE, PT_PEN, PT_TOUCH, PeekMessageW, PostMessageW,
-    QS_ALLINPUT, RI_MOUSE_HWHEEL, RI_MOUSE_WHEEL, RegisterClassExW, RegisterWindowMessageA,
-    SC_MINIMIZE, SC_RESTORE, SIZE_MAXIMIZED, SPI_GETWHEELSCROLLCHARS, SPI_GETWHEELSCROLLLINES,
-    SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, SWP_NOZORDER, SetCursor, SetWindowPos,
-    SystemParametersInfoW, TranslateMessage, WHEEL_DELTA, WINDOWPOS, WM_CAPTURECHANGED, WM_CLOSE,
-    WM_CREATE, WM_DESTROY, WM_DPICHANGED, WM_ENDSESSION, WM_ENTERSIZEMOVE, WM_EXITSIZEMOVE,
-    WM_GETMINMAXINFO, WM_IME_COMPOSITION, WM_IME_ENDCOMPOSITION, WM_IME_SETCONTEXT,
-    WM_IME_STARTCOMPOSITION, WM_INPUT, WM_KEYDOWN, WM_KEYUP, WM_KILLFOCUS, WM_LBUTTONDOWN,
-    WM_LBUTTONUP, WM_MBUTTONDOWN, WM_MBUTTONUP, WM_MENUCHAR, WM_MOUSEHWHEEL, WM_MOUSEMOVE,
-    WM_MOUSEWHEEL, WM_NCACTIVATE, WM_NCCALCSIZE, WM_NCCREATE, WM_NCDESTROY, WM_NCLBUTTONDOWN,
-    WM_PAINT, WM_POINTERDOWN, WM_POINTERUP, WM_POINTERUPDATE, WM_RBUTTONDOWN, WM_RBUTTONUP,
-    WM_SETCURSOR, WM_SETFOCUS, WM_SETTINGCHANGE, WM_SIZE, WM_SIZING, WM_SYSCOMMAND, WM_SYSKEYDOWN,
-    WM_SYSKEYUP, WM_TOUCH, WM_WINDOWPOSCHANGED, WM_WINDOWPOSCHANGING, WM_XBUTTONDOWN, WM_XBUTTONUP,
-    WMSZ_BOTTOM, WMSZ_BOTTOMLEFT, WMSZ_BOTTOMRIGHT, WMSZ_LEFT, WMSZ_RIGHT, WMSZ_TOP, WMSZ_TOPLEFT,
-    WMSZ_TOPRIGHT, WNDCLASSEXW, WS_EX_LAYERED, WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW,
-    WS_EX_TRANSPARENT, WS_OVERLAPPED, WS_POPUP, WS_VISIBLE,
+    CREATESTRUCTW, CreateWindowExW, DefWindowProcW, DestroyWindow, DispatchMessageW,
+    ENDSESSION_CLOSEAPP, GWL_STYLE, GWL_USERDATA, GetClientRect, GetCursorPos, GetMenu, HTCAPTION,
+    HTCLIENT, LoadCursorW, MINMAXINFO, MNC_CLOSE, MSG, MWMO_INPUTAVAILABLE,
+    MsgWaitForMultipleObjectsEx, NCCALCSIZE_PARAMS, PEN_FLAG_BARREL, PEN_FLAG_ERASER,
+    PEN_MASK_PRESSURE, PEN_MASK_ROTATION, PEN_MASK_TILT_X, PEN_MASK_TILT_Y, PM_REMOVE, PT_PEN,
+    PT_TOUCH, PeekMessageW, PostMessageW, QS_ALLINPUT, RI_MOUSE_HWHEEL, RI_MOUSE_WHEEL,
+    RegisterClassExW, RegisterWindowMessageA, SC_MINIMIZE, SC_RESTORE, SIZE_MAXIMIZED,
+    SPI_GETWHEELSCROLLCHARS, SPI_GETWHEELSCROLLLINES, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE,
+    SWP_NOZORDER, SetCursor, SetWindowPos, SystemParametersInfoW, TranslateMessage, WHEEL_DELTA,
+    WINDOWPOS, WM_CAPTURECHANGED, WM_CLOSE, WM_CREATE, WM_DESTROY, WM_DPICHANGED, WM_ENDSESSION,
+    WM_ENTERSIZEMOVE, WM_EXITSIZEMOVE, WM_GETMINMAXINFO, WM_IME_COMPOSITION, WM_IME_ENDCOMPOSITION,
+    WM_IME_SETCONTEXT, WM_IME_STARTCOMPOSITION, WM_INPUT, WM_KEYDOWN, WM_KEYUP, WM_KILLFOCUS,
+    WM_LBUTTONDOWN, WM_LBUTTONUP, WM_MBUTTONDOWN, WM_MBUTTONUP, WM_MENUCHAR, WM_MOUSEHWHEEL,
+    WM_MOUSEMOVE, WM_MOUSEWHEEL, WM_NCACTIVATE, WM_NCCALCSIZE, WM_NCCREATE, WM_NCDESTROY,
+    WM_NCLBUTTONDOWN, WM_PAINT, WM_POINTERDOWN, WM_POINTERUP, WM_POINTERUPDATE, WM_RBUTTONDOWN,
+    WM_RBUTTONUP, WM_SETCURSOR, WM_SETFOCUS, WM_SETTINGCHANGE, WM_SIZE, WM_SIZING, WM_SYSCOMMAND,
+    WM_SYSKEYDOWN, WM_SYSKEYUP, WM_TOUCH, WM_WINDOWPOSCHANGED, WM_WINDOWPOSCHANGING,
+    WM_XBUTTONDOWN, WM_XBUTTONUP, WMSZ_BOTTOM, WMSZ_BOTTOMLEFT, WMSZ_BOTTOMRIGHT, WMSZ_LEFT,
+    WMSZ_RIGHT, WMSZ_TOP, WMSZ_TOPLEFT, WMSZ_TOPRIGHT, WNDCLASSEXW, WS_EX_LAYERED,
+    WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW, WS_EX_TRANSPARENT, WS_OVERLAPPED, WS_POPUP, WS_VISIBLE,
 };
 use winit_core::application::ApplicationHandler;
 use winit_core::cursor::{CustomCursor, CustomCursorSource};
@@ -2389,15 +2389,20 @@ unsafe extern "system" fn thread_event_target_callback(
             // and we don't need to handle that case since we didn't do anything prior in response
             // to `WM_QUERYENDSESSION`
             if wparam == true as usize {
-                userdata.event_loop_runner.loop_destroyed();
-                // `WM_ENDSESSION` can be sent by Windows during shutdown or by Restart Manager
-                //
-                // - From Windows shutdown: Windows will shut us down after we return `0` here
-                // - From Restart Manager: Restart Manager only sends the message but will wait for
-                //   us to shutdown ourselves
-                //
-                // So, we call `exit` here directly to align this behavior
-                std::process::exit(0)
+                // Sent from Restart Manager
+                // > https://learn.microsoft.com/en-us/windows/win32/rstmgr/guidelines-for-applications
+                if lparam == ENDSESSION_CLOSEAPP as isize {
+                    // Mark the event loop to exit is enough
+                    // since Restart Manager doesn't terminate us right after returning here
+                    userdata.event_loop_runner.set_exit_code(0);
+                }
+                // Treat everything else as system shutdown
+                else {
+                    userdata.event_loop_runner.loop_destroyed();
+                    // Windows will terminate us anytime after we return `0` here,
+                    // just do that ourselves here
+                    std::process::exit(0)
+                }
             }
             0
         },
