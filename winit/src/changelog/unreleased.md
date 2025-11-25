@@ -44,6 +44,11 @@ changelog entry.
 
 - Add `keyboard` support for OpenHarmony.
 
+### Fixed
+
+- On X11, fix `set_hittest` not working on some window managers.
+
+
 ### Changed
 
 - On Windows, the `ApplicationHandler` passed to `EventLoop::run_app` is now dropped on receiving `WM_ENDSESSION` message in system shutdown
