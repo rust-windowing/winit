@@ -378,7 +378,7 @@ impl Inner {
         warn!("`Window::set_window_icon` is ignored on iOS")
     }
 
-    /// Show / hide the keyboard. To show the keyboard, we call `becomeFirstResponder`,
+    /// Show / update the keyboard. To show the keyboard, we call `becomeFirstResponder`,
     /// requesting focus for the [WinitView]. Since [WinitView] implements
     /// [objc2_ui_kit::UIKeyInput], the keyboard will be shown.
     /// <https://developer.apple.com/documentation/uikit/uiresponder/1621113-becomefirstresponder>
@@ -399,13 +399,15 @@ impl Inner {
                     return Err(ImeRequestError::NotEnabled);
                 }
             },
-            ImeRequest::Disable => {
-                *current_caps = None;
-                self.view.resignFirstResponder();
-            },
         }
 
         Ok(())
+    }
+
+    /// Hide the keyboard.
+    fn disable_ime(&self) {
+        *self.ime_capabilities.lock().unwrap() = None;
+        self.view.resignFirstResponder();
     }
 
     fn ime_capabilities(&self) -> Option<ImeCapabilities> {
@@ -730,6 +732,10 @@ impl CoreWindow for Window {
 
     fn request_ime_update(&self, request: ImeRequest) -> Result<(), ImeRequestError> {
         self.maybe_wait_on_main(|delegate| delegate.request_ime_update(request))
+    }
+
+    fn disable_ime(&self) {
+        self.maybe_wait_on_main(|delegate| delegate.disable_ime());
     }
 
     fn ime_capabilities(&self) -> Option<ImeCapabilities> {

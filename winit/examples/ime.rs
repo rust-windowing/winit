@@ -264,7 +264,7 @@ impl App {
             .unwrap();
             self.window().request_ime_update(ImeRequest::Enable(enable_request)).unwrap();
         } else {
-            self.window().request_ime_update(ImeRequest::Disable).expect("disable can not fail");
+            self.window().disable_ime();
         };
 
         self.input_state.ime_enabled = enable;

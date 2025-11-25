@@ -1038,11 +1038,6 @@ impl CoreWindow for Window {
                         return;
                     }
                 },
-                ImeRequest::Disable => {
-                    state.ime_capabilities = None;
-                    ImeContext::set_ime_allowed(window.hwnd(), false);
-                    return;
-                },
             };
 
             if let Some((spot, size)) = request_data.cursor_area {
@@ -1060,6 +1055,15 @@ impl CoreWindow for Window {
         });
 
         Ok(())
+    }
+
+    fn disable_ime(&self) {
+        let window = self.window;
+        let state = self.window_state.clone();
+        self.thread_executor.execute_in_thread(move || unsafe {
+            state.lock().unwrap().ime_capabilities = None;
+            ImeContext::set_ime_allowed(window.hwnd(), false);
+        });
     }
 
     fn request_user_attention(&self, request_type: Option<UserAttentionType>) {

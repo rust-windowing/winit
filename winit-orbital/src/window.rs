@@ -383,6 +383,9 @@ impl CoreWindow for Window {
     }
 
     #[inline]
+    fn disable_ime(&self) {}
+
+    #[inline]
     fn focus_window(&self) {}
 
     #[inline]

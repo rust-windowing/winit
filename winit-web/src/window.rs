@@ -312,6 +312,9 @@ impl RootWindow for Window {
         Err(ImeRequestError::NotSupported)
     }
 
+    #[inline]
+    fn disable_ime(&self) {}
+
     fn focus_window(&self) {
         self.inner.dispatch(|inner| {
             let _ = inner.canvas.raw().focus();

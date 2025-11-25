@@ -1133,7 +1133,7 @@ pub trait Window: AsAny + Send + Sync + fmt::Debug {
     /// [`KeyboardInput`]: crate::event::WindowEvent::KeyboardInput
     #[deprecated = "use Window::request_ime_update instead"]
     fn set_ime_allowed(&self, allowed: bool) {
-        let action = if allowed {
+        if allowed {
             let position = LogicalPosition::new(0, 0);
             let size = LogicalSize::new(0, 0);
             let ime_caps = ImeCapabilities::new().with_hint_and_purpose().with_cursor_area();
@@ -1145,12 +1145,11 @@ pub trait Window: AsAny + Send + Sync + fmt::Debug {
             };
 
             // Enable all capabilities to reflect the old behavior.
-            ImeRequest::Enable(ImeEnableRequest::new(ime_caps, request_data).unwrap())
+            let action = ImeRequest::Enable(ImeEnableRequest::new(ime_caps, request_data).unwrap());
+            let _ = self.request_ime_update(action);
         } else {
-            ImeRequest::Disable
+            self.disable_ime();
         };
-
-        let _ = self.request_ime_update(action);
     }
 
     /// Sets the IME purpose for the window using [`ImePurpose`].
@@ -1189,7 +1188,7 @@ pub trait Window: AsAny + Send + Sync + fmt::Debug {
     /// # use winit_core::window::{Window, ImeHint, ImePurpose, ImeRequest, ImeCapabilities, ImeRequestData, ImeEnableRequest};
     /// # fn scope(window: &dyn Window, cursor_pos: Position, cursor_size: Size) {
     /// // Clear previous state by switching off IME
-    /// window.request_ime_update(ImeRequest::Disable).expect("Disable cannot fail");
+    /// window.disable_ime();
     ///
     /// let ime_caps = ImeCapabilities::new().with_cursor_area().with_hint_and_purpose();
     /// let request_data = ImeRequestData::default()
@@ -1211,10 +1210,15 @@ pub trait Window: AsAny + Send + Sync + fmt::Debug {
     ///     .expect("Can fail - we didn't submit a cursor position initially");
     ///
     /// // Switch off IME
-    /// window.request_ime_update(ImeRequest::Disable).expect("Disable cannot fail");
+    /// window.disable_ime();
     /// # }
     /// ```
     fn request_ime_update(&self, request: ImeRequest) -> Result<(), ImeRequestError>;
+
+    /// Disable the IME.
+    ///
+    /// This request can not fail, regardless of the current IME status.
+    fn disable_ime(&self);
 
     /// Return enabled by the client [`ImeCapabilities`] for this window.
     ///
@@ -1809,10 +1813,6 @@ pub enum ImeRequest {
     /// Update the state of already enabled IME. Issuing this request before [`ImeRequest::Enable`]
     /// will result in error.
     Update(ImeRequestData),
-    /// Disable the IME.
-    ///
-    /// **The disable request can not fail**.
-    Disable,
 }
 
 /// Initial IME request.

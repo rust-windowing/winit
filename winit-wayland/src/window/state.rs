@@ -999,12 +999,12 @@ impl WindowState {
 
     /// Atomically update input method state.
     ///
-    /// Returns `None` if an input method state haven't changed. Alternatively `Some(true)` and
-    /// `Some(false)` is returned respectfully.
+    /// Returns `None` if an input method state haven't changed.
+    /// Returns `Some(())` if the input state has been enabled.
     pub fn request_ime_update(
         &mut self,
         request: ImeRequest,
-    ) -> Result<Option<bool>, ImeRequestError> {
+    ) -> Result<Option<()>, ImeRequestError> {
         let state_change = match request {
             ImeRequest::Enable(enable) => {
                 let (capabilities, request_data) = enable.into_raw();
@@ -1029,12 +1029,20 @@ impl WindowState {
                 }
                 false
             },
-            ImeRequest::Disable => {
-                self.text_input_state = None;
-                true
-            },
         };
 
+        self.update_per_seat_text_input(state_change);
+        if state_change { Ok(Some(())) } else { Ok(None) }
+    }
+
+    /// Disable IME.
+    #[inline]
+    pub fn disable_ime(&mut self) {
+        self.text_input_state = None;
+        self.update_per_seat_text_input(true);
+    }
+
+    fn update_per_seat_text_input(&self, state_change: bool) {
         // Only one input method may be active per (seat, surface),
         // but there may be multiple seats focused on a surface,
         // resulting in multiple text input objects.
@@ -1044,8 +1052,6 @@ impl WindowState {
         for text_input in &self.text_inputs {
             text_input.set_state(self.text_input_state.as_ref(), state_change);
         }
-
-        if state_change { Ok(Some(self.text_input_state.is_some())) } else { Ok(None) }
     }
 
     /// Set the scale factor for the given window.

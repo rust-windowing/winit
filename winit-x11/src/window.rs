@@ -214,6 +214,10 @@ impl CoreWindow for Window {
         self.0.request_ime_update(action)
     }
 
+    fn disable_ime(&self) {
+        self.0.disable_ime();
+    }
+
     fn ime_capabilities(&self) -> Option<ImeCapabilities> {
         self.0.ime_capabilities()
     }
@@ -2118,12 +2122,6 @@ impl UnownedWindow {
                     return Err(ImeRequestError::NotEnabled);
                 }
             },
-            CoreImeRequest::Disable => {
-                shared_state.ime_capabilities = None;
-                drop(shared_state);
-                self.set_ime_allowed(false);
-                return Ok(());
-            },
         };
 
         if let Some((position, size)) = state.cursor_area {
@@ -2138,6 +2136,12 @@ impl UnownedWindow {
         // Better to make an application think it has an input method and send more events when it
         // doesn't than think there is no input method and not send any IME events.
         Ok(())
+    }
+
+    #[inline]
+    pub fn disable_ime(&self) {
+        self.shared_state_lock().ime_capabilities = None;
+        self.set_ime_allowed(false);
     }
 
     #[inline]

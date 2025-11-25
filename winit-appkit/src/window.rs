@@ -237,6 +237,10 @@ impl CoreWindow for Window {
         self.maybe_wait_on_main(|delegate| delegate.request_ime_update(request))
     }
 
+    fn disable_ime(&self) {
+        self.maybe_wait_on_main(|delegate| delegate.disable_ime());
+    }
+
     fn ime_capabilities(&self) -> Option<ImeCapabilities> {
         self.maybe_wait_on_main(|delegate| delegate.ime_capabilities())
     }

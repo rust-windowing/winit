@@ -1691,10 +1691,6 @@ impl WindowDelegate {
                 }
                 request_data
             },
-            ImeRequest::Disable => {
-                self.view().set_ime_allowed(None);
-                return Ok(());
-            },
         };
 
         if let Some((spot, size)) = request_data.cursor_area {
@@ -1712,6 +1708,11 @@ impl WindowDelegate {
         }
 
         Ok(())
+    }
+
+    #[inline]
+    pub fn disable_ime(&self) {
+        self.view().set_ime_allowed(None);
     }
 
     pub fn ime_capabilities(&self) -> Option<ImeCapabilities> {

@@ -508,13 +508,21 @@ impl CoreWindow for Window {
     fn request_ime_update(&self, request: ImeRequest) -> Result<(), ImeRequestError> {
         let state_changed = self.window_state.lock().unwrap().request_ime_update(request)?;
 
-        if let Some(allowed) = state_changed {
-            let event = WindowEvent::Ime(if allowed { Ime::Enabled } else { Ime::Disabled });
+        if let Some(()) = state_changed {
+            let event = WindowEvent::Ime(Ime::Enabled);
             self.window_events_sink.lock().unwrap().push_window_event(event, self.window_id);
             self.event_loop_awakener.ping();
         }
 
         Ok(())
+    }
+
+    #[inline]
+    fn disable_ime(&self) {
+        self.window_state.lock().unwrap().disable_ime();
+        let event = WindowEvent::Ime(Ime::Disabled);
+        self.window_events_sink.lock().unwrap().push_window_event(event, self.window_id);
+        self.event_loop_awakener.ping();
     }
 
     #[inline]

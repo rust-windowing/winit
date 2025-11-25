@@ -954,13 +954,14 @@ impl CoreWindow for Window {
                     return Err(ImeRequestError::NotEnabled);
                 }
             },
-            ImeRequest::Disable => {
-                *current_caps = None;
-                self.app.hide_soft_input(true);
-            },
         }
 
         Ok(())
+    }
+
+    fn disable_ime(&self) {
+        *self.ime_capabilities.lock().unwrap() = None;
+        self.app.hide_soft_input(true);
     }
 
     fn ime_capabilities(&self) -> Option<ImeCapabilities> {
