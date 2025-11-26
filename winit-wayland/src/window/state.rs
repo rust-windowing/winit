@@ -32,9 +32,8 @@ use wayland_protocols::xdg::toplevel_icon::v1::client::xdg_toplevel_icon_manager
 use wayland_protocols_plasma::blur::client::org_kde_kwin_blur::OrgKdeKwinBlur;
 use winit_core::cursor::{CursorIcon, CustomCursor as CoreCustomCursor};
 use winit_core::error::{NotSupportedError, RequestError};
-use winit_core::window::{
-    CursorGrabMode, ImeCapabilities, ImeRequest, ImeRequestError, ResizeDirection, Theme, WindowId,
-};
+use winit_core::ime;
+use winit_core::window::{CursorGrabMode, ResizeDirection, Theme, WindowId};
 
 use crate::event_loop::OwnedDisplayHandle;
 use crate::logical_to_physical_rounded;
@@ -551,7 +550,7 @@ impl WindowState {
 
     /// Whether the IME is allowed.
     #[inline]
-    pub fn ime_allowed(&self) -> Option<ImeCapabilities> {
+    pub fn ime_allowed(&self) -> Option<ime::Capabilities> {
         self.text_input_state.as_ref().map(|state| state.capabilities())
     }
 
@@ -999,18 +998,18 @@ impl WindowState {
 
     /// Atomically update input method state.
     ///
-    /// Returns `None` if an input method state haven't changed. Alternatively `Some(true)` and
-    /// `Some(false)` is returned respectfully.
+    /// Returns `None` if an input method state haven't changed.
+    /// Returns `Some(())` if the input state has been enabled.
     pub fn request_ime_update(
         &mut self,
-        request: ImeRequest,
-    ) -> Result<Option<bool>, ImeRequestError> {
+        request: ime::Request,
+    ) -> Result<Option<()>, ime::RequestError> {
         let state_change = match request {
-            ImeRequest::Enable(enable) => {
+            ime::Request::Enable(enable) => {
                 let (capabilities, request_data) = enable.into_raw();
 
                 if self.text_input_state.is_some() {
-                    return Err(ImeRequestError::AlreadyEnabled);
+                    return Err(ime::RequestError::AlreadyEnabled);
                 }
 
                 self.text_input_state = Some(TextInputClientState::new(
@@ -1020,21 +1019,29 @@ impl WindowState {
                 ));
                 true
             },
-            ImeRequest::Update(request_data) => {
+            ime::Request::Update(request_data) => {
                 let scale_factor = self.scale_factor();
                 if let Some(text_input_state) = self.text_input_state.as_mut() {
                     text_input_state.update(request_data, scale_factor);
                 } else {
-                    return Err(ImeRequestError::NotEnabled);
+                    return Err(ime::RequestError::NotEnabled);
                 }
                 false
             },
-            ImeRequest::Disable => {
-                self.text_input_state = None;
-                true
-            },
         };
 
+        self.update_per_seat_text_input(state_change);
+        if state_change { Ok(Some(())) } else { Ok(None) }
+    }
+
+    /// Disable IME.
+    #[inline]
+    pub fn disable_ime(&mut self) {
+        self.text_input_state = None;
+        self.update_per_seat_text_input(true);
+    }
+
+    fn update_per_seat_text_input(&self, state_change: bool) {
         // Only one input method may be active per (seat, surface),
         // but there may be multiple seats focused on a surface,
         // resulting in multiple text input objects.
@@ -1044,8 +1051,6 @@ impl WindowState {
         for text_input in &self.text_inputs {
             text_input.set_state(self.text_input_state.as_ref(), state_change);
         }
-
-        if state_change { Ok(Some(self.text_input_state.is_some())) } else { Ok(None) }
     }
 
     /// Set the scale factor for the given window.

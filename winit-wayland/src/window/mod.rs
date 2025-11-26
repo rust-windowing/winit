@@ -18,11 +18,11 @@ use winit_core::cursor::Cursor;
 use winit_core::error::{NotSupportedError, RequestError};
 use winit_core::event::{Ime, WindowEvent};
 use winit_core::event_loop::AsyncRequestSerial;
+use winit_core::ime;
 use winit_core::monitor::{Fullscreen, MonitorHandle as CoreMonitorHandle};
 use winit_core::window::{
-    CursorGrabMode, ImeCapabilities, ImeRequest, ImeRequestError, ResizeDirection, Theme,
-    UserAttentionType, Window as CoreWindow, WindowAttributes, WindowButtons, WindowId,
-    WindowLevel,
+    CursorGrabMode, ResizeDirection, Theme, UserAttentionType, Window as CoreWindow,
+    WindowAttributes, WindowButtons, WindowId, WindowLevel,
 };
 
 use super::ActiveEventLoop;
@@ -505,11 +505,11 @@ impl CoreWindow for Window {
     }
 
     #[inline]
-    fn request_ime_update(&self, request: ImeRequest) -> Result<(), ImeRequestError> {
+    fn request_ime_update(&self, request: ime::Request) -> Result<(), ime::RequestError> {
         let state_changed = self.window_state.lock().unwrap().request_ime_update(request)?;
 
-        if let Some(allowed) = state_changed {
-            let event = WindowEvent::Ime(if allowed { Ime::Enabled } else { Ime::Disabled });
+        if let Some(()) = state_changed {
+            let event = WindowEvent::Ime(Ime::Enabled);
             self.window_events_sink.lock().unwrap().push_window_event(event, self.window_id);
             self.event_loop_awakener.ping();
         }
@@ -518,7 +518,15 @@ impl CoreWindow for Window {
     }
 
     #[inline]
-    fn ime_capabilities(&self) -> Option<ImeCapabilities> {
+    fn disable_ime(&self) {
+        self.window_state.lock().unwrap().disable_ime();
+        let event = WindowEvent::Ime(Ime::Disabled);
+        self.window_events_sink.lock().unwrap().push_window_event(event, self.window_id);
+        self.event_loop_awakener.ping();
+    }
+
+    #[inline]
+    fn ime_capabilities(&self) -> Option<ime::Capabilities> {
         self.window_state.lock().unwrap().ime_allowed()
     }
 
