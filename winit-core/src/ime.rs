@@ -2,6 +2,8 @@ use std::fmt;
 
 use bitflags::bitflags;
 use dpi::{Position, Size};
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
 
 /// Generic IME purposes for use in [`Window::set_ime_purpose`].
 ///
@@ -14,6 +16,8 @@ use dpi::{Position, Size};
 /// ## Platform-specific
 ///
 /// - **iOS / Android / Web / Windows / X11 / macOS / Orbital:** Unsupported.
+///
+/// [`Window::set_ime_purpose`]: crate::window::Window::set_ime_purpose
 #[non_exhaustive]
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Hash, Default)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
@@ -147,7 +151,7 @@ impl SurroundingText {
     /// obtained by:
     ///
     /// ```
-    /// # use winit_core::window::SurroundingText;
+    /// # use winit_core::ime::SurroundingText;
     /// let s = SurroundingText::new("foobar".into(), 3, 3).unwrap();
     /// ```
     ///
@@ -395,7 +399,7 @@ impl RequestData {
     ///
     /// ```no_run
     /// # use dpi::{LogicalPosition, PhysicalPosition, LogicalSize, PhysicalSize};
-    /// # use winit_core::window::RequestData;
+    /// # use winit_core::ime::RequestData;
     /// # fn scope(ime_request_data: RequestData) {
     /// // Specify the position in logical dimensions like this:
     /// let ime_request_data = ime_request_data.with_cursor_area(
@@ -433,6 +437,8 @@ impl RequestData {
 
 /// Error from sending request to IME with
 /// [`Window::request_ime_update`].
+///
+/// [`Window::request_ime_update`]: crate::window::Window::request_ime_update
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum RequestError {
