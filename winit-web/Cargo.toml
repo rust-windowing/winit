@@ -39,6 +39,7 @@ web_sys = { workspace = true, features = [
     "Blob",
     "BlobPropertyBag",
     "console",
+    "CompositionEvent",
     "CssStyleDeclaration",
     "Document",
     "DomException",

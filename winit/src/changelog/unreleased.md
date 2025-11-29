@@ -43,6 +43,7 @@ changelog entry.
 ### Added
 
 - Add `keyboard` support for OpenHarmony.
+- On Web, add limited IME support for browsers implementing the EditContext API.
 
 ### Fixed
 
