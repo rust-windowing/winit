@@ -538,7 +538,8 @@ pub trait EventLoopBuilderExtMacOS {
     ///
     /// ## Safety
     ///
-    /// The caller must ensure that the provided class name corresponds to a valid `NSApplication` subclass.
+    /// The caller must ensure that the provided class name corresponds to a valid `NSApplication`
+    /// subclass.
     unsafe fn with_nsapplication_subclass(&mut self, subclass: std::ffi::CString) -> &mut Self;
 }
 
