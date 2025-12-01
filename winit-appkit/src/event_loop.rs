@@ -1,10 +1,11 @@
+use std::ffi::CString;
 use std::rc::Rc;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use objc2::rc::{Retained, autoreleasepool};
-use objc2::runtime::ProtocolObject;
-use objc2::{MainThreadMarker, available};
+use objc2::runtime::{AnyClass, ProtocolObject};
+use objc2::{MainThreadMarker, available, msg_send};
 use objc2_app_kit::{
     NSApplication, NSApplicationActivationPolicy, NSApplicationDidFinishLaunchingNotification,
     NSApplicationWillTerminateNotification, NSWindow,
@@ -152,16 +153,22 @@ pub struct EventLoop {
     _will_terminate_observer: Retained<ProtocolObject<dyn NSObjectProtocol>>,
 }
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct PlatformSpecificEventLoopAttributes {
     pub activation_policy: Option<ActivationPolicy>,
     pub default_menu: bool,
     pub activate_ignoring_other_apps: bool,
+    pub nsapplication_subclass: Option<CString>,
 }
 
 impl Default for PlatformSpecificEventLoopAttributes {
     fn default() -> Self {
-        Self { activation_policy: None, default_menu: true, activate_ignoring_other_apps: true }
+        Self {
+            activation_policy: None,
+            default_menu: true,
+            activate_ignoring_other_apps: true,
+            nsapplication_subclass: None,
+        }
     }
 }
 
@@ -186,7 +193,12 @@ impl EventLoop {
         .ok_or_else(|| EventLoopError::RecreationAttempt)?;
 
         // Initialize the application (if it has not already been).
-        let app = NSApplication::sharedApplication(mtm);
+        let app = attributes
+            .nsapplication_subclass
+            .as_ref()
+            .and_then(|class| AnyClass::get(class))
+            .map(|nsapp| unsafe { msg_send![nsapp, sharedApplication] })
+            .unwrap_or_else(|| NSApplication::sharedApplication(mtm));
 
         // Override `sendEvent:` on the application to forward to our application state.
         override_send_event(&app);

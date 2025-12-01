@@ -43,6 +43,7 @@ changelog entry.
 ### Added
 
 - Add `keyboard` support for OpenHarmony.
+- On macOS, add `EventLoopBuilderExtMacOS::with_nsapplication_subclass`.
 
 ### Fixed
 

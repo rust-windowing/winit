@@ -405,6 +405,11 @@ impl winit_appkit::EventLoopBuilderExtMacOS for EventLoopBuilder {
         self.platform_specific.activate_ignoring_other_apps = ignore;
         self
     }
+
+    unsafe fn with_nsapplication_subclass(&mut self, subclass: std::ffi::CString) -> &mut Self {
+        self.platform_specific.nsapplication_subclass = Some(subclass);
+        self
+    }
 }
 
 #[cfg(wayland_platform)]

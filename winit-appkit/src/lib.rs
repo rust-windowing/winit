@@ -531,6 +531,15 @@ pub trait EventLoopBuilderExtMacOS {
     ///
     /// The default behavior is to ignore other applications and activate when launched.
     fn with_activate_ignoring_other_apps(&mut self, ignore: bool) -> &mut Self;
+
+    /// Sets the `NSApp` class to be used for the application.
+    ///
+    /// If not set, or provided class is not found, the default `NSApplication` class will be used.
+    ///
+    /// ## Safety
+    ///
+    /// The caller must ensure that the provided class name corresponds to a valid `NSApplication` subclass.
+    unsafe fn with_nsapplication_subclass(&mut self, subclass: std::ffi::CString) -> &mut Self;
 }
 
 /// Additional methods on [`MonitorHandle`] that are specific to MacOS.
