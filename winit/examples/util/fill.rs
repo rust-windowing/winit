@@ -12,12 +12,8 @@ use std::collections::HashMap;
 use std::mem;
 use std::mem::ManuallyDrop;
 use std::num::NonZeroU32;
-#[cfg(not(web_platform))]
-use std::time::Instant;
 
 use softbuffer::{Context, Surface};
-#[cfg(web_platform)]
-use web_time::Instant;
 use winit::window::{Window, WindowId};
 
 thread_local! {
@@ -92,16 +88,6 @@ pub fn fill_window_with_color(window: &dyn Window, color: u32) {
 #[allow(dead_code)]
 pub fn fill_window(window: &dyn Window) {
     fill_window_with_color(window, 0xff181818);
-}
-
-#[allow(dead_code)]
-pub fn fill_window_with_animated_color(window: &dyn Window, start: Instant) {
-    let time = start.elapsed().as_secs_f32() * 1.5;
-    let blue = (time.sin() * 255.0) as u32;
-    let green = ((time.cos() * 255.0) as u32) << 8;
-    let red = ((1.0 - time.sin() * 255.0) as u32) << 16;
-    let color = red | green | blue;
-    fill_window_with_color(window, color);
 }
 
 #[allow(dead_code)]
