@@ -53,7 +53,7 @@ pub trait WindowType: Sized {
     fn wl_surface(&self) -> &WlSurface;
     fn xdg_surface(&self) -> &xdg_surface::XdgSurface;
 
-    // The rest of these fuctions are those that don't exist for popups
+    // The rest of these functions are those that don't exist for popups
     fn set_min_surface_size(_: &Window<Self>, _: Option<Size>) {}
     fn set_max_surface_size(_: &Window<Self>, _: Option<Size>) {}
     fn set_title(_: &Mutex<WindowState<Self>>, _: &str) {}
