@@ -16,7 +16,7 @@ use winit_core::window::{
 };
 
 use crate::state::WinitState;
-use crate::window::state::{AnyWindowState, AnyWindowStateLocked};
+use crate::window::state::AnyWindowStateLocked;
 
 #[derive(Debug)]
 pub struct TextInputState {
