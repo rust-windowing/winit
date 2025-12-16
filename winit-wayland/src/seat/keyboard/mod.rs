@@ -18,6 +18,7 @@ use winit_core::keyboard::ModifiersState;
 use crate::WindowId;
 use crate::event_loop::sink::EventSink;
 use crate::state::WinitState;
+use crate::window::state::AnyWindowStateLocked;
 
 impl Dispatch<WlKeyboard, KeyboardData, WinitState> for WinitState {
     fn event(
@@ -65,9 +66,17 @@ impl Dispatch<WlKeyboard, KeyboardData, WinitState> for WinitState {
                 // Mark the window as focused.
                 let was_unfocused = match state.windows.get_mut().get(&window_id) {
                     Some(window) => {
-                        let mut window = window.lock().unwrap();
+                        let window = window.lock();
                         let was_unfocused = !window.has_focus();
-                        window.add_seat_focus(data.seat.id());
+                        let object_id = data.seat.id();
+                        match window {
+                            AnyWindowStateLocked::TopLevel(mut window) => {
+                                window.add_seat_focus(object_id)
+                            },
+                            AnyWindowStateLocked::Popup(mut window) => {
+                                window.add_seat_focus(object_id)
+                            },
+                        }
                         was_unfocused
                     },
                     None => return,
@@ -108,7 +117,7 @@ impl Dispatch<WlKeyboard, KeyboardData, WinitState> for WinitState {
                 // nil surface, regardless of what protocol says.
                 let focused = match state.windows.get_mut().get(&window_id) {
                     Some(window) => {
-                        let mut window = window.lock().unwrap();
+                        let mut window = window.lock();
                         window.remove_seat_focus(&data.seat.id());
                         window.has_focus()
                     },

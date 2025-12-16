@@ -1,24 +1,35 @@
 //! The Wayland window.
 
 use std::ffi::c_void;
+use std::fmt::Debug;
 use std::ptr::NonNull;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 
-use dpi::{LogicalSize, PhysicalInsets, PhysicalPosition, PhysicalSize, Position, Size};
+use dpi::{
+    LogicalPosition, LogicalSize, PhysicalInsets, PhysicalPosition, PhysicalSize, Position, Size,
+};
 use sctk::compositor::{CompositorState, Region, SurfaceData};
 use sctk::reexports::client::protocol::wl_display::WlDisplay;
 use sctk::reexports::client::protocol::wl_surface::WlSurface;
 use sctk::reexports::client::{Proxy, QueueHandle};
 use sctk::reexports::protocols::xdg::activation::v1::client::xdg_activation_v1::XdgActivationV1;
-use sctk::shell::WaylandSurface;
-use sctk::shell::xdg::window::{Window as SctkWindow, WindowDecorations};
+use sctk::shell::xdg::popup::Popup;
+use sctk::shell::xdg::window::{Window as SctkWindow, WindowConfigure, WindowDecorations};
+use sctk::shell::xdg::XdgPositioner;
+use sctk::shell::{xdg, WaylandSurface};
+use state::AnyWindowState;
 use tracing::warn;
+use wayland_protocols::xdg::shell::client::xdg_positioner::{
+    Anchor, ConstraintAdjustment, Gravity,
+};
+use wayland_protocols::xdg::shell::client::xdg_surface;
 use winit_core::cursor::Cursor;
 use winit_core::error::{NotSupportedError, RequestError};
 use winit_core::event::{Ime, WindowEvent};
 use winit_core::event_loop::AsyncRequestSerial;
 use winit_core::monitor::{Fullscreen, MonitorHandle as CoreMonitorHandle};
+use winit_core::popup::{Direction, PopupAttributes};
 use winit_core::window::{
     CursorGrabMode, ImeCapabilities, ImeRequest, ImeRequestError, ResizeDirection, Theme,
     UserAttentionType, Window as CoreWindow, WindowAttributes, WindowButtons, WindowId,
@@ -36,17 +47,212 @@ pub(crate) mod state;
 
 pub use state::WindowState;
 
+pub trait WindowType: Sized {
+    type Configure: Send + Sync + Debug;
+
+    fn wl_surface(&self) -> &WlSurface;
+    fn xdg_surface(&self) -> &xdg_surface::XdgSurface;
+
+    // The rest of these fuctions are those that don't exist for popups
+    fn set_min_surface_size(_: &Window<Self>, _: Option<Size>) {}
+    fn set_max_surface_size(_: &Window<Self>, _: Option<Size>) {}
+    fn set_title(_: &Mutex<WindowState<Self>>, _: &str) {}
+    fn set_resizable(_: &Window<Self>, _: bool) {}
+    fn set_minimized(&self, _: bool) {}
+    fn set_maximized(&self, _: bool) {}
+    fn is_maximized(_: &Mutex<WindowState<Self>>) -> bool {
+        false
+    }
+    fn set_fullscreen(&self, _: Option<Fullscreen>) {}
+    fn fullscreen(_: &Window<Self>) -> Option<Fullscreen> {
+        None
+    }
+    fn set_decorations(_: &Mutex<WindowState<Self>>, _: bool) {}
+    fn is_decorated(_: &Mutex<WindowState<Self>>) -> bool {
+        false
+    }
+    fn set_window_icon(_: &Mutex<WindowState<Self>>, _: Option<winit_core::icon::Icon>) {}
+    fn drag_window(_: &Mutex<WindowState<Self>>) -> Result<(), RequestError> {
+        Err(NotSupportedError::new("popups can't be dragged on wayland").into())
+    }
+    fn drag_resize_window(
+        _: &Mutex<WindowState<Self>>,
+        _: ResizeDirection,
+    ) -> Result<(), RequestError> {
+        Err(NotSupportedError::new("popups can't be drag resized on wayland").into())
+    }
+    fn show_window_menu(_: &Mutex<WindowState<Self>>, _: Position) {}
+
+    fn is_stateless(_: &Self::Configure) -> bool {
+        true
+    }
+}
+
+impl WindowType for SctkWindow {
+    type Configure = WindowConfigure;
+
+    fn wl_surface(&self) -> &WlSurface {
+        WaylandSurface::wl_surface(self)
+    }
+
+    fn xdg_surface(&self) -> &xdg_surface::XdgSurface {
+        xdg::XdgSurface::xdg_surface(self)
+    }
+
+    fn set_min_surface_size(window: &Window<SctkWindow>, min_size: Option<Size>) {
+        let mut window_state = window.window_state.lock().unwrap();
+
+        let size = min_size.map(|size| size.to_logical(window_state.scale_factor()));
+        window_state.set_min_surface_size(size);
+
+        // NOTE: Requires commit to be applied.
+        window.request_redraw();
+    }
+
+    fn set_max_surface_size(window: &Window<SctkWindow>, max_size: Option<Size>) {
+        let mut window_state = window.window_state.lock().unwrap();
+
+        let size = max_size.map(|size| size.to_logical(window_state.scale_factor()));
+        window_state.set_max_surface_size(size);
+
+        // NOTE: Requires commit to be applied.
+        window.request_redraw();
+    }
+
+    fn set_title(window_state: &Mutex<WindowState<SctkWindow>>, title: &str) {
+        let new_title = title.to_string();
+        window_state.lock().unwrap().set_title(new_title);
+    }
+
+    fn set_resizable(window: &Window<SctkWindow>, resizable: bool) {
+        if window.window_state.lock().unwrap().set_resizable(resizable) {
+            // NOTE: Requires commit to be applied.
+            window.request_redraw();
+        }
+    }
+
+    fn set_minimized(&self, minimized: bool) {
+        // You can't unminimize the window on Wayland.
+        if !minimized {
+            warn!("Unminimizing is ignored on Wayland.");
+            return;
+        }
+
+        self.set_minimized();
+    }
+
+    fn set_maximized(&self, maximized: bool) {
+        if maximized {
+            self.set_maximized()
+        } else {
+            self.unset_maximized()
+        }
+    }
+
+    fn is_maximized(window_state: &Mutex<WindowState<SctkWindow>>) -> bool {
+        window_state
+            .lock()
+            .unwrap()
+            .last_configure
+            .as_ref()
+            .map(|last_configure| last_configure.is_maximized())
+            .unwrap_or_default()
+    }
+
+    fn set_fullscreen(&self, fullscreen: Option<Fullscreen>) {
+        match fullscreen {
+            Some(Fullscreen::Exclusive(..)) => {
+                warn!("`Fullscreen::Exclusive` is ignored on Wayland");
+            },
+            Some(Fullscreen::Borderless(monitor)) => {
+                let output = monitor.as_ref().and_then(|monitor| {
+                    monitor.cast_ref::<output::MonitorHandle>().map(|handle| &handle.proxy)
+                });
+
+                self.set_fullscreen(output)
+            },
+            None => self.unset_fullscreen(),
+        }
+    }
+
+    fn fullscreen(window: &Window<SctkWindow>) -> Option<Fullscreen> {
+        let is_fullscreen = window
+            .window_state
+            .lock()
+            .unwrap()
+            .last_configure
+            .as_ref()
+            .map(|last_configure| last_configure.is_fullscreen())
+            .unwrap_or_default();
+
+        if is_fullscreen {
+            let current_monitor = window.current_monitor();
+            Some(Fullscreen::Borderless(current_monitor))
+        } else {
+            None
+        }
+    }
+
+    fn set_decorations(window_state: &Mutex<WindowState<SctkWindow>>, decorate: bool) {
+        window_state.lock().unwrap().set_decorate(decorate)
+    }
+
+    fn is_decorated(window_state: &Mutex<WindowState<SctkWindow>>) -> bool {
+        window_state.lock().unwrap().is_decorated()
+    }
+
+    fn set_window_icon(
+        window_state: &Mutex<WindowState<SctkWindow>>,
+        window_icon: Option<winit_core::icon::Icon>,
+    ) {
+        window_state.lock().unwrap().set_window_icon(window_icon);
+    }
+
+    fn drag_window(window_state: &Mutex<WindowState<SctkWindow>>) -> Result<(), RequestError> {
+        window_state.lock().unwrap().drag_window()
+    }
+
+    fn drag_resize_window(
+        window_state: &Mutex<WindowState<SctkWindow>>,
+        direction: ResizeDirection,
+    ) -> Result<(), RequestError> {
+        window_state.lock().unwrap().drag_resize_window(direction)
+    }
+
+    fn show_window_menu(window_state: &Mutex<WindowState<SctkWindow>>, position: Position) {
+        let window_state = window_state.lock().unwrap();
+
+        window_state.show_window_menu(position.to_logical(window_state.scale_factor()));
+    }
+
+    fn is_stateless(configure: &WindowConfigure) -> bool {
+        WindowState::<SctkWindow>::is_stateless(configure)
+    }
+}
+
+impl WindowType for Popup {
+    type Configure = ();
+
+    fn wl_surface(&self) -> &WlSurface {
+        self.wl_surface()
+    }
+
+    fn xdg_surface(&self) -> &xdg_surface::XdgSurface {
+        self.xdg_surface()
+    }
+}
+
 /// The Wayland window.
 #[derive(Debug)]
-pub struct Window {
-    /// Reference to the underlying SCTK window.
-    window: SctkWindow,
+pub struct Window<T: WindowType> {
+    /// Reference to the underlying SCTK window/popup.
+    window: T,
 
     /// Window id.
     window_id: WindowId,
 
     /// The state of the window.
-    window_state: Arc<Mutex<WindowState>>,
+    window_state: Arc<Mutex<WindowState<T>>>,
 
     /// Compositor to handle WlRegion stuff.
     compositor: Arc<CompositorState>,
@@ -77,7 +283,7 @@ pub struct Window {
     window_events_sink: Arc<Mutex<EventSink>>,
 }
 
-impl Window {
+impl Window<SctkWindow> {
     pub(crate) fn new(
         event_loop_window_target: &ActiveEventLoop,
         mut attributes: WindowAttributes,
@@ -182,7 +388,7 @@ impl Window {
         // Add the window and window requests into the state.
         let window_state = Arc::new(Mutex::new(window_state));
         let window_id = super::make_wid(&surface);
-        state.windows.get_mut().insert(window_id, window_state.clone());
+        state.windows.get_mut().insert(window_id, AnyWindowState::TopLevel(window_state.clone()));
 
         let window_requests = WindowRequests {
             redraw_requested: AtomicBool::new(true),
@@ -230,7 +436,183 @@ impl Window {
     }
 }
 
-impl Window {
+impl Window<Popup> {
+    pub(crate) fn new_popup(
+        event_loop_window_target: &ActiveEventLoop,
+        mut attributes: WindowAttributes,
+        parent_id: WindowId,
+        popup_attributes: PopupAttributes,
+    ) -> Result<Self, RequestError> {
+        let mut state = event_loop_window_target.state.borrow_mut();
+
+        let Some(parent) = state.windows.get_mut().get(&parent_id) else {
+            return Err(
+                NotSupportedError::new("can't create a popup with a nonexistent parent").into()
+            );
+        };
+
+        let parent = match parent {
+            AnyWindowState::TopLevel(window) => window.lock().unwrap().window.xdg_surface().clone(),
+            AnyWindowState::Popup(window) => window.lock().unwrap().window.xdg_surface().clone(),
+        };
+
+        let queue_handle = event_loop_window_target.queue_handle.clone();
+
+        let monitors = state.monitors.clone();
+
+        let surface = state.compositor_state.create_surface(&queue_handle);
+        let compositor = state.compositor_state.clone();
+        let xdg_activation =
+            state.xdg_activation.as_ref().map(|activation_state| activation_state.global().clone());
+        let display = event_loop_window_target.handle.connection.display();
+
+        let size: Size = attributes.surface_size.unwrap_or(LogicalSize::new(800., 600.).into());
+
+        // Create the positioner
+        let positioner = XdgPositioner::new(&state.xdg_shell).unwrap();
+        let logical_size = size.to_logical(1.);
+        positioner.set_size(logical_size.width, logical_size.height);
+
+        let position = attributes
+            .position
+            .map_or(LogicalPosition::default(), |position| position.to_logical(1.));
+        let anchor_size = popup_attributes.anchor_size.to_logical::<i32>(1.);
+        positioner.set_anchor_rect(
+            position.x,
+            position.y,
+            anchor_size.width.max(1),
+            anchor_size.height.max(1),
+        );
+
+        // TODO(bolshoytoster): is there a better way to convert between two identical enums?
+        match popup_attributes.anchor {
+            Direction::None => (),
+            Direction::Top => positioner.set_anchor(Anchor::Top),
+            Direction::Bottom => positioner.set_anchor(Anchor::Bottom),
+            Direction::Left => positioner.set_anchor(Anchor::Left),
+            Direction::Right => positioner.set_anchor(Anchor::Right),
+            Direction::TopLeft => positioner.set_anchor(Anchor::TopLeft),
+            Direction::BottomLeft => positioner.set_anchor(Anchor::BottomLeft),
+            Direction::TopRight => positioner.set_anchor(Anchor::TopRight),
+            Direction::BottomRight => positioner.set_anchor(Anchor::BottomRight),
+        };
+        match popup_attributes.gravity {
+            Direction::None => (),
+            Direction::Top => positioner.set_gravity(Gravity::Top),
+            Direction::Bottom => positioner.set_gravity(Gravity::Bottom),
+            Direction::Left => positioner.set_gravity(Gravity::Left),
+            Direction::Right => positioner.set_gravity(Gravity::Right),
+            Direction::TopLeft => positioner.set_gravity(Gravity::TopLeft),
+            Direction::BottomLeft => positioner.set_gravity(Gravity::BottomLeft),
+            Direction::TopRight => positioner.set_gravity(Gravity::TopRight),
+            Direction::BottomRight => positioner.set_gravity(Gravity::BottomRight),
+        };
+
+        if !popup_attributes.anchor_hints.is_empty() {
+            // The AnchorHints bitfield is identical to ConstraintAdjustment, so we can convert
+            // between them safely
+            positioner.set_constraint_adjustment(ConstraintAdjustment::from_bits_retain(
+                popup_attributes.anchor_hints.bits() as u32,
+            ));
+        }
+
+        let offset = popup_attributes.offset.to_logical(1.);
+        if offset.x != 0 || offset.y != 0 {
+            positioner.set_offset(offset.x, offset.y);
+        }
+
+        // Create the popup
+        let window = Popup::from_surface(
+            Some(&parent),
+            &positioner,
+            &queue_handle,
+            surface.clone(),
+            &state.xdg_shell,
+        )
+        .unwrap();
+
+        let WindowAttributesWayland { activation_token, prefer_csd, .. } = *attributes
+            .platform
+            .take()
+            .and_then(|p| p.cast::<WindowAttributesWayland>().ok())
+            .unwrap_or_default();
+
+        let mut window_state = WindowState::new(
+            event_loop_window_target.handle.clone(),
+            &event_loop_window_target.queue_handle,
+            &state,
+            size,
+            window.clone(),
+            attributes.preferred_theme,
+            prefer_csd,
+        );
+
+        // Set transparency hint.
+        window_state.set_transparent(attributes.transparent);
+
+        window_state.set_blur(attributes.blur);
+
+        match attributes.cursor {
+            Cursor::Icon(icon) => window_state.set_cursor(icon),
+            Cursor::Custom(cursor) => window_state.set_custom_cursor(cursor),
+        }
+
+        // Activate the window when the token is passed.
+        if let (Some(xdg_activation), Some(token)) = (xdg_activation.as_ref(), activation_token) {
+            xdg_activation.activate(token.into_raw(), &surface);
+        }
+
+        // XXX Do initial commit.
+        window.wl_surface().commit();
+
+        // Add the window and window requests into the state.
+        let window_state = Arc::new(Mutex::new(window_state));
+        let window_id = super::make_wid(&surface);
+        state.windows.get_mut().insert(window_id, AnyWindowState::Popup(window_state.clone()));
+
+        let window_requests = WindowRequests {
+            redraw_requested: AtomicBool::new(true),
+            closed: AtomicBool::new(false),
+        };
+        let window_requests = Arc::new(window_requests);
+        state.window_requests.get_mut().insert(window_id, window_requests.clone());
+
+        // Setup the event sync to insert `WindowEvents` right from the window.
+        let window_events_sink = state.window_events_sink.clone();
+
+        let mut wayland_source = event_loop_window_target.wayland_dispatcher.as_source_mut();
+        let event_queue = wayland_source.queue();
+
+        // Do a roundtrip.
+        event_queue.roundtrip(&mut state).map_err(|err| os_error!(err))?;
+
+        // XXX Wait for the initial configure to arrive.
+        while !window_state.lock().unwrap().is_configured() {
+            event_queue.blocking_dispatch(&mut state).map_err(|err| os_error!(err))?;
+        }
+
+        // Wake-up event loop, so it'll send initial redraw requested.
+        let event_loop_awakener = event_loop_window_target.event_loop_awakener.clone();
+        event_loop_awakener.ping();
+
+        Ok(Self {
+            window,
+            display,
+            monitors,
+            window_id,
+            compositor,
+            window_state,
+            queue_handle,
+            xdg_activation,
+            attention_requested: Arc::new(AtomicBool::new(false)),
+            event_loop_awakener,
+            window_requests,
+            window_events_sink,
+        })
+    }
+}
+
+impl<T: WindowType> Window<T> {
     pub fn request_activation_token(&self) -> Result<AsyncRequestSerial, RequestError> {
         let xdg_activation = match self.xdg_activation.as_ref() {
             Some(xdg_activation) => xdg_activation,
@@ -253,14 +635,14 @@ impl Window {
     }
 }
 
-impl Drop for Window {
+impl<T: WindowType> Drop for Window<T> {
     fn drop(&mut self) {
         self.window_requests.closed.store(true, Ordering::Relaxed);
         self.event_loop_awakener.ping();
     }
 }
 
-impl rwh_06::HasWindowHandle for Window {
+impl<T: WindowType> rwh_06::HasWindowHandle for Window<T> {
     fn window_handle(&self) -> Result<rwh_06::WindowHandle<'_>, rwh_06::HandleError> {
         let raw = rwh_06::WaylandWindowHandle::new({
             let ptr = self.window.wl_surface().id().as_ptr();
@@ -271,7 +653,7 @@ impl rwh_06::HasWindowHandle for Window {
     }
 }
 
-impl rwh_06::HasDisplayHandle for Window {
+impl<T: WindowType> rwh_06::HasDisplayHandle for Window<T> {
     fn display_handle(&self) -> Result<rwh_06::DisplayHandle<'_>, rwh_06::HandleError> {
         let raw = rwh_06::WaylandDisplayHandle::new({
             let ptr = self.display.id().as_ptr();
@@ -282,7 +664,7 @@ impl rwh_06::HasDisplayHandle for Window {
     }
 }
 
-impl CoreWindow for Window {
+impl<T: WindowType + Send + Sync + Debug + 'static> CoreWindow for Window<T> {
     fn id(&self) -> WindowId {
         self.window_id
     }
@@ -352,21 +734,13 @@ impl CoreWindow for Window {
     }
 
     fn set_min_surface_size(&self, min_size: Option<Size>) {
-        let scale_factor = self.scale_factor();
-        let min_size = min_size.map(|size| size.to_logical(scale_factor));
-        self.window_state.lock().unwrap().set_min_surface_size(min_size);
-        // NOTE: Requires commit to be applied.
-        self.request_redraw();
+        T::set_min_surface_size(self, min_size);
     }
 
     /// Set the maximum surface size for the window.
     #[inline]
     fn set_max_surface_size(&self, max_size: Option<Size>) {
-        let scale_factor = self.scale_factor();
-        let max_size = max_size.map(|size| size.to_logical(scale_factor));
-        self.window_state.lock().unwrap().set_max_surface_size(max_size);
-        // NOTE: Requires commit to be applied.
-        self.request_redraw();
+        T::set_max_surface_size(self, max_size);
     }
 
     fn surface_resize_increments(&self) -> Option<PhysicalSize<u32>> {
@@ -378,8 +752,7 @@ impl CoreWindow for Window {
     }
 
     fn set_title(&self, title: &str) {
-        let new_title = title.to_string();
-        self.window_state.lock().unwrap().set_title(new_title);
+        T::set_title(&self.window_state, title);
     }
 
     #[inline]
@@ -396,10 +769,7 @@ impl CoreWindow for Window {
     }
 
     fn set_resizable(&self, resizable: bool) {
-        if self.window_state.lock().unwrap().set_resizable(resizable) {
-            // NOTE: Requires commit to be applied.
-            self.request_redraw();
-        }
+        T::set_resizable(self, resizable);
     }
 
     fn is_resizable(&self) -> bool {
@@ -416,13 +786,7 @@ impl CoreWindow for Window {
     }
 
     fn set_minimized(&self, minimized: bool) {
-        // You can't unminimize the window on Wayland.
-        if !minimized {
-            warn!("Unminimizing is ignored on Wayland.");
-            return;
-        }
-
-        self.window.set_minimized();
+        self.window.set_minimized(minimized);
     }
 
     fn is_minimized(&self) -> Option<bool> {
@@ -431,51 +795,19 @@ impl CoreWindow for Window {
     }
 
     fn set_maximized(&self, maximized: bool) {
-        if maximized { self.window.set_maximized() } else { self.window.unset_maximized() }
+        self.window.set_maximized(maximized);
     }
 
     fn is_maximized(&self) -> bool {
-        self.window_state
-            .lock()
-            .unwrap()
-            .last_configure
-            .as_ref()
-            .map(|last_configure| last_configure.is_maximized())
-            .unwrap_or_default()
+        T::is_maximized(&self.window_state)
     }
 
     fn set_fullscreen(&self, fullscreen: Option<Fullscreen>) {
-        match fullscreen {
-            Some(Fullscreen::Exclusive(..)) => {
-                warn!("`Fullscreen::Exclusive` is ignored on Wayland");
-            },
-            Some(Fullscreen::Borderless(monitor)) => {
-                let output = monitor.as_ref().and_then(|monitor| {
-                    monitor.cast_ref::<output::MonitorHandle>().map(|handle| &handle.proxy)
-                });
-
-                self.window.set_fullscreen(output)
-            },
-            None => self.window.unset_fullscreen(),
-        }
+        self.window.set_fullscreen(fullscreen);
     }
 
     fn fullscreen(&self) -> Option<Fullscreen> {
-        let is_fullscreen = self
-            .window_state
-            .lock()
-            .unwrap()
-            .last_configure
-            .as_ref()
-            .map(|last_configure| last_configure.is_fullscreen())
-            .unwrap_or_default();
-
-        if is_fullscreen {
-            let current_monitor = self.current_monitor();
-            Some(Fullscreen::Borderless(current_monitor))
-        } else {
-            None
-        }
+        T::fullscreen(self)
     }
 
     #[inline]
@@ -490,18 +822,18 @@ impl CoreWindow for Window {
 
     #[inline]
     fn set_decorations(&self, decorate: bool) {
-        self.window_state.lock().unwrap().set_decorate(decorate)
+        T::set_decorations(&self.window_state, decorate);
     }
 
     #[inline]
     fn is_decorated(&self) -> bool {
-        self.window_state.lock().unwrap().is_decorated()
+        T::is_decorated(&self.window_state)
     }
 
     fn set_window_level(&self, _level: WindowLevel) {}
 
     fn set_window_icon(&self, window_icon: Option<winit_core::icon::Icon>) {
-        self.window_state.lock().unwrap().set_window_icon(window_icon)
+        T::set_window_icon(&self.window_state, window_icon);
     }
 
     #[inline]
@@ -593,17 +925,15 @@ impl CoreWindow for Window {
     }
 
     fn drag_window(&self) -> Result<(), RequestError> {
-        self.window_state.lock().unwrap().drag_window()
+        T::drag_window(&self.window_state)
     }
 
     fn drag_resize_window(&self, direction: ResizeDirection) -> Result<(), RequestError> {
-        self.window_state.lock().unwrap().drag_resize_window(direction)
+        T::drag_resize_window(&self.window_state, direction)
     }
 
     fn show_window_menu(&self, position: Position) {
-        let scale_factor = self.scale_factor();
-        let position = position.to_logical(scale_factor);
-        self.window_state.lock().unwrap().show_window_menu(position);
+        T::show_window_menu(&self.window_state, position);
     }
 
     fn set_cursor_hittest(&self, hittest: bool) -> Result<(), RequestError> {

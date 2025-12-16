@@ -107,7 +107,7 @@ impl Dispatch<ZwpPointerGesturePinchV1, PointerGestureData, WinitState> for Poin
                 };
 
                 let scale_factor = match state.windows.get_mut().get_mut(&window_id) {
-                    Some(window) => window.lock().unwrap().scale_factor(),
+                    Some(window) => window.lock().scale_factor(),
                     None => return,
                 };
 

@@ -11,7 +11,6 @@ use std::thread::JoinHandle;
 use std::time::{Duration, Instant};
 
 use calloop::ping::Ping;
-use dpi::LogicalSize;
 use rustix::event::{PollFd, PollFlags};
 use rustix::pipe::{self, PipeFlags};
 use sctk::reexports::calloop_wayland_source::WaylandSource;
@@ -27,9 +26,11 @@ use winit_core::event_loop::{
     OwnedDisplayHandle as CoreOwnedDisplayHandle,
 };
 use winit_core::monitor::MonitorHandle as CoreMonitorHandle;
+use winit_core::popup::PopupAttributes;
 use winit_core::window::Theme;
 
 use crate::types::cursor::WaylandCustomCursor;
+use crate::window::state::AnyWindowState;
 
 mod proxy;
 pub mod sink;
@@ -343,7 +344,7 @@ impl EventLoop {
             if compositor_update.scale_changed {
                 let (physical_size, scale_factor) = self.with_state(|state| {
                     let windows = state.windows.get_mut();
-                    let window = windows.get(&window_id).unwrap().lock().unwrap();
+                    let window = windows.get(&window_id).unwrap().lock();
                     let scale_factor = window.scale_factor();
                     let size = logical_to_physical_rounded(window.surface_size(), scale_factor);
                     (size, scale_factor)
@@ -366,12 +367,16 @@ impl EventLoop {
                 // Resize the window when user altered the size.
                 if old_physical_size != physical_size {
                     self.with_state(|state| {
-                        let windows = state.windows.get_mut();
-                        let mut window = windows.get(&window_id).unwrap().lock().unwrap();
+                        let surface_size = physical_size.to_logical::<f64>(scale_factor).into();
 
-                        let new_logical_size: LogicalSize<f64> =
-                            physical_size.to_logical(scale_factor);
-                        window.request_surface_size(new_logical_size.into());
+                        match state.windows.get_mut().get(&window_id).unwrap() {
+                            AnyWindowState::TopLevel(window) => {
+                                window.lock().unwrap().request_surface_size(surface_size)
+                            },
+                            AnyWindowState::Popup(window) => {
+                                window.lock().unwrap().request_surface_size(surface_size)
+                            },
+                        }
                     });
 
                     // Make it queue resize.
@@ -384,7 +389,7 @@ impl EventLoop {
             if compositor_update.resized || compositor_update.scale_changed {
                 let physical_size = self.with_state(|state| {
                     let windows = state.windows.get_mut();
-                    let window = windows.get(&window_id).unwrap().lock().unwrap();
+                    let window = windows.get(&window_id).unwrap().lock();
 
                     let scale_factor = window.scale_factor();
                     let size = logical_to_physical_rounded(window.surface_size(), scale_factor);
@@ -454,15 +459,14 @@ impl EventLoop {
                     return Some(WindowEvent::Destroyed);
                 }
 
-                let mut window =
-                    state.windows.get_mut().get_mut(window_id).unwrap().lock().unwrap();
+                let mut window = state.windows.get_mut().get_mut(window_id).unwrap().lock();
 
-                if window.frame_callback_state() == FrameCallbackState::Requested {
+                if *window.frame_callback_state() == FrameCallbackState::Requested {
                     return None;
                 }
 
                 // Reset the frame callbacks state.
-                window.frame_callback_reset();
+                *window.frame_callback_state() = FrameCallbackState::None;
                 let mut redraw_requested =
                     window_requests.get(window_id).unwrap().take_redraw_requested();
 
@@ -490,7 +494,7 @@ impl EventLoop {
         for window_id in window_ids.drain(..) {
             wake_up |= self.with_state(|state| match state.windows.get_mut().get_mut(&window_id) {
                 Some(window) => {
-                    let refresh = window.lock().unwrap().refresh_frame();
+                    let refresh = window.lock().refresh_frame();
                     if refresh {
                         state
                             .window_requests
@@ -652,6 +656,16 @@ impl RootActiveEventLoop for ActiveEventLoop {
         window_attributes: winit_core::window::WindowAttributes,
     ) -> Result<Box<dyn winit_core::window::Window>, RequestError> {
         let window = crate::Window::new(self, window_attributes)?;
+        Ok(Box::new(window))
+    }
+
+    fn create_popup(
+        &self,
+        window_attributes: winit_core::window::WindowAttributes,
+        popup_attributes: PopupAttributes,
+        parent: WindowId,
+    ) -> Result<Box<dyn winit_core::window::Window>, RequestError> {
+        let window = crate::Window::new_popup(self, window_attributes, parent, popup_attributes)?;
         Ok(Box::new(window))
     }
 
