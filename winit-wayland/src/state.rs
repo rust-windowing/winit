@@ -36,8 +36,8 @@ use crate::types::wp_tablet_input_v2::TabletManager;
 use crate::types::wp_viewporter::ViewporterState;
 use crate::types::xdg_activation::XdgActivationState;
 use crate::types::xdg_toplevel_icon_manager::XdgToplevelIconManagerState;
-use crate::window::state::{AnyWindowState, FrameCallbackState};
 use crate::window::WindowRequests;
+use crate::window::state::{AnyWindowState, FrameCallbackState};
 
 /// Winit's Wayland state.
 #[derive(Debug)]

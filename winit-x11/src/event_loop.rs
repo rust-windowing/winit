@@ -708,14 +708,14 @@ impl RootActiveEventLoop for ActiveEventLoop {
         Ok(Box::new(Window::new(self, window_attributes)?))
     }
 
-	fn create_popup(
+    fn create_popup(
         &self,
         window_attributes: WindowAttributes,
-		_: PopupAttributes,
+        _: PopupAttributes,
         _: WindowId,
     ) -> Result<Box<dyn CoreWindow>, RequestError> {
         todo!()
-	}
+    }
 
     fn create_custom_cursor(
         &self,

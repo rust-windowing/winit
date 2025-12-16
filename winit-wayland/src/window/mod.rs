@@ -14,10 +14,10 @@ use sctk::reexports::client::protocol::wl_display::WlDisplay;
 use sctk::reexports::client::protocol::wl_surface::WlSurface;
 use sctk::reexports::client::{Proxy, QueueHandle};
 use sctk::reexports::protocols::xdg::activation::v1::client::xdg_activation_v1::XdgActivationV1;
+use sctk::shell::xdg::XdgPositioner;
 use sctk::shell::xdg::popup::Popup;
 use sctk::shell::xdg::window::{Window as SctkWindow, WindowConfigure, WindowDecorations};
-use sctk::shell::xdg::XdgPositioner;
-use sctk::shell::{xdg, WaylandSurface};
+use sctk::shell::{WaylandSurface, xdg};
 use state::AnyWindowState;
 use tracing::warn;
 use wayland_protocols::xdg::shell::client::xdg_positioner::{
@@ -142,11 +142,7 @@ impl WindowType for SctkWindow {
     }
 
     fn set_maximized(&self, maximized: bool) {
-        if maximized {
-            self.set_maximized()
-        } else {
-            self.unset_maximized()
-        }
+        if maximized { self.set_maximized() } else { self.unset_maximized() }
     }
 
     fn is_maximized(window_state: &Mutex<WindowState<SctkWindow>>) -> bool {
