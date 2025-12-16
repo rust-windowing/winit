@@ -710,7 +710,7 @@ impl RootActiveEventLoop for ActiveEventLoop {
 
     fn create_popup(
         &self,
-        window_attributes: WindowAttributes,
+        _: WindowAttributes,
         _: PopupAttributes,
         _: WindowId,
     ) -> Result<Box<dyn CoreWindow>, RequestError> {
