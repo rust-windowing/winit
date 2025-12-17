@@ -642,7 +642,6 @@ impl WindowAttributesWindows {
     }
 
     /// This sets or removes the WS_EX_NOACTIVATE flag
-    /// 
     /// The default is `false`
     pub fn with_no_activate(mut self, no_activate: bool) -> Self {
         self.no_activate = no_activate;
