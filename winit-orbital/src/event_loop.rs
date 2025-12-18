@@ -639,7 +639,13 @@ impl EventLoop {
 
             // Wait for event if needed.
             let mut event = syscall::Event::default();
-            self.window_target.event_socket.read(&mut event).unwrap();
+            loop {
+                match self.window_target.event_socket.read(&mut event) {
+                    Ok(_) => break,
+                    Err(syscall::Error { errno: syscall::EINTR }) => continue,
+                    Err(err) => unreachable!("failed to read event: {}", err),
+                }
+            }
 
             // TODO: handle spurious wakeups (redraw caused wakeup but redraw already handled)
             match requested_resume {
