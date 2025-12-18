@@ -643,7 +643,9 @@ impl EventLoop {
                 match self.window_target.event_socket.read(&mut event) {
                     Ok(_) => break,
                     Err(syscall::Error { errno: syscall::EINTR }) => continue,
-                    Err(err) => unreachable!("failed to read event: {}", err),
+                    Err(err) => {
+                        return Err(os_error!(format!("failed to read event: {err}")).into());
+                    },
                 }
             }
 
