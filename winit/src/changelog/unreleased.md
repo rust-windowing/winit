@@ -47,3 +47,4 @@ changelog entry.
 ### Fixed
 
 - On X11, fix `set_hittest` not working on some window managers.
+- On Redox, handle `EINTR` when reading from `event_socket` instead of panicking.
