@@ -1029,8 +1029,8 @@ impl WindowState {
         match &mut self.shell_specific {
             ShellSpecificState::Xdg { resize_increments, .. } => {
                 *resize_increments = increments;
-                // NOTE: We don't update the window size here, because it will be done on the next resize
-                // or configure event.
+                // NOTE: We don't update the window size here, because it will be done on the next
+                // resize or configure event.
             },
             ShellSpecificState::WlrLayer { .. } => {
                 warn!("Resize Increments is ignored for layer_shell windows")
