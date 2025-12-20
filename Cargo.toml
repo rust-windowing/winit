@@ -67,9 +67,9 @@ unicode-segmentation = "1.7.1"
 windows-sys = "0.59.0"
 
 # Linux dependencies.
-ahash = { version = "0.8.7", features = ["no-rng"] }
 bytemuck = { version = "1.13.1", default-features = false }
 calloop = "0.14.3"
+foldhash = { version = "0.2.0", default-features = false, features = ["std"] }
 libc = "0.2.64"
 memmap2 = "0.9.0"
 percent-encoding = "2.0"
