@@ -16,6 +16,7 @@ use sctk::registry::{ProvidesRegistryState, RegistryState};
 use sctk::seat::SeatState;
 use sctk::seat::pointer::ThemedPointer;
 use sctk::shell::WaylandSurface;
+use sctk::shell::wlr_layer::{LayerShell, LayerShellHandler, LayerSurface, LayerSurfaceConfigure};
 use sctk::shell::xdg::XdgShell;
 use sctk::shell::xdg::popup::{Popup as XdgPopup, PopupConfigure, PopupHandler};
 use sctk::shell::xdg::window::{Window, WindowConfigure, WindowHandler};
