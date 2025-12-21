@@ -14,6 +14,8 @@ pub use platform::fill_window;
 #[allow(unused_imports)]
 pub use platform::fill_window_with_animated_color;
 #[allow(unused_imports)]
+pub use platform::fill_window_with_top_bar;
+#[allow(unused_imports)]
 pub use platform::fill_window_with_color;
 
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
@@ -104,6 +106,44 @@ mod platform {
     }
 
     #[allow(dead_code)]
+    pub fn fill_window_with_top_bar(
+        window: &dyn Window,
+        body_color: u32,
+        top_bar_color: u32,
+        top_bar_height: u32,
+    ) {
+        GC.with(|gc| {
+            let size = window.surface_size();
+            let (Some(width), Some(height)) =
+                (NonZeroU32::new(size.width), NonZeroU32::new(size.height))
+            else {
+                return;
+            };
+
+            // Either get the last context used or create a new one.
+            let mut gc = gc.borrow_mut();
+            let surface =
+                gc.get_or_insert_with(|| GraphicsContext::new(window)).create_surface(window);
+
+            surface.resize(width, height).expect("Failed to resize the softbuffer surface");
+
+            let mut buffer = surface.buffer_mut().expect("Failed to get the softbuffer buffer");
+            let width = width.get() as usize;
+            let height = height.get() as usize;
+            let top_bar_height = (top_bar_height as usize).min(height);
+
+            let pixels = &mut *buffer;
+            for y in 0..height {
+                let color = if y < top_bar_height { top_bar_color } else { body_color };
+                let row = &mut pixels[y * width..(y + 1) * width];
+                row.fill(color);
+            }
+
+            buffer.present().expect("Failed to present the softbuffer buffer");
+        })
+    }
+
+    #[allow(dead_code)]
     pub fn fill_window(window: &dyn Window) {
         fill_window_with_color(window, 0xff181818);
     }
@@ -138,6 +178,16 @@ mod platform {
 
     #[allow(dead_code)]
     pub fn fill_window_with_color(_window: &dyn winit::window::Window, _color: u32) {
+        // No-op on mobile platforms.
+    }
+
+    #[allow(dead_code)]
+    pub fn fill_window_with_top_bar(
+        _window: &dyn winit::window::Window,
+        _body_color: u32,
+        _top_bar_color: u32,
+        _top_bar_height: u32,
+    ) {
         // No-op on mobile platforms.
     }
 
