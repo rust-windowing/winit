@@ -89,6 +89,12 @@ pub trait EventLoopExtAndroid {
     fn android_app(&self) -> &AndroidApp;
 }
 
+impl EventLoopExtAndroid for EventLoop {
+    fn android_app(&self) -> &activity::AndroidApp {
+        &self.android_app
+    }
+}
+
 /// Additional methods on [`ActiveEventLoop`] that are specific to Android.
 pub trait ActiveEventLoopExtAndroid {
     /// Get the [`AndroidApp`] which was used to create this event loop.
@@ -131,6 +137,18 @@ pub trait EventLoopBuilderExtAndroid {
     ///
     /// Default is to let the operating system handle the volume keys
     fn handle_volume_keys(&mut self) -> &mut Self;
+}
+
+impl EventLoopBuilderExtAndroid for PlatformSpecificEventLoopAttributes {
+    fn with_android_app(&mut self, app: activity::AndroidApp) -> &mut Self {
+        self.android_app = Some(app);
+        self
+    }
+
+    fn handle_volume_keys(&mut self) -> &mut Self {
+        self.ignore_volume_keys = false;
+        self
+    }
 }
 
 /// Re-export of the `android_activity` API

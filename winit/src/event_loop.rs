@@ -165,6 +165,8 @@ impl EventLoop {
     ///     start_cause = event_loop.wait_if_necessary();
     /// }
     ///
+    /// app.destroy_surfaces(event_loop);
+    ///
     /// // Finished running, drop application state.
     /// drop(app);
     /// ```
@@ -366,20 +368,18 @@ impl winit_core::event_loop::register::EventLoopExtRegister for EventLoop {
 #[cfg(android_platform)]
 impl winit_android::EventLoopExtAndroid for EventLoop {
     fn android_app(&self) -> &winit_android::activity::AndroidApp {
-        &self.event_loop.android_app
+        self.event_loop.android_app()
     }
 }
 
 #[cfg(android_platform)]
 impl winit_android::EventLoopBuilderExtAndroid for EventLoopBuilder {
     fn with_android_app(&mut self, app: winit_android::activity::AndroidApp) -> &mut Self {
-        self.platform_specific.android_app = Some(app);
-        self
+        self.platform_specific.with_android_app(app)
     }
 
     fn handle_volume_keys(&mut self) -> &mut Self {
-        self.platform_specific.ignore_volume_keys = false;
-        self
+        self.platform_specific.handle_volume_keys()
     }
 }
 
