@@ -18,9 +18,10 @@ use windows_sys::Win32::UI::WindowsAndMessaging::{
     WS_SYSMENU, WS_VISIBLE,
 };
 use winit_core::icon::Icon;
+use winit_core::ime;
 use winit_core::keyboard::ModifiersState;
 use winit_core::monitor::Fullscreen;
-use winit_core::window::{ImeCapabilities, Theme, WindowAttributes};
+use winit_core::window::{Theme, WindowAttributes};
 
 use crate::{SelectedCursor, event_loop, util};
 
@@ -52,7 +53,7 @@ pub(crate) struct WindowState {
     pub window_flags: WindowFlags,
 
     pub ime_state: ImeState,
-    pub ime_capabilities: Option<ImeCapabilities>,
+    pub ime_capabilities: Option<ime::Capabilities>,
 
     // Used by WM_NCACTIVATE, WM_SETFOCUS and WM_KILLFOCUS
     pub is_active: bool,

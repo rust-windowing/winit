@@ -50,11 +50,11 @@ use windows_sys::Win32::UI::WindowsAndMessaging::{
 use winit_core::cursor::Cursor;
 use winit_core::error::RequestError;
 use winit_core::icon::{Icon, RgbaIcon};
+use winit_core::ime;
 use winit_core::monitor::{Fullscreen, MonitorHandle as CoreMonitorHandle, MonitorHandleProvider};
 use winit_core::window::{
-    CursorGrabMode, ImeCapabilities, ImeRequest, ImeRequestError, ResizeDirection, Theme,
-    UserAttentionType, Window as CoreWindow, WindowAttributes, WindowButtons, WindowId,
-    WindowLevel,
+    CursorGrabMode, ResizeDirection, Theme, UserAttentionType, Window as CoreWindow,
+    WindowAttributes, WindowButtons, WindowId, WindowLevel,
 };
 
 use crate::dark_mode::try_theme;
@@ -1004,17 +1004,19 @@ impl CoreWindow for Window {
         }
     }
 
-    fn ime_capabilities(&self) -> Option<ImeCapabilities> {
+    fn ime_capabilities(&self) -> Option<ime::Capabilities> {
         self.window_state.lock().unwrap().ime_capabilities
     }
 
-    fn request_ime_update(&self, request: ImeRequest) -> Result<(), ImeRequestError> {
+    fn request_ime_update(&self, request: ime::Request) -> Result<(), ime::RequestError> {
         // NOTE: this is racy way of doing this, but unless we remove the `Send` from the `Window`
         // we can not do much about that.
         let cap = self.window_state.lock().unwrap().ime_capabilities;
         match &request {
-            ImeRequest::Enable(..) if cap.is_some() => return Err(ImeRequestError::AlreadyEnabled),
-            ImeRequest::Update(_) if cap.is_none() => return Err(ImeRequestError::NotEnabled),
+            ime::Request::Enable(..) if cap.is_some() => {
+                return Err(ime::RequestError::AlreadyEnabled);
+            },
+            ime::Request::Update(_) if cap.is_none() => return Err(ime::RequestError::NotEnabled),
             _ => (),
         }
 
@@ -1024,24 +1026,19 @@ impl CoreWindow for Window {
             let hwnd = window.hwnd();
             let mut state = state.lock().unwrap();
             let (capabilities, request_data) = match &request {
-                ImeRequest::Enable(enable) => {
+                ime::Request::Enable(enable) => {
                     let capabilities = *enable.capabilities();
                     state.ime_capabilities = Some(capabilities);
                     ImeContext::set_ime_allowed(hwnd, true);
                     (capabilities, enable.request_data())
                 },
-                ImeRequest::Update(request_data) => {
+                ime::Request::Update(request_data) => {
                     if let Some(capabilities) = state.ime_capabilities {
                         (capabilities, request_data)
                     } else {
                         warn!("ime update without IME enabled.");
                         return;
                     }
-                },
-                ImeRequest::Disable => {
-                    state.ime_capabilities = None;
-                    ImeContext::set_ime_allowed(window.hwnd(), false);
-                    return;
                 },
             };
 
@@ -1060,6 +1057,15 @@ impl CoreWindow for Window {
         });
 
         Ok(())
+    }
+
+    fn disable_ime(&self) {
+        let window = self.window;
+        let state = self.window_state.clone();
+        self.thread_executor.execute_in_thread(move || unsafe {
+            state.lock().unwrap().ime_capabilities = None;
+            ImeContext::set_ime_allowed(window.hwnd(), false);
+        });
     }
 
     fn request_user_attention(&self, request_type: Option<UserAttentionType>) {

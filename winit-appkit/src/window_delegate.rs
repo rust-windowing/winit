@@ -46,10 +46,11 @@ use winit_core::cursor::Cursor;
 use winit_core::error::{NotSupportedError, RequestError};
 use winit_core::event::{SurfaceSizeWriter, WindowEvent};
 use winit_core::icon::Icon;
+use winit_core::ime;
 use winit_core::monitor::{Fullscreen, MonitorHandle as CoreMonitorHandle, MonitorHandleProvider};
 use winit_core::window::{
-    CursorGrabMode, ImeCapabilities, ImeRequest, ImeRequestError, ResizeDirection, Theme,
-    UserAttentionType, WindowAttributes, WindowButtons, WindowId, WindowLevel,
+    CursorGrabMode, ResizeDirection, Theme, UserAttentionType, WindowAttributes, WindowButtons,
+    WindowId, WindowLevel,
 };
 
 use super::app_state::AppState;
@@ -1674,26 +1675,22 @@ impl WindowDelegate {
         // https://developer.apple.com/library/content/documentation/Cocoa/Conceptual/WinPanel/Tasks/SettingWindowTitle.html
     }
 
-    pub fn request_ime_update(&self, request: ImeRequest) -> Result<(), ImeRequestError> {
+    pub fn request_ime_update(&self, request: ime::Request) -> Result<(), ime::RequestError> {
         let current_caps = self.view().ime_capabilities();
         let request_data = match request {
-            ImeRequest::Enable(enable) => {
+            ime::Request::Enable(enable) => {
                 let (capabilities, request_data) = enable.into_raw();
                 if current_caps.is_some() {
-                    return Err(ImeRequestError::AlreadyEnabled);
+                    return Err(ime::RequestError::AlreadyEnabled);
                 }
                 self.view().set_ime_allowed(Some(capabilities));
                 request_data
             },
-            ImeRequest::Update(request_data) => {
+            ime::Request::Update(request_data) => {
                 if current_caps.is_none() {
-                    return Err(ImeRequestError::NotEnabled);
+                    return Err(ime::RequestError::NotEnabled);
                 }
                 request_data
-            },
-            ImeRequest::Disable => {
-                self.view().set_ime_allowed(None);
-                return Ok(());
             },
         };
 
@@ -1714,7 +1711,12 @@ impl WindowDelegate {
         Ok(())
     }
 
-    pub fn ime_capabilities(&self) -> Option<ImeCapabilities> {
+    #[inline]
+    pub fn disable_ime(&self) {
+        self.view().set_ime_allowed(None);
+    }
+
+    pub fn ime_capabilities(&self) -> Option<ime::Capabilities> {
         self.view().ime_capabilities()
     }
 
