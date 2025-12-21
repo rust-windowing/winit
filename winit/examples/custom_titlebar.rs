@@ -8,7 +8,7 @@ use std::error::Error;
 
 use ::tracing::{info, warn};
 use winit::application::ApplicationHandler;
-use winit::event::{ElementState, KeyEvent, WindowEvent};
+use winit::event::{ButtonSource, ElementState, KeyEvent, MouseButton, WindowEvent};
 use winit::event_loop::{ActiveEventLoop, EventLoop};
 use winit::keyboard::{Key, NamedKey};
 use winit::window::{Window, WindowAttributes, WindowId};
@@ -69,6 +69,7 @@ impl ApplicationHandler for App {
 
         info!("Key bindings:");
         info!("  d: toggle decorations (all platforms)");
+        info!("  right click: show window menu (if supported)");
         #[cfg(macos_platform)]
         {
             info!("  u: toggle unified titlebar (macOS)");
@@ -232,6 +233,14 @@ impl ApplicationHandler for App {
                     _ => (),
                 };
             },
+            WindowEvent::PointerButton {
+                state: ElementState::Pressed,
+                button: ButtonSource::Mouse(MouseButton::Right),
+                position,
+                ..
+            } => {
+                self.window().show_window_menu(position.into());
+            }
             WindowEvent::SurfaceResized(_) => {
                 self.request_redraw();
             },

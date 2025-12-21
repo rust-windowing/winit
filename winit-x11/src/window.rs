@@ -2007,7 +2007,45 @@ impl UnownedWindow {
     }
 
     #[inline]
-    pub fn show_window_menu(&self, _position: Position) {}
+    pub fn show_window_menu(&self, position: Position) {
+        let atoms = self.xconn.atoms();
+        let show_menu_message = atoms[_GTK_SHOW_WINDOW_MENU];
+
+        if !util::hint_is_supported(show_menu_message) {
+            return;
+        }
+
+        let (x, y): (i32, i32) = position.to_physical::<i32>(self.scale_factor()).into();
+        let (window_x, window_y) = self.inner_position_physical();
+        let x_root = (i64::from(window_x) + i64::from(x)).max(0) as u32;
+        let y_root = (i64::from(window_y) + i64::from(y)).max(0) as u32;
+
+        let result = self.xconn.send_client_msg(
+            self.xwindow,
+            self.root,
+            show_menu_message,
+            Some(
+                xproto::EventMask::SUBSTRUCTURE_REDIRECT | xproto::EventMask::SUBSTRUCTURE_NOTIFY,
+            ),
+            [
+                util::VIRTUAL_CORE_POINTER as u32,
+                x_root,
+                y_root,
+                0,
+                0,
+            ],
+        );
+
+        if let Err(err) = result {
+            tracing::error!("failed to request window menu: {err}");
+            return;
+        }
+
+        if let Err(err) = self.xconn.flush_requests() {
+            tracing::error!("failed to flush window menu request: {err}");
+        }
+    }
+
 
     /// Resizes the window while it is being dragged.
     pub fn drag_resize_window(&self, direction: ResizeDirection) -> Result<(), RequestError> {
