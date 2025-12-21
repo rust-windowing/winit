@@ -12,7 +12,9 @@
 use std::error::Error;
 
 use ::tracing::{info, warn};
+use cursor_icon::CursorIcon;
 use winit::application::ApplicationHandler;
+use winit::cursor::Cursor;
 use winit::event::{ButtonSource, ElementState, MouseButton, WindowEvent};
 use winit::event_loop::{ActiveEventLoop, EventLoop};
 use winit::keyboard::{Key, NamedKey};
@@ -25,11 +27,42 @@ mod tracing;
 
 const TITLEBAR_HEIGHT_LOGICAL: f64 = 36.0;
 const RESIZE_BORDER_LOGICAL: f64 = 8.0;
+const CAPTION_BUTTON_SIZE_LOGICAL: f64 = 14.0;
+const CAPTION_BUTTON_GAP_LOGICAL: f64 = 8.0;
+const CAPTION_BUTTON_PADDING_LOGICAL: f64 = 10.0;
 
-#[derive(Debug, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum CaptionButton {
+    Minimize,
+    Maximize,
+    Close,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum HitTarget {
+    None,
+    Titlebar,
+    Resize(ResizeDirection),
+    Button(CaptionButton),
+}
+
+#[derive(Debug)]
 struct App {
     window: Option<Box<dyn Window>>,
     decorations: bool,
+    hit_target: HitTarget,
+    cursor_icon: CursorIcon,
+}
+
+impl Default for App {
+    fn default() -> Self {
+        Self {
+            window: None,
+            decorations: false,
+            hit_target: HitTarget::None,
+            cursor_icon: CursorIcon::default(),
+        }
+    }
 }
 
 impl App {
@@ -71,8 +104,8 @@ impl App {
             (_, true, true, _) => Some(ResizeDirection::NorthEast),
             (true, _, _, true) => Some(ResizeDirection::SouthWest),
             (_, true, _, true) => Some(ResizeDirection::SouthEast),
-            (true, _, _, _) => Some(ResizeDirection::West),
-            (_, true, _, _) => Some(ResizeDirection::East),
+            (true, ..) => Some(ResizeDirection::West),
+            (_, true, ..) => Some(ResizeDirection::East),
             (_, _, true, _) => Some(ResizeDirection::North),
             (_, _, _, true) => Some(ResizeDirection::South),
             _ => None,
@@ -82,6 +115,89 @@ impl App {
     fn is_in_titlebar(&self, position: winit::dpi::PhysicalPosition<f64>) -> bool {
         let y = position.y;
         y >= 0.0 && y < self.titlebar_height_px()
+    }
+
+    fn caption_button_rects(&self) -> [(CaptionButton, fill::Rect); 3] {
+        let size = self.window().surface_size();
+        let width = size.width;
+
+        let scale = self.window().scale_factor();
+        let button_size = (CAPTION_BUTTON_SIZE_LOGICAL * scale).round().max(1.0) as u32;
+        let gap = (CAPTION_BUTTON_GAP_LOGICAL * scale).round().max(0.0) as u32;
+        let padding = (CAPTION_BUTTON_PADDING_LOGICAL * scale).round().max(0.0) as u32;
+
+        let top_bar_height = self.titlebar_height_px().round().max(1.0) as u32;
+        let y = (top_bar_height.saturating_sub(button_size)) / 2;
+
+        let cluster_width = button_size.saturating_mul(3).saturating_add(gap.saturating_mul(2));
+        let x0 = width.saturating_sub(padding.saturating_add(cluster_width));
+
+        let rect = |i: u32| fill::Rect {
+            x: x0.saturating_add(i.saturating_mul(button_size.saturating_add(gap))),
+            y,
+            width: button_size,
+            height: button_size,
+        };
+
+        [
+            (CaptionButton::Minimize, rect(0)),
+            (CaptionButton::Maximize, rect(1)),
+            (CaptionButton::Close, rect(2)),
+        ]
+    }
+
+    fn hit_test_caption_buttons(
+        &self,
+        position: winit::dpi::PhysicalPosition<f64>,
+    ) -> Option<CaptionButton> {
+        for (button, rect) in self.caption_button_rects() {
+            let x0 = rect.x as f64;
+            let y0 = rect.y as f64;
+            let x1 = (rect.x + rect.width) as f64;
+            let y1 = (rect.y + rect.height) as f64;
+            if position.x >= x0 && position.x < x1 && position.y >= y0 && position.y < y1 {
+                return Some(button);
+            }
+        }
+        None
+    }
+
+    fn hit_test(&self, position: winit::dpi::PhysicalPosition<f64>) -> HitTarget {
+        if let Some(direction) = self.hit_test_resize(position) {
+            return HitTarget::Resize(direction);
+        }
+
+        if let Some(button) = self.hit_test_caption_buttons(position) {
+            return HitTarget::Button(button);
+        }
+
+        if self.is_in_titlebar(position) {
+            return HitTarget::Titlebar;
+        }
+
+        HitTarget::None
+    }
+
+    fn cursor_for_target(target: HitTarget) -> CursorIcon {
+        match target {
+            HitTarget::None => CursorIcon::Default,
+            HitTarget::Titlebar => CursorIcon::Grab,
+            HitTarget::Button(_) => CursorIcon::Pointer,
+            HitTarget::Resize(direction) => match direction {
+                ResizeDirection::East | ResizeDirection::West => CursorIcon::EwResize,
+                ResizeDirection::North | ResizeDirection::South => CursorIcon::NsResize,
+                ResizeDirection::NorthEast | ResizeDirection::SouthWest => CursorIcon::NeswResize,
+                ResizeDirection::NorthWest | ResizeDirection::SouthEast => CursorIcon::NwseResize,
+            },
+        }
+    }
+
+    fn set_cursor_icon(&mut self, icon: CursorIcon) {
+        if icon == self.cursor_icon {
+            return;
+        }
+        self.cursor_icon = icon;
+        self.window().set_cursor(Cursor::from(icon));
     }
 }
 
@@ -96,6 +212,8 @@ impl ApplicationHandler for App {
         info!("  right click: show window menu (if supported)");
 
         self.decorations = false;
+        self.hit_target = HitTarget::None;
+        self.cursor_icon = CursorIcon::Default;
 
         let window_attributes = WindowAttributes::default()
             .with_title("Custom decorations (titlebar-less)")
@@ -139,16 +257,29 @@ impl ApplicationHandler for App {
                 button: ButtonSource::Mouse(MouseButton::Left),
                 position,
                 ..
-            } => {
-                if let Some(direction) = self.hit_test_resize(position) {
+            } => match self.hit_test(position) {
+                HitTarget::Resize(direction) => {
                     if let Err(err) = self.window().drag_resize_window(direction) {
                         warn!("drag_resize_window({direction:?}) failed: {err:?}");
                     }
-                } else if self.is_in_titlebar(position) {
+                },
+                HitTarget::Titlebar => {
                     if let Err(err) = self.window().drag_window() {
                         warn!("drag_window failed: {err:?}");
                     }
-                }
+                },
+                HitTarget::Button(CaptionButton::Close) => {
+                    fill::cleanup_window(self.window());
+                    event_loop.exit();
+                },
+                HitTarget::Button(CaptionButton::Minimize) => {
+                    self.window().set_minimized(true);
+                },
+                HitTarget::Button(CaptionButton::Maximize) => {
+                    let maximized = self.window().is_maximized();
+                    self.window().set_maximized(!maximized);
+                },
+                HitTarget::None => (),
             },
             WindowEvent::PointerButton {
                 state: ElementState::Pressed,
@@ -158,6 +289,14 @@ impl ApplicationHandler for App {
             } => {
                 self.window().show_window_menu(position.into());
             },
+            WindowEvent::PointerMoved { position, .. } => {
+                let target = self.hit_test(position);
+                if target != self.hit_target {
+                    self.hit_target = target;
+                    self.set_cursor_icon(Self::cursor_for_target(target));
+                    self.window().request_redraw();
+                }
+            },
             WindowEvent::SurfaceResized(_) => {
                 self.window().request_redraw();
             },
@@ -166,7 +305,29 @@ impl ApplicationHandler for App {
                 window.pre_present_notify();
 
                 let top_bar_height = self.titlebar_height_px().ceil().max(1.0) as u32;
-                fill::fill_window_with_top_bar(window, 0xff1c1c1c, 0xff2b2b2b, top_bar_height);
+
+                let mut rects = Vec::new();
+                for (button, rect) in self.caption_button_rects() {
+                    let base: u32 = match button {
+                        CaptionButton::Close => 0xffb8383d_u32,
+                        CaptionButton::Maximize => 0xff2f9e44_u32,
+                        CaptionButton::Minimize => 0xfff08c00_u32,
+                    };
+                    let color = if self.hit_target == HitTarget::Button(button) {
+                        base.saturating_add(0x00101010)
+                    } else {
+                        base
+                    };
+                    rects.push((rect, color));
+                }
+
+                fill::fill_window_with_top_bar_and_rects(
+                    window,
+                    0xff1c1c1c,
+                    0xff2b2b2b,
+                    top_bar_height,
+                    &rects,
+                );
             },
             _ => (),
         }
@@ -184,4 +345,3 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     Ok(())
 }
-

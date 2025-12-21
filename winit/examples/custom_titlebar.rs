@@ -11,14 +11,13 @@ use winit::application::ApplicationHandler;
 use winit::event::{ButtonSource, ElementState, KeyEvent, MouseButton, WindowEvent};
 use winit::event_loop::{ActiveEventLoop, EventLoop};
 use winit::keyboard::{Key, NamedKey};
-use winit::window::{Window, WindowAttributes, WindowId};
-
 #[cfg(macos_platform)]
 use winit::platform::macos::{WindowAttributesMacOS, WindowExtMacOS};
 #[cfg(web_platform)]
 use winit::platform::web::WindowAttributesWeb;
 #[cfg(windows_platform)]
 use winit::platform::windows::{BackdropType, Color, WindowAttributesWindows, WindowExtWindows};
+use winit::window::{Window, WindowAttributes, WindowId};
 
 #[path = "util/fill.rs"]
 mod fill;
@@ -196,15 +195,17 @@ impl ApplicationHandler for App {
                         #[cfg(windows_platform)]
                         {
                             self.windows_custom_title_colors = !self.windows_custom_title_colors;
-                            info!("windows custom title colors: {}", self.windows_custom_title_colors);
+                            info!(
+                                "windows custom title colors: {}",
+                                self.windows_custom_title_colors
+                            );
 
                             if self.windows_custom_title_colors {
                                 self.window().set_title_background_color(Some(Color::from_rgb(
                                     0x20, 0x24, 0x2a,
                                 )));
-                                self.window().set_title_text_color(Color::from_rgb(
-                                    0xf0, 0xf3, 0xf6,
-                                ));
+                                self.window()
+                                    .set_title_text_color(Color::from_rgb(0xf0, 0xf3, 0xf6));
                             } else {
                                 self.window().set_title_background_color(None);
                                 self.window().set_title_text_color(Color::SYSTEM_DEFAULT);
@@ -240,7 +241,7 @@ impl ApplicationHandler for App {
                 ..
             } => {
                 self.window().show_window_menu(position.into());
-            }
+            },
             WindowEvent::SurfaceResized(_) => {
                 self.request_redraw();
             },

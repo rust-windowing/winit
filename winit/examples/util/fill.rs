@@ -14,9 +14,11 @@ pub use platform::fill_window;
 #[allow(unused_imports)]
 pub use platform::fill_window_with_animated_color;
 #[allow(unused_imports)]
+pub use platform::fill_window_with_color;
+#[allow(unused_imports)]
 pub use platform::fill_window_with_top_bar;
 #[allow(unused_imports)]
-pub use platform::fill_window_with_color;
+pub use platform::{Rect, fill_window_with_top_bar_and_rects};
 
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
 mod platform {
@@ -32,6 +34,36 @@ mod platform {
     #[cfg(all(web_platform, not(android_platform)))]
     use web_time::Instant;
     use winit::window::{Window, WindowId};
+
+    #[derive(Copy, Clone, Debug, Eq, PartialEq)]
+    pub struct Rect {
+        pub x: u32,
+        pub y: u32,
+        pub width: u32,
+        pub height: u32,
+    }
+
+    impl Rect {
+        pub fn clamp_to(self, width: u32, height: u32) -> Option<Self> {
+            if self.width == 0 || self.height == 0 {
+                return None;
+            }
+
+            let x1 = self.x.min(width);
+            let y1 = self.y.min(height);
+            let x2 = self.x.saturating_add(self.width).min(width);
+            let y2 = self.y.saturating_add(self.height).min(height);
+
+            let width = x2.saturating_sub(x1);
+            let height = y2.saturating_sub(y1);
+
+            if width == 0 || height == 0 {
+                return None;
+            }
+
+            Some(Self { x: x1, y: y1, width, height })
+        }
+    }
 
     thread_local! {
         // NOTE: You should never do things like that, create context and drop it before
@@ -144,6 +176,63 @@ mod platform {
     }
 
     #[allow(dead_code)]
+    pub fn fill_window_with_top_bar_and_rects(
+        window: &dyn Window,
+        body_color: u32,
+        top_bar_color: u32,
+        top_bar_height: u32,
+        rects: &[(Rect, u32)],
+    ) {
+        GC.with(|gc| {
+            let size = window.surface_size();
+            let (Some(width), Some(height)) =
+                (NonZeroU32::new(size.width), NonZeroU32::new(size.height))
+            else {
+                return;
+            };
+
+            // Either get the last context used or create a new one.
+            let mut gc = gc.borrow_mut();
+            let surface =
+                gc.get_or_insert_with(|| GraphicsContext::new(window)).create_surface(window);
+
+            surface.resize(width, height).expect("Failed to resize the softbuffer surface");
+
+            let mut buffer = surface.buffer_mut().expect("Failed to get the softbuffer buffer");
+            let width = width.get() as usize;
+            let height = height.get() as usize;
+            let top_bar_height = (top_bar_height as usize).min(height);
+
+            let pixels = &mut *buffer;
+            for y in 0..height {
+                let color = if y < top_bar_height { top_bar_color } else { body_color };
+                let row = &mut pixels[y * width..(y + 1) * width];
+                row.fill(color);
+            }
+
+            let surface_width = width as u32;
+            let surface_height = height as u32;
+            for &(rect, color) in rects {
+                let Some(rect) = rect.clamp_to(surface_width, surface_height) else {
+                    continue;
+                };
+
+                let x0 = rect.x as usize;
+                let x1 = (rect.x + rect.width) as usize;
+                let y0 = rect.y as usize;
+                let y1 = (rect.y + rect.height) as usize;
+
+                for y in y0..y1 {
+                    let row = &mut pixels[y * width + x0..y * width + x1];
+                    row.fill(color);
+                }
+            }
+
+            buffer.present().expect("Failed to present the softbuffer buffer");
+        })
+    }
+
+    #[allow(dead_code)]
     pub fn fill_window(window: &dyn Window) {
         fill_window_with_color(window, 0xff181818);
     }
@@ -187,6 +276,25 @@ mod platform {
         _body_color: u32,
         _top_bar_color: u32,
         _top_bar_height: u32,
+    ) {
+        // No-op on mobile platforms.
+    }
+
+    #[derive(Copy, Clone, Debug, Eq, PartialEq)]
+    pub struct Rect {
+        pub x: u32,
+        pub y: u32,
+        pub width: u32,
+        pub height: u32,
+    }
+
+    #[allow(dead_code)]
+    pub fn fill_window_with_top_bar_and_rects(
+        _window: &dyn winit::window::Window,
+        _body_color: u32,
+        _top_bar_color: u32,
+        _top_bar_height: u32,
+        _rects: &[(Rect, u32)],
     ) {
         // No-op on mobile platforms.
     }

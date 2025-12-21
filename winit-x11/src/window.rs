@@ -2024,16 +2024,8 @@ impl UnownedWindow {
             self.xwindow,
             self.root,
             show_menu_message,
-            Some(
-                xproto::EventMask::SUBSTRUCTURE_REDIRECT | xproto::EventMask::SUBSTRUCTURE_NOTIFY,
-            ),
-            [
-                util::VIRTUAL_CORE_POINTER as u32,
-                x_root,
-                y_root,
-                0,
-                0,
-            ],
+            Some(xproto::EventMask::SUBSTRUCTURE_REDIRECT | xproto::EventMask::SUBSTRUCTURE_NOTIFY),
+            [util::VIRTUAL_CORE_POINTER as u32, x_root, y_root, 0, 0],
         );
 
         if let Err(err) = result {
@@ -2045,7 +2037,6 @@ impl UnownedWindow {
             tracing::error!("failed to flush window menu request: {err}");
         }
     }
-
 
     /// Resizes the window while it is being dragged.
     pub fn drag_resize_window(&self, direction: ResizeDirection) -> Result<(), RequestError> {
