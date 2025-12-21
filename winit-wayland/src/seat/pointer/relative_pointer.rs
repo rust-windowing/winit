@@ -3,8 +3,8 @@
 use std::ops::Deref;
 
 use sctk::reexports::client::globals::{BindError, GlobalList};
-use sctk::reexports::client::{delegate_dispatch, Dispatch};
 use sctk::reexports::client::{Connection, QueueHandle};
+use sctk::reexports::client::{Dispatch, delegate_dispatch};
 use sctk::reexports::protocols::wp::relative_pointer::zv1::{
     client::zwp_relative_pointer_manager_v1::ZwpRelativePointerManagerV1,
     client::zwp_relative_pointer_v1::{self, ZwpRelativePointerV1},
@@ -12,8 +12,8 @@ use sctk::reexports::protocols::wp::relative_pointer::zv1::{
 
 use sctk::globals::GlobalData;
 
-use winit_core::event::DeviceEvent;
 use crate::state::WinitState;
+use winit_core::event::DeviceEvent;
 
 /// Wrapper around the relative pointer.
 #[derive(Debug)]

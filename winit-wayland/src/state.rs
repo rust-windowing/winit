@@ -15,6 +15,7 @@ use sctk::registry::{ProvidesRegistryState, RegistryState};
 use sctk::seat::SeatState;
 use sctk::seat::pointer::ThemedPointer;
 use sctk::shell::WaylandSurface;
+use sctk::shell::wlr_layer::{LayerShell, LayerShellHandler, LayerSurface, LayerSurfaceConfigure};
 use sctk::shell::xdg::XdgShell;
 use sctk::shell::xdg::window::{Window, WindowConfigure, WindowHandler};
 use sctk::shm::slot::SlotPool;
@@ -60,6 +61,9 @@ pub struct WinitState {
 
     /// The XDG shell that is used for windows.
     pub xdg_shell: XdgShell,
+
+    /// The layer shell for layer surfaces
+    pub layer_shell: Option<LayerShell>,
 
     /// The currently present windows.
     pub windows: RefCell<AHashMap<WindowId, Arc<Mutex<WindowState>>>>,
@@ -179,6 +183,10 @@ impl WinitState {
             seat_state,
             shm,
 
+            layer_shell: LayerShell::bind(globals, queue_handle)
+                .map_err(|err| os_error!(err))
+                .inspect_err(|e| tracing::warn!("Error get LayerShell: {e}"))
+                .ok(),
             xdg_shell: XdgShell::bind(globals, queue_handle).map_err(|err| os_error!(err))?,
             xdg_activation: XdgActivationState::bind(globals, queue_handle).ok(),
             xdg_toplevel_icon_manager: XdgToplevelIconManagerState::bind(globals, queue_handle)
@@ -325,6 +333,46 @@ impl WindowHandler for WinitState {
     }
 }
 
+impl LayerShellHandler for WinitState {
+    fn closed(&mut self, _: &Connection, _: &QueueHandle<Self>, layer: &LayerSurface) {
+        let window_id = super::make_wid(layer.wl_surface());
+        Self::queue_close(&mut self.window_compositor_updates, window_id);
+    }
+
+    fn configure(
+        &mut self,
+        _: &Connection,
+        _: &QueueHandle<Self>,
+        layer: &LayerSurface,
+        configure: LayerSurfaceConfigure,
+        _serial: u32,
+    ) {
+        let window_id = super::make_wid(layer.wl_surface());
+
+        let pos = if let Some(pos) =
+            self.window_compositor_updates.iter().position(|update| update.window_id == window_id)
+        {
+            pos
+        } else {
+            self.window_compositor_updates.push(WindowCompositorUpdate::new(window_id));
+            self.window_compositor_updates.len() - 1
+        };
+
+        // Populate the configure to the window.
+        //
+        // XXX the size on the window will be updated right before dispatching the size to the user.
+        self.windows
+            .get_mut()
+            .get_mut(&window_id)
+            .expect("got configure for dead window.")
+            .lock()
+            .unwrap()
+            .configure_layer(configure);
+
+        self.window_compositor_updates[pos].resized = true;
+    }
+}
+
 impl OutputHandler for WinitState {
     fn output_state(&mut self) -> &mut OutputState {
         &mut self.output_state
@@ -452,3 +500,4 @@ sctk::delegate_registry!(WinitState);
 sctk::delegate_shm!(WinitState);
 sctk::delegate_xdg_shell!(WinitState);
 sctk::delegate_xdg_window!(WinitState);
+sctk::delegate_layer!(WinitState);
