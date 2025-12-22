@@ -27,7 +27,7 @@ impl TouchHandler for WinitState {
     ) {
         let window_id = crate::make_wid(&surface);
         let scale_factor = match self.windows.get_mut().get(&window_id) {
-            Some(window) => window.lock().unwrap().scale_factor(),
+            Some(window) => window.lock().scale_factor(),
             None => return,
         };
 
@@ -106,7 +106,7 @@ impl TouchHandler for WinitState {
 
         let window_id = crate::make_wid(&touch_point.surface);
         let scale_factor = match self.windows.get_mut().get(&window_id) {
-            Some(window) => window.lock().unwrap().scale_factor(),
+            Some(window) => window.lock().scale_factor(),
             None => return,
         };
 
@@ -161,7 +161,7 @@ impl TouchHandler for WinitState {
 
         let window_id = crate::make_wid(&touch_point.surface);
         let scale_factor = match self.windows.get_mut().get(&window_id) {
-            Some(window) => window.lock().unwrap().scale_factor(),
+            Some(window) => window.lock().scale_factor(),
             None => return,
         };
 
@@ -193,7 +193,7 @@ impl TouchHandler for WinitState {
         for (id, touch_point) in seat_state.touch_map.drain() {
             let window_id = crate::make_wid(&touch_point.surface);
             let scale_factor = match self.windows.get_mut().get(&window_id) {
-                Some(window) => window.lock().unwrap().scale_factor(),
+                Some(window) => window.lock().scale_factor(),
                 None => return,
             };
 

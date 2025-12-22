@@ -16,6 +16,7 @@ use winit_core::window::{
 };
 
 use crate::state::WinitState;
+use crate::window::state::AnyWindowStateLocked;
 
 #[derive(Debug)]
 pub struct TextInputState {
@@ -68,8 +69,8 @@ impl Dispatch<ZwpTextInputV3, TextInputData, WinitState> for TextInputState {
                 let window_id = crate::make_wid(&surface);
                 text_input_data.surface = Some(surface);
 
-                let mut window = match windows.get(&window_id) {
-                    Some(window) => window.lock().unwrap(),
+                let window = match windows.get(&window_id) {
+                    Some(window) => window.lock(),
                     None => return,
                 };
 
@@ -80,7 +81,14 @@ impl Dispatch<ZwpTextInputV3, TextInputData, WinitState> for TextInputState {
                     state.events_sink.push_window_event(WindowEvent::Ime(Ime::Enabled), window_id);
                 }
 
-                window.text_input_entered(text_input);
+                match window {
+                    AnyWindowStateLocked::TopLevel(mut window) => {
+                        window.text_input_entered(text_input)
+                    },
+                    AnyWindowStateLocked::Popup(mut window) => {
+                        window.text_input_entered(text_input)
+                    },
+                }
             },
             TextInputEvent::Leave { surface } => {
                 text_input_data.surface = None;
@@ -94,12 +102,17 @@ impl Dispatch<ZwpTextInputV3, TextInputData, WinitState> for TextInputState {
 
                 // XXX this check is essential, because `leave` could have a
                 // reference to nil surface...
-                let mut window = match windows.get(&window_id) {
-                    Some(window) => window.lock().unwrap(),
+                let window = match windows.get(&window_id) {
+                    Some(window) => window.lock(),
                     None => return,
                 };
 
-                window.text_input_left(text_input);
+                match window {
+                    AnyWindowStateLocked::TopLevel(mut window) => {
+                        window.text_input_left(text_input)
+                    },
+                    AnyWindowStateLocked::Popup(mut window) => window.text_input_left(text_input),
+                }
 
                 state.events_sink.push_window_event(WindowEvent::Ime(Ime::Disabled), window_id);
             },
@@ -132,7 +145,7 @@ impl Dispatch<ZwpTextInputV3, TextInputData, WinitState> for TextInputState {
 
                 // Just in case some IME sends an event for the disabled window.
                 if let Some(window) = windows.get(&window_id) {
-                    if window.lock().unwrap().text_input_state().is_none() {
+                    if window.lock().text_input_state().is_none() {
                         return;
                     }
                 };

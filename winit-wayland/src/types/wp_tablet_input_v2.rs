@@ -205,7 +205,7 @@ impl Dispatch<ZwpTabletToolV2, TabletToolData, WinitState> for TabletManager {
 
                     // Ensure that window exists.
                     let window = match state.windows.get_mut().get_mut(&window_id) {
-                        Some(window) => window.lock().unwrap(),
+                        Some(window) => window.lock(),
                         None => continue,
                     };
 

@@ -35,6 +35,7 @@ use winit_core::event::{
 
 use crate::state::WinitState;
 use crate::WindowId;
+use crate::window::state::AnyWindowStateLocked;
 
 pub mod pointer_gesture;
 pub mod relative_pointer;
@@ -76,8 +77,8 @@ impl PointerHandler for WinitState {
             let window_id = crate::make_wid(parent_surface);
 
             // Ensure that window exists.
-            let mut window = match self.windows.get_mut().get_mut(&window_id) {
-                Some(window) => window.lock().unwrap(),
+            let window = match self.windows.get_mut().get_mut(&window_id) {
+                Some(window) => window.lock(),
                 None => continue,
             };
 
@@ -90,6 +91,8 @@ impl PointerHandler for WinitState {
                 PointerEventKind::Enter { .. } | PointerEventKind::Motion { .. }
                     if parent_surface != surface =>
                 {
+                    let AnyWindowStateLocked::TopLevel(mut window) = window else { continue };
+
                     if let Some(icon) = window.frame_point_moved(
                         seat,
                         surface,
@@ -101,12 +104,16 @@ impl PointerHandler for WinitState {
                     }
                 },
                 PointerEventKind::Leave { .. } if parent_surface != surface => {
+                    let AnyWindowStateLocked::TopLevel(mut window) = window else { continue };
+
                     window.frame_point_left();
                 },
                 ref kind @ PointerEventKind::Press { button, serial, time }
                 | ref kind @ PointerEventKind::Release { button, serial, time }
                     if parent_surface != surface =>
                 {
+                    let AnyWindowStateLocked::TopLevel(mut window) = window else { continue };
+
                     let click = match wayland_button_to_winit(button) {
                         ButtonSource::Mouse(MouseButton::Left) => FrameClick::Normal,
                         ButtonSource::Mouse(MouseButton::Right) => FrameClick::Alternate,
@@ -137,13 +144,21 @@ impl PointerHandler for WinitState {
                         window_id,
                     );
 
-                    window.pointer_entered(Arc::downgrade(themed_pointer));
+                    let added = Arc::downgrade(themed_pointer);
+                    match window {
+                        AnyWindowStateLocked::TopLevel(mut window) => window.pointer_entered(added),
+                        AnyWindowStateLocked::Popup(mut window) => window.pointer_entered(added),
+                    }
 
                     // Set the currently focused surface.
                     pointer.winit_data().inner.lock().unwrap().surface = Some(window_id);
                 },
                 PointerEventKind::Leave { .. } => {
-                    window.pointer_left(Arc::downgrade(themed_pointer));
+                    let removed = Arc::downgrade(themed_pointer);
+                    match window {
+                        AnyWindowStateLocked::TopLevel(mut window) => window.pointer_left(removed),
+                        AnyWindowStateLocked::Popup(mut window) => window.pointer_left(removed),
+                    }
 
                     // Remove the active surface.
                     pointer.winit_data().inner.lock().unwrap().surface = None;
