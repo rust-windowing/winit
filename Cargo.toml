@@ -376,3 +376,6 @@ edition = "2021"
 [workspace.dependencies]
 serde = { version = "1", features = ["serde_derive"] }
 mint = "0.5.6"
+
+[patch.crates-io]
+android-activity = { git = "https://github.com/rust-mobile/android-activity.git", branch = "rib/stack/ime-support" }

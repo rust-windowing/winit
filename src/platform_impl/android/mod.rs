@@ -6,7 +6,9 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{mpsc, Arc, Mutex};
 use std::time::{Duration, Instant};
 
-use android_activity::input::{InputEvent, KeyAction, Keycode, MotionAction};
+use android_activity::input::{
+    InputEvent, KeyAction, Keycode, MotionAction, TextInputAction, TextInputState, TextSpan,
+};
 use android_activity::{
     AndroidApp, AndroidAppWaker, ConfigurationRef, InputStatus, MainEvent, Rect,
 };
@@ -131,9 +133,14 @@ impl RedrawRequester {
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub struct KeyEventExtra {}
 
+struct ImeState {
+    ime_allowed: AtomicBool,
+}
+
 pub struct EventLoop<T: 'static> {
     pub(crate) android_app: AndroidApp,
     window_target: event_loop::ActiveEventLoop,
+    ime_state: Arc<ImeState>,
     redraw_flag: SharedFlag,
     user_events_sender: mpsc::Sender<T>,
     user_events_receiver: PeekableReceiver<T>, // must wake looper whenever something gets sent
@@ -169,6 +176,8 @@ impl<T: 'static> EventLoop<T> {
         );
         let redraw_flag = SharedFlag::new();
 
+        let ime_state = Arc::new(ImeState { ime_allowed: AtomicBool::new(false) });
+
         Ok(Self {
             android_app: android_app.clone(),
             window_target: event_loop::ActiveEventLoop {
@@ -180,9 +189,11 @@ impl<T: 'static> EventLoop<T> {
                         &redraw_flag,
                         android_app.create_waker(),
                     ),
+                    ime_state: Arc::clone(&ime_state),
                 },
                 _marker: PhantomData,
             },
+            ime_state,
             redraw_flag,
             user_events_sender,
             user_events_receiver: PeekableReceiver::from_recv(user_events_receiver),
@@ -466,6 +477,94 @@ impl<T: 'static> EventLoop<T> {
                     },
                 }
             },
+            InputEvent::TextEvent(input_state) => {
+                trace!("Received IME text event: {:?}", input_state);
+                if self.ime_state.ime_allowed.load(Ordering::SeqCst) == false {
+                    trace!("IME input not enabled, ignoring spurious text event");
+                    return InputStatus::Handled;
+                }
+                // Note: Winit does not support surrounding text or tracking a selection/cursor that
+                // may span within the surrounding text and the preedit text.
+                //
+                // Since there's no API to specify surrounding text, set_ime_allowed() will reset
+                // the text to an empty string and we will treat all the text as preedit text.
+                //
+                // We map Android's composing region to winit's preedit selection region.
+                //
+                // This seems a little odd, since Android's notion of a "composing region" would
+                // normally be equated with winit's "preedit" text but conceptually we're mapping
+                // Android's surrounding text + composing region into winit's preedit text +
+                // selection region.
+                //
+                // We ignore the separate selection region that Android supports.
+
+                let selection = if let Some(compose_region) = input_state.compose_region {
+                    // Note: Winit uses byte offsets for the preedit selection region and Android
+                    // uses char offsets.
+                    let selection_0 = input_state
+                        .text
+                        .char_indices()
+                        .enumerate()
+                        .find(|(_, (byte_offset, _))| *byte_offset >= compose_region.start)
+                        .map(|(char_idx, _)| char_idx);
+                    let selection_1 = input_state
+                        .text
+                        .char_indices()
+                        .enumerate()
+                        .find(|(_, (byte_offset, _))| *byte_offset >= compose_region.end)
+                        .map(|(char_idx, _)| char_idx);
+                    let selection_0 = selection_0.unwrap_or(input_state.text.len());
+                    let selection_1 = selection_1.unwrap_or(input_state.text.len());
+                    Some((selection_0, selection_1))
+                } else {
+                    let len = input_state.text.len();
+                    Some((0, len))
+                };
+
+                let event = event::Event::WindowEvent {
+                    window_id: window::WindowId(WindowId),
+                    event: event::WindowEvent::Ime(event::Ime::Preedit(
+                        input_state.text.clone(),
+                        selection,
+                    )),
+                };
+                callback(event, self.window_target());
+            },
+            InputEvent::TextAction(action) => {
+                trace!("Received IME text action event: {:?}", action);
+                if self.ime_state.ime_allowed.load(Ordering::SeqCst) == false {
+                    trace!("IME input not enabled, ignoring spurious text event");
+                    return InputStatus::Handled;
+                }
+
+                // We don't have a way to convey the semantics of the action, so we just
+                // map them all (except 'None') to a commit of the current text.
+                if *action != TextInputAction::None {
+                    let latest_ime_state = self.android_app.text_input_state();
+
+                    // The API docs say that a commit is preceded by an empty Preedit event
+                    let event = event::Event::WindowEvent {
+                        window_id: window::WindowId(WindowId),
+                        event: event::WindowEvent::Ime(event::Ime::Preedit(String::new(), None)),
+                    };
+                    self.android_app.set_text_input_state(TextInputState {
+                        text: String::new(),
+                        selection: TextSpan { start: 0, end: 0 },
+                        compose_region: None,
+                    });
+                    self.android_app.hide_soft_input(true);
+                    callback(event, self.window_target());
+
+                    let event = event::Event::WindowEvent {
+                        window_id: window::WindowId(WindowId),
+                        event: event::WindowEvent::Ime(event::Ime::Commit(
+                            latest_ime_state.text.clone(),
+                        )),
+                    };
+
+                    callback(event, self.window_target());
+                }
+            },
             _ => {
                 warn!("Unknown android_activity input event {event:?}")
             },
@@ -650,6 +749,7 @@ pub struct ActiveEventLoop {
     control_flow: Cell<ControlFlow>,
     exit: Cell<bool>,
     redraw_requester: RedrawRequester,
+    ime_state: Arc<ImeState>,
 }
 
 impl ActiveEventLoop {
@@ -770,6 +870,7 @@ pub struct PlatformSpecificWindowAttributes;
 pub(crate) struct Window {
     app: AndroidApp,
     redraw_requester: RedrawRequester,
+    ime_state: Arc<ImeState>,
 }
 
 impl Window {
@@ -779,7 +880,11 @@ impl Window {
     ) -> Result<Self, error::OsError> {
         // FIXME this ignores requested window attributes
 
-        Ok(Self { app: el.app.clone(), redraw_requester: el.redraw_requester.clone() })
+        Ok(Self {
+            app: el.app.clone(),
+            redraw_requester: el.redraw_requester.clone(),
+            ime_state: Arc::clone(&el.ime_state),
+        })
     }
 
     pub(crate) fn maybe_queue_on_main(&self, f: impl FnOnce(&Self) + Send + 'static) {
@@ -909,11 +1014,24 @@ impl Window {
     pub fn set_ime_cursor_area(&self, _position: Position, _size: Size) {}
 
     pub fn set_ime_allowed(&self, allowed: bool) {
+        // Request a show/hide regardless of whether the state has changed, since
+        // the keyboard may have been dismissed by the user manually while in the
+        // middle of text input
         if allowed {
             self.app.show_soft_input(true);
         } else {
             self.app.hide_soft_input(true);
         }
+
+        if self.ime_state.ime_allowed.swap(allowed, Ordering::SeqCst) == allowed {
+            return;
+        }
+
+        self.app.set_text_input_state(TextInputState {
+            text: String::new(),
+            selection: TextSpan { start: 0, end: 0 },
+            compose_region: Some(TextSpan { start: 0, end: 0 }),
+        });
     }
 
     pub fn set_ime_purpose(&self, _purpose: ImePurpose) {}
