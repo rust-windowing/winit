@@ -140,6 +140,7 @@ pub struct WindowState {
     /// Min size.
     min_surface_size: LogicalSize<u32>,
     max_surface_size: Option<LogicalSize<u32>>,
+    resize_increments: Option<LogicalSize<u32>>,
 
     /// The size of the window when no states were applied to it. The primary use for it
     /// is to fallback to original window size, before it was maximized, if the compositor
@@ -223,6 +224,7 @@ impl WindowState {
             last_configure: None,
             max_surface_size: None,
             min_surface_size: MIN_WINDOW_SIZE,
+            resize_increments: None,
             pointer_constraints,
             pointers: Default::default(),
             queue_handle: queue_handle.clone(),
@@ -359,6 +361,36 @@ impl WindowState {
                 .1
                 .map(|bound_h| new_size.height.min(bound_h.get()))
                 .unwrap_or(new_size.height);
+        }
+
+        // Apply size increments.
+        // We only apply increments if:
+        // 1. The compositor let us decide the size (constrain == true).
+        // 2. OR we are strictly resizing interactively (is_resizing), in which case we want to snap the mouse position.
+        // We do NOT apply increments if we are maximizing, fullscreening, or tiling (where checks below handle it),
+        // or if the compositor simply told us to be a specific size without resizing (e.g. corner snap).
+        if (constrain || configure.is_resizing())
+            && !configure.is_maximized()
+            && !configure.is_fullscreen()
+            && !configure.is_tiled()
+        {
+            if let Some(increments) = self.resize_increments {
+                // We use min size as a base size for the increments, similar to how X11 does it.
+                //
+                // This ensures that we can always reach the min size and the increments are calculated
+                // from it.
+                let (delta_width, delta_height) = (
+                    new_size.width.saturating_sub(self.min_surface_size.width),
+                    new_size.height.saturating_sub(self.min_surface_size.height),
+                );
+
+                let width = self.min_surface_size.width
+                    + (delta_width / increments.width) * increments.width;
+                let height = self.min_surface_size.height
+                    + (delta_height / increments.height) * increments.height;
+
+                new_size = (width, height).into();
+            }
         }
 
         let new_state = configure.state;
@@ -747,6 +779,18 @@ impl WindowState {
         }
 
         self.selected_cursor = SelectedCursor::Custom(cursor);
+    }
+
+    /// Set the resize increments of the window.
+    pub fn set_resize_increments(&mut self, increments: Option<LogicalSize<u32>>) {
+        self.resize_increments = increments;
+        // NOTE: We don't update the window size here, because it will be done on the next resize
+        // or configure event.
+    }
+
+    /// Get the resize increments of the window.
+    pub fn resize_increments(&self) -> Option<LogicalSize<u32>> {
+        self.resize_increments
     }
 
     fn apply_custom_cursor(&self, cursor: &CustomCursor) {
