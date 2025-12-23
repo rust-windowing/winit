@@ -173,7 +173,6 @@ impl Window {
 
         // Apply resize increments.
         if let Some(increments) = attributes.surface_resize_increments {
-            // Convert to logical size.
             let increments = increments.to_logical(window_state.scale_factor());
             window_state.set_resize_increments(Some(increments));
         }
