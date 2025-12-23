@@ -835,7 +835,6 @@ pub trait Window: AsAny + Send + Sync + fmt::Debug {
     /// ## Platform-specific
     ///
     /// - **iOS / Android / Web / Orbital:** Always returns [`None`].
-    /// - **Wayland:** Returns the last set resize increments.
     fn surface_resize_increments(&self) -> Option<PhysicalSize<u32>>;
 
     /// Sets resize increments of the surface.
