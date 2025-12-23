@@ -781,10 +781,6 @@ impl WindowState {
         self.selected_cursor = SelectedCursor::Custom(cursor);
     }
 
-
-
-
-
     /// Set the resize increments of the window.
     pub fn set_resize_increments(&mut self, increments: Option<LogicalSize<u32>>) {
         self.resize_increments = increments;
