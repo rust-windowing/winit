@@ -846,7 +846,6 @@ pub trait Window: AsAny + Send + Sync + fmt::Debug {
     ///
     /// - **macOS:** Increments are converted to logical size and then macOS rounds them to whole
     ///   numbers.
-    /// - **Wayland:** Increments are enforced client-side during window configuration events.
     /// - **iOS / Android / Web / Orbital:** Unsupported.
     fn set_surface_resize_increments(&self, increments: Option<Size>);
 
