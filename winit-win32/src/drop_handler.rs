@@ -1,9 +1,12 @@
+use crate::definitions::{
+    IDataObject, IDataObjectVtbl, IDropTarget, IDropTargetVtbl, IUnknown, IUnknownVtbl,
+};
+use dpi::PhysicalPosition;
 use std::ffi::{OsString, c_void};
 use std::os::windows::ffi::OsStringExt;
 use std::path::PathBuf;
 use std::ptr::{self, null_mut};
 use std::sync::atomic::{AtomicUsize, Ordering};
-use dpi::PhysicalPosition;
 use tracing::debug;
 use windows_sys::Win32::Foundation::{DV_E_FORMATETC, E_NOINTERFACE, HWND, POINT, POINTL, S_OK};
 use windows_sys::Win32::Graphics::Gdi::ScreenToClient;
@@ -12,9 +15,6 @@ use windows_sys::Win32::System::Ole::{CF_HDROP, DROPEFFECT_COPY, DROPEFFECT_NONE
 use windows_sys::Win32::UI::Shell::{DragFinish, DragQueryFileW, HDROP};
 use windows_sys::core::{GUID, HRESULT};
 use winit_core::event::WindowEvent;
-use crate::definitions::{
-    IDataObject, IDataObjectVtbl, IDropTarget, IDropTargetVtbl, IUnknown, IUnknownVtbl,
-};
 
 const IID_IUNKNOWN: GUID = GUID {
     data1: 0x00000000,
@@ -31,10 +31,7 @@ const IID_IDROP_TARGET: GUID = GUID {
 };
 
 fn guid_eq(a: &GUID, b: &GUID) -> bool {
-    a.data1 == b.data1 &&
-    a.data2 == b.data2 &&
-    a.data3 == b.data3 &&
-    a.data4 == b.data4
+    a.data1 == b.data1 && a.data2 == b.data2 && a.data3 == b.data3 && a.data4 == b.data4
 }
 
 #[repr(C)]
@@ -76,11 +73,11 @@ impl FileDropHandler {
             return E_NOINTERFACE;
         }
 
-        let drop_handler_data =unsafe{ Self::from_interface(this)};
+        let drop_handler_data = unsafe { Self::from_interface(this) };
         let requested = unsafe { &*riid };
 
         if guid_eq(requested, &IID_IUNKNOWN) || guid_eq(requested, &IID_IDROP_TARGET) {
-            unsafe{*ppvObject =this as *mut c_void};
+            unsafe { *ppvObject = this as *mut c_void };
             drop_handler_data.refcount.fetch_add(1, Ordering::Release);
             return S_OK;
         }
@@ -277,8 +274,7 @@ mod tests {
     use std::ptr::null_mut;
     use windows_sys::Win32::Foundation::HWND;
     use windows_sys::core::GUID;
-    
-    
+
     #[test]
     fn test_file_drop_handler_query_interface() {
         let handler = FileDropHandler::new(
