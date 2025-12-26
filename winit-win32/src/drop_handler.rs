@@ -1,12 +1,10 @@
-use crate::definitions::{
-    IDataObject, IDataObjectVtbl, IDropTarget, IDropTargetVtbl, IUnknown, IUnknownVtbl,
-};
-use dpi::PhysicalPosition;
 use std::ffi::{OsString, c_void};
 use std::os::windows::ffi::OsStringExt;
 use std::path::PathBuf;
 use std::ptr::{self, null_mut};
 use std::sync::atomic::{AtomicUsize, Ordering};
+
+use dpi::PhysicalPosition;
 use tracing::debug;
 use windows_sys::Win32::Foundation::{DV_E_FORMATETC, E_NOINTERFACE, HWND, POINT, POINTL, S_OK};
 use windows_sys::Win32::Graphics::Gdi::ScreenToClient;
@@ -16,18 +14,22 @@ use windows_sys::Win32::UI::Shell::{DragFinish, DragQueryFileW, HDROP};
 use windows_sys::core::{GUID, HRESULT};
 use winit_core::event::WindowEvent;
 
+use crate::definitions::{
+    IDataObject, IDataObjectVtbl, IDropTarget, IDropTargetVtbl, IUnknown, IUnknownVtbl,
+};
+
 const IID_IUNKNOWN: GUID = GUID {
     data1: 0x00000000,
     data2: 0x0000,
     data3: 0x0000,
-    data4: [0xC0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x46],
+    data4: [0xc0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x46],
 };
 
 const IID_IDROP_TARGET: GUID = GUID {
     data1: 0x00000122,
     data2: 0x0000,
     data3: 0x0000,
-    data4: [0xC0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x46],
+    data4: [0xc0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x46],
 };
 
 fn guid_eq(a: &GUID, b: &GUID) -> bool {
@@ -270,10 +272,12 @@ static DROP_TARGET_VTBL: IDropTargetVtbl = IDropTargetVtbl {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use std::ptr::null_mut;
+
     use windows_sys::Win32::Foundation::HWND;
     use windows_sys::core::GUID;
+
+    use super::*;
 
     #[test]
     fn test_file_drop_handler_query_interface() {
@@ -308,7 +312,7 @@ mod tests {
                 data1: 0x12345678,
                 data2: 0x1234,
                 data3: 0x5678,
-                data4: [0x90, 0xAB, 0xCD, 0xEF, 0x00, 0x11, 0x22, 0x33],
+                data4: [0x90, 0xab, 0xcd, 0xef, 0x00, 0x11, 0x22, 0x33],
             };
             ppv = null_mut();
             let hr_unknown = FileDropHandler::QueryInterface(
