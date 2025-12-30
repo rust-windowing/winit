@@ -160,7 +160,7 @@ jobs:
       if: contains(matrix.platform.target, 'android') && (steps.cargo-apk-cache.outputs.cache-hit != 'true')
       run: cargo install cargo-apk --version=^0.9.7 --locked
 
-    - uses: taiki-e/cache-cargo-install-action@v2
+    - uses: taiki-e/cache-cargo-install-action@v3
       if: contains(matrix.platform.target, 'wasm32') && matrix.toolchain == 'nightly'
       with:
         tool: wasm-bindgen-cli
