@@ -92,7 +92,7 @@ use winit_core::event_loop::ActiveEventLoop;
 use winit_core::monitor::MonitorHandle;
 use winit_core::window::{PlatformWindowAttributes, Window};
 
-pub use self::event::{keycode_to_key, physicalkey_to_scancode, scancode_to_physicalkey};
+pub use self::event::{physical_to_logical_key, physicalkey_to_scancode, scancode_to_physicalkey};
 use self::event_loop::ActiveEventLoop as AppKitActiveEventLoop;
 pub use self::event_loop::{EventLoop, PlatformSpecificEventLoopAttributes};
 use self::monitor::MonitorHandle as AppKitMonitorHandle;

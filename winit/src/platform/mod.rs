@@ -42,3 +42,16 @@ pub use winit_x11 as x11;
 pub mod scancode;
 #[cfg(any(x11_platform, wayland_platform, docsrs))]
 pub mod startup_notify;
+
+#[cfg(any(
+    windows_platform,
+    macos_platform,
+    x11_platform,
+    wayland_platform,
+    android_platform,
+    ios_platform,
+    web_platform,
+    orbital_platform,
+    docsrs
+))]
+pub mod key_map;

@@ -628,7 +628,14 @@ pub fn scancode_to_physicalkey(scancode: u32) -> PhysicalKey {
 }
 
 /// Query the logical key for a physical key under the current keyboard layout.
-pub fn keycode_to_key(keycode: KeyCode, modifiers: ModifiersState, caps_lock: bool) -> Key {
+///
+/// Note: `num_lock` is ignored on macOS as it doesn't have traditional NumLock.
+pub fn physical_to_logical_key(
+    keycode: KeyCode,
+    modifiers: ModifiersState,
+    caps_lock: bool,
+    _num_lock: bool,
+) -> Key {
     let Some(scancode) = physicalkey_to_scancode(PhysicalKey::Code(keycode)) else {
         return Key::Unidentified(NativeKey::Unidentified);
     };
