@@ -48,14 +48,8 @@ use crate::util::{loword, primarylangid};
 pub(crate) static LAYOUT_CACHE: LazyLock<Mutex<LayoutCache>> =
     LazyLock::new(|| Mutex::new(LayoutCache::default()));
 
-// high order bit is pressed
 fn key_pressed(vkey: VIRTUAL_KEY) -> bool {
     unsafe { (GetKeyState(vkey as i32) & (1 << 15)) == (1 << 15) }
-}
-
-// low order bit is toggled
-fn key_toggled(vkey: VIRTUAL_KEY) -> bool {
-    unsafe { (GetKeyState(vkey as i32) & 0x01) == 0x01 }
 }
 
 const NUMPAD_VKEYS: [VIRTUAL_KEY; 16] = [
