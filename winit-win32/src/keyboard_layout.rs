@@ -48,8 +48,14 @@ use crate::util::{loword, primarylangid};
 pub(crate) static LAYOUT_CACHE: LazyLock<Mutex<LayoutCache>> =
     LazyLock::new(|| Mutex::new(LayoutCache::default()));
 
+// high order bit is pressed
 fn key_pressed(vkey: VIRTUAL_KEY) -> bool {
     unsafe { (GetKeyState(vkey as i32) & (1 << 15)) == (1 << 15) }
+}
+
+// low order bit is toggled
+fn key_toggled(vkey: VIRTUAL_KEY) -> bool {
+    unsafe { (GetKeyState(vkey as i32) & 0x01) == 0x01 }
 }
 
 const NUMPAD_VKEYS: [VIRTUAL_KEY; 16] = [
@@ -985,4 +991,48 @@ fn vkey_to_non_char_key(
         VK_OEM_CLEAR => Key::Named(NamedKey::Clear),
         _ => Key::Unidentified(native_code),
     }
+}
+
+/// Query the logical key that would be produced by a physical key under the
+/// current keyboard layout with the given modifier state.
+///
+/// # Example
+///
+/// ```ignore
+/// use winit::keyboard::{KeyCode, ModifiersState};
+/// use winit_win32::keycode_to_key;
+///
+/// // Get what the 'Q' key produces without modifiers
+/// let key = keycode_to_key(KeyCode::KeyQ, ModifiersState::empty(), false, false);
+///
+/// // Get what Shift+Q produces
+/// let shifted = keycode_to_key(KeyCode::KeyQ, ModifiersState::SHIFT, false, false);
+/// ```
+pub fn keycode_to_key(
+    keycode: KeyCode,
+    modifiers: ModifiersState,
+    caps_lock: bool,
+    num_lock: bool,
+) -> Key {
+    let mut cache = LAYOUT_CACHE.lock().unwrap();
+    let (locale_id, layout) = cache.get_current_layout();
+
+    let mut win_mods = WindowsModifiers::empty();
+    if modifiers.shift_key() {
+        win_mods.insert(WindowsModifiers::SHIFT);
+    }
+    if modifiers.control_key() {
+        win_mods.insert(WindowsModifiers::CONTROL);
+    }
+    if modifiers.alt_key() {
+        win_mods.insert(WindowsModifiers::ALT);
+    }
+    if caps_lock {
+        win_mods.insert(WindowsModifiers::CAPS_LOCK);
+    }
+
+    let vkey = keycode_to_vkey(keycode, locale_id);
+    let physical_key = PhysicalKey::Code(keycode);
+
+    layout.get_key(win_mods, num_lock, vkey, &physical_key)
 }
