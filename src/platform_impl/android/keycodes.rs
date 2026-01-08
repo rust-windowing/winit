@@ -169,6 +169,12 @@ pub fn character_map_and_combine_key(
 ) -> Option<KeyMapChar> {
     let device_id = key_event.device_id();
 
+    // A device ID of 0 indicates a non-physical device (e.g. software keyboard)
+    // which we don't expect to have an associated KeyCharacterMap
+    if device_id == 0 {
+        return None;
+    }
+
     let key_map = match app.device_key_character_map(device_id) {
         Ok(key_map) => key_map,
         Err(err) => {
