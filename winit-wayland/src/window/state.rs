@@ -364,11 +364,14 @@ impl WindowState {
         }
 
         // Apply size increments.
-        // We only apply increments if:
-        // 1. The compositor let us decide the size (constrain == true).
-        // 2. OR we are strictly resizing interactively (is_resizing), in which case we want to snap the mouse position.
-        // We do NOT apply increments if we are maximizing, fullscreening, or tiling (where checks below handle it),
-        // or if the compositor simply told us to be a specific size without resizing (e.g. corner snap).
+        //
+        // We conditionally apply increments to avoid conflicts with the compositor's layout rules:
+        // 1. If the window is floating (constrain == true), we snap to increments to ensure the app's grid alignment.
+        // 2. If the user is interactively resizing (is_resizing), we snap the size to provide feedback.
+        //
+        // However, we MUST NOT snap if the compositor enforces a specific size (constrain == false,
+        // or states like Maximized/Tiled). Snapping in these cases (e.g. corner tiling) would shrink
+        // the window below the allocated area, creating visible gaps between valid windows or screen edges.
         if (constrain || configure.is_resizing())
             && !configure.is_maximized()
             && !configure.is_fullscreen()
