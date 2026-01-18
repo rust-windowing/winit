@@ -62,6 +62,17 @@ use super::view::WinitView;
 use super::window::{WinitPanel, WinitWindow, window_id};
 use crate::{OptionAsAlt, WindowAttributesMacOS, WindowExtMacOS};
 
+// Cached geometry for the native traffic-light buttons derived from
+// NSWindow::standardWindowButton(...) frames (AppKit does not expose a
+// dedicated struct for this).
+// `spacing` is the horizontal delta between adjacent buttons.
+#[derive(Clone, Copy, Debug)]
+struct TrafficLightBase {
+    x: f64,
+    y: f64,
+    spacing: f64,
+}
+
 #[derive(Debug)]
 pub(crate) struct State {
     /// Strong reference to the global application state.
@@ -79,6 +90,8 @@ pub(crate) struct State {
 
     /// The current resize increments for the window content.
     surface_resize_increments: Cell<NSSize>,
+    traffic_light_inset: Cell<Option<LogicalSize<f64>>>,
+    traffic_light_base: Cell<Option<TrafficLightBase>>,
     /// Whether the window is showing decorations.
     decorations: Cell<bool>,
     resizable: Cell<bool>,
@@ -143,6 +156,7 @@ define_class!(
             trace_scope!("windowDidResize:");
             // NOTE: WindowEvent::SurfaceResized is reported using NSViewFrameDidChangeNotification.
             self.emit_move_event();
+            self.apply_traffic_light_inset();
         }
 
         #[unsafe(method(windowWillStartLiveResize:))]
@@ -273,6 +287,7 @@ define_class!(
             trace_scope!("windowDidEnterFullScreen:");
             self.ivars().initial_fullscreen.set(false);
             self.ivars().in_fullscreen_transition.set(false);
+            self.apply_traffic_light_inset();
             if let Some(target_fullscreen) = self.ivars().target_fullscreen.take() {
                 self.set_fullscreen(target_fullscreen);
             }
@@ -285,6 +300,7 @@ define_class!(
 
             self.restore_state_from_fullscreen();
             self.ivars().in_fullscreen_transition.set(false);
+            self.apply_traffic_light_inset();
             if let Some(target_fullscreen) = self.ivars().target_fullscreen.take() {
                 self.set_fullscreen(target_fullscreen);
             }
@@ -806,6 +822,8 @@ impl WindowDelegate {
             previous_position: Cell::new(flip_window_screen_coordinates(window.frame())),
             previous_scale_factor: Cell::new(scale_factor),
             surface_resize_increments: Cell::new(surface_resize_increments),
+            traffic_light_inset: Cell::new(macos_attrs.traffic_light_inset),
+            traffic_light_base: Cell::new(None),
             decorations: Cell::new(attrs.decorations),
             resizable: Cell::new(attrs.resizable),
             maximized: Cell::new(attrs.maximized),
@@ -852,6 +870,10 @@ impl WindowDelegate {
 
         // Set fullscreen mode after we setup everything
         delegate.set_fullscreen(attrs.fullscreen);
+
+        if let Some(inset) = macos_attrs.traffic_light_inset {
+            delegate.set_traffic_light_inset(inset);
+        }
 
         // Setting the window as key has to happen *after* we set the fullscreen
         // state, since otherwise we'll briefly see the window at normal size
@@ -930,6 +952,79 @@ impl WindowDelegate {
         self.queue_event(WindowEvent::Moved(position));
     }
 
+
+    fn apply_traffic_light_inset(&self) {
+        // Nothing to do if no inset was configured.
+        let Some(inset) = self.ivars().traffic_light_inset.get() else {
+            return;
+        };
+
+        // Fetch standard buttons; if any are hidden, clear cached base.
+        let window = self.window();
+        let Some(close) = window.standardWindowButton(NSWindowButton::CloseButton) else {
+            return;
+        };
+        if close.isHidden() {
+            self.ivars().traffic_light_base.set(None);
+            return;
+        }
+        let Some(miniaturize) =
+            window.standardWindowButton(NSWindowButton::MiniaturizeButton)
+        else {
+            return;
+        };
+        if miniaturize.isHidden() {
+            self.ivars().traffic_light_base.set(None);
+            return;
+        }
+        let Some(zoom) = window.standardWindowButton(NSWindowButton::ZoomButton) else {
+            return;
+        };
+        if zoom.isHidden() {
+            self.ivars().traffic_light_base.set(None);
+            return;
+        }
+
+        // Capture the current default geometry as a candidate base.
+        let close_rect = close.frame();
+        let spacing = miniaturize.frame().origin.x - close_rect.origin.x; // Horizontal delta between buttons.
+        let current = TrafficLightBase {
+            x: close_rect.origin.x,
+            y: close_rect.origin.y,
+            spacing,
+        };
+
+        // If frames no longer match cached base + inset (AppKit reset), refresh base.
+        let base = match self.ivars().traffic_light_base.get() {
+            Some(base) => {
+                let expected_x = base.x + inset.width;
+                let expected_y = base.y - inset.height;
+                let drift = (close_rect.origin.x - expected_x).abs() > 0.5
+                    || (close_rect.origin.y - expected_y).abs() > 0.5
+                    || (spacing - base.spacing).abs() > 0.5;
+                if drift {
+                    self.ivars().traffic_light_base.set(Some(current));
+                    current
+                } else {
+                    base
+                }
+            }
+            None => {
+                self.ivars().traffic_light_base.set(Some(current));
+                current
+            }
+        };
+
+        // Apply inset relative to base while preserving native spacing.
+        let target_y = base.y - inset.height;
+        for (index, button) in [close, miniaturize, zoom].into_iter().enumerate() {
+            let mut rect = button.frame();
+            rect.origin.x = base.x + inset.width + (index as f64 * base.spacing);
+            rect.origin.y = target_y;
+            button.setFrameOrigin(rect.origin);
+        }
+    }
+
     fn set_style_mask(&self, mask: NSWindowStyleMask) {
         self.window().setStyleMask(mask);
         // If we don't do this, key handling will break
@@ -938,7 +1033,9 @@ impl WindowDelegate {
     }
 
     pub fn set_title(&self, title: &str) {
-        self.window().setTitle(&NSString::from_str(title))
+        self.window().setTitle(&NSString::from_str(title));
+        // AppKit can reset standard button positions when the title changes.
+        self.apply_traffic_light_inset();
     }
 
     pub fn set_transparent(&self, transparent: bool) {
@@ -2028,6 +2125,11 @@ impl WindowExtMacOS for WindowDelegate {
         let window = self.window();
 
         window.toolbar().is_some() && window.toolbarStyle() == NSWindowToolbarStyle::Unified
+    }
+
+    fn set_traffic_light_inset(&self, inset: LogicalSize<f64>) {
+        self.ivars().traffic_light_inset.set(Some(inset));
+        self.apply_traffic_light_inset();
     }
 }
 

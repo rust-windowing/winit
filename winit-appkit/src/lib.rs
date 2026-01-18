@@ -84,6 +84,7 @@ mod window_delegate;
 
 use std::os::raw::c_void;
 
+use dpi::LogicalSize;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 #[doc(inline)]
@@ -187,6 +188,10 @@ pub trait WindowExtMacOS {
 
     /// Getter for the [`WindowExtMacOS::set_unified_titlebar`].
     fn unified_titlebar(&self) -> bool;
+
+    /// Sets the offset for the window controls (traffic lights) in logical points.
+    /// Positive values move right (x) and down (y) relative to the default position.
+    fn set_traffic_light_inset(&self, inset: LogicalSize<f64>);
 }
 
 impl WindowExtMacOS for dyn Window + '_ {
@@ -297,6 +302,11 @@ impl WindowExtMacOS for dyn Window + '_ {
         let window = self.cast_ref::<AppKitWindow>().unwrap();
         window.maybe_wait_on_main(|w| w.unified_titlebar())
     }
+    fn set_traffic_light_inset(&self, inset: LogicalSize<f64>) {
+        let window = self.cast_ref::<AppKitWindow>().unwrap();
+        window.maybe_wait_on_main(move |w| w.set_traffic_light_inset(inset))
+    }
+
 }
 
 /// Corresponds to `NSApplicationActivationPolicy`.
@@ -332,6 +342,7 @@ pub struct WindowAttributesMacOS {
     pub(crate) title_hidden: bool,
     pub(crate) titlebar_hidden: bool,
     pub(crate) titlebar_buttons_hidden: bool,
+    pub(crate) traffic_light_inset: Option<LogicalSize<f64>>,
     pub(crate) fullsize_content_view: bool,
     pub(crate) disallow_hidpi: bool,
     pub(crate) has_shadow: bool,
@@ -369,6 +380,14 @@ impl WindowAttributesMacOS {
     #[inline]
     pub fn with_titlebar_buttons_hidden(mut self, titlebar_buttons_hidden: bool) -> Self {
         self.titlebar_buttons_hidden = titlebar_buttons_hidden;
+        self
+    }
+
+    /// Sets the offset for the window controls (traffic lights) in logical points.
+    /// Positive values move right (x) and down (y) relative to the default position.
+    #[inline]
+    pub fn with_traffic_light_inset(mut self, inset: LogicalSize<f64>) -> Self {
+        self.traffic_light_inset = Some(inset);
         self
     }
 
@@ -459,6 +478,7 @@ impl Default for WindowAttributesMacOS {
             title_hidden: false,
             titlebar_hidden: false,
             titlebar_buttons_hidden: false,
+            traffic_light_inset: None,
             fullsize_content_view: false,
             disallow_hidpi: false,
             has_shadow: true,
