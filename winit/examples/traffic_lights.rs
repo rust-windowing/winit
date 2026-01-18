@@ -72,22 +72,14 @@ impl App {
 
 impl ApplicationHandler for App {
     fn can_create_surfaces(&mut self, event_loop: &dyn ActiveEventLoop) {
-        let mut window_attributes = WindowAttributes::default().with_title(self.title());
-
+        let window_attributes = WindowAttributes::default().with_title(self.title());
         #[cfg(web_platform)]
-        {
-            window_attributes = window_attributes.with_platform_attributes(Box::new(
-                WindowAttributesWeb::default().with_append(true),
-            ));
-        }
-
+        let window_attributes = window_attributes
+            .with_platform_attributes(Box::new(WindowAttributesWeb::default().with_append(true)));
         #[cfg(macos_platform)]
-        {
-            let macos_attributes =
-                WindowAttributesMacOS::default().with_traffic_light_inset(self.inset);
-            window_attributes =
-                window_attributes.with_platform_attributes(Box::new(macos_attributes));
-        }
+        let window_attributes = window_attributes.with_platform_attributes(Box::new(
+            WindowAttributesMacOS::default().with_traffic_light_inset(self.inset),
+        ));
 
         self.window = match event_loop.create_window(window_attributes) {
             Ok(window) => Some(window),
