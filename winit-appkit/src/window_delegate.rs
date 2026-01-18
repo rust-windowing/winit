@@ -952,7 +952,6 @@ impl WindowDelegate {
         self.queue_event(WindowEvent::Moved(position));
     }
 
-
     fn apply_traffic_light_inset(&self) {
         // Nothing to do if no inset was configured.
         let Some(inset) = self.ivars().traffic_light_inset.get() else {
@@ -968,8 +967,7 @@ impl WindowDelegate {
             self.ivars().traffic_light_base.set(None);
             return;
         }
-        let Some(miniaturize) =
-            window.standardWindowButton(NSWindowButton::MiniaturizeButton)
+        let Some(miniaturize) = window.standardWindowButton(NSWindowButton::MiniaturizeButton)
         else {
             return;
         };
@@ -988,11 +986,7 @@ impl WindowDelegate {
         // Capture the current default geometry as a candidate base.
         let close_rect = close.frame();
         let spacing = miniaturize.frame().origin.x - close_rect.origin.x; // Horizontal delta between buttons.
-        let current = TrafficLightBase {
-            x: close_rect.origin.x,
-            y: close_rect.origin.y,
-            spacing,
-        };
+        let current = TrafficLightBase { x: close_rect.origin.x, y: close_rect.origin.y, spacing };
 
         // If frames no longer match cached base + inset (AppKit reset), refresh base.
         let base = match self.ivars().traffic_light_base.get() {
@@ -1008,11 +1002,11 @@ impl WindowDelegate {
                 } else {
                     base
                 }
-            }
+            },
             None => {
                 self.ivars().traffic_light_base.set(Some(current));
                 current
-            }
+            },
         };
 
         // Apply inset relative to base while preserving native spacing.

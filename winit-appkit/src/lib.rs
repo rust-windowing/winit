@@ -191,6 +191,14 @@ pub trait WindowExtMacOS {
 
     /// Sets the offset for the window controls (traffic lights) in logical points.
     /// Positive values move right (x) and down (y) relative to the default position.
+    ///
+    /// ```no_run
+    /// # use winit::dpi::LogicalSize;
+    /// # use winit::platform::macos::WindowExtMacOS;
+    /// # fn example(window: &dyn winit::window::Window) {
+    /// window.set_traffic_light_inset(LogicalSize::new(24.0, 8.0));
+    /// # }
+    /// ```
     fn set_traffic_light_inset(&self, inset: LogicalSize<f64>);
 }
 
@@ -306,7 +314,6 @@ impl WindowExtMacOS for dyn Window + '_ {
         let window = self.cast_ref::<AppKitWindow>().unwrap();
         window.maybe_wait_on_main(move |w| w.set_traffic_light_inset(inset))
     }
-
 }
 
 /// Corresponds to `NSApplicationActivationPolicy`.
@@ -385,6 +392,16 @@ impl WindowAttributesMacOS {
 
     /// Sets the offset for the window controls (traffic lights) in logical points.
     /// Positive values move right (x) and down (y) relative to the default position.
+    ///
+    /// This applies an offset from the default position; it does not change the native
+    /// spacing between the buttons. No effect if titlebar buttons are hidden.
+    ///
+    /// ```no_run
+    /// # use winit::dpi::LogicalSize;
+    /// # use winit::platform::macos::WindowAttributesMacOS;
+    /// let attrs =
+    ///     WindowAttributesMacOS::default().with_traffic_light_inset(LogicalSize::new(24.0, 8.0));
+    /// ```
     #[inline]
     pub fn with_traffic_light_inset(mut self, inset: LogicalSize<f64>) -> Self {
         self.traffic_light_inset = Some(inset);

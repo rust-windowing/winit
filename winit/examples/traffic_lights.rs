@@ -1,4 +1,7 @@
 //! macOS traffic-light inset demo.
+//!
+//! macOS only; on other platforms this example is a no-op for insets.
+//! Arrow keys adjust the inset, Shift uses a larger step, R resets, Esc exits.
 
 use std::error::Error;
 
@@ -42,10 +45,7 @@ impl Default for App {
 
 impl App {
     fn title(&self) -> String {
-        format!(
-            "Traffic lights inset: x={:.1}, y={:.1}",
-            self.inset.width, self.inset.height
-        )
+        format!("Traffic lights inset: x={:.1}, y={:.1}", self.inset.width, self.inset.height)
     }
 
     fn apply_inset(&self) {
@@ -76,8 +76,9 @@ impl ApplicationHandler for App {
 
         #[cfg(web_platform)]
         {
-            window_attributes = window_attributes
-                .with_platform_attributes(Box::new(WindowAttributesWeb::default().with_append(true)));
+            window_attributes = window_attributes.with_platform_attributes(Box::new(
+                WindowAttributesWeb::default().with_append(true),
+            ));
         }
 
         #[cfg(macos_platform)]
@@ -100,51 +101,33 @@ impl ApplicationHandler for App {
         self.apply_inset();
     }
 
-    fn window_event(
-        &mut self,
-        event_loop: &dyn ActiveEventLoop,
-        _: WindowId,
-        event: WindowEvent,
-    ) {
+    fn window_event(&mut self, event_loop: &dyn ActiveEventLoop, _: WindowId, event: WindowEvent) {
         match event {
             WindowEvent::CloseRequested => event_loop.exit(),
             WindowEvent::ModifiersChanged(modifiers) => {
                 self.modifiers = modifiers.state();
             },
             WindowEvent::KeyboardInput {
-                event:
-                    KeyEvent {
-                        state: ElementState::Pressed,
-                        key_without_modifiers: key,
-                        ..
-                    },
+                event: KeyEvent { state: ElementState::Pressed, key_without_modifiers: key, .. },
                 is_synthetic: false,
                 ..
             } => {
-                let step = if self.modifiers.shift_key() {
-                    STEP_COARSE
-                } else {
-                    STEP_FINE
-                };
+                let step = if self.modifiers.shift_key() { STEP_COARSE } else { STEP_FINE };
 
                 match key.as_ref() {
                     Key::Named(NamedKey::ArrowLeft) => self.nudge_inset(-step, 0.0),
                     Key::Named(NamedKey::ArrowRight) => self.nudge_inset(step, 0.0),
                     Key::Named(NamedKey::ArrowUp) => self.nudge_inset(0.0, -step),
                     Key::Named(NamedKey::ArrowDown) => self.nudge_inset(0.0, step),
-                    Key::Character("r") => self.set_inset(LogicalSize::new(
-                        DEFAULT_INSET_X,
-                        DEFAULT_INSET_Y,
-                    )),
+                    Key::Character("r") => {
+                        self.set_inset(LogicalSize::new(DEFAULT_INSET_X, DEFAULT_INSET_Y))
+                    },
                     Key::Named(NamedKey::Escape) => event_loop.exit(),
                     _ => (),
                 }
             },
             WindowEvent::SurfaceResized(_) => {
-                self.window
-                    .as_ref()
-                    .expect("resize event without a window")
-                    .request_redraw();
+                self.window.as_ref().expect("resize event without a window").request_redraw();
             },
             WindowEvent::RedrawRequested => {
                 let window = self.window.as_ref().expect("redraw request without a window");
