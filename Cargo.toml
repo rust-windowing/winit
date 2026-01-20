@@ -64,7 +64,7 @@ objc2-ui-kit = { version = "0.3.2", default-features = false }
 
 # Windows dependencies.
 unicode-segmentation = "1.7.1"
-windows-sys = "0.59.0"
+windows-sys = "0.61"
 
 # Linux dependencies.
 ahash = { version = "0.8.7", features = ["no-rng"] }
