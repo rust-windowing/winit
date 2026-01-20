@@ -43,6 +43,7 @@ changelog entry.
 ### Added
 
 - Add `keyboard` support for OpenHarmony.
+- On Windows, add WindowAttributesWindows::no_activate for WS_EX_NOACTIVATE flag
 
 ### Changed
 
