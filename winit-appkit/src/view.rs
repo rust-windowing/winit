@@ -21,8 +21,8 @@ use winit_core::event::{
     DeviceEvent, ElementState, Ime, KeyEvent, Modifiers, MouseButton, MouseScrollDelta,
     PointerKind, PointerSource, TouchPhase, WindowEvent,
 };
+use winit_core::ime;
 use winit_core::keyboard::{Key, KeyCode, KeyLocation, ModifiersState, NamedKey};
-use winit_core::window::ImeCapabilities;
 
 use super::app_state::AppState;
 use super::cursor::{default_cursor, invisible_cursor};
@@ -126,7 +126,7 @@ pub struct ViewState {
     /// True iff the application wants IME events.
     ///
     /// Can be set using `set_ime_allowed`
-    ime_capabilities: Cell<Option<ImeCapabilities>>,
+    ime_capabilities: Cell<Option<ime::Capabilities>>,
 
     /// True if the current key event should be forwarded
     /// to the application, even during IME
@@ -867,7 +867,7 @@ impl WinitView {
         }
     }
 
-    pub(super) fn set_ime_allowed(&self, capabilities: Option<ImeCapabilities>) {
+    pub(super) fn set_ime_allowed(&self, capabilities: Option<ime::Capabilities>) {
         if self.ivars().ime_capabilities.get().is_some() {
             return;
         }
@@ -886,7 +886,7 @@ impl WinitView {
         }
     }
 
-    pub(super) fn ime_capabilities(&self) -> Option<ImeCapabilities> {
+    pub(super) fn ime_capabilities(&self) -> Option<ime::Capabilities> {
         self.ivars().ime_capabilities.get()
     }
 

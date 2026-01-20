@@ -11,10 +11,11 @@ use objc2_foundation::NSObject;
 use winit_core::cursor::Cursor;
 use winit_core::error::RequestError;
 use winit_core::icon::Icon;
+use winit_core::ime;
 use winit_core::monitor::{Fullscreen, MonitorHandle as CoreMonitorHandle};
 use winit_core::window::{
-    ImeCapabilities, ImeRequest, ImeRequestError, Theme, UserAttentionType, Window as CoreWindow,
-    WindowAttributes, WindowButtons, WindowId, WindowLevel,
+    Theme, UserAttentionType, Window as CoreWindow, WindowAttributes, WindowButtons, WindowId,
+    WindowLevel,
 };
 
 use super::event_loop::ActiveEventLoop;
@@ -233,11 +234,15 @@ impl CoreWindow for Window {
         self.maybe_wait_on_main(|delegate| delegate.set_window_icon(window_icon));
     }
 
-    fn request_ime_update(&self, request: ImeRequest) -> Result<(), ImeRequestError> {
+    fn request_ime_update(&self, request: ime::Request) -> Result<(), ime::RequestError> {
         self.maybe_wait_on_main(|delegate| delegate.request_ime_update(request))
     }
 
-    fn ime_capabilities(&self) -> Option<ImeCapabilities> {
+    fn disable_ime(&self) {
+        self.maybe_wait_on_main(|delegate| delegate.disable_ime());
+    }
+
+    fn ime_capabilities(&self) -> Option<ime::Capabilities> {
         self.maybe_wait_on_main(|delegate| delegate.ime_capabilities())
     }
 

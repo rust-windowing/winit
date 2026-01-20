@@ -16,13 +16,13 @@ use winit_core::error::{NotSupportedError, RequestError};
 use winit_core::event::{SurfaceSizeWriter, WindowEvent};
 use winit_core::event_loop::AsyncRequestSerial;
 use winit_core::icon::RgbaIcon;
+use winit_core::ime;
 use winit_core::monitor::{
     Fullscreen, MonitorHandle as CoreMonitorHandle, MonitorHandleProvider, VideoMode,
 };
 use winit_core::window::{
-    CursorGrabMode, ImeCapabilities, ImeRequest as CoreImeRequest, ImeRequestError,
-    ResizeDirection, Theme, UserAttentionType, Window as CoreWindow, WindowAttributes,
-    WindowButtons, WindowId, WindowLevel,
+    CursorGrabMode, ResizeDirection, Theme, UserAttentionType, Window as CoreWindow,
+    WindowAttributes, WindowButtons, WindowId, WindowLevel,
 };
 use x11rb::connection::{Connection, RequestConnection};
 use x11rb::properties::{WmHints, WmSizeHints, WmSizeHintsSpecification};
@@ -210,11 +210,15 @@ impl CoreWindow for Window {
         self.0.set_window_icon(icon)
     }
 
-    fn request_ime_update(&self, action: CoreImeRequest) -> Result<(), ImeRequestError> {
+    fn request_ime_update(&self, action: ime::Request) -> Result<(), ime::RequestError> {
         self.0.request_ime_update(action)
     }
 
-    fn ime_capabilities(&self) -> Option<ImeCapabilities> {
+    fn disable_ime(&self) {
+        self.0.disable_ime();
+    }
+
+    fn ime_capabilities(&self) -> Option<ime::Capabilities> {
         self.0.ime_capabilities()
     }
 
@@ -345,7 +349,7 @@ pub struct SharedState {
     pub inner_position_rel_parent: Option<(i32, i32)>,
     pub is_resizable: bool,
     pub is_decorated: bool,
-    pub ime_capabilities: Option<ImeCapabilities>,
+    pub ime_capabilities: Option<ime::Capabilities>,
     pub last_monitor: X11MonitorHandle,
     pub dpi_adjusted: Option<(u32, u32)>,
     pub(crate) fullscreen: Option<Fullscreen>,
@@ -2094,14 +2098,14 @@ impl UnownedWindow {
     }
 
     #[inline]
-    pub fn request_ime_update(&self, request: CoreImeRequest) -> Result<(), ImeRequestError> {
+    pub fn request_ime_update(&self, request: ime::Request) -> Result<(), ime::RequestError> {
         let mut shared_state = self.shared_state_lock();
         let (capabilities, state) = match request {
-            CoreImeRequest::Enable(enable) => {
+            ime::Request::Enable(enable) => {
                 let (capabilities, request_data) = enable.into_raw();
 
                 if shared_state.ime_capabilities.is_some() {
-                    return Err(ImeRequestError::AlreadyEnabled);
+                    return Err(ime::RequestError::AlreadyEnabled);
                 }
 
                 shared_state.ime_capabilities = Some(capabilities);
@@ -2109,20 +2113,14 @@ impl UnownedWindow {
                 self.set_ime_allowed(true);
                 (capabilities, request_data)
             },
-            CoreImeRequest::Update(state) => {
+            ime::Request::Update(state) => {
                 if let Some(capabilities) = shared_state.ime_capabilities {
                     drop(shared_state);
                     (capabilities, state)
                 } else {
                     // The IME was not yet enabled, so discard the update.
-                    return Err(ImeRequestError::NotEnabled);
+                    return Err(ime::RequestError::NotEnabled);
                 }
-            },
-            CoreImeRequest::Disable => {
-                shared_state.ime_capabilities = None;
-                drop(shared_state);
-                self.set_ime_allowed(false);
-                return Ok(());
             },
         };
 
@@ -2141,7 +2139,13 @@ impl UnownedWindow {
     }
 
     #[inline]
-    pub fn ime_capabilities(&self) -> Option<ImeCapabilities> {
+    pub fn disable_ime(&self) {
+        self.shared_state_lock().ime_capabilities = None;
+        self.set_ime_allowed(false);
+    }
+
+    #[inline]
+    pub fn ime_capabilities(&self) -> Option<ime::Capabilities> {
         self.shared_state_lock().ime_capabilities
     }
 

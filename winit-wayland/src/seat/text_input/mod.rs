@@ -11,9 +11,7 @@ use sctk::reexports::protocols::wp::text_input::zv3::client::zwp_text_input_v3::
 };
 use tracing::warn;
 use winit_core::event::{Ime, WindowEvent};
-use winit_core::window::{
-    ImeCapabilities, ImeHint, ImePurpose, ImeRequestData, ImeSurroundingText,
-};
+use winit_core::ime;
 
 use crate::state::WinitState;
 
@@ -299,33 +297,33 @@ struct DeleteSurroundingText {
 /// State change requested by the application.
 ///
 /// This is a version that uses text_input abstractions translated from the ones used in
-/// winit::core::window::ImeStateChange.
+/// winit::core::ime::StateChange.
 ///
 /// Fields that are initially set to None are unsupported capabilities
 /// and trying to set them raises an error.
 #[derive(Debug, PartialEq, Clone)]
 pub struct ClientState {
-    capabilities: ImeCapabilities,
+    capabilities: ime::Capabilities,
     content_type: ContentType,
     /// The IME cursor area which should not be covered by the input method popup.
     cursor_area: (LogicalPosition<u32>, LogicalSize<u32>),
 
-    /// The `ImeSurroundingText` struct is based on the Wayland model.
+    /// The `ime::SurroundingText` struct is based on the Wayland model.
     /// When this changes, another struct might be needed.
-    surrounding_text: ImeSurroundingText,
+    surrounding_text: ime::SurroundingText,
 }
 
 impl ClientState {
     pub fn new(
-        capabilities: ImeCapabilities,
-        request_data: ImeRequestData,
+        capabilities: ime::Capabilities,
+        request_data: ime::RequestData,
         scale_factor: f64,
     ) -> Self {
         let mut this = Self {
             capabilities,
             content_type: Default::default(),
             cursor_area: Default::default(),
-            surrounding_text: ImeSurroundingText::new(String::new(), 0, 0).unwrap(),
+            surrounding_text: ime::SurroundingText::new(String::new(), 0, 0).unwrap(),
         };
 
         let unsupported_flags = capabilities
@@ -333,7 +331,7 @@ impl ClientState {
             .without_cursor_area()
             .without_surrounding_text();
 
-        if unsupported_flags != ImeCapabilities::new() {
+        if unsupported_flags != ime::Capabilities::new() {
             warn!(
                 "Backend doesn't support all requested IME capabilities: {:?}.\n Ignoring.",
                 unsupported_flags
@@ -344,12 +342,12 @@ impl ClientState {
         this
     }
 
-    pub fn capabilities(&self) -> ImeCapabilities {
+    pub fn capabilities(&self) -> ime::Capabilities {
         self.capabilities
     }
 
     /// Updates the fields of the state which are present in update_fields.
-    pub fn update(&mut self, request_data: ImeRequestData, scale_factor: f64) {
+    pub fn update(&mut self, request_data: ime::RequestData, scale_factor: f64) {
         if let Some((hint, purpose)) =
             request_data.hint_and_purpose.filter(|_| self.capabilities.hint_and_purpose())
         {
@@ -383,7 +381,7 @@ impl ClientState {
         self.capabilities.cursor_area().then_some(self.cursor_area)
     }
 
-    pub fn surrounding_text(&self) -> Option<&ImeSurroundingText> {
+    pub fn surrounding_text(&self) -> Option<&ime::SurroundingText> {
         self.capabilities.surrounding_text().then_some(&self.surrounding_text)
     }
 }
@@ -398,19 +396,19 @@ pub struct ContentType {
 }
 
 /// The two options influence each other, so they must be converted together.
-impl From<(ImeHint, ImePurpose)> for ContentType {
-    fn from((hint, purpose): (ImeHint, ImePurpose)) -> Self {
+impl From<(ime::Hint, ime::Purpose)> for ContentType {
+    fn from((hint, purpose): (ime::Hint, ime::Purpose)) -> Self {
         let purpose = match purpose {
-            ImePurpose::Password => ContentPurpose::Password,
-            ImePurpose::Terminal => ContentPurpose::Terminal,
-            ImePurpose::Phone => ContentPurpose::Phone,
-            ImePurpose::Number => ContentPurpose::Number,
-            ImePurpose::Url => ContentPurpose::Url,
-            ImePurpose::Email => ContentPurpose::Email,
-            ImePurpose::Pin => ContentPurpose::Pin,
-            ImePurpose::Date => ContentPurpose::Date,
-            ImePurpose::Time => ContentPurpose::Time,
-            ImePurpose::DateTime => ContentPurpose::Datetime,
+            ime::Purpose::Password => ContentPurpose::Password,
+            ime::Purpose::Terminal => ContentPurpose::Terminal,
+            ime::Purpose::Phone => ContentPurpose::Phone,
+            ime::Purpose::Number => ContentPurpose::Number,
+            ime::Purpose::Url => ContentPurpose::Url,
+            ime::Purpose::Email => ContentPurpose::Email,
+            ime::Purpose::Pin => ContentPurpose::Pin,
+            ime::Purpose::Date => ContentPurpose::Date,
+            ime::Purpose::Time => ContentPurpose::Time,
+            ime::Purpose::DateTime => ContentPurpose::Datetime,
             _ => ContentPurpose::Normal,
         };
 
@@ -422,34 +420,34 @@ impl From<(ImeHint, ImePurpose)> for ContentType {
         };
 
         let mut new_hint = base_hint;
-        if hint.contains(ImeHint::COMPLETION) {
+        if hint.contains(ime::Hint::COMPLETION) {
             new_hint |= ContentHint::Completion;
         }
-        if hint.contains(ImeHint::SPELLCHECK) {
+        if hint.contains(ime::Hint::SPELLCHECK) {
             new_hint |= ContentHint::Spellcheck;
         }
-        if hint.contains(ImeHint::AUTO_CAPITALIZATION) {
+        if hint.contains(ime::Hint::AUTO_CAPITALIZATION) {
             new_hint |= ContentHint::AutoCapitalization;
         }
-        if hint.contains(ImeHint::LOWERCASE) {
+        if hint.contains(ime::Hint::LOWERCASE) {
             new_hint |= ContentHint::Lowercase;
         }
-        if hint.contains(ImeHint::UPPERCASE) {
+        if hint.contains(ime::Hint::UPPERCASE) {
             new_hint |= ContentHint::Uppercase;
         }
-        if hint.contains(ImeHint::TITLECASE) {
+        if hint.contains(ime::Hint::TITLECASE) {
             new_hint |= ContentHint::Titlecase;
         }
-        if hint.contains(ImeHint::HIDDEN_TEXT) {
+        if hint.contains(ime::Hint::HIDDEN_TEXT) {
             new_hint |= ContentHint::HiddenText;
         }
-        if hint.contains(ImeHint::SENSITIVE_DATA) {
+        if hint.contains(ime::Hint::SENSITIVE_DATA) {
             new_hint |= ContentHint::SensitiveData;
         }
-        if hint.contains(ImeHint::LATIN) {
+        if hint.contains(ime::Hint::LATIN) {
             new_hint |= ContentHint::Latin;
         }
-        if hint.contains(ImeHint::MULTILINE) {
+        if hint.contains(ime::Hint::MULTILINE) {
             new_hint |= ContentHint::Multiline;
         }
 

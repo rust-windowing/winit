@@ -43,6 +43,7 @@ changelog entry.
 ### Added
 
 - Add `keyboard` support for OpenHarmony.
+- Add fn `Window::disable_ime`, replacing `ImeRequest::Disable`
 
 ### Changed
 

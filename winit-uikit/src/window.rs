@@ -21,11 +21,11 @@ use winit_core::cursor::Cursor;
 use winit_core::error::{NotSupportedError, RequestError};
 use winit_core::event::WindowEvent;
 use winit_core::icon::Icon;
+use winit_core::ime;
 use winit_core::monitor::{Fullscreen, MonitorHandle as CoreMonitorHandle};
 use winit_core::window::{
-    CursorGrabMode, ImeCapabilities, ImeRequest, ImeRequestError, ResizeDirection, Theme,
-    UserAttentionType, Window as CoreWindow, WindowAttributes, WindowButtons, WindowId,
-    WindowLevel,
+    CursorGrabMode, ResizeDirection, Theme, UserAttentionType, Window as CoreWindow,
+    WindowAttributes, WindowButtons, WindowId, WindowLevel,
 };
 
 use super::app_state::EventWrapper;
@@ -114,7 +114,7 @@ pub struct Inner {
     view_controller: Retained<WinitViewController>,
     view: Retained<WinitView>,
     gl_or_metal_backed: bool,
-    ime_capabilities: Mutex<Option<ImeCapabilities>>,
+    ime_capabilities: Mutex<Option<ime::Capabilities>>,
 }
 
 impl Inner {
@@ -378,37 +378,39 @@ impl Inner {
         warn!("`Window::set_window_icon` is ignored on iOS")
     }
 
-    /// Show / hide the keyboard. To show the keyboard, we call `becomeFirstResponder`,
+    /// Show / update the keyboard. To show the keyboard, we call `becomeFirstResponder`,
     /// requesting focus for the [WinitView]. Since [WinitView] implements
     /// [objc2_ui_kit::UIKeyInput], the keyboard will be shown.
     /// <https://developer.apple.com/documentation/uikit/uiresponder/1621113-becomefirstresponder>
-    fn request_ime_update(&self, request: ImeRequest) -> Result<(), ImeRequestError> {
+    fn request_ime_update(&self, request: ime::Request) -> Result<(), ime::RequestError> {
         let mut current_caps = self.ime_capabilities.lock().unwrap();
         match request {
-            ImeRequest::Enable(enable) => {
+            ime::Request::Enable(enable) => {
                 let (capabilities, _) = enable.into_raw();
                 if current_caps.is_some() {
-                    return Err(ImeRequestError::AlreadyEnabled);
+                    return Err(ime::RequestError::AlreadyEnabled);
                 }
                 *current_caps = Some(capabilities);
 
                 self.view.becomeFirstResponder();
             },
-            ImeRequest::Update(_) => {
+            ime::Request::Update(_) => {
                 if current_caps.is_none() {
-                    return Err(ImeRequestError::NotEnabled);
+                    return Err(ime::RequestError::NotEnabled);
                 }
-            },
-            ImeRequest::Disable => {
-                *current_caps = None;
-                self.view.resignFirstResponder();
             },
         }
 
         Ok(())
     }
 
-    fn ime_capabilities(&self) -> Option<ImeCapabilities> {
+    /// Hide the keyboard.
+    fn disable_ime(&self) {
+        *self.ime_capabilities.lock().unwrap() = None;
+        self.view.resignFirstResponder();
+    }
+
+    fn ime_capabilities(&self) -> Option<ime::Capabilities> {
         *self.ime_capabilities.lock().unwrap()
     }
 
@@ -728,11 +730,15 @@ impl CoreWindow for Window {
         self.maybe_wait_on_main(|delegate| delegate.set_window_icon(window_icon));
     }
 
-    fn request_ime_update(&self, request: ImeRequest) -> Result<(), ImeRequestError> {
+    fn request_ime_update(&self, request: ime::Request) -> Result<(), ime::RequestError> {
         self.maybe_wait_on_main(|delegate| delegate.request_ime_update(request))
     }
 
-    fn ime_capabilities(&self) -> Option<ImeCapabilities> {
+    fn disable_ime(&self) {
+        self.maybe_wait_on_main(|delegate| delegate.disable_ime());
+    }
+
+    fn ime_capabilities(&self) -> Option<ime::Capabilities> {
         self.maybe_wait_on_main(|delegate| delegate.ime_capabilities())
     }
 

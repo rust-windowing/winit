@@ -16,6 +16,7 @@ pub mod application;
 pub mod event;
 pub mod event_loop;
 pub mod icon;
+pub mod ime;
 pub mod keyboard;
 pub mod monitor;
 pub mod window;
