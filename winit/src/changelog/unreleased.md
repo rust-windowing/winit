@@ -46,6 +46,10 @@ changelog entry.
 - On macOS, add `WindowAttributesMacOS::with_traffic_light_inset` and
   `WindowExtMacOS::set_traffic_light_inset`.
 
+### Changed
+
+- Updated `windows-sys` to `v0.61`.
+
 ### Fixed
 
 - On X11, fix `set_hittest` not working on some window managers.
