@@ -12,7 +12,7 @@ use winit_core::error::{NotSupportedError, RequestError};
 use winit_core::icon::Icon;
 use winit_core::monitor::{Fullscreen, MonitorHandle as CoremMonitorHandle};
 use winit_core::window::{
-    CursorGrabMode, ImeRequestError, ResizeDirection, Theme, UserAttentionType,
+    CursorGrabMode, ImeRequest, ImeRequestError, ResizeDirection, Theme, UserAttentionType,
     Window as RootWindow, WindowAttributes, WindowButtons, WindowId, WindowLevel,
 };
 
@@ -39,6 +39,20 @@ pub struct Inner {
     safe_area: Rc<backend::SafeAreaHandle>,
     canvas: Rc<backend::Canvas>,
     destroy_fn: Option<Box<dyn FnOnce()>>,
+}
+
+impl Inner {
+    pub(crate) fn is_support_edit_context(&self) -> bool {
+        self.canvas.is_support_edit_context()
+    }
+
+    pub(crate) fn enable_edit_context(&self) {
+        self.canvas.enable_edit_context()
+    }
+
+    pub(crate) fn disable_edit_context(&self) {
+        self.canvas.disable_edit_context()
+    }
 }
 
 impl Window {
@@ -308,8 +322,27 @@ impl RootWindow for Window {
         None
     }
 
-    fn request_ime_update(&self, _: winit_core::window::ImeRequest) -> Result<(), ImeRequestError> {
-        Err(ImeRequestError::NotSupported)
+    fn request_ime_update(
+        &self,
+        request: winit_core::window::ImeRequest,
+    ) -> Result<(), ImeRequestError> {
+        let support_edit_context = self.inner.queue(|inner| inner.is_support_edit_context());
+        if support_edit_context {
+            match request {
+                ImeRequest::Enable(_ime_enable_request) => self.inner.dispatch(move |inner| {
+                    inner.enable_edit_context();
+                }),
+                ImeRequest::Update(_ime_request_data) => {
+                    // Currently an intentional no-op
+                },
+                ImeRequest::Disable => {
+                    self.inner.dispatch(move |inner| inner.disable_edit_context())
+                },
+            }
+            Ok(())
+        } else {
+            Err(ImeRequestError::NotSupported)
+        }
     }
 
     fn focus_window(&self) {

@@ -8,7 +8,7 @@ use web_sys::Element;
 use winit_core::application::ApplicationHandler;
 use winit_core::cursor::{CustomCursor as CoreCustomCursor, CustomCursorSource};
 use winit_core::error::{NotSupportedError, RequestError};
-use winit_core::event::{ElementState, KeyEvent, TouchPhase, WindowEvent};
+use winit_core::event::{ElementState, Ime, KeyEvent, TouchPhase, WindowEvent};
 use winit_core::event_loop::{
     ActiveEventLoop as RootActiveEventLoop, ControlFlow, DeviceEvents,
     EventLoopProxy as RootEventLoopProxy, OwnedDisplayHandle as CoreOwnedDisplayHandle,
@@ -439,6 +439,42 @@ impl ActiveEventLoop {
         canvas.on_animation_frame(move || runner.request_redraw(window_id));
 
         canvas.on_context_menu();
+
+        canvas.on_composition_start({
+            let runner = self.runner.clone();
+            move |data, position| {
+                if let Some(data) = data {
+                    runner.send_event(Event::WindowEvent {
+                        window_id,
+                        event: WindowEvent::Ime(Ime::Preedit(data, position)),
+                    });
+                }
+            }
+        });
+
+        canvas.on_composition_end({
+            let runner = self.runner.clone();
+            move |data| {
+                if let Some(data) = data {
+                    runner.send_event(Event::WindowEvent {
+                        window_id,
+                        event: WindowEvent::Ime(Ime::Commit(data)),
+                    });
+                }
+            }
+        });
+
+        canvas.on_text_update({
+            let runner = self.runner.clone();
+            move |data, position| {
+                if let Some(data) = data {
+                    runner.send_event(Event::WindowEvent {
+                        window_id,
+                        event: WindowEvent::Ime(Ime::Preedit(data, position)),
+                    });
+                }
+            }
+        });
     }
 
     pub(crate) fn set_poll_strategy(&self, strategy: PollStrategy) {

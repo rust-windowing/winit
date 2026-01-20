@@ -4,12 +4,13 @@ use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 
 use dpi::{LogicalPosition, PhysicalPosition, PhysicalSize};
+use js_sys::{Array, Function, Reflect};
 use smol_str::SmolStr;
-use wasm_bindgen::JsCast;
 use wasm_bindgen::closure::Closure;
+use wasm_bindgen::{JsCast, JsValue};
 use web_sys::{
-    CssStyleDeclaration, Document, Event, FocusEvent, HtmlCanvasElement, KeyboardEvent, Navigator,
-    PointerEvent, WheelEvent,
+    CompositionEvent, CssStyleDeclaration, Document, Event, EventTarget, FocusEvent,
+    HtmlCanvasElement, KeyboardEvent, Navigator, PointerEvent, WheelEvent,
 };
 use winit_core::error::RequestError;
 use winit_core::event::{
@@ -57,6 +58,9 @@ struct Handlers {
     on_intersect: Option<IntersectionObserverHandle>,
     on_touch_end: Option<EventListenerHandle<dyn FnMut(Event)>>,
     on_context_menu: Option<EventListenerHandle<dyn FnMut(PointerEvent)>>,
+    on_composition_start: Option<EventListenerHandle<dyn FnMut(CompositionEvent)>>,
+    on_composition_end: Option<EventListenerHandle<dyn FnMut(CompositionEvent)>>,
+    on_text_update: Option<EventListenerHandle<dyn FnMut(Event)>>,
 }
 
 pub struct Common {
@@ -67,6 +71,7 @@ pub struct Common {
     /// the DPI factor is maintained. Note: this is read-only because we use a pointer to this
     /// for [`WindowHandle`][rwh_06::WindowHandle].
     raw: Rc<HtmlCanvasElement>,
+    raw_edit_context: Option<Rc<JsValue>>,
     style: Style,
     old_size: Rc<Cell<PhysicalSize<u32>>>,
     current_size: Rc<Cell<PhysicalSize<u32>>>,
@@ -102,6 +107,15 @@ impl Canvas {
                 .unchecked_into(),
         };
 
+        let edit_context = if let Ok(edit_context_ctor) =
+            Reflect::get(&window, &JsValue::from_str("EditContext"))
+        {
+            let edit_context_ctor = JsCast::unchecked_ref::<js_sys::Function>(&edit_context_ctor);
+            Reflect::construct(edit_context_ctor, &Array::new()).ok()
+        } else {
+            None
+        };
+
         if web_attributes.append && !document.contains(Some(&canvas)) {
             document
                 .body()
@@ -130,6 +144,7 @@ impl Canvas {
             document: document.clone(),
             navigator,
             raw: Rc::new(canvas.clone()),
+            raw_edit_context: edit_context.map(Rc::new),
             style,
             old_size: Rc::default(),
             current_size: Rc::default(),
@@ -185,6 +200,9 @@ impl Canvas {
                 on_intersect: None,
                 on_touch_end: None,
                 on_context_menu: None,
+                on_composition_start: None,
+                on_composition_end: None,
+                on_text_update: None,
             }),
         })
     }
@@ -464,6 +482,89 @@ impl Canvas {
             }));
     }
 
+    pub(crate) fn on_composition_start<F>(&self, mut handler: F)
+    where
+        F: 'static + FnMut(Option<String>, Option<(usize, usize)>),
+    {
+        let prevent_default = Rc::clone(&self.prevent_default);
+        self.handlers.borrow_mut().on_composition_start =
+            self.common.add_ime_event("compositionstart", move |event: CompositionEvent| {
+                if prevent_default.get() {
+                    event.prevent_default();
+                }
+                handler(event.data(), None);
+            });
+    }
+
+    pub(crate) fn on_composition_end<F>(&self, mut handler: F)
+    where
+        F: 'static + FnMut(Option<String>),
+    {
+        let prevent_default = Rc::clone(&self.prevent_default);
+        self.handlers.borrow_mut().on_composition_end =
+            self.common.add_ime_event("compositionend", move |event: CompositionEvent| {
+                if prevent_default.get() {
+                    event.prevent_default();
+                }
+                handler(event.data());
+            });
+    }
+
+    pub(crate) fn on_text_update<F>(&self, mut handler: F)
+    where
+        F: 'static + FnMut(Option<String>, Option<(usize, usize)>),
+    {
+        let prevent_default = Rc::clone(&self.prevent_default);
+        self.handlers.borrow_mut().on_text_update =
+            self.common.add_ime_event("textupdate", move |event: Event| {
+                if prevent_default.get() {
+                    event.prevent_default();
+                }
+                let edit_context = JsValue::from(event.target());
+                let text_update_event = JsValue::from(event);
+                if let (Ok(text), Ok(update_range_end)) = (
+                    Reflect::get(&text_update_event, &JsValue::from_str("text")),
+                    Reflect::get(&text_update_event, &JsValue::from_str("updateRangeEnd")),
+                ) {
+                    handler(text.as_string(), None);
+
+                    // Clear the text update to avoid repeated updates.
+                    let Ok(func) = Reflect::get(&edit_context, &JsValue::from_str("updateText"))
+                    else {
+                        return;
+                    };
+                    let func = JsCast::unchecked_ref::<Function>(&func);
+                    let _ = func.call3(
+                        &edit_context,
+                        &JsValue::from_f64(0.0),
+                        &JsValue::from_f64(update_range_end.as_f64().unwrap_or(0.0)),
+                        &JsValue::from_str(""),
+                    );
+                }
+            });
+    }
+
+    pub(crate) fn is_support_edit_context(&self) -> bool {
+        self.common.raw_edit_context.is_some()
+    }
+
+    pub(crate) fn enable_edit_context(&self) {
+        if let Some(raw_edit_context) = &self.common.raw_edit_context {
+            let canvas_js = JsValue::from(self.raw());
+            Reflect::set(&canvas_js, &JsValue::from_str("editContext"), raw_edit_context)
+                .expect("Failed to set editContext on canvas");
+        }
+    }
+
+    pub(crate) fn disable_edit_context(&self) {
+        if self.common.raw_edit_context.is_none() {
+            return;
+        }
+        let canvas_js = JsValue::from(self.raw());
+        Reflect::set(&canvas_js, &JsValue::from_str("editContext"), &JsValue::NULL)
+            .expect("Failed to unset editContext on canvas");
+    }
+
     pub(crate) fn request_fullscreen(&self, fullscreen: Fullscreen) {
         fullscreen::request_fullscreen(
             self.main_thread,
@@ -557,6 +658,25 @@ impl Common {
         F: 'static + FnMut(E),
     {
         EventListenerHandle::new(self.raw.deref().clone(), event_name, Closure::new(handler))
+    }
+
+    pub fn add_ime_event<E, F>(
+        &self,
+        event_name: &'static str,
+        handler: F,
+    ) -> Option<EventListenerHandle<dyn FnMut(E)>>
+    where
+        E: 'static + AsRef<web_sys::Event> + wasm_bindgen::convert::FromWasmAbi,
+        F: 'static + FnMut(E),
+    {
+        if let Some(edit_context) =
+            self.raw_edit_context.as_ref().map(|edit_context| edit_context.deref().clone())
+        {
+            let edit_context = JsCast::unchecked_into::<EventTarget>(edit_context);
+            Some(EventListenerHandle::new(edit_context, event_name, Closure::new(handler)))
+        } else {
+            None
+        }
     }
 
     pub fn raw(&self) -> &HtmlCanvasElement {
