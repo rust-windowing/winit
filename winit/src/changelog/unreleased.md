@@ -43,6 +43,8 @@ changelog entry.
 ### Added
 
 - Add `keyboard` support for OpenHarmony.
+- On macOS, add `WindowAttributesMacOS::with_traffic_light_inset` and
+  `WindowExtMacOS::set_traffic_light_inset`.
 
 ### Changed
 
