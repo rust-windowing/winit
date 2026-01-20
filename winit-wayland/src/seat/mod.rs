@@ -256,7 +256,7 @@ impl SeatHandler for WinitState {
 impl WinitState {
     fn on_keyboard_destroy(&mut self, seat: &ObjectId) {
         for (window_id, window) in self.windows.get_mut() {
-            let mut window = window.lock().unwrap();
+            let mut window = window.lock();
             let had_focus = window.has_focus();
             window.remove_seat_focus(seat);
             if had_focus != window.has_focus() {

@@ -16,6 +16,7 @@ use sctk::seat::SeatState;
 use sctk::seat::pointer::ThemedPointer;
 use sctk::shell::WaylandSurface;
 use sctk::shell::xdg::XdgShell;
+use sctk::shell::xdg::popup::{Popup, PopupConfigure, PopupHandler};
 use sctk::shell::xdg::window::{Window, WindowConfigure, WindowHandler};
 use sctk::shm::slot::SlotPool;
 use sctk::shm::{Shm, ShmHandler};
@@ -35,7 +36,8 @@ use crate::types::wp_tablet_input_v2::TabletManager;
 use crate::types::wp_viewporter::ViewporterState;
 use crate::types::xdg_activation::XdgActivationState;
 use crate::types::xdg_toplevel_icon_manager::XdgToplevelIconManagerState;
-use crate::window::{WindowRequests, WindowState};
+use crate::window::WindowRequests;
+use crate::window::state::{AnyWindowState, FrameCallbackState};
 
 /// Winit's Wayland state.
 #[derive(Debug)]
@@ -62,7 +64,7 @@ pub struct WinitState {
     pub xdg_shell: XdgShell,
 
     /// The currently present windows.
-    pub windows: RefCell<AHashMap<WindowId, Arc<Mutex<WindowState>>>>,
+    pub windows: RefCell<AHashMap<WindowId, AnyWindowState>>,
 
     /// The requests from the `Window` to EventLoop, such as close operations and redraw requests.
     pub window_requests: RefCell<AHashMap<WindowId, Arc<WindowRequests>>>,
@@ -242,7 +244,14 @@ impl WinitState {
             };
 
             // Update the scale factor right away.
-            window.lock().unwrap().set_scale_factor(scale_factor);
+            match window {
+                AnyWindowState::TopLevel(window) => {
+                    window.lock().unwrap().set_scale_factor(scale_factor)
+                },
+                AnyWindowState::Popup(window) => {
+                    window.lock().unwrap().set_scale_factor(scale_factor)
+                },
+            }
             self.window_compositor_updates[pos].scale_changed = true;
         } else if let Some(pointer) = self.pointer_surfaces.get(&surface.id()) {
             // Get the window, where the pointer resides right now.
@@ -251,8 +260,12 @@ impl WinitState {
                 None => return,
             };
 
-            if let Some(window_state) = self.windows.get_mut().get(&focused_window) {
-                window_state.lock().unwrap().reload_cursor_style()
+            match self.windows.get_mut().get(&focused_window) {
+                Some(AnyWindowState::TopLevel(window)) => {
+                    window.lock().unwrap().reload_cursor_style()
+                },
+                Some(AnyWindowState::Popup(window)) => window.lock().unwrap().reload_cursor_style(),
+                None => (),
             }
         }
     }
@@ -292,6 +305,12 @@ impl WindowHandler for WinitState {
     ) {
         let window_id = super::make_wid(window.wl_surface());
 
+        let AnyWindowState::TopLevel(window) =
+            self.windows.get_mut().get_mut(&window_id).expect("got configure for dead window.")
+        else {
+            panic!("got window configure for popup");
+        };
+
         let pos = if let Some(pos) =
             self.window_compositor_updates.iter().position(|update| update.window_id == window_id)
         {
@@ -302,14 +321,8 @@ impl WindowHandler for WinitState {
         };
 
         // Populate the configure to the window.
-        self.window_compositor_updates[pos].resized |= self
-            .windows
-            .get_mut()
-            .get_mut(&window_id)
-            .expect("got configure for dead window.")
-            .lock()
-            .unwrap()
-            .configure(configure, &self.shm, &self.subcompositor_state);
+        self.window_compositor_updates[pos].resized |=
+            window.lock().unwrap().configure(configure, &self.shm, &self.subcompositor_state);
 
         // NOTE: configure demands wl_surface::commit, however winit doesn't commit on behalf of the
         // users, since it can break a lot of things, thus it'll ask users to redraw instead.
@@ -322,6 +335,57 @@ impl WindowHandler for WinitState {
 
         // Manually mark that we've got an event, since configure may not generate a resize.
         self.dispatched_events = true;
+    }
+}
+
+impl PopupHandler for WinitState {
+    fn configure(
+        &mut self,
+        _: &Connection,
+        _: &QueueHandle<Self>,
+        popup: &Popup,
+        configure: PopupConfigure,
+    ) {
+        let window_id = super::make_wid(popup.wl_surface());
+
+        let AnyWindowState::Popup(window) =
+            self.windows.get_mut().get_mut(&window_id).expect("got configure for dead window.")
+        else {
+            panic!("got popup configure for window");
+        };
+
+        let pos = if let Some(pos) =
+            self.window_compositor_updates.iter().position(|update| update.window_id == window_id)
+        {
+            pos
+        } else {
+            self.window_compositor_updates.push(WindowCompositorUpdate::new(window_id));
+            self.window_compositor_updates.len() - 1
+        };
+
+        // Populate the configure to the window.
+        self.window_compositor_updates[pos].resized |= window.lock().unwrap().configure(configure);
+
+        // NOTE: configure demands wl_surface::commit, however winit doesn't commit on behalf of the
+        // users, since it can break a lot of things, thus it'll ask users to redraw instead.
+        self.window_requests
+            .get_mut()
+            .get(&window_id)
+            .unwrap()
+            .redraw_requested
+            .store(true, Ordering::Relaxed);
+
+        // Manually mark that we've got an event, since configure may not generate a resize.
+        self.dispatched_events = true;
+    }
+
+    fn done(&mut self, _: &Connection, _: &QueueHandle<Self>, popup: &Popup) {
+        self.window_requests
+            .get_mut()
+            .get(&super::make_wid(popup.wl_surface()))
+            .expect("got popup done for dead popup")
+            .closed
+            .store(true, Ordering::Relaxed);
     }
 }
 
@@ -411,7 +475,7 @@ impl CompositorHandler for WinitState {
             self.dispatched_events = true;
         }
 
-        window.lock().unwrap().frame_callback_received();
+        *window.lock().frame_callback_state() = FrameCallbackState::Received;
     }
 }
 
@@ -452,3 +516,4 @@ sctk::delegate_registry!(WinitState);
 sctk::delegate_shm!(WinitState);
 sctk::delegate_xdg_shell!(WinitState);
 sctk::delegate_xdg_window!(WinitState);
+sctk::delegate_xdg_popup!(WinitState);

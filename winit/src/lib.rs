@@ -292,7 +292,7 @@ pub use rwh_06 as raw_window_handle;
 #[cfg(any(doc, doctest, test))]
 pub mod changelog;
 pub mod event_loop;
-pub use winit_core::{application, cursor, error, event, icon, keyboard, monitor, window};
+pub use winit_core::{application, cursor, error, event, icon, keyboard, monitor, popup, window};
 #[macro_use]
 mod os_error;
 mod platform_impl;

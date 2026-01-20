@@ -20,6 +20,8 @@ use std::ptr::NonNull;
 use dpi::{LogicalSize, PhysicalSize};
 use sctk::reexports::client::Proxy;
 use sctk::reexports::client::protocol::wl_surface::WlSurface;
+pub use sctk::shell::xdg::popup::Popup as SctkPopup;
+pub use sctk::shell::xdg::window::Window as SctkWindow;
 use sctk::shm::slot::{Buffer, CreateBufferError, SlotPool};
 use wayland_client::protocol::wl_shm::Format;
 use winit_core::event_loop::ActiveEventLoop as CoreActiveEventLoop;
@@ -83,7 +85,7 @@ pub trait WindowExtWayland {
 impl WindowExtWayland for dyn CoreWindow + '_ {
     #[inline]
     fn xdg_toplevel(&self) -> Option<NonNull<c_void>> {
-        self.cast_ref::<Window>()?.xdg_toplevel()
+        self.cast_ref::<Window<SctkWindow>>()?.xdg_toplevel()
     }
 }
 

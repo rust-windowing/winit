@@ -15,7 +15,8 @@ use crate::as_any::AsAny;
 use crate::cursor::{CustomCursor, CustomCursorSource};
 use crate::error::RequestError;
 use crate::monitor::MonitorHandle;
-use crate::window::{Theme, Window, WindowAttributes};
+use crate::popup::PopupAttributes;
+use crate::window::{Theme, Window, WindowAttributes, WindowId};
 
 pub trait ActiveEventLoop: AsAny + fmt::Debug {
     /// Creates an [`EventLoopProxy`] that can be used to dispatch user events
@@ -33,6 +34,16 @@ pub trait ActiveEventLoop: AsAny + fmt::Debug {
     fn create_window(
         &self,
         window_attributes: WindowAttributes,
+    ) -> Result<Box<dyn Window>, RequestError>;
+
+    /// Create a popup.
+    ///
+    /// Possible causes of error include denied permission, incompatible system, and lack of memory.
+    fn create_popup(
+        &self,
+        window_attributes: WindowAttributes,
+        popup_attributes: PopupAttributes,
+        parent: WindowId,
     ) -> Result<Box<dyn Window>, RequestError>;
 
     /// Create custom cursor.

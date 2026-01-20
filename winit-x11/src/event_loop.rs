@@ -28,6 +28,7 @@ use winit_core::event_loop::{
     OwnedDisplayHandle as CoreOwnedDisplayHandle,
 };
 use winit_core::monitor::MonitorHandle as CoreMonitorHandle;
+use winit_core::popup::PopupAttributes;
 use winit_core::window::{Theme, Window as CoreWindow, WindowAttributes, WindowId};
 use x11rb::connection::RequestConnection;
 use x11rb::errors::{ConnectError, ConnectionError, IdsExhausted, ReplyError};
@@ -705,6 +706,15 @@ impl RootActiveEventLoop for ActiveEventLoop {
         window_attributes: WindowAttributes,
     ) -> Result<Box<dyn CoreWindow>, RequestError> {
         Ok(Box::new(Window::new(self, window_attributes)?))
+    }
+
+    fn create_popup(
+        &self,
+        _: WindowAttributes,
+        _: PopupAttributes,
+        _: WindowId,
+    ) -> Result<Box<dyn CoreWindow>, RequestError> {
+        todo!()
     }
 
     fn create_custom_cursor(
