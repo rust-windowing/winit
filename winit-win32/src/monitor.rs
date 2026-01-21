@@ -4,13 +4,14 @@ use std::num::{NonZeroU16, NonZeroU32};
 use std::{io, iter, mem, ptr};
 
 use dpi::{PhysicalPosition, PhysicalSize};
-use windows_sys::Win32::Foundation::{BOOL, HWND, LPARAM, POINT, RECT};
+use windows_sys::Win32::Foundation::{HWND, LPARAM, POINT, RECT};
 use windows_sys::Win32::Graphics::Gdi::{
     DEVMODEW, DM_BITSPERPEL, DM_DISPLAYFREQUENCY, DM_PELSHEIGHT, DM_PELSWIDTH,
     ENUM_CURRENT_SETTINGS, EnumDisplayMonitors, EnumDisplaySettingsExW, GetMonitorInfoW, HDC,
     HMONITOR, MONITOR_DEFAULTTONEAREST, MONITOR_DEFAULTTOPRIMARY, MONITORINFO, MONITORINFOEXW,
     MonitorFromPoint, MonitorFromWindow,
 };
+use windows_sys::core::BOOL;
 use winit_core::monitor::{MonitorHandleProvider, VideoMode};
 
 use super::util::decode_wide;
