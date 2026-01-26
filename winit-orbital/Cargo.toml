@@ -21,5 +21,6 @@ tracing.workspace = true
 winit-core.workspace = true
 
 # Platform-specific
+libredox.workspace = true
 orbclient.workspace = true
-redox_syscall.workspace = true
+redox_event.workspace = true
