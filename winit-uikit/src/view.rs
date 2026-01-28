@@ -15,8 +15,8 @@ use objc2_ui_kit::{
 };
 use tracing::debug;
 use winit_core::event::{
-    ButtonSource, ElementState, FingerId, Force, KeyEvent, PointerKind, PointerSource, TouchPhase,
-    WindowEvent,
+    ButtonSource, ElementState, FingerId, Force, KeyEvent, PointerKind, PointerSource,
+    TabletToolAngle, TabletToolButton, TabletToolData, TabletToolKind, TouchPhase, WindowEvent,
 };
 use winit_core::keyboard::{Key, KeyCode, KeyLocation, NamedKey, NativeKeyCode, PhysicalKey};
 
@@ -461,19 +461,18 @@ impl WinitView {
         let window = self.window().unwrap();
         let mut touch_events = Vec::new();
         for touch in touches {
-            if let UITouchType::Pencil = touch.r#type() {
-                continue;
-            }
-
             let logical_location = touch.locationInView(None);
             let touch_type = touch.r#type();
-            let force = if let UITouchType::Pencil = touch_type {
-                None
-            } else if available!(ios = 9.0, tvos = 9.0, visionos = 1.0) {
-                let trait_collection = self.traitCollection();
-                let touch_capability = trait_collection.forceTouchCapability();
-                // Both the OS _and_ the device need to be checked for force touch support.
-                if touch_capability == UIForceTouchCapability::Available {
+            let force = if available!(ios = 9.0, tvos = 9.0, visionos = 1.0) {
+                let use_force = match touch_type {
+                    UITouchType::Pencil => true,
+                    _ => {
+                        let trait_collection = self.traitCollection();
+                        trait_collection.forceTouchCapability() == UIForceTouchCapability::Available
+                    },
+                };
+
+                if use_force {
                     let force = touch.force();
                     let max_possible_force = touch.maximumPossibleForce();
                     Some(Force::Calibrated {
@@ -529,7 +528,7 @@ impl WinitView {
                             primary,
                             position,
                             kind: if let UITouchType::Pencil = touch_type {
-                                PointerKind::Unknown
+                                PointerKind::TabletTool(TabletToolKind::Pencil)
                             } else {
                                 PointerKind::Touch(finger_id)
                             },
@@ -543,7 +542,12 @@ impl WinitView {
                             state: ElementState::Pressed,
                             position,
                             button: if let UITouchType::Pencil = touch_type {
-                                ButtonSource::Unknown(0)
+                                let tool_data = self.tablet_tool_data_for_pencil(&touch);
+                                ButtonSource::TabletTool {
+                                    kind: TabletToolKind::Pencil,
+                                    button: TabletToolButton::Contact,
+                                    data: tool_data,
+                                }
                             } else {
                                 ButtonSource::Touch { finger_id, force }
                             },
@@ -552,7 +556,11 @@ impl WinitView {
                 },
                 UITouchPhase::Moved => {
                     let (primary, source) = if let UITouchType::Pencil = touch_type {
-                        (true, PointerSource::Unknown)
+                        let tool_data = self.tablet_tool_data_for_pencil(&touch);
+                        (true, PointerSource::TabletTool {
+                            kind: TabletToolKind::Pencil,
+                            data: tool_data,
+                        })
                     } else {
                         (ivars.primary_finger.get().unwrap() == finger_id, PointerSource::Touch {
                             finger_id,
@@ -592,7 +600,12 @@ impl WinitView {
                                 state: ElementState::Released,
                                 position,
                                 button: if let UITouchType::Pencil = touch_type {
-                                    ButtonSource::Unknown(0)
+                                    let tool_data = self.tablet_tool_data_for_pencil(&touch);
+                                    ButtonSource::TabletTool {
+                                        kind: TabletToolKind::Pencil,
+                                        button: TabletToolButton::Contact,
+                                        data: tool_data,
+                                    }
                                 } else {
                                     ButtonSource::Touch { finger_id, force }
                                 },
@@ -607,7 +620,7 @@ impl WinitView {
                             primary,
                             position: Some(position),
                             kind: if let UITouchType::Pencil = touch_type {
-                                PointerKind::Unknown
+                                PointerKind::TabletTool(TabletToolKind::Pencil)
                             } else {
                                 PointerKind::Touch(finger_id)
                             },
@@ -619,6 +632,32 @@ impl WinitView {
         }
         let mtm = MainThreadMarker::new().unwrap();
         app_state::handle_nonuser_events(mtm, touch_events);
+    }
+
+    fn tablet_tool_data_for_pencil(&self, touch: &UITouch) -> TabletToolData {
+        let force = if available!(ios = 9.0, tvos = 9.0, visionos = 1.0) {
+            let force_val = touch.force();
+            let max_force = touch.maximumPossibleForce();
+            Some(Force::Calibrated { force: force_val as _, max_possible_force: max_force as _ })
+        } else {
+            None
+        };
+
+        let angle = if available!(ios = 9.1, tvos = 9.0, visionos = 1.0) {
+            let altitude = touch.altitudeAngle();
+            let azimuth = touch.azimuthAngleInView(Some(self));
+            Some(TabletToolAngle { altitude: altitude as _, azimuth: azimuth as _ })
+        } else {
+            None
+        };
+
+        TabletToolData {
+            force,
+            tangential_force: None, // iOS doesn't provide barrel pressure
+            twist: None,            // iOS doesn't provide rotation/twist
+            tilt: None,             // Will be calculated from angle if needed
+            angle,
+        }
     }
 
     fn handle_insert_text(&self, text: &NSString) {
