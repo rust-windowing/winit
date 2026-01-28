@@ -45,6 +45,10 @@ changelog entry.
 - Add `keyboard` support for OpenHarmony.
 - On iOS, add Apple Pencil support with force, altitude, and azimuth data.
 
+### Changed
+
+- Updated `windows-sys` to `v0.61`.
+
 ### Fixed
 
 - On X11, fix `set_hittest` not working on some window managers.
