@@ -643,7 +643,7 @@ impl WinitView {
             None
         };
 
-        let angle = if available!(ios = 9.1, visionos = 1.0) {
+        let angle = if available!(ios = 9.1, tvos = 9.0, visionos = 1.0) {
             let altitude = touch.altitudeAngle();
             let azimuth = touch.azimuthAngleInView(Some(self));
             Some(TabletToolAngle { altitude: altitude as _, azimuth: azimuth as _ })
