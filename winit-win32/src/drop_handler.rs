@@ -1,12 +1,12 @@
 use std::ffi::{OsString, c_void};
 use std::os::windows::ffi::OsStringExt;
 use std::path::PathBuf;
-use std::ptr;
+use std::ptr::{self, null_mut};
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 use dpi::PhysicalPosition;
 use tracing::debug;
-use windows_sys::Win32::Foundation::{DV_E_FORMATETC, HWND, POINT, POINTL, S_OK};
+use windows_sys::Win32::Foundation::{DV_E_FORMATETC, E_NOINTERFACE, HWND, POINT, POINTL, S_OK};
 use windows_sys::Win32::Graphics::Gdi::ScreenToClient;
 use windows_sys::Win32::System::Com::{DVASPECT_CONTENT, FORMATETC, TYMED_HGLOBAL};
 use windows_sys::Win32::System::Ole::{CF_HDROP, DROPEFFECT_COPY, DROPEFFECT_NONE};
@@ -17,6 +17,24 @@ use winit_core::event::WindowEvent;
 use crate::definitions::{
     IDataObject, IDataObjectVtbl, IDropTarget, IDropTargetVtbl, IUnknown, IUnknownVtbl,
 };
+
+const IID_IUNKNOWN: GUID = GUID {
+    data1: 0x00000000,
+    data2: 0x0000,
+    data3: 0x0000,
+    data4: [0xc0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x46],
+};
+
+const IID_IDROP_TARGET: GUID = GUID {
+    data1: 0x00000122,
+    data2: 0x0000,
+    data3: 0x0000,
+    data4: [0xc0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x46],
+};
+
+fn guid_eq(a: &GUID, b: &GUID) -> bool {
+    a.data1 == b.data1 && a.data2 == b.data2 && a.data3 == b.data3 && a.data4 == b.data4
+}
 
 #[repr(C)]
 pub struct FileDropHandlerData {
@@ -49,13 +67,26 @@ impl FileDropHandler {
 
     // Implement IUnknown
     pub unsafe extern "system" fn QueryInterface(
-        _this: *mut IUnknown,
-        _riid: *const GUID,
-        _ppvObject: *mut *mut c_void,
+        this: *mut IUnknown,
+        riid: *const GUID,
+        ppvObject: *mut *mut c_void,
     ) -> HRESULT {
-        // This function doesn't appear to be required for an `IDropTarget`.
-        // An implementation would be nice however.
-        unimplemented!();
+        if riid.is_null() || ppvObject.is_null() {
+            return E_NOINTERFACE;
+        }
+
+        let drop_handler_data = unsafe { Self::from_interface(this) };
+        let requested = unsafe { &*riid };
+
+        if guid_eq(requested, &IID_IUNKNOWN) || guid_eq(requested, &IID_IDROP_TARGET) {
+            unsafe { *ppvObject = this as *mut c_void };
+            drop_handler_data.refcount.fetch_add(1, Ordering::Release);
+            return S_OK;
+        }
+
+        // Interface not supported
+        unsafe { *ppvObject = null_mut() };
+        E_NOINTERFACE
     }
 
     pub unsafe extern "system" fn AddRef(this: *mut IUnknown) -> u32 {
@@ -238,3 +269,62 @@ static DROP_TARGET_VTBL: IDropTargetVtbl = IDropTargetVtbl {
     DragLeave: FileDropHandler::DragLeave,
     Drop: FileDropHandler::Drop,
 };
+
+#[cfg(test)]
+mod tests {
+    use std::ptr::null_mut;
+
+    use windows_sys::Win32::Foundation::HWND;
+    use windows_sys::core::GUID;
+
+    use super::*;
+
+    #[test]
+    fn test_file_drop_handler_query_interface() {
+        let handler = FileDropHandler::new(
+            0 as HWND, // null window handle
+            Box::new(|event| {
+                println!("WindowEvent: {:?}", event);
+            }),
+        );
+
+        unsafe {
+            let mut ppv: *mut std::ffi::c_void = null_mut();
+            let hr_iunknown = FileDropHandler::QueryInterface(
+                handler.data as *mut IUnknown,
+                &IID_IUNKNOWN,
+                &mut ppv as *mut _,
+            );
+            assert_eq!(hr_iunknown, S_OK);
+            assert!(!ppv.is_null());
+
+            ppv = null_mut();
+
+            let hr_idroptarget = FileDropHandler::QueryInterface(
+                handler.data as *mut IUnknown,
+                &IID_IDROP_TARGET,
+                &mut ppv as *mut _,
+            );
+            assert_eq!(hr_idroptarget, S_OK);
+            assert!(!ppv.is_null());
+
+            let unknown_guid = GUID {
+                data1: 0x12345678,
+                data2: 0x1234,
+                data3: 0x5678,
+                data4: [0x90, 0xab, 0xcd, 0xef, 0x00, 0x11, 0x22, 0x33],
+            };
+            ppv = null_mut();
+            let hr_unknown = FileDropHandler::QueryInterface(
+                handler.data as *mut IUnknown,
+                &unknown_guid,
+                &mut ppv as *mut _,
+            );
+            assert_eq!(hr_unknown, E_NOINTERFACE);
+            assert!(ppv.is_null());
+        }
+
+        // Drop the handler manually
+        unsafe { FileDropHandler::Release(handler.data as *mut IUnknown) };
+    }
+}
