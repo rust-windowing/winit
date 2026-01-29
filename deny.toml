@@ -32,6 +32,7 @@ allow = [
     "ISC",          # https://tldrlegal.com/license/isc-license
     "MIT",          # https://tldrlegal.com/license/mit-license
     "Unicode-3.0",  # https://spdx.org/licenses/Unicode-3.0.html
+    "Zlib",         # https://spdx.org/licenses/Zlib.html
 ]
 confidence-threshold = 1.0
 private = { ignore = true }
