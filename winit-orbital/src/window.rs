@@ -3,12 +3,13 @@ use std::iter;
 use std::sync::{Arc, Mutex};
 
 use dpi::{PhysicalInsets, PhysicalPosition, PhysicalSize, Position, Size};
+use redox_event::EventFlags;
 use winit_core::cursor::Cursor;
 use winit_core::error::{NotSupportedError, RequestError};
 use winit_core::monitor::{Fullscreen, MonitorHandle as CoreMonitorHandle};
 use winit_core::window::{self, Window as CoreWindow, WindowId};
 
-use crate::event_loop::{ActiveEventLoop, EventLoopProxy};
+use crate::event_loop::{ActiveEventLoop, EventLoopProxy, EventSource};
 use crate::{RedoxSocket, WindowProperties};
 
 // These values match the values uses in the `window_new` function in orbital:
@@ -103,13 +104,7 @@ impl Window {
         .expect("failed to open window");
 
         // Add to event socket.
-        el.event_socket
-            .write(&syscall::Event {
-                id: window.fd,
-                flags: syscall::EventFlags::EVENT_READ,
-                data: window.fd,
-            })
-            .unwrap();
+        el.event_socket.subscribe(window.fd(), EventSource::Orbital, EventFlags::READ).unwrap();
 
         let window_socket = Arc::new(window);
 
@@ -146,7 +141,7 @@ impl Window {
     #[inline]
     fn raw_window_handle_rwh_06(&self) -> Result<rwh_06::RawWindowHandle, rwh_06::HandleError> {
         let handle = rwh_06::OrbitalWindowHandle::new({
-            let window = self.window_socket.fd as *mut _;
+            let window = self.window_socket.fd() as *mut _;
             std::ptr::NonNull::new(window).expect("orbital fd should never be null")
         });
         Ok(rwh_06::RawWindowHandle::Orbital(handle))
@@ -160,7 +155,7 @@ impl Window {
 
 impl CoreWindow for Window {
     fn id(&self) -> WindowId {
-        WindowId::from_raw(self.window_socket.fd)
+        WindowId::from_raw(self.window_socket.fd())
     }
 
     fn ime_capabilities(&self) -> Option<window::ImeCapabilities> {
