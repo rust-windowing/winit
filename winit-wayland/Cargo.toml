@@ -29,8 +29,8 @@ tracing.workspace = true
 winit-core.workspace = true
 
 # Platform-specific
-ahash.workspace = true
 calloop.workspace = true
+foldhash.workspace = true
 libc.workspace = true
 memmap2.workspace = true
 rustix = { workspace = true, features = ["std", "system", "thread", "process", "event", "pipe"] }
