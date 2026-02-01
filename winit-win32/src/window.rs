@@ -1461,19 +1461,12 @@ unsafe fn register_window_class(class_name: &[u16]) {
     let hinstance = util::get_instance_handle();
 
     let hicon = unsafe {
-        LoadImageW(
-            hinstance,
-            IDI_APPLICATION,
-            IMAGE_ICON,
-            0,
-            0,
-            LR_DEFAULTSIZE | LR_SHARED,
-        ) as HICON
+        LoadImageW(hinstance, IDI_APPLICATION, IMAGE_ICON, 0, 0, LR_DEFAULTSIZE | LR_SHARED)
+            as HICON
     };
 
-    let hicon_sm = unsafe {
-        LoadImageW(hinstance, IDI_APPLICATION, IMAGE_ICON, 16, 16, LR_SHARED) as HICON
-    };
+    let hicon_sm =
+        unsafe { LoadImageW(hinstance, IDI_APPLICATION, IMAGE_ICON, 16, 16, LR_SHARED) as HICON };
 
     let class = WNDCLASSEXW {
         cbSize: mem::size_of::<WNDCLASSEXW>() as u32,
