@@ -1463,7 +1463,7 @@ unsafe fn register_window_class(class_name: &[u16]) {
     let hicon = unsafe {
         LoadImageW(
             hinstance,
-            IDI_APPLICATION as *const u16,
+            IDI_APPLICATION,
             IMAGE_ICON,
             0,
             0,
@@ -1472,7 +1472,7 @@ unsafe fn register_window_class(class_name: &[u16]) {
     };
 
     let hicon_sm = unsafe {
-        LoadImageW(hinstance, IDI_APPLICATION as *const u16, IMAGE_ICON, 16, 16, LR_SHARED) as HICON
+        LoadImageW(hinstance, IDI_APPLICATION, IMAGE_ICON, 16, 16, LR_SHARED) as HICON
     };
 
     let class = WNDCLASSEXW {
