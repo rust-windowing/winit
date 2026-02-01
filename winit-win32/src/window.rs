@@ -34,7 +34,19 @@ use windows_sys::Win32::UI::Input::KeyboardAndMouse::{
 };
 use windows_sys::Win32::UI::Input::Touch::{RegisterTouchWindow, TWF_WANTPALM};
 use windows_sys::Win32::UI::WindowsAndMessaging::{
-    CS_HREDRAW, CS_VREDRAW, CW_USEDEFAULT, CreateWindowExW, EnableMenuItem, FLASHW_ALL, FLASHW_STOP, FLASHW_TIMERNOFG, FLASHW_TRAY, FLASHWINFO, FlashWindowEx, GWLP_HINSTANCE, GetClientRect, GetCursorPos, GetForegroundWindow, GetSystemMenu, GetSystemMetrics, GetWindowPlacement, GetWindowTextLengthW, GetWindowTextW, HICON, HTBOTTOM, HTBOTTOMLEFT, HTBOTTOMRIGHT, HTCAPTION, HTLEFT, HTRIGHT, HTTOP, HTTOPLEFT, HTTOPRIGHT, IDI_APPLICATION, IMAGE_ICON, IsWindowVisible, LR_DEFAULTSIZE, LR_SHARED, LoadCursorW, LoadImageW, MENU_ITEM_STATE, MF_BYCOMMAND, MFS_DISABLED, MFS_ENABLED, NID_READY, PM_NOREMOVE, PeekMessageW, PostMessageW, RegisterClassExW, SC_CLOSE, SC_MAXIMIZE, SC_MINIMIZE, SC_MOVE, SC_RESTORE, SC_SIZE, SM_DIGITIZER, SWP_ASYNCWINDOWPOS, SWP_NOACTIVATE, SWP_NOSIZE, SWP_NOZORDER, SendMessageW, SetCursor, SetCursorPos, SetForegroundWindow, SetMenuDefaultItem, SetWindowDisplayAffinity, SetWindowPlacement, SetWindowPos, SetWindowTextW, TPM_LEFTALIGN, TPM_RETURNCMD, TrackPopupMenu, WDA_EXCLUDEFROMCAPTURE, WDA_NONE, WM_NCLBUTTONDOWN, WM_SETICON, WM_SYSCOMMAND, WNDCLASSEXW
+    CS_HREDRAW, CS_VREDRAW, CW_USEDEFAULT, CreateWindowExW, EnableMenuItem, FLASHW_ALL,
+    FLASHW_STOP, FLASHW_TIMERNOFG, FLASHW_TRAY, FLASHWINFO, FlashWindowEx, GWLP_HINSTANCE,
+    GetClientRect, GetCursorPos, GetForegroundWindow, GetSystemMenu, GetSystemMetrics,
+    GetWindowPlacement, GetWindowTextLengthW, GetWindowTextW, HICON, HTBOTTOM, HTBOTTOMLEFT,
+    HTBOTTOMRIGHT, HTCAPTION, HTLEFT, HTRIGHT, HTTOP, HTTOPLEFT, HTTOPRIGHT, IDI_APPLICATION,
+    IMAGE_ICON, IsWindowVisible, LR_DEFAULTSIZE, LR_SHARED, LoadCursorW, LoadImageW,
+    MENU_ITEM_STATE, MF_BYCOMMAND, MFS_DISABLED, MFS_ENABLED, NID_READY, PM_NOREMOVE, PeekMessageW,
+    PostMessageW, RegisterClassExW, SC_CLOSE, SC_MAXIMIZE, SC_MINIMIZE, SC_MOVE, SC_RESTORE,
+    SC_SIZE, SM_DIGITIZER, SWP_ASYNCWINDOWPOS, SWP_NOACTIVATE, SWP_NOSIZE, SWP_NOZORDER,
+    SendMessageW, SetCursor, SetCursorPos, SetForegroundWindow, SetMenuDefaultItem,
+    SetWindowDisplayAffinity, SetWindowPlacement, SetWindowPos, SetWindowTextW, TPM_LEFTALIGN,
+    TPM_RETURNCMD, TrackPopupMenu, WDA_EXCLUDEFROMCAPTURE, WDA_NONE, WM_NCLBUTTONDOWN, WM_SETICON,
+    WM_SYSCOMMAND, WNDCLASSEXW,
 };
 use winit_core::cursor::Cursor;
 use winit_core::error::RequestError;
@@ -1450,22 +1462,18 @@ unsafe fn register_window_class(class_name: &[u16]) {
 
     let hicon = unsafe {
         LoadImageW(
-        hinstance,
-        IDI_APPLICATION as *const u16,
-        IMAGE_ICON,
-        0,
-        0,
-        LR_DEFAULTSIZE | LR_SHARED,
-    ) as HICON };
+            hinstance,
+            IDI_APPLICATION as *const u16,
+            IMAGE_ICON,
+            0,
+            0,
+            LR_DEFAULTSIZE | LR_SHARED,
+        ) as HICON
+    };
 
-    let hicon_sm = unsafe { LoadImageW(
-        hinstance,
-        IDI_APPLICATION as *const u16,
-        IMAGE_ICON,
-        16,
-        16,
-        LR_SHARED,
-    ) as HICON };
+    let hicon_sm = unsafe {
+        LoadImageW(hinstance, IDI_APPLICATION as *const u16, IMAGE_ICON, 16, 16, LR_SHARED) as HICON
+    };
 
     let class = WNDCLASSEXW {
         cbSize: mem::size_of::<WNDCLASSEXW>() as u32,
