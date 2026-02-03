@@ -81,7 +81,7 @@ xkbcommon-dl = "0.4.2"
 # Orbital dependencies.
 libredox = "0.1.12"
 orbclient = { version = "0.3.47", default-features = false }
-redox_event = { package = "redox_event", git = "https://gitlab.redox-os.org/Ibuki.O/event.git", branch = "unsafe-sync-send" }
+redox_event = { package = "redox_event", version = "0.4.5" }
 
 # Web dependencies.
 atomic-waker = "1"
