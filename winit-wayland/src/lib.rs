@@ -14,6 +14,9 @@
 //! * `wayland-csd-adwaita-crossfont`.
 //! * `wayland-csd-adwaita-notitle`.
 //! * `wayland-csd-adwaita-notitlebar`.
+
+#![allow(clippy::mutable_key_type)]
+
 use std::ffi::c_void;
 use std::ptr::NonNull;
 
