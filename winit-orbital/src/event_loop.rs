@@ -10,6 +10,7 @@ use orbclient::{
     ButtonEvent, EventOption, FocusEvent, HoverEvent, KeyEvent, MouseEvent, MouseRelativeEvent,
     MoveEvent, QuitEvent, ResizeEvent, ScrollEvent, TextInputEvent,
 };
+use redox_event::{EventFlags, EventQueue};
 use smol_str::SmolStr;
 use winit_core::application::ApplicationHandler;
 use winit_core::cursor::{CustomCursor, CustomCursorSource};
@@ -288,16 +289,12 @@ impl EventLoop {
         let (user_events_sender, user_events_receiver) = mpsc::sync_channel(1);
 
         let event_socket =
-            Arc::new(RedoxSocket::event().map_err(|error| os_error!(format!("{error}")))?);
+            Arc::new(EventQueue::new().map_err(|error| os_error!(format!("{error}")))?);
 
         let wake_socket = TimeSocket::open().map_err(|error| os_error!(format!("{error}")))?;
 
         event_socket
-            .write(&syscall::Event {
-                id: wake_socket.0.fd,
-                flags: syscall::EventFlags::EVENT_READ,
-                data: wake_socket.0.fd,
-            })
+            .subscribe(wake_socket.0.fd(), EventSource::Time, EventFlags::READ)
             .map_err(|error| os_error!(format!("{error}")))?;
 
         Ok(Self {
@@ -498,7 +495,7 @@ impl EventLoop {
                 let mut creates = self.window_target.creates.lock().unwrap();
                 creates.pop_front()
             } {
-                let window_id = WindowId::from_raw(window.fd);
+                let window_id = WindowId::from_raw(window.fd());
 
                 let mut buf: [u8; 4096] = [0; 4096];
                 let path = window.fpath(&mut buf).expect("failed to read properties");
@@ -522,18 +519,18 @@ impl EventLoop {
             } {
                 app.window_event(&self.window_target, destroy_id, event::WindowEvent::Destroyed);
                 self.windows
-                    .retain(|(window, _event_state)| WindowId::from_raw(window.fd) != destroy_id);
+                    .retain(|(window, _event_state)| WindowId::from_raw(window.fd()) != destroy_id);
             }
 
             // Handle window events.
             let mut i = 0;
             // While loop is used here because the same window may be processed more than once.
             while let Some((window, event_state)) = self.windows.get_mut(i) {
-                let window_id = WindowId::from_raw(window.fd);
+                let window_id = WindowId::from_raw(window.fd());
 
                 let mut event_buf = [0u8; 16 * mem::size_of::<orbclient::Event>()];
-                let count =
-                    syscall::read(window.fd, &mut event_buf).expect("failed to read window events");
+                let count = libredox::call::read(window.fd(), &mut event_buf)
+                    .expect("failed to read window events");
                 // Safety: orbclient::Event is a packed struct designed to be transferred over a
                 // socket.
                 let events = unsafe {
@@ -613,11 +610,7 @@ impl EventLoop {
 
             self.window_target
                 .event_socket
-                .write(&syscall::Event {
-                    id: timeout_socket.0.fd,
-                    flags: syscall::EventFlags::EVENT_READ,
-                    data: 0,
-                })
+                .subscribe(timeout_socket.0.fd(), EventSource::Time, EventFlags::READ)
                 .unwrap();
 
             let start = Instant::now();
@@ -626,7 +619,7 @@ impl EventLoop {
 
                 if let Some(duration) = instant.checked_duration_since(start) {
                     time.tv_sec += duration.as_secs() as i64;
-                    time.tv_nsec += duration.subsec_nanos() as i32;
+                    time.tv_nsec += duration.subsec_nanos() as i64;
                     // Normalize timespec so tv_nsec is not greater than one second.
                     while time.tv_nsec >= 1_000_000_000 {
                         time.tv_sec += 1;
@@ -638,20 +631,22 @@ impl EventLoop {
             }
 
             // Wait for event if needed.
-            let mut event = syscall::Event::default();
-            loop {
-                match self.window_target.event_socket.read(&mut event) {
-                    Ok(_) => break,
-                    Err(syscall::Error { errno: syscall::EINTR }) => continue,
+            let event = loop {
+                match self.window_target.event_socket.next_event() {
+                    Ok(event) => break event,
+                    Err(err) if err.is_interrupt() => continue,
                     Err(err) => {
                         return Err(os_error!(format!("failed to read event: {err}")).into());
                     },
                 }
-            }
+            };
 
             // TODO: handle spurious wakeups (redraw caused wakeup but redraw already handled)
             match requested_resume {
-                Some(requested_resume) if event.id == timeout_socket.0.fd => {
+                Some(requested_resume)
+                    if event.fd == timeout_socket.0.fd()
+                        && matches!(event.user_data, EventSource::Time) =>
+                {
                     // If the event is from the special timeout socket, report that resume
                     // time was reached.
                     start_cause = StartCause::ResumeTimeReached { start, requested_resume };
@@ -689,6 +684,13 @@ impl EventLoopProxyProvider for EventLoopProxy {
 
 impl Unpin for EventLoopProxy {}
 
+redox_event::user_data! {
+    pub enum EventSource {
+        Orbital,
+        Time,
+    }
+}
+
 #[derive(Debug)]
 pub struct ActiveEventLoop {
     control_flow: Cell<ControlFlow>,
@@ -696,7 +698,7 @@ pub struct ActiveEventLoop {
     pub(super) creates: Mutex<VecDeque<Arc<RedoxSocket>>>,
     pub(super) redraws: Arc<Mutex<VecDeque<WindowId>>>,
     pub(super) destroys: Arc<Mutex<VecDeque<WindowId>>>,
-    pub(super) event_socket: Arc<RedoxSocket>,
+    pub(super) event_socket: Arc<EventQueue<EventSource>>,
     pub(super) event_loop_proxy: Arc<EventLoopProxy>,
 }
 
