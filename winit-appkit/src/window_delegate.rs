@@ -2029,6 +2029,14 @@ impl WindowExtMacOS for WindowDelegate {
 
         window.toolbar().is_some() && window.toolbarStyle() == NSWindowToolbarStyle::Unified
     }
+
+    fn titlebar_height(&self) -> f64 {
+        let window = self.window();
+        let frame = window.frame();
+        let content = window.contentRectForFrameRect(frame);
+
+        (frame.size.height - content.size.height).max(0.0)
+    }
 }
 
 const DEFAULT_STANDARD_FRAME: NSRect =
