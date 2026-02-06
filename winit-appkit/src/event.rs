@@ -14,8 +14,7 @@ use winit_core::keyboard::{
 
 use super::ffi;
 
-/// Ignores ALL modifiers.
-pub fn get_modifierless_char(scancode: u16) -> Key {
+pub fn scancode_to_key(scancode: u16, modifiers: u32) -> Key {
     let Some(ptr) = NonNull::new(unsafe { ffi::TISCopyCurrentKeyboardLayoutInputSource() }) else {
         tracing::error!("`TISCopyCurrentKeyboardLayoutInputSource` returned null ptr");
         return Key::Unidentified(NativeKey::MacOS(scancode));
@@ -35,7 +34,6 @@ pub fn get_modifierless_char(scancode: u16) -> Key {
 
     let mut result_len = 0;
     let mut dead_keys = 0;
-    let modifiers = 0;
     let mut string = [0; 16];
     let translate_result = unsafe {
         ffi::UCKeyTranslate(
@@ -106,8 +104,8 @@ pub(crate) fn create_key_event(ns_event: &NSEvent, is_press: bool, is_repeat: bo
 
     let key_from_code = code_to_key(physical_key, scancode);
     let (logical_key, key_without_modifiers) = if matches!(key_from_code, Key::Unidentified(_)) {
-        // `get_modifierless_char/key_without_modifiers` ignores ALL modifiers.
-        let key_without_modifiers = get_modifierless_char(scancode);
+        // `scancode_to_key/key_without_modifiers` ignores ALL modifiers with no flags
+        let key_without_modifiers = scancode_to_key(scancode, 0u32);
 
         let modifiers = ns_event.modifierFlags();
         let has_ctrl = modifiers.contains(NSEventModifierFlags::Control);
@@ -627,4 +625,38 @@ pub fn scancode_to_physicalkey(scancode: u32) -> PhysicalKey {
         0x7f => KeyCode::Power, // On 10.7 and 10.8 only
         _ => return PhysicalKey::Unidentified(NativeKeyCode::MacOS(scancode as u16)),
     })
+}
+
+/// Query the logical key for a physical key under the current keyboard layout.
+///
+/// Note: `num_lock` is ignored on macOS as it doesn't have traditional NumLock.
+pub fn physical_to_logical_key(
+    keycode: KeyCode,
+    modifiers: ModifiersState,
+    caps_lock: bool,
+    _num_lock: bool,
+) -> Key {
+    let Some(scancode) = physicalkey_to_scancode(PhysicalKey::Code(keycode)) else {
+        return Key::Unidentified(NativeKey::Unidentified);
+    };
+
+    // UCKeyTranslate modifier format (Carbon modifiers >> 8)
+    let mut uc_modifiers = 0u32;
+    if modifiers.meta_key() {
+        uc_modifiers |= 1; // cmdKey
+    }
+    if modifiers.shift_key() {
+        uc_modifiers |= 2; // shiftKey
+    }
+    if caps_lock {
+        uc_modifiers |= 4; // alphaLock
+    }
+    if modifiers.alt_key() {
+        uc_modifiers |= 8; // optionKey
+    }
+    if modifiers.control_key() {
+        uc_modifiers |= 16; // controlKey
+    }
+
+    scancode_to_key(scancode as u16, uc_modifiers)
 }

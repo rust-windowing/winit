@@ -118,6 +118,17 @@ use winit_core::window::{PlatformWindowAttributes, Window};
 pub use self::event_loop::{EventLoop, PlatformSpecificEventLoopAttributes};
 use self::monitor::MonitorHandle as UIKitMonitorHandle;
 use self::window::Window as UIKitWindow;
+use winit_core::keyboard::{Key, KeyCode, ModifiersState, NativeKey};
+
+/// Stub implementation for physical to logical key mapping on iOS.
+pub fn physical_to_logical_key(
+    _keycode: KeyCode,
+    _modifiers: ModifiersState,
+    _caps_lock: bool,
+    _num_lock: bool,
+) -> Key {
+    Key::Unidentified(NativeKey::Unidentified)
+}
 
 /// Additional methods on [`Window`] that are specific to iOS.
 pub trait WindowExtIOS {
