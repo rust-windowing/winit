@@ -392,9 +392,20 @@ define_class!(
 
             // Commit only if we have marked text.
             if self.hasMarkedText() && self.is_ime_enabled() && !is_control {
+                // Clear marked text as required by the NSTextInputClient protocol.
+                // This prevents subsequent insertText calls (e.g., for a trailing
+                // space) from incorrectly seeing stale marked text.
+                *self.ivars().marked_text.borrow_mut() = NSMutableAttributedString::new();
+
                 self.queue_event(WindowEvent::Ime(Ime::Preedit(String::new(), None)));
                 self.queue_event(WindowEvent::Ime(Ime::Commit(string)));
                 self.ivars().ime_state.set(ImeState::Committed);
+            } else if self.ivars().ime_state.get() == ImeState::Committed && !is_control {
+                // After committing composed text (e.g., Korean "한"), the IME may
+                // send a second insertText for the triggering character (e.g.,
+                // space). Forward it to the app as a regular key event instead of
+                // committing it again through IME, which would cause double input.
+                self.ivars().forward_key_to_app.set(true);
             }
         }
 
@@ -403,14 +414,6 @@ define_class!(
         #[unsafe(method(doCommandBySelector:))]
         fn do_command_by_selector(&self, command: Sel) {
             trace_scope!("doCommandBySelector:");
-
-            // We shouldn't forward any character from just committed text, since we'll end up
-            // sending it twice with some IMEs like Korean one. We'll also always send
-            // `Enter` in that case, which is not desired given it was used to confirm
-            // IME input.
-            if self.ivars().ime_state.get() == ImeState::Committed {
-                return;
-            }
 
             self.ivars().forward_key_to_app.set(true);
 
