@@ -54,4 +54,4 @@ changelog entry.
 - On X11, fix `set_hittest` not working on some window managers.
 - On Redox, handle `EINTR` when reading from `event_socket` instead of panicking.
 - On Wayland, switch from using the `ahash` hashing algorithm to `foldhash`.
-- On macOS, fix borderless game presentation options not sticking after screen change.
+- On macOS, fix borderless game presentation options not sticking after switching spaces.
