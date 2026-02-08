@@ -643,6 +643,9 @@ struct WindowState {
     rotated: f32,
     /// The amount of pan of the window.
     panned: PhysicalPosition<f32>,
+    /// The size passed to the last surface resize, used for drawing.
+    #[cfg(not(android_platform))]
+    surface_size: PhysicalSize<u32>,
 
     #[cfg(macos_platform)]
     option_as_alt: OptionAsAlt,
@@ -669,6 +672,8 @@ impl WindowState {
 
         let size = window.surface_size();
         let mut state = Self {
+            #[cfg(not(android_platform))]
+            surface_size: PhysicalSize::default(),
             #[cfg(macos_platform)]
             option_as_alt: window.option_as_alt(),
             custom_idx: app.custom_cursors.as_ref().map(Vec::len).unwrap_or(1) - 1,
@@ -861,6 +866,7 @@ impl WindowState {
                 _ => return,
             };
             self.surface.resize(width, height).expect("failed to resize inner buffer");
+            self.surface_size = size;
         }
         self.window.request_redraw();
     }
@@ -961,7 +967,9 @@ impl WindowState {
         let mut buffer = self.surface.buffer_mut()?;
 
         // Draw a different color inside the safe area
-        let surface_size = self.window.surface_size();
+        // Use the stored surface_size that matches the buffer dimensions from the last resize(),
+        // rather than self.window.surface_size() which may already reflect a newer pending size.
+        let surface_size = self.surface_size;
         let insets = self.window.safe_area();
         for y in 0..surface_size.height {
             for x in 0..surface_size.width {
