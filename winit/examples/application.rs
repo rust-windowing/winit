@@ -251,6 +251,12 @@ impl Application {
             Action::ToggleSimpleFullscreen => {
                 window.window.set_simple_fullscreen(!window.window.simple_fullscreen());
             },
+            #[cfg(macos_platform)]
+            Action::ToggleBorderlessGame => {
+                let current = window.window.is_borderless_game();
+                window.window.set_borderless_game(!current);
+                info!("Borderless game: {}", !current);
+            },
             Action::ToggleMaximize => window.toggle_maximize(),
             Action::Minimize => window.minimize(),
             Action::NextCursor => window.next_cursor(),
@@ -1027,6 +1033,8 @@ enum Action {
     ToggleFullscreen,
     #[cfg(macos_platform)]
     ToggleSimpleFullscreen,
+    #[cfg(macos_platform)]
+    ToggleBorderlessGame,
     ToggleMaximize,
     Minimize,
     NextCursor,
@@ -1064,6 +1072,7 @@ impl Action {
             Action::ToggleFullscreen => "Toggle fullscreen",
             #[cfg(macos_platform)]
             Action::ToggleSimpleFullscreen => "Toggle simple fullscreen",
+            Action::ToggleBorderlessGame => "Toggle borderless game mode",
             Action::ToggleMaximize => "Maximize",
             Action::Minimize => "Minimize",
             Action::ToggleResizeIncrements => "Use resize increments when resizing window",
@@ -1315,6 +1324,8 @@ const KEY_BINDINGS: &[Binding<&'static str>] = &[
     Binding::new("T", ModifiersState::META, Action::CreateNewTab),
     #[cfg(macos_platform)]
     Binding::new("O", ModifiersState::CONTROL, Action::CycleOptionAsAlt),
+    #[cfg(macos_platform)]
+    Binding::new("B", ModifiersState::CONTROL, Action::ToggleBorderlessGame),
     Binding::new("S", ModifiersState::ALT, Action::EmitSurfaceSize),
     Binding::new("S", ModifiersState::CONTROL, Action::Message),
 ];
