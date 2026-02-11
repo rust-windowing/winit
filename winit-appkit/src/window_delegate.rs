@@ -330,6 +330,20 @@ define_class!(
             trace_scope!("windowDidChangeOcclusionState:");
             let visible = self.window().occlusionState().contains(NSWindowOcclusionState::Visible);
             self.queue_event(WindowEvent::Occluded(!visible));
+
+            // We do this here rather than in `window:willUseFullScreenPresentationOptions`
+            // because doing it there leaves the menu bar interactable despite being hidden.
+            // Moving it here produces the most consistent results.
+            if self.is_borderless_game()
+                && matches!(*self.ivars().fullscreen.borrow(), Some(Fullscreen::Borderless(_)))
+            {
+                let mtm = MainThreadMarker::from(self);
+                let app = NSApplication::sharedApplication(mtm);
+                app.setPresentationOptions(
+                    NSApplicationPresentationOptions::HideDock
+                        | NSApplicationPresentationOptions::HideMenuBar,
+                );
+            }
         }
 
         #[unsafe(method(windowDidChangeScreen:))]
@@ -1534,7 +1548,7 @@ impl WindowDelegate {
         }
 
         match (old_fullscreen, fullscreen) {
-            (None, Some(fullscreen)) => {
+            (None, Some(_)) => {
                 // `toggleFullScreen` doesn't work if the `StyleMask` is none, so we
                 // set a normal style temporarily. The previous state will be
                 // restored in `WindowDelegate::window_did_exit_fullscreen`.
@@ -1543,16 +1557,6 @@ impl WindowDelegate {
                 if !curr_mask.contains(required) {
                     self.set_style_mask(required);
                     self.ivars().saved_style.set(Some(curr_mask));
-                }
-
-                // In borderless games, we want to disable the dock and menu bar
-                // by setting the presentation options. We do this here rather than in
-                // `window:willUseFullScreenPresentationOptions` because for some reason
-                // the menu bar remains interactable despite being hidden.
-                if self.is_borderless_game() && matches!(fullscreen, Fullscreen::Borderless(_)) {
-                    let presentation_options = NSApplicationPresentationOptions::HideDock
-                        | NSApplicationPresentationOptions::HideMenuBar;
-                    app.setPresentationOptions(presentation_options);
                 }
 
                 toggle_fullscreen(self.window());
