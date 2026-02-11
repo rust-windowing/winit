@@ -331,6 +331,9 @@ define_class!(
             let visible = self.window().occlusionState().contains(NSWindowOcclusionState::Visible);
             self.queue_event(WindowEvent::Occluded(!visible));
 
+            // We do this here rather than in `window:willUseFullScreenPresentationOptions`
+            // because doing it there leaves the menu bar interactable despite being hidden.
+            // Moving it here produces the most consistent results.
             if self.is_borderless_game()
                 && matches!(*self.ivars().fullscreen.borrow(), Some(Fullscreen::Borderless(_)))
             {
