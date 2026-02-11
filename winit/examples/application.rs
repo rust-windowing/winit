@@ -1072,6 +1072,7 @@ impl Action {
             Action::ToggleFullscreen => "Toggle fullscreen",
             #[cfg(macos_platform)]
             Action::ToggleSimpleFullscreen => "Toggle simple fullscreen",
+            #[cfg(macos_platform)]
             Action::ToggleBorderlessGame => "Toggle borderless game mode",
             Action::ToggleMaximize => "Maximize",
             Action::Minimize => "Minimize",
