@@ -197,7 +197,11 @@ define_class!(
         fn draw_rect(&self, _rect: NSRect) {
             trace_scope!("drawRect:");
 
-            self.ivars().app_state.handle_redraw(window_id(&self.window()));
+            let Some(window) = self.window() else {
+                return;
+            };
+
+            self.ivars().app_state.handle_redraw(window_id(&window));
 
             // This is a direct subclass of NSView, no need to call superclass' drawRect:
         }
@@ -420,7 +424,11 @@ define_class!(
             }
 
             // Send command action to user if they requested it.
-            let window_id = window_id(&self.window());
+            let Some(window) = self.window() else {
+                return;
+            };
+
+            let window_id = window_id(&window);
             self.ivars().app_state.maybe_queue_with_handler(move |app, event_loop| {
                 if let Some(handler) = app.macos_handler() {
                     handler.standard_key_binding(
@@ -525,7 +533,9 @@ define_class!(
         #[unsafe(method(insertTab:))]
         fn insert_tab(&self, _sender: Option<&AnyObject>) {
             trace_scope!("insertTab:");
-            let window = self.window();
+            let Some(window) = self.window() else {
+                return;
+            };
             if let Some(first_responder) = window.firstResponder() {
                 if *first_responder == ***self {
                     window.selectNextKeyView(Some(self))
@@ -536,7 +546,9 @@ define_class!(
         #[unsafe(method(insertBackTab:))]
         fn insert_back_tab(&self, _sender: Option<&AnyObject>) {
             trace_scope!("insertBackTab:");
-            let window = self.window();
+            let Some(window) = self.window() else {
+                return;
+            };
             if let Some(first_responder) = window.firstResponder() {
                 if *first_responder == ***self {
                     window.selectPreviousKeyView(Some(self))
@@ -818,19 +830,23 @@ impl WinitView {
         this
     }
 
-    fn window(&self) -> Retained<NSWindow> {
-        (**self).window().expect("view must be installed in a window")
+    fn window(&self) -> Option<Retained<NSWindow>> {
+        (**self).window()
     }
 
     fn queue_event(&self, event: WindowEvent) {
-        let window_id = window_id(&self.window());
+        let Some(window) = self.window() else {
+            return;
+        };
+
+        let window_id = window_id(&window);
         self.ivars().app_state.maybe_queue_with_handler(move |app, event_loop| {
             app.window_event(event_loop, window_id, event);
         });
     }
 
     fn scale_factor(&self) -> f64 {
-        self.window().backingScaleFactor() as f64
+        self.window().map(|window| window.backingScaleFactor() as f64).unwrap_or(1.0)
     }
 
     fn is_ime_enabled(&self) -> bool {
