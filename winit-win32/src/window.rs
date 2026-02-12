@@ -37,12 +37,13 @@ use windows_sys::Win32::UI::WindowsAndMessaging::{
     CS_HREDRAW, CS_VREDRAW, CW_USEDEFAULT, CreateWindowExW, EnableMenuItem, FLASHW_ALL,
     FLASHW_STOP, FLASHW_TIMERNOFG, FLASHW_TRAY, FLASHWINFO, FlashWindowEx, GWLP_HINSTANCE,
     GetClientRect, GetCursorPos, GetForegroundWindow, GetSystemMenu, GetSystemMetrics,
-    GetWindowPlacement, GetWindowTextLengthW, GetWindowTextW, HTBOTTOM, HTBOTTOMLEFT,
-    HTBOTTOMRIGHT, HTCAPTION, HTLEFT, HTRIGHT, HTTOP, HTTOPLEFT, HTTOPRIGHT, IsWindowVisible,
-    LoadCursorW, MENU_ITEM_STATE, MF_BYCOMMAND, MFS_DISABLED, MFS_ENABLED, NID_READY, PM_NOREMOVE,
-    PeekMessageW, PostMessageW, RegisterClassExW, SC_CLOSE, SC_MAXIMIZE, SC_MINIMIZE, SC_MOVE,
-    SC_RESTORE, SC_SIZE, SM_DIGITIZER, SWP_ASYNCWINDOWPOS, SWP_NOACTIVATE, SWP_NOSIZE,
-    SWP_NOZORDER, SendMessageW, SetCursor, SetCursorPos, SetForegroundWindow, SetMenuDefaultItem,
+    GetWindowPlacement, GetWindowTextLengthW, GetWindowTextW, HICON, HTBOTTOM, HTBOTTOMLEFT,
+    HTBOTTOMRIGHT, HTCAPTION, HTLEFT, HTRIGHT, HTTOP, HTTOPLEFT, HTTOPRIGHT, IDI_APPLICATION,
+    IMAGE_ICON, IsWindowVisible, LR_DEFAULTSIZE, LR_SHARED, LoadCursorW, LoadImageW,
+    MENU_ITEM_STATE, MF_BYCOMMAND, MFS_DISABLED, MFS_ENABLED, NID_READY, PM_NOREMOVE, PeekMessageW,
+    PostMessageW, RegisterClassExW, SC_CLOSE, SC_MAXIMIZE, SC_MINIMIZE, SC_MOVE, SC_RESTORE,
+    SC_SIZE, SM_DIGITIZER, SWP_ASYNCWINDOWPOS, SWP_NOACTIVATE, SWP_NOSIZE, SWP_NOZORDER,
+    SendMessageW, SetCursor, SetCursorPos, SetForegroundWindow, SetMenuDefaultItem,
     SetWindowDisplayAffinity, SetWindowPlacement, SetWindowPos, SetWindowTextW, TPM_LEFTALIGN,
     TPM_RETURNCMD, TrackPopupMenu, WDA_EXCLUDEFROMCAPTURE, WDA_NONE, WM_NCLBUTTONDOWN, WM_SETICON,
     WM_SYSCOMMAND, WNDCLASSEXW,
@@ -1457,19 +1458,29 @@ unsafe fn init(
 }
 
 unsafe fn register_window_class(class_name: &[u16]) {
+    let hinstance = util::get_instance_handle();
+
+    let hicon = unsafe {
+        LoadImageW(hinstance, IDI_APPLICATION, IMAGE_ICON, 0, 0, LR_DEFAULTSIZE | LR_SHARED)
+            as HICON
+    };
+
+    let hicon_sm =
+        unsafe { LoadImageW(hinstance, IDI_APPLICATION, IMAGE_ICON, 16, 16, LR_SHARED) as HICON };
+
     let class = WNDCLASSEXW {
         cbSize: mem::size_of::<WNDCLASSEXW>() as u32,
         style: CS_HREDRAW | CS_VREDRAW,
         lpfnWndProc: Some(super::event_loop::public_window_callback),
         cbClsExtra: 0,
         cbWndExtra: 0,
-        hInstance: util::get_instance_handle(),
-        hIcon: ptr::null_mut(),
+        hInstance: hinstance,
+        hIcon: hicon,
         hCursor: ptr::null_mut(), // must be null in order for cursor state to work properly
         hbrBackground: ptr::null_mut(),
         lpszMenuName: ptr::null(),
         lpszClassName: class_name.as_ptr(),
-        hIconSm: ptr::null_mut(),
+        hIconSm: hicon_sm,
     };
 
     // We ignore errors because registering the same window class twice would trigger
