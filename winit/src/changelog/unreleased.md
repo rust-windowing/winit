@@ -48,6 +48,7 @@ changelog entry.
 - Implement `Send` and `Sync` for `OwnedDisplayHandle`.
 - Use new macOS 15 cursors for resize icons.
 - On Android, added scancode conversions for more obscure key codes.
+- On macOS, add `ApplicationHandlerExtMacOS::accepts_first_mouse` for dynamic per-click decisions.
 
 ### Changed
 

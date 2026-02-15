@@ -3,7 +3,7 @@ use std::cell::{Cell, RefCell};
 use std::collections::{HashMap, VecDeque};
 use std::rc::Rc;
 
-use dpi::{LogicalPosition, LogicalSize};
+use dpi::{LogicalPosition, LogicalSize, PhysicalPosition};
 use objc2::rc::Retained;
 use objc2::runtime::{AnyObject, Sel};
 use objc2::{AnyThread, DefinedClass, MainThreadMarker, define_class, msg_send};
@@ -764,9 +764,29 @@ define_class!(
         }
 
         #[unsafe(method(acceptsFirstMouse:))]
-        fn accepts_first_mouse(&self, _event: &NSEvent) -> bool {
+        fn accepts_first_mouse(&self, event: Option<&NSEvent>) -> bool {
             let _entered = debug_span!("acceptsFirstMouse:").entered();
-            self.ivars().accepts_first_mouse
+            // The event parameter can be nil according to Apple's API contract.
+            // When nil, fall back to the static default.
+            event
+                .and_then(|event| {
+                    let window_id = window_id(&self.window());
+                    let point_in_window = event.locationInWindow();
+                    let point_in_view = self.convertPoint_fromView(point_in_window, None);
+                    let scale_factor = self.scale_factor();
+                    let position = PhysicalPosition::new(
+                        point_in_view.x * scale_factor,
+                        point_in_view.y * scale_factor,
+                    );
+                    self.ivars()
+                        .app_state
+                        .try_with_handler_result(move |app, event_loop| {
+                            app.macos_handler()
+                                .map(|h| h.accepts_first_mouse(event_loop, window_id, position))
+                        })
+                        .flatten()
+                })
+                .unwrap_or(self.ivars().accepts_first_mouse)
         }
     }
 );
