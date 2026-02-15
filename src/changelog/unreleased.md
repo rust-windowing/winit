@@ -43,3 +43,6 @@ changelog entry.
 ### Fixed
 
 - On macOS, fix crash on macOS 26 by using objc2's `relax-sign-encoding` feature.
+- Fix compilation on Rust 1.92+ by adding explicit closure type annotations to
+  `Window` methods that use `maybe_wait_on_main`/`maybe_queue_on_main`.
+- On X11, fix `function_casts_as_integer` warning in IME context.
