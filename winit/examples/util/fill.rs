@@ -16,18 +16,17 @@ pub use platform::fill_window_with_animated_color;
 #[allow(unused_imports)]
 pub use platform::fill_window_with_color;
 
-#[cfg(not(any(target_os = "android", target_os = "ios")))]
 mod platform {
     use std::cell::RefCell;
     use std::collections::HashMap;
     use std::mem;
     use std::mem::ManuallyDrop;
     use std::num::NonZeroU32;
-    #[cfg(all(not(android_platform), not(web_platform)))]
+    #[cfg(not(web_platform))]
     use std::time::Instant;
 
     use softbuffer::{Context, Surface};
-    #[cfg(all(web_platform, not(android_platform)))]
+    #[cfg(web_platform)]
     use web_time::Instant;
     use winit::window::{Window, WindowId};
 
@@ -126,31 +125,5 @@ mod platform {
                 context.destroy_surface(window);
             }
         });
-    }
-}
-
-#[cfg(any(target_os = "android", target_os = "ios"))]
-mod platform {
-    #[allow(dead_code)]
-    pub fn fill_window(_window: &dyn winit::window::Window) {
-        // No-op on mobile platforms.
-    }
-
-    #[allow(dead_code)]
-    pub fn fill_window_with_color(_window: &dyn winit::window::Window, _color: u32) {
-        // No-op on mobile platforms.
-    }
-
-    #[allow(dead_code)]
-    pub fn fill_window_with_animated_color(
-        _window: &dyn winit::window::Window,
-        _start: std::time::Instant,
-    ) {
-        // No-op on mobile platforms.
-    }
-
-    #[allow(dead_code)]
-    pub fn cleanup_window(_window: &dyn winit::window::Window) {
-        // No-op on mobile platforms.
     }
 }
