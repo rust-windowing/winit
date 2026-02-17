@@ -1388,7 +1388,10 @@ pub trait Window: AsAny + Send + Sync + fmt::Debug {
     /// the title bar. This is useful when implementing custom decorations.
     ///
     /// ## Platform-specific
-    /// **Android / iOS / macOS / Orbital / Wayland / Web / X11:** Unsupported.
+    /// - **Windows:** Supported.
+    /// - **Wayland:** Supported.
+    /// - **X11:** Supported on some window managers (via `_GTK_SHOW_WINDOW_MENU`).
+    /// - **Android / iOS / macOS / Orbital / Web:** Unsupported.
     ///
     /// [window menu]: https://en.wikipedia.org/wiki/Common_menus_in_Microsoft_Windows#System_menu
     fn show_window_menu(&self, position: Position);
