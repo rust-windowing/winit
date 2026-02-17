@@ -112,24 +112,39 @@ impl EventHandler {
         matches!(self.inner.try_borrow().as_deref(), Ok(Some(_)))
     }
 
-    pub fn handle(&self, callback: impl FnOnce(&mut (dyn ApplicationHandler + '_))) {
+    /// Try to call the handler and return a value.
+    ///
+    /// Returns `None` if the handler is not set or is currently in use (re-entrant call).
+    ///
+    /// It is important that we keep the `RefMut` borrowed during the callback, so that `in_use`
+    /// can properly detect that the handler is still in use. If the handler unwinds, the `RefMut`
+    /// will ensure that the handler is no longer borrowed.
+    pub fn handle_with_result<R>(
+        &self,
+        callback: impl FnOnce(&mut (dyn ApplicationHandler + '_)) -> R,
+    ) -> Option<R> {
         match self.inner.try_borrow_mut().as_deref_mut() {
-            Ok(Some(user_app)) => {
-                // It is important that we keep the reference borrowed here,
-                // so that `in_use` can properly detect that the handler is
-                // still in use.
-                //
-                // If the handler unwinds, the `RefMut` will ensure that the
-                // handler is no longer borrowed.
-                callback(&mut **user_app);
-            },
+            Ok(Some(user_app)) => Some(callback(&mut **user_app)),
             Ok(None) => {
-                // `NSApplication`, our app state and this handler are all
-                // global state and so it's not impossible that we could get
-                // an event after the application has exited the `EventLoop`.
+                // `NSApplication`, our app state and this handler are all global state and so
+                // it's not impossible that we could get an event after the application has
+                // exited the `EventLoop`.
                 tracing::error!("tried to run event handler, but no handler was set");
+                None
             },
             Err(_) => {
+                // Handler is currently in use, return None instead of panicking.
+                None
+            },
+        }
+    }
+
+    pub fn handle(&self, callback: impl FnOnce(&mut (dyn ApplicationHandler + '_))) {
+        match self.handle_with_result(callback) {
+            Some(()) => {},
+            // Handler not set — already logged by handle_with_result.
+            None if !self.in_use() => {},
+            None => {
                 // Prevent re-entrancy.
                 panic!("tried to handle event while another event is currently being handled");
             },
@@ -151,5 +166,84 @@ impl EventHandler {
                 panic!("tried to clear handler while an event is currently being handled");
             },
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use winit_core::application::ApplicationHandler;
+    use winit_core::event::WindowEvent;
+    use winit_core::event_loop::ActiveEventLoop;
+    use winit_core::window::WindowId;
+
+    use super::EventHandler;
+
+    struct DummyApp;
+
+    impl ApplicationHandler for DummyApp {
+        fn can_create_surfaces(&mut self, _event_loop: &dyn ActiveEventLoop) {}
+
+        fn window_event(
+            &mut self,
+            _event_loop: &dyn ActiveEventLoop,
+            _window_id: WindowId,
+            _event: WindowEvent,
+        ) {
+        }
+    }
+
+    #[test]
+    fn handle_with_result_returns_value() {
+        let handler = EventHandler::new();
+        handler.set(Box::new(DummyApp), || {
+            let result = handler.handle_with_result(|_app| 42);
+            assert_eq!(result, Some(42));
+        });
+    }
+
+    #[test]
+    fn handle_with_result_returns_none_when_not_set() {
+        let handler = EventHandler::new();
+        let result = handler.handle_with_result(|_app| 42);
+        assert_eq!(result, None);
+    }
+
+    #[test]
+    fn handle_with_result_returns_none_when_in_use() {
+        let handler = EventHandler::new();
+        handler.set(Box::new(DummyApp), || {
+            // Borrow the handler via `handle`, then try `handle_with_result`
+            // from within — simulating re-entrancy.
+            handler.handle(|_app| {
+                let result = handler.handle_with_result(|_app| 42);
+                assert_eq!(result, None);
+            });
+        });
+    }
+
+    #[test]
+    fn handle_with_result_returns_none_when_reentrant_through_self() {
+        let handler = EventHandler::new();
+        handler.set(Box::new(DummyApp), || {
+            let result = handler.handle_with_result(|_app| {
+                // Re-entrant call through handle_with_result itself.
+                handler.handle_with_result(|_app| 42)
+            });
+            assert_eq!(result, Some(None));
+        });
+    }
+
+    #[test]
+    #[should_panic(
+        expected = "tried to handle event while another event is currently being handled"
+    )]
+    fn handle_panics_on_reentrant_call() {
+        let handler = EventHandler::new();
+        handler.set(Box::new(DummyApp), || {
+            handler.handle(|_app| {
+                // Re-entrant handle must still panic after the refactoring.
+                handler.handle(|_app| {});
+            });
+        });
     }
 }
