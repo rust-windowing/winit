@@ -20,6 +20,9 @@ xkb = ["dep:xkbcommon-dl", "dep:smol_str"]
 # CoreFoundation
 core-foundation = ["dep:block2", "dep:objc2", "dep:objc2-core-foundation"]
 
+# Foundation
+foundation = ["dep:block2", "dep:objc2", "dep:objc2-foundation"]
+
 [dependencies]
 smol_str = { workspace = true, optional = true }
 tracing.workspace = true
@@ -30,7 +33,7 @@ memmap2 = { workspace = true, optional = true }
 x11-dl = { workspace = true, optional = true }
 xkbcommon-dl = { workspace = true, optional = true }
 
-# CoreFoundation
+# Foundation / CoreFoundation
 block2 = { workspace = true, optional = true }
 objc2 = { workspace = true, optional = true }
 objc2-core-foundation = { workspace = true, optional = true, features = [
@@ -39,6 +42,13 @@ objc2-core-foundation = { workspace = true, optional = true, features = [
     "objc2",
     "CFRunLoop",
     "CFString",
+] }
+objc2-foundation = { workspace = true, optional = true, features = [
+    "std",
+    "block2",
+    "NSNotification",
+    "NSString",
+    "NSOperation",
 ] }
 
 [package.metadata.docs.rs]

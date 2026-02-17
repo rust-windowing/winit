@@ -13,6 +13,7 @@ use objc2_ui_kit::{
 };
 use rwh_06::HasDisplayHandle;
 use winit_common::core_foundation::{MainRunLoop, MainRunLoopObserver};
+use winit_common::foundation::create_observer;
 use winit_core::application::ApplicationHandler;
 use winit_core::cursor::{CustomCursor, CustomCursorSource};
 use winit_core::error::{EventLoopError, NotSupportedError, RequestError};
@@ -24,7 +25,6 @@ use winit_core::monitor::MonitorHandle as CoreMonitorHandle;
 use winit_core::window::{Theme, Window as CoreWindow};
 
 use super::app_state::{AppState, send_occluded_event_for_all_windows};
-use super::notification_center::create_observer;
 use crate::monitor::MonitorHandle;
 use crate::window::Window;
 use crate::{app_state, monitor};

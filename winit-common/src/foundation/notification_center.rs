@@ -1,4 +1,3 @@
-// NOTE: This is symlinked to be contained in both the AppKit and UIKit implementations.
 use std::ptr::NonNull;
 
 use block2::RcBlock;
@@ -12,7 +11,7 @@ use objc2_foundation::{
 ///
 /// This is used in Winit as an alternative to declaring an application delegate, as we want to
 /// give the user full control over those.
-pub(crate) fn create_observer(
+pub fn create_observer(
     center: &NSNotificationCenter,
     name: &NSNotificationName,
     handler: impl Fn(&NSNotification) + 'static,
