@@ -51,9 +51,9 @@ fn main() -> std::process::ExitCode {
         }
     }
 
-    let mut event_loop = EventLoop::new().unwrap();
-
     tracing_subscriber::fmt::init();
+
+    let mut event_loop = EventLoop::new().unwrap();
 
     let mut app = PumpDemo::default();
 
