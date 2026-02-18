@@ -88,7 +88,7 @@ impl EventLoopBuilder {
     )]
     #[inline]
     pub fn build(&mut self) -> Result<EventLoop, EventLoopError> {
-        let _span = tracing::debug_span!("winit::EventLoopBuilder::build").entered();
+        let _entered = tracing::debug_span!("winit::EventLoopBuilder::build").entered();
 
         // Certain platforms accept a mutable reference in their API.
         #[allow(clippy::unnecessary_mut_passed)]
@@ -262,7 +262,7 @@ impl EventLoop {
     ///
     /// [`DeviceEvent`]: crate::event::DeviceEvent
     pub fn listen_device_events(&self, allowed: DeviceEvents) {
-        let _span = tracing::debug_span!(
+        let _entered = tracing::debug_span!(
             "winit::EventLoop::listen_device_events",
             allowed = ?allowed
         )
