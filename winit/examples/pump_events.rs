@@ -7,6 +7,7 @@ fn main() -> std::process::ExitCode {
     use std::thread::sleep;
     use std::time::Duration;
 
+    use tracing::info;
     use winit::application::ApplicationHandler;
     use winit::event::WindowEvent;
     use winit::event_loop::pump_events::{EventLoopExtPumpEvents, PumpStatus};
@@ -33,7 +34,7 @@ fn main() -> std::process::ExitCode {
             _window_id: WindowId,
             event: WindowEvent,
         ) {
-            println!("{event:?}");
+            info!("{event:?}");
 
             let window = match self.window.as_ref() {
                 Some(window) => window,
@@ -69,12 +70,12 @@ fn main() -> std::process::ExitCode {
         //
         // Since `pump_events` doesn't block it will be important to
         // throttle the loop in the app somehow.
-        println!("Update()");
+        info!("Update()");
         sleep(Duration::from_millis(16));
     }
 }
 
 #[cfg(any(ios_platform, web_platform, orbital_platform))]
 fn main() {
-    println!("This platform doesn't support pump_events.");
+    panic!("This platform doesn't support pump_events.")
 }

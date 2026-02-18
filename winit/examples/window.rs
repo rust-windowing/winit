@@ -2,6 +2,7 @@
 
 use std::error::Error;
 
+use tracing::{error, info};
 use winit::application::ApplicationHandler;
 use winit::event::WindowEvent;
 use winit::event_loop::{ActiveEventLoop, EventLoop};
@@ -29,7 +30,7 @@ impl ApplicationHandler for App {
         self.window = match event_loop.create_window(window_attributes) {
             Ok(window) => Some(window),
             Err(err) => {
-                eprintln!("error creating window: {err}");
+                error!("error creating window: {err}");
                 event_loop.exit();
                 return;
             },
@@ -37,10 +38,10 @@ impl ApplicationHandler for App {
     }
 
     fn window_event(&mut self, event_loop: &dyn ActiveEventLoop, _: WindowId, event: WindowEvent) {
-        println!("{event:?}");
+        info!("{event:?}");
         match event {
             WindowEvent::CloseRequested => {
-                println!("Close was requested; stopping");
+                info!("Close was requested; stopping");
                 event_loop.exit();
             },
             WindowEvent::SurfaceResized(_) => {

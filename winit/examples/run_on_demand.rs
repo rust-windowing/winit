@@ -5,6 +5,7 @@
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     use std::time::Duration;
 
+    use tracing::info;
     use winit::application::ApplicationHandler;
     use winit::event::WindowEvent;
     use winit::event_loop::run_on_demand::EventLoopExtRunOnDemand;
@@ -44,10 +45,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             event: WindowEvent,
         ) {
             if event == WindowEvent::Destroyed && self.window_id == Some(window_id) {
-                println!(
-                    "--------------------------------------------------------- Window {} Destroyed",
-                    self.idx
-                );
+                info!("Window {} Destroyed", self.idx);
                 self.window_id = None;
                 event_loop.exit();
                 return;
@@ -60,11 +58,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
             match event {
                 WindowEvent::CloseRequested => {
-                    println!(
-                        "--------------------------------------------------------- Window {} \
-                         CloseRequested",
-                        self.idx
-                    );
+                    info!("Window {} CloseRequested", self.idx);
                     fill::cleanup_window(window.as_ref());
                     self.window = None;
                 },
@@ -83,13 +77,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut app = App { idx: 1, ..Default::default() };
     event_loop.run_app_on_demand(&mut app)?;
 
-    println!("--------------------------------------------------------- Finished first loop");
-    println!("--------------------------------------------------------- Waiting 5 seconds");
+    info!("Finished first loop");
+    info!("Waiting 5 seconds");
     std::thread::sleep(Duration::from_secs(5));
 
     app.idx += 1;
     event_loop.run_app_on_demand(&mut app)?;
-    println!("--------------------------------------------------------- Finished second loop");
+    info!("Finished second loop");
     Ok(())
 }
 
@@ -101,5 +95,5 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     orbital_platform
 )))]
 fn main() {
-    println!("This example is not supported on this platform");
+    panic!("This example is not supported on this platform")
 }

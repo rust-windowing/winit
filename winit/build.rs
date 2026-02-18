@@ -1,7 +1,9 @@
 use cfg_aliases::cfg_aliases;
 
+// Only relevant for examples and Winit, our usage of println! is fine here.
+#[allow(clippy::disallowed_macros)]
 fn main() {
-    // The script doesn't depend on our code.
+    // Dummy invocation to enable change-tracking in build scripts.
     println!("cargo:rerun-if-changed=build.rs");
 
     // Setup cfg aliases.
