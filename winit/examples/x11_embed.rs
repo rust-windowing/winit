@@ -11,6 +11,8 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     #[path = "util/fill.rs"]
     mod fill;
+    #[path = "util/tracing.rs"]
+    mod tracing;
 
     #[derive(Debug)]
     pub struct XEmbedDemo {
@@ -58,7 +60,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         .ok_or("Expected a 32-bit X11 window ID as the first argument.")?
         .parse::<u32>()?;
 
-    tracing_subscriber::fmt::init();
+    tracing::init();
     let event_loop = EventLoop::new()?;
 
     Ok(event_loop.run_app(XEmbedDemo { parent_window_id, window: None })?)
