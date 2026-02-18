@@ -12,6 +12,7 @@ use objc2_app_kit::{
 use objc2_core_foundation::{CFIndex, CFRunLoopActivity, kCFRunLoopCommonModes};
 use objc2_foundation::{NSNotificationCenter, NSObjectProtocol};
 use rwh_06::HasDisplayHandle;
+use tracing::debug_span;
 use winit_common::core_foundation::{MainRunLoop, MainRunLoopObserver, tracing_observers};
 use winit_core::application::ApplicationHandler;
 use winit_core::cursor::{CustomCursor as CoreCustomCursor, CustomCursorSource};
@@ -204,6 +205,7 @@ impl EventLoop {
             // `applicationDidFinishLaunching:`
             unsafe { NSApplicationDidFinishLaunchingNotification },
             move |notification| {
+                let _entered = debug_span!("NSApplicationDidFinishLaunchingNotification").entered();
                 if let Some(app_state) = weak_app_state.upgrade() {
                     app_state.did_finish_launching(notification);
                 }
@@ -216,6 +218,7 @@ impl EventLoop {
             // `applicationWillTerminate:`
             unsafe { NSApplicationWillTerminateNotification },
             move |notification| {
+                let _entered = debug_span!("NSApplicationWillTerminateNotification").entered();
                 if let Some(app_state) = weak_app_state.upgrade() {
                     app_state.will_terminate(notification);
                 }
