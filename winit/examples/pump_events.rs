@@ -16,6 +16,8 @@ fn main() -> std::process::ExitCode {
 
     #[path = "util/fill.rs"]
     mod fill;
+    #[path = "util/tracing.rs"]
+    mod tracing;
 
     #[derive(Default, Debug)]
     struct PumpDemo {
@@ -52,7 +54,7 @@ fn main() -> std::process::ExitCode {
         }
     }
 
-    tracing_subscriber::fmt::init();
+    tracing::init();
 
     let mut event_loop = EventLoop::new().unwrap();
 
