@@ -388,8 +388,7 @@ impl LayoutCache {
                 let key = match unicode {
                     ToUnicodeResult::Str(str) => Key::Character(SmolStr::new(str)),
                     ToUnicodeResult::Dead(dead_char) => {
-                        // println!("{:?} - {:?} produced dead {:?}", key_code, mod_state,
-                        // dead_char);
+                        // trace!("{:?} - {:?} produced dead {:?}", key_code, mod_state, dead_char);
                         Key::Dead(dead_char)
                     },
                     ToUnicodeResult::None => {
