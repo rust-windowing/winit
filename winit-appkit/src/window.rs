@@ -8,6 +8,7 @@ use objc2::rc::{Retained, autoreleasepool};
 use objc2::{MainThreadMarker, Message, define_class};
 use objc2_app_kit::{NSPanel, NSResponder, NSWindow};
 use objc2_foundation::NSObject;
+use tracing::trace_span;
 use winit_core::cursor::Cursor;
 use winit_core::error::RequestError;
 use winit_core::icon::Icon;
@@ -350,13 +351,13 @@ define_class!(
     impl WinitWindow {
         #[unsafe(method(canBecomeMainWindow))]
         fn can_become_main_window(&self) -> bool {
-            trace_scope!("canBecomeMainWindow");
+            let _entered = trace_span!("canBecomeMainWindow").entered();
             true
         }
 
         #[unsafe(method(canBecomeKeyWindow))]
         fn can_become_key_window(&self) -> bool {
-            trace_scope!("canBecomeKeyWindow");
+            let _entered = trace_span!("canBecomeKeyWindow").entered();
             true
         }
     }
@@ -374,7 +375,7 @@ define_class!(
         // it doesn't if window doesn't have NSWindowStyleMask::Titled
         #[unsafe(method(canBecomeKeyWindow))]
         fn can_become_key_window(&self) -> bool {
-            trace_scope!("canBecomeKeyWindow");
+            let _entered = trace_span!("canBecomeKeyWindow").entered();
             true
         }
     }
