@@ -99,7 +99,6 @@ impl AppState {
     // NOTE: This notification will, globally, only be emitted once,
     // no matter how many `EventLoop`s the user creates.
     pub fn did_finish_launching(self: &Rc<Self>, _notification: &NSNotification) {
-        trace_scope!("NSApplicationDidFinishLaunchingNotification");
         self.is_launched.set(true);
 
         let app = NSApplication::sharedApplication(self.mtm);
@@ -154,7 +153,6 @@ impl AppState {
     }
 
     pub fn will_terminate(self: &Rc<Self>, _notification: &NSNotification) {
-        trace_scope!("NSApplicationWillTerminateNotification");
         let app = NSApplication::sharedApplication(self.mtm);
         notify_windows_of_exit(&app);
         self.event_handler.terminate();
