@@ -7,6 +7,7 @@ use objc2_ui_kit::{
     UIDevice, UIInterfaceOrientationMask, UIRectEdge, UIResponder, UIStatusBarStyle,
     UIUserInterfaceIdiom, UIView, UIViewController,
 };
+use tracing::trace_span;
 
 use crate::{ScreenEdge, StatusBarStyle, ValidOrientations, WindowAttributesIos};
 
@@ -28,31 +29,37 @@ define_class!(
     impl WinitViewController {
         #[unsafe(method(shouldAutorotate))]
         fn should_autorotate(&self) -> bool {
+            let _entered = trace_span!("shouldAutorotate").entered();
             true
         }
 
         #[unsafe(method(prefersStatusBarHidden))]
         fn prefers_status_bar_hidden(&self) -> bool {
+            let _entered = trace_span!("prefersStatusBarHidden").entered();
             self.ivars().prefers_status_bar_hidden.get()
         }
 
         #[unsafe(method(preferredStatusBarStyle))]
         fn preferred_status_bar_style(&self) -> UIStatusBarStyle {
+            let _entered = trace_span!("preferredStatusBarStyle").entered();
             self.ivars().preferred_status_bar_style.get()
         }
 
         #[unsafe(method(prefersHomeIndicatorAutoHidden))]
         fn prefers_home_indicator_auto_hidden(&self) -> bool {
+            let _entered = trace_span!("prefersHomeIndicatorAutoHidden").entered();
             self.ivars().prefers_home_indicator_auto_hidden.get()
         }
 
         #[unsafe(method(supportedInterfaceOrientations))]
         fn supported_orientations(&self) -> UIInterfaceOrientationMask {
+            let _entered = trace_span!("supportedInterfaceOrientations").entered();
             self.ivars().supported_orientations.get()
         }
 
         #[unsafe(method(preferredScreenEdgesDeferringSystemGestures))]
         fn preferred_screen_edges_deferring_system_gestures(&self) -> UIRectEdge {
+            let _entered = trace_span!("preferredScreenEdgesDeferringSystemGestures").entered();
             self.ivars().preferred_screen_edges_deferring_system_gestures.get()
         }
     }

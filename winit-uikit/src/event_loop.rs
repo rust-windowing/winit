@@ -12,6 +12,7 @@ use objc2_ui_kit::{
     UIApplicationWillResignActiveNotification, UIApplicationWillTerminateNotification, UIScreen,
 };
 use rwh_06::HasDisplayHandle;
+use tracing::debug_span;
 use winit_common::core_foundation::{MainRunLoop, MainRunLoopObserver, tracing_observers};
 use winit_core::application::ApplicationHandler;
 use winit_core::cursor::{CustomCursor, CustomCursorSource};
@@ -160,6 +161,7 @@ impl EventLoop {
             // `application:didFinishLaunchingWithOptions:`
             unsafe { UIApplicationDidFinishLaunchingNotification },
             move |_| {
+                let _entered = debug_span!("UIApplicationDidFinishLaunchingNotification").entered();
                 app_state::did_finish_launching(mtm);
             },
         );
@@ -167,19 +169,27 @@ impl EventLoop {
             &center,
             // `applicationDidBecomeActive:`
             unsafe { UIApplicationDidBecomeActiveNotification },
-            move |_| app_state::handle_resumed(mtm),
+            move |_| {
+                let _entered = debug_span!("UIApplicationDidBecomeActiveNotification").entered();
+                app_state::handle_resumed(mtm)
+            },
         );
         let _will_resign_active_observer = create_observer(
             &center,
             // `applicationWillResignActive:`
             unsafe { UIApplicationWillResignActiveNotification },
-            move |_| app_state::handle_suspended(mtm),
+            move |_| {
+                let _entered = debug_span!("UIApplicationWillResignActiveNotification").entered();
+                app_state::handle_suspended(mtm)
+            },
         );
         let _will_enter_foreground_observer = create_observer(
             &center,
             // `applicationWillEnterForeground:`
             unsafe { UIApplicationWillEnterForegroundNotification },
             move |notification| {
+                let _entered =
+                    debug_span!("UIApplicationWillEnterForegroundNotification").entered();
                 let app = notification.object().expect(
                     "UIApplicationWillEnterForegroundNotification to have application object",
                 );
@@ -194,6 +204,7 @@ impl EventLoop {
             // `applicationDidEnterBackground:`
             unsafe { UIApplicationDidEnterBackgroundNotification },
             move |notification| {
+                let _entered = debug_span!("UIApplicationDidEnterBackgroundNotification").entered();
                 let app = notification.object().expect(
                     "UIApplicationDidEnterBackgroundNotification to have application object",
                 );
@@ -208,6 +219,7 @@ impl EventLoop {
             // `applicationWillTerminate:`
             unsafe { UIApplicationWillTerminateNotification },
             move |notification| {
+                let _entered = debug_span!("UIApplicationWillTerminateNotification").entered();
                 let app = notification
                     .object()
                     .expect("UIApplicationWillTerminateNotification to have application object");
@@ -221,7 +233,11 @@ impl EventLoop {
             &center,
             // `applicationDidReceiveMemoryWarning:`
             unsafe { UIApplicationDidReceiveMemoryWarningNotification },
-            move |_| app_state::handle_memory_warning(mtm),
+            move |_| {
+                let _entered =
+                    debug_span!("UIApplicationDidReceiveMemoryWarningNotification").entered();
+                app_state::handle_memory_warning(mtm)
+            },
         );
 
         let main_loop = MainRunLoop::get(mtm);
