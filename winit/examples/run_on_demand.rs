@@ -14,6 +14,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     #[path = "util/fill.rs"]
     mod fill;
+    #[path = "util/tracing.rs"]
+    mod tracing;
 
     #[derive(Default, Debug)]
     struct App {
@@ -70,7 +72,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
-    tracing_subscriber::fmt::init();
+    tracing::init();
 
     let mut event_loop = EventLoop::new().unwrap();
 
