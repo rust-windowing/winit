@@ -1,6 +1,15 @@
 //! Winit is a cross-platform window creation and event loop management library.
 //!
-//! # Building windows
+//! # Getting started
+//!
+//! The core of the windowing system is the [`EventLoop`] and the [`ApplicationHandler`]. You can
+//! use these together to create a [`Window`], which will send events to the [`ActiveEventLoop`],
+//! which associates one or more [`Window`]s with a single [`EventLoop`].
+//!
+//! You must also define a struct which implements [`ApplicationHandler`], which will determine how
+//! events are handled.  The example below shows a simple [`ApplicationHandler`] implementation.
+//! The [`ApplicationHandler`] trait is the glue which provides access to the [`ActiveEventLoop`],
+//! which allows you to create [`Window`]s with [`create_window`].
 //!
 //! Before you can create a [`Window`], you first need to build an [`EventLoop`]. This is done with
 //! the [`EventLoop::new()`] function.
@@ -15,25 +24,13 @@
 //! }
 //! ```
 //!
-//! Then you create a [`Window`] with [`create_window`].
+//! Then you create a [`Window`] with [`create_window`], usually inside of your
+//! [`ApplicationHandler`] code.
 //!
 //! # Event handling
 //!
-//! Once a [`Window`] has been created, it will generate different *events*. A [`Window`] object can
-//! generate [`WindowEvent`]s when certain input events occur, such as a cursor moving over the
-//! window or a key getting pressed while the window is focused. Devices can generate
-//! [`DeviceEvent`]s, which contain unfiltered event data that isn't specific to a certain window.
-//! Some user activity, like mouse movement, can generate both a [`WindowEvent`] *and* a
-//! [`DeviceEvent`].
-//!
 //! You can retrieve events by calling [`EventLoop::run_app()`]. This function will dispatch events
 //! for every [`Window`] that was created with that particular [`EventLoop`].
-//!
-//! Winit no longer uses a `EventLoop::poll_events() -> impl Iterator<Event>`-based event loop
-//! model, since that can't be implemented properly on some platforms (e.g Web, iOS) and works
-//! poorly on most other platforms. However, this model can be re-implemented to an extent with
-//! [`EventLoopExtPumpEvents::pump_app_events()`] [^1]. See that method's documentation for more
-//! reasons about why it's discouraged beyond compatibility reasons.
 //!
 //!
 //! ```no_run
@@ -110,6 +107,19 @@
 //!     Ok(())
 //! }
 //! ```
+//!
+//! Once a [`Window`] has been created, it will generate different *events*. A [`Window`] object can
+//! generate [`WindowEvent`]s when certain input events occur, such as a cursor moving over the
+//! window or a key getting pressed while the window is focused. Devices can generate
+//! [`DeviceEvent`]s, which contain unfiltered event data that isn't specific to a certain window.
+//! Some user activity, like mouse movement, can generate both a [`WindowEvent`] *and* a
+//! [`DeviceEvent`].
+//!
+//! Winit no longer uses a `EventLoop::poll_events() -> impl Iterator<Event>`-based event loop
+//! model, since that can't be implemented properly on some platforms (e.g Web, iOS) and works
+//! poorly on most other platforms. However, this model can be re-implemented to an extent with
+//! [`EventLoopExtPumpEvents::pump_app_events()`] [^1]. See that method's documentation for more
+//! reasons about why it's discouraged beyond compatibility reasons.
 //!
 //! [`WindowEvent`] has a [`WindowId`] member. In multi-window environments, it should be
 //! compared to the value returned by [`Window::id()`] to determine which [`Window`]
@@ -269,6 +279,8 @@
 //! [`raw_window_handle`]: ./window/struct.Window.html#method.raw_window_handle
 //! [`raw_display_handle`]: ./window/struct.Window.html#method.raw_display_handle
 //! [`EventLoopExtPumpEvents::pump_app_events()`]: crate::event_loop::pump_events::EventLoopExtPumpEvents::pump_app_events()
+//! [`ApplicationHandler`]: application::ApplicationHandler
+//! [`ActiveEventLoop`]: event_loop::ActiveEventLoop
 //! [^1]: `EventLoopExtPumpEvents::pump_app_events()` is only available on Windows, macOS, Android, X11 and Wayland.
 
 #![deny(rust_2018_idioms)]
