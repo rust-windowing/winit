@@ -29,7 +29,7 @@ use crate::seat::{
     PointerConstraintsState, PointerGesturesState, RelativePointerState, TextInputState,
     WinitPointerData, WinitPointerDataExt, WinitSeatState,
 };
-use crate::types::kwin_blur::KWinBlurManager;
+use crate::types::blur::BlurManager;
 use crate::types::wp_fractional_scaling::FractionalScalingManager;
 use crate::types::wp_tablet_input_v2::TabletManager;
 use crate::types::wp_viewporter::ViewporterState;
@@ -116,8 +116,8 @@ pub struct WinitState {
     /// Fractional scaling manager.
     pub fractional_scaling_manager: Option<FractionalScalingManager>,
 
-    /// KWin blur manager.
-    pub kwin_blur_manager: Option<KWinBlurManager>,
+    /// Blur manager.
+    pub blur_manager: Option<BlurManager>,
 
     /// Loop handle to re-register event sources, such as keyboard repeat.
     pub loop_handle: LoopHandle<'static, Self>,
@@ -192,7 +192,7 @@ impl WinitState {
             window_events_sink: Default::default(),
             viewporter_state,
             fractional_scaling_manager,
-            kwin_blur_manager: KWinBlurManager::new(globals, queue_handle).ok(),
+            blur_manager: BlurManager::new(globals, queue_handle).ok(),
 
             seats,
             text_input_state: TextInputState::new(globals, queue_handle).ok(),
