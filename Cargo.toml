@@ -67,9 +67,9 @@ unicode-segmentation = "1.7.1"
 windows-sys = "0.61"
 
 # Linux dependencies.
-ahash = { version = "0.8.7", features = ["no-rng"] }
 bytemuck = { version = "1.13.1", default-features = false }
 calloop = "0.14.3"
+foldhash = { version = "0.2.0", default-features = false, features = ["std"] }
 libc = "0.2.64"
 memmap2 = "0.9.0"
 percent-encoding = "2.0"
@@ -79,8 +79,9 @@ x11rb = { version = "0.13.0", default-features = false }
 xkbcommon-dl = "0.4.2"
 
 # Orbital dependencies.
+libredox = "0.1.12"
 orbclient = { version = "0.3.47", default-features = false }
-redox_syscall = "0.5.7"
+redox_event = { package = "redox_event", version = "0.4.5" }
 
 # Web dependencies.
 atomic-waker = "1"
