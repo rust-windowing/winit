@@ -187,6 +187,12 @@ pub trait WindowExtMacOS {
 
     /// Getter for the [`WindowExtMacOS::set_unified_titlebar`].
     fn unified_titlebar(&self) -> bool;
+
+    /// Returns the height of the titlebar in logical points.
+    ///
+    /// This can be useful when drawing custom UI that needs to align with the
+    /// system titlebar.
+    fn titlebar_height(&self) -> f64;
 }
 
 impl WindowExtMacOS for dyn Window + '_ {
@@ -296,6 +302,12 @@ impl WindowExtMacOS for dyn Window + '_ {
     fn unified_titlebar(&self) -> bool {
         let window = self.cast_ref::<AppKitWindow>().unwrap();
         window.maybe_wait_on_main(|w| w.unified_titlebar())
+    }
+
+    #[inline]
+    fn titlebar_height(&self) -> f64 {
+        let window = self.cast_ref::<AppKitWindow>().unwrap();
+        window.maybe_wait_on_main(|w| w.titlebar_height())
     }
 }
 

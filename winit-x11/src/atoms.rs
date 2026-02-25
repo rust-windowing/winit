@@ -95,6 +95,7 @@ atom_manager! {
     None: b"None",
 
     // Miscellaneous Atoms
+    _GTK_SHOW_WINDOW_MENU,
     _GTK_THEME_VARIANT,
     _MOTIF_WM_HINTS,
     _NET_ACTIVE_WINDOW,
