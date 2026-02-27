@@ -60,12 +60,6 @@ impl Iterator for KeymapIter<'_> {
 
 impl XConnection {
     pub fn query_keymap(&self) -> Keymap {
-        // let mut keys = [0 as c_char; 32];
-
-        // unsafe {
-        //     (self.xlib.XQueryKeymap)(self.display, keys.as_mut_ptr() as *mut c_char);
-        // }
-
         let keys = self
             .xcb_connection()
             .query_keymap()
