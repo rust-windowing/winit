@@ -110,6 +110,8 @@ mod window;
 
 use std::os::raw::c_void;
 
+pub use objc2;
+
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 use winit_core::monitor::{MonitorHandle, VideoMode};
@@ -292,6 +294,12 @@ impl WindowExtIOS for dyn Window + '_ {
         let window = self.cast_ref::<UIKitWindow>().unwrap();
         window.maybe_wait_on_main(move |w| w.recognize_rotation_gesture(should_recognize));
     }
+}
+
+pub trait EventLoopBuilderExtIOS {
+    /// Sets the main thread marker to be used by the event loop.
+    fn with_main_thread_marker(&mut self, main_thread_marker: objc2::MainThreadMarker)
+    -> &mut Self;
 }
 
 /// Ios specific window attributes.

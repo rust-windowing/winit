@@ -47,20 +47,20 @@ define_class!(
         #[unsafe(method(becomeKeyWindow))]
         fn become_key_window(&self) {
             let mtm = MainThreadMarker::new().unwrap();
-            app_state::handle_nonuser_event(mtm, EventWrapper::Window {
-                window_id: self.id(),
-                event: WindowEvent::Focused(true),
-            });
+            app_state::handle_nonuser_event(
+                mtm,
+                EventWrapper::Window { window_id: self.id(), event: WindowEvent::Focused(true) },
+            );
             let _: () = unsafe { msg_send![super(self), becomeKeyWindow] };
         }
 
         #[unsafe(method(resignKeyWindow))]
         fn resign_key_window(&self) {
             let mtm = MainThreadMarker::new().unwrap();
-            app_state::handle_nonuser_event(mtm, EventWrapper::Window {
-                window_id: self.id(),
-                event: WindowEvent::Focused(false),
-            });
+            app_state::handle_nonuser_event(
+                mtm,
+                EventWrapper::Window { window_id: self.id(), event: WindowEvent::Focused(false) },
+            );
             let _: () = unsafe { msg_send![super(self), resignKeyWindow] };
         }
     }
@@ -490,6 +490,22 @@ impl Window {
     ) -> Result<Window, RequestError> {
         let mtm = event_loop.mtm;
 
+        // check if there is already one or more scenes using .connectedScenes
+        let mut window_scene: Option<Retained<objc2_ui_kit::UIWindowScene>> = None;
+
+        unsafe {
+            let app = UIApplication::sharedApplication(mtm);
+            let connected_scenes = app.connectedScenes();
+            for scene in connected_scenes.iter() {
+                // check if UIWindowScene
+                if scene.isKindOfClass(class!(UIWindowScene)) {
+                    window_scene = Some(Retained::cast_unchecked::<objc2_ui_kit::UIWindowScene>(
+                        scene.clone(),
+                    ));
+                }
+            }
+        };
+
         if window_attributes.min_surface_size.is_some() {
             warn!("`WindowAttributes::min_surface_size` is ignored on iOS");
         }
@@ -539,6 +555,10 @@ impl Window {
         let view_controller = WinitViewController::new(mtm, &ios_attributes, &view);
         let window = WinitUIWindow::new(mtm, &window_attributes, frame, &view_controller);
         window.makeKeyAndVisible();
+        unsafe {
+            window.setWindowLevel(10000.0);
+            window.setWindowScene(window_scene.as_deref());
+        }
 
         let inner = Inner {
             window,
