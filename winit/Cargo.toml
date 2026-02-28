@@ -76,11 +76,9 @@ winit-core.workspace = true
 
 [dev-dependencies]
 image = { workspace = true, features = ["png"] }
+softbuffer.workspace = true
 tracing = { workspace = true, features = ["log"] }
 tracing-subscriber = { workspace = true, features = ["env-filter"] }
-
-[target.'cfg(not(target_os = "android"))'.dev-dependencies]
-softbuffer.workspace = true
 
 [target.'cfg(target_os = "android")'.dependencies]
 winit-android.workspace = true
