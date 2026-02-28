@@ -5,7 +5,9 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
-use android_activity::input::{InputEvent, KeyAction, Keycode, MotionAction};
+use android_activity::input::{
+    InputEvent, KeyAction, Keycode, MotionAction, TextInputState, TextSpan,
+};
 use android_activity::{
     AndroidApp, AndroidAppWaker, ConfigurationRef, InputStatus, MainEvent, Rect,
 };
@@ -492,6 +494,28 @@ impl EventLoop {
                     },
                 }
             },
+            InputEvent::TextEvent(ime_state) => {
+                // Note: Winit does not support surrounding text or tracking a selection/cursor that
+                // may span within the surrounding text and the preedit text.
+                //
+                // Since there's no API to specify surrounding text, set_ime_allowed() will reset
+                // the text to an empty string and we will treat all the text as preedit text.
+                //
+                // We map Android's composing region to winit's preedit selection region.
+                //
+                // This seems a little odd, since Android's notion of a "composing region" would
+                // normally be equated with winit's "preedit" text but conceptually we're mapping
+                // Android's surrounding text + composing region into winit's preedit text +
+                // selection region.
+                //
+                // We ignore the separate selection region that Android supports.
+                let event = event::WindowEvent::Ime(event::Ime::Preedit(
+                    ime_state.text.clone(),
+                    ime_state.compose_region.map(|span| (span.start, span.end)),
+                ));
+
+                app.window_event(&self.window_target, GLOBAL_WINDOW, event);
+            },
             _ => {
                 warn!("Unknown android_activity input event {event:?}")
             },
@@ -757,6 +781,7 @@ pub struct Window {
     app: AndroidApp,
     ime_capabilities: Mutex<Option<ImeCapabilities>>,
     redraw_requester: RedrawRequester,
+    ime_allowed: AtomicBool,
 }
 
 impl Window {
@@ -770,6 +795,7 @@ impl Window {
             app: el.app.clone(),
             ime_capabilities: Default::default(),
             redraw_requester: el.redraw_requester.clone(),
+            ime_allowed: AtomicBool::new(false),
         })
     }
 
@@ -942,12 +968,17 @@ impl CoreWindow for Window {
         let mut current_caps = self.ime_capabilities.lock().unwrap();
         match request {
             ImeRequest::Enable(enable) => {
+                // Request a show/hide regardless of whether the state has changed, since
+                // the keyboard may have been dismissed by the user manually while in the
+                // middle of text input
+                self.app.show_soft_input(true);
+
                 let (capabilities, _) = enable.into_raw();
                 if current_caps.is_some() {
                     return Err(ImeRequestError::AlreadyEnabled);
                 }
+
                 *current_caps = Some(capabilities);
-                self.app.show_soft_input(true);
             },
             ImeRequest::Update(_) => {
                 if current_caps.is_none() {
@@ -959,6 +990,19 @@ impl CoreWindow for Window {
                 self.app.hide_soft_input(true);
             },
         }
+
+        // FIXME: delete?
+        // I think this functionality is covered by the "current_caps" checks above
+        //
+        // if self.ime_allowed.swap(allowed, Ordering::SeqCst) == allowed {
+        //     return;
+        // }
+
+        self.app.set_text_input_state(TextInputState {
+            text: String::new(),
+            selection: TextSpan { start: 0, end: 0 },
+            compose_region: None,
+        });
 
         Ok(())
     }
