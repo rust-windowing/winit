@@ -11,6 +11,17 @@ use std::{fmt, mem, slice, str};
 use libredox::data::TimeSpec;
 
 pub use self::event_loop::{EventLoop, PlatformSpecificEventLoopAttributes};
+use winit_core::keyboard::{Key, KeyCode, ModifiersState, NativeKey};
+
+/// Stub implementation for physical to logical key mapping on Orbital.
+pub fn physical_to_logical_key(
+    _keycode: KeyCode,
+    _modifiers: ModifiersState,
+    _caps_lock: bool,
+    _num_lock: bool,
+) -> Key {
+    Key::Unidentified(NativeKey::Unidentified)
+}
 
 macro_rules! os_error {
     ($error:expr) => {{ winit_core::error::OsError::new(line!(), file!(), $error) }};
