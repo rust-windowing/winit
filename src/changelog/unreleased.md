@@ -46,3 +46,4 @@ changelog entry.
 - On X11, fix `set_hittest` not working on some window managers.
 - On X11, fix debug mode overflow panic in `set_timestamp`.
 - On macOS, fix crash in `set_marked_text` when native Pinyin IME sends out-of-bounds `selected_range`.
+- On Windows, fix `WM_IME_SETCONTEXT` IME UI flag masking on `lParam`.
