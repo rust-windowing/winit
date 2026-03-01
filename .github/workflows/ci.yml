@@ -111,8 +111,13 @@ jobs:
            cargo generate-lockfile
            cargo update -p ahash --precise 0.8.7
            cargo update -p bumpalo --precise 3.14.0
+           cargo update -p softbuffer --precise 0.4.0
            cargo update -p objc2-encode --precise 4.0.3
            cargo update -p orbclient --precise 0.3.47
+           cargo update -p image --precise 0.25.0
+           cargo update -p gethostname@1.1.0 --precise 1.0.2
+           cargo update -p unicode-ident --precise 1.0.10
+           cargo update -p syn --precise 2.0.114
 
     - name: Install GCC Multilib
       if: (matrix.platform.os == 'ubuntu-latest') && contains(matrix.platform.target, 'i686')
