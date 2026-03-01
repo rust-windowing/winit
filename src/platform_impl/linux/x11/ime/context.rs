@@ -81,7 +81,7 @@ extern "C" fn preedit_draw_callback(
         call_data.chg_first as usize..(call_data.chg_first + call_data.chg_length) as usize;
     if chg_range.start > client_data.text.len() || chg_range.end > client_data.text.len() {
         tracing::warn!(
-            "invalid chg range: buffer length={}, but chg_first={} chg_lengthg={}",
+            "invalid chg range: buffer length={}, but chg_first={} chg_length={}",
             client_data.text.len(),
             call_data.chg_first,
             call_data.chg_length
@@ -158,7 +158,7 @@ impl PreeditCallbacks {
     pub fn new(client_data: ffi::XPointer) -> PreeditCallbacks {
         let start_callback = create_xim_callback(client_data, unsafe {
             mem::transmute::<usize, unsafe extern "C" fn(ffi::XIM, ffi::XPointer, ffi::XPointer)>(
-                preedit_start_callback as usize,
+                preedit_start_callback as *const () as usize,
             )
         });
         let done_callback = create_xim_callback(client_data, preedit_done_callback);
