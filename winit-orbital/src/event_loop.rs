@@ -658,6 +658,8 @@ impl EventLoop {
             }
         }
 
+        app.destroy_surfaces(&self.window_target);
+
         Ok(())
     }
 

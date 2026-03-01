@@ -72,8 +72,9 @@ pub trait ApplicationHandler {
     /// applications to create a render surface until that point.
     ///
     /// For consistency, all platforms call this method even if they don't themselves have a formal
-    /// surface destroy/create lifecycle. For systems without a surface destroy/create lifecycle the
-    /// [`can_create_surfaces()`] event is always emitted after the [`StartCause::Init`] event.
+    /// surface create/destroy lifecycle. For systems without a surface create/destrory lifecycle
+    /// the [`can_create_surfaces()`] event is always emitted after the [`StartCause::Init`]
+    /// event.
     ///
     /// Applications should be able to gracefully handle back-to-back [`can_create_surfaces()`] and
     /// [`destroy_surfaces()`] calls.
@@ -275,6 +276,21 @@ pub trait ApplicationHandler {
     ///
     /// See [`can_create_surfaces()`] for more details.
     ///
+    /// ## Portability
+    ///
+    /// It's recommended that applications should only destroy their render surfaces after the
+    /// [`destroy_surfaces()`] method is called. Some systems (specifically Android) won't allow
+    /// applications to use the render surface after that point.
+    ///
+    /// For consistency, all platforms call this method even if they don't themselves have a formal
+    /// surface create/destroy lifecycle. For systems without a surface create/destroy lifecycle the
+    /// [`destroy_surfaces()`] event is always emitted before [`PumpStatus::Exit`] is returned.
+    ///
+    /// Applications should be able to gracefully handle back-to-back [`can_create_surfaces()`] and
+    /// [`destroy_surfaces()`] calls.
+    ///
+    /// [`PumpStatus::Exit`]: crate::event_loop::pump_events::PumpStatus::Exit
+    ///
     /// ## Platform-specific
     ///
     /// ### Android
@@ -297,10 +313,6 @@ pub trait ApplicationHandler {
     /// [`onStop`]: https://developer.android.com/reference/android/app/Activity#onStop()
     /// [`VkSurfaceKHR`]: https://www.khronos.org/registry/vulkan/specs/1.3-extensions/man/html/VkSurfaceKHR.html
     /// [`wgpu::Surface`]: https://docs.rs/wgpu/latest/wgpu/struct.Surface.html
-    ///
-    /// ### Others
-    ///
-    /// - **iOS / macOS / Orbital / Wayland / Web / Windows / X11:** Unsupported.
     ///
     /// [`can_create_surfaces()`]: Self::can_create_surfaces()
     /// [`destroy_surfaces()`]: Self::destroy_surfaces()

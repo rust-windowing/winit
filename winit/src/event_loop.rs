@@ -165,6 +165,8 @@ impl EventLoop {
     ///     start_cause = event_loop.wait_if_necessary();
     /// }
     ///
+    /// app.destroy_surfaces(event_loop);
+    ///
     /// // Finished running, drop application state.
     /// drop(app);
     /// ```
