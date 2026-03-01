@@ -40,6 +40,10 @@ changelog entry.
 
 ## Unreleased
 
+### Added
+
+- On Wayland, add `Window::set_resize_increments`.
+
 ### Fixed
 
 - On macOS, fixed crash when dragging non-file content onto window.
