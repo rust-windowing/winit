@@ -366,12 +366,15 @@ impl WindowState {
         // Apply size increments.
         //
         // We conditionally apply increments to avoid conflicts with the compositor's layout rules:
-        // 1. If the window is floating (constrain == true), we snap to increments to ensure the app's grid alignment.
-        // 2. If the user is interactively resizing (is_resizing), we snap the size to provide feedback.
+        // 1. If the window is floating (constrain == true), we snap to increments to ensure the
+        //    app's grid alignment.
+        // 2. If the user is interactively resizing (is_resizing), we snap the size to provide
+        //    feedback.
         //
         // However, we MUST NOT snap if the compositor enforces a specific size (constrain == false,
-        // or states like Maximized/Tiled). Snapping in these cases (e.g. corner tiling) would shrink
-        // the window below the allocated area, creating visible gaps between valid windows or screen edges.
+        // or states like Maximized/Tiled). Snapping in these cases (e.g. corner tiling) would
+        // shrink the window below the allocated area, creating visible gaps between valid
+        // windows or screen edges.
         if (constrain || configure.is_resizing())
             && !configure.is_maximized()
             && !configure.is_fullscreen()
@@ -380,8 +383,8 @@ impl WindowState {
             if let Some(increments) = self.resize_increments {
                 // We use min size as a base size for the increments, similar to how X11 does it.
                 //
-                // This ensures that we can always reach the min size and the increments are calculated
-                // from it.
+                // This ensures that we can always reach the min size and the increments are
+                // calculated from it.
                 let (delta_width, delta_height) = (
                     new_size.width.saturating_sub(self.min_surface_size.width),
                     new_size.height.saturating_sub(self.min_surface_size.height),
