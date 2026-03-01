@@ -834,7 +834,7 @@ pub trait Window: AsAny + Send + Sync + fmt::Debug {
     ///
     /// ## Platform-specific
     ///
-    /// - **iOS / Android / Web / Wayland / Orbital:** Always returns [`None`].
+    /// - **iOS / Android / Web / Orbital:** Always returns [`None`].
     fn surface_resize_increments(&self) -> Option<PhysicalSize<u32>>;
 
     /// Sets resize increments of the surface.
@@ -846,7 +846,6 @@ pub trait Window: AsAny + Send + Sync + fmt::Debug {
     ///
     /// - **macOS:** Increments are converted to logical size and then macOS rounds them to whole
     ///   numbers.
-    /// - **Wayland:** Not implemented.
     /// - **iOS / Android / Web / Orbital:** Unsupported.
     fn set_surface_resize_increments(&self, increments: Option<Size>);
 
