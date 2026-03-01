@@ -45,3 +45,4 @@ changelog entry.
 - On macOS, fixed crash when dragging non-file content onto window.
 - On X11, fix `set_hittest` not working on some window managers.
 - On X11, fix debug mode overflow panic in `set_timestamp`.
+- On macOS, fix crash in `set_marked_text` when native Pinyin IME sends out-of-bounds `selected_range`.
