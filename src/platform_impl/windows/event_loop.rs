@@ -1612,9 +1612,9 @@ unsafe fn public_window_callback_inner(
         },
 
         WM_IME_SETCONTEXT => {
-            // Hide composing text drawn by IME.
-            let wparam = wparam & (!ISC_SHOWUICOMPOSITIONWINDOW as usize);
-            result = ProcResult::DefWindowProc(wparam);
+            // IME UI visibility flags are in lparam.
+            let lparam = lparam & !(ISC_SHOWUICOMPOSITIONWINDOW as isize);
+            result = ProcResult::Value(unsafe { DefWindowProcW(window, msg, wparam, lparam) });
         },
 
         // this is necessary for us to maintain minimize/restore state
