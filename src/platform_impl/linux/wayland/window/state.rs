@@ -369,8 +369,8 @@ impl WindowState {
                     new_size.height.saturating_sub(self.min_inner_size.height),
                 );
 
-                let width = self.min_inner_size.width
-                    + (delta_width / increments.width) * increments.width;
+                let width =
+                    self.min_inner_size.width + (delta_width / increments.width) * increments.width;
                 let height = self.min_inner_size.height
                     + (delta_height / increments.height) * increments.height;
 

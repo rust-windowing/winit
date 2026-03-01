@@ -1824,10 +1824,11 @@ pub enum WindowLevel {
 /// ## Platform-specific
 ///
 /// - **iOS / Android / Web / Windows / X11 / macOS / Orbital:** Unsupported.
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+#[derive(Default, Debug, PartialEq, Eq, Clone, Copy)]
 #[non_exhaustive]
 pub enum ImePurpose {
     /// No special hints for the IME (default).
+    #[default]
     Normal,
     /// The IME is used for password input.
     Password,
@@ -1835,12 +1836,6 @@ pub enum ImePurpose {
     ///
     /// For example, that could alter OSK on Wayland to show extra buttons.
     Terminal,
-}
-
-impl Default for ImePurpose {
-    fn default() -> Self {
-        Self::Normal
-    }
 }
 
 /// An opaque token used to activate the [`Window`].
