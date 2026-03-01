@@ -9,7 +9,7 @@ use std::cell::Cell;
 
 use objc2::MainThreadMarker;
 use objc2_core_foundation::{CFRetained, CFRunLoop, CFRunLoopMode, kCFRunLoopDefaultMode};
-use tracing::error;
+use tracing::{Span, error};
 
 use super::MainRunLoopObserver;
 
@@ -49,7 +49,8 @@ impl MainRunLoop {
     /// This queuing could be implemented in the following several ways with subtle differences in
     /// timing. This list is sorted in rough order in which they are run:
     ///
-    /// 1. Using `CFRunLoopPerformBlock` or `-[NSRunLoop performBlock:]`.
+    /// 1. Using `CFRunLoopPerformBlock` or `-[NSRunLoop performBlock:]` to queue a closure to run
+    ///    the next time runloop sources are processed.
     ///
     /// 2. Using `-[NSObject performSelectorOnMainThread:withObject:waitUntilDone:]` or wrapping the
     ///    event in `NSEvent` and posting that to `-[NSApplication postEvent:atStart:]` (both
@@ -73,9 +74,17 @@ impl MainRunLoop {
     /// put the event at the very front of the queue, to be handled as soon as possible after
     /// handling whatever event it's currently handling.
     pub fn queue_closure(&self, closure: impl FnOnce() + 'static) {
+        // We use this to run a closure asynchronously at a later point, so it also makes sense to
+        // re-enter the current span when running the queued closure.
+        let span = Span::current();
+
         // Convert `FnOnce()` to `Block<dyn Fn()>`.
         let closure = Cell::new(Some(closure));
         let block = block2::RcBlock::new(move || {
+            // Running this block happens inside a `CFRunLoopSource`, but the spans that we emit for
+            // that are (intentionally) overwritten by entering the span from before.
+            let _enter = span.enter();
+
             debug_assert!(MainThreadMarker::new().is_some());
             if let Some(closure) = closure.take() {
                 closure()

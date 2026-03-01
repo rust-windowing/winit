@@ -41,7 +41,7 @@ use objc2_foundation::{
     NSObjectNSDelayedPerforming, NSObjectNSKeyValueObserverRegistration, NSObjectProtocol, NSPoint,
     NSRect, NSSize, NSString, ns_string,
 };
-use tracing::{trace, warn};
+use tracing::{debug_span, trace, warn};
 use winit_common::core_foundation::MainRunLoop;
 use winit_core::cursor::Cursor;
 use winit_core::error::{NotSupportedError, RequestError};
@@ -121,14 +121,14 @@ define_class!(
     unsafe impl NSWindowDelegate for WindowDelegate {
         #[unsafe(method(windowShouldClose:))]
         fn window_should_close(&self, _: Option<&AnyObject>) -> bool {
-            trace_scope!("windowShouldClose:");
+            let _entered = debug_span!("windowShouldClose:").entered();
             self.queue_event(WindowEvent::CloseRequested);
             false
         }
 
         #[unsafe(method(windowWillClose:))]
         fn window_will_close(&self, _: Option<&AnyObject>) {
-            trace_scope!("windowWillClose:");
+            let _entered = debug_span!("windowWillClose:").entered();
             // `setDelegate:` retains the previous value and then autoreleases it
             autoreleasepool(|_| {
                 // Since El Capitan, we need to be careful that delegate methods can't
@@ -140,14 +140,14 @@ define_class!(
 
         #[unsafe(method(windowDidResize:))]
         fn window_did_resize(&self, _: Option<&AnyObject>) {
-            trace_scope!("windowDidResize:");
+            let _entered = debug_span!("windowDidResize:").entered();
             // NOTE: WindowEvent::SurfaceResized is reported using NSViewFrameDidChangeNotification.
             self.emit_move_event();
         }
 
         #[unsafe(method(windowWillStartLiveResize:))]
         fn window_will_start_live_resize(&self, _: Option<&AnyObject>) {
-            trace_scope!("windowWillStartLiveResize:");
+            let _entered = debug_span!("windowWillStartLiveResize:").entered();
 
             let increments = self.ivars().surface_resize_increments.get();
             self.set_resize_increments_inner(increments);
@@ -155,20 +155,20 @@ define_class!(
 
         #[unsafe(method(windowDidEndLiveResize:))]
         fn window_did_end_live_resize(&self, _: Option<&AnyObject>) {
-            trace_scope!("windowDidEndLiveResize:");
+            let _entered = debug_span!("windowDidEndLiveResize:").entered();
             self.set_resize_increments_inner(NSSize::new(1., 1.));
         }
 
         // This won't be triggered if the move was part of a resize.
         #[unsafe(method(windowDidMove:))]
         fn window_did_move(&self, _: Option<&AnyObject>) {
-            trace_scope!("windowDidMove:");
+            let _entered = debug_span!("windowDidMove:").entered();
             self.emit_move_event();
         }
 
         #[unsafe(method(windowDidChangeBackingProperties:))]
         fn window_did_change_backing_properties(&self, _: Option<&AnyObject>) {
-            trace_scope!("windowDidChangeBackingProperties:");
+            let _entered = debug_span!("windowDidChangeBackingProperties:").entered();
             let scale_factor = self.scale_factor();
             if scale_factor == self.ivars().previous_scale_factor.get() {
                 return;
@@ -184,7 +184,7 @@ define_class!(
 
         #[unsafe(method(windowDidBecomeKey:))]
         fn window_did_become_key(&self, _: Option<&AnyObject>) {
-            trace_scope!("windowDidBecomeKey:");
+            let _entered = debug_span!("windowDidBecomeKey:").entered();
             // TODO: center the cursor if the window had mouse grab when it
             // lost focus
             self.queue_event(WindowEvent::Focused(true));
@@ -192,7 +192,7 @@ define_class!(
 
         #[unsafe(method(windowDidResignKey:))]
         fn window_did_resign_key(&self, _: Option<&AnyObject>) {
-            trace_scope!("windowDidResignKey:");
+            let _entered = debug_span!("windowDidResignKey:").entered();
             // It happens rather often, e.g. when the user is Cmd+Tabbing, that the
             // NSWindowDelegate will receive a didResignKey event despite no event
             // being received when the modifiers are released. This is because
@@ -208,7 +208,7 @@ define_class!(
         /// Invoked when before enter fullscreen
         #[unsafe(method(windowWillEnterFullScreen:))]
         fn window_will_enter_fullscreen(&self, _: Option<&AnyObject>) {
-            trace_scope!("windowWillEnterFullScreen:");
+            let _entered = debug_span!("windowWillEnterFullScreen:").entered();
 
             self.ivars().maximized.set(self.is_zoomed());
             let mut fullscreen = self.ivars().fullscreen.borrow_mut();
@@ -236,7 +236,7 @@ define_class!(
         /// Invoked when before exit fullscreen
         #[unsafe(method(windowWillExitFullScreen:))]
         fn window_will_exit_fullscreen(&self, _: Option<&AnyObject>) {
-            trace_scope!("windowWillExitFullScreen:");
+            let _entered = debug_span!("windowWillExitFullScreen:").entered();
 
             self.ivars().in_fullscreen_transition.set(true);
         }
@@ -247,7 +247,7 @@ define_class!(
             _: Option<&AnyObject>,
             proposed_options: NSApplicationPresentationOptions,
         ) -> NSApplicationPresentationOptions {
-            trace_scope!("window:willUseFullScreenPresentationOptions:");
+            let _entered = debug_span!("window:willUseFullScreenPresentationOptions:").entered();
             // Generally, games will want to disable the menu bar and the dock. Ideally,
             // this would be configurable by the user. Unfortunately because of our
             // `CGShieldingWindowLevel() + 1` hack (see `set_fullscreen`), our window is
@@ -270,7 +270,7 @@ define_class!(
         /// Invoked when entered fullscreen
         #[unsafe(method(windowDidEnterFullScreen:))]
         fn window_did_enter_fullscreen(&self, _: Option<&AnyObject>) {
-            trace_scope!("windowDidEnterFullScreen:");
+            let _entered = debug_span!("windowDidEnterFullScreen:").entered();
             self.ivars().initial_fullscreen.set(false);
             self.ivars().in_fullscreen_transition.set(false);
             if let Some(target_fullscreen) = self.ivars().target_fullscreen.take() {
@@ -281,7 +281,7 @@ define_class!(
         /// Invoked when exited fullscreen
         #[unsafe(method(windowDidExitFullScreen:))]
         fn window_did_exit_fullscreen(&self, _: Option<&AnyObject>) {
-            trace_scope!("windowDidExitFullScreen:");
+            let _entered = debug_span!("windowDidExitFullScreen:").entered();
 
             self.restore_state_from_fullscreen();
             self.ivars().in_fullscreen_transition.set(false);
@@ -308,7 +308,7 @@ define_class!(
         /// work you may have done to prepare to enter full-screen mode.
         #[unsafe(method(windowDidFailToEnterFullScreen:))]
         fn window_did_fail_to_enter_fullscreen(&self, _: Option<&AnyObject>) {
-            trace_scope!("windowDidFailToEnterFullScreen:");
+            let _entered = debug_span!("windowDidFailToEnterFullScreen:").entered();
             self.ivars().in_fullscreen_transition.set(false);
             self.ivars().target_fullscreen.replace(None);
             if self.ivars().initial_fullscreen.get() {
@@ -327,7 +327,7 @@ define_class!(
         // Invoked when the occlusion state of the window changes
         #[unsafe(method(windowDidChangeOcclusionState:))]
         fn window_did_change_occlusion_state(&self, _: Option<&AnyObject>) {
-            trace_scope!("windowDidChangeOcclusionState:");
+            let _entered = debug_span!("windowDidChangeOcclusionState:").entered();
             let visible = self.window().occlusionState().contains(NSWindowOcclusionState::Visible);
             self.queue_event(WindowEvent::Occluded(!visible));
 
@@ -348,7 +348,7 @@ define_class!(
 
         #[unsafe(method(windowDidChangeScreen:))]
         fn window_did_change_screen(&self, _: Option<&AnyObject>) {
-            trace_scope!("windowDidChangeScreen:");
+            let _entered = debug_span!("windowDidChangeScreen:").entered();
             let is_simple_fullscreen = self.ivars().is_simple_fullscreen.get();
             if is_simple_fullscreen {
                 if let Some(screen) = self.window().screen() {
@@ -362,7 +362,7 @@ define_class!(
         /// Invoked when the dragged image enters destination bounds or frame
         #[unsafe(method(draggingEntered:))]
         fn dragging_entered(&self, sender: &ProtocolObject<dyn NSDraggingInfo>) -> bool {
-            trace_scope!("draggingEntered:");
+            let _entered = debug_span!("draggingEntered:").entered();
 
             use std::path::PathBuf;
 
@@ -393,7 +393,7 @@ define_class!(
 
         #[unsafe(method(wantsPeriodicDraggingUpdates))]
         fn wants_periodic_dragging_updates(&self) -> bool {
-            trace_scope!("wantsPeriodicDraggingUpdates:");
+            let _entered = debug_span!("wantsPeriodicDraggingUpdates:").entered();
             true
         }
 
@@ -401,7 +401,7 @@ define_class!(
         /// modification of the dragging operation or mouse-pointer position.
         #[unsafe(method(draggingUpdated:))]
         fn dragging_updated(&self, sender: &ProtocolObject<dyn NSDraggingInfo>) -> bool {
-            trace_scope!("draggingUpdated:");
+            let _entered = debug_span!("draggingUpdated:").entered();
 
             let dl = sender.draggingLocation();
             let dl = self.view().convertPoint_fromView(dl, None);
@@ -416,14 +416,14 @@ define_class!(
         /// Invoked when the image is released
         #[unsafe(method(prepareForDragOperation:))]
         fn prepare_for_drag_operation(&self, _sender: &NSObject) -> bool {
-            trace_scope!("prepareForDragOperation:");
+            let _entered = debug_span!("prepareForDragOperation:").entered();
             true
         }
 
         /// Invoked after the released image has been removed from the screen
         #[unsafe(method(performDragOperation:))]
         fn perform_drag_operation(&self, sender: &ProtocolObject<dyn NSDraggingInfo>) -> bool {
-            trace_scope!("performDragOperation:");
+            let _entered = debug_span!("performDragOperation:").entered();
 
             use std::path::PathBuf;
 
@@ -455,13 +455,13 @@ define_class!(
         /// Invoked when the dragging operation is complete
         #[unsafe(method(concludeDragOperation:))]
         fn conclude_drag_operation(&self, _sender: Option<&NSObject>) {
-            trace_scope!("concludeDragOperation:");
+            let _entered = debug_span!("concludeDragOperation:").entered();
         }
 
         /// Invoked when the dragging operation is cancelled
         #[unsafe(method(draggingExited:))]
         fn dragging_exited(&self, sender: Option<&ProtocolObject<dyn NSDraggingInfo>>) {
-            trace_scope!("draggingExited:");
+            let _entered = debug_span!("draggingExited:").entered();
 
             let position = sender.map(|sender| {
                 let dl = sender.draggingLocation();
@@ -483,7 +483,7 @@ define_class!(
             change: Option<&NSDictionary<NSKeyValueChangeKey, AnyObject>>,
             _context: *mut c_void,
         ) {
-            trace_scope!("observeValueForKeyPath:ofObject:change:context:");
+            let _entered = debug_span!("observeValueForKeyPath:ofObject:change:context:").entered();
             // NOTE: We don't _really_ need to check the key path, as there should only be one, but
             // in the future we might want to observe other key paths.
             if key_path == Some(ns_string!("effectiveAppearance")) {

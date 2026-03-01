@@ -6,7 +6,9 @@
 mod event_loop_proxy;
 mod main_run_loop;
 mod main_run_loop_observer;
+mod tracing_observers;
 
 pub use self::event_loop_proxy::*;
 pub use self::main_run_loop::*;
 pub use self::main_run_loop_observer::*;
+pub use self::tracing_observers::*;

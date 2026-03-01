@@ -12,7 +12,8 @@ use objc2_app_kit::{
 use objc2_core_foundation::{CFIndex, CFRunLoopActivity, kCFRunLoopCommonModes};
 use objc2_foundation::{NSNotificationCenter, NSObjectProtocol};
 use rwh_06::HasDisplayHandle;
-use winit_common::core_foundation::{MainRunLoop, MainRunLoopObserver};
+use tracing::debug_span;
+use winit_common::core_foundation::{MainRunLoop, MainRunLoopObserver, tracing_observers};
 use winit_core::application::ApplicationHandler;
 use winit_core::cursor::{CustomCursor as CoreCustomCursor, CustomCursorSource};
 use winit_core::error::{EventLoopError, RequestError};
@@ -152,6 +153,7 @@ pub struct EventLoop {
     _did_finish_launching_observer: Retained<ProtocolObject<dyn NSObjectProtocol>>,
     _will_terminate_observer: Retained<ProtocolObject<dyn NSObjectProtocol>>,
 
+    _tracing_observers: Option<(MainRunLoopObserver, MainRunLoopObserver)>,
     _before_waiting_observer: MainRunLoopObserver,
     _after_waiting_observer: MainRunLoopObserver,
 }
@@ -203,6 +205,7 @@ impl EventLoop {
             // `applicationDidFinishLaunching:`
             unsafe { NSApplicationDidFinishLaunchingNotification },
             move |notification| {
+                let _entered = debug_span!("NSApplicationDidFinishLaunchingNotification").entered();
                 if let Some(app_state) = weak_app_state.upgrade() {
                     app_state.did_finish_launching(notification);
                 }
@@ -215,6 +218,7 @@ impl EventLoop {
             // `applicationWillTerminate:`
             unsafe { NSApplicationWillTerminateNotification },
             move |notification| {
+                let _entered = debug_span!("NSApplicationWillTerminateNotification").entered();
                 if let Some(app_state) = weak_app_state.upgrade() {
                     app_state.will_terminate(notification);
                 }
@@ -224,14 +228,20 @@ impl EventLoop {
         let main_loop = MainRunLoop::get(mtm);
         let mode = unsafe { kCFRunLoopCommonModes }.unwrap();
 
+        // Tracing observers have the lowest and highest orderings.
+        let _tracing_observers = tracing_observers(mtm).inspect(|(start, end)| {
+            main_loop.add_observer(start, mode);
+            main_loop.add_observer(end, mode);
+        });
+
         let app_state_clone = Rc::clone(&app_state);
         let _before_waiting_observer = MainRunLoopObserver::new(
             mtm,
             CFRunLoopActivity::BeforeWaiting,
             true,
-            // Queued with the lowest priority to ensure it is processed after other observers.
-            // Without that, we'd get a `LoopExiting` after `AboutToWait`.
-            CFIndex::MAX,
+            // Queued with the second-lowest priority (tracing observers use the lowest) to ensure
+            // it is processed after other observers.
+            CFIndex::MAX - 1,
             move |_| app_state_clone.cleared(),
         );
         main_loop.add_observer(&_before_waiting_observer, mode);
@@ -241,8 +251,9 @@ impl EventLoop {
             mtm,
             CFRunLoopActivity::AfterWaiting,
             true,
-            // Queued with the highest priority to ensure it is processed before other observers.
-            CFIndex::MIN,
+            // Queued with the second-highest priority (tracing observers use the highest) to
+            // ensure it is processed before other observers.
+            CFIndex::MIN + 1,
             move |_| app_state_clone.wakeup(),
         );
         main_loop.add_observer(&_after_waiting_observer, mode);
@@ -253,6 +264,7 @@ impl EventLoop {
             window_target: ActiveEventLoop { app_state, mtm },
             _did_finish_launching_observer,
             _will_terminate_observer,
+            _tracing_observers,
             _before_waiting_observer,
             _after_waiting_observer,
         })

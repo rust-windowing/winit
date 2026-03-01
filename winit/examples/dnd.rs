@@ -1,5 +1,6 @@
 use std::error::Error;
 
+use tracing::info;
 use winit::application::ApplicationHandler;
 use winit::event::WindowEvent;
 use winit::event_loop::{ActiveEventLoop, EventLoop};
@@ -49,7 +50,7 @@ impl ApplicationHandler for Application {
             | WindowEvent::DragEntered { .. }
             | WindowEvent::DragMoved { .. }
             | WindowEvent::DragDropped { .. } => {
-                println!("{event:?}");
+                info!("{event:?}");
             },
             WindowEvent::RedrawRequested => {
                 let window = self.window.as_ref().unwrap();

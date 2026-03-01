@@ -3,6 +3,7 @@
 fn main() -> Result<(), impl std::error::Error> {
     use std::collections::HashMap;
 
+    use tracing::info;
     use winit::application::ApplicationHandler;
     use winit::dpi::{LogicalPosition, LogicalSize, Position};
     use winit::event::{ElementState, KeyEvent, WindowEvent};
@@ -38,7 +39,7 @@ fn main() -> Result<(), impl std::error::Error> {
                 .with_position(Position::Logical(LogicalPosition::new(0.0, 0.0)))
                 .with_surface_size(LogicalSize::new(640.0f32, 480.0f32));
             let window = event_loop.create_window(attributes).unwrap();
-            println!("Parent window id: {:?})", window.id());
+            info!("Parent window id: {:?})", window.id());
             self.parent_window_id = Some(window.id());
 
             self.windows.insert(window.id(), WindowData::new(window, 0xffbbbbbb));
@@ -56,12 +57,12 @@ fn main() -> Result<(), impl std::error::Error> {
                     event_loop.exit();
                 },
                 WindowEvent::PointerEntered { device_id: _, .. } => {
-                    // On x11, println when the cursor entered in a window even if the child window
+                    // On x11, log when the cursor entered in a window even if the child window
                     // is created by some key inputs.
                     // the child windows are always placed at (0, 0) with size (200, 200) in the
                     // parent window, so we also can see this log when we move
                     // the cursor around (200, 200) in parent window.
-                    println!("cursor entered in the window {window_id:?}");
+                    info!("cursor entered in the window {window_id:?}");
                 },
                 WindowEvent::KeyboardInput {
                     event: KeyEvent { state: ElementState::Pressed, .. },
@@ -75,7 +76,7 @@ fn main() -> Result<(), impl std::error::Error> {
                     let child_window =
                         spawn_child_window(parent_window.window.as_ref(), event_loop, child_index);
                     let child_id = child_window.id();
-                    println!("Child window created with id: {child_id:?}");
+                    info!("Child window created with id: {child_id:?}");
                     self.windows.insert(child_id, WindowData::new(child_window, child_color));
                 },
                 WindowEvent::RedrawRequested => {
