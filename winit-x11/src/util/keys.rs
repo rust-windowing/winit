@@ -60,16 +60,18 @@ impl Iterator for KeymapIter<'_> {
 
 impl XConnection {
     pub fn query_keymap(&self) -> Keymap {
-        let mut keys = [0; 32];
-
-        unsafe {
-            (self.xlib.XQueryKeymap)(self.display, keys.as_mut_ptr() as *mut c_char);
-        }
+        let keys = self
+            .xcb_connection()
+            .query_keymap()
+            .expect("Failed to query keymap")
+            .reply()
+            .expect("Missing reply")
+            .keys;
 
         Keymap { keys }
     }
 }
 
 fn first_bit(b: u8) -> u8 {
-    1 << b.trailing_zeros()
+    b & b.wrapping_neg()
 }
