@@ -316,9 +316,15 @@ declare_class!(
                 // sending a `None` cursor range.
                 None
             } else {
+                // Clamp to string length to avoid NSRangeException from out-of-bounds
+                // indices sent by macOS IME (e.g. native Pinyin, see
+                // https://github.com/alacritty/alacritty/issues/8791).
+                let len = string.length();
+                let location = selected_range.location.min(len);
+                let end = selected_range.end().min(len);
                 // Convert the selected range from UTF-16 indices to UTF-8 indices.
-                let sub_string_a = unsafe { string.substringToIndex(selected_range.location) };
-                let sub_string_b = unsafe { string.substringToIndex(selected_range.end()) };
+                let sub_string_a = unsafe { string.substringToIndex(location) };
+                let sub_string_b = unsafe { string.substringToIndex(end) };
                 let lowerbound_utf8 = sub_string_a.len();
                 let upperbound_utf8 = sub_string_b.len();
                 Some((lowerbound_utf8, upperbound_utf8))
