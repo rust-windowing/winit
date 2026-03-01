@@ -166,6 +166,12 @@ impl Window {
             Cursor::Custom(cursor) => window_state.set_custom_cursor(cursor),
         }
 
+        // Apply resize increments.
+        if let Some(increments) = attributes.resize_increments {
+            let increments = increments.to_logical(window_state.scale_factor());
+            window_state.set_resize_increments(Some(increments));
+        }
+
         // Activate the window when the token is passed.
         if let (Some(xdg_activation), Some(token)) =
             (xdg_activation.as_ref(), attributes.platform_specific.activation_token)
@@ -333,12 +339,19 @@ impl Window {
 
     #[inline]
     pub fn resize_increments(&self) -> Option<PhysicalSize<u32>> {
-        None
+        let window_state = self.window_state.lock().unwrap();
+        let scale_factor = window_state.scale_factor();
+        window_state
+            .resize_increments()
+            .map(|size| super::logical_to_physical_rounded(size, scale_factor))
     }
 
     #[inline]
-    pub fn set_resize_increments(&self, _increments: Option<Size>) {
-        warn!("`set_resize_increments` is not implemented for Wayland");
+    pub fn set_resize_increments(&self, increments: Option<Size>) {
+        let mut window_state = self.window_state.lock().unwrap();
+        let scale_factor = window_state.scale_factor();
+        let increments = increments.map(|size| size.to_logical(scale_factor));
+        window_state.set_resize_increments(increments);
     }
 
     #[inline]

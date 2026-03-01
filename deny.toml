@@ -56,7 +56,7 @@ allow = [
 crate = "android-activity"
 
 [[bans.build.bypass]]
-allow-globs = ["ci/*", "githooks/*"]
+allow-globs = ["ci/*", "githooks/*", "cargo.sh"]
 crate = "zerocopy"
 
 [[bans.build.bypass]]

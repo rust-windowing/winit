@@ -574,9 +574,11 @@ fn main_thread_id() -> u32 {
     //
     // See: https://doc.rust-lang.org/stable/reference/abi.html#the-link_section-attribute
     #[link_section = ".CRT$XCU"]
-    static INIT_MAIN_THREAD_ID: unsafe fn() = {
-        unsafe fn initer() {
-            unsafe { MAIN_THREAD_ID = GetCurrentThreadId() };
+    static INIT_MAIN_THREAD_ID: unsafe extern "C" fn() = {
+        unsafe extern "C" fn initer() {
+            unsafe {
+                MAIN_THREAD_ID = GetCurrentThreadId();
+            }
         }
         initer
     };
@@ -1610,9 +1612,9 @@ unsafe fn public_window_callback_inner(
         },
 
         WM_IME_SETCONTEXT => {
-            // Hide composing text drawn by IME.
-            let wparam = wparam & (!ISC_SHOWUICOMPOSITIONWINDOW as usize);
-            result = ProcResult::DefWindowProc(wparam);
+            // IME UI visibility flags are in lparam.
+            let lparam = lparam & !(ISC_SHOWUICOMPOSITIONWINDOW as isize);
+            result = ProcResult::Value(unsafe { DefWindowProcW(window, msg, wparam, lparam) });
         },
 
         // this is necessary for us to maintain minimize/restore state
@@ -2639,7 +2641,7 @@ unsafe fn handle_raw_input(userdata: &ThreadMsgTargetData, data: RAWINPUT) {
 }
 
 enum PointerMoveKind {
-    /// Pointer enterd to the window.
+    /// Pointer entered to the window.
     Enter,
     /// Pointer leaved the window client area.
     Leave,
