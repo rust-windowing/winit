@@ -29,7 +29,6 @@ use sctk::shm::slot::SlotPool;
 use sctk::subcompositor::SubcompositorState;
 use tracing::{info, warn};
 use wayland_protocols::xdg::toplevel_icon::v1::client::xdg_toplevel_icon_manager_v1::XdgToplevelIconManagerV1;
-use wayland_protocols_plasma::blur::client::org_kde_kwin_blur::OrgKdeKwinBlur;
 use winit_core::cursor::{CursorIcon, CustomCursor as CoreCustomCursor};
 use winit_core::error::{NotSupportedError, RequestError};
 use winit_core::window::{
@@ -42,9 +41,8 @@ use crate::seat::{
     PointerConstraintsState, TextInputClientState, WinitPointerData, WinitPointerDataExt,
     ZwpTextInputV3Ext,
 };
-use crate::state::{WindowCompositorUpdate, WinitState};
+use crate::state::{BlurManager, BlurSurface, WindowCompositorUpdate, WinitState};
 use crate::types::cursor::{CustomCursor, SelectedCursor, WaylandCustomCursor};
-use crate::types::kwin_blur::KWinBlurManager;
 use crate::types::xdg_toplevel_icon_manager::ToplevelIcon;
 
 #[cfg(feature = "sctk-adwaita")]
@@ -156,8 +154,8 @@ pub struct WindowState {
 
     viewport: Option<WpViewport>,
     fractional_scale: Option<WpFractionalScaleV1>,
-    blur: Option<OrgKdeKwinBlur>,
-    blur_manager: Option<KWinBlurManager>,
+    blur: Option<BlurSurface>,
+    blur_manager: Option<BlurManager>,
 
     /// Whether the client side decorations have pending move operations.
     ///
@@ -206,7 +204,7 @@ impl WindowState {
             toplevel_icon: None,
             xdg_toplevel_icon_manager,
             blur: None,
-            blur_manager: winit_state.kwin_blur_manager.clone(),
+            blur_manager: winit_state.blur_manager.clone(),
             compositor,
             handle,
             csd_fails: false,
@@ -742,6 +740,21 @@ impl WindowState {
             // Set surface size without the borders.
             viewport.set_destination(self.size.width as _, self.size.height as _);
         }
+
+        // Update blur region with new size.
+        if self.blur.is_some() {
+            if let Some(blur_manager) = self.blur_manager.as_mut() {
+                drop(self.blur.take().unwrap());
+                let blur = blur_manager.blur(
+                    &self.compositor,
+                    self.window.wl_surface(),
+                    &self.queue_handle,
+                    self.size,
+                );
+                blur.commit();
+                self.blur = Some(blur);
+            }
+        }
     }
 
     /// Get the scale factor of the window.
@@ -1117,16 +1130,21 @@ impl WindowState {
     #[inline]
     pub fn set_blur(&mut self, blurred: bool) {
         if blurred && self.blur.is_none() {
-            if let Some(blur_manager) = self.blur_manager.as_ref() {
-                let blur = blur_manager.blur(self.window.wl_surface(), &self.queue_handle);
+            if let Some(blur_manager) = self.blur_manager.as_mut() {
+                let blur = blur_manager.blur(
+                    &self.compositor,
+                    self.window.wl_surface(),
+                    &self.queue_handle,
+                    self.size,
+                );
                 blur.commit();
                 self.blur = Some(blur);
             } else {
                 info!("Blur manager unavailable, unable to change blur")
             }
         } else if !blurred && self.blur.is_some() {
-            self.blur_manager.as_ref().unwrap().unset(self.window.wl_surface());
-            self.blur.take().unwrap().release();
+            self.blur_manager.as_mut().unwrap().unset(self.window.wl_surface());
+            drop(self.blur.take().unwrap());
         }
     }
 
@@ -1224,10 +1242,6 @@ impl WindowState {
 
 impl Drop for WindowState {
     fn drop(&mut self) {
-        if let Some(blur) = self.blur.take() {
-            blur.release();
-        }
-
         if let Some(fs) = self.fractional_scale.take() {
             fs.destroy();
         }
