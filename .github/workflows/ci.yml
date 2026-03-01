@@ -124,7 +124,7 @@ jobs:
       # the cache has been downloaded.
       #
       # This could be avoided if we added Cargo.lock to the repository.
-      uses: actions/cache/restore@v4
+      uses: actions/cache/restore@v5
       with:
         # https://doc.rust-lang.org/cargo/guide/cargo-home.html#caching-the-cargo-home-in-ci
         path: |
@@ -145,7 +145,7 @@ jobs:
     - name: Cache cargo-apk
       if: contains(matrix.platform.target, 'android')
       id: cargo-apk-cache
-      uses: actions/cache@v4
+      uses: actions/cache@v5
       with:
         path: ~/.cargo/bin/cargo-apk
         # Change this key if we update the required cargo-apk version
@@ -160,7 +160,7 @@ jobs:
       if: contains(matrix.platform.target, 'android') && (steps.cargo-apk-cache.outputs.cache-hit != 'true')
       run: cargo install cargo-apk --version=^0.9.7 --locked
 
-    - uses: taiki-e/cache-cargo-install-action@v2
+    - uses: taiki-e/cache-cargo-install-action@v3
       if: contains(matrix.platform.target, 'wasm32') && matrix.toolchain == 'nightly'
       with:
         tool: wasm-bindgen-cli
@@ -281,7 +281,7 @@ jobs:
 
     # See restore step above
     - name: Save cache of cargo folder
-      uses: actions/cache/save@v4
+      uses: actions/cache/save@v5
       with:
         path: |
           ~/.cargo/registry/index/

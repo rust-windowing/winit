@@ -4,8 +4,8 @@ use std::num::NonZeroU32;
 use std::sync::{Arc, Mutex, Weak};
 use std::time::Duration;
 
-use ahash::HashSet;
 use dpi::{LogicalPosition, LogicalSize, PhysicalPosition, PhysicalSize, Size};
+use foldhash::HashSet;
 use sctk::compositor::{CompositorState, Region, SurfaceData, SurfaceDataExt};
 use sctk::globals::GlobalData;
 use sctk::reexports::client::backend::ObjectId;
