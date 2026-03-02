@@ -140,13 +140,12 @@ pub struct EventLoop {
 }
 
 #[derive(Default, Debug, Copy, Clone, PartialEq, Eq, Hash)]
-pub struct PlatformSpecificEventLoopAttributes {}
+pub struct PlatformSpecificEventLoopAttributes {
+    pub mtm: Option<MainThreadMarker>,
+}
 
 impl EventLoop {
-    pub fn new(_: &PlatformSpecificEventLoopAttributes) -> Result<EventLoop, EventLoopError> {
-        let mtm = MainThreadMarker::new()
-            .expect("On iOS, `EventLoop` must be created on the main thread");
-
+    pub fn new_with_mtm(mtm: MainThreadMarker) -> Result<EventLoop, EventLoopError> {
         if !AppState::setup_global(mtm) {
             // Required, AppState is global state, and event loop can only be run once.
             return Err(EventLoopError::RecreationAttempt);
@@ -283,17 +282,36 @@ impl EventLoop {
         })
     }
 
+    pub fn new(
+        attributes: &PlatformSpecificEventLoopAttributes,
+    ) -> Result<EventLoop, EventLoopError> {
+        // if the user provided a MainThreadMarker, use it; otherwise, create one
+        let mtm = match attributes.mtm {
+            Some(mtm) => mtm,
+            None => MainThreadMarker::new()
+                .expect("On iOS, `EventLoop` must be created on the main thread"),
+        };
+
+        EventLoop::new_with_mtm(mtm)
+    }
+
     // Require `'static` for correctness, we won't be able to `Drop` the user's state otherwise.
     pub fn run_app_never_return<A: ApplicationHandler + 'static>(self, app: A) -> ! {
         let application: Option<Retained<UIApplication>> =
             unsafe { msg_send![UIApplication::class(), sharedApplication] };
-        assert!(
-            application.is_none(),
-            "\
-                `EventLoop` cannot be `run` after a call to `UIApplicationMain` on iOS\nNote: \
-             `EventLoop::run_app` calls `UIApplicationMain` on iOS",
-        );
+        if let Some(_) = application {
+            // launch without calling `UIApplicationMain`, then park the thread forever
+            // it would probably be better to turn this into a `register_app`-style function
+            // and just return immediately
+            app_state::launch(self.mtm, app, || {
+                loop {
+                    std::thread::park();
+                }
+            });
 
+            // manually call did_finish_launching(mtm);
+            app_state::did_finish_launching(self.mtm);
+        }
         // We intentionally override neither the application nor the delegate,
         // to allow the user to do so themselves!
         //
