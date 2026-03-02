@@ -345,6 +345,7 @@ impl EventLoop {
 
                 if self.app_state.exiting() {
                     self.app_state.internal_exit();
+                    app.destroy_surfaces(&self.window_target);
                     PumpStatus::Exit(0)
                 } else {
                     PumpStatus::Continue
