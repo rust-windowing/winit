@@ -446,6 +446,13 @@ impl<T: 'static> EventLoop<T> {
                             &mut self.combining_accent,
                         );
 
+                        let logical_key = keycodes::to_logical(key_char, keycode);
+                        let text = if state == event::ElementState::Pressed {
+                            logical_key.to_text().map(smol_str::SmolStr::new)
+                        } else {
+                            None
+                        };
+
                         let event = event::Event::WindowEvent {
                             window_id: window::WindowId(WindowId),
                             event: event::WindowEvent::KeyboardInput {
@@ -453,10 +460,10 @@ impl<T: 'static> EventLoop<T> {
                                 event: event::KeyEvent {
                                     state,
                                     physical_key: keycodes::to_physical_key(keycode),
-                                    logical_key: keycodes::to_logical(key_char, keycode),
+                                    logical_key,
                                     location: keycodes::to_location(keycode),
                                     repeat: key.repeat_count() > 0,
-                                    text: None,
+                                    text,
                                     platform_specific: KeyEventExtra {},
                                 },
                                 is_synthetic: false,

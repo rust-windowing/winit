@@ -51,3 +51,4 @@ changelog entry.
 - On X11, fix debug mode overflow panic in `set_timestamp`.
 - On macOS, fix crash in `set_marked_text` when native Pinyin IME sends out-of-bounds `selected_range`.
 - On Windows, fix `WM_IME_SETCONTEXT` IME UI flag masking on `lParam`.
+- On Android, populate `KeyEvent::text` and `KeyEvent::text_with_all_modifiers` via `Key::to_text()`
