@@ -791,7 +791,7 @@ pub struct KeyEvent {
     ///
     /// ## Platform-specific
     ///
-    /// - **Android:** Unimplemented, this field is always the same value as `text`.
+    /// - **Android:** This field is always the same value as `text`.
     /// - **iOS:** Unimplemented, this field is always the same value as `text`.
     /// - **Web:** Unsupported, this field is always the same value as `text`.
     pub text_with_all_modifiers: Option<SmolStr>,

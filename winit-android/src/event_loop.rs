@@ -473,16 +473,23 @@ impl EventLoop {
                             &mut self.combining_accent,
                         );
 
+                        let logical_key = keycodes::to_logical(key_char, keycode);
+                        let text = if state == event::ElementState::Pressed {
+                            logical_key.to_text().map(smol_str::SmolStr::new)
+                        } else {
+                            None
+                        };
+
                         let event = event::WindowEvent::KeyboardInput {
                             device_id: Some(DeviceId::from_raw(key.device_id() as i64)),
                             event: event::KeyEvent {
                                 state,
                                 physical_key: keycodes::to_physical_key(keycode),
-                                logical_key: keycodes::to_logical(key_char, keycode),
+                                logical_key,
                                 location: keycodes::to_location(keycode),
                                 repeat: key.repeat_count() > 0,
-                                text: None,
-                                text_with_all_modifiers: None,
+                                text: text.clone(),
+                                text_with_all_modifiers: text,
                                 key_without_modifiers: keycodes::to_logical(key_char, keycode),
                             },
                             is_synthetic: false,
