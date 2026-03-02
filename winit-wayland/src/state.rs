@@ -2,12 +2,13 @@ use std::cell::RefCell;
 use std::sync::atomic::Ordering;
 use std::sync::{Arc, Mutex};
 
+use dpi::LogicalSize;
 use foldhash::HashMap;
 use sctk::compositor::{CompositorHandler, CompositorState};
 use sctk::output::{OutputHandler, OutputState};
 use sctk::reexports::calloop::LoopHandle;
 use sctk::reexports::client::backend::ObjectId;
-use sctk::reexports::client::globals::GlobalList;
+use sctk::reexports::client::globals::{BindError, GlobalList};
 use sctk::reexports::client::protocol::wl_output::WlOutput;
 use sctk::reexports::client::protocol::wl_surface::WlSurface;
 use sctk::reexports::client::{Connection, Proxy, QueueHandle};
@@ -20,6 +21,8 @@ use sctk::shell::xdg::window::{Window, WindowConfigure, WindowHandler};
 use sctk::shm::slot::SlotPool;
 use sctk::shm::{Shm, ShmHandler};
 use sctk::subcompositor::SubcompositorState;
+use wayland_protocols::ext::background_effect::v1::client::ext_background_effect_surface_v1::ExtBackgroundEffectSurfaceV1;
+use wayland_protocols_plasma::blur::client::org_kde_kwin_blur::OrgKdeKwinBlur;
 use winit_core::error::OsError;
 
 use crate::WindowId;
@@ -29,6 +32,7 @@ use crate::seat::{
     PointerConstraintsState, PointerGesturesState, RelativePointerState, TextInputState,
     WinitPointerData, WinitPointerDataExt, WinitSeatState,
 };
+use crate::types::ext_background_effect::BackgroundEffectManager;
 use crate::types::kwin_blur::KWinBlurManager;
 use crate::types::wp_fractional_scaling::FractionalScalingManager;
 use crate::types::wp_tablet_input_v2::TabletManager;
@@ -36,6 +40,77 @@ use crate::types::wp_viewporter::ViewporterState;
 use crate::types::xdg_activation::XdgActivationState;
 use crate::types::xdg_toplevel_icon_manager::XdgToplevelIconManagerState;
 use crate::window::{WindowRequests, WindowState};
+
+#[derive(Debug)]
+pub enum BlurSurface {
+    Ext(WlSurface, ExtBackgroundEffectSurfaceV1),
+    Kwin(OrgKdeKwinBlur),
+}
+
+impl BlurSurface {
+    pub fn commit(&self) {
+        match self {
+            BlurSurface::Ext(s, _) => s.commit(),
+            BlurSurface::Kwin(s) => s.commit(),
+        }
+    }
+}
+
+impl Drop for BlurSurface {
+    fn drop(&mut self) {
+        match self {
+            BlurSurface::Ext(_, s) => s.destroy(),
+            BlurSurface::Kwin(s) => s.release(),
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub enum BlurManager {
+    Ext(BackgroundEffectManager),
+    KWin(KWinBlurManager),
+}
+
+impl BlurManager {
+    pub fn new(
+        globals: &GlobalList,
+        queue_handle: &QueueHandle<WinitState>,
+    ) -> Result<Self, BindError> {
+        match BackgroundEffectManager::new(globals, queue_handle) {
+            Ok(m) => Ok(Self::Ext(m)),
+            Err(e) => {
+                if let Ok(m) = KWinBlurManager::new(globals, queue_handle) {
+                    Ok(Self::KWin(m))
+                } else {
+                    Err(e)
+                }
+            },
+        }
+    }
+
+    pub fn blur(
+        &mut self,
+        compositor_state: &Arc<CompositorState>,
+        surface: &WlSurface,
+        queue_handle: &QueueHandle<WinitState>,
+        size: LogicalSize<u32>,
+    ) -> BlurSurface {
+        match self {
+            BlurManager::Ext(m) => BlurSurface::Ext(
+                surface.clone(),
+                m.blur(compositor_state, surface, queue_handle, size),
+            ),
+            BlurManager::KWin(m) => BlurSurface::Kwin(m.blur(surface, queue_handle)),
+        }
+    }
+
+    pub fn unset(&mut self, surface: &WlSurface) {
+        match self {
+            BlurManager::Ext(m) => m.unset(surface),
+            BlurManager::KWin(m) => m.unset(surface),
+        }
+    }
+}
 
 /// Winit's Wayland state.
 #[derive(Debug)]
@@ -116,8 +191,8 @@ pub struct WinitState {
     /// Fractional scaling manager.
     pub fractional_scaling_manager: Option<FractionalScalingManager>,
 
-    /// KWin blur manager.
-    pub kwin_blur_manager: Option<KWinBlurManager>,
+    /// Blur manager.
+    pub blur_manager: Option<BlurManager>,
 
     /// Loop handle to re-register event sources, such as keyboard repeat.
     pub loop_handle: LoopHandle<'static, Self>,
@@ -192,7 +267,7 @@ impl WinitState {
             window_events_sink: Default::default(),
             viewporter_state,
             fractional_scaling_manager,
-            kwin_blur_manager: KWinBlurManager::new(globals, queue_handle).ok(),
+            blur_manager: BlurManager::new(globals, queue_handle).ok(),
 
             seats,
             text_input_state: TextInputState::new(globals, queue_handle).ok(),
