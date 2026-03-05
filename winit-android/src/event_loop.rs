@@ -1,11 +1,12 @@
 use std::cell::Cell;
+use std::f32::consts::{FRAC_PI_2, PI, TAU};
 use std::fmt;
 use std::hash::Hash;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
-use android_activity::input::{InputEvent, KeyAction, Keycode, MotionAction};
+use android_activity::input::{Axis, InputEvent, KeyAction, Keycode, MotionAction};
 use android_activity::{
     AndroidApp, AndroidAppWaker, ConfigurationRef, InputStatus, MainEvent, Rect,
 };
@@ -350,6 +351,15 @@ impl EventLoop {
                     let finger_id = FingerId::from_raw(pointer.pointer_id() as usize);
                     let force = Some(Force::Normalized(pointer.pressure() as f64));
 
+                    // XXX Actually `orientation` is available for finger touch on most mobile
+                    // devices but winit simply ignore it
+                    let tilt = pointer.axis_value(Axis::Tilt);
+                    let orientation = pointer.axis_value(Axis::Orientation);
+                    let angle = event::TabletToolAngle {
+                        altitude: (FRAC_PI_2 - tilt) as f64,
+                        azimuth: (orientation - FRAC_PI_2).rem_euclid(TAU) as f64,
+                    };
+
                     match action {
                         MotionAction::Down | MotionAction::PointerDown => {
                             let primary = action == MotionAction::Down;
@@ -363,6 +373,15 @@ impl EventLoop {
                                 kind: match tool_type {
                                     android_activity::input::ToolType::Finger => {
                                         event::PointerKind::Touch(finger_id)
+                                    },
+                                    // TODO stylus hovering
+                                    android_activity::input::ToolType::Stylus => {
+                                        event::PointerKind::TabletTool(event::TabletToolKind::Pen)
+                                    },
+                                    android_activity::input::ToolType::Eraser => {
+                                        event::PointerKind::TabletTool(
+                                            event::TabletToolKind::Eraser,
+                                        )
                                     },
                                     // TODO mouse events
                                     android_activity::input::ToolType::Mouse => continue,
@@ -378,6 +397,32 @@ impl EventLoop {
                                 button: match tool_type {
                                     android_activity::input::ToolType::Finger => {
                                         event::ButtonSource::Touch { finger_id, force }
+                                    },
+                                    android_activity::input::ToolType::Stylus => {
+                                        event::ButtonSource::TabletTool {
+                                            kind: event::TabletToolKind::Pen,
+                                            button: event::TabletToolButton::Contact,
+                                            data: event::TabletToolData {
+                                                force,
+                                                tangential_force: None,
+                                                twist: None,
+                                                tilt: Some(angle.tilt()),
+                                                angle: Some(angle),
+                                            },
+                                        }
+                                    },
+                                    android_activity::input::ToolType::Eraser => {
+                                        event::ButtonSource::TabletTool {
+                                            kind: event::TabletToolKind::Eraser,
+                                            button: event::TabletToolButton::Contact,
+                                            data: event::TabletToolData {
+                                                force,
+                                                tangential_force: None,
+                                                twist: None,
+                                                tilt: Some(angle.tilt()),
+                                                angle: Some(angle),
+                                            },
+                                        }
                                     },
                                     // TODO mouse events
                                     android_activity::input::ToolType::Mouse => continue,
@@ -395,6 +440,30 @@ impl EventLoop {
                                 source: match tool_type {
                                     android_activity::input::ToolType::Finger => {
                                         event::PointerSource::Touch { finger_id, force }
+                                    },
+                                    android_activity::input::ToolType::Stylus => {
+                                        event::PointerSource::TabletTool {
+                                            kind: event::TabletToolKind::Pen,
+                                            data: event::TabletToolData {
+                                                force,
+                                                tangential_force: None,
+                                                twist: None,
+                                                tilt: Some(angle.tilt()),
+                                                angle: Some(angle),
+                                            },
+                                        }
+                                    },
+                                    android_activity::input::ToolType::Eraser => {
+                                        event::PointerSource::TabletTool {
+                                            kind: event::TabletToolKind::Eraser,
+                                            data: event::TabletToolData {
+                                                force,
+                                                tangential_force: None,
+                                                twist: None,
+                                                tilt: Some(angle.tilt()),
+                                                angle: Some(angle),
+                                            },
+                                        }
                                     },
                                     // TODO mouse events
                                     android_activity::input::ToolType::Mouse => continue,
@@ -422,6 +491,32 @@ impl EventLoop {
                                         android_activity::input::ToolType::Finger => {
                                             event::ButtonSource::Touch { finger_id, force }
                                         },
+                                        android_activity::input::ToolType::Stylus => {
+                                            event::ButtonSource::TabletTool {
+                                                kind: event::TabletToolKind::Pen,
+                                                button: event::TabletToolButton::Contact,
+                                                data: event::TabletToolData {
+                                                    force,
+                                                    tangential_force: None,
+                                                    twist: None,
+                                                    tilt: Some(angle.tilt()),
+                                                    angle: Some(angle),
+                                                },
+                                            }
+                                        },
+                                        android_activity::input::ToolType::Eraser => {
+                                            event::ButtonSource::TabletTool {
+                                                kind: event::TabletToolKind::Eraser,
+                                                button: event::TabletToolButton::Contact,
+                                                data: event::TabletToolData {
+                                                    force,
+                                                    tangential_force: None,
+                                                    twist: None,
+                                                    tilt: Some(angle.tilt()),
+                                                    angle: Some(angle),
+                                                },
+                                            }
+                                        },
                                         // TODO mouse events
                                         android_activity::input::ToolType::Mouse => continue,
                                         _ => event::ButtonSource::Unknown(0),
@@ -437,6 +532,15 @@ impl EventLoop {
                                 kind: match tool_type {
                                     android_activity::input::ToolType::Finger => {
                                         event::PointerKind::Touch(finger_id)
+                                    },
+                                    // TODO stylus hovering
+                                    android_activity::input::ToolType::Stylus => {
+                                        event::PointerKind::TabletTool(event::TabletToolKind::Pen)
+                                    },
+                                    android_activity::input::ToolType::Eraser => {
+                                        event::PointerKind::TabletTool(
+                                            event::TabletToolKind::Eraser,
+                                        )
                                     },
                                     // TODO mouse events
                                     android_activity::input::ToolType::Mouse => continue,

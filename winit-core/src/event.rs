@@ -1083,6 +1083,8 @@ pub struct TabletToolData {
     ///
     /// ## Platform-specific
     ///
+    /// **Android:** Not supported.
+    ///
     /// **Web:** Has no mechanism to detect support, so this will always be [`Some`] with a value
     /// of 0.
     pub tangential_force: Option<f32>,
