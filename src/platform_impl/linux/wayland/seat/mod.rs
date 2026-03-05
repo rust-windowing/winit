@@ -1,8 +1,14 @@
 //! Seat handling.
 
+use std::fs::File;
+use std::io::Read;
+use std::path::PathBuf;
 use std::sync::Arc;
 
 use ahash::AHashMap;
+use calloop::PostAction;
+use sctk::data_device_manager::data_device::DataDevice;
+use sctk::data_device_manager::ReadPipe;
 use tracing::warn;
 
 use sctk::reexports::client::backend::ObjectId;
@@ -14,11 +20,14 @@ use sctk::reexports::protocols::wp::text_input::zv3::client::zwp_text_input_v3::
 
 use sctk::seat::pointer::{ThemeSpec, ThemedPointer};
 use sctk::seat::{Capability as SeatCapability, SeatHandler, SeatState};
+use url::Url;
+use wayland_client::protocol::wl_data_device::WlDataDevice;
 
 use crate::event::WindowEvent;
 use crate::keyboard::ModifiersState;
 use crate::platform_impl::wayland::state::WinitState;
 
+mod data_device;
 mod keyboard;
 mod pointer;
 mod text_input;
@@ -57,6 +66,9 @@ pub struct WinitSeatState {
 
     /// Whether we have pending modifiers.
     modifiers_pending: bool,
+
+    /// The current data device.
+    data_device: Option<DataDevice>,
 }
 
 impl WinitSeatState {
@@ -140,6 +152,11 @@ impl SeatHandler for WinitState {
                 queue_handle,
                 TextInputData::default(),
             )));
+        }
+
+        if seat_state.data_device.is_none() {
+            let data_device = self.data_device_manager_state.get_data_device(queue_handle, &seat);
+            seat_state.data_device = Some(data_device);
         }
     }
 
@@ -229,6 +246,40 @@ impl WinitState {
                 self.events_sink.push_window_event(WindowEvent::Focused(false), *window_id);
             }
         }
+    }
+
+    fn get_data_device(&self, wl_data_device: &WlDataDevice) -> Option<&DataDevice> {
+        self.seats.values().find_map(|seat| {
+            let data_device = seat.data_device.as_ref()?;
+            (data_device.inner() == wl_data_device).then_some(data_device)
+        })
+    }
+
+    fn read_file_paths<F: Fn(&mut Self, PathBuf) + 'static>(
+        &self,
+        read_pipe: ReadPipe,
+        callback: F,
+    ) {
+        self.loop_handle
+            .insert_source(read_pipe, move |_, file, state| {
+                let mut data = String::new();
+
+                let file: &mut File = unsafe { file.get_mut() };
+                if file.read_to_string(&mut data).is_ok() {
+                    if let Some(line) = data.lines().next() {
+                        if let Ok(url) = Url::parse(line) {
+                            if url.scheme() == "file" {
+                                if let Ok(path) = url.to_file_path() {
+                                    callback(state, path)
+                                }
+                            }
+                        }
+                    }
+                }
+
+                PostAction::Remove
+            })
+            .ok();
     }
 }
 
