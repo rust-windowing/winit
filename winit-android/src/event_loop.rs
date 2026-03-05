@@ -1,5 +1,5 @@
 use std::cell::Cell;
-use std::f32::consts::{FRAC_PI_2, PI, TAU};
+use std::f32::consts::{FRAC_PI_2, TAU};
 use std::fmt;
 use std::hash::Hash;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -331,10 +331,12 @@ impl EventLoop {
                     MotionAction::Down
                     | MotionAction::PointerDown
                     | MotionAction::Up
-                    | MotionAction::PointerUp => Some(Box::new(std::iter::once(
+                    | MotionAction::PointerUp
+                    | MotionAction::HoverEnter
+                    | MotionAction::HoverExit => Some(Box::new(std::iter::once(
                         motion_event.pointer_at_index(motion_event.pointer_index()),
                     ))),
-                    MotionAction::Move | MotionAction::Cancel => {
+                    MotionAction::Move | MotionAction::HoverMove | MotionAction::Cancel => {
                         Some(Box::new(motion_event.pointers()))
                     },
                     // TODO mouse events
@@ -374,14 +376,10 @@ impl EventLoop {
                                     android_activity::input::ToolType::Finger => {
                                         event::PointerKind::Touch(finger_id)
                                     },
-                                    // TODO stylus hovering
-                                    android_activity::input::ToolType::Stylus => {
-                                        event::PointerKind::TabletTool(event::TabletToolKind::Pen)
-                                    },
-                                    android_activity::input::ToolType::Eraser => {
-                                        event::PointerKind::TabletTool(
-                                            event::TabletToolKind::Eraser,
-                                        )
+                                    android_activity::input::ToolType::Stylus
+                                    | android_activity::input::ToolType::Eraser => {
+                                        // enter event of stylus is trigger with HoverEnter
+                                        continue;
                                     },
                                     // TODO mouse events
                                     android_activity::input::ToolType::Mouse => continue,
@@ -533,7 +531,100 @@ impl EventLoop {
                                     android_activity::input::ToolType::Finger => {
                                         event::PointerKind::Touch(finger_id)
                                     },
-                                    // TODO stylus hovering
+                                    android_activity::input::ToolType::Stylus
+                                    | android_activity::input::ToolType::Eraser => {
+                                        // enter event of stylus is trigger with HoverExit
+                                        continue;
+                                    },
+                                    // TODO mouse events
+                                    android_activity::input::ToolType::Mouse => continue,
+                                    _ => event::PointerKind::Unknown,
+                                },
+                            };
+                            app.window_event(&self.window_target, GLOBAL_WINDOW, event);
+                        },
+                        MotionAction::HoverEnter => {
+                            // TODO mouse & stylus primary
+                            let primary = false;
+
+                            let event = event::WindowEvent::PointerEntered {
+                                device_id,
+                                primary,
+                                position,
+                                kind: match tool_type {
+                                    android_activity::input::ToolType::Finger => {
+                                        unreachable!()
+                                    },
+                                    android_activity::input::ToolType::Stylus => {
+                                        event::PointerKind::TabletTool(event::TabletToolKind::Pen)
+                                    },
+                                    android_activity::input::ToolType::Eraser => {
+                                        event::PointerKind::TabletTool(
+                                            event::TabletToolKind::Eraser,
+                                        )
+                                    },
+                                    // TODO mouse events
+                                    android_activity::input::ToolType::Mouse => continue,
+                                    _ => event::PointerKind::Unknown,
+                                },
+                            };
+                            app.window_event(&self.window_target, GLOBAL_WINDOW, event);
+                        },
+                        MotionAction::HoverMove => {
+                            // TODO mouse & stylus primary
+                            let primary = false;
+
+                            let event = event::WindowEvent::PointerMoved {
+                                device_id,
+                                primary,
+                                position,
+                                source: match tool_type {
+                                    android_activity::input::ToolType::Finger => {
+                                        unreachable!()
+                                    },
+                                    android_activity::input::ToolType::Stylus => {
+                                        event::PointerSource::TabletTool {
+                                            kind: event::TabletToolKind::Pen,
+                                            data: event::TabletToolData {
+                                                force,
+                                                tangential_force: None,
+                                                twist: None,
+                                                tilt: Some(angle.tilt()),
+                                                angle: Some(angle),
+                                            },
+                                        }
+                                    },
+                                    android_activity::input::ToolType::Eraser => {
+                                        event::PointerSource::TabletTool {
+                                            kind: event::TabletToolKind::Eraser,
+                                            data: event::TabletToolData {
+                                                force,
+                                                tangential_force: None,
+                                                twist: None,
+                                                tilt: Some(angle.tilt()),
+                                                angle: Some(angle),
+                                            },
+                                        }
+                                    },
+                                    // TODO mouse events
+                                    android_activity::input::ToolType::Mouse => continue,
+                                    _ => event::PointerSource::Unknown,
+                                },
+                            };
+                            app.window_event(&self.window_target, GLOBAL_WINDOW, event);
+                        },
+                        MotionAction::HoverExit => {
+                            // TODO mouse & stylus primary
+                            let primary = false;
+
+                            let event = event::WindowEvent::PointerLeft {
+                                device_id,
+                                primary,
+                                position: Some(position),
+                                kind: match tool_type {
+                                    android_activity::input::ToolType::Finger => {
+                                        unreachable!()
+                                    },
                                     android_activity::input::ToolType::Stylus => {
                                         event::PointerKind::TabletTool(event::TabletToolKind::Pen)
                                     },
