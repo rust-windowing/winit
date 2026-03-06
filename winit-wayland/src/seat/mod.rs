@@ -19,6 +19,7 @@ use winit_core::keyboard::ModifiersState;
 
 use crate::state::WinitState;
 
+pub(crate) mod data_device;
 mod keyboard;
 mod pointer;
 mod text_input;
@@ -236,10 +237,16 @@ impl SeatHandler for WinitState {
     fn new_seat(
         &mut self,
         _connection: &Connection,
-        _queue_handle: &QueueHandle<Self>,
+        queue_handle: &QueueHandle<Self>,
         seat: WlSeat,
     ) {
         self.seats.insert(seat.id(), WinitSeatState::new());
+
+        // Create a data device for this seat to receive DnD events.
+        if let Some(ref ddm) = self.data_device_manager {
+            let data_device = ddm.get_data_device(queue_handle, &seat);
+            self.data_devices.insert(seat.id(), data_device);
+        }
     }
 
     fn remove_seat(
@@ -249,6 +256,7 @@ impl SeatHandler for WinitState {
         seat: WlSeat,
     ) {
         let _ = self.seats.remove(&seat.id());
+        let _ = self.data_devices.remove(&seat.id());
         self.on_keyboard_destroy(&seat.id());
     }
 }
