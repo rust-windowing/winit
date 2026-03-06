@@ -95,16 +95,11 @@ struct MonitorInfo {
     scale: f64,
 }
 
+#[derive(Default)]
 struct App {
     window: Option<Box<dyn Window>>,
     monitors: Vec<MonitorInfo>,
     test_count: u32,
-}
-
-impl Default for App {
-    fn default() -> Self {
-        Self { window: None, monitors: Vec::new(), test_count: 0 }
-    }
 }
 
 impl ApplicationHandler for App {
