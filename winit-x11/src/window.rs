@@ -17,8 +17,7 @@ use winit_core::event::{SurfaceSizeWriter, WindowEvent};
 use winit_core::event_loop::AsyncRequestSerial;
 use winit_core::icon::RgbaIcon;
 use winit_core::monitor::{
-    Fullscreen, MonitorBounds, MonitorHandle as CoreMonitorHandle, MonitorHandleProvider, VideoMode,
-    resolve_scale_factor,
+    Fullscreen, MonitorHandle as CoreMonitorHandle, MonitorHandleProvider, VideoMode,
 };
 use winit_core::window::{
     CursorGrabMode, ImeCapabilities, ImeRequest as CoreImeRequest, ImeRequestError,
@@ -1570,8 +1569,7 @@ impl UnownedWindow {
 
     #[inline]
     pub fn set_outer_position(&self, position: Position) {
-        let scale_factor = self.scale_factor_for(&position);
-        let (x, y) = position.to_physical::<i32>(scale_factor).into();
+        let (x, y) = position.to_physical::<i32>(self.scale_factor()).into();
         self.set_position_physical(x, y);
     }
 
@@ -1949,23 +1947,6 @@ impl UnownedWindow {
     #[inline]
     pub fn scale_factor(&self) -> f64 {
         self.shared_state_lock().last_monitor.scale_factor
-    }
-
-    /// Determine the correct scale factor for a target position by checking
-    /// which monitor contains it. Falls back to the current window's scale factor.
-    fn scale_factor_for(&self, position: &Position) -> f64 {
-        let bounds: Vec<_> = self
-            .xconn
-            .available_monitors()
-            .unwrap_or_default()
-            .iter()
-            .filter_map(|m| {
-                let pos = m.position()?;
-                let size = m.current_video_mode()?.size();
-                Some(MonitorBounds::from_physical(pos, size, m.scale_factor()))
-            })
-            .collect();
-        resolve_scale_factor(position, &bounds).unwrap_or(self.scale_factor())
     }
 
     pub fn set_cursor_position_physical(&self, x: i32, y: i32) -> Result<(), RequestError> {
