@@ -364,7 +364,8 @@ impl EventLoop {
 
                     match action {
                         MotionAction::Down | MotionAction::PointerDown => {
-                            let primary = action == MotionAction::Down;
+                            let primary = action == MotionAction::Down
+                                && tool_type == android_activity::input::ToolType::Finger;
                             if primary {
                                 self.primary_pointer = Some(finger_id);
                             }
@@ -376,17 +377,23 @@ impl EventLoop {
                                     android_activity::input::ToolType::Finger => {
                                         event::PointerKind::Touch(finger_id)
                                     },
-                                    android_activity::input::ToolType::Stylus
-                                    | android_activity::input::ToolType::Eraser => {
-                                        // enter event of stylus is trigger with HoverEnter
-                                        continue;
+                                    android_activity::input::ToolType::Stylus => {
+                                        event::PointerKind::TabletTool(event::TabletToolKind::Pen)
+                                    },
+                                    android_activity::input::ToolType::Eraser => {
+                                        event::PointerKind::TabletTool(
+                                            event::TabletToolKind::Eraser,
+                                        )
                                     },
                                     // TODO mouse events
                                     android_activity::input::ToolType::Mouse => continue,
                                     _ => event::PointerKind::Unknown,
                                 },
                             };
-                            app.window_event(&self.window_target, GLOBAL_WINDOW, event);
+                            if let android_activity::input::ToolType::Finger = tool_type {
+                                // other tool type will be controlled by `HoverEnter`
+                                app.window_event(&self.window_target, GLOBAL_WINDOW, event);
+                            }
                             let event = event::WindowEvent::PointerButton {
                                 device_id,
                                 primary,
@@ -531,17 +538,23 @@ impl EventLoop {
                                     android_activity::input::ToolType::Finger => {
                                         event::PointerKind::Touch(finger_id)
                                     },
-                                    android_activity::input::ToolType::Stylus
-                                    | android_activity::input::ToolType::Eraser => {
-                                        // enter event of stylus is trigger with HoverExit
-                                        continue;
+                                    android_activity::input::ToolType::Stylus => {
+                                        event::PointerKind::TabletTool(event::TabletToolKind::Pen)
+                                    },
+                                    android_activity::input::ToolType::Eraser => {
+                                        event::PointerKind::TabletTool(
+                                            event::TabletToolKind::Eraser,
+                                        )
                                     },
                                     // TODO mouse events
                                     android_activity::input::ToolType::Mouse => continue,
                                     _ => event::PointerKind::Unknown,
                                 },
                             };
-                            app.window_event(&self.window_target, GLOBAL_WINDOW, event);
+                            if let android_activity::input::ToolType::Finger = tool_type {
+                                // other tool type will be controlled by `HoverEnter`
+                                app.window_event(&self.window_target, GLOBAL_WINDOW, event);
+                            }
                         },
                         MotionAction::HoverEnter => {
                             // TODO mouse & stylus primary
