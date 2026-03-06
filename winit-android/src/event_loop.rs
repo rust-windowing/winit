@@ -364,8 +364,7 @@ impl EventLoop {
 
                     match action {
                         MotionAction::Down | MotionAction::PointerDown => {
-                            let primary = action == MotionAction::Down
-                                && tool_type == android_activity::input::ToolType::Finger;
+                            let primary = action == MotionAction::Down;
                             if primary {
                                 self.primary_pointer = Some(finger_id);
                             }
@@ -390,10 +389,8 @@ impl EventLoop {
                                     _ => event::PointerKind::Unknown,
                                 },
                             };
-                            if let android_activity::input::ToolType::Finger = tool_type {
-                                // other tool type will be controlled by `HoverEnter`
-                                app.window_event(&self.window_target, GLOBAL_WINDOW, event);
-                            }
+                            app.window_event(&self.window_target, GLOBAL_WINDOW, event);
+
                             let event = event::WindowEvent::PointerButton {
                                 device_id,
                                 primary,
@@ -477,7 +474,7 @@ impl EventLoop {
                             };
                             app.window_event(&self.window_target, GLOBAL_WINDOW, event);
                         },
-                        MotionAction::Up | MotionAction::PointerUp => {
+                        MotionAction::Up | MotionAction::PointerUp | MotionAction::Cancel => {
                             let primary = action == MotionAction::Up
                                 || (action == MotionAction::Cancel
                                     && self.primary_pointer == Some(finger_id));
@@ -485,6 +482,12 @@ impl EventLoop {
                             if primary {
                                 self.primary_pointer = None;
                             }
+
+                            // TODO We don't actually have a way to indicate user to *cancel* an
+                            // certain event.
+
+                            // If we add a `cancel` field to `PointerButton` to record the
+                            // cancellation ops we need `FLAG_CANCEL` in API level 33, kinda new.
 
                             let event = event::WindowEvent::PointerButton {
                                 device_id,
@@ -549,22 +552,14 @@ impl EventLoop {
                                     _ => event::PointerKind::Unknown,
                                 },
                             };
-                            if let android_activity::input::ToolType::Finger = tool_type {
-                                // other tool type will be controlled by `HoverExit`
-                                app.window_event(&self.window_target, GLOBAL_WINDOW, event);
-                            }
-                        },
-                        MotionAction::Cancel => {
-                            // TODO We don't actually have a way to indicate user to *cancel* an
-                            // certain event.
-
-                            // If we add a `cancel` field to `PointerButton` to record the
-                            // cancellation ops we need `FLAG_CANCEL` in API level 33, kinda new.
+                            app.window_event(&self.window_target, GLOBAL_WINDOW, event);
                         },
                         MotionAction::HoverEnter => {
-                            // TODO mouse & stylus primary
-                            let primary = false;
-
+                            let primary = true;
+                            if primary {
+                                self.primary_pointer = Some(finger_id);
+                            }
+                            // TODO redundant `-> PointerExit -> PointerEntered ->` events
                             let event = event::WindowEvent::PointerEntered {
                                 device_id,
                                 primary,
@@ -589,8 +584,7 @@ impl EventLoop {
                             app.window_event(&self.window_target, GLOBAL_WINDOW, event);
                         },
                         MotionAction::HoverMove => {
-                            // TODO mouse & stylus primary
-                            let primary = false;
+                            let primary = self.primary_pointer == Some(finger_id);
 
                             let event = event::WindowEvent::PointerMoved {
                                 device_id,
@@ -632,8 +626,10 @@ impl EventLoop {
                             app.window_event(&self.window_target, GLOBAL_WINDOW, event);
                         },
                         MotionAction::HoverExit => {
-                            // TODO mouse & stylus primary
-                            let primary = false;
+                            let primary = self.primary_pointer == Some(finger_id);
+                            if primary {
+                                self.primary_pointer = None;
+                            }
 
                             let event = event::WindowEvent::PointerLeft {
                                 device_id,
