@@ -23,6 +23,12 @@
 //! cargo run --example cross_monitor_position
 //! ```
 //!
+//! On Linux with Wayland as the default session, force the X11 backend:
+//!
+//! ```sh
+//! WAYLAND_DISPLAY= cargo run --example cross_monitor_position
+//! ```
+//!
 //! The example detects your monitors automatically. Press a key to move the
 //! window to a different-scale monitor and check if it lands correctly:
 //!
@@ -115,8 +121,7 @@ impl ApplicationHandler for App {
             .filter_map(|m| {
                 let phys_pos = m.position()?;
                 let phys_size = m.current_video_mode()?.size();
-                let name =
-                    m.name().map(|n| n.to_string()).unwrap_or_else(|| "Unknown".to_string());
+                let name = m.name().map(|n| n.to_string()).unwrap_or_else(|| "Unknown".to_string());
                 Some(MonitorInfo { name, phys_pos, phys_size, scale: m.scale_factor() })
             })
             .collect();
@@ -137,8 +142,7 @@ impl ApplicationHandler for App {
         for (i, m) in self.monitors.iter().enumerate() {
             println!(
                 "  [{i}] \"{}\" — origin ({}, {}), {}x{} px, {:.2}x scale",
-                m.name, m.phys_pos.x, m.phys_pos.y, m.phys_size.width, m.phys_size.height,
-                m.scale,
+                m.name, m.phys_pos.x, m.phys_pos.y, m.phys_size.width, m.phys_size.height, m.scale,
             );
         }
 
@@ -154,12 +158,7 @@ impl ApplicationHandler for App {
         println!("  Q     = quit\n");
     }
 
-    fn window_event(
-        &mut self,
-        event_loop: &dyn ActiveEventLoop,
-        _: WindowId,
-        event: WindowEvent,
-    ) {
+    fn window_event(&mut self, event_loop: &dyn ActiveEventLoop, _: WindowId, event: WindowEvent) {
         match event {
             WindowEvent::CloseRequested => event_loop.exit(),
             WindowEvent::KeyboardInput {
