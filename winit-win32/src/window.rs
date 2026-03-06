@@ -50,7 +50,10 @@ use windows_sys::Win32::UI::WindowsAndMessaging::{
 use winit_core::cursor::Cursor;
 use winit_core::error::RequestError;
 use winit_core::icon::{Icon, RgbaIcon};
-use winit_core::monitor::{Fullscreen, MonitorHandle as CoreMonitorHandle, MonitorHandleProvider};
+use winit_core::monitor::{
+    Fullscreen, MonitorBounds, MonitorHandle as CoreMonitorHandle, MonitorHandleProvider,
+    resolve_scale_factor,
+};
 use winit_core::window::{
     CursorGrabMode, ImeCapabilities, ImeRequest, ImeRequestError, ResizeDirection, Theme,
     UserAttentionType, Window as CoreWindow, WindowAttributes, WindowButtons, WindowId,
@@ -483,7 +486,8 @@ impl CoreWindow for Window {
     }
 
     fn set_outer_position(&self, position: Position) {
-        let (x, y): (i32, i32) = position.to_physical::<i32>(self.scale_factor()).into();
+        let scale_factor = self.scale_factor_for(&position);
+        let (x, y): (i32, i32) = position.to_physical::<i32>(scale_factor).into();
 
         let window_state = Arc::clone(&self.window_state);
         let window = self.window;
@@ -1157,6 +1161,22 @@ impl CoreWindow for Window {
 
     fn rwh_06_display_handle(&self) -> &dyn rwh_06::HasDisplayHandle {
         self
+    }
+}
+
+impl Window {
+    /// Determine the correct scale factor for a target position by checking
+    /// which monitor contains it. Falls back to the current window's scale factor.
+    fn scale_factor_for(&self, position: &Position) -> f64 {
+        let bounds: Vec<_> = monitor::available_monitors()
+            .iter()
+            .filter_map(|m| {
+                let pos = m.position()?;
+                let size = m.current_video_mode()?.size();
+                Some(MonitorBounds::from_physical(pos, size, m.scale_factor()))
+            })
+            .collect();
+        resolve_scale_factor(position, &bounds).unwrap_or(self.scale_factor())
     }
 }
 

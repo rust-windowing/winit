@@ -47,7 +47,10 @@ use winit_core::cursor::Cursor;
 use winit_core::error::{NotSupportedError, RequestError};
 use winit_core::event::{SurfaceSizeWriter, WindowEvent};
 use winit_core::icon::Icon;
-use winit_core::monitor::{Fullscreen, MonitorHandle as CoreMonitorHandle, MonitorHandleProvider};
+use winit_core::monitor::{
+    Fullscreen, MonitorBounds, MonitorHandle as CoreMonitorHandle, MonitorHandleProvider,
+    resolve_scale_factor,
+};
 use winit_core::window::{
     CursorGrabMode, ImeCapabilities, ImeRequest, ImeRequestError, ResizeDirection, Theme,
     UserAttentionType, WindowAttributes, WindowButtons, WindowId, WindowLevel,
@@ -1030,7 +1033,8 @@ impl WindowDelegate {
     }
 
     pub fn set_outer_position(&self, position: Position) {
-        let position = position.to_logical(self.scale_factor());
+        let scale_factor = self.scale_factor_for(&position);
+        let position = position.to_logical(scale_factor);
         let point = flip_window_screen_coordinates(NSRect::new(
             NSPoint::new(position.x, position.y),
             self.window().frame().size,
@@ -1279,6 +1283,20 @@ impl WindowDelegate {
     #[inline]
     pub fn scale_factor(&self) -> f64 {
         self.window().backingScaleFactor() as _
+    }
+
+    /// Determine the correct scale factor for a target position by checking
+    /// which monitor contains it. Falls back to the current window's scale factor.
+    fn scale_factor_for(&self, position: &Position) -> f64 {
+        let bounds: Vec<_> = monitor::available_monitors()
+            .iter()
+            .filter_map(|m| {
+                let pos = m.position()?;
+                let size = m.current_video_mode()?.size();
+                Some(MonitorBounds::from_physical(pos, size, m.scale_factor()))
+            })
+            .collect();
+        resolve_scale_factor(position, &bounds).unwrap_or_else(|| self.scale_factor())
     }
 
     #[inline]
