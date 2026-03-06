@@ -15,7 +15,7 @@
 //! The platform determines which coordinate type is affected:
 //!
 //! - **macOS** converts Physical → Logical, so the bug shows with Physical input
-//! - **Windows / X11** convert Logical → Physical, so the bug shows with Logical input
+//! - **Windows** converts Logical → Physical, so the bug shows with Logical input
 //!
 //! # How to use
 //!
@@ -23,17 +23,11 @@
 //! cargo run --example cross_monitor_position
 //! ```
 //!
-//! On Linux with Wayland as the default session, force the X11 backend:
-//!
-//! ```sh
-//! WAYLAND_DISPLAY= cargo run --example cross_monitor_position
-//! ```
-//!
 //! The example detects your monitors automatically. Press a key to move the
 //! window to a different-scale monitor and check if it lands correctly:
 //!
 //! - **Space** — move using Physical coordinates (shows bug on macOS)
-//! - **L** — move using Logical coordinates (shows bug on Windows / X11)
+//! - **L** — move using Logical coordinates (shows bug on Windows)
 //! - **Q** — quit
 //!
 //! Each press logs the target position vs the actual position. With the bug,
@@ -63,9 +57,8 @@
 //! |----------|--------------------------------------|
 //! | macOS    | `winit-appkit/src/window_delegate.rs` |
 //! | Windows  | `winit-win32/src/window.rs`           |
-//! | X11      | `winit-x11/src/window.rs`             |
 //!
-//! Rebuild and press Space (macOS) or L (Windows / X11). The window will
+//! Rebuild and press Space (macOS) or L (Windows). The window will
 //! jump to the wrong position and the log will show a significant delta:
 //!
 //! ```text
@@ -154,7 +147,7 @@ impl ApplicationHandler for App {
 
         println!("\nKeys:");
         println!("  Space = move to other monitor (Physical — shows bug on macOS)");
-        println!("  L     = move to other monitor (Logical  — shows bug on Windows/X11)");
+        println!("  L     = move to other monitor (Logical  — shows bug on Windows)");
         println!("  Q     = quit\n");
     }
 

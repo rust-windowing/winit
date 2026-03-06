@@ -278,10 +278,7 @@ mod tests {
     //   Monitor 0 (2x): (0, 0) 1728x1117
     //   Monitor 1 (1x): (-816, -1440) 3440x1440
     fn macos_layout() -> Vec<MonitorBounds> {
-        vec![
-            monitor(0.0, 0.0, 1728.0, 1117.0, 2.0),
-            monitor(-816.0, -1440.0, 3440.0, 1440.0, 1.0),
-        ]
+        vec![monitor(0.0, 0.0, 1728.0, 1117.0, 2.0), monitor(-816.0, -1440.0, 3440.0, 1440.0, 1.0)]
     }
 
     #[test]
@@ -353,20 +350,16 @@ mod tests {
 
     #[test]
     fn zero_width_monitor_is_skipped() {
-        let monitors = vec![
-            monitor(0.0, 0.0, 0.0, 0.0, 2.0),
-            monitor(0.0, 0.0, 1920.0, 1080.0, 1.0),
-        ];
+        let monitors =
+            vec![monitor(0.0, 0.0, 0.0, 0.0, 2.0), monitor(0.0, 0.0, 1920.0, 1080.0, 1.0)];
         let result = resolve_scale_factor(&physical(500, 300), &monitors);
         assert_eq!(result, Some(1.0));
     }
 
     #[test]
     fn zero_scale_monitor_is_skipped() {
-        let monitors = vec![
-            monitor(0.0, 0.0, 1920.0, 1080.0, 0.0),
-            monitor(0.0, 0.0, 1920.0, 1080.0, 1.0),
-        ];
+        let monitors =
+            vec![monitor(0.0, 0.0, 1920.0, 1080.0, 0.0), monitor(0.0, 0.0, 1920.0, 1080.0, 1.0)];
         let result = resolve_scale_factor(&physical(500, 300), &monitors);
         assert_eq!(result, Some(1.0));
     }
