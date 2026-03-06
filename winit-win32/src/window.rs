@@ -688,20 +688,6 @@ impl CoreWindow for Window {
         self.window_state_lock().scale_factor
     }
 
-    /// Determine the correct scale factor for a target position by checking
-    /// which monitor contains it. Falls back to the current window's scale factor.
-    fn scale_factor_for(&self, position: &Position) -> f64 {
-        let bounds: Vec<_> = monitor::available_monitors()
-            .iter()
-            .filter_map(|m| {
-                let pos = m.position()?;
-                let size = m.current_video_mode()?.size();
-                Some(MonitorBounds::from_physical(pos, size, m.scale_factor()))
-            })
-            .collect();
-        resolve_scale_factor(position, &bounds).unwrap_or(self.scale_factor())
-    }
-
     fn set_cursor_position(&self, position: Position) -> Result<(), RequestError> {
         let scale_factor = self.scale_factor();
         let (x, y) = position.to_physical::<i32>(scale_factor).into();
@@ -1175,6 +1161,22 @@ impl CoreWindow for Window {
 
     fn rwh_06_display_handle(&self) -> &dyn rwh_06::HasDisplayHandle {
         self
+    }
+}
+
+impl Window {
+    /// Determine the correct scale factor for a target position by checking
+    /// which monitor contains it. Falls back to the current window's scale factor.
+    fn scale_factor_for(&self, position: &Position) -> f64 {
+        let bounds: Vec<_> = monitor::available_monitors()
+            .iter()
+            .filter_map(|m| {
+                let pos = m.position()?;
+                let size = m.current_video_mode()?.size();
+                Some(MonitorBounds::from_physical(pos, size, m.scale_factor()))
+            })
+            .collect();
+        resolve_scale_factor(position, &bounds).unwrap_or(self.scale_factor())
     }
 }
 
