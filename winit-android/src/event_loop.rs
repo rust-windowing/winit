@@ -477,7 +477,7 @@ impl EventLoop {
                             };
                             app.window_event(&self.window_target, GLOBAL_WINDOW, event);
                         },
-                        MotionAction::Up | MotionAction::PointerUp | MotionAction::Cancel => {
+                        MotionAction::Up | MotionAction::PointerUp => {
                             let primary = action == MotionAction::Up
                                 || (action == MotionAction::Cancel
                                     && self.primary_pointer == Some(finger_id));
@@ -486,49 +486,47 @@ impl EventLoop {
                                 self.primary_pointer = None;
                             }
 
-                            if let MotionAction::Up | MotionAction::PointerUp = action {
-                                let event = event::WindowEvent::PointerButton {
-                                    device_id,
-                                    primary,
-                                    state: event::ElementState::Released,
-                                    position,
-                                    button: match tool_type {
-                                        android_activity::input::ToolType::Finger => {
-                                            event::ButtonSource::Touch { finger_id, force }
-                                        },
-                                        android_activity::input::ToolType::Stylus => {
-                                            event::ButtonSource::TabletTool {
-                                                kind: event::TabletToolKind::Pen,
-                                                button: event::TabletToolButton::Contact,
-                                                data: event::TabletToolData {
-                                                    force,
-                                                    tangential_force: None,
-                                                    twist: None,
-                                                    tilt: Some(angle.tilt()),
-                                                    angle: Some(angle),
-                                                },
-                                            }
-                                        },
-                                        android_activity::input::ToolType::Eraser => {
-                                            event::ButtonSource::TabletTool {
-                                                kind: event::TabletToolKind::Eraser,
-                                                button: event::TabletToolButton::Contact,
-                                                data: event::TabletToolData {
-                                                    force,
-                                                    tangential_force: None,
-                                                    twist: None,
-                                                    tilt: Some(angle.tilt()),
-                                                    angle: Some(angle),
-                                                },
-                                            }
-                                        },
-                                        // TODO mouse events
-                                        android_activity::input::ToolType::Mouse => continue,
-                                        _ => event::ButtonSource::Unknown(0),
+                            let event = event::WindowEvent::PointerButton {
+                                device_id,
+                                primary,
+                                state: event::ElementState::Released,
+                                position,
+                                button: match tool_type {
+                                    android_activity::input::ToolType::Finger => {
+                                        event::ButtonSource::Touch { finger_id, force }
                                     },
-                                };
-                                app.window_event(&self.window_target, GLOBAL_WINDOW, event);
-                            }
+                                    android_activity::input::ToolType::Stylus => {
+                                        event::ButtonSource::TabletTool {
+                                            kind: event::TabletToolKind::Pen,
+                                            button: event::TabletToolButton::Contact,
+                                            data: event::TabletToolData {
+                                                force,
+                                                tangential_force: None,
+                                                twist: None,
+                                                tilt: Some(angle.tilt()),
+                                                angle: Some(angle),
+                                            },
+                                        }
+                                    },
+                                    android_activity::input::ToolType::Eraser => {
+                                        event::ButtonSource::TabletTool {
+                                            kind: event::TabletToolKind::Eraser,
+                                            button: event::TabletToolButton::Contact,
+                                            data: event::TabletToolData {
+                                                force,
+                                                tangential_force: None,
+                                                twist: None,
+                                                tilt: Some(angle.tilt()),
+                                                angle: Some(angle),
+                                            },
+                                        }
+                                    },
+                                    // TODO mouse events
+                                    android_activity::input::ToolType::Mouse => continue,
+                                    _ => event::ButtonSource::Unknown(0),
+                                },
+                            };
+                            app.window_event(&self.window_target, GLOBAL_WINDOW, event);
 
                             let event = event::WindowEvent::PointerLeft {
                                 device_id,
@@ -552,9 +550,16 @@ impl EventLoop {
                                 },
                             };
                             if let android_activity::input::ToolType::Finger = tool_type {
-                                // other tool type will be controlled by `HoverEnter`
+                                // other tool type will be controlled by `HoverExit`
                                 app.window_event(&self.window_target, GLOBAL_WINDOW, event);
                             }
+                        },
+                        MotionAction::Cancel => {
+                            // TODO We don't actually have a way to indicate user to *cancel* an
+                            // certain event.
+
+                            // If we add a `cancel` field to `PointerButton` to record the
+                            // cancellation ops we need `FLAG_CANCEL` in API level 33, kinda new.
                         },
                         MotionAction::HoverEnter => {
                             // TODO mouse & stylus primary
