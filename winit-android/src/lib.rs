@@ -77,7 +77,7 @@ mod keycodes;
 use winit_core::event_loop::ActiveEventLoop as CoreActiveEventLoop;
 use winit_core::window::Window as CoreWindow;
 
-use self::activity::{AndroidApp, ConfigurationRef, Rect};
+use self::activity::{AndroidApp, ConfigurationRef};
 pub use crate::event_loop::{
     ActiveEventLoop, EventLoop, EventLoopProxy, PlatformSpecificEventLoopAttributes,
     PlatformSpecificWindowAttributes, Window,
@@ -97,17 +97,10 @@ pub trait ActiveEventLoopExtAndroid {
 
 /// Additional methods on [`Window`] that are specific to Android.
 pub trait WindowExtAndroid {
-    fn content_rect(&self) -> Rect;
-
     fn config(&self) -> ConfigurationRef;
 }
 
 impl WindowExtAndroid for dyn CoreWindow + '_ {
-    fn content_rect(&self) -> Rect {
-        let window = self.cast_ref::<Window>().unwrap();
-        window.content_rect()
-    }
-
     fn config(&self) -> ConfigurationRef {
         let window = self.cast_ref::<Window>().unwrap();
         window.config()
