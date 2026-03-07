@@ -290,6 +290,21 @@ impl AppState {
         }
     }
 
+    /// Try to call the handler synchronously and return a result.
+    ///
+    /// Returns `None` if the handler is not set or is currently in use (re-entrant call).
+    #[track_caller]
+    pub fn try_with_handler_result<R>(
+        self: &Rc<Self>,
+        callback: impl FnOnce(&mut dyn ApplicationHandler, &ActiveEventLoop) -> R,
+    ) -> Option<R> {
+        let this = self;
+        self.event_handler.handle_with_result(|app| {
+            let event_loop = ActiveEventLoop { app_state: Rc::clone(this), mtm: this.mtm };
+            callback(app, &event_loop)
+        })
+    }
+
     #[track_caller]
     fn with_handler(
         self: &Rc<Self>,
