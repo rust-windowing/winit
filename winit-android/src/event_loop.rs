@@ -176,6 +176,7 @@ impl EventLoop {
         let cause = self.cause;
         let mut pending_redraw = self.pending_redraw;
         let mut resized = false;
+        let mut safe_area_changed = false;
 
         app.new_events(&self.window_target, cause);
 
@@ -191,7 +192,7 @@ impl EventLoop {
                 },
                 MainEvent::WindowResized { .. } => resized = true,
                 MainEvent::RedrawNeeded { .. } => pending_redraw = true,
-                MainEvent::ContentRectChanged { .. } => pending_redraw = true,
+                MainEvent::ContentRectChanged { .. } => safe_area_changed = true,
                 MainEvent::GainedFocus => {
                     HAS_FOCUS.store(true, Ordering::Relaxed);
                     let event = event::WindowEvent::Focused(true);
@@ -282,15 +283,36 @@ impl EventLoop {
         }
 
         if self.running {
-            if resized {
-                let size = if let Some(native_window) = self.android_app.native_window().as_ref() {
+            fn get_window_size(app: &AndroidApp) -> PhysicalSize<u32> {
+                if let Some(native_window) = app.native_window().as_ref() {
                     let width = native_window.width() as _;
                     let height = native_window.height() as _;
                     PhysicalSize::new(width, height)
                 } else {
                     PhysicalSize::new(0, 0)
-                };
+                }
+            }
+
+            fn get_insets(app: &AndroidApp) -> PhysicalInsets<u32> {
+                let insets = app.content_rect();
+                let outer_size = get_window_size(app);
+                PhysicalInsets {
+                    top: insets.top as u32,
+                    left: insets.left as u32,
+                    bottom: outer_size.height.saturating_sub(insets.bottom as u32),
+                    right: outer_size.width.saturating_sub(insets.right as u32),
+                }
+            }
+
+            if resized {
+                let size = get_window_size(&self.android_app);
                 let event = event::WindowEvent::SurfaceResized(size);
+                app.window_event(&self.window_target, GLOBAL_WINDOW, event);
+            }
+
+            if safe_area_changed {
+                let insets = get_insets(&self.android_app);
+                let event = event::WindowEvent::SafeAreaChanged(insets);
                 app.window_event(&self.window_target, GLOBAL_WINDOW, event);
             }
 

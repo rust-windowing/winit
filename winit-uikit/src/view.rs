@@ -1,17 +1,17 @@
 #![allow(clippy::unnecessary_cast)]
 use std::cell::{Cell, RefCell};
 
-use dpi::PhysicalPosition;
+use dpi::{LogicalInsets, PhysicalInsets, PhysicalPosition};
 use objc2::rc::Retained;
 use objc2::runtime::{NSObjectProtocol, ProtocolObject};
 use objc2::{DefinedClass, MainThreadMarker, available, define_class, msg_send, sel};
 use objc2_core_foundation::{CGFloat, CGPoint, CGRect};
 use objc2_foundation::{NSObject, NSSet, NSString};
 use objc2_ui_kit::{
-    UIEvent, UIForceTouchCapability, UIGestureRecognizer, UIGestureRecognizerDelegate,
-    UIGestureRecognizerState, UIKeyInput, UIPanGestureRecognizer, UIPinchGestureRecognizer,
-    UIResponder, UIRotationGestureRecognizer, UITapGestureRecognizer, UITextInputTraits, UITouch,
-    UITouchPhase, UITouchType, UITraitEnvironment, UIView,
+    UIApplication, UIEdgeInsets, UIEvent, UIForceTouchCapability, UIGestureRecognizer,
+    UIGestureRecognizerDelegate, UIGestureRecognizerState, UIKeyInput, UIPanGestureRecognizer,
+    UIPinchGestureRecognizer, UIResponder, UIRotationGestureRecognizer, UITapGestureRecognizer,
+    UITextInputTraits, UITouch, UITouchPhase, UITouchType, UITraitEnvironment, UIView,
 };
 use tracing::debug;
 use winit_core::event::{
@@ -127,6 +127,15 @@ define_class!(
             debug!("safeAreaInsetsDidChange was called, requesting redraw");
             // When the safe area changes we want to make sure to emit a redraw event
             self.setNeedsDisplay();
+
+            let window = self.window().unwrap();
+            let event = EventWrapper::Window {
+                window_id: window.id(),
+                event: WindowEvent::SafeAreaChanged(self.safe_area()),
+            };
+
+            let mtm = MainThreadMarker::new().unwrap();
+            app_state::handle_nonuser_event(mtm, event);
         }
 
         #[unsafe(method(touchesBegan:withEvent:))]
@@ -366,6 +375,20 @@ impl WinitView {
     fn window(&self) -> Option<Retained<WinitUIWindow>> {
         // `WinitView`s should always be installed in a `WinitUIWindow`
         (**self).window().map(|window| window.downcast().unwrap())
+    }
+
+    pub(crate) fn safe_area(&self) -> PhysicalInsets<u32> {
+        let insets = if available!(ios = 11.0, tvos = 11.0, visionos = 1.0) {
+            self.safeAreaInsets()
+        } else {
+            // Assume the status bar frame is the only thing that obscures the view
+            let app = UIApplication::sharedApplication(MainThreadMarker::new().unwrap());
+            #[allow(deprecated)]
+            let status_bar_frame = app.statusBarFrame();
+            UIEdgeInsets { top: status_bar_frame.size.height, left: 0.0, bottom: 0.0, right: 0.0 }
+        };
+        let insets = LogicalInsets::new(insets.top, insets.left, insets.bottom, insets.right);
+        insets.to_physical(self.contentScaleFactor() as f64)
     }
 
     pub(crate) fn recognize_pinch_gesture(&self, should_recognize: bool) {

@@ -5,16 +5,15 @@ use std::sync::{Arc, Mutex};
 
 use dispatch2::MainThreadBound;
 use dpi::{
-    LogicalInsets, LogicalPosition, LogicalSize, PhysicalInsets, PhysicalPosition, PhysicalSize,
-    Position, Size,
+    LogicalPosition, LogicalSize, PhysicalInsets, PhysicalPosition, PhysicalSize, Position, Size,
 };
 use objc2::rc::Retained;
-use objc2::{MainThreadMarker, available, class, define_class, msg_send};
+use objc2::{MainThreadMarker, class, define_class, msg_send};
 use objc2_core_foundation::{CGFloat, CGPoint, CGRect, CGSize};
 use objc2_foundation::{NSObject, NSObjectProtocol};
 use objc2_ui_kit::{
-    UIApplication, UICoordinateSpace, UIEdgeInsets, UIResponder, UIScreen,
-    UIScreenOverscanCompensation, UIViewController, UIWindow,
+    UICoordinateSpace, UIResponder, UIScreen, UIScreenOverscanCompensation, UIViewController,
+    UIWindow,
 };
 use tracing::{debug, warn};
 use winit_core::cursor::Cursor;
@@ -202,17 +201,7 @@ impl Inner {
     }
 
     pub fn safe_area(&self) -> PhysicalInsets<u32> {
-        let insets = if available!(ios = 11.0, tvos = 11.0, visionos = 1.0) {
-            self.view.safeAreaInsets()
-        } else {
-            // Assume the status bar frame is the only thing that obscures the view
-            let app = UIApplication::sharedApplication(MainThreadMarker::new().unwrap());
-            #[allow(deprecated)]
-            let status_bar_frame = app.statusBarFrame();
-            UIEdgeInsets { top: status_bar_frame.size.height, left: 0.0, bottom: 0.0, right: 0.0 }
-        };
-        let insets = LogicalInsets::new(insets.top, insets.left, insets.bottom, insets.right);
-        insets.to_physical(self.scale_factor())
+        self.view.safe_area()
     }
 
     pub fn set_min_surface_size(&self, _dimensions: Option<Size>) {
