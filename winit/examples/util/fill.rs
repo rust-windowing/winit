@@ -98,7 +98,13 @@ mod platform {
             surface.resize(width, height).expect("Failed to resize the softbuffer surface");
 
             let mut buffer = surface.buffer_mut().expect("Failed to get the softbuffer buffer");
-            buffer.fill(color);
+            
+            // error[E0599]: no method named `fill` found for struct `Buffer<'surface>` in the current scope
+            // buffer.fill(color);  
+            
+            for pixel in buffer.iter_mut() {
+                *pixel = color;
+            }
             buffer.present().expect("Failed to present the softbuffer buffer");
         })
     }
