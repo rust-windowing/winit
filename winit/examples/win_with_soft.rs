@@ -24,8 +24,7 @@ impl App {
 
 impl ApplicationHandler for App {
     fn can_create_surfaces(&mut self, event_loop: &dyn ActiveEventLoop) {
-        let attributes = WindowAttributes::default().with_title("Framebuffer Example");
-        
+        let attributes = WindowAttributes::default().with_title("framebuffer test");
         let window: Arc<dyn Window> = Arc::from(event_loop.create_window(attributes).unwrap());
 
         let context = Context::new(window.clone()).expect("context except");
@@ -38,30 +37,25 @@ impl ApplicationHandler for App {
     fn window_event(&mut self, event_loop: &dyn ActiveEventLoop, _id: WindowId, event: WindowEvent) {
         match event {
             WindowEvent::CloseRequested => event_loop.exit(),
-            
+
             WindowEvent::SurfaceResized(size) => {
                 if let Some(surface) = self.surface.as_mut() {
-                    surface.resize(
-                        NonZeroU32::new(size.width.max(1)).unwrap(),
-                        NonZeroU32::new(size.height.max(1)).unwrap()
-                    ).unwrap();
+                    let w = NonZeroU32::new(size.width.max(1)).unwrap();
+                    let h = NonZeroU32::new(size.height.max(1)).unwrap();
+                    surface.resize(w, h).unwrap();
                 }
             }
 
             WindowEvent::RedrawRequested => {
-                if let (Some(window), Some(surface)) = (self.window.as_ref(), self.surface.as_mut()) {
-                    let size = window.outer_size(); 
-                    
-                    let mut buffer = surface.buffer_mut().expect("buffer except");
+                if let Some(surface) = self.surface.as_mut() {
+                    let mut buffer = surface.next_buffer().expect("buffer except");
 
-                    let width = size.width as usize;
-                    for (index, pixel) in buffer.iter_mut().enumerate() {
-                        let x = index % width;
-                        let y = index / width;
-                        let r = (x ^ y) as u32 & 0xFF;
-                        let g = x as u32 % 255;
-                        let b = 128;
-                        *pixel = b | (g << 8) | (r << 16);
+                    for (x, y, pixel) in buffer.pixels_iter() {
+                        let red = (x % 255) as u8;
+                        let green = (y % 255) as u8;
+                        let blue = ((x * y) % 255) as u8;
+                        
+                        *pixel = softbuffer::Pixel::new_rgb(red, green, blue);
                     }
 
                     buffer.present().unwrap();
