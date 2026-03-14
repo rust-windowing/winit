@@ -17,6 +17,7 @@ use objc2_foundation::{
     NSArray, NSAttributedString, NSAttributedStringKey, NSCopying, NSMutableAttributedString,
     NSNotFound, NSObject, NSPoint, NSRange, NSRect, NSSize, NSString, NSUInteger,
 };
+use tracing::{debug_span, trace_span};
 use winit_core::event::{
     DeviceEvent, ElementState, Ime, KeyEvent, Modifiers, MouseButton, MouseScrollDelta,
     PointerKind, PointerSource, TouchPhase, WindowEvent,
@@ -155,7 +156,7 @@ define_class!(
 
         #[unsafe(method(viewDidMoveToWindow))]
         fn view_did_move_to_window(&self) {
-            trace_scope!("viewDidMoveToWindow");
+            let _entered = debug_span!("viewDidMoveToWindow").entered();
             if let Some(tracking_rect) = self.ivars().tracking_rect.take() {
                 self.removeTrackingRect(tracking_rect);
             }
@@ -171,7 +172,7 @@ define_class!(
         // Not a normal method on `NSView`, it's triggered by `NSViewFrameDidChangeNotification`.
         #[unsafe(method(viewFrameDidChangeNotification:))]
         fn frame_did_change(&self, _notification: Option<&AnyObject>) {
-            trace_scope!("NSViewFrameDidChangeNotification");
+            let _entered = debug_span!("NSViewFrameDidChangeNotification").entered();
             if let Some(tracking_rect) = self.ivars().tracking_rect.take() {
                 self.removeTrackingRect(tracking_rect);
             }
@@ -195,7 +196,7 @@ define_class!(
 
         #[unsafe(method(drawRect:))]
         fn draw_rect(&self, _rect: NSRect) {
-            trace_scope!("drawRect:");
+            let _entered = debug_span!("drawRect:").entered();
 
             self.ivars().app_state.handle_redraw(window_id(&self.window()));
 
@@ -204,7 +205,7 @@ define_class!(
 
         #[unsafe(method(acceptsFirstResponder))]
         fn accepts_first_responder(&self) -> bool {
-            trace_scope!("acceptsFirstResponder");
+            let _entered = trace_span!("acceptsFirstResponder").entered();
             true
         }
 
@@ -218,13 +219,13 @@ define_class!(
         // extension for using `NSTouchBar`
         #[unsafe(method_id(touchBar))]
         fn touch_bar(&self) -> Option<Retained<NSObject>> {
-            trace_scope!("touchBar");
+            let _entered = debug_span!("touchBar").entered();
             None
         }
 
         #[unsafe(method(resetCursorRects))]
         fn reset_cursor_rects(&self) {
-            trace_scope!("resetCursorRects");
+            let _entered = debug_span!("resetCursorRects").entered();
             let bounds = self.bounds();
             let cursor_state = self.ivars().cursor_state.borrow();
             // We correctly invoke `addCursorRect` only from inside `resetCursorRects`
@@ -239,13 +240,13 @@ define_class!(
     unsafe impl NSTextInputClient for WinitView {
         #[unsafe(method(hasMarkedText))]
         fn has_marked_text(&self) -> bool {
-            trace_scope!("hasMarkedText");
+            let _entered = debug_span!("hasMarkedText").entered();
             self.ivars().marked_text.borrow().length() > 0
         }
 
         #[unsafe(method(markedRange))]
         fn marked_range(&self) -> NSRange {
-            trace_scope!("markedRange");
+            let _entered = debug_span!("markedRange").entered();
             let length = self.ivars().marked_text.borrow().length();
             if length > 0 {
                 NSRange::new(0, length)
@@ -257,7 +258,7 @@ define_class!(
 
         #[unsafe(method(selectedRange))]
         fn selected_range(&self) -> NSRange {
-            trace_scope!("selectedRange");
+            let _entered = debug_span!("selectedRange").entered();
             // Documented to return `{NSNotFound, 0}` if there is no selection.
             NSRange::new(NSNotFound as NSUInteger, 0)
         }
@@ -270,7 +271,7 @@ define_class!(
             _replacement_range: NSRange,
         ) {
             // TODO: Use _replacement_range, requires changing the event to report surrounding text.
-            trace_scope!("setMarkedText:selectedRange:replacementRange:");
+            let _entered = debug_span!("setMarkedText:selectedRange:replacementRange:").entered();
 
             let (marked_text, string) = if let Some(string) =
                 string.downcast_ref::<NSAttributedString>()
@@ -324,7 +325,7 @@ define_class!(
 
         #[unsafe(method(unmarkText))]
         fn unmark_text(&self) {
-            trace_scope!("unmarkText");
+            let _entered = debug_span!("unmarkText").entered();
             *self.ivars().marked_text.borrow_mut() = NSMutableAttributedString::new();
 
             let input_context = self.inputContext().expect("input context");
@@ -341,7 +342,7 @@ define_class!(
 
         #[unsafe(method_id(validAttributesForMarkedText))]
         fn valid_attributes_for_marked_text(&self) -> Retained<NSArray<NSAttributedStringKey>> {
-            trace_scope!("validAttributesForMarkedText");
+            let _entered = trace_span!("validAttributesForMarkedText").entered();
             NSArray::new()
         }
 
@@ -351,13 +352,14 @@ define_class!(
             _range: NSRange,
             _actual_range: *mut NSRange,
         ) -> Option<Retained<NSAttributedString>> {
-            trace_scope!("attributedSubstringForProposedRange:actualRange:");
+            let _entered =
+                trace_span!("attributedSubstringForProposedRange:actualRange:").entered();
             None
         }
 
         #[unsafe(method(characterIndexForPoint:))]
         fn character_index_for_point(&self, _point: NSPoint) -> NSUInteger {
-            trace_scope!("characterIndexForPoint:");
+            let _entered = debug_span!("characterIndexForPoint:").entered();
             0
         }
 
@@ -367,7 +369,7 @@ define_class!(
             _range: NSRange,
             _actual_range: *mut NSRange,
         ) -> NSRect {
-            trace_scope!("firstRectForCharacterRange:actualRange:");
+            let _entered = debug_span!("firstRectForCharacterRange:actualRange:").entered();
 
             // Guard when the view is no longer in a window during teardown.
             let Some(window) = (**self).window() else {
@@ -383,7 +385,7 @@ define_class!(
         #[unsafe(method(insertText:replacementRange:))]
         fn insert_text(&self, string: &NSObject, _replacement_range: NSRange) {
             // TODO: Use _replacement_range, requires changing the event to report surrounding text.
-            trace_scope!("insertText:replacementRange:");
+            let _entered = debug_span!("insertText:replacementRange:").entered();
 
             let string = if let Some(string) = string.downcast_ref::<NSAttributedString>() {
                 string.string().to_string()
@@ -408,7 +410,7 @@ define_class!(
         // "human readable" character happens, i.e. newlines, tabs, and Ctrl+C.
         #[unsafe(method(doCommandBySelector:))]
         fn do_command_by_selector(&self, command: Sel) {
-            trace_scope!("doCommandBySelector:");
+            let _entered = debug_span!("doCommandBySelector:").entered();
 
             // We shouldn't forward any character from just committed text, since we'll end up
             // sending it twice with some IMEs like Korean one. We'll also always send
@@ -447,7 +449,7 @@ define_class!(
     impl WinitView {
         #[unsafe(method(keyDown:))]
         fn key_down(&self, event: &NSEvent) {
-            trace_scope!("keyDown:");
+            let _entered = debug_span!("keyDown:").entered();
             {
                 let mut prev_input_source = self.ivars().input_source.borrow_mut();
                 let current_input_source = self.current_input_source();
@@ -506,7 +508,7 @@ define_class!(
 
         #[unsafe(method(keyUp:))]
         fn key_up(&self, event: &NSEvent) {
-            trace_scope!("keyUp:");
+            let _entered = debug_span!("keyUp:").entered();
 
             let event = replace_event(event, self.option_as_alt());
             self.update_modifiers(&event, false);
@@ -523,14 +525,14 @@ define_class!(
 
         #[unsafe(method(flagsChanged:))]
         fn flags_changed(&self, event: &NSEvent) {
-            trace_scope!("flagsChanged:");
+            let _entered = debug_span!("flagsChanged:").entered();
 
             self.update_modifiers(event, true);
         }
 
         #[unsafe(method(insertTab:))]
         fn insert_tab(&self, _sender: Option<&AnyObject>) {
-            trace_scope!("insertTab:");
+            let _entered = debug_span!("insertTab:").entered();
             let window = self.window();
             if let Some(first_responder) = window.firstResponder() {
                 if *first_responder == ***self {
@@ -541,7 +543,7 @@ define_class!(
 
         #[unsafe(method(insertBackTab:))]
         fn insert_back_tab(&self, _sender: Option<&AnyObject>) {
-            trace_scope!("insertBackTab:");
+            let _entered = debug_span!("insertBackTab:").entered();
             let window = self.window();
             if let Some(first_responder) = window.firstResponder() {
                 if *first_responder == ***self {
@@ -555,7 +557,7 @@ define_class!(
         #[unsafe(method(cancelOperation:))]
         fn cancel_operation(&self, _sender: Option<&AnyObject>) {
             let mtm = MainThreadMarker::from(self);
-            trace_scope!("cancelOperation:");
+            let _entered = debug_span!("cancelOperation:").entered();
 
             let event = NSApplication::sharedApplication(mtm)
                 .currentEvent()
@@ -584,71 +586,73 @@ define_class!(
 
         #[unsafe(method(mouseDown:))]
         fn mouse_down(&self, event: &NSEvent) {
-            trace_scope!("mouseDown:");
+            let _entered = debug_span!("mouseDown:").entered();
             self.mouse_motion(event);
             self.mouse_click(event, ElementState::Pressed);
         }
 
         #[unsafe(method(mouseUp:))]
         fn mouse_up(&self, event: &NSEvent) {
-            trace_scope!("mouseUp:");
+            let _entered = debug_span!("mouseUp:").entered();
             self.mouse_motion(event);
             self.mouse_click(event, ElementState::Released);
         }
 
         #[unsafe(method(rightMouseDown:))]
         fn right_mouse_down(&self, event: &NSEvent) {
-            trace_scope!("rightMouseDown:");
+            let _entered = debug_span!("rightMouseDown:").entered();
             self.mouse_motion(event);
             self.mouse_click(event, ElementState::Pressed);
         }
 
         #[unsafe(method(rightMouseUp:))]
         fn right_mouse_up(&self, event: &NSEvent) {
-            trace_scope!("rightMouseUp:");
+            let _entered = debug_span!("rightMouseUp:").entered();
             self.mouse_motion(event);
             self.mouse_click(event, ElementState::Released);
         }
 
         #[unsafe(method(otherMouseDown:))]
         fn other_mouse_down(&self, event: &NSEvent) {
-            trace_scope!("otherMouseDown:");
+            let _entered = debug_span!("otherMouseDown:").entered();
             self.mouse_motion(event);
             self.mouse_click(event, ElementState::Pressed);
         }
 
         #[unsafe(method(otherMouseUp:))]
         fn other_mouse_up(&self, event: &NSEvent) {
-            trace_scope!("otherMouseUp:");
+            let _entered = debug_span!("otherMouseUp:").entered();
             self.mouse_motion(event);
             self.mouse_click(event, ElementState::Released);
         }
 
-        // No tracing on these because that would be overly verbose
-
         #[unsafe(method(mouseMoved:))]
         fn mouse_moved(&self, event: &NSEvent) {
+            let _entered = debug_span!("mouseMoved:").entered();
             self.mouse_motion(event);
         }
 
         #[unsafe(method(mouseDragged:))]
         fn mouse_dragged(&self, event: &NSEvent) {
+            let _entered = debug_span!("mouseDragged:").entered();
             self.mouse_motion(event);
         }
 
         #[unsafe(method(rightMouseDragged:))]
         fn right_mouse_dragged(&self, event: &NSEvent) {
+            let _entered = debug_span!("rightMouseDragged:").entered();
             self.mouse_motion(event);
         }
 
         #[unsafe(method(otherMouseDragged:))]
         fn other_mouse_dragged(&self, event: &NSEvent) {
+            let _entered = debug_span!("otherMouseDragged:").entered();
             self.mouse_motion(event);
         }
 
         #[unsafe(method(mouseEntered:))]
         fn mouse_entered(&self, event: &NSEvent) {
-            trace_scope!("mouseEntered:");
+            let _entered = debug_span!("mouseEntered:").entered();
 
             let position = self.mouse_view_point(event).to_physical(self.scale_factor());
 
@@ -662,7 +666,7 @@ define_class!(
 
         #[unsafe(method(mouseExited:))]
         fn mouse_exited(&self, event: &NSEvent) {
-            trace_scope!("mouseExited:");
+            let _entered = debug_span!("mouseExited:").entered();
 
             let position = self.mouse_view_point(event).to_physical(self.scale_factor());
 
@@ -676,7 +680,7 @@ define_class!(
 
         #[unsafe(method(scrollWheel:))]
         fn scroll_wheel(&self, event: &NSEvent) {
-            trace_scope!("scrollWheel:");
+            let _entered = debug_span!("scrollWheel:").entered();
 
             self.mouse_motion(event);
 
@@ -715,7 +719,7 @@ define_class!(
 
         #[unsafe(method(magnifyWithEvent:))]
         fn magnify_with_event(&self, event: &NSEvent) {
-            trace_scope!("magnifyWithEvent:");
+            let _entered = debug_span!("magnifyWithEvent:").entered();
 
             self.mouse_motion(event);
 
@@ -737,7 +741,7 @@ define_class!(
 
         #[unsafe(method(smartMagnifyWithEvent:))]
         fn smart_magnify_with_event(&self, event: &NSEvent) {
-            trace_scope!("smartMagnifyWithEvent:");
+            let _entered = debug_span!("smartMagnifyWithEvent:").entered();
 
             self.mouse_motion(event);
 
@@ -746,7 +750,7 @@ define_class!(
 
         #[unsafe(method(rotateWithEvent:))]
         fn rotate_with_event(&self, event: &NSEvent) {
-            trace_scope!("rotateWithEvent:");
+            let _entered = debug_span!("rotateWithEvent:").entered();
 
             self.mouse_motion(event);
 
@@ -768,7 +772,7 @@ define_class!(
 
         #[unsafe(method(pressureChangeWithEvent:))]
         fn pressure_change_with_event(&self, event: &NSEvent) {
-            trace_scope!("pressureChangeWithEvent:");
+            let _entered = debug_span!("pressureChangeWithEvent:").entered();
 
             self.queue_event(WindowEvent::TouchpadPressure {
                 device_id: None,
@@ -782,13 +786,13 @@ define_class!(
         // https://github.com/chromium/chromium/blob/a86a8a6bcfa438fa3ac2eba6f02b3ad1f8e0756f/ui/views/cocoa/bridged_content_view.mm#L816
         #[unsafe(method(_wantsKeyDownForEvent:))]
         fn wants_key_down_for_event(&self, _event: &NSEvent) -> bool {
-            trace_scope!("_wantsKeyDownForEvent:");
+            let _entered = debug_span!("_wantsKeyDownForEvent:").entered();
             true
         }
 
         #[unsafe(method(acceptsFirstMouse:))]
         fn accepts_first_mouse(&self, _event: &NSEvent) -> bool {
-            trace_scope!("acceptsFirstMouse:");
+            let _entered = debug_span!("acceptsFirstMouse:").entered();
             self.ivars().accepts_first_mouse
         }
     }

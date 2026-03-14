@@ -76,7 +76,7 @@ impl ApplicationHandler for App {
         self.window = match event_loop.create_window(window_attributes) {
             Ok(window) => Some(window),
             Err(err) => {
-                eprintln!("error creating window: {err}");
+                error!("error creating window: {err}");
                 event_loop.exit();
                 return;
             },
@@ -346,7 +346,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     let event_loop = EventLoop::new()?;
 
-    println!(
+    info!(
         r#"This showcases the use of an input method engine (IME) by emulating a text edit field.
 Use CTRL+i to toggle IME support.
 Use CTRL+p to cycle content purpose values.
