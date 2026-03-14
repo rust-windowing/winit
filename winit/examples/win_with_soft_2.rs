@@ -19,38 +19,27 @@ struct App {
 
 impl ApplicationHandler for App {
     fn can_create_surfaces(&mut self, event_loop: &dyn ActiveEventLoop) {
-        let window = Arc::from(event_loop.create_window(WindowAttributes::default()).unwrap());
-        self.surface =
-            Some(Surface::new(&Context::new(window.clone()).unwrap(), window.clone()).unwrap());
+        let window: Arc<dyn Window> = Arc::from(event_loop.create_window(WindowAttributes::default()).unwrap());
+        self.surface = Some(Surface::new(&Context::new(window.clone()).unwrap(), window.clone()).unwrap());
         self.window = Some(window);
     }
 
     fn about_to_wait(&mut self, _: &dyn ActiveEventLoop) {
-        self.window.as_ref().map(|w| w.request_redraw());
+        if let Some(w) = self.window.as_ref() { w.request_redraw(); }
     }
 
-    fn window_event(
-        &mut self,
-        event_loop: &dyn ActiveEventLoop,
-        _id: WindowId,
-        event: WindowEvent,
-    ) {
+    fn window_event(&mut self, event_loop: &dyn ActiveEventLoop, _id: WindowId, event: WindowEvent) {
         match event {
             WindowEvent::CloseRequested => event_loop.exit(),
             WindowEvent::SurfaceResized(size) => {
                 if let Some(s) = self.surface.as_mut() {
-                    s.resize(
-                        NonZeroU32::new(size.width.max(1)).unwrap(),
-                        NonZeroU32::new(size.height.max(1)).unwrap(),
-                    )
-                    .unwrap();
+                    s.resize(NonZeroU32::new(size.width.max(1)).unwrap(), NonZeroU32::new(size.height.max(1)).unwrap()).unwrap();
                 }
             },
             WindowEvent::RedrawRequested => {
                 if let (Some(window), Some(surface)) = (&self.window, self.surface.as_mut()) {
                     let mut buffer = surface.next_buffer().unwrap();
                     let size = window.outer_size();
-                    
                     let time = self.start_time.elapsed().as_secs_f32();
 
                     for (x, y, pixel) in buffer.pixels_iter() {
@@ -67,13 +56,9 @@ impl ApplicationHandler for App {
                     }
                     buffer.present().unwrap();
 
-
                     self.frame_count += 1;
                     if self.last_fps_print.elapsed() >= Duration::from_secs(1) {
-                        window.set_title(&format!(
-                            "FPS: {} | Size: {}x{}",
-                            self.frame_count, size.width, size.height
-                        ));
+                        window.set_title(&format!("FPS: {} | Size: {}x{}", self.frame_count, size.width, size.height));
                         self.frame_count = 0;
                         self.last_fps_print = Instant::now();
                     }
@@ -85,12 +70,13 @@ impl ApplicationHandler for App {
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
-    let mut app = App {
+    let event_loop = EventLoop::new()?;
+    let app = Box::leak(Box::new(App {
         window: None,
         surface: None,
         start_time: Instant::now(),
         frame_count: 0,
         last_fps_print: Instant::now(),
-    };
-    EventLoop::new()?.run_app(&mut app).map_err(Into::into)
+    }));
+    event_loop.run_app(app).map_err(Into::into)
 }
