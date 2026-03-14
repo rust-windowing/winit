@@ -442,6 +442,12 @@ impl ApplicationHandler for Application {
             WindowEvent::SurfaceResized(size) => {
                 window.resize(size);
             },
+            WindowEvent::SafeAreaChanged(insets) => {
+                info!("SafeAreaInsets={insets:?}");
+                // Do nothing as in this example we requery the safe area every frame anyway
+                // You could use this event to cache the safe area, although you also need to
+                // query the safe area at startup, and in response to SurfaceResize events.
+            },
             WindowEvent::Focused(focused) => {
                 if focused {
                     info!("Window={window_id:?} focused");

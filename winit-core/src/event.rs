@@ -5,7 +5,7 @@ use std::f64;
 use std::path::PathBuf;
 use std::sync::{Mutex, Weak};
 
-use dpi::{PhysicalPosition, PhysicalSize};
+use dpi::{PhysicalInsets, PhysicalPosition, PhysicalSize};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 use smol_str::SmolStr;
@@ -58,6 +58,21 @@ pub enum WindowEvent {
     ///
     /// [`Window::surface_size`]: crate::window::Window::surface_size
     SurfaceResized(PhysicalSize<u32>),
+
+    /// The safe area
+    ///
+    /// Contains the new safe area insets (can also be retrieved with
+    /// [`Window::safe_area`]).
+    ///
+    /// This event will not necessarily be emitted upon window creation, query
+    /// [`Window::safe_area`] if you need to determine the initial safe area.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **macOS / Orbital / Wayland / Windows / X11:** Unsupported.
+    ///
+    /// [`Window::safe_area`]: crate::window::Window::safe_area
+    SafeAreaChanged(PhysicalInsets<u32>),
 
     /// The position of the window has changed.
     ///

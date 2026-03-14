@@ -6,9 +6,7 @@ use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use android_activity::input::{InputEvent, KeyAction, Keycode, MotionAction};
-use android_activity::{
-    AndroidApp, AndroidAppWaker, ConfigurationRef, InputStatus, MainEvent, Rect,
-};
+use android_activity::{AndroidApp, AndroidAppWaker, ConfigurationRef, InputStatus, MainEvent};
 use dpi::{PhysicalInsets, PhysicalPosition, PhysicalSize, Position, Size};
 use tracing::{debug, trace, warn};
 use winit_core::application::ApplicationHandler;
@@ -178,6 +176,7 @@ impl EventLoop {
         let cause = self.cause;
         let mut pending_redraw = self.pending_redraw;
         let mut resized = false;
+        let mut safe_area_changed = false;
 
         app.new_events(&self.window_target, cause);
 
@@ -193,9 +192,7 @@ impl EventLoop {
                 },
                 MainEvent::WindowResized { .. } => resized = true,
                 MainEvent::RedrawNeeded { .. } => pending_redraw = true,
-                MainEvent::ContentRectChanged { .. } => {
-                    warn!("TODO: find a way to notify application of content rect change");
-                },
+                MainEvent::ContentRectChanged { .. } => safe_area_changed = true,
                 MainEvent::GainedFocus => {
                     HAS_FOCUS.store(true, Ordering::Relaxed);
                     let event = event::WindowEvent::Focused(true);
@@ -286,15 +283,36 @@ impl EventLoop {
         }
 
         if self.running {
-            if resized {
-                let size = if let Some(native_window) = self.android_app.native_window().as_ref() {
+            fn get_window_size(app: &AndroidApp) -> PhysicalSize<u32> {
+                if let Some(native_window) = app.native_window().as_ref() {
                     let width = native_window.width() as _;
                     let height = native_window.height() as _;
                     PhysicalSize::new(width, height)
                 } else {
                     PhysicalSize::new(0, 0)
-                };
+                }
+            }
+
+            fn get_insets(app: &AndroidApp) -> PhysicalInsets<u32> {
+                let insets = app.content_rect();
+                let outer_size = get_window_size(app);
+                PhysicalInsets {
+                    top: insets.top as u32,
+                    left: insets.left as u32,
+                    bottom: outer_size.height.saturating_sub(insets.bottom as u32),
+                    right: outer_size.width.saturating_sub(insets.right as u32),
+                }
+            }
+
+            if resized {
+                let size = get_window_size(&self.android_app);
                 let event = event::WindowEvent::SurfaceResized(size);
+                app.window_event(&self.window_target, GLOBAL_WINDOW, event);
+            }
+
+            if safe_area_changed {
+                let insets = get_insets(&self.android_app);
+                let event = event::WindowEvent::SafeAreaChanged(insets);
                 app.window_event(&self.window_target, GLOBAL_WINDOW, event);
             }
 
@@ -784,10 +802,6 @@ impl Window {
         self.app.config()
     }
 
-    pub(crate) fn content_rect(&self) -> Rect {
-        self.app.content_rect()
-    }
-
     // Allow the usage of HasRawWindowHandle inside this function
     #[allow(deprecated)]
     fn raw_window_handle_rwh_06(&self) -> Result<rwh_06::RawWindowHandle, rwh_06::HandleError> {
@@ -852,7 +866,7 @@ impl CoreWindow for Window {
     fn pre_present_notify(&self) {}
 
     fn surface_position(&self) -> PhysicalPosition<i32> {
-        (0, 0).into()
+        (0.0, 0.0).into()
     }
 
     fn outer_position(&self) -> Result<PhysicalPosition<i32>, RequestError> {
@@ -876,7 +890,14 @@ impl CoreWindow for Window {
     }
 
     fn safe_area(&self) -> PhysicalInsets<u32> {
-        PhysicalInsets::new(0, 0, 0, 0)
+        let insets = self.app.content_rect();
+        let outer_size = self.outer_size();
+        PhysicalInsets {
+            top: insets.top as u32,
+            left: insets.left as u32,
+            bottom: outer_size.height.saturating_sub(insets.bottom as u32),
+            right: outer_size.width.saturating_sub(insets.right as u32),
+        }
     }
 
     fn set_min_surface_size(&self, _: Option<Size>) {}
