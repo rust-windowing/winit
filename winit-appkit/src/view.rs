@@ -872,24 +872,33 @@ impl WinitView {
             false
         }
     }
+    pub(super) fn enable_ime(&self, capabilities: ImeCapabilities) {
+        // This seems reasonable but the prior behavior of `set_ime_allowed` doesn't do this
+        // (it was also broken but let's not break things worse)
 
-    pub(super) fn set_ime_allowed(&self, capabilities: Option<ImeCapabilities>) {
-        if self.ivars().ime_capabilities.get().is_some() {
-            return;
-        }
-        self.ivars().ime_capabilities.set(capabilities);
+        // if self.ivars().ime_capabilities.get().is_none() {
+        //     self.ivars().ime_state.set(ImeState::Ground);
+        // }
 
-        if capabilities.is_some() {
-            return;
-        }
-
-        // Clear markedText
-        *self.ivars().marked_text.borrow_mut() = NSMutableAttributedString::new();
-
+        // why are we disabling things in an enable fn? who knows. it's what the previous one did
+        // though
         if self.ivars().ime_state.get() != ImeState::Disabled {
             self.ivars().ime_state.set(ImeState::Disabled);
             self.queue_event(WindowEvent::Ime(Ime::Disabled));
         }
+        self.ivars().ime_capabilities.set(Some(capabilities));
+        *self.ivars().marked_text.borrow_mut() = NSMutableAttributedString::new();
+    }
+    pub(super) fn disable_ime(&self) {
+        // see above
+        self.ivars().ime_capabilities.set(None);
+        if self.ivars().ime_state.get() != ImeState::Disabled {
+            self.ivars().ime_state.set(ImeState::Disabled);
+            self.queue_event(WindowEvent::Ime(Ime::Disabled));
+        }
+        // we probably don't need to do this, but again this mirrors the prior behavior of
+        // `set_ime_allowed`
+        *self.ivars().marked_text.borrow_mut() = NSMutableAttributedString::new();
     }
 
     pub(super) fn ime_capabilities(&self) -> Option<ImeCapabilities> {
