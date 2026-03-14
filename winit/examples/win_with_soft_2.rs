@@ -15,6 +15,7 @@ struct App {
     start_time: Instant,
     frame_count: u32,
     last_fps_print: Instant,
+    totla_frame_count: u64,
 }
 
 impl ApplicationHandler for App {
@@ -40,6 +41,8 @@ impl ApplicationHandler for App {
                 if let (Some(window), Some(surface)) = (&self.window, self.surface.as_mut()) {
                     let mut buffer = surface.next_buffer().unwrap();
                     let size = window.outer_size();
+
+                    let elapsed_total = self.start_time.elapsed();
                     let time = self.start_time.elapsed().as_secs_f32();
 
                     for (x, y, pixel) in buffer.pixels_iter() {
@@ -57,8 +60,19 @@ impl ApplicationHandler for App {
                     buffer.present().unwrap();
 
                     self.frame_count += 1;
+                    self.totla_frame_count += 1;
+
                     if self.last_fps_print.elapsed() >= Duration::from_secs(1) {
-                        window.set_title(&format!("FPS: {} | Size: {}x{}", self.frame_count, size.width, size.height));
+                        let avg_fps = self.totla_frame_count as f64 / elapsed_total.as_secs_f64();
+                        
+                        window.set_title(&format!(
+                            "FPS: {} | AVG: {:.2} | Size: {}x{}", 
+                            self.frame_count, 
+                            avg_fps, 
+                            size.width, 
+                            size.height
+                        ));
+                        
                         self.frame_count = 0;
                         self.last_fps_print = Instant::now();
                     }
@@ -77,6 +91,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         start_time: Instant::now(),
         frame_count: 0,
         last_fps_print: Instant::now(),
+        totla_frame_count: 0
     }));
     event_loop.run_app(app).map_err(Into::into)
 }
