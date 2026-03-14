@@ -28,3 +28,8 @@ fn custom_cursor_send() {
     needs_send::<winit::cursor::CustomCursorSource>();
     needs_send::<winit::cursor::CustomCursor>();
 }
+
+#[test]
+fn owned_display_handle_send() {
+    needs_send::<winit::event_loop::OwnedDisplayHandle>();
+}
