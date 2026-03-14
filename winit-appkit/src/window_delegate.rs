@@ -1686,7 +1686,7 @@ impl WindowDelegate {
                 if current_caps.is_some() {
                     return Err(ImeRequestError::AlreadyEnabled);
                 }
-                self.view().set_ime_allowed(Some(capabilities));
+                self.view().enable_ime(capabilities);
                 request_data
             },
             ImeRequest::Update(request_data) => {
@@ -1696,7 +1696,7 @@ impl WindowDelegate {
                 request_data
             },
             ImeRequest::Disable => {
-                self.view().set_ime_allowed(None);
+                self.view().disable_ime();
                 return Ok(());
             },
         };
