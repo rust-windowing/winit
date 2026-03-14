@@ -50,6 +50,8 @@ impl ApplicationHandler for App {
                 if let (Some(window), Some(surface)) = (&self.window, self.surface.as_mut()) {
                     let mut buffer = surface.next_buffer().unwrap();
                     let size = window.outer_size();
+                    
+                    let time = self.start_time.elapsed().as_secs_f32();
 
                     for (x, y, pixel) in buffer.pixels_iter() {
                         let wave = (time.sin() * 50.0) as u32;
@@ -65,7 +67,6 @@ impl ApplicationHandler for App {
                     }
                     buffer.present().unwrap();
 
-                    let time = self.start_time.elapsed().as_secs_f32();
 
                     self.frame_count += 1;
                     if self.last_fps_print.elapsed() >= Duration::from_secs(1) {
