@@ -41,6 +41,12 @@ impl ApplicationHandler for App {
         self.surface = Some(surface);
     }
 
+    fn about_to_wait(&mut self, _event_loop: &dyn ActiveEventLoop) {
+        if let Some(window) = self.window.as_ref() {
+            window.request_redraw();
+        }
+    }
+
     fn window_event(
         &mut self,
         event_loop: &dyn ActiveEventLoop,
@@ -82,10 +88,6 @@ impl ApplicationHandler for App {
                     }
 
                     buffer.present().unwrap();
-
-                    if let Some(window) = self.window.as_ref() {
-                        window.request_redraw();
-                    }
                 }
             },
             _ => (),
