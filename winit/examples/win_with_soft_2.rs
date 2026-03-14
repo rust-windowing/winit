@@ -77,7 +77,7 @@ impl ApplicationHandler for App {
                         } else {
                             let r = ((plasma + 1.0) * 127.0) as u8;
                             let g = (x % 255) as u8;
-                            let b = (y % 255).wrapping_add((t * 20.0) as u8) as u8;
+                            let b = (y % 255).wrapping_add((t * 20.0) as u32) as u8;
                             *pixel = Pixel::new_rgb(r, g, b);
                         }
                     }
