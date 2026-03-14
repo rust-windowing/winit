@@ -44,6 +44,7 @@ changelog entry.
 
 - Add `keyboard` support for OpenHarmony.
 - On iOS, add Apple Pencil support with force, altitude, and azimuth data.
+- Implement `Send` and `Sync` for `OwnedDisplayHandle`.
 
 ### Changed
 
