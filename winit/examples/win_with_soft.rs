@@ -12,7 +12,6 @@ use winit::window::{Window, WindowAttributes, WindowId};
 struct App {
     window: Option<Arc<dyn Window>>,
     surface: Option<Surface<Arc<dyn Window>, Arc<dyn Window>>>,
-    last_frame_time: Instant,
     frame_count: u32,
     last_fps_print: Instant,
 }
@@ -22,7 +21,6 @@ impl App {
         Self {
             window: None,
             surface: None,
-            last_frame_time: Instant::now(),
             frame_count: 0,
             last_fps_print: Instant::now(),
         }
