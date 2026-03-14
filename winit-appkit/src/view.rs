@@ -120,18 +120,19 @@ pub struct ViewState {
     modifiers: Cell<Modifiers>,
     phys_modifiers: RefCell<HashMap<Key, ModLocationMask>>,
     tracking_rect: Cell<Option<NSTrackingRectTag>>,
-    ime_state: Cell<ImeState>,
     input_source: RefCell<String>,
 
-    /// True iff the application wants IME events.
-    ///
-    /// Can be set using `set_ime_allowed`
+    /// Some(caps) iff the application wants IME events.
     ime_capabilities: Cell<Option<ImeCapabilities>>,
+
+    #[cfg(not(feature = "experimental_ime_rewrite"))]
+    ime_state: Cell<ImeState>,
 
     /// True if the current key event should be forwarded
     /// to the application, even during IME
+    #[cfg(not(feature = "experimental_ime_rewrite"))]
     forward_key_to_app: Cell<bool>,
-
+    #[cfg(not(feature = "experimental_ime_rewrite"))]
     marked_text: RefCell<Retained<NSMutableAttributedString>>,
     accepts_first_mouse: bool,
 
@@ -235,7 +236,90 @@ define_class!(
             }
         }
     }
+    unsafe impl NSTextInputClient for WinitView {
+        #[unsafe(method(hasMarkedText))]
+        fn has_marked_text(&self) -> bool {
+            trace_scope!("hasMarkedText");
+            todo!()
+        }
 
+        #[unsafe(method(markedRange))]
+        fn marked_range(&self) -> NSRange {
+            trace_scope!("markedRange");
+            todo!()
+        }
+
+        #[unsafe(method(selectedRange))]
+        fn selected_range(&self) -> NSRange {
+            trace_scope!("selectedRange");
+            // Documented to return `{NSNotFound, 0}` if there is no selection.
+            NSRange::new(NSNotFound as NSUInteger, 0)
+        }
+
+        #[unsafe(method(setMarkedText:selectedRange:replacementRange:))]
+        fn set_marked_text(
+            &self,
+            string: &NSObject,
+            selected_range: NSRange,
+            _replacement_range: NSRange,
+        ) {
+            // TODO: Use _replacement_range, requires changing the event to report surrounding text.
+            trace_scope!("setMarkedText:selectedRange:replacementRange:");
+            todo!()
+        }
+
+        #[unsafe(method(unmarkText))]
+        fn unmark_text(&self) {
+            trace_scope!("unmarkText");
+        }
+
+        #[unsafe(method_id(validAttributesForMarkedText))]
+        fn valid_attributes_for_marked_text(&self) -> Retained<NSArray<NSAttributedStringKey>> {
+            trace_scope!("validAttributesForMarkedText");
+            NSArray::new()
+        }
+
+        #[unsafe(method_id(attributedSubstringForProposedRange:actualRange:))]
+        fn attributed_substring_for_proposed_range(
+            &self,
+            _range: NSRange,
+            _actual_range: *mut NSRange,
+        ) -> Option<Retained<NSAttributedString>> {
+            trace_scope!("attributedSubstringForProposedRange:actualRange:");
+            None
+        }
+
+        #[unsafe(method(characterIndexForPoint:))]
+        fn character_index_for_point(&self, _point: NSPoint) -> NSUInteger {
+            trace_scope!("characterIndexForPoint:");
+            0
+        }
+
+        #[unsafe(method(firstRectForCharacterRange:actualRange:))]
+        fn first_rect_for_character_range(
+            &self,
+            _range: NSRange,
+            _actual_range: *mut NSRange,
+        ) -> NSRect {
+            trace_scope!("firstRectForCharacterRange:actualRange:");
+            todo!()
+        }
+
+        #[unsafe(method(insertText:replacementRange:))]
+        fn insert_text(&self, string: &NSObject, _replacement_range: NSRange) {
+            // TODO: Use _replacement_range, requires changing the event to report surrounding text.
+            trace_scope!("insertText:replacementRange:");
+        }
+
+        // Basically, we're sent this message whenever a keyboard event that doesn't generate a
+        // "human readable" character happens, i.e. newlines, tabs, and Ctrl+C.
+        #[unsafe(method(doCommandBySelector:))]
+        fn do_command_by_selector(&self, command: Sel) {
+            trace_scope!("doCommandBySelector:");
+            todo!()
+        }
+    }
+    #[cfg(not(feature = "experimental_ime_rewrite"))]
     unsafe impl NSTextInputClient for WinitView {
         #[unsafe(method(hasMarkedText))]
         fn has_marked_text(&self) -> bool {
@@ -272,16 +356,15 @@ define_class!(
             // TODO: Use _replacement_range, requires changing the event to report surrounding text.
             trace_scope!("setMarkedText:selectedRange:replacementRange:");
 
-            let (marked_text, string) = if let Some(string) =
-                string.downcast_ref::<NSAttributedString>()
-            {
-                (NSMutableAttributedString::from_attributed_nsstring(string), string.string())
-            } else if let Some(string) = string.downcast_ref::<NSString>() {
-                (NSMutableAttributedString::from_nsstring(string), string.copy())
-            } else {
-                // This method is guaranteed to get either a `NSString` or a `NSAttributedString`.
-                panic!("unexpected text {string:?}")
-            };
+            let (marked_text, string) =
+                if let Some(string) = string.downcast_ref::<NSAttributedString>() {
+                    (NSMutableAttributedString::from_attributed_nsstring(string), string.string())
+                } else if let Some(string) = string.downcast_ref::<NSString>() {
+                    (NSMutableAttributedString::from_nsstring(string), string.copy())
+                } else {
+                    // This method is guaranteed to get either a `NSString` or a `NSAttributedString`.
+                    panic!("unexpected text {string:?}")
+                };
 
             // Update marked text.
             *self.ivars().marked_text.borrow_mut() = marked_text;
@@ -445,6 +528,7 @@ define_class!(
 
     /// This documentation attribute makes rustfmt work for some reason?
     impl WinitView {
+        #[cfg(not(feature = "experimental_ime_rewrite"))]
         #[unsafe(method(keyDown:))]
         fn key_down(&self, event: &NSEvent) {
             trace_scope!("keyDown:");
@@ -503,7 +587,14 @@ define_class!(
                 });
             }
         }
+        #[cfg(feature = "experimental_ime_rewrite")]
+        #[unsafe(method(keyDown:))]
+        fn key_down(&self, event: &NSEvent) {
+            trace_scope!("keyDown:");
+            todo!()
+        }
 
+        #[cfg(not(feature = "experimental_ime_rewrite"))]
         #[unsafe(method(keyUp:))]
         fn key_up(&self, event: &NSEvent) {
             trace_scope!("keyUp:");
@@ -520,7 +611,12 @@ define_class!(
                 });
             }
         }
-
+        #[cfg(feature = "experimental_ime_rewrite")]
+        #[unsafe(method(keyUp:))]
+        fn key_up(&self, event: &NSEvent) {
+            trace_scope!("keyUp:");
+            todo!()
+        }
         #[unsafe(method(flagsChanged:))]
         fn flags_changed(&self, event: &NSEvent) {
             trace_scope!("flagsChanged:");
@@ -809,10 +905,13 @@ impl WinitView {
             modifiers: Default::default(),
             phys_modifiers: Default::default(),
             tracking_rect: Default::default(),
+            #[cfg(not(feature = "experimental_ime_rewrite"))]
             ime_state: Default::default(),
             input_source: Default::default(),
             ime_capabilities: Default::default(),
+            #[cfg(not(feature = "experimental_ime_rewrite"))]
             forward_key_to_app: Default::default(),
+            #[cfg(not(feature = "experimental_ime_rewrite"))]
             marked_text: Default::default(),
             accepts_first_mouse,
             option_as_alt: Cell::new(option_as_alt),
@@ -838,7 +937,7 @@ impl WinitView {
     fn scale_factor(&self) -> f64 {
         self.window().backingScaleFactor() as f64
     }
-
+    #[cfg(not(feature = "experimental_ime_rewrite"))]
     fn is_ime_enabled(&self) -> bool {
         !matches!(self.ivars().ime_state.get(), ImeState::Disabled)
     }
@@ -872,6 +971,7 @@ impl WinitView {
             false
         }
     }
+    #[cfg(not(feature = "experimental_ime_rewrite"))]
     pub(super) fn enable_ime(&self, capabilities: ImeCapabilities) {
         // This seems reasonable but the prior behavior of `set_ime_allowed` doesn't do this
         // (it was also broken but let's not break things worse)
@@ -889,6 +989,12 @@ impl WinitView {
         self.ivars().ime_capabilities.set(Some(capabilities));
         *self.ivars().marked_text.borrow_mut() = NSMutableAttributedString::new();
     }
+    #[cfg(feature = "experimental_ime_rewrite")]
+    pub(super) fn enable_ime(&self, capabilities: ImeCapabilities) {
+        todo!();
+    }
+
+    #[cfg(not(feature = "experimental_ime_rewrite"))]
     pub(super) fn disable_ime(&self) {
         // see above
         self.ivars().ime_capabilities.set(None);
@@ -899,6 +1005,10 @@ impl WinitView {
         // we probably don't need to do this, but again this mirrors the prior behavior of
         // `set_ime_allowed`
         *self.ivars().marked_text.borrow_mut() = NSMutableAttributedString::new();
+    }
+    #[cfg(feature = "experimental_ime_rewrite")]
+    pub(super) fn disable_ime(&self) {
+        todo!()
     }
 
     pub(super) fn ime_capabilities(&self) -> Option<ImeCapabilities> {
