@@ -56,6 +56,7 @@ impl ApplicationHandler for App {
                     let size = window.outer_size();
                     let elapsed = self.start_time.elapsed();
                     let t = elapsed.as_secs_f32();
+                    let total_secs = elapsed.as_secs();
 
                     let ball_x = ((t * 1.5).sin() * 0.5 + 0.5) * size.width as f32;
                     let ball_y = ((t * 2.1).cos() * 0.5 + 0.5) * size.height as f32;
@@ -88,8 +89,8 @@ impl ApplicationHandler for App {
                     if self.last_fps_print.elapsed() >= Duration::from_secs(1) {
                         let avg = self.total_frame_count as f64 / elapsed.as_secs_f64();
                         window.set_title(&format!(
-                            "FPS: {} | AVG: {:.2} | {}x{}",
-                            self.frame_count, avg, size.width, size.height
+                            "FPS: {} | AVG: {:.2} | TIME: {}s | {}x{}",
+                            self.frame_count, avg, total_secs, size.width, size.height
                         ));
                         self.frame_count = 0;
                         self.last_fps_print = Instant::now();
