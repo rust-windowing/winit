@@ -44,6 +44,7 @@ changelog entry.
 
 - Add `keyboard` support for OpenHarmony.
 - On iOS, add Apple Pencil support with force, altitude, and azimuth data.
+- On Android, implement `Window::safe_area`. This replaces `WindowExtAndroid::content_rect` which has been removed.
 
 ### Changed
 
