@@ -66,17 +66,6 @@ impl ApplicationHandler for App {
 
             WindowEvent::RedrawRequested => {
                 if let Some(surface) = self.surface.as_mut() {
-                    let now = Instant::now();
-                    self.frame_count += 1;
-
-                    if now.duration_since(self.last_fps_print) >= Duration::from_secs(1) {
-                        let fps = self.frame_count;
-                        println!("FPS: {}", fps);
-
-                        self.frame_count = 0;
-                        self.last_fps_print = now;
-                    }
-
                     let mut buffer = surface.next_buffer().expect("buffer except");
 
                     for (x, y, pixel) in buffer.pixels_iter() {
@@ -88,6 +77,18 @@ impl ApplicationHandler for App {
                     }
 
                     buffer.present().unwrap();
+
+                    let now = Instant::now();
+                    self.frame_count += 1;
+
+                    if now.duration_since(self.last_fps_print) >= Duration::from_secs(1) {
+                        let fps = self.frame_count;
+                        println!("FPS: {}", fps);
+
+                        self.frame_count = 0;
+                        self.last_fps_print = now;
+                    }
+
                 }
             },
             _ => (),
