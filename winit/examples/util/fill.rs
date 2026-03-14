@@ -102,7 +102,7 @@ mod platform {
             // error[E0599]: no method named `fill` found for struct `Buffer<'surface>` in the current scope
             // buffer.fill(color);  
 
-            for pixel in buffer.iter_mut() {
+            for (_,_,pixel) in buffer.pixels_iter() {
                 *pixel = color;
             }
             buffer.present().expect("Failed to present the softbuffer buffer");
