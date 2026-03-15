@@ -6,10 +6,10 @@ use std::rc::Rc;
 use dpi::{LogicalPosition, LogicalSize};
 use objc2::rc::Retained;
 use objc2::runtime::{AnyObject, Sel};
-use objc2::{AnyThread, DefinedClass, MainThreadMarker, define_class, msg_send};
+use objc2::{DefinedClass, MainThreadMarker, define_class, msg_send};
 use objc2_app_kit::{
-    NSApplication, NSCursor, NSEvent, NSEventPhase, NSResponder, NSTextInputClient, NSTrackingArea,
-    NSTrackingAreaOptions, NSView, NSWindow,
+    NSApplication, NSCursor, NSEvent, NSEventPhase, NSResponder, NSTextInputClient, NSView,
+    NSWindow,
 };
 use objc2_core_foundation::CGRect;
 use objc2_foundation::{
@@ -129,7 +129,6 @@ pub struct ViewState {
     /// True if the current key event should be forwarded
     /// to the application, even during IME
     forward_key_to_app: Cell<bool>,
-
     marked_text: RefCell<Retained<NSMutableAttributedString>>,
     accepts_first_mouse: bool,
 
@@ -791,25 +790,7 @@ impl WinitView {
             option_as_alt: Cell::new(option_as_alt),
         });
         let this: Retained<Self> = unsafe { msg_send![super(this), init] };
-
         *this.ivars().input_source.borrow_mut() = this.current_input_source();
-
-        // Safety: the type of `owner` should be NSView
-        // the type of `user_info` is irrelevant, as it is None/null
-        this.addTrackingArea(&*unsafe {
-            NSTrackingArea::initWithRect_options_owner_userInfo(
-                NSTrackingArea::alloc(),
-                this.frame(),
-                // InVisibleRect will keep our TrackingArea up to date for us without further
-                // intervention see also https://developer.apple.com/documentation/appkit/nstrackingareaoptions
-                NSTrackingAreaOptions::ActiveInActiveApp
-                    | NSTrackingAreaOptions::MouseEnteredAndExited
-                    | NSTrackingAreaOptions::MouseMoved
-                    | NSTrackingAreaOptions::InVisibleRect,
-                Some(&this),
-                None,
-            )
-        });
 
         this
     }
