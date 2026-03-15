@@ -99,9 +99,6 @@ mod platform {
 
             let mut buffer = surface.next_buffer().expect("Failed to get the softbuffer buffer");
 
-            // error[E0599]: no method named `fill` found for struct `Buffer<'surface>` in the
-            // current scope buffer.fill(color);
-
             for (_, _, pixel) in buffer.pixels_iter() {
                 let red = ((color >> 16) & 0xff) as u8;
                 let green = ((color >> 8) & 0xff) as u8;
