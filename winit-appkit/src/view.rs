@@ -118,7 +118,6 @@ pub struct ViewState {
     ime_size: Cell<NSSize>,
     modifiers: Cell<Modifiers>,
     phys_modifiers: RefCell<HashMap<Key, ModLocationMask>>,
-    tracking_area: RefCell<Option<Retained<NSTrackingArea>>>,
     ime_state: Cell<ImeState>,
     input_source: RefCell<String>,
 
@@ -152,17 +151,10 @@ define_class!(
             true
         }
 
-        #[unsafe(method(viewDidMoveToWindow))]
-        fn view_did_move_to_window(&self) {
-            trace_scope!("viewDidMoveToWindow");
-            self.update_tracking_area();
-        }
-
         // Not a normal method on `NSView`, it's triggered by `NSViewFrameDidChangeNotification`.
         #[unsafe(method(viewFrameDidChangeNotification:))]
         fn frame_did_change(&self, _notification: Option<&AnyObject>) {
             trace_scope!("NSViewFrameDidChangeNotification");
-            self.update_tracking_area();
 
             // Emit resize event here rather than from windowDidResize because:
             // 1. When a new window is created as a tab, the frame size may change without a window
@@ -790,7 +782,6 @@ impl WinitView {
             ime_size: Default::default(),
             modifiers: Default::default(),
             phys_modifiers: Default::default(),
-            tracking_area: Default::default(),
             ime_state: Default::default(),
             input_source: Default::default(),
             ime_capabilities: Default::default(),
@@ -803,28 +794,24 @@ impl WinitView {
 
         *this.ivars().input_source.borrow_mut() = this.current_input_source();
 
-        this
-    }
-
-    fn update_tracking_area(&self) {
-        if let Some(tracking_area) = self.ivars().tracking_area.take() {
-            self.removeTrackingArea(&tracking_area);
-        }
-
-        let tracking_area = unsafe {
+        // Safety: the type of `owner` should be NSView
+        // the type of `user_info` is irrelevant, as it is None/null
+        this.addTrackingArea(&*unsafe {
             NSTrackingArea::initWithRect_options_owner_userInfo(
                 NSTrackingArea::alloc(),
-                self.frame(),
-                // see https://developer.apple.com/documentation/appkit/nstrackingareaoptions
+                this.frame(),
+                // InVisibleRect will keep our TrackingArea up to date for us without further
+                // intervention see also https://developer.apple.com/documentation/appkit/nstrackingareaoptions
                 NSTrackingAreaOptions::ActiveInActiveApp
                     | NSTrackingAreaOptions::MouseEnteredAndExited
-                    | NSTrackingAreaOptions::MouseMoved,
-                Some(self),
+                    | NSTrackingAreaOptions::MouseMoved
+                    | NSTrackingAreaOptions::InVisibleRect,
+                Some(&this),
                 None,
             )
-        };
-        self.addTrackingArea(&tracking_area);
-        *(self.ivars().tracking_area.borrow_mut()) = Some(tracking_area);
+        });
+
+        this
     }
 
     fn window(&self) -> Retained<NSWindow> {
