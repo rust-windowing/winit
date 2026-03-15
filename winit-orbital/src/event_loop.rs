@@ -145,7 +145,6 @@ fn convert_scancode(scancode: u8) -> (PhysicalKey, Option<NamedKey>) {
         orbclient::K_APP => (KeyCode::ContextMenu, Some(NamedKey::ContextMenu)),
 
         orbclient::K_MEDIA_FAST_FORWARD => (KeyCode::MediaFastForward, Some(NamedKey::MediaFastForward)),
-        orbclient::K_MEDIA_FAST_FORWARD => (KeyCode::MediaFastForward, Some(NamedKey::MediaFastForward)),
         orbclient::K_MEDIA_REWIND => (KeyCode::MediaRewind, Some(NamedKey::MediaRewind)),
         orbclient::K_MEDIA_STOP => (KeyCode::MediaStop, Some(NamedKey::MediaStop)),
 
