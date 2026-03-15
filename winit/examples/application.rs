@@ -964,32 +964,38 @@ impl WindowState {
             return Ok(());
         }
 
-        let mut buffer = self.surface.buffer_mut()?;
+        let mut buffer = self.surface.next_buffer()?;
 
         // Draw a different color inside the safe area
         let surface_size = self.window.surface_size();
         let insets = self.window.safe_area();
-        for y in 0..surface_size.height {
-            for x in 0..surface_size.width {
-                let index = y as usize * surface_size.width as usize + x as usize;
-                if insets.left <= x
-                    && x <= (surface_size.width - insets.right)
-                    && insets.top <= y
-                    && y <= (surface_size.height - insets.bottom)
-                {
-                    // In safe area
-                    buffer[index] = match self.theme {
-                        Theme::Light => 0xffe8e8e8, // Light gray
-                        Theme::Dark => 0xff525252,  // Medium gray
-                    };
-                } else {
-                    // Outside safe area
-                    buffer[index] = match self.theme {
-                        Theme::Light => 0xffffffff, // White
-                        Theme::Dark => 0xff181818,  // Dark gray
-                    };
+        for (x, y, pixel) in buffer.pixels_iter() {
+            let is_inside_safe_area = insets.left <= x
+                && x <= (surface_size.width - insets.right)
+                && insets.top <= y
+                && y <= (surface_size.height - insets.bottom);
+
+            let color: u32 = if is_inside_safe_area {
+                // In safe area
+                match self.theme {
+                    Theme::Light => 0xffe8e8e8, // Light gray
+                    Theme::Dark => 0xff525252,  // Medium gray
                 }
-            }
+            } else {
+                // Outside safe area
+                match self.theme {
+                    Theme::Light => 0xffffffff, // White
+                    Theme::Dark => 0xff181818,  // Dark gray
+                }
+            };
+
+            let red = ((color >> 16) & 0xff) as u8;
+            let green = ((color >> 8) & 0xff) as u8;
+            let blue = (color & 0xff) as u8;
+
+
+            *pixel = softbuffer::Pixel::new_rgb(red, green, blue);
+
         }
 
         // Present the buffer
