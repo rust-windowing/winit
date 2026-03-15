@@ -99,3 +99,6 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     Ok(())
 }
+
+#[cfg(target_os = "android")]
+fn main() {}

@@ -115,3 +115,6 @@ fn main() -> Result<(), Box<dyn Error>> {
     };
     EventLoop::new()?.run_app(app).map_err(Into::into)
 }
+
+#[cfg(target_os = "android")]
+fn main() {}
