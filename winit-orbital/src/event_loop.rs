@@ -101,7 +101,6 @@ fn convert_scancode(scancode: u8) -> (PhysicalKey, Option<NamedKey>) {
         orbclient::K_LEFT => (KeyCode::ArrowLeft, Some(NamedKey::ArrowLeft)),
         orbclient::K_LEFT_SHIFT => (KeyCode::ShiftLeft, Some(NamedKey::Shift)),
         orbclient::K_MINUS => (KeyCode::Minus, None),
-
         orbclient::K_NUM_0 => (KeyCode::Numpad0, None),
         orbclient::K_NUM_1 => (KeyCode::Numpad1, None),
         orbclient::K_NUM_2 => (KeyCode::Numpad2, None),
@@ -112,20 +111,12 @@ fn convert_scancode(scancode: u8) -> (PhysicalKey, Option<NamedKey>) {
         orbclient::K_NUM_7 => (KeyCode::Numpad7, None),
         orbclient::K_NUM_8 => (KeyCode::Numpad8, None),
         orbclient::K_NUM_9 => (KeyCode::Numpad9, None),
-        orbclient::K_NUM_ASTERISK => (KeyCode::NumpadMultiply, None),
-        orbclient::K_NUM_ENTER => (KeyCode::NumpadEnter, Some(NamedKey::Enter)),
-        orbclient::K_NUM_MINUS => (KeyCode::NumpadSubtract, None),
-        orbclient::K_NUM_PLUS => (KeyCode::NumpadAdd, None),
-        orbclient::K_NUM_SLASH => (KeyCode::NumpadDivide, None),
-        orbclient::K_NUM_PERIOD => (KeyCode::NumpadDecimal, None),
-
         orbclient::K_PERIOD => (KeyCode::Period, None),
         orbclient::K_PGDN => (KeyCode::PageDown, Some(NamedKey::PageDown)),
         orbclient::K_PGUP => (KeyCode::PageUp, Some(NamedKey::PageUp)),
         orbclient::K_QUOTE => (KeyCode::Quote, None),
         orbclient::K_RIGHT => (KeyCode::ArrowRight, Some(NamedKey::ArrowRight)),
         orbclient::K_RIGHT_SHIFT => (KeyCode::ShiftRight, Some(NamedKey::Shift)),
-        orbclient::K_RIGHT_SUPER => (KeyCode::MetaRight, Some(NamedKey::Meta)),
         orbclient::K_SEMICOLON => (KeyCode::Semicolon, None),
         orbclient::K_SLASH => (KeyCode::Slash, None),
         orbclient::K_SPACE => (KeyCode::Space, None),
@@ -136,20 +127,6 @@ fn convert_scancode(scancode: u8) -> (PhysicalKey, Option<NamedKey>) {
         orbclient::K_VOLUME_DOWN => (KeyCode::AudioVolumeDown, Some(NamedKey::AudioVolumeDown)),
         orbclient::K_VOLUME_TOGGLE => (KeyCode::AudioVolumeMute, Some(NamedKey::AudioVolumeMute)),
         orbclient::K_VOLUME_UP => (KeyCode::AudioVolumeUp, Some(NamedKey::AudioVolumeUp)),
-
-        orbclient::K_INS => (KeyCode::Insert, Some(NamedKey::Insert)),
-        orbclient::K_PRTSC => (KeyCode::PrintScreen, Some(NamedKey::PrintScreen)),
-        orbclient::K_NUM => (KeyCode::NumLock, Some(NamedKey::NumLock)),
-        orbclient::K_SCROLL => (KeyCode::ScrollLock, Some(NamedKey::ScrollLock)),
-        orbclient::K_APP => (KeyCode::ContextMenu, Some(NamedKey::ContextMenu)),
-
-        orbclient::K_MEDIA_FAST_FORWARD => {
-            (KeyCode::MediaFastForward, Some(NamedKey::MediaFastForward))
-        },
-        orbclient::K_MEDIA_REWIND => (KeyCode::MediaRewind, Some(NamedKey::MediaRewind)),
-        orbclient::K_MEDIA_STOP => (KeyCode::MediaStop, Some(NamedKey::MediaStop)),
-
-        orbclient::K_POWER => (KeyCode::Power, Some(NamedKey::Power)),
 
         _ => return (PhysicalKey::Unidentified(NativeKeyCode::Unidentified), None),
     };
