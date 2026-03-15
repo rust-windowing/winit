@@ -103,7 +103,7 @@ impl ApplicationHandler for App {
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
-    let mut app = App {
+    let app = App {
         window: None,
         surface: None,
         start_time: Instant::now(),
