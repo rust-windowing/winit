@@ -22,7 +22,7 @@ use winit_core::event::{
     PointerKind, PointerSource, TouchPhase, WindowEvent,
 };
 use winit_core::keyboard::{Key, KeyCode, KeyLocation, ModifiersState, NamedKey};
-use winit_core::window::ImeCapabilities;
+use winit_core::window::{ImeCapabilities, ImeSurroundingText};
 
 use super::app_state::AppState;
 use super::cursor::{default_cursor, invisible_cursor};
@@ -44,7 +44,7 @@ impl Default for CursorState {
         Self { visible: true, cursor: default_cursor() }
     }
 }
-
+#[cfg(not(feature = "experimental_ime_rewrite"))]
 #[derive(Debug, Eq, PartialEq, Clone, Copy, Default)]
 enum ImeState {
     #[default]
@@ -127,7 +127,7 @@ pub struct ViewState {
 
     #[cfg(not(feature = "experimental_ime_rewrite"))]
     ime_state: Cell<ImeState>,
-
+    ime_current_surroundings: RefCell<Option<ImeSurroundingText>>,
     /// True if the current key event should be forwarded
     /// to the application, even during IME
     #[cfg(not(feature = "experimental_ime_rewrite"))]
