@@ -18,12 +18,7 @@ struct App {
 
 impl App {
     fn new() -> Self {
-        Self {
-            window: None,
-            surface: None,
-            frame_count: 0,
-            last_fps_print: Instant::now(),
-        }
+        Self { window: None, surface: None, frame_count: 0, last_fps_print: Instant::now() }
     }
 }
 
@@ -86,7 +81,6 @@ impl ApplicationHandler for App {
                         self.frame_count = 0;
                         self.last_fps_print = now;
                     }
-
                 }
             },
             _ => (),

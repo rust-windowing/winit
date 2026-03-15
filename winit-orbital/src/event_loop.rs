@@ -118,7 +118,7 @@ fn convert_scancode(scancode: u8) -> (PhysicalKey, Option<NamedKey>) {
         orbclient::K_NUM_PLUS => (KeyCode::NumpadAdd, None),
         orbclient::K_NUM_SLASH => (KeyCode::NumpadDivide, None),
         orbclient::K_NUM_PERIOD => (KeyCode::NumpadDecimal, None),
-        
+
         orbclient::K_PERIOD => (KeyCode::Period, None),
         orbclient::K_PGDN => (KeyCode::PageDown, Some(NamedKey::PageDown)),
         orbclient::K_PGUP => (KeyCode::PageUp, Some(NamedKey::PageUp)),
@@ -143,7 +143,9 @@ fn convert_scancode(scancode: u8) -> (PhysicalKey, Option<NamedKey>) {
         orbclient::K_SCROLL => (KeyCode::ScrollLock, Some(NamedKey::ScrollLock)),
         orbclient::K_APP => (KeyCode::ContextMenu, Some(NamedKey::ContextMenu)),
 
-        orbclient::K_MEDIA_FAST_FORWARD => (KeyCode::MediaFastForward, Some(NamedKey::MediaFastForward)),
+        orbclient::K_MEDIA_FAST_FORWARD => {
+            (KeyCode::MediaFastForward, Some(NamedKey::MediaFastForward))
+        },
         orbclient::K_MEDIA_REWIND => (KeyCode::MediaRewind, Some(NamedKey::MediaRewind)),
         orbclient::K_MEDIA_STOP => (KeyCode::MediaStop, Some(NamedKey::MediaStop)),
 
