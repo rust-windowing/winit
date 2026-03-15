@@ -1,5 +1,10 @@
-#[cfg(any(windows_platform, macos_platform, x11_platform, wayland_platform, orbital_platform))]
-
+#[cfg(any(
+    windows_platform,
+    macos_platform,
+    x11_platform,
+    wayland_platform,
+    orbital_platform
+))]
 use std::error::Error;
 use std::num::NonZeroU32;
 use std::sync::Arc;
