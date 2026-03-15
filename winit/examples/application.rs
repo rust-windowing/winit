@@ -993,9 +993,7 @@ impl WindowState {
             let green = ((color >> 8) & 0xff) as u8;
             let blue = (color & 0xff) as u8;
 
-
             *pixel = softbuffer::Pixel::new_rgb(red, green, blue);
-
         }
 
         // Present the buffer
