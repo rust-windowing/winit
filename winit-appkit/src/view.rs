@@ -1,16 +1,15 @@
 #![allow(clippy::unnecessary_cast)]
 use std::cell::{Cell, RefCell};
 use std::collections::{HashMap, VecDeque};
-use std::ptr;
 use std::rc::Rc;
 
 use dpi::{LogicalPosition, LogicalSize};
 use objc2::rc::Retained;
 use objc2::runtime::{AnyObject, Sel};
-use objc2::{DefinedClass, MainThreadMarker, define_class, msg_send};
+use objc2::{AnyThread, DefinedClass, MainThreadMarker, define_class, msg_send};
 use objc2_app_kit::{
-    NSApplication, NSCursor, NSEvent, NSEventPhase, NSResponder, NSTextInputClient,
-    NSTrackingRectTag, NSView, NSWindow,
+    NSApplication, NSCursor, NSEvent, NSEventPhase, NSResponder, NSTextInputClient, NSTrackingArea,
+    NSTrackingAreaOptions, NSView, NSWindow,
 };
 use objc2_core_foundation::CGRect;
 use objc2_foundation::{
@@ -119,7 +118,7 @@ pub struct ViewState {
     ime_size: Cell<NSSize>,
     modifiers: Cell<Modifiers>,
     phys_modifiers: RefCell<HashMap<Key, ModLocationMask>>,
-    tracking_rect: Cell<Option<NSTrackingRectTag>>,
+    tracking_area: RefCell<Option<Retained<NSTrackingArea>>>,
     ime_state: Cell<ImeState>,
     input_source: RefCell<String>,
 
@@ -156,38 +155,21 @@ define_class!(
         #[unsafe(method(viewDidMoveToWindow))]
         fn view_did_move_to_window(&self) {
             trace_scope!("viewDidMoveToWindow");
-            if let Some(tracking_rect) = self.ivars().tracking_rect.take() {
-                self.removeTrackingRect(tracking_rect);
-            }
-
-            let rect = self.frame();
-            let tracking_rect = unsafe {
-                self.addTrackingRect_owner_userData_assumeInside(rect, self, ptr::null_mut(), false)
-            };
-            assert_ne!(tracking_rect, 0, "failed adding tracking rect");
-            self.ivars().tracking_rect.set(Some(tracking_rect));
+            self.update_tracking_area();
         }
 
         // Not a normal method on `NSView`, it's triggered by `NSViewFrameDidChangeNotification`.
         #[unsafe(method(viewFrameDidChangeNotification:))]
         fn frame_did_change(&self, _notification: Option<&AnyObject>) {
             trace_scope!("NSViewFrameDidChangeNotification");
-            if let Some(tracking_rect) = self.ivars().tracking_rect.take() {
-                self.removeTrackingRect(tracking_rect);
-            }
-
-            let rect = self.frame();
-            let tracking_rect = unsafe {
-                self.addTrackingRect_owner_userData_assumeInside(rect, self, ptr::null_mut(), false)
-            };
-            assert_ne!(tracking_rect, 0, "failed adding tracking rect");
-            self.ivars().tracking_rect.set(Some(tracking_rect));
+            self.update_tracking_area();
 
             // Emit resize event here rather than from windowDidResize because:
             // 1. When a new window is created as a tab, the frame size may change without a window
             //    resize occurring.
             // 2. Even when a window resize does occur on a new tabbed window, it contains the wrong
             //    size (includes tab height).
+            let rect = self.frame();
             let logical_size = LogicalSize::new(rect.size.width as f64, rect.size.height as f64);
             let size = logical_size.to_physical::<u32>(self.scale_factor());
             self.queue_event(WindowEvent::SurfaceResized(size));
@@ -808,7 +790,7 @@ impl WinitView {
             ime_size: Default::default(),
             modifiers: Default::default(),
             phys_modifiers: Default::default(),
-            tracking_rect: Default::default(),
+            tracking_area: Default::default(),
             ime_state: Default::default(),
             input_source: Default::default(),
             ime_capabilities: Default::default(),
@@ -822,6 +804,27 @@ impl WinitView {
         *this.ivars().input_source.borrow_mut() = this.current_input_source();
 
         this
+    }
+
+    fn update_tracking_area(&self) {
+        if let Some(tracking_area) = self.ivars().tracking_area.take() {
+            self.removeTrackingArea(&tracking_area);
+        }
+
+        let tracking_area = unsafe {
+            NSTrackingArea::initWithRect_options_owner_userInfo(
+                NSTrackingArea::alloc(),
+                self.frame(),
+                // see https://developer.apple.com/documentation/appkit/nstrackingareaoptions
+                NSTrackingAreaOptions::ActiveInActiveApp
+                    | NSTrackingAreaOptions::MouseEnteredAndExited
+                    | NSTrackingAreaOptions::MouseMoved,
+                Some(self),
+                None,
+            )
+        };
+        self.addTrackingArea(&tracking_area);
+        *(self.ivars().tracking_area.borrow_mut()) = Some(tracking_area);
     }
 
     fn window(&self) -> Retained<NSWindow> {
