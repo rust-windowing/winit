@@ -1,3 +1,5 @@
+#![cfg(not(android))]
+
 use std::error::Error;
 use std::num::NonZeroU32;
 use std::sync::Arc;

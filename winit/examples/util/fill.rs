@@ -103,7 +103,7 @@ mod platform {
                 let red = ((color >> 16) & 0xff) as u8;
                 let green = ((color >> 8) & 0xff) as u8;
                 let blue = (color & 0xff) as u8;
-                
+
                 *pixel = softbuffer::Pixel::new_rgb(red, green, blue);
             }
             buffer.present().expect("Failed to present the softbuffer buffer");
