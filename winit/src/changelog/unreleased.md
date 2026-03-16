@@ -44,6 +44,7 @@ changelog entry.
 
 - Add `keyboard` support for OpenHarmony.
 - On iOS, add Apple Pencil support with force, altitude, and azimuth data.
+- On macOS, add off-by-default `ctrl_click_to_secondary` window attribute to treat left clicks as right clicks while `CONTROL` is held.
 
 ### Changed
 

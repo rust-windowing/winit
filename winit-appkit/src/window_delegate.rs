@@ -711,6 +711,7 @@ fn new_window(
             app_state,
             macos_attrs.accepts_first_mouse,
             macos_attrs.option_as_alt,
+            macos_attrs.ctrl_click_to_secondary,
             mtm,
         );
 
@@ -2002,6 +2003,14 @@ impl WindowExtMacOS for WindowDelegate {
 
     fn option_as_alt(&self) -> OptionAsAlt {
         self.view().option_as_alt()
+    }
+
+    fn set_ctrl_click_to_secondary(&self, ctrl_click_to_secondary: bool) {
+        self.view().set_ctrl_click_to_secondary(ctrl_click_to_secondary);
+    }
+
+    fn ctrl_click_to_secondary(&self) -> bool {
+        self.view().ctrl_click_to_secondary()
     }
 
     fn set_borderless_game(&self, borderless_game: bool) {

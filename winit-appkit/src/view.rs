@@ -137,6 +137,12 @@ pub struct ViewState {
 
     /// The state of the `Option` as `Alt`.
     option_as_alt: Cell<OptionAsAlt>,
+
+    /// Whether to treat a left click while control is held as a right (secondary) click
+    ctrl_click_to_secondary: Cell<bool>,
+    /// Whether the next LMB release should be treated as a right click because it was initiated as
+    /// a secondary click (see above)
+    lmb_press_is_secondary: Cell<bool>,
 }
 
 define_class!(
@@ -799,6 +805,7 @@ impl WinitView {
         app_state: &Rc<AppState>,
         accepts_first_mouse: bool,
         option_as_alt: OptionAsAlt,
+        ctrl_click_to_secondary: bool,
         mtm: MainThreadMarker,
     ) -> Retained<Self> {
         let this = mtm.alloc().set_ivars(ViewState {
@@ -814,8 +821,10 @@ impl WinitView {
             ime_capabilities: Default::default(),
             forward_key_to_app: Default::default(),
             marked_text: Default::default(),
+            lmb_press_is_secondary: Default::default(),
             accepts_first_mouse,
             option_as_alt: Cell::new(option_as_alt),
+            ctrl_click_to_secondary: Cell::new(ctrl_click_to_secondary),
         });
         let this: Retained<Self> = unsafe { msg_send![super(this), init] };
 
@@ -926,6 +935,14 @@ impl WinitView {
 
     pub(super) fn option_as_alt(&self) -> OptionAsAlt {
         self.ivars().option_as_alt.get()
+    }
+
+    pub(super) fn set_ctrl_click_to_secondary(&self, ctrl_click_to_secondary: bool) {
+        self.ivars().ctrl_click_to_secondary.set(ctrl_click_to_secondary);
+    }
+
+    pub(super) fn ctrl_click_to_secondary(&self) -> bool {
+        self.ivars().ctrl_click_to_secondary.get()
     }
 
     /// Update modifiers if `event` has something different
@@ -1056,7 +1073,24 @@ impl WinitView {
 
     fn mouse_click(&self, event: &NSEvent, button_state: ElementState) {
         let position = self.mouse_view_point(event).to_physical(self.scale_factor());
-        let button = mouse_button(event);
+        let mut button = mouse_button(event);
+
+        if self.ivars().ctrl_click_to_secondary.get() && button == MouseButton::Left {
+            match button_state {
+                ElementState::Pressed => {
+                    let modifiers = self.ivars().modifiers.get().state();
+                    if modifiers.contains(ModifiersState::CONTROL) {
+                        self.ivars().lmb_press_is_secondary.set(true);
+                        button = MouseButton::Right;
+                    }
+                },
+                ElementState::Released => {
+                    if self.ivars().lmb_press_is_secondary.take() {
+                        button = MouseButton::Right;
+                    }
+                },
+            }
+        }
 
         self.update_modifiers(event, false);
 

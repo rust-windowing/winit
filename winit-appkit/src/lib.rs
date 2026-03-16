@@ -173,6 +173,12 @@ pub trait WindowExtMacOS {
     /// Getter for the [`WindowExtMacOS::set_option_as_alt`].
     fn option_as_alt(&self) -> OptionAsAlt;
 
+    /// Set whether a left click with control held should be treated as a right (secondary) click
+    fn set_ctrl_click_to_secondary(&self, ctrl_click_to_secondary: bool);
+
+    /// Getter for the [`WindowExtMacOS::set_ctrl_click_to_secondary`]
+    fn ctrl_click_to_secondary(&self) -> bool;
+
     /// Disable the Menu Bar and Dock in Simple or Borderless Fullscreen mode. Useful for games.
     /// The effect is applied when [`WindowExtMacOS::set_simple_fullscreen`] or
     /// [`Window::set_fullscreen`] is called.
@@ -275,6 +281,18 @@ impl WindowExtMacOS for dyn Window + '_ {
     }
 
     #[inline]
+    fn set_ctrl_click_to_secondary(&self, ctrl_click_to_secondary: bool) {
+        let window = self.cast_ref::<AppKitWindow>().unwrap();
+        window.maybe_wait_on_main(move |w| w.set_ctrl_click_to_secondary(ctrl_click_to_secondary));
+    }
+
+    #[inline]
+    fn ctrl_click_to_secondary(&self) -> bool {
+        let window = self.cast_ref::<AppKitWindow>().unwrap();
+        window.maybe_wait_on_main(|w| w.ctrl_click_to_secondary())
+    }
+
+    #[inline]
     fn set_borderless_game(&self, borderless_game: bool) {
         let window = self.cast_ref::<AppKitWindow>().unwrap();
         window.maybe_wait_on_main(|w| w.set_borderless_game(borderless_game))
@@ -338,6 +356,7 @@ pub struct WindowAttributesMacOS {
     pub(crate) accepts_first_mouse: bool,
     pub(crate) tabbing_identifier: Option<String>,
     pub(crate) option_as_alt: OptionAsAlt,
+    pub(crate) ctrl_click_to_secondary: bool,
     pub(crate) borderless_game: bool,
     pub(crate) unified_titlebar: bool,
     pub(crate) panel: bool,
@@ -423,6 +442,13 @@ impl WindowAttributesMacOS {
         self
     }
 
+    /// Set whether a left click with control held should be remapped to a right (secondary) click
+    #[inline]
+    pub fn with_ctrl_click_to_secondary(mut self, ctrl_click_to_secondary: bool) -> Self {
+        self.ctrl_click_to_secondary = ctrl_click_to_secondary;
+        self
+    }
+
     /// See [`WindowExtMacOS::set_borderless_game`] for details on what this means if set.
     #[inline]
     pub fn with_borderless_game(mut self, borderless_game: bool) -> Self {
@@ -465,6 +491,7 @@ impl Default for WindowAttributesMacOS {
             accepts_first_mouse: true,
             tabbing_identifier: None,
             option_as_alt: Default::default(),
+            ctrl_click_to_secondary: false,
             borderless_game: false,
             unified_titlebar: false,
             panel: false,
