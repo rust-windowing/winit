@@ -54,16 +54,15 @@ pub type UniCharCount = std::os::raw::c_ulong;
 pub type UniChar = std::os::raw::c_ushort;
 pub type OSStatus = i32;
 
-#[allow(non_upper_case_globals)]
+#[expect(non_upper_case_globals)]
 pub const kUCKeyActionDisplay: u16 = 3;
-#[allow(non_upper_case_globals)]
+#[expect(non_upper_case_globals)]
 pub const kUCKeyTranslateNoDeadKeysMask: OptionBits = 1;
 
 #[link(name = "Carbon", kind = "framework")]
 unsafe extern "C" {
     pub static kTISPropertyUnicodeKeyLayoutData: &'static CFString;
 
-    #[allow(non_snake_case)]
     pub fn TISGetInputSourceProperty(
         inputSource: &TISInputSource,
         propertyKey: &CFString,
@@ -73,7 +72,6 @@ unsafe extern "C" {
 
     pub fn LMGetKbdType() -> u8;
 
-    #[allow(non_snake_case)]
     pub fn UCKeyTranslate(
         keyLayoutPtr: *const UCKeyboardLayout,
         virtualKeyCode: u16,
