@@ -694,7 +694,6 @@ define_class!(
             // be mutually exclusive anyhow, which is why the API is rather incoherent). If no
             // momentum phase is recorded (or rather, the started/ended cases of the
             // momentum phase) then we report the touch phase.
-            #[allow(non_upper_case_globals)]
             let phase = match event.momentumPhase() {
                 NSEventPhase::MayBegin | NSEventPhase::Began => TouchPhase::Started,
                 NSEventPhase::Ended | NSEventPhase::Cancelled => TouchPhase::Ended,
@@ -719,7 +718,6 @@ define_class!(
 
             self.mouse_motion(event);
 
-            #[allow(non_upper_case_globals)]
             let phase = match event.phase() {
                 NSEventPhase::Began => TouchPhase::Started,
                 NSEventPhase::Changed => TouchPhase::Moved,
@@ -750,7 +748,6 @@ define_class!(
 
             self.mouse_motion(event);
 
-            #[allow(non_upper_case_globals)]
             let phase = match event.phase() {
                 NSEventPhase::Began => TouchPhase::Started,
                 NSEventPhase::Changed => TouchPhase::Moved,
