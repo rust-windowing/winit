@@ -50,6 +50,7 @@ changelog entry.
 ### Changed
 
 - Updated `windows-sys` to `v0.61`.
+- On older macOS versions (tested up to 12.7.6), applications now receive mouse movement events for unfocused windows, matching the behavior on other platforms.
 
 ### Fixed
 
