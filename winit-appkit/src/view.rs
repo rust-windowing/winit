@@ -356,15 +356,16 @@ define_class!(
             // TODO: Use _replacement_range, requires changing the event to report surrounding text.
             trace_scope!("setMarkedText:selectedRange:replacementRange:");
 
-            let (marked_text, string) =
-                if let Some(string) = string.downcast_ref::<NSAttributedString>() {
-                    (NSMutableAttributedString::from_attributed_nsstring(string), string.string())
-                } else if let Some(string) = string.downcast_ref::<NSString>() {
-                    (NSMutableAttributedString::from_nsstring(string), string.copy())
-                } else {
-                    // This method is guaranteed to get either a `NSString` or a `NSAttributedString`.
-                    panic!("unexpected text {string:?}")
-                };
+            let (marked_text, string) = if let Some(string) =
+                string.downcast_ref::<NSAttributedString>()
+            {
+                (NSMutableAttributedString::from_attributed_nsstring(string), string.string())
+            } else if let Some(string) = string.downcast_ref::<NSString>() {
+                (NSMutableAttributedString::from_nsstring(string), string.copy())
+            } else {
+                // This method is guaranteed to get either a `NSString` or a `NSAttributedString`.
+                panic!("unexpected text {string:?}")
+            };
 
             // Update marked text.
             *self.ivars().marked_text.borrow_mut() = marked_text;
@@ -909,11 +910,13 @@ impl WinitView {
             ime_state: Default::default(),
             input_source: Default::default(),
             ime_capabilities: Default::default(),
+            ime_current_surroundings: Default::default(),
             #[cfg(not(feature = "experimental_ime_rewrite"))]
             forward_key_to_app: Default::default(),
             #[cfg(not(feature = "experimental_ime_rewrite"))]
             marked_text: Default::default(),
             accepts_first_mouse,
+
             option_as_alt: Cell::new(option_as_alt),
         });
         let this: Retained<Self> = unsafe { msg_send![super(this), init] };

@@ -74,6 +74,7 @@ mod cursor;
 mod event;
 mod event_loop;
 mod ffi;
+mod ime_support;
 mod menu;
 mod monitor;
 mod notification_center;
