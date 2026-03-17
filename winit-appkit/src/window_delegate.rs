@@ -25,7 +25,7 @@ use objc2_app_kit::{
     NSWindowSharingType, NSWindowStyleMask, NSWindowTabbingMode, NSWindowTitleVisibility,
     NSWindowToolbarStyle,
 };
-#[allow(deprecated)]
+#[expect(deprecated)]
 use objc2_app_kit::{NSFilenamesPboardType, NSWindowFullScreenButton};
 use objc2_core_foundation::{CGFloat, CGPoint};
 use objc2_core_graphics::{
@@ -368,7 +368,7 @@ define_class!(
 
             let pb = sender.draggingPasteboard();
 
-            #[allow(deprecated)]
+            #[expect(deprecated)]
             let property_list = match pb.propertyListForType(unsafe { NSFilenamesPboardType }) {
                 Some(property_list) => property_list,
                 None => return false.into(),
@@ -429,7 +429,7 @@ define_class!(
 
             let pb = sender.draggingPasteboard();
 
-            #[allow(deprecated)]
+            #[expect(deprecated)]
             let property_list = match pb.propertyListForType(unsafe { NSFilenamesPboardType }) {
                 Some(property_list) => property_list,
                 None => return false.into(),
@@ -673,7 +673,7 @@ fn new_window(
         }
         if macos_attrs.titlebar_buttons_hidden {
             for titlebar_button in &[
-                #[allow(deprecated)]
+                #[expect(deprecated)]
                 NSWindowFullScreenButton,
                 NSWindowButton::MiniaturizeButton,
                 NSWindowButton::CloseButton,
@@ -717,7 +717,7 @@ fn new_window(
         // The default value of `setWantsBestResolutionOpenGLSurface:` was `false` until
         // macos 10.14 and `true` after 10.15, we should set it to `YES` or `NO` to avoid
         // always the default system value in favour of the user's code
-        #[allow(deprecated)]
+        #[expect(deprecated)]
         view.setWantsBestResolutionOpenGLSurface(!macos_attrs.disallow_hidpi);
 
         // On Mojave, views automatically become layer-backed shortly after being added to
@@ -757,7 +757,7 @@ fn new_window(
         }
 
         // register for drag and drop operations.
-        #[allow(deprecated)]
+        #[expect(deprecated)]
         window.registerForDraggedTypes(&NSArray::from_slice(&[unsafe { NSFilenamesPboardType }]));
 
         Some(window)
@@ -1729,7 +1729,7 @@ impl WindowDelegate {
         let is_visible = self.window().isVisible();
 
         if !is_minimized && is_visible {
-            #[allow(deprecated)]
+            #[expect(deprecated)]
             NSApplication::sharedApplication(mtm).activateIgnoringOtherApps(true);
             self.window().makeKeyAndOrderFront(None);
         }

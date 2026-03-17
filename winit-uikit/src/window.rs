@@ -207,7 +207,7 @@ impl Inner {
         } else {
             // Assume the status bar frame is the only thing that obscures the view
             let app = UIApplication::sharedApplication(MainThreadMarker::new().unwrap());
-            #[allow(deprecated)]
+            #[expect(deprecated)]
             let status_bar_frame = app.statusBarFrame();
             UIEdgeInsets { top: status_bar_frame.size.height, left: 0.0, bottom: 0.0, right: 0.0 }
         };
@@ -434,7 +434,7 @@ impl Inner {
     }
 
     pub fn primary_monitor(&self) -> Option<MonitorHandle> {
-        #[allow(deprecated)]
+        #[expect(deprecated)]
         Some(MonitorHandle::new(UIScreen::mainScreen(MainThreadMarker::new().unwrap())))
     }
 
@@ -505,7 +505,7 @@ impl Window {
 
         // TODO: transparency, visible
 
-        #[allow(deprecated)]
+        #[expect(deprecated)]
         let main_screen = UIScreen::mainScreen(mtm);
         let fullscreen = window_attributes.fullscreen.clone();
         let screen = match fullscreen {

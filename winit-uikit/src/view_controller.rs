@@ -122,7 +122,7 @@ impl WinitViewController {
             },
         };
         self.ivars().supported_orientations.set(mask);
-        #[allow(deprecated)]
+        #[expect(deprecated)]
         UIViewController::attemptRotationToDeviceOrientation(mtm);
     }
 

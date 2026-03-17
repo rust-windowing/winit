@@ -361,7 +361,7 @@ pub(crate) fn send_occluded_event_for_all_windows(application: &UIApplication, o
     let mtm = MainThreadMarker::from(application);
 
     let mut events = Vec::new();
-    #[allow(deprecated)]
+    #[expect(deprecated)]
     for window in application.windows().iter() {
         if let Ok(window) = window.downcast::<WinitUIWindow>() {
             events.push(EventWrapper::Window {
@@ -420,7 +420,7 @@ pub(crate) fn terminated(application: &UIApplication) {
     let mtm = MainThreadMarker::from(application);
 
     let mut events = Vec::new();
-    #[allow(deprecated)]
+    #[expect(deprecated)]
     for window in application.windows().iter() {
         if let Ok(window) = window.downcast::<WinitUIWindow>() {
             events.push(EventWrapper::Window {
