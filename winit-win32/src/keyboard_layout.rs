@@ -387,11 +387,7 @@ impl LayoutCache {
                 let unicode = Self::to_unicode_string(&key_state, vk, scancode, locale_id);
                 let key = match unicode {
                     ToUnicodeResult::Str(str) => Key::Character(SmolStr::new(str)),
-                    ToUnicodeResult::Dead(dead_char) => {
-                        // println!("{:?} - {:?} produced dead {:?}", key_code, mod_state,
-                        // dead_char);
-                        Key::Dead(dead_char)
-                    },
+                    ToUnicodeResult::Dead(dead_char) => Key::Dead(dead_char),
                     ToUnicodeResult::None => {
                         let has_alt = mod_state.contains(WindowsModifiers::ALT);
                         let has_ctrl = mod_state.contains(WindowsModifiers::CONTROL);

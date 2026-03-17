@@ -66,6 +66,5 @@ fn main() -> Result<(), Box<dyn Error>> {
 
 #[cfg(not(x11_platform))]
 fn main() -> Result<(), Box<dyn Error>> {
-    println!("This example is only supported on X11 platforms.");
-    Ok(())
+    panic!("This example is only supported on X11 platforms.")
 }
