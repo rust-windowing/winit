@@ -97,8 +97,15 @@ mod platform {
 
             surface.resize(width, height).expect("Failed to resize the softbuffer surface");
 
-            let mut buffer = surface.buffer_mut().expect("Failed to get the softbuffer buffer");
-            buffer.fill(color);
+            let mut buffer = surface.next_buffer().expect("Failed to get the softbuffer buffer");
+
+            for (_, _, pixel) in buffer.pixels_iter() {
+                let red = ((color >> 16) & 0xff) as u8;
+                let green = ((color >> 8) & 0xff) as u8;
+                let blue = (color & 0xff) as u8;
+
+                *pixel = softbuffer::Pixel::new_rgb(red, green, blue);
+            }
             buffer.present().expect("Failed to present the softbuffer buffer");
         })
     }
