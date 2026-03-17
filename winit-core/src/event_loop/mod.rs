@@ -176,11 +176,11 @@ pub trait EventLoopProxyProvider: Send + Sync + Debug {
 /// - A reference-counted pointer to the underlying type.
 #[derive(Clone)]
 pub struct OwnedDisplayHandle {
-    pub(crate) handle: Arc<dyn HasDisplayHandle>,
+    pub(crate) handle: Arc<dyn HasDisplayHandle + Send + Sync>,
 }
 
 impl OwnedDisplayHandle {
-    pub fn new(handle: Arc<dyn HasDisplayHandle>) -> Self {
+    pub fn new(handle: Arc<dyn HasDisplayHandle + Send + Sync>) -> Self {
         Self { handle }
     }
 }
