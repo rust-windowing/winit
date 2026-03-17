@@ -9,6 +9,9 @@ rust-version.workspace = true
 version.workspace = true
 
 [features]
+#TODO remove from default before merging
+default = ["experimental_ime_rewrite"]
+experimental_ime_rewrite = []
 serde = ["dep:serde", "bitflags/serde", "smol_str/serde", "dpi/serde"]
 
 [dependencies]
