@@ -53,11 +53,7 @@ changelog entry.
 
 ### Fixed
 
-- On X11, fix `set_hittest` not working on some window managers.
 - On Redox, handle `EINTR` when reading from `event_socket` instead of panicking.
 - On Wayland, switch from using the `ahash` hashing algorithm to `foldhash`.
 - On macOS, fix borderless game presentation options not sticking after switching spaces.
-- On Windows, fix `WM_IME_SETCONTEXT` IME UI flag masking on `lParam`.
-- On macOS, fix crash in `set_marked_text` when native Pinyin IME sends out-of-bounds `selected_range`.
-- On X11, fix debug mode overflow panic in `set_timestamp`.
 - On macOS, fix IME being locked on (regardless of requests to disable) after being enabled once.
