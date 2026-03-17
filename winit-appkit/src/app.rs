@@ -9,6 +9,7 @@ use objc2::runtime::{Imp, Sel};
 use objc2::sel;
 use objc2_app_kit::{NSApplication, NSEvent, NSEventModifierFlags, NSEventType};
 use objc2_foundation::MainThreadMarker;
+use tracing::trace_span;
 use winit_core::event::{DeviceEvent, ElementState};
 
 use super::app_state::AppState;
@@ -21,6 +22,10 @@ static ORIGINAL: MainThreadBound<Cell<Option<SendEvent>>> = {
 };
 
 extern "C-unwind" fn send_event(app: &NSApplication, sel: Sel, event: &NSEvent) {
+    // This can be a bit noisy, since `event` is fairly large. Note that you can use
+    // `RUST_LOG='trace,winit_appkit::app=warn'` if you're debugging and want TRACE-level logs but
+    // not this.
+    let _entered = trace_span!("sendEvent:", ?event).entered();
     let mtm = MainThreadMarker::from(app);
 
     // Normally, holding Cmd + any key never sends us a `keyUp` event for that key.
