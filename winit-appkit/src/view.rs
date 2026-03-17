@@ -1,4 +1,4 @@
-#![allow(clippy::unnecessary_cast)]
+#![expect(clippy::unnecessary_cast)]
 use std::cell::{Cell, RefCell};
 use std::collections::{HashMap, VecDeque};
 use std::ptr;
