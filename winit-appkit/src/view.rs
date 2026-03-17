@@ -994,7 +994,7 @@ impl WinitView {
     }
     #[cfg(feature = "experimental_ime_rewrite")]
     pub(super) fn enable_ime(&self, capabilities: ImeCapabilities) {
-        todo!();
+        self.ivars().ime_capabilities.set(Some(capabilities));
     }
 
     #[cfg(not(feature = "experimental_ime_rewrite"))]
@@ -1011,7 +1011,7 @@ impl WinitView {
     }
     #[cfg(feature = "experimental_ime_rewrite")]
     pub(super) fn disable_ime(&self) {
-        todo!()
+        let _ = self.ivars().ime_capabilities.take();
     }
 
     pub(super) fn ime_capabilities(&self) -> Option<ImeCapabilities> {
