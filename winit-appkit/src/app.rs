@@ -98,6 +98,7 @@ pub(crate) fn override_send_event(global_app: &NSApplication) {
 }
 
 fn maybe_dispatch_device_event(app_state: &Rc<AppState>, event: &NSEvent) {
+    let time = app_state.event_time(event);
     let event_type = event.r#type();
     #[allow(non_upper_case_globals)]
     match event_type {
@@ -110,7 +111,7 @@ fn maybe_dispatch_device_event(app_state: &Rc<AppState>, event: &NSEvent) {
 
             if delta_x != 0.0 || delta_y != 0.0 {
                 app_state.maybe_queue_with_handler(move |app, event_loop| {
-                    app.device_event(event_loop, None, DeviceEvent::PointerMotion {
+                    app.device_event(event_loop, None, time, DeviceEvent::PointerMotion {
                         delta: (delta_x, delta_y),
                     });
                 });
@@ -119,7 +120,7 @@ fn maybe_dispatch_device_event(app_state: &Rc<AppState>, event: &NSEvent) {
         NSEventType::LeftMouseDown | NSEventType::RightMouseDown | NSEventType::OtherMouseDown => {
             let button = event.buttonNumber() as u32;
             app_state.maybe_queue_with_handler(move |app, event_loop| {
-                app.device_event(event_loop, None, DeviceEvent::Button {
+                app.device_event(event_loop, None, time, DeviceEvent::Button {
                     button,
                     state: ElementState::Pressed,
                 });
@@ -128,7 +129,7 @@ fn maybe_dispatch_device_event(app_state: &Rc<AppState>, event: &NSEvent) {
         NSEventType::LeftMouseUp | NSEventType::RightMouseUp | NSEventType::OtherMouseUp => {
             let button = event.buttonNumber() as u32;
             app_state.maybe_queue_with_handler(move |app, event_loop| {
-                app.device_event(event_loop, None, DeviceEvent::Button {
+                app.device_event(event_loop, None, time, DeviceEvent::Button {
                     button,
                     state: ElementState::Released,
                 });

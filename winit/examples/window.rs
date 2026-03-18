@@ -1,6 +1,7 @@
 //! Simple winit window example.
 
 use std::error::Error;
+use std::time::Instant;
 
 use winit::application::ApplicationHandler;
 use winit::event::WindowEvent;
@@ -36,8 +37,14 @@ impl ApplicationHandler for App {
         }
     }
 
-    fn window_event(&mut self, event_loop: &dyn ActiveEventLoop, _: WindowId, event: WindowEvent) {
-        println!("{event:?}");
+    fn window_event(
+        &mut self,
+        event_loop: &dyn ActiveEventLoop,
+        _: WindowId,
+        timestamp: Instant,
+        event: WindowEvent,
+    ) {
+        ::tracing::info!("{:?}: {event:?}", timestamp.elapsed());
         match event {
             WindowEvent::CloseRequested => {
                 println!("Close was requested; stopping");
@@ -62,10 +69,20 @@ impl ApplicationHandler for App {
                 fill::fill_window(window.as_ref());
 
                 // For contiguous redraw loop you can request a redraw from here.
-                // window.request_redraw();
+                window.request_redraw();
             },
             _ => (),
         }
+    }
+
+    fn device_event(
+        &mut self,
+        _event_loop: &dyn ActiveEventLoop,
+        _device_id: Option<winit::event::DeviceId>,
+        timestamp: Instant,
+        event: winit::event::DeviceEvent,
+    ) {
+        ::tracing::info!("{:?}: {event:?}", timestamp.elapsed());
     }
 }
 

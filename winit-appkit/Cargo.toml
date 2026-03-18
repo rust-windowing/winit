@@ -107,6 +107,7 @@ objc2-foundation = { workspace = true, features = [
     "NSThread",
     "NSValue",
 ] }
+objc2-quartz-core = { workspace = true, features = ["std", "CABase"] }
 winit-common = { workspace = true, features = ["core-foundation", "event-handler"] }
 
 [dev-dependencies]

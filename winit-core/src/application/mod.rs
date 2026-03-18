@@ -1,4 +1,9 @@
 //! End user application handling.
+#[cfg(not(target_family = "wasm"))]
+use std::time::Instant;
+
+#[cfg(target_family = "wasm")]
+use web_time::Instant;
 
 use crate::event::{DeviceEvent, DeviceId, StartCause, WindowEvent};
 use crate::event_loop::ActiveEventLoop;
@@ -192,10 +197,14 @@ pub trait ApplicationHandler {
     }
 
     /// Emitted when the OS sends an event to a winit window.
+    ///
+    /// Contains the ID of the window, the event, and the time the event was received. Note that
+    /// since events are queued, the time will differ from [`Instant::now()`].
     fn window_event(
         &mut self,
         event_loop: &dyn ActiveEventLoop,
         window_id: WindowId,
+        timestamp: Instant,
         event: WindowEvent,
     );
 
@@ -206,9 +215,10 @@ pub trait ApplicationHandler {
         &mut self,
         event_loop: &dyn ActiveEventLoop,
         device_id: Option<DeviceId>,
+        timestamp: Instant,
         event: DeviceEvent,
     ) {
-        let _ = (event_loop, device_id, event);
+        let _ = (event_loop, device_id, timestamp, event);
     }
 
     /// Emitted when the event loop is about to block and wait for new events.
@@ -372,9 +382,10 @@ impl<A: ?Sized + ApplicationHandler> ApplicationHandler for &mut A {
         &mut self,
         event_loop: &dyn ActiveEventLoop,
         window_id: WindowId,
+        timestamp: Instant,
         event: WindowEvent,
     ) {
-        (**self).window_event(event_loop, window_id, event);
+        (**self).window_event(event_loop, window_id, timestamp, event);
     }
 
     #[inline]
@@ -382,9 +393,10 @@ impl<A: ?Sized + ApplicationHandler> ApplicationHandler for &mut A {
         &mut self,
         event_loop: &dyn ActiveEventLoop,
         device_id: Option<DeviceId>,
+        timestamp: Instant,
         event: DeviceEvent,
     ) {
-        (**self).device_event(event_loop, device_id, event);
+        (**self).device_event(event_loop, device_id, timestamp, event);
     }
 
     #[inline]
@@ -440,9 +452,10 @@ impl<A: ?Sized + ApplicationHandler> ApplicationHandler for Box<A> {
         &mut self,
         event_loop: &dyn ActiveEventLoop,
         window_id: WindowId,
+        timestamp: Instant,
         event: WindowEvent,
     ) {
-        (**self).window_event(event_loop, window_id, event);
+        (**self).window_event(event_loop, window_id, timestamp, event);
     }
 
     #[inline]
@@ -450,9 +463,10 @@ impl<A: ?Sized + ApplicationHandler> ApplicationHandler for Box<A> {
         &mut self,
         event_loop: &dyn ActiveEventLoop,
         device_id: Option<DeviceId>,
+        timestamp: Instant,
         event: DeviceEvent,
     ) {
-        (**self).device_event(event_loop, device_id, event);
+        (**self).device_event(event_loop, device_id, timestamp, event);
     }
 
     #[inline]

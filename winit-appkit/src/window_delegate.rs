@@ -5,6 +5,7 @@ use std::ffi::c_void;
 use std::ptr;
 use std::rc::Rc;
 use std::sync::{Arc, Mutex};
+use std::time::Instant;
 
 use dpi::{
     LogicalInsets, LogicalPosition, LogicalSize, PhysicalInsets, PhysicalPosition, PhysicalSize,
@@ -903,9 +904,16 @@ impl WindowDelegate {
     }
 
     pub(crate) fn queue_event(&self, event: WindowEvent) {
+        let app = NSApplication::sharedApplication(self.mtm());
         let window_id = window_id(self.window());
+        let time = if let Some(nsevent) = app.currentEvent() {
+            self.ivars().app_state.event_time(&nsevent)
+        } else {
+            warn!("queued event with wrong timestamp, no active NSEvent found");
+            Instant::now()
+        };
         self.ivars().app_state.maybe_queue_with_handler(move |app, event_loop| {
-            app.window_event(event_loop, window_id, event);
+            app.window_event(event_loop, window_id, time, event);
         });
     }
 
