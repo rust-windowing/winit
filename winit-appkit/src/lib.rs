@@ -50,15 +50,13 @@
 //! }
 //!
 //! fn main() -> Result<(), Box<dyn std::error::Error>> {
-//!     let event_loop = EventLoop::new()?;
-//!
+//!     // Register the delegate before Winit gets a chance to touch things.
 //!     let mtm = MainThreadMarker::new().unwrap();
 //!     let delegate = AppDelegate::new(mtm);
-//!     // Important: Call `sharedApplication` after `EventLoop::new`,
-//!     // doing it before is not yet supported.
 //!     let app = NSApplication::sharedApplication(mtm);
 //!     app.setDelegate(Some(ProtocolObject::from_ref(&*delegate)));
 //!
+//!     let event_loop = EventLoop::new()?;
 //!     // event_loop.run_app(&mut my_app);
 //!     Ok(())
 //! }
