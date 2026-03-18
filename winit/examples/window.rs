@@ -2,12 +2,16 @@
 
 use std::error::Error;
 
+use dpi::PhysicalInsets;
 use winit::application::ApplicationHandler;
 use winit::event::WindowEvent;
 use winit::event_loop::{ActiveEventLoop, EventLoop};
 #[cfg(web_platform)]
 use winit::platform::web::WindowAttributesWeb;
-use winit::window::{Window, WindowAttributes, WindowId};
+use winit::window::{
+    ImeCapabilities, ImeEnableRequest, ImeRequest, ImeRequestData, Window, WindowAttributes,
+    WindowId,
+};
 
 #[path = "util/fill.rs"]
 mod fill;
@@ -17,6 +21,7 @@ mod tracing;
 #[derive(Default, Debug)]
 struct App {
     window: Option<Box<dyn Window>>,
+    prev_safe_area: PhysicalInsets<u32>,
 }
 
 impl ApplicationHandler for App {
@@ -33,11 +38,24 @@ impl ApplicationHandler for App {
                 event_loop.exit();
                 return;
             },
-        }
+        };
+
+        // Allow IME out of the box.
+        let enable_request =
+            ImeEnableRequest::new(ImeCapabilities::new(), ImeRequestData::default()).unwrap();
+        let enable_ime = ImeRequest::Enable(enable_request);
+
+        // Initial update
+        self.window.as_ref().unwrap().request_ime_update(enable_ime).unwrap();
     }
 
     fn window_event(&mut self, event_loop: &dyn ActiveEventLoop, _: WindowId, event: WindowEvent) {
-        println!("{event:?}");
+        let current_safe_area = self.window.as_ref().unwrap().safe_area();
+        if self.prev_safe_area != current_safe_area {
+            println!("safe area changed from {:?} to {:?}", self.prev_safe_area, current_safe_area);
+            self.prev_safe_area = current_safe_area;
+        }
+
         match event {
             WindowEvent::CloseRequested => {
                 println!("Close was requested; stopping");
@@ -47,6 +65,7 @@ impl ApplicationHandler for App {
                 self.window.as_ref().expect("resize event without a window").request_redraw();
             },
             WindowEvent::RedrawRequested => {
+                println!("redraw");
                 // Redraw the application.
                 //
                 // It's preferable for applications that do not render continuously to render in
@@ -64,8 +83,15 @@ impl ApplicationHandler for App {
                 // For contiguous redraw loop you can request a redraw from here.
                 // window.request_redraw();
             },
-            _ => (),
+            _ => {
+                println!("{event:?}");
+            },
         }
+    }
+
+    fn about_to_wait(&mut self, event_loop: &dyn ActiveEventLoop) {
+        let window = self.window.as_ref().expect("redraw request without a window");
+        // window.request_redraw();
     }
 }
 
