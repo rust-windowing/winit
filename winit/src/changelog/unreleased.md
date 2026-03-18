@@ -44,15 +44,18 @@ changelog entry.
 
 - Add `keyboard` support for OpenHarmony.
 - On iOS, add Apple Pencil support with force, altitude, and azimuth data.
+- On Redox, add support for missing keyboard scancodes.
+- Implement `Send` and `Sync` for `OwnedDisplayHandle`.
+- Use new macOS 15 cursors for resize icons.
 
 ### Changed
 
 - Updated `windows-sys` to `v0.61`.
+- On older macOS versions (tested up to 12.7.6), applications now receive mouse movement events for unfocused windows, matching the behavior on other platforms.
 
 ### Fixed
 
-- On X11, fix `set_hittest` not working on some window managers.
 - On Redox, handle `EINTR` when reading from `event_socket` instead of panicking.
 - On Wayland, switch from using the `ahash` hashing algorithm to `foldhash`.
 - On macOS, fix borderless game presentation options not sticking after switching spaces.
-- Use new macOS 15 cursors for resize icons.
+- On macOS, fix IME being locked on (regardless of requests to disable) after being enabled once.

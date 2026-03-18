@@ -42,6 +42,7 @@ use objc2_foundation::{
     NSRect, NSSize, NSString, ns_string,
 };
 use tracing::{trace, warn};
+use winit_common::core_foundation::MainRunLoop;
 use winit_core::cursor::Cursor;
 use winit_core::error::{NotSupportedError, RequestError};
 use winit_core::event::{SurfaceSizeWriter, WindowEvent};
@@ -56,7 +57,6 @@ use super::app_state::AppState;
 use super::cursor::{CustomCursor, cursor_from_icon};
 use super::ffi;
 use super::monitor::{self, MonitorHandle, flip_window_screen_coordinates, get_display_id};
-use super::observer::RunLoop;
 use super::util::cgerr;
 use super::view::WinitView;
 use super::window::{WinitPanel, WinitWindow, window_id};
@@ -177,7 +177,7 @@ define_class!(
 
             let mtm = MainThreadMarker::from(self);
             let this = self.retain();
-            RunLoop::main(mtm).queue_closure(move || {
+            MainRunLoop::get(mtm).queue_closure(move || {
                 this.handle_scale_factor_changed(scale_factor);
             });
         }
@@ -1686,7 +1686,7 @@ impl WindowDelegate {
                 if current_caps.is_some() {
                     return Err(ImeRequestError::AlreadyEnabled);
                 }
-                self.view().set_ime_allowed(Some(capabilities));
+                self.view().enable_ime(capabilities);
                 request_data
             },
             ImeRequest::Update(request_data) => {
@@ -1696,7 +1696,7 @@ impl WindowDelegate {
                 request_data
             },
             ImeRequest::Disable => {
-                self.view().set_ime_allowed(None);
+                self.view().disable_ime();
                 return Ok(());
             },
         };

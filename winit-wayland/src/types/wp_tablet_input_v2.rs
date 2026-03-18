@@ -21,6 +21,13 @@ use sctk::reexports::protocols::wp::tablet::zv2::client::zwp_tablet_tool_v2::{
     ButtonState, Event as ToolEvent, Type as ToolType, ZwpTabletToolV2,
 };
 use sctk::reexports::protocols::wp::tablet::zv2::client::zwp_tablet_v2::ZwpTabletV2;
+use wayland_protocols::wp::tablet::zv2::client::zwp_tablet_pad_dial_v2::ZwpTabletPadDialV2;
+use wayland_protocols::wp::tablet::zv2::client::zwp_tablet_pad_group_v2::{
+    self, ZwpTabletPadGroupV2,
+};
+use wayland_protocols::wp::tablet::zv2::client::zwp_tablet_pad_ring_v2::ZwpTabletPadRingV2;
+use wayland_protocols::wp::tablet::zv2::client::zwp_tablet_pad_strip_v2::ZwpTabletPadStripV2;
+use wayland_protocols::wp::tablet::zv2::client::zwp_tablet_pad_v2;
 use winit_core::event::{
     ButtonSource, ElementState, Force, PointerKind, PointerSource, TabletToolButton,
     TabletToolData as CoreTabletToolData, TabletToolKind, TabletToolTilt, WindowEvent,
@@ -324,10 +331,68 @@ impl Dispatch<ZwpTabletV2, (), WinitState> for TabletManager {
 }
 
 impl Dispatch<ZwpTabletPadV2, (), WinitState> for TabletManager {
+    event_created_child!(WinitState, ZwpTabletPadV2, [
+        zwp_tablet_pad_v2::EVT_GROUP_OPCODE => (ZwpTabletPadGroupV2, Default::default()),
+    ]);
+
     fn event(
         _: &mut WinitState,
         _: &ZwpTabletPadV2,
         _: <ZwpTabletPadV2 as Proxy>::Event,
+        _: &(),
+        _: &Connection,
+        _: &QueueHandle<WinitState>,
+    ) {
+    }
+}
+
+impl Dispatch<ZwpTabletPadGroupV2, (), WinitState> for TabletManager {
+    event_created_child!(WinitState, ZwpTabletPadGroupV2, [
+        zwp_tablet_pad_group_v2::EVT_RING_OPCODE => (ZwpTabletPadRingV2, Default::default()),
+        zwp_tablet_pad_group_v2::EVT_STRIP_OPCODE => (ZwpTabletPadStripV2, Default::default()),
+        zwp_tablet_pad_group_v2::EVT_DIAL_OPCODE => (ZwpTabletPadDialV2, Default::default()),
+    ]);
+
+    fn event(
+        _: &mut WinitState,
+        _: &ZwpTabletPadGroupV2,
+        _: <ZwpTabletPadGroupV2 as Proxy>::Event,
+        _: &(),
+        _: &Connection,
+        _: &QueueHandle<WinitState>,
+    ) {
+    }
+}
+
+impl Dispatch<ZwpTabletPadRingV2, (), WinitState> for TabletManager {
+    fn event(
+        _: &mut WinitState,
+        _: &ZwpTabletPadRingV2,
+        _: <ZwpTabletPadRingV2 as Proxy>::Event,
+        _: &(),
+        _: &Connection,
+        _: &QueueHandle<WinitState>,
+    ) {
+    }
+}
+
+impl Dispatch<ZwpTabletPadStripV2, (), WinitState> for TabletManager {
+    fn event(
+        _: &mut WinitState,
+        _: &ZwpTabletPadStripV2,
+        _: <ZwpTabletPadStripV2 as Proxy>::Event,
+        _: &(),
+        _: &Connection,
+        _: &QueueHandle<WinitState>,
+    ) {
+    }
+}
+
+impl Dispatch<ZwpTabletPadDialV2, (), WinitState> for TabletManager {
+    fn event(
+        _: &mut WinitState,
+        _: &ZwpTabletPadDialV2,
+        _: <ZwpTabletPadDialV2 as Proxy>::Event,
         _: &(),
         _: &Connection,
         _: &QueueHandle<WinitState>,
@@ -341,3 +406,7 @@ delegate_dispatch!(WinitState: [ZwpTabletSeatV2: ()] => TabletManager);
 delegate_dispatch!(WinitState: [ZwpTabletV2: ()] => TabletManager);
 delegate_dispatch!(WinitState: [ZwpTabletToolV2: TabletToolData] => TabletManager);
 delegate_dispatch!(WinitState: [ZwpTabletPadV2: ()] => TabletManager);
+delegate_dispatch!(WinitState: [ZwpTabletPadGroupV2: ()] => TabletManager);
+delegate_dispatch!(WinitState: [ZwpTabletPadRingV2: ()] => TabletManager);
+delegate_dispatch!(WinitState: [ZwpTabletPadStripV2: ()] => TabletManager);
+delegate_dispatch!(WinitState: [ZwpTabletPadDialV2: ()] => TabletManager);
