@@ -309,7 +309,7 @@ pub(crate) fn handle_nonuser_events<I: IntoIterator<Item = EventWrapper>>(
 
     for event in events {
         if !processing_redraws && event.is_redraw() {
-            tracing::info!("processing `RedrawRequested` during the main event loop");
+            // tracing::info!("processing `RedrawRequested` during the main event loop");
         } else if processing_redraws && !event.is_redraw() {
             tracing::warn!(
                 "processing non `RedrawRequested` event after the main event loop: {:#?}",
@@ -327,7 +327,7 @@ pub(crate) fn handle_nonuser_events<I: IntoIterator<Item = EventWrapper>>(
 
         for event in queued_events {
             if !processing_redraws && event.is_redraw() {
-                tracing::info!("processing `RedrawRequested` during the main event loop");
+                // tracing::info!("processing `RedrawRequested` during the main event loop");
             } else if processing_redraws && !event.is_redraw() {
                 tracing::warn!(
                     "processing non-`RedrawRequested` event after the main event loop: {:#?}",

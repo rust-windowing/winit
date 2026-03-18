@@ -124,7 +124,7 @@ define_class!(
 
         #[unsafe(method(safeAreaInsetsDidChange))]
         fn safe_area_changed(&self) {
-            debug!("safeAreaInsetsDidChange was called, requesting redraw");
+            println!("safeAreaInsetsDidChange was called, requesting redraw");
             // When the safe area changes we want to make sure to emit a redraw event
             self.setNeedsDisplay();
         }

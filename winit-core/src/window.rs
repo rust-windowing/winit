@@ -752,10 +752,11 @@ pub trait Window: AsAny + Send + Sync + fmt::Debug {
     /// The inset area of the surface that is unobstructed.
     ///
     /// On some devices, especially mobile devices, the screen is not a perfect rectangle, and may
-    /// have rounded corners, notches, bezels, and so on. When drawing your content, you usually
-    /// want to draw your background and other such unimportant content on the entire surface, while
-    /// you will want to restrict important content such as text, interactable or visual indicators
-    /// to the part of the screen that is actually visible; for this, you use the safe area.
+    /// have rounded corners, notches, bezels, and so on. Additionally, a soft keyboard may be open.
+    /// When drawing your content, you usually want to draw your background and other such
+    /// unimportant content on the entire surface, while you will want to restrict important content
+    /// such as text, interactable or visual indicators to the part of the screen that is actually
+    /// visible; for this, you use the safe area.
     ///
     /// The safe area is a rectangle that is defined relative to the origin at the top-left corner
     /// of the surface, and the size extending downwards to the right. The area will not extend

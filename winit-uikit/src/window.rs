@@ -11,6 +11,7 @@ use dpi::{
 use objc2::rc::Retained;
 use objc2::{MainThreadMarker, available, class, define_class, msg_send};
 use objc2_core_foundation::{CGFloat, CGPoint, CGRect, CGSize};
+use objc2_core_graphics::CGRectIntersection;
 use objc2_foundation::{NSObject, NSObjectProtocol};
 use objc2_ui_kit::{
     UIApplication, UICoordinateSpace, UIEdgeInsets, UIResponder, UIScreen,
@@ -202,7 +203,7 @@ impl Inner {
     }
 
     pub fn safe_area(&self) -> PhysicalInsets<u32> {
-        let insets = if available!(ios = 11.0, tvos = 11.0, visionos = 1.0) {
+        let device_insets = if available!(ios = 11.0, tvos = 11.0, visionos = 1.0) {
             self.view.safeAreaInsets()
         } else {
             // Assume the status bar frame is the only thing that obscures the view
@@ -211,7 +212,17 @@ impl Inner {
             let status_bar_frame = app.statusBarFrame();
             UIEdgeInsets { top: status_bar_frame.size.height, left: 0.0, bottom: 0.0, right: 0.0 }
         };
-        let insets = LogicalInsets::new(insets.top, insets.left, insets.bottom, insets.right);
+
+        let keyboard_frame = self.view_controller.current_keyboard_frame();
+        let intersection = CGRectIntersection(self.view.bounds(), keyboard_frame);
+
+        let insets = LogicalInsets::new(
+            device_insets.top,
+            device_insets.left,
+            // Assume that the keyboard appears from the bottom.
+            device_insets.bottom + intersection.size.height,
+            device_insets.right,
+        );
         insets.to_physical(self.scale_factor())
     }
 
