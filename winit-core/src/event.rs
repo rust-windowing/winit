@@ -156,6 +156,8 @@ pub enum WindowEvent {
     Ime(Ime),
 
     /// The pointer has moved on the window.
+    ///
+    /// Should be emitted regardless of window focus.
     PointerMoved {
         device_id: Option<DeviceId>,
 
@@ -184,6 +186,8 @@ pub enum WindowEvent {
     },
 
     /// The pointer has entered the window.
+    ///
+    /// Should be emitted regardless of window focus.
     PointerEntered {
         device_id: Option<DeviceId>,
 
@@ -209,6 +213,8 @@ pub enum WindowEvent {
     },
 
     /// The pointer has left the window.
+    ///
+    /// Should be emitted regardless of window focus.
     PointerLeft {
         device_id: Option<DeviceId>,
 
