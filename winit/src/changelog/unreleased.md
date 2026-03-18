@@ -46,6 +46,7 @@ changelog entry.
 - On iOS, add Apple Pencil support with force, altitude, and azimuth data.
 - On Redox, add support for missing keyboard scancodes.
 - Implement `Send` and `Sync` for `OwnedDisplayHandle`.
+- Use new macOS 15 cursors for resize icons.
 
 ### Changed
 
