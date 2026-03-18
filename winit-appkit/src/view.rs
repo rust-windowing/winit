@@ -2,11 +2,12 @@
 use std::cell::{Cell, RefCell};
 use std::collections::{HashMap, VecDeque};
 use std::rc::Rc;
+use std::time::Instant;
 
 use dpi::{LogicalPosition, LogicalSize};
 use objc2::rc::Retained;
 use objc2::runtime::{AnyObject, Sel};
-use objc2::{AnyThread, DefinedClass, MainThreadMarker, define_class, msg_send};
+use objc2::{AnyThread, DefinedClass, MainThreadMarker, MainThreadOnly, define_class, msg_send};
 use objc2_app_kit::{
     NSApplication, NSCursor, NSEvent, NSEventPhase, NSResponder, NSTextInputClient, NSTrackingArea,
     NSTrackingAreaOptions, NSView, NSWindow,
@@ -16,6 +17,7 @@ use objc2_foundation::{
     NSArray, NSAttributedString, NSAttributedStringKey, NSCopying, NSMutableAttributedString,
     NSNotFound, NSObject, NSPoint, NSRange, NSRect, NSSize, NSString, NSUInteger,
 };
+use tracing::warn;
 use winit_core::event::{
     DeviceEvent, ElementState, Ime, KeyEvent, Modifiers, MouseButton, MouseScrollDelta,
     PointerKind, PointerSource, TouchPhase, WindowEvent,
@@ -680,8 +682,9 @@ define_class!(
 
             self.update_modifiers(event, false);
 
+            let time = self.ivars().app_state.event_time(event);
             self.ivars().app_state.maybe_queue_with_handler(move |app, event_loop| {
-                app.device_event(event_loop, None, DeviceEvent::MouseWheel { delta })
+                app.device_event(event_loop, None, time, DeviceEvent::MouseWheel { delta })
             });
             self.queue_event(WindowEvent::MouseWheel { device_id: None, delta, phase });
         }
@@ -844,9 +847,16 @@ impl WinitView {
     }
 
     fn queue_event(&self, event: WindowEvent) {
+        let app = NSApplication::sharedApplication(self.mtm());
         let window_id = window_id(&self.window());
+        let time = if let Some(nsevent) = app.currentEvent() {
+            self.ivars().app_state.event_time(&nsevent)
+        } else {
+            warn!("queued event with wrong timestamp, no active NSEvent found");
+            Instant::now()
+        };
         self.ivars().app_state.maybe_queue_with_handler(move |app, event_loop| {
-            app.window_event(event_loop, window_id, event);
+            app.window_event(event_loop, window_id, time, event);
         });
     }
 

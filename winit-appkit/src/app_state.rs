@@ -2,12 +2,14 @@ use std::cell::{Cell, OnceCell, RefCell};
 use std::mem;
 use std::rc::Rc;
 use std::sync::Arc;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use dispatch2::MainThreadBound;
 use objc2::MainThreadMarker;
-use objc2_app_kit::{NSApplication, NSApplicationActivationPolicy, NSRunningApplication};
-use objc2_foundation::NSNotification;
+use objc2_app_kit::{NSApplication, NSApplicationActivationPolicy, NSEvent, NSRunningApplication};
+use objc2_foundation::{NSNotification, NSTimeInterval};
+use objc2_quartz_core::CACurrentMediaTime;
+use tracing::warn;
 use winit_common::core_foundation::{EventLoopProxy, MainRunLoop};
 use winit_common::event_handler::EventHandler;
 use winit_core::application::ApplicationHandler;
@@ -43,6 +45,8 @@ pub(super) struct AppState {
     start_time: Cell<Option<Instant>>,
     wait_timeout: Cell<Option<Instant>>,
     pending_redraw: RefCell<Vec<WindowId>>,
+    startup_instant: Instant,
+    startup_timestamp: NSTimeInterval,
     // NOTE: This is strongly referenced by our `NSWindowDelegate` and our `NSView` subclass, and
     // as such should be careful to not add fields that, in turn, strongly reference those.
 }
@@ -62,6 +66,17 @@ impl AppState {
         let event_loop_proxy = Arc::new(EventLoopProxy::new(mtm, move || {
             Self::get(mtm).with_handler(|app, event_loop| app.proxy_wake_up(event_loop));
         }));
+
+        // Prime dylib caches etc.
+        let _ = CACurrentMediaTime();
+
+        // Find the current Rust timestamp.
+        let startup_instant = Instant::now();
+        // Find the timestamp
+        //
+        // `NSProcessInfo::processInfo().systemUptime()` needs the required reason manifest,
+        // `CACurrentMediaTime` (currently) doesn't, so we use that instead.
+        let startup_timestamp = CACurrentMediaTime();
 
         let this = Rc::new(Self {
             mtm,
@@ -83,6 +98,8 @@ impl AppState {
             start_time: Cell::new(None),
             wait_timeout: Cell::new(None),
             pending_redraw: RefCell::new(vec![]),
+            startup_instant,
+            startup_timestamp,
         });
 
         GLOBAL.get(mtm).set(this.clone()).ok().and(Some(this))
@@ -94,6 +111,16 @@ impl AppState {
             .get()
             .expect("tried to get application state before it was registered")
             .clone()
+    }
+
+    pub(crate) fn event_time(&self, event: &NSEvent) -> Instant {
+        if event.timestamp() == 0.0 {
+            warn!(?event, "got zero timestamp");
+            return Instant::now();
+        }
+        let duration_since_startup = event.timestamp() - self.startup_timestamp;
+        let duration_since_startup = Duration::from_secs_f64(duration_since_startup as f64);
+        self.startup_instant + duration_since_startup
     }
 
     // NOTE: This notification will, globally, only be emitted once,
@@ -247,7 +274,12 @@ impl AppState {
         // -> Don't go back into the event handler when our callstack originates from there
         if !self.event_handler.in_use() {
             self.with_handler(|app, event_loop| {
-                app.window_event(event_loop, window_id, WindowEvent::RedrawRequested);
+                app.window_event(
+                    event_loop,
+                    window_id,
+                    Instant::now(),
+                    WindowEvent::RedrawRequested,
+                );
             });
 
             // `pump_events` will request to stop immediately _after_ dispatching RedrawRequested
@@ -347,7 +379,12 @@ impl AppState {
         let redraw = mem::take(&mut *self.pending_redraw.borrow_mut());
         for window_id in redraw {
             self.with_handler(|app, event_loop| {
-                app.window_event(event_loop, window_id, WindowEvent::RedrawRequested);
+                app.window_event(
+                    event_loop,
+                    window_id,
+                    Instant::now(),
+                    WindowEvent::RedrawRequested,
+                );
             });
         }
         self.with_handler(|app, event_loop| {
