@@ -1,16 +1,15 @@
 #![allow(clippy::unnecessary_cast)]
 use std::cell::{Cell, RefCell};
 use std::collections::{HashMap, VecDeque};
-use std::ptr;
 use std::rc::Rc;
 
 use dpi::{LogicalPosition, LogicalSize};
 use objc2::rc::Retained;
 use objc2::runtime::{AnyObject, Sel};
-use objc2::{DefinedClass, MainThreadMarker, define_class, msg_send};
+use objc2::{AnyThread, DefinedClass, MainThreadMarker, define_class, msg_send};
 use objc2_app_kit::{
-    NSApplication, NSCursor, NSEvent, NSEventPhase, NSResponder, NSTextInputClient,
-    NSTrackingRectTag, NSView, NSWindow,
+    NSApplication, NSCursor, NSEvent, NSEventPhase, NSResponder, NSTextInputClient, NSTrackingArea,
+    NSTrackingAreaOptions, NSView, NSWindow,
 };
 use objc2_core_foundation::CGRect;
 use objc2_foundation::{
@@ -119,7 +118,6 @@ pub struct ViewState {
     ime_size: Cell<NSSize>,
     modifiers: Cell<Modifiers>,
     phys_modifiers: RefCell<HashMap<Key, ModLocationMask>>,
-    tracking_rect: Cell<Option<NSTrackingRectTag>>,
     ime_state: Cell<ImeState>,
     input_source: RefCell<String>,
 
@@ -131,7 +129,6 @@ pub struct ViewState {
     /// True if the current key event should be forwarded
     /// to the application, even during IME
     forward_key_to_app: Cell<bool>,
-
     marked_text: RefCell<Retained<NSMutableAttributedString>>,
     accepts_first_mouse: bool,
 
@@ -153,41 +150,17 @@ define_class!(
             true
         }
 
-        #[unsafe(method(viewDidMoveToWindow))]
-        fn view_did_move_to_window(&self) {
-            trace_scope!("viewDidMoveToWindow");
-            if let Some(tracking_rect) = self.ivars().tracking_rect.take() {
-                self.removeTrackingRect(tracking_rect);
-            }
-
-            let rect = self.frame();
-            let tracking_rect = unsafe {
-                self.addTrackingRect_owner_userData_assumeInside(rect, self, ptr::null_mut(), false)
-            };
-            assert_ne!(tracking_rect, 0, "failed adding tracking rect");
-            self.ivars().tracking_rect.set(Some(tracking_rect));
-        }
-
         // Not a normal method on `NSView`, it's triggered by `NSViewFrameDidChangeNotification`.
         #[unsafe(method(viewFrameDidChangeNotification:))]
         fn frame_did_change(&self, _notification: Option<&AnyObject>) {
             trace_scope!("NSViewFrameDidChangeNotification");
-            if let Some(tracking_rect) = self.ivars().tracking_rect.take() {
-                self.removeTrackingRect(tracking_rect);
-            }
-
-            let rect = self.frame();
-            let tracking_rect = unsafe {
-                self.addTrackingRect_owner_userData_assumeInside(rect, self, ptr::null_mut(), false)
-            };
-            assert_ne!(tracking_rect, 0, "failed adding tracking rect");
-            self.ivars().tracking_rect.set(Some(tracking_rect));
 
             // Emit resize event here rather than from windowDidResize because:
             // 1. When a new window is created as a tab, the frame size may change without a window
             //    resize occurring.
             // 2. Even when a window resize does occur on a new tabbed window, it contains the wrong
             //    size (includes tab height).
+            let rect = self.frame();
             let logical_size = LogicalSize::new(rect.size.width as f64, rect.size.height as f64);
             let size = logical_size.to_physical::<u32>(self.scale_factor());
             self.queue_event(WindowEvent::SurfaceResized(size));
@@ -808,7 +781,6 @@ impl WinitView {
             ime_size: Default::default(),
             modifiers: Default::default(),
             phys_modifiers: Default::default(),
-            tracking_rect: Default::default(),
             ime_state: Default::default(),
             input_source: Default::default(),
             ime_capabilities: Default::default(),
@@ -818,8 +790,51 @@ impl WinitView {
             option_as_alt: Cell::new(option_as_alt),
         });
         let this: Retained<Self> = unsafe { msg_send![super(this), init] };
-
         *this.ivars().input_source.borrow_mut() = this.current_input_source();
+
+        // `MouseEnteredAndExited` enables receiving events through `mouseEntered:` and
+        // `mouseExited:`.
+        //
+        // `MouseMoved` enables receiving events through `mouseMoved:`
+        //
+        // We do not set `CursorUpdate` because it is part of the "flexible" alternative to
+        // `cursorRect` based cursor image updates, and we currently still use
+        // `cursorRect`s. We also can't really switch to this approach because "The
+        // cursorUpdate(with:) message is not sent when the NSTrackingCursorUpdate option is
+        // specified along with [`ActiveAlways`]."
+        //
+        // `ActiveAlways` indicates we want to receive events when the window is not
+        // focused ("key window" in Cocoa terms), which matches the behavior on other
+        // platforms.
+        //
+        // We do not set `AssumeInside` because we want to avoid emitting `Left` events without a
+        // correspondering `Entered` to our consumers, and not setting this flag tells AppKit to
+        // handle this for us by synthesizing entry and exit events in some cases.
+        //
+        // `InVisibleRect` instructs the tracking area's `owner` (our `NSView`) to ignore the value
+        // we provide in `rect` and keep the tracking area's bounds up to date with the
+        // current view bounds automatically.
+        //
+        // We do not set `EnabledDuringMouseDrag` to match the platform behavior on Windows
+        // and Wayland, since neither emit events while being dragged over with an empty
+        // cursor without focus.
+        //
+        // See also https://developer.apple.com/documentation/appkit/nstrackingareaoptions.
+
+        // Safety: the type of `owner` should be `NSView` and is.
+        // The type of `user_info` is irrelevant because it is None.
+        this.addTrackingArea(&*unsafe {
+            NSTrackingArea::initWithRect_options_owner_userInfo(
+                NSTrackingArea::alloc(),
+                NSRect::ZERO,
+                NSTrackingAreaOptions::MouseEnteredAndExited
+                    | NSTrackingAreaOptions::MouseMoved
+                    | NSTrackingAreaOptions::ActiveAlways
+                    | NSTrackingAreaOptions::InVisibleRect,
+                Some(&this),
+                None,
+            )
+        });
 
         this
     }
