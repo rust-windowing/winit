@@ -47,6 +47,7 @@ changelog entry.
 - On Redox, add support for missing keyboard scancodes.
 - Implement `Send` and `Sync` for `OwnedDisplayHandle`.
 - Use new macOS 15 cursors for resize icons.
+- On Android, added scancode conversions for more obscure key codes.
 
 ### Changed
 
