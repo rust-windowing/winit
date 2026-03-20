@@ -55,7 +55,6 @@ use winit_core::window::{
 
 use super::app_state::AppState;
 use super::cursor::{CustomCursor, cursor_from_icon};
-use super::ffi;
 use super::monitor::{self, MonitorHandle, flip_window_screen_coordinates, get_display_id};
 use super::util::cgerr;
 use super::view::WinitView;
@@ -849,10 +848,6 @@ impl WindowDelegate {
             )
         };
 
-        if attrs.blur {
-            delegate.set_blur(attrs.blur);
-        }
-
         if let Some(dim) = attrs.min_surface_size {
             delegate.set_min_surface_size(Some(dim));
         }
@@ -973,17 +968,9 @@ impl WindowDelegate {
     }
 
     pub fn set_blur(&self, blur: bool) {
-        // NOTE: in general we want to specify the blur radius, but the choice of 80
-        // should be a reasonable default.
-        let radius = if blur { 80 } else { 0 };
-        let window_number = self.window().windowNumber();
-        unsafe {
-            ffi::CGSSetWindowBackgroundBlurRadius(
-                ffi::CGSMainConnectionID(),
-                window_number,
-                radius,
-            );
-        }
+        // No-op: the previous implementation used the private API
+        // `CGSSetWindowBackgroundBlurRadius`, which causes App Store rejection.
+        let _ = blur;
     }
 
     pub fn set_visible(&self, visible: bool) {
