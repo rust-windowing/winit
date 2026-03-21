@@ -7,7 +7,8 @@ use std::{io, mem, ptr};
 
 use crate::utils::Lazy;
 use windows_sys::core::{HRESULT, PCWSTR};
-use windows_sys::Win32::Foundation::{BOOL, HANDLE, HMODULE, HWND, POINT, RECT};
+use windows_sys::Win32::Foundation::{BOOL, HANDLE, HMODULE, HWND, NTSTATUS, POINT, RECT};
+use windows_sys::Win32::System::SystemInformation::OSVERSIONINFOW;
 use windows_sys::Win32::Graphics::Gdi::{ClientToScreen, HMONITOR};
 use windows_sys::Win32::System::LibraryLoader::{GetProcAddress, LoadLibraryA};
 use windows_sys::Win32::System::SystemServices::IMAGE_DOS_HEADER;
@@ -278,3 +279,33 @@ pub(crate) static GET_POINTER_TOUCH_INFO: Lazy<Option<GetPointerTouchInfo>> =
     Lazy::new(|| get_function!("user32.dll", GetPointerTouchInfo));
 pub(crate) static GET_POINTER_PEN_INFO: Lazy<Option<GetPointerPenInfo>> =
     Lazy::new(|| get_function!("user32.dll", GetPointerPenInfo));
+
+/// Windows 10 build version, or `None` if not running on Windows 10+.
+/// Used to conditionally apply Windows 10-specific workarounds.
+pub(crate) static WIN10_BUILD_VERSION: Lazy<Option<u32>> = Lazy::new(|| {
+    type RtlGetVersion = unsafe extern "system" fn(*mut OSVERSIONINFOW) -> NTSTATUS;
+    let handle = get_function!("ntdll.dll", RtlGetVersion);
+
+    if let Some(rtl_get_version) = handle {
+        unsafe {
+            let mut vi = OSVERSIONINFOW {
+                dwOSVersionInfoSize: 0,
+                dwMajorVersion: 0,
+                dwMinorVersion: 0,
+                dwBuildNumber: 0,
+                dwPlatformId: 0,
+                szCSDVersion: [0; 128],
+            };
+
+            let status = (rtl_get_version)(&mut vi);
+
+            if status >= 0 && vi.dwMajorVersion == 10 && vi.dwMinorVersion == 0 {
+                Some(vi.dwBuildNumber)
+            } else {
+                None
+            }
+        }
+    } else {
+        None
+    }
+});

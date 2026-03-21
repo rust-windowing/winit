@@ -2305,8 +2305,12 @@ unsafe fn public_window_callback_inner(
                 }
             }
 
+            // On Windows 11+ (build >= 22000), use the suggested rect directly.
+            // The conservative rect + monitor-nudging logic below is a Windows 10
+            // workaround that causes a DPI feedback loop on Windows 11 (winit#4041).
             let new_outer_rect: RECT;
-            {
+            let is_win10 = util::WIN10_BUILD_VERSION.is_some_and(|v| v < 22000);
+            if is_win10 {
                 let suggested_ul =
                     (suggested_rect.left + margin_left, suggested_rect.top + margin_top);
 
@@ -2403,6 +2407,9 @@ unsafe fn public_window_callback_inner(
 
                     conservative_rect
                 };
+            } else {
+                // Windows 11+: trust the OS-provided suggested rect directly.
+                new_outer_rect = suggested_rect;
             }
 
             unsafe {
