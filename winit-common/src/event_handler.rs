@@ -79,6 +79,10 @@ impl EventHandler {
                         // Allowed, happens if the handler was cleared manually
                         // elsewhere (such as in `applicationWillTerminate:`).
                     },
+                    // We use `eprintln!` here over `tracing::error!`, since we're going to abort
+                    // immediately after this, and it'd be annoying for the user if they didn't get
+                    // any feedback on that if they don't have a tracing subscriber.
+                    #[allow(clippy::disallowed_macros)]
                     Err(_) => {
                         // Note: This is not expected to ever happen, this
                         // module generally controls the `RefCell`, and

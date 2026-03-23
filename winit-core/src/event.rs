@@ -156,6 +156,8 @@ pub enum WindowEvent {
     Ime(Ime),
 
     /// The pointer has moved on the window.
+    ///
+    /// Should be emitted regardless of window focus.
     PointerMoved {
         device_id: Option<DeviceId>,
 
@@ -184,6 +186,8 @@ pub enum WindowEvent {
     },
 
     /// The pointer has entered the window.
+    ///
+    /// Should be emitted regardless of window focus.
     ///
     /// ## Platform-specific
     ///
@@ -214,6 +218,8 @@ pub enum WindowEvent {
     },
 
     /// The pointer has left the window.
+    ///
+    /// Should be emitted regardless of window focus.
     ///
     /// ## Platform-specific
     ///
@@ -526,6 +532,19 @@ impl From<PointerSource> for PointerKind {
 /// system.
 #[derive(Clone, Debug, PartialEq)]
 pub enum ButtonSource {
+    /// ## Platform-specific
+    ///
+    /// ### macOS
+    ///
+    /// Users may expect holding [<kbd>CTRL</kbd>](ModifiersState::CONTROL) while
+    /// clicking [`MouseButton::Left`] to result in a "secondary" click, but the way these
+    /// clicks behave natively is slightly different from how a physical secondary
+    /// button press would, depending on the content under the cursor when clicked. If
+    /// applications want this behavior they should implement it themselves by interpreting
+    /// [`Left`](MouseButton::Left) clicks as secondary when
+    /// [<kbd>CTRL</kbd>](ModifiersState::CONTROL) is held and their internal logic deems it
+    /// appropriate for the content under the pointer.
+    /// See also https://github.com/rust-windowing/winit/issues/4469.
     Mouse(MouseButton),
     /// See [`PointerSource::Touch`] for more details.
     ///

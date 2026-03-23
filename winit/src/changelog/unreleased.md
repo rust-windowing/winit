@@ -44,18 +44,20 @@ changelog entry.
 
 - Add `keyboard` support for OpenHarmony.
 - On iOS, add Apple Pencil support with force, altitude, and azimuth data.
+- On Redox, add support for missing keyboard scancodes.
+- Implement `Send` and `Sync` for `OwnedDisplayHandle`.
+- Use new macOS 15 cursors for resize icons.
 - On Android, add TabletTool support. (`ToolType::Pen` and `ToolType::Eraser`)
+- On Android, added scancode conversions for more obscure key codes.
 
 ### Changed
 
 - Updated `windows-sys` to `v0.61`.
+- On older macOS versions (tested up to 12.7.6), applications now receive mouse movement events for unfocused windows, matching the behavior on other platforms.
 
 ### Fixed
 
-- On X11, fix `set_hittest` not working on some window managers.
 - On Redox, handle `EINTR` when reading from `event_socket` instead of panicking.
 - On Wayland, switch from using the `ahash` hashing algorithm to `foldhash`.
 - On macOS, fix borderless game presentation options not sticking after switching spaces.
-- On Windows, fix `WM_IME_SETCONTEXT` IME UI flag masking on `lParam`.
-- On macOS, fix crash in `set_marked_text` when native Pinyin IME sends out-of-bounds `selected_range`.
-- On X11, fix debug mode overflow panic in `set_timestamp`.
+- On macOS, fix IME being locked on (regardless of requests to disable) after being enabled once.
