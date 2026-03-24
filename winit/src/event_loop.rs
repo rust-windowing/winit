@@ -29,7 +29,7 @@ use crate::platform_impl;
 ///
 /// To wake up an `EventLoop` from a another thread, see the [`EventLoopProxy`] docs.
 ///
-/// Note that this cannot be shared across threads (due to platform-dependant logic
+/// Note that this cannot be shared across threads (due to platform-dependent logic
 /// forbidding it), as such it is neither [`Send`] nor [`Sync`]. If you need cross-thread access,
 /// the [`Window`] created from this _can_ be sent to an other thread, and the
 /// [`EventLoopProxy`] allows you to wake up an `EventLoop` from another thread.
