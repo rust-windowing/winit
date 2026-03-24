@@ -64,36 +64,39 @@ impl Popup {
                 let size = attributes
                     .surface_size
                     .ok_or(error!("Invalid size for popup"))?
-                    .to_logical(scale_factor);
+                    .to_physical(scale_factor);
                 positioner.set_anchor_rect(
-                    position.to_logical(scale_factor).x,
-                    position.to_logical(scale_factor).y,
-                    0,
-                    0,
+                    position.to_physical(scale_factor).x,
+                    position.to_physical(scale_factor).y,
+                    10,
+                    10,
                 );
                 positioner.set_size(size.width, size.height);
                 positioner.set_anchor(Anchor::TopLeft);
 
-                let parent_surface = window_state.lock().unwrap().window.xdg_surface();
+                let window = &window_state.lock().unwrap().window;
+                let parent_surface = window.xdg_surface();
                 let surface = state.compositor_state.create_surface(&queue_handle);
                 let popup = SctkPopup::from_surface(
                     Some(parent_surface),
                     &positioner,
                     &queue_handle,
-                    surface,
+                    surface.clone(),
                     &state.xdg_shell,
                 )
                 .map_err(|_| error!("Failed to create popup"))?;
                 Ok(Self {
                     popup,
-                    // state: Acr::new(Mutex::new(State::default()))
+                    popup_state: Arc::new(Mutex::new(State::default())),
                     window_id: make_wid(&surface),
+                    display: event_loop_window_target.handle.connection.display().clone(),
                 })
             } else {
-                Err(RequestError::NotSupported(NotSupportedError::new(&format!(
-                    "Window with id {} not found.",
-                    wayland_window_handle.surface.as_ptr() as usize
-                ))))
+                Err(error!("Parent window id unknown"))
+                // Err(RequestError::NotSupported(NotSupportedError::new(&format!(
+                //     "Window with id {} not found.",
+                //     wayland_window_handle.surface.as_ptr() as usize
+                // ))))
             }
         } else {
             Err(RequestError::NotSupported(NotSupportedError::new(

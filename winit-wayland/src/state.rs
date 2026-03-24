@@ -16,6 +16,7 @@ use sctk::seat::SeatState;
 use sctk::seat::pointer::ThemedPointer;
 use sctk::shell::WaylandSurface;
 use sctk::shell::xdg::XdgShell;
+use sctk::shell::xdg::popup::{Popup as XdgPopup, PopupConfigure, PopupHandler};
 use sctk::shell::xdg::window::{Window, WindowConfigure, WindowHandler};
 use sctk::shm::slot::SlotPool;
 use sctk::shm::{Shm, ShmHandler};
@@ -325,6 +326,25 @@ impl WindowHandler for WinitState {
     }
 }
 
+impl PopupHandler for WinitState {
+    fn configure(
+        &mut self,
+        _: &Connection,
+        _: &QueueHandle<Self>,
+        popup: &XdgPopup,
+        _: PopupConfigure,
+    ) {
+        let window_id = super::make_wid(popup.wl_surface());
+        println!("Finished configuring the popup: {:?}", window_id);
+    }
+
+    fn done(&mut self, _: &Connection, _: &QueueHandle<Self>, popup: &XdgPopup) {
+        let window_id = super::make_wid(popup.wl_surface());
+        println!("Destroying popup with id: {:?}", window_id);
+        Self::queue_close(&mut self.window_compositor_updates, window_id);
+    }
+}
+
 impl OutputHandler for WinitState {
     fn output_state(&mut self) -> &mut OutputState {
         &mut self.output_state
@@ -451,4 +471,5 @@ sctk::delegate_output!(WinitState);
 sctk::delegate_registry!(WinitState);
 sctk::delegate_shm!(WinitState);
 sctk::delegate_xdg_shell!(WinitState);
+sctk::delegate_xdg_popup!(WinitState);
 sctk::delegate_xdg_window!(WinitState);
