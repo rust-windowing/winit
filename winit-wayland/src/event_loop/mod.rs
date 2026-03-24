@@ -651,8 +651,13 @@ impl RootActiveEventLoop for ActiveEventLoop {
         &self,
         window_attributes: winit_core::window::WindowAttributes,
     ) -> Result<Box<dyn winit_core::window::Window>, RequestError> {
-        let window = crate::Window::new(self, window_attributes)?;
-        Ok(Box::new(window))
+        if window_attributes.parent_window().is_some() {
+            let popup = crate::Popup::new(self, window_attributes)?;
+            Ok(Box::new(popup))
+        } else {
+            let window = crate::Window::new(self, window_attributes)?;
+            Ok(Box::new(window))
+        }
     }
 
     fn available_monitors(&self) -> Box<dyn Iterator<Item = CoreMonitorHandle>> {
