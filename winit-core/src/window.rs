@@ -879,6 +879,7 @@ pub trait Window: AsAny + Send + Sync + fmt::Debug {
     ///
     /// ## Platform-specific
     ///
+    /// - **macOS**: Must enable the `private-apple-apis` Cargo feature.
     /// - **Android / iOS / X11 / Web / Windows:** Unsupported.
     /// - **Wayland:** Only works with `org_kde_kwin_blur_manager` or
     ///   `ext_background_effect_manager_v1` protocol.
