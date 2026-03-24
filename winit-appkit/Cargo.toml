@@ -9,6 +9,7 @@ rust-version.workspace = true
 version.workspace = true
 
 [features]
+private-apple-apis = []
 serde = ["dep:serde", "bitflags/serde", "smol_str/serde", "dpi/serde"]
 
 [dependencies]
