@@ -6,8 +6,7 @@ use std::time::Instant;
 
 use dispatch2::MainThreadBound;
 use objc2::MainThreadMarker;
-use objc2_app_kit::{NSApplication, NSApplicationActivationPolicy, NSRunningApplication};
-use objc2_foundation::NSNotification;
+use objc2_app_kit::NSApplication;
 use winit_common::core_foundation::{EventLoopProxy, MainRunLoop};
 use winit_common::event_handler::EventHandler;
 use winit_core::application::ApplicationHandler;
@@ -16,24 +15,17 @@ use winit_core::event_loop::ControlFlow;
 use winit_core::window::WindowId;
 
 use super::event_loop::{ActiveEventLoop, notify_windows_of_exit, stop_app_immediately};
-use super::menu;
 use super::observer::EventLoopWaker;
 
 #[derive(Debug)]
 pub(super) struct AppState {
     mtm: MainThreadMarker,
-    activation_policy: Option<NSApplicationActivationPolicy>,
-    default_menu: bool,
-    activate_ignoring_other_apps: bool,
     run_loop: MainRunLoop,
     event_loop_proxy: Arc<EventLoopProxy>,
     event_handler: EventHandler,
-    stop_on_launch: Cell<bool>,
     stop_before_wait: Cell<bool>,
     stop_after_wait: Cell<bool>,
     stop_on_redraw: Cell<bool>,
-    /// Whether `applicationDidFinishLaunching:` has been run or not.
-    is_launched: Cell<bool>,
     /// Whether an `EventLoop` is currently running.
     is_running: Cell<bool>,
     /// Whether the user has requested the event loop to exit.
@@ -53,29 +45,19 @@ static GLOBAL: MainThreadBound<OnceCell<Rc<AppState>>> =
     MainThreadBound::new(OnceCell::new(), unsafe { MainThreadMarker::new_unchecked() });
 
 impl AppState {
-    pub(super) fn setup_global(
-        mtm: MainThreadMarker,
-        activation_policy: Option<NSApplicationActivationPolicy>,
-        default_menu: bool,
-        activate_ignoring_other_apps: bool,
-    ) -> Option<Rc<Self>> {
+    pub(super) fn setup_global(mtm: MainThreadMarker) -> Option<Rc<Self>> {
         let event_loop_proxy = Arc::new(EventLoopProxy::new(mtm, move || {
             Self::get(mtm).with_handler(|app, event_loop| app.proxy_wake_up(event_loop));
         }));
 
         let this = Rc::new(Self {
             mtm,
-            activation_policy,
-            default_menu,
-            activate_ignoring_other_apps,
             run_loop: MainRunLoop::get(mtm),
             event_loop_proxy,
             event_handler: EventHandler::new(),
-            stop_on_launch: Cell::new(false),
             stop_before_wait: Cell::new(false),
             stop_after_wait: Cell::new(false),
             stop_on_redraw: Cell::new(false),
-            is_launched: Cell::new(false),
             is_running: Cell::new(false),
             exit: Cell::new(false),
             control_flow: Cell::new(ControlFlow::default()),
@@ -96,69 +78,6 @@ impl AppState {
             .clone()
     }
 
-    // NOTE: This notification will, globally, only be emitted once,
-    // no matter how many `EventLoop`s the user creates.
-    pub fn did_finish_launching(self: &Rc<Self>, _notification: &NSNotification) {
-        self.is_launched.set(true);
-
-        let app = NSApplication::sharedApplication(self.mtm);
-        // We need to delay setting the activation policy and activating the app
-        // until `applicationDidFinishLaunching` has been called. Otherwise the
-        // menu bar is initially unresponsive on macOS 10.15.
-        if let Some(activation_policy) = self.activation_policy {
-            app.setActivationPolicy(activation_policy);
-        } else {
-            // If no activation policy is explicitly provided, and the application
-            // is bundled, do not set the activation policy at all, to allow the
-            // package manifest to define the behavior via LSUIElement.
-            //
-            // See:
-            // - https://github.com/rust-windowing/winit/issues/261
-            // - https://github.com/rust-windowing/winit/issues/3958
-            let is_bundled =
-                NSRunningApplication::currentApplication().bundleIdentifier().is_some();
-            if !is_bundled {
-                app.setActivationPolicy(NSApplicationActivationPolicy::Regular);
-            }
-        }
-
-        #[allow(deprecated)]
-        app.activateIgnoringOtherApps(self.activate_ignoring_other_apps);
-
-        if self.default_menu {
-            // The menubar initialization should be before the `NewEvents` event, to allow
-            // overriding of the default menu even if it's created
-            menu::initialize(&app);
-        }
-
-        self.waker.borrow_mut().start();
-
-        self.set_is_running(true);
-        self.dispatch_init_events();
-
-        // If the application is being launched via `EventLoop::pump_app_events()` then we'll
-        // want to stop the app once it is launched (and return to the external loop)
-        //
-        // In this case we still want to consider Winit's `EventLoop` to be "running",
-        // so we call `start_running()` above.
-        if self.stop_on_launch.get() {
-            // NOTE: the original idea had been to only stop the underlying `RunLoop`
-            // for the app but that didn't work as expected (`-[NSApplication run]`
-            // effectively ignored the attempt to stop the RunLoop and re-started it).
-            //
-            // So we return from `pump_events` by stopping the application.
-            let app = NSApplication::sharedApplication(self.mtm);
-            stop_app_immediately(&app);
-        }
-    }
-
-    pub fn will_terminate(self: &Rc<Self>, _notification: &NSNotification) {
-        let app = NSApplication::sharedApplication(self.mtm);
-        notify_windows_of_exit(&app);
-        self.event_handler.terminate();
-        self.internal_exit();
-    }
-
     /// Place the event handler in the application state for the duration
     /// of the given closure.
     pub fn set_event_handler<R>(
@@ -169,15 +88,12 @@ impl AppState {
         self.event_handler.set(Box::new(handler), closure)
     }
 
-    pub fn event_loop_proxy(&self) -> &Arc<EventLoopProxy> {
-        &self.event_loop_proxy
+    pub fn terminate_event_handler(&self) {
+        self.event_handler.terminate();
     }
 
-    /// If `pump_events` is called to progress the event loop then we
-    /// bootstrap the event loop via `-[NSApplication run]` but will use
-    /// `CFRunLoopRunInMode` for subsequent calls to `pump_events`.
-    pub fn set_stop_on_launch(&self) {
-        self.stop_on_launch.set(true);
+    pub fn event_loop_proxy(&self) -> &Arc<EventLoopProxy> {
+        &self.event_loop_proxy
     }
 
     pub fn set_stop_before_wait(&self, value: bool) {
@@ -206,10 +122,6 @@ impl AppState {
         self.set_stop_before_wait(false);
         self.set_stop_after_wait(false);
         self.set_wait_timeout(None);
-    }
-
-    pub fn is_launched(&self) -> bool {
-        self.is_launched.get()
     }
 
     pub fn set_is_running(&self, value: bool) {

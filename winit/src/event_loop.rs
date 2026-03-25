@@ -75,6 +75,9 @@ impl EventLoopBuilder {
     ///   `DISPLAY` respectively when building the event loop.
     /// - **Android:** must be configured with an `AndroidApp` from `android_main()` by calling
     ///   [`.with_android_app(app)`] before calling `.build()`, otherwise it'll panic.
+    /// - **macOS:** this will launch the application, so if you want to register a custom delegate,
+    ///   or otherwise do stuff before `applicationDidFinishLaunching:`, you should do it before
+    ///   this function is called.
     ///
     /// [`platform`]: crate::platform
     #[cfg_attr(

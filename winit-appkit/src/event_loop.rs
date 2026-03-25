@@ -7,7 +7,7 @@ use objc2::runtime::ProtocolObject;
 use objc2::{MainThreadMarker, available};
 use objc2_app_kit::{
     NSApplication, NSApplicationActivationPolicy, NSApplicationDidFinishLaunchingNotification,
-    NSApplicationWillTerminateNotification, NSWindow,
+    NSApplicationWillTerminateNotification, NSRunningApplication, NSWindow,
 };
 use objc2_core_foundation::{CFIndex, CFRunLoopActivity, kCFRunLoopCommonModes};
 use objc2_foundation::{NSNotificationCenter, NSObjectProtocol};
@@ -31,8 +31,8 @@ use super::cursor::CustomCursor;
 use super::event::dummy_event;
 use super::monitor;
 use super::notification_center::create_observer;
-use crate::ActivationPolicy;
 use crate::window::Window;
+use crate::{ActivationPolicy, menu};
 
 #[derive(Debug)]
 pub struct ActiveEventLoop {
@@ -150,7 +150,6 @@ pub struct EventLoop {
     // the system instead cleans it up next time it would have posted a notification to it.
     //
     // Though we do still need to keep the observers around to prevent them from being deallocated.
-    _did_finish_launching_observer: Retained<ProtocolObject<dyn NSObjectProtocol>>,
     _will_terminate_observer: Retained<ProtocolObject<dyn NSObjectProtocol>>,
 
     _tracing_observers: Option<(MainRunLoopObserver, MainRunLoopObserver)>,
@@ -176,20 +175,8 @@ impl EventLoop {
         let mtm = MainThreadMarker::new()
             .expect("on macOS, `EventLoop` must be created on the main thread!");
 
-        let activation_policy = match attributes.activation_policy {
-            None => None,
-            Some(ActivationPolicy::Regular) => Some(NSApplicationActivationPolicy::Regular),
-            Some(ActivationPolicy::Accessory) => Some(NSApplicationActivationPolicy::Accessory),
-            Some(ActivationPolicy::Prohibited) => Some(NSApplicationActivationPolicy::Prohibited),
-        };
-
-        let app_state = AppState::setup_global(
-            mtm,
-            activation_policy,
-            attributes.default_menu,
-            attributes.activate_ignoring_other_apps,
-        )
-        .ok_or_else(|| EventLoopError::RecreationAttempt)?;
+        let app_state =
+            AppState::setup_global(mtm).ok_or_else(|| EventLoopError::RecreationAttempt)?;
 
         // Initialize the application (if it has not already been).
         let app = NSApplication::sharedApplication(mtm);
@@ -199,32 +186,33 @@ impl EventLoop {
 
         let center = NSNotificationCenter::defaultCenter();
 
-        let weak_app_state = Rc::downgrade(&app_state);
-        let _did_finish_launching_observer = create_observer(
-            &center,
-            // `applicationDidFinishLaunching:`
-            unsafe { NSApplicationDidFinishLaunchingNotification },
-            move |notification| {
-                let _entered = debug_span!("NSApplicationDidFinishLaunchingNotification").entered();
-                if let Some(app_state) = weak_app_state.upgrade() {
-                    app_state.did_finish_launching(notification);
-                }
-            },
-        );
-
+        // Handle `terminate:`. This may happen if:
+        // - The user uses the context menu in the Dock icon.
+        // - Or the `Quit` menu item we install with the default menu (including via. the keyboard
+        //   shortcut).
+        // - Maybe other cases?
+        //
+        // In these cases, AppKit is going to call `std::process::exit`, so we won't get the chance
+        // to return to the user from `EventLoop::run_app`. So we have to clean up and drop their
+        // windows and application here too.
         let weak_app_state = Rc::downgrade(&app_state);
         let _will_terminate_observer = create_observer(
             &center,
-            // `applicationWillTerminate:`
             unsafe { NSApplicationWillTerminateNotification },
             move |notification| {
-                let _entered = debug_span!("NSApplicationWillTerminateNotification").entered();
+                let _entered = debug_span!("applicationWillTerminate").entered();
+
+                let app = notification.object().unwrap().downcast::<NSApplication>().unwrap();
+                notify_windows_of_exit(&app);
+
                 if let Some(app_state) = weak_app_state.upgrade() {
-                    app_state.will_terminate(notification);
+                    app_state.terminate_event_handler();
+                    app_state.internal_exit();
                 }
             },
         );
 
+        // Set up run loop observers for calling `new_events` and `about_to_wait`.
         let main_loop = MainRunLoop::get(mtm);
         let mode = unsafe { kCFRunLoopCommonModes }.unwrap();
 
@@ -258,11 +246,100 @@ impl EventLoop {
         );
         main_loop.add_observer(&_after_waiting_observer, mode);
 
+        // Run `finishLaunching` just in case it works.
+        app.finishLaunching();
+        // Now _ideally_, calling `finishLaunching` should be enough for the application to, you
+        // know, launch (create the a dock icon etc.), but unfortunately, this doesn't happen for
+        // various godforsaken reasons... The only way to make the application properly launch is by
+        // calling `NSApplication::run`.
+        //
+        // So we check if the application hasn't finished launching, and if it hasn't, we run it
+        // once to finish it.
+        //
+        // This is _very_ important, there's a _lot_ of weird and subtle state that requires that
+        // the application is launched properly, including window creation, the menu bar,
+        // activation, see:
+        // - https://github.com/rust-windowing/winit/pull/1903
+        // - https://github.com/rust-windowing/winit/pull/1922
+        // - https://github.com/rust-windowing/winit/issues/2238
+        // - https://github.com/rust-windowing/winit/issues/2051
+        // - https://github.com/rust-windowing/winit/issues/2087
+        // - https://developer.apple.com/forums/thread/772169
+        //
+        // This approach is similar to what other cross-platform windowing libraries do (except that
+        // we do it without a delegate to allow users to override that):
+        // - GLFW delegate: https://github.com/glfw/glfw/blob/3.4/src/cocoa_init.m#L439-L443
+        // - GLFW launch: https://github.com/glfw/glfw/blob/3.4/src/cocoa_init.m#L634-L635
+        // - FLTK delegate: https://github.com/fltk/fltk/blob/release-1.4.4/src/Fl_cocoa.mm#L1604-L1607
+        // - FLTK launch: https://github.com/fltk/fltk/blob/release-1.4.4/src/Fl_cocoa.mm#L1903-L1919
+        // - Stackoverflow issue: https://stackoverflow.com/questions/48020222/how-to-make-nsapp-run-not-block/67626393#67626393
+        if !NSRunningApplication::currentApplication().isFinishedLaunching() {
+            // Register an observer to stop the application immediately after launching.
+            //
+            // NOTE: This notification will, globally, only be emitted once, no matter how many
+            // `EventLoop`s the user creates. We detect it with `isFinishedLaunching` above.
+            let did_finish_launching_observer = create_observer(
+                &center,
+                unsafe { NSApplicationDidFinishLaunchingNotification },
+                move |notification| {
+                    let _entered = debug_span!("applicationDidFinishLaunching").entered();
+
+                    let app = notification.object().unwrap().downcast::<NSApplication>().unwrap();
+
+                    // Stop the application, to make the `app.run()` call below return.
+                    stop_app_immediately(&app);
+                },
+            );
+
+            // We call `stop_app_immediately` above, so this should return after launching.
+            app.run();
+
+            // The observer should've been called at this point.
+            drop(did_finish_launching_observer);
+
+            // We _could_ keep trying if we failed to initialize, but that would potentially lead
+            // to an infinite loop, it's probably better to just continue.
+            debug_assert!(NSRunningApplication::currentApplication().isFinishedLaunching());
+        }
+
+        // We need to delay setting the activation policy and activating the app until
+        // `applicationDidFinishLaunching:` has been called, otherwise the menu bar is initially
+        // unresponsive on macOS 10.15.
+        if let Some(activation_policy) = attributes.activation_policy {
+            app.setActivationPolicy(match activation_policy {
+                ActivationPolicy::Regular => NSApplicationActivationPolicy::Regular,
+                ActivationPolicy::Accessory => NSApplicationActivationPolicy::Accessory,
+                ActivationPolicy::Prohibited => NSApplicationActivationPolicy::Prohibited,
+            });
+        } else {
+            // If no activation policy is explicitly provided, and the application
+            // is bundled, do not set the activation policy at all, to allow the
+            // package manifest to define the behavior via LSUIElement.
+            //
+            // See:
+            // - https://github.com/rust-windowing/winit/issues/261
+            // - https://github.com/rust-windowing/winit/issues/3958
+            let is_bundled =
+                NSRunningApplication::currentApplication().bundleIdentifier().is_some();
+            if !is_bundled {
+                app.setActivationPolicy(NSApplicationActivationPolicy::Regular);
+            }
+        }
+
+        // TODO: Use `app.activate()` instead on newer OS versions?
+        #[expect(deprecated)]
+        app.activateIgnoringOtherApps(attributes.activate_ignoring_other_apps);
+
+        if attributes.default_menu {
+            // The default menubar initialization should be before everything else, to allow
+            // overriding it even if it's created.
+            menu::initialize(&app);
+        }
+
         Ok(EventLoop {
             app,
             app_state: app_state.clone(),
             window_target: ActiveEventLoop { app_state, mtm },
-            _did_finish_launching_observer,
             _will_terminate_observer,
             _tracing_observers,
             _before_waiting_observer,
@@ -282,6 +359,7 @@ impl EventLoop {
         &mut self,
         app: A,
     ) -> Result<(), EventLoopError> {
+        let _entered = debug_span!("run_app_on_demand").entered();
         self.app_state.clear_exit();
         self.app_state.set_event_handler(app, || {
             autoreleasepool(|_| {
@@ -291,11 +369,9 @@ impl EventLoop {
                 self.app_state.set_stop_after_wait(false);
                 self.app_state.set_stop_on_redraw(false);
 
-                if self.app_state.is_launched() {
-                    debug_assert!(!self.app_state.is_running());
-                    self.app_state.set_is_running(true);
-                    self.app_state.dispatch_init_events();
-                }
+                debug_assert!(!self.app_state.is_running());
+                self.app_state.set_is_running(true);
+                self.app_state.dispatch_init_events();
 
                 // NOTE: Make sure to not run the application re-entrantly, as that'd be confusing.
                 self.app.run();
@@ -312,19 +388,10 @@ impl EventLoop {
         timeout: Option<Duration>,
         app: A,
     ) -> PumpStatus {
+        let _entered = debug_span!("pump_app_events").entered();
         self.app_state.set_event_handler(app, || {
             autoreleasepool(|_| {
-                // As a special case, if the application hasn't been launched yet then we at least
-                // run the loop until it has fully launched.
-                if !self.app_state.is_launched() {
-                    debug_assert!(!self.app_state.is_running());
-
-                    self.app_state.set_stop_on_launch();
-                    self.app.run();
-
-                    // Note: we dispatch `NewEvents(Init)` + `Resumed` events after the application
-                    // has launched
-                } else if !self.app_state.is_running() {
+                if !self.app_state.is_running() {
                     // Even though the application may have been launched, it's possible we aren't
                     // running if the `EventLoop` was run before and has since
                     // exited. This indicates that we just starting to re-run
