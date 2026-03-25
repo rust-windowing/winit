@@ -23,7 +23,6 @@ use sctk::shm::{Shm, ShmHandler};
 use sctk::subcompositor::SubcompositorState;
 use winit_core::error::OsError;
 
-use crate::WindowId;
 use crate::event_loop::sink::EventSink;
 use crate::output::MonitorHandle;
 use crate::seat::{
@@ -37,6 +36,7 @@ use crate::types::wp_viewporter::ViewporterState;
 use crate::types::xdg_activation::XdgActivationState;
 use crate::types::xdg_toplevel_icon_manager::XdgToplevelIconManagerState;
 use crate::window::{WindowRequests, WindowState};
+use crate::{WindowId, popup};
 
 /// Winit's Wayland state.
 #[derive(Debug)]
@@ -64,6 +64,9 @@ pub struct WinitState {
 
     /// The currently present windows.
     pub windows: RefCell<HashMap<WindowId, Arc<Mutex<WindowState>>>>,
+
+    /// The currently present popups
+    pub popups: RefCell<HashMap<WindowId, Arc<Mutex<popup::State>>>>,
 
     /// The requests from the `Window` to EventLoop, such as close operations and redraw requests.
     pub window_requests: RefCell<HashMap<WindowId, Arc<WindowRequests>>>,
@@ -195,6 +198,8 @@ impl WinitState {
             fractional_scaling_manager,
             kwin_blur_manager: KWinBlurManager::new(globals, queue_handle).ok(),
 
+            popups: Default::default(),
+
             seats,
             text_input_state: TextInputState::new(globals, queue_handle).ok(),
 
@@ -293,17 +298,17 @@ impl WindowHandler for WinitState {
     ) {
         let window_id = super::make_wid(window.wl_surface());
 
-        let pos = if let Some(pos) =
+        let index = if let Some(index) =
             self.window_compositor_updates.iter().position(|update| update.window_id == window_id)
         {
-            pos
+            index
         } else {
             self.window_compositor_updates.push(WindowCompositorUpdate::new(window_id));
             self.window_compositor_updates.len() - 1
         };
 
         // Populate the configure to the window.
-        self.window_compositor_updates[pos].resized |= self
+        self.window_compositor_updates[index].resized |= self
             .windows
             .get_mut()
             .get_mut(&window_id)
@@ -332,10 +337,42 @@ impl PopupHandler for WinitState {
         _: &Connection,
         _: &QueueHandle<Self>,
         popup: &XdgPopup,
-        _: PopupConfigure,
+        configure: PopupConfigure,
     ) {
         let window_id = super::make_wid(popup.wl_surface());
         println!("Finished configuring the popup: {:?}", window_id);
+
+        // let index =
+        if let Some(index) =
+            self.window_compositor_updates.iter().position(|update| update.window_id == window_id)
+        {
+            index
+        } else {
+            self.window_compositor_updates.push(WindowCompositorUpdate::new(window_id));
+            self.window_compositor_updates.len() - 1
+        };
+
+        // Populate the configure to the window.
+        // self.window_compositor_updates[index].resized |= false;
+        self.popups
+            .get_mut()
+            .get_mut(&window_id)
+            .expect("got configure for dead window.")
+            .lock()
+            .unwrap()
+            .configure(configure);
+
+        // // NOTE: configure demands wl_surface::commit, however winit doesn't commit on behalf of
+        // the // users, since it can break a lot of things, thus it'll ask users to redraw
+        // instead. self.window_requests
+        //     .get_mut()
+        //     .get(&window_id)
+        //     .unwrap()
+        //     .redraw_requested
+        //     .store(true, Ordering::Relaxed);
+
+        // Manually mark that we've got an event, since configure may not generate a resize.
+        self.dispatched_events = true;
     }
 
     fn done(&mut self, _: &Connection, _: &QueueHandle<Self>, popup: &XdgPopup) {

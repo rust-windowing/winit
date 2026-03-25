@@ -4,7 +4,6 @@ use dpi::{LogicalSize, PhysicalInsets, PhysicalPosition, PhysicalSize, Position,
 use rwh_06::RawWindowHandle;
 use sctk::shell::xdg::popup::{Popup as SctkPopup, PopupData};
 use sctk::shell::xdg::{XdgPositioner, XdgSurface};
-use state::State;
 use wayland_client::protocol::wl_display::WlDisplay;
 use wayland_client::{Proxy, QueueHandle};
 use winit_core::cursor::Cursor;
@@ -16,6 +15,7 @@ use winit_core::window::{
     WindowLevel,
 };
 mod state;
+pub use state::State;
 use wayland_protocols::xdg::shell::client::xdg_positioner::Anchor;
 
 use super::ActiveEventLoop;
@@ -51,8 +51,8 @@ impl Popup {
             attributes.parent_window().ok_or(error!("Popup without a parent is not supported!"))?;
         if let RawWindowHandle::Wayland(wayland_window_handle) = window_handle {
             let queue_handle = event_loop_window_target.queue_handle.clone();
-            let state = event_loop_window_target.state.borrow_mut();
-            if let Some(window_state) = state
+            let mut state = event_loop_window_target.state.borrow_mut();
+            let (popup, popup_state) = if let Some(window_state) = state
                 .windows
                 .borrow()
                 .get(&WindowId::from_raw(wayland_window_handle.surface.as_ptr() as usize))
@@ -60,18 +60,18 @@ impl Popup {
                 let position = attributes.position.ok_or(error!("No position specified"))?;
                 let positioner = XdgPositioner::new(&state.xdg_shell)
                     .map_err(|_| error!("Failed to create positioner"))?;
-                let scale_factor = 1.0;
-                let size = attributes
-                    .surface_size
-                    .ok_or(error!("Invalid size for popup"))?
-                    .to_physical(scale_factor);
+                let scale_factor = 1.0; // We don't know yet the scale factor
+                let size = attributes.surface_size.ok_or(error!("Invalid size for popup"))?;
                 positioner.set_anchor_rect(
-                    position.to_physical(scale_factor).x,
-                    position.to_physical(scale_factor).y,
+                    position.to_logical(scale_factor).x,
+                    position.to_logical(scale_factor).y,
                     10,
                     10,
                 );
-                positioner.set_size(size.width, size.height);
+                positioner.set_size(
+                    size.to_logical(scale_factor).width,
+                    size.to_logical(scale_factor).height,
+                );
                 positioner.set_anchor(Anchor::TopLeft);
 
                 let window = &window_state.lock().unwrap().window;
@@ -85,20 +85,23 @@ impl Popup {
                     &state.xdg_shell,
                 )
                 .map_err(|_| error!("Failed to create popup"))?;
-
-                let mut popup_state = state::State { ..Default::default() };
-
-                let popup_state = Arc::new(Mutex::new(popup_state));
-
-                Ok(Self {
-                    popup,
-                    popup_state,
-                    window_id: make_wid(&surface),
-                    display: event_loop_window_target.handle.connection.display().clone(),
-                })
+                (popup, Arc::new(Mutex::new(state::State::new(positioner, size))))
             } else {
-                Err(error!("Parent window id unknown"))
-            }
+                return Err(error!("Parent window id unknown"));
+            };
+
+            popup.wl_surface().commit();
+            // popup.commit(); Trait not implemented
+
+            let window_id = super::make_wid(&popup.wl_surface());
+            state.popups.get_mut().insert(window_id, popup_state.clone());
+
+            Ok(Self {
+                popup,
+                popup_state,
+                window_id,
+                display: event_loop_window_target.handle.connection.display().clone(),
+            })
         } else {
             Err(RequestError::NotSupported(NotSupportedError::new(
                 "Not a wayland window handle passed",
@@ -212,8 +215,8 @@ impl CoreWindow for Popup {
         // popup_state.set_resize_increments(increments);
     }
 
-    fn set_title(&self, _title: &str) {
-        // Not available for popups
+    fn set_title(&self, title: &str) {
+        self.popup_state.lock().unwrap().set_title(title);
     }
 
     #[inline]
@@ -279,9 +282,7 @@ impl CoreWindow for Popup {
 
     #[inline]
     fn scale_factor(&self) -> f64 {
-        // TODO:
-        // self.popup_state.lock().unwrap().scale_factor()
-        1.
+        self.popup_state.lock().unwrap().scale_factor()
     }
 
     #[inline]
