@@ -23,6 +23,7 @@ use sctk::reexports::protocols::xdg::shell::client::xdg_toplevel::ResizeEdge as 
 use sctk::seat::pointer::{PointerDataExt, ThemedPointer};
 use sctk::shell::WaylandSurface;
 use sctk::shell::xdg::XdgSurface;
+use sctk::shell::xdg::popup::Popup;
 use sctk::shell::xdg::window::{DecorationMode, Window, WindowConfigure};
 use sctk::shm::Shm;
 use sctk::shm::slot::SlotPool;
@@ -37,7 +38,6 @@ use winit_core::window::{
 };
 
 use crate::event_loop::OwnedDisplayHandle;
-use crate::logical_to_physical_rounded;
 use crate::seat::{
     PointerConstraintsState, TextInputClientState, WinitPointerData, WinitPointerDataExt,
     ZwpTextInputV3Ext,
@@ -46,6 +46,7 @@ use crate::state::{WindowCompositorUpdate, WinitState};
 use crate::types::cursor::{CustomCursor, SelectedCursor, WaylandCustomCursor};
 use crate::types::kwin_blur::KWinBlurManager;
 use crate::types::xdg_toplevel_icon_manager::ToplevelIcon;
+use crate::{logical_to_physical_rounded, popup};
 
 #[cfg(feature = "sctk-adwaita")]
 pub type WinitFrame = sctk_adwaita::AdwaitaFrame<WinitState>;
@@ -54,6 +55,30 @@ pub type WinitFrame = sctk::shell::xdg::fallback_frame::FallbackFrame<WinitState
 
 // Minimum window surface size.
 const MIN_WINDOW_SIZE: LogicalSize<u32> = LogicalSize::new(2, 1);
+
+#[derive(Debug)]
+pub enum WindowType {
+    Window(Window),
+    Popup(Popup),
+}
+
+impl WindowType {
+    fn wl_surface(&self) -> &WlSurface {
+        match self {
+            Self::Window(window) => window.wl_surface(),
+            Self::Popup(popup) => popup.wl_surface(),
+        }
+    }
+}
+
+impl WaylandSurface for WindowType {
+    fn wl_surface(&self) -> &wayland_client::protocol::wl_surface::WlSurface {
+        match self {
+            Self::Window(window) => window.wl_surface(),
+            Self::Popup(popup) => popup.wl_surface(),
+        }
+    }
+}
 
 /// The state of the window which is being updated from the [`WinitState`].
 #[derive(Debug)]
@@ -165,7 +190,7 @@ pub struct WindowState {
     has_pending_move: Option<u32>,
 
     /// The underlying SCTK window.
-    pub window: Window,
+    pub window: WindowType,
 
     // NOTE: The spec says that destroying parent(`window` in our case), will unmap the
     // subsurfaces. Thus to achieve atomic unmap of the client, drop the decorations
@@ -240,7 +265,7 @@ impl WindowState {
             title: String::default(),
             transparent: false,
             viewport,
-            window,
+            window: WindowType::Window(window),
         }
     }
 
