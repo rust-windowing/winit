@@ -62,15 +62,6 @@ pub enum WindowType {
     Popup(Popup),
 }
 
-impl WindowType {
-    fn wl_surface(&self) -> &WlSurface {
-        match self {
-            Self::Window(window) => window.wl_surface(),
-            Self::Popup(popup) => popup.wl_surface(),
-        }
-    }
-}
-
 impl WaylandSurface for WindowType {
     fn wl_surface(&self) -> &wayland_client::protocol::wl_surface::WlSurface {
         match self {
