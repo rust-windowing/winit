@@ -61,9 +61,17 @@ impl State {
         assert!(configure.height >= 0);
         self.constrained = self.size.width != configure.width as u32
             || self.size.height != configure.height as u32;
+        let new_size = LogicalSize {
+            width: (configure.width as u32).into(),
+            height: (configure.height as u32).into(),
+        };
 
-        self.size.width = (configure.width as u32).into();
-        self.size.height = (configure.height as u32).into();
+        // NOTE: Set the configure before doing a resize, since we query it during it.
+        self.last_configure = Some(configure);
+
+        if self.constrained {
+            self.resize(new_size);
+        }
 
         // false
     }
@@ -106,5 +114,9 @@ impl State {
     #[inline]
     pub fn surface_size(&self) -> LogicalSize<u32> {
         self.size
+    }
+
+    fn resize(&mut self, surface_size: LogicalSize<u32>) {
+        self.size = surface_size;
     }
 }

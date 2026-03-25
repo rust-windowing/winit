@@ -15,11 +15,14 @@ use winit_core::window::{
     WindowLevel,
 };
 mod state;
+use std::sync::atomic::AtomicBool;
+
 pub use state::State;
 use wayland_protocols::xdg::shell::client::xdg_positioner::Anchor;
 
 use super::ActiveEventLoop;
 use crate::make_wid;
+use crate::window::WindowRequests;
 
 #[derive(Debug)]
 pub struct Popup {
@@ -95,6 +98,23 @@ impl Popup {
 
             let window_id = super::make_wid(&popup.wl_surface());
             state.popups.get_mut().insert(window_id, popup_state.clone());
+
+            let window_requests = WindowRequests {
+                redraw_requested: AtomicBool::new(true),
+                closed: AtomicBool::new(false),
+            };
+            let window_requests = Arc::new(window_requests);
+            state.window_requests.get_mut().insert(window_id, window_requests.clone());
+
+            let mut wayland_source = event_loop_window_target.wayland_dispatcher.as_source_mut();
+            let event_queue = wayland_source.queue();
+            // Do a roundtrip.
+            event_queue.roundtrip(&mut state).map_err(|err| os_error!(err))?;
+
+            // XXX Wait for the initial configure to arrive.
+            while !popup_state.lock().unwrap().is_configured() {
+                event_queue.blocking_dispatch(&mut state).map_err(|err| os_error!(err))?;
+            }
 
             Ok(Self {
                 popup,
