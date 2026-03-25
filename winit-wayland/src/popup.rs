@@ -26,7 +26,7 @@ pub struct Popup {
     /// Reference to the underlying SCTK popup.
     popup: SctkPopup,
 
-    // parent_window:
+    // The state of the popup.
     popup_state: Arc<Mutex<State>>,
     /// Window id.
     window_id: WindowId,
@@ -39,7 +39,7 @@ pub struct Popup {
 impl Popup {
     pub(crate) fn new(
         event_loop_window_target: &ActiveEventLoop,
-        mut attributes: WindowAttributes,
+        attributes: WindowAttributes,
     ) -> Result<Self, RequestError> {
         macro_rules! error {
             ($e:literal) => {
@@ -51,7 +51,7 @@ impl Popup {
             attributes.parent_window().ok_or(error!("Popup without a parent is not supported!"))?;
         if let RawWindowHandle::Wayland(wayland_window_handle) = window_handle {
             let queue_handle = event_loop_window_target.queue_handle.clone();
-            let mut state = event_loop_window_target.state.borrow_mut();
+            let state = event_loop_window_target.state.borrow_mut();
             if let Some(window_state) = state
                 .windows
                 .borrow()
@@ -85,18 +85,19 @@ impl Popup {
                     &state.xdg_shell,
                 )
                 .map_err(|_| error!("Failed to create popup"))?;
+
+                let mut popup_state = state::State { ..Default::default() };
+
+                let popup_state = Arc::new(Mutex::new(popup_state));
+
                 Ok(Self {
                     popup,
-                    popup_state: Arc::new(Mutex::new(State::default())),
+                    popup_state,
                     window_id: make_wid(&surface),
                     display: event_loop_window_target.handle.connection.display().clone(),
                 })
             } else {
                 Err(error!("Parent window id unknown"))
-                // Err(RequestError::NotSupported(NotSupportedError::new(&format!(
-                //     "Window with id {} not found.",
-                //     wayland_window_handle.surface.as_ptr() as usize
-                // ))))
             }
         } else {
             Err(RequestError::NotSupported(NotSupportedError::new(
@@ -128,8 +129,7 @@ impl CoreWindow for Popup {
 
     #[inline]
     fn title(&self) -> String {
-        // self.popup_state.lock().unwrap().title().to_owned()
-        String::new()
+        self.popup_state.lock().unwrap().title().to_owned()
     }
 
     fn pre_present_notify(&self) {
@@ -154,10 +154,9 @@ impl CoreWindow for Popup {
     }
 
     fn surface_size(&self) -> PhysicalSize<u32> {
-        // let popup_state = self.popup_state.lock().unwrap();
-        // let scale_factor = popup_state.scale_factor();
-        // super::logical_to_physical_rounded(popup_state.surface_size(), scale_factor)
-        PhysicalSize::new(100, 100)
+        let popup_state = self.popup_state.lock().unwrap();
+        let scale_factor = popup_state.scale_factor();
+        super::logical_to_physical_rounded(popup_state.surface_size(), scale_factor)
     }
 
     fn request_surface_size(&self, size: Size) -> Option<PhysicalSize<u32>> {
