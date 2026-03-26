@@ -7,7 +7,7 @@ use sctk::shell::xdg::popup::Popup as SctkPopup;
 use sctk::shell::xdg::{XdgPositioner, XdgSurface};
 use wayland_client::Proxy;
 use wayland_client::protocol::wl_display::WlDisplay;
-use wayland_protocols::xdg::shell::client::xdg_positioner::Gravity;
+use wayland_protocols::xdg::shell::client::xdg_positioner::{Anchor, Gravity};
 use winit_core::cursor::Cursor;
 use winit_core::error::{NotSupportedError, RequestError};
 use winit_core::monitor::{Fullscreen, MonitorHandle as CoreMonitorHandle};
@@ -29,7 +29,6 @@ pub struct Popup {
     // The state of the popup.
     popup_state: Arc<Mutex<WindowState>>,
 
-    positioner: XdgPositioner,
     /// Window id.
     window_id: WindowId,
 
@@ -136,7 +135,6 @@ impl Popup {
             Ok(Self {
                 popup,
                 popup_state,
-                positioner,
                 window_id,
                 display: event_loop_window_target.handle.connection.display().clone(),
             })
