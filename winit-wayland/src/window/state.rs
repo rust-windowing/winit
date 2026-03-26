@@ -217,6 +217,7 @@ impl WindowState {
         window: WindowType,
         theme: Option<Theme>,
         prefer_csd: bool,
+        scale_factor: f64,
     ) -> Self {
         let compositor = winit_state.compositor_state.clone();
         let pointer_constraints = winit_state.pointer_constraints.clone();
@@ -260,7 +261,7 @@ impl WindowState {
             pointers: Default::default(),
             queue_handle: queue_handle.clone(),
             resizable: true,
-            scale_factor: 1.,
+            scale_factor,
             shm: winit_state.shm.wl_shm().clone(),
             image_pool: winit_state.image_pool.clone(),
             size: initial_size.to_logical(1.),

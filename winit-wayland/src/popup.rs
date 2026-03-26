@@ -50,20 +50,21 @@ impl Popup {
             };
         }
 
-        let window_handle =
+        let parent_window_handle =
             attributes.parent_window().ok_or(error!("Popup without a parent is not supported!"))?;
-        if let RawWindowHandle::Wayland(wayland_window_handle) = window_handle {
+        if let RawWindowHandle::Wayland(parent_window_handle) = parent_window_handle {
             let queue_handle = event_loop_window_target.queue_handle.clone();
             let mut state = event_loop_window_target.state.borrow_mut();
-            let (popup, popup_state) = if let Some(window_state) = state
+            let (popup, popup_state) = if let Some(parent_window_state) = state
                 .windows
                 .borrow()
-                .get(&WindowId::from_raw(wayland_window_handle.surface.as_ptr() as usize))
+                .get(&WindowId::from_raw(parent_window_handle.surface.as_ptr() as usize))
             {
+                // Use the scale factor of the parent
+                let scale_factor = parent_window_state.lock().unwrap().scale_factor();
                 let position = attributes.position.ok_or(error!("No position specified"))?;
                 let positioner = XdgPositioner::new(&state.xdg_shell)
                     .map_err(|_| error!("Failed to create positioner"))?;
-                let scale_factor = 1.0; // We don't know yet the scale factor
                 let size = attributes.surface_size.ok_or(error!("Invalid size for popup"))?;
                 positioner.set_anchor_rect(
                     position.to_logical(scale_factor).x,
@@ -77,8 +78,8 @@ impl Popup {
                 );
                 positioner.set_anchor(Anchor::TopLeft);
 
-                let window = &window_state.lock().unwrap().window;
-                let parent_surface = window.xdg_surface();
+                let parent_window = &parent_window_state.lock().unwrap().window;
+                let parent_surface = parent_window.xdg_surface();
                 let surface = state.compositor_state.create_surface(&queue_handle);
                 let popup = SctkPopup::from_surface(
                     Some(parent_surface),
@@ -89,7 +90,7 @@ impl Popup {
                 )
                 .map_err(|_| error!("Failed to create popup"))?;
 
-                let mut popup_state = WindowState::new(
+                let popup_state = WindowState::new(
                     event_loop_window_target.handle.clone(),
                     &event_loop_window_target.queue_handle,
                     &state,
@@ -97,6 +98,7 @@ impl Popup {
                     WindowType::Popup((popup.clone(), None)),
                     attributes.preferred_theme,
                     false,
+                    scale_factor,
                 );
                 let popup_state = Arc::new(Mutex::new(popup_state));
 
