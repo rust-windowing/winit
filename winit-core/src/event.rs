@@ -152,7 +152,7 @@ pub enum WindowEvent {
     ///
     /// ## Platform-specific
     ///
-    /// - **iOS / Android / Web / Orbital:** Unsupported.
+    /// - **iOS / Web / Orbital:** Unsupported.
     Ime(Ime),
 
     /// The pointer has moved on the window.
