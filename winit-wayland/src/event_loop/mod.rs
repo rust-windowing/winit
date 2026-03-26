@@ -651,7 +651,7 @@ impl RootActiveEventLoop for ActiveEventLoop {
         &self,
         window_attributes: winit_core::window::WindowAttributes,
     ) -> Result<Box<dyn winit_core::window::Window>, RequestError> {
-        if window_attributes.parent_window().is_some() {
+        if window_attributes.popup() {
             let popup = crate::Popup::new(self, window_attributes)?;
             Ok(Box::new(popup))
         } else {
