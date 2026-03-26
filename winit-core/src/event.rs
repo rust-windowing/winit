@@ -192,7 +192,7 @@ pub enum WindowEvent {
     /// ## Platform-specific
     ///
     /// - **Android**: Stylus will triggered [`PointerLeft`] and [`PointerEntered`] when it
-    /// contacts.
+    ///   contacts.
     PointerEntered {
         device_id: Option<DeviceId>,
 
@@ -224,7 +224,7 @@ pub enum WindowEvent {
     /// ## Platform-specific
     ///
     /// - **Android**: Stylus will triggered [`PointerLeft`] and [`PointerEntered`] when it stop
-    /// contacts.
+    ///   contacts.
     PointerLeft {
         device_id: Option<DeviceId>,
 
