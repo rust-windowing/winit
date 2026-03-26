@@ -60,27 +60,34 @@ impl Popup {
                 .borrow()
                 .get(&WindowId::from_raw(parent_window_handle.surface.as_ptr() as usize))
             {
-                // Use the scale factor of the parent
-                let scale_factor = parent_window_state.lock().unwrap().scale_factor();
-                let position = attributes.position.ok_or(error!("No position specified"))?;
                 let size = attributes.surface_size.ok_or(error!("Invalid size for popup"))?;
+
+                let parent_window_state = parent_window_state.lock().unwrap();
+
+                // Use the scale factor and xdg geometry of the parent.
+                let scale_factor = parent_window_state.scale_factor();
+                let position: LogicalPosition<i32> = attributes
+                    .position
+                    .ok_or(error!("No position specified"))?
+                    .to_logical(scale_factor);
+                let geometry_origin = parent_window_state.content_surface_origin();
+                // The anchor rect is relative to the parent window geometry, so we need to subtract
+                // the geometry origin from the position to get the correct anchor rect.
+                let anchor_position = LogicalPosition::new(
+                    position.x - geometry_origin.x,
+                    position.y - geometry_origin.y,
+                );
 
                 positioner.set_anchor(Anchor::TopLeft);
                 positioner.set_gravity(Gravity::BottomRight); // Otherwise the child surface will be centered over the anchor point
-                positioner.set_anchor_rect(
-                    position.to_logical(scale_factor).x,
-                    position.to_logical(scale_factor).y,
-                    1,
-                    1,
-                );
+                positioner.set_anchor_rect(anchor_position.x, anchor_position.y, 1, 1);
                 positioner.set_offset(0, 0);
                 positioner.set_size(
                     size.to_logical(scale_factor).width,
                     size.to_logical(scale_factor).height,
                 );
 
-                let parent_window = &parent_window_state.lock().unwrap().window;
-                let parent_surface = parent_window.xdg_surface();
+                let parent_surface = parent_window_state.window.xdg_surface();
                 let surface = state.compositor_state.create_surface(&queue_handle);
                 let popup = SctkPopup::from_surface(
                     Some(parent_surface),
@@ -90,6 +97,7 @@ impl Popup {
                     &state.xdg_shell,
                 )
                 .map_err(|_| error!("Failed to create popup"))?;
+                drop(parent_window_state);
 
                 let popup_state = WindowState::new(
                     event_loop_window_target.handle.clone(),
@@ -103,7 +111,7 @@ impl Popup {
                 );
 
                 popup.wl_surface().commit();
-                // popup.commit(); Trait not implemented
+                // popup.commit(); Trait not implemented in Sctk
 
                 let popup_state = Arc::new(Mutex::new(popup_state));
 

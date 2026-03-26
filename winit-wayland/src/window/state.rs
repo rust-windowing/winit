@@ -724,6 +724,13 @@ impl WindowState {
             .unwrap_or(self.size)
     }
 
+    /// Get the origin of the content surface by considering the client side decoration if available
+    /// This is required for example when creating a popup, because as parent a xdg_surface must be
+    /// passed but the frame is only a wl_surface
+    pub fn content_surface_origin(&self) -> LogicalPosition<i32> {
+        self.frame.as_ref().map(|frame| frame.location().into()).unwrap_or_else(|| (0, 0).into())
+    }
+
     /// Register pointer on the top-level.
     pub fn pointer_entered(&mut self, added: Weak<ThemedPointer<WinitPointerData>>) {
         self.pointers.push(added);
