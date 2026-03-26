@@ -1,8 +1,8 @@
 #![allow(clippy::unnecessary_cast)]
 
 use std::cell::Cell;
-use std::mem;
 use std::rc::Rc;
+use std::{mem, ptr};
 
 use dispatch2::MainThreadBound;
 use objc2::runtime::{Imp, Sel};
@@ -80,9 +80,7 @@ pub(crate) fn override_send_event(global_app: &NSApplication) {
     let overridden = unsafe { mem::transmute::<SendEvent, Imp>(send_event) };
 
     // If we've already overridden the method, don't do anything.
-    // FIXME(madsmtm): Use `std::ptr::fn_addr_eq` (Rust 1.85) once available in MSRV.
-    #[allow(unknown_lints, unpredictable_function_pointer_comparisons)]
-    if overridden == method.implementation() {
+    if ptr::fn_addr_eq(overridden, method.implementation()) {
         return;
     }
 
