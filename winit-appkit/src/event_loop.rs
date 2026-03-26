@@ -14,6 +14,7 @@ use objc2_foundation::{NSNotificationCenter, NSObjectProtocol};
 use rwh_06::HasDisplayHandle;
 use tracing::debug_span;
 use winit_common::core_foundation::{MainRunLoop, MainRunLoopObserver, tracing_observers};
+use winit_common::foundation::create_observer;
 use winit_core::application::ApplicationHandler;
 use winit_core::cursor::{CustomCursor as CoreCustomCursor, CustomCursorSource};
 use winit_core::error::{EventLoopError, RequestError};
@@ -30,7 +31,6 @@ use super::app_state::AppState;
 use super::cursor::CustomCursor;
 use super::event::dummy_event;
 use super::monitor;
-use super::notification_center::create_observer;
 use crate::ActivationPolicy;
 use crate::window::Window;
 
