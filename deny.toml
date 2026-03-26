@@ -43,6 +43,9 @@ skip = [
     { crate = "bitflags@1", reason = "the ecosystem is in the process of migrating" },
     { crate = "rustix@0.38", reason = "the ecosystem is in the process of migrating" },
     { crate = "linux-raw-sys@0.4", reason = "the ecosystem is in the process of migrating" },
+    { crate = "jni-sys@0.3", reason = "uses the semver trick to depend on v0.4, but `ndk` hasn't been updated to v0.4 yet" },
+    { crate = "thiserror@1.0", reason = "dep of `ndk` crate, yet to be updated" },
+    { crate = "thiserror-impl@1.0", reason = "dep of `thiserror`" },
 ]
 wildcards = "allow" # at least until https://github.com/EmbarkStudios/cargo-deny/issues/241 is fixed
 
@@ -51,9 +54,7 @@ include-archives = true
 interpreted = "deny"
 
 [[bans.build.bypass]]
-allow = [
-    { path = "generate-bindings.sh", checksum = "268ec23248218d779e33853cdc60e2985e70214ff004716cd734270de1f6b561" },
-]
+allow-globs = ["android-games-sdk/import-games-sdk.sh"]
 crate = "android-activity"
 
 [[bans.build.bypass]]

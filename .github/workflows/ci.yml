@@ -136,7 +136,7 @@ jobs:
 
     - name: Generate lockfile
       # Also updates the crates.io index
-      run: cargo generate-lockfile && cargo update -p smol_str --precise 0.3.2
+      run: cargo generate-lockfile && cargo update -p smol_str --precise 0.3.2 && cargo update -p unicode-segmentation --precise 1.12.0
 
     - name: Install GCC Multilib
       if: (matrix.platform.os == 'ubuntu-latest') && contains(matrix.platform.target, 'i686')
