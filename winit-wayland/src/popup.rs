@@ -66,7 +66,7 @@ impl Popup {
                 let size = attributes.surface_size.ok_or(error!("Invalid size for popup"))?;
 
                 positioner.set_anchor(Anchor::TopLeft);
-                positioner.set_gravity(Gravity::BottomRight);
+                positioner.set_gravity(Gravity::BottomRight); // Otherwise the child surface will be centered over the anchor point
                 positioner.set_anchor_rect(
                     position.to_logical(scale_factor).x,
                     position.to_logical(scale_factor).y,
