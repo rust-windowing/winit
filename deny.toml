@@ -54,9 +54,7 @@ include-archives = true
 interpreted = "deny"
 
 [[bans.build.bypass]]
-allow = [
-    { path = "generate-bindings.sh", checksum = "268ec23248218d779e33853cdc60e2985e70214ff004716cd734270de1f6b561" },
-]
+allow-globs = ["android-games-sdk/import-games-sdk.sh"]
 crate = "android-activity"
 
 [[bans.build.bypass]]
