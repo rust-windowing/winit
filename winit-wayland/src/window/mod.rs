@@ -6,6 +6,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 
 use dpi::{LogicalSize, PhysicalInsets, PhysicalPosition, PhysicalSize, Position, Size};
+use rwh_06::RawWindowHandle;
 use sctk::compositor::{CompositorState, Region, SurfaceData};
 use sctk::reexports::client::protocol::wl_display::WlDisplay;
 use sctk::reexports::client::protocol::wl_surface::WlSurface;
@@ -32,9 +33,7 @@ use super::state::WinitState;
 use super::types::xdg_activation::XdgActivationTokenData;
 use crate::window::state::WindowType;
 use crate::{WindowAttributesWayland, output};
-
 pub(crate) mod state;
-
 pub use state::WindowState;
 
 /// The Wayland window.
@@ -113,6 +112,20 @@ impl Window {
             .and_then(|p| p.cast::<WindowAttributesWayland>().ok())
             .unwrap_or_default();
 
+        let mut scale_factor = None;
+        if let Some(handle) = attributes.parent_window() {
+            if let RawWindowHandle::Wayland(handle) = handle {
+                if let Some(s) = state
+                    .windows
+                    .borrow()
+                    .get(&WindowId::from_raw(handle.surface.as_ptr() as usize))
+                {
+                    scale_factor = Some(s.lock().unwrap().scale_factor());
+                }
+            }
+        }
+        let scale_factor = scale_factor.unwrap_or(1.0);
+
         let mut window_state = WindowState::new(
             event_loop_window_target.handle.clone(),
             &event_loop_window_target.queue_handle,
@@ -121,6 +134,7 @@ impl Window {
             state::WindowType::Window((window.clone(), None)),
             attributes.preferred_theme,
             prefer_csd,
+            scale_factor,
         );
 
         window_state.set_window_icon(attributes.window_icon);
