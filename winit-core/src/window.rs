@@ -153,6 +153,7 @@ impl WindowAttributes {
     ///   position. There may be a small gap between this position and the window due to the
     ///   specifics of the Window Manager.
     /// - **X11:** The top left corner of the window, the window's "outer" position.
+    /// - **Wayland:** The top left corner of the window if the window type is `WindowType::Popup`
     /// - **Others:** Ignored.
     #[inline]
     pub fn with_position<P: Into<Position>>(mut self, position: P) -> Self {
