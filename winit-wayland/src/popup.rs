@@ -1,11 +1,11 @@
 use std::sync::{Arc, Mutex};
 
-use dpi::{LogicalSize, PhysicalInsets, PhysicalPosition, PhysicalSize, Position, Size};
+use dpi::{PhysicalInsets, PhysicalPosition, PhysicalSize, Position, Size};
 use rwh_06::RawWindowHandle;
-use sctk::shell::xdg::popup::{Popup as SctkPopup, PopupData};
+use sctk::shell::xdg::popup::Popup as SctkPopup;
 use sctk::shell::xdg::{XdgPositioner, XdgSurface};
+use wayland_client::Proxy;
 use wayland_client::protocol::wl_display::WlDisplay;
-use wayland_client::{Proxy, QueueHandle};
 use winit_core::cursor::Cursor;
 use winit_core::error::{NotSupportedError, RequestError};
 use winit_core::monitor::{Fullscreen, MonitorHandle as CoreMonitorHandle};
@@ -21,8 +21,8 @@ pub use state::State;
 use wayland_protocols::xdg::shell::client::xdg_positioner::Anchor;
 
 use super::ActiveEventLoop;
-use crate::make_wid;
 use crate::window::WindowRequests;
+use crate::window::state::{WindowState, WindowType};
 
 #[derive(Debug)]
 pub struct Popup {
@@ -30,7 +30,7 @@ pub struct Popup {
     popup: SctkPopup,
 
     // The state of the popup.
-    popup_state: Arc<Mutex<State>>,
+    popup_state: Arc<Mutex<WindowState>>,
     /// Window id.
     window_id: WindowId,
 
@@ -88,7 +88,19 @@ impl Popup {
                     &state.xdg_shell,
                 )
                 .map_err(|_| error!("Failed to create popup"))?;
-                (popup, Arc::new(Mutex::new(state::State::new(positioner, size))))
+
+                let mut popup_state = WindowState::new(
+                    event_loop_window_target.handle.clone(),
+                    &event_loop_window_target.queue_handle,
+                    &state,
+                    size,
+                    WindowType::Popup((popup.clone(), None)),
+                    attributes.preferred_theme,
+                    false,
+                );
+                let popup_state = Arc::new(Mutex::new(popup_state));
+
+                (popup, popup_state)
             } else {
                 return Err(error!("Parent window id unknown"));
             };
@@ -97,7 +109,7 @@ impl Popup {
             // popup.commit(); Trait not implemented
 
             let window_id = super::make_wid(&popup.wl_surface());
-            state.popups.get_mut().insert(window_id, popup_state.clone());
+            state.windows.get_mut().insert(window_id, popup_state.clone());
 
             let window_requests = WindowRequests {
                 redraw_requested: AtomicBool::new(true),
@@ -236,12 +248,12 @@ impl CoreWindow for Popup {
     }
 
     fn set_title(&self, title: &str) {
-        self.popup_state.lock().unwrap().set_title(title);
+        self.popup_state.lock().unwrap().set_title(title.to_owned());
     }
 
     #[inline]
     fn set_transparent(&self, transparent: bool) {
-        // self.popup_state.lock().unwrap().set_transparent(transparent);
+        self.popup_state.lock().unwrap().set_transparent(transparent);
     }
 
     fn set_visible(&self, _visible: bool) {

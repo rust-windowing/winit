@@ -65,9 +65,6 @@ pub struct WinitState {
     /// The currently present windows.
     pub windows: RefCell<HashMap<WindowId, Arc<Mutex<WindowState>>>>,
 
-    /// The currently present popups
-    pub popups: RefCell<HashMap<WindowId, Arc<Mutex<popup::State>>>>,
-
     /// The requests from the `Window` to EventLoop, such as close operations and redraw requests.
     pub window_requests: RefCell<HashMap<WindowId, Arc<WindowRequests>>>,
 
@@ -198,8 +195,6 @@ impl WinitState {
             fractional_scaling_manager,
             kwin_blur_manager: KWinBlurManager::new(globals, queue_handle).ok(),
 
-            popups: Default::default(),
-
             seats,
             text_input_state: TextInputState::new(globals, queue_handle).ok(),
 
@@ -315,7 +310,7 @@ impl WindowHandler for WinitState {
             .expect("got configure for dead window.")
             .lock()
             .unwrap()
-            .configure(configure, &self.shm, &self.subcompositor_state);
+            .configure_window(configure, &self.shm, &self.subcompositor_state);
 
         // NOTE: configure demands wl_surface::commit, however winit doesn't commit on behalf of the
         // users, since it can break a lot of things, thus it'll ask users to redraw instead.
@@ -354,13 +349,13 @@ impl PopupHandler for WinitState {
 
         // Populate the configure to the window.
         // self.window_compositor_updates[index].resized |= false;
-        self.popups
+        self.windows
             .get_mut()
             .get_mut(&window_id)
             .expect("got configure for dead window.")
             .lock()
             .unwrap()
-            .configure(configure);
+            .configure_popup(configure);
 
         // NOTE: configure demands wl_surface::commit, however winit doesn't commit on behalf of the
         // users, since it can break a lot of things, thus it'll ask users to redraw instead
