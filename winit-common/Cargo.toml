@@ -14,7 +14,7 @@ event-handler = []
 
 # XKB
 wayland = ["dep:memmap2"]
-x11 = ["xkbcommon-dl?/x11", "dep:x11-dl"]
+x11 = ["xkbcommon-dl?/x11"]
 xkb = ["dep:xkbcommon-dl", "dep:smol_str"]
 
 # CoreFoundation
@@ -30,7 +30,6 @@ winit-core.workspace = true
 
 # XKB
 memmap2 = { workspace = true, optional = true }
-x11-dl = { workspace = true, optional = true }
 xkbcommon-dl = { workspace = true, optional = true }
 
 # Foundation / CoreFoundation

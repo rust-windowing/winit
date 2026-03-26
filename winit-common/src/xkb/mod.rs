@@ -9,12 +9,12 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use smol_str::SmolStr;
 use winit_core::event::{ElementState, KeyEvent};
 use winit_core::keyboard::{Key, KeyLocation};
+#[cfg(feature = "x11")]
+use xkbcommon_dl::x11::{xcb_connection_t, xkbcommon_x11_handle};
 use xkbcommon_dl::{
     self as xkb, XkbCommon, XkbCommonCompose, xkb_compose_status, xkb_context, xkb_context_flags,
     xkbcommon_compose_handle, xkbcommon_handle,
 };
-#[cfg(feature = "x11")]
-use {x11_dl::xlib_xcb::xcb_connection_t, xkbcommon_dl::x11::xkbcommon_x11_handle};
 
 mod compose;
 mod keymap;

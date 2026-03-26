@@ -5,7 +5,7 @@ use std::ptr::NonNull;
 
 use smol_str::SmolStr;
 #[cfg(feature = "x11")]
-use x11_dl::xlib_xcb::xcb_connection_t;
+use xkbcommon_dl::x11::xcb_connection_t;
 use xkbcommon_dl::{
     self as xkb, xkb_keycode_t, xkb_keysym_t, xkb_layout_index_t, xkb_state, xkb_state_component,
 };
