@@ -10,7 +10,7 @@ use std::fmt::Debug;
 use std::num::NonZeroU32;
 use std::sync::Arc;
 use std::sync::mpsc::{self, Receiver, Sender};
-#[cfg(not(web_platform))]
+#[cfg(not(target_family = "wasm"))]
 use std::time::Instant;
 use std::{fmt, mem};
 
@@ -18,7 +18,7 @@ use cursor_icon::CursorIcon;
 use rwh_06::{DisplayHandle, HasDisplayHandle};
 use softbuffer::{Context, Surface};
 use tracing::{error, info};
-#[cfg(web_platform)]
+#[cfg(target_family = "wasm")]
 use web_time::Instant;
 use winit::application::ApplicationHandler;
 use winit::cursor::{Cursor, CustomCursor, CustomCursorSource};
@@ -29,13 +29,15 @@ use winit::event_loop::{ActiveEventLoop, EventLoop};
 use winit::icon::{Icon, RgbaIcon};
 use winit::keyboard::{Key, ModifiersState};
 use winit::monitor::Fullscreen;
-#[cfg(macos_platform)]
+#[cfg(all(target_vendor = "apple", not(target_os = "macos")))]
+use winit::platform::ios::WindowExtIOS;
+#[cfg(target_os = "macos")]
 use winit::platform::macos::{OptionAsAlt, WindowAttributesMacOS, WindowExtMacOS};
 #[cfg(any(x11_platform, wayland_platform))]
 use winit::platform::startup_notify::{self, EventLoopExtStartupNotify, WindowExtStartupNotify};
 #[cfg(wayland_platform)]
 use winit::platform::wayland::{ActiveEventLoopExtWayland, WindowAttributesWayland};
-#[cfg(web_platform)]
+#[cfg(target_family = "wasm")]
 use winit::platform::web::{ActiveEventLoopExtWeb, WindowAttributesWeb};
 #[cfg(x11_platform)]
 use winit::platform::x11::{ActiveEventLoopExtX11, WindowAttributesX11};
@@ -52,7 +54,7 @@ mod fill;
 const BORDER_SIZE: f64 = 20.;
 
 fn main() -> Result<(), Box<dyn Error>> {
-    #[cfg(web_platform)]
+    #[cfg(target_family = "wasm")]
     console_error_panic_hook::set_once();
 
     tracing_init::init();
@@ -61,7 +63,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let (sender, receiver) = mpsc::channel();
 
     // Wire the user event from another thread.
-    #[cfg(not(web_platform))]
+    #[cfg(not(target_family = "wasm"))]
     {
         let event_loop_proxy = event_loop.create_proxy();
         let sender = sender.clone();
@@ -143,34 +145,68 @@ impl Application {
 
         #[cfg(x11_platform)]
         if event_loop.is_x11() {
-            window_attributes = window_attributes
-                .with_platform_attributes(Box::new(window_attributes_x11(event_loop)?));
+            let mut attrs = WindowAttributesX11::default();
+
+            if let Some(token) = event_loop.read_token_from_env() {
+                startup_notify::reset_activation_token_env();
+                info!("Using token {:?} to activate a window", token);
+                attrs = attrs.with_activation_token(token);
+            }
+
+            match std::env::var("X11_VISUAL_ID") {
+                Ok(visual_id_str) => {
+                    info!("Using X11 visual id {visual_id_str}");
+                    let visual_id = visual_id_str.parse().expect("invalid X11_VISUAL_ID");
+                    attrs = attrs.with_x11_visual(visual_id);
+                },
+                Err(_) => {
+                    info!("Set the X11_VISUAL_ID env var to request specific X11 visual")
+                },
+            }
+
+            match std::env::var("X11_SCREEN_ID") {
+                Ok(screen_id_str) => {
+                    info!("Placing the window on X11 screen {screen_id_str}");
+                    let screen_id = screen_id_str.parse().expect("invalid X11_SCREEN_ID");
+                    attrs = attrs.with_x11_screen(screen_id);
+                },
+                Err(_) => {
+                    info!("Set the X11_SCREEN_ID env var to place the window on non-default screen")
+                },
+            }
+
+            window_attributes = window_attributes.with_platform_attributes(Box::new(attrs));
         }
 
         #[cfg(wayland_platform)]
         if event_loop.is_wayland() {
-            window_attributes = window_attributes
-                .with_platform_attributes(Box::new(window_attributes_wayland(event_loop)));
+            let mut attrs = WindowAttributesWayland::default();
+
+            if let Some(token) = event_loop.read_token_from_env() {
+                startup_notify::reset_activation_token_env();
+                info!("Using token {:?} to activate a window", token);
+                attrs = attrs.with_activation_token(token);
+            }
+
+            window_attributes = window_attributes.with_platform_attributes(Box::new(attrs));
         }
 
-        #[cfg(macos_platform)]
+        #[cfg(target_os = "macos")]
         if let Some(tab_id) = _tab_id {
-            let window_attributes_macos =
-                Box::new(WindowAttributesMacOS::default().with_tabbing_identifier(&tab_id));
-            window_attributes = window_attributes.with_platform_attributes(window_attributes_macos);
+            let attrs = WindowAttributesMacOS::default().with_tabbing_identifier(&tab_id);
+            window_attributes = window_attributes.with_platform_attributes(Box::new(attrs));
         }
 
-        #[cfg(web_platform)]
+        #[cfg(target_family = "wasm")]
         {
-            window_attributes =
-                window_attributes.with_platform_attributes(Box::new(window_attributes_web()));
+            let attrs = WindowAttributesWeb::default().with_append(true);
+            window_attributes = window_attributes.with_platform_attributes(Box::new(attrs));
         }
 
         let window = event_loop.create_window(window_attributes)?;
 
-        #[cfg(ios_platform)]
+        #[cfg(all(target_vendor = "apple", not(target_os = "macos")))]
         {
-            use winit::platform::ios::WindowExtIOS;
             window.recognize_doubletap_gesture(true);
             window.recognize_pinch_gesture(true);
             window.recognize_rotation_gesture(true);
@@ -186,7 +222,7 @@ impl Application {
 
     fn handle_action_from_proxy(&mut self, _event_loop: &dyn ActiveEventLoop, action: Action) {
         match action {
-            #[cfg(web_platform)]
+            #[cfg(target_family = "wasm")]
             Action::DumpMonitors => self.dump_monitors(_event_loop),
             Action::Message => {
                 info!("User wake up");
@@ -234,11 +270,11 @@ impl Application {
             Action::ToggleResizable => window.toggle_resizable(),
             Action::ToggleDecorations => window.toggle_decorations(),
             Action::ToggleFullscreen => window.toggle_fullscreen(),
-            #[cfg(macos_platform)]
+            #[cfg(target_os = "macos")]
             Action::ToggleSimpleFullscreen => {
                 window.window.set_simple_fullscreen(!window.window.simple_fullscreen());
             },
-            #[cfg(macos_platform)]
+            #[cfg(target_os = "macos")]
             Action::ToggleBorderlessGame => {
                 let current = window.window.is_borderless_game();
                 window.window.set_borderless_game(!current);
@@ -253,13 +289,13 @@ impl Application {
                     error!("Error creating custom cursor: {err}");
                 }
             },
-            #[cfg(web_platform)]
+            #[cfg(target_family = "wasm")]
             Action::UrlCustomCursor => {
                 if let Err(err) = window.url_custom_cursor(event_loop) {
                     error!("Error creating custom cursor from URL: {err}");
                 }
             },
-            #[cfg(web_platform)]
+            #[cfg(target_family = "wasm")]
             Action::AnimationCustomCursor => {
                 if let Err(err) = self
                     .custom_cursors
@@ -274,7 +310,7 @@ impl Application {
             Action::DragResizeWindow => window.drag_resize_window(),
             Action::ShowWindowMenu => window.show_menu(),
             Action::PrintHelp => self.print_help(),
-            #[cfg(macos_platform)]
+            #[cfg(target_os = "macos")]
             Action::CycleOptionAsAlt => window.cycle_option_as_alt(),
             Action::SetTheme(theme) => {
                 window.window.set_theme(theme);
@@ -282,7 +318,7 @@ impl Application {
                 let actual_theme = theme.or_else(|| window.window.theme()).unwrap_or(Theme::Dark);
                 window.set_draw_theme(actual_theme);
             },
-            #[cfg(macos_platform)]
+            #[cfg(target_os = "macos")]
             Action::CreateNewTab => {
                 let tab_id = window.window.tabbing_identifier();
                 if let Err(err) = self.create_window(event_loop, Some(tab_id)) {
@@ -290,7 +326,7 @@ impl Application {
                 }
             },
             Action::RequestResize => window.swap_dimensions(),
-            #[cfg(web_platform)]
+            #[cfg(target_family = "wasm")]
             Action::DumpMonitors => {
                 let future = event_loop.request_detailed_monitor_permission();
                 let proxy = event_loop.create_proxy();
@@ -304,7 +340,7 @@ impl Application {
                     proxy.wake_up();
                 });
             },
-            #[cfg(not(web_platform))]
+            #[cfg(not(target_family = "wasm"))]
             Action::DumpMonitors => self.dump_monitors(event_loop),
             Action::Message => {
                 self.sender.send(Action::Message).unwrap();
@@ -635,7 +671,7 @@ struct WindowState {
     /// The amount of pan of the window.
     panned: PhysicalPosition<f32>,
 
-    #[cfg(macos_platform)]
+    #[cfg(target_os = "macos")]
     option_as_alt: OptionAsAlt,
 
     // Cursor states.
@@ -659,7 +695,7 @@ impl WindowState {
 
         let size = window.surface_size();
         let mut state = Self {
-            #[cfg(macos_platform)]
+            #[cfg(target_os = "macos")]
             option_as_alt: window.option_as_alt(),
             custom_idx: app.custom_cursors.as_ref().map(Vec::len).unwrap_or(1) - 1,
             cursor_grab: CursorGrabMode::None,
@@ -758,7 +794,7 @@ impl WindowState {
         }
     }
 
-    #[cfg(macos_platform)]
+    #[cfg(target_os = "macos")]
     fn cycle_option_as_alt(&mut self) {
         self.option_as_alt = match self.option_as_alt {
             OptionAsAlt::None => OptionAsAlt::OnlyLeft,
@@ -804,7 +840,7 @@ impl WindowState {
     }
 
     /// Custom cursor from an URL.
-    #[cfg(web_platform)]
+    #[cfg(target_family = "wasm")]
     fn url_custom_cursor(
         &mut self,
         event_loop: &dyn ActiveEventLoop,
@@ -817,7 +853,7 @@ impl WindowState {
     }
 
     /// Custom cursor from a URL.
-    #[cfg(web_platform)]
+    #[cfg(target_family = "wasm")]
     fn animation_custom_cursor(
         &mut self,
         event_loop: &dyn ActiveEventLoop,
@@ -1003,27 +1039,27 @@ enum Action {
     ToggleDecorations,
     ToggleResizable,
     ToggleFullscreen,
-    #[cfg(macos_platform)]
+    #[cfg(target_os = "macos")]
     ToggleSimpleFullscreen,
-    #[cfg(macos_platform)]
+    #[cfg(target_os = "macos")]
     ToggleBorderlessGame,
     ToggleMaximize,
     Minimize,
     NextCursor,
     NextCustomCursor,
-    #[cfg(web_platform)]
+    #[cfg(target_family = "wasm")]
     UrlCustomCursor,
-    #[cfg(web_platform)]
+    #[cfg(target_family = "wasm")]
     AnimationCustomCursor,
     CycleCursorGrab,
     PrintHelp,
     DragWindow,
     DragResizeWindow,
     ShowWindowMenu,
-    #[cfg(macos_platform)]
+    #[cfg(target_os = "macos")]
     CycleOptionAsAlt,
     SetTheme(Option<Theme>),
-    #[cfg(macos_platform)]
+    #[cfg(target_os = "macos")]
     CreateNewTab,
     RequestResize,
     DumpMonitors,
@@ -1042,35 +1078,35 @@ impl Action {
             Action::ToggleDecorations => "Toggle decorations",
             Action::ToggleResizable => "Toggle window resizable state",
             Action::ToggleFullscreen => "Toggle fullscreen",
-            #[cfg(macos_platform)]
+            #[cfg(target_os = "macos")]
             Action::ToggleSimpleFullscreen => "Toggle simple fullscreen",
-            #[cfg(macos_platform)]
+            #[cfg(target_os = "macos")]
             Action::ToggleBorderlessGame => "Toggle borderless game mode",
             Action::ToggleMaximize => "Maximize",
             Action::Minimize => "Minimize",
             Action::ToggleResizeIncrements => "Use resize increments when resizing window",
             Action::NextCursor => "Advance the cursor to the next value",
             Action::NextCustomCursor => "Advance custom cursor to the next value",
-            #[cfg(web_platform)]
+            #[cfg(target_family = "wasm")]
             Action::UrlCustomCursor => "Custom cursor from an URL",
-            #[cfg(web_platform)]
+            #[cfg(target_family = "wasm")]
             Action::AnimationCustomCursor => "Custom cursor from an animation",
             Action::CycleCursorGrab => "Cycle through cursor grab mode",
             Action::PrintHelp => "Print help",
             Action::DragWindow => "Start window drag",
             Action::DragResizeWindow => "Start window drag-resize",
             Action::ShowWindowMenu => "Show window menu",
-            #[cfg(macos_platform)]
+            #[cfg(target_os = "macos")]
             Action::CycleOptionAsAlt => "Cycle option as alt mode",
             Action::SetTheme(None) => "Change to the system theme",
             Action::SetTheme(Some(Theme::Light)) => "Change to a light theme",
             Action::SetTheme(Some(Theme::Dark)) => "Change to a dark theme",
-            #[cfg(macos_platform)]
+            #[cfg(target_os = "macos")]
             Action::CreateNewTab => "Create new tab",
             Action::RequestResize => "Request a resize",
-            #[cfg(not(web_platform))]
+            #[cfg(not(target_family = "wasm"))]
             Action::DumpMonitors => "Dump monitor information",
-            #[cfg(web_platform)]
+            #[cfg(target_family = "wasm")]
             Action::DumpMonitors => {
                 "Request permission to query detailed monitor information and dump monitor \
                  information"
@@ -1097,7 +1133,7 @@ fn decode_cursor(bytes: &[u8]) -> CustomCursorSource {
     CustomCursorSource::from_rgba(samples.samples, w, h, w / 2, h / 2).unwrap()
 }
 
-#[cfg(web_platform)]
+#[cfg(target_family = "wasm")]
 fn url_custom_cursor() -> CustomCursorSource {
     use std::sync::atomic::{AtomicU64, Ordering};
 
@@ -1162,60 +1198,6 @@ fn mouse_button_to_string(button: MouseButton) -> Cow<'static, str> {
     .into()
 }
 
-#[cfg(web_platform)]
-fn window_attributes_web() -> WindowAttributesWeb {
-    WindowAttributesWeb::default().with_append(true)
-}
-
-#[cfg(wayland_platform)]
-fn window_attributes_wayland(event_loop: &dyn ActiveEventLoop) -> WindowAttributesWayland {
-    let mut window_attributes = WindowAttributesWayland::default();
-
-    if let Some(token) = event_loop.read_token_from_env() {
-        startup_notify::reset_activation_token_env();
-        info!("Using token {:?} to activate a window", token);
-        window_attributes = window_attributes.with_activation_token(token);
-    }
-
-    window_attributes
-}
-
-#[cfg(x11_platform)]
-fn window_attributes_x11(
-    event_loop: &dyn ActiveEventLoop,
-) -> Result<WindowAttributesX11, Box<dyn Error>> {
-    let mut window_attributes = WindowAttributesX11::default();
-
-    #[cfg(any(x11_platform, wayland_platform))]
-    if let Some(token) = event_loop.read_token_from_env() {
-        startup_notify::reset_activation_token_env();
-        info!("Using token {:?} to activate a window", token);
-        window_attributes = window_attributes.with_activation_token(token);
-    }
-
-    match std::env::var("X11_VISUAL_ID") {
-        Ok(visual_id_str) => {
-            info!("Using X11 visual id {visual_id_str}");
-            let visual_id = visual_id_str.parse()?;
-            window_attributes = window_attributes.with_x11_visual(visual_id);
-        },
-        Err(_) => info!("Set the X11_VISUAL_ID env variable to request specific X11 visual"),
-    }
-
-    match std::env::var("X11_SCREEN_ID") {
-        Ok(screen_id_str) => {
-            info!("Placing the window on X11 screen {screen_id_str}");
-            let screen_id = screen_id_str.parse()?;
-            window_attributes = window_attributes.with_x11_screen(screen_id);
-        },
-        Err(_) => {
-            info!("Set the X11_SCREEN_ID env variable to place the window on non-default screen")
-        },
-    }
-
-    Ok(window_attributes)
-}
-
 /// Cursor list to cycle through.
 const CURSORS: &[CursorIcon] = &[
     CursorIcon::Default,
@@ -1259,7 +1241,7 @@ const KEY_BINDINGS: &[Binding<&'static str>] = &[
     Binding::new("H", ModifiersState::CONTROL, Action::PrintHelp),
     Binding::new("F", ModifiersState::SHIFT, Action::ToggleAnimatedFillColor),
     Binding::new("F", ModifiersState::CONTROL, Action::ToggleFullscreen),
-    #[cfg(macos_platform)]
+    #[cfg(target_os = "macos")]
     Binding::new("F", ModifiersState::ALT, Action::ToggleSimpleFullscreen),
     Binding::new("D", ModifiersState::CONTROL, Action::ToggleDecorations),
     Binding::new("L", ModifiersState::CONTROL, Action::CycleCursorGrab),
@@ -1276,13 +1258,13 @@ const KEY_BINDINGS: &[Binding<&'static str>] = &[
     // C.
     Binding::new("C", ModifiersState::CONTROL, Action::NextCursor),
     Binding::new("C", ModifiersState::ALT, Action::NextCustomCursor),
-    #[cfg(web_platform)]
+    #[cfg(target_family = "wasm")]
     Binding::new(
         "C",
         ModifiersState::CONTROL.union(ModifiersState::SHIFT),
         Action::UrlCustomCursor,
     ),
-    #[cfg(web_platform)]
+    #[cfg(target_family = "wasm")]
     Binding::new(
         "C",
         ModifiersState::ALT.union(ModifiersState::SHIFT),
@@ -1293,11 +1275,11 @@ const KEY_BINDINGS: &[Binding<&'static str>] = &[
     Binding::new("K", ModifiersState::empty(), Action::SetTheme(None)),
     Binding::new("K", ModifiersState::META, Action::SetTheme(Some(Theme::Light))),
     Binding::new("K", ModifiersState::CONTROL, Action::SetTheme(Some(Theme::Dark))),
-    #[cfg(macos_platform)]
+    #[cfg(target_os = "macos")]
     Binding::new("T", ModifiersState::META, Action::CreateNewTab),
-    #[cfg(macos_platform)]
+    #[cfg(target_os = "macos")]
     Binding::new("O", ModifiersState::CONTROL, Action::CycleOptionAsAlt),
-    #[cfg(macos_platform)]
+    #[cfg(target_os = "macos")]
     Binding::new("B", ModifiersState::CONTROL, Action::ToggleBorderlessGame),
     Binding::new("S", ModifiersState::ALT, Action::EmitSurfaceSize),
     Binding::new("S", ModifiersState::CONTROL, Action::Message),

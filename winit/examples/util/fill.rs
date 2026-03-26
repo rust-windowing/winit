@@ -12,11 +12,11 @@ use std::collections::HashMap;
 use std::mem;
 use std::mem::ManuallyDrop;
 use std::num::NonZeroU32;
-#[cfg(not(web_platform))]
+#[cfg(not(target_family = "wasm"))]
 use std::time::Instant;
 
 use softbuffer::{Context, Surface};
-#[cfg(web_platform)]
+#[cfg(target_family = "wasm")]
 use web_time::Instant;
 use winit::window::{Window, WindowId};
 
