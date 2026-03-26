@@ -69,7 +69,7 @@ objc2-ui-kit = { workspace = true, features = [
     "UIViewController",
     "UIWindow",
 ] }
-winit-common = { workspace = true, features = ["core-foundation", "event-handler"] }
+winit-common = { workspace = true, features = ["core-foundation", "event-handler", "foundation"] }
 
 [package.metadata.docs.rs]
 all-features = true
