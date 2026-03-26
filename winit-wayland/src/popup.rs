@@ -1,11 +1,12 @@
 use std::sync::{Arc, Mutex};
 
-use dpi::{PhysicalInsets, PhysicalPosition, PhysicalSize, Position, Size};
+use dpi::{LogicalPosition, PhysicalInsets, PhysicalPosition, PhysicalSize, Position, Size};
 use rwh_06::RawWindowHandle;
 use sctk::shell::xdg::popup::Popup as SctkPopup;
 use sctk::shell::xdg::{XdgPositioner, XdgSurface};
 use wayland_client::Proxy;
 use wayland_client::protocol::wl_display::WlDisplay;
+use wayland_protocols::xdg::shell::client::xdg_positioner::Gravity;
 use winit_core::cursor::Cursor;
 use winit_core::error::{NotSupportedError, RequestError};
 use winit_core::monitor::{Fullscreen, MonitorHandle as CoreMonitorHandle};
@@ -31,6 +32,8 @@ pub struct Popup {
 
     // The state of the popup.
     popup_state: Arc<Mutex<WindowState>>,
+
+    positioner: XdgPositioner,
     /// Window id.
     window_id: WindowId,
 
@@ -55,6 +58,8 @@ impl Popup {
         if let RawWindowHandle::Wayland(parent_window_handle) = parent_window_handle {
             let queue_handle = event_loop_window_target.queue_handle.clone();
             let mut state = event_loop_window_target.state.borrow_mut();
+            let positioner = XdgPositioner::new(&state.xdg_shell)
+                .map_err(|_| error!("Failed to create positioner"))?;
             let (popup, popup_state) = if let Some(parent_window_state) = state
                 .windows
                 .borrow()
@@ -63,20 +68,21 @@ impl Popup {
                 // Use the scale factor of the parent
                 let scale_factor = parent_window_state.lock().unwrap().scale_factor();
                 let position = attributes.position.ok_or(error!("No position specified"))?;
-                let positioner = XdgPositioner::new(&state.xdg_shell)
-                    .map_err(|_| error!("Failed to create positioner"))?;
                 let size = attributes.surface_size.ok_or(error!("Invalid size for popup"))?;
+
+                positioner.set_anchor(Anchor::TopLeft);
+                positioner.set_gravity(Gravity::BottomRight);
                 positioner.set_anchor_rect(
                     position.to_logical(scale_factor).x,
                     position.to_logical(scale_factor).y,
-                    10,
-                    10,
+                    1,
+                    1,
                 );
+                positioner.set_offset(0, 0);
                 positioner.set_size(
                     size.to_logical(scale_factor).width,
                     size.to_logical(scale_factor).height,
                 );
-                positioner.set_anchor(Anchor::TopLeft);
 
                 let parent_window = &parent_window_state.lock().unwrap().window;
                 let parent_surface = parent_window.xdg_surface();
@@ -100,15 +106,16 @@ impl Popup {
                     false,
                     scale_factor,
                 );
+
+                popup.wl_surface().commit();
+                // popup.commit(); Trait not implemented
+
                 let popup_state = Arc::new(Mutex::new(popup_state));
 
                 (popup, popup_state)
             } else {
                 return Err(error!("Parent window id unknown"));
             };
-
-            popup.wl_surface().commit();
-            // popup.commit(); Trait not implemented
 
             let window_id = super::make_wid(&popup.wl_surface());
             state.windows.get_mut().insert(window_id, popup_state.clone());
@@ -133,6 +140,7 @@ impl Popup {
             Ok(Self {
                 popup,
                 popup_state,
+                positioner,
                 window_id,
                 display: event_loop_window_target.handle.connection.display().clone(),
             })
