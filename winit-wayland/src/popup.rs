@@ -1,3 +1,4 @@
+use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, Mutex};
 
 use dpi::{LogicalPosition, PhysicalInsets, PhysicalPosition, PhysicalSize, Position, Size};
@@ -15,11 +16,6 @@ use winit_core::window::{
     UserAttentionType, Window as CoreWindow, WindowAttributes, WindowButtons, WindowId,
     WindowLevel,
 };
-mod state;
-use std::sync::atomic::AtomicBool;
-
-pub use state::State;
-use wayland_protocols::xdg::shell::client::xdg_positioner::Anchor;
 
 use super::ActiveEventLoop;
 use crate::window::WindowRequests;
