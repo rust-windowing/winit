@@ -340,6 +340,7 @@ pub struct WindowAttributesMacOS {
     pub(crate) borderless_game: bool,
     pub(crate) unified_titlebar: bool,
     pub(crate) panel: bool,
+    pub(crate) simple_fullscreen: bool,
 }
 
 impl WindowAttributesMacOS {
@@ -436,6 +437,12 @@ impl WindowAttributesMacOS {
         self
     }
 
+    /// See [`WindowExtMacOS::set_simple_fullscreen`] for details on what this means if set.
+    pub fn with_simple_fullscreen(mut self, simple_fullscreen: bool) -> Self {
+        self.simple_fullscreen = simple_fullscreen;
+        self
+    }
+
     /// Use [`NSPanel`] window with [`NonactivatingPanel`] window style mask instead of
     /// [`NSWindow`].
     ///
@@ -467,6 +474,7 @@ impl Default for WindowAttributesMacOS {
             borderless_game: false,
             unified_titlebar: false,
             panel: false,
+            simple_fullscreen: false,
         }
     }
 }
