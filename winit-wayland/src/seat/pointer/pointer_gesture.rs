@@ -44,12 +44,11 @@ pub struct PointerGestureData {
 pub struct PointerGestureDataInner {
     window_id: Option<WindowId>,
     previous_pinch: f64,
-    wheel_event: bool,
 }
 
 impl Default for PointerGestureDataInner {
     fn default() -> Self {
-        Self { window_id: Default::default(), previous_pinch: 1.0, wheel_event: false }
+        Self { window_id: Default::default(), previous_pinch: 1.0 }
     }
 }
 
@@ -97,8 +96,6 @@ impl Dispatch<ZwpPointerGestureHoldV1, PointerGestureData, WinitState> for Point
                 (window_id, TouchPhase::Hold)
             },
             HoldEvent::End { cancelled, .. } => {
-                // If the end event was alreay send by ZwpPointerGesturePinchV1 we don't need to
-                // send it here again
                 let window_id = match pointer_gesture_data.window_id {
                     Some(window_id) => window_id,
                     _ => return,
