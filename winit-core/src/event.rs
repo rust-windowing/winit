@@ -1006,7 +1006,7 @@ pub enum Ime {
 #[derive(Debug, Hash, PartialEq, Eq, Clone, Copy)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum TouchPhase {
-    /// The fingers touching the touchpad, but no move happend yet
+    /// The fingers touching the touchpad, but no move happened yet
     Hold,
     /// Moving the fingers started
     Started,
