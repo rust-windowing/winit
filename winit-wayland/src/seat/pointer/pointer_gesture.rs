@@ -10,6 +10,7 @@ use sctk::reexports::protocols::wp::pointer_gestures::zv1::client::zwp_pointer_g
     Event, ZwpPointerGesturePinchV1,
 };
 use sctk::reexports::protocols::wp::pointer_gestures::zv1::client::zwp_pointer_gestures_v1::ZwpPointerGesturesV1;
+use wayland_protocols::wp::pointer_gestures::zv1::client::zwp_pointer_gesture_hold_v1::ZwpPointerGestureHoldV1;
 use winit_core::event::{TouchPhase, WindowEvent};
 use winit_core::window::WindowId;
 
@@ -67,6 +68,19 @@ impl Dispatch<ZwpPointerGesturesV1, GlobalData, WinitState> for PointerGesturesS
         _qhandle: &QueueHandle<WinitState>,
     ) {
         unreachable!("zwp_pointer_gestures_v1 has no events")
+    }
+}
+
+impl Dispatch<ZwpPointerGestureHoldV1, PointerGestureData, WinitState> for PointerGesturesState {
+    fn event(
+        _state: &mut WinitState,
+        _proxy: &ZwpPointerGestureHoldV1,
+        _event: <ZwpPointerGestureHoldV1 as wayland_client::Proxy>::Event,
+        _data: &PointerGestureData,
+        _conn: &Connection,
+        _qhandle: &QueueHandle<WinitState>,
+    ) {
+        unreachable!("zwp_pointer_gesture_hold_v1 has no events")
     }
 }
 
@@ -155,3 +169,4 @@ impl Dispatch<ZwpPointerGesturePinchV1, PointerGestureData, WinitState> for Poin
 
 delegate_dispatch!(WinitState: [ZwpPointerGesturesV1: GlobalData] => PointerGesturesState);
 delegate_dispatch!(WinitState: [ZwpPointerGesturePinchV1: PointerGestureData] => PointerGesturesState);
+delegate_dispatch!(WinitState: [ZwpPointerGestureHoldV1: PointerGestureData] => PointerGesturesState);

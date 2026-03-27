@@ -12,6 +12,7 @@ use sctk::reexports::protocols::wp::text_input::zv3::client::zwp_text_input_v3::
 use sctk::seat::pointer::{ThemeSpec, ThemedPointer};
 use sctk::seat::{Capability as SeatCapability, SeatHandler, SeatState};
 use tracing::warn;
+use wayland_protocols::wp::pointer_gestures::zv1::client::zwp_pointer_gesture_hold_v1::ZwpPointerGestureHoldV1;
 use wayland_protocols::wp::pointer_gestures::zv1::client::zwp_pointer_gesture_pinch_v1::ZwpPointerGesturePinchV1;
 use wayland_protocols::wp::tablet::zv2::client::zwp_tablet_seat_v2::ZwpTabletSeatV2;
 use winit_core::event::WindowEvent;
@@ -59,6 +60,9 @@ pub struct WinitSeatState {
 
     /// The pinch pointer gesture bound on the seat.
     pointer_gesture_pinch: Option<ZwpPointerGesturePinchV1>,
+
+    /// The hold pointer gesture bound on the seat.
+    pointer_gesture_hold: Option<ZwpPointerGestureHoldV1>,
 
     /// The keyboard bound on the seat.
     keyboard_state: Option<KeyboardState>,
@@ -141,6 +145,14 @@ impl SeatHandler for WinitState {
                     )
                 });
 
+                seat_state.pointer_gesture_hold = self.pointer_gestures.as_ref().map(|manager| {
+                    manager.get_hold_gesture(
+                        themed_pointer.pointer(),
+                        queue_handle,
+                        PointerGestureData::default(),
+                    )
+                });
+
                 let themed_pointer = Arc::new(themed_pointer);
 
                 // Register cursor surface.
@@ -207,6 +219,10 @@ impl SeatHandler for WinitState {
 
                 if let Some(pointer_gesture_pinch) = seat_state.pointer_gesture_pinch.take() {
                     pointer_gesture_pinch.destroy();
+                }
+
+                if let Some(pointer_gesture_hold) = seat_state.pointer_gesture_hold.take() {
+                    pointer_gesture_hold.destroy();
                 }
 
                 if let Some(pointer) = seat_state.pointer.take() {
