@@ -218,6 +218,8 @@ impl EventLoop {
         if let Some(code) = self.exit_code() {
             self.loop_running = false;
 
+            app.destroy_surfaces(&self.active_event_loop);
+
             PumpStatus::Exit(code)
         } else {
             // NOTE: spawn a wake-up thread, thus if we have code reading the wayland connection
