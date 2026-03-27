@@ -41,7 +41,7 @@ sctk-adwaita = { version = "0.11.0", default-features = false, optional = true }
 wayland-backend = { version = "0.3.10", default-features = false, features = ["client_system"] }
 wayland-client = "0.31.10"
 wayland-protocols = { version = "0.32.11", features = ["staging", "unstable"] }
-wayland-protocols-plasma = { version = "0.3.11", features = ["client"] }
+wayland-protocols-plasma = { version = "0.3.8", features = ["client"] }
 winit-common = { workspace = true, features = ["xkb", "wayland"] }
 
 [package.metadata.docs.rs]
