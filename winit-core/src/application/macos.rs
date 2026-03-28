@@ -1,3 +1,5 @@
+use dpi::PhysicalPosition;
+
 use crate::application::ApplicationHandler;
 use crate::event_loop::ActiveEventLoop;
 use crate::window::WindowId;
@@ -48,5 +50,37 @@ pub trait ApplicationHandlerExtMacOS: ApplicationHandler {
         let _ = event_loop;
         let _ = window_id;
         let _ = action;
+    }
+
+    /// Called when the user clicks on an inactive window to determine whether the click should
+    /// also be processed as a normal mouse event.
+    ///
+    /// This corresponds to the [`acceptsFirstMouse:`] method on `NSView`, which receives the
+    /// triggering mouse event. Winit extracts the click position from that event and passes it
+    /// here so that the application can make per-click decisions, e.g. accept first mouse for
+    /// low-risk actions (selection, scrolling) but reject it for buttons or destructive actions.
+    ///
+    /// The default implementation returns `true`.
+    ///
+    /// Use `WindowAttributesMacOS::with_accepts_first_mouse` if a static, per-window value is
+    /// sufficient. Implement this method instead when you need to decide dynamically based on
+    /// *where* in the window the click landed (e.g. accept for the canvas area but reject for
+    /// toolbar buttons).
+    ///
+    /// When [`ApplicationHandler::macos_handler`] returns `Some`, this method takes precedence
+    /// over the static `WindowAttributesMacOS::with_accepts_first_mouse` setting. The static
+    /// value is only used as a fallback when this method cannot be called synchronously (e.g.
+    /// the handler is already borrowed due to re-entrancy).
+    ///
+    /// [`acceptsFirstMouse:`]: https://developer.apple.com/documentation/appkit/nsview/acceptsfirstmouse(_:)
+    #[doc(alias = "acceptsFirstMouse:")]
+    fn accepts_first_mouse(
+        &mut self,
+        event_loop: &dyn ActiveEventLoop,
+        window_id: WindowId,
+        position: PhysicalPosition<f64>,
+    ) -> bool {
+        let _ = (event_loop, window_id, position);
+        true
     }
 }
