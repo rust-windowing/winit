@@ -3,9 +3,10 @@ use std::error::Error;
 
 #[cfg(x11_platform)]
 fn main() -> Result<(), Box<dyn Error>> {
+    use softbuffer::{Context, Surface};
     use winit::application::ApplicationHandler;
     use winit::event::WindowEvent;
-    use winit::event_loop::{ActiveEventLoop, EventLoop};
+    use winit::event_loop::{ActiveEventLoop, EventLoop, OwnedDisplayHandle};
     use winit::platform::x11::WindowAttributesX11;
     use winit::window::{Window, WindowAttributes, WindowId};
 
@@ -17,7 +18,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     #[derive(Debug)]
     pub struct XEmbedDemo {
         parent_window_id: u32,
-        window: Option<Box<dyn Window>>,
+        surface: Option<Surface<OwnedDisplayHandle, Box<dyn Window>>>,
     }
 
     impl ApplicationHandler for XEmbedDemo {
@@ -29,7 +30,10 @@ fn main() -> Result<(), Box<dyn Error>> {
                 WindowAttributesX11::default().with_embed_parent_window(self.parent_window_id);
             window_attributes = window_attributes.with_platform_attributes(Box::new(x11_attrs));
 
-            self.window = Some(event_loop.create_window(window_attributes).unwrap());
+            let window = event_loop.create_window(window_attributes).unwrap();
+            let context = Context::new(event_loop.owned_display_handle()).unwrap();
+            let surface = Surface::new(&context, window).unwrap();
+            self.surface = Some(surface);
         }
 
         fn window_event(
@@ -38,19 +42,19 @@ fn main() -> Result<(), Box<dyn Error>> {
             _window_id: WindowId,
             event: WindowEvent,
         ) {
-            let window = self.window.as_ref().unwrap();
             match event {
                 WindowEvent::CloseRequested => event_loop.exit(),
                 WindowEvent::RedrawRequested => {
-                    window.pre_present_notify();
-                    fill::fill_window(window.as_ref());
+                    let surface = self.surface.as_mut().unwrap();
+                    surface.window().pre_present_notify();
+                    fill::fill(surface);
                 },
                 _ => (),
             }
         }
 
         fn about_to_wait(&mut self, _event_loop: &dyn ActiveEventLoop) {
-            self.window.as_ref().unwrap().request_redraw();
+            self.surface.as_ref().unwrap().window().request_redraw();
         }
     }
 
@@ -63,7 +67,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     tracing::init();
     let event_loop = EventLoop::new()?;
 
-    Ok(event_loop.run_app(XEmbedDemo { parent_window_id, window: None })?)
+    Ok(event_loop.run_app(XEmbedDemo { parent_window_id, surface: None })?)
 }
 
 #[cfg(not(x11_platform))]
