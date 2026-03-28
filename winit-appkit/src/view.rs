@@ -787,8 +787,8 @@ define_class!(
             });
             if event.is_some() && result.is_none() {
                 warn!(
-                    "could not call `accepts_first_mouse` handler (re-entrant call), \
-                     falling back to static value"
+                    "could not call `accepts_first_mouse` handler (re-entrant call), falling back \
+                     to static value"
                 );
             }
             result.unwrap_or(self.ivars().accepts_first_mouse)
