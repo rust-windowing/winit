@@ -245,7 +245,7 @@ mod tests {
         let handler = EventHandler::new();
         handler.set(Box::new(DummyApp), || {
             handler.handle(|_app| {
-                // Re-entrant handle must still panic after the refactoring.
+                // Re-entrant handle must still panic.
                 handler.handle(|_app| {});
             });
         });
