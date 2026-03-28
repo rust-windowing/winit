@@ -32,7 +32,7 @@ jobs:
           cargo doc --no-deps -Z rustdoc-map -Z rustdoc-scrape-examples --features=serde,mint,android-native-activity
 
       - name: Setup Pages
-        uses: actions/configure-pages@v5
+        uses: actions/configure-pages@v6
 
       - name: Fix permissions
         run: |
