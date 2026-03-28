@@ -62,6 +62,11 @@ pub trait ApplicationHandlerExtMacOS: ApplicationHandler {
     ///
     /// The default implementation returns `true`.
     ///
+    /// Use `WindowAttributesMacOS::with_accepts_first_mouse` if a static, per-window value is
+    /// sufficient. Implement this method instead when you need to decide dynamically based on
+    /// *where* in the window the click landed (e.g. accept for the canvas area but reject for
+    /// toolbar buttons).
+    ///
     /// When [`ApplicationHandler::macos_handler`] returns `Some`, this method takes precedence
     /// over the static `WindowAttributesMacOS::with_accepts_first_mouse` setting. The static
     /// value is only used as a fallback when this method cannot be called synchronously (e.g.

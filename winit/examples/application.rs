@@ -600,6 +600,16 @@ impl ApplicationHandlerExtMacOS for Application {
     ) {
         info!(?window_id, ?action, "macOS standard key binding");
     }
+
+    fn accepts_first_mouse(
+        &mut self,
+        _event_loop: &dyn ActiveEventLoop,
+        window_id: WindowId,
+        position: PhysicalPosition<f64>,
+    ) -> bool {
+        info!(?window_id, ?position, "macOS accepts_first_mouse");
+        true
+    }
 }
 
 /// State of the window.
