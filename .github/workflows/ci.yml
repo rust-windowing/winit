@@ -290,31 +290,14 @@ jobs:
         key: cargo-${{ matrix.toolchain }}-${{ matrix.platform.name }}-${{ hashFiles('Cargo.lock') }}
 
   cargo-deny:
-    name: Run cargo-deny on ${{ matrix.platform.name }}
+    name: Run cargo-deny
     runs-on: ubuntu-latest
-
-    # TODO: remove this matrix when https://github.com/EmbarkStudios/cargo-deny/issues/324 is resolved
-    strategy:
-      fail-fast: false
-      matrix:
-        platform:
-          - { name: 'Android', target: aarch64-linux-android }
-          - { name: 'iOS', target: aarch64-apple-ios }
-          - { name: 'Linux', target: x86_64-unknown-linux-gnu }
-          - { name: 'macOS', target: aarch64-apple-darwin }
-          - { name: 'Redox OS', target: x86_64-unknown-redox }
-          - { name: 'Web', target: wasm32-unknown-unknown }
-          - { name: 'Windows GNU', target: x86_64-pc-windows-gnu }
-          - { name: 'Windows MSVC', target: x86_64-pc-windows-msvc }
 
     steps:
     - uses: taiki-e/checkout-action@v1
     - uses: EmbarkStudios/cargo-deny-action@v2
       with:
-        command: check
         log-level: error
-        manifest-path: winit/Cargo.toml
-        arguments: --all-features --target ${{ matrix.platform.target }}
 
   eslint:
     name: ESLint
