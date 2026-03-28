@@ -62,9 +62,10 @@ pub trait ApplicationHandlerExtMacOS: ApplicationHandler {
     ///
     /// The default implementation returns `true`.
     ///
-    /// If this method cannot be called synchronously (e.g. the handler is already in use), the
-    /// static `accepts_first_mouse` value from
-    /// [`WindowAttributes`][crate::window::WindowAttributes] is used as a fallback.
+    /// When [`ApplicationHandler::macos_handler`] returns `Some`, this method takes precedence
+    /// over the static `WindowAttributesMacOS::with_accepts_first_mouse` setting. The static
+    /// value is only used as a fallback when this method cannot be called synchronously (e.g.
+    /// the handler is already borrowed due to re-entrancy).
     ///
     /// [`acceptsFirstMouse:`]: https://developer.apple.com/documentation/appkit/nsview/acceptsfirstmouse(_:)
     #[doc(alias = "acceptsFirstMouse:")]
