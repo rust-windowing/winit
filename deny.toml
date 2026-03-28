@@ -1,27 +1,25 @@
 # https://embarkstudios.github.io/cargo-deny
 # cargo install cargo-deny
-# cargo update && cargo deny --target aarch64-apple-ios check
-# Note: running just `cargo deny check` without a `--target` will result in
-# false positives due to https://github.com/EmbarkStudios/cargo-deny/issues/324
+# cargo update && cargo deny check
 [graph]
 all-features = true
 exclude-dev = true
 targets = [
-    { triple = "aarch64-apple-darwin" },
-    { triple = "aarch64-apple-ios" },
-    { triple = "aarch64-linux-android" },
-    { triple = "i686-pc-windows-gnu" },
-    { triple = "i686-pc-windows-msvc" },
-    { triple = "i686-unknown-linux-gnu" },
+    "aarch64-apple-darwin",
+    "aarch64-apple-ios",
+    "aarch64-linux-android",
+    "i686-pc-windows-gnu",
+    "i686-pc-windows-msvc",
+    "i686-unknown-linux-gnu",
     { triple = "wasm32-unknown-unknown", features = [
         "atomics",
     ] },
-    { triple = "x86_64-apple-darwin" },
-    { triple = "x86_64-apple-ios" },
-    { triple = "x86_64-pc-windows-gnu" },
-    { triple = "x86_64-pc-windows-msvc" },
-    { triple = "x86_64-unknown-linux-gnu" },
-    { triple = "x86_64-unknown-redox" },
+    "x86_64-apple-darwin",
+    "x86_64-apple-ios",
+    "x86_64-pc-windows-gnu",
+    "x86_64-pc-windows-msvc",
+    "x86_64-unknown-linux-gnu",
+    "x86_64-unknown-redox",
 ]
 
 [licenses]
@@ -33,6 +31,7 @@ allow = [
     "MIT",          # https://tldrlegal.com/license/mit-license
     "Unicode-3.0",  # https://spdx.org/licenses/Unicode-3.0.html
     "Zlib",         # https://spdx.org/licenses/Zlib.html
+    "MPL-2.0",      # https://www.mozilla.org/en-US/MPL/2.0/
 ]
 confidence-threshold = 1.0
 private = { ignore = true }
@@ -40,47 +39,23 @@ private = { ignore = true }
 [bans]
 multiple-versions = "deny"
 skip = [
-    { crate = "bitflags@1", reason = "the ecosystem is in the process of migrating" },
-    { crate = "rustix@0.38", reason = "the ecosystem is in the process of migrating" },
-    { crate = "linux-raw-sys@0.4", reason = "the ecosystem is in the process of migrating" },
     { crate = "jni-sys@0.3", reason = "uses the semver trick to depend on v0.4, but `ndk` hasn't been updated to v0.4 yet" },
     { crate = "thiserror@1.0", reason = "dep of `ndk` crate, yet to be updated" },
     { crate = "thiserror-impl@1.0", reason = "dep of `thiserror`" },
+    { crate = "objc2@0.5", reason = "used by crossfont" },
+    { crate = "objc2-foundation@0.2", reason = "used by crossfont" },
 ]
-wildcards = "allow" # at least until https://github.com/EmbarkStudios/cargo-deny/issues/241 is fixed
+skip-tree = [
+    { crate = "windows-sys", reason = "foundational but bumps fairly often, nothing we can do about it not having a shared version" },
+]
 
 [bans.build]
+bypass = [
+    { crate = "android-activity", allow-globs = ["android-games-sdk/import-games-sdk.sh"] },
+    { crate = "freetype-sys", allow-globs = ["freetype2/*"] },
+    # `crossfont` still depends (partially transitively) on `winapi`.
+    { crate = "winapi-i686-pc-windows-gnu", allow-globs = ["lib/lib*.a"] },
+    { crate = "winapi-x86_64-pc-windows-gnu", allow-globs = ["lib/lib*.a"] },
+]
 include-archives = true
 interpreted = "deny"
-
-[[bans.build.bypass]]
-allow-globs = ["android-games-sdk/import-games-sdk.sh"]
-crate = "android-activity"
-
-[[bans.build.bypass]]
-allow-globs = ["ci/*", "githooks/*"]
-crate = "zerocopy"
-
-[[bans.build.bypass]]
-allow-globs = ["cherry-pick-stable.sh"]
-crate = "libc"
-
-[[bans.build.bypass]]
-allow-globs = ["freetype2/*"]
-crate = "freetype-sys"
-
-[[bans.build.bypass]]
-allow-globs = ["lib/*.a"]
-crate = "windows_i686_gnu"
-
-[[bans.build.bypass]]
-allow-globs = ["lib/*.lib"]
-crate = "windows_i686_msvc"
-
-[[bans.build.bypass]]
-allow-globs = ["lib/*.a"]
-crate = "windows_x86_64_gnu"
-
-[[bans.build.bypass]]
-allow-globs = ["lib/*.lib"]
-crate = "windows_x86_64_msvc"
