@@ -55,7 +55,6 @@ use winit_core::window::{
 
 use super::app_state::AppState;
 use super::cursor::{CustomCursor, cursor_from_icon};
-use super::ffi;
 use super::monitor::{self, MonitorHandle, flip_window_screen_coordinates, get_display_id};
 use super::util::cgerr;
 use super::view::WinitView;
@@ -973,17 +972,30 @@ impl WindowDelegate {
     }
 
     pub fn set_blur(&self, blur: bool) {
-        // NOTE: in general we want to specify the blur radius, but the choice of 80
-        // should be a reasonable default.
-        let radius = if blur { 80 } else { 0 };
-        let window_number = self.window().windowNumber();
-        unsafe {
-            ffi::CGSSetWindowBackgroundBlurRadius(
-                ffi::CGSMainConnectionID(),
-                window_number,
-                radius,
-            );
+        #[cfg(feature = "private-apple-apis")]
+        {
+            #[link(name = "CoreGraphics", kind = "framework")]
+            unsafe extern "C" {
+                // Wildly used private APIs; Apple uses them for their Terminal.app.
+                pub fn CGSMainConnectionID() -> *mut objc2::runtime::AnyObject;
+                pub fn CGSSetWindowBackgroundBlurRadius(
+                    connection_id: *mut objc2::runtime::AnyObject,
+                    window_id: objc2_foundation::NSInteger,
+                    radius: i64,
+                ) -> i32;
+            }
+
+            // NOTE: in general we want to specify the blur radius, but the choice of 80
+            // should be a reasonable default.
+            let radius = if blur { 80 } else { 0 };
+            let window_number = self.window().windowNumber();
+            unsafe {
+                CGSSetWindowBackgroundBlurRadius(CGSMainConnectionID(), window_number, radius)
+            };
         }
+
+        // TODO: Implement blur using public methods somehow?
+        let _ = blur;
     }
 
     pub fn set_visible(&self, visible: bool) {
