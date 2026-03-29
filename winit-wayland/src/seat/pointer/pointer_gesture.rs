@@ -7,10 +7,13 @@ use sctk::globals::GlobalData;
 use sctk::reexports::client::globals::{BindError, GlobalList};
 use sctk::reexports::client::{Connection, Dispatch, Proxy, QueueHandle, delegate_dispatch};
 use sctk::reexports::protocols::wp::pointer_gestures::zv1::client::zwp_pointer_gesture_pinch_v1::{
-    Event, ZwpPointerGesturePinchV1,
+    Event as PinchEvent, ZwpPointerGesturePinchV1,
 };
 use sctk::reexports::protocols::wp::pointer_gestures::zv1::client::zwp_pointer_gestures_v1::ZwpPointerGesturesV1;
-use winit_core::event::{TouchPhase, WindowEvent};
+use wayland_protocols::wp::pointer_gestures::zv1::client::zwp_pointer_gesture_hold_v1::{
+    Event as HoldEvent, ZwpPointerGestureHoldV1,
+};
+use winit_core::event::{MouseScrollDelta, TouchPhase, WindowEvent};
 use winit_core::window::WindowId;
 
 use crate::state::WinitState;
@@ -27,7 +30,7 @@ impl PointerGesturesState {
         globals: &GlobalList,
         queue_handle: &QueueHandle<WinitState>,
     ) -> Result<Self, BindError> {
-        let pointer_gestures = globals.bind(queue_handle, 1..=1, GlobalData)?;
+        let pointer_gestures = globals.bind(queue_handle, 3..=3, GlobalData)?;
         Ok(Self { pointer_gestures })
     }
 }
@@ -70,6 +73,74 @@ impl Dispatch<ZwpPointerGesturesV1, GlobalData, WinitState> for PointerGesturesS
     }
 }
 
+impl Dispatch<ZwpPointerGestureHoldV1, PointerGestureData, WinitState> for PointerGesturesState {
+    fn event(
+        state: &mut WinitState,
+        _proxy: &ZwpPointerGestureHoldV1,
+        event: <ZwpPointerGestureHoldV1 as wayland_client::Proxy>::Event,
+        data: &PointerGestureData,
+        _conn: &Connection,
+        _qhandle: &QueueHandle<WinitState>,
+    ) {
+        let mut pointer_gesture_data = data.inner.lock().unwrap();
+        let (window_id, phase) = match event {
+            HoldEvent::Begin { surface, fingers, .. } => {
+                // We only support two fingers for now.
+                if fingers != 2 {
+                    return;
+                }
+
+                let window_id = crate::make_wid(&surface);
+                pointer_gesture_data.window_id = Some(window_id);
+
+                (window_id, TouchPhase::Hold)
+            },
+            HoldEvent::End { cancelled, .. } => {
+                let window_id = match pointer_gesture_data.window_id {
+                    Some(window_id) => window_id,
+                    _ => return,
+                };
+
+                // Reset the state.
+                *pointer_gesture_data = Default::default();
+
+                let phase = if cancelled == 0 { TouchPhase::Ended } else { TouchPhase::Cancelled };
+
+                (window_id, phase)
+            },
+            _ => return,
+        };
+
+        // The chance of only one of these events being necessary is extremely small,
+        // so it is easier to just send all
+        state.events_sink.push_window_event(
+            WindowEvent::MouseWheel {
+                device_id: None,
+                delta: MouseScrollDelta::PixelDelta(PhysicalPosition::new(0., 0.)),
+                phase,
+            },
+            window_id,
+        );
+
+        state.events_sink.push_window_event(
+            WindowEvent::PanGesture {
+                device_id: None,
+                delta: PhysicalPosition::new(0., 0.),
+                phase,
+            },
+            window_id,
+        );
+        state.events_sink.push_window_event(
+            WindowEvent::PinchGesture { device_id: None, delta: 0., phase },
+            window_id,
+        );
+        state.events_sink.push_window_event(
+            WindowEvent::RotationGesture { device_id: None, delta: 0., phase },
+            window_id,
+        );
+    }
+}
+
 impl Dispatch<ZwpPointerGesturePinchV1, PointerGestureData, WinitState> for PointerGesturesState {
     fn event(
         state: &mut WinitState,
@@ -81,7 +152,7 @@ impl Dispatch<ZwpPointerGesturePinchV1, PointerGestureData, WinitState> for Poin
     ) {
         let mut pointer_gesture_data = data.inner.lock().unwrap();
         let (window_id, phase, pan_delta, pinch_delta, rotation_delta) = match event {
-            Event::Begin { surface, fingers, .. } => {
+            PinchEvent::Begin { surface, fingers, .. } => {
                 // We only support two fingers for now.
                 if fingers != 2 {
                     return;
@@ -100,7 +171,7 @@ impl Dispatch<ZwpPointerGesturePinchV1, PointerGestureData, WinitState> for Poin
 
                 (window_id, TouchPhase::Started, PhysicalPosition::new(0., 0.), 0., 0.)
             },
-            Event::Update { dx, dy, scale: pinch, rotation, .. } => {
+            PinchEvent::Update { dx, dy, scale: pinch, rotation, .. } => {
                 let window_id = match pointer_gesture_data.window_id {
                     Some(window_id) => window_id,
                     _ => return,
@@ -121,7 +192,7 @@ impl Dispatch<ZwpPointerGesturePinchV1, PointerGestureData, WinitState> for Poin
                 let rotation_delta = -rotation as f32;
                 (window_id, TouchPhase::Moved, pan_delta, pinch_delta, rotation_delta)
             },
-            Event::End { cancelled, .. } => {
+            PinchEvent::End { cancelled, .. } => {
                 let window_id = match pointer_gesture_data.window_id {
                     Some(window_id) => window_id,
                     _ => return,
@@ -155,3 +226,4 @@ impl Dispatch<ZwpPointerGesturePinchV1, PointerGestureData, WinitState> for Poin
 
 delegate_dispatch!(WinitState: [ZwpPointerGesturesV1: GlobalData] => PointerGesturesState);
 delegate_dispatch!(WinitState: [ZwpPointerGesturePinchV1: PointerGestureData] => PointerGesturesState);
+delegate_dispatch!(WinitState: [ZwpPointerGestureHoldV1: PointerGestureData] => PointerGesturesState);
