@@ -102,7 +102,6 @@ pub(crate) fn override_send_event(global_app: &NSApplication) {
 
 fn maybe_dispatch_device_event(app_state: &Rc<AppState>, event: &NSEvent) {
     let event_type = event.r#type();
-    #[allow(non_upper_case_globals)]
     match event_type {
         NSEventType::MouseMoved
         | NSEventType::LeftMouseDragged

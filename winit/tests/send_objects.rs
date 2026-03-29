@@ -1,4 +1,3 @@
-#[allow(dead_code)]
 fn needs_send<T: Send + ?Sized>() {}
 
 #[test]

@@ -63,7 +63,7 @@ impl RootActiveEventLoop for ActiveEventLoop {
     }
 
     fn primary_monitor(&self) -> Option<winit_core::monitor::MonitorHandle> {
-        #[allow(deprecated)]
+        #[expect(deprecated)]
         let monitor = MonitorHandle::new(UIScreen::mainScreen(self.mtm));
         Some(CoreMonitorHandle(Arc::new(monitor)))
     }

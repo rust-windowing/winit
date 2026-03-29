@@ -6,7 +6,6 @@ use winit::dpi::{LogicalPosition, LogicalSize, PhysicalPosition, PhysicalSize};
 use winit::event::{ElementState, MouseButton, MouseScrollDelta, TouchPhase};
 use winit::keyboard::{Key, KeyCode, KeyLocation, ModifiersState, NamedKey, PhysicalKey};
 
-#[allow(dead_code)]
 fn needs_serde<S: Serialize + Deserialize<'static>>() {}
 
 #[test]

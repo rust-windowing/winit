@@ -141,7 +141,7 @@ unsafe fn load_webkit_cursor(name: &NSString) -> Retained<NSCursor> {
 
     // TODO: Handle PLists better
     let info_path = cursor_path.stringByAppendingPathComponent(ns_string!("info.plist"));
-    #[allow(deprecated)]
+    #[expect(deprecated)]
     let info: Retained<NSDictionary<NSObject, NSObject>> =
         unsafe { NSDictionary::dictionaryWithContentsOfFile(&info_path) }.unwrap();
     let mut x = 0.0;
@@ -193,7 +193,7 @@ pub(crate) fn invisible_cursor() -> Retained<NSCursor> {
     CURSOR.get_or_init(|| CustomCursor(new_invisible())).0.clone()
 }
 
-#[allow(deprecated)]
+#[expect(deprecated)]
 pub(crate) fn cursor_from_icon(icon: CursorIcon) -> Retained<NSCursor> {
     match icon {
         CursorIcon::Default => default_cursor(),
