@@ -28,8 +28,17 @@ unsafe extern "C" {
     pub fn CGDisplayGetDisplayIDFromUUID(uuid: &CFUUID) -> CGDirectDisplayID;
 }
 
+pub type CGEventSourceStateID = u32;
+pub type CGEventFlags = u64;
+
+/// Combined session state: union of all event sources in the user session.
+pub const kCGEventSourceStateCombinedSessionState: CGEventSourceStateID = 0;
+
 #[link(name = "CoreGraphics", kind = "framework")]
 unsafe extern "C" {
+    /// Returns the current modifier flags for the given event source.
+    pub fn CGEventSourceFlagsState(stateID: CGEventSourceStateID) -> CGEventFlags;
+
     // Wildly used private APIs; Apple uses them for their Terminal.app.
     pub fn CGSMainConnectionID() -> *mut AnyObject;
     pub fn CGSSetWindowBackgroundBlurRadius(

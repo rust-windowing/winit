@@ -187,20 +187,16 @@ define_class!(
             let _entered = debug_span!("windowDidBecomeKey:").entered();
             // TODO: center the cursor if the window had mouse grab when it
             // lost focus
+
+            self.view().synchronize_modifiers();
+
             self.queue_event(WindowEvent::Focused(true));
         }
 
         #[unsafe(method(windowDidResignKey:))]
         fn window_did_resign_key(&self, _: Option<&AnyObject>) {
             let _entered = debug_span!("windowDidResignKey:").entered();
-            // It happens rather often, e.g. when the user is Cmd+Tabbing, that the
-            // NSWindowDelegate will receive a didResignKey event despite no event
-            // being received when the modifiers are released. This is because
-            // flagsChanged events are received by the NSView instead of the
-            // NSWindowDelegate, and as a result a tracked modifiers state can quite
-            // easily fall out of synchrony with reality. This requires us to emit
-            // a synthetic ModifiersChanged event when we lose focus.
-            self.view().reset_modifiers();
+            self.view().synthesize_modifier_key_releases();
 
             self.queue_event(WindowEvent::Focused(false));
         }
