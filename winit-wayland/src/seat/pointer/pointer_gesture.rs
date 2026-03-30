@@ -85,8 +85,7 @@ impl Dispatch<ZwpPointerGestureHoldV1, PointerGestureData, WinitState> for Point
         let mut pointer_gesture_data = data.inner.lock().unwrap();
         let (window_id, phase) = match event {
             HoldEvent::Begin { surface, fingers, .. } => {
-                // We only support two fingers for now.
-                if fingers != 2 {
+                if fingers < 2 {
                     return;
                 }
 
