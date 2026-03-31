@@ -92,7 +92,7 @@ impl Dispatch<ZwpPointerGestureHoldV1, PointerGestureData, WinitState> for Point
                 let window_id = crate::make_wid(&surface);
                 pointer_gesture_data.window_id = Some(window_id);
 
-                (window_id, TouchPhase::Hold)
+                (window_id, TouchPhase::Started)
             },
             HoldEvent::End { cancelled, .. } => {
                 let window_id = match pointer_gesture_data.window_id {
