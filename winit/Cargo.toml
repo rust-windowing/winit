@@ -44,6 +44,7 @@ default = ["x11", "wayland", "wayland-dlopen", "wayland-csd-adwaita"]
 android-game-activity = ["winit-android/game-activity"]
 android-native-activity = ["winit-android/native-activity"]
 mint = ["dpi/mint"]
+private-apple-apis = ["winit-appkit/private-apple-apis"]
 serde = [
     "dep:serde",
     "cursor-icon/serde",

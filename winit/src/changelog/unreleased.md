@@ -54,6 +54,7 @@ changelog entry.
 
 - Updated `windows-sys` to `v0.61`.
 - On older macOS versions (tested up to 12.7.6), applications now receive mouse movement events for unfocused windows, matching the behavior on other platforms.
+- On macOS, using the private API `CGSSetWindowBackgroundBlurRadius` for `Window::set_blur` is now disabled by default. It can be re-enabled using the Cargo feature `private-apple-apis`.
 
 ### Fixed
 
