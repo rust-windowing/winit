@@ -15,7 +15,6 @@ use std::time::Instant;
 use std::{fmt, mem};
 
 use cursor_icon::CursorIcon;
-use rwh_06::{DisplayHandle, HasDisplayHandle};
 use softbuffer::{Context, Surface};
 use tracing::{error, info};
 #[cfg(web_platform)]
@@ -25,7 +24,7 @@ use winit::cursor::{Cursor, CustomCursor, CustomCursorSource};
 use winit::dpi::{LogicalSize, PhysicalPosition, PhysicalSize};
 use winit::error::RequestError;
 use winit::event::{DeviceEvent, DeviceId, MouseButton, MouseScrollDelta, WindowEvent};
-use winit::event_loop::{ActiveEventLoop, EventLoop};
+use winit::event_loop::{ActiveEventLoop, EventLoop, OwnedDisplayHandle};
 use winit::icon::{Icon, RgbaIcon};
 use winit::keyboard::{Key, ModifiersState};
 use winit::monitor::Fullscreen;
@@ -44,9 +43,6 @@ use winit_core::application::macos::ApplicationHandlerExtMacOS;
 
 #[path = "util/tracing.rs"]
 mod tracing_init;
-
-#[path = "util/fill.rs"]
-mod fill;
 
 /// The amount of points to around the window for drag resize direction calculations.
 const BORDER_SIZE: f64 = 20.;
@@ -94,20 +90,12 @@ struct Application {
     /// Drawing context.
     ///
     /// With OpenGL it could be EGLDisplay.
-    context: Option<Context<DisplayHandle<'static>>>,
+    context: Context<OwnedDisplayHandle>,
 }
 
 impl Application {
     fn new(event_loop: &EventLoop, receiver: Receiver<Action>, sender: Sender<Action>) -> Self {
-        // SAFETY: we drop the context right before the event loop is stopped, thus making it safe.
-        let context = Some(
-            Context::new(unsafe {
-                std::mem::transmute::<DisplayHandle<'_>, DisplayHandle<'static>>(
-                    event_loop.display_handle().unwrap(),
-                )
-            })
-            .unwrap(),
-        );
+        let context = Context::new(event_loop.owned_display_handle()).unwrap();
 
         // You'll have to choose an icon size at your own discretion. On X11, the desired size
         // varies by WM, and on Windows, you still have to account for screen scaling. Here
@@ -605,9 +593,7 @@ impl ApplicationHandlerExtMacOS for Application {
 /// State of the window.
 struct WindowState {
     /// Render surface.
-    ///
-    /// NOTE: This surface must be dropped before the `Window`.
-    surface: Surface<DisplayHandle<'static>, Arc<dyn Window>>,
+    surface: Surface<OwnedDisplayHandle, Arc<dyn Window>>,
     /// The actual winit Window.
     window: Arc<dyn Window>,
     /// The window theme we're drawing with.
@@ -648,9 +634,7 @@ impl WindowState {
     fn new(app: &Application, window: Box<dyn Window>) -> Result<Self, Box<dyn Error>> {
         let window: Arc<dyn Window> = Arc::from(window);
 
-        // SAFETY: the surface is dropped before the `window` which provided it with handle, thus
-        // it doesn't outlive it.
-        let surface = Surface::new(app.context.as_ref().unwrap(), Arc::clone(&window))?;
+        let surface = Surface::new(&app.context, Arc::clone(&window))?;
 
         let theme = window.theme().unwrap_or(Theme::Dark);
         info!("Theme: {theme:?}");
@@ -937,35 +921,40 @@ impl WindowState {
             return Ok(());
         }
 
-        if self.animated_fill_color {
-            fill::fill_window_with_animated_color(&*self.window, self.start_time);
-            return Ok(());
-        }
-
         let mut buffer = self.surface.buffer_mut()?;
 
-        // Draw a different color inside the safe area
-        let surface_size = self.window.surface_size();
-        let insets = self.window.safe_area();
-        for y in 0..surface_size.height {
-            for x in 0..surface_size.width {
-                let index = y as usize * surface_size.width as usize + x as usize;
-                if insets.left <= x
-                    && x <= (surface_size.width - insets.right)
-                    && insets.top <= y
-                    && y <= (surface_size.height - insets.bottom)
-                {
-                    // In safe area
-                    buffer[index] = match self.theme {
-                        Theme::Light => 0xffe8e8e8, // Light gray
-                        Theme::Dark => 0xff525252,  // Medium gray
-                    };
-                } else {
-                    // Outside safe area
-                    buffer[index] = match self.theme {
-                        Theme::Light => 0xffffffff, // White
-                        Theme::Dark => 0xff181818,  // Dark gray
-                    };
+        if self.animated_fill_color {
+            // Fill the entire buffer with a single color.
+            let time = self.start_time.elapsed().as_secs_f32() * 1.5;
+            let blue = (time.sin() * 255.0) as u32;
+            let green = ((time.cos() * 255.0) as u32) << 8;
+            let red = ((1.0 - time.sin() * 255.0) as u32) << 16;
+            let color = red | green | blue;
+            buffer.fill(color);
+        } else {
+            // Draw a different color inside the safe area
+            let surface_size = self.window.surface_size();
+            let insets = self.window.safe_area();
+            for y in 0..surface_size.height {
+                for x in 0..surface_size.width {
+                    let index = y as usize * surface_size.width as usize + x as usize;
+                    if insets.left <= x
+                        && x <= (surface_size.width - insets.right)
+                        && insets.top <= y
+                        && y <= (surface_size.height - insets.bottom)
+                    {
+                        // In safe area
+                        buffer[index] = match self.theme {
+                            Theme::Light => 0xffe8e8e8, // Light gray
+                            Theme::Dark => 0xff525252,  // Medium gray
+                        };
+                    } else {
+                        // Outside safe area
+                        buffer[index] = match self.theme {
+                            Theme::Light => 0xffffffff, // White
+                            Theme::Dark => 0xff181818,  // Dark gray
+                        };
+                    }
                 }
             }
         }
