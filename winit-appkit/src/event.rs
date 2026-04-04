@@ -307,8 +307,7 @@ pub(super) fn ralt_pressed(event: &NSEvent) -> bool {
     event.modifierFlags().contains(NX_DEVICERALTKEYMASK)
 }
 
-pub(super) fn event_mods(event: &NSEvent) -> Modifiers {
-    let flags = event.modifierFlags();
+pub(super) fn mods_from_flags(flags: NSEventModifierFlags) -> Modifiers {
     let mut state = ModifiersState::empty();
     let mut pressed_mods = ModifiersKeys::empty();
 
@@ -329,6 +328,37 @@ pub(super) fn event_mods(event: &NSEvent) -> Modifiers {
     pressed_mods.set(ModifiersKeys::RMETA, flags.contains(NX_DEVICERCMDKEYMASK));
 
     Modifiers::new(state, pressed_mods)
+}
+
+pub(super) fn event_mods(event: &NSEvent) -> Modifiers {
+    mods_from_flags(event.modifierFlags())
+}
+
+/// For each modifier key, returns `(logical_key, left_held, right_held)`
+/// based on the device-specific bits in `flags`.
+pub(super) fn per_modifier_held(flags: NSEventModifierFlags) -> [(Key, bool, bool); 4] {
+    [
+        (
+            Key::Named(NamedKey::Shift),
+            flags.contains(NX_DEVICELSHIFTKEYMASK),
+            flags.contains(NX_DEVICERSHIFTKEYMASK),
+        ),
+        (
+            Key::Named(NamedKey::Control),
+            flags.contains(NX_DEVICELCTLKEYMASK),
+            flags.contains(NX_DEVICERCTLKEYMASK),
+        ),
+        (
+            Key::Named(NamedKey::Alt),
+            flags.contains(NX_DEVICELALTKEYMASK),
+            flags.contains(NX_DEVICERALTKEYMASK),
+        ),
+        (
+            Key::Named(NamedKey::Meta),
+            flags.contains(NX_DEVICELCMDKEYMASK),
+            flags.contains(NX_DEVICERCMDKEYMASK),
+        ),
+    ]
 }
 
 pub(super) fn dummy_event() -> Option<Retained<NSEvent>> {

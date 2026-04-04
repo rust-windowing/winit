@@ -57,6 +57,7 @@ changelog entry.
 
 ### Fixed
 
+- On macOS, synthesize per-key `KeyboardInput` press/release events on focus changes, matching X11 and Windows. Previously only `ModifiersChanged` was emitted on focus loss, and nothing on focus gain, leaving per-key modifier tracking stale.
 - On Redox, handle `EINTR` when reading from `event_socket` instead of panicking.
 - On Wayland, switch from using the `ahash` hashing algorithm to `foldhash`.
 - On macOS, fix borderless game presentation options not sticking after switching spaces.
