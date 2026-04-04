@@ -1,4 +1,4 @@
-#[cfg(any(x11_platform, macos_platform, windows_platform))]
+#[cfg(any(x11_platform, target_os = "macos", target_os = "windows"))]
 #[allow(deprecated)]
 fn main() -> Result<(), impl std::error::Error> {
     use std::collections::HashMap;
@@ -121,7 +121,7 @@ fn main() -> Result<(), impl std::error::Error> {
     event_loop.run_app(Application::default())
 }
 
-#[cfg(not(any(x11_platform, macos_platform, windows_platform)))]
+#[cfg(not(any(x11_platform, target_os = "macos", target_os = "windows")))]
 fn main() {
     panic!(
         "This example is supported only on x11, macOS, and Windows, with the `rwh_06` feature \

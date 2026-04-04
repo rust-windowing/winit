@@ -1,12 +1,13 @@
 #![allow(clippy::single_match)]
 
 use std::thread;
-#[cfg(not(web_platform))]
-use std::time;
+use std::time::Duration;
+#[cfg(not(target_family = "wasm"))]
+use std::time::Instant;
 
 use tracing::{info, warn};
-#[cfg(web_platform)]
-use web_time as time;
+#[cfg(target_family = "wasm")]
+use web_time::Instant;
 use winit::application::ApplicationHandler;
 use winit::event::{ElementState, KeyEvent, StartCause, WindowEvent};
 use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
@@ -18,8 +19,8 @@ mod fill;
 #[path = "util/tracing.rs"]
 mod tracing;
 
-const WAIT_TIME: time::Duration = time::Duration::from_millis(100);
-const POLL_SLEEP_TIME: time::Duration = time::Duration::from_millis(100);
+const WAIT_TIME: Duration = Duration::from_millis(100);
+const POLL_SLEEP_TIME: Duration = Duration::from_millis(100);
 
 #[derive(Default, Debug, Clone, Copy, PartialEq, Eq)]
 enum Mode {
@@ -30,7 +31,7 @@ enum Mode {
 }
 
 fn main() -> Result<(), impl std::error::Error> {
-    #[cfg(web_platform)]
+    #[cfg(target_family = "wasm")]
     console_error_panic_hook::set_once();
 
     tracing::init();
@@ -129,8 +130,7 @@ impl ApplicationHandler for ControlFlowDemo {
             Mode::Wait => event_loop.set_control_flow(ControlFlow::Wait),
             Mode::WaitUntil => {
                 if !self.wait_cancelled {
-                    event_loop
-                        .set_control_flow(ControlFlow::WaitUntil(time::Instant::now() + WAIT_TIME));
+                    event_loop.set_control_flow(ControlFlow::WaitUntil(Instant::now() + WAIT_TIME));
                 }
             },
             Mode::Poll => {

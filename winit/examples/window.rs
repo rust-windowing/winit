@@ -6,8 +6,6 @@ use tracing::{error, info};
 use winit::application::ApplicationHandler;
 use winit::event::WindowEvent;
 use winit::event_loop::{ActiveEventLoop, EventLoop};
-#[cfg(web_platform)]
-use winit::platform::web::WindowAttributesWeb;
 use winit::window::{Window, WindowAttributes, WindowId};
 
 #[path = "util/fill.rs"]
@@ -22,11 +20,11 @@ struct App {
 
 impl ApplicationHandler for App {
     fn can_create_surfaces(&mut self, event_loop: &dyn ActiveEventLoop) {
-        #[cfg(not(web_platform))]
         let window_attributes = WindowAttributes::default();
-        #[cfg(web_platform)]
-        let window_attributes = WindowAttributes::default()
-            .with_platform_attributes(Box::new(WindowAttributesWeb::default().with_append(true)));
+        #[cfg(target_family = "wasm")]
+        let window_attributes = window_attributes.with_platform_attributes(Box::new(
+            winit::platform::web::WindowAttributesWeb::default().with_append(true),
+        ));
         self.window = match event_loop.create_window(window_attributes) {
             Ok(window) => Some(window),
             Err(err) => {
@@ -71,7 +69,7 @@ impl ApplicationHandler for App {
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
-    #[cfg(web_platform)]
+    #[cfg(target_family = "wasm")]
     console_error_panic_hook::set_once();
 
     tracing::init();

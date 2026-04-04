@@ -1,4 +1,4 @@
-#[cfg(not(web_platform))]
+#[cfg(not(target_family = "wasm"))]
 pub fn init() {
     use tracing_subscriber::filter::{EnvFilter, LevelFilter};
 
@@ -9,7 +9,7 @@ pub fn init() {
         .init();
 }
 
-#[cfg(web_platform)]
+#[cfg(target_family = "wasm")]
 pub fn init() {
     use tracing_subscriber::layer::SubscriberExt;
     use tracing_subscriber::util::SubscriberInitExt;
