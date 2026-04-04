@@ -188,6 +188,11 @@ pub enum WindowEvent {
     /// The pointer has entered the window.
     ///
     /// Should be emitted regardless of window focus.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **Android**: Stylus will triggered [`PointerLeft`] and [`PointerEntered`] when it
+    ///   contacts.
     PointerEntered {
         device_id: Option<DeviceId>,
 
@@ -215,6 +220,11 @@ pub enum WindowEvent {
     /// The pointer has left the window.
     ///
     /// Should be emitted regardless of window focus.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **Android**: Stylus will triggered [`PointerLeft`] and [`PointerEntered`] when it stop
+    ///   contacts.
     PointerLeft {
         device_id: Option<DeviceId>,
 
@@ -1101,6 +1111,8 @@ pub struct TabletToolData {
     /// support.
     ///
     /// ## Platform-specific
+    ///
+    /// **Android:** Not supported.
     ///
     /// **Web:** Has no mechanism to detect support, so this will always be [`Some`] with a value
     /// of 0.
