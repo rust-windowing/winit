@@ -880,7 +880,8 @@ pub trait Window: AsAny + Send + Sync + fmt::Debug {
     /// ## Platform-specific
     ///
     /// - **Android / iOS / X11 / Web / Windows:** Unsupported.
-    /// - **Wayland:** Only works with org_kde_kwin_blur_manager protocol.
+    /// - **Wayland:** Only works with `org_kde_kwin_blur_manager` or
+    ///   `ext_background_effect_manager_v1` protocol.
     fn set_blur(&self, blur: bool);
 
     /// Modifies the window's visibility.
