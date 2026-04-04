@@ -28,14 +28,13 @@ use sctk::shell::WaylandSurface;
 use sctk::shm::slot::SlotPool;
 use sctk::shm::Shm;
 use sctk::subcompositor::SubcompositorState;
-use wayland_protocols_plasma::blur::client::org_kde_kwin_blur::OrgKdeKwinBlur;
 
 use crate::cursor::CustomCursor as RootCustomCursor;
 use crate::dpi::{LogicalPosition, LogicalSize, PhysicalPosition, PhysicalSize, Size};
 use crate::error::{ExternalError, NotSupportedError};
 use crate::platform_impl::wayland::logical_to_physical_rounded;
+use crate::platform_impl::wayland::types::bgr_effects::{BgrEffectManager, SurfaceBlurEffect};
 use crate::platform_impl::wayland::types::cursor::{CustomCursor, SelectedCursor};
-use crate::platform_impl::wayland::types::kwin_blur::KWinBlurManager;
 use crate::platform_impl::{PlatformCustomCursor, WindowId};
 use crate::window::{CursorGrabMode, CursorIcon, ImePurpose, ResizeDirection, Theme};
 
@@ -143,8 +142,8 @@ pub struct WindowState {
 
     viewport: Option<WpViewport>,
     fractional_scale: Option<WpFractionalScaleV1>,
-    blur: Option<OrgKdeKwinBlur>,
-    blur_manager: Option<KWinBlurManager>,
+    blur: Option<SurfaceBlurEffect>,
+    blur_manager: Option<BgrEffectManager>,
 
     /// Whether the client side decorations have pending move operations.
     ///
@@ -185,7 +184,7 @@ impl WindowState {
 
         Self {
             blur: None,
-            blur_manager: winit_state.kwin_blur_manager.clone(),
+            blur_manager: winit_state.blur_manager.clone(),
             compositor,
             connection,
             csd_fails: false,
@@ -717,6 +716,13 @@ impl WindowState {
             // Set inner size without the borders.
             viewport.set_destination(self.size.width as _, self.size.height as _);
         }
+
+        // Update blur region with new size.
+        if self.blur.is_some() {
+            // NOTE: either user resized or configure, in both cases
+            // the redraw scheduling is done on the caller side.
+            let _ = self.set_blur(true);
+        }
     }
 
     /// Get the scale factor of the window.
@@ -1077,20 +1083,37 @@ impl WindowState {
         }
     }
 
-    /// Make window background blurred
-    #[inline]
-    pub fn set_blur(&mut self, blurred: bool) {
-        if blurred && self.blur.is_none() {
-            if let Some(blur_manager) = self.blur_manager.as_ref() {
-                let blur = blur_manager.blur(self.window.wl_surface(), &self.queue_handle);
-                blur.commit();
-                self.blur = Some(blur);
-            } else {
-                info!("Blur manager unavailable, unable to change blur")
-            }
-        } else if !blurred && self.blur.is_some() {
-            self.blur_manager.as_ref().unwrap().unset(self.window.wl_surface());
-            self.blur.take().unwrap().release();
+    /// Make window background blurred.
+    ///
+    /// Returns `true` if redraw is required.
+    #[must_use]
+    pub fn set_blur(&mut self, blurred: bool) -> bool {
+        if !blurred {
+            self.blur = None;
+            return true;
+        }
+
+        let mgr = match self.blur_manager.as_mut() {
+            Some(mgr) => mgr,
+            None => {
+                info!("Blur manager unavailable, unable to change blur");
+                return false;
+            },
+        };
+
+        let blur = match self.blur.as_ref() {
+            Some(blur) => blur,
+            None => {
+                self.blur = Some(mgr.new_blur_effect(self.window.wl_surface(), &self.queue_handle));
+                self.blur.as_ref().unwrap()
+            },
+        };
+
+        if let Ok(region) = Region::new(&*self.compositor) {
+            region.add(0, 0, i32::MAX, i32::MAX);
+            blur.set_blur(Some(&region))
+        } else {
+            false
         }
     }
 
@@ -1149,10 +1172,6 @@ impl WindowState {
 
 impl Drop for WindowState {
     fn drop(&mut self) {
-        if let Some(blur) = self.blur.take() {
-            blur.release();
-        }
-
         if let Some(fs) = self.fractional_scale.take() {
             fs.destroy();
         }

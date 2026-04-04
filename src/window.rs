@@ -954,7 +954,8 @@ impl Window {
     /// ## Platform-specific
     ///
     /// - **Android / iOS / X11 / Web / Windows:** Unsupported.
-    /// - **Wayland:** Only works with org_kde_kwin_blur_manager protocol.
+    /// - **Wayland:** Only works with `org_kde_kwin_blur_manager` or
+    ///   `ext_background_effect_manager_v1` protocol.
     #[inline]
     pub fn set_blur(&self, blur: bool) {
         let _span = tracing::debug_span!("winit::Window::set_blur", blur).entered();
