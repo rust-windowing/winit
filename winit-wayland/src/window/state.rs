@@ -23,6 +23,7 @@ use sctk::reexports::protocols::xdg::shell::client::xdg_toplevel::ResizeEdge as 
 use sctk::seat::pointer::{PointerDataExt, ThemedPointer};
 use sctk::shell::WaylandSurface;
 use sctk::shell::xdg::XdgSurface;
+use sctk::shell::xdg::popup::{Popup, PopupConfigure};
 use sctk::shell::xdg::window::{DecorationMode, Window, WindowConfigure};
 use sctk::shm::Shm;
 use sctk::shm::slot::SlotPool;
@@ -36,7 +37,6 @@ use winit_core::window::{
 };
 
 use crate::event_loop::OwnedDisplayHandle;
-use crate::logical_to_physical_rounded;
 use crate::seat::{
     PointerConstraintsState, TextInputClientState, WinitPointerData, WinitPointerDataExt,
     ZwpTextInputV3Ext,
@@ -45,6 +45,7 @@ use crate::state::{WindowCompositorUpdate, WinitState};
 use crate::types::bgr_effects::{BgrEffectManager, SurfaceBlurEffect};
 use crate::types::cursor::{CustomCursor, SelectedCursor, WaylandCustomCursor};
 use crate::types::xdg_toplevel_icon_manager::ToplevelIcon;
+use crate::{logical_to_physical_rounded, popup};
 
 #[cfg(feature = "sctk-adwaita")]
 pub type WinitFrame = sctk_adwaita::AdwaitaFrame<WinitState>;
@@ -54,6 +55,40 @@ pub type WinitFrame = sctk::shell::xdg::fallback_frame::FallbackFrame<WinitState
 // Minimum window surface size.
 const MIN_WINDOW_SIZE: LogicalSize<u32> = LogicalSize::new(2, 1);
 
+#[derive(Debug)]
+pub enum WindowType {
+    // The option is the last received configure
+    Window((Window, Option<WindowConfigure>)),
+    Popup((Popup, Option<PopupConfigure>)),
+}
+
+impl WindowType {
+    pub fn is_configured(&self) -> bool {
+        match self {
+            Self::Window((_, last_configure)) => last_configure.is_some(),
+            Self::Popup((_, last_configure)) => last_configure.is_some(),
+        }
+    }
+}
+
+impl WaylandSurface for WindowType {
+    fn wl_surface(&self) -> &wayland_client::protocol::wl_surface::WlSurface {
+        match self {
+            Self::Window((window, _)) => window.wl_surface(),
+            Self::Popup((popup, _)) => popup.wl_surface(),
+        }
+    }
+}
+
+impl XdgSurface for WindowType {
+    fn xdg_surface(&self) -> &wayland_protocols::xdg::shell::client::xdg_surface::XdgSurface {
+        match self {
+            Self::Window((window, _)) => window.xdg_surface(),
+            Self::Popup((popup, _)) => popup.xdg_surface(),
+        }
+    }
+}
+
 /// The state of the window which is being updated from the [`WinitState`].
 #[derive(Debug)]
 pub struct WindowState {
@@ -62,9 +97,6 @@ pub struct WindowState {
 
     /// The `Shm` to set cursor.
     pub shm: WlShm,
-
-    /// The last received configure.
-    pub last_configure: Option<WindowConfigure>,
 
     /// The pointers observed on the window.
     pub pointers: Vec<Weak<ThemedPointer<WinitPointerData>>>,
@@ -164,7 +196,7 @@ pub struct WindowState {
     has_pending_move: Option<u32>,
 
     /// The underlying SCTK window.
-    pub window: Window,
+    pub window: WindowType,
 
     // NOTE: The spec says that destroying parent(`window` in our case), will unmap the
     // subsurfaces. Thus to achieve atomic unmap of the client, drop the decorations
@@ -181,9 +213,10 @@ impl WindowState {
         queue_handle: &QueueHandle<WinitState>,
         winit_state: &WinitState,
         initial_size: Size,
-        window: Window,
+        window: WindowType,
         theme: Option<Theme>,
         prefer_csd: bool,
+        scale_factor: f64,
     ) -> Self {
         let compositor = winit_state.compositor_state.clone();
         let pointer_constraints = winit_state.pointer_constraints.clone();
@@ -220,7 +253,6 @@ impl WindowState {
             seat_focus: Default::default(),
             has_pending_move: None,
             text_input_state: None,
-            last_configure: None,
             max_surface_size: None,
             min_surface_size: MIN_WINDOW_SIZE,
             resize_increments: None,
@@ -228,7 +260,7 @@ impl WindowState {
             pointers: Default::default(),
             queue_handle: queue_handle.clone(),
             resizable: true,
-            scale_factor: 1.,
+            scale_factor,
             shm: winit_state.shm.wl_shm().clone(),
             image_pool: winit_state.image_pool.clone(),
             size: initial_size.to_logical(1.),
@@ -280,8 +312,39 @@ impl WindowState {
             FrameCallbackState::Requested => (),
         }
     }
+    pub fn configure_popup(&mut self, configure: PopupConfigure) {
+        // NOTE: when using fractional scaling or wl_compositor@v6 the scaling
+        // should be delivered before the first configure, thus apply it to
+        // properly scale the physical sizes provided by the users.
+        if let Some(initial_size) = self.initial_size.take() {
+            self.size = initial_size.to_logical(self.scale_factor());
+        }
 
-    pub fn configure(
+        // The popup was constrained to a different size by the compositor
+        assert!(configure.width >= 0);
+        assert!(configure.height >= 0);
+        let constrained = self.size.width != configure.width as u32
+            || self.size.height != configure.height as u32;
+        let new_size = LogicalSize {
+            width: (configure.width as u32).into(),
+            height: (configure.height as u32).into(),
+        };
+
+        // NOTE: Set the configure before doing a resize, since we query it during it.
+        if let WindowType::Popup((_, last_configure)) = &mut self.window {
+            *last_configure = Some(configure)
+        } else {
+            // This should never happen
+            assert!(false);
+            return;
+        }
+
+        if constrained {
+            self.resize(new_size);
+        }
+    }
+
+    pub fn configure_window(
         &mut self,
         configure: WindowConfigure,
         shm: &Shm,
@@ -399,26 +462,32 @@ impl WindowState {
         }
 
         let new_state = configure.state;
-        let old_state = self.last_configure.as_ref().map(|configure| configure.state);
+        if let WindowType::Window((_, last_configure)) = &mut self.window {
+            let old_state = last_configure.as_ref().map(|configure| configure.state);
 
-        let state_change_requires_resize = old_state
-            .map(|old_state| {
-                !old_state
-                    .symmetric_difference(new_state)
-                    .difference(XdgWindowState::ACTIVATED | XdgWindowState::SUSPENDED)
-                    .is_empty()
-            })
-            // NOTE: `None` is present for the initial configure, thus we must always resize.
-            .unwrap_or(true);
+            let state_change_requires_resize = old_state
+                .map(|old_state| {
+                    !old_state
+                        .symmetric_difference(new_state)
+                        .difference(XdgWindowState::ACTIVATED | XdgWindowState::SUSPENDED)
+                        .is_empty()
+                })
+                // NOTE: `None` is present for the initial configure, thus we must always resize.
+                .unwrap_or(true);
 
-        // NOTE: Set the configure before doing a resize, since we query it during it.
-        self.last_configure = Some(configure);
+            // NOTE: Set the configure before doing a resize, since we query it during it.
+            *last_configure = Some(configure);
 
-        if state_change_requires_resize || new_size != self.surface_size() {
-            self.resize(new_size);
-            true
+            if state_change_requires_resize || new_size != self.surface_size() {
+                self.resize(new_size);
+                true
+            } else {
+                false
+            }
         } else {
-            false
+            // This should never happen
+            assert!(false);
+            return false;
         }
     }
 
@@ -450,29 +519,40 @@ impl WindowState {
 
     /// Start interacting drag resize.
     pub fn drag_resize_window(&self, direction: ResizeDirection) -> Result<(), RequestError> {
-        let xdg_toplevel = self.window.xdg_toplevel();
+        if let WindowType::Window((window, _)) = &self.window {
+            let xdg_toplevel = window.xdg_toplevel();
 
-        // TODO(kchibisov) handle touch serials.
-        self.apply_on_pointer(|_, data| {
-            let serial = data.latest_button_serial();
-            let seat = data.seat();
-            xdg_toplevel.resize(seat, serial, resize_direction_to_xdg(direction));
-        });
-
-        Ok(())
+            // TODO(kchibisov) handle touch serials.
+            self.apply_on_pointer(|_, data| {
+                let serial = data.latest_button_serial();
+                let seat = data.seat();
+                xdg_toplevel.resize(seat, serial, resize_direction_to_xdg(direction));
+            });
+            Ok(())
+        } else {
+            // Popup
+            Err(RequestError::NotSupported(NotSupportedError::new(
+                "Drag resize for popup not supported",
+            )))
+        }
     }
 
     /// Start the window drag.
     pub fn drag_window(&self) -> Result<(), RequestError> {
-        let xdg_toplevel = self.window.xdg_toplevel();
-        // TODO(kchibisov) handle touch serials.
-        self.apply_on_pointer(|_, data| {
-            let serial = data.latest_button_serial();
-            let seat = data.seat();
-            xdg_toplevel._move(seat, serial);
-        });
+        if let WindowType::Window((window, _)) = &self.window {
+            let xdg_toplevel = window.xdg_toplevel();
+            // TODO(kchibisov) handle touch serials.
+            self.apply_on_pointer(|_, data| {
+                let serial = data.latest_button_serial();
+                let seat = data.seat();
+                xdg_toplevel._move(seat, serial);
+            });
 
-        Ok(())
+            Ok(())
+        } else {
+            // Popup
+            Err(RequestError::NotSupported(NotSupportedError::new("Drag for popup not supported")))
+        }
     }
 
     /// Tells whether the window should be closed.
@@ -487,32 +567,36 @@ impl WindowState {
         window_id: WindowId,
         updates: &mut Vec<WindowCompositorUpdate>,
     ) -> Option<bool> {
-        match self.frame.as_mut()?.on_click(timestamp, click, pressed)? {
-            FrameAction::Minimize => self.window.set_minimized(),
-            FrameAction::Maximize => self.window.set_maximized(),
-            FrameAction::UnMaximize => self.window.unset_maximized(),
-            FrameAction::Close => WinitState::queue_close(updates, window_id),
-            FrameAction::Move => self.has_pending_move = Some(serial),
-            FrameAction::Resize(edge) => {
-                let edge = match edge {
-                    ResizeEdge::None => XdgResizeEdge::None,
-                    ResizeEdge::Top => XdgResizeEdge::Top,
-                    ResizeEdge::Bottom => XdgResizeEdge::Bottom,
-                    ResizeEdge::Left => XdgResizeEdge::Left,
-                    ResizeEdge::TopLeft => XdgResizeEdge::TopLeft,
-                    ResizeEdge::BottomLeft => XdgResizeEdge::BottomLeft,
-                    ResizeEdge::Right => XdgResizeEdge::Right,
-                    ResizeEdge::TopRight => XdgResizeEdge::TopRight,
-                    ResizeEdge::BottomRight => XdgResizeEdge::BottomRight,
-                    _ => return None,
-                };
-                self.window.resize(seat, serial, edge);
-            },
-            FrameAction::ShowMenu(x, y) => self.window.show_window_menu(seat, serial, (x, y)),
-            _ => (),
-        };
+        if let WindowType::Window((window, _)) = &self.window {
+            match self.frame.as_mut()?.on_click(timestamp, click, pressed)? {
+                FrameAction::Minimize => window.set_minimized(),
+                FrameAction::Maximize => window.set_maximized(),
+                FrameAction::UnMaximize => window.unset_maximized(),
+                FrameAction::Close => WinitState::queue_close(updates, window_id),
+                FrameAction::Move => self.has_pending_move = Some(serial),
+                FrameAction::Resize(edge) => {
+                    let edge = match edge {
+                        ResizeEdge::None => XdgResizeEdge::None,
+                        ResizeEdge::Top => XdgResizeEdge::Top,
+                        ResizeEdge::Bottom => XdgResizeEdge::Bottom,
+                        ResizeEdge::Left => XdgResizeEdge::Left,
+                        ResizeEdge::TopLeft => XdgResizeEdge::TopLeft,
+                        ResizeEdge::BottomLeft => XdgResizeEdge::BottomLeft,
+                        ResizeEdge::Right => XdgResizeEdge::Right,
+                        ResizeEdge::TopRight => XdgResizeEdge::TopRight,
+                        ResizeEdge::BottomRight => XdgResizeEdge::BottomRight,
+                        _ => return None,
+                    };
+                    window.resize(seat, serial, edge);
+                },
+                FrameAction::ShowMenu(x, y) => window.show_window_menu(seat, serial, (x, y)),
+                _ => (),
+            };
 
-        Some(false)
+            Some(false)
+        } else {
+            None
+        }
     }
 
     pub fn frame_point_left(&mut self) {
@@ -530,18 +614,22 @@ impl WindowState {
         x: f64,
         y: f64,
     ) -> Option<CursorIcon> {
-        // Take the serial if we had any, so it doesn't stick around.
-        let serial = self.has_pending_move.take();
+        if let WindowType::Window((window, _)) = &self.window {
+            // Take the serial if we had any, so it doesn't stick around.
+            let serial = self.has_pending_move.take();
 
-        if let Some(frame) = self.frame.as_mut() {
-            let cursor = frame.click_point_moved(timestamp, &surface.id(), x, y);
-            // If we have a cursor change, that means that cursor is over the decorations,
-            // so try to apply move.
-            if let Some(serial) = cursor.is_some().then_some(serial).flatten() {
-                self.window.move_(seat, serial);
-                None
+            if let Some(frame) = self.frame.as_mut() {
+                let cursor = frame.click_point_moved(timestamp, &surface.id(), x, y);
+                // If we have a cursor change, that means that cursor is over the decorations,
+                // so try to apply move.
+                if let Some(serial) = cursor.is_some().then_some(serial).flatten() {
+                    window.move_(seat, serial);
+                    None
+                } else {
+                    cursor
+                }
             } else {
-                cursor
+                None
             }
         } else {
             None
@@ -605,21 +693,24 @@ impl WindowState {
     /// Whether the window received initial configure event from the compositor.
     #[inline]
     pub fn is_configured(&self) -> bool {
-        self.last_configure.is_some()
+        self.window.is_configured()
     }
 
     #[inline]
     pub fn is_decorated(&mut self) -> bool {
-        let csd = self
-            .last_configure
-            .as_ref()
-            .map(|configure| configure.decoration_mode == DecorationMode::Client)
-            .unwrap_or(false);
-        if let Some(frame) = csd.then_some(self.frame.as_ref()).flatten() {
-            !frame.is_hidden()
+        if let WindowType::Window((_, last_configure)) = &mut self.window {
+            let csd = last_configure
+                .as_ref()
+                .map(|configure| configure.decoration_mode == DecorationMode::Client)
+                .unwrap_or(false);
+            if let Some(frame) = csd.then_some(self.frame.as_ref()).flatten() {
+                !frame.is_hidden()
+            } else {
+                // Server side decorations.
+                true
+            }
         } else {
-            // Server side decorations.
-            true
+            false
         }
     }
 
@@ -630,6 +721,13 @@ impl WindowState {
             .as_ref()
             .map(|frame| frame.add_borders(self.size.width, self.size.height).into())
             .unwrap_or(self.size)
+    }
+
+    /// Get the origin of the content surface by considering the client side decoration if available
+    /// This is required for example when creating a popup, because as parent a xdg_surface must be
+    /// passed but the frame is only a wl_surface
+    pub fn content_surface_origin(&self) -> LogicalPosition<i32> {
+        self.frame.as_ref().map(|frame| frame.location().into()).unwrap_or_else(|| (0, 0).into())
     }
 
     /// Register pointer on the top-level.
@@ -694,8 +792,10 @@ impl WindowState {
 
     /// Try to resize the window when the user can do so.
     pub fn request_surface_size(&mut self, surface_size: Size) -> PhysicalSize<u32> {
-        if self.last_configure.as_ref().map(Self::is_stateless).unwrap_or(true) {
-            self.resize(surface_size.to_logical(self.scale_factor()))
+        if let WindowType::Window((_, last_configure)) = &mut self.window {
+            if last_configure.as_ref().map(Self::is_stateless).unwrap_or(true) {
+                self.resize(surface_size.to_logical(self.scale_factor()))
+            }
         }
 
         logical_to_physical_rounded(self.surface_size(), self.scale_factor())
@@ -706,8 +806,10 @@ impl WindowState {
         self.size = surface_size;
 
         // Update the stateless size.
-        if Some(true) == self.last_configure.as_ref().map(Self::is_stateless) {
-            self.stateless_size = surface_size;
+        if let WindowType::Window((_, last_configure)) = &mut self.window {
+            if Some(true) == last_configure.as_ref().map(Self::is_stateless) {
+                self.stateless_size = surface_size;
+            }
         }
 
         // Update the inner frame.
@@ -843,33 +945,37 @@ impl WindowState {
 
     /// Set maximum inner window size.
     pub fn set_min_surface_size(&mut self, size: Option<LogicalSize<u32>>) {
-        // Ensure that the window has the right minimum size.
-        let mut size = size.unwrap_or(MIN_WINDOW_SIZE);
-        size.width = size.width.max(MIN_WINDOW_SIZE.width);
-        size.height = size.height.max(MIN_WINDOW_SIZE.height);
+        if let WindowType::Window((window, _)) = &self.window {
+            // Ensure that the window has the right minimum size.
+            let mut size = size.unwrap_or(MIN_WINDOW_SIZE);
+            size.width = size.width.max(MIN_WINDOW_SIZE.width);
+            size.height = size.height.max(MIN_WINDOW_SIZE.height);
 
-        // Add the borders.
-        let size = self
-            .frame
-            .as_ref()
-            .map(|frame| frame.add_borders(size.width, size.height).into())
-            .unwrap_or(size);
+            // Add the borders.
+            let size = self
+                .frame
+                .as_ref()
+                .map(|frame| frame.add_borders(size.width, size.height).into())
+                .unwrap_or(size);
 
-        self.min_surface_size = size;
-        self.window.set_min_size(Some(size.into()));
+            self.min_surface_size = size;
+            window.set_min_size(Some(size.into()));
+        }
     }
 
     /// Set maximum inner window size.
     pub fn set_max_surface_size(&mut self, size: Option<LogicalSize<u32>>) {
-        let size = size.map(|size| {
-            self.frame
-                .as_ref()
-                .map(|frame| frame.add_borders(size.width, size.height).into())
-                .unwrap_or(size)
-        });
+        if let WindowType::Window((window, _)) = &self.window {
+            let size = size.map(|size| {
+                self.frame
+                    .as_ref()
+                    .map(|frame| frame.add_borders(size.width, size.height).into())
+                    .unwrap_or(size)
+            });
 
-        self.max_surface_size = size;
-        self.window.set_max_size(size.map(Into::into));
+            self.max_surface_size = size;
+            window.set_max_size(size.map(Into::into));
+        }
     }
 
     /// Set the CSD theme.
@@ -966,12 +1072,14 @@ impl WindowState {
     }
 
     pub fn show_window_menu(&self, position: LogicalPosition<u32>) {
-        // TODO(kchibisov) handle touch serials.
-        self.apply_on_pointer(|_, data| {
-            let serial = data.latest_button_serial();
-            let seat = data.seat();
-            self.window.show_window_menu(seat, serial, position.into());
-        });
+        if let WindowType::Window((window, _)) = &self.window {
+            // TODO(kchibisov) handle touch serials.
+            self.apply_on_pointer(|_, data| {
+                let serial = data.latest_button_serial();
+                let seat = data.seat();
+                window.show_window_menu(seat, serial, position.into());
+            });
+        }
     }
 
     /// Set the position of the cursor.
@@ -1022,22 +1130,24 @@ impl WindowState {
 
         self.decorate = decorate;
 
-        match self.last_configure.as_ref().map(|configure| configure.decoration_mode) {
-            Some(DecorationMode::Server) if !self.decorate => {
-                // To disable decorations we should request client and hide the frame.
-                self.window.request_decoration_mode(Some(DecorationMode::Client))
-            },
-            _ if self.decorate && self.prefer_csd => {
-                self.window.request_decoration_mode(Some(DecorationMode::Client))
-            },
-            _ if self.decorate => self.window.request_decoration_mode(Some(DecorationMode::Server)),
-            _ => (),
-        }
+        if let WindowType::Window((window, last_configure)) = &self.window {
+            match last_configure.as_ref().map(|configure| configure.decoration_mode) {
+                Some(DecorationMode::Server) if !self.decorate => {
+                    // To disable decorations we should request client and hide the frame.
+                    window.request_decoration_mode(Some(DecorationMode::Client))
+                },
+                _ if self.decorate && self.prefer_csd => {
+                    window.request_decoration_mode(Some(DecorationMode::Client))
+                },
+                _ if self.decorate => window.request_decoration_mode(Some(DecorationMode::Server)),
+                _ => (),
+            }
 
-        if let Some(frame) = self.frame.as_mut() {
-            frame.set_hidden(!decorate);
-            // Force the resize.
-            self.resize(self.size);
+            if let Some(frame) = self.frame.as_mut() {
+                frame.set_hidden(!decorate);
+                // Force the resize.
+                self.resize(self.size);
+            }
         }
     }
 
@@ -1172,46 +1282,50 @@ impl WindowState {
             frame.set_title(&title);
         }
 
-        self.window.set_title(&title);
+        if let WindowType::Window((window, _)) = &self.window {
+            window.set_title(&title);
+        }
         self.title = title;
     }
 
     /// Set the window's icon
     pub fn set_window_icon(&mut self, window_icon: Option<winit_core::icon::Icon>) {
-        let xdg_toplevel_icon_manager = match self.xdg_toplevel_icon_manager.as_ref() {
-            Some(xdg_toplevel_icon_manager) => xdg_toplevel_icon_manager,
-            None => {
-                warn!("`xdg_toplevel_icon_manager_v1` is not supported");
-                return;
-            },
-        };
+        if let WindowType::Window((window, _)) = &self.window {
+            let xdg_toplevel_icon_manager = match self.xdg_toplevel_icon_manager.as_ref() {
+                Some(xdg_toplevel_icon_manager) => xdg_toplevel_icon_manager,
+                None => {
+                    warn!("`xdg_toplevel_icon_manager_v1` is not supported");
+                    return;
+                },
+            };
 
-        let (toplevel_icon, xdg_toplevel_icon) = match window_icon {
-            Some(icon) => {
-                let mut image_pool = self.image_pool.lock().unwrap();
-                let toplevel_icon = match ToplevelIcon::new(icon, &mut image_pool) {
-                    Ok(toplevel_icon) => toplevel_icon,
-                    Err(error) => {
-                        warn!("Error setting window icon: {error}");
-                        return;
-                    },
-                };
+            let (toplevel_icon, xdg_toplevel_icon) = match window_icon {
+                Some(icon) => {
+                    let mut image_pool = self.image_pool.lock().unwrap();
+                    let toplevel_icon = match ToplevelIcon::new(icon, &mut image_pool) {
+                        Ok(toplevel_icon) => toplevel_icon,
+                        Err(error) => {
+                            warn!("Error setting window icon: {error}");
+                            return;
+                        },
+                    };
 
-                let xdg_toplevel_icon =
-                    xdg_toplevel_icon_manager.create_icon(&self.queue_handle, GlobalData);
+                    let xdg_toplevel_icon =
+                        xdg_toplevel_icon_manager.create_icon(&self.queue_handle, GlobalData);
 
-                toplevel_icon.add_buffer(&xdg_toplevel_icon);
+                    toplevel_icon.add_buffer(&xdg_toplevel_icon);
 
-                (Some(toplevel_icon), Some(xdg_toplevel_icon))
-            },
-            None => (None, None),
-        };
+                    (Some(toplevel_icon), Some(xdg_toplevel_icon))
+                },
+                None => (None, None),
+            };
 
-        xdg_toplevel_icon_manager.set_icon(self.window.xdg_toplevel(), xdg_toplevel_icon.as_ref());
-        self.toplevel_icon = toplevel_icon;
+            xdg_toplevel_icon_manager.set_icon(window.xdg_toplevel(), xdg_toplevel_icon.as_ref());
+            self.toplevel_icon = toplevel_icon;
 
-        if let Some(xdg_toplevel_icon) = xdg_toplevel_icon {
-            xdg_toplevel_icon.destroy();
+            if let Some(xdg_toplevel_icon) = xdg_toplevel_icon {
+                xdg_toplevel_icon.destroy();
+            }
         }
     }
 

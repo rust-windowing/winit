@@ -46,6 +46,13 @@ impl fmt::Debug for WindowId {
     }
 }
 
+#[derive(Debug, Clone, Copy, Default, PartialEq)]
+pub enum WindowType {
+    #[default]
+    Window,
+    Popup,
+}
+
 /// Attributes used when creating a window.
 #[derive(Debug)]
 #[non_exhaustive]
@@ -72,6 +79,7 @@ pub struct WindowAttributes {
     pub(crate) parent_window: Option<SendSyncRawWindowHandle>,
     pub fullscreen: Option<Fullscreen>,
     pub platform: Option<Box<dyn PlatformWindowAttributes>>,
+    pub window_type: WindowType,
 }
 
 impl WindowAttributes {
@@ -145,6 +153,7 @@ impl WindowAttributes {
     ///   position. There may be a small gap between this position and the window due to the
     ///   specifics of the Window Manager.
     /// - **X11:** The top left corner of the window, the window's "outer" position.
+    /// - **Wayland:** The top left corner of the window if the window type is `WindowType::Popup` otherwise ignored
     /// - **Others:** Ignored.
     #[inline]
     pub fn with_position<P: Into<Position>>(mut self, position: P) -> Self {
@@ -378,6 +387,22 @@ impl WindowAttributes {
         self.platform = Some(platform);
         self
     }
+
+    /// Sets the window type of the object
+    ///
+    /// Currently only wayland is using this type. On X11 popups are also just normal windows
+    /// Note: If the type is set to `WindowType::Popup` the parent must be set as well with
+    /// `with_parent_window()`.
+    pub fn as_type(mut self, window_type: WindowType) -> Self {
+        self.window_type = window_type;
+        self
+    }
+
+    /// Returns if the window type is a popup or a normal window
+    #[inline]
+    pub fn popup(&self) -> bool {
+        self.window_type == WindowType::Popup
+    }
 }
 
 impl Clone for WindowAttributes {
@@ -405,6 +430,7 @@ impl Clone for WindowAttributes {
             parent_window: self.parent_window.clone(),
             fullscreen: self.fullscreen.clone(),
             platform: self.platform.as_ref().map(|platform| platform.box_clone()),
+            window_type: self.window_type,
         }
     }
 }
@@ -435,6 +461,7 @@ impl Default for WindowAttributes {
             platform: Default::default(),
             cursor: Cursor::default(),
             blur: Default::default(),
+            window_type: Default::default(),
         }
     }
 }

@@ -6,6 +6,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 
 use dpi::{LogicalSize, PhysicalInsets, PhysicalPosition, PhysicalSize, Position, Size};
+use rwh_06::RawWindowHandle;
 use sctk::compositor::{CompositorState, Region, SurfaceData};
 use sctk::reexports::client::protocol::wl_display::WlDisplay;
 use sctk::reexports::client::protocol::wl_surface::WlSurface;
@@ -30,10 +31,9 @@ use super::event_loop::sink::EventSink;
 use super::output::MonitorHandle;
 use super::state::WinitState;
 use super::types::xdg_activation::XdgActivationTokenData;
+use crate::window::state::WindowType;
 use crate::{WindowAttributesWayland, output};
-
 pub(crate) mod state;
-
 pub use state::WindowState;
 
 /// The Wayland window.
@@ -112,14 +112,29 @@ impl Window {
             .and_then(|p| p.cast::<WindowAttributesWayland>().ok())
             .unwrap_or_default();
 
+        let mut scale_factor = None;
+        if let Some(handle) = attributes.parent_window() {
+            if let RawWindowHandle::Wayland(handle) = handle {
+                if let Some(s) = state
+                    .windows
+                    .borrow()
+                    .get(&WindowId::from_raw(handle.surface.as_ptr() as usize))
+                {
+                    scale_factor = Some(s.lock().unwrap().scale_factor());
+                }
+            }
+        }
+        let scale_factor = scale_factor.unwrap_or(1.0);
+
         let mut window_state = WindowState::new(
             event_loop_window_target.handle.clone(),
             &event_loop_window_target.queue_handle,
             &state,
             size,
-            window.clone(),
+            state::WindowType::Window((window.clone(), None)),
             attributes.preferred_theme,
             prefer_csd,
+            scale_factor,
         );
 
         window_state.set_window_icon(attributes.window_icon);
@@ -449,13 +464,14 @@ impl CoreWindow for Window {
     }
 
     fn is_maximized(&self) -> bool {
-        self.window_state
-            .lock()
-            .unwrap()
-            .last_configure
-            .as_ref()
-            .map(|last_configure| last_configure.is_maximized())
-            .unwrap_or_default()
+        if let WindowType::Window((_, last_configure)) = &self.window_state.lock().unwrap().window {
+            last_configure
+                .as_ref()
+                .map(|last_configure| last_configure.is_maximized())
+                .unwrap_or_default()
+        } else {
+            false
+        }
     }
 
     fn set_fullscreen(&self, fullscreen: Option<Fullscreen>) {
@@ -475,14 +491,16 @@ impl CoreWindow for Window {
     }
 
     fn fullscreen(&self) -> Option<Fullscreen> {
-        let is_fullscreen = self
-            .window_state
-            .lock()
-            .unwrap()
-            .last_configure
-            .as_ref()
-            .map(|last_configure| last_configure.is_fullscreen())
-            .unwrap_or_default();
+        let is_fullscreen = if let WindowType::Window((_, last_configure)) =
+            &self.window_state.lock().unwrap().window
+        {
+            last_configure
+                .as_ref()
+                .map(|last_configure| last_configure.is_fullscreen())
+                .unwrap_or_default()
+        } else {
+            false
+        };
 
         if is_fullscreen {
             let current_monitor = self.current_monitor();
