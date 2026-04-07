@@ -1,10 +1,13 @@
-use std::sync::atomic::AtomicBool;
-use std::sync::{Arc, Mutex};
-
+use super::ActiveEventLoop;
+use crate::window::WindowRequests;
+use crate::window::state::{WindowState, WindowType};
+use core::sync::atomic::Ordering;
 use dpi::{LogicalPosition, PhysicalInsets, PhysicalPosition, PhysicalSize, Position, Size};
 use rwh_06::RawWindowHandle;
 use sctk::shell::xdg::popup::Popup as SctkPopup;
 use sctk::shell::xdg::{XdgPositioner, XdgSurface};
+use std::sync::atomic::AtomicBool;
+use std::sync::{Arc, Mutex};
 use wayland_client::Proxy;
 use wayland_client::protocol::wl_display::WlDisplay;
 use wayland_protocols::xdg::shell::client::xdg_positioner::{Anchor, Gravity};
@@ -16,10 +19,6 @@ use winit_core::window::{
     UserAttentionType, Window as CoreWindow, WindowAttributes, WindowButtons, WindowId,
     WindowLevel,
 };
-
-use super::ActiveEventLoop;
-use crate::window::WindowRequests;
-use crate::window::state::{WindowState, WindowType};
 
 #[derive(Debug)]
 pub struct Popup {
@@ -35,6 +34,13 @@ pub struct Popup {
     /// The wayland display used solely for raw window handle.
     #[allow(dead_code)]
     display: WlDisplay,
+
+    /// Window requests to the event loop.
+    /// Used for example to close the popup
+    window_requests: Arc<WindowRequests>,
+
+    /// Source to wake-up the event-loop for window requests.
+    event_loop_awakener: calloop::ping::Ping,
 }
 
 impl Popup {
@@ -140,11 +146,16 @@ impl Popup {
                 event_queue.blocking_dispatch(&mut state).map_err(|err| os_error!(err))?;
             }
 
+
+            let event_loop_awakener = event_loop_window_target.event_loop_awakener.clone();
+
             Ok(Self {
                 popup,
                 popup_state,
                 window_id,
                 display: event_loop_window_target.handle.connection.display().clone(),
+                event_loop_awakener,
+                window_requests,
             })
         } else {
             Err(RequestError::NotSupported(NotSupportedError::new(
@@ -510,6 +521,13 @@ impl CoreWindow for Popup {
     /// Get the raw-window-handle v0.6 window handle.
     fn rwh_06_window_handle(&self) -> &dyn rwh_06::HasWindowHandle {
         self
+    }
+}
+
+impl Drop for Popup {
+    fn drop(&mut self) {
+        self.window_requests.closed.store(true, Ordering::Relaxed);
+        self.event_loop_awakener.ping();
     }
 }
 
