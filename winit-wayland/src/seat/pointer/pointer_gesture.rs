@@ -13,7 +13,7 @@ use sctk::reexports::protocols::wp::pointer_gestures::zv1::client::zwp_pointer_g
 use wayland_protocols::wp::pointer_gestures::zv1::client::zwp_pointer_gesture_hold_v1::{
     Event as HoldEvent, ZwpPointerGestureHoldV1,
 };
-use winit_core::event::{MouseScrollDelta, TouchPhase, WindowEvent};
+use winit_core::event::{TouchPhase, WindowEvent};
 use winit_core::window::WindowId;
 
 use crate::state::WinitState;
