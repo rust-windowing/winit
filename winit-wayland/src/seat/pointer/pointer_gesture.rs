@@ -110,33 +110,9 @@ impl Dispatch<ZwpPointerGestureHoldV1, PointerGestureData, WinitState> for Point
             _ => return,
         };
 
-        // The chance of only one of these events being necessary is extremely small,
-        // so it is easier to just send all
-        state.events_sink.push_window_event(
-            WindowEvent::MouseWheel {
-                device_id: None,
-                delta: MouseScrollDelta::PixelDelta(PhysicalPosition::new(0., 0.)),
-                phase,
-            },
-            window_id,
-        );
-
-        state.events_sink.push_window_event(
-            WindowEvent::PanGesture {
-                device_id: None,
-                delta: PhysicalPosition::new(0., 0.),
-                phase,
-            },
-            window_id,
-        );
-        state.events_sink.push_window_event(
-            WindowEvent::PinchGesture { device_id: None, delta: 0., phase },
-            window_id,
-        );
-        state.events_sink.push_window_event(
-            WindowEvent::RotationGesture { device_id: None, delta: 0., phase },
-            window_id,
-        );
+        state
+            .events_sink
+            .push_window_event(WindowEvent::HoldGesture { device_id: None, phase }, window_id);
     }
 }
 

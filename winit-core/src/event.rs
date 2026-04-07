@@ -269,6 +269,9 @@ pub enum WindowEvent {
         button: ButtonSource,
     },
 
+    /// Two or more fingers touching / releasing the touchpad / touchscreen without any movement
+    HoldGesture { device_id: Option<DeviceId>, phase: TouchPhase },
+
     /// Two-finger pinch gesture, often used for magnification.
     ///
     /// ## Platform-specific
