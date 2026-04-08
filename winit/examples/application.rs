@@ -541,16 +541,7 @@ impl ApplicationHandler for Application {
             WindowEvent::DoubleTapGesture { .. } => {
                 info!("Smart zoom");
             },
-            WindowEvent::TouchpadPressure { .. }
-            | WindowEvent::DragLeft { .. }
-            | WindowEvent::KeyboardInput { .. }
-            | WindowEvent::PointerEntered { .. }
-            | WindowEvent::DragEntered { .. }
-            | WindowEvent::DragMoved { .. }
-            | WindowEvent::DragDropped { .. }
-            | WindowEvent::Destroyed
-            | WindowEvent::Ime(_)
-            | WindowEvent::Moved(_) => (),
+            _ => (),
         }
     }
 
