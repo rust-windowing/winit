@@ -48,7 +48,8 @@ changelog entry.
 - Implement `Send` and `Sync` for `OwnedDisplayHandle`.
 - Use new macOS 15 cursors for resize icons.
 - On Android, added scancode conversions for more obscure key codes.
-- Add `HoldGesture` event for multi-finger hold gestures, implemented on Wayland.
+- On Wayland, added `HoldGesture` event for multi-finger hold gestures
+- On Wayland, added ext-background-effect-v1 support.
 
 ### Changed
 
