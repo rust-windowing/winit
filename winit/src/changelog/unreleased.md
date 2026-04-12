@@ -48,12 +48,12 @@ changelog entry.
 - Implement `Send` and `Sync` for `OwnedDisplayHandle`.
 - Use new macOS 15 cursors for resize icons.
 - On Android, added scancode conversions for more obscure key codes.
+- Add `HoldGesture` event for multi-finger hold gestures, implemented on Wayland.
 
 ### Changed
 
 - Updated `windows-sys` to `v0.61`.
 - On older macOS versions (tested up to 12.7.6), applications now receive mouse movement events for unfocused windows, matching the behavior on other platforms.
-- On wayland touchpad hold events are implemented.
 
 ### Fixed
 
