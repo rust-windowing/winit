@@ -526,7 +526,7 @@ impl MonitorHandler {
                     },
                 };
 
-                // Notifying `Future`s is not dependant on the lifetime of the runner,
+                // Notifying `Future`s is not dependent on the lifetime of the runner,
                 // because they can outlive it.
                 if let Some(runner) = runner.upgrade() {
                     if let Some(details) = details {
@@ -761,7 +761,7 @@ impl MonitorPermissionFuture {
         wasm_bindgen_futures::spawn_local(async move {
             match future.await {
                 Ok(details) => {
-                    // Notifying `Future`s is not dependant on the lifetime of the runner, because
+                    // Notifying `Future`s is not dependent on the lifetime of the runner, because
                     // they can outlive it.
                     notifier.notify(Ok(()));
 

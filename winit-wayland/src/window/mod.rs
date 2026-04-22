@@ -127,7 +127,8 @@ impl Window {
         // Set transparency hint.
         window_state.set_transparent(attributes.transparent);
 
-        window_state.set_blur(attributes.blur);
+        // Set blur.
+        let _ = window_state.set_blur(attributes.blur);
 
         // Set the decorations hint.
         window_state.set_decorate(attributes.decorations);
@@ -169,6 +170,12 @@ impl Window {
         match attributes.cursor {
             Cursor::Icon(icon) => window_state.set_cursor(icon),
             Cursor::Custom(cursor) => window_state.set_custom_cursor(cursor),
+        }
+
+        // Apply resize increments.
+        if let Some(increments) = attributes.surface_resize_increments {
+            let increments = increments.to_logical(window_state.scale_factor());
+            window_state.set_resize_increments(Some(increments));
         }
 
         // Activate the window when the token is passed.
@@ -370,11 +377,18 @@ impl CoreWindow for Window {
     }
 
     fn surface_resize_increments(&self) -> Option<PhysicalSize<u32>> {
-        None
+        let window_state = self.window_state.lock().unwrap();
+        let scale_factor = window_state.scale_factor();
+        window_state
+            .resize_increments()
+            .map(|size| super::logical_to_physical_rounded(size, scale_factor))
     }
 
-    fn set_surface_resize_increments(&self, _increments: Option<Size>) {
-        warn!("`set_surface_resize_increments` is not implemented for Wayland");
+    fn set_surface_resize_increments(&self, increments: Option<Size>) {
+        let mut window_state = self.window_state.lock().unwrap();
+        let scale_factor = window_state.scale_factor();
+        let increments = increments.map(|size| size.to_logical(scale_factor));
+        window_state.set_resize_increments(increments);
     }
 
     fn set_title(&self, title: &str) {
@@ -485,7 +499,9 @@ impl CoreWindow for Window {
 
     #[inline]
     fn set_blur(&self, blur: bool) {
-        self.window_state.lock().unwrap().set_blur(blur);
+        if self.window_state.lock().unwrap().set_blur(blur) {
+            self.request_redraw();
+        }
     }
 
     #[inline]

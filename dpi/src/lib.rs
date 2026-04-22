@@ -84,36 +84,18 @@ pub trait Pixel: Copy + Into<f64> {
     }
 }
 
-impl Pixel for u8 {
-    fn from_f64(f: f64) -> Self {
-        round(f) as u8
-    }
+macro_rules! pixel_int_impl {
+    ($($t:ty),*) => {$(
+        impl Pixel for $t {
+            fn from_f64(f: f64) -> Self {
+                round(f) as $t
+            }
+        }
+    )*}
 }
-impl Pixel for u16 {
-    fn from_f64(f: f64) -> Self {
-        round(f) as u16
-    }
-}
-impl Pixel for u32 {
-    fn from_f64(f: f64) -> Self {
-        round(f) as u32
-    }
-}
-impl Pixel for i8 {
-    fn from_f64(f: f64) -> Self {
-        round(f) as i8
-    }
-}
-impl Pixel for i16 {
-    fn from_f64(f: f64) -> Self {
-        round(f) as i16
-    }
-}
-impl Pixel for i32 {
-    fn from_f64(f: f64) -> Self {
-        round(f) as i32
-    }
-}
+
+pixel_int_impl!(u8, u16, u32, i8, i16, i32);
+
 impl Pixel for f32 {
     fn from_f64(f: f64) -> Self {
         f as f32
@@ -378,6 +360,48 @@ impl<P: Pixel> From<LogicalUnit<P>> for PixelUnit {
     }
 }
 
+macro_rules! vec2_from_impls {
+    ($t:ident, $a:ident, $b:ident, $mint_ty:ident) => {
+        impl<P: Pixel, X: Pixel> From<(X, X)> for $t<P> {
+            fn from(($a, $b): (X, X)) -> Self {
+                Self::new($a.cast(), $b.cast())
+            }
+        }
+
+        impl<P: Pixel, X: Pixel> From<$t<P>> for (X, X) {
+            fn from(p: $t<P>) -> Self {
+                (p.$a.cast(), p.$b.cast())
+            }
+        }
+
+        impl<P: Pixel, X: Pixel> From<[X; 2]> for $t<P> {
+            fn from([$a, $b]: [X; 2]) -> Self {
+                Self::new($a.cast(), $b.cast())
+            }
+        }
+
+        impl<P: Pixel, X: Pixel> From<$t<P>> for [X; 2] {
+            fn from(p: $t<P>) -> Self {
+                [p.$a.cast(), p.$b.cast()]
+            }
+        }
+
+        #[cfg(feature = "mint")]
+        impl<P: Pixel> From<mint::$mint_ty<P>> for $t<P> {
+            fn from(p: mint::$mint_ty<P>) -> Self {
+                Self::new(p.x, p.y)
+            }
+        }
+
+        #[cfg(feature = "mint")]
+        impl<P: Pixel> From<$t<P>> for mint::$mint_ty<P> {
+            fn from(p: $t<P>) -> Self {
+                Self { x: p.$a, y: p.$b }
+            }
+        }
+    };
+}
+
 /// A position represented in logical pixels.
 ///
 /// The position is stored as floats, so please be careful. Casting floats to integers truncates the
@@ -420,43 +444,7 @@ impl<P: Pixel> LogicalPosition<P> {
     }
 }
 
-impl<P: Pixel, X: Pixel> From<(X, X)> for LogicalPosition<P> {
-    fn from((x, y): (X, X)) -> LogicalPosition<P> {
-        LogicalPosition::new(x.cast(), y.cast())
-    }
-}
-
-impl<P: Pixel, X: Pixel> From<LogicalPosition<P>> for (X, X) {
-    fn from(p: LogicalPosition<P>) -> (X, X) {
-        (p.x.cast(), p.y.cast())
-    }
-}
-
-impl<P: Pixel, X: Pixel> From<[X; 2]> for LogicalPosition<P> {
-    fn from([x, y]: [X; 2]) -> LogicalPosition<P> {
-        LogicalPosition::new(x.cast(), y.cast())
-    }
-}
-
-impl<P: Pixel, X: Pixel> From<LogicalPosition<P>> for [X; 2] {
-    fn from(p: LogicalPosition<P>) -> [X; 2] {
-        [p.x.cast(), p.y.cast()]
-    }
-}
-
-#[cfg(feature = "mint")]
-impl<P: Pixel> From<mint::Point2<P>> for LogicalPosition<P> {
-    fn from(p: mint::Point2<P>) -> Self {
-        Self::new(p.x, p.y)
-    }
-}
-
-#[cfg(feature = "mint")]
-impl<P: Pixel> From<LogicalPosition<P>> for mint::Point2<P> {
-    fn from(p: LogicalPosition<P>) -> Self {
-        mint::Point2 { x: p.x, y: p.y }
-    }
-}
+vec2_from_impls!(LogicalPosition, x, y, Point2);
 
 /// A position represented in physical pixels.
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Default, Hash)]
@@ -496,43 +484,7 @@ impl<P: Pixel> PhysicalPosition<P> {
     }
 }
 
-impl<P: Pixel, X: Pixel> From<(X, X)> for PhysicalPosition<P> {
-    fn from((x, y): (X, X)) -> PhysicalPosition<P> {
-        PhysicalPosition::new(x.cast(), y.cast())
-    }
-}
-
-impl<P: Pixel, X: Pixel> From<PhysicalPosition<P>> for (X, X) {
-    fn from(p: PhysicalPosition<P>) -> (X, X) {
-        (p.x.cast(), p.y.cast())
-    }
-}
-
-impl<P: Pixel, X: Pixel> From<[X; 2]> for PhysicalPosition<P> {
-    fn from([x, y]: [X; 2]) -> PhysicalPosition<P> {
-        PhysicalPosition::new(x.cast(), y.cast())
-    }
-}
-
-impl<P: Pixel, X: Pixel> From<PhysicalPosition<P>> for [X; 2] {
-    fn from(p: PhysicalPosition<P>) -> [X; 2] {
-        [p.x.cast(), p.y.cast()]
-    }
-}
-
-#[cfg(feature = "mint")]
-impl<P: Pixel> From<mint::Point2<P>> for PhysicalPosition<P> {
-    fn from(p: mint::Point2<P>) -> Self {
-        Self::new(p.x, p.y)
-    }
-}
-
-#[cfg(feature = "mint")]
-impl<P: Pixel> From<PhysicalPosition<P>> for mint::Point2<P> {
-    fn from(p: PhysicalPosition<P>) -> Self {
-        mint::Point2 { x: p.x, y: p.y }
-    }
-}
+vec2_from_impls!(PhysicalPosition, x, y, Point2);
 
 /// A size represented in logical pixels.
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Default, Hash)]
@@ -572,43 +524,7 @@ impl<P: Pixel> LogicalSize<P> {
     }
 }
 
-impl<P: Pixel, X: Pixel> From<(X, X)> for LogicalSize<P> {
-    fn from((x, y): (X, X)) -> LogicalSize<P> {
-        LogicalSize::new(x.cast(), y.cast())
-    }
-}
-
-impl<P: Pixel, X: Pixel> From<LogicalSize<P>> for (X, X) {
-    fn from(s: LogicalSize<P>) -> (X, X) {
-        (s.width.cast(), s.height.cast())
-    }
-}
-
-impl<P: Pixel, X: Pixel> From<[X; 2]> for LogicalSize<P> {
-    fn from([x, y]: [X; 2]) -> LogicalSize<P> {
-        LogicalSize::new(x.cast(), y.cast())
-    }
-}
-
-impl<P: Pixel, X: Pixel> From<LogicalSize<P>> for [X; 2] {
-    fn from(s: LogicalSize<P>) -> [X; 2] {
-        [s.width.cast(), s.height.cast()]
-    }
-}
-
-#[cfg(feature = "mint")]
-impl<P: Pixel> From<mint::Vector2<P>> for LogicalSize<P> {
-    fn from(v: mint::Vector2<P>) -> Self {
-        Self::new(v.x, v.y)
-    }
-}
-
-#[cfg(feature = "mint")]
-impl<P: Pixel> From<LogicalSize<P>> for mint::Vector2<P> {
-    fn from(s: LogicalSize<P>) -> Self {
-        mint::Vector2 { x: s.width, y: s.height }
-    }
-}
+vec2_from_impls!(LogicalSize, width, height, Vector2);
 
 /// A size represented in physical pixels.
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Default, Hash)]
@@ -645,43 +561,7 @@ impl<P: Pixel> PhysicalSize<P> {
     }
 }
 
-impl<P: Pixel, X: Pixel> From<(X, X)> for PhysicalSize<P> {
-    fn from((x, y): (X, X)) -> PhysicalSize<P> {
-        PhysicalSize::new(x.cast(), y.cast())
-    }
-}
-
-impl<P: Pixel, X: Pixel> From<PhysicalSize<P>> for (X, X) {
-    fn from(s: PhysicalSize<P>) -> (X, X) {
-        (s.width.cast(), s.height.cast())
-    }
-}
-
-impl<P: Pixel, X: Pixel> From<[X; 2]> for PhysicalSize<P> {
-    fn from([x, y]: [X; 2]) -> PhysicalSize<P> {
-        PhysicalSize::new(x.cast(), y.cast())
-    }
-}
-
-impl<P: Pixel, X: Pixel> From<PhysicalSize<P>> for [X; 2] {
-    fn from(s: PhysicalSize<P>) -> [X; 2] {
-        [s.width.cast(), s.height.cast()]
-    }
-}
-
-#[cfg(feature = "mint")]
-impl<P: Pixel> From<mint::Vector2<P>> for PhysicalSize<P> {
-    fn from(v: mint::Vector2<P>) -> Self {
-        Self::new(v.x, v.y)
-    }
-}
-
-#[cfg(feature = "mint")]
-impl<P: Pixel> From<PhysicalSize<P>> for mint::Vector2<P> {
-    fn from(s: PhysicalSize<P>) -> Self {
-        mint::Vector2 { x: s.width, y: s.height }
-    }
-}
+vec2_from_impls!(PhysicalSize, width, height, Vector2);
 
 /// A size that's either physical or logical.
 #[derive(Debug, Copy, Clone, PartialEq)]

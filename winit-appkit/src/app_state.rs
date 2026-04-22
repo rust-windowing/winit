@@ -8,7 +8,7 @@ use dispatch2::MainThreadBound;
 use objc2::MainThreadMarker;
 use objc2_app_kit::{NSApplication, NSApplicationActivationPolicy, NSRunningApplication};
 use objc2_foundation::NSNotification;
-use winit_common::core_foundation::EventLoopProxy;
+use winit_common::core_foundation::{EventLoopProxy, MainRunLoop};
 use winit_common::event_handler::EventHandler;
 use winit_core::application::ApplicationHandler;
 use winit_core::event::{StartCause, WindowEvent};
@@ -17,7 +17,7 @@ use winit_core::window::WindowId;
 
 use super::event_loop::{ActiveEventLoop, notify_windows_of_exit, stop_app_immediately};
 use super::menu;
-use super::observer::{EventLoopWaker, RunLoop};
+use super::observer::EventLoopWaker;
 
 #[derive(Debug)]
 pub(super) struct AppState {
@@ -25,7 +25,7 @@ pub(super) struct AppState {
     activation_policy: Option<NSApplicationActivationPolicy>,
     default_menu: bool,
     activate_ignoring_other_apps: bool,
-    run_loop: RunLoop,
+    run_loop: MainRunLoop,
     event_loop_proxy: Arc<EventLoopProxy>,
     event_handler: EventHandler,
     stop_on_launch: Cell<bool>,
@@ -68,7 +68,7 @@ impl AppState {
             activation_policy,
             default_menu,
             activate_ignoring_other_apps,
-            run_loop: RunLoop::main(mtm),
+            run_loop: MainRunLoop::get(mtm),
             event_loop_proxy,
             event_handler: EventHandler::new(),
             stop_on_launch: Cell::new(false),
@@ -99,7 +99,6 @@ impl AppState {
     // NOTE: This notification will, globally, only be emitted once,
     // no matter how many `EventLoop`s the user creates.
     pub fn did_finish_launching(self: &Rc<Self>, _notification: &NSNotification) {
-        trace_scope!("NSApplicationDidFinishLaunchingNotification");
         self.is_launched.set(true);
 
         let app = NSApplication::sharedApplication(self.mtm);
@@ -154,7 +153,6 @@ impl AppState {
     }
 
     pub fn will_terminate(self: &Rc<Self>, _notification: &NSNotification) {
-        trace_scope!("NSApplicationWillTerminateNotification");
         let app = NSApplication::sharedApplication(self.mtm);
         notify_windows_of_exit(&app);
         self.event_handler.terminate();
@@ -265,7 +263,7 @@ impl AppState {
         if !pending_redraw.contains(&window_id) {
             pending_redraw.push(window_id);
         }
-        self.run_loop.wakeup();
+        self.run_loop.wake_up();
     }
 
     #[track_caller]
@@ -310,6 +308,7 @@ impl AppState {
     // Called by RunLoopObserver after finishing waiting for new events
     pub fn wakeup(self: &Rc<Self>) {
         // Return when in event handler due to https://github.com/rust-windowing/winit/issues/1779
+        // (we have registered to observe all modes, including modal event loops).
         if !self.event_handler.ready() || !self.is_running() {
             return;
         }
@@ -338,8 +337,7 @@ impl AppState {
     // Called by RunLoopObserver before waiting for new events
     pub fn cleared(self: &Rc<Self>) {
         // Return when in event handler due to https://github.com/rust-windowing/winit/issues/1779
-        // XXX: how does it make sense that `event_handler.ready()` can ever return `false` here if
-        // we're about to return to the `CFRunLoop` to poll for new events?
+        // (we have registered to observe all modes, including modal event loops).
         if !self.event_handler.ready() || !self.is_running() {
             return;
         }

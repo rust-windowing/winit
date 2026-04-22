@@ -3,7 +3,7 @@ use std::sync::LazyLock;
 /// which is inspired by the solution in https://github.com/ysc3839/win32-darkmode
 use std::{ffi::c_void, ptr};
 
-use windows_sys::Win32::Foundation::{BOOL, HWND, LPARAM, S_OK, WPARAM};
+use windows_sys::Win32::Foundation::{HWND, LPARAM, S_OK, WPARAM};
 use windows_sys::Win32::System::LibraryLoader::{GetProcAddress, LoadLibraryA};
 use windows_sys::Win32::UI::Accessibility::{HCF_HIGHCONTRASTON, HIGHCONTRASTA};
 use windows_sys::Win32::UI::Controls::SetWindowTheme;
@@ -11,7 +11,7 @@ use windows_sys::Win32::UI::Input::KeyboardAndMouse::GetActiveWindow;
 use windows_sys::Win32::UI::WindowsAndMessaging::{
     DefWindowProcW, SPI_GETHIGHCONTRAST, SystemParametersInfoA, WM_NCACTIVATE,
 };
-use windows_sys::core::{PCSTR, PCWSTR};
+use windows_sys::core::{BOOL, PCSTR, PCWSTR};
 use windows_sys::w;
 use winit_core::window::Theme;
 

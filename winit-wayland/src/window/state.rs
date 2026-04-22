@@ -4,8 +4,8 @@ use std::num::NonZeroU32;
 use std::sync::{Arc, Mutex, Weak};
 use std::time::Duration;
 
-use ahash::HashSet;
 use dpi::{LogicalPosition, LogicalSize, PhysicalPosition, PhysicalSize, Size};
+use foldhash::HashSet;
 use sctk::compositor::{CompositorState, Region, SurfaceData, SurfaceDataExt};
 use sctk::globals::GlobalData;
 use sctk::reexports::client::backend::ObjectId;
@@ -29,7 +29,6 @@ use sctk::shm::slot::SlotPool;
 use sctk::subcompositor::SubcompositorState;
 use tracing::{info, warn};
 use wayland_protocols::xdg::toplevel_icon::v1::client::xdg_toplevel_icon_manager_v1::XdgToplevelIconManagerV1;
-use wayland_protocols_plasma::blur::client::org_kde_kwin_blur::OrgKdeKwinBlur;
 use winit_core::cursor::{CursorIcon, CustomCursor as CoreCustomCursor};
 use winit_core::error::{NotSupportedError, RequestError};
 use winit_core::window::{
@@ -43,8 +42,8 @@ use crate::seat::{
     ZwpTextInputV3Ext,
 };
 use crate::state::{WindowCompositorUpdate, WinitState};
+use crate::types::bgr_effects::{BgrEffectManager, SurfaceBlurEffect};
 use crate::types::cursor::{CustomCursor, SelectedCursor, WaylandCustomCursor};
-use crate::types::kwin_blur::KWinBlurManager;
 use crate::types::xdg_toplevel_icon_manager::ToplevelIcon;
 
 #[cfg(feature = "sctk-adwaita")]
@@ -140,6 +139,7 @@ pub struct WindowState {
     /// Min size.
     min_surface_size: LogicalSize<u32>,
     max_surface_size: Option<LogicalSize<u32>>,
+    resize_increments: Option<LogicalSize<u32>>,
 
     /// The size of the window when no states were applied to it. The primary use for it
     /// is to fallback to original window size, before it was maximized, if the compositor
@@ -155,8 +155,8 @@ pub struct WindowState {
 
     viewport: Option<WpViewport>,
     fractional_scale: Option<WpFractionalScaleV1>,
-    blur: Option<OrgKdeKwinBlur>,
-    blur_manager: Option<KWinBlurManager>,
+    blur: Option<SurfaceBlurEffect>,
+    blur_manager: Option<BgrEffectManager>,
 
     /// Whether the client side decorations have pending move operations.
     ///
@@ -205,7 +205,7 @@ impl WindowState {
             toplevel_icon: None,
             xdg_toplevel_icon_manager,
             blur: None,
-            blur_manager: winit_state.kwin_blur_manager.clone(),
+            blur_manager: winit_state.blur_manager.clone(),
             compositor,
             handle,
             csd_fails: false,
@@ -223,6 +223,7 @@ impl WindowState {
             last_configure: None,
             max_surface_size: None,
             min_surface_size: MIN_WINDOW_SIZE,
+            resize_increments: None,
             pointer_constraints,
             pointers: Default::default(),
             queue_handle: queue_handle.clone(),
@@ -359,6 +360,42 @@ impl WindowState {
                 .1
                 .map(|bound_h| new_size.height.min(bound_h.get()))
                 .unwrap_or(new_size.height);
+        }
+
+        // Apply size increments.
+        //
+        // We conditionally apply increments to avoid conflicts with the compositor's layout rules:
+        // 1. If the window is floating (constrain == true), we snap to increments to ensure the
+        //    app's grid alignment.
+        // 2. If the user is interactively resizing (is_resizing), we snap the size to provide
+        //    feedback.
+        //
+        // However, we MUST NOT snap if the compositor enforces a specific size (constrain == false,
+        // or states like Maximized/Tiled). Snapping in these cases (e.g. corner tiling) would
+        // shrink the window below the allocated area, creating visible gaps between valid
+        // windows or screen edges.
+        if (constrain || configure.is_resizing())
+            && !configure.is_maximized()
+            && !configure.is_fullscreen()
+            && !configure.is_tiled()
+        {
+            if let Some(increments) = self.resize_increments {
+                // We use min size as a base size for the increments, similar to how X11 does it.
+                //
+                // This ensures that we can always reach the min size and the increments are
+                // calculated from it.
+                let (delta_width, delta_height) = (
+                    new_size.width.saturating_sub(self.min_surface_size.width),
+                    new_size.height.saturating_sub(self.min_surface_size.height),
+                );
+
+                let width = self.min_surface_size.width
+                    + (delta_width / increments.width) * increments.width;
+                let height = self.min_surface_size.height
+                    + (delta_height / increments.height) * increments.height;
+
+                new_size = (width, height).into();
+            }
         }
 
         let new_state = configure.state;
@@ -704,6 +741,13 @@ impl WindowState {
             // Set surface size without the borders.
             viewport.set_destination(self.size.width as _, self.size.height as _);
         }
+
+        // Update blur region with new size.
+        if self.blur.is_some() {
+            // NOTE: either user resized or configure, in both cases
+            // the redraw scheduling is done on the caller side.
+            let _ = self.set_blur(true);
+        }
     }
 
     /// Get the scale factor of the window.
@@ -747,6 +791,18 @@ impl WindowState {
         }
 
         self.selected_cursor = SelectedCursor::Custom(cursor);
+    }
+
+    /// Set the resize increments of the window.
+    pub fn set_resize_increments(&mut self, increments: Option<LogicalSize<u32>>) {
+        self.resize_increments = increments;
+        // NOTE: We don't update the window size here, because it will be done on the next resize
+        // or configure event.
+    }
+
+    /// Get the resize increments of the window.
+    pub fn resize_increments(&self) -> Option<LogicalSize<u32>> {
+        self.resize_increments
     }
 
     fn apply_custom_cursor(&self, cursor: &CustomCursor) {
@@ -1063,20 +1119,37 @@ impl WindowState {
         }
     }
 
-    /// Make window background blurred
-    #[inline]
-    pub fn set_blur(&mut self, blurred: bool) {
-        if blurred && self.blur.is_none() {
-            if let Some(blur_manager) = self.blur_manager.as_ref() {
-                let blur = blur_manager.blur(self.window.wl_surface(), &self.queue_handle);
-                blur.commit();
-                self.blur = Some(blur);
-            } else {
-                info!("Blur manager unavailable, unable to change blur")
-            }
-        } else if !blurred && self.blur.is_some() {
-            self.blur_manager.as_ref().unwrap().unset(self.window.wl_surface());
-            self.blur.take().unwrap().release();
+    /// Make window background blurred.
+    ///
+    /// Returns `true` if redraw is required.
+    #[must_use]
+    pub fn set_blur(&mut self, blurred: bool) -> bool {
+        if !blurred {
+            self.blur = None;
+            return true;
+        }
+
+        let mgr = match self.blur_manager.as_mut() {
+            Some(mgr) => mgr,
+            None => {
+                info!("Blur manager unavailable, unable to change blur");
+                return false;
+            },
+        };
+
+        let blur = match self.blur.as_ref() {
+            Some(blur) => blur,
+            None => {
+                self.blur = Some(mgr.new_blur_effect(self.window.wl_surface(), &self.queue_handle));
+                self.blur.as_ref().unwrap()
+            },
+        };
+
+        if let Ok(region) = Region::new(&*self.compositor) {
+            region.add(0, 0, i32::MAX, i32::MAX);
+            blur.set_blur(Some(&region))
+        } else {
+            false
         }
     }
 
@@ -1174,10 +1247,6 @@ impl WindowState {
 
 impl Drop for WindowState {
     fn drop(&mut self) {
-        if let Some(blur) = self.blur.take() {
-            blur.release();
-        }
-
         if let Some(fs) = self.fractional_scale.take() {
             fs.destroy();
         }

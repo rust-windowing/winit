@@ -150,7 +150,7 @@ impl Dispatch<ZwpTextInputV3, TextInputData, WinitState> for TextInputState {
                 // 6. Place cursor inside preedit text.
 
                 if let Some(DeleteSurroundingText { before, after }) =
-                    text_input_data.pending_delete
+                    text_input_data.pending_delete.take()
                 {
                     state.events_sink.push_window_event(
                         WindowEvent::Ime(Ime::DeleteSurrounding {

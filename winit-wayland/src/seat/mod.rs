@@ -2,7 +2,7 @@
 
 use std::sync::Arc;
 
-use ahash::AHashMap;
+use foldhash::HashMap;
 use sctk::reexports::client::backend::ObjectId;
 use sctk::reexports::client::protocol::wl_seat::WlSeat;
 use sctk::reexports::client::protocol::wl_touch::WlTouch;
@@ -43,7 +43,7 @@ pub struct WinitSeatState {
     touch: Option<WlTouch>,
 
     /// The mapping from touched points to the surfaces they're present.
-    touch_map: AHashMap<i32, TouchPoint>,
+    touch_map: HashMap<i32, TouchPoint>,
 
     /// Id of the first touch event.
     first_touch_id: Option<i32>,

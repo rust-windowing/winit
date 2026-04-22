@@ -4,7 +4,7 @@ use std::thread;
 #[cfg(not(web_platform))]
 use std::time;
 
-use ::tracing::{info, warn};
+use tracing::{info, warn};
 #[cfg(web_platform)]
 use web_time as time;
 use winit::application::ApplicationHandler;

@@ -2,7 +2,7 @@ use std::cell::RefCell;
 use std::sync::atomic::Ordering;
 use std::sync::{Arc, Mutex};
 
-use ahash::AHashMap;
+use foldhash::HashMap;
 use sctk::compositor::{CompositorHandler, CompositorState};
 use sctk::output::{OutputHandler, OutputState};
 use sctk::reexports::calloop::LoopHandle;
@@ -29,7 +29,7 @@ use crate::seat::{
     PointerConstraintsState, PointerGesturesState, RelativePointerState, TextInputState,
     WinitPointerData, WinitPointerDataExt, WinitSeatState,
 };
-use crate::types::kwin_blur::KWinBlurManager;
+use crate::types::bgr_effects::BgrEffectManager;
 use crate::types::wp_fractional_scaling::FractionalScalingManager;
 use crate::types::wp_tablet_input_v2::TabletManager;
 use crate::types::wp_viewporter::ViewporterState;
@@ -62,10 +62,10 @@ pub struct WinitState {
     pub xdg_shell: XdgShell,
 
     /// The currently present windows.
-    pub windows: RefCell<AHashMap<WindowId, Arc<Mutex<WindowState>>>>,
+    pub windows: RefCell<HashMap<WindowId, Arc<Mutex<WindowState>>>>,
 
     /// The requests from the `Window` to EventLoop, such as close operations and redraw requests.
-    pub window_requests: RefCell<AHashMap<WindowId, Arc<WindowRequests>>>,
+    pub window_requests: RefCell<HashMap<WindowId, Arc<WindowRequests>>>,
 
     /// The events that were generated directly from the window.
     pub window_events_sink: Arc<Mutex<EventSink>>,
@@ -74,10 +74,10 @@ pub struct WinitState {
     pub window_compositor_updates: Vec<WindowCompositorUpdate>,
 
     /// Currently handled seats.
-    pub seats: AHashMap<ObjectId, WinitSeatState>,
+    pub seats: HashMap<ObjectId, WinitSeatState>,
 
     /// Currently present cursor surfaces.
-    pub pointer_surfaces: AHashMap<ObjectId, Arc<ThemedPointer<WinitPointerData>>>,
+    pub pointer_surfaces: HashMap<ObjectId, Arc<ThemedPointer<WinitPointerData>>>,
 
     /// The state of the text input on the client.
     pub text_input_state: Option<TextInputState>,
@@ -116,8 +116,8 @@ pub struct WinitState {
     /// Fractional scaling manager.
     pub fractional_scaling_manager: Option<FractionalScalingManager>,
 
-    /// KWin blur manager.
-    pub kwin_blur_manager: Option<KWinBlurManager>,
+    /// Blur manager.
+    pub blur_manager: Option<BgrEffectManager>,
 
     /// Loop handle to re-register event sources, such as keyboard repeat.
     pub loop_handle: LoopHandle<'static, Self>,
@@ -156,7 +156,7 @@ impl WinitState {
 
         let seat_state = SeatState::new(globals, queue_handle);
 
-        let mut seats = AHashMap::default();
+        let mut seats = HashMap::default();
         for seat in seat_state.seats() {
             seats.insert(seat.id(), WinitSeatState::new());
         }
@@ -192,7 +192,7 @@ impl WinitState {
             window_events_sink: Default::default(),
             viewporter_state,
             fractional_scaling_manager,
-            kwin_blur_manager: KWinBlurManager::new(globals, queue_handle).ok(),
+            blur_manager: BgrEffectManager::new(globals, queue_handle).ok(),
 
             seats,
             text_input_state: TextInputState::new(globals, queue_handle).ok(),
