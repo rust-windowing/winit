@@ -474,6 +474,7 @@ pub struct WindowAttributesWindows {
     pub(crate) title_text_color: Option<Color>,
     pub(crate) corner_preference: Option<CornerPreference>,
     pub(crate) use_system_wheel_speed: bool,
+    pub(crate) no_activate: bool,
 }
 
 impl Default for WindowAttributesWindows {
@@ -494,6 +495,7 @@ impl Default for WindowAttributesWindows {
             title_text_color: None,
             corner_preference: None,
             use_system_wheel_speed: true,
+            no_activate: false,
         }
     }
 }
@@ -636,6 +638,13 @@ impl WindowAttributesWindows {
     /// The default is `true`.
     pub fn with_use_system_scroll_speed(mut self, should_use: bool) -> Self {
         self.use_system_wheel_speed = should_use;
+        self
+    }
+
+    /// This sets or removes the WS_EX_NOACTIVATE flag
+    /// The default is `false`
+    pub fn with_no_activate(mut self, no_activate: bool) -> Self {
+        self.no_activate = no_activate;
         self
     }
 }
