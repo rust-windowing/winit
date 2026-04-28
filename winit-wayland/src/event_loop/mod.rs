@@ -264,9 +264,21 @@ impl EventLoop {
             //
             // Checking for flush error is essential to perform an exit with error, since
             // once we have a protocol error, we could get stuck retrying...
-            if self.handle.connection.flush().is_err() {
-                self.set_exit_code(1);
-                return;
+            match self.handle.connection.flush() {
+                Ok(()) => {},
+                Err(sctk::reexports::client::backend::WaylandError::Io(e))
+                    if e.kind() == std::io::ErrorKind::WouldBlock =>
+                {
+                    // EAGAIN/WouldBlock from the kernel socket: SO_SNDBUF is full.
+                    // libwayland documents this as recoverable back-pressure — the
+                    // poll(POLLOUT) on the next loop iteration will drain the buffer
+                    // and we can retry. Mirrors the pattern in
+                    // calloop-wayland-source's `flush_queue`.
+                },
+                Err(_) => {
+                    self.set_exit_code(1);
+                    return;
+                },
             }
 
             if let Err(error) = self.loop_dispatch(timeout) {

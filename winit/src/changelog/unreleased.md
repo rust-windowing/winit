@@ -61,3 +61,8 @@ changelog entry.
 - On Wayland, switch from using the `ahash` hashing algorithm to `foldhash`.
 - On macOS, fix borderless game presentation options not sticking after switching spaces.
 - On macOS, fix IME being locked on (regardless of requests to disable) after being enabled once.
+- On Wayland, treat `wl_display.flush()` returning `WouldBlock` as
+  recoverable back-pressure rather than a fatal error. Previously the
+  event loop would exit with code 1 on transient kernel send-buffer
+  saturation; it now retries on the next loop iteration as libwayland
+  documents.
