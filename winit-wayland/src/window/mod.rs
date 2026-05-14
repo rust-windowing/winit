@@ -637,7 +637,7 @@ impl CoreWindow for Window {
     }
 
     fn current_monitor(&self) -> Option<CoreMonitorHandle> {
-        let data = self.window.wl_surface().data::<SurfaceData>()?;
+        let data = self.window.wl_surface().data::<SurfaceData<()>>()?;
         data.outputs()
             .next()
             .map(MonitorHandle::new)
