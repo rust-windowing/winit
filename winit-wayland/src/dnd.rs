@@ -801,5 +801,3 @@ impl DataDeviceHandler for WinitState {
         }
     }
 }
-
-sctk::delegate_data_device!(WinitState);

@@ -8,13 +8,10 @@ use tracing::warn;
 
 use sctk::reexports::client::delegate_dispatch;
 use sctk::reexports::client::protocol::wl_pointer::WlPointer;
-use sctk::reexports::client::protocol::wl_seat::WlSeat;
 use sctk::reexports::client::protocol::wl_surface::WlSurface;
 use sctk::reexports::client::{Connection, Proxy, QueueHandle, Dispatch};
 use sctk::reexports::protocols::wp::pointer_constraints::zv1::client::zwp_confined_pointer_v1::ZwpConfinedPointerV1;
 use sctk::reexports::protocols::wp::pointer_constraints::zv1::client::zwp_locked_pointer_v1::ZwpLockedPointerV1;
-use sctk::reexports::protocols::wp::cursor_shape::v1::client::wp_cursor_shape_device_v1::WpCursorShapeDeviceV1;
-use sctk::reexports::protocols::wp::cursor_shape::v1::client::wp_cursor_shape_manager_v1::WpCursorShapeManagerV1;
 use sctk::reexports::protocols::wp::pointer_constraints::zv1::client::zwp_pointer_constraints_v1::{Lifetime, ZwpPointerConstraintsV1};
 use sctk::reexports::client::globals::{BindError, GlobalList};
 use sctk::reexports::csd_frame::FrameClick;
@@ -22,10 +19,7 @@ use sctk::reexports::protocols::wp::viewporter::client::wp_viewport::WpViewport;
 
 use sctk::compositor::SurfaceData;
 use sctk::globals::GlobalData;
-use sctk::seat::SeatState;
-use sctk::seat::pointer::{
-    PointerData, PointerDataExt, PointerEvent, PointerEventKind, PointerHandler,
-};
+use sctk::seat::pointer::{PointerData, PointerEvent, PointerEventKind, PointerHandler};
 
 use dpi::{LogicalPosition, PhysicalPosition};
 use winit_core::event::{
@@ -68,7 +62,7 @@ impl PointerHandler for WinitState {
             let surface = &event.surface;
 
             // The parent surface.
-            let parent_surface = match event.surface.data::<SurfaceData>() {
+            let parent_surface = match event.surface.data::<SurfaceData<()>>() {
                 Some(data) => data.parent_surface().unwrap_or(surface),
                 None => continue,
             };
@@ -140,13 +134,13 @@ impl PointerHandler for WinitState {
                     window.pointer_entered(Arc::downgrade(themed_pointer));
 
                     // Set the currently focused surface.
-                    pointer.winit_data().inner.lock().unwrap().surface = Some(window_id);
+                    pointer.winit_data().data().inner.lock().unwrap().surface = Some(window_id);
                 },
                 PointerEventKind::Leave { .. } => {
                     window.pointer_left(Arc::downgrade(themed_pointer));
 
                     // Remove the active surface.
-                    pointer.winit_data().inner.lock().unwrap().surface = None;
+                    pointer.winit_data().data().inner.lock().unwrap().surface = None;
 
                     self.events_sink.push_window_event(
                         WindowEvent::PointerLeft {
@@ -172,7 +166,7 @@ impl PointerHandler for WinitState {
                 ref kind @ PointerEventKind::Press { button, serial, .. }
                 | ref kind @ PointerEventKind::Release { button, serial, .. } => {
                     // Update the last button serial.
-                    pointer.winit_data().inner.lock().unwrap().latest_button_serial = serial;
+                    pointer.winit_data().data().inner.lock().unwrap().latest_button_serial = serial;
 
                     let button = wayland_button_to_winit(button);
                     let state = if matches!(kind, PointerEventKind::Press { .. }) {
@@ -193,7 +187,7 @@ impl PointerHandler for WinitState {
                 },
                 PointerEventKind::Axis { horizontal, vertical, .. } => {
                     // Get the current phase.
-                    let mut pointer_data = pointer.winit_data().inner.lock().unwrap();
+                    let mut pointer_data = pointer.winit_data().data().inner.lock().unwrap();
 
                     let has_value120_scroll = horizontal.value120 != 0 || vertical.value120 != 0;
                     let has_discrete_scroll = horizontal.discrete != 0 || vertical.discrete != 0;
@@ -253,20 +247,13 @@ pub struct WinitPointerData {
     /// The inner winit data associated with the pointer.
     inner: Mutex<WinitPointerDataInner>,
 
-    /// The data required by the sctk.
-    sctk_data: PointerData,
-
     /// Viewport for fractional cursor.
     viewport: Option<WpViewport>,
 }
 
 impl WinitPointerData {
-    pub fn new(seat: WlSeat, viewport: Option<WpViewport>) -> Self {
-        Self {
-            inner: Mutex::new(WinitPointerDataInner::default()),
-            sctk_data: PointerData::new(seat),
-            viewport,
-        }
+    pub fn new(viewport: Option<WpViewport>) -> Self {
+        Self { inner: Mutex::new(WinitPointerDataInner::default()), viewport }
     }
 
     pub fn lock_pointer(
@@ -320,24 +307,9 @@ impl WinitPointerData {
         }
     }
 
-    /// Seat associated with this pointer.
-    pub fn seat(&self) -> &WlSeat {
-        self.sctk_data.seat()
-    }
-
     /// Active window.
     pub fn focused_window(&self) -> Option<WindowId> {
         self.inner.lock().unwrap().surface
-    }
-
-    /// Last button serial.
-    pub fn latest_button_serial(&self) -> u32 {
-        self.sctk_data.latest_button_serial().unwrap_or_default()
-    }
-
-    /// Last enter serial.
-    pub fn latest_enter_serial(&self) -> u32 {
-        self.sctk_data.latest_enter_serial().unwrap_or_default()
     }
 
     pub fn set_locked_cursor_position(&self, surface_x: f64, surface_y: f64) {
@@ -357,12 +329,6 @@ impl Drop for WinitPointerData {
         if let Some(viewport) = self.viewport.take() {
             viewport.destroy();
         }
-    }
-}
-
-impl PointerDataExt for WinitPointerData {
-    fn pointer_data(&self) -> &PointerData {
-        &self.sctk_data
     }
 }
 
@@ -423,12 +389,12 @@ fn wayland_button_to_winit(button: u32) -> ButtonSource {
 }
 
 pub trait WinitPointerDataExt {
-    fn winit_data(&self) -> &WinitPointerData;
+    fn winit_data(&self) -> &PointerData<WinitPointerData>;
 }
 
 impl WinitPointerDataExt for WlPointer {
-    fn winit_data(&self) -> &WinitPointerData {
-        self.data::<WinitPointerData>().expect("failed to get pointer data.")
+    fn winit_data(&self) -> &PointerData<WinitPointerData> {
+        self.data::<PointerData<WinitPointerData>>().expect("failed to get pointer data.")
     }
 }
 
@@ -491,35 +457,6 @@ impl Dispatch<ZwpConfinedPointerV1, GlobalData, WinitState> for PointerConstrain
     }
 }
 
-impl Dispatch<WpCursorShapeDeviceV1, GlobalData, WinitState> for SeatState {
-    fn event(
-        _: &mut WinitState,
-        _: &WpCursorShapeDeviceV1,
-        _: <WpCursorShapeDeviceV1 as Proxy>::Event,
-        _: &GlobalData,
-        _: &Connection,
-        _: &QueueHandle<WinitState>,
-    ) {
-        unreachable!("wp_cursor_shape_manager has no events")
-    }
-}
-
-impl Dispatch<WpCursorShapeManagerV1, GlobalData, WinitState> for SeatState {
-    fn event(
-        _: &mut WinitState,
-        _: &WpCursorShapeManagerV1,
-        _: <WpCursorShapeManagerV1 as Proxy>::Event,
-        _: &GlobalData,
-        _: &Connection,
-        _: &QueueHandle<WinitState>,
-    ) {
-        unreachable!("wp_cursor_device_manager has no events")
-    }
-}
-
-delegate_dispatch!(WinitState: [ WlPointer: WinitPointerData] => SeatState);
-delegate_dispatch!(WinitState: [ WpCursorShapeManagerV1: GlobalData] => SeatState);
-delegate_dispatch!(WinitState: [ WpCursorShapeDeviceV1: GlobalData] => SeatState);
 delegate_dispatch!(WinitState: [ZwpPointerConstraintsV1: GlobalData] => PointerConstraintsState);
 delegate_dispatch!(WinitState: [ZwpLockedPointerV1: GlobalData] => PointerConstraintsState);
 delegate_dispatch!(WinitState: [ZwpConfinedPointerV1: GlobalData] => PointerConstraintsState);
