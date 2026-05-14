@@ -878,7 +878,8 @@ impl RootActiveEventLoop for ActiveEventLoop {
             let serial = seat
                 .pointer_data()
                 .ok_or(NotSupportedError::new(NO_POINTER_CAP_ERROR_MSG))?
-                .latest_button_serial();
+                .latest_button_serial()
+                .unwrap_or_default();
 
             data_source.start_drag(data_device, source_surface, icon_surface.as_ref(), serial);
 

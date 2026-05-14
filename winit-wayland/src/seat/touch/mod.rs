@@ -247,8 +247,6 @@ pub trait TouchDataExt {
 
 impl TouchDataExt for WlTouch {
     fn seat(&self) -> &WlSeat {
-        self.data::<TouchData>().expect("failed to get touch data.").seat()
+        self.data::<TouchData<()>>().expect("failed to get touch data.").seat()
     }
 }
-
-sctk::delegate_touch!(WinitState);
