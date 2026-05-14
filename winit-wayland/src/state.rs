@@ -246,7 +246,7 @@ impl WinitState {
             self.window_compositor_updates[pos].scale_changed = true;
         } else if let Some(pointer) = self.pointer_surfaces.get(&surface.id()) {
             // Get the window, where the pointer resides right now.
-            let focused_window = match pointer.pointer().winit_data().focused_window() {
+            let focused_window = match pointer.pointer().winit_data().data().focused_window() {
                 Some(focused_window) => focused_window,
                 None => return,
             };
@@ -445,10 +445,5 @@ impl WindowCompositorUpdate {
     }
 }
 
-sctk::delegate_subcompositor!(WinitState);
-sctk::delegate_compositor!(WinitState);
-sctk::delegate_output!(WinitState);
+sctk::delegate_dispatch2!(WinitState);
 sctk::delegate_registry!(WinitState);
-sctk::delegate_shm!(WinitState);
-sctk::delegate_xdg_shell!(WinitState);
-sctk::delegate_xdg_window!(WinitState);

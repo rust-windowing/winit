@@ -116,7 +116,7 @@ impl SeatHandler for WinitState {
                     .as_ref()
                     .map(|state| state.get_viewport(&surface, queue_handle));
                 let surface_id = surface.id();
-                let pointer_data = WinitPointerData::new(seat.clone(), viewport);
+                let pointer_data = WinitPointerData::new(viewport);
                 let themed_pointer = self
                     .seat_state
                     .get_pointer_with_theme_and_data(
@@ -233,8 +233,8 @@ impl SeatHandler for WinitState {
                     let _ = self.pointer_surfaces.remove(&surface_id);
 
                     // Remove the inner locks/confines before dropping the pointer.
-                    pointer_data.unlock_pointer();
-                    pointer_data.unconfine_pointer();
+                    pointer_data.data().unlock_pointer();
+                    pointer_data.data().unconfine_pointer();
 
                     if pointer.pointer().version() >= 3 {
                         pointer.pointer().release();
@@ -281,5 +281,3 @@ impl WinitState {
         }
     }
 }
-
-sctk::delegate_seat!(WinitState);
