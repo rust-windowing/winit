@@ -14,7 +14,8 @@ use objc2_core_foundation::{CGFloat, CGPoint, CGRect, CGSize};
 use objc2_foundation::{NSObject, NSObjectProtocol};
 use objc2_ui_kit::{
     UIApplication, UICoordinateSpace, UIEdgeInsets, UIResponder, UIScreen,
-    UIScreenOverscanCompensation, UIViewController, UIWindow,
+    UIScreenOverscanCompensation, UITraitEnvironment, UIUserInterfaceStyle, UIViewController,
+    UIWindow,
 };
 use tracing::{debug, debug_span, warn};
 use winit_core::cursor::Cursor;
@@ -455,8 +456,12 @@ impl Inner {
     }
 
     pub fn theme(&self) -> Option<Theme> {
-        warn!("`Window::theme` is ignored on iOS");
-        None
+        if available!(ios = 13.0, tvos = 13.0, visionos = 1.0) {
+            let trait_collection = self.view.traitCollection();
+            ui_style_to_theme(unsafe { trait_collection.userInterfaceStyle() })
+        } else {
+            None
+        }
     }
 
     pub fn set_content_protected(&self, _protected: bool) {}
@@ -466,8 +471,12 @@ impl Inner {
     }
 
     #[inline]
-    pub fn set_theme(&self, _theme: Option<Theme>) {
-        warn!("`Window::set_theme` is ignored on iOS");
+    pub fn set_theme(&self, theme: Option<Theme>) {
+        if available!(ios = 13.0, tvos = 13.0, visionos = 1.0) {
+            self.window.setOverrideUserInterfaceStyle(theme_to_ui_style(theme));
+        } else {
+            warn!("`Window::set_theme` requires iOS 13.0+");
+        }
     }
 
     pub fn title(&self) -> String {
@@ -540,6 +549,13 @@ impl Window {
 
         let view_controller = WinitViewController::new(mtm, &ios_attributes, &view);
         let window = WinitUIWindow::new(mtm, &window_attributes, frame, &view_controller);
+
+        if let Some(preferred_theme) = window_attributes.preferred_theme {
+            if available!(ios = 13.0, tvos = 13.0, visionos = 1.0) {
+                window.setOverrideUserInterfaceStyle(theme_to_ui_style(Some(preferred_theme)));
+            }
+        }
+
         window.makeKeyAndVisible();
 
         let inner = Inner {
@@ -909,5 +925,21 @@ impl Inner {
     fn rect_from_screen_space(&self, rect: CGRect) -> CGRect {
         let screen_space = self.window.screen().coordinateSpace();
         self.window.convertRect_fromCoordinateSpace(rect, &screen_space)
+    }
+}
+
+pub(crate) fn ui_style_to_theme(style: UIUserInterfaceStyle) -> Option<Theme> {
+    match style {
+        UIUserInterfaceStyle::Light => Some(Theme::Light),
+        UIUserInterfaceStyle::Dark => Some(Theme::Dark),
+        _ => None,
+    }
+}
+
+pub(crate) fn theme_to_ui_style(theme: Option<Theme>) -> UIUserInterfaceStyle {
+    match theme {
+        Some(Theme::Light) => UIUserInterfaceStyle::Light,
+        Some(Theme::Dark) => UIUserInterfaceStyle::Dark,
+        None => UIUserInterfaceStyle::Unspecified,
     }
 }

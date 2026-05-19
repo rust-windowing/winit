@@ -3,15 +3,16 @@ use std::cell::{Cell, RefCell};
 
 use dpi::PhysicalPosition;
 use objc2::rc::Retained;
-use objc2::runtime::{NSObjectProtocol, ProtocolObject};
-use objc2::{DefinedClass, MainThreadMarker, available, define_class, msg_send, sel};
+use objc2::runtime::{AnyObject, NSObjectProtocol, ProtocolObject};
+use objc2::{ClassType, DefinedClass, MainThreadMarker, available, define_class, msg_send, sel};
 use objc2_core_foundation::{CGFloat, CGPoint, CGRect};
-use objc2_foundation::{NSObject, NSSet, NSString};
+use objc2_foundation::{NSArray, NSObject, NSSet, NSString};
 use objc2_ui_kit::{
     UIEvent, UIForceTouchCapability, UIGestureRecognizer, UIGestureRecognizerDelegate,
     UIGestureRecognizerState, UIKeyInput, UIPanGestureRecognizer, UIPinchGestureRecognizer,
     UIResponder, UIRotationGestureRecognizer, UITapGestureRecognizer, UITextInputTraits, UITouch,
-    UITouchPhase, UITouchType, UITraitEnvironment, UIView,
+    UITouchPhase, UITouchType, UITraitEnvironment, UITraitUserInterfaceStyle, UIUserInterfaceStyle,
+    UIView,
 };
 use tracing::{debug, debug_span, trace_span};
 use winit_core::event::{
@@ -22,6 +23,7 @@ use winit_core::keyboard::{Key, KeyCode, KeyLocation, NamedKey, NativeKeyCode, P
 
 use super::app_state::{self, EventWrapper};
 use super::window::WinitUIWindow;
+use crate::window::ui_style_to_theme;
 
 pub struct WinitViewState {
     pinch_gesture_recognizer: RefCell<Option<Retained<UIPinchGestureRecognizer>>>,
@@ -131,6 +133,28 @@ define_class!(
             debug!("safeAreaInsetsDidChange was called, requesting redraw");
             // When the safe area changes we want to make sure to emit a redraw event
             self.setNeedsDisplay();
+        }
+
+        #[unsafe(method(winitDidChangeUserInterfaceStyle:))]
+        fn winit_did_change_user_interface_style(&self, _environment: &AnyObject) {
+            let _entered = debug_span!("winitDidChangeUserInterfaceStyle:").entered();
+
+            let Some(window) = self.window() else { return };
+
+            // Mirror AppKit's semantics: don't emit when the user has set an override; the change
+            // was driven by `Window::set_theme`, not by the system.
+            if window.overrideUserInterfaceStyle() != UIUserInterfaceStyle::Unspecified {
+                return;
+            }
+
+            let style = unsafe { self.traitCollection().userInterfaceStyle() };
+            let Some(new_theme) = ui_style_to_theme(style) else { return };
+
+            let mtm = MainThreadMarker::new().unwrap();
+            app_state::handle_nonuser_event(mtm, EventWrapper::Window {
+                window_id: window.id(),
+                event: WindowEvent::ThemeChanged(new_theme),
+            });
         }
 
         #[unsafe(method(touchesBegan:withEvent:))]
@@ -378,6 +402,20 @@ impl WinitView {
 
         if let Some(scale_factor) = scale_factor {
             this.setContentScaleFactor(scale_factor as _);
+        }
+
+        if available!(ios = 17.0, tvos = 17.0, visionos = 1.0) {
+            let trait_class: &AnyObject =
+                <UITraitUserInterfaceStyle as ClassType>::class().as_ref();
+            let traits = NSArray::from_slice(&[trait_class]);
+            let _: Retained<AnyObject> = unsafe {
+                msg_send![
+                    &*this,
+                    registerForTraitChanges: &*traits,
+                    withTarget: &*this,
+                    action: sel!(winitDidChangeUserInterfaceStyle:),
+                ]
+            };
         }
 
         this
