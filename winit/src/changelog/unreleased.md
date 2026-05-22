@@ -44,6 +44,7 @@ changelog entry.
 
 - Add `keyboard` support for OpenHarmony.
 - On iOS, add Apple Pencil support with force, altitude, and azimuth data.
+- On macOS, add tablet tool support with tool type (pen/eraser), pressure, tilt, twist, and barrel pressure data.
 - On Redox, add support for missing keyboard scancodes.
 - Implement `Send` and `Sync` for `OwnedDisplayHandle`.
 - Use new macOS 15 cursors for resize icons.

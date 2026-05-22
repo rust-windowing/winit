@@ -8,8 +8,8 @@ use objc2::rc::Retained;
 use objc2::runtime::{AnyObject, Sel};
 use objc2::{AnyThread, DefinedClass, MainThreadMarker, define_class, msg_send};
 use objc2_app_kit::{
-    NSApplication, NSCursor, NSEvent, NSEventPhase, NSResponder, NSTextInputClient, NSTrackingArea,
-    NSTrackingAreaOptions, NSView, NSWindow,
+    NSApplication, NSCursor, NSEvent, NSEventPhase, NSEventSubtype, NSPointingDeviceType,
+    NSResponder, NSTextInputClient, NSTrackingArea, NSTrackingAreaOptions, NSView, NSWindow,
 };
 use objc2_core_foundation::CGRect;
 use objc2_foundation::{
@@ -18,8 +18,9 @@ use objc2_foundation::{
 };
 use tracing::{debug_span, trace_span};
 use winit_core::event::{
-    DeviceEvent, ElementState, Ime, KeyEvent, Modifiers, MouseButton, MouseScrollDelta,
-    PointerKind, PointerSource, TouchPhase, WindowEvent,
+    ButtonSource, DeviceEvent, ElementState, Force, Ime, KeyEvent, Modifiers, MouseButton,
+    MouseScrollDelta, PointerKind, PointerSource, TabletToolButton, TabletToolData, TabletToolKind,
+    TabletToolTilt, TouchPhase, WindowEvent,
 };
 use winit_core::keyboard::{Key, KeyCode, KeyLocation, ModifiersState, NamedKey};
 use winit_core::window::ImeCapabilities;
@@ -135,6 +136,13 @@ pub struct ViewState {
 
     /// The state of the `Option` as `Alt`.
     option_as_alt: Cell<OptionAsAlt>,
+
+    /// The tablet tool currently in proximity, if any.
+    ///
+    /// AppKit only reports the tool type on proximity events; tablet-point events always
+    /// report `Unknown`, so the tool announced at proximity time is cached here for use
+    /// by subsequent point and enter/exit events.
+    tablet_tool: Cell<Option<TabletToolKind>>,
 }
 
 define_class!(
@@ -633,7 +641,7 @@ define_class!(
                 device_id: None,
                 primary: true,
                 position,
-                kind: PointerKind::Mouse,
+                kind: self.current_pointer_kind(),
             });
         }
 
@@ -647,8 +655,15 @@ define_class!(
                 device_id: None,
                 primary: true,
                 position: Some(position),
-                kind: PointerKind::Mouse,
+                kind: self.current_pointer_kind(),
             });
+        }
+
+        #[unsafe(method(tabletProximity:))]
+        fn tablet_proximity(&self, event: &NSEvent) {
+            let _entered = debug_span!("tabletProximity:").entered();
+
+            self.update_tablet_tool(event);
         }
 
         #[unsafe(method(scrollWheel:))]
@@ -792,6 +807,7 @@ impl WinitView {
             marked_text: Default::default(),
             accepts_first_mouse,
             option_as_alt: Cell::new(option_as_alt),
+            tablet_tool: Cell::new(None),
         });
         let this: Retained<Self> = unsafe { msg_send![super(this), init] };
         *this.ivars().input_source.borrow_mut() = this.current_input_source();
@@ -1074,6 +1090,7 @@ impl WinitView {
     }
 
     fn mouse_click(&self, event: &NSEvent, button_state: ElementState) {
+        let tablet = self.tablet_event_data(event);
         let position = self.mouse_view_point(event).to_physical(self.scale_factor());
         let button = mouse_button(event);
 
@@ -1084,11 +1101,27 @@ impl WinitView {
             primary: true,
             state: button_state,
             position,
-            button: button.into(),
+            button: match tablet {
+                Some((kind, data)) => ButtonSource::TabletTool {
+                    kind,
+                    button: match button {
+                        // Mirror winit-core's `TabletToolButton` to `MouseButton` conversion table.
+                        MouseButton::Left => TabletToolButton::Contact,
+                        MouseButton::Right => TabletToolButton::Barrel,
+                        MouseButton::Middle => TabletToolButton::Other(1),
+                        MouseButton::Back => TabletToolButton::Other(3),
+                        MouseButton::Forward => TabletToolButton::Other(4),
+                        other => TabletToolButton::Other(other as u16),
+                    },
+                    data,
+                },
+                None => button.into(),
+            },
         });
     }
 
     fn mouse_motion(&self, event: &NSEvent) {
+        let tablet = self.tablet_event_data(event);
         let view_point = self.mouse_view_point(event);
         let frame = self.frame();
 
@@ -1110,8 +1143,51 @@ impl WinitView {
             device_id: None,
             primary: true,
             position: view_point.to_physical(self.scale_factor()),
-            source: PointerSource::Mouse,
+            source: match tablet {
+                Some((kind, data)) => PointerSource::TabletTool { kind, data },
+                None => PointerSource::Mouse,
+            },
         });
+    }
+
+    /// The kind of pointer currently driving the cursor.
+    ///
+    /// Enter/exit events carry no tablet information (`NSEvent::subtype` raises on them),
+    /// so the kind is derived from the cached proximity state instead.
+    fn current_pointer_kind(&self) -> PointerKind {
+        match self.ivars().tablet_tool.get() {
+            Some(kind) => PointerKind::TabletTool(kind),
+            None => PointerKind::Mouse,
+        }
+    }
+
+    /// Update the cached tablet tool from a proximity event.
+    ///
+    /// The caller must ensure `event` is a `TabletProximity` event or a mouse event with
+    /// the `TabletProximity` subtype: the proximity accessors (`pointingDeviceType`,
+    /// `isEnteringProximity`) raise on other events.
+    fn update_tablet_tool(&self, event: &NSEvent) {
+        let tool = event.isEnteringProximity().then(|| tablet_tool_kind(event));
+        self.ivars().tablet_tool.set(tool);
+    }
+
+    /// Handle the tablet parts of a mouse event: update the cached tool on proximity
+    /// transitions and return the tool and its data for tablet-point events.
+    fn tablet_event_data(&self, event: &NSEvent) -> Option<(TabletToolKind, TabletToolData)> {
+        match event.subtype() {
+            NSEventSubtype::TabletPoint => {
+                // The tool kind is only announced at proximity time; if no proximity event
+                // was seen (e.g. the tool was already on the tablet at startup), assume the
+                // most common tool, a pen.
+                let kind = self.ivars().tablet_tool.get().unwrap_or(TabletToolKind::Pen);
+                Some((kind, tablet_tool_data(event)))
+            },
+            NSEventSubtype::TabletProximity => {
+                self.update_tablet_tool(event);
+                None
+            },
+            _ => None,
+        }
     }
 
     fn mouse_view_point(&self, event: &NSEvent) -> LogicalPosition<f64> {
@@ -1134,6 +1210,44 @@ fn mouse_button(event: &NSEvent) -> MouseButton {
         .ok()
         .and_then(MouseButton::try_from_u8)
         .expect("expected MacOS button number in the range 0..=31")
+}
+
+/// Map a tablet proximity `NSEvent`'s pointing device type to a [`TabletToolKind`].
+///
+/// The caller must ensure `event` is a proximity event (type `TabletProximity` or a mouse
+/// event with that subtype): the device type is only reported at proximity time —
+/// tablet-point events always report `Unknown`.
+fn tablet_tool_kind(event: &NSEvent) -> TabletToolKind {
+    let device = event.pointingDeviceType();
+    if device == NSPointingDeviceType::Eraser {
+        TabletToolKind::Eraser
+    } else if device == NSPointingDeviceType::Cursor {
+        // AppKit's `Cursor` is the tablet puck; winit's closest tool kind is `Mouse`.
+        TabletToolKind::Mouse
+    } else {
+        // `Pen` and `Unknown` both map to a pen; it is the most common tool and a
+        // reasonable default for hardware that does not report a specific type.
+        TabletToolKind::Pen
+    }
+}
+
+/// Collect tablet tool data (pressure, barrel pressure, twist, tilt) from a tablet `NSEvent`.
+///
+/// The caller must ensure `event` originates from a tablet (subtype `TabletPoint`): the
+/// tablet-specific accessors (`tilt`, `rotation`, `tangentialPressure`) raise on
+/// non-tablet events.
+fn tablet_tool_data(event: &NSEvent) -> TabletToolData {
+    // `NSEvent::tilt` reports each axis in [-1, 1]; winit expects degrees in [-90, 90].
+    // AppKit's y-up orientation means positive y tilts away from the user, while winit
+    // documents positive y as towards the user, so negate y.
+    let tilt = event.tilt();
+    TabletToolData {
+        force: Some(Force::Normalized(event.pressure() as f64)),
+        tangential_force: Some(event.tangentialPressure()),
+        twist: Some(event.rotation().rem_euclid(360.0) as u16),
+        tilt: Some(TabletToolTilt { x: (tilt.x * 90.0) as i8, y: (-tilt.y * 90.0) as i8 }),
+        angle: None,
+    }
 }
 
 // NOTE: to get option as alt working we need to rewrite events
