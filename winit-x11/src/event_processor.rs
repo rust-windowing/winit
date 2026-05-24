@@ -1757,7 +1757,7 @@ impl EventProcessor {
                 .find(|prev_monitor| prev_monitor.name == new_monitor.name)
                 .map(|prev_monitor| prev_monitor.scale_factor);
             if Some(new_monitor.scale_factor) != maybe_prev_scale_factor {
-                for window in self.target.windows.borrow().iter().filter_map(|(_, w)| w.upgrade()) {
+                for window in self.target.windows.borrow().values().filter_map(|w| w.upgrade()) {
                     window.refresh_dpi_for_monitor(
                         &new_monitor,
                         maybe_prev_scale_factor,
