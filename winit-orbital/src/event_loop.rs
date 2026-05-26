@@ -188,6 +188,7 @@ bitflags! {
 struct EventState {
     keyboard: KeyboardModifierState,
     mouse: MouseButtonState,
+    mouse_pos: (i32, i32),
     resize_opt: Option<(u32, u32)>,
 }
 
@@ -423,10 +424,11 @@ impl EventLoop {
                 );
             },
             EventOption::Mouse(MouseEvent { x, y }) => {
+                event_state.mouse_pos = (x, y);
                 app.window_event(window_target, window_id, event::WindowEvent::PointerMoved {
                     device_id: None,
                     primary: true,
-                    position: (x, y).into(),
+                    position: event_state.mouse_pos.into(),
                     source: event::PointerSource::Mouse,
                 });
             },
@@ -441,7 +443,7 @@ impl EventLoop {
                         device_id: None,
                         primary: true,
                         state,
-                        position: dpi::PhysicalPosition::default(),
+                        position: event_state.mouse_pos.into(),
                         button: button.into(),
                     });
                 }
