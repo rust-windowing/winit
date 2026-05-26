@@ -121,8 +121,14 @@ impl fmt::Display for WindowProperties<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "/scheme/orbital/{}/{}/{}/{}/{}/{}",
-            self.flags, self.x, self.y, self.w, self.h, self.title
+            "{}/{}/{}/{}/{}/{}/{}",
+            std::env::var("ORBITAL_DISPLAY").unwrap_or_else(|_| "/scheme/orbital".to_owned()),
+            self.flags,
+            self.x,
+            self.y,
+            self.w,
+            self.h,
+            self.title
         )
     }
 }
