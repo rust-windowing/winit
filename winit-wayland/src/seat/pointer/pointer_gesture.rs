@@ -6,6 +6,9 @@ use sctk::compositor::SurfaceData;
 use sctk::globals::GlobalData;
 use sctk::reexports::client::globals::{BindError, GlobalList};
 use sctk::reexports::client::{Connection, Dispatch, Proxy, QueueHandle, delegate_dispatch};
+use sctk::reexports::protocols::wp::pointer_gestures::zv1::client::zwp_pointer_gesture_hold_v1::{
+    Event as HoldEvent, ZwpPointerGestureHoldV1,
+};
 use sctk::reexports::protocols::wp::pointer_gestures::zv1::client::zwp_pointer_gesture_pinch_v1::{
     Event, ZwpPointerGesturePinchV1,
 };
@@ -27,7 +30,9 @@ impl PointerGesturesState {
         globals: &GlobalList,
         queue_handle: &QueueHandle<WinitState>,
     ) -> Result<Self, BindError> {
-        let pointer_gestures = globals.bind(queue_handle, 1..=1, GlobalData)?;
+        // Bind up to v3 so the hold gesture (added in v3) is available where the
+        // compositor supports it; older compositors bind lower and keep pinch.
+        let pointer_gestures = globals.bind(queue_handle, 1..=3, GlobalData)?;
         Ok(Self { pointer_gestures })
     }
 }
@@ -153,5 +158,50 @@ impl Dispatch<ZwpPointerGesturePinchV1, PointerGestureData, WinitState> for Poin
     }
 }
 
+impl Dispatch<ZwpPointerGestureHoldV1, PointerGestureData, WinitState> for PointerGesturesState {
+    fn event(
+        state: &mut WinitState,
+        _proxy: &ZwpPointerGestureHoldV1,
+        event: <ZwpPointerGestureHoldV1 as Proxy>::Event,
+        data: &PointerGestureData,
+        _conn: &Connection,
+        _qhandle: &QueueHandle<WinitState>,
+    ) {
+        let mut pointer_gesture_data = data.inner.lock().unwrap();
+        let (window_id, phase) = match event {
+            HoldEvent::Begin { surface, .. } => {
+                // Don't handle events from a subsurface.
+                if surface.data::<SurfaceData>().is_none_or(|data| data.parent_surface().is_some())
+                {
+                    return;
+                }
+
+                let window_id = crate::make_wid(&surface);
+                pointer_gesture_data.window_id = Some(window_id);
+
+                (window_id, TouchPhase::Started)
+            },
+            HoldEvent::End { cancelled, .. } => {
+                let window_id = match pointer_gesture_data.window_id {
+                    Some(window_id) => window_id,
+                    _ => return,
+                };
+
+                // Reset the state.
+                *pointer_gesture_data = Default::default();
+
+                let phase = if cancelled == 0 { TouchPhase::Ended } else { TouchPhase::Cancelled };
+                (window_id, phase)
+            },
+            _ => unreachable!("Unknown event {event:?}"),
+        };
+
+        state
+            .events_sink
+            .push_window_event(WindowEvent::HoldGesture { device_id: None, phase }, window_id);
+    }
+}
+
 delegate_dispatch!(WinitState: [ZwpPointerGesturesV1: GlobalData] => PointerGesturesState);
 delegate_dispatch!(WinitState: [ZwpPointerGesturePinchV1: PointerGestureData] => PointerGesturesState);
+delegate_dispatch!(WinitState: [ZwpPointerGestureHoldV1: PointerGestureData] => PointerGesturesState);

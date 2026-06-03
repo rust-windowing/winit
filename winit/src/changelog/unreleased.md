@@ -46,6 +46,7 @@ changelog entry.
 - On iOS, add Apple Pencil support with force, altitude, and azimuth data.
 - On Redox, add support for missing keyboard scancodes.
 - Implement `Send` and `Sync` for `OwnedDisplayHandle`.
+- Add `WindowEvent::HoldGesture`, implemented on Wayland.
 - Use new macOS 15 cursors for resize icons.
 - On Android, added scancode conversions for more obscure key codes.
 - On Wayland, added ext-background-effect-v1 support.

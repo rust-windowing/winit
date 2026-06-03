@@ -298,6 +298,21 @@ pub enum WindowEvent {
         phase: TouchPhase,
     },
 
+    /// Multi-finger hold gesture.
+    ///
+    /// Sent when fingers are placed on a touchpad without significant movement
+    /// (`Started`) and again when they lift or the gesture is cancelled
+    /// (`Ended` / `Cancelled`). The canonical use is to stop kinetic
+    /// ("momentum") scrolling.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - Only available on **Wayland** (via `zwp_pointer_gestures_v1`, v3+).
+    HoldGesture {
+        device_id: Option<DeviceId>,
+        phase: TouchPhase,
+    },
+
     /// Double tap gesture.
     ///
     /// On a Mac, smart magnification is triggered by a double tap with two fingers
