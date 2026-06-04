@@ -1,3 +1,4 @@
+use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, Mutex};
 
 use dpi::{LogicalPosition, PhysicalInsets, PhysicalPosition, PhysicalSize, Position, Size};
@@ -6,7 +7,7 @@ use sctk::shell::xdg::popup::Popup as SctkPopup;
 use sctk::shell::xdg::{XdgPositioner, XdgSurface};
 use wayland_client::Proxy;
 use wayland_client::protocol::wl_display::WlDisplay;
-use wayland_protocols::xdg::shell::client::xdg_positioner::Gravity;
+use wayland_protocols::xdg::shell::client::xdg_positioner::{Anchor, Gravity};
 use winit_core::cursor::Cursor;
 use winit_core::error::{NotSupportedError, RequestError};
 use winit_core::monitor::{Fullscreen, MonitorHandle as CoreMonitorHandle};
@@ -15,11 +16,6 @@ use winit_core::window::{
     UserAttentionType, Window as CoreWindow, WindowAttributes, WindowButtons, WindowId,
     WindowLevel,
 };
-mod state;
-use std::sync::atomic::AtomicBool;
-
-pub use state::State;
-use wayland_protocols::xdg::shell::client::xdg_positioner::Anchor;
 
 use super::ActiveEventLoop;
 use crate::window::WindowRequests;
@@ -33,7 +29,6 @@ pub struct Popup {
     // The state of the popup.
     popup_state: Arc<Mutex<WindowState>>,
 
-    positioner: XdgPositioner,
     /// Window id.
     window_id: WindowId,
 
@@ -71,7 +66,7 @@ impl Popup {
                 let size = attributes.surface_size.ok_or(error!("Invalid size for popup"))?;
 
                 positioner.set_anchor(Anchor::TopLeft);
-                positioner.set_gravity(Gravity::BottomRight);
+                positioner.set_gravity(Gravity::BottomRight); // Otherwise the child surface will be centered over the anchor point
                 positioner.set_anchor_rect(
                     position.to_logical(scale_factor).x,
                     position.to_logical(scale_factor).y,
@@ -140,7 +135,6 @@ impl Popup {
             Ok(Self {
                 popup,
                 popup_state,
-                positioner,
                 window_id,
                 display: event_loop_window_target.handle.connection.display().clone(),
             })
