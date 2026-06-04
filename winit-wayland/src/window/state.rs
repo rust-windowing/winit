@@ -22,7 +22,7 @@ use sctk::reexports::protocols::wp::viewporter::client::wp_viewport::WpViewport;
 use sctk::reexports::protocols::xdg::shell::client::xdg_toplevel::ResizeEdge as XdgResizeEdge;
 use sctk::seat::pointer::{PointerDataExt, ThemedPointer};
 use sctk::shell::WaylandSurface;
-use sctk::shell::xdg::popup::{Popup, PopupConfigure};
+use sctk::shell::xdg::popup::{ConfigureKind, Popup, PopupConfigure};
 use sctk::shell::xdg::window::{DecorationMode, Window, WindowConfigure};
 use sctk::shell::xdg::{XdgPositioner, XdgSurface};
 use sctk::shm::Shm;
@@ -333,17 +333,23 @@ impl WindowState {
 
         // NOTE: Set the configure before doing a resize, since we query it during it.
         if let WindowType::Popup((_, _, last_configure)) = &mut self.window {
-            *last_configure = Some(configure)
+            let kind = configure.kind.clone();
+            *last_configure = Some(configure);
+
+            // Always resize on the initial configure to properly initialize the viewport destination
+            // and window geometry. This is required for fractional scaling to work correctly: without
+            // calling resize(), viewport.set_destination() is never called, and the compositor would
+            // interpret the buffer size as logical pixels, making the popup appear at the wrong size.
+            // Also resize when the compositor constrained us to a different size than requested.
+            if matches!(kind, ConfigureKind::Initial) || constrained {
+                self.resize(new_size);
+            }
         } else {
             tracing::error!(
                 "configure_popup called for window type unequal of popup. This should never \
                  happen, because we start configuring with a popup"
             );
             return;
-        }
-
-        if constrained {
-            self.resize(new_size);
         }
     }
 
