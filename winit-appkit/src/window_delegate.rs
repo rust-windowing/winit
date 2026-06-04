@@ -912,10 +912,7 @@ impl WindowDelegate {
     fn handle_scale_factor_changed(&self, scale_factor: CGFloat) {
         let window = self.window();
 
-        let content_size = window.contentRectForFrameRect(window.frame()).size;
-        let content_size = LogicalSize::new(content_size.width, content_size.height);
-
-        let suggested_size = content_size.to_physical(scale_factor);
+        let suggested_size = self.view().surface_size();
         let new_surface_size = Arc::new(Mutex::new(suggested_size));
         self.queue_event(WindowEvent::ScaleFactorChanged {
             scale_factor,
@@ -1040,9 +1037,7 @@ impl WindowDelegate {
 
     #[inline]
     pub fn surface_size(&self) -> PhysicalSize<u32> {
-        let content_rect = self.window().contentRectForFrameRect(self.window().frame());
-        let logical = LogicalSize::new(content_rect.size.width, content_rect.size.height);
-        logical.to_physical(self.scale_factor())
+        self.view().surface_size()
     }
 
     #[inline]
