@@ -24,6 +24,7 @@ use sctk::seat::pointer::{PointerDataExt, ThemedPointer};
 use sctk::shell::WaylandSurface;
 use sctk::shell::xdg::XdgSurface;
 use sctk::shell::xdg::popup::{Popup, PopupConfigure};
+use sctk::shell::xdg::XdgPositioner;
 use sctk::shell::xdg::window::{DecorationMode, Window, WindowConfigure};
 use sctk::shm::Shm;
 use sctk::shm::slot::SlotPool;
@@ -60,14 +61,14 @@ const MIN_WINDOW_SIZE: LogicalSize<u32> = LogicalSize::new(2, 1);
 pub enum WindowType {
     // The option is the last received configure
     Window((Window, Option<WindowConfigure>)),
-    Popup((Popup, Option<PopupConfigure>)),
+    Popup((Popup, XdgPositioner, Option<PopupConfigure>)),
 }
 
 impl WindowType {
     pub fn is_configured(&self) -> bool {
         match self {
             Self::Window((_, last_configure)) => last_configure.is_some(),
-            Self::Popup((_, last_configure)) => last_configure.is_some(),
+            Self::Popup((_, _, last_configure)) => last_configure.is_some(),
         }
     }
 }
@@ -76,7 +77,7 @@ impl WaylandSurface for WindowType {
     fn wl_surface(&self) -> &wayland_client::protocol::wl_surface::WlSurface {
         match self {
             Self::Window((window, _)) => window.wl_surface(),
-            Self::Popup((popup, _)) => popup.wl_surface(),
+            Self::Popup((popup, _, _)) => popup.wl_surface(),
         }
     }
 }
@@ -85,7 +86,7 @@ impl XdgSurface for WindowType {
     fn xdg_surface(&self) -> &wayland_protocols::xdg::shell::client::xdg_surface::XdgSurface {
         match self {
             Self::Window((window, _)) => window.xdg_surface(),
-            Self::Popup((popup, _)) => popup.xdg_surface(),
+            Self::Popup((popup, _, _)) => popup.xdg_surface(),
         }
     }
 }
@@ -332,7 +333,7 @@ impl WindowState {
         };
 
         // NOTE: Set the configure before doing a resize, since we query it during it.
-        if let WindowType::Popup((_, last_configure)) = &mut self.window {
+        if let WindowType::Popup((_, _, last_configure)) = &mut self.window {
             *last_configure = Some(configure)
         } else {
             // This should never happen
@@ -793,9 +794,16 @@ impl WindowState {
 
     /// Try to resize the window when the user can do so.
     pub fn request_surface_size(&mut self, surface_size: Size) -> PhysicalSize<u32> {
-        if let WindowType::Window((_, last_configure)) = &mut self.window {
-            if last_configure.as_ref().map(Self::is_stateless).unwrap_or(true) {
-                self.resize(surface_size.to_logical(self.scale_factor()))
+        match &self.window {
+            WindowType::Window((_, last_configure)) => {
+                if last_configure.as_ref().map(Self::is_stateless).unwrap_or(true) {
+                    self.resize(surface_size.to_logical(self.scale_factor()))
+                }
+            }
+            WindowType::Popup((popup, positioner, _)) => {
+                let size = surface_size.to_logical(self.scale_factor());
+                positioner.set_size(size.width, size.height);
+                popup.reposition(positioner, 0);
             }
         }
 

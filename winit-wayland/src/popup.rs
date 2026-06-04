@@ -4,6 +4,7 @@ use crate::window::state::{WindowState, WindowType};
 use core::sync::atomic::Ordering;
 use dpi::{LogicalPosition, PhysicalInsets, PhysicalPosition, PhysicalSize, Position, Size};
 use rwh_06::RawWindowHandle;
+use sctk::shell::WaylandSurface;
 use sctk::shell::xdg::popup::Popup as SctkPopup;
 use sctk::shell::xdg::{XdgPositioner, XdgSurface};
 use std::sync::atomic::AtomicBool;
@@ -22,10 +23,7 @@ use winit_core::window::{
 
 #[derive(Debug)]
 pub struct Popup {
-    /// Reference to the underlying SCTK popup.
-    popup: SctkPopup,
-
-    // The state of the popup.
+    /// The state of the popup.
     popup_state: Arc<Mutex<WindowState>>,
 
     /// Window id.
@@ -110,7 +108,7 @@ impl Popup {
                     &event_loop_window_target.queue_handle,
                     &state,
                     size,
-                    WindowType::Popup((popup.clone(), None)),
+                    WindowType::Popup((popup.clone(), positioner, None)),
                     attributes.preferred_theme,
                     false,
                     scale_factor,
@@ -146,11 +144,9 @@ impl Popup {
                 event_queue.blocking_dispatch(&mut state).map_err(|err| os_error!(err))?;
             }
 
-
             let event_loop_awakener = event_loop_window_target.event_loop_awakener.clone();
 
             Ok(Self {
-                popup,
                 popup_state,
                 window_id,
                 display: event_loop_window_target.handle.connection.display().clone(),
@@ -218,11 +214,10 @@ impl CoreWindow for Popup {
     }
 
     fn request_surface_size(&self, size: Size) -> Option<PhysicalSize<u32>> {
-        // let mut popup_state = self.popup_state.lock().unwrap();
-        // let new_size = popup_state.request_surface_size(size);
-        // self.request_redraw();
-        // Some(new_size)
-        None
+        let mut popup_state = self.popup_state.lock().unwrap();
+        popup_state.request_surface_size(size);
+        self.request_redraw();
+        Some(size.to_physical(popup_state.scale_factor()))
     }
 
     fn outer_size(&self) -> PhysicalSize<u32> {
@@ -534,7 +529,8 @@ impl Drop for Popup {
 impl rwh_06::HasWindowHandle for Popup {
     fn window_handle(&self) -> Result<rwh_06::WindowHandle<'_>, rwh_06::HandleError> {
         let raw = rwh_06::WaylandWindowHandle::new({
-            let ptr = self.popup.wl_surface().id().as_ptr();
+            let state = self.popup_state.lock().unwrap();
+            let ptr = state.window.wl_surface().id().as_ptr();
             std::ptr::NonNull::new(ptr as *mut _).expect("wl_surface will never be null")
         });
 
