@@ -1,19 +1,20 @@
-use super::ActiveEventLoop;
-use crate::window::WindowRequests;
-use crate::window::state::{WindowState, WindowType};
 use core::sync::atomic::Ordering;
+use std::sync::atomic::AtomicBool;
+use std::sync::{Arc, Mutex};
+
 use dpi::{LogicalPosition, PhysicalInsets, PhysicalPosition, PhysicalSize, Position, Size};
 use rwh_06::RawWindowHandle;
+use sctk::compositor::SurfaceData;
+use sctk::reexports::client::protocol::wl_surface::WlSurface;
 use sctk::shell::WaylandSurface;
 use sctk::shell::xdg::popup::Popup as SctkPopup;
 use sctk::shell::xdg::{XdgPositioner, XdgSurface};
-use std::sync::atomic::AtomicBool;
-use std::sync::{Arc, Mutex};
 use wayland_client::Proxy;
 use wayland_client::protocol::wl_display::WlDisplay;
 use wayland_protocols::xdg::shell::client::xdg_positioner::{Anchor, Gravity};
 use winit_core::cursor::Cursor;
 use winit_core::error::{NotSupportedError, RequestError};
+use winit_core::event::{Ime, WindowEvent};
 use winit_core::monitor::{Fullscreen, MonitorHandle as CoreMonitorHandle};
 use winit_core::window::{
     CursorGrabMode, ImeCapabilities, ImeRequest, ImeRequestError, ResizeDirection, Theme,
@@ -21,8 +22,18 @@ use winit_core::window::{
     WindowLevel,
 };
 
+use super::ActiveEventLoop;
+use super::output::MonitorHandle;
+use crate::WindowAttributesWayland;
+use crate::window::Handles;
+use crate::window::handles::WindowRequests;
+use crate::window::state::{WindowState, WindowType};
+
 #[derive(Debug)]
 pub struct Popup {
+    /// Reference to the underlying SCTK popup
+    popup: SctkPopup,
+
     /// The state of the popup.
     popup_state: Arc<Mutex<WindowState>>,
 
@@ -33,18 +44,13 @@ pub struct Popup {
     #[allow(dead_code)]
     display: WlDisplay,
 
-    /// Window requests to the event loop.
-    /// Used for example to close the popup
-    window_requests: Arc<WindowRequests>,
-
-    /// Source to wake-up the event-loop for window requests.
-    event_loop_awakener: calloop::ping::Ping,
+    handles: Handles,
 }
 
 impl Popup {
     pub(crate) fn new(
         event_loop_window_target: &ActiveEventLoop,
-        attributes: WindowAttributes,
+        mut attributes: WindowAttributes,
     ) -> Result<Self, RequestError> {
         macro_rules! error {
             ($e:literal) => {
@@ -57,6 +63,11 @@ impl Popup {
         if let RawWindowHandle::Wayland(parent_window_handle) = parent_window_handle {
             let queue_handle = event_loop_window_target.queue_handle.clone();
             let mut state = event_loop_window_target.state.borrow_mut();
+            let monitors = state.monitors.clone();
+            let xdg_activation = state
+                .xdg_activation
+                .as_ref()
+                .map(|activation_state| activation_state.global().clone());
             let positioner = XdgPositioner::new(&state.xdg_shell)
                 .map_err(|_| error!("Failed to create positioner"))?;
             let (popup, popup_state) = if let Some(parent_window_state) = state
@@ -77,15 +88,13 @@ impl Popup {
                 let geometry_origin = parent_window_state.content_surface_origin();
                 // The anchor rect is relative to the parent window geometry, so we need to subtract
                 // the geometry origin from the position to get the correct anchor rect.
-                let anchor_position = LogicalPosition::new(
-                    position.x - geometry_origin.x,
-                    position.y - geometry_origin.y,
-                );
+                // This is important for client side decorations
+                let anchor_position = LogicalPosition::new(-geometry_origin.x, -geometry_origin.y);
 
                 positioner.set_anchor(Anchor::TopLeft);
                 positioner.set_gravity(Gravity::BottomRight); // Otherwise the child surface will be centered over the anchor point
                 positioner.set_anchor_rect(anchor_position.x, anchor_position.y, 1, 1);
-                positioner.set_offset(0, 0);
+                positioner.set_offset(position.x, position.y);
                 positioner.set_size(
                     size.to_logical(scale_factor).width,
                     size.to_logical(scale_factor).height,
@@ -104,8 +113,7 @@ impl Popup {
                 drop(parent_window_state);
 
                 let popup_state = WindowState::new(
-                    event_loop_window_target.handle.clone(),
-                    &event_loop_window_target.queue_handle,
+                    event_loop_window_target,
                     &state,
                     size,
                     WindowType::Popup((popup.clone(), positioner, None)),
@@ -113,6 +121,19 @@ impl Popup {
                     false,
                     scale_factor,
                 );
+
+                let WindowAttributesWayland { activation_token, .. } = *attributes
+                    .platform
+                    .take()
+                    .and_then(|p| p.cast::<WindowAttributesWayland>().ok())
+                    .unwrap_or_default();
+
+                // Activate the window when the token is passed.
+                if let (Some(xdg_activation), Some(token)) =
+                    (xdg_activation.as_ref(), activation_token)
+                {
+                    xdg_activation.activate(token.into_raw(), &surface);
+                }
 
                 popup.wl_surface().commit();
                 // popup.commit(); Trait not implemented in Sctk
@@ -124,7 +145,7 @@ impl Popup {
                 return Err(error!("Parent window id unknown"));
             };
 
-            let window_id = super::make_wid(&popup.wl_surface());
+            let window_id = super::make_wid(popup.wl_surface());
             state.windows.get_mut().insert(window_id, popup_state.clone());
 
             let window_requests = WindowRequests {
@@ -133,6 +154,9 @@ impl Popup {
             };
             let window_requests = Arc::new(window_requests);
             state.window_requests.get_mut().insert(window_id, window_requests.clone());
+
+            // Setup the event sync to insert `WindowEvents` right from the window.
+            let window_events_sink = state.window_events_sink.clone();
 
             let mut wayland_source = event_loop_window_target.wayland_dispatcher.as_source_mut();
             let event_queue = wayland_source.queue();
@@ -144,20 +168,38 @@ impl Popup {
                 event_queue.blocking_dispatch(&mut state).map_err(|err| os_error!(err))?;
             }
 
+            // Wake-up event loop, so it'll send initial redraw requested.
             let event_loop_awakener = event_loop_window_target.event_loop_awakener.clone();
+            event_loop_awakener.ping();
 
             Ok(Self {
+                popup,
                 popup_state,
                 window_id,
                 display: event_loop_window_target.handle.connection.display().clone(),
-                event_loop_awakener,
-                window_requests,
+                handles: Handles {
+                    queue_handle,
+                    window_requests,
+                    monitors,
+                    event_loop_awakener,
+                    window_events_sink,
+
+                    xdg_activation,
+                    attention_requested: Arc::new(AtomicBool::new(false)),
+
+                    compositor: state.compositor_state.clone(),
+                },
             })
         } else {
             Err(RequestError::NotSupported(NotSupportedError::new(
-                "Not a wayland window handle passed",
+                "A Popup requires a parent wayland window handle",
             )))
         }
+    }
+
+    #[inline]
+    pub fn surface(&self) -> &WlSurface {
+        self.popup.wl_surface()
     }
 }
 
@@ -167,18 +209,7 @@ impl CoreWindow for Popup {
     }
 
     fn request_redraw(&self) {
-        // // NOTE: try to not wake up the loop when the event was already scheduled and not yet
-        // // processed by the loop, because if at this point the value was `true` it could only
-        // // mean that the loop still haven't dispatched the value to the client and will do
-        // // eventually, resetting it to `false`.
-        // if self
-        //     .window_requests
-        //     .redraw_requested
-        //     .compare_exchange(false, true, Ordering::Relaxed, Ordering::Relaxed)
-        //     .is_ok()
-        // {
-        //     self.event_loop_awakener.ping();
-        // }
+        self.handles.request_redraw();
     }
 
     #[inline]
@@ -187,7 +218,7 @@ impl CoreWindow for Popup {
     }
 
     fn pre_present_notify(&self) {
-        // self.popup_state.lock().unwrap().request_frame_callback();
+        self.popup_state.lock().unwrap().request_frame_callback();
     }
 
     fn reset_dead_keys(&self) {
@@ -203,8 +234,13 @@ impl CoreWindow for Popup {
             .into())
     }
 
-    fn set_outer_position(&self, _position: Position) {
-        // Not possible.
+    fn set_outer_position(&self, position: Position) {
+        let state = self.popup_state.lock().unwrap();
+        if let WindowType::Popup((popup, positioner, _)) = &state.window {
+            let position = position.to_logical(state.scale_factor());
+            positioner.set_offset(position.x, position.y);
+            popup.reposition(positioner, 0);
+        }
     }
 
     fn surface_size(&self) -> PhysicalSize<u32> {
@@ -221,10 +257,9 @@ impl CoreWindow for Popup {
     }
 
     fn outer_size(&self) -> PhysicalSize<u32> {
-        // let popup_state = self.popup_state.lock().unwrap();
-        // let scale_factor = popup_state.scale_factor();
-        // super::logical_to_physical_rounded(popup_state.outer_size(), scale_factor)
-        PhysicalSize::new(100, 100)
+        let popup_state = self.popup_state.lock().unwrap();
+        let scale_factor = popup_state.scale_factor();
+        super::logical_to_physical_rounded(popup_state.outer_size(), scale_factor)
     }
 
     fn safe_area(&self) -> PhysicalInsets<u32> {
@@ -232,37 +267,36 @@ impl CoreWindow for Popup {
     }
 
     fn set_min_surface_size(&self, min_size: Option<Size>) {
-        // let scale_factor = self.scale_factor();
-        // let min_size = min_size.map(|size| size.to_logical(scale_factor));
-        // self.state.lock().unwrap().set_min_surface_size(min_size);
-        // // NOTE: Requires commit to be applied.
-        // self.request_redraw();
+        let scale_factor = self.scale_factor();
+        let min_size = min_size.map(|size| size.to_logical(scale_factor));
+        self.popup_state.lock().unwrap().set_min_surface_size(min_size);
+        // NOTE: Requires commit to be applied.
+        self.request_redraw();
     }
 
     /// Set the maximum surface size for the window.
     #[inline]
     fn set_max_surface_size(&self, max_size: Option<Size>) {
-        // let scale_factor = self.scale_factor();
-        // let max_size = max_size.map(|size| size.to_logical(scale_factor));
-        // self.popup_state.lock().unwrap().set_max_surface_size(max_size);
-        // // NOTE: Requires commit to be applied.
-        // self.request_redraw();
+        let scale_factor = self.scale_factor();
+        let max_size = max_size.map(|size| size.to_logical(scale_factor));
+        self.popup_state.lock().unwrap().set_max_surface_size(max_size);
+        // NOTE: Requires commit to be applied.
+        self.request_redraw();
     }
 
     fn surface_resize_increments(&self) -> Option<PhysicalSize<u32>> {
-        // let popup_state = self.popup_state.lock().unwrap();
-        // let scale_factor = popup_state.scale_factor();
-        // popup_state
-        //     .resize_increments()
-        //     .map(|size| super::logical_to_physical_rounded(size, scale_factor))
-        None
+        let popup_state = self.popup_state.lock().unwrap();
+        let scale_factor = popup_state.scale_factor();
+        popup_state
+            .resize_increments()
+            .map(|size| super::logical_to_physical_rounded(size, scale_factor))
     }
 
     fn set_surface_resize_increments(&self, increments: Option<Size>) {
-        // let mut popup_state = self.popup_state.lock().unwrap();
-        // let scale_factor = popup_state.scale_factor();
-        // let increments = increments.map(|size| size.to_logical(scale_factor));
-        // popup_state.set_resize_increments(increments);
+        let mut popup_state = self.popup_state.lock().unwrap();
+        let scale_factor = popup_state.scale_factor();
+        let increments = increments.map(|size| size.to_logical(scale_factor));
+        popup_state.set_resize_increments(increments);
     }
 
     fn set_title(&self, title: &str) {
@@ -282,16 +316,12 @@ impl CoreWindow for Popup {
         None
     }
 
-    fn set_resizable(&self, resizable: bool) {
-        // if self.popup_state.lock().unwrap().set_resizable(resizable) {
-        //     // NOTE: Requires commit to be applied.
-        //     self.request_redraw();
-        // }
+    fn set_resizable(&self, _resizable: bool) {
+        // A popup cannot be resized with the mouse
     }
 
     fn is_resizable(&self) -> bool {
-        // TODO
-        // self.popup_state.lock().unwrap().resizable()
+        // A popup cannot be resized with the mouse
         false
     }
 
@@ -322,7 +352,7 @@ impl CoreWindow for Popup {
         false
     }
 
-    fn set_fullscreen(&self, fullscreen: Option<Fullscreen>) {
+    fn set_fullscreen(&self, _fullscreen: Option<Fullscreen>) {
         // Not possible for popups
     }
 
@@ -337,117 +367,94 @@ impl CoreWindow for Popup {
 
     #[inline]
     fn set_blur(&self, blur: bool) {
-        // self.popup_state.lock().unwrap().set_blur(blur);
+        if self.popup_state.lock().unwrap().set_blur(blur) {
+            self.request_redraw();
+        }
     }
 
     #[inline]
-    fn set_decorations(&self, decorate: bool) {
-        // self.popup_state.lock().unwrap().set_decorate(decorate)
+    fn set_decorations(&self, _decorate: bool) {
+        // Popup does not support decorations
     }
 
     #[inline]
     fn is_decorated(&self) -> bool {
-        // self.popup_state.lock().unwrap().is_decorated()
+        // Popup does not support decorations
         false
     }
 
-    fn set_window_level(&self, _level: WindowLevel) {}
+    fn set_window_level(&self, _level: WindowLevel) {
+        // Popup does not have a window level
+    }
 
-    fn set_window_icon(&self, window_icon: Option<winit_core::icon::Icon>) {
-        // self.popup_state.lock().unwrap().set_window_icon(window_icon)
+    fn set_window_icon(&self, _window_icon: Option<winit_core::icon::Icon>) {
+        // Popup does not have a window icon
     }
 
     #[inline]
     fn request_ime_update(&self, request: ImeRequest) -> Result<(), ImeRequestError> {
-        // let state_changed = self.popup_state.lock().unwrap().request_ime_update(request)?;
+        let state_changed = self.popup_state.lock().unwrap().request_ime_update(request)?;
 
-        // if let Some(allowed) = state_changed {
-        //     let event = WindowEvent::Ime(if allowed { Ime::Enabled } else { Ime::Disabled });
-        //     self.window_events_sink.lock().unwrap().push_window_event(event, self.window_id);
-        //     self.event_loop_awakener.ping();
-        // }
+        if let Some(allowed) = state_changed {
+            let event = WindowEvent::Ime(if allowed { Ime::Enabled } else { Ime::Disabled });
+            self.handles.push_window_event(event, self.window_id);
+        }
 
         Ok(())
     }
 
     #[inline]
     fn ime_capabilities(&self) -> Option<ImeCapabilities> {
-        // self.popup_state.lock().unwrap().ime_allowed()
-        None
+        self.popup_state.lock().unwrap().ime_allowed()
     }
 
     fn focus_window(&self) {}
 
     fn has_focus(&self) -> bool {
-        // self.popup_state.lock().unwrap().has_focus()
-        false
+        self.popup_state.lock().unwrap().has_focus()
     }
 
     fn request_user_attention(&self, request_type: Option<UserAttentionType>) {
-        // let xdg_activation = match self.xdg_activation.as_ref() {
-        //     Some(xdg_activation) => xdg_activation,
-        //     None => {
-        //         warn!("`request_user_attention` isn't supported");
-        //         return;
-        //     },
-        // };
-
-        // // Urgency is only removed by the compositor and there's no need to raise urgency when it
-        // // was already raised.
-        // if request_type.is_none() || self.attention_requested.load(Ordering::Relaxed) {
-        //     return;
-        // }
-
-        // self.attention_requested.store(true, Ordering::Relaxed);
-        // let surface = self.surface().clone();
-        // let data = XdgActivationTokenData::Attention((
-        //     surface.clone(),
-        //     Arc::downgrade(&self.attention_requested),
-        // ));
-        // let xdg_activation_token = xdg_activation.get_activation_token(&self.queue_handle, data);
-        // xdg_activation_token.set_surface(&surface);
-        // xdg_activation_token.commit();
+        self.handles.request_user_attention(self.surface(), request_type);
     }
 
-    fn set_theme(&self, theme: Option<Theme>) {
-        // self.popup_state.lock().unwrap().set_theme(theme)
+    fn set_theme(&self, _theme: Option<Theme>) {
+        // A popup does not have a frame
     }
 
     fn theme(&self) -> Option<Theme> {
-        // self.popup_state.lock().unwrap().theme()
+        // A popup does not have a frame
         None
     }
 
     fn set_content_protected(&self, _protected: bool) {}
 
     fn set_cursor(&self, cursor: Cursor) {
-        // let popup_state = &mut self.popup_state.lock().unwrap();
+        let popup_state = &mut self.popup_state.lock().unwrap();
 
-        // match cursor {
-        //     Cursor::Icon(icon) => popup_state.set_cursor(icon),
-        //     Cursor::Custom(cursor) => popup_state.set_custom_cursor(cursor),
-        // }
+        match cursor {
+            Cursor::Icon(icon) => popup_state.set_cursor(icon),
+            Cursor::Custom(cursor) => popup_state.set_custom_cursor(cursor),
+        }
     }
 
     fn set_cursor_position(&self, position: Position) -> Result<(), RequestError> {
-        // let scale_factor = self.scale_factor();
-        // let position = position.to_logical(scale_factor);
-        // self.popup_state
-        //     .lock()
-        //     .unwrap()
-        //     .set_cursor_position(position)
-        //     // Request redraw on success, since the state is double buffered.
-        //     .map(|_| self.request_redraw())
-        Err(RequestError::Ignored)
+        let scale_factor = self.scale_factor();
+        let position = position.to_logical(scale_factor);
+        self.popup_state
+            .lock()
+            .unwrap()
+            .set_cursor_position(position)
+            // Request redraw on success, since the state is double buffered.
+            .map(|_| self.request_redraw())
     }
 
     fn set_cursor_grab(&self, mode: CursorGrabMode) -> Result<(), RequestError> {
-        // self.popup_state.lock().unwrap().set_cursor_grab(mode)
-        Err(RequestError::Ignored)
+        self.popup_state.lock().unwrap().set_cursor_grab(mode)
     }
 
     fn set_cursor_visible(&self, visible: bool) {
-        // self.popup_state.lock().unwrap().set_cursor_visible(visible);
+        self.popup_state.lock().unwrap().set_cursor_visible(visible);
     }
 
     fn drag_window(&self) -> Result<(), RequestError> {
@@ -455,52 +462,29 @@ impl CoreWindow for Popup {
         Err(RequestError::Ignored)
     }
 
-    fn drag_resize_window(&self, direction: ResizeDirection) -> Result<(), RequestError> {
-        // TODO: implement
-        // self.popup_state.lock().unwrap().drag_resize_window(direction)
+    fn drag_resize_window(&self, _direction: ResizeDirection) -> Result<(), RequestError> {
+        // Popup does not support dragging
         Err(RequestError::Ignored)
     }
 
-    fn show_window_menu(&self, position: Position) {
-        // let scale_factor = self.scale_factor();
-        // let position = position.to_logical(scale_factor);
-        // self.popup_state.lock().unwrap().show_window_menu(position);
+    fn show_window_menu(&self, _position: Position) {
+        // A popup does not have a menu
     }
 
     fn set_cursor_hittest(&self, hittest: bool) -> Result<(), RequestError> {
-        // let surface = self.window.wl_surface();
-
-        // if hittest {
-        //     surface.set_input_region(None);
-        //     Ok(())
-        // } else {
-        //     let region = Region::new(&*self.compositor).map_err(|err| os_error!(err))?;
-        //     region.add(0, 0, 0, 0);
-        //     surface.set_input_region(Some(region.wl_region()));
-        //     Ok(())
-        // }
-        Err(RequestError::Ignored)
+        self.handles.set_cursor_hittest(self.surface(), hittest)
     }
 
     fn current_monitor(&self) -> Option<CoreMonitorHandle> {
-        // let data = self.window.wl_surface().data::<SurfaceData>()?;
-        // data.outputs()
-        //     .next()
-        //     .map(MonitorHandle::new)
-        //     .map(|monitor| CoreMonitorHandle(Arc::new(monitor)))
-        None
+        let data = self.surface().data::<SurfaceData>()?;
+        data.outputs()
+            .next()
+            .map(MonitorHandle::new)
+            .map(|monitor| CoreMonitorHandle(Arc::new(monitor)))
     }
 
     fn available_monitors(&self) -> Box<dyn Iterator<Item = CoreMonitorHandle>> {
-        // Box::new(
-        //     self.monitors
-        //         .lock()
-        //         .unwrap()
-        //         .clone()
-        //         .into_iter()
-        //         .map(|inner| CoreMonitorHandle(Arc::new(inner))),
-        // )
-        Box::new([].into_iter())
+        self.handles.available_monitors()
     }
 
     fn primary_monitor(&self) -> Option<CoreMonitorHandle> {
@@ -521,8 +505,8 @@ impl CoreWindow for Popup {
 
 impl Drop for Popup {
     fn drop(&mut self) {
-        self.window_requests.closed.store(true, Ordering::Relaxed);
-        self.event_loop_awakener.ping();
+        self.handles.window_requests.closed.store(true, Ordering::Relaxed);
+        self.handles.event_loop_awakener.ping();
     }
 }
 

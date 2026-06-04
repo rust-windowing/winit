@@ -27,7 +27,7 @@ use winit_core::event_loop::{
     OwnedDisplayHandle as CoreOwnedDisplayHandle,
 };
 use winit_core::monitor::MonitorHandle as CoreMonitorHandle;
-use winit_core::window::Theme;
+use winit_core::window::{Theme, WindowType};
 
 use crate::types::cursor::WaylandCustomCursor;
 
@@ -651,12 +651,16 @@ impl RootActiveEventLoop for ActiveEventLoop {
         &self,
         window_attributes: winit_core::window::WindowAttributes,
     ) -> Result<Box<dyn winit_core::window::Window>, RequestError> {
-        if window_attributes.popup() {
-            let popup = crate::Popup::new(self, window_attributes)?;
-            Ok(Box::new(popup))
-        } else {
-            let window = crate::Window::new(self, window_attributes)?;
-            Ok(Box::new(window))
+        match window_attributes.window_type() {
+            WindowType::Window => {
+                let window = crate::Window::new(self, window_attributes)?;
+                Ok(Box::new(window))
+            },
+            WindowType::Popup => {
+                let popup = crate::Popup::new(self, window_attributes)?;
+                Ok(Box::new(popup))
+            },
+            _ => panic!("Not implemented"),
         }
     }
 

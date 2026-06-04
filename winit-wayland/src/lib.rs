@@ -36,15 +36,15 @@ macro_rules! os_error {
 
 mod event_loop;
 mod output;
+mod popup;
 mod seat;
 mod state;
 mod types;
 mod window;
-mod popup;
 
 pub use self::event_loop::{ActiveEventLoop, EventLoop};
-pub use self::window::Window;
 pub use self::popup::Popup;
+pub use self::window::Window;
 
 /// Additional methods on [`ActiveEventLoop`] that are specific to Wayland.
 pub trait ActiveEventLoopExtWayland {

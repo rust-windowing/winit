@@ -46,10 +46,23 @@ impl fmt::Debug for WindowId {
     }
 }
 
+/// The role of a window, used to request platform-specific window behavior.
 #[derive(Debug, Clone, Copy, Default, PartialEq)]
+#[non_exhaustive]
 pub enum WindowType {
+    /// A normal, top-level window.
     #[default]
     Window,
+    /// A short-lived window anchored to a parent, such as a menu, combo-box dropdown, or
+    /// tooltip. Requires a parent set via [`WindowAttributes::with_parent_window`], and its
+    /// position is interpreted relative to that parent.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **macOS:** A borderless, non-activating child window. The system does *not* draw a frame,
+    ///   shadow contour, or rounded corners for it, so it appears with square corners by default.
+    ///   To get a rounded, native-looking popup, create it transparent (via
+    ///   [`WindowAttributes::with_transparent`]) and draw the background and shadow yourself.
     Popup,
 }
 
@@ -153,7 +166,8 @@ impl WindowAttributes {
     ///   position. There may be a small gap between this position and the window due to the
     ///   specifics of the Window Manager.
     /// - **X11:** The top left corner of the window, the window's "outer" position.
-    /// - **Wayland:** The top left corner of the window if the window type is `WindowType::Popup` otherwise ignored
+    /// - **Wayland:** The top left corner of the window if the window type is `WindowType::Popup`
+    ///   otherwise ignored
     /// - **Others:** Ignored.
     #[inline]
     pub fn with_position<P: Into<Position>>(mut self, position: P) -> Self {
@@ -388,20 +402,24 @@ impl WindowAttributes {
         self
     }
 
-    /// Sets the window type of the object
+    /// Sets the [`WindowType`] (window vs. popup).
     ///
-    /// Currently only wayland is using this type. On X11 popups are also just normal windows
-    /// Note: If the type is set to `WindowType::Popup` the parent must be set as well with
-    /// `with_parent_window()`.
-    pub fn as_type(mut self, window_type: WindowType) -> Self {
+    /// Used by the Windows, Wayland and macOS backends; on X11 popups are just normal windows.
+    /// If the type is [`WindowType::Popup`], the parent must also be set via
+    /// [`with_parent_window`](Self::with_parent_window), and the position is interpreted
+    /// relative to that parent.
+    ///
+    /// See [`WindowType::Popup`] for the per-platform behavior, including how to obtain a
+    /// rounded, native-looking popup on macOS.
+    pub fn with_type(mut self, window_type: WindowType) -> Self {
         self.window_type = window_type;
         self
     }
 
     /// Returns if the window type is a popup or a normal window
     #[inline]
-    pub fn popup(&self) -> bool {
-        self.window_type == WindowType::Popup
+    pub fn window_type(&self) -> WindowType {
+        self.window_type
     }
 }
 

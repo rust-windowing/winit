@@ -23,6 +23,7 @@ use sctk::shm::{Shm, ShmHandler};
 use sctk::subcompositor::SubcompositorState;
 use winit_core::error::OsError;
 
+use crate::WindowId;
 use crate::event_loop::sink::EventSink;
 use crate::output::MonitorHandle;
 use crate::seat::{
@@ -35,8 +36,8 @@ use crate::types::wp_tablet_input_v2::TabletManager;
 use crate::types::wp_viewporter::ViewporterState;
 use crate::types::xdg_activation::XdgActivationState;
 use crate::types::xdg_toplevel_icon_manager::XdgToplevelIconManagerState;
-use crate::window::{WindowRequests, WindowState};
-use crate::{WindowId, popup};
+use crate::window::WindowState;
+use crate::window::handles::WindowRequests;
 
 /// Winit's Wayland state.
 #[derive(Debug)]
@@ -335,9 +336,7 @@ impl PopupHandler for WinitState {
         configure: PopupConfigure,
     ) {
         let window_id = super::make_wid(popup.wl_surface());
-        println!("Finished configuring the popup: {:?}", window_id);
 
-        // let index =
         if let Some(index) =
             self.window_compositor_updates.iter().position(|update| update.window_id == window_id)
         {
@@ -372,7 +371,6 @@ impl PopupHandler for WinitState {
 
     fn done(&mut self, _: &Connection, _: &QueueHandle<Self>, popup: &XdgPopup) {
         let window_id = super::make_wid(popup.wl_surface());
-        println!("Destroying popup with id: {:?}", window_id);
         Self::queue_close(&mut self.window_compositor_updates, window_id);
     }
 }
