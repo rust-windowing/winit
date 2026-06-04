@@ -30,6 +30,7 @@ use super::event_loop::sink::EventSink;
 use super::output::MonitorHandle;
 use super::state::WinitState;
 use super::types::xdg_activation::XdgActivationTokenData;
+use crate::window::state::WindowType;
 use crate::{WindowAttributesWayland, output};
 
 pub(crate) mod state;
@@ -117,7 +118,7 @@ impl Window {
             &event_loop_window_target.queue_handle,
             &state,
             size,
-            window.clone(),
+            state::WindowType::Window((window.clone(), None)),
             attributes.preferred_theme,
             prefer_csd,
         );
@@ -448,13 +449,14 @@ impl CoreWindow for Window {
     }
 
     fn is_maximized(&self) -> bool {
-        self.window_state
-            .lock()
-            .unwrap()
-            .last_configure
-            .as_ref()
-            .map(|last_configure| last_configure.is_maximized())
-            .unwrap_or_default()
+        if let WindowType::Window((_, last_configure)) = &self.window_state.lock().unwrap().window {
+            last_configure
+                .as_ref()
+                .map(|last_configure| last_configure.is_maximized())
+                .unwrap_or_default()
+        } else {
+            false
+        }
     }
 
     fn set_fullscreen(&self, fullscreen: Option<Fullscreen>) {
@@ -474,14 +476,16 @@ impl CoreWindow for Window {
     }
 
     fn fullscreen(&self) -> Option<Fullscreen> {
-        let is_fullscreen = self
-            .window_state
-            .lock()
-            .unwrap()
-            .last_configure
-            .as_ref()
-            .map(|last_configure| last_configure.is_fullscreen())
-            .unwrap_or_default();
+        let is_fullscreen = if let WindowType::Window((_, last_configure)) =
+            &self.window_state.lock().unwrap().window
+        {
+            last_configure
+                .as_ref()
+                .map(|last_configure| last_configure.is_fullscreen())
+                .unwrap_or_default()
+        } else {
+            false
+        };
 
         if is_fullscreen {
             let current_monitor = self.current_monitor();
