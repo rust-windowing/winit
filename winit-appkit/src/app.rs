@@ -1,14 +1,15 @@
 #![allow(clippy::unnecessary_cast)]
 
 use std::cell::Cell;
-use std::mem;
 use std::rc::Rc;
+use std::{mem, ptr};
 
 use dispatch2::MainThreadBound;
 use objc2::runtime::{Imp, Sel};
 use objc2::sel;
 use objc2_app_kit::{NSApplication, NSEvent, NSEventModifierFlags, NSEventType};
 use objc2_foundation::MainThreadMarker;
+use tracing::trace_span;
 use winit_core::event::{DeviceEvent, ElementState};
 
 use super::app_state::AppState;
@@ -21,6 +22,10 @@ static ORIGINAL: MainThreadBound<Cell<Option<SendEvent>>> = {
 };
 
 extern "C-unwind" fn send_event(app: &NSApplication, sel: Sel, event: &NSEvent) {
+    // This can be a bit noisy, since `event` is fairly large. Note that you can use
+    // `RUST_LOG='trace,winit_appkit::app=warn'` if you're debugging and want TRACE-level logs but
+    // not this.
+    let _entered = trace_span!("sendEvent:", ?event).entered();
     let mtm = MainThreadMarker::from(app);
 
     // Normally, holding Cmd + any key never sends us a `keyUp` event for that key.
@@ -75,9 +80,7 @@ pub(crate) fn override_send_event(global_app: &NSApplication) {
     let overridden = unsafe { mem::transmute::<SendEvent, Imp>(send_event) };
 
     // If we've already overridden the method, don't do anything.
-    // FIXME(madsmtm): Use `std::ptr::fn_addr_eq` (Rust 1.85) once available in MSRV.
-    #[allow(unknown_lints, unpredictable_function_pointer_comparisons)]
-    if overridden == method.implementation() {
+    if ptr::fn_addr_eq(overridden, method.implementation()) {
         return;
     }
 

@@ -21,3 +21,8 @@ fn custom_cursor_sync() {
     needs_sync::<winit::cursor::CustomCursorSource>();
     needs_sync::<winit::cursor::CustomCursor>();
 }
+
+#[test]
+fn owned_display_handle_sync() {
+    needs_sync::<winit::event_loop::OwnedDisplayHandle>();
+}

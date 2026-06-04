@@ -16,7 +16,7 @@ use objc2_ui_kit::{
     UIApplication, UICoordinateSpace, UIEdgeInsets, UIResponder, UIScreen,
     UIScreenOverscanCompensation, UIViewController, UIWindow,
 };
-use tracing::{debug, warn};
+use tracing::{debug, debug_span, warn};
 use winit_core::cursor::Cursor;
 use winit_core::error::{NotSupportedError, RequestError};
 use winit_core::event::WindowEvent;
@@ -46,6 +46,7 @@ define_class!(
     impl WinitUIWindow {
         #[unsafe(method(becomeKeyWindow))]
         fn become_key_window(&self) {
+            let _entered = debug_span!("becomeKeyWindow").entered();
             let mtm = MainThreadMarker::new().unwrap();
             app_state::handle_nonuser_event(mtm, EventWrapper::Window {
                 window_id: self.id(),
@@ -56,6 +57,7 @@ define_class!(
 
         #[unsafe(method(resignKeyWindow))]
         fn resign_key_window(&self) {
+            let _entered = debug_span!("resignKeyWindow").entered();
             let mtm = MainThreadMarker::new().unwrap();
             app_state::handle_nonuser_event(mtm, EventWrapper::Window {
                 window_id: self.id(),

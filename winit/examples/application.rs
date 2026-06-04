@@ -7,21 +7,18 @@ use std::borrow::Cow;
 use std::collections::HashMap;
 use std::error::Error;
 use std::fmt::Debug;
-#[cfg(not(android_platform))]
 use std::num::NonZeroU32;
 use std::sync::Arc;
 use std::sync::mpsc::{self, Receiver, Sender};
-#[cfg(all(not(android_platform), not(web_platform)))]
+#[cfg(not(web_platform))]
 use std::time::Instant;
 use std::{fmt, mem};
 
 use cursor_icon::CursorIcon;
-#[cfg(not(android_platform))]
 use rwh_06::{DisplayHandle, HasDisplayHandle};
-#[cfg(not(android_platform))]
 use softbuffer::{Context, Surface};
 use tracing::{error, info};
-#[cfg(all(web_platform, not(android_platform)))]
+#[cfg(web_platform)]
 use web_time::Instant;
 use winit::application::ApplicationHandler;
 use winit::cursor::{Cursor, CustomCursor, CustomCursorSource};
@@ -97,14 +94,12 @@ struct Application {
     /// Drawing context.
     ///
     /// With OpenGL it could be EGLDisplay.
-    #[cfg(not(android_platform))]
     context: Option<Context<DisplayHandle<'static>>>,
 }
 
 impl Application {
     fn new(event_loop: &EventLoop, receiver: Receiver<Action>, sender: Sender<Action>) -> Self {
         // SAFETY: we drop the context right before the event loop is stopped, thus making it safe.
-        #[cfg(not(android_platform))]
         let context = Some(
             Context::new(unsafe {
                 std::mem::transmute::<DisplayHandle<'_>, DisplayHandle<'static>>(
@@ -130,15 +125,7 @@ impl Application {
         .into_iter()
         .collect();
 
-        Self {
-            receiver,
-            sender,
-            #[cfg(not(android_platform))]
-            context,
-            custom_cursors,
-            icon,
-            windows: Default::default(),
-        }
+        Self { receiver, sender, context, custom_cursors, icon, windows: Default::default() }
     }
 
     fn create_window(
@@ -620,7 +607,6 @@ struct WindowState {
     /// Render surface.
     ///
     /// NOTE: This surface must be dropped before the `Window`.
-    #[cfg(not(android_platform))]
     surface: Surface<DisplayHandle<'static>, Arc<dyn Window>>,
     /// The actual winit Window.
     window: Arc<dyn Window>,
@@ -629,7 +615,6 @@ struct WindowState {
     /// Fill the window with animated color
     animated_fill_color: bool,
     /// The application start time. Used for color fill animation
-    #[cfg(not(android_platform))]
     start_time: Instant,
     /// Redraw continuously
     continuous_redraw: bool,
@@ -665,7 +650,6 @@ impl WindowState {
 
         // SAFETY: the surface is dropped before the `window` which provided it with handle, thus
         // it doesn't outlive it.
-        #[cfg(not(android_platform))]
         let surface = Surface::new(app.context.as_ref().unwrap(), Arc::clone(&window))?;
 
         let theme = window.theme().unwrap_or(Theme::Dark);
@@ -680,14 +664,12 @@ impl WindowState {
             custom_idx: app.custom_cursors.as_ref().map(Vec::len).unwrap_or(1) - 1,
             cursor_grab: CursorGrabMode::None,
             named_idx,
-            #[cfg(not(android_platform))]
             surface,
             window,
             theme,
             animated_fill_color: false,
             continuous_redraw: false,
             emit_surface_size: false,
-            #[cfg(not(android_platform))]
             start_time: Instant::now(),
             cursor_position: Default::default(),
             cursor_hidden: Default::default(),
@@ -859,15 +841,12 @@ impl WindowState {
     /// Resize the surface to the new size.
     fn resize(&mut self, size: PhysicalSize<u32>) {
         info!("Surface resized to {size:?}");
-        #[cfg(not(android_platform))]
-        {
-            let (width, height) = match (NonZeroU32::new(size.width), NonZeroU32::new(size.height))
-            {
-                (Some(width), Some(height)) => (width, height),
-                _ => return,
-            };
-            self.surface.resize(width, height).expect("failed to resize inner buffer");
-        }
+        let (width, height) = match (NonZeroU32::new(size.width), NonZeroU32::new(size.height)) {
+            (Some(width), Some(height)) => (width, height),
+            _ => return,
+        };
+        self.surface.resize(width, height).expect("failed to resize inner buffer");
+
         self.window.request_redraw();
     }
 
@@ -952,7 +931,6 @@ impl WindowState {
     }
 
     /// Draw the window contents.
-    #[cfg(not(android_platform))]
     fn draw(&mut self) -> Result<(), Box<dyn Error>> {
         if self.occluded {
             info!("Skipping drawing occluded window={:?}", self.window.id());
@@ -996,12 +974,6 @@ impl WindowState {
         self.window.pre_present_notify();
         buffer.present()?;
 
-        Ok(())
-    }
-
-    #[cfg(android_platform)]
-    fn draw(&mut self) -> Result<(), Box<dyn Error>> {
-        info!("Drawing but without rendering...");
         Ok(())
     }
 }

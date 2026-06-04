@@ -29,7 +29,7 @@ use crate::platform_impl;
 ///
 /// To wake up an `EventLoop` from a another thread, see the [`EventLoopProxy`] docs.
 ///
-/// Note that this cannot be shared across threads (due to platform-dependant logic
+/// Note that this cannot be shared across threads (due to platform-dependent logic
 /// forbidding it), as such it is neither [`Send`] nor [`Sync`]. If you need cross-thread access,
 /// the [`Window`] created from this _can_ be sent to an other thread, and the
 /// [`EventLoopProxy`] allows you to wake up an `EventLoop` from another thread.
@@ -88,7 +88,7 @@ impl EventLoopBuilder {
     )]
     #[inline]
     pub fn build(&mut self) -> Result<EventLoop, EventLoopError> {
-        let _span = tracing::debug_span!("winit::EventLoopBuilder::build").entered();
+        let _entered = tracing::debug_span!("winit::EventLoopBuilder::build").entered();
 
         // Certain platforms accept a mutable reference in their API.
         #[allow(clippy::unnecessary_mut_passed)]
@@ -262,7 +262,7 @@ impl EventLoop {
     ///
     /// [`DeviceEvent`]: crate::event::DeviceEvent
     pub fn listen_device_events(&self, allowed: DeviceEvents) {
-        let _span = tracing::debug_span!(
+        let _entered = tracing::debug_span!(
             "winit::EventLoop::listen_device_events",
             allowed = ?allowed
         )

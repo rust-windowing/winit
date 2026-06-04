@@ -1,4 +1,11 @@
 # Using allow-invalid because this is platform-specific code
+disallowed-macros = [
+    { path = "std::print", reason = "works badly on web", replacement = "tracing::info" },
+    { path = "std::println", reason = "works badly on web", replacement = "tracing::info" },
+    { path = "std::eprint", reason = "works badly on web", replacement = "tracing::error" },
+    { path = "std::eprintln", reason = "works badly on web", replacement = "tracing::error" },
+    { path = "std::dbg", reason = "leftover debugging aid, remove it or use tracing" },
+]
 disallowed-methods = [
     { allow-invalid = true, path = "objc2_app_kit::NSView::visibleRect", reason = "We expose a render target to the user, and visibility is not really relevant to that (and can break if you don't use the rectangle position as well). Use `frame` instead." },
     { allow-invalid = true, path = "objc2_app_kit::NSWindow::setFrameTopLeftPoint", reason = "Not sufficient when working with Winit's coordinate system, use `flip_window_screen_coordinates` instead" },
