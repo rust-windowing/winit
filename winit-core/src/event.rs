@@ -274,9 +274,9 @@ pub enum WindowEvent {
     /// The `phase` field indicates the lifecycle of the hold gesture:
     /// - `Started`: One or more fingers are in contact with the touchpad/touchscreen.
     /// - `Ended`: All fingers have been lifted from the touchpad/touchscreen.
-    /// - `Cancelled`: The hold gesture was interrupted, for example when another finger
-    ///   touches the touchpad (causing a new `Started` event with more fingers), or when
-    ///   movement begins and transitions to other gestures like pinch, pan, or rotation.
+    /// - `Cancelled`: The hold gesture was interrupted, for example when another finger touches the
+    ///   touchpad (causing a new `Started` event with more fingers), or when movement begins and
+    ///   transitions to other gestures like pinch, pan, or rotation.
     ///
     /// ## Platform-specific
     ///
@@ -1020,7 +1020,8 @@ pub enum Ime {
 #[derive(Debug, Hash, PartialEq, Eq, Clone, Copy)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum TouchPhase {
-    /// Initial touch contact or gesture start, for example when one or more fingers touch the screen or touchpad.
+    /// Initial touch contact or gesture start, for example when one or more fingers touch the
+    /// screen or touchpad.
     Started,
     /// The touch contact point changed, for example without lifting the finger.
     Moved,
