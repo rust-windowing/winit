@@ -39,3 +39,7 @@ The migration guide could reference other migration examples in the current
 changelog entry.
 
 ## Unreleased
+
+### Added
+
+- Implement `Window::set_visible` via null-buffer unmap/remap on wayland.
