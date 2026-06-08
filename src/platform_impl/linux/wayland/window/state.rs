@@ -164,7 +164,8 @@ pub struct WindowState {
     /// Whether the window is visible.
     visible: bool,
 
-    /// Whether the surface was unmapped via null buffer and needs a configure cycle before the next buffer attach.
+    /// Whether the surface was unmapped via null buffer and needs a configure cycle before the
+    /// next buffer attach.
     unmapped: bool,
 }
 
