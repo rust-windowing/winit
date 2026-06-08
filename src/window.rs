@@ -967,7 +967,7 @@ impl Window {
     ///
     /// ## Platform-specific
     ///
-    /// - **Android / Wayland / Web:** Unsupported.
+    /// - **Android / Web:** Unsupported.
     /// - **iOS:** Can only be called on the main thread.
     #[inline]
     pub fn set_visible(&self, visible: bool) {
@@ -983,7 +983,7 @@ impl Window {
     /// ## Platform-specific
     ///
     /// - **X11:** Not implemented.
-    /// - **Wayland / iOS / Android / Web:** Unsupported.
+    /// - **iOS / Android / Web:** Unsupported.
     #[inline]
     pub fn is_visible(&self) -> Option<bool> {
         let _span = tracing::debug_span!("winit::Window::is_visible",).entered();

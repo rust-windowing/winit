@@ -160,6 +160,13 @@ pub struct WindowState {
     // field drop order guarantees.
     /// The window frame, which is created from the configure request.
     frame: Option<WinitFrame>,
+
+    /// Whether the window is visible.
+    visible: bool,
+
+    /// Whether the surface was unmapped via null buffer and needs a configure cycle before the
+    /// next buffer attach.
+    unmapped: bool,
 }
 
 impl WindowState {
@@ -219,6 +226,8 @@ impl WindowState {
             title: String::default(),
             transparent: false,
             viewport,
+            visible: true,
+            unmapped: false,
             window,
         }
     }
@@ -582,6 +591,31 @@ impl WindowState {
     #[inline]
     pub fn is_configured(&self) -> bool {
         self.last_configure.is_some()
+    }
+
+    #[inline]
+    pub fn is_visible(&self) -> bool {
+        self.visible
+    }
+
+    #[inline]
+    pub fn set_visible(&mut self, visible: bool) {
+        self.visible = visible;
+    }
+
+    #[inline]
+    pub fn is_unmapped(&self) -> bool {
+        self.unmapped
+    }
+
+    #[inline]
+    pub fn set_unmapped(&mut self) {
+        self.unmapped = true;
+    }
+
+    #[inline]
+    pub fn clear_unmapped(&mut self) {
+        self.unmapped = false;
     }
 
     #[inline]

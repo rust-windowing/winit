@@ -282,15 +282,19 @@ impl WindowHandler for WinitState {
             self.window_compositor_updates.len() - 1
         };
 
-        // Populate the configure to the window.
-        self.window_compositor_updates[pos].resized |= self
-            .windows
-            .get_mut()
-            .get_mut(&window_id)
-            .expect("got configure for dead window.")
-            .lock()
-            .unwrap()
-            .configure(configure, &self.shm, &self.subcompositor_state);
+        // Populate the configure to the window and clear unmapped flag.
+        {
+            let mut window_state = self
+                .windows
+                .get_mut()
+                .get_mut(&window_id)
+                .expect("got configure for dead window.")
+                .lock()
+                .unwrap();
+            self.window_compositor_updates[pos].resized |=
+                window_state.configure(configure, &self.shm, &self.subcompositor_state);
+            window_state.clear_unmapped();
+        }
 
         // NOTE: configure demands wl_surface::commit, however winit doesn't commit on behalf of the
         // users, since it can break a lot of things, thus it'll ask users to redraw instead.

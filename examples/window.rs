@@ -219,6 +219,7 @@ impl Application {
             Action::ToggleDecorations => window.toggle_decorations(),
             Action::ToggleFullscreen => window.toggle_fullscreen(),
             Action::ToggleMaximize => window.toggle_maximize(),
+            Action::ToggleVisible => window.toggle_visible(),
             Action::ToggleImeInput => window.toggle_ime(),
             Action::Minimize => window.minimize(),
             Action::NextCursor => window.next_cursor(),
@@ -548,6 +549,7 @@ struct WindowState {
     named_idx: usize,
     custom_idx: usize,
     cursor_hidden: bool,
+    visible: bool,
 }
 
 impl WindowState {
@@ -582,6 +584,7 @@ impl WindowState {
             ime,
             cursor_position: Default::default(),
             cursor_hidden: Default::default(),
+            visible: true,
             modifiers: Default::default(),
             occluded: Default::default(),
             rotated: Default::default(),
@@ -603,6 +606,11 @@ impl WindowState {
 
     pub fn minimize(&mut self) {
         self.window.set_minimized(true);
+    }
+
+    pub fn toggle_visible(&mut self) {
+        self.visible = !self.visible;
+        self.window.set_visible(self.visible);
     }
 
     pub fn cursor_moved(&mut self, position: PhysicalPosition<f64>) {
@@ -900,6 +908,7 @@ enum Action {
     ToggleResizable,
     ToggleFullscreen,
     ToggleMaximize,
+    ToggleVisible,
     Minimize,
     NextCursor,
     NextCustomCursor,
@@ -931,6 +940,7 @@ impl Action {
             Action::ToggleResizable => "Toggle window resizable state",
             Action::ToggleFullscreen => "Toggle fullscreen",
             Action::ToggleMaximize => "Maximize",
+            Action::ToggleVisible => "Toggle visible",
             Action::Minimize => "Minimize",
             Action::ToggleResizeIncrements => "Use resize increments when resizing window",
             Action::NextCursor => "Advance the cursor to the next value",
@@ -1072,6 +1082,8 @@ const KEY_BINDINGS: &[Binding<&'static str>] = &[
     Binding::new("P", ModifiersState::CONTROL, Action::ToggleResizeIncrements),
     Binding::new("R", ModifiersState::CONTROL, Action::ToggleResizable),
     Binding::new("R", ModifiersState::ALT, Action::RequestResize),
+    // V.
+    Binding::new("V", ModifiersState::CONTROL, Action::ToggleVisible),
     // M.
     Binding::new("M", ModifiersState::CONTROL, Action::ToggleMaximize),
     Binding::new("M", ModifiersState::ALT, Action::Minimize),
