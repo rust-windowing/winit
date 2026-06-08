@@ -142,6 +142,9 @@ impl Window {
         // Non-resizable implies that the min and max sizes are set to the same value.
         window_state.set_resizable(attributes.resizable);
 
+        // Set initial visibility.
+        window_state.set_visible(attributes.visible);
+
         // Set startup mode.
         match attributes.fullscreen.map(Into::into) {
             Some(Fullscreen::Exclusive(_)) => {
@@ -250,13 +253,41 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_visible(&self, _visible: bool) {
-        // Not possible on Wayland.
+    pub fn set_visible(&self, visible: bool) {
+        if visible {
+            let mut state = self.window_state.lock().unwrap();
+            if state.is_visible() {
+                return;
+            }
+            state.set_visible(true);
+            state.frame_callback_reset();
+            if state.is_unmapped() {
+                // Re-send xdg_toplevel state to trigger a configure cycle
+                let title = state.title().to_owned();
+                state.set_title(title);
+                drop(state);
+                self.surface().commit();
+                return;
+            }
+            drop(state);
+            self.request_redraw();
+        } else {
+            {
+                let mut state = self.window_state.lock().unwrap();
+                if !state.is_visible() {
+                    return;
+                }
+                state.set_visible(false);
+                state.set_unmapped();
+            }
+            self.surface().attach(None, 0, 0);
+            self.surface().commit();
+        }
     }
 
     #[inline]
     pub fn is_visible(&self) -> Option<bool> {
-        None
+        Some(self.window_state.lock().unwrap().is_visible())
     }
 
     #[inline]
