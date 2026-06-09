@@ -183,6 +183,8 @@ features = [
     "block2",
     "dispatch",
     "NSArray",
+    "NSAttributedString",
+    "NSDictionary",
     "NSEnumerator",
     "NSGeometry",
     "NSObjCRuntime",
@@ -191,6 +193,7 @@ features = [
     "NSProcessInfo",
     "NSThread",
     "NSSet",
+    "NSValue",
 ]
 
 [target.'cfg(target_os = "ios")'.dependencies.objc2-ui-kit]
