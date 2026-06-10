@@ -102,6 +102,7 @@
 
 mod app_state;
 mod event_loop;
+mod ime;
 mod monitor;
 mod view;
 mod view_controller;

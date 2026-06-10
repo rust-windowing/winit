@@ -3,24 +3,30 @@ use std::cell::{Cell, RefCell};
 
 use dpi::PhysicalPosition;
 use objc2::rc::Retained;
-use objc2::runtime::{NSObjectProtocol, ProtocolObject};
-use objc2::{DefinedClass, MainThreadMarker, available, define_class, msg_send, sel};
-use objc2_core_foundation::{CGFloat, CGPoint, CGRect};
-use objc2_foundation::{NSObject, NSSet, NSString};
+use objc2::runtime::{AnyObject, NSObjectProtocol, ProtocolObject};
+use objc2::{ClassType, DefinedClass, MainThreadMarker, available, define_class, msg_send, sel};
+use objc2_core_foundation::{CGFloat, CGPoint, CGRect, CGSize};
+use objc2_foundation::{
+    NSArray, NSAttributedStringKey, NSComparisonResult, NSDictionary, NSInteger, NSObject, NSRange,
+    NSSet, NSString,
+};
 use objc2_ui_kit::{
     UIEvent, UIForceTouchCapability, UIGestureRecognizer, UIGestureRecognizerDelegate,
     UIGestureRecognizerState, UIKeyInput, UIPanGestureRecognizer, UIPinchGestureRecognizer,
-    UIResponder, UIRotationGestureRecognizer, UITapGestureRecognizer, UITextInputTraits, UITouch,
-    UITouchPhase, UITouchType, UITraitEnvironment, UIView,
+    UIResponder, UIRotationGestureRecognizer, UITapGestureRecognizer, UITextInput,
+    UITextInputDelegate, UITextInputStringTokenizer, UITextInputTokenizer, UITextInputTraits,
+    UITextLayoutDirection, UITextPosition, UITextRange, UITextSelectionRect, UITouch, UITouchPhase,
+    UITouchType, UITraitEnvironment, UIView,
 };
 use tracing::{debug, debug_span, trace_span};
 use winit_core::event::{
-    ButtonSource, ElementState, FingerId, Force, KeyEvent, PointerKind, PointerSource,
+    ButtonSource, ElementState, FingerId, Force, Ime, KeyEvent, PointerKind, PointerSource,
     TabletToolAngle, TabletToolButton, TabletToolData, TabletToolKind, TouchPhase, WindowEvent,
 };
 use winit_core::keyboard::{Key, KeyCode, KeyLocation, NamedKey, NativeKeyCode, PhysicalKey};
 
 use super::app_state::{self, EventWrapper};
+use super::ime::{ImeState, WinitTextPosition, WinitTextRange};
 use super::window::WinitUIWindow;
 
 pub struct WinitViewState {
@@ -36,6 +42,12 @@ pub struct WinitViewState {
 
     primary_finger: Cell<Option<FingerId>>,
     fingers: Cell<u8>,
+
+    // Active IME / marked-text composition state. Driven by the
+    // `UITextInput` protocol methods below so that multi-stage input
+    // methods (Chinese pinyin, Japanese kana, Korean hangul, ...) can be
+    // received.
+    ime: RefCell<ImeState>,
 }
 
 define_class!(
@@ -351,6 +363,483 @@ define_class!(
             self.handle_delete_backward()
         }
     }
+
+    // ----------------------------------------------------------------------
+    // UITextInput
+    //
+    // Apple requires that a view adopt *both* `UIKeyInput` *and*
+    // `UITextInput` for multi-stage input methods (Chinese / Japanese /
+    // Korean / Vietnamese / ...) to deliver any events at all. Without
+    // `UITextInput` the system silently drops every key press while such
+    // an IME is active, so the user sees a completely unresponsive text
+    // input. See:
+    //   https://developer.apple.com/documentation/uikit/uitextinput
+    //
+    // We model the "document" that `UITextInput` operates over as just
+    // the current marked (preedit) string — committed text lives on the
+    // application side and we forward it through the existing
+    // `Ime::Commit` event.
+    // ----------------------------------------------------------------------
+    unsafe impl UITextInput for WinitView {
+        // --- marked text (preedit) -----------------------------------
+
+        #[unsafe(method(setMarkedText:selectedRange:))]
+        fn set_marked_text(&self, marked_text: Option<&NSString>, selected_range: NSRange) {
+            let _entered = debug_span!("setMarkedText:selectedRange:").entered();
+            let new_text = marked_text.map(|s| s.to_string()).unwrap_or_default();
+
+            // `setMarkedText:nil` (or with an empty string) is how iOS
+            // typically tears down an in-progress composition — e.g. when
+            // the user taps `123` to switch the soft keyboard from pinyin
+            // to numbers. The system does **not** follow up with an
+            // `insertText:` for what's already been typed, so if we just
+            // cleared the preedit the user would see their letters
+            // silently vanish. Commit the previously marked text as
+            // literal characters instead, matching how UIKit's own
+            // `UITextField` behaves.
+            if new_text.is_empty() {
+                let prev = std::mem::take(&mut self.ivars().ime.borrow_mut().marked_text);
+                self.ivars().ime.borrow_mut().selected_range = (0, 0);
+                if !prev.is_empty() {
+                    self.emit_ime_event(Ime::Preedit(String::new(), None));
+                    self.emit_ime_event(Ime::Commit(prev));
+                }
+                return;
+            }
+
+            let was_empty = !self.ivars().ime.borrow().is_marked();
+            {
+                let mut state = self.ivars().ime.borrow_mut();
+                state.marked_text = new_text;
+                // UIKit reports the selection as character offsets inside
+                // the marked text. winit's `Ime::Preedit` wants UTF-8
+                // byte offsets.
+                let chars: Vec<char> = state.marked_text.chars().collect();
+                let to_byte = |char_idx: usize| -> usize {
+                    chars.iter().take(char_idx).map(|c| c.len_utf8()).sum()
+                };
+                let total = chars.len();
+                let start = selected_range.location.min(total);
+                let end = start
+                    .checked_add(selected_range.length)
+                    .unwrap_or(total)
+                    .min(total);
+                state.selected_range = (to_byte(start), to_byte(end));
+            }
+
+            if was_empty {
+                self.emit_ime_event(Ime::Enabled);
+            }
+            let snapshot = self.ivars().ime.borrow();
+            let event =
+                Ime::Preedit(snapshot.marked_text.clone(), Some(snapshot.selected_range));
+            drop(snapshot);
+            self.emit_ime_event(event);
+        }
+
+        #[unsafe(method(unmarkText))]
+        fn unmark_text(&self) {
+            let _entered = debug_span!("unmarkText").entered();
+            // Same reasoning as `setMarkedText:` with an empty string —
+            // commit the in-progress text instead of dropping it on the
+            // floor, so the user's keystrokes don't disappear when the
+            // IME ends a session without picking a candidate.
+            let prev = std::mem::take(&mut self.ivars().ime.borrow_mut().marked_text);
+            self.ivars().ime.borrow_mut().selected_range = (0, 0);
+            if !prev.is_empty() {
+                self.emit_ime_event(Ime::Preedit(String::new(), None));
+                self.emit_ime_event(Ime::Commit(prev));
+            }
+        }
+
+        #[unsafe(method_id(markedTextRange))]
+        fn marked_text_range(&self) -> Option<Retained<UITextRange>> {
+            let _entered = debug_span!("markedTextRange").entered();
+            let state = self.ivars().ime.borrow();
+            if state.is_marked() {
+                let mtm = MainThreadMarker::new().unwrap();
+                let len = state.marked_len_chars() as i64;
+                Some(Retained::into_super(WinitTextRange::new(mtm, 0, len)))
+            } else {
+                None
+            }
+        }
+
+        #[unsafe(method_id(markedTextStyle))]
+        fn marked_text_style(
+            &self,
+        ) -> Option<Retained<NSDictionary<NSAttributedStringKey, AnyObject>>> {
+            None
+        }
+
+        #[unsafe(method(setMarkedTextStyle:))]
+        fn set_marked_text_style(
+            &self,
+            _: Option<&NSDictionary<NSAttributedStringKey, AnyObject>>,
+        ) {
+        }
+
+        // --- text storage queries (only marked text is "the document") -
+
+        #[unsafe(method_id(textInRange:))]
+        fn text_in_range(&self, range: &UITextRange) -> Option<Retained<NSString>> {
+            match downcast_range(range) {
+                Some(win_range) => {
+                    let state = self.ivars().ime.borrow();
+                    let chars: Vec<char> = state.marked_text.chars().collect();
+                    let start = (win_range.start_offset().max(0) as usize).min(chars.len());
+                    let end = (win_range.end_offset().max(0) as usize).min(chars.len());
+                    let s: String = if start <= end {
+                        chars[start..end].iter().collect()
+                    } else {
+                        String::new()
+                    };
+                    Some(NSString::from_str(&s))
+                },
+                None => None,
+            }
+        }
+
+        #[unsafe(method(replaceRange:withText:))]
+        fn replace_range_with_text(&self, range: &UITextRange, text: &NSString) {
+            let _entered = debug_span!("replaceRange:withText:").entered();
+            // IME-side commit. The typical pinyin / kana flow ends with
+            //   replaceRange:[the marked range] withText:[selected hanzi]
+            // Treat that as Commit(new) + clear preedit.
+            let replaced_all_marked = if let Some(r) = downcast_range(range) {
+                let state = self.ivars().ime.borrow();
+                let marked_len = state.marked_len_chars() as i64;
+                r.start_offset() == 0 && r.end_offset() == marked_len && state.is_marked()
+            } else {
+                false
+            };
+            let new_text = text.to_string();
+            if replaced_all_marked {
+                self.ivars().ime.borrow_mut().marked_text.clear();
+                self.ivars().ime.borrow_mut().selected_range = (0, 0);
+                self.emit_ime_event(Ime::Preedit(String::new(), None));
+                if !new_text.is_empty() {
+                    self.emit_ime_event(Ime::Commit(new_text));
+                }
+            } else if !new_text.is_empty() {
+                // Best-effort: commit the inserted text.
+                self.emit_ime_event(Ime::Commit(new_text));
+            }
+        }
+
+        // --- selection (tracked inside the marked text) ----------------
+
+        #[unsafe(method_id(selectedTextRange))]
+        fn selected_text_range(&self) -> Option<Retained<UITextRange>> {
+            let state = self.ivars().ime.borrow();
+            let chars: Vec<char> = state.marked_text.chars().collect();
+            // Translate UTF-8 byte offsets back into character indices.
+            let byte_to_char = |byte_off: usize| -> i64 {
+                let mut acc = 0usize;
+                for (i, c) in chars.iter().enumerate() {
+                    if acc >= byte_off {
+                        return i as i64;
+                    }
+                    acc += c.len_utf8();
+                }
+                chars.len() as i64
+            };
+            let start = byte_to_char(state.selected_range.0);
+            let end = byte_to_char(state.selected_range.1);
+            let mtm = MainThreadMarker::new().unwrap();
+            Some(Retained::into_super(WinitTextRange::new(mtm, start, end)))
+        }
+
+        #[unsafe(method(setSelectedTextRange:))]
+        fn set_selected_text_range(&self, range: Option<&UITextRange>) {
+            let Some(range) = range else { return };
+            let Some(win) = downcast_range(range) else { return };
+            let chars: Vec<char> = self.ivars().ime.borrow().marked_text.chars().collect();
+            let start = win.start_offset().max(0) as usize;
+            let end = win.end_offset().max(0) as usize;
+            let to_byte =
+                |char_idx: usize| -> usize {
+                    chars.iter().take(char_idx).map(|c| c.len_utf8()).sum()
+                };
+            self.ivars().ime.borrow_mut().selected_range = (to_byte(start), to_byte(end));
+        }
+
+        // --- document boundaries --------------------------------------
+
+        #[unsafe(method_id(beginningOfDocument))]
+        fn beginning_of_document(&self) -> Retained<UITextPosition> {
+            let mtm = MainThreadMarker::new().unwrap();
+            Retained::into_super(WinitTextPosition::new(mtm, 0))
+        }
+
+        #[unsafe(method_id(endOfDocument))]
+        fn end_of_document(&self) -> Retained<UITextPosition> {
+            let mtm = MainThreadMarker::new().unwrap();
+            let end = self.ivars().ime.borrow().marked_len_chars() as i64;
+            Retained::into_super(WinitTextPosition::new(mtm, end))
+        }
+
+        // --- position / range arithmetic ----------------------------
+
+        #[unsafe(method_id(textRangeFromPosition:toPosition:))]
+        fn text_range_from_position(
+            &self,
+            from: &UITextPosition,
+            to: &UITextPosition,
+        ) -> Option<Retained<UITextRange>> {
+            match (downcast_position(from), downcast_position(to)) {
+                (Some(f), Some(t)) => {
+                    let (a, b) = if f.offset() <= t.offset() {
+                        (f.offset(), t.offset())
+                    } else {
+                        (t.offset(), f.offset())
+                    };
+                    let mtm = MainThreadMarker::new().unwrap();
+                    Some(Retained::into_super(WinitTextRange::new(mtm, a, b)))
+                },
+                _ => None,
+            }
+        }
+
+        #[unsafe(method_id(positionFromPosition:offset:))]
+        fn position_from_position_offset(
+            &self,
+            position: &UITextPosition,
+            offset: NSInteger,
+        ) -> Option<Retained<UITextPosition>> {
+            match downcast_position(position) {
+                Some(p) => {
+                    let target = p.offset().saturating_add(offset as i64);
+                    let max = self.ivars().ime.borrow().marked_len_chars() as i64;
+                    if (0..=max).contains(&target) {
+                        let mtm = MainThreadMarker::new().unwrap();
+                        Some(Retained::into_super(WinitTextPosition::new(mtm, target)))
+                    } else {
+                        None
+                    }
+                },
+                None => None,
+            }
+        }
+
+        #[unsafe(method_id(positionFromPosition:inDirection:offset:))]
+        fn position_from_position_in_direction_offset(
+            &self,
+            position: &UITextPosition,
+            direction: UITextLayoutDirection,
+            offset: NSInteger,
+        ) -> Option<Retained<UITextPosition>> {
+            // UITextLayoutDirectionRight (2) / Down (3) move forward;
+            // Left (1) / Up (0) move backward.
+            let signed = match direction.0 {
+                2 | 3 => offset as i64,
+                _ => -(offset as i64),
+            };
+            match downcast_position(position) {
+                Some(p) => {
+                    let target = p.offset().saturating_add(signed);
+                    let max = self.ivars().ime.borrow().marked_len_chars() as i64;
+                    if (0..=max).contains(&target) {
+                        let mtm = MainThreadMarker::new().unwrap();
+                        Some(Retained::into_super(WinitTextPosition::new(mtm, target)))
+                    } else {
+                        None
+                    }
+                },
+                None => None,
+            }
+        }
+
+        #[unsafe(method(comparePosition:toPosition:))]
+        fn compare_position_to_position(
+            &self,
+            position: &UITextPosition,
+            other: &UITextPosition,
+        ) -> NSComparisonResult {
+            let a = downcast_position(position).map(|p| p.offset()).unwrap_or(0);
+            let b = downcast_position(other).map(|p| p.offset()).unwrap_or(0);
+            if a < b {
+                NSComparisonResult::Ascending
+            } else if a > b {
+                NSComparisonResult::Descending
+            } else {
+                NSComparisonResult::Same
+            }
+        }
+
+        #[unsafe(method(offsetFromPosition:toPosition:))]
+        fn offset_from_position_to_position(
+            &self,
+            from: &UITextPosition,
+            to: &UITextPosition,
+        ) -> NSInteger {
+            let a = downcast_position(from).map(|p| p.offset()).unwrap_or(0);
+            let b = downcast_position(to).map(|p| p.offset()).unwrap_or(0);
+            (b - a) as NSInteger
+        }
+
+        // --- delegate / tokenizer -------------------------------------
+
+        #[unsafe(method_id(inputDelegate))]
+        fn input_delegate(&self) -> Option<Retained<ProtocolObject<dyn UITextInputDelegate>>> {
+            // UIKit assigns its own private delegate via
+            // `setInputDelegate:` to receive selection/text-change
+            // notifications. We don't yet notify it (which is fine for
+            // the basic IME path), so just hand back nil if asked.
+            None
+        }
+
+        #[unsafe(method(setInputDelegate:))]
+        fn set_input_delegate(
+            &self,
+            _delegate: Option<&ProtocolObject<dyn UITextInputDelegate>>,
+        ) {
+            // No-op: see `input_delegate` above.
+        }
+
+        #[unsafe(method_id(tokenizer))]
+        fn tokenizer(&self) -> Retained<ProtocolObject<dyn UITextInputTokenizer>> {
+            // `UITextInputStringTokenizer` is UIKit's default tokenizer
+            // for anything implementing `UITextInput`; it just needs a
+            // back-pointer to our view (which is a `UIResponder`).
+            // Creating one per call is fine — UIKit caches the result on
+            // its side.
+            let mtm = MainThreadMarker::new().unwrap();
+            // WinitView → UIView → UIResponder.
+            let responder: &UIResponder = self.as_super().as_super();
+            let tokenizer = unsafe {
+                UITextInputStringTokenizer::initWithTextInput(mtm.alloc(), responder)
+            };
+            ProtocolObject::from_retained(tokenizer)
+        }
+
+        // --- direction queries ----------------------------------------
+
+        #[unsafe(method_id(positionWithinRange:farthestInDirection:))]
+        fn position_within_range_in_direction(
+            &self,
+            range: &UITextRange,
+            direction: UITextLayoutDirection,
+        ) -> Option<Retained<UITextPosition>> {
+            match downcast_range(range) {
+                Some(r) => {
+                    let off = match direction.0 {
+                        2 | 3 => r.end_offset(),
+                        _ => r.start_offset(),
+                    };
+                    let mtm = MainThreadMarker::new().unwrap();
+                    Some(Retained::into_super(WinitTextPosition::new(mtm, off)))
+                },
+                None => None,
+            }
+        }
+
+        #[unsafe(method_id(characterRangeByExtendingPosition:inDirection:))]
+        fn character_range_by_extending(
+            &self,
+            position: &UITextPosition,
+            direction: UITextLayoutDirection,
+        ) -> Option<Retained<UITextRange>> {
+            match downcast_position(position) {
+                Some(p) => {
+                    let pos = p.offset();
+                    let max = self.ivars().ime.borrow().marked_len_chars() as i64;
+                    let (start, end) = match direction.0 {
+                        2 | 3 => (pos, max),
+                        _ => (0, pos),
+                    };
+                    let mtm = MainThreadMarker::new().unwrap();
+                    Some(Retained::into_super(WinitTextRange::new(mtm, start, end)))
+                },
+                None => None,
+            }
+        }
+
+        // --- geometry --------------------------------------------------
+
+        #[unsafe(method(firstRectForRange:))]
+        fn first_rect_for_range(&self, _range: &UITextRange) -> CGRect {
+            // UIKit uses this rect to position the IME candidate popup.
+            // The application owns text layout, not winit, so we fall
+            // back to the view's bounds — the popup will at least show
+            // somewhere near the input.
+            let bounds: CGRect = unsafe { msg_send![self, bounds] };
+            bounds
+        }
+
+        #[unsafe(method(caretRectForPosition:))]
+        fn caret_rect_for_position(&self, _position: &UITextPosition) -> CGRect {
+            CGRect {
+                origin: CGPoint { x: 0.0, y: 0.0 },
+                size: CGSize { width: 1.0, height: 16.0 },
+            }
+        }
+
+        #[unsafe(method_id(selectionRectsForRange:))]
+        fn selection_rects_for_range(
+            &self,
+            _range: &UITextRange,
+        ) -> Retained<NSArray<UITextSelectionRect>> {
+            NSArray::new()
+        }
+
+        // --- hit testing ---------------------------------------------
+
+        #[unsafe(method_id(closestPositionToPoint:))]
+        fn closest_position_to_point(
+            &self,
+            _point: CGPoint,
+        ) -> Option<Retained<UITextPosition>> {
+            let mtm = MainThreadMarker::new().unwrap();
+            Some(Retained::into_super(WinitTextPosition::new(mtm, 0)))
+        }
+
+        #[unsafe(method_id(closestPositionToPoint:withinRange:))]
+        fn closest_position_to_point_within(
+            &self,
+            _point: CGPoint,
+            range: &UITextRange,
+        ) -> Option<Retained<UITextPosition>> {
+            let mtm = MainThreadMarker::new().unwrap();
+            let off = downcast_range(range).map(|r| r.start_offset()).unwrap_or(0);
+            Some(Retained::into_super(WinitTextPosition::new(mtm, off)))
+        }
+
+        #[unsafe(method_id(characterRangeAtPoint:))]
+        fn character_range_at_point(
+            &self,
+            _point: CGPoint,
+        ) -> Option<Retained<UITextRange>> {
+            let mtm = MainThreadMarker::new().unwrap();
+            Some(Retained::into_super(WinitTextRange::new(mtm, 0, 0)))
+        }
+    }
+
+    // The UITextInput protocol marks these two as required even when
+    // they appear under `#[cfg(feature = "NSText")]` in objc2-ui-kit (the
+    // cfg only gates the Rust binding for `NSWritingDirection`, not the
+    // underlying Objective-C protocol). Implement them as plain
+    // selectors against `NSInteger` so we don't have to pull in the
+    // NSText feature.
+    impl WinitView {
+        #[unsafe(method(baseWritingDirectionForPosition:inDirection:))]
+        fn base_writing_direction(
+            &self,
+            _position: &UITextPosition,
+            _direction: NSInteger,
+        ) -> NSInteger {
+            // NSWritingDirectionNatural == 0
+            0
+        }
+
+        #[unsafe(method(setBaseWritingDirection:forRange:))]
+        fn set_base_writing_direction(
+            &self,
+            _direction: NSInteger,
+            _range: &UITextRange,
+        ) {
+        }
+    }
 );
 
 impl WinitView {
@@ -371,6 +860,8 @@ impl WinitView {
 
             primary_finger: Cell::new(None),
             fingers: Cell::new(0),
+
+            ime: RefCell::new(ImeState::default()),
         });
         let this: Retained<Self> = unsafe { msg_send![super(this), initWithFrame: frame] };
 
@@ -577,15 +1068,18 @@ impl WinitView {
                 UITouchPhase::Moved => {
                     let (primary, source) = if let UITouchType::Pencil = touch_type {
                         let tool_data = self.tablet_tool_data_for_pencil(&touch);
-                        (true, PointerSource::TabletTool {
-                            kind: TabletToolKind::Pencil,
-                            data: tool_data,
-                        })
+                        (
+                            true,
+                            PointerSource::TabletTool {
+                                kind: TabletToolKind::Pencil,
+                                data: tool_data,
+                            },
+                        )
                     } else {
-                        (ivars.primary_finger.get().unwrap() == finger_id, PointerSource::Touch {
-                            finger_id,
-                            force,
-                        })
+                        (
+                            ivars.primary_finger.get().unwrap() == finger_id,
+                            PointerSource::Touch { finger_id, force },
+                        )
                     };
 
                     touch_events.push(EventWrapper::Window {
@@ -680,6 +1174,18 @@ impl WinitView {
         }
     }
 
+    fn emit_ime_event(&self, ime: Ime) {
+        let Some(window) = self.window() else {
+            return;
+        };
+        let window_id = window.id();
+        let mtm = MainThreadMarker::new().unwrap();
+        app_state::handle_nonuser_event(
+            mtm,
+            EventWrapper::Window { window_id, event: WindowEvent::Ime(ime) },
+        );
+    }
+
     fn handle_insert_text(&self, text: &NSString) {
         let window = self.window().unwrap();
         let window_id = window.id();
@@ -743,5 +1249,31 @@ impl WinitView {
                 },
             }),
         );
+    }
+}
+
+/// Cast a `&UITextPosition` to our concrete subclass if it is one,
+/// otherwise return `None` (UIKit should only ever hand us positions we
+/// ourselves produced, but we still check defensively).
+fn downcast_position(position: &UITextPosition) -> Option<&WinitTextPosition> {
+    use objc2::ClassType;
+    let cls = <WinitTextPosition as ClassType>::class();
+    let is_kind: bool = unsafe { msg_send![position, isKindOfClass: cls] };
+    if is_kind {
+        // SAFETY: `isKindOfClass:` returned true.
+        Some(unsafe { &*(position as *const UITextPosition as *const WinitTextPosition) })
+    } else {
+        None
+    }
+}
+
+fn downcast_range(range: &UITextRange) -> Option<&WinitTextRange> {
+    use objc2::ClassType;
+    let cls = <WinitTextRange as ClassType>::class();
+    let is_kind: bool = unsafe { msg_send![range, isKindOfClass: cls] };
+    if is_kind {
+        Some(unsafe { &*(range as *const UITextRange as *const WinitTextRange) })
+    } else {
+        None
     }
 }
