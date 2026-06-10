@@ -387,12 +387,31 @@ declare_class!(
             marked_text: Option<&NSString>,
             selected_range: NSRange,
         ) {
-            let text = marked_text.map(|s| s.to_string()).unwrap_or_default();
-            let was_empty = !self.ivars().ime.borrow().is_marked();
+            let new_text = marked_text.map(|s| s.to_string()).unwrap_or_default();
 
+            // `setMarkedText:nil` (or with an empty string) is how iOS
+            // typically tears down an in-progress composition — e.g. the
+            // user tapped the `123` key to switch the soft keyboard from
+            // pinyin to numbers. The system does **not** follow up with a
+            // separate `insertText:` for what's already been typed, so if
+            // we simply cleared the preedit the user would see their
+            // letters silently vanish. Commit the previously marked text
+            // as literal characters instead, matching how UIKit's own
+            // `UITextField` behaves.
+            if new_text.is_empty() {
+                let prev = std::mem::take(&mut self.ivars().ime.borrow_mut().marked_text);
+                self.ivars().ime.borrow_mut().selected_range = (0, 0);
+                if !prev.is_empty() {
+                    self.emit_ime_event(Ime::Preedit(String::new(), None));
+                    self.emit_ime_event(Ime::Commit(prev));
+                }
+                return;
+            }
+
+            let was_empty = !self.ivars().ime.borrow().is_marked();
             {
                 let mut state = self.ivars().ime.borrow_mut();
-                state.marked_text = text;
+                state.marked_text = new_text;
                 // UIKit reports the selection as character offsets inside the
                 // marked text. winit's `Ime::Preedit` wants UTF-8 byte offsets.
                 let chars: Vec<char> = state.marked_text.chars().collect();
@@ -408,7 +427,7 @@ declare_class!(
                 state.selected_range = (to_byte(start), to_byte(end));
             }
 
-            if was_empty && self.ivars().ime.borrow().is_marked() {
+            if was_empty {
                 self.emit_ime_event(Ime::Enabled);
             }
             let snapshot = self.ivars().ime.borrow();
@@ -419,11 +438,16 @@ declare_class!(
 
         #[method(unmarkText)]
         unsafe fn unmark_text(&self) {
-            let had_marked = self.ivars().ime.borrow().is_marked();
-            self.ivars().ime.borrow_mut().marked_text.clear();
+            // Same reasoning as `setMarkedText:` with an empty string:
+            // commit the in-progress text instead of dropping it on the
+            // floor, otherwise the user's keystrokes disappear when the
+            // IME ends a session without picking a candidate (e.g. on
+            // keyboard layout switch).
+            let prev = std::mem::take(&mut self.ivars().ime.borrow_mut().marked_text);
             self.ivars().ime.borrow_mut().selected_range = (0, 0);
-            if had_marked {
+            if !prev.is_empty() {
                 self.emit_ime_event(Ime::Preedit(String::new(), None));
+                self.emit_ime_event(Ime::Commit(prev));
             }
         }
 
