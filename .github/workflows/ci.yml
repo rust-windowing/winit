@@ -118,6 +118,11 @@ jobs:
            cargo update -p gethostname@1.1.0 --precise 1.0.2
            cargo update -p unicode-ident --precise 1.0.10
            cargo update -p syn --precise 2.0.114
+           # `log >= 0.4.30` bumped its MSRV to 1.71, which breaks the
+           # Test 1.70.0 matrix jobs. Pin to the last 1.70-compatible
+           # release (`0.4.29`, rust_version = 1.68) until winit bumps
+           # its own MSRV.
+           cargo update -p log --precise 0.4.29
 
     - name: Install GCC Multilib
       if: (matrix.platform.os == 'ubuntu-latest') && contains(matrix.platform.target, 'i686')
