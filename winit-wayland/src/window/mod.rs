@@ -105,7 +105,7 @@ impl Window {
             event_loop_window_target,
             &state,
             size,
-            state::WindowType::Window((window.clone(), None)),
+            state::WindowType::Window { window: window.clone(), last_configure: None },
             attributes.preferred_theme,
             prefer_csd,
             scale_factor,
@@ -434,7 +434,8 @@ impl CoreWindow for Window {
     }
 
     fn is_maximized(&self) -> bool {
-        if let WindowType::Window((_, last_configure)) = &self.window_state.lock().unwrap().window {
+        if let WindowType::Window { last_configure, .. } = &self.window_state.lock().unwrap().window
+        {
             last_configure
                 .as_ref()
                 .map(|last_configure| last_configure.is_maximized())
@@ -461,7 +462,7 @@ impl CoreWindow for Window {
     }
 
     fn fullscreen(&self) -> Option<Fullscreen> {
-        let is_fullscreen = if let WindowType::Window((_, last_configure)) =
+        let is_fullscreen = if let WindowType::Window { last_configure, .. } =
             &self.window_state.lock().unwrap().window
         {
             last_configure

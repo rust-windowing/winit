@@ -116,7 +116,7 @@ impl Popup {
                     event_loop_window_target,
                     &state,
                     size,
-                    WindowType::Popup((popup.clone(), positioner, None)),
+                    WindowType::Popup { popup: popup.clone(), positioner, last_configure: None },
                     attributes.preferred_theme,
                     false,
                     scale_factor,
@@ -236,7 +236,7 @@ impl CoreWindow for Popup {
 
     fn set_outer_position(&self, position: Position) {
         let state = self.popup_state.lock().unwrap();
-        if let WindowType::Popup((popup, positioner, _)) = &state.window {
+        if let WindowType::Popup { popup, positioner, .. } = &state.window {
             let position = position.to_logical(state.scale_factor());
             positioner.set_offset(position.x, position.y);
             popup.reposition(positioner, 0);

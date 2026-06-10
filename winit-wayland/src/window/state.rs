@@ -36,9 +36,7 @@ use winit_core::window::{
     CursorGrabMode, ImeCapabilities, ImeRequest, ImeRequestError, ResizeDirection, Theme, WindowId,
 };
 
-use crate::ActiveEventLoop;
 use crate::event_loop::OwnedDisplayHandle;
-use crate::logical_to_physical_rounded;
 use crate::seat::{
     PointerConstraintsState, TextInputClientState, WinitPointerData, WinitPointerDataExt,
     ZwpTextInputV3Ext,
@@ -47,6 +45,7 @@ use crate::state::{WindowCompositorUpdate, WinitState};
 use crate::types::bgr_effects::{BgrEffectManager, SurfaceBlurEffect};
 use crate::types::cursor::{CustomCursor, SelectedCursor, WaylandCustomCursor};
 use crate::types::xdg_toplevel_icon_manager::ToplevelIcon;
+use crate::{ActiveEventLoop, logical_to_physical_rounded};
 
 #[cfg(feature = "sctk-adwaita")]
 pub type WinitFrame = sctk_adwaita::AdwaitaFrame<WinitState>;
@@ -59,15 +58,15 @@ const MIN_WINDOW_SIZE: LogicalSize<u32> = LogicalSize::new(2, 1);
 #[derive(Debug)]
 pub enum WindowType {
     // The option is the last received configure
-    Window((Window, Option<WindowConfigure>)),
-    Popup((Popup, XdgPositioner, Option<PopupConfigure>)),
+    Window { window: Window, last_configure: Option<WindowConfigure> },
+    Popup { popup: Popup, positioner: XdgPositioner, last_configure: Option<PopupConfigure> },
 }
 
 impl WindowType {
     pub fn is_configured(&self) -> bool {
         match self {
-            Self::Window((_, last_configure)) => last_configure.is_some(),
-            Self::Popup((_, _, last_configure)) => last_configure.is_some(),
+            Self::Window { last_configure, .. } => last_configure.is_some(),
+            Self::Popup { last_configure, .. } => last_configure.is_some(),
         }
     }
 }
@@ -75,8 +74,8 @@ impl WindowType {
 impl WaylandSurface for WindowType {
     fn wl_surface(&self) -> &wayland_client::protocol::wl_surface::WlSurface {
         match self {
-            Self::Window((window, _)) => window.wl_surface(),
-            Self::Popup((popup, ..)) => popup.wl_surface(),
+            Self::Window { window, .. } => window.wl_surface(),
+            Self::Popup { popup, .. } => popup.wl_surface(),
         }
     }
 }
@@ -84,8 +83,8 @@ impl WaylandSurface for WindowType {
 impl XdgSurface for WindowType {
     fn xdg_surface(&self) -> &wayland_protocols::xdg::shell::client::xdg_surface::XdgSurface {
         match self {
-            Self::Window((window, _)) => window.xdg_surface(),
-            Self::Popup((popup, ..)) => popup.xdg_surface(),
+            Self::Window { window, .. } => window.xdg_surface(),
+            Self::Popup { popup, .. } => popup.xdg_surface(),
         }
     }
 }
@@ -331,15 +330,16 @@ impl WindowState {
             LogicalSize { width: configure.width as u32, height: configure.height as u32 };
 
         // NOTE: Set the configure before doing a resize, since we query it during it.
-        if let WindowType::Popup((_, _, last_configure)) = &mut self.window {
+        if let WindowType::Popup { last_configure, .. } = &mut self.window {
             let kind = configure.kind.clone();
             *last_configure = Some(configure);
 
-            // Always resize on the initial configure to properly initialize the viewport destination
-            // and window geometry. This is required for fractional scaling to work correctly: without
-            // calling resize(), viewport.set_destination() is never called, and the compositor would
-            // interpret the buffer size as logical pixels, making the popup appear at the wrong size.
-            // Also resize when the compositor constrained us to a different size than requested.
+            // Always resize on the initial configure to properly initialize the viewport
+            // destination and window geometry. This is required for fractional scaling
+            // to work correctly: without calling resize(), viewport.set_destination()
+            // is never called, and the compositor would interpret the buffer size as
+            // logical pixels, making the popup appear at the wrong size. Also resize
+            // when the compositor constrained us to a different size than requested.
             if matches!(kind, ConfigureKind::Initial) || constrained {
                 self.resize(new_size);
             }
@@ -348,7 +348,6 @@ impl WindowState {
                 "configure_popup called for window type unequal of popup. This should never \
                  happen, because we start configuring with a popup"
             );
-            return;
         }
     }
 
@@ -470,7 +469,7 @@ impl WindowState {
         }
 
         let new_state = configure.state;
-        if let WindowType::Window((_, last_configure)) = &mut self.window {
+        if let WindowType::Window { last_configure, .. } = &mut self.window {
             let old_state = last_configure.as_ref().map(|configure| configure.state);
 
             let state_change_requires_resize = old_state
@@ -530,7 +529,7 @@ impl WindowState {
     /// Start interacting drag resize.
     pub fn drag_resize_window(&self, direction: ResizeDirection) -> Result<(), RequestError> {
         match &self.window {
-            WindowType::Window((window, _)) => {
+            WindowType::Window { window, .. } => {
                 let xdg_toplevel = window.xdg_toplevel();
 
                 // TODO(kchibisov) handle touch serials.
@@ -541,7 +540,7 @@ impl WindowState {
                 });
                 Ok(())
             },
-            WindowType::Popup(..) => Err(RequestError::NotSupported(NotSupportedError::new(
+            WindowType::Popup { .. } => Err(RequestError::NotSupported(NotSupportedError::new(
                 "Drag resize for popup not supported",
             ))),
         }
@@ -550,7 +549,7 @@ impl WindowState {
     /// Start the window drag.
     pub fn drag_window(&self) -> Result<(), RequestError> {
         match &self.window {
-            WindowType::Window((window, ..)) => {
+            WindowType::Window { window, .. } => {
                 let xdg_toplevel = window.xdg_toplevel();
                 // TODO(kchibisov) handle touch serials.
                 self.apply_on_pointer(|_, data| {
@@ -561,7 +560,7 @@ impl WindowState {
 
                 Ok(())
             },
-            WindowType::Popup(..) => Err(RequestError::NotSupported(NotSupportedError::new(
+            WindowType::Popup { .. } => Err(RequestError::NotSupported(NotSupportedError::new(
                 "Drag for popup not supported",
             ))),
         }
@@ -580,7 +579,7 @@ impl WindowState {
         updates: &mut Vec<WindowCompositorUpdate>,
     ) -> Option<bool> {
         match &self.window {
-            WindowType::Window((window, ..)) => {
+            WindowType::Window { window, .. } => {
                 match self.frame.as_mut()?.on_click(timestamp, click, pressed)? {
                     FrameAction::Minimize => window.set_minimized(),
                     FrameAction::Maximize => window.set_maximized(),
@@ -608,7 +607,7 @@ impl WindowState {
 
                 Some(false)
             },
-            WindowType::Popup(..) => None,
+            WindowType::Popup { .. } => None,
         }
     }
 
@@ -628,7 +627,7 @@ impl WindowState {
         y: f64,
     ) -> Option<CursorIcon> {
         match &self.window {
-            WindowType::Window((window, ..)) => {
+            WindowType::Window { window, .. } => {
                 // Take the serial if we had any, so it doesn't stick around.
                 let serial = self.has_pending_move.take();
 
@@ -646,7 +645,7 @@ impl WindowState {
                     None
                 }
             },
-            WindowType::Popup(..) => None,
+            WindowType::Popup { .. } => None,
         }
     }
 
@@ -713,8 +712,8 @@ impl WindowState {
     #[inline]
     pub fn is_decorated(&mut self) -> bool {
         match &mut self.window {
-            WindowType::Window((_, last_configuration)) => {
-                let csd = last_configuration
+            WindowType::Window { last_configure, .. } => {
+                let csd = last_configure
                     .as_ref()
                     .map(|configure| configure.decoration_mode == DecorationMode::Client)
                     .unwrap_or(false);
@@ -725,7 +724,7 @@ impl WindowState {
                     true
                 }
             },
-            WindowType::Popup(..) => false, // Popup window does not have any decoration
+            WindowType::Popup { .. } => false, // Popup window does not have any decoration
         }
     }
 
@@ -808,12 +807,12 @@ impl WindowState {
     /// Try to resize the window when the user can do so.
     pub fn request_surface_size(&mut self, surface_size: Size) -> PhysicalSize<u32> {
         match &self.window {
-            WindowType::Window((_, last_configure)) => {
+            WindowType::Window { last_configure, .. } => {
                 if last_configure.as_ref().map(Self::is_stateless).unwrap_or(true) {
                     self.resize(surface_size.to_logical(self.scale_factor()))
                 }
             },
-            WindowType::Popup((popup, positioner, _)) => {
+            WindowType::Popup { popup, positioner, .. } => {
                 let size = surface_size.to_logical(self.scale_factor());
                 positioner.set_size(size.width, size.height);
                 popup.reposition(positioner, 0);
@@ -828,8 +827,7 @@ impl WindowState {
         self.size = surface_size;
 
         // Update the stateless size.
-        if let WindowType::Window((_, last_configure)) = &mut self.window
-        {
+        if let WindowType::Window { last_configure, .. } = &mut self.window {
             if let Some(true) = last_configure.as_ref().map(Self::is_stateless) {
                 self.stateless_size = surface_size;
             }
@@ -968,7 +966,7 @@ impl WindowState {
 
     /// Set maximum inner window size.
     pub fn set_min_surface_size(&mut self, size: Option<LogicalSize<u32>>) {
-        if let WindowType::Window((window, _)) = &self.window {
+        if let WindowType::Window { window, .. } = &self.window {
             // Ensure that the window has the right minimum size.
             let mut size = size.unwrap_or(MIN_WINDOW_SIZE);
             size.width = size.width.max(MIN_WINDOW_SIZE.width);
@@ -988,7 +986,7 @@ impl WindowState {
 
     /// Set maximum inner window size.
     pub fn set_max_surface_size(&mut self, size: Option<LogicalSize<u32>>) {
-        if let WindowType::Window((window, _)) = &self.window {
+        if let WindowType::Window { window, .. } = &self.window {
             let size = size.map(|size| {
                 self.frame
                     .as_ref()
@@ -1095,7 +1093,7 @@ impl WindowState {
     }
 
     pub fn show_window_menu(&self, position: LogicalPosition<u32>) {
-        if let WindowType::Window((window, _)) = &self.window {
+        if let WindowType::Window { window, .. } = &self.window {
             // TODO(kchibisov) handle touch serials.
             self.apply_on_pointer(|_, data| {
                 let serial = data.latest_button_serial();
@@ -1154,7 +1152,7 @@ impl WindowState {
         self.decorate = decorate;
 
         match &self.window {
-            WindowType::Window((window, last_configure)) => {
+            WindowType::Window { window, last_configure } => {
                 match last_configure.as_ref().map(|configure| configure.decoration_mode) {
                     Some(DecorationMode::Server) if !self.decorate => {
                         // To disable decorations we should request client and hide the frame.
@@ -1175,7 +1173,7 @@ impl WindowState {
                     self.resize(self.size);
                 }
             },
-            WindowType::Popup(..) => (), // Popup does not have any decoration
+            WindowType::Popup { .. } => (), // Popup does not have any decoration
         }
     }
 
@@ -1311,15 +1309,15 @@ impl WindowState {
         }
 
         match &self.window {
-            WindowType::Window((window, ..)) => window.set_title(&title),
-            WindowType::Popup(..) => (), // Popup does not have any title
+            WindowType::Window { window, .. } => window.set_title(&title),
+            WindowType::Popup { .. } => (), // Popup does not have any title
         }
         self.title = title;
     }
 
     /// Set the window's icon
     pub fn set_window_icon(&mut self, window_icon: Option<winit_core::icon::Icon>) {
-        if let WindowType::Window((window, _)) = &self.window {
+        if let WindowType::Window { window, .. } = &self.window {
             let xdg_toplevel_icon_manager = match self.xdg_toplevel_icon_manager.as_ref() {
                 Some(xdg_toplevel_icon_manager) => xdg_toplevel_icon_manager,
                 None => {

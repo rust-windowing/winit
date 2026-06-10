@@ -660,7 +660,9 @@ impl RootActiveEventLoop for ActiveEventLoop {
                 let popup = crate::Popup::new(self, window_attributes)?;
                 Ok(Box::new(popup))
             },
-            _ => panic!("Not implemented"),
+            _ => Err(RequestError::NotSupported(NotSupportedError::new(
+                "Supports only Window or Popup",
+            ))),
         }
     }
 

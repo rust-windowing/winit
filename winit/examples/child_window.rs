@@ -36,7 +36,7 @@ fn main() -> Result<(), impl std::error::Error> {
         fn can_create_surfaces(&mut self, event_loop: &dyn ActiveEventLoop) {
             let attributes = WindowAttributes::default()
                 .with_title("parent window")
-                .with_type(WindowType::Window)
+                .with_window_type(WindowType::Window)
                 .with_position(Position::Logical(LogicalPosition::new(0.0, 0.0)))
                 .with_surface_size(LogicalSize::new(640.0f32, 480.0f32));
             let window = event_loop.create_window(attributes).unwrap();
@@ -125,7 +125,7 @@ fn main() -> Result<(), impl std::error::Error> {
 #[cfg(not(any(wayland_platform, x11_platform, macos_platform, windows_platform)))]
 fn main() {
     panic!(
-        "This example is supported only on wayland, x11, macOS, and Windows, with the `rwh_06` feature \
-         enabled."
+        "This example is supported only on wayland, x11, macOS, and Windows, with the `rwh_06` \
+         feature enabled."
     );
 }

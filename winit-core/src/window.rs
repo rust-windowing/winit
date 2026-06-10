@@ -59,10 +59,10 @@ pub enum WindowType {
     ///
     /// ## Platform-specific
     ///
-    /// - **macOS:** A borderless, non-activating child window. The system does *not* draw a frame,
-    ///   shadow contour, or rounded corners for it, so it appears with square corners by default.
-    ///   To get a rounded, native-looking popup, create it transparent (via
-    ///   [`WindowAttributes::with_transparent`]) and draw the background and shadow yourself.
+    /// - **macOS:** A borderless, non-activating child window. The system does *not* draw rounded
+    ///   corners for it. To get a rounded, native-looking popup, create it transparent (via
+    ///   [`WindowAttributes::with_transparent`]) and render the round border yourself.
+    /// - **X11:** Popups are just normal windows
     Popup,
 }
 
@@ -411,7 +411,7 @@ impl WindowAttributes {
     ///
     /// See [`WindowType::Popup`] for the per-platform behavior, including how to obtain a
     /// rounded, native-looking popup on macOS.
-    pub fn with_type(mut self, window_type: WindowType) -> Self {
+    pub fn with_window_type(mut self, window_type: WindowType) -> Self {
         self.window_type = window_type;
         self
     }
