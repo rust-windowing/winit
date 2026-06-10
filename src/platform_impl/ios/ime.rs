@@ -63,9 +63,7 @@ declare_class!(
 
 impl WinitTextPosition {
     pub(crate) fn new(mtm: MainThreadMarker, offset: i64) -> Retained<Self> {
-        let this = mtm.alloc().set_ivars(WinitTextPositionState {
-            offset: Cell::new(offset),
-        });
+        let this = mtm.alloc().set_ivars(WinitTextPositionState { offset: Cell::new(offset) });
         unsafe { msg_send_id![super(this), init] }
     }
 
@@ -119,10 +117,9 @@ declare_class!(
 
 impl WinitTextRange {
     pub(crate) fn new(mtm: MainThreadMarker, start: i64, end: i64) -> Retained<Self> {
-        let this = mtm.alloc().set_ivars(WinitTextRangeState {
-            start: Cell::new(start),
-            end: Cell::new(end),
-        });
+        let this = mtm
+            .alloc()
+            .set_ivars(WinitTextRangeState { start: Cell::new(start), end: Cell::new(end) });
         unsafe { msg_send_id![super(this), init] }
     }
 
