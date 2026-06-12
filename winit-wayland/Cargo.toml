@@ -40,7 +40,7 @@ sctk = { package = "smithay-client-toolkit", version = "0.20.0", default-feature
 sctk-adwaita = { version = "0.11.0", default-features = false, optional = true }
 wayland-backend = { version = "0.3.10", default-features = false, features = ["client_system"] }
 wayland-client = "0.31.10"
-wayland-protocols = { version = "0.32.8", features = ["staging"] }
+wayland-protocols = { version = "0.32.11", features = ["staging", "unstable"] }
 wayland-protocols-plasma = { version = "0.3.8", features = ["client"] }
 winit-common = { workspace = true, features = ["xkb", "wayland"] }
 
