@@ -1305,6 +1305,10 @@ impl WindowDelegate {
         Err(NotSupportedError::new("drag_resize_window is not supported"))
     }
 
+    pub fn is_live_resizing(&self) -> bool {
+        self.window().inLiveResize()
+    }
+
     #[inline]
     pub fn show_window_menu(&self, _position: Position) {}
 
@@ -1846,6 +1850,11 @@ fn restore_and_release_display(monitor: &MonitorHandle) {
 }
 
 impl WindowExtMacOS for WindowDelegate {
+    #[inline]
+    fn is_live_resizing(&self) -> bool {
+        WindowDelegate::is_live_resizing(self)
+    }
+
     #[inline]
     fn simple_fullscreen(&self) -> bool {
         self.ivars().is_simple_fullscreen.get()
