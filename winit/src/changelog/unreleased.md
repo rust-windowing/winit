@@ -58,6 +58,10 @@ changelog entry.
 
 ### Fixed
 
+- On Windows, fix a freeze that occurs when the keyboard layout is switched by
+  tools such as Punto Switcher. The `WM_INPUTLANGCHANGE` message is now handled
+  to refresh the cached keyboard layout, while still deferring to
+  `DefWindowProc` for normal propagation.
 - On Redox, handle `EINTR` when reading from `event_socket` instead of panicking.
 - On Wayland, switch from using the `ahash` hashing algorithm to `foldhash`.
 - On macOS, fix borderless game presentation options not sticking after switching spaces.
