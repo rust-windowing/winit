@@ -3,11 +3,12 @@
 fn main() -> Result<(), impl std::error::Error> {
     use std::collections::HashMap;
 
+    use softbuffer::{Context, Surface};
     use tracing::info;
     use winit::application::ApplicationHandler;
     use winit::dpi::{LogicalPosition, LogicalSize, Position};
     use winit::event::{ElementState, KeyEvent, WindowEvent};
-    use winit::event_loop::{ActiveEventLoop, EventLoop};
+    use winit::event_loop::{ActiveEventLoop, EventLoop, OwnedDisplayHandle};
     use winit::raw_window_handle::HasRawWindowHandle;
     use winit::window::{Window, WindowAttributes, WindowId};
 
@@ -16,18 +17,20 @@ fn main() -> Result<(), impl std::error::Error> {
 
     #[derive(Debug)]
     struct WindowData {
-        window: Box<dyn Window>,
+        surface: Surface<OwnedDisplayHandle, Box<dyn Window>>,
         color: u32,
     }
 
     impl WindowData {
-        fn new(window: Box<dyn Window>, color: u32) -> Self {
-            Self { window, color }
+        fn new(context: &Context<OwnedDisplayHandle>, window: Box<dyn Window>, color: u32) -> Self {
+            let surface = Surface::new(context, window).unwrap();
+            Self { surface, color }
         }
     }
 
-    #[derive(Default, Debug)]
+    #[derive(Debug)]
     struct Application {
+        context: Context<OwnedDisplayHandle>,
         parent_window_id: Option<WindowId>,
         windows: HashMap<WindowId, WindowData>,
     }
@@ -42,7 +45,7 @@ fn main() -> Result<(), impl std::error::Error> {
             info!("Parent window id: {:?})", window.id());
             self.parent_window_id = Some(window.id());
 
-            self.windows.insert(window.id(), WindowData::new(window, 0xffbbbbbb));
+            self.windows.insert(window.id(), WindowData::new(&self.context, window, 0xffbbbbbb));
         }
 
         fn window_event(
@@ -73,18 +76,24 @@ fn main() -> Result<(), impl std::error::Error> {
                         0xff000000 + 3_u32.pow((child_index + 2).rem_euclid(16) as u32);
 
                     let parent_window = self.windows.get(&self.parent_window_id.unwrap()).unwrap();
-                    let child_window =
-                        spawn_child_window(parent_window.window.as_ref(), event_loop, child_index);
+                    let child_window = spawn_child_window(
+                        parent_window.surface.window().as_ref(),
+                        event_loop,
+                        child_index,
+                    );
                     let child_id = child_window.id();
                     info!("Child window created with id: {child_id:?}");
-                    self.windows.insert(child_id, WindowData::new(child_window, child_color));
+                    self.windows.insert(
+                        child_id,
+                        WindowData::new(&self.context, child_window, child_color),
+                    );
                 },
                 WindowEvent::RedrawRequested => {
-                    if let Some(window) = self.windows.get(&window_id) {
+                    if let Some(window) = self.windows.get_mut(&window_id) {
                         if window_id == self.parent_window_id.unwrap() {
-                            fill::fill_window(window.window.as_ref());
+                            fill::fill(&mut window.surface);
                         } else {
-                            fill::fill_window_with_color(window.window.as_ref(), window.color);
+                            fill::fill_with_color(&mut window.surface, window.color);
                         }
                     }
                 },
@@ -118,7 +127,8 @@ fn main() -> Result<(), impl std::error::Error> {
     }
 
     let event_loop = EventLoop::new().unwrap();
-    event_loop.run_app(Application::default())
+    let context = Context::new(event_loop.owned_display_handle()).unwrap();
+    event_loop.run_app(Application { context, parent_window_id: None, windows: HashMap::new() })
 }
 
 #[cfg(not(any(x11_platform, macos_platform, windows_platform)))]

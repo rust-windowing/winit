@@ -9,10 +9,11 @@ use std::cmp;
 use std::error::Error;
 
 use dpi::{LogicalPosition, PhysicalSize};
+use softbuffer::{Context, Surface};
 use tracing::{error, info};
 use winit::application::ApplicationHandler;
 use winit::event::{Ime, WindowEvent};
-use winit::event_loop::{ActiveEventLoop, EventLoop};
+use winit::event_loop::{ActiveEventLoop, EventLoop, OwnedDisplayHandle};
 use winit::keyboard::{Key, ModifiersState, NamedKey};
 #[cfg(web_platform)]
 use winit::platform::web::WindowAttributesWeb;
@@ -30,7 +31,7 @@ const IME_CURSOR_SIZE: PhysicalSize<u32> = PhysicalSize::new(20, 20);
 
 #[derive(Debug)]
 struct App {
-    window: Option<Box<dyn Window>>,
+    surface: Option<Surface<OwnedDisplayHandle, Box<dyn Window>>>,
     input_state: TextInputState,
     modifiers: ModifiersState,
 }
@@ -73,14 +74,12 @@ impl ApplicationHandler for App {
         #[cfg(web_platform)]
         let window_attributes = WindowAttributes::default()
             .with_platform_attributes(Box::new(WindowAttributesWeb::default().with_append(true)));
-        self.window = match event_loop.create_window(window_attributes) {
-            Ok(window) => Some(window),
-            Err(err) => {
-                error!("error creating window: {err}");
-                event_loop.exit();
-                return;
-            },
-        };
+        let window = event_loop.create_window(window_attributes).expect("failed creating window");
+
+        let context =
+            Context::new(event_loop.owned_display_handle()).expect("failed creating context");
+        let surface = Surface::new(&context, window).expect("failed creating surface");
+        self.surface = Some(surface);
 
         // Allow IME out of the box.
         let enable_request = ImeEnableRequest::new(
@@ -101,11 +100,13 @@ impl ApplicationHandler for App {
         match event {
             WindowEvent::CloseRequested => {
                 info!("Close was requested; stopping");
-                self.window = None;
+                self.surface = None;
                 event_loop.exit();
             },
-            WindowEvent::SurfaceResized(_) => {
-                self.window.as_ref().expect("resize event without a window").request_redraw();
+            WindowEvent::SurfaceResized(surface_size) => {
+                let surface = self.surface.as_mut().expect("resize event without a surface");
+                fill::resize(surface, surface_size);
+                surface.window().request_redraw();
             },
             WindowEvent::RedrawRequested => {
                 // Redraw the application.
@@ -114,13 +115,13 @@ impl ApplicationHandler for App {
                 // this event rather than in AboutToWait, since rendering in here allows
                 // the program to gracefully handle redraws requested by the OS.
 
-                let window = self.window.as_ref().expect("redraw request without a window");
+                let surface = self.surface.as_mut().expect("redraw event without a surface");
 
                 // Notify that you're about to draw.
-                window.pre_present_notify();
+                surface.window().pre_present_notify();
 
                 // Draw.
-                fill::fill_window(window.as_ref());
+                fill::fill(surface);
 
                 // For contiguous redraw loop you can request a redraw from here.
                 // window.request_redraw();
@@ -214,14 +215,14 @@ impl App {
     }
 
     fn handle_ime_event(&mut self, event: Ime) {
-        let window = self.window.as_ref().expect("IME request without a window");
+        let surface = self.surface.as_ref().expect("IME request without a window");
         match event {
-            Ime::Enabled => info!("IME enabled for Window={:?}", window.id()),
+            Ime::Enabled => info!("IME enabled for Window={:?}", surface.window().id()),
             Ime::Preedit(text, caret_pos) => info!("Preedit: {text}, with caret at {caret_pos:?}"),
             Ime::Commit(text) => {
                 self.input_state.append_text(&text);
                 let request_data = self.get_ime_update();
-                window.request_ime_update(ImeRequest::Update(request_data)).unwrap();
+                surface.window().request_ime_update(ImeRequest::Update(request_data)).unwrap();
                 self.print_input_state();
             },
             Ime::DeleteSurrounding { before_bytes, after_bytes } => {
@@ -246,7 +247,7 @@ impl App {
                     error!("Buggy IME tried to delete with indices not on char boundary.");
                 }
             },
-            Ime::Disabled => info!("IME disabled for Window={:?}", window.id()),
+            Ime::Disabled => info!("IME disabled for Window={:?}", surface.window().id()),
         }
     }
 
@@ -312,7 +313,7 @@ impl App {
     }
 
     fn window(&self) -> &dyn Window {
-        self.window.as_ref().unwrap().as_ref()
+        self.surface.as_ref().unwrap().window().as_ref()
     }
 }
 
@@ -355,7 +356,7 @@ Use CTRL+h to cycle content hint permutations.
     );
 
     let app = App {
-        window: None,
+        surface: None,
         input_state: TextInputState {
             ime_enabled: true,
             contents: String::new(),
