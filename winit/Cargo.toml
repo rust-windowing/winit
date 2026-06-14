@@ -76,9 +76,13 @@ winit-core.workspace = true
 
 [dev-dependencies]
 image = { workspace = true, features = ["png"] }
-softbuffer.workspace = true
 tracing = { workspace = true, features = ["log"] }
 tracing-subscriber = { workspace = true, features = ["env-filter"] }
+# Launching a window without drawing to it has unpredictable results varying from platform to
+# platform. We use the `softbuffer` crate in our examples because of its ease of use to avoid
+# confusion around this. `glutin` or `wgpu` could also be used to fill the window buffer, but they
+# are more complicated to set up.
+softbuffer.workspace = true
 
 [target.'cfg(target_os = "android")'.dependencies]
 winit-android.workspace = true
