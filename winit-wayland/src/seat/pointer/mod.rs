@@ -158,8 +158,12 @@ impl PointerHandler for WinitState {
                         window_id,
                     );
                 },
-                PointerEventKind::Motion { .. } => {
-                    self.events_sink.push_window_event(
+                PointerEventKind::Motion { time } => {
+                    let timestamp = WinitState::resolve_compositor_time_ms(
+                        &self.compositor_time_ms_anchor,
+                        time,
+                    );
+                    self.events_sink.push_window_event_at(
                         WindowEvent::PointerMoved {
                             primary: true,
                             device_id: None,
@@ -167,10 +171,11 @@ impl PointerHandler for WinitState {
                             source: PointerSource::Mouse,
                         },
                         window_id,
+                        timestamp,
                     );
                 },
-                ref kind @ PointerEventKind::Press { button, serial, .. }
-                | ref kind @ PointerEventKind::Release { button, serial, .. } => {
+                ref kind @ PointerEventKind::Press { button, serial, time }
+                | ref kind @ PointerEventKind::Release { button, serial, time } => {
                     // Update the last button serial.
                     pointer.winit_data().inner.lock().unwrap().latest_button_serial = serial;
 
@@ -180,7 +185,11 @@ impl PointerHandler for WinitState {
                     } else {
                         ElementState::Released
                     };
-                    self.events_sink.push_window_event(
+                    let timestamp = WinitState::resolve_compositor_time_ms(
+                        &self.compositor_time_ms_anchor,
+                        time,
+                    );
+                    self.events_sink.push_window_event_at(
                         WindowEvent::PointerButton {
                             primary: true,
                             device_id: None,
@@ -189,9 +198,10 @@ impl PointerHandler for WinitState {
                             button,
                         },
                         window_id,
+                        timestamp,
                     );
                 },
-                PointerEventKind::Axis { horizontal, vertical, .. } => {
+                PointerEventKind::Axis { horizontal, vertical, time, .. } => {
                     // Get the current phase.
                     let mut pointer_data = pointer.winit_data().inner.lock().unwrap();
 
@@ -238,9 +248,14 @@ impl PointerHandler for WinitState {
                         )
                     };
 
-                    self.events_sink.push_window_event(
+                    let timestamp = WinitState::resolve_compositor_time_ms(
+                        &self.compositor_time_ms_anchor,
+                        time,
+                    );
+                    self.events_sink.push_window_event_at(
                         WindowEvent::MouseWheel { device_id: None, delta, phase },
                         window_id,
+                        timestamp,
                     )
                 },
             }

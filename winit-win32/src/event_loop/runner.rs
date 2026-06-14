@@ -66,9 +66,9 @@ pub(crate) enum RunnerState {
 
 #[derive(Debug, Clone)]
 pub(crate) enum Event {
-    Device { device_id: DeviceId, event: DeviceEvent },
-    Window { window_id: WindowId, event: WindowEvent },
-    BufferedScaleFactorChanged(HWND, f64, PhysicalSize<u32>),
+    Device { device_id: DeviceId, event: DeviceEvent, timestamp: Instant },
+    Window { window_id: WindowId, event: WindowEvent, timestamp: Instant },
+    BufferedScaleFactorChanged(HWND, f64, PhysicalSize<u32>, Instant),
     // FIXME(madsmtm): Coalesce these into a flag (or similar) instead of handling them as events.
     // https://github.com/rust-windowing/winit/pull/3687
     WakeUp,
@@ -396,10 +396,12 @@ impl Event {
             Self::Window {
                 event: WindowEvent::ScaleFactorChanged { scale_factor, surface_size_writer },
                 window_id,
+                timestamp,
             } => Event::BufferedScaleFactorChanged(
                 window_id.into_raw() as HWND,
                 scale_factor,
                 surface_size_writer.surface_size().unwrap(),
+                timestamp,
             ),
             event => event,
         }
@@ -411,15 +413,18 @@ impl Event {
         event_loop: &dyn RootActiveEventLoop,
     ) {
         match self {
-            Self::Window { window_id, event } => app.window_event(event_loop, window_id, event),
-            Self::Device { device_id, event } => {
-                app.device_event(event_loop, Some(device_id), event)
+            Self::Window { window_id, event, timestamp } => {
+                app.window_event(event_loop, window_id, timestamp, event)
             },
-            Self::BufferedScaleFactorChanged(window, scale_factor, new_surface_size) => {
+            Self::Device { device_id, event, timestamp } => {
+                app.device_event(event_loop, Some(device_id), timestamp, event)
+            },
+            Self::BufferedScaleFactorChanged(window, scale_factor, new_surface_size, timestamp) => {
                 let user_new_surface_size = Arc::new(Mutex::new(new_surface_size));
                 app.window_event(
                     event_loop,
                     WindowId::from_raw(window as usize),
+                    timestamp,
                     WindowEvent::ScaleFactorChanged {
                         scale_factor,
                         surface_size_writer: SurfaceSizeWriter::new(Arc::downgrade(

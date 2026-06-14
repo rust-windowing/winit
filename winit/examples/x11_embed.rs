@@ -3,6 +3,7 @@ use std::error::Error;
 
 #[cfg(x11_platform)]
 fn main() -> Result<(), Box<dyn Error>> {
+    use winit::Instant;
     use winit::application::ApplicationHandler;
     use winit::event::WindowEvent;
     use winit::event_loop::{ActiveEventLoop, EventLoop};
@@ -36,6 +37,7 @@ fn main() -> Result<(), Box<dyn Error>> {
             &mut self,
             event_loop: &dyn ActiveEventLoop,
             _window_id: WindowId,
+            _timestamp: Instant,
             event: WindowEvent,
         ) {
             let window = self.window.as_ref().unwrap();

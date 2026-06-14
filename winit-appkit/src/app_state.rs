@@ -2,12 +2,13 @@ use std::cell::{Cell, OnceCell, RefCell};
 use std::mem;
 use std::rc::Rc;
 use std::sync::Arc;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use dispatch2::MainThreadBound;
 use objc2::MainThreadMarker;
-use objc2_app_kit::{NSApplication, NSApplicationActivationPolicy, NSRunningApplication};
+use objc2_app_kit::{NSApplication, NSApplicationActivationPolicy, NSEvent, NSRunningApplication};
 use objc2_foundation::NSNotification;
+use tracing::warn;
 use winit_common::core_foundation::{EventLoopProxy, MainRunLoop};
 use winit_common::event_handler::EventHandler;
 use winit_core::application::ApplicationHandler;
@@ -16,6 +17,7 @@ use winit_core::event_loop::ControlFlow;
 use winit_core::window::WindowId;
 
 use super::event_loop::{ActiveEventLoop, notify_windows_of_exit, stop_app_immediately};
+use super::ffi::CACurrentMediaTime;
 use super::menu;
 use super::observer::EventLoopWaker;
 
@@ -43,6 +45,10 @@ pub(super) struct AppState {
     start_time: Cell<Option<Instant>>,
     wait_timeout: Cell<Option<Instant>>,
     pending_redraw: RefCell<Vec<WindowId>>,
+    /// [`Instant`] / `CACurrentMediaTime` pair sampled at startup, used to translate
+    /// `NSEvent.timestamp` into [`Instant`].
+    startup_instant: Instant,
+    startup_timestamp: f64,
     // NOTE: This is strongly referenced by our `NSWindowDelegate` and our `NSView` subclass, and
     // as such should be careful to not add fields that, in turn, strongly reference those.
 }
@@ -62,6 +68,12 @@ impl AppState {
         let event_loop_proxy = Arc::new(EventLoopProxy::new(mtm, move || {
             Self::get(mtm).with_handler(|app, event_loop| app.proxy_wake_up(event_loop));
         }));
+
+        // Prime the QuartzCore dylib cache so the subsequent read reflects steady-state cost,
+        // then sample back-to-back to bound the calibration skew between the two clocks.
+        let _ = unsafe { CACurrentMediaTime() };
+        let startup_instant = Instant::now();
+        let startup_timestamp = unsafe { CACurrentMediaTime() };
 
         let this = Rc::new(Self {
             mtm,
@@ -83,6 +95,8 @@ impl AppState {
             start_time: Cell::new(None),
             wait_timeout: Cell::new(None),
             pending_redraw: RefCell::new(vec![]),
+            startup_instant,
+            startup_timestamp,
         });
 
         GLOBAL.get(mtm).set(this.clone()).ok().and(Some(this))
@@ -94,6 +108,37 @@ impl AppState {
             .get()
             .expect("tried to get application state before it was registered")
             .clone()
+    }
+
+    /// Convert an `NSEvent`'s `mach_absolute_time` timestamp into an [`Instant`] using the
+    /// calibration captured at startup.
+    pub(crate) fn event_time(&self, event: &NSEvent) -> Instant {
+        let ts = event.timestamp();
+        if ts == 0.0 {
+            warn!("NSEvent has zero timestamp; falling back to Instant::now()");
+            return Instant::now();
+        }
+        let secs_since_startup = ts - self.startup_timestamp;
+        if !secs_since_startup.is_finite() {
+            return Instant::now();
+        }
+        let offset = Duration::from_secs_f64(secs_since_startup.abs());
+        if secs_since_startup < 0.0 {
+            self.startup_instant.checked_sub(offset).unwrap_or(self.startup_instant)
+        } else {
+            self.startup_instant + offset
+        }
+    }
+
+    /// Look up the time of the currently-dispatching `NSEvent`, if any; otherwise
+    /// [`Instant::now()`].
+    pub(crate) fn current_event_time(&self) -> Instant {
+        let app = NSApplication::sharedApplication(self.mtm);
+        if let Some(nsevent) = app.currentEvent() {
+            self.event_time(&nsevent)
+        } else {
+            Instant::now()
+        }
     }
 
     // NOTE: This notification will, globally, only be emitted once,
@@ -245,7 +290,12 @@ impl AppState {
         // -> Don't go back into the event handler when our callstack originates from there
         if !self.event_handler.in_use() {
             self.with_handler(|app, event_loop| {
-                app.window_event(event_loop, window_id, WindowEvent::RedrawRequested);
+                app.window_event(
+                    event_loop,
+                    window_id,
+                    Instant::now(),
+                    WindowEvent::RedrawRequested,
+                );
             });
 
             // `pump_events` will request to stop immediately _after_ dispatching RedrawRequested
@@ -345,7 +395,12 @@ impl AppState {
         let redraw = mem::take(&mut *self.pending_redraw.borrow_mut());
         for window_id in redraw {
             self.with_handler(|app, event_loop| {
-                app.window_event(event_loop, window_id, WindowEvent::RedrawRequested);
+                app.window_event(
+                    event_loop,
+                    window_id,
+                    Instant::now(),
+                    WindowEvent::RedrawRequested,
+                );
             });
         }
         self.with_handler(|app, event_loop| {

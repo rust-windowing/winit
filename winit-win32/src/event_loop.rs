@@ -114,7 +114,11 @@ pub(crate) struct WindowData {
 impl WindowData {
     fn send_window_event(&self, window: HWND, event: WindowEvent) {
         let window_id = WindowId::from_raw(window as usize);
-        self.event_loop_runner.send_event(Event::Window { window_id, event });
+        self.event_loop_runner.send_event(Event::Window {
+            window_id,
+            event,
+            timestamp: Instant::now(),
+        });
     }
 
     fn window_state_lock(&self) -> MutexGuard<'_, WindowState> {
@@ -132,7 +136,11 @@ impl ThreadMsgTargetData {
     }
 
     fn send_device_event(&self, device_id: DeviceId, event: DeviceEvent) {
-        self.event_loop_runner.send_event(Event::Device { device_id, event });
+        self.event_loop_runner.send_event(Event::Device {
+            device_id,
+            event,
+            timestamp: Instant::now(),
+        });
     }
 }
 

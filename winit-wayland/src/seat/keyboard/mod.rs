@@ -1,7 +1,7 @@
 //! The keyboard input handling.
 
 use std::sync::Mutex;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use calloop::timer::{TimeoutAction, Timer};
 use calloop::{LoopHandle, RegistrationToken};
@@ -129,10 +129,12 @@ impl Dispatch<WlKeyboard, KeyboardData, WinitState> for WinitState {
                     state.events_sink.push_window_event(WindowEvent::Focused(false), window_id);
                 }
             },
-            WlKeyboardEvent::Key { key, state: WEnum::Value(key_state), .. }
+            WlKeyboardEvent::Key { key, state: WEnum::Value(key_state), time, .. }
                 if matches!(key_state, WlKeyState::Repeated | WlKeyState::Pressed) =>
             {
                 let key = key + 8;
+                let timestamp =
+                    WinitState::resolve_compositor_time_ms(&state.compositor_time_ms_anchor, time);
                 key_input(
                     keyboard_state,
                     &mut state.events_sink,
@@ -140,6 +142,7 @@ impl Dispatch<WlKeyboard, KeyboardData, WinitState> for WinitState {
                     key,
                     ElementState::Pressed,
                     key_state == WlKeyState::Repeated,
+                    timestamp,
                 );
 
                 let delay = match keyboard_state.repeat_info {
@@ -194,6 +197,7 @@ impl Dispatch<WlKeyboard, KeyboardData, WinitState> for WinitState {
                             repeat_keycode,
                             ElementState::Pressed,
                             true,
+                            Instant::now(),
                         );
 
                         // NOTE: the gap could change dynamically while repeat is going.
@@ -204,8 +208,12 @@ impl Dispatch<WlKeyboard, KeyboardData, WinitState> for WinitState {
                     })
                     .ok();
             },
-            WlKeyboardEvent::Key { key, state: WEnum::Value(WlKeyState::Released), .. } => {
+            WlKeyboardEvent::Key {
+                key, state: WEnum::Value(WlKeyState::Released), time, ..
+            } => {
                 let key = key + 8;
+                let timestamp =
+                    WinitState::resolve_compositor_time_ms(&state.compositor_time_ms_anchor, time);
 
                 key_input(
                     keyboard_state,
@@ -214,6 +222,7 @@ impl Dispatch<WlKeyboard, KeyboardData, WinitState> for WinitState {
                     key,
                     ElementState::Released,
                     false,
+                    timestamp,
                 );
 
                 if keyboard_state.repeat_info != RepeatInfo::Disable
@@ -366,6 +375,7 @@ fn key_input(
     keycode: u32,
     state: ElementState,
     repeat: bool,
+    timestamp: Instant,
 ) {
     let window_id = match *data.window_id.lock().unwrap() {
         Some(window_id) => window_id,
@@ -375,6 +385,6 @@ fn key_input(
     if let Some(mut key_context) = keyboard_state.xkb_context.key_context() {
         let event = key_context.process_key_event(keycode, state, repeat);
         let event = WindowEvent::KeyboardInput { device_id: None, event, is_synthetic: false };
-        event_sink.push_window_event(event, window_id);
+        event_sink.push_window_event_at(event, window_id, timestamp);
     }
 }

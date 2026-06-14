@@ -3,6 +3,7 @@ use std::collections::{HashMap, VecDeque};
 use std::os::raw::{c_char, c_int, c_long, c_ulong};
 use std::slice;
 use std::sync::{Arc, Mutex};
+use std::time::Instant;
 
 use dpi::{PhysicalPosition, PhysicalSize};
 use winit_common::xkb::{self, Context, XkbState};
@@ -76,10 +77,46 @@ pub struct EventProcessor {
     pub xfiltered_modifiers: VecDeque<u8>,
     pub xmodmap: util::ModifierKeymap,
     pub is_composing: bool,
+    /// Timestamp of the event currently being processed, expressed as an [`Instant`]. Reset
+    /// to [`Instant::now()`] at the top of every `process_event`, then overwritten by
+    /// `record_server_time` for handlers that extract the X server's `time` field. Read by
+    /// `emit_window_event` / `emit_device_event` when dispatching to the application.
+    pub event_time: Cell<Instant>,
 }
 
 impl EventProcessor {
+    /// Update both the connection's X server "last timestamp" bookkeeping and the stashed
+    /// `Instant` for the event currently being processed.
+    #[inline]
+    fn record_server_time(&self, time: xproto::Timestamp) {
+        self.target.xconn.set_timestamp(time);
+        self.event_time.set(self.target.xconn.server_time_to_instant(time));
+    }
+
+    #[inline]
+    fn emit_window_event(
+        &self,
+        app: &mut dyn ApplicationHandler,
+        window_id: WindowId,
+        event: WindowEvent,
+    ) {
+        app.window_event(&self.target, window_id, self.event_time.get(), event);
+    }
+
+    #[inline]
+    fn emit_device_event(
+        &self,
+        app: &mut dyn ApplicationHandler,
+        device_id: Option<DeviceId>,
+        event: DeviceEvent,
+    ) {
+        app.device_event(&self.target, device_id, self.event_time.get(), event);
+    }
+
     pub(crate) fn process_event(&mut self, xev: &mut XEvent, app: &mut dyn ApplicationHandler) {
+        // Reset the event-time stash for this event; handlers that extract `xev.time` will
+        // overwrite it with a server-calibrated value via `record_server_time`.
+        self.event_time.set(Instant::now());
         self.process_xevent(xev, app);
 
         // Handle IME requests.
@@ -124,7 +161,7 @@ impl EventProcessor {
                 _ => continue,
             };
 
-            app.window_event(&self.target, window_id, event);
+            self.emit_window_event(app, window_id, event);
         }
     }
 
@@ -364,7 +401,7 @@ impl EventProcessor {
         let window_id = mkwid(window);
 
         if xev.data.get_long(0) as xproto::Atom == self.target.wm_delete_window {
-            app.window_event(&self.target, window_id, WindowEvent::CloseRequested);
+            self.emit_window_event(app, window_id, WindowEvent::CloseRequested);
             return;
         }
 
@@ -497,7 +534,7 @@ impl EventProcessor {
             };
 
             // Log this timestamp.
-            self.target.xconn.set_timestamp(time);
+            self.record_server_time(time);
 
             // This results in the `SelectionNotify` event below
             unsafe {
@@ -519,7 +556,7 @@ impl EventProcessor {
                         paths: path_list.iter().map(Into::into).collect(),
                         position: self.dnd.position,
                     };
-                    app.window_event(&self.target, window_id, event);
+                    self.emit_window_event(app, window_id, event);
                 }
                 (source_window, DndState::Accepted)
             } else {
@@ -542,7 +579,7 @@ impl EventProcessor {
         if xev.message_type == atoms[XdndLeave] as c_ulong {
             if self.dnd.dragging {
                 let event = WindowEvent::DragLeft { position: Some(self.dnd.position) };
-                app.window_event(&self.target, window_id, event);
+                self.emit_window_event(app, window_id, event);
             }
             self.dnd.reset();
         }
@@ -555,7 +592,7 @@ impl EventProcessor {
         let window_id = mkwid(window);
 
         // Set the timestamp.
-        self.target.xconn.set_timestamp(xev.time as xproto::Timestamp);
+        self.record_server_time(xev.time as xproto::Timestamp);
 
         if xev.property != atoms[XdndSelection] as c_ulong {
             return;
@@ -575,7 +612,7 @@ impl EventProcessor {
                     WindowEvent::DragEntered { paths, position: self.dnd.position }
                 };
 
-                app.window_event(&self.target, window_id, event);
+                self.emit_window_event(app, window_id, event);
             }
 
             self.dnd.result = Some(parse_result);
@@ -650,7 +687,7 @@ impl EventProcessor {
             drop(shared_state_lock);
 
             if moved {
-                app.window_event(&self.target, window_id, WindowEvent::Moved(outer.into()));
+                self.emit_window_event(app, window_id, WindowEvent::Moved(outer.into()));
             }
             outer
         };
@@ -696,7 +733,7 @@ impl EventProcessor {
                 drop(shared_state_lock);
 
                 let surface_size = Arc::new(Mutex::new(new_surface_size));
-                app.window_event(&self.target, window_id, WindowEvent::ScaleFactorChanged {
+                self.emit_window_event(app, window_id, WindowEvent::ScaleFactorChanged {
                     scale_factor: new_scale_factor,
                     surface_size_writer: SurfaceSizeWriter::new(Arc::downgrade(&surface_size)),
                 });
@@ -750,7 +787,7 @@ impl EventProcessor {
 
         if resized {
             let event = WindowEvent::SurfaceResized(new_surface_size.into());
-            app.window_event(&self.target, window_id, event);
+            self.emit_window_event(app, window_id, event);
         }
     }
 
@@ -777,7 +814,7 @@ impl EventProcessor {
         // window, given that we can't rely on `CreateNotify`, due to it being not
         // sent.
         let focus = self.with_window(window, |window| window.has_focus()).unwrap_or_default();
-        app.window_event(&self.target, window_id, WindowEvent::Focused(focus));
+        self.emit_window_event(app, window_id, WindowEvent::Focused(focus));
     }
 
     fn destroy_notify(&self, xev: &XDestroyWindowEvent, app: &mut dyn ApplicationHandler) {
@@ -796,7 +833,7 @@ impl EventProcessor {
                 .expect("Failed to destroy input context");
         }
 
-        app.window_event(&self.target, window_id, WindowEvent::Destroyed);
+        self.emit_window_event(app, window_id, WindowEvent::Destroyed);
     }
 
     fn property_notify(&mut self, xev: &XPropertyEvent, app: &mut dyn ApplicationHandler) {
@@ -815,7 +852,7 @@ impl EventProcessor {
 
         let window_id = mkwid(xwindow);
         let event = WindowEvent::Occluded(xev.state == xlib::VisibilityFullyObscured);
-        app.window_event(&self.target, window_id, event);
+        self.emit_window_event(app, window_id, event);
 
         self.with_window(xwindow, |window| {
             window.visibility_notify();
@@ -839,7 +876,7 @@ impl EventProcessor {
         app: &mut dyn ApplicationHandler,
     ) {
         // Set the timestamp.
-        self.target.xconn.set_timestamp(xev.time as xproto::Timestamp);
+        self.record_server_time(xev.time as xproto::Timestamp);
 
         let window = match self.active_window {
             Some(window) => window,
@@ -910,7 +947,7 @@ impl EventProcessor {
                 let event = key_processor.process_key_event(keycode, state, repeat);
                 let event =
                     WindowEvent::KeyboardInput { device_id: None, event, is_synthetic: false };
-                app.window_event(&self.target, window_id, event);
+                self.emit_window_event(app, window_id, event);
             }
 
             // Restore the client's modifiers state after replay.
@@ -927,11 +964,11 @@ impl EventProcessor {
             let written = self.target.xconn.lookup_utf8(ic, xev);
             if !written.is_empty() {
                 let event = WindowEvent::Ime(Ime::Preedit(String::new(), None));
-                app.window_event(&self.target, window_id, event);
+                self.emit_window_event(app, window_id, event);
 
                 let event = WindowEvent::Ime(Ime::Commit(written));
                 self.is_composing = false;
-                app.window_event(&self.target, window_id, event);
+                self.emit_window_event(app, window_id, event);
             }
         }
     }
@@ -961,7 +998,7 @@ impl EventProcessor {
         let mods: ModifiersState = xkb_state.modifiers().into();
 
         let event = WindowEvent::ModifiersChanged(mods.into());
-        app.window_event(&self.target, window_id, event);
+        self.emit_window_event(app, window_id, event);
     }
 
     fn xinput2_button_input(
@@ -974,7 +1011,7 @@ impl EventProcessor {
         let device_id = Some(mkdid(event.deviceid as xinput::DeviceId));
 
         // Set the timestamp.
-        self.target.xconn.set_timestamp(event.time as xproto::Timestamp);
+        self.record_server_time(event.time as xproto::Timestamp);
 
         let Some(DeviceType::Mouse) = self
             .devices
@@ -1054,12 +1091,12 @@ impl EventProcessor {
             _ => return,
         };
 
-        app.window_event(&self.target, window_id, event);
+        self.emit_window_event(app, window_id, event);
     }
 
     fn xinput2_mouse_motion(&self, event: &XIDeviceEvent, app: &mut dyn ApplicationHandler) {
         // Set the timestamp.
-        self.target.xconn.set_timestamp(event.time as xproto::Timestamp);
+        self.record_server_time(event.time as xproto::Timestamp);
 
         let Some(DeviceType::Mouse) = self
             .devices
@@ -1089,7 +1126,7 @@ impl EventProcessor {
                 position,
                 source: PointerSource::Mouse,
             };
-            app.window_event(&self.target, window_id, event);
+            self.emit_window_event(app, window_id, event);
         } else if cursor_moved.is_none() {
             return;
         }
@@ -1134,13 +1171,13 @@ impl EventProcessor {
         }
 
         for event in events {
-            app.window_event(&self.target, window_id, event);
+            self.emit_window_event(app, window_id, event);
         }
     }
 
     fn xinput2_mouse_enter(&self, event: &XIEnterEvent, app: &mut dyn ApplicationHandler) {
         // Set the timestamp.
-        self.target.xconn.set_timestamp(event.time as xproto::Timestamp);
+        self.record_server_time(event.time as xproto::Timestamp);
 
         let window = event.event as xproto::Window;
         let window_id = mkwid(window);
@@ -1173,7 +1210,7 @@ impl EventProcessor {
                 position,
                 kind: PointerKind::Mouse,
             };
-            app.window_event(&self.target, window_id, event);
+            self.emit_window_event(app, window_id, event);
         }
     }
 
@@ -1181,7 +1218,7 @@ impl EventProcessor {
         let window = event.event as xproto::Window;
 
         // Set the timestamp.
-        self.target.xconn.set_timestamp(event.time as xproto::Timestamp);
+        self.record_server_time(event.time as xproto::Timestamp);
 
         // Leave, FocusIn, and FocusOut can be received by a window that's already
         // been destroyed, which the user presumably doesn't want to deal with.
@@ -1193,7 +1230,7 @@ impl EventProcessor {
                 position: Some(PhysicalPosition::new(event.event_x, event.event_y)),
                 kind: PointerKind::Mouse,
             };
-            app.window_event(&self.target, window_id, event);
+            self.emit_window_event(app, window_id, event);
         }
     }
 
@@ -1201,7 +1238,7 @@ impl EventProcessor {
         let window = xev.event as xproto::Window;
 
         // Set the timestamp.
-        self.target.xconn.set_timestamp(xev.time as xproto::Timestamp);
+        self.record_server_time(xev.time as xproto::Timestamp);
 
         if let Some(ime) = self.target.ime.as_ref() {
             ime.borrow_mut().focus(xev.event).expect("Failed to focus input context");
@@ -1222,7 +1259,7 @@ impl EventProcessor {
             window.shared_state_lock().has_focus = true;
         }
 
-        app.window_event(&self.target, window_id, WindowEvent::Focused(true));
+        self.emit_window_event(app, window_id, WindowEvent::Focused(true));
 
         // Issue key press events for all pressed keys
         Self::handle_pressed_keys(
@@ -1249,14 +1286,14 @@ impl EventProcessor {
             position,
             source: PointerSource::Mouse,
         };
-        app.window_event(&self.target, window_id, event);
+        self.emit_window_event(app, window_id, event);
     }
 
     fn xinput2_unfocused(&mut self, xev: &XIFocusOutEvent, app: &mut dyn ApplicationHandler) {
         let window = xev.event as xproto::Window;
 
         // Set the timestamp.
-        self.target.xconn.set_timestamp(xev.time as xproto::Timestamp);
+        self.record_server_time(xev.time as xproto::Timestamp);
 
         if !self.window_exists(window) {
             return;
@@ -1295,13 +1332,13 @@ impl EventProcessor {
                 window.shared_state_lock().has_focus = false;
             }
 
-            app.window_event(&self.target, window_id, WindowEvent::Focused(false));
+            self.emit_window_event(app, window_id, WindowEvent::Focused(false));
         }
     }
 
     fn xinput2_touch(&mut self, xev: &XIDeviceEvent, phase: i32, app: &mut dyn ApplicationHandler) {
         // Set the timestamp.
-        self.target.xconn.set_timestamp(xev.time as xproto::Timestamp);
+        self.record_server_time(xev.time as xproto::Timestamp);
 
         let window = xev.event as xproto::Window;
         if self.window_exists(window) {
@@ -1320,7 +1357,7 @@ impl EventProcessor {
                     position: position.cast(),
                     source: PointerSource::Mouse,
                 };
-                app.window_event(&self.target, window_id, event);
+                self.emit_window_event(app, window_id, event);
             }
 
             let device_id = Some(mkdid(xev.deviceid as xinput::DeviceId));
@@ -1334,7 +1371,7 @@ impl EventProcessor {
                         position,
                         kind: PointerKind::Touch(finger_id),
                     };
-                    app.window_event(&self.target, window_id, event);
+                    self.emit_window_event(app, window_id, event);
                     let event = WindowEvent::PointerButton {
                         device_id,
                         primary: is_first_touch,
@@ -1342,7 +1379,7 @@ impl EventProcessor {
                         position,
                         button: ButtonSource::Touch { finger_id, force: None },
                     };
-                    app.window_event(&self.target, window_id, event);
+                    self.emit_window_event(app, window_id, event);
                 },
                 xinput2::XI_TouchUpdate => {
                     let event = WindowEvent::PointerMoved {
@@ -1351,7 +1388,7 @@ impl EventProcessor {
                         position,
                         source: PointerSource::Touch { finger_id, force: None },
                     };
-                    app.window_event(&self.target, window_id, event);
+                    self.emit_window_event(app, window_id, event);
                 },
                 xinput2::XI_TouchEnd => {
                     let event = WindowEvent::PointerButton {
@@ -1361,14 +1398,14 @@ impl EventProcessor {
                         position,
                         button: ButtonSource::Touch { finger_id, force: None },
                     };
-                    app.window_event(&self.target, window_id, event);
+                    self.emit_window_event(app, window_id, event);
                     let event = WindowEvent::PointerLeft {
                         device_id,
                         primary: is_first_touch,
                         position: Some(position),
                         kind: PointerKind::Touch(finger_id),
                     };
-                    app.window_event(&self.target, window_id, event);
+                    self.emit_window_event(app, window_id, event);
                 },
                 _ => unreachable!(),
             }
@@ -1382,17 +1419,17 @@ impl EventProcessor {
         app: &mut dyn ApplicationHandler,
     ) {
         // Set the timestamp.
-        self.target.xconn.set_timestamp(xev.time as xproto::Timestamp);
+        self.record_server_time(xev.time as xproto::Timestamp);
 
         if xev.flags & xinput2::XIPointerEmulated == 0 {
             let event = DeviceEvent::Button { state, button: xev.detail as u32 };
-            app.device_event(&self.target, Some(mkdid(xev.deviceid as xinput::DeviceId)), event);
+            self.emit_device_event(app, Some(mkdid(xev.deviceid as xinput::DeviceId)), event);
         }
     }
 
     fn xinput2_raw_mouse_motion(&self, xev: &XIRawEvent, app: &mut dyn ApplicationHandler) {
         // Set the timestamp.
-        self.target.xconn.set_timestamp(xev.time as xproto::Timestamp);
+        self.record_server_time(xev.time as xproto::Timestamp);
 
         let did = Some(mkdid(xev.deviceid as xinput::DeviceId));
         let mask =
@@ -1429,14 +1466,14 @@ impl EventProcessor {
         };
 
         if let Some(mouse_delta) = mouse_delta.consume() {
-            app.device_event(&self.target, did, DeviceEvent::PointerMotion { delta: mouse_delta });
+            self.emit_device_event(app, did, DeviceEvent::PointerMotion { delta: mouse_delta });
         }
 
         if let Some(scroll_delta) = scroll_delta.consume() {
             let event = DeviceEvent::MouseWheel {
                 delta: MouseScrollDelta::LineDelta(scroll_delta.0, scroll_delta.1),
             };
-            app.device_event(&self.target, did, event);
+            self.emit_device_event(app, did, event);
         }
     }
 
@@ -1447,7 +1484,7 @@ impl EventProcessor {
         app: &mut dyn ApplicationHandler,
     ) {
         // Set the timestamp.
-        self.target.xconn.set_timestamp(xev.time as xproto::Timestamp);
+        self.record_server_time(xev.time as xproto::Timestamp);
 
         let device_id = Some(mkdid(xev.sourceid as xinput::DeviceId));
         let keycode = xev.detail as u32;
@@ -1457,12 +1494,12 @@ impl EventProcessor {
         let physical_key = xkb::raw_keycode_to_physicalkey(keycode);
 
         let event = DeviceEvent::Key(RawKeyEvent { physical_key, state });
-        app.device_event(&self.target, device_id, event);
+        self.emit_device_event(app, device_id, event);
     }
 
     fn xinput2_hierarchy_changed(&mut self, xev: &XIHierarchyEvent) {
         // Set the timestamp.
-        self.target.xconn.set_timestamp(xev.time as xproto::Timestamp);
+        self.record_server_time(xev.time as xproto::Timestamp);
         let infos = unsafe { slice::from_raw_parts(xev.info, xev.num_info as usize) };
         for info in infos {
             if 0 != info.flags & (xinput2::XISlaveAdded | xinput2::XIMasterAdded) {
@@ -1480,7 +1517,7 @@ impl EventProcessor {
                 let xev = unsafe { &*(xev as *const _ as *const xlib::XkbNewKeyboardNotifyEvent) };
 
                 // Set the timestamp.
-                self.target.xconn.set_timestamp(xev.time as xproto::Timestamp);
+                self.record_server_time(xev.time as xproto::Timestamp);
 
                 let keycodes_changed_flag = 0x1;
                 let geometry_changed_flag = 0x1 << 1;
@@ -1524,7 +1561,7 @@ impl EventProcessor {
                 let xev = unsafe { &*(xev as *const _ as *const xlib::XkbStateNotifyEvent) };
 
                 // Set the timestamp.
-                self.target.xconn.set_timestamp(xev.time as xproto::Timestamp);
+                self.record_server_time(xev.time as xproto::Timestamp);
 
                 if let Some(state) = self.xkb_context.state_mut() {
                     state.update_modifiers(
@@ -1699,7 +1736,7 @@ impl EventProcessor {
         // and forced was `true`.
         if self.modifiers.replace(modifiers) != modifiers || force {
             let event = WindowEvent::ModifiersChanged(self.modifiers.get().into());
-            app.window_event(&self.target, window_id, event);
+            self.emit_window_event(app, window_id, event);
         }
     }
 
@@ -1731,7 +1768,7 @@ impl EventProcessor {
         for keycode in target.xconn.query_keymap().into_iter().filter(|k| *k >= KEYCODE_OFFSET) {
             let event = key_processor.process_key_event(keycode as u32, state, false);
             let event = WindowEvent::KeyboardInput { device_id: None, event, is_synthetic: true };
-            app.window_event(target, window_id, event);
+            app.window_event(target, window_id, Instant::now(), event);
         }
     }
 

@@ -137,14 +137,19 @@ impl Runner {
         match event {
             Event::NewEvents(cause) => self.app.new_events(&self.event_loop, cause),
             Event::WindowEvent { window_id, event } => {
-                self.app.window_event(&self.event_loop, window_id, event)
+                self.app.window_event(&self.event_loop, window_id, Instant::now(), event)
             },
             Event::ScaleChange { canvas, size, scale } => {
                 if let Some(canvas) = canvas.upgrade() {
                     canvas.handle_scale_change(
                         runner,
                         |window_id, event| {
-                            self.app.window_event(&self.event_loop, window_id, event);
+                            self.app.window_event(
+                                &self.event_loop,
+                                window_id,
+                                Instant::now(),
+                                event,
+                            );
                         },
                         size,
                         scale,
@@ -152,7 +157,7 @@ impl Runner {
                 }
             },
             Event::DeviceEvent { device_id, event } => {
-                self.app.device_event(&self.event_loop, device_id, event)
+                self.app.device_event(&self.event_loop, device_id, Instant::now(), event)
             },
             Event::UserWakeUp => self.app.proxy_wake_up(&self.event_loop),
             Event::Suspended => self.app.suspended(&self.event_loop),

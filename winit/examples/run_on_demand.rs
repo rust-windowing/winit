@@ -6,6 +6,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     use std::time::Duration;
 
     use tracing::info;
+    use winit::Instant;
     use winit::application::ApplicationHandler;
     use winit::event::WindowEvent;
     use winit::event_loop::run_on_demand::EventLoopExtRunOnDemand;
@@ -44,6 +45,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             &mut self,
             event_loop: &dyn ActiveEventLoop,
             window_id: WindowId,
+            _timestamp: Instant,
             event: WindowEvent,
         ) {
             if event == WindowEvent::Destroyed && self.window_id == Some(window_id) {

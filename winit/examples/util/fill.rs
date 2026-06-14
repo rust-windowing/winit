@@ -12,12 +12,9 @@ use std::collections::HashMap;
 use std::mem;
 use std::mem::ManuallyDrop;
 use std::num::NonZeroU32;
-#[cfg(not(web_platform))]
-use std::time::Instant;
 
 use softbuffer::{Context, Surface};
-#[cfg(web_platform)]
-use web_time::Instant;
+use winit::Instant;
 use winit::window::{Window, WindowId};
 
 thread_local! {

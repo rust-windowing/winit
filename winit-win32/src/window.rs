@@ -5,6 +5,7 @@ use std::mem::{self, MaybeUninit};
 use std::rc::Rc;
 use std::sync::mpsc::channel;
 use std::sync::{Arc, Mutex, MutexGuard};
+use std::time::Instant;
 use std::{io, panic, ptr};
 
 use dpi::{PhysicalInsets, PhysicalPosition, PhysicalSize, Position, Size};
@@ -1233,7 +1234,11 @@ impl InitData<'_> {
             let file_drop_handler = FileDropHandler::new(
                 win.window.hwnd(),
                 Box::new(move |event| {
-                    file_drop_runner.send_event(Event::Window { window_id, event })
+                    file_drop_runner.send_event(Event::Window {
+                        window_id,
+                        event,
+                        timestamp: Instant::now(),
+                    })
                 }),
             );
 

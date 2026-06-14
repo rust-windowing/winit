@@ -37,6 +37,7 @@
 //!
 //!
 //! ```no_run
+//! use winit::Instant;
 //! use winit::application::ApplicationHandler;
 //! use winit::event::WindowEvent;
 //! use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
@@ -59,6 +60,7 @@
 //!         &mut self,
 //!         event_loop: &dyn ActiveEventLoop,
 //!         id: WindowId,
+//!         _timestamp: Instant,
 //!         event: WindowEvent,
 //!     ) {
 //!         // Called by `EventLoop::run_app` when a new event happens on the window.
@@ -292,7 +294,7 @@ pub use rwh_06 as raw_window_handle;
 #[cfg(any(doc, doctest, test))]
 pub mod changelog;
 pub mod event_loop;
-pub use winit_core::{application, cursor, error, event, icon, keyboard, monitor, window};
+pub use winit_core::{Instant, application, cursor, error, event, icon, keyboard, monitor, window};
 #[macro_use]
 mod os_error;
 mod platform_impl;

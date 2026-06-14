@@ -10,16 +10,13 @@ use std::fmt::Debug;
 use std::num::NonZeroU32;
 use std::sync::Arc;
 use std::sync::mpsc::{self, Receiver, Sender};
-#[cfg(not(web_platform))]
-use std::time::Instant;
 use std::{fmt, mem};
 
 use cursor_icon::CursorIcon;
 use rwh_06::{DisplayHandle, HasDisplayHandle};
 use softbuffer::{Context, Surface};
 use tracing::{error, info};
-#[cfg(web_platform)]
-use web_time::Instant;
+use winit::Instant;
 use winit::application::ApplicationHandler;
 use winit::cursor::{Cursor, CustomCursor, CustomCursorSource};
 use winit::dpi::{LogicalSize, PhysicalPosition, PhysicalSize};
@@ -418,6 +415,7 @@ impl ApplicationHandler for Application {
         &mut self,
         event_loop: &dyn ActiveEventLoop,
         window_id: WindowId,
+        _timestamp: Instant,
         event: WindowEvent,
     ) {
         let window = match self.windows.get_mut(&window_id) {
@@ -549,6 +547,7 @@ impl ApplicationHandler for Application {
         &mut self,
         _event_loop: &dyn ActiveEventLoop,
         device_id: Option<DeviceId>,
+        _timestamp: Instant,
         event: DeviceEvent,
     ) {
         info!("Device {device_id:?} event: {event:?}");

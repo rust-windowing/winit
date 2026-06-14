@@ -3,6 +3,7 @@
 use std::error::Error;
 
 use tracing::{error, info};
+use winit::Instant;
 use winit::application::ApplicationHandler;
 use winit::event::WindowEvent;
 use winit::event_loop::{ActiveEventLoop, EventLoop};
@@ -37,7 +38,13 @@ impl ApplicationHandler for App {
         }
     }
 
-    fn window_event(&mut self, event_loop: &dyn ActiveEventLoop, _: WindowId, event: WindowEvent) {
+    fn window_event(
+        &mut self,
+        event_loop: &dyn ActiveEventLoop,
+        _: WindowId,
+        _timestamp: Instant,
+        event: WindowEvent,
+    ) {
         info!("{event:?}");
         match event {
             WindowEvent::CloseRequested => {

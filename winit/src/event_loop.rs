@@ -150,14 +150,19 @@ impl EventLoop {
     ///     // window, changing the window theme, etc.
     ///     for event in event_loop.events() {
     ///         match event {
-    ///             window event => app.window_event(event_loop, window_id, event),
-    ///             device event => app.device_event(event_loop, device_id, event),
+    ///             window event => app.window_event(event_loop, window_id, timestamp, event),
+    ///             device event => app.device_event(event_loop, device_id, timestamp, event),
     ///         }
     ///     }
     ///
     ///     // Handle redraws.
     ///     for window_id in event_loop.pending_redraws() {
-    ///         app.window_event(event_loop, window_id, WindowEvent::RedrawRequested);
+    ///         app.window_event(
+    ///             event_loop,
+    ///             window_id,
+    ///             timestamp,
+    ///             WindowEvent::RedrawRequested,
+    ///         );
     ///     }
     ///
     ///     // Done handling events, wait until we're woken up again.

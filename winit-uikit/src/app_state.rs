@@ -441,8 +441,9 @@ pub(crate) fn terminated(application: &UIApplication) {
 
 fn handle_wrapped_event(mtm: MainThreadMarker, event: EventWrapper) {
     match event {
-        EventWrapper::Window { window_id, event } => get_handler(mtm)
-            .handle(|app| app.window_event(&ActiveEventLoop { mtm }, window_id, event)),
+        EventWrapper::Window { window_id, event } => get_handler(mtm).handle(|app| {
+            app.window_event(&ActiveEventLoop { mtm }, window_id, Instant::now(), event)
+        }),
         EventWrapper::ScaleFactorChanged(event) => handle_hidpi_proxy(mtm, event),
     }
 }
@@ -451,10 +452,15 @@ fn handle_hidpi_proxy(mtm: MainThreadMarker, event: ScaleFactorChanged) {
     let ScaleFactorChanged { suggested_size, scale_factor, window } = event;
     let new_surface_size = Arc::new(Mutex::new(suggested_size));
     get_handler(mtm).handle(|app| {
-        app.window_event(&ActiveEventLoop { mtm }, window.id(), WindowEvent::ScaleFactorChanged {
-            scale_factor,
-            surface_size_writer: SurfaceSizeWriter::new(Arc::downgrade(&new_surface_size)),
-        });
+        app.window_event(
+            &ActiveEventLoop { mtm },
+            window.id(),
+            Instant::now(),
+            WindowEvent::ScaleFactorChanged {
+                scale_factor,
+                surface_size_writer: SurfaceSizeWriter::new(Arc::downgrade(&new_surface_size)),
+            },
+        );
     });
     let (view, screen_frame) = get_view_and_screen_frame(&window);
     let physical_size = *new_surface_size.lock().unwrap();

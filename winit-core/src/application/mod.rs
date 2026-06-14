@@ -1,5 +1,6 @@
 //! End user application handling.
 
+use crate::Instant;
 use crate::event::{DeviceEvent, DeviceId, StartCause, WindowEvent};
 use crate::event_loop::ActiveEventLoop;
 use crate::window::WindowId;
@@ -138,6 +139,7 @@ pub trait ApplicationHandler {
     ///     #     &mut self,
     ///     #     _event_loop: &dyn ActiveEventLoop,
     ///     #     _window_id: winit::window::WindowId,
+    ///     #     _timestamp: winit::Instant,
     ///     #     _event: winit::event::WindowEvent,
     ///     # ) {
     ///     # }
@@ -192,23 +194,40 @@ pub trait ApplicationHandler {
     }
 
     /// Emitted when the OS sends an event to a winit window.
+    ///
+    /// `timestamp` is the OS-stamped event time where available, otherwise [`Instant::now()`]
+    /// sampled when winit received the event. Prefer it over a fresh [`Instant::now()`] in
+    /// the handler to avoid polling-delay latency.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **macOS:** `NSEvent.timestamp`; [`Instant::now()`] for synthesized events.
+    /// - **X11:** `xev.time`, lazily calibrated to [`Instant`] on first observation.
+    /// - **Wayland:** the `time` field on `wl_pointer` / `wl_keyboard` / `wl_touch` and
+    ///   `utime_hi`/`utime_lo` on `zwp_relative_pointer_v1`, calibrated the same way.
+    /// - **Windows:** [`Instant::now()`] sampled inside `WindowProc`.
+    /// - **Android / iOS / Web / Orbital:** [`Instant::now()`].
     fn window_event(
         &mut self,
         event_loop: &dyn ActiveEventLoop,
         window_id: WindowId,
+        timestamp: Instant,
         event: WindowEvent,
     );
 
     /// Emitted when the OS sends an event to a device.
     ///
     /// Whether device events are delivered depends on the backend in use.
+    ///
+    /// See [`window_event`](Self::window_event) for details on `timestamp`.
     fn device_event(
         &mut self,
         event_loop: &dyn ActiveEventLoop,
         device_id: Option<DeviceId>,
+        timestamp: Instant,
         event: DeviceEvent,
     ) {
-        let _ = (event_loop, device_id, event);
+        let _ = (event_loop, device_id, timestamp, event);
     }
 
     /// Emitted when the event loop is about to block and wait for new events.
@@ -372,9 +391,10 @@ impl<A: ?Sized + ApplicationHandler> ApplicationHandler for &mut A {
         &mut self,
         event_loop: &dyn ActiveEventLoop,
         window_id: WindowId,
+        timestamp: Instant,
         event: WindowEvent,
     ) {
-        (**self).window_event(event_loop, window_id, event);
+        (**self).window_event(event_loop, window_id, timestamp, event);
     }
 
     #[inline]
@@ -382,9 +402,10 @@ impl<A: ?Sized + ApplicationHandler> ApplicationHandler for &mut A {
         &mut self,
         event_loop: &dyn ActiveEventLoop,
         device_id: Option<DeviceId>,
+        timestamp: Instant,
         event: DeviceEvent,
     ) {
-        (**self).device_event(event_loop, device_id, event);
+        (**self).device_event(event_loop, device_id, timestamp, event);
     }
 
     #[inline]
@@ -440,9 +461,10 @@ impl<A: ?Sized + ApplicationHandler> ApplicationHandler for Box<A> {
         &mut self,
         event_loop: &dyn ActiveEventLoop,
         window_id: WindowId,
+        timestamp: Instant,
         event: WindowEvent,
     ) {
-        (**self).window_event(event_loop, window_id, event);
+        (**self).window_event(event_loop, window_id, timestamp, event);
     }
 
     #[inline]
@@ -450,9 +472,10 @@ impl<A: ?Sized + ApplicationHandler> ApplicationHandler for Box<A> {
         &mut self,
         event_loop: &dyn ActiveEventLoop,
         device_id: Option<DeviceId>,
+        timestamp: Instant,
         event: DeviceEvent,
     ) {
-        (**self).device_event(event_loop, device_id, event);
+        (**self).device_event(event_loop, device_id, timestamp, event);
     }
 
     #[inline]

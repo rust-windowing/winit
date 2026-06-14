@@ -1,6 +1,7 @@
 use std::cell::RefCell;
 use std::sync::atomic::Ordering;
 use std::sync::{Arc, Mutex};
+use std::time::{Duration, Instant};
 
 use foldhash::HashMap;
 use sctk::compositor::{CompositorHandler, CompositorState};
@@ -128,6 +129,13 @@ pub struct WinitState {
 
     /// Whether the user initiated a wake up.
     pub proxy_wake_up: bool,
+
+    /// Sliding anchor for the u32 ms clock used by wl_pointer, wl_keyboard, and wl_touch.
+    /// Separate from the us anchor because the ms field wraps every ~49.7 days.
+    pub compositor_time_ms_anchor: Mutex<Option<(u32, Instant)>>,
+
+    /// Sliding anchor for the u64 us clock used by zwp_relative_pointer_v1.
+    pub compositor_time_us_anchor: Mutex<Option<(u64, Instant)>>,
 }
 
 impl WinitState {
@@ -211,7 +219,51 @@ impl WinitState {
             // Make it true by default.
             dispatched_events: true,
             proxy_wake_up: false,
+            compositor_time_ms_anchor: Mutex::new(None),
+            compositor_time_us_anchor: Mutex::new(None),
         })
+    }
+
+    /// Translate a u32 ms compositor timestamp into an [`Instant`].
+    /// Slides the anchor forward so the distance never approaches u32::MAX / 2,
+    /// which keeps the wrap-detection valid past the 49.7-day wrap point.
+    pub fn resolve_compositor_time_ms(
+        anchor: &Mutex<Option<(u32, Instant)>>,
+        time_ms: u32,
+    ) -> Instant {
+        let mut anchor = anchor.lock().unwrap();
+        let (anchor_ms, anchor_instant) = anchor.get_or_insert_with(|| (time_ms, Instant::now()));
+
+        let delta = time_ms.wrapping_sub(*anchor_ms);
+        if delta < u32::MAX / 2 {
+            *anchor_instant += Duration::from_millis(delta as u64);
+            *anchor_ms = time_ms;
+            *anchor_instant
+        } else {
+            let backward = anchor_ms.wrapping_sub(time_ms);
+            anchor_instant
+                .checked_sub(Duration::from_millis(backward as u64))
+                .unwrap_or(*anchor_instant)
+        }
+    }
+
+    /// Translate a u64 us compositor timestamp into an [`Instant`].
+    pub fn resolve_compositor_time_us(
+        anchor: &Mutex<Option<(u64, Instant)>>,
+        time_us: u64,
+    ) -> Instant {
+        let mut anchor = anchor.lock().unwrap();
+        let (anchor_us, anchor_instant) = anchor.get_or_insert_with(|| (time_us, Instant::now()));
+
+        if time_us >= *anchor_us {
+            *anchor_instant += Duration::from_micros(time_us - *anchor_us);
+            *anchor_us = time_us;
+            *anchor_instant
+        } else {
+            anchor_instant
+                .checked_sub(Duration::from_micros(*anchor_us - time_us))
+                .unwrap_or(*anchor_instant)
+        }
     }
 
     pub fn scale_factor_changed(

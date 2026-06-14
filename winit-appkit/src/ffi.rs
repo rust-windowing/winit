@@ -39,6 +39,18 @@ unsafe extern "C" {
     ) -> i32;
 }
 
+// `NSEvent.timestamp()` is an `NSTimeInterval` on the `mach_absolute_time` base.
+// `CACurrentMediaTime` reads from that same base and is the anchor used when
+// converting event timestamps into `Instant`.
+//
+// `NSProcessInfo.processInfo().systemUptime()` reads the same clock but is a
+// "required reason API" that mandates a privacy manifest for App Store
+// distribution; `CACurrentMediaTime` is not.
+#[link(name = "QuartzCore", kind = "framework")]
+unsafe extern "C" {
+    pub fn CACurrentMediaTime() -> f64;
+}
+
 #[repr(transparent)]
 pub struct TISInputSource(std::ffi::c_void);
 

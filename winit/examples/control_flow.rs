@@ -76,6 +76,7 @@ impl ApplicationHandler for ControlFlowDemo {
         &mut self,
         _event_loop: &dyn ActiveEventLoop,
         _window_id: WindowId,
+        _timestamp: winit::Instant,
         event: WindowEvent,
     ) {
         info!("{event:?}");

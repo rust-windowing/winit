@@ -1,6 +1,7 @@
 use std::error::Error;
 
 use tracing::info;
+use winit::Instant;
 use winit::application::ApplicationHandler;
 use winit::event::WindowEvent;
 use winit::event_loop::{ActiveEventLoop, EventLoop};
@@ -43,6 +44,7 @@ impl ApplicationHandler for Application {
         &mut self,
         event_loop: &dyn ActiveEventLoop,
         _window_id: WindowId,
+        _timestamp: Instant,
         event: WindowEvent,
     ) {
         match event {

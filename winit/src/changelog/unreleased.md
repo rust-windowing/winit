@@ -55,6 +55,21 @@ changelog entry.
 
 - Updated `windows-sys` to `v0.61`.
 - On older macOS versions (tested up to 12.7.6), applications now receive mouse movement events for unfocused windows, matching the behavior on other platforms.
+- `ApplicationHandler::window_event` and `ApplicationHandler::device_event` now take an additional `timestamp: Instant` parameter between the id and the event. The timestamp is derived from the OS-provided event time where available (macOS via `NSEvent.timestamp`, X11 via `xev.time`, Wayland via the `time` field on `wl_keyboard`/`wl_pointer`/`wl_touch` events and the `utime_hi`/`utime_lo` pair on `zwp_relative_pointer_v1`) and otherwise is sampled close to when winit received the event. Using this timestamp instead of `Instant::now()` when the event is received eliminates the polling-delay latency previously seen under load.
+
+  To migrate, add `timestamp: Instant` to your implementations of `window_event` and `device_event`. Use the `winit::Instant` re-export rather than `std::time::Instant` so the signature compiles on `wasm32-unknown-unknown` (where winit uses `web_time::Instant`) without `cfg`-gated imports:
+
+  ```rust
+  use winit::Instant;
+
+  fn window_event(
+      &mut self,
+      event_loop: &dyn ActiveEventLoop,
+      window_id: WindowId,
+      timestamp: Instant, // new
+      event: WindowEvent,
+  ) { /* ... */ }
+  ```
 
 ### Fixed
 

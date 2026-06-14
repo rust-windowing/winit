@@ -684,8 +684,9 @@ define_class!(
 
             self.update_modifiers(event, false);
 
+            let time = self.ivars().app_state.event_time(event);
             self.ivars().app_state.maybe_queue_with_handler(move |app, event_loop| {
-                app.device_event(event_loop, None, DeviceEvent::MouseWheel { delta })
+                app.device_event(event_loop, None, time, DeviceEvent::MouseWheel { delta })
             });
             self.queue_event(WindowEvent::MouseWheel { device_id: None, delta, phase });
         }
@@ -849,8 +850,9 @@ impl WinitView {
 
     fn queue_event(&self, event: WindowEvent) {
         let window_id = window_id(&self.window());
+        let time = self.ivars().app_state.current_event_time();
         self.ivars().app_state.maybe_queue_with_handler(move |app, event_loop| {
-            app.window_event(event_loop, window_id, event);
+            app.window_event(event_loop, window_id, time, event);
         });
     }
 

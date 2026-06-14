@@ -3,6 +3,7 @@ use std::error::Error;
 use std::ffi::c_int;
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::{Arc, Mutex, RwLock, RwLockReadGuard};
+use std::time::{Duration, Instant};
 use std::{fmt, ptr};
 
 use rwh_06::HasDisplayHandle;
@@ -45,6 +46,11 @@ pub struct XConnection {
 
     /// The last timestamp received by this connection.
     timestamp: AtomicU32,
+
+    /// Anchor for translating X server millisecond timestamps into [`Instant`]. `None` until
+    /// the first server timestamp is observed, then paired with a fresh [`Instant::now()`]
+    /// so that returned timestamps stay close to real time.
+    server_time_anchor: Mutex<Option<(u32, Instant)>>,
 
     /// List of monitor handles.
     pub monitor_handles: Mutex<Option<Vec<MonitorHandle>>>,
@@ -152,6 +158,7 @@ impl XConnection {
             atoms: Box::new(atoms),
             default_screen,
             timestamp: AtomicU32::new(0),
+            server_time_anchor: Mutex::new(None),
             latest_error: Mutex::new(None),
             monitor_handles: Mutex::new(None),
             database: RwLock::new(database),
@@ -242,6 +249,27 @@ impl XConnection {
     #[inline]
     pub fn timestamp(&self) -> u32 {
         self.timestamp.load(Ordering::Relaxed)
+    }
+
+    /// Translate an X server millisecond timestamp into an [`Instant`].
+    /// Slides the anchor forward so the distance never approaches u32::MAX / 2,
+    /// which keeps the wrap-detection valid past the 49.7-day wrap point.
+    pub fn server_time_to_instant(&self, server_time: u32) -> Instant {
+        let mut anchor = self.server_time_anchor.lock().unwrap_or_else(|e| e.into_inner());
+        let (anchor_time, anchor_instant) =
+            anchor.get_or_insert_with(|| (server_time, Instant::now()));
+
+        let delta = server_time.wrapping_sub(*anchor_time);
+        if delta < u32::MAX / 2 {
+            *anchor_instant += Duration::from_millis(delta as u64);
+            *anchor_time = server_time;
+            *anchor_instant
+        } else {
+            let backward = anchor_time.wrapping_sub(server_time);
+            anchor_instant
+                .checked_sub(Duration::from_millis(backward as u64))
+                .unwrap_or(*anchor_instant)
+        }
     }
 
     /// Set the last witnessed timestamp.
