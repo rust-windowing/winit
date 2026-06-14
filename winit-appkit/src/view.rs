@@ -27,8 +27,8 @@ use winit_core::window::ImeCapabilities;
 use super::app_state::AppState;
 use super::cursor::{default_cursor, invisible_cursor};
 use super::event::{
-    code_to_key, code_to_location, create_key_event, event_mods, lalt_pressed, ralt_pressed,
-    scancode_to_physicalkey,
+    code_to_key, code_to_location, create_key_event, event_mods, lalt_pressed, mods_from_flags,
+    per_modifier_held, ralt_pressed, scancode_to_physicalkey,
 };
 use super::window::window_id;
 use crate::OptionAsAlt;
@@ -106,6 +106,32 @@ fn get_left_modifier_code(key: &Key) -> KeyCode {
         Key::Named(NamedKey::Shift) => KeyCode::ShiftLeft,
         Key::Named(NamedKey::Meta) => KeyCode::MetaLeft,
         _ => unreachable!(),
+    }
+}
+
+fn synthetic_modifier_key_event(
+    logical_key: &Key,
+    location: KeyLocation,
+    state: ElementState,
+) -> WindowEvent {
+    let physical_key = match location {
+        KeyLocation::Left => get_left_modifier_code(logical_key),
+        KeyLocation::Right => get_right_modifier_code(logical_key),
+        _ => unreachable!(),
+    };
+    WindowEvent::KeyboardInput {
+        device_id: None,
+        event: KeyEvent {
+            physical_key: physical_key.into(),
+            logical_key: logical_key.clone(),
+            text: None,
+            location,
+            state,
+            repeat: false,
+            text_with_all_modifiers: None,
+            key_without_modifiers: logical_key.clone(),
+        },
+        is_synthetic: true,
     }
 }
 
@@ -931,11 +957,98 @@ impl WinitView {
         input_context.invalidateCharacterCoordinates();
     }
 
-    /// Reset modifiers and emit a synthetic ModifiersChanged event if deemed necessary.
-    pub(super) fn reset_modifiers(&self) {
+    /// Emit synthetic key-release events for all tracked modifier keys,
+    /// then clear tracking state and modifiers.  Called on focus loss.
+    pub(super) fn synthesize_modifier_key_releases(&self) {
+        let mut phys_mod_state = self.ivars().phys_modifiers.borrow_mut();
+
+        for (logical_key, location_mask) in phys_mod_state.drain() {
+            if location_mask.contains(ModLocationMask::LEFT) {
+                self.queue_event(synthetic_modifier_key_event(
+                    &logical_key,
+                    KeyLocation::Left,
+                    ElementState::Released,
+                ));
+            }
+            if location_mask.contains(ModLocationMask::RIGHT) {
+                self.queue_event(synthetic_modifier_key_event(
+                    &logical_key,
+                    KeyLocation::Right,
+                    ElementState::Released,
+                ));
+            }
+        }
+
         if !self.ivars().modifiers.get().state().is_empty() {
             self.ivars().modifiers.set(Modifiers::default());
             self.queue_event(WindowEvent::ModifiersChanged(self.ivars().modifiers.get()));
+        }
+    }
+
+    /// Query hardware modifier state via `CGEventSourceFlagsState` and
+    /// emit synthetic key events + `ModifiersChanged` for any differences
+    /// against `phys_modifiers`.  Called on focus gain.
+    pub(super) fn synchronize_modifiers(&self) {
+        use objc2_app_kit::NSEventModifierFlags;
+
+        use super::ffi::{
+            CGEventFlags, CGEventSourceFlagsState, kCGEventSourceStateCombinedSessionState,
+        };
+
+        // CGEventFlags and NSEventModifierFlags share the IOHIDFamily
+        // NX_DEVICE* bit layout.  See IOLLEvent.h.
+        const _: () = assert!(
+            size_of::<CGEventFlags>() <= size_of::<usize>(),
+            "CGEventFlags must fit in NSEventModifierFlags (NSUInteger)",
+        );
+
+        let cg_flags = unsafe { CGEventSourceFlagsState(kCGEventSourceStateCombinedSessionState) };
+        let flags = NSEventModifierFlags(cg_flags as usize);
+
+        let mut phys_mod_state = self.ivars().phys_modifiers.borrow_mut();
+
+        for (logical_key, left_held, right_held) in per_modifier_held(flags) {
+            let old = phys_mod_state.get(&logical_key).copied().unwrap_or(ModLocationMask::empty());
+
+            let mut new_mask = ModLocationMask::empty();
+
+            if left_held != old.contains(ModLocationMask::LEFT) {
+                let state = if left_held { ElementState::Pressed } else { ElementState::Released };
+                self.queue_event(synthetic_modifier_key_event(
+                    &logical_key,
+                    KeyLocation::Left,
+                    state,
+                ));
+            }
+            if left_held {
+                new_mask |= ModLocationMask::LEFT;
+            }
+
+            if right_held != old.contains(ModLocationMask::RIGHT) {
+                let state = if right_held { ElementState::Pressed } else { ElementState::Released };
+                self.queue_event(synthetic_modifier_key_event(
+                    &logical_key,
+                    KeyLocation::Right,
+                    state,
+                ));
+            }
+            if right_held {
+                new_mask |= ModLocationMask::RIGHT;
+            }
+
+            if new_mask.is_empty() {
+                phys_mod_state.remove(&logical_key);
+            } else {
+                phys_mod_state.insert(logical_key, new_mask);
+            }
+        }
+
+        drop(phys_mod_state);
+
+        let modifiers = mods_from_flags(flags);
+        if modifiers != self.ivars().modifiers.get() {
+            self.ivars().modifiers.set(modifiers);
+            self.queue_event(WindowEvent::ModifiersChanged(modifiers));
         }
     }
 
