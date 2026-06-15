@@ -637,11 +637,16 @@ define_class!(
 
             let position = self.mouse_view_point(event).to_physical(self.scale_factor());
 
+            // Enter/exit events carry no tablet information (`NSEvent::subtype` raises on
+            // them), so the device that crossed the boundary cannot be determined. Report
+            // `Unknown` rather than guessing.
+            // The actual tool and its data are still delivered on the subsequent move and
+            // button events.
             self.queue_event(WindowEvent::PointerEntered {
                 device_id: None,
                 primary: true,
                 position,
-                kind: self.current_pointer_kind(),
+                kind: PointerKind::Unknown,
             });
         }
 
@@ -651,11 +656,13 @@ define_class!(
 
             let position = self.mouse_view_point(event).to_physical(self.scale_factor());
 
+            // See `mouseEntered:` above: enter/exit events cannot identify the device, so
+            // `Unknown` is reported here too.
             self.queue_event(WindowEvent::PointerLeft {
                 device_id: None,
                 primary: true,
                 position: Some(position),
-                kind: self.current_pointer_kind(),
+                kind: PointerKind::Unknown,
             });
         }
 
@@ -1102,18 +1109,8 @@ impl WinitView {
             state: button_state,
             position,
             button: match tablet {
-                Some((kind, data)) => ButtonSource::TabletTool {
-                    kind,
-                    button: match button {
-                        // Mirror winit-core's `TabletToolButton` to `MouseButton` conversion table.
-                        MouseButton::Left => TabletToolButton::Contact,
-                        MouseButton::Right => TabletToolButton::Barrel,
-                        MouseButton::Middle => TabletToolButton::Other(1),
-                        MouseButton::Back => TabletToolButton::Other(3),
-                        MouseButton::Forward => TabletToolButton::Other(4),
-                        other => TabletToolButton::Other(other as u16),
-                    },
-                    data,
+                Some((kind, data)) => {
+                    ButtonSource::TabletTool { kind, button: tablet_button(button), data }
                 },
                 None => button.into(),
             },
@@ -1148,17 +1145,6 @@ impl WinitView {
                 None => PointerSource::Mouse,
             },
         });
-    }
-
-    /// The kind of pointer currently driving the cursor.
-    ///
-    /// Enter/exit events carry no tablet information (`NSEvent::subtype` raises on them),
-    /// so the kind is derived from the cached proximity state instead.
-    fn current_pointer_kind(&self) -> PointerKind {
-        match self.ivars().tablet_tool.get() {
-            Some(kind) => PointerKind::TabletTool(kind),
-            None => PointerKind::Mouse,
-        }
     }
 
     /// Update the cached tablet tool from a proximity event.
@@ -1212,22 +1198,33 @@ fn mouse_button(event: &NSEvent) -> MouseButton {
         .expect("expected MacOS button number in the range 0..=31")
 }
 
+/// Map a [`MouseButton`] reported by a tablet event to its [`TabletToolButton`].
+///
+/// Mirrors winit-core's `TabletToolButton` to `MouseButton` conversion table.
+fn tablet_button(button: MouseButton) -> TabletToolButton {
+    match button {
+        MouseButton::Left => TabletToolButton::Contact,
+        MouseButton::Right => TabletToolButton::Barrel,
+        MouseButton::Middle => TabletToolButton::Other(1),
+        MouseButton::Back => TabletToolButton::Other(3),
+        MouseButton::Forward => TabletToolButton::Other(4),
+        other => TabletToolButton::Other(other as u16),
+    }
+}
+
 /// Map a tablet proximity `NSEvent`'s pointing device type to a [`TabletToolKind`].
 ///
 /// The caller must ensure `event` is a proximity event (type `TabletProximity` or a mouse
 /// event with that subtype): the device type is only reported at proximity time —
 /// tablet-point events always report `Unknown`.
 fn tablet_tool_kind(event: &NSEvent) -> TabletToolKind {
-    let device = event.pointingDeviceType();
-    if device == NSPointingDeviceType::Eraser {
-        TabletToolKind::Eraser
-    } else if device == NSPointingDeviceType::Cursor {
+    match event.pointingDeviceType() {
+        NSPointingDeviceType::Eraser => TabletToolKind::Eraser,
         // AppKit's `Cursor` is the tablet puck; winit's closest tool kind is `Mouse`.
-        TabletToolKind::Mouse
-    } else {
+        NSPointingDeviceType::Cursor => TabletToolKind::Mouse,
         // `Pen` and `Unknown` both map to a pen; it is the most common tool and a
         // reasonable default for hardware that does not report a specific type.
-        TabletToolKind::Pen
+        _ => TabletToolKind::Pen,
     }
 }
 
