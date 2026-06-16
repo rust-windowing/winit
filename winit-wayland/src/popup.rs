@@ -646,8 +646,14 @@ impl rwh_06::HasWindowHandle for Popup {
     fn window_handle(&self) -> Result<rwh_06::WindowHandle<'_>, rwh_06::HandleError> {
         let state = self.popup_state.upgrade().ok_or(rwh_06::HandleError::Unavailable)?;
         let raw = rwh_06::WaylandWindowHandle::new({
-            let ptr = state.lock().unwrap().window.wl_surface().id().as_ptr();
-            std::ptr::NonNull::new(ptr as *mut _).expect("wl_surface will never be null")
+            state
+                .lock()
+                .unwrap()
+                .window
+                .wl_surface()
+                .id()
+                .as_ptr()
+                .expect("wl_surface will never be null")
         });
 
         unsafe { Ok(rwh_06::WindowHandle::borrow_raw(raw.into())) }
@@ -660,8 +666,7 @@ impl rwh_06::HasDisplayHandle for Popup {
             return Err(rwh_06::HandleError::Unavailable);
         };
         let raw = rwh_06::WaylandDisplayHandle::new({
-            let ptr = self.display.id().as_ptr();
-            std::ptr::NonNull::new(ptr as *mut _).expect("wl_proxy should never be null")
+            self.display.id().as_ptr().expect("wl_proxy should never be null")
         });
 
         unsafe { Ok(rwh_06::DisplayHandle::borrow_raw(raw.into())) }

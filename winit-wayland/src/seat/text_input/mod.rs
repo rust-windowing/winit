@@ -4,7 +4,7 @@ use dpi::{LogicalPosition, LogicalSize};
 use sctk::globals::GlobalData;
 use sctk::reexports::client::globals::{BindError, GlobalList};
 use sctk::reexports::client::protocol::wl_surface::WlSurface;
-use sctk::reexports::client::{Connection, Dispatch, Proxy, QueueHandle, delegate_dispatch};
+use sctk::reexports::client::{Connection, Dispatch, Proxy, QueueHandle};
 use sctk::reexports::protocols::wp::text_input::zv3::client::zwp_text_input_manager_v3::ZwpTextInputManagerV3;
 use sctk::reexports::protocols::wp::text_input::zv3::client::zwp_text_input_v3::{
     ContentHint, ContentPurpose, Event as TextInputEvent, ZwpTextInputV3,
@@ -27,7 +27,7 @@ impl TextInputState {
         globals: &GlobalList,
         queue_handle: &QueueHandle<WinitState>,
     ) -> Result<Self, BindError> {
-        let text_input_manager = globals.bind(queue_handle, 1..=1, GlobalData)?;
+        let text_input_manager = globals.bind_singleton(queue_handle, 1..=1, GlobalData)?;
         Ok(Self { text_input_manager })
     }
 }
@@ -40,29 +40,29 @@ impl Deref for TextInputState {
     }
 }
 
-impl Dispatch<ZwpTextInputManagerV3, GlobalData, WinitState> for TextInputState {
+impl Dispatch<ZwpTextInputManagerV3, WinitState> for GlobalData {
     fn event(
+        &self,
         _state: &mut WinitState,
         _proxy: &ZwpTextInputManagerV3,
         _event: <ZwpTextInputManagerV3 as Proxy>::Event,
-        _data: &GlobalData,
         _conn: &Connection,
         _qhandle: &QueueHandle<WinitState>,
     ) {
     }
 }
 
-impl Dispatch<ZwpTextInputV3, TextInputData, WinitState> for TextInputState {
+impl Dispatch<ZwpTextInputV3, WinitState> for TextInputData {
     fn event(
+        &self,
         state: &mut WinitState,
         text_input: &ZwpTextInputV3,
         event: <ZwpTextInputV3 as Proxy>::Event,
-        data: &TextInputData,
         _conn: &Connection,
         _qhandle: &QueueHandle<WinitState>,
     ) {
         let windows = state.windows.get_mut();
-        let mut text_input_data = data.inner.lock().unwrap();
+        let mut text_input_data = self.inner.lock().unwrap();
         match event {
             TextInputEvent::Enter { surface } => {
                 let window_id = crate::make_wid(&surface);
@@ -462,6 +462,3 @@ impl Default for ContentType {
         ContentType { purpose: ContentPurpose::Normal, hint: ContentHint::None }
     }
 }
-
-delegate_dispatch!(WinitState: [ZwpTextInputManagerV3: GlobalData] => TextInputState);
-delegate_dispatch!(WinitState: [ZwpTextInputV3: TextInputData] => TextInputState);
