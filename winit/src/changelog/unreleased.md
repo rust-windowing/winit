@@ -66,3 +66,4 @@ changelog entry.
 - On Wayland, switch from using the `ahash` hashing algorithm to `foldhash`.
 - On macOS, fix borderless game presentation options not sticking after switching spaces.
 - On macOS, fix IME being locked on (regardless of requests to disable) after being enabled once.
+- On Windows, fix missing focus events after showing a hidden maximized window.
