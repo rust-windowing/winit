@@ -172,7 +172,7 @@ impl Popup {
 
         // Activate the window when the token is passed.
         if let (Some(xdg_activation), Some(token)) = (xdg_activation.as_ref(), activation_token) {
-            xdg_activation.activate(token.into_raw(), &surface);
+            xdg_activation.activate(&token.into_raw(), &surface);
         }
 
         // Request a keyboard grab so the compositor routes key events to

@@ -725,7 +725,7 @@ impl WindowState {
         }
 
         if let Some(xdg_toplevel) = self.window.xdg_toplevel() {
-            xdg_toplevel.set_title(title.clone());
+            xdg_toplevel.set_title(&title);
         }
 
         self.title = title;
