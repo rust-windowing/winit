@@ -4,12 +4,11 @@ use std::sync::Mutex;
 
 use dpi::LogicalPosition;
 use sctk::compositor::SurfaceData;
-use sctk::dispatch2::Dispatch2;
 use sctk::reexports::client::backend::smallvec::SmallVec;
 use sctk::reexports::client::globals::{BindError, GlobalList};
 use sctk::reexports::client::protocol::wl_seat::WlSeat;
 use sctk::reexports::client::protocol::wl_surface::WlSurface;
-use sctk::reexports::client::{Connection, Proxy, QueueHandle, WEnum, event_created_child};
+use sctk::reexports::client::{Connection, Proxy, QueueHandle, event_created_child};
 use sctk::reexports::protocols::wp::tablet::zv2::client::zwp_tablet_manager_v2::ZwpTabletManagerV2;
 use sctk::reexports::protocols::wp::tablet::zv2::client::zwp_tablet_pad_v2::ZwpTabletPadV2;
 use sctk::reexports::protocols::wp::tablet::zv2::client::zwp_tablet_seat_v2::{
@@ -19,6 +18,7 @@ use sctk::reexports::protocols::wp::tablet::zv2::client::zwp_tablet_tool_v2::{
     ButtonState, Event as ToolEvent, Type as ToolType, ZwpTabletToolV2,
 };
 use sctk::reexports::protocols::wp::tablet::zv2::client::zwp_tablet_v2::ZwpTabletV2;
+use wayland_client::Dispatch;
 use wayland_protocols::wp::tablet::zv2::client::zwp_tablet_pad_dial_v2::ZwpTabletPadDialV2;
 use wayland_protocols::wp::tablet::zv2::client::zwp_tablet_pad_group_v2::{
     self, ZwpTabletPadGroupV2,
@@ -45,7 +45,7 @@ impl TabletManager {
         queue_handle: &QueueHandle<WinitState>,
     ) -> Result<Self, BindError> {
         // Ignore v2 since we are not interested in its events.
-        let manager = globals.bind(queue_handle, 1..=1, ())?;
+        let manager = globals.bind_singleton(queue_handle, 1..=1, ())?;
         Ok(Self { manager })
     }
 
@@ -57,7 +57,7 @@ impl TabletManager {
         self.manager.get_tablet_seat(seat, queue_handle, ())
     }
 }
-impl Dispatch2<ZwpTabletManagerV2, WinitState> for () {
+impl Dispatch<ZwpTabletManagerV2, WinitState> for () {
     fn event(
         &self,
         _: &mut WinitState,
@@ -70,7 +70,7 @@ impl Dispatch2<ZwpTabletManagerV2, WinitState> for () {
     }
 }
 
-impl Dispatch2<ZwpTabletSeatV2, WinitState> for () {
+impl Dispatch<ZwpTabletSeatV2, WinitState> for () {
     event_created_child!(WinitState, ZwpTabletSeatV2, [
         zwp_tablet_seat_v2::EVT_TABLET_ADDED_OPCODE => (ZwpTabletV2, ()),
         zwp_tablet_seat_v2::EVT_TOOL_ADDED_OPCODE => (ZwpTabletToolV2, TabletToolData::default()),
@@ -88,7 +88,7 @@ impl Dispatch2<ZwpTabletSeatV2, WinitState> for () {
     }
 }
 
-impl Dispatch2<ZwpTabletToolV2, WinitState> for TabletToolData {
+impl Dispatch<ZwpTabletToolV2, WinitState> for TabletToolData {
     fn event(
         &self,
         state: &mut WinitState,
@@ -100,7 +100,7 @@ impl Dispatch2<ZwpTabletToolV2, WinitState> for TabletToolData {
         let mut data = self.inner.lock().unwrap();
 
         match event {
-            ToolEvent::Type { tool_type: WEnum::Value(tool_type) } => {
+            ToolEvent::Type { tool_type } => {
                 data.ty = match tool_type {
                     ToolType::Pen => TabletToolKind::Pen,
                     ToolType::Eraser => TabletToolKind::Eraser,
@@ -150,7 +150,7 @@ impl Dispatch2<ZwpTabletToolV2, WinitState> for TabletToolData {
             ToolEvent::Rotation { degrees } => {
                 data.tool_state.twist = Some(degrees as u16);
             },
-            ToolEvent::Button { serial, button, state: WEnum::Value(state) } => {
+            ToolEvent::Button { serial, button, state } => {
                 let state = match state {
                     ButtonState::Released => ElementState::Released,
                     ButtonState::Pressed => ElementState::Pressed,
@@ -303,7 +303,7 @@ pub(crate) enum TabletEvent {
     Button { button: TabletToolButton, state: ElementState, serial: Option<u32> },
 }
 
-impl Dispatch2<ZwpTabletV2, WinitState> for () {
+impl Dispatch<ZwpTabletV2, WinitState> for () {
     fn event(
         &self,
         _: &mut WinitState,
@@ -315,7 +315,7 @@ impl Dispatch2<ZwpTabletV2, WinitState> for () {
     }
 }
 
-impl Dispatch2<ZwpTabletPadV2, WinitState> for () {
+impl Dispatch<ZwpTabletPadV2, WinitState> for () {
     event_created_child!(WinitState, ZwpTabletPadV2, [
         zwp_tablet_pad_v2::EVT_GROUP_OPCODE => (ZwpTabletPadGroupV2, ()),
     ]);
@@ -331,7 +331,7 @@ impl Dispatch2<ZwpTabletPadV2, WinitState> for () {
     }
 }
 
-impl Dispatch2<ZwpTabletPadGroupV2, WinitState> for () {
+impl Dispatch<ZwpTabletPadGroupV2, WinitState> for () {
     event_created_child!(WinitState, ZwpTabletPadGroupV2, [
         zwp_tablet_pad_group_v2::EVT_RING_OPCODE => (ZwpTabletPadRingV2, ()),
         zwp_tablet_pad_group_v2::EVT_STRIP_OPCODE => (ZwpTabletPadStripV2, ()),
@@ -349,7 +349,7 @@ impl Dispatch2<ZwpTabletPadGroupV2, WinitState> for () {
     }
 }
 
-impl Dispatch2<ZwpTabletPadRingV2, WinitState> for () {
+impl Dispatch<ZwpTabletPadRingV2, WinitState> for () {
     fn event(
         &self,
         _: &mut WinitState,
@@ -361,7 +361,7 @@ impl Dispatch2<ZwpTabletPadRingV2, WinitState> for () {
     }
 }
 
-impl Dispatch2<ZwpTabletPadStripV2, WinitState> for () {
+impl Dispatch<ZwpTabletPadStripV2, WinitState> for () {
     fn event(
         &self,
         _: &mut WinitState,
@@ -373,7 +373,7 @@ impl Dispatch2<ZwpTabletPadStripV2, WinitState> for () {
     }
 }
 
-impl Dispatch2<ZwpTabletPadDialV2, WinitState> for () {
+impl Dispatch<ZwpTabletPadDialV2, WinitState> for () {
     fn event(
         &self,
         _: &mut WinitState,
