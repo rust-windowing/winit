@@ -6,7 +6,7 @@ use std::sync::atomic::AtomicBool;
 use sctk::globals::GlobalData;
 use sctk::reexports::client::globals::{BindError, GlobalList};
 use sctk::reexports::client::protocol::wl_surface::WlSurface;
-use sctk::reexports::client::{Connection, Dispatch, Proxy, QueueHandle, delegate_dispatch};
+use sctk::reexports::client::{Connection, Dispatch, Proxy, QueueHandle};
 use sctk::reexports::protocols::xdg::activation::v1::client::xdg_activation_token_v1::{
     Event as ActivationTokenEvent, XdgActivationTokenV1,
 };
@@ -26,7 +26,7 @@ impl XdgActivationState {
         globals: &GlobalList,
         queue_handle: &QueueHandle<WinitState>,
     ) -> Result<Self, BindError> {
-        let xdg_activation = globals.bind(queue_handle, 1..=1, GlobalData)?;
+        let xdg_activation = globals.bind_singleton(queue_handle, 1..=1, GlobalData)?;
         Ok(Self { xdg_activation })
     }
 
@@ -35,24 +35,24 @@ impl XdgActivationState {
     }
 }
 
-impl Dispatch<XdgActivationV1, GlobalData, WinitState> for XdgActivationState {
+impl Dispatch<XdgActivationV1, WinitState> for GlobalData {
     fn event(
+        &self,
         _state: &mut WinitState,
         _proxy: &XdgActivationV1,
         _event: <XdgActivationV1 as Proxy>::Event,
-        _data: &GlobalData,
         _conn: &Connection,
         _qhandle: &QueueHandle<WinitState>,
     ) {
     }
 }
 
-impl Dispatch<XdgActivationTokenV1, XdgActivationTokenData, WinitState> for XdgActivationState {
+impl Dispatch<XdgActivationTokenV1, WinitState> for XdgActivationTokenData {
     fn event(
+        &self,
         state: &mut WinitState,
         proxy: &XdgActivationTokenV1,
         event: <XdgActivationTokenV1 as Proxy>::Event,
-        data: &XdgActivationTokenData,
         _: &Connection,
         _: &QueueHandle<WinitState>,
     ) {
@@ -67,7 +67,7 @@ impl Dispatch<XdgActivationTokenV1, XdgActivationTokenData, WinitState> for XdgA
             .expect("got xdg_activation event without global.")
             .global();
 
-        match data {
+        match self {
             XdgActivationTokenData::Attention((surface, fence)) => {
                 global.activate(token, surface);
                 // Mark that no request attention is in process.
@@ -97,6 +97,3 @@ pub enum XdgActivationTokenData {
     /// Get a token to be passed outside of the winit.
     Obtain((WindowId, AsyncRequestSerial)),
 }
-
-delegate_dispatch!(WinitState: [ XdgActivationV1: GlobalData] => XdgActivationState);
-delegate_dispatch!(WinitState: [ XdgActivationTokenV1: XdgActivationTokenData] => XdgActivationState);

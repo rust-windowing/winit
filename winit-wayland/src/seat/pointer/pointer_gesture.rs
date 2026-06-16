@@ -5,7 +5,7 @@ use dpi::{LogicalPosition, PhysicalPosition};
 use sctk::compositor::SurfaceData;
 use sctk::globals::GlobalData;
 use sctk::reexports::client::globals::{BindError, GlobalList};
-use sctk::reexports::client::{Connection, Dispatch, Proxy, QueueHandle, delegate_dispatch};
+use sctk::reexports::client::{Connection, Dispatch, Proxy, QueueHandle};
 use sctk::reexports::protocols::wp::pointer_gestures::zv1::client::zwp_pointer_gesture_pinch_v1::{
     Event as PinchEvent, ZwpPointerGesturePinchV1,
 };
@@ -30,7 +30,7 @@ impl PointerGesturesState {
         globals: &GlobalList,
         queue_handle: &QueueHandle<WinitState>,
     ) -> Result<Self, BindError> {
-        let pointer_gestures = globals.bind(queue_handle, 3..=3, GlobalData)?;
+        let pointer_gestures = globals.bind_singleton(queue_handle, 3..=3, GlobalData)?;
         Ok(Self { pointer_gestures })
     }
 }
@@ -60,12 +60,12 @@ impl Deref for PointerGesturesState {
     }
 }
 
-impl Dispatch<ZwpPointerGesturesV1, GlobalData, WinitState> for PointerGesturesState {
+impl Dispatch<ZwpPointerGesturesV1, WinitState> for GlobalData {
     fn event(
+        &self,
         _state: &mut WinitState,
         _proxy: &ZwpPointerGesturesV1,
         _event: <ZwpPointerGesturesV1 as wayland_client::Proxy>::Event,
-        _data: &GlobalData,
         _conn: &Connection,
         _qhandle: &QueueHandle<WinitState>,
     ) {
@@ -73,16 +73,16 @@ impl Dispatch<ZwpPointerGesturesV1, GlobalData, WinitState> for PointerGesturesS
     }
 }
 
-impl Dispatch<ZwpPointerGestureHoldV1, PointerGestureData, WinitState> for PointerGesturesState {
+impl Dispatch<ZwpPointerGestureHoldV1, WinitState> for PointerGestureData {
     fn event(
+        &self,
         state: &mut WinitState,
         _proxy: &ZwpPointerGestureHoldV1,
         event: <ZwpPointerGestureHoldV1 as wayland_client::Proxy>::Event,
-        data: &PointerGestureData,
         _conn: &Connection,
         _qhandle: &QueueHandle<WinitState>,
     ) {
-        let mut pointer_gesture_data = data.inner.lock().unwrap();
+        let mut pointer_gesture_data = self.inner.lock().unwrap();
         let (window_id, phase) = match event {
             HoldEvent::Begin { surface, fingers, .. } => {
                 if fingers < 2 {
@@ -116,16 +116,16 @@ impl Dispatch<ZwpPointerGestureHoldV1, PointerGestureData, WinitState> for Point
     }
 }
 
-impl Dispatch<ZwpPointerGesturePinchV1, PointerGestureData, WinitState> for PointerGesturesState {
+impl Dispatch<ZwpPointerGesturePinchV1, WinitState> for PointerGestureData {
     fn event(
+        &self,
         state: &mut WinitState,
         _proxy: &ZwpPointerGesturePinchV1,
         event: <ZwpPointerGesturePinchV1 as Proxy>::Event,
-        data: &PointerGestureData,
         _conn: &Connection,
         _qhandle: &QueueHandle<WinitState>,
     ) {
-        let mut pointer_gesture_data = data.inner.lock().unwrap();
+        let mut pointer_gesture_data = self.inner.lock().unwrap();
         let (window_id, phase, pan_delta, pinch_delta, rotation_delta) = match event {
             PinchEvent::Begin { surface, fingers, .. } => {
                 // We only support two fingers for now.
@@ -200,7 +200,3 @@ impl Dispatch<ZwpPointerGesturePinchV1, PointerGestureData, WinitState> for Poin
         );
     }
 }
-
-delegate_dispatch!(WinitState: [ZwpPointerGesturesV1: GlobalData] => PointerGesturesState);
-delegate_dispatch!(WinitState: [ZwpPointerGesturePinchV1: PointerGestureData] => PointerGesturesState);
-delegate_dispatch!(WinitState: [ZwpPointerGestureHoldV1: PointerGestureData] => PointerGesturesState);
