@@ -6,7 +6,6 @@ use std::time::Duration;
 
 use tracing::warn;
 
-use sctk::reexports::client::delegate_dispatch;
 use sctk::reexports::client::protocol::wl_pointer::WlPointer;
 use sctk::reexports::client::protocol::wl_surface::WlSurface;
 use sctk::reexports::client::{Connection, Proxy, QueueHandle, Dispatch};
@@ -408,7 +407,7 @@ impl PointerConstraintsState {
         globals: &GlobalList,
         queue_handle: &QueueHandle<WinitState>,
     ) -> Result<Self, BindError> {
-        let pointer_constraints = globals.bind(queue_handle, 1..=1, GlobalData)?;
+        let pointer_constraints = globals.bind_singleton(queue_handle, 1..=1, GlobalData)?;
         Ok(Self { pointer_constraints })
     }
 }
@@ -421,42 +420,38 @@ impl Deref for PointerConstraintsState {
     }
 }
 
-impl Dispatch<ZwpPointerConstraintsV1, GlobalData, WinitState> for PointerConstraintsState {
+impl Dispatch<ZwpPointerConstraintsV1, WinitState> for GlobalData {
     fn event(
+        &self,
         _state: &mut WinitState,
         _proxy: &ZwpPointerConstraintsV1,
         _event: <ZwpPointerConstraintsV1 as wayland_client::Proxy>::Event,
-        _data: &GlobalData,
         _conn: &Connection,
         _qhandle: &QueueHandle<WinitState>,
     ) {
     }
 }
 
-impl Dispatch<ZwpLockedPointerV1, GlobalData, WinitState> for PointerConstraintsState {
+impl Dispatch<ZwpLockedPointerV1, WinitState> for GlobalData {
     fn event(
+        &self,
         _state: &mut WinitState,
         _proxy: &ZwpLockedPointerV1,
         _event: <ZwpLockedPointerV1 as wayland_client::Proxy>::Event,
-        _data: &GlobalData,
         _conn: &Connection,
         _qhandle: &QueueHandle<WinitState>,
     ) {
     }
 }
 
-impl Dispatch<ZwpConfinedPointerV1, GlobalData, WinitState> for PointerConstraintsState {
+impl Dispatch<ZwpConfinedPointerV1, WinitState> for GlobalData {
     fn event(
+        &self,
         _state: &mut WinitState,
         _proxy: &ZwpConfinedPointerV1,
         _event: <ZwpConfinedPointerV1 as wayland_client::Proxy>::Event,
-        _data: &GlobalData,
         _conn: &Connection,
         _qhandle: &QueueHandle<WinitState>,
     ) {
     }
 }
-
-delegate_dispatch!(WinitState: [ZwpPointerConstraintsV1: GlobalData] => PointerConstraintsState);
-delegate_dispatch!(WinitState: [ZwpLockedPointerV1: GlobalData] => PointerConstraintsState);
-delegate_dispatch!(WinitState: [ZwpConfinedPointerV1: GlobalData] => PointerConstraintsState);

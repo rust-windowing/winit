@@ -233,7 +233,7 @@ impl Window {
     }
 
     pub(crate) fn xdg_toplevel(&self) -> Option<NonNull<c_void>> {
-        NonNull::new(self.window.xdg_toplevel().id().as_ptr().cast())
+        Some(self.window.xdg_toplevel().id().as_ptr().ok()?.cast())
     }
 }
 
@@ -270,8 +270,7 @@ impl Drop for Window {
 impl rwh_06::HasWindowHandle for Window {
     fn window_handle(&self) -> Result<rwh_06::WindowHandle<'_>, rwh_06::HandleError> {
         let raw = rwh_06::WaylandWindowHandle::new({
-            let ptr = self.window.wl_surface().id().as_ptr();
-            std::ptr::NonNull::new(ptr as *mut _).expect("wl_surface will never be null")
+            self.window.wl_surface().id().as_ptr().expect("wl_surface will never be null").cast()
         });
 
         unsafe { Ok(rwh_06::WindowHandle::borrow_raw(raw.into())) }
@@ -281,8 +280,7 @@ impl rwh_06::HasWindowHandle for Window {
 impl rwh_06::HasDisplayHandle for Window {
     fn display_handle(&self) -> Result<rwh_06::DisplayHandle<'_>, rwh_06::HandleError> {
         let raw = rwh_06::WaylandDisplayHandle::new({
-            let ptr = self.display.id().as_ptr();
-            std::ptr::NonNull::new(ptr as *mut _).expect("wl_proxy should never be null")
+            self.display.id().as_ptr().expect("wl_proxy should never be null").cast()
         });
 
         unsafe { Ok(rwh_06::DisplayHandle::borrow_raw(raw.into())) }

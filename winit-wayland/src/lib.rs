@@ -146,7 +146,7 @@ impl PlatformWindowAttributes for WindowAttributesWayland {
 /// Get the WindowId out of the surface.
 #[inline]
 fn make_wid(surface: &WlSurface) -> WindowId {
-    WindowId::from_raw(surface.id().as_ptr() as usize)
+    WindowId::from_raw(surface.id().as_ptr().map_or(0, |ptr| ptr.as_ptr() as usize))
 }
 
 /// The default routine does floor, but we need round on Wayland.

@@ -250,5 +250,3 @@ impl TouchDataExt for WlTouch {
         self.data::<TouchData<()>>().expect("failed to get touch data.").seat()
     }
 }
-
-sctk::delegate_touch!(WinitState);

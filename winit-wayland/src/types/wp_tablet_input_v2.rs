@@ -9,7 +9,7 @@ use sctk::reexports::client::backend::smallvec::SmallVec;
 use sctk::reexports::client::globals::{BindError, GlobalList};
 use sctk::reexports::client::protocol::wl_seat::WlSeat;
 use sctk::reexports::client::protocol::wl_surface::WlSurface;
-use sctk::reexports::client::{Connection, Proxy, QueueHandle, WEnum, event_created_child};
+use sctk::reexports::client::{Connection, Proxy, QueueHandle, event_created_child};
 use sctk::reexports::protocols::wp::tablet::zv2::client::zwp_tablet_manager_v2::ZwpTabletManagerV2;
 use sctk::reexports::protocols::wp::tablet::zv2::client::zwp_tablet_pad_v2::ZwpTabletPadV2;
 use sctk::reexports::protocols::wp::tablet::zv2::client::zwp_tablet_seat_v2::{
@@ -45,7 +45,7 @@ impl TabletManager {
         queue_handle: &QueueHandle<WinitState>,
     ) -> Result<Self, BindError> {
         // Ignore v2 since we are not interested in its events.
-        let manager = globals.bind(queue_handle, 1..=1, ())?;
+        let manager = globals.bind_singleton(queue_handle, 1..=1, ())?;
         Ok(Self { manager })
     }
 
@@ -100,7 +100,7 @@ impl Dispatch2<ZwpTabletToolV2, WinitState> for TabletToolData {
         let mut data = self.inner.lock().unwrap();
 
         match event {
-            ToolEvent::Type { tool_type: WEnum::Value(tool_type) } => {
+            ToolEvent::Type { tool_type } => {
                 data.ty = match tool_type {
                     ToolType::Pen => TabletToolKind::Pen,
                     ToolType::Eraser => TabletToolKind::Eraser,
@@ -150,7 +150,7 @@ impl Dispatch2<ZwpTabletToolV2, WinitState> for TabletToolData {
             ToolEvent::Rotation { degrees } => {
                 data.tool_state.twist = Some(degrees as u16);
             },
-            ToolEvent::Button { serial, button, state: WEnum::Value(state) } => {
+            ToolEvent::Button { serial, button, state } => {
                 let state = match state {
                     ButtonState::Released => ElementState::Released,
                     ButtonState::Pressed => ElementState::Pressed,
