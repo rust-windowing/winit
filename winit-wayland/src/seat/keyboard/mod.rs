@@ -1,5 +1,6 @@
 //! The keyboard input handling.
 
+use std::sync::atomic::Ordering;
 use std::sync::Mutex;
 use std::time::Duration;
 
@@ -129,9 +130,10 @@ impl Dispatch<WlKeyboard, KeyboardData, WinitState> for WinitState {
                     state.events_sink.push_window_event(WindowEvent::Focused(false), window_id);
                 }
             },
-            WlKeyboardEvent::Key { key, state: WEnum::Value(key_state), .. }
+            WlKeyboardEvent::Key { serial, key, state: WEnum::Value(key_state), .. }
                 if matches!(key_state, WlKeyState::Repeated | WlKeyState::Pressed) =>
             {
+                seat_state.latest_serial.store(serial, Ordering::Relaxed);
                 let key = key + 8;
                 key_input(
                     keyboard_state,
@@ -204,7 +206,8 @@ impl Dispatch<WlKeyboard, KeyboardData, WinitState> for WinitState {
                     })
                     .ok();
             },
-            WlKeyboardEvent::Key { key, state: WEnum::Value(WlKeyState::Released), .. } => {
+            WlKeyboardEvent::Key { serial, key, state: WEnum::Value(WlKeyState::Released), .. } => {
+                seat_state.latest_serial.store(serial, Ordering::Relaxed);
                 let key = key + 8;
 
                 key_input(
@@ -227,8 +230,9 @@ impl Dispatch<WlKeyboard, KeyboardData, WinitState> for WinitState {
                 }
             },
             WlKeyboardEvent::Modifiers {
-                mods_depressed, mods_latched, mods_locked, group, ..
+                serial, mods_depressed, mods_latched, mods_locked, group, ..
             } => {
+                seat_state.latest_serial.store(serial, Ordering::Relaxed);
                 let xkb_context = &mut keyboard_state.xkb_context;
                 let xkb_state = match xkb_context.state_mut() {
                     Some(state) => state,

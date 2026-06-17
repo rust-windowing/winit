@@ -85,7 +85,7 @@ impl Window {
         let window =
             state.xdg_shell.create_window(surface.clone(), default_decorations, &queue_handle);
 
-        let WindowAttributesWayland { name: app_name, activation_token, prefer_csd } = *attributes
+        let WindowAttributesWayland { name: app_name, activation_token, prefer_csd, .. } = *attributes
             .platform
             .take()
             .and_then(|p| p.cast::<WindowAttributesWayland>().ok())

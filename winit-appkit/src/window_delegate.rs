@@ -785,7 +785,7 @@ impl WindowDelegate {
             .and_then(|attrs| attrs.cast::<WindowAttributesMacOS>().ok())
             .unwrap_or_default();
 
-        let is_popup = attrs.window_type() == WindowType::Popup;
+        let is_popup = matches!(attrs.window_type(), WindowType::Popup { .. });
         if is_popup {
             // A popup is an undecorated, non-activating panel with no titlebar buttons. Model it
             // as such so it flows through the existing borderless + panel paths in `new_window`
