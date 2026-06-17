@@ -1,6 +1,7 @@
 //! The pointer events.
 
 use std::ops::Deref;
+use std::sync::atomic::Ordering;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
@@ -173,6 +174,7 @@ impl PointerHandler for WinitState {
                 | ref kind @ PointerEventKind::Release { button, serial, .. } => {
                     // Update the last button serial.
                     pointer.winit_data().inner.lock().unwrap().latest_button_serial = serial;
+                    seat_state.latest_serial.store(serial, Ordering::Relaxed);
 
                     let button = wayland_button_to_winit(button);
                     let state = if matches!(kind, PointerEventKind::Press { .. }) {

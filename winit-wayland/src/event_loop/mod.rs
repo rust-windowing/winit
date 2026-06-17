@@ -656,7 +656,7 @@ impl RootActiveEventLoop for ActiveEventLoop {
                 let window = crate::Window::new(self, window_attributes)?;
                 Ok(Box::new(window))
             },
-            WindowType::Popup => {
+            WindowType::Popup { .. } => {
                 let popup = crate::Popup::new(self, window_attributes)?;
                 Ok(Box::new(popup))
             },

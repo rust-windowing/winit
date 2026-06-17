@@ -58,6 +58,11 @@ impl Popup {
             };
         }
 
+        let grab_keyboard = matches!(
+            attributes.window_type,
+            winit_core::window::WindowType::Popup { grab_keyboard: true }
+        );
+
         let parent_window_handle =
             attributes.parent_window().ok_or(error!("Popup without a parent is not supported!"))?;
         if let RawWindowHandle::Wayland(parent_window_handle) = parent_window_handle {
@@ -135,6 +140,20 @@ impl Popup {
                     xdg_activation.activate(token.into_raw(), &surface);
                 }
 
+                // Request a keyboard grab so the compositor routes key events to
+                // this popup rather than the parent window. Must happen before the
+                // first commit that maps the surface.
+                if grab_keyboard {
+                    if let Some(seat) = state.seat_state.seats().next() {
+                        let serial = state
+                            .seats
+                            .get(&seat.id())
+                            .map(|s| s.latest_serial())
+                            .unwrap_or(0);
+                        popup.xdg_popup().grab(&seat, serial);
+                    }
+                }
+
                 popup.wl_surface().commit();
                 // popup.commit(); Trait not implemented in Sctk
 
@@ -166,6 +185,15 @@ impl Popup {
             // XXX Wait for the initial configure to arrive.
             while !popup_state.lock().unwrap().is_configured() {
                 event_queue.blocking_dispatch(&mut state).map_err(|err| os_error!(err))?;
+                // The compositor may dismiss a popup (e.g. invalid grab serial) by sending
+                // popup_done before configure. Detect that and bail out instead of looping forever.
+                if state
+                    .window_compositor_updates
+                    .iter()
+                    .any(|u| u.window_id == window_id && u.close_window)
+                {
+                    return Err(error!("Popup was dismissed by the compositor before configure"));
+                }
             }
 
             // Wake-up event loop, so it'll send initial redraw requested.
