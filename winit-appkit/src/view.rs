@@ -131,7 +131,10 @@ pub struct ViewState {
     /// to the application, even during IME
     forward_key_to_app: Cell<bool>,
     marked_text: RefCell<Retained<NSMutableAttributedString>>,
-    accepts_first_mouse: bool,
+
+    /// Set by `acceptsFirstMouse:` so the next `mouseDown:` can tag its
+    /// [`WindowEvent::PointerButton`] with `is_macos_activation_click: true`.
+    next_click_is_activation: Cell<bool>,
 
     /// The state of the `Option` as `Alt`.
     option_as_alt: Cell<OptionAsAlt>,
@@ -764,9 +767,18 @@ define_class!(
         }
 
         #[unsafe(method(acceptsFirstMouse:))]
-        fn accepts_first_mouse(&self, _event: &NSEvent) -> bool {
+        fn accepts_first_mouse(&self, event: Option<&NSEvent>) -> bool {
             let _entered = debug_span!("acceptsFirstMouse:").entered();
-            self.ivars().accepts_first_mouse
+            // Always accept the click. The following `mouseDown:` is tagged with
+            // `is_macos_activation_click: true` so the application can decide per click
+            // whether to act on it.
+            //
+            // AppKit may pass nil here for synthetic queries that are not tied to a
+            // specific click; only set the flag when we actually have an event.
+            if event.is_some() {
+                self.ivars().next_click_is_activation.set(true);
+            }
+            true
         }
     }
 );
@@ -774,7 +786,6 @@ define_class!(
 impl WinitView {
     pub(super) fn new(
         app_state: &Rc<AppState>,
-        accepts_first_mouse: bool,
         option_as_alt: OptionAsAlt,
         mtm: MainThreadMarker,
     ) -> Retained<Self> {
@@ -790,7 +801,7 @@ impl WinitView {
             ime_capabilities: Default::default(),
             forward_key_to_app: Default::default(),
             marked_text: Default::default(),
-            accepts_first_mouse,
+            next_click_is_activation: Default::default(),
             option_as_alt: Cell::new(option_as_alt),
         });
         let this: Retained<Self> = unsafe { msg_send![super(this), init] };
@@ -1079,12 +1090,23 @@ impl WinitView {
 
         self.update_modifiers(event, false);
 
+        // `acceptsFirstMouse:` fires only for the left button, so the activation flag is
+        // applied to the left press and held until the matching left release. This lets
+        // apps short-circuit both events with a single `if is_macos_activation_click` check
+        // without having to track gesture state themselves.
+        let is_macos_activation_click = matches!(button, MouseButton::Left)
+            && match button_state {
+                ElementState::Pressed => self.ivars().next_click_is_activation.get(),
+                ElementState::Released => self.ivars().next_click_is_activation.replace(false),
+            };
+
         self.queue_event(WindowEvent::PointerButton {
             device_id: None,
             primary: true,
             state: button_state,
             position,
             button: button.into(),
+            is_macos_activation_click,
         });
     }
 

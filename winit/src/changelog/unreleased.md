@@ -50,11 +50,22 @@ changelog entry.
 - On Android, added scancode conversions for more obscure key codes.
 - On Wayland, added `HoldGesture` event for multi-finger hold gestures
 - On Wayland, added ext-background-effect-v1 support.
+- Add `WindowEvent::PointerButton::is_macos_activation_click`. On macOS, both the press and
+  matching release of a click that activated a previously inactive window are tagged, so
+  applications can ignore activation clicks for buttons or destructive actions while accepting
+  them for low-risk actions like selection or scrolling. Always `false` on other platforms.
 
 ### Changed
 
 - Updated `windows-sys` to `v0.61`.
 - On older macOS versions (tested up to 12.7.6), applications now receive mouse movement events for unfocused windows, matching the behavior on other platforms.
+
+### Removed
+
+- On macOS, remove `WindowAttributesMacOS::with_accepts_first_mouse`. Use the new per-event
+  `WindowEvent::PointerButton::is_macos_activation_click` flag instead. To preserve the old
+  `with_accepts_first_mouse(false)` behavior, ignore `PointerButton` press events (and their
+  matching releases / drags) where `is_macos_activation_click` is `true`.
 
 ### Fixed
 

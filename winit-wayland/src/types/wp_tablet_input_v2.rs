@@ -250,6 +250,7 @@ impl Dispatch<ZwpTabletToolV2, TabletToolData, WinitState> for TabletManager {
                                     button,
                                     data: data.tool_state.clone(),
                                 },
+                                is_macos_activation_click: false,
                             }
                         },
                         TabletEvent::Left => WindowEvent::PointerLeft {

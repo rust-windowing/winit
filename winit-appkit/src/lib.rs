@@ -334,7 +334,6 @@ pub struct WindowAttributesMacOS {
     pub(crate) fullsize_content_view: bool,
     pub(crate) disallow_hidpi: bool,
     pub(crate) has_shadow: bool,
-    pub(crate) accepts_first_mouse: bool,
     pub(crate) tabbing_identifier: Option<String>,
     pub(crate) option_as_alt: OptionAsAlt,
     pub(crate) borderless_game: bool,
@@ -397,13 +396,6 @@ impl WindowAttributesMacOS {
         self
     }
 
-    /// Window accepts click-through mouse events.
-    #[inline]
-    pub fn with_accepts_first_mouse(mut self, accepts_first_mouse: bool) -> Self {
-        self.accepts_first_mouse = accepts_first_mouse;
-        self
-    }
-
     /// Defines the window tabbing identifier.
     ///
     /// <https://developer.apple.com/documentation/appkit/nswindow/1644704-tabbingidentifier>
@@ -461,7 +453,6 @@ impl Default for WindowAttributesMacOS {
             fullsize_content_view: false,
             disallow_hidpi: false,
             has_shadow: true,
-            accepts_first_mouse: true,
             tabbing_identifier: None,
             option_as_alt: Default::default(),
             borderless_game: false,
