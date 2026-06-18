@@ -1749,6 +1749,7 @@ unsafe fn public_window_callback_inner(
                     _ => unreachable!(),
                 }
                 .into(),
+                is_macos_activation_click: false,
             });
             result = ProcResult::Value(0);
         },
@@ -1778,6 +1779,7 @@ unsafe fn public_window_callback_inner(
                     _ => unreachable!(),
                 }
                 .into(),
+                is_macos_activation_click: false,
             });
             result = ProcResult::Value(0);
         },
@@ -1806,6 +1808,7 @@ unsafe fn public_window_callback_inner(
                 position,
                 // 1 is defined as back, 2 as forward; other codes are unexpected.
                 button: MouseButton::try_from_u8(b).unwrap().into(),
+                is_macos_activation_click: false,
             });
             result = ProcResult::Value(0);
         },
@@ -1835,6 +1838,7 @@ unsafe fn public_window_callback_inner(
                 position,
                 // 1 is defined as back, 2 as forward; other codes are unexpected.
                 button: MouseButton::try_from_u8(b).unwrap().into(),
+                is_macos_activation_click: false,
             });
             result = ProcResult::Value(0);
         },
@@ -1894,6 +1898,7 @@ unsafe fn public_window_callback_inner(
                             state: Pressed,
                             position,
                             button: Touch { finger_id, force: None },
+                            is_macos_activation_click: false,
                         });
                     } else if util::has_flag(input.dwFlags, TOUCHEVENTF_UP) {
                         userdata.send_window_event(window, WindowEvent::PointerButton {
@@ -1902,6 +1907,7 @@ unsafe fn public_window_callback_inner(
                             state: Released,
                             position,
                             button: Touch { finger_id, force: None },
+                            is_macos_activation_click: false,
                         });
                         userdata.send_window_event(window, WindowEvent::PointerLeft {
                             device_id: None,
@@ -2063,6 +2069,7 @@ unsafe fn public_window_callback_inner(
                                 state: Pressed,
                                 position,
                                 button,
+                                is_macos_activation_click: false,
                             });
                         } else {
                             userdata.send_window_event(window, WindowEvent::PointerButton {
@@ -2071,6 +2078,7 @@ unsafe fn public_window_callback_inner(
                                 state: Released,
                                 position,
                                 button,
+                                is_macos_activation_click: false,
                             });
                             userdata.send_window_event(window, WindowEvent::PointerLeft {
                                 device_id: None,
