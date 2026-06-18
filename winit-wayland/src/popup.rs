@@ -58,10 +58,10 @@ impl Popup {
             };
         }
 
-        let grab_keyboard = matches!(
-            attributes.window_type,
-            winit_core::window::WindowType::Popup { grab_keyboard: true }
-        );
+        let grab_keyboard =
+            matches!(attributes.window_type, winit_core::window::WindowType::Popup {
+                grab_keyboard: true
+            });
 
         let parent_window_handle =
             attributes.parent_window().ok_or(error!("Popup without a parent is not supported!"))?;
@@ -75,14 +75,14 @@ impl Popup {
                 .map(|activation_state| activation_state.global().clone());
             let positioner = XdgPositioner::new(&state.xdg_shell)
                 .map_err(|_| error!("Failed to create positioner"))?;
-            let (popup, popup_state) = if let Some(parent_window_state) = state
-                .windows
-                .borrow()
-                .get(&WindowId::from_raw(parent_window_handle.surface.as_ptr() as usize))
+            let parent_window_id =
+                WindowId::from_raw(parent_window_handle.surface.as_ptr() as usize);
+            let (popup, popup_state) = if let Some(parent_window_state) =
+                state.windows.borrow().get(&parent_window_id)
             {
                 let size = attributes.surface_size.ok_or(error!("Invalid size for popup"))?;
 
-                let parent_window_state = parent_window_state.lock().unwrap();
+                let mut parent_window_state = parent_window_state.lock().unwrap();
 
                 // Use the scale factor and xdg geometry of the parent.
                 let scale_factor = parent_window_state.scale_factor();
@@ -115,6 +115,7 @@ impl Popup {
                     &state.xdg_shell,
                 )
                 .map_err(|_| error!("Failed to create popup"))?;
+                parent_window_state.add_child(super::make_wid(popup.wl_surface()));
                 drop(parent_window_state);
 
                 let popup_state = WindowState::new(
@@ -125,6 +126,7 @@ impl Popup {
                     attributes.preferred_theme,
                     false,
                     scale_factor,
+                    Some(parent_window_id),
                 );
 
                 let WindowAttributesWayland { activation_token, .. } = *attributes
@@ -145,11 +147,8 @@ impl Popup {
                 // first commit that maps the surface.
                 if grab_keyboard {
                     if let Some(seat) = state.seat_state.seats().next() {
-                        let serial = state
-                            .seats
-                            .get(&seat.id())
-                            .map(|s| s.latest_serial())
-                            .unwrap_or(0);
+                        let serial =
+                            state.seats.get(&seat.id()).map(|s| s.latest_serial()).unwrap_or(0);
                         popup.xdg_popup().grab(&seat, serial);
                     }
                 }

@@ -45,6 +45,7 @@ use crate::state::{WindowCompositorUpdate, WinitState};
 use crate::types::bgr_effects::{BgrEffectManager, SurfaceBlurEffect};
 use crate::types::cursor::{CustomCursor, SelectedCursor, WaylandCustomCursor};
 use crate::types::xdg_toplevel_icon_manager::ToplevelIcon;
+use crate::window::Handles;
 use crate::{ActiveEventLoop, logical_to_physical_rounded};
 
 #[cfg(feature = "sctk-adwaita")]
@@ -204,6 +205,12 @@ pub struct WindowState {
     // field drop order guarantees.
     /// The window frame, which is created from the configure request.
     frame: Option<WinitFrame>,
+
+    /// Parent Window if available
+    parent: Option<WindowId>,
+
+    /// Children of this window like popups, dialogs or other windows
+    children: Vec<WindowId>,
 }
 
 impl WindowState {
@@ -216,6 +223,7 @@ impl WindowState {
         theme: Option<Theme>,
         prefer_csd: bool,
         scale_factor: f64,
+        parent: Option<WindowId>,
     ) -> Self {
         let handle = active_event_loop.handle.clone();
         let queue_handle = &active_event_loop.queue_handle;
@@ -273,6 +281,8 @@ impl WindowState {
             transparent: false,
             viewport,
             window,
+            children: Default::default(),
+            parent,
         }
     }
 
@@ -1383,6 +1393,22 @@ impl WindowState {
     #[inline]
     pub fn title(&self) -> &str {
         &self.title
+    }
+
+    pub fn children(&self) -> &Vec<WindowId> {
+        &self.children
+    }
+
+    pub fn parent(&self) -> Option<WindowId> {
+        self.parent
+    }
+
+    pub fn remove_child(&mut self, child: &WindowId) {
+        self.children.retain(|w| w != child);
+    }
+
+    pub fn add_child(&mut self, child: WindowId) {
+        self.children.push(child);
     }
 }
 

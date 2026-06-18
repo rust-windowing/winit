@@ -85,11 +85,12 @@ impl Window {
         let window =
             state.xdg_shell.create_window(surface.clone(), default_decorations, &queue_handle);
 
-        let WindowAttributesWayland { name: app_name, activation_token, prefer_csd, .. } = *attributes
-            .platform
-            .take()
-            .and_then(|p| p.cast::<WindowAttributesWayland>().ok())
-            .unwrap_or_default();
+        let WindowAttributesWayland { name: app_name, activation_token, prefer_csd, .. } =
+            *attributes
+                .platform
+                .take()
+                .and_then(|p| p.cast::<WindowAttributesWayland>().ok())
+                .unwrap_or_default();
 
         let mut scale_factor = None;
         if let Some(RawWindowHandle::Wayland(handle)) = attributes.parent_window() {
@@ -109,6 +110,7 @@ impl Window {
             attributes.preferred_theme,
             prefer_csd,
             scale_factor,
+            None,
         );
 
         window_state.set_window_icon(attributes.window_icon);

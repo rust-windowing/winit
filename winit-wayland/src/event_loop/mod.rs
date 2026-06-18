@@ -30,6 +30,7 @@ use winit_core::monitor::MonitorHandle as CoreMonitorHandle;
 use winit_core::window::{Theme, WindowType};
 
 use crate::types::cursor::WaylandCustomCursor;
+use crate::window::handles::WindowRequests;
 
 mod proxy;
 pub mod sink;
@@ -311,6 +312,33 @@ impl EventLoop {
         self.single_iteration(app, cause);
     }
 
+    /// Recursive closing all windows from the child to the parent
+    fn find_windows_to_close(
+        window_id: &WindowId,
+        state: &mut WinitState,
+        out: &mut Vec<WindowId>,
+    ) -> Option<WindowEvent> {
+        if !state.window_requests.get_mut().get(window_id).unwrap().closed.load(Ordering::Relaxed) {
+            return None;
+        }
+
+        out.push(*window_id);
+        fn window_to_close(window_id: &WindowId, out: &mut Vec<WindowId>, state: &mut WinitState) {
+            // We don't need to check here if it should be closed, because if the parent should
+            // be closed all children must be closed as well
+            let children =
+                state.windows.get_mut().get(&window_id).unwrap().lock().unwrap().children().clone();
+            // First all children and then all subchildren
+            out.extend(&children);
+            for child in children.clone() {
+                window_to_close(&child, out, state);
+            }
+        }
+        window_to_close(window_id, out, state);
+
+        Some(WindowEvent::Destroyed)
+    }
+
     fn single_iteration<A: ApplicationHandler>(&mut self, app: &mut A, cause: StartCause) {
         // NOTE currently just indented to simplify the diff
 
@@ -446,14 +474,35 @@ impl EventLoop {
         });
 
         for window_id in window_ids.iter() {
-            let event = self.with_state(|state| {
-                let window_requests = state.window_requests.get_mut();
-                if window_requests.get(window_id).unwrap().take_closed() {
-                    mem::drop(window_requests.remove(window_id));
-                    mem::drop(state.windows.get_mut().remove(window_id));
-                    return Some(WindowEvent::Destroyed);
-                }
+            if self.with_state(|state| state.window_requests.get_mut().get(window_id).is_none()) {
+                continue; // The element might not exist anymore so just ignore
+            }
+            let mut windows_to_close = Vec::new();
+            if self
+                .with_state(|state| {
+                    Self::find_windows_to_close(window_id, state, &mut windows_to_close)
+                })
+                .is_some()
+            {
+                for w in windows_to_close.into_iter().rev() {
+                    self.with_state(|state| {
+                        let parent =
+                            state.windows.get_mut().get_mut(&w).unwrap().lock().unwrap().parent();
 
+                        parent
+                            .and_then(|p| state.windows.get_mut().get_mut(&p))
+                            .map(|p| p.lock().unwrap().remove_child(&w));
+                        let window_requests = state.window_requests.get_mut();
+                        window_requests.get(&w).unwrap().take_closed();
+                        mem::drop(window_requests.remove(&w));
+                        mem::drop(state.windows.get_mut().remove(&w));
+                    });
+                    app.window_event(&self.active_event_loop, *window_id, WindowEvent::Destroyed);
+                }
+                continue;
+            }
+
+            let event = self.with_state(|state| {
                 let mut window =
                     state.windows.get_mut().get_mut(window_id).unwrap().lock().unwrap();
 
@@ -463,6 +512,7 @@ impl EventLoop {
 
                 // Reset the frame callbacks state.
                 window.frame_callback_reset();
+                let window_requests = state.window_requests.get_mut();
                 let mut redraw_requested =
                     window_requests.get(window_id).unwrap().take_redraw_requested();
 
