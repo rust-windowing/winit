@@ -6,7 +6,6 @@ use dpi::{LogicalPosition, PhysicalInsets, PhysicalPosition, PhysicalSize, Posit
 use rwh_06::RawWindowHandle;
 use sctk::compositor::SurfaceData;
 use sctk::reexports::client::protocol::wl_surface::WlSurface;
-use sctk::shell::WaylandSurface;
 use sctk::shell::xdg::popup::Popup as SctkPopup;
 use sctk::shell::xdg::{XdgPositioner, XdgSurface};
 use wayland_client::Proxy;

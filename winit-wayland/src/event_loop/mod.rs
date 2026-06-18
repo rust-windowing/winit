@@ -30,7 +30,6 @@ use winit_core::monitor::MonitorHandle as CoreMonitorHandle;
 use winit_core::window::{Theme, WindowType};
 
 use crate::types::cursor::WaylandCustomCursor;
-use crate::window::handles::WindowRequests;
 
 mod proxy;
 pub mod sink;
@@ -710,9 +709,6 @@ impl RootActiveEventLoop for ActiveEventLoop {
                 let popup = crate::Popup::new(self, window_attributes)?;
                 Ok(Box::new(popup))
             },
-            _ => Err(RequestError::NotSupported(NotSupportedError::new(
-                "Supports only Window or Popup",
-            ))),
         }
     }
 

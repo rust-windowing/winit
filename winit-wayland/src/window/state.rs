@@ -45,7 +45,6 @@ use crate::state::{WindowCompositorUpdate, WinitState};
 use crate::types::bgr_effects::{BgrEffectManager, SurfaceBlurEffect};
 use crate::types::cursor::{CustomCursor, SelectedCursor, WaylandCustomCursor};
 use crate::types::xdg_toplevel_icon_manager::ToplevelIcon;
-use crate::window::Handles;
 use crate::{ActiveEventLoop, logical_to_physical_rounded};
 
 #[cfg(feature = "sctk-adwaita")]
