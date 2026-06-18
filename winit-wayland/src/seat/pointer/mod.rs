@@ -174,7 +174,7 @@ impl PointerHandler for WinitState {
                 | ref kind @ PointerEventKind::Release { button, serial, .. } => {
                     // Update the last button serial.
                     pointer.winit_data().inner.lock().unwrap().latest_button_serial = serial;
-                    seat_state.latest_serial.store(serial, Ordering::Relaxed);
+                    seat_state.latest_input_serial.set(Some(serial));
 
                     let button = wayland_button_to_winit(button);
                     let state = if matches!(kind, PointerEventKind::Press { .. }) {
