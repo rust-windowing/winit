@@ -296,6 +296,7 @@ impl ActiveEventLoop {
                             state,
                             position,
                             button,
+                            is_macos_activation_click: false,
                         },
                     }]));
                 }
@@ -323,6 +324,7 @@ impl ActiveEventLoop {
                         state: ElementState::Pressed,
                         position,
                         button,
+                        is_macos_activation_click: false,
                     },
                 })));
             }
@@ -351,6 +353,7 @@ impl ActiveEventLoop {
                         state: ElementState::Released,
                         position,
                         button,
+                        is_macos_activation_click: false,
                     },
                 })));
             }

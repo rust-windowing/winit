@@ -267,6 +267,25 @@ pub enum WindowEvent {
         primary: bool,
 
         button: ButtonSource,
+
+        /// Whether this event is part of the click that activated an otherwise inactive window.
+        ///
+        /// On macOS, AppKit normally consumes the click that brings a window forward without
+        /// delivering it as a regular mouse event (controlled by [`acceptsFirstMouse:`]). Winit
+        /// always delivers it, but tags both the activating press *and* its matching release
+        /// with this flag so applications can short-circuit the whole gesture with a single
+        /// check — e.g. ignore activation clicks for destructive or button-like targets while
+        /// accepting them for low-risk actions (selection, scrolling).
+        ///
+        /// ## Platform-specific
+        ///
+        /// - **Only available on macOS.** Always `false` on every other platform.
+        /// - Only ever `true` for the left mouse button. Intervening drag motion (delivered as
+        ///   [`WindowEvent::PointerMoved`]) is not tagged; applications that care about drags
+        ///   during the activation gesture must track that state themselves.
+        ///
+        /// [`acceptsFirstMouse:`]: https://developer.apple.com/documentation/appkit/nsview/acceptsfirstmouse(_:)
+        is_macos_activation_click: bool,
     },
 
     /// Multi-finger hold gesture on the touchpad or touchscreen without movement.
@@ -1623,6 +1642,7 @@ mod tests {
                 state: event::ElementState::Pressed,
                 position: (0, 0).into(),
                 button: event::ButtonSource::Unknown(0),
+                is_macos_activation_click: false,
             });
             with_window_event(PointerButton {
                 device_id: None,
@@ -1633,6 +1653,7 @@ mod tests {
                     finger_id: fid,
                     force: Some(event::Force::Normalized(0.0)),
                 },
+                is_macos_activation_click: false,
             });
             with_window_event(PinchGesture {
                 device_id: None,
