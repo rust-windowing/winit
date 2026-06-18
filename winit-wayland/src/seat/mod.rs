@@ -1,7 +1,7 @@
 //! Seat handling.
 
-use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU32, Ordering};
 
 use foldhash::HashMap;
 use sctk::reexports::client::backend::ObjectId;

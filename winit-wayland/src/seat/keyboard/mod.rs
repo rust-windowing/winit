@@ -1,7 +1,7 @@
 //! The keyboard input handling.
 
-use std::sync::atomic::Ordering;
 use std::sync::Mutex;
+use std::sync::atomic::Ordering;
 use std::time::Duration;
 
 use calloop::timer::{TimeoutAction, Timer};
@@ -206,7 +206,9 @@ impl Dispatch<WlKeyboard, KeyboardData, WinitState> for WinitState {
                     })
                     .ok();
             },
-            WlKeyboardEvent::Key { serial, key, state: WEnum::Value(WlKeyState::Released), .. } => {
+            WlKeyboardEvent::Key {
+                serial, key, state: WEnum::Value(WlKeyState::Released), ..
+            } => {
                 seat_state.latest_serial.store(serial, Ordering::Relaxed);
                 let key = key + 8;
 
@@ -230,7 +232,12 @@ impl Dispatch<WlKeyboard, KeyboardData, WinitState> for WinitState {
                 }
             },
             WlKeyboardEvent::Modifiers {
-                serial, mods_depressed, mods_latched, mods_locked, group, ..
+                serial,
+                mods_depressed,
+                mods_latched,
+                mods_locked,
+                group,
+                ..
             } => {
                 seat_state.latest_serial.store(serial, Ordering::Relaxed);
                 let xkb_context = &mut keyboard_state.xkb_context;
