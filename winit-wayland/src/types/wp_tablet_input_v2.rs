@@ -235,6 +235,7 @@ impl Dispatch2<ZwpTabletToolV2, WinitState> for TabletToolData {
                                     button,
                                     data: data.tool_state.clone(),
                                 },
+                                is_macos_activation_click: false,
                             }
                         },
                         TabletEvent::Left => WindowEvent::PointerLeft {
