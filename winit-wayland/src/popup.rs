@@ -1,6 +1,6 @@
 use core::sync::atomic::Ordering;
 use std::sync::atomic::AtomicBool;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, Weak};
 
 use dpi::{LogicalPosition, PhysicalInsets, PhysicalPosition, PhysicalSize, Position, Size};
 use rwh_06::RawWindowHandle;
@@ -35,7 +35,10 @@ pub struct Popup {
     popup: SctkPopup,
 
     /// The state of the popup.
-    popup_state: Arc<Mutex<WindowState>>,
+    /// The only single truth of the state is stored
+    /// in the event loop state, because if the server decides to destroy the popup
+    /// we cannot use it anymore
+    popup_state: Weak<Mutex<WindowState>>,
 
     /// Window id.
     window_id: WindowId,
@@ -201,7 +204,7 @@ impl Popup {
 
             Ok(Self {
                 popup,
-                popup_state,
+                popup_state: Arc::downgrade(&popup_state),
                 window_id,
                 display: event_loop_window_target.handle.connection.display().clone(),
                 handles: Handles {
@@ -241,11 +244,13 @@ impl CoreWindow for Popup {
 
     #[inline]
     fn title(&self) -> String {
-        self.popup_state.lock().unwrap().title().to_owned()
+        let Some(s) = self.popup_state.upgrade() else { return String::new() };
+        s.lock().unwrap().title().to_owned()
     }
 
     fn pre_present_notify(&self) {
-        self.popup_state.lock().unwrap().request_frame_callback();
+        let Some(s) = self.popup_state.upgrade() else { return };
+        s.lock().unwrap().request_frame_callback();
     }
 
     fn reset_dead_keys(&self) {
@@ -262,7 +267,8 @@ impl CoreWindow for Popup {
     }
 
     fn set_outer_position(&self, position: Position) {
-        let state = self.popup_state.lock().unwrap();
+        let Some(s) = self.popup_state.upgrade() else { return };
+        let state = s.lock().unwrap();
         if let WindowType::Popup { popup, positioner, .. } = &state.window {
             let position = position.to_logical(state.scale_factor());
             positioner.set_offset(position.x, position.y);
@@ -271,20 +277,23 @@ impl CoreWindow for Popup {
     }
 
     fn surface_size(&self) -> PhysicalSize<u32> {
-        let popup_state = self.popup_state.lock().unwrap();
+        let Some(s) = self.popup_state.upgrade() else { return PhysicalSize::default() };
+        let popup_state = s.lock().unwrap();
         let scale_factor = popup_state.scale_factor();
         super::logical_to_physical_rounded(popup_state.surface_size(), scale_factor)
     }
 
     fn request_surface_size(&self, size: Size) -> Option<PhysicalSize<u32>> {
-        let mut popup_state = self.popup_state.lock().unwrap();
+        let Some(s) = self.popup_state.upgrade() else { return None };
+        let mut popup_state = s.lock().unwrap();
         popup_state.request_surface_size(size);
         self.request_redraw();
         Some(size.to_physical(popup_state.scale_factor()))
     }
 
     fn outer_size(&self) -> PhysicalSize<u32> {
-        let popup_state = self.popup_state.lock().unwrap();
+        let Some(s) = self.popup_state.upgrade() else { return PhysicalSize::default() };
+        let popup_state = s.lock().unwrap();
         let scale_factor = popup_state.scale_factor();
         super::logical_to_physical_rounded(popup_state.outer_size(), scale_factor)
     }
@@ -296,7 +305,8 @@ impl CoreWindow for Popup {
     fn set_min_surface_size(&self, min_size: Option<Size>) {
         let scale_factor = self.scale_factor();
         let min_size = min_size.map(|size| size.to_logical(scale_factor));
-        self.popup_state.lock().unwrap().set_min_surface_size(min_size);
+        let Some(s) = self.popup_state.upgrade() else { return };
+        s.lock().unwrap().set_min_surface_size(min_size);
         // NOTE: Requires commit to be applied.
         self.request_redraw();
     }
@@ -306,13 +316,15 @@ impl CoreWindow for Popup {
     fn set_max_surface_size(&self, max_size: Option<Size>) {
         let scale_factor = self.scale_factor();
         let max_size = max_size.map(|size| size.to_logical(scale_factor));
-        self.popup_state.lock().unwrap().set_max_surface_size(max_size);
+        let Some(s) = self.popup_state.upgrade() else { return };
+        s.lock().unwrap().set_max_surface_size(max_size);
         // NOTE: Requires commit to be applied.
         self.request_redraw();
     }
 
     fn surface_resize_increments(&self) -> Option<PhysicalSize<u32>> {
-        let popup_state = self.popup_state.lock().unwrap();
+        let Some(s) = self.popup_state.upgrade() else { return None };
+        let popup_state = s.lock().unwrap();
         let scale_factor = popup_state.scale_factor();
         popup_state
             .resize_increments()
@@ -320,19 +332,22 @@ impl CoreWindow for Popup {
     }
 
     fn set_surface_resize_increments(&self, increments: Option<Size>) {
-        let mut popup_state = self.popup_state.lock().unwrap();
+        let Some(s) = self.popup_state.upgrade() else { return };
+        let mut popup_state = s.lock().unwrap();
         let scale_factor = popup_state.scale_factor();
         let increments = increments.map(|size| size.to_logical(scale_factor));
         popup_state.set_resize_increments(increments);
     }
 
     fn set_title(&self, title: &str) {
-        self.popup_state.lock().unwrap().set_title(title.to_owned());
+        let Some(s) = self.popup_state.upgrade() else { return };
+        s.lock().unwrap().set_title(title.to_owned());
     }
 
     #[inline]
     fn set_transparent(&self, transparent: bool) {
-        self.popup_state.lock().unwrap().set_transparent(transparent);
+        let Some(s) = self.popup_state.upgrade() else { return };
+        s.lock().unwrap().set_transparent(transparent);
     }
 
     fn set_visible(&self, _visible: bool) {
@@ -389,12 +404,14 @@ impl CoreWindow for Popup {
 
     #[inline]
     fn scale_factor(&self) -> f64 {
-        self.popup_state.lock().unwrap().scale_factor()
+        let Some(s) = self.popup_state.upgrade() else { return 1.0 };
+        s.lock().unwrap().scale_factor()
     }
 
     #[inline]
     fn set_blur(&self, blur: bool) {
-        if self.popup_state.lock().unwrap().set_blur(blur) {
+        let Some(s) = self.popup_state.upgrade() else { return };
+        if s.lock().unwrap().set_blur(blur) {
             self.request_redraw();
         }
     }
@@ -420,7 +437,8 @@ impl CoreWindow for Popup {
 
     #[inline]
     fn request_ime_update(&self, request: ImeRequest) -> Result<(), ImeRequestError> {
-        let state_changed = self.popup_state.lock().unwrap().request_ime_update(request)?;
+        let Some(s) = self.popup_state.upgrade() else { return Ok(()) };
+        let state_changed = s.lock().unwrap().request_ime_update(request)?;
 
         if let Some(allowed) = state_changed {
             let event = WindowEvent::Ime(if allowed { Ime::Enabled } else { Ime::Disabled });
@@ -432,13 +450,15 @@ impl CoreWindow for Popup {
 
     #[inline]
     fn ime_capabilities(&self) -> Option<ImeCapabilities> {
-        self.popup_state.lock().unwrap().ime_allowed()
+        let Some(s) = self.popup_state.upgrade() else { return None };
+        s.lock().unwrap().ime_allowed()
     }
 
     fn focus_window(&self) {}
 
     fn has_focus(&self) -> bool {
-        self.popup_state.lock().unwrap().has_focus()
+        let Some(s) = self.popup_state.upgrade() else { return false };
+        s.lock().unwrap().has_focus()
     }
 
     fn request_user_attention(&self, request_type: Option<UserAttentionType>) {
@@ -457,8 +477,8 @@ impl CoreWindow for Popup {
     fn set_content_protected(&self, _protected: bool) {}
 
     fn set_cursor(&self, cursor: Cursor) {
-        let popup_state = &mut self.popup_state.lock().unwrap();
-
+        let Some(s) = self.popup_state.upgrade() else { return };
+        let mut popup_state = s.lock().unwrap();
         match cursor {
             Cursor::Icon(icon) => popup_state.set_cursor(icon),
             Cursor::Custom(cursor) => popup_state.set_custom_cursor(cursor),
@@ -466,10 +486,10 @@ impl CoreWindow for Popup {
     }
 
     fn set_cursor_position(&self, position: Position) -> Result<(), RequestError> {
-        let scale_factor = self.scale_factor();
+        let Some(s) = self.popup_state.upgrade() else { return Err(RequestError::Ignored) };
+        let scale_factor = s.lock().unwrap().scale_factor();
         let position = position.to_logical(scale_factor);
-        self.popup_state
-            .lock()
+        s.lock()
             .unwrap()
             .set_cursor_position(position)
             // Request redraw on success, since the state is double buffered.
@@ -477,11 +497,13 @@ impl CoreWindow for Popup {
     }
 
     fn set_cursor_grab(&self, mode: CursorGrabMode) -> Result<(), RequestError> {
-        self.popup_state.lock().unwrap().set_cursor_grab(mode)
+        let Some(s) = self.popup_state.upgrade() else { return Err(RequestError::Ignored) };
+        s.lock().unwrap().set_cursor_grab(mode)
     }
 
     fn set_cursor_visible(&self, visible: bool) {
-        self.popup_state.lock().unwrap().set_cursor_visible(visible);
+        let Some(s) = self.popup_state.upgrade() else { return };
+        s.lock().unwrap().set_cursor_visible(visible);
     }
 
     fn drag_window(&self) -> Result<(), RequestError> {
@@ -539,9 +561,11 @@ impl Drop for Popup {
 
 impl rwh_06::HasWindowHandle for Popup {
     fn window_handle(&self) -> Result<rwh_06::WindowHandle<'_>, rwh_06::HandleError> {
+        if self.popup_state.upgrade().is_none() {
+            return Err(rwh_06::HandleError::Unavailable);
+        };
         let raw = rwh_06::WaylandWindowHandle::new({
-            let state = self.popup_state.lock().unwrap();
-            let ptr = state.window.wl_surface().id().as_ptr();
+            let ptr = self.popup.wl_surface().id().as_ptr();
             std::ptr::NonNull::new(ptr as *mut _).expect("wl_surface will never be null")
         });
 
@@ -551,6 +575,9 @@ impl rwh_06::HasWindowHandle for Popup {
 
 impl rwh_06::HasDisplayHandle for Popup {
     fn display_handle(&self) -> Result<rwh_06::DisplayHandle<'_>, rwh_06::HandleError> {
+        if self.popup_state.upgrade().is_none() {
+            return Err(rwh_06::HandleError::Unavailable);
+        };
         let raw = rwh_06::WaylandDisplayHandle::new({
             let ptr = self.display.id().as_ptr();
             std::ptr::NonNull::new(ptr as *mut _).expect("wl_proxy should never be null")
