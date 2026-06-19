@@ -20,13 +20,14 @@ pub enum DndState {
     Rejected,
 }
 
+#[allow(dead_code)]
 #[derive(Debug)]
 pub enum DndDataParseError {
     EmptyData,
-    InvalidUtf8(#[allow(dead_code)] Utf8Error),
-    HostnameSpecified(#[allow(dead_code)] String),
-    UnexpectedProtocol(#[allow(dead_code)] String),
-    UnresolvablePath(#[allow(dead_code)] io::Error),
+    InvalidUtf8(Utf8Error),
+    HostnameSpecified(String),
+    UnexpectedProtocol(String),
+    UnresolvablePath(io::Error),
 }
 
 impl From<Utf8Error> for DndDataParseError {
@@ -152,6 +153,7 @@ impl Dnd {
             .expect_then_ignore_error("Failed to send XdndSelection event")
     }
 
+    #[expect(dead_code)]
     pub unsafe fn read_data(
         &self,
         window: xproto::Window,
@@ -160,6 +162,7 @@ impl Dnd {
         self.xconn.get_property(window, atoms[XdndSelection], atoms[TextUriList])
     }
 
+    #[expect(dead_code)]
     pub fn parse_data(&self, data: &mut [c_uchar]) -> Result<Vec<PathBuf>, DndDataParseError> {
         if !data.is_empty() {
             let mut path_list = Vec::new();

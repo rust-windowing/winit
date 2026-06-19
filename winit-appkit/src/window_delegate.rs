@@ -361,56 +361,20 @@ define_class!(
     unsafe impl NSDraggingDestination for WindowDelegate {
         /// Invoked when the dragged image enters destination bounds or frame
         #[unsafe(method(draggingEntered:))]
-        fn dragging_entered(&self, sender: &ProtocolObject<dyn NSDraggingInfo>) -> bool {
-            let _entered = debug_span!("draggingEntered:").entered();
-
-            use std::path::PathBuf;
-
-            let pb = sender.draggingPasteboard();
-
-            #[allow(deprecated)]
-            let property_list = match pb.propertyListForType(unsafe { NSFilenamesPboardType }) {
-                Some(property_list) => property_list,
-                None => return false.into(),
-            };
-
-            let paths = property_list
-                .downcast::<NSArray>()
-                .unwrap()
-                .into_iter()
-                .map(|file| PathBuf::from(file.downcast::<NSString>().unwrap().to_string()))
-                .collect();
-
-            let dl = sender.draggingLocation();
-            let dl = self.view().convertPoint_fromView(dl, None);
-            let position =
-                LogicalPosition::<f64>::from((dl.x, dl.y)).to_physical(self.scale_factor());
-
-            self.queue_event(WindowEvent::DragEntered { paths, position });
-
-            true
+        fn dragging_entered(&self, _sender: &ProtocolObject<dyn NSDraggingInfo>) -> bool {
+            false
         }
 
         #[unsafe(method(wantsPeriodicDraggingUpdates))]
         fn wants_periodic_dragging_updates(&self) -> bool {
-            let _entered = debug_span!("wantsPeriodicDraggingUpdates:").entered();
-            true
+            false
         }
 
         /// Invoked periodically as the image is held within the destination area, allowing
         /// modification of the dragging operation or mouse-pointer position.
         #[unsafe(method(draggingUpdated:))]
-        fn dragging_updated(&self, sender: &ProtocolObject<dyn NSDraggingInfo>) -> bool {
-            let _entered = debug_span!("draggingUpdated:").entered();
-
-            let dl = sender.draggingLocation();
-            let dl = self.view().convertPoint_fromView(dl, None);
-            let position =
-                LogicalPosition::<f64>::from((dl.x, dl.y)).to_physical(self.scale_factor());
-
-            self.queue_event(WindowEvent::DragMoved { position });
-
-            true
+        fn dragging_updated(&self, _sender: &ProtocolObject<dyn NSDraggingInfo>) -> bool {
+            false
         }
 
         /// Invoked when the image is released
@@ -422,34 +386,8 @@ define_class!(
 
         /// Invoked after the released image has been removed from the screen
         #[unsafe(method(performDragOperation:))]
-        fn perform_drag_operation(&self, sender: &ProtocolObject<dyn NSDraggingInfo>) -> bool {
-            let _entered = debug_span!("performDragOperation:").entered();
-
-            use std::path::PathBuf;
-
-            let pb = sender.draggingPasteboard();
-
-            #[allow(deprecated)]
-            let property_list = match pb.propertyListForType(unsafe { NSFilenamesPboardType }) {
-                Some(property_list) => property_list,
-                None => return false.into(),
-            };
-
-            let paths = property_list
-                .downcast::<NSArray>()
-                .unwrap()
-                .into_iter()
-                .map(|file| PathBuf::from(file.downcast::<NSString>().unwrap().to_string()))
-                .collect();
-
-            let dl = sender.draggingLocation();
-            let dl = self.view().convertPoint_fromView(dl, None);
-            let position =
-                LogicalPosition::<f64>::from((dl.x, dl.y)).to_physical(self.scale_factor());
-
-            self.queue_event(WindowEvent::DragDropped { paths, position });
-
-            true
+        fn perform_drag_operation(&self, _sender: &ProtocolObject<dyn NSDraggingInfo>) -> bool {
+            false
         }
 
         /// Invoked when the dragging operation is complete
@@ -460,16 +398,8 @@ define_class!(
 
         /// Invoked when the dragging operation is cancelled
         #[unsafe(method(draggingExited:))]
-        fn dragging_exited(&self, sender: Option<&ProtocolObject<dyn NSDraggingInfo>>) {
-            let _entered = debug_span!("draggingExited:").entered();
-
-            let position = sender.map(|sender| {
-                let dl = sender.draggingLocation();
-                let dl = self.view().convertPoint_fromView(dl, None);
-                LogicalPosition::<f64>::from((dl.x, dl.y)).to_physical(self.scale_factor())
-            });
-
-            self.queue_event(WindowEvent::DragLeft { position });
+        fn dragging_exited(&self, _sender: Option<&ProtocolObject<dyn NSDraggingInfo>>) {
+            // Do nothing
         }
     }
 
