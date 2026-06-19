@@ -1107,6 +1107,13 @@ pub enum TabletToolKind {
     Lens,
 }
 
+/// Data describing how a tablet tool is held and used.
+///
+/// ## Platform-specific
+///
+/// **macOS:** `angle` is always [`None`]; orientation is reported through `tilt` instead.
+/// Sensor support is not detected, so all other fields are always [`Some`], and tools
+/// lacking a given sensor report zero.
 #[derive(Default, Clone, Debug, PartialEq)]
 #[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
 pub struct TabletToolData {
