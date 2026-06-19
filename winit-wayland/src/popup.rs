@@ -6,6 +6,7 @@ use dpi::{LogicalPosition, PhysicalInsets, PhysicalPosition, PhysicalSize, Posit
 use rwh_06::RawWindowHandle;
 use sctk::compositor::SurfaceData;
 use sctk::reexports::client::protocol::wl_surface::WlSurface;
+use sctk::shell::WaylandSurface;
 use sctk::shell::xdg::popup::Popup as SctkPopup;
 use sctk::shell::xdg::{XdgPositioner, XdgSurface};
 use wayland_client::Proxy;
@@ -30,9 +31,6 @@ use crate::window::state::{WindowState, WindowType};
 
 #[derive(Debug)]
 pub struct Popup {
-    /// Reference to the underlying SCTK popup
-    popup: SctkPopup,
-
     /// The state of the popup.
     /// The only single truth of the state is stored
     /// in the event loop state, because if the server decides to destroy the popup
@@ -204,7 +202,6 @@ impl Popup {
             event_loop_awakener.ping();
 
             Ok(Self {
-                popup,
                 popup_state: Arc::downgrade(&popup_state),
                 window_id,
                 display: event_loop_window_target.handle.connection.display().clone(),
@@ -226,11 +223,6 @@ impl Popup {
                 "A Popup requires a parent wayland window handle",
             )))
         }
-    }
-
-    #[inline]
-    pub fn surface(&self) -> &WlSurface {
-        self.popup.wl_surface()
     }
 }
 
@@ -463,7 +455,11 @@ impl CoreWindow for Popup {
     }
 
     fn request_user_attention(&self, request_type: Option<UserAttentionType>) {
-        self.handles.request_user_attention(self.surface(), request_type);
+        if let Some(state) = self.popup_state.upgrade() {
+            let state = state.lock().unwrap();
+            let surface = state.window.wl_surface();
+            self.handles.request_user_attention(surface, request_type);
+        }
     }
 
     fn set_theme(&self, _theme: Option<Theme>) {
@@ -522,11 +518,17 @@ impl CoreWindow for Popup {
     }
 
     fn set_cursor_hittest(&self, hittest: bool) -> Result<(), RequestError> {
-        self.handles.set_cursor_hittest(self.surface(), hittest)
+        let Some(state) = self.popup_state.upgrade() else {
+            return Err(RequestError::Ignored);
+        };
+
+        self.handles.set_cursor_hittest(state.lock().unwrap().window.wl_surface(), hittest)
     }
 
     fn current_monitor(&self) -> Option<CoreMonitorHandle> {
-        let data = self.surface().data::<SurfaceData>()?;
+        let state = self.popup_state.upgrade()?;
+        let state = state.lock().unwrap();
+        let data = state.window.wl_surface().data::<SurfaceData>()?;
         data.outputs()
             .next()
             .map(MonitorHandle::new)
@@ -562,11 +564,9 @@ impl Drop for Popup {
 
 impl rwh_06::HasWindowHandle for Popup {
     fn window_handle(&self) -> Result<rwh_06::WindowHandle<'_>, rwh_06::HandleError> {
-        if self.popup_state.upgrade().is_none() {
-            return Err(rwh_06::HandleError::Unavailable);
-        };
+        let state = self.popup_state.upgrade().ok_or(rwh_06::HandleError::Unavailable)?;
         let raw = rwh_06::WaylandWindowHandle::new({
-            let ptr = self.popup.wl_surface().id().as_ptr();
+            let ptr = state.lock().unwrap().window.wl_surface().id().as_ptr();
             std::ptr::NonNull::new(ptr as *mut _).expect("wl_surface will never be null")
         });
 
