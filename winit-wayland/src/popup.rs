@@ -11,7 +11,9 @@ use sctk::shell::xdg::popup::Popup as SctkPopup;
 use sctk::shell::xdg::{XdgPositioner, XdgSurface};
 use wayland_client::Proxy;
 use wayland_client::protocol::wl_display::WlDisplay;
-use wayland_protocols::xdg::shell::client::xdg_positioner::{Anchor, Gravity};
+use wayland_protocols::xdg::shell::client::xdg_positioner::{
+    Anchor, ConstraintAdjustment, Gravity,
+};
 use winit_core::cursor::Cursor;
 use winit_core::error::{NotSupportedError, RequestError};
 use winit_core::event::{Ime, WindowEvent};
@@ -60,7 +62,8 @@ impl Popup {
 
         let grab_keyboard =
             matches!(attributes.window_type, winit_core::window::WindowType::Popup {
-                grab_keyboard: true
+                grab_keyboard: true,
+                ..
             });
 
         let parent_window_handle =
@@ -82,6 +85,13 @@ impl Popup {
             {
                 let size = attributes.surface_size.ok_or(error!("Invalid size for popup"))?;
 
+                let (gravity, anchor, anchor_rect, constrait_adjustment) = attributes
+                    .platform
+                    .as_ref()
+                    .and_then(|p| p.cast_ref::<WindowAttributesWayland>())
+                    .map(|a| (a.gravity, a.anchor, a.anchor_rect, a.constraint_adjustment))
+                    .unwrap_or_default();
+
                 let mut parent_window_state = parent_window_state.lock().unwrap();
 
                 // Use the scale factor and xdg geometry of the parent.
@@ -96,14 +106,23 @@ impl Popup {
                 // This is important for client side decorations
                 let anchor_position = LogicalPosition::new(-geometry_origin.x, -geometry_origin.y);
 
-                positioner.set_anchor(Anchor::TopLeft);
-                positioner.set_gravity(Gravity::BottomRight); // Otherwise the child surface will be centered over the anchor point
-                positioner.set_anchor_rect(anchor_position.x, anchor_position.y, 1, 1);
+                anchor.inspect(|a| positioner.set_anchor((*a).into()));
+                gravity.inspect(|g| positioner.set_gravity((*g).into()));
+                constrait_adjustment.inspect(|c| positioner.set_constraint_adjustment((*c).into()));
+                anchor_rect.inspect(|(x, y, width, height)| {
+                    positioner.set_anchor_rect(
+                        *x + anchor_position.x,
+                        *y + anchor_position.y,
+                        (*width).max(1),
+                        (*height).max(1),
+                    );
+                });
                 positioner.set_offset(position.x, position.y);
                 positioner.set_size(
                     size.to_logical(scale_factor).width,
                     size.to_logical(scale_factor).height,
                 );
+                positioner.set_constraint_adjustment(ConstraintAdjustment::all());
 
                 let parent_surface = parent_window_state.window.xdg_surface();
                 let surface = state.compositor_state.create_surface(&queue_handle);

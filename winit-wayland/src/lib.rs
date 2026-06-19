@@ -92,6 +92,49 @@ impl WindowExtWayland for dyn CoreWindow + '_ {
     }
 }
 
+#[derive(Debug, Clone, Copy, Default, PartialEq)]
+#[non_exhaustive]
+pub enum PopupAnchor {
+    #[default]
+    None,
+    Top,
+    Bottom,
+    Left,
+    Right,
+    TopLeft,
+    BottomLeft,
+    TopRight,
+    BottomRight,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq)]
+#[non_exhaustive]
+pub enum PopupGravity {
+    #[default]
+    None,
+    Top,
+    Bottom,
+    Left,
+    Right,
+    TopLeft,
+    BottomLeft,
+    TopRight,
+    BottomRight,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq)]
+#[non_exhaustive]
+pub enum PopupConstraintAdjustment {
+    #[default]
+    None,
+    SlideX,
+    SlideY,
+    FlipX,
+    FlipY,
+    ResizeX,
+    ResizeY,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct ApplicationName {
     pub(crate) general: String,
@@ -104,6 +147,10 @@ pub struct WindowAttributesWayland {
     pub(crate) name: Option<ApplicationName>,
     pub(crate) activation_token: Option<ActivationToken>,
     pub(crate) prefer_csd: bool,
+    pub(crate) anchor: Option<PopupAnchor>,
+    pub(crate) anchor_rect: Option<(i32, i32, i32, i32)>,
+    pub(crate) gravity: Option<PopupGravity>,
+    pub(crate) constraint_adjustment: Option<PopupConstraintAdjustment>,
 }
 
 impl WindowAttributesWayland {
@@ -135,6 +182,33 @@ impl WindowAttributesWayland {
     #[inline]
     pub fn with_prefer_csd(mut self, prefer_csd: bool) -> Self {
         self.prefer_csd = prefer_csd;
+        self
+    }
+
+    #[inline]
+    pub fn with_anchor(mut self, anchor: PopupAnchor) -> Self {
+        self.anchor = Some(anchor);
+        self
+    }
+
+    #[inline]
+    pub fn with_anchor_rect(mut self, x: i32, y: i32, width: i32, height: i32) -> Self {
+        self.anchor_rect = Some((x, y, width, height));
+        self
+    }
+
+    #[inline]
+    pub fn with_constraint_adjustment(
+        mut self,
+        constraint_adjustment: PopupConstraintAdjustment,
+    ) -> Self {
+        self.constraint_adjustment = Some(constraint_adjustment);
+        self
+    }
+
+    #[inline]
+    pub fn with_gravity(mut self, gravity: PopupGravity) -> Self {
+        self.gravity = Some(gravity);
         self
     }
 }
@@ -180,4 +254,55 @@ fn image_to_buffer(
     }
 
     Ok(buffer)
+}
+
+impl From<PopupGravity> for wayland_protocols::xdg::shell::client::xdg_positioner::Gravity {
+    fn from(value: PopupGravity) -> Self {
+        use wayland_protocols::xdg::shell::client::xdg_positioner::Gravity;
+        match value {
+            PopupGravity::None => Gravity::None,
+            PopupGravity::Top => Gravity::Top,
+            PopupGravity::Bottom => Gravity::Bottom,
+            PopupGravity::Left => Gravity::Left,
+            PopupGravity::Right => Gravity::Right,
+            PopupGravity::TopLeft => Gravity::TopLeft,
+            PopupGravity::BottomLeft => Gravity::BottomLeft,
+            PopupGravity::TopRight => Gravity::TopRight,
+            PopupGravity::BottomRight => Gravity::BottomRight,
+        }
+    }
+}
+
+impl From<PopupAnchor> for wayland_protocols::xdg::shell::client::xdg_positioner::Anchor {
+    fn from(value: PopupAnchor) -> Self {
+        use wayland_protocols::xdg::shell::client::xdg_positioner::Anchor;
+        match value {
+            PopupAnchor::None => Anchor::None,
+            PopupAnchor::Top => Anchor::Top,
+            PopupAnchor::Bottom => Anchor::Bottom,
+            PopupAnchor::Left => Anchor::Left,
+            PopupAnchor::Right => Anchor::Right,
+            PopupAnchor::TopLeft => Anchor::TopLeft,
+            PopupAnchor::BottomLeft => Anchor::BottomLeft,
+            PopupAnchor::TopRight => Anchor::TopRight,
+            PopupAnchor::BottomRight => Anchor::BottomRight,
+        }
+    }
+}
+
+impl From<PopupConstraintAdjustment>
+    for wayland_protocols::xdg::shell::client::xdg_positioner::ConstraintAdjustment
+{
+    fn from(value: PopupConstraintAdjustment) -> Self {
+        use wayland_protocols::xdg::shell::client::xdg_positioner::ConstraintAdjustment;
+        match value {
+            PopupConstraintAdjustment::None => ConstraintAdjustment::None,
+            PopupConstraintAdjustment::SlideX => ConstraintAdjustment::SlideX,
+            PopupConstraintAdjustment::SlideY => ConstraintAdjustment::SlideY,
+            PopupConstraintAdjustment::FlipX => ConstraintAdjustment::FlipX,
+            PopupConstraintAdjustment::FlipY => ConstraintAdjustment::FlipY,
+            PopupConstraintAdjustment::ResizeX => ConstraintAdjustment::ResizeX,
+            PopupConstraintAdjustment::ResizeY => ConstraintAdjustment::ResizeY,
+        }
+    }
 }
