@@ -149,9 +149,11 @@ impl Popup {
                 // first commit that maps the surface.
                 if grab_keyboard {
                     if let Some(seat) = state.seat_state.seats().next() {
-                        let serial =
-                            state.seats.get(&seat.id()).map(|s| s.latest_serial()).unwrap_or(0);
-                        popup.xdg_popup().grab(&seat, serial);
+                        if let Some(serial) =
+                            state.seats.get(&seat.id()).and_then(|s| s.latest_serial())
+                        {
+                            popup.xdg_popup().grab(&seat, serial);
+                        }
                     }
                 }
 
