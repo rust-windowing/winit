@@ -513,21 +513,10 @@ impl EventProcessor {
         }
 
         if xev.message_type == atoms[XdndDrop] as c_ulong {
-            let (source_window, state) = if let Some(source_window) = self.dnd.source_window {
-                if let Some(Ok(ref path_list)) = self.dnd.result {
-                    let event = WindowEvent::DragDropped {
-                        paths: path_list.iter().map(Into::into).collect(),
-                        position: self.dnd.position,
-                    };
-                    app.window_event(&self.target, window_id, event);
-                }
-                (source_window, DndState::Accepted)
-            } else {
-                // `source_window` won't be part of our DND state if we already rejected the drop in
-                // our `XdndPosition` handler.
-                let source_window = xev.data.get_long(0) as xproto::Window;
-                (source_window, DndState::Rejected)
-            };
+            // `source_window` won't be part of our DND state if we already rejected the drop in
+            // our `XdndPosition` handler.
+            let source_window = xev.data.get_long(0) as xproto::Window;
+            let state = DndState::Rejected;
 
             unsafe {
                 self.dnd
@@ -540,19 +529,12 @@ impl EventProcessor {
         }
 
         if xev.message_type == atoms[XdndLeave] as c_ulong {
-            if self.dnd.dragging {
-                let event = WindowEvent::DragLeft { position: Some(self.dnd.position) };
-                app.window_event(&self.target, window_id, event);
-            }
             self.dnd.reset();
         }
     }
 
-    fn selection_notify(&mut self, xev: &XSelectionEvent, app: &mut dyn ApplicationHandler) {
+    fn selection_notify(&mut self, xev: &XSelectionEvent, _: &mut dyn ApplicationHandler) {
         let atoms = self.target.xconn.atoms();
-
-        let window = xev.requestor as xproto::Window;
-        let window_id = mkwid(window);
 
         // Set the timestamp.
         self.target.xconn.set_timestamp(xev.time as xproto::Timestamp);
@@ -563,23 +545,8 @@ impl EventProcessor {
 
         // This is where we receive data from drag and drop
         self.dnd.result = None;
-        if let Ok(mut data) = unsafe { self.dnd.read_data(window) } {
-            let parse_result = self.dnd.parse_data(&mut data);
 
-            if let Ok(ref path_list) = parse_result {
-                let event = if self.dnd.dragging {
-                    WindowEvent::DragMoved { position: self.dnd.position }
-                } else {
-                    let paths = path_list.iter().map(Into::into).collect();
-                    self.dnd.dragging = true;
-                    WindowEvent::DragEntered { paths, position: self.dnd.position }
-                };
-
-                app.window_event(&self.target, window_id, event);
-            }
-
-            self.dnd.result = Some(parse_result);
-        }
+        // Implementation removed
     }
 
     fn configure_notify(&self, xev: &XConfigureEvent, app: &mut dyn ApplicationHandler) {
