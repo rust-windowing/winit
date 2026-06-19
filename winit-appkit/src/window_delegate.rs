@@ -6,6 +6,7 @@ use std::ptr;
 use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 
+use dispatch2::MainThreadBound;
 use dpi::{
     LogicalInsets, LogicalPosition, LogicalSize, PhysicalInsets, PhysicalPosition, PhysicalSize,
     Position, Size,
@@ -19,14 +20,14 @@ use objc2::{
 use objc2_app_kit::{
     NSAppKitVersionNumber, NSAppKitVersionNumber10_12, NSAppearance, NSAppearanceCustomization,
     NSAppearanceNameAqua, NSApplication, NSApplicationPresentationOptions, NSBackingStoreType,
-    NSColor, NSDraggingDestination, NSDraggingInfo, NSRequestUserAttentionType, NSScreen,
-    NSToolbar, NSView, NSViewFrameDidChangeNotification, NSWindow, NSWindowButton,
-    NSWindowDelegate, NSWindowLevel, NSWindowOcclusionState, NSWindowOrderingMode,
-    NSWindowSharingType, NSWindowStyleMask, NSWindowTabbingMode, NSWindowTitleVisibility,
-    NSWindowToolbarStyle,
+    NSColor, NSDragOperation, NSDraggingContext, NSDraggingDestination, NSDraggingInfo,
+    NSDraggingSession, NSDraggingSource, NSPasteboardTypeFileURL, NSPasteboardTypeHTML,
+    NSPasteboardTypePNG, NSPasteboardTypeSound, NSPasteboardTypeString, NSPasteboardTypeTIFF,
+    NSRequestUserAttentionType, NSScreen, NSToolbar, NSView, NSViewFrameDidChangeNotification,
+    NSWindow, NSWindowButton, NSWindowDelegate, NSWindowLevel, NSWindowOcclusionState,
+    NSWindowOrderingMode, NSWindowSharingType, NSWindowStyleMask, NSWindowTabbingMode,
+    NSWindowTitleVisibility, NSWindowToolbarStyle,
 };
-#[allow(deprecated)]
-use objc2_app_kit::{NSFilenamesPboardType, NSWindowFullScreenButton};
 use objc2_core_foundation::{CGFloat, CGPoint};
 use objc2_core_graphics::{
     CGAcquireDisplayFadeReservation, CGAssociateMouseAndMouseCursorPosition, CGDisplayCapture,
@@ -44,6 +45,7 @@ use objc2_foundation::{
 use tracing::{debug_span, trace, warn};
 use winit_common::core_foundation::MainRunLoop;
 use winit_core::cursor::Cursor;
+use winit_core::data_transfer::DataTransferId;
 use winit_core::error::{NotSupportedError, RequestError};
 use winit_core::event::{SurfaceSizeWriter, WindowEvent};
 use winit_core::icon::Icon;
@@ -60,6 +62,10 @@ use super::monitor::{self, MonitorHandle, flip_window_screen_coordinates, get_di
 use super::util::cgerr;
 use super::view::WinitView;
 use super::window::{WinitPanel, WinitWindow, window_id};
+use crate::app_state::DragState;
+use crate::dnd::{
+    dnd_action_to_ns_drag_operation, ns_drag_operation_to_dnd_action, preferred_drag_operation,
+};
 use crate::{OptionAsAlt, WindowAttributesMacOS, WindowExtMacOS};
 
 #[derive(Debug)]
@@ -358,23 +364,128 @@ define_class!(
         }
     }
 
+    unsafe impl NSDraggingSource for WindowDelegate {
+        #[unsafe(method(draggingSession:sourceOperationMaskForDraggingContext:))]
+        fn dragging_session_source_operation_mask(
+            &self,
+            _: &NSDraggingSession,
+            _: NSDraggingContext,
+        ) -> NSDragOperation {
+            self.view().drag_operations()
+        }
+
+        #[unsafe(method(draggingSession:endedAtPoint:operation:))]
+        fn dragging_session_ended_at_point(
+            &self,
+            session: &NSDraggingSession,
+            _: NSPoint,
+            operation: NSDragOperation,
+        ) {
+            let id = DataTransferId::from_raw(session.draggingSequenceNumber() as i64);
+            if operation == NSDragOperation::None {
+                self.queue_event(WindowEvent::OutgoingDragCanceled { id });
+            } else {
+                self.queue_event(WindowEvent::OutgoingDragDropped {
+                    id,
+                    action: ns_drag_operation_to_dnd_action(operation),
+                });
+            }
+
+            self.view().clear_dragging_session(session);
+        }
+    }
+
     unsafe impl NSDraggingDestination for WindowDelegate {
         /// Invoked when the dragged image enters destination bounds or frame
         #[unsafe(method(draggingEntered:))]
-        fn dragging_entered(&self, _sender: &ProtocolObject<dyn NSDraggingInfo>) -> bool {
-            false
+        fn dragging_entered(&self, sender: &ProtocolObject<dyn NSDraggingInfo>) -> NSDragOperation {
+            let _entered = debug_span!("draggingEntered:").entered();
+
+            let pb =
+                MainThreadBound::new(sender.draggingPasteboard(), MainThreadMarker::new().unwrap());
+
+            let dl = sender.draggingLocation();
+            let dl = self.view().convertPoint_fromView(dl, None);
+            let position =
+                LogicalPosition::<f64>::from((dl.x, dl.y)).to_physical(self.scale_factor());
+
+            let vars = self.ivars();
+
+            let source_operations = sender.draggingSourceOperationMask();
+
+            let transfer_id = DataTransferId::from_raw(sender.draggingSequenceNumber() as i64);
+            vars.app_state.pasteboards().insert(transfer_id, &pb);
+
+            vars.app_state
+                .drag_state()
+                .replace(Some(DragState { id: transfer_id, valid_actions: vec![] }));
+
+            self.queue_event(WindowEvent::DragEntered {
+                id: transfer_id,
+                position: Some(position),
+                // operations: Some(operations),
+            });
+
+            let drag_state = vars.app_state.drag_state().borrow();
+
+            drag_state
+                .as_ref()
+                .and_then(|drag_state| {
+                    preferred_drag_operation(source_operations, &drag_state.valid_actions)
+                })
+                .map(dnd_action_to_ns_drag_operation)
+                .unwrap_or(NSDragOperation::empty())
         }
 
         #[unsafe(method(wantsPeriodicDraggingUpdates))]
         fn wants_periodic_dragging_updates(&self) -> bool {
-            false
+            let _entered = debug_span!("wantsPeriodicDraggingUpdates:").entered();
+            true
         }
 
         /// Invoked periodically as the image is held within the destination area, allowing
         /// modification of the dragging operation or mouse-pointer position.
         #[unsafe(method(draggingUpdated:))]
-        fn dragging_updated(&self, _sender: &ProtocolObject<dyn NSDraggingInfo>) -> bool {
-            false
+        fn dragging_updated(&self, sender: &ProtocolObject<dyn NSDraggingInfo>) -> NSDragOperation {
+            let _entered = debug_span!("draggingUpdated:").entered();
+
+            let vars = self.ivars();
+
+            let Some(transfer_id) =
+                vars.app_state.drag_state().borrow().as_ref().map(|state| state.id)
+            else {
+                return NSDragOperation::empty();
+            };
+
+            let pb =
+                MainThreadBound::new(sender.draggingPasteboard(), MainThreadMarker::new().unwrap());
+
+            let source_operations = sender.draggingSourceOperationMask();
+
+            vars.app_state.pasteboards().set_pasteboard(transfer_id, &pb);
+
+            let dl = sender.draggingLocation();
+            let dl = self.view().convertPoint_fromView(dl, None);
+            let position =
+                LogicalPosition::<f64>::from((dl.x, dl.y)).to_physical(self.scale_factor());
+
+            let proposed_action = vars.app_state.proposed_drag_action(source_operations);
+
+            self.queue_event(WindowEvent::DragPosition {
+                id: transfer_id,
+                position,
+                proposed_action,
+            });
+
+            let drag_state = vars.app_state.drag_state().borrow();
+
+            drag_state
+                .as_ref()
+                .and_then(|drag_state| {
+                    preferred_drag_operation(source_operations, &drag_state.valid_actions)
+                })
+                .map(dnd_action_to_ns_drag_operation)
+                .unwrap_or(NSDragOperation::empty())
         }
 
         /// Invoked when the image is released
@@ -386,20 +497,97 @@ define_class!(
 
         /// Invoked after the released image has been removed from the screen
         #[unsafe(method(performDragOperation:))]
-        fn perform_drag_operation(&self, _sender: &ProtocolObject<dyn NSDraggingInfo>) -> bool {
-            false
+        fn perform_drag_operation(&self, sender: &ProtocolObject<dyn NSDraggingInfo>) -> bool {
+            let _entered = debug_span!("performDragOperation:").entered();
+
+            let vars = self.ivars();
+
+            let Some(transfer_id) =
+                vars.app_state.drag_state().borrow().as_ref().map(|state| state.id)
+            else {
+                return false.into();
+            };
+
+            let pb =
+                MainThreadBound::new(sender.draggingPasteboard(), MainThreadMarker::new().unwrap());
+
+            let source_operations = sender.draggingSourceOperationMask();
+            // let operations = ns_drag_operation_to_dnd_actions(source_operations);
+
+            vars.app_state.pasteboards().set_pasteboard(transfer_id, &pb);
+
+            let dl = sender.draggingLocation();
+            let dl = self.view().convertPoint_fromView(dl, None);
+            let position =
+                LogicalPosition::<f64>::from((dl.x, dl.y)).to_physical(self.scale_factor());
+
+            let proposed_action = vars.app_state.proposed_drag_action(source_operations);
+
+            self.queue_event(WindowEvent::DragPosition {
+                id: transfer_id,
+                position,
+                proposed_action,
+            });
+
+            // Check again, in case the application updated
+            let proposed_action = vars.app_state.proposed_drag_action(source_operations);
+
+            self.queue_event(WindowEvent::DragDropped { id: transfer_id, proposed_action });
+
+            // We assume that if the OS has sent `perform_drag_operation`, that the drag succeeded.
+            // We may want to extend this API in the future to allow signalling that the final drop
+            // failed.
+            true
         }
 
         /// Invoked when the dragging operation is complete
         #[unsafe(method(concludeDragOperation:))]
         fn conclude_drag_operation(&self, _sender: Option<&NSObject>) {
             let _entered = debug_span!("concludeDragOperation:").entered();
+            let vars = self.ivars();
+
+            vars.app_state.pasteboards().remove_deloaded_pasteboards();
+            vars.app_state.drag_state().take();
         }
 
         /// Invoked when the dragging operation is cancelled
         #[unsafe(method(draggingExited:))]
-        fn dragging_exited(&self, _sender: Option<&ProtocolObject<dyn NSDraggingInfo>>) {
-            // Do nothing
+        fn dragging_exited(&self, sender: Option<&ProtocolObject<dyn NSDraggingInfo>>) {
+            let _entered = debug_span!("draggingExited:").entered();
+
+            let vars = self.ivars();
+
+            let Some(transfer_id) =
+                vars.app_state.drag_state().borrow().as_ref().map(|state| state.id)
+            else {
+                return;
+            };
+
+            if let Some(sender) = sender {
+                let pb = MainThreadBound::new(
+                    sender.draggingPasteboard(),
+                    MainThreadMarker::new().unwrap(),
+                );
+                vars.app_state.pasteboards().set_pasteboard(transfer_id, &pb);
+
+                let dl = sender.draggingLocation();
+                let dl = self.view().convertPoint_fromView(dl, None);
+                let position =
+                    LogicalPosition::<f64>::from((dl.x, dl.y)).to_physical(self.scale_factor());
+
+                let source_operations = sender.draggingSourceOperationMask();
+                let proposed_action = vars.app_state.proposed_drag_action(source_operations);
+
+                self.queue_event(WindowEvent::DragPosition {
+                    id: transfer_id,
+                    position,
+                    proposed_action,
+                });
+            }
+
+            self.queue_event(WindowEvent::DragLeft { id: transfer_id });
+
+            vars.app_state.drag_state().take();
         }
     }
 
@@ -604,7 +792,7 @@ fn new_window(
         if macos_attrs.titlebar_buttons_hidden {
             for titlebar_button in &[
                 #[allow(deprecated)]
-                NSWindowFullScreenButton,
+                objc2_app_kit::NSWindowFullScreenButton,
                 NSWindowButton::MiniaturizeButton,
                 NSWindowButton::CloseButton,
                 NSWindowButton::ZoomButton,
@@ -686,10 +874,6 @@ fn new_window(
             window.setBackgroundColor(Some(&NSColor::clearColor()));
         }
 
-        // register for drag and drop operations.
-        #[allow(deprecated)]
-        window.registerForDraggedTypes(&NSArray::from_slice(&[unsafe { NSFilenamesPboardType }]));
-
         Some(window)
     })
 }
@@ -766,6 +950,22 @@ impl WindowDelegate {
         let delegate: Retained<WindowDelegate> = unsafe { msg_send![super(delegate), init] };
 
         window.setDelegate(Some(ProtocolObject::from_ref(&*delegate)));
+
+        let drag_types = unsafe {
+            // Advertize support for the set of types which correspond to variants of `TypeHint`.
+            // If the user wants to support other pasteboard types which don't have a cross-platform
+            // equivalent, they can downcast the window and manually call `registerForDraggedTypes`
+            // themselves.
+            NSArray::from_slice(&[
+                NSPasteboardTypeFileURL,
+                NSPasteboardTypeHTML,
+                NSPasteboardTypePNG,
+                NSPasteboardTypeSound,
+                NSPasteboardTypeString,
+                NSPasteboardTypeTIFF,
+            ])
+        };
+        window.registerForDraggedTypes(&drag_types);
 
         // Listen for theme change event.
         //
