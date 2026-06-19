@@ -3,8 +3,9 @@
 
 use std::ffi::c_void;
 
-use windows_sys::Win32::Foundation::{HWND, POINTL};
+use windows_sys::Win32::Foundation::{HWND, POINT, POINTL};
 use windows_sys::Win32::System::Com::{FORMATETC, STGMEDIUM};
+use windows_sys::Win32::UI::Shell::SHDRAGIMAGE;
 use windows_sys::core::{BOOL, GUID, HRESULT};
 
 pub type IUnknown = *mut c_void;
@@ -37,7 +38,7 @@ pub struct IDataObjectVtbl {
         pformatetc: *const FORMATETC,
         pmedium: *mut STGMEDIUM,
     ) -> HRESULT,
-    QueryGetData:
+    pub QueryGetData:
         unsafe extern "system" fn(This: *mut IDataObject, pformatetc: *const FORMATETC) -> HRESULT,
     pub GetCanonicalFormatEtc: unsafe extern "system" fn(
         This: *mut IDataObject,
@@ -47,7 +48,7 @@ pub struct IDataObjectVtbl {
     pub SetData: unsafe extern "system" fn(
         This: *mut IDataObject,
         pformatetc: *const FORMATETC,
-        pformatetcOut: *const FORMATETC,
+        pmedium: *const STGMEDIUM,
         fRelease: BOOL,
     ) -> HRESULT,
     pub EnumFormatEtc: unsafe extern "system" fn(
@@ -67,6 +68,81 @@ pub struct IDataObjectVtbl {
         This: *mut IDataObject,
         ppenumAdvise: *const *const IEnumSTATDATA,
     ) -> HRESULT,
+}
+
+#[repr(C)]
+pub struct IEnumFORMATETCVtbl {
+    pub parent: IUnknownVtbl,
+    pub Next: unsafe extern "system" fn(
+        This: *mut IEnumFORMATETC,
+        celt: u32,
+        rgelt: *mut FORMATETC,
+        pceltFetched: *mut u32,
+    ) -> HRESULT,
+    pub Skip: unsafe extern "system" fn(This: *mut IEnumFORMATETC, celt: u32) -> HRESULT,
+    pub Reset: unsafe extern "system" fn(This: *mut IEnumFORMATETC) -> HRESULT,
+    pub Clone: unsafe extern "system" fn(
+        This: *mut IEnumFORMATETC,
+        ppenum: *mut *mut IEnumFORMATETC,
+    ) -> HRESULT,
+}
+
+pub type IDragSourceHelper = *mut c_void;
+
+#[repr(C)]
+pub struct IDragSourceHelperVtbl {
+    pub parent: IUnknownVtbl,
+    pub InitializeFromBitmap: unsafe extern "system" fn(
+        This: *mut IDragSourceHelper,
+        pshdi: *const SHDRAGIMAGE,
+        pDataObject: *mut IDataObject,
+    ) -> HRESULT,
+    pub InitializeFromWindow: unsafe extern "system" fn(
+        This: *mut IDragSourceHelper,
+        hwnd: HWND,
+        ppt: *const POINT,
+        pDataObject: *mut IDataObject,
+    ) -> HRESULT,
+}
+
+pub type IDropTargetHelper = *mut c_void;
+
+#[repr(C)]
+pub struct IDropTargetHelperVtbl {
+    pub parent: IUnknownVtbl,
+    pub DragEnter: unsafe extern "system" fn(
+        This: *mut IDropTargetHelper,
+        hwndTarget: HWND,
+        pDataObject: *mut IDataObject,
+        ppt: *const POINT,
+        dwEffect: u32,
+    ) -> HRESULT,
+    pub DragLeave: unsafe extern "system" fn(This: *mut IDropTargetHelper) -> HRESULT,
+    pub DragOver: unsafe extern "system" fn(
+        This: *mut IDropTargetHelper,
+        ppt: *const POINT,
+        dwEffect: u32,
+    ) -> HRESULT,
+    pub Drop: unsafe extern "system" fn(
+        This: *mut IDropTargetHelper,
+        pDataObject: *mut IDataObject,
+        ppt: *const POINT,
+        dwEffect: u32,
+    ) -> HRESULT,
+    pub Show: unsafe extern "system" fn(This: *mut IDropTargetHelper, fShow: BOOL) -> HRESULT,
+}
+
+pub type IDropSource = *mut c_void;
+
+#[repr(C)]
+pub struct IDropSourceVtbl {
+    pub parent: IUnknownVtbl,
+    pub QueryContinueDrag: unsafe extern "system" fn(
+        This: *mut IDropSource,
+        fEscapePressed: BOOL,
+        grfKeyState: u32,
+    ) -> HRESULT,
+    pub GiveFeedback: unsafe extern "system" fn(This: *mut IDropSource, dwEffect: u32) -> HRESULT,
 }
 
 #[repr(C)]
@@ -130,6 +206,22 @@ pub struct ITaskbarList2 {
     pub lpVtbl: *const ITaskbarList2Vtbl,
 }
 
+/// Defined in `objidl.h`.
+pub const IID_IDataObject: GUID = GUID::from_u128(0x0000010e_0000_0000_c000_000000000046);
+
+/// Defined in `oleidl.h`.
+pub const IID_IDropSource: GUID = GUID::from_u128(0x00000121_0000_0000_c000_000000000046);
+
+/// Defined in `objidl.h`.
+pub const IID_IEnumFORMATETC: GUID = GUID::from_u128(0x00000103_0000_0000_c000_000000000046);
+
+/// Defined in `shobjidl_core.h`.
+pub const IID_IDragSourceHelper: GUID = GUID::from_u128(0xde5bf786_477a_11d2_839d_00c04fd918d0);
+
+/// Defined in `shobjidl_core.h`.
+pub const IID_IDropTargetHelper: GUID = GUID::from_u128(0x4657278b_411b_11d2_839a_00c04fd918d0);
+
+/// Defined in `shobjidl_core.h`.
 pub const CLSID_TaskbarList: GUID = GUID {
     data1: 0x56fdf344,
     data2: 0xfd6d,
@@ -137,6 +229,7 @@ pub const CLSID_TaskbarList: GUID = GUID {
     data4: [0x95, 0x8a, 0x00, 0x60, 0x97, 0xc9, 0xa0, 0x90],
 };
 
+/// Defined in `shobjidl_core.h`.
 pub const IID_ITaskbarList: GUID = GUID {
     data1: 0x56fdf342,
     data2: 0xfd6d,
@@ -144,6 +237,7 @@ pub const IID_ITaskbarList: GUID = GUID {
     data4: [0x95, 0x8a, 0x00, 0x60, 0x97, 0xc9, 0xa0, 0x90],
 };
 
+/// Defined in `shobjidl_core.h`.
 pub const IID_ITaskbarList2: GUID = GUID {
     data1: 0x602d4995,
     data2: 0xb13a,
