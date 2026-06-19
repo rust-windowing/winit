@@ -8,8 +8,9 @@ use objc2::rc::Retained;
 use objc2::runtime::{AnyObject, Sel};
 use objc2::{AnyThread, DefinedClass, MainThreadMarker, define_class, msg_send};
 use objc2_app_kit::{
-    NSApplication, NSCursor, NSEvent, NSEventPhase, NSResponder, NSTextInputClient, NSTrackingArea,
-    NSTrackingAreaOptions, NSView, NSViewLayerContentsRedrawPolicy, NSWindow,
+    NSApplication, NSCursor, NSDragOperation, NSDraggingSession, NSEvent, NSEventPhase,
+    NSResponder, NSTextInputClient, NSTrackingArea, NSTrackingAreaOptions, NSView,
+    NSViewLayerContentsRedrawPolicy, NSWindow,
 };
 use objc2_core_foundation::CGRect;
 use objc2_foundation::{
@@ -113,6 +114,12 @@ fn get_left_modifier_code(key: &Key) -> KeyCode {
 pub struct ViewState {
     /// Strong reference to the global application state.
     app_state: Rc<AppState>,
+
+    /// This is for a dragging session that we initiated
+    dragging_session: RefCell<Option<Retained<NSDraggingSession>>>,
+
+    /// This is for a dragging session that we initiated
+    drag_operations: Cell<NSDragOperation>,
 
     cursor_state: RefCell<CursorState>,
     ime_position: Cell<NSPoint>,
@@ -789,6 +796,8 @@ impl WinitView {
     ) -> Retained<Self> {
         let this = mtm.alloc().set_ivars(ViewState {
             app_state: Rc::clone(app_state),
+            dragging_session: Default::default(),
+            drag_operations: Cell::new(NSDragOperation::empty()),
             cursor_state: Default::default(),
             ime_position: Default::default(),
             ime_size: Default::default(),
@@ -898,7 +907,7 @@ impl WinitView {
         }
     }
 
-    fn scale_factor(&self) -> f64 {
+    pub(crate) fn scale_factor(&self) -> f64 {
         self.window().backingScaleFactor() as f64
     }
 
@@ -1115,6 +1124,29 @@ impl WinitView {
         }
 
         self.queue_event(WindowEvent::ModifiersChanged(self.ivars().modifiers.get()));
+    }
+
+    pub(crate) fn set_dragging_session(
+        &self,
+        drag: Retained<NSDraggingSession>,
+        action_mask: NSDragOperation,
+    ) {
+        let vars = self.ivars();
+        vars.dragging_session.replace(Some(drag));
+        vars.drag_operations.set(action_mask);
+    }
+
+    pub(crate) fn drag_operations(&self) -> NSDragOperation {
+        self.ivars().drag_operations.get()
+    }
+
+    pub(crate) fn clear_dragging_session(&self, drag: &NSDraggingSession) -> bool {
+        let vars = self.ivars();
+        vars.drag_operations.set(NSDragOperation::empty());
+        let mut dragging_session = vars.dragging_session.borrow_mut();
+        dragging_session
+            .take_if(|session| session.draggingSequenceNumber() == drag.draggingSequenceNumber())
+            .is_some()
     }
 
     fn mouse_click(&self, event: &NSEvent, button_state: ElementState) {
