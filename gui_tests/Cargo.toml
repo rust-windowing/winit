@@ -1,0 +1,12 @@
+[package]
+name = "gui_tests"
+version = "0.1.0"
+authors = ["Artur Kovacs <kovacs.artur.barnabas@gmail.com>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+winit = { path = ".." }
+enigo = "0.0.14"
+scopeguard = "1.1.0"

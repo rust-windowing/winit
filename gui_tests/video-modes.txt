@@ -1,0 +1,19 @@
+## Windows
+MonitorHandle { inner: MonitorHandle(0x10001) }
+1920x1080 @ 64 Hz (32 bpp)
+1680x1050 @ 64 Hz (32 bpp)
+1600x1200 @ 64 Hz (32 bpp)
+1600x900 @ 64 Hz (32 bpp)
+1440x900 @ 64 Hz (32 bpp)
+1366x768 @ 64 Hz (32 bpp)
+1280x1024 @ 64 Hz (32 bpp)
+1280x800 @ 64 Hz (32 bpp)
+1280x720 @ 64 Hz (32 bpp)
+1152x864 @ 64 Hz (32 bpp)
+1024x768 @ 64 Hz (32 bpp)
+800x600 @ 64 Hz (32 bpp)
+640x480 @ 64 Hz (32 bpp)
+
+## MacOS
+MonitorHandle { inner: MonitorHandle { name: Some("Monitor #1815"), native_identifier: 1535231424, size: PhysicalSize { width: 1176, height: 853 }, position: PhysicalPosition { x: 0, y: 0 }, scale_factor: 1.0 } }
+1176x853 @ 60 Hz (32 bpp)
