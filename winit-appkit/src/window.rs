@@ -36,6 +36,7 @@ impl Window {
         let mtm = window_target.mtm;
         let delegate =
             autoreleasepool(|_| WindowDelegate::new(&window_target.app_state, attributes, mtm))?;
+        window_target.app_state.register_window(&delegate, mtm);
         Ok(Window {
             window: MainThreadBound::new(delegate.window().retain(), mtm),
             delegate: MainThreadBound::new(delegate, mtm),
@@ -339,6 +340,8 @@ impl CoreWindow for Window {
     fn rwh_06_window_handle(&self) -> &dyn rwh_06::HasWindowHandle {
         self
     }
+
+    // TODO: `set_valid_actions`
 }
 
 define_class!(
