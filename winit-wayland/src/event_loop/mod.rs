@@ -326,7 +326,7 @@ impl EventLoop {
             // We don't need to check here if it should be closed, because if the parent should
             // be closed all children must be closed as well
             let children =
-                state.windows.get_mut().get(&window_id).unwrap().lock().unwrap().children().clone();
+                state.windows.get_mut().get(window_id).unwrap().lock().unwrap().children().clone();
             // First all children and then all subchildren
             out.extend(&children);
             for child in children.clone() {
@@ -488,9 +488,10 @@ impl EventLoop {
                         let parent =
                             state.windows.get_mut().get_mut(&w).unwrap().lock().unwrap().parent();
 
-                        parent
-                            .and_then(|p| state.windows.get_mut().get_mut(&p))
-                            .map(|p| p.lock().unwrap().remove_child(&w));
+                        if let Some(p) = parent.and_then(|p| state.windows.get_mut().get_mut(&p)) {
+                            p.lock().unwrap().remove_child(&w)
+                        }
+
                         let window_requests = state.window_requests.get_mut();
                         window_requests.get(&w).unwrap().take_closed();
                         mem::drop(window_requests.remove(&w));

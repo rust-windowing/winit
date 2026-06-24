@@ -1,7 +1,6 @@
 //! The pointer events.
 
 use std::ops::Deref;
-use std::sync::atomic::Ordering;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 

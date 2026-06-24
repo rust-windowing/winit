@@ -5,15 +5,11 @@ use std::sync::{Arc, Mutex, Weak};
 use dpi::{LogicalPosition, PhysicalInsets, PhysicalPosition, PhysicalSize, Position, Size};
 use rwh_06::RawWindowHandle;
 use sctk::compositor::SurfaceData;
-use sctk::reexports::client::protocol::wl_surface::WlSurface;
 use sctk::shell::WaylandSurface;
 use sctk::shell::xdg::popup::Popup as SctkPopup;
 use sctk::shell::xdg::{XdgPositioner, XdgSurface};
 use wayland_client::Proxy;
 use wayland_client::protocol::wl_display::WlDisplay;
-use wayland_protocols::xdg::shell::client::xdg_positioner::{
-    Anchor, ConstraintAdjustment, Gravity,
-};
 use winit_core::cursor::Cursor;
 use winit_core::error::{NotSupportedError, RequestError};
 use winit_core::event::{Ime, WindowEvent};
@@ -122,7 +118,6 @@ impl Popup {
                     size.to_logical(scale_factor).width,
                     size.to_logical(scale_factor).height,
                 );
-                positioner.set_constraint_adjustment(ConstraintAdjustment::all());
 
                 let parent_surface = parent_window_state.window.xdg_surface();
                 let surface = state.compositor_state.create_surface(&queue_handle);
@@ -296,7 +291,7 @@ impl CoreWindow for Popup {
     }
 
     fn request_surface_size(&self, size: Size) -> Option<PhysicalSize<u32>> {
-        let Some(s) = self.popup_state.upgrade() else { return None };
+        let s = self.popup_state.upgrade()?;
         let mut popup_state = s.lock().unwrap();
         popup_state.request_surface_size(size);
         self.request_redraw();
@@ -335,7 +330,7 @@ impl CoreWindow for Popup {
     }
 
     fn surface_resize_increments(&self) -> Option<PhysicalSize<u32>> {
-        let Some(s) = self.popup_state.upgrade() else { return None };
+        let s = self.popup_state.upgrade()?;
         let popup_state = s.lock().unwrap();
         let scale_factor = popup_state.scale_factor();
         popup_state
@@ -462,7 +457,7 @@ impl CoreWindow for Popup {
 
     #[inline]
     fn ime_capabilities(&self) -> Option<ImeCapabilities> {
-        let Some(s) = self.popup_state.upgrade() else { return None };
+        let s = self.popup_state.upgrade()?;
         s.lock().unwrap().ime_allowed()
     }
 

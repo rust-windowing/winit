@@ -214,6 +214,7 @@ pub struct WindowState {
 
 impl WindowState {
     /// Create new window state.
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         active_event_loop: &ActiveEventLoop,
         winit_state: &WinitState,
