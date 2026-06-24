@@ -187,6 +187,7 @@ impl PointerHandler for WinitState {
                             state,
                             position,
                             button,
+                            is_macos_activation_click: false,
                         },
                         window_id,
                     );
