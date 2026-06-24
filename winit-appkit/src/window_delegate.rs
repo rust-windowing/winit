@@ -50,7 +50,7 @@ use winit_core::icon::Icon;
 use winit_core::monitor::{Fullscreen, MonitorHandle as CoreMonitorHandle, MonitorHandleProvider};
 use winit_core::window::{
     CursorGrabMode, ImeCapabilities, ImeRequest, ImeRequestError, ResizeDirection, Theme,
-    UserAttentionType, WindowAttributes, WindowButtons, WindowId, WindowLevel,
+    UserAttentionType, WindowAttributes, WindowButtons, WindowId, WindowLevel, WindowType,
 };
 
 use super::app_state::AppState;
@@ -107,6 +107,7 @@ pub(crate) struct State {
     is_simple_fullscreen: Cell<bool>,
     saved_style: Cell<Option<NSWindowStyleMask>>,
     is_borderless_game: Cell<bool>,
+    is_popup: Cell<bool>,
 }
 
 define_class!(
@@ -537,6 +538,7 @@ fn new_window(
     app_state: &Rc<AppState>,
     attrs: &WindowAttributes,
     macos_attrs: &WindowAttributesMacOS,
+    is_popup: bool,
     mtm: MainThreadMarker,
 ) -> Option<Retained<NSWindow>> {
     autoreleasepool(|_| {
@@ -563,6 +565,10 @@ fn new_window(
                     None => NSSize::new(800.0, 600.0),
                 };
                 let position = match attrs.position {
+                    // A popup's position is parent-relative; it's applied in `WindowDelegate::new`
+                    // (after the delegate exists) via the shared translation in
+                    // `set_outer_position`.
+                    _ if is_popup => NSPoint::new(0.0, 0.0),
                     Some(position) => {
                         let position = position.to_logical(scale_factor);
                         flip_window_screen_coordinates(NSRect::new(
@@ -620,6 +626,8 @@ fn new_window(
         // confusing issues with the window not being properly activated.
         //
         // Winit ensures this by not allowing access to `ActiveEventLoop` before handling events.
+        // Panels (including popups) are non-activating so they don't steal key focus
+        // from their parent (matching menu/combobox semantics).
         let window: Retained<NSWindow> = if macos_attrs.panel {
             masks |= NSWindowStyleMask::NonactivatingPanel;
 
@@ -703,7 +711,8 @@ fn new_window(
         if !macos_attrs.has_shadow {
             window.setHasShadow(false);
         }
-        if attrs.position.is_none() {
+        // Popups are positioned relative to their parent in `WindowDelegate::new`.
+        if attrs.position.is_none() && !is_popup {
             window.center();
         }
 
@@ -770,13 +779,23 @@ impl WindowDelegate {
         mut attrs: WindowAttributes,
         mtm: MainThreadMarker,
     ) -> Result<Retained<Self>, RequestError> {
-        let macos_attrs = attrs
+        let mut macos_attrs = attrs
             .platform
             .take()
             .and_then(|attrs| attrs.cast::<WindowAttributesMacOS>().ok())
             .unwrap_or_default();
 
-        let window = new_window(app_state, &attrs, &macos_attrs, mtm)
+        let is_popup = matches!(attrs.window_type(), WindowType::Popup { .. });
+        if is_popup {
+            // A popup is an undecorated, non-activating panel with no titlebar buttons. Model it
+            // as such so it flows through the existing borderless + panel paths in `new_window`
+            // instead of needing dedicated branches.
+            attrs.decorations = false;
+            attrs.enabled_buttons = WindowButtons::empty();
+            macos_attrs.panel = true;
+        }
+
+        let window = new_window(app_state, &attrs, &macos_attrs, is_popup, mtm)
             .ok_or_else(|| os_error!("couldn't create `NSWindow`"))?;
 
         match attrs.parent_window() {
@@ -795,6 +814,11 @@ impl WindowDelegate {
                 unsafe { parent.addChildWindow_ordered(&window, NSWindowOrderingMode::Above) };
             },
             Some(raw) => panic!("invalid raw window handle {raw:?} on macOS"),
+            None if is_popup => {
+                return Err(RequestError::NotSupported(NotSupportedError::new(
+                    "a popup window requires a parent window",
+                )));
+            },
             None => (),
         }
 
@@ -832,6 +856,7 @@ impl WindowDelegate {
             is_simple_fullscreen: Cell::new(false),
             saved_style: Cell::new(None),
             is_borderless_game: Cell::new(macos_attrs.borderless_game),
+            is_popup: Cell::new(is_popup),
         });
         let delegate: Retained<WindowDelegate> = unsafe { msg_send![super(delegate), init] };
 
@@ -861,6 +886,14 @@ impl WindowDelegate {
         }
 
         delegate.set_window_level(attrs.window_level);
+
+        // The popup position is relative to the parent window, and the parent is only
+        // attached above, so apply the (translated) position now. Default to the parent's
+        // content top-left when no position was given.
+        if is_popup {
+            let position = attrs.position.unwrap_or_else(|| LogicalPosition::new(0.0, 0.0).into());
+            delegate.set_outer_position(position);
+        }
 
         delegate.set_cursor(attrs.cursor);
 
@@ -1031,11 +1064,27 @@ impl WindowDelegate {
 
     pub fn set_outer_position(&self, position: Position) {
         let position = position.to_logical(self.scale_factor());
+        let position = self.translate_popup_position(position);
         let point = flip_window_screen_coordinates(NSRect::new(
             NSPoint::new(position.x, position.y),
             self.window().frame().size,
         ));
         self.window().setFrameOrigin(point);
+    }
+
+    /// Popups receive their position relative to the top-left of the parent window's
+    /// content area (matching the Win32 and Wayland backends). macOS positions windows
+    /// in global screen coordinates, so add the parent content area's origin.
+    fn translate_popup_position(&self, position: LogicalPosition<f64>) -> LogicalPosition<f64> {
+        if !self.ivars().is_popup.get() {
+            return position;
+        }
+        let Some(parent) = self.window().parentWindow() else {
+            return position;
+        };
+        let parent_origin =
+            flip_window_screen_coordinates(parent.contentRectForFrameRect(parent.frame()));
+        LogicalPosition::new(parent_origin.x + position.x, parent_origin.y + position.y)
     }
 
     #[inline]

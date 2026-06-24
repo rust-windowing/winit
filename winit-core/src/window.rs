@@ -46,6 +46,31 @@ impl fmt::Debug for WindowId {
     }
 }
 
+/// The role of a window, used to request platform-specific window behavior.
+#[derive(Debug, Clone, Copy, Default, PartialEq)]
+pub enum WindowType {
+    /// A normal, top-level window.
+    #[default]
+    Window,
+    /// A short-lived window anchored to a parent, such as a menu, combo-box dropdown, or
+    /// tooltip. Requires a parent set via [`WindowAttributes::with_parent_window`], and its
+    /// position is interpreted relative to that parent.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **macOS:** A borderless, non-activating child window. The system does *not* draw rounded
+    ///   corners for it. To get a rounded, native-looking popup, create it transparent (via
+    ///   [`WindowAttributes::with_transparent`]) and render the round border yourself.
+    /// - **X11:** Popups are just normal windows
+    /// - **Wayland:** Set `grab_keyboard: true` to request an `xdg_popup.grab` so that keyboard
+    ///   events are routed to the popup instead of the parent window. The grab uses the serial of
+    ///   the most recent pointer button press and must be requested before the popup is mapped.
+    Popup {
+        /// Request a keyboard grab for this popup (Wayland only).
+        grab_keyboard: bool,
+    },
+}
+
 /// Attributes used when creating a window.
 #[derive(Debug)]
 #[non_exhaustive]
@@ -72,6 +97,7 @@ pub struct WindowAttributes {
     pub(crate) parent_window: Option<SendSyncRawWindowHandle>,
     pub fullscreen: Option<Fullscreen>,
     pub platform: Option<Box<dyn PlatformWindowAttributes>>,
+    pub window_type: WindowType,
 }
 
 impl WindowAttributes {
@@ -145,6 +171,8 @@ impl WindowAttributes {
     ///   position. There may be a small gap between this position and the window due to the
     ///   specifics of the Window Manager.
     /// - **X11:** The top left corner of the window, the window's "outer" position.
+    /// - **Wayland:** The top left corner of the window if the window type is `WindowType::Popup`
+    ///   otherwise ignored
     /// - **Others:** Ignored.
     #[inline]
     pub fn with_position<P: Into<Position>>(mut self, position: P) -> Self {
@@ -378,6 +406,26 @@ impl WindowAttributes {
         self.platform = Some(platform);
         self
     }
+
+    /// Sets the [`WindowType`] (window vs. popup).
+    ///
+    /// Used by the Windows, Wayland and macOS backends; on X11 popups are just normal windows.
+    /// If the type is [`WindowType::Popup`], the parent must also be set via
+    /// [`with_parent_window`](Self::with_parent_window), and the position is interpreted
+    /// relative to that parent.
+    ///
+    /// See [`WindowType::Popup`] for the per-platform behavior, including how to obtain a
+    /// rounded, native-looking popup on macOS.
+    pub fn with_window_type(mut self, window_type: WindowType) -> Self {
+        self.window_type = window_type;
+        self
+    }
+
+    /// Returns if the window type is a popup or a normal window
+    #[inline]
+    pub fn window_type(&self) -> WindowType {
+        self.window_type
+    }
 }
 
 impl Clone for WindowAttributes {
@@ -405,6 +453,7 @@ impl Clone for WindowAttributes {
             parent_window: self.parent_window.clone(),
             fullscreen: self.fullscreen.clone(),
             platform: self.platform.as_ref().map(|platform| platform.box_clone()),
+            window_type: self.window_type,
         }
     }
 }
@@ -435,6 +484,7 @@ impl Default for WindowAttributes {
             platform: Default::default(),
             cursor: Cursor::default(),
             blur: Default::default(),
+            window_type: Default::default(),
         }
     }
 }
