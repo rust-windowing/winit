@@ -380,9 +380,24 @@ define_class!(
 
             let is_control = string.chars().next().is_some_and(|c| c.is_control());
 
-            // Commit only if we have marked text.
-            if self.hasMarkedText() && self.is_ime_enabled() && !is_control {
-                self.queue_event(WindowEvent::Ime(Ime::Preedit(String::new(), None)));
+            // Commit the text whenever the IME is enabled and the string is
+            // not a control character.  The original guard `hasMarkedText()`
+            // was too strict: some input methods (e.g. macOS Chinese
+            // Simplified Pinyin) convert punctuation keys by calling
+            // `insertText:` *without* a prior `setMarkedText:`, so
+            // `hasMarkedText()` is `false` even though the text is the
+            // IME-converted result (e.g. `,` → `，`).
+            //
+            // Without this change winit silently drops the converted
+            // character and the raw ASCII key from `NSEvent.characters`
+            // reaches the application instead.
+            //
+            // When `hasMarkedText()` is `true` we still clear the preedit
+            // first, preserving the existing preedit-then-commit sequence.
+            if self.is_ime_enabled() && !is_control {
+                if self.hasMarkedText() {
+                    self.queue_event(WindowEvent::Ime(Ime::Preedit(String::new(), None)));
+                }
                 self.queue_event(WindowEvent::Ime(Ime::Commit(string)));
                 self.ivars().ime_state.set(ImeState::Committed);
             }
