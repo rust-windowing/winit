@@ -94,6 +94,17 @@ use winit_core::window::{PlatformWindowAttributes, Window};
 pub use self::event_loop::{EventLoop, PlatformSpecificEventLoopAttributes};
 use self::web_sys as backend;
 use self::window::Window as WebWindow;
+use winit_core::keyboard::{Key, KeyCode, ModifiersState, NativeKey};
+
+/// Stub implementation for physical to logical key mapping on Web.
+pub fn physical_to_logical_key(
+    _keycode: KeyCode,
+    _modifiers: ModifiersState,
+    _caps_lock: bool,
+    _num_lock: bool,
+) -> Key {
+    Key::Unidentified(NativeKey::Unidentified)
+}
 use crate::cursor::CustomCursorFuture as PlatformCustomCursorFuture;
 use crate::event_loop::ActiveEventLoop as WebActiveEventLoop;
 use crate::main_thread::{MainThreadMarker, MainThreadSafe};
