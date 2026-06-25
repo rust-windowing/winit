@@ -3,8 +3,8 @@
 use std::ops::Deref;
 
 use sctk::reexports::client::globals::{BindError, GlobalList};
-use sctk::reexports::client::{delegate_dispatch, Dispatch};
 use sctk::reexports::client::{Connection, QueueHandle};
+use sctk::reexports::client::{Dispatch};
 use sctk::reexports::protocols::wp::relative_pointer::zv1::{
     client::zwp_relative_pointer_manager_v1::ZwpRelativePointerManagerV1,
     client::zwp_relative_pointer_v1::{self, ZwpRelativePointerV1},
@@ -12,8 +12,8 @@ use sctk::reexports::protocols::wp::relative_pointer::zv1::{
 
 use sctk::globals::GlobalData;
 
-use winit_core::event::DeviceEvent;
 use crate::state::WinitState;
+use winit_core::event::DeviceEvent;
 
 /// Wrapper around the relative pointer.
 #[derive(Debug)]
@@ -27,7 +27,7 @@ impl RelativePointerState {
         globals: &GlobalList,
         queue_handle: &QueueHandle<WinitState>,
     ) -> Result<Self, BindError> {
-        let manager = globals.bind(queue_handle, 1..=1, GlobalData)?;
+        let manager = globals.bind_singleton(queue_handle, 1..=1, GlobalData)?;
         Ok(Self { manager })
     }
 }
@@ -40,24 +40,24 @@ impl Deref for RelativePointerState {
     }
 }
 
-impl Dispatch<ZwpRelativePointerManagerV1, GlobalData, WinitState> for RelativePointerState {
+impl Dispatch<ZwpRelativePointerManagerV1, WinitState> for GlobalData {
     fn event(
+        &self,
         _state: &mut WinitState,
         _proxy: &ZwpRelativePointerManagerV1,
         _event: <ZwpRelativePointerManagerV1 as wayland_client::Proxy>::Event,
-        _data: &GlobalData,
         _conn: &Connection,
         _qhandle: &QueueHandle<WinitState>,
     ) {
     }
 }
 
-impl Dispatch<ZwpRelativePointerV1, GlobalData, WinitState> for RelativePointerState {
+impl Dispatch<ZwpRelativePointerV1, WinitState> for GlobalData {
     fn event(
+        &self,
         state: &mut WinitState,
         _proxy: &ZwpRelativePointerV1,
         event: <ZwpRelativePointerV1 as wayland_client::Proxy>::Event,
-        _data: &GlobalData,
         _conn: &Connection,
         _qhandle: &QueueHandle<WinitState>,
     ) {
@@ -72,6 +72,3 @@ impl Dispatch<ZwpRelativePointerV1, GlobalData, WinitState> for RelativePointerS
             .push_device_event(DeviceEvent::PointerMotion { delta: (dx_unaccel, dy_unaccel) });
     }
 }
-
-delegate_dispatch!(WinitState: [ZwpRelativePointerV1: GlobalData] => RelativePointerState);
-delegate_dispatch!(WinitState: [ZwpRelativePointerManagerV1: GlobalData] => RelativePointerState);

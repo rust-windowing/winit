@@ -9,7 +9,7 @@ use sctk::reexports::client::protocol::wl_keyboard::{
     Event as WlKeyboardEvent, KeyState as WlKeyState, KeymapFormat as WlKeymapFormat, WlKeyboard,
 };
 use sctk::reexports::client::protocol::wl_seat::WlSeat;
-use sctk::reexports::client::{Connection, Dispatch, Proxy, QueueHandle, WEnum};
+use sctk::reexports::client::{Connection, Dispatch, Proxy, QueueHandle};
 use tracing::warn;
 use winit_common::xkb::Context;
 use winit_core::event::{ElementState, WindowEvent};
@@ -19,16 +19,16 @@ use crate::WindowId;
 use crate::event_loop::sink::EventSink;
 use crate::state::WinitState;
 
-impl Dispatch<WlKeyboard, KeyboardData, WinitState> for WinitState {
+impl Dispatch<WlKeyboard, WinitState> for KeyboardData {
     fn event(
+        &self,
         state: &mut WinitState,
         wl_keyboard: &WlKeyboard,
         event: <WlKeyboard as Proxy>::Event,
-        data: &KeyboardData,
         _: &Connection,
         _: &QueueHandle<WinitState>,
     ) {
-        let seat_state = match state.seats.get_mut(&data.seat.id()) {
+        let seat_state = match state.seats.get_mut(&self.seat.id()) {
             Some(seat_state) => seat_state,
             None => {
                 warn!("Received keyboard event {event:?} without seat");
@@ -45,19 +45,14 @@ impl Dispatch<WlKeyboard, KeyboardData, WinitState> for WinitState {
 
         match event {
             WlKeyboardEvent::Keymap { format, fd, size } => match format {
-                WEnum::Value(format) => match format {
-                    WlKeymapFormat::NoKeymap => {
-                        warn!("non-xkb compatible keymap")
-                    },
-                    WlKeymapFormat::XkbV1 => {
-                        let context = &mut keyboard_state.xkb_context;
-                        context.set_keymap_from_fd(fd, size as usize);
-                    },
-                    _ => unreachable!(),
+                WlKeymapFormat::NoKeymap => {
+                    warn!("non-xkb compatible keymap")
                 },
-                WEnum::Unknown(value) => {
-                    warn!("unknown keymap format 0x{:x}", value)
+                WlKeymapFormat::XkbV1 => {
+                    let context = &mut keyboard_state.xkb_context;
+                    context.set_keymap_from_fd(fd, size as usize);
                 },
+                _ => warn!("unknown keymap format {:?}", format),
             },
             WlKeyboardEvent::Enter { surface, .. } => {
                 let window_id = crate::make_wid(&surface);
@@ -67,7 +62,7 @@ impl Dispatch<WlKeyboard, KeyboardData, WinitState> for WinitState {
                     Some(window) => {
                         let mut window = window.lock().unwrap();
                         let was_unfocused = !window.has_focus();
-                        window.add_seat_focus(data.seat.id());
+                        window.add_seat_focus(self.seat.id());
                         was_unfocused
                     },
                     None => return,
@@ -79,7 +74,7 @@ impl Dispatch<WlKeyboard, KeyboardData, WinitState> for WinitState {
                     keyboard_state.loop_handle.remove(token);
                 }
 
-                *data.window_id.lock().unwrap() = Some(window_id);
+                *self.window_id.lock().unwrap() = Some(window_id);
 
                 // The keyboard focus is considered as general focus.
                 if was_unfocused {
@@ -109,7 +104,7 @@ impl Dispatch<WlKeyboard, KeyboardData, WinitState> for WinitState {
                 let focused = match state.windows.get_mut().get(&window_id) {
                     Some(window) => {
                         let mut window = window.lock().unwrap();
-                        window.remove_seat_focus(&data.seat.id());
+                        window.remove_seat_focus(&self.seat.id());
                         window.has_focus()
                     },
                     None => return,
@@ -117,7 +112,7 @@ impl Dispatch<WlKeyboard, KeyboardData, WinitState> for WinitState {
 
                 // We don't need to update it above, because the next `Enter` will overwrite
                 // anyway.
-                *data.window_id.lock().unwrap() = None;
+                *self.window_id.lock().unwrap() = None;
 
                 if !focused {
                     // Notify that no modifiers are being pressed.
@@ -129,14 +124,14 @@ impl Dispatch<WlKeyboard, KeyboardData, WinitState> for WinitState {
                     state.events_sink.push_window_event(WindowEvent::Focused(false), window_id);
                 }
             },
-            WlKeyboardEvent::Key { key, state: WEnum::Value(key_state), .. }
+            WlKeyboardEvent::Key { key, state: key_state, .. }
                 if matches!(key_state, WlKeyState::Repeated | WlKeyState::Pressed) =>
             {
                 let key = key + 8;
                 key_input(
                     keyboard_state,
                     &mut state.events_sink,
-                    data,
+                    self,
                     key,
                     ElementState::Pressed,
                     key_state == WlKeyState::Repeated,
@@ -204,13 +199,13 @@ impl Dispatch<WlKeyboard, KeyboardData, WinitState> for WinitState {
                     })
                     .ok();
             },
-            WlKeyboardEvent::Key { key, state: WEnum::Value(WlKeyState::Released), .. } => {
+            WlKeyboardEvent::Key { key, state: WlKeyState::Released, .. } => {
                 let key = key + 8;
 
                 key_input(
                     keyboard_state,
                     &mut state.events_sink,
-                    data,
+                    self,
                     key,
                     ElementState::Released,
                     false,
@@ -239,7 +234,7 @@ impl Dispatch<WlKeyboard, KeyboardData, WinitState> for WinitState {
                 seat_state.modifiers = xkb_state.modifiers().into();
 
                 // HACK: part of the workaround from `WlKeyboardEvent::Enter`.
-                let window_id = match *data.window_id.lock().unwrap() {
+                let window_id = match *self.window_id.lock().unwrap() {
                     Some(window_id) => window_id,
                     None => {
                         seat_state.modifiers_pending = true;

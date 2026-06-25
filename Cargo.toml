@@ -95,3 +95,14 @@ wasm-bindgen-futures = "0.4.43"
 wasm-bindgen-test = "0.3"
 web-time = "1"
 web_sys = { package = "web-sys", version = "0.3.70" }
+
+[patch.crates-io]
+wayland-client = { git = "https://github.com/smithay/wayland-rs" }
+wayland-protocols = { git = "https://github.com/smithay/wayland-rs" }
+wayland-protocols-wlr = { git = "https://github.com/smithay/wayland-rs" }
+wayland-protocols-misc = { git = "https://github.com/smithay/wayland-rs" }
+wayland-protocols-plasma = { git = "https://github.com/smithay/wayland-rs" }
+wayland-protocols-experimental = { git = "https://github.com/smithay/wayland-rs" }
+wayland-cursor = { git = "https://github.com/smithay/wayland-rs" }
+wayland-backend = { git = "https://github.com/smithay/wayland-rs" }
+wayland-scanner = { git = "https://github.com/smithay/wayland-rs" }

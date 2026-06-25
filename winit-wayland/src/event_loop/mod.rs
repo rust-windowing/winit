@@ -716,8 +716,7 @@ impl rwh_06::HasDisplayHandle for OwnedDisplayHandle {
         use sctk::reexports::client::Proxy;
 
         let raw = rwh_06::WaylandDisplayHandle::new({
-            let ptr = self.connection.display().id().as_ptr();
-            std::ptr::NonNull::new(ptr as *mut _).expect("wl_display should never be null")
+            self.connection.display().id().as_ptr().expect("wl_display should never be null").cast()
         });
 
         Ok(unsafe { rwh_06::DisplayHandle::borrow_raw(raw.into()) })

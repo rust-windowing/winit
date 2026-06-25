@@ -3,7 +3,7 @@
 use sctk::globals::GlobalData;
 use sctk::reexports::client::globals::{BindError, GlobalList};
 use sctk::reexports::client::protocol::wl_surface::WlSurface;
-use sctk::reexports::client::{Connection, Dispatch, Proxy, QueueHandle, delegate_dispatch};
+use sctk::reexports::client::{Connection, Dispatch, Proxy, QueueHandle};
 use wayland_protocols_plasma::blur::client::org_kde_kwin_blur::OrgKdeKwinBlur;
 use wayland_protocols_plasma::blur::client::org_kde_kwin_blur_manager::OrgKdeKwinBlurManager;
 
@@ -20,7 +20,7 @@ impl KWinBlurManager {
         globals: &GlobalList,
         queue_handle: &QueueHandle<WinitState>,
     ) -> Result<Self, BindError> {
-        let manager = globals.bind(queue_handle, 1..=1, GlobalData)?;
+        let manager = globals.bind_singleton(queue_handle, 1..=1, GlobalData)?;
         Ok(Self { manager })
     }
 
@@ -37,12 +37,12 @@ impl KWinBlurManager {
     }
 }
 
-impl Dispatch<OrgKdeKwinBlurManager, GlobalData, WinitState> for KWinBlurManager {
+impl Dispatch<OrgKdeKwinBlurManager, WinitState> for GlobalData {
     fn event(
+        &self,
         _: &mut WinitState,
         _: &OrgKdeKwinBlurManager,
         _: <OrgKdeKwinBlurManager as Proxy>::Event,
-        _: &GlobalData,
         _: &Connection,
         _: &QueueHandle<WinitState>,
     ) {
@@ -50,18 +50,15 @@ impl Dispatch<OrgKdeKwinBlurManager, GlobalData, WinitState> for KWinBlurManager
     }
 }
 
-impl Dispatch<OrgKdeKwinBlur, (), WinitState> for KWinBlurManager {
+impl Dispatch<OrgKdeKwinBlur, WinitState> for () {
     fn event(
+        &self,
         _: &mut WinitState,
         _: &OrgKdeKwinBlur,
         _: <OrgKdeKwinBlur as Proxy>::Event,
-        _: &(),
         _: &Connection,
         _: &QueueHandle<WinitState>,
     ) {
         unreachable!("no events defined for org_kde_kwin_blur");
     }
 }
-
-delegate_dispatch!(WinitState: [OrgKdeKwinBlurManager: GlobalData] => KWinBlurManager);
-delegate_dispatch!(WinitState: [OrgKdeKwinBlur: ()] => KWinBlurManager);
