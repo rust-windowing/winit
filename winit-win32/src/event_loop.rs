@@ -2338,8 +2338,8 @@ unsafe fn public_window_callback_inner(
                 });
                 result = ProcResult::Value(0);
             } else if msg == TASKBAR_CREATED.get() {
-                let window_state = userdata.window_state_lock();
-                unsafe { set_skip_taskbar(window, window_state.skip_taskbar) };
+                let skip_taskbar = userdata.window_state_lock().skip_taskbar;
+                unsafe { set_skip_taskbar(window, skip_taskbar) };
                 result = ProcResult::DefWindowProc(wparam);
             } else {
                 result = ProcResult::DefWindowProc(wparam);
