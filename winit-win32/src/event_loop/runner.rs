@@ -287,9 +287,9 @@ impl EventLoopRunner {
         }
     }
 
-    /// Dispatch control flow events (`NewEvents`, `AboutToWait`, and
-    /// `LoopExiting`) as necessary to bring the internal `RunnerState` to the
-    /// new runner state.
+    /// Dispatch control flow events ([`ApplicationHandler::new_events()`] and
+    /// [`ApplicationHandler::about_to_wait()`]) as necessary to bring the internal [`RunnerState`]
+    /// to the new runner state.
     ///
     /// The state transitions are defined as follows:
     ///

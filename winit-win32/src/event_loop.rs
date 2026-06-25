@@ -303,6 +303,9 @@ impl EventLoop {
             // Immediately reset the internal state for the loop to allow
             // the loop to be run more than once.
             self.runner.reset_runner();
+
+            app.destroy_surfaces(ActiveEventLoop::from_ref(&self.runner));
+
             PumpStatus::Exit(code)
         } else {
             self.runner.prepare_wait();
