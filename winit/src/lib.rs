@@ -15,7 +15,10 @@
 //! }
 //! ```
 //!
-//! Then you create a [`Window`] with [`create_window`].
+//! Then you launch the event loop with [`EventLoop::run_app()`], which gives your
+//! [`ApplicationHandler`] callbacks an [`ActiveEventLoop`]. Use that active event loop to create a
+//! [`Window`] with [`create_window`]; the example below does this in
+//! [`ApplicationHandler::can_create_surfaces`], after the platform is ready for surface creation.
 //!
 //! # Event handling
 //!
@@ -258,6 +261,9 @@
 //! [`EventLoop`]: event_loop::EventLoop
 //! [`EventLoop::new()`]: event_loop::EventLoop::new
 //! [`EventLoop::run_app()`]: event_loop::EventLoop::run_app
+//! [`ActiveEventLoop`]: event_loop::ActiveEventLoop
+//! [`ApplicationHandler`]: application::ApplicationHandler
+//! [`ApplicationHandler::can_create_surfaces`]: application::ApplicationHandler::can_create_surfaces
 //! [`exit()`]: event_loop::ActiveEventLoop::exit
 //! [`Window`]: window::Window
 //! [`WindowId`]: window::WindowId
