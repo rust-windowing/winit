@@ -789,7 +789,7 @@ impl Window {
     }
 
     // Allow the usage of HasRawWindowHandle inside this function
-    #[allow(deprecated)]
+    #[expect(deprecated)]
     fn raw_window_handle_rwh_06(&self) -> Result<rwh_06::RawWindowHandle, rwh_06::HandleError> {
         use rwh_06::HasRawWindowHandle;
 

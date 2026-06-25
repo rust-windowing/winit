@@ -2168,7 +2168,7 @@ mod tests {
             .is_some()
         );
 
-        let text: &[u8] = ['a' as u8; 8000].as_slice();
+        let text: &[u8] = [b'a'; 8000].as_slice();
         let text = std::str::from_utf8(text).unwrap();
         assert_eq!(
             ImeSurroundingText::new(text.into(), 0, 0),

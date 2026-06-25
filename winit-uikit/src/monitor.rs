@@ -88,14 +88,14 @@ impl MonitorHandleProvider for MonitorHandle {
 
     fn name(&self) -> Option<std::borrow::Cow<'_, str>> {
         run_on_main(|mtm| {
-            #[allow(deprecated)]
+            #[expect(deprecated)]
             let main = UIScreen::mainScreen(mtm);
             if *self.ui_screen(mtm) == main {
                 Some("Primary".into())
             } else if Some(self.ui_screen(mtm)) == main.mirroredScreen().as_ref() {
                 Some("Mirrored".into())
             } else {
-                #[allow(deprecated)]
+                #[expect(deprecated)]
                 UIScreen::screens(mtm)
                     .iter()
                     .position(|rhs| rhs == *self.ui_screen(mtm))
@@ -249,7 +249,7 @@ fn refresh_rate_millihertz(uiscreen: &UIScreen) -> Option<NonZeroU32> {
 }
 
 pub fn uiscreens(mtm: MainThreadMarker) -> VecDeque<MonitorHandle> {
-    #[allow(deprecated)]
+    #[expect(deprecated)]
     UIScreen::screens(mtm).into_iter().map(MonitorHandle::new).collect()
 }
 
@@ -261,7 +261,7 @@ mod tests {
 
     // Test that UIScreen pointer comparisons are correct.
     #[test]
-    #[allow(deprecated)]
+    #[expect(deprecated)]
     fn screen_comparisons() {
         // Test code, doesn't matter that it's not thread safe
         let mtm = unsafe { MainThreadMarker::new_unchecked() };
