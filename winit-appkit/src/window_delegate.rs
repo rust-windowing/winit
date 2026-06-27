@@ -141,6 +141,7 @@ define_class!(
         #[unsafe(method(windowDidResize:))]
         fn window_did_resize(&self, _: Option<&AnyObject>) {
             let _entered = debug_span!("windowDidResize:").entered();
+            self.refresh_maximized();
             // NOTE: WindowEvent::SurfaceResized is reported using NSViewFrameDidChangeNotification.
             self.emit_move_event();
         }
@@ -156,6 +157,7 @@ define_class!(
         #[unsafe(method(windowDidEndLiveResize:))]
         fn window_did_end_live_resize(&self, _: Option<&AnyObject>) {
             let _entered = debug_span!("windowDidEndLiveResize:").entered();
+            self.refresh_maximized();
             self.set_resize_increments_inner(NSSize::new(1., 1.));
         }
 
@@ -273,6 +275,7 @@ define_class!(
             let _entered = debug_span!("windowDidEnterFullScreen:").entered();
             self.ivars().initial_fullscreen.set(false);
             self.ivars().in_fullscreen_transition.set(false);
+            self.request_redraw();
             if let Some(target_fullscreen) = self.ivars().target_fullscreen.take() {
                 self.set_fullscreen(target_fullscreen);
             }
@@ -285,6 +288,7 @@ define_class!(
 
             self.restore_state_from_fullscreen();
             self.ivars().in_fullscreen_transition.set(false);
+            self.request_redraw();
             if let Some(target_fullscreen) = self.ivars().target_fullscreen.take() {
                 self.set_fullscreen(target_fullscreen);
             }
@@ -909,6 +913,20 @@ impl WindowDelegate {
         });
     }
 
+    fn defer_if_handling_event(&self, f: impl FnOnce(Retained<Self>) + 'static) -> bool {
+        // AppKit state transitions such as zoom/fullscreen can synchronously run resize/display
+        // callbacks. Starting them from inside a winit event callback prevents those callbacks
+        // from being delivered immediately, so defer the transition to the next run-loop turn.
+        if !self.ivars().app_state.is_handling_event() {
+            return false;
+        }
+
+        let mtm = MainThreadMarker::from(self);
+        let this = self.retain();
+        MainRunLoop::get(mtm).queue_closure(move || f(this));
+        true
+    }
+
     fn handle_scale_factor_changed(&self, scale_factor: CGFloat) {
         let window = self.window();
 
@@ -997,6 +1015,19 @@ impl WindowDelegate {
 
     pub fn request_redraw(&self) {
         self.ivars().app_state.queue_redraw(window_id(self.window()));
+    }
+
+    fn refresh_maximized(&self) {
+        self.ivars().maximized.set(self.is_zoomed());
+    }
+
+    /// Returns AppKit's authoritative native live-resize state.
+    pub fn is_live_resizing(&self) -> bool {
+        self.window().inLiveResize()
+    }
+
+    pub fn is_fullscreen_transition(&self) -> bool {
+        self.ivars().in_fullscreen_transition.get()
     }
 
     #[inline]
@@ -1297,6 +1328,7 @@ impl WindowDelegate {
         let event =
             NSApplication::sharedApplication(mtm).currentEvent().ok_or(RequestError::Ignored)?;
         self.window().performWindowDragWithEvent(&event);
+        self.refresh_maximized();
         Ok(())
     }
 
@@ -1378,9 +1410,14 @@ impl WindowDelegate {
 
     #[inline]
     pub fn set_maximized(&self, maximized: bool) {
+        if self.defer_if_handling_event(move |this| this.set_maximized(maximized)) {
+            return;
+        }
+
         let mtm = MainThreadMarker::from(self);
         let is_zoomed = self.is_zoomed();
         if is_zoomed == maximized {
+            self.ivars().maximized.set(maximized);
             return;
         };
 
@@ -1418,14 +1455,11 @@ impl WindowDelegate {
 
     #[inline]
     pub fn is_maximized(&self) -> bool {
-        self.is_zoomed()
+        self.ivars().maximized.get()
     }
 
     #[inline]
     pub(crate) fn set_fullscreen(&self, fullscreen: Option<Fullscreen>) {
-        let mtm = MainThreadMarker::from(self);
-        let app = NSApplication::sharedApplication(mtm);
-
         if self.ivars().is_simple_fullscreen.get() {
             return;
         }
@@ -1439,6 +1473,18 @@ impl WindowDelegate {
         if fullscreen == old_fullscreen {
             return;
         }
+
+        if !self.ivars().initial_fullscreen.get()
+            && self.defer_if_handling_event({
+                let fullscreen = fullscreen.clone();
+                move |this| this.set_fullscreen(fullscreen)
+            })
+        {
+            return;
+        }
+
+        let mtm = MainThreadMarker::from(self);
+        let app = NSApplication::sharedApplication(mtm);
 
         // If the fullscreen is on a different monitor, we must move the window
         // to that monitor before we toggle fullscreen (as `toggleFullScreen`
@@ -1846,6 +1892,16 @@ fn restore_and_release_display(monitor: &MonitorHandle) {
 }
 
 impl WindowExtMacOS for WindowDelegate {
+    #[inline]
+    fn is_live_resizing(&self) -> bool {
+        WindowDelegate::is_live_resizing(self)
+    }
+
+    #[inline]
+    fn is_fullscreen_transition(&self) -> bool {
+        WindowDelegate::is_fullscreen_transition(self)
+    }
+
     #[inline]
     fn simple_fullscreen(&self) -> bool {
         self.ivars().is_simple_fullscreen.get()

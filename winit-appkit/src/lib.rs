@@ -99,6 +99,15 @@ use self::window::Window as AppKitWindow;
 
 /// Additional methods on [`Window`] that are specific to MacOS.
 pub trait WindowExtMacOS {
+    /// Returns whether AppKit is currently live-resizing the window.
+    ///
+    /// This is `true` only while the user is interactively resizing the window or AppKit is
+    /// running an equivalent native resize transition.
+    fn is_live_resizing(&self) -> bool;
+
+    /// Returns whether AppKit is currently entering or exiting native fullscreen.
+    fn is_fullscreen_transition(&self) -> bool;
+
     /// Returns whether or not the window is in simple fullscreen mode.
     fn simple_fullscreen(&self) -> bool;
 
@@ -189,6 +198,18 @@ pub trait WindowExtMacOS {
 }
 
 impl WindowExtMacOS for dyn Window + '_ {
+    #[inline]
+    fn is_live_resizing(&self) -> bool {
+        let window = self.cast_ref::<AppKitWindow>().unwrap();
+        window.maybe_wait_on_main(|w| w.is_live_resizing())
+    }
+
+    #[inline]
+    fn is_fullscreen_transition(&self) -> bool {
+        let window = self.cast_ref::<AppKitWindow>().unwrap();
+        window.maybe_wait_on_main(|w| w.is_fullscreen_transition())
+    }
+
     #[inline]
     fn simple_fullscreen(&self) -> bool {
         let window = self.cast_ref::<AppKitWindow>().unwrap();
