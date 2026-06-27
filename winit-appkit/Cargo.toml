@@ -54,6 +54,7 @@ objc2-app-kit = { workspace = true, features = [
     "NSTrackingArea",
     "NSToolbar",
     "NSView",
+    "NSVisualEffectView",
     "NSWindow",
     "NSWindowScripting",
     "NSWindowTabGroup",

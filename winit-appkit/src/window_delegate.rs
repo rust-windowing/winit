@@ -18,12 +18,13 @@ use objc2::{
 };
 use objc2_app_kit::{
     NSAppKitVersionNumber, NSAppKitVersionNumber10_12, NSAppearance, NSAppearanceCustomization,
-    NSAppearanceNameAqua, NSApplication, NSApplicationPresentationOptions, NSBackingStoreType,
-    NSColor, NSDraggingDestination, NSDraggingInfo, NSRequestUserAttentionType, NSScreen,
-    NSToolbar, NSView, NSViewFrameDidChangeNotification, NSWindow, NSWindowButton,
-    NSWindowDelegate, NSWindowLevel, NSWindowOcclusionState, NSWindowOrderingMode,
-    NSWindowSharingType, NSWindowStyleMask, NSWindowTabbingMode, NSWindowTitleVisibility,
-    NSWindowToolbarStyle,
+    NSAppearanceNameAqua, NSApplication, NSApplicationPresentationOptions,
+    NSAutoresizingMaskOptions, NSBackingStoreType, NSColor, NSDraggingDestination, NSDraggingInfo,
+    NSRequestUserAttentionType, NSScreen, NSToolbar, NSView, NSViewFrameDidChangeNotification,
+    NSVisualEffectBlendingMode, NSVisualEffectMaterial, NSVisualEffectState, NSVisualEffectView,
+    NSWindow, NSWindowButton, NSWindowDelegate, NSWindowLevel, NSWindowOcclusionState,
+    NSWindowOrderingMode, NSWindowSharingType, NSWindowStyleMask, NSWindowTabbingMode,
+    NSWindowTitleVisibility, NSWindowToolbarStyle,
 };
 #[allow(deprecated)]
 use objc2_app_kit::{NSFilenamesPboardType, NSWindowFullScreenButton};
@@ -55,7 +56,6 @@ use winit_core::window::{
 
 use super::app_state::AppState;
 use super::cursor::{CustomCursor, cursor_from_icon};
-use super::ffi;
 use super::monitor::{self, MonitorHandle, flip_window_screen_coordinates, get_display_id};
 use super::util::cgerr;
 use super::view::WinitView;
@@ -68,6 +68,8 @@ pub(crate) struct State {
     app_state: Rc<AppState>,
 
     window: Retained<NSWindow>,
+
+    view: Retained<WinitView>,
 
     // During `windowDidResize`, we use this to only send Moved if the position changed.
     //
@@ -779,6 +781,12 @@ impl WindowDelegate {
         let window = new_window(app_state, &attrs, &macos_attrs, mtm)
             .ok_or_else(|| os_error!("couldn't create `NSWindow`"))?;
 
+        let view: Retained<WinitView> = window
+            .contentView()
+            .expect("window should have a content view")
+            .downcast()
+            .expect("content view should be a `WinitView`");
+
         match attrs.parent_window() {
             Some(rwh_06::RawWindowHandle::AppKit(handle)) => {
                 // SAFETY: Caller ensures the pointer is valid or NULL
@@ -817,6 +825,7 @@ impl WindowDelegate {
         let delegate = mtm.alloc().set_ivars(State {
             app_state: Rc::clone(app_state),
             window: window.retain(),
+            view,
             previous_position: Cell::new(flip_window_screen_coordinates(window.frame())),
             previous_scale_factor: Cell::new(scale_factor),
             surface_resize_increments: Cell::new(surface_resize_increments),
@@ -888,8 +897,7 @@ impl WindowDelegate {
 
     #[track_caller]
     pub(super) fn view(&self) -> Retained<WinitView> {
-        // The view inside WinitWindow should always be set and be `WinitView`.
-        self.window().contentView().unwrap().downcast().unwrap()
+        self.ivars().view.clone()
     }
 
     #[track_caller]
@@ -970,16 +978,31 @@ impl WindowDelegate {
     }
 
     pub fn set_blur(&self, blur: bool) {
-        // NOTE: in general we want to specify the blur radius, but the choice of 80
-        // should be a reasonable default.
-        let radius = if blur { 80 } else { 0 };
-        let window_number = self.window().windowNumber();
-        unsafe {
-            ffi::CGSSetWindowBackgroundBlurRadius(
-                ffi::CGSMainConnectionID(),
-                window_number,
-                radius,
+        let window = self.window();
+        let view = self.view();
+        let currently_blurred = window
+            .contentView()
+            .is_some_and(|content| content.downcast::<NSVisualEffectView>().is_ok());
+        if blur == currently_blurred {
+            return;
+        }
+
+        if blur {
+            let mtm = MainThreadMarker::from(self);
+            let effect_view = NSVisualEffectView::new(mtm);
+            effect_view.setBlendingMode(NSVisualEffectBlendingMode::BehindWindow);
+            effect_view.setState(NSVisualEffectState::Active);
+            effect_view.setMaterial(NSVisualEffectMaterial::WindowBackground);
+
+            window.setContentView(Some(&effect_view));
+            view.setFrame(effect_view.bounds());
+            view.setAutoresizingMask(
+                NSAutoresizingMaskOptions::ViewWidthSizable
+                    | NSAutoresizingMaskOptions::ViewHeightSizable,
             );
+            effect_view.addSubview(&view);
+        } else {
+            window.setContentView(Some(&view));
         }
     }
 
