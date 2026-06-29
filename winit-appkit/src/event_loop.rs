@@ -1,30 +1,39 @@
+use std::ffi::OsString;
+use std::fmt;
 use std::rc::Rc;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use objc2::rc::{Retained, autoreleasepool};
 use objc2::runtime::ProtocolObject;
-use objc2::{MainThreadMarker, available};
+use objc2::{AnyThread, MainThreadMarker, available};
 use objc2_app_kit::{
     NSApplication, NSApplicationActivationPolicy, NSApplicationDidFinishLaunchingNotification,
-    NSApplicationWillTerminateNotification, NSWindow,
+    NSApplicationWillTerminateNotification, NSDraggingItem, NSWindow,
 };
-use objc2_core_foundation::{CFIndex, CFRunLoopActivity, kCFRunLoopCommonModes};
-use objc2_foundation::{NSNotificationCenter, NSObjectProtocol};
+use objc2_core_foundation::{
+    CFIndex, CFRunLoopActivity, CGPoint, CGRect, CGSize, kCFRunLoopCommonModes,
+};
+use objc2_foundation::{NSArray, NSNotificationCenter, NSObjectProtocol, NSString};
 use rwh_06::HasDisplayHandle;
 use tracing::debug_span;
 use winit_common::core_foundation::{MainRunLoop, MainRunLoopObserver, tracing_observers};
 use winit_common::foundation::create_observer;
 use winit_core::application::ApplicationHandler;
 use winit_core::cursor::{CustomCursor as CoreCustomCursor, CustomCursorSource};
+use winit_core::data_transfer::{
+    DataTransfer, DataTransferId, DataTransferSend, SendData, TransferType, TypeHint,
+};
 use winit_core::error::{EventLoopError, RequestError};
+use winit_core::event::WindowEvent;
 use winit_core::event_loop::pump_events::PumpStatus;
 use winit_core::event_loop::{
-    ActiveEventLoop as RootActiveEventLoop, ControlFlow, DeviceEvents,
-    EventLoopProxy as CoreEventLoopProxy, OwnedDisplayHandle as CoreOwnedDisplayHandle,
+    ActiveEventLoop as RootActiveEventLoop, AsyncRequestSerial, ControlFlow, DeviceEvents,
+    DndAction, DragIcon, EventLoopProxy as CoreEventLoopProxy,
+    OwnedDisplayHandle as CoreOwnedDisplayHandle,
 };
 use winit_core::monitor::MonitorHandle as CoreMonitorHandle;
-use winit_core::window::Theme;
+use winit_core::window::{Theme, WindowId};
 
 use super::app::override_send_event;
 use super::app_state::AppState;
@@ -32,6 +41,8 @@ use super::cursor::CustomCursor;
 use super::event::dummy_event;
 use super::monitor;
 use crate::ActivationPolicy;
+use crate::cursor::image_from_icon;
+use crate::dnd::{PasteboardTypeSpec, PasteboardWriter, dnd_actions_to_ns_drag_operation};
 use crate::window::Window;
 
 #[derive(Debug)]
@@ -126,7 +137,179 @@ impl RootActiveEventLoop for ActiveEventLoop {
     fn rwh_06_handle(&self) -> &dyn rwh_06::HasDisplayHandle {
         self
     }
+
+    fn fetch_data_transfer(
+        &self,
+        id: DataTransferId,
+        type_: &dyn TransferType,
+    ) -> Result<AsyncRequestSerial, RequestError> {
+        let Some(pb) = self.app_state.pasteboards().get(id) else {
+            return Err(RequestError::Ignored);
+        };
+
+        let serial = AsyncRequestSerial::get();
+
+        let Some(type_) = PasteboardTypeSpec::from_dyn(type_) else {
+            return Err(os_error!(format!("Pasteboard does not contain type {type_:?}")).into());
+        };
+
+        let data = Arc::new(pb.with_type(type_));
+
+        self.app_state.maybe_queue_with_handler(move |app, event_loop| {
+            app.window_event(
+                event_loop,
+                WindowId::from_raw(0),
+                WindowEvent::DataTransferReceived { id, serial, value: data },
+            );
+        });
+
+        Ok(serial)
+    }
+
+    fn data_transfer(&self, id: DataTransferId) -> Result<Box<dyn DataTransfer>, RequestError> {
+        let Some(pb) = self.app_state.pasteboards().get(id) else {
+            return Err(RequestError::Ignored);
+        };
+
+        Ok(Box::new(pb))
+    }
+
+    fn set_valid_dnd_actions(
+        &self,
+        id: DataTransferId,
+        actions: &[DndAction],
+    ) -> Result<(), RequestError> {
+        let mut state = self.app_state.drag_state().borrow_mut();
+        let Some(drag_state) = &mut *state else {
+            return Err(os_error!(UnknownDataTransfer(id)).into());
+        };
+
+        if drag_state.id != id {
+            return Err(os_error!(UnknownDataTransfer(id)).into());
+        }
+
+        drag_state.valid_actions.clear();
+        drag_state.valid_actions.extend_from_slice(actions);
+
+        Ok(())
+    }
+
+    fn start_drag(
+        &self,
+        source: WindowId,
+        send_data: Box<dyn DataTransferSend>,
+        actions: &[DndAction],
+        icon: Option<DragIcon>,
+    ) -> Result<DataTransferId, RequestError> {
+        let drag_operation = dnd_actions_to_ns_drag_operation(actions);
+
+        self.app_state
+            .with_window_delegate_on_main(source, move |delegate| {
+                let (dragging_rect_offset_x, dragging_rect_offset_y) =
+                    icon.as_ref().map(|icon| (icon.offset_x, icon.offset_y)).unwrap_or_default();
+                let drag_image = icon.and_then(|icon| image_from_icon(&icon.icon).ok());
+
+                let Some(event) = delegate.window().currentEvent() else {
+                    return Err(RequestError::Ignored);
+                };
+
+                let dragging_rect_size = drag_image
+                    .as_ref()
+                    .map(|img| img.size())
+                    // Seemingly we need some kind of dragging rectangle even if no icon is
+                    // supplied.
+                    .unwrap_or(CGSize::new(16., 16.));
+
+                let event_location = event.locationInWindow();
+                let dragging_rect_location = CGPoint::new(
+                    event_location.x + dragging_rect_offset_x as f64,
+                    event_location.y + dragging_rect_offset_y as f64,
+                );
+                let dragging_rect = CGRect::new(dragging_rect_location, dragging_rect_size);
+
+                let mut uris = send_data
+                    .data_for_type(&TypeHint::UriList)
+                    .and_then(|file_uris| {
+                        // TODO: Might not be ideal to do this
+                        let ns_url_from_os_str =
+                            |os_str: OsString| Some(NSString::from_str(os_str.to_str()?));
+                        // Slightly complicated use of iterators in order to ensure that branches
+                        // have the same opaque type
+                        match file_uris {
+                            SendData::Uris(os_strings) => Some(
+                                None.into_iter()
+                                    .chain(os_strings.into_iter().filter_map(ns_url_from_os_str)),
+                            ),
+                            SendData::String(string) => Some(
+                                Some(NSString::from_str(&string))
+                                    .into_iter()
+                                    .chain(Vec::new().into_iter().filter_map(ns_url_from_os_str)),
+                            ),
+                            SendData::Bytes(_) => None,
+                        }
+                    })
+                    .into_iter()
+                    .flatten();
+
+                let first_uri = uris.next();
+
+                let mut pasteboard_items = uris
+                    .map(|ns_url| {
+                        let dragging_item = NSDraggingItem::initWithPasteboardWriter(
+                            NSDraggingItem::alloc(),
+                            ProtocolObject::from_ref(&*ns_url),
+                        );
+
+                        // No dragging frame/contents, icon only applies to the first item.
+
+                        dragging_item
+                    })
+                    .collect::<Vec<_>>();
+
+                let first_dragging_item = NSDraggingItem::initWithPasteboardWriter(
+                    NSDraggingItem::alloc(),
+                    ProtocolObject::from_ref(&*PasteboardWriter::new(send_data, first_uri)),
+                );
+
+                unsafe {
+                    first_dragging_item.setDraggingFrame_contents(
+                        dragging_rect,
+                        drag_image.as_ref().map(AsRef::as_ref),
+                    )
+                };
+
+                pasteboard_items.insert(0, first_dragging_item);
+
+                let pasteboard_items = NSArray::from_retained_slice(&pasteboard_items);
+
+                let session = delegate.window().beginDraggingSessionWithItems_event_source(
+                    &pasteboard_items,
+                    &event,
+                    ProtocolObject::from_ref(&*delegate),
+                );
+
+                let id = DataTransferId::from_raw(session.draggingSequenceNumber() as i64);
+
+                delegate.view().set_dragging_session(session, drag_operation);
+
+                Ok(id)
+            })
+            .ok_or(RequestError::Ignored)?
+    }
 }
+
+/// An operation was attempted on a data transfer ID, but that ID was invalid.
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub struct UnknownDataTransfer(pub DataTransferId);
+
+impl fmt::Display for UnknownDataTransfer {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let id = self.0.into_raw();
+        write!(f, "Unknown data transfer with ID {id}")
+    }
+}
+
+impl std::error::Error for UnknownDataTransfer {}
 
 impl rwh_06::HasDisplayHandle for ActiveEventLoop {
     fn display_handle(&self) -> Result<rwh_06::DisplayHandle<'_>, rwh_06::HandleError> {
