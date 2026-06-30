@@ -442,6 +442,7 @@ impl EventLoop {
                         state,
                         position: dpi::PhysicalPosition::default(),
                         button: button.into(),
+                        is_macos_activation_click: false,
                     });
                 }
             },

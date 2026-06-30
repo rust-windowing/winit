@@ -999,6 +999,7 @@ impl EventProcessor {
                 state,
                 position,
                 button: MouseButton::Left.into(),
+                is_macos_activation_click: false,
             },
             xlib::Button2 => WindowEvent::PointerButton {
                 device_id,
@@ -1006,6 +1007,7 @@ impl EventProcessor {
                 state,
                 position,
                 button: MouseButton::Middle.into(),
+                is_macos_activation_click: false,
             },
             xlib::Button3 => WindowEvent::PointerButton {
                 device_id,
@@ -1013,6 +1015,7 @@ impl EventProcessor {
                 state,
                 position,
                 button: MouseButton::Right.into(),
+                is_macos_activation_click: false,
             },
 
             // Suppress emulated scroll wheel clicks, since we handle the real motion events for
@@ -1042,6 +1045,7 @@ impl EventProcessor {
                 // Button 8 maps to MouseButton::BACK = 3; 36 maps to MouseButton::Button32.
                 // 255 is the largest code yielded on X11 (tested).
                 button: MouseButton::try_from_u8((x - 5) as u8).unwrap().into(),
+                is_macos_activation_click: false,
             },
             x @ 37..=0xff => WindowEvent::PointerButton {
                 device_id,
@@ -1050,6 +1054,7 @@ impl EventProcessor {
                 position,
                 // 255 is the largest code yielded on X11 (tested).
                 button: ButtonSource::Unknown(x as u16),
+                is_macos_activation_click: false,
             },
             _ => return,
         };
@@ -1341,6 +1346,7 @@ impl EventProcessor {
                         state: ElementState::Pressed,
                         position,
                         button: ButtonSource::Touch { finger_id, force: None },
+                        is_macos_activation_click: false,
                     };
                     app.window_event(&self.target, window_id, event);
                 },
@@ -1360,6 +1366,7 @@ impl EventProcessor {
                         state: ElementState::Released,
                         position,
                         button: ButtonSource::Touch { finger_id, force: None },
+                        is_macos_activation_click: false,
                     };
                     app.window_event(&self.target, window_id, event);
                     let event = WindowEvent::PointerLeft {
