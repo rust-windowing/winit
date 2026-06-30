@@ -236,6 +236,10 @@ impl AppState {
         self.control_flow.set(value)
     }
 
+    pub(super) fn is_handling_event(&self) -> bool {
+        self.event_handler.in_use()
+    }
+
     pub fn control_flow(&self) -> ControlFlow {
         self.control_flow.get()
     }
