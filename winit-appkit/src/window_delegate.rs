@@ -147,6 +147,7 @@ define_class!(
         #[unsafe(method(windowDidResize:))]
         fn window_did_resize(&self, _: Option<&AnyObject>) {
             let _entered = debug_span!("windowDidResize:").entered();
+            self.refresh_maximized();
             // NOTE: WindowEvent::SurfaceResized is reported using NSViewFrameDidChangeNotification.
             self.emit_move_event();
         }
@@ -162,6 +163,7 @@ define_class!(
         #[unsafe(method(windowDidEndLiveResize:))]
         fn window_did_end_live_resize(&self, _: Option<&AnyObject>) {
             let _entered = debug_span!("windowDidEndLiveResize:").entered();
+            self.refresh_maximized();
             self.set_resize_increments_inner(NSSize::new(1., 1.));
         }
 
@@ -279,6 +281,7 @@ define_class!(
             let _entered = debug_span!("windowDidEnterFullScreen:").entered();
             self.ivars().initial_fullscreen.set(false);
             self.ivars().in_fullscreen_transition.set(false);
+            self.request_redraw();
             if let Some(target_fullscreen) = self.ivars().target_fullscreen.take() {
                 self.set_fullscreen(target_fullscreen);
             }
@@ -291,6 +294,7 @@ define_class!(
 
             self.restore_state_from_fullscreen();
             self.ivars().in_fullscreen_transition.set(false);
+            self.request_redraw();
             if let Some(target_fullscreen) = self.ivars().target_fullscreen.take() {
                 self.set_fullscreen(target_fullscreen);
             }
@@ -1187,6 +1191,10 @@ impl WindowDelegate {
         self.ivars().app_state.queue_redraw(window_id(self.window()));
     }
 
+    fn refresh_maximized(&self) {
+        self.ivars().maximized.set(self.is_zoomed());
+    }
+
     #[inline]
     pub fn pre_present_notify(&self) {}
 
@@ -1522,6 +1530,7 @@ impl WindowDelegate {
         let event =
             NSApplication::sharedApplication(mtm).currentEvent().ok_or(RequestError::Ignored)?;
         self.window().performWindowDragWithEvent(&event);
+        self.refresh_maximized();
         Ok(())
     }
 
@@ -1532,6 +1541,10 @@ impl WindowDelegate {
 
     pub fn is_live_resizing(&self) -> bool {
         self.window().inLiveResize()
+    }
+
+    pub fn is_fullscreen_transition(&self) -> bool {
+        self.ivars().in_fullscreen_transition.get()
     }
 
     #[inline]
@@ -1610,6 +1623,7 @@ impl WindowDelegate {
         let mtm = MainThreadMarker::from(self);
         let is_zoomed = self.is_zoomed();
         if is_zoomed == maximized {
+            self.ivars().maximized.set(maximized);
             return;
         };
 
@@ -1647,7 +1661,7 @@ impl WindowDelegate {
 
     #[inline]
     pub fn is_maximized(&self) -> bool {
-        self.is_zoomed()
+        self.ivars().maximized.get()
     }
 
     #[inline]
@@ -2092,6 +2106,11 @@ impl WindowExtMacOS for WindowDelegate {
     #[inline]
     fn is_live_resizing(&self) -> bool {
         WindowDelegate::is_live_resizing(self)
+    }
+
+    #[inline]
+    fn is_fullscreen_transition(&self) -> bool {
+        WindowDelegate::is_fullscreen_transition(self)
     }
 
     #[inline]

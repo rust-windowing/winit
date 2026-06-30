@@ -48,7 +48,8 @@ changelog entry.
 - On Redox, add support for `EventLoopExtPumpEvents::pump_app_events`.
 - Implement `Send` and `Sync` for `OwnedDisplayHandle`.
 - Use new macOS 15 cursors for resize icons.
-- On macOS, add `WindowExtMacOS::is_live_resizing`.
+- On macOS, add `WindowExtMacOS::is_live_resizing` and
+  `WindowExtMacOS::is_fullscreen_transition`.
 - On Android, added scancode conversions for more obscure key codes.
 - On Wayland, added `HoldGesture` event for multi-finger hold gestures
 - On Wayland, added ext-background-effect-v1 support.
@@ -79,3 +80,4 @@ changelog entry.
 - On macOS, fix IME being locked on (regardless of requests to disable) after being enabled once.
 - On macOS, fix a panic and incorrect cursor position in Ime::Preedit when the preedit string contains special characters (ie. emojis) caused by incorrect UTF-16 to UTF-8 offset conversion.
 - On Wayland, fix a protocol error when setting a custom cursor on compositors with `wl_surface` version below 3.
+- On macOS, avoid querying AppKit's zoom state from `Window::is_maximized`.
