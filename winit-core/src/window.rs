@@ -47,6 +47,7 @@ impl fmt::Debug for WindowId {
 }
 
 /// The role of a window, used to request platform-specific window behavior.
+#[non_exhaustive]
 #[derive(Debug, Clone, Copy, Default, PartialEq)]
 pub enum WindowType {
     /// A normal, top-level window.
