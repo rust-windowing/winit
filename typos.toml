@@ -6,5 +6,8 @@ XF86_Calculater = "XF86_Calculater" # From xkbcommon_dl::keysyms::XF86_Calculate
 ptd = "ptd"                         # From windows_sys::Win32::System::Com::FORMATETC { ptd, ..}
 requestor = "requestor"             # From x11_dl::xlib::XSelectionEvent { requestor ..}
 
+[default.extend-words]
+constrait = "constrait" # From winit-wayland/popup.rs constrait_adjustment.
+
 [files]
 extend-exclude = ["*.drawio"]

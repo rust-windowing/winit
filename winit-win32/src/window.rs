@@ -36,7 +36,7 @@ use windows_sys::Win32::UI::Input::Touch::{RegisterTouchWindow, TWF_WANTPALM};
 use windows_sys::Win32::UI::WindowsAndMessaging::{
     CS_HREDRAW, CS_VREDRAW, CW_USEDEFAULT, CreateWindowExW, EnableMenuItem, FLASHW_ALL,
     FLASHW_STOP, FLASHW_TIMERNOFG, FLASHW_TRAY, FLASHWINFO, FlashWindowEx, GWLP_HINSTANCE,
-    GetClientRect, GetCursorPos, GetForegroundWindow, GetSystemMenu, GetSystemMetrics,
+    GetClientRect, GetCursorPos, GetForegroundWindow, GetParent, GetSystemMenu, GetSystemMetrics,
     GetWindowPlacement, GetWindowTextLengthW, GetWindowTextW, HTBOTTOM, HTBOTTOMLEFT,
     HTBOTTOMRIGHT, HTCAPTION, HTLEFT, HTRIGHT, HTTOP, HTTOPLEFT, HTTOPRIGHT, IsWindowVisible,
     LoadCursorW, MENU_ITEM_STATE, MF_BYCOMMAND, MFS_DISABLED, MFS_ENABLED, NID_READY, PM_NOREMOVE,
@@ -54,7 +54,7 @@ use winit_core::monitor::{Fullscreen, MonitorHandle as CoreMonitorHandle, Monito
 use winit_core::window::{
     CursorGrabMode, ImeCapabilities, ImeRequest, ImeRequestError, ResizeDirection, Theme,
     UserAttentionType, Window as CoreWindow, WindowAttributes, WindowButtons, WindowId,
-    WindowLevel,
+    WindowLevel, WindowType,
 };
 
 use crate::dark_mode::try_theme;
@@ -116,6 +116,26 @@ impl Window {
 
     fn window_state_lock(&self) -> MutexGuard<'_, WindowState> {
         self.window_state.lock().unwrap()
+    }
+
+    // If we have a popup the position is relative to the parent window and not
+    // relative to the screen. Therefore we have to translate it from the parent
+    // coordinate system to the display coordinate system
+    fn translate_outer_position(&self, position: Position) -> PhysicalPosition<i32> {
+        let position = position.to_physical::<i32>(self.scale_factor());
+        let mut point = POINT { x: position.x, y: position.y };
+
+        let window_flags = self.window_state_lock().window_flags;
+        if window_flags.contains(WindowFlags::POPUP) && !window_flags.contains(WindowFlags::CHILD) {
+            let parent = unsafe { GetParent(self.hwnd()) };
+            if !parent.is_null() {
+                unsafe {
+                    ClientToScreen(parent, &mut point);
+                }
+            }
+        }
+
+        PhysicalPosition::new(point.x, point.y)
     }
 
     /// Returns the `hwnd` of this window.
@@ -483,7 +503,7 @@ impl CoreWindow for Window {
     }
 
     fn set_outer_position(&self, position: Position) {
-        let (x, y): (i32, i32) = position.to_physical::<i32>(self.scale_factor()).into();
+        let position = self.translate_outer_position(position);
 
         let window_state = Arc::clone(&self.window_state);
         let window = self.window;
@@ -498,8 +518,8 @@ impl CoreWindow for Window {
             SetWindowPos(
                 self.hwnd(),
                 ptr::null_mut(),
-                x,
-                y,
+                position.x,
+                position.y,
                 0,
                 0,
                 SWP_ASYNCWINDOWPOS | SWP_NOZORDER | SWP_NOSIZE | SWP_NOACTIVATE,
@@ -1367,8 +1387,10 @@ unsafe fn init(
     let class_name = util::encode_wide(&win_attributes.class_name);
     unsafe { register_window_class(&class_name) };
 
+    let is_popup = matches!(attributes.window_type, WindowType::Popup { .. });
     let mut window_flags = WindowFlags::empty();
     window_flags.set(WindowFlags::MARKER_DECORATIONS, attributes.decorations);
+    window_flags.set(WindowFlags::POPUP, is_popup);
     window_flags.set(WindowFlags::MARKER_UNDECORATED_SHADOW, win_attributes.decoration_shadow);
     window_flags
         .set(WindowFlags::ALWAYS_ON_TOP, attributes.window_level == WindowLevel::AlwaysOnTop);
@@ -1397,7 +1419,9 @@ unsafe fn init(
 
     let parent = match attributes.parent_window() {
         Some(rwh_06::RawWindowHandle::Win32(handle)) => {
-            window_flags.set(WindowFlags::CHILD, true);
+            if !is_popup {
+                window_flags.set(WindowFlags::CHILD, true);
+            }
             if win_attributes.menu.is_some() {
                 warn!("Setting a menu on a child window is unsupported");
             }

@@ -1,5 +1,6 @@
 //! Seat handling.
 
+use std::cell::Cell;
 use std::sync::Arc;
 
 use foldhash::HashMap;
@@ -72,11 +73,22 @@ pub struct WinitSeatState {
 
     /// Whether we have pending modifiers.
     modifiers_pending: bool,
+
+    /// Serial of the most recent input event (keyboard or pointer) on this seat.
+    /// Written by both keyboard and pointer handlers through a shared reference,
+    /// so interior mutability is required.
+    pub(crate) latest_input_serial: Cell<Option<u32>>,
 }
 
 impl WinitSeatState {
     pub fn new() -> Self {
         Default::default()
+    }
+
+    /// Returns the serial of the most recent input event on this seat, or `0` if none has
+    /// been received yet.
+    pub fn latest_serial(&self) -> Option<u32> {
+        self.latest_input_serial.get()
     }
 }
 
