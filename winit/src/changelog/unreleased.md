@@ -49,6 +49,7 @@ changelog entry.
 - Implement `Send` and `Sync` for `OwnedDisplayHandle`.
 - Use new macOS 15 cursors for resize icons.
 - On Android, added scancode conversions for more obscure key codes.
+- On Wayland, added `HoldGesture` event for multi-finger hold gestures
 - On Wayland, added ext-background-effect-v1 support.
 
 ### Changed
@@ -58,7 +59,12 @@ changelog entry.
 
 ### Fixed
 
+- On Windows, fix a freeze that occurs when the keyboard layout is switched by
+  tools such as Punto Switcher. The `WM_INPUTLANGCHANGE` message is now handled
+  to refresh the cached keyboard layout, while still deferring to
+  `DefWindowProc` for normal propagation.
 - On Redox, handle `EINTR` when reading from `event_socket` instead of panicking.
 - On Wayland, switch from using the `ahash` hashing algorithm to `foldhash`.
 - On macOS, fix borderless game presentation options not sticking after switching spaces.
 - On macOS, fix IME being locked on (regardless of requests to disable) after being enabled once.
+- On macOS, fix a panic and incorrect cursor position in Ime::Preedit when the preedit string contains special characters (ie. emojis) caused by incorrect UTF-16 to UTF-8 offset conversion.

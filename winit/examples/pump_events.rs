@@ -7,11 +7,12 @@ fn main() -> std::process::ExitCode {
     use std::thread::sleep;
     use std::time::Duration;
 
+    use softbuffer::{Context, Surface};
     use tracing::info;
     use winit::application::ApplicationHandler;
     use winit::event::WindowEvent;
     use winit::event_loop::pump_events::{EventLoopExtPumpEvents, PumpStatus};
-    use winit::event_loop::{ActiveEventLoop, EventLoop};
+    use winit::event_loop::{ActiveEventLoop, EventLoop, OwnedDisplayHandle};
     use winit::window::{Window, WindowAttributes, WindowId};
 
     #[path = "util/fill.rs"]
@@ -21,13 +22,16 @@ fn main() -> std::process::ExitCode {
 
     #[derive(Default, Debug)]
     struct PumpDemo {
-        window: Option<Box<dyn Window>>,
+        surface: Option<Surface<OwnedDisplayHandle, Box<dyn Window>>>,
     }
 
     impl ApplicationHandler for PumpDemo {
         fn can_create_surfaces(&mut self, event_loop: &dyn ActiveEventLoop) {
             let window_attributes = WindowAttributes::default().with_title("A fantastic window!");
-            self.window = Some(event_loop.create_window(window_attributes).unwrap());
+            let window = event_loop.create_window(window_attributes).unwrap();
+
+            let context = Context::new(event_loop.owned_display_handle()).unwrap();
+            self.surface = Some(Surface::new(&context, window).unwrap());
         }
 
         fn window_event(
@@ -38,16 +42,16 @@ fn main() -> std::process::ExitCode {
         ) {
             info!("{event:?}");
 
-            let window = match self.window.as_ref() {
-                Some(window) => window,
+            let surface = match self.surface.as_mut() {
+                Some(surface) => surface,
                 None => return,
             };
 
             match event {
                 WindowEvent::CloseRequested => event_loop.exit(),
                 WindowEvent::RedrawRequested => {
-                    fill::fill_window(window.as_ref());
-                    window.request_redraw();
+                    fill::fill(surface);
+                    surface.window().request_redraw();
                 },
                 _ => (),
             }

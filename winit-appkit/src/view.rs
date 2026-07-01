@@ -3,13 +3,13 @@ use std::cell::{Cell, RefCell};
 use std::collections::{HashMap, VecDeque};
 use std::rc::Rc;
 
-use dpi::{LogicalPosition, LogicalSize};
+use dpi::{LogicalPosition, PhysicalSize};
 use objc2::rc::Retained;
 use objc2::runtime::{AnyObject, Sel};
 use objc2::{AnyThread, DefinedClass, MainThreadMarker, define_class, msg_send};
 use objc2_app_kit::{
     NSApplication, NSCursor, NSEvent, NSEventPhase, NSResponder, NSTextInputClient, NSTrackingArea,
-    NSTrackingAreaOptions, NSView, NSWindow,
+    NSTrackingAreaOptions, NSView, NSViewLayerContentsRedrawPolicy, NSWindow,
 };
 use objc2_core_foundation::CGRect;
 use objc2_foundation::{
@@ -161,10 +161,20 @@ define_class!(
             //    resize occurring.
             // 2. Even when a window resize does occur on a new tabbed window, it contains the wrong
             //    size (includes tab height).
-            let rect = self.frame();
-            let logical_size = LogicalSize::new(rect.size.width as f64, rect.size.height as f64);
-            let size = logical_size.to_physical::<u32>(self.scale_factor());
-            self.queue_event(WindowEvent::SurfaceResized(size));
+            self.surface_resized();
+            // During live resize, AppKit may not let the normal event loop reach its next redraw
+            // point before stretching the current layer contents. Redraw immediately after the
+            // app has observed the new surface size.
+            self.redraw_during_live_resize();
+        }
+
+        #[unsafe(method(viewDidChangeBackingProperties))]
+        fn view_did_change_backing_properties(&self) {
+            let _entered = debug_span!("viewDidChangeBackingProperties").entered();
+            // Moving between displays or changing scale can alter the drawable backing size
+            // without a matching frame-size change.
+            self.surface_resized();
+            self.redraw_during_live_resize();
         }
 
         #[unsafe(method(drawRect:))]
@@ -273,27 +283,26 @@ define_class!(
                 self.ivars().ime_state.set(ImeState::Ground);
             }
 
+            let string = string.to_string();
             let cursor_range = if string.is_empty() {
                 // An empty string basically means that there's no preedit, so indicate that by
                 // sending a `None` cursor range.
                 None
             } else {
-                // Clamp to string length to avoid NSRangeException from out-of-bounds
-                // indices sent by macOS IME (e.g. native Pinyin, see
-                // https://github.com/alacritty/alacritty/issues/8791).
-                let len = string.length();
-                let location = selected_range.location.min(len);
-                let end = selected_range.end().min(len);
-                // Convert the selected range from UTF-16 indices to UTF-8 indices.
-                let sub_string_a = string.substringToIndex(location);
-                let sub_string_b = string.substringToIndex(end);
-                let lowerbound_utf8 = sub_string_a.len();
-                let upperbound_utf8 = sub_string_b.len();
+                // Convert the selected range from UTF-16 code unit indices to UTF-8 byte
+                // offsets. `utf16_to_utf8_offset` is defensive: it snaps an offset that would
+                // split a surrogate pair down to the character boundary and clamps an
+                // out-of-bounds offset to the string length, so no `NSRangeException` is
+                // possible and the resulting range can never be inverted (`lower <= upper`).
+                // IMEs are known to send both mid-surrogate and out-of-bounds offsets (e.g.
+                // native Pinyin, see https://github.com/alacritty/alacritty/issues/8791).
+                let lowerbound_utf8 = utf16_to_utf8_offset(&string, selected_range.location);
+                let upperbound_utf8 = utf16_to_utf8_offset(&string, selected_range.end());
                 Some((lowerbound_utf8, upperbound_utf8))
             };
 
             // Send WindowEvent for updating marked text
-            self.queue_event(WindowEvent::Ime(Ime::Preedit(string.to_string(), cursor_range)));
+            self.queue_event(WindowEvent::Ime(Ime::Preedit(string, cursor_range)));
         }
 
         #[unsafe(method(unmarkText))]
@@ -796,6 +805,10 @@ impl WinitView {
         let this: Retained<Self> = unsafe { msg_send![super(this), init] };
         *this.ivars().input_source.borrow_mut() = this.current_input_source();
 
+        // Ask AppKit to redisplay the layer while the view is being resized so layer-backed
+        // surfaces keep painting.
+        this.setLayerContentsRedrawPolicy(NSViewLayerContentsRedrawPolicy::DuringViewResize);
+
         // `MouseEnteredAndExited` enables receiving events through `mouseEntered:` and
         // `mouseExited:`.
         //
@@ -852,6 +865,37 @@ impl WinitView {
         self.ivars().app_state.maybe_queue_with_handler(move |app, event_loop| {
             app.window_event(event_loop, window_id, event);
         });
+    }
+
+    fn surface_resized(&self) {
+        let Some(window) = (**self).window() else {
+            return;
+        };
+        let size = self.surface_size();
+        let window_id = window_id(&window);
+        self.ivars().app_state.maybe_queue_with_handler(move |app, event_loop| {
+            app.window_event(event_loop, window_id, WindowEvent::SurfaceResized(size));
+        });
+    }
+
+    /// Returns the drawable size from the view's backing-coordinate bounds.
+    pub(super) fn surface_size(&self) -> PhysicalSize<u32> {
+        // The view bounds are authoritative for full-size content views and during live resize.
+        // Deriving this from the window frame can exclude custom titlebar content or be stale.
+        let backing_bounds = self.convertRectToBacking(self.bounds());
+        PhysicalSize::new(
+            backing_bounds.size.width.round().max(0.0) as u32,
+            backing_bounds.size.height.round().max(0.0) as u32,
+        )
+    }
+
+    fn redraw_during_live_resize(&self) {
+        let Some(window) = (**self).window() else {
+            return;
+        };
+        if window.inLiveResize() {
+            self.ivars().app_state.handle_redraw(window_id(&window));
+        }
     }
 
     fn scale_factor(&self) -> f64 {
@@ -1168,5 +1212,94 @@ fn replace_event(event: &NSEvent, option_as_alt: OptionAsAlt) -> Retained<NSEven
             .unwrap()
     } else {
         event.copy()
+    }
+}
+
+/// Convert a UTF-16 code unit offset into the corresponding UTF-8 byte offset within `s`.
+///
+/// IMEs are not required to send well-formed offsets, so this is defensive: an offset that
+/// would split a surrogate pair is snapped down to the start of that character, and an
+/// out-of-bounds offset is clamped to the end of the string (e.g. native Pinyin sends
+/// out-of-bounds indices, see <https://github.com/alacritty/alacritty/issues/8791>).
+///
+/// The mapping is monotone non-decreasing, so applying it to the location and end of an
+/// `NSRange` (where `location <= end`) can never produce an inverted byte range.
+fn utf16_to_utf8_offset(s: &str, utf16_offset: usize) -> usize {
+    let mut utf16_pos = 0;
+    for (utf8_pos, ch) in s.char_indices() {
+        if utf16_pos >= utf16_offset {
+            return utf8_pos;
+        }
+        utf16_pos += ch.len_utf16();
+        // The target offset lands strictly inside this character's UTF-16 representation,
+        // i.e. it splits a surrogate pair: snap down to the character boundary.
+        if utf16_pos > utf16_offset {
+            return utf8_pos;
+        }
+    }
+    s.len()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Apply the UTF-16 -> UTF-8 conversion to both ends of a `selectedRange {loc, len}`,
+    /// mirroring what `set_marked_text` does for the emitted `Ime::Preedit` cursor range.
+    fn convert(s: &str, loc: usize, len: usize) -> (usize, usize) {
+        (utf16_to_utf8_offset(s, loc), utf16_to_utf8_offset(s, loc + len))
+    }
+
+    #[test]
+    fn mid_surrogate_offset_snaps_down() {
+        // "😀a": 😀 is one char = 2 UTF-16 units = 4 UTF-8 bytes; offset 1 is mid-pair.
+        assert_eq!(utf16_to_utf8_offset("\u{1F600}a", 1), 0);
+        // Offset 2 is the boundary just after the pair.
+        assert_eq!(utf16_to_utf8_offset("\u{1F600}a", 2), 4);
+    }
+
+    #[test]
+    fn no_longer_inverted() {
+        // "a😀b" with selectedRange {1,1}: previously emitted (1, 0) -- lower > upper, a
+        // slice-panic vector. The boundary-snapping conversion keeps lower <= upper.
+        assert_eq!(convert("a\u{1F600}b", 1, 1), (1, 1));
+    }
+
+    #[test]
+    fn prefix_preserved_on_mid_pair_collapse() {
+        // "a😀b" with selectedRange {2,0}: previously collapsed to (0, 0), discarding the
+        // valid "a" prefix; now snaps to the char boundary after "a".
+        assert_eq!(convert("a\u{1F600}b", 2, 0), (1, 1));
+    }
+
+    #[test]
+    fn out_of_bounds_clamps_to_len() {
+        // Subsumes the #4494 `.min(len)` clamp: an out-of-bounds offset maps to the string
+        // length instead of triggering an NSRangeException.
+        assert_eq!(convert("\u{1F600}a", 99, 0), (5, 5));
+    }
+
+    #[test]
+    fn well_formed_inputs_are_identity() {
+        // The common case (well-formed boundary indices) must be byte-for-byte unchanged.
+        assert_eq!(convert("a\u{1F600}b", 3, 0), (5, 5));
+        assert_eq!(convert("a\u{1F600}b", 4, 0), (6, 6));
+        // BMP multi-byte (Japanese): each char is 1 UTF-16 unit and 3 UTF-8 bytes.
+        assert_eq!(convert("\u{3053}\u{3093}", 1, 1), (3, 6));
+    }
+
+    #[test]
+    fn monotone_non_decreasing() {
+        // Sweep every UTF-16 offset (including out-of-bounds) over a string mixing BMP and
+        // non-BMP characters and assert the conversion never goes backwards, which is what
+        // guarantees `lower <= upper` for any `NSRange`.
+        let s = "a\u{1F600}b\u{3053}\u{1F4A9}c";
+        let mut prev = 0;
+        for off in 0..=20 {
+            let cur = utf16_to_utf8_offset(s, off);
+            assert!(cur >= prev, "non-monotone at offset {off}: {cur} < {prev}");
+            assert!(cur <= s.len(), "offset {off} mapped past end: {cur} > {}", s.len());
+            prev = cur;
+        }
     }
 }
