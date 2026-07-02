@@ -254,6 +254,18 @@ impl WindowState {
         })
     }
 
+    /// The `(seat, serial)` of the latest pointer button event observed on
+    /// this window, if any. Used to seal xdg-activation tokens with
+    /// `set_serial(...)`.
+    pub fn latest_seat_serial(&self) -> Option<(WlSeat, u32)> {
+        // TODO(kchibisov) handle touch serials.
+        let mut found = None;
+        self.apply_on_pointer(|_, data| {
+            found = Some((data.seat().clone(), data.latest_button_serial()));
+        });
+        found
+    }
+
     /// Get the current state of the frame callback.
     pub fn frame_callback_state(&self) -> FrameCallbackState {
         self.frame_callback_state

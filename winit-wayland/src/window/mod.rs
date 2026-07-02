@@ -248,6 +248,11 @@ impl Window {
 
         let data = XdgActivationTokenData::Obtain((self.window_id, serial));
         let xdg_activation_token = xdg_activation.get_activation_token(&self.queue_handle, data);
+        // Seal the token with the latest input serial, otherwise compositors
+        // enforcing focus-stealing prevention refuse the ensuing activation.
+        if let Some((seat, serial)) = self.window_state.lock().unwrap().latest_seat_serial() {
+            xdg_activation_token.set_serial(serial, &seat);
+        }
         xdg_activation_token.set_surface(self.surface());
         xdg_activation_token.commit();
 
@@ -566,6 +571,11 @@ impl CoreWindow for Window {
             Arc::downgrade(&self.attention_requested),
         ));
         let xdg_activation_token = xdg_activation.get_activation_token(&self.queue_handle, data);
+        // Seal the token with the latest input serial, otherwise compositors
+        // enforcing focus-stealing prevention refuse the ensuing activation.
+        if let Some((seat, serial)) = self.window_state.lock().unwrap().latest_seat_serial() {
+            xdg_activation_token.set_serial(serial, &seat);
+        }
         xdg_activation_token.set_surface(&surface);
         xdg_activation_token.commit();
     }
