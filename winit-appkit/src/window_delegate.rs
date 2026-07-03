@@ -21,9 +21,9 @@ use objc2_app_kit::{
     NSAppearanceNameAqua, NSApplication, NSApplicationPresentationOptions, NSBackingStoreType,
     NSColor, NSDraggingDestination, NSDraggingInfo, NSRequestUserAttentionType, NSScreen,
     NSToolbar, NSView, NSViewFrameDidChangeNotification, NSWindow, NSWindowButton,
-    NSWindowDelegate, NSWindowLevel, NSWindowOcclusionState, NSWindowOrderingMode,
-    NSWindowSharingType, NSWindowStyleMask, NSWindowTabbingMode, NSWindowTitleVisibility,
-    NSWindowToolbarStyle,
+    NSWindowCollectionBehavior, NSWindowDelegate, NSWindowLevel, NSWindowOcclusionState,
+    NSWindowOrderingMode, NSWindowSharingType, NSWindowStyleMask, NSWindowTabbingMode,
+    NSWindowTitleVisibility, NSWindowToolbarStyle,
 };
 #[allow(deprecated)]
 use objc2_app_kit::{NSFilenamesPboardType, NSWindowFullScreenButton};
@@ -702,6 +702,14 @@ fn new_window(
 
         if !macos_attrs.has_shadow {
             window.setHasShadow(false);
+        }
+        if macos_attrs.fullscreen_auxiliary {
+            // This must happen before the window is ordered on screen (below, and in
+            // `WindowDelegate::new`), so that showing the window doesn't make macOS
+            // switch away from an active fullscreen Space or attempt Split View tiling.
+            window.setCollectionBehavior(
+                window.collectionBehavior() | NSWindowCollectionBehavior::FullScreenAuxiliary,
+            );
         }
         if attrs.position.is_none() {
             window.center();
@@ -1429,6 +1437,20 @@ impl WindowDelegate {
         if self.ivars().is_simple_fullscreen.get() {
             return;
         }
+        if fullscreen.is_some()
+            && self
+                .window()
+                .collectionBehavior()
+                .contains(NSWindowCollectionBehavior::FullScreenAuxiliary)
+        {
+            // `toggleFullScreen:` is silently ignored on such windows, which would leave our
+            // internal fullscreen state out of sync, so bail out early instead.
+            warn!(
+                "cannot fullscreen a window marked as fullscreen auxiliary; call \
+                 `set_fullscreen_auxiliary(false)` first"
+            );
+            return;
+        }
         if self.ivars().in_fullscreen_transition.get() {
             // We can't set fullscreen here.
             // Set fullscreen after transition.
@@ -2027,6 +2049,24 @@ impl WindowExtMacOS for WindowDelegate {
         let window = self.window();
 
         window.toolbar().is_some() && window.toolbarStyle() == NSWindowToolbarStyle::Unified
+    }
+
+    #[inline]
+    fn set_fullscreen_auxiliary(&self, fullscreen_auxiliary: bool) {
+        let window = self.window();
+        let behavior = window.collectionBehavior();
+        if fullscreen_auxiliary {
+            window
+                .setCollectionBehavior(behavior | NSWindowCollectionBehavior::FullScreenAuxiliary);
+        } else {
+            window
+                .setCollectionBehavior(behavior - NSWindowCollectionBehavior::FullScreenAuxiliary);
+        }
+    }
+
+    #[inline]
+    fn fullscreen_auxiliary(&self) -> bool {
+        self.window().collectionBehavior().contains(NSWindowCollectionBehavior::FullScreenAuxiliary)
     }
 }
 

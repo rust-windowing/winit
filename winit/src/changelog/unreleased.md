@@ -50,6 +50,11 @@ changelog entry.
 - On Android, added scancode conversions for more obscure key codes.
 - On Wayland, added `HoldGesture` event for multi-finger hold gestures
 - On Wayland, added ext-background-effect-v1 support.
+- On macOS, add `WindowAttributesMacOS::with_fullscreen_auxiliary` and
+  `WindowExtMacOS::set_fullscreen_auxiliary` / `WindowExtMacOS::fullscreen_auxiliary`, allowing a
+  window to be shown on the same Space as a fullscreen window
+  (`NSWindowCollectionBehaviorFullScreenAuxiliary`) instead of triggering a Space switch or Split
+  View tiling.
 
 ### Changed
 

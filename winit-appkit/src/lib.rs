@@ -186,6 +186,25 @@ pub trait WindowExtMacOS {
 
     /// Getter for the [`WindowExtMacOS::set_unified_titlebar`].
     fn unified_titlebar(&self) -> bool;
+
+    /// Sets whether the window can be shown on the same Space as a fullscreen window.
+    ///
+    /// This corresponds to [`NSWindowCollectionBehaviorFullScreenAuxiliary`], and is useful
+    /// for floating palettes, inspectors and other secondary windows accompanying a fullscreen
+    /// window. Without it, ordering a new window on screen while another window of the
+    /// application is fullscreen on the active Space makes macOS switch Spaces or attempt
+    /// Split View tiling.
+    ///
+    /// A window marked as fullscreen auxiliary cannot itself enter (native) fullscreen;
+    /// [`Window::set_fullscreen`] will warn and do nothing. Call
+    /// `set_fullscreen_auxiliary(false)` first if you want to make the window fullscreen.
+    ///
+    /// [`NSWindowCollectionBehaviorFullScreenAuxiliary`]: https://developer.apple.com/documentation/appkit/nswindow/collectionbehavior-swift.struct/fullscreenauxiliary?language=objc
+    /// [`Window::set_fullscreen`]: winit_core::window::Window::set_fullscreen
+    fn set_fullscreen_auxiliary(&self, fullscreen_auxiliary: bool);
+
+    /// Getter for the [`WindowExtMacOS::set_fullscreen_auxiliary`].
+    fn fullscreen_auxiliary(&self) -> bool;
 }
 
 impl WindowExtMacOS for dyn Window + '_ {
@@ -296,6 +315,18 @@ impl WindowExtMacOS for dyn Window + '_ {
         let window = self.cast_ref::<AppKitWindow>().unwrap();
         window.maybe_wait_on_main(|w| w.unified_titlebar())
     }
+
+    #[inline]
+    fn set_fullscreen_auxiliary(&self, fullscreen_auxiliary: bool) {
+        let window = self.cast_ref::<AppKitWindow>().unwrap();
+        window.maybe_wait_on_main(move |w| w.set_fullscreen_auxiliary(fullscreen_auxiliary))
+    }
+
+    #[inline]
+    fn fullscreen_auxiliary(&self) -> bool {
+        let window = self.cast_ref::<AppKitWindow>().unwrap();
+        window.maybe_wait_on_main(|w| w.fullscreen_auxiliary())
+    }
 }
 
 /// Corresponds to `NSApplicationActivationPolicy`.
@@ -340,6 +371,7 @@ pub struct WindowAttributesMacOS {
     pub(crate) borderless_game: bool,
     pub(crate) unified_titlebar: bool,
     pub(crate) panel: bool,
+    pub(crate) fullscreen_auxiliary: bool,
 }
 
 impl WindowAttributesMacOS {
@@ -447,6 +479,17 @@ impl WindowAttributesMacOS {
         self.panel = panel;
         self
     }
+
+    /// See [`WindowExtMacOS::set_fullscreen_auxiliary`] for details on what this means if set.
+    ///
+    /// Contrary to the runtime setter, setting this attribute guarantees that the collection
+    /// behavior is already in place when the window is first ordered on screen, which is
+    /// required to avoid disturbing an active fullscreen Space.
+    #[inline]
+    pub fn with_fullscreen_auxiliary(mut self, fullscreen_auxiliary: bool) -> Self {
+        self.fullscreen_auxiliary = fullscreen_auxiliary;
+        self
+    }
 }
 
 impl Default for WindowAttributesMacOS {
@@ -467,6 +510,7 @@ impl Default for WindowAttributesMacOS {
             borderless_game: false,
             unified_titlebar: false,
             panel: false,
+            fullscreen_auxiliary: false,
         }
     }
 }
