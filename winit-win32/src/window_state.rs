@@ -305,7 +305,7 @@ impl WindowFlags {
             style_ex |= WS_EX_NOREDIRECTIONBITMAP;
         }
         if self.contains(WindowFlags::CHILD) && !self.contains(WindowFlags::POPUP) {
-            style |= WS_CHILD; // This is incompatible with WS_POPUP if that gets added eventually.
+            style |= WS_CHILD;
 
             // Remove decorations window styles for child
             if !self.contains(WindowFlags::MARKER_DECORATIONS) {

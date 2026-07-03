@@ -316,9 +316,9 @@ impl EventLoop {
         window_id: &WindowId,
         state: &mut WinitState,
         out: &mut Vec<WindowId>,
-    ) -> Option<WindowEvent> {
+    ) -> bool {
         if !state.window_requests.get_mut().get(window_id).unwrap().closed.load(Ordering::Relaxed) {
-            return None;
+            return false;
         }
 
         out.push(*window_id);
@@ -335,7 +335,7 @@ impl EventLoop {
         }
         window_to_close(window_id, out, state);
 
-        Some(WindowEvent::Destroyed)
+        true
     }
 
     fn single_iteration<A: ApplicationHandler>(&mut self, app: &mut A, cause: StartCause) {
@@ -477,12 +477,9 @@ impl EventLoop {
                 continue; // The element might not exist anymore so just ignore
             }
             let mut windows_to_close = Vec::new();
-            if self
-                .with_state(|state| {
-                    Self::find_windows_to_close(window_id, state, &mut windows_to_close)
-                })
-                .is_some()
-            {
+            if self.with_state(|state| {
+                Self::find_windows_to_close(window_id, state, &mut windows_to_close)
+            }) {
                 for w in windows_to_close.into_iter().rev() {
                     self.with_state(|state| {
                         let parent =
@@ -497,7 +494,7 @@ impl EventLoop {
                         mem::drop(window_requests.remove(&w));
                         mem::drop(state.windows.get_mut().remove(&w));
                     });
-                    app.window_event(&self.active_event_loop, *window_id, WindowEvent::Destroyed);
+                    app.window_event(&self.active_event_loop, w, WindowEvent::Destroyed);
                 }
                 continue;
             }

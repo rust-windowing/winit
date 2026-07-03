@@ -81,7 +81,7 @@ impl Popup {
             {
                 let size = attributes.surface_size.ok_or(error!("Invalid size for popup"))?;
 
-                let (gravity, anchor, anchor_rect, constrait_adjustment) = attributes
+                let (gravity, anchor, anchor_rect, constraint_adjustment) = attributes
                     .platform
                     .as_ref()
                     .and_then(|p| p.cast_ref::<WindowAttributesWayland>())
@@ -104,7 +104,8 @@ impl Popup {
 
                 anchor.inspect(|a| positioner.set_anchor((*a).into()));
                 gravity.inspect(|g| positioner.set_gravity((*g).into()));
-                constrait_adjustment.inspect(|c| positioner.set_constraint_adjustment((*c).into()));
+                constraint_adjustment
+                    .inspect(|c| positioner.set_constraint_adjustment((*c).into()));
                 anchor_rect.inspect(|(x, y, width, height)| {
                     positioner.set_anchor_rect(
                         *x + anchor_position.x,

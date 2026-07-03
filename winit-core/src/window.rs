@@ -62,7 +62,7 @@ pub enum WindowType {
     /// - **macOS:** A borderless, non-activating child window. The system does *not* draw rounded
     ///   corners for it. To get a rounded, native-looking popup, create it transparent (via
     ///   [`WindowAttributes::with_transparent`]) and render the round border yourself.
-    /// - **X11:** Popups are just normal windows
+    /// - **X11:** An error is returned because it is not implemented
     /// - **Wayland:** Set `grab_keyboard: true` to request an `xdg_popup.grab` so that keyboard
     ///   events are routed to the popup instead of the parent window. The grab uses the serial of
     ///   the most recent pointer button press and must be requested before the popup is mapped.
