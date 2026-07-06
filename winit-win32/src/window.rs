@@ -48,7 +48,7 @@ use windows_sys::Win32::UI::WindowsAndMessaging::{
     WM_SYSCOMMAND, WNDCLASSEXW,
 };
 use winit_core::cursor::Cursor;
-use winit_core::error::RequestError;
+use winit_core::error::{NotSupportedError, RequestError};
 use winit_core::icon::{Icon, RgbaIcon};
 use winit_core::monitor::{Fullscreen, MonitorHandle as CoreMonitorHandle, MonitorHandleProvider};
 use winit_core::window::{
@@ -1428,7 +1428,14 @@ unsafe fn init(
             Some(handle.hwnd.get() as HWND)
         },
         Some(raw) => unreachable!("Invalid raw window handle {raw:?} on Windows"),
-        None => fallback_parent(),
+        None => {
+            if is_popup {
+                return Err(RequestError::NotSupported(NotSupportedError::new(
+                    "Popup without a parent is not supported!",
+                )));
+            }
+            fallback_parent()
+        },
     };
 
     let menu = win_attributes.menu;
