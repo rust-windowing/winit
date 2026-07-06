@@ -550,32 +550,37 @@ impl FileDropHandler {
             proposed_action,
         });
 
-        // Get actions after the event handler has run, so that we update it based on the user's
-        // supplied info.
-        let actions = drop_handler.runner.current_drag_actions(data_transfer_id);
-        let source_allowed = unsafe { pdwEffect.read() };
-        let proposed_action = drop_handler.runner.proposed_dnd_action(data_transfer_id, effects);
+        // New scope to make sure that the `Ref` returned by `current_drag_actions` is dropped
+        // before we call `remove_data_transfer`.
+        {
+            // Get actions after the event handler has run, so that we update it based on the user's
+            // supplied info.
+            let actions = drop_handler.runner.current_drag_actions(data_transfer_id);
+            let source_allowed = unsafe { pdwEffect.read() };
+            let proposed_action =
+                drop_handler.runner.proposed_dnd_action(data_transfer_id, effects);
 
-        // Negotiate the effect first so we can pick the right outgoing event. If the app
-        // rejected the drop (e.g. via `set_valid_actions(none())`), `pick_effect` returns
-        // `DROPEFFECT_NONE`; in that case OLE reports back `effect_out == DROPEFFECT_NONE` to
-        // the source, so the matching observer-facing event is `DragLeft`, not `DragDropped` -
-        // otherwise target and source see contradictory outcomes.
-        let effect = pick_effect(&actions, grfKeyState, source_allowed);
-        let event = if effect == DROPEFFECT_NONE {
-            WindowEvent::DragLeft { id: data_transfer_id }
-        } else {
-            WindowEvent::DragDropped { id: data_transfer_id, proposed_action }
-        };
-        (drop_handler.send_event)(event);
-        unsafe {
-            *pdwEffect = effect;
-        }
-
-        if let Some(helper) = drop_handler.drop_target_helper {
-            let vtbl = unsafe { Self::helper_vtbl(helper) };
+            // Negotiate the effect first so we can pick the right outgoing event. If the app
+            // rejected the drop (e.g. via `set_valid_actions(none())`), `pick_effect` returns
+            // `DROPEFFECT_NONE`; in that case OLE reports back `effect_out == DROPEFFECT_NONE` to
+            // the source, so the matching observer-facing event is `DragLeft`, not `DragDropped` -
+            // otherwise target and source see contradictory outcomes.
+            let effect = pick_effect(&actions, grfKeyState, source_allowed);
+            let event = if effect == DROPEFFECT_NONE {
+                WindowEvent::DragLeft { id: data_transfer_id }
+            } else {
+                WindowEvent::DragDropped { id: data_transfer_id, proposed_action }
+            };
+            (drop_handler.send_event)(event);
             unsafe {
-                (vtbl.Drop)(helper.as_ptr(), pDataObj as *mut IDataObject, &pt_screen, effect);
+                *pdwEffect = effect;
+            }
+
+            if let Some(helper) = drop_handler.drop_target_helper {
+                let vtbl = unsafe { Self::helper_vtbl(helper) };
+                unsafe {
+                    (vtbl.Drop)(helper.as_ptr(), pDataObj as *mut IDataObject, &pt_screen, effect);
+                }
             }
         }
 
