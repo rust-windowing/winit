@@ -106,14 +106,14 @@ impl Popup {
                 gravity.inspect(|g| positioner.set_gravity((*g).into()));
                 constraint_adjustment
                     .inspect(|c| positioner.set_constraint_adjustment((*c).into()));
-                anchor_rect.inspect(|(x, y, width, height)| {
-                    positioner.set_anchor_rect(
-                        *x + anchor_position.x,
-                        *y + anchor_position.y,
-                        (*width).max(1),
-                        (*height).max(1),
-                    );
-                });
+                let (anchor_x, anchor_y, anchor_width, anchor_height) =
+                    anchor_rect.unwrap_or((anchor_position.x, anchor_position.y, 1, 1));
+                positioner.set_anchor_rect(
+                    anchor_x + anchor_position.x,
+                    anchor_y + anchor_position.y,
+                    anchor_width.max(1),
+                    anchor_height.max(1),
+                );
                 positioner.set_offset(position.x, position.y);
                 positioner.set_size(
                     size.to_logical(scale_factor).width,
