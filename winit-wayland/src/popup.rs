@@ -159,12 +159,18 @@ impl Popup {
                 // this popup rather than the parent window. Must happen before the
                 // first commit that maps the surface.
                 if grab_keyboard {
-                    if let Some(seat) = state.seat_state.seats().next() {
-                        if let Some(serial) =
-                            state.seats.get(&seat.id()).and_then(|s| s.latest_serial())
-                        {
-                            popup.xdg_popup().grab(&seat, serial);
-                        }
+                    // Use the seat with the most recent event
+                    let grab = state
+                        .seat_state
+                        .seats()
+                        .filter_map(|seat| {
+                            let serial = state.seats.get(&seat.id())?.latest_serial()?;
+                            Some((seat, serial))
+                        })
+                        .max_by_key(|(_, serial)| *serial);
+
+                    if let Some((seat, serial)) = grab {
+                        popup.xdg_popup().grab(&seat, serial);
                     }
                 }
 
