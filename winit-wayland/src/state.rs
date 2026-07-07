@@ -346,8 +346,6 @@ impl PopupHandler for WinitState {
             self.window_compositor_updates.len() - 1
         };
 
-        // Populate the configure to the window.
-        // self.window_compositor_updates[index].resized |= false;
         self.windows
             .get_mut()
             .get_mut(&window_id)

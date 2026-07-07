@@ -292,9 +292,9 @@ impl CoreWindow for Popup {
     fn request_surface_size(&self, size: Size) -> Option<PhysicalSize<u32>> {
         let s = self.popup_state.upgrade()?;
         let mut popup_state = s.lock().unwrap();
-        popup_state.request_surface_size(size);
+        let new_size = popup_state.request_surface_size(size);
         self.request_redraw();
-        Some(size.to_physical(popup_state.scale_factor()))
+        Some(new_size)
     }
 
     fn outer_size(&self) -> PhysicalSize<u32> {
