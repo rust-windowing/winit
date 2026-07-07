@@ -699,6 +699,10 @@ pub trait Window: AsAny + Send + Sync + fmt::Debug {
     /// The coordinates can be negative if the top-left hand corner of the window is outside
     /// of the visible screen region, or on another monitor than the primary.
     ///
+    /// For a [`WindowType::Popup`] with a parent, the position is instead reported relative to the
+    /// top-left hand corner of the parent window's content area, mirroring the coordinate system
+    /// used by [`Window::set_outer_position`].
+    ///
     /// ## Platform-specific
     ///
     /// - **Web:** Returns the top-left coordinates relative to the viewport.

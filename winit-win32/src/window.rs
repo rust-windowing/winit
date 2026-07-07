@@ -21,7 +21,7 @@ use windows_sys::Win32::Graphics::Dwm::{
 use windows_sys::Win32::Graphics::Gdi::{
     CDS_FULLSCREEN, ChangeDisplaySettingsExW, ClientToScreen, CreateRectRgn, DISP_CHANGE_BADFLAGS,
     DISP_CHANGE_BADMODE, DISP_CHANGE_BADPARAM, DISP_CHANGE_FAILED, DISP_CHANGE_SUCCESSFUL,
-    DeleteObject, InvalidateRgn, RDW_INTERNALPAINT, RedrawWindow,
+    DeleteObject, InvalidateRgn, RDW_INTERNALPAINT, RedrawWindow, ScreenToClient,
 };
 use windows_sys::Win32::System::Com::{
     CLSCTX_ALL, COINIT_APARTMENTTHREADED, CoCreateInstance, CoInitializeEx, CoUninitialize,
@@ -131,6 +131,29 @@ impl Window {
             if !parent.is_null() {
                 unsafe {
                     ClientToScreen(parent, &mut point);
+                }
+            }
+        }
+
+        PhysicalPosition::new(point.x, point.y)
+    }
+
+    // Inverse of `translate_outer_position`: if we have a popup the position is
+    // reported relative to the parent window instead of the screen. Therefore we
+    // translate it from the display coordinate system back to the parent
+    // coordinate system. Non-popup windows are left in screen coordinates.
+    fn translate_outer_position_to_parent(
+        &self,
+        position: PhysicalPosition<i32>,
+    ) -> PhysicalPosition<i32> {
+        let mut point = POINT { x: position.x, y: position.y };
+
+        let window_flags = self.window_state_lock().window_flags;
+        if window_flags.contains(WindowFlags::POPUP) && !window_flags.contains(WindowFlags::CHILD) {
+            let parent = unsafe { GetParent(self.hwnd()) };
+            if !parent.is_null() {
+                unsafe {
+                    ScreenToClient(parent, &mut point);
                 }
             }
         }
@@ -484,7 +507,10 @@ impl CoreWindow for Window {
     fn outer_position(&self) -> Result<PhysicalPosition<i32>, RequestError> {
         util::WindowArea::Outer
             .get_rect(self.hwnd())
-            .map(|rect| Ok(PhysicalPosition::new(rect.left, rect.top)))
+            .map(|rect| {
+                Ok(self
+                    .translate_outer_position_to_parent(PhysicalPosition::new(rect.left, rect.top)))
+            })
             .expect(
                 "Unexpected GetWindowRect failure; please report this error to \
                  rust-windowing/winit",

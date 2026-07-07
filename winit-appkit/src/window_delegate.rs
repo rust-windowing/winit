@@ -1037,7 +1037,9 @@ impl WindowDelegate {
 
     pub fn outer_position(&self) -> Result<PhysicalPosition<i32>, RequestError> {
         let position = flip_window_screen_coordinates(self.window().frame());
-        Ok(LogicalPosition::new(position.x, position.y).to_physical(self.scale_factor()))
+        let position =
+            self.translate_popup_position_to_parent(LogicalPosition::new(position.x, position.y));
+        Ok(position.to_physical(self.scale_factor()))
     }
 
     pub fn surface_position(&self) -> PhysicalPosition<i32> {
@@ -1082,6 +1084,25 @@ impl WindowDelegate {
         let parent_origin =
             flip_window_screen_coordinates(parent.contentRectForFrameRect(parent.frame()));
         LogicalPosition::new(parent_origin.x + position.x, parent_origin.y + position.y)
+    }
+
+    /// Inverse of [`Self::translate_popup_position`]. Popups report their position
+    /// relative to the top-left of the parent window's content area (matching the
+    /// Win32 and Wayland backends), so subtract the parent content area's origin from
+    /// the global screen coordinates. Non-popup windows are returned unchanged.
+    fn translate_popup_position_to_parent(
+        &self,
+        position: LogicalPosition<f64>,
+    ) -> LogicalPosition<f64> {
+        if !self.ivars().is_popup.get() {
+            return position;
+        }
+        let Some(parent) = self.window().parentWindow() else {
+            return position;
+        };
+        let parent_origin =
+            flip_window_screen_coordinates(parent.contentRectForFrameRect(parent.frame()));
+        LogicalPosition::new(position.x - parent_origin.x, position.y - parent_origin.y)
     }
 
     #[inline]
