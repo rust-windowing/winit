@@ -50,10 +50,8 @@ impl Popup {
         event_loop_window_target: &ActiveEventLoop,
         mut attributes: WindowAttributes,
     ) -> Result<Self, RequestError> {
-        macro_rules! error {
-            ($e:literal) => {
-                RequestError::NotSupported(NotSupportedError::new($e))
-            };
+        fn error(message: &'static str) -> RequestError {
+            RequestError::NotSupported(NotSupportedError::new(message))
         }
 
         let grab_keyboard =
@@ -63,7 +61,7 @@ impl Popup {
             });
 
         let parent_window_handle =
-            attributes.parent_window().ok_or(error!("Popup without a parent is not supported!"))?;
+            attributes.parent_window().ok_or(error("Popup without a parent is not supported!"))?;
         if let RawWindowHandle::Wayland(parent_window_handle) = parent_window_handle {
             let queue_handle = event_loop_window_target.queue_handle.clone();
             let mut state = event_loop_window_target.state.borrow_mut();
@@ -73,13 +71,13 @@ impl Popup {
                 .as_ref()
                 .map(|activation_state| activation_state.global().clone());
             let positioner = XdgPositioner::new(&state.xdg_shell)
-                .map_err(|_| error!("Failed to create positioner"))?;
+                .map_err(|_| error("Failed to create positioner"))?;
             let parent_window_id =
                 WindowId::from_raw(parent_window_handle.surface.as_ptr() as usize);
             let (popup, popup_state) = if let Some(parent_window_state) =
                 state.windows.borrow().get(&parent_window_id)
             {
-                let size = attributes.surface_size.ok_or(error!("Invalid size for popup"))?;
+                let size = attributes.surface_size.ok_or(error("Invalid size for popup"))?;
 
                 let (gravity, anchor, anchor_rect, constraint_adjustment) = attributes
                     .platform
@@ -94,7 +92,7 @@ impl Popup {
                 let scale_factor = parent_window_state.scale_factor();
                 let position: LogicalPosition<i32> = attributes
                     .position
-                    .ok_or(error!("No position specified"))?
+                    .ok_or(error("No position specified"))?
                     .to_logical(scale_factor);
                 let geometry_origin = parent_window_state.content_surface_origin();
                 // The anchor rect is relative to the parent window geometry, so we need to subtract
@@ -129,7 +127,7 @@ impl Popup {
                     surface.clone(),
                     &state.xdg_shell,
                 )
-                .map_err(|_| error!("Failed to create popup"))?;
+                .map_err(|_| error("Failed to create popup"))?;
                 parent_window_state.add_child(super::make_wid(popup.wl_surface()));
                 drop(parent_window_state);
 
@@ -177,7 +175,7 @@ impl Popup {
 
                 (popup, popup_state)
             } else {
-                return Err(error!("Parent window id unknown"));
+                return Err(error("Parent window id unknown"));
             };
 
             let window_id = super::make_wid(popup.wl_surface());
@@ -208,7 +206,7 @@ impl Popup {
                     .iter()
                     .any(|u| u.window_id == window_id && u.close_window)
                 {
-                    return Err(error!("Popup was dismissed by the compositor before configure"));
+                    return Err(error("Popup was dismissed by the compositor before configure"));
                 }
             }
 
