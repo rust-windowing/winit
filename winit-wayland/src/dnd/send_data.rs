@@ -11,7 +11,34 @@ pub struct UriListEncoder {
 }
 
 fn percent_encode_into(out: &mut Vec<u8>, value: &[u8]) {
-    for slice in percent_encoding::percent_encode(value, percent_encoding::NON_ALPHANUMERIC) {
+    /// Characters that are invalid in a URI
+    const URI_RESERVED: &percent_encoding::AsciiSet = &percent_encoding::CONTROLS
+        .add(b' ')
+        .add(b'!')
+        .add(b'"')
+        .add(b'$')
+        .add(b'%')
+        .add(b'\'')
+        .add(b'(')
+        .add(b')')
+        .add(b'*')
+        .add(b'+')
+        .add(b',')
+        .add(b';')
+        .add(b'<')
+        .add(b'>')
+        .add(b'@')
+        .add(b'[')
+        .add(b'\\')
+        .add(b']')
+        .add(b'^')
+        .add(b'`')
+        .add(b'{')
+        .add(b'|')
+        .add(b'}')
+        .add(b'~');
+
+    for slice in percent_encoding::percent_encode(value, URI_RESERVED) {
         out.extend_from_slice(slice.as_bytes());
     }
 }
@@ -65,14 +92,16 @@ impl BufRead for UriListEncoder {
     }
 
     fn consume(&mut self, mut amount: usize) {
-        let uri_len = self.uri_reader.get_ref().len();
-        let nl_len = self.newline_reader.get_ref().len();
+        let uri_total_len = self.uri_reader.get_ref().len();
+        let uri_remaining = uri_total_len - self.uri_reader.position() as usize;
+        let nl_total_len = self.newline_reader.get_ref().len();
+        let nl_remaining = nl_total_len - self.newline_reader.position() as usize;
 
-        self.uri_reader.consume(amount.min(uri_len));
-        amount = amount.saturating_sub(uri_len);
+        self.uri_reader.consume(amount.min(uri_remaining));
+        amount = amount.saturating_sub(uri_remaining);
 
-        self.newline_reader.consume(amount.min(nl_len));
-        amount = amount.saturating_sub(nl_len);
+        self.newline_reader.consume(amount.min(nl_remaining));
+        amount = amount.saturating_sub(nl_remaining);
 
         if amount == 0 {
             return;

@@ -667,7 +667,9 @@ impl DataDeviceHandler for WinitState {
                 current_drag.window_id(),
             );
 
-            self.dnd_state.receive_drag = None;
+            if let Some(receive_drag) = self.dnd_state.receive_drag.take() {
+                receive_drag.finish();
+            }
         }
 
         if let Some(drag) = data.drag_offer() {
@@ -767,7 +769,9 @@ impl DataDeviceHandler for WinitState {
             window_id,
         );
 
-        self.dnd_state.receive_drag = None;
+        if let Some(receive_drag) = self.dnd_state.receive_drag.take() {
+            receive_drag.finish();
+        }
 
         if let Some(drag) = data.drag_offer() {
             drag.destroy();

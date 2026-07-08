@@ -65,7 +65,7 @@ pub(crate) fn image_from_icon(icon: &Icon) -> Result<Retained<NSImage>, RequestE
             width as isize * 4,
             32,
         )
-    }.ok_or_else(|| os_error!("parent view should be installed in a window"))?;
+    }.ok_or_else(|| os_error!("Initializing the `NSBitmapImageRep` failed"))?;
 
     let bitmap_data =
         unsafe { slice::from_raw_parts_mut(bitmap.bitmapData(), rgba_icon.buffer().len()) };

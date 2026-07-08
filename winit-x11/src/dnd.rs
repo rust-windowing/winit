@@ -143,7 +143,7 @@ impl Default for DragState {
 pub struct Dnd {
     xconn: Arc<XConnection>,
     // If `None`, no drag operation is in progress.
-    pub state: Option<DragState>,
+    state: Option<DragState>,
 }
 
 #[derive(Debug)]
@@ -243,12 +243,16 @@ impl Dnd {
         Dnd { xconn, state: None }
     }
 
-    pub fn find_type_by_hint(&self, hint: TypeHint) -> Option<&SelectionType> {
-        self.state.as_ref()?.types.iter().find(|haystack| haystack.hint() == Some(hint))
+    pub fn state(&self) -> Option<&DragState> {
+        self.state.as_ref()
     }
 
-    pub fn reset(&mut self) {
-        self.state = None;
+    pub fn state_mut(&mut self) -> Option<&mut DragState> {
+        self.state.as_mut()
+    }
+
+    pub fn find_type_by_hint(&self, hint: TypeHint) -> Option<&SelectionType> {
+        self.state.as_ref()?.types.iter().find(|haystack| haystack.hint() == Some(hint))
     }
 
     pub fn init_state(

@@ -340,8 +340,6 @@ impl CoreWindow for Window {
     fn rwh_06_window_handle(&self) -> &dyn rwh_06::HasWindowHandle {
         self
     }
-
-    // TODO: `set_valid_actions`
 }
 
 define_class!(

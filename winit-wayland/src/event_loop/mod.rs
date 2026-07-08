@@ -785,7 +785,7 @@ impl RootActiveEventLoop for ActiveEventLoop {
         // application can accept further types by fetching the data, but
         // this will at least mean that waiting until the drop to start
         // fetching data won't prevent the drop from working at all.
-        state.accept(state.transfer_id().into_raw() as _, accepted_type);
+        state.accept(state.serial(), accepted_type);
 
         Ok(())
     }
@@ -840,8 +840,12 @@ impl RootActiveEventLoop for ActiveEventLoop {
                         .ok()?;
 
                 let surface = state.compositor_state.create_surface(&self.queue_handle);
-                buffer.attach_to(&surface).ok()?;
-                surface.offset(icon.offset_x, icon.offset_y);
+                if surface.version() >= 5 {
+                    buffer.attach_to(&surface).ok()?;
+                    surface.offset(icon.offset_x, icon.offset_y);
+                } else {
+                    surface.attach(Some(buffer.wl_buffer()), icon.offset_x, icon.offset_y);
+                }
 
                 Some(surface)
             })

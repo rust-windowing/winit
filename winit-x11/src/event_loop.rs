@@ -766,11 +766,11 @@ impl RootActiveEventLoop for ActiveEventLoop {
     fn data_transfer(&self, id: DataTransferId) -> Result<Box<dyn DataTransfer>, RequestError> {
         let dnd = self.dnd.borrow();
 
-        if dnd.state.as_ref().is_none_or(|state| state.transfer_id != id) {
+        if dnd.state().is_none_or(|state| state.transfer_id != id) {
             return Err(RequestError::Ignored);
         }
 
-        let Some(state) = dnd.state.as_ref() else {
+        let Some(state) = dnd.state() else {
             return Err(RequestError::Ignored);
         };
 
@@ -793,7 +793,7 @@ impl RootActiveEventLoop for ActiveEventLoop {
             .ok_or(RequestError::NotSupported(NotSupportedError::new("Unknown type hint")))?;
 
         let new_convert_selection = {
-            let Some(state) = dnd.state.as_mut() else {
+            let Some(state) = dnd.state_mut() else {
                 return Err(RequestError::Ignored);
             };
 
@@ -831,7 +831,7 @@ impl RootActiveEventLoop for ActiveEventLoop {
     ) -> Result<(), RequestError> {
         let mut dnd = self.dnd.borrow_mut();
 
-        let Some(state) = &mut dnd.state else {
+        let Some(state) = dnd.state_mut() else {
             return Err(os_error!(UnknownDataTransfer(id)).into());
         };
 

@@ -423,7 +423,6 @@ define_class!(
             self.queue_event(WindowEvent::DragEntered {
                 id: transfer_id,
                 position: Some(position),
-                // operations: Some(operations),
             });
 
             let drag_state = vars.app_state.drag_state().borrow();

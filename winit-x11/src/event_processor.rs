@@ -495,7 +495,7 @@ impl EventProcessor {
             // never contending the lock.
             let transfer_id = {
                 let dnd = self.target.dnd.borrow();
-                let Some(state) = &dnd.state else {
+                let Some(state) = dnd.state() else {
                     return;
                 };
                 // By our own state flow, `state` should never be `None` at this point.
@@ -540,13 +540,11 @@ impl EventProcessor {
         if xev.message_type == atoms[XdndDrop] as c_ulong {
             let (source_window, transfer_id) = {
                 let dnd = self.target.dnd.borrow();
-                let Some(state) = &dnd.state else {
-                    return;
-                };
-                let Some(source_window) = dnd.state.as_ref().map(|s| s.source_window) else {
+                let Some(state) = dnd.state() else {
                     warn!("Received `XdndDrop` without `XdndEnter`");
                     return;
                 };
+                let source_window = state.source_window;
 
                 (source_window, state.transfer_id)
             };
@@ -567,21 +565,19 @@ impl EventProcessor {
                 },
             );
 
-            let mut dnd = self.target.dnd.borrow_mut();
+            let dnd = self.target.dnd.borrow_mut();
 
             unsafe {
                 dnd.send_finished(window, source_window)
                     .expect("Failed to send `XdndFinished` message.");
             }
 
-            dnd.reset();
-
             return;
         }
 
         if xev.message_type == atoms[XdndLeave] as c_ulong {
             let dnd = self.target.dnd.borrow();
-            let Some(state) = &dnd.state else {
+            let Some(state) = dnd.state() else {
                 return;
             };
             app.window_event(&self.target, window_id, WindowEvent::DragLeft {
@@ -605,7 +601,7 @@ impl EventProcessor {
         }
 
         let (transfer_id, serial, type_) = {
-            let Some(state) = self.target.dnd.get_mut().state.as_mut() else {
+            let Some(state) = self.target.dnd.get_mut().state_mut() else {
                 return;
             };
 
@@ -613,7 +609,7 @@ impl EventProcessor {
                 return;
             };
 
-            if xev.type_ as u32 != type_.atom() {
+            if xev.target as u32 != type_.atom() {
                 let get_name = |atom| {
                     self.target
                         .xconn
