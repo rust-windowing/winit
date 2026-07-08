@@ -110,6 +110,8 @@ pub struct EventLoop {
     primary_pointer: Option<FingerId>,
     ignore_volume_keys: bool,
     combining_accent: Option<char>,
+    last_surface_size: PhysicalSize<u32>,
+    last_scale_factor: f64,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -143,6 +145,8 @@ impl EventLoop {
         let event_loop_proxy = Arc::new(EventLoopProxy::new(android_app.create_waker()));
 
         let redraw_flag = SharedFlag::new();
+        let last_surface_size = screen_size(android_app);
+        let last_scale_factor = scale_factor(android_app);
 
         Ok(Self {
             android_app: android_app.clone(),
@@ -161,6 +165,8 @@ impl EventLoop {
             cause: StartCause::Init,
             ignore_volume_keys: attributes.ignore_volume_keys,
             combining_accent: None,
+            last_surface_size,
+            last_scale_factor,
         })
     }
 
@@ -177,7 +183,7 @@ impl EventLoop {
 
         let cause = self.cause;
         let mut pending_redraw = self.pending_redraw;
-        let mut resized = false;
+        let mut surface_may_have_resized = false;
 
         app.new_events(&self.window_target, cause);
 
@@ -191,10 +197,14 @@ impl EventLoop {
                 MainEvent::TerminateWindow { .. } => {
                     app.destroy_surfaces(&self.window_target);
                 },
-                MainEvent::WindowResized { .. } => resized = true,
+                MainEvent::WindowResized { .. } => {
+                    surface_may_have_resized = true;
+                    pending_redraw = true;
+                },
                 MainEvent::RedrawNeeded { .. } => pending_redraw = true,
                 MainEvent::ContentRectChanged { .. } => {
-                    warn!("TODO: find a way to notify application of content rect change");
+                    surface_may_have_resized = true;
+                    pending_redraw = true;
                 },
                 MainEvent::GainedFocus => {
                     HAS_FOCUS.store(true, Ordering::Relaxed);
@@ -207,9 +217,8 @@ impl EventLoop {
                     app.window_event(&self.window_target, GLOBAL_WINDOW, event);
                 },
                 MainEvent::ConfigChanged { .. } => {
-                    let old_scale_factor = scale_factor(&self.android_app);
                     let scale_factor = scale_factor(&self.android_app);
-                    if (scale_factor - old_scale_factor).abs() < f64::EPSILON {
+                    if (scale_factor - self.last_scale_factor).abs() > f64::EPSILON {
                         let new_surface_size = Arc::new(Mutex::new(screen_size(&self.android_app)));
                         let event = event::WindowEvent::ScaleFactorChanged {
                             surface_size_writer: SurfaceSizeWriter::new(Arc::downgrade(
@@ -219,7 +228,10 @@ impl EventLoop {
                         };
 
                         app.window_event(&self.window_target, GLOBAL_WINDOW, event);
+                        self.last_scale_factor = scale_factor;
                     }
+                    surface_may_have_resized = true;
+                    pending_redraw = true;
                 },
                 MainEvent::LowMemory => {
                     app.memory_warning(&self.window_target);
@@ -251,8 +263,8 @@ impl EventLoop {
                     warn!("TODO: forward onDestroy notification to application");
                 },
                 MainEvent::InsetsChanged { .. } => {
-                    // XXX: how to forward this state to applications?
-                    warn!("TODO: handle Android InsetsChanged notification");
+                    surface_may_have_resized = true;
+                    pending_redraw = true;
                 },
                 unknown => {
                     trace!("Unknown MainEvent {unknown:?} (ignored)");
@@ -286,7 +298,7 @@ impl EventLoop {
         }
 
         if self.running {
-            if resized {
+            if surface_may_have_resized {
                 let size = if let Some(native_window) = self.android_app.native_window().as_ref() {
                     let width = native_window.width() as _;
                     let height = native_window.height() as _;
@@ -294,8 +306,11 @@ impl EventLoop {
                 } else {
                     PhysicalSize::new(0, 0)
                 };
-                let event = event::WindowEvent::SurfaceResized(size);
-                app.window_event(&self.window_target, GLOBAL_WINDOW, event);
+                if size != self.last_surface_size {
+                    self.last_surface_size = size;
+                    let event = event::WindowEvent::SurfaceResized(size);
+                    app.window_event(&self.window_target, GLOBAL_WINDOW, event);
+                }
             }
 
             pending_redraw |= self.redraw_flag.get_and_reset();
