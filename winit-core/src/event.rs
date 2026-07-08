@@ -668,6 +668,18 @@ pub enum DeviceEvent {
         delta: (f64, f64),
     },
 
+    /// Change in value of a device-specific analog axis.
+    ///
+    /// The axis identifier is platform-specific. Applications that need to understand controller
+    /// layouts should pair this with platform/device metadata or their own mapping layer.
+    Motion {
+        /// The device-specific axis identifier.
+        axis: AxisId,
+
+        /// The current axis value.
+        value: f64,
+    },
+
     /// Physical scroll event
     MouseWheel {
         delta: MouseScrollDelta,
