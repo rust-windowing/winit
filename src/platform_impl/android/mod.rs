@@ -6,7 +6,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{mpsc, Arc, Mutex};
 use std::time::{Duration, Instant};
 
-use android_activity::input::{InputEvent, KeyAction, Keycode, MotionAction};
+use android_activity::input::{Axis, InputEvent, KeyAction, Keycode, MotionAction, Source};
 use android_activity::{
     AndroidApp, AndroidAppWaker, ConfigurationRef, InputStatus, MainEvent, Rect,
 };
@@ -377,6 +377,18 @@ impl<T: 'static> EventLoop<T> {
                 let window_id = window::WindowId(WindowId);
                 let device_id = event::DeviceId(DeviceId(motion_event.device_id()));
 
+                let source = motion_event.source();
+                if source.is_joystick_class() || matches!(source, Source::Gamepad) {
+                    dispatch_android_joystick_axes(
+                        motion_event,
+                        window_id,
+                        device_id,
+                        self.window_target(),
+                        callback,
+                    );
+                    return input_status;
+                }
+
                 let phase = match motion_event.action() {
                     MotionAction::Down | MotionAction::PointerDown => {
                         Some(event::TouchPhase::Started)
@@ -627,6 +639,59 @@ impl<T: 'static> EventLoop<T> {
 
     fn exiting(&self) -> bool {
         self.window_target.p.exiting()
+    }
+}
+
+const ANDROID_GAMEPAD_AXES: [Axis; 12] = [
+    Axis::X,
+    Axis::Y,
+    Axis::Z,
+    Axis::Rx,
+    Axis::Ry,
+    Axis::Rz,
+    Axis::HatX,
+    Axis::HatY,
+    Axis::Ltrigger,
+    Axis::Rtrigger,
+    Axis::Gas,
+    Axis::Brake,
+];
+
+fn dispatch_android_joystick_axes<T: 'static, F>(
+    motion_event: &android_activity::input::MotionEvent<'_>,
+    window_id: window::WindowId,
+    device_id: event::DeviceId,
+    window_target: &RootAEL,
+    callback: &mut F,
+) where
+    F: FnMut(event::Event<T>, &RootAEL),
+{
+    if !matches!(
+        motion_event.action(),
+        MotionAction::Move
+            | MotionAction::Down
+            | MotionAction::Up
+            | MotionAction::Cancel
+            | MotionAction::ButtonPress
+            | MotionAction::ButtonRelease
+    ) {
+        return;
+    }
+
+    for pointer in motion_event.pointers() {
+        for axis in ANDROID_GAMEPAD_AXES {
+            callback(
+                event::Event::WindowEvent {
+                    window_id,
+                    event: event::WindowEvent::AxisMotion {
+                        device_id,
+                        axis: Into::<u32>::into(axis),
+                        value: pointer.axis_value(axis) as f64,
+                    },
+                },
+                window_target,
+            );
+        }
     }
 }
 
