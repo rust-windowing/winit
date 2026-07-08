@@ -191,11 +191,7 @@ impl AppState {
             (ControlFlow::Wait, ControlFlow::Wait) => {
                 let start = Instant::now();
                 self.state.set(AppStateImpl::Waiting { start });
-                if has_queued_gpu_redraws {
-                    self.waker.start()
-                } else {
-                    self.waker.stop()
-                }
+                if has_queued_gpu_redraws { self.waker.start() } else { self.waker.stop() }
             },
             (ControlFlow::WaitUntil(old_instant), ControlFlow::WaitUntil(new_instant))
                 if old_instant == new_instant =>
@@ -209,11 +205,7 @@ impl AppState {
             (_, ControlFlow::Wait) => {
                 let start = Instant::now();
                 self.state.set(AppStateImpl::Waiting { start });
-                if has_queued_gpu_redraws {
-                    self.waker.start()
-                } else {
-                    self.waker.stop()
-                }
+                if has_queued_gpu_redraws { self.waker.start() } else { self.waker.stop() }
             },
             (_, ControlFlow::WaitUntil(new_instant)) => {
                 let start = Instant::now();
