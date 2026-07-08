@@ -184,29 +184,45 @@ impl AppState {
             AppStateImpl::ProcessingRedraws { active_control_flow } => active_control_flow,
             s => bug!("unexpected state {:?}", s),
         };
+        let has_queued_gpu_redraws = self.has_queued_gpu_redraws();
 
         let new = self.control_flow.get();
         match (old, new) {
             (ControlFlow::Wait, ControlFlow::Wait) => {
                 let start = Instant::now();
                 self.state.set(AppStateImpl::Waiting { start });
-                self.waker.stop()
+                if has_queued_gpu_redraws {
+                    self.waker.start()
+                } else {
+                    self.waker.stop()
+                }
             },
             (ControlFlow::WaitUntil(old_instant), ControlFlow::WaitUntil(new_instant))
                 if old_instant == new_instant =>
             {
                 let start = Instant::now();
                 self.state.set(AppStateImpl::Waiting { start });
+                if has_queued_gpu_redraws {
+                    self.waker.start()
+                }
             },
             (_, ControlFlow::Wait) => {
                 let start = Instant::now();
                 self.state.set(AppStateImpl::Waiting { start });
-                self.waker.stop()
+                if has_queued_gpu_redraws {
+                    self.waker.start()
+                } else {
+                    self.waker.stop()
+                }
             },
             (_, ControlFlow::WaitUntil(new_instant)) => {
                 let start = Instant::now();
                 self.state.set(AppStateImpl::Waiting { start });
-                self.waker.start_at(new_instant)
+                if has_queued_gpu_redraws {
+                    self.waker.start()
+                } else {
+                    self.waker.start_at(new_instant)
+                }
             },
             // Unlike on macOS, handle Poll to Poll transition here to call the waker
             (_, ControlFlow::Poll) => {
@@ -234,19 +250,30 @@ impl AppState {
     pub(crate) fn control_flow(&self) -> ControlFlow {
         self.control_flow.get()
     }
+
+    fn has_queued_gpu_redraws(&self) -> bool {
+        let queued_gpu_redraws = self.queued_gpu_redraws.take();
+        let has_queued_gpu_redraws = !queued_gpu_redraws.is_empty();
+        self.queued_gpu_redraws.set(queued_gpu_redraws);
+        has_queued_gpu_redraws
+    }
 }
 
 pub(crate) fn queue_gl_or_metal_redraw(mtm: MainThreadMarker, window: Retained<WinitUIWindow>) {
     let this = AppState::get(mtm);
     match this.state.get() {
-        AppStateImpl::Initial | AppStateImpl::ProcessingEvents { .. } => {
+        AppStateImpl::Initial
+        | AppStateImpl::ProcessingEvents { .. }
+        | AppStateImpl::ProcessingRedraws { .. }
+        | AppStateImpl::Waiting { .. }
+        | AppStateImpl::PollFinished => {
             let mut queued_gpu_redraws = this.queued_gpu_redraws.take();
             let _ = queued_gpu_redraws.insert(window);
             this.queued_gpu_redraws.set(queued_gpu_redraws);
+            if !matches!(this.state.get(), AppStateImpl::Initial) {
+                this.waker.start();
+            }
         },
-        s @ AppStateImpl::ProcessingRedraws { .. }
-        | s @ AppStateImpl::Waiting { .. }
-        | s @ AppStateImpl::PollFinished => bug!("unexpected state {:?}", s),
         AppStateImpl::Terminated => {
             panic!("Attempt to create a `Window` after the app has terminated")
         },
