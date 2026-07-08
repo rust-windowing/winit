@@ -9,6 +9,7 @@ use dpi::{
     Position, Size,
 };
 use objc2::rc::Retained;
+use objc2::runtime::AnyObject;
 use objc2::{MainThreadMarker, available, class, define_class, msg_send};
 use objc2_core_foundation::{CGFloat, CGPoint, CGRect, CGSize};
 use objc2_foundation::{NSObject, NSObjectProtocol};
@@ -535,8 +536,12 @@ impl Window {
 
         let view = WinitView::new(mtm, ios_attributes.scale_factor, frame);
 
-        let gl_or_metal_backed =
-            view.isKindOfClass(class!(CAMetalLayer)) || view.isKindOfClass(class!(CAEAGLLayer));
+        let gl_or_metal_backed = unsafe {
+            let view_layer: *mut AnyObject = msg_send![&*view, layer];
+            let metal_backed: bool = msg_send![view_layer, isKindOfClass: class!(CAMetalLayer)];
+            let gl_backed: bool = msg_send![view_layer, isKindOfClass: class!(CAEAGLLayer)];
+            metal_backed || gl_backed
+        };
 
         let view_controller = WinitViewController::new(mtm, &ios_attributes, &view);
         let window = WinitUIWindow::new(mtm, &window_attributes, frame, &view_controller);
