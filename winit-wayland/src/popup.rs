@@ -285,7 +285,9 @@ impl CoreWindow for Popup {
         if let WindowType::Popup { popup, positioner, .. } = &state.window {
             let position = position.to_logical(state.scale_factor());
             positioner.set_offset(position.x, position.y);
-            popup.reposition(positioner, 0);
+            if popup.xdg_popup().version() >= 3 {
+                popup.reposition(positioner, 0);
+            }
         }
     }
 

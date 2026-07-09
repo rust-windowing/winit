@@ -829,7 +829,9 @@ impl WindowState {
             WindowType::Popup { popup, positioner, .. } => {
                 let size = surface_size.to_logical(self.scale_factor());
                 positioner.set_size(size.width, size.height);
-                popup.reposition(positioner, 0);
+                if popup.xdg_popup().version() >= 3 {
+                    popup.reposition(positioner, 0);
+                }
             },
         }
 
