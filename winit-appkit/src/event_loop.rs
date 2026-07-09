@@ -155,13 +155,16 @@ impl RootActiveEventLoop for ActiveEventLoop {
 
         let data = Arc::new(pb.with_type(type_));
 
-        self.app_state.maybe_queue_with_handler(move |app, event_loop| {
-            app.window_event(
-                event_loop,
-                WindowId::from_raw(0),
-                WindowEvent::DataTransferReceived { id, serial, value: data },
-            );
-        });
+        for window_id in self.app_state.pasteboards().window_ids(id).iter().copied() {
+            let data = data.clone();
+            self.app_state.maybe_queue_with_handler(move |app, event_loop| {
+                app.window_event(event_loop, window_id, WindowEvent::DataTransferReceived {
+                    id,
+                    serial,
+                    value: data,
+                });
+            });
+        }
 
         Ok(serial)
     }

@@ -1,4 +1,4 @@
-use std::cell::RefCell;
+use std::cell::{Ref, RefCell};
 use std::collections::HashMap;
 use std::ffi::OsString;
 use std::io;
@@ -19,6 +19,7 @@ use winit_core::data_transfer::{
     DataTransfer, DataTransferId, DataTransferSend, SendData, TransferType, TypeHint, TypedData,
 };
 use winit_core::event_loop::DndAction;
+use winit_core::window::WindowId;
 
 /// A thin wrapper around [`NSPasteboardType`], implementing [`TransferType`].
 #[derive(PartialEq, Eq, Debug, Clone)]
@@ -319,23 +320,33 @@ impl TypedData for PasteboardValue {
     }
 }
 
+#[derive(Debug)]
+struct ActivePasteboard {
+    window_ids: Vec<WindowId>,
+    pb: MainThreadBound<Weak<NSPasteboard>>,
+}
+
 #[derive(Debug, Default)]
 pub struct Pasteboards {
-    inner: RefCell<HashMap<DataTransferId, MainThreadBound<Weak<NSPasteboard>>>>,
+    inner: RefCell<HashMap<DataTransferId, ActivePasteboard>>,
 }
 
 impl Pasteboards {
     pub fn remove_deloaded_pasteboards(&self) {
-        self.inner
-            .borrow_mut()
-            .retain(|_, state| state.get_on_main(|state| state.load().is_some()));
+        self.inner.borrow_mut().retain(|_, ActivePasteboard { pb, .. }| {
+            pb.get_on_main(|state| state.load().is_some())
+        });
     }
 
     /// If the data transfer exists, update the pasteboard it points to.
-    pub fn set_pasteboard(&self, id: DataTransferId, pb: &MainThreadBound<Retained<NSPasteboard>>) {
+    pub fn set_pasteboard(
+        &self,
+        id: DataTransferId,
+        new_pb: &MainThreadBound<Retained<NSPasteboard>>,
+    ) {
         let mut inner = self.inner.borrow_mut();
-        if let Some(state) = inner.get_mut(&id) {
-            *state = pb.get_on_main(|pb| {
+        if let Some(ActivePasteboard { pb, .. }) = inner.get_mut(&id) {
+            *pb = new_pb.get_on_main(|pb| {
                 MainThreadBound::new(Weak::from_retained(pb), MainThreadMarker::new().unwrap())
             });
         }
@@ -345,22 +356,42 @@ impl Pasteboards {
         &self,
         transfer_id: DataTransferId,
         pb: &MainThreadBound<Retained<NSPasteboard>>,
+        window_id: WindowId,
     ) {
-        self.inner.borrow_mut().insert(
-            transfer_id,
-            pb.get_on_main(|pb| {
-                MainThreadBound::new(Weak::from_retained(pb), MainThreadMarker::new().unwrap())
-            }),
-        );
+        self.inner
+            .borrow_mut()
+            .entry(transfer_id)
+            .or_insert_with(|| {
+                pb.get_on_main(move |pb| ActivePasteboard {
+                    window_ids: vec![],
+                    pb: MainThreadBound::new(
+                        Weak::from_retained(pb),
+                        MainThreadMarker::new().unwrap(),
+                    ),
+                })
+            })
+            .window_ids
+            .push(window_id);
     }
 
     pub fn get(&self, id: DataTransferId) -> Option<Pasteboard> {
-        self.inner.borrow().get(&id).and_then(|state| {
-            state.get_on_main(|state| {
+        self.inner.borrow().get(&id).and_then(|ActivePasteboard { pb, .. }| {
+            pb.get_on_main(|state| {
                 let pb = state.load()?;
                 let pb = MainThreadBound::new(pb, MainThreadMarker::new().unwrap());
                 Some(Pasteboard::new(id, pb))
             })
+        })
+    }
+
+    /// This should almost always contain only a single window, but we allow multiple just
+    /// to avoid silently swallowing errors.
+    pub fn window_ids(&self, id: DataTransferId) -> Ref<'_, [WindowId]> {
+        Ref::map(self.inner.borrow(), |borrow| {
+            borrow
+                .get(&id)
+                .map(|active_pasteboard| &active_pasteboard.window_ids[..])
+                .unwrap_or(&[])
         })
     }
 }

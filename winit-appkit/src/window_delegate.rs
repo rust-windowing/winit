@@ -409,12 +409,14 @@ define_class!(
             let position =
                 LogicalPosition::<f64>::from((dl.x, dl.y)).to_physical(self.scale_factor());
 
+            let window_id = self.id();
+
             let vars = self.ivars();
 
             let source_operations = sender.draggingSourceOperationMask();
 
             let transfer_id = DataTransferId::from_raw(sender.draggingSequenceNumber() as i64);
-            vars.app_state.pasteboards().insert(transfer_id, &pb);
+            vars.app_state.pasteboards().insert(transfer_id, &pb, window_id);
 
             vars.app_state
                 .drag_state()
