@@ -323,7 +323,7 @@ impl WindowState {
             FrameCallbackState::Requested => (),
         }
     }
-    pub fn configure_popup(&mut self, configure: PopupConfigure) {
+    pub fn configure_popup(&mut self, configure: PopupConfigure) -> bool {
         // NOTE: when using fractional scaling or wl_compositor@v6 the scaling
         // should be delivered before the first configure, thus apply it to
         // properly scale the physical sizes provided by the users.
@@ -352,12 +352,16 @@ impl WindowState {
             // when the compositor constrained us to a different size than requested.
             if matches!(kind, ConfigureKind::Initial) || constrained {
                 self.resize(new_size);
+                true
+            } else {
+                false
             }
         } else {
             tracing::error!(
                 "configure_popup called for window type unequal of popup. This should never \
                  happen, because we start configuring with a popup"
             );
+            false
         }
     }
 

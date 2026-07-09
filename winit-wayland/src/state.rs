@@ -337,7 +337,7 @@ impl PopupHandler for WinitState {
     ) {
         let window_id = super::make_wid(popup.wl_surface());
 
-        if let Some(index) =
+        let index = if let Some(index) =
             self.window_compositor_updates.iter().position(|update| update.window_id == window_id)
         {
             index
@@ -346,7 +346,8 @@ impl PopupHandler for WinitState {
             self.window_compositor_updates.len() - 1
         };
 
-        self.windows
+        self.window_compositor_updates[index].resized |= self
+            .windows
             .get_mut()
             .get_mut(&window_id)
             .expect("got configure for dead window.")
