@@ -705,7 +705,11 @@ pub trait Window: AsAny + Send + Sync + fmt::Debug {
     /// ## Platform-specific
     ///
     /// - **Web:** Returns the top-left coordinates relative to the viewport.
-    /// - **Android / Wayland:** Always returns [`RequestError::NotSupported`].
+    /// - **Android:** Always returns [`RequestError::NotSupported`].
+    /// - **Wayland:** For a top-level window this always returns [`RequestError::NotSupported`],
+    ///   since the compositor does not report absolute positions. For a [`WindowType::Popup`] the
+    ///   compositor-decided position relative to the parent is returned once the popup has been
+    ///   configured (before that, [`RequestError::NotSupported`]).
     fn outer_position(&self) -> Result<PhysicalPosition<i32>, RequestError>;
 
     /// Sets the position of the window on the desktop.
