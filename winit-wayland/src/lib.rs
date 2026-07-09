@@ -122,17 +122,16 @@ pub enum PopupGravity {
     BottomRight,
 }
 
-#[derive(Debug, Clone, Copy, Default, PartialEq)]
-#[non_exhaustive]
-pub enum PopupConstraintAdjustment {
-    #[default]
-    None,
-    SlideX,
-    SlideY,
-    FlipX,
-    FlipY,
-    ResizeX,
-    ResizeY,
+bitflags::bitflags! {
+    #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
+    pub struct PopupConstraintAdjustment: u32 {
+        const SLIDE_X = 1 << 0;
+        const SLIDE_Y = 1 << 1;
+        const FLIP_X = 1 << 2;
+        const FLIP_Y = 1 << 3;
+        const RESIZE_X = 1 << 4;
+        const RESIZE_Y = 1 << 5;
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -295,14 +294,24 @@ impl From<PopupConstraintAdjustment>
 {
     fn from(value: PopupConstraintAdjustment) -> Self {
         use wayland_protocols::xdg::shell::client::xdg_positioner::ConstraintAdjustment;
-        match value {
-            PopupConstraintAdjustment::None => ConstraintAdjustment::None,
-            PopupConstraintAdjustment::SlideX => ConstraintAdjustment::SlideX,
-            PopupConstraintAdjustment::SlideY => ConstraintAdjustment::SlideY,
-            PopupConstraintAdjustment::FlipX => ConstraintAdjustment::FlipX,
-            PopupConstraintAdjustment::FlipY => ConstraintAdjustment::FlipY,
-            PopupConstraintAdjustment::ResizeX => ConstraintAdjustment::ResizeX,
-            PopupConstraintAdjustment::ResizeY => ConstraintAdjustment::ResizeY,
-        }
+
+        const _: () = {
+            assert!(
+                PopupConstraintAdjustment::SLIDE_X.bits() == ConstraintAdjustment::SlideX.bits()
+            );
+            assert!(
+                PopupConstraintAdjustment::SLIDE_Y.bits() == ConstraintAdjustment::SlideY.bits()
+            );
+            assert!(PopupConstraintAdjustment::FLIP_X.bits() == ConstraintAdjustment::FlipX.bits());
+            assert!(PopupConstraintAdjustment::FLIP_Y.bits() == ConstraintAdjustment::FlipY.bits());
+            assert!(
+                PopupConstraintAdjustment::RESIZE_X.bits() == ConstraintAdjustment::ResizeX.bits()
+            );
+            assert!(
+                PopupConstraintAdjustment::RESIZE_Y.bits() == ConstraintAdjustment::ResizeY.bits()
+            );
+        };
+
+        ConstraintAdjustment::from_bits_retain(value.bits())
     }
 }
