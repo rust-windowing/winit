@@ -408,7 +408,8 @@ impl WindowAttributes {
 
     /// Sets the [`WindowType`] (window vs. popup).
     ///
-    /// Used by the Windows, Wayland and macOS backends; on X11 popups are just normal windows.
+    /// Used by the Windows, Wayland and macOS backends; on X11 [`WindowType::Popup`] is not
+    /// implemented and window creation returns an error.
     /// If the type is [`WindowType::Popup`], the parent must also be set via
     /// [`with_parent_window`](Self::with_parent_window), and the position is interpreted
     /// relative to that parent.
