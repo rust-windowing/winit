@@ -383,6 +383,14 @@ impl winit_android::EventLoopBuilderExtAndroid for EventLoopBuilder {
     }
 }
 
+#[cfg(ios_platform)]
+impl winit_uikit::EventLoopBuilderExtIOS for EventLoopBuilder {
+    fn with_main_thread_marker(&mut self, mtm: winit_uikit::objc2::MainThreadMarker) -> &mut Self {
+        self.platform_specific.mtm = Some(mtm);
+        self
+    }
+}
+
 #[cfg(macos_platform)]
 impl winit_appkit::EventLoopBuilderExtMacOS for EventLoopBuilder {
     #[inline]
