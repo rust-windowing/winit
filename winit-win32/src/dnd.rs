@@ -1,10 +1,11 @@
 use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
-use std::ffi::{OsString, c_void};
+use std::ffi::{OsStr, OsString, c_void};
 use std::io;
 use std::num::NonZeroU32;
 use std::ops::{BitOr, ControlFlow};
 use std::os::windows::ffi::{OsStrExt, OsStringExt};
+use std::path::PathBuf;
 use std::ptr::NonNull;
 use std::rc::Rc;
 use std::sync::Arc;
@@ -49,20 +50,13 @@ use crate::definitions::{
 use crate::event_loop::EventLoopRunner;
 use crate::util;
 
-#[derive(Debug)]
-enum DataKind {
-    Uris(Vec<OsString>),
-    String(String),
-    Bytes(Vec<u8>),
-}
-
 // TODO: Exposing the full native API to client applications is too error-prone so long as
 // winit is still manually implementing refcounting and using the win32 APIs. For now, we
 // just eagerly read all the data supported by cross-platform type hints on Windows. This
 // would be resolved by migrating to `windows-rs`.
 #[derive(Debug)]
 pub(crate) struct DataObject {
-    data: HashMap<TypeHint, DataKind>,
+    data: HashMap<TypeHint, SendData>,
 }
 
 impl DataObject {
@@ -70,18 +64,18 @@ impl DataObject {
         let mut data = HashMap::new();
 
         if let Some(text) = unsafe { read_unicode_text(data_obj) } {
-            data.insert(TypeHint::Plaintext, DataKind::String(text));
+            data.insert(TypeHint::Plaintext, SendData::String(text));
         }
 
         if let Some(uris) = unsafe { read_uri_list(data_obj) } {
             if !uris.is_empty() {
-                data.insert(TypeHint::UriList, DataKind::Uris(uris));
+                data.insert(TypeHint::UriList, SendData::Uris(uris));
             }
         }
 
         if let Some(png) = unsafe { read_png(data_obj) } {
             if !png.is_empty() {
-                data.insert(TypeHint::Image { extension_hint: Some("png") }, DataKind::Bytes(png));
+                data.insert(TypeHint::Image { extension_hint: Some("png") }, SendData::Bytes(png));
             }
         }
 
@@ -148,7 +142,7 @@ unsafe fn read_unicode_text(data_obj: *const IDataObject) -> Option<String> {
     Some(text)
 }
 
-unsafe fn read_uri_list(data_obj: *const IDataObject) -> Option<Vec<OsString>> {
+unsafe fn read_uri_list(data_obj: *const IDataObject) -> Option<Vec<String>> {
     let medium = unsafe { StgMedium::get(data_obj, CF_HDROP) }?;
     let hdrop = medium.hglobal() as HDROP;
 
@@ -168,7 +162,13 @@ unsafe fn read_uri_list(data_obj: *const IDataObject) -> Option<Vec<OsString>> {
                 as usize;
         unsafe { path_buf.set_len(copied) };
 
-        paths.push(OsString::from_wide(&path_buf));
+        let path = PathBuf::from(OsString::from_wide(&path_buf));
+
+        paths.push(
+            url::Url::from_file_path(&path)
+                .map(String::from)
+                .unwrap_or_else(|_| path.to_string_lossy().into_owned()),
+        );
     }
 
     Some(paths)
@@ -241,25 +241,25 @@ impl TypedData for WinTypedData {
 
     fn try_read(&self) -> Option<Box<dyn io::BufRead>> {
         match self.data.data.get(&self.type_)? {
-            DataKind::Bytes(bytes) => Some(Box::new(io::Cursor::new(bytes.clone()))),
-            DataKind::String(string) => {
+            SendData::Bytes(bytes) => Some(Box::new(io::Cursor::new(bytes.clone()))),
+            SendData::String(string) => {
                 Some(Box::new(io::Cursor::new(string.clone().into_bytes())))
             },
             // Windows URI drag-and-drop can't be neatly expressed as a binary blob.
-            DataKind::Uris(_) => None,
+            SendData::Uris(_) => None,
         }
     }
 
-    fn try_as_uris(&self) -> io::Result<Vec<OsString>> {
+    fn try_as_uris(&self) -> io::Result<Vec<String>> {
         match self.data.data.get(&self.type_) {
-            Some(DataKind::Uris(uris)) => Ok(uris.clone()),
+            Some(SendData::Uris(uris)) => Ok(uris.clone()),
             _ => Err(io::ErrorKind::InvalidData.into()),
         }
     }
 
     fn try_as_string(&self) -> io::Result<String> {
         match self.data.data.get(&self.type_) {
-            Some(DataKind::String(string)) => Ok(string.clone()),
+            Some(SendData::String(string)) => Ok(string.clone()),
             _ => Err(io::ErrorKind::InvalidData.into()),
         }
     }
@@ -881,23 +881,17 @@ unsafe fn send_data_to_stgmedium(data: SendData, hint: TypeHint) -> Option<STGME
             // CF_HDROP: `DROPFILES` header + double-NUL-terminated UTF-16 path list.
             let mut wide: Vec<u16> = Vec::new();
             for path in paths {
-                let path = 'uri_to_path: {
-                    if let Some(path_str) = path.to_str() {
-                        // There's no `strip_prefix` etc on `OsStr` so we need to go via `str`
-                        // Windows is the only platform that sends raw file paths instead of URIs
-                        let Some(path_str) = path_str.strip_prefix("file://") else {
-                            break 'uri_to_path path;
-                        };
-
-                        // Even though "/" is theoretically a valid path separator on Windows, it
-                        // doesn't seem to work for drag-and-drop specifically.
-                        OsString::from(path_str.replace("/", "\\"))
-                    } else {
-                        path
-                    }
+                let path_from_uri_owned;
+                let encoded = if let Some(path_from_uri) =
+                    url::Url::parse(&path).ok().and_then(|url| url.to_file_path().ok())
+                {
+                    path_from_uri_owned = path_from_uri;
+                    OsStr::new(&path_from_uri_owned).encode_wide()
+                } else {
+                    OsStr::new(&path).encode_wide()
                 };
 
-                wide.extend(path.encode_wide());
+                wide.extend(encoded);
                 wide.push(0);
             }
             wide.push(0);

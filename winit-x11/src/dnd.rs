@@ -1,5 +1,4 @@
 use std::collections::VecDeque;
-use std::ffi::OsString;
 use std::io;
 use std::os::raw::*;
 use std::str::Utf8Error;
@@ -91,7 +90,7 @@ impl TypedData for SelectionReader {
         }
     }
 
-    fn try_as_uris(&self) -> io::Result<Vec<OsString>> {
+    fn try_as_uris(&self) -> io::Result<Vec<String>> {
         if self.type_().hint() != Some(TypeHint::UriList) {
             return Err(io::ErrorKind::InvalidData.into());
         }
@@ -100,7 +99,7 @@ impl TypedData for SelectionReader {
             .try_as_string()?
             .split(['\n', '\r'])
             .filter(|s| !s.is_empty())
-            .map(Into::into)
+            .map(ToOwned::to_owned)
             .collect())
     }
 }

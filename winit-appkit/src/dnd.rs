@@ -1,6 +1,5 @@
 use std::cell::{Ref, RefCell};
 use std::collections::HashMap;
-use std::ffi::OsString;
 use std::io;
 use std::ops::{BitOr, ControlFlow};
 use std::sync::{Arc, OnceLock};
@@ -266,7 +265,7 @@ impl TypedData for PasteboardValue {
             })
     }
 
-    fn try_as_uris(&self) -> io::Result<Vec<OsString>> {
+    fn try_as_uris(&self) -> io::Result<Vec<String>> {
         // TODO: We should probably use `readObjects`, need to check how that works.
         if self.type_().hint() != Some(TypeHint::UriList) {
             return Err(io::ErrorKind::InvalidData.into());
@@ -283,7 +282,7 @@ impl TypedData for PasteboardValue {
                     None => {
                         return pasteboard
                             .stringForType(unsafe { NSPasteboardTypeFileURL })
-                            .map(|ns_str| vec![ns_str.to_string().into()])
+                            .map(|ns_str| vec![ns_str.to_string()])
                             .ok_or_else(|| io::ErrorKind::InvalidData.into());
                     },
                 };
@@ -292,7 +291,7 @@ impl TypedData for PasteboardValue {
                     .downcast::<NSArray>()
                     .unwrap()
                     .into_iter()
-                    .map(|file| file.downcast::<NSString>().unwrap().to_string().into())
+                    .map(|file| file.downcast::<NSString>().unwrap().to_string())
                     .collect();
 
                 return Ok(paths);
@@ -301,7 +300,7 @@ impl TypedData for PasteboardValue {
             Ok(items
                 .into_iter()
                 .filter_map(|item| item.stringForType(unsafe { NSPasteboardTypeFileURL }))
-                .map(|ns_str| ns_str.to_string().into())
+                .map(|ns_str| ns_str.to_string())
                 .collect())
         })
     }

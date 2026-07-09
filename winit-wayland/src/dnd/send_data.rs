@@ -10,54 +10,13 @@ pub struct UriListEncoder {
     newline_reader: Cursor<&'static [u8]>,
 }
 
-fn percent_encode_into(out: &mut Vec<u8>, value: &[u8]) {
-    /// Characters that are invalid in a URI
-    const URI_RESERVED: &percent_encoding::AsciiSet = &percent_encoding::CONTROLS
-        .add(b' ')
-        .add(b'!')
-        .add(b'"')
-        .add(b'$')
-        .add(b'%')
-        .add(b'\'')
-        .add(b'(')
-        .add(b')')
-        .add(b'*')
-        .add(b'+')
-        .add(b',')
-        .add(b';')
-        .add(b'<')
-        .add(b'>')
-        .add(b'@')
-        .add(b'[')
-        .add(b'\\')
-        .add(b']')
-        .add(b'^')
-        .add(b'`')
-        .add(b'{')
-        .add(b'|')
-        .add(b'}')
-        .add(b'~');
-
-    for slice in percent_encoding::percent_encode(value, URI_RESERVED) {
-        out.extend_from_slice(slice.as_bytes());
-    }
-}
-
 impl From<Vec<OsString>> for UriListEncoder {
     fn from(value: Vec<OsString>) -> Self {
-        let mut uris = value.into_iter();
-
-        let Some(first_uri) = uris.next() else {
-            return Default::default();
-        };
-
-        let first_uri_bytes = first_uri.as_encoded_bytes();
-
-        let mut bytes = Vec::with_capacity(first_uri_bytes.len());
-
-        percent_encode_into(&mut bytes, first_uri_bytes);
-
-        Self { uris, uri_reader: Cursor::new(bytes), newline_reader: Cursor::new(b"\r\n") }
+        Self {
+            uris: value.into_iter(),
+            uri_reader: Cursor::new(bytes),
+            newline_reader: Cursor::new(b"\r\n"),
+        }
     }
 }
 

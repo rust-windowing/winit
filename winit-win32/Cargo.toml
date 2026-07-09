@@ -19,6 +19,7 @@ rwh_06.workspace = true
 serde = { workspace = true, optional = true }
 smol_str.workspace = true
 tracing.workspace = true
+url.workspace = true
 winit-core.workspace = true
 
 # Platform-specific

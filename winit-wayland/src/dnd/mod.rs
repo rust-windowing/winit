@@ -370,7 +370,7 @@ impl TypedData for MimeData {
         self.data().map(ToOwned::to_owned)
     }
 
-    fn try_as_uris(&self) -> io::Result<Vec<OsString>> {
+    fn try_as_uris(&self) -> io::Result<Vec<String>> {
         let data = self.data()?;
 
         Cursor::new(&data)
@@ -379,9 +379,6 @@ impl TypedData for MimeData {
                 Ok(s) => !s.starts_with('#'),
                 // We want to maintain errors, so the final `collect` returns an error too
                 Err(_) => true,
-            })
-            .map(|res| {
-                Ok(OsString::from_vec(percent_encoding::percent_decode_str(&res?).collect()))
             })
             .collect()
     }

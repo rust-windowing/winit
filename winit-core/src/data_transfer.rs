@@ -99,8 +99,8 @@
 
 #![warn(missing_docs)]
 
-use std::ffi::OsString;
 use std::ops::ControlFlow;
+use std::path::{Path, PathBuf};
 use std::{fmt, io};
 
 use crate::as_any::AsAny;
@@ -257,49 +257,42 @@ pub trait TypedData: AsAny + fmt::Debug + Send + Sync {
 
     /// Read this value as a list of URIs.
     ///
-    /// If this value is not readable as URIs, return `None`.
+    /// If this value is not readable as URIs, return an error.
     ///
-    /// The format of the returned URIs is simply a vector of OS strings. No validation is done
-    /// to ensure that the URIs are valid, so long as they can be encoded as [`OsString`].
+    /// The returned `String`s should be interpreted as URIs conforming to [RFC 3986](https://www.rfc-editor.org/info/rfc3986/).
     ///
     /// If this returns [`WouldBlock`](std::io::ErrorKind::WouldBlock), then it should be called
     /// again upon next receiving
     /// [`WindowEvent::DataTransferReceived`](crate::event::WindowEvent::DataTransferReceived)
+    fn try_as_uris(&self) -> io::Result<Vec<String>>;
+
+    /// Read this value as a list of paths.
     ///
-    /// ### Platform differences
+    /// This is provided as a convenience method to avoid the need for the user to manually parse
+    /// the result of [`try_as_uris`](TypedData::try_as_uris). `try_as_uris` should be preferred
+    /// when the extra complexity is acceptable, as it is more generic.
     ///
-    /// On all platforms other than Windows, for a local path `/path/to/foo` this will return
-    /// `file:///path/to/foo`. On Windows, URIs are not supported, so the path will be simply
-    /// returned as `X:\path\to\foo` (where `X` is the drive letter). This is not ideal but,
-    /// as even the simplest of Windows paths are non-trivial to encode and decode to URI,
-    /// winit errs on the side of keeping the returned URIs closer to what is provided by
-    /// the OS. This avoids making the `url` crate a required dependency simply to handle
-    /// the most-common case.
+    /// If this value is not readable as URIs, return an error.
     ///
-    /// If file paths are desired, one approach to handle this without `cfg`s is to use the
-    /// [`url`](https://docs.rs/url/2) crate, for example:
-    ///
-    /// ```rust,ignore
-    /// let uris = typed_data
-    ///     .try_as_uris()?
-    ///     .into_iter()
-    ///     .map(|os_string| {
-    ///         let uri_path = url::Url::parse(&os_string.to_string_lossy())
-    ///             .ok()
-    ///             .and_then(|url| url.to_file_path().ok());
-    ///
-    ///         match uri_path {
-    ///             Some(path) => path,
-    ///             None => PathBuf::from(os_string),
-    ///         }
-    ///     })
-    ///     .collect::<Vec<PathBuf>>();
-    /// ```
-    fn try_as_uris(&self) -> io::Result<Vec<OsString>>;
+    /// If this returns [`WouldBlock`](std::io::ErrorKind::WouldBlock), then it should be called
+    /// again upon next receiving
+    /// [`WindowEvent::DataTransferReceived`](crate::event::WindowEvent::DataTransferReceived)
+    fn try_as_file_paths(&self) -> io::Result<Vec<PathBuf>> {
+        self.try_as_uris().and_then(|uris| {
+            uris.into_iter()
+                .map(|uri_string| {
+                    Ok(url::Url::parse(&uri_string)
+                        .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?
+                        .to_file_path()
+                        .map_err(|()| io::ErrorKind::InvalidData)?)
+                })
+                .collect()
+        })
+    }
 
     /// Read this value as a plain text string.
     ///
-    /// If this value is not readable as a string, return `None`.
+    /// If this value is not readable as a string, return an error.
     ///
     /// If this returns [`WouldBlock`](std::io::ErrorKind::WouldBlock), then it should be called
     /// again upon next receiving
@@ -372,15 +365,50 @@ impl_dyn_casting!(DataTransfer);
 /// File URIs on Windows and macOS are represented as arrays of strings, and strings have
 /// different encoding on different platforms. To allow this to be represented, we allow
 /// supplying strings and URIs separately from binary blobs.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum SendData {
-    /// File URIs
-    Uris(Vec<OsString>),
+    /// List of URIs.
+    ///
+    /// These should conform to [RFC 3986](https://www.rfc-editor.org/info/rfc3986/).
+    /// If you just want to send file paths, see [`SendData::from_file_paths`].
+    ///
+    /// Note that `SendData` implements `From<String>` and `From<Vec<u8>>`, but _not_
+    /// `From<Vec<String>>`, as it is not necessarily obvious to a reader that `Vec<String>`
+    /// will be interpreted as a URI list. However, it _does_ implement [`From<Url>`](url::Url),
+    /// if you are using the [`url`](https://docs.rs/url/2) crate.
+    Uris(Vec<String>),
     /// String
+    ///
+    /// This can also be constructed with the [`From<String>`](std::string::String) implementation.
     String(String),
     /// Binary blob
+    ///
+    /// This can also be constructed with the [`From<Vec<u8>>`](std::vec::Vec) implementation.
     Bytes(Vec<u8>),
 }
 
+impl SendData {
+    /// Create [`SendData::Uris`] from an iterator of [`Path`]s.
+    ///
+    /// All paths must be absolute, and on Windows must include either a drive prefix (e.g. `C:\`)
+    /// or a UNC prefix (`\\`). See documentation for [`url::Url::from_file_path`].
+    pub fn from_file_paths<I>(paths: I) -> Option<Self>
+    where
+        I: IntoIterator,
+        I::Item: AsRef<Path>,
+    {
+        paths
+            .into_iter()
+            .map(url::Url::from_file_path)
+            .map(|result| result.map(String::from))
+            .collect::<Result<Vec<_>, ()>>()
+            .map(Self::Uris)
+            .ok()
+    }
+}
+
+// We monomorphize these `From` implementations instead of making them generic, in order to
+// prevent accidentally casting to the wrong type.
 impl From<String> for SendData {
     fn from(value: String) -> Self {
         Self::String(value)
@@ -393,11 +421,9 @@ impl From<Vec<u8>> for SendData {
     }
 }
 
-// We monomorphize these `From` implementations instead of making them generic, in order to
-// prevent accidentally casting to the wrong type.
-impl From<Vec<OsString>> for SendData {
-    fn from(value: Vec<OsString>) -> Self {
-        Self::Uris(value)
+impl From<Vec<url::Url>> for SendData {
+    fn from(value: Vec<url::Url>) -> Self {
+        Self::Uris(value.into_iter().map(Into::into).collect())
     }
 }
 

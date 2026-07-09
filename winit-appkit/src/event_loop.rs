@@ -1,4 +1,3 @@
-use std::ffi::OsString;
 use std::fmt;
 use std::rc::Rc;
 use std::sync::Arc;
@@ -240,19 +239,17 @@ impl RootActiveEventLoop for ActiveEventLoop {
                     .data_for_type(&TypeHint::UriList)
                     .and_then(|file_uris| {
                         // TODO: Might not be ideal to do this
-                        let ns_url_from_os_str =
-                            |os_str: OsString| Some(NSString::from_str(os_str.to_str()?));
+                        let ns_url_from_str = |str: String| NSString::from_str(&str);
                         // Slightly complicated use of iterators in order to ensure that branches
                         // have the same opaque type
                         match file_uris {
                             SendData::Uris(os_strings) => Some(
-                                None.into_iter()
-                                    .chain(os_strings.into_iter().filter_map(ns_url_from_os_str)),
+                                None.into_iter().chain(os_strings.into_iter().map(ns_url_from_str)),
                             ),
                             SendData::String(string) => Some(
                                 Some(NSString::from_str(&string))
                                     .into_iter()
-                                    .chain(Vec::new().into_iter().filter_map(ns_url_from_os_str)),
+                                    .chain(Vec::new().into_iter().map(ns_url_from_str)),
                             ),
                             SendData::Bytes(_) => None,
                         }
