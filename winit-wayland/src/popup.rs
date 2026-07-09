@@ -95,17 +95,18 @@ impl Popup {
                     .ok_or(error("No position specified"))?
                     .to_logical(scale_factor);
                 let geometry_origin = parent_window_state.content_surface_origin();
+
+                // Anchoring
                 // The anchor rect is relative to the parent window geometry, so we need to subtract
                 // the geometry origin from the position to get the correct anchor rect.
                 // This is important for client side decorations
                 let anchor_position = LogicalPosition::new(-geometry_origin.x, -geometry_origin.y);
-
                 anchor.inspect(|a| positioner.set_anchor((*a).into()));
                 gravity.inspect(|g| positioner.set_gravity((*g).into()));
                 constraint_adjustment
                     .inspect(|c| positioner.set_constraint_adjustment((*c).into()));
                 let (anchor_x, anchor_y, anchor_width, anchor_height) =
-                    anchor_rect.unwrap_or((anchor_position.x, anchor_position.y, 1, 1));
+                    anchor_rect.unwrap_or((0, 0, 1, 1));
                 positioner.set_anchor_rect(
                     anchor_x + anchor_position.x,
                     anchor_y + anchor_position.y,
