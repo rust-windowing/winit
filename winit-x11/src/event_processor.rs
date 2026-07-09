@@ -609,7 +609,15 @@ impl EventProcessor {
                 return;
             };
 
-            if xev.target as u32 != type_.atom() {
+            // Annoyingly, `xproto::Atom` and `x11_dl::Atom` are different on 64-bit
+            // but the same on 32-bit, so just casting to `u32` will cause "casting
+            // to same type" clippy warnings when compiled as 32-bit.
+            #[cfg(target_pointer_width = "32")]
+            let target_type = xev.target;
+            #[cfg(target_pointer_width = "64")]
+            let target_type = xev.target as u32;
+
+            if target_type != type_.atom() {
                 let get_name = |atom| {
                     self.target
                         .xconn
