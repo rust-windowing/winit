@@ -259,12 +259,42 @@ pub trait TypedData: AsAny + fmt::Debug + Send + Sync {
     ///
     /// If this value is not readable as URIs, return `None`.
     ///
-    /// The format of the returned URIs is simply a vector of strings. No validation is done
-    /// to ensure that the URIs are valid or in the format
+    /// The format of the returned URIs is simply a vector of OS strings. No validation is done
+    /// to ensure that the URIs are valid, so long as they can be encoded as [`OsString`].
     ///
     /// If this returns [`WouldBlock`](std::io::ErrorKind::WouldBlock), then it should be called
     /// again upon next receiving
     /// [`WindowEvent::DataTransferReceived`](crate::event::WindowEvent::DataTransferReceived)
+    ///
+    /// ### Platform differences
+    ///
+    /// On all platforms other than Windows, for a local path `/path/to/foo` this will return
+    /// `file:///path/to/foo`. On Windows, URIs are not supported, so the path will be simply
+    /// returned as `X:\path\to\foo` (where `X` is the drive letter). This is not ideal but,
+    /// as even the simplest of Windows paths are non-trivial to encode and decode to URI,
+    /// winit errs on the side of keeping the returned URIs closer to what is provided by
+    /// the OS. This avoids making the `url` crate a required dependency simply to handle
+    /// the most-common case.
+    ///
+    /// If file paths are desired, one approach to handle this without `cfg`s is to use the
+    /// [`url`](https://docs.rs/url/2) crate, for example:
+    ///
+    /// ```rust,ignore
+    /// let uris = typed_data
+    ///     .try_as_uris()?
+    ///     .into_iter()
+    ///     .map(|os_string| {
+    ///         let uri_path = url::Url::parse(&os_string.to_string_lossy())
+    ///             .ok()
+    ///             .and_then(|url| url.to_file_path().ok());
+    ///
+    ///         match uri_path {
+    ///             Some(path) => path,
+    ///             None => PathBuf::from(os_string),
+    ///         }
+    ///     })
+    ///     .collect::<Vec<PathBuf>>();
+    /// ```
     fn try_as_uris(&self) -> io::Result<Vec<OsString>>;
 
     /// Read this value as a plain text string.

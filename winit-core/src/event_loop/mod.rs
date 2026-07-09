@@ -162,7 +162,7 @@ pub trait ActiveEventLoop: AsAny + fmt::Debug {
     /// set of valid actions supplied using this method, combined with the set of valid actions
     /// on the drag source. If the drag is rejected at the point that the user finalizes the drop,
     /// the application will receive [`DragLeft`](crate::event::WindowEvent::DragLeft) instead
-    /// of [`DragDropped`](crate::event::WindowEvent::DragDropped)`.
+    /// of [`DragDropped`](crate::event::WindowEvent::DragDropped).
     ///
     /// Note that _rejecting_ the drag is not the same as _canceling_ the drag. A rejected drag can
     /// be accepted later and the user can continue dragging it over other potential targets. On

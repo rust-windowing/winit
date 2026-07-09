@@ -155,6 +155,12 @@ impl RootActiveEventLoop for ActiveEventLoop {
 
         let data = Arc::new(pb.with_type(type_));
 
+        // The result of `window_ids` will almost always only contain a single window, but we
+        // allow multiple windows just to avoid silently overwriting the window ID.
+        //
+        // If it does ever contain multiple windows, the event will be emitted to all of them (not
+        // just the one that fetched it). In the worst case, the `serial` field can be used to
+        // deduplicate the event.
         for window_id in self.app_state.pasteboards().window_ids(id).iter().copied() {
             let data = data.clone();
             self.app_state.maybe_queue_with_handler(move |app, event_loop| {

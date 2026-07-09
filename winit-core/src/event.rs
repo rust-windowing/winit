@@ -100,7 +100,7 @@ pub enum WindowEvent {
         /// accepted.
         position: Option<PhysicalPosition<f64>>,
     },
-    /// The position of an ongoing drag operation has .
+    /// The position of an ongoing drag operation has changed.
     DragPosition {
         /// ID of the data transfer object, see
         /// [`crate::event_loop::ActiveEventLoop::data_transfer`](`crate::event_loop::ActiveEventLoop::data_transfer`).
@@ -139,6 +139,14 @@ pub enum WindowEvent {
         /// [`crate::event_loop::ActiveEventLoop::data_transfer`].
         id: DataTransferId,
     },
+    /// Data is available for a specific fetch request, see
+    /// [`fetch_data_transfer`](crate::event_loop::ActiveEventLoop::data_transfer).
+    ///
+    /// While winit makes a best effort to only send this event precisely once, on some platforms it
+    /// may not be possible to uniquely determine the window that should receive it. In these
+    /// cases, winit may dispatch the event to all  windows that have access to the data
+    /// transfer. If your application should only process this event once per data transfer, the
+    /// `serial` field can be used to deduplicate it.
     DataTransferReceived {
         /// ID of the data transfer object, see
         /// [`crate::event_loop::ActiveEventLoop::data_transfer`].
