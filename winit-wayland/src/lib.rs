@@ -20,7 +20,7 @@
 use std::ffi::c_void;
 use std::ptr::NonNull;
 
-use dpi::{LogicalSize, PhysicalSize};
+use dpi::{LogicalSize, PhysicalSize, Position, Size};
 use sctk::reexports::client::Proxy;
 use sctk::reexports::client::protocol::wl_surface::WlSurface;
 use sctk::shm::slot::{Buffer, CreateBufferError, SlotPool};
@@ -147,7 +147,7 @@ pub struct WindowAttributesWayland {
     pub(crate) activation_token: Option<ActivationToken>,
     pub(crate) prefer_csd: bool,
     pub(crate) anchor: Option<PopupAnchor>,
-    pub(crate) anchor_rect: Option<(i32, i32, i32, i32)>,
+    pub(crate) anchor_rect: Option<(Position, Size)>,
     pub(crate) gravity: Option<PopupGravity>,
     pub(crate) constraint_adjustment: Option<PopupConstraintAdjustment>,
     pub(crate) grab_keyboard: bool,
@@ -191,9 +191,13 @@ impl WindowAttributesWayland {
         self
     }
 
+    /// Set the anchor rectangle the popup is positioned relative to.
+    ///
+    /// `position` is the top-left corner of the rectangle relative to the parent window's content
+    /// area, and `size` its dimensions. Defaults to a `1x1` rectangle at the content origin.
     #[inline]
-    pub fn with_anchor_rect(mut self, x: i32, y: i32, width: i32, height: i32) -> Self {
-        self.anchor_rect = Some((x, y, width, height));
+    pub fn with_anchor_rect(mut self, position: impl Into<Position>, size: impl Into<Size>) -> Self {
+        self.anchor_rect = Some((position.into(), size.into()));
         self
     }
 

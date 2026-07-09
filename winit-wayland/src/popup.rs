@@ -2,7 +2,9 @@ use core::sync::atomic::Ordering;
 use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, Mutex, Weak};
 
-use dpi::{LogicalPosition, PhysicalInsets, PhysicalPosition, PhysicalSize, Position, Size};
+use dpi::{
+    LogicalPosition, LogicalSize, PhysicalInsets, PhysicalPosition, PhysicalSize, Position, Size,
+};
 use rwh_06::RawWindowHandle;
 use sctk::compositor::SurfaceData;
 use sctk::shell::WaylandSurface;
@@ -107,13 +109,18 @@ impl Popup {
                 gravity.inspect(|g| positioner.set_gravity((*g).into()));
                 constraint_adjustment
                     .inspect(|c| positioner.set_constraint_adjustment((*c).into()));
-                let (anchor_x, anchor_y, anchor_width, anchor_height) =
-                    anchor_rect.unwrap_or((0, 0, 1, 1));
+                let (anchor_rect_position, anchor_rect_size) = match anchor_rect {
+                    Some((position, size)) => (
+                        position.to_logical::<i32>(scale_factor),
+                        size.to_logical::<i32>(scale_factor),
+                    ),
+                    None => (LogicalPosition::new(0, 0), LogicalSize::new(1, 1)),
+                };
                 positioner.set_anchor_rect(
-                    anchor_x + anchor_position.x,
-                    anchor_y + anchor_position.y,
-                    anchor_width.max(1),
-                    anchor_height.max(1),
+                    anchor_rect_position.x + anchor_position.x,
+                    anchor_rect_position.y + anchor_position.y,
+                    anchor_rect_size.width.max(1),
+                    anchor_rect_size.height.max(1),
                 );
                 positioner.set_offset(position.x, position.y);
                 positioner.set_size(
