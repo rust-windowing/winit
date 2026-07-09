@@ -1,4 +1,4 @@
-use std::cell::{Ref, RefCell};
+use std::cell::RefCell;
 use std::collections::HashMap;
 use std::io;
 use std::ops::{BitOr, ControlFlow};
@@ -321,7 +321,7 @@ impl TypedData for PasteboardValue {
 
 #[derive(Debug)]
 struct ActivePasteboard {
-    window_ids: Vec<WindowId>,
+    window_id: WindowId,
     pb: MainThreadBound<Weak<NSPasteboard>>,
 }
 
@@ -357,20 +357,15 @@ impl Pasteboards {
         pb: &MainThreadBound<Retained<NSPasteboard>>,
         window_id: WindowId,
     ) {
-        self.inner
-            .borrow_mut()
-            .entry(transfer_id)
-            .or_insert_with(|| {
-                pb.get_on_main(move |pb| ActivePasteboard {
-                    window_ids: vec![],
-                    pb: MainThreadBound::new(
-                        Weak::from_retained(pb),
-                        MainThreadMarker::new().unwrap(),
-                    ),
-                })
+        let mut inner = self.inner.borrow_mut();
+        let transfer = inner.entry(transfer_id).or_insert_with(move || {
+            pb.get_on_main(move |pb| ActivePasteboard {
+                window_id,
+                pb: MainThreadBound::new(Weak::from_retained(pb), MainThreadMarker::new().unwrap()),
             })
-            .window_ids
-            .push(window_id);
+        });
+
+        transfer.window_id = window_id;
     }
 
     pub fn get(&self, id: DataTransferId) -> Option<Pasteboard> {
@@ -383,15 +378,9 @@ impl Pasteboards {
         })
     }
 
-    /// This should almost always contain only a single window, but we allow multiple just
-    /// to avoid silently swallowing errors.
-    pub fn window_ids(&self, id: DataTransferId) -> Ref<'_, [WindowId]> {
-        Ref::map(self.inner.borrow(), |borrow| {
-            borrow
-                .get(&id)
-                .map(|active_pasteboard| &active_pasteboard.window_ids[..])
-                .unwrap_or(&[])
-        })
+    /// Get the window ID that most-recently saw the provided data transfer.
+    pub fn window_id(&self, id: DataTransferId) -> Option<WindowId> {
+        self.inner.borrow().get(&id).map(|active_pasteboard| active_pasteboard.window_id)
     }
 }
 
