@@ -85,7 +85,7 @@ impl WinitSeatState {
         Default::default()
     }
 
-    /// Returns the serial of the most recent input event on this seat, or `0` if none has
+    /// Returns the serial of the most recent input event on this seat, or `None` if none has
     /// been received yet.
     pub fn latest_serial(&self) -> Option<u32> {
         self.latest_input_serial.get()
