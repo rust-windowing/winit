@@ -217,6 +217,30 @@ impl TransferType for TypeHint {
 
 impl_dyn_casting!(TransferType);
 
+// Replicates the cfg for `url::Url::parse`
+#[cfg(any(unix, windows, target_os = "redox", target_os = "wasi", target_os = "hermit"))]
+fn default_try_as_file_paths<T: TypedData + ?Sized>(data: &T) -> io::Result<Vec<PathBuf>> {
+    data.try_as_uris().and_then(|uris| {
+        uris.into_iter()
+            .map(|uri_string| {
+                Ok(url::Url::parse(&uri_string)
+                    .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?
+                    .to_file_path()
+                    .map_err(|()| io::ErrorKind::InvalidData)?)
+            })
+            .collect()
+    })
+}
+
+// Replicates the cfg for `url::Url::parse`
+//
+// It doesn't matter that this is unimplemented on the web, as we don't currently support
+// drag-and-drop for web targets and the web platform can't directly access paths anyway.
+#[cfg(not(any(unix, windows, target_os = "redox", target_os = "wasi", target_os = "hermit")))]
+fn default_try_as_file_paths<T: TypedData + ?Sized>(data: &T) -> io::Result<Vec<PathBuf>> {
+    Err(io::ErrorKind::Unsupported)
+}
+
 /// Data that has been fetched from a data transfer
 ///
 /// ### Blocking
@@ -278,16 +302,7 @@ pub trait TypedData: AsAny + fmt::Debug + Send + Sync {
     /// again upon next receiving
     /// [`WindowEvent::DataTransferReceived`](crate::event::WindowEvent::DataTransferReceived)
     fn try_as_file_paths(&self) -> io::Result<Vec<PathBuf>> {
-        self.try_as_uris().and_then(|uris| {
-            uris.into_iter()
-                .map(|uri_string| {
-                    Ok(url::Url::parse(&uri_string)
-                        .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?
-                        .to_file_path()
-                        .map_err(|()| io::ErrorKind::InvalidData)?)
-                })
-                .collect()
-        })
+        default_try_as_file_paths(self)
     }
 
     /// Read this value as a plain text string.
@@ -397,13 +412,39 @@ impl SendData {
         I: IntoIterator,
         I::Item: AsRef<Path>,
     {
-        paths
-            .into_iter()
-            .map(url::Url::from_file_path)
-            .map(|result| result.map(String::from))
-            .collect::<Result<Vec<_>, ()>>()
-            .map(Self::Uris)
-            .ok()
+        // Replicates the cfg for `url::Url::from_file_path`
+        #[cfg(any(unix, windows, target_os = "redox", target_os = "wasi", target_os = "hermit"))]
+        fn from_file_paths_impl<I>(paths: I) -> Option<SendData>
+        where
+            I: IntoIterator,
+            I::Item: AsRef<Path>,
+        {
+            paths
+                .into_iter()
+                .map(url::Url::from_file_path)
+                .map(|result| result.map(String::from))
+                .collect::<Result<Vec<_>, ()>>()
+                .map(SendData::Uris)
+                .ok()
+        }
+
+        // Replicates the cfg for `url::Url::from_file_path`
+        //
+        // It doesn't matter that this is unimplemented on the web, as we don't currently support
+        // drag-and-drop for web targets and the web platform can't directly access paths
+        // anyway.
+        #[cfg(not(any(
+            unix,
+            windows,
+            target_os = "redox",
+            target_os = "wasi",
+            target_os = "hermit"
+        )))]
+        fn from_file_paths_impl<I>(paths: I) -> Option<SendData> {
+            None
+        }
+
+        from_file_paths_impl(paths)
     }
 }
 
