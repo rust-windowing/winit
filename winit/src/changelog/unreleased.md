@@ -67,3 +67,4 @@ changelog entry.
 - On macOS, fix borderless game presentation options not sticking after switching spaces.
 - On macOS, fix IME being locked on (regardless of requests to disable) after being enabled once.
 - On macOS, fix a panic and incorrect cursor position in Ime::Preedit when the preedit string contains special characters (ie. emojis) caused by incorrect UTF-16 to UTF-8 offset conversion.
+- On Wayland, fix a protocol error when setting a custom cursor on compositors with `wl_surface` version below 3.
