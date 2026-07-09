@@ -289,11 +289,9 @@ impl CoreWindow for Popup {
             .upgrade()
             .ok_or_else(|| NotSupportedError::new("the popup has been destroyed"))?;
         let state = s.lock().unwrap();
-        if let WindowType::Popup { last_configure, .. } = &state.window {
-            if let Some(configure) = last_configure {
-                let (x, y) = configure.position;
-                return Ok(LogicalPosition::new(x, y).to_physical(state.scale_factor()));
-            }
+        if let WindowType::Popup { last_configure: Some(configure), .. } = &state.window {
+            let (x, y) = configure.position;
+            return Ok(LogicalPosition::new(x, y).to_physical(state.scale_factor()));
         }
         Err(NotSupportedError::new("the popup has not been configured yet").into())
     }
