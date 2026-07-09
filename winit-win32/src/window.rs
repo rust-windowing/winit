@@ -1426,7 +1426,9 @@ unsafe fn init(
     window_flags.set(WindowFlags::MARKER_ACTIVATE, attributes.active);
     window_flags.set(WindowFlags::TRANSPARENT, attributes.transparent);
     // WindowFlags::VISIBLE and MAXIMIZED are set down below after the window has been configured.
-    window_flags.set(WindowFlags::RESIZABLE, attributes.resizable);
+    // Popups are never resizable, matching the Wayland and macOS backends (and avoiding the
+    // thick `WS_SIZEBOX` resize frame).
+    window_flags.set(WindowFlags::RESIZABLE, attributes.resizable && !is_popup);
     // Will be changed later using `window.set_enabled_buttons` but we need to set a default here
     // so the diffing later can work.
     window_flags.set(WindowFlags::CLOSABLE, true);

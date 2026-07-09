@@ -13,7 +13,8 @@ use windows_sys::Win32::UI::WindowsAndMessaging::{
     SWP_NOREPOSITION, SWP_NOSIZE, SWP_NOZORDER, SendMessageW, SetWindowLongW, SetWindowPos,
     ShowWindow, WINDOW_EX_STYLE, WINDOW_STYLE, WINDOWPLACEMENT, WS_BORDER, WS_CAPTION, WS_CHILD,
     WS_CLIPCHILDREN, WS_CLIPSIBLINGS, WS_EX_ACCEPTFILES, WS_EX_APPWINDOW, WS_EX_LAYERED,
-    WS_EX_NOREDIRECTIONBITMAP, WS_EX_TOPMOST, WS_EX_TRANSPARENT, WS_EX_WINDOWEDGE, WS_MAXIMIZE,
+    WS_EX_NOACTIVATE, WS_EX_NOREDIRECTIONBITMAP, WS_EX_TOPMOST, WS_EX_TRANSPARENT, WS_EX_WINDOWEDGE,
+    WS_MAXIMIZE,
     WS_MAXIMIZEBOX, WS_MINIMIZE, WS_MINIMIZEBOX, WS_OVERLAPPEDWINDOW, WS_POPUP, WS_SIZEBOX,
     WS_SYSMENU, WS_VISIBLE,
 };
@@ -279,6 +280,9 @@ impl WindowFlags {
         let mut style_ex = WS_EX_WINDOWEDGE | WS_EX_ACCEPTFILES;
         if self.contains(WindowFlags::POPUP) {
             style |= WS_POPUP;
+            // Don't activate the popup (and thus don't deactivate the parent) when it is shown or
+            // clicked
+            style_ex |= WS_EX_NOACTIVATE;
         } else {
             style |= WS_CAPTION | WS_SYSMENU;
         };
