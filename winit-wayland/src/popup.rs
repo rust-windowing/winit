@@ -54,12 +54,6 @@ impl Popup {
             RequestError::NotSupported(NotSupportedError::new(message))
         }
 
-        let grab_keyboard =
-            matches!(attributes.window_type, winit_core::window::WindowType::Popup {
-                grab_keyboard: true,
-                ..
-            });
-
         let parent_window_handle =
             attributes.parent_window().ok_or(error("Popup without a parent is not supported!"))?;
         if let RawWindowHandle::Wayland(parent_window_handle) = parent_window_handle {
@@ -79,12 +73,20 @@ impl Popup {
             {
                 let size = attributes.surface_size.ok_or(error("Invalid size for popup"))?;
 
-                let (gravity, anchor, anchor_rect, constraint_adjustment) = attributes
+                let wayland_attributes = attributes
                     .platform
                     .as_ref()
                     .and_then(|p| p.cast_ref::<WindowAttributesWayland>())
-                    .map(|a| (a.gravity, a.anchor, a.anchor_rect, a.constraint_adjustment))
+                    .cloned()
                     .unwrap_or_default();
+                let WindowAttributesWayland {
+                    gravity,
+                    anchor,
+                    anchor_rect,
+                    constraint_adjustment,
+                    grab_keyboard,
+                    ..
+                } = wayland_attributes;
 
                 let mut parent_window_state = parent_window_state.lock().unwrap();
 

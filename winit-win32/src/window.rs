@@ -1413,7 +1413,7 @@ unsafe fn init(
     let class_name = util::encode_wide(&win_attributes.class_name);
     unsafe { register_window_class(&class_name) };
 
-    let is_popup = matches!(attributes.window_type, WindowType::Popup { .. });
+    let is_popup = matches!(attributes.window_type, WindowType::Popup);
     let mut window_flags = WindowFlags::empty();
     window_flags.set(WindowFlags::MARKER_DECORATIONS, attributes.decorations);
     window_flags.set(WindowFlags::POPUP, is_popup);

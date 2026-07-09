@@ -63,13 +63,11 @@ pub enum WindowType {
     ///   corners for it. To get a rounded, native-looking popup, create it transparent (via
     ///   [`WindowAttributes::with_transparent`]) and render the round border yourself.
     /// - **X11:** An error is returned because it is not implemented
-    /// - **Wayland:** Set `grab_keyboard: true` to request an `xdg_popup.grab` so that keyboard
-    ///   events are routed to the popup instead of the parent window. The grab uses the serial of
-    ///   the most recent pointer button press and must be requested before the popup is mapped.
-    Popup {
-        /// Request a keyboard grab for this popup (Wayland only).
-        grab_keyboard: bool,
-    },
+    /// - **Wayland:** Use `WindowAttributesWayland::with_grab_keyboard` to request an
+    ///   `xdg_popup.grab` so that keyboard events are routed to the popup instead of the parent
+    ///   window. The grab uses the serial of the most recent pointer button press and must be
+    ///   requested before the popup is mapped.
+    Popup,
 }
 
 /// Attributes used when creating a window.

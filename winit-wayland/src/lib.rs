@@ -150,6 +150,7 @@ pub struct WindowAttributesWayland {
     pub(crate) anchor_rect: Option<(i32, i32, i32, i32)>,
     pub(crate) gravity: Option<PopupGravity>,
     pub(crate) constraint_adjustment: Option<PopupConstraintAdjustment>,
+    pub(crate) grab_keyboard: bool,
 }
 
 impl WindowAttributesWayland {
@@ -208,6 +209,20 @@ impl WindowAttributesWayland {
     #[inline]
     pub fn with_gravity(mut self, gravity: PopupGravity) -> Self {
         self.gravity = Some(gravity);
+        self
+    }
+
+    /// Request a keyboard grab for a [`Popup`] window.
+    ///
+    /// When set to `true`, the popup requests an `xdg_popup.grab` so that keyboard events are
+    /// routed to the popup instead of the parent window. The grab uses the serial of the most
+    /// recent pointer button press and must be requested before the popup is mapped. Has no effect
+    /// unless the window is created with [`Popup`].
+    ///
+    /// [`Popup`]: winit_core::window::WindowType::Popup
+    #[inline]
+    pub fn with_grab_keyboard(mut self, grab_keyboard: bool) -> Self {
+        self.grab_keyboard = grab_keyboard;
         self
     }
 }

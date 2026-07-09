@@ -66,7 +66,7 @@ impl Window {
                 event_loop.windows.borrow_mut().insert(window.id(), Arc::downgrade(&window));
                 Ok(Window(window))
             },
-            WindowType::Popup { .. } => Err(RequestError::NotSupported(NotSupportedError::new(
+            WindowType::Popup => Err(RequestError::NotSupported(NotSupportedError::new(
                 "Popups are not implemented for X11",
             ))),
             _ => Err(RequestError::NotSupported(NotSupportedError::new("Unsupported window type"))),
