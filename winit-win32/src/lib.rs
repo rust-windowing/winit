@@ -39,6 +39,17 @@ use self::icon::{RaiiIcon, SelectedCursor};
 pub use self::keyboard::{physicalkey_to_scancode, scancode_to_physicalkey};
 pub use self::monitor::{MonitorHandle, VideoModeHandle};
 pub use self::window::Window;
+use winit_core::keyboard::{Key, KeyCode, ModifiersState, NativeKey};
+
+/// Stub implementation for physical to logical key mapping on Windows.
+pub fn physical_to_logical_key(
+    _keycode: KeyCode,
+    _modifiers: ModifiersState,
+    _caps_lock: bool,
+    _num_lock: bool,
+) -> Key {
+    Key::Unidentified(NativeKey::Unidentified)
+}
 
 /// Window Handle type used by Win32 API
 pub type HWND = *mut c_void;

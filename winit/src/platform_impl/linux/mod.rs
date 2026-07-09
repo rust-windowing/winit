@@ -9,6 +9,17 @@ use std::time::Duration;
 
 pub(crate) use winit_common::xkb::{physicalkey_to_scancode, scancode_to_physicalkey};
 use winit_core::application::ApplicationHandler;
+use winit_core::keyboard::{Key, KeyCode, ModifiersState, NativeKey};
+
+/// Stub implementation for physical to logical key mapping on Linux.
+pub fn physical_to_logical_key(
+    _keycode: KeyCode,
+    _modifiers: ModifiersState,
+    _caps_lock: bool,
+    _num_lock: bool,
+) -> Key {
+    Key::Unidentified(NativeKey::Unidentified)
+}
 use winit_core::error::{EventLoopError, NotSupportedError};
 use winit_core::event_loop::ActiveEventLoop;
 use winit_core::event_loop::pump_events::PumpStatus;
