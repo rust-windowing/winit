@@ -370,6 +370,10 @@ impl PopupHandler for WinitState {
 
     fn done(&mut self, _: &Connection, _: &QueueHandle<Self>, popup: &XdgPopup) {
         let window_id = super::make_wid(popup.wl_surface());
+        let window_requests = self.window_requests.get_mut().iter().find(|r| *r.0 == window_id);
+        if let Some(window_requests) = window_requests {
+            window_requests.1.closed.store(true, Ordering::Relaxed);
+        }
         Self::queue_close(&mut self.window_compositor_updates, window_id);
     }
 }
