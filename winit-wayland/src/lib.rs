@@ -196,7 +196,11 @@ impl WindowAttributesWayland {
     /// `position` is the top-left corner of the rectangle relative to the parent window's content
     /// area, and `size` its dimensions. Defaults to a `1x1` rectangle at the content origin.
     #[inline]
-    pub fn with_anchor_rect(mut self, position: impl Into<Position>, size: impl Into<Size>) -> Self {
+    pub fn with_anchor_rect(
+        mut self,
+        position: impl Into<Position>,
+        size: impl Into<Size>,
+    ) -> Self {
         self.anchor_rect = Some((position.into(), size.into()));
         self
     }
