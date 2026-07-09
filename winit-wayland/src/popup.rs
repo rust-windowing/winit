@@ -94,8 +94,8 @@ impl Popup {
                 let scale_factor = parent_window_state.scale_factor();
                 let position: LogicalPosition<i32> = attributes
                     .position
-                    .ok_or(error("No position specified"))?
-                    .to_logical(scale_factor);
+                    .map(|position| position.to_logical(scale_factor))
+                    .unwrap_or_default();
                 let geometry_origin = parent_window_state.content_surface_origin();
 
                 // Anchoring
