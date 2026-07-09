@@ -1,20 +1,28 @@
-use std::ffi::OsString;
+use std::ffi::OsStr;
 use std::io::{BufRead, Cursor, Read, Write};
 use std::mem;
 
 #[derive(Default, Debug)]
 pub struct UriListEncoder {
-    uris: <Vec<OsString> as IntoIterator>::IntoIter,
+    uris: <Vec<String> as IntoIterator>::IntoIter,
     // Weird system with two fields since otherwise we get lifetime errors.
     uri_reader: Cursor<Vec<u8>>,
     newline_reader: Cursor<&'static [u8]>,
 }
 
-impl From<Vec<OsString>> for UriListEncoder {
-    fn from(value: Vec<OsString>) -> Self {
+impl From<Vec<String>> for UriListEncoder {
+    fn from(value: Vec<String>) -> Self {
+        let mut uris = value.into_iter();
+
+        let Some(first_uri) = uris.next() else {
+            return Default::default();
+        };
+
+        let first_uri_bytes = OsStr::new(&first_uri).as_encoded_bytes().to_owned();
+
         Self {
-            uris: value.into_iter(),
-            uri_reader: Cursor::new(bytes),
+            uris,
+            uri_reader: Cursor::new(first_uri_bytes),
             newline_reader: Cursor::new(b"\r\n"),
         }
     }
@@ -73,8 +81,7 @@ impl BufRead for UriListEncoder {
         let mut bytes = mem::take(self.uri_reader.get_mut());
 
         bytes.clear();
-
-        percent_encode_into(&mut bytes, next_uri.as_encoded_bytes());
+        bytes.copy_from_slice(OsStr::new(&next_uri).as_encoded_bytes());
 
         self.uri_reader = Cursor::new(bytes);
         self.newline_reader.set_position(0);

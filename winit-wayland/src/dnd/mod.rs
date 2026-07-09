@@ -2,11 +2,9 @@
 
 mod send_data;
 
-use std::ffi::OsString;
 use std::fmt;
 use std::io::{self, BufRead, Cursor, ErrorKind};
 use std::ops::{BitOr, Deref};
-use std::os::unix::ffi::OsStringExt;
 use std::sync::Arc;
 
 use calloop::PostAction;
@@ -65,7 +63,7 @@ impl DataSourceHandler for WinitState {
         };
 
         let mut encoder = match send_data {
-            SendData::Uris(os_strings) => SendDataEncoder::Uris(os_strings.into()),
+            SendData::Uris(strings) => SendDataEncoder::Uris(strings.into()),
             SendData::String(str) => match mime.parse_charset() {
                 Ok(Charset::Utf8) => SendDataEncoder::Bytes(Cursor::new(str.into_bytes())),
                 Err(e) => {
@@ -246,12 +244,18 @@ impl MimeType {
         let downcast_failed = downcast.is_none();
         // This filter is a bit hacky, but it's the only way to ensure that we always
         // return the same type.
-        let from_hint = Some(()).filter(|_| downcast_failed).into_iter().flat_map(move |()| {
-            Self::MIME_HINT_MAP
-                .iter()
-                .filter(move |(_, haystack)| TransferType::matches(haystack, type_))
-                .map(move |(mime, _)| Self { mime: mime.to_string().into(), hint: type_.hint() })
-        });
+        let from_hint = downcast_failed
+            .then_some(
+                Self::MIME_HINT_MAP
+                    .iter()
+                    .filter(move |(_, haystack)| TransferType::matches(haystack, type_))
+                    .map(move |(mime, _)| Self {
+                        mime: mime.to_string().into(),
+                        hint: type_.hint(),
+                    }),
+            )
+            .into_iter()
+            .flatten();
 
         downcast.into_iter().chain(from_hint)
     }

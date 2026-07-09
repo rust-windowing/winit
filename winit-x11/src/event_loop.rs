@@ -812,8 +812,11 @@ impl RootActiveEventLoop for ActiveEventLoop {
 
             state.pending_fetch_types.push_back((serial, type_));
 
-            Some((state.target_window, self.xconn.timestamp(), atom))
-                .filter(|_| should_emit_convert_selection)
+            should_emit_convert_selection.then_some((
+                state.target_window,
+                self.xconn.timestamp(),
+                atom,
+            ))
         };
 
         if let Some((window, time, new_type)) = new_convert_selection {
