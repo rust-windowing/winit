@@ -62,9 +62,10 @@ changelog entry.
   tools such as Punto Switcher. The `WM_INPUTLANGCHANGE` message is now handled
   to refresh the cached keyboard layout, while still deferring to
   `DefWindowProc` for normal propagation.
+- On Windows, fix missing focus events after showing a hidden maximized window.
 - On Redox, handle `EINTR` when reading from `event_socket` instead of panicking.
 - On Wayland, switch from using the `ahash` hashing algorithm to `foldhash`.
 - On macOS, fix borderless game presentation options not sticking after switching spaces.
 - On macOS, fix IME being locked on (regardless of requests to disable) after being enabled once.
 - On macOS, fix a panic and incorrect cursor position in Ime::Preedit when the preedit string contains special characters (ie. emojis) caused by incorrect UTF-16 to UTF-8 offset conversion.
-- On Windows, fix missing focus events after showing a hidden maximized window.
+- On Wayland, fix a protocol error when setting a custom cursor on compositors with `wl_surface` version below 3.

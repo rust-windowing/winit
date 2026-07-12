@@ -22,6 +22,13 @@ targets = [
     "x86_64-unknown-redox",
 ]
 
+[advisories]
+ignore = [
+    { id = "RUSTSEC-2026-0192", reason = "ttf-parser is unmaintained; pulled in by sctk-adwaita via ab_glyph/owned_ttf_parser" },
+    { id = "RUSTSEC-2026-0194", reason = "quick-xml DoS on untrusted XML; only used at build time by wayland-scanner on trusted protocol files, and wayland-scanner requires quick-xml 0.39" },
+    { id = "RUSTSEC-2026-0195", reason = "same quick-xml build-time usage as RUSTSEC-2026-0194" },
+]
+
 [licenses]
 allow = [
     "Apache-2.0",   # https://tldrlegal.com/license/apache-license-2.0-(apache-2.0)
