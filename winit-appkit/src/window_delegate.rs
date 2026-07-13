@@ -867,6 +867,8 @@ impl WindowDelegate {
         // Set fullscreen mode after we setup everything
         delegate.set_fullscreen(attrs.fullscreen);
 
+        delegate.set_simple_fullscreen(macos_attrs.simple_fullscreen);
+
         // Setting the window as key has to happen *after* we set the fullscreen
         // state, since otherwise we'll briefly see the window at normal size
         // before it transitions.
