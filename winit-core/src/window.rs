@@ -1267,7 +1267,8 @@ pub trait Window: AsAny + Send + Sync + fmt::Debug {
     ///   get the system preference.
     /// - **X11:** Sets `_GTK_THEME_VARIANT` hint to `dark` or `light` and if `None` is used, it
     ///   will default to  [`Theme::Dark`].
-    /// - **iOS / Android / Web / Orbital:** Unsupported.
+    /// - **Android / Web / Orbital:** Unsupported.
+    /// - **iOS:** Requires iOS 13.0+.
     fn set_theme(&self, theme: Option<Theme>);
 
     /// Returns the current window theme.
@@ -1276,7 +1277,8 @@ pub trait Window: AsAny + Send + Sync + fmt::Debug {
     ///
     /// ## Platform-specific
     ///
-    /// - **iOS / Android / x11 / Orbital:** Unsupported.
+    /// - **Android / x11 / Orbital:** Unsupported.
+    /// - **iOS:** Requires iOS 13.0+.
     /// - **Wayland:** Only returns theme overrides.
     fn theme(&self) -> Option<Theme>;
 
