@@ -78,6 +78,12 @@ pub struct WindowAttributes {
     pub min_surface_size: Option<Size>,
     pub max_surface_size: Option<Size>,
     pub surface_resize_increments: Option<Size>,
+    /// The initial position of the window in screen coordinates.
+    ///
+    /// For popups, this position is relative to the parent window.
+    ///
+    /// **Wayland:** The position is relative to the anchor point defined
+    /// with the anchor rect attribute.
     pub position: Option<Position>,
     pub resizable: bool,
     pub enabled_buttons: WindowButtons,
