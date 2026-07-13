@@ -1,7 +1,9 @@
-use std::error::Error;
-use std::ops::Deref;
-use std::sync::Arc;
-use std::{fmt, io, mem};
+use alloc::sync::Arc;
+use alloc::vec::Vec;
+use core::error::Error;
+use core::ops::Deref;
+use core::{fmt, mem};
+use std::io;
 
 use crate::as_any::AsAny;
 

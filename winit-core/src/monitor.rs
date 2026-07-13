@@ -5,11 +5,12 @@
 //! methods, which return an iterator of [`MonitorHandle`]:
 //! - [`ActiveEventLoop::available_monitors`][crate::event_loop::ActiveEventLoop::available_monitors].
 //! - [`Window::available_monitors`][crate::window::Window::available_monitors].
-use std::borrow::Cow;
-use std::fmt;
-use std::num::{NonZeroU16, NonZeroU32};
-use std::ops::Deref;
-use std::sync::Arc;
+use alloc::borrow::Cow;
+use alloc::boxed::Box;
+use alloc::sync::Arc;
+use core::fmt;
+use core::num::{NonZeroU16, NonZeroU32};
+use core::ops::Deref;
 
 use dpi::{PhysicalPosition, PhysicalSize};
 

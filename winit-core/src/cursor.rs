@@ -1,9 +1,11 @@
+use alloc::string::String;
+use alloc::sync::Arc;
+use alloc::vec::Vec;
+use core::error::Error;
 use core::fmt;
-use std::error::Error;
-use std::hash::Hash;
-use std::ops::Deref;
-use std::sync::Arc;
-use std::time::Duration;
+use core::hash::Hash;
+use core::ops::Deref;
+use core::time::Duration;
 
 #[doc(inline)]
 pub use cursor_icon::CursorIcon;
@@ -92,7 +94,7 @@ impl PartialEq for CustomCursor {
 impl Eq for CustomCursor {}
 
 impl Hash for CustomCursor {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+    fn hash<H: core::hash::Hasher>(&self, state: &mut H) {
         Arc::as_ptr(&self.0).hash(state);
     }
 }

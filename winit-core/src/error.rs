@@ -1,5 +1,6 @@
-use std::error::Error;
-use std::fmt::{self, Display};
+use alloc::boxed::Box;
+use core::error::Error;
+use core::fmt::{self, Display};
 
 /// A general error that may occur while running or creating
 /// the event loop.
