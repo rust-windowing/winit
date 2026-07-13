@@ -24,17 +24,20 @@ serde = [
 
 [dependencies]
 bitflags.workspace = true
-cursor-icon.workspace = true
-dpi.workspace = true
-keyboard-types.workspace = true
-rwh_06.workspace = true
-serde = { workspace = true, optional = true }
-smol_str.workspace = true
-url.workspace = true
+cursor-icon = { workspace = true, default-features = false }
+dpi = { workspace = true, default-features = false }
+keyboard-types = { workspace = true, default-features = false }
+rwh_06 = { workspace = true, default-features = false }
+serde = { workspace = true, default-features = false, optional = true }
+smol_str = { workspace = true, default-features = false }
+url = { workspace = true, default-features = false }
 
 # `wasm32-unknown-unknown` and `wasm32-none`, but not `wasm32-wasi`.
 [target.'cfg(all(target_family = "wasm", any(target_os = "unknown", target_os = "none")))'.dependencies]
-web-time.workspace = true
+web-time = { workspace = true, default-features = false }
+
+[target.'cfg(not(all(target_family = "wasm", target_os = "none")))'.dependencies]
+url = { workspace = true, default-features = false, features = ["std"] }
 
 [dev-dependencies]
 winit.workspace = true
