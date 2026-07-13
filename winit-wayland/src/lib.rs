@@ -92,6 +92,8 @@ impl WindowExtWayland for dyn CoreWindow + '_ {
     }
 }
 
+/// Anchor rect within the parent surface
+/// See: https://wayland.app/protocols/xdg-shell#xdg_positioner:request:set_anchor_rect
 #[derive(Debug, Clone, Copy, Default, PartialEq)]
 #[non_exhaustive]
 pub enum PopupAnchor {
@@ -107,6 +109,8 @@ pub enum PopupAnchor {
     BottomRight,
 }
 
+/// Defines in what direction a surface should be positioned
+/// See: https://wayland.app/protocols/xdg-shell#xdg_positioner:request:set_gravity
 #[derive(Debug, Clone, Copy, Default, PartialEq)]
 #[non_exhaustive]
 pub enum PopupGravity {
@@ -123,6 +127,8 @@ pub enum PopupGravity {
 }
 
 bitflags::bitflags! {
+    /// Specify how the window should be positioned if the originally intended position caused the
+    /// surface to be constrained See: https://wayland.app/protocols/xdg-shell#xdg_positioner:request:set_constraint_adjustment
     #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
     pub struct PopupConstraintAdjustment: u32 {
         const SLIDE_X = 1 << 0;
