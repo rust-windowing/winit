@@ -60,6 +60,7 @@ pub(crate) struct WindowState {
 
     // Flag whether redraw was requested.
     pub redraw_requested: bool,
+    pub menu_loop_depth: u32,
 
     pub dragging: bool,
 
@@ -191,6 +192,7 @@ impl WindowState {
             is_active: false,
             is_focused: false,
             redraw_requested: false,
+            menu_loop_depth: 0,
 
             dragging: false,
 
