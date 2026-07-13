@@ -16,6 +16,7 @@ use sctk::seat::SeatState;
 use sctk::seat::pointer::ThemedPointer;
 use sctk::shell::WaylandSurface;
 use sctk::shell::xdg::XdgShell;
+use sctk::shell::xdg::dialog::DialogHandler;
 use sctk::shell::xdg::popup::{Popup as XdgPopup, PopupConfigure, PopupHandler};
 use sctk::shell::xdg::window::{Window, WindowConfigure, WindowHandler};
 use sctk::shm::slot::SlotPool;
@@ -373,6 +374,56 @@ impl PopupHandler for WinitState {
     }
 }
 
+impl DialogHandler for WinitState {
+    fn configure(
+        &mut self,
+        conn: &Connection,
+        qh: &QueueHandle<Self>,
+        dialog: &sctk::shell::xdg::dialog::Dialog,
+        configure: sctk::shell::xdg::window::WindowConfigure,
+        serial: u32,
+    ) {
+        let window_id = super::make_wid(dialog.wl_surface());
+
+        if let Some(index) =
+            self.window_compositor_updates.iter().position(|update| update.window_id == window_id)
+        {
+            index
+        } else {
+            self.window_compositor_updates.push(WindowCompositorUpdate::new(window_id));
+            self.window_compositor_updates.len() - 1
+        };
+
+        self.windows
+            .get_mut()
+            .get_mut(&window_id)
+            .expect("got configure for dead window.")
+            .lock()
+            .unwrap()
+            .configure_dialog(configure);
+
+        // NOTE: configure demands wl_surface::commit, however winit doesn't commit on behalf of the
+        // users, since it can break a lot of things, thus it'll ask users to redraw instead
+        self.window_requests
+            .get_mut()
+            .get(&window_id)
+            .unwrap()
+            .redraw_requested
+            .store(true, Ordering::Relaxed);
+
+        // Manually mark that we've got an event, since configure may not generate a resize.
+        self.dispatched_events = true;
+    }
+    fn request_close(
+        &mut self,
+        conn: &Connection,
+        qh: &QueueHandle<Self>,
+        window: &sctk::shell::xdg::dialog::Dialog,
+    ) {
+        unimplemented!()
+    }
+}
+
 impl OutputHandler for WinitState {
     fn output_state(&mut self) -> &mut OutputState {
         &mut self.output_state
@@ -501,3 +552,4 @@ sctk::delegate_shm!(WinitState);
 sctk::delegate_xdg_shell!(WinitState);
 sctk::delegate_xdg_popup!(WinitState);
 sctk::delegate_xdg_window!(WinitState);
+sctk::delegate_xdg_dialog_v1!(WinitState);

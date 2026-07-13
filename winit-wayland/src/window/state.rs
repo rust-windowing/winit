@@ -22,6 +22,7 @@ use sctk::reexports::protocols::wp::viewporter::client::wp_viewport::WpViewport;
 use sctk::reexports::protocols::xdg::shell::client::xdg_toplevel::ResizeEdge as XdgResizeEdge;
 use sctk::seat::pointer::{PointerDataExt, ThemedPointer};
 use sctk::shell::WaylandSurface;
+use sctk::shell::xdg::dialog::Dialog;
 use sctk::shell::xdg::popup::{ConfigureKind, Popup, PopupConfigure};
 use sctk::shell::xdg::window::{DecorationMode, Window, WindowConfigure};
 use sctk::shell::xdg::{XdgPositioner, XdgSurface};
@@ -47,6 +48,8 @@ use crate::types::cursor::{CustomCursor, SelectedCursor, WaylandCustomCursor};
 use crate::types::xdg_toplevel_icon_manager::ToplevelIcon;
 use crate::{ActiveEventLoop, logical_to_physical_rounded};
 
+mod core_window;
+
 #[cfg(feature = "sctk-adwaita")]
 pub type WinitFrame = sctk_adwaita::AdwaitaFrame<WinitState>;
 #[cfg(not(feature = "sctk-adwaita"))]
@@ -60,6 +63,7 @@ pub enum WindowType {
     // The option is the last received configure
     Window { window: Window, last_configure: Option<WindowConfigure> },
     Popup { popup: Popup, positioner: XdgPositioner, last_configure: Option<PopupConfigure> },
+    Dialog { dialog: Dialog, last_configure: Option<WindowConfigure> },
 }
 
 impl WindowType {
@@ -67,6 +71,7 @@ impl WindowType {
         match self {
             Self::Window { last_configure, .. } => last_configure.is_some(),
             Self::Popup { last_configure, .. } => last_configure.is_some(),
+            Self::Dialog { last_configure, .. } => last_configure.is_some(),
         }
     }
 }
@@ -76,6 +81,7 @@ impl WaylandSurface for WindowType {
         match self {
             Self::Window { window, .. } => window.wl_surface(),
             Self::Popup { popup, .. } => popup.wl_surface(),
+            Self::Dialog { dialog, .. } => dialog.wl_surface(),
         }
     }
 }
@@ -85,6 +91,7 @@ impl XdgSurface for WindowType {
         match self {
             Self::Window { window, .. } => window.xdg_surface(),
             Self::Popup { popup, .. } => popup.xdg_surface(),
+            Self::Dialog { dialog, .. } => dialog.xdg_surface(),
         }
     }
 }
@@ -323,6 +330,19 @@ impl WindowState {
             FrameCallbackState::Requested => (),
         }
     }
+
+    pub fn configure_dialog(&mut self, configure: WindowConfigure) {
+        let WindowType::Dialog { last_configure, .. } = &mut self.window else {
+            tracing::error!(
+                "configure_dialog called for window type unequal of dialog. This should never \
+                 happen, because we start configuring with a dialog"
+            );
+            return;
+        };
+
+        *last_configure = Some(configure);
+    }
+
     pub fn configure_popup(&mut self, configure: PopupConfigure) {
         // NOTE: when using fractional scaling or wl_compositor@v6 the scaling
         // should be delivered before the first configure, thus apply it to
@@ -538,42 +558,44 @@ impl WindowState {
 
     /// Start interacting drag resize.
     pub fn drag_resize_window(&self, direction: ResizeDirection) -> Result<(), RequestError> {
-        match &self.window {
-            WindowType::Window { window, .. } => {
-                let xdg_toplevel = window.xdg_toplevel();
-
-                // TODO(kchibisov) handle touch serials.
-                self.apply_on_pointer(|_, data| {
-                    let serial = data.latest_button_serial();
-                    let seat = data.seat();
-                    xdg_toplevel.resize(seat, serial, resize_direction_to_xdg(direction));
-                });
-                Ok(())
+        let xdg_toplevel = match &self.window {
+            WindowType::Window { window, .. } => window.xdg_toplevel(),
+            WindowType::Dialog { dialog, .. } => dialog.xdg_toplevel(),
+            WindowType::Popup { .. } => {
+                return Err(RequestError::NotSupported(NotSupportedError::new(
+                    "Drag resize for popup not supported",
+                )));
             },
-            WindowType::Popup { .. } => Err(RequestError::NotSupported(NotSupportedError::new(
-                "Drag resize for popup not supported",
-            ))),
-        }
+        };
+
+        // TODO(kchibisov) handle touch serials.
+        self.apply_on_pointer(|_, data| {
+            let serial = data.latest_button_serial();
+            let seat = data.seat();
+            xdg_toplevel.resize(seat, serial, resize_direction_to_xdg(direction));
+        });
+        Ok(())
     }
 
     /// Start the window drag.
     pub fn drag_window(&self) -> Result<(), RequestError> {
-        match &self.window {
-            WindowType::Window { window, .. } => {
-                let xdg_toplevel = window.xdg_toplevel();
-                // TODO(kchibisov) handle touch serials.
-                self.apply_on_pointer(|_, data| {
-                    let serial = data.latest_button_serial();
-                    let seat = data.seat();
-                    xdg_toplevel._move(seat, serial);
-                });
-
-                Ok(())
+        let xdg_toplevel = match &self.window {
+            WindowType::Window { window, .. } => window.xdg_toplevel(),
+            WindowType::Dialog { dialog, .. } => dialog.xdg_toplevel(),
+            WindowType::Popup { .. } => {
+                return Err(RequestError::NotSupported(NotSupportedError::new(
+                    "Drag for popup not supported",
+                )));
             },
-            WindowType::Popup { .. } => Err(RequestError::NotSupported(NotSupportedError::new(
-                "Drag for popup not supported",
-            ))),
-        }
+        };
+
+        self.apply_on_pointer(|_, data| {
+            let serial = data.latest_button_serial();
+            let seat = data.seat();
+            xdg_toplevel._move(seat, serial);
+        });
+
+        Ok(())
     }
 
     /// Tells whether the window should be closed.
@@ -617,6 +639,7 @@ impl WindowState {
 
                 Some(false)
             },
+            WindowType::Dialog { .. } => None,
             WindowType::Popup { .. } => None,
         }
     }
@@ -655,6 +678,7 @@ impl WindowState {
                     None
                 }
             },
+            WindowType::Dialog { .. } => None,
             WindowType::Popup { .. } => None,
         }
     }
@@ -734,6 +758,21 @@ impl WindowState {
                     true
                 }
             },
+            WindowType::Dialog { last_configure, .. } => {
+                // let csd = last_configure
+                //     .as_ref()
+                //     .map(|configure| configure.decoration_mode == DecorationMode::Client)
+                //     .unwrap_or(false);
+                // if let Some(frame) = csd.then_some(self.frame.as_ref()).flatten() {
+                //     !frame.is_hidden()
+                // } else {
+                //     // Server side decorations.
+                //     true
+                // }
+
+                // TODO:
+                true
+            },
             WindowType::Popup { .. } => false, // Popup window does not have any decoration
         }
     }
@@ -792,7 +831,7 @@ impl WindowState {
     pub fn reload_cursor_style(&mut self) {
         if self.cursor_visible {
             match &self.selected_cursor {
-                SelectedCursor::Named(icon) => self.set_cursor(*icon),
+                SelectedCursor::Named(icon) => self.set_cursor_icon(*icon),
                 SelectedCursor::Custom(cursor) => self.apply_custom_cursor(cursor),
             }
         } else {
@@ -821,6 +860,9 @@ impl WindowState {
                 if last_configure.as_ref().map(Self::is_stateless).unwrap_or(true) {
                     self.resize(surface_size.to_logical(self.scale_factor()))
                 }
+            },
+            WindowType::Dialog { last_configure, .. } => {
+                // TODO
             },
             WindowType::Popup { popup, positioner, .. } => {
                 let size = surface_size.to_logical(self.scale_factor());
@@ -890,7 +932,7 @@ impl WindowState {
     }
 
     /// Set the cursor icon.
-    pub fn set_cursor(&mut self, cursor_icon: CursorIcon) {
+    pub fn set_cursor_icon(&mut self, cursor_icon: CursorIcon) {
         self.selected_cursor = SelectedCursor::Named(cursor_icon);
 
         if !self.cursor_visible {
@@ -1114,7 +1156,9 @@ impl WindowState {
     }
 
     /// Set the position of the cursor.
-    pub fn set_cursor_position(&self, position: LogicalPosition<f64>) -> Result<(), RequestError> {
+    pub fn set_cursor_position(&self, position: dpi::Position) -> Result<(), RequestError> {
+        let scale_factor = self.scale_factor();
+        let position = position.to_logical(scale_factor);
         if self.pointer_constraints.is_none() {
             return Err(NotSupportedError::new("zwp_pointer_constraints is not available").into());
         }
@@ -1140,7 +1184,7 @@ impl WindowState {
 
         if self.cursor_visible {
             match &self.selected_cursor {
-                SelectedCursor::Named(icon) => self.set_cursor(*icon),
+                SelectedCursor::Named(icon) => self.set_cursor_icon(*icon),
                 SelectedCursor::Custom(cursor) => self.apply_custom_cursor(cursor),
             }
         } else {
@@ -1182,6 +1226,9 @@ impl WindowState {
                     // Force the resize.
                     self.resize(self.size);
                 }
+            },
+            WindowType::Dialog { .. } => {
+                // TODO
             },
             WindowType::Popup { .. } => (), // Popup does not have any decoration
         }
@@ -1320,6 +1367,9 @@ impl WindowState {
 
         match &self.window {
             WindowType::Window { window, .. } => window.set_title(&title),
+            WindowType::Dialog { dialog, .. } => {
+                // TODO
+            },
             WindowType::Popup { .. } => (), // Popup does not have any title
         }
         self.title = title;

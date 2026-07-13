@@ -70,6 +70,9 @@ pub enum WindowType {
         /// Request a keyboard grab for this popup (Wayland only).
         grab_keyboard: bool,
     },
+    Dialog {
+        modal: bool,
+    },
 }
 
 /// Attributes used when creating a window.

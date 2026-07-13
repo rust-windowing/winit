@@ -174,8 +174,8 @@ impl Popup {
                     }
                 }
 
-                popup.wl_surface().commit();
-                // popup.commit(); Trait not implemented in Sctk
+                // Do initial commit
+                popup.commit();
 
                 let popup_state = Arc::new(Mutex::new(popup_state));
 
@@ -495,16 +495,11 @@ impl CoreWindow for Popup {
     fn set_cursor(&self, cursor: Cursor) {
         let Some(s) = self.popup_state.upgrade() else { return };
         let mut popup_state = s.lock().unwrap();
-        match cursor {
-            Cursor::Icon(icon) => popup_state.set_cursor(icon),
-            Cursor::Custom(cursor) => popup_state.set_custom_cursor(cursor),
-        }
+        popup_state.set_cursor(cursor);
     }
 
     fn set_cursor_position(&self, position: Position) -> Result<(), RequestError> {
         let Some(s) = self.popup_state.upgrade() else { return Err(RequestError::Ignored) };
-        let scale_factor = s.lock().unwrap().scale_factor();
-        let position = position.to_logical(scale_factor);
         s.lock()
             .unwrap()
             .set_cursor_position(position)

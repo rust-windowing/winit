@@ -158,10 +158,7 @@ impl Window {
             _ => (),
         };
 
-        match attributes.cursor {
-            Cursor::Icon(icon) => window_state.set_cursor(icon),
-            Cursor::Custom(cursor) => window_state.set_custom_cursor(cursor),
-        }
+        window_state.set_cursor(attributes.cursor);
 
         // Apply resize increments.
         if let Some(increments) = attributes.surface_resize_increments {
@@ -550,16 +547,10 @@ impl CoreWindow for Window {
 
     fn set_cursor(&self, cursor: Cursor) {
         let window_state = &mut self.window_state.lock().unwrap();
-
-        match cursor {
-            Cursor::Icon(icon) => window_state.set_cursor(icon),
-            Cursor::Custom(cursor) => window_state.set_custom_cursor(cursor),
-        }
+        window_state.set_cursor(cursor);
     }
 
     fn set_cursor_position(&self, position: Position) -> Result<(), RequestError> {
-        let scale_factor = self.scale_factor();
-        let position = position.to_logical(scale_factor);
         self.window_state
             .lock()
             .unwrap()
