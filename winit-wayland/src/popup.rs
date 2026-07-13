@@ -84,9 +84,9 @@ impl Popup {
                     anchor,
                     anchor_rect,
                     constraint_adjustment,
-                    grab_keyboard,
                     ..
                 } = wayland_attributes;
+                let grab_keyboard = attributes.active;
 
                 let mut parent_window_state = parent_window_state.lock().unwrap();
 

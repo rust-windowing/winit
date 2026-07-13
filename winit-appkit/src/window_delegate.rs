@@ -792,7 +792,11 @@ impl WindowDelegate {
             // instead of needing dedicated branches.
             attrs.decorations = false;
             attrs.enabled_buttons = WindowButtons::empty();
-            macos_attrs.panel = true;
+            // Unless grab_keyboard is requested, use a non-activating panel so the popup doesn't
+            // steal keyboard focus from the parent window.
+            if !attrs.active {
+                macos_attrs.panel = true;
+            }
         }
 
         let window = new_window(app_state, &attrs, &macos_attrs, is_popup, mtm)

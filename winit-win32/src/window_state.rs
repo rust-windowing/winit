@@ -280,8 +280,10 @@ impl WindowFlags {
         if self.contains(WindowFlags::POPUP) {
             style |= WS_POPUP;
             // Don't activate the popup (and thus don't deactivate the parent) when it is shown or
-            // clicked
-            style_ex |= WS_EX_NOACTIVATE;
+            // clicked, unless the caller requested activation via `WindowAttributes::active`.
+            if !self.contains(WindowFlags::MARKER_ACTIVATE) {
+                style_ex |= WS_EX_NOACTIVATE;
+            }
         } else {
             style |= WS_CAPTION | WS_SYSMENU;
         };

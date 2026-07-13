@@ -63,10 +63,6 @@ pub enum WindowType {
     ///   corners for it. To get a rounded, native-looking popup, create it transparent (via
     ///   [`WindowAttributes::with_transparent`]) and render the round border yourself.
     /// - **X11:** An error is returned because it is not implemented
-    /// - **Wayland:** Use `WindowAttributesWayland::with_grab_keyboard` to request an
-    ///   `xdg_popup.grab` so that keyboard events are routed to the popup instead of the parent
-    ///   window. The grab uses the serial of the most recent pointer button press and must be
-    ///   requested before the popup is mapped.
     Popup,
 }
 
@@ -82,7 +78,7 @@ pub struct WindowAttributes {
     ///
     /// For popups, this position is relative to the parent window.
     ///
-    /// **Wayland:** The position is relative to the anchor point defined
+    /// **Wayland:** The outer position is relative to the anchor point defined
     /// with the anchor rect attribute.
     pub position: Option<Position>,
     pub resizable: bool,
@@ -97,6 +93,13 @@ pub struct WindowAttributes {
     pub preferred_theme: Option<Theme>,
     pub content_protected: bool,
     pub window_level: WindowLevel,
+    /// Whether the window should be activated (focused) when shown.
+    ///
+    /// For [`WindowType::Popup`] windows this also controls keyboard grabbing:
+    /// - `true` — the popup captures keyboard input (Win32: omits `WS_EX_NOACTIVATE`, macOS: uses
+    ///   an activating `NSWindow`, Wayland: issues `xdg_popup.grab`).
+    /// - `false` — the popup is non-activating and the parent window keeps focus (Win32:
+    ///   `WS_EX_NOACTIVATE`, macOS: `NSWindowStyleMask::NonactivatingPanel`, Wayland: no grab).
     pub active: bool,
     pub cursor: Cursor,
     pub(crate) parent_window: Option<SendSyncRawWindowHandle>,
@@ -357,9 +360,13 @@ impl WindowAttributes {
     /// The window should be assumed as not focused by default
     /// following by the [`WindowEvent::Focused`].
     ///
+    /// For [`WindowType::Popup`] windows, also controls keyboard grabbing — see
+    /// [`WindowAttributes::active`] for details.
+    ///
     /// ## Platform-specific:
     ///
-    /// **Android / iOS / X11 / Wayland / Orbital:** Unsupported.
+    /// **Android / iOS / X11 / Orbital:** Unsupported.
+    /// **Wayland:** Only supported for [`WindowType::Popup`].
     ///
     /// [`WindowEvent::Focused`]: crate::event::WindowEvent::Focused
     #[inline]

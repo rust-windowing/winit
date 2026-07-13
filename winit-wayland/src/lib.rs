@@ -156,7 +156,6 @@ pub struct WindowAttributesWayland {
     pub(crate) anchor_rect: Option<(Position, Size)>,
     pub(crate) gravity: Option<PopupGravity>,
     pub(crate) constraint_adjustment: Option<PopupConstraintAdjustment>,
-    pub(crate) grab_keyboard: bool,
 }
 
 impl WindowAttributesWayland {
@@ -173,6 +172,11 @@ impl WindowAttributesWayland {
         self
     }
 
+    /// Sets an activation token to use when creating the window.
+    ///
+    /// The activation token allows the compositor to grant focus to the new window,
+    /// overriding focus-stealing prevention. Obtain a token via
+    /// [`ActiveEventLoop::request_activation_token`].
     #[inline]
     pub fn with_activation_token(mut self, token: ActivationToken) -> Self {
         self.activation_token = Some(token);
@@ -191,6 +195,11 @@ impl WindowAttributesWayland {
         self
     }
 
+    /// Sets the edge or corner of the anchor rectangle the popup is attached to.
+    ///
+    /// Combined with [`with_gravity`](Self::with_gravity), this controls which corner/edge of the
+    /// anchor rectangle the popup is pinned to. Has no effect unless the window is created as a
+    /// [`Popup`](winit_core::window::WindowType::Popup).
     #[inline]
     pub fn with_anchor(mut self, anchor: PopupAnchor) -> Self {
         self.anchor = Some(anchor);
@@ -211,6 +220,11 @@ impl WindowAttributesWayland {
         self
     }
 
+    /// Sets how the compositor should reposition the popup when it would be constrained.
+    ///
+    /// The flags in [`PopupConstraintAdjustment`] can be combined to allow sliding, flipping,
+    /// and/or resizing the popup independently on each axis. Has no effect unless the window is
+    /// created as a [`Popup`](winit_core::window::WindowType::Popup).
     #[inline]
     pub fn with_constraint_adjustment(
         mut self,
@@ -220,23 +234,14 @@ impl WindowAttributesWayland {
         self
     }
 
+    /// Sets the direction the popup surface extends away from the anchor point.
+    ///
+    /// Combined with [`with_anchor`](Self::with_anchor), this determines the final position of the
+    /// popup relative to its anchor rectangle. Has no effect unless the window is created as a
+    /// [`Popup`](winit_core::window::WindowType::Popup).
     #[inline]
     pub fn with_gravity(mut self, gravity: PopupGravity) -> Self {
         self.gravity = Some(gravity);
-        self
-    }
-
-    /// Request a keyboard grab for a [`Popup`] window.
-    ///
-    /// When set to `true`, the popup requests an `xdg_popup.grab` so that keyboard events are
-    /// routed to the popup instead of the parent window. The grab uses the serial of the most
-    /// recent pointer button press and must be requested before the popup is mapped. Has no effect
-    /// unless the window is created with [`Popup`].
-    ///
-    /// [`Popup`]: winit_core::window::WindowType::Popup
-    #[inline]
-    pub fn with_grab_keyboard(mut self, grab_keyboard: bool) -> Self {
-        self.grab_keyboard = grab_keyboard;
         self
     }
 }
