@@ -27,7 +27,7 @@ use winit_core::event_loop::{
     OwnedDisplayHandle as CoreOwnedDisplayHandle,
 };
 use winit_core::monitor::MonitorHandle as CoreMonitorHandle;
-use winit_core::window::Theme;
+use winit_core::window::{Theme, WindowType};
 
 use crate::types::cursor::WaylandCustomCursor;
 
@@ -311,6 +311,33 @@ impl EventLoop {
         self.single_iteration(app, cause);
     }
 
+    /// Recursive closing all windows from the child to the parent
+    fn find_windows_to_close(
+        window_id: &WindowId,
+        state: &mut WinitState,
+        out: &mut Vec<WindowId>,
+    ) -> bool {
+        if !state.window_requests.get_mut().get(window_id).unwrap().closed.load(Ordering::Relaxed) {
+            return false;
+        }
+
+        out.push(*window_id);
+        fn window_to_close(window_id: &WindowId, out: &mut Vec<WindowId>, state: &mut WinitState) {
+            // We don't need to check here if it should be closed, because if the parent should
+            // be closed all children must be closed as well
+            let children =
+                state.windows.get_mut().get(window_id).unwrap().lock().unwrap().children().clone();
+            // First all children and then all subchildren
+            out.extend(&children);
+            for child in children.clone() {
+                window_to_close(&child, out, state);
+            }
+        }
+        window_to_close(window_id, out, state);
+
+        true
+    }
+
     fn single_iteration<A: ApplicationHandler>(&mut self, app: &mut A, cause: StartCause) {
         // NOTE currently just indented to simplify the diff
 
@@ -446,14 +473,33 @@ impl EventLoop {
         });
 
         for window_id in window_ids.iter() {
-            let event = self.with_state(|state| {
-                let window_requests = state.window_requests.get_mut();
-                if window_requests.get(window_id).unwrap().take_closed() {
-                    mem::drop(window_requests.remove(window_id));
-                    mem::drop(state.windows.get_mut().remove(window_id));
-                    return Some(WindowEvent::Destroyed);
-                }
+            if self.with_state(|state| state.window_requests.get_mut().get(window_id).is_none()) {
+                continue; // The element might not exist anymore so just ignore
+            }
+            let mut windows_to_close = Vec::new();
+            if self.with_state(|state| {
+                Self::find_windows_to_close(window_id, state, &mut windows_to_close)
+            }) {
+                for w in windows_to_close.into_iter().rev() {
+                    self.with_state(|state| {
+                        let parent =
+                            state.windows.get_mut().get_mut(&w).unwrap().lock().unwrap().parent();
 
+                        if let Some(p) = parent.and_then(|p| state.windows.get_mut().get_mut(&p)) {
+                            p.lock().unwrap().remove_child(&w)
+                        }
+
+                        let window_requests = state.window_requests.get_mut();
+                        window_requests.get(&w).unwrap().take_closed();
+                        mem::drop(window_requests.remove(&w));
+                        mem::drop(state.windows.get_mut().remove(&w));
+                    });
+                    app.window_event(&self.active_event_loop, w, WindowEvent::Destroyed);
+                }
+                continue;
+            }
+
+            let event = self.with_state(|state| {
                 let mut window =
                     state.windows.get_mut().get_mut(window_id).unwrap().lock().unwrap();
 
@@ -463,6 +509,7 @@ impl EventLoop {
 
                 // Reset the frame callbacks state.
                 window.frame_callback_reset();
+                let window_requests = state.window_requests.get_mut();
                 let mut redraw_requested =
                     window_requests.get(window_id).unwrap().take_redraw_requested();
 
@@ -651,8 +698,21 @@ impl RootActiveEventLoop for ActiveEventLoop {
         &self,
         window_attributes: winit_core::window::WindowAttributes,
     ) -> Result<Box<dyn winit_core::window::Window>, RequestError> {
-        let window = crate::Window::new(self, window_attributes)?;
-        Ok(Box::new(window))
+        match window_attributes.window_type() {
+            WindowType::Window => {
+                let window = crate::Window::new(self, window_attributes)?;
+                Ok(Box::new(window))
+            },
+            WindowType::Popup { .. } => {
+                let popup = crate::Popup::new(self, window_attributes)?;
+                Ok(Box::new(popup))
+            },
+            WindowType::Dialog { modal } => {
+                let dialog = crate::dialog::Dialog::new(self, window_attributes)?;
+                Ok(Box::new(dialog))
+            },
+            _ => Err(RequestError::NotSupported(NotSupportedError::new("Unsupported window type"))),
+        }
     }
 
     fn available_monitors(&self) -> Box<dyn Iterator<Item = CoreMonitorHandle>> {

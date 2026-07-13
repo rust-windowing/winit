@@ -16,6 +16,8 @@ use sctk::seat::SeatState;
 use sctk::seat::pointer::ThemedPointer;
 use sctk::shell::WaylandSurface;
 use sctk::shell::xdg::XdgShell;
+use sctk::shell::xdg::dialog::DialogHandler;
+use sctk::shell::xdg::popup::{Popup as XdgPopup, PopupConfigure, PopupHandler};
 use sctk::shell::xdg::window::{Window, WindowConfigure, WindowHandler};
 use sctk::shm::slot::SlotPool;
 use sctk::shm::{Shm, ShmHandler};
@@ -35,7 +37,8 @@ use crate::types::wp_tablet_input_v2::TabletManager;
 use crate::types::wp_viewporter::ViewporterState;
 use crate::types::xdg_activation::XdgActivationState;
 use crate::types::xdg_toplevel_icon_manager::XdgToplevelIconManagerState;
-use crate::window::{WindowRequests, WindowState};
+use crate::window::WindowState;
+use crate::window::handles::WindowRequests;
 
 /// Winit's Wayland state.
 #[derive(Debug)]
@@ -292,24 +295,24 @@ impl WindowHandler for WinitState {
     ) {
         let window_id = super::make_wid(window.wl_surface());
 
-        let pos = if let Some(pos) =
+        let index = if let Some(index) =
             self.window_compositor_updates.iter().position(|update| update.window_id == window_id)
         {
-            pos
+            index
         } else {
             self.window_compositor_updates.push(WindowCompositorUpdate::new(window_id));
             self.window_compositor_updates.len() - 1
         };
 
         // Populate the configure to the window.
-        self.window_compositor_updates[pos].resized |= self
+        self.window_compositor_updates[index].resized |= self
             .windows
             .get_mut()
             .get_mut(&window_id)
             .expect("got configure for dead window.")
             .lock()
             .unwrap()
-            .configure(configure, &self.shm, &self.subcompositor_state);
+            .configure_window(configure, &self.shm, &self.subcompositor_state);
 
         // NOTE: configure demands wl_surface::commit, however winit doesn't commit on behalf of the
         // users, since it can break a lot of things, thus it'll ask users to redraw instead.
@@ -322,6 +325,102 @@ impl WindowHandler for WinitState {
 
         // Manually mark that we've got an event, since configure may not generate a resize.
         self.dispatched_events = true;
+    }
+}
+
+impl PopupHandler for WinitState {
+    fn configure(
+        &mut self,
+        _: &Connection,
+        _: &QueueHandle<Self>,
+        popup: &XdgPopup,
+        configure: PopupConfigure,
+    ) {
+        let window_id = super::make_wid(popup.wl_surface());
+
+        if let Some(index) =
+            self.window_compositor_updates.iter().position(|update| update.window_id == window_id)
+        {
+            index
+        } else {
+            self.window_compositor_updates.push(WindowCompositorUpdate::new(window_id));
+            self.window_compositor_updates.len() - 1
+        };
+
+        self.windows
+            .get_mut()
+            .get_mut(&window_id)
+            .expect("got configure for dead window.")
+            .lock()
+            .unwrap()
+            .configure_popup(configure);
+
+        // NOTE: configure demands wl_surface::commit, however winit doesn't commit on behalf of the
+        // users, since it can break a lot of things, thus it'll ask users to redraw instead
+        self.window_requests
+            .get_mut()
+            .get(&window_id)
+            .unwrap()
+            .redraw_requested
+            .store(true, Ordering::Relaxed);
+
+        // Manually mark that we've got an event, since configure may not generate a resize.
+        self.dispatched_events = true;
+    }
+
+    fn done(&mut self, _: &Connection, _: &QueueHandle<Self>, popup: &XdgPopup) {
+        let window_id = super::make_wid(popup.wl_surface());
+        Self::queue_close(&mut self.window_compositor_updates, window_id);
+    }
+}
+
+impl DialogHandler for WinitState {
+    fn configure(
+        &mut self,
+        conn: &Connection,
+        qh: &QueueHandle<Self>,
+        dialog: &sctk::shell::xdg::dialog::Dialog,
+        configure: sctk::shell::xdg::window::WindowConfigure,
+        serial: u32,
+    ) {
+        let window_id = super::make_wid(dialog.wl_surface());
+
+        if let Some(index) =
+            self.window_compositor_updates.iter().position(|update| update.window_id == window_id)
+        {
+            index
+        } else {
+            self.window_compositor_updates.push(WindowCompositorUpdate::new(window_id));
+            self.window_compositor_updates.len() - 1
+        };
+
+        self.windows
+            .get_mut()
+            .get_mut(&window_id)
+            .expect("got configure for dead window.")
+            .lock()
+            .unwrap()
+            .configure_dialog(configure);
+
+        // NOTE: configure demands wl_surface::commit, however winit doesn't commit on behalf of the
+        // users, since it can break a lot of things, thus it'll ask users to redraw instead
+        self.window_requests
+            .get_mut()
+            .get(&window_id)
+            .unwrap()
+            .redraw_requested
+            .store(true, Ordering::Relaxed);
+
+        // Manually mark that we've got an event, since configure may not generate a resize.
+        self.dispatched_events = true;
+    }
+    fn request_close(
+        &mut self,
+        conn: &Connection,
+        qh: &QueueHandle<Self>,
+        window: &sctk::shell::xdg::dialog::Dialog,
+    ) {
+        unimplemented!()
     }
 }
 
@@ -451,4 +550,6 @@ sctk::delegate_output!(WinitState);
 sctk::delegate_registry!(WinitState);
 sctk::delegate_shm!(WinitState);
 sctk::delegate_xdg_shell!(WinitState);
+sctk::delegate_xdg_popup!(WinitState);
 sctk::delegate_xdg_window!(WinitState);
+sctk::delegate_xdg_dialog_v1!(WinitState);

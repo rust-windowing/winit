@@ -21,7 +21,7 @@ use windows_sys::Win32::Graphics::Dwm::{
 use windows_sys::Win32::Graphics::Gdi::{
     CDS_FULLSCREEN, ChangeDisplaySettingsExW, ClientToScreen, CreateRectRgn, DISP_CHANGE_BADFLAGS,
     DISP_CHANGE_BADMODE, DISP_CHANGE_BADPARAM, DISP_CHANGE_FAILED, DISP_CHANGE_SUCCESSFUL,
-    DeleteObject, InvalidateRgn, RDW_INTERNALPAINT, RedrawWindow,
+    DeleteObject, InvalidateRgn, RDW_INTERNALPAINT, RedrawWindow, ScreenToClient,
 };
 use windows_sys::Win32::System::Com::{
     CLSCTX_ALL, COINIT_APARTMENTTHREADED, CoCreateInstance, CoInitializeEx, CoUninitialize,
@@ -36,7 +36,7 @@ use windows_sys::Win32::UI::Input::Touch::{RegisterTouchWindow, TWF_WANTPALM};
 use windows_sys::Win32::UI::WindowsAndMessaging::{
     CS_HREDRAW, CS_VREDRAW, CW_USEDEFAULT, CreateWindowExW, EnableMenuItem, FLASHW_ALL,
     FLASHW_STOP, FLASHW_TIMERNOFG, FLASHW_TRAY, FLASHWINFO, FlashWindowEx, GWLP_HINSTANCE,
-    GetClientRect, GetCursorPos, GetForegroundWindow, GetSystemMenu, GetSystemMetrics,
+    GetClientRect, GetCursorPos, GetForegroundWindow, GetParent, GetSystemMenu, GetSystemMetrics,
     GetWindowPlacement, GetWindowTextLengthW, GetWindowTextW, HTBOTTOM, HTBOTTOMLEFT,
     HTBOTTOMRIGHT, HTCAPTION, HTLEFT, HTRIGHT, HTTOP, HTTOPLEFT, HTTOPRIGHT, IsWindowVisible,
     LoadCursorW, MENU_ITEM_STATE, MF_BYCOMMAND, MFS_DISABLED, MFS_ENABLED, NID_READY, PM_NOREMOVE,
@@ -48,13 +48,13 @@ use windows_sys::Win32::UI::WindowsAndMessaging::{
     WM_SYSCOMMAND, WNDCLASSEXW,
 };
 use winit_core::cursor::Cursor;
-use winit_core::error::RequestError;
+use winit_core::error::{NotSupportedError, RequestError};
 use winit_core::icon::{Icon, RgbaIcon};
 use winit_core::monitor::{Fullscreen, MonitorHandle as CoreMonitorHandle, MonitorHandleProvider};
 use winit_core::window::{
     CursorGrabMode, ImeCapabilities, ImeRequest, ImeRequestError, ResizeDirection, Theme,
     UserAttentionType, Window as CoreWindow, WindowAttributes, WindowButtons, WindowId,
-    WindowLevel,
+    WindowLevel, WindowType,
 };
 
 use crate::dark_mode::try_theme;
@@ -116,6 +116,49 @@ impl Window {
 
     fn window_state_lock(&self) -> MutexGuard<'_, WindowState> {
         self.window_state.lock().unwrap()
+    }
+
+    // If we have a popup the position is relative to the parent window and not
+    // relative to the screen. Therefore we have to translate it from the parent
+    // coordinate system to the display coordinate system
+    fn translate_outer_position(&self, position: Position) -> PhysicalPosition<i32> {
+        let position = position.to_physical::<i32>(self.scale_factor());
+        let mut point = POINT { x: position.x, y: position.y };
+
+        let window_flags = self.window_state_lock().window_flags;
+        if window_flags.contains(WindowFlags::POPUP) && !window_flags.contains(WindowFlags::CHILD) {
+            let parent = unsafe { GetParent(self.hwnd()) };
+            if !parent.is_null() {
+                unsafe {
+                    ClientToScreen(parent, &mut point);
+                }
+            }
+        }
+
+        PhysicalPosition::new(point.x, point.y)
+    }
+
+    // Inverse of `translate_outer_position`: if we have a popup the position is
+    // reported relative to the parent window instead of the screen. Therefore we
+    // translate it from the display coordinate system back to the parent
+    // coordinate system. Non-popup windows are left in screen coordinates.
+    fn translate_outer_position_to_parent(
+        &self,
+        position: PhysicalPosition<i32>,
+    ) -> PhysicalPosition<i32> {
+        let mut point = POINT { x: position.x, y: position.y };
+
+        let window_flags = self.window_state_lock().window_flags;
+        if window_flags.contains(WindowFlags::POPUP) && !window_flags.contains(WindowFlags::CHILD) {
+            let parent = unsafe { GetParent(self.hwnd()) };
+            if !parent.is_null() {
+                unsafe {
+                    ScreenToClient(parent, &mut point);
+                }
+            }
+        }
+
+        PhysicalPosition::new(point.x, point.y)
     }
 
     /// Returns the `hwnd` of this window.
@@ -464,7 +507,10 @@ impl CoreWindow for Window {
     fn outer_position(&self) -> Result<PhysicalPosition<i32>, RequestError> {
         util::WindowArea::Outer
             .get_rect(self.hwnd())
-            .map(|rect| Ok(PhysicalPosition::new(rect.left, rect.top)))
+            .map(|rect| {
+                Ok(self
+                    .translate_outer_position_to_parent(PhysicalPosition::new(rect.left, rect.top)))
+            })
             .expect(
                 "Unexpected GetWindowRect failure; please report this error to \
                  rust-windowing/winit",
@@ -483,7 +529,7 @@ impl CoreWindow for Window {
     }
 
     fn set_outer_position(&self, position: Position) {
-        let (x, y): (i32, i32) = position.to_physical::<i32>(self.scale_factor()).into();
+        let position = self.translate_outer_position(position);
 
         let window_state = Arc::clone(&self.window_state);
         let window = self.window;
@@ -498,8 +544,8 @@ impl CoreWindow for Window {
             SetWindowPos(
                 self.hwnd(),
                 ptr::null_mut(),
-                x,
-                y,
+                position.x,
+                position.y,
                 0,
                 0,
                 SWP_ASYNCWINDOWPOS | SWP_NOZORDER | SWP_NOSIZE | SWP_NOACTIVATE,
@@ -1367,8 +1413,10 @@ unsafe fn init(
     let class_name = util::encode_wide(&win_attributes.class_name);
     unsafe { register_window_class(&class_name) };
 
+    let is_popup = matches!(attributes.window_type, WindowType::Popup { .. });
     let mut window_flags = WindowFlags::empty();
     window_flags.set(WindowFlags::MARKER_DECORATIONS, attributes.decorations);
+    window_flags.set(WindowFlags::POPUP, is_popup);
     window_flags.set(WindowFlags::MARKER_UNDECORATED_SHADOW, win_attributes.decoration_shadow);
     window_flags
         .set(WindowFlags::ALWAYS_ON_TOP, attributes.window_level == WindowLevel::AlwaysOnTop);
@@ -1397,14 +1445,23 @@ unsafe fn init(
 
     let parent = match attributes.parent_window() {
         Some(rwh_06::RawWindowHandle::Win32(handle)) => {
-            window_flags.set(WindowFlags::CHILD, true);
+            if !is_popup {
+                window_flags.set(WindowFlags::CHILD, true);
+            }
             if win_attributes.menu.is_some() {
                 warn!("Setting a menu on a child window is unsupported");
             }
             Some(handle.hwnd.get() as HWND)
         },
         Some(raw) => unreachable!("Invalid raw window handle {raw:?} on Windows"),
-        None => fallback_parent(),
+        None => {
+            if is_popup {
+                return Err(RequestError::NotSupported(NotSupportedError::new(
+                    "Popup without a parent is not supported!",
+                )));
+            }
+            fallback_parent()
+        },
     };
 
     let menu = win_attributes.menu;

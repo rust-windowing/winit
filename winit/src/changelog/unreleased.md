@@ -50,6 +50,7 @@ changelog entry.
 - On Android, added scancode conversions for more obscure key codes.
 - On Wayland, added `HoldGesture` event for multi-finger hold gestures
 - On Wayland, added ext-background-effect-v1 support.
+- Native popups for Wayland, Windows and MacOS
 
 ### Changed
 

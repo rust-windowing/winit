@@ -95,3 +95,9 @@ wasm-bindgen-futures = "0.4.43"
 wasm-bindgen-test = "0.3"
 web-time = "1"
 web_sys = { package = "web-sys", version = "0.3.70" }
+
+# Redirect the crates.io sctk-adwaita and smithay-client-toolkit onto the local
+# checkouts so everything shares a single copy of each crate.
+[patch.crates-io]
+smithay-client-toolkit = { path = "../client-toolkit" }
+sctk-adwaita = { path = "../sctk-adwaita" }
