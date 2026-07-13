@@ -79,6 +79,7 @@ mod tests {
     impl_dyn_casting!(FooTrait);
 
     #[test]
+    #[expect(clippy::needless_borrow, reason = "test case")]
     fn dyn_casting() {
         let foo_owned: Box<dyn FooTrait> = Box::new(Foo);
         assert!(foo_owned.cast::<Foo>().is_ok());

@@ -340,7 +340,6 @@ impl winit_core::event_loop::pump_events::EventLoopExtPumpEvents for EventLoop {
     }
 }
 
-#[allow(unused_imports)]
 #[cfg(any(
     windows_platform,
     macos_platform,
@@ -518,5 +517,5 @@ impl winit_x11::EventLoopBuilderExtX11 for EventLoopBuilder {
 ///     event_loop.run_app_on_demand(|_, _| {});
 /// });
 /// ```
-#[allow(dead_code)]
+#[expect(dead_code, reason = "function for a compile_error doctest")]
 fn test_run_on_demand_cannot_access_event_loop() {}

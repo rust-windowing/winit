@@ -122,7 +122,7 @@ impl AppState {
             }
         }
 
-        #[allow(deprecated)]
+        #[expect(deprecated, reason = "winit feature")]
         app.activateIgnoringOtherApps(self.activate_ignoring_other_apps);
 
         if self.default_menu {

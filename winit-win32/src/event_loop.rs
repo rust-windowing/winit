@@ -522,7 +522,6 @@ fn main_thread_id() -> u32 {
 
     // Mark as used so this is not removable.
     #[used]
-    #[allow(non_upper_case_globals)]
     // Place the function pointer inside of CRT initialization section so it is loaded before
     // main entrypoint.
     //

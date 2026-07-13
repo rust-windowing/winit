@@ -23,7 +23,7 @@ pub(crate) fn round(x: f64) -> f64 {
 }
 
 // Adapted from: https://github.com/rust-lang/libm/blob/libm-v0.2.11/src/math/trunc.rs#L8-L12
-#[allow(clippy::needless_late_init /*, reason = "The original libm code uses this style" */)]
+#[expect(clippy::needless_late_init, reason = "The original libm code uses this style")]
 fn trunc(x: f64) -> f64 {
     let x1p120 = f64::from_bits(0x4770000000000000); // 0x1p120f === 2 ^ 120
 

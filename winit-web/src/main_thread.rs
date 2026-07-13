@@ -87,7 +87,7 @@ unsafe impl<T> Sync for MainThreadSafe<T> {}
 
 static DROP_HANDLER: OnceLock<Sender<DropBox>> = OnceLock::new();
 
-struct DropBox(#[allow(dead_code)] Box<dyn Any>);
+struct DropBox(#[expect(dead_code, reason = "field is dropped")] Box<dyn Any>);
 
 unsafe impl Send for DropBox {}
 unsafe impl Sync for DropBox {}

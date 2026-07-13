@@ -66,7 +66,7 @@ impl VideoModeHandle {
         refresh_rate_millihertz: Option<NonZeroU32>,
     ) -> Self {
         // The bit-depth is basically always 32 since macOS 10.12.
-        #[allow(deprecated)]
+        #[expect(deprecated)]
         let pixel_encoding =
             CGDisplayMode::pixel_encoding(Some(&native_mode.0)).unwrap().to_string();
         let bit_depth = if pixel_encoding.eq_ignore_ascii_case(ffi::IO32BitDirectPixels) {
@@ -325,14 +325,14 @@ fn refresh_rate_millihertz(id: CGDirectDisplayID, mode: &NativeDisplayMode) -> O
     }
 
     let mut display_link = std::ptr::null_mut();
-    #[allow(deprecated)]
+    #[expect(deprecated)]
     if unsafe { CVDisplayLink::create_with_cg_display(id, NonNull::from(&mut display_link)) }
         != kCVReturnSuccess
     {
         return None;
     }
     let display_link = unsafe { CFRetained::from_raw(NonNull::new(display_link).unwrap()) };
-    #[allow(deprecated)]
+    #[expect(deprecated)]
     let time = display_link.nominal_output_video_refresh_period();
 
     // This value is indefinite if an invalid display link was specified
