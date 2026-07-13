@@ -28,15 +28,15 @@ winit-x11 = { version = "=0.31.0-beta.2", path = "winit-x11" }
 # Core dependencies.
 bitflags = "2"
 cfg_aliases = "0.2.2"
-cursor-icon = "1.1.0"
-dpi = { version = "0.1.2", path = "dpi" }
-keyboard-types = "0.8.0"
+cursor-icon = { version = "1.1.0", default-features = false }
+dpi = { version = "0.1.2", path = "dpi", default-features = false }
+keyboard-types = { version = "0.8.0", default-features = false }
 mint = "0.5.6"
-rwh_06 = { package = "raw-window-handle", version = "0.6", features = ["std"] }
-serde = { version = "1", features = ["serde_derive"] }
-smol_str = "0.3"
+rwh_06 = { package = "raw-window-handle", version = "0.6", default-features = false }
+serde = { version = "1", default-features = false, features = ["serde_derive", "alloc"] }
+smol_str = { version = "0.3", default-features = false }
 tracing = { version = "0.1.40", default-features = false }
-url = "2"
+url = { version = "2", default-features = false }
 
 # Dev dependencies.
 image = { version = "0.25.0", default-features = false }
@@ -94,5 +94,5 @@ tracing-web = "0.1"
 wasm-bindgen = "0.2.93"
 wasm-bindgen-futures = "0.4.43"
 wasm-bindgen-test = "0.3"
-web-time = "1"
+web-time = { version = "1", default-features = false }
 web_sys = { package = "web-sys", version = "0.3.70" }
