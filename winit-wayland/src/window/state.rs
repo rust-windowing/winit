@@ -954,10 +954,12 @@ impl WindowState {
                 let size = PhysicalSize::new(cursor.w, cursor.h).to_logical(scale);
                 viewport.set_destination(size.width, size.height);
                 scale
-            } else {
+            } else if surface.version() >= 3 {
                 let scale = surface.data::<SurfaceData>().unwrap().surface_data().scale_factor();
                 surface.set_buffer_scale(scale);
                 scale as f64
+            } else {
+                1.
             };
 
             surface.attach(Some(cursor.buffer.wl_buffer()), 0, 0);
