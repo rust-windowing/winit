@@ -2378,14 +2378,14 @@ unsafe fn public_window_callback_inner(
                 false => old_physical_surface_size,
             };
 
-            let new_surface_size = Arc::new(Mutex::new(new_physical_surface_size));
+            let (surface_size_writer, new_surface_size) =
+                SurfaceSizeWriter::new(new_physical_surface_size);
             userdata.send_window_event(window, ScaleFactorChanged {
                 scale_factor: new_scale_factor,
-                surface_size_writer: SurfaceSizeWriter::new(Arc::downgrade(&new_surface_size)),
+                surface_size_writer,
             });
 
-            let new_physical_surface_size = *new_surface_size.lock().unwrap();
-            drop(new_surface_size);
+            let new_physical_surface_size = new_surface_size.take();
 
             let dragging_window: bool;
 

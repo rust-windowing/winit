@@ -210,11 +210,10 @@ impl EventLoop {
                     let old_scale_factor = scale_factor(&self.android_app);
                     let scale_factor = scale_factor(&self.android_app);
                     if (scale_factor - old_scale_factor).abs() < f64::EPSILON {
-                        let new_surface_size = Arc::new(Mutex::new(screen_size(&self.android_app)));
+                        let (surface_size_writer, _) =
+                            SurfaceSizeWriter::new(screen_size(&self.android_app));
                         let event = event::WindowEvent::ScaleFactorChanged {
-                            surface_size_writer: SurfaceSizeWriter::new(Arc::downgrade(
-                                &new_surface_size,
-                            )),
+                            surface_size_writer,
                             scale_factor,
                         };
 

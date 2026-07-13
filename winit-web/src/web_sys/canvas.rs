@@ -496,13 +496,13 @@ impl Canvas {
         // First, we send the `ScaleFactorChanged` event:
         self.set_current_size(current_size);
         let new_size = {
-            let new_size = Arc::new(Mutex::new(current_size));
+            let (surface_size_writer, new_size) = SurfaceSizeWriter::new(current_size);
             event_handler(self.id, WindowEvent::ScaleFactorChanged {
                 scale_factor: scale,
-                surface_size_writer: SurfaceSizeWriter::new(Arc::downgrade(&new_size)),
+                surface_size_writer,
             });
 
-            *new_size.lock().unwrap()
+            new_size.take()
         };
 
         if current_size != new_size {
