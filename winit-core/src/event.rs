@@ -1,8 +1,10 @@
 //! The event enums and assorted supporting types.
-use std::cell::LazyCell;
-use std::cmp::Ordering;
-use std::f64;
-use std::sync::{Arc, Mutex, Weak};
+use alloc::string::String;
+use alloc::sync::{Arc, Weak};
+use core::cell::LazyCell;
+use core::cmp::Ordering;
+use core::f64;
+use std::sync::Mutex;
 
 use dpi::{PhysicalPosition, PhysicalSize};
 #[cfg(feature = "serde")]
@@ -1268,7 +1270,7 @@ impl TabletToolTilt {
     pub fn angle(self) -> TabletToolAngle {
         // See <https://www.w3.org/TR/2024/WD-pointerevents3-20240326/#converting-between-tiltx-tilty-and-altitudeangle-azimuthangle>.
 
-        use std::f64::consts::*;
+        use core::f64::consts::*;
 
         const PI_0_5: f64 = FRAC_PI_2;
         const PI_1_5: f64 = 3. * FRAC_PI_2;
@@ -1363,7 +1365,7 @@ impl TabletToolAngle {
     pub fn tilt(self) -> TabletToolTilt {
         // See <https://www.w3.org/TR/2024/WD-pointerevents3-20240326/#converting-between-tiltx-tilty-and-altitudeangle-azimuthangle>.
 
-        use std::f64::consts::*;
+        use core::f64::consts::*;
 
         const PI_0_5: f64 = FRAC_PI_2;
         const PI_1_5: f64 = 3. * FRAC_PI_2;
@@ -1625,7 +1627,8 @@ impl Eq for SurfaceSizeWriter {}
 
 #[cfg(test)]
 mod tests {
-    use std::collections::{BTreeSet, HashSet};
+    use alloc::collections::BTreeSet;
+    use std::collections::HashSet;
 
     use dpi::PhysicalPosition;
 
@@ -1743,7 +1746,7 @@ mod tests {
 
     #[test]
     fn test_tilt_angle_conversions() {
-        use std::f64::consts::*;
+        use core::f64::consts::*;
 
         use event::{TabletToolAngle, TabletToolTilt};
 
@@ -1751,24 +1754,24 @@ mod tests {
         const TILT_TO_ANGLE: &[(TabletToolTilt, TabletToolAngle)] = &[
             (TabletToolTilt { x: 0, y: 0 }, TabletToolAngle { altitude: FRAC_PI_2, azimuth: 0. }),
             (TabletToolTilt { x: 0, y: 90 }, TabletToolAngle { altitude: 0., azimuth: FRAC_PI_2 }),
-            (TabletToolTilt { x: 0, y: -90 }, TabletToolAngle {
-                altitude: 0.,
-                azimuth: 3. * FRAC_PI_2,
-            }),
+            (
+                TabletToolTilt { x: 0, y: -90 },
+                TabletToolAngle { altitude: 0., azimuth: 3. * FRAC_PI_2 },
+            ),
             (TabletToolTilt { x: 90, y: 0 }, TabletToolAngle { altitude: 0., azimuth: 0. }),
             (TabletToolTilt { x: 90, y: 90 }, TabletToolAngle { altitude: 0., azimuth: 0. }),
             (TabletToolTilt { x: 90, y: -90 }, TabletToolAngle { altitude: 0., azimuth: 0. }),
             (TabletToolTilt { x: -90, y: 0 }, TabletToolAngle { altitude: 0., azimuth: PI }),
             (TabletToolTilt { x: -90, y: 90 }, TabletToolAngle { altitude: 0., azimuth: 0. }),
             (TabletToolTilt { x: -90, y: -90 }, TabletToolAngle { altitude: 0., azimuth: 0. }),
-            (TabletToolTilt { x: 0, y: 45 }, TabletToolAngle {
-                altitude: FRAC_PI_4,
-                azimuth: FRAC_PI_2,
-            }),
-            (TabletToolTilt { x: 0, y: -45 }, TabletToolAngle {
-                altitude: FRAC_PI_4,
-                azimuth: 3. * FRAC_PI_2,
-            }),
+            (
+                TabletToolTilt { x: 0, y: 45 },
+                TabletToolAngle { altitude: FRAC_PI_4, azimuth: FRAC_PI_2 },
+            ),
+            (
+                TabletToolTilt { x: 0, y: -45 },
+                TabletToolAngle { altitude: FRAC_PI_4, azimuth: 3. * FRAC_PI_2 },
+            ),
             (TabletToolTilt { x: 45, y: 0 }, TabletToolAngle { altitude: FRAC_PI_4, azimuth: 0. }),
             (TabletToolTilt { x: -45, y: 0 }, TabletToolAngle { altitude: FRAC_PI_4, azimuth: PI }),
         ];
@@ -1783,20 +1786,20 @@ mod tests {
             (TabletToolAngle { altitude: FRAC_PI_4, azimuth: 0. }, TabletToolTilt { x: 45, y: 0 }),
             (TabletToolAngle { altitude: FRAC_PI_2, azimuth: 0. }, TabletToolTilt { x: 0, y: 0 }),
             (TabletToolAngle { altitude: 0., azimuth: FRAC_PI_2 }, TabletToolTilt { x: 0, y: 90 }),
-            (TabletToolAngle { altitude: FRAC_PI_4, azimuth: FRAC_PI_2 }, TabletToolTilt {
-                x: 0,
-                y: 45,
-            }),
+            (
+                TabletToolAngle { altitude: FRAC_PI_4, azimuth: FRAC_PI_2 },
+                TabletToolTilt { x: 0, y: 45 },
+            ),
             (TabletToolAngle { altitude: 0., azimuth: PI }, TabletToolTilt { x: -90, y: 0 }),
             (TabletToolAngle { altitude: FRAC_PI_4, azimuth: PI }, TabletToolTilt { x: -45, y: 0 }),
-            (TabletToolAngle { altitude: 0., azimuth: 3. * FRAC_PI_2 }, TabletToolTilt {
-                x: 0,
-                y: -90,
-            }),
-            (TabletToolAngle { altitude: FRAC_PI_4, azimuth: 3. * FRAC_PI_2 }, TabletToolTilt {
-                x: 0,
-                y: -45,
-            }),
+            (
+                TabletToolAngle { altitude: 0., azimuth: 3. * FRAC_PI_2 },
+                TabletToolTilt { x: 0, y: -90 },
+            ),
+            (
+                TabletToolAngle { altitude: FRAC_PI_4, azimuth: 3. * FRAC_PI_2 },
+                TabletToolTilt { x: 0, y: -45 },
+            ),
         ];
 
         for (angle, tilt) in ANGLE_TO_TILT {
@@ -1815,7 +1818,7 @@ mod tests {
         let force3 = event::Force::Calibrated { force: 5.0, max_possible_force: 2.5 };
         assert_eq!(
             force3.normalized(Some(event::TabletToolAngle {
-                altitude: std::f64::consts::PI / 2.0,
+                altitude: core::f64::consts::PI / 2.0,
                 azimuth: 0.
             })),
             2.0

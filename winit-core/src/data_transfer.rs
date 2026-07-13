@@ -99,9 +99,13 @@
 
 #![warn(missing_docs)]
 
-use std::ops::ControlFlow;
+use alloc::boxed::Box;
+use alloc::string::String;
+use alloc::vec::Vec;
+use core::fmt;
+use core::ops::ControlFlow;
+use std::io;
 use std::path::{Path, PathBuf};
-use std::{fmt, io};
 
 use crate::as_any::AsAny;
 
@@ -319,7 +323,7 @@ pub trait TypedData: AsAny + fmt::Debug + Send + Sync {
 // basis.
 impl PartialEq for dyn TypedData {
     fn eq(&self, other: &Self) -> bool {
-        std::ptr::addr_eq(self, other)
+        core::ptr::addr_eq(self, other)
     }
 }
 
@@ -394,11 +398,12 @@ pub enum SendData {
     Uris(Vec<String>),
     /// String
     ///
-    /// This can also be constructed with the [`From<String>`](std::string::String) implementation.
+    /// This can also be constructed with the [`From<String>`](alloc::string::String)
+    /// implementation.
     String(String),
     /// Binary blob
     ///
-    /// This can also be constructed with the [`From<Vec<u8>>`](std::vec::Vec) implementation.
+    /// This can also be constructed with the [`From<Vec<u8>>`](alloc::vec::Vec) implementation.
     Bytes(Vec<u8>),
 }
 

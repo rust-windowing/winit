@@ -1,5 +1,7 @@
 //! End user application handling.
 
+use alloc::boxed::Box;
+
 use crate::event::{DeviceEvent, DeviceId, StartCause, WindowEvent};
 use crate::event_loop::ActiveEventLoop;
 use crate::window::WindowId;

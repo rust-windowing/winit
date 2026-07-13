@@ -6,6 +6,12 @@
 //! See the [`winit`] crate for the full user-facing API.
 //!
 //! [`winit`]: https://docs.rs/winit
+#![warn(clippy::std_instead_of_core, clippy::std_instead_of_alloc, clippy::alloc_instead_of_core)]
+#![no_std]
+
+#[macro_use]
+extern crate alloc;
+extern crate std;
 
 #[macro_use]
 pub mod as_any;
