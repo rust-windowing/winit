@@ -642,7 +642,7 @@ impl rwh_06::HasDisplayHandle for Popup {
 }
 
 impl PopupExtWayland for Popup {
-    fn set_anchor(&mut self, anchor: crate::PopupAnchor) {
+    fn set_anchor(&self, anchor: crate::PopupAnchor) {
         let Some(state) = self.popup_state.upgrade() else {
             return;
         };
@@ -653,7 +653,7 @@ impl PopupExtWayland for Popup {
         }
     }
 
-    fn set_anchor_rect(&mut self, position: impl Into<Position>, size: impl Into<Size>) {
+    fn set_anchor_rect(&self, position: impl Into<Position>, size: impl Into<Size>) {
         let Some(state) = self.popup_state.upgrade() else {
             return;
         };
@@ -675,10 +675,7 @@ impl PopupExtWayland for Popup {
         }
     }
 
-    fn set_constraint_adjustment(
-        &mut self,
-        constraint_adjustment: crate::PopupConstraintAdjustment,
-    ) {
+    fn set_constraint_adjustment(&self, constraint_adjustment: crate::PopupConstraintAdjustment) {
         let Some(state) = self.popup_state.upgrade() else {
             return;
         };
@@ -689,7 +686,7 @@ impl PopupExtWayland for Popup {
         }
     }
 
-    fn set_gravity(&mut self, gravity: crate::PopupGravity) {
+    fn set_gravity(&self, gravity: crate::PopupGravity) {
         let Some(state) = self.popup_state.upgrade() else {
             return;
         };

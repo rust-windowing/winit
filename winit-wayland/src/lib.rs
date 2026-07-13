@@ -97,24 +97,50 @@ pub trait PopupExtWayland {
     /// Sets the anchor edge of the parent surface the popup is positioned relative to.
     ///
     /// See [`PopupAnchor`] for the available edges and corners.
-    fn set_anchor(&mut self, anchor: PopupAnchor);
+    fn set_anchor(&self, anchor: PopupAnchor);
 
     /// Sets the anchor rectangle within the parent surface the popup is positioned relative to.
     ///
     /// `position` is the top-left corner of the rectangle relative to the parent window's content
     /// area, and `size` its dimensions.
-    fn set_anchor_rect(&mut self, position: impl Into<Position>, size: impl Into<Size>);
+    fn set_anchor_rect(&self, position: impl Into<Position>, size: impl Into<Size>);
 
     /// Sets how the compositor should reposition the popup when it would be constrained by screen
     /// edges.
     ///
     /// See [`PopupConstraintAdjustment`] for the available adjustment flags.
-    fn set_constraint_adjustment(&mut self, constraint_adjustment: PopupConstraintAdjustment);
+    fn set_constraint_adjustment(&self, constraint_adjustment: PopupConstraintAdjustment);
 
     /// Sets the direction the popup surface extends from the anchor point.
     ///
     /// See [`PopupGravity`] for the available directions.
-    fn set_gravity(&mut self, gravity: PopupGravity);
+    fn set_gravity(&self, gravity: PopupGravity);
+}
+
+impl PopupExtWayland for dyn CoreWindow + '_ {
+    fn set_anchor(&self, anchor: PopupAnchor) {
+        if let Some(popup) = self.cast_ref::<Popup>() {
+            popup.set_anchor(anchor);
+        }
+    }
+
+    fn set_anchor_rect(&self, position: impl Into<Position>, size: impl Into<Size>) {
+        if let Some(popup) = self.cast_ref::<Popup>() {
+            popup.set_anchor_rect(position, size);
+        }
+    }
+
+    fn set_constraint_adjustment(&self, constraint_adjustment: PopupConstraintAdjustment) {
+        if let Some(popup) = self.cast_ref::<Popup>() {
+            popup.set_constraint_adjustment(constraint_adjustment);
+        }
+    }
+
+    fn set_gravity(&self, gravity: PopupGravity) {
+        if let Some(popup) = self.cast_ref::<Popup>() {
+            popup.set_gravity(gravity);
+        }
+    }
 }
 
 /// Anchor rect within the parent surface
