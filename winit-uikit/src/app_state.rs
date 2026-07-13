@@ -3,7 +3,7 @@
 use std::cell::{Cell, OnceCell};
 use std::collections::HashSet;
 use std::os::raw::c_void;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use std::time::Instant;
 use std::{fmt, ptr};
 
@@ -449,16 +449,15 @@ fn handle_wrapped_event(mtm: MainThreadMarker, event: EventWrapper) {
 
 fn handle_hidpi_proxy(mtm: MainThreadMarker, event: ScaleFactorChanged) {
     let ScaleFactorChanged { suggested_size, scale_factor, window } = event;
-    let new_surface_size = Arc::new(Mutex::new(suggested_size));
+    let (surface_size_writer, new_surface_size) = SurfaceSizeWriter::new(suggested_size);
     get_handler(mtm).handle(|app| {
         app.window_event(&ActiveEventLoop { mtm }, window.id(), WindowEvent::ScaleFactorChanged {
             scale_factor,
-            surface_size_writer: SurfaceSizeWriter::new(Arc::downgrade(&new_surface_size)),
+            surface_size_writer,
         });
     });
     let (view, screen_frame) = get_view_and_screen_frame(&window);
-    let physical_size = *new_surface_size.lock().unwrap();
-    drop(new_surface_size);
+    let physical_size = new_surface_size.take();
     let logical_size = physical_size.to_logical(scale_factor);
     let size = CGSize::new(logical_size.width, logical_size.height);
     let new_frame: CGRect = CGRect::new(screen_frame.origin, size);

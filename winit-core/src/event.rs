@@ -4,7 +4,7 @@ use alloc::sync::{Arc, Weak};
 use core::cell::LazyCell;
 use core::cmp::Ordering;
 use core::f64;
-use std::sync::Mutex;
+use core::sync::atomic::{self, AtomicU32};
 
 use dpi::{PhysicalPosition, PhysicalSize};
 #[cfg(feature = "serde")]
@@ -1583,15 +1583,61 @@ pub enum MouseScrollDelta {
     PixelDelta(PhysicalPosition<f64>),
 }
 
+/// A handle which can retrieve a [surface size](PhysicalSize<u32>) from a [`SurfaceSizeWriter`].
+pub struct SurfaceSizeWriterHandle {
+    inner: Arc<SharedSurfaceSize>,
+}
+
+impl SurfaceSizeWriterHandle {
+    /// Consume this handle and retrieve the new [surface size](PhysicalSize<u32>).
+    pub fn take(self) -> PhysicalSize<u32> {
+        self.inner.get()
+    }
+
+    fn new(strong: Arc<SharedSurfaceSize>) -> Self {
+        Self { inner: strong }
+    }
+}
+
+#[derive(Debug)]
+struct SharedSurfaceSize {
+    inner: PhysicalSize<AtomicU32>,
+}
+
+impl SharedSurfaceSize {
+    fn get(&self) -> PhysicalSize<u32> {
+        PhysicalSize {
+            width: self.inner.width.load(atomic::Ordering::Acquire),
+            height: self.inner.height.load(atomic::Ordering::Acquire),
+        }
+    }
+
+    fn set(&self, size: PhysicalSize<u32>) {
+        self.inner.width.store(size.width, atomic::Ordering::Release);
+        self.inner.height.store(size.height, atomic::Ordering::Release);
+    }
+
+    fn new(size: PhysicalSize<u32>) -> Self {
+        Self {
+            inner: PhysicalSize {
+                width: AtomicU32::new(size.width),
+                height: AtomicU32::new(size.height),
+            },
+        }
+    }
+}
+
 /// Handle to synchronously change the size of the window from the [`WindowEvent`].
 #[derive(Debug, Clone)]
 pub struct SurfaceSizeWriter {
-    pub(crate) new_surface_size: Weak<Mutex<PhysicalSize<u32>>>,
+    new_surface_size: Weak<SharedSurfaceSize>,
 }
 
 impl SurfaceSizeWriter {
-    pub fn new(new_surface_size: Weak<Mutex<PhysicalSize<u32>>>) -> Self {
-        Self { new_surface_size }
+    pub fn new(new_surface_size: PhysicalSize<u32>) -> (Self, SurfaceSizeWriterHandle) {
+        let strong = Arc::new(SharedSurfaceSize::new(new_surface_size));
+        let weak = Arc::downgrade(&strong);
+        (Self { new_surface_size: weak }, SurfaceSizeWriterHandle::new(strong))
     }
 
     /// Try to request surface size which will be set synchronously on the window.
@@ -1600,7 +1646,7 @@ impl SurfaceSizeWriter {
         new_surface_size: PhysicalSize<u32>,
     ) -> Result<(), RequestError> {
         if let Some(inner) = self.new_surface_size.upgrade() {
-            *inner.lock().unwrap() = new_surface_size;
+            inner.set(new_surface_size);
             Ok(())
         } else {
             Err(RequestError::Ignored)
@@ -1610,7 +1656,7 @@ impl SurfaceSizeWriter {
     /// Get the currently stashed surface size.
     pub fn surface_size(&self) -> Result<PhysicalSize<u32>, RequestError> {
         if let Some(inner) = self.new_surface_size.upgrade() {
-            Ok(*inner.lock().unwrap())
+            Ok(inner.get())
         } else {
             Err(RequestError::Ignored)
         }
