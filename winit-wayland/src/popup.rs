@@ -147,7 +147,7 @@ impl Popup {
                 let popup_state = WindowState::new(
                     event_loop_window_target,
                     &state,
-                    size,
+                    size.into(),
                     WindowType::Popup { popup: popup.clone(), positioner, last_configure: None },
                     attributes.preferred_theme,
                     false,
