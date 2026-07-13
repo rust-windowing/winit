@@ -1383,6 +1383,7 @@ unsafe fn init(
     // so the diffing later can work.
     window_flags.set(WindowFlags::CLOSABLE, true);
     window_flags.set(WindowFlags::CLIP_CHILDREN, win_attributes.clip_children);
+    window_flags.set(WindowFlags::NO_ACTIVATE, win_attributes.no_activate);
 
     let mut fallback_parent = || match win_attributes.owner {
         Some(parent) => {
