@@ -144,7 +144,7 @@ impl Popup {
                 parent_window_state.add_child(super::make_wid(popup.wl_surface()));
                 drop(parent_window_state);
 
-                let popup_state = WindowState::new(
+                let mut popup_state = WindowState::new(
                     event_loop_window_target,
                     &state,
                     size.into(),
@@ -154,6 +154,12 @@ impl Popup {
                     scale_factor,
                     Some(parent_window_id),
                 );
+
+                // Set transparency hint.
+                popup_state.set_transparent(attributes.transparent);
+
+                // Set blur.
+                let _ = popup_state.set_blur(attributes.blur);
 
                 let WindowAttributesWayland { activation_token, .. } = *attributes
                     .platform
