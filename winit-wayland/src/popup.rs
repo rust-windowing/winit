@@ -73,8 +73,6 @@ impl Popup {
             let (popup, popup_state) = if let Some(parent_window_state) =
                 state.windows.borrow().get(&parent_window_id)
             {
-                let size = attributes.surface_size.ok_or(error("Invalid size for popup"))?;
-
                 let wayland_attributes = attributes
                     .platform
                     .as_ref()
@@ -94,6 +92,14 @@ impl Popup {
 
                 // Use the scale factor and xdg geometry of the parent.
                 let scale_factor = parent_window_state.scale_factor();
+                let size = attributes
+                    .surface_size
+                    .ok_or(error("Invalid size for popup"))?
+                    .to_logical(scale_factor);
+                if size.width == 0_i32 || size.height == 0_i32 {
+                    return Err(error("The popups size must not be zero"));
+                }
+
                 let position: LogicalPosition<i32> = attributes
                     .position
                     .map(|position| position.to_logical(scale_factor))
@@ -123,10 +129,7 @@ impl Popup {
                     anchor_rect_size.height.max(1),
                 );
                 positioner.set_offset(position.x, position.y);
-                positioner.set_size(
-                    size.to_logical(scale_factor).width,
-                    size.to_logical(scale_factor).height,
-                );
+                positioner.set_size(size.width, size.height);
 
                 let parent_surface = parent_window_state.window.xdg_surface();
                 let surface = state.compositor_state.create_surface(&queue_handle);
