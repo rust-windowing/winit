@@ -58,8 +58,16 @@ const MIN_WINDOW_SIZE: LogicalSize<u32> = LogicalSize::new(2, 1);
 #[derive(Debug)]
 pub enum WindowType {
     // The option is the last received configure
-    Window { window: Window, last_configure: Option<WindowConfigure> },
-    Popup { popup: Popup, positioner: XdgPositioner, last_configure: Option<PopupConfigure> },
+    Window {
+        window: Window,
+        last_configure: Option<WindowConfigure>,
+    },
+    Popup {
+        popup: Popup,
+        positioner: XdgPositioner,
+        last_configure: Option<PopupConfigure>,
+        parent_origin: LogicalPosition<i32>,
+    },
 }
 
 impl WindowType {
