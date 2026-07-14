@@ -5,7 +5,6 @@ use core::cell::Ref;
 use core::cmp::Ordering;
 use core::fmt::{self, Debug, Formatter};
 use core::hash::{Hash, Hasher};
-use std::sync::{Condvar, Mutex};
 
 use super::super::main_thread::MainThreadMarker;
 use super::{Receiver, Sender, Wrapper, channel};
@@ -102,12 +101,10 @@ impl<T> Dispatcher<T> {
         if let Some(main_thread) = MainThreadMarker::new() {
             f(&self.0.value(main_thread))
         } else {
-            let pair = Arc::new((Mutex::new(None), Condvar::new()));
+            let (sender, receiver) = channel::<R>();
             let closure = Box::new({
-                let pair = pair.clone();
                 move |value: &T| {
-                    *pair.0.lock().unwrap() = Some(f(value));
-                    pair.1.notify_one();
+                    let _ = sender.send(f(value));
                 }
             }) as Box<dyn FnOnce(&T) + Send>;
             // SAFETY: The `transmute` is necessary because `Closure` requires `'static`. This is
@@ -122,13 +119,12 @@ impl<T> Dispatcher<T> {
 
             self.0.send(closure);
 
-            let mut started = pair.0.lock().unwrap();
-
-            while started.is_none() {
-                started = pair.1.wait(started).unwrap();
+            loop {
+                match receiver.try_recv() {
+                    Ok(Some(value)) => break value,
+                    _ => core::hint::spin_loop(),
+                }
             }
-
-            started.take().unwrap()
         }
     }
 }
