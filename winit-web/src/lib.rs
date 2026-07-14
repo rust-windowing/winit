@@ -64,7 +64,6 @@
 
 #[macro_use]
 extern crate alloc;
-extern crate std;
 
 macro_rules! os_error {
     ($error:expr) => {{ winit_core::error::OsError::new(line!(), file!(), $error) }};
