@@ -9,7 +9,7 @@ mod notifier;
 mod wrapper;
 
 pub(crate) use atomic_waker::AtomicWaker;
-use concurrent_queue::{ConcurrentQueue, PushError};
+use concurrent_queue::{ConcurrentQueue, PopError, PushError};
 
 pub use self::abortable::{AbortHandle, Abortable, DropAbortHandle};
 pub use self::channel::{Receiver, Sender, channel};
