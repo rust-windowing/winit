@@ -3,6 +3,7 @@ use alloc::vec::Vec;
 use core::error::Error;
 use core::ops::Deref;
 use core::{fmt, mem};
+#[cfg(not(all(target_family = "wasm", target_os = "none")))]
 use std::io;
 
 use crate::as_any::AsAny;
@@ -27,6 +28,7 @@ impl Deref for Icon {
 impl_dyn_casting!(IconProvider);
 
 #[derive(Debug)]
+#[cfg_attr(all(target_family = "wasm", target_os = "none"), non_exhaustive)]
 /// An error produced when using [`RgbaIcon::new`] with invalid arguments.
 pub enum BadIcon {
     /// Produced when the length of the `rgba` argument isn't divisible by 4, thus `rgba` can't be
@@ -36,6 +38,7 @@ pub enum BadIcon {
     /// At least one of your arguments is incorrect.
     DimensionsVsPixelCount { width: u32, height: u32, width_x_height: usize, pixel_count: usize },
     /// Produced when underlying OS functionality failed to create the icon
+    #[cfg(not(all(target_family = "wasm", target_os = "none")))]
     OsError(io::Error),
 }
 
@@ -55,6 +58,7 @@ impl fmt::Display for BadIcon {
                      dimensions, the expected pixel count is {width_x_height:?}.",
                 )
             },
+            #[cfg(not(all(target_family = "wasm", target_os = "none")))]
             BadIcon::OsError(e) => write!(f, "OS error when instantiating the icon: {e:?}"),
         }
     }
