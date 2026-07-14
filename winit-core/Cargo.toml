@@ -36,6 +36,9 @@ url = { workspace = true, default-features = false }
 [target.'cfg(all(target_family = "wasm", any(target_os = "unknown", target_os = "none")))'.dependencies]
 web-time = { workspace = true, default-features = false }
 
+[target.'cfg(all(target_family = "wasm", target_os = "none"))'.dependencies]
+libm.workspace = true
+
 [target.'cfg(not(all(target_family = "wasm", target_os = "none")))'.dependencies]
 url = { workspace = true, default-features = false, features = ["std"] }
 
