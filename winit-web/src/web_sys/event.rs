@@ -1,5 +1,6 @@
-use std::cell::OnceCell;
-use std::f64;
+use core::cell::OnceCell;
+use core::f64;
+use std::thread_local;
 
 use dpi::{LogicalPosition, PhysicalPosition, Position};
 use smol_str::SmolStr;

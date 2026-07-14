@@ -1,9 +1,9 @@
-use std::cell::{Ref, RefCell};
-use std::cmp;
-use std::future::Future;
-use std::hash::{Hash, Hasher};
-use std::marker::PhantomData;
-use std::sync::Arc;
+use alloc::sync::Arc;
+use core::cell::{Ref, RefCell};
+use core::cmp;
+use core::future::Future;
+use core::hash::{Hash, Hasher};
+use core::marker::PhantomData;
 
 use super::super::main_thread::MainThreadMarker;
 

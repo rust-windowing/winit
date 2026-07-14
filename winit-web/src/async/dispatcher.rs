@@ -1,9 +1,11 @@
-use std::cell::Ref;
-use std::cmp::Ordering;
-use std::fmt::{self, Debug, Formatter};
-use std::hash::{Hash, Hasher};
-use std::rc::Rc;
-use std::sync::{Arc, Condvar, Mutex};
+use alloc::boxed::Box;
+use alloc::rc::Rc;
+use alloc::sync::Arc;
+use core::cell::Ref;
+use core::cmp::Ordering;
+use core::fmt::{self, Debug, Formatter};
+use core::hash::{Hash, Hasher};
+use std::sync::{Condvar, Mutex};
 
 use super::super::main_thread::MainThreadMarker;
 use super::{Receiver, Sender, Wrapper, channel};
@@ -112,7 +114,7 @@ impl<T> Dispatcher<T> {
             // safe because this function won't return until `f` has finished executing. See
             // `Self::new()`.
             let closure = Closure(unsafe {
-                std::mem::transmute::<
+                core::mem::transmute::<
                     Box<dyn FnOnce(&T) + Send>,
                     Box<dyn FnOnce(&T) + Send + 'static>,
                 >(closure)

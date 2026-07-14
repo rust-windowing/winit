@@ -1,5 +1,7 @@
-use std::cell::OnceCell;
-use std::time::Duration;
+use alloc::string::String;
+use core::cell::OnceCell;
+use core::time::Duration;
+use std::thread_local;
 
 use js_sys::{Array, Function, Object, Promise};
 use wasm_bindgen::closure::Closure;
