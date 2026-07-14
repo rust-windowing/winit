@@ -1,7 +1,6 @@
 //! Types related to drag-and-drop and data transfer on Wayland.
 
-mod send_data;
-
+use std::ffi::OsStr;
 use std::fmt;
 use std::io::{self, BufRead, Cursor, ErrorKind};
 use std::ops::{BitOr, Deref};
@@ -27,9 +26,23 @@ use winit_core::event::WindowEvent;
 use winit_core::event_loop::DndAction;
 use winit_core::window::WindowId;
 
-use crate::dnd::send_data::SendDataEncoder;
 use crate::make_data_transfer_id;
 use crate::state::WinitState;
+
+fn encode_uri_list<I>(uri_list: I) -> Vec<u8>
+where
+    I: IntoIterator,
+    I::Item: AsRef<OsStr>,
+{
+    let mut out = Vec::new();
+
+    for uri in uri_list {
+        out.extend_from_slice(OsStr::new(&uri).as_encoded_bytes());
+        out.extend_from_slice(b"\r\n");
+    }
+
+    out
+}
 
 impl DataSourceHandler for WinitState {
     fn accept_mime(
@@ -63,15 +76,15 @@ impl DataSourceHandler for WinitState {
         };
 
         let mut encoder = match send_data {
-            SendData::Uris(strings) => SendDataEncoder::Uris(strings.into()),
+            SendData::Uris(strings) => Cursor::new(encode_uri_list(strings)),
             SendData::String(str) => match mime.parse_charset() {
-                Ok(Charset::Utf8) => SendDataEncoder::Bytes(Cursor::new(str.into_bytes())),
+                Ok(Charset::Utf8) => Cursor::new(str.into_bytes()),
                 Err(e) => {
                     tracing::error!("{e}");
                     return;
                 },
             },
-            SendData::Bytes(binary) => SendDataEncoder::Bytes(Cursor::new(binary)),
+            SendData::Bytes(binary) => Cursor::new(binary),
         };
 
         let _ = self.loop_handle.insert_source(fd, move |_, file, _| {
