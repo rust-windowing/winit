@@ -14,10 +14,10 @@ use core::num::NonZeroU16;
 use core::ops::{Deref, DerefMut};
 use core::pin::Pin;
 use core::task::{Context, Poll, ready};
-use std::sync::OnceLock;
 
 use dpi::{LogicalSize, PhysicalPosition, PhysicalSize};
 use js_sys::{Object, Promise};
+use once_cell::race::OnceBool;
 use tracing::error;
 use wasm_bindgen::closure::Closure;
 use wasm_bindgen::prelude::wasm_bindgen;
@@ -364,7 +364,7 @@ impl Inner {
     }
 
     fn has_lock_support(&self) -> bool {
-        *HAS_LOCK_SUPPORT.get_or_init(|| !self.orientation_raw().has_lock().is_undefined())
+        HAS_LOCK_SUPPORT.get_or_init(|| !self.orientation_raw().has_lock().is_undefined())
     }
 }
 
@@ -844,10 +844,10 @@ fn unreachable_error(error: &JsValue, message: &str) -> ! {
     }
 }
 
-static HAS_LOCK_SUPPORT: OnceLock<bool> = OnceLock::new();
+static HAS_LOCK_SUPPORT: OnceBool = OnceBool::new();
 
 fn has_previous_lock_support() -> Option<bool> {
-    HAS_LOCK_SUPPORT.get().cloned()
+    HAS_LOCK_SUPPORT.get()
 }
 
 pub fn has_screen_details_support(window: &Window) -> bool {

@@ -2,8 +2,8 @@ use alloc::boxed::Box;
 use core::fmt::{self, Debug, Formatter};
 use core::marker::PhantomData;
 use core::mem;
-use std::sync::OnceLock;
 
+use once_cell::race::OnceBox;
 use wasm_bindgen::prelude::wasm_bindgen;
 use wasm_bindgen::{JsCast, JsValue};
 
@@ -41,7 +41,7 @@ impl<T> MainThreadSafe<T> {
                 async move { while receiver.next().await.is_ok() {} },
             );
 
-            sender
+            Box::new(sender)
         });
 
         Self(Some(value))
@@ -83,7 +83,7 @@ impl<T> Drop for MainThreadSafe<T> {
 unsafe impl<T> Send for MainThreadSafe<T> {}
 unsafe impl<T> Sync for MainThreadSafe<T> {}
 
-static DROP_HANDLER: OnceLock<Sender<DropBox>> = OnceLock::new();
+static DROP_HANDLER: OnceBox<Sender<DropBox>> = OnceBox::new();
 
 struct DropBox(#[allow(dead_code)] Box<dyn Any>);
 

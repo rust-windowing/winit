@@ -90,6 +90,7 @@ atomic-waker = "1"
 concurrent-queue = { version = "2", default-features = false }
 console_error_panic_hook = "0.1"
 js-sys = { version = "0.3.70", default-features = false }
+once_cell = { version = "1", default-features = false }
 pin-project = "1"
 tracing-web = "0.1"
 wasm-bindgen = { version = "0.2.93", default-features = false }
