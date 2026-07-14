@@ -81,7 +81,7 @@ impl BufRead for UriListEncoder {
         let mut bytes = mem::take(self.uri_reader.get_mut());
 
         bytes.clear();
-        bytes.copy_from_slice(OsStr::new(&next_uri).as_encoded_bytes());
+        bytes.extend_from_slice(OsStr::new(&next_uri).as_encoded_bytes());
 
         self.uri_reader = Cursor::new(bytes);
         self.newline_reader.set_position(0);
