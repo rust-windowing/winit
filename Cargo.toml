@@ -17,7 +17,7 @@ winit = { path = "winit" }
 winit-android = { version = "=0.31.0-beta.2", path = "winit-android" }
 winit-appkit = { version = "=0.31.0-beta.2", path = "winit-appkit" }
 winit-common = { version = "=0.31.0-beta.2", path = "winit-common" }
-winit-core = { version = "=0.31.0-beta.2", path = "winit-core" }
+winit-core = { version = "=0.31.0-beta.2", path = "winit-core", default-features = false }
 winit-orbital = { version = "=0.31.0-beta.2", path = "winit-orbital" }
 winit-uikit = { version = "=0.31.0-beta.2", path = "winit-uikit" }
 winit-wayland = { version = "=0.31.0-beta.2", path = "winit-wayland", default-features = false }
@@ -89,11 +89,11 @@ redox_event = { package = "redox_event", version = "0.4.8" }
 atomic-waker = "1"
 concurrent-queue = { version = "2", default-features = false }
 console_error_panic_hook = "0.1"
-js-sys = "0.3.70"
+js-sys = { version = "0.3.70", default-features = false }
 pin-project = "1"
 tracing-web = "0.1"
-wasm-bindgen = "0.2.93"
-wasm-bindgen-futures = "0.4.43"
+wasm-bindgen = { version = "0.2.93", default-features = false }
+wasm-bindgen-futures = { version = "0.4.43", default-features = false }
 wasm-bindgen-test = "0.3"
 web-time = { version = "1", default-features = false }
-web_sys = { package = "web-sys", version = "0.3.70" }
+web_sys = { package = "web-sys", version = "0.3.70", default-features = false }
