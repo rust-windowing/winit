@@ -1,9 +1,12 @@
-use std::cell::{Cell, RefCell};
-use std::collections::{HashSet, VecDeque};
-use std::ops::Deref;
-use std::rc::{Rc, Weak};
-use std::sync::Arc;
-use std::{fmt, iter};
+use alloc::boxed::Box;
+use alloc::collections::VecDeque;
+use alloc::rc::{Rc, Weak};
+use alloc::sync::Arc;
+use alloc::vec::Vec;
+use core::cell::{Cell, RefCell};
+use core::ops::Deref;
+use core::{fmt, iter};
+use std::collections::HashSet;
 
 use dpi::PhysicalSize;
 use wasm_bindgen::JsCast;
@@ -742,7 +745,7 @@ impl Shared {
     }
 
     fn handle_loop_destroyed(&self) {
-        let all_canvases = std::mem::take(&mut *self.0.all_canvases.borrow_mut());
+        let all_canvases = core::mem::take(&mut *self.0.all_canvases.borrow_mut());
         *self.0.page_transition_event_handle.borrow_mut() = None;
         *self.0.on_mouse_move.borrow_mut() = None;
         *self.0.on_wheel.borrow_mut() = None;

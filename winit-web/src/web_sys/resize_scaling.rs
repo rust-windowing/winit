@@ -1,5 +1,7 @@
-use std::cell::{Cell, RefCell};
-use std::rc::Rc;
+use alloc::boxed::Box;
+use alloc::rc::Rc;
+use core::cell::{Cell, RefCell};
+use std::thread_local;
 
 use dpi::{LogicalSize, PhysicalSize};
 use js_sys::{Array, Object};

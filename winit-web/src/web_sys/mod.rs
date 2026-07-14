@@ -10,7 +10,9 @@ mod resize_scaling;
 mod safe_area;
 mod schedule;
 
-use std::cell::OnceCell;
+use alloc::string::String;
+use core::cell::OnceCell;
+use std::thread_local;
 
 use dpi::{LogicalPosition, LogicalSize};
 use js_sys::Array;

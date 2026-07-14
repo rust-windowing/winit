@@ -1,7 +1,9 @@
-use std::fmt::{self, Debug, Formatter};
-use std::marker::PhantomData;
-use std::mem;
+use alloc::boxed::Box;
+use core::fmt::{self, Debug, Formatter};
+use core::marker::PhantomData;
+use core::mem;
 use std::sync::OnceLock;
+use std::thread_local;
 
 use wasm_bindgen::prelude::wasm_bindgen;
 use wasm_bindgen::{JsCast, JsValue};

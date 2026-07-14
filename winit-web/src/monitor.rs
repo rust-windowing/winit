@@ -1,15 +1,21 @@
-use std::cell::{OnceCell, Ref, RefCell};
-use std::cmp::Ordering;
-use std::fmt::{self, Debug, Formatter};
-use std::future::Future;
-use std::hash::{Hash, Hasher};
-use std::mem;
-use std::num::NonZeroU16;
-use std::ops::{Deref, DerefMut};
-use std::pin::Pin;
-use std::rc::{Rc, Weak};
-use std::sync::{Arc, OnceLock};
-use std::task::{Context, Poll, ready};
+use alloc::borrow::Cow;
+use alloc::boxed::Box;
+use alloc::rc::{Rc, Weak};
+use alloc::string::String;
+use alloc::sync::Arc;
+use alloc::vec::Vec;
+use core::cell::{OnceCell, Ref, RefCell};
+use core::cmp::Ordering;
+use core::fmt::{self, Debug, Formatter};
+use core::future::Future;
+use core::hash::{Hash, Hasher};
+use core::mem;
+use core::num::NonZeroU16;
+use core::ops::{Deref, DerefMut};
+use core::pin::Pin;
+use core::task::{Context, Poll, ready};
+use std::sync::OnceLock;
+use std::thread_local;
 
 use dpi::{LogicalSize, PhysicalPosition, PhysicalSize};
 use js_sys::{Object, Promise};
@@ -135,7 +141,7 @@ impl MonitorHandleProvider for MonitorHandle {
         self.inner.queue(|inner| inner.position())
     }
 
-    fn name(&self) -> Option<std::borrow::Cow<'_, str>> {
+    fn name(&self) -> Option<Cow<'_, str>> {
         self.inner.queue(|inner| inner.name().map(Into::into))
     }
 

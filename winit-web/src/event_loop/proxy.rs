@@ -1,7 +1,7 @@
-use std::future;
-use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::task::Poll;
+use alloc::sync::Arc;
+use core::future;
+use core::sync::atomic::{AtomicBool, Ordering};
+use core::task::Poll;
 
 use winit_core::event_loop::EventLoopProxyProvider;
 

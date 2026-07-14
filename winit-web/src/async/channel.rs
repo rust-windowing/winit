@@ -1,8 +1,8 @@
-use std::future;
-use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, Ordering};
+use alloc::sync::Arc;
+use core::future;
+use core::sync::atomic::{AtomicBool, Ordering};
+use core::task::Poll;
 use std::sync::mpsc::{self, RecvError, SendError, TryRecvError};
-use std::task::Poll;
 
 use super::AtomicWaker;
 

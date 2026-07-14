@@ -1,7 +1,8 @@
-use std::cell::{Cell, RefCell};
-use std::ops::Deref;
-use std::rc::Rc;
-use std::sync::{Arc, Mutex};
+use alloc::rc::Rc;
+use alloc::string::String;
+use alloc::sync::Arc;
+use core::cell::{Cell, RefCell};
+use core::ops::Deref;
 
 use dpi::{LogicalPosition, PhysicalPosition, PhysicalSize};
 use smol_str::SmolStr;
