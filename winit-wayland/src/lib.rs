@@ -154,6 +154,9 @@ pub struct WindowAttributesWayland {
     pub(crate) prefer_csd: bool,
     pub(crate) anchor: Option<PopupAnchor>,
     pub(crate) anchor_rect: Option<(Position, Size)>,
+    /// Only for Popup: The offset of the popup to the
+    /// anchor rect
+    pub(crate) positioner_offset: Option<Position>,
     pub(crate) gravity: Option<PopupGravity>,
     pub(crate) constraint_adjustment: Option<PopupConstraintAdjustment>,
 }
@@ -210,6 +213,7 @@ impl WindowAttributesWayland {
     ///
     /// `position` is the top-left corner of the rectangle relative to the parent window's content
     /// area, and `size` its dimensions. Defaults to a `1x1` rectangle at the content origin.
+    /// This value overwrites the position value set with `with_position` in the window attributes
     #[inline]
     pub fn with_anchor_rect(
         mut self,
@@ -217,6 +221,12 @@ impl WindowAttributesWayland {
         size: impl Into<Size>,
     ) -> Self {
         self.anchor_rect = Some((position.into(), size.into()));
+        self
+    }
+
+    /// Set the popup position relative to the anchor rect
+    pub fn with_positioner_offset(mut self, position: impl Into<Position>) -> Self {
+        self.positioner_offset = Some(position.into());
         self
     }
 

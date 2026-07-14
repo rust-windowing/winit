@@ -78,8 +78,7 @@ pub struct WindowAttributes {
     ///
     /// For popups, this position is relative to the parent window.
     ///
-    /// **Wayland:** The outer position is relative to the anchor point defined
-    /// with the anchor rect attribute.
+    /// **Wayland:** See `WindowAttributesWayland` for more options to position a popup.
     pub position: Option<Position>,
     pub resizable: bool,
     pub enabled_buttons: WindowButtons,

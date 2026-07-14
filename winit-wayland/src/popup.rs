@@ -84,6 +84,7 @@ impl Popup {
                     anchor,
                     anchor_rect,
                     constraint_adjustment,
+                    positioner_offset,
                     ..
                 } = wayland_attributes;
                 let grab_keyboard = attributes.active;
@@ -100,19 +101,14 @@ impl Popup {
                     return Err(error("The popups size must not be zero"));
                 }
 
-                let position: LogicalPosition<i32> = attributes
-                    .position
-                    .map(|position| position.to_logical(scale_factor))
-                    .unwrap_or_default();
-                let geometry_origin = parent_window_state.content_surface_origin();
-
                 // Anchoring
                 // The anchor rect is relative to the parent window geometry, so we need to subtract
                 // the geometry origin from the position to get the correct anchor rect.
                 // This is important for client side decorations
+                let geometry_origin = parent_window_state.content_surface_origin();
                 let anchor_position = LogicalPosition::new(-geometry_origin.x, -geometry_origin.y);
-                anchor.inspect(|a| positioner.set_anchor((*a).into()));
-                gravity.inspect(|g| positioner.set_gravity((*g).into()));
+                positioner.set_anchor(anchor.unwrap_or(crate::PopupAnchor::TopLeft).into());
+                positioner.set_gravity(gravity.unwrap_or(crate::PopupGravity::BottomRight).into());
                 constraint_adjustment
                     .inspect(|c| positioner.set_constraint_adjustment((*c).into()));
                 let (anchor_rect_position, anchor_rect_size) = match anchor_rect {
@@ -120,7 +116,15 @@ impl Popup {
                         position.to_logical::<i32>(scale_factor),
                         size.to_logical::<i32>(scale_factor),
                     ),
-                    None => (LogicalPosition::new(0, 0), LogicalSize::new(1, 1)),
+                    None => {
+                        // prefer positioner_offset if specified, otherwise use attributes.position
+                        let pos: LogicalPosition<i32> = anchor_rect
+                            .map(|a| a.0)
+                            .or_else(|| attributes.position)
+                            .map(|position| position.to_logical(scale_factor))
+                            .unwrap_or_default();
+                        (pos, LogicalSize::new(1, 1))
+                    },
                 };
                 positioner.set_anchor_rect(
                     anchor_rect_position.x + anchor_position.x,
@@ -128,7 +132,10 @@ impl Popup {
                     anchor_rect_size.width.max(1),
                     anchor_rect_size.height.max(1),
                 );
-                positioner.set_offset(position.x, position.y);
+                positioner_offset.inspect(|o| {
+                    let o = o.to_logical(scale_factor);
+                    positioner.set_offset(o.x, o.y);
+                });
                 positioner.set_size(size.width, size.height);
 
                 let parent_surface = parent_window_state.window.xdg_surface();
