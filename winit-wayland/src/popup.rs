@@ -24,10 +24,10 @@ use winit_core::window::{
 
 use super::ActiveEventLoop;
 use super::output::MonitorHandle;
-use crate::WindowAttributesWayland;
 use crate::window::Handles;
 use crate::window::handles::WindowRequests;
 use crate::window::state::{WindowState, WindowType};
+use crate::{PopupExtWayland, WindowAttributesWayland};
 
 #[derive(Debug)]
 pub struct Popup {
@@ -155,7 +155,12 @@ impl Popup {
                     event_loop_window_target,
                     &state,
                     size.into(),
-                    WindowType::Popup { popup: popup.clone(), positioner, last_configure: None },
+                    WindowType::Popup {
+                        popup: popup.clone(),
+                        positioner,
+                        last_configure: None,
+                        parent_origin: geometry_origin,
+                    },
                     attributes.preferred_theme,
                     false,
                     scale_factor,
@@ -640,5 +645,62 @@ impl rwh_06::HasDisplayHandle for Popup {
         });
 
         unsafe { Ok(rwh_06::DisplayHandle::borrow_raw(raw.into())) }
+    }
+}
+
+impl PopupExtWayland for Popup {
+    fn set_anchor(&self, anchor: crate::PopupAnchor) {
+        let Some(state) = self.popup_state.upgrade() else {
+            return;
+        };
+
+        if let WindowType::Popup { popup, positioner, .. } = &state.lock().unwrap().window {
+            positioner.set_anchor(anchor.into());
+            popup.reposition(positioner, 0);
+        }
+    }
+
+    fn set_anchor_rect(&self, position: impl Into<Position>, size: impl Into<Size>) {
+        let Some(state) = self.popup_state.upgrade() else {
+            return;
+        };
+
+        let scale_factor = state.lock().unwrap().scale_factor();
+        let size: LogicalSize<i32> = size.into().to_logical(scale_factor);
+        let position: LogicalPosition<i32> = position.into().to_logical(scale_factor);
+
+        if let WindowType::Popup { popup, positioner, parent_origin, .. } =
+            &state.lock().unwrap().window
+        {
+            positioner.set_anchor_rect(
+                position.x - parent_origin.x,
+                position.y - parent_origin.y,
+                size.width.max(1),
+                size.height.max(1),
+            );
+            popup.reposition(positioner, 0);
+        }
+    }
+
+    fn set_constraint_adjustment(&self, constraint_adjustment: crate::PopupConstraintAdjustment) {
+        let Some(state) = self.popup_state.upgrade() else {
+            return;
+        };
+
+        if let WindowType::Popup { popup, positioner, .. } = &state.lock().unwrap().window {
+            positioner.set_constraint_adjustment(constraint_adjustment.into());
+            popup.reposition(positioner, 0);
+        }
+    }
+
+    fn set_gravity(&self, gravity: crate::PopupGravity) {
+        let Some(state) = self.popup_state.upgrade() else {
+            return;
+        };
+
+        if let WindowType::Popup { popup, positioner, .. } = &state.lock().unwrap().window {
+            positioner.set_gravity(gravity.into());
+            popup.reposition(positioner, 0);
+        }
     }
 }
