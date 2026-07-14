@@ -1,12 +1,11 @@
 use alloc::boxed::Box;
-use alloc::collections::VecDeque;
+use alloc::collections::{BTreeSet, VecDeque};
 use alloc::rc::{Rc, Weak};
 use alloc::sync::Arc;
 use alloc::vec::Vec;
 use core::cell::{Cell, RefCell};
 use core::ops::Deref;
 use core::{fmt, iter};
-use std::collections::HashSet;
 
 use dpi::PhysicalSize;
 use wasm_bindgen::JsCast;
@@ -58,7 +57,7 @@ struct Execution {
     document: Document,
     #[allow(clippy::type_complexity)]
     all_canvases: RefCell<Vec<(WindowId, Weak<backend::Canvas>, DispatchRunner<Inner>)>>,
-    redraw_pending: RefCell<HashSet<WindowId>>,
+    redraw_pending: RefCell<BTreeSet<WindowId>>,
     destroy_pending: RefCell<VecDeque<WindowId>>,
     pub(crate) monitor: Rc<MonitorHandler>,
     safe_area: Rc<SafeAreaHandle>,
@@ -203,7 +202,7 @@ impl Shared {
                 document,
                 id: Cell::new(0),
                 all_canvases: RefCell::new(Vec::new()),
-                redraw_pending: RefCell::new(HashSet::new()),
+                redraw_pending: RefCell::new(BTreeSet::new()),
                 destroy_pending: RefCell::new(VecDeque::new()),
                 monitor: Rc::new(monitor),
                 safe_area: Rc::new(safe_area),
@@ -622,7 +621,8 @@ impl Shared {
         self.process_destroy_pending_windows();
 
         // Collect all of the redraw events to avoid double-locking the RefCell
-        let redraw_events: Vec<WindowId> = self.0.redraw_pending.borrow_mut().drain().collect();
+        let redraw_events: Vec<WindowId> =
+            core::mem::take(&mut *self.0.redraw_pending.borrow_mut()).into_iter().collect();
         for window_id in redraw_events {
             self.handle_event(Event::WindowEvent {
                 window_id,
