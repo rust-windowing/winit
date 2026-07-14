@@ -11,7 +11,6 @@ use dpi::{PhysicalPosition, PhysicalSize};
 use serde::{Deserialize, Serialize};
 use smol_str::SmolStr;
 
-use crate::Instant;
 use crate::data_transfer::DataTransferId;
 #[cfg(not(all(target_family = "wasm", target_os = "none")))]
 use crate::data_transfer::TypedData;
@@ -21,6 +20,7 @@ use crate::keyboard::{self, ModifiersKeyState, ModifiersKeys, ModifiersState};
 #[cfg(doc)]
 use crate::window::Window;
 use crate::window::{ActivationToken, Theme};
+use crate::{Instant, libm};
 
 /// Describes the reason the event loop is resuming.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -1143,7 +1143,7 @@ impl Force {
         match self {
             Force::Calibrated { force, max_possible_force } => {
                 let force = match angle {
-                    Some(TabletToolAngle { altitude, .. }) => force / altitude.sin(),
+                    Some(TabletToolAngle { altitude, .. }) => force / libm::sin(altitude),
                     None => *force,
                 };
                 force / max_possible_force
@@ -1300,7 +1300,7 @@ impl TabletToolTilt {
             azimuth = 0.;
         } else {
             // Non-boundary case: neither tiltX nor tiltY is equal to 0 or +-90
-            azimuth = f64::atan2(y.tan(), x.tan());
+            azimuth = libm::atan2(libm::tan(*y), libm::tan(*x));
 
             if azimuth < 0. {
                 azimuth += PI_2;
@@ -1317,7 +1317,7 @@ impl TabletToolTilt {
             altitude = PI_0_5 - x.abs();
         } else {
             // Non-boundary case: neither tiltX nor tiltY is equal to 0 or +-90
-            altitude = f64::atan(1. / f64::sqrt(x.tan().powi(2) + y.tan().powi(2)));
+            altitude = libm::atan(1. / libm::hypot(libm::tan(*x), libm::tan(*y)));
         }
 
         TabletToolAngle { altitude, azimuth }
@@ -1403,13 +1403,16 @@ impl TabletToolAngle {
         }
 
         if self.altitude != 0. {
-            let altitude = self.altitude.tan();
+            let altitude = libm::tan(self.altitude);
 
-            x = f64::atan(f64::cos(self.azimuth) / altitude);
-            y = f64::atan(f64::sin(self.azimuth) / altitude);
+            x = libm::atan(libm::cos(self.azimuth) / altitude);
+            y = libm::atan(libm::sin(self.azimuth) / altitude);
         }
 
-        TabletToolTilt { x: x.to_degrees().round() as i8, y: y.to_degrees().round() as i8 }
+        TabletToolTilt {
+            x: libm::round(x.to_degrees()) as i8,
+            y: libm::round(y.to_degrees()) as i8,
+        }
     }
 }
 
