@@ -253,7 +253,7 @@ impl EventLoopRunner {
                 _ => return false,
             };
 
-            (effects | effect) != 0
+            (effects & effect) != 0
         })
     }
 
