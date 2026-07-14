@@ -44,15 +44,7 @@ default = ["x11", "wayland", "wayland-dlopen", "wayland-csd-adwaita"]
 android-game-activity = ["winit-android/game-activity"]
 android-native-activity = ["winit-android/native-activity"]
 mint = ["dpi/mint"]
-serde = [
-    "dep:serde",
-    "cursor-icon/serde",
-    "smol_str/serde",
-    "dpi/serde",
-    "bitflags/serde",
-    "winit-core/serde",
-    "winit-uikit/serde",
-]
+serde = ["dpi/serde", "winit-core/serde", "winit-uikit/serde"]
 wayland = ["winit-wayland"]
 wayland-csd-adwaita = ["winit-wayland/csd-adwaita"]
 wayland-csd-adwaita-crossfont = ["winit-wayland/csd-adwaita-crossfont"]
@@ -65,17 +57,15 @@ x11 = ["winit-x11"]
 cfg_aliases.workspace = true
 
 [dependencies]
-bitflags.workspace = true
-cursor-icon.workspace = true
-dpi.workspace = true
-rwh_06.workspace = true
-serde = { workspace = true, optional = true }
-smol_str.workspace = true
-tracing.workspace = true
-winit-core.workspace = true
+dpi = { workspace = true, default-features = false }
+rwh_06 = { workspace = true, default-features = false }
+tracing = { workspace = true, default-features = false }
+winit-core = { workspace = true, default-features = false }
 
 [dev-dependencies]
+cursor-icon.workspace = true
 image = { workspace = true, features = ["png"] }
+serde.workspace = true
 tracing = { workspace = true, features = ["log"] }
 tracing-subscriber = { workspace = true, features = ["env-filter"] }
 # Launching a window without drawing to it has unpredictable results varying from platform to
