@@ -145,7 +145,6 @@ impl ApplicationHandler for Application {
             },
             WindowEvent::DragLeft { .. } => {
                 info!("{event:?}");
-                self.last_dnd_fetch = None;
             },
             WindowEvent::DataTransferReceived { ref value, serial, .. } => {
                 assert_eq!(self.last_dnd_fetch, Some(serial));
