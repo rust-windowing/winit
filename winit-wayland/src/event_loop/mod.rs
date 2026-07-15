@@ -725,8 +725,13 @@ impl RootActiveEventLoop for ActiveEventLoop {
             let file = unsafe { file.get_mut() };
 
             let result = match file.read_to_end(&mut buffer) {
-                Err(e) if e.kind() == io::ErrorKind::WouldBlock => return PostAction::Continue,
-                Ok(_) => Ok(mem::take(&mut buffer)),
+                Err(e) if e.kind() == io::ErrorKind::WouldBlock => {
+                    return PostAction::Continue;
+                },
+                Ok(0) => Ok(mem::take(&mut buffer)),
+                Ok(_) => {
+                    return PostAction::Continue;
+                },
                 Err(e) => Err(Arc::new(e)),
             };
 

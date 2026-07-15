@@ -2,7 +2,7 @@
 
 use std::ffi::OsStr;
 use std::fmt;
-use std::io::{self, BufRead, Cursor, ErrorKind};
+use std::io::{self, BufRead, Cursor, ErrorKind, Write};
 use std::ops::{BitOr, Deref};
 use std::sync::Arc;
 
@@ -91,11 +91,17 @@ impl DataSourceHandler for WinitState {
             // Safety: We only mutate `file` in-place and do not replace and drop it.
             let file = unsafe { file.get_mut() };
             loop {
-                match std::io::copy(&mut encoder, file) {
+                let Ok(encoded_bytes) = encoder.fill_buf() else {
+                    return PostAction::Remove;
+                };
+
+                match file.write(encoded_bytes) {
                     Ok(0) => {
                         break PostAction::Remove;
                     },
-                    Ok(_) => {},
+                    Ok(consumed) => {
+                        encoder.consume(consumed);
+                    },
                     Err(e) if e.kind() == ErrorKind::WouldBlock => {
                         break PostAction::Continue;
                     },

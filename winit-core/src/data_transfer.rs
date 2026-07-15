@@ -270,7 +270,7 @@ pub trait TypedData: AsAny + fmt::Debug + Send + Sync {
     fn try_as_bytes(&self) -> io::Result<Vec<u8>> {
         let mut reader = self
             .try_read()
-            .ok_or_else(|| io::Error::other("This `TypedData` was not readable as bytes"))?;
+            .ok_or_else(|| io::Error::other("This `TypedData` is not readable as bytes"))?;
 
         let mut out = Vec::new();
 
