@@ -17,6 +17,7 @@ pub enum GetPropertyError {
     X11rbError(Arc<ReplyError>),
     TypeMismatch(xproto::Atom),
     FormatMismatch(c_int),
+    Unknown,
 }
 
 impl GetPropertyError {
@@ -41,6 +42,7 @@ impl fmt::Display for GetPropertyError {
             GetPropertyError::X11rbError(err) => err.fmt(f),
             GetPropertyError::TypeMismatch(err) => write!(f, "type mismatch: {err}"),
             GetPropertyError::FormatMismatch(err) => write!(f, "format mismatch: {err}"),
+            GetPropertyError::Unknown => write!(f, "internal error"),
         }
     }
 }
