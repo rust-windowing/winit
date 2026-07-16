@@ -287,7 +287,6 @@ pub enum DndAction {
     ///
     /// # Platforms
     ///
-    /// - X11
     /// - Wayland
     /// - macOS
     /// - Windows
@@ -307,7 +306,6 @@ pub enum DndAction {
     ///
     /// - macOS
     /// - Windows
-    /// - X11
     Link,
     /// The user will be prompted for what should be done
     ///
@@ -319,7 +317,6 @@ pub enum DndAction {
     ///
     /// # Platforms
     ///
-    /// - X11
     /// - macOS
     Private,
 }
