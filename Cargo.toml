@@ -36,6 +36,7 @@ rwh_06 = { package = "raw-window-handle", version = "0.6", features = ["std"] }
 serde = { version = "1", features = ["serde_derive"] }
 smol_str = "0.3"
 tracing = { version = "0.1.40", default-features = false }
+url = "2"
 
 # Dev dependencies.
 image = { version = "0.25.0", default-features = false }

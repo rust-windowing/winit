@@ -26,6 +26,8 @@ mod window;
 mod xdisplay;
 mod xsettings;
 
+pub use dnd::{Selection, SelectionReader, SelectionType, UriListParseError};
+
 /// X window type. Maps directly to
 /// [`_NET_WM_WINDOW_TYPE`](https://specifications.freedesktop.org/wm-spec/wm-spec-1.5.html).
 #[derive(Debug, Default, Copy, Clone, PartialEq, Eq, Hash)]

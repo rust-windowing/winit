@@ -1,10 +1,12 @@
 use std::cell::{Cell, RefCell};
 use std::collections::{HashMap, VecDeque};
+use std::mem::MaybeUninit;
 use std::os::raw::{c_char, c_int, c_long, c_ulong};
 use std::slice;
 use std::sync::{Arc, Mutex};
 
 use dpi::{PhysicalPosition, PhysicalSize};
+use tracing::warn;
 use winit_common::xkb::{self, Context, XkbState};
 use winit_core::application::ApplicationHandler;
 use winit_core::event::{
@@ -12,6 +14,7 @@ use winit_core::event::{
     MouseScrollDelta, PointerKind, PointerSource, RawKeyEvent, SurfaceSizeWriter, TouchPhase,
     WindowEvent,
 };
+use winit_core::event_loop::DndAction;
 use winit_core::keyboard::ModifiersState;
 use winit_core::window::WindowId;
 use x11_dl::xinput2::{
@@ -31,7 +34,7 @@ use x11rb::x11_utils::{ExtensionInformation, Serialize};
 use xkbcommon_dl::xkb_mod_mask_t;
 
 use crate::atoms::*;
-use crate::dnd::{Dnd, DndState};
+use crate::dnd::{DndState, SelectionType};
 use crate::event_loop::{
     ALL_DEVICES, ActiveEventLoop, CookieResultExt, Device, DeviceInfo, DeviceType,
     ScrollOrientation, mkdid, mkwid,
@@ -49,7 +52,6 @@ const KEYCODE_OFFSET: u8 = 8;
 
 #[derive(Debug)]
 pub struct EventProcessor {
-    pub dnd: Dnd,
     pub ime_receiver: ImeReceiver,
     pub ime_event_receiver: ImeEventReceiver,
     pub randr_event_offset: u8,
@@ -294,7 +296,10 @@ impl EventProcessor {
         unsafe { (self.target.xconn.xlib.XPending)(self.target.xconn.display) != 0 }
     }
 
-    pub unsafe fn poll_one_event(&mut self, event_ptr: *mut XEvent) -> bool {
+    pub fn poll_one_event<'a>(
+        &mut self,
+        event_ptr: &'a mut MaybeUninit<XEvent>,
+    ) -> Option<&'a mut XEvent> {
         // This function is used to poll and remove a single event
         // from the Xlib event queue in a non-blocking, atomic way.
         // XCheckIfEvent is non-blocking and removes events from queue.
@@ -304,20 +309,21 @@ impl EventProcessor {
         unsafe extern "C" fn predicate(
             _display: *mut XDisplay,
             _event: *mut XEvent,
-            _arg: *mut c_char,
+            _filter: *mut c_char,
         ) -> c_int {
-            // This predicate always returns "true" (1) to accept all events
             1
         }
 
-        unsafe {
+        let event_initialized = unsafe {
             (self.target.xconn.xlib.XCheckIfEvent)(
                 self.target.xconn.display,
-                event_ptr,
+                event_ptr.as_mut_ptr(),
                 Some(predicate),
                 std::ptr::null_mut(),
             ) != 0
-        }
+        };
+
+        event_initialized.then(|| unsafe { event_ptr.assume_init_mut() })
     }
 
     pub fn init_device(&self, device: xinput::DeviceId) {
@@ -423,21 +429,41 @@ impl EventProcessor {
         }
 
         if xev.message_type == atoms[XdndEnter] as c_ulong {
-            let source_window = xev.data.get_long(0) as xproto::Window;
-            let flags = xev.data.get_long(1);
-            let version = flags >> 24;
-            self.dnd.version = Some(version);
-            let has_more_types = flags - (flags & (c_long::MAX - 1)) == 1;
-            if !has_more_types {
-                let type_list = vec![
-                    xev.data.get_long(2) as xproto::Atom,
-                    xev.data.get_long(3) as xproto::Atom,
-                    xev.data.get_long(4) as xproto::Atom,
-                ];
-                self.dnd.type_list = Some(type_list);
-            } else if let Ok(more_types) = unsafe { self.dnd.get_type_list(source_window) } {
-                self.dnd.type_list = Some(more_types);
-            }
+            // Cautiously limit the scope of the `dnd` lock so we don't rely on `app.window_event`
+            // never contending the lock.
+            let transfer_id = {
+                let mut dnd = self.target.dnd.borrow_mut();
+                let source_window = xev.data.get_long(0) as xproto::Window;
+                let flags = xev.data.get_long(1);
+
+                let version = flags >> 24;
+
+                let has_more_types = flags - (flags & (c_long::MAX - 1)) == 1;
+                let types: Vec<_> = if !has_more_types {
+                    [
+                        xev.data.get_long(2) as xproto::Atom,
+                        xev.data.get_long(3) as xproto::Atom,
+                        xev.data.get_long(4) as xproto::Atom,
+                    ]
+                    .map(|ty_atom| SelectionType::new(atoms, ty_atom))
+                    .into_iter()
+                    .collect()
+                } else if let Ok(more_types) = unsafe { dnd.get_type_list(source_window) } {
+                    more_types
+                        .into_iter()
+                        .map(|ty_atom| SelectionType::new(atoms, ty_atom))
+                        .collect()
+                } else {
+                    Default::default()
+                };
+
+                dnd.init_state(version, source_window, window, types.into()).transfer_id
+            };
+
+            app.window_event(&self.target, window_id, WindowEvent::DragEntered {
+                id: transfer_id,
+                position: None,
+            });
             return;
         }
 
@@ -464,121 +490,204 @@ impl EventProcessor {
                 .xconn
                 .translate_coords(self.target.root, window, x, y)
                 .expect("Failed to translate window coordinates");
-            self.dnd.position = PhysicalPosition::new(coords.dst_x as f64, coords.dst_y as f64);
 
-            // By our own state flow, `version` should never be `None` at this point.
-            let version = self.dnd.version.unwrap_or(5);
+            // Cautiously limit the scope of the `dnd` lock so we don't rely on `app.window_event`
+            // never contending the lock.
+            let transfer_id = {
+                let dnd = self.target.dnd.borrow();
+                let Some(state) = dnd.state() else {
+                    return;
+                };
+                // By our own state flow, `state` should never be `None` at this point.
+                let version = state.version;
 
-            // Action is specified in versions 2 and up, though we don't need it anyway.
-            // let action = xev.data.get_long(4);
+                let time = if version == 0 {
+                    // In version 0, time isn't specified
+                    x11rb::CURRENT_TIME
+                } else {
+                    xev.data.get_long(3) as xproto::Timestamp
+                };
 
-            let accepted = if let Some(ref type_list) = self.dnd.type_list {
-                type_list.contains(&atoms[TextUriList])
-            } else {
-                false
-            };
+                // Log this timestamp.
+                self.target.xconn.set_timestamp(time);
 
-            if !accepted {
                 unsafe {
-                    self.dnd
-                        .send_status(window, source_window, DndState::Rejected)
-                        .expect("Failed to send `XdndStatus` message.");
+                    dnd.send_status(
+                        window,
+                        source_window,
+                        if state.accepted { DndState::Accepted } else { DndState::Rejected },
+                    )
+                    .expect("Failed to send `XdndStatus` message.");
                 }
-                self.dnd.reset();
-                return;
-            }
 
-            self.dnd.source_window = Some(source_window);
-            let time = if version == 0 {
-                // In version 0, time isn't specified
-                x11rb::CURRENT_TIME
-            } else {
-                xev.data.get_long(3) as xproto::Timestamp
+                state.transfer_id
             };
 
-            // Log this timestamp.
-            self.target.xconn.set_timestamp(time);
+            app.window_event(&self.target, window_id, WindowEvent::DragPosition {
+                id: transfer_id,
+                position: PhysicalPosition::new(coords.dst_x as f64, coords.dst_y as f64),
+                // `Copy` is the default. Other actions are possible in X11, but the specification
+                // does not properly explain how to implement them (only giving a vague description
+                // of `XdndMove`). For simplicity's sake, we simply do not implement non-copy drag
+                // on X11.
+                // See https://www.freedesktop.org/wiki/Specifications/XDND/
+                proposed_action: Some(DndAction::Copy),
+            });
 
-            // This results in the `SelectionNotify` event below
-            unsafe {
-                self.dnd.convert_selection(window, time);
-            }
-
-            unsafe {
-                self.dnd
-                    .send_status(window, source_window, DndState::Accepted)
-                    .expect("Failed to send `XdndStatus` message.");
-            }
             return;
         }
 
         if xev.message_type == atoms[XdndDrop] as c_ulong {
-            let (source_window, state) = if let Some(source_window) = self.dnd.source_window {
-                if let Some(Ok(ref path_list)) = self.dnd.result {
-                    let event = WindowEvent::DragDropped {
-                        paths: path_list.iter().map(Into::into).collect(),
-                        position: self.dnd.position,
-                    };
-                    app.window_event(&self.target, window_id, event);
-                }
-                (source_window, DndState::Accepted)
-            } else {
-                // `source_window` won't be part of our DND state if we already rejected the drop in
-                // our `XdndPosition` handler.
-                let source_window = xev.data.get_long(0) as xproto::Window;
-                (source_window, DndState::Rejected)
+            let (source_window, transfer_id) = {
+                let dnd = self.target.dnd.borrow();
+                let Some(state) = dnd.state() else {
+                    warn!("Received `XdndDrop` without `XdndEnter`");
+                    return;
+                };
+                let source_window = state.source_window;
+
+                (source_window, state.transfer_id)
             };
 
-            unsafe {
-                self.dnd
-                    .send_finished(window, source_window, state)
-                    .expect("Failed to send `XdndFinished` message.");
+            app.window_event(
+                &self.target,
+                window_id,
+                // TODO
+                WindowEvent::DragDropped {
+                    id: transfer_id,
+                    // `Copy` is the default. Other actions are possible in X11, but the
+                    // specification does not properly explain how to implement
+                    // them (only giving a vague description of `XdndMove`). For
+                    // simplicity's sake, we simply do not implement non-copy drag
+                    // on X11.
+                    // See https://www.freedesktop.org/wiki/Specifications/XDND/
+                    proposed_action: Some(DndAction::Copy),
+                },
+            );
+
+            let mut dnd = self.target.dnd.borrow_mut();
+
+            if let Some(state) =
+                dnd.state_mut().filter(|state| !state.pending_fetch_types.is_empty())
+            {
+                state.finished = Some((window, source_window));
+            } else {
+                unsafe {
+                    dnd.send_finished(window, source_window)
+                        .expect("Failed to send `XdndFinished` message.");
+                }
             }
 
-            self.dnd.reset();
             return;
         }
 
         if xev.message_type == atoms[XdndLeave] as c_ulong {
-            if self.dnd.dragging {
-                let event = WindowEvent::DragLeft { position: Some(self.dnd.position) };
-                app.window_event(&self.target, window_id, event);
-            }
-            self.dnd.reset();
+            let dnd = self.target.dnd.borrow();
+            let Some(state) = dnd.state() else {
+                return;
+            };
+            app.window_event(&self.target, window_id, WindowEvent::DragLeft {
+                id: state.transfer_id,
+            });
         }
     }
 
     fn selection_notify(&mut self, xev: &XSelectionEvent, app: &mut dyn ApplicationHandler) {
         let atoms = self.target.xconn.atoms();
 
-        let window = xev.requestor as xproto::Window;
-        let window_id = mkwid(window);
+        let xwindow = xev.requestor as xproto::Window;
 
         // Set the timestamp.
         self.target.xconn.set_timestamp(xev.time as xproto::Timestamp);
 
+        // For now, winit only supports selections for drag-and-drop. This should be changed
+        // when clipboard support is implemented.
         if xev.property != atoms[XdndSelection] as c_ulong {
             return;
         }
 
-        // This is where we receive data from drag and drop
-        self.dnd.result = None;
-        if let Ok(mut data) = unsafe { self.dnd.read_data(window) } {
-            let parse_result = self.dnd.parse_data(&mut data);
+        let (transfer_id, serial, type_) = {
+            let Some(state) = self.target.dnd.get_mut().state_mut() else {
+                return;
+            };
 
-            if let Ok(ref path_list) = parse_result {
-                let event = if self.dnd.dragging {
-                    WindowEvent::DragMoved { position: self.dnd.position }
-                } else {
-                    let paths = path_list.iter().map(Into::into).collect();
-                    self.dnd.dragging = true;
-                    WindowEvent::DragEntered { paths, position: self.dnd.position }
+            let Some((serial, type_)) = state.pending_fetch_types.pop_front() else {
+                return;
+            };
+
+            // Annoyingly, `xproto::Atom` and `x11_dl::Atom` are different on 64-bit
+            // but the same on 32-bit, so just casting to `u32` will cause "casting
+            // to same type" clippy warnings when compiled as 32-bit.
+            #[cfg(target_pointer_width = "32")]
+            let target_type = xev.target;
+            #[cfg(target_pointer_width = "64")]
+            let target_type = xev.target as u32;
+
+            if target_type != type_.atom() {
+                let get_name = |atom| {
+                    self.target
+                        .xconn
+                        .xcb_connection()
+                        .get_atom_name(atom)
+                        .ok()
+                        .and_then(|cookie| cookie.reply().ok())
+                        .and_then(|reply| String::from_utf8(reply.name).ok())
                 };
 
-                app.window_event(&self.target, window_id, event);
+                let expected_type_name = get_name(type_.atom());
+                let found_type_name = get_name(xev.type_ as _);
+
+                let extra_context = match (expected_type_name, found_type_name) {
+                    (Some(expected), Some(found)) => {
+                        format!(" (expected {expected}, found {found})")
+                    },
+                    (Some(expected), None) => format!(" (expected {expected})"),
+                    (None, Some(found)) => format!(" (found {found})"),
+                    (None, None) => "".to_string(),
+                };
+                warn!(
+                    "Received `SelectionNotify` with unexpected type{extra_context}. Continuing, \
+                     but this may be a bug."
+                );
             }
 
-            self.dnd.result = Some(parse_result);
+            (state.transfer_id, serial, type_)
+        };
+
+        let value = match self.target.dnd.borrow().read_data(xwindow, type_) {
+            Ok(value) => Arc::new(value),
+            Err(err) => {
+                warn!("Failed to read selection: {err}");
+                return;
+            },
+        };
+
+        let window_id = mkwid(xwindow);
+
+        app.window_event(&self.target, window_id, WindowEvent::DataTransferReceived {
+            id: transfer_id,
+            serial,
+            value,
+        });
+
+        let dnd = self.target.dnd.borrow();
+
+        // If we have another fetch pending, request it from the drag source window
+        if let Some((window, type_)) = dnd.state().and_then(|state| {
+            state
+                .pending_fetch_types
+                .front()
+                .cloned()
+                .map(|(_, type_)| (state.target_window, type_))
+        }) {
+            dnd.convert_selection(window, self.target.xconn.timestamp(), type_.atom());
+        } else if let Some((this_window, target_window)) =
+            dnd.state().and_then(|state| state.finished)
+        {
+            unsafe {
+                dnd.send_finished(this_window, target_window)
+                    .expect("Failed to send `XdndFinished` message.");
+            }
         }
     }
 
