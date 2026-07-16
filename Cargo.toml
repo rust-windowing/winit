@@ -27,7 +27,7 @@ winit-x11 = { version = "=0.31.0-beta.2", path = "winit-x11" }
 
 # Core dependencies.
 bitflags = "2"
-cfg_aliases = "0.2.1"
+cfg_aliases = "0.2.2"
 cursor-icon = "1.1.0"
 dpi = { version = "0.1.2", path = "dpi" }
 keyboard-types = "0.8.0"
