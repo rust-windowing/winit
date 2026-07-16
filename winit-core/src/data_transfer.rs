@@ -237,7 +237,7 @@ fn default_try_as_file_paths<T: TypedData + ?Sized>(data: &T) -> io::Result<Vec<
 // It doesn't matter that this is unimplemented on the web, as we don't currently support
 // drag-and-drop for web targets and the web platform can't directly access paths anyway.
 #[cfg(not(any(unix, windows, target_os = "redox", target_os = "wasi", target_os = "hermit")))]
-fn default_try_as_file_paths<T: TypedData + ?Sized>(data: &T) -> io::Result<Vec<PathBuf>> {
+fn default_try_as_file_paths<T: TypedData + ?Sized>(_: &T) -> io::Result<Vec<PathBuf>> {
     Err(io::ErrorKind::Unsupported.into())
 }
 
