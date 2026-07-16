@@ -4,11 +4,6 @@ use cfg_aliases::cfg_aliases;
     clippy::disallowed_macros,
     reason = "Only relevant for examples and Winit, our usage of println! is fine here."
 )]
-#[allow(
-    semicolon_in_expressions_from_macros,
-    reason = "This is a future incompatibility lint and we currently use cfg_aliases 0.2.1, which \
-              has not been updated to resolve the latest lints"
-)]
 fn main() {
     // Dummy invocation to enable change-tracking in build scripts.
     println!("cargo:rerun-if-changed=build.rs");
