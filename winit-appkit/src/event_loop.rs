@@ -225,7 +225,9 @@ impl RootActiveEventLoop for ActiveEventLoop {
                 let event_location = event.locationInWindow();
                 let dragging_rect_location = CGPoint::new(
                     event_location.x + dragging_rect_offset_x as f64,
-                    event_location.y + dragging_rect_offset_y as f64,
+                    // Convert generic coordinates (y=0 is top of image) to AppKit coordinates (y=0
+                    // is bottom of image)
+                    event_location.y - dragging_rect_size.height - dragging_rect_offset_y as f64,
                 );
                 let dragging_rect = CGRect::new(dragging_rect_location, dragging_rect_size);
 

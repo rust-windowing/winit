@@ -565,11 +565,17 @@ impl EventProcessor {
                 },
             );
 
-            let dnd = self.target.dnd.borrow_mut();
+            let mut dnd = self.target.dnd.borrow_mut();
 
-            unsafe {
-                dnd.send_finished(window, source_window)
-                    .expect("Failed to send `XdndFinished` message.");
+            if let Some(state) =
+                dnd.state_mut().filter(|state| !state.pending_fetch_types.is_empty())
+            {
+                state.finished = Some((window, source_window));
+            } else {
+                unsafe {
+                    dnd.send_finished(window, source_window)
+                        .expect("Failed to send `XdndFinished` message.");
+                }
             }
 
             return;
@@ -663,6 +669,26 @@ impl EventProcessor {
             serial,
             value,
         });
+
+        let dnd = self.target.dnd.borrow();
+
+        // If we have another fetch pending, request it from the drag source window
+        if let Some((window, type_)) = dnd.state().and_then(|state| {
+            state
+                .pending_fetch_types
+                .front()
+                .cloned()
+                .map(|(_, type_)| (state.target_window, type_))
+        }) {
+            dnd.convert_selection(window, self.target.xconn.timestamp(), type_.atom());
+        } else if let Some((this_window, target_window)) =
+            dnd.state().and_then(|state| state.finished)
+        {
+            unsafe {
+                dnd.send_finished(this_window, target_window)
+                    .expect("Failed to send `XdndFinished` message.");
+            }
+        }
     }
 
     fn configure_notify(&self, xev: &XConfigureEvent, app: &mut dyn ApplicationHandler) {

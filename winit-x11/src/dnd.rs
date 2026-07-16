@@ -5,7 +5,6 @@ use std::str::Utf8Error;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicI64, Ordering};
 
-use percent_encoding::percent_decode;
 use winit_core::data_transfer::{DataTransfer, DataTransferId, TransferType, TypeHint, TypedData};
 use winit_core::event_loop::AsyncRequestSerial;
 use x11rb::protocol::xproto::{self, ConnectionExt};
@@ -13,8 +12,8 @@ use x11rb::protocol::xproto::{self, ConnectionExt};
 use crate::atoms::AtomName::None as DndNone;
 use crate::atoms::*;
 use crate::event_loop::{CookieResultExt, X11Error};
-use crate::util;
 use crate::xdisplay::XConnection;
+use crate::{XWindow, util};
 
 #[derive(Debug, Clone, Copy)]
 pub enum DndState {
@@ -83,9 +82,7 @@ impl TypedData for SelectionReader {
                 .map(|str| str.to_owned())
                 .map_err(invalid_data)
                 .or_else(|_| decode_utf16_bytes(&self.data)),
-            Some(TypeHint::UriList) => {
-                percent_decode(&self.data).decode_utf8().map(Into::into).map_err(invalid_data)
-            },
+            Some(TypeHint::UriList) => String::from_utf8(self.data.clone()).map_err(invalid_data),
             _ => Err(io::ErrorKind::InvalidData.into()),
         }
     }
@@ -116,6 +113,7 @@ pub struct DragState {
     pub target_window: xproto::Window,
     // Populated by `fetch_data_transfer`
     pub pending_fetch_types: VecDeque<(AsyncRequestSerial, SelectionType)>,
+    pub finished: Option<(XWindow, XWindow)>,
     /// Whether the drag operation is accepted (or `None` if the user never indicated that it's
     /// accepted or rejected)
     // Populated by `Window::accept_drag`/`Window::reject_drag`.
@@ -133,6 +131,7 @@ impl Default for DragState {
             source_window: Default::default(),
             target_window: Default::default(),
             pending_fetch_types: Default::default(),
+            finished: None,
             accepted: Default::default(),
         }
     }
@@ -167,8 +166,6 @@ impl SelectionType {
         let atom_to_hint = [
             // Files
             (atoms[TextUriList], TypeHint::UriList),
-            (atoms[TARGETS], TypeHint::UriList),
-            (atoms[SAVE_TARGETS], TypeHint::UriList),
             // Plaintext
             (atoms[STRING], TypeHint::Plaintext),
             (atoms[UTF8_STRING], TypeHint::Plaintext),

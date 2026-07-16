@@ -36,8 +36,6 @@ atom_manager! {
     CARD32,
     STRING,
     UTF8_STRING,
-    TARGETS,
-    SAVE_TARGETS,
     WM_CHANGE_STATE,
     WM_CLIENT_MACHINE,
     WM_DELETE_WINDOW,
