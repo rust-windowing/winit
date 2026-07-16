@@ -71,6 +71,7 @@ mod util;
 mod app;
 mod app_state;
 mod cursor;
+mod dnd;
 mod event;
 mod event_loop;
 mod ffi;
@@ -91,6 +92,7 @@ use winit_core::event_loop::ActiveEventLoop;
 use winit_core::monitor::MonitorHandle;
 use winit_core::window::{PlatformWindowAttributes, Window};
 
+pub use self::dnd::{Pasteboard, PasteboardType, PasteboardValue};
 pub use self::event::{physicalkey_to_scancode, scancode_to_physicalkey};
 use self::event_loop::ActiveEventLoop as AppKitActiveEventLoop;
 pub use self::event_loop::{EventLoop, PlatformSpecificEventLoopAttributes};

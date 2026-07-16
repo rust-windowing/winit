@@ -22,7 +22,7 @@ use winit_core::keyboard::ModifiersState;
 use winit_core::monitor::Fullscreen;
 use winit_core::window::{ImeCapabilities, Theme, WindowAttributes};
 
-use crate::{SelectedCursor, event_loop, util};
+use crate::{SelectedCursor, WindowAttributesWindows, event_loop, util};
 
 /// Contains information about states and the window that the callback is going to use.
 #[derive(Debug)]
@@ -154,6 +154,7 @@ pub enum ImeState {
 impl WindowState {
     pub(crate) fn new(
         attributes: &WindowAttributes,
+        _win_attributes: &WindowAttributesWindows,
         scale_factor: f64,
         current_theme: Theme,
         preferred_theme: Option<Theme>,

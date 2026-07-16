@@ -22,19 +22,19 @@ use sctk::reexports::protocols::wp::viewporter::client::wp_viewport::WpViewport;
 
 use sctk::compositor::SurfaceData;
 use sctk::globals::GlobalData;
+use sctk::seat::SeatState;
 use sctk::seat::pointer::{
     PointerData, PointerDataExt, PointerEvent, PointerEventKind, PointerHandler,
 };
-use sctk::seat::SeatState;
 
 use dpi::{LogicalPosition, PhysicalPosition};
 use winit_core::event::{
-    ElementState, MouseButton, MouseScrollDelta, PointerKind, PointerSource, TouchPhase,
-    WindowEvent, ButtonSource,
+    ButtonSource, ElementState, MouseButton, MouseScrollDelta, PointerKind, PointerSource,
+    TouchPhase, WindowEvent,
 };
 
-use crate::state::WinitState;
 use crate::WindowId;
+use crate::state::WinitState;
 
 pub mod pointer_gesture;
 pub mod relative_pointer;
