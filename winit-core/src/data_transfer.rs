@@ -238,7 +238,7 @@ fn default_try_as_file_paths<T: TypedData + ?Sized>(data: &T) -> io::Result<Vec<
 // drag-and-drop for web targets and the web platform can't directly access paths anyway.
 #[cfg(not(any(unix, windows, target_os = "redox", target_os = "wasi", target_os = "hermit")))]
 fn default_try_as_file_paths<T: TypedData + ?Sized>(data: &T) -> io::Result<Vec<PathBuf>> {
-    Err(io::ErrorKind::Unsupported)
+    Err(io::ErrorKind::Unsupported.into())
 }
 
 /// Data that has been fetched from a data transfer
@@ -440,7 +440,7 @@ impl SendData {
             target_os = "wasi",
             target_os = "hermit"
         )))]
-        fn from_file_paths_impl<I>(paths: I) -> Option<SendData> {
+        fn from_file_paths_impl<I>(_: I) -> Option<SendData> {
             None
         }
 
