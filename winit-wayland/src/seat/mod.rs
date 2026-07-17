@@ -4,6 +4,7 @@ use std::cell::Cell;
 use std::sync::Arc;
 
 use foldhash::HashMap;
+use sctk::data_device_manager::data_device::DataDevice;
 use sctk::reexports::client::backend::ObjectId;
 use sctk::reexports::client::protocol::wl_seat::WlSeat;
 use sctk::reexports::client::protocol::wl_touch::WlTouch;
@@ -65,6 +66,9 @@ pub struct WinitSeatState {
     /// The hold pointer gesture bound on the seat.
     pointer_gesture_hold: Option<ZwpPointerGestureHoldV1>,
 
+    /// The drag-and-drop state
+    data_device: Option<DataDevice>,
+
     /// The keyboard bound on the seat.
     keyboard_state: Option<KeyboardState>,
 
@@ -89,6 +93,13 @@ impl WinitSeatState {
     /// been received yet.
     pub fn latest_serial(&self) -> Option<u32> {
         self.latest_input_serial.get()
+
+    pub(crate) fn data_device(&self) -> Option<&DataDevice> {
+        self.data_device.as_ref()
+    }
+
+    pub(crate) fn pointer_data(&self) -> Option<&WinitPointerData> {
+        self.pointer.as_ref().and_then(|pointer| pointer.pointer().data())
     }
 }
 
@@ -140,6 +151,11 @@ impl SeatHandler for WinitState {
                         pointer_data,
                     )
                     .expect("failed to create pointer with present capability.");
+
+                seat_state.data_device = self
+                    .data_device_manager_state
+                    .as_ref()
+                    .map(|device| device.get_data_device(queue_handle, &seat));
 
                 seat_state.relative_pointer = self.relative_pointer.as_ref().map(|manager| {
                     manager.get_relative_pointer(
@@ -236,6 +252,8 @@ impl SeatHandler for WinitState {
                 if let Some(pointer_gesture_hold) = seat_state.pointer_gesture_hold.take() {
                     pointer_gesture_hold.destroy();
                 }
+
+                seat_state.data_device = None;
 
                 if let Some(pointer) = seat_state.pointer.take() {
                     let pointer_data = pointer.pointer().winit_data();

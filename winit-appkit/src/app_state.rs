@@ -1,4 +1,5 @@
 use std::cell::{Cell, OnceCell, RefCell};
+use std::collections::HashMap;
 use std::mem;
 use std::rc::Rc;
 use std::sync::Arc;
@@ -6,22 +7,30 @@ use std::time::Instant;
 
 use dispatch2::MainThreadBound;
 use objc2::MainThreadMarker;
-use objc2_app_kit::{NSApplication, NSApplicationActivationPolicy, NSRunningApplication};
+use objc2::rc::{Retained, Weak};
+use objc2_app_kit::{
+    NSApplication, NSApplicationActivationPolicy, NSDragOperation, NSRunningApplication,
+};
 use objc2_foundation::NSNotification;
 use winit_common::core_foundation::{EventLoopProxy, MainRunLoop};
 use winit_common::event_handler::EventHandler;
 use winit_core::application::ApplicationHandler;
+use winit_core::data_transfer::DataTransferId;
 use winit_core::event::{StartCause, WindowEvent};
-use winit_core::event_loop::ControlFlow;
+use winit_core::event_loop::{ControlFlow, DndAction};
 use winit_core::window::WindowId;
 
 use super::event_loop::{ActiveEventLoop, notify_windows_of_exit, stop_app_immediately};
 use super::menu;
 use super::observer::EventLoopWaker;
+use crate::dnd::Pasteboards;
+use crate::window_delegate::WindowDelegate;
 
 #[derive(Debug)]
 pub(super) struct AppState {
     mtm: MainThreadMarker,
+    drag_state: RefCell<Option<DragState>>,
+    pasteboards: Pasteboards,
     activation_policy: Option<NSApplicationActivationPolicy>,
     default_menu: bool,
     activate_ignoring_other_apps: bool,
@@ -43,8 +52,15 @@ pub(super) struct AppState {
     start_time: Cell<Option<Instant>>,
     wait_timeout: Cell<Option<Instant>>,
     pending_redraw: RefCell<Vec<WindowId>>,
+    windows: RefCell<HashMap<WindowId, MainThreadBound<Weak<WindowDelegate>>>>,
     // NOTE: This is strongly referenced by our `NSWindowDelegate` and our `NSView` subclass, and
     // as such should be careful to not add fields that, in turn, strongly reference those.
+}
+
+#[derive(Debug)]
+pub(crate) struct DragState {
+    pub id: DataTransferId,
+    pub valid_actions: Vec<DndAction>,
 }
 
 // SAFETY: Creating `MainThreadBound` in a `const` context, where there is no concept of the
@@ -65,6 +81,8 @@ impl AppState {
 
         let this = Rc::new(Self {
             mtm,
+            pasteboards: Default::default(),
+            drag_state: Default::default(),
             activation_policy,
             default_menu,
             activate_ignoring_other_apps,
@@ -82,6 +100,7 @@ impl AppState {
             waker: RefCell::new(EventLoopWaker::new()),
             start_time: Cell::new(None),
             wait_timeout: Cell::new(None),
+            windows: Default::default(),
             pending_redraw: RefCell::new(vec![]),
         });
 
@@ -94,6 +113,20 @@ impl AppState {
             .get()
             .expect("tried to get application state before it was registered")
             .clone()
+    }
+
+    pub fn with_window_delegate_on_main<F, R>(&self, id: WindowId, func: F) -> Option<R>
+    where
+        F: FnOnce(Retained<WindowDelegate>) -> R + Send,
+        R: Send,
+    {
+        self.windows.borrow_mut().get(&id)?.get_on_main(move |delegate| delegate.load().map(func))
+    }
+
+    pub fn register_window(&self, window: &Retained<WindowDelegate>, mtm: MainThreadMarker) {
+        let id = window.id();
+        let window_downgraded = Weak::from_retained(window);
+        self.windows.borrow_mut().insert(id, MainThreadBound::new(window_downgraded, mtm));
     }
 
     // NOTE: This notification will, globally, only be emitted once,
@@ -370,6 +403,23 @@ impl AppState {
             ControlFlow::WaitUntil(instant) => Some(instant),
         };
         self.waker.borrow_mut().start_at(min_timeout(wait_timeout, app_timeout));
+    }
+
+    pub fn pasteboards(&self) -> &Pasteboards {
+        &self.pasteboards
+    }
+
+    pub fn drag_state(&self) -> &RefCell<Option<DragState>> {
+        &self.drag_state
+    }
+
+    pub(crate) fn proposed_drag_action(
+        &self,
+        source_operations: NSDragOperation,
+    ) -> Option<DndAction> {
+        self.drag_state().borrow().as_ref().and_then(|drag_state| {
+            crate::dnd::preferred_drag_operation(source_operations, &drag_state.valid_actions)
+        })
     }
 }
 

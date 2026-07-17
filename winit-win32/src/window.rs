@@ -61,8 +61,8 @@ use crate::dark_mode::try_theme;
 use crate::definitions::{
     CLSID_TaskbarList, IID_ITaskbarList, IID_ITaskbarList2, ITaskbarList, ITaskbarList2,
 };
+use crate::dnd::FileDropHandler;
 use crate::dpi::{dpi_to_scale_factor, enable_non_client_dpi_scaling, hwnd_dpi};
-use crate::drop_handler::FileDropHandler;
 use crate::event_loop::{self, ActiveEventLoop, DESTROY_MSG_ID, Event, EventLoopRunner};
 use crate::icon::{IconType, WinCursor};
 use crate::ime::ImeContext;
@@ -1237,6 +1237,7 @@ impl InitData<'_> {
         let window_state = {
             let window_state = WindowState::new(
                 &self.attributes,
+                &self.win_attributes,
                 scale_factor,
                 current_theme,
                 self.attributes.preferred_theme,
@@ -1276,15 +1277,16 @@ impl InitData<'_> {
 
             let file_drop_runner = self.runner.clone();
             let window_id = win.id();
-            let file_drop_handler = FileDropHandler::new(
+            let mut file_drop_handler = FileDropHandler::new(
                 win.window.hwnd(),
+                self.runner.clone(),
                 Box::new(move |event| {
                     file_drop_runner.send_event(Event::Window { window_id, event })
                 }),
             );
 
             let handler_interface_ptr =
-                unsafe { &mut (*file_drop_handler.data).interface as *mut _ as *mut c_void };
+                unsafe { file_drop_handler.interface_unchecked_mut() as *mut _ as *mut c_void };
 
             assert_eq!(unsafe { RegisterDragDrop(win.window.hwnd(), handler_interface_ptr) }, S_OK);
             Some(file_drop_handler)

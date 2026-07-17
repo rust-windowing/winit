@@ -4,6 +4,7 @@ use std::sync::{Arc, Mutex};
 
 use foldhash::HashMap;
 use sctk::compositor::{CompositorHandler, CompositorState};
+use sctk::data_device_manager::DataDeviceManagerState;
 use sctk::output::{OutputHandler, OutputState};
 use sctk::reexports::calloop::LoopHandle;
 use sctk::reexports::client::backend::ObjectId;
@@ -24,6 +25,7 @@ use sctk::subcompositor::SubcompositorState;
 use winit_core::error::OsError;
 
 use crate::WindowId;
+use crate::dnd::DndState;
 use crate::event_loop::sink::EventSink;
 use crate::output::MonitorHandle;
 use crate::seat::{
@@ -115,11 +117,17 @@ pub struct WinitState {
     /// Viewporter state on the given window.
     pub viewporter_state: Option<ViewporterState>,
 
+    /// Data device manager state on the given window.
+    pub data_device_manager_state: Option<DataDeviceManagerState>,
+
     /// Fractional scaling manager.
     pub fractional_scaling_manager: Option<FractionalScalingManager>,
 
     /// Blur manager.
     pub blur_manager: Option<BgrEffectManager>,
+
+    /// Drag-and-drop state.
+    pub dnd_state: DndState,
 
     /// Loop handle to re-register event sources, such as keyboard repeat.
     pub loop_handle: LoopHandle<'static, Self>,
@@ -170,6 +178,17 @@ impl WinitState {
                 (None, None)
             };
 
+        let data_device_manager_state = match DataDeviceManagerState::bind(globals, queue_handle) {
+            Ok(state) => Some(state),
+            Err(e) => {
+                tracing::warn!(
+                    "Data device manager not available, clipboard and drag-and-drop disabled: \
+                     {e:?}"
+                );
+                None
+            },
+        };
+
         let shm = Shm::bind(globals, queue_handle).map_err(|err| os_error!(err))?;
         let image_pool = Arc::new(Mutex::new(SlotPool::new(2, &shm).unwrap()));
 
@@ -193,8 +212,11 @@ impl WinitState {
             window_compositor_updates: Vec::new(),
             window_events_sink: Default::default(),
             viewporter_state,
+            data_device_manager_state,
             fractional_scaling_manager,
             blur_manager: BgrEffectManager::new(globals, queue_handle).ok(),
+
+            dnd_state: Default::default(),
 
             seats,
             text_input_state: TextInputState::new(globals, queue_handle).ok(),

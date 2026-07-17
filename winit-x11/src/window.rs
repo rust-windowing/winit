@@ -31,7 +31,14 @@ use x11rb::protocol::sync::{ConnectionExt as _, Int64};
 use x11rb::protocol::xproto::{self, ClipOrdering, ConnectionExt as _, Rectangle};
 use x11rb::protocol::{randr, xinput};
 
-use crate::atoms::*;
+use crate::atoms::{
+    _GTK_THEME_VARIANT, _NET_ACTIVE_WINDOW, _NET_WM_ICON, _NET_WM_MOVERESIZE, _NET_WM_NAME,
+    _NET_WM_PID, _NET_WM_PING, _NET_WM_STATE, _NET_WM_STATE_ABOVE, _NET_WM_STATE_BELOW,
+    _NET_WM_STATE_FULLSCREEN, _NET_WM_STATE_HIDDEN, _NET_WM_STATE_MAXIMIZED_HORZ,
+    _NET_WM_STATE_MAXIMIZED_VERT, _NET_WM_SYNC_REQUEST, _NET_WM_SYNC_REQUEST_COUNTER,
+    _NET_WM_WINDOW_TYPE, _XEMBED, AtomName, CARD32, UTF8_STRING, WM_CHANGE_STATE,
+    WM_CLIENT_MACHINE, WM_DELETE_WINDOW, WM_PROTOCOLS, WM_STATE, XdndAware,
+};
 use crate::event_loop::{
     ALL_MASTER_DEVICES, ActivationItem, ActiveEventLoop, CookieResultExt, ICONIC_STATE, VoidCookie,
     WakeSender, X11Error, xinput_fp1616_to_float,
