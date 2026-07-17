@@ -93,6 +93,7 @@ impl WinitSeatState {
     /// been received yet.
     pub fn latest_serial(&self) -> Option<u32> {
         self.latest_input_serial.get()
+    }
 
     pub(crate) fn data_device(&self) -> Option<&DataDevice> {
         self.data_device.as_ref()
