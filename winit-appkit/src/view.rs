@@ -148,6 +148,7 @@ define_class!(
     #[unsafe(super(NSView, NSResponder, NSObject))]
     #[ivars = ViewState]
     #[name = "WinitView"]
+    #[derive(Debug)]
     pub(super) struct WinitView;
 
     /// This documentation attribute makes rustfmt work for some reason?
