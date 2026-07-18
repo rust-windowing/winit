@@ -148,7 +148,12 @@ fn classify_device(
     let strong_name = name_word(&lower_name, "stylus")
         || name_word(&lower_name, "pen")
         || name_word(&lower_name, "eraser")
-        || lower_name.contains("tablet cursor")
+        || name_word(&lower_name, "brush")
+        || name_word(&lower_name, "pencil")
+        || name_word(&lower_name, "airbrush")
+        || name_word(&lower_name, "finger")
+        || name_word(&lower_name, "mouse")
+        || name_word(&lower_name, "cursor")
         || name_word(&lower_name, "puck")
         || name_word(&lower_name, "lens");
 
@@ -169,9 +174,20 @@ fn classify_device(
 
     let kind = if name_word(&lower_name, "eraser") {
         TabletToolKind::Eraser
+    } else if name_word(&lower_name, "brush") {
+        TabletToolKind::Brush
+    } else if name_word(&lower_name, "pencil") {
+        TabletToolKind::Pencil
+    } else if name_word(&lower_name, "airbrush") {
+        TabletToolKind::Airbrush
+    } else if name_word(&lower_name, "finger") {
+        TabletToolKind::Finger
     } else if name_word(&lower_name, "lens") {
         TabletToolKind::Lens
-    } else if lower_name.contains("tablet cursor") || name_word(&lower_name, "puck") {
+    } else if name_word(&lower_name, "mouse")
+        || name_word(&lower_name, "cursor")
+        || name_word(&lower_name, "puck")
+    {
         TabletToolKind::Mouse
     } else {
         TabletToolKind::Pen
@@ -262,15 +278,18 @@ mod tests {
     #[test]
     fn strong_names_choose_supported_tool_kinds() {
         let axes = vec![axis(0, AxisLabel::Other, 0.0), axis(1, AxisLabel::Other, 0.0)];
-        assert_eq!(
-            classify_device("Wacom Eraser", false, axes.clone()).unwrap().kind,
-            TabletToolKind::Eraser
-        );
-        assert_eq!(
-            classify_device("Tablet Cursor Puck", false, axes.clone()).unwrap().kind,
-            TabletToolKind::Mouse
-        );
-        assert_eq!(classify_device("Tablet Lens", false, axes).unwrap().kind, TabletToolKind::Lens);
+        for (name, expected) in [
+            ("Wacom Eraser", TabletToolKind::Eraser),
+            ("Wacom Brush", TabletToolKind::Brush),
+            ("Wacom Pencil", TabletToolKind::Pencil),
+            ("Wacom Airbrush", TabletToolKind::Airbrush),
+            ("Wacom Finger", TabletToolKind::Finger),
+            ("Wacom Mouse", TabletToolKind::Mouse),
+            ("Tablet Cursor Puck", TabletToolKind::Mouse),
+            ("Tablet Lens", TabletToolKind::Lens),
+        ] {
+            assert_eq!(classify_device(name, false, axes.clone()).unwrap().kind, expected);
+        }
     }
 
     #[test]

@@ -1099,6 +1099,9 @@ pub(crate) fn mkdid(w: xinput::DeviceId) -> DeviceId {
 pub struct Device {
     _name: String,
     pub(crate) scroll_axes: Vec<(i32, ScrollAxis)>,
+    pub(crate) master_pointer: bool,
+    /// Physical devices supplying the current classes of a master pointer.
+    pub(crate) class_sources: Vec<c_int>,
     // For master devices, this is the paired device (pointer <-> keyboard).
     // For slave devices, this is the master.
     pub(crate) attachment: c_int,
@@ -1131,6 +1134,17 @@ impl Device {
         let mut scroll_axes = Vec::new();
         let classes = Device::classes(info);
         let mut has_touch_class = false;
+        let master_pointer = info._use == ffi::XIMasterPointer;
+        let mut class_sources = Vec::new();
+
+        if master_pointer {
+            for &class_ptr in classes {
+                let source = unsafe { (*class_ptr).sourceid };
+                if !class_sources.contains(&source) {
+                    class_sources.push(source);
+                }
+            }
+        }
 
         if Device::physical_device(info) {
             // Identify scroll axes
@@ -1165,8 +1179,14 @@ impl Device {
             DeviceType::Mouse
         };
 
-        let mut device =
-            Device { _name: name.into_owned(), scroll_axes, attachment: info.attachment, r#type };
+        let mut device = Device {
+            _name: name.into_owned(),
+            scroll_axes,
+            master_pointer,
+            class_sources,
+            attachment: info.attachment,
+            r#type,
+        };
         device.reset_scroll_position(info);
         device
     }

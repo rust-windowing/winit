@@ -57,7 +57,8 @@ pub struct EventProcessor {
     pub ime_event_receiver: ImeEventReceiver,
     pub randr_event_offset: u8,
     pub devices: RefCell<HashMap<DeviceId, Device>>,
-    /// The most recently reported physical source for each master pointer.
+    /// The active physical source for each master pointer, seeded from its classes and updated by
+    /// pointer and device-change events.
     pub active_pointer_sources: RefCell<HashMap<DeviceId, DeviceId>>,
     pub xi2ext: ExtensionInformation,
     pub xkbext: ExtensionInformation,
@@ -334,12 +335,48 @@ impl EventProcessor {
     }
 
     pub fn init_device(&self, device: xinput::DeviceId) {
-        let mut devices = self.devices.borrow_mut();
-        if let Some(info) = DeviceInfo::get(&self.target.xconn, device as _) {
-            let atoms = self.target.x_connection().atoms();
+        let mut queried_master_pointer = false;
+        {
+            let mut devices = self.devices.borrow_mut();
+            if let Some(info) = DeviceInfo::get(&self.target.xconn, device as _) {
+                let atoms = self.target.x_connection().atoms();
 
-            for info in info.iter() {
-                devices.insert(mkdid(info.deviceid as xinput::DeviceId), Device::new(info, atoms));
+                for info in info.iter() {
+                    let device = Device::new(info, atoms);
+                    queried_master_pointer |= device.master_pointer;
+                    devices.insert(mkdid(info.deviceid as xinput::DeviceId), device);
+                }
+            }
+        }
+
+        if queried_master_pointer {
+            self.seed_active_pointer_sources();
+        }
+    }
+
+    fn seed_active_pointer_sources(&self) {
+        let updates = {
+            let devices = self.devices.borrow();
+            devices
+                .iter()
+                .filter(|(_, device)| device.master_pointer)
+                .map(|(&master, device)| {
+                    let source = find_tablet_class_source(&device.class_sources, |source| {
+                        devices
+                            .get(&source)
+                            .is_some_and(|device| matches!(&device.r#type, DeviceType::Tablet(_)))
+                    });
+                    (master, source)
+                })
+                .collect::<Vec<_>>()
+        };
+
+        let mut active_sources = self.active_pointer_sources.borrow_mut();
+        for (master, source) in updates {
+            if let Some(source) = source {
+                active_sources.insert(master, source);
+            } else {
+                active_sources.remove(&master);
             }
         }
     }
@@ -2087,4 +2124,29 @@ fn is_first_touch(first: &mut Option<u32>, num: &mut u32, id: u32, phase: i32) -
     }
 
     *first == Some(id)
+}
+
+fn find_tablet_class_source(
+    class_sources: &[c_int],
+    mut is_tablet: impl FnMut(DeviceId) -> bool,
+) -> Option<DeviceId> {
+    class_sources.iter().find_map(|&source| {
+        let source = xinput::DeviceId::try_from(source).ok().map(mkdid)?;
+        is_tablet(source).then_some(source)
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn finds_active_tablet_from_master_class_sources() {
+        let tablet = mkdid(12);
+        assert_eq!(
+            find_tablet_class_source(&[10, 12, 14], |source| source == tablet),
+            Some(tablet)
+        );
+        assert_eq!(find_tablet_class_source(&[10, 14], |source| source == tablet), None);
+    }
 }
