@@ -45,6 +45,7 @@ changelog entry.
 - Add `keyboard` support for OpenHarmony.
 - On iOS, add Apple Pencil support with force, altitude, and azimuth data.
 - On Redox, add support for missing keyboard scancodes.
+- On Redox, add support for `EventLoopExtPumpEvents::pump_app_events`.
 - Implement `Send` and `Sync` for `OwnedDisplayHandle`.
 - Use new macOS 15 cursors for resize icons.
 - On Android, added scancode conversions for more obscure key codes.

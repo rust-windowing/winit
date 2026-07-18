@@ -66,6 +66,7 @@ impl TimeSocket {
     }
 
     // Read current time.
+    #[allow(unused)]
     fn current_time(&self) -> Result<TimeSpec> {
         let mut timespec: libredox::data::TimeSpec = unsafe { mem::zeroed() };
         let timespec_bytes = unsafe {
