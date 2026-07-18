@@ -11,15 +11,15 @@ use winit_common::xkb::{self, Context, XkbState};
 use winit_core::application::ApplicationHandler;
 use winit_core::event::{
     ButtonSource, DeviceEvent, DeviceId, ElementState, FingerId, Ime, MouseButton,
-    MouseScrollDelta, PointerKind, PointerSource, RawKeyEvent, SurfaceSizeWriter, TouchPhase,
-    WindowEvent,
+    MouseScrollDelta, PointerKind, PointerSource, RawKeyEvent, SurfaceSizeWriter, TabletToolData,
+    TabletToolKind, TouchPhase, WindowEvent,
 };
 use winit_core::event_loop::DndAction;
 use winit_core::keyboard::ModifiersState;
 use winit_core::window::WindowId;
 use x11_dl::xinput2::{
-    self, XIDeviceEvent, XIEnterEvent, XIFocusInEvent, XIFocusOutEvent, XIHierarchyEvent,
-    XILeaveEvent, XIModifierState, XIRawEvent,
+    self, XIDeviceChangedEvent, XIDeviceEvent, XIEnterEvent, XIFocusInEvent, XIFocusOutEvent,
+    XIHierarchyEvent, XILeaveEvent, XIModifierState, XIRawEvent,
 };
 use x11_dl::xlib::{
     self, Display as XDisplay, Window as XWindow, XAnyEvent, XClientMessageEvent, XConfigureEvent,
@@ -40,6 +40,7 @@ use crate::event_loop::{
     ScrollOrientation, mkdid, mkwid,
 };
 use crate::ime::{ImeEvent, ImeEventReceiver, ImeReceiver, ImeRequest};
+use crate::tablet::{for_each_packed_valuator, tablet_button};
 use crate::util;
 use crate::util::cookie::GenericEventCookie;
 use crate::window::UnownedWindow;
@@ -56,6 +57,8 @@ pub struct EventProcessor {
     pub ime_event_receiver: ImeEventReceiver,
     pub randr_event_offset: u8,
     pub devices: RefCell<HashMap<DeviceId, Device>>,
+    /// The most recently reported physical source for each master pointer.
+    pub active_pointer_sources: RefCell<HashMap<DeviceId, DeviceId>>,
     pub xi2ext: ExtensionInformation,
     pub xkbext: ExtensionInformation,
     pub target: ActiveEventLoop,
@@ -277,6 +280,10 @@ impl EventProcessor {
                         let xev: &XIHierarchyEvent = unsafe { xev.as_event() };
                         self.xinput2_hierarchy_changed(xev);
                     },
+                    xinput2::XI_DeviceChanged => {
+                        let xev: &XIDeviceChangedEvent = unsafe { xev.as_event() };
+                        self.xinput2_device_changed(xev);
+                    },
                     _ => {},
                 }
             },
@@ -335,6 +342,76 @@ impl EventProcessor {
                 devices.insert(mkdid(info.deviceid as xinput::DeviceId), Device::new(info, atoms));
             }
         }
+    }
+
+    fn record_pointer_source(&self, source: xinput::DeviceId, master: xinput::DeviceId) {
+        let source_id = mkdid(source);
+        if !self.devices.borrow().contains_key(&source_id) {
+            self.init_device(source);
+        }
+
+        if source != master && self.devices.borrow().contains_key(&source_id) {
+            self.active_pointer_sources.borrow_mut().insert(mkdid(master), source_id);
+        }
+    }
+
+    fn tablet_source(
+        &self,
+        source: xinput::DeviceId,
+        master: xinput::DeviceId,
+    ) -> Option<DeviceId> {
+        self.record_pointer_source(source, master);
+
+        let source_id = mkdid(source);
+        if self
+            .devices
+            .borrow()
+            .get(&source_id)
+            .is_some_and(|device| matches!(&device.r#type, DeviceType::Tablet(_)))
+        {
+            return Some(source_id);
+        }
+
+        // A distinct source ID is the authoritative physical device. If querying it failed or it
+        // is known to be a non-tablet, do not fall back to a potentially stale master mapping.
+        if source != master {
+            return None;
+        }
+
+        let source_id = self.active_pointer_sources.borrow().get(&mkdid(master)).copied()?;
+        self.devices
+            .borrow()
+            .get(&source_id)
+            .is_some_and(|device| matches!(&device.r#type, DeviceType::Tablet(_)))
+            .then_some(source_id)
+    }
+
+    fn tablet_event_data(
+        &self,
+        source: xinput::DeviceId,
+        master: xinput::DeviceId,
+        valuators: &xinput2::XIValuatorState,
+    ) -> Option<(DeviceId, TabletToolKind, TabletToolData)> {
+        let source_id = self.tablet_source(source, master)?;
+        let mut devices = self.devices.borrow_mut();
+        let DeviceType::Tablet(tablet) = &mut devices.get_mut(&source_id)?.r#type else {
+            return None;
+        };
+        tablet.update_valuators(valuators);
+        Some((source_id, tablet.kind, tablet.data()))
+    }
+
+    fn tablet_kind(
+        &self,
+        source: xinput::DeviceId,
+        master: xinput::DeviceId,
+    ) -> Option<(DeviceId, TabletToolKind)> {
+        let source_id = self.tablet_source(source, master)?;
+        let devices = self.devices.borrow();
+        let DeviceType::Tablet(tablet) = &devices.get(&source_id)?.r#type else {
+            return None;
+        };
+        Some((source_id, tablet.kind))
     }
 
     pub fn with_window<F, Ret>(&self, window_id: xproto::Window, callback: F) -> Option<Ret>
@@ -1080,19 +1157,9 @@ impl EventProcessor {
         app: &mut dyn ApplicationHandler,
     ) {
         let window_id = mkwid(event.event as xproto::Window);
-        let device_id = Some(mkdid(event.deviceid as xinput::DeviceId));
 
         // Set the timestamp.
         self.target.xconn.set_timestamp(event.time as xproto::Timestamp);
-
-        let Some(DeviceType::Mouse) = self
-            .devices
-            .borrow()
-            .get(&mkdid(event.sourceid as xinput::DeviceId))
-            .map(|device| device.r#type)
-        else {
-            return;
-        };
 
         // Deliver multi-touch events instead of emulated mouse events.
         if (event.flags & xinput2::XIPointerEmulated) != 0 {
@@ -1100,6 +1167,36 @@ impl EventProcessor {
         }
 
         let position = PhysicalPosition::new(event.event_x, event.event_y);
+
+        if let Some((device_id, kind, data)) = self.tablet_event_data(
+            event.sourceid as xinput::DeviceId,
+            event.deviceid as xinput::DeviceId,
+            &event.valuators,
+        ) {
+            let Some(button) = tablet_button(event.detail as u32) else {
+                return;
+            };
+            let event = WindowEvent::PointerButton {
+                device_id: Some(device_id),
+                primary: true,
+                state,
+                position,
+                button: ButtonSource::TabletTool { kind, button, data },
+            };
+            app.window_event(&self.target, window_id, event);
+            return;
+        }
+
+        let is_mouse = self
+            .devices
+            .borrow()
+            .get(&mkdid(event.sourceid as xinput::DeviceId))
+            .is_some_and(|device| matches!(&device.r#type, DeviceType::Mouse));
+        if !is_mouse {
+            return;
+        }
+
+        let device_id = Some(mkdid(event.deviceid as xinput::DeviceId));
 
         let event = match event.detail as u32 {
             xlib::Button1 => WindowEvent::PointerButton {
@@ -1170,18 +1267,42 @@ impl EventProcessor {
         // Set the timestamp.
         self.target.xconn.set_timestamp(event.time as xproto::Timestamp);
 
-        let Some(DeviceType::Mouse) = self
+        let window = event.event as xproto::Window;
+        let window_id = mkwid(window);
+
+        if let Some((device_id, kind, data)) = self.tablet_event_data(
+            event.sourceid as xinput::DeviceId,
+            event.deviceid as xinput::DeviceId,
+            &event.valuators,
+        ) {
+            if !self.window_exists(window) {
+                return;
+            }
+
+            let new_cursor_pos = (event.event_x, event.event_y);
+            self.with_window(window, |window| {
+                window.shared_state_lock().cursor_pos = Some(new_cursor_pos);
+            });
+            let event = WindowEvent::PointerMoved {
+                device_id: Some(device_id),
+                primary: true,
+                position: PhysicalPosition::new(event.event_x, event.event_y),
+                source: PointerSource::TabletTool { kind, data },
+            };
+            app.window_event(&self.target, window_id, event);
+            return;
+        }
+
+        let is_mouse = self
             .devices
             .borrow()
             .get(&mkdid(event.sourceid as xinput::DeviceId))
-            .map(|device| device.r#type)
-        else {
+            .is_some_and(|device| matches!(&device.r#type, DeviceType::Mouse));
+        if !is_mouse {
             return;
-        };
+        }
 
         let device_id = Some(mkdid(event.deviceid as xinput::DeviceId));
-        let window = event.event as xproto::Window;
-        let window_id = mkwid(window);
         let new_cursor_pos = (event.event_x, event.event_y);
 
         let cursor_moved = self.with_window(window, |window| {
@@ -1204,8 +1325,12 @@ impl EventProcessor {
         }
 
         // More gymnastics, for self.devices
-        let mask = unsafe {
-            slice::from_raw_parts(event.valuators.mask, event.valuators.mask_len as usize)
+        let mask = if event.valuators.mask_len <= 0 {
+            &[]
+        } else {
+            unsafe {
+                slice::from_raw_parts(event.valuators.mask, event.valuators.mask_len as usize)
+            }
         };
         let mut devices = self.devices.borrow_mut();
         let physical_device = match devices.get_mut(&mkdid(event.sourceid as xinput::DeviceId)) {
@@ -1214,32 +1339,28 @@ impl EventProcessor {
         };
 
         let mut events = Vec::new();
-        let mut value = event.valuators.values;
-        for i in 0..event.valuators.mask_len * 8 {
-            if !xinput2::XIMaskIsSet(mask, i) {
-                continue;
-            }
+        unsafe {
+            for_each_packed_valuator(mask, event.valuators.values, false, |i, x| {
+                if let Some(&mut (_, ref mut info)) =
+                    physical_device.scroll_axes.iter_mut().find(|&&mut (axis, _)| axis == i)
+                {
+                    let delta = (x - info.position) / info.increment;
+                    info.position = x;
+                    // X11 vertical scroll coordinates are opposite to winit's
+                    let delta = match info.orientation {
+                        ScrollOrientation::Horizontal => {
+                            MouseScrollDelta::LineDelta(-delta as f32, 0.0)
+                        },
+                        ScrollOrientation::Vertical => {
+                            MouseScrollDelta::LineDelta(0.0, -delta as f32)
+                        },
+                    };
 
-            let x = unsafe { *value };
-
-            if let Some(&mut (_, ref mut info)) =
-                physical_device.scroll_axes.iter_mut().find(|&&mut (axis, _)| axis == i as _)
-            {
-                let delta = (x - info.position) / info.increment;
-                info.position = x;
-                // X11 vertical scroll coordinates are opposite to winit's
-                let delta = match info.orientation {
-                    ScrollOrientation::Horizontal => {
-                        MouseScrollDelta::LineDelta(-delta as f32, 0.0)
-                    },
-                    ScrollOrientation::Vertical => MouseScrollDelta::LineDelta(0.0, -delta as f32),
-                };
-
-                let event = WindowEvent::MouseWheel { device_id, delta, phase: TouchPhase::Moved };
-                events.push(event);
-            }
-
-            value = unsafe { value.offset(1) };
+                    let event =
+                        WindowEvent::MouseWheel { device_id, delta, phase: TouchPhase::Moved };
+                    events.push(event);
+                }
+            });
         }
 
         for event in events {
@@ -1253,7 +1374,8 @@ impl EventProcessor {
 
         let window = event.event as xproto::Window;
         let window_id = mkwid(window);
-        let device_id = mkdid(event.deviceid as xinput::DeviceId);
+        let tablet = self
+            .tablet_kind(event.sourceid as xinput::DeviceId, event.deviceid as xinput::DeviceId);
 
         if let Some(all_info) = DeviceInfo::get(&self.target.xconn, ALL_DEVICES.into()) {
             let mut devices = self.devices.borrow_mut();
@@ -1273,11 +1395,21 @@ impl EventProcessor {
         }
 
         if self.window_exists(window) {
-            let device_id = Some(device_id);
             let position = PhysicalPosition::new(event.event_x, event.event_y);
 
+            if let Some((device_id, kind)) = tablet {
+                let event = WindowEvent::PointerEntered {
+                    device_id: Some(device_id),
+                    primary: true,
+                    position,
+                    kind: PointerKind::TabletTool(kind),
+                };
+                app.window_event(&self.target, window_id, event);
+                return;
+            }
+
             let event = WindowEvent::PointerEntered {
-                device_id,
+                device_id: Some(mkdid(event.deviceid as xinput::DeviceId)),
                 primary: true,
                 position,
                 kind: PointerKind::Mouse,
@@ -1296,6 +1428,19 @@ impl EventProcessor {
         // been destroyed, which the user presumably doesn't want to deal with.
         if self.window_exists(window) {
             let window_id = mkwid(window);
+            if let Some((device_id, kind)) = self
+                .tablet_kind(event.sourceid as xinput::DeviceId, event.deviceid as xinput::DeviceId)
+            {
+                let event = WindowEvent::PointerLeft {
+                    device_id: Some(device_id),
+                    primary: true,
+                    position: Some(PhysicalPosition::new(event.event_x, event.event_y)),
+                    kind: PointerKind::TabletTool(kind),
+                };
+                app.window_event(&self.target, window_id, event);
+                return;
+            }
+
             let event = WindowEvent::PointerLeft {
                 device_id: Some(mkdid(event.deviceid as xinput::DeviceId)),
                 primary: true,
@@ -1411,6 +1556,10 @@ impl EventProcessor {
     fn xinput2_touch(&mut self, xev: &XIDeviceEvent, phase: i32, app: &mut dyn ApplicationHandler) {
         // Set the timestamp.
         self.target.xconn.set_timestamp(xev.time as xproto::Timestamp);
+        self.record_pointer_source(
+            xev.sourceid as xinput::DeviceId,
+            xev.deviceid as xinput::DeviceId,
+        );
 
         let window = xev.event as xproto::Window;
         if self.window_exists(window) {
@@ -1492,6 +1641,10 @@ impl EventProcessor {
     ) {
         // Set the timestamp.
         self.target.xconn.set_timestamp(xev.time as xproto::Timestamp);
+        self.record_pointer_source(
+            xev.sourceid as xinput::DeviceId,
+            xev.deviceid as xinput::DeviceId,
+        );
 
         if xev.flags & xinput2::XIPointerEmulated == 0 {
             let event = DeviceEvent::Button { state, button: xev.detail as u32 };
@@ -1504,38 +1657,39 @@ impl EventProcessor {
         self.target.xconn.set_timestamp(xev.time as xproto::Timestamp);
 
         let did = Some(mkdid(xev.deviceid as xinput::DeviceId));
-        let mask =
-            unsafe { slice::from_raw_parts(xev.valuators.mask, xev.valuators.mask_len as usize) };
-        let mut value = xev.raw_values;
+        let mask = if xev.valuators.mask_len <= 0 {
+            &[]
+        } else {
+            unsafe { slice::from_raw_parts(xev.valuators.mask, xev.valuators.mask_len as usize) }
+        };
         let mut mouse_delta = util::Delta::default();
         let mut scroll_delta = util::Delta::default();
-        for i in 0..xev.valuators.mask_len * 8 {
-            if !xinput2::XIMaskIsSet(mask, i) {
-                continue;
-            }
-            let x = unsafe { value.read_unaligned() };
-
-            // We assume that every XInput2 device with analog axes is a pointing device emitting
-            // relative coordinates.
-            match i {
-                0 => mouse_delta.set_x(x),
-                1 => mouse_delta.set_y(x),
-                2 => scroll_delta.set_x(x as f32),
-                3 => scroll_delta.set_y(x as f32),
-                _ => {},
-            }
-
-            value = unsafe { value.offset(1) };
+        unsafe {
+            for_each_packed_valuator(mask, xev.raw_values, true, |i, x| {
+                // We assume that every XInput2 device with analog axes is a pointing device
+                // emitting relative coordinates.
+                match i {
+                    0 => mouse_delta.set_x(x),
+                    1 => mouse_delta.set_y(x),
+                    2 => scroll_delta.set_x(x as f32),
+                    3 => scroll_delta.set_y(x as f32),
+                    _ => {},
+                }
+            });
         }
 
-        let Some(DeviceType::Mouse) = self
+        self.record_pointer_source(
+            xev.sourceid as xinput::DeviceId,
+            xev.deviceid as xinput::DeviceId,
+        );
+        let is_mouse = self
             .devices
             .borrow()
             .get(&mkdid(xev.sourceid as xinput::DeviceId))
-            .map(|device| device.r#type)
-        else {
+            .is_some_and(|device| matches!(&device.r#type, DeviceType::Mouse));
+        if !is_mouse {
             return;
-        };
+        }
 
         if let Some(mouse_delta) = mouse_delta.consume() {
             app.device_event(&self.target, did, DeviceEvent::PointerMotion { delta: mouse_delta });
@@ -1574,12 +1728,44 @@ impl EventProcessor {
         self.target.xconn.set_timestamp(xev.time as xproto::Timestamp);
         let infos = unsafe { slice::from_raw_parts(xev.info, xev.num_info as usize) };
         for info in infos {
-            if 0 != info.flags & (xinput2::XISlaveAdded | xinput2::XIMasterAdded) {
+            if 0 != info.flags
+                & (xinput2::XISlaveAdded
+                    | xinput2::XIMasterAdded
+                    | xinput2::XISlaveAttached
+                    | xinput2::XIDeviceEnabled)
+            {
                 self.init_device(info.deviceid as xinput::DeviceId);
             } else if 0 != info.flags & (xinput2::XISlaveRemoved | xinput2::XIMasterRemoved) {
+                let removed = mkdid(info.deviceid as xinput::DeviceId);
                 let mut devices = self.devices.borrow_mut();
-                devices.remove(&mkdid(info.deviceid as xinput::DeviceId));
+                devices.remove(&removed);
+                drop(devices);
+                self.active_pointer_sources
+                    .borrow_mut()
+                    .retain(|master, source| *master != removed && *source != removed);
             }
+        }
+    }
+
+    fn xinput2_device_changed(&mut self, xev: &XIDeviceChangedEvent) {
+        self.target.xconn.set_timestamp(xev.time as xproto::Timestamp);
+
+        let device = xev.deviceid as xinput::DeviceId;
+        let source = xev.sourceid as xinput::DeviceId;
+        match xev.reason {
+            xinput2::XISlaveSwitch => {
+                self.init_device(source);
+                if source != device {
+                    self.active_pointer_sources.borrow_mut().insert(mkdid(device), mkdid(source));
+                }
+            },
+            xinput2::XIDeviceChange => {
+                self.init_device(device);
+                if source != device {
+                    self.init_device(source);
+                }
+            },
+            _ => {},
         }
     }
 

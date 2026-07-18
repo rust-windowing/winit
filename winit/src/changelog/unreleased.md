@@ -50,6 +50,8 @@ changelog entry.
 - On Android, added scancode conversions for more obscure key codes.
 - On Wayland, added `HoldGesture` event for multi-finger hold gestures
 - On Wayland, added ext-background-effect-v1 support.
+- On X11, add tablet tool support through the unified pointer events, including pressure, tilt,
+  tool kind, and tablet buttons.
 
 ### Changed
 
