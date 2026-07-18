@@ -36,11 +36,11 @@ use xkbcommon_dl::xkb_mod_mask_t;
 use crate::atoms::*;
 use crate::dnd::{DndState, SelectionType};
 use crate::event_loop::{
-    ALL_DEVICES, ActiveEventLoop, CookieResultExt, Device, DeviceInfo, DeviceType,
-    ScrollOrientation, mkdid, mkwid,
+    ALL_DEVICES, ActiveEventLoop, CookieResultExt, Device, DeviceInfo, ScrollOrientation, mkdid,
+    mkwid,
 };
 use crate::ime::{ImeEvent, ImeEventReceiver, ImeReceiver, ImeRequest};
-use crate::tablet::{for_each_packed_valuator, tablet_button};
+use crate::tablet::{DeviceType, for_each_packed_valuator, tablet_button};
 use crate::util;
 use crate::util::cookie::GenericEventCookie;
 use crate::window::UnownedWindow;

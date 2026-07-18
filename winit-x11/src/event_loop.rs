@@ -41,7 +41,7 @@ use crate::atoms::{_NET_WM_PING, _NET_WM_SYNC_REQUEST, Atoms, WM_DELETE_WINDOW};
 use crate::dnd::Dnd;
 use crate::event_processor::{EventProcessor, MAX_MOD_REPLAY_LEN};
 use crate::ime::{self, Ime, ImeCreationError, ImeSender};
-use crate::tablet::TabletDevice;
+use crate::tablet::{DeviceType, classify_pointer_device};
 use crate::util::{self, CustomCursor};
 use crate::window::{UnownedWindow, Window};
 use crate::xdisplay::{XConnection, XError, XNotSupported};
@@ -1108,13 +1108,6 @@ pub struct Device {
     pub(crate) r#type: DeviceType,
 }
 
-#[derive(Clone, Debug)]
-pub(crate) enum DeviceType {
-    Mouse,
-    Touch,
-    Tablet(TabletDevice),
-}
-
 #[derive(Debug, Copy, Clone)]
 pub(crate) struct ScrollAxis {
     pub(crate) increment: f64,
@@ -1133,7 +1126,6 @@ impl Device {
         let name = unsafe { CStr::from_ptr(info.name).to_string_lossy() };
         let mut scroll_axes = Vec::new();
         let classes = Device::classes(info);
-        let mut has_touch_class = false;
         let master_pointer = info._use == ffi::XIMasterPointer;
         let mut class_sources = Vec::new();
 
@@ -1161,20 +1153,12 @@ impl Device {
                         },
                         position: 0.0,
                     }));
-                } else if ty == ffi::XITouchClass {
-                    has_touch_class = true;
                 }
             }
         }
 
         let r#type = if Device::pointer_source(info) {
-            if has_touch_class {
-                DeviceType::Touch
-            } else if let Some(tablet) = TabletDevice::from_xinput(&name, classes, atoms) {
-                DeviceType::Tablet(tablet)
-            } else {
-                DeviceType::Mouse
-            }
+            classify_pointer_device(&name, classes, atoms)
         } else {
             DeviceType::Mouse
         };
