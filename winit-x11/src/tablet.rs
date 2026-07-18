@@ -47,26 +47,19 @@ pub(crate) struct TabletDevice {
     tilt_y: Option<ValuatorAxis>,
 }
 
-#[derive(Clone, Debug)]
-pub(crate) enum DeviceType {
-    Mouse,
-    Touch,
-    Tablet(TabletDevice),
-}
+impl TabletDevice {
+    pub(crate) fn from_xinput(
+        name: &str,
+        classes: &[*const ffi::XIAnyClassInfo],
+        atoms: &Atoms,
+    ) -> Option<Self> {
+        let mut axes = Vec::new();
 
-pub(crate) fn classify_pointer_device(
-    name: &str,
-    classes: &[*const ffi::XIAnyClassInfo],
-    atoms: &Atoms,
-) -> DeviceType {
-    let mut has_touch_class = false;
-    let mut axes = Vec::new();
+        for &class_ptr in classes {
+            if unsafe { (*class_ptr)._type } != ffi::XIValuatorClass {
+                continue;
+            }
 
-    for &class_ptr in classes {
-        let class_type = unsafe { (*class_ptr)._type };
-        if class_type == ffi::XITouchClass {
-            has_touch_class = true;
-        } else if class_type == ffi::XIValuatorClass {
             let info = unsafe { &*(class_ptr as *const ffi::XIValuatorClassInfo) };
             let atom = info.label as xproto::Atom;
             let label = if atom == atoms[ABS_X] {
@@ -91,12 +84,10 @@ pub(crate) fn classify_pointer_device(
                 info.value,
             ));
         }
+
+        classify_device(name, axes)
     }
 
-    classify_device(name, has_touch_class, axes)
-}
-
-impl TabletDevice {
     pub(crate) fn update_valuators(&mut self, valuators: &xinput2::XIValuatorState) {
         if valuators.mask_len <= 0 {
             return;
@@ -140,13 +131,7 @@ impl TabletDevice {
     }
 }
 
-fn classify_device(name: &str, has_touch_class: bool, axes: Vec<ValuatorAxis>) -> DeviceType {
-    // Some touchscreens expose pressure or absolute axes too. The XI touch class is stronger
-    // evidence than any tablet heuristic.
-    if has_touch_class {
-        return DeviceType::Touch;
-    }
-
+fn classify_device(name: &str, axes: Vec<ValuatorAxis>) -> Option<TabletDevice> {
     let lower_name = name.to_ascii_lowercase();
     let strong_name = name_word(&lower_name, "stylus")
         || name_word(&lower_name, "pen")
@@ -172,7 +157,7 @@ fn classify_device(name: &str, has_touch_class: bool, axes: Vec<ValuatorAxis>) -
     let has_tablet_axes = pressure.is_some() || tilt_x.is_some() || tilt_y.is_some();
 
     if !has_position || (!has_tablet_axes && !strong_name) {
-        return DeviceType::Mouse;
+        return None;
     }
 
     let kind = if name_word(&lower_name, "eraser") {
@@ -196,7 +181,7 @@ fn classify_device(name: &str, has_touch_class: bool, axes: Vec<ValuatorAxis>) -
         TabletToolKind::Pen
     };
 
-    DeviceType::Tablet(TabletDevice { kind, pressure, tilt_x, tilt_y })
+    Some(TabletDevice { kind, pressure, tilt_x, tilt_y })
 }
 
 fn name_word(name: &str, word: &str) -> bool {
@@ -250,30 +235,10 @@ mod tests {
         ValuatorAxis::new(number, label, true, 0.0, 100.0, value)
     }
 
-    fn tablet(name: &str, axes: Vec<ValuatorAxis>) -> TabletDevice {
-        let DeviceType::Tablet(tablet) = classify_device(name, false, axes) else {
-            panic!("expected {name:?} to be classified as a tablet");
-        };
-        tablet
-    }
-
-    #[test]
-    fn touch_class_wins_over_tablet_axes() {
-        let axes = vec![
-            axis(0, AxisLabel::X, 0.0),
-            axis(1, AxisLabel::Y, 0.0),
-            axis(2, AxisLabel::Pressure, 50.0),
-        ];
-        assert!(matches!(classify_device("Pen touchscreen", true, axes), DeviceType::Touch));
-    }
-
     #[test]
     fn absolute_xy_alone_is_not_a_tablet() {
         let axes = vec![axis(0, AxisLabel::X, 0.0), axis(1, AxisLabel::Y, 0.0)];
-        assert!(matches!(
-            classify_device("Generic absolute pointer", false, axes),
-            DeviceType::Mouse
-        ));
+        assert!(classify_device("Generic absolute pointer", axes).is_none());
     }
 
     #[test]
@@ -283,7 +248,7 @@ mod tests {
             axis(1, AxisLabel::Y, 0.0),
             axis(5, AxisLabel::Pressure, 25.0),
         ];
-        let tablet = tablet("Unknown device", axes);
+        let tablet = classify_device("Unknown device", axes).unwrap();
         assert_eq!(tablet.kind, TabletToolKind::Pen);
         assert_eq!(tablet.data().force, Some(Force::Normalized(0.25)));
     }
@@ -301,7 +266,7 @@ mod tests {
             ("Tablet Cursor Puck", TabletToolKind::Mouse),
             ("Tablet Lens", TabletToolKind::Lens),
         ] {
-            assert_eq!(tablet(name, axes.clone()).kind, expected);
+            assert_eq!(classify_device(name, axes.clone()).unwrap().kind, expected);
         }
     }
 
