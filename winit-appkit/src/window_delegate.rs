@@ -826,12 +826,7 @@ fn new_window(
             window.center();
         }
 
-        let view = WinitView::new(
-            app_state,
-            macos_attrs.accepts_first_mouse,
-            macos_attrs.option_as_alt,
-            mtm,
-        );
+        let view = WinitView::new(app_state, macos_attrs.option_as_alt, mtm);
 
         // The default value of `setWantsBestResolutionOpenGLSurface:` was `false` until
         // macos 10.14 and `true` after 10.15, we should set it to `YES` or `NO` to avoid

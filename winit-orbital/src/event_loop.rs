@@ -445,6 +445,7 @@ impl EventLoop {
                         state,
                         position: event_state.mouse_pos.into(),
                         button: button.into(),
+                        is_macos_activation_click: false,
                     });
                 }
             },

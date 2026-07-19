@@ -383,6 +383,7 @@ impl EventLoop {
                                     android_activity::input::ToolType::Mouse => continue,
                                     _ => event::ButtonSource::Unknown(0),
                                 },
+                                is_macos_activation_click: false,
                             };
                             app.window_event(&self.window_target, GLOBAL_WINDOW, event);
                         },
@@ -426,6 +427,7 @@ impl EventLoop {
                                         android_activity::input::ToolType::Mouse => continue,
                                         _ => event::ButtonSource::Unknown(0),
                                     },
+                                    is_macos_activation_click: false,
                                 };
                                 app.window_event(&self.window_target, GLOBAL_WINDOW, event);
                             }
