@@ -676,9 +676,7 @@ impl PopupExtWayland for Popup {
     }
 
     fn get_anchor_rect(&self) -> Option<(impl Into<Position>, impl Into<Size>)> {
-        let Some(state) = self.popup_state.upgrade() else {
-            return None;
-        };
+        let state = self.popup_state.upgrade()?;
         if let WindowType::Popup { anchor_rect, .. } = &state.lock().unwrap().window {
             Some(*anchor_rect)
         } else {
