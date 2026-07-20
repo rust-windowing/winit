@@ -538,6 +538,9 @@ impl_dyn_casting!(PlatformWindowAttributes);
 /// **Web:** The [`Window`], which is represented by a `HTMLElementCanvas`, can
 /// not be closed by dropping the [`Window`].
 pub trait Window: AsAny + Send + Sync + fmt::Debug {
+    /// Returns the window type of this window
+    fn window_type(&self) -> WindowType;
+
     /// Returns an identifier unique to the window.
     fn id(&self) -> WindowId;
 

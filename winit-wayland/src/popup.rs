@@ -285,6 +285,10 @@ impl Popup {
 }
 
 impl CoreWindow for Popup {
+    fn window_type(&self) -> winit_core::window::WindowType {
+        winit_core::window::WindowType::Popup
+    }
+
     fn id(&self) -> WindowId {
         self.window_id
     }

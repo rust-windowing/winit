@@ -590,6 +590,10 @@ impl rwh_06::HasWindowHandle for Window {
 }
 
 impl CoreWindow for Window {
+    fn window_type(&self) -> window::WindowType {
+        window::WindowType::Window
+    }
+
     fn id(&self) -> winit_core::window::WindowId {
         self.maybe_wait_on_main(|delegate| delegate.id())
     }

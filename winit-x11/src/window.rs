@@ -82,6 +82,10 @@ impl Window {
 }
 
 impl CoreWindow for Window {
+    fn window_type(&self) -> winit_core::window::WindowType {
+        winit_core::window::WindowType::Window
+    }
+
     fn id(&self) -> WindowId {
         self.0.id()
     }

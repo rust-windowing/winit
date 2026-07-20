@@ -288,6 +288,10 @@ impl rwh_06::HasDisplayHandle for Window {
 }
 
 impl CoreWindow for Window {
+    fn window_type(&self) -> winit_core::window::WindowType {
+        winit_core::window::WindowType::Window
+    }
+
     fn id(&self) -> WindowId {
         self.window_id
     }

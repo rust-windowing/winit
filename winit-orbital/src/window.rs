@@ -154,6 +154,10 @@ impl Window {
 }
 
 impl CoreWindow for Window {
+    fn window_type(&self) -> window::WindowType {
+        window::WindowType::Window
+    }
+
     fn id(&self) -> WindowId {
         WindowId::from_raw(self.window_socket.fd())
     }

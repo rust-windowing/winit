@@ -100,6 +100,9 @@ pub struct Window {
 
     // The events loop proxy.
     thread_executor: event_loop::EventLoopThreadExecutor,
+
+    /// The type of window of this
+    window_type: WindowType,
 }
 
 impl Window {
@@ -459,6 +462,10 @@ impl rwh_06::HasWindowHandle for Window {
 }
 
 impl CoreWindow for Window {
+    fn window_type(&self) -> window::WindowType {
+        self.window_type
+    }
+
     fn set_title(&self, text: &str) {
         let wide_text = util::encode_wide(text);
         unsafe {
@@ -1257,6 +1264,7 @@ impl InitData<'_> {
             window: SyncWindowHandle(window),
             window_state,
             thread_executor: self.runner.create_thread_executor(),
+            window_type: self.attributes.window_type,
         }
     }
 
