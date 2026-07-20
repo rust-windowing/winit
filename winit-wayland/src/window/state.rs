@@ -296,12 +296,14 @@ impl WindowState {
         // NOTE: when using fractional scaling or wl_compositor@v6 the scaling
         // should be delivered before the first configure, thus apply it to
         // properly scale the physical sizes provided by the users.
+        let is_initial_configure = self.last_configure.is_none();
+
         if let Some(initial_size) = self.initial_size.take() {
             self.size = initial_size.to_logical(self.scale_factor());
             self.stateless_size = self.size;
         }
 
-        if let Some(subcompositor) = subcompositor.as_ref().filter(|_| {
+        let frame_just_created = if let Some(subcompositor) = subcompositor.as_ref().filter(|_| {
             configure.decoration_mode == DecorationMode::Client
                 && self.frame.is_none()
                 && !self.csd_fails
@@ -322,32 +324,61 @@ impl WindowState {
                     // Hide the frame if we were asked to not decorate.
                     frame.set_hidden(!self.decorate);
                     self.frame = Some(frame);
+                    // After the frame has been loaded, the active area may be reduced.
+                    // Reload the min/max size hints so that they respect the frame.
+                    self.reload_min_max_hints();
+                    true
                 },
                 Err(err) => {
                     warn!("Failed to create client side decorations frame: {err}");
                     self.csd_fails = true;
+                    false
                 },
             }
         } else if configure.decoration_mode == DecorationMode::Server {
             // Drop the frame for server side decorations to save resources.
-            self.frame = None;
-        }
+            let frame_just_dropped = self.frame.take().is_some();
+            if frame_just_dropped {
+                // Without a frame, min/max hints must no longer include border sizes.
+                self.reload_min_max_hints();
+            }
+            false
+        } else {
+            false
+        };
 
         let stateless = Self::is_stateless(&configure);
+        let current_surface_size = self.surface_size();
+        // On the initial stateless configure, the compositor may echo the requested
+        // surface size from before the frame existed. Preserve that size instead of
+        // treating it as window geometry and subtracting the frame borders again.
+        let preserve_initial_surface_size = frame_just_created
+            && is_initial_configure
+            && stateless
+            && matches!(
+                configure.new_size,
+                (Some(width), Some(height))
+                    if width.get() == current_surface_size.width
+                        && height.get() == current_surface_size.height
+            );
 
         let (mut new_size, constrain) = if let Some(frame) = self.frame.as_mut() {
             // Configure the window states.
             frame.update_state(configure.state);
 
-            match configure.new_size {
-                (Some(width), Some(height)) => {
-                    let (width, height) = frame.subtract_borders(width, height);
-                    let width = width.map(|w| w.get()).unwrap_or(1);
-                    let height = height.map(|h| h.get()).unwrap_or(1);
-                    ((width, height).into(), false)
-                },
-                (..) if stateless => (self.stateless_size, true),
-                _ => (self.size, true),
+            if preserve_initial_surface_size {
+                (current_surface_size, false)
+            } else {
+                match configure.new_size {
+                    (Some(width), Some(height)) => {
+                        let (width, height) = frame.subtract_borders(width, height);
+                        let width = width.map(|w| w.get()).unwrap_or(1);
+                        let height = height.map(|h| h.get()).unwrap_or(1);
+                        ((width, height).into(), false)
+                    },
+                    (..) if stateless => (self.stateless_size, true),
+                    _ => (current_surface_size, true),
+                }
             }
         } else {
             match configure.new_size {
@@ -856,20 +887,19 @@ impl WindowState {
         size.width = size.width.max(MIN_WINDOW_SIZE.width);
         size.height = size.height.max(MIN_WINDOW_SIZE.height);
 
-        // Add the borders.
-        let size = self
+        let applied_size = self
             .frame
             .as_ref()
             .map(|frame| frame.add_borders(size.width, size.height).into())
             .unwrap_or(size);
 
         self.min_surface_size = size;
-        self.window.set_min_size(Some(size.into()));
+        self.window.set_min_size(Some(applied_size.into()));
     }
 
     /// Set maximum inner window size.
     pub fn set_max_surface_size(&mut self, size: Option<LogicalSize<u32>>) {
-        let size = size.map(|size| {
+        let applied_size = size.map(|size| {
             self.frame
                 .as_ref()
                 .map(|frame| frame.add_borders(size.width, size.height).into())
@@ -877,7 +907,7 @@ impl WindowState {
         });
 
         self.max_surface_size = size;
-        self.window.set_max_size(size.map(Into::into));
+        self.window.set_max_size(applied_size.map(Into::into));
     }
 
     /// Set the CSD theme.
