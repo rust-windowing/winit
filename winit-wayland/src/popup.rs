@@ -126,11 +126,18 @@ impl Popup {
                         (pos, LogicalSize::new(1, 1))
                     },
                 };
+                let anchor_rect = (
+                    LogicalPosition::new(
+                        anchor_rect_position.x + anchor_position.x,
+                        anchor_rect_position.y + anchor_position.y,
+                    ),
+                    LogicalSize::new(anchor_rect_size.width.max(1), anchor_rect_size.height.max(1)),
+                );
                 positioner.set_anchor_rect(
-                    anchor_rect_position.x + anchor_position.x,
-                    anchor_rect_position.y + anchor_position.y,
-                    anchor_rect_size.width.max(1),
-                    anchor_rect_size.height.max(1),
+                    anchor_rect.0.x,
+                    anchor_rect.0.y,
+                    anchor_rect.1.width,
+                    anchor_rect.1.height,
                 );
                 positioner_offset.inspect(|o| {
                     let o = o.to_logical(scale_factor);
@@ -159,6 +166,7 @@ impl Popup {
                         popup: popup.clone(),
                         positioner,
                         last_configure: None,
+                        anchor_rect,
                         parent_origin: geometry_origin,
                     },
                     attributes.preferred_theme,
@@ -319,10 +327,17 @@ impl CoreWindow for Popup {
 
     fn set_outer_position(&self, position: Position) {
         let Some(s) = self.popup_state.upgrade() else { return };
-        let state = s.lock().unwrap();
-        if let WindowType::Popup { popup, positioner, .. } = &state.window {
-            let position = position.to_logical(state.scale_factor());
-            positioner.set_offset(position.x, position.y);
+        let mut state = s.lock().unwrap();
+        let scale_factor = state.scale_factor();
+        if let WindowType::Popup { popup, positioner, anchor_rect, .. } = &mut state.window {
+            let position = position.to_logical(scale_factor);
+            anchor_rect.0 = position;
+            positioner.set_anchor_rect(
+                anchor_rect.0.x,
+                anchor_rect.0.y,
+                anchor_rect.1.width,
+                anchor_rect.1.height,
+            );
             if popup.xdg_popup().version() >= 3 {
                 popup.reposition(positioner, 0);
             }
@@ -660,6 +675,17 @@ impl PopupExtWayland for Popup {
         }
     }
 
+    fn get_anchor_rect(&self) -> Option<(impl Into<Position>, impl Into<Size>)> {
+        let Some(state) = self.popup_state.upgrade() else {
+            return None;
+        };
+        if let WindowType::Popup { anchor_rect, .. } = &state.lock().unwrap().window {
+            Some(*anchor_rect)
+        } else {
+            None
+        }
+    }
+
     fn set_anchor_rect(&self, position: impl Into<Position>, size: impl Into<Size>) {
         let Some(state) = self.popup_state.upgrade() else {
             return;
@@ -678,6 +704,19 @@ impl PopupExtWayland for Popup {
                 size.width.max(1),
                 size.height.max(1),
             );
+            popup.reposition(positioner, 0);
+        }
+    }
+
+    fn set_positioner_offset(&self, position: impl Into<Position>) {
+        let Some(state) = self.popup_state.upgrade() else {
+            return;
+        };
+
+        let scale_factor = state.lock().unwrap().scale_factor();
+        let position: LogicalPosition<i32> = position.into().to_logical(scale_factor);
+        if let WindowType::Popup { popup, positioner, .. } = &state.lock().unwrap().window {
+            positioner.set_offset(position.x, position.y);
             popup.reposition(positioner, 0);
         }
     }

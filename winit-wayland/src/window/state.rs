@@ -67,6 +67,7 @@ pub enum WindowType {
         positioner: XdgPositioner,
         last_configure: Option<PopupConfigure>,
         parent_origin: LogicalPosition<i32>,
+        anchor_rect: (LogicalPosition<i32>, LogicalSize<i32>),
     },
 }
 

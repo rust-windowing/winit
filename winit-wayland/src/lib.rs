@@ -99,6 +99,8 @@ impl WindowExtWayland for dyn CoreWindow + '_ {
 
 /// Additional methods on [`Popup`] that are specific to Wayland.
 pub trait PopupExtWayland {
+    fn get_anchor_rect(&self) -> Option<(impl Into<Position>, impl Into<Size>)>;
+
     /// Sets the anchor edge of the parent surface the popup is positioned relative to.
     ///
     /// See [`PopupAnchor`] for the available edges and corners.
@@ -120,6 +122,9 @@ pub trait PopupExtWayland {
     ///
     /// See [`PopupGravity`] for the available directions.
     fn set_gravity(&self, gravity: PopupGravity);
+
+    /// Set the popup position relative to the anchor rect
+    fn set_positioner_offset(&self, position: impl Into<Position>);
 }
 
 impl PopupExtWayland for dyn CoreWindow + '_ {
@@ -127,6 +132,10 @@ impl PopupExtWayland for dyn CoreWindow + '_ {
         if let Some(popup) = self.cast_ref::<Popup>() {
             popup.set_anchor(anchor);
         }
+    }
+
+    fn get_anchor_rect(&self) -> Option<(impl Into<Position>, impl Into<Size>)> {
+        if let Some(popup) = self.cast_ref::<Popup>() { popup.get_anchor_rect() } else { None }
     }
 
     fn set_anchor_rect(&self, position: impl Into<Position>, size: impl Into<Size>) {
@@ -144,6 +153,12 @@ impl PopupExtWayland for dyn CoreWindow + '_ {
     fn set_gravity(&self, gravity: PopupGravity) {
         if let Some(popup) = self.cast_ref::<Popup>() {
             popup.set_gravity(gravity);
+        }
+    }
+
+    fn set_positioner_offset(&self, position: impl Into<Position>) {
+        if let Some(popup) = self.cast_ref::<Popup>() {
+            popup.set_positioner_offset(position);
         }
     }
 }
