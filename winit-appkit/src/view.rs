@@ -6,7 +6,7 @@ use std::rc::Rc;
 use dpi::{LogicalPosition, PhysicalSize};
 use objc2::rc::Retained;
 use objc2::runtime::{AnyObject, Sel};
-use objc2::{AnyThread, DefinedClass, MainThreadMarker, define_class, msg_send};
+use objc2::{AnyThread, DefinedClass, MainThreadMarker, Message, define_class, msg_send};
 use objc2_app_kit::{
     NSApplication, NSCursor, NSDragOperation, NSDraggingSession, NSEvent, NSEventPhase,
     NSResponder, NSTextInputClient, NSTrackingArea, NSTrackingAreaOptions, NSView,
@@ -876,13 +876,14 @@ impl WinitView {
         });
     }
 
-    fn surface_resized(&self) {
+    pub(super) fn surface_resized(&self) {
         let Some(window) = (**self).window() else {
             return;
         };
-        let size = self.surface_size();
         let window_id = window_id(&window);
+        let view = self.retain();
         self.ivars().app_state.maybe_queue_with_handler(move |app, event_loop| {
+            let size = view.surface_size();
             app.window_event(event_loop, window_id, WindowEvent::SurfaceResized(size));
         });
     }
