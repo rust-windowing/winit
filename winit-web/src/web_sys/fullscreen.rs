@@ -1,4 +1,3 @@
-use core::cell::OnceCell;
 use std::thread_local;
 
 use js_sys::{Object, Promise};
@@ -137,22 +136,13 @@ pub fn exit_fullscreen(document: &Document, canvas: &HtmlCanvasElement) {
 }
 
 fn has_fullscreen_api_support(canvas: &HtmlCanvasElement) -> bool {
-    thread_local! {
-        static FULLSCREEN_API_SUPPORT: OnceCell<bool> = const { OnceCell::new() };
+    #[wasm_bindgen]
+    extern "C" {
+        type CanvasFullScreenApiSupport;
+
+        #[wasm_bindgen(method, getter, js_name = requestFullscreen)]
+        fn has_request_fullscreen(this: &CanvasFullScreenApiSupport) -> JsValue;
     }
 
-    FULLSCREEN_API_SUPPORT.with(|support| {
-        *support.get_or_init(|| {
-            #[wasm_bindgen]
-            extern "C" {
-                type CanvasFullScreenApiSupport;
-
-                #[wasm_bindgen(method, getter, js_name = requestFullscreen)]
-                fn has_request_fullscreen(this: &CanvasFullScreenApiSupport) -> JsValue;
-            }
-
-            let support: &CanvasFullScreenApiSupport = canvas.unchecked_ref();
-            !support.has_request_fullscreen().is_undefined()
-        })
-    })
+    !canvas.unchecked_ref::<CanvasFullScreenApiSupport>().has_request_fullscreen().is_undefined()
 }
