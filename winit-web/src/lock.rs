@@ -42,22 +42,19 @@ pub(crate) fn is_cursor_lock_raw(navigator: &Navigator, document: &Document) -> 
 
 pub(crate) fn request_pointer_lock(navigator: &Navigator, document: &Document, element: &Element) {
     if is_cursor_lock_raw(navigator, document) {
-        thread_local! {
-            static REJECT_HANDLER: Closure<dyn FnMut(JsValue)> = Closure::new(|error: JsValue| {
-                if let Some(error) = error.dyn_ref::<DomException>() {
-                        error!("Failed to lock pointer. {}: {}", error.name(), error.message());
-                } else {
-                    console::error_1(&error);
-                    error!("Failed to lock pointer");
-                }
-            });
-        }
+        let reject_handler = Closure::new(|error: JsValue| {
+            if let Some(error) = error.dyn_ref::<DomException>() {
+                error!("Failed to lock pointer. {}: {}", error.name(), error.message());
+            } else {
+                console::error_1(&error);
+                error!("Failed to lock pointer");
+            }
+        });
 
         let element: &ElementExt = element.unchecked_ref();
         let options: PointerLockOptions = Object::new().unchecked_into();
         options.set_unadjusted_movement(true);
-        let _ = REJECT_HANDLER
-            .with(|handler| element.request_pointer_lock_with_options(&options).catch(handler));
+        let _ = element.request_pointer_lock_with_options(&options).catch(&reject_handler);
     } else {
         element.request_pointer_lock();
     }
