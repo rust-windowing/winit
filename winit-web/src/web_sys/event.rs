@@ -1,6 +1,4 @@
-use core::cell::OnceCell;
 use core::f64;
-use std::thread_local;
 
 use dpi::{LogicalPosition, PhysicalPosition, Position};
 use smol_str::SmolStr;
@@ -341,22 +339,16 @@ pub fn pointer_move_event(event: PointerEvent) -> impl Iterator<Item = PointerEv
 // TODO: Remove when Safari supports `getCoalescedEvents`.
 // See <https://bugs.webkit.org/show_bug.cgi?id=210454>.
 pub fn has_coalesced_events_support(event: &PointerEvent) -> bool {
-    thread_local! {
-        static COALESCED_EVENTS_SUPPORT: OnceCell<bool> = const { OnceCell::new() };
+    #[wasm_bindgen]
+    extern "C" {
+        type PointerCoalescedEventsSupport;
+
+        #[wasm_bindgen(method, getter, js_name = getCoalescedEvents)]
+        fn has_get_coalesced_events(this: &PointerCoalescedEventsSupport) -> JsValue;
     }
 
-    COALESCED_EVENTS_SUPPORT.with(|support| {
-        *support.get_or_init(|| {
-            #[wasm_bindgen]
-            extern "C" {
-                type PointerCoalescedEventsSupport;
-
-                #[wasm_bindgen(method, getter, js_name = getCoalescedEvents)]
-                fn has_get_coalesced_events(this: &PointerCoalescedEventsSupport) -> JsValue;
-            }
-
-            let support: &PointerCoalescedEventsSupport = event.unchecked_ref();
-            !support.has_get_coalesced_events().is_undefined()
-        })
-    })
+    !event
+        .unchecked_ref::<PointerCoalescedEventsSupport>()
+        .has_get_coalesced_events()
+        .is_undefined()
 }
