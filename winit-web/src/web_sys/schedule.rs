@@ -230,25 +230,15 @@ impl Drop for Schedule {
 }
 
 fn has_scheduler_support(window: &web_sys::Window) -> bool {
-    thread_local! {
-        static SCHEDULER_SUPPORT: OnceCell<bool> = const { OnceCell::new() };
+    #[wasm_bindgen]
+    extern "C" {
+        type SchedulerSupport;
+
+        #[wasm_bindgen(method, getter, js_name = scheduler)]
+        fn has_scheduler(this: &SchedulerSupport) -> JsValue;
     }
 
-    SCHEDULER_SUPPORT.with(|support| {
-        *support.get_or_init(|| {
-            #[wasm_bindgen]
-            extern "C" {
-                type SchedulerSupport;
-
-                #[wasm_bindgen(method, getter, js_name = scheduler)]
-                fn has_scheduler(this: &SchedulerSupport) -> JsValue;
-            }
-
-            let support: &SchedulerSupport = window.unchecked_ref();
-
-            !support.has_scheduler().is_undefined()
-        })
-    })
+    !window.unchecked_ref::<SchedulerSupport>().has_scheduler().is_undefined()
 }
 
 fn has_idle_callback_support(window: &web_sys::Window) -> bool {
