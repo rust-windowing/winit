@@ -1,5 +1,4 @@
 use alloc::string::String;
-use core::cell::OnceCell;
 use core::time::Duration;
 use std::thread_local;
 
@@ -242,24 +241,15 @@ fn has_scheduler_support(window: &web_sys::Window) -> bool {
 }
 
 fn has_idle_callback_support(window: &web_sys::Window) -> bool {
-    thread_local! {
-        static IDLE_CALLBACK_SUPPORT: OnceCell<bool> = const { OnceCell::new() };
+    #[wasm_bindgen]
+    extern "C" {
+        type IdleCallbackSupport;
+
+        #[wasm_bindgen(method, getter, js_name = requestIdleCallback)]
+        fn has_request_idle_callback(this: &IdleCallbackSupport) -> JsValue;
     }
 
-    IDLE_CALLBACK_SUPPORT.with(|support| {
-        *support.get_or_init(|| {
-            #[wasm_bindgen]
-            extern "C" {
-                type IdleCallbackSupport;
-
-                #[wasm_bindgen(method, getter, js_name = requestIdleCallback)]
-                fn has_request_idle_callback(this: &IdleCallbackSupport) -> JsValue;
-            }
-
-            let support: &IdleCallbackSupport = window.unchecked_ref();
-            !support.has_request_idle_callback().is_undefined()
-        })
-    })
+    !window.unchecked_ref::<IdleCallbackSupport>().has_request_idle_callback().is_undefined()
 }
 
 struct ScriptUrl(String);
