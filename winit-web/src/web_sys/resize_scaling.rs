@@ -1,7 +1,6 @@
 use alloc::boxed::Box;
 use alloc::rc::Rc;
 use core::cell::{Cell, RefCell};
-use std::thread_local;
 
 use dpi::{LogicalSize, PhysicalSize};
 use js_sys::{Array, Object};
@@ -280,24 +279,18 @@ impl Drop for ResizeScaleInternal {
 // TODO: Remove when Safari supports `devicePixelContentBoxSize`.
 // See <https://bugs.webkit.org/show_bug.cgi?id=219005>.
 pub fn has_device_pixel_support() -> bool {
-    thread_local! {
-        static DEVICE_PIXEL_SUPPORT: bool = {
-            #[wasm_bindgen]
-            extern "C" {
-                type ResizeObserverEntryExt;
+    #[wasm_bindgen]
+    extern "C" {
+        type ResizeObserverEntryExt;
 
-                #[wasm_bindgen(js_class = ResizeObserverEntry, static_method_of = ResizeObserverEntryExt, getter)]
-                fn prototype() -> Object;
-            }
-
-            let prototype = ResizeObserverEntryExt::prototype();
-            let descriptor = Object::get_own_property_descriptor(
-                &prototype,
-                &JsValue::from_str("devicePixelContentBoxSize"),
-            );
-            !descriptor.is_undefined()
-        };
+        #[wasm_bindgen(js_class = ResizeObserverEntry, static_method_of = ResizeObserverEntryExt, getter)]
+        fn prototype() -> Object;
     }
 
-    DEVICE_PIXEL_SUPPORT.with(|support| *support)
+    let prototype = ResizeObserverEntryExt::prototype();
+    let descriptor = Object::get_own_property_descriptor(
+        &prototype,
+        &JsValue::from_str("devicePixelContentBoxSize"),
+    );
+    !descriptor.is_undefined()
 }
