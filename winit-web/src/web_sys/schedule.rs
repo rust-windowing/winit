@@ -95,14 +95,11 @@ impl Schedule {
             options.set_delay(duration as f64);
         }
 
-        thread_local! {
-            static REJECT_HANDLER: Closure<dyn FnMut(JsValue)> = Closure::new(|_| ());
-        }
-        REJECT_HANDLER.with(|handler| {
-            let _ = scheduler
-                .post_task_with_options(closure.as_ref().unchecked_ref(), &options)
-                .catch(handler);
-        });
+        let reject_handler = Closure::new(|_| ());
+
+        let _ = scheduler
+            .post_task_with_options(closure.as_ref().unchecked_ref(), &options)
+            .catch(&reject_handler);
 
         Schedule { _closure: closure, inner: Inner::Scheduler { controller } }
     }
