@@ -11,11 +11,10 @@ mod safe_area;
 mod schedule;
 
 use alloc::string::String;
-use core::cell::OnceCell;
-use std::thread_local;
 
 use dpi::{LogicalPosition, LogicalSize};
 use js_sys::Array;
+use once_cell::race::OnceRef;
 use wasm_bindgen::JsCast;
 use wasm_bindgen::closure::Closure;
 use wasm_bindgen::prelude::wasm_bindgen;
@@ -175,16 +174,29 @@ struct UserAgentData {
     chrome_linux: bool,
 }
 
-thread_local! {
-    static USER_AGENT_DATA: OnceCell<UserAgentData> = const { OnceCell::new() };
-}
-
 pub fn chrome_linux(navigator: &Navigator) -> bool {
-    USER_AGENT_DATA.with(|data| data.get_or_init(|| user_agent(navigator)).chrome_linux)
+    user_agent_cached(navigator).chrome_linux
 }
 
 pub fn engine(navigator: &Navigator) -> Option<Engine> {
-    USER_AGENT_DATA.with(|data| data.get_or_init(|| user_agent(navigator)).engine)
+    user_agent_cached(navigator).engine
+}
+
+fn user_agent_cached(navigator: &Navigator) -> &UserAgentData {
+    static USER_AGENT_DATA: OnceRef<'static, UserAgentData> = OnceRef::new();
+    USER_AGENT_DATA.get_or_init(|| {
+        use Engine::*;
+        let UserAgentData { engine, chrome_linux } = user_agent(navigator);
+        match engine {
+            Some(Chromium) if chrome_linux => {
+                &UserAgentData { engine: Some(Chromium), chrome_linux: true }
+            },
+            Some(Chromium) => &UserAgentData { engine: Some(Chromium), chrome_linux: false },
+            Some(Gecko) => &UserAgentData { engine: Some(Gecko), chrome_linux: false },
+            Some(WebKit) => &UserAgentData { engine: Some(WebKit), chrome_linux: false },
+            None => &UserAgentData { engine: None, chrome_linux: false },
+        }
+    })
 }
 
 fn user_agent(navigator: &Navigator) -> UserAgentData {
