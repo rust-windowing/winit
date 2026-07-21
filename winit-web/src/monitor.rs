@@ -15,7 +15,6 @@ use core::ops::{Deref, DerefMut};
 use core::pin::Pin;
 use core::task::{Context, Poll, ready};
 use std::sync::OnceLock;
-use std::thread_local;
 
 use dpi::{LogicalSize, PhysicalPosition, PhysicalSize};
 use js_sys::{Object, Promise};
@@ -852,16 +851,7 @@ fn has_previous_lock_support() -> Option<bool> {
 }
 
 pub fn has_screen_details_support(window: &Window) -> bool {
-    thread_local! {
-        static HAS_SCREEN_DETAILS: OnceCell<bool> = const { OnceCell::new() };
-    }
-
-    HAS_SCREEN_DETAILS.with(|support| {
-        *support.get_or_init(|| {
-            let window: &WindowExt = window.unchecked_ref();
-            !window.has_screen_details().is_undefined()
-        })
-    })
+    !window.unchecked_ref::<WindowExt>().has_screen_details().is_undefined()
 }
 
 #[wasm_bindgen]
