@@ -1,7 +1,5 @@
-use core::cell::OnceCell;
-use std::thread_local;
-
 use js_sys::{Object, Promise};
+use once_cell::race::OnceBool;
 use tracing::error;
 use wasm_bindgen::closure::Closure;
 use wasm_bindgen::prelude::wasm_bindgen;
@@ -9,35 +7,30 @@ use wasm_bindgen::{JsCast, JsValue};
 use web_sys::{Document, DomException, Element, Navigator, console};
 
 pub(crate) fn is_cursor_lock_raw(navigator: &Navigator, document: &Document) -> bool {
-    thread_local! {
-        static IS_CURSOR_LOCK_RAW: OnceCell<bool> = const { OnceCell::new() };
+    static IS_CURSOR_LOCK_RAW: OnceBool = OnceBool::new();
+    IS_CURSOR_LOCK_RAW.get_or_init(|| is_cursor_lock_raw_inner(navigator, document))
+}
+
+fn is_cursor_lock_raw_inner(navigator: &Navigator, document: &Document) -> bool {
+    // TODO: Remove when Chrome can better advertise that they don't support unaccelerated
+    // movement on Linux.
+    // See <https://issues.chromium.org/issues/40833850>.
+    if super::web_sys::chrome_linux(navigator) {
+        return false;
     }
 
-    IS_CURSOR_LOCK_RAW.with(|cell| {
-        *cell.get_or_init(|| {
-            // TODO: Remove when Chrome can better advertise that they don't support unaccelerated
-            // movement on Linux.
-            // See <https://issues.chromium.org/issues/40833850>.
-            if super::web_sys::chrome_linux(navigator) {
-                return false;
-            }
+    let element: ElementExt = document.create_element("div").unwrap().unchecked_into();
+    let promise = element.request_pointer_lock();
 
-            let element: ElementExt = document.create_element("div").unwrap().unchecked_into();
-            let promise = element.request_pointer_lock();
+    if promise.is_undefined() {
+        false
+    } else {
+        let reject_handler = Closure::new(|_| ());
 
-            if promise.is_undefined() {
-                false
-            } else {
-                thread_local! {
-                    static REJECT_HANDLER: Closure<dyn FnMut(JsValue)> = Closure::new(|_| ());
-                }
-
-                let promise: Promise = promise.unchecked_into();
-                let _ = REJECT_HANDLER.with(|handler| promise.catch(handler));
-                true
-            }
-        })
-    })
+        let promise: Promise = promise.unchecked_into();
+        let _ = promise.catch(&reject_handler);
+        true
+    }
 }
 
 pub(crate) fn request_pointer_lock(navigator: &Navigator, document: &Document, element: &Element) {
