@@ -1,8 +1,9 @@
+use alloc::boxed::Box;
 use alloc::string::String;
 use core::time::Duration;
-use std::thread_local;
 
 use js_sys::{Array, Function, Object, Promise};
+use once_cell::race::OnceBox;
 use wasm_bindgen::closure::Closure;
 use wasm_bindgen::prelude::wasm_bindgen;
 use wasm_bindgen::{JsCast, JsValue};
@@ -10,6 +11,7 @@ use web_sys::{
     AbortController, AbortSignal, Blob, BlobPropertyBag, MessageChannel, MessagePort, Url, Worker,
 };
 
+use crate::main_thread::{MainThreadMarker, MainThreadSafe};
 use crate::{PollStrategy, WaitUntilStrategy};
 
 #[derive(Debug)]
@@ -67,7 +69,7 @@ impl Schedule {
                     Self::new_timeout(window.clone(), f, Some(duration))
                 }
             },
-            WaitUntilStrategy::Worker => Self::new_worker(f, duration),
+            WaitUntilStrategy::Worker => Self::new_worker(window, f, duration),
         }
     }
 
@@ -168,14 +170,23 @@ impl Schedule {
         }
     }
 
-    fn new_worker<F>(f: F, duration: Duration) -> Schedule
+    fn new_worker<F>(_window: &web_sys::Window, f: F, duration: Duration) -> Schedule
     where
         F: 'static + FnMut(),
     {
-        thread_local! {
-            static URL: ScriptUrl = ScriptUrl::new(include_str!("../script/worker.min.js"));
-            static WORKER: Worker = URL.with(|url| Worker::new(&url.0)).expect("`new Worker()` is not expected to fail with a local script");
-        }
+        static WORKER: OnceBox<MainThreadSafe<Worker>> = OnceBox::new();
+
+        // This is guaranteed to succeed since new_worker is passed a Window as a parameter
+        let marker = MainThreadMarker::new().unwrap();
+
+        let worker = WORKER
+            .get_or_init(|| {
+                let url = ScriptUrl::new(include_str!("../script/worker.min.js"));
+                let worker = Worker::new(&url.0)
+                    .expect("`new Worker()` is not expected to fail with a local script");
+                Box::new(MainThreadSafe::new(marker, worker))
+            })
+            .get(marker);
 
         let channel = MessageChannel::new().unwrap();
         let closure = Closure::new(f);
@@ -193,14 +204,12 @@ impl Schedule {
             .and_then(|secs| secs.checked_add(duration.subsec_micros().div_ceil(1000)))
             .unwrap_or(u32::MAX);
 
-        WORKER
-            .with(|worker| {
-                let port_2 = channel.port2();
-                worker.post_message_with_transfer(
-                    &Array::of2(&port_2, &duration.into()),
-                    &Array::of1(&port_2).into(),
-                )
-            })
+        let port_2 = channel.port2();
+        worker
+            .post_message_with_transfer(
+                &Array::of2(&port_2, &duration.into()),
+                &Array::of1(&port_2).into(),
+            )
             .expect("`Worker.postMessage()` is not expected to fail");
 
         Schedule { _closure: closure, inner: Inner::Worker(port_1) }
