@@ -1,6 +1,6 @@
-use std::cell::RefCell;
-use std::ops::Deref;
-use std::task::Waker;
+use core::cell::RefCell;
+use core::ops::Deref;
+use core::task::Waker;
 
 #[derive(Debug)]
 pub struct AtomicWaker(RefCell<Option<Waker>>);

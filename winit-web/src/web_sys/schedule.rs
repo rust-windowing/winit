@@ -1,7 +1,9 @@
-use std::cell::OnceCell;
-use std::time::Duration;
+use alloc::boxed::Box;
+use alloc::string::String;
+use core::time::Duration;
 
 use js_sys::{Array, Function, Object, Promise};
+use once_cell::race::OnceBox;
 use wasm_bindgen::closure::Closure;
 use wasm_bindgen::prelude::wasm_bindgen;
 use wasm_bindgen::{JsCast, JsValue};
@@ -9,6 +11,7 @@ use web_sys::{
     AbortController, AbortSignal, Blob, BlobPropertyBag, MessageChannel, MessagePort, Url, Worker,
 };
 
+use crate::main_thread::{MainThreadMarker, MainThreadSafe};
 use crate::{PollStrategy, WaitUntilStrategy};
 
 #[derive(Debug)]
@@ -66,7 +69,7 @@ impl Schedule {
                     Self::new_timeout(window.clone(), f, Some(duration))
                 }
             },
-            WaitUntilStrategy::Worker => Self::new_worker(f, duration),
+            WaitUntilStrategy::Worker => Self::new_worker(window, f, duration),
         }
     }
 
@@ -94,14 +97,11 @@ impl Schedule {
             options.set_delay(duration as f64);
         }
 
-        thread_local! {
-            static REJECT_HANDLER: Closure<dyn FnMut(JsValue)> = Closure::new(|_| ());
-        }
-        REJECT_HANDLER.with(|handler| {
-            let _ = scheduler
-                .post_task_with_options(closure.as_ref().unchecked_ref(), &options)
-                .catch(handler);
-        });
+        let reject_handler = Closure::new(|_| ());
+
+        let _ = scheduler
+            .post_task_with_options(closure.as_ref().unchecked_ref(), &options)
+            .catch(&reject_handler);
 
         Schedule { _closure: closure, inner: Inner::Scheduler { controller } }
     }
@@ -170,14 +170,23 @@ impl Schedule {
         }
     }
 
-    fn new_worker<F>(f: F, duration: Duration) -> Schedule
+    fn new_worker<F>(_window: &web_sys::Window, f: F, duration: Duration) -> Schedule
     where
         F: 'static + FnMut(),
     {
-        thread_local! {
-            static URL: ScriptUrl = ScriptUrl::new(include_str!("../script/worker.min.js"));
-            static WORKER: Worker = URL.with(|url| Worker::new(&url.0)).expect("`new Worker()` is not expected to fail with a local script");
-        }
+        static WORKER: OnceBox<MainThreadSafe<Worker>> = OnceBox::new();
+
+        // This is guaranteed to succeed since new_worker is passed a Window as a parameter
+        let marker = MainThreadMarker::new().unwrap();
+
+        let worker = WORKER
+            .get_or_init(|| {
+                let url = ScriptUrl::new(include_str!("../script/worker.min.js"));
+                let worker = Worker::new(&url.0)
+                    .expect("`new Worker()` is not expected to fail with a local script");
+                Box::new(MainThreadSafe::new(marker, worker))
+            })
+            .get(marker);
 
         let channel = MessageChannel::new().unwrap();
         let closure = Closure::new(f);
@@ -195,14 +204,12 @@ impl Schedule {
             .and_then(|secs| secs.checked_add(duration.subsec_micros().div_ceil(1000)))
             .unwrap_or(u32::MAX);
 
-        WORKER
-            .with(|worker| {
-                let port_2 = channel.port2();
-                worker.post_message_with_transfer(
-                    &Array::of2(&port_2, &duration.into()),
-                    &Array::of1(&port_2).into(),
-                )
-            })
+        let port_2 = channel.port2();
+        worker
+            .post_message_with_transfer(
+                &Array::of2(&port_2, &duration.into()),
+                &Array::of1(&port_2).into(),
+            )
             .expect("`Worker.postMessage()` is not expected to fail");
 
         Schedule { _closure: closure, inner: Inner::Worker(port_1) }
@@ -228,46 +235,27 @@ impl Drop for Schedule {
 }
 
 fn has_scheduler_support(window: &web_sys::Window) -> bool {
-    thread_local! {
-        static SCHEDULER_SUPPORT: OnceCell<bool> = const { OnceCell::new() };
+    #[wasm_bindgen]
+    extern "C" {
+        type SchedulerSupport;
+
+        #[wasm_bindgen(method, getter, js_name = scheduler)]
+        fn has_scheduler(this: &SchedulerSupport) -> JsValue;
     }
 
-    SCHEDULER_SUPPORT.with(|support| {
-        *support.get_or_init(|| {
-            #[wasm_bindgen]
-            extern "C" {
-                type SchedulerSupport;
-
-                #[wasm_bindgen(method, getter, js_name = scheduler)]
-                fn has_scheduler(this: &SchedulerSupport) -> JsValue;
-            }
-
-            let support: &SchedulerSupport = window.unchecked_ref();
-
-            !support.has_scheduler().is_undefined()
-        })
-    })
+    !window.unchecked_ref::<SchedulerSupport>().has_scheduler().is_undefined()
 }
 
 fn has_idle_callback_support(window: &web_sys::Window) -> bool {
-    thread_local! {
-        static IDLE_CALLBACK_SUPPORT: OnceCell<bool> = const { OnceCell::new() };
+    #[wasm_bindgen]
+    extern "C" {
+        type IdleCallbackSupport;
+
+        #[wasm_bindgen(method, getter, js_name = requestIdleCallback)]
+        fn has_request_idle_callback(this: &IdleCallbackSupport) -> JsValue;
     }
 
-    IDLE_CALLBACK_SUPPORT.with(|support| {
-        *support.get_or_init(|| {
-            #[wasm_bindgen]
-            extern "C" {
-                type IdleCallbackSupport;
-
-                #[wasm_bindgen(method, getter, js_name = requestIdleCallback)]
-                fn has_request_idle_callback(this: &IdleCallbackSupport) -> JsValue;
-            }
-
-            let support: &IdleCallbackSupport = window.unchecked_ref();
-            !support.has_request_idle_callback().is_undefined()
-        })
-    })
+    !window.unchecked_ref::<IdleCallbackSupport>().has_request_idle_callback().is_undefined()
 }
 
 struct ScriptUrl(String);

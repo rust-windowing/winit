@@ -17,7 +17,7 @@ winit = { path = "winit" }
 winit-android = { version = "=0.31.0-beta.2", path = "winit-android" }
 winit-appkit = { version = "=0.31.0-beta.2", path = "winit-appkit" }
 winit-common = { version = "=0.31.0-beta.2", path = "winit-common" }
-winit-core = { version = "=0.31.0-beta.2", path = "winit-core" }
+winit-core = { version = "=0.31.0-beta.2", path = "winit-core", default-features = false }
 winit-orbital = { version = "=0.31.0-beta.2", path = "winit-orbital" }
 winit-uikit = { version = "=0.31.0-beta.2", path = "winit-uikit" }
 winit-wayland = { version = "=0.31.0-beta.2", path = "winit-wayland", default-features = false }
@@ -28,15 +28,16 @@ winit-x11 = { version = "=0.31.0-beta.2", path = "winit-x11" }
 # Core dependencies.
 bitflags = "2"
 cfg_aliases = "0.2.2"
-cursor-icon = "1.1.0"
-dpi = { version = "0.1.2", path = "dpi" }
-keyboard-types = "0.8.0"
+cursor-icon = { version = "1.1.0", default-features = false }
+dpi = { version = "0.1.2", path = "dpi", default-features = false }
+keyboard-types = { version = "0.8.0", default-features = false }
+libm = { version = "0.2" }
 mint = "0.5.6"
-rwh_06 = { package = "raw-window-handle", version = "0.6", features = ["std"] }
-serde = { version = "1", features = ["serde_derive"] }
-smol_str = "0.3"
+rwh_06 = { package = "raw-window-handle", version = "0.6", default-features = false }
+serde = { version = "1", default-features = false, features = ["serde_derive", "alloc"] }
+smol_str = { version = "0.3", default-features = false }
 tracing = { version = "0.1.40", default-features = false }
-url = "2"
+url = { version = "2", default-features = false }
 
 # Dev dependencies.
 image = { version = "0.25.0", default-features = false }
@@ -88,11 +89,12 @@ redox_event = { package = "redox_event", version = "0.4.8" }
 atomic-waker = "1"
 concurrent-queue = { version = "2", default-features = false }
 console_error_panic_hook = "0.1"
-js-sys = "0.3.70"
+js-sys = { version = "0.3.70", default-features = false }
+once_cell = { version = "1", default-features = false }
 pin-project = "1"
 tracing-web = "0.1"
-wasm-bindgen = "0.2.93"
-wasm-bindgen-futures = "0.4.43"
+wasm-bindgen = { version = "0.2.93", default-features = false }
+wasm-bindgen-futures = { version = "0.4.43", default-features = false }
 wasm-bindgen-test = "0.3"
-web-time = "1"
-web_sys = { package = "web-sys", version = "0.3.70" }
+web-time = { version = "1", default-features = false }
+web_sys = { package = "web-sys", version = "0.3.70", default-features = false }

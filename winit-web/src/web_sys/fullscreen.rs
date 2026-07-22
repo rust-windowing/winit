@@ -1,5 +1,3 @@
-use std::cell::OnceCell;
-
 use js_sys::{Object, Promise};
 use tracing::error;
 use wasm_bindgen::closure::Closure;
@@ -41,12 +39,10 @@ pub(crate) fn request_fullscreen(
         fn set_screen(this: &FullscreenOptions, screen: &ScreenDetailed);
     }
 
-    thread_local! {
-        static REJECT_HANDLER: Closure<dyn FnMut(JsValue)> = Closure::new(|error| {
-            console::error_1(&error);
-            error!("Failed to transition to full screen mode")
-        });
-    }
+    let reject_handler = Closure::new(|error| {
+        console::error_1(&error);
+        error!("Failed to transition to full screen mode")
+    });
 
     if is_fullscreen(document, canvas) {
         return;
@@ -69,9 +65,7 @@ pub(crate) fn request_fullscreen(
             if let Some(monitor) = monitor.detailed(main_thread) {
                 let options: FullscreenOptions = Object::new().unchecked_into();
                 options.set_screen(&monitor);
-                REJECT_HANDLER.with(|handler| {
-                    let _ = canvas.request_fullscreen_with_options(&options).catch(handler);
-                });
+                let _ = canvas.request_fullscreen_with_options(&options).catch(&reject_handler);
             } else {
                 error!(
                     "Selecting a specific screen for fullscreen mode requires a detailed screen. \
@@ -81,9 +75,7 @@ pub(crate) fn request_fullscreen(
         },
         Fullscreen::Borderless(None) => {
             if has_fullscreen_api_support(canvas) {
-                REJECT_HANDLER.with(|handler| {
-                    let _ = canvas.request_fullscreen().catch(handler);
-                });
+                let _ = canvas.request_fullscreen().catch(&reject_handler);
             } else {
                 canvas.webkit_request_fullscreen();
             }
@@ -136,22 +128,13 @@ pub fn exit_fullscreen(document: &Document, canvas: &HtmlCanvasElement) {
 }
 
 fn has_fullscreen_api_support(canvas: &HtmlCanvasElement) -> bool {
-    thread_local! {
-        static FULLSCREEN_API_SUPPORT: OnceCell<bool> = const { OnceCell::new() };
+    #[wasm_bindgen]
+    extern "C" {
+        type CanvasFullScreenApiSupport;
+
+        #[wasm_bindgen(method, getter, js_name = requestFullscreen)]
+        fn has_request_fullscreen(this: &CanvasFullScreenApiSupport) -> JsValue;
     }
 
-    FULLSCREEN_API_SUPPORT.with(|support| {
-        *support.get_or_init(|| {
-            #[wasm_bindgen]
-            extern "C" {
-                type CanvasFullScreenApiSupport;
-
-                #[wasm_bindgen(method, getter, js_name = requestFullscreen)]
-                fn has_request_fullscreen(this: &CanvasFullScreenApiSupport) -> JsValue;
-            }
-
-            let support: &CanvasFullScreenApiSupport = canvas.unchecked_ref();
-            !support.has_request_fullscreen().is_undefined()
-        })
-    })
+    !canvas.unchecked_ref::<CanvasFullScreenApiSupport>().has_request_fullscreen().is_undefined()
 }

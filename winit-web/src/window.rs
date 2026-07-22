@@ -1,6 +1,8 @@
-use std::cell::Ref;
-use std::fmt;
-use std::rc::Rc;
+use alloc::boxed::Box;
+use alloc::rc::Rc;
+use alloc::string::String;
+use core::cell::Ref;
+use core::fmt;
 
 use dpi::{
     LogicalInsets, LogicalPosition, LogicalSize, PhysicalInsets, PhysicalPosition, PhysicalSize,
@@ -419,7 +421,7 @@ impl rwh_06::HasWindowHandle for Window {
                 // SAFETY: This will only work if the reference to `HtmlCanvasElement` stays valid.
                 let canvas: &wasm_bindgen::JsValue = inner.canvas.raw();
                 let window_handle =
-                    rwh_06::WebCanvasWindowHandle::new(std::ptr::NonNull::from(canvas).cast());
+                    rwh_06::WebCanvasWindowHandle::new(core::ptr::NonNull::from(canvas).cast());
                 // SAFETY: The pointer won't be invalidated as long as `Window` lives, which the
                 // lifetime is bound to.
                 unsafe {

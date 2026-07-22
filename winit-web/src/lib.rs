@@ -59,6 +59,11 @@
 // registering the event handlers. The 'Execution' struct in the 'runner' module handles taking
 // incoming events (from the registered handlers) and ensuring they are passed to the user in a
 // compliant way.
+#![warn(clippy::std_instead_of_core, clippy::std_instead_of_alloc, clippy::alloc_instead_of_core)]
+#![no_std]
+
+#[macro_use]
+extern crate alloc;
 
 macro_rules! os_error {
     ($error:expr) => {{ winit_core::error::OsError::new(line!(), file!(), $error) }};
@@ -74,13 +79,15 @@ mod monitor;
 pub(crate) mod web_sys;
 pub(crate) mod window;
 
-use std::cell::Ref;
-use std::error::Error;
-use std::fmt::{self, Display, Formatter};
-use std::future::Future;
-use std::pin::Pin;
-use std::sync::Arc;
-use std::task::{Context, Poll};
+use alloc::boxed::Box;
+use alloc::string::String;
+use alloc::sync::Arc;
+use core::cell::Ref;
+use core::error::Error;
+use core::fmt::{self, Display, Formatter};
+use core::future::Future;
+use core::pin::Pin;
+use core::task::{Context, Poll};
 
 use ::web_sys::HtmlCanvasElement;
 #[cfg(feature = "serde")]

@@ -1,4 +1,5 @@
-use std::cell::{Cell, RefCell};
+use alloc::vec::Vec;
+use core::cell::{Cell, RefCell};
 
 #[derive(Debug)]
 pub struct ConcurrentQueue<T> {

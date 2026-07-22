@@ -3,9 +3,11 @@
 #[cfg(all(not(x11_platform), not(wayland_platform)))]
 compile_error!("Please select a feature to build for unix: `x11`, `wayland`");
 
+#[cfg(wayland_platform)]
+use alloc::boxed::Box;
+use core::time::Duration;
 use std::env;
 use std::os::unix::io::{AsFd, AsRawFd, BorrowedFd, RawFd};
-use std::time::Duration;
 
 pub(crate) use winit_common::xkb::{physicalkey_to_scancode, scancode_to_physicalkey};
 use winit_core::application::ApplicationHandler;

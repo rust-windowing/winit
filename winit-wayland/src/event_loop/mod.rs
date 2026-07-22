@@ -363,16 +363,12 @@ impl EventLoop {
                 // Stash the old window size.
                 let old_physical_size = physical_size;
 
-                let new_surface_size = Arc::new(Mutex::new(physical_size));
-                let event = WindowEvent::ScaleFactorChanged {
-                    scale_factor,
-                    surface_size_writer: SurfaceSizeWriter::new(Arc::downgrade(&new_surface_size)),
-                };
+                let (surface_size_writer, new_surface_size) = SurfaceSizeWriter::new(physical_size);
+                let event = WindowEvent::ScaleFactorChanged { scale_factor, surface_size_writer };
 
                 app.window_event(&self.active_event_loop, window_id, event);
 
-                let physical_size = *new_surface_size.lock().unwrap();
-                drop(new_surface_size);
+                let physical_size = new_surface_size.take();
 
                 // Resize the window when user altered the size.
                 if old_physical_size != physical_size {

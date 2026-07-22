@@ -1,27 +1,25 @@
-use std::fmt::{self, Debug, Formatter};
-use std::marker::PhantomData;
-use std::mem;
-use std::sync::OnceLock;
+use alloc::boxed::Box;
+use core::fmt::{self, Debug, Formatter};
+use core::marker::PhantomData;
+use core::mem;
 
+use once_cell::race::OnceBox;
 use wasm_bindgen::prelude::wasm_bindgen;
 use wasm_bindgen::{JsCast, JsValue};
 
 use super::r#async::{self, Sender};
 
-thread_local! {
-    static MAIN_THREAD: bool = {
-        #[wasm_bindgen]
-        extern "C" {
-            #[derive(Clone)]
-            type Global;
+fn is_main_thread() -> bool {
+    #[wasm_bindgen]
+    extern "C" {
+        #[derive(Clone)]
+        type Global;
 
-            #[wasm_bindgen(method, getter, js_name = Window)]
-            fn window(this: &Global) -> JsValue;
-        }
+        #[wasm_bindgen(method, getter, js_name = Window)]
+        fn window(this: &Global) -> JsValue;
+    }
 
-        let global: Global = js_sys::global().unchecked_into();
-        !global.window().is_undefined()
-    };
+    !js_sys::global().unchecked_into::<Global>().window().is_undefined()
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -29,7 +27,7 @@ pub struct MainThreadMarker(PhantomData<*const ()>);
 
 impl MainThreadMarker {
     pub fn new() -> Option<Self> {
-        MAIN_THREAD.with(|is| is.then_some(Self(PhantomData)))
+        is_main_thread().then_some(MainThreadMarker(PhantomData))
     }
 }
 
@@ -43,7 +41,7 @@ impl<T> MainThreadSafe<T> {
                 async move { while receiver.next().await.is_ok() {} },
             );
 
-            sender
+            Box::new(sender)
         });
 
         Self(Some(value))
@@ -85,7 +83,7 @@ impl<T> Drop for MainThreadSafe<T> {
 unsafe impl<T> Send for MainThreadSafe<T> {}
 unsafe impl<T> Sync for MainThreadSafe<T> {}
 
-static DROP_HANDLER: OnceLock<Sender<DropBox>> = OnceLock::new();
+static DROP_HANDLER: OnceBox<Sender<DropBox>> = OnceBox::new();
 
 struct DropBox(#[allow(dead_code)] Box<dyn Any>);
 

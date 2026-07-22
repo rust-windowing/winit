@@ -4,7 +4,7 @@ use std::collections::VecDeque;
 use std::ffi::c_void;
 use std::ptr;
 use std::rc::Rc;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
 use dispatch2::MainThreadBound;
 use dpi::{
@@ -1044,13 +1044,9 @@ impl WindowDelegate {
         let window = self.window();
 
         let suggested_size = self.view().surface_size();
-        let new_surface_size = Arc::new(Mutex::new(suggested_size));
-        self.queue_event(WindowEvent::ScaleFactorChanged {
-            scale_factor,
-            surface_size_writer: SurfaceSizeWriter::new(Arc::downgrade(&new_surface_size)),
-        });
-        let physical_size = *new_surface_size.lock().unwrap();
-        drop(new_surface_size);
+        let (surface_size_writer, new_surface_size) = SurfaceSizeWriter::new(suggested_size);
+        self.queue_event(WindowEvent::ScaleFactorChanged { scale_factor, surface_size_writer });
+        let physical_size = new_surface_size.take();
 
         if physical_size != suggested_size {
             let logical_size = physical_size.to_logical(scale_factor);

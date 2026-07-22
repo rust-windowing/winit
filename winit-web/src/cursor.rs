@@ -1,13 +1,15 @@
-use std::cell::RefCell;
-use std::future::{self, Future};
-use std::hash::{Hash, Hasher};
-use std::mem;
-use std::ops::{Deref, DerefMut};
-use std::pin::Pin;
-use std::rc::Rc;
-use std::sync::Arc;
-use std::task::{Context, Poll, Waker, ready};
-use std::time::Duration;
+use alloc::rc::Rc;
+use alloc::string::String;
+use alloc::sync::Arc;
+use alloc::vec::Vec;
+use core::cell::RefCell;
+use core::future::{self, Future};
+use core::hash::{Hash, Hasher};
+use core::mem;
+use core::ops::{Deref, DerefMut};
+use core::pin::Pin;
+use core::task::{Context, Poll, Waker, ready};
+use core::time::Duration;
 
 use cursor_icon::CursorIcon;
 use js_sys::{Array, Object};

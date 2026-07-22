@@ -3,7 +3,7 @@ use std::collections::{HashMap, VecDeque};
 use std::mem::MaybeUninit;
 use std::os::raw::{c_char, c_int, c_long, c_ulong};
 use std::slice;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
 use dpi::{PhysicalPosition, PhysicalSize};
 use tracing::warn;
@@ -804,14 +804,13 @@ impl EventProcessor {
                 // Unlock shared state to prevent deadlock in callback below
                 drop(shared_state_lock);
 
-                let surface_size = Arc::new(Mutex::new(new_surface_size));
+                let (surface_size_writer, surface_size) = SurfaceSizeWriter::new(new_surface_size);
                 app.window_event(&self.target, window_id, WindowEvent::ScaleFactorChanged {
                     scale_factor: new_scale_factor,
-                    surface_size_writer: SurfaceSizeWriter::new(Arc::downgrade(&surface_size)),
+                    surface_size_writer,
                 });
 
-                let new_surface_size = *surface_size.lock().unwrap();
-                drop(surface_size);
+                let new_surface_size = surface_size.take();
 
                 if new_surface_size != old_surface_size {
                     window.request_surface_size_physical(

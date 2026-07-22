@@ -283,6 +283,14 @@
 #![warn(clippy::uninlined_format_args)]
 // TODO: wasm-binding needs to be updated for that to be resolved, for now just silence it.
 #![cfg_attr(web_platform, allow(unknown_lints, renamed_and_removed_lints, wasm_c_abi))]
+#![warn(clippy::std_instead_of_core, clippy::std_instead_of_alloc, clippy::alloc_instead_of_core)]
+#![no_std]
+
+#[allow(unused_extern_crates, reason = "only used in some configurations")]
+extern crate alloc;
+
+#[cfg(any(x11_platform, wayland_platform, docsrs))]
+extern crate std;
 
 // Re-export DPI types so that users don't have to put it in Cargo.toml.
 #[doc(inline)]

@@ -1,8 +1,9 @@
-use std::cell::Cell;
-use std::clone::Clone;
-use std::iter;
-use std::rc::Rc;
-use std::sync::Arc;
+use alloc::boxed::Box;
+use alloc::rc::Rc;
+use alloc::sync::Arc;
+use core::cell::Cell;
+use core::clone::Clone;
+use core::iter;
 
 use web_sys::Element;
 use winit_core::application::ApplicationHandler;

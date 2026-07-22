@@ -3,10 +3,11 @@ pub mod pump_events;
 pub mod register;
 pub mod run_on_demand;
 
-use std::fmt::{self, Debug};
-use std::sync::Arc;
-use std::sync::atomic::{AtomicUsize, Ordering};
-use std::time::Duration;
+use alloc::boxed::Box;
+use alloc::sync::Arc;
+use core::fmt::{self, Debug};
+use core::sync::atomic::{AtomicUsize, Ordering};
+use core::time::Duration;
 
 use rwh_06::{DisplayHandle, HandleError, HasDisplayHandle};
 

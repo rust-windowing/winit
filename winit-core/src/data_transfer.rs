@@ -99,9 +99,21 @@
 
 #![warn(missing_docs)]
 
-use std::ops::ControlFlow;
+use alloc::boxed::Box;
+use alloc::string::String;
+use alloc::vec::Vec;
+use core::fmt;
+use core::ops::ControlFlow;
+// FIXME: alloc::io is a nightly only feature as of writing
+#[cfg(not(all(target_family = "wasm", target_os = "none")))]
+use std::io;
+#[cfg(not(all(target_family = "wasm", target_os = "none")))]
+#[allow(unused_imports, reason = "TypedData not yet supported on no_std")]
 use std::path::{Path, PathBuf};
-use std::{fmt, io};
+
+#[cfg(all(target_family = "wasm", target_os = "none"))]
+#[allow(unused_imports, reason = "TypedData not yet supported on no_std")]
+use {alloc::string::String as PathBuf, core::primitive::str as Path};
 
 use crate::as_any::AsAny;
 
@@ -218,6 +230,7 @@ impl TransferType for TypeHint {
 impl_dyn_casting!(TransferType);
 
 // Replicates the cfg for `url::Url::parse`
+#[cfg(not(all(target_family = "wasm", target_os = "none")))]
 #[cfg(any(unix, windows, target_os = "redox", target_os = "wasi", target_os = "hermit"))]
 fn default_try_as_file_paths<T: TypedData + ?Sized>(data: &T) -> io::Result<Vec<PathBuf>> {
     data.try_as_uris().and_then(|uris| {
@@ -236,6 +249,7 @@ fn default_try_as_file_paths<T: TypedData + ?Sized>(data: &T) -> io::Result<Vec<
 //
 // It doesn't matter that this is unimplemented on the web, as we don't currently support
 // drag-and-drop for web targets and the web platform can't directly access paths anyway.
+#[cfg(not(all(target_family = "wasm", target_os = "none")))]
 #[cfg(not(any(unix, windows, target_os = "redox", target_os = "wasi", target_os = "hermit")))]
 fn default_try_as_file_paths<T: TypedData + ?Sized>(_: &T) -> io::Result<Vec<PathBuf>> {
     Err(io::ErrorKind::Unsupported.into())
@@ -250,6 +264,7 @@ fn default_try_as_file_paths<T: TypedData + ?Sized>(_: &T) -> io::Result<Vec<Pat
 /// error with [`io::ErrorKind::Deadlock`]. For now, the only way to access the data is via blocking
 /// on the event loop, so simply retrying the next time an event is received that references the
 /// data transfer should be enough to ensure that the data is accessible.
+#[cfg(not(all(target_family = "wasm", target_os = "none")))]
 pub trait TypedData: AsAny + fmt::Debug + Send + Sync {
     /// The type of this `TypedData`.
     fn type_(&self) -> &dyn TransferType;
@@ -317,12 +332,14 @@ pub trait TypedData: AsAny + fmt::Debug + Send + Sync {
 
 // Required for `WindowEvent` to implement `PartialEq` - we just implement this on a best-effort
 // basis.
+#[cfg(not(all(target_family = "wasm", target_os = "none")))]
 impl PartialEq for dyn TypedData {
     fn eq(&self, other: &Self) -> bool {
-        std::ptr::addr_eq(self, other)
+        core::ptr::addr_eq(self, other)
     }
 }
 
+#[cfg(not(all(target_family = "wasm", target_os = "none")))]
 impl_dyn_casting!(TypedData);
 
 /// Metadata about a data transfer. This does not allow actually receiving data, as that is an
@@ -394,11 +411,12 @@ pub enum SendData {
     Uris(Vec<String>),
     /// String
     ///
-    /// This can also be constructed with the [`From<String>`](std::string::String) implementation.
+    /// This can also be constructed with the [`From<String>`](alloc::string::String)
+    /// implementation.
     String(String),
     /// Binary blob
     ///
-    /// This can also be constructed with the [`From<Vec<u8>>`](std::vec::Vec) implementation.
+    /// This can also be constructed with the [`From<Vec<u8>>`](alloc::vec::Vec) implementation.
     Bytes(Vec<u8>),
 }
 

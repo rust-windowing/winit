@@ -1,22 +1,26 @@
 //! The event enums and assorted supporting types.
-use std::cell::LazyCell;
-use std::cmp::Ordering;
-use std::f64;
-use std::sync::{Arc, Mutex, Weak};
+use alloc::string::String;
+use alloc::sync::{Arc, Weak};
+use core::cell::LazyCell;
+use core::cmp::Ordering;
+use core::f64;
+use core::sync::atomic::{self, AtomicU32};
 
 use dpi::{PhysicalPosition, PhysicalSize};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 use smol_str::SmolStr;
 
-use crate::Instant;
-use crate::data_transfer::{DataTransferId, TypedData};
+use crate::data_transfer::DataTransferId;
+#[cfg(not(all(target_family = "wasm", target_os = "none")))]
+use crate::data_transfer::TypedData;
 use crate::error::RequestError;
 use crate::event_loop::{AsyncRequestSerial, DndAction};
 use crate::keyboard::{self, ModifiersKeyState, ModifiersKeys, ModifiersState};
 #[cfg(doc)]
 use crate::window::Window;
 use crate::window::{ActivationToken, Theme};
+use crate::{Instant, libm};
 
 /// Describes the reason the event loop is resuming.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -43,6 +47,7 @@ pub enum StartCause {
 }
 
 /// Describes an event from a [`Window`].
+#[cfg_attr(not(all(target_family = "wasm", target_os = "none")), non_exhaustive)]
 #[derive(Debug, Clone, PartialEq)]
 pub enum WindowEvent {
     /// The activation token was delivered back and now could be used.
@@ -147,6 +152,7 @@ pub enum WindowEvent {
     /// cases, winit may dispatch the event to all  windows that have access to the data
     /// transfer. If your application should only process this event once per data transfer, the
     /// `serial` field can be used to deduplicate it.
+    #[cfg(not(all(target_family = "wasm", target_os = "none")))]
     DataTransferReceived {
         /// ID of the data transfer object, see
         /// [`crate::event_loop::ActiveEventLoop::data_transfer`].
@@ -1137,7 +1143,7 @@ impl Force {
         match self {
             Force::Calibrated { force, max_possible_force } => {
                 let force = match angle {
-                    Some(TabletToolAngle { altitude, .. }) => force / altitude.sin(),
+                    Some(TabletToolAngle { altitude, .. }) => force / libm::sin(altitude),
                     None => *force,
                 };
                 force / max_possible_force
@@ -1268,7 +1274,7 @@ impl TabletToolTilt {
     pub fn angle(self) -> TabletToolAngle {
         // See <https://www.w3.org/TR/2024/WD-pointerevents3-20240326/#converting-between-tiltx-tilty-and-altitudeangle-azimuthangle>.
 
-        use std::f64::consts::*;
+        use core::f64::consts::*;
 
         const PI_0_5: f64 = FRAC_PI_2;
         const PI_1_5: f64 = 3. * FRAC_PI_2;
@@ -1294,7 +1300,7 @@ impl TabletToolTilt {
             azimuth = 0.;
         } else {
             // Non-boundary case: neither tiltX nor tiltY is equal to 0 or +-90
-            azimuth = f64::atan2(y.tan(), x.tan());
+            azimuth = libm::atan2(libm::tan(*y), libm::tan(*x));
 
             if azimuth < 0. {
                 azimuth += PI_2;
@@ -1311,7 +1317,7 @@ impl TabletToolTilt {
             altitude = PI_0_5 - x.abs();
         } else {
             // Non-boundary case: neither tiltX nor tiltY is equal to 0 or +-90
-            altitude = f64::atan(1. / f64::sqrt(x.tan().powi(2) + y.tan().powi(2)));
+            altitude = libm::atan(1. / libm::hypot(libm::tan(*x), libm::tan(*y)));
         }
 
         TabletToolAngle { altitude, azimuth }
@@ -1363,7 +1369,7 @@ impl TabletToolAngle {
     pub fn tilt(self) -> TabletToolTilt {
         // See <https://www.w3.org/TR/2024/WD-pointerevents3-20240326/#converting-between-tiltx-tilty-and-altitudeangle-azimuthangle>.
 
-        use std::f64::consts::*;
+        use core::f64::consts::*;
 
         const PI_0_5: f64 = FRAC_PI_2;
         const PI_1_5: f64 = 3. * FRAC_PI_2;
@@ -1397,13 +1403,16 @@ impl TabletToolAngle {
         }
 
         if self.altitude != 0. {
-            let altitude = self.altitude.tan();
+            let altitude = libm::tan(self.altitude);
 
-            x = f64::atan(f64::cos(self.azimuth) / altitude);
-            y = f64::atan(f64::sin(self.azimuth) / altitude);
+            x = libm::atan(libm::cos(self.azimuth) / altitude);
+            y = libm::atan(libm::sin(self.azimuth) / altitude);
         }
 
-        TabletToolTilt { x: x.to_degrees().round() as i8, y: y.to_degrees().round() as i8 }
+        TabletToolTilt {
+            x: libm::round(x.to_degrees()) as i8,
+            y: libm::round(y.to_degrees()) as i8,
+        }
     }
 }
 
@@ -1581,15 +1590,61 @@ pub enum MouseScrollDelta {
     PixelDelta(PhysicalPosition<f64>),
 }
 
+/// A handle which can retrieve a [surface size](PhysicalSize<u32>) from a [`SurfaceSizeWriter`].
+pub struct SurfaceSizeWriterHandle {
+    inner: Arc<SharedSurfaceSize>,
+}
+
+impl SurfaceSizeWriterHandle {
+    /// Consume this handle and retrieve the new [surface size](PhysicalSize<u32>).
+    pub fn take(self) -> PhysicalSize<u32> {
+        self.inner.get()
+    }
+
+    fn new(strong: Arc<SharedSurfaceSize>) -> Self {
+        Self { inner: strong }
+    }
+}
+
+#[derive(Debug)]
+struct SharedSurfaceSize {
+    inner: PhysicalSize<AtomicU32>,
+}
+
+impl SharedSurfaceSize {
+    fn get(&self) -> PhysicalSize<u32> {
+        PhysicalSize {
+            width: self.inner.width.load(atomic::Ordering::Acquire),
+            height: self.inner.height.load(atomic::Ordering::Acquire),
+        }
+    }
+
+    fn set(&self, size: PhysicalSize<u32>) {
+        self.inner.width.store(size.width, atomic::Ordering::Release);
+        self.inner.height.store(size.height, atomic::Ordering::Release);
+    }
+
+    fn new(size: PhysicalSize<u32>) -> Self {
+        Self {
+            inner: PhysicalSize {
+                width: AtomicU32::new(size.width),
+                height: AtomicU32::new(size.height),
+            },
+        }
+    }
+}
+
 /// Handle to synchronously change the size of the window from the [`WindowEvent`].
 #[derive(Debug, Clone)]
 pub struct SurfaceSizeWriter {
-    pub(crate) new_surface_size: Weak<Mutex<PhysicalSize<u32>>>,
+    new_surface_size: Weak<SharedSurfaceSize>,
 }
 
 impl SurfaceSizeWriter {
-    pub fn new(new_surface_size: Weak<Mutex<PhysicalSize<u32>>>) -> Self {
-        Self { new_surface_size }
+    pub fn new(new_surface_size: PhysicalSize<u32>) -> (Self, SurfaceSizeWriterHandle) {
+        let strong = Arc::new(SharedSurfaceSize::new(new_surface_size));
+        let weak = Arc::downgrade(&strong);
+        (Self { new_surface_size: weak }, SurfaceSizeWriterHandle::new(strong))
     }
 
     /// Try to request surface size which will be set synchronously on the window.
@@ -1598,7 +1653,7 @@ impl SurfaceSizeWriter {
         new_surface_size: PhysicalSize<u32>,
     ) -> Result<(), RequestError> {
         if let Some(inner) = self.new_surface_size.upgrade() {
-            *inner.lock().unwrap() = new_surface_size;
+            inner.set(new_surface_size);
             Ok(())
         } else {
             Err(RequestError::Ignored)
@@ -1608,7 +1663,7 @@ impl SurfaceSizeWriter {
     /// Get the currently stashed surface size.
     pub fn surface_size(&self) -> Result<PhysicalSize<u32>, RequestError> {
         if let Some(inner) = self.new_surface_size.upgrade() {
-            Ok(*inner.lock().unwrap())
+            Ok(inner.get())
         } else {
             Err(RequestError::Ignored)
         }
@@ -1625,7 +1680,8 @@ impl Eq for SurfaceSizeWriter {}
 
 #[cfg(test)]
 mod tests {
-    use std::collections::{BTreeSet, HashSet};
+    use alloc::collections::BTreeSet;
+    use std::collections::HashSet;
 
     use dpi::PhysicalPosition;
 
@@ -1743,7 +1799,7 @@ mod tests {
 
     #[test]
     fn test_tilt_angle_conversions() {
-        use std::f64::consts::*;
+        use core::f64::consts::*;
 
         use event::{TabletToolAngle, TabletToolTilt};
 
@@ -1815,7 +1871,7 @@ mod tests {
         let force3 = event::Force::Calibrated { force: 5.0, max_possible_force: 2.5 };
         assert_eq!(
             force3.normalized(Some(event::TabletToolAngle {
-                altitude: std::f64::consts::PI / 2.0,
+                altitude: core::f64::consts::PI / 2.0,
                 azimuth: 0.
             })),
             2.0

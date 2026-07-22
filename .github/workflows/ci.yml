@@ -73,6 +73,11 @@ jobs:
           - { name: 'iOS x86_64',         target: x86_64-apple-ios,         os: macos-latest,    }
           - { name: 'iOS Aarch64',        target: aarch64-apple-ios,        os: macos-latest,    }
           - { name: 'Web',                target: wasm32-unknown-unknown,   os: ubuntu-latest,   }
+          - name: 'Web (no_std)'
+            target: wasm32v1-none
+            os: ubuntu-latest
+            options: >-
+              --config patch.crates-io.web-time.git="https://github.com/daxpedda/web-time"
         exclude:
               # Web on nightly needs extra arguments
 
@@ -211,7 +216,7 @@ jobs:
       run: cargo $CMD test -p winit-uikit $OPTIONS --no-run
 
     - name: Test winit Web
-      if: contains(matrix.platform.target, 'wasm')
+      if: contains(matrix.platform.target, 'wasm') && !contains(matrix.platform.target, 'wasm32v1-none')
       run: cargo $CMD test -p winit-web $OPTIONS --no-run
 
     - name: Test winit Win32
@@ -242,6 +247,7 @@ jobs:
     - name: Build tests
       if: >
         !contains(matrix.platform.target, 'redox') &&
+        !contains(matrix.platform.target, 'wasm32v1-none') &&
         matrix.toolchain != '1.85'
       run: cargo $CMD test --no-run $OPTIONS
 
@@ -251,16 +257,21 @@ jobs:
         !contains(matrix.platform.target, 'ios') &&
         (!contains(matrix.platform.target, 'wasm32') || matrix.toolchain == 'nightly') &&
         !contains(matrix.platform.target, 'redox') &&
+        !contains(matrix.platform.target, 'wasm32v1-none') &&
         matrix.toolchain != '1.85'
       run: cargo $CMD test $OPTIONS
 
     - name: Lint with clippy
-      if: (matrix.toolchain == 'stable') && !contains(matrix.platform.options, '--no-default-features')
+      if: >
+        (matrix.toolchain == 'stable') &&
+        !contains(matrix.platform.target, 'wasm32v1-none') &&
+        !contains(matrix.platform.options, '--no-default-features')
       run: cargo clippy --all-targets $OPTIONS $TEST_OPTIONS -- -Dwarnings
 
     - name: Build tests with serde enabled
       if: >
         !contains(matrix.platform.target, 'redox') &&
+        !contains(matrix.platform.target, 'wasm32v1-none') &&
         matrix.toolchain != '1.85'
       run: cargo $CMD test --no-run $OPTIONS $TEST_OPTIONS --features serde
 
@@ -270,11 +281,12 @@ jobs:
         !contains(matrix.platform.target, 'ios') &&
         (!contains(matrix.platform.target, 'wasm32') || matrix.toolchain == 'nightly') &&
         !contains(matrix.platform.target, 'redox') &&
+        !contains(matrix.platform.target, 'wasm32v1-none') &&
         matrix.toolchain != '1.85'
       run: cargo $CMD test $OPTIONS $TEST_OPTIONS --features serde
 
     - name: Check docs.rs documentation
-      if: matrix.toolchain == 'nightly'
+      if: matrix.toolchain == 'nightly' && !contains(matrix.platform.target, 'wasm32v1-none')
       run: cargo doc --no-deps $OPTIONS --features=serde,mint,android-native-activity
       env:
         RUSTDOCFLAGS: '--deny=warnings ${{ matrix.platform.rustflags }} --cfg=docsrs --cfg=unreleased_changelogs'

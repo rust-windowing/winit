@@ -33,8 +33,8 @@ pub enum NativeKeyCode {
     Ohos(u32),
 }
 
-impl std::fmt::Debug for NativeKeyCode {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl core::fmt::Debug for NativeKeyCode {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         use NativeKeyCode::{Android, MacOS, Ohos, Unidentified, Windows, Xkb};
         let mut debug_tuple;
         match self {
@@ -95,8 +95,8 @@ pub enum NativeKey {
     Ohos(u32),
 }
 
-impl std::fmt::Debug for NativeKey {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl core::fmt::Debug for NativeKey {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         use NativeKey::{Android, MacOS, Ohos, Unidentified, Web, Windows, Xkb};
         let mut debug_tuple;
         match self {
