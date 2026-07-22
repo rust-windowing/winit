@@ -35,6 +35,13 @@ allow = [
 confidence-threshold = 1.0
 private = { ignore = true }
 
+[advisories]
+ignore = [
+    "RUSTSEC-2026-0192", # ttf-parser is unmaintained; pulled in by ab_glyph (sctk-adwaita). No safe upgrade available.
+    "RUSTSEC-2026-0194", # quick-xml quadratic run time; pulled in by wayland-scanner 0.31. Upgrade requires wayland-scanner 0.32+.
+    "RUSTSEC-2026-0195", # quick-xml namespace-declaration DoS; same chain as above.
+]
+
 [bans]
 multiple-versions = "deny"
 skip = [
@@ -44,6 +51,11 @@ skip = [
     { crate = "rustix@1", reason = "calloop 0.14 / smithay-client-toolkit 0.20 require rustix 1.x" },
     { crate = "linux-raw-sys@0.4", reason = "the ecosystem is in the process of migrating" },
     { crate = "linux-raw-sys@0.12", reason = "pulled in by rustix 1.x from calloop 0.14" },
+    { crate = "syn@3", reason = "thiserror 2.0 (from sctk 0.20) requires syn 3.0; rest of ecosystem on syn 2.0" },
+    { crate = "thiserror@2", reason = "sctk 0.20 requires thiserror 2.0; some deps still on 1.0" },
+    { crate = "thiserror-impl@2", reason = "sctk 0.20 requires thiserror 2.0; some deps still on 1.0" },
+    { crate = "jni-sys", reason = "android-activity and jni use different major versions" },
+    { crate = "redox_syscall", reason = "orbclient and other redox crates use different major versions" },
 ]
 wildcards = "allow" # at least until https://github.com/EmbarkStudios/cargo-deny/issues/241 is fixed
 
@@ -54,12 +66,17 @@ interpreted = "deny"
 [[bans.build.bypass]]
 allow = [
     { path = "generate-bindings.sh", checksum = "268ec23248218d779e33853cdc60e2985e70214ff004716cd734270de1f6b561" },
+    { path = "android-games-sdk/import-games-sdk.sh", checksum = "98ed2741804d10ddbd8d035557897ab1edc5257705759377271dcb4ba5636446" },
 ]
 crate = "android-activity"
 
 [[bans.build.bypass]]
 allow-globs = ["ci/*", "githooks/*", "cargo.sh"]
 crate = "zerocopy"
+
+[[bans.build.bypass]]
+allow-globs = ["etc/libc-util.py"]
+crate = "libc"
 
 [[bans.build.bypass]]
 allow-globs = ["freetype2/*"]
