@@ -8,9 +8,9 @@ use std::{io, mem, ptr};
 use crate::utils::Lazy;
 use windows_sys::core::{HRESULT, PCWSTR};
 use windows_sys::Win32::Foundation::{BOOL, HANDLE, HMODULE, HWND, NTSTATUS, POINT, RECT};
-use windows_sys::Win32::System::SystemInformation::OSVERSIONINFOW;
 use windows_sys::Win32::Graphics::Gdi::{ClientToScreen, HMONITOR};
 use windows_sys::Win32::System::LibraryLoader::{GetProcAddress, LoadLibraryA};
+use windows_sys::Win32::System::SystemInformation::OSVERSIONINFOW;
 use windows_sys::Win32::System::SystemServices::IMAGE_DOS_HEADER;
 use windows_sys::Win32::UI::HiDpi::{
     DPI_AWARENESS_CONTEXT, MONITOR_DPI_TYPE, PROCESS_DPI_AWARENESS,
