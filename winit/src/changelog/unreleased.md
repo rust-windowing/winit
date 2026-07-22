@@ -45,6 +45,7 @@ changelog entry.
 - Add `keyboard` support for OpenHarmony.
 - On iOS, add Apple Pencil support with force, altitude, and azimuth data.
 - On Redox, add support for missing keyboard scancodes.
+- On Redox, add support for `EventLoopExtPumpEvents::pump_app_events`.
 - Implement `Send` and `Sync` for `OwnedDisplayHandle`.
 - Use new macOS 15 cursors for resize icons.
 - On Android, added scancode conversions for more obscure key codes.
@@ -69,3 +70,4 @@ changelog entry.
 - On macOS, fix borderless game presentation options not sticking after switching spaces.
 - On macOS, fix IME being locked on (regardless of requests to disable) after being enabled once.
 - On macOS, fix a panic and incorrect cursor position in Ime::Preedit when the preedit string contains special characters (ie. emojis) caused by incorrect UTF-16 to UTF-8 offset conversion.
+- On Wayland, fix a protocol error when setting a custom cursor on compositors with `wl_surface` version below 3.
