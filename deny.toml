@@ -51,6 +51,7 @@ skip = [
     { crate = "thiserror-impl@1.0", reason = "dep of `thiserror`" },
     { crate = "objc2@0.5", reason = "used by crossfont" },
     { crate = "objc2-foundation@0.2", reason = "used by crossfont" },
+    { crate = "syn@2.0", reason = "`syn` 3.0 not universal yet" },
 ]
 skip-tree = [
     { crate = "windows-sys", reason = "foundational but bumps fairly often, nothing we can do about it not having a shared version" },
@@ -63,6 +64,7 @@ bypass = [
     # `crossfont` still depends (partially transitively) on `winapi`.
     { crate = "winapi-i686-pc-windows-gnu", allow-globs = ["lib/lib*.a"] },
     { crate = "winapi-x86_64-pc-windows-gnu", allow-globs = ["lib/lib*.a"] },
+    { crate = "libc", allow-globs = ["etc/libc-util.py"] },
 ]
 include-archives = true
 interpreted = "deny"
