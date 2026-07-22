@@ -329,6 +329,7 @@ impl AsRawFd for EventLoop {
     windows_platform,
     macos_platform,
     android_platform,
+    orbital_platform,
     x11_platform,
     wayland_platform,
     docsrs,

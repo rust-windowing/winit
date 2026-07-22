@@ -14,6 +14,7 @@ use objc2_foundation::{
 };
 use winit_core::cursor::{CursorIcon, CursorImage, CustomCursorProvider, CustomCursorSource};
 use winit_core::error::{NotSupportedError, RequestError};
+use winit_core::icon::{Icon, RgbaIcon};
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct CustomCursor(pub(crate) Retained<NSCursor>);
@@ -40,6 +41,40 @@ impl CustomCursor {
 
         cursor_from_image(&cursor).map(Self)
     }
+}
+
+pub(crate) fn image_from_icon(icon: &Icon) -> Result<Retained<NSImage>, RequestError> {
+    let rgba_icon = icon
+        .cast_ref::<RgbaIcon>()
+        .ok_or(NotSupportedError::new("Only RGBA icons can be converted to `NSImage`"))?;
+
+    let width = rgba_icon.width();
+    let height = rgba_icon.height();
+
+    let bitmap = unsafe {
+        NSBitmapImageRep::initWithBitmapDataPlanes_pixelsWide_pixelsHigh_bitsPerSample_samplesPerPixel_hasAlpha_isPlanar_colorSpaceName_bytesPerRow_bitsPerPixel(
+            NSBitmapImageRep::alloc(),
+            std::ptr::null_mut::<*mut c_uchar>(),
+            width as isize,
+            height as isize,
+            8,
+            4,
+            true,
+            false,
+            NSDeviceRGBColorSpace,
+            width as isize * 4,
+            32,
+        )
+    }.ok_or_else(|| os_error!("Initializing the `NSBitmapImageRep` failed"))?;
+
+    let bitmap_data =
+        unsafe { slice::from_raw_parts_mut(bitmap.bitmapData(), rgba_icon.buffer().len()) };
+    bitmap_data.copy_from_slice(rgba_icon.buffer());
+
+    let image = NSImage::initWithSize(NSImage::alloc(), NSSize::new(width.into(), height.into()));
+    image.addRepresentation(&bitmap);
+
+    Ok(image)
 }
 
 pub(crate) fn cursor_from_image(cursor: &CursorImage) -> Result<Retained<NSCursor>, RequestError> {

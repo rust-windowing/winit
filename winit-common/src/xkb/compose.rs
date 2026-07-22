@@ -22,11 +22,9 @@ pub struct XkbComposeTable {
 impl XkbComposeTable {
     pub fn new(context: &XkbContext) -> Option<Self> {
         let locale = env::var_os("LC_ALL")
-            .and_then(|v| if v.is_empty() { None } else { Some(v) })
-            .or_else(|| env::var_os("LC_CTYPE"))
-            .and_then(|v| if v.is_empty() { None } else { Some(v) })
-            .or_else(|| env::var_os("LANG"))
-            .and_then(|v| if v.is_empty() { None } else { Some(v) })
+            .filter(|v| !v.is_empty())
+            .or_else(|| env::var_os("LC_CTYPE").filter(|v| !v.is_empty()))
+            .or_else(|| env::var_os("LANG").filter(|v| !v.is_empty()))
             .unwrap_or_else(|| "C".into());
         let locale = CString::new(locale.into_vec()).unwrap();
 
