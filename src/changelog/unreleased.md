@@ -39,3 +39,7 @@ The migration guide could reference other migration examples in the current
 changelog entry.
 
 ## Unreleased
+
+### Changed
+
+- On Wayland, bump `smithay-client-toolkit` to 0.20, `sctk-adwaita` to 0.11, and `calloop` to 0.14. This moves `sctk-adwaita` onto `tiny-skia` 0.12, unblocking downstream crates (e.g. egui) from upgrading `resvg` past 0.45.

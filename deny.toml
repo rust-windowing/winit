@@ -41,7 +41,9 @@ skip = [
     { crate = "raw-window-handle", reason = "we depend on multiple behind features" },
     { crate = "bitflags@1", reason = "the ecosystem is in the process of migrating" },
     { crate = "rustix@0.38", reason = "the ecosystem is in the process of migrating" },
+    { crate = "rustix@1", reason = "calloop 0.14 / smithay-client-toolkit 0.20 require rustix 1.x" },
     { crate = "linux-raw-sys@0.4", reason = "the ecosystem is in the process of migrating" },
+    { crate = "linux-raw-sys@0.12", reason = "pulled in by rustix 1.x from calloop 0.14" },
 ]
 wildcards = "allow" # at least until https://github.com/EmbarkStudios/cargo-deny/issues/241 is fixed
 
