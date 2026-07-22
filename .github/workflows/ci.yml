@@ -118,6 +118,7 @@ jobs:
            cargo update -p gethostname@1.1.0 --precise 1.0.2
            cargo update -p unicode-ident --precise 1.0.10
            cargo update -p syn@2 --precise 2.0.114
+           cargo update -p wayland-protocols --precise 0.32.12
 
     - name: Install GCC Multilib
       if: (matrix.platform.os == 'ubuntu-latest') && contains(matrix.platform.target, 'i686')
