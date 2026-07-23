@@ -56,6 +56,10 @@ changelog entry.
 
 - Updated `windows-sys` to `v0.61`.
 - On older macOS versions (tested up to 12.7.6), applications now receive mouse movement events for unfocused windows, matching the behavior on other platforms.
+- On macOS, `Window::set_blur` is now implemented with the public `NSVisualEffectView` instead of the private `CGSSetWindowBackgroundBlurRadius`, so binaries no longer link `_CGSSetWindowBackgroundBlurRadius`, which the Mac App Store rejects under Guideline 2.5.1.
+- On macOS, blurred windows now render the system window background material rather than an untinted backdrop blur at a fixed radius of 80, and the radius is no longer configurable; enable the `private-apple-apis` Cargo feature to keep the previous implementation, which `--all-features` also enables.
+- On macOS, the window's `contentView` is now a plain container `NSView` holding winit's view, rather than being winit's view itself; the handle returned by `raw-window-handle` is unchanged.
+- On macOS 10.12 and older, enabling blur now makes the window's views layer-backed, which may break the association with an attached `NSOpenGLContext`.
 
 ### Fixed
 

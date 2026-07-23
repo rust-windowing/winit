@@ -880,6 +880,14 @@ pub trait Window: AsAny + Send + Sync + fmt::Debug {
     /// ## Platform-specific
     ///
     /// - **Android / iOS / X11 / Web / Windows:** Unsupported.
+    /// - **macOS:** Renders the system window background material behind the window's contents,
+    ///   which is tinted and follows the window's appearance, rather than a blur of a specific
+    ///   radius. The window's `contentView` is a container holding the view returned by
+    ///   `raw-window-handle`, and the material is a sibling behind it. With the
+    ///   `private-apple-apis` Cargo feature enabled, a private API is used instead to apply an
+    ///   untinted backdrop blur of a fixed radius; this can cause App Store rejection. On macOS
+    ///   10.12 and older, enabling blur makes the window's views layer-backed, which may break the
+    ///   association with an attached `NSOpenGLContext`.
     /// - **Wayland:** Only works with `org_kde_kwin_blur_manager` or
     ///   `ext_background_effect_manager_v1` protocol.
     fn set_blur(&self, blur: bool);
