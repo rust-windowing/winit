@@ -55,9 +55,11 @@ serde = [
 ]
 wayland = ["winit-wayland"]
 wayland-csd-adwaita = ["winit-wayland/csd-adwaita"]
+wayland-csd-adwaita-cosmic-text = ["winit-wayland/csd-adwaita-cosmic-text"]
 wayland-csd-adwaita-crossfont = ["winit-wayland/csd-adwaita-crossfont"]
 wayland-csd-adwaita-notitle = ["winit-wayland/csd-adwaita-notitle"]
 wayland-csd-adwaita-notitlebar = ["winit-wayland/csd-adwaita-notitlebar"]
+wayland-csd-adwaita-skrifa = ["winit-wayland/csd-adwaita-skrifa"]
 wayland-dlopen = ["winit-wayland/dlopen"]
 x11 = ["winit-x11"]
 

@@ -12,9 +12,11 @@ version.workspace = true
 default = ["dlopen", "csd-adwaita"]
 
 csd-adwaita = ["sctk-adwaita", "sctk-adwaita/ab_glyph"]
+csd-adwaita-cosmic-text = ["sctk-adwaita", "sctk-adwaita/cosmic-text"]
 csd-adwaita-crossfont = ["sctk-adwaita", "sctk-adwaita/crossfont"]
 csd-adwaita-notitle = ["sctk-adwaita"]
 csd-adwaita-notitlebar = ["csd-adwaita-notitle"]
+csd-adwaita-skrifa = ["sctk-adwaita", "sctk-adwaita/skrifa"]
 dlopen = ["wayland-backend/dlopen"]
 serde = ["dep:serde", "bitflags/serde", "smol_str/serde", "dpi/serde"]
 
@@ -38,7 +40,7 @@ rustix = { workspace = true, features = ["std", "system", "thread", "process", "
 sctk = { package = "smithay-client-toolkit", version = "0.20.0", default-features = false, features = [
     "calloop",
 ] }
-sctk-adwaita = { version = "0.11.0", default-features = false, optional = true }
+sctk-adwaita = { version = "0.11.1", default-features = false, optional = true }
 wayland-backend = { version = "0.3.10", default-features = false, features = ["client_system"] }
 wayland-client = "0.31.10"
 wayland-protocols = { version = "0.32.12", features = ["staging", "unstable"] }
