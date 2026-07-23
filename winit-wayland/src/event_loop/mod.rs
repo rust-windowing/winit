@@ -878,7 +878,8 @@ impl RootActiveEventLoop for ActiveEventLoop {
             let serial = seat
                 .pointer_data()
                 .ok_or(NotSupportedError::new(NO_POINTER_CAP_ERROR_MSG))?
-                .latest_button_serial();
+                .latest_button_serial()
+                .unwrap_or_default();
 
             data_source.start_drag(data_device, source_surface, icon_surface.as_ref(), serial);
 
@@ -952,8 +953,7 @@ impl rwh_06::HasDisplayHandle for OwnedDisplayHandle {
         use sctk::reexports::client::Proxy;
 
         let raw = rwh_06::WaylandDisplayHandle::new({
-            let ptr = self.connection.display().id().as_ptr();
-            std::ptr::NonNull::new(ptr as *mut _).expect("wl_display should never be null")
+            self.connection.display().id().as_ptr().expect("wl_display should never be null").cast()
         });
 
         Ok(unsafe { rwh_06::DisplayHandle::borrow_raw(raw.into()) })

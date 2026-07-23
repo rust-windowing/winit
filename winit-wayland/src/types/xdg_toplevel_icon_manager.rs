@@ -7,7 +7,7 @@ use sctk::globals::GlobalData;
 use sctk::shm::slot::{Buffer, SlotPool};
 use wayland_client::globals::{BindError, GlobalList};
 use wayland_client::protocol::wl_shm::Format;
-use wayland_client::{Connection, Dispatch, Proxy, QueueHandle, delegate_dispatch};
+use wayland_client::{Connection, Dispatch, Proxy, QueueHandle};
 use wayland_protocols::xdg::toplevel_icon::v1::client::xdg_toplevel_icon_manager_v1::XdgToplevelIconManagerV1;
 use wayland_protocols::xdg::toplevel_icon::v1::client::xdg_toplevel_icon_v1::XdgToplevelIconV1;
 use winit_core::icon::{Icon, RgbaIcon};
@@ -69,7 +69,7 @@ impl XdgToplevelIconManagerState {
         globals: &GlobalList,
         queue_handle: &QueueHandle<WinitState>,
     ) -> Result<Self, BindError> {
-        let xdg_toplevel_icon_manager = globals.bind(queue_handle, 1..=1, GlobalData)?;
+        let xdg_toplevel_icon_manager = globals.bind_singleton(queue_handle, 1..=1, GlobalData)?;
         Ok(Self { xdg_toplevel_icon_manager })
     }
 
@@ -78,12 +78,12 @@ impl XdgToplevelIconManagerState {
     }
 }
 
-impl Dispatch<XdgToplevelIconManagerV1, GlobalData, WinitState> for XdgToplevelIconManagerState {
+impl Dispatch<XdgToplevelIconManagerV1, WinitState> for GlobalData {
     fn event(
+        &self,
         _state: &mut WinitState,
         _proxy: &XdgToplevelIconManagerV1,
         _event: <XdgToplevelIconManagerV1 as Proxy>::Event,
-        _data: &GlobalData,
         _conn: &Connection,
         _qhandle: &QueueHandle<WinitState>,
     ) {
@@ -91,18 +91,15 @@ impl Dispatch<XdgToplevelIconManagerV1, GlobalData, WinitState> for XdgToplevelI
     }
 }
 
-impl Dispatch<XdgToplevelIconV1, GlobalData, WinitState> for XdgToplevelIconManagerState {
+impl Dispatch<XdgToplevelIconV1, WinitState> for GlobalData {
     fn event(
+        &self,
         _state: &mut WinitState,
         _proxy: &XdgToplevelIconV1,
         _event: <XdgToplevelIconV1 as Proxy>::Event,
-        _data: &GlobalData,
         _conn: &Connection,
         _qhandle: &QueueHandle<WinitState>,
     ) {
         // No events.
     }
 }
-
-delegate_dispatch!(WinitState: [XdgToplevelIconManagerV1: GlobalData] => XdgToplevelIconManagerState);
-delegate_dispatch!(WinitState: [XdgToplevelIconV1: GlobalData] => XdgToplevelIconManagerState);
