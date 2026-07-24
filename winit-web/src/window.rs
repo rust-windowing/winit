@@ -46,6 +46,12 @@ impl Window {
         target: &ActiveEventLoop,
         attr: WindowAttributes,
     ) -> Result<Self, RequestError> {
+        if attr.window_type() == WindowType::Popup {
+            return Err(RequestError::NotSupported(NotSupportedError::new(
+                "Popups are not implemented for Web",
+            )));
+        }
+
         let id = target.generate_id();
 
         let window = target.runner.window();

@@ -769,9 +769,15 @@ pub struct Window {
 impl Window {
     pub(crate) fn new(
         el: &ActiveEventLoop,
-        _window_attrs: window::WindowAttributes,
+        window_attrs: window::WindowAttributes,
     ) -> Result<Self, RequestError> {
-        // FIXME this ignores requested window attributes
+        if window_attrs.window_type() == window::WindowType::Popup {
+            return Err(RequestError::NotSupported(NotSupportedError::new(
+                "Popups are not implemented for Android",
+            )));
+        }
+
+        // FIXME this ignores the rest of the requested window attributes
 
         Ok(Self {
             app: el.app.clone(),

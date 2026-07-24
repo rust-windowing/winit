@@ -490,6 +490,12 @@ impl Window {
         event_loop: &ActiveEventLoop,
         mut window_attributes: WindowAttributes,
     ) -> Result<Window, RequestError> {
+        if window_attributes.window_type() == WindowType::Popup {
+            return Err(RequestError::NotSupported(NotSupportedError::new(
+                "Popups are not implemented for iOS",
+            )));
+        }
+
         let mtm = event_loop.mtm;
 
         if window_attributes.min_surface_size.is_some() {

@@ -62,7 +62,7 @@ pub enum WindowType {
     /// - **macOS:** A borderless, non-activating child window. The system does *not* draw rounded
     ///   corners for it. To get a rounded, native-looking popup, create it transparent (via
     ///   [`WindowAttributes::with_transparent`]) and render the round border yourself.
-    /// - **X11:** An error is returned because it is not implemented
+    /// - **X11, Web, Android, iOS, Orbital:** An error is returned because it is not implemented.
     Popup,
 }
 

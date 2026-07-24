@@ -37,6 +37,12 @@ impl Window {
         el: &ActiveEventLoop,
         attrs: window::WindowAttributes,
     ) -> Result<Self, RequestError> {
+        if attrs.window_type() == window::WindowType::Popup {
+            return Err(RequestError::NotSupported(NotSupportedError::new(
+                "Popups are not implemented for Orbital",
+            )));
+        }
+
         let scale = 1.;
 
         let (x, y) = if let Some(pos) = attrs.position {
