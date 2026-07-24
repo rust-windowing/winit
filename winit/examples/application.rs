@@ -474,8 +474,11 @@ impl ApplicationHandler for Application {
                     }
                 }
             },
-            WindowEvent::PointerButton { button, state, .. } => {
-                info!("Pointer button {button:?} {state:?}");
+            WindowEvent::PointerButton { device_id, primary, state, position, button } => {
+                info!(
+                    "Pointer button device={device_id:?} primary={primary} position={position:?} \
+                     button={button:?} state={state:?}"
+                );
                 let mods = window.modifiers;
                 if let Some(action) = state
                     .is_pressed()
@@ -486,12 +489,24 @@ impl ApplicationHandler for Application {
                     self.handle_action_with_window(event_loop, window_id, action);
                 }
             },
-            WindowEvent::PointerLeft { .. } => {
-                info!("Pointer left Window={window_id:?}");
+            WindowEvent::PointerEntered { device_id, primary, position, kind } => {
+                info!(
+                    "Pointer entered Window={window_id:?} device={device_id:?} primary={primary} \
+                     position={position:?} kind={kind:?}"
+                );
+            },
+            WindowEvent::PointerLeft { device_id, primary, position, kind } => {
+                info!(
+                    "Pointer left Window={window_id:?} device={device_id:?} primary={primary} \
+                     position={position:?} kind={kind:?}"
+                );
                 window.cursor_left();
             },
-            WindowEvent::PointerMoved { position, .. } => {
-                info!("Moved pointer to {position:?}");
+            WindowEvent::PointerMoved { device_id, primary, position, source } => {
+                info!(
+                    "Moved pointer device={device_id:?} primary={primary} position={position:?} \
+                     source={source:?}"
+                );
                 window.cursor_moved(position);
             },
             WindowEvent::ActivationTokenDone { token: _token, .. } => {

@@ -37,13 +37,11 @@ use x11rb::protocol::{xkb, xproto};
 use x11rb::x11_utils::X11Error as LogicalError;
 use x11rb::xcb_ffi::ReplyOrIdError;
 
-use crate::atoms::{
-    _NET_WM_PING, _NET_WM_SYNC_REQUEST, ABS_PRESSURE, ABS_TILT_X, ABS_TILT_Y, ABS_X, ABS_Y, Atoms,
-    WM_DELETE_WINDOW,
-};
+use crate::atoms::{_NET_WM_PING, _NET_WM_SYNC_REQUEST, Atoms, WM_DELETE_WINDOW};
 use crate::dnd::Dnd;
 use crate::event_processor::{EventProcessor, MAX_MOD_REPLAY_LEN};
 use crate::ime::{self, Ime, ImeCreationError, ImeSender};
+use crate::tablet::TabletDevice;
 use crate::util::{self, CustomCursor};
 use crate::window::{UnownedWindow, Window};
 use crate::xdisplay::{XConnection, XError, XNotSupported};
@@ -374,6 +372,7 @@ impl EventLoop {
         let event_processor = EventProcessor {
             target: window_target,
             devices: Default::default(),
+            active_pointer_sources: Default::default(),
             randr_event_offset,
             ime_receiver,
             ime_event_receiver,
@@ -398,7 +397,8 @@ impl EventLoop {
             .select_xinput_events(
                 root,
                 ALL_DEVICES,
-                x11rb::protocol::xinput::XIEventMask::HIERARCHY,
+                x11rb::protocol::xinput::XIEventMask::HIERARCHY
+                    | x11rb::protocol::xinput::XIEventMask::DEVICE_CHANGED,
             )
             .expect_then_ignore_error("Failed to register for XInput2 device hotplug events");
 
@@ -1099,18 +1099,20 @@ pub(crate) fn mkdid(w: xinput::DeviceId) -> DeviceId {
 pub struct Device {
     _name: String,
     pub(crate) scroll_axes: Vec<(i32, ScrollAxis)>,
+    pub(crate) master_pointer: bool,
+    /// Physical devices supplying the current classes of a master pointer.
+    pub(crate) class_sources: Vec<c_int>,
     // For master devices, this is the paired device (pointer <-> keyboard).
     // For slave devices, this is the master.
     pub(crate) attachment: c_int,
     pub(crate) r#type: DeviceType,
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Debug)]
 pub(crate) enum DeviceType {
     Mouse,
     Touch,
-    Pen,
-    Eraser,
+    Tablet(TabletDevice),
 }
 
 #[derive(Debug, Copy, Clone)]
@@ -1130,11 +1132,23 @@ impl Device {
     pub(crate) fn new(info: &ffi::XIDeviceInfo, atoms: &Atoms) -> Self {
         let name = unsafe { CStr::from_ptr(info.name).to_string_lossy() };
         let mut scroll_axes = Vec::new();
-        let mut r#type = None;
+        let classes = Device::classes(info);
+        let mut has_touch_class = false;
+        let master_pointer = info._use == ffi::XIMasterPointer;
+        let mut class_sources = Vec::new();
+
+        if master_pointer {
+            for &class_ptr in classes {
+                let source = unsafe { (*class_ptr).sourceid };
+                if !class_sources.contains(&source) {
+                    class_sources.push(source);
+                }
+            }
+        }
 
         if Device::physical_device(info) {
             // Identify scroll axes
-            for &class_ptr in Device::classes(info) {
+            for &class_ptr in classes {
                 let ty = unsafe { (*class_ptr)._type };
                 if ty == ffi::XIScrollClass {
                     let info = unsafe { &*(class_ptr as *const ffi::XIScrollClassInfo) };
@@ -1148,32 +1162,30 @@ impl Device {
                         position: 0.0,
                     }));
                 } else if ty == ffi::XITouchClass {
-                    r#type = Some(DeviceType::Touch);
-                } else if r#type.is_none() && ty == ffi::XIValuatorClass {
-                    let info = unsafe { &*(class_ptr as *const ffi::XIValuatorClassInfo) };
-                    let atom = info.label as xproto::Atom;
-
-                    if atom == atoms[ABS_X]
-                        || atom == atoms[ABS_Y]
-                        || atom == atoms[ABS_PRESSURE]
-                        || atom == atoms[ABS_TILT_X]
-                        || atom == atoms[ABS_TILT_Y]
-                    {
-                        if name.contains("eraser") {
-                            r#type = Some(DeviceType::Eraser);
-                        } else {
-                            r#type = Some(DeviceType::Pen);
-                        }
-                    }
+                    has_touch_class = true;
                 }
             }
         }
 
+        let r#type = if Device::pointer_source(info) {
+            if has_touch_class {
+                DeviceType::Touch
+            } else if let Some(tablet) = TabletDevice::from_xinput(&name, classes, atoms) {
+                DeviceType::Tablet(tablet)
+            } else {
+                DeviceType::Mouse
+            }
+        } else {
+            DeviceType::Mouse
+        };
+
         let mut device = Device {
             _name: name.into_owned(),
             scroll_axes,
+            master_pointer,
+            class_sources,
             attachment: info.attachment,
-            r#type: r#type.unwrap_or(DeviceType::Mouse),
+            r#type,
         };
         device.reset_scroll_position(info);
         device
@@ -1200,6 +1212,11 @@ impl Device {
         info._use == ffi::XISlaveKeyboard
             || info._use == ffi::XISlavePointer
             || info._use == ffi::XIFloatingSlave
+    }
+
+    #[inline]
+    fn pointer_source(info: &ffi::XIDeviceInfo) -> bool {
+        info._use == ffi::XISlavePointer || info._use == ffi::XIFloatingSlave
     }
 
     #[inline]
