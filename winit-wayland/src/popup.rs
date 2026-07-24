@@ -333,12 +333,14 @@ impl CoreWindow for Popup {
         let Some(s) = self.popup_state.upgrade() else { return };
         let mut state = s.lock().unwrap();
         let scale_factor = state.scale_factor();
-        if let WindowType::Popup { popup, positioner, anchor_rect, .. } = &mut state.window {
+        if let WindowType::Popup { popup, positioner, anchor_rect, parent_origin, .. } =
+            &mut state.window
+        {
             let position = position.to_logical(scale_factor);
             anchor_rect.0 = position;
             positioner.set_anchor_rect(
-                anchor_rect.0.x,
-                anchor_rect.0.y,
+                anchor_rect.0.x - parent_origin.x,
+                anchor_rect.0.y - parent_origin.y,
                 anchor_rect.1.width,
                 anchor_rect.1.height,
             );
