@@ -825,6 +825,10 @@ impl rwh_06::HasWindowHandle for Window {
 }
 
 impl CoreWindow for Window {
+    fn window_type(&self) -> window::WindowType {
+        window::WindowType::Window
+    }
+
     fn id(&self) -> WindowId {
         GLOBAL_WINDOW
     }
