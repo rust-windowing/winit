@@ -35,13 +35,14 @@ impl Window {
         attributes: WindowAttributes,
     ) -> Result<Self, RequestError> {
         let mtm = window_target.mtm;
+        let window_type = attributes.window_type;
         let delegate =
             autoreleasepool(|_| WindowDelegate::new(&window_target.app_state, attributes, mtm))?;
         window_target.app_state.register_window(&delegate, mtm);
         Ok(Window {
             window: MainThreadBound::new(delegate.window().retain(), mtm),
             delegate: MainThreadBound::new(delegate, mtm),
-            window_type: attributes.window_type,
+            window_type,
         })
     }
 
@@ -97,7 +98,7 @@ impl rwh_06::HasWindowHandle for Window {
 }
 
 impl CoreWindow for Window {
-    fn window_type(&self) -> window::WindowType {
+    fn window_type(&self) -> WindowType {
         self.window_type
     }
 

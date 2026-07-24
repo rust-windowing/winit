@@ -462,7 +462,7 @@ impl rwh_06::HasWindowHandle for Window {
 }
 
 impl CoreWindow for Window {
-    fn window_type(&self) -> window::WindowType {
+    fn window_type(&self) -> WindowType {
         self.window_type
     }
 
