@@ -64,6 +64,7 @@ changelog entry.
   tools such as Punto Switcher. The `WM_INPUTLANGCHANGE` message is now handled
   to refresh the cached keyboard layout, while still deferring to
   `DefWindowProc` for normal propagation.
+- On Windows, fix missing focus events after showing a hidden maximized window.
 - On Redox, handle `EINTR` when reading from `event_socket` instead of panicking.
 - On Wayland, switch from using the `ahash` hashing algorithm to `foldhash`.
 - On macOS, fix borderless game presentation options not sticking after switching spaces.

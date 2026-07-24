@@ -346,12 +346,15 @@ impl WindowFlags {
         }
 
         if new.contains(WindowFlags::VISIBLE) {
-            let flag = if !self.contains(WindowFlags::MARKER_ACTIVATE) {
-                self.set(WindowFlags::MARKER_ACTIVATE, true);
-                SW_SHOWNOACTIVATE
-            } else {
-                SW_SHOW
-            };
+            let flag =
+                if new.contains(WindowFlags::MAXIMIZED) && diff.contains(WindowFlags::VISIBLE) {
+                    SW_MAXIMIZE
+                } else if !self.contains(WindowFlags::MARKER_ACTIVATE) {
+                    self.set(WindowFlags::MARKER_ACTIVATE, true);
+                    SW_SHOWNOACTIVATE
+                } else {
+                    SW_SHOW
+                };
             unsafe {
                 ShowWindow(window, flag);
             }
@@ -380,7 +383,10 @@ impl WindowFlags {
             }
         }
 
-        if diff.contains(WindowFlags::MAXIMIZED) || new.contains(WindowFlags::MAXIMIZED) {
+        if (diff.contains(WindowFlags::MAXIMIZED) || new.contains(WindowFlags::MAXIMIZED))
+            && new.contains(WindowFlags::VISIBLE)
+            && !diff.contains(WindowFlags::VISIBLE)
+        {
             unsafe {
                 ShowWindow(window, match new.contains(WindowFlags::MAXIMIZED) {
                     true => SW_MAXIMIZE,
