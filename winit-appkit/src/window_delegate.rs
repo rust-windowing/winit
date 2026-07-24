@@ -1056,7 +1056,7 @@ impl WindowDelegate {
             let size = NSSize::new(logical_size.width, logical_size.height);
             window.setContentSize(size);
         }
-        self.queue_event(WindowEvent::SurfaceResized(physical_size));
+        self.view().surface_resized();
     }
 
     fn emit_move_event(&self) {
