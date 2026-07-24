@@ -117,10 +117,9 @@ impl Popup {
                         size.to_logical::<i32>(scale_factor),
                     ),
                     None => {
-                        // prefer positioner_offset if specified, otherwise use attributes.position
-                        let pos: LogicalPosition<i32> = anchor_rect
-                            .map(|a| a.0)
-                            .or(attributes.position)
+                        // anchor rect was not specified use attributes.position
+                        let pos: LogicalPosition<i32> = attributes
+                            .position
                             .map(|position| position.to_logical(scale_factor))
                             .unwrap_or_default();
                         (pos, LogicalSize::new(1, 1))
