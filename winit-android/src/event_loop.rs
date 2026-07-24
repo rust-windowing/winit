@@ -5,7 +5,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
-use android_activity::input::{InputEvent, KeyAction, Keycode, MotionAction};
+use android_activity::input::{Axis, InputEvent, KeyAction, Keycode, MotionAction, Source};
 use android_activity::{
     AndroidApp, AndroidAppWaker, ConfigurationRef, InputStatus, MainEvent, Rect,
 };
@@ -323,6 +323,12 @@ impl EventLoop {
             InputEvent::MotionEvent(motion_event) => {
                 let device_id = Some(DeviceId::from_raw(motion_event.device_id() as i64));
                 let action = motion_event.action();
+                let source = motion_event.source();
+
+                if source.is_joystick_class() || matches!(source, Source::Gamepad) {
+                    self.dispatch_joystick_axes(motion_event, device_id, app);
+                    return input_status;
+                }
 
                 let pointers: Option<
                     Box<dyn Iterator<Item = android_activity::input::Pointer<'_>>>,
@@ -507,6 +513,35 @@ impl EventLoop {
         input_status
     }
 
+    fn dispatch_joystick_axes<A: ApplicationHandler>(
+        &self,
+        motion_event: &android_activity::input::MotionEvent<'_>,
+        device_id: Option<DeviceId>,
+        app: &mut A,
+    ) {
+        if !matches!(
+            motion_event.action(),
+            MotionAction::Move
+                | MotionAction::Down
+                | MotionAction::Up
+                | MotionAction::Cancel
+                | MotionAction::ButtonPress
+                | MotionAction::ButtonRelease
+        ) {
+            return;
+        }
+
+        for pointer in motion_event.pointers() {
+            for axis in ANDROID_GAMEPAD_AXES {
+                let event = event::DeviceEvent::Motion {
+                    axis: Into::<u32>::into(axis),
+                    value: pointer.axis_value(axis) as f64,
+                };
+                app.device_event(&self.window_target, device_id, event);
+            }
+        }
+    }
+
     pub fn run_app_on_demand<A: ApplicationHandler>(
         &mut self,
         mut app: A,
@@ -641,6 +676,21 @@ impl EventLoop {
         self.window_target.exiting()
     }
 }
+
+const ANDROID_GAMEPAD_AXES: [Axis; 12] = [
+    Axis::X,
+    Axis::Y,
+    Axis::Z,
+    Axis::Rx,
+    Axis::Ry,
+    Axis::Rz,
+    Axis::HatX,
+    Axis::HatY,
+    Axis::Ltrigger,
+    Axis::Rtrigger,
+    Axis::Gas,
+    Axis::Brake,
+];
 
 pub struct EventLoopProxy {
     wake_up: AtomicBool,
