@@ -1039,6 +1039,20 @@ impl WindowDelegate {
         });
     }
 
+    fn defer_if_handling_event(&self, f: impl FnOnce(Retained<Self>) + 'static) -> bool {
+        // AppKit state transitions such as zoom/fullscreen can synchronously run resize/display
+        // callbacks. Starting them from inside a winit event callback prevents those callbacks
+        // from being delivered immediately, so defer the transition to the next run-loop turn.
+        if !self.ivars().app_state.is_handling_event() {
+            return false;
+        }
+
+        let mtm = MainThreadMarker::from(self);
+        let this = self.retain();
+        MainRunLoop::get(mtm).queue_closure(move || f(this));
+        true
+    }
+
     fn handle_scale_factor_changed(&self, scale_factor: CGFloat) {
         let window = self.window();
 
@@ -1521,6 +1535,10 @@ impl WindowDelegate {
 
     #[inline]
     pub fn set_maximized(&self, maximized: bool) {
+        if self.defer_if_handling_event(move |this| this.set_maximized(maximized)) {
+            return;
+        }
+
         let mtm = MainThreadMarker::from(self);
         let is_zoomed = self.is_zoomed();
         if is_zoomed == maximized {
@@ -1566,9 +1584,6 @@ impl WindowDelegate {
 
     #[inline]
     pub(crate) fn set_fullscreen(&self, fullscreen: Option<Fullscreen>) {
-        let mtm = MainThreadMarker::from(self);
-        let app = NSApplication::sharedApplication(mtm);
-
         if self.ivars().is_simple_fullscreen.get() {
             return;
         }
@@ -1582,6 +1597,18 @@ impl WindowDelegate {
         if fullscreen == old_fullscreen {
             return;
         }
+
+        if !self.ivars().initial_fullscreen.get()
+            && self.defer_if_handling_event({
+                let fullscreen = fullscreen.clone();
+                move |this| this.set_fullscreen(fullscreen)
+            })
+        {
+            return;
+        }
+
+        let mtm = MainThreadMarker::from(self);
+        let app = NSApplication::sharedApplication(mtm);
 
         // If the fullscreen is on a different monitor, we must move the window
         // to that monitor before we toggle fullscreen (as `toggleFullScreen`
