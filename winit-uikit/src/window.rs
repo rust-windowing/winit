@@ -25,7 +25,7 @@ use winit_core::monitor::{Fullscreen, MonitorHandle as CoreMonitorHandle};
 use winit_core::window::{
     CursorGrabMode, ImeCapabilities, ImeRequest, ImeRequestError, ResizeDirection, Theme,
     UserAttentionType, Window as CoreWindow, WindowAttributes, WindowButtons, WindowId,
-    WindowLevel,
+    WindowLevel, WindowType,
 };
 
 use super::app_state::EventWrapper;
@@ -590,8 +590,8 @@ impl rwh_06::HasWindowHandle for Window {
 }
 
 impl CoreWindow for Window {
-    fn window_type(&self) -> window::WindowType {
-        window::WindowType::Window
+    fn window_type(&self) -> WindowType {
+        WindowType::Window
     }
 
     fn id(&self) -> winit_core::window::WindowId {
