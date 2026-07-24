@@ -6,11 +6,11 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 
 use dpi::{LogicalSize, PhysicalInsets, PhysicalPosition, PhysicalSize, Position, Size};
-use sctk::compositor::{CompositorState, Region, SurfaceData};
+use rwh_06::RawWindowHandle;
+use sctk::compositor::SurfaceData;
+use sctk::reexports::client::Proxy;
 use sctk::reexports::client::protocol::wl_display::WlDisplay;
 use sctk::reexports::client::protocol::wl_surface::WlSurface;
-use sctk::reexports::client::{Proxy, QueueHandle};
-use sctk::reexports::protocols::xdg::activation::v1::client::xdg_activation_v1::XdgActivationV1;
 use sctk::shell::WaylandSurface;
 use sctk::shell::xdg::window::{Window as SctkWindow, WindowDecorations};
 use tracing::warn;
@@ -26,15 +26,15 @@ use winit_core::window::{
 };
 
 use super::ActiveEventLoop;
-use super::event_loop::sink::EventSink;
 use super::output::MonitorHandle;
-use super::state::WinitState;
 use super::types::xdg_activation::XdgActivationTokenData;
+use crate::window::state::WindowType;
 use crate::{WindowAttributesWayland, output};
-
 pub(crate) mod state;
-
 pub use state::WindowState;
+pub(crate) mod handles;
+pub use handles::Handles;
+use handles::WindowRequests;
 
 /// The Wayland window.
 #[derive(Debug)]
@@ -48,33 +48,12 @@ pub struct Window {
     /// The state of the window.
     window_state: Arc<Mutex<WindowState>>,
 
-    /// Compositor to handle WlRegion stuff.
-    compositor: Arc<CompositorState>,
-
     /// The wayland display used solely for raw window handle.
     #[allow(dead_code)]
     display: WlDisplay,
 
-    /// Xdg activation to request user attention.
-    xdg_activation: Option<XdgActivationV1>,
-
-    /// The state of the requested attention from the `xdg_activation`.
-    attention_requested: Arc<AtomicBool>,
-
-    /// Handle to the main queue to perform requests.
-    queue_handle: QueueHandle<WinitState>,
-
-    /// Window requests to the event loop.
-    window_requests: Arc<WindowRequests>,
-
-    /// Observed monitors.
-    monitors: Arc<Mutex<Vec<MonitorHandle>>>,
-
-    /// Source to wake-up the event-loop for window requests.
-    event_loop_awakener: calloop::ping::Ping,
-
-    /// The event sink to deliver synthetic events.
-    window_events_sink: Arc<Mutex<EventSink>>,
+    /// Common handles like queue, window requests, monitors and so on
+    handles: Handles,
 }
 
 impl Window {
@@ -106,20 +85,32 @@ impl Window {
         let window =
             state.xdg_shell.create_window(surface.clone(), default_decorations, &queue_handle);
 
-        let WindowAttributesWayland { name: app_name, activation_token, prefer_csd } = *attributes
-            .platform
-            .take()
-            .and_then(|p| p.cast::<WindowAttributesWayland>().ok())
-            .unwrap_or_default();
+        let WindowAttributesWayland { name: app_name, activation_token, prefer_csd, .. } =
+            *attributes
+                .platform
+                .take()
+                .and_then(|p| p.cast::<WindowAttributesWayland>().ok())
+                .unwrap_or_default();
+
+        let mut scale_factor = None;
+        if let Some(RawWindowHandle::Wayland(handle)) = attributes.parent_window() {
+            if let Some(s) =
+                state.windows.borrow().get(&WindowId::from_raw(handle.surface.as_ptr() as usize))
+            {
+                scale_factor = Some(s.lock().unwrap().scale_factor());
+            }
+        }
+        let scale_factor = scale_factor.unwrap_or(1.0);
 
         let mut window_state = WindowState::new(
-            event_loop_window_target.handle.clone(),
-            &event_loop_window_target.queue_handle,
+            event_loop_window_target,
             &state,
             size,
-            window.clone(),
+            state::WindowType::Window { window: window.clone(), last_configure: None },
             attributes.preferred_theme,
             prefer_csd,
+            scale_factor,
+            None,
         );
 
         window_state.set_window_icon(attributes.window_icon);
@@ -219,16 +210,22 @@ impl Window {
         Ok(Self {
             window,
             display,
-            monitors,
+
             window_id,
-            compositor,
             window_state,
-            queue_handle,
-            xdg_activation,
-            attention_requested: Arc::new(AtomicBool::new(false)),
-            event_loop_awakener,
-            window_requests,
-            window_events_sink,
+
+            handles: Handles {
+                queue_handle,
+                window_requests,
+                monitors,
+                event_loop_awakener,
+                window_events_sink,
+
+                compositor,
+
+                xdg_activation,
+                attention_requested: Arc::new(AtomicBool::new(false)),
+            },
         })
     }
 
@@ -239,7 +236,7 @@ impl Window {
 
 impl Window {
     pub fn request_activation_token(&self) -> Result<AsyncRequestSerial, RequestError> {
-        let xdg_activation = match self.xdg_activation.as_ref() {
+        let xdg_activation = match self.handles.xdg_activation.as_ref() {
             Some(xdg_activation) => xdg_activation,
             None => return Err(NotSupportedError::new("xdg_activation_v1 is not available").into()),
         };
@@ -247,7 +244,8 @@ impl Window {
         let serial = AsyncRequestSerial::get();
 
         let data = XdgActivationTokenData::Obtain((self.window_id, serial));
-        let xdg_activation_token = xdg_activation.get_activation_token(&self.queue_handle, data);
+        let xdg_activation_token =
+            xdg_activation.get_activation_token(&self.handles.queue_handle, data);
         xdg_activation_token.set_surface(self.surface());
         xdg_activation_token.commit();
 
@@ -262,8 +260,8 @@ impl Window {
 
 impl Drop for Window {
     fn drop(&mut self) {
-        self.window_requests.closed.store(true, Ordering::Relaxed);
-        self.event_loop_awakener.ping();
+        self.handles.window_requests.closed.store(true, Ordering::Relaxed);
+        self.handles.event_loop_awakener.ping();
     }
 }
 
@@ -290,23 +288,16 @@ impl rwh_06::HasDisplayHandle for Window {
 }
 
 impl CoreWindow for Window {
+    fn window_type(&self) -> winit_core::window::WindowType {
+        winit_core::window::WindowType::Window
+    }
+
     fn id(&self) -> WindowId {
         self.window_id
     }
 
     fn request_redraw(&self) {
-        // NOTE: try to not wake up the loop when the event was already scheduled and not yet
-        // processed by the loop, because if at this point the value was `true` it could only
-        // mean that the loop still haven't dispatched the value to the client and will do
-        // eventually, resetting it to `false`.
-        if self
-            .window_requests
-            .redraw_requested
-            .compare_exchange(false, true, Ordering::Relaxed, Ordering::Relaxed)
-            .is_ok()
-        {
-            self.event_loop_awakener.ping();
-        }
+        self.handles.request_redraw();
     }
 
     #[inline]
@@ -449,13 +440,15 @@ impl CoreWindow for Window {
     }
 
     fn is_maximized(&self) -> bool {
-        self.window_state
-            .lock()
-            .unwrap()
-            .last_configure
-            .as_ref()
-            .map(|last_configure| last_configure.is_maximized())
-            .unwrap_or_default()
+        if let WindowType::Window { last_configure, .. } = &self.window_state.lock().unwrap().window
+        {
+            last_configure
+                .as_ref()
+                .map(|last_configure| last_configure.is_maximized())
+                .unwrap_or_default()
+        } else {
+            false
+        }
     }
 
     fn set_fullscreen(&self, fullscreen: Option<Fullscreen>) {
@@ -475,14 +468,16 @@ impl CoreWindow for Window {
     }
 
     fn fullscreen(&self) -> Option<Fullscreen> {
-        let is_fullscreen = self
-            .window_state
-            .lock()
-            .unwrap()
-            .last_configure
-            .as_ref()
-            .map(|last_configure| last_configure.is_fullscreen())
-            .unwrap_or_default();
+        let is_fullscreen = if let WindowType::Window { last_configure, .. } =
+            &self.window_state.lock().unwrap().window
+        {
+            last_configure
+                .as_ref()
+                .map(|last_configure| last_configure.is_fullscreen())
+                .unwrap_or_default()
+        } else {
+            false
+        };
 
         if is_fullscreen {
             let current_monitor = self.current_monitor();
@@ -526,8 +521,7 @@ impl CoreWindow for Window {
 
         if let Some(allowed) = state_changed {
             let event = WindowEvent::Ime(if allowed { Ime::Enabled } else { Ime::Disabled });
-            self.window_events_sink.lock().unwrap().push_window_event(event, self.window_id);
-            self.event_loop_awakener.ping();
+            self.handles.push_window_event(event, self.window_id);
         }
 
         Ok(())
@@ -545,29 +539,7 @@ impl CoreWindow for Window {
     }
 
     fn request_user_attention(&self, request_type: Option<UserAttentionType>) {
-        let xdg_activation = match self.xdg_activation.as_ref() {
-            Some(xdg_activation) => xdg_activation,
-            None => {
-                warn!("`request_user_attention` isn't supported");
-                return;
-            },
-        };
-
-        // Urgency is only removed by the compositor and there's no need to raise urgency when it
-        // was already raised.
-        if request_type.is_none() || self.attention_requested.load(Ordering::Relaxed) {
-            return;
-        }
-
-        self.attention_requested.store(true, Ordering::Relaxed);
-        let surface = self.surface().clone();
-        let data = XdgActivationTokenData::Attention((
-            surface.clone(),
-            Arc::downgrade(&self.attention_requested),
-        ));
-        let xdg_activation_token = xdg_activation.get_activation_token(&self.queue_handle, data);
-        xdg_activation_token.set_surface(&surface);
-        xdg_activation_token.commit();
+        self.handles.request_user_attention(self.surface(), request_type);
     }
 
     fn set_theme(&self, theme: Option<Theme>) {
@@ -623,21 +595,11 @@ impl CoreWindow for Window {
     }
 
     fn set_cursor_hittest(&self, hittest: bool) -> Result<(), RequestError> {
-        let surface = self.window.wl_surface();
-
-        if hittest {
-            surface.set_input_region(None);
-            Ok(())
-        } else {
-            let region = Region::new(&*self.compositor).map_err(|err| os_error!(err))?;
-            region.add(0, 0, 0, 0);
-            surface.set_input_region(Some(region.wl_region()));
-            Ok(())
-        }
+        self.handles.set_cursor_hittest(self.surface(), hittest)
     }
 
     fn current_monitor(&self) -> Option<CoreMonitorHandle> {
-        let data = self.window.wl_surface().data::<SurfaceData>()?;
+        let data = self.surface().data::<SurfaceData>()?;
         data.outputs()
             .next()
             .map(MonitorHandle::new)
@@ -645,14 +607,7 @@ impl CoreWindow for Window {
     }
 
     fn available_monitors(&self) -> Box<dyn Iterator<Item = CoreMonitorHandle>> {
-        Box::new(
-            self.monitors
-                .lock()
-                .unwrap()
-                .clone()
-                .into_iter()
-                .map(|inner| CoreMonitorHandle(Arc::new(inner))),
-        )
+        self.handles.available_monitors()
     }
 
     fn primary_monitor(&self) -> Option<CoreMonitorHandle> {
@@ -668,25 +623,5 @@ impl CoreWindow for Window {
     /// Get the raw-window-handle v0.6 window handle.
     fn rwh_06_window_handle(&self) -> &dyn rwh_06::HasWindowHandle {
         self
-    }
-}
-
-/// The request from the window to the event loop.
-#[derive(Debug)]
-pub struct WindowRequests {
-    /// The window was closed.
-    pub closed: AtomicBool,
-
-    /// Redraw Requested.
-    pub redraw_requested: AtomicBool,
-}
-
-impl WindowRequests {
-    pub fn take_closed(&self) -> bool {
-        self.closed.swap(false, Ordering::Relaxed)
-    }
-
-    pub fn take_redraw_requested(&self) -> bool {
-        self.redraw_requested.swap(false, Ordering::Relaxed)
     }
 }

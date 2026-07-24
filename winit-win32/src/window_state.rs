@@ -13,9 +13,9 @@ use windows_sys::Win32::UI::WindowsAndMessaging::{
     SWP_NOREPOSITION, SWP_NOSIZE, SWP_NOZORDER, SendMessageW, SetWindowLongW, SetWindowPos,
     ShowWindow, WINDOW_EX_STYLE, WINDOW_STYLE, WINDOWPLACEMENT, WS_BORDER, WS_CAPTION, WS_CHILD,
     WS_CLIPCHILDREN, WS_CLIPSIBLINGS, WS_EX_ACCEPTFILES, WS_EX_APPWINDOW, WS_EX_LAYERED,
-    WS_EX_NOREDIRECTIONBITMAP, WS_EX_TOPMOST, WS_EX_TRANSPARENT, WS_EX_WINDOWEDGE, WS_MAXIMIZE,
-    WS_MAXIMIZEBOX, WS_MINIMIZE, WS_MINIMIZEBOX, WS_OVERLAPPEDWINDOW, WS_POPUP, WS_SIZEBOX,
-    WS_SYSMENU, WS_VISIBLE,
+    WS_EX_NOACTIVATE, WS_EX_NOREDIRECTIONBITMAP, WS_EX_TOPMOST, WS_EX_TRANSPARENT,
+    WS_EX_WINDOWEDGE, WS_MAXIMIZE, WS_MAXIMIZEBOX, WS_MINIMIZE, WS_MINIMIZEBOX,
+    WS_OVERLAPPEDWINDOW, WS_POPUP, WS_SIZEBOX, WS_SYSMENU, WS_VISIBLE,
 };
 use winit_core::icon::Icon;
 use winit_core::keyboard::ModifiersState;
@@ -276,8 +276,18 @@ impl WindowFlags {
 
     pub fn to_window_styles(self) -> (WINDOW_STYLE, WINDOW_EX_STYLE) {
         // Required styles to properly support common window functionality like aero snap.
-        let mut style = WS_CAPTION | WS_BORDER | WS_CLIPSIBLINGS | WS_SYSMENU;
+        let mut style = WS_CLIPSIBLINGS;
         let mut style_ex = WS_EX_WINDOWEDGE | WS_EX_ACCEPTFILES;
+        if self.contains(WindowFlags::POPUP) {
+            style |= WS_POPUP;
+            // Don't activate the popup (and thus don't deactivate the parent) when it is shown or
+            // clicked, unless the caller requested activation via `WindowAttributes::active`.
+            if !self.contains(WindowFlags::MARKER_ACTIVATE) {
+                style_ex |= WS_EX_NOACTIVATE;
+            }
+        } else {
+            style |= WS_CAPTION | WS_SYSMENU | WS_BORDER;
+        };
 
         if self.contains(WindowFlags::RESIZABLE) {
             style |= WS_SIZEBOX;
@@ -300,17 +310,14 @@ impl WindowFlags {
         if self.contains(WindowFlags::NO_BACK_BUFFER) {
             style_ex |= WS_EX_NOREDIRECTIONBITMAP;
         }
-        if self.contains(WindowFlags::CHILD) {
-            style |= WS_CHILD; // This is incompatible with WS_POPUP if that gets added eventually.
+        if self.contains(WindowFlags::CHILD) && !self.contains(WindowFlags::POPUP) {
+            style |= WS_CHILD;
 
             // Remove decorations window styles for child
             if !self.contains(WindowFlags::MARKER_DECORATIONS) {
                 style &= !(WS_CAPTION | WS_BORDER);
                 style_ex &= !WS_EX_WINDOWEDGE;
             }
-        }
-        if self.contains(WindowFlags::POPUP) {
-            style |= WS_POPUP;
         }
         if self.contains(WindowFlags::MINIMIZED) {
             style |= WS_MINIMIZE;

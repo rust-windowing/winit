@@ -25,7 +25,7 @@ use winit_core::monitor::{Fullscreen, MonitorHandle as CoreMonitorHandle};
 use winit_core::window::{
     CursorGrabMode, ImeCapabilities, ImeRequest, ImeRequestError, ResizeDirection, Theme,
     UserAttentionType, Window as CoreWindow, WindowAttributes, WindowButtons, WindowId,
-    WindowLevel,
+    WindowLevel, WindowType,
 };
 
 use super::app_state::EventWrapper;
@@ -490,6 +490,12 @@ impl Window {
         event_loop: &ActiveEventLoop,
         mut window_attributes: WindowAttributes,
     ) -> Result<Window, RequestError> {
+        if window_attributes.window_type() == WindowType::Popup {
+            return Err(RequestError::NotSupported(NotSupportedError::new(
+                "Popups are not implemented for iOS",
+            )));
+        }
+
         let mtm = event_loop.mtm;
 
         if window_attributes.min_surface_size.is_some() {
@@ -590,6 +596,10 @@ impl rwh_06::HasWindowHandle for Window {
 }
 
 impl CoreWindow for Window {
+    fn window_type(&self) -> WindowType {
+        WindowType::Window
+    }
+
     fn id(&self) -> winit_core::window::WindowId {
         self.maybe_wait_on_main(|delegate| delegate.id())
     }

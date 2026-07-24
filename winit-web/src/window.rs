@@ -13,7 +13,7 @@ use winit_core::icon::Icon;
 use winit_core::monitor::{Fullscreen, MonitorHandle as CoremMonitorHandle};
 use winit_core::window::{
     CursorGrabMode, ImeRequestError, ResizeDirection, Theme, UserAttentionType,
-    Window as RootWindow, WindowAttributes, WindowButtons, WindowId, WindowLevel,
+    Window as RootWindow, WindowAttributes, WindowButtons, WindowId, WindowLevel, WindowType,
 };
 
 use crate::r#async::Dispatcher;
@@ -46,6 +46,12 @@ impl Window {
         target: &ActiveEventLoop,
         attr: WindowAttributes,
     ) -> Result<Self, RequestError> {
+        if attr.window_type() == WindowType::Popup {
+            return Err(RequestError::NotSupported(NotSupportedError::new(
+                "Popups are not implemented for Web",
+            )));
+        }
+
         let id = target.generate_id();
 
         let window = target.runner.window();
@@ -103,6 +109,10 @@ impl Window {
 }
 
 impl RootWindow for Window {
+    fn window_type(&self) -> WindowType {
+        WindowType::Window
+    }
+
     fn id(&self) -> WindowId {
         self.inner.queue(|inner| inner.id)
     }
