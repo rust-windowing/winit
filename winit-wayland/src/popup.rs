@@ -680,7 +680,7 @@ impl PopupExtWayland for Popup {
         }
     }
 
-    fn get_anchor_rect(&self) -> Option<(impl Into<Position>, impl Into<Size>)> {
+    fn anchor_rect(&self) -> Option<(impl Into<Position>, impl Into<Size>)> {
         let state = self.popup_state.upgrade()?;
         if let WindowType::Popup { anchor_rect, .. } = &state.lock().unwrap().window {
             Some(*anchor_rect)
@@ -694,13 +694,12 @@ impl PopupExtWayland for Popup {
             return;
         };
 
-        let scale_factor = state.lock().unwrap().scale_factor();
+        let state = state.lock().unwrap();
+        let scale_factor = state.scale_factor();
         let size: LogicalSize<i32> = size.into().to_logical(scale_factor);
         let position: LogicalPosition<i32> = position.into().to_logical(scale_factor);
 
-        if let WindowType::Popup { popup, positioner, parent_origin, .. } =
-            &state.lock().unwrap().window
-        {
+        if let WindowType::Popup { popup, positioner, parent_origin, .. } = &state.window {
             positioner.set_anchor_rect(
                 position.x - parent_origin.x,
                 position.y - parent_origin.y,

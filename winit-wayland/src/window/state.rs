@@ -347,9 +347,6 @@ impl WindowState {
         }
 
         // The popup was constrained to a different size by the compositor
-        if configure.width == 0 || configure.height == 0 {
-            return false;
-        }
         let constrained = self.size.width != configure.width as u32
             || self.size.height != configure.height as u32;
         let new_size =

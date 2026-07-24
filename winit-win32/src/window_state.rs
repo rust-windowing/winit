@@ -276,7 +276,7 @@ impl WindowFlags {
 
     pub fn to_window_styles(self) -> (WINDOW_STYLE, WINDOW_EX_STYLE) {
         // Required styles to properly support common window functionality like aero snap.
-        let mut style = WS_BORDER | WS_CLIPSIBLINGS;
+        let mut style = WS_CLIPSIBLINGS;
         let mut style_ex = WS_EX_WINDOWEDGE | WS_EX_ACCEPTFILES;
         if self.contains(WindowFlags::POPUP) {
             style |= WS_POPUP;
@@ -286,7 +286,7 @@ impl WindowFlags {
                 style_ex |= WS_EX_NOACTIVATE;
             }
         } else {
-            style |= WS_CAPTION | WS_SYSMENU;
+            style |= WS_CAPTION | WS_SYSMENU | WS_BORDER;
         };
 
         if self.contains(WindowFlags::RESIZABLE) {

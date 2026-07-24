@@ -336,8 +336,10 @@ impl EventLoop {
         fn window_to_close(window_id: &WindowId, out: &mut Vec<WindowId>, state: &mut WinitState) {
             // We don't need to check here if it should be closed, because if the parent should
             // be closed all children must be closed as well
-            let children =
-                state.windows.get_mut().get(window_id).unwrap().lock().unwrap().children().clone();
+            let Some(window_state) = state.windows.get_mut().get(window_id) else {
+                return;
+            };
+            let children = window_state.lock().unwrap().children().clone();
             // First all children and then all subchildren
             out.extend(&children);
             for child in children.clone() {
