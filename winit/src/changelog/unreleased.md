@@ -48,6 +48,7 @@ changelog entry.
 - On Redox, add support for `EventLoopExtPumpEvents::pump_app_events`.
 - Implement `Send` and `Sync` for `OwnedDisplayHandle`.
 - Use new macOS 15 cursors for resize icons.
+- On Android, add TabletTool support. (`ToolType::Pen` and `ToolType::Eraser`)
 - On Android, added scancode conversions for more obscure key codes.
 - On Wayland, added `HoldGesture` event for multi-finger hold gestures
 - On Wayland, added ext-background-effect-v1 support.
