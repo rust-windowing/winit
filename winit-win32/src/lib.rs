@@ -249,6 +249,12 @@ pub trait WindowExtWindows {
     /// and <https://docs.microsoft.com/en-us/windows/win32/winmsg/window-features#disabled-windows>
     fn set_enable(&self, enabled: bool);
 
+    /// Cloaks the window such that it is not visible to the user. The window is still composed by
+    /// DWM.
+    ///
+    /// Not supported on Windows 7 and earlier.
+    fn set_cloaked(&self, cloaked: bool);
+
     /// This sets `ICON_BIG`. A good ceiling here is 256x256.
     fn set_taskbar_icon(&self, taskbar_icon: Option<Icon>);
 
@@ -412,6 +418,12 @@ impl WindowExtWindows for dyn CoreWindow + '_ {
         window.set_use_system_scroll_speed(should_use)
     }
 
+    #[inline]
+    fn set_cloaked(&self, cloaked: bool) {
+        let window = self.cast_ref::<Window>().unwrap();
+        window.set_cloaked(cloaked)
+    }
+
     unsafe fn window_handle_any_thread(
         &self,
     ) -> Result<rwh_06::WindowHandle<'_>, rwh_06::HandleError> {
@@ -474,6 +486,7 @@ pub struct WindowAttributesWindows {
     pub(crate) title_text_color: Option<Color>,
     pub(crate) corner_preference: Option<CornerPreference>,
     pub(crate) use_system_wheel_speed: bool,
+    pub(crate) cloaked: bool,
 }
 
 impl Default for WindowAttributesWindows {
@@ -494,6 +507,7 @@ impl Default for WindowAttributesWindows {
             title_text_color: None,
             corner_preference: None,
             use_system_wheel_speed: true,
+            cloaked: false,
         }
     }
 }
@@ -624,6 +638,15 @@ impl WindowAttributesWindows {
     /// Supported starting with Windows 11 Build 22000.
     pub fn with_corner_preference(mut self, corners: CornerPreference) -> Self {
         self.corner_preference = Some(corners);
+        self
+    }
+
+    /// Cloaks the window such that it is not visible to the user. The window is still composed by
+    /// DWM.
+    ///
+    /// Not supported on Windows 7 and earlier.
+    pub fn with_cloaked(mut self, cloaked: bool) -> Self {
+        self.cloaked = cloaked;
         self
     }
 
