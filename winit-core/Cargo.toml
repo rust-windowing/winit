@@ -30,6 +30,7 @@ keyboard-types.workspace = true
 rwh_06.workspace = true
 serde = { workspace = true, optional = true }
 smol_str.workspace = true
+url.workspace = true
 
 # `wasm32-unknown-unknown` and `wasm32-none`, but not `wasm32-wasi`.
 [target.'cfg(all(target_family = "wasm", any(target_os = "unknown", target_os = "none")))'.dependencies]

@@ -8,8 +8,8 @@
 mod util;
 mod dark_mode;
 mod definitions;
+mod dnd;
 mod dpi;
-mod drop_handler;
 mod event_loop;
 mod icon;
 mod ime;

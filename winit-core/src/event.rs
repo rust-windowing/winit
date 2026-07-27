@@ -2,8 +2,7 @@
 use std::cell::LazyCell;
 use std::cmp::Ordering;
 use std::f64;
-use std::path::PathBuf;
-use std::sync::{Mutex, Weak};
+use std::sync::{Arc, Mutex, Weak};
 
 use dpi::{PhysicalPosition, PhysicalSize};
 #[cfg(feature = "serde")]
@@ -11,8 +10,9 @@ use serde::{Deserialize, Serialize};
 use smol_str::SmolStr;
 
 use crate::Instant;
+use crate::data_transfer::{DataTransferId, TypedData};
 use crate::error::RequestError;
-use crate::event_loop::AsyncRequestSerial;
+use crate::event_loop::{AsyncRequestSerial, DndAction};
 use crate::keyboard::{self, ModifiersKeyState, ModifiersKeys, ModifiersState};
 #[cfg(doc)]
 use crate::window::Window;
@@ -75,41 +75,103 @@ pub enum WindowEvent {
     /// The window has been destroyed.
     Destroyed,
 
-    /// A file drag operation has entered the window.
+    /// A drag operation has entered the window.
+    ///
+    /// The user can use the `id` to read information about the incoming dragged data, and report
+    /// whether the operation is accepted or rejected back to the operating system (see
+    /// [`crate::event_loop::ActiveEventLoop::set_valid_dnd_actions`](`crate::event_loop::ActiveEventLoop::set_valid_dnd_actions`)).
+    ///
+    /// To read the data being dragged, see
+    /// [`crate::event_loop::ActiveEventLoop::fetch_data_transfer`](`crate::event_loop::ActiveEventLoop::fetch_data_transfer`).
     DragEntered {
-        /// List of paths that are being dragged onto the window.
-        paths: Vec<PathBuf>,
-        /// (x,y) coordinates in pixels relative to the top-left corner of the window. May be
-        /// negative on some platforms if something is dragged over a window's decorations (title
-        /// bar, frame, etc).
-        position: PhysicalPosition<f64>,
-    },
-    /// A file drag operation has moved over the window.
-    DragMoved {
-        /// (x,y) coordinates in pixels relative to the top-left corner of the window. May be
-        /// negative on some platforms if something is dragged over a window's decorations (title
-        /// bar, frame, etc).
-        position: PhysicalPosition<f64>,
-    },
-    /// The file drag operation has dropped file(s) on the window.
-    DragDropped {
-        /// List of paths that are being dragged onto the window.
-        paths: Vec<PathBuf>,
-        /// (x,y) coordinates in pixels relative to the top-left corner of the window. May be
-        /// negative on some platforms if something is dragged over a window's decorations (title
-        /// bar, frame, etc).
-        position: PhysicalPosition<f64>,
-    },
-    /// The file drag operation has been cancelled or left the window.
-    DragLeft {
-        /// (x,y) coordinates in pixels relative to the top-left corner of the window. May be
-        /// negative on some platforms if something is dragged over a window's decorations (title
-        /// bar, frame, etc).
+        /// ID of the data transfer object, see
+        /// [`crate::event_loop::ActiveEventLoop::data_transfer`](`crate::event_loop::ActiveEventLoop::data_transfer`).
+        id: DataTransferId,
+        /// (x,y) coordinates in pixels relative to the top-left corner of the window.
         ///
-        /// ## Platform-specific
+        /// May be negative on some platforms if something is dragged over a window's decorations
+        /// (title bar, frame, etc).
         ///
-        /// - **Windows:** Always emits [`None`].
+        /// Some platforms will provide this on enter, others do not. If
+        /// [`crate::event_loop::ActiveEventLoop::set_valid_dnd_actions`](`crate::event_loop::ActiveEventLoop::set_valid_dnd_actions`)
+        /// is never called, the default state is for the drag operation to be rejected. The
+        /// position is provided here when available to allow the application to accept a drag
+        /// operation as soon as possible, preventing the cursor from flickering from rejected to
+        /// accepted.
         position: Option<PhysicalPosition<f64>>,
+    },
+    /// The position of an ongoing drag operation has changed.
+    DragPosition {
+        /// ID of the data transfer object, see
+        /// [`crate::event_loop::ActiveEventLoop::data_transfer`](`crate::event_loop::ActiveEventLoop::data_transfer`).
+        id: DataTransferId,
+        /// (x,y) coordinates in pixels relative to the top-left corner of the window.
+        ///
+        /// May be negative on some platforms if something is dragged over a window's decorations
+        /// (title bar, frame, etc).
+        position: PhysicalPosition<f64>,
+        /// The drag action proposed by the OS, based on the actions supplied in
+        /// [`crate::event_loop::ActiveEventLoop::set_valid_dnd_actions`], the actions available on
+        /// the source, and the held modifier keys.
+        ///
+        /// This may be `None` if the backend has not supplied a valid action. On some platforms
+        /// (in particular, X11), the application is only informed of the proposed action once
+        /// the operation completes.
+        proposed_action: Option<DndAction>,
+    },
+    /// A drag operation has dropped file(s) on the window.
+    DragDropped {
+        /// ID of the data transfer object, see
+        /// [`crate::event_loop::ActiveEventLoop::data_transfer`].
+        id: DataTransferId,
+        /// The drag action proposed by the OS, based on the actions supplied in
+        /// [`crate::event_loop::ActiveEventLoop::set_valid_dnd_actions`], the actions available on
+        /// the source, and the held modifier keys.
+        ///
+        /// This may be `None` if the backend has not supplied a valid action. This is different
+        /// from the drag being canceled: the drag completed successfully, we just don't know
+        /// what action was selected.
+        proposed_action: Option<DndAction>,
+    },
+    /// A drag operation has been canceled or left the window.
+    DragLeft {
+        /// ID of the data transfer object, see
+        /// [`crate::event_loop::ActiveEventLoop::data_transfer`].
+        id: DataTransferId,
+    },
+    /// Data is available for a specific fetch request, see
+    /// [`fetch_data_transfer`](crate::event_loop::ActiveEventLoop::data_transfer).
+    ///
+    /// While winit makes a best effort to only send this event precisely once, on some platforms it
+    /// may not be possible to uniquely determine the window that should receive it. In these
+    /// cases, winit may dispatch the event to all  windows that have access to the data
+    /// transfer. If your application should only process this event once per data transfer, the
+    /// `serial` field can be used to deduplicate it.
+    DataTransferReceived {
+        /// ID of the data transfer object, see
+        /// [`crate::event_loop::ActiveEventLoop::data_transfer`].
+        id: DataTransferId,
+        /// Serial returned from `fetch_data_transfer`.
+        serial: AsyncRequestSerial,
+        /// The data for the transfer, with a specific type.
+        value: Arc<dyn TypedData>,
+    },
+
+    /// A drag operation started with `start_drag` has been dropped.
+    OutgoingDragDropped {
+        /// The ID returned from `start_drag`
+        id: DataTransferId,
+        /// The operation selected by the drop destination.
+        ///
+        /// This may be `None` if the backend has not supplied a valid action. This is different
+        /// from the drag being canceled: the drag completed successfully, we just don't know
+        /// what action was selected.
+        action: Option<DndAction>,
+    },
+    /// A drag operation started with `start_drag` has been canceled.
+    OutgoingDragCanceled {
+        /// The ID returned from `start_drag`
+        id: DataTransferId,
     },
 
     /// The window gained or lost focus.
@@ -268,6 +330,20 @@ pub enum WindowEvent {
 
         button: ButtonSource,
     },
+
+    /// Multi-finger hold gesture on the touchpad or touchscreen without movement.
+    ///
+    /// The `phase` field indicates the lifecycle of the hold gesture:
+    /// - `Started`: One or more fingers are in contact with the touchpad/touchscreen.
+    /// - `Ended`: All fingers have been lifted from the touchpad/touchscreen.
+    /// - `Cancelled`: The hold gesture was interrupted, for example when another finger touches the
+    ///   touchpad (causing a new `Started` event with more fingers), or when movement begins and
+    ///   transitions to other gestures like pinch, pan, or rotation.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - Only available on **Wayland**.
+    HoldGesture { device_id: Option<DeviceId>, phase: TouchPhase },
 
     /// Two-finger pinch gesture, often used for magnification.
     ///
@@ -1006,9 +1082,17 @@ pub enum Ime {
 #[derive(Debug, Hash, PartialEq, Eq, Clone, Copy)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum TouchPhase {
+    /// Initial touch contact or gesture start, for example when one or more fingers touch the
+    /// screen or touchpad.
     Started,
+    /// The touch contact point changed, for example without lifting the finger.
     Moved,
+    /// All touch contact points have been lifted from the touchscreen or touchpad.
+    ///
+    /// This event is important as it should clear any state or event in flight that was
+    /// generated by the preceding `Started` and `Moved` events.
     Ended,
+    /// The event was cancelled and should cancel any event in flight and clear state.
     Cancelled,
 }
 
@@ -1560,16 +1644,20 @@ mod tests {
             use crate::event::Ime::Enabled;
             use crate::event::WindowEvent::*;
             use crate::event::{PointerKind, PointerSource};
+            use crate::event_loop::DndAction;
+            use crate::data_transfer::DataTransferId;
+
+            let dnd_data = DataTransferId::from_raw(123);
 
             with_window_event(CloseRequested);
             with_window_event(Destroyed);
             with_window_event(Focused(true));
             with_window_event(Moved((0, 0).into()));
             with_window_event(SurfaceResized((0, 0).into()));
-            with_window_event(DragEntered { paths: vec!["x.txt".into()], position: (0, 0).into() });
-            with_window_event(DragMoved { position: (0, 0).into() });
-            with_window_event(DragDropped { paths: vec!["x.txt".into()], position: (0, 0).into() });
-            with_window_event(DragLeft { position: Some((0, 0).into()) });
+            with_window_event(DragEntered { id: dnd_data, position: None });
+            with_window_event(DragPosition { id: dnd_data, position: (0, 0).into(), proposed_action: Some(DndAction::Copy) });
+            with_window_event(DragDropped { id: dnd_data, proposed_action: Some(DndAction::Copy) });
+            with_window_event(DragLeft { id: dnd_data });
             with_window_event(Ime(Enabled));
             with_window_event(PointerMoved {
                 device_id: None,

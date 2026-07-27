@@ -45,19 +45,30 @@ changelog entry.
 - Add `keyboard` support for OpenHarmony.
 - On iOS, add Apple Pencil support with force, altitude, and azimuth data.
 - On Redox, add support for missing keyboard scancodes.
+- On Redox, add support for `EventLoopExtPumpEvents::pump_app_events`.
 - Implement `Send` and `Sync` for `OwnedDisplayHandle`.
 - Use new macOS 15 cursors for resize icons.
 - On Android, added scancode conversions for more obscure key codes.
+- On Wayland, added `HoldGesture` event for multi-finger hold gestures
 - On Wayland, added ext-background-effect-v1 support.
 
 ### Changed
 
 - Updated `windows-sys` to `v0.61`.
 - On older macOS versions (tested up to 12.7.6), applications now receive mouse movement events for unfocused windows, matching the behavior on other platforms.
+- On macOS, using the private API `CGSSetWindowBackgroundBlurRadius` for `Window::set_blur` is now disabled by default. It can be re-enabled using the Cargo feature `private-apple-apis`.
 
 ### Fixed
 
+- On Windows, fix a freeze that occurs when the keyboard layout is switched by
+  tools such as Punto Switcher. The `WM_INPUTLANGCHANGE` message is now handled
+  to refresh the cached keyboard layout, while still deferring to
+  `DefWindowProc` for normal propagation.
+- On Windows, fix getting the window's DPI internally leaks `HDC` handles.
+  Also only call `GetDC` when on < Windows 8.1 which improves its performance.
 - On Redox, handle `EINTR` when reading from `event_socket` instead of panicking.
 - On Wayland, switch from using the `ahash` hashing algorithm to `foldhash`.
 - On macOS, fix borderless game presentation options not sticking after switching spaces.
 - On macOS, fix IME being locked on (regardless of requests to disable) after being enabled once.
+- On macOS, fix a panic and incorrect cursor position in Ime::Preedit when the preedit string contains special characters (ie. emojis) caused by incorrect UTF-16 to UTF-8 offset conversion.
+- On Wayland, fix a protocol error when setting a custom cursor on compositors with `wl_surface` version below 3.

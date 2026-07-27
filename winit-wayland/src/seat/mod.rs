@@ -3,15 +3,17 @@
 use std::sync::Arc;
 
 use foldhash::HashMap;
+use sctk::data_device_manager::data_device::DataDevice;
 use sctk::reexports::client::backend::ObjectId;
 use sctk::reexports::client::protocol::wl_seat::WlSeat;
 use sctk::reexports::client::protocol::wl_touch::WlTouch;
 use sctk::reexports::client::{Connection, Proxy, QueueHandle};
 use sctk::reexports::protocols::wp::relative_pointer::zv1::client::zwp_relative_pointer_v1::ZwpRelativePointerV1;
 use sctk::reexports::protocols::wp::text_input::zv3::client::zwp_text_input_v3::ZwpTextInputV3;
-use sctk::seat::pointer::{ThemeSpec, ThemedPointer};
+use sctk::seat::pointer::{PointerData, ThemeSpec, ThemedPointer};
 use sctk::seat::{Capability as SeatCapability, SeatHandler, SeatState};
 use tracing::warn;
+use wayland_protocols::wp::pointer_gestures::zv1::client::zwp_pointer_gesture_hold_v1::ZwpPointerGestureHoldV1;
 use wayland_protocols::wp::pointer_gestures::zv1::client::zwp_pointer_gesture_pinch_v1::ZwpPointerGesturePinchV1;
 use wayland_protocols::wp::tablet::zv2::client::zwp_tablet_seat_v2::ZwpTabletSeatV2;
 use winit_core::event::WindowEvent;
@@ -60,6 +62,12 @@ pub struct WinitSeatState {
     /// The pinch pointer gesture bound on the seat.
     pointer_gesture_pinch: Option<ZwpPointerGesturePinchV1>,
 
+    /// The hold pointer gesture bound on the seat.
+    pointer_gesture_hold: Option<ZwpPointerGestureHoldV1>,
+
+    /// The drag-and-drop state
+    data_device: Option<DataDevice>,
+
     /// The keyboard bound on the seat.
     keyboard_state: Option<KeyboardState>,
 
@@ -73,6 +81,14 @@ pub struct WinitSeatState {
 impl WinitSeatState {
     pub fn new() -> Self {
         Default::default()
+    }
+
+    pub(crate) fn data_device(&self) -> Option<&DataDevice> {
+        self.data_device.as_ref()
+    }
+
+    pub(crate) fn pointer_data(&self) -> Option<&PointerData<WinitPointerData>> {
+        self.pointer.as_ref().and_then(|pointer| pointer.pointer().data())
     }
 }
 
@@ -112,7 +128,7 @@ impl SeatHandler for WinitState {
                     .as_ref()
                     .map(|state| state.get_viewport(&surface, queue_handle));
                 let surface_id = surface.id();
-                let pointer_data = WinitPointerData::new(seat.clone(), viewport);
+                let pointer_data = WinitPointerData::new(viewport);
                 let themed_pointer = self
                     .seat_state
                     .get_pointer_with_theme_and_data(
@@ -125,6 +141,11 @@ impl SeatHandler for WinitState {
                     )
                     .expect("failed to create pointer with present capability.");
 
+                seat_state.data_device = self
+                    .data_device_manager_state
+                    .as_ref()
+                    .map(|device| device.get_data_device(queue_handle, &seat));
+
                 seat_state.relative_pointer = self.relative_pointer.as_ref().map(|manager| {
                     manager.get_relative_pointer(
                         themed_pointer.pointer(),
@@ -135,6 +156,14 @@ impl SeatHandler for WinitState {
 
                 seat_state.pointer_gesture_pinch = self.pointer_gestures.as_ref().map(|manager| {
                     manager.get_pinch_gesture(
+                        themed_pointer.pointer(),
+                        queue_handle,
+                        PointerGestureData::default(),
+                    )
+                });
+
+                seat_state.pointer_gesture_hold = self.pointer_gestures.as_ref().map(|manager| {
+                    manager.get_hold_gesture(
                         themed_pointer.pointer(),
                         queue_handle,
                         PointerGestureData::default(),
@@ -209,6 +238,12 @@ impl SeatHandler for WinitState {
                     pointer_gesture_pinch.destroy();
                 }
 
+                if let Some(pointer_gesture_hold) = seat_state.pointer_gesture_hold.take() {
+                    pointer_gesture_hold.destroy();
+                }
+
+                seat_state.data_device = None;
+
                 if let Some(pointer) = seat_state.pointer.take() {
                     let pointer_data = pointer.pointer().winit_data();
 
@@ -217,8 +252,8 @@ impl SeatHandler for WinitState {
                     let _ = self.pointer_surfaces.remove(&surface_id);
 
                     // Remove the inner locks/confines before dropping the pointer.
-                    pointer_data.unlock_pointer();
-                    pointer_data.unconfine_pointer();
+                    pointer_data.data().unlock_pointer();
+                    pointer_data.data().unconfine_pointer();
 
                     if pointer.pointer().version() >= 3 {
                         pointer.pointer().release();
@@ -265,5 +300,3 @@ impl WinitState {
         }
     }
 }
-
-sctk::delegate_seat!(WinitState);
