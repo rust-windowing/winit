@@ -113,11 +113,11 @@ pub(crate) struct State {
     is_simple_fullscreen: Cell<bool>,
     saved_style: Cell<Option<NSWindowStyleMask>>,
     is_borderless_game: Cell<bool>,
-    is_popup: Cell<bool>,
+    is_popup: bool,
     /// The popup positioner state, kept in sync with `is_popup`. Stored here (rather than only
     /// on the `Window` struct) so it stays reachable from just an `NSWindow` -- e.g. via
     /// `NSWindow::delegate` -- to reposition a popup when its parent moves.
-    window_type: Mutex<WindowType>,
+    window_type: RefCell<WindowType>,
 }
 
 define_class!(
@@ -983,8 +983,8 @@ impl WindowDelegate {
             is_simple_fullscreen: Cell::new(false),
             saved_style: Cell::new(None),
             is_borderless_game: Cell::new(macos_attrs.borderless_game),
-            is_popup: Cell::new(is_popup),
-            window_type: Mutex::new(attrs.window_type.clone()),
+            is_popup,
+            window_type: RefCell::new(attrs.window_type.clone()),
         });
         let delegate: Retained<WindowDelegate> = unsafe { msg_send![super(delegate), init] };
 
@@ -1232,7 +1232,7 @@ impl WindowDelegate {
     /// content area (matching the Win32 and Wayland backends). macOS positions windows
     /// in global screen coordinates, so add the parent content area's origin.
     fn translate_popup_position(&self, position: LogicalPosition<f64>) -> LogicalPosition<f64> {
-        if !self.ivars().is_popup.get() {
+        if !self.ivars().is_popup {
             return position;
         }
         let Some(parent) = self.window().parentWindow() else {
@@ -1251,7 +1251,7 @@ impl WindowDelegate {
         &self,
         position: LogicalPosition<f64>,
     ) -> LogicalPosition<f64> {
-        if !self.ivars().is_popup.get() {
+        if !self.ivars().is_popup {
             return position;
         }
         let Some(parent) = self.window().parentWindow() else {
@@ -1265,7 +1265,7 @@ impl WindowDelegate {
     /// The parent window's content area origin, in global (Winit, top-left/y-down) screen
     /// coordinates. `None` if this isn't a popup, or it has no parent.
     pub fn parent_content_origin(&self) -> Option<LogicalPosition<f64>> {
-        if !self.ivars().is_popup.get() {
+        if !self.ivars().is_popup {
             return None;
         }
         let parent = self.window().parentWindow()?;
@@ -1274,11 +1274,11 @@ impl WindowDelegate {
     }
 
     pub fn window_type(&self) -> WindowType {
-        self.ivars().window_type.lock().unwrap().clone()
+        self.ivars().window_type.borrow().clone()
     }
 
     pub fn popup_anchor_rect(&self) -> Option<(Position, Size)> {
-        let window_type = self.ivars().window_type.lock().unwrap();
+        let window_type = self.ivars().window_type.borrow();
         if let WindowType::Popup { anchor_rect: Some((position, size)), .. } = &*window_type {
             Some((*position, *size))
         } else {
@@ -1288,7 +1288,7 @@ impl WindowDelegate {
 
     pub fn set_popup_anchor(&self, anchor: PopupAnchor) {
         {
-            let mut window_type = self.ivars().window_type.lock().unwrap();
+            let mut window_type = self.ivars().window_type.borrow_mut();
             if let WindowType::Popup { anchor: stored, .. } = &mut *window_type {
                 *stored = Some(anchor);
             }
@@ -1298,7 +1298,7 @@ impl WindowDelegate {
 
     pub fn set_popup_anchor_rect(&self, position: Position, size: Size) {
         {
-            let mut window_type = self.ivars().window_type.lock().unwrap();
+            let mut window_type = self.ivars().window_type.borrow_mut();
             if let WindowType::Popup { anchor_rect, .. } = &mut *window_type {
                 *anchor_rect = Some((position.into(), size.into()));
             }
@@ -1311,7 +1311,7 @@ impl WindowDelegate {
         constraint_adjustment: PopupConstraintAdjustment,
     ) {
         {
-            let mut window_type = self.ivars().window_type.lock().unwrap();
+            let mut window_type = self.ivars().window_type.borrow_mut();
             if let WindowType::Popup { constraint_adjustment: stored, .. } = &mut *window_type {
                 *stored = Some(constraint_adjustment);
             }
@@ -1321,7 +1321,7 @@ impl WindowDelegate {
 
     pub fn set_popup_gravity(&self, gravity: PopupGravity) {
         {
-            let mut window_type = self.ivars().window_type.lock().unwrap();
+            let mut window_type = self.ivars().window_type.borrow_mut();
             if let WindowType::Popup { gravity: stored, .. } = &mut *window_type {
                 *stored = Some(gravity);
             }
@@ -1331,7 +1331,7 @@ impl WindowDelegate {
 
     pub fn set_popup_positioner_offset(&self, position: Position) {
         {
-            let mut window_type = self.ivars().window_type.lock().unwrap();
+            let mut window_type = self.ivars().window_type.borrow_mut();
             if let WindowType::Popup { positioner_offset, .. } = &mut *window_type {
                 *positioner_offset = Some(position.into());
             }
@@ -1344,7 +1344,7 @@ impl WindowDelegate {
     /// window isn't a popup, or if it has no parent.
     pub(crate) fn reposition_popup(&self) {
         let (anchor, gravity, constraint_adjustment, anchor_rect, positioner_offset) = {
-            let window_type = self.ivars().window_type.lock().unwrap();
+            let window_type = self.ivars().window_type.borrow();
             let WindowType::Popup {
                 anchor,
                 anchor_rect,
@@ -1419,7 +1419,7 @@ impl WindowDelegate {
         for child in children.iter() {
             let Some(child_delegate) = child.delegate() else { continue };
             let Ok(child_delegate) = child_delegate.downcast::<WindowDelegate>() else { continue };
-            if child_delegate.ivars().is_popup.get() {
+            if child_delegate.ivars().is_popup {
                 child_delegate.reposition_popup();
             }
         }
