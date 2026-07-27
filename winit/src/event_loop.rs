@@ -163,34 +163,8 @@ impl EventLoop {
     /// If this requirement is prohibitive for you, consider using [`run_app_on_demand`] instead
     /// (though note that this is not available on iOS and web).
     #[inline]
-    #[allow(unused_mut)]
-    pub fn run_app<A: ApplicationHandler + 'static>(
-        mut self,
-        mut app: A,
-    ) -> Result<(), EventLoopError> {
-        #[cfg(any(
-            windows_platform,
-            macos_platform,
-            android_platform,
-            orbital_platform,
-            x11_platform,
-            wayland_platform,
-        ))]
-        {
-            let result = self.event_loop.run_app_on_demand(&mut app);
-            // SAFETY: unsure that the state is dropped before the exit from the event loop.
-            drop(app);
-            result
-        }
-        #[cfg(web_platform)]
-        {
-            self.event_loop.register_app(app);
-            Ok(())
-        }
-        #[cfg(ios_platform)]
-        {
-            self.event_loop.run_app_never_return(app)
-        }
+    pub fn run_app<A: ApplicationHandler + 'static>(self, app: A) -> Result<(), EventLoopError> {
+        self.event_loop.run_app(app)
     }
 
     /// Creates an [`EventLoopProxy`] that can be used to dispatch user events
