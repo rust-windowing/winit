@@ -1289,7 +1289,9 @@ impl CorePopup for Window {
 fn outer_size_of(hwnd: HWND) -> PhysicalSize<u32> {
     util::WindowArea::Outer
         .get_rect(hwnd)
-        .map(|rect| PhysicalSize::new((rect.right - rect.left) as u32, (rect.bottom - rect.top) as u32))
+        .map(|rect| {
+            PhysicalSize::new((rect.right - rect.left) as u32, (rect.bottom - rect.top) as u32)
+        })
         .unwrap()
 }
 
@@ -1336,8 +1338,13 @@ fn compute_popup_placement(
     window_type: &WindowType,
     scale_factor: f64,
 ) -> Option<(LogicalPosition<f64>, LogicalSize<f64>, LogicalSize<f64>)> {
-    let WindowType::Popup { anchor, anchor_rect, positioner_offset, gravity, constraint_adjustment } =
-        window_type
+    let WindowType::Popup {
+        anchor,
+        anchor_rect,
+        positioner_offset,
+        gravity,
+        constraint_adjustment,
+    } = window_type
     else {
         return None;
     };
@@ -1409,7 +1416,8 @@ pub(crate) fn reposition_owned_popup(hwnd: HWND, window_state: &Mutex<WindowStat
         (state.window_type.clone(), state.scale_factor)
     };
 
-    let Some((origin, size, popup_size)) = compute_popup_placement(hwnd, &window_type, scale_factor)
+    let Some((origin, size, popup_size)) =
+        compute_popup_placement(hwnd, &window_type, scale_factor)
     else {
         return;
     };

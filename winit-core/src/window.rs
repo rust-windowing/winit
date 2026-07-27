@@ -570,9 +570,9 @@ pub trait Window: AsAny + Send + Sync + fmt::Debug {
     /// Returns this window as a [`Popup`] if the window is a Popup, otherwise None
     ///
     /// Distinct implementation for:
-	/// - **Wayland**
-	/// - **Windows**
-	/// - **macOs**
+    /// - **Wayland**
+    /// - **Windows**
+    /// - **macOs**
     fn as_popup(&self) -> Option<&dyn Popup> {
         None
     }
