@@ -48,6 +48,7 @@ objc2-foundation = { workspace = true, features = [
 objc2-ui-kit = { workspace = true, features = [
     "std",
     "objc2-core-foundation",
+    "objc2-quartz-core",
     "UIApplication",
     "UIDevice",
     "UIEvent",
