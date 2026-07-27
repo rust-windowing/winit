@@ -1,4 +1,5 @@
 use core::sync::atomic::Ordering;
+use std::any::Any;
 use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, Mutex, Weak};
 
@@ -16,6 +17,7 @@ use winit_core::cursor::Cursor;
 use winit_core::error::{NotSupportedError, RequestError};
 use winit_core::event::{Ime, WindowEvent};
 use winit_core::monitor::{Fullscreen, MonitorHandle as CoreMonitorHandle};
+use winit_core::popup::{Popup as CorePopup, PopupAnchor, PopupConstraintAdjustment, PopupGravity};
 use winit_core::window::{
     CursorGrabMode, ImeCapabilities, ImeRequest, ImeRequestError, ResizeDirection, Theme,
     UserAttentionType, Window as CoreWindow, WindowAttributes, WindowButtons, WindowId,
@@ -24,10 +26,10 @@ use winit_core::window::{
 
 use super::ActiveEventLoop;
 use super::output::MonitorHandle;
+use crate::WindowAttributesWayland;
 use crate::window::Handles;
 use crate::window::handles::WindowRequests;
 use crate::window::state::{WindowState, WindowType};
-use crate::{PopupExtWayland, WindowAttributesWayland};
 
 #[derive(Debug)]
 pub struct Popup {
@@ -73,20 +75,18 @@ impl Popup {
             let (popup, popup_state) = if let Some(parent_window_state) =
                 state.windows.borrow().get(&parent_window_id)
             {
-                let wayland_attributes = attributes
-                    .platform
-                    .as_ref()
-                    .and_then(|p| p.cast_ref::<WindowAttributesWayland>())
-                    .cloned()
-                    .unwrap_or_default();
-                let WindowAttributesWayland {
-                    gravity,
+                let winit_core::window::WindowType::Popup {
                     anchor,
                     anchor_rect,
-                    constraint_adjustment,
                     positioner_offset,
-                    ..
-                } = wayland_attributes;
+                    gravity,
+                    constraint_adjustment,
+                } = attributes.window_type
+                else {
+                    return Err(error(
+                        "Popup::new() called with window type not Popup is not allowed",
+                    ));
+                };
                 let grab_keyboard = attributes.active;
 
                 let mut parent_window_state = parent_window_state.lock().unwrap();
@@ -107,10 +107,11 @@ impl Popup {
                 // This is important for client side decorations
                 let geometry_origin = parent_window_state.content_surface_origin();
                 let anchor_position = LogicalPosition::new(-geometry_origin.x, -geometry_origin.y);
-                positioner.set_anchor(anchor.unwrap_or(crate::PopupAnchor::TopLeft).into());
-                positioner.set_gravity(gravity.unwrap_or(crate::PopupGravity::BottomRight).into());
-                constraint_adjustment
-                    .inspect(|c| positioner.set_constraint_adjustment((*c).into()));
+                positioner.set_anchor(from_anchor(anchor.unwrap_or(PopupAnchor::TopLeft)));
+                positioner.set_gravity(from_gravity(gravity.unwrap_or(PopupGravity::BottomRight)));
+                constraint_adjustment.inspect(|c| {
+                    positioner.set_constraint_adjustment(from_constraint_adjustment(*c))
+                });
                 let (anchor_rect_position, anchor_rect_size) = match anchor_rect {
                     Some((position, size)) => (
                         position.to_logical::<i32>(scale_factor),
@@ -167,6 +168,10 @@ impl Popup {
                         last_configure: None,
                         anchor_rect,
                         parent_origin: geometry_origin,
+                        anchor,
+                        constraint_adjustment,
+                        gravity,
+                        positioner_offset,
                     },
                     attributes.preferred_theme,
                     false,
@@ -285,7 +290,36 @@ impl Popup {
 
 impl CoreWindow for Popup {
     fn window_type(&self) -> winit_core::window::WindowType {
-        winit_core::window::WindowType::Popup
+        if let Some(s) = self.popup_state.upgrade()
+            && let WindowType::Popup {
+                anchor_rect,
+                anchor,
+                constraint_adjustment,
+                gravity,
+                positioner_offset,
+                ..
+            } = &s.lock().unwrap().window
+        {
+            winit_core::window::WindowType::Popup {
+                anchor: anchor.clone(),
+                anchor_rect: Some((anchor_rect.0.into(), anchor_rect.1.into())),
+                constraint_adjustment: constraint_adjustment.clone(),
+                gravity: gravity.clone(),
+                positioner_offset: positioner_offset.clone(),
+            }
+        } else {
+            winit_core::window::WindowType::Popup {
+                anchor: None,
+                anchor_rect: None,
+                constraint_adjustment: None,
+                gravity: None,
+                positioner_offset: None,
+            }
+        }
+    }
+
+    fn as_popup(&self) -> Option<&dyn CorePopup> {
+        Some(self)
     }
 
     fn id(&self) -> WindowId {
@@ -668,38 +702,44 @@ impl rwh_06::HasDisplayHandle for Popup {
     }
 }
 
-impl PopupExtWayland for Popup {
-    fn set_anchor(&self, anchor: crate::PopupAnchor) {
+impl CorePopup for Popup {
+    fn set_anchor(&self, new_anchor: PopupAnchor) {
         let Some(state) = self.popup_state.upgrade() else {
             return;
         };
 
-        if let WindowType::Popup { popup, positioner, .. } = &state.lock().unwrap().window {
-            positioner.set_anchor(anchor.into());
+        if let WindowType::Popup { popup, positioner, anchor, .. } =
+            &mut state.lock().unwrap().window
+        {
+            *anchor = Some(new_anchor);
+            positioner.set_anchor(from_anchor(new_anchor));
             popup.reposition(positioner, 0);
         }
     }
 
-    fn anchor_rect(&self) -> Option<(impl Into<Position>, impl Into<Size>)> {
+    fn anchor_rect(&self) -> Option<(Position, Size)> {
         let state = self.popup_state.upgrade()?;
         if let WindowType::Popup { anchor_rect, .. } = &state.lock().unwrap().window {
-            Some(*anchor_rect)
+            Some((anchor_rect.0.into(), anchor_rect.1.into()))
         } else {
             None
         }
     }
 
-    fn set_anchor_rect(&self, position: impl Into<Position>, size: impl Into<Size>) {
+    fn set_anchor_rect(&self, position: Position, size: Size) {
         let Some(state) = self.popup_state.upgrade() else {
             return;
         };
 
-        let state = state.lock().unwrap();
+        let mut state = state.lock().unwrap();
         let scale_factor = state.scale_factor();
-        let size: LogicalSize<i32> = size.into().to_logical(scale_factor);
-        let position: LogicalPosition<i32> = position.into().to_logical(scale_factor);
+        let size: LogicalSize<i32> = size.to_logical(scale_factor);
+        let position: LogicalPosition<i32> = position.to_logical(scale_factor);
 
-        if let WindowType::Popup { popup, positioner, parent_origin, .. } = &state.window {
+        if let WindowType::Popup { popup, positioner, parent_origin, anchor_rect, .. } =
+            &mut state.window
+        {
+            *anchor_rect = (position, size);
             positioner.set_anchor_rect(
                 position.x - parent_origin.x,
                 position.y - parent_origin.y,
@@ -710,38 +750,102 @@ impl PopupExtWayland for Popup {
         }
     }
 
-    fn set_positioner_offset(&self, position: impl Into<Position>) {
+    fn set_positioner_offset(&self, position: Position) {
         let Some(state) = self.popup_state.upgrade() else {
             return;
         };
 
         let scale_factor = state.lock().unwrap().scale_factor();
-        let position: LogicalPosition<i32> = position.into().to_logical(scale_factor);
-        if let WindowType::Popup { popup, positioner, .. } = &state.lock().unwrap().window {
+        if let WindowType::Popup { popup, positioner, positioner_offset, .. } =
+            &mut state.lock().unwrap().window
+        {
+            *positioner_offset = Some(position.into());
+
+            let position: LogicalPosition<i32> = position.to_logical(scale_factor);
             positioner.set_offset(position.x, position.y);
             popup.reposition(positioner, 0);
         }
     }
 
-    fn set_constraint_adjustment(&self, constraint_adjustment: crate::PopupConstraintAdjustment) {
+    fn set_constraint_adjustment(&self, new_constraint_adjustment: PopupConstraintAdjustment) {
         let Some(state) = self.popup_state.upgrade() else {
             return;
         };
 
-        if let WindowType::Popup { popup, positioner, .. } = &state.lock().unwrap().window {
-            positioner.set_constraint_adjustment(constraint_adjustment.into());
+        if let WindowType::Popup { popup, positioner, constraint_adjustment, .. } =
+            &mut state.lock().unwrap().window
+        {
+            *constraint_adjustment = Some(new_constraint_adjustment);
+            positioner
+                .set_constraint_adjustment(from_constraint_adjustment(new_constraint_adjustment));
             popup.reposition(positioner, 0);
         }
     }
 
-    fn set_gravity(&self, gravity: crate::PopupGravity) {
+    fn set_gravity(&self, new_gravity: PopupGravity) {
         let Some(state) = self.popup_state.upgrade() else {
             return;
         };
 
-        if let WindowType::Popup { popup, positioner, .. } = &state.lock().unwrap().window {
-            positioner.set_gravity(gravity.into());
+        if let WindowType::Popup { popup, positioner, gravity, .. } =
+            &mut state.lock().unwrap().window
+        {
+            *gravity = Some(new_gravity);
+            positioner.set_gravity(from_gravity(new_gravity));
             popup.reposition(positioner, 0);
         }
     }
+}
+
+fn from_gravity(
+    gravity: PopupGravity,
+) -> wayland_protocols::xdg::shell::client::xdg_positioner::Gravity {
+    use wayland_protocols::xdg::shell::client::xdg_positioner::Gravity;
+    match gravity {
+        PopupGravity::Center => Gravity::None,
+        PopupGravity::Top => Gravity::Top,
+        PopupGravity::Bottom => Gravity::Bottom,
+        PopupGravity::Left => Gravity::Left,
+        PopupGravity::Right => Gravity::Right,
+        PopupGravity::TopLeft => Gravity::TopLeft,
+        PopupGravity::BottomLeft => Gravity::BottomLeft,
+        PopupGravity::TopRight => Gravity::TopRight,
+        PopupGravity::BottomRight => Gravity::BottomRight,
+        _ => Gravity::None,
+    }
+}
+
+fn from_anchor(
+    value: PopupAnchor,
+) -> wayland_protocols::xdg::shell::client::xdg_positioner::Anchor {
+    use wayland_protocols::xdg::shell::client::xdg_positioner::Anchor;
+    match value {
+        PopupAnchor::Center => Anchor::None,
+        PopupAnchor::Top => Anchor::Top,
+        PopupAnchor::Bottom => Anchor::Bottom,
+        PopupAnchor::Left => Anchor::Left,
+        PopupAnchor::Right => Anchor::Right,
+        PopupAnchor::TopLeft => Anchor::TopLeft,
+        PopupAnchor::BottomLeft => Anchor::BottomLeft,
+        PopupAnchor::TopRight => Anchor::TopRight,
+        PopupAnchor::BottomRight => Anchor::BottomRight,
+        _ => Anchor::None,
+    }
+}
+
+fn from_constraint_adjustment(
+    value: PopupConstraintAdjustment,
+) -> wayland_protocols::xdg::shell::client::xdg_positioner::ConstraintAdjustment {
+    use wayland_protocols::xdg::shell::client::xdg_positioner::ConstraintAdjustment;
+
+    const _: () = {
+        assert!(PopupConstraintAdjustment::SLIDE_X.bits() == ConstraintAdjustment::SlideX.bits());
+        assert!(PopupConstraintAdjustment::SLIDE_Y.bits() == ConstraintAdjustment::SlideY.bits());
+        assert!(PopupConstraintAdjustment::FLIP_X.bits() == ConstraintAdjustment::FlipX.bits());
+        assert!(PopupConstraintAdjustment::FLIP_Y.bits() == ConstraintAdjustment::FlipY.bits());
+        assert!(PopupConstraintAdjustment::RESIZE_X.bits() == ConstraintAdjustment::ResizeX.bits());
+        assert!(PopupConstraintAdjustment::RESIZE_Y.bits() == ConstraintAdjustment::ResizeY.bits());
+    };
+
+    ConstraintAdjustment::from_bits_retain(value.bits())
 }

@@ -20,7 +20,7 @@ use windows_sys::Win32::UI::WindowsAndMessaging::{
 use winit_core::icon::Icon;
 use winit_core::keyboard::ModifiersState;
 use winit_core::monitor::Fullscreen;
-use winit_core::window::{ImeCapabilities, Theme, WindowAttributes};
+use winit_core::window::{ImeCapabilities, Theme, WindowAttributes, WindowType};
 
 use crate::{SelectedCursor, WindowAttributesWindows, event_loop, util};
 
@@ -50,6 +50,11 @@ pub(crate) struct WindowState {
     pub preferred_theme: Option<Theme>,
 
     pub window_flags: WindowFlags,
+
+    /// The role of this window, and for [`WindowType::Popup`] its positioner state. Stored here
+    /// (rather than only on the `Window` struct) so it stays reachable from just an `hwnd` via
+    /// `GWL_USERDATA` -- e.g. to reposition a popup when its parent moves.
+    pub window_type: WindowType,
 
     pub ime_state: ImeState,
     pub ime_capabilities: Option<ImeCapabilities>,
@@ -186,6 +191,8 @@ impl WindowState {
             preferred_theme,
             window_flags: WindowFlags::empty(),
 
+            window_type: attributes.window_type.clone(),
+
             ime_state: ImeState::Disabled,
             ime_capabilities: None,
 
@@ -287,22 +294,24 @@ impl WindowFlags {
             }
         } else {
             style |= WS_CAPTION | WS_SYSMENU | WS_BORDER;
+
+            if self.contains(WindowFlags::RESIZABLE) {
+                style |= WS_SIZEBOX;
+            }
+            if self.contains(WindowFlags::MAXIMIZABLE) {
+                style |= WS_MAXIMIZEBOX;
+            }
+            if self.contains(WindowFlags::MINIMIZABLE) {
+                style |= WS_MINIMIZEBOX;
+            }
+
+            if self.contains(WindowFlags::ON_TASKBAR) {
+                style_ex |= WS_EX_APPWINDOW;
+            }
         };
 
-        if self.contains(WindowFlags::RESIZABLE) {
-            style |= WS_SIZEBOX;
-        }
-        if self.contains(WindowFlags::MAXIMIZABLE) {
-            style |= WS_MAXIMIZEBOX;
-        }
-        if self.contains(WindowFlags::MINIMIZABLE) {
-            style |= WS_MINIMIZEBOX;
-        }
         if self.contains(WindowFlags::VISIBLE) {
             style |= WS_VISIBLE;
-        }
-        if self.contains(WindowFlags::ON_TASKBAR) {
-            style_ex |= WS_EX_APPWINDOW;
         }
         if self.contains(WindowFlags::ALWAYS_ON_TOP) {
             style_ex |= WS_EX_TOPMOST;
@@ -389,20 +398,26 @@ impl WindowFlags {
 
         if diff.contains(WindowFlags::MAXIMIZED) || new.contains(WindowFlags::MAXIMIZED) {
             unsafe {
-                ShowWindow(window, match new.contains(WindowFlags::MAXIMIZED) {
-                    true => SW_MAXIMIZE,
-                    false => SW_RESTORE,
-                });
+                ShowWindow(
+                    window,
+                    match new.contains(WindowFlags::MAXIMIZED) {
+                        true => SW_MAXIMIZE,
+                        false => SW_RESTORE,
+                    },
+                );
             }
         }
 
         // Minimize operations should execute after maximize for proper window animations
         if diff.contains(WindowFlags::MINIMIZED) {
             unsafe {
-                ShowWindow(window, match new.contains(WindowFlags::MINIMIZED) {
-                    true => SW_MINIMIZE,
-                    false => SW_RESTORE,
-                });
+                ShowWindow(
+                    window,
+                    match new.contains(WindowFlags::MINIMIZED) {
+                        true => SW_MINIMIZE,
+                        false => SW_RESTORE,
+                    },
+                );
             }
 
             diff.remove(WindowFlags::MINIMIZED);

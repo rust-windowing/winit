@@ -14,6 +14,7 @@ use crate::cursor::Cursor;
 use crate::error::RequestError;
 use crate::icon::Icon;
 use crate::monitor::{Fullscreen, MonitorHandle};
+use crate::popup::{Popup, PopupAnchor, PopupConstraintAdjustment, PopupGravity};
 
 /// Identifier of a window. Unique for each window.
 ///
@@ -48,7 +49,7 @@ impl fmt::Debug for WindowId {
 
 /// The role of a window, used to request platform-specific window behavior.
 #[non_exhaustive]
-#[derive(Debug, Clone, Copy, Default, PartialEq)]
+#[derive(Debug, Clone, Default, PartialEq)]
 pub enum WindowType {
     /// A normal, top-level window.
     #[default]
@@ -63,7 +64,32 @@ pub enum WindowType {
     ///   corners for it. To get a rounded, native-looking popup, create it transparent (via
     ///   [`WindowAttributes::with_transparent`]) and render the round border yourself.
     /// - **X11, Web, Android, iOS, Orbital:** An error is returned because it is not implemented.
-    Popup,
+    Popup {
+        /// Sets the edge or corner of the anchor rect used to position the popup relative to it
+        ///
+        /// Combined with [`gravity`](Self::gravity), this controls which corner/edge of
+        /// the anchor rectangle the popup is pinned to.
+        anchor: Option<PopupAnchor>,
+        /// Set the anchor rectangle the popup is positioned relative to.
+        ///
+        /// `position` is the top-left corner of the rectangle relative to the parent window's
+        /// content area, and `size` its dimensions. Defaults to a `1x1` rectangle at the
+        /// content origin. This value overwrites the position value set with
+        /// `with_position` in the window attributes
+        anchor_rect: Option<(Position, Size)>,
+        /// Position relative to the anchor rect
+        positioner_offset: Option<Position>,
+        /// Sets the direction the popup surface extends away from the anchor point.
+        ///
+        /// Combined with [`anchor`](Self::anchor), this determines the final position of the
+        /// popup relative to its anchor rectangle
+        gravity: Option<PopupGravity>,
+        /// Sets how the compositor should reposition the popup when it would be constrained.
+        ///
+        /// The flags in [`PopupConstraintAdjustment`] can be combined to allow sliding, flipping,
+        /// and/or resizing the popup independently on each axis
+        constraint_adjustment: Option<PopupConstraintAdjustment>,
+    },
 }
 
 /// Attributes used when creating a window.
@@ -436,7 +462,7 @@ impl WindowAttributes {
     /// Returns if the window type is a popup or a normal window
     #[inline]
     pub fn window_type(&self) -> WindowType {
-        self.window_type
+        self.window_type.clone()
     }
 }
 
@@ -465,7 +491,7 @@ impl Clone for WindowAttributes {
             parent_window: self.parent_window.clone(),
             fullscreen: self.fullscreen.clone(),
             platform: self.platform.as_ref().map(|platform| platform.box_clone()),
-            window_type: self.window_type,
+            window_type: self.window_type.clone(),
         }
     }
 }
@@ -540,6 +566,16 @@ impl_dyn_casting!(PlatformWindowAttributes);
 pub trait Window: AsAny + Send + Sync + fmt::Debug {
     /// Returns the window type of this window
     fn window_type(&self) -> WindowType;
+
+    /// Returns this window as a [`Popup`] if the window is a Popup, otherwise None
+    ///
+    /// Distinct implementation for:
+	/// - **Wayland**
+	/// - **Windows**
+	/// - **macOs**
+    fn as_popup(&self) -> Option<&dyn Popup> {
+        None
+    }
 
     /// Returns an identifier unique to the window.
     fn id(&self) -> WindowId;

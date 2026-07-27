@@ -40,13 +40,14 @@ use windows_sys::Win32::UI::Input::{
     MOUSE_MOVE_RELATIVE, RAWINPUT, RIM_TYPEKEYBOARD, RIM_TYPEMOUSE,
 };
 use windows_sys::Win32::UI::WindowsAndMessaging::{
-    CREATESTRUCTW, CreateWindowExW, DefWindowProcW, DestroyWindow, DispatchMessageW, GWL_STYLE,
-    GWL_USERDATA, GetClientRect, GetCursorPos, GetMenu, HTCAPTION, HTCLIENT, LoadCursorW,
-    MINMAXINFO, MNC_CLOSE, MSG, MWMO_INPUTAVAILABLE, MsgWaitForMultipleObjectsEx,
-    NCCALCSIZE_PARAMS, PEN_FLAG_BARREL, PEN_FLAG_ERASER, PEN_MASK_PRESSURE, PEN_MASK_ROTATION,
-    PEN_MASK_TILT_X, PEN_MASK_TILT_Y, PM_REMOVE, PT_PEN, PT_TOUCH, PeekMessageW, PostMessageW,
-    QS_ALLINPUT, RI_MOUSE_HWHEEL, RI_MOUSE_WHEEL, RegisterClassExW, RegisterWindowMessageA,
-    SC_MINIMIZE, SC_RESTORE, SIZE_MAXIMIZED, SPI_GETWHEELSCROLLCHARS, SPI_GETWHEELSCROLLLINES,
+    CREATESTRUCTW, CreateWindowExW, DefWindowProcW, DestroyWindow, DispatchMessageW,
+    EnumThreadWindows, GW_OWNER, GWL_STYLE, GWL_USERDATA, GetClientRect, GetCursorPos, GetMenu,
+    GetWindow, HTCAPTION, HTCLIENT, LoadCursorW, MINMAXINFO, MNC_CLOSE, MSG, MWMO_INPUTAVAILABLE,
+    MsgWaitForMultipleObjectsEx, NCCALCSIZE_PARAMS, PEN_FLAG_BARREL, PEN_FLAG_ERASER,
+    PEN_MASK_PRESSURE, PEN_MASK_ROTATION, PEN_MASK_TILT_X, PEN_MASK_TILT_Y, PM_REMOVE, PT_PEN,
+    PT_TOUCH, PeekMessageW, PostMessageW, QS_ALLINPUT, RI_MOUSE_HWHEEL, RI_MOUSE_WHEEL,
+    RegisterClassExW, RegisterWindowMessageA, SC_MINIMIZE, SC_RESTORE, SIZE_MAXIMIZED,
+    SPI_GETWHEELSCROLLCHARS, SPI_GETWHEELSCROLLLINES,
     SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, SWP_NOZORDER, SetCursor, SetWindowPos,
     SystemParametersInfoW, TranslateMessage, WHEEL_DELTA, WINDOWPOS, WM_CAPTURECHANGED, WM_CLOSE,
     WM_CREATE, WM_DESTROY, WM_DPICHANGED, WM_ENTERSIZEMOVE, WM_EXITSIZEMOVE, WM_GETMINMAXINFO,
@@ -61,6 +62,7 @@ use windows_sys::Win32::UI::WindowsAndMessaging::{
     WMSZ_TOPRIGHT, WNDCLASSEXW, WS_EX_LAYERED, WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW,
     WS_EX_TRANSPARENT, WS_OVERLAPPED, WS_POPUP, WS_VISIBLE,
 };
+use windows_sys::core::BOOL;
 use winit_core::application::ApplicationHandler;
 use winit_core::cursor::{CustomCursor, CustomCursorSource};
 use winit_core::data_transfer::{
@@ -94,7 +96,7 @@ use crate::keyboard::KeyEventBuilder;
 use crate::keyboard_layout::LAYOUT_CACHE;
 use crate::monitor::{self, MonitorHandle};
 use crate::util::{WIN10_BUILD_VERSION, wrap_device_id};
-use crate::window::{InitData, Window};
+use crate::window::{self, InitData, Window};
 use crate::window_state::{CursorFlags, ImeState, WindowFlags, WindowState};
 use crate::{raw_input, util};
 
@@ -1077,6 +1079,31 @@ unsafe fn lose_active_focus(window: HWND, userdata: &WindowData) {
     userdata.send_window_event(window, Focused(false));
 }
 
+/// Repositions any popups owned by `parent`. Win32 does not reposition owned windows when their
+/// owner moves (unlike Wayland subsurfaces or X11's override-redirect popups), so this has to be
+/// done manually whenever `parent` receives a `WM_WINDOWPOSCHANGED` that moved it.
+unsafe fn reposition_owned_popups(parent: HWND) {
+    unsafe extern "system" fn enum_proc(hwnd: HWND, lparam: LPARAM) -> BOOL {
+        if unsafe { GetWindow(hwnd, GW_OWNER) } != lparam as HWND {
+            return true.into(); // continue enumeration
+        }
+
+        let userdata = unsafe { util::get_window_long(hwnd, GWL_USERDATA) };
+        if userdata != 0 {
+            let userdata = unsafe { &*(userdata as *const WindowData) };
+            if userdata.window_state_lock().window_flags.contains(WindowFlags::POPUP) {
+                window::reposition_owned_popup(hwnd, &userdata.window_state);
+            }
+        }
+
+        true.into() // continue enumeration
+    }
+
+    unsafe {
+        EnumThreadWindows(GetCurrentThreadId(), Some(enum_proc), parent as LPARAM);
+    }
+}
+
 /// Any window whose callback is configured to this function will have its events propagated
 /// through the events loop of the thread the window was created in.
 // This is the callback that is called by `DispatchMessage` in the events loop.
@@ -1413,6 +1440,8 @@ unsafe fn public_window_callback_inner(
                 let physical_position =
                     unsafe { PhysicalPosition::new((*windowpos).x, (*windowpos).y) };
                 userdata.send_window_event(window, Moved(physical_position));
+
+                unsafe { reposition_owned_popups(window) };
             }
 
             // This is necessary for us to still get sent WM_SIZE.

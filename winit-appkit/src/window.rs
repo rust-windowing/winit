@@ -13,6 +13,7 @@ use winit_core::cursor::Cursor;
 use winit_core::error::RequestError;
 use winit_core::icon::Icon;
 use winit_core::monitor::{Fullscreen, MonitorHandle as CoreMonitorHandle};
+use winit_core::popup::{Popup as CorePopup, PopupAnchor, PopupConstraintAdjustment, PopupGravity};
 use winit_core::window::{
     ImeCapabilities, ImeRequest, ImeRequestError, Theme, UserAttentionType, Window as CoreWindow,
     WindowAttributes, WindowButtons, WindowId, WindowLevel, WindowType,
@@ -26,7 +27,6 @@ pub(crate) struct Window {
     window: MainThreadBound<Retained<NSWindow>>,
     /// The window only keeps a weak reference to this, so we must keep it around here.
     delegate: MainThreadBound<Retained<WindowDelegate>>,
-    window_type: WindowType,
 }
 
 impl Window {
@@ -35,15 +35,22 @@ impl Window {
         attributes: WindowAttributes,
     ) -> Result<Self, RequestError> {
         let mtm = window_target.mtm;
-        let window_type = attributes.window_type;
         let delegate =
             autoreleasepool(|_| WindowDelegate::new(&window_target.app_state, attributes, mtm))?;
         window_target.app_state.register_window(&delegate, mtm);
-        Ok(Window {
+        let window = Window {
             window: MainThreadBound::new(delegate.window().retain(), mtm),
             delegate: MainThreadBound::new(delegate, mtm),
-            window_type,
-        })
+        };
+        window.reposition_popup();
+        Ok(window)
+    }
+
+    /// Recomputes this popup's position (and, if constrained, its size) from its positioner
+    /// state, using [`winit_core::popup::place_popup`], and applies the result. No-op if this
+    /// window isn't a popup, or if it has no parent.
+    fn reposition_popup(&self) {
+        self.maybe_wait_on_main(|delegate| delegate.reposition_popup());
     }
 
     pub(crate) fn maybe_wait_on_main<R: Send>(
@@ -99,7 +106,11 @@ impl rwh_06::HasWindowHandle for Window {
 
 impl CoreWindow for Window {
     fn window_type(&self) -> WindowType {
-        self.window_type
+        self.maybe_wait_on_main(|delegate| delegate.window_type())
+    }
+
+    fn as_popup(&self) -> Option<&dyn CorePopup> {
+        matches!(self.window_type(), WindowType::Popup { .. }).then_some(self)
     }
 
     fn id(&self) -> winit_core::window::WindowId {
@@ -346,6 +357,34 @@ impl CoreWindow for Window {
 
     fn rwh_06_window_handle(&self) -> &dyn rwh_06::HasWindowHandle {
         self
+    }
+}
+
+impl CorePopup for Window {
+    fn anchor_rect(&self) -> Option<(Position, Size)> {
+        self.maybe_wait_on_main(|delegate| delegate.popup_anchor_rect())
+    }
+
+    fn set_anchor(&self, anchor: PopupAnchor) {
+        self.maybe_wait_on_main(|delegate| delegate.set_popup_anchor(anchor));
+    }
+
+    fn set_anchor_rect(&self, position: Position, size: Size) {
+        self.maybe_wait_on_main(|delegate| delegate.set_popup_anchor_rect(position, size));
+    }
+
+    fn set_constraint_adjustment(&self, constraint_adjustment: PopupConstraintAdjustment) {
+        self.maybe_wait_on_main(|delegate| {
+            delegate.set_popup_constraint_adjustment(constraint_adjustment)
+        });
+    }
+
+    fn set_gravity(&self, gravity: PopupGravity) {
+        self.maybe_wait_on_main(|delegate| delegate.set_popup_gravity(gravity));
+    }
+
+    fn set_positioner_offset(&self, position: Position) {
+        self.maybe_wait_on_main(|delegate| delegate.set_popup_positioner_offset(position));
     }
 }
 

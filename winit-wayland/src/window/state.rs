@@ -4,7 +4,7 @@ use std::num::NonZeroU32;
 use std::sync::{Arc, Mutex, Weak};
 use std::time::Duration;
 
-use dpi::{LogicalPosition, LogicalSize, PhysicalPosition, PhysicalSize, Size};
+use dpi::{LogicalPosition, LogicalSize, PhysicalPosition, PhysicalSize, Position, Size};
 use foldhash::HashSet;
 use sctk::compositor::{CompositorState, FrameCallbackData, Region, SurfaceData};
 use sctk::globals::GlobalData;
@@ -32,6 +32,7 @@ use tracing::{info, warn};
 use wayland_protocols::xdg::toplevel_icon::v1::client::xdg_toplevel_icon_manager_v1::XdgToplevelIconManagerV1;
 use winit_core::cursor::{CursorIcon, CustomCursor as CoreCustomCursor};
 use winit_core::error::{NotSupportedError, RequestError};
+use winit_core::popup::{PopupAnchor, PopupConstraintAdjustment, PopupGravity};
 use winit_core::window::{
     CursorGrabMode, ImeCapabilities, ImeRequest, ImeRequestError, ResizeDirection, Theme, WindowId,
 };
@@ -67,7 +68,12 @@ pub enum WindowType {
         positioner: XdgPositioner,
         last_configure: Option<PopupConfigure>,
         parent_origin: LogicalPosition<i32>,
+
         anchor_rect: (LogicalPosition<i32>, LogicalSize<i32>),
+        anchor: Option<PopupAnchor>,
+        positioner_offset: Option<Position>,
+        gravity: Option<PopupGravity>,
+        constraint_adjustment: Option<PopupConstraintAdjustment>,
     },
 }
 
