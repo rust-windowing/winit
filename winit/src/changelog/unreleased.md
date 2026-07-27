@@ -64,6 +64,8 @@ changelog entry.
   tools such as Punto Switcher. The `WM_INPUTLANGCHANGE` message is now handled
   to refresh the cached keyboard layout, while still deferring to
   `DefWindowProc` for normal propagation.
+- On Windows, fix getting the window's DPI internally leaks `HDC` handles.
+  Also only call `GetDC` when on < Windows 8.1 which improves its performance.
 - On Redox, handle `EINTR` when reading from `event_socket` instead of panicking.
 - On Wayland, switch from using the `ahash` hashing algorithm to `foldhash`.
 - On macOS, fix borderless game presentation options not sticking after switching spaces.
