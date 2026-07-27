@@ -1300,7 +1300,7 @@ impl WindowDelegate {
         {
             let mut window_type = self.ivars().window_type.borrow_mut();
             if let WindowType::Popup { anchor_rect, .. } = &mut *window_type {
-                *anchor_rect = Some((position.into(), size.into()));
+                *anchor_rect = Some((position, size));
             }
         }
         self.reposition_popup();
@@ -1333,7 +1333,7 @@ impl WindowDelegate {
         {
             let mut window_type = self.ivars().window_type.borrow_mut();
             if let WindowType::Popup { positioner_offset, .. } = &mut *window_type {
-                *positioner_offset = Some(position.into());
+                *positioner_offset = Some(position);
             }
         }
         self.reposition_popup();
