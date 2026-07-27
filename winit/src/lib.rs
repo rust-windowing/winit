@@ -39,7 +39,7 @@
 //! ```no_run
 //! use winit::application::ApplicationHandler;
 //! use winit::event::WindowEvent;
-//! use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
+//! use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop, EventLoopProvider};
 //! use winit::window::{Window, WindowId, WindowAttributes};
 //!
 //! #[derive(Default)]
@@ -260,7 +260,7 @@
 //!
 //! [`EventLoop`]: event_loop::EventLoop
 //! [`EventLoop::new()`]: event_loop::EventLoop::new
-//! [`EventLoop::run_app()`]: event_loop::EventLoop::run_app
+//! [`EventLoop::run_app()`]: event_loop::EventLoopProvider::run_app
 //! [`exit()`]: event_loop::ActiveEventLoop::exit
 //! [`Window`]: window::Window
 //! [`WindowId`]: window::WindowId
