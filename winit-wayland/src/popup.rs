@@ -287,8 +287,8 @@ impl Popup {
 
 impl CoreWindow for Popup {
     fn window_type(&self) -> winit_core::window::WindowType {
-        if let Some(s) = self.popup_state.upgrade()
-            && let WindowType::Popup {
+        if let Some(s) = self.popup_state.upgrade() {
+            if let WindowType::Popup {
                 anchor_rect,
                 anchor,
                 constraint_adjustment,
@@ -296,22 +296,23 @@ impl CoreWindow for Popup {
                 positioner_offset,
                 ..
             } = &s.lock().unwrap().window
-        {
-            winit_core::window::WindowType::Popup {
-                anchor: *anchor,
-                anchor_rect: Some((anchor_rect.0.into(), anchor_rect.1.into())),
-                constraint_adjustment: *constraint_adjustment,
-                gravity: *gravity,
-                positioner_offset: *positioner_offset,
+            {
+                return winit_core::window::WindowType::Popup {
+                    anchor: *anchor,
+                    anchor_rect: Some((anchor_rect.0.into(), anchor_rect.1.into())),
+                    constraint_adjustment: *constraint_adjustment,
+                    gravity: *gravity,
+                    positioner_offset: *positioner_offset,
+                };
             }
-        } else {
-            winit_core::window::WindowType::Popup {
-                anchor: None,
-                anchor_rect: None,
-                constraint_adjustment: None,
-                gravity: None,
-                positioner_offset: None,
-            }
+        }
+
+        winit_core::window::WindowType::Popup {
+            anchor: None,
+            anchor_rect: None,
+            constraint_adjustment: None,
+            gravity: None,
+            positioner_offset: None,
         }
     }
 
