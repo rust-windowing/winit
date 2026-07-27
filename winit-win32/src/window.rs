@@ -1247,7 +1247,7 @@ impl CorePopup for Window {
         {
             let mut window_state = self.window_state_lock();
             if let WindowType::Popup { anchor_rect, .. } = &mut window_state.window_type {
-                *anchor_rect = Some((position.into(), size.into()));
+                *anchor_rect = Some((position, size));
             }
         }
         self.reposition_popup();
@@ -1279,7 +1279,7 @@ impl CorePopup for Window {
         {
             let mut window_state = self.window_state_lock();
             if let WindowType::Popup { positioner_offset, .. } = &mut window_state.window_type {
-                *positioner_offset = Some(position.into());
+                *positioner_offset = Some(position);
             }
         }
         self.reposition_popup();
