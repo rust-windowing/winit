@@ -6,7 +6,7 @@ use std::time::Duration;
 
 use dpi::{LogicalPosition, LogicalSize, PhysicalPosition, PhysicalSize, Size};
 use foldhash::HashSet;
-use sctk::compositor::{CompositorState, Region, SurfaceData, SurfaceDataExt};
+use sctk::compositor::{CompositorState, FrameCallbackData, Region, SurfaceData};
 use sctk::globals::GlobalData;
 use sctk::reexports::client::backend::ObjectId;
 use sctk::reexports::client::protocol::wl_seat::WlSeat;
@@ -20,7 +20,7 @@ use sctk::reexports::protocols::wp::fractional_scale::v1::client::wp_fractional_
 use sctk::reexports::protocols::wp::text_input::zv3::client::zwp_text_input_v3::ZwpTextInputV3;
 use sctk::reexports::protocols::wp::viewporter::client::wp_viewport::WpViewport;
 use sctk::reexports::protocols::xdg::shell::client::xdg_toplevel::ResizeEdge as XdgResizeEdge;
-use sctk::seat::pointer::{PointerDataExt, ThemedPointer};
+use sctk::seat::pointer::{PointerData, ThemedPointer};
 use sctk::shell::WaylandSurface;
 use sctk::shell::xdg::popup::{ConfigureKind, Popup, PopupConfigure};
 use sctk::shell::xdg::window::{DecorationMode, Window, WindowConfigure};
@@ -302,7 +302,9 @@ impl WindowState {
     }
 
     /// Apply closure on the given pointer.
-    fn apply_on_pointer<F: FnMut(&ThemedPointer<WinitPointerData>, &WinitPointerData)>(
+    fn apply_on_pointer<
+        F: FnMut(&ThemedPointer<WinitPointerData>, &PointerData<WinitPointerData>),
+    >(
         &self,
         mut callback: F,
     ) {
@@ -333,7 +335,7 @@ impl WindowState {
         match self.frame_callback_state {
             FrameCallbackState::None | FrameCallbackState::Received => {
                 self.frame_callback_state = FrameCallbackState::Requested;
-                surface.frame(&self.queue_handle, surface.clone());
+                surface.frame(&self.queue_handle, FrameCallbackData(surface.clone()));
             },
             FrameCallbackState::Requested => (),
         }
@@ -561,10 +563,12 @@ impl WindowState {
 
                 // TODO(kchibisov) handle touch serials.
                 self.apply_on_pointer(|_, data| {
-                    let serial = data.latest_button_serial();
-                    let seat = data.seat();
-                    xdg_toplevel.resize(seat, serial, resize_direction_to_xdg(direction));
+                    if let Some(serial) = data.latest_button_serial() {
+                        let seat = data.seat();
+                        xdg_toplevel.resize(seat, serial, resize_direction_to_xdg(direction));
+                    }
                 });
+
                 Ok(())
             },
             WindowType::Popup { .. } => Err(RequestError::NotSupported(NotSupportedError::new(
@@ -580,9 +584,10 @@ impl WindowState {
                 let xdg_toplevel = window.xdg_toplevel();
                 // TODO(kchibisov) handle touch serials.
                 self.apply_on_pointer(|_, data| {
-                    let serial = data.latest_button_serial();
-                    let seat = data.seat();
-                    xdg_toplevel._move(seat, serial);
+                    if let Some(serial) = data.latest_button_serial() {
+                        let seat = data.seat();
+                        xdg_toplevel._move(seat, serial);
+                    }
                 });
 
                 Ok(())
@@ -961,13 +966,13 @@ impl WindowState {
         self.apply_on_pointer(|pointer, data| {
             let surface = pointer.surface();
 
-            let scale = if let Some(viewport) = data.viewport() {
+            let scale = if let Some(viewport) = data.data().viewport() {
                 let scale = self.scale_factor();
                 let size = PhysicalSize::new(cursor.w, cursor.h).to_logical(scale);
                 viewport.set_destination(size.width, size.height);
                 scale
             } else if surface.version() >= 3 {
-                let scale = surface.data::<SurfaceData>().unwrap().surface_data().scale_factor();
+                let scale = surface.data::<SurfaceData<()>>().unwrap().scale_factor();
                 surface.set_buffer_scale(scale);
                 scale as f64
             } else {
@@ -985,8 +990,8 @@ impl WindowState {
 
             let serial = pointer
                 .pointer()
-                .data::<WinitPointerData>()
-                .and_then(|data| data.pointer_data().latest_enter_serial())
+                .data::<PointerData<WinitPointerData>>()
+                .and_then(|data| data.latest_enter_serial())
                 .unwrap();
 
             let hotspot =
@@ -1079,12 +1084,12 @@ impl WindowState {
         match self.cursor_grab_mode.current_grab_mode {
             CursorGrabMode::None => unset_old = true,
             CursorGrabMode::Confined => self.apply_on_pointer(|_, data| {
-                data.unconfine_pointer();
+                data.data().unconfine_pointer();
                 unset_old = true;
             }),
             CursorGrabMode::Locked => {
                 self.apply_on_pointer(|_, data| {
-                    data.unlock_pointer();
+                    data.data().unlock_pointer();
                     unset_old = true;
                 });
             },
@@ -1101,12 +1106,17 @@ impl WindowState {
         match mode {
             CursorGrabMode::Locked => self.apply_on_pointer(|pointer, data| {
                 let pointer = pointer.pointer();
-                data.lock_pointer(pointer_constraints, surface, pointer, &self.queue_handle);
+                data.data().lock_pointer(pointer_constraints, surface, pointer, &self.queue_handle);
                 set_mode = true;
             }),
             CursorGrabMode::Confined => self.apply_on_pointer(|pointer, data| {
                 let pointer = pointer.pointer();
-                data.confine_pointer(pointer_constraints, surface, pointer, &self.queue_handle);
+                data.data().confine_pointer(
+                    pointer_constraints,
+                    surface,
+                    pointer,
+                    &self.queue_handle,
+                );
                 set_mode = true;
             }),
             CursorGrabMode::None => {
@@ -1127,9 +1137,10 @@ impl WindowState {
         if let WindowType::Window { window, .. } = &self.window {
             // TODO(kchibisov) handle touch serials.
             self.apply_on_pointer(|_, data| {
-                let serial = data.latest_button_serial();
-                let seat = data.seat();
-                window.show_window_menu(seat, serial, position.into());
+                if let Some(serial) = data.latest_button_serial() {
+                    let seat = data.seat();
+                    window.show_window_menu(seat, serial, position.into());
+                }
             });
         }
     }
@@ -1149,7 +1160,7 @@ impl WindowState {
         }
 
         self.apply_on_pointer(|_, data| {
-            data.set_locked_cursor_position(position.x, position.y);
+            data.data().set_locked_cursor_position(position.x, position.y);
         });
 
         Ok(())
@@ -1166,9 +1177,11 @@ impl WindowState {
             }
         } else {
             for pointer in self.pointers.iter().filter_map(|pointer| pointer.upgrade()) {
-                let latest_enter_serial = pointer.pointer().winit_data().latest_enter_serial();
-
-                pointer.pointer().set_cursor(latest_enter_serial, None, 0, 0);
+                if let Some(latest_enter_serial) =
+                    pointer.pointer().winit_data().latest_enter_serial()
+                {
+                    pointer.pointer().set_cursor(latest_enter_serial, None, 0, 0);
+                }
             }
         }
     }

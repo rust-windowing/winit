@@ -195,6 +195,9 @@
 //! * `rwh_06`: Implement `raw-window-handle v0.6` traits.
 //! * `serde`: Enables serialization/deserialization of certain types with [Serde](https://crates.io/crates/serde).
 //! * `mint`: Enables mint (math interoperability standard types) conversions.
+//! * `private-apple-apis`: Enables private APIs whose usage might cause rejections from the App
+//!   Store. Currently enables the use of `CGSSetWindowBackgroundBlurRadius`, commonly used for
+//!   terminal emulators.
 //!
 //! See the [`platform`] module for documentation on platform-specific cargo
 //! features.
@@ -269,7 +272,7 @@
 //! [`raw_window_handle`]: ./window/struct.Window.html#method.raw_window_handle
 //! [`raw_display_handle`]: ./window/struct.Window.html#method.raw_display_handle
 //! [`EventLoopExtPumpEvents::pump_app_events()`]: crate::event_loop::pump_events::EventLoopExtPumpEvents::pump_app_events()
-//! [^1]: `EventLoopExtPumpEvents::pump_app_events()` is only available on Windows, macOS, Android, X11 and Wayland.
+//! [^1]: `EventLoopExtPumpEvents::pump_app_events()` is only available on Windows, macOS, Android, Redox, X11 and Wayland.
 
 #![deny(rust_2018_idioms)]
 #![deny(rustdoc::broken_intra_doc_links)]

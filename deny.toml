@@ -51,6 +51,7 @@ skip = [
     { crate = "thiserror-impl@1.0", reason = "dep of `thiserror`" },
     { crate = "objc2@0.5", reason = "used by crossfont" },
     { crate = "objc2-foundation@0.2", reason = "used by crossfont" },
+    { crate = "syn@2", reason = "the ecosystem is in the process of migrating to syn 3" },
 ]
 skip-tree = [
     { crate = "windows-sys", reason = "foundational but bumps fairly often, nothing we can do about it not having a shared version" },
@@ -60,6 +61,9 @@ skip-tree = [
 bypass = [
     { crate = "android-activity", allow-globs = ["android-games-sdk/import-games-sdk.sh"] },
     { crate = "freetype-sys", allow-globs = ["freetype2/*"] },
+    # Shipped with the executable bit set by accident; the etc/ folder is
+    # excluded from the package by https://github.com/rust-lang/libc/pull/5312.
+    { crate = "libc", allow-globs = ["etc/libc-util.py"] },
     # `crossfont` still depends (partially transitively) on `winapi`.
     { crate = "winapi-i686-pc-windows-gnu", allow-globs = ["lib/lib*.a"] },
     { crate = "winapi-x86_64-pc-windows-gnu", allow-globs = ["lib/lib*.a"] },
