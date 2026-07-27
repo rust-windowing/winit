@@ -608,7 +608,7 @@ impl CoreWindow for Popup {
     fn current_monitor(&self) -> Option<CoreMonitorHandle> {
         let state = self.popup_state.upgrade()?;
         let state = state.lock().unwrap();
-        let data = state.window.wl_surface().data::<SurfaceData>()?;
+        let data = state.window.wl_surface().data::<SurfaceData<()>>()?;
         data.outputs()
             .next()
             .map(MonitorHandle::new)
