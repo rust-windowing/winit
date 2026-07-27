@@ -38,6 +38,7 @@ macro_rules! os_error {
 }
 
 mod dnd;
+mod dialog;
 mod event_loop;
 mod output;
 mod popup;
