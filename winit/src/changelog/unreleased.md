@@ -51,7 +51,11 @@ changelog entry.
 - On Android, added scancode conversions for more obscure key codes.
 - On Wayland, added `HoldGesture` event for multi-finger hold gestures
 - On Wayland, added ext-background-effect-v1 support.
-- On Wayland, Windows and macOS, added native popups (`WindowType::Popup`).
+- On Wayland, Windows and macOS, added native popups (`WindowType::Popup`), with a
+  cross-platform `Popup` trait for controlling anchor, gravity, and constraint
+  adjustment (`Window::as_popup`). On Windows and macOS, which have no native
+  positioner concept, the anchor/gravity/constraint-adjustment placement is
+  computed by winit itself, mirroring Wayland's `xdg_positioner` behavior.
 
 ### Changed
 

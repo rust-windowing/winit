@@ -82,9 +82,7 @@ impl Popup {
                     constraint_adjustment,
                 } = attributes.window_type
                 else {
-                    return Err(error(
-                        "Popup::new() called with window type not Popup is not allowed",
-                    ));
+                    return Err(error("Popup::new() called with a non-popup window type"));
                 };
                 let grab_keyboard = attributes.active;
 
