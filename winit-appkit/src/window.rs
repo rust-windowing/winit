@@ -15,7 +15,7 @@ use winit_core::icon::Icon;
 use winit_core::monitor::{Fullscreen, MonitorHandle as CoreMonitorHandle};
 use winit_core::window::{
     ImeCapabilities, ImeRequest, ImeRequestError, Theme, UserAttentionType, Window as CoreWindow,
-    WindowAttributes, WindowButtons, WindowId, WindowLevel,
+    WindowAttributes, WindowButtons, WindowId, WindowLevel, WindowType,
 };
 
 use super::event_loop::ActiveEventLoop;
@@ -26,6 +26,7 @@ pub(crate) struct Window {
     window: MainThreadBound<Retained<NSWindow>>,
     /// The window only keeps a weak reference to this, so we must keep it around here.
     delegate: MainThreadBound<Retained<WindowDelegate>>,
+    window_type: WindowType,
 }
 
 impl Window {
@@ -34,12 +35,14 @@ impl Window {
         attributes: WindowAttributes,
     ) -> Result<Self, RequestError> {
         let mtm = window_target.mtm;
+        let window_type = attributes.window_type;
         let delegate =
             autoreleasepool(|_| WindowDelegate::new(&window_target.app_state, attributes, mtm))?;
         window_target.app_state.register_window(&delegate, mtm);
         Ok(Window {
             window: MainThreadBound::new(delegate.window().retain(), mtm),
             delegate: MainThreadBound::new(delegate, mtm),
+            window_type,
         })
     }
 
@@ -95,6 +98,10 @@ impl rwh_06::HasWindowHandle for Window {
 }
 
 impl CoreWindow for Window {
+    fn window_type(&self) -> WindowType {
+        self.window_type
+    }
+
     fn id(&self) -> winit_core::window::WindowId {
         self.maybe_wait_on_main(|delegate| delegate.id())
     }

@@ -66,13 +66,26 @@ impl Window {
         event_loop: &ActiveEventLoop,
         attribs: WindowAttributes,
     ) -> Result<Self, RequestError> {
-        let window = Arc::new(UnownedWindow::new(event_loop, attribs)?);
-        event_loop.windows.borrow_mut().insert(window.id(), Arc::downgrade(&window));
-        Ok(Window(window))
+        use winit_core::window::WindowType;
+        match attribs.window_type() {
+            WindowType::Window => {
+                let window = Arc::new(UnownedWindow::new(event_loop, attribs)?);
+                event_loop.windows.borrow_mut().insert(window.id(), Arc::downgrade(&window));
+                Ok(Window(window))
+            },
+            WindowType::Popup => Err(RequestError::NotSupported(NotSupportedError::new(
+                "Popups are not implemented for X11",
+            ))),
+            _ => Err(RequestError::NotSupported(NotSupportedError::new("Unsupported window type"))),
+        }
     }
 }
 
 impl CoreWindow for Window {
+    fn window_type(&self) -> winit_core::window::WindowType {
+        winit_core::window::WindowType::Window
+    }
+
     fn id(&self) -> WindowId {
         self.0.id()
     }

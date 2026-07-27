@@ -46,6 +46,26 @@ impl fmt::Debug for WindowId {
     }
 }
 
+/// The role of a window, used to request platform-specific window behavior.
+#[non_exhaustive]
+#[derive(Debug, Clone, Copy, Default, PartialEq)]
+pub enum WindowType {
+    /// A normal, top-level window.
+    #[default]
+    Window,
+    /// A short-lived window anchored to a parent, such as a menu, combo-box dropdown, or
+    /// tooltip. Requires a parent set via [`WindowAttributes::with_parent_window`], and its
+    /// position is interpreted relative to that parent.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **macOS:** A borderless, non-activating child window. The system does *not* draw rounded
+    ///   corners for it. To get a rounded, native-looking popup, create it transparent (via
+    ///   [`WindowAttributes::with_transparent`]) and render the round border yourself.
+    /// - **X11, Web, Android, iOS, Orbital:** An error is returned because it is not implemented.
+    Popup,
+}
+
 /// Attributes used when creating a window.
 #[derive(Debug)]
 #[non_exhaustive]
@@ -54,6 +74,11 @@ pub struct WindowAttributes {
     pub min_surface_size: Option<Size>,
     pub max_surface_size: Option<Size>,
     pub surface_resize_increments: Option<Size>,
+    /// The initial position of the window in screen coordinates.
+    ///
+    /// For popups, this position is relative to the parent window.
+    ///
+    /// **Wayland:** See `WindowAttributesWayland` for more options to position a popup.
     pub position: Option<Position>,
     pub resizable: bool,
     pub enabled_buttons: WindowButtons,
@@ -67,11 +92,19 @@ pub struct WindowAttributes {
     pub preferred_theme: Option<Theme>,
     pub content_protected: bool,
     pub window_level: WindowLevel,
+    /// Whether the window should be activated (focused) when shown.
+    ///
+    /// For [`WindowType::Popup`] windows this also controls keyboard grabbing:
+    /// - `true` — the popup captures keyboard input (Win32: omits `WS_EX_NOACTIVATE`, macOS: uses
+    ///   an activating `NSWindow`, Wayland: issues `xdg_popup.grab`).
+    /// - `false` — the popup is non-activating and the parent window keeps focus (Win32:
+    ///   `WS_EX_NOACTIVATE`, macOS: `NSWindowStyleMask::NonactivatingPanel`, Wayland: no grab).
     pub active: bool,
     pub cursor: Cursor,
     pub(crate) parent_window: Option<SendSyncRawWindowHandle>,
     pub fullscreen: Option<Fullscreen>,
     pub platform: Option<Box<dyn PlatformWindowAttributes>>,
+    pub window_type: WindowType,
 }
 
 impl WindowAttributes {
@@ -145,6 +178,8 @@ impl WindowAttributes {
     ///   position. There may be a small gap between this position and the window due to the
     ///   specifics of the Window Manager.
     /// - **X11:** The top left corner of the window, the window's "outer" position.
+    /// - **Wayland:** The top left corner of the window if the window type is `WindowType::Popup`
+    ///   otherwise ignored
     /// - **Others:** Ignored.
     #[inline]
     pub fn with_position<P: Into<Position>>(mut self, position: P) -> Self {
@@ -324,9 +359,13 @@ impl WindowAttributes {
     /// The window should be assumed as not focused by default
     /// following by the [`WindowEvent::Focused`].
     ///
+    /// For [`WindowType::Popup`] windows, also controls keyboard grabbing — see
+    /// [`WindowAttributes::active`] for details.
+    ///
     /// ## Platform-specific:
     ///
-    /// **Android / iOS / X11 / Wayland / Orbital:** Unsupported.
+    /// **Android / iOS / X11 / Orbital:** Unsupported.
+    /// **Wayland:** Only supported for [`WindowType::Popup`].
     ///
     /// [`WindowEvent::Focused`]: crate::event::WindowEvent::Focused
     #[inline]
@@ -378,6 +417,27 @@ impl WindowAttributes {
         self.platform = Some(platform);
         self
     }
+
+    /// Sets the [`WindowType`] (window vs. popup).
+    ///
+    /// Used by the Windows, Wayland and macOS backends; on X11 [`WindowType::Popup`] is not
+    /// implemented and window creation returns an error.
+    /// If the type is [`WindowType::Popup`], the parent must also be set via
+    /// [`with_parent_window`](Self::with_parent_window), and the position is interpreted
+    /// relative to that parent.
+    ///
+    /// See [`WindowType::Popup`] for the per-platform behavior, including how to obtain a
+    /// rounded, native-looking popup on macOS.
+    pub fn with_window_type(mut self, window_type: WindowType) -> Self {
+        self.window_type = window_type;
+        self
+    }
+
+    /// Returns if the window type is a popup or a normal window
+    #[inline]
+    pub fn window_type(&self) -> WindowType {
+        self.window_type
+    }
 }
 
 impl Clone for WindowAttributes {
@@ -405,6 +465,7 @@ impl Clone for WindowAttributes {
             parent_window: self.parent_window.clone(),
             fullscreen: self.fullscreen.clone(),
             platform: self.platform.as_ref().map(|platform| platform.box_clone()),
+            window_type: self.window_type,
         }
     }
 }
@@ -435,6 +496,7 @@ impl Default for WindowAttributes {
             platform: Default::default(),
             cursor: Cursor::default(),
             blur: Default::default(),
+            window_type: Default::default(),
         }
     }
 }
@@ -476,6 +538,9 @@ impl_dyn_casting!(PlatformWindowAttributes);
 /// **Web:** The [`Window`], which is represented by a `HTMLElementCanvas`, can
 /// not be closed by dropping the [`Window`].
 pub trait Window: AsAny + Send + Sync + fmt::Debug {
+    /// Returns the window type of this window
+    fn window_type(&self) -> WindowType;
+
     /// Returns an identifier unique to the window.
     fn id(&self) -> WindowId;
 
@@ -648,10 +713,18 @@ pub trait Window: AsAny + Send + Sync + fmt::Debug {
     /// The coordinates can be negative if the top-left hand corner of the window is outside
     /// of the visible screen region, or on another monitor than the primary.
     ///
+    /// For a [`WindowType::Popup`] with a parent, the position is instead reported relative to the
+    /// top-left hand corner of the parent window's content area, mirroring the coordinate system
+    /// used by [`Window::set_outer_position`].
+    ///
     /// ## Platform-specific
     ///
     /// - **Web:** Returns the top-left coordinates relative to the viewport.
-    /// - **Android / Wayland:** Always returns [`RequestError::NotSupported`].
+    /// - **Android:** Always returns [`RequestError::NotSupported`].
+    /// - **Wayland:** For a top-level window this always returns [`RequestError::NotSupported`],
+    ///   since the compositor does not report absolute positions. For a [`WindowType::Popup`] the
+    ///   compositor-decided position relative to the parent is returned once the popup has been
+    ///   configured (before that, [`RequestError::NotSupported`]).
     fn outer_position(&self) -> Result<PhysicalPosition<i32>, RequestError>;
 
     /// Sets the position of the window on the desktop.
