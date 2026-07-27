@@ -135,12 +135,9 @@ fn gravity_fraction(gravity: PopupGravity) -> (f64, f64) {
 fn constrain_axis(
     origin: f64,
     extent: f64,
-    clip_min: f64,
-    clip_max: f64,
+    (clip_min, clip_max): (f64, f64),
     flipped_origin: f64,
-    flip: bool,
-    slide: bool,
-    resize: bool,
+    (flip, slide, resize): (bool, bool, bool),
 ) -> (f64, f64) {
     let fits = |o: f64| o >= clip_min && o + extent <= clip_max;
 
@@ -213,22 +210,24 @@ pub fn place_popup(
     let (x, width) = constrain_axis(
         origin_x,
         popup_size.width,
-        clip_min_x,
-        clip_max_x,
+        (clip_min_x, clip_max_x),
         flipped_x,
-        constraint_adjustment.contains(PopupConstraintAdjustment::FLIP_X),
-        constraint_adjustment.contains(PopupConstraintAdjustment::SLIDE_X),
-        constraint_adjustment.contains(PopupConstraintAdjustment::RESIZE_X),
+        (
+            constraint_adjustment.contains(PopupConstraintAdjustment::FLIP_X),
+            constraint_adjustment.contains(PopupConstraintAdjustment::SLIDE_X),
+            constraint_adjustment.contains(PopupConstraintAdjustment::RESIZE_X),
+        ),
     );
     let (y, height) = constrain_axis(
         origin_y,
         popup_size.height,
-        clip_min_y,
-        clip_max_y,
+        (clip_min_y, clip_max_y),
         flipped_y,
-        constraint_adjustment.contains(PopupConstraintAdjustment::FLIP_Y),
-        constraint_adjustment.contains(PopupConstraintAdjustment::SLIDE_Y),
-        constraint_adjustment.contains(PopupConstraintAdjustment::RESIZE_Y),
+        (
+            constraint_adjustment.contains(PopupConstraintAdjustment::FLIP_Y),
+            constraint_adjustment.contains(PopupConstraintAdjustment::SLIDE_Y),
+            constraint_adjustment.contains(PopupConstraintAdjustment::RESIZE_Y),
+        ),
     );
 
     (LogicalPosition::new(x, y), LogicalSize::new(width, height))
@@ -245,6 +244,9 @@ mod tests {
     /// Prints an ASCII rendering of the clip region (`.`), the anchor rect (`A`), and the
     /// resulting popup rect (`P`, `X` where it overlaps the anchor) for a quick visual sanity
     /// check. Run with `cargo test -p winit-core popup -- --nocapture` to see it.
+    // `println!` (rather than `tracing`) is intentional: this is only meant to be read directly
+    // via `--nocapture`, which doesn't require a tracing subscriber to be installed.
+    #[allow(clippy::disallowed_macros)]
     fn draw(
         label: &str,
         clip: (LogicalPosition<f64>, LogicalSize<f64>),

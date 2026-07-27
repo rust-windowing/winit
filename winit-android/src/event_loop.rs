@@ -771,7 +771,7 @@ impl Window {
         el: &ActiveEventLoop,
         window_attrs: window::WindowAttributes,
     ) -> Result<Self, RequestError> {
-        if window_attrs.window_type() == window::WindowType::Popup {
+        if matches!(window_attrs.window_type(), window::WindowType::Popup { .. }) {
             return Err(RequestError::NotSupported(NotSupportedError::new(
                 "Popups are not implemented for Android",
             )));

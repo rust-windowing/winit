@@ -21,7 +21,7 @@ use std::ffi::c_void;
 use std::hash::BuildHasher;
 use std::ptr::NonNull;
 
-use dpi::{LogicalSize, PhysicalSize, Position, Size};
+use dpi::{LogicalSize, PhysicalSize};
 use sctk::reexports::client::Proxy;
 use sctk::reexports::client::backend::ObjectId;
 use sctk::reexports::client::protocol::wl_surface::WlSurface;

@@ -1,5 +1,4 @@
 use core::sync::atomic::Ordering;
-use std::any::Any;
 use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, Mutex, Weak};
 
@@ -301,11 +300,11 @@ impl CoreWindow for Popup {
             } = &s.lock().unwrap().window
         {
             winit_core::window::WindowType::Popup {
-                anchor: anchor.clone(),
+                anchor: *anchor,
                 anchor_rect: Some((anchor_rect.0.into(), anchor_rect.1.into())),
-                constraint_adjustment: constraint_adjustment.clone(),
-                gravity: gravity.clone(),
-                positioner_offset: positioner_offset.clone(),
+                constraint_adjustment: *constraint_adjustment,
+                gravity: *gravity,
+                positioner_offset: *positioner_offset,
             }
         } else {
             winit_core::window::WindowType::Popup {
@@ -759,7 +758,7 @@ impl CorePopup for Popup {
         if let WindowType::Popup { popup, positioner, positioner_offset, .. } =
             &mut state.lock().unwrap().window
         {
-            *positioner_offset = Some(position.into());
+            *positioner_offset = Some(position);
 
             let position: LogicalPosition<i32> = position.to_logical(scale_factor);
             positioner.set_offset(position.x, position.y);
