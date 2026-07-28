@@ -183,6 +183,7 @@ impl fmt::Display for VideoMode {
 
 /// Fullscreen modes.
 #[derive(Clone, Debug, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum Fullscreen {
     Exclusive(MonitorHandle, VideoMode),
 

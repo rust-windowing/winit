@@ -977,6 +977,7 @@ impl CoreWindow for Window {
                 *current_caps = None;
                 self.app.hide_soft_input(true);
             },
+            _ => return Err(ImeRequestError::NotSupported),
         }
 
         Ok(())

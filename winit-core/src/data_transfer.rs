@@ -127,6 +127,7 @@ impl DataTransferId {
 
 /// The set of types supported cross-platform.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum TypeHint {
     /// Plain UTF-8 text (see [`TypedData::try_as_string`]).
     ///
@@ -381,6 +382,7 @@ impl_dyn_casting!(DataTransfer);
 /// different encoding on different platforms. To allow this to be represented, we allow
 /// supplying strings and URIs separately from binary blobs.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum SendData {
     /// List of URIs.
     ///

@@ -248,6 +248,7 @@ impl RootActiveEventLoop for ActiveEventLoop {
                                     .chain(Vec::new().into_iter().map(ns_url_from_str)),
                             ),
                             SendData::Bytes(_) => None,
+                            _ => None,
                         }
                     })
                     .into_iter()
