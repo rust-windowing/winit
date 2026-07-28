@@ -41,6 +41,8 @@
 //! [`WindowEvent::PointerLeft`]: crate::event::WindowEvent::PointerLeft
 //! [`Window::set_outer_position()`]: crate::window::Window::set_outer_position
 
+#![warn(clippy::exhaustive_enums)]
+
 // Brief introduction to the internals of the Web backend:
 // The Web backend used to support both wasm-bindgen and stdweb as methods of binding to the
 // environment. Because they are both supporting the same underlying APIs, the actual Web bindings
@@ -623,6 +625,7 @@ pub struct OrientationData {
 
 /// Screen orientation.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+#[allow(clippy::exhaustive_enums)]
 pub enum Orientation {
     /// The screen's aspect ratio has a width greater than the height.
     Landscape,
@@ -632,6 +635,7 @@ pub enum Orientation {
 
 /// Screen orientation lock options. Represents which orientations a user can use.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+#[allow(clippy::exhaustive_enums)]
 pub enum OrientationLock {
     /// User is free to use any orientation.
     Any,

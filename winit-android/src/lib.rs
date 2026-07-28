@@ -71,6 +71,8 @@
 //!    event loop (as shown above).
 #![cfg(target_os = "android")]
 
+#![warn(clippy::exhaustive_enums)]
+
 mod event_loop;
 mod keycodes;
 
