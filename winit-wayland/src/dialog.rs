@@ -46,10 +46,10 @@ impl Dialog {
             RequestError::NotSupported(NotSupportedError::new(message))
         }
 
-        let modal = matches!(attributes.window_type, winit_core::window::WindowType::Dialog {
-            modal: true,
-            ..
-        });
+        let modal = matches!(
+            attributes.window_type,
+            winit_core::window::WindowType::Dialog { modal: true, .. }
+        );
         let queue_handle = event_loop_window_target.queue_handle.clone();
         let mut state = event_loop_window_target.state.borrow_mut();
         let monitors = state.monitors.clone();
@@ -187,6 +187,11 @@ impl Dialog {
 }
 
 impl CoreWindow for Dialog {
+    fn window_type(&self) -> winit_core::window::WindowType {
+        // TODO: use the window type in the state once the popup anchor is integrated!
+        winit_core::window::WindowType::Dialog { modal: true }
+    }
+
     fn id(&self) -> WindowId {
         self.window_id
     }
