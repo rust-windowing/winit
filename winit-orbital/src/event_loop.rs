@@ -1,3 +1,5 @@
+// `EventSource` is macro-generated; the lint can't be allowed on the enum itself.
+#![allow(clippy::exhaustive_enums)]
 use std::cell::Cell;
 use std::collections::VecDeque;
 use std::sync::atomic::{AtomicBool, Ordering};

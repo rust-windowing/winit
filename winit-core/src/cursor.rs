@@ -17,6 +17,7 @@ const PIXEL_SIZE: usize = 4;
 
 /// See [`Window::set_cursor()`][crate::window::Window::set_cursor] for more details.
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
+#[allow(clippy::exhaustive_enums)]
 pub enum Cursor {
     Icon(CursorIcon),
     Custom(CustomCursor),

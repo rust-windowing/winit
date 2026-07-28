@@ -65,6 +65,8 @@
 //! ```
 #![cfg(target_vendor = "apple")] // TODO: Remove once `objc2` allows compiling on all platforms
 
+#![warn(clippy::exhaustive_enums)]
+
 #[macro_use]
 mod util;
 
@@ -632,6 +634,7 @@ impl ActiveEventLoopExtMacOS for dyn ActiveEventLoop + '_ {
 /// The default is `None`.
 #[derive(Default, Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[allow(clippy::exhaustive_enums)]
 pub enum OptionAsAlt {
     /// The left `Option` key is treated as `Alt`.
     OnlyLeft,
