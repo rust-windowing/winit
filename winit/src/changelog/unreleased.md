@@ -51,11 +51,18 @@ changelog entry.
 - On Android, added scancode conversions for more obscure key codes.
 - On Wayland, added `HoldGesture` event for multi-finger hold gestures
 - On Wayland, added ext-background-effect-v1 support.
+- On Wayland, Windows and macOS, added native popups (`WindowType::Popup`).
+- On macOS, add `WindowAttributesMacOS::with_fullscreen_auxiliary` and
+  `WindowExtMacOS::set_fullscreen_auxiliary` / `WindowExtMacOS::fullscreen_auxiliary`, allowing a
+  window to be shown on the same Space as a fullscreen window
+  (`NSWindowCollectionBehaviorFullScreenAuxiliary`) instead of triggering a Space switch or Split
+  View tiling.
 
 ### Changed
 
 - Updated `windows-sys` to `v0.61`.
 - On older macOS versions (tested up to 12.7.6), applications now receive mouse movement events for unfocused windows, matching the behavior on other platforms.
+- On macOS, using the private API `CGSSetWindowBackgroundBlurRadius` for `Window::set_blur` is now disabled by default. It can be re-enabled using the Cargo feature `private-apple-apis`.
 
 ### Fixed
 
@@ -63,6 +70,8 @@ changelog entry.
   tools such as Punto Switcher. The `WM_INPUTLANGCHANGE` message is now handled
   to refresh the cached keyboard layout, while still deferring to
   `DefWindowProc` for normal propagation.
+- On Windows, fix getting the window's DPI internally leaks `HDC` handles.
+  Also only call `GetDC` when on < Windows 8.1 which improves its performance.
 - On Redox, handle `EINTR` when reading from `event_socket` instead of panicking.
 - On Wayland, switch from using the `ahash` hashing algorithm to `foldhash`.
 - On macOS, fix borderless game presentation options not sticking after switching spaces.

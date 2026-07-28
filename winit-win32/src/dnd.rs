@@ -664,7 +664,7 @@ fn pick_effect(actions: &[DndAction], key_state: u32, source_allowed: u32) -> u3
     }
 
     // If holding a modifier would result in no valid values, ignore
-    // Need to use filter instead of if-let chains for 1.85 compatibility.
+    // Need to use filter instead of if-let chains for 1.86 compatibility.
     if let Some(new_allowed) =
         NonZeroU32::new(allowed & !DROPEFFECT_MOVE).filter(|_| key_state & MK_CONTROL != 0)
     {
@@ -672,7 +672,7 @@ fn pick_effect(actions: &[DndAction], key_state: u32, source_allowed: u32) -> u3
     }
 
     // If holding a modifier would result in no valid values, ignore
-    // Need to use filter instead of if-let chains for 1.85 compatibility.
+    // Need to use filter instead of if-let chains for 1.86 compatibility.
     if let Some(new_allowed) =
         NonZeroU32::new(allowed & !DROPEFFECT_COPY).filter(|_| key_state & MK_SHIFT != 0)
     {
