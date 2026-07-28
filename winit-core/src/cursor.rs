@@ -1,4 +1,5 @@
 use core::fmt;
+use std::any::Any;
 use std::error::Error;
 use std::hash::Hash;
 use std::ops::Deref;
@@ -7,8 +8,6 @@ use std::time::Duration;
 
 #[doc(inline)]
 pub use cursor_icon::CursorIcon;
-
-use crate::as_any::AsAny;
 
 /// The maximum width and height for a cursor when using [`CustomCursorSource::from_rgba`].
 pub const MAX_CURSOR_SIZE: u16 = 2048;
@@ -79,7 +78,7 @@ impl From<CustomCursor> for Cursor {
 #[derive(Clone, Debug)]
 pub struct CustomCursor(pub Arc<dyn CustomCursorProvider>);
 
-pub trait CustomCursorProvider: AsAny + fmt::Debug + Send + Sync {
+pub trait CustomCursorProvider: Any + fmt::Debug + Send + Sync {
     /// Whether a cursor was backed by animation.
     fn is_animated(&self) -> bool;
 }

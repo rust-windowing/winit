@@ -1,9 +1,8 @@
+use std::any::Any;
 use std::error::Error;
 use std::ops::Deref;
 use std::sync::Arc;
 use std::{fmt, io, mem};
-
-use crate::as_any::AsAny;
 
 pub(crate) const PIXEL_SIZE: usize = mem::size_of::<u32>();
 
@@ -12,7 +11,7 @@ pub(crate) const PIXEL_SIZE: usize = mem::size_of::<u32>();
 pub struct Icon(pub Arc<dyn IconProvider>);
 
 // TODO remove that once split.
-pub trait IconProvider: AsAny + fmt::Debug + Send + Sync {}
+pub trait IconProvider: Any + fmt::Debug + Send + Sync {}
 
 impl Deref for Icon {
     type Target = dyn IconProvider;

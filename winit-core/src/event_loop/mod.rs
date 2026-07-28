@@ -3,6 +3,7 @@ pub mod pump_events;
 pub mod register;
 pub mod run_on_demand;
 
+use std::any::Any;
 use std::fmt::{self, Debug};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -12,7 +13,6 @@ use rwh_06::{DisplayHandle, HandleError, HasDisplayHandle};
 
 use crate::Instant;
 use crate::application::ApplicationHandler;
-use crate::as_any::AsAny;
 use crate::cursor::{CustomCursor, CustomCursorSource};
 use crate::data_transfer::{DataTransfer, DataTransferId, DataTransferSend, TransferType};
 use crate::error::{EventLoopError, NotSupportedError, RequestError};
@@ -109,7 +109,7 @@ pub trait EventLoopProvider: fmt::Debug {
     ) -> Result<CustomCursor, RequestError>;
 }
 
-pub trait ActiveEventLoop: AsAny + fmt::Debug {
+pub trait ActiveEventLoop: Any + fmt::Debug {
     /// Creates an [`EventLoopProxy`] that can be used to dispatch user events
     /// to the main event loop, possibly from another thread.
     fn create_proxy(&self) -> EventLoopProxy;

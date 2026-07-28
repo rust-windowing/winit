@@ -1,4 +1,5 @@
 //! The [`Window`] trait and associated types.
+use std::any::Any;
 use std::fmt;
 
 use bitflags::bitflags;
@@ -9,7 +10,6 @@ use dpi::{
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
-use crate::as_any::AsAny;
 use crate::cursor::Cursor;
 use crate::error::RequestError;
 use crate::icon::Icon;
@@ -513,7 +513,7 @@ pub(crate) struct SendSyncRawWindowHandle(pub(crate) rwh_06::RawWindowHandle);
 unsafe impl Send for SendSyncRawWindowHandle {}
 unsafe impl Sync for SendSyncRawWindowHandle {}
 
-pub trait PlatformWindowAttributes: AsAny + std::fmt::Debug + Send + Sync {
+pub trait PlatformWindowAttributes: Any + std::fmt::Debug + Send + Sync {
     fn box_clone(&self) -> Box<dyn PlatformWindowAttributes>;
 }
 
@@ -537,7 +537,7 @@ impl_dyn_casting!(PlatformWindowAttributes);
 ///
 /// **Web:** The [`Window`], which is represented by a `HTMLElementCanvas`, can
 /// not be closed by dropping the [`Window`].
-pub trait Window: AsAny + Send + Sync + fmt::Debug {
+pub trait Window: Any + Send + Sync + fmt::Debug {
     /// Returns the window type of this window
     fn window_type(&self) -> WindowType;
 
