@@ -64,6 +64,27 @@ changelog entry.
 
 ### Changed
 
+- Mark the extensible public enums as `#[non_exhaustive]`: `StartCause`, `WindowEvent`,
+  `DeviceEvent`, `Ime`, `PointerKind`, `PointerSource`, `ButtonSource`, `NativeKey`,
+  `NativeKeyCode`, `CustomCursorSource`, `TypeHint`, `SendData`, `DndAction`, `ImeRequest`,
+  `BadIcon`, `BadImage`, `BadAnimation`, `ImeSurroundingTextError`, `MouseScrollDelta`,
+  and `Fullscreen`.
+
+  When matching on one of these types, add a wildcard arm to cover variants added in the future:
+
+  ```rust,ignore
+  match event {
+      WindowEvent::CloseRequested => (),
+      // ...
+      _ => (),
+  }
+  ```
+- On macOS, mark `ActivationPolicy` as `#[non_exhaustive]`.
+- On X11, mark `WindowType` and `UriListParseError` as `#[non_exhaustive]`.
+- On Web, mark `PollStrategy`, `WaitUntilStrategy`, `CustomCursorError`, `MonitorPermissionError`,
+  and `OrientationLockError` as `#[non_exhaustive]`.
+- On Windows, mark `BackdropType` and `CornerPreference` as `#[non_exhaustive]`.
+- On iOS, mark `ValidOrientations` and `StatusBarStyle` as `#[non_exhaustive]`.
 - Updated `windows-sys` to `v0.61`.
 - On older macOS versions (tested up to 12.7.6), applications now receive mouse movement events for unfocused windows, matching the behavior on other platforms.
 - On macOS, using the private API `CGSSetWindowBackgroundBlurRadius` for `Window::set_blur` is now disabled by default. It can be re-enabled using the Cargo feature `private-apple-apis`.
