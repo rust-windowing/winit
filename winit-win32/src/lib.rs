@@ -3,7 +3,6 @@
 //! The supported OS version is Windows 7 or higher, though Windows 10 is
 //! tested regularly.
 #![cfg(target_os = "windows")] // FIXME(madsmtm): Allow compiling on all platforms.
-
 #![warn(clippy::exhaustive_enums)]
 
 #[macro_use]
