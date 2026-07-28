@@ -323,9 +323,7 @@ impl Inner {
             Some(Fullscreen::Borderless(Some(monitor))) => {
                 monitor.cast_ref::<MonitorHandle>().unwrap().ui_screen(mtm).clone()
             },
-            Some(Fullscreen::Borderless(None)) => {
-                self.current_monitor_inner().ui_screen(mtm).clone()
-            },
+            Some(_) => self.current_monitor_inner().ui_screen(mtm).clone(),
             None => {
                 warn!("`Window::set_fullscreen(None)` ignored on iOS");
                 return;
@@ -405,6 +403,7 @@ impl Inner {
                 *current_caps = None;
                 self.view.resignFirstResponder();
             },
+            _ => return Err(ImeRequestError::NotSupported),
         }
 
         Ok(())
@@ -522,7 +521,7 @@ impl Window {
                 let monitor = monitor.cast_ref::<MonitorHandle>().unwrap();
                 monitor.ui_screen(mtm)
             },
-            Some(Fullscreen::Borderless(None)) | None => &main_screen,
+            _ => &main_screen,
         };
 
         let screen_bounds = screen.bounds();

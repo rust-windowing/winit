@@ -694,7 +694,7 @@ impl RootActiveEventLoop for ActiveEventLoop {
     ) -> Result<CoreCustomCursor, RequestError> {
         let cursor_image = match cursor {
             CustomCursorSource::Image(cursor_image) => cursor_image,
-            CustomCursorSource::Animation { .. } | CustomCursorSource::Url { .. } => {
+            _ => {
                 return Err(NotSupportedError::new("unsupported cursor kind").into());
             },
         };

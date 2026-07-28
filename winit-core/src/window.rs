@@ -1756,6 +1756,7 @@ bitflags! {
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Hash)]
+#[non_exhaustive]
 pub enum ImeSurroundingTextError {
     /// Text exceeds 4000 bytes
     TextTooLong,
@@ -1868,6 +1869,7 @@ impl ImeSurroundingText {
 
 /// Request to send to IME.
 #[derive(Debug, PartialEq, Clone)]
+#[non_exhaustive]
 pub enum ImeRequest {
     /// Enable the IME with the [`ImeCapabilities`] and [`ImeRequestData`] as initial state. When
     /// the [`ImeRequestData`] is **not** matching capabilities fully, the default values will be

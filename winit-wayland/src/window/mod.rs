@@ -453,15 +453,15 @@ impl CoreWindow for Window {
 
     fn set_fullscreen(&self, fullscreen: Option<Fullscreen>) {
         match fullscreen {
-            Some(Fullscreen::Exclusive(..)) => {
-                warn!("`Fullscreen::Exclusive` is ignored on Wayland");
-            },
             Some(Fullscreen::Borderless(monitor)) => {
                 let output = monitor.as_ref().and_then(|monitor| {
                     monitor.cast_ref::<output::MonitorHandle>().map(|handle| &handle.proxy)
                 });
 
                 self.window.set_fullscreen(output)
+            },
+            Some(_) => {
+                warn!("this fullscreen mode is ignored on Wayland");
             },
             None => self.window.unset_fullscreen(),
         }

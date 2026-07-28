@@ -1269,6 +1269,7 @@ impl WindowState {
                 self.text_input_state = None;
                 true
             },
+            _ => return Err(ImeRequestError::NotSupported),
         };
 
         // Only one input method may be active per (seat, surface),

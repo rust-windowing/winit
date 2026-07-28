@@ -282,6 +282,7 @@ impl From<Icon> for DragIcon {
 /// are expected to provide some kind of order of preference.
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq)]
+#[non_exhaustive]
 pub enum DndAction {
     /// Move the dragged item from the source to the destination.
     ///
