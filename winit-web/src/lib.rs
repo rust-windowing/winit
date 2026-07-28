@@ -417,6 +417,7 @@ impl ActiveEventLoopExtWeb for dyn ActiveEventLoop + '_ {
 /// Strategy used for [`ControlFlow::Poll`][crate::event_loop::ControlFlow::Poll].
 #[derive(Clone, Copy, Debug, Default, Eq, Hash, PartialEq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[non_exhaustive]
 pub enum PollStrategy {
     /// Uses [`Window.requestIdleCallback()`] to queue the next event loop. If not available
     /// this will fallback to [`setTimeout()`].
@@ -444,6 +445,7 @@ pub enum PollStrategy {
 /// Strategy used for [`ControlFlow::WaitUntil`][crate::event_loop::ControlFlow::WaitUntil].
 #[derive(Clone, Copy, Debug, Default, Eq, Hash, PartialEq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[non_exhaustive]
 pub enum WaitUntilStrategy {
     /// Uses the [Prioritized Task Scheduling API] to queue the next event loop. If not available
     /// this will fallback to [`setTimeout()`].
@@ -478,6 +480,7 @@ impl Future for CustomCursorFuture {
 
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[non_exhaustive]
 pub enum CustomCursorError {
     Blob,
     Decode(String),
@@ -507,6 +510,7 @@ impl Future for MonitorPermissionFuture {
 }
 
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+#[non_exhaustive]
 pub enum MonitorPermissionError {
     /// User has explicitly denied permission to query detailed monitor information.
     Denied,
@@ -664,6 +668,7 @@ impl Future for OrientationLockFuture {
 }
 
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+#[non_exhaustive]
 pub enum OrientationLockError {
     Unsupported,
     Busy,
