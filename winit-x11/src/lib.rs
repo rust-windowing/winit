@@ -1,5 +1,7 @@
 //! # X11
 
+#![warn(clippy::exhaustive_enums)]
+
 use dpi::Size;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};

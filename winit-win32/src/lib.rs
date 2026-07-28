@@ -4,6 +4,8 @@
 //! tested regularly.
 #![cfg(target_os = "windows")] // FIXME(madsmtm): Allow compiling on all platforms.
 
+#![warn(clippy::exhaustive_enums)]
+
 #[macro_use]
 mod util;
 mod dark_mode;

@@ -415,6 +415,7 @@ impl Eq for OwnedDisplayHandle {}
 /// [`Wait`]: Self::Wait
 /// [`about_to_wait`]: crate::application::ApplicationHandler::about_to_wait
 #[derive(Copy, Clone, Debug, Default, PartialEq, Eq, Hash)]
+#[allow(clippy::exhaustive_enums)]
 pub enum ControlFlow {
     /// When the current loop iteration finishes, immediately begin a new iteration regardless of
     /// whether or not new events are available to process.
@@ -454,6 +455,7 @@ impl ControlFlow {
 /// Control when device events are captured.
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug, Default)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[allow(clippy::exhaustive_enums)]
 pub enum DeviceEvents {
     /// Report device events regardless of window focus.
     Always,
