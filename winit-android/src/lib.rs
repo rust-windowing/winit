@@ -70,7 +70,6 @@
 //! 4. Pass a clone of the `AndroidApp` that your application receives to Winit when building your
 //!    event loop (as shown above).
 #![cfg(target_os = "android")]
-
 #![warn(clippy::exhaustive_enums)]
 
 mod event_loop;
