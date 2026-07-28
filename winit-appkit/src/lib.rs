@@ -64,7 +64,6 @@
 //! }
 //! ```
 #![cfg(target_vendor = "apple")] // TODO: Remove once `objc2` allows compiling on all platforms
-
 #![warn(clippy::exhaustive_enums)]
 
 #[macro_use]
