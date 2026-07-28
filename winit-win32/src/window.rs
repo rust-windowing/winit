@@ -967,7 +967,7 @@ impl CoreWindow for Window {
                         | Fullscreen::Borderless(Some(monitor)) => {
                             Some(Cow::Borrowed(monitor.cast_ref::<MonitorHandle>().unwrap()))
                         },
-                        Fullscreen::Borderless(None) => None,
+                        _ => None,
                     };
 
                     let monitor = monitor
@@ -1068,7 +1068,8 @@ impl CoreWindow for Window {
         match &request {
             ImeRequest::Enable(..) if cap.is_some() => return Err(ImeRequestError::AlreadyEnabled),
             ImeRequest::Update(_) if cap.is_none() => return Err(ImeRequestError::NotEnabled),
-            _ => (),
+            ImeRequest::Enable(..) | ImeRequest::Update(_) | ImeRequest::Disable => (),
+            _ => return Err(ImeRequestError::NotSupported),
         }
 
         let window = self.window;
@@ -1096,6 +1097,7 @@ impl CoreWindow for Window {
                     ImeContext::set_ime_allowed(window.hwnd(), false);
                     return;
                 },
+                _ => return,
             };
 
             if let Some((spot, size)) = request_data.cursor_area {

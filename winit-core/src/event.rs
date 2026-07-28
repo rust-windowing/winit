@@ -20,6 +20,7 @@ use crate::window::{ActivationToken, Theme};
 
 /// Describes the reason the event loop is resuming.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum StartCause {
     /// Sent if the time specified by [`ControlFlow::WaitUntil`] has been reached. Contains the
     /// moment the timeout was requested and the requested resume time. The actual resume time is
@@ -44,6 +45,7 @@ pub enum StartCause {
 
 /// Describes an event from a [`Window`].
 #[derive(Debug, Clone, PartialEq)]
+#[non_exhaustive]
 pub enum WindowEvent {
     /// The activation token was delivered back and now could be used.
     ActivationTokenDone { serial: AsyncRequestSerial, token: ActivationToken },
@@ -531,6 +533,7 @@ pub enum WindowEvent {
 /// **Wayland/X11:** [`Unknown`](Self::Unknown) device types are converted to known variants by the
 /// system.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum PointerKind {
     Mouse,
     /// See [`PointerSource::Touch`] for more details.
@@ -548,6 +551,7 @@ pub enum PointerKind {
 /// **Wayland/X11:** [`Unknown`](Self::Unknown) device types are converted to known variants by the
 /// system.
 #[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
 pub enum PointerSource {
     Mouse,
     /// Represents a touch event.
@@ -616,6 +620,7 @@ impl From<PointerSource> for PointerKind {
 /// **Wayland/X11:** [`Unknown`](Self::Unknown) device types are converted to known variants by the
 /// system.
 #[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
 pub enum ButtonSource {
     /// ## Platform-specific
     ///
@@ -730,6 +735,7 @@ impl FingerId {
 ///
 /// [window events]: WindowEvent
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[non_exhaustive]
 pub enum DeviceEvent {
     /// Change in physical position of a pointing device.
     ///
@@ -1052,6 +1058,7 @@ impl From<ModifiersState> for Modifiers {
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[non_exhaustive]
 pub enum Ime {
     /// Notifies when the IME was enabled.
     ///
@@ -1576,6 +1583,7 @@ impl From<TabletToolButton> for Option<MouseButton> {
 /// Describes a difference in the mouse scroll wheel state.
 #[derive(Debug, Clone, Copy, PartialEq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[non_exhaustive]
 pub enum MouseScrollDelta {
     /// Amount in lines or rows to scroll in the horizontal
     /// and vertical directions.

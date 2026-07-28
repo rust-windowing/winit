@@ -19,6 +19,7 @@ pub use smol_str::SmolStr;
 /// - On non-Web platforms, support assigning keybinds to virtually any key through a UI.
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[non_exhaustive]
 pub enum NativeKeyCode {
     Unidentified,
     /// An Android "scancode".
@@ -72,6 +73,7 @@ impl std::fmt::Debug for NativeKeyCode {
 /// define keybinds which work in the presence of identifiers we haven't mapped for you yet.
 #[derive(Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[non_exhaustive]
 pub enum NativeKey {
     Unidentified,
     /// An Android "keycode", which is similar to a "virtual-key code" on Windows.

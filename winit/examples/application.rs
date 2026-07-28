@@ -457,6 +457,7 @@ impl ApplicationHandler for Application {
                 MouseScrollDelta::PixelDelta(px) => {
                     info!("Mouse wheel Pixel Delta: ({},{})", px.x, px.y);
                 },
+                _ => (),
             },
             WindowEvent::KeyboardInput { event, is_synthetic: false, .. } => {
                 let mods = window.modifiers;
