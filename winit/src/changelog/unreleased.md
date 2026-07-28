@@ -56,6 +56,11 @@ changelog entry.
   adjustment (`Window::as_popup`). On Windows and macOS, which have no native
   positioner concept, the anchor/gravity/constraint-adjustment placement is
   computed by winit itself, mirroring Wayland's `xdg_positioner` behavior.
+- On macOS, add `WindowAttributesMacOS::with_fullscreen_auxiliary` and
+  `WindowExtMacOS::set_fullscreen_auxiliary` / `WindowExtMacOS::fullscreen_auxiliary`, allowing a
+  window to be shown on the same Space as a fullscreen window
+  (`NSWindowCollectionBehaviorFullScreenAuxiliary`) instead of triggering a Space switch or Split
+  View tiling.
 
 ### Changed
 
