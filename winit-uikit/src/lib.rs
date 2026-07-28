@@ -418,6 +418,7 @@ impl MonitorHandleExtIOS for MonitorHandle {
 /// Valid orientations for a particular [`Window`].
 #[derive(Default, Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[non_exhaustive]
 pub enum ValidOrientations {
     /// Excludes `PortraitUpsideDown` on iphone
     #[default]
@@ -448,6 +449,7 @@ bitflags::bitflags! {
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[non_exhaustive]
 pub enum StatusBarStyle {
     #[default]
     Default,
