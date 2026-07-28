@@ -5,6 +5,7 @@
 //! methods, which return an iterator of [`MonitorHandle`]:
 //! - [`ActiveEventLoop::available_monitors`][crate::event_loop::ActiveEventLoop::available_monitors].
 //! - [`Window::available_monitors`][crate::window::Window::available_monitors].
+use std::any::Any;
 use std::borrow::Cow;
 use std::fmt;
 use std::num::{NonZeroU16, NonZeroU32};
@@ -12,8 +13,6 @@ use std::ops::Deref;
 use std::sync::Arc;
 
 use dpi::{PhysicalPosition, PhysicalSize};
-
-use crate::as_any::AsAny;
 
 /// Handle to a monitor.
 ///
@@ -54,7 +53,7 @@ impl PartialEq for MonitorHandle {
 impl Eq for MonitorHandle {}
 
 /// Provider of the [`MonitorHandle`].
-pub trait MonitorHandleProvider: AsAny + fmt::Debug + Send + Sync {
+pub trait MonitorHandleProvider: Any + fmt::Debug + Send + Sync {
     /// Identifier for this monitor.
     ///
     /// The representation of this modifier is not guaranteed and should be used only to compare
