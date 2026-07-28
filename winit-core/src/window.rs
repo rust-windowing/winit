@@ -1544,6 +1544,7 @@ impl rwh_06::HasWindowHandle for dyn Window + '_ {
 /// Use this enum with [`Window::set_cursor_grab`] to grab the cursor.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[allow(clippy::exhaustive_enums)]
 pub enum CursorGrabMode {
     /// No grabbing of the cursor is performed.
     None,
@@ -1574,6 +1575,7 @@ pub enum CursorGrabMode {
 /// Defines the orientation that a window resize will be performed.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[allow(clippy::exhaustive_enums)]
 pub enum ResizeDirection {
     East,
     North,
@@ -1604,6 +1606,7 @@ impl From<ResizeDirection> for CursorIcon {
 /// The theme variant to use.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[allow(clippy::exhaustive_enums)]
 pub enum Theme {
     /// Use the light variant.
     Light,
@@ -1621,6 +1624,7 @@ pub enum Theme {
 /// [`Informational`]: Self::Informational
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[allow(clippy::exhaustive_enums)]
 pub enum UserAttentionType {
     /// ## Platform-specific
     ///
@@ -1656,6 +1660,7 @@ bitflags::bitflags! {
 /// - **iOS / Android / Web / Wayland:** Unsupported.
 #[derive(Debug, Default, PartialEq, Eq, Clone, Copy, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[allow(clippy::exhaustive_enums)]
 pub enum WindowLevel {
     /// The window will always be below normal windows.
     ///

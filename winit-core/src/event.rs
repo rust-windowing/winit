@@ -1107,6 +1107,7 @@ pub enum Ime {
 /// Describes touch-screen input state.
 #[derive(Debug, Hash, PartialEq, Eq, Clone, Copy)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[allow(clippy::exhaustive_enums)]
 pub enum TouchPhase {
     /// Initial touch contact or gesture start, for example when one or more fingers touch the
     /// screen or touchpad.
@@ -1126,6 +1127,7 @@ pub enum TouchPhase {
 #[derive(Debug, Clone, Copy, PartialEq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[doc(alias = "Pressure")]
+#[allow(clippy::exhaustive_enums)]
 pub enum Force {
     /// On iOS, the force is calibrated so that the same number corresponds to
     /// roughly the same amount of pressure on the screen regardless of the
@@ -1436,6 +1438,7 @@ impl TabletToolAngle {
 /// Describes the input state of a key.
 #[derive(Debug, Hash, PartialEq, Eq, Clone, Copy)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[allow(clippy::exhaustive_enums)]
 pub enum ElementState {
     Pressed,
     Released,
@@ -1466,6 +1469,7 @@ impl ElementState {
 #[derive(Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[repr(u8)]
+#[allow(clippy::exhaustive_enums)]
 pub enum MouseButton {
     /// The primary (usually left) button
     Left = 0,
@@ -1561,6 +1565,7 @@ impl MouseButton {
 /// Describes a button of a tool, e.g. a pen.
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 #[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
+#[allow(clippy::exhaustive_enums)]
 pub enum TabletToolButton {
     Contact,
     Barrel,
