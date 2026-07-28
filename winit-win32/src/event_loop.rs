@@ -431,7 +431,7 @@ impl RootActiveEventLoop for ActiveEventLoop {
     ) -> Result<CustomCursor, RequestError> {
         let cursor = match source {
             CustomCursorSource::Image(cursor) => cursor,
-            CustomCursorSource::Animation { .. } | CustomCursorSource::Url { .. } => {
+            _ => {
                 return Err(NotSupportedError::new("unsupported cursor kind").into());
             },
         };
@@ -1397,6 +1397,7 @@ unsafe fn public_window_callback_inner(
                                 window_pos.cy = old_monitor_rect.bottom - old_monitor_rect.top;
                             }
                         },
+                        _ => (),
                     }
                 }
             }

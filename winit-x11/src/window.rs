@@ -1105,9 +1105,7 @@ impl UnownedWindow {
                             let monitor = monitor.cast_ref::<X11MonitorHandle>().unwrap();
                             (Cow::Borrowed(monitor), None)
                         },
-                        Fullscreen::Borderless(None) => {
-                            (Cow::Owned(self.shared_state_lock().last_monitor.clone()), None)
-                        },
+                        _ => (Cow::Owned(self.shared_state_lock().last_monitor.clone()), None),
                     };
 
                 // Don't set fullscreen on an invalid dummy monitor handle
@@ -2144,6 +2142,7 @@ impl UnownedWindow {
                 self.set_ime_allowed(false);
                 return Ok(());
             },
+            _ => return Err(ImeRequestError::NotSupported),
         };
 
         if let Some((position, size)) = state.cursor_area {

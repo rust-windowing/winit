@@ -54,6 +54,7 @@ impl CustomCursor {
                     true,
                 )
             },
+            _ => unimplemented!("unknown `CustomCursorSource` variant"),
         }
     }
 

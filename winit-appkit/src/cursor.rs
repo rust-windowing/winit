@@ -34,7 +34,7 @@ impl CustomCursor {
     pub(crate) fn new(cursor: CustomCursorSource) -> Result<CustomCursor, RequestError> {
         let cursor = match cursor {
             CustomCursorSource::Image(cursor_image) => cursor_image,
-            CustomCursorSource::Animation { .. } | CustomCursorSource::Url { .. } => {
+            _ => {
                 return Err(NotSupportedError::new("unsupported cursor kind").into());
             },
         };
