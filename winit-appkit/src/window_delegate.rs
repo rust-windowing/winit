@@ -114,9 +114,7 @@ pub(crate) struct State {
     saved_style: Cell<Option<NSWindowStyleMask>>,
     is_borderless_game: Cell<bool>,
     is_popup: bool,
-    /// The popup positioner state, kept in sync with `is_popup`. Stored here (rather than only
-    /// on the `Window` struct) so it stays reachable from just an `NSWindow` -- e.g. via
-    /// `NSWindow::delegate` -- to reposition a popup when its parent moves.
+    /// The popup positioner state is stored in WindowType::Popup
     window_type: RefCell<WindowType>,
 }
 
