@@ -99,11 +99,10 @@
 
 #![warn(missing_docs)]
 
+use std::any::Any;
 use std::ops::ControlFlow;
 use std::path::{Path, PathBuf};
 use std::{fmt, io};
-
-use crate::as_any::AsAny;
 
 /// Unique identifier for a data transfer.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -194,7 +193,7 @@ impl TypeHint {
 ///
 /// [`hint`](TransferType::hint) can be called to get the type in
 /// a cross-platform format (see [`TypeHint`])
-pub trait TransferType: AsAny + fmt::Debug {
+pub trait TransferType: Any + fmt::Debug {
     /// Get the cross-platform representation of this type.
     ///
     /// If this returns `None`, then this is a platform-dependent type that has no cross-platform
@@ -251,7 +250,7 @@ fn default_try_as_file_paths<T: TypedData + ?Sized>(_: &T) -> io::Result<Vec<Pat
 /// error with [`io::ErrorKind::Deadlock`]. For now, the only way to access the data is via blocking
 /// on the event loop, so simply retrying the next time an event is received that references the
 /// data transfer should be enough to ensure that the data is accessible.
-pub trait TypedData: AsAny + fmt::Debug + Send + Sync {
+pub trait TypedData: Any + fmt::Debug + Send + Sync {
     /// The type of this `TypedData`.
     fn type_(&self) -> &dyn TransferType;
 
@@ -329,7 +328,7 @@ impl_dyn_casting!(TypedData);
 /// Metadata about a data transfer. This does not allow actually receiving data, as that is an
 /// asynchronous operation. To fetch the data from the source application, see
 /// [`ActiveEventLoop::fetch_data_transfer`](crate::event_loop::ActiveEventLoop::fetch_data_transfer).
-pub trait DataTransfer: AsAny + fmt::Debug {
+pub trait DataTransfer: Any + fmt::Debug {
     /// Iterate over each type advertized by this `DataTransfer`. This is just a minor optimization,
     /// in most cases you should probably use [`has_type`](DataTransfer::has_type) or
     /// [`available_types`](DataTransfer::available_types).
