@@ -19,14 +19,19 @@ use objc2::{
 };
 use objc2_app_kit::{
     NSAppKitVersionNumber, NSAppKitVersionNumber10_12, NSAppearance, NSAppearanceCustomization,
-    NSAppearanceNameAqua, NSApplication, NSApplicationPresentationOptions, NSBackingStoreType,
-    NSColor, NSDragOperation, NSDraggingContext, NSDraggingDestination, NSDraggingInfo,
-    NSDraggingSession, NSDraggingSource, NSPasteboardTypeFileURL, NSPasteboardTypeHTML,
-    NSPasteboardTypePNG, NSPasteboardTypeSound, NSPasteboardTypeString, NSPasteboardTypeTIFF,
-    NSRequestUserAttentionType, NSScreen, NSToolbar, NSView, NSViewFrameDidChangeNotification,
-    NSWindow, NSWindowButton, NSWindowCollectionBehavior, NSWindowDelegate, NSWindowLevel,
-    NSWindowOcclusionState, NSWindowOrderingMode, NSWindowSharingType, NSWindowStyleMask,
-    NSWindowTabbingMode, NSWindowTitleVisibility, NSWindowToolbarStyle,
+    NSAppearanceNameAqua, NSApplication, NSApplicationPresentationOptions,
+    NSAutoresizingMaskOptions, NSBackingStoreType, NSColor, NSDragOperation, NSDraggingContext,
+    NSDraggingDestination, NSDraggingInfo, NSDraggingSession, NSDraggingSource,
+    NSPasteboardTypeFileURL, NSPasteboardTypeHTML, NSPasteboardTypePNG, NSPasteboardTypeSound,
+    NSPasteboardTypeString, NSPasteboardTypeTIFF, NSRequestUserAttentionType, NSScreen, NSToolbar,
+    NSView, NSViewFrameDidChangeNotification, NSWindow, NSWindowButton, NSWindowCollectionBehavior,
+    NSWindowDelegate, NSWindowLevel, NSWindowOcclusionState, NSWindowOrderingMode,
+    NSWindowSharingType, NSWindowStyleMask, NSWindowTabbingMode, NSWindowTitleVisibility,
+    NSWindowToolbarStyle,
+};
+#[cfg(not(feature = "private-apple-apis"))]
+use objc2_app_kit::{
+    NSVisualEffectBlendingMode, NSVisualEffectMaterial, NSVisualEffectState, NSVisualEffectView,
 };
 use objc2_core_foundation::{CGFloat, CGPoint};
 use objc2_core_graphics::{
@@ -67,7 +72,7 @@ use crate::app_state::DragState;
 use crate::dnd::{
     dnd_action_to_ns_drag_operation, ns_drag_operation_to_dnd_action, preferred_drag_operation,
 };
-use crate::{OptionAsAlt, WindowAttributesMacOS, WindowExtMacOS};
+use crate::{BlurMaterial, OptionAsAlt, WindowAttributesMacOS, WindowExtMacOS};
 
 #[derive(Debug)]
 pub(crate) struct State {
@@ -75,6 +80,13 @@ pub(crate) struct State {
     app_state: Rc<AppState>,
 
     window: Retained<NSWindow>,
+
+    view: Retained<WinitView>,
+
+    #[cfg(not(feature = "private-apple-apis"))]
+    blur_view: RefCell<Option<Retained<NSVisualEffectView>>>,
+
+    blur_material: Cell<BlurMaterial>,
 
     // During `windowDidResize`, we use this to only send Moved if the position changed.
     //
@@ -674,7 +686,7 @@ fn new_window(
     macos_attrs: &WindowAttributesMacOS,
     anchored: bool,
     mtm: MainThreadMarker,
-) -> Option<Retained<NSWindow>> {
+) -> Option<(Retained<NSWindow>, Retained<WinitView>)> {
     autoreleasepool(|_| {
         let screen = match attrs.fullscreen.clone() {
             Some(Fullscreen::Borderless(Some(monitor)))
@@ -878,13 +890,22 @@ fn new_window(
             view.setWantsLayer(true);
         }
 
+        let content_view = NSView::new(mtm);
+        window.setContentView(Some(&content_view));
+
+        view.setFrame(content_view.bounds());
+        view.setAutoresizingMask(
+            NSAutoresizingMaskOptions::ViewWidthSizable
+                | NSAutoresizingMaskOptions::ViewHeightSizable,
+        );
+        content_view.addSubview(&view);
+
         // Configure the new view as the "key view" for the window
-        window.setContentView(Some(&view));
         window.setInitialFirstResponder(Some(&view));
 
         // Configure the view to send notifications whenever its frame rectangle changes.
         //
-        // We explicitly do this _after_ setting the view as the content view of the window, to
+        // We explicitly do this _after_ adding the view to the window, to
         // avoid a resize event when creating the window.
         view.setPostsFrameChangedNotifications(true);
         // `setPostsFrameChangedNotifications` posts the notification immediately, so register the
@@ -905,7 +926,7 @@ fn new_window(
             window.setBackgroundColor(Some(&NSColor::clearColor()));
         }
 
-        Some(window)
+        Some((window, view))
     })
 }
 
@@ -937,7 +958,7 @@ impl WindowDelegate {
             }
         }
 
-        let window = new_window(app_state, &attrs, &macos_attrs, anchored, mtm)
+        let (window, view) = new_window(app_state, &attrs, &macos_attrs, anchored, mtm)
             .ok_or_else(|| os_error!("couldn't create `NSWindow`"))?;
 
         match attrs.parent_window() {
@@ -983,6 +1004,10 @@ impl WindowDelegate {
         let delegate = mtm.alloc().set_ivars(State {
             app_state: Rc::clone(app_state),
             window: window.retain(),
+            view,
+            #[cfg(not(feature = "private-apple-apis"))]
+            blur_view: RefCell::new(None),
+            blur_material: Cell::new(macos_attrs.blur_material),
             previous_position: Cell::new(flip_window_screen_coordinates(window.frame())),
             previous_scale_factor: Cell::new(scale_factor),
             surface_resize_increments: Cell::new(surface_resize_increments),
@@ -1079,10 +1104,8 @@ impl WindowDelegate {
         Ok(delegate)
     }
 
-    #[track_caller]
     pub(super) fn view(&self) -> Retained<WinitView> {
-        // The view inside WinitWindow should always be set and be `WinitView`.
-        self.window().contentView().unwrap().downcast().unwrap()
+        self.ivars().view.clone()
     }
 
     #[track_caller]
@@ -1185,8 +1208,44 @@ impl WindowDelegate {
             };
         }
 
-        // TODO: Implement blur using public methods somehow?
-        let _ = blur;
+        #[cfg(not(feature = "private-apple-apis"))]
+        {
+            if !blur {
+                let installed = self.ivars().blur_view.borrow_mut().take();
+                if let Some(installed) = installed {
+                    installed.removeFromSuperview();
+                }
+                return;
+            }
+
+            if self.ivars().blur_view.borrow().is_some() {
+                return;
+            }
+
+            let mtm = MainThreadMarker::from(self);
+            let view = self.view();
+            let content_view =
+                self.window().contentView().expect("window always has a content view");
+
+            let new_blur_view = NSVisualEffectView::new(mtm);
+            new_blur_view.setBlendingMode(NSVisualEffectBlendingMode::BehindWindow);
+            new_blur_view.setState(NSVisualEffectState::Active);
+            if let Some(material) = ns_visual_effect_material(self.ivars().blur_material.get()) {
+                new_blur_view.setMaterial(material);
+            }
+            new_blur_view.setFrame(content_view.bounds());
+            new_blur_view.setAutoresizingMask(
+                NSAutoresizingMaskOptions::ViewWidthSizable
+                    | NSAutoresizingMaskOptions::ViewHeightSizable,
+            );
+            content_view.addSubview_positioned_relativeTo(
+                &new_blur_view,
+                NSWindowOrderingMode::Below,
+                Some(&view),
+            );
+
+            *self.ivars().blur_view.borrow_mut() = Some(new_blur_view);
+        }
     }
 
     pub fn set_visible(&self, visible: bool) {
@@ -2192,6 +2251,36 @@ fn restore_and_release_display(monitor: &MonitorHandle) {
     }
 }
 
+#[cfg(not(feature = "private-apple-apis"))]
+fn ns_visual_effect_material(material: BlurMaterial) -> Option<NSVisualEffectMaterial> {
+    match material {
+        BlurMaterial::Titlebar => Some(NSVisualEffectMaterial::Titlebar),
+        BlurMaterial::Selection => Some(NSVisualEffectMaterial::Selection),
+        BlurMaterial::Menu => available!(macos = 10.11).then_some(NSVisualEffectMaterial::Menu),
+        BlurMaterial::Popover => {
+            available!(macos = 10.11).then_some(NSVisualEffectMaterial::Popover)
+        },
+        BlurMaterial::Sidebar => {
+            available!(macos = 10.11).then_some(NSVisualEffectMaterial::Sidebar)
+        },
+        BlurMaterial::HeaderView => {
+            available!(macos = 10.14).then_some(NSVisualEffectMaterial::HeaderView)
+        },
+        BlurMaterial::FullScreenUI => {
+            available!(macos = 10.14).then_some(NSVisualEffectMaterial::FullScreenUI)
+        },
+        BlurMaterial::HudWindow => {
+            available!(macos = 10.14).then_some(NSVisualEffectMaterial::HUDWindow)
+        },
+        BlurMaterial::ToolTip => {
+            available!(macos = 10.14).then_some(NSVisualEffectMaterial::ToolTip)
+        },
+        BlurMaterial::UnderWindowBackground => {
+            available!(macos = 10.14).then_some(NSVisualEffectMaterial::UnderWindowBackground)
+        },
+    }
+}
+
 impl WindowExtMacOS for WindowDelegate {
     #[inline]
     fn simple_fullscreen(&self) -> bool {
@@ -2340,6 +2429,21 @@ impl WindowExtMacOS for WindowDelegate {
 
     fn set_option_as_alt(&self, option_as_alt: OptionAsAlt) {
         self.view().set_option_as_alt(option_as_alt);
+    }
+
+    fn set_blur_material(&self, blur_material: BlurMaterial) {
+        self.ivars().blur_material.set(blur_material);
+
+        #[cfg(not(feature = "private-apple-apis"))]
+        if let Some(blur_view) = self.ivars().blur_view.borrow().as_ref() {
+            if let Some(material) = ns_visual_effect_material(blur_material) {
+                blur_view.setMaterial(material);
+            }
+        }
+    }
+
+    fn blur_material(&self) -> BlurMaterial {
+        self.ivars().blur_material.get()
     }
 
     fn option_as_alt(&self) -> OptionAsAlt {

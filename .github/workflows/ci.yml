@@ -70,6 +70,7 @@ jobs:
           - { name: 'Redox OS',           target: x86_64-unknown-redox,     os: ubuntu-latest,   }
           - { name: 'macOS x86_64',       target: x86_64-apple-darwin,      os: macos-latest,    }
           - { name: 'macOS Aarch64',      target: aarch64-apple-darwin,     os: macos-latest,    }
+          - { name: 'macOS Private APIs', target: aarch64-apple-darwin,     os: macos-latest, options: '--package winit --features=private-apple-apis' }
           - { name: 'iOS x86_64',         target: x86_64-apple-ios,         os: macos-latest,    }
           - { name: 'iOS Aarch64',        target: aarch64-apple-ios,        os: macos-latest,    }
           - { name: 'Web',                target: wasm32-unknown-unknown,   os: ubuntu-latest,   }
