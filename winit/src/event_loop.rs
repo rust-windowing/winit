@@ -219,7 +219,6 @@ impl EventLoop {
         mut app: A,
     ) -> Result<(), EventLoopError> {
         #[cfg(any(
-            windows_platform,
             macos_platform,
             android_platform,
             orbital_platform,
@@ -231,6 +230,10 @@ impl EventLoop {
             // SAFETY: unsure that the state is dropped before the exit from the event loop.
             drop(app);
             result
+        }
+        #[cfg(windows_platform)]
+        {
+            self.event_loop.run_app_on_demand(app)
         }
         #[cfg(web_platform)]
         {
