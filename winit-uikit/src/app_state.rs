@@ -76,6 +76,42 @@ enum AppStateImpl {
     Terminated,
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum WakerAction {
+    Stop,
+    Start,
+    StartAt(Instant),
+}
+
+fn waker_action_after_events_cleared(
+    previous_control_flow: ControlFlow,
+    control_flow: ControlFlow,
+    has_queued_gpu_redraws: bool,
+) -> WakerAction {
+    match (previous_control_flow, control_flow) {
+        (ControlFlow::WaitUntil(previous), ControlFlow::WaitUntil(instant))
+            if previous == instant && !has_queued_gpu_redraws =>
+        {
+            WakerAction::StartAt(instant)
+        },
+        (_, ControlFlow::Wait) => {
+            if has_queued_gpu_redraws {
+                WakerAction::Start
+            } else {
+                WakerAction::Stop
+            }
+        },
+        (_, ControlFlow::WaitUntil(instant)) => {
+            if has_queued_gpu_redraws {
+                WakerAction::Start
+            } else {
+                WakerAction::StartAt(instant)
+            }
+        },
+        (_, ControlFlow::Poll) => WakerAction::Start,
+    }
+}
+
 pub(crate) struct AppState {
     state: Cell<AppStateImpl>,
     control_flow: Cell<ControlFlow>,
@@ -187,40 +223,22 @@ impl AppState {
         let has_queued_gpu_redraws = self.has_queued_gpu_redraws();
 
         let new = self.control_flow.get();
-        match (old, new) {
-            (ControlFlow::Wait, ControlFlow::Wait) => {
+        let waker_action = waker_action_after_events_cleared(old, new, has_queued_gpu_redraws);
+        match new {
+            ControlFlow::Wait | ControlFlow::WaitUntil(_) => {
                 let start = Instant::now();
                 self.state.set(AppStateImpl::Waiting { start });
-                if has_queued_gpu_redraws { self.waker.start() } else { self.waker.stop() }
             },
-            (ControlFlow::WaitUntil(old_instant), ControlFlow::WaitUntil(new_instant))
-                if old_instant == new_instant =>
-            {
-                let start = Instant::now();
-                self.state.set(AppStateImpl::Waiting { start });
-                if has_queued_gpu_redraws {
-                    self.waker.start()
-                }
-            },
-            (_, ControlFlow::Wait) => {
-                let start = Instant::now();
-                self.state.set(AppStateImpl::Waiting { start });
-                if has_queued_gpu_redraws { self.waker.start() } else { self.waker.stop() }
-            },
-            (_, ControlFlow::WaitUntil(new_instant)) => {
-                let start = Instant::now();
-                self.state.set(AppStateImpl::Waiting { start });
-                if has_queued_gpu_redraws {
-                    self.waker.start()
-                } else {
-                    self.waker.start_at(new_instant)
-                }
-            },
-            // Unlike on macOS, handle Poll to Poll transition here to call the waker
-            (_, ControlFlow::Poll) => {
+            // Unlike on macOS, handle Poll to Poll transition here.
+            ControlFlow::Poll => {
                 self.state.set(AppStateImpl::PollFinished);
-                self.waker.start()
             },
+        }
+
+        match waker_action {
+            WakerAction::Stop => self.waker.stop(),
+            WakerAction::Start => self.waker.start(),
+            WakerAction::StartAt(instant) => self.waker.start_at(instant),
         }
     }
 
@@ -547,5 +565,34 @@ impl EventLoopWaker {
                 duration.subsec_nanos() as f64 / 1_000_000_000.0 + duration.as_secs() as f64;
             self.timer.set_next_fire_date(current + fsecs);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{WakerAction, waker_action_after_events_cleared};
+    use std::time::{Duration, Instant};
+    use winit_core::event_loop::ControlFlow;
+
+    #[test]
+    fn drained_gpu_queue_rearms_wait_until_deadline() {
+        let deadline = Instant::now() + Duration::from_secs(1);
+
+        assert_eq!(
+            waker_action_after_events_cleared(
+                ControlFlow::WaitUntil(deadline),
+                ControlFlow::WaitUntil(deadline),
+                false,
+            ),
+            WakerAction::StartAt(deadline),
+        );
+        assert_eq!(
+            waker_action_after_events_cleared(
+                ControlFlow::WaitUntil(deadline),
+                ControlFlow::WaitUntil(deadline),
+                true,
+            ),
+            WakerAction::Start,
+        );
     }
 }
