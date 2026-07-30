@@ -570,9 +570,11 @@ impl EventLoopWaker {
 
 #[cfg(test)]
 mod tests {
-    use super::{WakerAction, waker_action_after_events_cleared};
     use std::time::{Duration, Instant};
+
     use winit_core::event_loop::ControlFlow;
+
+    use super::{WakerAction, waker_action_after_events_cleared};
 
     #[test]
     fn drained_gpu_queue_rearms_wait_until_deadline() {
