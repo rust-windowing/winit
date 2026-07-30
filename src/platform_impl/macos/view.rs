@@ -122,6 +122,9 @@ pub struct ViewState {
     ime_state: Cell<ImeState>,
     input_source: RefCell<String>,
 
+    /// True if this view was in a preedit session that will result in a commit.
+    pending_commit: Cell<bool>,
+
     /// True iff the application wants IME events.
     ///
     /// Can be set using `set_ime_allowed`
@@ -310,6 +313,7 @@ declare_class!(
                 // In case the preedit was cleared, set IME into the Ground state.
                 self.ivars().ime_state.set(ImeState::Ground);
             }
+            self.ivars().pending_commit.set(true);
 
             let cursor_range = if string.is_empty() {
                 // An empty string basically means that there's no preedit, so indicate that by
@@ -354,7 +358,9 @@ declare_class!(
         #[method_id(validAttributesForMarkedText)]
         fn valid_attributes_for_marked_text(&self) -> Retained<NSArray<NSAttributedStringKey>> {
             trace_scope!("validAttributesForMarkedText");
-            NSArray::new()
+            let underline_style = NSString::from_str("NSUnderlineStyle");
+            let marked_clause = NSString::from_str("NSMarkedClauseSegment");
+            NSArray::from_id_slice(&[underline_style, marked_clause])
         }
 
         #[method_id(attributedSubstringForProposedRange:actualRange:)]
@@ -406,10 +412,20 @@ declare_class!(
             };
 
             let is_control = string.chars().next().is_some_and(|c| c.is_control());
+            let has_marked = unsafe { self.hasMarkedText() };
+            let pending_commit = self.ivars().pending_commit.get();
+            let ime_enabled = self.is_ime_enabled();
 
-            // Commit only if we have marked text.
-            if unsafe { self.hasMarkedText() } && self.is_ime_enabled() && !is_control {
+            // Clear preedit if there is marked text.
+            if has_marked {
                 self.queue_event(WindowEvent::Ime(Ime::Preedit(String::new(), None)));
+            }
+
+            // Only commit via IME if there was a real composition session.
+            // Some IMEs send insertText for all typing (e.g. spaces, English chars)
+            // which should go through keyboard input instead of paste.
+            if pending_commit && ime_enabled && !is_control {
+                self.ivars().pending_commit.set(false);
                 self.queue_event(WindowEvent::Ime(Ime::Commit(string)));
                 self.ivars().ime_state.set(ImeState::Committed);
             }
@@ -801,6 +817,7 @@ impl WinitView {
             tracking_rect: Default::default(),
             ime_state: Default::default(),
             input_source: Default::default(),
+            pending_commit: Default::default(),
             ime_allowed: Default::default(),
             forward_key_to_app: Default::default(),
             marked_text: Default::default(),
@@ -888,6 +905,7 @@ impl WinitView {
 
         // Clear markedText
         *self.ivars().marked_text.borrow_mut() = NSMutableAttributedString::new();
+        self.ivars().pending_commit.set(false);
 
         if self.ivars().ime_state.get() != ImeState::Disabled {
             self.ivars().ime_state.set(ImeState::Disabled);
