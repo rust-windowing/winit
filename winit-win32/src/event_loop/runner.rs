@@ -56,9 +56,9 @@ pub(crate) struct EventLoopRunner {
     // The event loop's win32 handles
     pub(super) thread_msg_target: HWND,
 
-    // Setting this will ensure pump_events will return to the external
-    // loop asap. E.g. set after each RedrawRequested to ensure pump_events
-    // can't stall an external loop beyond a frame
+    // Setting this ends the current message dispatch after returning from a
+    // `RedrawRequested`, so `pump_app_events` can return control to its external loop.
+    // It remains set until the next dispatch begins.
     pub(super) interrupt_msg_dispatch: Cell<bool>,
 
     control_flow: Cell<ControlFlow>,
