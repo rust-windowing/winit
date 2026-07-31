@@ -110,6 +110,7 @@ pub struct EventLoop {
     primary_pointer: Option<FingerId>,
     ignore_volume_keys: bool,
     combining_accent: Option<char>,
+    scale_factor: f64,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -143,6 +144,7 @@ impl EventLoop {
         let event_loop_proxy = Arc::new(EventLoopProxy::new(android_app.create_waker()));
 
         let redraw_flag = SharedFlag::new();
+        let scale_factor = scale_factor(android_app);
 
         Ok(Self {
             android_app: android_app.clone(),
@@ -161,6 +163,7 @@ impl EventLoop {
             cause: StartCause::Init,
             ignore_volume_keys: attributes.ignore_volume_keys,
             combining_accent: None,
+            scale_factor,
         })
     }
 
@@ -207,9 +210,9 @@ impl EventLoop {
                     app.window_event(&self.window_target, GLOBAL_WINDOW, event);
                 },
                 MainEvent::ConfigChanged { .. } => {
-                    let old_scale_factor = scale_factor(&self.android_app);
                     let scale_factor = scale_factor(&self.android_app);
-                    if (scale_factor - old_scale_factor).abs() < f64::EPSILON {
+                    if (scale_factor - self.scale_factor).abs() > f64::EPSILON {
+                        self.scale_factor = scale_factor;
                         let new_surface_size = Arc::new(Mutex::new(screen_size(&self.android_app)));
                         let event = event::WindowEvent::ScaleFactorChanged {
                             surface_size_writer: SurfaceSizeWriter::new(Arc::downgrade(
