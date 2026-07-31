@@ -134,7 +134,7 @@ pub struct LogicalUnit<P>(pub P);
 impl<P> LogicalUnit<P> {
     /// Represents a maximum logical unit that is equal to [`f64::MAX`].
     pub const MAX: LogicalUnit<f64> = LogicalUnit::new(f64::MAX);
-    /// Represents a minimum logical unit of [`f64::MAX`].
+    /// Represents a minimum logical unit of [`f64::MIN`].
     pub const MIN: LogicalUnit<f64> = LogicalUnit::new(f64::MIN);
     /// Represents a logical unit of `0_f64`.
     pub const ZERO: LogicalUnit<f64> = LogicalUnit::new(0.0);
@@ -228,7 +228,7 @@ pub struct PhysicalUnit<P>(pub P);
 impl<P> PhysicalUnit<P> {
     /// Represents a maximum physical unit that is equal to [`f64::MAX`].
     pub const MAX: LogicalUnit<f64> = LogicalUnit::new(f64::MAX);
-    /// Represents a minimum physical unit of [`f64::MAX`].
+    /// Represents a minimum physical unit of [`f64::MIN`].
     pub const MIN: LogicalUnit<f64> = LogicalUnit::new(f64::MIN);
     /// Represents a physical unit of `0_f64`.
     pub const ZERO: LogicalUnit<f64> = LogicalUnit::new(0.0);
@@ -322,7 +322,7 @@ pub enum PixelUnit {
 impl PixelUnit {
     /// Represents a maximum logical unit that is equal to [`f64::MAX`].
     pub const MAX: PixelUnit = PixelUnit::Logical(LogicalUnit::new(f64::MAX));
-    /// Represents a minimum logical unit of [`f64::MAX`].
+    /// Represents a minimum logical unit of [`f64::MIN`].
     pub const MIN: PixelUnit = PixelUnit::Logical(LogicalUnit::new(f64::MIN));
     /// Represents a logical unit of `0_f64`.
     pub const ZERO: PixelUnit = PixelUnit::Logical(LogicalUnit::new(0.0));
