@@ -23,6 +23,11 @@ targets = [
     { triple = "x86_64-unknown-redox" },
 ]
 
+[advisories]
+ignore = [
+    { id = "RUSTSEC-2026-0192", reason = "ttf-parser is pulled in via sctk-adwaita; no safe upgrade is available" },
+]
+
 [licenses]
 allow = [
     "Apache-2.0",   # https://tldrlegal.com/license/apache-license-2.0-(apache-2.0)
@@ -42,6 +47,11 @@ skip = [
     { crate = "bitflags@1", reason = "the ecosystem is in the process of migrating" },
     { crate = "rustix@0.38", reason = "the ecosystem is in the process of migrating" },
     { crate = "linux-raw-sys@0.4", reason = "the ecosystem is in the process of migrating" },
+    { crate = "syn@2", reason = "the ecosystem is in the process of migrating" },
+    { crate = "jni-sys@0.3", reason = "the ecosystem is in the process of migrating" },
+    { crate = "redox_syscall@0.4", reason = "the ecosystem is in the process of migrating" },
+    { crate = "thiserror@1", reason = "the ecosystem is in the process of migrating" },
+    { crate = "thiserror-impl@1", reason = "the ecosystem is in the process of migrating" },
 ]
 wildcards = "allow" # at least until https://github.com/EmbarkStudios/cargo-deny/issues/241 is fixed
 
@@ -50,10 +60,15 @@ include-archives = true
 interpreted = "deny"
 
 [[bans.build.bypass]]
+allow-globs = ["android-games-sdk/*.sh"]
 allow = [
     { path = "generate-bindings.sh", checksum = "268ec23248218d779e33853cdc60e2985e70214ff004716cd734270de1f6b561" },
 ]
 crate = "android-activity"
+
+[[bans.build.bypass]]
+allow-globs = ["etc/*.py"]
+crate = "libc"
 
 [[bans.build.bypass]]
 allow-globs = ["ci/*", "githooks/*", "cargo.sh"]
