@@ -531,6 +531,19 @@ impl CursorFlags {
             if active_cursor_clip != cursor_clip.map(rect_to_tuple) {
                 util::set_cursor_clip(cursor_clip)?;
             }
+        } else {
+            // Windows doesn't reset the global `ClipCursor` state on focus loss, so release the
+            // clip if it's the one this window applied (it lies within the client area).
+            let rect_to_tuple = |rect: RECT| (rect.left, rect.top, rect.right, rect.bottom);
+            let active_cursor_clip = util::get_cursor_clip()?;
+            if rect_to_tuple(active_cursor_clip) != rect_to_tuple(util::get_desktop_rect())
+                && active_cursor_clip.left >= client_rect.left
+                && active_cursor_clip.top >= client_rect.top
+                && active_cursor_clip.right <= client_rect.right
+                && active_cursor_clip.bottom <= client_rect.bottom
+            {
+                util::set_cursor_clip(None)?;
+            }
         }
 
         let cursor_in_client = self.contains(CursorFlags::IN_WINDOW);
