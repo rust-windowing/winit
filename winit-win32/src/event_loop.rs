@@ -1065,6 +1065,9 @@ unsafe fn gain_active_focus(window: HWND, userdata: &WindowData) {
 
     update_modifiers(window, userdata);
 
+    // Reapply the cursor clip released on focus loss.
+    userdata.window_state_lock().mouse.set_cursor_flags(window, |_| ()).ok();
+
     userdata.send_window_event(window, Focused(true));
 }
 
@@ -1073,6 +1076,9 @@ unsafe fn lose_active_focus(window: HWND, userdata: &WindowData) {
 
     userdata.window_state_lock().modifiers_state = ModifiersState::empty();
     userdata.send_window_event(window, ModifiersChanged(ModifiersState::empty().into()));
+
+    // Release the cursor clip, which Windows keeps active even after focus loss.
+    userdata.window_state_lock().mouse.set_cursor_flags(window, |_| ()).ok();
 
     userdata.send_window_event(window, Focused(false));
 }

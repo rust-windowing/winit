@@ -98,6 +98,7 @@ changelog entry.
 
 ### Fixed
 
+- On Windows, release the cursor clip when the window loses focus and reapply it on focus gain.
 - On Windows, fix a freeze that occurs when the keyboard layout is switched by
   tools such as Punto Switcher. The `WM_INPUTLANGCHANGE` message is now handled
   to refresh the cached keyboard layout, while still deferring to
