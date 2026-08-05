@@ -1188,9 +1188,15 @@ impl Device {
                     let info = unsafe { &*(class_ptr as *const ffi::XIValuatorClassInfo) };
                     let atom = info.label as xproto::Atom;
 
-                    if atom == atoms[ABS_X]
-                        || atom == atoms[ABS_Y]
-                        || atom == atoms[ABS_PRESSURE]
+                    // Absolute X/Y axes alone do not identify a stylus:
+                    // emulated pointing devices in virtual machines (the
+                    // QEMU/VMware/VirtualBox USB tablets, and thus any
+                    // desktop accessed through SPICE or similar viewers)
+                    // expose Abs X/Y without pressure or tilt. Treating them
+                    // as pens makes the mouse-only event filters drop all
+                    // their motion and button input. Only pressure and tilt
+                    // axes indicate actual stylus hardware.
+                    if atom == atoms[ABS_PRESSURE]
                         || atom == atoms[ABS_TILT_X]
                         || atom == atoms[ABS_TILT_Y]
                     {
