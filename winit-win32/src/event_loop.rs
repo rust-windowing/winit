@@ -947,6 +947,9 @@ static EXEC_MSG_ID: LazyMessageId = LazyMessageId::new("Winit::ExecMsg\0");
 // Message sent by a `Window` when it wants to be destroyed by the main thread.
 // WPARAM and LPARAM are unused.
 pub(crate) static DESTROY_MSG_ID: LazyMessageId = LazyMessageId::new("Winit::DestroyMsg\0");
+// Message sent by a `Window` when `request_redraw` is called. Unlike `WM_PAINT`, posted messages
+// are not deferred until the message queue is otherwise empty.
+pub(crate) static REDRAW_MSG_ID: LazyMessageId = LazyMessageId::new("Winit::RedrawMsg\0");
 // WPARAM is a bool specifying the `WindowFlags::MARKER_RETAIN_STATE_ON_SIZE` flag. See the
 // documentation in the `window_state` module for more information.
 pub(crate) static SET_RETAIN_STATE_ON_SIZE_MSG_ID: LazyMessageId =
@@ -1311,22 +1314,24 @@ unsafe fn public_window_callback_inner(
             result = ProcResult::Value(unsafe { DefWindowProcW(window, msg, wparam, lparam) });
         },
         WM_PAINT => {
-            userdata.window_state_lock().redraw_requested =
-                userdata.event_loop_runner.should_buffer();
+            let should_buffer = userdata.event_loop_runner.should_buffer();
 
             // We'll buffer only in response to `UpdateWindow`, if win32 decides to redraw the
             // window outside the normal flow of the event loop. This way mark event as handled
             // and request a normal redraw with `RedrawWindow`.
-            if !userdata.event_loop_runner.should_buffer() {
+            if !should_buffer {
+                // A system paint also satisfies an explicit redraw which has not been dispatched
+                // yet. Clear it before the callback so a new request made from the callback still
+                // queues the following frame.
+                userdata.window_state_lock().redraw_requested = false;
                 userdata.send_window_event(window, WindowEvent::RedrawRequested);
             }
 
-            // NOTE: calling `RedrawWindow` during `WM_PAINT` does nothing, since to mark
-            // `WM_PAINT` as handled we should call the `DefWindowProcW`. Call it and check whether
-            // user asked for redraw during `RedrawRequested` event handling and request it again
-            // after marking `WM_PAINT` as handled.
+            // `DefWindowProcW` must mark `WM_PAINT` as handled before a buffered paint can be
+            // re-armed. If an explicit redraw is pending, its posted message will satisfy both
+            // requests without relying on another low-priority paint.
             result = ProcResult::Value(unsafe { DefWindowProcW(window, msg, wparam, lparam) });
-            if std::mem::take(&mut userdata.window_state_lock().redraw_requested) {
+            if should_buffer && !userdata.window_state_lock().redraw_requested {
                 unsafe { RedrawWindow(window, ptr::null(), ptr::null_mut(), RDW_INTERNALPAINT) };
             }
         },
@@ -2472,6 +2477,18 @@ unsafe fn public_window_callback_inner(
         _ => {
             if msg == DESTROY_MSG_ID.get() {
                 unsafe { DestroyWindow(window) };
+                result = ProcResult::Value(0);
+            } else if msg == REDRAW_MSG_ID.get() {
+                if userdata.event_loop_runner.source_drag.get().is_some()
+                    || userdata.event_loop_runner.should_buffer()
+                {
+                    // Native modal loops can dispatch posted messages while application event
+                    // handling is already in progress. Delay the callback until the handler is
+                    // available again so event delivery is not re-entrant.
+                    userdata.event_loop_runner.defer_redraw(window);
+                } else if std::mem::take(&mut userdata.window_state_lock().redraw_requested) {
+                    userdata.send_window_event(window, WindowEvent::RedrawRequested);
+                }
                 result = ProcResult::Value(0);
             } else if msg == SET_RETAIN_STATE_ON_SIZE_MSG_ID.get() {
                 let mut window_state = userdata.window_state_lock();

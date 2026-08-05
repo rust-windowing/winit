@@ -626,8 +626,8 @@ pub trait Window: AsAny + Send + Sync + fmt::Debug {
     ///
     /// ## Platform-specific
     ///
-    /// - **Windows** This API uses `RedrawWindow` to request a `WM_PAINT` message and
-    ///   `RedrawRequested` is emitted in sync with any `WM_PAINT` messages.
+    /// - **Windows:** `RedrawRequested` is also emitted for `WM_PAINT` messages requested by the
+    ///   system.
     /// - **Wayland:** The events are aligned with the frame callbacks when
     ///   [`Window::pre_present_notify`] is used.
     /// - **Web:** [`WindowEvent::RedrawRequested`] will be aligned with the

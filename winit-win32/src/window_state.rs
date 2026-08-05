@@ -58,7 +58,7 @@ pub(crate) struct WindowState {
     pub is_active: bool,
     pub is_focused: bool,
 
-    // Flag whether redraw was requested.
+    // Flag whether an explicit redraw message is pending.
     pub redraw_requested: bool,
 
     pub dragging: bool,
