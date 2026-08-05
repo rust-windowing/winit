@@ -61,6 +61,7 @@ changelog entry.
   matching release of a click that activated a previously inactive window are tagged, so
   applications can ignore activation clicks for buttons or destructive actions while accepting
   them for low-risk actions like selection or scrolling. Always `false` on other platforms.
+- `winit::event_loop::EventLoopProvider` trait with common event loop methods.
 
 ### Changed
 
