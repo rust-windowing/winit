@@ -1,4 +1,4 @@
-//! Types related to drag-and-drop and data transfer on Wayland.
+//! Types related to data transfer (drag-and-drop and clipboard) on Wayland.
 
 use std::ffi::OsStr;
 use std::fmt;
@@ -10,8 +10,10 @@ use calloop::PostAction;
 use dpi::{LogicalPosition, PhysicalPosition};
 use sctk::data_device_manager::WritePipe;
 use sctk::data_device_manager::data_device::{DataDeviceData, DataDeviceHandler};
-use sctk::data_device_manager::data_offer::{DataOfferHandler, DragOffer};
-use sctk::data_device_manager::data_source::{DataSourceHandler, DragSource as SctkDragSource};
+use sctk::data_device_manager::data_offer::{DataOfferHandler, DragOffer, SelectionOffer};
+use sctk::data_device_manager::data_source::{
+    CopyPasteSource, DataSourceHandler, DragSource as SctkDragSource,
+};
 use sctk::reexports::client::backend::ObjectId;
 use wayland_client::protocol::wl_data_device::WlDataDevice;
 use wayland_client::protocol::wl_data_device_manager::DndAction as WlDndAction;
@@ -27,6 +29,7 @@ use winit_core::event_loop::DndAction;
 use winit_core::window::WindowId;
 
 use crate::make_data_transfer_id;
+use crate::seat::WinitSeatState;
 use crate::state::WinitState;
 
 fn encode_uri_list<I>(uri_list: I) -> Vec<u8>
@@ -60,11 +63,11 @@ impl DataSourceHandler for WinitState {
         &mut self,
         _: &Connection,
         _: &QueueHandle<Self>,
-        _: &WlDataSource,
+        source: &WlDataSource,
         mime: String,
         fd: WritePipe,
     ) {
-        let Some(data) = self.data_transfer_state.send_drag_data_mut() else {
+        let Some(data) = self.data_transfer_state.send_data_mut(source) else {
             // TODO: Is there a way to explicitly express that the data was not sent?
             return;
         };
@@ -114,8 +117,15 @@ impl DataSourceHandler for WinitState {
         });
     }
 
-    fn cancelled(&mut self, _: &Connection, _: &QueueHandle<Self>, _: &WlDataSource) {
-        let Some(current_drag) = self.data_transfer_state.send_drag() else {
+    fn cancelled(&mut self, _: &Connection, _: &QueueHandle<Self>, source: &WlDataSource) {
+        let send_clipboard = &mut self.data_transfer_state.send_clipboard;
+        if send_clipboard.take_if(|clipboard| clipboard.data_source.inner() == source).is_some() {
+            return;
+        }
+
+        let Some(current_drag) =
+            self.data_transfer_state.send_drag.take_if(|drag| drag.data_source.inner() == source)
+        else {
             return;
         };
 
@@ -295,7 +305,7 @@ impl MimeType {
         if charset == "utf-8" { Ok(Charset::Utf8) } else { Err(UnexpectedCharsetError(charset)) }
     }
 
-    fn parse(mime: String) -> Self {
+    pub(crate) fn parse(mime: String) -> Self {
         let hint = Self::MIME_HINT_MAP
             .iter()
             .find_map(|(haystack, hint)| (*haystack == &*mime).then_some(*hint))
@@ -524,7 +534,7 @@ pub struct DragSource {
     ///
     /// This is stored internally, as if this source is dropped then the
     /// drag operation will be cancelled.
-    _data_source: SctkDragSource,
+    data_source: SctkDragSource,
     /// The supplied [`DataTransferSend`].
     pub(crate) data: Box<dyn DataTransferSend>,
     pub(crate) selected_action: WlDndAction,
@@ -543,7 +553,7 @@ impl DragSource {
     ) -> Self {
         Self {
             data_transfer_id,
-            _data_source: data_source,
+            data_source,
             data,
             selected_action: WlDndAction::None,
             window_id,
@@ -557,11 +567,33 @@ impl DragSource {
     }
 }
 
-/// The current state of an in-progress drag-and-drop operation.
+#[derive(Debug)]
+pub(crate) struct ClipboardTransfer {
+    pub(crate) mime_types: Arc<[MimeType]>,
+}
+
+impl DataTransfer for ClipboardTransfer {
+    fn for_each_available_type<'this>(
+        &'this self,
+        func: &'_ mut dyn FnMut(&'this dyn TransferType) -> std::ops::ControlFlow<()>,
+    ) {
+        let _ = self.mime_types.iter().map(|mime| mime as &dyn TransferType).try_for_each(func);
+    }
+}
+
+#[derive(Debug)]
+pub(crate) struct ClipboardSource {
+    data_source: CopyPasteSource,
+    data: Box<dyn DataTransferSend>,
+}
+
+/// The current state of in-progress data transfer operations (drag-and-drop and clipboard).
 #[derive(Debug, Default)]
 pub struct DataTransferState {
     receive_drag: Option<DataOffer>,
     send_drag: Option<DragSource>,
+    send_clipboard: Option<ClipboardSource>,
+    clipboard_serial: u32,
 }
 
 impl DataTransferState {
@@ -589,8 +621,39 @@ impl DataTransferState {
         self.send_drag.take().is_some()
     }
 
-    pub(crate) fn send_drag_data_mut(&mut self) -> Option<&mut dyn DataTransferSend> {
-        self.send_drag.as_mut().map(|send| send.data())
+    pub(crate) fn set_send_clipboard(
+        &mut self,
+        data_source: CopyPasteSource,
+        data: Box<dyn DataTransferSend>,
+    ) {
+        self.send_clipboard = Some(ClipboardSource { data_source, data });
+    }
+
+    pub(crate) fn clipboard_offer<'a>(
+        &self,
+        seats: impl IntoIterator<Item = &'a WinitSeatState>,
+    ) -> Option<(SelectionOffer, DataTransferId)> {
+        seats.into_iter().find_map(|seat| {
+            let offer = seat.data_device()?.data().selection_offer()?;
+            let id = make_data_transfer_id(offer.inner().id(), self.clipboard_serial);
+            Some((offer, id))
+        })
+    }
+
+    pub(crate) fn send_data_mut(
+        &mut self,
+        source: &WlDataSource,
+    ) -> Option<&mut dyn DataTransferSend> {
+        if let Some(drag) =
+            self.send_drag.as_mut().filter(|drag| drag.data_source.inner() == source)
+        {
+            return Some(drag.data());
+        }
+
+        self.send_clipboard
+            .as_mut()
+            .filter(|clipboard| clipboard.data_source.inner() == source)
+            .map(|clipboard| &mut *clipboard.data)
     }
 }
 
@@ -638,7 +701,6 @@ impl DataDeviceHandler for WinitState {
         };
 
         let Some(drag) = data.drag_offer() else {
-            // Selections are not yet implemented
             return;
         };
 
@@ -696,9 +758,6 @@ impl DataDeviceHandler for WinitState {
         if let Some(drag) = data.drag_offer() {
             drag.destroy();
         }
-        if let Some(selection) = data.selection_offer() {
-            selection.destroy();
-        }
     }
 
     fn motion(
@@ -713,7 +772,6 @@ impl DataDeviceHandler for WinitState {
             return;
         };
         let Some(drag) = data.drag_offer() else {
-            // Selections (copy/paste) are not yet implemented
             return;
         };
 
@@ -750,7 +808,8 @@ impl DataDeviceHandler for WinitState {
     }
 
     fn selection(&mut self, _: &Connection, _: &QueueHandle<Self>, _: &WlDataDevice) {
-        // We don't handle selections right now.
+        let serial = &mut self.data_transfer_state.clipboard_serial;
+        *serial = serial.wrapping_add(1);
     }
 
     fn drop_performed(
@@ -763,7 +822,6 @@ impl DataDeviceHandler for WinitState {
             return;
         };
         let Some(drag) = data.drag_offer() else {
-            // Selections (copy/paste) are not yet implemented
             return;
         };
 
@@ -796,9 +854,6 @@ impl DataDeviceHandler for WinitState {
 
         if let Some(drag) = data.drag_offer() {
             drag.destroy();
-        }
-        if let Some(selection) = data.selection_offer() {
-            selection.destroy();
         }
     }
 }

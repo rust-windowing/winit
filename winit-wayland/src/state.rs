@@ -126,7 +126,7 @@ pub struct WinitState {
     /// Blur manager.
     pub blur_manager: Option<BgrEffectManager>,
 
-    /// Drag-and-drop state.
+    /// Drag-and-drop and clipboard state.
     pub data_transfer_state: DataTransferState,
 
     /// Loop handle to re-register event sources, such as keyboard repeat.
