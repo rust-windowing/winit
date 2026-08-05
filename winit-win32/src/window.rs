@@ -21,7 +21,7 @@ use windows_sys::Win32::Graphics::Dwm::{
 use windows_sys::Win32::Graphics::Gdi::{
     CDS_FULLSCREEN, ChangeDisplaySettingsExW, ClientToScreen, CreateRectRgn, DISP_CHANGE_BADFLAGS,
     DISP_CHANGE_BADMODE, DISP_CHANGE_BADPARAM, DISP_CHANGE_FAILED, DISP_CHANGE_SUCCESSFUL,
-    DeleteObject, InvalidateRgn, ScreenToClient,
+    DeleteObject, InvalidateRgn, RDW_INTERNALPAINT, RedrawWindow, ScreenToClient,
 };
 use windows_sys::Win32::System::Com::{
     CLSCTX_ALL, COINIT_APARTMENTTHREADED, CoCreateInstance, CoInitializeEx, CoUninitialize,
@@ -63,9 +63,7 @@ use crate::definitions::{
 };
 use crate::dnd::FileDropHandler;
 use crate::dpi::{dpi_to_scale_factor, enable_non_client_dpi_scaling, hwnd_dpi};
-use crate::event_loop::{
-    self, ActiveEventLoop, DESTROY_MSG_ID, Event, EventLoopRunner, REDRAW_MSG_ID,
-};
+use crate::event_loop::{self, ActiveEventLoop, DESTROY_MSG_ID, Event, EventLoopRunner};
 use crate::icon::{IconType, WinCursor};
 use crate::ime::ImeContext;
 use crate::keyboard::KeyEventBuilder;
@@ -504,14 +502,10 @@ impl CoreWindow for Window {
     }
 
     fn request_redraw(&self) {
-        let mut window_state = self.window_state.lock().unwrap();
-        if !window_state.redraw_requested {
-            window_state.redraw_requested = true;
-            unsafe {
-                if PostMessageW(self.hwnd(), REDRAW_MSG_ID.get(), 0, 0) == 0 {
-                    window_state.redraw_requested = false;
-                }
-            }
+        // NOTE: mark that we requested a redraw to handle requests during `WM_PAINT` handling.
+        self.window_state.lock().unwrap().redraw_requested = true;
+        unsafe {
+            RedrawWindow(self.hwnd(), ptr::null(), ptr::null_mut(), RDW_INTERNALPAINT);
         }
     }
 

@@ -11,14 +11,13 @@ use windows_sys::Win32::Foundation::{DRAGDROP_S_CANCEL, DRAGDROP_S_DROP, HWND};
 use windows_sys::Win32::System::Ole::{
     DROPEFFECT_COPY, DROPEFFECT_LINK, DROPEFFECT_MOVE, DROPEFFECT_NONE, DoDragDrop,
 };
-use windows_sys::Win32::UI::WindowsAndMessaging::PostMessageW;
 use winit_core::application::ApplicationHandler;
 use winit_core::data_transfer::DataTransferId;
 use winit_core::event::{DeviceEvent, DeviceId, StartCause, SurfaceSizeWriter, WindowEvent};
 use winit_core::event_loop::{ActiveEventLoop as RootActiveEventLoop, DndAction};
 use winit_core::window::WindowId;
 
-use super::{ActiveEventLoop, ControlFlow, EventLoopThreadExecutor, REDRAW_MSG_ID};
+use super::{ActiveEventLoop, ControlFlow, EventLoopThreadExecutor};
 use crate::dnd::{DataObject, DropEffect, DropSource, SourceDataObject, drop_effect_to_dnd_action};
 use crate::event_loop::{GWL_USERDATA, WindowData};
 use crate::util::get_window_long;
@@ -75,9 +74,6 @@ pub(crate) struct EventLoopRunner {
 
     /// `Some(_)` while `start_drag` has `DoDragDrop` on the call stack.
     pub(crate) source_drag: Cell<Option<SourceDrag>>,
-
-    /// Redraw messages consumed by a native modal loop while application handling is unavailable.
-    deferred_redraws: RefCell<Vec<HWND>>,
 
     /// `DoDragDrop` is blocking and synchronous, so we wait until after the application returns
     /// control to winit before actually calling into the OS to initiate the drag. This prevents
@@ -147,7 +143,6 @@ impl EventLoopRunner {
             event_buffer: RefCell::new(VecDeque::new()),
             drag_state: RefCell::new(None),
             source_drag: Cell::new(None),
-            deferred_redraws: RefCell::new(Vec::new()),
             pending_drag: RefCell::new(None),
             pending_source_drag_cleanup: Cell::new(None),
         }
@@ -171,20 +166,18 @@ impl EventLoopRunner {
                 self.0.set(None);
             }
         }
+        self.source_drag.set(Some(SourceDrag { id }));
+        let _guard = ClearOnDrop(&self.source_drag);
+
         let mut effect_out: u32 = DROPEFFECT_NONE;
-        let hr = {
-            self.source_drag.set(Some(SourceDrag { id }));
-            let _guard = ClearOnDrop(&self.source_drag);
-            unsafe {
-                DoDragDrop(
-                    data_object.interface_ptr(),
-                    drop_source.interface_ptr(),
-                    allowed_effects,
-                    &mut effect_out,
-                )
-            }
+        let hr = unsafe {
+            DoDragDrop(
+                data_object.interface_ptr(),
+                drop_source.interface_ptr(),
+                allowed_effects,
+                &mut effect_out,
+            )
         };
-        self.resume_deferred_redraws();
 
         if hr == DRAGDROP_S_DROP {
             let action = drop_effect_to_dnd_action(effect_out);
@@ -216,23 +209,6 @@ impl EventLoopRunner {
 
     pub(crate) fn defer_source_drag_cleanup(&self, id: DataTransferId) {
         self.pending_source_drag_cleanup.set(Some(id));
-    }
-
-    pub(crate) fn defer_redraw(&self, window: HWND) {
-        let mut deferred_redraws = self.deferred_redraws.borrow_mut();
-        if !deferred_redraws.contains(&window) {
-            deferred_redraws.push(window);
-        }
-    }
-
-    fn resume_deferred_redraws(&self) {
-        let mut retry = Vec::new();
-        for window in self.deferred_redraws.take() {
-            if unsafe { PostMessageW(window, REDRAW_MSG_ID.get(), 0, 0) } == 0 {
-                retry.push(window);
-            }
-        }
-        self.deferred_redraws.borrow_mut().extend(retry);
     }
 
     pub(crate) fn register_data_transfer(
@@ -331,7 +307,6 @@ impl EventLoopRunner {
             event_buffer: _,
             drag_state,
             source_drag,
-            deferred_redraws,
             pending_drag,
             pending_source_drag_cleanup,
         } = self;
@@ -342,7 +317,6 @@ impl EventLoopRunner {
         event_handler.set(None);
         drag_state.take();
         source_drag.set(None);
-        deferred_redraws.take();
         pending_drag.take();
         pending_source_drag_cleanup.set(None);
     }
@@ -469,9 +443,6 @@ impl EventLoopRunner {
             closure(event_handler, ActiveEventLoop::from_ref(self));
 
             assert!(self.event_handler.replace(Some(event_handler)).is_none());
-            if self.source_drag.get().is_none() {
-                self.resume_deferred_redraws();
-            }
         });
     }
 
