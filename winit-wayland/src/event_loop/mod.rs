@@ -839,6 +839,8 @@ impl RootActiveEventLoop for ActiveEventLoop {
                 window_id,
             );
 
+            state.dispatched_events = true;
+
             PostAction::Remove
         });
 
