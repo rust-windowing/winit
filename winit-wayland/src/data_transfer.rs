@@ -64,7 +64,7 @@ impl DataSourceHandler for WinitState {
         mime: String,
         fd: WritePipe,
     ) {
-        let Some(data) = self.dnd_state.send_drag_data_mut() else {
+        let Some(data) = self.data_transfer_state.send_drag_data_mut() else {
             // TODO: Is there a way to explicitly express that the data was not sent?
             return;
         };
@@ -115,7 +115,7 @@ impl DataSourceHandler for WinitState {
     }
 
     fn cancelled(&mut self, _: &Connection, _: &QueueHandle<Self>, _: &WlDataSource) {
-        let Some(current_drag) = self.dnd_state.send_drag() else {
+        let Some(current_drag) = self.data_transfer_state.send_drag() else {
             return;
         };
 
@@ -126,7 +126,7 @@ impl DataSourceHandler for WinitState {
     }
 
     fn dnd_dropped(&mut self, _: &Connection, _: &QueueHandle<Self>, _: &WlDataSource) {
-        let Some(current_drag) = self.dnd_state.send_drag() else {
+        let Some(current_drag) = self.data_transfer_state.send_drag() else {
             return;
         };
 
@@ -149,7 +149,7 @@ impl DataSourceHandler for WinitState {
         _: &QueueHandle<Self>,
         _: &wayland_client::protocol::wl_data_source::WlDataSource,
     ) {
-        self.dnd_state.clear_send_drag();
+        self.data_transfer_state.clear_send_drag();
     }
 
     fn action(
@@ -159,7 +159,7 @@ impl DataSourceHandler for WinitState {
         _: &WlDataSource,
         action: WlDndAction,
     ) {
-        self.dnd_state.set_target_drag_action(action);
+        self.data_transfer_state.set_target_drag_action(action);
     }
 }
 
@@ -559,12 +559,12 @@ impl DragSource {
 
 /// The current state of an in-progress drag-and-drop operation.
 #[derive(Debug, Default)]
-pub struct DndState {
+pub struct DataTransferState {
     receive_drag: Option<DataOffer>,
     send_drag: Option<DragSource>,
 }
 
-impl DndState {
+impl DataTransferState {
     pub(crate) fn receive_drag(&self) -> Option<&DataOffer> {
         self.receive_drag.as_ref()
     }
@@ -661,7 +661,7 @@ impl DataDeviceHandler for WinitState {
 
         let id = current_drag.transfer_id();
 
-        self.dnd_state.receive_drag = Some(current_drag);
+        self.data_transfer_state.receive_drag = Some(current_drag);
 
         let scale_factor = self
             .windows
@@ -682,13 +682,13 @@ impl DataDeviceHandler for WinitState {
             return;
         };
 
-        if let Some(current_drag) = self.dnd_state.receive_drag() {
+        if let Some(current_drag) = self.data_transfer_state.receive_drag() {
             self.events_sink.push_window_event(
                 WindowEvent::DragLeft { id: current_drag.transfer_id() },
                 current_drag.window_id(),
             );
 
-            if let Some(receive_drag) = self.dnd_state.receive_drag.take() {
+            if let Some(receive_drag) = self.data_transfer_state.receive_drag.take() {
                 receive_drag.finish();
             }
         }
@@ -729,7 +729,7 @@ impl DataDeviceHandler for WinitState {
             None
         };
 
-        let Some(current_drag) = self.dnd_state.receive_drag() else {
+        let Some(current_drag) = self.data_transfer_state.receive_drag() else {
             return;
         };
 
@@ -767,7 +767,7 @@ impl DataDeviceHandler for WinitState {
             return;
         };
 
-        let Some(current_drag) = self.dnd_state.receive_drag() else {
+        let Some(current_drag) = self.data_transfer_state.receive_drag() else {
             return;
         };
 
@@ -790,7 +790,7 @@ impl DataDeviceHandler for WinitState {
             window_id,
         );
 
-        if let Some(receive_drag) = self.dnd_state.receive_drag.take() {
+        if let Some(receive_drag) = self.data_transfer_state.receive_drag.take() {
             receive_drag.finish();
         }
 

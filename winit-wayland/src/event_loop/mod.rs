@@ -38,7 +38,7 @@ use winit_core::icon::RgbaIcon;
 use winit_core::monitor::MonitorHandle as CoreMonitorHandle;
 use winit_core::window::{Theme, WindowType};
 
-use crate::dnd::{MimeData, dnd_action_winit_to_wl};
+use crate::data_transfer::{MimeData, dnd_action_winit_to_wl};
 use crate::types::cursor::WaylandCustomCursor;
 use crate::{DragSource, MimeType, image_to_buffer, make_data_transfer_id};
 
@@ -789,7 +789,7 @@ impl RootActiveEventLoop for ActiveEventLoop {
         type_: &dyn TransferType,
     ) -> Result<AsyncRequestSerial, RequestError> {
         let state = self.state.borrow_mut();
-        let Some(current_drag) = state.dnd_state.receive_drag() else {
+        let Some(current_drag) = state.data_transfer_state.receive_drag() else {
             return Err(RequestError::Ignored);
         };
 
@@ -852,7 +852,7 @@ impl RootActiveEventLoop for ActiveEventLoop {
 
     fn data_transfer(&self, id: DataTransferId) -> Result<Box<dyn DataTransfer>, RequestError> {
         let state = self.state.borrow();
-        let Some(state) = state.dnd_state.receive_drag() else {
+        let Some(state) = state.data_transfer_state.receive_drag() else {
             return Err(RequestError::Ignored);
         };
 
@@ -869,7 +869,7 @@ impl RootActiveEventLoop for ActiveEventLoop {
         actions: &[DndAction],
     ) -> Result<(), RequestError> {
         let state = self.state.borrow();
-        let Some(state) = state.dnd_state.receive_drag() else {
+        let Some(state) = state.data_transfer_state.receive_drag() else {
             return Err(os_error!(UnknownDataTransfer(id)).into());
         };
 
@@ -987,7 +987,7 @@ impl RootActiveEventLoop for ActiveEventLoop {
             surface.commit();
         }
 
-        state.dnd_state.set_send_drag(DragSource::new(
+        state.data_transfer_state.set_send_drag(DragSource::new(
             transfer_id,
             data_source,
             send_data,
