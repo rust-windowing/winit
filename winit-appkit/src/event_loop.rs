@@ -3,12 +3,14 @@ use std::rc::Rc;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
+use dispatch2::MainThreadBound;
 use objc2::rc::{Retained, autoreleasepool};
 use objc2::runtime::ProtocolObject;
 use objc2::{AnyThread, MainThreadMarker, available};
 use objc2_app_kit::{
     NSApplication, NSApplicationActivationPolicy, NSApplicationDidFinishLaunchingNotification,
-    NSApplicationWillTerminateNotification, NSDraggingItem, NSWindow,
+    NSApplicationWillTerminateNotification, NSDraggingItem, NSPasteboard, NSPasteboardItem,
+    NSPasteboardTypeFileURL, NSPasteboardWriting, NSWindow,
 };
 use objc2_core_foundation::{
     CFIndex, CFRunLoopActivity, CGPoint, CGRect, CGSize, kCFRunLoopCommonModes,
@@ -21,7 +23,7 @@ use winit_common::foundation::create_observer;
 use winit_core::application::ApplicationHandler;
 use winit_core::cursor::{CustomCursor as CoreCustomCursor, CustomCursorSource};
 use winit_core::data_transfer::{
-    DataTransfer, DataTransferId, DataTransferSend, SendData, TransferType, TypeHint,
+    DataTransfer, DataTransferId, DataTransferSend, SendData, TransferType, TypeHint, TypedData,
 };
 use winit_core::error::{EventLoopError, RequestError};
 use winit_core::event::WindowEvent;
@@ -41,7 +43,10 @@ use super::event::dummy_event;
 use super::monitor;
 use crate::ActivationPolicy;
 use crate::cursor::image_from_icon;
-use crate::dnd::{PasteboardTypeSpec, PasteboardWriter, dnd_actions_to_ns_drag_operation};
+use crate::data_transfer::{
+    Pasteboard, PasteboardType, PasteboardTypeSpec, PasteboardWriter,
+    dnd_actions_to_ns_drag_operation,
+};
 use crate::window::Window;
 
 #[derive(Debug)]
@@ -65,6 +70,12 @@ impl ActiveEventLoop {
 
     pub(crate) fn allows_automatic_window_tabbing(&self) -> bool {
         NSWindow::allowsAutomaticWindowTabbing(self.mtm)
+    }
+
+    fn clipboard_by_id(&self, id: DataTransferId) -> Option<Pasteboard> {
+        let pb = NSPasteboard::generalPasteboard();
+        (self.app_state.data_transfer().clipboard_transfer_id(&pb) == id)
+            .then(|| Pasteboard::new(id, MainThreadBound::new(pb, self.mtm)))
     }
 }
 
@@ -142,38 +153,101 @@ impl RootActiveEventLoop for ActiveEventLoop {
         id: DataTransferId,
         type_: &dyn TransferType,
     ) -> Result<AsyncRequestSerial, RequestError> {
-        let Some(pb) = self.app_state.pasteboards().get(id) else {
-            return Err(RequestError::Ignored);
+        let (pb, window_ids) = match self.app_state.data_transfer().pasteboards().get(id) {
+            Some(pb) => {
+                let Some(window_id) = self.app_state.data_transfer().pasteboards().window_id(id)
+                else {
+                    return Err(RequestError::Ignored);
+                };
+                (pb, vec![window_id])
+            },
+            None => {
+                let pb = self.clipboard_by_id(id).ok_or(RequestError::Ignored)?;
+                // Clipboard is not tied to a window, dispatch to all.
+                (pb, self.app_state.window_ids())
+            },
         };
-        let Some(window_id) = self.app_state.pasteboards().window_id(id) else {
-            return Err(RequestError::Ignored);
+
+        let type_ = match type_.cast_ref::<PasteboardType>() {
+            Some(pb_type) => pb_type.clone(),
+            None => {
+                let hint = type_.hint().ok_or(RequestError::Ignored)?;
+                pb.types()
+                    .iter()
+                    .find(|advertised| {
+                        advertised.hint().is_some_and(|haystack| haystack.matches(&hint))
+                    })
+                    .cloned()
+                    .ok_or(RequestError::Ignored)?
+            },
         };
 
         let serial = AsyncRequestSerial::get();
 
-        let Some(type_) = PasteboardTypeSpec::from_dyn(type_) else {
-            return Err(os_error!(format!("Pasteboard does not contain type {type_:?}")).into());
-        };
-
-        let data = Arc::new(pb.with_type(type_));
+        let data: Arc<dyn TypedData> =
+            Arc::new(pb.with_type(PasteboardTypeSpec::PasteboardType(type_)));
 
         self.app_state.maybe_queue_with_handler(move |app, event_loop| {
-            app.window_event(event_loop, window_id, WindowEvent::DataTransferReceived {
-                id,
-                serial,
-                value: data,
-            });
+            for window_id in window_ids {
+                app.window_event(event_loop, window_id, WindowEvent::DataTransferReceived {
+                    id,
+                    serial,
+                    value: data.clone(),
+                });
+            }
         });
 
         Ok(serial)
     }
 
     fn data_transfer(&self, id: DataTransferId) -> Result<Box<dyn DataTransfer>, RequestError> {
-        let Some(pb) = self.app_state.pasteboards().get(id) else {
-            return Err(RequestError::Ignored);
-        };
+        if let Some(pb) = self.app_state.data_transfer().pasteboards().get(id) {
+            return Ok(Box::new(pb));
+        }
+
+        let pb = self.clipboard_by_id(id).ok_or(RequestError::Ignored)?;
 
         Ok(Box::new(pb))
+    }
+
+    fn clipboard(&self) -> Result<Option<DataTransferId>, RequestError> {
+        let pb = NSPasteboard::generalPasteboard();
+        if pb.types().is_none_or(|types| types.is_empty()) {
+            return Ok(None);
+        }
+
+        Ok(Some(self.app_state.data_transfer().clipboard_transfer_id(&pb)))
+    }
+
+    fn set_clipboard(&self, send_data: Box<dyn DataTransferSend>) -> Result<(), RequestError> {
+        let mut uris = match send_data.data_for_type(&TypeHint::UriList) {
+            Some(SendData::Uris(uris)) => uris,
+            Some(SendData::String(string)) => vec![string],
+            _ => vec![],
+        }
+        .into_iter()
+        .map(|uri| NSString::from_str(&uri));
+
+        let first_uri = uris.next();
+
+        let mut objects: Vec<Retained<ProtocolObject<dyn NSPasteboardWriting>>> =
+            vec![ProtocolObject::from_retained(PasteboardWriter::new(send_data, first_uri))];
+
+        for uri in uris {
+            let item = NSPasteboardItem::new();
+            if !item.setString_forType(&uri, unsafe { NSPasteboardTypeFileURL }) {
+                return Err(os_error!("failed to write a URI to a pasteboard item").into());
+            }
+            objects.push(ProtocolObject::from_retained(item));
+        }
+
+        let pb = NSPasteboard::generalPasteboard();
+        pb.clearContents();
+        if pb.writeObjects(&NSArray::from_retained_slice(&objects)) {
+            Ok(())
+        } else {
+            Err(os_error!("failed to write to the general pasteboard").into())
+        }
     }
 
     fn set_valid_dnd_actions(
@@ -181,19 +255,11 @@ impl RootActiveEventLoop for ActiveEventLoop {
         id: DataTransferId,
         actions: &[DndAction],
     ) -> Result<(), RequestError> {
-        let mut state = self.app_state.drag_state().borrow_mut();
-        let Some(drag_state) = &mut *state else {
-            return Err(os_error!(UnknownDataTransfer(id)).into());
-        };
-
-        if drag_state.id != id {
-            return Err(os_error!(UnknownDataTransfer(id)).into());
+        if self.app_state.data_transfer().set_valid_dnd_actions(id, actions) {
+            Ok(())
+        } else {
+            Err(os_error!(UnknownDataTransfer(id)).into())
         }
-
-        drag_state.valid_actions.clear();
-        drag_state.valid_actions.extend_from_slice(actions);
-
-        Ok(())
     }
 
     fn start_drag(

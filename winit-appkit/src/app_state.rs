@@ -8,29 +8,25 @@ use std::time::Instant;
 use dispatch2::MainThreadBound;
 use objc2::MainThreadMarker;
 use objc2::rc::{Retained, Weak};
-use objc2_app_kit::{
-    NSApplication, NSApplicationActivationPolicy, NSDragOperation, NSRunningApplication,
-};
+use objc2_app_kit::{NSApplication, NSApplicationActivationPolicy, NSRunningApplication};
 use objc2_foundation::NSNotification;
 use winit_common::core_foundation::{EventLoopProxy, MainRunLoop};
 use winit_common::event_handler::EventHandler;
 use winit_core::application::ApplicationHandler;
-use winit_core::data_transfer::DataTransferId;
 use winit_core::event::{StartCause, WindowEvent};
-use winit_core::event_loop::{ControlFlow, DndAction};
+use winit_core::event_loop::ControlFlow;
 use winit_core::window::WindowId;
 
 use super::event_loop::{ActiveEventLoop, notify_windows_of_exit, stop_app_immediately};
 use super::menu;
 use super::observer::EventLoopWaker;
-use crate::dnd::Pasteboards;
+use crate::data_transfer::DataTransferState;
 use crate::window_delegate::WindowDelegate;
 
 #[derive(Debug)]
 pub(super) struct AppState {
     mtm: MainThreadMarker,
-    drag_state: RefCell<Option<DragState>>,
-    pasteboards: Pasteboards,
+    data_transfer: DataTransferState,
     activation_policy: Option<NSApplicationActivationPolicy>,
     default_menu: bool,
     activate_ignoring_other_apps: bool,
@@ -57,12 +53,6 @@ pub(super) struct AppState {
     // as such should be careful to not add fields that, in turn, strongly reference those.
 }
 
-#[derive(Debug)]
-pub(crate) struct DragState {
-    pub id: DataTransferId,
-    pub valid_actions: Vec<DndAction>,
-}
-
 // SAFETY: Creating `MainThreadBound` in a `const` context, where there is no concept of the
 // main thread.
 static GLOBAL: MainThreadBound<OnceCell<Rc<AppState>>> =
@@ -81,8 +71,7 @@ impl AppState {
 
         let this = Rc::new(Self {
             mtm,
-            pasteboards: Default::default(),
-            drag_state: Default::default(),
+            data_transfer: Default::default(),
             activation_policy,
             default_menu,
             activate_ignoring_other_apps,
@@ -121,6 +110,10 @@ impl AppState {
         R: Send,
     {
         self.windows.borrow_mut().get(&id)?.get_on_main(move |delegate| delegate.load().map(func))
+    }
+
+    pub fn window_ids(&self) -> Vec<WindowId> {
+        self.windows.borrow().keys().copied().collect()
     }
 
     pub fn register_window(&self, window: &Retained<WindowDelegate>, mtm: MainThreadMarker) {
@@ -405,21 +398,8 @@ impl AppState {
         self.waker.borrow_mut().start_at(min_timeout(wait_timeout, app_timeout));
     }
 
-    pub fn pasteboards(&self) -> &Pasteboards {
-        &self.pasteboards
-    }
-
-    pub fn drag_state(&self) -> &RefCell<Option<DragState>> {
-        &self.drag_state
-    }
-
-    pub(crate) fn proposed_drag_action(
-        &self,
-        source_operations: NSDragOperation,
-    ) -> Option<DndAction> {
-        self.drag_state().borrow().as_ref().and_then(|drag_state| {
-            crate::dnd::preferred_drag_operation(source_operations, &drag_state.valid_actions)
-        })
+    pub fn data_transfer(&self) -> &DataTransferState {
+        &self.data_transfer
     }
 }
 
