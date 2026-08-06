@@ -114,3 +114,4 @@ changelog entry.
 - On Redox, fix `run_app_on_demand` exiting immediately after a previous `run_app_on_demand` called `exit`.
 - On Redox, fill in logical key for keyboard events rather than emitting a separate fake IME event.
 - On Redox, handle window closes during `ApplicationHandler` drop.
+- On Windows, fix a crash occurring when trying to create a DXGI surface on a window that is both fullscreen and always on top.
