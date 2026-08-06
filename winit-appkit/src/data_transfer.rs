@@ -1,7 +1,8 @@
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
 use std::io;
 use std::ops::{BitOr, ControlFlow};
+use std::sync::atomic::{AtomicI64, Ordering};
 use std::sync::{Arc, OnceLock};
 
 use dispatch2::MainThreadBound;
@@ -95,6 +96,7 @@ impl TransferType for PasteboardType {
 pub struct Pasteboard {
     transfer_id: DataTransferId,
     ns_pasteboard: MainThreadBound<Retained<NSPasteboard>>,
+    change_count: isize,
     types: OnceLock<Arc<[PasteboardType]>>,
 }
 
@@ -104,27 +106,57 @@ impl Clone for Pasteboard {
             MainThreadBound::new(inner.clone(), MainThreadMarker::new().unwrap())
         });
 
-        Self { transfer_id: self.transfer_id, ns_pasteboard: inner, types: self.types.clone() }
+        Self {
+            transfer_id: self.transfer_id,
+            ns_pasteboard: inner,
+            change_count: self.change_count,
+            types: self.types.clone(),
+        }
     }
 }
 
 impl Pasteboard {
-    fn new(
+    pub(crate) fn new(
         transfer_id: DataTransferId,
-        ns_pasteboard: MainThreadBound<Retained<NSPasteboard>>,
+        ns_pasteboard: Retained<NSPasteboard>,
+        mtm: MainThreadMarker,
     ) -> Self {
-        Self { transfer_id, ns_pasteboard, types: Default::default() }
+        let change_count = ns_pasteboard.changeCount();
+        Self {
+            transfer_id,
+            ns_pasteboard: MainThreadBound::new(ns_pasteboard, mtm),
+            change_count,
+            types: Default::default(),
+        }
+    }
+
+    pub(crate) fn change_count(&self) -> isize {
+        self.change_count
+    }
+
+    fn try_access<R: Send>(&self, f: impl FnOnce(&NSPasteboard) -> R + Send) -> io::Result<R> {
+        self.ns_pasteboard.get_on_main(|pasteboard| {
+            if pasteboard.changeCount() != self.change_count {
+                return Err(io::Error::other("pasteboard contents changed"));
+            }
+            let result = f(pasteboard);
+            if pasteboard.changeCount() != self.change_count {
+                return Err(io::Error::other("pasteboard contents changed"));
+            }
+            Ok(result)
+        })
     }
 
     /// Get the array of [`PasteboardType`]s advertized by this [`Pasteboard`].
     pub fn types(&self) -> &[PasteboardType] {
         self.types.get_or_init(|| {
-            self.ns_pasteboard.get_on_main(|pb| {
+            self.try_access(|pb| {
                 pb.types()
                     .map(|types| types.into_iter().map(PasteboardType::from).collect::<Vec<_>>())
                     .unwrap_or_default()
-                    .into()
             })
+            .unwrap_or_default()
+            .into()
         })
     }
 
@@ -253,12 +285,11 @@ impl TypedData for PasteboardValue {
     fn try_as_bytes(&self) -> io::Result<Vec<u8>> {
         let type_ = self.type_.clone();
         self.pasteboard
-            .ns_pasteboard
-            .get_on_main(|pasteboard| {
+            .try_access(|pasteboard| {
                 let bytes =
                     pasteboard.dataForType(&NSString::from_str(&type_.pasteboard_type()?.inner))?;
                 Some(bytes.to_vec())
-            })
+            })?
             .ok_or_else(|| {
                 io::Error::other(format!(
                     "NSPasteboard doesn't advertise a binary representation for type {:?}",
@@ -272,7 +303,7 @@ impl TypedData for PasteboardValue {
             return Err(io::ErrorKind::InvalidData.into());
         }
 
-        self.pasteboard.ns_pasteboard.get_on_main(|pasteboard| {
+        self.pasteboard.try_access(|pasteboard| {
             let classes = NSArray::from_slice(&[NSURL::class()]);
             let uris = unsafe { pasteboard.readObjectsForClasses_options(&classes, None) }
                 .into_iter()
@@ -306,20 +337,20 @@ impl TypedData for PasteboardValue {
                 })
                 .map(|uri| uri.to_string())
                 .collect())
-        })
+        })?
     }
 
     fn try_as_string(&self) -> io::Result<String> {
         let type_ = self.type_.clone();
 
-        self.pasteboard.ns_pasteboard.get_on_main(|pasteboard| {
+        self.pasteboard.try_access(|pasteboard| {
             pasteboard
                 .stringForType(&NSString::from_str(
                     &type_.pasteboard_type().ok_or(io::ErrorKind::InvalidData)?.inner,
                 ))
                 .map(|ns_str| ns_str.to_string())
                 .ok_or_else(|| io::ErrorKind::InvalidData.into())
-        })
+        })?
     }
 }
 
@@ -375,9 +406,7 @@ impl Pasteboards {
     pub fn get(&self, id: DataTransferId) -> Option<Pasteboard> {
         self.inner.borrow().get(&id).and_then(|ActivePasteboard { pb, .. }| {
             pb.get_on_main(|state| {
-                let pb = state.load()?;
-                let pb = MainThreadBound::new(pb, MainThreadMarker::new().unwrap());
-                Some(Pasteboard::new(id, pb))
+                Some(Pasteboard::new(id, state.load()?, MainThreadMarker::new().unwrap()))
             })
         })
     }
@@ -385,6 +414,90 @@ impl Pasteboards {
     /// Get the window ID that most-recently saw the provided data transfer.
     pub fn window_id(&self, id: DataTransferId) -> Option<WindowId> {
         self.inner.borrow().get(&id).map(|active_pasteboard| active_pasteboard.window_id)
+    }
+}
+
+#[derive(Debug)]
+struct DragState {
+    id: DataTransferId,
+    valid_actions: Vec<DndAction>,
+}
+
+#[derive(Debug, Default)]
+pub(crate) struct DataTransferState {
+    pasteboards: Pasteboards,
+    clipboard: Cell<Option<(isize, DataTransferId)>>,
+    drag: RefCell<Option<DragState>>,
+}
+
+impl DataTransferState {
+    pub(crate) fn pasteboards(&self) -> &Pasteboards {
+        &self.pasteboards
+    }
+
+    pub(crate) fn register_drag(
+        &self,
+        id: DataTransferId,
+        pb: &MainThreadBound<Retained<NSPasteboard>>,
+        window_id: WindowId,
+    ) {
+        self.pasteboards.insert(id, pb, window_id);
+        self.drag.replace(Some(DragState { id, valid_actions: vec![] }));
+    }
+
+    pub(crate) fn remove_drag(&self, id: DataTransferId) {
+        let mut state = self.drag.borrow_mut();
+        if state.as_ref().is_some_and(|s| s.id == id) {
+            *state = None;
+        }
+    }
+
+    pub(crate) fn current_drag_id(&self) -> Option<DataTransferId> {
+        self.drag.borrow().as_ref().map(|state| state.id)
+    }
+
+    pub(crate) fn set_valid_dnd_actions(&self, id: DataTransferId, actions: &[DndAction]) -> bool {
+        match &mut *self.drag.borrow_mut() {
+            Some(state) if state.id == id => {
+                state.valid_actions.clear();
+                state.valid_actions.extend_from_slice(actions);
+                true
+            },
+            _ => false,
+        }
+    }
+
+    pub(crate) fn proposed_drag_action(
+        &self,
+        source_operations: NSDragOperation,
+    ) -> Option<DndAction> {
+        self.drag
+            .borrow()
+            .as_ref()
+            .and_then(|state| preferred_drag_operation(source_operations, &state.valid_actions))
+    }
+
+    pub(crate) fn proposed_drag_operation(
+        &self,
+        source_operations: NSDragOperation,
+    ) -> NSDragOperation {
+        self.proposed_drag_action(source_operations)
+            .map(dnd_action_to_ns_drag_operation)
+            .unwrap_or(NSDragOperation::empty())
+    }
+
+    pub(crate) fn clipboard_transfer_id(&self, change_count: isize) -> DataTransferId {
+        // Counts downward to keep clipboard IDs disjoint from drag IDs.
+        static NEXT_ID: AtomicI64 = AtomicI64::new(-1);
+
+        match self.clipboard.get() {
+            Some((cached, id)) if cached == change_count => id,
+            _ => {
+                let id = DataTransferId::from_raw(NEXT_ID.fetch_sub(1, Ordering::Relaxed));
+                self.clipboard.set(Some((change_count, id)));
+                id
+            },
+        }
     }
 }
 
