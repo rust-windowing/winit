@@ -33,7 +33,7 @@ use winit_core::window::{Theme, Window as CoreWindow, WindowAttributes, WindowId
 use x11rb::connection::RequestConnection;
 use x11rb::errors::{ConnectError, ConnectionError, IdsExhausted, ReplyError};
 use x11rb::protocol::xinput::{self, ConnectionExt as _};
-use x11rb::protocol::{xkb, xproto};
+use x11rb::protocol::{ErrorKind, xkb, xproto};
 use x11rb::x11_utils::X11Error as LogicalError;
 use x11rb::xcb_ffi::ReplyOrIdError;
 
@@ -274,8 +274,10 @@ impl EventLoop {
         let xi2ext = xconn
             .xcb_connection()
             .extension_information(xinput::X11_EXTENSION_NAME)
-            .expect("Failed to query XInput extension")
-            .expect("X server missing XInput extension");
+            .map_err(|err| os_error!(X11Error::from(err)))?
+            .ok_or_else(|| {
+                NotSupportedError::new("the X11 backend requires XInput 2.0 or newer")
+            })?;
         let xkbext = xconn
             .xcb_connection()
             .extension_information(xkb::X11_EXTENSION_NAME)
@@ -286,9 +288,16 @@ impl EventLoop {
         xconn
             .xcb_connection()
             .xinput_xi_query_version(2, 3)
-            .expect("Failed to send XInput2 query version request")
+            .map_err(|err| os_error!(X11Error::from(err)))?
             .reply()
-            .expect("Error while checking for XInput2 query version reply");
+            .map_err(|err| match err {
+                ReplyError::X11Error(error) if error.error_kind == ErrorKind::Request => {
+                    EventLoopError::NotSupported(NotSupportedError::new(
+                        "the X11 backend requires XInput 2.0 or newer",
+                    ))
+                },
+                error => os_error!(X11Error::from(error)).into(),
+            })?;
 
         xconn.update_cached_wm_info(root);
 
